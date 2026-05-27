@@ -1,5 +1,6 @@
 package lila.commentary.analysis
 
+import lila.commentary.MoveReviewSurfaceAuthority
 import lila.commentary.analysis.semantic.StrategicObservationIds.{ ProofFamilyId, ProofSourceId }
 import lila.commentary.model.NarrativeContext
 import lila.commentary.model.authoring.AuthorQuestionKind
@@ -41,7 +42,9 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       anchorTerms: List[String] = List("...c5"),
       ownerSeedTerms: List[String] = List("neutralize_key_break", "...c5"),
       structureTransitionTerms: List[String] = List("...c5"),
-      bestDefenseMove: Option[String] = Some("c5")
+      bestDefenseMove: Option[String] = Some("c5"),
+      exactSliceProof: Option[PlayerFacingExactSliceProof] =
+        Some(PlayerFacingExactSliceProof.CounterplayAxisSuppression("...c5"))
   ): PlayerFacingClaimPacket =
     PlayerFacingClaimPacket(
       claimGate =
@@ -65,7 +68,8 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
         PlayerFacingProofPathWitness(
           ownerSeedTerms = ownerSeedTerms,
           continuationTerms = List("counterplay_axis_suppression", "e4d5", "c6d5"),
-          structureTransitionTerms = structureTransitionTerms
+          structureTransitionTerms = structureTransitionTerms,
+          exactSliceProof = exactSliceProof
         ),
       suppressionReasons = suppressionReasons,
       releaseRisks = releaseRisks,
@@ -187,6 +191,10 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       rows.head.text,
       "On the checked line, this stops the ...c5 break before it appears."
     )
+    assertEquals(
+      rows.head.authority,
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CounterplayBreak, token = Some("...c5")))
+    )
     assertEquals(rows.head.source, None)
   }
 
@@ -205,6 +213,10 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
     assertEquals(
       rows.head.text,
       "On the checked line, this also plays the e4-e5 break at this moment."
+    )
+    assertEquals(
+      rows.head.authority,
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CentralBreak, token = Some("e4-e5")))
     )
     assertEquals(rows.head.source, None)
     assert(!rows.exists(_.text.contains("central_break_timing")), clue(rows))
@@ -386,6 +398,10 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       rows.head.text,
       "On the checked line, this stops the ...c5 break before it appears."
     )
+    assertEquals(
+      rows.head.authority,
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CounterplayBreak, token = Some("...c5")))
+    )
     assertEquals(rows.head.source, None)
   }
 
@@ -395,7 +411,8 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
         anchorTerms = Nil,
         ownerSeedTerms = List("neutralize_key_break", "counterplay_axis_suppression"),
         structureTransitionTerms = Nil,
-        bestDefenseMove = None
+        bestDefenseMove = None,
+        exactSliceProof = None
       )
 
     val rows =
@@ -409,13 +426,34 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
     assertEquals(rows, Nil)
   }
 
+  test("does not recover fake break tokens from packet terms without typed proof") {
+    val termOnly =
+      supportedNeutralizePacket(
+        anchorTerms = List("...c5"),
+        ownerSeedTerms = List("neutralize_key_break", "...c5"),
+        structureTransitionTerms = List("...c5"),
+        exactSliceProof = None
+      )
+
+    val rows =
+      MoveReviewSupportedLocalSurfaceRows.build(
+        ctx = ctx,
+        inputs = inputs(packet = termOnly),
+        rankedPlans = ranked(neutralizePlan()),
+        truthContract = None
+      )
+
+    assertEquals(rows, Nil)
+  }
+
   test("does not project single-square break tokens that collide with the played move") {
     val collisionPacket =
       supportedNeutralizePacket(
         anchorTerms = List("g4"),
         ownerSeedTerms = List("neutralize_key_break", "g4"),
         structureTransitionTerms = List("g4"),
-        bestDefenseMove = Some("g4")
+        bestDefenseMove = Some("g4"),
+        exactSliceProof = Some(PlayerFacingExactSliceProof.CounterplayAxisSuppression("g4"))
       )
 
     val rows =
@@ -435,7 +473,8 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
         anchorTerms = List("c6"),
         ownerSeedTerms = List("neutralize_key_break", "g4", "c6"),
         structureTransitionTerms = List("g4", "c6"),
-        bestDefenseMove = Some("g4")
+        bestDefenseMove = Some("g4"),
+        exactSliceProof = Some(PlayerFacingExactSliceProof.CounterplayAxisSuppression("g4"))
       )
 
     val rows =
@@ -455,7 +494,8 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
         anchorTerms = List("e4-e5"),
         ownerSeedTerms = List("neutralize_key_break", "e4-e5"),
         structureTransitionTerms = List("e4-e5"),
-        bestDefenseMove = Some("e4e5")
+        bestDefenseMove = Some("e4e5"),
+        exactSliceProof = Some(PlayerFacingExactSliceProof.CounterplayAxisSuppression("e4-e5"))
       )
 
     val rows =
@@ -471,6 +511,27 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       rows.head.text,
       "On the checked line, this stops the e4-e5 break before it appears."
     )
+    assertEquals(
+      rows.head.authority,
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CounterplayBreak, token = Some("e4-e5")))
+    )
+  }
+
+  test("does not project plan plus packet neutralize rows when typed proof token differs from plan witness") {
+    val mismatched =
+      supportedNeutralizePacket(
+        exactSliceProof = Some(PlayerFacingExactSliceProof.CounterplayAxisSuppression("...e5"))
+      )
+
+    val decision =
+      NeutralizeKeyBreakSurfaceGate.decideForPlanPacket(
+        plan = neutralizePlan(namedBreak = Some("...c5")),
+        packet = mismatched,
+        ctx = ctx
+      )
+
+    assertEquals(decision.token, None)
+    assertEquals(decision.rejectReason, Some(NeutralizeKeyBreakSurfaceGate.MissingNamedBreak))
   }
 
   test("ignores source mismatch release risk and other proof families") {

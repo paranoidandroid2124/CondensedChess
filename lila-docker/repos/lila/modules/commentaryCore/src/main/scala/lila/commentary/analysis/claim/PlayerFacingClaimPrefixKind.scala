@@ -7,19 +7,14 @@ private[commentary] enum PlayerFacingClaimPrefixKind:
 
   def render(claimText: String): String =
     this match
-      case PlayerFacingClaimPrefixKind.None => claimText
-      case KeyStrategicFact =>
-        val stripped = claimText
-          .stripPrefix("The key strategic fact here is that ")
-          .stripPrefix("the key strategic fact here is that ")
-        s"The key strategic fact here is that $stripped"
-      case SupportedLocal =>
-        val stripped = claimText
-          .stripPrefix("A local reading is that ")
-          .stripPrefix("a local reading is that ")
-          .stripPrefix("A key idea is that ")
-          .stripPrefix("a key idea is that ")
-        val lowered = stripped.headOption match
-          case Some(head) => s"${head.toLower}${stripped.drop(1)}"
-          case _          => stripped
-        s"A key idea is that $lowered"
+      case PlayerFacingClaimPrefixKind.None => claimText.trim
+      case KeyStrategicFact                 => join("The key strategic fact here is that", claimText)
+      case SupportedLocal                   => join("A key idea is that", claimText)
+
+  private def join(prefix: String, claimText: String): String =
+    val trimmed = Option(claimText).getOrElse("").trim
+    if startsWithPrefix(trimmed, prefix) then trimmed
+    else s"$prefix $trimmed".trim
+
+  private def startsWithPrefix(text: String, prefix: String): Boolean =
+    text.toLowerCase.startsWith(prefix.toLowerCase)

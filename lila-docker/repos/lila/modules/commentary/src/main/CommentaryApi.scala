@@ -3,8 +3,7 @@ package lila.commentary
 import scala.concurrent.Future
 import java.util.concurrent.atomic.AtomicLong
 import java.time.Instant
-import lila.commentary.analysis.{ AuthoringEvidenceSummaryBuilder, MoveReviewCompressionPolicy, MoveReviewPlayerPayloadBuilder, MoveReviewPolishSlots, MoveReviewProseContract, MoveReviewPvLine, MoveReviewSoftRepair, MoveReviewStrategicLedgerBuilder, MoveReviewSupportedLocalSurfaceRows, BookStyleRenderer, CertifiedDecisionFrameBuilder, CommentaryEngine, CommentaryOpsBoard, CommentaryOpsSignals, CommentaryPayloadNormalizer, DecisiveTruth, DecisiveTruthContract, EarlyOpeningNarrationPolicy, FullGameDraftNormalizer, LineScopedCitation, LiveNarrativeCompressionCore, NarrativeContextBuilder, NarrativeDedupCore, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, PlayerFacingMoveDeltaBuilder, PlayerFacingTruthModePolicy, ProbePurposeClassifier, QuestionPlan, StrategicSignalMatcher, StrategyPackBuilder, StrategyPackSurface, PlayerProseBoundary }
-import lila.commentary.analysis.claim.OpeningFamilyClaimResolver
+import lila.commentary.analysis.{ AuthoringEvidenceSummaryBuilder, MoveReviewCompressionPolicy, MoveReviewPlayerPayloadBuilder, MoveReviewPolishSlots, MoveReviewProseContract, MoveReviewPvLine, MoveReviewSoftRepair, MoveReviewStrategicLedgerBuilder, MoveReviewSupportedLocalSurfaceRows, BookStyleRenderer, CertifiedDecisionFrameBuilder, CommentaryEngine, CommentaryOpsBoard, CommentaryOpsSignals, CommentaryPayloadNormalizer, DecisiveTruth, DecisiveTruthContract, EarlyOpeningNarrationPolicy, FullGameDraftNormalizer, LineScopedCitation, LiveNarrativeCompressionCore, NarrativeContextBuilder, NarrativeDedupCore, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, PlayerFacingTruthModePolicy, ProbePurposeClassifier, QuestionPlan, StrategicSignalMatcher, StrategyPackBuilder, StrategyPackSurface, PlayerProseBoundary, UserFacingSignalSanitizer }
 import lila.commentary.model.OpeningReference
 import lila.commentary.model.structure.StructureId
 import lila.commentary.model.strategic.{ VariationLine, TheoreticalOutcomeHint }
@@ -2509,13 +2508,7 @@ final class CommentaryApi(
             val moveReviewSlots = moveReviewRuntime.slots
             val moveReviewExplanation = moveReviewSlots.moveReviewExplanation
             val proseRaw = LiveNarrativeCompressionCore.deterministicProse(moveReviewSlots)
-            val prose = RuleTemplateSanitizer.sanitize(
-              proseRaw,
-              opening = opening,
-              phase = phase,
-              ply = effectivePly,
-              fen = Some(fen)
-            )
+            val prose = CommentaryApi.sanitizeMoveReviewProse(proseRaw)
             val compactProse = EarlyOpeningNarrationPolicy.clampNarrative(ctx, prose)
             val baseConcepts = ctx.semantic.map(_.conceptSummary).getOrElse(Nil)
             val allowedSans =
@@ -2636,52 +2629,7 @@ final class CommentaryApi(
             }
 
 
-private[commentary] object RuleTemplateSanitizer:
-
-  private val sentenceBoundaryRegex = java.util.regex.Pattern.compile("""(?<=[.!?])\s+""")
-
-  private def shouldNeutralizeFamilySentence(
-      sentence: String,
-      opening: Option[String],
-      phase: String,
-      ply: Int,
-      fen: Option[String]
-  ): Boolean =
-    OpeningFamilyClaimResolver.suppressesUnsupportedFamilyClaim(
-      sentence,
-      OpeningFamilyClaimResolver.OpeningFamilyMatchProof(
-        opening = opening,
-        phase = phase,
-        ply = ply,
-        fen = fen
-      )
-    )
-
-  private def neutralizeUnsupportedFamilyClaims(
-      text: String,
-      opening: Option[String],
-      phase: String,
-      ply: Int,
-      fen: Option[String]
-  ): String =
-    val matcher = sentenceBoundaryRegex.matcher(text)
-    val sb = new StringBuilder()
-    var start = 0
-
-    while matcher.find() do
-      val sentence = text.substring(start, matcher.start())
-      if shouldNeutralizeFamilySentence(sentence, opening, phase, ply, fen) then
-        sb.append("This move follows a thematic idea, but that specific opening-family claim does not match the current pawn structure.")
-      else sb.append(sentence)
-      sb.append(matcher.group())
-      start = matcher.end()
-
-    val tail = text.substring(start)
-    if shouldNeutralizeFamilySentence(tail, opening, phase, ply, fen) then
-      sb.append("This move follows a thematic idea, but that specific opening-family claim does not match the current pawn structure.")
-    else sb.append(tail)
-
-    sb.toString
+private[commentary] object CommentaryApi:
 
   private def collapseRepeatedDots(input: String): String =
     @annotation.tailrec
@@ -2690,18 +2638,14 @@ private[commentary] object RuleTemplateSanitizer:
       else text
     loop(input)
 
-  def sanitize(text: String, opening: Option[String], phase: String, ply: Int, fen: Option[String] = None): String =
+  private[commentary] def sanitizeMoveReviewProse(text: String): String =
     val src = Option(text).getOrElse("")
-    val noInvalidFamilyClaim = neutralizeUnsupportedFamilyClaims(src, opening, phase, ply, fen)
-
-    lila.commentary.analysis.UserFacingSignalSanitizer.sanitize(
-      collapseRepeatedDots(noInvalidFamilyClaim)
+    UserFacingSignalSanitizer.sanitize(
+      collapseRepeatedDots(src)
         .replaceAll(""":\s*:""", ": ")
         .replaceAll("""\.\s*:""", ". ")
         .replaceAll("""\s+\.""", ".")
     )
-
-object CommentaryApi:
 
   private[commentary] def appendMoveReviewAfterPvProofVariation(
       fenBefore: String,

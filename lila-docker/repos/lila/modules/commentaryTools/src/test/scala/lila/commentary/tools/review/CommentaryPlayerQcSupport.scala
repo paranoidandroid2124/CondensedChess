@@ -1776,13 +1776,9 @@ object CommentaryPlayerQcSupport:
     val prose =
       EarlyOpeningNarrationPolicy.clampNarrative(
         snapshot.ctx,
-        lila.commentary.RuleTemplateSanitizer.sanitize(
+        lila.commentary.CommentaryApi.sanitizeMoveReviewProse(
           if deterministicProse.nonEmpty then deterministicProse
-          else exactFactualReviewProse(snapshot),
-          opening = snapshot.openingLabel,
-          phase = snapshot.phase,
-          ply = snapshot.plyData.ply,
-          fen = Some(snapshot.plyData.fen)
+          else exactFactualReviewProse(snapshot)
         ),
         snapshot.truthContract
       )

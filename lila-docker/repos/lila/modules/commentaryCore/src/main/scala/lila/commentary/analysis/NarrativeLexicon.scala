@@ -531,10 +531,10 @@ object NarrativeLexicon {
         ))
         
       case OpeningGoals.Status.Mismatch => 
-        evaluation.mismatchReason.map(reason => 
+        evaluation.requiredFamily.map(family =>
           pick(bead, List(
-            s"While $name is a common theme, $reason here.",
-            s"This looks like an attempt at $name, but $reason at this moment."
+            s"While $name is a common theme, this position needs the ${family.structureLabel} structure here.",
+            s"This looks like an attempt at $name, but the current position is not the ${family.structureLabel} structure at this moment."
           ))
         ).getOrElse("")
     }

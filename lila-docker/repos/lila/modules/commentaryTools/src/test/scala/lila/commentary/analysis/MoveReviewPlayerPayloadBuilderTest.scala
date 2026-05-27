@@ -81,7 +81,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
           Some(MoveReviewExplanation(title = "Move review title", prose = "Short explanation"))
       )
 
-    assertEquals(surface.schema, "chesstory.move_review.player_surface.v1")
+    assertEquals(surface.schema, "chesstory.move_review.player_surface.v2")
     assertEquals(surface.title, Some("Move review title"))
     assertEquals(surface.decisionComparison, None)
   }
@@ -369,7 +369,8 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
         label = "Counterplay break",
         text = "A key idea is that this move stops the d5 break.",
         source = Some("counterplay_axis_suppression"),
-        refSans = List("exd5")
+        refSans = List("exd5"),
+        authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CounterplayBreak, token = Some("d5")))
       )
     val surface =
       build(
@@ -387,6 +388,10 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assertEquals(surface.summaryRows.map(_.label), List("Main plans", "Counterplay break"))
     assertEquals(surface.summaryRows.count(_.label == "Counterplay break"), 1)
     assertEquals(surface.summaryRows.flatMap(_.source), Nil)
+    assertEquals(
+      surface.summaryRows.find(_.label == "Counterplay break").flatMap(_.authority),
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CounterplayBreak, token = Some("d5")))
+    )
     assert(surface.summaryRows.exists(_.text.contains("stops the d5 break")), clue(surface.summaryRows))
   }
 

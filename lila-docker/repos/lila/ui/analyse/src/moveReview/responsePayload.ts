@@ -121,11 +121,19 @@ export type MoveReviewStrategicLedgerV1 = {
   resourceLine?: MoveReviewLedgerLineV1 | null;
 };
 
+export type MoveReviewSurfaceAuthorityV2 = {
+  kind: string;
+  token?: string | null;
+  openingFamily?: string | null;
+  target?: string | null;
+};
+
 export type MoveReviewPlayerSurfaceRowV1 = {
   label: string;
   text: string;
   tone?: string | null;
   refSans: string[];
+  authority?: MoveReviewSurfaceAuthorityV2 | null;
 };
 
 export type MoveReviewPlayerDecisionComparisonV1 = {
@@ -147,7 +155,7 @@ export type MoveReviewPlayerAuthorRowV1 = {
 };
 
 export type MoveReviewPlayerSurfaceV1 = {
-  schema: 'chesstory.move_review.player_surface.v1';
+  schema: 'chesstory.move_review.player_surface.v1' | 'chesstory.move_review.player_surface.v2';
   title?: string | null;
   summaryRows: MoveReviewPlayerSurfaceRowV1[];
   advancedRows: MoveReviewPlayerSurfaceRowV1[];
@@ -286,11 +294,24 @@ function surfaceRowFromUnknown(raw: unknown): MoveReviewPlayerSurfaceRowV1 | nul
   if (typeof raw.label !== 'string' || typeof raw.text !== 'string') return null;
   const refSans = raw.refSans == null ? [] : stringListFromUnknown(raw.refSans);
   if (!refSans) return null;
+  const authority = raw.authority == null ? null : surfaceAuthorityFromUnknown(raw.authority);
+  if (raw.authority != null && !authority) return null;
   return {
     label: raw.label,
     text: raw.text,
     tone: typeof raw.tone === 'string' ? raw.tone : null,
     refSans,
+    authority,
+  };
+}
+
+function surfaceAuthorityFromUnknown(raw: unknown): MoveReviewSurfaceAuthorityV2 | null {
+  if (!isRecord(raw) || typeof raw.kind !== 'string') return null;
+  return {
+    kind: raw.kind,
+    token: typeof raw.token === 'string' ? raw.token : null,
+    openingFamily: typeof raw.openingFamily === 'string' ? raw.openingFamily : null,
+    target: typeof raw.target === 'string' ? raw.target : null,
   };
 }
 
@@ -341,7 +362,8 @@ function playerAuthorRowsFromUnknown(raw: unknown): MoveReviewPlayerAuthorRowV1[
 export function moveReviewPlayerSurfaceFromResponse(data: MaybeResponse): MoveReviewPlayerSurfaceV1 | null {
   const raw = data?.moveReviewPlayerSurface;
   if (!isRecord(raw)) return null;
-  if (raw.schema !== 'chesstory.move_review.player_surface.v1') return null;
+  if (raw.schema !== 'chesstory.move_review.player_surface.v1' && raw.schema !== 'chesstory.move_review.player_surface.v2')
+    return null;
   const summaryRows = surfaceRowsFromUnknown(raw.summaryRows);
   const advancedRows = surfaceRowsFromUnknown(raw.advancedRows);
   const probeRows = surfaceRowsFromUnknown(raw.probeRows);
@@ -350,7 +372,7 @@ export function moveReviewPlayerSurfaceFromResponse(data: MaybeResponse): MoveRe
   if (!summaryRows || !advancedRows || !probeRows || !authorRows) return null;
   if (raw.decisionComparison != null && !decisionComparison) return null;
   return {
-    schema: 'chesstory.move_review.player_surface.v1',
+    schema: raw.schema,
     title: typeof raw.title === 'string' ? raw.title : null,
     summaryRows,
     advancedRows,

@@ -1623,7 +1623,6 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
               compensationProseAllowed = false
             )
           ),
-        strategicThreads = Nil,
         themes = List("Prophylaxis"),
         result = "1-0"
       )

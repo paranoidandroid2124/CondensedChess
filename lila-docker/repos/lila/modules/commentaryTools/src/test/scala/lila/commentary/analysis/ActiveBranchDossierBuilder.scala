@@ -1,6 +1,7 @@
 package lila.commentary.analysis
 
 import lila.commentary.*
+import scala.annotation.unused
 
 object ActiveBranchDossierBuilder:
 
@@ -9,7 +10,7 @@ object ActiveBranchDossierBuilder:
       routeRefs: List[ActiveStrategicRouteRef],
       moveRefs: List[ActiveStrategicMoveRef],
       threadRef: Option[ActiveStrategicThreadRef] = None,
-      thread: Option[ActiveStrategicThread] = None,
+      @unused thread: Option[ActiveStrategicThread] = None,
       truthContract: Option[DecisiveTruthContract] = None
   ): Option[ActiveBranchDossier] =
     val comparison = moment.signalDigest.flatMap(_.decisionComparison)

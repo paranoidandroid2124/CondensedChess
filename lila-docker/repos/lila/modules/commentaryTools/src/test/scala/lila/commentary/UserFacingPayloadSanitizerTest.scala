@@ -643,6 +643,76 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
     assert(sanitized.moveReviewPlayerSurface.nonEmpty, clue(sanitized.moveReviewPlayerSurface))
   }
 
+  test("preserves valid moveReview player surface authority") {
+    val response =
+      CommentResponse(
+        commentary = "Public payload",
+        concepts = Nil,
+        moveReviewPlayerSurface =
+          Some(
+            MoveReviewPlayerSurface(
+              summaryRows =
+                List(
+                  MoveReviewPlayerSurfaceRow(
+                    label = "Counterplay break",
+                    text = "On the checked line, this stops the ...c5 break before it appears.",
+                    authority =
+                      Some(
+                        MoveReviewSurfaceAuthority(
+                          kind = MoveReviewSurfaceAuthority.CounterplayBreak,
+                          token = Some("...c5")
+                        )
+                      )
+                  )
+                )
+            )
+          )
+      )
+
+    val sanitized = UserFacingPayloadSanitizer.sanitize(response)
+
+    assertEquals(
+      sanitized.moveReviewPlayerSurface.toList.flatMap(_.summaryRows.flatMap(_.authority)),
+      List(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CounterplayBreak, token = Some("...c5"))),
+      clue(sanitized.moveReviewPlayerSurface)
+    )
+  }
+
+  test("drops invalid moveReview player surface authority") {
+    val response =
+      CommentResponse(
+        commentary = "Public payload",
+        concepts = Nil,
+        moveReviewPlayerSurface =
+          Some(
+            MoveReviewPlayerSurface(
+              summaryRows =
+                List(
+                  MoveReviewPlayerSurfaceRow(
+                    label = "Counterplay break",
+                    text = "On the checked line, this stops the ...c5 break before it appears.",
+                    authority =
+                      Some(
+                        MoveReviewSurfaceAuthority(
+                          kind = MoveReviewSurfaceAuthority.CounterplayBreak,
+                          token = Some("counterplay_axis_suppression")
+                        )
+                      )
+                  )
+                )
+            )
+          )
+      )
+
+    val sanitized = UserFacingPayloadSanitizer.sanitize(response)
+
+    assertEquals(
+      sanitized.moveReviewPlayerSurface.toList.flatMap(_.summaryRows.map(_.authority)),
+      List(None),
+      clue(sanitized.moveReviewPlayerSurface)
+    )
+  }
+
   test("does not preserve marker-only cached moveReview strategic metadata") {
     val markerPlan =
       PlanHypothesis(
@@ -689,93 +759,6 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
     assertEquals(sanitized.mainStrategicPlans, Nil, clue(sanitized.mainStrategicPlans))
     assertEquals(sanitized.strategicPlanExperiments, Nil, clue(sanitized.strategicPlanExperiments))
     assertEquals(sanitized.planStateToken, None, clue(sanitized.planStateToken))
-  }
-
-  test("sanitizes game chronicle moments and fails closed for marker-only strategic metadata") {
-    val response =
-      GameChronicleResponse(
-        schema = "chesstory.game_chronicle.v2",
-        intro = "PlayableByPV intro",
-        moments = List(
-          GameChronicleMoment(
-            momentId = "m1",
-            ply = 19,
-            moveNumber = 10,
-            side = "white",
-            moveClassification = Some("Critical"),
-            momentType = "Key",
-            fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
-            narrative = "PlayableByPV bridge with return vector.",
-            concepts = List("PlayableByPV"),
-            variations = Nil,
-            cpBefore = 12,
-            cpAfter = 45,
-            mateBefore = None,
-            mateAfter = None,
-            wpaSwing = None,
-            strategicSalience = None,
-            transitionType = None,
-            transitionConfidence = None,
-            activePlan = None,
-            topEngineMove = None,
-            collapse = None,
-            mainStrategicPlans = List(
-              PlanHypothesis(
-                planId = "king_attack",
-                planName = "PlayableByPV attack",
-                rank = 1,
-                score = 0.8,
-                preconditions = Nil,
-                executionSteps = Nil,
-                failureModes = Nil,
-                viability = PlanViability(0.8, "high", "cash out"),
-                themeL1 = "king_attack",
-                subplanId = Some("rook_lift_scaffold"),
-                evidenceSources = List("probe_backed:validated_support")
-              )
-            ),
-            strategicPlanExperiments = List(
-              StrategicPlanExperiment(
-                planId = "king_attack",
-                themeL1 = "king_attack",
-                subplanId = Some("rook_lift_scaffold"),
-                evidenceTier = "evidence_backed",
-                supportProbeCount = 2,
-                refuteProbeCount = 0,
-                bestReplyStable = true,
-                futureSnapshotAligned = true,
-                counterBreakNeutralized = true,
-                moveOrderSensitive = false,
-                experimentConfidence = 0.81
-              )
-            ),
-            signalDigest = Some(
-              NarrativeSignalDigest(
-                dominantIdeaKind = Some("pawn_break"),
-                dominantIdeaReadiness = Some("build"),
-                dominantIdeaFocus = Some("d5, e4"),
-                opponentPlan = Some("Preparing the d-break"),
-                preservedSignals = List("opponent_plan", "authoring_evidence")
-              )
-            )
-          )
-        ),
-        conclusion = "PlayedPV closeout",
-        themes = List("PlayableByPV"),
-        review = None
-      )
-
-    val sanitized = UserFacingPayloadSanitizer.sanitize(response)
-    assertEquals(sanitized.moments.head.mainStrategicPlans, Nil, clue(sanitized.moments.head.mainStrategicPlans))
-    assertEquals(sanitized.moments.head.strategicPlanExperiments, Nil, clue(sanitized.moments.head.strategicPlanExperiments))
-    val momentJson = Json.toJson(sanitized.moments.head).as[JsObject]
-    assertEquals(sanitized.moments.head.concepts, Nil, clue(sanitized.moments.head))
-    assertEquals(momentJson.keys.contains("latentPlans"), false, clue(momentJson))
-    assertEquals(momentJson.keys.contains("whyAbsentFromTopMultiPV"), false, clue(momentJson))
-    assertEquals(sanitized.moments.head.signalDigest.flatMap(_.opponentPlan), None, clue(sanitized.moments.head.signalDigest))
-    assertEquals(sanitized.moments.head.signalDigest.flatMap(_.dominantIdeaKind), None, clue(sanitized.moments.head.signalDigest))
-    assertEquals(sanitized.themes, Nil, clue(sanitized))
-    assertEquals(sanitized.strategicThreads, Nil, clue(sanitized))
   }
 
   test("humanizes raw plan label families in user-facing payloads") {
@@ -834,62 +817,6 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
     )
     assertEquals(sanitized.signalDigest.flatMap(_.latentPlan), None, clue(sanitized))
     assertEquals(sanitized.signalDigest.flatMap(_.latentReason), None, clue(sanitized))
-  }
-
-  test("sanitizes active strategic route surfaces in chronicle payloads") {
-    val response =
-      GameChronicleResponse(
-        schema = GameChronicleResponse.schemaV6,
-        intro = "Intro",
-        moments =
-          List(
-            GameChronicleMoment(
-              momentId = "ply_20",
-              ply = 20,
-              moveNumber = 10,
-              side = "black",
-              moveClassification = None,
-              momentType = "SustainedPressure",
-              fen = "4k3/8/8/8/8/8/8/4K3 b - - 0 1",
-              narrative = "Narrative",
-              concepts = Nil,
-              variations = Nil,
-              cpBefore = 0,
-              cpAfter = 0,
-              mateBefore = None,
-              mateAfter = None,
-              wpaSwing = None,
-              strategicSalience = Some("High"),
-              transitionType = None,
-              transitionConfidence = None,
-              activePlan = None,
-              topEngineMove = None,
-              collapse = None,
-              activeStrategicRoutes =
-                List(
-                  ActiveStrategicRouteRef(
-                    routeId = "route_1",
-                    ownerSide = "black",
-                    piece = "R",
-                    route = List("a8", "b8", "b4"),
-                    purpose = "PlayableByPV cash out on the b-file",
-                    strategicFit = 0.8,
-                    tacticalSafety = 0.8,
-                    surfaceConfidence = 0.8,
-                    surfaceMode = RouteSurfaceMode.Toward
-                  )
-                )
-            )
-          ),
-        conclusion = "Conclusion",
-        themes = Nil
-      )
-
-    val sanitized = UserFacingPayloadSanitizer.sanitize(response)
-    val routePurpose = sanitized.moments.head.activeStrategicRoutes.headOption.map(_.purpose).getOrElse("")
-
-    assert(routePurpose.nonEmpty, clue(sanitized))
-    assertNoLeaks(routePurpose)
   }
 
   test("sanitizes stored strategic puzzle runtime shell on read") {

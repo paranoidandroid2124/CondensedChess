@@ -891,7 +891,6 @@ class HeavyPieceLocalBindNegativeValidationTest extends FunSuite:
               compensationProseAllowed = false
             )
           ),
-        strategicThreads = Nil,
         themes = List("RestrictionProphylaxis"),
         result = "1-0"
       )

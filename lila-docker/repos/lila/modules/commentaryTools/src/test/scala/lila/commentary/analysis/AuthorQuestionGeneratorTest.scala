@@ -231,6 +231,33 @@ class AuthorQuestionGeneratorTest extends FunSuite:
     ), clues(questions))
   }
 
+  test("generate seeds WhatMattersHere for black-side Carlsbad fixed-target positions") {
+    val fen = "6k1/1p6/8/3p4/3P4/2P5/P7/6K1 b - - 0 1"
+    val ctx =
+      IntegratedContext(
+        evalCp = -22,
+        isWhiteToMove = false
+      )
+    val questions =
+      AuthorQuestionGenerator.generate(
+        data =
+          minimalData(ctx).copy(
+            fen = fen,
+            prevMove = Some("b7b5"),
+            ply = 1,
+            isWhiteToMove = false
+          ),
+        ctx = ctx,
+        candidates = Nil,
+        playedSan = Some("...b5")
+      )
+
+    assert(questions.exists(question =>
+      question.kind == AuthorQuestionKind.WhatMattersHere &&
+        question.question.contains("fixed target on c3")
+    ), clues(questions))
+  }
+
   test("generate seeds WhatMattersHere for the reviewed target-focused coordination probe rows") {
     val fen = "r2qr1k1/pp2bpp1/2n1bn1p/3p4/3N4/2N1B1P1/PP2PPBP/2RQ1RK1 w - - 4 13"
     val ctx =

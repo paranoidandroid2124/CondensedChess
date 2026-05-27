@@ -1,5 +1,7 @@
 package lila.commentary.analysis.claim
 
+import lila.commentary.analysis.*
+import lila.commentary.model.authoring.AuthorQuestionKind
 import munit.FunSuite
 
 class ClaimAuthorityPolicyTest extends FunSuite:
@@ -34,11 +36,78 @@ class ClaimAuthorityPolicyTest extends FunSuite:
     assertEquals(decision.vetoReasons, List("truth_contract_tactical_refutation"))
   }
 
-  test("supported local surface strips strong strategic framing") {
-    val surface =
-      ClaimAuthorityPolicy.supportedLocalSurface(
-        "The key strategic fact here is that this exchange moves the game into the queenless branch."
+  test("missing tactical context suppresses supported position probe plans") {
+    val decision =
+      ClaimAuthorityPolicy.shouldTacticalVetoPlan(
+        ctx = None,
+        inputs = minimalInputs(),
+        truthContract = None,
+        plan = supportedPositionProbePlan()
       )
 
-    assertEquals(surface, "A key idea is that this exchange moves the game into the queenless branch.")
+    assertEquals(decision.map(_.tier), Some(ClaimAuthorityTier.Suppressed))
+    assert(decision.exists(_.vetoReasons.contains("tactical_context_missing")))
+  }
+
+  test("supported local surface preserves proper opening-family capitalization") {
+    val surface =
+      ClaimAuthorityPolicy.supportedLocalSurface(
+        "Carlsbad structure is solid."
+      )
+
+    assertEquals(surface, "A key idea is that Carlsbad structure is solid.")
+  }
+
+  private def minimalInputs(): QuestionPlannerInputs =
+    QuestionPlannerInputs(
+      mainBundle = None,
+      quietIntent = None,
+      decisionFrame = CertifiedDecisionFrame(),
+      decisionComparison = None,
+      alternativeNarrative = None,
+      truthMode = PlayerFacingTruthMode.Strategic,
+      preventedPlansNow = Nil,
+      pvDelta = None,
+      counterfactual = None,
+      practicalAssessment = None,
+      opponentThreats = Nil,
+      forcingThreats = Nil,
+      evidenceByQuestionId = Map.empty,
+      candidateEvidenceLines = Nil,
+      evidenceBackedPlans = Nil,
+      opponentPlan = None,
+      factualFallback = None
+    )
+
+  private def supportedPositionProbePlan(): QuestionPlan =
+    QuestionPlan(
+      questionId = "probe",
+      questionKind = AuthorQuestionKind.WhatMattersHere,
+      priority = 1,
+      claim = "c6 is the fixed target.",
+      evidence = None,
+      contrast = None,
+      consequence = None,
+      fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
+      strengthTier = QuestionPlanStrengthTier.Moderate,
+      sourceKinds = List(PlanTaxonomy.PlanKind.BackwardPawnTargeting.id),
+      admissibilityReasons = List("strategic_claim_supported_local"),
+      plannerOwnerKind = PlannerOwnerKind.PositionProbe,
+      plannerSource = PlanTaxonomy.PlanKind.BackwardPawnTargeting.id
+    )
+
+  test("supported local surface preserves piece-name capitalization") {
+    val kingSurface = ClaimAuthorityPolicy.supportedLocalSurface("King safety depends on the dark squares.")
+    val queenSurface = ClaimAuthorityPolicy.supportedLocalSurface("Queen activity is the main resource.")
+    val rookSurface = ClaimAuthorityPolicy.supportedLocalSurface("Rook pressure keeps the file tied down.")
+
+    assertEquals(kingSurface, "A key idea is that King safety depends on the dark squares.")
+    assertEquals(queenSurface, "A key idea is that Queen activity is the main resource.")
+    assertEquals(rookSurface, "A key idea is that Rook pressure keeps the file tied down.")
+  }
+
+  test("supported local surface does not lowercase the first core character") {
+    val surface = ClaimAuthorityPolicy.supportedLocalSurface("This exchange moves into the queenless branch.")
+
+    assertEquals(surface, "A key idea is that This exchange moves into the queenless branch.")
   }

@@ -2,6 +2,7 @@ package lila.commentary.analysis
 
 import chess.*
 import chess.format.{ Fen, Uci }
+import lila.commentary.model.strategic.VariationLine
 
 /**
  * Truth Boundary (High-Precision Validation Layer)
@@ -32,6 +33,8 @@ object ForcedLineTruth:
     result: ExpectedResult,
     description: String = ""
   )
+
+  private case class TrapMatch(trap: TrapDef, remainingMoves: List[String])
   // 1. TRAP LIBRARY (Opening Sequences)
   
   val Traps = List(
@@ -56,29 +59,35 @@ object ForcedLineTruth:
   )
   // 2. ENTRY POINT
 
-  def detect(fen: String, playedUci: String, ply: Int): Option[VerifiedTheme] =
+  def detect(
+      fen: String,
+      playedUci: String,
+      ply: Int,
+      variations: List[VariationLine] = Nil
+  ): Option[VerifiedTheme] =
     val afterFen = NarrativeUtils.uciListToFen(fen, List(playedUci))
     val posOpt = Fen.read(chess.variant.Standard, Fen.Full(afterFen))
 
     // 1. TRAP SEQUENCES
-    val trapMatch = Traps.find { trap =>
-      trap.moves.headOption.flatMap(m => Uci(m).collect { case mv: Uci.Move => mv }).exists { u =>
-        posOpt.exists(_.move(u).isRight)
-      } && verifySequence(afterFen, trap.moves, trap.result)
-    }
+    val trapMatch =
+      Traps
+        .flatMap(trap => confirmedTrapLine(afterFen, playedUci, trap, variations))
+        .headOption
 
-    trapMatch.map { t =>
-      val displayLine = NarrativeUtils.formatSanWithMoveNumbers(ply + 1, generateSanLine(afterFen, t.moves))
-      VerifiedTheme(t.id, t.name, displayLine)
+    trapMatch.map { matched =>
+      val displayLine =
+        NarrativeUtils.formatSanWithMoveNumbers(ply + 1, generateSanLine(afterFen, matched.remainingMoves))
+      VerifiedTheme(matched.trap.id, matched.trap.name, displayLine)
     }.orElse {
       // 2. TACTICAL PATTERNS (Geometry / Static)
+      val beforePosOpt = Fen.read(chess.variant.Standard, Fen.Full(fen))
       posOpt.flatMap { pos =>
-        detectPatterns(pos, playedUci)
+        detectPatterns(beforePosOpt, pos, playedUci)
       }
     }
   // 3. PATTERN DETECTORS (Geometric Matches)
 
-  private def detectPatterns(pos: Position, playedUci: String): Option[VerifiedTheme] =
+  private def detectPatterns(beforePos: Option[Position], pos: Position, playedUci: String): Option[VerifiedTheme] =
     if (pos.checkMate)
       if (isSmotheredMate(pos)) Some(VerifiedTheme("smothered_mate", "Smothered Mate", ""))
       else if (isBackRankMate(pos)) Some(VerifiedTheme("back_rank_mate", "Back Rank Mate", ""))
@@ -90,7 +99,7 @@ object ForcedLineTruth:
       else None
     else if (pos.staleMate)
       Some(VerifiedTheme("stalemate_trap", "Stalemate Trap", ""))
-    else if (isGreekGift(pos, playedUci))
+    else if (beforePos.exists(isGreekGift(_, pos, playedUci)))
       Some(VerifiedTheme("greek_gift", "Greek Gift Sacrifice", ""))
     else if (isWindmillCandidate(pos))
       Some(VerifiedTheme("windmill", "Windmill Pattern", ""))
@@ -179,11 +188,25 @@ object ForcedLineTruth:
 
   // --- TACTICAL THEMES (Non-Mate) ---
 
-  private def isGreekGift(pos: Position, lastUci: String): Boolean =
-    Uci(lastUci).collect{ case m: Uci.Move => m }.exists { _ =>
-      // We essentially just check if the piece moved matches the intended target
-      (lastUci.contains("h7") || lastUci.contains("h2")) && pos.check.yes
+  private def isGreekGift(beforePos: Position, pos: Position, lastUci: String): Boolean =
+    Uci(lastUci).collect{ case m: Uci.Move => m }.exists { move =>
+      val mover = beforePos.color
+      val targetKey = if mover.white then "h7" else "h2"
+      Square.fromKey(targetKey).exists { target =>
+        move.dest == target &&
+          pos.check.yes &&
+          beforePos.board.pieceAt(target).exists(piece => piece.color == !mover && piece.role == Pawn) &&
+          pos.board.pieceAt(target).exists(piece => piece.color == mover && piece.role == Bishop) &&
+          greekGiftKingsideSupport(pos.board, mover, target)
+      }
     }
+
+  private def greekGiftKingsideSupport(board: Board, mover: Color, target: Square): Boolean =
+    board.byPiece(mover, Knight).squares.exists(_.knightAttacks.contains(target)) ||
+      board.byPiece(mover, Queen).squares.exists { queen =>
+        val occupied = board.occupied
+        queen.queenAttacks(occupied).contains(target)
+      }
 
   private def isWindmillCandidate(pos: Position): Boolean =
     // Discovered check mechanism available?
@@ -197,7 +220,7 @@ object ForcedLineTruth:
     (sq.file == File.A || sq.file == File.B || sq.file == File.G || sq.file == File.H) &&
     (sq.rank == Rank.First || sq.rank == Rank.Second || sq.rank == Rank.Seventh || sq.rank == Rank.Eighth)
 
-  private[analysis] def verifySequence(startFen: String, moves: List[String], expected: ExpectedResult): Boolean =
+  private[analysis] def validateForcedSequence(startFen: String, moves: List[String], expected: ExpectedResult): Boolean =
     Fen.read(chess.variant.Standard, Fen.Full(startFen)).exists { startPos =>
       applyLineStrict(startFen, moves) match
         case Some((finalPos, _)) =>
@@ -210,6 +233,40 @@ object ForcedLineTruth:
             case ExpectedResult.Perpetual => false
         case None => false
     }
+
+  private[analysis] def verifySequence(startFen: String, moves: List[String], expected: ExpectedResult): Boolean =
+    validateForcedSequence(startFen, moves, expected)
+
+  private def confirmedTrapLine(
+      afterFen: String,
+      playedUci: String,
+      trap: TrapDef,
+      variations: List[VariationLine]
+  ): Option[TrapMatch] =
+    trap.moves match
+      case entry :: remaining
+          if normalizeUci(entry) == normalizeUci(playedUci) &&
+            pvConfirmsTrapLine(entry, remaining, variations) &&
+            validateForcedSequence(afterFen, remaining, trap.result) =>
+        Some(TrapMatch(trap, remaining))
+      case _ => None
+
+  private def pvConfirmsTrapLine(
+      entry: String,
+      remaining: List[String],
+      variations: List[VariationLine]
+  ): Boolean =
+    val fullLine = (entry :: remaining).map(normalizeUci)
+    val tail = remaining.map(normalizeUci)
+    tail.nonEmpty &&
+      variations.exists { variation =>
+        val moves = variation.moves.map(normalizeUci)
+        moves.take(fullLine.size) == fullLine ||
+          moves.take(tail.size) == tail
+      }
+
+  private def normalizeUci(raw: String): String =
+    Option(raw).getOrElse("").trim.toLowerCase
 
   private def materialBalance(board: Board, color: Color): Int =
     materialScore(board, color) - materialScore(board, !color)

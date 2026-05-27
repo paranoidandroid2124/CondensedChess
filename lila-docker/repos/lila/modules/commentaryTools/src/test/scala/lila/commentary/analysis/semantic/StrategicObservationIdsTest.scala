@@ -58,8 +58,7 @@ class StrategicObservationIdsTest extends FunSuite:
         "modules/commentaryCore/src/main/scala/lila/commentary/analysis/MainPathMoveDeltaClaimBuilder.scala",
         "modules/commentaryCore/src/main/scala/lila/commentary/analysis/PlanMatcher.scala",
         "modules/commentaryCore/src/main/scala/lila/commentary/analysis/QuestionFirstCommentaryPlanner.scala",
-        "modules/commentaryCore/src/main/scala/lila/commentary/analysis/QuietMoveIntentBuilder.scala",
-        "modules/commentaryCore/src/main/scala/lila/commentary/analysis/ActiveStrategicCoachingBriefBuilder.scala"
+        "modules/commentaryCore/src/main/scala/lila/commentary/analysis/QuietMoveIntentBuilder.scala"
       ).map(root.resolve(_))
     val runtimeProofIds =
       Set(

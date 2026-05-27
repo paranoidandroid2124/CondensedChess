@@ -11,9 +11,12 @@ surface must become less specific or fail closed.
 
 ## Signoff Surface
 
-MoveReview is the only user-facing commentary truth surface. Retained
-Chronicle, Active, or Game Arc code paths are internal diagnostics or shared
-infrastructure unless a current MoveReview consumer is named explicitly.
+MoveReview is the only user-facing commentary truth surface. Chronicle,
+Active, and Game Arc are legacy diagnostic/tooling surfaces. Their bridge,
+thread, note-composition, and compression helpers are isolated to
+`modules/commentaryTools/src/test` and may not participate in released truth
+signoff unless a current MoveReview consumer and runtime audit explicitly
+reopen that boundary.
 
 Future `SupportedLocal` or scoped-takeaway expansion must enter through
 MoveReview first and must preserve the audited payload contract.
@@ -75,16 +78,38 @@ exact witness when it legally makes the same central break; top-PV omission is
 not by itself a truth failure for this bounded support row. Diagonal captures
 and prep/challenge pawn moves are not truth for the product-visible `Central
 break` row.
+Central-break runtime truth is generic board/PV truth only. Historical source
+rows may remain in test/tooling precedent catalogs, but runtime witness
+construction must not stamp source-specific FEN markers into `sourceTags`,
+owner seeds, or release terms.
+
+Exact-slice signoff must consume the typed `PlayerFacingExactSliceProof`
+created by the board/probe witness branch. Owner, anchor, structure,
+continuation, and prose terms may explain or diagnose the claim, but they are
+not truth objects and must not be parsed back into exact proof.
+Carlsbad fixed-target truth is mirror-slice based: White-side pressure targets
+Black `c6` only when the board has the `c6`/`d5` enemy chain and `b2`/`d4`
+friendly support; Black-side pressure targets White `c3` only when the mirrored
+`c3`/`d4` enemy chain and `b7`/`d5` friendly support are present. Both sides
+still require minority-attack semantic consequence and typed
+`CarlsbadFixedTarget` proof.
 
 Break/file-axis truth must come from structured square or file-marker evidence
 parsed by the shared runtime boundary, not from incidental letters inside
 English prose or underscore-separated plan ids. Heavy-piece release truth must
 come from exact branch replay: queen centralization, one check, an unrecaptured
 rook capture, or a back-rank rook shuffle is not enough to refute a local bind.
-Forced-line trap truth may not release a named material-winning trap from a
-legal move string alone; non-mating trap lines must show a material-balance
-gain for the side that makes the final material-winning move in the verified
-line.
+Forced-line trap truth may not release a named trap from a legal move string
+alone. A named opening trap requires the reviewed move to be the trap entry and
+a coupled PV/variation line to confirm the remaining sequence before the line is
+replayed. Non-mating trap lines must also show a material-balance gain for the
+side that makes the final material-winning move in the verified line.
+
+Greek Gift truth must be board-backed by the reviewed move: the move must
+actually capture on `h7`/`h2` with a bishop, the captured square must have held
+the opponent pawn before the move, the resulting position must be check, and
+kingside support geometry must be visible. A queen, rook, or knight check on the
+same square is not Greek Gift truth.
 
 Color-complex squeeze truth is exact-board only. The live proof source is
 `color_complex_squeeze_probe`, and release requires a parsed FEN, an

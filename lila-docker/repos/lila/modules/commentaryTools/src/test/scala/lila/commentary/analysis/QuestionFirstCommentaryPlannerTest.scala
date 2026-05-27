@@ -155,19 +155,30 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
           ownerSeedTerms = ownerSeedTerms,
           continuationTerms = continuationTerms,
           structureTransitionTerms = structureTransitionTerms,
-          exactSliceProof =
-            Some(
-              PlayerFacingExactSliceProof(
-                proofSource = proofSource,
-                proofFamily = proofFamily,
-                kind = proofSource,
-                target = anchorSquare,
-                terms = (ownerSeedTerms ++ structureTransitionTerms).distinct
-              )
-            )
+          exactSliceProof = Some(positionProbeProof(proofSource, anchorSquare))
         ),
       fallbackMode = fallbackMode
     )
+
+  private def positionProbeProof(proofSource: String, anchorSquare: String): PlayerFacingExactSliceProof =
+    proofSource match
+      case PlayerFacingTruthModePolicy.ColorComplexSqueezeProbeProofSource =>
+        PlayerFacingExactSliceProof.ColorComplexSqueeze(
+          targetSquare = anchorSquare,
+          squareColor = "light",
+          minorPieceRole = "knight",
+          minorPieceSquare = "c4"
+        )
+      case PlayerFacingTruthModePolicy.TargetFocusedCoordinationProofSource =>
+        PlayerFacingExactSliceProof.TargetFocusedCoordination(
+          targetSquare = anchorSquare,
+          supportFromSquares = List("e3", "g2"),
+          targetPieces = List("target_knight")
+        )
+      case PlayerFacingTruthModePolicy.ExactTargetFixationProofSource =>
+        PlayerFacingExactSliceProof.ExactTargetFixation(anchorSquare)
+      case _ =>
+        PlayerFacingExactSliceProof.CarlsbadFixedTarget(anchorSquare, minoritySupport = true)
 
   private def queenTradeShieldPacket(): PlayerFacingClaimPacket =
     PlayerFacingClaimPacket(
@@ -196,13 +207,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
           structureTransitionTerms = List("queenless_branch", "queen_trade"),
           exactSliceProof =
             Some(
-              PlayerFacingExactSliceProof(
-                proofSource = PlayerFacingTruthModePolicy.QueenTradeShieldProofSource,
-                proofFamily = PlanTaxonomy.PlanKind.QueenTradeShield.id,
-                kind = PlayerFacingTruthModePolicy.QueenTradeShieldProofSource,
-                target = "queen_trade",
-                terms = List("queen_trade_shield", "queenless_branch", "queen_trade", "c6", "d8")
-              )
+              PlayerFacingExactSliceProof.QueenTradeShield(List("d4c6", "d7c6", "d3d8", "e8d8"))
             )
         ),
       fallbackMode = PlayerFacingClaimFallbackMode.WeakMain

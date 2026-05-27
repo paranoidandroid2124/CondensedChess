@@ -628,12 +628,26 @@ case class AuthorEvidenceSummary(
 object AuthorEvidenceSummary:
   given Writes[AuthorEvidenceSummary] = Json.writes[AuthorEvidenceSummary]
 
+case class MoveReviewSurfaceAuthority(
+    kind: String,
+    token: Option[String] = None,
+    openingFamily: Option[String] = None,
+    target: Option[String] = None
+)
+object MoveReviewSurfaceAuthority:
+  val CounterplayBreak = "counterplay_break"
+  val CentralBreak = "central_break"
+  val OpeningFamily = "opening_family"
+
+  given Writes[MoveReviewSurfaceAuthority] = Json.writes[MoveReviewSurfaceAuthority]
+
 case class MoveReviewPlayerSurfaceRow(
     label: String,
     text: String,
     tone: Option[String] = None,
     source: Option[String] = None,
-    refSans: List[String] = Nil
+    refSans: List[String] = Nil,
+    authority: Option[MoveReviewSurfaceAuthority] = None
 )
 object MoveReviewPlayerSurfaceRow:
   given Writes[MoveReviewPlayerSurfaceRow] = Json.writes[MoveReviewPlayerSurfaceRow]
@@ -663,7 +677,7 @@ object MoveReviewPlayerAuthorRow:
   given Writes[MoveReviewPlayerAuthorRow] = Json.writes[MoveReviewPlayerAuthorRow]
 
 case class MoveReviewPlayerSurface(
-    schema: String = "chesstory.move_review.player_surface.v1",
+    schema: String = "chesstory.move_review.player_surface.v2",
     title: Option[String] = None,
     summaryRows: List[MoveReviewPlayerSurfaceRow] = Nil,
     advancedRows: List[MoveReviewPlayerSurfaceRow] = Nil,

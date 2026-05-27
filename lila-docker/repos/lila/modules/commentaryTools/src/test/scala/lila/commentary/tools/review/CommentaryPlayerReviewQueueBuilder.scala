@@ -366,7 +366,10 @@ object CommentaryPlayerReviewQueueBuilder:
   private def moveReviewPlayerSurfaceRowsFromJson(js: JsValue): Option[(List[SupportRow], List[SupportRow])] =
     val surface = js \ "moveReviewPlayerSurface"
     val schema = (surface \ "schema").asOpt[String]
-    Option.when(schema.contains("chesstory.move_review.player_surface.v1")) {
+    Option.when(schema.exists(value =>
+      value == "chesstory.move_review.player_surface.v1" ||
+        value == "chesstory.move_review.player_surface.v2"
+    )) {
       val support =
         rowsFromJson(surface \ "summaryRows")
       val advanced =

@@ -8,9 +8,12 @@ It complements `CommentaryPipelineSSOT.md` and `CommentaryTruthBoundary.md`.
 
 ## Current State
 
-The live product trust boundary is MoveReview-only. Retained Chronicle, Active,
-Game Arc, and whole-game names are internal diagnostics or shared
-infrastructure unless a current MoveReview consumer is named explicitly.
+The live product trust boundary is MoveReview-only. Chronicle, Active, Game
+Arc, and whole-game replay are legacy diagnostic/tooling surfaces, not runtime
+trust infrastructure. Active bridge planning, Active thread selection,
+Active strategic-note composition, and Chronicle compression are confined to
+`modules/commentaryTools/src/test`; they must not supply MoveReview release
+authority unless a new runtime audit explicitly reopens that boundary.
 
 Current operating posture:
 
@@ -92,16 +95,29 @@ the typed evidence may only support the bounded generic plan-advance path.
 
 `PlayerFacingClaimPacket` is the runtime carrier for exact claim candidates.
 `ProofContractRules` decides which proof families can be certified or supported
-locally.
+locally. For `ExactSlice`, the trust boundary is the typed
+`PlayerFacingProofPathWitness.exactSliceProof` ADT produced by the
+board/probe witness path. Generic owner, anchor, structure, continuation, or
+prose terms are diagnostics and surface wording support only; they cannot be
+parsed or promoted into exact-slice proof authority.
+
+Required proof witnesses are fail-closed contract predicates, not descriptive
+labels. `NoTacticalVeto` fails when tactical veto or missing tactical-context
+codes are present, and `ClaimOnlySurface` fails unless the packet remains in the
+bounded weak-main claim surface. A required witness that is absent or contradicted
+must produce a failure code before any supported-local or certified admission.
 
 Opening-family prose claims are also kept out of the API presentation layer.
-`OpeningFamilyClaimResolver` owns the claim-boundary decision from
-`OpeningFamilyMatchProof` (`opening`, phase, ply, FEN). A family claim is
-`SupportedLocal` when either the opening label or exact board structure matches
-each claimed family, and `Suppressed` when any claimed family lacks both forms
-of proof. Short aliases require exact matches to avoid substring authority.
-`RuleTemplateSanitizer` may replace suppressed prose with a neutral fallback
-sentence, but regex/string claim parsing in `CommentaryApi` is not authority.
+`OpeningFamilyClaimResolver` owns the claim-boundary decision from structured
+`OpeningFamilyId` plus `OpeningFamilyMatchProof` (`opening`, phase, ply, FEN).
+A structured family claim is `SupportedLocal` when either the opening label or
+exact board structure matches the requested family. Arbitrary prose sentences
+are legacy suppression-only inputs: they may close an unsupported family claim,
+but they cannot create `SupportedLocal` authority. Short aliases require exact
+word-slice matches to avoid substring authority. `CommentaryApi` no longer
+splits rendered prose into sentences or rewrites unsupported opening-family
+text after rendering; family mismatch must be excluded or suppressed before
+surface prose is built.
 
 Current strict rules:
 
@@ -111,16 +127,20 @@ Current strict rules:
   not an admission bypass.
 - exact owner slices require certified source/family predicates plus a typed
   `PlayerFacingExactSliceProof`; generic witness strings in anchor or
-  structure terms do not satisfy `ExactSlice`.
+  structure terms do not satisfy `ExactSlice`, and downstream policy must fail
+  closed instead of reconstructing a proof object from those strings.
 - break/file-axis admission uses the centralized `BreakFileToken` parser; a
   plain prose word or incidental `a`-`h` letter is not evidence for a file.
 - position-probe question seeds must use the exact FEN being generated. The
-  Carlsbad fixed-target seed remains closed unless the exact board target and
+  Carlsbad fixed-target seed remains closed unless the exact mirror board
+  target (`c6` for White pressure, `c3` for Black pressure) and
   minority-support predicate both pass.
 - support material never enters the owner pool directly.
 - tactical truth veto outranks strategic authority. The only soft path is a
-  non-tactical surface with no tactical-failure contract, no severe
-  counterfactual, and an observed cp loss of <= 30cp.
+  non-tactical surface with a present narrative context, a present truth
+  contract, no tactical-failure contract, no severe counterfactual, and an
+  observed cp loss of <= 30cp. Missing tactical context or truth contract fails
+  closed for supported-local position probes and tactical-vetoable surfaces.
 - line-scoped claims may survive only as subordinate evidence unless a main
   path strategic claim is independently admitted.
 - support-only carriers may not re-inflate after certification failed closed.
@@ -238,15 +258,19 @@ for a `neutralize_key_break` timing plan or main-path packet claim from
 `counterplay_axis_suppression` with an exact owner path and no tactical veto.
 This is a bounded local-reading support row, not a `CertifiedOwner` upgrade,
 not a proof-contract expansion, and not a tactical-veto relaxation. The row
-must be built from a named break token in the timing witness or packet
-owner/structure/anchor terms; raw claim prose is not token authority. If
+must be built from the timing witness named-break token and/or the packet's
+typed `PlayerFacingExactSliceProof.CounterplayAxisSuppression` token. On the
+plan+packet path, those two structured tokens must match; on the packet-only
+path, packet terms are not parsed to recover a token. Raw claim prose and
+packet owner/structure/anchor terms are not token authority. If
 `BreakClampMaterializer` proves that the played move occupies the opponent
 break destination, the trusted witness is the full route token (`e4-e5`,
 `...b5-b4`), not the self-referential destination square. Tokenless packets,
 generic fallback wording, and single-square tokens that collide with the played
 move must not become product-visible `Counterplay break` rows. The row must not
 expose the internal `SupportedLocal`/local-reading label or raw proof
-family/source metadata through public row `source`.
+family/source metadata through public row `source`; it may expose only the
+public row authority `{ kind: "counterplay_break", token: ... }`.
 `central_break_timing`: product-visible `Central break` rows require the exact
 runtime witness, including a non-capturing same-file d/e pawn advance to
 `d4`, `e4`, `d5`, or `e5`, board link, source/family match, route-shaped break
@@ -258,9 +282,10 @@ central break, even if the top PV does not replay it; this path still requires
 the legal board move and the same packet/source/family boundary. PV gap and
 two-move branch key are diagnostics for this row, not proof of monopoly value
 and not hard release gates. Taxonomy, strategy-pack labels, raw claim prose,
-and signal-digest text do not admit the row. Forcing-defense scenes may only
-receive subordinate support wording; tactical truth veto remains higher
-priority.
+and signal-digest text do not admit the row. The public row authority is limited
+to `{ kind: "central_break", token: ... }`; raw proof ids stay private.
+Forcing-defense scenes may only receive subordinate support wording; tactical
+truth veto remains higher priority.
 
 Compensation subtype matching is fail-closed for unknown subtype dimensions.
 Generic compensation prose can still mention the theme, but it cannot satisfy a
@@ -314,7 +339,11 @@ Frontend code must not rebuild strategic meaning from:
 
 MoveReview and narrative views render only typed payload fields that survived
 backend authority. For MoveReview support panels, that typed field is
-`moveReviewPlayerSurface`; if it is missing, no support panel is reconstructed.
+`moveReviewPlayerSurface` schema `chesstory.move_review.player_surface.v2`.
+Rows may carry sanitized `authority` with only `kind`, `token`,
+`openingFamily`, and `target`; malformed authority is removed by the backend
+sanitizer, and cached v1 rows decode with no authority. If the surface is
+missing, no support panel is reconstructed.
 
 MoveReview corpus and QC reports must measure the same player surface. When
 `moveReviewPlayerSurface` is present, performance rows come from that field
@@ -343,7 +372,7 @@ as support rows.
 | frontend parses fallback prose for retry state | backend `diagnostics.status/sourceModeReason`; no prose regex gate |
 | QC reports measure a virtual raw surface | `buildMoveReviewRows` uses `moveReviewPlayerSurface`; absent surface yields no MoveReview support rows |
 | tactical neutralize support leaks through diagnostics | `ClaimAuthorityResolver` tactical veto plus QC veto rejection for `neutralize_key_break` |
-| generic or self-referential break support leaks | named-token surface gate rejects tokenless and played-move-collision `neutralize_key_break` rows |
+| generic or self-referential break support leaks | typed-proof/named-token surface gate rejects tokenless, term-only, mismatch, and played-move-collision `neutralize_key_break` rows |
 | color-complex premature release | typed exact-slice proof plus authority-closed failure |
 | lesson overgeneralization | Track 5 deferred; scoped takeaway only |
 

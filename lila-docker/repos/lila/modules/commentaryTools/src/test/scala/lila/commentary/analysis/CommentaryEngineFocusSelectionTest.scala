@@ -170,7 +170,7 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
     assert(!focused.beats.exists(_.text.contains("dynamically balanced")))
   }
 
-  test("applyVisibleCommentabilityPass reselects the next commentable move in the same thread") {
+  test("applyVisibleCommentabilityPass does not use legacy active thread reselection") {
     val contract =
       truthContract(
         ownershipRole = TruthOwnershipRole.NoneRole,
@@ -183,21 +183,13 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
         truthBoundMoment(22, "A quiet but commentable step.", contract),
         truthBoundMoment(24, "Another thread stays commentable.", contract)
       )
-    val threadRefs =
-      Map(
-        20 -> ActiveStrategicThreadRef("thread_a", "themeA", "Theme A", "build", "Build"),
-        22 -> ActiveStrategicThreadRef("thread_a", "themeA", "Theme A", "build", "Build"),
-        24 -> ActiveStrategicThreadRef("thread_b", "themeB", "Theme B", "build", "Build")
-      )
-
     val accepted =
       CommentaryEngine.applyVisibleCommentabilityPass(
         selectedVisiblePlies = List(20, 24),
-        bounds = bounds,
-        threadRefsByPly = threadRefs
+        bounds = bounds
       )
 
-    assertEquals(accepted, Set(22, 24))
+    assertEquals(accepted, Set(24))
   }
 
   test("focusMomentOutline retains essential and evidence-backed beats") {
@@ -267,22 +259,6 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
   }
 
   test("whole-game conclusion support keeps one canonical anchor when shift and payoff restate the contest") {
-    val strategicThreads =
-      List(
-        ActiveStrategicThread(
-          threadId = "thread_b2",
-          side = "white",
-          themeKey = "pressure_b2",
-          themeLabel = "Pressure on b2",
-          summary = "pressure on b2",
-          seedPly = 20,
-          lastPly = 28,
-          representativePlies = List(20, 24),
-          opponentCounterplan = None,
-          continuityScore = 0.92
-        )
-      )
-
     val decisiveMoment =
       chronicleMoment(
         ply = 24,
@@ -297,7 +273,6 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
     val support =
       CommentaryEngine.buildWholeGameConclusionSupport(
         moments = List(decisiveMoment),
-        strategicThreads = strategicThreads,
         themes = List("pressure on b2"),
         truthContractsByPly =
           Map(
@@ -1056,7 +1031,6 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
 
       val support = CommentaryEngine.buildWholeGameConclusionSupport(
         moments = List(commitment, maintenance),
-        strategicThreads = Nil,
         themes = List("Open-file pressure"),
         truthContractsByPly =
           Map(
@@ -1098,7 +1072,6 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
 
       val support = CommentaryEngine.buildWholeGameConclusionSupport(
         moments = List(conversion),
-        strategicThreads = Nil,
         themes = List("Passed pawn play"),
         truthContractsByPly =
           Map(
@@ -1139,29 +1112,6 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
 
       val support = CommentaryEngine.buildWholeGameConclusionSupport(
         moments = List(decisiveMoment),
-        strategicThreads =
-          List(
-            ActiveStrategicThread(
-              threadId = "w1",
-              side = "white",
-              themeKey = "target_fixing",
-              themeLabel = "Target Fixing",
-              summary = "White keeps improving squares before cashing in. Core plan: pressure on b2.",
-              seedPly = 14,
-              lastPly = 36,
-              continuityScore = 0.92
-            ),
-            ActiveStrategicThread(
-              threadId = "b1",
-              side = "black",
-              themeKey = "line_occupation",
-              themeLabel = "Line Occupation",
-              summary = "Black tries to stay active. Core plan: control of the d-file.",
-              seedPly = 18,
-              lastPly = 34,
-              continuityScore = 0.78
-            )
-          ),
         themes = List("Queenside pressure"),
         truthContractsByPly =
           Map(
@@ -1178,7 +1128,7 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
 
       assertEquals(
         support.mainContest,
-        Some("White was mainly playing for pressure on b2, while Black was mainly playing for control of the d-file.")
+        Some("The long strategic fight revolved around Queenside pressure.")
       )
       assertEquals(support.decisiveShift, Some("Pressure on b2 became the decisive shift."))
       assertEquals(support.payoff, Some("The punishment story ran through pressure on b2."))
@@ -1218,7 +1168,6 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
 
       val support = CommentaryEngine.buildWholeGameConclusionSupport(
         moments = List(decisiveMoment),
-        strategicThreads = Nil,
         themes = List("Central pressure"),
         truthContractsByPly =
           Map(
@@ -1271,7 +1220,6 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
 
       val support = CommentaryEngine.buildWholeGameConclusionSupport(
         moments = List(decisiveMoment),
-        strategicThreads = Nil,
         themes = List("Kingside play")
       )
 
@@ -1300,7 +1248,6 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
 
       val support = CommentaryEngine.buildWholeGameConclusionSupport(
         moments = List(decisiveMoment),
-        strategicThreads = Nil,
         themes = List("Central pressure"),
         truthContractsByPly =
           Map(
@@ -1340,7 +1287,6 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
 
       val support = CommentaryEngine.buildWholeGameConclusionSupport(
         moments = List(decisiveMoment),
-        strategicThreads = Nil,
         themes = List("Central pressure"),
         truthContractsByPly =
           Map(
@@ -1381,7 +1327,6 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
 
     val support = CommentaryEngine.buildWholeGameConclusionSupport(
       moments = List(decisiveMoment),
-      strategicThreads = Nil,
       themes = List("Central pressure"),
       truthContractsByPly =
         Map(
@@ -1431,7 +1376,6 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
 
     val support = CommentaryEngine.buildWholeGameConclusionSupport(
       moments = List(decisiveMoment),
-      strategicThreads = Nil,
       themes = List("Central pressure"),
       truthContractsByPly =
         Map(
@@ -1470,7 +1414,6 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
 
     val support = CommentaryEngine.buildWholeGameConclusionSupport(
       moments = List(decisiveMoment),
-      strategicThreads = Nil,
       themes = List("Central pressure")
     )
 
@@ -1479,22 +1422,6 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
   }
 
   test("buildWholeGameConclusionSupport keeps drawn games free of decisive and punishment wrappers") {
-    val strategicThreads =
-      List(
-        ActiveStrategicThread(
-          threadId = "thread_balance",
-          side = "white",
-          themeKey = "center_tension",
-          themeLabel = "Center tension",
-          summary = "center tension",
-          seedPly = 18,
-          lastPly = 42,
-          representativePlies = List(18, 30),
-          opponentCounterplan = None,
-          continuityScore = 0.88
-        )
-      )
-
     val drawMoment =
       chronicleMoment(
         ply = 30,
@@ -1509,7 +1436,6 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
     val support =
       CommentaryEngine.buildWholeGameConclusionSupport(
         moments = List(drawMoment),
-        strategicThreads = strategicThreads,
         themes = List("center tension"),
         result = "1/2-1/2",
         truthContractsByPly =
@@ -1529,22 +1455,6 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
   }
 
   test("buildWholeGameConclusionSupport requires decisive proof before adding decisive wrappers") {
-    val strategicThreads =
-      List(
-        ActiveStrategicThread(
-          threadId = "thread_balance",
-          side = "white",
-          themeKey = "center_tension",
-          themeLabel = "Center tension",
-          summary = "center tension",
-          seedPly = 18,
-          lastPly = 46,
-          representativePlies = List(18, 34),
-          opponentCounterplan = None,
-          continuityScore = 0.86
-        )
-      )
-
     val resultMoment =
       chronicleMoment(
         ply = 46,
@@ -1559,7 +1469,6 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
     val support =
       CommentaryEngine.buildWholeGameConclusionSupport(
         moments = List(resultMoment),
-        strategicThreads = strategicThreads,
         themes = List("center tension"),
         result = "1-0",
         truthContractsByPly = Map.empty

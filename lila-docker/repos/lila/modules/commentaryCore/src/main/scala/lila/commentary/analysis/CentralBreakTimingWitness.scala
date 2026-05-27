@@ -44,10 +44,6 @@ private[commentary] object CentralBreakTimingWitness:
   val ProofFamily: String = PlanTaxonomy.PlanKind.CentralBreakTiming.id
   val PvGapThresholdCp: Int = 40
   private val BreakHorizonPly = 3
-  private val MadernaExactFen =
-    "nrb1r1k1/1pqn1pbp/p2p2p1/P1pP4/2N1PP2/2N2B2/1P4PP/R1BQR1K1 w - - 3 17"
-  private val MadernaPrepFen =
-    "nrbqr1k1/1p1n1pbp/p2p2p1/P1pP4/4PP2/2N2B2/1P1N2PP/R1BQR1K1 w - - 1 16"
 
   def diagnose(ctx: NarrativeContext): Diagnosis =
     val variations = ctx.engineEvidence.toList.flatMap(_.variations)
@@ -76,7 +72,6 @@ private[commentary] object CentralBreakTimingWitness:
             playedUci <- played.toList
             playedMove <- legalMove(position, playedUci).toList
           yield buildWitness(
-            ctx = ctx,
             position = position,
             playedMove = playedMove,
             candidate = candidate,
@@ -119,7 +114,6 @@ private[commentary] object CentralBreakTimingWitness:
   )
 
   private def buildWitness(
-      ctx: NarrativeContext,
       position: Position,
       playedMove: Move,
       candidate: BreakCandidate,
@@ -141,8 +135,6 @@ private[commentary] object CentralBreakTimingWitness:
     val sourceTags =
       (
           List(ProofFamily) ++
-          Option.when(ctx.fen.trim == MadernaExactFen)("exact:maderna-palermo-1955-direct-break").toList ++
-          Option.when(ctx.fen.trim == MadernaPrepFen)("review:maderna-palermo-1955-prep").toList ++
           Option.when(gap < PvGapThresholdCp)(s"diagnostic:${Failure.PvGapTooSmall}").toList ++
           Option.when(branchMissing)(s"diagnostic:${Failure.BranchMissing}").toList ++
           Option.when(candidate.fromPlayedMove)("board:played_move_direct").toList ++

@@ -64,23 +64,6 @@ object UserFacingPayloadSanitizer:
       moveReviewPlayerSurface = response.moveReviewPlayerSurface.map(sanitizeMoveReviewPlayerSurface)
     )
 
-  def sanitize(response: GameChronicleResponse): GameChronicleResponse =
-    val sanitizedMoments = response.moments.map(sanitizeMoment)
-    val retainedPlanNames =
-      sanitizedMoments
-        .flatMap(_.mainStrategicPlans.map(_.planName))
-        .flatMap(planName => cleanOpt(Some(planName)))
-        .map(normalize)
-        .toSet
-    val sanitizedThemes = sanitizeChronicleThemes(response.themes, retainedPlanNames)
-    response.copy(
-      intro = clean(response.intro),
-      moments = sanitizedMoments,
-      conclusion = sanitizeChronicleConclusion(response.conclusion, response.themes, sanitizedThemes),
-      themes = sanitizedThemes,
-      strategicThreads = response.strategicThreads.flatMap(thread => sanitizeStrategicThread(thread, retainedPlanNames))
-    )
-
   def sanitize(payload: BootstrapPayload): BootstrapPayload =
     val shell = sanitizeRuntimeShell(payload.runtimeShell)
     payload.copy(
@@ -90,35 +73,6 @@ object UserFacingPayloadSanitizer:
           runtimeShell = None
         ),
       runtimeShell = shell
-    )
-
-  private def sanitizeMoment(moment: GameChronicleMoment): GameChronicleMoment =
-    val sanitizedPlans = List.empty[PlanHypothesis]
-    val allowedPlanKeys = sanitizedPlans.map(planKey).toSet
-    val allowedPlanIds = sanitizedPlans.filter(_.subplanId.isEmpty).map(planIdKey).toSet
-    val allowedPlanNames = sanitizedPlans.map(_.planName.trim.toLowerCase).toSet
-    moment.copy(
-      moveClassification = cleanOpt(moment.moveClassification),
-      narrative = clean(moment.narrative),
-      selectionLabel = cleanOpt(moment.selectionLabel),
-      selectionReason = cleanOpt(moment.selectionReason),
-      concepts = Nil,
-      strategyPack = moment.strategyPack.flatMap(pack => sanitizeStrategyPack(pack, allowedPlanNames)),
-      signalDigest = moment.signalDigest.map(sanitizeSignalDigest),
-      authorQuestions = Nil,
-      authorEvidence = Nil,
-      mainStrategicPlans = sanitizedPlans,
-      strategicPlanExperiments =
-        moment.strategicPlanExperiments
-          .filter(experiment => planExperimentAllowed(experiment.planId, experiment.subplanId, allowedPlanKeys, allowedPlanIds))
-          .map(sanitizeStrategicPlanExperiment),
-      activeStrategicNote = cleanOpt(moment.activeStrategicNote),
-      activeStrategicIdeas = moment.activeStrategicIdeas.map(sanitizeActiveIdeaRef),
-      activeStrategicRoutes = moment.activeStrategicRoutes.map(sanitizeActiveRouteRef),
-      activeStrategicMoves = moment.activeStrategicMoves.map(sanitizeActiveMoveRef),
-      activeDirectionalTargets = moment.activeDirectionalTargets.map(sanitizeDirectionalTarget),
-      activeBranchDossier = moment.activeBranchDossier.map(sanitizeBranchDossier),
-      strategicThread = moment.strategicThread.map(sanitizeThreadRef)
     )
 
   private def sanitizePlanHypothesis(plan: PlanHypothesis): PlanHypothesis =
@@ -295,8 +249,45 @@ object UserFacingPayloadSanitizer:
       text = text,
       tone = cleanOpt(row.tone),
       source = None,
-      refSans = cleanList(row.refSans)
+      refSans = cleanList(row.refSans),
+      authority = sanitizeMoveReviewSurfaceAuthority(row.authority)
     )
+
+  private def sanitizeMoveReviewSurfaceAuthority(
+      authority: Option[MoveReviewSurfaceAuthority]
+  ): Option[MoveReviewSurfaceAuthority] =
+    authority.flatMap { raw =>
+      val kind = clean(raw.kind)
+      val sanitized =
+        MoveReviewSurfaceAuthority(
+          kind = kind,
+          token = cleanOpt(raw.token).filter(validSurfaceAuthorityToken),
+          openingFamily = cleanOpt(raw.openingFamily).filter(validSurfaceAuthorityKey),
+          target = cleanOpt(raw.target).filter(validSurfaceAuthorityTarget)
+        )
+      Option.when(validSurfaceAuthority(sanitized))(sanitized)
+    }
+
+  private def validSurfaceAuthority(authority: MoveReviewSurfaceAuthority): Boolean =
+    authority.kind match
+      case MoveReviewSurfaceAuthority.CounterplayBreak | MoveReviewSurfaceAuthority.CentralBreak =>
+        authority.token.nonEmpty &&
+          authority.openingFamily.isEmpty &&
+          authority.target.isEmpty
+      case MoveReviewSurfaceAuthority.OpeningFamily =>
+        authority.openingFamily.nonEmpty &&
+          authority.token.isEmpty
+      case _ =>
+        false
+
+  private def validSurfaceAuthorityToken(token: String): Boolean =
+    token.matches("""(?:\.\.\.)?[a-h][1-8](?:-[a-h][1-8])?""")
+
+  private def validSurfaceAuthorityKey(key: String): Boolean =
+    key.matches("""[a-z][a-z0-9_]{1,40}""")
+
+  private def validSurfaceAuthorityTarget(target: String): Boolean =
+    target.matches("""[a-h][1-8]""")
 
   private def sanitizeMoveReviewPlayerDecisionComparison(
       comparison: MoveReviewPlayerDecisionComparison
@@ -327,65 +318,6 @@ object UserFacingPayloadSanitizer:
       branches = row.branches.flatMap(sanitizeMoveReviewPlayerSurfaceRow)
     )
 
-  private def sanitizeActiveIdeaRef(ref: ActiveStrategicIdeaRef): ActiveStrategicIdeaRef =
-    ref.copy(focusSummary = clean(ref.focusSummary))
-
-  private def sanitizeActiveRouteRef(ref: ActiveStrategicRouteRef): ActiveStrategicRouteRef =
-    ref.copy(purpose = clean(ref.purpose))
-
-  private def sanitizeActiveMoveRef(ref: ActiveStrategicMoveRef): ActiveStrategicMoveRef =
-    ref.copy(
-      label = clean(ref.label),
-      san = cleanOpt(ref.san)
-    )
-
-  private def sanitizeBranchDossier(dossier: ActiveBranchDossier): ActiveBranchDossier =
-    dossier.copy(
-      chosenBranchLabel = clean(dossier.chosenBranchLabel),
-      engineBranchLabel = cleanOpt(dossier.engineBranchLabel),
-      deferredBranchLabel = cleanOpt(dossier.deferredBranchLabel),
-      whyChosen = cleanOpt(dossier.whyChosen),
-      whyDeferred = cleanOpt(dossier.whyDeferred),
-      opponentResource = cleanOpt(dossier.opponentResource),
-      routeCue = dossier.routeCue.map(sanitizeRouteCue),
-      moveCue = dossier.moveCue.map(sanitizeMoveCue),
-      evidenceCue = cleanOpt(dossier.evidenceCue),
-      continuationFocus = cleanOpt(dossier.continuationFocus),
-      practicalRisk = cleanOpt(dossier.practicalRisk),
-      threadLabel = cleanOpt(dossier.threadLabel),
-      threadStage = cleanOpt(dossier.threadStage),
-      threadSummary = cleanOpt(dossier.threadSummary),
-      threadOpponentCounterplan = cleanOpt(dossier.threadOpponentCounterplan)
-    )
-
-  private def sanitizeRouteCue(cue: ActiveBranchRouteCue): ActiveBranchRouteCue =
-    cue.copy(purpose = clean(cue.purpose))
-
-  private def sanitizeMoveCue(cue: ActiveBranchMoveCue): ActiveBranchMoveCue =
-    cue.copy(
-      label = clean(cue.label),
-      san = cleanOpt(cue.san),
-      source = clean(cue.source)
-    )
-
-  private def sanitizeStrategicThread(
-      thread: ActiveStrategicThread,
-      retainedPlanNames: Set[String]
-  ): Option[ActiveStrategicThread] =
-    Option.when(retainedPlanNames.contains(normalize(thread.themeLabel))) {
-      thread.copy(
-        themeLabel = clean(thread.themeLabel),
-        summary = "",
-        opponentCounterplan = None
-      )
-    }
-
-  private def sanitizeThreadRef(ref: ActiveStrategicThreadRef): ActiveStrategicThreadRef =
-    ref.copy(
-      themeLabel = clean(ref.themeLabel),
-      stageLabel = clean(ref.stageLabel)
-    )
-
   private def isTypedProbeBackedPlan(plan: EvaluatedPlan): Boolean =
     plan.userFacingEligibility == UserFacingPlanEligibility.ProbeBacked &&
       plan.supportProbeIds.exists(_.trim.nonEmpty)
@@ -396,27 +328,6 @@ object UserFacingPayloadSanitizer:
       response.mainStrategicPlans.forall(_.evidenceSources.isEmpty)
     then response.mainStrategicPlans.map(planKey).toSet
     else Set.empty
-
-  private def sanitizeChronicleThemes(
-      themes: List[String],
-      retainedPlanNames: Set[String]
-  ): List[String] =
-    cleanList(themes).filter(theme => retainedPlanNames.contains(normalize(theme)))
-
-  private def sanitizeChronicleConclusion(
-      conclusion: String,
-      originalThemes: List[String],
-      sanitizedThemes: List[String]
-  ): String =
-    val cleaned = clean(conclusion)
-    val droppedThemes =
-      cleanList(originalThemes).map(normalize).toSet -- sanitizedThemes.map(normalize)
-    Option
-      .when(
-        cleaned.nonEmpty &&
-          !droppedThemes.exists(theme => theme.nonEmpty && normalize(cleaned).contains(theme))
-      )(cleaned)
-      .getOrElse("")
 
   private def planKey(plan: PlanHypothesis): String =
     planKey(plan.planId, plan.subplanId)
@@ -506,12 +417,3 @@ object UserFacingPayloadSanitizer:
 
   private def cleanList(values: List[String]): List[String] =
     values.map(clean).map(_.trim).filter(_.nonEmpty)
-
-  private def normalize(raw: String): String =
-    Option(raw)
-      .getOrElse("")
-      .replace("**", "")
-      .replaceAll("""[^\p{L}\p{N}\s]""", " ")
-      .replaceAll("""\s+""", " ")
-      .trim
-      .toLowerCase

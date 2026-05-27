@@ -515,70 +515,147 @@ private[commentary] object ProofContractRules:
             Option.when(c.status == ProofContractStatus.Deferred)("contract:deferred_no_exact_owner"),
             Option.when(c.status == ProofContractStatus.BackendOnly)("contract:backend_only"),
             Option.when(!c.allowedScopes.contains(packet.scope))("contract:scope_not_allowed"),
-            Option.when(!c.acceptedSources.contains(packet.proofSource))("contract:source_not_accepted"),
-            Option.when(c.requiredWitnesses.contains(ProofWitness.OwnerSeed) && !packet.proofPathWitness.hasOwnerSeed)(
-              "witness:owner_seed_missing"
-            ),
-            Option.when(c.requiredWitnesses.contains(ProofWitness.Continuation) && !packet.proofPathWitness.hasContinuation)(
-              "witness:continuation_missing"
-            ),
-            Option.when(c.requiredWitnesses.contains(ProofWitness.BranchProof) && packet.sameBranchState != PlayerFacingSameBranchState.Proven)(
-              "witness:branch_not_proven"
-            ),
-            Option.when(c.requiredWitnesses.contains(ProofWitness.StablePersistence) && packet.persistence != PlayerFacingClaimPersistence.Stable)(
-              "witness:persistence_not_stable"
-            ),
-            Option.when(c.requiredWitnesses.contains(ProofWitness.StructureTransition) && !packet.proofPathWitness.hasStructureTransition)(
-              "witness:structure_transition_missing"
-            ),
-            Option.when(
-              c.requiredWitnesses.contains(ProofWitness.ExactSlice) &&
-                !exactSliceWitnessPresent(packet)
-            )(
-              "witness:exact_slice_missing"
-            ),
-            Option.when(
-              c.requiredWitnesses.contains(ProofWitness.NoRivalRelease) &&
-                (
-                  packet.suppressionReasons.contains(PlayerFacingClaimSuppressionReason.RivalStoryAlive) ||
-                    packet.releaseRisks.contains(PlayerFacingClaimReleaseRisk.RivalRelease)
-                )
-            )(
-              "rival:release_risk"
-            )
-          ).flatten
+            Option.when(!c.acceptedSources.contains(packet.proofSource))("contract:source_not_accepted")
+          ).flatten ++ verifyContractWitness(c, packet)
     (
       contractFailures ++
         packet.suppressionReasons.map(reason => s"suppression:$reason") ++
         packet.releaseRisks.map(risk => s"risk:$risk")
     ).distinct
 
+  private def verifyContractWitness(
+      contract: ProofContract,
+      packet: PlayerFacingClaimPacket
+  ): List[String] =
+    val required = contract.requiredWitnesses
+    List(
+      Option.when(required.contains(ProofWitness.OwnerSeed) && !packet.proofPathWitness.hasOwnerSeed)(
+        "witness:owner_seed_missing"
+      ),
+      Option.when(required.contains(ProofWitness.Continuation) && !packet.proofPathWitness.hasContinuation)(
+        "witness:continuation_missing"
+      ),
+      Option.when(required.contains(ProofWitness.BranchProof) && packet.sameBranchState != PlayerFacingSameBranchState.Proven)(
+        "witness:branch_not_proven"
+      ),
+      Option.when(required.contains(ProofWitness.StablePersistence) && packet.persistence != PlayerFacingClaimPersistence.Stable)(
+        "witness:persistence_not_stable"
+      ),
+      Option.when(required.contains(ProofWitness.StructureTransition) && !packet.proofPathWitness.hasStructureTransition)(
+        "witness:structure_transition_missing"
+      ),
+      Option.when(required.contains(ProofWitness.ExactSlice) && !exactSliceWitnessPresent(packet))(
+        "witness:exact_slice_missing"
+      ),
+      Option.when(required.contains(ProofWitness.NoRivalRelease) && rivalReleasePresent(packet))(
+        "rival:release_risk"
+      ),
+      Option.when(required.contains(ProofWitness.NoTacticalVeto) && tacticalVetoPresent(packet))(
+        "witness:tactical_veto_present"
+      ),
+      Option.when(required.contains(ProofWitness.ClaimOnlySurface) && !claimOnlySurfacePresent(packet))(
+        "witness:claim_only_surface_missing"
+      )
+    ).flatten
+
+  private def rivalReleasePresent(packet: PlayerFacingClaimPacket): Boolean =
+    packet.suppressionReasons.contains(PlayerFacingClaimSuppressionReason.RivalStoryAlive) ||
+      packet.releaseRisks.contains(PlayerFacingClaimReleaseRisk.RivalRelease)
+
+  private def tacticalVetoPresent(packet: PlayerFacingClaimPacket): Boolean =
+    (packet.suppressionReasons ++ packet.releaseRisks).exists(isTacticalVetoCode)
+
+  private def isTacticalVetoCode(raw: String): Boolean =
+    val code = normalize(raw)
+    code == "truth_contract_blunder" ||
+      code == "truth_contract_missed_win" ||
+      code == "truth_contract_tactical_refutation" ||
+      code == "truth_contract_tactical_failure_mode" ||
+      code == "planner_truth_mode_tactical" ||
+      code == "main_claim_tactical" ||
+      code == "context_severe_counterfactual" ||
+      code == "tactical_context_missing" ||
+      code == "truth_contract_missing" ||
+      code.contains("tactical")
+
+  private def claimOnlySurfacePresent(packet: PlayerFacingClaimPacket): Boolean =
+    packet.fallbackMode == PlayerFacingClaimFallbackMode.WeakMain
+
   private def exactSliceWitnessPresent(packet: PlayerFacingClaimPacket): Boolean =
-    packet.proofPathWitness.exactSliceProof.exists { proof =>
-      val kind = normalize(proof.kind)
-      val target = normalize(proof.target)
-      val terms = proof.terms.map(normalize).filter(_.nonEmpty)
-      def has(term: String): Boolean = terms.contains(term)
-      def hasPattern(pattern: String): Boolean = terms.exists(_.matches(pattern))
-      val packetMatched =
-        normalize(proof.proofSource) == normalize(packet.proofSource) &&
-          normalize(proof.proofFamily) == normalize(packet.proofFamily) &&
-          kind.nonEmpty &&
-          target.nonEmpty
-      val colorComplexExact =
-        packet.proofSource != ProofSourceId.ColorComplexSqueezeProbe.wireKey ||
-          (
-            kind == ProofSourceId.ColorComplexSqueezeProbe.wireKey &&
-              target.matches("[a-h][1-8]") &&
-              has(ProofSourceId.ColorComplexSqueezeProbe.wireKey) &&
-              has(s"weak_square:$target") &&
-              hasPattern("""color_complex:(light|dark)""") &&
-              hasPattern("""minor_piece:(bishop|knight)_[a-h][1-8]""") &&
-              has(s"attacks:$target") &&
-              hasPattern(s"""minor_piece_attack:[a-h][1-8]-$target""")
-          )
-      packetMatched && colorComplexExact
-    }
+    packet.proofPathWitness.exactSliceProof.exists(exactSliceProofMatchesPacket(packet, _))
+
+  private def exactSliceProofMatchesPacket(
+      packet: PlayerFacingClaimPacket,
+      proof: PlayerFacingExactSliceProof
+  ): Boolean =
+    proof match
+      case PlayerFacingExactSliceProof.ExactTargetFixation(targetSquare) =>
+        packetMatches(packet, ProofSourceId.ExactTargetFixation.wireKey, proofFamily(PlanTaxonomy.PlanKind.StaticWeaknessFixation).wireKey) &&
+          squareKey(targetSquare)
+      case PlayerFacingExactSliceProof.CarlsbadFixedTarget(targetSquare, minoritySupport) =>
+        packetMatches(packet, ProofSourceId.CarlsbadFixedTargetProbe.wireKey, proofFamily(PlanTaxonomy.PlanKind.BackwardPawnTargeting).wireKey) &&
+          Set("c6", "c3").contains(normalize(targetSquare)) &&
+          minoritySupport
+      case PlayerFacingExactSliceProof.TargetFocusedCoordination(targetSquare, supportFromSquares, targetPieces) =>
+        packetMatches(packet, ProofSourceId.TargetFocusedCoordinationProbe.wireKey, ProofFamilyId.TargetFocusedCoordination.wireKey) &&
+          squareKey(targetSquare) &&
+          supportFromSquares.map(normalize).filter(squareKey).distinct.size >= 2 &&
+          targetPieces.exists(token => normalize(token).startsWith("target_"))
+      case PlayerFacingExactSliceProof.ColorComplexSqueeze(targetSquare, squareColor, minorPieceRole, minorPieceSquare) =>
+        packetMatches(packet, ProofSourceId.ColorComplexSqueezeProbe.wireKey, ProofFamilyId.ColorComplexSqueeze.wireKey) &&
+          squareKey(targetSquare) &&
+          Set("light", "dark").contains(normalize(squareColor)) &&
+          Set("bishop", "knight").contains(normalize(minorPieceRole)) &&
+          squareKey(minorPieceSquare)
+      case PlayerFacingExactSliceProof.LocalFileEntryBind(file, entrySquare) =>
+        packetMatches(packet, ProofSourceId.LocalFileEntryBind.wireKey, ProofFamilyId.HalfOpenFilePressure.wireKey) &&
+          fileToken(file) &&
+          squareKey(entrySquare)
+      case PlayerFacingExactSliceProof.CounterplayAxisSuppression(breakToken) =>
+        packetMatches(packet, ProofSourceId.CounterplayAxisSuppression.wireKey, ProofFamilyId.NeutralizeKeyBreak.wireKey) &&
+          breakTokenShape(breakToken)
+      case PlayerFacingExactSliceProof.ProphylacticRestraint(resourceTokenValue) =>
+        packetMatches(packet, ProofSourceId.ProphylacticMove.wireKey, ProofFamilyId.CounterplayRestraint.wireKey) &&
+          resourceToken(resourceTokenValue)
+      case PlayerFacingExactSliceProof.QueenTradeShield(lineMoves) =>
+        packetMatches(packet, proofFamily(PlanTaxonomy.PlanKind.QueenTradeShield).wireKey, proofFamily(PlanTaxonomy.PlanKind.QueenTradeShield).wireKey) &&
+          lineMoves.size >= 2 &&
+          lineMoves.forall(uciMove)
+      case PlayerFacingExactSliceProof.CentralBreakTiming(breakMove, breakSquare, breakToken) =>
+        packetMatches(packet, proofFamily(PlanTaxonomy.PlanKind.CentralBreakTiming).wireKey, proofFamily(PlanTaxonomy.PlanKind.CentralBreakTiming).wireKey) &&
+          uciMove(breakMove) &&
+          squareKey(breakSquare) &&
+          normalize(breakMove).slice(2, 4) == normalize(breakSquare) &&
+          routeToken(breakToken)
+
+  private def packetMatches(packet: PlayerFacingClaimPacket, proofSource: String, proofFamily: String): Boolean =
+    normalize(packet.proofSource) == normalize(proofSource) &&
+      normalize(packet.proofFamily) == normalize(proofFamily)
+
+  private def squareKey(raw: String): Boolean =
+    normalize(raw).matches("[a-h][1-8]")
+
+  private def uciMove(raw: String): Boolean =
+    normalize(raw).matches("[a-h][1-8][a-h][1-8][nbrq]?")
+
+  private def fileToken(raw: String): Boolean =
+    normalize(raw).matches("[a-h](?:-file)?")
+
+  private def routeToken(raw: String): Boolean =
+    normalize(raw).matches("""(?:\.\.\.)?[a-h][1-8]-[a-h][1-8]""")
+
+  private def breakTokenShape(raw: String): Boolean =
+    normalize(raw).matches("""(?:\.\.\.)?[a-h][1-8](?:-[a-h][1-8])?""")
+
+  private def resourceToken(raw: String): Boolean =
+    val token = normalize(raw)
+    token.nonEmpty &&
+      !token.contains("|") &&
+      !token.contains(":") &&
+      (
+        token.matches("""(?:\.\.\.)?[a-h][1-8](?:-[a-h][1-8])?""") ||
+          token.exists(_.isLetter)
+      )
 
   private def normalize(raw: String): String =
     Option(raw).getOrElse("").trim.toLowerCase

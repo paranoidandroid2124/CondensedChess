@@ -598,7 +598,6 @@ class RestrictedDefenseConversionProofBoundaryTest extends FunSuite:
               compensationProseAllowed = false
             )
           ),
-        strategicThreads = Nil,
         themes = List("Opposite-colored bishops")
       )
 

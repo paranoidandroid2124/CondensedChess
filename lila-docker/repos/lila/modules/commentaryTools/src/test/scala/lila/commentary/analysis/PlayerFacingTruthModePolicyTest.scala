@@ -4,7 +4,6 @@ import munit.FunSuite
 import lila.commentary.{ DirectionalTargetReadiness, GameChronicleMoment, NarrativeSignalDigest, RouteSurfaceMode, StrategicIdeaGroup, StrategicIdeaKind, StrategicIdeaReadiness, StrategyDirectionalTarget, StrategyIdeaSignal, StrategyPack, StrategyPieceMoveRef, StrategyPieceRoute }
 import lila.commentary.model.*
 import lila.commentary.model.authoring.{ AuthorQuestion, AuthorQuestionKind, PlanHypothesis, PlanViability }
-import lila.commentary.model.authoring.NarrativeOutline
 import lila.commentary.model.strategic.{ EngineEvidence, PvMove, VariationLine }
 import lila.commentary.analysis.claim.PlayerFacingClaimPrefixKind
 
@@ -267,7 +266,19 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     assertEquals(delta.packet.scope, PlayerFacingPacketScope.PositionLocal)
     assert(delta.packet.proofPathWitness.ownerSeedTerms.contains("weak_square:e5"), clues(delta.packet))
     assert(delta.packet.proofPathWitness.ownerSeedTerms.contains("minor_piece_attack:c4-e5"), clues(delta.packet))
+    assert(
+      delta.packet.proofPathWitness.exactSliceProof.exists {
+        case PlayerFacingExactSliceProof.ColorComplexSqueeze("e5", "dark", "knight", "c4") => true
+        case _                                                                             => false
+      },
+      clues(delta.packet.proofPathWitness.exactSliceProof)
+    )
     assert(PlayerFacingTruthModePolicy.certifiedPositionProbePacket(delta.packet), clues(delta.packet))
+    assert(
+      !PlayerFacingTruthModePolicy.certifiedPositionProbePacket(
+        delta.packet.copy(proofPathWitness = delta.packet.proofPathWitness.copy(exactSliceProof = None))
+      )
+    )
   }
 
   test("color-complex text and semantic square do not release when the minor piece does not attack it") {
@@ -311,20 +322,6 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       AuthorQuestion("why_now", AuthorQuestionKind.WhyNow, 60, "Why now?")
     )
 
-  private val emptyParts =
-    CommentaryEngine.HybridNarrativeParts(
-      lead = "Lead",
-      defaultBridge = "Bridge",
-      criticalBranch = None,
-      body = "Body",
-      primaryPlan = None,
-      focusedOutline = NarrativeOutline(beats = Nil),
-      phase = "Middlegame",
-      tacticalPressure = false,
-      cpWhite = Some(20),
-      bead = 1
-    )
-
   private def exactReviewScene(id: String) =
     val fixture =
       TaskShiftProvingFixtures.reviewFixtures
@@ -347,10 +344,11 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       StrategyPackBuilder
         .build(data, ctx)
         .getOrElse(fail(s"strategy pack missing for ${fixture.id}"))
+    val reviewTruthContract = Some(truthContract(DecisiveTruthClass.Acceptable, DecisiveReasonKind.QuietTechnicalMove))
     val inputs =
-      QuestionPlannerInputsBuilder.build(ctx, Some(pack), truthContract = None)
+      QuestionPlannerInputsBuilder.build(ctx, Some(pack), truthContract = reviewTruthContract)
     val ranked =
-      QuestionFirstCommentaryPlanner.plan(ctx, inputs, truthContract = None)
+      QuestionFirstCommentaryPlanner.plan(ctx, inputs, truthContract = reviewTruthContract)
     (fixture, ctx, pack, inputs, ranked)
 
   private def exactReviewSnapshot(id: String) =
@@ -1412,7 +1410,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     assert(PlayerFacingClaimProof.allowsWeakMainClaim(delta.packet))
   }
 
-  test("forcing-defense named-break timing can release as SupportedLocal when packet proof is stable") {
+  test("forcing-defense threat timing remains planner-owned when no named-break witness matches packet proof") {
     val ctx =
       baseCtx().copy(
         fen = "2r2rk1/pp3pp1/2n1p2p/3p4/3P1P2/2P1PN1P/PP4P1/2R2RK1 w - - 0 23",
@@ -1499,20 +1497,21 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
 
     assertEquals(primary.questionKind, AuthorQuestionKind.WhyNow)
     assertEquals(primary.plannerOwnerKind, PlannerOwnerKind.ForcingDefense)
-    assertEquals(primary.fallbackMode, QuestionPlanFallbackMode.FactualFallback)
-    assertEquals(primary.strengthTier, QuestionPlanStrengthTier.Moderate)
-    assert(primary.admissibilityReasons.contains("strategic_claim_supported_local"), clues(primary))
+    assertEquals(primary.fallbackMode, QuestionPlanFallbackMode.PlannerOwned)
+    assertEquals(primary.strengthTier, QuestionPlanStrengthTier.Strong)
+    assert(primary.admissibilityReasons.contains("timing_owner"), clues(primary))
+    assert(!primary.admissibilityReasons.contains("strategic_claim_supported_local"), clues(primary))
     assertEquals(
       primary.claim,
       "The move has to happen now because otherwise c1c8 is demanded immediately."
     )
-    assertEquals(primary.prefixKind, PlayerFacingClaimPrefixKind.SupportedLocal)
+    assertEquals(primary.prefixKind, PlayerFacingClaimPrefixKind.None)
     assertEquals(primary.evidence, None)
-    assertEquals(primary.contrast, None)
-    assertEquals(primary.consequence, None)
+    assert(primary.contrast.nonEmpty, clues(primary))
+    assert(primary.consequence.nonEmpty, clues(primary))
   }
 
-  test("forcing-defense WhatMustBeStopped timing can release from structured packet witness") {
+  test("forcing-defense WhatMustBeStopped threat timing remains planner-owned without a named-break witness") {
     val ctx =
       baseCtx().copy(
         fen = "2r2rk1/pp3pp1/2n1p2p/3p4/3P1P2/2P1PN1P/PP4P1/2R2RK1 w - - 0 23",
@@ -1602,16 +1601,18 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     assertEquals(primary.plannerSource, "threat")
     assertEquals(primary.timingWitness.map(_.proofFamily), Some("neutralize_key_break"))
     assert(primary.timingWitness.exists(_.witnessTokens.contains("c1c8")), clues(primary))
-    assertEquals(primary.fallbackMode, QuestionPlanFallbackMode.FactualFallback)
-    assert(primary.admissibilityReasons.contains("strategic_claim_supported_local"), clues(primary))
+    assertEquals(primary.fallbackMode, QuestionPlanFallbackMode.PlannerOwned)
+    assertEquals(primary.strengthTier, QuestionPlanStrengthTier.Strong)
+    assert(primary.admissibilityReasons.contains("defensive_owner"), clues(primary))
+    assert(!primary.admissibilityReasons.contains("strategic_claim_supported_local"), clues(primary))
     assertEquals(
       primary.claim,
       "This has to stop the opponent's material threat before it lands."
     )
-    assertEquals(primary.prefixKind, PlayerFacingClaimPrefixKind.SupportedLocal)
-    assertEquals(primary.evidence, None)
-    assertEquals(primary.contrast, None)
-    assertEquals(primary.consequence, None)
+    assertEquals(primary.prefixKind, PlayerFacingClaimPrefixKind.None)
+    assert(primary.evidence.nonEmpty, clues(primary))
+    assert(primary.contrast.nonEmpty, clues(primary))
+    assert(primary.consequence.nonEmpty, clues(primary))
   }
 
   test("forcing-defense named-break timing stays unreleased when packet proof lacks a branch") {
@@ -1793,7 +1794,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     assertNotEquals(primary.fallbackMode, QuestionPlanFallbackMode.FactualFallback)
   }
 
-  test("forcing-defense named-break timing is vetoed under tactical truth mode") {
+  test("forcing-defense threat timing is not treated as named-break SupportedLocal under tactical truth mode") {
     val ctx =
       baseCtx().copy(
         fen = "2r2rk1/pp3pp1/2n1p2p/3p4/3P1P2/2P1PN1P/PP4P1/2R2RK1 w - - 0 23",
@@ -1885,13 +1886,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     val ranked = QuestionFirstCommentaryPlanner.plan(ctx, tacticalInputs, truthContract = None)
 
     assert(ranked.primary.forall(!_.admissibilityReasons.contains("strategic_claim_supported_local")), clues(ranked.primary))
-    assert(
-      ranked.rejected.exists(rejected =>
-        rejected.reasons.contains("strategic_claim_tactical_veto") &&
-          rejected.reasons.contains("planner_truth_mode_tactical")
-      ),
-      clues(ranked.rejected)
-    )
+    assertEquals(ranked.rejected.filter(_.reasons.contains("strategic_claim_tactical_veto")), Nil)
   }
 
   test("named-break promotion fails closed when the best-defense branch key is missing") {
@@ -2672,6 +2667,24 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       assert(packet.proofPathWitness.ownerSeedTerms.contains("fixed_target:c6"))
       assert(packet.proofPathWitness.ownerSeedTerms.contains(PlanTaxonomy.PlanKind.BackwardPawnTargeting.id))
       assertEquals(
+        packet.proofPathWitness.exactSliceProof,
+        Some(PlayerFacingExactSliceProof.CarlsbadFixedTarget("c6", minoritySupport = true))
+      )
+      assert(
+        !PlayerFacingTruthModePolicy.certifiedPositionProbePacket(
+          packet.copy(proofPathWitness = packet.proofPathWitness.copy(exactSliceProof = None))
+        )
+      )
+      assert(
+        PlayerFacingTruthModePolicy.certifiedPositionProbePacket(
+          packet.copy(
+            proofPathWitness = packet.proofPathWitness.copy(
+              exactSliceProof = Some(PlayerFacingExactSliceProof.CarlsbadFixedTarget("c3", minoritySupport = true))
+            )
+          )
+        )
+      )
+      assertEquals(
         ranked.primary.map(_.questionKind),
         Some(AuthorQuestionKind.WhatMattersHere)
       )
@@ -2722,6 +2735,19 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       assert(packet.proofPathWitness.continuationTerms.contains(PlayerFacingTruthModePolicy.TargetFocusedCoordinationProofSource))
       assert(packet.proofPathWitness.continuationTerms.contains("coordinated_target:c6"))
       assert(packet.proofPathWitness.structureTransitionTerms.contains("coordinated_piece_pressure"))
+      assert(
+        packet.proofPathWitness.exactSliceProof.exists {
+          case PlayerFacingExactSliceProof.TargetFocusedCoordination("c6", supportFromSquares, targetPieces) =>
+            supportFromSquares.distinct.size >= 2 && targetPieces.contains("target_knight")
+          case _ => false
+        },
+        clues(packet.proofPathWitness.exactSliceProof)
+      )
+      assert(
+        !PlayerFacingTruthModePolicy.certifiedPositionProbePacket(
+          packet.copy(proofPathWitness = packet.proofPathWitness.copy(exactSliceProof = None))
+        )
+      )
       assertEquals(ranked.primary.map(_.questionKind), Some(AuthorQuestionKind.WhatMattersHere))
       assertEquals(
         ranked.primary.map(_.claim),
@@ -2761,21 +2787,24 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
   test("target-focused coordination deterministic surfaces keep WhatMattersHere as planner-owned primary") {
     List("K09A", "K09D").foreach { id =>
       val (_, ctx, pack, inputs, ranked) = exactReviewScene(id)
-      val outline =
-        BookStyleRenderer.validatedOutline(ctx, strategyPack = Some(pack), truthContract = None)
 
       val moveReviewSelection =
         MoveReviewCompressionPolicy.renderSelection(inputs, ranked, truthContract = None)
           .getOrElse(fail(s"$id should select a planner-owned moveReview surface"))
       val moveReviewSlots =
         MoveReviewCompressionPolicy
-          .buildSlots(ctx, outline, refs = None, strategyPack = Some(pack))
-          .getOrElse(fail(s"$id should build planner-owned moveReview slots"))
+          .buildSlotsOrFallbackFromPlannerRuntime(
+            ctx = ctx,
+            inputs = inputs,
+            rankedPlans = ranked,
+            strategyPack = Some(pack),
+            truthContract = None
+          )
       val moveReviewFallbackAware =
-        MoveReviewCompressionPolicy.buildSlotsOrFallback(
+        MoveReviewCompressionPolicy.buildSlotsOrFallbackFromPlannerRuntime(
           ctx = ctx,
-          outline = outline,
-          refs = None,
+          inputs = inputs,
+          rankedPlans = ranked,
           strategyPack = Some(pack),
           truthContract = None
         )
@@ -2792,47 +2821,32 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       )
       assertEquals(moveReviewFallbackAware, moveReviewSlots)
 
-      val chronicleSelection =
-        GameChronicleCompressionPolicy.selectPlannerSurface(ranked, inputs)
-          .getOrElse(fail(s"$id should select a planner-owned chronicle surface"))
-      val chronicleArtifact =
-        GameChronicleCompressionPolicy
-          .renderWithTrace(
-            ctx = ctx,
-            parts = emptyParts.copy(focusedOutline = outline),
-            strategyPack = Some(pack),
-            truthContract = None
-          )
-          .getOrElse(fail(s"$id should render a chronicle artifact"))
-
-      assertEquals(chronicleSelection.primary.questionKind, AuthorQuestionKind.WhatMattersHere)
-      assertEquals(chronicleSelection.primary.plannerOwnerKind, PlannerOwnerKind.PositionProbe)
-      assert(
-        chronicleArtifact.narrative.startsWith("The key strategic fact here is that the pressure is coordinated on c6."),
-        clue(chronicleArtifact.narrative)
-      )
-      assertEquals(chronicleArtifact.quietSupportTrace.applied, false)
+      assertEquals(ranked.primary.map(_.questionKind), Some(AuthorQuestionKind.WhatMattersHere))
+      assertEquals(ranked.primary.map(_.plannerOwnerKind), Some(PlannerOwnerKind.PositionProbe))
     }
   }
 
   test("carlsbad probe deterministic surfaces keep WhatMattersHere as planner-owned primary") {
     List("B15A", "B16B").foreach { id =>
       val (_, ctx, pack, inputs, ranked) = exactReviewScene(id)
-      val outline =
-        BookStyleRenderer.validatedOutline(ctx, strategyPack = Some(pack), truthContract = None)
 
       val moveReviewSelection =
         MoveReviewCompressionPolicy.renderSelection(inputs, ranked, truthContract = None)
           .getOrElse(fail(s"$id should select a planner-owned moveReview surface"))
       val moveReviewSlots =
         MoveReviewCompressionPolicy
-          .buildSlots(ctx, outline, refs = None, strategyPack = Some(pack))
-          .getOrElse(fail(s"$id should build planner-owned moveReview slots"))
+          .buildSlotsOrFallbackFromPlannerRuntime(
+            ctx = ctx,
+            inputs = inputs,
+            rankedPlans = ranked,
+            strategyPack = Some(pack),
+            truthContract = None
+          )
       val moveReviewFallbackAware =
-        MoveReviewCompressionPolicy.buildSlotsOrFallback(
+        MoveReviewCompressionPolicy.buildSlotsOrFallbackFromPlannerRuntime(
           ctx = ctx,
-          outline = outline,
-          refs = None,
+          inputs = inputs,
+          rankedPlans = ranked,
           strategyPack = Some(pack),
           truthContract = None
         )
@@ -2849,26 +2863,8 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       )
       assertEquals(moveReviewFallbackAware, moveReviewSlots)
 
-      val chronicleSelection =
-        GameChronicleCompressionPolicy.selectPlannerSurface(ranked, inputs)
-          .getOrElse(fail(s"$id should select a planner-owned chronicle surface"))
-      val chronicleArtifact =
-        GameChronicleCompressionPolicy
-          .renderWithTrace(
-            ctx = ctx,
-            parts = emptyParts.copy(focusedOutline = outline),
-            strategyPack = Some(pack),
-            truthContract = None
-          )
-          .getOrElse(fail(s"$id should render a chronicle artifact"))
-
-      assertEquals(chronicleSelection.primary.questionKind, AuthorQuestionKind.WhatMattersHere)
-      assertEquals(chronicleSelection.primary.plannerOwnerKind, PlannerOwnerKind.PositionProbe)
-      assert(
-        chronicleArtifact.narrative.startsWith("The key strategic fact here is that c6 is the fixed target."),
-        clue(chronicleArtifact.narrative)
-      )
-      assertEquals(chronicleArtifact.quietSupportTrace.applied, false)
+      assertEquals(ranked.primary.map(_.questionKind), Some(AuthorQuestionKind.WhatMattersHere))
+      assertEquals(ranked.primary.map(_.plannerOwnerKind), Some(PlannerOwnerKind.PositionProbe))
     }
   }
 
@@ -2902,23 +2898,8 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       )
       assertEquals(moveReviewFallbackAware, moveReviewSlots)
 
-      val chronicleSelection =
-        GameChronicleCompressionPolicy.selectPlannerSurface(ranked, inputs)
-          .getOrElse(fail(s"$id should select a planner-owned chronicle surface"))
-      val chronicleArtifact =
-        GameChronicleCompressionPolicy
-          .renderWithTrace(
-            ctx = ctx,
-            parts = emptyParts.copy(focusedOutline = outline),
-            strategyPack = Some(pack),
-            truthContract = None
-          )
-          .getOrElse(fail(s"$id should render a chronicle artifact"))
-
-      assertEquals(chronicleSelection.primary.questionKind, AuthorQuestionKind.WhatChanged)
-      assertEquals(chronicleSelection.primary.plannerOwnerKind, PlannerOwnerKind.MoveDelta)
-      assert(chronicleArtifact.narrative.startsWith("This changes the position by fixing d6 as the target."))
-      assertEquals(chronicleArtifact.quietSupportTrace.applied, false)
+      assertEquals(ranked.primary.map(_.questionKind), Some(AuthorQuestionKind.WhatChanged))
+      assertEquals(ranked.primary.map(_.plannerOwnerKind), Some(PlannerOwnerKind.MoveDelta))
     }
   }
 

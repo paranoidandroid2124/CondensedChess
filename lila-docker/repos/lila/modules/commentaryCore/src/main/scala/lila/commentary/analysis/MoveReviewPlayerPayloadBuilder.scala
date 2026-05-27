@@ -9,7 +9,7 @@ import lila.commentary.analysis.PlanTaxonomy.{ PlanKind, PlanTheme }
 
 object MoveReviewPlayerPayloadBuilder:
 
-  private val Schema = "chesstory.move_review.player_surface.v1"
+  private val Schema = "chesstory.move_review.player_surface.v2"
   private val MinDecisionSurfaceGapCp = 35
   private val ClearDecisionSurfaceGapCp = 60
   private val ExactComparativeSource = "exact"
@@ -216,7 +216,8 @@ object MoveReviewPlayerPayloadBuilder:
         text = cleanText,
         tone = sourceRow.tone.flatMap(value => cleanOpt(Some(value))),
         source = None,
-        refSans = refSans(sourceRow.refSans, knownSans)
+        refSans = refSans(sourceRow.refSans, knownSans),
+        authority = sourceRow.authority
       )
     }
 
@@ -327,11 +328,13 @@ private[commentary] object NeutralizeKeyBreakSurfaceGate:
       packet: PlayerFacingClaimPacket,
       ctx: NarrativeContext
   ): Decision =
-    decide(
-      plan.timingWitness.flatMap(_.namedBreak).toList ++ packetCandidates(packet),
-      playedSan = ctx.playedSan,
-      playedUci = ctx.playedMove
-    )
+    val planToken = plan.timingWitness.flatMap(_.namedBreak).flatMap(canonicalToken)
+    val packetToken = packetBreakToken(packet)
+    (planToken, packetToken) match
+      case (Some(left), Some(right)) if left == right =>
+        decideToken(left, playedSan = ctx.playedSan, playedUci = ctx.playedMove)
+      case _ =>
+        Decision(None, Some(MissingNamedBreak))
 
   def decideForPacket(
       packet: PlayerFacingClaimPacket,
@@ -344,42 +347,33 @@ private[commentary] object NeutralizeKeyBreakSurfaceGate:
       playedSan: Option[String],
       playedUci: Option[String]
   ): Decision =
-    decide(packetCandidates(packet), playedSan, playedUci)
+    packetBreakToken(packet)
+      .map(token => decideToken(token, playedSan, playedUci))
+      .getOrElse(Decision(None, Some(MissingNamedBreak)))
 
   def surfaceText(token: String): String =
     s"On the checked line, this stops the $token break before it appears."
 
-  private def packetCandidates(packet: PlayerFacingClaimPacket): List[String] =
-    packet.proofPathWitness.ownerSeedTerms ++
-      packet.proofPathWitness.structureTransitionTerms ++
-      packet.anchorTerms
+  private def packetBreakToken(packet: PlayerFacingClaimPacket): Option[String] =
+    packet.proofPathWitness.exactSliceProof.collect {
+      case PlayerFacingExactSliceProof.CounterplayAxisSuppression(breakToken) => breakToken
+    }.flatMap(canonicalToken)
 
-  private def decide(
-      rawCandidates: List[String],
+  private def decideToken(
+      token: String,
       playedSan: Option[String],
       playedUci: Option[String]
   ): Decision =
-    val candidates = rawCandidates.flatMap(canonicalToken).distinct
-    candidates.headOption match
-      case Some(token) if playedMoveCollision(token, playedSan, playedUci) =>
-        Decision(None, Some(PlayedMoveCollision))
-      case Some(token) =>
-        Decision(Some(token), None)
-      case None =>
-        Decision(None, Some(MissingNamedBreak))
+    if playedMoveCollision(token, playedSan, playedUci) then Decision(None, Some(PlayedMoveCollision))
+    else Decision(Some(token), None)
 
   private def canonicalToken(raw: String): Option[String] =
-    val compact =
-      Option(raw).map(_.trim).getOrElse("")
-        .replaceAll("(?i)^the\\s+", "")
-        .replaceAll("(?i)\\s+break$", "")
-        .replaceAll("(?i)-break$", "")
-        .replace(" ", "")
-    val lower = compact.toLowerCase
+    val lower = Option(raw).map(_.trim.toLowerCase).getOrElse("")
     if lower.isEmpty ||
         lower.contains("_") ||
         lower.contains(":") ||
         lower.contains("|") ||
+        lower.contains(" ") ||
         lower.contains("counterplay") ||
         lower.contains("neutralize")
     then None
@@ -509,7 +503,13 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       .flatMap { admission =>
         NeutralizeKeyBreakSurfaceGate.decideForPlanPacket(plan, admission.packet, ctx).token
       }
-      .flatMap(token => row(CounterplayBreakLabel, NeutralizeKeyBreakSurfaceGate.surfaceText(token)))
+      .flatMap(token =>
+        row(
+          CounterplayBreakLabel,
+          NeutralizeKeyBreakSurfaceGate.surfaceText(token),
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CounterplayBreak, token = Some(token)))
+        )
+      )
 
   private def rowForClaim(
       ctx: NarrativeContext,
@@ -531,7 +531,13 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
         Option
           .when(decision.tier == ClaimAuthorityTier.SupportedLocal && decision.vetoReasons.isEmpty)(packet)
           .flatMap(packet => NeutralizeKeyBreakSurfaceGate.decideForPacket(packet, ctx).token)
-          .flatMap(token => row(CounterplayBreakLabel, NeutralizeKeyBreakSurfaceGate.surfaceText(token)))
+          .flatMap(token =>
+            row(
+              CounterplayBreakLabel,
+              NeutralizeKeyBreakSurfaceGate.surfaceText(token),
+              authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CounterplayBreak, token = Some(token)))
+            )
+          )
       else if packet.proofSource == CentralBreakTimingWitness.ProofSource &&
           packet.proofFamily == CentralBreakTimingWitness.ProofFamily
       then
@@ -550,9 +556,18 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
             CentralBreakTimingSurfaceGate
               .decide(admission.witness)
               .token
-              .map(token => CentralBreakTimingSurfaceGate.surfaceText(admission.witness, token))
+              .map(token =>
+                token ->
+                  CentralBreakTimingSurfaceGate.surfaceText(admission.witness, token)
+              )
           }
-          .flatMap(text => row(CentralBreakLabel, text))
+          .flatMap { case (token, text) =>
+            row(
+              CentralBreakLabel,
+              text,
+              authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CentralBreak, token = Some(token)))
+            )
+          }
         else None
       }
 
@@ -564,7 +579,11 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
   private def isNeutralizeKeyBreakPlan(plan: QuestionPlan): Boolean =
     plan.timingWitness.exists(_.proofFamily == ProofFamilyId.NeutralizeKeyBreak.wireKey)
 
-  private def row(label: String, text: String): Option[MoveReviewPlayerSurfaceRow] =
+  private def row(
+      label: String,
+      text: String,
+      authority: Option[MoveReviewSurfaceAuthority]
+  ): Option[MoveReviewPlayerSurfaceRow] =
     for
       cleanLabel <- cleanOpt(label)
       cleanText <- cleanOpt(text)
@@ -573,7 +592,8 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       text = cleanText,
       tone = None,
       source = None,
-      refSans = Nil
+      refSans = Nil,
+      authority = authority
     )
 
   private def cleanOpt(value: String): Option[String] =

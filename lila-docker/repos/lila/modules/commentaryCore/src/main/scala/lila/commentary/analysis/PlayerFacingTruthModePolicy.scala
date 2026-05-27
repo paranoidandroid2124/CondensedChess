@@ -909,7 +909,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
       proofFamily: String,
       triggerKind: String,
       ownerSeedTerms: List[String] = Nil,
-      structureTransitionTerms: List[String] = Nil
+      structureTransitionTerms: List[String] = Nil,
+      exactSliceProof: Option[PlayerFacingExactSliceProof] = None
   ):
     def allWitnessTerms: List[String] =
       (ownerSeedTerms ++ structureTransitionTerms).distinct
@@ -1003,6 +1004,27 @@ private[commentary] object PlayerFacingTruthModePolicy:
       ownerSeed.proofSource == proofSource &&
         releaseOwnerFamilies.contains(ownerSeed.proofFamily)
 
+  private final case class CarlsbadTarget(
+      targetSquare: String,
+      enemyChainSquare: String,
+      friendlyMinorityPawn: String,
+      friendlyChainPawn: String
+  ):
+    def ownerSeedTerms: List[String] =
+      List(
+        targetSquare,
+        s"fixed_target:$targetSquare",
+        "queenside",
+        PlanTaxonomy.PlanKind.BackwardPawnTargeting.id
+      ).distinct
+
+    def structureTransitionTerms: List[String] =
+      List(
+        "queenside_fixed_chain",
+        s"${targetSquare}_target",
+        s"${enemyChainSquare}_chain"
+      ).distinct
+
   private val ExactTargetFixationDescriptor =
     ExactSliceDescriptor(
       kind = ExactSliceKind.TargetFixation,
@@ -1057,7 +1079,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
       descriptor: ExactSliceDescriptor,
       targetSquare: String,
       ownerSeedTerms: List[String],
-      structureTransitionTerms: List[String]
+      structureTransitionTerms: List[String],
+      exactSliceProof: PlayerFacingExactSliceProof
   )
 
   private final case class IqpInducementWitness(
@@ -1255,7 +1278,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
           continuationTerms = continuationTerms,
           rivalTerms = rivalAssessment.rivalWitnessTerms,
           structureTransitionTerms = ownerSeed.structureTransitionTerms,
-          exactSliceProof = exactSliceProofForOwnerSeed(ownerSeed)
+          exactSliceProof = ownerSeed.exactSliceProof
         ),
       suppressionReasons = suppressionReasons,
       releaseRisks = releaseRisks,
@@ -1273,7 +1296,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
         proofFamily = witness.descriptor.proofFamily,
         triggerKind = witness.descriptor.triggerKind,
         ownerSeedTerms = witness.ownerSeedTerms,
-        structureTransitionTerms = witness.structureTransitionTerms
+        structureTransitionTerms = witness.structureTransitionTerms,
+        exactSliceProof = Some(witness.exactSliceProof)
       )
     }
 
@@ -1287,7 +1311,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
         proofFamily = witness.descriptor.proofFamily,
         triggerKind = witness.descriptor.triggerKind,
         ownerSeedTerms = witness.ownerSeedTerms,
-        structureTransitionTerms = witness.structureTransitionTerms
+        structureTransitionTerms = witness.structureTransitionTerms,
+        exactSliceProof = Some(witness.exactSliceProof)
       )
     }
 
@@ -1343,7 +1368,15 @@ private[commentary] object PlayerFacingTruthModePolicy:
           proofFamily = CentralBreakTimingWitness.ProofFamily,
           triggerKind = PlanTaxonomy.PlanKind.CentralBreakTiming.id,
           ownerSeedTerms = witness.ownerSeedTerms,
-          structureTransitionTerms = witness.structureTransitionTerms
+          structureTransitionTerms = witness.structureTransitionTerms,
+          exactSliceProof =
+            Some(
+              PlayerFacingExactSliceProof.CentralBreakTiming(
+                breakMove = witness.breakMove,
+                breakSquare = witness.breakSquare,
+                breakToken = witness.breakToken
+              )
+            )
         )
       case PlayerFacingMoveDeltaClass.CounterplayReduction
           if colorComplexSqueezeSeed.nonEmpty =>
@@ -1356,7 +1389,9 @@ private[commentary] object PlayerFacingTruthModePolicy:
           proofFamily = HalfOpenFilePressureFamily,
           triggerKind = "file_entry_denial",
           ownerSeedTerms = List(pair.file, pair.entrySquare),
-          structureTransitionTerms = List(s"file-entry:${pair.file}:${pair.entrySquare}")
+          structureTransitionTerms = List(s"file-entry:${pair.file}:${pair.entrySquare}"),
+          exactSliceProof =
+            Some(PlayerFacingExactSliceProof.LocalFileEntryBind(pair.file, pair.entrySquare))
         )
       case PlayerFacingMoveDeltaClass.ResourceRemoval
           if localFileEntryPair.nonEmpty =>
@@ -1366,7 +1401,9 @@ private[commentary] object PlayerFacingTruthModePolicy:
           proofFamily = HalfOpenFilePressureFamily,
           triggerKind = "file_entry_denial",
           ownerSeedTerms = List(pair.file, pair.entrySquare),
-          structureTransitionTerms = List(s"file-entry:${pair.file}:${pair.entrySquare}")
+          structureTransitionTerms = List(s"file-entry:${pair.file}:${pair.entrySquare}"),
+          exactSliceProof =
+            Some(PlayerFacingExactSliceProof.LocalFileEntryBind(pair.file, pair.entrySquare))
         )
       case PlayerFacingMoveDeltaClass.CounterplayReduction | PlayerFacingMoveDeltaClass.ResourceRemoval
           if prophylacticRestraintPlan &&
@@ -1376,7 +1413,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
           proofFamily = CounterplayRestraintFamily,
           triggerKind = ProphylacticMoveProofSource,
           ownerSeedTerms = namedPreventedTerms,
-          structureTransitionTerms = namedPreventedTerms
+          structureTransitionTerms = namedPreventedTerms,
+          exactSliceProof = namedPreventedTerms.headOption.map(PlayerFacingExactSliceProof.ProphylacticRestraint.apply)
         )
       case PlayerFacingMoveDeltaClass.CounterplayReduction | PlayerFacingMoveDeltaClass.ResourceRemoval
           if breakPreventionWitness.nonEmpty =>
@@ -1386,7 +1424,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
           proofFamily = NeutralizeKeyBreakFamily,
           triggerKind = "break_neutralization",
           ownerSeedTerms = witness.ownerSeedTerms,
-          structureTransitionTerms = witness.structureTransitionTerms
+          structureTransitionTerms = witness.structureTransitionTerms,
+          exactSliceProof = Some(PlayerFacingExactSliceProof.CounterplayAxisSuppression(witness.breakToken))
         )
       case PlayerFacingMoveDeltaClass.ExchangeForcing
           if hasQueenTradeShieldWitness(ctx) =>
@@ -1397,7 +1436,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
           triggerKind = PlanTaxonomy.PlanKind.QueenTradeShield.id,
           ownerSeedTerms =
             (List("queen_trade_shield", "queenless_branch", "queen_trade") ++ lineMoves.takeRight(2)).distinct,
-          structureTransitionTerms = (lineMoves ++ List("queenless_branch", "queen_trade")).distinct
+          structureTransitionTerms = (lineMoves ++ List("queenless_branch", "queen_trade")).distinct,
+          exactSliceProof = Some(PlayerFacingExactSliceProof.QueenTradeShield(lineMoves))
         )
       case PlayerFacingMoveDeltaClass.ExchangeForcing
           if exactIqpInducementWitness(ctx).nonEmpty =>
@@ -1928,97 +1968,14 @@ private[commentary] object PlayerFacingTruthModePolicy:
   ): Option[ExactSliceDescriptor] =
     ExactSliceDescriptors.find(_.packetMatches(packet))
 
-  private def exactSliceProofForOwnerSeed(
-      ownerSeed: ClaimOwnerSeed
-  ): Option[PlayerFacingExactSliceProof] =
-    val terms =
-      ownerSeed.allWitnessTerms.flatMap(clean).map(normalize).filter(_.nonEmpty).distinct
-    def build(kind: String, proofSource: String, proofFamily: String, target: Option[String]) =
-      target.filter(_.nonEmpty).map { targetKey =>
-        PlayerFacingExactSliceProof(
-          proofSource = proofSource,
-          proofFamily = proofFamily,
-          kind = kind,
-          target = targetKey,
-          terms = terms
-        )
-      }
-    exactSliceDescriptor(ownerSeed)
-      .flatMap(descriptor =>
-        build(
-          descriptor.proofSource,
-          descriptor.proofSource,
-          descriptor.proofFamily,
-          exactSliceTargetFromTerms(descriptor, terms)
-        )
-      )
-      .orElse {
-        if ownerSeed.proofSource == LocalFileEntryBindProofSource &&
-            ownerSeed.proofFamily == HalfOpenFilePressureFamily
-        then
-          build(
-            LocalFileEntryBindProofSource,
-            LocalFileEntryBindProofSource,
-            HalfOpenFilePressureFamily,
-            terms.find(_.startsWith("file-entry:")).orElse(terms.find(isSquareKey))
-          )
-        else if ownerSeed.proofSource == CounterplayAxisSuppressionProofSource &&
-            ownerSeed.proofFamily == NeutralizeKeyBreakFamily
-        then
-          build(
-            CounterplayAxisSuppressionProofSource,
-            CounterplayAxisSuppressionProofSource,
-            NeutralizeKeyBreakFamily,
-            terms.headOption
-          )
-        else if ownerSeed.proofSource == ProphylacticMoveProofSource &&
-            ownerSeed.proofFamily == CounterplayRestraintFamily
-        then
-          build(
-            ProphylacticMoveProofSource,
-            ProphylacticMoveProofSource,
-            CounterplayRestraintFamily,
-            terms.headOption
-          )
-        else if ownerSeed.proofSource == QueenTradeShieldProofSource &&
-            ownerSeed.proofFamily == QueenTradeShieldFamily
-        then
-          build(
-            QueenTradeShieldProofSource,
-            QueenTradeShieldProofSource,
-            QueenTradeShieldFamily,
-            terms.find(_ == "queen_trade").orElse(terms.find(_ == "queenless_branch"))
-          )
-        else if ownerSeed.proofSource == CentralBreakTimingWitness.ProofSource &&
-            ownerSeed.proofFamily == CentralBreakTimingWitness.ProofFamily
-        then
-          build(
-            CentralBreakTimingWitness.ProofSource,
-            CentralBreakTimingWitness.ProofSource,
-            CentralBreakTimingWitness.ProofFamily,
-            terms.find(_.contains("break")).orElse(terms.headOption)
-          )
-        else None
-      }
-
-  private def exactSliceTargetFromTerms(
-      descriptor: ExactSliceDescriptor,
-      terms: List[String]
-  ): Option[String] =
-    descriptor.kind match
-      case ExactSliceKind.ColorComplexSqueezeProbe =>
-        terms.collectFirst { case term if term.startsWith("weak_square:") => term.stripPrefix("weak_square:") }
-          .orElse(terms.find(isSquareKey))
-      case ExactSliceKind.TargetFocusedCoordinationProbe =>
-        terms.collectFirst {
-          case term if term.startsWith("coordinated_target:") => term.stripPrefix("coordinated_target:")
-        }.orElse(terms.find(isSquareKey))
-      case _ =>
-        terms.collectFirst { case term if term.startsWith("fixed_target:") => term.stripPrefix("fixed_target:") }
-          .orElse(terms.find(isSquareKey))
-
   private def isSquareKey(term: String): Boolean =
     term.matches("[a-h][1-8]")
+
+  private def embeddedSquareKey(term: String): Option[String] =
+    "[a-h][1-8]".r.findFirstIn(normalize(term))
+
+  private def normalizeEvidenceToken(raw: String): String =
+    Option(raw).getOrElse("").trim.toLowerCase
 
   private def exactSliceTargetWitnessTag(
       descriptor: ExactSliceDescriptor,
@@ -2167,7 +2124,9 @@ private[commentary] object PlayerFacingTruthModePolicy:
       sameBranchState: PlayerFacingSameBranchState,
       persistence: PlayerFacingClaimPersistence
   ): Boolean =
-    exactSliceDescriptor(ownerSeed).nonEmpty &&
+    exactSliceDescriptor(ownerSeed).exists(descriptor =>
+      ownerSeed.exactSliceProof.exists(exactSliceProofMatchesDescriptor(_, descriptor))
+    ) &&
       bestDefenseBranchKey.nonEmpty &&
       sameBranchState == PlayerFacingSameBranchState.Proven &&
       persistence == PlayerFacingClaimPersistence.Stable
@@ -3195,39 +3154,36 @@ private[commentary] object PlayerFacingTruthModePolicy:
       ctx: NarrativeContext,
       surface: StrategyPackSurface.Snapshot
   ): Option[ExactSliceWitness] =
-    val exactSignalVisible =
-      List(surface.dominantIdea, surface.secondaryIdea).flatten.exists { idea =>
-        idea.kind == StrategicIdeaKind.TargetFixing &&
-          (
-            ideaHasSource(idea, EvidenceSourceId.CarlsbadFixationProfile) ||
-              ideaHasSource(idea, EvidenceSourceId.MinorityAttackSemantic)
-          )
-      } ||
-        carlsbadFixedTargetSupportVisible(ctx)
-    Option.when(
-      exactTargetFixationPosition(ctx).exists { case (board, sideToMove) =>
-          carlsbadFixedTargetBoardTarget(board, sideToMove).contains("c6") &&
-            carlsbadFixedTargetGenericMinoritySupport(ctx) &&
-            exactSignalVisible &&
-            bestDefenseBranchKeyFromContext(ctx).nonEmpty
-        }
-    ) {
+    val targetOpt =
+      exactTargetFixationPosition(ctx).flatMap { case (board, sideToMove) =>
+        findCarlsbadTarget(board, sideToMove)
+      }
+    targetOpt.filter { target =>
+      val ideas =
+        if surface.allIdeas.nonEmpty then surface.allIdeas
+        else List(surface.dominantIdea, surface.secondaryIdea).flatten
+      val exactSignalVisible =
+        ideas.exists { idea =>
+          idea.kind == StrategicIdeaKind.TargetFixing &&
+            (
+              ideaHasSource(idea, EvidenceSourceId.CarlsbadFixationProfile) ||
+                ideaHasSource(idea, EvidenceSourceId.MinorityAttackSemantic)
+            )
+        } ||
+          carlsbadFixedTargetSupportVisible(ctx, target.targetSquare)
+      carlsbadFixedTargetGenericMinoritySupport(ctx, target.targetSquare) &&
+        exactSignalVisible &&
+        bestDefenseBranchKeyFromContext(ctx).nonEmpty
+    }.map { target =>
       ExactSliceWitness(
         descriptor = CarlsbadFixedTargetProbeDescriptor,
-        targetSquare = "c6",
-        ownerSeedTerms =
-          List(
-            "c6",
-            "fixed_target:c6",
-            "queenside",
-            PlanTaxonomy.PlanKind.BackwardPawnTargeting.id
-          ).distinct,
-        structureTransitionTerms =
-          List(
-            "queenside_fixed_chain",
-            "c6_target",
-            "d5_chain"
-          ).distinct
+        targetSquare = target.targetSquare,
+        ownerSeedTerms = target.ownerSeedTerms,
+        structureTransitionTerms = target.structureTransitionTerms,
+        exactSliceProof = PlayerFacingExactSliceProof.CarlsbadFixedTarget(
+          targetSquare = target.targetSquare,
+          minoritySupport = true
+        )
       )
     }
 
@@ -3253,6 +3209,12 @@ private[commentary] object PlayerFacingTruthModePolicy:
         exactSignalVisible &&
         bestDefenseBranchKeyFromContext(ctx).nonEmpty
     ) {
+      val supportSquares = moveRefs.flatMap(ref => embeddedSquareKey(ref.from)).distinct
+      val targetPieces =
+        moveRefs
+          .flatMap(_.evidence.map(normalizeEvidenceToken))
+          .filter(_.startsWith("target_"))
+          .distinct
       ExactSliceWitness(
         descriptor = TargetFocusedCoordinationDescriptor,
         targetSquare = targetSquare.get,
@@ -3272,7 +3234,12 @@ private[commentary] object PlayerFacingTruthModePolicy:
                 "coordinated_piece_pressure"
               )
             )
-            .distinct
+            .distinct,
+        exactSliceProof = PlayerFacingExactSliceProof.TargetFocusedCoordination(
+          targetSquare = targetSquare.get,
+          supportFromSquares = supportSquares,
+          targetPieces = targetPieces
+        )
       )
     }
 
@@ -3310,7 +3277,13 @@ private[commentary] object PlayerFacingTruthModePolicy:
                     "color_complex_squeeze_probe",
                     s"weak_square:$target",
                     s"minor_piece_attack:$from-$target"
-                  ).distinct
+                  ).distinct,
+                exactSliceProof = PlayerFacingExactSliceProof.ColorComplexSqueeze(
+                  targetSquare = target,
+                  squareColor = squareColor,
+                  minorPieceRole = roleName,
+                  minorPieceSquare = from
+                )
               )
             }
           }
@@ -3451,8 +3424,10 @@ private[commentary] object PlayerFacingTruthModePolicy:
       )
 
   private def carlsbadFixedTargetSupportVisible(
-      ctx: NarrativeContext
+      ctx: NarrativeContext,
+      targetSquare: String
   ): Boolean =
+    val target = normalize(targetSquare)
     val weaknessPlanVisible =
       StrategicNarrativePlanSupport
         .evidenceBackedMainPlans(ctx)
@@ -3476,7 +3451,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
     val semanticWeaknessVisible =
       ctx.semantic.exists(value =>
         value.structuralWeaknesses.exists(weakness =>
-          weakness.squares.exists(_.equalsIgnoreCase("c6")) ||
+          weakness.squares.exists(square => normalize(square) == target) ||
             clean(weakness.cause).exists(text =>
               containsAny(normalize(text), List("backward", "queenside", "fixed", "minority"))
             )
@@ -3495,17 +3470,20 @@ private[commentary] object PlayerFacingTruthModePolicy:
     leadingMinority && carlsbadFixedTargetProbeWitness(ctx, surface).isEmpty
 
   private def carlsbadFixedTargetGenericMinoritySupport(
-      ctx: NarrativeContext
+      ctx: NarrativeContext,
+      targetSquare: String
   ): Boolean =
     exactTargetFixationPosition(ctx).exists { case (board, sideToMove) =>
-      carlsbadFixedTargetGenericMinoritySupport(ctx.fen, board, sideToMove)
+      carlsbadFixedTargetGenericMinoritySupport(ctx.fen, board, sideToMove, targetSquare)
     }
 
   private def carlsbadFixedTargetGenericMinoritySupport(
       fen: String,
       board: _root_.chess.Board,
-      sideToMove: _root_.chess.Color
+      sideToMove: _root_.chess.Color,
+      targetSquare: String
   ): Boolean =
+      val target = normalize(targetSquare)
       val semantic =
         StrategicIdeaSemanticContext(
           sideToMove = if sideToMove.white then "white" else "black",
@@ -3518,14 +3496,14 @@ private[commentary] object PlayerFacingTruthModePolicy:
           observation.status == StrategicConceptSemantics.ConceptStatus.SemanticReady &&
             observation.side == sideToMove &&
             observation.wing == "queenside" &&
-            observation.targets.contains("c6") &&
+            observation.targets.exists(square => normalize(square) == target) &&
             observation.primaryBreak.nonEmpty &&
             observation.essentialEvidence.exists(_.id == "structural_consequence") &&
             observation.structuralDelta.exists(delta =>
               delta.hasConsequence &&
                 (
-                  delta.createdTension.exists(_.endsWith("-c6")) ||
-                    delta.newWeakPawns.contains("c6") ||
+                  delta.createdTension.exists(tension => normalize(tension).endsWith(s"-$target")) ||
+                    delta.newWeakPawns.exists(square => normalize(square) == target) ||
                     delta.targetPressureDelta > 0
                 )
             )
@@ -3592,7 +3570,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
         List(
           s"weak_complex:$targetSquare",
           "backward_pawn_target"
-        ).distinct
+        ).distinct,
+      exactSliceProof = PlayerFacingExactSliceProof.ExactTargetFixation(targetSquare)
     )
     surfaceWitness
       .orElse(benoniD6SurfaceEvidenceWitness(ctx, surface))
@@ -3642,7 +3621,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
                 "locked_pawn_chain:d5-d6",
                 "knight_route:f3-d2-c4",
                 "best_branch:f3d2|b8a6"
-              ).distinct
+              ).distinct,
+            exactSliceProof = PlayerFacingExactSliceProof.ExactTargetFixation("d6")
           )
         }
       }
@@ -3700,7 +3680,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
                   "knight_route:f3-d2-c4",
                   "best_branch:f3d2|b8a6"
                 ) ++ pvMoves.take(10)
-              ).distinct
+              ).distinct,
+            exactSliceProof = PlayerFacingExactSliceProof.ExactTargetFixation("d6")
           )
         }
       }
@@ -3711,17 +3692,31 @@ private[commentary] object PlayerFacingTruthModePolicy:
   ) =
     Fen.read(Standard, Fen.Full(ctx.fen)).map(position => (position.board, position.color))
 
-  private def carlsbadFixedTargetBoardTarget(
+  private def findCarlsbadTarget(
       board: _root_.chess.Board,
       sideToMove: _root_.chess.Color
-  ): Option[String] =
+  ): Option[CarlsbadTarget] =
+    val mirror =
+      if sideToMove.white then
+        CarlsbadTarget(
+          targetSquare = "c6",
+          enemyChainSquare = "d5",
+          friendlyMinorityPawn = "b2",
+          friendlyChainPawn = "d4"
+        )
+      else
+        CarlsbadTarget(
+          targetSquare = "c3",
+          enemyChainSquare = "d4",
+          friendlyMinorityPawn = "b7",
+          friendlyChainPawn = "d5"
+        )
     Option.when(
-      sideToMove.white &&
-        boardHasEnemyPawn(board, sideToMove, "c6") &&
-        boardHasEnemyPawn(board, sideToMove, "d5") &&
-        boardHasFriendlyPawn(board, sideToMove, "b2") &&
-        boardHasFriendlyPawn(board, sideToMove, "d4")
-    )("c6")
+      boardHasEnemyPawn(board, sideToMove, mirror.targetSquare) &&
+        boardHasEnemyPawn(board, sideToMove, mirror.enemyChainSquare) &&
+        boardHasFriendlyPawn(board, sideToMove, mirror.friendlyMinorityPawn) &&
+        boardHasFriendlyPawn(board, sideToMove, mirror.friendlyChainPawn)
+    )(mirror)
 
   private def targetFocusedCoordinationBoardTarget(
       board: _root_.chess.Board,
@@ -3729,7 +3724,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
   ): Option[String] =
     Option.when(
       sideToMove.white &&
-        carlsbadFixedTargetBoardTarget(board, sideToMove).isEmpty &&
+        findCarlsbadTarget(board, sideToMove).isEmpty &&
         boardHasFriendlyRole(board, sideToMove, "c1", _root_.chess.Rook) &&
         boardHasEnemyRole(board, sideToMove, "c6", _root_.chess.Knight)
     )("c6")
@@ -3790,11 +3785,10 @@ private[commentary] object PlayerFacingTruthModePolicy:
   private[commentary] def exactSliceTargetSquare(
       packet: PlayerFacingClaimPacket
   ): Option[String] =
-    exactSliceDescriptor(packet).flatMap { _ =>
-      (packet.proofPathWitness.ownerSeedTerms ++ packet.anchorTerms)
-        .flatMap(clean)
-        .map(_.toLowerCase)
-        .find(_.matches("[a-h][1-8]"))
+    exactSliceDescriptor(packet).flatMap { descriptor =>
+      packet.proofPathWitness.exactSliceProof
+        .filter(exactSliceProofMatchesDescriptor(_, descriptor))
+        .flatMap(exactSliceProofTarget)
     }
 
   private def certifiedExactSlicePacket(
@@ -3803,6 +3797,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
   ): Boolean =
     exactSliceDescriptor(packet).exists(descriptor =>
       accepts(descriptor) &&
+        packet.proofPathWitness.exactSliceProof.exists(exactSliceProofMatchesDescriptor(_, descriptor)) &&
         packet.scope == descriptor.releasedScope &&
         packet.bestDefenseBranchKey.nonEmpty &&
         packet.sameBranchState == PlayerFacingSameBranchState.Proven &&
@@ -3810,6 +3805,49 @@ private[commentary] object PlayerFacingTruthModePolicy:
         packet.releaseRisks.isEmpty &&
         PlayerFacingClaimProof.allowsWeakMainClaim(packet)
     )
+
+  private def exactSliceProofMatchesDescriptor(
+      proof: PlayerFacingExactSliceProof,
+      descriptor: ExactSliceDescriptor
+  ): Boolean =
+    descriptor.kind match
+      case ExactSliceKind.TargetFixation =>
+        proof match
+          case PlayerFacingExactSliceProof.ExactTargetFixation(targetSquare) =>
+            isSquareKey(normalize(targetSquare))
+          case _ => false
+      case ExactSliceKind.CarlsbadFixedTargetProbe =>
+        proof match
+          case PlayerFacingExactSliceProof.CarlsbadFixedTarget(targetSquare, minoritySupport) =>
+            Set("c6", "c3").contains(normalize(targetSquare)) && minoritySupport
+          case _ => false
+      case ExactSliceKind.TargetFocusedCoordinationProbe =>
+        proof match
+          case PlayerFacingExactSliceProof.TargetFocusedCoordination(targetSquare, supportFromSquares, targetPieces) =>
+            isSquareKey(normalize(targetSquare)) &&
+              supportFromSquares.map(normalize).filter(isSquareKey).distinct.size >= 2 &&
+              targetPieces.exists(token => normalizeEvidenceToken(token).startsWith("target_"))
+          case _ => false
+      case ExactSliceKind.ColorComplexSqueezeProbe =>
+        proof match
+          case PlayerFacingExactSliceProof.ColorComplexSqueeze(targetSquare, squareColor, minorPieceRole, minorPieceSquare) =>
+            isSquareKey(normalize(targetSquare)) &&
+              Set("light", "dark").contains(normalize(squareColor)) &&
+              Set("bishop", "knight").contains(normalize(minorPieceRole)) &&
+              isSquareKey(normalize(minorPieceSquare))
+          case _ => false
+
+  private def exactSliceProofTarget(proof: PlayerFacingExactSliceProof): Option[String] =
+    proof match
+      case PlayerFacingExactSliceProof.ExactTargetFixation(targetSquare) =>
+        Some(normalize(targetSquare)).filter(isSquareKey)
+      case PlayerFacingExactSliceProof.CarlsbadFixedTarget(targetSquare, _) =>
+        Some(normalize(targetSquare)).filter(isSquareKey)
+      case PlayerFacingExactSliceProof.TargetFocusedCoordination(targetSquare, _, _) =>
+        Some(normalize(targetSquare)).filter(isSquareKey)
+      case PlayerFacingExactSliceProof.ColorComplexSqueeze(targetSquare, _, _, _) =>
+        Some(normalize(targetSquare)).filter(isSquareKey)
+      case _ => None
 
   private[commentary] def certifiedExactTargetFixationPacket(
       packet: PlayerFacingClaimPacket
@@ -3911,20 +3949,23 @@ private[commentary] object PlayerFacingTruthModePolicy:
       posOpt: Option[_root_.chess.Position],
       fen: String
   ): Option[PositionProbeQuestionSeed] =
-    Option.when(
-      ctx.isWhiteToMove &&
-        ctx.maxThreatLossToUs < 120 &&
-        !ctx.attackingOpportunityAtRisk &&
-        posOpt.exists(pos =>
-          carlsbadFixedTargetBoardTarget(pos.board, pos.color).contains("c6") &&
-            carlsbadFixedTargetGenericMinoritySupport(fen, pos.board, pos.color)
+    val targetOpt =
+      posOpt
+        .filter(pos => pos.color.white == ctx.isWhiteToMove)
+        .flatMap(pos =>
+          findCarlsbadTarget(pos.board, pos.color).filter(target =>
+            carlsbadFixedTargetGenericMinoritySupport(fen, pos.board, pos.color, target.targetSquare)
+          )
         )
-    ) {
+    targetOpt.filter(_ =>
+      ctx.maxThreatLossToUs < 120 &&
+        !ctx.attackingOpportunityAtRisk
+    ).map { target =>
       PositionProbeQuestionSeed(
-        questionFocusText = "the fixed target on c6",
+        questionFocusText = s"the fixed target on ${target.targetSquare}",
         why =
           "The position is defined less by an immediate race than by the fixed queenside target that has to stay under pressure.",
-        anchors = List("c6", "fixed target", "queenside")
+        anchors = List(target.targetSquare, "fixed target", "queenside")
       )
     }
 

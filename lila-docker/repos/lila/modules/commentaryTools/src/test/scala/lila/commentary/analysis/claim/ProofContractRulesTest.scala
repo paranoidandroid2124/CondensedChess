@@ -1,6 +1,7 @@
 package lila.commentary.analysis.claim
 
 import lila.commentary.analysis.*
+import lila.commentary.analysis.semantic.StrategicObservationIds.{ ProofFamilyId, ProofSourceId }
 import munit.FunSuite
 
 class ProofContractRulesTest extends FunSuite:
@@ -132,6 +133,26 @@ class ProofContractRulesTest extends FunSuite:
     assert(ProofContractRules.failureCodes(missingStructureWitness).contains("witness:structure_transition_missing"))
   }
 
+  test("required no-tactical-veto witness fails closed when tactical suppression is present") {
+    val packet =
+      supportedIqpPacket().copy(
+        suppressionReasons = List("truth_contract_tactical_refutation")
+      )
+
+    assert(ProofContractRules.failureCodes(packet).contains("witness:tactical_veto_present"))
+    assert(!ProofContractRules.supportedLocalAdmissible(packet), clues(ProofContractRules.failureCodes(packet)))
+  }
+
+  test("required claim-only surface witness fails closed outside weak-main surface") {
+    val packet =
+      supportedIqpPacket().copy(
+        fallbackMode = PlayerFacingClaimFallbackMode.LineOnly
+      )
+
+    assert(ProofContractRules.failureCodes(packet).contains("witness:claim_only_surface_missing"))
+    assert(!ProofContractRules.supportedLocalAdmissible(packet), clues(ProofContractRules.failureCodes(packet)))
+  }
+
   test("semantic support observations have no proof contract authority") {
     assertEquals(ProofContractRules.contractForProofFamily("target_pressure_semantic"), None)
     assertEquals(ProofContractRules.contractForProofFamily("minority_attack_semantic"), None)
@@ -200,12 +221,11 @@ class ProofContractRulesTest extends FunSuite:
         structureTransitionTerms = List("color_complex_squeeze_probe", "weak_square:e5", "minor_piece_attack:c4-e5"),
         exactSliceProof =
           Some(
-            PlayerFacingExactSliceProof(
-              proofSource = PlayerFacingTruthModePolicy.ColorComplexSqueezeProbeProofSource,
-              proofFamily = "color_complex_squeeze",
-              kind = PlayerFacingTruthModePolicy.ColorComplexSqueezeProbeProofSource,
-              target = "e5",
-              terms = exactProbeTerms
+            PlayerFacingExactSliceProof.ColorComplexSqueeze(
+              targetSquare = "e5",
+              squareColor = "light",
+              minorPieceRole = "knight",
+              minorPieceSquare = "c4"
             )
           )
       )
@@ -263,13 +283,7 @@ class ProofContractRulesTest extends FunSuite:
           packet.proofPathWitness.copy(
             exactSliceProof =
               Some(
-                PlayerFacingExactSliceProof(
-                  proofSource = PlayerFacingTruthModePolicy.ExactTargetFixationProofSource,
-                  proofFamily = PlanTaxonomy.PlanKind.StaticWeaknessFixation.id,
-                  kind = PlayerFacingTruthModePolicy.ExactTargetFixationProofSource,
-                  target = "d6",
-                  terms = List("d6", "fixed_target:d6", "backward_pawn_target", "weak_complex:d6")
-                )
+                PlayerFacingExactSliceProof.ExactTargetFixation("d6")
               )
           )
       )
@@ -278,6 +292,139 @@ class ProofContractRulesTest extends FunSuite:
     assert(ProofContractRules.failureCodes(packet).contains("witness:exact_slice_missing"))
     assertEquals(ProofContractRules.failureCodes(typed), Nil)
     assert(ProofContractRules.certifiedOwnerAdmissible(typed), clues(ProofContractRules.failureCodes(typed)))
+  }
+
+  test("carlsbad fixed-target probe fails closed without matching typed proof") {
+    val base =
+      exactSliceContractPacket(
+        proofSource = PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeProofSource,
+        proofFamily = PlanTaxonomy.PlanKind.BackwardPawnTargeting.id,
+        scope = PlayerFacingPacketScope.PositionLocal,
+        proof = Some(PlayerFacingExactSliceProof.CarlsbadFixedTarget("c6", minoritySupport = true))
+      )
+    val missingProof = base.copy(proofPathWitness = base.proofPathWitness.copy(exactSliceProof = None))
+    val wrongProof =
+      base.copy(
+        proofPathWitness =
+          base.proofPathWitness.copy(
+            exactSliceProof = Some(PlayerFacingExactSliceProof.ExactTargetFixation("c6"))
+          )
+      )
+
+    assertEquals(ProofContractRules.failureCodes(base), Nil)
+    assert(ProofContractRules.certifiedOwnerAdmissible(base), clues(base))
+    assert(ProofContractRules.failureCodes(missingProof).contains("witness:exact_slice_missing"))
+    assert(ProofContractRules.failureCodes(wrongProof).contains("witness:exact_slice_missing"))
+  }
+
+  test("carlsbad fixed-target probe accepts mirrored c3 typed proof") {
+    val packet =
+      exactSliceContractPacket(
+        proofSource = PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeProofSource,
+        proofFamily = PlanTaxonomy.PlanKind.BackwardPawnTargeting.id,
+        scope = PlayerFacingPacketScope.PositionLocal,
+        proof = Some(PlayerFacingExactSliceProof.CarlsbadFixedTarget("c3", minoritySupport = true))
+      )
+
+    assertEquals(ProofContractRules.failureCodes(packet), Nil)
+    assert(ProofContractRules.certifiedOwnerAdmissible(packet), clues(packet))
+  }
+
+  test("target-focused coordination exact proof requires two supports and a target marker") {
+    val valid =
+      exactSliceContractPacket(
+        proofSource = PlayerFacingTruthModePolicy.TargetFocusedCoordinationProofSource,
+        proofFamily = PlayerFacingTruthModePolicy.TargetFocusedCoordinationProofFamily,
+        scope = PlayerFacingPacketScope.PositionLocal,
+        proof =
+          Some(
+            PlayerFacingExactSliceProof.TargetFocusedCoordination(
+              targetSquare = "c6",
+              supportFromSquares = List("c1", "b3"),
+              targetPieces = List("target_knight")
+            )
+          )
+      )
+    val oneSupport =
+      valid.copy(
+        proofPathWitness =
+          valid.proofPathWitness.copy(
+            exactSliceProof =
+              Some(
+                PlayerFacingExactSliceProof.TargetFocusedCoordination(
+                  targetSquare = "c6",
+                  supportFromSquares = List("c1"),
+                  targetPieces = List("target_knight")
+                )
+              )
+          )
+      )
+    val noTargetMarker =
+      valid.copy(
+        proofPathWitness =
+          valid.proofPathWitness.copy(
+            exactSliceProof =
+              Some(
+                PlayerFacingExactSliceProof.TargetFocusedCoordination(
+                  targetSquare = "c6",
+                  supportFromSquares = List("c1", "b3"),
+                  targetPieces = Nil
+                )
+              )
+          )
+      )
+    val wrongTargetMarker =
+      valid.copy(
+        proofPathWitness =
+          valid.proofPathWitness.copy(
+            exactSliceProof =
+              Some(
+                PlayerFacingExactSliceProof.TargetFocusedCoordination(
+                  targetSquare = "c6",
+                  supportFromSquares = List("c1", "b3"),
+                  targetPieces = List("knight")
+                )
+              )
+          )
+      )
+
+    assertEquals(ProofContractRules.failureCodes(valid), Nil)
+    assert(ProofContractRules.failureCodes(oneSupport).contains("witness:exact_slice_missing"))
+    assert(ProofContractRules.failureCodes(noTargetMarker).contains("witness:exact_slice_missing"))
+    assert(ProofContractRules.failureCodes(wrongTargetMarker).contains("witness:exact_slice_missing"))
+  }
+
+  test("non-position exact-slice contracts require their typed proof cases") {
+    val localFile =
+      exactSliceContractPacket(
+        proofSource = ProofSourceId.LocalFileEntryBind.wireKey,
+        proofFamily = ProofFamilyId.HalfOpenFilePressure.wireKey,
+        scope = PlayerFacingPacketScope.MoveLocal,
+        proof = Some(PlayerFacingExactSliceProof.LocalFileEntryBind("c-file", "c6"))
+      )
+    val neutralizeBreak =
+      exactSliceContractPacket(
+        proofSource = ProofSourceId.CounterplayAxisSuppression.wireKey,
+        proofFamily = ProofFamilyId.NeutralizeKeyBreak.wireKey,
+        scope = PlayerFacingPacketScope.MoveLocal,
+        proof = Some(PlayerFacingExactSliceProof.CounterplayAxisSuppression("...c5"))
+      )
+    val centralBreak =
+      exactSliceContractPacket(
+        proofSource = PlanTaxonomy.PlanKind.CentralBreakTiming.id,
+        proofFamily = PlanTaxonomy.PlanKind.CentralBreakTiming.id,
+        scope = PlayerFacingPacketScope.MoveLocal,
+        proof = Some(PlayerFacingExactSliceProof.CentralBreakTiming("e2e4", "e4", "e2-e4"))
+      )
+
+    List(localFile, neutralizeBreak, centralBreak).foreach { packet =>
+      assertEquals(ProofContractRules.failureCodes(packet), Nil, clues(packet))
+    }
+    assert(
+      ProofContractRules
+        .failureCodes(localFile.copy(proofPathWitness = localFile.proofPathWitness.copy(exactSliceProof = None)))
+        .contains("witness:exact_slice_missing")
+    )
   }
 
   test("DefenderTrade is supported-local releasable only through exact defender proof") {
@@ -295,6 +442,32 @@ class ProofContractRulesTest extends FunSuite:
     assert(!contract.id.toLowerCase.contains("source-"), clues(contract))
     assert(!contract.acceptedSources.exists(_.toLowerCase.contains("source-")), clues(contract))
   }
+
+  private def exactSliceContractPacket(
+      proofSource: String,
+      proofFamily: String,
+      scope: PlayerFacingPacketScope,
+      proof: Option[PlayerFacingExactSliceProof]
+  ): PlayerFacingClaimPacket =
+    PlayerFacingClaimPacket(
+      proofSource = proofSource,
+      proofFamily = proofFamily,
+      scope = scope,
+      triggerKind = "exact_slice_test",
+      anchorTerms = List("c6"),
+      bestDefenseMove = Some("b7b5"),
+      bestDefenseBranchKey = Some("h4f2|b7b5"),
+      sameBranchState = PlayerFacingSameBranchState.Proven,
+      persistence = PlayerFacingClaimPersistence.Stable,
+      fallbackMode = PlayerFacingClaimFallbackMode.WeakMain,
+      proofPathWitness =
+        PlayerFacingProofPathWitness(
+          ownerSeedTerms = List("c6", "fixed_target:c6"),
+          continuationTerms = List("h4f2|b7b5"),
+          structureTransitionTerms = List("exact_slice_test"),
+          exactSliceProof = proof
+        )
+    )
 
   private def supportedIqpPacket(): PlayerFacingClaimPacket =
     PlayerFacingClaimPacket(

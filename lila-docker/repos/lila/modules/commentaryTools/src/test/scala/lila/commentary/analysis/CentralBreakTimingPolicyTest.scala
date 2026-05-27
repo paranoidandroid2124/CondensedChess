@@ -50,6 +50,23 @@ class CentralBreakTimingPolicyTest extends FunSuite:
     assert(scene.ranked.primary.exists(_.plannerSource == PlanTaxonomy.PlanKind.CentralBreakTiming.id), clues(scene.ranked))
   }
 
+  test("central-break runtime witness does not stamp historical fixture tags") {
+    val scene =
+      snapshot(
+        fen = MadernaExactFen,
+        ply = 33,
+        playedMove = "e4e5",
+        lines = MadernaExactLines
+      )
+    val witness =
+      CentralBreakTimingWitness
+        .exact(scene.ctx)
+        .getOrElse(fail(s"missing central-break witness: ${CentralBreakTimingWitness.diagnose(scene.ctx)}"))
+
+    assert(!witness.sourceTags.exists(_.contains("maderna-palermo")), clues(witness.sourceTags))
+    assert(!witness.ownerSeedTerms.exists(_.contains("maderna-palermo")), clues(witness.ownerSeedTerms))
+  }
+
   test("board-backed central break can materialize without a source-row whitelist") {
     val scene =
       snapshot(

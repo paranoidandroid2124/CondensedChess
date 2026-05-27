@@ -55,14 +55,15 @@ Open for maintenance:
 - exact-board promoted slices already covered by proof contracts
 - source/test tooling that improves exact witness quality
 - trigger hardening that removes generic string overlap, unknown-subtype
-  fail-open, blocked battery geometry, or legal-line-only trap truth without
-  expanding public authority
+  fail-open, or blocked battery geometry without expanding public authority
 - docs and package cleanup that preserves the current authority boundary
 
 Closed unless a new audit explicitly opens them:
 
 - broad heavy-piece/local-bind/global-squeeze expansion
 - Track 5 lesson authority
+- Chronicle/Active runtime reopening; their remaining planner and compression
+  helpers are test/tooling-only legacy diagnostics
 - public API/frontend wire expansion except audited typed diagnostics or
   payload minimization that does not create product authority
 - support-only or deferred carrier promotion

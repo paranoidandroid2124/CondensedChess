@@ -133,32 +133,24 @@ private[commentary] object ClaimAuthorityResolver:
     }
 
   def supportedLocalSurface(raw: String): String =
-    if normalize(raw).startsWith("a key idea is that ") then raw.trim
-    else
-      val stripped =
-        stripPrefix(raw, "The key strategic fact here is that ")
-          .orElse(stripPrefix(raw, "The strategic point is that "))
-          .orElse(stripPrefix(raw, "This shows that "))
-          .orElse(stripPrefix(raw, "A local reading is that "))
-          .orElse(stripPrefix(raw, "a local reading is that "))
-          .orElse(stripPrefix(raw, "A key idea is that "))
-          .orElse(stripPrefix(raw, "a key idea is that "))
-          .getOrElse(raw.trim)
-          .stripSuffix(".")
-          .trim
-      val lowered =
-        stripped.headOption match
-          case Some(head) => s"${head.toLower}${stripped.drop(1)}"
-          case None       => stripped
-      s"A key idea is that $lowered."
+    val rendered =
+      PlayerFacingClaimPrefixKind.SupportedLocal.render(
+        Option(raw).getOrElse("").trim.stripSuffix(".")
+      )
+    if rendered.endsWith(".") then rendered else s"$rendered."
 
   private def tacticalVetoReasons(
       ctx: Option[NarrativeContext],
       inputs: QuestionPlannerInputs,
       truthContract: Option[DecisiveTruthContract]
   ): List[String] =
-    if allow_soft_veto(ctx, inputs, truthContract) then Nil
+    if allowSoftVeto(ctx, inputs, truthContract) then Nil
     else
+      val missingContextReasons =
+        List(
+          Option.when(ctx.isEmpty)("tactical_context_missing"),
+          Option.when(truthContract.isEmpty)("truth_contract_missing")
+        ).flatten
       val contractReasons =
         truthContract.toList.flatMap { contract =>
           List(
@@ -186,9 +178,9 @@ private[commentary] object ClaimAuthorityResolver:
             Option.when(tactical.severeCounterfactual)("context_severe_counterfactual")
           ).flatten
         }
-      (contractReasons ++ inputReasons ++ ctxReasons).distinct
+      (missingContextReasons ++ contractReasons ++ inputReasons ++ ctxReasons).distinct
 
-  private def allow_soft_veto(
+  private def allowSoftVeto(
       ctx: Option[NarrativeContext],
       inputs: QuestionPlannerInputs,
       truthContract: Option[DecisiveTruthContract]
@@ -196,6 +188,7 @@ private[commentary] object ClaimAuthorityResolver:
     if inputs.truthMode == PlayerFacingTruthMode.Tactical ||
       inputs.mainBundle.flatMap(_.mainClaim).exists(_.mode == PlayerFacingTruthMode.Tactical)
     then false
+    else if ctx.isEmpty || truthContract.isEmpty then false
     else
       val cpLoss = truthContract.map(_.cpLoss)
         .orElse(inputs.counterfactual.map(_.cpLoss))
@@ -319,6 +312,22 @@ private[commentary] object ClaimAuthorityResolver:
       plan: QuestionPlan,
       packet: PlayerFacingClaimPacket
   ): Boolean =
+    if packet.proofSource == ProofSourceId.CounterplayAxisSuppression.wireKey &&
+        packet.proofFamily == ProofFamilyId.NeutralizeKeyBreak.wireKey
+    then
+      val packetToken = counterplayAxisSuppressionToken(packet)
+      plan.timingWitness.exists { witness =>
+        witness.proofFamily == packet.proofFamily &&
+          witness.source == plan.plannerSource &&
+          witness.namedBreak.flatMap(canonicalBreakToken).exists(packetToken.contains)
+      }
+    else
+      timingWitnessTermsMatchPacket(plan, packet)
+
+  private def timingWitnessTermsMatchPacket(
+      plan: QuestionPlan,
+      packet: PlayerFacingClaimPacket
+  ): Boolean =
     val packetTokens = timingWitnessTokens(packet)
     plan.timingWitness.exists { witness =>
       witness.proofFamily == packet.proofFamily &&
@@ -347,13 +356,38 @@ private[commentary] object ClaimAuthorityResolver:
       witness: CentralBreakTimingWitness.Witness,
       packet: PlayerFacingClaimPacket
   ): Boolean =
-    val witnessTokens =
-      (
-        witness.ownerSeedTerms ++
-          witness.structureTransitionTerms ++
-          List(witness.breakMove, witness.breakSquare, witness.breakToken)
-      ).flatMap(witnessTokenVariants).filter(validTimingWitnessToken).toSet
-    timingWitnessTokens(packet).exists(witnessTokens.contains)
+    packet.proofPathWitness.exactSliceProof.exists {
+      case PlayerFacingExactSliceProof.CentralBreakTiming(breakMove, breakSquare, breakToken) =>
+        val packetToken = canonicalBreakToken(breakToken)
+        val witnessToken = canonicalBreakToken(witness.breakToken)
+        normalize(breakMove) == normalize(witness.breakMove) &&
+          normalize(breakSquare) == normalize(witness.breakSquare) &&
+          packetToken.nonEmpty &&
+          packetToken == witnessToken
+      case _ => false
+    }
+
+  private def counterplayAxisSuppressionToken(packet: PlayerFacingClaimPacket): Option[String] =
+    packet.proofPathWitness.exactSliceProof.collect {
+      case PlayerFacingExactSliceProof.CounterplayAxisSuppression(breakToken) => breakToken
+    }.flatMap(canonicalBreakToken)
+
+  private def canonicalBreakToken(raw: String): Option[String] =
+    val lower = Option(raw).map(_.trim.toLowerCase).getOrElse("")
+    if lower.isEmpty ||
+        lower.contains("_") ||
+        lower.contains(":") ||
+        lower.contains("|") ||
+        lower.contains(" ") ||
+        lower.contains("counterplay") ||
+        lower.contains("neutralize")
+    then None
+    else
+      val hasEllipsis = lower.startsWith("...")
+      val core = if hasEllipsis then lower.drop(3) else lower
+      Option.when(core.matches("""[a-h][1-8]""") || core.matches("""[a-h][1-8]-[a-h][1-8]""")) {
+        s"${if hasEllipsis then "..." else ""}$core"
+      }
 
   private def witnessTokenVariants(raw: String): List[String] =
     val trimmed = Option(raw).map(_.trim).filter(_.nonEmpty).toList
@@ -364,9 +398,6 @@ private[commentary] object ClaimAuthorityResolver:
     normalized.matches("""[a-h][1-8][a-h][1-8][nbrq]?""") ||
       normalized.matches("""[a-h][1-8]""") ||
       normalized.matches("""[nbrqk][a-h][1-8]""")
-
-  private def stripPrefix(raw: String, prefix: String): Option[String] =
-    Option(raw).map(_.trim).filter(_.startsWith(prefix)).map(_.drop(prefix.length))
 
   private def authorityFailureCodes(packet: PlayerFacingClaimPacket): List[String] =
     val taxonomy =

@@ -1,6 +1,7 @@
 package lila.commentary.analysis
 
 import lila.commentary.model._
+import lila.commentary.analysis.claim.OpeningFamilyClaimResolver.OpeningFamilyId
 import _root_.chess.format.Fen
 import _root_.chess.{ Color, Role, Square, Position }
 import _root_.chess.variant.Standard
@@ -20,7 +21,7 @@ object OpeningGoals:
     supportedEvidence: List[String],
     missingEvidence: List[String],
     confidence: Double,
-    mismatchReason: Option[String] = None
+    requiredFamily: Option[OpeningFamilyId] = None
   )
 
   trait GoalDefinition:
@@ -128,7 +129,7 @@ object OpeningGoals:
                           (hasPawn(sit, Square.D6, Color.Black) || hasPawn(sit, Square.E6, Color.Black))
       
       if !(hasC5 || isOpenSicilian) then
-         Evaluation(name, Status.Mismatch, Nil, List("Not a Sicilian structure"), 0.11, Some("this thematic break requires a Sicilian structure (c5 pawn or traded c-pawn)"))
+         Evaluation(name, Status.Mismatch, Nil, List("Not a Sicilian structure"), 0.11, Some(OpeningFamilyId.Sicilian))
       else
         val safe = isKingSafe(ctx)
         val sound = checkCp(ctx, Color.Black, -50)
@@ -143,7 +144,7 @@ object OpeningGoals:
     def triggers(uci: String) = uci == "c7c5"
     def evaluate(ctx: NarrativeContext, sit: Option[Position]): Evaluation =
       if !(hasPawn(sit, Square.E6, Color.Black) && hasPawn(sit, Square.D5, Color.Black)) then
-         Evaluation(name, Status.Mismatch, Nil, List("Structure mismatch"), 0.10, Some("this thematic strike requires a French structure (e6 and d5 pawns)"))
+         Evaluation(name, Status.Mismatch, Nil, List("Structure mismatch"), 0.10, Some(OpeningFamilyId.French))
       else
         val cp = ctx.engineEvidence.flatMap(_.best).map(_.scoreCp).getOrElse(0)
         val sideScore = -cp // Black goal
@@ -334,7 +335,7 @@ object OpeningGoals:
     def evaluate(ctx: NarrativeContext, sit: Option[Position]): Evaluation =
       val structure = hasPawn(sit, Square.E4, Color.White) && hasPawn(sit, Square.E5, Color.Black)
       if !structure then
-        Evaluation(name, Status.Mismatch, Nil, List("Not a central e4-e5 structure"), 0.12, Some("this stabilizing move is typical in Open Games (1.e4 e5), but the current pawn structure is different"))
+        Evaluation(name, Status.Mismatch, Nil, List("Not a central e4-e5 structure"), 0.12, Some(OpeningFamilyId.OpenGames))
       else
         val safe = isKingSafe(ctx)
         val sound = checkCp(ctx, Color.Black, -40)
@@ -528,7 +529,7 @@ object OpeningGoals:
       allGoals
         .filter(_.triggers(uci))
         .map(_.evaluate(ctx, sit))
-        .filter(e => e.status != Status.Mismatch || e.mismatchReason.isDefined)
+        .filter(e => e.status != Status.Mismatch || e.requiredFamily.nonEmpty)
         // Sort by: status (non-mismatch first), then confidence
         .sortBy { e => 
           val statusPriority = if (e.status == Status.Mismatch) 1 else 0

@@ -1,5 +1,6 @@
 package lila.commentary.analysis
 
+import lila.commentary.analysis.claim.OpeningFamilyClaimResolver.OpeningFamilyId
 import munit.FunSuite
 
 class NarrativeLexiconTest extends FunSuite:
@@ -161,4 +162,23 @@ class NarrativeLexiconTest extends FunSuite:
         text.contains("inaccurate in practical terms"),
       clue(text)
     )
+  }
+
+  test("opening mismatch prose comes from structured family identity") {
+    val text =
+      NarrativeLexicon.getGoalStatusDescription(
+        bead = 0,
+        evaluation =
+          OpeningGoals.Evaluation(
+            goalName = "Sicilian Liberator",
+            status = OpeningGoals.Status.Mismatch,
+            supportedEvidence = Nil,
+            missingEvidence = Nil,
+            confidence = 0.8,
+            requiredFamily = Some(OpeningFamilyId.Sicilian)
+          )
+      )
+
+    assert(text.contains("Sicilian structure"), clue(text))
+    assert(!text.contains("c5 pawn or traded c-pawn"), clue(text))
   }

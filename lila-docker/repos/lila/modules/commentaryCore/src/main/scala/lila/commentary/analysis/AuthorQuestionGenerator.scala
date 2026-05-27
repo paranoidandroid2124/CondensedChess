@@ -48,7 +48,7 @@ object AuthorQuestionGenerator:
 
     rankQuestions(
       List(
-      buildTrapQuestion(data.ply, fen, playedUci, playedSanStr),
+      buildTrapQuestion(data.ply, fen, playedUci, playedSanStr, data.alternatives),
       buildDefensiveTaskQuestion(ctx, us, fen, playedUci),
       buildConversionPlanQuestion(ctx, us, fen, playedUci, playedSanStr),
       buildTensionDecisionQuestion(posOpt, ctx, fen, playedUci, playedSanStr, topCandidate),
@@ -76,9 +76,10 @@ object AuthorQuestionGenerator:
     ply: Int,
     fen: String,
     playedUci: String,
-    playedSan: String
+    playedSan: String,
+    variations: List[lila.commentary.model.strategic.VariationLine]
   ): Option[AuthorQuestion] =
-    ForcedLineTruth.detect(fen, playedUci, ply).map { theme =>
+    ForcedLineTruth.detect(fen, playedUci, ply, variations).map { theme =>
       val reasonText = s"The move $playedSan triggers the confirmed ${theme.name} sequence."
 
       AuthorQuestion(

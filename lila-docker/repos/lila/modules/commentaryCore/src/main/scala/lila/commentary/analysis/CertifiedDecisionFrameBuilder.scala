@@ -208,8 +208,6 @@ private[commentary] object CertifiedDecisionFrameBuilder:
           route.route.lastOption.toList.flatMap(squareAlignmentKeys) ++ textAlignmentKeys(route.purpose)
         ) ++
         deltaBundle.visibleMoveRefs.flatMap(moveAlignmentKeys)
-    val themeSurface =
-      ActiveThemeSurfaceBuilder.build(moment).filter(ActiveThemeSurfaceBuilder.isCanonical)
     val intent =
       buildIntent(
         ownerSide = ownerSide,
@@ -243,8 +241,7 @@ private[commentary] object CertifiedDecisionFrameBuilder:
           deltaBundleBattlefrontCarriers(deltaBundle, ownerSide) ++
             dossierBattlefrontCarriers(dossier, ownerSide) ++
             planBattlefrontCarriers(evidenceBackedPlans) ++
-            surfaceBattlefrontCarriers(surface) ++
-            themeBattlefrontCarriers(themeSurface)
+            surfaceBattlefrontCarriers(surface)
       )
     val urgency =
       buildUrgency(
@@ -550,18 +547,6 @@ private[commentary] object CertifiedDecisionFrameBuilder:
         )
       ) ++
       Nil
-
-  private def themeBattlefrontCarriers(
-      themeSurface: Option[ActiveThemeSurfaceBuilder.ThemeSurface]
-  ): List[BattlefrontCarrier] =
-    themeSurface.toList.flatMap { surface =>
-      surface.zones.toList.flatMap(zone =>
-        textBattlefrontCarriers(zone, "theme_zone", "theme_zone", BattlefrontAnchorClass.None)
-      ) ++
-        surface.structuralCue.toList.flatMap(text =>
-          textBattlefrontCarriers(text, "theme_structure", "theme_structure", BattlefrontAnchorClass.None)
-        )
-    }
 
   private def zoneBattlefrontCarriers(
       sourceKind: String,

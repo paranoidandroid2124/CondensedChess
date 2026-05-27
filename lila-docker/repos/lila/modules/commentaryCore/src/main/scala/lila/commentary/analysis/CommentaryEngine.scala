@@ -2,7 +2,7 @@ package lila.commentary.analysis
 
 import _root_.chess.*
 import _root_.chess.format.Uci
-import lila.commentary.{ GameChronicleMoment, CommentaryConfig, CommentaryMode, NarrativeSignalDigest }
+import lila.commentary.{ CommentaryConfig, CommentaryMode, NarrativeSignalDigest }
 import lila.commentary.analysis.structure.{ PawnStructureClassifier, PlanAlignmentScorer, StructuralPlaybook }
 import lila.commentary.model.*
 import lila.commentary.model.authoring.{ NarrativeOutline, OutlineBeat, OutlineBeatKind }
@@ -586,67 +586,9 @@ object CommentaryEngine:
         val anchorPlies = anchorMoments.map(_.ply).toSet
 
         val preliminaryData = analyzeSelectedPlies(plyDataList, evals, anchorPlies)
-        val preliminaryDataByPly = preliminaryData.map(d => d.ply -> d).toMap
-        val preliminaryBounds =
-          buildPreviewTruthBounds(anchorMoments, preliminaryDataByPly, moveEvals, openingRefsByFen, variantKey)
-        val preliminaryMoments =
-          preliminaryBounds.map(bound => GameChronicleMoment.fromArcMoment(bound.moment))
-        val rankedThreads = StrategicBranchSelector.rankThreads(preliminaryMoments).take(3)
-        val candidatePlan =
-          ActiveBridgeMomentPlanner.planCandidatePlies(
-            rankedThreads = rankedThreads,
-            anchorPlies = anchorPlies,
-            totalPlies = plyDataList.lastOption.map(_.ply).getOrElse(0)
-          )
-        val candidateMoments =
-          candidatePlan.values.flatten.toSet.toList.sorted.map(ply => bridgeCandidateMoment(ply, moveEvalsByPly))
-        val candidateBridgePlies = candidateMoments.map(_.ply).toSet
-
-        val (internalMoments, selectedBridgePlies) =
-          if rankedThreads.isEmpty || candidateMoments.isEmpty then (anchorMoments, Set.empty[Int])
-          else
-            val enrichedData =
-              analyzeSelectedPlies(
-                plyDataList,
-                evals,
-                anchorPlies ++ candidateBridgePlies
-              )
-            val enrichedDataByPly = enrichedData.map(d => d.ply -> d).toMap
-            val enrichedBounds =
-              buildPreviewTruthBounds(
-                (anchorMoments ++ candidateMoments).sortBy(_.ply).distinctBy(_.ply),
-                enrichedDataByPly,
-                moveEvals,
-                openingRefsByFen,
-                variantKey
-              )
-            val enrichedPreview =
-              enrichedBounds.map(bound => GameChronicleMoment.fromArcMoment(bound.moment))
-            val selectedBridges =
-              ActiveBridgeMomentPlanner.selectBridges(
-                rankedThreads = rankedThreads,
-                enrichedMoments = enrichedPreview,
-                anchorPlies = anchorPlies
-              )
-            val selectedBridgePlies = selectedBridges.map(_.ply).toSet
-            val rescuedBridgePlies =
-              selectCanonicalRescueBridgePlies(
-                bounds = enrichedBounds,
-                anchorPlies = anchorPlies,
-                selectedBridgePlies = selectedBridgePlies
-              )
-            val rescuedBridgeMoments =
-              rescuedBridgePlies.toList.sorted.flatMap { ply =>
-                enrichedBounds.find(_.moment.ply == ply).map(bound => canonicalRescueBridgeMoment(bound, moveEvalsByPly))
-              }
-            val bridgeMoments =
-              selectedBridges.map(plan => bridgeMomentFromPlan(plan, moveEvalsByPly)) ++ rescuedBridgeMoments
-            if bridgeMoments.isEmpty then (anchorMoments, Set.empty[Int])
-            else
-              (
-                mergeCanonicalInternalMoments(anchorMoments ++ bridgeMoments),
-                selectedBridgePlies ++ rescuedBridgePlies
-              )
+        val candidateBridgePlies = Set.empty[Int]
+        val internalMoments = anchorMoments
+        val selectedBridgePlies = Set.empty[Int]
 
         val finalPlies = internalMoments.map(_.ply).toSet
         val finalData =
@@ -664,16 +606,10 @@ object CommentaryEngine:
           )
         val truthContractsByPly =
           internalMomentNarratives.map(bound => bound.moment.ply -> bound.truthContract).toMap
-        val projection =
-          StrategicBranchSelector.buildSelection(
-            internalMomentNarratives.map(bound => GameChronicleMoment.fromArcMoment(bound.moment)),
-            truthContractsByPly
-          )
         val visibleMomentPlies =
           applyVisibleCommentabilityPass(
-            selectedVisiblePlies = projection.selectedMoments.map(_.ply),
-            bounds = internalMomentNarratives,
-            threadRefsByPly = projection.threadRefsByPly
+            selectedVisiblePlies = internalMomentNarratives.map(_.moment.ply),
+            bounds = internalMomentNarratives
           )
         val promotedWholeGamePly =
           selectWholeGamePromotionPly(
@@ -682,17 +618,11 @@ object CommentaryEngine:
             truthContractsByPly
           )
         val finalVisibleMomentPlies = visibleMomentPlies ++ promotedWholeGamePly.toSet
-        val activeNotePlies = projection.activeNoteMoments.map(_.ply).toSet
         val momentNarratives =
           internalMomentNarratives
             .filter(bound => finalVisibleMomentPlies.contains(bound.moment.ply))
             .sortBy(_.moment.ply)
-            .map { bound =>
-              bound.moment.copy(
-                strategicBranch = activeNotePlies.contains(bound.moment.ply),
-                strategicThread = projection.threadRefsByPly.get(bound.moment.ply)
-              )
-            }
+            .map(_.moment)
 
         val totalPlies = plyDataList.lastOption.map(_.ply).getOrElse(0)
         val blundersCount =
@@ -714,7 +644,6 @@ object CommentaryEngine:
         val conclusionSupport =
           buildWholeGameConclusionSupport(
             moments = momentNarratives,
-            strategicThreads = projection.threads,
             themes = allThemes,
             result = metadata.result,
             truthContractsByPly = truthContractsByPly.filter { case (ply, _) => finalVisibleMomentPlies.contains(ply) }
@@ -739,16 +668,14 @@ object CommentaryEngine:
             conclusion = conclusion,
             overallThemes = allThemes,
             internalMomentCount = internalMomentNarratives.size,
-            strategicThreads = projection.threads
+            strategicThreads = Nil
           )
 
         val canonicalTraceMoments =
           buildTruthTraceMoments(
             bounds = internalMomentNarratives,
             finalVisibleMomentPlies = finalVisibleMomentPlies,
-            activeNotePlies = activeNotePlies,
             promotedWholeGamePly = promotedWholeGamePly,
-            selection = projection,
             finalInternal = true
           )
 
@@ -778,9 +705,7 @@ object CommentaryEngine:
             buildTruthTraceMoments(
               bounds = witnessBounds,
               finalVisibleMomentPlies = Set.empty,
-              activeNotePlies = Set.empty,
               promotedWholeGamePly = None,
-              selection = projection,
               finalInternal = false
             )
 
@@ -791,7 +716,7 @@ object CommentaryEngine:
           selectedBridgePlies = selectedBridgePlies.toList.sorted,
           finalInternalPlies = finalPlies.toList.sorted,
           visibleMomentPlies = finalVisibleMomentPlies.toList.sorted,
-          activeNotePlies = activeNotePlies.toList.sorted,
+          activeNotePlies = Nil,
           promotedWholeGamePly = promotedWholeGamePly,
           truthContractsByPly = truthContractsByPly,
           canonicalTraceMoments = canonicalTraceMoments,
@@ -847,9 +772,7 @@ object CommentaryEngine:
   private def buildTruthTraceMoments(
       bounds: List[TruthBoundArcMoment],
       finalVisibleMomentPlies: Set[Int],
-      activeNotePlies: Set[Int],
       promotedWholeGamePly: Option[Int],
-      selection: StrategicBranchSelector.StrategicBranchSelection,
       finalInternal: Boolean
   ): List[TruthTraceMoment] =
     bounds.sortBy(_.moment.ply).map { bound =>
@@ -862,14 +785,13 @@ object CommentaryEngine:
         selectionKind = moment.selectionKind,
         finalInternal = finalInternal,
         visibleMoment = finalVisibleMomentPlies.contains(moment.ply),
-        activeNoteMoment = activeNotePlies.contains(moment.ply),
+        activeNoteMoment = false,
         wholeGamePromoted = promotedWholeGamePly.contains(moment.ply),
-        strategicThreadId = selection.threadRefsByPly.get(moment.ply).map(_.threadId),
+        strategicThreadId = None,
         truthClass = frame.truthClass.toString,
         reasonFamily = contract.reasonFamily.toString,
         maintenanceExemplarCandidate = frame.strategicOwnership.maintenanceExemplarCandidate,
-        threadRepresentativeSelected =
-          selection.threadRepresentativeSelectedPlies.contains(moment.ply)
+        threadRepresentativeSelected = false
       )
     }
 
@@ -966,21 +888,6 @@ object CommentaryEngine:
   ): List[TruthBoundArcMoment] =
     buildMomentNarratives(moments, dataByPly, moveEvals, openingRefsByFen, variantKey = variantKey)
 
-  private[commentary] def selectCanonicalRescueBridgePlies(
-      bounds: List[TruthBoundArcMoment],
-      anchorPlies: Set[Int],
-      selectedBridgePlies: Set[Int]
-  ): Set[Int] =
-    bounds
-      .filter(bound =>
-        bound.moment.selectionKind == "thread_bridge" &&
-          !anchorPlies.contains(bound.moment.ply) &&
-          !selectedBridgePlies.contains(bound.moment.ply) &&
-          canonicalRescueBridgeCandidate(bound.moment, bound.truthContract)
-      )
-      .map(_.moment.ply)
-      .toSet
-
   private[commentary] def canonicalRescueBridgeCandidate(
       moment: GameArcMoment,
       contract: DecisiveTruthContract
@@ -999,21 +906,6 @@ object CommentaryEngine:
       contract.failureMode == FailureInterpretationMode.OnlyMoveFailure &&
         contract.cpLoss >= 200
     catastrophicBadMove || severeOnlyMoveFailure || mateShift
-
-  private def canonicalRescueBridgeMoment(
-      bound: TruthBoundArcMoment,
-      moveEvalsByPly: Map[Int, lila.commentary.MoveEval]
-  ): KeyMoment =
-    val base = bridgeCandidateMoment(bound.moment.ply, moveEvalsByPly)
-    val decisiveMomentType =
-      bound.truthContract.truthClass match
-        case DecisiveTruthClass.Blunder   => "Blunder"
-        case DecisiveTruthClass.MissedWin => "MissedWin"
-        case _                            => base.momentType
-    base.copy(
-      momentType = decisiveMomentType,
-      selectionReason = Some("Canonical bridge rescue")
-    )
 
   private[commentary] def mergeCanonicalInternalMoments(
       moments: List[KeyMoment]
@@ -1246,7 +1138,6 @@ object CommentaryEngine:
 
   private[commentary] def buildWholeGameConclusionSupport(
       moments: List[GameArcMoment],
-      strategicThreads: List[lila.commentary.ActiveStrategicThread],
       themes: List[String],
       result: String = "*",
       truthContractsByPly: Map[Int, DecisiveTruthContract] = Map.empty
@@ -1273,12 +1164,17 @@ object CommentaryEngine:
               .headOption
           )
 
-    val mainContest = buildWholeGameMainContest(strategicThreads, themes)
+    val mainContest = buildWholeGameMainContest(themes)
     val decisiveShift =
       Option.when(decisiveNarrativeAllowed)(decisiveProofMoment.flatMap(moment => buildWholeGameDecisiveShiftSentence(moment, truthContractsByPly))).flatten
     val payoff =
       Option.when(decisiveNarrativeAllowed)(payoffMoment.flatMap(moment => buildWholeGamePayoffSentence(moment, truthContractsByPly))).flatten
-    val collapseResolutionWrappers = strategicThreads.nonEmpty && mainContest.nonEmpty
+    val collapseResolutionWrappers =
+      mainContest.nonEmpty &&
+        decisiveProofMoment.exists(moment =>
+          val classification = wholeGameClassification(moment, truthContractsByPly)
+          classification == "blunder" || classification == "missedwin"
+        )
     def distinctFromMainContest(text: String): Boolean =
       !collapseResolutionWrappers ||
         mainContest.forall(keptContest => !NarrativeDedupCore.sameSemanticSentence(text, keptContest))
@@ -1318,30 +1214,10 @@ object CommentaryEngine:
       contract.ownershipRole == TruthOwnershipRole.BlunderOwner
     }
 
-  private def buildWholeGameMainContest(
-      strategicThreads: List[lila.commentary.ActiveStrategicThread],
-      themes: List[String]
-  ): Option[String] =
-    val threadBySide =
-      strategicThreads
-        .groupBy(thread => normalizedWholeGameText(thread.side).getOrElse(""))
-        .view
-        .mapValues(_.sortBy(thread => (-thread.continuityScore, thread.seedPly)).headOption)
-        .toMap
-    val whitePlan = threadBySide.get("white").flatten.flatMap(thread => wholeGameThreadPlanLabel(thread))
-    val blackPlan = threadBySide.get("black").flatten.flatMap(thread => wholeGameThreadPlanLabel(thread))
-
-    (whitePlan, blackPlan) match
-      case (Some(white), Some(black)) if !sameWholeGameText(white, black) =>
-        Some(s"White was mainly playing for $white, while Black was mainly playing for $black.")
-      case (Some(white), _) =>
-        Some(s"White's clearest long-term plan was $white.")
-      case (_, Some(black)) =>
-        Some(s"Black's clearest long-term plan was $black.")
-      case _ =>
-        themes.headOption
-          .flatMap(text => cleanedWholeGameAnchor(text))
-          .map(theme => s"The long strategic fight revolved around $theme.")
+  private def buildWholeGameMainContest(themes: List[String]): Option[String] =
+    themes.headOption
+      .flatMap(text => cleanedWholeGameAnchor(text))
+      .map(theme => s"The long strategic fight revolved around $theme.")
 
   private def buildWholeGameDecisiveShiftSentence(
       moment: GameArcMoment,
@@ -1579,18 +1455,6 @@ object CommentaryEngine:
         .toList
     }.headOption
 
-  private def wholeGameThreadPlanLabel(
-      thread: lila.commentary.ActiveStrategicThread
-  ): Option[String] =
-    val summary = Option(thread.summary).map(_.trim).filter(_.nonEmpty)
-    val corePlan =
-      summary.flatMap { text =>
-        """(?i)\bcore plan:\s*([^.;]+)""".r.findFirstMatchIn(text).map(_.group(1).trim)
-      }
-    corePlan
-      .orElse(Option(thread.themeLabel).map(_.trim).filter(_.nonEmpty))
-      .flatMap(cleanedWholeGameAnchor)
-
   private def cleanedWholeGameAnchor(
       raw: String
   ): Option[String] =
@@ -1772,12 +1636,6 @@ object CommentaryEngine:
   ): MomentTruthProjection =
     DecisiveTruth.momentProjection(moment, wholeGameTruthContract(moment, truthContractsByPly))
 
-  private def chronicleTruthProjection(
-      moment: GameChronicleMoment,
-      truthContractsByPly: Map[Int, DecisiveTruthContract]
-  ): MomentTruthProjection =
-    DecisiveTruth.momentProjection(moment, truthContractsByPly.get(moment.ply))
-
   private def wholeGameClassification(
       moment: GameArcMoment,
       truthContractsByPly: Map[Int, DecisiveTruthContract]
@@ -1873,33 +1731,6 @@ object CommentaryEngine:
       low.contains("converted") ||
       low.contains("conversion")
 
-  private def bridgeCandidateMoment(
-      ply: Int,
-      moveEvalsByPly: Map[Int, lila.commentary.MoveEval]
-  ): KeyMoment =
-    val current = moveEvalsByPly.get(ply)
-    val previous = moveEvalsByPly.get(ply - 1)
-    KeyMoment(
-      ply = ply,
-      momentType = "StrategicBridge",
-      score = current.map(_.cp).getOrElse(0),
-      description = "Campaign bridge",
-      cpBefore = previous.map(_.cp).getOrElse(current.map(_.cp).getOrElse(0)),
-      cpAfter = current.map(_.cp).getOrElse(0),
-      mateBefore = previous.flatMap(_.mate),
-      mateAfter = current.flatMap(_.mate),
-      selectionKind = "thread_bridge",
-      selectionLabel = Some("Campaign Bridge")
-    )
-
-  private def bridgeMomentFromPlan(
-      plan: ActiveBridgeMomentPlanner.PlannedBridge,
-      moveEvalsByPly: Map[Int, lila.commentary.MoveEval]
-  ): KeyMoment =
-    bridgeCandidateMoment(plan.ply, moveEvalsByPly).copy(
-      selectionReason = Some(plan.reason)
-    )
-
   private[commentary] case class HybridNarrativeParts(
       lead: String,
       defaultBridge: String,
@@ -1985,13 +1816,28 @@ object CommentaryEngine:
     truthContract: Option[DecisiveTruthContract] = None
   ): (String, NarrativeOutline) = {
     val parts = prepared.getOrElse(buildHybridNarrativeParts(ctx, moment, truthContract, strategyPack))
-    val rendered = GameChronicleCompressionPolicy.render(ctx, parts, strategyPack, truthContract).getOrElse("")
+    val narrativeBlocks =
+      parts.criticalBranch match
+        case Some(branch) => List(branch, parts.body)
+        case None         => List(parts.lead, parts.defaultBridge, parts.body)
+    val rendered =
+      narrativeBlocks
+        .map(_.trim)
+        .filter(_.nonEmpty)
+        .distinct
+        .mkString("\n\n")
+    val compacted =
+      compactHybridNarrative(rendered)
+        .replaceAll("(?i)\\bcurrent support centers on[^.!?]*[.!?]?", "")
+        .replaceAll("(?i)\\bthis (opening|middlegame|endgame) block near ply \\d+[^.!?]*[.!?]?", "")
+        .replaceAll("""\s+""", " ")
+        .trim
     (
       EarlyOpeningNarrationPolicy.clampNarrative(
         ctx,
         StandardCommentaryClaimPolicy.finalizeProse(
           ctx,
-          FullGameDraftNormalizer.normalize(rendered).trim,
+          FullGameDraftNormalizer.normalize(compacted).trim,
           truthContract
         ),
         truthContract
@@ -2000,39 +1846,30 @@ object CommentaryEngine:
     )
   }
 
+  private def compactHybridNarrative(rendered: String): String =
+    val sentences =
+      rendered
+        .split("""(?<=[.!?])\s+|\r?\n+""")
+        .toList
+    val filtered =
+      sentences
+        .map(_.trim)
+        .filter(_.nonEmpty)
+        .filterNot(isGenericPhaseRestatement)
+        .filterNot(isLowValueHybridMetaSentence)
+        .filterNot(bodyAlreadyFramesMoment)
+    if filtered.nonEmpty then filtered.distinct.mkString(" ")
+    else rendered
+
   private[commentary] def applyVisibleCommentabilityPass(
       selectedVisiblePlies: List[Int],
-      bounds: List[TruthBoundArcMoment],
-      threadRefsByPly: Map[Int, lila.commentary.ActiveStrategicThreadRef]
+      bounds: List[TruthBoundArcMoment]
   ): Set[Int] =
-    val boundByPly = bounds.map(bound => bound.moment.ply -> bound).toMap
     val commentablePlies =
       bounds.collect {
         case bound if hasCommentableNarrative(bound.moment.narrative) => bound.moment.ply
       }.toSet
-    val threadCandidates: Map[String, List[Int]] =
-      bounds
-        .flatMap(bound =>
-          threadRefsByPly.get(bound.moment.ply).map(ref => (ref.threadId, bound.moment.ply))
-        )
-        .groupMap(_._1)(_._2)
-        .view
-        .mapValues(_.filter(commentablePlies.contains).sorted)
-        .toMap
-    val accepted = scala.collection.mutable.LinkedHashSet.empty[Int]
-    selectedVisiblePlies.foreach { ply =>
-      val chosen =
-        if commentablePlies.contains(ply) then Some(ply)
-        else
-          threadRefsByPly.get(ply)
-            .flatMap(ref =>
-              threadCandidates.getOrElse(ref.threadId, Nil).find(candidate =>
-                candidate > ply && !accepted.contains(candidate)
-              )
-            )
-      chosen.foreach(accepted += _)
-    }
-    accepted.toSet
+    selectedVisiblePlies.filter(commentablePlies.contains).toSet
 
   private def hasCommentableNarrative(text: String): Boolean =
     Option(text).exists(_.trim.nonEmpty)
@@ -2068,6 +1905,7 @@ object CommentaryEngine:
       low.startsWith("the leading route is") ||
       low.startsWith("the backup strategic stack is") ||
       low.startsWith("the main signals are") ||
+      low.startsWith("current support centers on") ||
       low.startsWith("evidence must show") ||
       low.startsWith("initial board read") ||
       low.startsWith("clearest read is that") ||

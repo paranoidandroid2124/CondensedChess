@@ -45,13 +45,31 @@ private[commentary] object PlayerFacingClaimReleaseRisk:
   val RouteMirage = "route_mirage"
   val RivalRelease = "rival_release"
 
-private[commentary] final case class PlayerFacingExactSliceProof(
-    proofSource: String,
-    proofFamily: String,
-    kind: String,
-    target: String,
-    terms: List[String] = Nil
-)
+private[commentary] sealed trait PlayerFacingExactSliceProof
+
+private[commentary] object PlayerFacingExactSliceProof:
+  final case class ExactTargetFixation(targetSquare: String) extends PlayerFacingExactSliceProof
+  final case class CarlsbadFixedTarget(targetSquare: String, minoritySupport: Boolean) extends PlayerFacingExactSliceProof
+  final case class TargetFocusedCoordination(
+      targetSquare: String,
+      supportFromSquares: List[String],
+      targetPieces: List[String]
+  ) extends PlayerFacingExactSliceProof
+  final case class ColorComplexSqueeze(
+      targetSquare: String,
+      squareColor: String,
+      minorPieceRole: String,
+      minorPieceSquare: String
+  ) extends PlayerFacingExactSliceProof
+  final case class LocalFileEntryBind(file: String, entrySquare: String) extends PlayerFacingExactSliceProof
+  final case class CounterplayAxisSuppression(breakToken: String) extends PlayerFacingExactSliceProof
+  final case class ProphylacticRestraint(resourceToken: String) extends PlayerFacingExactSliceProof
+  final case class QueenTradeShield(lineMoves: List[String]) extends PlayerFacingExactSliceProof
+  final case class CentralBreakTiming(
+      breakMove: String,
+      breakSquare: String,
+      breakToken: String
+  ) extends PlayerFacingExactSliceProof
 
 private[commentary] final case class PlayerFacingProofPathWitness(
     ownerSeedTerms: List[String] = Nil,

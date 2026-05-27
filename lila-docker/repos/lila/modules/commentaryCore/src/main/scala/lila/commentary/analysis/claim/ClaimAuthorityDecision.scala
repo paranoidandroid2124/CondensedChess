@@ -27,7 +27,9 @@ private[commentary] object ClaimAuthorityDecision:
       "truth_contract_tactical_failure_mode",
       "planner_truth_mode_tactical",
       "main_claim_tactical",
-      "context_severe_counterfactual"
+      "context_severe_counterfactual",
+      "tactical_context_missing",
+      "truth_contract_missing"
     )
 
   def tacticalVetoCodes(codes: List[String]): List[String] =
