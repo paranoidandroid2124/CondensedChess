@@ -29,7 +29,7 @@ private[analysis] object AlternativeNarrativeSupport:
     val uciA = bestLine.flatMap(_.moves.headOption)
 
     val (moveB, uciB) =
-      playedMoveOpt.filter(pm => !bestMoveOpt.exists(equalMoveToken(pm, _))) match
+      playedMoveOpt.filter(pm => !bestMoveOpt.exists(equalMoveToken(ctx.fen)(pm, _))) match
         case Some(played) =>
           val playedLine = ctx.engineEvidence.flatMap(_.variations.find(v => 
             v.moves.headOption.exists(uci => 
@@ -38,7 +38,7 @@ private[analysis] object AlternativeNarrativeSupport:
             )
           ))
           val playedUci = playedLine.flatMap(_.moves.headOption).orElse(
-            ctx.candidates.find(c => equalMoveToken(c.move, played)).flatMap(_.uci)
+            ctx.candidates.find(c => equalMoveToken(ctx.fen)(c.move, played)).flatMap(_.uci)
           )
           (Some(played), playedUci)
         case None =>
@@ -50,18 +50,18 @@ private[analysis] object AlternativeNarrativeSupport:
       case (Some(ma), Some(mb)) =>
         val engineEvidences = LineConsequenceEvaluator.fromEngine(ctx)
         val evidenceA = engineEvidences.find(e =>
-          e.sanMoves.headOption.exists(equalMoveToken(_, ma)) ||
-          e.uciMoves.headOption.exists(equalMoveToken(_, ma))
+          e.sanMoves.headOption.exists(equalMoveToken(ctx.fen)(_, ma)) ||
+          e.uciMoves.headOption.exists(equalMoveToken(ctx.fen)(_, ma))
         )
         val evidenceB = engineEvidences.find(e =>
-          e.sanMoves.headOption.exists(equalMoveToken(_, mb)) ||
-          e.uciMoves.headOption.exists(equalMoveToken(_, mb))
+          e.sanMoves.headOption.exists(equalMoveToken(ctx.fen)(_, mb)) ||
+          e.uciMoves.headOption.exists(equalMoveToken(ctx.fen)(_, mb))
         )
 
         val startPly = NarrativeUtils.plyFromFen(ctx.fen).map(_ + 1).getOrElse(1)
         val intentA = findMoveIntent(ctx, ma, uciA)
         val intentB = findMoveIntent(ctx, mb, uciB)
-        val playedIsBest = playedMoveOpt.exists(equalMoveToken(_, ma))
+        val playedIsBest = playedMoveOpt.exists(equalMoveToken(ctx.fen)(_, ma))
 
         (evidenceA, evidenceB) match
           case (Some(evA), Some(evB)) if evA.sanMoves.nonEmpty && evB.sanMoves.nonEmpty =>
@@ -129,7 +129,7 @@ private[analysis] object AlternativeNarrativeSupport:
 
   private def fallbackLegacy(ctx: NarrativeContext, altMove: String): Option[AlternativeNarrative] =
     val candidateReason =
-      ctx.candidates.drop(1).find(c => equalMoveToken(c.move, altMove))
+      ctx.candidates.drop(1).find(c => equalMoveToken(ctx.fen)(c.move, altMove))
         .flatMap(_.whyNot)
         .map(normalizeSentenceFragment)
         .filter(_.nonEmpty)
@@ -143,8 +143,8 @@ private[analysis] object AlternativeNarrativeSupport:
     }
 
   private def findMoveIntent(ctx: NarrativeContext, moveSan: String, moveUci: Option[String]): String =
-    ctx.candidates.find(c => 
-      equalMoveToken(c.move, moveSan) || 
+    ctx.candidates.find(c =>
+      equalMoveToken(ctx.fen)(c.move, moveSan) ||
       (moveUci.isDefined && c.uci.exists(_.equalsIgnoreCase(moveUci.get)))
     ).map(_.planAlignment)
      .map(_.toLowerCase)
@@ -188,8 +188,7 @@ private[analysis] object AlternativeNarrativeSupport:
   private def normalize(raw: String): String =
     Option(raw).getOrElse("").replaceAll("\\s+", " ").trim
 
-  private def equalMoveToken(a: String, b: String): Boolean =
-    normalizeMoveToken(a) == normalizeMoveToken(b)
-
-  private def normalizeMoveToken(raw: String): String =
-    normalize(raw).replaceAll("""[+#?!]+$""", "").toLowerCase
+  private def equalMoveToken(fen: String)(a: String, b: String): Boolean =
+    val uciA = NarrativeUtils.sanToUci(fen, a).getOrElse(NarrativeUtils.normalizeUciMove(a))
+    val uciB = NarrativeUtils.sanToUci(fen, b).getOrElse(NarrativeUtils.normalizeUciMove(b))
+    NarrativeUtils.uciEquivalent(uciA, uciB)

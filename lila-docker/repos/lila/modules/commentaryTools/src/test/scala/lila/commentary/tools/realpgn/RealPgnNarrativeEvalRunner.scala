@@ -560,8 +560,7 @@ object RealPgnNarrativeEvalRunner:
             prevEndgameStateToken = None,
             allowAiPolish = false,
             lang = "en",
-            planTier = PlanTier.Pro,
-            commentaryMode = CommentaryMode.Polish
+            planTier = PlanTier.Pro
           ),
           180.seconds
         )

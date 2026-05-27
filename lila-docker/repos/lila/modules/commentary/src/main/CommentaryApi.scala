@@ -1,9 +1,10 @@
 package lila.commentary
 
 import scala.concurrent.Future
+import scala.annotation.unused
 import java.util.concurrent.atomic.AtomicLong
 import java.time.Instant
-import lila.commentary.analysis.{ AuthoringEvidenceSummaryBuilder, MoveReviewCompressionPolicy, MoveReviewPlayerPayloadBuilder, MoveReviewPolishSlots, MoveReviewProseContract, MoveReviewPvLine, MoveReviewSoftRepair, MoveReviewStrategicLedgerBuilder, MoveReviewSupportedLocalSurfaceRows, BookStyleRenderer, CertifiedDecisionFrameBuilder, CommentaryEngine, CommentaryOpsBoard, CommentaryOpsSignals, CommentaryPayloadNormalizer, DecisiveTruth, DecisiveTruthContract, EarlyOpeningNarrationPolicy, FullGameDraftNormalizer, LineScopedCitation, LiveNarrativeCompressionCore, NarrativeContextBuilder, NarrativeDedupCore, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, PlayerFacingTruthModePolicy, ProbePurposeClassifier, QuestionPlan, StrategicSignalMatcher, StrategyPackBuilder, StrategyPackSurface, PlayerProseBoundary, UserFacingSignalSanitizer }
+import lila.commentary.analysis.{ AuthoringEvidenceSummaryBuilder, MoveReviewCompressionPolicy, MoveReviewPlayerPayloadBuilder, MoveReviewPolishSlots, MoveReviewProseContract, MoveReviewPvLine, MoveReviewSoftRepair, MoveReviewStrategicLedgerBuilder, MoveReviewSupportedLocalSurfaceRows, BookStyleRenderer, CommentaryEngine, CommentaryOpsBoard, CommentaryOpsSignals, CommentaryPayloadNormalizer, DecisiveTruth, EarlyOpeningNarrationPolicy, FullGameDraftNormalizer, LineScopedCitation, LiveNarrativeCompressionCore, NarrativeContextBuilder, NarrativeDedupCore, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, ProbePurposeClassifier, StrategicSignalMatcher, StrategyPackBuilder, StrategyPackSurface, PlayerProseBoundary, UserFacingSignalSanitizer }
 import lila.commentary.model.OpeningReference
 import lila.commentary.model.structure.StructureId
 import lila.commentary.model.strategic.{ VariationLine, TheoreticalOutcomeHint }
@@ -626,14 +627,7 @@ final class CommentaryApi(
   private def normalizePlanTier(raw: String): String =
     PlanTier.normalize(raw)
 
-  private def normalizeCommentaryMode(raw: String): String =
-    CommentaryMode.Polish
-
-  private def effectiveCommentaryMode(
-      planTier: String,
-      requestedLevel: String,
-      allowAiPolish: Boolean
-  ): String =
+  private def normalizeCommentaryMode(@unused raw: String): String =
     CommentaryMode.Polish
 
   private def strategyHints(pack: Option[StrategyPack]): List[String] =
@@ -930,8 +924,8 @@ final class CommentaryApi(
   private def evaluateStrategyCoverage(
       commentary: String,
       strategyPack: Option[StrategyPack],
-      planTier: String,
-      commentaryMode: String
+      @unused planTier: String,
+      @unused commentaryMode: String
   ): StrategyCoverageEvaluation =
     val shouldEnforce = false
     if !shouldEnforce then StrategyCoverageEvaluation(meta = None, reasons = Nil)
@@ -2129,11 +2123,6 @@ final class CommentaryApi(
             )
           )
 
-  private def phaseFromPly(ply: Int): String =
-    if ply <= 16 then "opening"
-    else if ply <= 60 then "middlegame"
-    else "endgame"
-
   private def dedupeNarrativeSurface(
       prose: String,
       surface: String,
@@ -2285,12 +2274,11 @@ final class CommentaryApi(
       prevEndgameStateToken: Option[lila.commentary.model.strategic.EndgamePatternState] = None,
       allowAiPolish: Boolean = false,
       lang: String = "en",
-      planTier: String = PlanTier.Basic,
-      commentaryMode: String = CommentaryMode.Polish
+      planTier: String = PlanTier.Basic
   ): Future[Option[MoveReviewResult]] =
     val requestStartNs = System.nanoTime()
     val normalizedPlanTier = normalizePlanTier(planTier)
-    val effectiveLevel = effectiveCommentaryMode(normalizedPlanTier, commentaryMode, allowAiPolish)
+    val effectiveLevel = CommentaryMode.Polish
     val resolvedPly = NarrativeUtils.resolveAnnotationPly(fen, lastMove, ply)
     val incomingProbes = probeResults.getOrElse(Nil)
     val cacheCtx =
@@ -2340,7 +2328,7 @@ final class CommentaryApi(
           stateAwareCacheMissCount.incrementAndGet()
           computeMoveReviewResponse(
             fen, lastMove, eval, variations, probeResults, openingRef,
-            afterFen, afterEval, afterVariations, opening, phase, ply, variant, prevStateToken, prevEndgameStateToken, allowAiPolish, lang, moveReviewCacheKey, normalizedPlanTier, effectiveLevel
+            afterFen, afterEval, afterVariations, opening, phase, ply, variant, prevStateToken, prevEndgameStateToken, allowAiPolish, lang, moveReviewCacheKey, normalizedPlanTier
           ).map:
             case (responseOpt, structEvalMsOpt) =>
             recordLatencyMetrics(totalLatencyMs = elapsedMs(requestStartNs), structureEvalLatencyMs = structEvalMsOpt)
@@ -2369,9 +2357,9 @@ final class CommentaryApi(
       allowAiPolish: Boolean,
       lang: String,
       cacheKey: CommentaryCache.Key,
-      planTier: String,
-      commentaryMode: String
+      planTier: String
   ): Future[(Option[MoveReviewResult], Option[Long])] =
+    val commentaryMode = CommentaryMode.Polish
     val effectivePly = NarrativeUtils.resolveAnnotationPly(fen, lastMove, ply)
     val normalizedVariant = EarlyOpeningNarrationPolicy.normalizeVariantKey(variant)
 

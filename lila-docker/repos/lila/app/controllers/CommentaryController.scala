@@ -74,8 +74,7 @@ final class CommentaryController(
                     prevEndgameStateToken = validReq.endgameStateToken,
                     allowAiPolish = allowAiPolish,
                     lang = requestLang,
-                    planTier = resolvedPlanTier,
-                    commentaryMode = resolvedMoveReviewCommentaryMode
+                    planTier = resolvedPlanTier
                   )
                   .map {
                     case Some(result) =>
@@ -136,9 +135,6 @@ final class CommentaryController(
   private def resolvedPlanTier(using ctx: Context): String =
     if hasPremiumExperience then lila.commentary.PlanTier.Pro
     else lila.commentary.PlanTier.Basic
-
-  private def resolvedMoveReviewCommentaryMode: String =
-    lila.commentary.CommentaryMode.Polish
 
   private def requestLang(using RequestHeader): String =
     val raw = req.headers.get("Accept-Language").getOrElse("")

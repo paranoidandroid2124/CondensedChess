@@ -87,8 +87,7 @@ class MoveReviewAfterCompensationCarrierTest extends FunSuite:
           prevEndgameStateToken = None,
           allowAiPolish = false,
           lang = "en",
-          planTier = PlanTier.Pro,
-          commentaryMode = CommentaryMode.Polish
+          planTier = PlanTier.Pro
         ),
         Duration(90, "seconds")
       )

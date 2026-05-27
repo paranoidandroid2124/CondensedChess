@@ -2,7 +2,6 @@ package lila.commentary.analysis
 
 import munit.FunSuite
 
-import lila.commentary.*
 import lila.commentary.model.*
 
 class CompensationInterpretationTest extends FunSuite:
@@ -140,6 +139,58 @@ class CompensationInterpretationTest extends FunSuite:
                   "return vector through line pressure and delayed recovery"
                 )
               ),
+            endgameFeatures = None,
+            practicalAssessment = None,
+            preventedPlans = Nil,
+            conceptSummary = Nil
+          )
+        )
+      )
+
+    val decision = CompensationInterpretation.currentSemanticDecision(ctx).getOrElse(fail("missing decision")).decision
+    assert(decision.accepted)
+    assert(decision.durableStructuralPressure)
+    assertEquals(decision.persistenceClass, "durable_pressure")
+  }
+
+  test("generic target pressure is rejected when the only weak pawn is unrelated") {
+    val unrelatedIsolatedPawnFen = "4k3/p7/8/8/8/8/8/4K3 w - - 0 1"
+    val ctx =
+      baseContext(playedMove = None, playedSan = None).copy(
+        fen = unrelatedIsolatedPawnFen,
+        semantic = Some(
+          SemanticSection(
+            structuralWeaknesses = Nil,
+            pieceActivity = Nil,
+            positionalFeatures = Nil,
+            compensation =
+              Some(compensationInfo(100, Map("Target Pressure" -> 0.7), "target pressure")),
+            endgameFeatures = None,
+            practicalAssessment = None,
+            preventedPlans = Nil,
+            conceptSummary = Nil
+          )
+        )
+      )
+
+    val decision = CompensationInterpretation.currentSemanticDecision(ctx).getOrElse(fail("missing decision")).decision
+    assert(!decision.accepted)
+    assert(!decision.durableStructuralPressure)
+    assertEquals(decision.rejectionReason, Some("missing_structural_carrier"))
+  }
+
+  test("target-fixing compensation remains accepted for exact Carlsbad target shape") {
+    val carlsbadFen = "4k3/8/2p5/3p4/3P4/8/1P6/4K3 w - - 0 1"
+    val ctx =
+      baseContext(playedMove = None, playedSan = None).copy(
+        fen = carlsbadFen,
+        semantic = Some(
+          SemanticSection(
+            structuralWeaknesses = Nil,
+            pieceActivity = Nil,
+            positionalFeatures = Nil,
+            compensation =
+              Some(compensationInfo(100, Map("Fixed Targets" -> 0.7), "fixed queenside targets")),
             endgameFeatures = None,
             practicalAssessment = None,
             preventedPlans = Nil,

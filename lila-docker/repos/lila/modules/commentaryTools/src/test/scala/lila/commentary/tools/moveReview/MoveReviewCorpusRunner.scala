@@ -117,14 +117,13 @@ object MoveReviewCorpusRunner:
                 prevEndgameStateToken = None,
                 allowAiPolish = true,
                 lang = "en",
-                planTier = PlanTier.Pro,
-                commentaryMode = CommentaryMode.Polish
+                planTier = PlanTier.Pro
               ),
               180.seconds
             ).getOrElse(throw new IllegalStateException(s"${entry.sampleId}: empty moveReview response"))
 
           val rawPath = config.rawDir.resolve(s"${entry.sampleId.replace(':', '_')}.json")
-          writeJson(rawPath, Json.toJson(result.response))
+          writeJson(rawPath, Json.toJson[CommentResponse](result.response))
           val (supportRows, advancedRows) = buildMoveReviewRows(result.response)
 
           MoveReviewOutputEntry(

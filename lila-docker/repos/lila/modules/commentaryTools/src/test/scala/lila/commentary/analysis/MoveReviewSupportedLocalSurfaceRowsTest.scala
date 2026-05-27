@@ -117,6 +117,34 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       factualFallback = None
     )
 
+  private def safeTruthContract(playedMove: String = "c3g3"): DecisiveTruthContract =
+    DecisiveTruthContract(
+      playedMove = Some(playedMove),
+      verifiedBestMove = Some(playedMove),
+      truthClass = DecisiveTruthClass.Best,
+      cpLoss = 0,
+      swingSeverity = 0,
+      reasonFamily = DecisiveReasonKind.QuietTechnicalMove,
+      allowConcreteBenchmark = false,
+      chosenMatchesBest = true,
+      compensationAllowed = false,
+      truthPhase = None,
+      ownershipRole = TruthOwnershipRole.NoneRole,
+      visibilityRole = TruthVisibilityRole.SupportingVisible,
+      surfaceMode = TruthSurfaceMode.Neutral,
+      exemplarRole = TruthExemplarRole.NonExemplar,
+      surfacedMoveOwnsTruth = false,
+      verifiedPayoffAnchor = None,
+      compensationProseAllowed = false,
+      benchmarkProseAllowed = false,
+      investmentTruthChainKey = None,
+      maintenanceExemplarCandidate = false,
+      failureMode = FailureInterpretationMode.NoClearPlan,
+      failureIntentConfidence = 0.0,
+      failureIntentAnchor = None,
+      failureInterpretationAllowed = false
+    )
+
   private def neutralizePlan(
       claim: String = "This move stops the ...c5 break before Black gets counterplay.",
       proofFamily: String = ProofFamilyId.NeutralizeKeyBreak.wireKey,
@@ -173,8 +201,9 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
         .getOrElse(fail(s"analysis missing for $fen"))
     val centralCtx = NarrativeContextBuilder.build(data, data.toContext, None)
     val pack = StrategyPackBuilder.build(data, centralCtx).getOrElse(fail(s"strategy pack missing for $fen"))
-    val centralInputs = QuestionPlannerInputsBuilder.build(centralCtx, Some(pack), truthContract)
-    val centralRanked = QuestionFirstCommentaryPlanner.plan(centralCtx, centralInputs, truthContract)
+    val effectiveTruthContract = truthContract.orElse(Some(safeTruthContract(playedMove)))
+    val centralInputs = QuestionPlannerInputsBuilder.build(centralCtx, Some(pack), effectiveTruthContract)
+    val centralRanked = QuestionFirstCommentaryPlanner.plan(centralCtx, centralInputs, effectiveTruthContract)
     (centralCtx, centralInputs, centralRanked)
 
   test("projects a SupportedLocal neutralize_key_break timing plan into a named counterplay break row") {
@@ -183,7 +212,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
         ctx = ctx,
         inputs = inputs(),
         rankedPlans = ranked(neutralizePlan()),
-        truthContract = None
+        truthContract = Some(safeTruthContract())
       )
 
     assertEquals(rows.map(_.label), List("Counterplay break"))
@@ -206,7 +235,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
         ctx = centralCtx,
         inputs = centralInputs,
         rankedPlans = centralRanked,
-        truthContract = None
+        truthContract = Some(safeTruthContract())
       )
 
     assertEquals(rows.map(_.label), List("Central break"))
@@ -251,7 +280,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
         ctx = centralCtx,
         inputs = centralInputs,
         rankedPlans = centralRanked,
-        truthContract = None
+        truthContract = Some(safeTruthContract())
       )
 
     assert(!rows.exists(_.label == "Central break"), clue(rows))
@@ -271,7 +300,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
         ctx = centralCtx,
         inputs = centralInputs,
         rankedPlans = centralRanked,
-        truthContract = None
+        truthContract = Some(safeTruthContract())
       )
 
     assertEquals(rows.map(_.label), List("Central break"))
@@ -295,7 +324,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
         ctx = centralCtx,
         inputs = centralInputs,
         rankedPlans = centralRanked,
-        truthContract = None
+        truthContract = Some(safeTruthContract())
       )
 
     assertEquals(rows.map(_.label), List("Central break"))
@@ -318,7 +347,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
         ctx = centralCtx,
         inputs = centralInputs,
         rankedPlans = centralRanked,
-        truthContract = None
+        truthContract = Some(safeTruthContract())
       )
 
     assertEquals(rows.map(_.label), List("Central break"))
@@ -344,7 +373,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
         ctx = centralCtx,
         inputs = centralInputs,
         rankedPlans = centralRanked,
-        truthContract = None
+        truthContract = Some(safeTruthContract())
       )
 
     assert(!rows.exists(_.label == "Central break"), clue(rows))
@@ -366,7 +395,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
         ctx = centralCtx,
         inputs = centralInputs,
         rankedPlans = centralRanked,
-        truthContract = None
+        truthContract = Some(safeTruthContract())
       )
 
     assert(!rows.exists(_.label == "Central break"), clue(rows))
@@ -378,7 +407,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
         ctx = ctx,
         inputs = inputs(truthMode = PlayerFacingTruthMode.Tactical),
         rankedPlans = ranked(neutralizePlan()),
-        truthContract = None
+        truthContract = Some(safeTruthContract())
       )
 
     assertEquals(rows, Nil)
@@ -390,7 +419,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
         ctx = ctx,
         inputs = inputs(),
         rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = None
+        truthContract = Some(safeTruthContract())
       )
 
     assertEquals(rows.map(_.label), List("Counterplay break"))
@@ -420,7 +449,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
         ctx = ctx,
         inputs = inputs(packet = tokenless),
         rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = None
+        truthContract = Some(safeTruthContract())
       )
 
     assertEquals(rows, Nil)
@@ -440,7 +469,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
         ctx = ctx,
         inputs = inputs(packet = termOnly),
         rankedPlans = ranked(neutralizePlan()),
-        truthContract = None
+        truthContract = Some(safeTruthContract())
       )
 
     assertEquals(rows, Nil)
@@ -461,7 +490,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
         ctx = collisionCtx,
         inputs = inputs(packet = collisionPacket),
         rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = None
+        truthContract = Some(safeTruthContract())
       )
 
     assertEquals(rows, Nil)
@@ -482,7 +511,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
         ctx = collisionCtx,
         inputs = inputs(packet = collisionPacket),
         rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = None
+        truthContract = Some(safeTruthContract())
       )
 
     assertEquals(rows, Nil)
@@ -503,7 +532,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
         ctx = playedDestinationRouteCtx,
         inputs = inputs(packet = routePacket),
         rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = None
+        truthContract = Some(safeTruthContract())
       )
 
     assertEquals(rows.map(_.label), List("Counterplay break"))
@@ -540,21 +569,21 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
         ctx = ctx,
         inputs = inputs(packet = supportedNeutralizePacket(proofSource = "wrong_source")),
         rankedPlans = ranked(neutralizePlan()),
-        truthContract = None
+        truthContract = Some(safeTruthContract())
       )
     val releaseRisk =
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = ctx,
         inputs = inputs(packet = supportedNeutralizePacket(releaseRisks = List(PlayerFacingClaimReleaseRisk.RivalRelease))),
         rankedPlans = ranked(neutralizePlan()),
-        truthContract = None
+        truthContract = Some(safeTruthContract())
       )
     val otherFamily =
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = ctx,
         inputs = inputs(packet = supportedNeutralizePacket(proofFamily = ProofFamilyId.CounterplayRestraint.wireKey)),
         rankedPlans = ranked(neutralizePlan(proofFamily = ProofFamilyId.CounterplayRestraint.wireKey)),
-        truthContract = None
+        truthContract = Some(safeTruthContract())
       )
 
     assertEquals(sourceMismatch, Nil)
@@ -570,7 +599,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
         ctx = ctx,
         inputs = inputs(claimText = raw),
         rankedPlans = ranked(neutralizePlan(claim = raw)),
-        truthContract = None
+        truthContract = Some(safeTruthContract())
       )
 
     assertEquals(

@@ -321,8 +321,10 @@ private[commentary] object ClaimAuthorityResolver:
           witness.source == plan.plannerSource &&
           witness.namedBreak.flatMap(canonicalBreakToken).exists(packetToken.contains)
       }
-    else
+    else if packet.proofFamily == ProofFamilyId.NeutralizeKeyBreak.wireKey then
       timingWitnessTermsMatchPacket(plan, packet)
+    else
+      false
 
   private def timingWitnessTermsMatchPacket(
       plan: QuestionPlan,

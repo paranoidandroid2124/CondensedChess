@@ -301,7 +301,7 @@ stability class are recognized and the text carries the matching subtype
 anchors. Delayed/deferred compensation requires an explicit recovery/defer
 anchor rather than the word `compensation` alone. Target-fixing compensation
 cannot be authorized by generic `pressure` or file-occupation route prose; it
-needs target/fixed-pawn/weak-pawn language or typed target evidence. Battery
+requires target/fixed-pawn/weak-pawn language or typed target evidence, coupled with FEN-based structural verification of target board states (e.g. Carlsbad structure, isolated pawn, or Benoni d6 backward pawn structure). Battery
 formation predicates require the moved piece and partner to share the declared
 line with no blocker between them.
 `CommentaryApi` passes those same selected evaluated plans into

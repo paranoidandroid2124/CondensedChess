@@ -195,3 +195,123 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     )
     assertEquals(slots.paragraphPlan, List("p1=claim"))
   }
+
+  test("thematic fallback is blocked (fail-closed) when truthContract indicates a blunder or tactical refutation") {
+    val ctx = quietH3Ctx.copy(
+      plans = PlanTable(
+        top5 = List(
+          PlanRow(
+            rank = 1,
+            name = "OpenFilePressure",
+            score = 0.92,
+            evidence = List("rook doubling on open d-file"),
+            supports = Nil,
+            blockers = Nil,
+            missingPrereqs = Nil
+          )
+        ),
+        suppressed = Nil
+      )
+    )
+    val outline = BookStyleRenderer.validatedOutline(ctx)
+    val blunderContract = DecisiveTruthContract(
+      playedMove = Some("h2h3"),
+      verifiedBestMove = Some("e2e4"),
+      truthClass = DecisiveTruthClass.Blunder,
+      cpLoss = 300,
+      swingSeverity = 300,
+      reasonFamily = DecisiveReasonKind.TacticalRefutation,
+      allowConcreteBenchmark = false,
+      chosenMatchesBest = false,
+      compensationAllowed = false,
+      truthPhase = None,
+      ownershipRole = TruthOwnershipRole.BlunderOwner,
+      visibilityRole = TruthVisibilityRole.PrimaryVisible,
+      surfaceMode = TruthSurfaceMode.FailureExplain,
+      exemplarRole = TruthExemplarRole.NonExemplar,
+      surfacedMoveOwnsTruth = true,
+      verifiedPayoffAnchor = None,
+      compensationProseAllowed = false,
+      benchmarkProseAllowed = false,
+      investmentTruthChainKey = None,
+      maintenanceExemplarCandidate = false,
+      benchmarkCriticalMove = false,
+      failureMode = FailureInterpretationMode.TacticalRefutation,
+      failureIntentConfidence = 0.9,
+      failureIntentAnchor = None,
+      failureInterpretationAllowed = true
+    )
+
+    val slots =
+      MoveReviewPolishSlotsBuilder.buildOrFallback(
+        ctx,
+        outline,
+        refs = None,
+        strategyPack = None,
+        truthContract = Some(blunderContract)
+      )
+
+    assertNotEquals(slots.sourceKind, MoveReviewPolishSlots.Source.ThematicFallback)
+    assertEquals(
+      MoveReviewProseContract.stripMoveHeader(slots.claim),
+      "This moves the pawn to h3."
+    )
+  }
+
+  test("thematic fallback remains available for non-tactical inaccuracy truth") {
+    val ctx = quietH3Ctx.copy(
+      plans = PlanTable(
+        top5 = List(
+          PlanRow(
+            rank = 1,
+            name = "OpenFilePressure",
+            score = 0.92,
+            evidence = List("rook doubling on open d-file"),
+            supports = Nil,
+            blockers = Nil,
+            missingPrereqs = Nil
+          )
+        ),
+        suppressed = Nil
+      )
+    )
+    val outline = BookStyleRenderer.validatedOutline(ctx)
+    val inaccuracyContract = DecisiveTruthContract(
+      playedMove = Some("h2h3"),
+      verifiedBestMove = Some("e2e4"),
+      truthClass = DecisiveTruthClass.Inaccuracy,
+      cpLoss = 45,
+      swingSeverity = 45,
+      reasonFamily = DecisiveReasonKind.QuietTechnicalMove,
+      allowConcreteBenchmark = false,
+      chosenMatchesBest = false,
+      compensationAllowed = false,
+      truthPhase = None,
+      ownershipRole = TruthOwnershipRole.NoneRole,
+      visibilityRole = TruthVisibilityRole.SupportingVisible,
+      surfaceMode = TruthSurfaceMode.Neutral,
+      exemplarRole = TruthExemplarRole.NonExemplar,
+      surfacedMoveOwnsTruth = false,
+      verifiedPayoffAnchor = None,
+      compensationProseAllowed = false,
+      benchmarkProseAllowed = false,
+      investmentTruthChainKey = None,
+      maintenanceExemplarCandidate = false,
+      benchmarkCriticalMove = false,
+      failureMode = FailureInterpretationMode.NoClearPlan,
+      failureIntentConfidence = 0.0,
+      failureIntentAnchor = None,
+      failureInterpretationAllowed = false
+    )
+
+    val slots =
+      MoveReviewPolishSlotsBuilder.buildOrFallback(
+        ctx,
+        outline,
+        refs = None,
+        strategyPack = None,
+        truthContract = Some(inaccuracyContract)
+      )
+
+    assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.ThematicFallback)
+  }

@@ -2,7 +2,6 @@ package lila.commentary.analysis
 
 import lila.commentary.{ MoveReviewExplanation, MoveReviewRefs, StrategyPack }
 import lila.commentary.analysis.practical.ContrastiveSupportAdmissibility
-import lila.commentary.analysis.claim.PlayerFacingClaimPrefixKind
 import lila.commentary.analysis.render.QuietStrategicSupportComposer
 import lila.commentary.model.*
 import lila.commentary.model.authoring.{ AuthorQuestionKind, NarrativeOutline }
@@ -84,7 +83,7 @@ private[commentary] object MoveReviewCompressionPolicy:
     val slots =
       slotsFromPlanner(ctx, plannerRuntime.inputs, plannerRuntime.rankedPlans, truthContract)
         .orElse(basicMoveExplanationSlots(ctx, refs, truthContract, strategyPack))
-        .orElse(theme_fallback(ctx, plannerRuntime, refs, strategyPack))
+        .orElse(theme_fallback(ctx, plannerRuntime, refs, strategyPack, truthContract))
         .orElse(exactFactualFallbackSlots(ctx, plannerRuntime, refs, strategyPack))
         .getOrElse(omittedSlots)
     RuntimeResult(
@@ -106,7 +105,7 @@ private[commentary] object MoveReviewCompressionPolicy:
         rankedPlans = rankedPlans
       )
     slotsFromPlanner(ctx, inputs, rankedPlans, truthContract)
-      .orElse(theme_fallback(ctx, plannerRuntime, refs = None, strategyPack))
+      .orElse(theme_fallback(ctx, plannerRuntime, refs = None, strategyPack, truthContract))
       .orElse(exactFactualFallbackSlots(ctx, plannerRuntime, refs = None, strategyPack))
       .getOrElse(omittedSlots)
 
@@ -611,7 +610,8 @@ private[commentary] object MoveReviewCompressionPolicy:
       ctx: NarrativeContext,
       plannerRuntime: PlannerRuntime,
       @unused refs: Option[MoveReviewRefs],
-      @unused strategyPack: Option[StrategyPack]
+      @unused strategyPack: Option[StrategyPack],
+      truthContract: Option[DecisiveTruthContract]
   ): Option[MoveReviewPolishSlots] =
     val activeTheme =
       if ctx.plans.top5.nonEmpty then
@@ -623,7 +623,13 @@ private[commentary] object MoveReviewCompressionPolicy:
       else
         PlanTaxonomy.PlanTheme.Unknown
 
-    Option.when(activeTheme != PlanTaxonomy.PlanTheme.Unknown) {
+    val thematicFallbackBlocked = truthContract.exists { contract =>
+      contract.truthClass == DecisiveTruthClass.Blunder ||
+        contract.reasonFamily == DecisiveReasonKind.TacticalRefutation ||
+        contract.failureMode == FailureInterpretationMode.TacticalRefutation
+    }
+
+    Option.when(activeTheme != PlanTaxonomy.PlanTheme.Unknown && !thematicFallbackBlocked) {
       val claim = theme_fallback_prose(activeTheme)
       val prefixClaim = prefixMoveHeader(ctx, claim)
       MoveReviewPolishSlots(
