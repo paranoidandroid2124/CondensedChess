@@ -7,7 +7,7 @@ import _root_.chess.{ Bishop, Board, Color, King, Pawn, Queen, Square }
 import _root_.chess.format.Fen
 import _root_.chess.variant.Standard
 
-import lila.commentary.{ DirectionalTargetReadiness, GameChronicleMoment, RouteSurfaceMode, StrategicIdeaKind, StrategyIdeaSignal, StrategyPack, StrategyPieceMoveRef }
+import lila.commentary.{ DirectionalTargetReadiness, RouteSurfaceMode, StrategicIdeaKind, StrategyIdeaSignal, StrategyPack, StrategyPieceMoveRef }
 import lila.commentary.model.*
 import lila.commentary.model.strategic.{ VariationLine, VariationTag }
 import scala.annotation.unused
@@ -97,19 +97,6 @@ private[commentary] object PlayerFacingTruthModePolicy:
     else if StandardCommentaryClaimPolicy.quietStandardPosition(ctx, truthContract) then
       PlayerFacingTruthMode.Minimal
     else PlayerFacingTruthMode.Minimal
-
-  def classify(moment: GameChronicleMoment): PlayerFacingTruthMode =
-    val surface = StrategyPackSurface.from(moment.strategyPack)
-    val sacrificeClass = classifySacrifice(moment, surface)
-    val deltaEvidence = strategicDeltaEvidence(moment, surface)
-    if isTactical(moment, sacrificeClass) then PlayerFacingTruthMode.Tactical
-    else if sacrificeClass == PlayerFacingSacrificeClass.StrategicSacrifice ||
-        deltaEvidence.exists(_.packet.admitsStrategicTruthMode)
-    then PlayerFacingTruthMode.Strategic
-    else PlayerFacingTruthMode.Minimal
-
-  def allowsActiveNote(moment: GameChronicleMoment): Boolean =
-    classify(moment) != PlayerFacingTruthMode.Minimal
 
   def allowsStrategicClaimText(
       text: String,
@@ -218,22 +205,6 @@ private[commentary] object PlayerFacingTruthModePolicy:
         }
       )
 
-  def tacticalLeadSentence(moment: GameChronicleMoment): Option[String] =
-    val surface = StrategyPackSurface.from(moment.strategyPack)
-    val sacrificeClass = classifySacrifice(moment, surface)
-    if sacrificeClass == PlayerFacingSacrificeClass.TacticalSacrifice then
-      Some("This is a tactical sacrifice, and the immediate point has to come first.")
-    else
-      moment.moveClassification.map(normalize).collect {
-        case "blunder"   => "This is a blunder, and the tactical point has to come first."
-        case "missedwin" => "This misses a win, and the immediate tactical chance matters most."
-      }
-
-  def activeMoveDeltaEvidence(
-      moment: GameChronicleMoment
-  ): Option[PlayerFacingMoveDeltaEvidence] =
-    strategicDeltaEvidence(moment, StrategyPackSurface.from(moment.strategyPack))
-
   def mainPathMoveDeltaEvidence(
       ctx: NarrativeContext,
       surface: StrategyPackSurface.Snapshot,
@@ -338,15 +309,6 @@ private[commentary] object PlayerFacingTruthModePolicy:
           (forcingProof && contractClaimsForcingTacticalTruth(contract))
       )
 
-  private def isTactical(
-      moment: GameChronicleMoment,
-      sacrificeClass: PlayerFacingSacrificeClass
-  ): Boolean =
-    sacrificeClass == PlayerFacingSacrificeClass.TacticalSacrifice ||
-      moment.moveClassification.exists(label =>
-        Set("blunder", "missedwin").contains(label.trim.toLowerCase)
-      )
-
   private def classifySacrifice(
       ctx: NarrativeContext,
       surface: StrategyPackSurface.Snapshot,
@@ -360,21 +322,6 @@ private[commentary] object PlayerFacingTruthModePolicy:
     else if variationShowsImmediateTacticalSettlement(ctx.engineEvidence.toList.flatMap(_.variations)) then
       PlayerFacingSacrificeClass.TacticalSacrifice
     else if hasStrategicSacrificeEvidence(ctx, surface, truthContract) then
-      PlayerFacingSacrificeClass.StrategicSacrifice
-    else PlayerFacingSacrificeClass.None
-
-  private def classifySacrifice(
-      moment: GameChronicleMoment,
-      surface: StrategyPackSurface.Snapshot
-  ): PlayerFacingSacrificeClass =
-    val investedMaterial =
-      moment.signalDigest.flatMap(_.investedMaterial)
-        .orElse(surface.investedMaterial)
-        .filter(_ > 0)
-    if !looksLikeSacrifice(investedMaterial, None) then PlayerFacingSacrificeClass.None
-    else if variationShowsImmediateTacticalSettlement(moment.variations) then
-      PlayerFacingSacrificeClass.TacticalSacrifice
-    else if hasStrategicSacrificeEvidence(moment, surface) then
       PlayerFacingSacrificeClass.StrategicSacrifice
     else PlayerFacingSacrificeClass.None
 
@@ -441,15 +388,6 @@ private[commentary] object PlayerFacingTruthModePolicy:
           )
       )
     moveLinkedCompensation && (semanticCompensation || verifiedCompensation)
-
-  private def hasStrategicSacrificeEvidence(
-      moment: GameChronicleMoment,
-      surface: StrategyPackSurface.Snapshot
-  ): Boolean =
-    hasMoveLinkedCompensationEvidence(surface) &&
-      moment.signalDigest.exists(digest =>
-        digest.compensation.nonEmpty || digest.decisionComparison.nonEmpty
-      )
 
   private def variationShowsImmediateTacticalSettlement(
       variations: List[VariationLine]
@@ -569,22 +507,6 @@ private[commentary] object PlayerFacingTruthModePolicy:
       centralBreakTimingReleaseWitness(ctx).nonEmpty ||
       BreakPreventionWitness.exact(ctx, surface, preventedNow).nonEmpty ||
       exactCounterplayRestraintOwnerProof(ctx, preventedNow)
-
-  private def hasConcreteStrategicEvidence(
-      moment: GameChronicleMoment,
-      surface: StrategyPackSurface.Snapshot
-  ): Boolean =
-    val digestConcrete =
-      moment.signalDigest.exists { digest =>
-        digest.decisionComparison.nonEmpty ||
-          digest.compensation.nonEmpty ||
-          digest.deploymentRoute.nonEmpty ||
-          digest.deploymentPurpose.nonEmpty ||
-          digest.prophylaxisThreat.nonEmpty
-      }
-    hasMoveLinkedStrategicAnchor(surface) &&
-      digestConcrete &&
-      !surfaceLooksShellOnly(surface)
 
   private def strategicDeltaEvidence(
       ctx: NarrativeContext,
@@ -4368,25 +4290,6 @@ private[commentary] object PlayerFacingTruthModePolicy:
             List("remove", "resource", "deny", "no longer", "defensive")
           case PlayerFacingMoveDeltaClass.PlanAdvance =>
             List("advance", "prepare", "step", "activate", "improve", "coordinate", "support")
-
-  private def strategicDeltaEvidence(
-      moment: GameChronicleMoment,
-      surface: StrategyPackSurface.Snapshot
-  ): Option[PlayerFacingMoveDeltaEvidence] =
-    val anchors = moveLinkedAnchorTerms(surface, None)
-    if anchors.isEmpty || surfaceLooksShellOnly(surface) || !hasConcreteStrategicEvidence(moment, surface) then None
-    else
-      moment.signalDigest.flatMap { digest =>
-        if digest.prophylaxisThreat.nonEmpty then
-          Some(PlayerFacingMoveDeltaEvidence(PlayerFacingMoveDeltaClass.CounterplayReduction, anchors))
-        else if digest.decisionComparison.nonEmpty then
-          Some(PlayerFacingMoveDeltaEvidence(PlayerFacingMoveDeltaClass.PlanAdvance, anchors))
-        else if digest.deploymentRoute.nonEmpty then
-          Some(PlayerFacingMoveDeltaEvidence(PlayerFacingMoveDeltaClass.NewAccess, anchors))
-        else if digest.compensation.nonEmpty then
-          Some(PlayerFacingMoveDeltaEvidence(PlayerFacingMoveDeltaClass.PressureIncrease, anchors))
-        else None
-      }
 
   private def hasMoveLinkedStrategicAnchor(surface: StrategyPackSurface.Snapshot): Boolean =
     val routeAnchor =

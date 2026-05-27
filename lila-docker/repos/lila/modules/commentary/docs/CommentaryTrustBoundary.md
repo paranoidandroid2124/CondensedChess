@@ -14,6 +14,13 @@ trust infrastructure. Active bridge planning, Active thread selection,
 Active strategic-note composition, and Chronicle compression are confined to
 `modules/commentaryTools/src/test`; they must not supply MoveReview release
 authority unless a new runtime audit explicitly reopens that boundary.
+`GameChronicleResponse` and `GameChronicleMoment` are outside the runtime trust
+boundary. Any legacy replay tooling that still needs their data must convert to
+a compact, non-authority carrier before calling shared builders, and runtime
+trust/signoff code must not consume those Chronicle DTOs directly.
+Active-note DTO fields, active branch dossiers, strategic-thread lists, and
+`ActivePlanRef` tags are likewise test/tooling-only; runtime `GameArc` must not
+carry them as empty compatibility payloads.
 
 Current operating posture:
 

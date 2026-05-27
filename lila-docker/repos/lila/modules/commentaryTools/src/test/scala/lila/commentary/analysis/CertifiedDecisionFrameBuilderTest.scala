@@ -443,8 +443,9 @@ class CertifiedDecisionFrameBuilderTest extends FunSuite:
 
   test("builder derives urgency tiers from truth mode and forcing or tension signals") {
     val immediate =
-      CertifiedDecisionFrameBuilder.build(
-        moment(moveClassification = Some("blunder"), pack = None, experiments = Nil),
+      CertifiedDecisionFrameBuilder.buildCarrier(
+        moment(moveClassification = Some("blunder"), pack = None, experiments = Nil)
+          .decisionFrameInput(PlayerFacingTruthMode.Tactical),
         PlayerFacingMoveDeltaBundle(Nil, Nil, Nil, Nil, Some("This is a blunder, and the tactical point has to come first."), None),
         dossier = None
       )
@@ -526,7 +527,12 @@ class CertifiedDecisionFrameBuilderTest extends FunSuite:
         mainStrategicPlans = List(plan("initiative", "Initiative"))
       )
 
-    val frame = CertifiedDecisionFrameBuilder.build(genericMoment, supportOnlyDeltaBundle, dossier = None)
+    val frame =
+      CertifiedDecisionFrameBuilder.buildCarrier(
+        genericMoment.decisionFrameInput(PlayerFacingTruthMode.Strategic),
+        supportOnlyDeltaBundle,
+        dossier = None
+      )
 
     assertEquals(frame.battlefront, None, clues(frame))
   }
@@ -597,13 +603,23 @@ class CertifiedDecisionFrameBuilderTest extends FunSuite:
           )
       )
 
-    val frame = CertifiedDecisionFrameBuilder.build(anchoredMoment, supportOnlyDeltaBundle, dossier = None)
+    val frame =
+      CertifiedDecisionFrameBuilder.buildCarrier(
+        anchoredMoment.decisionFrameInput(PlayerFacingTruthMode.Strategic),
+        supportOnlyDeltaBundle,
+        dossier = None
+      )
 
     assert(frame.battlefront.exists(_.sentence.contains("kingside")), clue(frame))
   }
 
   test("active alignment keeps only carriers that match the certified frame") {
-    val frame = CertifiedDecisionFrameBuilder.build(moment(), deltaBundle, dossier)
+    val frame =
+      CertifiedDecisionFrameBuilder.buildCarrier(
+        moment().decisionFrameInput(PlayerFacingTruthMode.Strategic),
+        deltaBundle,
+        dossier.map(_.decisionFrameInput)
+      )
 
     assertEquals(
       frame.alignedRouteRefs(deltaBundle.visibleRouteRefs).map(_.routeId),
@@ -615,11 +631,16 @@ class CertifiedDecisionFrameBuilderTest extends FunSuite:
       List("target_g7"),
       clues(frame)
     )
-    assert(frame.alignedDossier(dossier).nonEmpty, clue(frame))
+    assert(dossier.exists(value => frame.alignedDossier(Some(value.decisionFrameInput)).nonEmpty), clue(frame))
   }
 
   test("certified frame exports active idea refs from intent and battlefront only") {
-    val frame = CertifiedDecisionFrameBuilder.build(moment(), deltaBundle, dossier)
+    val frame =
+      CertifiedDecisionFrameBuilder.buildCarrier(
+        moment().decisionFrameInput(PlayerFacingTruthMode.Strategic),
+        deltaBundle,
+        dossier.map(_.decisionFrameInput)
+      )
 
     val ideaRefs = frame.ideaRefs()
 
@@ -651,16 +672,16 @@ class CertifiedDecisionFrameBuilderTest extends FunSuite:
 
   test("active alignment omits carriers when the frame is not certified") {
     val uncertified =
-      CertifiedDecisionFrameBuilder.build(
+      CertifiedDecisionFrameBuilder.buildCarrier(
         moment(
           pack = strategyPack(),
           experiments = List(StrategicPlanExperiment(planId = "kingside_attack", evidenceTier = "pv_coupled"))
-        ),
+        ).decisionFrameInput(PlayerFacingTruthMode.Strategic),
         deltaBundle,
-        dossier
+        dossier.map(_.decisionFrameInput)
       )
 
     assertEquals(uncertified.alignedRouteRefs(deltaBundle.visibleRouteRefs), Nil, clues(uncertified))
     assertEquals(uncertified.alignedTargets(deltaBundle.visibleDirectionalTargets), Nil, clues(uncertified))
-    assertEquals(uncertified.alignedDossier(dossier), None, clues(uncertified))
+    assertEquals(dossier.flatMap(value => uncertified.alignedDossier(Some(value.decisionFrameInput))), None, clues(uncertified))
   }

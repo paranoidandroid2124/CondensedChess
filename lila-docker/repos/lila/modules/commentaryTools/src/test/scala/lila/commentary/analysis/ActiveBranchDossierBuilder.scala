@@ -68,7 +68,7 @@ object ActiveBranchDossierBuilder:
       moment: GameChronicleMoment,
       truthContract: Option[DecisiveTruthContract]
   ): String =
-    MomentTruthSemantics.chronicle(moment, truthContract).canonicalLens
+    ChronicleTruthSemantics.chronicle(moment, truthContract).canonicalLens
 
   private def chosenBranchLabel(
       moment: GameChronicleMoment,

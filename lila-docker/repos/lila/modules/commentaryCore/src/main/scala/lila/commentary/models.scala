@@ -539,53 +539,6 @@ case class ActiveBranchMoveCue(
 object ActiveBranchMoveCue:
   given Writes[ActiveBranchMoveCue] = Json.writes[ActiveBranchMoveCue]
 
-case class ActiveBranchDossier(
-    dominantLens: String,
-    chosenBranchLabel: String,
-    engineBranchLabel: Option[String] = None,
-    deferredBranchLabel: Option[String] = None,
-    whyChosen: Option[String] = None,
-    whyDeferred: Option[String] = None,
-    opponentResource: Option[String] = None,
-    routeCue: Option[ActiveBranchRouteCue] = None,
-    moveCue: Option[ActiveBranchMoveCue] = None,
-    evidenceCue: Option[String] = None,
-    continuationFocus: Option[String] = None,
-    practicalRisk: Option[String] = None,
-    comparisonGapCp: Option[Int] = None,
-    threadLabel: Option[String] = None,
-    threadStage: Option[String] = None,
-    threadSummary: Option[String] = None,
-    threadOpponentCounterplan: Option[String] = None
-)
-object ActiveBranchDossier:
-  given Writes[ActiveBranchDossier] = Json.writes[ActiveBranchDossier]
-
-case class ActiveStrategicThread(
-    threadId: String,
-    side: String,
-    themeKey: String,
-    themeLabel: String,
-    summary: String,
-    seedPly: Int,
-    lastPly: Int,
-    representativePlies: List[Int] = Nil,
-    opponentCounterplan: Option[String] = None,
-    continuityScore: Double
-)
-object ActiveStrategicThread:
-  given Writes[ActiveStrategicThread] = Json.writes[ActiveStrategicThread]
-
-case class ActiveStrategicThreadRef(
-    threadId: String,
-    themeKey: String,
-    themeLabel: String,
-    stageKey: String,
-    stageLabel: String
-)
-object ActiveStrategicThreadRef:
-  given Writes[ActiveStrategicThreadRef] = Json.writes[ActiveStrategicThreadRef]
-
 case class AuthorQuestionSummary(
     id: String,
     kind: String,

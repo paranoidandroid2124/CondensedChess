@@ -409,7 +409,7 @@ object StrategicBranchSelector:
       moment: GameChronicleMoment,
       truthContractsByPly: Map[Int, DecisiveTruthContract]
   ): TruthSelectionView =
-    val projection = DecisiveTruth.momentProjection(moment, truthContractsByPly.get(moment.ply))
+    val projection = ChronicleTruthSemantics.projection(moment, truthContractsByPly.get(moment.ply))
     TruthSelectionView(
       classificationKey = projection.classificationKey,
       ownershipRole = projection.ownershipRole,
@@ -428,8 +428,8 @@ object StrategicBranchSelector:
   private def chronicleSemantics(
       moment: GameChronicleMoment,
       truthContractsByPly: Map[Int, DecisiveTruthContract]
-  ): MomentTruthSemantics.ChronicleSemantics =
-    MomentTruthSemantics.chronicle(moment, truthContractsByPly.get(moment.ply))
+  ): ChronicleTruthSemantics.Semantics =
+    ChronicleTruthSemantics.chronicle(moment, truthContractsByPly.get(moment.ply))
 
   private def strategicFallbackScore(
       moment: GameChronicleMoment,
@@ -643,7 +643,7 @@ object StrategicBranchSelector:
       moment: GameChronicleMoment,
       truthContractsByPly: Map[Int, DecisiveTruthContract],
       stagePriorityByPly: Map[Int, Int],
-      semanticsByPly: Map[Int, MomentTruthSemantics.ChronicleSemantics]
+      semanticsByPly: Map[Int, ChronicleTruthSemantics.Semantics]
   ): (Int, Int, Int, Int) =
     val truthView = truthSelectionView(moment, truthContractsByPly)
     val semantics = semanticsByPly.getOrElse(moment.ply, chronicleSemantics(moment, truthContractsByPly))
@@ -670,7 +670,7 @@ object StrategicBranchSelector:
       stageMoment: GameChronicleMoment,
       truthContractsByPly: Map[Int, DecisiveTruthContract],
       stagePriorityByPly: Map[Int, Int],
-      semanticsByPly: Map[Int, MomentTruthSemantics.ChronicleSemantics]
+      semanticsByPly: Map[Int, ChronicleTruthSemantics.Semantics]
   ): (Int, Int, Int, Int, Int) =
     val (selectionBand, priority, stagePenalty, tiebreak) =
       representativeMomentScore(moment, truthContractsByPly, stagePriorityByPly, semanticsByPly)
@@ -680,7 +680,7 @@ object StrategicBranchSelector:
   private def selectGlobalThreadMoments(
       representativeMoments: List[GameChronicleMoment],
       truthContractsByPly: Map[Int, DecisiveTruthContract],
-      eligibility: MomentTruthSemantics.ChronicleSemantics => Boolean
+      eligibility: ChronicleTruthSemantics.Semantics => Boolean
   ): List[GameChronicleMoment] =
     representativeMoments.zipWithIndex
       .flatMap { case (moment, order) =>
@@ -723,12 +723,12 @@ object StrategicBranchSelector:
       truthView.failureMode != FailureInterpretationMode.NoClearPlan
 
   private def isStrongRepresentativeQualified(
-      semantics: MomentTruthSemantics.ChronicleSemantics
+      semantics: ChronicleTruthSemantics.Semantics
   ): Boolean =
     semantics.globalVisibleEligible
 
   private def isSecondaryRepresentativeQualified(
-      semantics: MomentTruthSemantics.ChronicleSemantics
+      semantics: ChronicleTruthSemantics.Semantics
   ): Boolean =
     semantics.threadLocalReplacementEligible && !semantics.globalVisibleEligible
 

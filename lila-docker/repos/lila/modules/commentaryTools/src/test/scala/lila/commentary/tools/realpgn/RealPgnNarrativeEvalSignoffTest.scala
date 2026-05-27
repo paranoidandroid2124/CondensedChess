@@ -82,13 +82,10 @@ class RealPgnNarrativeEvalSignoffTest extends FunSuite:
       selectionKind = "key",
       finalInternal = true,
       visibleMoment = true,
-      activeNoteMoment = true,
       wholeGamePromoted = false,
-      strategicThreadId = None,
       truthClass = "Best",
       reasonFamily = "InvestmentSacrifice",
-      maintenanceExemplarCandidate = true,
-      threadRepresentativeSelected = false
+      maintenanceExemplarCandidate = true
     )
 
   test("signoff does not count absent positive exemplars that were not part of the run") {

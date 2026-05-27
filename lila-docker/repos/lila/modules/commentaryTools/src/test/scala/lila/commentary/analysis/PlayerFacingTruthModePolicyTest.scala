@@ -539,7 +539,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
         signalDigest = None
       )
 
-    assertEquals(PlayerFacingTruthModePolicy.classify(moment), PlayerFacingTruthMode.Minimal)
+    assertEquals(PlayerFacingMoveDeltaBuilder.classify(moment), PlayerFacingTruthMode.Minimal)
   }
 
   test("concrete route and target evidence resolves to Strategic") {
@@ -721,7 +721,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
         signalDigest = None
       )
 
-    assert(!PlayerFacingTruthModePolicy.allowsActiveNote(moment))
+    assertEquals(PlayerFacingMoveDeltaBuilder.classify(moment), PlayerFacingTruthMode.Minimal)
   }
 
   test("tactical sacrifice with immediate recoup resolves to Tactical") {

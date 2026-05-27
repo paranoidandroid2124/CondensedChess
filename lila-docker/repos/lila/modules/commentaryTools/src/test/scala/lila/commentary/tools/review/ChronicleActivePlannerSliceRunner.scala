@@ -671,7 +671,12 @@ object ChronicleActivePlannerSliceRunner:
     val moveRefs = rebuildMoveRefs(replayMoment)
     val deltaBundle = PlayerFacingMoveDeltaBuilder.build(replayMoment, routeRefs, moveRefs)
     val dossier = ActiveBranchDossierBuilder.build(replayMoment, routeRefs, moveRefs)
-    val decisionFrame = CertifiedDecisionFrameBuilder.build(replayMoment, deltaBundle, dossier)
+    val decisionFrame =
+      CertifiedDecisionFrameBuilder.buildCarrier(
+        replayMoment.decisionFrameInput(PlayerFacingTruthMode.Strategic),
+        deltaBundle,
+        dossier.map(_.decisionFrameInput)
+      )
     val activeSelection =
       ActiveStrategicCoachingBriefBuilder.selectPlannerSurface(
         ActiveStrategicCoachingBriefBuilder.PlannerReplay(
@@ -952,7 +957,12 @@ object ChronicleActivePlannerSliceRunner:
     val dossier =
       ActiveBranchDossierBuilder.build(internalMoment, routeRefs, moveRefs, internalMoment.strategicThread, thread)
     val deltaBundle = PlayerFacingMoveDeltaBuilder.build(internalMoment, routeRefs, moveRefs)
-    val decisionFrame = CertifiedDecisionFrameBuilder.build(internalMoment, deltaBundle, dossier)
+    val decisionFrame =
+      CertifiedDecisionFrameBuilder.buildCarrier(
+        internalMoment.decisionFrameInput(PlayerFacingTruthMode.Strategic),
+        deltaBundle,
+        dossier.map(_.decisionFrameInput)
+      )
     val replay =
       ActiveStrategicCoachingBriefBuilder.replayPlanner(internalMoment, deltaBundle, dossier, decisionFrame)
     val chronicleSelection =

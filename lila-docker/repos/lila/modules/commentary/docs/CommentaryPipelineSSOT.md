@@ -32,6 +32,14 @@ compression code is not runtime infrastructure: it lives only under
 review tooling. The maintained `src/main` runtime must not call Active bridge
 planning, Active thread selection, Active strategic-note composition, or
 Chronicle compression to decide released commentary.
+`GameChronicleResponse` and `GameChronicleMoment` are test/tooling DTOs only;
+they must not live in or be referenced by `modules/commentaryCore/src/main` or
+`modules/commentary/src/main`. Compatibility callers that still need historical
+Chronicle replay diagnostics must project through compact tooling carriers such
+as `DecisionFrameCarrierInput` before entering shared runtime builders.
+Runtime `GameArc` may retain generic diagnostic data such as top-engine
+alternatives, but it must not expose Active-note payload fields, active branch
+dossiers, strategic-thread lists, or `ActivePlanRef` plan tags.
 `UserFacingPayloadSanitizer` is MoveReview/bootstrap-only and does not carry a
 Chronicle/Active response sanitizer in the runtime API layer.
 

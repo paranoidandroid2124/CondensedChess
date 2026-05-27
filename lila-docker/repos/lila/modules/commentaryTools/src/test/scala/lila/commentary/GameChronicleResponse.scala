@@ -1,6 +1,7 @@
 package lila.commentary
 
 import play.api.libs.json.*
+import lila.commentary.analysis.{ DecisionFrameCarrierInput, DecisionFrameDossierInput, PlayerFacingTruthMode }
 import lila.commentary.model.{ GameArc, GameArcMoment }
 import lila.commentary.model.strategic.VariationLine
 
@@ -41,10 +42,76 @@ object GameChronicleResponse:
       model = model,
       planTier = PlanTier.normalize(planTier),
       commentaryMode = CommentaryMode.normalize(commentaryMode),
-      strategicThreads = arc.strategicThreads
+      strategicThreads = Nil
     )
 
   given Writes[GameChronicleResponse] = Json.writes[GameChronicleResponse]
+
+case class ActivePlanRef(
+    themeL1: String,
+    subplanId: Option[String],
+    phase: Option[String],
+    commitmentScore: Option[Double]
+)
+object ActivePlanRef:
+  given Writes[ActivePlanRef] = Json.writes[ActivePlanRef]
+
+case class ActiveBranchDossier(
+    dominantLens: String,
+    chosenBranchLabel: String,
+    engineBranchLabel: Option[String] = None,
+    deferredBranchLabel: Option[String] = None,
+    whyChosen: Option[String] = None,
+    whyDeferred: Option[String] = None,
+    opponentResource: Option[String] = None,
+    routeCue: Option[ActiveBranchRouteCue] = None,
+    moveCue: Option[ActiveBranchMoveCue] = None,
+    evidenceCue: Option[String] = None,
+    continuationFocus: Option[String] = None,
+    practicalRisk: Option[String] = None,
+    comparisonGapCp: Option[Int] = None,
+    threadLabel: Option[String] = None,
+    threadStage: Option[String] = None,
+    threadSummary: Option[String] = None,
+    threadOpponentCounterplan: Option[String] = None
+):
+  def decisionFrameInput: DecisionFrameDossierInput =
+    DecisionFrameDossierInput(
+      routeCue = routeCue,
+      moveCue = moveCue,
+      evidenceCue = evidenceCue,
+      whyChosen = whyChosen,
+      opponentResource = opponentResource,
+      continuationFocus = continuationFocus,
+      practicalRisk = practicalRisk
+    )
+object ActiveBranchDossier:
+  given Writes[ActiveBranchDossier] = Json.writes[ActiveBranchDossier]
+
+case class ActiveStrategicThread(
+    threadId: String,
+    side: String,
+    themeKey: String,
+    themeLabel: String,
+    summary: String,
+    seedPly: Int,
+    lastPly: Int,
+    representativePlies: List[Int] = Nil,
+    opponentCounterplan: Option[String] = None,
+    continuityScore: Double
+)
+object ActiveStrategicThread:
+  given Writes[ActiveStrategicThread] = Json.writes[ActiveStrategicThread]
+
+case class ActiveStrategicThreadRef(
+    threadId: String,
+    themeKey: String,
+    themeLabel: String,
+    stageKey: String,
+    stageLabel: String
+)
+object ActiveStrategicThreadRef:
+  given Writes[ActiveStrategicThreadRef] = Json.writes[ActiveStrategicThreadRef]
 
 case class GameChronicleMoment(
     momentId: String,
@@ -88,7 +155,24 @@ case class GameChronicleMoment(
     activeDirectionalTargets: List[StrategyDirectionalTarget] = Nil,
     activeBranchDossier: Option[ActiveBranchDossier] = None,
     strategicThread: Option[ActiveStrategicThreadRef] = None
-)
+):
+  def decisionFrameInput(truthMode: PlayerFacingTruthMode = PlayerFacingTruthMode.Minimal): DecisionFrameCarrierInput =
+    DecisionFrameCarrierInput(
+      side = side,
+      strategyPack = strategyPack,
+      signalDigest = signalDigest,
+      mainStrategicPlans = mainStrategicPlans,
+      strategicPlanExperiments = strategicPlanExperiments,
+      truthMode = truthMode,
+      tensionScore =
+        Some(
+          signalDigest.flatMap(_.counterplayScoreDrop).getOrElse(
+            signalDigest.flatMap(_.decisionComparison).flatMap(_.cpLossVsChosen)
+              .orElse(topEngineMove.flatMap(_.cpLossVsPlayed))
+              .getOrElse(0)
+          )
+        )
+    )
 
 object GameChronicleMoment:
 
@@ -117,7 +201,7 @@ object GameChronicleMoment:
       strategicSalience = Some(moment.analysisData.strategicSalience.toString),
       transitionType = moment.transitionType,
       transitionConfidence = moment.transitionConfidence,
-      activePlan = moment.activePlan,
+      activePlan = None,
       topEngineMove = moment.topEngineMove,
       collapse = moment.collapse,
       strategyPack = moment.strategyPack,
@@ -128,15 +212,7 @@ object GameChronicleMoment:
       authorEvidence = moment.authorEvidence,
       mainStrategicPlans = moment.mainStrategicPlans,
       strategicPlanExperiments = moment.strategicPlanExperiments,
-      strategicBranch = moment.strategicBranch,
-      activeStrategicNote = moment.activeStrategicNote,
-      activeStrategicSourceMode = moment.activeStrategicSourceMode,
-      activeStrategicIdeas = moment.activeStrategicIdeas,
-      activeStrategicRoutes = moment.activeStrategicRoutes,
-      activeStrategicMoves = moment.activeStrategicMoves,
-      activeDirectionalTargets = moment.activeDirectionalTargets,
-      activeBranchDossier = moment.activeBranchDossier,
-      strategicThread = moment.strategicThread
+      strategicBranch = moment.strategicBranch
     )
 
   given Writes[GameChronicleMoment] = Json.writes[GameChronicleMoment]
@@ -164,22 +240,3 @@ case class GameChronicleReview(
 
 object GameChronicleReview:
   given Writes[GameChronicleReview] = Json.writes[GameChronicleReview]
-
-case class ActivePlanRef(
-    themeL1: String,
-    subplanId: Option[String],
-    phase: Option[String],
-    commitmentScore: Option[Double]
-)
-object ActivePlanRef:
-  given Writes[ActivePlanRef] = Json.writes[ActivePlanRef]
-
-case class EngineAlternative(
-    uci: String,
-    san: Option[String],
-    cpAfterAlt: Option[Int],
-    cpLossVsPlayed: Option[Int],
-    pv: List[String]
-)
-object EngineAlternative:
-  given Writes[EngineAlternative] = Json.writes[EngineAlternative]

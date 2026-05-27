@@ -1,36 +1,20 @@
 package lila.commentary.analysis
 
 import lila.commentary.*
-import lila.commentary.model.strategic.VariationLine
-
-private[commentary] final case class PlayerFacingMoveDeltaClaim(
-    deltaClass: PlayerFacingMoveDeltaClass,
-    anchorText: String,
-    reasonText: Option[String],
-    routeCue: Option[ActiveBranchRouteCue] = None,
-    moveCue: Option[ActiveBranchMoveCue] = None,
-    directionalTargets: List[StrategyDirectionalTarget] = Nil,
-    evidenceLines: List[String] = Nil,
-    sourceKind: String
-)
-
-private[commentary] final case class PlayerFacingMoveDeltaBundle(
-    claims: List[PlayerFacingMoveDeltaClaim],
-    visibleRouteRefs: List[ActiveStrategicRouteRef],
-    visibleMoveRefs: List[ActiveStrategicMoveRef],
-    visibleDirectionalTargets: List[StrategyDirectionalTarget],
-    tacticalLead: Option[String],
-    tacticalEvidence: Option[String]
-):
-  def hasVisibleSupport: Boolean =
-    claims.nonEmpty ||
-      visibleRouteRefs.nonEmpty ||
-      visibleMoveRefs.nonEmpty ||
-      visibleDirectionalTargets.nonEmpty ||
-      tacticalLead.nonEmpty ||
-      tacticalEvidence.nonEmpty
+import lila.commentary.model.strategic.{ VariationLine, VariationTag }
 
 private[commentary] object PlayerFacingMoveDeltaBuilder:
+
+  private val abstractShellTokens = List(
+    "opencenter",
+    "fluidcenter",
+    "carlsbad",
+    "iqpblack",
+    "iqpwhite",
+    "minority attack",
+    "isolated queen pawn",
+    "hanging pawns"
+  )
 
   def build(
       moment: GameChronicleMoment,
@@ -38,7 +22,7 @@ private[commentary] object PlayerFacingMoveDeltaBuilder:
       moveRefs: List[ActiveStrategicMoveRef]
   ): PlayerFacingMoveDeltaBundle =
     val surface = StrategyPackSurface.from(moment.strategyPack)
-    PlayerFacingTruthModePolicy.classify(moment) match
+    classify(moment) match
       case PlayerFacingTruthMode.Minimal =>
         PlayerFacingMoveDeltaBundle(Nil, Nil, Nil, Nil, None, None)
       case PlayerFacingTruthMode.Tactical =>
@@ -47,11 +31,37 @@ private[commentary] object PlayerFacingMoveDeltaBuilder:
           visibleRouteRefs = Nil,
           visibleMoveRefs = selectVisibleMoveRefs(moment, moveRefs),
           visibleDirectionalTargets = Nil,
-          tacticalLead = PlayerFacingTruthModePolicy.tacticalLeadSentence(moment),
+          tacticalLead = tacticalLeadSentence(moment),
           tacticalEvidence = tacticalEvidenceLine(moment)
         )
       case PlayerFacingTruthMode.Strategic =>
         strategicBundle(moment, surface, routeRefs, moveRefs)
+
+  private[analysis] def classify(moment: GameChronicleMoment): PlayerFacingTruthMode =
+    val surface = StrategyPackSurface.from(moment.strategyPack)
+    val sacrificeClass = classifySacrifice(moment, surface)
+    val deltaEvidence = activeMoveDeltaEvidence(moment)
+    if isTactical(moment, sacrificeClass) then PlayerFacingTruthMode.Tactical
+    else if sacrificeClass == PlayerFacingSacrificeClass.StrategicSacrifice ||
+        deltaEvidence.exists(_.packet.admitsStrategicTruthMode)
+    then PlayerFacingTruthMode.Strategic
+    else PlayerFacingTruthMode.Minimal
+
+  private[analysis] def tacticalLeadSentence(moment: GameChronicleMoment): Option[String] =
+    val surface = StrategyPackSurface.from(moment.strategyPack)
+    val sacrificeClass = classifySacrifice(moment, surface)
+    if sacrificeClass == PlayerFacingSacrificeClass.TacticalSacrifice then
+      Some("This is a tactical sacrifice, and the immediate point has to come first.")
+    else
+      moment.moveClassification.map(normalize).collect {
+        case "blunder"   => "This is a blunder, and the tactical point has to come first."
+        case "missedwin" => "This misses a win, and the immediate tactical chance matters most."
+      }
+
+  private def activeMoveDeltaEvidence(
+      moment: GameChronicleMoment
+  ): Option[PlayerFacingMoveDeltaEvidence] =
+    strategicDeltaEvidence(moment, StrategyPackSurface.from(moment.strategyPack))
 
   private def strategicBundle(
       moment: GameChronicleMoment,
@@ -59,7 +69,7 @@ private[commentary] object PlayerFacingMoveDeltaBuilder:
       routeRefs: List[ActiveStrategicRouteRef],
       moveRefs: List[ActiveStrategicMoveRef]
   ): PlayerFacingMoveDeltaBundle =
-    PlayerFacingTruthModePolicy.activeMoveDeltaEvidence(moment) match
+    activeMoveDeltaEvidence(moment) match
       case None =>
         PlayerFacingMoveDeltaBundle(Nil, Nil, Nil, Nil, None, None)
       case Some(deltaEvidence) =>
@@ -92,6 +102,154 @@ private[commentary] object PlayerFacingMoveDeltaBuilder:
             tacticalLead = None,
             tacticalEvidence = None
           )
+
+  private def isTactical(
+      moment: GameChronicleMoment,
+      sacrificeClass: PlayerFacingSacrificeClass
+  ): Boolean =
+    sacrificeClass == PlayerFacingSacrificeClass.TacticalSacrifice ||
+      moment.moveClassification.exists(label =>
+        Set("blunder", "missedwin").contains(label.trim.toLowerCase)
+      )
+
+  private def classifySacrifice(
+      moment: GameChronicleMoment,
+      surface: StrategyPackSurface.Snapshot
+  ): PlayerFacingSacrificeClass =
+    val investedMaterial =
+      moment.signalDigest.flatMap(_.investedMaterial)
+        .orElse(surface.investedMaterial)
+        .filter(_ > 0)
+    if !looksLikeSacrifice(investedMaterial) then PlayerFacingSacrificeClass.None
+    else if variationShowsImmediateTacticalSettlement(moment.variations) then
+      PlayerFacingSacrificeClass.TacticalSacrifice
+    else if hasStrategicSacrificeEvidence(moment, surface) then
+      PlayerFacingSacrificeClass.StrategicSacrifice
+    else PlayerFacingSacrificeClass.None
+
+  private def looksLikeSacrifice(investedMaterial: Option[Int]): Boolean =
+    investedMaterial.exists(_ >= 100)
+
+  private def hasStrategicSacrificeEvidence(
+      moment: GameChronicleMoment,
+      surface: StrategyPackSurface.Snapshot
+  ): Boolean =
+    hasMoveLinkedCompensationEvidence(surface) &&
+      moment.signalDigest.exists(digest =>
+        digest.compensation.nonEmpty || digest.decisionComparison.nonEmpty
+      )
+
+  private def strategicDeltaEvidence(
+      moment: GameChronicleMoment,
+      surface: StrategyPackSurface.Snapshot
+  ): Option[PlayerFacingMoveDeltaEvidence] =
+    val anchors = PlayerFacingTruthModePolicy.mainPathAnchorTerms(surface, truthContract = None)
+    if anchors.isEmpty || surfaceLooksShellOnly(surface) || !hasConcreteStrategicEvidence(moment, surface) then None
+    else
+      moment.signalDigest.flatMap { digest =>
+        if digest.prophylaxisThreat.nonEmpty then
+          Some(PlayerFacingMoveDeltaEvidence(PlayerFacingMoveDeltaClass.CounterplayReduction, anchors))
+        else if digest.decisionComparison.nonEmpty then
+          Some(PlayerFacingMoveDeltaEvidence(PlayerFacingMoveDeltaClass.PlanAdvance, anchors))
+        else if digest.deploymentRoute.nonEmpty then
+          Some(PlayerFacingMoveDeltaEvidence(PlayerFacingMoveDeltaClass.NewAccess, anchors))
+        else if digest.compensation.nonEmpty then
+          Some(PlayerFacingMoveDeltaEvidence(PlayerFacingMoveDeltaClass.PressureIncrease, anchors))
+        else None
+      }
+
+  private def hasConcreteStrategicEvidence(
+      moment: GameChronicleMoment,
+      surface: StrategyPackSurface.Snapshot
+  ): Boolean =
+    val digestConcrete =
+      moment.signalDigest.exists { digest =>
+        digest.decisionComparison.nonEmpty ||
+          digest.compensation.nonEmpty ||
+          digest.deploymentRoute.nonEmpty ||
+          digest.deploymentPurpose.nonEmpty ||
+          digest.prophylaxisThreat.nonEmpty
+      }
+    hasMoveLinkedStrategicAnchor(surface) &&
+      digestConcrete &&
+      !surfaceLooksShellOnly(surface)
+
+  private def hasMoveLinkedStrategicAnchor(surface: StrategyPackSurface.Snapshot): Boolean =
+    val routeAnchor =
+      surface.topRoute.exists(route =>
+        route.surfaceMode == RouteSurfaceMode.Exact &&
+          route.route.size >= 2 &&
+          route.surfaceConfidence >= 0.8 &&
+          route.evidence.nonEmpty &&
+          route.purpose.trim.nonEmpty &&
+          !isAbstractStrategicText(route.purpose)
+      )
+    val targetAnchor =
+      surface.topDirectionalTarget.exists(target =>
+        target.targetSquare.trim.nonEmpty &&
+          target.readiness != DirectionalTargetReadiness.Premature &&
+          target.evidence.nonEmpty &&
+          target.strategicReasons.nonEmpty
+      )
+    val moveRefAnchor =
+      surface.topMoveRef.exists(ref =>
+        ref.target.trim.nonEmpty &&
+          ref.evidence.nonEmpty &&
+          normalize(ref.idea).nonEmpty &&
+          !isAbstractStrategicText(ref.idea)
+      )
+    routeAnchor || targetAnchor || moveRefAnchor
+
+  private def hasMoveLinkedCompensationEvidence(surface: StrategyPackSurface.Snapshot): Boolean =
+    surface.compensationPosition &&
+      hasMoveLinkedStrategicAnchor(surface)
+
+  private def surfaceLooksShellOnly(surface: StrategyPackSurface.Snapshot): Boolean =
+    val concreteCarriers =
+      surface.topRoute.exists(route =>
+        route.surfaceMode == RouteSurfaceMode.Exact &&
+          route.route.size >= 2 &&
+          route.surfaceConfidence >= 0.8 &&
+          route.evidence.nonEmpty &&
+          route.purpose.trim.nonEmpty &&
+          !isAbstractStrategicText(route.purpose)
+      ) ||
+        surface.topDirectionalTarget.exists(target =>
+          target.targetSquare.trim.nonEmpty &&
+            target.evidence.nonEmpty &&
+            target.strategicReasons.nonEmpty
+        ) ||
+        surface.topMoveRef.exists(ref =>
+          ref.target.trim.nonEmpty &&
+            ref.evidence.nonEmpty &&
+            !isAbstractStrategicText(ref.idea)
+        )
+    !concreteCarriers &&
+      surface.allIdeas.exists(idea =>
+        isAbstractStrategicText(idea.kind) ||
+          isAbstractStrategicText(idea.group) ||
+          isAbstractStrategicText(idea.focusSquares.mkString(" ")) ||
+          isAbstractStrategicText(idea.focusFiles.mkString(" ")) ||
+          isAbstractStrategicText(idea.focusZone.getOrElse(""))
+      )
+
+  private def isAbstractStrategicText(text: String): Boolean =
+    val low = normalize(text)
+    low.isEmpty || abstractShellTokens.exists(low.contains)
+
+  private def variationShowsImmediateTacticalSettlement(
+      variations: List[VariationLine]
+  ): Boolean =
+    variations.headOption.exists { variation =>
+      val window = variation.parsedMoves.take(4)
+      val captureCount = window.count(_.isCapture)
+      val checkCount = window.count(_.givesCheck)
+      variation.mate.nonEmpty ||
+      variation.tags.contains(VariationTag.Forced) ||
+      (captureCount >= 2) ||
+      (checkCount >= 2) ||
+      (captureCount >= 1 && checkCount >= 1)
+    }
 
   private def selectRouteCue(
       surface: StrategyPackSurface.Snapshot,

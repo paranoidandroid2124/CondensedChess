@@ -287,7 +287,7 @@ object RealPgnNarrativeEvalTruthTraceRunner:
       selectedBridgePlies = finalDiagnostic.selectedBridgePlies,
       finalInternalPlies = finalDiagnostic.finalInternalPlies,
       visibleMomentPlies = finalDiagnostic.visibleMomentPlies,
-      activeNotePlies = finalDiagnostic.activeNotePlies,
+      activeNotePlies = Nil,
       promotedWholeGamePly = finalDiagnostic.promotedWholeGamePly,
       canonicalStateCounts = countMap(entryReports.map(canonicalState)),
       bottleneckCounts = countMap(entryReports.flatMap(bottleneckLabels)),
@@ -315,10 +315,7 @@ object RealPgnNarrativeEvalTruthTraceRunner:
       entriesWithoutWitnessTrace = entries.count(entry => !entry.witnessTracePresent),
       entriesCanonicallyVisible = entries.count(_.canonicalTrace.exists(_.visibleMoment)),
       entriesCanonicallyRepresentativeVisible =
-        entries.count(_.canonicalTrace.exists(trace =>
-          trace.visibleMoment &&
-            trace.threadRepresentativeSelected
-        )),
+        0,
       bottlenecks =
         TraceBottleneckSummary(
           canonicalStateCounts = canonicalStateCounts,
@@ -342,8 +339,6 @@ object RealPgnNarrativeEvalTruthTraceRunner:
         "canonical_non_internal"
       case Some(trace) if trace.finalInternal && !trace.visibleMoment =>
         "canonical_internal_hidden"
-      case Some(trace) if trace.visibleMoment && trace.threadRepresentativeSelected =>
-        "canonical_visible_thread_representative"
       case Some(trace) if trace.visibleMoment && trace.maintenanceExemplarCandidate =>
         "canonical_visible_maintenance_candidate"
       case Some(trace) if trace.visibleMoment =>
@@ -363,10 +358,6 @@ object RealPgnNarrativeEvalTruthTraceRunner:
     trace.foreach { moment =>
       if moment.maintenanceExemplarCandidate then labels += "maintenance_exemplar_candidate"
       if moment.finalInternal && !moment.visibleMoment then labels += "canonical_hidden_after_internal"
-      if moment.visibleMoment && !moment.threadRepresentativeSelected then labels += "visible_non_representative"
-      if moment.activeNoteMoment && !moment.visibleMoment then labels += "active_without_visible"
-      if moment.reasonFamily == "OnlyMoveDefense" && !moment.threadRepresentativeSelected then
-        labels += "only_move_non_representative"
     }
 
     labels.toList.distinct

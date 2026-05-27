@@ -2,7 +2,7 @@ package lila.commentary.analysis
 
 import chess.{ Bishop, Board, Color, Knight, Pawn, Queen, Rook, Role }
 import chess.format.{ Fen, Uci }
-import lila.commentary.{ GameChronicleMoment, NarrativeSignalDigest, StrategyDirectionalTarget, StrategyPack, StrategyPieceMoveRef, StrategyPieceRoute }
+import lila.commentary.{ NarrativeSignalDigest, StrategyDirectionalTarget, StrategyPack, StrategyPieceMoveRef, StrategyPieceRoute }
 import lila.commentary.model.*
 
 private[commentary] enum DecisiveTruthClass:
@@ -621,17 +621,6 @@ private[commentary] object DecisiveTruth:
       fallbackMomentProjection(
         classificationKey = normalizedWholeGameText(moment.moveClassification.getOrElse("")).getOrElse(""),
         verifiedPayoffAnchor = moment.verifiedPayoffAnchor
-      )
-    )
-
-  def momentProjection(
-      moment: GameChronicleMoment,
-      contractOpt: Option[DecisiveTruthContract]
-  ): MomentTruthProjection =
-    contractOpt.map(contractProjection).getOrElse(
-      fallbackMomentProjection(
-        classificationKey = normalizedWholeGameText(moment.moveClassification.getOrElse("")).getOrElse(""),
-        verifiedPayoffAnchor = None
       )
     )
 

@@ -1479,7 +1479,7 @@ class DecisiveTruthContractTest extends FunSuite:
 
   test("fallback moment projection ignores raw conversion transitions without a truth contract") {
     val projection =
-      DecisiveTruth.momentProjection(
+      ChronicleTruthSemantics.projection(
         chronicleMoment(
           ply = 36,
           momentType = "SustainedPressure",
@@ -1496,7 +1496,7 @@ class DecisiveTruthContractTest extends FunSuite:
 
   test("fallback moment projection preserves blunder failure classification") {
     val projection =
-      DecisiveTruth.momentProjection(
+      ChronicleTruthSemantics.projection(
         chronicleMoment(
           ply = 18,
           momentType = "AdvantageSwing",

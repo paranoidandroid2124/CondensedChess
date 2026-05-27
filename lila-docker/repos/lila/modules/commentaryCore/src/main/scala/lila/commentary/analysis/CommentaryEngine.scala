@@ -47,13 +47,10 @@ object CommentaryEngine:
       selectionKind: String,
       finalInternal: Boolean,
       visibleMoment: Boolean,
-      activeNoteMoment: Boolean,
       wholeGamePromoted: Boolean,
-      strategicThreadId: Option[String],
       truthClass: String,
       reasonFamily: String,
-      maintenanceExemplarCandidate: Boolean,
-      threadRepresentativeSelected: Boolean = false
+      maintenanceExemplarCandidate: Boolean
   )
 
   private[commentary] final case class GameArcDiagnostic(
@@ -63,7 +60,6 @@ object CommentaryEngine:
       selectedBridgePlies: List[Int],
       finalInternalPlies: List[Int],
       visibleMomentPlies: List[Int],
-      activeNotePlies: List[Int],
       promotedWholeGamePly: Option[Int],
       truthContractsByPly: Map[Int, DecisiveTruthContract],
       canonicalTraceMoments: List[TruthTraceMoment],
@@ -667,8 +663,7 @@ object CommentaryEngine:
             keyMomentNarratives = momentNarratives,
             conclusion = conclusion,
             overallThemes = allThemes,
-            internalMomentCount = internalMomentNarratives.size,
-            strategicThreads = Nil
+            internalMomentCount = internalMomentNarratives.size
           )
 
         val canonicalTraceMoments =
@@ -716,7 +711,6 @@ object CommentaryEngine:
           selectedBridgePlies = selectedBridgePlies.toList.sorted,
           finalInternalPlies = finalPlies.toList.sorted,
           visibleMomentPlies = finalVisibleMomentPlies.toList.sorted,
-          activeNotePlies = Nil,
           promotedWholeGamePly = promotedWholeGamePly,
           truthContractsByPly = truthContractsByPly,
           canonicalTraceMoments = canonicalTraceMoments,
@@ -730,7 +724,6 @@ object CommentaryEngine:
           selectedBridgePlies = Nil,
           finalInternalPlies = Nil,
           visibleMomentPlies = Nil,
-          activeNotePlies = Nil,
           promotedWholeGamePly = None,
           truthContractsByPly = Map.empty,
           canonicalTraceMoments = Nil,
@@ -743,8 +736,7 @@ object CommentaryEngine:
       keyMomentNarratives = Nil,
       conclusion = s"Could not parse game: $err",
       overallThemes = Nil,
-      internalMomentCount = 0,
-      strategicThreads = Nil
+      internalMomentCount = 0
     )
 
   private def diagnosticWitnessMoment(
@@ -785,13 +777,10 @@ object CommentaryEngine:
         selectionKind = moment.selectionKind,
         finalInternal = finalInternal,
         visibleMoment = finalVisibleMomentPlies.contains(moment.ply),
-        activeNoteMoment = false,
         wholeGamePromoted = promotedWholeGamePly.contains(moment.ply),
-        strategicThreadId = None,
         truthClass = frame.truthClass.toString,
         reasonFamily = contract.reasonFamily.toString,
-        maintenanceExemplarCandidate = frame.strategicOwnership.maintenanceExemplarCandidate,
-        threadRepresentativeSelected = false
+        maintenanceExemplarCandidate = frame.strategicOwnership.maintenanceExemplarCandidate
       )
     }
 
@@ -1055,14 +1044,6 @@ object CommentaryEngine:
                 wpaSwing = moment.wpaSwing,
                 transitionType = data.planSequence.map(_.transitionType.toString),
                 transitionConfidence = None,
-                activePlan = data.planSequence.flatMap(seq =>
-                  seq.primaryPlanName.map(name => lila.commentary.ActivePlanRef(
-                    themeL1 = name,
-                    subplanId = seq.primaryPlanId,
-                    phase = Some("Execution"),
-                    commitmentScore = Some(seq.momentum)
-                  ))
-                ),
                 topEngineMove =
                   buildTruthBoundTopEngineMove(
                     data = data,

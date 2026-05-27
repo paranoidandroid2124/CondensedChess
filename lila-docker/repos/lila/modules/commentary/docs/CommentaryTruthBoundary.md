@@ -17,6 +17,12 @@ thread, note-composition, and compression helpers are isolated to
 `modules/commentaryTools/src/test` and may not participate in released truth
 signoff unless a current MoveReview consumer and runtime audit explicitly
 reopen that boundary.
+Runtime truth projection must not accept `GameChronicleMoment` or
+`GameChronicleResponse` as signoff inputs. Chronicle fallback semantics may
+exist only in test/tooling diagnostics; released truth paths consume the current
+MoveReview/arc runtime models and proof-contract projections.
+Active-note payload fields and active branch dossiers are not truth inputs in
+runtime `GameArc`; tooling that reconstructs them must do so outside `src/main`.
 
 Future `SupportedLocal` or scoped-takeaway expansion must enter through
 MoveReview first and must preserve the audited payload contract.

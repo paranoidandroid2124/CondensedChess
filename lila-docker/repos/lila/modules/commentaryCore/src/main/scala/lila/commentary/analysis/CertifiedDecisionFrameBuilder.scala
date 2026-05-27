@@ -92,7 +92,7 @@ private[commentary] final case class CertifiedDecisionFrame(
           )
       }
 
-  def alignedDossier(dossier: Option[ActiveBranchDossier]): Option[ActiveBranchDossier] =
+  def alignedDossier(dossier: Option[DecisionFrameDossierInput]): Option[DecisionFrameDossierInput] =
     if !hasCarrierAlignment then None
     else
       dossier.filter { value =>
@@ -112,6 +112,26 @@ private[commentary] final case class CertifiedDecisionFrame(
           value.practicalRisk
         ).flatten.exists(text => CertifiedDecisionFrameBuilder.textAlignmentKeys(text).exists(carrierAlignmentKeys.contains))
       }
+
+private[commentary] final case class DecisionFrameCarrierInput(
+    side: String,
+    strategyPack: Option[StrategyPack],
+    signalDigest: Option[NarrativeSignalDigest],
+    mainStrategicPlans: List[PlanHypothesis],
+    strategicPlanExperiments: List[lila.commentary.model.StrategicPlanExperiment],
+    truthMode: PlayerFacingTruthMode,
+    tensionScore: Option[Int]
+)
+
+private[commentary] final case class DecisionFrameDossierInput(
+    routeCue: Option[ActiveBranchRouteCue] = None,
+    moveCue: Option[ActiveBranchMoveCue] = None,
+    evidenceCue: Option[String] = None,
+    whyChosen: Option[String] = None,
+    opponentResource: Option[String] = None,
+    continuationFocus: Option[String] = None,
+    practicalRisk: Option[String] = None
+)
 
 private[commentary] object CertifiedDecisionFrameBuilder:
 
@@ -186,14 +206,14 @@ private[commentary] object CertifiedDecisionFrameBuilder:
       )
     buildFrame(ownerSide, intent, battlefront, urgency, admittedKeys)
 
-  def build(
-      moment: GameChronicleMoment,
+  def buildCarrier(
+      input: DecisionFrameCarrierInput,
       deltaBundle: PlayerFacingMoveDeltaBundle,
-      dossier: Option[ActiveBranchDossier]
+      dossier: Option[DecisionFrameDossierInput]
   ): CertifiedDecisionFrame =
-    val surface = StrategyPackSurface.from(moment.strategyPack)
-    val ownerSide = surface.campaignOwner.orElse(surface.sideToMove).orElse(Some(normalized(moment.side)))
-    val evidenceBackedPlans = evidenceBackedMainPlans(moment)
+    val surface = StrategyPackSurface.from(input.strategyPack)
+    val ownerSide = surface.campaignOwner.orElse(surface.sideToMove).orElse(Some(normalized(input.side)))
+    val evidenceBackedPlans = evidenceBackedMainPlans(input)
     val evidencePlanKeys = planAlignmentKeys(evidenceBackedPlans)
     val admittedKeys =
       deltaBundle.claims.flatMap(claim => claim.anchorText :: claim.evidenceLines).flatMap(textAlignmentKeys).toSet ++
@@ -245,17 +265,10 @@ private[commentary] object CertifiedDecisionFrameBuilder:
       )
     val urgency =
       buildUrgency(
-        mode = PlayerFacingTruthModePolicy.classify(moment),
+        mode = input.truthMode,
         criticality = None,
         choiceType = None,
-        tensionScore =
-          Some(
-            moment.signalDigest.flatMap(_.counterplayScoreDrop).getOrElse(
-              moment.signalDigest.flatMap(_.decisionComparison).flatMap(_.cpLossVsChosen)
-                .orElse(moment.topEngineMove.flatMap(_.cpLossVsPlayed))
-                .getOrElse(0)
-            )
-          )
+        tensionScore = input.tensionScore
       )
     buildFrame(ownerSide, intent, battlefront, urgency, admittedKeys)
 
@@ -481,7 +494,7 @@ private[commentary] object CertifiedDecisionFrameBuilder:
       )
 
   private def dossierBattlefrontCarriers(
-      dossier: Option[ActiveBranchDossier],
+      dossier: Option[DecisionFrameDossierInput],
       ownerSide: Option[String]
   ): List[BattlefrontCarrier] =
     dossier.toList.flatMap { value =>
@@ -598,10 +611,10 @@ private[commentary] object CertifiedDecisionFrameBuilder:
       evidencePlanKeys.nonEmpty &&
       candidateKeys.exists(evidencePlanKeys.contains)
 
-  private def evidenceBackedMainPlans(moment: GameChronicleMoment): List[PlanHypothesis] =
+  private def evidenceBackedMainPlans(input: DecisionFrameCarrierInput): List[PlanHypothesis] =
     StrategicNarrativePlanSupport.legacyFilterEvidenceBacked(
-      moment.mainStrategicPlans,
-      moment.strategicPlanExperiments
+      input.mainStrategicPlans,
+      input.strategicPlanExperiments
     )
 
   private def planAlignmentKeys(

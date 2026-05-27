@@ -171,7 +171,8 @@ private[commentary] object ActiveStrategicCoachingBriefBuilder:
           Nil
         case AuthorQuestionKind.WhosePlanIsFaster =>
           Nil
-    val alignedDossier = decisionFrame.alignedDossier(dossier)
+    val alignedDossier =
+      dossier.filter(value => decisionFrame.alignedDossier(Some(value.decisionFrameInput)).nonEmpty)
     selection.primary.questionKind match
       case AuthorQuestionKind.WhatMattersHere =>
         VisibleSideSurfaces(
@@ -393,7 +394,7 @@ private[commentary] object ActiveStrategicCoachingBriefBuilder:
       decisionFrame = decisionFrame,
       decisionComparison = decisionComparison,
       alternativeNarrative = replayAlternativeNarrative(decisionComparison),
-      truthMode = PlayerFacingTruthModePolicy.classify(moment),
+      truthMode = PlayerFacingMoveDeltaBuilder.classify(moment),
       preventedPlansNow = replayPreventedPlans(moment, dossier),
       pvDelta = replayPvDelta(deltaBundle, dossier),
       counterfactual = None,
@@ -416,13 +417,13 @@ private[commentary] object ActiveStrategicCoachingBriefBuilder:
       deltaBundle: PlayerFacingMoveDeltaBundle,
       candidateEvidenceLines: List[String]
   ): Option[MainPathClaimBundle] =
-    PlayerFacingTruthModePolicy.classify(moment) match
+    PlayerFacingMoveDeltaBuilder.classify(moment) match
       case PlayerFacingTruthMode.Tactical =>
         val evidenceLines =
           (deltaBundle.tacticalEvidence.toList ++ candidateEvidenceLines).flatMap(cleanStringSignal).distinct.take(1)
         val mainClaim =
           deltaBundle.tacticalLead
-            .orElse(PlayerFacingTruthModePolicy.tacticalLeadSentence(moment))
+            .orElse(PlayerFacingMoveDeltaBuilder.tacticalLeadSentence(moment))
             .flatMap(cleanStringSignal)
             .map { lead =>
               MainPathScopedClaim(
