@@ -227,36 +227,44 @@ object ProbeContractValidator:
       result: ProbeResult
   ): ValidationResult =
     val fromRequest = request.requiredSignals.toSet
-    val fromPurpose = validate(result)
+    val requestPurpose = request.purpose.map(_.trim).filter(_.nonEmpty)
+    val requestPurposeSignals = requestPurpose.map(purposeRequiredSignals).getOrElse(Set.empty)
+    val resultPurposeSignals =
+      result.purpose.map(_.trim).filter(_.nonEmpty).map(purposeRequiredSignals).getOrElse(Set.empty)
     val required =
       if fromRequest.nonEmpty then fromRequest
-      else purposeRequiredSignals(result.purpose.getOrElse(""))
+      else if requestPurpose.nonEmpty then requestPurposeSignals
+      else resultPurposeSignals
+    val purposeContractMissing =
+      requestPurpose.exists(_ => requestPurposeSignals.isEmpty) ||
+        (fromRequest.isEmpty && requestPurpose.isEmpty && resultPurposeSignals.isEmpty)
     val base = validateSignals(result, required)
     val purposeMismatch =
       request.purpose.flatMap(rp => result.purpose.map(_ != rp)).contains(true)
     val idMismatch = request.id != result.id
+    val resultFen = result.fen.map(_.trim).filter(_.nonEmpty)
+    val requestFen = Option(request.fen).map(_.trim).filter(_.nonEmpty)
+    val fenMissing =
+      requestFen.nonEmpty && resultFen.isEmpty
     val fenMismatch =
-      result.fen.exists(_ != request.fen)
+      requestFen.exists(expected => resultFen.exists(_ != expected))
     val objectiveMismatch =
       request.objective.flatMap(expected => result.objective.map(_ != expected)).contains(true)
     val seedMismatch =
       request.seedId.flatMap(expected => result.seedId.map(_ != expected)).contains(true)
-    val expectedMove =
-      request.candidateMove
-        .orElse(request.moves match
-          case move :: Nil => Some(move)
-          case _           => None
-        )
-        .map(_.trim)
-        .filter(_.nonEmpty)
+    val requestMoves =
+      request.moves.map(_.trim).filter(_.nonEmpty)
+    val allowedMoves =
+      (request.candidateMove.map(_.trim).filter(_.nonEmpty).toList ++ requestMoves).distinct
     val resultMove =
       result.probedMove
         .orElse(result.candidateMove)
         .map(_.trim)
         .filter(_.nonEmpty)
+    val moveMissing =
+      allowedMoves.nonEmpty && resultMove.isEmpty
     val moveMismatch =
-      expectedMove.exists(move => resultMove.exists(_ != move)) ||
-        resultMove.exists(move => request.moves.nonEmpty && !request.moves.contains(move))
+      resultMove.exists(move => allowedMoves.nonEmpty && !allowedMoves.contains(move))
     val variationHashMismatch =
       request.variationHash.flatMap(expected => result.variationHash.map(_ != expected)).contains(true)
     val engineConfigMismatch =
@@ -269,10 +277,12 @@ object ProbeContractValidator:
       depthFloor.exists(floor => result.depth.exists(_ < floor))
     val hardReasons =
       List(
+        Option.when(fenMissing)("FEN_UNVERIFIED"),
         Option.when(fenMismatch)("FEN_MISMATCH"),
         Option.when(idMismatch)("ID_MISMATCH"),
+        Option.when(moveMissing)("PROBED_MOVE_UNVERIFIED"),
         Option.when(moveMismatch)("PROBED_MOVE_MISMATCH"),
-        Option.when(fromPurpose.missingSignals.nonEmpty && fromRequest.isEmpty)("PURPOSE_CONTRACT_MISSING"),
+        Option.when(purposeContractMissing)("PURPOSE_CONTRACT_MISSING"),
         Option.when(depthFloor.nonEmpty && result.depth.isEmpty)("DEPTH_FLOOR_UNVERIFIED"),
         Option.when(depthFloorUnmet)("DEPTH_FLOOR_UNMET")
       ).flatten
@@ -308,9 +318,10 @@ object ProbeContractValidator:
   ): ValidationResult =
     if requiredSignals.isEmpty then
       ValidationResult(
-        isValid = true,
+        isValid = false,
         missingSignals = Nil,
-        reasonCodes = List("NO_REQUIRED_SIGNALS")
+        reasonCodes = List("NO_REQUIRED_SIGNALS"),
+        hardReasonCodes = List("NO_REQUIRED_SIGNALS")
       )
     else
       val missing = requiredSignals.filterNot(sig => hasSignal(sig, result)).toList.sorted

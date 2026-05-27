@@ -416,10 +416,25 @@ class ProofContractRulesTest extends FunSuite:
         scope = PlayerFacingPacketScope.MoveLocal,
         proof = Some(PlayerFacingExactSliceProof.CentralBreakTiming("e2e4", "e4", "e2-e4"))
       )
+    val prophylactic =
+      exactSliceContractPacket(
+        proofSource = ProofSourceId.ProphylacticMove.wireKey,
+        proofFamily = ProofFamilyId.CounterplayRestraint.wireKey,
+        scope = PlayerFacingPacketScope.MoveLocal,
+        proof = Some(PlayerFacingExactSliceProof.ProphylacticRestraint("denied_resource:break"))
+      )
+    val genericProphylactic =
+      prophylactic.copy(
+        proofPathWitness =
+          prophylactic.proofPathWitness.copy(
+            exactSliceProof = Some(PlayerFacingExactSliceProof.ProphylacticRestraint("counterplay window"))
+          )
+      )
 
-    List(localFile, neutralizeBreak, centralBreak).foreach { packet =>
+    List(localFile, neutralizeBreak, centralBreak, prophylactic).foreach { packet =>
       assertEquals(ProofContractRules.failureCodes(packet), Nil, clues(packet))
     }
+    assert(ProofContractRules.failureCodes(genericProphylactic).contains("witness:exact_slice_missing"))
     assert(
       ProofContractRules
         .failureCodes(localFile.copy(proofPathWitness = localFile.proofPathWitness.copy(exactSliceProof = None)))

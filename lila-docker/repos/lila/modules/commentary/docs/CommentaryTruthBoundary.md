@@ -70,6 +70,14 @@ Strategic plan promotion and demotion must be consumed through the typed
 `StrategicPlanExperiment.evidenceTier` strings, compatibility markers, and
 subplan ids cannot by themselves certify truth, refutation, provenance,
 quantifier, stability, or exact-family ownership.
+Board-bound probe truth requires the returned probe certificate to echo the
+requested FEN and probed move; missing values are not truth. For multi-move
+requests, the certified move must be one of the requested moves. Unknown
+request purposes have no truth contract and cannot be rescued by explicit
+signal names or by the result's own purpose. Unknown-purpose probes also cannot
+be treated as refutations through the default cp-loss bound. Refutation probes
+are negative evidence only: if they do not refute a plan, they clear that
+specific punishment path but do not certify the plan as true.
 
 Exact-family strategic truth remains witness-bound. A plan taxonomy label such
 as `central_break_timing` does not certify the exact central-break proof family
@@ -93,6 +101,10 @@ Exact-slice signoff must consume the typed `PlayerFacingExactSliceProof`
 created by the board/probe witness branch. Owner, anchor, structure,
 continuation, and prose terms may explain or diagnose the claim, but they are
 not truth objects and must not be parsed back into exact proof.
+For prophylactic restraint, exact-slice truth is limited to a square/route or
+typed denied-resource token derived from runtime resource classification.
+English plan labels and generic counterplay phrases do not certify the exact
+resource.
 Carlsbad fixed-target truth is mirror-slice based: White-side pressure targets
 Black `c6` only when the board has the `c6`/`d5` enemy chain and `b2`/`d4`
 friendly support; Black-side pressure targets White `c3` only when the mirrored

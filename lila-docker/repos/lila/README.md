@@ -105,7 +105,7 @@ This path expects Mongo, Redis, SMTP, hCaptcha, and LLM provider secrets to be c
 ## Architecture
 
 Legacy architecture documents were removed during cleanup. Refer to current source under `modules/llm/src/main` and controller/routes for the live design.
-For the commentary-helper utilization audit and producer-to-frontend consumption map, see `modules/llm/docs/CommentaryPipelineSSOT.md`.
+For the commentary-helper utilization audit and producer-to-frontend consumption map, see `modules/commentary/docs/CommentaryPipelineSSOT.md` and the companion master docs in `modules/commentary/docs`.
 
 ### Key Components
 

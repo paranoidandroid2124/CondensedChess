@@ -1408,6 +1408,37 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     assertEquals(delta.packet.releaseRisks, Nil)
     assertEquals(delta.packet.fallbackMode, PlayerFacingClaimFallbackMode.WeakMain)
     assert(PlayerFacingClaimProof.allowsWeakMainClaim(delta.packet))
+
+    val malformedCtx =
+      ctx
+        .copy(
+          semantic = ctx.semantic.map(section =>
+            section.copy(
+              preventedPlans = section.preventedPlans.map(plan =>
+                plan.copy(
+                  deniedSquares = List("counterplay window"),
+                  breakNeutralized = None,
+                  deniedResourceClass = None
+                )
+              )
+            )
+          )
+        )
+        .withTypedEvidenceFromLegacy
+    val malformedDelta =
+      PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidence(
+        malformedCtx,
+        StrategyPackSurface.from(pack),
+        None
+      )
+
+    assert(
+      malformedDelta.forall(delta =>
+        delta.packet.fallbackMode != PlayerFacingClaimFallbackMode.WeakMain &&
+          !PlayerFacingClaimProof.allowsWeakMainClaim(delta.packet)
+      ),
+      clues(malformedDelta)
+    )
   }
 
   test("forcing-defense threat timing remains planner-owned when no named-break witness matches packet proof") {
@@ -1610,9 +1641,9 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       "This has to stop the opponent's material threat before it lands."
     )
     assertEquals(primary.prefixKind, PlayerFacingClaimPrefixKind.None)
-    assert(primary.evidence.nonEmpty, clues(primary))
+    assertEquals(primary.evidence, None)
     assert(primary.contrast.nonEmpty, clues(primary))
-    assert(primary.consequence.nonEmpty, clues(primary))
+    assertEquals(primary.consequence, None)
   }
 
   test("forcing-defense named-break timing stays unreleased when packet proof lacks a branch") {

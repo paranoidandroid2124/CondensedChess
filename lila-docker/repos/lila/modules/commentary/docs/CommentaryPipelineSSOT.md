@@ -38,8 +38,10 @@ they must not live in or be referenced by `modules/commentaryCore/src/main` or
 Chronicle replay diagnostics must project through compact tooling carriers such
 as `DecisionFrameCarrierInput` before entering shared runtime builders.
 Runtime `GameArc` may retain generic diagnostic data such as top-engine
-alternatives, but it must not expose Active-note payload fields, active branch
-dossiers, strategic-thread lists, or `ActivePlanRef` plan tags.
+alternatives in memory for tooling, but its JSON writer omits raw strategic,
+probe, authoring, plan-experiment, and Active-style carriers. It must not
+expose Active-note payload fields, active branch dossiers, strategic-thread
+lists, or `ActivePlanRef` plan tags.
 `UserFacingPayloadSanitizer` is MoveReview/bootstrap-only and does not carry a
 Chronicle/Active response sanitizer in the runtime API layer.
 
@@ -62,7 +64,18 @@ The maintained path is:
    projected from the evaluator for downstream consumers. Only `ProbeBacked`
    evaluated plans can enter selected main-plan authority; `StructuralOnly`
    and `PvCoupledOnly` remain diagnostic/support-only and cannot own a main
-   claim.
+   claim. Probe results must echo the exact requested FEN and probed move
+   before they can satisfy a board-bound request; multi-move requests require
+   the returned `probedMove`/candidate move to be present and to match one of
+   the requested moves. Unknown request purposes have no probe contract and
+   fail closed even when explicit `requiredSignals` are present.
+   Request-to-plan coupling uses exact plan id, exact seed, exact normalized
+   plan name, or unbound typed theme/subplan contract alignment. When more
+   than one explicit binding is supplied, all supplied bindings must match the
+   same hypothesis; substring name matches and sibling relinks are not
+   authority.
+   Refutation probes may clear an immediate punishment, but absence of
+   refutation is not positive `ProbeBacked` support.
    `PlanMatcher` compatibility policy applies immediate tactical overrides per
    distinct non-tactical theme, not per plan instance, so duplicate plans in the
    same theme cannot receive exponential score decay.
@@ -101,7 +114,11 @@ The maintained path is:
      authority.
    - `ClaimAuthorityPolicy` remains a compatibility facade only.
 10. `QuestionFirstCommentaryPlanner` selects and ranks questions. It does not
-   own low-level proof/source/scope/fallback authority.
+   own low-level proof/source/scope/fallback authority. Prevented-plan
+   break/timing surfaces are admitted only through the shared
+   `ClaimAuthorityResolver` neutralize-key-break timing gate with a typed exact
+   break witness; generic prevented threat labels or cp-only counterplay
+   windows remain support material.
 11. `NarrativeOutlineBuilder` assembles beats from admitted inputs.
 12. `analysis.render.FragmentAuthority` decides fragment release safety for
     render-only, support-only, unsafe truth, unsafe lesson, and anchor-required
@@ -234,6 +251,10 @@ The maintained path is:
     MoveReview retry/drop behavior for fallback responses reads
     `diagnostics.status`; it must not parse commentary prose for helper labels,
     English phrases, or internal marker strings.
+    Public `probeRequests` are compatibility-only empty arrays. The analyse
+    frontend no longer runs a post-response raw-probe refinement fetch from
+    decoded payload carriers, and `responsePayload.ts` does not accept raw
+    probe or authoring arrays as fallback data.
     QC/report queue tooling consumes `moveReviewPlayerSurface` for MoveReview
     support rows; without that surface, MoveReview support and advanced rows
     fail closed instead of being reconstructed from raw carriers.

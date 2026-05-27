@@ -1605,11 +1605,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
   private def namedPreventedResourceTerms(
       preventedNow: List[PreventedPlanInfo]
   ): List[String] =
-    preventedNow.flatMap(plan =>
-      namedPreventedResourceLabel(plan).toList ++
-        plan.deniedSquares.flatMap(clean) ++
-        plan.preventedThreatType.flatMap(clean).toList
-    ).distinct
+    preventedNow.flatMap(prophylacticResourceProofToken).distinct
 
   private def breakResourceTerms(
       preventedNow: List[PreventedPlanInfo]
@@ -3927,23 +3923,10 @@ private[commentary] object PlayerFacingTruthModePolicy:
             Some(normalize(first.slice(2, 4)))
           case _ => None
 
-  private val GenericNamedResourceLabels =
-    Set(
-      "counterplay",
-      "deny counterplay",
-      "deny_counterplay",
-      "counterplay resource",
-      "resource",
-      "threat",
-      "plan",
-      "their plan",
-      "the plan"
-    )
-
   private def hasNamedPreventedResource(
       preventedNow: List[PreventedPlanInfo]
   ): Boolean =
-    preventedNow.exists(plan => namedPreventedResourceLabel(plan).nonEmpty)
+    preventedNow.exists(plan => prophylacticResourceProofToken(plan).nonEmpty)
 
   private def exactCounterplayRestraintOwnerProof(
       ctx: NarrativeContext,
@@ -3960,20 +3943,35 @@ private[commentary] object PlayerFacingTruthModePolicy:
   private def namedPreventedResourceLabel(
       plan: PreventedPlanInfo
   ): Option[String] =
-    clean(plan.planId)
-      .map(_.replace('_', ' ').replace('-', ' ').replaceAll("\\s+", " ").trim)
-      .filter(_.nonEmpty)
-      .filterNot(label => GenericNamedResourceLabels.contains(normalize(label)))
-      .filter(_ =>
-        plan.breakNeutralized.isEmpty &&
-          plan.deniedSquares.isEmpty &&
-          (
-            plan.preventedThreatType.exists(_.trim.nonEmpty) ||
-              plan.deniedResourceClass.exists(_.trim.nonEmpty) ||
-              plan.counterplayScoreDrop > 0 ||
-              plan.mobilityDelta < 0
-          )
-      )
+    plan.deniedResourceClass
+      .flatMap(prophylacticResourceClassKey)
+      .map(_.replace('_', ' '))
+
+  private def prophylacticResourceProofToken(
+      plan: PreventedPlanInfo
+  ): Option[String] =
+    plan.deniedSquares.flatMap(prophylacticDeniedSquareToken).headOption.orElse(
+      plan.deniedResourceClass
+        .flatMap(prophylacticResourceClassKey)
+        .map(resource => s"denied_resource:$resource")
+    )
+
+  private def prophylacticDeniedSquareToken(raw: String): Option[String] =
+    clean(raw).filter(_.matches("""(?:\.\.\.)?[a-h][1-8](?:-[a-h][1-8])?"""))
+
+  private def prophylacticResourceClassKey(raw: String): Option[String] =
+    val key = raw.trim.toLowerCase.replace('-', '_').replaceAll("\\s+", "_")
+    Option.when(Set(
+      "break",
+      "entry_square",
+      "forcing_threat",
+      "piece_activity",
+      "counterplay_route",
+      "route_node",
+      "reroute_square",
+      "pressure",
+      "color_complex_escape"
+    ).contains(key))(key)
 
   private def claimProvenance(
       ctx: NarrativeContext,

@@ -53,7 +53,32 @@ case class GameArcMoment(
   investmentTruthChainKey: Option[String] = None
 )
 object GameArcMoment {
-  implicit val writes: OWrites[GameArcMoment] = Json.writes[GameArcMoment]
+  implicit val writes: OWrites[GameArcMoment] = moment =>
+    Json.obj(
+      "ply" -> moment.ply,
+      "momentType" -> moment.momentType,
+      "narrative" -> moment.narrative,
+      "analysisData" -> moment.analysisData,
+      "selectionKind" -> moment.selectionKind,
+      "selectionLabel" -> moment.selectionLabel,
+      "selectionReason" -> moment.selectionReason,
+      "moveClassification" -> moment.moveClassification,
+      "cpBefore" -> moment.cpBefore,
+      "cpAfter" -> moment.cpAfter,
+      "mateBefore" -> moment.mateBefore,
+      "mateAfter" -> moment.mateAfter,
+      "wpaSwing" -> moment.wpaSwing,
+      "transitionType" -> moment.transitionType,
+      "transitionConfidence" -> moment.transitionConfidence,
+      "topEngineMove" -> moment.topEngineMove,
+      "collapse" -> moment.collapse,
+      "truthPhase" -> moment.truthPhase,
+      "surfacedMoveOwnsTruth" -> moment.surfacedMoveOwnsTruth,
+      "verifiedPayoffAnchor" -> moment.verifiedPayoffAnchor,
+      "compensationProseAllowed" -> moment.compensationProseAllowed,
+      "benchmarkProseAllowed" -> moment.benchmarkProseAllowed,
+      "investmentTruthChainKey" -> moment.investmentTruthChainKey
+    )
 }
 
 case class GameArc(

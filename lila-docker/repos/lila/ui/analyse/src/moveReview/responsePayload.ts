@@ -187,18 +187,12 @@ export type DecodedMoveReviewResponse = {
 type DecodeMoveReviewResponseFallbacks = {
   html?: string;
   commentary?: string;
-  probeRequests?: ProbeRequest[];
-  authorQuestions?: AuthorQuestionSummary[];
-  authorEvidence?: AuthorEvidenceSummary[];
 };
 
 export type MaybeResponse = {
   html?: unknown;
   commentary?: unknown;
   variations?: unknown;
-  probeRequests?: unknown;
-  authorQuestions?: unknown;
-  authorEvidence?: unknown;
   mainStrategicPlanCount?: unknown;
   planStateToken?: unknown;
   endgameStateToken?: unknown;
@@ -233,16 +227,16 @@ export function variationLinesFromResponse(data: MaybeResponse, fallback: EvalVa
   return Array.isArray(data?.variations) ? (data.variations as any[]) : fallback || [];
 }
 
-export function probeRequestsFromResponse(data: MaybeResponse): ProbeRequest[] {
-  return Array.isArray(data?.probeRequests) ? (data.probeRequests as ProbeRequest[]) : [];
+export function probeRequestsFromResponse(_data: MaybeResponse): ProbeRequest[] {
+  return [];
 }
 
-export function authorQuestionsFromResponse(data: MaybeResponse): AuthorQuestionSummary[] {
-  return Array.isArray(data?.authorQuestions) ? (data.authorQuestions as AuthorQuestionSummary[]) : [];
+export function authorQuestionsFromResponse(_data: MaybeResponse): AuthorQuestionSummary[] {
+  return [];
 }
 
-export function authorEvidenceFromResponse(data: MaybeResponse): AuthorEvidenceSummary[] {
-  return Array.isArray(data?.authorEvidence) ? (data.authorEvidence as AuthorEvidenceSummary[]) : [];
+export function authorEvidenceFromResponse(_data: MaybeResponse): AuthorEvidenceSummary[] {
+  return [];
 }
 
 export function mainStrategicPlanCountFromResponse(data: MaybeResponse): number {
@@ -382,10 +376,6 @@ export function moveReviewPlayerSurfaceFromResponse(data: MaybeResponse): MoveRe
   };
 }
 
-function fallbackList<T>(primary: T[], fallback?: T[]): T[] {
-  return primary.length ? primary : fallback || [];
-}
-
 export function decodeMoveReviewResponse(
   data: MaybeResponse,
   fallbacks: DecodeMoveReviewResponseFallbacks = {},
@@ -403,9 +393,9 @@ export function decodeMoveReviewResponse(
     moveReviewLedger: moveReviewLedgerFromResponse(data),
     moveReviewPlayerSurface: moveReviewPlayerSurfaceFromResponse(data),
     mainStrategicPlanCount: mainStrategicPlanCountFromResponse(data),
-    probeRequests: fallbackList(probeRequestsFromResponse(data), fallbacks.probeRequests),
-    authorQuestions: fallbackList(authorQuestionsFromResponse(data), fallbacks.authorQuestions),
-    authorEvidence: fallbackList(authorEvidenceFromResponse(data), fallbacks.authorEvidence),
+    probeRequests: probeRequestsFromResponse(data),
+    authorQuestions: authorQuestionsFromResponse(data),
+    authorEvidence: authorEvidenceFromResponse(data),
     planStateToken: planStateTokenFromResponse(data),
     endgameStateToken: endgameStateTokenFromResponse(data),
   };

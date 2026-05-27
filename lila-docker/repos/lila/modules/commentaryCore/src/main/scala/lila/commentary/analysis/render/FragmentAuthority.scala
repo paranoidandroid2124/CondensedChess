@@ -32,7 +32,7 @@ private[commentary] final case class AuthorityTaggedFragment(
         case FragmentAuthority.requires_move_linked_anchor =>
           if moveLinkedAnchor then rawText else ""
         case FragmentAuthority.support_only =>
-          if !generalized || groundedForAdmission then rawText else ""
+          if groundedForAdmission then rawText else ""
         case FragmentAuthority.render_only => rawText
 
 private[commentary] object FragmentAuthority:

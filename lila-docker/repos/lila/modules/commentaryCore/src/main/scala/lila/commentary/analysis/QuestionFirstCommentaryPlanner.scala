@@ -398,7 +398,6 @@ private[commentary] object QuestionFirstCommentaryPlanner:
 
   private val PlannerLinePurpose = "planner_line_proof"
   private val NeutralizeKeyBreakProofFamily = ProofFamilyId.NeutralizeKeyBreak.wireKey
-  private val CounterplayRestraintProofFamily = ProofFamilyId.CounterplayRestraint.wireKey
 
   private[commentary] def openingRelationReplayClaim(ctx: NarrativeContext): Option[String] =
     OpeningPrecedentBranching
@@ -495,7 +494,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       inputs: QuestionPlannerInputs,
       truthContract: Option[DecisiveTruthContract]
   ): Boolean =
-    concreteWhyNowTimingOwner(inputs, truthContract).nonEmpty
+    concreteWhyNowTimingOwner(None, inputs, truthContract).nonEmpty
 
   private def evaluateQuestion(
       ctx: Option[NarrativeContext],
@@ -511,13 +510,13 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       case AuthorQuestionKind.WhyThis =>
         buildWhyThisPlan(question, inputs, truthContract, sceneType)
       case AuthorQuestionKind.WhyNow =>
-        buildWhyNowPlan(question, ply, inputs, truthContract, sceneType)
+        buildWhyNowPlan(ctx, question, ply, inputs, truthContract, sceneType)
       case AuthorQuestionKind.WhatChanged =>
-        buildWhatChangedPlan(question, inputs, truthContract, sceneType)
+        buildWhatChangedPlan(ctx, question, inputs, truthContract, sceneType)
       case AuthorQuestionKind.WhatMustBeStopped =>
-        buildWhatMustBeStoppedPlan(question, ply, inputs, truthContract, sceneType)
+        buildWhatMustBeStoppedPlan(ctx, question, ply, inputs, truthContract, sceneType)
       case AuthorQuestionKind.WhosePlanIsFaster =>
-        buildWhosePlanIsFasterPlan(question, ply, inputs, truthContract, sceneType)
+        buildWhosePlanIsFasterPlan(ctx, question, ply, inputs, truthContract, sceneType)
 
   private def planScore(sceneType: SceneType, plan: QuestionPlan): (Int, Int, Int, Int, Int, Int, Int, Int) =
     (
@@ -868,19 +867,17 @@ private[commentary] object QuestionFirstCommentaryPlanner:
   private def prefersRestrictedSuppressionMoveDeltaIngress(
       inputs: QuestionPlannerInputs
   ): Boolean =
-    if namedBreakSurfaceAllowed(inputs) then true
-    else
-      def normalizedId(raw: String): String =
-        Option(raw).map(_.trim.toLowerCase).getOrElse("")
-      inputs.evidenceBackedPlans.exists { plan =>
-        normalizedId(plan.themeL1) == PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id &&
-        plan.subplanId.exists { subplanId =>
-          val normalizedSubplan = normalizedId(subplanId)
-          normalizedSubplan == PlanTaxonomy.PlanKind.ProphylaxisRestraint.id ||
-          normalizedSubplan == PlanTaxonomy.PlanKind.BreakPrevention.id ||
-          normalizedSubplan == PlanTaxonomy.PlanKind.KeySquareDenial.id
-        }
+    def normalizedId(raw: String): String =
+      Option(raw).map(_.trim.toLowerCase).getOrElse("")
+    inputs.evidenceBackedPlans.exists { plan =>
+      normalizedId(plan.themeL1) == PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id &&
+      plan.subplanId.exists { subplanId =>
+        val normalizedSubplan = normalizedId(subplanId)
+        normalizedSubplan == PlanTaxonomy.PlanKind.ProphylaxisRestraint.id ||
+        normalizedSubplan == PlanTaxonomy.PlanKind.BreakPrevention.id ||
+        normalizedSubplan == PlanTaxonomy.PlanKind.KeySquareDenial.id
       }
+    }
 
   private def plannerBestHoldNeedsForcingOwner(
       inputs: QuestionPlannerInputs,
@@ -966,24 +963,44 @@ private[commentary] object QuestionFirstCommentaryPlanner:
         )
     }.flatten
 
-  private def namedBreakSurfaceAllowed(inputs: QuestionPlannerInputs): Boolean =
-    inputs.mainBundle
-      .flatMap(_.mainClaim)
-      .filter(_.scope == PlayerFacingClaimScope.MoveLocal)
-      .flatMap(_.packet)
-      .exists(packet =>
-        Set(NeutralizeKeyBreakProofFamily, CounterplayRestraintProofFamily).contains(packet.proofFamily) &&
-          packet.scope == PlayerFacingPacketScope.MoveLocal &&
-          packet.fallbackMode == PlayerFacingClaimFallbackMode.WeakMain &&
-          packet.suppressionReasons.isEmpty &&
-          packet.releaseRisks.isEmpty &&
-          PlayerFacingClaimProof.allowsWeakMainClaim(packet)
-      )
-
-  private def preventedPlansAllowedForPlannerSurface(inputs: QuestionPlannerInputs): List[PreventedPlanInfo] =
+  private def preventedPlansAllowedForPlannerSurface(
+      ctx: Option[NarrativeContext],
+      inputs: QuestionPlannerInputs,
+      truthContract: Option[DecisiveTruthContract]
+  ): List[PreventedPlanInfo] =
     Option.unless(inputs.heavyPieceLocalBindBlocked)(inputs.preventedPlansNow)
       .getOrElse(Nil)
-      .filter(plan => !plan.breakNeutralized.exists(_.trim.nonEmpty) || namedBreakSurfaceAllowed(inputs))
+      .filter(plan => certifiedPreventedPlanSurface(ctx, inputs, truthContract, plan))
+
+  private def certifiedPreventedPlanSurface(
+      ctx: Option[NarrativeContext],
+      inputs: QuestionPlannerInputs,
+      truthContract: Option[DecisiveTruthContract],
+      plan: PreventedPlanInfo
+  ): Boolean =
+    plan.breakNeutralized.exists(_.trim.nonEmpty) &&
+      neutralizeKeyBreakPreventedPlanTimingWitness(plan).exists { witness =>
+        val admissionPlan =
+          QuestionPlan(
+            questionId = "prevented_plan_surface_gate",
+            questionKind = AuthorQuestionKind.WhyNow,
+            priority = 0,
+            claim = preventedPlanTimingClaim(plan).getOrElse(""),
+            evidence = None,
+            contrast = None,
+            consequence = None,
+            fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
+            strengthTier = QuestionPlanStrengthTier.Moderate,
+            sourceKinds = List("prevented_plan"),
+            admissibilityReasons = List("prevented_plan_surface_gate"),
+            plannerOwnerKind = PlannerOwnerKind.ForcingDefense,
+            plannerSource = "prevented_plan",
+            timingWitness = Some(witness)
+          )
+        ClaimAuthorityResolver
+          .supportedLocalNeutralizeKeyBreakTimingAdmission(ctx, inputs, truthContract, admissionPlan)
+          .exists(_.decision.tier == ClaimAuthorityTier.SupportedLocal)
+      }
 
   private def localFileEntryChangeConsequence(
       inputs: QuestionPlannerInputs
@@ -1410,6 +1427,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
     }
 
   private def buildWhyNowPlan(
+      ctx: Option[NarrativeContext],
       question: AuthorQuestion,
       @unused ply: Int,
       inputs: QuestionPlannerInputs,
@@ -1417,7 +1435,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       sceneType: SceneType
   ): Either[QuestionPlan, RejectedQuestionPlan] =
     given QuestionPlannerInputs = inputs
-    val timingOwner = concreteWhyNowTimingOwner(inputs, truthContract)
+    val timingOwner = concreteWhyNowTimingOwner(ctx, inputs, truthContract)
     timingOwner match
       case None =>
         resolveDemotion(
@@ -1535,11 +1553,12 @@ private[commentary] object QuestionFirstCommentaryPlanner:
         )
 
   private def concreteWhyNowTimingOwner(
+      ctx: Option[NarrativeContext],
       inputs: QuestionPlannerInputs,
       truthContract: Option[DecisiveTruthContract]
   ): Option[WhyNowTimingOwner] =
     val urgentThreat = bestImmediateThreat(inputs.opponentThreats)
-    val allowedPreventedPlans = preventedPlansAllowedForPlannerSurface(inputs)
+    val allowedPreventedPlans = preventedPlansAllowedForPlannerSurface(ctx, inputs, truthContract)
     val preventedNamedOrBreak =
       allowedPreventedPlans.find(plan =>
         plan.breakNeutralized.exists(_.trim.nonEmpty) ||
@@ -1604,6 +1623,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
     )
 
   private def buildWhatChangedPlan(
+      ctx: Option[NarrativeContext],
       question: AuthorQuestion,
       inputs: QuestionPlannerInputs,
       truthContract: Option[DecisiveTruthContract],
@@ -1631,7 +1651,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
     val exactTargetFixationChange = exactTargetFixationChangeClaim(inputs)
     val canPromoteDecisionComparisonChange =
       moveOwner.nonEmpty || hasConcreteMoveDeltaChange(inputs)
-    val allowedPreventedPlans = preventedPlansAllowedForPlannerSurface(inputs)
+    val allowedPreventedPlans = preventedPlansAllowedForPlannerSurface(ctx, inputs, truthContract)
     val moveLinkedChange =
       exactTargetFixationChange.orElse {
         inputs.pvDelta.flatMap { delta =>
@@ -1788,6 +1808,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
     }
 
   private def buildWhatMustBeStoppedPlan(
+      ctx: Option[NarrativeContext],
       question: AuthorQuestion,
       @unused ply: Int,
       inputs: QuestionPlannerInputs,
@@ -1797,7 +1818,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
     given QuestionPlannerInputs = inputs
     val urgentThreat = bestImmediateThreat(inputs.opponentThreats)
     val preventedNow =
-      preventedPlansAllowedForPlannerSurface(inputs).find(plan =>
+      preventedPlansAllowedForPlannerSurface(ctx, inputs, truthContract).find(plan =>
         plan.counterplayScoreDrop > 0 ||
           plan.breakNeutralized.exists(_.trim.nonEmpty) ||
           plan.preventedThreatType.exists(_.trim.nonEmpty)
@@ -1863,6 +1884,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
         )
 
   private def buildWhosePlanIsFasterPlan(
+      ctx: Option[NarrativeContext],
       question: AuthorQuestion,
       ply: Int,
       inputs: QuestionPlannerInputs,
@@ -1870,7 +1892,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       sceneType: SceneType
   ): Either[QuestionPlan, RejectedQuestionPlan] =
     given QuestionPlannerInputs = inputs
-    val allowedPreventedPlans = preventedPlansAllowedForPlannerSurface(inputs)
+    val allowedPreventedPlans = preventedPlansAllowedForPlannerSurface(ctx, inputs, truthContract)
     val owner = ownerSideLabel(inputs, ply)
     val intent =
       inputs.decisionFrame.intent.orElse(evidenceBackedRaceIntent(owner, inputs))
@@ -1915,7 +1937,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
           QuestionPlanFallbackMode.DemotedToWhatMustBeStopped,
           demotedTo = AuthorQuestionKind.WhatMustBeStopped,
           reasons = List("missing_certified_race_pair"),
-          fallbackBuild = buildWhatMustBeStoppedPlan(question, ply, inputs, truthContract, sceneType)
+          fallbackBuild = buildWhatMustBeStoppedPlan(ctx, question, ply, inputs, truthContract, sceneType)
         )
       else if onlyOurPlan then
         resolveDemotion(
@@ -2283,7 +2305,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
           }
         }.flatten,
         Option.unless(prefersRestrictedSuppressionMoveDeltaIngress(inputs)) {
-          preventedPlansAllowedForPlannerSurface(inputs)
+          preventedPlansAllowedForPlannerSurface(ctx, inputs, truthContract)
             .find(plan =>
               preventedPlanTimingClaim(plan).nonEmpty ||
                 preventedPlanChangeClaim(plan).nonEmpty
@@ -2429,7 +2451,8 @@ private[commentary] object QuestionFirstCommentaryPlanner:
               moveLinked = true,
               timingSource = Some(TimingSource.PreventedResource),
               proposedOwnerMapping = "DecisionTiming/move_linked",
-              reasons = List("prevented_resource_timing")
+              reasons = List("prevented_resource_timing"),
+              materiality = OwnerCandidateMateriality.SupportMaterial
             )
           },
         onlyMovePressure(inputs, truthContract).map { _ =>
@@ -2626,8 +2649,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
   private def hasPlanRaceCandidate(inputs: QuestionPlannerInputs): Boolean =
     val opponentRaceAvailable =
       inputs.opponentPlan.exists(plan => cleanLine(plan.name).nonEmpty) ||
-        bestImmediateThreat(inputs.opponentThreats).nonEmpty ||
-        preventedPlansAllowedForPlannerSurface(inputs).exists(_.breakNeutralized.exists(_.trim.nonEmpty))
+        bestImmediateThreat(inputs.opponentThreats).nonEmpty
     val ownRaceAvailable =
       inputs.decisionFrame.intent.nonEmpty ||
         (inputs.decisionFrame.battlefront.nonEmpty && inputs.evidenceBackedPlans.nonEmpty)

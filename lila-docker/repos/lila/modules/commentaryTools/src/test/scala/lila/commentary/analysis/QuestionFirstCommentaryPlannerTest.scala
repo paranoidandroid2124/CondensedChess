@@ -407,7 +407,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
               )
             )
         ),
-        None
+        Some(truthContract())
       )
 
     assertEquals(plans.primary, None)
@@ -434,7 +434,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
               )
             )
         ),
-        None
+        Some(truthContract(reasonFamily = DecisiveReasonKind.QuietTechnicalMove, benchmarkCriticalMove = false))
       )
 
     val primary = plans.primary.getOrElse(fail("missing primary position probe"))
@@ -469,7 +469,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
             ),
           opponentThreats = List(threat("Material", 900, Some("b5")))
         ),
-        None
+        Some(truthContract(reasonFamily = DecisiveReasonKind.QuietTechnicalMove, benchmarkCriticalMove = false))
       )
 
     assertEquals(plans.ownerTrace.sceneType, SceneType.ForcingDefense)
@@ -568,7 +568,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
               )
             )
         ),
-        None
+        Some(truthContract(reasonFamily = DecisiveReasonKind.QuietTechnicalMove, benchmarkCriticalMove = false))
       )
 
     val primary = plans.primary.getOrElse(fail("missing target-focused coordination probe"))
@@ -608,7 +608,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
               )
             )
         ),
-        None
+        Some(truthContract())
       )
 
     assertEquals(plans.primary, None)
@@ -646,7 +646,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
               )
             )
         ),
-        None
+        Some(truthContract())
       )
 
     assertEquals(plans.primary, None)
@@ -704,7 +704,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
               )
             )
         ),
-        None
+        Some(truthContract(reasonFamily = DecisiveReasonKind.QuietTechnicalMove, benchmarkCriticalMove = false))
       )
 
     val primary = plans.primary.getOrElse(fail("missing color-complex position probe"))
@@ -1410,7 +1410,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     assert(labels.exists(label =>
       label.contains("DecisionTiming") &&
         label.contains("source_kind=prevented_plan") &&
-        label.contains("materiality=owner_candidate") &&
+        label.contains("materiality=support_material") &&
         label.contains("timing_source=prevented_resource")
     ), clues(labels))
     assert(labels.exists(label =>
@@ -1781,7 +1781,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     assertEquals(plans.rejected.headOption.map(_.questionKind), Some(AuthorQuestionKind.WhatChanged))
   }
 
-  test("WhatChanged can recover move-attributed change from prevented counterplay window") {
+  test("WhatChanged does not owner-promote an uncertified prevented counterplay window") {
     val q = question("q_changed_counterplay", AuthorQuestionKind.WhatChanged)
     val ctx = baseCtx(List(q))
     val plans =
@@ -1805,11 +1805,14 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
         None
       )
 
-    val primary = plans.primary.getOrElse(fail("missing primary"))
-    assertEquals(primary.questionKind, AuthorQuestionKind.WhatChanged)
-    assert(primary.claim.toLowerCase.contains("counterplay window"), clues(primary.claim))
-    assert(primary.contrast.exists(_.toLowerCase.contains("before the move")), clues(primary.contrast))
-    assert(primary.consequence.exists(_.text.contains("95cp")), clues(primary.consequence))
+    assertEquals(plans.primary, None)
+    assert(
+      plans.rejected.exists(rejected =>
+        rejected.questionKind == AuthorQuestionKind.WhatChanged &&
+          rejected.reasons.contains("state_truth_only")
+      ),
+      clues(plans.rejected)
+    )
   }
 
   test("WhatChanged keeps decision-comparison timing change out of the primary pool in Step 4a") {
@@ -1898,7 +1901,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     )
   }
 
-  test("WhyNow can recover concrete timing from prevented counterplay window") {
+  test("WhyNow does not owner-promote an uncertified prevented counterplay window") {
     val q = question("q_now_counterplay", AuthorQuestionKind.WhyNow)
     val ctx = baseCtx(List(q))
     val plans =
@@ -1922,14 +1925,13 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
         None
       )
 
-    val primary = plans.primary.getOrElse(fail("missing primary"))
-    assertEquals(primary.questionKind, AuthorQuestionKind.WhyNow)
-    assert(primary.claim.contains("88cp"), clues(primary.claim))
+    assertEquals(plans.primary, None)
     assert(
-      primary.contrast.exists(text =>
-        text.toLowerCase.contains("counterplay window") || text.toLowerCase.contains("line 14...rc8 15.re1 qc7")
+      plans.rejected.exists(rejected =>
+        rejected.questionKind == AuthorQuestionKind.WhyNow &&
+          rejected.reasons.contains("generic_urgency_only")
       ),
-      clues(primary.contrast)
+      clues(plans.rejected)
     )
   }
 

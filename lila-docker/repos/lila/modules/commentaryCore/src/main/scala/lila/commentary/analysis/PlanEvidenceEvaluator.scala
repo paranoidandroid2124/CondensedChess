@@ -432,9 +432,9 @@ object PlanEvidenceEvaluator:
       )
 
   private def requestMatchesHypothesis(req: ProbeRequest, h: PlanHypothesis): Boolean =
-    val reqPlanId = req.planId.map(_.trim.toLowerCase)
-    val reqPlanName = req.planName.map(normalizeText)
-    val reqSeed = req.seedId.map(_.trim.toLowerCase)
+    val reqPlanId = req.planId.map(_.trim.toLowerCase).filter(_.nonEmpty)
+    val reqPlanName = req.planName.map(normalizeText).filter(_.nonEmpty)
+    val reqSeed = req.seedId.map(_.trim.toLowerCase).filter(_.nonEmpty)
     val hypPlanId = h.planId.trim.toLowerCase
     val hypPlanName = normalizeText(h.planName)
     val hypSeed = seedIdOf(h).map(_.trim.toLowerCase)
@@ -445,12 +445,15 @@ object PlanEvidenceEvaluator:
     val themeAligned = reqTheme.nonEmpty && reqTheme == hypTheme
     val subplanAligned = reqSubplan.forall(rsp => hypSubplan.contains(rsp))
     val contractCompatible = requestContractCompatible(req, hypSubplan)
-    reqPlanId.contains(hypPlanId) ||
-      reqSeed.exists(seed => hypSeed.contains(seed)) ||
-      reqPlanName.exists { pn =>
-        pn.contains(hypPlanName) || hypPlanName.contains(pn) || pn.contains(hypPlanId)
-      } ||
-      (themeAligned && (subplanAligned || contractCompatible))
+    val explicitBinding = reqPlanId.nonEmpty || reqPlanName.nonEmpty || reqSeed.nonEmpty
+    val explicitChecks =
+      List(
+        reqPlanId.map(_ == hypPlanId),
+        reqSeed.map(seed => hypSeed.contains(seed)),
+        reqPlanName.map(_ == hypPlanName)
+      ).flatten
+    val explicitMatch = explicitChecks.nonEmpty && explicitChecks.forall(identity)
+    explicitMatch || (!explicitBinding && themeAligned && (subplanAligned || contractCompatible))
 
   private def seedIdOf(h: PlanHypothesis): Option[String] =
     h.evidenceSources
@@ -861,8 +864,9 @@ object PlanEvidenceEvaluator:
   private def isSupportive(req: ProbeRequest, pr: ProbeResult, isWhiteToMove: Boolean): Boolean =
     val purpose = req.purpose.orElse(pr.purpose).getOrElse("")
     if ProbePurposeClassifier.isRefutationPurpose(purpose) then
-      // Refutation probes can still support a plan when no tactical punishment appears.
-      !isRefuted(req, pr, isWhiteToMove)
+      false
+    else if !knownSupportPurpose(purpose) then
+      false
     else
       val loss = moverLoss(pr, isWhiteToMove)
       val maxLoss = req.maxCpLoss.getOrElse(defaultMaxCpLoss(purpose))
@@ -870,13 +874,15 @@ object PlanEvidenceEvaluator:
 
   private def isRefuted(req: ProbeRequest, pr: ProbeResult, isWhiteToMove: Boolean): Boolean =
     val purpose = req.purpose.orElse(pr.purpose).getOrElse("")
-    val loss = moverLoss(pr, isWhiteToMove)
-    val maxLoss = req.maxCpLoss.getOrElse(defaultMaxCpLoss(purpose))
-    val hardLoss = loss > maxLoss
-    val tacticalCollapse = pr.l1Delta.flatMap(_.collapseReason).exists(_.nonEmpty) && loss >= 90
-    val mateAgainstMover = isMateAgainstMover(pr, isWhiteToMove)
-    if ProbePurposeClassifier.isRefutationPurpose(purpose) then hardLoss || tacticalCollapse || mateAgainstMover
-    else hardLoss || mateAgainstMover
+    if !knownProbePurpose(purpose) then false
+    else
+      val loss = moverLoss(pr, isWhiteToMove)
+      val maxLoss = req.maxCpLoss.getOrElse(defaultMaxCpLoss(purpose))
+      val hardLoss = loss > maxLoss
+      val tacticalCollapse = pr.l1Delta.flatMap(_.collapseReason).exists(_.nonEmpty) && loss >= 90
+      val mateAgainstMover = isMateAgainstMover(pr, isWhiteToMove)
+      if ProbePurposeClassifier.isRefutationPurpose(purpose) then hardLoss || tacticalCollapse || mateAgainstMover
+      else hardLoss || mateAgainstMover
 
   private def moverLoss(pr: ProbeResult, isWhiteToMove: Boolean): Int =
     if isWhiteToMove then -pr.deltaVsBaseline else pr.deltaVsBaseline
@@ -894,7 +900,23 @@ object PlanEvidenceEvaluator:
       case "free_tempo_branches"    => 90
       case "latent_plan_refutation" => 120
       case "reply_multipv" | "defense_reply_multipv" | "convert_reply_multipv" => 100
-      case _ => 110
+      case "recapture_branches" | "keep_tension_branches" => 100
+      case _ => 0
+
+  private def knownSupportPurpose(purpose: String): Boolean =
+    ThemePlanProbePurpose.isThemeValidationPurpose(purpose) ||
+      Set(
+        "latent_plan_immediate",
+        "free_tempo_branches",
+        "reply_multipv",
+        "defense_reply_multipv",
+        "convert_reply_multipv",
+        "recapture_branches",
+        "keep_tension_branches"
+      ).contains(purpose)
+
+  private def knownProbePurpose(purpose: String): Boolean =
+    knownSupportPurpose(purpose) || ProbePurposeClassifier.isRefutationPurpose(purpose)
 
   private def hasReplyCoverage(result: ProbeResult): Boolean =
     result.bestReplyPv.nonEmpty || result.replyPvs.exists(_.exists(_.nonEmpty))

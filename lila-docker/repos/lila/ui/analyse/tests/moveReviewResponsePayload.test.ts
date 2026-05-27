@@ -28,7 +28,7 @@ describe('moveReview response payload', () => {
     assert.equal(Object.prototype.hasOwnProperty.call(decoded, 'signalDigest'), false);
   });
 
-  test('decodeMoveReviewResponse reuses fallback prose and supporting arrays when refined payload omits them', () => {
+  test('decodeMoveReviewResponse reuses fallback prose without rehydrating supporting arrays', () => {
     const decoded = decodeMoveReviewResponse(
       {
         sourceMode: 'ai_polished',
@@ -38,41 +38,26 @@ describe('moveReview response payload', () => {
       {
         html: '<p>cached html</p>',
         commentary: 'cached commentary',
-        probeRequests: [
-          {
-            id: 'probe-1',
-            fen: 'fen-1',
-            moves: ['g2g4'],
-            depth: 20,
-          },
-        ],
-        authorQuestions: [
-          {
-            id: 'question-1',
-            kind: 'plan_gap',
-            priority: 1,
-            question: 'Why is g4 delayed?',
-            confidence: 'medium',
-          },
-        ],
-        authorEvidence: [
-          {
-            questionId: 'question-1',
-            questionKind: 'plan_gap',
-            question: 'Why is g4 delayed?',
-            status: 'pending',
-            branchCount: 0,
-            pendingProbeCount: 1,
-          },
-        ],
       },
     );
 
     assert.equal(decoded.html, '<p>cached html</p>');
     assert.equal(decoded.commentary, 'cached commentary');
-    assert.equal(decoded.probeRequests.length, 1);
-    assert.equal(decoded.authorQuestions.length, 1);
-    assert.equal(decoded.authorEvidence.length, 1);
+    assert.equal(decoded.probeRequests.length, 0);
+    assert.equal(decoded.authorQuestions.length, 0);
+    assert.equal(decoded.authorEvidence.length, 0);
+  });
+
+  test('decodeMoveReviewResponse ignores legacy raw probe and authoring carriers', () => {
+    const decoded = decodeMoveReviewResponse({
+      probeRequests: [{ id: 'probe-1', fen: 'fen-1', moves: ['g2g4'], depth: 20 }],
+      authorQuestions: [{ id: 'question-1', kind: 'plan_gap', priority: 1, question: 'Why?', confidence: 'medium' }],
+      authorEvidence: [{ questionId: 'question-1', questionKind: 'plan_gap', question: 'Why?', status: 'pending', branchCount: 0, pendingProbeCount: 1 }],
+    } as any);
+
+    assert.equal(decoded.probeRequests.length, 0);
+    assert.equal(decoded.authorQuestions.length, 0);
+    assert.equal(decoded.authorEvidence.length, 0);
   });
 
   test('raw strategic carriers alone do not synthesize a product surface or plan count', () => {

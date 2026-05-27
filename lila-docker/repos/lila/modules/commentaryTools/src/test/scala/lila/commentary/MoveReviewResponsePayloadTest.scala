@@ -3,7 +3,7 @@ package lila.commentary
 import munit.FunSuite
 import play.api.libs.json.{ JsObject }
 
-import lila.commentary.model.StrategicPlanExperiment
+import lila.commentary.model.{ ProbeRequest, StrategicPlanExperiment }
 import lila.commentary.model.authoring.{ PlanHypothesis, PlanViability }
 
 class MoveReviewResponsePayloadTest extends FunSuite:
@@ -46,6 +46,15 @@ class MoveReviewResponsePayloadTest extends FunSuite:
         commentary = "This move keeps the position stable while Black finishes development.",
         concepts = List("internal concept"),
         variations = Nil,
+        probeRequests = List(
+          ProbeRequest(
+            id = "probe-public-redacted",
+            fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
+            moves = List("e2e4"),
+            depth = 18,
+            purpose = Some("reply_multipv")
+          )
+        ),
         authorQuestions = List(
           AuthorQuestionSummary(
             id = "q1",

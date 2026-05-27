@@ -5,7 +5,7 @@ import { fetchOpeningReferenceViaProxy } from './moveReview/openingProxy';
 import { initMoveReviewHandlers, setMoveReviewRefs } from './moveReview/interactionHandlers';
 import { createProbeOrchestrator } from './moveReview/probeOrchestrator';
 import { clearMoveReviewPanel, renderMoveReviewPanel, restoreMoveReviewPanel, syncMoveReviewEvalDisplay } from './moveReview/rendering';
-import { buildMoveReviewRequest, deriveAfterVariations, toBaselineCp, toEvalData } from './moveReview/requestPayload';
+import { buildMoveReviewRequest, deriveAfterVariations, toEvalData } from './moveReview/requestPayload';
 import { blockedHtmlFromErrorResponse, moveReviewIdleHtml, moveReviewRetryHtml, moveReviewTooEarlyHtml } from './moveReview/blockingState';
 import {
     buildStoredMoveReviewEntry,
@@ -598,7 +598,6 @@ export default function moveReviewNarrative(ctrl?: AnalyseCtrl): MoveReviewNarra
     let loadingTicker: number | null = null;
     let activeOpeningFetchController: AbortController | null = null;
     let activeInitialFetchController: AbortController | null = null;
-    let activeRefinedFetchController: AbortController | null = null;
     let activeRequestKey: string | null = null;
 
     type CurrentMoveReviewContext = {
@@ -816,10 +815,8 @@ export default function moveReviewNarrative(ctrl?: AnalyseCtrl): MoveReviewNarra
     const abortNetwork = () => {
         activeOpeningFetchController?.abort();
         activeInitialFetchController?.abort();
-        activeRefinedFetchController?.abort();
         activeOpeningFetchController = null;
         activeInitialFetchController = null;
-        activeRefinedFetchController = null;
         activeRequestKey = null;
     };
 
@@ -1087,84 +1084,6 @@ export default function moveReviewNarrative(ctrl?: AnalyseCtrl): MoveReviewNarra
 
             const vLines = variationLinesFromResponse(data, variations);
             syncStudy(context.commentPath, context.originPath, commentary, vLines);
-
-            const baselineCp = toBaselineCp(variations, evalData);
-
-            if (decoded.probeRequests.length && ctrl) {
-                void (async () => {
-                    const probeResults = await probes.runProbes(decoded.probeRequests, baselineCp, probeSession);
-                    if (!isCurrentSession()) return;
-                    if (!probeResults.length) return;
-
-                    try {
-                        const refinedToken = planStateByPath.get(context.stateKey) ?? context.requestToken;
-                        const refinedEndgameToken = endgameStateByPath.get(context.stateKey) ?? context.requestEndgameToken;
-                        const refinedCacheKey = cacheKeyOf(context.fen, context.originPath, refinedToken, refinedEndgameToken);
-                        const refinedPayload = buildMoveReviewRequest({
-                            fen: context.analysisFen,
-                            lastMove: context.playedMove || null,
-                            variations,
-                            probeResults,
-                            openingData,
-                            afterFen,
-                            afterVariations,
-                            phase: phaseOf(context.node.ply),
-                            ply: context.node.ply,
-                            variant: ctrl?.data.game.variant.key ?? 'standard',
-                            planStateToken: refinedToken,
-                            endgameStateToken: refinedEndgameToken,
-                        });
-                        activeRefinedFetchController = new AbortController();
-                        const refinedRes = await fetch(moveReviewEndpoint, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(refinedPayload),
-                            signal: activeRefinedFetchController.signal,
-                        });
-                        activeRefinedFetchController = null;
-
-                        if (!isCurrentSession() || !refinedRes.ok) return;
-
-                        const refined = await refinedRes.json();
-                        const decodedRefined = decodeMoveReviewResponse(refined, {
-                            html,
-                            commentary,
-                            probeRequests: decoded.probeRequests,
-                            authorQuestions: decoded.authorQuestions,
-                            authorEvidence: decoded.authorEvidence,
-                        });
-                        const emittedRefinedToken = decodedRefined.planStateToken;
-                        const emittedRefinedEndgameToken = decodedRefined.endgameStateToken;
-                        if (emittedRefinedToken) planStateByPath.set(context.stateKey, emittedRefinedToken);
-                        else planStateByPath.delete(context.stateKey);
-                        if (emittedRefinedEndgameToken) endgameStateByPath.set(context.stateKey, emittedRefinedEndgameToken);
-                        else endgameStateByPath.delete(context.stateKey);
-                        const refinedCommentary = decodedRefined.commentary;
-                        if (moveReviewNeedsRetry(decodedRefined)) {
-                            activeRequestKey = null;
-                            return;
-                        }
-                        const decoratedRefinedHtml = decorateDecodedMoveReviewHtml(decodedRefined);
-                        const refinedEntry: MoveReviewCacheEntry = buildStoredMoveReviewEntry(
-                            decodedRefined,
-                            decoratedRefinedHtml,
-                            entryTokenContext(context),
-                        );
-                        cache.set(refinedCacheKey, refinedEntry);
-                        persistMoveReviewSnapshot(context, refinedCommentary, refinedEntry);
-                        if (currentContext?.cacheKey === refinedCacheKey && isCurrentSession()) {
-                            applyCachedEntry(refinedEntry);
-                        }
-
-                        const refinedLines = variationLinesFromResponse(refined, variationLinesFromResponse(data, variations));
-                        syncStudy(context.commentPath, context.originPath, refinedCommentary, refinedLines);
-                    } catch (err) {
-                        if (!(err instanceof DOMException && err.name === 'AbortError') && isCurrentSession()) {
-                            showRetry('The refined follow-up could not finish. The first draft remains available.');
-                        }
-                    }
-                })();
-            }
             activeRequestKey = null;
         } catch (err) {
             stopLoadingTicker();

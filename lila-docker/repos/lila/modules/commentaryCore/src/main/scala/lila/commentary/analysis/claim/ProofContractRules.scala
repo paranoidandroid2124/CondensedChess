@@ -651,10 +651,9 @@ private[commentary] object ProofContractRules:
     val token = normalize(raw)
     token.nonEmpty &&
       !token.contains("|") &&
-      !token.contains(":") &&
       (
         token.matches("""(?:\.\.\.)?[a-h][1-8](?:-[a-h][1-8])?""") ||
-          token.exists(_.isLetter)
+          token.matches("""denied_resource:(?:break|entry_square|forcing_threat|piece_activity|counterplay_route|route_node|reroute_square|pressure|color_complex_escape)""")
       )
 
   private def normalize(raw: String): String =

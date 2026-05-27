@@ -80,7 +80,8 @@ closed.
 
 Probe validation separates chess evidence from bookkeeping:
 
-- hard failures: FEN/probed-move/id mismatch, required board signal missing,
+- hard failures: missing or mismatched FEN/probed move/id for a board-bound
+  request, missing required board signal, missing purpose contract,
   depth-floor missing or unmet, mate/refutation/cp-loss beyond contract
 - soft diagnostics: purpose/objective label drift and hash/fingerprint echo
   drift
@@ -88,10 +89,20 @@ Probe validation separates chess evidence from bookkeeping:
 Soft diagnostics may remain in audit output, but they must not by themselves
 block a board-valid supporting probe. `alternativeDominance` is ranking
 metadata and must not be reported as refutation.
+Multi-move probe requests are board-bound only when the result certifies a
+`probedMove` or candidate move that is one of the requested moves. Unknown
+request purposes have no authority contract and fail closed even when explicit
+required signals are present; unknown-purpose results must not refute plans
+through the default 0cp bound. Probe requests with explicit plan id, seed, or
+plan name must not relink by substring or by one matching sibling field. If
+more than one explicit binding is supplied, every supplied binding must match
+the same plan hypothesis. Refutation-purpose probes are negative tests: they
+may mark a plan `Refuted`, but a non-refuting result does not become positive
+`ProbeBacked` support without a separate affirmative support probe.
 Client-generated `keyMotifs`, `l1Delta`, and `futureSnapshot` values marked by
 `generatedRequiredSignals` or `motifInferenceMode=purpose_only` /
 `purpose_plus_compat` do not satisfy required authority signals. Unknown
-required probe signals fail closed.
+required probe signals and unknown/no-contract probe purposes fail closed.
 
 Exact-family trust is witness-bound. A subplan id such as
 `central_break_timing` may explain the plan taxonomy, but it must not open the
@@ -113,6 +124,10 @@ labels. `NoTacticalVeto` fails when tactical veto or missing tactical-context
 codes are present, and `ClaimOnlySurface` fails unless the packet remains in the
 bounded weak-main claim surface. A required witness that is absent or contradicted
 must produce a failure code before any supported-local or certified admission.
+`ProphylacticRestraint` exact proof uses board/resource tokens such as a square
+or `denied_resource:<class>` from the prevented-plan resource class. Arbitrary
+plan labels such as "counterplay window" are prose only and fail the exact-slice
+contract.
 
 Opening-family prose claims are also kept out of the API presentation layer.
 `OpeningFamilyClaimResolver` owns the claim-boundary decision from structured
@@ -322,9 +337,11 @@ purpose/objective metadata, raw source IDs, row provenance/source metadata, or
 `signalDigest` decision fallback text. Deferred decision moves are also not
 admitted to the player surface; sanitizer and frontend decoding must ignore
 them.
-The frontend may decode raw carriers for orchestration or diagnostics, but it
-must not use them to rebuild the player support, advanced, probe, authoring, or
-decision-comparison sections.
+The frontend must not decode raw probe or authoring carriers for orchestration
+fallback. Public `probeRequests` stay an empty compatibility field, and the
+post-response refined probe fetch path is closed; player support, advanced,
+probe, authoring, and decision-comparison sections are not rebuilt from raw
+carriers.
 No Gzip/Base64 opaque strategic token is treated as a security or trust
 boundary. Structured continuity tokens remain compatibility state until a
 server-signed, versioned, expiring, request-bound token contract exists.

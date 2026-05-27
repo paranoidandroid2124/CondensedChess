@@ -14,7 +14,7 @@ object MoveReviewResponsePayload:
       "html" -> html,
       "commentary" -> response.commentary,
       "variations" -> response.variations,
-      "probeRequests" -> response.probeRequests,
+      "probeRequests" -> Json.arr(),
       "mainStrategicPlanCount" -> response.mainStrategicPlans.size,
       "planStateToken" -> response.planStateToken,
       "endgameStateToken" -> response.endgameStateToken,
