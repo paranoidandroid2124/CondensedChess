@@ -417,7 +417,7 @@ object NarrativeContextBuilder:
               snapshot.planPrereqsMet.exists(mentionsCounterBreak) ||
               snapshot.resolvedThreatKinds.exists(mentionsCounterplay)
           ) ||
-            result.keyMotifs.exists(motif => mentionsCounterBreak(motif) || mentionsCounterplay(motif))
+            result.motifTags.exists(motif => mentionsCounterBreak(motif) || mentionsCounterplay(motif))
         )
       val moveOrderSensitive =
         plan.status == PlanEvidenceEvaluator.PlanEvidenceStatus.PlayablePvCoupled ||

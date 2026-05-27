@@ -83,7 +83,7 @@ class RouteNetworkBindProofBoundaryTest extends FunSuite:
             Option.when(routeEdgeVisible)(s"the b4 to $rerouteSquare route stays cut off"),
             Option.when(continuationVisible)("conversion route stabilizes")
           ).flatten ++ extraAdded),
-          List(rerouteSquare)
+          List("c-file", "b4", rerouteSquare)
         ),
       planBlockersRemoved = List("the c-file stays closed"),
       planPrereqsMet =
@@ -112,6 +112,7 @@ class RouteNetworkBindProofBoundaryTest extends FunSuite:
       replyPvs = Some(List(branch)),
       deltaVsBaseline = 12,
       keyMotifs = keyMotifs,
+      motifTags = keyMotifs,
       purpose = Some(purpose),
       l1Delta =
         Some(
@@ -147,6 +148,7 @@ class RouteNetworkBindProofBoundaryTest extends FunSuite:
       replyPvs = Some(List(branch)),
       deltaVsBaseline = 10,
       keyMotifs = keyMotifs,
+      motifTags = keyMotifs,
       purpose = Some(purpose),
       l1Delta =
         Some(

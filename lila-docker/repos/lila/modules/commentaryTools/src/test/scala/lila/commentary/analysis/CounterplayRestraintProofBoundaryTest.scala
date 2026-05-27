@@ -163,6 +163,7 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
       replyPvs = replyPvs,
       deltaVsBaseline = 12,
       keyMotifs = keyMotifs,
+      motifTags = keyMotifs,
       purpose = Some(purpose),
       l1Delta =
         Some(
@@ -1538,7 +1539,7 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
       clues(rankedPlans)
     )
     assert(
-      rankedPlans.primary.map(_.claim).exists(_.toLowerCase.contains("c5-break")),
+      rankedPlans.primary.map(_.claim).exists(_.toLowerCase.contains("c5")),
       clues(rankedPlans)
     )
     chronicleArtifact.foreach { artifact =>

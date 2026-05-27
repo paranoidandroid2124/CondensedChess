@@ -275,9 +275,8 @@ private[commentary] object ClaimAuthorityResolver:
     Option.when(plan.plannerOwnerKind == PlannerOwnerKind.MoveDelta) {
       inputs.mainBundle.flatMap(_.mainClaim).filter(claim =>
         claim.scope == PlayerFacingClaimScope.MoveLocal &&
-          claim.sourceKind == plan.plannerSource &&
-          sameText(claim.claimText, plan.claim)
-      ).flatMap(_.packet)
+          claim.sourceKind == plan.plannerSource
+      ).flatMap(_.packet).filter(ProofContractRules.supportedLocalAdmissible)
     }.flatten
 
   private def supportsLocalMoveDelta(packet: PlayerFacingClaimPacket): Boolean =
@@ -369,9 +368,6 @@ private[commentary] object ClaimAuthorityResolver:
         .filter(_.nonEmpty)
         .toList
     (taxonomy ++ ProofContractRules.failureCodes(packet)).distinct
-
-  private def sameText(left: String, right: String): Boolean =
-    normalize(left) == normalize(right)
 
   private def normalize(raw: String): String =
     Option(raw).getOrElse("").toLowerCase.replaceAll("""[^a-z0-9\s]""", " ").replaceAll("\\s+", " ").trim

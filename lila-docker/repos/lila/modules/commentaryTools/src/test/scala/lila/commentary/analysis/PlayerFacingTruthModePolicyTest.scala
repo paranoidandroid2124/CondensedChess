@@ -2517,7 +2517,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     }
   }
 
-  test("weakness-fixation stays absorbed even when the weak complex is exact and branch-visible") {
+  test("Benoni d6 target fixation admits from board and replayed knight-route evidence") {
     val ctx =
       baseCtx().copy(
         fen = "rnbq1rk1/pp3pbp/3p1np1/2pP4/4P3/2N2N2/PP2BPPP/R1BQK2R w KQ - 0 9",
@@ -2620,11 +2620,15 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     assertEquals(delta.packet.persistence, PlayerFacingClaimPersistence.Stable)
     assertEquals(delta.packet.proofPathWitness.ownerSeedTerms.contains("d6"), true)
     assert(delta.packet.proofPathWitness.continuationTerms.nonEmpty)
-    assertNotEquals(delta.packet.fallbackMode, PlayerFacingClaimFallbackMode.WeakMain)
-    assert(!PlayerFacingClaimProof.allowsWeakMainClaim(delta.packet))
+    assertEquals(delta.packet.fallbackMode, PlayerFacingClaimFallbackMode.WeakMain)
+    assert(PlayerFacingClaimProof.allowsWeakMainClaim(delta.packet))
+    assertEquals(
+      delta.packet.proofPathWitness.exactSliceProof,
+      Some(PlayerFacingExactSliceProof.ExactTargetFixation("d6"))
+    )
 
     val bundle = MainPathMoveDeltaClaimBuilder.build(ctx, pack, None)
-    assertEquals(bundle.flatMap(_.mainClaim), None)
+    assertEquals(bundle.flatMap(_.mainClaim).map(_.claimText), Some("This keeps the pressure fixed on d6."))
   }
 
   test("exact weakness positive controls promote planner-owned WhatChanged state delta on the admitted target-fixation lane") {

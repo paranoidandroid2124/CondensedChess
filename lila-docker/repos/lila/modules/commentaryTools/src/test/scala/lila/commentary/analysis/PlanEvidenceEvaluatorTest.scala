@@ -768,6 +768,65 @@ class PlanEvidenceEvaluatorTest extends FunSuite:
     assertEquals(entry.ontologyFamily, "plan_advance")
   }
 
+  test("forcing modality consumes typed motif tags instead of keyMotifs prose") {
+    val proseOnlyPlan =
+      hypothesis(
+        id = "PieceActivation",
+        name = "Piece activation",
+        score = 0.78,
+        sources = List("theme:piece_redeployment")
+      )
+    val taggedPlan =
+      hypothesis(
+        id = "PieceActivationTagged",
+        name = "Tagged piece activation",
+        score = 0.76,
+        sources = List("theme:piece_redeployment")
+      )
+    val proseOnlyRequest = ProbeRequest(
+      id = "probe_prose_only",
+      fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
+      moves = List("g1f3"),
+      depth = 20,
+      purpose = Some("theme_plan_validation"),
+      planId = Some("PieceActivation"),
+      requiredSignals = List("keyMotifs")
+    )
+    val taggedRequest = proseOnlyRequest.copy(
+      id = "probe_tagged",
+      planId = Some("PieceActivationTagged")
+    )
+    val proseOnlyResult = ProbeResult(
+      id = "probe_prose_only",
+      evalCp = 12,
+      bestReplyPv = Nil,
+      deltaVsBaseline = 4,
+      keyMotifs = List("forcing exchange")
+    )
+    val taggedResult =
+      proseOnlyResult.copy(
+        id = "probe_tagged",
+        keyMotifs = List("display text only"),
+        motifTags = List("forcing")
+      )
+
+    val partition =
+      PlanEvidenceEvaluator.partition(
+        hypotheses = List(proseOnlyPlan, taggedPlan),
+        probeRequests = List(proseOnlyRequest, taggedRequest),
+        validatedProbeResults =
+          validatedResults(proseOnlyRequest, proseOnlyResult) ++
+            validatedResults(taggedRequest, taggedResult),
+        rulePlanIds = Set.empty,
+        isWhiteToMove = true,
+        droppedProbeCount = 0
+      )
+
+    val byPlan = partition.diagnosticSidecar.entries.map(entry => entry.planId -> entry.modalityTier).toMap
+    assertEquals(byPlan.get("PieceActivation"), Some("advances"))
+    assertEquals(byPlan.get("PieceActivationTagged"), Some("forces"))
+  }
+
   test("partition summarizes blocked and downgraded claim-certification outcomes in diagnostic sidecar") {
     val downgradedPlan =
       hypothesis(

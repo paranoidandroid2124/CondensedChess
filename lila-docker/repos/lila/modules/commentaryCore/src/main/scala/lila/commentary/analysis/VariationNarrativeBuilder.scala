@@ -18,7 +18,7 @@ private[analysis] object VariationNarrativeBuilder:
           val description = 
             if (exchanges.length >= 2) {
               val first = exchanges.head
-              val target = first.to
+              val target = first.dest.key
               s"this exchange sequence trades the ${pieceName(first.role)} for the ${pieceName(first.capturedRole)} on $target, leaving a different pawn structure"
             } else {
               "this exchange sequence resolves the tension and alters the pawn structure"
@@ -54,11 +54,11 @@ private[analysis] object VariationNarrativeBuilder:
           val advance = steps.find(step =>
             step.role == Pawn &&
               !step.captures &&
-              Set("d4", "e4", "d5", "e5").contains(step.to)
+              Set(Square.D4, Square.E4, Square.D5, Square.E5).contains(step.dest)
           )
           val description =
             advance match
-              case Some(step) => s"the pawn advances to ${step.to}, modifying the central pawn structure"
+              case Some(step) => s"the pawn advances to ${step.dest.key}, modifying the central pawn structure"
               case _ => "a central pawn advance changes the pawn structure"
           Some(s"On the checked line $formattedLine, $description.")
 

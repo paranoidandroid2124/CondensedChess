@@ -67,8 +67,8 @@ private[commentary] object LineConsequenceEvaluator:
   private[analysis] final case class LineStep(
       san: String,
       uci: String,
-      from: String,
-      to: String,
+      orig: Square,
+      dest: Square,
       role: Role,
       captures: Boolean,
       capturedRole: Option[Role],
@@ -263,8 +263,8 @@ private[commentary] object LineConsequenceEvaluator:
           accepted += LineStep(
             san = san,
             uci = uci,
-            from = uci.slice(0, 2),
-            to = uci.slice(2, 4),
+            orig = move.orig,
+            dest = move.dest,
             role = move.piece.role,
             captures = move.captures,
             capturedRole = capturedRole,
@@ -282,9 +282,9 @@ private[commentary] object LineConsequenceEvaluator:
     steps.find { step =>
       step.role == Pawn &&
         !step.captures &&
-        step.from.take(1) == step.to.take(1) &&
-        Set("d", "e").contains(step.from.take(1)) &&
-        Set("d4", "e4", "d5", "e5").contains(step.to)
+        step.orig.file == step.dest.file &&
+        Set(File.D, File.E).contains(step.orig.file) &&
+        Set(Square.D4, Square.E4, Square.D5, Square.E5).contains(step.dest)
     }
 
   private def normalizedLineMoves(line: VariationLine): List[String] =

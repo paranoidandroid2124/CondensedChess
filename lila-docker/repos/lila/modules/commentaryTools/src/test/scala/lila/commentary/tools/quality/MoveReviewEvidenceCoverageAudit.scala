@@ -6,6 +6,8 @@ import java.nio.file.{ Files, Path, Paths }
 import play.api.libs.json.*
 import scala.jdk.CollectionConverters.*
 
+import _root_.chess.format.{ Fen, Uci }
+import _root_.chess.variant.Standard
 import lila.commentary.tools.review.CommentaryPlayerQcSupport
 
 object MoveReviewEvidenceCoverageAudit:
@@ -292,26 +294,19 @@ object MoveReviewEvidenceCoverageAudit:
       text: String
   ): Boolean =
     counterplayBreakSurfaceToken(text).flatMap(singleSquareToken).exists { square =>
-      playedTargetSquare(entry.playedUci).contains(square) ||
-        playedSanTargetSquare(entry.playedSan).contains(square)
+      legalPlayedTargetSquare(entry).contains(square)
     }
 
   private def singleSquareToken(token: String): Option[String] =
     val core = token.stripPrefix("...")
     Option.when(core.matches("""[a-h][1-8]"""))(core)
 
-  private def playedTargetSquare(playedUci: String): Option[String] =
-    Option(playedUci)
-      .map(_.trim.toLowerCase)
-      .filter(_.matches("""[a-h][1-8][a-h][1-8][nbrq]?"""))
-      .map(_.slice(2, 4))
-
-  private def playedSanTargetSquare(playedSan: String): Option[String] =
-    Option(playedSan)
-      .map(_.trim.toLowerCase.replaceAll("[+#?!]+$", ""))
-      .flatMap { san =>
-        """([a-h][1-8])(?:=[nbrq])?$""".r.findFirstMatchIn(san).map(_.group(1))
-      }
+  private def legalPlayedTargetSquare(entry: MoveReviewOutputEntry): Option[String] =
+    for
+      position <- Fen.read(Standard, Fen.Full(entry.fen))
+      uci <- Option(entry.playedUci).map(_.trim.toLowerCase).filter(_.nonEmpty)
+      move <- Uci(uci).collect { case move: Uci.Move => move }.flatMap(position.move(_).toOption)
+    yield move.dest.key
 
   private def renderMarkdown(report: Report): String =
     val s = report.summary

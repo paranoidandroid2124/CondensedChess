@@ -633,9 +633,10 @@ final class CommentaryApi(
   private def strategyHints(pack: Option[StrategyPack]): List[String] =
     pack.toList.flatMap(StrategyPackBuilder.promptHints)
 
-  private def templateQualityScore(prose: String): Double =
+  private def templateQualityScore(prose: String, lang: String): Double =
     val t = Option(prose).getOrElse("")
     if t.isBlank then 0.0
+    else if !isEnglishLang(lang) then 0.0
     else
       val lower = t.toLowerCase
       val markers = List(
@@ -675,6 +676,10 @@ final class CommentaryApi(
           .toDouble * 0.01
       val score = 1.0 - repeatedMarkerCount.toDouble * 0.08 - shortSentencePenalty
       score.max(0.0).min(1.0)
+
+  private def isEnglishLang(lang: String): Boolean =
+    val normalized = normalizeLang(lang).replace('_', '-')
+    normalized == "en" || normalized.startsWith("en-") || normalized == "english"
 
   private def wordCount(text: String): Int =
     Option(text).getOrElse("").split("\\s+").count(_.nonEmpty)
@@ -762,8 +767,8 @@ final class CommentaryApi(
       .find(candidate => PlayerProseBoundary.validateSanitized(candidate).isAccepted)
       .getOrElse("")
 
-  private def shouldSkipPolish(prose: String): Boolean =
-    templateQualityScore(prose) >= providerConfig.polishGateThreshold
+  private def shouldSkipPolish(prose: String, lang: String): Boolean =
+    isEnglishLang(lang) && templateQualityScore(prose, lang) >= providerConfig.polishGateThreshold
 
   private def validatePolishedCommentary(
       polished: String,
@@ -1595,7 +1600,7 @@ final class CommentaryApi(
           meta = None
         )
       )
-    else if momentType.isEmpty && shouldSkipPolish(prose) then
+    else if momentType.isEmpty && shouldSkipPolish(prose, lang) then
       Future.successful(
         PolishDecision(
           commentary = deterministicFallback,

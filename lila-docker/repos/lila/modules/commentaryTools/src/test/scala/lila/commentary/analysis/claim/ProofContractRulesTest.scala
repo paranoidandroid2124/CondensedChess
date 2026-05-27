@@ -440,6 +440,22 @@ class ProofContractRulesTest extends FunSuite:
         .failureCodes(localFile.copy(proofPathWitness = localFile.proofPathWitness.copy(exactSliceProof = None)))
         .contains("witness:exact_slice_missing")
     )
+    val wrongCentralDestination =
+      centralBreak.copy(
+        proofPathWitness =
+          centralBreak.proofPathWitness.copy(
+            exactSliceProof = Some(PlayerFacingExactSliceProof.CentralBreakTiming("e2e4", "e5", "e2-e4"))
+          )
+      )
+    val malformedCentralMove =
+      centralBreak.copy(
+        proofPathWitness =
+          centralBreak.proofPathWitness.copy(
+            exactSliceProof = Some(PlayerFacingExactSliceProof.CentralBreakTiming("O-O", "g1", "e1-g1"))
+          )
+      )
+    assert(ProofContractRules.failureCodes(wrongCentralDestination).contains("witness:exact_slice_missing"))
+    assert(ProofContractRules.failureCodes(malformedCentralMove).contains("witness:exact_slice_missing"))
   }
 
   test("DefenderTrade is supported-local releasable only through exact defender proof") {

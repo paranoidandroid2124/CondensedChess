@@ -123,6 +123,7 @@ final class CommentaryCache(using Executor):
               pv,
               replyPvsFingerprint(pr),
               pr.keyMotifs.sorted.mkString(","),
+              pr.motifTags.sorted.mkString(","),
               l1DeltaFingerprint(pr.l1Delta),
               futureSnapshotFingerprint(pr.futureSnapshot),
               pr.objective.getOrElse(""),

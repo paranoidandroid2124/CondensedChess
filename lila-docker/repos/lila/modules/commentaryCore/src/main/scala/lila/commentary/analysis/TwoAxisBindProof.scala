@@ -237,7 +237,7 @@ private[commentary] object TwoAxisBindProof:
       val boundedContinuationVisible =
         sameBranchContinuityResults.exists(result =>
           result.futureSnapshot.exists(mentionsBoundedContinuation) ||
-            result.keyMotifs.exists(mentionsContinuation)
+            result.motifTags.exists(mentionsContinuation)
         )
       val sameDefendedBranch =
         directBestDefensePresent &&
@@ -277,7 +277,7 @@ private[commentary] object TwoAxisBindProof:
       val staticHoldOnly =
         sameBranchContinuityResults.exists(result =>
           result.futureSnapshot.exists(looksStaticHoldOnly) ||
-            result.keyMotifs.exists(looksStaticHoldOnly)
+            result.motifTags.exists(looksStaticHoldOnly)
         )
       val fortressRisk =
         restrictionDeltaMeasured &&
@@ -598,7 +598,7 @@ private[commentary] object TwoAxisBindProof:
           snapshot.targetsDelta.tacticalAdded.flatMap(clean).map(target => s"tactical_target:$target")
       }
     val motifSignals =
-      result.keyMotifs.flatMap(clean).filter(looksLikeTacticalRelease).map(motif => s"motif:$motif")
+      result.motifTags.flatMap(clean).filter(looksLikeTacticalRelease).map(motif => s"motif:$motif")
     (collapseSignals ++ snapshotSignals ++ motifSignals).distinct
 
   private def isPositiveDualAxisSnapshot(

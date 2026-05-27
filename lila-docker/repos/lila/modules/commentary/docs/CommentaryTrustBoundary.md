@@ -105,6 +105,9 @@ Client-generated `keyMotifs`, `l1Delta`, and `futureSnapshot` values marked by
 `generatedRequiredSignals` or `motifInferenceMode=purpose_only` /
 `purpose_plus_compat` do not satisfy required authority signals. Unknown
 required probe signals and unknown/no-contract probe purposes fail closed.
+`keyMotifs` remain display/diagnostic text. Forcing-modality promotion may only
+consume canonical `motifTags` values such as `forcing`, `exchange`, `trade`, or
+`simplification`; absent tags fail closed for motif-based forcing.
 
 Exact-family trust is witness-bound. A subplan id such as
 `central_break_timing` may explain the plan taxonomy, but it must not open the
@@ -139,12 +142,10 @@ static `OpeningNameLookup` ECO/opening-book FEN result both match the requested
 family. Shallow piece-square structure predicates are not used as opening
 truth and cannot independently certify transpositions or coincidental later
 positions.
-Arbitrary prose sentences are legacy suppression-only inputs: they may close
-an unsupported family claim, but they cannot create `SupportedLocal`
-authority. Short aliases require exact word-slice matches to avoid substring
-authority. `CommentaryApi` no longer splits rendered prose into sentences or
-rewrites unsupported opening-family text after rendering; family mismatch must
-be excluded or suppressed before surface prose is built.
+Raw rendered sentences are not parsed for opening-family authority or
+post-render suppression. `CommentaryApi` no longer splits rendered prose into
+sentences or rewrites unsupported opening-family text after rendering; family
+mismatch must be excluded or suppressed before surface prose is built.
 
 Current strict rules:
 
@@ -241,6 +242,9 @@ emits `diagnostics.status` and `diagnostics.sourceModeReason` from
 `diagnostics.status == retryable_fallback` to retry or ignore a fallback
 response; it must not parse commentary prose, English phrases, helper labels,
 or source-mode prefixes to decide retryability.
+Template-quality polish skipping is language-aware. English marker scoring may
+skip polish only for English requests; non-English text is not judged by the
+English marker list.
 
 MoveReview player-visible support UI is owned by the backend-certified
 `MoveReviewPlayerSurface` payload built by `MoveReviewPlayerPayloadBuilder`.
@@ -301,7 +305,10 @@ packet owner/structure/anchor terms are not token authority. If
 break destination, the trusted witness is the full route token (`e4-e5`,
 `...b5-b4`), not the self-referential destination square. Tokenless packets,
 generic fallback wording, and single-square tokens that collide with the played
-move must not become product-visible `Counterplay break` rows. The row must not
+move must not become product-visible `Counterplay break` rows. Collision
+checking uses legal UCI replay from the current FEN and `move.dest.key`; SAN is
+display-only, and missing or illegal UCI fails closed for single-square tokens.
+The row must not
 expose the internal `SupportedLocal`/local-reading label or raw proof
 family/source metadata through public row `source`; it may expose only the
 public row authority `{ kind: "counterplay_break", token: ... }`.
@@ -328,7 +335,11 @@ stability class are recognized and the text carries the matching subtype
 anchors. Delayed/deferred compensation requires an explicit recovery/defer
 anchor rather than the word `compensation` alone. Target-fixing compensation
 cannot be authorized by generic `pressure` or file-occupation route prose; it
-requires target/fixed-pawn/weak-pawn language or typed target evidence, coupled with FEN-based structural verification of target board states (e.g. Carlsbad structure, isolated pawn, or Benoni d6 backward pawn structure). Battery
+requires target/fixed-pawn/weak-pawn language or typed target evidence, coupled
+with FEN-based structural verification of target board states. Benoni d6
+target-fixation additionally requires parsed-board `d5`/`c5`/`d6` pawn
+structure plus legal UCI/PV support for the `Nf3-d2-c4` route; FEN substrings
+and fixed branch-key text are not admission gates. Battery
 formation predicates require the moved piece and partner to share the declared
 line with no blocker between them.
 `CommentaryApi` passes those same selected evaluated plans into

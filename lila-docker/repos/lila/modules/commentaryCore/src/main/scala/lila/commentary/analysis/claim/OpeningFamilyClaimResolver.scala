@@ -34,8 +34,7 @@ private[commentary] object OpeningFamilyClaimResolver:
 
   private case class OpeningFamily(
       id: OpeningFamilyId,
-      aliases: List[String],
-      markers: List[String]
+      aliases: List[String]
   )
 
   private val OpeningStageMaxPly = 24
@@ -48,31 +47,36 @@ private[commentary] object OpeningFamilyClaimResolver:
         "open games",
         "king's pawn",
         "kings pawn",
+        "italian game",
         "italian",
         "ruy lopez",
         "spanish",
+        "scotch game",
         "scotch",
         "four knights",
+        "four knights game",
+        "petrov's defense",
+        "petrov defense",
         "petrov",
+        "philidor defense",
         "philidor",
+        "vienna game",
         "vienna",
         "bishop's opening",
         "bishops opening",
+        "ponziani opening",
         "ponziani"
-      ),
-      markers = List(
-        "open games (1.e4 e5)",
-        "open games",
-        "central e4-e5 structure",
-        "e4-e5 structure"
       )
     ),
     OpeningFamily(
       id = OpeningFamilyId.Sicilian,
       aliases = List(
         "sicilian",
+        "sicilian defense",
         "najdorf",
+        "najdorf variation",
         "dragon",
+        "dragon variation",
         "scheveningen",
         "sveshnikov",
         "taimanov",
@@ -83,78 +87,66 @@ private[commentary] object OpeningFamilyClaimResolver:
         "closed sicilian",
         "accelerated dragon",
         "pelikan"
-      ),
-      markers = List("sicilian")
+      )
     ),
     OpeningFamily(
       id = OpeningFamilyId.French,
       aliases = List(
         "french",
+        "french defense",
         "winawer",
+        "winawer variation",
         "tarrasch",
+        "tarrasch variation",
         "rubinstein",
+        "rubinstein variation",
         "maccutcheon",
         "steinitz"
-      ),
-      markers = List("french")
+      )
     ),
     OpeningFamily(
       id = OpeningFamilyId.CaroKann,
-      aliases = List("caro-kann", "caro kann"),
-      markers = List("caro-kann", "caro kann")
+      aliases = List("caro-kann", "caro kann", "caro-kann defense", "caro kann defense")
     ),
     OpeningFamily(
       id = OpeningFamilyId.Scandinavian,
-      aliases = List("scandinavian", "center counter"),
-      markers = List("scandinavian")
+      aliases = List("scandinavian", "scandinavian defense", "center counter")
     ),
     OpeningFamily(
       id = OpeningFamilyId.NimzoIndian,
-      aliases = List("nimzo", "nimzo-indian", "nimzo indian"),
-      markers = List("nimzo")
+      aliases = List("nimzo-indian", "nimzo indian", "nimzo-indian defense", "nimzo indian defense")
     ),
     OpeningFamily(
       id = OpeningFamilyId.KingsIndian,
-      aliases = List("king's indian", "kings indian", "k.i.d", "kid"),
-      markers = List("king's indian", "kings indian")
+      aliases = List("king's indian", "kings indian", "king's indian defense", "kings indian defense", "k.i.d", "kid")
     ),
     OpeningFamily(
       id = OpeningFamilyId.Benoni,
-      aliases = List("benoni", "modern benoni"),
-      markers = List("benoni")
+      aliases = List("benoni", "benoni defense", "modern benoni", "modern benoni defense")
     ),
     OpeningFamily(
       id = OpeningFamilyId.Catalan,
-      aliases = List("catalan"),
-      markers = List("catalan")
+      aliases = List("catalan", "catalan opening")
     ),
     OpeningFamily(
       id = OpeningFamilyId.QueensGambit,
-      aliases = List("queen's gambit", "queens gambit", "qgd", "qga"),
-      markers = List("queen's gambit", "queens gambit")
+      aliases = List("queen's gambit", "queens gambit", "queen's gambit declined", "queens gambit declined", "queen's gambit accepted", "queens gambit accepted", "qgd", "qga")
     ),
     OpeningFamily(
       id = OpeningFamilyId.London,
-      aliases = List("london"),
-      markers = List("london")
+      aliases = List("london", "london system")
     ),
     OpeningFamily(
       id = OpeningFamilyId.English,
-      aliases = List("english"),
-      markers = List("english")
+      aliases = List("english", "english opening")
     ),
     OpeningFamily(
       id = OpeningFamilyId.Austrian,
-      aliases = List("austrian attack", "pirc", "modern defense"),
-      markers = List("austrian attack", "pirc", "modern defense")
+      aliases = List("austrian attack", "pirc", "pirc defense", "modern defense")
     )
   )
 
   private val familiesById = openingFamilies.map(f => f.id -> f).toMap
-  private val requiresStructureRegex =
-    """(?i)\brequires?\s+an?\s+([^,.;:!?]{2,60}?)\s+structure\b""".r
-  private val typicalInRegex =
-    """(?i)\btypical in\s+([^,.;:!?]{2,60})""".r
 
   def decideOpeningFamilyClaim(
       claim: OpeningFamilyClaim,
@@ -176,37 +168,6 @@ private[commentary] object OpeningFamilyClaimResolver:
         )
       )
 
-  def decideOpeningFamilyClaim(
-      sentence: String,
-      proof: OpeningFamilyMatchProof
-  ): Option[ClaimAuthorityDecision] =
-    val openingLower = normalizeOpening(proof.opening)
-    if !isOpeningStage(proof.phase, proof.ply) then None
-    else
-      val mentionedFamilies = detectMentionedFamilyIds(sentence)
-      if mentionedFamilies.isEmpty then None
-      else
-        val unsupportedFamilies =
-          mentionedFamilies.filterNot(familyKey =>
-            openingProofMatchesFamily(openingLower, proof.fen, familyKey)
-          )
-        if unsupportedFamilies.nonEmpty then
-          val familyCodes =
-            unsupportedFamilies.toList.sortBy(_.wireKey).map(familyKey => s"opening_family_mismatch:${familyKey.wireKey}")
-          Some(
-            ClaimAuthorityDecision(
-              ClaimAuthorityTier.Suppressed,
-              List("opening_family_label_mismatch", "opening_family_structure_mismatch") ++ familyCodes
-            )
-          )
-        else None
-
-  def suppressesUnsupportedFamilyClaim(
-      sentence: String,
-      proof: OpeningFamilyMatchProof
-  ): Boolean =
-    decideOpeningFamilyClaim(sentence, proof).exists(_.tier == ClaimAuthorityTier.Suppressed)
-
   private def normalizeOpening(opening: Option[String]): String =
     opening.getOrElse("").trim.toLowerCase
 
@@ -214,33 +175,10 @@ private[commentary] object OpeningFamilyClaimResolver:
     phase.equalsIgnoreCase("opening") ||
       (phase.equalsIgnoreCase("middlegame") && ply > 0 && ply <= OpeningStageMaxPly)
 
-  private def familyKeyFromPhrase(phrase: String): Option[OpeningFamilyId] =
-    val normalized = phrase.trim.toLowerCase
-    openingFamilies
-      .find { family =>
-        family.aliases.exists(alias => phraseMatchesAlias(normalized, alias))
-      }
-      .map(_.id)
-
   private def phraseMatchesAlias(normalizedPhrase: String, alias: String): Boolean =
     val phraseWords = normalizedWords(normalizedPhrase)
     val aliasWords = normalizedWords(alias)
-    aliasWords.nonEmpty &&
-      (
-        phraseWords == aliasWords ||
-          containsWordSlice(phraseWords, aliasWords)
-      )
-
-  private def detectMentionedFamilyIds(sentence: String): Set[OpeningFamilyId] =
-    val lower = sentence.toLowerCase
-    val direct = openingFamilies.collect {
-      case family if family.markers.exists(marker => phraseMatchesAlias(lower, marker)) => family.id
-    }
-    val fromPatterns =
-      (requiresStructureRegex.findAllMatchIn(lower).map(_.group(1)).toList ++
-        typicalInRegex.findAllMatchIn(lower).map(_.group(1)).toList)
-        .flatMap(familyKeyFromPhrase)
-    (direct ++ fromPatterns).toSet
+    aliasWords.nonEmpty && phraseWords == aliasWords
 
   private def openingMatchesFamily(openingLower: String, familyKey: OpeningFamilyId): Boolean =
     familiesById
@@ -260,10 +198,6 @@ private[commentary] object OpeningFamilyClaimResolver:
       .split("\\s+")
       .toList
       .filter(_.nonEmpty)
-
-  private def containsWordSlice(words: List[String], slice: List[String]): Boolean =
-    slice.nonEmpty &&
-      words.sliding(slice.length).exists(_ == slice)
 
   private def bookFenMatchesFamily(fen: Option[String], familyKey: OpeningFamilyId): Boolean =
     fen.flatMap(OpeningNameLookup.default.lookup)

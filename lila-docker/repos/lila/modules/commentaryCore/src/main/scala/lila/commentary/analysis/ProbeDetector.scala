@@ -662,7 +662,7 @@ object ProbeDetector:
         future.exists(fs => fs.planPrereqsMet.nonEmpty || fs.resolvedThreatKinds.nonEmpty)
       val hasTrajectoryIntent =
         containsLongSignalKeyword(pr.purpose.getOrElse("")) ||
-          pr.keyMotifs.exists(containsLongSignalKeyword)
+          pr.motifTags.exists(containsLongSignalKeyword)
       val onlyThreatGrowthWithoutProgress =
         future.exists(fs =>
           fs.newThreatKinds.nonEmpty &&
@@ -759,7 +759,7 @@ object ProbeDetector:
               "king-safety-exposure"
             else if collapse.contains("structure") || collapse.contains("pawn") then
               "structural-collapse"
-            else if pr.purpose.exists(_.contains("convert")) || pr.keyMotifs.exists(containsLongSignalKeyword) then
+            else if pr.purpose.exists(_.contains("convert")) || pr.motifTags.exists(containsLongSignalKeyword) then
               "conversion-cost"
             else "initiative-handoff"
           val turningPoint =

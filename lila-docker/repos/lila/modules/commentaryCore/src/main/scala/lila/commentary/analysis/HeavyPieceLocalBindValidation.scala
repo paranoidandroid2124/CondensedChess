@@ -235,7 +235,7 @@ private[commentary] object HeavyPieceLocalBindValidation:
       val boundedContinuationVisible =
         sameBranchContinuityResults.exists(result =>
           result.futureSnapshot.exists(mentionsBoundedContinuation) ||
-            result.keyMotifs.exists(mentionsContinuation)
+            result.motifTags.exists(mentionsContinuation)
         )
       val sameDefendedBranch =
         directBestDefensePresent &&

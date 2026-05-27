@@ -269,7 +269,7 @@ private[commentary] object LocalFileEntryProof:
       val boundedContinuationVisible =
         sameBranchContinuityResults.exists(result =>
           result.futureSnapshot.exists(mentionsBoundedContinuation) ||
-            result.keyMotifs.exists(mentionsContinuation)
+            result.motifTags.exists(mentionsContinuation)
         )
       val sameDefendedBranch =
         directBestDefensePresent &&
@@ -739,7 +739,7 @@ private[commentary] object LocalFileEntryProof:
           snapshot.targetsDelta.tacticalAdded.flatMap(clean).map(target => s"tactical_target:$target")
       }
     val motifSignals =
-      result.keyMotifs.flatMap(clean).filter(looksLikeTacticalRelease).map(motif => s"motif:$motif")
+      result.motifTags.flatMap(clean).filter(looksLikeTacticalRelease).map(motif => s"motif:$motif")
     (collapseSignals ++ snapshotSignals ++ motifSignals).distinct
 
   private def confirmsFileDenial(

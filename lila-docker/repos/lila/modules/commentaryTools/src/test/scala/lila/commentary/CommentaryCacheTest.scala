@@ -146,6 +146,7 @@ class CommentaryCacheTest extends FunSuite:
         replyPvs = Some(List(List("e7e5", "g1f3"), List("c7c5", "g1f3"))),
         deltaVsBaseline = 12,
         keyMotifs = List("central", "king"),
+        motifTags = List("forcing"),
         l1Delta = Some(L1DeltaSnapshot(1, 2, 3, 4, 5, Some("king exposed"))),
         futureSnapshot = Some(
           FutureSnapshot(
@@ -181,6 +182,7 @@ class CommentaryCacheTest extends FunSuite:
         richProbe.copy(bestReplyPv = List("e7e5", "g1f3", "b8c6", "f1b5", "h7h6")),
         richProbe.copy(deltaVsBaseline = richProbe.deltaVsBaseline + 1),
         richProbe.copy(keyMotifs = List("different")),
+        richProbe.copy(motifTags = List("trade")),
         richProbe.copy(l1Delta = richProbe.l1Delta.map(_.copy(materialDelta = 99))),
         richProbe.copy(futureSnapshot = richProbe.futureSnapshot.map(_.copy(newThreatKinds = List("Skewer")))),
         richProbe.copy(objective = Some("refute_plan")),

@@ -46,9 +46,7 @@ object MoveReviewCoverageDiagnostics:
       supportedLocalFromInputs(
         ctx,
         plannerInputs,
-        tacticalVetoReasons(plannerInputs, truthContract),
-        playedSan = ctx.playedSan,
-        playedUci = ctx.playedMove
+        tacticalVetoReasons(plannerInputs, truthContract)
       )
     Result(
       moveReviewSourceKind = Some(slots.sourceKind),
@@ -125,17 +123,13 @@ object MoveReviewCoverageDiagnostics:
   private def supportedLocalFromInputs(
       ctx: NarrativeContext,
       inputs: QuestionPlannerInputs,
-      tacticalVetoReasons: List[String],
-      playedSan: Option[String],
-      playedUci: Option[String]
+      tacticalVetoReasons: List[String]
   ): SupportedLocalDiagnostic =
-    supportedLocalFromPackets(mainPathPackets(inputs), tacticalVetoReasons, playedSan, playedUci, Some(ctx))
+    supportedLocalFromPackets(mainPathPackets(inputs), tacticalVetoReasons, Some(ctx))
 
   private[moveReview] def supportedLocalFromPackets(
       packets: List[PlayerFacingClaimPacket],
       tacticalVetoReasons: List[String] = Nil,
-      playedSan: Option[String] = None,
-      playedUci: Option[String] = None,
       ctx: Option[NarrativeContext] = None
   ): SupportedLocalDiagnostic =
     val candidates =
@@ -144,14 +138,14 @@ object MoveReviewCoverageDiagnostics:
       candidates.filter(packet =>
         supportedLocalPolicyAdmitted(packet) &&
           !tacticalVetoApplies(packet, tacticalVetoReasons) &&
-          supportedLocalSurfaceAdmitted(packet, playedSan, playedUci, ctx)
+          supportedLocalSurfaceAdmitted(packet, ctx)
       )
     val rejectReasons =
       candidates
         .filterNot(packet =>
           supportedLocalPolicyAdmitted(packet) &&
             !tacticalVetoApplies(packet, tacticalVetoReasons) &&
-            supportedLocalSurfaceAdmitted(packet, playedSan, playedUci, ctx)
+            supportedLocalSurfaceAdmitted(packet, ctx)
         )
         .flatMap { packet =>
           val trace = ProofContractRules.traceFor(packet)
@@ -160,7 +154,7 @@ object MoveReviewCoverageDiagnostics:
               trace.failureCodes ++
                 policyFailureCodes(packet) ++
                 tacticalFailureCodes(packet, tacticalVetoReasons) ++
-                surfaceFailureCodes(packet, playedSan, playedUci, ctx)
+                surfaceFailureCodes(packet, ctx)
             ).distinct match
               case Nil => List("policy:not_supported_local_admitted")
               case xs  => xs
@@ -211,24 +205,20 @@ object MoveReviewCoverageDiagnostics:
 
   private def supportedLocalSurfaceAdmitted(
       packet: PlayerFacingClaimPacket,
-      playedSan: Option[String],
-      playedUci: Option[String],
       ctx: Option[NarrativeContext]
   ): Boolean =
     if packet.proofFamily == ProofFamilyId.NeutralizeKeyBreak.wireKey then
-      NeutralizeKeyBreakSurfaceGate.decideForPacket(packet, playedSan, playedUci).admitted
+      NeutralizeKeyBreakSurfaceGate.decideForPacket(packet, ctx).admitted
     else if packet.proofFamily == CentralBreakTimingWitness.ProofFamily then
       ctx.flatMap(CentralBreakTimingWitness.exact).exists(CentralBreakTimingSurfaceGate.decide(_).admitted)
     else true
 
   private def surfaceFailureCodes(
       packet: PlayerFacingClaimPacket,
-      playedSan: Option[String],
-      playedUci: Option[String],
       ctx: Option[NarrativeContext]
   ): List[String] =
     if packet.proofFamily == ProofFamilyId.NeutralizeKeyBreak.wireKey then
-      NeutralizeKeyBreakSurfaceGate.decideForPacket(packet, playedSan, playedUci).rejectReason.toList
+      NeutralizeKeyBreakSurfaceGate.decideForPacket(packet, ctx).rejectReason.toList
     else if packet.proofFamily == CentralBreakTimingWitness.ProofFamily then
       ctx
         .flatMap(CentralBreakTimingWitness.exact)

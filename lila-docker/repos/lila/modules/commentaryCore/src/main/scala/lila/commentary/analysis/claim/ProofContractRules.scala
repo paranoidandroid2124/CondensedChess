@@ -2,6 +2,7 @@ package lila.commentary.analysis.claim
 
 import lila.commentary.analysis.*
 import lila.commentary.analysis.semantic.StrategicObservationIds.{ EvidenceSourceId, ProofFamilyId, ProofSourceId }
+import chess.format.Uci
 private[commentary] enum ProofContractStatus:
   case Releasable
   case BackendOnly
@@ -625,7 +626,7 @@ private[commentary] object ProofContractRules:
         packetMatches(packet, proofFamily(PlanTaxonomy.PlanKind.CentralBreakTiming).wireKey, proofFamily(PlanTaxonomy.PlanKind.CentralBreakTiming).wireKey) &&
           uciMove(breakMove) &&
           squareKey(breakSquare) &&
-          normalize(breakMove).slice(2, 4) == normalize(breakSquare) &&
+          uciDestination(breakMove).contains(normalize(breakSquare)) &&
           routeToken(breakToken)
 
   private def packetMatches(packet: PlayerFacingClaimPacket, proofSource: String, proofFamily: String): Boolean =
@@ -637,6 +638,9 @@ private[commentary] object ProofContractRules:
 
   private def uciMove(raw: String): Boolean =
     normalize(raw).matches("[a-h][1-8][a-h][1-8][nbrq]?")
+
+  private def uciDestination(raw: String): Option[String] =
+    Uci(normalize(raw)).collect { case move: Uci.Move => move.dest.key }
 
   private def fileToken(raw: String): Boolean =
     normalize(raw).matches("[a-h](?:-file)?")

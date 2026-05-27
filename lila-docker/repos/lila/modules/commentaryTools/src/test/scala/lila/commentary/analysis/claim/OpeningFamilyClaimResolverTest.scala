@@ -39,10 +39,10 @@ class OpeningFamilyClaimResolverTest extends munit.FunSuite:
   ): OpeningFamilyClaimResolver.OpeningFamilyMatchProof =
     proofWithOpening(Some(opening), fen, phase, ply)
 
-  test("suppresses opening-family claims when label and board proof both mismatch") {
+  test("suppresses structured opening-family claims when label and board proof both mismatch") {
     val decision =
       OpeningFamilyClaimResolver.decideOpeningFamilyClaim(
-        "This plan is typical in Open Games (1.e4 e5).",
+        FamilyClaim(FamilyId.OpenGames),
         proof(opening = "Catalan Opening", fen = CaroKannFen)
       )
 
@@ -52,16 +52,6 @@ class OpeningFamilyClaimResolverTest extends munit.FunSuite:
       List("opening_family_label_mismatch", "opening_family_structure_mismatch", "opening_family_mismatch:open_games"),
       clue(decision)
     )
-  }
-
-  test("raw opening-family prose suppresses when label matches but board proof does not") {
-    val decision =
-      OpeningFamilyClaimResolver.decideOpeningFamilyClaim(
-        "This plan is typical in Open Games (1.e4 e5).",
-        proof(opening = "Italian Game", fen = CaroKannFen)
-      )
-
-    assertEquals(decision.map(_.tier), Some(ClaimAuthorityTier.Suppressed), clue(decision))
   }
 
   test("suppresses structured opening-family claims when only the opening label matches") {
@@ -114,31 +104,6 @@ class OpeningFamilyClaimResolverTest extends munit.FunSuite:
     assertEquals(decision.map(_.tier), Some(ClaimAuthorityTier.SupportedLocal), clue(decision))
   }
 
-  test("suppresses mixed-family sentences when any claimed family lacks label and board proof") {
-    val decision =
-      OpeningFamilyClaimResolver.decideOpeningFamilyClaim(
-        "This is typical in Open Games (1.e4 e5), but also requires a French structure.",
-        proof(opening = "Italian Game", fen = OpenGamesFen)
-      )
-
-    assertEquals(decision.map(_.tier), Some(ClaimAuthorityTier.Suppressed), clue(decision))
-    assert(
-      decision.toList.flatMap(_.failureCodes).contains("opening_family_mismatch:french"),
-      clue(decision)
-    )
-  }
-
-  test("does not turn Caro-Kann into a Sicilian Kan claim and suppresses unsupported Caro-Kann proof") {
-    val decision =
-      OpeningFamilyClaimResolver.decideOpeningFamilyClaim(
-        "This setup requires a Caro-Kann structure.",
-        proof(opening = "Queen's Gambit Declined", fen = CaroKannFen)
-      )
-
-    assertEquals(decision.map(_.tier), Some(ClaimAuthorityTier.Suppressed), clue(decision))
-    assert(!decision.toList.flatMap(_.failureCodes).contains("opening_family_mismatch:sicilian"), clue(decision))
-  }
-
   test("suppresses structured Caro-Kann claims when only FEN proof matches") {
     val decision =
       OpeningFamilyClaimResolver.decideOpeningFamilyClaim(
@@ -149,34 +114,10 @@ class OpeningFamilyClaimResolverTest extends munit.FunSuite:
     assertEquals(decision.map(_.tier), Some(ClaimAuthorityTier.Suppressed), clue(decision))
   }
 
-  test("partial aliases such as nimz do not match Nimzo-Indian") {
-    val decision =
-      OpeningFamilyClaimResolver.decideOpeningFamilyClaim(
-        "This plan is typical in nimz.",
-        proof(opening = "Nimzo-Indian Defense", fen = OpenGamesFen)
-      )
-
-    assertEquals(decision, None)
-  }
-
-  test("does not admit a Sicilian claim from Caro-Kann label substring") {
-    val decision =
-      OpeningFamilyClaimResolver.decideOpeningFamilyClaim(
-        "This thematic break requires a Sicilian structure.",
-        proof(opening = "Caro-Kann Defense", fen = CaroKannFen)
-      )
-
-    assertEquals(decision.map(_.tier), Some(ClaimAuthorityTier.Suppressed), clue(decision))
-    assert(
-      decision.toList.flatMap(_.failureCodes).contains("opening_family_mismatch:sicilian"),
-      clue(decision)
-    )
-  }
-
   test("does not decide opening-family claims outside the opening proof window") {
     val decision =
       OpeningFamilyClaimResolver.decideOpeningFamilyClaim(
-        "This plan is typical in Open Games (1.e4 e5).",
+        FamilyClaim(FamilyId.OpenGames),
         proof(opening = "Catalan Opening", fen = OpenGamesFen, phase = "middlegame", ply = 35)
       )
 

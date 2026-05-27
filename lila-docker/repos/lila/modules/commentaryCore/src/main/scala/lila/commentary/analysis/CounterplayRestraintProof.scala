@@ -450,7 +450,7 @@ private[commentary] object CounterplayRestraintProof:
           snapshot.targetsDelta.tacticalAdded.flatMap(clean).map(target => s"tactical_target:$target")
       }
     val motifSignals =
-      result.keyMotifs.flatMap(clean).filter(looksLikeTacticalRelease).map(motif => s"motif:$motif")
+      result.motifTags.flatMap(clean).filter(looksLikeTacticalRelease).map(motif => s"motif:$motif")
     (collapseSignals ++ snapshotSignals ++ motifSignals).distinct
 
   private def isPositiveSuppressionSnapshot(

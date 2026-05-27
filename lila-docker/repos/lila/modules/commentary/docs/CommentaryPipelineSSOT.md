@@ -109,6 +109,9 @@ The maintained path is:
      named-break token must match the packet's typed exact-slice proof token;
      owner, anchor, structure, continuation, and generic prose terms never
      couple a timing plan to a packet.
+     `MoveDelta` supported-local plan matching uses the structured `MoveLocal`
+     packet plus planner source and contract admissibility; `claimText` and
+     planner prose are display text and are not compared for authority.
    - `PlannerClaimAdmission` connects planner inputs to the resolver.
    - `OpeningFamilyClaimResolver` owns opening-family admission from a
      structured `OpeningFamilyId` plus `OpeningFamilyMatchProof` (`opening`,
@@ -117,8 +120,8 @@ The maintained path is:
      board-piece structure checks are not an authority source.
      A structured claim needs both an opening-label family match and an
      opening-book FEN family match.
-     Arbitrary prose sentences are legacy suppression-only inputs and cannot
-     create `SupportedLocal` opening authority.
+     Raw prose sentence parsing is not an authority API; unsupported family
+     wording must be excluded before rendering.
    - `ClaimAuthorityPolicy` remains a compatibility facade only.
 10. `QuestionFirstCommentaryPlanner` selects and ranks questions. It does not
    own low-level proof/source/scope/fallback authority. Prevented-plan
@@ -150,6 +153,10 @@ The maintained path is:
     `BreakClampMaterializer` proves that the played move occupies the
     opponent break destination, the producer carries the full route token
     (`e4-e5`, `...b5-b4`) instead of the self-referential destination square.
+    For single-square break tokens, collision checking uses the reviewed
+    `playedMove` as legal UCI replayed from the current FEN and compares
+    `move.dest.key`; SAN is player-facing display only. Missing or illegal UCI
+    fails closed for the single-square row.
     The player-facing row uses checked-line chess wording rather than exposing
     the internal `SupportedLocal`/local-reading label. Tokenless rows and
     single-square tokens that collide with the played move fail closed. The row
@@ -172,7 +179,8 @@ The maintained path is:
     this SupportedLocal row. The row uses the witness route token such as
     `e4-e5` or `...d6-d5`, with subordinate wording (`also plays` / `also
     leaves`), and carries public `authority.kind = "central_break"` plus the
-    route token; it does not parse raw prose or expose proof ids.
+    route token; the surface gate only validates the exact witness route token
+    shape and does not reclassify raw prose or expose proof ids.
     Historical precedent identifiers are not injected by
     `CentralBreakTimingWitness`; source-row catalogs may retain them in
     test/tooling, but runtime witness tags stay generic.
@@ -247,15 +255,18 @@ The maintained path is:
     lazy, locale-stable model fingerprints rather than Play JSON
     serialization, and probe fingerprints use compact non-cryptographic hash
     rows over probe fields that can affect downstream evidence, contract,
-    future-state, and authoring behavior. Opening reference data also
+    future-state, motif-tag authority, and authoring behavior. Opening reference data also
     contributes an opening fingerprint so cache hits cannot reuse commentary
     across different explorer/opening evidence.
+    Template-quality polish skipping is language-aware: English marker scoring
+    can skip AI polish only for English requests; non-English requests do not
+    use English markers as a skip signal.
 16. `MoveReviewResponseDiagnostics` derives backend-owned
     `diagnostics.status` and `diagnostics.sourceModeReason` from the final
     serialized response source mode, polish validation reasons, and
     `PlayerProseBoundary` fallback validation. This is the only MoveReview
     retry/fallback leak code consumed by the frontend.
-17. `moveReview.ts`, `narrativeView.ts`, and `responsePayload.ts` render typed
+17. `moveReview.ts` and `responsePayload.ts` render typed
     fields and do not rebuild hidden strategic meaning from fallback carriers.
     MoveReview retry/drop behavior for fallback responses reads
     `diagnostics.status`; it must not parse commentary prose for helper labels,
@@ -364,12 +375,12 @@ authority. `OpeningFamilyClaimResolver` admits only structured
 `OpeningFamilyId` claims against `OpeningFamilyMatchProof`, returning
 `SupportedLocal` only when the opening label and static opening-book FEN lookup
 both support the requested family. Shallow piece-square structure checks are not
-used as opening truth and cannot create structure-only authority. Arbitrary prose is retained only as a legacy
-suppression-only guard: it can return `Suppressed` with mismatch failure codes
-when a sentence mentions a family unsupported by both label and opening-book
-FEN proof, but it cannot create `SupportedLocal` authority. Short aliases are
-exact word-slice matches only, so substring accidents such as `Caro-Kann`
-matching `Kan`, or `nimz` matching `nimzo-indian`, do not create authority.
+used as opening truth and cannot create structure-only authority. Raw rendered
+sentences are not parsed for opening-family names and cannot create or suppress
+authority after the fact; the structured claim must be accepted or suppressed
+before prose is built. Opening-family aliases are exact phrase matches against
+the structured opening label/book name, so substring accidents such as
+`Caro-Kann` matching `Kan` do not create authority.
 Rendered prose is not split and rewritten by `CommentaryApi` for
 opening-family mismatch; unsupported family prose must be excluded before
 rendering, while the final prose sanitizer is presentation-only.

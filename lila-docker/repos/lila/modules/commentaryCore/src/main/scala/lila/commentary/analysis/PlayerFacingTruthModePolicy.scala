@@ -4,7 +4,7 @@ package lila.commentary.analysis
 import lila.commentary.analysis.claim.*
 import lila.commentary.analysis.semantic.StrategicObservationIds.{ EvidenceRef, EvidenceSourceId, ProofFamilyId, ProofSourceId }
 import _root_.chess.{ Bishop, Board, Color, King, Pawn, Queen, Square }
-import _root_.chess.format.Fen
+import _root_.chess.format.{ Fen, Uci }
 import _root_.chess.variant.Standard
 
 import lila.commentary.{ DirectionalTargetReadiness, RouteSurfaceMode, StrategicIdeaKind, StrategyIdeaSignal, StrategyPack, StrategyPieceMoveRef }
@@ -3499,7 +3499,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
       ctx: NarrativeContext,
       idea: StrategyIdeaSignal
   ): Boolean =
-    ctx.fen.contains("pp3pbp/3p1np1/2pP4") &&
+    exactTargetFixationPosition(ctx).exists { case (board, sideToMove) => benoniD6TargetBoard(board, sideToMove) } &&
       idea.focusSquares.map(_.toLowerCase).contains("d6") &&
       idea.evidenceRefs.exists(ref =>
         containsAny(normalize(ref), List("weak_complex", "enemy_weak_square", "target_fixing"))
@@ -3518,69 +3518,9 @@ private[commentary] object PlayerFacingTruthModePolicy:
     Option.when(hasSurfaceEvidence) {
       exactTargetFixationPosition(ctx).flatMap { case (board, sideToMove) =>
         val exactBoard =
-          sideToMove.white &&
-            boardHasFriendlyRole(board, sideToMove, "f3", _root_.chess.Knight) &&
-            boardHasFriendlyPawn(board, sideToMove, "d5") &&
-            boardHasEnemyPawn(board, sideToMove, "c5") &&
-            boardHasEnemyPawn(board, sideToMove, "d6")
-        Option.when(exactBoard && bestDefenseBranchKeyFromContext(ctx).contains("f3d2|b8a6")) {
-          ExactSliceWitness(
-            descriptor = ExactTargetFixationDescriptor,
-            targetSquare = "d6",
-            ownerSeedTerms =
-              List(
-                "d6",
-                "fixed_target:d6",
-                "backward_pawn_target",
-                "benoni_d6_target"
-              ).distinct,
-            structureTransitionTerms =
-              List(
-                "locked_pawn_chain:d5-d6",
-                "knight_route:f3-d2-c4",
-                "best_branch:f3d2|b8a6"
-              ).distinct,
-            exactSliceProof = PlayerFacingExactSliceProof.ExactTargetFixation("d6")
-          )
-        }
-      }
-    }.flatten
-
-  private def benoniD6TargetFixationWitness(
-      ctx: NarrativeContext
-  ): Option[ExactSliceWitness] =
-    val fen = ctx.fen.trim
-    if !fen.contains("pp3pbp/3p1np1/2pP4") then None
-    else {
-      val pvMoves =
-        ctx.engineEvidence.toList.flatMap(_.variations).headOption.toList.flatMap { line =>
-          val rawMoves =
-            line.moves
-              .map(normalizeUciMove)
-              .filter(_.matches("""[a-h][1-8][a-h][1-8][qrbn]?"""))
-          if rawMoves.nonEmpty then rawMoves
-          else
-            line.parsedMoves
-              .flatMap(move => clean(move.uci))
-              .map(normalizeUciMove)
-              .filter(_.matches("""[a-h][1-8][a-h][1-8][qrbn]?"""))
-        }
-      val played =
-        ctx.playedMove.map(normalizeUciMove).filter(_.nonEmpty)
-          .orElse(pvMoves.headOption)
-      exactTargetFixationPosition(ctx).flatMap { case (board, sideToMove) =>
-        val exactBoard =
-          sideToMove.white &&
-            boardHasFriendlyRole(board, sideToMove, "f3", _root_.chess.Knight) &&
-            boardHasFriendlyPawn(board, sideToMove, "d5") &&
-            boardHasEnemyPawn(board, sideToMove, "c5") &&
-            boardHasEnemyPawn(board, sideToMove, "d6")
-        val exactBranch =
-          played.contains("f3d2") &&
-            pvMoves.headOption.contains("f3d2") &&
-            pvMoves.lift(1).contains("b8a6") &&
-            pvMoves.drop(2).take(8).contains("d2c4")
-        Option.when(exactBoard && exactBranch) {
+          benoniD6TargetBoard(board, sideToMove)
+        val routeEvidence = benoniD6KnightRouteEvidence(ctx)
+        Option.when(exactBoard && routeEvidence.nonEmpty) {
           ExactSliceWitness(
             descriptor = ExactTargetFixationDescriptor,
             targetSquare = "d6",
@@ -3596,14 +3536,109 @@ private[commentary] object PlayerFacingTruthModePolicy:
                 List(
                   "locked_pawn_chain:d5-d6",
                   "knight_route:f3-d2-c4",
-                  "best_branch:f3d2|b8a6"
-                ) ++ pvMoves.take(10)
-              ).distinct,
+                  s"played:${routeEvidence.map(_.playedMove).getOrElse("")}"
+                ) ++ routeEvidence.toList.flatMap(_.pvMoves.take(10))
+              ).filter(_.nonEmpty).distinct,
             exactSliceProof = PlayerFacingExactSliceProof.ExactTargetFixation("d6")
           )
         }
       }
+    }.flatten
+
+  private def benoniD6TargetFixationWitness(
+      ctx: NarrativeContext
+  ): Option[ExactSliceWitness] =
+    val routeEvidence = benoniD6KnightRouteEvidence(ctx)
+    exactTargetFixationPosition(ctx).flatMap { case (board, sideToMove) =>
+        val exactBoard =
+          benoniD6TargetBoard(board, sideToMove)
+        Option.when(exactBoard && routeEvidence.nonEmpty) {
+          ExactSliceWitness(
+            descriptor = ExactTargetFixationDescriptor,
+            targetSquare = "d6",
+            ownerSeedTerms =
+              List(
+                "d6",
+                "fixed_target:d6",
+                "backward_pawn_target",
+                "benoni_d6_target"
+              ).distinct,
+            structureTransitionTerms =
+              (
+                List(
+                  "locked_pawn_chain:d5-d6",
+                  "knight_route:f3-d2-c4",
+                  s"played:${routeEvidence.map(_.playedMove).getOrElse("")}"
+                ) ++ routeEvidence.toList.flatMap(_.pvMoves.take(10))
+              ).distinct,
+            exactSliceProof = PlayerFacingExactSliceProof.ExactTargetFixation("d6")
+          )
+        }
     }
+
+  private final case class BenoniD6RouteEvidence(playedMove: String, pvMoves: List[String])
+
+  private def benoniD6TargetBoard(
+      board: Board,
+      sideToMove: Color
+  ): Boolean =
+    sideToMove.white &&
+      boardHasFriendlyPawn(board, sideToMove, "d5") &&
+      boardHasEnemyPawn(board, sideToMove, "c5") &&
+      boardHasEnemyPawn(board, sideToMove, "d6")
+
+  private def benoniD6KnightRouteEvidence(ctx: NarrativeContext): Option[BenoniD6RouteEvidence] =
+    val pvMoves = normalizedTopUciMoves(ctx)
+    for
+      position <- Fen.read(Standard, Fen.Full(ctx.fen))
+      playedUci <- ctx.playedMove.map(NarrativeUtils.normalizeUciMove).filter(isUciMove).orElse(pvMoves.headOption)
+      playedMove <- legalUciMove(position, playedUci)
+      if playedMove.piece.color == position.color &&
+        playedMove.piece.role == _root_.chess.Knight &&
+        playedMove.orig.key == "f3" &&
+        playedMove.dest.key == "d2"
+      replayMoves = if pvMoves.headOption.contains(playedUci) then pvMoves.tail else pvMoves
+      if replaySupportsKnightRoute(playedMove.after, replayMoves.take(8), position.color, from = "d2", to = "c4")
+    yield BenoniD6RouteEvidence(playedUci, pvMoves)
+
+  private def replaySupportsKnightRoute(
+      start: _root_.chess.Position,
+      moves: List[String],
+      side: Color,
+      from: String,
+      to: String
+  ): Boolean =
+    def loop(position: _root_.chess.Position, remaining: List[String]): Boolean =
+      legalKnightRouteAvailable(position, side, from, to) ||
+        (remaining match
+          case uci :: rest =>
+            legalUciMove(position, uci).exists { move =>
+              val playsRoute =
+                position.color == side &&
+                  move.piece.role == _root_.chess.Knight &&
+                  move.orig.key == from &&
+                  move.dest.key == to
+              playsRoute || loop(move.after, rest)
+            }
+          case Nil => false)
+    loop(start, moves)
+
+  private def legalKnightRouteAvailable(
+      position: _root_.chess.Position,
+      side: Color,
+      from: String,
+      to: String
+  ): Boolean =
+    position.color == side &&
+      legalUciMove(position, s"$from$to").exists(move =>
+        move.piece.color == side &&
+          move.piece.role == _root_.chess.Knight &&
+          move.orig.key == from &&
+          move.dest.key == to
+      )
+
+  private def legalUciMove(position: _root_.chess.Position, raw: String): Option[_root_.chess.Move] =
+    Uci(raw).collect { case move: Uci.Move => move }.flatMap(position.move(_).toOption)
 
   private def exactTargetFixationPosition(
       ctx: NarrativeContext

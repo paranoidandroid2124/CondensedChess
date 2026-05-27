@@ -10,11 +10,20 @@ import munit.FunSuite
 final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
   private val ctx = MoveReviewProseGoldenFixtures.rookPawnMarch.ctx
+  private val neutralizeCtx =
+    ctx.copy(
+      fen = "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1",
+      playedMove = Some("e2e3"),
+      playedSan = Some("e3")
+    )
   private val collisionCtx =
     ctx.copy(
+      fen = "2b1k3/8/8/8/8/8/8/4K3 b - - 0 1",
       playedMove = Some("c8g4"),
       playedSan = Some("Bg4")
     )
+  private val sanOnlyCollisionCtx =
+    collisionCtx.copy(playedMove = None)
   private val playedDestinationRouteCtx =
     ctx.copy(
       playedMove = Some("e7e5"),
@@ -209,10 +218,10 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
   test("projects a SupportedLocal neutralize_key_break timing plan into a named counterplay break row") {
     val rows =
       MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = ctx,
+        ctx = neutralizeCtx,
         inputs = inputs(),
         rankedPlans = ranked(neutralizePlan()),
-        truthContract = Some(safeTruthContract())
+        truthContract = Some(safeTruthContract("e2e3"))
       )
 
     assertEquals(rows.map(_.label), List("Counterplay break"))
@@ -416,10 +425,10 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
   test("projects an admitted neutralize_key_break packet claim when no timing plan is selected") {
     val rows =
       MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = ctx,
+        ctx = neutralizeCtx,
         inputs = inputs(),
         rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract())
+        truthContract = Some(safeTruthContract("e2e3"))
       )
 
     assertEquals(rows.map(_.label), List("Counterplay break"))
@@ -488,6 +497,27 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
     val rows =
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = collisionCtx,
+        inputs = inputs(packet = collisionPacket),
+        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        truthContract = Some(safeTruthContract())
+      )
+
+    assertEquals(rows, Nil)
+  }
+
+  test("does not use SAN-only played move text as collision authority") {
+    val collisionPacket =
+      supportedNeutralizePacket(
+        anchorTerms = List("g4"),
+        ownerSeedTerms = List("neutralize_key_break", "g4"),
+        structureTransitionTerms = List("g4"),
+        bestDefenseMove = Some("g4"),
+        exactSliceProof = Some(PlayerFacingExactSliceProof.CounterplayAxisSuppression("g4"))
+      )
+
+    val rows =
+      MoveReviewSupportedLocalSurfaceRows.build(
+        ctx = sanOnlyCollisionCtx,
         inputs = inputs(packet = collisionPacket),
         rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
         truthContract = Some(safeTruthContract())
@@ -596,10 +626,10 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       "The strategic point is that neutralize_key_break uses counterplay_axis_suppression on e4d5|c6d5."
     val rows =
       MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = ctx,
+        ctx = neutralizeCtx,
         inputs = inputs(claimText = raw),
         rankedPlans = ranked(neutralizePlan(claim = raw)),
-        truthContract = Some(safeTruthContract())
+        truthContract = Some(safeTruthContract("e2e3"))
       )
 
     assertEquals(

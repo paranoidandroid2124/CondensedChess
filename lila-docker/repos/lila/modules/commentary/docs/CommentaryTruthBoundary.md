@@ -102,6 +102,9 @@ Exact-slice signoff must consume the typed `PlayerFacingExactSliceProof`
 created by the board/probe witness branch. Owner, anchor, structure,
 continuation, and prose terms may explain or diagnose the claim, but they are
 not truth objects and must not be parsed back into exact proof.
+Proof checks that bind a move to a square must use the chess UCI parser and the
+typed destination square, not string slices over move text. SAN remains display
+text.
 For prophylactic restraint, exact-slice truth is limited to a square/route or
 typed denied-resource token derived from runtime resource classification.
 English plan labels and generic counterplay phrases do not certify the exact
@@ -112,6 +115,10 @@ friendly support; Black-side pressure targets White `c3` only when the mirrored
 `c3`/`d4` enemy chain and `b7`/`d5` friendly support are present. Both sides
 still require minority-attack semantic consequence and typed
 `CarlsbadFixedTarget` proof.
+Benoni d6 target-fixation truth is board/PV based: the parsed board must show
+the friendly `d5` pawn and enemy `c5`/`d6` pawns, and the reviewed UCI/PV replay
+must legally support the `Nf3-d2-c4` route. FEN substrings and fixed branch-key
+text are not truth.
 
 Break/file-axis truth must come from structured square or file-marker evidence
 parsed by the shared runtime boundary, not from incidental letters inside

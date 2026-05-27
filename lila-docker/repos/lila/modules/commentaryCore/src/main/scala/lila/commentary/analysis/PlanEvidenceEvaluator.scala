@@ -702,9 +702,10 @@ object PlanEvidenceEvaluator:
   private def indicatesForcing(themeId: String, result: ProbeResult): Boolean =
     (themeId == PlanTheme.FavorableExchange.id &&
       hasReplyCoverage(result)) ||
-      result.keyMotifs.exists(motif =>
-        containsAny(normalizeText(motif), List("forcing", "exchange", "trade", "simplif"))
-      )
+      result.motifTags.exists(tag => ForcingMotifTags.contains(normalizeText(tag)))
+
+  private val ForcingMotifTags =
+    Set("forcing", "exchange", "trade", "simplification")
 
   private def indicatesRemoval(themeId: String, result: ProbeResult): Boolean =
     Set(

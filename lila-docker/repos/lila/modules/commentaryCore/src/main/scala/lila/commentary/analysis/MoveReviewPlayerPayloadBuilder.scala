@@ -6,6 +6,8 @@ import lila.commentary.analysis.claim.{ ClaimAuthorityResolver, ClaimAuthorityTi
 import lila.commentary.analysis.semantic.StrategicObservationIds.{ ProofFamilyId, ProofSourceId }
 import lila.commentary.analysis.PlanEvidenceEvaluator.{ EvaluatedPlan, UserFacingPlanEligibility }
 import lila.commentary.analysis.PlanTaxonomy.{ PlanKind, PlanTheme }
+import chess.format.{ Fen, Uci }
+import chess.variant.Standard
 
 object MoveReviewPlayerPayloadBuilder:
 
@@ -311,6 +313,7 @@ private[commentary] object NeutralizeKeyBreakSurfaceGate:
 
   val MissingNamedBreak = "surface:named_break_missing"
   val PlayedMoveCollision = "surface:played_move_collision"
+  val PlayedMoveUnverified = "surface:played_move_unverified"
 
   final case class Decision(token: Option[String], rejectReason: Option[String]):
     def admitted: Boolean = token.nonEmpty && rejectReason.isEmpty
@@ -324,7 +327,7 @@ private[commentary] object NeutralizeKeyBreakSurfaceGate:
     val packetToken = packetBreakToken(packet)
     (planToken, packetToken) match
       case (Some(left), Some(right)) if left == right =>
-        decideToken(left, playedSan = ctx.playedSan, playedUci = ctx.playedMove)
+        decideToken(left, Some(ctx))
       case _ =>
         Decision(None, Some(MissingNamedBreak))
 
@@ -332,15 +335,14 @@ private[commentary] object NeutralizeKeyBreakSurfaceGate:
       packet: PlayerFacingClaimPacket,
       ctx: NarrativeContext
   ): Decision =
-    decideForPacket(packet, playedSan = ctx.playedSan, playedUci = ctx.playedMove)
+    decideForPacket(packet, Some(ctx))
 
   def decideForPacket(
       packet: PlayerFacingClaimPacket,
-      playedSan: Option[String],
-      playedUci: Option[String]
+      ctx: Option[NarrativeContext]
   ): Decision =
     packetBreakToken(packet)
-      .map(token => decideToken(token, playedSan, playedUci))
+      .map(token => decideToken(token, ctx))
       .getOrElse(Decision(None, Some(MissingNamedBreak)))
 
   def surfaceText(token: String): String =
@@ -351,13 +353,14 @@ private[commentary] object NeutralizeKeyBreakSurfaceGate:
       case PlayerFacingExactSliceProof.CounterplayAxisSuppression(breakToken) => breakToken
     }.flatMap(canonicalToken)
 
-  private def decideToken(
-      token: String,
-      playedSan: Option[String],
-      playedUci: Option[String]
-  ): Decision =
-    if playedMoveCollision(token, playedSan, playedUci) then Decision(None, Some(PlayedMoveCollision))
-    else Decision(Some(token), None)
+  private def decideToken(token: String, ctx: Option[NarrativeContext]): Decision =
+    singleSquareToken(token) match
+      case Some(square) =>
+        ctx.flatMap(legalPlayedTargetSquare) match
+          case Some(target) if target == square => Decision(None, Some(PlayedMoveCollision))
+          case Some(_)                         => Decision(Some(token), None)
+          case None                            => Decision(None, Some(PlayedMoveUnverified))
+      case None => Decision(Some(token), None)
 
   private def canonicalToken(raw: String): Option[String] =
     val lower = Option(raw).map(_.trim.toLowerCase).getOrElse("")
@@ -376,39 +379,21 @@ private[commentary] object NeutralizeKeyBreakSurfaceGate:
         s"${if hasEllipsis then "..." else ""}$core"
       }
 
-  private def playedMoveCollision(
-      token: String,
-      playedSan: Option[String],
-      playedUci: Option[String]
-  ): Boolean =
-    singleSquareToken(token).exists { square =>
-      playedTargetSquare(playedUci).contains(square) ||
-        playedSanTargetSquare(playedSan).contains(square)
-    }
-
   private def singleSquareToken(token: String): Option[String] =
     val core = token.stripPrefix("...")
     Option.when(core.matches("""[a-h][1-8]"""))(core)
 
-  private def playedTargetSquare(playedUci: Option[String]): Option[String] =
-    playedUci
-      .map(_.trim.toLowerCase)
-      .filter(_.matches("""[a-h][1-8][a-h][1-8][nbrq]?"""))
-      .map(_.slice(2, 4))
-
-  private def playedSanTargetSquare(playedSan: Option[String]): Option[String] =
-    playedSan
-      .map(_.trim.toLowerCase.replaceAll("[+#?!]+$", ""))
-      .flatMap { san =>
-        """([a-h][1-8])(?:=[nbrq])?$""".r.findFirstMatchIn(san).map(_.group(1))
-      }
+  private def legalPlayedTargetSquare(ctx: NarrativeContext): Option[String] =
+    for
+      position <- Fen.read(Standard, Fen.Full(ctx.fen))
+      uci <- ctx.playedMove.map(_.trim.toLowerCase).filter(_.nonEmpty)
+      move <- Uci(uci).collect { case move: Uci.Move => move }.flatMap(position.move(_).toOption)
+    yield move.dest.key
 
 private[commentary] object CentralBreakTimingSurfaceGate:
 
   val MissingExactWitness = "surface:central_break_exact_witness_missing"
   val MalformedBreakToken = "surface:central_break_token_malformed"
-  val DiagonalCapture = "surface:central_break_diagonal_capture"
-  val PrepOrChallenge = "surface:central_break_prep_or_challenge"
 
   final case class Decision(token: Option[String], rejectReason: Option[String]):
     def admitted: Boolean = token.nonEmpty && rejectReason.isEmpty
@@ -419,8 +404,6 @@ private[commentary] object CentralBreakTimingSurfaceGate:
       case Some(value) =>
         classifyRouteToken(value) match
           case RouteToken.Valid(canonical) => Decision(Some(canonical), None)
-          case RouteToken.DiagonalCapture  => Decision(None, Some(DiagonalCapture))
-          case RouteToken.PrepOrChallenge  => Decision(None, Some(PrepOrChallenge))
           case RouteToken.Malformed        => Decision(None, Some(MalformedBreakToken))
       case None =>
         Decision(None, Some(MissingExactWitness))
@@ -432,11 +415,7 @@ private[commentary] object CentralBreakTimingSurfaceGate:
 
   private enum RouteToken:
     case Valid(token: String)
-    case DiagonalCapture
-    case PrepOrChallenge
     case Malformed
-
-  private val CoreCentralDestinations = Set("d4", "e4", "d5", "e5")
 
   private def classifyRouteToken(raw: String): RouteToken =
     val lower = Option(raw).map(_.trim.toLowerCase).getOrElse("")
@@ -445,13 +424,7 @@ private[commentary] object CentralBreakTimingSurfaceGate:
     core.split("-", 2).toList match
       case from :: to :: Nil
           if from.matches("""[a-h][1-8]""") && to.matches("""[a-h][1-8]""") =>
-        if Set("d", "e").contains(from.take(1)) && Set("d", "e").contains(to.take(1)) && from.take(1) != to.take(1)
-        then RouteToken.DiagonalCapture
-        else if from.take(1) == to.take(1) && Set("d", "e").contains(from.take(1)) && CoreCentralDestinations.contains(to)
-        then RouteToken.Valid(s"${if hasEllipsis then "..." else ""}$from-$to")
-        else if from.take(1) == to.take(1) && Set("d", "e").contains(from.take(1)) && Set("d", "e").contains(to.take(1))
-        then RouteToken.PrepOrChallenge
-        else RouteToken.Malformed
+        RouteToken.Valid(s"${if hasEllipsis then "..." else ""}$from-$to")
       case _ => RouteToken.Malformed
 
 private[commentary] object MoveReviewSupportedLocalSurfaceRows:

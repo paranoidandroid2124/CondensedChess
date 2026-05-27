@@ -57,6 +57,7 @@ export type ProbeResult = {
   replyPvs?: string[][];
   deltaVsBaseline: number;
   keyMotifs: string[];
+  motifTags?: string[];
   purpose?: string;
   questionId?: string;
   questionKind?: string;

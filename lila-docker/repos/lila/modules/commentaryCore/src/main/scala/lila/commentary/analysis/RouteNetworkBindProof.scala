@@ -359,7 +359,7 @@ private[commentary] object RouteNetworkBindProof:
       val boundedContinuationVisible =
         sameBranchContinuityResults.exists(result =>
           result.futureSnapshot.exists(mentionsBoundedContinuation) ||
-            result.keyMotifs.exists(mentionsContinuation)
+            result.motifTags.exists(mentionsContinuation)
         )
       val sameDefendedBranch =
         directBestDefensePresent &&
@@ -1173,7 +1173,7 @@ private[commentary] object RouteNetworkBindProof:
         snapshot.planBlockersRemoved ++
         snapshot.targetsDelta.strategicAdded ++
         snapshot.targetsDelta.strategicRemoved
-    ) ++ result.keyMotifs ++ result.l1Delta.flatMap(_.collapseReason).toList
+    ) ++ result.motifTags ++ result.l1Delta.flatMap(_.collapseReason).toList
 
   private def distinctDefenderResources(
       results: List[ProbeResult]

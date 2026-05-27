@@ -610,7 +610,7 @@ object MoveReviewStrategicLedgerBuilder:
       motifKey: Option[String]
   ): Option[LineCandidate] =
     val alignedMotif =
-      motifKey.exists(key => result.keyMotifs.exists(m => normalize(m).contains(normalize(key))))
+      motifKey.exists(key => result.motifTags.exists(m => normalize(m).contains(normalize(key))))
     val likelySupport = result.deltaVsBaseline >= -40 || alignedMotif
     Option.when(likelySupport) {
       val noteBits = List(

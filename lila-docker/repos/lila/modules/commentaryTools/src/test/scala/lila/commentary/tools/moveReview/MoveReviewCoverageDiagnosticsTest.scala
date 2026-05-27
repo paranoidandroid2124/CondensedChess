@@ -88,6 +88,17 @@ final class MoveReviewCoverageDiagnosticsTest extends FunSuite:
       opening = Some(italianOpening)
     )
 
+  private def neutralizeCtx: NarrativeContext =
+    ctx(
+      fen = "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1",
+      playedMove = "e2e3",
+      playedSan = "e3",
+      phase = "Middlegame",
+      ply = 20,
+      phaseReason = "legal non-colliding move",
+      opening = None
+    )
+
   private def refsForLine(startFen: String, ucis: List[String], sans: List[String], lineId: String = "line_01"): MoveReviewRefs =
     val fens = ucis.indices.toList.map(idx => NarrativeUtils.uciListToFen(startFen, ucis.take(idx + 1)))
     MoveReviewRefs(
@@ -208,7 +219,8 @@ final class MoveReviewCoverageDiagnosticsTest extends FunSuite:
         persistence = PlayerFacingClaimPersistence.Stable,
         proofPathWitness = PlayerFacingProofPathWitness(
           ownerSeedTerms = List("b5"),
-          continuationTerms = List("a6")
+          continuationTerms = List("a6"),
+          exactSliceProof = Some(PlayerFacingExactSliceProof.CounterplayAxisSuppression("b5"))
         ),
         fallbackMode = PlayerFacingClaimFallbackMode.WeakMain
       )
@@ -218,7 +230,11 @@ final class MoveReviewCoverageDiagnosticsTest extends FunSuite:
         persistence = PlayerFacingClaimPersistence.Broken
       )
 
-    val diagnostic = MoveReviewCoverageDiagnostics.supportedLocalFromPackets(List(acceptedPacket, rejectedPacket))
+    val diagnostic =
+      MoveReviewCoverageDiagnostics.supportedLocalFromPackets(
+        packets = List(acceptedPacket, rejectedPacket),
+        ctx = Some(neutralizeCtx)
+      )
     val expectedFailures = ProofContractRules.failureCodes(rejectedPacket)
 
     assertEquals(diagnostic.candidateFamilies, List(acceptedFamily))
@@ -316,16 +332,22 @@ final class MoveReviewCoverageDiagnosticsTest extends FunSuite:
         persistence = PlayerFacingClaimPersistence.Stable,
         proofPathWitness = PlayerFacingProofPathWitness(
           ownerSeedTerms = List("neutralize_key_break", "g4"),
-          structureTransitionTerms = List("g4")
+          structureTransitionTerms = List("g4"),
+          exactSliceProof = Some(PlayerFacingExactSliceProof.CounterplayAxisSuppression("g4"))
         ),
         fallbackMode = PlayerFacingClaimFallbackMode.WeakMain
+      )
+    val ctx =
+      MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
+        fen = "2b1k3/8/8/8/8/8/8/4K3 b - - 0 1",
+        playedMove = Some("c8g4"),
+        playedSan = Some("Bg4")
       )
 
     val diagnostic =
       MoveReviewCoverageDiagnostics.supportedLocalFromPackets(
         packets = List(packet),
-        playedSan = Some("Bg4"),
-        playedUci = Some("c8g4")
+        ctx = Some(ctx)
       )
 
     assertEquals(diagnostic.candidateFamilies, List(family))

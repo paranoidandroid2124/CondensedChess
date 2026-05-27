@@ -75,7 +75,8 @@ case class ProbeResult(
   depthFloor: Option[Int] = None,
   variationHash: Option[String] = None,
   engineConfigFingerprint: Option[String] = None,
-  generatedAtEpochMs: Option[Long] = None
+  generatedAtEpochMs: Option[Long] = None,
+  motifTags: List[String] = Nil // Typed motif authority tags; keyMotifs remain display/diagnostic text.
 )
 
 object ProbeResult:
