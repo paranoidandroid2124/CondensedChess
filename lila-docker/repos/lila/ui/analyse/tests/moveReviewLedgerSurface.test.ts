@@ -2,7 +2,6 @@ import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   moveReviewLedgerRootAttrs,
-  renderMoveReviewLedgerProbeRows,
   renderMoveReviewLedgerSignalRows,
 } from '../src/moveReview/ledgerSurface';
 import type { MoveReviewStrategicLedgerV1 } from '../src/moveReview/responsePayload';
@@ -43,19 +42,6 @@ describe('moveReview ledger surface', () => {
     assert.match(rows, /Carry-over:/);
     assert.match(rows, /Prereqs:/);
     assert.match(rows, /Conversion:/);
-  });
-
-  test('renders compact probe rows with interactive move chips', () => {
-    const rows = renderMoveReviewLedgerProbeRows(sampleLedger, san => {
-      if (san === 'Rh3') return { refId: 'r1', san: 'Rh3', uci: 'h1h3' };
-      if (san === 'Rg3') return { refId: 'r2', san: 'Rg3', uci: 'h3g3' };
-      return null;
-    }).join('');
-
-    assert.match(rows, /Plan line:/);
-    assert.match(rows, /Counter-resource:/);
-    assert.match(rows, /data-ref-id="r1"/);
-    assert.match(rows, /move-chip--interactive/);
   });
 
   test('exports root observability attrs from the ledger', () => {

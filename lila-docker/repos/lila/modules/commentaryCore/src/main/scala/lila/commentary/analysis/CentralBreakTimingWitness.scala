@@ -12,6 +12,10 @@ private[commentary] object CentralBreakTimingWitness:
     case BoardBacked
     case PlanOnly
 
+  enum PracticalKind:
+    case Liquidation
+    case Challenge
+
   object Failure:
     val NoPv = "central_break_timing:no_pv"
     val PvGapTooSmall = "central_break_timing:pv_gap_below_40"
@@ -39,6 +43,8 @@ private[commentary] object CentralBreakTimingWitness:
       reviewOnly: List[Witness],
       failureCodes: List[String]
   )
+
+  final case class PracticalMove(kind: PracticalKind, token: String)
 
   val ProofSource: String = PlanTaxonomy.PlanKind.CentralBreakTiming.id
   val ProofFamily: String = PlanTaxonomy.PlanKind.CentralBreakTiming.id
@@ -98,6 +104,18 @@ private[commentary] object CentralBreakTimingWitness:
   def candidate(ctx: NarrativeContext): Option[Witness] =
     val diagnosis = diagnose(ctx)
     diagnosis.releasable.orElse(diagnosis.reviewOnly.headOption)
+
+  def practical(ctx: NarrativeContext): Option[PracticalMove] =
+    for
+      position <- Fen.read(Standard, Fen.Full(ctx.fen))
+      uci <- ctx.playedMove.map(normalizeUci).filter(isUci)
+      move <- legalMove(position, uci)
+      failure <- rejectedCentralBreakShape(move, position.color)
+    yield
+      val kind =
+        if failure == Failure.DiagonalCapture then PracticalKind.Liquidation
+        else PracticalKind.Challenge
+      PracticalMove(kind, breakTokenFor(position.color, move))
 
   def anchorTerms(ctx: NarrativeContext): List[String] =
     exact(ctx).toList.flatMap(_.ownerSeedTerms).distinct

@@ -54,6 +54,11 @@ export function compute(ctrl: AnalyseCtrl): DrawShape[] {
   if (hovering?.fen === nFen) shapes = shapes.concat(makeShapesFromUci(color, hovering.uci, 'paleBlue'));
   ctrl.fork.hover(hovering?.uci);
 
+  const moveReviewHoverSquare = (ctrl as { moveReviewHoverSquare?: Key | null }).moveReviewHoverSquare;
+  if (moveReviewHoverSquare && /^[a-h][1-8]$/.test(moveReviewHoverSquare)) {
+    shapes.push({ orig: moveReviewHoverSquare, brush: 'paleBlue' });
+  }
+
   if (ctrl.showBestMoveArrows() && ctrl.showAnalysis()) {
     if (isUci(nEval.best)) shapes = shapes.concat(makeShapesFromUci(rcolor, nEval.best, 'paleGreen'));
     if (!hovering && ctrl.ceval.search.multiPv) {

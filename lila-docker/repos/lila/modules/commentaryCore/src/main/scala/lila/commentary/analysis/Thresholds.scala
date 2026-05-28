@@ -36,12 +36,25 @@ object Thresholds:
   
   /** lossIfIgnoredCp >= MINOR_THREAT → threshold for opponent opportunities */
   val MINOR_THREAT_CP = 50
+
+  /** WinPercent difference thresholds */
+  val BLUNDER_WP = 20.0
+  val MISTAKE_WP = 10.0
+  val INACCURACY_WP = 5.0
+  val CATASTROPHIC_WP = 25.0
   
   /** Classify severity from cpLoss */
   def classifySeverity(cpLoss: Int): String =
     if cpLoss >= BLUNDER_CP then "blunder"
     else if cpLoss >= MISTAKE_CP then "mistake"
     else if cpLoss >= INACCURACY_CP then "inaccuracy"
+    else "ok"
+
+  /** Classify severity from WinPercent difference (pp drop) */
+  def classifySeverity(winDiff: Double): String =
+    if winDiff >= BLUNDER_WP then "blunder"
+    else if winDiff >= MISTAKE_WP then "mistake"
+    else if winDiff >= INACCURACY_WP then "inaccuracy"
     else "ok"
   
   /** Get NAG annotation mark from cpLoss */

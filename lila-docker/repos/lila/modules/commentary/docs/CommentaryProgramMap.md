@@ -45,9 +45,6 @@ Current authority is internal and MoveReview-first:
 - `FragmentAuthority` decides renderer release safety.
 - `CommentaryApi` and frontend code consume typed payloads only.
 
-`ClaimAuthorityPolicy` remains as a compatibility facade to reduce call-site
-churn during the redesign.
-
 ## Active Frontier
 
 Open for maintenance:

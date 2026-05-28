@@ -1,5 +1,7 @@
 package lila.commentary.analysis
 
+import java.nio.file.{ Files, Paths }
+
 import lila.commentary.analysis.claim.OpeningFamilyClaimResolver.OpeningFamilyId
 import munit.FunSuite
 
@@ -181,4 +183,17 @@ class NarrativeLexiconTest extends FunSuite:
 
     assert(text.contains("Sicilian structure"), clue(text))
     assert(!text.contains("c5 pawn or traded c-pawn"), clue(text))
+  }
+
+  test("motif prefix selection is table-driven rather than an else-if chain") {
+    val source =
+      Files.readString(Paths.get("modules/commentaryCore/src/main/scala/lila/commentary/analysis/NarrativeLexicon.scala"))
+    val methodBody = source.substring(source.indexOf("def getMotifPrefix"), source.indexOf("def getThreatStatement"))
+    val tableSource =
+      Files.readString(Paths.get("modules/commentaryCore/src/main/scala/lila/commentary/analysis/NarrativeMotifPrefixTable.scala"))
+
+    assert(methodBody.contains("NarrativeMotifPrefixTable.templatesFor"), clue(methodBody))
+    assert(!methodBody.contains("MotifPrefixRule"), clue(methodBody))
+    assert(!methodBody.contains("else if (hasAny"), clue(methodBody))
+    assert(tableSource.contains("MotifPrefixRule"), clue(tableSource))
   }

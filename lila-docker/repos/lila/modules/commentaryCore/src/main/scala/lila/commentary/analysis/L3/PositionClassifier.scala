@@ -107,8 +107,8 @@ object PositionClassifier:
         pv1Eval = multiPv.headOption.map(_.score).getOrElse(0),
         pv2Eval = 0,
         pv3Eval = None,
-        gapPv1ToPv2 = 0,
-        spreadTop3 = 0,
+        gapPv1ToPv2 = 0.0,
+        spreadTop3 = 0.0,
         pv2FailureMode = Some("insufficient_data")
       )
 
@@ -116,19 +116,22 @@ object PositionClassifier:
     val pv2Eval = multiPv(1).score
     val pv3Eval = multiPv.lift(2).map(_.score)
 
-    val gapPv1ToPv2 = (pv1Eval - pv2Eval).abs
-    val spreadTop3 = pv3Eval.map(pv3 => (pv1Eval - pv3).abs).getOrElse(gapPv1ToPv2)
-    // At extreme evals (|eval| > 500), 100cp gap is less significant
-    val evalMagnitude = pv1Eval.abs
-    val onlyMoveThreshold = if evalMagnitude > 500 then 150 else 100
-    val styleChoiceThreshold = if evalMagnitude > 300 then 50 else 30
+    val pv1Wp = lila.commentary.analysis.DecisiveTruth.winPercentFromCp(pv1Eval)
+    val pv2Wp = lila.commentary.analysis.DecisiveTruth.winPercentFromCp(pv2Eval)
+    val pv3Wp = pv3Eval.map(lila.commentary.analysis.DecisiveTruth.winPercentFromCp)
+
+    val gapPv1ToPv2 = (pv1Wp - pv2Wp).abs
+    val spreadTop3 = pv3Wp.map(pv3 => (pv1Wp - pv3).abs).getOrElse(gapPv1ToPv2)
+
+    val onlyMoveThreshold = 10.0
+    val styleChoiceThreshold = 3.0
 
     // Determine failure mode for PV2 if OnlyMove
     val pv2FailureMode: Option[String] =
-      if gapPv1ToPv2 > onlyMoveThreshold then Some(categorizeFailure(gapPv1ToPv2, pv2Eval))
+      if gapPv1ToPv2 > onlyMoveThreshold then Some(categorizeFailure(gapPv1ToPv2, pv2Wp))
       else None
 
-    // Decision logic with scaled thresholds
+    // Decision logic with WinPercent thresholds
     val topologyType =
       if gapPv1ToPv2 > onlyMoveThreshold then
         ChoiceTopologyType.OnlyMove
@@ -147,10 +150,10 @@ object PositionClassifier:
       pv2FailureMode = pv2FailureMode
     )
 
-  private def categorizeFailure(gap: Int, pv2Eval: Int): String =
-    if gap > 500 then "decisive_blunder"
-    else if gap > 300 then "loses_material"
-    else if pv2Eval < -200 then "position_collapses"
+  private def categorizeFailure(gapWp: Double, pv2Wp: Double): String =
+    if gapWp > 35.0 then "decisive_blunder"
+    else if gapWp > 20.0 then "loses_material"
+    else if pv2Wp < 32.0 then "position_collapses"
     else "significant_disadvantage"
   // 4. GAME PHASE CLASSIFICATION
 

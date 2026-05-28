@@ -33,6 +33,7 @@ private[commentary] enum PlayerFacingClaimStabilityGrade:
 
 private[commentary] enum PlayerFacingClaimProvenanceClass:
   case ProbeBacked
+  case TranspositionAligned
   case StructuralOnly
   case PvCoupled
   case Deferred

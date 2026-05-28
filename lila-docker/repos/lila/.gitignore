@@ -78,4 +78,7 @@ a11_*.txt
 a12_*.txt
 compile*.txt
 fen_*.txt
-/modules/llm/tmp/
+/modules/commentary/tmp/
+/modules/commentaryCore/tmp/
+/modules/commentaryTools/tmp/
+/modules/commentaryAi/tmp/

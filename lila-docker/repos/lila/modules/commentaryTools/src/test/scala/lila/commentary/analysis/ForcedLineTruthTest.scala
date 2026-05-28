@@ -1,5 +1,7 @@
 package lila.commentary.analysis
 
+import java.nio.file.{ Files, Paths }
+
 import lila.commentary.model.strategic.{ VariationLine, VariationTag }
 import munit.FunSuite
 
@@ -52,6 +54,22 @@ class ForcedLineTruthTest extends FunSuite:
     )
   }
 
+  test("greek gift recognizes Bxh7+ when support appears only through PV replay") {
+    val fen = "6k1/7p/8/8/8/3B1N2/8/3QK3 w - - 0 1"
+    val greekGiftPv =
+      VariationLine(
+        moves = List("d3h7", "g8h7", "f3g5", "h7g8", "d1h5"),
+        scoreCp = 120,
+        depth = 18,
+        tags = List(VariationTag.Forced)
+      )
+
+    assertEquals(
+      ForcedLineTruth.detect(fen, "d3h7", ply = 1, variations = List(greekGiftPv)).map(_.id),
+      Some("greek_gift")
+    )
+  }
+
   test("greek gift does not recognize a queen check on h7") {
     val fen = "6k1/6pp/8/8/8/3Q4/8/4K3 w - - 0 1"
 
@@ -83,4 +101,13 @@ class ForcedLineTruthTest extends FunSuite:
         ForcedLineTruth.ExpectedResult.WinMaterial
       )
     )
+  }
+
+  test("pattern detection is delegated to tactical detector implementations") {
+    val source =
+      Files.readString(Paths.get("modules/commentaryCore/src/main/scala/lila/commentary/analysis/ForcedLineTruth.scala"))
+
+    assert(source.contains("TacticalPatternDetectors"), clue(source))
+    assert(!source.contains("private def isSmotheredMate"), clue(source))
+    assert(!source.contains("private def isAnastasiaMate"), clue(source))
   }

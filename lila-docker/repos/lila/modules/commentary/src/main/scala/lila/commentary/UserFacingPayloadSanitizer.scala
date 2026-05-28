@@ -1,12 +1,17 @@
 package lila.commentary
 
-import lila.commentary.analysis.PlanEvidenceEvaluator.{ EvaluatedPlan, UserFacingPlanEligibility }
+import lila.commentary.analysis.PlanEvidenceEvaluator
+import lila.commentary.analysis.PlanEvidenceEvaluator.EvaluatedPlan
+import lila.commentary.analysis.OpeningFamilyCatalog
 import lila.commentary.analysis.UserFacingSignalSanitizer
 import lila.commentary.model.StrategicPlanExperiment
 import lila.commentary.model.authoring.PlanHypothesis
 import lila.strategicPuzzle.StrategicPuzzle.*
 
 object UserFacingPayloadSanitizer:
+
+  private val MoveReviewLedgerSchema = "chesstory.move_review.ledger.v1"
+  private val MoveReviewLedgerLineSources = Set("probe", "decision_compare", "variation", "authoring")
 
   def sanitize(response: CommentResponse): CommentResponse =
     sanitize(response, admittedPlans = Nil)
@@ -35,7 +40,7 @@ object UserFacingPayloadSanitizer:
   ): CommentResponse =
     val admittedPlanKeys =
       previouslyAdmittedPlanKeys ++ admittedPlans
-        .filter(isTypedProbeBackedPlan)
+        .filter(PlanEvidenceEvaluator.isMainAdmittedPlan)
         .map(plan => planKey(plan.hypothesis))
         .toSet
     val sanitizedPlans =
@@ -59,7 +64,7 @@ object UserFacingPayloadSanitizer:
       planStateToken = response.planStateToken.filter(_ => sanitizedPlans.nonEmpty),
       strategyPack = response.strategyPack.flatMap(pack => sanitizeStrategyPack(pack, allowedPlanNames)),
       signalDigest = response.signalDigest.map(sanitizeSignalDigest),
-      moveReviewLedger = response.moveReviewLedger.filter(_ => sanitizedPlans.nonEmpty).map(sanitizeMoveReviewLedger),
+      moveReviewLedger = response.moveReviewLedger.filter(_ => sanitizedPlans.nonEmpty).flatMap(sanitizeMoveReviewLedger),
       moveReviewExplanation = response.moveReviewExplanation.map(sanitizeMoveReviewExplanation),
       moveReviewPlayerSurface = response.moveReviewPlayerSurface.map(sanitizeMoveReviewPlayerSurface)
     )
@@ -180,22 +185,41 @@ object UserFacingPayloadSanitizer:
       evidence = None
     )
 
-  private def sanitizeMoveReviewLedger(ledger: MoveReviewStrategicLedger): MoveReviewStrategicLedger =
-    ledger.copy(
-      motifLabel = clean(ledger.motifLabel),
-      stageLabel = clean(ledger.stageLabel),
-      stageReason = cleanOpt(ledger.stageReason),
-      prerequisites = cleanList(ledger.prerequisites),
-      conversionTrigger = cleanOpt(ledger.conversionTrigger),
-      primaryLine = ledger.primaryLine.map(sanitizeLedgerLine),
-      resourceLine = ledger.resourceLine.map(sanitizeLedgerLine)
-    )
+  private def sanitizeMoveReviewLedger(ledger: MoveReviewStrategicLedger): Option[MoveReviewStrategicLedger] =
+    val motifKey = clean(ledger.motifKey)
+    val stageKey = clean(ledger.stageKey)
+    for
+      _ <- Option.when(ledger.schema == MoveReviewLedgerSchema)(())
+      _ <- Option.when(validSurfaceAuthorityKey(motifKey) && validSurfaceAuthorityKey(stageKey))(())
+      motifLabel <- cleanOpt(Some(ledger.motifLabel))
+      stageLabel <- cleanOpt(Some(ledger.stageLabel))
+    yield
+      ledger.copy(
+        schema = MoveReviewLedgerSchema,
+        motifKey = motifKey,
+        motifLabel = motifLabel,
+        stageKey = stageKey,
+        stageLabel = stageLabel,
+        stageReason = cleanOpt(ledger.stageReason),
+        prerequisites = cleanList(ledger.prerequisites),
+        conversionTrigger = cleanOpt(ledger.conversionTrigger),
+        primaryLine = ledger.primaryLine.flatMap(sanitizeLedgerLine),
+        resourceLine = ledger.resourceLine.flatMap(sanitizeLedgerLine)
+      )
 
-  private def sanitizeLedgerLine(line: MoveReviewLedgerLine): MoveReviewLedgerLine =
-    line.copy(
-      title = clean(line.title),
-      note = cleanOpt(line.note)
-    )
+  private def sanitizeLedgerLine(line: MoveReviewLedgerLine): Option[MoveReviewLedgerLine] =
+    val source = clean(line.source)
+    val sanMoves = cleanList(line.sanMoves)
+    for
+      title <- cleanOpt(Some(line.title))
+      _ <- Option.when(MoveReviewLedgerLineSources.contains(source) && sanMoves.nonEmpty)(())
+    yield
+      line.copy(
+        title = title,
+        sanMoves = sanMoves,
+        note = cleanOpt(line.note),
+        source = source
+      )
 
   private def sanitizeMoveReviewExplanation(explanation: MoveReviewExplanation): MoveReviewExplanation =
     explanation.copy(
@@ -205,7 +229,8 @@ object UserFacingPayloadSanitizer:
       reasonTags = cleanList(explanation.reasonTags),
       shortLine = explanation.shortLine.map(sanitizeMoveReviewShortLine),
       pvInterpretation = explanation.pvInterpretation.map(sanitizeMoveReviewPvInterpretation),
-      source = clean(explanation.source)
+      source = clean(explanation.source),
+      factFragments = None
     )
 
   private def sanitizeMoveReviewShortLine(line: MoveReviewShortLine): MoveReviewShortLine =
@@ -258,20 +283,37 @@ object UserFacingPayloadSanitizer:
   ): Option[MoveReviewSurfaceAuthority] =
     authority.flatMap { raw =>
       val kind = clean(raw.kind)
+      val openingFamily = cleanOpt(raw.openingFamily).filter(validSurfaceAuthorityKey)
+      val target = cleanOpt(raw.target).filter(validSurfaceAuthorityTarget)
       val sanitized =
         MoveReviewSurfaceAuthority(
           kind = kind,
           token = cleanOpt(raw.token).filter(validSurfaceAuthorityToken),
-          openingFamily = cleanOpt(raw.openingFamily).filter(validSurfaceAuthorityKey),
-          target = cleanOpt(raw.target).filter(validSurfaceAuthorityTarget)
+          openingFamily = openingFamily,
+          target =
+            if kind == MoveReviewSurfaceAuthority.OpeningFamily then
+              target.filter(square => openingFamily.exists(family => openingTargetAllowed(family, square)))
+            else target
         )
       Option.when(validSurfaceAuthority(sanitized))(sanitized)
     }
 
   private def validSurfaceAuthority(authority: MoveReviewSurfaceAuthority): Boolean =
     authority.kind match
-      case MoveReviewSurfaceAuthority.CounterplayBreak | MoveReviewSurfaceAuthority.CentralBreak =>
+      case MoveReviewSurfaceAuthority.CounterplayBreak =>
         authority.token.nonEmpty &&
+          authority.openingFamily.isEmpty &&
+          authority.target.isEmpty
+      case MoveReviewSurfaceAuthority.CentralBreak =>
+        authority.token.exists(validSurfaceAuthorityRouteToken) &&
+          authority.openingFamily.isEmpty &&
+          authority.target.isEmpty
+      case MoveReviewSurfaceAuthority.CentralLiquidation | MoveReviewSurfaceAuthority.CentralChallenge =>
+        authority.token.exists(validSurfaceAuthorityRouteToken) &&
+          authority.openingFamily.isEmpty &&
+          authority.target.isEmpty
+      case MoveReviewSurfaceAuthority.PracticalPlan =>
+        authority.token.isEmpty &&
           authority.openingFamily.isEmpty &&
           authority.target.isEmpty
       case MoveReviewSurfaceAuthority.OpeningFamily =>
@@ -283,11 +325,17 @@ object UserFacingPayloadSanitizer:
   private def validSurfaceAuthorityToken(token: String): Boolean =
     token.matches("""(?:\.\.\.)?[a-h][1-8](?:-[a-h][1-8])?""")
 
+  private def validSurfaceAuthorityRouteToken(token: String): Boolean =
+    token.matches("""(?:\.\.\.)?[a-h][1-8]-[a-h][1-8]""")
+
   private def validSurfaceAuthorityKey(key: String): Boolean =
     key.matches("""[a-z][a-z0-9_]{1,40}""")
 
   private def validSurfaceAuthorityTarget(target: String): Boolean =
     target.matches("""[a-h][1-8]""")
+
+  private def openingTargetAllowed(openingFamily: String, target: String): Boolean =
+    OpeningFamilyCatalog.default.targetAllowed(openingFamily, target)
 
   private def sanitizeMoveReviewPlayerDecisionComparison(
       comparison: MoveReviewPlayerDecisionComparison
@@ -299,8 +347,28 @@ object UserFacingPayloadSanitizer:
       engineSan = cleanOpt(comparison.engineSan),
       comparedSan = cleanOpt(comparison.comparedSan),
       deferredSan = None,
-      secondaryText = cleanOpt(comparison.secondaryText)
+      secondaryText = cleanOpt(comparison.secondaryText),
+      targetComparison = sanitizeMoveReviewDecisionTargetComparison(comparison.targetComparison)
     )
+
+  private def sanitizeMoveReviewDecisionTargetComparison(
+      comparison: Option[MoveReviewDecisionTargetComparison]
+  ): Option[MoveReviewDecisionTargetComparison] =
+    comparison.flatMap { raw =>
+      val sanitized =
+        MoveReviewDecisionTargetComparison(
+          chosenTarget = clean(raw.chosenTarget),
+          chosenTargetKind = clean(raw.chosenTargetKind),
+          bestTarget = clean(raw.bestTarget),
+          bestTargetKind = clean(raw.bestTargetKind)
+        )
+      Option.when(
+        validSurfaceAuthorityTarget(sanitized.chosenTarget) &&
+          validSurfaceAuthorityTarget(sanitized.bestTarget) &&
+          validSurfaceAuthorityKey(sanitized.chosenTargetKind) &&
+          validSurfaceAuthorityKey(sanitized.bestTargetKind)
+      )(sanitized)
+    }
 
   private def sanitizeMoveReviewPlayerAuthorRow(
       row: MoveReviewPlayerAuthorRow
@@ -317,10 +385,6 @@ object UserFacingPayloadSanitizer:
       meta = Nil,
       branches = row.branches.flatMap(sanitizeMoveReviewPlayerSurfaceRow)
     )
-
-  private def isTypedProbeBackedPlan(plan: EvaluatedPlan): Boolean =
-    plan.userFacingEligibility == UserFacingPlanEligibility.ProbeBacked &&
-      plan.supportProbeIds.exists(_.trim.nonEmpty)
 
   private def cachedMoveReviewPlanKeys(response: CommentResponse): Set[String] =
     if response.moveReviewPlayerSurface.nonEmpty &&

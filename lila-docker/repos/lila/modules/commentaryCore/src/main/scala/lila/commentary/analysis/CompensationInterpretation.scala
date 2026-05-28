@@ -2,8 +2,8 @@ package lila.commentary.analysis
 
 import lila.commentary.model.{ CompensationInfo, ExtendedAnalysisData, NarrativeContext }
 import lila.commentary.model.strategic.Compensation
+import lila.commentary.analysis.structure.PawnStructureTargets
 import chess.format.Fen
-import chess.{ Board, Color, Pawn, Square }
 import chess.variant.Standard
 
 private[commentary] object CompensationInterpretation:
@@ -333,8 +333,8 @@ private[commentary] object CompensationInterpretation:
       val board = sit.board
       val color = sit.color
       val mentionedSquares = squareMentions(text)
-      val carlsbadTarget = carlsbadTargetSquare(board, color)
-      val weakTargets = weakPawnTargets(board, color)
+      val carlsbadTarget = PawnStructureTargets.carlsbadTargetForBoard(board, color).map(_.targetSquare)
+      val weakTargets = PawnStructureTargets.weakPawnTargetsForPressure(board, color)
       val explicitlyMentionedWeakTarget = mentionedSquares.exists(weakTargets.contains)
       val namedSingleWeakPawn =
         weakTargets.size == 1 &&
@@ -348,51 +348,6 @@ private[commentary] object CompensationInterpretation:
           namedSingleWeakPawn
       )
     }.getOrElse(false)
-
-  private def carlsbadTargetSquare(board: Board, sideToMove: Color): Option[String] =
-    if sideToMove.white then
-      Option.when(
-        boardHasEnemyPawn(board, sideToMove, "c6") &&
-          boardHasEnemyPawn(board, sideToMove, "d5") &&
-          boardHasFriendlyPawn(board, sideToMove, "b2") &&
-          boardHasFriendlyPawn(board, sideToMove, "d4")
-      )("c6")
-    else
-      Option.when(
-        boardHasEnemyPawn(board, sideToMove, "c3") &&
-          boardHasEnemyPawn(board, sideToMove, "d4") &&
-          boardHasFriendlyPawn(board, sideToMove, "b7") &&
-          boardHasFriendlyPawn(board, sideToMove, "d5")
-      )("c3")
-
-  private def boardHasEnemyPawn(board: Board, sideToMove: Color, squareKey: String): Boolean =
-    Square.all.find(_.key == squareKey).flatMap(board.pieceAt).exists(piece => piece.color != sideToMove && piece.role == Pawn)
-
-  private def boardHasFriendlyPawn(board: Board, sideToMove: Color, squareKey: String): Boolean =
-    Square.all.find(_.key == squareKey).flatMap(board.pieceAt).exists(piece => piece.color == sideToMove && piece.role == Pawn)
-
-  private def weakPawnTargets(board: Board, sideToMove: Color): Set[String] =
-    val enemyPawns = Square.all.filter { sq =>
-      board.pieceAt(sq).exists(piece => piece.color != sideToMove && piece.role == Pawn)
-    }
-    val isolatedPawns = enemyPawns.filter { sq =>
-      val file = sq.file.value
-      val adjacentFiles = List(file - 1, file + 1).filter(f => f >= 0 && f < 8)
-      val hasAdjacentPawns = Square.all.exists { otherSq =>
-        board.pieceAt(otherSq).exists(piece => piece.color != sideToMove && piece.role == Pawn) &&
-        adjacentFiles.contains(otherSq.file.value)
-      }
-      !hasAdjacentPawns
-    }
-    val benoniD6 =
-      Option.when(
-        sideToMove.white &&
-          boardHasEnemyPawn(board, sideToMove, "d6") &&
-          boardHasFriendlyPawn(board, sideToMove, "d5") &&
-          boardHasEnemyPawn(board, sideToMove, "c5")
-      )("d6")
-
-    (isolatedPawns.map(_.key) ++ benoniD6.toList).toSet
 
   private def squareMentions(text: String): Set[String] =
     """\b[a-h][1-8]\b""".r.findAllIn(text).toSet

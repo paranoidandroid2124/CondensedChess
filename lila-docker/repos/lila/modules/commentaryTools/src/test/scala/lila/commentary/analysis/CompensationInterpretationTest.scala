@@ -204,3 +204,51 @@ class CompensationInterpretationTest extends FunSuite:
     assert(decision.durableStructuralPressure)
     assertEquals(decision.persistenceClass, "durable_pressure")
   }
+
+  test("target-fixing compensation uses shared pawn targets for advanced Carlsbad and Benoni shapes") {
+    val cases =
+      List(
+        "4k3/8/2p5/3p4/1P1P4/8/8/4K3 w - - 0 1" -> "fixed queenside targets",
+        "4k3/8/2p5/1P1p4/3P4/8/8/4K3 w - - 0 1" -> "fixed queenside targets",
+        "4k3/8/3p4/2pP4/8/8/8/4K3 w - - 0 1" -> "fixed pawn target on d6",
+        "4k3/8/8/2n5/2pp4/3P4/8/4K3 b - - 0 1" -> "fixed pawn target on d3"
+      )
+
+    cases.foreach { case (fen, plan) =>
+      val ctx =
+        baseContext(playedMove = None, playedSan = None).copy(
+          fen = fen,
+          semantic = Some(
+            SemanticSection(
+              structuralWeaknesses = Nil,
+              pieceActivity = Nil,
+              positionalFeatures = Nil,
+              compensation =
+                Some(compensationInfo(100, Map("Fixed Targets" -> 0.7), plan)),
+              endgameFeatures = None,
+              practicalAssessment = None,
+              preventedPlans = Nil,
+              conceptSummary = Nil
+            )
+          )
+        )
+
+      val decision = CompensationInterpretation.currentSemanticDecision(ctx).getOrElse(fail("missing decision")).decision
+      assert(decision.accepted, clue(fen))
+      assert(decision.durableStructuralPressure, clue(fen))
+      assertEquals(decision.persistenceClass, "durable_pressure", clue(fen))
+    }
+  }
+
+  test("CompensationInterpretation does not keep local Carlsbad or Benoni board-condition copies") {
+    val source =
+      java.nio.file.Files.readString(
+        java.nio.file.Paths.get(
+          "modules/commentaryCore/src/main/scala/lila/commentary/analysis/CompensationInterpretation.scala"
+        )
+      )
+
+    assert(source.contains("PawnStructureTargets"), clue(source))
+    assert(!source.contains("private def carlsbadTargetSquare"), clue(source))
+    assert(!source.contains("val benoniD6"), clue(source))
+  }

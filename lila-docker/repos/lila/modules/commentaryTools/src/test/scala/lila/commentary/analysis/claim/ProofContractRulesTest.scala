@@ -294,6 +294,34 @@ class ProofContractRulesTest extends FunSuite:
     assert(ProofContractRules.certifiedOwnerAdmissible(typed), clues(ProofContractRules.failureCodes(typed)))
   }
 
+  test("exact-slice proof facts own typed source family and shape matching") {
+    val centralProof =
+      PlayerFacingExactSliceProof.CentralBreakTiming("e2e4", "e4", "e2-e4")
+    val centralPacket =
+      exactSliceContractPacket(
+        proofSource = PlanTaxonomy.PlanKind.CentralBreakTiming.id,
+        proofFamily = PlanTaxonomy.PlanKind.CentralBreakTiming.id,
+        scope = PlayerFacingPacketScope.MoveLocal,
+        proof = Some(centralProof)
+      )
+    val wrongFamily =
+      centralPacket.copy(proofFamily = ProofFamilyId.NeutralizeKeyBreak.wireKey)
+
+    assert(PlayerFacingExactSliceProofFacts.matchesPacket(centralPacket, centralProof), clues(centralPacket))
+    assert(!PlayerFacingExactSliceProofFacts.matchesPacket(wrongFamily, centralProof), clues(wrongFamily))
+    assert(PlayerFacingExactSliceProofFacts.validShape(centralProof))
+    assert(
+      !PlayerFacingExactSliceProofFacts.validShape(
+        PlayerFacingExactSliceProof.CentralBreakTiming("e2e4", "e5", "e2-e4")
+      )
+    )
+    assertEquals(
+      PlayerFacingExactSliceProofFacts.targetSquare(PlayerFacingExactSliceProof.ExactTargetFixation("D6")),
+      Some("d6")
+    )
+    assertEquals(PlayerFacingExactSliceProofFacts.targetSquare(centralProof), None)
+  }
+
   test("carlsbad fixed-target probe fails closed without matching typed proof") {
     val base =
       exactSliceContractPacket(

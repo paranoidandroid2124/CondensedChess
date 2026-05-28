@@ -1,5 +1,8 @@
 package lila.commentary.analysis
 
+import java.nio.file.{ Files, Paths }
+
+import chess.format.Fen
 import munit.FunSuite
 import lila.commentary.{ DirectionalTargetReadiness, GameChronicleMoment, NarrativeSignalDigest, RouteSurfaceMode, StrategicIdeaGroup, StrategicIdeaKind, StrategicIdeaReadiness, StrategyDirectionalTarget, StrategyIdeaSignal, StrategyPack, StrategyPieceMoveRef, StrategyPieceRoute }
 import lila.commentary.model.*
@@ -25,6 +28,9 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       candidates = Nil,
       renderMode = NarrativeRenderMode.MoveReview
     )
+
+  private def position(fen: String): _root_.chess.Position =
+    Fen.read(_root_.chess.variant.Standard, Fen.Full(fen)).getOrElse(fail(s"invalid FEN: $fen"))
 
   private def truthContract(
       truthClass: DecisiveTruthClass,
@@ -2629,6 +2635,259 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
 
     val bundle = MainPathMoveDeltaClaimBuilder.build(ctx, pack, None)
     assertEquals(bundle.flatMap(_.mainClaim).map(_.claimText), Some("This keeps the pressure fixed on d6."))
+  }
+
+  test("catalog route target fixation admits reversed Benoni and King's Indian descriptors without source changes") {
+    def ctxFor(
+        fen: String,
+        playedMove: String,
+        target: String,
+        pvMoves: List[String],
+        planName: String
+    ): NarrativeContext =
+      baseCtx().copy(
+        fen = fen,
+        playedMove = Some(playedMove),
+        playedSan = Some("Nd7"),
+        mainStrategicPlans =
+          List(
+            evidenceBackedPlan(
+              planId = s"route_target_$target",
+              planName = planName,
+              subplanId = PlanTaxonomy.PlanKind.StaticWeaknessFixation.id,
+              executionSteps = List(s"Use the knight route to keep $target fixed."),
+              themeL1 = PlanTaxonomy.PlanTheme.WeaknessFixation.id
+            )
+          ),
+        strategicPlanExperiments =
+          List(
+            evidenceBackedExperiment(
+              planId = s"route_target_$target",
+              subplanId = PlanTaxonomy.PlanKind.StaticWeaknessFixation.id,
+              themeL1 = PlanTaxonomy.PlanTheme.WeaknessFixation.id
+            )
+          ),
+        decision = Some(
+          DecisionRationale(
+            focalPoint = Some(TargetSquare(target)),
+            logicSummary = s"The route keeps $target fixed.",
+            delta = PVDelta(
+              resolvedThreats = Nil,
+              newOpportunities = List(s"pressure on $target"),
+              planAdvancements = List(s"route pressure on $target"),
+              concessions = Nil
+            ),
+            confidence = ConfidenceLevel.Probe
+          )
+        ),
+        engineEvidence = Some(
+          EngineEvidence(
+            depth = 18,
+            variations = List(
+              VariationLine(
+                moves = pvMoves,
+                scoreCp = 40,
+                depth = 18
+              )
+            )
+          )
+        )
+      ).withTypedEvidenceFromLegacy
+
+    def pack(target: String) =
+      Some(
+        StrategyPack(
+          sideToMove = "black",
+          directionalTargets = List(
+            StrategyDirectionalTarget(
+              targetId = s"target_$target",
+              ownerSide = "black",
+              piece = "N",
+              from = "f6",
+              targetSquare = target,
+              readiness = DirectionalTargetReadiness.Build,
+              strategicReasons = List(s"route pressure on $target"),
+              evidence = List("probe")
+            )
+          ),
+          signalDigest = Some(NarrativeSignalDigest(decision = Some(s"route pressure on $target")))
+        )
+      )
+
+    val reversedBenoni =
+      PlayerFacingTruthModePolicy
+        .mainPathMoveDeltaEvidence(
+          ctxFor(
+            fen = "4k3/8/5n2/8/2pp4/3P4/8/4K3 b - - 0 1",
+            playedMove = "f6d7",
+            target = "d3",
+            pvMoves = List("f6d7", "e1e2", "d7c5"),
+            planName = "Keep the d3 weakness fixed"
+          ),
+          StrategyPackSurface.from(pack("d3")),
+          None
+        )
+        .getOrElse(fail("reversed Benoni route should admit a target-fixation witness"))
+
+    val kingsIndian =
+      PlayerFacingTruthModePolicy
+        .mainPathMoveDeltaEvidence(
+          ctxFor(
+            fen = "4k3/8/5n2/8/8/8/8/4K3 b - - 0 1",
+            playedMove = "f6d7",
+            target = "c5",
+            pvMoves = List("f6d7", "e1e2", "d7c5"),
+            planName = "Occupy c5 with the knight route"
+          ),
+          StrategyPackSurface.from(pack("c5")),
+          None
+        )
+        .getOrElse(fail("King's Indian route should admit a target-fixation witness"))
+
+    assertEquals(
+      reversedBenoni.packet.proofPathWitness.exactSliceProof,
+      Some(PlayerFacingExactSliceProof.ExactTargetFixation("d3"))
+    )
+    assert(reversedBenoni.packet.proofPathWitness.structureTransitionTerms.exists(_.contains("reversed_benoni_d3_knight_route_f6")))
+    assertEquals(
+      kingsIndian.packet.proofPathWitness.exactSliceProof,
+      Some(PlayerFacingExactSliceProof.ExactTargetFixation("c5"))
+    )
+    assert(kingsIndian.packet.proofPathWitness.structureTransitionTerms.exists(_.contains("kings_indian_c5_knight_route")))
+  }
+
+  test("dynamic target fixation binds generic weakness targets but not carlsbad-labelled non-c6-c3 targets") {
+    val ctx =
+      baseCtx().copy(
+        fen = "4k3/8/8/4p3/8/8/8/4K3 w - - 0 1",
+        playedMove = Some("e1e2"),
+        playedSan = Some("Ke2"),
+        mainStrategicPlans =
+          List(
+            evidenceBackedPlan(
+              planId = "static_weakness_e5",
+              planName = "Fix the isolated e5 pawn",
+              subplanId = PlanTaxonomy.PlanKind.StaticWeaknessFixation.id,
+              executionSteps = List("Keep pressure on the isolated e5 pawn."),
+              themeL1 = PlanTaxonomy.PlanTheme.WeaknessFixation.id
+            )
+          ),
+        strategicPlanExperiments =
+          List(
+            evidenceBackedExperiment(
+              planId = "static_weakness_e5",
+              subplanId = PlanTaxonomy.PlanKind.StaticWeaknessFixation.id,
+              themeL1 = PlanTaxonomy.PlanTheme.WeaknessFixation.id
+            )
+          ),
+        decision = Some(
+          DecisionRationale(
+            focalPoint = Some(TargetSquare("e5")),
+            logicSummary = "The move keeps the isolated e5 pawn fixed.",
+            delta = PVDelta(
+              resolvedThreats = Nil,
+              newOpportunities = List("pressure on e5"),
+              planAdvancements = List("keep the e5 pawn fixed"),
+              concessions = Nil
+            ),
+            confidence = ConfidenceLevel.Probe
+          )
+        ),
+        engineEvidence = Some(
+          EngineEvidence(
+            depth = 18,
+            variations = List(
+              VariationLine(
+                moves = List("e1e2", "e8e7"),
+                scoreCp = 40,
+                depth = 18
+              )
+            )
+          )
+        )
+      ).withTypedEvidenceFromLegacy
+
+    def pack(evidenceRefs: List[String]) =
+      Some(
+        StrategyPack(
+          sideToMove = "white",
+          strategicIdeas =
+            List(
+              StrategyIdeaSignal(
+                ideaId = "target_e5",
+                ownerSide = "white",
+                kind = StrategicIdeaKind.TargetFixing,
+                group = StrategicIdeaGroup.StructuralChange,
+                readiness = StrategicIdeaReadiness.Ready,
+                focusSquares = List("e5"),
+                confidence = 0.91,
+                evidenceRefs = evidenceRefs
+              )
+            )
+        )
+      )
+
+    val genericDelta =
+      PlayerFacingTruthModePolicy
+        .mainPathMoveDeltaEvidence(
+          ctx,
+          StrategyPackSurface.from(pack(List("source:plan_match_target_fixing", "source:weak_complex_fixation"))),
+          None
+        )
+        .getOrElse(fail("generic dynamic target should admit exact target fixation"))
+
+    assertEquals(genericDelta.packet.proofSource, PlayerFacingTruthModePolicy.ExactTargetFixationProofSource)
+    assertEquals(
+      genericDelta.packet.proofPathWitness.exactSliceProof,
+      Some(PlayerFacingExactSliceProof.ExactTargetFixation("e5"))
+    )
+
+    val carlsbadLabelledDelta =
+      PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidence(
+        ctx,
+        StrategyPackSurface.from(
+          pack(List("source:plan_match_target_fixing", "source:weak_complex_fixation", "source:carlsbad_fixation_profile"))
+        ),
+        None
+      )
+
+    assert(
+      carlsbadLabelledDelta.forall(_.packet.proofSource != PlayerFacingTruthModePolicy.ExactTargetFixationProofSource),
+      clue(carlsbadLabelledDelta)
+    )
+  }
+
+  test("target-fixation route evidence is catalog-driven rather than Benoni-specific") {
+    val source =
+      Files.readString(
+        Paths.get(
+          "modules/commentaryCore/src/main/scala/lila/commentary/analysis/PlayerFacingTruthModePolicy.scala"
+        )
+      )
+
+    assert(source.contains("OpeningRouteCatalog"), clue(source))
+    assert(!source.contains("benoniD6KnightRouteEvidence"), clue(source))
+    assert(source.contains("findRouteWitness"), clue(source))
+    assert(source.contains("checkRouteBoard"), clue(source))
+    assert(!source.contains("benoniD6SurfaceEvidenceWitness"), clue(source))
+    assert(!source.contains("benoniD6TargetFixationWitness"), clue(source))
+    assert(!source.contains("\"benoni_d6_knight_route\""), clue(source))
+  }
+
+  test("Carlsbad fixed-target board proof accepts advanced minority pawns on b4 and b5") {
+    val whiteB2 = position("6k1/8/2p5/3p4/3P4/8/1P6/6K1 w - - 0 1")
+    val whiteB4 = position("6k1/8/2p5/3p4/1P1P4/8/8/6K1 w - - 0 1")
+    val whiteB5 = position("6k1/8/2p5/1P1p4/3P4/8/8/6K1 w - - 0 1")
+    val blackB7 = position("6k1/1p6/8/3p4/3P4/2P5/8/6K1 b - - 0 1")
+    val blackB5 = position("6k1/8/8/1p1p4/3P4/2P5/8/6K1 b - - 0 1")
+    val blackB4 = position("6k1/8/8/3p4/1p1P4/2P5/8/6K1 b - - 0 1")
+
+    assertEquals(PlayerFacingTruthModePolicy.carlsbadTargetForBoard(whiteB2.board, whiteB2.color), Some("c6"))
+    assertEquals(PlayerFacingTruthModePolicy.carlsbadTargetForBoard(whiteB4.board, whiteB4.color), Some("c6"))
+    assertEquals(PlayerFacingTruthModePolicy.carlsbadTargetForBoard(whiteB5.board, whiteB5.color), Some("c6"))
+    assertEquals(PlayerFacingTruthModePolicy.carlsbadTargetForBoard(blackB7.board, blackB7.color), Some("c3"))
+    assertEquals(PlayerFacingTruthModePolicy.carlsbadTargetForBoard(blackB5.board, blackB5.color), Some("c3"))
+    assertEquals(PlayerFacingTruthModePolicy.carlsbadTargetForBoard(blackB4.board, blackB4.color), Some("c3"))
   }
 
   test("exact weakness positive controls promote planner-owned WhatChanged state delta on the admitted target-fixation lane") {

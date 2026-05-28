@@ -380,6 +380,13 @@
       color: $c-font-dim;
     }
 
+    .move-review-decision-compare__target {
+      margin-top: 0.14rem;
+      font-size: 0.75rem;
+      line-height: 1.35;
+      color: $c-font-dim;
+    }
+
     .move-review-strategic-summary__row {
       margin-top: 0.22rem;
       font-size: 0.85rem;
@@ -388,6 +395,80 @@
 
       strong {
         color: $c-primary;
+      }
+    }
+
+    .move-review-strategic-summary__row--tone-practical {
+      color: $c-font-dim;
+
+      strong {
+        color: $c-font-dim;
+      }
+    }
+
+    .move-review-strategic-summary__target-chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.05rem 0.35rem;
+      border-radius: 4px;
+      background: rgba($c-primary, 0.08);
+      color: $c-primary;
+      font-size: 0.76rem;
+      font-weight: 700;
+      cursor: pointer;
+      margin-inline-start: 4px;
+      transition: background 0.2s, color 0.2s;
+
+      &:hover, &:focus-visible {
+        background: $c-primary;
+        color: $c-bg-box;
+        outline: none;
+      }
+    }
+
+    .move-review-strategic-summary__row--authority-practical_plan,
+    .move-review-strategic-summary__row--authority-central_liquidation,
+    .move-review-strategic-summary__row--authority-central_challenge,
+    .move-review-strategic-summary__row--authority-opening_family {
+      padding-left: 0.45rem;
+    }
+
+    .move-review-strategic-summary__row--authority-practical_plan {
+      color: $c-font-dim;
+      border-left: 2px solid rgba($c-font-dim, 0.25);
+
+      strong {
+        color: $c-font-dim;
+      }
+
+      .move-review-strategic-summary__target-chip {
+        background: rgba($c-font-dim, 0.08);
+        color: $c-font-dim;
+
+        &:hover, &:focus-visible {
+          background: $c-font-dim;
+          color: $c-bg-box;
+        }
+      }
+    }
+
+    .move-review-strategic-summary__row--authority-central_liquidation,
+    .move-review-strategic-summary__row--authority-central_challenge {
+      border-left: 2px solid rgba($c-primary, 0.45);
+    }
+
+    .move-review-strategic-summary__row--authority-opening_family {
+      border-left: 2px solid rgba($c-primary, 0.12);
+
+      .move-review-strategic-summary__target-chip {
+        background: rgba($c-font-dim, 0.06);
+        color: $c-font-dim;
+        font-weight: normal;
+
+        &:hover, &:focus-visible {
+          background: $c-font-dim;
+          color: $c-bg-box;
+        }
       }
     }
 

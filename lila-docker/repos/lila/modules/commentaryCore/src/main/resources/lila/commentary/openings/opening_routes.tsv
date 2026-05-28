@@ -1,0 +1,15 @@
+route_id	family	target_square	role	from	via	to	max_replay_plies	target_mode
+benoni_d6_knight_route	benoni	d6	knight	f3	d2	c4	8	attack_weak_pawn
+reversed_benoni_d3_knight_route_f6	benoni	d3	knight	f6	d7	c5	8	attack_weak_pawn
+reversed_benoni_d3_knight_route_b8	benoni	d3	knight	b8	d7	c5	8	attack_weak_pawn
+kings_indian_c5_knight_route	kings_indian	c5	knight	f6	d7	c5	8	occupy_target
+caro_kann_b8_d7_f6_d5	caro_kann	d5	knight	b8	d7|f6	d5	10	occupy_target
+caro_kann_g8_e7_f5	caro_kann	f5	knight	g8	e7	f5	8	occupy_target
+french_g8_e7_g6_f4	french	f4	knight	g8	e7|g6	f4	10	occupy_target
+french_b1_c3_e2_g3_f5	french	f5	knight	b1	c3|e2|g3	f5	12	occupy_target
+open_games_b1_d2_f1_g3_f5	open_games	f5	knight	b1	d2|f1|g3	f5	12	occupy_target
+open_games_f1_e3_d5	open_games	d5	knight	f1	e3	d5	8	occupy_target
+gruenfeld_g8_f6_d5_c3	gruenfeld	c3	knight	g8	f6|d5	c3	10	occupy_target
+reti_g1_f3_d4_b5	reti	b5	knight	g1	f3|d4	b5	10	occupy_target
+alekhine_g8_f6_d5_b6	alekhine	b6	knight	g8	f6|d5	b6	10	occupy_target
+nimzowitsch_b8_c6_e5_g6	nimzowitsch	g6	knight	b8	c6|e5	g6	10	occupy_target

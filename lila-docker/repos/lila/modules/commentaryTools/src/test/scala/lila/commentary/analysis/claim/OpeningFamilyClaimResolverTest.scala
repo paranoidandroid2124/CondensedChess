@@ -1,5 +1,7 @@
 package lila.commentary.analysis.claim
 
+import java.nio.file.{ Files, Paths }
+
 import lila.commentary.analysis.NarrativeUtils
 
 class OpeningFamilyClaimResolverTest extends munit.FunSuite:
@@ -15,6 +17,8 @@ class OpeningFamilyClaimResolverTest extends munit.FunSuite:
     NarrativeUtils.uciListToFen(InitialFen, List("e2e4", "c7c6", "d2d4", "d7d5"))
   private val SicilianFen =
     NarrativeUtils.uciListToFen(InitialFen, List("e2e4", "c7c5", "g1f3"))
+  private val GruenfeldFen =
+    NarrativeUtils.uciListToFen(InitialFen, List("d2d4", "g8f6", "c2c4", "g7g6", "b1c3", "d7d5"))
   private val CoincidentalSicilianShapeFen =
     "4k3/8/8/2p5/4P3/8/8/4K3 w - - 0 1"
 
@@ -122,4 +126,43 @@ class OpeningFamilyClaimResolverTest extends munit.FunSuite:
       )
 
     assertEquals(decision, None)
+  }
+
+  test("admits catalog-only opening-family claim keys without extending the enum facade") {
+    assertEquals(FamilyId.fromWireKey("gruenfeld"), None)
+
+    val decision =
+      OpeningFamilyClaimResolver.decideOpeningFamilyClaim(
+        FamilyClaim("gruenfeld"),
+        proof(opening = "Gruenfeld Defense: Exchange Variation", fen = GruenfeldFen)
+      )
+
+    assertEquals(decision.map(_.tier), Some(ClaimAuthorityTier.SupportedLocal), clue(decision))
+  }
+
+  test("unknown catalog family keys fail closed") {
+    val decision =
+      OpeningFamilyClaimResolver.decideOpeningFamilyClaim(
+        FamilyClaim("not_a_catalog_family"),
+        proof(opening = "Gruenfeld Defense", fen = GruenfeldFen)
+      )
+
+    assertEquals(decision.map(_.tier), Some(ClaimAuthorityTier.Suppressed), clue(decision))
+    assertEquals(
+      decision.toList.flatMap(_.failureCodes).lastOption,
+      Some("opening_family_mismatch:not_a_catalog_family"),
+      clue(decision)
+    )
+  }
+
+  test("resolver delegates opening metadata to the catalog instead of local alias rows") {
+    val source =
+      Files.readString(
+        Paths.get(
+          "modules/commentaryCore/src/main/scala/lila/commentary/analysis/claim/OpeningFamilyClaimResolver.scala"
+        )
+      )
+
+    assert(source.contains("OpeningFamilyCatalog"), clue(source))
+    assert(!source.contains("aliases = List("), clue(source))
   }

@@ -4,6 +4,7 @@ import lila.commentary.*
 import lila.commentary.model.NarrativeContext
 import lila.commentary.analysis.claim.{ ClaimAuthorityResolver, ClaimAuthorityTier }
 import lila.commentary.analysis.semantic.StrategicObservationIds.{ ProofFamilyId, ProofSourceId }
+import lila.commentary.analysis.structure.WeaknessTargetProfile
 import lila.commentary.analysis.PlanEvidenceEvaluator.{ EvaluatedPlan, UserFacingPlanEligibility }
 import lila.commentary.analysis.PlanTaxonomy.{ PlanKind, PlanTheme }
 import chess.format.{ Fen, Uci }
@@ -15,6 +16,9 @@ object MoveReviewPlayerPayloadBuilder:
   private val MinDecisionSurfaceGapCp = 35
   private val ClearDecisionSurfaceGapCp = 60
   private val ExactComparativeSource = "exact"
+  private val MinWeaknessTargetOutcomePlies = 5
+  private val SquareToken = """[a-h][1-8]""".r
+  private val MoveReviewLedgerLineSources = Set("probe", "decision_compare", "variation", "authoring")
 
   def decisionComparisonSurface(
       ctx: NarrativeContext,
@@ -58,9 +62,10 @@ object MoveReviewPlayerPayloadBuilder:
       decisionComparisonSurface: Option[MoveReviewPlayerDecisionComparison] = None
   ): MoveReviewPlayerSurface =
     val knownSans = refs.toList.flatMap(_.variations.flatMap(_.moves.map(_.san))).map(normalizeSan).toSet
-    val promotedPlans = evaluatedPlans.filter(isProbeBackedPlan).sortBy(_.hypothesis.rank)
+    val promotedPlans = evaluatedPlans.filter(PlanEvidenceEvaluator.isMainAdmittedPlan).sortBy(_.hypothesis.rank)
+    val practicalRows = practicalPlanRows(evaluatedPlans)
     val summaryRows =
-      (mainPlanRow(promotedPlans).toList ++ sanitizeRows(supportedLocalRows, knownSans))
+      (mainPlanRow(promotedPlans).toList ++ practicalRows ++ sanitizeRows(supportedLocalRows, knownSans))
         .distinctBy(row => (row.label, row.text))
     MoveReviewPlayerSurface(
       schema = Schema,
@@ -68,8 +73,10 @@ object MoveReviewPlayerPayloadBuilder:
         moveReviewExplanation.flatMap(explanation => cleanOpt(Some(explanation.title)))
           .orElse(ctx.playedSan.flatMap(san => cleanOpt(Some(s"Move review: $san")))),
       summaryRows = summaryRows,
-      advancedRows = advancedRows(promotedPlans),
-      decisionComparison = decisionComparisonSurface.map(sanitizeDecisionComparison),
+      advancedRows = advancedRows(ctx, promotedPlans, evaluatedPlans),
+      decisionComparison = decisionComparisonSurface.map(comparison =>
+        sanitizeDecisionComparison(enrichDecisionTargetComparison(ctx, comparison))
+      ),
       probeRows = ledgerRows(moveReviewLedger, knownSans),
       authorRows = authorRows(authoringSurface, knownSans)
     )
@@ -83,11 +90,14 @@ object MoveReviewPlayerPayloadBuilder:
     row("Main plans", plans.mkString(" / "))
 
   private def advancedRows(
-      promotedPlans: List[EvaluatedPlan]
+      ctx: NarrativeContext,
+      promotedPlans: List[EvaluatedPlan],
+      evaluatedPlans: List[EvaluatedPlan]
   ): List[MoveReviewPlayerSurfaceRow] =
     val planRows =
       promotedPlans.take(2).flatMap(planRowsFromPromotedPlan)
-    planRows.distinctBy(row => (row.label, row.text)).take(8)
+    val promotedRows = planRows.distinctBy(row => (row.label, row.text))
+    (promotedRows ++ practicalAdvancedRows(ctx, evaluatedPlans, promotedPlans, slots = 8 - promotedRows.size)).take(8)
 
   private def planRowsFromPromotedPlan(plan: EvaluatedPlan): List[MoveReviewPlayerSurfaceRow] =
     val hypothesis = plan.hypothesis
@@ -103,20 +113,190 @@ object MoveReviewPlayerPayloadBuilder:
       }.flatten
     ).flatten
 
+  private def practicalPlanRows(plans: List[EvaluatedPlan]): List[MoveReviewPlayerSurfaceRow] =
+    plans
+      .filter(PlanEvidenceEvaluator.isBoundedPracticalSupportPlan)
+      .sortBy(_.hypothesis.rank)
+      .flatMap(practicalPlanRow)
+      .take(2)
+
+  private def practicalPlanRow(plan: EvaluatedPlan): Option[MoveReviewPlayerSurfaceRow] =
+    cleanOpt(Some(plan.hypothesis.planName)).flatMap { name =>
+      val text =
+        if plan.userFacingEligibility == UserFacingPlanEligibility.StructuralOnly then
+          s"The structure points toward $name as a practical plan."
+        else s"The checked line keeps $name viable as a practical plan."
+      row(
+        label = "Practical plan",
+        text = text,
+        tone = Some("practical")
+      ).map(_.copy(authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))))
+    }
+
+  private def practicalAdvancedRows(
+      ctx: NarrativeContext,
+      plans: List[EvaluatedPlan],
+      promotedPlans: List[EvaluatedPlan],
+      slots: Int
+  ): List[MoveReviewPlayerSurfaceRow] =
+    if slots <= 0 then Nil
+    else
+      plans
+        .filter(PlanEvidenceEvaluator.isBoundedPracticalSupportPlan)
+        .filterNot(plan => hasPromotedSibling(plan, promotedPlans))
+        .sortBy(_.hypothesis.rank)
+        .flatMap(plan => practicalAdvancedRowsForPlan(ctx, plan))
+        .distinctBy(row => (row.label, row.text))
+        .take(slots)
+
+  private def hasPromotedSibling(plan: EvaluatedPlan, promotedPlans: List[EvaluatedPlan]): Boolean =
+    promotedPlans.exists(promoted =>
+      sameTheme(plan, promoted) || executionOverlapRatio(plan, promoted) >= 0.7
+    )
+
+  private def sameTheme(left: EvaluatedPlan, right: EvaluatedPlan): Boolean =
+    val leftTheme = cleanToken(left.hypothesis.themeL1)
+    val rightTheme = cleanToken(right.hypothesis.themeL1)
+    leftTheme.nonEmpty && leftTheme == rightTheme
+
+  private def executionOverlapRatio(practical: EvaluatedPlan, promoted: EvaluatedPlan): Double =
+    val practicalAtoms = executionAtoms(practical.hypothesis.executionSteps)
+    if practicalAtoms.isEmpty then 0.0
+    else
+      val promotedAtoms = executionAtoms(promoted.hypothesis.executionSteps).toSet
+      practicalAtoms.count(promotedAtoms.contains).toDouble / practicalAtoms.size.toDouble
+
+  private def executionAtoms(steps: List[String]): List[String] =
+    steps.flatMap { step =>
+      val token = cleanToken(step)
+      val squares = SquareToken.findAllIn(token).toList
+      if squares.nonEmpty then squares else List(token).filter(_.nonEmpty)
+    }.distinct
+
+  private def cleanToken(value: String): String =
+    value.toLowerCase.replaceAll("""[^a-z0-9]+""", " ").trim
+
+  private def practicalAdvancedRowsForPlan(ctx: NarrativeContext, plan: EvaluatedPlan): List[MoveReviewPlayerSurfaceRow] =
+    val hypothesis = plan.hypothesis
+    List(
+      practicalTargetRow(ctx, plan),
+      row("Practical objective", hypothesis.preconditions.take(2).mkString(" - "), tone = Some("practical")),
+      row("Practical steps", hypothesis.executionSteps.take(2).mkString(" - "), tone = Some("practical"))
+    ).flatten.map(_.copy(authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))))
+
+  private def practicalTargetRow(
+      ctx: NarrativeContext,
+      plan: EvaluatedPlan
+  ): Option[MoveReviewPlayerSurfaceRow] =
+    Option.when(isWeaknessPlan(plan)) {
+      WeaknessTargetProfile.fromFenForMover(ctx.fen).find(target => practicalTargetSurvivesBestLine(ctx, target)).flatMap { target =>
+        val text =
+          s"The current structure gives ${sideLabel(target.weakSide)} a weak ${targetKindLabel(target.kind)} on ${target.targetSquare} to pressure."
+        row("Practical target", text, tone = Some("practical"))
+      }
+    }.flatten
+
+  private def isWeaknessPlan(plan: EvaluatedPlan): Boolean =
+    plan.themeL1 == PlanTheme.WeaknessFixation.id ||
+      plan.subplanId.exists(id =>
+        Set(
+          PlanKind.StaticWeaknessFixation.id,
+          PlanKind.MinorityAttackFixation.id,
+          PlanKind.BackwardPawnTargeting.id,
+          PlanKind.IQPInducement.id
+        ).contains(id)
+      )
+
+  private def sideLabel(side: _root_.chess.Color): String =
+    if side.white then "White" else "Black"
+
+  private def targetKindLabel(kind: String): String =
+    kind match
+      case WeaknessTargetProfile.BackwardPawn => "backward pawn"
+      case WeaknessTargetProfile.IsolatedPawn => "isolated pawn"
+      case WeaknessTargetProfile.IQP          => "isolated queen pawn"
+      case WeaknessTargetProfile.DoubledPawn  => "doubled pawn"
+      case WeaknessTargetProfile.FixedPawn    => "fixed pawn"
+      case _                                  => "pawn"
+
+  private def practicalTargetSurvivesBestLine(
+      ctx: NarrativeContext,
+      target: WeaknessTargetProfile
+  ): Boolean =
+    ctx.engineEvidence.flatMap(_.best) match
+      case None => true
+      case Some(line) =>
+        WeaknessTargetProfile
+          .lineOutcomeFromFen(
+            fen = ctx.fen,
+            moves = line.moves,
+            targetSquare = target.targetSquare,
+            resultingFen = line.resultingFen
+          )
+          .exists { outcome =>
+            outcome.status == WeaknessTargetProfile.ResolvedByPressure ||
+              (
+                outcome.status == WeaknessTargetProfile.Persistent &&
+                  (line.resultingFen.nonEmpty || line.moves.size >= MinWeaknessTargetOutcomePlies)
+              )
+          }
+
+  private def enrichDecisionTargetComparison(
+      ctx: NarrativeContext,
+      comparison: MoveReviewPlayerDecisionComparison
+  ): MoveReviewPlayerDecisionComparison =
+    if comparison.targetComparison.nonEmpty || comparison.chosenMatchesBest then comparison
+    else comparison.copy(targetComparison = bestVsChosenTargetComparison(ctx))
+
+  private def bestVsChosenTargetComparison(ctx: NarrativeContext): Option[MoveReviewDecisionTargetComparison] =
+    for
+      evidence <- ctx.engineEvidence
+      bestLine <- evidence.best
+      chosenMove <- ctx.playedMove.map(NarrativeUtils.normalizeUciMove).filter(_.nonEmpty)
+      if bestLine.moves.headOption.map(NarrativeUtils.normalizeUciMove).forall(_ != chosenMove)
+      chosenLine <- evidence.variations.find(line =>
+        line.moves.headOption.map(NarrativeUtils.normalizeUciMove).contains(chosenMove)
+      )
+      bestTarget <- lineTarget(ctx, bestLine)
+      chosenTarget <- lineTarget(ctx, chosenLine)
+      if bestTarget.targetSquare != chosenTarget.targetSquare || bestTarget.kind != chosenTarget.kind
+    yield MoveReviewDecisionTargetComparison(
+      chosenTarget = chosenTarget.targetSquare,
+      chosenTargetKind = chosenTarget.kind,
+      bestTarget = bestTarget.targetSquare,
+      bestTargetKind = bestTarget.kind
+    )
+
+  private def lineTarget(
+      ctx: NarrativeContext,
+      line: lila.commentary.model.strategic.VariationLine
+  ): Option[WeaknessTargetProfile] =
+    WeaknessTargetProfile
+      .targetsAfterLineFromFen(
+        fen = ctx.fen,
+        moves = line.moves,
+        resultingFen = line.resultingFen
+      )
+      .headOption
+
   private def ledgerRows(
       moveReviewLedger: Option[MoveReviewStrategicLedger],
       knownSans: Set[String]
   ): List[MoveReviewPlayerSurfaceRow] =
     moveReviewLedger.toList.flatMap { ledger =>
       List(ledger.primaryLine, ledger.resourceLine).flatten.flatMap { line =>
-        val text =
-          cleanOpt(line.note)
-            .orElse(cleanOpt(Some(line.sanMoves.mkString(" "))))
-        row(
-          label = line.title,
-          text = text.getOrElse(""),
-          refSans = refSans(line.sanMoves, knownSans)
-        )
+        val source = clean(line.source)
+        val sanMoves = cleanList(line.sanMoves)
+        Option.when(MoveReviewLedgerLineSources.contains(source) && sanMoves.nonEmpty) {
+          val text =
+            cleanOpt(line.note)
+              .orElse(cleanOpt(Some(sanMoves.mkString(" "))))
+          row(
+            label = line.title,
+            text = text.getOrElse(""),
+            refSans = refSans(sanMoves, knownSans)
+          )
+        }.flatten
       }
     }
 
@@ -162,10 +342,6 @@ object MoveReviewPlayerPayloadBuilder:
         meta = Nil
       )
     }
-
-  private def isProbeBackedPlan(plan: EvaluatedPlan): Boolean =
-    plan.userFacingEligibility == UserFacingPlanEligibility.ProbeBacked &&
-      plan.supportProbeIds.nonEmpty
 
   private def isProphylaxisPlan(plan: EvaluatedPlan): Boolean =
     plan.themeL1 == PlanTheme.RestrictionProphylaxis.id ||
@@ -431,6 +607,8 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
 
   private val CounterplayBreakLabel = "Counterplay break"
   private val CentralBreakLabel = "Central break"
+  private val CentralLiquidationLabel = "Central liquidation"
+  private val CentralChallengeLabel = "Central challenge"
 
   def build(
       ctx: NarrativeContext,
@@ -444,9 +622,57 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
     val packetRows =
       mainPathClaims(inputs)
         .flatMap(claim => rowForClaim(ctx, inputs, truthContract, claim))
-    (planRows ++ packetRows)
-      .distinctBy(row => (row.label, row.text))
-      .take(1)
+    val exactRows =
+      (planRows ++ packetRows)
+        .distinctBy(row => (row.label, row.text))
+        .take(1)
+    if exactRows.nonEmpty then exactRows
+    else practicalCentralRow(ctx, inputs, truthContract).toList
+
+  private def practicalCentralRow(
+      ctx: NarrativeContext,
+      inputs: QuestionPlannerInputs,
+      truthContract: Option[DecisiveTruthContract]
+  ): Option[MoveReviewPlayerSurfaceRow] =
+    if tacticalPracticalVeto(inputs, truthContract) then None
+    else
+      CentralBreakTimingWitness.practical(ctx).flatMap { practical =>
+        val token = practical.token.trim
+        Option.when(validRouteToken(token)) {
+          practical.kind match
+            case CentralBreakTimingWitness.PracticalKind.Liquidation =>
+              row(
+                CentralLiquidationLabel,
+                s"The move releases central tension through ${displayRoute(token)}.",
+                authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CentralLiquidation, token = Some(token)))
+              )
+            case CentralBreakTimingWitness.PracticalKind.Challenge =>
+              row(
+                CentralChallengeLabel,
+                s"The move challenges the center through ${displayRoute(token)}.",
+                authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CentralChallenge, token = Some(token)))
+              )
+        }.flatten
+      }
+
+  private def tacticalPracticalVeto(
+      inputs: QuestionPlannerInputs,
+      truthContract: Option[DecisiveTruthContract]
+  ): Boolean =
+    inputs.truthMode == PlayerFacingTruthMode.Tactical ||
+      inputs.mainBundle.flatMap(_.mainClaim).exists(_.mode == PlayerFacingTruthMode.Tactical) ||
+      truthContract.exists(contract =>
+        contract.truthClass == DecisiveTruthClass.Blunder ||
+          contract.truthClass == DecisiveTruthClass.MissedWin ||
+          (contract.reasonFamily == DecisiveReasonKind.TacticalRefutation && contract.isBad) ||
+          contract.failureMode == FailureInterpretationMode.TacticalRefutation
+      )
+
+  private def validRouteToken(token: String): Boolean =
+    token.matches("""(?:\.\.\.)?[a-h][1-8]-[a-h][1-8]""")
+
+  private def displayRoute(token: String): String =
+    token.stripPrefix("...")
 
   private def rowForPlan(
       ctx: NarrativeContext,

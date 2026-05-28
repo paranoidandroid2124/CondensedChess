@@ -3,9 +3,9 @@ import type AnalyseCtrl from './ctrl';
 import { treePath } from 'lib/tree';
 import { fetchOpeningReferenceViaProxy } from './moveReview/openingProxy';
 import { initMoveReviewHandlers, setMoveReviewRefs } from './moveReview/interactionHandlers';
-import { createProbeOrchestrator } from './moveReview/probeOrchestrator';
+
 import { clearMoveReviewPanel, renderMoveReviewPanel, restoreMoveReviewPanel, syncMoveReviewEvalDisplay } from './moveReview/rendering';
-import { buildMoveReviewRequest, deriveAfterVariations, toEvalData } from './moveReview/requestPayload';
+import { buildMoveReviewRequest, deriveAfterVariations } from './moveReview/requestPayload';
 import { blockedHtmlFromErrorResponse, moveReviewIdleHtml, moveReviewRetryHtml, moveReviewTooEarlyHtml } from './moveReview/blockingState';
 import {
     buildStoredMoveReviewEntry,
@@ -35,9 +35,11 @@ import {
 import { moveReviewLedgerRootAttrs } from './moveReview/ledgerSurface';
 import { escapeHtml, normalizeSanToken, renderInteractiveSanChip } from './moveReview/surfaceShared';
 import { restoreStoredMoveReviewTokens } from './moveReview/stateContinuity';
+import { formatDecisionTargetComparison } from './decisionComparison';
 import type {
     EndgameStateToken,
     PlanStateToken,
+    EvalVariation,
 } from './moveReview/types';
 
 export type MoveReviewNarrative = (nodes: Tree.Node[]) => void;
@@ -50,7 +52,7 @@ let requestsBlocked = false;
 let blockedHtml: string | null = null;
 let lastRequestedFen: string | null = null;
 let lastShownHtml = '';
-let activeProbeSession = 0;
+
 let moveReviewRequestTrigger: TriggerMoveReviewRequest | null = null;
 const MIN_MOVE_REVIEW_PLY = 5;
 
@@ -369,6 +371,7 @@ function renderDecisionCompareStrip(
     const best = comparison.engineSan?.trim() || '';
     const compared = comparison.comparedSan?.trim() || '';
     const secondary = comparison.secondaryText?.trim() || '';
+    const targetComparison = formatDecisionTargetComparison(comparison.targetComparison);
 
     const moveBits = [
         renderMoveReviewMoveChip('Chosen', chosen, refIndex.firstBySan, 'chosen'),
@@ -394,8 +397,18 @@ function renderDecisionCompareStrip(
         </div>
         ${moveBits.length ? `<div class="move-review-decision-compare__moves">${moveBits.join('')}</div>` : ''}
         ${secondary ? `<div class="move-review-decision-compare__secondary">${escapeHtml(secondary)}</div>` : ''}
+        ${targetComparison ? `<div class="move-review-decision-compare__target">${escapeHtml(targetComparison)}</div>` : ''}
       </div>
     `;
+}
+
+function surfaceRowClasses(row: MoveReviewPlayerSurfaceRowV1): string {
+    const classes = ['move-review-strategic-summary__row'];
+    const tone = (row.tone || '').trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '_');
+    const authority = (row.authority?.kind || '').trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '_');
+    if (tone) classes.push(`move-review-strategic-summary__row--tone-${tone}`);
+    if (authority) classes.push(`move-review-strategic-summary__row--authority-${authority}`);
+    return classes.join(' ');
 }
 
 function renderSurfaceRow(row: MoveReviewPlayerSurfaceRowV1, refIndex: MoveReviewRefIndex): string {
@@ -412,9 +425,14 @@ function renderSurfaceRow(row: MoveReviewPlayerSurfaceRowV1, refIndex: MoveRevie
         })
         .filter(Boolean)
         .join(' ');
+    const target = row.authority?.target;
+    const targetChip = target
+        ? `<span class="move-review-strategic-summary__target-chip" data-move-review-square="${escapeHtml(target)}" tabindex="0">${escapeHtml(target)}</span>`
+        : '';
     return `
-      <div class="move-review-strategic-summary__row">
+      <div class="${surfaceRowClasses(row)}">
         <strong>${escapeHtml(row.label)}:</strong> ${escapeHtml(row.text)}
+        ${targetChip}
         ${chips ? `<span class="move-review-strategic-summary__refs">${chips}</span>` : ''}
       </div>
     `;
@@ -550,7 +568,7 @@ export function requestMoveReviewCurrent(opts?: { force?: boolean }): void {
 }
 
 export function moveReviewToggleBox(ctrl?: AnalyseCtrl) {
-    initMoveReviewHandlers(() => moveReviewEvalDisplay(!moveReviewEvalDisplay()));
+    initMoveReviewHandlers(ctrl, () => moveReviewEvalDisplay(!moveReviewEvalDisplay()));
 
     $('#move-review-field').each(function (this: HTMLElement) {
         const box = this;
@@ -589,11 +607,23 @@ export function moveReviewToggleBox(ctrl?: AnalyseCtrl) {
     }
 }
 
+function evalToVariations(ceval: any, maxPvs: number): EvalVariation[] | null {
+    if (!ceval || !Array.isArray(ceval.pvs)) return null;
+    return ceval.pvs
+        .filter((pv: any) => Array.isArray(pv?.moves) && pv.moves.length)
+        .slice(0, maxPvs)
+        .map((pv: any) => ({
+            moves: pv.moves.slice(0, 40),
+            scoreCp: typeof pv.cp === 'number' ? pv.cp : 0,
+            mate: typeof pv.mate === 'number' ? pv.mate : null,
+            depth: typeof pv.depth === 'number' ? pv.depth : typeof ceval.depth === 'number' ? ceval.depth : 0,
+        }));
+}
+
 export default function moveReviewNarrative(ctrl?: AnalyseCtrl): MoveReviewNarrative {
     const cache = new Map<string, MoveReviewCacheEntry>();
     const planStateByPath = new Map<string, PlanStateToken | null>();
     const endgameStateByPath = new Map<string, EndgameStateToken | null>();
-    const probes = createProbeOrchestrator(ctrl, session => session === activeProbeSession);
     const moveReviewEndpoint = '/api/commentary/move-review-position';
     let loadingTicker: number | null = null;
     let activeOpeningFetchController: AbortController | null = null;
@@ -925,68 +955,57 @@ export default function moveReviewNarrative(ctrl?: AnalyseCtrl): MoveReviewNarra
         }
 
         abortNetwork();
-        activeProbeSession++;
-        probes.stop();
-        const probeSession = activeProbeSession;
         const requestKey = context.cacheKey;
         activeRequestKey = requestKey;
         lastRequestedFen = context.fen;
         const isCurrentSession = () =>
-            probeSession === activeProbeSession && lastRequestedFen === context.fen && activeRequestKey === requestKey;
+            lastRequestedFen === context.fen && activeRequestKey === requestKey;
 
         try {
             setLoadingStage('position', isCurrentSession);
 
-            const targetDepth = 20;
+            const MIN_STRATEGIC_PV_PLIES = 5;
             const targetMultiPv = 5;
-            const analysisTimeoutMs = 15000;
 
             let analysisEval: any = context.analysisCeval;
-            let variations = probes.evalToVariations(analysisEval, targetMultiPv);
-            if ((!variations || variations.length < targetMultiPv) && ctrl) {
-                setLoadingStage('lines', isCurrentSession);
-                analysisEval = await probes.runPositionEval(
-                    context.analysisFen,
-                    targetDepth,
-                    analysisTimeoutMs,
-                    targetMultiPv,
-                    probeSession,
-                );
-                if (!isCurrentSession()) {
-                    stopLoadingTicker();
-                    return;
+            let variations = evalToVariations(analysisEval, targetMultiPv) || [];
+
+            if (!variations.length || variations[0].moves.length < MIN_STRATEGIC_PV_PLIES) {
+                const startTime = Date.now();
+                while (Date.now() - startTime < 1000) {
+                    await new Promise(resolve => window.setTimeout(resolve, 200));
+                    if (!isCurrentSession()) {
+                        stopLoadingTicker();
+                        return;
+                    }
+                    const updatedEval = context.playedMove ? context.nodes[context.nodes.length - 2]?.ceval : context.node.ceval;
+                    const nextVariations = evalToVariations(updatedEval, targetMultiPv) || [];
+                    if (nextVariations.length && nextVariations[0].moves.length >= MIN_STRATEGIC_PV_PLIES) {
+                        variations = nextVariations;
+                        break;
+                    }
                 }
-                variations = probes.evalToVariations(analysisEval, targetMultiPv);
             }
 
             if (
                 context.playedMove &&
-                variations &&
-                !variations.some(v => Array.isArray(v.moves) && v.moves[0] === context.playedMove) &&
-                ctrl
+                !variations.some(v => Array.isArray(v.moves) && v.moves[0] === context.playedMove)
             ) {
-                setLoadingStage('lines', isCurrentSession);
-                const playedEv = await probes.runProbeEval(context.analysisFen, context.playedMove, targetDepth, 5000, 1, probeSession);
-                if (!isCurrentSession()) {
-                    stopLoadingTicker();
-                    return;
-                }
-                if (playedEv) {
-                    const replyPv = Array.isArray(playedEv.pvs) ? playedEv.pvs[0]?.moves : null;
-                    const playedVar = {
-                        moves: [context.playedMove, ...(Array.isArray(replyPv) ? replyPv.slice(0, 28) : [])],
-                        scoreCp: typeof playedEv.cp === 'number' ? playedEv.cp : 0,
-                        mate: typeof playedEv.mate === 'number' ? playedEv.mate : null,
-                        depth: typeof playedEv.depth === 'number' ? playedEv.depth : targetDepth,
-                    };
-                    variations = [...variations, playedVar].slice(0, targetMultiPv + 1);
-                }
+                const existingPv = context.analysisCeval?.pvs?.find(
+                    (pv: any) => Array.isArray(pv?.moves) && pv.moves[0] === context.playedMove,
+                );
+                const playedVar = {
+                    moves: existingPv ? existingPv.moves.slice(0, 40) : [context.playedMove],
+                    scoreCp: existingPv && typeof existingPv.cp === 'number' ? existingPv.cp : 0,
+                    mate: existingPv && typeof existingPv.mate === 'number' ? existingPv.mate : null,
+                    depth: existingPv && typeof existingPv.depth === 'number' ? existingPv.depth : 0,
+                };
+                variations = [...variations, playedVar].slice(0, targetMultiPv + 1);
             }
 
             const afterFen = context.playedMove ? context.fen : null;
-            let afterVariations = afterFen ? probes.evalToVariations(context.playedMove ? context.node.ceval : null, 1) : null;
+            let afterVariations = afterFen ? evalToVariations(context.playedMove ? context.node.ceval : null, 1) : null;
             afterVariations = deriveAfterVariations(afterFen, afterVariations, context.playedMove, variations);
-            const evalData = toEvalData(variations);
 
             const useAnalysisSurfaceV3 = document.body.dataset.brandV3AnalysisSurface !== '0';
             const useExplorerProxy = useAnalysisSurfaceV3 && document.body.dataset.brandExplorerProxy !== '0';
@@ -1056,7 +1075,7 @@ export default function moveReviewNarrative(ctrl?: AnalyseCtrl): MoveReviewNarra
             else planStateByPath.delete(context.stateKey);
             if (emittedEndgameToken) endgameStateByPath.set(context.stateKey, emittedEndgameToken);
             else endgameStateByPath.delete(context.stateKey);
-            const html = decoded.html;
+
             const commentary = decoded.commentary;
             if (moveReviewNeedsRetry(decoded)) {
                 activeRequestKey = null;
@@ -1101,8 +1120,6 @@ export default function moveReviewNarrative(ctrl?: AnalyseCtrl): MoveReviewNarra
             currentContext = null;
             moveReviewRequestTrigger = runCurrentRequest;
             abortNetwork();
-            activeProbeSession++;
-            probes.stop();
             stopLoadingTicker();
             lastRequestedFen = null;
             setMoveReviewRefs(null);
@@ -1142,8 +1159,6 @@ export default function moveReviewNarrative(ctrl?: AnalyseCtrl): MoveReviewNarra
 
         if (!sameContext) {
             abortNetwork();
-            activeProbeSession++;
-            probes.stop();
             stopLoadingTicker();
             lastRequestedFen = null;
         }

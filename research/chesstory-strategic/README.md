@@ -48,4 +48,4 @@ This lane may contain:
 
 If a result here ever becomes good enough for runtime consideration, move it
 through a later, explicit integration change. Do not wire this lane directly
-into `lila-docker/repos/lila/modules/llm/src/main`.
+into `lila-docker/repos/lila/modules/commentaryCore/src/main`.

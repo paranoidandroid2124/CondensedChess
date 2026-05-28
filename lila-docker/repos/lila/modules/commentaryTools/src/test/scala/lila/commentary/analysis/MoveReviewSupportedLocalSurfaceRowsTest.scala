@@ -366,7 +366,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
     )
   }
 
-  test("does not project diagonal central captures as central_break_timing rows") {
+  test("projects diagonal central captures as central liquidation rows, not central break") {
     val diagonalCaptureFen =
       "r2q1rk1/pp2npb1/2p1b1pp/3pB3/3PN3/1BP2N2/PP3PPP/R2Q1RK1 b - - 0 15"
     val lines =
@@ -386,9 +386,15 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       )
 
     assert(!rows.exists(_.label == "Central break"), clue(rows))
+    assertEquals(rows.map(_.label), List("Central liquidation"))
+    assertEquals(rows.head.text, "The move releases central tension through d5-e4.")
+    assertEquals(
+      rows.head.authority,
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CentralLiquidation, token = Some("...d5-e4")))
+    )
   }
 
-  test("does not project prep or challenge pawn moves as central_break_timing rows") {
+  test("projects prep or challenge pawn moves as central challenge rows, not central break") {
     val prepFen =
       "rnbqkbnr/pp1ppppp/8/2p1P3/2B5/5Q2/PPPP1PPP/RNB1K1NR b KQkq - 2 4"
     val lines =
@@ -408,6 +414,35 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       )
 
     assert(!rows.exists(_.label == "Central break"), clue(rows))
+    assertEquals(rows.map(_.label), List("Central challenge"))
+    assertEquals(rows.head.text, "The move challenges the center through d7-d6.")
+    assertEquals(
+      rows.head.authority,
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CentralChallenge, token = Some("...d7-d6")))
+    )
+  }
+
+  test("suppresses practical central rows when tactical truth mode vetoes support") {
+    val diagonalCaptureFen =
+      "r2q1rk1/pp2npb1/2p1b1pp/3pB3/3PN3/1BP2N2/PP3PPP/R2Q1RK1 b - - 0 15"
+    val lines =
+      List(
+        VariationLine(List("d5e4"), scoreCp = 0, depth = 18),
+        VariationLine(List("g7e5"), scoreCp = 0, depth = 18)
+      )
+    val truth = tacticalTruthContract(playedMove = "d5e4")
+    val (centralCtx, centralInputs, centralRanked) =
+      centralScene(fen = diagonalCaptureFen, ply = 30, playedMove = "d5e4", lines = lines, truthContract = Some(truth))
+
+    val rows =
+      MoveReviewSupportedLocalSurfaceRows.build(
+        ctx = centralCtx,
+        inputs = centralInputs,
+        rankedPlans = centralRanked,
+        truthContract = Some(truth)
+      )
+
+    assertEquals(rows, Nil)
   }
 
   test("suppresses neutralize_key_break row when tactical truth mode vetoes SupportedLocal") {

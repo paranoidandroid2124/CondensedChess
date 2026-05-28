@@ -12,7 +12,7 @@ This project is an offline research lane for strategic-engine work.
 ## Inputs Not Allowed
 
 - direct ownership of runtime planner/build/replay control flow
-- hidden coupling to live `modules/llm/src/main` behavior
+- hidden coupling to live `modules/commentaryCore/src/main` behavior
 - assumptions that a research score is already trusted user-facing truth
 
 ## Output Contract

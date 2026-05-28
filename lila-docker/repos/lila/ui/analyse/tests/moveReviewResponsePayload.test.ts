@@ -146,6 +146,56 @@ describe('moveReview response payload', () => {
     assert.equal(decoded.mainStrategicPlanCount, 0);
   });
 
+  test('decodeMoveReviewResponse ignores top-level explanation fact fragments', () => {
+    const decoded = decodeMoveReviewResponse({
+      moveReviewExplanation: {
+        title: 'Move review title',
+        prose: 'Short explanation.',
+        reasonTags: [],
+        source: 'basic_move_explanation',
+        factFragments: [
+          {
+            type: 'strategic_support',
+            proofFamily: 'raw_proof_family',
+            proofSource: 'raw_proof_source',
+          },
+        ],
+      },
+    });
+
+    assert.equal((decoded.moveReviewExplanation as any)?.factFragments, undefined);
+  });
+
+  test('decodeMoveReviewResponse drops malformed top-level ledger lines only', () => {
+    const decoded = decodeMoveReviewResponse({
+      moveReviewLedger: {
+        schema: 'chesstory.move_review.ledger.v1',
+        motifKey: 'piece_route',
+        motifLabel: 'Piece route',
+        stageKey: 'build',
+        stageLabel: 'Build',
+        carryOver: false,
+        prerequisites: [],
+        primaryLine: {
+          title: 'Raw request line',
+          sanMoves: ['Nf3'],
+          source: 'probe_request',
+          note: 'raw request purpose',
+        },
+        resourceLine: {
+          title: 'Probe line',
+          sanMoves: ['Nf3', 'Nc6'],
+          source: 'probe',
+          note: '12cp vs baseline',
+        },
+      },
+    });
+
+    assert.equal(decoded.moveReviewLedger?.primaryLine, null);
+    assert.equal(decoded.moveReviewLedger?.resourceLine?.source, 'probe');
+    assert.deepEqual(decoded.moveReviewLedger?.resourceLine?.sanMoves, ['Nf3', 'Nc6']);
+  });
+
   test('decodeMoveReviewResponse drops internal polish diagnostics from optional metadata', () => {
     const decoded = decodeMoveReviewResponse({
       polishMeta: {
@@ -210,6 +260,160 @@ describe('moveReview response payload', () => {
 
     assert.equal(backendBlockedFallback.diagnostics?.sourceModeReason, 'internal_marker_leak');
     assert.equal(moveReviewNeedsRetry(backendBlockedFallback), true);
+  });
+
+  test('decodeMoveReviewResponse preserves decision target comparison metadata', () => {
+    const decoded = decodeMoveReviewResponse({
+      moveReviewPlayerSurface: {
+        schema: 'chesstory.move_review.player_surface.v2',
+        summaryRows: [],
+        advancedRows: [],
+        probeRows: [],
+        authorRows: [],
+        decisionComparison: {
+          kicker: 'Decision point',
+          secondaryText: 'The branches leave different targets.',
+          chosenMatchesBest: false,
+          targetComparison: {
+            chosenTarget: 'e5',
+            chosenTargetKind: 'isolated_pawn',
+            bestTarget: 'd5',
+            bestTargetKind: 'backward_pawn',
+          },
+        },
+      },
+    });
+
+    assert.deepEqual(decoded.moveReviewPlayerSurface?.decisionComparison?.targetComparison, {
+      chosenTarget: 'e5',
+      chosenTargetKind: 'isolated_pawn',
+      bestTarget: 'd5',
+      bestTargetKind: 'backward_pawn',
+    });
+  });
+
+  test('decodeMoveReviewResponse drops malformed decision target comparison metadata', () => {
+    const decoded = decodeMoveReviewResponse({
+      moveReviewPlayerSurface: {
+        schema: 'chesstory.move_review.player_surface.v2',
+        summaryRows: [],
+        advancedRows: [],
+        probeRows: [],
+        authorRows: [],
+        decisionComparison: {
+          kicker: 'Decision point',
+          chosenMatchesBest: false,
+          targetComparison: {
+            chosenTarget: 'h9',
+            chosenTargetKind: 'isolated_pawn',
+            bestTarget: 'd5',
+            bestTargetKind: 'backward_pawn',
+          },
+        },
+      },
+    });
+
+    assert.equal(decoded.moveReviewPlayerSurface?.decisionComparison?.targetComparison, null);
+  });
+
+  test('decodeMoveReviewResponse preserves valid surface authority target metadata', () => {
+    const decoded = decodeMoveReviewResponse({
+      moveReviewPlayerSurface: {
+        schema: 'chesstory.move_review.player_surface.v2',
+        summaryRows: [
+          {
+            label: 'Opening',
+            text: 'The opening structure points at d5.',
+            authority: {
+              kind: 'opening_family',
+              openingFamily: 'queens_gambit',
+              target: 'd5',
+            },
+          },
+        ],
+        advancedRows: [],
+        probeRows: [],
+        authorRows: [],
+      },
+    });
+
+    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[0]?.authority, {
+      kind: 'opening_family',
+      token: null,
+      openingFamily: 'queens_gambit',
+      target: 'd5',
+    });
+  });
+
+  test('decodeMoveReviewResponse keeps surface row while downgrading malformed authority', () => {
+    const decoded = decodeMoveReviewResponse({
+      moveReviewPlayerSurface: {
+        schema: 'chesstory.move_review.player_surface.v2',
+        summaryRows: [
+          {
+            label: 'Opening',
+            text: 'The text should remain visible.',
+            authority: {
+              kind: 'opening_family',
+              openingFamily: 'Queen/Gambit',
+              target: 'h9',
+            },
+          },
+        ],
+        advancedRows: [],
+        probeRows: [],
+        authorRows: [],
+      },
+    });
+
+    assert.equal(decoded.moveReviewPlayerSurface?.summaryRows[0]?.text, 'The text should remain visible.');
+    assert.equal(decoded.moveReviewPlayerSurface?.summaryRows[0]?.authority, null);
+  });
+
+  test('decodeMoveReviewResponse downgrades unsupported or malformed surface authority shapes', () => {
+    const decoded = decodeMoveReviewResponse({
+      moveReviewPlayerSurface: {
+        schema: 'chesstory.move_review.player_surface.v2',
+        summaryRows: [
+          {
+            label: 'Central break',
+            text: 'This stale cached row has a malformed central-break token.',
+            authority: {
+              kind: 'central_break',
+              token: 'd5',
+            },
+          },
+          {
+            label: 'Counterplay break',
+            text: 'This square counterplay token is still a supported public shape.',
+            authority: {
+              kind: 'counterplay_break',
+              token: 'd5',
+            },
+          },
+          {
+            label: 'Unsupported',
+            text: 'This stale cached row uses an unknown authority kind.',
+            authority: {
+              kind: 'raw_proof_family',
+              token: 'd4-d5',
+            },
+          },
+        ],
+        advancedRows: [],
+        probeRows: [],
+        authorRows: [],
+      },
+    });
+
+    assert.equal(decoded.moveReviewPlayerSurface?.summaryRows[0]?.authority, null);
+    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[1]?.authority, {
+      kind: 'counterplay_break',
+      token: 'd5',
+      openingFamily: null,
+      target: null,
+    });
+    assert.equal(decoded.moveReviewPlayerSurface?.summaryRows[2]?.authority, null);
   });
 
   test('retry gating ignores malformed or absent diagnostics', () => {

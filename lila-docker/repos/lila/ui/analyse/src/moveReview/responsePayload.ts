@@ -136,6 +136,13 @@ export type MoveReviewPlayerSurfaceRowV1 = {
   authority?: MoveReviewSurfaceAuthorityV2 | null;
 };
 
+export type MoveReviewDecisionTargetComparisonV1 = {
+  chosenTarget: string;
+  chosenTargetKind: string;
+  bestTarget: string;
+  bestTargetKind: string;
+};
+
 export type MoveReviewPlayerDecisionComparisonV1 = {
   kicker: string;
   gapLabel?: string | null;
@@ -144,6 +151,7 @@ export type MoveReviewPlayerDecisionComparisonV1 = {
   comparedSan?: string | null;
   secondaryText?: string | null;
   chosenMatchesBest: boolean;
+  targetComparison?: MoveReviewDecisionTargetComparisonV1 | null;
 };
 
 export type MoveReviewPlayerAuthorRowV1 = {
@@ -289,24 +297,60 @@ function surfaceRowFromUnknown(raw: unknown): MoveReviewPlayerSurfaceRowV1 | nul
   const refSans = raw.refSans == null ? [] : stringListFromUnknown(raw.refSans);
   if (!refSans) return null;
   const authority = raw.authority == null ? null : surfaceAuthorityFromUnknown(raw.authority);
-  if (raw.authority != null && !authority) return null;
   return {
     label: raw.label,
     text: raw.text,
     tone: typeof raw.tone === 'string' ? raw.tone : null,
     refSans,
-    authority,
+    authority: authority,
   };
 }
 
 function surfaceAuthorityFromUnknown(raw: unknown): MoveReviewSurfaceAuthorityV2 | null {
   if (!isRecord(raw) || typeof raw.kind !== 'string') return null;
-  return {
+  if (!isAuthorityKey(raw.kind)) return null;
+
+  const token = typeof raw.token === 'string' ? raw.token : null;
+  if (token !== null && !isSurfaceAuthorityToken(token)) return null;
+
+  const target = typeof raw.target === 'string' ? raw.target : null;
+  if (target !== null && !isChessSquare(target)) return null;
+
+  const openingFamily = typeof raw.openingFamily === 'string' ? raw.openingFamily : null;
+  if (openingFamily !== null && !isAuthorityKey(openingFamily)) return null;
+
+  const authority = {
     kind: raw.kind,
-    token: typeof raw.token === 'string' ? raw.token : null,
-    openingFamily: typeof raw.openingFamily === 'string' ? raw.openingFamily : null,
-    target: typeof raw.target === 'string' ? raw.target : null,
+    token,
+    openingFamily,
+    target,
   };
+  return isSurfaceAuthorityShape(authority) ? authority : null;
+}
+
+function isSurfaceAuthorityShape(authority: MoveReviewSurfaceAuthorityV2): boolean {
+  switch (authority.kind) {
+    case 'counterplay_break':
+      return !!authority.token && !authority.openingFamily && !authority.target;
+    case 'central_break':
+    case 'central_liquidation':
+    case 'central_challenge':
+      return !!authority.token && isSurfaceAuthorityRouteToken(authority.token) && !authority.openingFamily && !authority.target;
+    case 'practical_plan':
+      return !authority.token && !authority.openingFamily && !authority.target;
+    case 'opening_family':
+      return !!authority.openingFamily && !authority.token;
+    default:
+      return false;
+  }
+}
+
+function isSurfaceAuthorityToken(value: string): boolean {
+  return /^(?:\.\.\.)?[a-h][1-8](?:-[a-h][1-8])?$/.test(value);
+}
+
+function isSurfaceAuthorityRouteToken(value: string): boolean {
+  return /^(?:\.\.\.)?[a-h][1-8]-[a-h][1-8]$/.test(value);
 }
 
 function surfaceRowsFromUnknown(raw: unknown): MoveReviewPlayerSurfaceRowV1[] | null {
@@ -328,7 +372,40 @@ function playerDecisionComparisonFromUnknown(raw: unknown): MoveReviewPlayerDeci
     comparedSan: typeof raw.comparedSan === 'string' ? raw.comparedSan : null,
     secondaryText: typeof raw.secondaryText === 'string' ? raw.secondaryText : null,
     chosenMatchesBest: raw.chosenMatchesBest,
+    targetComparison: decisionTargetComparisonFromUnknown(raw.targetComparison),
   };
+}
+
+function decisionTargetComparisonFromUnknown(raw: unknown): MoveReviewDecisionTargetComparisonV1 | null {
+  if (!isRecord(raw)) return null;
+  if (
+    typeof raw.chosenTarget !== 'string' ||
+    typeof raw.chosenTargetKind !== 'string' ||
+    typeof raw.bestTarget !== 'string' ||
+    typeof raw.bestTargetKind !== 'string'
+  )
+    return null;
+  if (
+    !isChessSquare(raw.chosenTarget) ||
+    !isChessSquare(raw.bestTarget) ||
+    !isAuthorityKey(raw.chosenTargetKind) ||
+    !isAuthorityKey(raw.bestTargetKind)
+  )
+    return null;
+  return {
+    chosenTarget: raw.chosenTarget,
+    chosenTargetKind: raw.chosenTargetKind,
+    bestTarget: raw.bestTarget,
+    bestTargetKind: raw.bestTargetKind,
+  };
+}
+
+function isChessSquare(value: string): boolean {
+  return /^[a-h][1-8]$/.test(value);
+}
+
+function isAuthorityKey(value: string): boolean {
+  return /^[a-z][a-z0-9_]{1,40}$/.test(value);
 }
 
 function playerAuthorRowFromUnknown(raw: unknown): MoveReviewPlayerAuthorRowV1 | null {
@@ -471,6 +548,7 @@ function ledgerLineFromUnknown(raw: unknown): MoveReviewLedgerLineV1 | null {
   if (typeof raw.title !== 'string' || typeof raw.source !== 'string' || !Array.isArray(raw.sanMoves)) return null;
   const sanMoves = raw.sanMoves.filter((value): value is string => typeof value === 'string');
   if (sanMoves.length !== raw.sanMoves.length) return null;
+  if (!sanMoves.length) return null;
   if (!['probe', 'decision_compare', 'variation', 'authoring'].includes(raw.source)) return null;
   return {
     title: raw.title,
@@ -495,12 +573,11 @@ export function moveReviewLedgerFromResponse(data: MaybeResponse): MoveReviewStr
     !Array.isArray(raw.prerequisites)
   )
     return null;
+  if (!isAuthorityKey(raw.motifKey) || !isAuthorityKey(raw.stageKey)) return null;
   const prerequisites = raw.prerequisites.filter((value): value is string => typeof value === 'string');
   if (prerequisites.length !== raw.prerequisites.length) return null;
-  const primaryLine = ledgerLineFromUnknown(raw.primaryLine);
-  const resourceLine = ledgerLineFromUnknown(raw.resourceLine);
-  if (raw.primaryLine != null && !primaryLine) return null;
-  if (raw.resourceLine != null && !resourceLine) return null;
+  const primaryLine = raw.primaryLine == null ? null : ledgerLineFromUnknown(raw.primaryLine);
+  const resourceLine = raw.resourceLine == null ? null : ledgerLineFromUnknown(raw.resourceLine);
   return {
     schema: 'chesstory.move_review.ledger.v1',
     motifKey: raw.motifKey,

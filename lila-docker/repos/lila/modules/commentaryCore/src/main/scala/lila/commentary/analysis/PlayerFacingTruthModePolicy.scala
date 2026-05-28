@@ -3,8 +3,9 @@ package lila.commentary.analysis
 
 import lila.commentary.analysis.claim.*
 import lila.commentary.analysis.semantic.StrategicObservationIds.{ EvidenceRef, EvidenceSourceId, ProofFamilyId, ProofSourceId }
+import lila.commentary.analysis.structure.{ CarlsbadTarget, PawnStructureTargets, WeaknessTargetProfile }
 import _root_.chess.{ Bishop, Board, Color, King, Pawn, Queen, Square }
-import _root_.chess.format.{ Fen, Uci }
+import _root_.chess.format.Fen
 import _root_.chess.variant.Standard
 
 import lila.commentary.{ DirectionalTargetReadiness, RouteSurfaceMode, StrategicIdeaKind, StrategyIdeaSignal, StrategyPack, StrategyPieceMoveRef }
@@ -925,27 +926,6 @@ private[commentary] object PlayerFacingTruthModePolicy:
     def ownerSeedMatches(ownerSeed: ClaimOwnerSeed): Boolean =
       ownerSeed.proofSource == proofSource &&
         releaseOwnerFamilies.contains(ownerSeed.proofFamily)
-
-  private final case class CarlsbadTarget(
-      targetSquare: String,
-      enemyChainSquare: String,
-      friendlyMinorityPawn: String,
-      friendlyChainPawn: String
-  ):
-    def ownerSeedTerms: List[String] =
-      List(
-        targetSquare,
-        s"fixed_target:$targetSquare",
-        "queenside",
-        PlanTaxonomy.PlanKind.BackwardPawnTargeting.id
-      ).distinct
-
-    def structureTransitionTerms: List[String] =
-      List(
-        "queenside_fixed_chain",
-        s"${targetSquare}_target",
-        s"${enemyChainSquare}_chain"
-      ).distinct
 
   private val ExactTargetFixationDescriptor =
     ExactSliceDescriptor(
@@ -1886,9 +1866,6 @@ private[commentary] object PlayerFacingTruthModePolicy:
   ): Option[ExactSliceDescriptor] =
     ExactSliceDescriptors.find(_.packetMatches(packet))
 
-  private def isSquareKey(term: String): Boolean =
-    term.matches("[a-h][1-8]")
-
   private def embeddedSquareKey(term: String): Option[String] =
     "[a-h][1-8]".r.findFirstIn(normalize(term))
 
@@ -2006,9 +1983,6 @@ private[commentary] object PlayerFacingTruthModePolicy:
         if replyDest == queenExchange
       yield topMoves.take(index + 2)
     }.headOption
-
-  private def normalizeUciMove(raw: String): String =
-    Option(raw).getOrElse("").trim.toLowerCase
 
   private def exactSliceContinuationTerms(
       ctx: NarrativeContext,
@@ -3096,8 +3070,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
       ExactSliceWitness(
         descriptor = CarlsbadFixedTargetProbeDescriptor,
         targetSquare = target.targetSquare,
-        ownerSeedTerms = target.ownerSeedTerms,
-        structureTransitionTerms = target.structureTransitionTerms,
+        ownerSeedTerms = carlsbadOwnerSeedTerms(target),
+        structureTransitionTerms = carlsbadStructureTransitionTerms(target),
         exactSliceProof = PlayerFacingExactSliceProof.CarlsbadFixedTarget(
           targetSquare = target.targetSquare,
           minoritySupport = true
@@ -3440,205 +3414,169 @@ private[commentary] object PlayerFacingTruthModePolicy:
       ctx: NarrativeContext,
       surface: StrategyPackSurface.Snapshot
   ): Option[ExactSliceWitness] =
-    val targetFixIdea =
-      val ideas = if surface.allIdeas.nonEmpty then surface.allIdeas else List(surface.dominantIdea, surface.secondaryIdea).flatten
-      ideas.find { idea =>
-        idea.kind == StrategicIdeaKind.TargetFixing &&
-          (
+    if exactTargetFixationRelabelBlocked(ctx) then None
+    else
+      val targetFixIdea =
+        val ideas = if surface.allIdeas.nonEmpty then surface.allIdeas else List(surface.dominantIdea, surface.secondaryIdea).flatten
+        ideas.find { idea =>
+          idea.kind == StrategicIdeaKind.TargetFixing &&
             (
-              ideaHasSource(idea, EvidenceSourceId.PlanMatchTargetFixing) &&
-                ideaHasSource(idea, EvidenceSourceId.WeakComplexFixation)
-            ) ||
-              benoniD6TargetFixingSurface(ctx, idea)
-          ) &&
-          !ideaHasSource(idea, EvidenceSourceId.CarlsbadFixationProfile)
-      }
-    val backwardPawnTarget =
-      targetFixIdea.flatMap { idea =>
-        exactTargetFixationPosition(ctx).flatMap { case (board, sideToMove) =>
-          val focusSquares =
-            idea.focusSquares.map(normalize).filter(_.matches("[a-h][1-8]")).distinct
-          val pawnTargets =
-            focusSquares.filter { squareKey =>
-              Square.all
-                .find(_.key == squareKey)
-                .flatMap(board.pieceAt)
-                .exists(piece => piece.color != sideToMove && piece.role == Pawn)
-            }
-          Option.when(
-            pawnTargets.size == 1 &&
-              bestDefenseBranchKeyFromContext(ctx).nonEmpty
-          )(pawnTargets.head)
+              (
+                ideaHasSource(idea, EvidenceSourceId.PlanMatchTargetFixing) &&
+                  ideaHasSource(idea, EvidenceSourceId.WeakComplexFixation)
+              ) ||
+                routeTargetFixingSurface(ctx, idea)
+            ) &&
+            !ideaHasSource(idea, EvidenceSourceId.CarlsbadFixationProfile)
         }
-      }
-    val surfaceWitness = for
-      idea <- targetFixIdea
-      targetSquare <- backwardPawnTarget
-      if idea.focusSquares.isEmpty || idea.focusSquares.map(normalize).contains(targetSquare)
-    yield ExactSliceWitness(
-      descriptor = ExactTargetFixationDescriptor,
-      targetSquare = targetSquare,
-      ownerSeedTerms =
-        List(
-          targetSquare,
-          s"fixed_target:$targetSquare",
-          "backward_pawn_target"
-        ).distinct,
-      structureTransitionTerms =
-        List(
-          s"weak_complex:$targetSquare",
-          "backward_pawn_target"
-        ).distinct,
-      exactSliceProof = PlayerFacingExactSliceProof.ExactTargetFixation(targetSquare)
-    )
-    surfaceWitness
-      .orElse(benoniD6SurfaceEvidenceWitness(ctx, surface))
-      .orElse(benoniD6TargetFixationWitness(ctx))
+      val backwardPawnTarget =
+        targetFixIdea.flatMap { idea =>
+          exactTargetFixationPosition(ctx).flatMap { case (board, sideToMove) =>
+            val focusSquares =
+              idea.focusSquares.map(normalize).filter(_.matches("[a-h][1-8]")).distinct
+            val dynamicTargets =
+              WeaknessTargetProfile.targetsForPressure(board, sideToMove).map(_.targetSquare).toSet
+            val pawnTargets =
+              focusSquares.filter { squareKey =>
+                dynamicTargets.contains(squareKey) &&
+                  Square.all
+                    .find(_.key == squareKey)
+                    .flatMap(board.pieceAt)
+                    .exists(piece => piece.color != sideToMove && piece.role == Pawn)
+            }
+            Option.when(
+              pawnTargets.size == 1 &&
+                targetFixIdeaSupportsTarget(idea, pawnTargets.head) &&
+                bestDefenseBranchKeyFromContext(ctx).nonEmpty
+            )(pawnTargets.head)
+          }
+        }
+      val surfaceWitness = for
+        idea <- targetFixIdea
+        targetSquare <- backwardPawnTarget
+        if idea.focusSquares.isEmpty || idea.focusSquares.map(normalize).contains(targetSquare)
+      yield ExactSliceWitness(
+        descriptor = ExactTargetFixationDescriptor,
+        targetSquare = targetSquare,
+        ownerSeedTerms =
+          List(
+            targetSquare,
+            s"fixed_target:$targetSquare",
+            "backward_pawn_target"
+          ).distinct,
+        structureTransitionTerms =
+          List(
+            s"weak_complex:$targetSquare",
+            "backward_pawn_target"
+          ).distinct,
+        exactSliceProof = PlayerFacingExactSliceProof.ExactTargetFixation(targetSquare)
+      )
+      surfaceWitness
+        .orElse(findRouteWitness(ctx, surface))
 
-  private def benoniD6TargetFixingSurface(
+  private def targetFixIdeaSupportsTarget(
+      idea: StrategyIdeaSignal,
+      targetSquare: String
+  ): Boolean =
+    val target = normalize(targetSquare)
+    val focusSquares = idea.focusSquares.map(normalize).filter(_.matches("[a-h][1-8]")).distinct
+    val evidenceTerms = (idea.ideaId :: idea.evidenceRefs).map(normalize)
+    focusSquares.size == 1 ||
+      evidenceTerms.exists(term =>
+        term.contains(s"_$target") ||
+          term.contains(s":$target") ||
+          term.contains(s"-$target") ||
+          term == target
+      )
+
+  private def exactTargetFixationRelabelBlocked(ctx: NarrativeContext): Boolean =
+    val mainPlanTokens =
+      StrategicNarrativePlanSupport.evidenceBackedMainPlans(ctx).flatMap(plan =>
+        List(
+          PlanMatcher.proofFamily(plan.themeL1, plan.subplanId),
+          PlanMatcher.triggerKind(plan.themeL1, plan.subplanId),
+          plan.themeL1
+        ) ++ plan.subplanId.toList
+      )
+    val fileEntryOwnerVisible =
+      mainPlanTokens.exists { token =>
+        Set(
+          HalfOpenFilePressureFamily,
+          PlanTaxonomy.PlanKind.KeySquareDenial.id,
+          PlanTaxonomy.PlanKind.OpenFilePressure.id,
+          PlanTaxonomy.PlanKind.RookFileTransfer.id,
+          "entry_square_denial",
+          "bounded_file_pressure"
+        ).contains(normalize(token))
+      }
+    fileEntryOwnerVisible ||
+      LocalFileEntryProof.certifiedSurfacePair(ctx).nonEmpty
+
+  private def routeTargetFixingSurface(
       ctx: NarrativeContext,
       idea: StrategyIdeaSignal
   ): Boolean =
-    exactTargetFixationPosition(ctx).exists { case (board, sideToMove) => benoniD6TargetBoard(board, sideToMove) } &&
-      idea.focusSquares.map(_.toLowerCase).contains("d6") &&
+    val focusSquares = idea.focusSquares.map(normalize).filter(_.matches("[a-h][1-8]")).toSet
+    focusSquares.nonEmpty &&
       idea.evidenceRefs.exists(ref =>
         containsAny(normalize(ref), List("weak_complex", "enemy_weak_square", "target_fixing"))
-      )
+      ) &&
+      exactTargetFixationPosition(ctx).exists { case (board, sideToMove) =>
+        OpeningRouteCatalog.default.routes.exists(route =>
+          focusSquares.contains(route.targetSquare) &&
+            OpeningRouteTargetEvidence.checkRouteBoard(board, sideToMove, route) &&
+            KnightRouteEvidence.fromContext(ctx, route).nonEmpty
+        )
+      }
 
-  private def benoniD6SurfaceEvidenceWitness(
+  private def findRouteWitness(
       ctx: NarrativeContext,
       surface: StrategyPackSurface.Snapshot
   ): Option[ExactSliceWitness] =
-    val hasSurfaceEvidence =
-      surface.allIdeas.exists(_.kind == StrategicIdeaKind.TargetFixing) ||
-        surface.evidenceHints.exists(hint =>
-          containsAny(normalize(hint), List("target_fixing", "weak_complex")) &&
-            normalize(hint).contains("d6")
-        )
-    Option.when(hasSurfaceEvidence) {
-      exactTargetFixationPosition(ctx).flatMap { case (board, sideToMove) =>
-        val exactBoard =
-          benoniD6TargetBoard(board, sideToMove)
-        val routeEvidence = benoniD6KnightRouteEvidence(ctx)
-        Option.when(exactBoard && routeEvidence.nonEmpty) {
-          ExactSliceWitness(
-            descriptor = ExactTargetFixationDescriptor,
-            targetSquare = "d6",
-            ownerSeedTerms =
-              List(
-                "d6",
-                "fixed_target:d6",
-                "backward_pawn_target",
-                "benoni_d6_target"
-              ).distinct,
-            structureTransitionTerms =
-              (
-                List(
-                  "locked_pawn_chain:d5-d6",
-                  "knight_route:f3-d2-c4",
-                  s"played:${routeEvidence.map(_.playedMove).getOrElse("")}"
-                ) ++ routeEvidence.toList.flatMap(_.pvMoves.take(10))
-              ).filter(_.nonEmpty).distinct,
-            exactSliceProof = PlayerFacingExactSliceProof.ExactTargetFixation("d6")
-          )
-        }
-      }
-    }.flatten
-
-  private def benoniD6TargetFixationWitness(
-      ctx: NarrativeContext
-  ): Option[ExactSliceWitness] =
-    val routeEvidence = benoniD6KnightRouteEvidence(ctx)
     exactTargetFixationPosition(ctx).flatMap { case (board, sideToMove) =>
-        val exactBoard =
-          benoniD6TargetBoard(board, sideToMove)
-        Option.when(exactBoard && routeEvidence.nonEmpty) {
-          ExactSliceWitness(
-            descriptor = ExactTargetFixationDescriptor,
-            targetSquare = "d6",
-            ownerSeedTerms =
-              List(
-                "d6",
-                "fixed_target:d6",
-                "backward_pawn_target",
-                "benoni_d6_target"
-              ).distinct,
-            structureTransitionTerms =
-              (
-                List(
-                  "locked_pawn_chain:d5-d6",
-                  "knight_route:f3-d2-c4",
-                  s"played:${routeEvidence.map(_.playedMove).getOrElse("")}"
-                ) ++ routeEvidence.toList.flatMap(_.pvMoves.take(10))
-              ).distinct,
-            exactSliceProof = PlayerFacingExactSliceProof.ExactTargetFixation("d6")
-          )
-        }
+      OpeningRouteCatalog.default.routes.iterator
+        .flatMap(route =>
+          KnightRouteEvidence
+            .fromContext(ctx, route)
+            .filter(_ => OpeningRouteTargetEvidence.checkRouteBoard(board, sideToMove, route))
+            .filter(_ => routeTargetVisible(ctx, surface, route))
+            .map(evidence =>
+              ExactSliceWitness(
+                descriptor = ExactTargetFixationDescriptor,
+                targetSquare = route.targetSquare,
+                ownerSeedTerms = OpeningRouteTargetEvidence.ownerSeedTerms(route),
+                structureTransitionTerms = OpeningRouteTargetEvidence.structureTransitionTerms(route, evidence),
+                exactSliceProof = PlayerFacingExactSliceProof.ExactTargetFixation(route.targetSquare)
+              )
+            )
+        )
+        .toList
+        .headOption
     }
 
-  private final case class BenoniD6RouteEvidence(playedMove: String, pvMoves: List[String])
-
-  private def benoniD6TargetBoard(
-      board: Board,
-      sideToMove: Color
+  private def routeTargetVisible(
+      ctx: NarrativeContext,
+      surface: StrategyPackSurface.Snapshot,
+      route: OpeningRouteCatalog.Route
   ): Boolean =
-    sideToMove.white &&
-      boardHasFriendlyPawn(board, sideToMove, "d5") &&
-      boardHasEnemyPawn(board, sideToMove, "c5") &&
-      boardHasEnemyPawn(board, sideToMove, "d6")
-
-  private def benoniD6KnightRouteEvidence(ctx: NarrativeContext): Option[BenoniD6RouteEvidence] =
-    val pvMoves = normalizedTopUciMoves(ctx)
-    for
-      position <- Fen.read(Standard, Fen.Full(ctx.fen))
-      playedUci <- ctx.playedMove.map(NarrativeUtils.normalizeUciMove).filter(isUciMove).orElse(pvMoves.headOption)
-      playedMove <- legalUciMove(position, playedUci)
-      if playedMove.piece.color == position.color &&
-        playedMove.piece.role == _root_.chess.Knight &&
-        playedMove.orig.key == "f3" &&
-        playedMove.dest.key == "d2"
-      replayMoves = if pvMoves.headOption.contains(playedUci) then pvMoves.tail else pvMoves
-      if replaySupportsKnightRoute(playedMove.after, replayMoves.take(8), position.color, from = "d2", to = "c4")
-    yield BenoniD6RouteEvidence(playedUci, pvMoves)
-
-  private def replaySupportsKnightRoute(
-      start: _root_.chess.Position,
-      moves: List[String],
-      side: Color,
-      from: String,
-      to: String
-  ): Boolean =
-    def loop(position: _root_.chess.Position, remaining: List[String]): Boolean =
-      legalKnightRouteAvailable(position, side, from, to) ||
-        (remaining match
-          case uci :: rest =>
-            legalUciMove(position, uci).exists { move =>
-              val playsRoute =
-                position.color == side &&
-                  move.piece.role == _root_.chess.Knight &&
-                  move.orig.key == from &&
-                  move.dest.key == to
-              playsRoute || loop(move.after, rest)
-            }
-          case Nil => false)
-    loop(start, moves)
-
-  private def legalKnightRouteAvailable(
-      position: _root_.chess.Position,
-      side: Color,
-      from: String,
-      to: String
-  ): Boolean =
-    position.color == side &&
-      legalUciMove(position, s"$from$to").exists(move =>
-        move.piece.color == side &&
-          move.piece.role == _root_.chess.Knight &&
-          move.orig.key == from &&
-          move.dest.key == to
-      )
-
-  private def legalUciMove(position: _root_.chess.Position, raw: String): Option[_root_.chess.Move] =
-    Uci(raw).collect { case move: Uci.Move => move }.flatMap(position.move(_).toOption)
+    val target = route.targetSquare
+    val targetVisible =
+      ctx.decision.flatMap(_.focalPoint).exists(square => normalize(square.label) == target) ||
+        surface.allIdeas.exists(idea =>
+          idea.kind == StrategicIdeaKind.TargetFixing &&
+            (idea.focusSquares.map(normalize).contains(target) ||
+              idea.evidenceRefs.exists(ref => normalize(ref).contains(target)))
+        ) ||
+        surface.allDirectionalTargets.exists(targetInfo => normalize(targetInfo.targetSquare) == target) ||
+        surface.allRoutes.exists(routeInfo => routeInfo.route.map(normalize).contains(route.to)) ||
+        surface.evidenceHints.exists(hint => normalize(hint).contains(target))
+    val routeVisible =
+      surface.evidenceHints.exists(hint => normalize(hint).contains(route.routeId)) ||
+        surface.allRoutes.exists(routeInfo =>
+          routeInfo.route.map(normalize) == route.path ||
+            routeInfo.evidence.exists(evidence => normalize(evidence).contains(route.routeId))
+        )
+    targetVisible || routeVisible
 
   private def exactTargetFixationPosition(
       ctx: NarrativeContext
@@ -3649,27 +3587,28 @@ private[commentary] object PlayerFacingTruthModePolicy:
       board: _root_.chess.Board,
       sideToMove: _root_.chess.Color
   ): Option[CarlsbadTarget] =
-    val mirror =
-      if sideToMove.white then
-        CarlsbadTarget(
-          targetSquare = "c6",
-          enemyChainSquare = "d5",
-          friendlyMinorityPawn = "b2",
-          friendlyChainPawn = "d4"
-        )
-      else
-        CarlsbadTarget(
-          targetSquare = "c3",
-          enemyChainSquare = "d4",
-          friendlyMinorityPawn = "b7",
-          friendlyChainPawn = "d5"
-        )
-    Option.when(
-      boardHasEnemyPawn(board, sideToMove, mirror.targetSquare) &&
-        boardHasEnemyPawn(board, sideToMove, mirror.enemyChainSquare) &&
-        boardHasFriendlyPawn(board, sideToMove, mirror.friendlyMinorityPawn) &&
-        boardHasFriendlyPawn(board, sideToMove, mirror.friendlyChainPawn)
-    )(mirror)
+    PawnStructureTargets.carlsbadTargetForBoard(board, sideToMove)
+
+  private def carlsbadOwnerSeedTerms(target: CarlsbadTarget): List[String] =
+    List(
+      target.targetSquare,
+      s"fixed_target:${target.targetSquare}",
+      "queenside",
+      PlanTaxonomy.PlanKind.BackwardPawnTargeting.id
+    ).distinct
+
+  private def carlsbadStructureTransitionTerms(target: CarlsbadTarget): List[String] =
+    List(
+      "queenside_fixed_chain",
+      s"${target.targetSquare}_target",
+      s"${target.enemyChainSquare}_chain"
+    ).distinct
+
+  private[analysis] def carlsbadTargetForBoard(
+      board: _root_.chess.Board,
+      sideToMove: _root_.chess.Color
+  ): Option[String] =
+    findCarlsbadTarget(board, sideToMove).map(_.targetSquare)
 
   private def targetFocusedCoordinationBoardTarget(
       board: _root_.chess.Board,
@@ -3696,16 +3635,6 @@ private[commentary] object PlayerFacingTruthModePolicy:
   private def sameColorLabel(raw: String, color: _root_.chess.Color): Boolean =
     normalize(raw) == colorLabel(color)
 
-  private def boardHasEnemyPawn(
-      board: _root_.chess.Board,
-      sideToMove: _root_.chess.Color,
-      squareKey: String
-  ): Boolean =
-    Square.all
-      .find(_.key == squareKey)
-      .flatMap(board.pieceAt)
-      .exists(piece => piece.color != sideToMove && piece.role == Pawn)
-
   private def boardHasEnemyRole(
       board: _root_.chess.Board,
       sideToMove: _root_.chess.Color,
@@ -3716,13 +3645,6 @@ private[commentary] object PlayerFacingTruthModePolicy:
       .find(_.key == squareKey)
       .flatMap(board.pieceAt)
       .exists(piece => piece.color != sideToMove && piece.role == role)
-
-  private def boardHasFriendlyPawn(
-      board: _root_.chess.Board,
-      sideToMove: _root_.chess.Color,
-      squareKey: String
-  ): Boolean =
-    boardHasFriendlyRole(board, sideToMove, squareKey, Pawn)
 
   private def boardHasFriendlyRole(
       board: _root_.chess.Board,
@@ -3763,44 +3685,10 @@ private[commentary] object PlayerFacingTruthModePolicy:
       proof: PlayerFacingExactSliceProof,
       descriptor: ExactSliceDescriptor
   ): Boolean =
-    descriptor.kind match
-      case ExactSliceKind.TargetFixation =>
-        proof match
-          case PlayerFacingExactSliceProof.ExactTargetFixation(targetSquare) =>
-            isSquareKey(normalize(targetSquare))
-          case _ => false
-      case ExactSliceKind.CarlsbadFixedTargetProbe =>
-        proof match
-          case PlayerFacingExactSliceProof.CarlsbadFixedTarget(targetSquare, minoritySupport) =>
-            Set("c6", "c3").contains(normalize(targetSquare)) && minoritySupport
-          case _ => false
-      case ExactSliceKind.TargetFocusedCoordinationProbe =>
-        proof match
-          case PlayerFacingExactSliceProof.TargetFocusedCoordination(targetSquare, supportFromSquares, targetPieces) =>
-            isSquareKey(normalize(targetSquare)) &&
-              supportFromSquares.map(normalize).filter(isSquareKey).distinct.size >= 2 &&
-              targetPieces.exists(token => normalizeEvidenceToken(token).startsWith("target_"))
-          case _ => false
-      case ExactSliceKind.ColorComplexSqueezeProbe =>
-        proof match
-          case PlayerFacingExactSliceProof.ColorComplexSqueeze(targetSquare, squareColor, minorPieceRole, minorPieceSquare) =>
-            isSquareKey(normalize(targetSquare)) &&
-              Set("light", "dark").contains(normalize(squareColor)) &&
-              Set("bishop", "knight").contains(normalize(minorPieceRole)) &&
-              isSquareKey(normalize(minorPieceSquare))
-          case _ => false
+    PlayerFacingExactSliceProofFacts.matchesPath(proof, descriptor.proofSource, descriptor.proofFamily)
 
   private def exactSliceProofTarget(proof: PlayerFacingExactSliceProof): Option[String] =
-    proof match
-      case PlayerFacingExactSliceProof.ExactTargetFixation(targetSquare) =>
-        Some(normalize(targetSquare)).filter(isSquareKey)
-      case PlayerFacingExactSliceProof.CarlsbadFixedTarget(targetSquare, _) =>
-        Some(normalize(targetSquare)).filter(isSquareKey)
-      case PlayerFacingExactSliceProof.TargetFocusedCoordination(targetSquare, _, _) =>
-        Some(normalize(targetSquare)).filter(isSquareKey)
-      case PlayerFacingExactSliceProof.ColorComplexSqueeze(targetSquare, _, _, _) =>
-        Some(normalize(targetSquare)).filter(isSquareKey)
-      case _ => None
+    PlayerFacingExactSliceProofFacts.targetSquare(proof)
 
   private[commentary] def certifiedExactTargetFixationPacket(
       packet: PlayerFacingClaimPacket

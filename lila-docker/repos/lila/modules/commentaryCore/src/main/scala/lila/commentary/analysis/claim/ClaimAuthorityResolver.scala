@@ -193,6 +193,7 @@ private[commentary] object ClaimAuthorityResolver:
       val cpLoss = truthContract.map(_.cpLoss)
         .orElse(inputs.counterfactual.map(_.cpLoss))
         .orElse(inputs.decisionComparison.flatMap(_.cpLossVsChosen))
+      val winPercentLoss = cpLoss.map(cp => DecisiveTruth.winPercentFromCp(cp) - 50.0).getOrElse(0.0)
       val isTacticalFailure = truthContract.exists { contract =>
         contract.truthClass == DecisiveTruthClass.Blunder ||
           contract.truthClass == DecisiveTruthClass.MissedWin ||
@@ -201,7 +202,20 @@ private[commentary] object ClaimAuthorityResolver:
       }
       val severeCounterfactual =
         ctx.exists(narrativeCtx => TacticalTensionPolicy.evaluate(narrativeCtx, truthContract).severeCounterfactual)
-      !isTacticalFailure && !severeCounterfactual && cpLoss.exists(_ <= 30)
+
+      if isTacticalFailure || severeCounterfactual then
+        false
+      else if winPercentLoss < 10.0 then
+        true
+      else if winPercentLoss < 20.0 then
+        val isForcingOrOnlyMove =
+          truthContract.exists(c =>
+            c.reasonFamily == DecisiveReasonKind.OnlyMoveDefense ||
+            c.reasonFamily == DecisiveReasonKind.TacticalRefutation
+          )
+        !isForcingOrOnlyMove
+      else
+        false
 
   private def supportsLocalPositionProbe(packet: PlayerFacingClaimPacket): Boolean =
     packet.scope == PlayerFacingPacketScope.PositionLocal &&

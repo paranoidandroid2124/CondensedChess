@@ -9,7 +9,8 @@ live Chesstory commentary runtime.
 ## Why This Lives At Repo Root
 
 - It keeps research out of
-  `lila-docker/repos/lila/modules/llm/src/main`.
+  `lila-docker/repos/lila/modules/commentaryCore/src/main` and
+  `lila-docker/repos/lila/modules/commentary/src/main`.
 - It keeps research separate from existing runtime-adjacent tooling under
   `src/test`.
 - It gives future research lanes one stable home instead of creating more

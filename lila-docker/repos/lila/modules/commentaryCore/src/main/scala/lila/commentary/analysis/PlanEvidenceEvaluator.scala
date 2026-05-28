@@ -4,6 +4,7 @@ import play.api.libs.json.*
 import lila.commentary.model.{ ProbeContractValidator, ProbeRequest, ProbeResult }
 import lila.commentary.model.authoring.PlanHypothesis
 import lila.commentary.analysis.PlanTaxonomy.{ PlanTheme, ThemeResolver, SubplanCatalog, PlanKind, SubplanSpec }
+import lila.commentary.analysis.structure.TranspositionPvAligner
 
 /**
  * Evaluates strategic plan hypotheses with a fail-closed evidence policy.
@@ -15,6 +16,7 @@ object PlanEvidenceEvaluator:
 
   enum PlanEvidenceStatus:
     case PlayableEvidenceBacked
+    case PlayableTranspositionAligned
     case PlayableStructuralOnly
     case PlayablePvCoupled
     case Refuted
@@ -22,6 +24,7 @@ object PlanEvidenceEvaluator:
 
   enum UserFacingPlanEligibility:
     case ProbeBacked
+    case TranspositionAligned
     case StructuralOnly
     case PvCoupledOnly
     case Deferred
@@ -33,6 +36,7 @@ object PlanEvidenceEvaluator:
       userFacingEligibility: UserFacingPlanEligibility,
       reason: String,
       supportProbeIds: List[String] = Nil,
+      transpositionProofIds: List[String] = Nil,
       refuteProbeIds: List[String] = Nil,
       missingSignals: List[String] = Nil,
       pvCoupled: Boolean = false,
@@ -40,6 +44,19 @@ object PlanEvidenceEvaluator:
       subplanId: Option[String] = None,
       claimCertification: ClaimCertification = ClaimCertification()
   )
+
+  def isMainAdmittedPlan(plan: EvaluatedPlan): Boolean =
+    plan.userFacingEligibility match
+      case UserFacingPlanEligibility.ProbeBacked =>
+        plan.supportProbeIds.exists(nonEmptyToken)
+      case UserFacingPlanEligibility.TranspositionAligned =>
+        plan.transpositionProofIds.exists(nonEmptyToken) &&
+          plan.claimCertification.provenanceClass == PlayerFacingClaimProvenanceClass.TranspositionAligned
+      case _ => false
+
+  def isBoundedPracticalSupportPlan(plan: EvaluatedPlan): Boolean =
+    plan.userFacingEligibility == UserFacingPlanEligibility.StructuralOnly ||
+      plan.userFacingEligibility == UserFacingPlanEligibility.PvCoupledOnly
 
   case class ClaimCertification(
       certificateStatus: PlayerFacingCertificateStatus = PlayerFacingCertificateStatus.Invalid,
@@ -116,8 +133,14 @@ object PlanEvidenceEvaluator:
     def isEmpty: Boolean = selectedPlans.isEmpty && evaluatedPlans.isEmpty
     def nonEmpty: Boolean = !isEmpty
 
+    def mainAdmittedPlans: List[EvaluatedPlan] =
+      selectedPlans.filter(PlanEvidenceEvaluator.isMainAdmittedPlan)
+
     def probeBackedPlans: List[EvaluatedPlan] =
-      selectedPlans.filter(_.userFacingEligibility == UserFacingPlanEligibility.ProbeBacked)
+      mainAdmittedPlans.filter(_.userFacingEligibility == UserFacingPlanEligibility.ProbeBacked)
+
+    def transpositionAlignedMainPlans: List[EvaluatedPlan] =
+      mainAdmittedPlans.filter(_.userFacingEligibility == UserFacingPlanEligibility.TranspositionAligned)
 
     def pvCoupledPlans: List[EvaluatedPlan] =
       evaluatedPlans.filter(_.userFacingEligibility == UserFacingPlanEligibility.PvCoupledOnly)
@@ -131,7 +154,12 @@ object PlanEvidenceEvaluator:
     def structuralOnlyPlans: List[EvaluatedPlan] =
       evaluatedPlans.filter(_.userFacingEligibility == UserFacingPlanEligibility.StructuralOnly)
 
+    def boundedPracticalPlans: List[EvaluatedPlan] =
+      evaluatedPlans.filter(PlanEvidenceEvaluator.isBoundedPracticalSupportPlan)
+
     def hasProbeBacked: Boolean = probeBackedPlans.nonEmpty
+
+    def hasMainAdmitted: Boolean = mainAdmittedPlans.nonEmpty
 
     def bestEvidenceFor(planId: String, subplanId: Option[String]): Option[EvaluatedPlan] =
       (selectedPlans ++ evaluatedPlans)
@@ -145,11 +173,20 @@ object PlanEvidenceEvaluator:
     def probeBackedMainPlans: List[PlanHypothesis] =
       probeBackedPlans.map(_.hypothesis)
 
+    def mainAdmittedPlanHypotheses: List[PlanHypothesis] =
+      mainAdmittedPlans.map(_.hypothesis)
+
     def probeBackedPlanNames: List[String] =
       probeBackedMainPlans.flatMap(plan => cleanText(plan.planName))
 
+    def mainAdmittedPlanNames: List[String] =
+      mainAdmittedPlanHypotheses.flatMap(plan => cleanText(plan.planName))
+
     def leadingProbeBackedPlanName: Option[String] =
       probeBackedPlanNames.headOption
+
+    def leadingMainAdmittedPlanName: Option[String] =
+      mainAdmittedPlanNames.headOption
 
     def leadingProbeBackedCertification: Option[ClaimCertification] =
       probeBackedPlans.headOption.map(_.claimCertification)
@@ -226,7 +263,8 @@ object PlanEvidenceEvaluator:
       droppedProbeCount: Int,
       droppedProbeReasons: List[String] = Nil,
       invalidByRequestId: Map[String, List[String]] = Map.empty,
-      softByRequestId: Map[String, List[String]] = Map.empty
+      softByRequestId: Map[String, List[String]] = Map.empty,
+      transpositionProofs: List[TranspositionPvAligner.TranspositionProof] = Nil
   ): PartitionedPlans =
     if hypotheses.isEmpty then
       PartitionedPlans(
@@ -259,6 +297,8 @@ object PlanEvidenceEvaluator:
             linkedResults.filter { case (req, pr) => isRefuted(req, pr, isWhiteToMove) }
           val supports =
             linkedResults.filter { case (req, pr) => isSupportive(req, pr, isWhiteToMove) }
+          val transpositionSupports =
+            transpositionProofs.filter(proof => transpositionProofMatchesHypothesis(proof, h))
           val missingSignals =
             linkedRequests.flatMap(req => invalidByRequestId.getOrElse(req.id, Nil)).distinct
           val alternativeDominance =
@@ -287,6 +327,8 @@ object PlanEvidenceEvaluator:
               (PlanEvidenceStatus.Refuted, s"concrete follow-up refutes it: $collapse")
             else if supports.nonEmpty then
               (PlanEvidenceStatus.PlayableEvidenceBacked, "backed by concrete supporting lines")
+            else if transpositionSupports.nonEmpty then
+              (PlanEvidenceStatus.PlayableTranspositionAligned, "backed by a transposition-aligned target line")
             else if structuralEscalation then
               (PlanEvidenceStatus.PlayableStructuralOnly, "backed by the structure with no refutation signal")
             else if pvCoupled && h.score >= PvCoupledPlayableThreshold then
@@ -308,6 +350,7 @@ object PlanEvidenceEvaluator:
           val userFacingEligibility =
             if refutations.nonEmpty then UserFacingPlanEligibility.Refuted
             else if supports.nonEmpty then UserFacingPlanEligibility.ProbeBacked
+            else if transpositionSupports.nonEmpty then UserFacingPlanEligibility.TranspositionAligned
             else if structuralEscalation then UserFacingPlanEligibility.StructuralOnly
             else if pvCoupled && h.score >= PvCoupledPlayableThreshold then UserFacingPlanEligibility.PvCoupledOnly
             else UserFacingPlanEligibility.Deferred
@@ -317,6 +360,7 @@ object PlanEvidenceEvaluator:
               hypothesis = h,
               allHypotheses = hypotheses,
               supports = supports,
+              transpositionSupports = transpositionSupports,
               refutations = refutations,
               missingSignals = missingSignals,
               structuralEscalation = structuralEscalation,
@@ -336,6 +380,7 @@ object PlanEvidenceEvaluator:
             userFacingEligibility = userFacingEligibility,
             reason = reason,
             supportProbeIds = supports.map(_._2.id).distinct,
+            transpositionProofIds = transpositionSupports.map(_.proofId).distinct,
             refuteProbeIds = refutations.map(_._2.id).distinct,
             missingSignals = missingSignals,
             pvCoupled = pvCoupled,
@@ -347,23 +392,23 @@ object PlanEvidenceEvaluator:
 
       val userFacingThemeLeaders =
         evaluated
-          .filter(_.userFacingEligibility == UserFacingPlanEligibility.ProbeBacked)
+          .filter(isMainAdmittedPlan)
           .groupBy(_.themeL1)
           .values
           .toList
-          .flatMap(_.sortBy(ep => -rankingScore(ep)).headOption)
+          .flatMap(_.sortBy(ep => -mainAdmissionScore(ep)).headOption)
 
       val mainPlanCandidates =
         userFacingThemeLeaders
 
       val selectedMainEvaluatedPlans =
         mainPlanCandidates
-          .sortBy(ep => -rankingScore(ep))
+          .sortBy(ep => -mainAdmissionScore(ep))
           .take(3)
           .zipWithIndex
           .map { case (ep, idx) =>
             val hyp = ep.hypothesis.copy(rank = idx + 1)
-            val marked = markProbeBacked(hyp)
+            val marked = markMainAdmitted(hyp, ep.userFacingEligibility)
             ep.copy(hypothesis = marked)
           }
 
@@ -455,6 +500,13 @@ object PlanEvidenceEvaluator:
       ).flatten
     val explicitMatch = explicitChecks.nonEmpty && explicitChecks.forall(identity)
     explicitMatch || (!explicitBinding && themeAligned && (subplanAligned || contractCompatible))
+
+  private def transpositionProofMatchesHypothesis(
+      proof: TranspositionPvAligner.TranspositionProof,
+      hypothesis: PlanHypothesis
+  ): Boolean =
+    normalizeText(proof.planId) == normalizeText(hypothesis.planId) &&
+      proof.subplanId.forall(id => hypothesisPlanKind(hypothesis).contains(id))
 
   private def seedIdOf(h: PlanHypothesis): Option[String] =
     h.evidenceSources
@@ -580,6 +632,7 @@ object PlanEvidenceEvaluator:
       hypothesis: PlanHypothesis,
       allHypotheses: List[PlanHypothesis],
       supports: List[(ProbeRequest, ProbeResult)],
+      transpositionSupports: List[TranspositionPvAligner.TranspositionProof],
       refutations: List[(ProbeRequest, ProbeResult)],
       missingSignals: List[String],
       structuralEscalation: Boolean,
@@ -589,6 +642,7 @@ object PlanEvidenceEvaluator:
       alternativeDominance: Boolean
   ): ClaimCertification =
     val supportResults = supports.map(_._2).distinctBy(_.id)
+    val hasTranspositionSupport = transpositionSupports.nonEmpty
     val replyCoverage = supportResults.count(hasReplyCoverage)
     val futureCoverage = supportResults.count(_.futureSnapshot.exists(isPositiveFutureSnapshot))
     val quantifier =
@@ -597,6 +651,7 @@ object PlanEvidenceEvaluator:
       else if replyCoverage > 0 || futureCoverage > 0 then
         PlayerFacingClaimQuantifier.BestResponse
       else if supportResults.nonEmpty then PlayerFacingClaimQuantifier.Existential
+      else if hasTranspositionSupport then PlayerFacingClaimQuantifier.BestResponse
       else PlayerFacingClaimQuantifier.LineConditioned
     val modalityTier =
       if supportResults.exists(result => indicatesRemoval(themeId, result)) then
@@ -606,6 +661,7 @@ object PlanEvidenceEvaluator:
       else if supportResults.exists(result => indicatesAdvancement(themeId, result)) then
         PlayerFacingClaimModalityTier.Advances
       else if supportResults.nonEmpty then PlayerFacingClaimModalityTier.Supports
+      else if hasTranspositionSupport then PlayerFacingClaimModalityTier.Supports
       else PlayerFacingClaimModalityTier.Available
     val attributionGrade =
       if alternativeDominance then PlayerFacingClaimAttributionGrade.StateOnly
@@ -618,9 +674,13 @@ object PlanEvidenceEvaluator:
         ) then PlayerFacingClaimStabilityGrade.Unstable
       else if replyCoverage > 0 || futureCoverage > 0 then PlayerFacingClaimStabilityGrade.Stable
       else PlayerFacingClaimStabilityGrade.Unstable
+    val finalStabilityGrade =
+      if hasTranspositionSupport && supportResults.isEmpty then PlayerFacingClaimStabilityGrade.Stable
+      else stabilityGrade
     val provenanceClass =
       userFacingEligibility match
         case UserFacingPlanEligibility.ProbeBacked   => PlayerFacingClaimProvenanceClass.ProbeBacked
+        case UserFacingPlanEligibility.TranspositionAligned => PlayerFacingClaimProvenanceClass.TranspositionAligned
         case UserFacingPlanEligibility.StructuralOnly => PlayerFacingClaimProvenanceClass.StructuralOnly
         case UserFacingPlanEligibility.PvCoupledOnly => PlayerFacingClaimProvenanceClass.PvCoupled
         case UserFacingPlanEligibility.Deferred      => PlayerFacingClaimProvenanceClass.Deferred
@@ -632,7 +692,7 @@ object PlanEvidenceEvaluator:
       List(
         Option.when(seedIdOf(hypothesis).nonEmpty)(PlayerFacingClaimTaintFlag.Latent),
         Option.when(structuralEscalation)(PlayerFacingClaimTaintFlag.StructuralOnly),
-        Option.when(pvCoupled && supports.isEmpty && !structuralEscalation)(PlayerFacingClaimTaintFlag.PvCoupled),
+        Option.when(pvCoupled && supports.isEmpty && !structuralEscalation && !hasTranspositionSupport)(PlayerFacingClaimTaintFlag.PvCoupled),
         Option.when(missingSignals.nonEmpty && supports.isEmpty)(PlayerFacingClaimTaintFlag.Deferred)
       ).flatten
     val certificateStatus =
@@ -640,6 +700,7 @@ object PlanEvidenceEvaluator:
       else if supports.nonEmpty && quantifier != PlayerFacingClaimQuantifier.Existential then
         PlayerFacingCertificateStatus.Valid
       else if supports.nonEmpty then PlayerFacingCertificateStatus.WeaklyValid
+      else if hasTranspositionSupport then PlayerFacingCertificateStatus.WeaklyValid
       else if missingSignals.nonEmpty || pvCoupled || structuralEscalation then
         PlayerFacingCertificateStatus.WeaklyValid
       else PlayerFacingCertificateStatus.Invalid
@@ -648,7 +709,7 @@ object PlanEvidenceEvaluator:
       quantifier = quantifier,
       modalityTier = modalityTier,
       attributionGrade = attributionGrade,
-      stabilityGrade = stabilityGrade,
+      stabilityGrade = finalStabilityGrade,
       provenanceClass = provenanceClass,
       taintFlags = taintFlags.distinct,
       ontologyFamily = ontologyFamily(themeId, hypothesis),
@@ -739,6 +800,16 @@ object PlanEvidenceEvaluator:
   private def rankingScore(ep: EvaluatedPlan): Double =
     ep.hypothesis.score + (if isDefaultSubplan(ep.themeL1, ep.subplanId) then 0.0 else 0.03)
 
+  private def mainAdmissionScore(ep: EvaluatedPlan): Double =
+    rankingScore(ep) + (ep.userFacingEligibility match
+      case UserFacingPlanEligibility.ProbeBacked          => 1.0
+      case UserFacingPlanEligibility.TranspositionAligned => 0.5
+      case _                                             => 0.0
+    )
+
+  private def nonEmptyToken(raw: String): Boolean =
+    Option(raw).exists(_.trim.nonEmpty)
+
   private def isDefaultSubplan(themeId: String, subplanId: Option[String]): Boolean =
     val theme = PlanTheme.fromId(themeId).getOrElse(PlanTheme.Unknown)
     val default = ThemeResolver.defaultSubplanForTheme(theme).map(_.id)
@@ -747,6 +818,7 @@ object PlanEvidenceEvaluator:
   private def statusCode(status: PlanEvidenceStatus): String =
     status match
       case PlanEvidenceStatus.PlayableEvidenceBacked => "playable_evidence_backed"
+      case PlanEvidenceStatus.PlayableTranspositionAligned => "playable_transposition_aligned"
       case PlanEvidenceStatus.PlayableStructuralOnly => "playable_structural_only"
       case PlanEvidenceStatus.PlayablePvCoupled      => "playable_pv_coupled"
       case PlanEvidenceStatus.Refuted                => "refuted"
@@ -755,6 +827,7 @@ object PlanEvidenceEvaluator:
   private def eligibilityCode(eligibility: UserFacingPlanEligibility): String =
     eligibility match
       case UserFacingPlanEligibility.ProbeBacked   => "probe_backed"
+      case UserFacingPlanEligibility.TranspositionAligned => "transposition_aligned"
       case UserFacingPlanEligibility.StructuralOnly => "structural_only"
       case UserFacingPlanEligibility.PvCoupledOnly => "pv_coupled_only"
       case UserFacingPlanEligibility.Deferred      => "deferred"
@@ -797,6 +870,7 @@ object PlanEvidenceEvaluator:
   private def provenanceCode(provenance: PlayerFacingClaimProvenanceClass): String =
     provenance match
       case PlayerFacingClaimProvenanceClass.ProbeBacked   => "probe_backed"
+      case PlayerFacingClaimProvenanceClass.TranspositionAligned => "transposition_aligned"
       case PlayerFacingClaimProvenanceClass.StructuralOnly => "structural_only"
       case PlayerFacingClaimProvenanceClass.PvCoupled     => "pv_coupled"
       case PlayerFacingClaimProvenanceClass.Deferred      => "deferred"
@@ -833,6 +907,7 @@ object PlanEvidenceEvaluator:
     val base =
       ep.userFacingEligibility match
         case UserFacingPlanEligibility.ProbeBacked   => List("validated_support_probe")
+        case UserFacingPlanEligibility.TranspositionAligned => List("transposition_aligned")
         case UserFacingPlanEligibility.StructuralOnly => List("structural_escalation_only")
         case UserFacingPlanEligibility.PvCoupledOnly => List("pv_coupled_only")
         case UserFacingPlanEligibility.Deferred      => List("support_not_ready")
@@ -861,8 +936,16 @@ object PlanEvidenceEvaluator:
       .filter(_.nonEmpty)
       .getOrElse("validation_gap")
 
-  private def markProbeBacked(h: PlanHypothesis): PlanHypothesis =
-    h.copy(evidenceSources = (h.evidenceSources :+ "probe_backed:validated_support").distinct)
+  private def markMainAdmitted(
+      h: PlanHypothesis,
+      eligibility: UserFacingPlanEligibility
+  ): PlanHypothesis =
+    eligibility match
+      case UserFacingPlanEligibility.ProbeBacked =>
+        h.copy(evidenceSources = (h.evidenceSources :+ "probe_backed:validated_support").distinct)
+      case UserFacingPlanEligibility.TranspositionAligned =>
+        h.copy(evidenceSources = (h.evidenceSources :+ "transposition_aligned:target_profile").distinct)
+      case _ => h
 
   private def isSupportive(req: ProbeRequest, pr: ProbeResult, isWhiteToMove: Boolean): Boolean =
     val purpose = req.purpose.orElse(pr.purpose).getOrElse("")

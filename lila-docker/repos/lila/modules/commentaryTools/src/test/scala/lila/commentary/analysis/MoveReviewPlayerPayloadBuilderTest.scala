@@ -5,7 +5,8 @@ import lila.commentary.*
 import lila.commentary.model.{ ConfidenceLevel, NarrativeContext, ProbeRequest }
 import lila.commentary.model.authoring.{ PlanHypothesis, PlanViability }
 import lila.commentary.model.authoring.{ AuthorQuestion, AuthorQuestionKind }
-import lila.commentary.analysis.PlanEvidenceEvaluator.{ EvaluatedPlan, PlanEvidenceStatus, UserFacingPlanEligibility }
+import lila.commentary.model.strategic.{ EngineEvidence, VariationLine }
+import lila.commentary.analysis.PlanEvidenceEvaluator.{ ClaimCertification, EvaluatedPlan, PlanEvidenceStatus, UserFacingPlanEligibility }
 
 final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
 
@@ -58,12 +59,15 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
   private def evaluated(
       hypothesis: PlanHypothesis,
       eligibility: UserFacingPlanEligibility,
-      supportProbeIds: List[String] = Nil
+      supportProbeIds: List[String] = Nil,
+      transpositionProofIds: List[String] = Nil,
+      claimCertification: ClaimCertification = ClaimCertification()
   ): EvaluatedPlan =
     EvaluatedPlan(
       hypothesis = hypothesis,
       status =
         if eligibility == UserFacingPlanEligibility.Refuted then PlanEvidenceStatus.Refuted
+        else if eligibility == UserFacingPlanEligibility.TranspositionAligned then PlanEvidenceStatus.PlayableTranspositionAligned
         else if eligibility == UserFacingPlanEligibility.PvCoupledOnly then PlanEvidenceStatus.PlayablePvCoupled
         else if eligibility == UserFacingPlanEligibility.Deferred then PlanEvidenceStatus.Deferred
         else if eligibility == UserFacingPlanEligibility.StructuralOnly then PlanEvidenceStatus.PlayableStructuralOnly
@@ -71,8 +75,10 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       userFacingEligibility = eligibility,
       reason = "test",
       supportProbeIds = supportProbeIds,
+      transpositionProofIds = transpositionProofIds,
       themeL1 = hypothesis.themeL1,
-      subplanId = hypothesis.subplanId
+      subplanId = hypothesis.subplanId,
+      claimCertification = claimCertification
     )
 
   test("does not build player decision comparison without certified surface input") {
@@ -257,7 +263,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
                     title = "Aligned line",
                     sanMoves = List("Nf3", "Nc6"),
                     note = Some("certified line note"),
-                    source = "ledger"
+                    source = "probe"
                   )
                 )
             )
@@ -266,6 +272,43 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
 
     assert(!surface.probeRows.exists(_.source.contains("probe_request")), clue(surface.probeRows))
     assert(surface.probeRows.exists(_.text.contains("certified line note")), clue(surface.probeRows))
+  }
+
+  test("malformed ledger lines do not create player probe rows") {
+    val rawNote = "raw request purpose should not surface"
+    val surface =
+      build(
+        moveReviewLedger =
+          Some(
+            MoveReviewStrategicLedger(
+              motifKey = "validated_plan",
+              motifLabel = "Validated plan",
+              stageKey = "conversion",
+              stageLabel = "Conversion",
+              carryOver = false,
+              primaryLine =
+                Some(
+                  MoveReviewLedgerLine(
+                    title = "Raw request line",
+                    sanMoves = List("Nf3", "Nc6"),
+                    note = Some(rawNote),
+                    source = "probe_request"
+                  )
+                ),
+              resourceLine =
+                Some(
+                  MoveReviewLedgerLine(
+                    title = "Empty line",
+                    sanMoves = Nil,
+                    note = Some("note without SAN"),
+                    source = "probe"
+                  )
+                )
+            )
+          )
+      )
+
+    assertEquals(surface.probeRows, Nil)
   }
 
   test("raw context probe requests do not create player rows or author meta") {
@@ -380,6 +423,428 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       ),
       clue(verified.summaryRows)
     )
+  }
+
+  test("transposition-aligned evaluated plans are promoted without pretending to be probe-backed") {
+    val surface =
+      build(
+        evaluatedPlans =
+          List(
+            evaluated(
+              plan("Transposed d5 pressure", evidenceSources = Nil),
+              UserFacingPlanEligibility.TranspositionAligned,
+              transpositionProofIds = List("transposition:staticweakness:d5:fixed_pawn"),
+              claimCertification =
+                ClaimCertification(
+                  provenanceClass = PlayerFacingClaimProvenanceClass.TranspositionAligned
+                )
+            )
+          )
+      )
+
+    assert(
+      surface.summaryRows.exists(row =>
+        row.label == "Main plans" && row.text.contains("Transposed d5 pressure")
+      ),
+      clue(surface.summaryRows)
+    )
+    assert(!surface.summaryRows.exists(_.label == "Practical plan"), clue(surface.summaryRows))
+  }
+
+  test("transposition-aligned evaluated plans require typed transposition provenance") {
+    val surface =
+      build(
+        evaluatedPlans =
+          List(
+            evaluated(
+              plan("Malformed transposition pressure", evidenceSources = Nil),
+              UserFacingPlanEligibility.TranspositionAligned,
+              transpositionProofIds = List("transposition:staticweakness:d5:fixed_pawn")
+            )
+          )
+      )
+
+    assert(!surface.summaryRows.exists(_.label == "Main plans"), clue(surface.summaryRows))
+  }
+
+  test("structural-only evaluated plans create practical plan rows but not main plans") {
+    val surface =
+      build(
+        evaluatedPlans =
+          List(
+            evaluated(
+              plan("Carlsbad pressure"),
+              UserFacingPlanEligibility.StructuralOnly
+            )
+          )
+      )
+
+    assert(!surface.summaryRows.exists(_.label == "Main plans"), clue(surface.summaryRows))
+    assertEquals(surface.summaryRows.map(_.label), List("Practical plan"))
+    assertEquals(
+      surface.summaryRows.head.text,
+      "The structure points toward Carlsbad pressure as a practical plan."
+    )
+    assertEquals(
+      surface.summaryRows.head.authority,
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))
+    )
+  }
+
+  test("pv-coupled evaluated plans create practical plan rows but not main plans") {
+    val surface =
+      build(
+        evaluatedPlans =
+          List(
+            evaluated(
+              plan("central pressure"),
+              UserFacingPlanEligibility.PvCoupledOnly
+            )
+          )
+      )
+
+    assert(!surface.summaryRows.exists(_.label == "Main plans"), clue(surface.summaryRows))
+    assertEquals(surface.summaryRows.map(_.label), List("Practical plan"))
+    assertEquals(
+      surface.summaryRows.head.text,
+      "The checked line keeps central pressure viable as a practical plan."
+    )
+  }
+
+  test("structural-only evaluated plans create practical advanced detail rows") {
+    val surface =
+      build(
+        evaluatedPlans =
+          List(
+            evaluated(
+              plan(
+                "Carlsbad pressure",
+                preconditions = List("The queenside pawn chain stays fixed"),
+                executionSteps = List("Prepare b4", "Pressure c6")
+              ),
+              UserFacingPlanEligibility.StructuralOnly
+            )
+          )
+      )
+
+    assertEquals(surface.advancedRows.map(_.label), List("Practical objective", "Practical steps"))
+    assert(surface.advancedRows.exists(row => row.text == "The queenside pawn chain stays fixed"))
+    assert(surface.advancedRows.exists(row => row.text == "Prepare b4 - Pressure c6"))
+    assert(surface.advancedRows.forall(_.tone.contains("practical")), clue(surface.advancedRows))
+  }
+
+  test("pv-coupled evaluated plans create practical advanced detail rows") {
+    val surface =
+      build(
+        evaluatedPlans =
+          List(
+            evaluated(
+              plan(
+                "central pressure",
+                preconditions = List("The e-file remains tense"),
+                executionSteps = List("Keep the knight centralized")
+              ),
+              UserFacingPlanEligibility.PvCoupledOnly
+            )
+          )
+      )
+
+    assertEquals(surface.advancedRows.map(_.label), List("Practical objective", "Practical steps"))
+    assert(surface.advancedRows.exists(row => row.text == "The e-file remains tense"))
+    assert(surface.advancedRows.exists(row => row.text == "Keep the knight centralized"))
+  }
+
+  test("weakness practical plans include dynamic board target detail") {
+    val surface =
+      build(
+        ctx = MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
+          fen = "4k3/8/8/3p4/8/8/8/4K3 w - - 0 1"
+        ),
+        evaluatedPlans =
+          List(
+            evaluated(
+              plan(
+                "Static weakness pressure",
+                themeL1 = PlanTaxonomy.PlanTheme.WeaknessFixation.id,
+                subplanId = Some(PlanTaxonomy.PlanKind.StaticWeaknessFixation.id)
+              ),
+              UserFacingPlanEligibility.StructuralOnly
+            )
+          )
+      )
+
+    assertEquals(surface.advancedRows.map(_.label), List("Practical target"))
+    assert(surface.advancedRows.exists(_.text.contains("weak isolated queen pawn on d5")), clue(surface.advancedRows))
+    assert(surface.advancedRows.forall(_.authority.contains(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))))
+  }
+
+  test("weakness practical target row is suppressed when the best line liquidates the target") {
+    val ctx =
+      MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
+        fen = "4k3/8/8/4p3/8/8/8/4K3 w - - 0 1",
+        engineEvidence =
+          Some(
+            EngineEvidence(
+              depth = 18,
+              variations =
+                List(
+                  VariationLine(
+                    moves = List("e1e2", "e5e4"),
+                    scoreCp = 12,
+                    depth = 18
+                  )
+                )
+            )
+          )
+      )
+    val surface =
+      build(
+        ctx = ctx,
+        evaluatedPlans =
+          List(
+            evaluated(
+              plan(
+                "Static weakness fixation",
+                themeL1 = PlanTaxonomy.PlanTheme.WeaknessFixation.id,
+                subplanId = Some(PlanTaxonomy.PlanKind.StaticWeaknessFixation.id),
+                preconditions = List("Pressure the weak pawn"),
+                executionSteps = List("Improve toward the target")
+              ),
+              UserFacingPlanEligibility.StructuralOnly
+            )
+          )
+      )
+
+    assert(!surface.advancedRows.exists(_.label == "Practical target"), clue(surface.advancedRows))
+    assert(surface.advancedRows.exists(_.label == "Practical objective"), clue(surface.advancedRows))
+  }
+
+  test("weakness practical target row is suppressed when the best line horizon is too short") {
+    val ctx =
+      MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
+        fen = "4k3/8/8/4p3/8/8/8/4K3 w - - 0 1",
+        engineEvidence =
+          Some(
+            EngineEvidence(
+              depth = 18,
+              variations =
+                List(
+                  VariationLine(
+                    moves = List("e1d1", "e8d8", "d1e1", "d8e8"),
+                    scoreCp = 12,
+                    depth = 18
+                  )
+                )
+            )
+          )
+      )
+    val surface =
+      build(
+        ctx = ctx,
+        evaluatedPlans =
+          List(
+            evaluated(
+              plan(
+                "Static weakness fixation",
+                themeL1 = PlanTaxonomy.PlanTheme.WeaknessFixation.id,
+                subplanId = Some(PlanTaxonomy.PlanKind.StaticWeaknessFixation.id),
+                preconditions = List("Pressure the weak pawn")
+              ),
+              UserFacingPlanEligibility.StructuralOnly
+            )
+          )
+      )
+
+    assert(!surface.advancedRows.exists(_.label == "Practical target"), clue(surface.advancedRows))
+  }
+
+  test("decision comparison carries best-vs-chosen target contrast metadata") {
+    val ctx =
+      MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
+        fen = "4k3/8/8/3pp3/2N2N2/8/8/4K3 w - - 0 1",
+        playedMove = Some("f4d5"),
+        engineEvidence =
+          Some(
+            EngineEvidence(
+              depth = 18,
+              variations =
+                List(
+                  VariationLine(moves = List("c4e5"), scoreCp = 80, depth = 18),
+                  VariationLine(moves = List("f4d5"), scoreCp = 20, depth = 18)
+                )
+            )
+          )
+      )
+
+    val surface =
+      build(
+        ctx = ctx,
+        decisionComparisonSurface =
+          Some(
+            MoveReviewPlayerDecisionComparison(
+              kicker = "Decision point",
+              chosenSan = Some("Nxd5"),
+              engineSan = Some("Nxe5"),
+              secondaryText = Some("The checked line changes which pawn remains."),
+              chosenMatchesBest = false
+            )
+          )
+      )
+
+    assertEquals(
+      surface.decisionComparison.flatMap(_.targetComparison),
+      Some(
+        MoveReviewDecisionTargetComparison(
+          chosenTarget = "e5",
+          chosenTargetKind = "isolated_pawn",
+          bestTarget = "d5",
+          bestTargetKind = "iqp"
+        )
+      )
+    )
+  }
+
+  test("practical advanced rows are skipped when practical plans have no details") {
+    val surface =
+      build(
+        evaluatedPlans =
+          List(
+            evaluated(
+              plan("Carlsbad pressure"),
+              UserFacingPlanEligibility.StructuralOnly
+            )
+          )
+      )
+
+    assertEquals(surface.advancedRows, Nil)
+  }
+
+  test("probe-backed plans do not duplicate as practical plan rows") {
+    val surface =
+      build(
+        evaluatedPlans =
+          List(
+            evaluated(
+              plan("Validated rook lift"),
+              UserFacingPlanEligibility.ProbeBacked,
+              supportProbeIds = List("probe_1")
+            )
+          )
+      )
+
+    assertEquals(surface.summaryRows.map(_.label), List("Main plans"))
+    assert(!surface.summaryRows.exists(row => row.label == "Practical plan"), clue(surface.summaryRows))
+  }
+
+  test("probe-backed plans do not duplicate practical advanced detail rows") {
+    val promoted =
+      plan(
+        "Validated rook lift",
+        preconditions = List("The third rank is clear"),
+        executionSteps = List("Lift the rook", "Swing to g3")
+      )
+    val surface =
+      build(
+        evaluatedPlans =
+          List(
+            evaluated(
+              promoted,
+              UserFacingPlanEligibility.ProbeBacked,
+              supportProbeIds = List("probe_1")
+            )
+          )
+      )
+
+    assertEquals(surface.advancedRows.map(_.label), List("Execution", "Objective"))
+    assert(!surface.advancedRows.exists(_.label.startsWith("Practical")), clue(surface.advancedRows))
+  }
+
+  test("practical advanced rows drop sibling plans with the same promoted theme") {
+    val promoted =
+      plan(
+        "Validated kingside clamp",
+        preconditions = List("The kingside dark squares are weak"),
+        executionSteps = List("h4-h5", "h5-h6"),
+        themeL1 = PlanTaxonomy.PlanTheme.SpaceClamp.id
+      )
+    val practical =
+      plan(
+        "Kingside file pressure",
+        preconditions = List("The h-file can be opened"),
+        executionSteps = List("h4-h5"),
+        themeL1 = PlanTaxonomy.PlanTheme.SpaceClamp.id
+      )
+    val surface =
+      build(
+        evaluatedPlans =
+          List(
+            evaluated(promoted, UserFacingPlanEligibility.ProbeBacked, supportProbeIds = List("probe_1")),
+            evaluated(practical, UserFacingPlanEligibility.StructuralOnly)
+          )
+      )
+
+    assert(surface.summaryRows.exists(_.label == "Practical plan"), clue(surface.summaryRows))
+    assertEquals(surface.advancedRows.map(_.label), List("Execution", "Objective"))
+    assert(!surface.advancedRows.exists(_.label.startsWith("Practical")), clue(surface.advancedRows))
+  }
+
+  test("practical advanced rows drop sibling plans with overlapping execution") {
+    val promoted =
+      plan(
+        "Validated rook lift",
+        preconditions = List("The rook can swing across"),
+        executionSteps = List("h4-h5-h6"),
+        themeL1 = PlanTaxonomy.PlanTheme.PieceRedeployment.id
+      )
+    val practical =
+      plan(
+        "Kingside target fixation",
+        preconditions = List("The h-pawn remains a hook"),
+        executionSteps = List("h4-h5"),
+        themeL1 = PlanTaxonomy.PlanTheme.WeaknessFixation.id
+      )
+    val surface =
+      build(
+        evaluatedPlans =
+          List(
+            evaluated(promoted, UserFacingPlanEligibility.ProbeBacked, supportProbeIds = List("probe_1")),
+            evaluated(practical, UserFacingPlanEligibility.StructuralOnly)
+          )
+      )
+
+    assertEquals(surface.advancedRows.map(_.label), List("Execution", "Objective"))
+    assert(!surface.advancedRows.exists(_.label.startsWith("Practical")), clue(surface.advancedRows))
+  }
+
+  test("practical advanced rows remain when promoted plan is not a sibling") {
+    val promoted =
+      plan(
+        "Validated rook lift",
+        preconditions = List("The rook can swing across"),
+        executionSteps = List("h4-h5"),
+        themeL1 = PlanTaxonomy.PlanTheme.PieceRedeployment.id
+      )
+    val practical =
+      plan(
+        "Queenside minority pressure",
+        preconditions = List("The c-pawn can become fixed"),
+        executionSteps = List("b4-b5", "Pressure c6", "Keep queenside tension"),
+        themeL1 = PlanTaxonomy.PlanTheme.WeaknessFixation.id
+      )
+    val surface =
+      build(
+        evaluatedPlans =
+          List(
+            evaluated(promoted, UserFacingPlanEligibility.ProbeBacked, supportProbeIds = List("probe_1")),
+            evaluated(practical, UserFacingPlanEligibility.StructuralOnly)
+          )
+      )
+
+    assertEquals(
+      surface.advancedRows.map(_.label),
+      List("Execution", "Objective", "Practical target", "Practical objective", "Practical steps")
+    )
+    assert(surface.advancedRows.exists(row => row.text == "b4-b5 - Pressure c6"), clue(surface.advancedRows))
   }
 
   test("supported-local rows append to summary rows without leaking source metadata") {

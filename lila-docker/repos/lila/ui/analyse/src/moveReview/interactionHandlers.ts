@@ -2,13 +2,19 @@ import { pubsub } from 'lib/pubsub';
 import { Chessground as makeChessground } from '@lichess-org/chessground';
 import { uciToMove } from '@lichess-org/chessground/util';
 import type { MoveReviewRefsV1 } from './responsePayload';
+import type AnalyseCtrl from '../ctrl';
 
 type MoveReviewPreviewState = {
   cg?: CgApi;
   container?: HTMLElement;
 };
 
+type MoveReviewHoverCtrl = AnalyseCtrl & {
+  moveReviewHoverSquare?: Key | null;
+};
+
 let handlersBound = false;
+let currentCtrl: MoveReviewHoverCtrl | undefined;
 let moveReviewPreview: MoveReviewPreviewState = {};
 let moveReviewPreviewOrientation: Color = 'white';
 let touchHoldTimer: ReturnType<typeof setTimeout> | undefined;
@@ -73,7 +79,12 @@ function stepVariation(list: HTMLElement, direction: 1 | -1): void {
   nextItem.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
 }
 
-export function initMoveReviewHandlers(onEvalToggle: () => void): void {
+function isBoardSquare(value: unknown): value is Key {
+  return typeof value === 'string' && /^[a-h][1-8]$/.test(value);
+}
+
+export function initMoveReviewHandlers(ctrl: AnalyseCtrl | undefined, onEvalToggle: () => void): void {
+  currentCtrl = ctrl as MoveReviewHoverCtrl | undefined;
   if (handlersBound) return;
   handlersBound = true;
 
@@ -175,6 +186,19 @@ export function initMoveReviewHandlers(onEvalToggle: () => void): void {
     .on('click.moveReview', '.analyse__move-review-text .move-review-score-toggle', e => {
       e.preventDefault();
       onEvalToggle();
+    })
+    .on('mouseenter.moveReview focusin.moveReview', '.analyse__move-review-text [data-move-review-square]', function (this: HTMLElement) {
+      const square = $(this).data('moveReviewSquare');
+      if (isBoardSquare(square) && currentCtrl) {
+        currentCtrl.moveReviewHoverSquare = square;
+        currentCtrl.setAutoShapes();
+      }
+    })
+    .on('mouseleave.moveReview focusout.moveReview', '.analyse__move-review-text [data-move-review-square]', () => {
+      if (currentCtrl) {
+        currentCtrl.moveReviewHoverSquare = null;
+        currentCtrl.setAutoShapes();
+      }
     });
 }
 

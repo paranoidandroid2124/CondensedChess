@@ -999,7 +999,8 @@ object AuthoritySurfaceLedger:
             "e7g5"
           ),
         expectedTags = List("source", "carlsbad_fixed_target"),
-        note = "Copied from Stockfish-backed source intake after exact replay admission."
+        note = "Copied from Stockfish-backed source intake after exact replay admission.",
+        playedUci = Some("b2b4")
       ),
       SceneFixture(
         id = "source-carlsen-anand-2014-g6",
@@ -1028,7 +1029,8 @@ object AuthoritySurfaceLedger:
             "b5c4"
           ),
         expectedTags = List("source", "queen_trade_shield"),
-        note = "Copied from Stockfish-backed source intake after exact replay admission."
+        note = "Copied from Stockfish-backed source intake after exact replay admission.",
+        playedUci = Some("d4c6")
       ),
       SceneFixture(
         id = "source-capablanca-golombek-1939-iqp-inducement",
@@ -1056,7 +1058,8 @@ object AuthoritySurfaceLedger:
             "d3f4"
           ),
         expectedTags = List("source", "iqp_inducement"),
-        note = "Copied from Stockfish-backed source window probe after exact top-PV IQP inducement admission."
+        note = "Copied from Stockfish-backed source window probe after exact top-PV IQP inducement admission.",
+        playedUci = Some("b4b5")
       ),
       SceneFixture(
         id = "source-evans-opsahl-1950-iqp-inducement",
@@ -1085,7 +1088,8 @@ object AuthoritySurfaceLedger:
             "f3f5"
           ),
         expectedTags = List("source", "iqp_inducement"),
-        note = "Copied from Stockfish-backed source window probe after exact top-PV IQP inducement admission."
+        note = "Copied from Stockfish-backed source window probe after exact top-PV IQP inducement admission.",
+        playedUci = Some("f1c1")
       ),
       SceneFixture(
         id = "source-alekhine-bogoljubow-1936-iqp-inducement",
@@ -1117,7 +1121,8 @@ object AuthoritySurfaceLedger:
             "b7d5"
           ),
         expectedTags = List("source", "iqp_inducement"),
-        note = "Copied from Stockfish-backed source window probe after exact top-PV IQP inducement admission."
+        note = "Copied from Stockfish-backed source window probe after exact top-PV IQP inducement admission.",
+        playedUci = Some("e4c3")
       ),
       SceneFixture(
         id = "source-najdorf-sergeant-1939-iqp-inducement",
@@ -1143,7 +1148,8 @@ object AuthoritySurfaceLedger:
             "c2d2"
           ),
         expectedTags = List("source", "iqp_inducement"),
-        note = "Copied from Stockfish-backed source window probe after exact top-PV IQP inducement admission."
+        note = "Copied from Stockfish-backed source window probe after exact top-PV IQP inducement admission.",
+        playedUci = Some("c3d5")
       ),
       SceneFixture(
         id = "source-botvinnik-vidmar-1936-iqp-opening-inducement",
@@ -1322,7 +1328,8 @@ object AuthoritySurfaceLedger:
             "h5d5"
           ),
         expectedTags = List("source", "simplification_window"),
-        note = "Copied from Stockfish-backed source window probe after exact top-PV SimplificationWindow admission."
+        note = "Copied from Stockfish-backed source window probe after exact top-PV SimplificationWindow admission.",
+        playedUci = Some("b5d5")
       ),
       SceneFixture(
         id = "source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation",
@@ -1357,7 +1364,8 @@ object AuthoritySurfaceLedger:
             "e8a8"
           ),
         expectedTags = List("source", "static_weakness_fixation"),
-        note = "Copied from Stockfish-backed source window probe after exact top-PV StaticWeaknessFixation admission."
+        note = "Copied from Stockfish-backed source window probe after exact top-PV StaticWeaknessFixation admission.",
+        playedUci = Some("f3d2")
       ),
       SceneFixture(
         id = "source-aronian-andreikin-2014-defender-trade",

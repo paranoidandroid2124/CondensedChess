@@ -56,7 +56,9 @@ private[commentary] object StructuralDeltaAnalyzer:
       createdTensionFrom: Option[String] = None
   ): Option[StructuralDelta] =
     val normalizedFiles = files.distinct
-    val normalizedTargets = targets.distinct
+    val normalizedTargets =
+      if targets.nonEmpty then targets.distinct
+      else dynamicTargets(beforeBoard, afterBoard, side)
     val before = structureSnapshot(beforeFen, beforeBoard, side, normalizedFiles, normalizedTargets)
     val after = structureSnapshot(afterFen, afterBoard, side, normalizedFiles, normalizedTargets)
     val beforeAttacks = normalizedTargets.filter(target => sidePawnAttacksTarget(beforeBoard, side, target))
@@ -104,10 +106,10 @@ private[commentary] object StructuralDeltaAnalyzer:
         )
         .map(_.toString)
         .toSet
-    val enemyPawns = board.byPiece(!side, Pawn)
     val weakPawns =
-      (PositionAnalyzer.backwardPawns(!side, enemyPawns, board) ++ PositionAnalyzer.isolatedPawns(enemyPawns))
-        .map(_.key)
+      WeaknessTargetProfile
+        .targetsForPressure(board, side)
+        .map(_.targetSquare)
         .filter(square => targets.contains(square) || square.headOption.exists(files.contains))
         .toSet
     val weakSquares =
@@ -124,6 +126,22 @@ private[commentary] object StructuralDeltaAnalyzer:
       targetPressure = targets.map(target => target -> targetPressure(board, side, target)).toMap,
       fileAccess = openFiles.size * 2 + semiOpenFiles.size
     )
+
+  private def dynamicTargets(beforeBoard: Board, afterBoard: Board, side: Color): List[String] =
+    (
+      WeaknessTargetProfile.targetsForPressure(beforeBoard, side) ++
+        WeaknessTargetProfile.targetsForPressure(afterBoard, side)
+    ).map(_.targetSquare).distinct ++
+      (pawnAttackedEnemyTargets(beforeBoard, side) ++ pawnAttackedEnemyTargets(afterBoard, side)).distinct
+
+  private def pawnAttackedEnemyTargets(board: Board, side: Color): List[String] =
+    val enemyPawns = board.byPiece(!side, Pawn).squares.map(_.key).toSet
+    board
+      .byPiece(side, Pawn)
+      .squares
+      .flatMap(square => pawnAttacks(square.key, side).filter(enemyPawns.contains))
+      .toList
+      .distinct
 
   private def pawnTensionEdges(board: Board, side: Color, files: List[Char]): Set[String] =
     val sidePawns = board.byPiece(side, Pawn).squares

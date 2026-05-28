@@ -104,20 +104,28 @@ This path expects Mongo, Redis, SMTP, hCaptcha, and LLM provider secrets to be c
 
 ## Architecture
 
-Legacy architecture documents were removed during cleanup. Refer to current source under `modules/llm/src/main` and controller/routes for the live design.
+Legacy architecture documents were removed during cleanup. Refer to current source under the `modules/commentaryCore` and `modules/commentary` modules, as well as controller/routes for the live design.
 For the commentary-helper utilization audit and producer-to-frontend consumption map, see `modules/commentary/docs/CommentaryPipelineSSOT.md` and the companion master docs in `modules/commentary/docs`.
 
 ### Key Components
 
 ```
-modules/llm/           # AI Commentary Engine
-├── analysis/          # Motif detection, plan matching
-├── model/             # Motif & Plan definitions
-└── LlmClient.scala    # Optional Gemini integration (currently disabled in API flow)
+modules/commentaryCore/ # Core logic: Motif/Plan models, analyzers, thresholds
+├── analysis/          # Strategic analyzers, claim resolution, payload builders
+└── model/             # Motif, Plan, Probe, and Narrative definitions
+
+modules/commentary/    # Commentary API, environment setup, sanitization
+├── CommentaryApi.scala# MoveReview generation orchestration
+└── UserFacingPayloadSanitizer.scala # Output sanitization and safety gating
+
+modules/commentaryAi/  # LLM/AI integrations
+└── GeminiClient.scala / OpenAiClient.scala # Gemini and OpenAI providers
+
+modules/commentaryTools/# Offline testing, runners, and corpus validation (src/test)
 
 ui/analyse/            # Analysis Board UI
 ├── src/narrative/     # Narrative display components
-└── src/moveReview.ts   # Story generation orchestration
+└── src/moveReview.ts  # Story generation orchestration
 ```
 
 ## License

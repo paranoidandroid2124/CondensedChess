@@ -4,7 +4,7 @@ import lila.commentary.analysis.*
 import lila.commentary.model.authoring.AuthorQuestionKind
 import munit.FunSuite
 
-class ClaimAuthorityPolicyTest extends FunSuite:
+class PlannerClaimAdmissionTest extends FunSuite:
 
   test("authority decision has one public admission ladder with no extra roles") {
     assertEquals(
@@ -38,7 +38,7 @@ class ClaimAuthorityPolicyTest extends FunSuite:
 
   test("missing tactical context suppresses supported position probe plans") {
     val decision =
-      ClaimAuthorityPolicy.shouldTacticalVetoPlan(
+      ClaimAuthorityResolver.shouldTacticalVetoPlan(
         ctx = None,
         inputs = minimalInputs(),
         truthContract = None,
@@ -51,7 +51,7 @@ class ClaimAuthorityPolicyTest extends FunSuite:
 
   test("supported local surface preserves proper opening-family capitalization") {
     val surface =
-      ClaimAuthorityPolicy.supportedLocalSurface(
+      PlannerClaimAdmission.supportedLocalSurface(
         "Carlsbad structure is solid."
       )
 
@@ -97,9 +97,9 @@ class ClaimAuthorityPolicyTest extends FunSuite:
     )
 
   test("supported local surface preserves piece-name capitalization") {
-    val kingSurface = ClaimAuthorityPolicy.supportedLocalSurface("King safety depends on the dark squares.")
-    val queenSurface = ClaimAuthorityPolicy.supportedLocalSurface("Queen activity is the main resource.")
-    val rookSurface = ClaimAuthorityPolicy.supportedLocalSurface("Rook pressure keeps the file tied down.")
+    val kingSurface = PlannerClaimAdmission.supportedLocalSurface("King safety depends on the dark squares.")
+    val queenSurface = PlannerClaimAdmission.supportedLocalSurface("Queen activity is the main resource.")
+    val rookSurface = PlannerClaimAdmission.supportedLocalSurface("Rook pressure keeps the file tied down.")
 
     assertEquals(kingSurface, "A key idea is that King safety depends on the dark squares.")
     assertEquals(queenSurface, "A key idea is that Queen activity is the main resource.")
@@ -107,7 +107,7 @@ class ClaimAuthorityPolicyTest extends FunSuite:
   }
 
   test("supported local surface does not lowercase the first core character") {
-    val surface = ClaimAuthorityPolicy.supportedLocalSurface("This exchange moves into the queenless branch.")
+    val surface = PlannerClaimAdmission.supportedLocalSurface("This exchange moves into the queenless branch.")
 
     assertEquals(surface, "A key idea is that This exchange moves into the queenless branch.")
   }

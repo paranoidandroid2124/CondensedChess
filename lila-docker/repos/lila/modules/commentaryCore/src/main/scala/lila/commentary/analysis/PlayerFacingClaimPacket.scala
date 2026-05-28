@@ -1,7 +1,9 @@
 package lila.commentary.analysis
 
 
+import chess.format.Uci
 import lila.commentary.analysis.claim.*
+import lila.commentary.analysis.semantic.StrategicObservationIds.{ ProofFamilyId, ProofSourceId }
 private[commentary] enum PlayerFacingPacketScope:
   case MoveLocal
   case PositionLocal
@@ -70,6 +72,131 @@ private[commentary] object PlayerFacingExactSliceProof:
       breakSquare: String,
       breakToken: String
   ) extends PlayerFacingExactSliceProof
+
+private[commentary] object PlayerFacingExactSliceProofFacts:
+  final case class Path(proofSource: String, proofFamily: String):
+    def matches(packet: PlayerFacingClaimPacket): Boolean =
+      matches(packet.proofSource, packet.proofFamily)
+
+    def matches(source: String, family: String): Boolean =
+      normalize(source) == normalize(proofSource) &&
+        normalize(family) == normalize(proofFamily)
+
+  def expectedPath(proof: PlayerFacingExactSliceProof): Path =
+    proof match
+      case PlayerFacingExactSliceProof.ExactTargetFixation(_) =>
+        Path(ProofSourceId.ExactTargetFixation.wireKey, proofFamily(PlanTaxonomy.PlanKind.StaticWeaknessFixation))
+      case PlayerFacingExactSliceProof.CarlsbadFixedTarget(_, _) =>
+        Path(ProofSourceId.CarlsbadFixedTargetProbe.wireKey, ProofFamilyId.BackwardPawnTargeting.wireKey)
+      case PlayerFacingExactSliceProof.TargetFocusedCoordination(_, _, _) =>
+        Path(ProofSourceId.TargetFocusedCoordinationProbe.wireKey, ProofFamilyId.TargetFocusedCoordination.wireKey)
+      case PlayerFacingExactSliceProof.ColorComplexSqueeze(_, _, _, _) =>
+        Path(ProofSourceId.ColorComplexSqueezeProbe.wireKey, ProofFamilyId.ColorComplexSqueeze.wireKey)
+      case PlayerFacingExactSliceProof.LocalFileEntryBind(_, _) =>
+        Path(ProofSourceId.LocalFileEntryBind.wireKey, ProofFamilyId.HalfOpenFilePressure.wireKey)
+      case PlayerFacingExactSliceProof.CounterplayAxisSuppression(_) =>
+        Path(ProofSourceId.CounterplayAxisSuppression.wireKey, ProofFamilyId.NeutralizeKeyBreak.wireKey)
+      case PlayerFacingExactSliceProof.ProphylacticRestraint(_) =>
+        Path(ProofSourceId.ProphylacticMove.wireKey, ProofFamilyId.CounterplayRestraint.wireKey)
+      case PlayerFacingExactSliceProof.QueenTradeShield(_) =>
+        val family = proofFamily(PlanTaxonomy.PlanKind.QueenTradeShield)
+        Path(family, family)
+      case PlayerFacingExactSliceProof.CentralBreakTiming(_, _, _) =>
+        val family = proofFamily(PlanTaxonomy.PlanKind.CentralBreakTiming)
+        Path(family, family)
+
+  def matchesPacket(
+      packet: PlayerFacingClaimPacket,
+      proof: PlayerFacingExactSliceProof
+  ): Boolean =
+    validShape(proof) && expectedPath(proof).matches(packet)
+
+  def matchesPath(
+      proof: PlayerFacingExactSliceProof,
+      proofSource: String,
+      proofFamily: String
+  ): Boolean =
+    validShape(proof) && expectedPath(proof).matches(proofSource, proofFamily)
+
+  def validShape(proof: PlayerFacingExactSliceProof): Boolean =
+    proof match
+      case PlayerFacingExactSliceProof.ExactTargetFixation(targetSquare) =>
+        squareKey(targetSquare)
+      case PlayerFacingExactSliceProof.CarlsbadFixedTarget(targetSquare, minoritySupport) =>
+        Set("c6", "c3").contains(normalize(targetSquare)) &&
+          minoritySupport
+      case PlayerFacingExactSliceProof.TargetFocusedCoordination(targetSquare, supportFromSquares, targetPieces) =>
+        squareKey(targetSquare) &&
+          supportFromSquares.map(normalize).filter(squareKey).distinct.size >= 2 &&
+          targetPieces.exists(token => normalize(token).startsWith("target_"))
+      case PlayerFacingExactSliceProof.ColorComplexSqueeze(targetSquare, squareColor, minorPieceRole, minorPieceSquare) =>
+        squareKey(targetSquare) &&
+          Set("light", "dark").contains(normalize(squareColor)) &&
+          Set("bishop", "knight").contains(normalize(minorPieceRole)) &&
+          squareKey(minorPieceSquare)
+      case PlayerFacingExactSliceProof.LocalFileEntryBind(file, entrySquare) =>
+        fileToken(file) &&
+          squareKey(entrySquare)
+      case PlayerFacingExactSliceProof.CounterplayAxisSuppression(breakToken) =>
+        breakTokenShape(breakToken)
+      case PlayerFacingExactSliceProof.ProphylacticRestraint(resourceTokenValue) =>
+        resourceToken(resourceTokenValue)
+      case PlayerFacingExactSliceProof.QueenTradeShield(lineMoves) =>
+        lineMoves.size >= 2 &&
+          lineMoves.forall(uciMove)
+      case PlayerFacingExactSliceProof.CentralBreakTiming(breakMove, breakSquare, breakToken) =>
+        uciMove(breakMove) &&
+          squareKey(breakSquare) &&
+          uciDestination(breakMove).contains(normalize(breakSquare)) &&
+          routeToken(breakToken)
+
+  def targetSquare(proof: PlayerFacingExactSliceProof): Option[String] =
+    proof match
+      case PlayerFacingExactSliceProof.ExactTargetFixation(targetSquare) =>
+        Some(normalize(targetSquare)).filter(squareKey)
+      case PlayerFacingExactSliceProof.CarlsbadFixedTarget(targetSquare, _) =>
+        Some(normalize(targetSquare)).filter(squareKey)
+      case PlayerFacingExactSliceProof.TargetFocusedCoordination(targetSquare, _, _) =>
+        Some(normalize(targetSquare)).filter(squareKey)
+      case PlayerFacingExactSliceProof.ColorComplexSqueeze(targetSquare, _, _, _) =>
+        Some(normalize(targetSquare)).filter(squareKey)
+      case _ => None
+
+  private def proofFamily(kind: PlanTaxonomy.PlanKind): String =
+    ProofFamilyId
+      .fromPlanKind(kind)
+      .map(_.wireKey)
+      .getOrElse(kind.id)
+
+  private def squareKey(raw: String): Boolean =
+    normalize(raw).matches("[a-h][1-8]")
+
+  private def uciMove(raw: String): Boolean =
+    normalize(raw).matches("[a-h][1-8][a-h][1-8][nbrq]?")
+
+  private def uciDestination(raw: String): Option[String] =
+    Uci(normalize(raw)).collect { case move: Uci.Move => move.dest.key }
+
+  private def fileToken(raw: String): Boolean =
+    normalize(raw).matches("[a-h](?:-file)?")
+
+  private def routeToken(raw: String): Boolean =
+    normalize(raw).matches("""(?:\.\.\.)?[a-h][1-8]-[a-h][1-8]""")
+
+  private def breakTokenShape(raw: String): Boolean =
+    normalize(raw).matches("""(?:\.\.\.)?[a-h][1-8](?:-[a-h][1-8])?""")
+
+  private def resourceToken(raw: String): Boolean =
+    val token = normalize(raw)
+    token.nonEmpty &&
+      !token.contains("|") &&
+      (
+        token.matches("""(?:\.\.\.)?[a-h][1-8](?:-[a-h][1-8])?""") ||
+          token.matches("""denied_resource:(?:break|entry_square|forcing_threat|piece_activity|counterplay_route|route_node|reroute_square|pressure|color_complex_escape)""")
+      )
+
+  private def normalize(raw: String): String =
+    Option(raw).getOrElse("").trim.toLowerCase
 
 private[commentary] final case class PlayerFacingProofPathWitness(
     ownerSeedTerms: List[String] = Nil,

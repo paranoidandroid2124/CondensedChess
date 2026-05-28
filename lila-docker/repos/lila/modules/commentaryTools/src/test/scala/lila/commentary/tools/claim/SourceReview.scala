@@ -132,6 +132,105 @@ private[commentary] object SourceReview:
       primaryPrefixKind: Option[PlayerFacingClaimPrefixKind]
   )
 
+  private enum SurfaceContractAlignment:
+    case SourceOrPacketFamily
+    case SupportedLocalExact
+
+  private final case class SurfaceContractDescriptor(
+      reviewGroupNeedle: String,
+      proofSource: String,
+      proofFamily: String,
+      contractIdNeedle: Option[String] = None,
+      alignment: SurfaceContractAlignment = SurfaceContractAlignment.SourceOrPacketFamily
+  ):
+    def aligned(surface: EvaluationSurface): Boolean =
+      alignment match
+        case SurfaceContractAlignment.SourceOrPacketFamily =>
+          proofSourceMatches(surface) || packetProofFamily(surface).contains(proofFamily)
+        case SurfaceContractAlignment.SupportedLocalExact =>
+          surface.release == "SupportedLocal" &&
+            proofSourceMatches(surface) &&
+            packetProofFamily(surface).contains(proofFamily) &&
+            contractIdNeedle.forall(contractIdMatches(surface, _))
+
+    def contractMismatch(surface: EvaluationSurface): Boolean =
+      proofSourceMismatch(surface) ||
+        packetProofFamily(surface).exists(_ != proofFamily) ||
+        contractIdNeedle.exists(contractIdMismatch(surface, _))
+
+    def missingProofSource(surface: EvaluationSurface): Boolean =
+      surface.mainProofSource.isEmpty
+
+    private def proofSourceMatches(surface: EvaluationSurface): Boolean =
+      surface.mainProofSource.contains(proofSource)
+
+    private def proofSourceMismatch(surface: EvaluationSurface): Boolean =
+      surface.mainProofSource.exists(_ != proofSource)
+
+    private def contractIdMatches(surface: EvaluationSurface, needle: String): Boolean =
+      surface.contractId.exists(_.contains(needle))
+
+    private def contractIdMismatch(surface: EvaluationSurface, needle: String): Boolean =
+      surface.contractId.exists(contract => contract != "-" && !contract.contains(needle))
+
+  private val BreakPreventionContract =
+    SurfaceContractDescriptor(
+      reviewGroupNeedle = "break_prevention",
+      proofSource = "counterplay_axis_suppression",
+      proofFamily = "neutralize_key_break"
+    )
+
+  private val CentralBreakTimingContract =
+    SurfaceContractDescriptor(
+      reviewGroupNeedle = "central_break_timing",
+      proofSource = PlanTaxonomy.PlanKind.CentralBreakTiming.id,
+      proofFamily = PlanTaxonomy.PlanKind.CentralBreakTiming.id
+    )
+
+  private val ProphylaxisRestraintContract =
+    SurfaceContractDescriptor(
+      reviewGroupNeedle = "prophylaxis_restraint",
+      proofSource = "prophylactic_move",
+      proofFamily = "counterplay_restraint",
+      contractIdNeedle = Some("counterplay_restraint"),
+      alignment = SurfaceContractAlignment.SupportedLocalExact
+    )
+
+  private val BadPieceLiquidationContract =
+    SurfaceContractDescriptor(
+      reviewGroupNeedle = "bad_piece_liquidation",
+      proofSource = PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource,
+      proofFamily = PlanTaxonomy.PlanKind.BadPieceLiquidation.id,
+      contractIdNeedle = Some(PlanTaxonomy.PlanKind.BadPieceLiquidation.id),
+      alignment = SurfaceContractAlignment.SupportedLocalExact
+    )
+
+  private val SurfaceContractDescriptors =
+    List(
+      BreakPreventionContract,
+      CentralBreakTimingContract,
+      ProphylaxisRestraintContract,
+      BadPieceLiquidationContract
+    )
+
+  private def surfaceContractDescriptor(reviewGroup: String): Option[SurfaceContractDescriptor] =
+    val normalized = reviewGroup.toLowerCase
+    SurfaceContractDescriptors.find(descriptor => normalized.contains(descriptor.reviewGroupNeedle))
+
+  private def packetProofFamily(surface: EvaluationSurface): Option[String] =
+    surface.packetSummary.flatMap(packetProofFamily)
+
+  private def packetProofFamily(summary: String): Option[String] =
+    summary
+      .split(';')
+      .iterator
+      .map(_.trim)
+      .collectFirst {
+        case entry if entry.startsWith("proof_family=") =>
+          entry.stripPrefix("proof_family=").trim
+      }
+      .filter(_.nonEmpty)
+
   private val header =
     List(
       "id",
@@ -441,7 +540,7 @@ private[commentary] object SourceReview:
       mainClaim.filter(_.scope == PlayerFacingClaimScope.PositionLocal)
     val releaseDecision =
       positionProbe.flatMap(_.packet).map(packet =>
-        releaseDecisionSummary(ClaimAuthorityPolicy.decidePositionProbe(Some(ctx), inputs, None, packet))
+        releaseDecisionSummary(PlannerClaimAdmission.decidePositionProbe(Some(ctx), inputs, None, packet))
       )
     val proofTrace =
       mainClaim.flatMap(_.packet).map(_.proofTrace)
@@ -551,24 +650,7 @@ private[commentary] object SourceReview:
       source: SourceWitnessCatalog.SourceCandidate,
       surface: EvaluationSurface
   ): Boolean =
-    val reviewGroup = source.reviewGroup.toLowerCase
-    if reviewGroup.contains("break_prevention") then
-      surface.mainProofSource.contains("counterplay_axis_suppression") ||
-        surface.packetSummary.exists(_.contains("proof_family=neutralize_key_break"))
-    else if reviewGroup.contains("central_break_timing") then
-      surface.mainProofSource.contains(PlanTaxonomy.PlanKind.CentralBreakTiming.id) ||
-        surface.packetSummary.exists(_.contains(s"proof_family=${PlanTaxonomy.PlanKind.CentralBreakTiming.id}"))
-    else if reviewGroup.contains("prophylaxis_restraint") then
-      surface.release == "SupportedLocal" &&
-        surface.mainProofSource.contains("prophylactic_move") &&
-        surface.packetSummary.exists(_.contains("proof_family=counterplay_restraint")) &&
-        surface.contractId.exists(_.contains("counterplay_restraint"))
-    else if reviewGroup.contains("bad_piece_liquidation") then
-      surface.release == "SupportedLocal" &&
-        surface.mainProofSource.contains(PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource) &&
-        surface.packetSummary.exists(_.contains(s"proof_family=${PlanTaxonomy.PlanKind.BadPieceLiquidation.id}")) &&
-        surface.contractId.exists(_.contains(PlanTaxonomy.PlanKind.BadPieceLiquidation.id))
-    else true
+    surfaceContractDescriptor(source.reviewGroup).forall(_.aligned(surface))
 
   private def plannerOwnership(surface: EvaluationSurface): String =
     if surface.release == "CertifiedOwner" || surface.release == "SupportedLocal" then
@@ -684,50 +766,31 @@ private[commentary] object SourceReview:
       surface: EvaluationSurface
   ): List[String] =
     val reviewGroup = source.reviewGroup.toLowerCase
-    if reviewGroup.contains("break_prevention") then
-      val packetContractMismatch =
-        surface.mainProofSource.exists(source => source != "counterplay_axis_suppression") ||
-          surface.packetSummary.exists(summary => summary.contains("proof_family=") && !summary.contains("proof_family=neutralize_key_break"))
-      if packetContractMismatch then List("proof:break_prevention_contract_mismatch")
-      else surface.breakPreventionFailureCodes.map(normalizeBreakPreventionFailureCode)
-    else if reviewGroup.contains("central_break_timing") then
-      val packetContractMismatch =
-        surface.mainProofSource.exists(source => source != PlanTaxonomy.PlanKind.CentralBreakTiming.id) ||
-          surface.packetSummary.exists(summary =>
-            summary.contains("proof_family=") &&
-              !summary.contains(s"proof_family=${PlanTaxonomy.PlanKind.CentralBreakTiming.id}")
-          )
-      if packetContractMismatch || surface.mainProofSource.isEmpty then List("central_break_timing_witness_missing")
-      else Nil
-    else if reviewGroup.contains("prophylaxis_restraint") then
-      val packetContractMismatch =
-        surface.mainProofSource.exists(source => source != "prophylactic_move") ||
-          surface.packetSummary.exists(summary => summary.contains("proof_family=") && !summary.contains("proof_family=counterplay_restraint")) ||
-          surface.contractId.exists(contract => contract != "-" && !contract.contains("counterplay_restraint"))
-      if packetContractMismatch then List("proof:prophylaxis_restraint_contract_mismatch")
-      else
-        surface.contractFailures
-          .filterNot(failure => failure == "-" || failure == "none")
-          .map(failure => s"prophylaxis_restraint_${blockerCode(failure)}")
-    else if reviewGroup.contains("bad_piece_liquidation") then
-      val packetContractMismatch =
-        surface.mainProofSource.exists(source => source != PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource) ||
-          surface.packetSummary.exists(summary =>
-            summary.contains("proof_family=") &&
-              !summary.contains(s"proof_family=${PlanTaxonomy.PlanKind.BadPieceLiquidation.id}")
-          ) ||
-          surface.contractId.exists(contract =>
-            contract != "-" && !contract.contains(PlanTaxonomy.PlanKind.BadPieceLiquidation.id)
-          )
-      if packetContractMismatch then List("proof:bad_piece_liquidation_contract_mismatch")
-      else if surface.mainProofSource.isEmpty then List("bad_piece_liquidation_witness_missing")
-      else
-        surface.contractFailures
-          .filterNot(failure => failure == "-" || failure == "none")
-          .map(badPieceLiquidationFailureCode)
-    else if reviewGroup.contains("iqp") && surface.contractId.isEmpty then
-      surface.ownerFailureCodes
-    else Nil
+    surfaceContractDescriptor(source.reviewGroup) match
+      case Some(descriptor) if descriptor.reviewGroupNeedle == BreakPreventionContract.reviewGroupNeedle =>
+        if descriptor.contractMismatch(surface) then List("proof:break_prevention_contract_mismatch")
+        else surface.breakPreventionFailureCodes.map(normalizeBreakPreventionFailureCode)
+      case Some(descriptor) if descriptor.reviewGroupNeedle == CentralBreakTimingContract.reviewGroupNeedle =>
+        if descriptor.contractMismatch(surface) || descriptor.missingProofSource(surface) then
+          List("central_break_timing_witness_missing")
+        else Nil
+      case Some(descriptor) if descriptor.reviewGroupNeedle == ProphylaxisRestraintContract.reviewGroupNeedle =>
+        if descriptor.contractMismatch(surface) then List("proof:prophylaxis_restraint_contract_mismatch")
+        else
+          surface.contractFailures
+            .filterNot(failure => failure == "-" || failure == "none")
+            .map(failure => s"prophylaxis_restraint_${blockerCode(failure)}")
+      case Some(descriptor) if descriptor.reviewGroupNeedle == BadPieceLiquidationContract.reviewGroupNeedle =>
+        if descriptor.contractMismatch(surface) then List("proof:bad_piece_liquidation_contract_mismatch")
+        else if descriptor.missingProofSource(surface) then List("bad_piece_liquidation_witness_missing")
+        else
+          surface.contractFailures
+            .filterNot(failure => failure == "-" || failure == "none")
+            .map(badPieceLiquidationFailureCode)
+      case _ if reviewGroup.contains("iqp") && surface.contractId.isEmpty =>
+        surface.ownerFailureCodes
+      case _ =>
+        Nil
 
   private def ownerBlockers(
       source: SourceWitnessCatalog.SourceCandidate,

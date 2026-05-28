@@ -43,6 +43,27 @@ final class OpeningNameLookupTest extends FunSuite:
     assertEquals(OpeningNameLookup.default.lookup(sicilianTransposed).flatMap(_.name), Some("Sicilian Defense"), clue(sicilianTransposed))
   }
 
+  test("major opening starter rows resolve from static book data") {
+    val expected =
+      List(
+        List("d2d4", "g8f6", "c2c4", "g7g6", "b1c3", "d7d5") -> "Gruenfeld Defense",
+        List("e2e4", "g8f6") -> "Alekhine's Defense",
+        List("e2e4", "b8c6") -> "Nimzowitsch Defense",
+        List("g1f3") -> "Reti Opening",
+        List("f2f4") -> "Bird's Opening",
+        List("d2d4", "f7f5") -> "Dutch Defense",
+        List("d2d4", "d7d5", "c2c4", "c7c6") -> "Slav Defense",
+        List("d2d4", "g8f6", "c2c4", "e7e6", "g1f3", "b7b6") -> "Queen's Indian Defense",
+        List("d2d4", "g8f6", "c2c4", "e7e6", "g1f3", "f8b4") -> "Bogo-Indian Defense",
+        List("e2e4", "e7e5", "f2f4") -> "King's Gambit"
+      )
+
+    expected.foreach { case (moves, name) =>
+      val fen = NarrativeUtils.uciListToFen(initialFen, moves)
+      assertEquals(OpeningNameLookup.default.lookup(fen).flatMap(_.name), Some(name), clue(name))
+    }
+  }
+
   test("halfmove and fullmove counter differences do not affect lookup") {
     val normalCounters =
       "r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R b KQkq - 3 3"

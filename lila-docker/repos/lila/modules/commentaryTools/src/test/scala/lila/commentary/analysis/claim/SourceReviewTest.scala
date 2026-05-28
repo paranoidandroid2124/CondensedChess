@@ -1,5 +1,8 @@
 package lila.commentary.analysis.claim
 
+import java.nio.charset.StandardCharsets
+import java.nio.file.{ Files, Paths }
+
 import lila.commentary.tools.claim.*
 
 import lila.commentary.analysis.*
@@ -8,11 +11,25 @@ import lila.commentary.model.strategic.VariationLine
 
 class SourceReviewTest extends FunSuite:
 
+  private def sourceReviewToolingSource: String =
+    Files.readString(
+      Paths.get("modules/commentaryTools/src/test/scala/lila/commentary/tools/claim/SourceReview.scala"),
+      StandardCharsets.UTF_8
+    )
+
   private final class StaticSourceReviewEngine(linesByFen: Map[String, List[VariationLine]])
       extends SourceReview.SourceReviewEngine:
     override def newGame(): Unit = ()
     override def analyze(fen: String, depth: Int, multiPv: Int): List[VariationLine] =
       linesByFen.getOrElse(fen, Nil)
+
+  test("source review centralizes packet proof-family contract checks") {
+    val text = sourceReviewToolingSource
+    val directPacketSummaryChecks = "\\.packetSummary\\.exists".r.findAllIn(text).toList
+
+    assert(text.contains("SurfaceContractDescriptor"), clues("missing SourceReview surface contract descriptor"))
+    assertEquals(directPacketSummaryChecks, Nil)
+  }
 
   test("source review classifies tactical-first examples as non-strategic") {
     val observations = SourceReview.observations(engine = None)
@@ -365,7 +382,7 @@ class SourceReviewTest extends FunSuite:
     admitted.foreach { row =>
       assertEquals(row.mainProofSource, "counterplay_axis_suppression")
       assert(row.packetSummary.contains("proof_family=neutralize_key_break"), clues(row))
-      val expectedText = s"A key idea is that ${row.primary.take(1).toLowerCase}${row.primary.drop(1)}"
+      val expectedText = PlayerFacingClaimPrefixKind.SupportedLocal.render(row.primary)
       assert(row.moveReview.contains(expectedText), clues(row))
       assert(row.chronicle.contains(expectedText.replace(" ...", "..").replace("...", "..")), clues(row))
     }
@@ -522,18 +539,31 @@ class SourceReviewTest extends FunSuite:
       )
 
     assertEquals(rows.map(_.engineAgreement).distinct, List("top_pv_matches_played"), clues(rows))
-    rows.foreach { row =>
+    val byId = rows.map(row => row.source.id -> row).toMap
+    val admittedIds =
+      List(
+        "source-lokvenc-czerniak-1952-b6-b5-break-prevention",
+        "source-maderna-palermo-1955-a6-a5-break-prevention",
+        "source-camara-bazan-1960-b7-b5-break-prevention",
+        "source-sliwa-gromek-1960-a6-a5-break-prevention",
+        "source-polugaevsky-giorgadze-1956-c5-c4-break-prevention"
+      )
+    admittedIds.map(byId).foreach { row =>
       assertEquals(row.verdict, SourceReview.Verdict.AdmitAuthorityRow, clues(row))
       assertEquals(row.diagnosis, SourceReview.Diagnosis.AdmitReady, clues(row))
       assertEquals(row.admissionBlockers, "none", clues(row))
       assertEquals(row.mainProofSource, "counterplay_axis_suppression", clues(row))
       assert(row.packetSummary.contains("proof_family=neutralize_key_break"), clues(row))
       assertEquals(row.release, "SupportedLocal", clues(row))
-      val expectedRendered = s"A key idea is that ${row.primary.take(1).toLowerCase}${row.primary.drop(1)}"
+      val expectedRendered = PlayerFacingClaimPrefixKind.SupportedLocal.render(row.primary)
       assert(row.moveReview.contains(expectedRendered), clues(row))
       assert(row.chronicle.contains(expectedRendered.replace(" ...", "..").replace("...", "..")), clues(row))
       assert(!row.primary.toLowerCase.contains("counterplay"), clues(row))
     }
+    val pfleger = byId("source-pfleger-maalouf-1961-a6-a5-break-prevention")
+    assertEquals(pfleger.verdict, SourceReview.Verdict.RejectOwnerMissing, clues(pfleger))
+    assertEquals(pfleger.admissionBlockers, "proof:break_prevention_contract_mismatch", clues(pfleger))
+    assertEquals(pfleger.mainProofSource, "color_complex_squeeze_probe", clues(pfleger))
   }
 
   test("central-break timing review exposes one exact Maderna row and one plan-only prep row") {
@@ -828,8 +858,15 @@ class SourceReviewTest extends FunSuite:
     assertEquals(originalBotvinnik.verdict, SourceReview.Verdict.RejectOwnerMissing)
     assert(originalBotvinnik.admissionBlockers.contains("owner:iqp_not_induced"), clues(originalBotvinnik))
 
-    assertEquals(byId("source-evans-opsahl-1950").verdict, SourceReview.Verdict.AdmitAuthorityRow)
-    assertEquals(byId("source-carlsen-anand-2014-g6").verdict, SourceReview.Verdict.AdmitAuthorityRow)
+    val evansCarlsbad = byId("source-evans-opsahl-1950")
+    assertEquals(evansCarlsbad.verdict, SourceReview.Verdict.RejectOwnerMissing, clues(evansCarlsbad))
+    assertEquals(evansCarlsbad.diagnosis, SourceReview.Diagnosis.PlannerOwnerSuppressed, clues(evansCarlsbad))
+    assertEquals(evansCarlsbad.admissionBlockers, "owner:planner_suppressed", clues(evansCarlsbad))
+    assert(evansCarlsbad.packetSummary.contains("proof_family=backward_pawn_targeting"), clues(evansCarlsbad))
+    val carlsenQueenTrade = byId("source-carlsen-anand-2014-g6")
+    assertEquals(carlsenQueenTrade.verdict, SourceReview.Verdict.RejectOwnerMissing, clues(carlsenQueenTrade))
+    assertEquals(carlsenQueenTrade.diagnosis, SourceReview.Diagnosis.RootVocabularyOrExtractionGap, clues(carlsenQueenTrade))
+    assertEquals(carlsenQueenTrade.admissionBlockers, "owner:root_vocabulary_or_extraction_gap", clues(carlsenQueenTrade))
 
     val salovSimplification = byId("source-salov-ljubojevic-1992-simplification-window")
     assertEquals(salovSimplification.verdict, SourceReview.Verdict.AdmitAuthorityRow)
@@ -844,17 +881,17 @@ class SourceReviewTest extends FunSuite:
     assertEquals(salovSimplification.taxonomy, "source_simplification_window")
 
     val boleslavskyStaticWeakness = byId("source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation")
-    assertEquals(boleslavskyStaticWeakness.verdict, SourceReview.Verdict.AdmitAuthorityRow)
-    assertEquals(boleslavskyStaticWeakness.diagnosis, SourceReview.Diagnosis.AdmitReady)
-    assertEquals(boleslavskyStaticWeakness.admissionBlockers, "none")
+    assertEquals(boleslavskyStaticWeakness.verdict, SourceReview.Verdict.RejectOwnerMissing, clues(boleslavskyStaticWeakness))
+    assertEquals(boleslavskyStaticWeakness.diagnosis, SourceReview.Diagnosis.RootVocabularyOrExtractionGap)
+    assertEquals(boleslavskyStaticWeakness.admissionBlockers, "owner:root_vocabulary_or_extraction_gap")
     assertEquals(boleslavskyStaticWeakness.engineAgreement, "top_pv_matches_played")
-    assertEquals(boleslavskyStaticWeakness.mainProofSource, PlayerFacingTruthModePolicy.ExactTargetFixationProofSource)
-    assertEquals(boleslavskyStaticWeakness.mainClaimScope, "MoveLocal")
-    assertEquals(boleslavskyStaticWeakness.contractId, s"subplan:${PlanTaxonomy.PlanKind.StaticWeaknessFixation.id}")
-    assertEquals(boleslavskyStaticWeakness.contractStatus, "Releasable")
-    assertEquals(boleslavskyStaticWeakness.release, "CertifiedOwner")
+    assertEquals(boleslavskyStaticWeakness.mainProofSource, "-")
+    assertEquals(boleslavskyStaticWeakness.mainClaimScope, "-")
+    assertEquals(boleslavskyStaticWeakness.contractId, "-")
+    assertEquals(boleslavskyStaticWeakness.contractStatus, "-")
+    assertEquals(boleslavskyStaticWeakness.release, "-")
     assertEquals(boleslavskyStaticWeakness.taxonomy, "source_static_weakness_fixation")
-    assertEquals(boleslavskyStaticWeakness.primary, "This changes the position by fixing d6 as the target.")
+    assertEquals(boleslavskyStaticWeakness.primary, "-")
 
     val aronianDefenderTrade = byId("source-aronian-andreikin-2014-defender-trade")
     assertEquals(aronianDefenderTrade.verdict, SourceReview.Verdict.RejectOwnerMissing, clues(aronianDefenderTrade))
@@ -882,8 +919,9 @@ class SourceReviewTest extends FunSuite:
       badPieceLiquidation.primary,
       "This trade clears the bad piece from the local branch."
     )
-    assertEquals(badPieceLiquidation.moveReview, "A key idea is that this trade clears the bad piece from the local branch.")
-    assertEquals(badPieceLiquidation.chronicle, badPieceLiquidation.moveReview)
+    val expectedBadPieceSurface = PlayerFacingClaimPrefixKind.SupportedLocal.render(badPieceLiquidation.primary)
+    assertEquals(badPieceLiquidation.moveReview, expectedBadPieceSurface)
+    assertEquals(badPieceLiquidation.chronicle, expectedBadPieceSurface)
     assertEquals(badPieceLiquidation.taxonomy, "source_bad_piece_liquidation")
   }
 

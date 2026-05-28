@@ -16,24 +16,24 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     val observations = AuthoritySurfaceLedger.observations()
     val byId = observations.map(obs => obs.sample.id -> obs).toMap
 
-    assertEquals(byId("natural-B15A").release, "CertifiedOwner")
+    assertEquals(byId("natural-B15A").release, "Suppressed", clues(byId("natural-B15A")))
+    assert(byId("natural-B15A").rejected.contains("truth_contract_missing"), clues(byId("natural-B15A")))
     assertEquals(byId("natural-K09B").release, "CertifiedOwner")
     assertEquals(byId("natural-K03A").release, "Suppressed")
     assertEquals(byId("natural-K08A").release, "Suppressed")
     assertEquals(byId("natural-K09E").release, "Suppressed")
     assertEquals(byId("natural-D01A").release, "Suppressed")
-    assertEquals(byId("natural-D01B").release, "Suppressed")
+    assertEquals(byId("natural-D01B").release, "Suppressed", clues(byId("natural-D01B")))
     assertEquals(byId("natural-MI2").release, "Suppressed")
     assertEquals(byId("natural-MI3").release, "Suppressed")
 
     val soft = byId("B15A-supported-local-soft")
-    assertEquals(soft.release, "SupportedLocal")
-    assertEquals(soft.primary, "A key idea is that c6 is the fixed target.")
-    assert(soft.moveReview.contains(soft.primary), clues(soft))
-    assertEquals(soft.chronicle, soft.primary)
-    assert(soft.plannerOwner.contains("PositionProbe"), clues(soft))
-    assert(!soft.primary.contains("The key strategic fact"), clues(soft))
-    assert(!soft.moveReview.contains("The key strategic fact"), clues(soft))
+    assertEquals(soft.release, "Suppressed", clues(soft))
+    assertEquals(soft.primary, "-")
+    assertEquals(soft.chronicle, "-")
+    assertEquals(soft.plannerOwner, "-")
+    assert(soft.rejected.contains("truth_contract_missing"), clues(soft))
+    assert(!soft.leak, clues(soft))
 
     val cSoft = byId("K09B-supported-local-soft")
     assertEquals(cSoft.release, "SupportedLocal")
@@ -50,23 +50,25 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     assert(!softVeto.leak, clues(softVeto))
 
     val exactSurface = byId("B15A-certified-carlsbad")
-    assert(exactSurface.moveReview.contains("So the task is to keep the queenside pressure trained on c6"), clues(exactSurface))
+    assertEquals(exactSurface.release, "Suppressed", clues(exactSurface))
+    assert(exactSurface.rejected.contains("truth_contract_missing"), clues(exactSurface))
+    assert(!exactSurface.moveReview.contains("So the task is"), clues(exactSurface))
 
     val sourceB = byId("source-evans-opsahl-1950")
-    assertEquals(sourceB.release, "CertifiedOwner")
-    assert(sourceB.plannerOwner.contains("WhatMattersHere:PositionProbe:carlsbad_fixed_target_probe"), clues(sourceB))
-    assert(sourceB.primary.contains("c6 is the fixed target"), clues(sourceB))
+    assertEquals(sourceB.release, "Other:MoveDelta", clues(sourceB))
+    assert(sourceB.plannerOwner.contains("MoveDelta:carlsbad_fixed_target_probe"), clues(sourceB))
+    assert(sourceB.primary.contains("Further probe work still targets"), clues(sourceB))
+    assert(!sourceB.primary.contains("c6 is the fixed target"), clues(sourceB))
     assertEquals(sourceB.contractStatus, "Releasable")
     assert(sourceB.contractId.contains(PlanTaxonomy.PlanKind.BackwardPawnTargeting.id), clues(sourceB))
 
     val sourceC = byId("source-carlsen-anand-2014-g6")
-    assertEquals(sourceC.release, "SupportedLocal")
-    assertEquals(sourceC.primary, "This exchange moves the game into the queenless branch.")
-    assertEquals(sourceC.moveReview, "A key idea is that this exchange moves the game into the queenless branch.")
-    assertEquals(sourceC.chronicle, sourceC.moveReview)
-    assert(sourceC.plannerOwner.contains("WhyThis:MoveDelta:queen_trade_shield"), clues(sourceC))
-    assertEquals(sourceC.contractStatus, "Releasable")
-    assert(sourceC.contractId.contains(PlanTaxonomy.PlanKind.QueenTradeShield.id), clues(sourceC))
+    assertEquals(sourceC.release, "Suppressed", clues(sourceC))
+    assertEquals(sourceC.primary, "-")
+    assertEquals(sourceC.plannerOwner, "-")
+    assertEquals(sourceC.contractStatus, "-")
+    assertEquals(sourceC.contractId, "-")
+    assert(!sourceC.moveReview.contains("A key idea is that"), clues(sourceC))
     assert(!sourceC.moveReview.contains("So the task is"), clues(sourceC))
     assert(!sourceC.chronicle.contains("So the task is"), clues(sourceC))
 
@@ -82,7 +84,7 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
       val naturalIqp = byId(id)
       assertEquals(naturalIqp.release, "SupportedLocal")
       assertEquals(naturalIqp.primary, "This sequence leaves an isolated pawn as the local target.")
-      val expectedText = "A key idea is that this sequence leaves an isolated pawn as the local target."
+      val expectedText = PlayerFacingClaimPrefixKind.SupportedLocal.render(naturalIqp.primary)
       assert(naturalIqp.moveReview.contains(expectedText), clues(naturalIqp))
       assert(naturalIqp.chronicle.contains(expectedText), clues(naturalIqp))
       assert(naturalIqp.plannerOwner.contains(s"WhyThis:MoveDelta:${PlayerFacingTruthModePolicy.IQPInducementProbeProofSource}"), clues(naturalIqp))
@@ -95,13 +97,12 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
 
     List(
       "source-maderna-palermo-1955-a6-a5-break-prevention" -> "...a6-a5",
-      "source-camara-bazan-1960-b7-b5-break-prevention" -> "...b7-b5",
-      "source-pfleger-maalouf-1961-a6-a5-break-prevention" -> "...a6-a5"
+      "source-camara-bazan-1960-b7-b5-break-prevention" -> "...b7-b5"
     ).foreach { case (id, breakToken) =>
       val sourceBreakPrevention = byId(id)
       assertEquals(sourceBreakPrevention.release, "SupportedLocal")
       assertEquals(sourceBreakPrevention.primary, s"This keeps $breakToken from coming right away.")
-      val expectedText = s"A key idea is that this keeps $breakToken from coming right away."
+      val expectedText = PlayerFacingClaimPrefixKind.SupportedLocal.render(sourceBreakPrevention.primary)
       assert(sourceBreakPrevention.moveReview.contains(expectedText), clues(sourceBreakPrevention))
       assert(sourceBreakPrevention.chronicle.contains(expectedText.replace(" ...", "..").replace("...", "..")), clues(sourceBreakPrevention))
       assert(sourceBreakPrevention.plannerOwner.contains("WhyThis:MoveDelta:counterplay_axis_suppression"), clues(sourceBreakPrevention))
@@ -115,7 +116,7 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     val sourceSimplification = byId("source-salov-ljubojevic-1992-simplification-window")
     assertEquals(sourceSimplification.release, "CertifiedOwner")
     assertEquals(sourceSimplification.primary, "This trade keeps the same local edge on d5.")
-    assertEquals(compact(sourceSimplification.moveReview), "This trade keeps the same local edge on d5. The practical alternative Qxd5 remains secondary here.")
+    assertEquals(compact(sourceSimplification.moveReview), "This trade keeps the same local edge on d5.")
     assertEquals(compact(sourceSimplification.chronicle), compact(sourceSimplification.moveReview))
     assert(sourceSimplification.plannerOwner.contains("WhyThis:MoveDelta:target"), clues(sourceSimplification))
     assertEquals(sourceSimplification.contractStatus, "Releasable")
@@ -123,16 +124,13 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     assertEquals(sourceSimplification.taxonomy, "source_simplification_window")
 
     val sourceStaticWeakness = byId("source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation")
-    assertEquals(sourceStaticWeakness.release, "CertifiedOwner")
-    assertEquals(sourceStaticWeakness.primary, "This changes the position by fixing d6 as the target.")
-    assertEquals(
-      compact(sourceStaticWeakness.moveReview),
-      "This changes the position by fixing d6 as the target. Before the move, d6 was not yet fixed as the target on that defended branch. That same defended branch keeps the pressure fixed on d6."
-    )
-    assertEquals(compact(sourceStaticWeakness.chronicle), compact(sourceStaticWeakness.moveReview))
-    assert(sourceStaticWeakness.plannerOwner.contains("WhatChanged:MoveDelta:target"), clues(sourceStaticWeakness))
-    assertEquals(sourceStaticWeakness.contractStatus, "Releasable")
-    assert(sourceStaticWeakness.contractId.contains(PlanTaxonomy.PlanKind.StaticWeaknessFixation.id), clues(sourceStaticWeakness))
+    assertEquals(sourceStaticWeakness.release, "Suppressed")
+    assertEquals(sourceStaticWeakness.primary, "-")
+    assertEquals(sourceStaticWeakness.plannerOwner, "-")
+    assertEquals(sourceStaticWeakness.contractStatus, "-")
+    assertEquals(sourceStaticWeakness.contractId, "-")
+    assert(!sourceStaticWeakness.moveReview.contains("This changes the position"), clues(sourceStaticWeakness))
+    assert(!sourceStaticWeakness.chronicle.contains("That same defended branch"), clues(sourceStaticWeakness))
     assertEquals(sourceStaticWeakness.taxonomy, "source_static_weakness_fixation")
 
     assert(
@@ -143,7 +141,7 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     val iqpControl = byId("iqp-supported-local-control")
     assertEquals(iqpControl.release, "SupportedLocal")
     assertEquals(iqpControl.primary, "This sequence leaves an isolated pawn as the local target.")
-    assertEquals(iqpControl.moveReview, "A key idea is that this sequence leaves an isolated pawn as the local target.")
+    assertEquals(iqpControl.moveReview, PlayerFacingClaimPrefixKind.SupportedLocal.render(iqpControl.primary))
     assertEquals(iqpControl.chronicle, iqpControl.moveReview)
     assert(iqpControl.plannerOwner.contains(s"WhyThis:MoveDelta:${PlayerFacingTruthModePolicy.IQPInducementProbeProofSource}"), clues(iqpControl))
     assertEquals(iqpControl.contractStatus, "Releasable")
@@ -227,8 +225,7 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
       sourceBreakPreventionRows.map(_.sample.id),
       List(
         "source-maderna-palermo-1955-a6-a5-break-prevention",
-        "source-camara-bazan-1960-b7-b5-break-prevention",
-        "source-pfleger-maalouf-1961-a6-a5-break-prevention"
+        "source-camara-bazan-1960-b7-b5-break-prevention"
       )
     )
     sourceBreakPreventionRows.foreach { row =>
@@ -243,7 +240,6 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
         .filterNot(row => sourceBreakPreventionRows.exists(_.sample.id == row.sample.id))
         .map(_.sample.id),
       List(
-        "source-carlsen-anand-2014-g6",
         "source-capablanca-golombek-1939-iqp-inducement",
         "source-evans-opsahl-1950-iqp-inducement",
         "source-alekhine-bogoljubow-1936-iqp-inducement",
@@ -256,9 +252,7 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
         .filter(obs => obs.sample.id.startsWith("source-") && obs.release == "CertifiedOwner")
         .map(_.sample.id),
       List(
-        "source-evans-opsahl-1950",
-        "source-salov-ljubojevic-1992-simplification-window",
-        "source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation"
+        "source-salov-ljubojevic-1992-simplification-window"
       )
     )
     assertEquals(
@@ -329,7 +323,7 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     assert(review.contains("## TacticalVeto"), clues(review))
     assert(
       review.contains(
-        "Surface SupportedLocal fixtures: source-carlsen-anand-2014-g6, source-capablanca-golombek-1939-iqp-inducement, source-evans-opsahl-1950-iqp-inducement, source-alekhine-bogoljubow-1936-iqp-inducement, source-najdorf-sergeant-1939-iqp-inducement, source-botvinnik-vidmar-1936-iqp-opening-inducement, source-maderna-palermo-1955-a6-a5-break-prevention, source-camara-bazan-1960-b7-b5-break-prevention, source-pfleger-maalouf-1961-a6-a5-break-prevention"
+        "Surface SupportedLocal fixtures: source-capablanca-golombek-1939-iqp-inducement, source-evans-opsahl-1950-iqp-inducement, source-alekhine-bogoljubow-1936-iqp-inducement, source-najdorf-sergeant-1939-iqp-inducement, source-botvinnik-vidmar-1936-iqp-opening-inducement, source-maderna-palermo-1955-a6-a5-break-prevention, source-camara-bazan-1960-b7-b5-break-prevention"
       ),
       clues(review)
     )
@@ -366,7 +360,23 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     )
     val sourceRows = AuthoritySurfaceLedger.observations().filter(_.sample.id.startsWith("source-"))
     assertEquals(sourceRows.map(_.sample.id), AuthoritySurfaceLedger.sourceSurfaceFixtureIds)
-    assertEquals(sourceRows.map(_.release), List("CertifiedOwner", "SupportedLocal", "SupportedLocal", "SupportedLocal", "SupportedLocal", "SupportedLocal", "SupportedLocal", "SupportedLocal", "SupportedLocal", "SupportedLocal", "CertifiedOwner", "CertifiedOwner"))
+    assertEquals(
+      sourceRows.map(_.release),
+      List(
+        "Other:MoveDelta",
+        "Suppressed",
+        "SupportedLocal",
+        "SupportedLocal",
+        "SupportedLocal",
+        "SupportedLocal",
+        "SupportedLocal",
+        "SupportedLocal",
+        "SupportedLocal",
+        "Suppressed",
+        "CertifiedOwner",
+        "Suppressed"
+      )
+    )
   }
 
   test("TacticalVeto rows require explicit veto or a releasable baseline") {

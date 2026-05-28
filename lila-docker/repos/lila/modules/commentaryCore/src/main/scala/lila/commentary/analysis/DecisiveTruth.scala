@@ -805,15 +805,15 @@ private[commentary] object DecisiveTruth:
         if cpLoss == 0 then MoveQualityVerdict.Best else MoveQualityVerdict.Acceptable
       else if momentType.exists(_.equalsIgnoreCase("MissedWin")) then MoveQualityVerdict.MissedWin
       else
-        Thresholds.classifySeverity(cpLoss) match
+        Thresholds.classifySeverity(winPercentLoss) match
           case "blunder"    => MoveQualityVerdict.Blunder
           case "mistake"    => MoveQualityVerdict.Mistake
           case "inaccuracy" => MoveQualityVerdict.Inaccuracy
           case _            => MoveQualityVerdict.Acceptable
     val severityBand =
-      if cpLoss >= Thresholds.BLUNDER_CP || winPercentLoss >= 25 then "catastrophic"
-      else if cpLoss >= Thresholds.MISTAKE_CP || winPercentLoss >= 12 then "serious"
-      else if cpLoss >= Thresholds.INACCURACY_CP || winPercentLoss >= 5 then "moderate"
+      if winPercentLoss >= Thresholds.CATASTROPHIC_WP then "catastrophic"
+      else if winPercentLoss >= Thresholds.MISTAKE_WP then "serious"
+      else if winPercentLoss >= Thresholds.INACCURACY_WP then "moderate"
       else "stable"
     MoveQualityFact(
       verdict = verdict,
@@ -840,11 +840,15 @@ private[commentary] object DecisiveTruth:
       ctx.engineEvidence.toList.flatMap(_.variations.drop(1)).map(line => moverPerspectiveCp(ctx.fen, line.scoreCp))
     val alternativeCount =
       moverBestScore.map { bestScore =>
-        alternativeScores.count(score => math.abs(bestScore - score) <= GoodAlternativeGapCp)
+        val bestWp = winPercentFromCp(bestScore)
+        alternativeScores.count { score =>
+          val scoreWp = winPercentFromCp(score)
+          (bestWp - scoreWp).abs <= 5.0
+        }
       }.orElse(Option.when(comparison.exists(_.practicalAlternative))(1)).getOrElse(0)
     val onlyMove =
       ctx.header.choiceType.equalsIgnoreCase("OnlyMove") ||
-        (!chosenMatchesBest && cpLoss >= Thresholds.BLUNDER_CP && alternativeCount == 0)
+        (!chosenMatchesBest && moveQuality.winPercentLoss >= Thresholds.BLUNDER_WP && alternativeCount == 0)
     val uniqueGoodMove =
       verifiedBestMove.nonEmpty &&
         (alternativeCount == 0 || onlyMove) &&
@@ -884,9 +888,11 @@ private[commentary] object DecisiveTruth:
       forcedMate ||
         ctx.header.criticality.equalsIgnoreCase("Forced") ||
         motifs.exists(Set("hanging_piece", "fork", "pin", "skewer", "promotion_race", "double_check"))
+    val winPercentLoss = winPercentFromCp(cpLoss) - 50.0
+    val swingSeverityWp = winPercentFromCp(swingSeverity) - 50.0
     val immediateRefutation =
-      cpLoss >= Thresholds.MISTAKE_CP &&
-        (forcingLine || swingSeverity >= Thresholds.MISTAKE_CP || momentType.exists(_.equalsIgnoreCase("AdvantageSwing")))
+      winPercentLoss >= Thresholds.MISTAKE_WP &&
+        (forcingLine || swingSeverityWp >= Thresholds.MISTAKE_WP || momentType.exists(_.equalsIgnoreCase("AdvantageSwing")))
     val tacticalMotifs =
       (motifs ++ transition.toList.flatMap(text => if text.contains("promotion") then List("promotion_race") else Nil)).distinct
     TacticalFact(
@@ -1363,7 +1369,8 @@ private[commentary] object DecisiveTruth:
     val immediatePunishment =
       moveQuality.verdict match
         case MoveQualityVerdict.Blunder | MoveQualityVerdict.MissedWin =>
-          tactical.immediateRefutation || moveQuality.swingSeverity >= Thresholds.MISTAKE_CP
+          val swingSeverityWp = winPercentFromCp(moveQuality.swingSeverity) - 50.0
+          tactical.immediateRefutation || swingSeverityWp >= Thresholds.MISTAKE_WP
         case _ => false
     val latentPunishment =
       moveQuality.verdict match
@@ -1375,7 +1382,7 @@ private[commentary] object DecisiveTruth:
         case DecisiveTruthClass.WinningInvestment | DecisiveTruthClass.CompensatedInvestment =>
           strategicOwnership.verifiedPayoffAnchor
         case _ =>
-          if strategicOwnership.convertsInvestment || afterPerspective >= Thresholds.MISTAKE_CP then
+          if strategicOwnership.convertsInvestment || winPercentFromCp(afterPerspective) >= winPercentFromCp(Thresholds.MISTAKE_CP) then
             strategicOwnership.verifiedPayoffAnchor
           else None
     val concessionSummary =
@@ -1399,16 +1406,17 @@ private[commentary] object DecisiveTruth:
       benchmark: BenchmarkFact,
       afterPerspective: Int
   ): DecisiveTruthClass =
+    val afterWp = winPercentFromCp(afterPerspective)
     if strategicOwnership.truthPhase.contains(InvestmentTruthPhase.FirstInvestmentCommitment) &&
       benchmark.chosenMatchesBest &&
       strategicOwnership.verifiedPayoffAnchor.nonEmpty
     then
-      if afterPerspective >= Thresholds.MISTAKE_CP then DecisiveTruthClass.WinningInvestment
+      if afterWp >= winPercentFromCp(Thresholds.MISTAKE_CP) then DecisiveTruthClass.WinningInvestment
       else DecisiveTruthClass.CompensatedInvestment
     else if strategicOwnership.truthPhase.contains(InvestmentTruthPhase.FirstInvestmentCommitment) &&
       !benchmark.chosenMatchesBest &&
       strategicOwnership.verifiedPayoffAnchor.nonEmpty &&
-      moveQuality.cpLoss < Thresholds.BLUNDER_CP
+      moveQuality.winPercentLoss < Thresholds.BLUNDER_WP
     then DecisiveTruthClass.CompensatedInvestment
     else moveQuality.baselineTruthClass
 
@@ -1536,7 +1544,7 @@ private[commentary] object DecisiveTruth:
   private def sideToMoveFromFen(fen: String): Option[Color] =
     Fen.read(_root_.chess.variant.Standard, Fen.Full(fen)).map(_.color)
 
-  private def winPercentFromCp(cp: Int): Double =
+  private[commentary] def winPercentFromCp(cp: Int): Double =
     50.0 + 50.0 * (2.0 / (1.0 + math.exp(-WinPercentSlope * cp.toDouble)) - 1.0)
 
   private def normalizeMoveToken(raw: String): String =

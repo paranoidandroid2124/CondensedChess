@@ -3,6 +3,7 @@ package lila.commentary.analysis.strategic
 import chess._
 import chess.Bitboard
 import lila.commentary.analysis.BreakFileToken
+import lila.commentary.analysis.structure.WeaknessTargetProfile
 import lila.commentary.model._
 import lila.commentary.model.strategic._
 import lila.commentary.model.strategic.VariationLine
@@ -688,35 +689,10 @@ class StructureAnalyzerImpl extends StructureAnalyzer {
   }
 
   private def detectBackward(board: Board, color: Color): List[chess.Square] = {
-    val pawns = board.byPiece(color, Pawn).squares
-    val pawnsByFile = pawns.groupBy(_.file)
-    val direction = if (color.white) 1 else -1
-
-    pawns.filter { pawn =>
-      val file = pawn.file
-      val rank = pawn.rank.value
-      val adjFiles = List(file.value - 1, file.value + 1).flatMap(File.all.lift)
-      
-      // No friendly pawn on adjacent files is further back or same rank (supporting candidate)
-      // Actually strictly: No friendly pawn on adjacent files checks the stop square.
-      // Simplified: "Backward" if no adjacent friends behind it or equal.
-      val supports = adjFiles.exists { f =>
-        pawnsByFile.get(f).exists(_.exists { neighbor =>
-          // Neighbor must be further back or same rank (if unblocked)
-          // Classic definition: Behind neighbors, and stop square controlled by enemy.
-          if (color.white) neighbor.rank.value <= rank else neighbor.rank.value >= rank
-        })
-      }
-      
-      // Also stop square (immediate forward) must be controlled by enemy pawn
-      // This requires calculation. For "Super Optimization", we do it.
-      val stopSquare = Square.at(file.value, rank + direction)
-      val stopControlled = stopSquare.exists { s => 
-        board.attackers(s, !color).intersects(board.byPiece(!color, Pawn)) 
-      }
-
-      !supports && stopControlled
-    }
+    WeaknessTargetProfile
+      .forWeakSide(board, color)
+      .filter(_.kind == WeaknessTargetProfile.BackwardPawn)
+      .flatMap(target => Square.all.find(_.key == target.targetSquare))
   }
 
   private def detectHanging(board: Board, color: Color): List[chess.Square] = {

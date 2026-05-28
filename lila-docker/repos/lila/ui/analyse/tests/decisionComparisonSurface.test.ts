@@ -1,6 +1,6 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildDecisionComparisonSurface } from '../src/decisionComparison';
+import { buildDecisionComparisonSurface, formatDecisionTargetComparison } from '../src/decisionComparison';
 
 describe('decisionComparison surface', () => {
   test('prefers exact comparative consequence over generic deferred copy', () => {
@@ -23,5 +23,17 @@ describe('decisionComparison surface', () => {
       'Nd2 fixes d6 as the target; Qc2 leaves d6 unfixed on the compared branch.',
     );
     assert.equal(surface.engineLine, 'Nd2 ...Na6 f3 Nc7');
+  });
+
+  test('formats target comparison as subordinate endpoint metadata', () => {
+    assert.equal(
+      formatDecisionTargetComparison({
+        chosenTarget: 'e5',
+        chosenTargetKind: 'isolated_pawn',
+        bestTarget: 'd5',
+        bestTargetKind: 'iqp',
+      }),
+      'Line target: chosen e5 (isolated pawn); engine d5 (isolated queen pawn).',
+    );
   });
 });

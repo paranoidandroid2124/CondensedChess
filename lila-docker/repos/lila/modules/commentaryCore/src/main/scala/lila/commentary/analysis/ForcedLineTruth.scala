@@ -2,6 +2,7 @@ package lila.commentary.analysis
 
 import chess.*
 import chess.format.{ Fen, Uci }
+import lila.commentary.analysis.tactical.TacticalPatternDetectors
 import lila.commentary.model.strategic.VariationLine
 
 /**
@@ -82,143 +83,24 @@ object ForcedLineTruth:
       // 2. TACTICAL PATTERNS (Geometry / Static)
       val beforePosOpt = Fen.read(chess.variant.Standard, Fen.Full(fen))
       posOpt.flatMap { pos =>
-        detectPatterns(beforePosOpt, pos, playedUci)
+        detectPatterns(beforePosOpt, pos, playedUci, variations)
       }
     }
   // 3. PATTERN DETECTORS (Geometric Matches)
 
-  private def detectPatterns(beforePos: Option[Position], pos: Position, playedUci: String): Option[VerifiedTheme] =
-    if (pos.checkMate)
-      if (isSmotheredMate(pos)) Some(VerifiedTheme("smothered_mate", "Smothered Mate", ""))
-      else if (isBackRankMate(pos)) Some(VerifiedTheme("back_rank_mate", "Back Rank Mate", ""))
-      else if (isArabianMate(pos)) Some(VerifiedTheme("arabian_mate", "Arabian Mate", ""))
-      else if (isBodensMate(pos)) Some(VerifiedTheme("bodens_mate", "Boden’s Mate", ""))
-      else if (isAnastasiaMate(pos)) Some(VerifiedTheme("anastasia_mate", "Anastasia’s Mate", ""))
-      else if (isHookMate(pos)) Some(VerifiedTheme("hook_mate", "Hook Mate", ""))
-      else if (isCornerMate(pos)) Some(VerifiedTheme("corner_mate", "Corner Mate", ""))
-      else None
-    else if (pos.staleMate)
-      Some(VerifiedTheme("stalemate_trap", "Stalemate Trap", ""))
-    else if (beforePos.exists(isGreekGift(_, pos, playedUci)))
-      Some(VerifiedTheme("greek_gift", "Greek Gift Sacrifice", ""))
-    else if (isWindmillCandidate(pos))
-      Some(VerifiedTheme("windmill", "Windmill Pattern", ""))
-    else
-      None
-
-  // --- MATE PATTERNS ---
-
-  private def isSmotheredMate(pos: Position): Boolean =
-    pos.board.kingPosOf(pos.color).exists { king =>
-      // Knight check ONLY
-      pos.board.attackers(king, !pos.color).forall(sq => pos.board.roleAt(sq).contains(Knight)) &&
-      // All flight squares blocked by OWN pieces
-      king.kingAttacks.forall(sq => pos.board.pieceAt(sq).exists(_.color == pos.color))
-    }
-
-  private def isBackRankMate(pos: Position): Boolean =
-    val loser = pos.color
-    pos.board.kingPosOf(loser).exists { king =>
-      val backRank = if (loser.white) Rank.First else Rank.Eighth
-      if (king.rank != backRank) false
-      else {
-        // Checked by R/Q
-        val checkedByMajor = pos.board.attackers(king, !loser).exists(sq => pos.board.roleAt(sq).exists(r => r == Rook || r == Queen))
-        if (!checkedByMajor) false
-        else {
-          // Flights forward blocked by own pieces OR controlled by enemy
-          val forward = if (loser.white) Rank.Second else Rank.Seventh
-          king.kingAttacks.filter(_.rank == forward).forall { sq =>
-            pos.board.pieceAt(sq).exists(_.color == loser) || pos.board.attackers(sq, !loser).nonEmpty
-          }
-        }
-      }
-    }
-
-  private def isArabianMate(pos: Position): Boolean =
-    pos.board.kingPosOf(pos.color).exists { king =>
-      val winner = !pos.color
-      // R+N mate in corner. R adjacent to K, N defends R.
-      isCornerRegion(king) && {
-        val checkers = pos.board.attackers(king, winner)
-        checkers.exists(sq => pos.board.roleAt(sq).contains(Rook) && pos.board.attackers(sq, winner).exists(k => pos.board.roleAt(k).contains(Knight)))
-      }
-    }
-
-  private def isBodensMate(pos: Position): Boolean =
-    pos.board.kingPosOf(pos.color).exists { king =>
-      val winner = !pos.color
-      val checkers = pos.board.attackers(king, winner)
-      // Must be Bishop check and at least 2 bishops for winner
-      checkers.exists(sq => pos.board.roleAt(sq).contains(Bishop)) &&
-      (pos.board.bishops & pos.board.byColor(winner)).count >= 2
-    }
-
-  private def isAnastasiaMate(pos: Position): Boolean =
-    pos.board.kingPosOf(pos.color).exists { king =>
-      if (king.file != File.H && king.file != File.A) false
-      else {
-        val winner = !pos.color
-        val checkers = pos.board.attackers(king, winner)
-        val fileCheck = checkers.exists(sq => (pos.board.roleAt(sq).contains(Rook) || pos.board.roleAt(sq).contains(Queen)) && sq.file == king.file)
-        if (!fileCheck) false
-        else {
-          (pos.board.knights & pos.board.byColor(winner)).exists { sq =>
-            sq.file != king.file && (sq.rank.value - king.rank.value).abs <= 2
-          }
-        }
-      }
-    }
-
-  private def isHookMate(pos: Position): Boolean =
-    pos.board.kingPosOf(pos.color).exists { king =>
-      val winner = !pos.color
-      val checkers = pos.board.attackers(king, winner)
-      val rookCheck = checkers.find(sq => pos.board.roleAt(sq).contains(Rook))
-      rookCheck.exists { rSq =>
-        // Rook protected by Knight
-        pos.board.attackers(rSq, winner).exists(sq => pos.board.roleAt(sq).contains(Knight))
-      }
-    }
-
-  private def isCornerMate(pos: Position): Boolean =
-    pos.board.kingPosOf(pos.color).exists { king =>
-      isCornerRegion(king) && (pos.board.attackers(king, !pos.color).count >= 1) && king.kingAttacks.forall(sq => pos.board.pieceAt(sq).isDefined)
-    }
-
-  // --- TACTICAL THEMES (Non-Mate) ---
-
-  private def isGreekGift(beforePos: Position, pos: Position, lastUci: String): Boolean =
-    Uci(lastUci).collect{ case m: Uci.Move => m }.exists { move =>
-      val mover = beforePos.color
-      val targetKey = if mover.white then "h7" else "h2"
-      Square.fromKey(targetKey).exists { target =>
-        move.dest == target &&
-          pos.check.yes &&
-          beforePos.board.pieceAt(target).exists(piece => piece.color == !mover && piece.role == Pawn) &&
-          pos.board.pieceAt(target).exists(piece => piece.color == mover && piece.role == Bishop) &&
-          greekGiftKingsideSupport(pos.board, mover, target)
-      }
-    }
-
-  private def greekGiftKingsideSupport(board: Board, mover: Color, target: Square): Boolean =
-    board.byPiece(mover, Knight).squares.exists(_.knightAttacks.contains(target)) ||
-      board.byPiece(mover, Queen).squares.exists { queen =>
-        val occupied = board.occupied
-        queen.queenAttacks(occupied).contains(target)
-      }
-
-  private def isWindmillCandidate(pos: Position): Boolean =
-    // Discovered check mechanism available?
-    // R+B or R+N setup where R moves, checking, then returns?
-    // Hard to detect statically without sequence.
-    false // Placeholder for complex logic
-
-  // --- HELPERS ---
-
-  private def isCornerRegion(sq: Square): Boolean =
-    (sq.file == File.A || sq.file == File.B || sq.file == File.G || sq.file == File.H) &&
-    (sq.rank == Rank.First || sq.rank == Rank.Second || sq.rank == Rank.Seventh || sq.rank == Rank.Eighth)
+  private def detectPatterns(
+      beforePos: Option[Position],
+      pos: Position,
+      playedUci: String,
+      variations: List[VariationLine]
+  ): Option[VerifiedTheme] =
+    val continuationLines = variations.map(_.moves.map(normalizeUci))
+    TacticalPatternDetectors.ordered
+      .find(detector =>
+        (!detector.requiresMate || pos.checkMate) &&
+          detector.matchesWithContinuations(beforePos, pos, playedUci, continuationLines)
+      )
+      .map(detector => VerifiedTheme(detector.id, detector.displayName, ""))
 
   private[analysis] def validateForcedSequence(startFen: String, moves: List[String], expected: ExpectedResult): Boolean =
     Fen.read(chess.variant.Standard, Fen.Full(startFen)).exists { startPos =>

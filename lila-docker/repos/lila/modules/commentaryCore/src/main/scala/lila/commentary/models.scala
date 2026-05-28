@@ -590,6 +590,9 @@ case class MoveReviewSurfaceAuthority(
 object MoveReviewSurfaceAuthority:
   val CounterplayBreak = "counterplay_break"
   val CentralBreak = "central_break"
+  val PracticalPlan = "practical_plan"
+  val CentralLiquidation = "central_liquidation"
+  val CentralChallenge = "central_challenge"
   val OpeningFamily = "opening_family"
 
   given Writes[MoveReviewSurfaceAuthority] = Json.writes[MoveReviewSurfaceAuthority]
@@ -605,6 +608,15 @@ case class MoveReviewPlayerSurfaceRow(
 object MoveReviewPlayerSurfaceRow:
   given Writes[MoveReviewPlayerSurfaceRow] = Json.writes[MoveReviewPlayerSurfaceRow]
 
+case class MoveReviewDecisionTargetComparison(
+    chosenTarget: String,
+    chosenTargetKind: String,
+    bestTarget: String,
+    bestTargetKind: String
+)
+object MoveReviewDecisionTargetComparison:
+  given Writes[MoveReviewDecisionTargetComparison] = Json.writes[MoveReviewDecisionTargetComparison]
+
 case class MoveReviewPlayerDecisionComparison(
     kicker: String,
     gapLabel: Option[String] = None,
@@ -613,7 +625,8 @@ case class MoveReviewPlayerDecisionComparison(
     comparedSan: Option[String] = None,
     deferredSan: Option[String] = None,
     secondaryText: Option[String] = None,
-    chosenMatchesBest: Boolean = false
+    chosenMatchesBest: Boolean = false,
+    targetComparison: Option[MoveReviewDecisionTargetComparison] = None
 )
 object MoveReviewPlayerDecisionComparison:
   given Writes[MoveReviewPlayerDecisionComparison] = Json.writes[MoveReviewPlayerDecisionComparison]

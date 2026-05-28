@@ -58,8 +58,8 @@ case class ChoiceTopologyResult(
   pv1Eval: Int,
   pv2Eval: Int,
   pv3Eval: Option[Int],
-  gapPv1ToPv2: Int,             // Gap between 1st and 2nd best
-  spreadTop3: Int,              // Spread among top 3
+  gapPv1ToPv2: Double,             // Gap between 1st and 2nd best
+  spreadTop3: Double,              // Spread among top 3
   pv2FailureMode: Option[String] // Why PV2 fails (if OnlyMove)
 ):
   def isOnlyMove: Boolean = topologyType == ChoiceTopologyType.OnlyMove

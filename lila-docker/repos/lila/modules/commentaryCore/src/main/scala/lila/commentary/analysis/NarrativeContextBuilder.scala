@@ -6,6 +6,7 @@ import lila.commentary.model._
 import lila.commentary.model.strategic._
 import lila.commentary.analysis.L3._
 import lila.commentary.model.structure.AlignmentBand
+import lila.commentary.analysis.structure.TranspositionPvAligner
 
 /**
  * NarrativeContext Builder
@@ -144,6 +145,12 @@ object NarrativeContextBuilder:
     val droppedProbeCount = probeValidation.droppedCount
     val enrichedCandidates = buildCandidatesEnriched(data, rootProbeResults, alignmentForTone)
     val targets = buildTargets(data, ctx, rootProbeResults)
+    val transpositionProofs =
+      TranspositionPvAligner.alignPlans(
+        fen = data.fen,
+        lines = data.alternatives,
+        hypotheses = data.planHypotheses
+      )
 
     val strategicPartition =
       PlanEvidenceEvaluator.partition(
@@ -155,7 +162,8 @@ object NarrativeContextBuilder:
         droppedProbeCount = droppedProbeCount,
         droppedProbeReasons = probeValidation.droppedReasons,
         invalidByRequestId = probeValidation.invalidByRequestId,
-        softByRequestId = probeValidation.softByRequestId
+        softByRequestId = probeValidation.softByRequestId,
+        transpositionProofs = transpositionProofs
       )
 
     val strategicPlanExperiments =
@@ -551,6 +559,7 @@ object NarrativeContextBuilder:
   private def evidenceTierOf(status: PlanEvidenceEvaluator.PlanEvidenceStatus): String =
     status match
       case PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableEvidenceBacked  => "evidence_backed"
+      case PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableTranspositionAligned => "transposition_aligned"
       case PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableStructuralOnly  => "structural_only"
       case PlanEvidenceEvaluator.PlanEvidenceStatus.PlayablePvCoupled       => "pv_coupled"
       case PlanEvidenceEvaluator.PlanEvidenceStatus.Deferred                => "deferred"
@@ -598,6 +607,7 @@ object NarrativeContextBuilder:
     val base =
       tier match
         case PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableEvidenceBacked => 0.82
+        case PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableTranspositionAligned => 0.74
         case PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableStructuralOnly => 0.52
         case PlanEvidenceEvaluator.PlanEvidenceStatus.PlayablePvCoupled      => 0.62
         case PlanEvidenceEvaluator.PlanEvidenceStatus.Deferred               => 0.38
@@ -1142,7 +1152,7 @@ object NarrativeContextBuilder:
   private val defaultClassification = PositionClassification(
     nature = NatureResult(lila.commentary.analysis.L3.NatureType.Static, 0, 0, 0, false),
     criticality = CriticalityResult(CriticalityType.Normal, 0, None, 0),
-    choiceTopology = ChoiceTopologyResult(ChoiceTopologyType.StyleChoice, 0, 0, None, 0, 0, None),
+    choiceTopology = ChoiceTopologyResult(ChoiceTopologyType.StyleChoice, 0, 0, None, 0.0, 0.0, None),
     gamePhase = GamePhaseResult(GamePhaseType.Middlegame, 0, false, 0),
     simplifyBias = SimplifyBiasResult(false, 0, false, false),
     drawBias = DrawBiasResult(false, false, false, false, false),

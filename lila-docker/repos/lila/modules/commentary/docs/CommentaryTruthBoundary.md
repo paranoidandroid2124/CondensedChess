@@ -102,6 +102,27 @@ Exact-slice signoff must consume the typed `PlayerFacingExactSliceProof`
 created by the board/probe witness branch. Owner, anchor, structure,
 continuation, and prose terms may explain or diagnose the claim, but they are
 not truth objects and must not be parsed back into exact proof.
+Weakness target truth is centralized in `WeaknessTargetProfile`, which reads
+the current legal FEN and reuses board-level pawn primitives for backward,
+isolated, IQP, doubled, and fixed pawn targets. A generic exact target-fixation
+witness may bind only a square present in that profile for the pressure side.
+This profile is a board fact source; it is not by itself a certified strategic
+claim. For lower-authority practical target display, `WeaknessTargetProfile`
+may also classify a short legal PV endpoint: same-square persistence keeps the
+target visible only when the line carries a `resultingFen` or at least five UCI
+plies, pressure-side capture marks the target resolved, and defender
+liquidation suppresses the target row instead of treating a vanished pawn as a
+fixed objective. Shorter persistent lines are not enough to prove target
+persistence for display.
+Transposition-aligned strategic truth is a separate main-plan provenance, not
+`ProbeBacked` truth. `TranspositionPvAligner` must legally replay the supplied
+PV from the current FEN, reject illegal or too-shallow lines, recompute the
+terminal `WeaknessTargetProfile`, bind only an expected target square carried
+by the plan evidence, require positive attacker-minus-defender control on that
+target, and veto mate or large mover-loss lines. Passing this boundary can
+admit a main strategic plan with `transposition_aligned` provenance, but it does
+not satisfy exact-slice proof contracts, `check_qualifying`, or probe-backed
+claim provenance.
 Proof checks that bind a move to a square must use the chess UCI parser and the
 typed destination square, not string slices over move text. SAN remains display
 text.
@@ -110,15 +131,30 @@ typed denied-resource token derived from runtime resource classification.
 English plan labels and generic counterplay phrases do not certify the exact
 resource.
 Carlsbad fixed-target truth is mirror-slice based: White-side pressure targets
-Black `c6` only when the board has the `c6`/`d5` enemy chain and `b2`/`d4`
-friendly support; Black-side pressure targets White `c3` only when the mirrored
-`c3`/`d4` enemy chain and `b7`/`d5` friendly support are present. Both sides
-still require minority-attack semantic consequence and typed
+Black `c6` only when the board has the `c6`/`d5` enemy chain, a friendly `d4`
+pawn, and a friendly minority pawn on `b2`, `b4`, or `b5`; Black-side pressure
+targets White `c3` only when the mirrored `c3`/`d4` enemy chain, a friendly `d5`
+pawn, and a friendly minority pawn on `b7`, `b5`, or `b4` are present. Both
+sides still require minority-attack semantic consequence and typed
 `CarlsbadFixedTarget` proof.
-Benoni d6 target-fixation truth is board/PV based: the parsed board must show
-the friendly `d5` pawn and enemy `c5`/`d6` pawns, and the reviewed UCI/PV replay
-must legally support the `Nf3-d2-c4` route. FEN substrings and fixed branch-key
-text are not truth.
+Opening-route target-fixation truth is board/PV based. The reviewed UCI/PV
+replay must legally satisfy an `OpeningRouteCatalog` row through
+`KnightRouteEvidence`, and the parsed board must satisfy that row's
+`target_mode` through `OpeningRouteTargetEvidence.checkRouteBoard`.
+`attack_weak_pawn` requires knight geometry from the route destination to an
+enemy weak/fixed pawn target; `occupy_target` requires the route to land on the
+target square. `PlayerFacingTruthModePolicy.findRouteWitness` scans catalog
+rows, so Benoni `d6`, reversed Benoni `d3`, and King's Indian `c5` use the same
+truth path. The route alone is not a truth claim without the slice board
+witness. Starter routes for Caro-Kann, French, Open Games, Gruenfeld, Reti,
+Alekhine, and Nimzowitsch are data coverage for legal replay support, not
+automatic public truth promotion. FEN substrings and fixed branch-key text are
+not truth.
+Generic exact target-fixation witnesses must also bind the chosen square back
+to the same target-fixing idea. If an idea lists several focus squares, runtime
+may not select the only current `WeaknessTargetProfile` square unless the idea
+id or typed evidence refs name that exact target; broad focus lists remain
+support-only and fail closed.
 
 Break/file-axis truth must come from structured square or file-marker evidence
 parsed by the shared runtime boundary, not from incidental letters inside
@@ -137,8 +173,14 @@ side that makes the final material-winning move in the verified line.
 Greek Gift truth must be board-backed by the reviewed move: the move must
 actually capture on `h7`/`h2` with a bishop, the captured square must have held
 the opponent pawn before the move, the resulting position must be check, and
-kingside support geometry must be visible. A queen, rook, or knight check on the
-same square is not Greek Gift truth.
+kingside support geometry must be visible either immediately or after legal PV
+replay from the post-sacrifice position. This allows the standard timing where
+`Bxh7+` is followed by `...Kxh7 Ng5+` and then `Qh5`, while still rejecting a
+queen, rook, or knight check on the same square as Greek Gift truth.
+Named mate and tactical pattern labels are detected by ordered
+`TacticalPatternDetector` implementations. The polymorphic shape is an
+extension boundary only; each detector still has to read the parsed before/after
+board state and may not infer truth from motif text.
 
 Color-complex squeeze truth is exact-board only. The live proof source is
 `color_complex_squeeze_probe`, and release requires a parsed FEN, an

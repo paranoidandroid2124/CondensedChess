@@ -86,3 +86,19 @@ class StructuralDeltaAnalyzerTest extends FunSuite:
     assert(delta.newWeakPawns.contains("c3"), clues(delta))
     assert(delta.targetPressureDelta > 0, clues(delta))
   }
+
+  test("derives dynamic targets when no coordinate list is supplied") {
+    val delta =
+      deltaAfter(
+        fen = "4k3/pp3ppp/2p5/3p4/1P1P4/4P3/P4PPP/4K3 w - - 0 1",
+        moves = List("b4b5"),
+        side = Color.White,
+        files = List('a', 'b', 'c'),
+        targets = Nil,
+        createdTensionFrom = Some("b5")
+      )
+
+    assert(delta.hasConsequence, clues(delta))
+    assert(delta.createdTension.contains("b5-c6"), clues(delta))
+    assert(delta.newWeakPawns.contains("c6"), clues(delta))
+  }

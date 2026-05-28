@@ -3,6 +3,7 @@ package lila.commentary.analysis
 import munit.FunSuite
 import lila.commentary.model.*
 import lila.commentary.model.authoring.*
+import lila.commentary.analysis.structure.{ TranspositionPvAligner, WeaknessTargetProfile }
 
 class PlanEvidenceEvaluatorTest extends FunSuite:
 
@@ -951,6 +952,61 @@ class PlanEvidenceEvaluatorTest extends FunSuite:
         entry.planId == "StructuralBind" &&
           entry.status == "playable_structural_only" &&
           entry.userFacingEligibility == "structural_only"
+      ),
+      clue(partition.diagnosticSidecar)
+    )
+  }
+
+  test("partition admits transposition-aligned weakness plans as main without probe ids") {
+    val plan =
+      hypothesis(
+        id = "StaticWeakness",
+        name = "Static weakness fixation",
+        score = 0.82,
+        sources = List("support:engine_hypothesis", "weakness_target:d5")
+      ).copy(
+        themeL1 = PlanTaxonomy.PlanTheme.WeaknessFixation.id,
+        subplanId = Some(PlanTaxonomy.PlanKind.StaticWeaknessFixation.id)
+      )
+    val proof =
+      TranspositionPvAligner.TranspositionProof(
+        proofId = "transposition:staticweakness:d5:fixed_pawn",
+        planId = "StaticWeakness",
+        subplanId = Some(PlanTaxonomy.PlanKind.StaticWeaknessFixation.id),
+        targetSquare = "d5",
+        targetKind = WeaknessTargetProfile.FixedPawn,
+        terminalFen = "4k3/8/2p5/3p4/1N1P1N2/8/8/4K3 b - - 1 3",
+        attackerDefenderDelta = 1,
+        linePlies = 5
+      )
+
+    val partition =
+      PlanEvidenceEvaluator.partition(
+        hypotheses = List(plan),
+        probeRequests = Nil,
+        validatedProbeResults = Nil,
+        rulePlanIds = Set.empty,
+        isWhiteToMove = true,
+        droppedProbeCount = 0,
+        transpositionProofs = List(proof)
+      )
+
+    val evaluated = partition.evaluated.headOption.getOrElse(fail("missing evaluated plan"))
+    val view = PlanEvidenceEvaluator.StrategicPlanEvidenceView.from(partition)
+    assertEquals(partition.mainPlans.map(_.planId), List("StaticWeakness"))
+    assertEquals(evaluated.status, PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableTranspositionAligned)
+    assertEquals(evaluated.userFacingEligibility, PlanEvidenceEvaluator.UserFacingPlanEligibility.TranspositionAligned)
+    assertEquals(evaluated.supportProbeIds, Nil)
+    assertEquals(evaluated.transpositionProofIds, List(proof.proofId))
+    assertEquals(evaluated.claimCertification.provenanceClass, PlayerFacingClaimProvenanceClass.TranspositionAligned)
+    assertEquals(view.mainAdmittedPlans.map(_.hypothesis.planId), List("StaticWeakness"))
+    assertEquals(view.transpositionAlignedMainPlans.map(_.hypothesis.planId), List("StaticWeakness"))
+    assertEquals(view.probeBackedPlans, Nil)
+    assert(
+      partition.diagnosticSidecar.entries.exists(entry =>
+        entry.planId == "StaticWeakness" &&
+          entry.userFacingEligibility == "transposition_aligned" &&
+          entry.provenanceClass == "transposition_aligned"
       ),
       clue(partition.diagnosticSidecar)
     )

@@ -4,8 +4,9 @@ import munit.FunSuite
 import play.api.libs.json.{ JsObject, Json }
 
 import lila.commentary.analysis.PlanStateTracker
-import lila.commentary.analysis.PlanEvidenceEvaluator.{ EvaluatedPlan, PlanEvidenceStatus, UserFacingPlanEligibility }
-import lila.commentary.model.StrategicPlanExperiment
+import lila.commentary.analysis.PlayerFacingClaimProvenanceClass
+import lila.commentary.analysis.PlanEvidenceEvaluator.{ ClaimCertification, EvaluatedPlan, PlanEvidenceStatus, UserFacingPlanEligibility }
+import lila.commentary.model.{ FactFragment, StrategicPlanExperiment }
 import lila.commentary.model.authoring.*
 import lila.strategicPuzzle.StrategicPuzzle.*
 
@@ -43,6 +44,7 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
       status =
         eligibility match
           case UserFacingPlanEligibility.ProbeBacked   => PlanEvidenceStatus.PlayableEvidenceBacked
+          case UserFacingPlanEligibility.TranspositionAligned => PlanEvidenceStatus.PlayableTranspositionAligned
           case UserFacingPlanEligibility.StructuralOnly => PlanEvidenceStatus.PlayableStructuralOnly
           case UserFacingPlanEligibility.PvCoupledOnly => PlanEvidenceStatus.PlayablePvCoupled
           case UserFacingPlanEligibility.Deferred      => PlanEvidenceStatus.Deferred
@@ -63,6 +65,16 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
 
   private def deferredEvaluation(plan: PlanHypothesis): EvaluatedPlan =
     typedEvaluation(plan, UserFacingPlanEligibility.Deferred)
+
+  private def transpositionEvaluation(plan: PlanHypothesis): EvaluatedPlan =
+    typedEvaluation(plan, UserFacingPlanEligibility.TranspositionAligned)
+      .copy(
+        transpositionProofIds = List("transposition:test:d5"),
+        claimCertification =
+          ClaimCertification(
+            provenanceClass = PlayerFacingClaimProvenanceClass.TranspositionAligned
+          )
+      )
 
   test("sanitizes moveReview response across structured user-facing fields") {
     val response =
@@ -207,7 +219,18 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
                 confidence = "engine-coupled continuation"
               )
             ),
-            source = "support:basic"
+            source = "support:basic",
+            factFragments =
+              Some(
+                List(
+                  FactFragment.StrategicSupportFragment(
+                    san = "PlayableByPV",
+                    proofFamily = "raw_proof_family",
+                    proofSource = "raw_proof_source",
+                    purpose = "support-only fact fragment"
+                  )
+                )
+              )
           )
         ),
         moveReviewPlayerSurface = Some(
@@ -329,6 +352,8 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
     val json = Json.toJson(sanitized).as[JsObject]
 
     assertNoLeaks(rendered)
+    assertEquals(sanitized.moveReviewExplanation.flatMap(_.factFragments), None, clue(sanitized.moveReviewExplanation))
+    assert(!Json.stringify(json).contains("raw_proof_family"), clue(json))
     assertEquals(json.keys.contains("latentPlans"), false, clue(json))
     assertEquals(json.keys.contains("whyAbsentFromTopMultiPV"), false, clue(json))
     assertEquals(sanitized.signalDigest.flatMap(_.latentPlan), None, clue(sanitized.signalDigest))
@@ -471,6 +496,111 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
     assertEquals(sanitized.mainStrategicPlans.map(_.planId), List("admitted"), clue(sanitized.mainStrategicPlans))
     assertEquals(sanitized.mainStrategicPlans.flatMap(_.evidenceSources), Nil, clue(sanitized.mainStrategicPlans))
     assertEquals(sanitized.strategicPlanExperiments.map(_.planId), List("admitted"), clue(sanitized.strategicPlanExperiments))
+  }
+
+  test("admits transposition-aligned strategic plans without probe ids") {
+    val plan =
+      PlanHypothesis(
+        planId = "transposition",
+        planName = "Transposition target plan",
+        rank = 1,
+        score = 0.76,
+        preconditions = Nil,
+        executionSteps = Nil,
+        failureModes = Nil,
+        viability = PlanViability(0.76, "medium", "risk"),
+        evidenceSources = List("weakness_target:d5")
+      )
+    val response =
+      CommentResponse(
+        commentary = "Transposition admission payload",
+        concepts = Nil,
+        mainStrategicPlans = List(plan),
+        strategicPlanExperiments = List(
+          StrategicPlanExperiment(
+            planId = "transposition",
+            themeL1 = "weakness_fixation",
+            subplanId = None,
+            evidenceTier = "transposition_aligned",
+            supportProbeCount = 0,
+            refuteProbeCount = 0,
+            bestReplyStable = true,
+            futureSnapshotAligned = true,
+            counterBreakNeutralized = false,
+            moveOrderSensitive = false,
+            experimentConfidence = 0.8
+          )
+        )
+      )
+
+    val sanitized =
+      UserFacingPayloadSanitizer.sanitize(
+        response,
+        admittedPlans = List(transpositionEvaluation(plan))
+      )
+
+    assertEquals(sanitized.mainStrategicPlans.map(_.planId), List("transposition"))
+    assertEquals(sanitized.mainStrategicPlans.flatMap(_.evidenceSources), Nil)
+    assertEquals(sanitized.strategicPlanExperiments.map(_.planId), List("transposition"))
+  }
+
+  test("drops malformed top-level ledger lines without dropping valid ledger metadata") {
+    val plan =
+      PlanHypothesis(
+        planId = "ledger_plan",
+        planName = "Ledger plan",
+        rank = 1,
+        score = 0.76,
+        preconditions = Nil,
+        executionSteps = Nil,
+        failureModes = Nil,
+        viability = PlanViability(0.76, "medium", "risk")
+      )
+    val response =
+      CommentResponse(
+        commentary = "Ledger payload",
+        concepts = Nil,
+        mainStrategicPlans = List(plan),
+        moveReviewLedger =
+          Some(
+            MoveReviewStrategicLedger(
+              motifKey = "piece_route",
+              motifLabel = "Piece route",
+              stageKey = "build",
+              stageLabel = "Build",
+              carryOver = false,
+              primaryLine =
+                Some(
+                  MoveReviewLedgerLine(
+                    title = "Raw request line",
+                    sanMoves = List("Nf3"),
+                    note = Some("raw request purpose"),
+                    source = "probe_request"
+                  )
+                ),
+              resourceLine =
+                Some(
+                  MoveReviewLedgerLine(
+                    title = "Probe line",
+                    sanMoves = List("Nf3", "Nc6"),
+                    note = Some("12cp vs baseline"),
+                    source = "probe"
+                  )
+                )
+            )
+          )
+      )
+
+    val sanitized =
+      UserFacingPayloadSanitizer.sanitize(
+        response,
+        admittedPlans = List(probeBackedEvaluation(plan))
+      )
+    val ledger = sanitized.moveReviewLedger.getOrElse(fail("expected sanitized ledger"))
+
+    assertEquals(ledger.primaryLine, None, clue(ledger))
+    assertEquals(ledger.resourceLine.map(_.source), Some("probe"), clue(ledger))
+    assertEquals(ledger.resourceLine.map(_.sanMoves), Some(List("Nf3", "Nc6")), clue(ledger))
   }
 
   test("rejects typed strategic admissions without probe-backed support ids") {
@@ -678,6 +808,45 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
     )
   }
 
+  test("preserves valid practical moveReview player surface authority") {
+    val rows =
+      List(
+        MoveReviewPlayerSurfaceRow(
+          label = "Practical plan",
+          text = "The structure points toward Carlsbad pressure as a practical plan.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Central liquidation",
+          text = "The move releases central tension through d5-e4.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CentralLiquidation, token = Some("...d5-e4")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Central challenge",
+          text = "The move challenges the center through d7-d6.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CentralChallenge, token = Some("...d7-d6")))
+        )
+      )
+    val response =
+      CommentResponse(
+        commentary = "Public payload",
+        concepts = Nil,
+        moveReviewPlayerSurface = Some(MoveReviewPlayerSurface(summaryRows = rows))
+      )
+
+    val sanitized = UserFacingPayloadSanitizer.sanitize(response)
+
+    assertEquals(
+      sanitized.moveReviewPlayerSurface.toList.flatMap(_.summaryRows.flatMap(_.authority).map(_.kind)),
+      List(
+        MoveReviewSurfaceAuthority.PracticalPlan,
+        MoveReviewSurfaceAuthority.CentralLiquidation,
+        MoveReviewSurfaceAuthority.CentralChallenge
+      ),
+      clue(sanitized.moveReviewPlayerSurface)
+    )
+  }
+
   test("drops invalid moveReview player surface authority") {
     val response =
       CommentResponse(
@@ -710,6 +879,204 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
       sanitized.moveReviewPlayerSurface.toList.flatMap(_.summaryRows.map(_.authority)),
       List(None),
       clue(sanitized.moveReviewPlayerSurface)
+    )
+  }
+
+  test("requires route-shaped central break authority while preserving square counterplay tokens") {
+    val rows =
+      List(
+        MoveReviewPlayerSurfaceRow(
+          label = "Central break",
+          text = "On the checked line, this also plays the d4-d5 break at this moment.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CentralBreak, token = Some("d5")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Counterplay break",
+          text = "On the checked line, this stops the d5 break before it appears.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CounterplayBreak, token = Some("d5")))
+        )
+      )
+    val response =
+      CommentResponse(
+        commentary = "Public payload",
+        concepts = Nil,
+        moveReviewPlayerSurface = Some(MoveReviewPlayerSurface(summaryRows = rows))
+      )
+
+    val sanitized = UserFacingPayloadSanitizer.sanitize(response)
+
+    assertEquals(
+      sanitized.moveReviewPlayerSurface.toList.flatMap(_.summaryRows.map(_.authority)),
+      List(
+        None,
+        Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CounterplayBreak, token = Some("d5")))
+      ),
+      clue(sanitized.moveReviewPlayerSurface)
+    )
+  }
+
+  test("drops malformed practical authorities and preserves only allowlisted opening targets") {
+    val rows =
+      List(
+        MoveReviewPlayerSurfaceRow(
+          label = "Practical plan",
+          text = "The structure points toward Carlsbad pressure as a practical plan.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, token = Some("d4-d5")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Central liquidation",
+          text = "The move releases central tension through d5-e4.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CentralLiquidation, token = Some("d5")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Opening family",
+          text = "The opening family is visible.",
+          authority =
+            Some(
+              MoveReviewSurfaceAuthority(
+                kind = MoveReviewSurfaceAuthority.OpeningFamily,
+                openingFamily = Some("queens_gambit"),
+                target = Some("d5")
+              )
+            )
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Opening family",
+          text = "The opening family is visible without a trusted target.",
+          authority =
+            Some(
+              MoveReviewSurfaceAuthority(
+                kind = MoveReviewSurfaceAuthority.OpeningFamily,
+                openingFamily = Some("queens_gambit"),
+                target = Some("h4")
+              )
+            )
+        )
+      )
+    val response =
+      CommentResponse(
+        commentary = "Public payload",
+        concepts = Nil,
+        moveReviewPlayerSurface = Some(MoveReviewPlayerSurface(summaryRows = rows))
+      )
+
+    val sanitized = UserFacingPayloadSanitizer.sanitize(response)
+
+    assertEquals(
+      sanitized.moveReviewPlayerSurface.toList.flatMap(_.summaryRows.map(_.authority)),
+      List(
+        None,
+        None,
+        Some(
+          MoveReviewSurfaceAuthority(
+            kind = MoveReviewSurfaceAuthority.OpeningFamily,
+            openingFamily = Some("queens_gambit"),
+            target = Some("d5")
+          )
+        ),
+        Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.OpeningFamily, openingFamily = Some("queens_gambit")))
+      ),
+      clue(sanitized.moveReviewPlayerSurface)
+    )
+  }
+
+  test("preserves opening targets from the family catalog instead of the legacy source allowlist") {
+    val response =
+      CommentResponse(
+        commentary = "Public payload",
+        concepts = Nil,
+        moveReviewPlayerSurface =
+          Some(
+            MoveReviewPlayerSurface(
+              summaryRows =
+                List(
+                  MoveReviewPlayerSurfaceRow(
+                    label = "Opening family",
+                    text = "The Caro-Kann center leaves d5 as a target.",
+                    authority =
+                      Some(
+                        MoveReviewSurfaceAuthority(
+                          kind = MoveReviewSurfaceAuthority.OpeningFamily,
+                          openingFamily = Some("caro_kann"),
+                          target = Some("d5")
+                        )
+                      )
+                  ),
+                  MoveReviewPlayerSurfaceRow(
+                    label = "Opening family",
+                    text = "The Caro-Kann center should not trust h4 as a target.",
+                    authority =
+                      Some(
+                        MoveReviewSurfaceAuthority(
+                          kind = MoveReviewSurfaceAuthority.OpeningFamily,
+                          openingFamily = Some("caro_kann"),
+                          target = Some("h4")
+                        )
+                      )
+                  )
+                )
+            )
+          )
+      )
+
+    val sanitized = UserFacingPayloadSanitizer.sanitize(response)
+
+    assertEquals(
+      sanitized.moveReviewPlayerSurface.toList.flatMap(_.summaryRows.map(_.authority)),
+      List(
+        Some(
+          MoveReviewSurfaceAuthority(
+            kind = MoveReviewSurfaceAuthority.OpeningFamily,
+            openingFamily = Some("caro_kann"),
+            target = Some("d5")
+          )
+        ),
+        Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.OpeningFamily, openingFamily = Some("caro_kann")))
+      )
+    )
+  }
+
+  test("sanitizes moveReview decision target comparison metadata") {
+    val response =
+      CommentResponse(
+        commentary = "Public payload",
+        concepts = Nil,
+        moveReviewPlayerSurface =
+          Some(
+            MoveReviewPlayerSurface(
+              decisionComparison =
+                Some(
+                  MoveReviewPlayerDecisionComparison(
+                    kicker = "Decision point",
+                    secondaryText = Some("The lines leave different targets."),
+                    chosenMatchesBest = false,
+                    targetComparison =
+                      Some(
+                        MoveReviewDecisionTargetComparison(
+                          chosenTarget = "e5",
+                          chosenTargetKind = "isolated_pawn",
+                          bestTarget = "d5",
+                          bestTargetKind = "backward_pawn"
+                        )
+                      )
+                  )
+                )
+            )
+          )
+      )
+
+    val sanitized = UserFacingPayloadSanitizer.sanitize(response)
+
+    assertEquals(
+      sanitized.moveReviewPlayerSurface.flatMap(_.decisionComparison.flatMap(_.targetComparison)),
+      Some(
+        MoveReviewDecisionTargetComparison(
+          chosenTarget = "e5",
+          chosenTargetKind = "isolated_pawn",
+          bestTarget = "d5",
+          bestTargetKind = "backward_pawn"
+        )
+      )
     )
   }
 

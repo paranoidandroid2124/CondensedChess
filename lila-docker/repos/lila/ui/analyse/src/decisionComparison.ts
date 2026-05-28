@@ -15,6 +15,13 @@ export type DecisionComparisonDigestLike = {
   chosenMatchesBest?: boolean;
 };
 
+export type DecisionTargetComparisonLike = {
+  chosenTarget?: string | null;
+  chosenTargetKind?: string | null;
+  bestTarget?: string | null;
+  bestTargetKind?: string | null;
+};
+
 export type DecisionComparisonRow = {
   label: string;
   value: string;
@@ -46,6 +53,42 @@ function normalizeList(items?: string[]): string[] {
 
 function buildDeferredLabel(comparison: DecisionComparisonDigestLike): string {
   return comparison.practicalAlternative ? 'Practical alternative' : 'Deferred branch';
+}
+
+function normalizeSquare(value?: string | null): string {
+  const square = value?.trim().toLowerCase() || '';
+  return /^[a-h][1-8]$/.test(square) ? square : '';
+}
+
+function targetKindLabel(value?: string | null): string {
+  switch ((value || '').trim().toLowerCase()) {
+    case 'backward_pawn':
+      return 'backward pawn';
+    case 'isolated_pawn':
+      return 'isolated pawn';
+    case 'iqp':
+      return 'isolated queen pawn';
+    case 'doubled_pawn':
+      return 'doubled pawn';
+    case 'fixed_pawn':
+      return 'fixed pawn';
+    default:
+      return '';
+  }
+}
+
+export function formatDecisionTargetComparison(target?: DecisionTargetComparisonLike | null): string | null {
+  if (!target) return null;
+
+  const chosenTarget = normalizeSquare(target.chosenTarget);
+  const bestTarget = normalizeSquare(target.bestTarget);
+  const chosenKind = targetKindLabel(target.chosenTargetKind);
+  const bestKind = targetKindLabel(target.bestTargetKind);
+
+  if (!chosenTarget || !bestTarget || !chosenKind || !bestKind) return null;
+  if (chosenTarget === bestTarget && chosenKind === bestKind) return null;
+
+  return `Line target: chosen ${chosenTarget} (${chosenKind}); engine ${bestTarget} (${bestKind}).`;
 }
 
 export function formatDecisionComparisonHeadline(comparison?: DecisionComparisonDigestLike | null): string | null {

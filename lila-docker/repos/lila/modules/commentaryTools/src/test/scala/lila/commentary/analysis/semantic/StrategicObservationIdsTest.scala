@@ -53,7 +53,6 @@ class StrategicObservationIdsTest extends FunSuite:
     val checkedFiles =
       List(
         "modules/commentaryCore/src/main/scala/lila/commentary/analysis/claim/ProofContractRules.scala",
-        "modules/commentaryCore/src/main/scala/lila/commentary/analysis/claim/ClaimAuthorityPolicy.scala",
         "modules/commentaryCore/src/main/scala/lila/commentary/analysis/PlayerFacingTruthModePolicy.scala",
         "modules/commentaryCore/src/main/scala/lila/commentary/analysis/MainPathMoveDeltaClaimBuilder.scala",
         "modules/commentaryCore/src/main/scala/lila/commentary/analysis/PlanMatcher.scala",

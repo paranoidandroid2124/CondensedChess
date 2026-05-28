@@ -44,7 +44,6 @@ Internal trust decisions use this ladder:
 
 `ClaimAuthorityResolver` owns final authority decisions from packet, plan, and
 truth contract. `PlannerClaimAdmission` is the planner adapter.
-`ClaimAuthorityPolicy` is only a compatibility facade.
 
 The planner may rank and select questions, but it must not decide proof-family,
 source, scope, tactical-veto, or fallback authority by itself.
@@ -52,8 +51,8 @@ source, scope, tactical-veto, or fallback authority by itself.
 ## Plan Promotion Trust Boundary
 
 `PlanEvidenceEvaluator` owns strategic plan promotion. `ProbeBacked`,
-`StructuralOnly`, `PvCoupledOnly`, `Deferred`, and `Refuted` are typed
-evaluation outcomes, not downstream string matches.
+`TranspositionAligned`, `StructuralOnly`, `PvCoupledOnly`, `Deferred`, and
+`Refuted` are typed evaluation outcomes, not downstream string matches.
 
 Downstream user-facing consumers must read the typed
 `StrategicPlanEvidenceView` projected into `NarrativeContext`. Raw
@@ -61,17 +60,39 @@ Downstream user-facing consumers must read the typed
 `probe_backed:validated_support` marker are diagnostic/compatibility carriers,
 not release, provenance, quantifier, stability, or outline-selection
 authority.
-Only typed `ProbeBacked` evaluated plans can enter selected main-plan
-authority. `StructuralOnly` and `PvCoupledOnly` may remain in diagnostics or
-support context, but they cannot own a main claim or satisfy
-`check_qualifying`. Structural-only plans must also remain structural-only in
-compatibility carriers; they must not serialize as `evidence_backed`.
+Only typed `ProbeBacked` and `TranspositionAligned` evaluated plans can enter
+selected main-plan authority. `TranspositionAligned` is a separate provenance:
+it must come from legal PV replay through `TranspositionPvAligner`, a terminal
+`WeaknessTargetProfile` match for an expected target square, positive
+attacker-minus-defender control, sufficient line horizon, and mover-loss/mate
+veto checks. It must not be rewritten as `ProbeBacked` and does not satisfy
+exact proof contracts or `check_qualifying`. `StructuralOnly` and
+`PvCoupledOnly` may remain in diagnostics or support context, but they cannot
+own a main claim or satisfy `check_qualifying`. Structural-only plans must also
+remain structural-only in compatibility carriers; they must not serialize as
+`evidence_backed`.
+`PlanEvidenceEvaluator.isMainAdmittedPlan` is the shared typed predicate for
+selected main-plan admission and downstream payload/sanitizer sanity checks;
+`TranspositionAligned` requires both a transposition proof id and
+`transposition_aligned` typed provenance. A raw proof id, evidence tier, or
+compatibility marker alone is not enough.
 `UserFacingPayloadSanitizer` also treats that marker as non-authoritative:
 MoveReview plan payloads are retained only when `CommentaryApi` passes a
-matching typed `EvaluatedPlan` whose eligibility is `ProbeBacked` and whose
-support probe set is non-empty. Cached/default sanitizer paths and chronicle
-moments have no typed admission carrier and therefore fail closed for
+matching typed `EvaluatedPlan` whose eligibility is main-admitted and whose
+evidence id set is non-empty: support probe ids for `ProbeBacked`, or
+transposition proof ids plus `transposition_aligned` provenance for
+`TranspositionAligned`. Cached/default sanitizer paths and chronicle moments
+have no typed admission carrier and therefore fail closed for
 `mainStrategicPlans` and their plan-experiment metadata.
+`StructuralOnly` and `PvCoupledOnly` evaluated plans may speak only through
+bounded practical-guidance rows on `moveReviewPlayerSurface`; they do not
+become selected main plans, `check_qualifying` inputs, retained plan metadata,
+or owner claims. Their preconditions and execution steps may also appear as
+`Practical objective` and `Practical steps` advanced rows when sanitized
+surface capacity allows, but those rows remain practical guidance rather than
+proof authority. Those practical advanced rows are deduplicated against
+promoted plan siblings: a matching top-level theme or at least 70% overlap with
+the practical plan's execution steps keeps the softer row silent.
 The one cache-hit exception is a previously sanitized MoveReview response:
 `sanitizeCachedMoveReview` may preserve cached `mainStrategicPlans`,
 matching plan experiments, continuity token, and ledger only when the cached
@@ -135,13 +156,17 @@ plan labels such as "counterplay window" are prose only and fail the exact-slice
 contract.
 
 Opening-family prose claims are also kept out of the API presentation layer.
-`OpeningFamilyClaimResolver` owns the claim-boundary decision from structured
-`OpeningFamilyId` plus `OpeningFamilyMatchProof` (`opening`, phase, ply, FEN).
+`OpeningFamilyClaimResolver` owns the claim-boundary decision from a structured
+catalog family wire key plus `OpeningFamilyMatchProof` (`opening`, phase, ply,
+FEN). The legacy `OpeningFamilyId` enum is a compatibility facade only; new
+catalog family rows must not require resolver enum edits.
 A structured family claim is `SupportedLocal` only when the opening label and
 static `OpeningNameLookup` ECO/opening-book FEN result both match the requested
-family. Shallow piece-square structure predicates are not used as opening
-truth and cannot independently certify transpositions or coincidental later
-positions.
+family. `OpeningFamilyCatalog` owns aliases, display labels, and target-square
+allowlists as main-resource TSV data; malformed or unknown family/target pairs
+fail closed in the sanitizer and unknown claim keys fail closed in the resolver.
+Shallow piece-square structure predicates are not used as opening truth and
+cannot independently certify transpositions or coincidental later positions.
 Raw rendered sentences are not parsed for opening-family authority or
 post-render suppression. `CommentaryApi` no longer splits rendered prose into
 sentences or rewrites unsupported opening-family text after rendering; family
@@ -162,12 +187,23 @@ Current strict rules:
 - position-probe question seeds must use the exact FEN being generated. The
   Carlsbad fixed-target seed remains closed unless the exact mirror board
   target (`c6` for White pressure, `c3` for Black pressure) and
-  minority-support predicate both pass.
+  minority-support predicate both pass. That predicate allows the b-pawn to be
+  on the original or advanced minority-attack squares (`b2`/`b4`/`b5` for White,
+  `b7`/`b5`/`b4` for Black) but still requires the matching d-pawn chain support.
+- dynamic weakness targets are board facts, not owner claims by themselves. The
+  canonical `WeaknessTargetProfile` may feed bounded practical target rows,
+  guard exact target-fixation witnesses, and serve as the endpoint fact for
+  `TranspositionAligned` only after legal PV replay and veto checks pass. Target
+  text, broad focus-square lists, or `targetPressureDelta` do not certify a
+  claim without an accepted typed proof path. A generic exact target-fixation
+  surface with multiple focus squares must name the selected square in the same
+  idea id or typed evidence refs before it can become public owner evidence.
 - support material never enters the owner pool directly.
 - tactical truth veto outranks strategic authority. The only soft path is a
   non-tactical surface with a present narrative context, a present truth
   contract, no tactical-failure contract, no severe counterfactual, and an
-  observed cp loss of <= 30cp. Missing tactical context or truth contract fails
+  observed win-percentage drop of < 10.0pp (with further limits down to 5.0pp
+  for forcing moves). Missing tactical context or truth contract fails
   closed for supported-local position probes and tactical-vetoable surfaces.
 - line-scoped claims may survive only as subordinate evidence unless a main
   path strategic claim is independently admitted.
@@ -287,7 +323,32 @@ move labels or a same-first-move comparison with a typed later consequence, a
 surface-candidate line consequence, and no surface-blocking line reject reasons.
 Gaps below 60cp are labeled as slight rather than as a clear engine preference.
 It does not expose deferred moves or raw proof/source metadata, and it does not
-create a new public wire field.
+promote plan authority. It may attach `targetComparison` metadata only after
+the decision strip is already admitted. That metadata compares the engine-best
+line and reviewed/chosen line endpoints through `WeaknessTargetProfile`; it is
+not a proof packet and not a new source of certified plan ownership. Backend
+and frontend parsing require legal square tokens plus authority-key-shaped
+target kinds; malformed target comparison data is dropped for that optional
+field rather than crashing the MoveReview surface or synthesizing substitute
+guidance. Frontend rendering may use the validated metadata only as a compact
+subordinate endpoint-target note inside the already admitted decision strip; it
+must not create a plan claim or recover missing target comparison from raw
+engine fields, prose, or fallback carriers.
+Practical-guidance rows are lower authority than supported-local exact rows.
+They may describe structural or PV-coupled practical plans, central
+liquidation, or central challenge with cautious wording, but they cannot label
+themselves as `CertifiedOwner`, `SupportedLocal`, `Central break`, or a main
+plan. The frontend may style practical row tone and authority kind differently,
+but that styling is a display affordance rather than a proof reconstruction
+path.
+`Practical target` rows are in the same lower-authority family: they can name a
+board-derived weak pawn target, but they keep `practical_plan` authority and do
+not publish `authority.target`. They are suppressed when the best available
+line shows the target being liquidated by the defender. If the pressure side
+captures the target, the target is considered resolved rather than transient.
+If the best line merely preserves the same target, that persistence can support
+display only when the line carries a `resultingFen` or at least five UCI plies;
+shorter persistent lines are too shallow to overcome horizon risk.
 The current supported-local product projections are narrow.
 `neutralize_key_break`: `MoveReviewSupportedLocalSurfaceRows` can add a
 `Counterplay break` summary row only from the same planner runtime used to
@@ -336,10 +397,17 @@ anchors. Delayed/deferred compensation requires an explicit recovery/defer
 anchor rather than the word `compensation` alone. Target-fixing compensation
 cannot be authorized by generic `pressure` or file-occupation route prose; it
 requires target/fixed-pawn/weak-pawn language or typed target evidence, coupled
-with FEN-based structural verification of target board states. Benoni d6
-target-fixation additionally requires parsed-board `d5`/`c5`/`d6` pawn
-structure plus legal UCI/PV support for the `Nf3-d2-c4` route; FEN substrings
-and fixed branch-key text are not admission gates. Battery
+with FEN-based structural verification of target board states. Shared pawn
+targets are resolved by `structure.PawnStructureTargets`, not by duplicate
+Carlsbad or Benoni pawn-shape checks inside the compensation interpreter.
+Opening-route target fixation additionally requires `OpeningRouteCatalog`
+descriptor data, `KnightRouteEvidence` legal UCI/PV support, and
+`OpeningRouteTargetEvidence.checkRouteBoard` validation for the row's
+`target_mode`. Benoni `d6`, reversed Benoni `d3`, and King's Indian `c5`
+routes reuse the same witness path; FEN substrings and fixed branch-key text are
+not admission gates. The starter route pack extends data coverage for major
+openings, but route catalog membership remains support evidence, not standalone
+claim authority. Battery
 formation predicates require the moved piece and partner to share the declared
 line with no blocker between them.
 `CommentaryApi` passes those same selected evaluated plans into
@@ -360,6 +428,11 @@ purpose/objective metadata, raw source IDs, row provenance/source metadata, or
 `signalDigest` decision fallback text. Deferred decision moves are also not
 admitted to the player surface; sanitizer and frontend decoding must ignore
 them.
+`MoveReviewPlayerPayloadBuilder.ledgerRows` treats the strategic ledger as a
+bounded source of player-surface probe rows only when each line has a sanctioned
+source (`probe`, `decision_compare`, `variation`, or `authoring`) and non-empty
+SAN moves. Malformed ledger lines are dropped rather than repaired from raw
+probe, authoring, signal-digest, or prose data.
 The frontend must not decode raw probe or authoring carriers for orchestration
 fallback. Public `probeRequests` stay an empty compatibility field, and the
 post-response refined probe fetch path is closed; player support, advanced,
@@ -389,7 +462,19 @@ backend authority. For MoveReview support panels, that typed field is
 `moveReviewPlayerSurface` schema `chesstory.move_review.player_surface.v2`.
 Rows may carry sanitized `authority` with only `kind`, `token`,
 `openingFamily`, and `target`; malformed authority is removed by the backend
-sanitizer, and cached v1 rows decode with no authority. If the surface is
+sanitizer, and the frontend decoder downgrades unsupported or malformed
+authority shapes from cached/stale surfaces while preserving the row text.
+Only `counterplay_break` may carry a square token; `central_break`,
+`central_liquidation`, and `central_challenge` require route-shaped tokens.
+Cached v1 rows decode with no authority. Opening-family
+authority may keep a target only for an explicit backend allowlist, currently
+the narrow `nimzo_indian`/`c3` and `queens_gambit`/`d5` pairs; unsupported
+targets are stripped while the opening row may remain. Legacy top-level
+`moveReviewExplanation` is not a public fact-fragment authority: backend
+sanitization strips `factFragments`, and frontend decoding ignores that field.
+Legacy top-level `moveReviewLedger` may provide only metadata/signal attributes
+after schema/key validation; malformed line rows are dropped and no top-level
+ledger line renderer reconstructs probe/support rows. If the surface is
 missing, no support panel is reconstructed.
 
 MoveReview corpus and QC reports must measure the same player surface. When
@@ -472,6 +557,12 @@ Update this file in the same change when trust-relevant behavior changes in:
 - lexicon/template authority boundaries
 - frontend support rendering
 - scoped takeaway or lesson-readiness guards
+
+Lexicon rule tables are wording infrastructure only. Adding or reordering
+`NarrativeMotifPrefixTable` templates must not be treated as new proof authority
+unless the upstream detector, proof contract, and surface gate are updated in
+the same change. `NarrativeLexicon.getMotifPrefix` is only the consumer of that
+table, not a branching authority surface.
 
 Report future cleanup as either `boundary cleanup only` or
 `boundary cleanup + verified compile/test`; do not claim product quality gains
