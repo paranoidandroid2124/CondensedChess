@@ -10,6 +10,14 @@ private[commentary] final class OpeningFamilyCatalog private (
   def family(wireKey: String): Option[OpeningFamilyCatalog.Family] =
     familiesByKey.get(OpeningFamilyCatalog.normalizeKey(wireKey))
 
+  def families: List[OpeningFamilyCatalog.Family] =
+    familiesByKey.values.toList.sortBy(_.wireKey)
+
+  def familiesForOpening(opening: String): List[OpeningFamilyCatalog.Family] =
+    families.filter { family =>
+      family.aliases.exists(alias => OpeningFamilyCatalog.phraseMatchesAlias(opening, alias))
+    }
+
   def openingMatchesFamily(opening: String, wireKey: String): Boolean =
     family(wireKey).exists { family =>
       family.aliases.exists(alias => OpeningFamilyCatalog.phraseMatchesAlias(opening, alias))

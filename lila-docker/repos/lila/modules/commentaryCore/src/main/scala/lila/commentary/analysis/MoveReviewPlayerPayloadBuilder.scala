@@ -2,7 +2,7 @@ package lila.commentary.analysis
 
 import lila.commentary.*
 import lila.commentary.model.NarrativeContext
-import lila.commentary.analysis.claim.{ ClaimAuthorityResolver, ClaimAuthorityTier }
+import lila.commentary.analysis.claim.{ ClaimAuthorityResolver, ClaimAuthorityTier, OpeningFamilyClaimResolver }
 import lila.commentary.analysis.semantic.StrategicObservationIds.{ ProofFamilyId, ProofSourceId }
 import lila.commentary.analysis.structure.WeaknessTargetProfile
 import lila.commentary.analysis.PlanEvidenceEvaluator.{ EvaluatedPlan, UserFacingPlanEligibility }
@@ -64,8 +64,9 @@ object MoveReviewPlayerPayloadBuilder:
     val knownSans = refs.toList.flatMap(_.variations.flatMap(_.moves.map(_.san))).map(normalizeSan).toSet
     val promotedPlans = evaluatedPlans.filter(PlanEvidenceEvaluator.isMainAdmittedPlan).sortBy(_.hypothesis.rank)
     val practicalRows = practicalPlanRows(evaluatedPlans)
+    val openingRows = openingFamilyRow(ctx).toList
     val summaryRows =
-      (mainPlanRow(promotedPlans).toList ++ practicalRows ++ sanitizeRows(supportedLocalRows, knownSans))
+      (mainPlanRow(promotedPlans).toList ++ openingRows ++ practicalRows ++ sanitizeRows(supportedLocalRows, knownSans))
         .distinctBy(row => (row.label, row.text))
     MoveReviewPlayerSurface(
       schema = Schema,
@@ -119,6 +120,63 @@ object MoveReviewPlayerPayloadBuilder:
       .sortBy(_.hypothesis.rank)
       .flatMap(practicalPlanRow)
       .take(2)
+
+  private def openingFamilyRow(ctx: NarrativeContext): Option[MoveReviewPlayerSurfaceRow] =
+    for
+      opening <- openingName(ctx)
+      family <- OpeningFamilyCatalog.default.familiesForOpening(opening).headOption
+      decision <- OpeningFamilyClaimResolver.decideOpeningFamilyClaim(
+        OpeningFamilyClaimResolver.OpeningFamilyClaim(family.wireKey),
+        OpeningFamilyClaimResolver.OpeningFamilyMatchProof(
+          opening = Some(opening),
+          phase = openingProofPhase(ctx),
+          ply = ctx.ply,
+          fen = rawOpt(ctx.fen)
+        )
+      )
+      if decision.tier == ClaimAuthorityTier.SupportedLocal && decision.vetoReasons.isEmpty
+      surfaceRow <- row(
+        label = "Opening family",
+        text = s"This still fits the ${family.structureLabel} structure.",
+        tone = Some("opening")
+      )
+    yield surfaceRow.copy(
+      authority =
+        Some(
+          MoveReviewSurfaceAuthority(
+            kind = MoveReviewSurfaceAuthority.OpeningFamily,
+            openingFamily = Some(family.wireKey),
+            target = openingRouteTarget(ctx, family.wireKey)
+          )
+        )
+    )
+
+  private def openingRouteTarget(ctx: NarrativeContext, familyKey: String): Option[String] =
+    Fen.read(Standard, Fen.Full(ctx.fen)).flatMap { position =>
+      OpeningRouteCatalog.default.routes.iterator
+        .filter(route => route.family == familyKey)
+        .filter(route => OpeningFamilyCatalog.default.targetAllowed(familyKey, route.targetSquare))
+        .flatMap(route =>
+          KnightRouteEvidence
+            .fromContext(ctx, route)
+            .filter(_ => OpeningRouteTargetEvidence.checkRouteBoard(position.board, position.color, route))
+            .map(_ => route.targetSquare)
+        )
+        .toList
+        .headOption
+    }
+
+  private def openingName(ctx: NarrativeContext): Option[String] =
+    cleanOpt(ctx.openingData.flatMap(_.name))
+      .orElse(openingEventName(ctx).flatMap(name => cleanOpt(Some(name))))
+
+  private def openingEventName(ctx: NarrativeContext): Option[String] =
+    ctx.openingEvent.collect {
+      case lila.commentary.model.OpeningEvent.Intro(_, name, _, _) => name
+    }
+
+  private def openingProofPhase(ctx: NarrativeContext): String =
+    rawOpt(ctx.phase.current).orElse(rawOpt(ctx.header.phase)).getOrElse("")
 
   private def practicalPlanRow(plan: EvaluatedPlan): Option[MoveReviewPlayerSurfaceRow] =
     cleanOpt(Some(plan.hypothesis.planName)).flatMap { name =>
@@ -474,6 +532,9 @@ object MoveReviewPlayerPayloadBuilder:
 
   private def cleanList(values: List[String]): List[String] =
     values.flatMap(value => cleanOpt(Some(value))).distinct
+
+  private def rawOpt(value: String): Option[String] =
+    Option(value).map(_.trim).filter(_.nonEmpty)
 
   private def normalizeSan(value: String): String =
     Option(value).getOrElse("").replaceAll("[+#?!]+", "").trim.toLowerCase

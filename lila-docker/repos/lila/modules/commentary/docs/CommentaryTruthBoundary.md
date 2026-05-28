@@ -98,6 +98,21 @@ rows may remain in test/tooling precedent catalogs, but runtime witness
 construction must not stamp source-specific FEN markers into `sourceTags`,
 owner seeds, or release terms.
 
+Opening-family player-surface truth is bounded support only.
+`OpeningFamilyClaimResolver` may return `SupportedLocal` only for a structured
+catalog family wire key whose opening label and static `OpeningNameLookup` FEN
+result both match the same family inside the opening proof window.
+`MoveReviewPlayerPayloadBuilder` may emit an `Opening family` support row only
+after that resolver decision; label-only opening data, broad opening phase, raw
+rendered prose, or FEN lookup without the structured opening label must remain
+suppressed. The row is not a `CertifiedOwner` claim and does not by itself
+certify a strategic target square. The row may carry a target square only as
+bounded metadata from same-family legal route evidence plus target-mode board
+validation and catalog allowlisting; this remains support metadata, not a
+standalone exact-slice owner claim. Expanding `openings.tsv` with common
+variation endpoints only broadens the static FEN/name lookup pool; it does not
+lower this truth boundary.
+
 Exact-slice signoff must consume the typed `PlayerFacingExactSliceProof`
 created by the board/probe witness branch. Owner, anchor, structure,
 continuation, and prose terms may explain or diagnose the claim, but they are
@@ -146,10 +161,43 @@ enemy weak/fixed pawn target; `occupy_target` requires the route to land on the
 target square. `PlayerFacingTruthModePolicy.findRouteWitness` scans catalog
 rows, so Benoni `d6`, reversed Benoni `d3`, and King's Indian `c5` use the same
 truth path. The route alone is not a truth claim without the slice board
-witness. Starter routes for Caro-Kann, French, Open Games, Gruenfeld, Reti,
-Alekhine, and Nimzowitsch are data coverage for legal replay support, not
-automatic public truth promotion. FEN substrings and fixed branch-key text are
-not truth.
+witness. Starter routes for Caro-Kann, French, Open Games, Sicilian, Queen's
+Gambit, Slav/Semi-Slav, Nimzo-Indian, King's Indian, Gruenfeld, English, Reti,
+Dutch, Scandinavian, Pirc/Austrian, Alekhine, Nimzowitsch, Catalan, London,
+Bird, Queen's Indian, Bogo-Indian, and King's Gambit are data coverage
+for legal replay support, not automatic public truth promotion. Queen's Indian
+and Bogo-Indian direct `Nf6-e4` descriptors are still route support, not owner
+truth. The current route catalog contains 48 descriptors; the mined additions
+come from master-backed opening rows with at least five row witnesses, while
+lower-support route candidates stay deferred. Each route target is also present
+in the matching opening-family target allowlist, but that allowlist only permits
+bounded target metadata after legal route evidence and board target-mode
+validation. Likewise, the `openings.tsv`
+static book pool and player target projection samples expand resolver lookup
+coverage only; removed broad-variation Scala fixtures are not coverage
+authority, and FEN substrings or fixed branch-key text are not truth.
+The current opening pool is pruned to 1276 rows that replay against captured
+Lichess masters evidence as `master-backed`; 438 live-audited
+`not-found-in-masters` expansion rows were removed. This proves master DB
+occurrence for those endpoints, not strategic truth beyond the label-plus-FEN
+resolver boundary.
+Opening pool rows are not master-game truth unless the tooling-only
+`OpeningMasterDbAuditRunner` has live OAuth-backed masters evidence for the
+normalized endpoint or play sequence from its configured masters endpoint
+(`--base-url`, defaulting to Lichess; `--since`/`--until` only when that endpoint
+accepts date windows), or a replayable JSONL cache produced from that same
+masters response.
+`book-canonical`, `unverified`,
+`not-found-in-masters`, `transposition-duplicate`, `master-fetch-error`, and
+`quarantine` rows can support lookup cleanup but must not be cited as actual
+master-game occurrence.
+Opening-goal prose support is separate from truth signoff. `OpeningGoals`
+evaluations such as `GruenfeldCenterChallenge`, `SlavFreeingBreak`,
+`DutchE4Outpost`, `QueensIndianE4Outpost`, and `BogoIndianE4Outpost` are
+admitted from the parsed post-move board pattern plus available engine score,
+then consumed through `openingGoalEvaluation`; they are not `CertifiedOwner`,
+target-fixation truth, or a replacement for the label-plus-FEN opening-family
+resolver.
 Generic exact target-fixation witnesses must also bind the chosen square back
 to the same target-fixing idea. If an idea lists several focus squares, runtime
 may not select the only current `WeaknessTargetProfile` square unless the idea

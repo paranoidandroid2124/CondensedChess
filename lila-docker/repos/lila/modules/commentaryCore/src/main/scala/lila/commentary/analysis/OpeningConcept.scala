@@ -240,6 +240,48 @@ object OpeningGoals:
         else if sideScore >= -80 then Evaluation(name, Status.Partial, List("Thematic break"), List("Coordination"), 0.7)
         else Evaluation(name, Status.Premature, List("Ambition"), List("Soundness"), 0.6)
 
+  object GruenfeldCenterChallenge extends GoalDefinition:
+    val id = "gruenfeld_center_challenge"
+    val name = "Gruenfeld Center Challenge"
+    def triggers(uci: String) = uci == "d7d5"
+    def evaluate(ctx: NarrativeContext, sit: Option[Position]): Evaluation =
+      val gruenfeldShell =
+        hasPawn(sit, Square.D5, Color.Black) &&
+          hasPawn(sit, Square.G6, Color.Black) &&
+          hasPiece(sit, Square.F6, Color.Black, _root_.chess.Knight)
+      val whiteCenter =
+        hasPawn(sit, Square.D4, Color.White) &&
+          hasPawn(sit, Square.C4, Color.White) &&
+          hasPiece(sit, Square.C3, Color.White, _root_.chess.Knight)
+
+      if !(gruenfeldShell && whiteCenter) then
+        Evaluation(name, Status.Mismatch, Nil, List("Structure mismatch (needs g6, Nf6, ...d5 versus d4/c4/Nc3)"), 0.0)
+      else
+        val sound = checkCp(ctx, Color.Black, -50)
+        if sound then Evaluation(name, Status.Achieved, List("Hypermodern center challenge"), Nil, 0.93)
+        else Evaluation(name, Status.Premature, List("Center challenged"), List("Soundness"), 0.66)
+
+  object SlavFreeingBreak extends GoalDefinition:
+    val id = "slav_freeing_break"
+    val name = "Slav Freeing Break"
+    private val breakMoves = Set("e7e5", "e6e5")
+    def triggers(uci: String) = breakMoves.contains(uci)
+    def evaluate(ctx: NarrativeContext, sit: Option[Position]): Evaluation =
+      val slavShell =
+        hasPawn(sit, Square.C6, Color.Black) &&
+          hasPawn(sit, Square.D5, Color.Black) &&
+          hasPawn(sit, Square.E5, Color.Black)
+      val whiteCenter =
+        hasPawn(sit, Square.D4, Color.White) &&
+          hasPawn(sit, Square.C4, Color.White)
+
+      if !(slavShell && whiteCenter) then
+        Evaluation(name, Status.Mismatch, Nil, List("Structure mismatch (needs c6/d5/e5 against d4/c4)"), 0.0)
+      else
+        val sound = checkCp(ctx, Color.Black, -50)
+        if sound then Evaluation(name, Status.Achieved, List("Freeing break reached"), Nil, 0.91)
+        else Evaluation(name, Status.Premature, List("Freeing break attempted"), List("Soundness"), 0.64)
+
   // 8. London Pyramid Peak (e4)
   object LondonPeak extends GoalDefinition:
     val id = "london_peak"
@@ -417,6 +459,68 @@ object OpeningGoals:
         }
         .getOrElse(Evaluation(name, Status.Mismatch, Nil, List("Development pattern missing"), 0.0))
 
+  object DutchE4Outpost extends GoalDefinition:
+    val id = "dutch_e4_outpost"
+    val name = "Dutch E4 Outpost"
+    def triggers(uci: String) = uci == "f6e4"
+    def evaluate(ctx: NarrativeContext, sit: Option[Position]): Evaluation =
+      val dutchShell =
+        hasPawn(sit, Square.F5, Color.Black) &&
+          hasPawn(sit, Square.D5, Color.Black) &&
+          hasPiece(sit, Square.E4, Color.Black, _root_.chess.Knight)
+      val whiteQueenPawnCenter =
+        hasPawn(sit, Square.D4, Color.White) &&
+          (hasPawn(sit, Square.C4, Color.White) || hasPawn(sit, Square.G3, Color.White) || hasPiece(sit, Square.G2, Color.White, _root_.chess.Bishop))
+
+      if !(dutchShell && whiteQueenPawnCenter) then
+        Evaluation(name, Status.Mismatch, Nil, List("Structure mismatch (needs Dutch f5/d5 with a knight on e4)"), 0.0)
+      else
+        val sound = checkCp(ctx, Color.Black, -50)
+        if sound then Evaluation(name, Status.Achieved, List("e4 outpost occupied"), Nil, 0.9)
+        else Evaluation(name, Status.Premature, List("Outpost occupied"), List("Soundness"), 0.62)
+
+  object QueensIndianE4Outpost extends GoalDefinition:
+    val id = "queens_indian_e4_outpost"
+    val name = "Queen's Indian E4 Outpost"
+    def triggers(uci: String) = uci == "f6e4"
+    def evaluate(ctx: NarrativeContext, sit: Option[Position]): Evaluation =
+      val queensIndianShell =
+        hasPawn(sit, Square.B6, Color.Black) &&
+          hasPiece(sit, Square.E4, Color.Black, _root_.chess.Knight) &&
+          hasPawn(sit, Square.E6, Color.Black)
+      val whiteQueenPawnCenter =
+        hasPawn(sit, Square.D4, Color.White) &&
+          hasPawn(sit, Square.C4, Color.White) &&
+          hasPawn(sit, Square.E3, Color.White)
+
+      if !(queensIndianShell && whiteQueenPawnCenter) then
+        Evaluation(name, Status.Mismatch, Nil, List("Structure mismatch (needs Queen's Indian b6/e6 with a knight on e4)"), 0.0)
+      else
+        val sound = checkCp(ctx, Color.Black, -50)
+        if sound then Evaluation(name, Status.Achieved, List("e4 outpost occupied"), Nil, 0.91)
+        else Evaluation(name, Status.Premature, List("Outpost occupied"), List("Soundness"), 0.62)
+
+  object BogoIndianE4Outpost extends GoalDefinition:
+    val id = "bogo_indian_e4_outpost"
+    val name = "Bogo-Indian E4 Outpost"
+    def triggers(uci: String) = uci == "f6e4"
+    def evaluate(ctx: NarrativeContext, sit: Option[Position]): Evaluation =
+      val bogoShell =
+        hasPiece(sit, Square.B4, Color.Black, _root_.chess.Bishop) &&
+          hasPiece(sit, Square.E4, Color.Black, _root_.chess.Knight) &&
+          hasPawn(sit, Square.E6, Color.Black)
+      val whiteQueenPawnCenter =
+        hasPawn(sit, Square.D4, Color.White) &&
+          hasPawn(sit, Square.C4, Color.White) &&
+          hasPiece(sit, Square.D2, Color.White, _root_.chess.Knight)
+
+      if !(bogoShell && whiteQueenPawnCenter) then
+        Evaluation(name, Status.Mismatch, Nil, List("Structure mismatch (needs Bogo-Indian Bb4 with a knight on e4)"), 0.0)
+      else
+        val sound = checkCp(ctx, Color.Black, -50)
+        if sound then Evaluation(name, Status.Achieved, List("e4 outpost occupied"), Nil, 0.91)
+        else Evaluation(name, Status.Premature, List("Outpost occupied"), List("Soundness"), 0.62)
+
   // 17. Flank Fianchetto Support
   object FlankFianchettoSupport extends GoalDefinition:
     val id = "flank_fianchetto_support"
@@ -517,9 +621,11 @@ object OpeningGoals:
     NimzoChallenge, ScandinavianExpansion, 
     SicilianLiberator, FrenchBaseChipper, FrenchChainBreaker, 
     KIDKingsideStorm, BenoniExpansion, CatalanExpansion, QGChallenge,
+    GruenfeldCenterChallenge, SlavFreeingBreak,
     LondonPeak, CaroLiquidator, OpenCenterBreak, E5Equalizer,
     EnglishSqueeze, AustrianAttack,
-    DevelopmentLogic, FlankFianchettoSupport, EarlyQueenExposure,
+    DevelopmentLogic, QueensIndianE4Outpost, BogoIndianE4Outpost, DutchE4Outpost,
+    FlankFianchettoSupport, EarlyQueenExposure,
     CastleRace, ThematicBreakPreparation
   )
 

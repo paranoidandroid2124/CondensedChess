@@ -13,3 +13,37 @@ gruenfeld_g8_f6_d5_c3	gruenfeld	c3	knight	g8	f6|d5	c3	10	occupy_target
 reti_g1_f3_d4_b5	reti	b5	knight	g1	f3|d4	b5	10	occupy_target
 alekhine_g8_f6_d5_b6	alekhine	b6	knight	g8	f6|d5	b6	10	occupy_target
 nimzowitsch_b8_c6_e5_g6	nimzowitsch	g6	knight	b8	c6|e5	g6	10	occupy_target
+sicilian_b1_c3_d5	sicilian	d5	knight	b1	c3	d5	8	occupy_target
+sicilian_g8_f6_d5	sicilian	d5	knight	g8	f6	d5	8	occupy_target
+sicilian_b8_c6_d4	sicilian	d4	knight	b8	c6	d4	8	occupy_target
+queens_gambit_g1_f3_e5	queens_gambit	e5	knight	g1	f3	e5	8	occupy_target
+slav_b8_d7_f6_e4	slav	e4	knight	b8	d7|f6	e4	10	occupy_target
+slav_g1_f3_e5	slav	e5	knight	g1	f3	e5	8	occupy_target
+nimzo_indian_g1_f3_e5	nimzo_indian	e5	knight	g1	f3	e5	8	occupy_target
+nimzo_indian_g8_f6_e4	nimzo_indian	e4	knight	g8	f6	e4	8	occupy_target
+kings_indian_b8_d7_c5	kings_indian	c5	knight	b8	d7	c5	8	occupy_target
+english_b1_c3_d5	english	d5	knight	b1	c3	d5	8	occupy_target
+english_g1_f3_e5	english	e5	knight	g1	f3	e5	8	occupy_target
+dutch_g8_f6_e4	dutch	e4	knight	g8	f6	e4	8	occupy_target
+dutch_g1_f3_e5	dutch	e5	knight	g1	f3	e5	8	occupy_target
+scandinavian_g8_f6_d5_b6	scandinavian	b6	knight	g8	f6|d5	b6	10	occupy_target
+pirc_g8_f6_d7_b6	austrian	b6	knight	g8	f6|d7	b6	10	occupy_target
+catalan_g1_f3_e5	catalan	e5	knight	g1	f3	e5	8	occupy_target
+london_g1_f3_e5	london	e5	knight	g1	f3	e5	8	occupy_target
+bird_g1_f3_e5	bird	e5	knight	g1	f3	e5	8	occupy_target
+queens_indian_g8_f6_e4	queens_indian	e4	knight	g8	f6	e4	8	occupy_target
+bogo_indian_g8_f6_e4	bogo_indian	e4	knight	g8	f6	e4	8	occupy_target
+queens_indian_f6_e4	queens_indian	e4	knight	f6		e4	6	occupy_target
+bogo_indian_f6_e4	bogo_indian	e4	knight	f6		e4	6	occupy_target
+kings_gambit_g1_f3_e5	kings_gambit	e5	knight	g1	f3	e5	8	occupy_target
+alekhine_g8_f6_d5	alekhine	d5	knight	g8	f6	d5	8	occupy_target
+gruenfeld_g8_f6_d5	gruenfeld	d5	knight	g8	f6	d5	8	occupy_target
+caro_kann_b1_c3_e4	caro_kann	e4	knight	b1	c3	e4	8	occupy_target
+scandinavian_g8_f6_d5	scandinavian	d5	knight	g8	f6	d5	8	occupy_target
+open_games_g8_f6_e4	open_games	e4	knight	g8	f6	e4	8	occupy_target
+english_g8_f6_d5	english	d5	knight	g8	f6	d5	8	occupy_target
+nimzowitsch_b8_c6_e7_g6	nimzowitsch	g6	knight	b8	c6|e7	g6	10	occupy_target
+open_games_g1_f3_d4	open_games	d4	knight	g1	f3	d4	8	occupy_target
+queens_gambit_g8_f6_d5	queens_gambit	d5	knight	g8	f6	d5	8	occupy_target
+sicilian_g1_f3_d4	sicilian	d4	knight	g1	f3	d4	8	occupy_target
+open_games_g8_f6_e4_d6_f5	open_games	f5	knight	g8	f6|e4|d6	f5	12	occupy_target

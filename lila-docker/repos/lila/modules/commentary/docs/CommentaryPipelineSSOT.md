@@ -124,11 +124,53 @@ The maintained path is:
      board-piece structure checks are not an authority source. Family aliases,
      display labels, and public target-square allowlists come from
      `OpeningFamilyCatalog` main-resource TSV data, not local resolver or
-     sanitizer maps.
+     sanitizer maps. `openings.tsv` is the static book coverage pool for
+     common opening-family variation endpoints. The Scala broad-variation
+     fixture floor is no longer a coverage authority; provenance cleanup is
+     handled by opening audit tooling over the runtime TSV rows. The current
+     pool is pruned to 1276 runtime rows that replay against captured Lichess
+     masters evidence as `master-backed`; 438 live-audited
+     `not-found-in-masters` expansion rows were removed. Adding rows expands
+     lookup/admission coverage only through this resolver path and does not
+     create a separate runtime opening authority.
+     Further static pool expansion is paused pending provenance refinement:
+     `OpeningPoolAudit` and `OpeningMasterDbAuditRunner` live under
+     `modules/commentaryTools/src/test` and report parse problems, normalized
+     endpoint duplicates/transpositions, request URLs for the configured masters
+     endpoint (`--base-url`, defaulting to Lichess), OAuth-backed master
+     evidence when `--live` is used, optional `--since`/`--until` query windows
+     for endpoints that accept them, and replayable JSONL cache evidence
+     supplied through `--evidence-cache`. Current Lichess `/masters` live audit
+     should normally run without date windows because date-windowed master
+     queries can return `HTTP 400`.
+     Live runs may write raw-response JSONL with `--write-evidence-cache`;
+     fetch or response-parse failures are surfaced as `master-fetch-error` rows
+     rather than hidden as clean `unverified` entries. Reports include
+     `provenanceStatusCounts`; `--only-status` is a tooling-only cleanup filter
+     and does not change runtime lookup behavior. `--skip-rows`, `--max-rows`,
+     and `--request-timeout-seconds` support chunked/resumable live audit.
+     Cache rows bind by endpoint-stable audit `rowId` and contain `response` or
+     `rawResponse` Lichess masters JSON; legacy line-number rowIds are accepted
+     only for replaying older captured evidence. This tooling does not alter
+     runtime lookup or make unverified rows canonical.
+     `OpeningRouteMiningRunner` is also tooling-only. It derives knight-route
+     candidates from the master-backed runtime opening pool, compares them to
+     `opening_routes.tsv`, filters out one-ply generic development and
+     repeated-square paths, and reports remaining deferred candidates; it does
+     not create a separate runtime route authority.
      A structured claim needs both an opening-label family match and an
      opening-book FEN family match.
      Raw prose sentence parsing is not an authority API; unsupported family
      wording must be excluded before rendering.
+   - `OpeningGoals` remains the opening-goal prose evaluator. It reads the
+     post-move FEN and engine evidence from `NarrativeContextBuilder`, then
+     stores the selected result on `NarrativeContext.openingGoalEvaluation` for
+     `NarrativeOutlineBuilder` and `MoveReviewExplanationBuilder`. Family-
+     specific additions such as `GruenfeldCenterChallenge`,
+     `SlavFreeingBreak`, `DutchE4Outpost`, `QueensIndianE4Outpost`, and
+     `BogoIndianE4Outpost` are board-pattern support for prose selection only;
+     they do not replace `OpeningFamilyClaimResolver`, create a new
+     opening-family carrier, or certify target/owner truth.
 10. `QuestionFirstCommentaryPlanner` selects and ranks questions. It does not
    own low-level proof/source/scope/fallback authority. Prevented-plan
    break/timing surfaces are admitted only through the shared
@@ -170,7 +212,20 @@ The maintained path is:
     public `authority.kind = "counterplay_break"` plus canonical
     `authority.token` on the `chesstory.move_review.player_surface.v2` row.
     It is not a
-    `CertifiedOwner` expansion. `MoveReviewSupportedLocalSurfaceRows` may also
+    `CertifiedOwner` expansion. The builder may also project an `Opening family`
+    summary row through the same product surface when `ctx.openingData` or an
+    opening intro supplies a structured opening name,
+    `OpeningFamilyCatalog.familiesForOpening` maps it to a catalog family, and
+    `OpeningFamilyClaimResolver` admits that family as `SupportedLocal` against
+    phase, ply, and FEN proof. This row carries
+    `MoveReviewSurfaceAuthority.OpeningFamily` plus `openingFamily`; it does
+    not parse rendered prose and does not trust a broad phase label alone. It
+    may attach `authority.target` only when a same-family `OpeningRouteCatalog`
+    descriptor is legally satisfied by `KnightRouteEvidence.fromContext`,
+    `OpeningRouteTargetEvidence.checkRouteBoard` accepts the parsed board and
+    `target_mode`, and `OpeningFamilyCatalog.targetAllowed` allowlists that
+    family/target pair.
+    `MoveReviewSupportedLocalSurfaceRows` may also
     add a `Central break` summary row when the main-path packet is admitted as
     `SupportedLocal`, `CentralBreakTimingWitness.exact` is present, the packet
     source/family is exactly `central_break_timing`, and tactical veto reasons
@@ -490,7 +545,18 @@ route's target mode matches the parsed board. `PlayerFacingTruthModePolicy`
 then uses `findRouteWitness` to scan catalog routes instead of naming the Benoni
 route in source. Benoni `Nf3-d2-c4` against `d6`, reversed Benoni black
 `Nf6-d7-c5` / `Nb8-d7-c5` against `d3`, and King's Indian `Nf6-d7-c5` to `c5`
-therefore share the same witness path. Exact-slice release still requires the
+therefore share the same witness path. The starter route pack now also covers
+48 route descriptors across Sicilian, Queen's Gambit, Slav/Semi-Slav,
+Nimzo-Indian, English, Dutch, Scandinavian, Pirc/Austrian, Catalan, London,
+Bird, Queen's Indian, Bogo-Indian, King's Gambit, Caro-Kann, French, Open
+Games, Gruenfeld, Alekhine, and Nimzowitsch structures using the same
+descriptor/evaluator path; Queen's Indian and Bogo-Indian also carry direct
+`Nf6-e4` descriptors for positions where the book proof already starts after
+`...Nf6`. Current route data includes the master-backed mined routes with at
+least five opening-row witnesses; lower-support mined candidates remain
+deferred. Every route target is mirrored in `OpeningFamilyCatalog` target
+allowlists so backend player-surface target projection is not silently blocked
+after legal route evidence passes. Exact-slice release still requires the
 surrounding board witness and proof contract; route catalog membership alone is
 not public authority.
 
@@ -547,9 +613,13 @@ surfaces: `counterplay_break` may carry a square or route token, while
 `central_break`, `central_liquidation`, and `central_challenge` require a
 route-shaped token and unsupported authority kinds are downgraded without
 reconstructing fallback authority. `opening_family` rows may carry
-`target` only for backend-allowlisted opening/target pairs, such as
-`nimzo_indian`/`c3` and `queens_gambit`/`d5`; unsupported targets are stripped
-without dropping the opening-family row.
+`openingFamily` from the product builder's `SupportedLocal` resolver path.
+They may carry `target` only for backend-allowlisted opening/target pairs from
+`OpeningFamilyCatalog`; unsupported targets are stripped without dropping the
+opening-family row. `MoveReviewPlayerPayloadBuilder` emits this target metadata
+only from exact legal route evidence for the same opening family; frontend code
+must still treat the target chip as metadata on an admitted support row, not as
+proof reconstructed from cached prose.
 Current practical-guidance row kinds are `practical_plan`,
 `central_liquidation`, and `central_challenge`. These are display support
 rows, not certified owner claims and not frontend reconstruction inputs.

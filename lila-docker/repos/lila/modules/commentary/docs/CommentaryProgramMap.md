@@ -13,6 +13,44 @@ Current work is a boundary redesign plus docs compression:
 - render release safety is centralized under `analysis.render.FragmentAuthority`
 - public MoveReview wire is minimized around backend-owned structured
   diagnostics and the certified `moveReviewPlayerSurface`
+- opening-family support rows now enter that player surface only through
+  `OpeningFamilyCatalog` plus `OpeningFamilyClaimResolver` `SupportedLocal`
+  admission, not through rendered prose or frontend reconstruction
+- static opening coverage now comes from `openings.tsv` runtime rows plus
+  tooling provenance reports, while preserving the same label-plus-FEN family
+  proof boundary; the removed Scala broad-variation fixture floor is no longer
+  treated as coverage authority. The pool is currently pruned to 1276 rows that
+  replay against captured Lichess masters evidence as `master-backed`; the live
+  audit found and removed 438 `not-found-in-masters` expansion rows.
+- static opening coverage expansion is paused for provenance cleanup:
+  `lila.commentary.tools.opening.OpeningPoolAudit` and
+  `OpeningMasterDbAuditRunner` now classify parse issues, normalized endpoint
+  duplicates/transpositions, and optional master DB evidence under
+  `modules/commentaryTools/src/test`; `--base-url` selects the masters endpoint
+  while the default remains Lichess. `--since`/`--until` are optional query
+  window parameters for endpoints that accept them; current `/masters` live
+  audit should normally run without dates because date-windowed master queries
+  can return `HTTP 400`. Live runs can write replayable raw-response JSONL with
+  `--write-evidence-cache`; fetch or parse failures are reported as
+  `master-fetch-error`. Reports include `provenanceStatusCounts`, and
+  `--only-status` narrows the output rows for cleanup triage. `--skip-rows`,
+  `--max-rows`, and `--request-timeout-seconds` support chunked/resumable live
+  audit. Rows remain unverified unless a live OAuth-backed master DB report or
+  replayable JSONL evidence cache keyed by endpoint-stable `rowId` marks them
+  `master-backed`
+- opening knight-route coverage is expanding through `opening_routes.tsv`
+  descriptors while preserving legal replay plus target-mode proof gates.
+  `OpeningRouteMiningRunner` is tooling-only support under
+  `modules/commentaryTools/src/test`; it mines candidate knight routes from the
+  master-backed `openings.tsv` pool, filters out one-ply generic development
+  and repeated-square paths, and leaves low-support candidates deferred. The
+  current runtime route catalog contains 48 descriptors, and every route target
+  is present in the corresponding `OpeningFamilyCatalog` target allowlist.
+- opening goal/prose coverage is expanding inside the existing `OpeningGoals`
+  evaluator for Gruenfeld `...d5`, Slav/Semi-Slav `...e5`, Dutch `...Ne4`,
+  Queen's Indian `...Ne4`, and Bogo-Indian `...Ne4` structures; those
+  evaluations still flow only through `openingGoalEvaluation` into
+  outline/explanation consumers
 - canonical docs stay as four files, but historical CTH logs are compressed
   into current-state rules and summary tables
 

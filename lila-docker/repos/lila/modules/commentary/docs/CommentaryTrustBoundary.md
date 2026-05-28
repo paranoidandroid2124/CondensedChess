@@ -171,6 +171,44 @@ Raw rendered sentences are not parsed for opening-family authority or
 post-render suppression. `CommentaryApi` no longer splits rendered prose into
 sentences or rewrites unsupported opening-family text after rendering; family
 mismatch must be excluded or suppressed before surface prose is built.
+The MoveReview public surface may expose an `Opening family` support row only
+through `MoveReviewPlayerPayloadBuilder`, after the structured opening name is
+matched through `OpeningFamilyCatalog` and the resolver admits the same family
+as `SupportedLocal` for phase, ply, and FEN. This prevents stale explorer
+labels, broad opening-phase text, or cached prose from becoming row-level
+authority. Static book expansion is intentionally data-only: broader
+`openings.tsv` variation coverage may make more real positions eligible for
+the same resolver decision. The removed broad-variation Scala fixture floor is
+not coverage authority; runtime rows still must not bypass the label-plus-FEN
+proof pair or infer target authority from the variation name.
+Static opening expansion is paused while the pool is provenance-cleaned.
+`OpeningPoolAudit` and `OpeningMasterDbAuditRunner` classify malformed PGN
+tails, normalized endpoint transposition duplicates, and optional masters
+evidence from the configured endpoint (`--base-url`, defaulting to Lichess).
+The current pool is pruned to 1276 rows that replay against captured Lichess
+masters evidence as `master-backed`; 438 live-audited `not-found-in-masters`
+expansion rows were removed rather than treated as real-game occurrence.
+The query window may be pinned with `--since`/`--until` only for endpoints that
+accept date windows; current Lichess `/masters` live audit should normally run
+without them because date-windowed master queries can return `HTTP 400`. Live
+master evidence requires OAuth; live runs may write replayable raw-response
+JSONL with `--write-evidence-cache`, and cached evidence must be a replayable
+JSONL row containing the same masters response keyed by endpoint-stable audit
+`rowId`; legacy line-number rowIds are replay-only compatibility. Fetch or parse
+failures are `master-fetch-error`, not clean absence evidence. Both evidence
+forms remain tooling support; without them, rows are `unverified`,
+`not-found-in-masters`, `transposition-duplicate`, `master-fetch-error`, or
+`quarantine`, not player-facing truth. `provenanceStatusCounts` and
+`--only-status` are cleanup triage aids only.
+`opening_families.tsv` aliases, including Benko/Volga labels under the Benoni
+family, only broaden catalog matching for this `SupportedLocal` resolver path;
+they do not create board truth or target proof by themselves.
+Opening-goal prose expansion is also bounded to the existing carrier. New
+`OpeningGoals` entries for Gruenfeld `...d5`, Slav/Semi-Slav `...e5`, Dutch
+`...Ne4`, Queen's Indian `...Ne4`, and Bogo-Indian `...Ne4` may influence
+outline/explanation wording only after the post-move board pattern and engine
+score produce `openingGoalEvaluation`; they must not act as family admission,
+target authority, or truth-contract evidence.
 
 Current strict rules:
 
@@ -406,8 +444,17 @@ descriptor data, `KnightRouteEvidence` legal UCI/PV support, and
 `target_mode`. Benoni `d6`, reversed Benoni `d3`, and King's Indian `c5`
 routes reuse the same witness path; FEN substrings and fixed branch-key text are
 not admission gates. The starter route pack extends data coverage for major
-openings, but route catalog membership remains support evidence, not standalone
-claim authority. Battery
+openings including Sicilian, Queen's Gambit, Slav/Semi-Slav, Nimzo-Indian,
+English, Dutch, Scandinavian, Pirc/Austrian, Catalan, London, Bird, Queen's
+Indian, Bogo-Indian, King's Gambit, Caro-Kann, French, Open Games, Gruenfeld,
+Alekhine, and Nimzowitsch. The current catalog has 48 descriptors; mined
+additions require at least five master-backed opening-row witnesses, and
+lower-support route candidates remain deferred. Route targets are mirrored in
+the family target allowlist so public target metadata is not blocked by stale
+catalog data after legal route evidence passes. Direct Queen's Indian and
+Bogo-Indian `Nf6-e4` rows handle positions where book proof starts after
+`...Nf6`, but route catalog membership
+remains support evidence, not standalone claim authority. Battery
 formation predicates require the moved piece and partner to share the declared
 line with no blocker between them.
 `CommentaryApi` passes those same selected evaluated plans into
@@ -467,9 +514,13 @@ authority shapes from cached/stale surfaces while preserving the row text.
 Only `counterplay_break` may carry a square token; `central_break`,
 `central_liquidation`, and `central_challenge` require route-shaped tokens.
 Cached v1 rows decode with no authority. Opening-family
-authority may keep a target only for an explicit backend allowlist, currently
-the narrow `nimzo_indian`/`c3` and `queens_gambit`/`d5` pairs; unsupported
-targets are stripped while the opening row may remain. Legacy top-level
+authority may keep `openingFamily` only for sanctioned key shapes and may keep
+`target` only for backend allowlist pairs from `OpeningFamilyCatalog`;
+unsupported targets are stripped while the opening row may remain. The current
+builder projection emits target metadata only when same-family legal route
+evidence satisfies `OpeningRouteCatalog`, `KnightRouteEvidence`, and
+`OpeningRouteTargetEvidence.checkRouteBoard`; stale cached target metadata that
+does not pass shape/allowlist checks is still downgraded. Legacy top-level
 `moveReviewExplanation` is not a public fact-fragment authority: backend
 sanitization strips `factFragments`, and frontend decoding ignores that field.
 Legacy top-level `moveReviewLedger` may provide only metadata/signal attributes
