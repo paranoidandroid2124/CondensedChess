@@ -175,12 +175,12 @@ private[commentary] object TwoAxisBindProof:
         directReplyResults.find(result =>
           hasReplyCoverage(result) &&
             result.bestReplyPv.headOption.flatMap(clean).nonEmpty &&
-            branchKey(result).nonEmpty
+            MoveReviewExchangeAnalyzer.probeFirstReplyOrMoveKey(result).nonEmpty
         )
       val bestDefenseFound =
         bestDefenseResult.flatMap(_.bestReplyPv.headOption.flatMap(clean))
       val bestDefenseBranchKey =
-        bestDefenseResult.flatMap(branchKey)
+        bestDefenseResult.flatMap(MoveReviewExchangeAnalyzer.probeFirstReplyOrMoveKey)
       val sameBranchValidationResults =
         validationResults.filter(result =>
           matchesDefendedBranch(result, bestDefenseBranchKey)
@@ -654,27 +654,8 @@ private[commentary] object TwoAxisBindProof:
       expectedBranchKey: Option[String]
   ): Boolean =
     expectedBranchKey.exists(expected =>
-      branchKey(result).contains(expected)
+      MoveReviewExchangeAnalyzer.probeFirstReplyOrMoveKey(result).contains(expected)
     )
-
-  private def branchKey(
-      result: ProbeResult
-  ): Option[String] =
-    result.variationHash.flatMap(clean)
-      .orElse(result.seedId.flatMap(clean))
-      .orElse(branchLineKey(result.bestReplyPv))
-      .orElse(
-        result.replyPvs
-          .flatMap(_.headOption)
-          .flatMap(branchLineKey)
-      )
-      .orElse(result.probedMove.flatMap(clean))
-      .orElse(result.candidateMove.flatMap(clean))
-
-  private def branchLineKey(
-      moves: List[String]
-  ): Option[String] =
-    moves.headOption.flatMap(clean)
 
   private def displayHypothesis(
       plan: PlanEvidenceEvaluator.EvaluatedPlan

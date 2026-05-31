@@ -3,6 +3,7 @@ package lila.commentary.analysis.claim
 import java.nio.file.{ Files, Paths }
 
 import lila.commentary.analysis.NarrativeUtils
+import lila.commentary.analysis.OpeningNameLookup
 
 class OpeningFamilyClaimResolverTest extends munit.FunSuite:
 
@@ -135,6 +136,28 @@ class OpeningFamilyClaimResolverTest extends munit.FunSuite:
       OpeningFamilyClaimResolver.decideOpeningFamilyClaim(
         FamilyClaim("gruenfeld"),
         proof(opening = "Gruenfeld Defense: Exchange Variation", fen = GruenfeldFen)
+      )
+
+    assertEquals(decision.map(_.tier), Some(ClaimAuthorityTier.SupportedLocal), clue(decision))
+  }
+
+  test("admits transposed endpoint aliases from the same static opening-book FEN") {
+    val lookup =
+      OpeningNameLookup.fromTsvLines(
+        List(
+          "eco\tname\tpgn",
+          "D06\tQueen's Gambit\t1. d4 d5 2. c4",
+          "A13\tEnglish Opening: Anglo-Queen's Gambit\t1. c4 d5 2. d4"
+        )
+      )
+    val transposedFen =
+      NarrativeUtils.uciListToFen(InitialFen, List("c2c4", "d7d5", "d2d4"))
+
+    val decision =
+      OpeningFamilyClaimResolver.decideOpeningFamilyClaim(
+        FamilyClaim("english"),
+        proof(opening = "English Opening: Anglo-Queen's Gambit", fen = transposedFen),
+        openingLookup = lookup
       )
 
     assertEquals(decision.map(_.tier), Some(ClaimAuthorityTier.SupportedLocal), clue(decision))

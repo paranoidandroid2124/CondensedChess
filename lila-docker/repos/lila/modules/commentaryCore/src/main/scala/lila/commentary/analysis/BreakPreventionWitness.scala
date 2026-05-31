@@ -129,13 +129,9 @@ object BreakPreventionWitness:
     normalize(ctx.header.criticality) == "forced"
 
   private def bestDefenseBranchKey(ctx: NarrativeContext): Option[String] =
-    bestDefenseBranchKey(ctx.engineEvidence.toList.flatMap(_.variations))
-
-  private def bestDefenseBranchKey(variations: List[VariationLine]): Option[String] =
-    variations.headOption.flatMap(line =>
-      branchKey(line.moves)
-        .orElse(branchKey(line.parsedMoves.flatMap(move => clean(move.uci))))
-    )
+    MoveReviewExchangeAnalyzer
+      .boundedTopReplay(ctx.fen, ctx.engineEvidence.toList.flatMap(_.variations), maxPlies = 2)
+      .flatMap(MoveReviewExchangeAnalyzer.branchKey(_))
 
   private def routeEvidenceFor(ctx: NarrativeContext): List[BreakClampMaterializer.BreakRouteEvidence] =
     routeRuntimeInputs(ctx).flatMap { case (board, color, line) =>
@@ -156,10 +152,21 @@ object BreakPreventionWitness:
 
   private def routeEvidenceLine(ctx: NarrativeContext, played: String): Option[VariationLine] =
     val best = ctx.engineEvidence.flatMap(_.best)
-    best match
-      case Some(line) if line.moves.headOption.contains(played) => Some(line)
-      case Some(line) if line.moves.nonEmpty                    => Some(line.copy(moves = played :: line.moves.drop(1)))
-      case _                                                    => Some(VariationLine(List(played), scoreCp = 0, depth = 0))
+    val candidates =
+      best.toList.flatMap { line =>
+        List(
+          Option.when(line.moves.headOption.contains(played))(line),
+          Option.when(line.moves.nonEmpty)(line.copy(moves = played :: line.moves.drop(1)))
+        ).flatten
+      } ++ List(VariationLine(List(played), scoreCp = 0, depth = 0))
+    candidates.find(line => legalLine(ctx.fen, line.moves))
+
+  private def legalLine(fen: String, moves: List[String]): Boolean =
+    val normalized = moves.map(normalize).filter(MoveReviewExchangeAnalyzer.isUciMove)
+    normalized.nonEmpty &&
+      MoveReviewExchangeAnalyzer
+        .boundedReplay(fen, normalized, maxPlies = normalized.length)
+        .nonEmpty
 
   private def routeFailureFor(
       token: String,
@@ -223,11 +230,6 @@ object BreakPreventionWitness:
 
   private def routeTokenLike(token: String): Boolean =
     normalize(token).contains("-")
-
-  private def branchKey(moves: List[String]): Option[String] =
-    moves.take(2).flatMap(clean) match
-      case first :: second :: Nil => Some(s"${normalize(first)}|${normalize(second)}")
-      case _                      => None
 
   private def clean(raw: Option[String]): Option[String] =
     raw.flatMap(clean)

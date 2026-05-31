@@ -426,10 +426,44 @@
       }
     }
 
+    .move-review-strategic-summary__relation-chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.04rem 0.32rem;
+      border-radius: 4px;
+      background: rgba($c-primary, 0.1);
+      color: $c-primary;
+      font-size: 0.74rem;
+      font-weight: 700;
+      line-height: 1.25;
+      margin-inline-start: 4px;
+      vertical-align: middle;
+    }
+
+    .move-review-strategic-summary__opening-book {
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: 0.2rem;
+      margin-inline-start: 4px;
+      vertical-align: middle;
+    }
+
+    .move-review-strategic-summary__opening-book-chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.04rem 0.32rem;
+      border-radius: 4px;
+      background: rgba($c-font-dim, 0.06);
+      color: $c-font-dim;
+      font-size: 0.74rem;
+      line-height: 1.25;
+    }
+
     .move-review-strategic-summary__row--authority-practical_plan,
     .move-review-strategic-summary__row--authority-central_liquidation,
     .move-review-strategic-summary__row--authority-central_challenge,
-    .move-review-strategic-summary__row--authority-opening_family {
+    .move-review-strategic-summary__row--authority-opening_family,
+    .move-review-strategic-summary__row--authority-strategic_relation {
       padding-left: 0.45rem;
     }
 
@@ -470,6 +504,10 @@
           color: $c-bg-box;
         }
       }
+    }
+
+    .move-review-strategic-summary__row--authority-strategic_relation {
+      border-left: 2px solid rgba($c-primary, 0.32);
     }
 
     .move-review-probe-summary {

@@ -19,8 +19,11 @@ private[commentary] final case class StrategicIdeaEvidence(
     focusFiles: List[String] = Nil,
     focusDiagonals: List[String] = Nil,
     focusZone: Option[String] = None,
+    targetSquare: Option[String] = None,
     beneficiaryPieces: List[String] = Nil,
-    factIds: List[FactId] = Nil
+    factIds: List[FactId] = Nil,
+    relationKind: Option[String] = None,
+    relationFocusSquares: List[String] = Nil
 ):
   def signature: String = s"$ownerSide|$kind"
 
@@ -36,11 +39,16 @@ private[commentary] object StrategicIdeaEvidence:
       focusFiles: List[String] = Nil,
       focusDiagonals: List[String] = Nil,
       focusZone: Option[String] = None,
+      targetSquare: Option[String] = None,
       beneficiaryPieces: List[String] = Nil,
       factIds: List[String] = Nil,
       typedFactIds: List[FactId] = Nil,
+      relationKind: Option[String] = None,
+      relationFocusSquares: List[String] = Nil,
       tier: StrategicIdeaEvidenceTier = StrategicIdeaEvidenceTier.SelectorSupport
   ): StrategicIdeaEvidence =
+    val normalizedRelationKind =
+      relationKind.map(_.trim).filter(RelationObservationCatalog.isImplementedKind)
     StrategicIdeaEvidence(
       ownerSide = ownerSide,
       kind = kind,
@@ -53,9 +61,17 @@ private[commentary] object StrategicIdeaEvidence:
       focusFiles = focusFiles.distinct.filter(_.nonEmpty),
       focusDiagonals = focusDiagonals.distinct.filter(_.nonEmpty),
       focusZone = focusZone.map(_.trim).filter(_.nonEmpty),
+      targetSquare = targetSquare.map(_.trim.toLowerCase).filter(_.matches("""[a-h][1-8]""")),
       beneficiaryPieces = beneficiaryPieces.distinct.filter(_.nonEmpty),
-      factIds = (typedFactIds ++ factIds.distinct.flatMap(FactId.dynamic)).distinct
+      factIds = (typedFactIds ++ factIds.distinct.flatMap(FactId.dynamic)).distinct,
+      relationKind = normalizedRelationKind,
+      relationFocusSquares = normalizedRelationKind.toList.flatMap(_ => normalizedSquareKeys(relationFocusSquares))
     )
+
+  private def normalizedSquareKeys(keys: List[String]): List[String] =
+    keys
+      .flatMap(key => Option(key).map(_.trim.toLowerCase).filter(_.matches("""[a-h][1-8]""")))
+      .distinct
 
   def groupForKind(kind: String): String =
     kind match

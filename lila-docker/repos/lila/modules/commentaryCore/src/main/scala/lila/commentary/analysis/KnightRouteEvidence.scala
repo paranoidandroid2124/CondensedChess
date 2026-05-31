@@ -1,16 +1,17 @@
 package lila.commentary.analysis
 
-import _root_.chess.{ Knight, Position }
+import _root_.chess.{ Bishop, Knight, Position, Role, Rook }
 import _root_.chess.format.{ Fen, Uci }
 import _root_.chess.variant.Standard
 import lila.commentary.model.NarrativeContext
 
-private[commentary] object KnightRouteEvidence:
+private[commentary] object PieceRouteEvidence:
 
   final case class Evidence(
       route: OpeningRouteCatalog.Route,
       playedMove: String,
-      pvMoves: List[String]
+      pvMoves: List[String],
+      terminalPosition: Position
   )
 
   def fromContext(
@@ -27,77 +28,96 @@ private[commentary] object KnightRouteEvidence:
       pvMoves: List[String],
       route: OpeningRouteCatalog.Route
   ): Option[Evidence] =
-    if route.role != "knight" || route.path.size < 2 then None
+    if route.path.size < 2 then None
     else
       for
+        routeRole <- roleFromRoute(route)
         position <- Fen.read(Standard, Fen.Full(fen))
         played <- playedUci.map(NarrativeUtils.normalizeUciMove).filter(isUciMove)
         playedMove <- legalUciMove(position, played)
         if playedMove.piece.color == position.color &&
-          playedMove.piece.role == Knight &&
+          playedMove.piece.role == routeRole &&
           playedMove.orig.key == route.path.head &&
           playedMove.dest.key == route.path(1)
         replayMoves = if pvMoves.headOption.contains(played) then pvMoves.tail else pvMoves
-        if replaySupportsRoute(playedMove.after, replayMoves.take(route.maxReplayPlies), position.color, route.path.drop(1))
-      yield Evidence(route, played, pvMoves)
+        terminal <- replayRouteTerminal(
+          playedMove.after,
+          replayMoves.take(route.maxReplayPlies),
+          position.color,
+          routeRole,
+          route.path.drop(1)
+        )
+      yield Evidence(route, played, pvMoves, terminal)
 
   private def normalizedTopUciMoves(ctx: NarrativeContext): List[String] =
     ctx.engineEvidence.toList.flatMap(_.variations).headOption.toList
       .flatMap(line =>
-        val parsedUciMoves =
+        val rawUciMoves = line.moves.map(NarrativeUtils.normalizeUciMove).filter(isUciMove)
+        if rawUciMoves.nonEmpty then rawUciMoves
+        else
           line.parsedMoves
             .flatMap(move => clean(move.uci))
             .map(NarrativeUtils.normalizeUciMove)
             .filter(isUciMove)
-        if parsedUciMoves.nonEmpty then parsedUciMoves
-        else line.moves.map(NarrativeUtils.normalizeUciMove).filter(isUciMove)
       )
 
-  private def replaySupportsRoute(
+  private def replayRouteTerminal(
       position: Position,
       moves: List[String],
       side: _root_.chess.Color,
+      role: Role,
       path: List[String]
-  ): Boolean =
+  ): Option[Position] =
     path match
-      case _ :: Nil => true
+      case _ :: Nil => Some(position)
       case current :: next :: remainingPath =>
         moves match
           case uci :: rest =>
-            legalUciMove(position, uci).exists { move =>
+            legalUciMove(position, uci).flatMap { move =>
               val playsRouteLeg =
                 position.color == side &&
-                  move.piece.role == Knight &&
+                  move.piece.role == role &&
                   move.orig.key == current &&
                   move.dest.key == next
               if playsRouteLeg then
-                remainingPath.isEmpty || replaySupportsRoute(move.after, rest, side, next :: remainingPath)
+                if remainingPath.isEmpty then Some(move.after)
+                else replayRouteTerminal(move.after, rest, side, role, next :: remainingPath)
               else
-                legalKnightMove(position, side, current, next) match
+                legalPieceMove(position, side, role, current, next) match
                   case Some(routeMove) =>
-                    remainingPath.isEmpty || replaySupportsRoute(routeMove.after, moves, side, next :: remainingPath)
-                  case None => replaySupportsRoute(move.after, rest, side, path)
+                    if remainingPath.isEmpty then Some(routeMove.after)
+                    else replayRouteTerminal(routeMove.after, moves, side, role, next :: remainingPath)
+                  case None => replayRouteTerminal(move.after, rest, side, role, path)
             }
           case Nil =>
-            legalKnightMove(position, side, current, next).exists(routeMove =>
-              remainingPath.isEmpty || replaySupportsRoute(routeMove.after, Nil, side, next :: remainingPath)
+            legalPieceMove(position, side, role, current, next).flatMap(routeMove =>
+              if remainingPath.isEmpty then Some(routeMove.after)
+              else replayRouteTerminal(routeMove.after, Nil, side, role, next :: remainingPath)
             )
-      case Nil => false
+      case Nil => None
 
-  private def legalKnightMove(
+  private def legalPieceMove(
       position: Position,
       side: _root_.chess.Color,
+      role: Role,
       from: String,
       to: String
   ): Option[_root_.chess.Move] =
     Option.when(position.color == side)(()).flatMap { _ =>
       legalUciMove(position, s"$from$to").filter(move =>
         move.piece.color == side &&
-          move.piece.role == Knight &&
+          move.piece.role == role &&
           move.orig.key == from &&
           move.dest.key == to
       )
     }
+
+  private[analysis] def roleFromRoute(route: OpeningRouteCatalog.Route): Option[Role] =
+    route.role match
+      case "knight" => Some(Knight)
+      case "bishop" => Some(Bishop)
+      case "rook" => Some(Rook)
+      case _ => None
 
   private def legalUciMove(position: Position, raw: String): Option[_root_.chess.Move] =
     Uci(raw).collect { case move: Uci.Move => move }.flatMap(position.move(_).toOption)
@@ -107,3 +127,21 @@ private[commentary] object KnightRouteEvidence:
 
   private def clean(value: String): Option[String] =
     Option(value).map(_.trim).filter(_.nonEmpty)
+
+private[commentary] object KnightRouteEvidence:
+
+  type Evidence = PieceRouteEvidence.Evidence
+
+  def fromContext(
+      ctx: NarrativeContext,
+      route: OpeningRouteCatalog.Route
+  ): Option[Evidence] =
+    Option.when(route.role == "knight")(()).flatMap(_ => PieceRouteEvidence.fromContext(ctx, route))
+
+  def evaluate(
+      fen: String,
+      playedUci: Option[String],
+      pvMoves: List[String],
+      route: OpeningRouteCatalog.Route
+  ): Option[Evidence] =
+    Option.when(route.role == "knight")(()).flatMap(_ => PieceRouteEvidence.evaluate(fen, playedUci, pvMoves, route))

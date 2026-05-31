@@ -1,6 +1,8 @@
 package lila.commentary.analysis
 
 import munit.FunSuite
+import lila.commentary.model.*
+import lila.commentary.model.strategic.{ EngineEvidence, PvMove, VariationLine }
 
 class OpeningRouteCatalogTest extends FunSuite:
 
@@ -18,6 +20,14 @@ class OpeningRouteCatalogTest extends FunSuite:
     "4k3/8/8/8/8/8/8/4KN2 w - - 0 1"
   private val WhiteKnightG1Fen =
     "4k3/8/8/8/8/8/8/4K1N1 w - - 0 1"
+  private val WhiteBishopF1Fen =
+    "4k3/8/8/8/8/6P1/8/4KB2 w - - 0 1"
+  private val WhiteBishopBlockedFen =
+    "4k3/8/8/8/8/8/6P1/4KB2 w - - 0 1"
+  private val BlackBishopF8Fen =
+    "4kb2/8/6p1/8/8/8/8/4K3 b - - 0 1"
+  private val WhiteRookH1Fen =
+    "4k3/8/8/8/8/8/8/4K2R w - - 0 1"
 
   test("loads knight routes from TSV and verifies the played route plus PV continuation") {
     val route =
@@ -41,6 +51,60 @@ class OpeningRouteCatalogTest extends FunSuite:
 
     assertEquals(evidence.map(_.playedMove), Some("f3d2"), clue(evidence))
     assertEquals(evidence.toList.flatMap(_.pvMoves).take(3), List("f3d2", "e8e7", "d2c4"), clue(evidence))
+  }
+
+  test("route evidence from context uses raw engine PV before stale parsed metadata") {
+    val route =
+      OpeningRouteCatalog
+        .fromTsvLines(
+          List(
+            "route_id\tfamily\ttarget_square\trole\tfrom\tvia\tto\tmax_replay_plies",
+            "benoni_d6_knight_route\tbenoni\td6\tknight\tf3\td2\tc4\t8"
+          )
+        )
+        .route("benoni_d6_knight_route")
+        .getOrElse(fail("expected route row"))
+    val ctx =
+      baseContext(
+        fen = BenoniFen,
+        engineEvidence = Some(
+          EngineEvidence(
+            depth = 18,
+            variations = List(
+              VariationLine(
+                moves = List("f3d2", "e8e7", "d2c4"),
+                scoreCp = 40,
+                parsedMoves = List(
+                  PvMove("f3h4", "Nh4", "f3", "h4", "N", isCapture = false, capturedPiece = None, givesCheck = false),
+                  PvMove("e8e7", "Ke7", "e8", "e7", "k", isCapture = false, capturedPiece = None, givesCheck = false),
+                  PvMove("h4f5", "Nf5", "h4", "f5", "N", isCapture = false, capturedPiece = None, givesCheck = false)
+                )
+              )
+            )
+          )
+        )
+      )
+
+    val evidence = KnightRouteEvidence.fromContext(ctx, route)
+
+    assertEquals(evidence.map(_.playedMove), Some("f3d2"), clue(evidence))
+    assertEquals(evidence.map(_.terminalPosition.board.pieceAt(_root_.chess.Square.C4).map(_.role)), Some(Some(_root_.chess.Knight)))
+  }
+
+  test("route target-mode board check uses the replayed terminal board") {
+    val route =
+      OpeningRouteCatalog.default.route("benoni_d6_knight_route").getOrElse(fail("missing Benoni route"))
+    val evidence =
+      KnightRouteEvidence
+        .evaluate(BenoniFen, Some("f3d2"), List("f3d2", "e8e7", "d2c4"), route)
+        .getOrElse(fail("route should replay"))
+    val rootCheck =
+      _root_.chess.format.Fen
+        .read(_root_.chess.variant.Standard, _root_.chess.format.Fen.Full(BenoniFen))
+        .exists(position => OpeningRouteTargetEvidence.checkRouteBoard(position.board, position.color, route))
+
+    assertEquals(rootCheck, false)
+    assertEquals(OpeningRouteTargetEvidence.checkRouteEvidence(evidence), true)
   }
 
   test("fails closed when a route descriptor asks for the wrong role or via square") {
@@ -182,3 +246,87 @@ class OpeningRouteCatalogTest extends FunSuite:
       )
     }
   }
+
+  test("piece route evidence supports bishop fianchetto and rook-lift descriptors") {
+    val catalog =
+      OpeningRouteCatalog.fromTsvLines(
+        List(
+          "route_id\tfamily\ttarget_square\trole\tfrom\tvia\tto\tmax_replay_plies\ttarget_mode",
+          "catalan_f1_g2_bishop\tcatalan\tg2\tbishop\tf1\t\tg2\t4\toccupy_target",
+          "rook_lift_h1_h3\topen_games\th3\trook\th1\t\th3\t4\toccupy_target"
+        )
+      )
+
+    assertEquals(
+      PieceRouteEvidence.evaluate(
+        WhiteBishopF1Fen,
+        Some("f1g2"),
+        List("f1g2", "e8e7"),
+        catalog.route("catalan_f1_g2_bishop").get
+      ).map(_.route.routeId),
+      Some("catalan_f1_g2_bishop")
+    )
+    assertEquals(
+      PieceRouteEvidence.evaluate(
+        WhiteRookH1Fen,
+        Some("h1h3"),
+        List("h1h3", "e8e7"),
+        catalog.route("rook_lift_h1_h3").get
+      ).map(_.route.routeId),
+      Some("rook_lift_h1_h3")
+    )
+  }
+
+  test("sliding piece routes fail closed when a blocker prevents legal replay") {
+    val route =
+      OpeningRouteCatalog
+        .fromTsvLines(
+          List(
+            "route_id\tfamily\ttarget_square\trole\tfrom\tvia\tto\tmax_replay_plies\ttarget_mode",
+            "catalan_f1_g2_bishop\tcatalan\tg2\tbishop\tf1\t\tg2\t4\toccupy_target"
+          )
+        )
+        .route("catalan_f1_g2_bishop")
+        .getOrElse(fail("expected route"))
+
+    assertEquals(
+      PieceRouteEvidence.evaluate(WhiteBishopBlockedFen, Some("f1g2"), List("f1g2"), route),
+      None
+    )
+  }
+
+  test("default TSV exposes bishop fianchetto descriptors with target allowlists") {
+    val expected =
+      Map(
+        "catalan_f1_g2_bishop" -> ("catalan", "g2", WhiteBishopF1Fen, "f1g2"),
+        "english_f1_g2_bishop" -> ("english", "g2", WhiteBishopF1Fen, "f1g2"),
+        "kings_indian_f8_g7_bishop" -> ("kings_indian", "g7", BlackBishopF8Fen, "f8g7"),
+        "queens_indian_c8_b7_bishop" -> ("queens_indian", "b7", "2b1k3/8/1p6/8/8/8/8/4K3 b - - 0 1", "c8b7")
+      )
+
+    expected.foreach { case (routeId, (family, target, fen, played)) =>
+      val route = OpeningRouteCatalog.default.route(routeId).getOrElse(fail(s"missing $routeId"))
+      assertEquals(route.family -> route.targetSquare -> route.role, family -> target -> "bishop", clue(route))
+      assert(OpeningFamilyCatalog.default.targetAllowed(family, target), clue(route))
+      assertEquals(PieceRouteEvidence.evaluate(fen, Some(played), List(played), route).map(_.route.routeId), Some(routeId), clue(route))
+    }
+  }
+
+  private def baseContext(
+      fen: String,
+      engineEvidence: Option[EngineEvidence]
+  ): NarrativeContext =
+    NarrativeContext(
+      fen = fen,
+      header = ContextHeader("Middlegame", "Normal", "NarrowChoice", "Medium", "ExplainPlan"),
+      ply = 1,
+      summary = NarrativeSummary("Route", None, "NarrowChoice", "Maintain", "0.00"),
+      threats = ThreatTable(Nil, Nil),
+      pawnPlay = PawnPlayTable(false, None, "Low", "Maintain", "Quiet", "Background", None, false, "quiet"),
+      plans = PlanTable(Nil, Nil),
+      delta = None,
+      phase = PhaseContext("Middlegame", "Balanced middlegame"),
+      candidates = Nil,
+      engineEvidence = engineEvidence,
+      renderMode = NarrativeRenderMode.MoveReview
+    )

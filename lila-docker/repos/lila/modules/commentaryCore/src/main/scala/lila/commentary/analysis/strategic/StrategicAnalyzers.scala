@@ -3,6 +3,7 @@ package lila.commentary.analysis.strategic
 import chess._
 import chess.Bitboard
 import lila.commentary.analysis.BreakFileToken
+import lila.commentary.analysis.MoveReviewExchangeAnalyzer
 import lila.commentary.analysis.structure.WeaknessTargetProfile
 import lila.commentary.model._
 import lila.commentary.model.strategic._
@@ -292,7 +293,7 @@ class ActivityAnalyzerImpl extends ActivityAnalyzer {
         val best =
           targets
             .flatMap { target =>
-              shortestRoute(role, from, target, board, piece.color, maxDepth = if (role == Knight) 4 else 3)
+              shortestRoute(role, from, target, board, maxDepth = if (role == Knight) 4 else 3)
                 .map { route =>
                   val mobilityGain = projectedMobility(board, piece, target) - currentMobility
                   val strategicFit = strategicFitScore(
@@ -339,7 +340,7 @@ class ActivityAnalyzerImpl extends ActivityAnalyzer {
           .flatMap { target =>
             val preference = targetPreference(board, role, piece.color, target, isBadBishop, isTrapped)
             val routeEval =
-              shortestRoute(role, from, target, board, piece.color, maxDepth = maxDepth).map { route =>
+              shortestRoute(role, from, target, board, maxDepth = maxDepth).map { route =>
                 val mobilityGain = projectedMobility(board, piece, target) - currentMobility
                 val strategicFit = strategicFitScore(
                   board = board,
@@ -466,7 +467,6 @@ class ActivityAnalyzerImpl extends ActivityAnalyzer {
       from: Square,
       to: Square,
       board: Board,
-      color: Color,
       maxDepth: Int
   ): Option[List[Square]] = {
     val queue = scala.collection.mutable.Queue((from, List(from)))
@@ -594,20 +594,8 @@ class ActivityAnalyzerImpl extends ActivityAnalyzer {
     (color.white && sq.rank == Rank.Third) || (!color.white && sq.rank == Rank.Sixth)
 
   private def checkBadBishop(board: Board, piece: chess.Piece, square: chess.Square): Boolean = {
-    if (piece.role != Bishop) return false
-    val isLightSquareBishop = square.isLight
-    
-    // Check central pawns (C, D, E, F files)
-    // board.byPiece returns Bitboard.
-    val myPawns = board.byPiece(piece.color, Pawn)
-    
-    val centerFiles = List(File.C, File.D, File.E, File.F)
-    val pawnsOnCenter = centerFiles.foldLeft(Bitboard.empty) { (acc, file) =>
-      acc | (myPawns & Bitboard.file(file))
-    }
-    
-    // Count how many are on same color complex
-    pawnsOnCenter.squares.count(s => s.isLight == isLightSquareBishop) >= 2
+    piece.role == Bishop &&
+      MoveReviewExchangeAnalyzer.isConstrainedBadBishop(board, piece.color, square)
   }
 }
 

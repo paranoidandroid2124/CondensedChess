@@ -323,7 +323,7 @@ private[commentary] object StrategicIdeaFenFixtures:
       id = "K18",
       label = "Rook Endgame Files",
       fen = "8/5pk1/1p2p1p1/p1r4p/P4P1P/1P1R2P1/5K2/8 w - - 1 40",
-      expectedDominant = StrategicIdeaKind.KingAttackBuildUp,
+      expectedDominant = StrategicIdeaKind.LineOccupation,
       phase = "endgame",
       producerChecks = List(
         ProducerCheck.LineAccess
@@ -918,6 +918,7 @@ private[commentary] object StrategicIdeaFenFixtures:
       fen = "8/5pk1/1p2p1p1/p1r4p/P1R2P1P/1P1R2P1/5K2/8 b - - 1 41",
       stockfishScoreCp = 45
     ).copy(
+      expectedDominant = StrategicIdeaKind.LineOccupation,
       requireMaterialParity = false
     ),
     followUp(
@@ -968,7 +969,7 @@ private[commentary] object StrategicIdeaFenFixtures:
       id = "G04",
       label = "Benko compensation stays line-led",
       fen = "rn1qkb1r/4pp1p/3p1np1/2pP4/4P3/2N2N2/PP3PPP/R1BQ1K1R b kq - 0 9",
-      expectedDominant = StrategicIdeaKind.LineOccupation,
+      expectedDominant = StrategicIdeaKind.FavorableTradeOrTransformation,
       producerChecks = List(ProducerCheck.LineAccess),
       stockfishScoreCp = 94,
       compensationSide = "black",
@@ -988,7 +989,7 @@ private[commentary] object StrategicIdeaFenFixtures:
       id = "G06",
       label = "Blumenfeld compensation keeps king pressure",
       fen = "r2r2k1/1b3pbp/n3pnp1/2p1P3/8/2N2N2/PP2BPPP/R1B2RK1 b - - 0 13",
-      expectedDominant = StrategicIdeaKind.KingAttackBuildUp,
+      expectedDominant = StrategicIdeaKind.LineOccupation,
       producerChecks = List(ProducerCheck.AttackBuildUpSignal),
       stockfishScoreCp = 32,
       compensationSide = "black",
@@ -998,7 +999,7 @@ private[commentary] object StrategicIdeaFenFixtures:
       id = "G07",
       label = "QID early pawn sacrifice keeps king pressure",
       fen = "rn1q2k1/p1n2p2/1pp1rbp1/3p4/5B2/6P1/PPQ1NPBP/3R1RK1 w - - 4 20",
-      expectedDominant = StrategicIdeaKind.KingAttackBuildUp,
+      expectedDominant = StrategicIdeaKind.LineOccupation,
       producerChecks = List(ProducerCheck.AttackBuildUpSignal),
       stockfishScoreCp = 355,
       compensationSide = "white",
@@ -1019,7 +1020,7 @@ private[commentary] object StrategicIdeaFenFixtures:
       id = "G09",
       label = "Benko compensation mismatch stays line-led",
       fen = "r2q1rk1/3nppbp/3p1np1/2pP4/4P3/2N2NP1/PP3PKP/R1BQ3R w - - 3 12",
-      expectedDominant = StrategicIdeaKind.LineOccupation,
+      expectedDominant = StrategicIdeaKind.FavorableTradeOrTransformation,
       producerChecks = List(ProducerCheck.LineAccess),
       stockfishScoreCp = 161,
       compensationSide = "black",

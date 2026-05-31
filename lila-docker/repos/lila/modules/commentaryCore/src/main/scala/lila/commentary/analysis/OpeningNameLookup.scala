@@ -8,7 +8,8 @@ import scala.io.Source
 import scala.util.Using
 
 private[commentary] final class OpeningNameLookup private (
-    rowsByEpd: Map[String, OpeningNameLookup.Row]
+    canonicalRowsByEpd: Map[String, OpeningNameLookup.Row],
+    rowsByEpd: Map[String, List[OpeningNameLookup.Row]]
 ):
 
   def normalizedKey(fenOrEpd: String): Option[String] =
@@ -16,16 +17,15 @@ private[commentary] final class OpeningNameLookup private (
 
   def lookup(fenOrEpd: String): Option[OpeningReference] =
     normalizedKey(fenOrEpd)
+      .flatMap(canonicalRowsByEpd.get)
+      .map(OpeningNameLookup.reference)
+
+  def lookupAll(fenOrEpd: String): List[OpeningReference] =
+    normalizedKey(fenOrEpd)
       .flatMap(rowsByEpd.get)
-      .map(row =>
-        OpeningReference(
-          eco = Some(row.eco),
-          name = Some(row.name),
-          totalGames = 0,
-          topMoves = Nil,
-          sampleGames = Nil
-        )
-      )
+      .getOrElse(Nil)
+      .map(OpeningNameLookup.reference)
+      .distinctBy(ref => (ref.eco, ref.name))
 
 private[commentary] object OpeningNameLookup:
 
@@ -50,14 +50,16 @@ private[commentary] object OpeningNameLookup:
     fromRows(ResourcePaths.flatMap(loadResourceRows))
 
   def fromRows(rows: Iterable[Row]): OpeningNameLookup =
-    val byEpd =
+    val rowsByEpd =
       rows
         .filter(row => row.eco.nonEmpty && row.name.nonEmpty && row.epd.nonEmpty)
         .groupBy(_.epd)
         .view
-        .mapValues(_.maxBy(row => (plyCount(row.pgn), row.name.length * -1, row.name)))
+        .mapValues(_.toList.sortBy(row => rowPriority(row)).reverse)
         .toMap
-    OpeningNameLookup(byEpd)
+    val canonicalRowsByEpd =
+      rowsByEpd.view.mapValues(_.maxBy(rowPriority)).toMap
+    OpeningNameLookup(canonicalRowsByEpd, rowsByEpd)
 
   def fromTsvLines(lines: IterableOnce[String]): OpeningNameLookup =
     fromRows(parseRows(lines))
@@ -86,6 +88,15 @@ private[commentary] object OpeningNameLookup:
 
   def explorerFen(fenOrEpd: String): Option[String] =
     normalizedKey(fenOrEpd).map(key => s"$key 0 1")
+
+  private def reference(row: Row): OpeningReference =
+    OpeningReference(
+      eco = Some(row.eco),
+      name = Some(row.name),
+      totalGames = 0,
+      topMoves = Nil,
+      sampleGames = Nil
+    )
 
   private def loadResourceRows(path: String): List[Row] =
     Option(getClass.getClassLoader.getResourceAsStream(path)).toList.flatMap: stream =>
@@ -136,6 +147,9 @@ private[commentary] object OpeningNameLookup:
 
   private def plyCount(pgn: String): Int =
     Parser.mainline(PgnStr(pgn)).fold(_ => 0, _.moves.size)
+
+  private def rowPriority(row: Row): (Int, Int, String) =
+    (plyCount(row.pgn), row.name.length * -1, row.name)
 
   private def legalEpField(board: String, side: String, ep: String): String =
     if ep == "-" then "-"

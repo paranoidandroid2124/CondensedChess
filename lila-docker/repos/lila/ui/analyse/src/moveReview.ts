@@ -429,13 +429,49 @@ function renderSurfaceRow(row: MoveReviewPlayerSurfaceRowV1, refIndex: MoveRevie
     const targetChip = target
         ? `<span class="move-review-strategic-summary__target-chip" data-move-review-square="${escapeHtml(target)}" tabindex="0">${escapeHtml(target)}</span>`
         : '';
+    const relationToken = row.authority?.kind === 'strategic_relation' ? row.authority.token : null;
+    const relationChip = relationToken
+        ? `<span class="move-review-strategic-summary__relation-chip">${escapeHtml(formatSurfaceAuthorityLabel(relationToken))}</span>`
+        : '';
+    const openingBook = row.authority?.kind === 'opening_family' ? row.authority.openingBook : null;
+    const openingBookMarkup = openingBook ? renderOpeningBookMetadata(openingBook) : '';
     return `
       <div class="${surfaceRowClasses(row)}">
         <strong>${escapeHtml(row.label)}:</strong> ${escapeHtml(row.text)}
+        ${relationChip}
         ${targetChip}
+        ${openingBookMarkup}
         ${chips ? `<span class="move-review-strategic-summary__refs">${chips}</span>` : ''}
       </div>
     `;
+}
+
+function formatSurfaceAuthorityLabel(value: string): string {
+    return value
+        .replace(/[_-]+/g, ' ')
+        .split(/\s+/)
+        .filter(Boolean)
+        .map(part => `${part.charAt(0).toUpperCase()}${part.slice(1).toLowerCase()}`)
+        .join(' ');
+}
+
+function renderOpeningBookMetadata(openingBook: NonNullable<MoveReviewPlayerSurfaceRowV1['authority']>['openingBook']): string {
+    if (!openingBook) return '';
+    const bits: string[] = [];
+    if (openingBook.eco) bits.push(`ECO ${openingBook.eco}`);
+    if (openingBook.totalGames) bits.push(`${formatOpeningGameCount(openingBook.totalGames)} games`);
+    if (openingBook.topMoves.length) bits.push(`Book: ${openingBook.topMoves.slice(0, 3).join(' / ')}`);
+    if (!bits.length) return '';
+    return `<span class="move-review-strategic-summary__opening-book">${bits
+        .map(bit => `<span class="move-review-strategic-summary__opening-book-chip">${escapeHtml(bit)}</span>`)
+        .join('')}</span>`;
+}
+
+function formatOpeningGameCount(value: number): string {
+    const count = Math.max(0, Math.trunc(value));
+    if (count >= 1000000) return `${(count / 1000000).toFixed(count >= 10000000 ? 0 : 1)}M`;
+    if (count >= 1000) return `${(count / 1000).toFixed(count >= 10000 ? 0 : 1)}k`;
+    return `${count}`;
 }
 
 function surfaceStatusLabel(status: string): string {
@@ -1105,6 +1141,7 @@ export default function moveReviewNarrative(ctrl?: AnalyseCtrl): MoveReviewNarra
             syncStudy(context.commentPath, context.originPath, commentary, vLines);
             activeRequestKey = null;
         } catch (err) {
+            if (!isCurrentSession()) return;
             stopLoadingTicker();
             activeRequestKey = null;
             if (err instanceof DOMException && err.name === 'AbortError') return;

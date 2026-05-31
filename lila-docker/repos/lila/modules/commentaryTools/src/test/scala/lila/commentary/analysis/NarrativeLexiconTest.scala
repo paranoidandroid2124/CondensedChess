@@ -197,3 +197,91 @@ class NarrativeLexiconTest extends FunSuite:
     assert(!methodBody.contains("else if (hasAny"), clue(methodBody))
     assert(tableSource.contains("MotifPrefixRule"), clue(tableSource))
   }
+
+  test("deferred relation motifs degrade through catalog-safe motif prefixes") {
+    val zwischenzug =
+      NarrativeLexicon.getMotifPrefix(bead = 0, motifs = List("zwischenzug"), ply = 24).getOrElse("")
+    val trapped =
+      NarrativeLexicon.getMotifPrefix(bead = 0, motifs = List("trapped_piece_queen"), ply = 24).getOrElse("")
+    val domination =
+      NarrativeLexicon.getMotifPrefix(bead = 0, motifs = List("domination"), ply = 24).getOrElse("")
+
+    assert(zwischenzug.nonEmpty, clue(zwischenzug))
+    assert(!zwischenzug.toLowerCase.contains("zwischenzug"), clue(zwischenzug))
+    assert(
+      zwischenzug.toLowerCase.contains("move-order") || zwischenzug.toLowerCase.contains("calculation"),
+      clue(zwischenzug)
+    )
+    assert(trapped.nonEmpty, clue(trapped))
+    assert(!trapped.toLowerCase.contains("trapped"), clue(trapped))
+    assert(trapped.toLowerCase.contains("mobility") || trapped.toLowerCase.contains("safe route"), clue(trapped))
+    assert(domination.nonEmpty, clue(domination))
+    assert(!domination.toLowerCase.contains("domination"), clue(domination))
+    assert(domination.toLowerCase.contains("restriction") || domination.toLowerCase.contains("limiting"), clue(domination))
+  }
+
+  test("deferred relation motifs are not generic motif-prefix signals") {
+    assert(!NarrativeLexicon.isMotifPrefixSignal("zwischenzug"))
+    assert(!NarrativeLexicon.isMotifPrefixSignal("trapped_piece_queen"))
+    assert(!NarrativeLexicon.isMotifPrefixSignal("domination"))
+    assert(!NarrativeLexicon.isMotifPrefixSignal("stalemate_trap"))
+    assert(!NarrativeLexicon.isMotifPrefixSignal("perpetual_check"))
+    assert(NarrativeLexicon.isMotifPrefixSignal("stalemate"))
+    assert(NarrativeLexicon.isMotifPrefixSignal("knight_domination"))
+  }
+
+  test("diagnostic-only deferred relation motifs do not emit motif prefixes") {
+    assertEquals(NarrativeLexicon.getMotifPrefix(bead = 0, motifs = List("stalemate_trap"), ply = 52), None)
+    assertEquals(NarrativeLexicon.getMotifPrefix(bead = 0, motifs = List("perpetual_check"), ply = 52), None)
+    assert(NarrativeLexicon.getMotifPrefix(bead = 0, motifs = List("stalemate"), ply = 52).nonEmpty)
+  }
+
+  test("outline canonical motif terms consume the deferred relation catalog") {
+    val source =
+      Files.readString(Paths.get("modules/commentaryCore/src/main/scala/lila/commentary/analysis/NarrativeOutlineBuilder.scala"))
+    val body =
+      source.substring(source.indexOf("private def canonicalTermForMotif"), source.indexOf("private def buildImbalanceContrast"))
+
+    assert(body.contains("deferredRelationCanonicalTerm"), clue(body))
+    assert(body.contains("deferredFallbackForMotifTag"), clue(body))
+    assert(!body.contains("deferredFallbackLabelForMotifTag"), clue(body))
+  }
+
+  test("outline theme keywords consume the deferred relation catalog") {
+    val source =
+      Files.readString(Paths.get("modules/commentaryCore/src/main/scala/lila/commentary/analysis/NarrativeOutlineBuilder.scala"))
+    val body =
+      source.substring(source.indexOf("private def buildThemeKeywordSentence"), source.indexOf("private def buildCanonicalMotifTermSentence"))
+
+    assert(body.contains(".flatMap(themeKeywordForMotif)"), clue(body))
+    assert(body.contains("private def themeKeywordForMotif"), clue(body))
+    assert(body.contains("deferredRelationCanonicalTerm(motif)"), clue(body))
+    assert(body.contains("case Some(term) => term"), clue(body))
+  }
+
+  test("outline tactical tension does not promote deferred relation motif tags") {
+    val source =
+      Files.readString(Paths.get("modules/commentaryCore/src/main/scala/lila/commentary/analysis/NarrativeOutlineBuilder.scala"))
+    val tensionBody =
+      source.substring(source.indexOf("val highTensionByMotif"), source.indexOf("val highTensionByThreat"))
+
+    assert(tensionBody.contains("motifSignals.exists(tacticalTensionMotif)"), clue(tensionBody))
+    assert(!tensionBody.contains("zwischenzug"), clue(tensionBody))
+    assert(source.contains("private def tacticalTensionMotif"), clue(source))
+    assert(source.contains("RelationObservationCatalog.deferredFallbackForMotifTag(motif).isEmpty"), clue(source))
+  }
+
+  test("motif delta prose degrades deferred relation labels through the catalog") {
+    val appears = NarrativeLexicon.getMotifAppearsStatement(bead = 0, motif = "zwischenzug")
+    val fades = NarrativeLexicon.getMotifFadesStatement(bead = 0, motif = "trapped_piece_queen")
+
+    assert(appears.nonEmpty, clue(appears))
+    assert(!appears.toLowerCase.contains("zwischenzug"), clue(appears))
+    assert(appears.toLowerCase.contains("move-order caution"), clue(appears))
+    assert(fades.nonEmpty, clue(fades))
+    assert(!fades.toLowerCase.contains("trapped"), clue(fades))
+    assert(fades.toLowerCase.contains("piece mobility"), clue(fades))
+    assertEquals(NarrativeLexicon.getMotifAppearsStatement(bead = 0, motif = "stalemate_trap"), "")
+    assertEquals(NarrativeLexicon.getMotifFadesStatement(bead = 0, motif = "perpetual_check"), "")
+    assert(NarrativeLexicon.getMotifAppearsStatement(bead = 0, motif = "fork").toLowerCase.contains("fork"))
+  }

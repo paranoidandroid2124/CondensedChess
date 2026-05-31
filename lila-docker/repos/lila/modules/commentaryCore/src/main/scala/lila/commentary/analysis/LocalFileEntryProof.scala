@@ -805,7 +805,9 @@ private[commentary] object LocalFileEntryProof:
   ): BranchIdentityResolution =
     val groupedByStrongKey =
       directReplyResults
-        .flatMap(result => branchKey(result).map(_ -> result))
+        .flatMap(result =>
+          MoveReviewExchangeAnalyzer.probeStableBranchKey(result, BranchKeyMoveCount).map(_ -> result)
+        )
         .groupBy(_._1)
         .view
         .mapValues(_.map(_._2))
@@ -834,28 +836,7 @@ private[commentary] object LocalFileEntryProof:
       expectedBranchKey: Option[String]
   ): Boolean =
     expectedBranchKey.exists(expected =>
-      branchKey(result).contains(expected)
-    )
-
-  private def branchKey(
-      result: ProbeResult
-  ): Option[String] =
-    result.variationHash.flatMap(clean).map(normalize)
-      .orElse(result.seedId.flatMap(clean).map(normalize))
-      .orElse(branchLineKey(result.bestReplyPv))
-      .orElse(
-        result.replyPvs
-          .flatMap(_.headOption)
-          .flatMap(branchLineKey)
-      )
-
-  private def branchLineKey(
-      moves: List[String]
-  ): Option[String] =
-    val normalizedMoves =
-      moves.flatMap(normalizeUciMove).take(BranchKeyMoveCount)
-    Option.when(normalizedMoves.size == BranchKeyMoveCount)(
-      normalizedMoves.mkString(" ")
+      MoveReviewExchangeAnalyzer.probeStableBranchKey(result, BranchKeyMoveCount).contains(expected)
     )
 
   private def displayHypothesis(
@@ -962,16 +943,6 @@ private[commentary] object LocalFileEntryProof:
       raw: String
   ): String =
     "(?i)([a-h][1-8])".r.findFirstMatchIn(Option(raw).getOrElse("")).map(_.group(1).toLowerCase).getOrElse("")
-
-  private def normalizeUciMove(
-      raw: String
-  ): Option[String] =
-    clean(raw).map(_.toLowerCase).filter(isUciMove)
-
-  private def isUciMove(
-      raw: String
-  ): Boolean =
-    "(?i)^[a-h][1-8][a-h][1-8][qrbn]?$".r.matches(Option(raw).getOrElse(""))
 
   private def clean(
       raw: String

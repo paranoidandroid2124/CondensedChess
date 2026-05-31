@@ -2534,7 +2534,8 @@ final class CommentaryApi(
                 evaluatedPlans = contextBuild.selectedMainEvaluatedPlans,
                 authoringSurface = authoringSurface,
                 supportedLocalRows = supportedLocalRows,
-                decisionComparisonSurface = decisionComparisonSurface
+                decisionComparisonSurface = decisionComparisonSurface,
+                strategyPack = strategyPack
               )
             val strategyPromptHints = strategyHints(strategyPack)
             val validationSeed = Option(moveReviewSlots.validationSeedText).filter(_.nonEmpty).getOrElse(compactProse)

@@ -289,6 +289,34 @@ class CentralBreakTimingPolicyTest extends FunSuite:
     )
   }
 
+  test("c-pawn and f-pawn opening breaks stay outside exact central-break timing") {
+    val cPawnScene =
+      snapshot(
+        fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
+        ply = 2,
+        playedMove = "c7c5",
+        lines = List(VariationLine(List("c7c5", "g1f3"), scoreCp = 0, depth = 18))
+      )
+    val fPawnScene =
+      snapshot(
+        fen = "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
+        ply = 3,
+        playedMove = "f2f4",
+        lines = List(VariationLine(List("f2f4", "e5f4"), scoreCp = 0, depth = 18))
+      )
+
+    assertNoCentralRelease(cPawnScene)
+    assertNoCentralRelease(fPawnScene)
+    assert(
+      CentralBreakTimingWitness.diagnose(cPawnScene.ctx).failureCodes.contains(CentralBreakTimingWitness.Failure.NoCentralBreak),
+      clue(CentralBreakTimingWitness.diagnose(cPawnScene.ctx))
+    )
+    assert(
+      CentralBreakTimingWitness.diagnose(fPawnScene.ctx).failureCodes.contains(CentralBreakTimingWitness.Failure.NoCentralBreak),
+      clue(CentralBreakTimingWitness.diagnose(fPawnScene.ctx))
+    )
+  }
+
   private def snapshot(
       fen: String,
       ply: Int,

@@ -115,21 +115,29 @@ private[commentary] object LineConsequenceEvaluator:
   def fromEngine(ctx: NarrativeContext, maxPly: Int = SurfaceMaxPly): List[LineConsequenceEvidence] =
     ctx.engineEvidence.toList.flatMap(_.variations).map { line =>
       val uciMoves = normalizedLineMoves(line).take(maxPly)
-      val steps = replaySteps(ctx.fen, uciMoves, Nil)
-      val replayed = steps.nonEmpty
-      buildEvidence(
-        ctx = ctx,
-        lineId = None,
-        sanMoves = steps.map(_.san).ifEmpty(engineSanFallback(ctx.fen, line, maxPly)),
-        uciMoves = uciMoves,
-        scoreCp = Some(line.scoreCp),
-        mate = line.mate,
-        depth = Option.when(line.depth > 0)(line.depth),
-        steps = steps,
-        release = if replayed then LineConsequenceRelease.ReplayBackedInternal else LineConsequenceRelease.DiagnosticOnly,
-        rejectReasons = (List(EngineOnly) ++ Option.when(!replayed)(EngineReplayFailed)).distinct,
-        maxPly = maxPly
-      )
+      val strictSteps = replaySteps(ctx.fen, uciMoves, Nil)
+      val steps =
+        if strictSteps.nonEmpty then strictSteps
+        else replayStepsPrefix(ctx.fen, uciMoves, Nil)
+      val replayed = strictSteps.nonEmpty || enginePrefixHasConcreteConsequence(ctx, line, steps)
+      val trustedMate = if strictSteps.nonEmpty then line.mate else None
+      val evidence =
+        buildEvidence(
+          ctx = ctx,
+          lineId = None,
+          sanMoves = steps.map(_.san).ifEmpty(engineSanFallback(ctx.fen, line, maxPly)),
+          uciMoves = if steps.nonEmpty then steps.map(_.uci) else uciMoves,
+          scoreCp = Some(line.scoreCp),
+          mate = trustedMate,
+          depth = Option.when(line.depth > 0)(line.depth),
+          steps = steps,
+          release = if replayed then LineConsequenceRelease.ReplayBackedInternal else LineConsequenceRelease.DiagnosticOnly,
+          rejectReasons = (List(EngineOnly) ++ Option.when(!replayed)(EngineReplayFailed)).distinct,
+          maxPly = maxPly
+        )
+      if strictSteps.isEmpty && evidence.kind == LineConsequenceKind.PreviewOnly then
+        evidence.copy(release = LineConsequenceRelease.DiagnosticOnly)
+      else evidence
     }
 
   private def refEvidence(
@@ -249,6 +257,21 @@ private[commentary] object LineConsequenceEvaluator:
       rawMoves: List[String],
       preferredSan: List[String]
   ): List[LineStep] =
+    replayStepsWithMode(fen, rawMoves, preferredSan, allowLegalPrefix = false)
+
+  private[analysis] def replayStepsPrefix(
+      fen: String,
+      rawMoves: List[String],
+      preferredSan: List[String]
+  ): List[LineStep] =
+    replayStepsWithMode(fen, rawMoves, preferredSan, allowLegalPrefix = true)
+
+  private def replayStepsWithMode(
+      fen: String,
+      rawMoves: List[String],
+      preferredSan: List[String],
+      allowLegalPrefix: Boolean
+  ): List[LineStep] =
     val normalized = rawMoves.map(MoveReviewPvLine.normalizeUci).filter(isUci)
     var current = Fen.read(Standard, Fen.Full(fen))
     val accepted = scala.collection.mutable.ListBuffer.empty[LineStep]
@@ -273,7 +296,27 @@ private[commentary] object LineConsequenceEvaluator:
           current = Some(move.after)
         case None =>
           ok = false
-    if ok then accepted.toList else Nil
+    if ok || allowLegalPrefix then accepted.toList else Nil
+
+  private def enginePrefixHasConcreteConsequence(
+      ctx: NarrativeContext,
+      line: VariationLine,
+      steps: List[LineStep]
+  ): Boolean =
+    steps.nonEmpty &&
+      buildEvidence(
+        ctx = ctx,
+        lineId = None,
+        sanMoves = steps.map(_.san),
+        uciMoves = steps.map(_.uci),
+        scoreCp = Some(line.scoreCp),
+        mate = None,
+        depth = Option.when(line.depth > 0)(line.depth),
+        steps = steps,
+        release = LineConsequenceRelease.ReplayBackedInternal,
+        rejectReasons = List(EngineOnly, EngineReplayFailed),
+        maxPly = steps.size
+      ).kind != LineConsequenceKind.PreviewOnly
 
   private def legalMove(position: Position, uci: String): Option[Move] =
     Uci(uci).collect { case move: Uci.Move => move }.flatMap(position.move(_).toOption)
@@ -294,8 +337,7 @@ private[commentary] object LineConsequenceEvaluator:
     raw.map(MoveReviewPvLine.normalizeUci).filter(isUci)
 
   private def engineSanFallback(fen: String, line: VariationLine, maxPly: Int): List[String] =
-    if line.parsedMoves.nonEmpty then line.parsedMoves.take(maxPly).map(_.san.trim).filter(_.nonEmpty)
-    else NarrativeUtils.uciListToSan(fen, line.moves.take(maxPly)).map(_.trim).filter(_.nonEmpty)
+    LineScopedCitation.sanMoves(fen, line).take(maxPly).map(_.trim).filter(_.nonEmpty)
 
   private def isUci(raw: String): Boolean =
     raw.matches("""[a-h][1-8][a-h][1-8][qrbn]?""")

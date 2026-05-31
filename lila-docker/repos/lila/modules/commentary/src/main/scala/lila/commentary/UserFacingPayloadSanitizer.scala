@@ -4,6 +4,7 @@ import lila.commentary.analysis.PlanEvidenceEvaluator
 import lila.commentary.analysis.PlanEvidenceEvaluator.EvaluatedPlan
 import lila.commentary.analysis.OpeningFamilyCatalog
 import lila.commentary.analysis.UserFacingSignalSanitizer
+import lila.commentary.analysis.semantic.RelationObservationCatalog
 import lila.commentary.model.StrategicPlanExperiment
 import lila.commentary.model.authoring.PlanHypothesis
 import lila.strategicPuzzle.StrategicPuzzle.*
@@ -12,6 +13,8 @@ object UserFacingPayloadSanitizer:
 
   private val MoveReviewLedgerSchema = "chesstory.move_review.ledger.v1"
   private val MoveReviewLedgerLineSources = Set("probe", "decision_compare", "variation", "authoring")
+  private val StrategicRelationTokens =
+    RelationObservationCatalog.ImplementedKinds
 
   def sanitize(response: CommentResponse): CommentResponse =
     sanitize(response, admittedPlans = Nil)
@@ -108,8 +111,9 @@ object UserFacingPayloadSanitizer:
         pieceRoutes = pack.pieceRoutes.map(sanitizePieceRoute),
         pieceMoveRefs = pack.pieceMoveRefs.map(sanitizePieceMoveRef),
         directionalTargets = pack.directionalTargets.map(sanitizeDirectionalTarget),
+        strategicIdeas = Nil,
         longTermFocus = cleanList(pack.longTermFocus),
-        evidence = cleanList(pack.evidence),
+        evidence = cleanPublicEvidenceList(pack.evidence),
         signalDigest = pack.signalDigest.map(sanitizeSignalDigest)
       )
     }
@@ -124,22 +128,28 @@ object UserFacingPayloadSanitizer:
   private def sanitizePieceRoute(route: StrategyPieceRoute): StrategyPieceRoute =
     route.copy(
       purpose = clean(route.purpose),
-      evidence = cleanList(route.evidence)
+      evidence = cleanPublicEvidenceList(route.evidence)
     )
 
   private def sanitizePieceMoveRef(moveRef: StrategyPieceMoveRef): StrategyPieceMoveRef =
     moveRef.copy(
       idea = clean(moveRef.idea),
       tacticalTheme = cleanOpt(moveRef.tacticalTheme),
-      evidence = cleanList(moveRef.evidence)
+      evidence = cleanPublicEvidenceList(moveRef.evidence)
     )
 
   private def sanitizeDirectionalTarget(target: StrategyDirectionalTarget): StrategyDirectionalTarget =
     target.copy(
       strategicReasons = cleanList(target.strategicReasons),
       prerequisites = cleanList(target.prerequisites),
-      evidence = cleanList(target.evidence)
+      evidence = cleanPublicEvidenceList(target.evidence)
     )
+
+  private def cleanPublicEvidenceList(values: List[String]): List[String] =
+    cleanList(values).filterNot(deferredRelationEvidenceLeak)
+
+  private def deferredRelationEvidenceLeak(value: String): Boolean =
+    RelationObservationCatalog.deferredFallbackForMotifTag(value).nonEmpty
 
   private def sanitizeSignalDigest(digest: NarrativeSignalDigest): NarrativeSignalDigest =
     digest.copy(
@@ -256,15 +266,16 @@ object UserFacingPayloadSanitizer:
     surface.copy(
       schema = clean(surface.schema),
       title = cleanOpt(surface.title),
-      summaryRows = surface.summaryRows.flatMap(sanitizeMoveReviewPlayerSurfaceRow),
-      advancedRows = surface.advancedRows.flatMap(sanitizeMoveReviewPlayerSurfaceRow),
+      summaryRows = surface.summaryRows.flatMap(row => sanitizeMoveReviewPlayerSurfaceRow(row, allowStrategicRelation = false)),
+      advancedRows = surface.advancedRows.flatMap(row => sanitizeMoveReviewPlayerSurfaceRow(row, allowStrategicRelation = true)),
       decisionComparison = surface.decisionComparison.map(sanitizeMoveReviewPlayerDecisionComparison),
-      probeRows = surface.probeRows.flatMap(sanitizeMoveReviewPlayerSurfaceRow),
+      probeRows = surface.probeRows.flatMap(row => sanitizeMoveReviewPlayerSurfaceRow(row, allowStrategicRelation = false)),
       authorRows = surface.authorRows.flatMap(sanitizeMoveReviewPlayerAuthorRow)
     )
 
   private def sanitizeMoveReviewPlayerSurfaceRow(
-      row: MoveReviewPlayerSurfaceRow
+      row: MoveReviewPlayerSurfaceRow,
+      allowStrategicRelation: Boolean
   ): Option[MoveReviewPlayerSurfaceRow] =
     for
       label <- cleanOpt(Some(row.label))
@@ -275,11 +286,12 @@ object UserFacingPayloadSanitizer:
       tone = cleanOpt(row.tone),
       source = None,
       refSans = cleanList(row.refSans),
-      authority = sanitizeMoveReviewSurfaceAuthority(row.authority)
+      authority = sanitizeMoveReviewSurfaceAuthority(row.authority, allowStrategicRelation)
     )
 
   private def sanitizeMoveReviewSurfaceAuthority(
-      authority: Option[MoveReviewSurfaceAuthority]
+      authority: Option[MoveReviewSurfaceAuthority],
+      allowStrategicRelation: Boolean
   ): Option[MoveReviewSurfaceAuthority] =
     authority.flatMap { raw =>
       val kind = clean(raw.kind)
@@ -288,39 +300,62 @@ object UserFacingPayloadSanitizer:
       val sanitized =
         MoveReviewSurfaceAuthority(
           kind = kind,
-          token = cleanOpt(raw.token).filter(validSurfaceAuthorityToken),
+          token = cleanSurfaceAuthorityToken(kind, raw.token),
           openingFamily = openingFamily,
           target =
             if kind == MoveReviewSurfaceAuthority.OpeningFamily then
               target.filter(square => openingFamily.exists(family => openingTargetAllowed(family, square)))
-            else target
+            else target,
+          openingBook =
+            if kind == MoveReviewSurfaceAuthority.OpeningFamily then
+              raw.openingBook.flatMap(MoveReviewOpeningBookMetadata.sanitize)
+            else None
         )
-      Option.when(validSurfaceAuthority(sanitized))(sanitized)
+      Option.when(validSurfaceAuthority(sanitized, allowStrategicRelation))(sanitized)
     }
 
-  private def validSurfaceAuthority(authority: MoveReviewSurfaceAuthority): Boolean =
+  private def validSurfaceAuthority(
+      authority: MoveReviewSurfaceAuthority,
+      allowStrategicRelation: Boolean
+  ): Boolean =
     authority.kind match
       case MoveReviewSurfaceAuthority.CounterplayBreak =>
         authority.token.nonEmpty &&
           authority.openingFamily.isEmpty &&
-          authority.target.isEmpty
+          authority.target.isEmpty &&
+          authority.openingBook.isEmpty
       case MoveReviewSurfaceAuthority.CentralBreak =>
         authority.token.exists(validSurfaceAuthorityRouteToken) &&
           authority.openingFamily.isEmpty &&
-          authority.target.isEmpty
+          authority.target.isEmpty &&
+          authority.openingBook.isEmpty
       case MoveReviewSurfaceAuthority.CentralLiquidation | MoveReviewSurfaceAuthority.CentralChallenge =>
         authority.token.exists(validSurfaceAuthorityRouteToken) &&
           authority.openingFamily.isEmpty &&
-          authority.target.isEmpty
+          authority.target.isEmpty &&
+          authority.openingBook.isEmpty
       case MoveReviewSurfaceAuthority.PracticalPlan =>
         authority.token.isEmpty &&
           authority.openingFamily.isEmpty &&
-          authority.target.isEmpty
+          authority.target.isEmpty &&
+          authority.openingBook.isEmpty
       case MoveReviewSurfaceAuthority.OpeningFamily =>
         authority.openingFamily.nonEmpty &&
           authority.token.isEmpty
+      case MoveReviewSurfaceAuthority.StrategicRelation =>
+        allowStrategicRelation &&
+          authority.token.exists(validStrategicRelationToken) &&
+          authority.target.nonEmpty &&
+          authority.openingFamily.isEmpty &&
+          authority.openingBook.isEmpty
       case _ =>
         false
+
+  private def cleanSurfaceAuthorityToken(kind: String, token: Option[String]): Option[String] =
+    cleanOpt(token).filter { value =>
+      if kind == MoveReviewSurfaceAuthority.StrategicRelation then validStrategicRelationToken(value)
+      else validSurfaceAuthorityToken(value)
+    }
 
   private def validSurfaceAuthorityToken(token: String): Boolean =
     token.matches("""(?:\.\.\.)?[a-h][1-8](?:-[a-h][1-8])?""")
@@ -330,6 +365,9 @@ object UserFacingPayloadSanitizer:
 
   private def validSurfaceAuthorityKey(key: String): Boolean =
     key.matches("""[a-z][a-z0-9_]{1,40}""")
+
+  private def validStrategicRelationToken(token: String): Boolean =
+    validSurfaceAuthorityKey(token) && StrategicRelationTokens.contains(token)
 
   private def validSurfaceAuthorityTarget(target: String): Boolean =
     target.matches("""[a-h][1-8]""")
@@ -383,7 +421,7 @@ object UserFacingPayloadSanitizer:
       question = question,
       why = cleanOpt(row.why),
       meta = Nil,
-      branches = row.branches.flatMap(sanitizeMoveReviewPlayerSurfaceRow)
+      branches = row.branches.flatMap(branch => sanitizeMoveReviewPlayerSurfaceRow(branch, allowStrategicRelation = false))
     )
 
   private def cachedMoveReviewPlanKeys(response: CommentResponse): Set[String] =

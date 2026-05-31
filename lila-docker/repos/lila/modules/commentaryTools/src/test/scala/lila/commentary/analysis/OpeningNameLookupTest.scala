@@ -43,6 +43,24 @@ final class OpeningNameLookupTest extends FunSuite:
     assertEquals(OpeningNameLookup.default.lookup(sicilianTransposed).flatMap(_.name), Some("Sicilian Defense"), clue(sicilianTransposed))
   }
 
+  test("transposed endpoint aliases remain available alongside the canonical reference") {
+    val lookup =
+      OpeningNameLookup.fromTsvLines(
+        List(
+          "eco\tname\tpgn",
+          "D06\tQueen's Gambit\t1. d4 d5 2. c4",
+          "A13\tEnglish Opening: Anglo-Queen's Gambit\t1. c4 d5 2. d4"
+        )
+      )
+    val transposedFen = NarrativeUtils.uciListToFen(initialFen, List("c2c4", "d7d5", "d2d4"))
+
+    assertEquals(lookup.lookup(transposedFen).flatMap(_.name), Some("Queen's Gambit"))
+    assertEquals(
+      lookup.lookupAll(transposedFen).flatMap(_.name).toSet,
+      Set("Queen's Gambit", "English Opening: Anglo-Queen's Gambit")
+    )
+  }
+
   test("major opening starter rows resolve from static book data") {
     val expected =
       List(

@@ -1195,7 +1195,7 @@ private[commentary] object RouteNetworkBindProof:
       expectedBranchKey: Option[String]
   ): Boolean =
     expectedBranchKey.exists(expected =>
-      branchKey(result).contains(expected)
+      MoveReviewExchangeAnalyzer.probeStableBranchKey(result, BranchKeyMoveCount).contains(expected)
     )
 
   private def resolveBranchIdentity(
@@ -1208,7 +1208,9 @@ private[commentary] object RouteNetworkBindProof:
         .flatMap(normalizeExistingBranchKey)
     val groupedByStrongKey =
       directReplyResults
-        .flatMap(result => branchKey(result).map(_ -> result))
+        .flatMap(result =>
+          MoveReviewExchangeAnalyzer.probeStableBranchKey(result, BranchKeyMoveCount).map(_ -> result)
+        )
         .groupBy(_._1)
         .view
         .mapValues(_.map(_._2))
@@ -1246,36 +1248,15 @@ private[commentary] object RouteNetworkBindProof:
       ambiguousDefendedBranch = ambiguousDefendedBranch
     )
 
-  private def branchKey(
-      result: ProbeResult
-  ): Option[String] =
-    result.variationHash.flatMap(clean).map(normalize)
-      .orElse(result.seedId.flatMap(clean).map(normalize))
-      .orElse(branchLineKey(result.bestReplyPv))
-      .orElse(
-        result.replyPvs
-          .flatMap(_.headOption)
-          .flatMap(branchLineKey)
-      )
-
-  private def branchLineKey(
-      moves: List[String]
-  ): Option[String] =
-    val normalizedMoves =
-      moves.flatMap(normalizeUciMove).take(BranchKeyMoveCount)
-    Option.when(normalizedMoves.size == BranchKeyMoveCount)(
-      normalizedMoves.mkString(" ")
-    )
-
   private def normalizeExistingBranchKey(
       raw: String
   ): Option[String] =
     clean(raw).flatMap { value =>
       val normalized = normalize(value)
       if normalized.isEmpty then None
-      else if isUciMove(normalized) then None
+      else if MoveReviewExchangeAnalyzer.isUciMove(normalized) then None
       else
-        branchLineKey(normalized.split("\\s+").toList)
+        MoveReviewExchangeAnalyzer.probeReplyPrefixKeyFromMoves(normalized.split("\\s+").toList, BranchKeyMoveCount)
           .orElse(Some(normalized))
     }
 
@@ -1449,16 +1430,6 @@ private[commentary] object RouteNetworkBindProof:
       raw: String
   ): String =
     "(?i)([a-h])[1-8]".r.findFirstMatchIn(Option(raw).getOrElse("")).map(_.group(1).toLowerCase).getOrElse("")
-
-  private def normalizeUciMove(
-      raw: String
-  ): Option[String] =
-    clean(raw).map(_.toLowerCase).filter(isUciMove)
-
-  private def isUciMove(
-      raw: String
-  ): Boolean =
-    "(?i)^[a-h][1-8][a-h][1-8][qrbn]?$".r.matches(Option(raw).getOrElse(""))
 
   private def normalizeSquareLike(
       raw: String

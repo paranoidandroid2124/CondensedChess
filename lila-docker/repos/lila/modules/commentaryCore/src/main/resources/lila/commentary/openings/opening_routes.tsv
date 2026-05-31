@@ -3,6 +3,10 @@ benoni_d6_knight_route	benoni	d6	knight	f3	d2	c4	8	attack_weak_pawn
 reversed_benoni_d3_knight_route_f6	benoni	d3	knight	f6	d7	c5	8	attack_weak_pawn
 reversed_benoni_d3_knight_route_b8	benoni	d3	knight	b8	d7	c5	8	attack_weak_pawn
 kings_indian_c5_knight_route	kings_indian	c5	knight	f6	d7	c5	8	occupy_target
+catalan_f1_g2_bishop	catalan	g2	bishop	f1		g2	4	occupy_target
+english_f1_g2_bishop	english	g2	bishop	f1		g2	4	occupy_target
+kings_indian_f8_g7_bishop	kings_indian	g7	bishop	f8		g7	4	occupy_target
+queens_indian_c8_b7_bishop	queens_indian	b7	bishop	c8		b7	4	occupy_target
 caro_kann_b8_d7_f6_d5	caro_kann	d5	knight	b8	d7|f6	d5	10	occupy_target
 caro_kann_g8_e7_f5	caro_kann	f5	knight	g8	e7	f5	8	occupy_target
 french_g8_e7_g6_f4	french	f4	knight	g8	e7|g6	f4	10	occupy_target

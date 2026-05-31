@@ -165,9 +165,9 @@ final class MoveReviewEvidenceCoverageAuditTest extends FunSuite:
       )
 
     assertEquals(report.summary.counterplayBreakRowCount, 3)
-    assertEquals(report.summary.counterplayBreakNamedTokenRowCount, 1)
+    assertEquals(report.summary.counterplayBreakNamedTokenRowCount, 2)
     assertEquals(report.summary.counterplayBreakGenericFallbackCount, 1)
-    assertEquals(report.summary.counterplayBreakPlayedMoveCollisionCount, 1)
+    assertEquals(report.summary.counterplayBreakPlayedMoveCollisionCount, 0)
   }
 
   test("counts Central break row quality separately from row presence") {

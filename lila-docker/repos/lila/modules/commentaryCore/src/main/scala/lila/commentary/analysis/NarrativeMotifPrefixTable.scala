@@ -1,5 +1,8 @@
 package lila.commentary.analysis
 
+import lila.commentary.analysis.MoveReviewExchangeAnalyzer.RelationKind
+import lila.commentary.analysis.semantic.{ DeferredRelationFallbackLane, RelationObservationCatalog }
+
 private[analysis] object NarrativeMotifPrefixTable:
 
   private def normalizeMotifTag(raw: String): String =
@@ -16,6 +19,46 @@ private[analysis] object NarrativeMotifPrefixTable:
     val needle = normalizeMotifTag(rawNeedle)
     motif.nonEmpty && needle.nonEmpty &&
       (motif.contains(needle) || motif.replace("_", "").contains(needle.replace("_", "")))
+
+  private def deferredRelationTemplates(normalized: List[String]): Option[Option[List[String]]] =
+    normalized.flatMap(RelationObservationCatalog.deferredFallbackForMotifTag).headOption.map { fallback =>
+      fallback.lane match
+        case DeferredRelationFallbackLane.PracticalGuidance if fallback.relationKind == RelationKind.Zwischenzug =>
+          Some(
+            List(
+              "Move-order details need checking before assuming the recapture.",
+              "The practical task is to verify the move order before committing.",
+              "Calculation should stay flexible around the next forcing move."
+            )
+          )
+        case DeferredRelationFallbackLane.PracticalGuidance if fallback.relationKind == RelationKind.TrappedPiece =>
+          Some(
+            List(
+              "Piece mobility is a practical concern, but the concrete trap still needs proof.",
+              "The practical task is to keep checking whether the restricted piece has a safe route.",
+              "The structure points to piece-mobility pressure rather than a confirmed trap."
+            )
+          )
+        case DeferredRelationFallbackLane.ThematicFallback if fallback.relationKind == RelationKind.Domination =>
+          Some(
+            List(
+              "The structure points toward restriction of key squares.",
+              "Control of key squares is the safer theme to track here.",
+              "The position is about limiting mobility before claiming a concrete restriction."
+            )
+          )
+        case DeferredRelationFallbackLane.ExchangeSequence | DeferredRelationFallbackLane.MaterialTransition =>
+          Some(
+            List(
+              "The checked line points to a material transition rather than a named relation.",
+              "The practical reading is a concrete exchange sequence, not a settled motif label.",
+              "Material flow is the safer guide until the relation is replay-proven."
+            )
+          )
+        case _ =>
+          None
+    }
+
   private final case class MotifPrefixRule(
       keys: List[String],
       templates: List[String],
@@ -330,4 +373,6 @@ private[analysis] object NarrativeMotifPrefixTable:
 
   def templatesFor(motifs: List[String], ply: Int): Option[List[String]] =
     val normalized = motifs.map(normalizeMotifTag).filter(_.nonEmpty)
-    MotifPrefixRules.find(_.matches(normalized, ply)).map(_.templates)
+    deferredRelationTemplates(normalized).getOrElse {
+      MotifPrefixRules.find(_.matches(normalized, ply)).map(_.templates)
+    }

@@ -13,10 +13,11 @@ class StructurePlanArcBuilderTest extends FunSuite:
       structure: StructureProfileInfo,
       alignment: PlanAlignmentInfo,
       pieceActivity: List[PieceActivityInfo],
-      preventedPlans: List[PreventedPlanInfo] = Nil
+      preventedPlans: List[PreventedPlanInfo] = Nil,
+      fen: String = "4k3/8/8/8/8/8/8/4K3 w - - 0 1"
   ): NarrativeContext =
     NarrativeContext(
-      fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
+      fen = fen,
       header = ContextHeader("Middlegame", "Normal", "NarrowChoice", "Medium", "ExplainPlan"),
       ply = 24,
       playedMove = Some(playedMove),
@@ -77,7 +78,8 @@ class StructurePlanArcBuilderTest extends FunSuite:
       ),
       pieceActivity = List(
         PieceActivityInfo("Rook", "a1", 0.40, false, false, List("b1", "b3"), List("b4"))
-      )
+      ),
+      fen = "4k3/8/8/8/8/8/8/R3K3 w - - 0 1"
     )
 
     val arc = StructurePlanArcBuilder.build(ctx).getOrElse(fail("missing structure arc"))
@@ -87,6 +89,33 @@ class StructurePlanArcBuilderTest extends FunSuite:
     assertEquals(arc.primaryDeployment.destination, "b-file")
     assert(StructurePlanArcBuilder.proseEligible(arc))
     assertEquals(arc.moveContribution, "This move starts that route immediately.")
+  }
+
+  test("route contribution does not trust UCI text when the played move cannot replay") {
+    val ctx = baseContext(
+      playedMove = "a1b1",
+      playedSan = "Rb1",
+      mainPlan = "Minority Attack",
+      structure = StructureProfileInfo("Carlsbad", 0.87, Nil, "Locked", List("MAJORITY")),
+      alignment = PlanAlignmentInfo(
+        score = 74,
+        band = "Playable",
+        matchedPlanIds = List("minority_attack"),
+        missingPlanIds = Nil,
+        reasonCodes = List("PA_MATCH"),
+        narrativeIntent = Some("build queenside pressure"),
+        narrativeRisk = Some("the center can open if the pawn break is rushed")
+      ),
+      pieceActivity = List(
+        PieceActivityInfo("Rook", "a1", 0.40, false, false, List("b1", "b3"), List("b4"))
+      )
+    )
+
+    val arc = StructurePlanArcBuilder.build(ctx).getOrElse(fail("missing structure arc"))
+    assertEquals(
+      arc.moveContribution,
+      "This move supports that route by making build queenside pressure easier to organize."
+    )
   }
 
   test("iqp activation selects piece activation before the break") {

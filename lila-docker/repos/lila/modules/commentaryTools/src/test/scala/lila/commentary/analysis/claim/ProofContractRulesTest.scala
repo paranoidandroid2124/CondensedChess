@@ -502,6 +502,19 @@ class ProofContractRulesTest extends FunSuite:
     assert(!contract.acceptedSources.exists(_.toLowerCase.contains("source-")), clues(contract))
   }
 
+  test("BadPieceLiquidation supported-local release requires a structure transition witness") {
+    val contract =
+      ProofContractRules
+        .contractForProofFamily(PlanTaxonomy.PlanKind.BadPieceLiquidation.id)
+        .getOrElse(fail("missing BadPieceLiquidation contract"))
+
+    assertEquals(contract.status, ProofContractStatus.Releasable)
+    assert(!contract.certifiedEligible, clues(contract))
+    assert(contract.supportedLocalEligible, clues(contract))
+    assert(contract.acceptedSources.contains(PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource), clues(contract))
+    assert(contract.requiredWitnesses.contains(ProofWitness.StructureTransition), clues(contract))
+  }
+
   private def exactSliceContractPacket(
       proofSource: String,
       proofFamily: String,

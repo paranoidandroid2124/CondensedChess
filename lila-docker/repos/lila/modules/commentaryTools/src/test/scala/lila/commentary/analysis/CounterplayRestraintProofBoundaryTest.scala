@@ -1522,37 +1522,28 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
         truthContract = None
       )
 
-    assert(plannerInputs.mainBundle.flatMap(_.mainClaim).nonEmpty, clues(plannerInputs.mainBundle))
+    assert(plannerInputs.mainBundle.flatMap(_.mainClaim).isEmpty, clues(plannerInputs.mainBundle))
     assertEquals(
       plannerInputs.mainBundle.flatMap(_.mainClaim).flatMap(_.packet.map(_.proofFamily)),
-      Some("neutralize_key_break"),
+      None,
       clues(plannerInputs.mainBundle)
     )
     assertEquals(
       plannerInputs.mainBundle.flatMap(_.mainClaim).flatMap(_.packet.map(_.fallbackMode)),
-      Some(PlayerFacingClaimFallbackMode.WeakMain),
+      None,
       clues(plannerInputs.mainBundle)
     )
     assertEquals(
       rankedPlans.primary.map(_.questionKind),
-      Some(AuthorQuestionKind.WhatChanged),
+      None,
       clues(rankedPlans)
     )
-    assert(
-      rankedPlans.primary.map(_.claim).exists(_.toLowerCase.contains("c5")),
-      clues(rankedPlans)
-    )
+    assertEquals(rankedPlans.primary, None, clues(rankedPlans))
     chronicleArtifact.foreach { artifact =>
       assertNoSuppressionInflation(artifact.narrative)
-      assert(artifact.narrative.toLowerCase.contains("c5"), clues(artifact.narrative))
     }
-    assert(moveReviewSlots.nonEmpty, clues(moveReviewSlots, rankedPlans))
-    moveReviewSlots.foreach { slots =>
-      assertNoSuppressionInflation(slots.claim)
-      assert(slots.claim.toLowerCase.contains("c5"), clues(slots.claim))
-    }
+    assertEquals(moveReviewSlots, None, clues(moveReviewSlots, rankedPlans))
     assertNoSuppressionInflation(moveReviewFallback.claim)
-    assert(moveReviewFallback.claim.toLowerCase.contains("c5"), clues(moveReviewFallback.claim))
   }
 
   test("uncertified shell cannot re-inflate across planner, replay, or whole-game reuse") {

@@ -2,6 +2,7 @@ package lila.commentary.analysis.structure
 
 import munit.FunSuite
 
+import lila.commentary.model.authoring.{ PlanHypothesis, PlanViability }
 import lila.commentary.model.strategic.VariationLine
 
 class TranspositionPvAlignerTest extends FunSuite:
@@ -46,6 +47,25 @@ class TranspositionPvAlignerTest extends FunSuite:
     assertEquals(left, right)
     assertEquals(left.map(_.targetSquare), Some(Target))
     assert(left.exists(_.attackerDefenderDelta > 0), clue(left))
+  }
+
+  test("alignPlans only trusts exact square target hints") {
+    val line =
+      VariationLine(
+        moves = List("d2d4", "c7c6", "e1d2", "d7d5", "d2e1"),
+        scoreCp = 28,
+        depth = 18
+      )
+    val exact =
+      weaknessHypothesis("target:d5")
+    val malformed =
+      weaknessHypothesis("target:d5_extra")
+
+    assert(TranspositionPvAligner.alignPlans(TranspositionFen, List(line), List(exact)).nonEmpty)
+    assertEquals(
+      TranspositionPvAligner.alignPlans(TranspositionFen, List(line), List(malformed)),
+      Nil
+    )
   }
 
   test("rejects a line where the defender liquidates the requested target") {
@@ -179,3 +199,17 @@ class TranspositionPvAlignerTest extends FunSuite:
       None
     )
   }
+
+  private def weaknessHypothesis(targetSource: String): PlanHypothesis =
+    PlanHypothesis(
+      planId = "StaticWeakness",
+      planName = "Static weakness",
+      rank = 1,
+      score = 0.8,
+      preconditions = Nil,
+      executionSteps = Nil,
+      failureModes = Nil,
+      viability = PlanViability(score = 0.8, label = "high", risk = "low"),
+      evidenceSources = List(targetSource),
+      subplanId = Some("static_weakness_fixation")
+    )

@@ -2,16 +2,21 @@ package lila.commentary.analysis
 
 import munit.FunSuite
 import lila.commentary.*
-import lila.commentary.model.{ ConfidenceLevel, NarrativeContext, ProbeRequest }
+import lila.commentary.model.*
 import lila.commentary.model.authoring.{ PlanHypothesis, PlanViability }
 import lila.commentary.model.authoring.{ AuthorQuestion, AuthorQuestionKind }
 import lila.commentary.model.strategic.{ EngineEvidence, VariationLine }
 import lila.commentary.analysis.PlanEvidenceEvaluator.{ ClaimCertification, EvaluatedPlan, PlanEvidenceStatus, UserFacingPlanEligibility }
+import lila.commentary.analysis.semantic.RelationObservationCatalog
+import lila.commentary.analysis.semantic.StrategicObservationIds.EvidenceRef
 
 final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
 
   private val emptyAuthoringSurface =
     AuthoringEvidenceSurface(questions = Nil, evidence = Nil, headline = None)
+
+  private val InitialFen =
+    "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
   private def build(
       ctx: NarrativeContext = MoveReviewProseGoldenFixtures.rookPawnMarch.ctx,
@@ -20,7 +25,8 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       evaluatedPlans: List[EvaluatedPlan] = Nil,
       authoringSurface: AuthoringEvidenceSurface = emptyAuthoringSurface,
       supportedLocalRows: List[MoveReviewPlayerSurfaceRow] = Nil,
-      decisionComparisonSurface: Option[MoveReviewPlayerDecisionComparison] = None
+      decisionComparisonSurface: Option[MoveReviewPlayerDecisionComparison] = None,
+      strategyPack: Option[StrategyPack] = None
   ): MoveReviewPlayerSurface =
     MoveReviewPlayerPayloadBuilder.build(
       ctx = ctx,
@@ -30,7 +36,8 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       evaluatedPlans = evaluatedPlans,
       authoringSurface = authoringSurface,
       supportedLocalRows = supportedLocalRows,
-      decisionComparisonSurface = decisionComparisonSurface
+      decisionComparisonSurface = decisionComparisonSurface,
+      strategyPack = strategyPack
     )
 
   private def plan(
@@ -79,6 +86,51 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       themeL1 = hypothesis.themeL1,
       subplanId = hypothesis.subplanId,
       claimCertification = claimCertification
+    )
+
+  private def relationOnlyData(fen: String, playedMove: String): ExtendedAnalysisData =
+    ExtendedAnalysisData(
+      fen = fen,
+      nature = PositionNature(NatureType.Dynamic, 0.6, 0.4, "relation test"),
+      motifs = Nil,
+      plans = Nil,
+      preventedPlans = Nil,
+      pieceActivity = Nil,
+      structuralWeaknesses = Nil,
+      positionalFeatures = Nil,
+      compensation = None,
+      endgameFeatures = None,
+      practicalAssessment = None,
+      alternatives = Nil,
+      candidates = Nil,
+      counterfactual = None,
+      conceptSummary = Nil,
+      prevMove = Some(playedMove),
+      ply = 1,
+      evalCp = 42,
+      isWhiteToMove = true
+    )
+
+  private def relationOnlyContext(fen: String, playedMove: String): NarrativeContext =
+    NarrativeContext(
+      fen = fen,
+      header = ContextHeader("Middlegame", "Normal", "StyleChoice", "Medium", "ExplainPlan"),
+      ply = 1,
+      playedMove = Some(playedMove),
+      playedSan = Some("Be4"),
+      summary = NarrativeSummary("Relation test", None, "StyleChoice", "Maintain", "+0.4"),
+      threats = ThreatTable(Nil, Nil),
+      pawnPlay = PawnPlayTable(false, None, "Low", "Maintain", "none", "Background", None, false, "quiet"),
+      plans = PlanTable(top5 = Nil, suppressed = Nil),
+      delta = None,
+      phase = PhaseContext("Middlegame", "relation test"),
+      candidates = Nil,
+      engineEvidence = Some(
+        EngineEvidence(
+          depth = 18,
+          variations = List(VariationLine(moves = List(playedMove), scoreCp = 42))
+        )
+      )
     )
 
   test("does not build player decision comparison without certified surface input") {
@@ -847,6 +899,48 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assert(surface.advancedRows.exists(row => row.text == "b4-b5 - Pressure c6"), clue(surface.advancedRows))
   }
 
+  test("opening family row carries bounded public opening book metadata") {
+    val fen =
+      NarrativeUtils.uciListToFen(InitialFen, List("d2d4", "d7d5", "c2c4"))
+    val openingRef =
+      OpeningReference(
+        eco = Some("D06"),
+        name = Some("Queen's Gambit"),
+        totalGames = 12345,
+        topMoves =
+          List(
+            ExplorerMove("e7e6", "e6", 6000, 2200, 1600, 2200, 2450),
+            ExplorerMove("g8f6", "Nf6", 4000, 1500, 1100, 1400, 2440),
+            ExplorerMove("bad", "raw note", 1, 0, 0, 1, 1200)
+          ),
+        sampleGames = Nil
+      )
+    val surface =
+      build(
+        ctx =
+          MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
+            fen = fen,
+            header = ContextHeader("Opening", "Normal", "NarrowChoice", "Medium", "ExplainPlan"),
+            phase = PhaseContext("Opening", "Opening structure"),
+            ply = 3,
+            openingData = Some(openingRef)
+          )
+      )
+
+    val authority =
+      surface.summaryRows
+        .find(_.label == "Opening family")
+        .flatMap(_.authority)
+        .getOrElse(fail(s"missing opening-family authority: ${surface.summaryRows}"))
+
+    assertEquals(authority.kind, MoveReviewSurfaceAuthority.OpeningFamily)
+    assertEquals(authority.openingFamily, Some("queens_gambit"))
+    assertEquals(
+      authority.openingBook,
+      Some(MoveReviewOpeningBookMetadata(eco = Some("D06"), totalGames = Some(12345), topMoves = List("e6", "Nf6")))
+    )
+  }
+
   test("supported-local rows append to summary rows without leaking source metadata") {
     val supported =
       MoveReviewPlayerSurfaceRow(
@@ -877,6 +971,573 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CounterplayBreak, token = Some("d5")))
     )
     assert(surface.summaryRows.exists(_.text.contains("stops the d5 break")), clue(surface.summaryRows))
+  }
+
+  test("strategic relation evidence appears as bounded advanced metadata") {
+    val relationIdea =
+      StrategyIdeaSignal(
+        ideaId = "idea_1",
+        ownerSide = "white",
+        kind = StrategicIdeaKind.LineOccupation,
+        group = "line_occupation",
+        readiness = StrategicIdeaReadiness.Build,
+        focusSquares = List("e4", "f5", "g6"),
+        confidence = 0.72,
+        evidenceRefs = List("source:xray_relation", "xray_semantic", "blocker:f5"),
+        relationFocusSquares = List("e4", "f5", "g6")
+      )
+    val surface =
+      build(
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              strategicIdeas = List(relationIdea)
+            )
+          )
+      )
+
+    val row =
+      surface.advancedRows
+        .find(_.authority.exists(_.kind == MoveReviewSurfaceAuthority.StrategicRelation))
+        .getOrElse(fail(s"missing strategic relation row: ${surface.advancedRows}"))
+
+    assertEquals(row.label, "Line relation")
+    assertEquals(row.tone, Some("relation"))
+    assertEquals(row.source, None)
+    assertEquals(
+      row.authority,
+      Some(
+        MoveReviewSurfaceAuthority(
+          kind = MoveReviewSurfaceAuthority.StrategicRelation,
+          token = Some("xray"),
+          target = Some("g6")
+        )
+      )
+    )
+    assert(row.text.contains("x-ray evidence"), clue(row))
+  }
+
+  test("strategic relation row requires both catalog source and semantic observation fact") {
+    val sourceOnlyIdea =
+      StrategyIdeaSignal(
+        ideaId = "idea_1",
+        ownerSide = "white",
+        kind = StrategicIdeaKind.LineOccupation,
+        group = "line_occupation",
+        readiness = StrategicIdeaReadiness.Build,
+        focusSquares = List("e4", "f5", "g6"),
+        confidence = 0.72,
+        evidenceRefs = List("source:xray_relation", "blocker:f5")
+      )
+    val semanticOnlyIdea =
+      sourceOnlyIdea.copy(
+        ideaId = "idea_2",
+        evidenceRefs = List("xray_semantic", "blocker:f5")
+      )
+
+    val surface =
+      build(
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              strategicIdeas = List(sourceOnlyIdea, semanticOnlyIdea)
+            )
+          )
+      )
+
+    assert(!surface.advancedRows.exists(_.authority.exists(_.kind == MoveReviewSurfaceAuthority.StrategicRelation)), clue(surface.advancedRows))
+  }
+
+  test("legacy strategic relation projection requires unambiguous catalog evidence") {
+    val xray = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.XRay).get
+    val clearance = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.Clearance).get
+    val ambiguousIdea =
+      StrategyIdeaSignal(
+        ideaId = "idea_1",
+        ownerSide = "white",
+        kind = StrategicIdeaKind.LineOccupation,
+        group = "line_occupation",
+        readiness = StrategicIdeaReadiness.Build,
+        focusSquares = List("e4", "f5", "g6"),
+        confidence = 0.72,
+        evidenceRefs = xray.wireEvidenceRefs ++ clearance.wireEvidenceRefs,
+        relationKind = None,
+        relationFocusSquares = List("e4", "f5", "g6")
+      )
+    val surface =
+      build(
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              strategicIdeas = List(ambiguousIdea)
+            )
+          )
+      )
+
+    assert(
+      !surface.advancedRows.exists(_.authority.exists(_.kind == MoveReviewSurfaceAuthority.StrategicRelation)),
+      clue(surface.advancedRows)
+    )
+  }
+
+  test("legacy strategic relation projection requires relation-specific focus") {
+    val xray = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.XRay).get
+    val relationIdea =
+      StrategyIdeaSignal(
+        ideaId = "idea_1",
+        ownerSide = "white",
+        kind = StrategicIdeaKind.LineOccupation,
+        group = "line_occupation",
+        readiness = StrategicIdeaReadiness.Build,
+        focusSquares = List("e4", "f5", "g6"),
+        confidence = 0.72,
+        evidenceRefs = xray.wireEvidenceRefs,
+        relationKind = None,
+        relationFocusSquares = Nil
+      )
+    val surface =
+      build(
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              strategicIdeas = List(relationIdea)
+            )
+          )
+      )
+
+    assert(
+      !surface.advancedRows.exists(_.authority.exists(_.kind == MoveReviewSurfaceAuthority.StrategicRelation)),
+      clue(surface.advancedRows)
+    )
+  }
+
+  test("strategic relation surface target prefers analyzer-carried target over focus order") {
+    val relationIdea =
+      StrategyIdeaSignal(
+        ideaId = "idea_1",
+        ownerSide = "white",
+        kind = StrategicIdeaKind.LineOccupation,
+        group = "line_occupation",
+        readiness = StrategicIdeaReadiness.Build,
+        focusSquares = List("g6", "f5", "e4"),
+        confidence = 0.72,
+        evidenceRefs = List("source:xray_relation", "xray_semantic"),
+        targetSquare = Some("g6"),
+        relationKind = Some(MoveReviewExchangeAnalyzer.RelationKind.XRay),
+        relationFocusSquares = List("g6", "f5", "e4")
+      )
+    val surface =
+      build(
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              strategicIdeas = List(relationIdea)
+            )
+          )
+      )
+
+    assertEquals(
+      surface.advancedRows.flatMap(_.authority.flatMap(_.target)).headOption,
+      Some("g6"),
+      clue(surface.advancedRows)
+    )
+  }
+
+  test("strategic relation surface target ignores targetSquare outside relation focus") {
+    val relationIdea =
+      StrategyIdeaSignal(
+        ideaId = "idea_1",
+        ownerSide = "white",
+        kind = StrategicIdeaKind.LineOccupation,
+        group = "line_occupation",
+        readiness = StrategicIdeaReadiness.Build,
+        focusSquares = List("e4", "f5", "g6"),
+        confidence = 0.72,
+        evidenceRefs = List("source:xray_relation", "xray_semantic"),
+        targetSquare = Some("a1"),
+        relationFocusSquares = List("e4", "f5", "g6")
+      )
+    val surface =
+      build(
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              strategicIdeas = List(relationIdea)
+            )
+          )
+      )
+
+    assertEquals(
+      surface.advancedRows.flatMap(_.authority.flatMap(_.target)).headOption,
+      Some("g6"),
+      clue(surface.advancedRows)
+    )
+  }
+
+  test("legacy strategic relation targetSquare is ignored in favor of catalog target fallback") {
+    val relationIdea =
+      StrategyIdeaSignal(
+        ideaId = "idea_1",
+        ownerSide = "white",
+        kind = StrategicIdeaKind.LineOccupation,
+        group = "line_occupation",
+        readiness = StrategicIdeaReadiness.Build,
+        focusSquares = List("e4", "f5", "g6"),
+        confidence = 0.72,
+        evidenceRefs = List("source:xray_relation", "xray_semantic"),
+        targetSquare = Some("f5"),
+        relationKind = None,
+        relationFocusSquares = List("e4", "f5", "g6")
+      )
+    val surface =
+      build(
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              strategicIdeas = List(relationIdea)
+            )
+          )
+      )
+
+    assertEquals(
+      surface.advancedRows.flatMap(_.authority.flatMap(_.target)).headOption,
+      Some("g6"),
+      clue(surface.advancedRows)
+    )
+  }
+
+  test("strategic relation fallback target policy is catalog-owned") {
+    val defenderTrade = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.DefenderTrade).get
+    val decoy = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.Decoy).get
+    val ideas =
+      List(
+        defenderTrade -> List("c5", "a3"),
+        decoy -> List("f4", "d3", "d5")
+      ).map { case (descriptor, focus) =>
+        StrategyIdeaSignal(
+          ideaId = s"idea_${descriptor.relationKind}",
+          ownerSide = "white",
+          kind = descriptor.ideaKind,
+          group = StrategicIdeaGroup.InteractionAndTransformation,
+          readiness = descriptor.readiness,
+          focusSquares = focus,
+          confidence = descriptor.confidence,
+          evidenceRefs = List(EvidenceRef.Source(descriptor.source).wireKey, descriptor.observationId.wireKey),
+          relationKind = Some(descriptor.relationKind),
+          relationFocusSquares = focus
+        )
+      }
+    val surface =
+      build(
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              strategicIdeas = ideas
+            )
+          )
+      )
+    val targetsByRelation =
+      surface.advancedRows.flatMap(row =>
+        row.authority.flatMap(authority => authority.token.map(_ -> authority.target))
+      ).toMap
+
+    assertEquals(targetsByRelation.get(MoveReviewExchangeAnalyzer.RelationKind.DefenderTrade).flatten, Some("c5"))
+    assertEquals(targetsByRelation.get(MoveReviewExchangeAnalyzer.RelationKind.Decoy).flatten, Some("d3"))
+
+    val root = java.nio.file.Paths.get("").toAbsolutePath
+    val builderText =
+      java.nio.file.Files.readString(
+        root.resolve("modules/commentaryCore/src/main/scala/lila/commentary/analysis/MoveReviewPlayerPayloadBuilder.scala")
+      )
+    assert(!builderText.contains("MoveReviewExchangeAnalyzer.RelationKind.DefenderTrade"), clues(builderText))
+    assert(!builderText.contains("MoveReviewExchangeAnalyzer.RelationKind.Decoy"), clues(builderText))
+    assert(!builderText.contains("def relationTarget("), clues(builderText))
+  }
+
+  test("strategic relation projection honors selected relationKind before catalog order") {
+    val xray = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.XRay).get
+    val clearance = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.Clearance).get
+    val relationIdea =
+      StrategyIdeaSignal(
+        ideaId = "idea_1",
+        ownerSide = "white",
+        kind = StrategicIdeaKind.LineOccupation,
+        group = "line_occupation",
+        readiness = StrategicIdeaReadiness.Build,
+        focusSquares = List("e4", "f5", "g6", "d7"),
+        confidence = 0.72,
+        evidenceRefs =
+          List(
+            EvidenceRef.Source(xray.source).wireKey,
+            xray.observationId.wireKey,
+            EvidenceRef.Source(clearance.source).wireKey,
+            clearance.observationId.wireKey
+          ),
+        targetSquare = Some("d7"),
+        relationKind = Some(clearance.relationKind),
+        relationFocusSquares = List("d1", "d3", "d7")
+      )
+    val surface =
+      build(
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              strategicIdeas = List(relationIdea)
+            )
+          )
+      )
+
+    val row =
+      surface.advancedRows
+        .find(_.authority.exists(_.kind == MoveReviewSurfaceAuthority.StrategicRelation))
+        .getOrElse(fail(s"missing strategic relation row: ${surface.advancedRows}"))
+
+    assertEquals(row.authority.flatMap(_.token), Some(MoveReviewExchangeAnalyzer.RelationKind.Clearance), clue(row))
+    assert(row.text.contains("clearance evidence"), clue(row))
+    assert(row.text.contains("d1, d3, d7"), clue(row))
+    assert(!row.text.contains("e4, f5, g6"), clue(row))
+  }
+
+  test("selected strategic relation rows require relation-specific focus") {
+    val clearance = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.Clearance).get
+    val relationIdea =
+      StrategyIdeaSignal(
+        ideaId = "idea_1",
+        ownerSide = "white",
+        kind = StrategicIdeaKind.LineOccupation,
+        group = "line_occupation",
+        readiness = StrategicIdeaReadiness.Build,
+        focusSquares = List("e4", "f5", "g6"),
+        confidence = 0.72,
+        evidenceRefs = clearance.wireEvidenceRefs,
+        targetSquare = Some("g6"),
+        relationKind = Some(clearance.relationKind),
+        relationFocusSquares = Nil
+      )
+    val surface =
+      build(
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              strategicIdeas = List(relationIdea)
+            )
+          )
+      )
+
+    assert(
+      !surface.advancedRows.exists(_.authority.exists(_.kind == MoveReviewSurfaceAuthority.StrategicRelation)),
+      clue(surface.advancedRows)
+    )
+  }
+
+  test("strategic relation projection preserves deflection and discovered-attack geometry") {
+    val relationShapes =
+      List(
+        (
+          MoveReviewExchangeAnalyzer.RelationKind.Deflection,
+          List("g7", "f8", "a3"),
+          "g7",
+          "deflection evidence"
+        ),
+        (
+          MoveReviewExchangeAnalyzer.RelationKind.DiscoveredAttack,
+          List("b1", "d3", "h7"),
+          "h7",
+          "discovered-attack evidence"
+        )
+      )
+    val ideas =
+      relationShapes.map { case (kind, focus, target, _) =>
+        val descriptor = RelationObservationCatalog.descriptorForKind(kind).get
+        StrategyIdeaSignal(
+          ideaId = s"idea_$kind",
+          ownerSide = "white",
+          kind = descriptor.ideaKind,
+          group = StrategicIdeaGroup.InteractionAndTransformation,
+          readiness = descriptor.readiness,
+          focusSquares = List("a1", "a2", "a3"),
+          confidence = descriptor.confidence,
+          evidenceRefs = descriptor.wireEvidenceRefs,
+          targetSquare = Some(target),
+          relationKind = Some(kind),
+          relationFocusSquares = focus
+        )
+      }
+    val surface =
+      build(
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              strategicIdeas = ideas
+            )
+          )
+      )
+    val rowsByToken =
+      surface.advancedRows.flatMap(row => row.authority.flatMap(_.token.map(_ -> row))).toMap
+
+    relationShapes.foreach { case (kind, focus, target, labelText) =>
+      val row = rowsByToken.getOrElse(kind, fail(s"missing $kind relation row: ${surface.advancedRows}"))
+
+      assert(row.text.contains(labelText), clue(row))
+      assert(row.text.contains(focus.mkString(", ")), clue(row))
+      assert(!row.text.contains("a1, a2, a3"), clue(row))
+      assertEquals(row.authority.flatMap(_.target), Some(target), clue(row))
+    }
+  }
+
+  test("strategic relation projection does not fall back when selected relationKind lacks matching evidence") {
+    val xray = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.XRay).get
+    val clearance = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.Clearance).get
+    val relationIdea =
+      StrategyIdeaSignal(
+        ideaId = "idea_1",
+        ownerSide = "white",
+        kind = StrategicIdeaKind.LineOccupation,
+        group = "line_occupation",
+        readiness = StrategicIdeaReadiness.Build,
+        focusSquares = List("e4", "f5", "g6"),
+        confidence = 0.72,
+        evidenceRefs =
+          List(
+            EvidenceRef.Source(xray.source).wireKey,
+            xray.observationId.wireKey
+          ),
+        relationKind = Some(clearance.relationKind),
+        relationFocusSquares = List("e4", "f5", "g6")
+      )
+    val surface =
+      build(
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              strategicIdeas = List(relationIdea)
+            )
+          )
+      )
+
+    assert(!surface.advancedRows.exists(_.authority.exists(_.kind == MoveReviewSurfaceAuthority.StrategicRelation)), clue(surface.advancedRows))
+  }
+
+  test("every cataloged relation descriptor can project through the bounded surface row") {
+    RelationObservationCatalog.Implemented.foreach { descriptor =>
+      val relationIdea =
+        StrategyIdeaSignal(
+          ideaId = s"idea_${descriptor.relationKind}",
+          ownerSide = "white",
+          kind = descriptor.ideaKind,
+          group =
+            if descriptor.ideaKind == StrategicIdeaKind.LineOccupation then StrategicIdeaGroup.PieceAndLineManagement
+            else StrategicIdeaGroup.InteractionAndTransformation,
+          readiness = descriptor.readiness,
+          focusSquares = List("e4", "f5", "g6"),
+          confidence = descriptor.confidence,
+          evidenceRefs = List(EvidenceRef.Source(descriptor.source).wireKey, descriptor.observationId.wireKey),
+          relationFocusSquares = List("e4", "f5", "g6")
+        )
+      val surface =
+        build(
+          strategyPack =
+            Some(
+              StrategyPack(
+                sideToMove = "white",
+                strategicIdeas = List(relationIdea)
+              )
+            )
+        )
+      val row =
+        surface.advancedRows
+          .find(_.authority.exists(_.kind == MoveReviewSurfaceAuthority.StrategicRelation))
+          .getOrElse(fail(s"missing ${descriptor.relationKind} relation row: ${surface.advancedRows}"))
+
+      assertEquals(
+        row.label,
+        descriptor.surfaceRowLabel,
+        clue(descriptor.relationKind)
+      )
+      assert(row.text.contains(s"${descriptor.publicLabel} evidence"), clue(row))
+      assertEquals(row.authority.flatMap(_.token), Some(descriptor.relationKind), clue(row))
+    }
+  }
+
+  test("deferred relation kinds never project through strategic relation surface rows") {
+    val xray = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.XRay).get
+
+    RelationObservationCatalog.DeferredRelationKinds.foreach { deferredKind =>
+      val relationIdea =
+        StrategyIdeaSignal(
+          ideaId = s"idea_$deferredKind",
+          ownerSide = "white",
+          kind = StrategicIdeaKind.LineOccupation,
+          group = StrategicIdeaGroup.PieceAndLineManagement,
+          readiness = StrategicIdeaReadiness.Build,
+          focusSquares = List("e4", "f5", "g6"),
+          confidence = 0.72,
+          evidenceRefs = List(EvidenceRef.Source(xray.source).wireKey, xray.observationId.wireKey),
+          relationKind = Some(deferredKind),
+          relationFocusSquares = List("e4", "f5", "g6")
+        )
+      val surface =
+        build(
+          strategyPack =
+            Some(
+              StrategyPack(
+                sideToMove = "white",
+                strategicIdeas = List(relationIdea)
+              )
+            )
+        )
+
+      assert(
+        !surface.advancedRows.exists(_.authority.exists(_.kind == MoveReviewSurfaceAuthority.StrategicRelation)),
+        clue(deferredKind)
+      )
+    }
+  }
+
+  test("relation-only StrategyPackBuilder output reaches strategic relation advanced row") {
+    val fen = "6k1/5ppp/6q1/5n2/8/8/8/1B5K w - - 0 1"
+    val playedMove = "b1e4"
+    val ctx = relationOnlyContext(fen, playedMove)
+    val strategyPack =
+      StrategyPackBuilder
+        .build(relationOnlyData(fen, playedMove), ctx)
+        .getOrElse(fail("relation-only strategy pack missing"))
+
+    assert(strategyPack.strategicIdeas.exists(_.evidenceRefs.contains("source:xray_relation")), clue(strategyPack))
+    assert(strategyPack.strategicIdeas.exists(_.targetSquare.contains("g6")), clue(strategyPack))
+    assert(strategyPack.strategicIdeas.exists(_.relationKind.contains(MoveReviewExchangeAnalyzer.RelationKind.XRay)), clue(strategyPack))
+    assert(strategyPack.strategicIdeas.exists(_.relationFocusSquares.contains("g6")), clue(strategyPack))
+
+    val surface = build(ctx = ctx, strategyPack = Some(strategyPack))
+    val row =
+      surface.advancedRows
+        .find(_.authority.exists(_.kind == MoveReviewSurfaceAuthority.StrategicRelation))
+        .getOrElse(fail(s"missing strategic relation row: ${surface.advancedRows}"))
+
+    assertEquals(row.label, "Line relation")
+    assertEquals(row.source, None)
+    assertEquals(
+      row.authority,
+      Some(
+        MoveReviewSurfaceAuthority(
+          kind = MoveReviewSurfaceAuthority.StrategicRelation,
+          token = Some("xray"),
+          target = Some("g6")
+        )
+      )
+    )
   }
 
   test("probe-backed plans only release rows from the promoted plan") {

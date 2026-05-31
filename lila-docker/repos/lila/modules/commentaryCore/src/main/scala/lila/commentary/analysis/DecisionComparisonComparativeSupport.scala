@@ -97,12 +97,7 @@ private[analysis] object DecisionComparisonComparativeSupport:
     PlayerFacingTruthModePolicy.exactSliceTargetSquare(packet)
 
   private def leadSan(fen: String, line: VariationLine): Option[String] =
-    line.ourMove.map(_.san).flatMap(cleanMove)
-      .orElse {
-        line.moves.headOption
-          .map(move => NarrativeUtils.uciToSanOrFormat(fen, move))
-          .flatMap(cleanMove)
-      }
+    LineScopedCitation.sanMoves(fen, line).headOption.flatMap(cleanMove)
 
   private def sameMoveToken(left: String, right: String): Boolean =
     normalizeMoveToken(left) == normalizeMoveToken(right)

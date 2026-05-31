@@ -205,12 +205,42 @@ private[commentary] object SourceReview:
       alignment = SurfaceContractAlignment.SupportedLocalExact
     )
 
+  private val IqpInducementContract =
+    SurfaceContractDescriptor(
+      reviewGroupNeedle = "iqp_inducement",
+      proofSource = PlayerFacingTruthModePolicy.IQPInducementProbeProofSource,
+      proofFamily = PlanTaxonomy.PlanKind.IQPInducement.id,
+      contractIdNeedle = Some(PlanTaxonomy.PlanKind.IQPInducement.id),
+      alignment = SurfaceContractAlignment.SupportedLocalExact
+    )
+
+  private val DefenderTradeContract =
+    SurfaceContractDescriptor(
+      reviewGroupNeedle = "defender_trade",
+      proofSource = PlayerFacingTruthModePolicy.DefenderTradeProofSource,
+      proofFamily = PlanTaxonomy.PlanKind.DefenderTrade.id,
+      contractIdNeedle = Some(PlanTaxonomy.PlanKind.DefenderTrade.id),
+      alignment = SurfaceContractAlignment.SupportedLocalExact
+    )
+
+  private val QueenTradeBoundaryContract =
+    SurfaceContractDescriptor(
+      reviewGroupNeedle = "queen_trade_boundary",
+      proofSource = PlayerFacingTruthModePolicy.QueenTradeShieldProofSource,
+      proofFamily = PlanTaxonomy.PlanKind.QueenTradeShield.id,
+      contractIdNeedle = Some(PlanTaxonomy.PlanKind.QueenTradeShield.id),
+      alignment = SurfaceContractAlignment.SupportedLocalExact
+    )
+
   private val SurfaceContractDescriptors =
     List(
       BreakPreventionContract,
       CentralBreakTimingContract,
       ProphylaxisRestraintContract,
-      BadPieceLiquidationContract
+      BadPieceLiquidationContract,
+      IqpInducementContract,
+      DefenderTradeContract,
+      QueenTradeBoundaryContract
     )
 
   private def surfaceContractDescriptor(reviewGroup: String): Option[SurfaceContractDescriptor] =

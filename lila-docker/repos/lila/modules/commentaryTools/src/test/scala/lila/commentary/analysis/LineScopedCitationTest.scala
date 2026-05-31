@@ -3,8 +3,27 @@ package lila.commentary.analysis
 import munit.FunSuite
 import lila.commentary.model.Motif
 import lila.commentary.model.authoring.EvidenceBranch
+import lila.commentary.model.strategic.{ PvMove, VariationLine }
 
 class LineScopedCitationTest extends FunSuite:
+
+  test("SAN citation derives from raw engine PV before stale parsed metadata") {
+    val line =
+      VariationLine(
+        moves = List("e2e4", "e7e5", "g1f3"),
+        scoreCp = 24,
+        parsedMoves = List(
+          PvMove("d2d4", "d4", "d2", "d4", "P", false, None, false),
+          PvMove("d7d5", "...d5", "d7", "d5", "p", false, None, false),
+          PvMove("c2c4", "c4", "c2", "c4", "P", false, None, false)
+        )
+      )
+
+    assertEquals(
+      LineScopedCitation.sanMoves("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", line),
+      List("e4", "e5", "Nf3")
+    )
+  }
 
   test("tactical citation reaches the motif-trigger SAN and keeps at least three plies") {
     val motifs =

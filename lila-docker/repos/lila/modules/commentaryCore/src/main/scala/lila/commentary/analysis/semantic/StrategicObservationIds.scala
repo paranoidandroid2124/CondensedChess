@@ -7,6 +7,24 @@ private[commentary] object StrategicObservationIds:
   enum SemanticObservationId(val wireKey: String):
     case MinorityAttackSemantic extends SemanticObservationId("minority_attack_semantic")
     case TargetPressureSemantic extends SemanticObservationId("target_pressure_semantic")
+    case DefenderTradeSemantic extends SemanticObservationId("defender_trade_semantic")
+    case BadPieceLiquidationSemantic extends SemanticObservationId("bad_piece_liquidation_semantic")
+    case OverloadSemantic extends SemanticObservationId("overload_semantic")
+    case DeflectionSemantic extends SemanticObservationId("deflection_semantic")
+    case DiscoveredAttackSemantic extends SemanticObservationId("discovered_attack_semantic")
+    case DoubleCheckSemantic extends SemanticObservationId("double_check_semantic")
+    case BackRankMateSemantic extends SemanticObservationId("back_rank_mate_semantic")
+    case MateNetSemantic extends SemanticObservationId("mate_net_semantic")
+    case GreekGiftSemantic extends SemanticObservationId("greek_gift_semantic")
+    case ForkSemantic extends SemanticObservationId("fork_semantic")
+    case HangingPieceSemantic extends SemanticObservationId("hanging_piece_semantic")
+    case XRaySemantic extends SemanticObservationId("xray_semantic")
+    case ClearanceSemantic extends SemanticObservationId("clearance_semantic")
+    case BatterySemantic extends SemanticObservationId("battery_semantic")
+    case PinSemantic extends SemanticObservationId("pin_semantic")
+    case SkewerSemantic extends SemanticObservationId("skewer_semantic")
+    case InterferenceSemantic extends SemanticObservationId("interference_semantic")
+    case DecoySemantic extends SemanticObservationId("decoy_semantic")
 
   object SemanticObservationId:
     private val byWireKey: Map[String, SemanticObservationId] =
@@ -110,6 +128,21 @@ private[commentary] object StrategicObservationIds:
 
     // Transformation and counterplay.
     val RemovingTheDefender = register("removing_the_defender")
+    val OverloadRelation = register("overload_relation")
+    val DeflectionRelation = register("deflection_relation")
+    val DiscoveredAttackRelation = register("discovered_attack_relation")
+    val DoubleCheckRelation = register("double_check_relation")
+    val BackRankMateRelation = register("back_rank_mate_relation")
+    val GreekGiftRelation = register("greek_gift_relation")
+    val ForkRelation = register("fork_relation")
+    val HangingPieceRelation = register("hanging_piece_relation")
+    val XRayRelation = register("xray_relation")
+    val ClearanceRelation = register("clearance_relation")
+    val BatteryRelation = register("battery_relation")
+    val PinRelation = register("pin_relation")
+    val SkewerRelation = register("skewer_relation")
+    val InterferenceRelation = register("interference_relation")
+    val DecoyRelation = register("decoy_relation")
     val WinningEndgameTransition = register("winning_endgame_transition")
     val ClassificationTransformationWindow = register("classification_transformation_window")
     val ExchangeAvailabilityBridge = register("exchange_availability_bridge")
@@ -205,6 +238,21 @@ private[commentary] object StrategicObservationIds:
         OppositeSideStorm,
         FianchettoAssaultProfile,
         RemovingTheDefender,
+        OverloadRelation,
+        DeflectionRelation,
+        DiscoveredAttackRelation,
+        DoubleCheckRelation,
+        BackRankMateRelation,
+        GreekGiftRelation,
+        ForkRelation,
+        HangingPieceRelation,
+        XRayRelation,
+        ClearanceRelation,
+        BatteryRelation,
+        PinRelation,
+        SkewerRelation,
+        InterferenceRelation,
+        DecoyRelation,
         WinningEndgameTransition,
         ClassificationTransformationWindow,
         ExchangeAvailabilityBridge,
@@ -352,6 +400,7 @@ private[commentary] object StrategicObservationIds:
       Option.when(
         key.nonEmpty &&
           !key.startsWith("source:") &&
+          SemanticObservationId.fromWireKey(key).isEmpty &&
           EvidenceSourceId.fromWireKey(key).isEmpty &&
           ProofSourceId.fromWireKey(key).isEmpty &&
           ProofFamilyId.fromWireKey(key).isEmpty

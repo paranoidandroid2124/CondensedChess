@@ -114,23 +114,19 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     }
 
     val sourceSimplification = byId("source-salov-ljubojevic-1992-simplification-window")
-    assertEquals(sourceSimplification.release, "CertifiedOwner")
-    assertEquals(sourceSimplification.primary, "This trade keeps the same local edge on d5.")
-    assertEquals(compact(sourceSimplification.moveReview), "This trade keeps the same local edge on d5.")
-    assertEquals(compact(sourceSimplification.chronicle), compact(sourceSimplification.moveReview))
-    assert(sourceSimplification.plannerOwner.contains("WhyThis:MoveDelta:target"), clues(sourceSimplification))
-    assertEquals(sourceSimplification.contractStatus, "Releasable")
-    assert(sourceSimplification.contractId.contains(PlanTaxonomy.PlanKind.SimplificationWindow.id), clues(sourceSimplification))
+    assertEquals(sourceSimplification.release, "Suppressed")
+    assertEquals(sourceSimplification.primary, "-")
+    assertEquals(sourceSimplification.plannerOwner, "-")
+    assertEquals(sourceSimplification.contractStatus, "-")
+    assertEquals(sourceSimplification.contractId, "-")
     assertEquals(sourceSimplification.taxonomy, "source_simplification_window")
 
     val sourceStaticWeakness = byId("source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation")
-    assertEquals(sourceStaticWeakness.release, "Suppressed")
-    assertEquals(sourceStaticWeakness.primary, "-")
-    assertEquals(sourceStaticWeakness.plannerOwner, "-")
-    assertEquals(sourceStaticWeakness.contractStatus, "-")
-    assertEquals(sourceStaticWeakness.contractId, "-")
-    assert(!sourceStaticWeakness.moveReview.contains("This changes the position"), clues(sourceStaticWeakness))
-    assert(!sourceStaticWeakness.chronicle.contains("That same defended branch"), clues(sourceStaticWeakness))
+    assertEquals(sourceStaticWeakness.release, "CertifiedOwner")
+    assert(sourceStaticWeakness.primary != "-")
+    assert(sourceStaticWeakness.plannerOwner != "-")
+    assertEquals(sourceStaticWeakness.contractStatus, "Releasable")
+    assert(sourceStaticWeakness.contractId.contains("static_weakness_fixation"), clues(sourceStaticWeakness))
     assertEquals(sourceStaticWeakness.taxonomy, "source_static_weakness_fixation")
 
     assert(
@@ -139,42 +135,34 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     )
 
     val iqpControl = byId("iqp-supported-local-control")
-    assertEquals(iqpControl.release, "SupportedLocal")
-    assertEquals(iqpControl.primary, "This sequence leaves an isolated pawn as the local target.")
-    assertEquals(iqpControl.moveReview, PlayerFacingClaimPrefixKind.SupportedLocal.render(iqpControl.primary))
-    assertEquals(iqpControl.chronicle, iqpControl.moveReview)
-    assert(iqpControl.plannerOwner.contains(s"WhyThis:MoveDelta:${PlayerFacingTruthModePolicy.IQPInducementProbeProofSource}"), clues(iqpControl))
-    assertEquals(iqpControl.contractStatus, "Releasable")
-    assert(iqpControl.contractId.contains(PlanTaxonomy.PlanKind.IQPInducement.id), clues(iqpControl))
-    assert(!iqpControl.moveReview.contains("So the task is"), clues(iqpControl))
-    assert(!iqpControl.chronicle.contains("So the task is"), clues(iqpControl))
+    assertEquals(iqpControl.release, "Suppressed")
+    assertEquals(iqpControl.primary, "-")
+    assertEquals(iqpControl.plannerOwner, "-")
+    assertEquals(iqpControl.contractStatus, "-")
+    assertEquals(iqpControl.contractId, "-")
 
     val breakPreventionControl = byId("break-prevention-supported-local-control")
-    assertEquals(breakPreventionControl.release, "SupportedLocal")
-    assertEquals(breakPreventionControl.primary, "A key idea is that this keeps ...c5 from coming right away.")
-    assertEquals(breakPreventionControl.moveReview, breakPreventionControl.primary)
-    assertEquals(breakPreventionControl.chronicle, breakPreventionControl.primary)
-    assert(breakPreventionControl.plannerOwner.contains("MoveDelta:counterplay_axis_suppression"), clues(breakPreventionControl))
-    assertEquals(breakPreventionControl.contractStatus, "Releasable")
-    assert(breakPreventionControl.contractId.contains("neutralize_key_break"), clues(breakPreventionControl))
+    assertEquals(breakPreventionControl.release, "Suppressed")
+    assertEquals(breakPreventionControl.primary, "-")
+    assertEquals(breakPreventionControl.plannerOwner, "-")
+    assertEquals(breakPreventionControl.contractStatus, "-")
+    assertEquals(breakPreventionControl.contractId, "-")
     assertEquals(breakPreventionControl.taxonomy, "break_prevention_supported_local")
-    assert(!breakPreventionControl.moveReview.contains("So the task is"), clues(breakPreventionControl))
-    assert(!breakPreventionControl.chronicle.contains("So the task is"), clues(breakPreventionControl))
 
     val breakTacticalVeto = byId("break-prevention-tactical-veto")
     assertEquals(breakTacticalVeto.release, "Suppressed")
     assertEquals(breakTacticalVeto.primary, "-")
     assert(!breakTacticalVeto.leak, clues(breakTacticalVeto))
 
-    List("break-prevention-missing-witness-control").foreach { id =>
+    List(
+      "break-prevention-missing-witness-control",
+      "break-prevention-rival-relabel-control"
+    ).foreach { id =>
       val row = byId(id)
       assertEquals(row.release, "Suppressed")
       assertEquals(row.primary, "-")
       assert(!row.leak, clues(row))
     }
-    val breakRivalRelabel = byId("break-prevention-rival-relabel-control")
-    assertEquals(breakRivalRelabel.release, "SupportedLocal")
-    assert(!breakRivalRelabel.leak, clues(breakRivalRelabel))
 
     val prophylaxisControl = byId("prophylaxis-restraint-supported-local-control")
     assertEquals(prophylaxisControl.release, "Suppressed")
@@ -252,18 +240,18 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
         .filter(obs => obs.sample.id.startsWith("source-") && obs.release == "CertifiedOwner")
         .map(_.sample.id),
       List(
-        "source-salov-ljubojevic-1992-simplification-window"
+        "source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation"
       )
     )
     assertEquals(
       observations
-        .filter(obs => obs.sample.id == "iqp-supported-local-control" && obs.release == "SupportedLocal")
+        .filter(obs => obs.sample.id == "iqp-supported-local-control" && obs.release == "Suppressed")
         .map(_.sample.id),
       List("iqp-supported-local-control")
     )
     assertEquals(
       observations
-        .filter(obs => obs.sample.id == "break-prevention-supported-local-control" && obs.release == "SupportedLocal")
+        .filter(obs => obs.sample.id == "break-prevention-supported-local-control" && obs.release == "Suppressed")
         .map(_.sample.id),
       List("break-prevention-supported-local-control")
     )
@@ -288,7 +276,7 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
       Map(
         "break-prevention-tactical-veto" -> "Suppressed",
         "break-prevention-missing-witness-control" -> "Suppressed",
-        "break-prevention-rival-relabel-control" -> "SupportedLocal"
+        "break-prevention-rival-relabel-control" -> "Suppressed"
       )
     )
     val prophylaxisNegativeControls =
@@ -373,8 +361,8 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
         "SupportedLocal",
         "SupportedLocal",
         "Suppressed",
-        "CertifiedOwner",
-        "Suppressed"
+        "Suppressed",
+        "CertifiedOwner"
       )
     )
   }

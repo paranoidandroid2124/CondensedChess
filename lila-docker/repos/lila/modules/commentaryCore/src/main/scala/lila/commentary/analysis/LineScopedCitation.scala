@@ -42,9 +42,14 @@ object LineScopedCitation:
   )
 
   def sanMoves(fen: String, line: VariationLine): List[String] =
-    val parsed = line.parsedMoves.map(_.san.trim).filter(_.nonEmpty)
-    if parsed.size == line.moves.size && parsed.nonEmpty then parsed
-    else NarrativeUtils.uciListToSan(fen, line.moves).map(_.trim).filter(_.nonEmpty)
+    val rawUci = line.moves.map(NarrativeUtils.normalizeUciMove).filter(isUciMove)
+    if rawUci.nonEmpty then
+      val replayed =
+        if Option(fen).exists(_.trim.nonEmpty) then NarrativeUtils.uciListToSan(fen, rawUci).map(_.trim).filter(_.nonEmpty)
+        else Nil
+      if replayed.size == rawUci.size then replayed
+      else rawUci.map(NarrativeUtils.formatUciAsSan).map(_.trim).filter(_.nonEmpty)
+    else line.parsedMoves.map(_.san.trim).filter(_.nonEmpty)
 
   def strategicCitation(
       fen: String,
@@ -214,3 +219,6 @@ object LineScopedCitation:
 
   private def isConcreteSanToken(token: String): Boolean =
     ConcreteSanTokenPattern.pattern.matcher(normalizeSanToken(token)).matches()
+
+  private def isUciMove(move: String): Boolean =
+    move.matches("""[a-h][1-8][a-h][1-8][qrbn]?""")

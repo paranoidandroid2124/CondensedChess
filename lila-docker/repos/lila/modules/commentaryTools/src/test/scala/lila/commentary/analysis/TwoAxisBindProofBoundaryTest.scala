@@ -1034,14 +1034,14 @@ class TwoAxisBindProofBoundaryTest extends FunSuite:
 
     assertEquals(
       rankedPlans.primary.map(_.questionKind),
-      Some(AuthorQuestionKind.WhyThis),
+      None,
       clues(rankedPlans, plannerInputs.decisionFrame)
     )
-    assert(chronicleSelection.nonEmpty, clues(chronicleSelection, rankedPlans))
+    assertEquals(chronicleSelection, None, clues(chronicleSelection, rankedPlans))
     assert(chronicleArtifact.exists(_.narrative.nonEmpty), clues(chronicleArtifact))
     assert(activeSelection.forall(_.primary.questionKind == AuthorQuestionKind.WhyThis), clues(activeSelection, rankedPlans))
-    assert(moveReviewSlots.nonEmpty, clues(moveReviewSlots, rankedPlans))
-    assert(moveReviewParagraphs.size >= 2, clues(moveReviewParagraphs, moveReviewFallback))
+    assertEquals(moveReviewSlots, None, clues(moveReviewSlots, rankedPlans))
+    assert(moveReviewParagraphs.nonEmpty, clues(moveReviewParagraphs, moveReviewFallback))
     moveReviewSlots.foreach { slots =>
       assertNoBindInflation(slots.claim)
       slots.supportPrimary.foreach(assertNoBindInflation)

@@ -5,12 +5,12 @@ french	French	French	french|french defense|winawer|winawer variation|tarrasch|ta
 caro_kann	Caro-Kann	Caro-Kann	caro-kann|caro kann|caro-kann defense|caro kann defense	d4|d5|e4|c6|f5
 scandinavian	Scandinavian	Scandinavian	scandinavian|scandinavian defense|center counter	e4|d5|b6
 nimzo_indian	Nimzo-Indian	Nimzo-Indian	nimzo-indian|nimzo indian|nimzo-indian defense|nimzo indian defense	c3|e4|e5
-kings_indian	King's Indian	King's Indian	king's indian|kings indian|king's indian defense|kings indian defense|k.i.d|kid	d4|d6|e5|f5|c5
+kings_indian	King's Indian	King's Indian	king's indian|kings indian|king's indian defense|kings indian defense|k.i.d|kid	d4|d6|e5|f5|c5|g7
 benoni	Benoni	Benoni	benoni|benoni defense|modern benoni|modern benoni defense|benko gambit|benko|volga gambit	d5|d6|c5|d3
-catalan	Catalan	Catalan	catalan|catalan opening	d4|c4|e4|e5
+catalan	Catalan	Catalan	catalan|catalan opening	d4|c4|e4|e5|g2
 queens_gambit	Queen's Gambit	Queen's Gambit	queen's gambit|queens gambit|queen's gambit declined|queens gambit declined|queen's gambit accepted|queens gambit accepted|qgd|qga	d5|e5
 london	London	London	london|london system|jobava london|jobava london system	d4|e4|f4|e5
-english	English	English	english|english opening	c4|d5|e5
+english	English	English	english|english opening	c4|d5|e5|g2
 austrian	Austrian Attack	Austrian/Pirc/Modern	austrian attack|pirc|pirc defense|modern defense	e4|d4|d6|f4|b6
 gruenfeld	Gruenfeld Defense	Gruenfeld	gruenfeld|gruenfeld defense|gruenfeld defence|grunfeld|grunfeld defense|grunfeld defence	d4|c4|d5|c3|e4
 alekhine	Alekhine's Defense	Alekhine	alekhine|alekhine's defense|alekhine defense|alekhines defense	e4|d4|f6|d5|b6
@@ -19,6 +19,6 @@ reti	Reti Opening	Reti	reti|reti opening|reti system|reti gambit	c4|d4|e4|f3|b5
 bird	Bird's Opening	Bird	bird|bird's opening|birds opening|bird opening	f4|e5|g4|f3
 dutch	Dutch Defense	Dutch	dutch|dutch defense|dutch defence|leningrad dutch|stonewall dutch|classical dutch	d4|f5|e4|e5|g6
 slav	Slav Defense	Slav/Semi-Slav	slav|slav defense|slav defence|semi-slav|semi slav|semi-slav defense|semi slav defense	d4|c4|d5|c6|e6|e4|e5
-queens_indian	Queen's Indian Defense	Queen's Indian	queen's indian|queens indian|queen's indian defense|queens indian defense|qid	d4|c4|e4|b6|e6
+queens_indian	Queen's Indian Defense	Queen's Indian	queen's indian|queens indian|queen's indian defense|queens indian defense|qid	d4|c4|e4|b6|e6|b7
 bogo_indian	Bogo-Indian Defense	Bogo-Indian	bogo-indian|bogo indian|bogo-indian defense|bogo indian defense	d4|c4|e4|b4|e7
 kings_gambit	King's Gambit	King's Gambit	king's gambit|kings gambit|king's gambit accepted|kings gambit accepted|king's gambit declined|kings gambit declined	e4|e5|f4|f5

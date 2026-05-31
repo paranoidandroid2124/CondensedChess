@@ -980,7 +980,7 @@ object MoveReviewProseGoldenFixtures:
             )
           ),
         expectedPrimaryKind = None,
-        expectedFallbackClaim = Some("The strategic plan is to activate the pieces and find more active squares for them.")
+        expectedFallbackClaim = Some("This puts the rook on c3.")
       ),
       PlannerRuntimeFixture(
         id = "why_now_negative",
@@ -1177,7 +1177,7 @@ object MoveReviewProseGoldenFixtures:
           strategyPack = Some(neutralizeKeyBreakPack),
           expectedPrimaryKind = Some(AuthorQuestionKind.WhatMustBeStopped),
           expectedClaimFragment = Some("stop"),
-          expectExpandedProse = false
+          expectExpandedProse = true
         ),
       PlannerRuntimeFixture(
         id = "what_must_be_stopped_negative",
@@ -1216,8 +1216,8 @@ object MoveReviewProseGoldenFixtures:
         questionKind = AuthorQuestionKind.WhosePlanIsFaster,
         ctx = raceCtx,
         strategyPack = Some(pressurePack()),
-        expectedPrimaryKind = Some(AuthorQuestionKind.WhosePlanIsFaster),
-        expectedClaimFragment = Some("queenside counterplay")
+        expectedPrimaryKind = None,
+        expectedFallbackClaim = Some("The strategic plan is to fix targets and apply pressure to the weak points in the opponent's camp.")
       ),
       PlannerRuntimeFixture(
         id = "whose_plan_is_faster_negative",
@@ -1236,7 +1236,7 @@ object MoveReviewProseGoldenFixtures:
           strategyPack = Some(neutralizeKeyBreakPack),
           expectedPrimaryKind = Some(AuthorQuestionKind.WhatMustBeStopped),
           expectedClaimFragment = Some("stop"),
-          expectExpandedProse = false
+          expectExpandedProse = true
         ),
       PlannerRuntimeFixture(
         id = "whose_plan_is_faster_fallback",

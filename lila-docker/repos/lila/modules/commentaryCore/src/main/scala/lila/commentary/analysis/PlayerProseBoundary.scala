@@ -1,5 +1,8 @@
 package lila.commentary.analysis
 
+import lila.commentary.analysis.semantic.RelationObservationCatalog
+import scala.util.matching.Regex
+
 private[commentary] object PlayerProseBoundary:
 
   final case class Evaluation(
@@ -8,7 +11,16 @@ private[commentary] object PlayerProseBoundary:
   ):
     def isAccepted: Boolean = reasons.isEmpty
 
-  private val HelperLeakPatterns = List(
+  private def relationHelperPattern(kind: String): Regex =
+    val parts = kind.split("_").toList.filter(_.nonEmpty)
+    val separated = parts.map(java.util.regex.Pattern.quote).mkString("""[_\-\s]*""")
+    val compact = java.util.regex.Pattern.quote(parts.mkString(""))
+    raw"""(?i)\b(?:$separated|$compact)\s*\(""".r
+
+  private val RelationHelperLeakPatterns: List[(String, Regex)] =
+    RelationObservationCatalog.InventoryKinds.distinct.map(kind => kind -> relationHelperPattern(kind))
+
+  private val HelperLeakPatterns: List[(String, Regex)] = RelationHelperLeakPatterns ++ List(
     "pin" -> """(?i)\bpin\s*\(""".r,
     "maneuver" -> """(?i)\bmaneuver\s*\(""".r,
     "xray" -> """(?i)\bx\s*-?\s*ray\s*\(""".r,
@@ -62,7 +74,7 @@ private[commentary] object PlayerProseBoundary:
 
   def helperLeakHits(raw: String): List[String] =
     val text = Option(raw).getOrElse("")
-    HelperLeakPatterns.collect { case (label, pattern) if pattern.findFirstIn(text).nonEmpty => label }
+    HelperLeakPatterns.collect { case (label, pattern) if pattern.findFirstIn(text).nonEmpty => label }.distinct
 
   def brokenFragmentHits(raw: String): List[String] =
     splitSentences(raw).flatMap { sentence =>

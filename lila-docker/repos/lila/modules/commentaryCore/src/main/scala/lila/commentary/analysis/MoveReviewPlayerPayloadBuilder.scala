@@ -3,6 +3,7 @@ package lila.commentary.analysis
 import lila.commentary.*
 import lila.commentary.model.NarrativeContext
 import lila.commentary.analysis.claim.{ ClaimAuthorityResolver, ClaimAuthorityTier, OpeningFamilyClaimResolver }
+import lila.commentary.analysis.semantic.{ RelationObservationCatalog, RelationObservationDescriptor }
 import lila.commentary.analysis.semantic.StrategicObservationIds.{ ProofFamilyId, ProofSourceId }
 import lila.commentary.analysis.structure.WeaknessTargetProfile
 import lila.commentary.analysis.PlanEvidenceEvaluator.{ EvaluatedPlan, UserFacingPlanEligibility }
@@ -59,12 +60,14 @@ object MoveReviewPlayerPayloadBuilder:
       evaluatedPlans: List[EvaluatedPlan],
       authoringSurface: AuthoringEvidenceSurface,
       supportedLocalRows: List[MoveReviewPlayerSurfaceRow] = Nil,
-      decisionComparisonSurface: Option[MoveReviewPlayerDecisionComparison] = None
+      decisionComparisonSurface: Option[MoveReviewPlayerDecisionComparison] = None,
+      strategyPack: Option[StrategyPack] = None
   ): MoveReviewPlayerSurface =
     val knownSans = refs.toList.flatMap(_.variations.flatMap(_.moves.map(_.san))).map(normalizeSan).toSet
     val promotedPlans = evaluatedPlans.filter(PlanEvidenceEvaluator.isMainAdmittedPlan).sortBy(_.hypothesis.rank)
     val practicalRows = practicalPlanRows(evaluatedPlans)
     val openingRows = openingFamilyRow(ctx).toList
+    val relationRows = strategicRelationRows(strategyPack)
     val summaryRows =
       (mainPlanRow(promotedPlans).toList ++ openingRows ++ practicalRows ++ sanitizeRows(supportedLocalRows, knownSans))
         .distinctBy(row => (row.label, row.text))
@@ -74,13 +77,73 @@ object MoveReviewPlayerPayloadBuilder:
         moveReviewExplanation.flatMap(explanation => cleanOpt(Some(explanation.title)))
           .orElse(ctx.playedSan.flatMap(san => cleanOpt(Some(s"Move review: $san")))),
       summaryRows = summaryRows,
-      advancedRows = advancedRows(ctx, promotedPlans, evaluatedPlans),
+      advancedRows =
+        (relationRows ++ advancedRows(ctx, promotedPlans, evaluatedPlans))
+          .distinctBy(row => (row.label, row.text, row.authority.flatMap(_.token)))
+          .take(8),
       decisionComparison = decisionComparisonSurface.map(comparison =>
         sanitizeDecisionComparison(enrichDecisionTargetComparison(ctx, comparison))
       ),
       probeRows = ledgerRows(moveReviewLedger, knownSans),
       authorRows = authorRows(authoringSurface, knownSans)
     )
+
+  private def strategicRelationRows(strategyPack: Option[StrategyPack]): List[MoveReviewPlayerSurfaceRow] =
+    strategyPack.toList
+      .flatMap(_.strategicIdeas)
+      .flatMap(strategicRelationRow)
+      .distinctBy(row => (row.authority.flatMap(_.token), row.authority.flatMap(_.target), row.text))
+      .take(2)
+
+  private def strategicRelationRow(idea: StrategyIdeaSignal): Option[MoveReviewPlayerSurfaceRow] =
+    strategicRelationDescriptor(idea)
+      .flatMap { descriptor =>
+        val relation = descriptor.relationKind
+        val focus = strategicRelationFocus(idea)
+        if focus.isEmpty then None
+        else
+          val focusText = focus.take(3).mkString(", ")
+          val text =
+            if focusText.nonEmpty then s"The checked line gives ${descriptor.publicLabel} evidence around $focusText."
+            else s"The checked line gives ${descriptor.publicLabel} evidence."
+          row(
+            label = descriptor.surfaceRowLabel,
+            text = text,
+            tone = Some("relation")
+          ).map(
+            _.copy(
+              authority =
+                Some(
+                  MoveReviewSurfaceAuthority(
+                    kind = MoveReviewSurfaceAuthority.StrategicRelation,
+                    token = Some(relation),
+                    target = relationTargetFromIdea(idea, descriptor, focus)
+                  )
+                )
+            )
+          )
+      }
+
+  private def strategicRelationDescriptor(idea: StrategyIdeaSignal) =
+    RelationObservationCatalog.descriptorForEvidence(idea.relationKind, idea.evidenceRefs)
+
+  private def strategicRelationFocus(idea: StrategyIdeaSignal): List[String] =
+    idea.relationFocusSquares.flatMap(validSquare).distinct
+
+  private def relationTargetFromIdea(
+      idea: StrategyIdeaSignal,
+      descriptor: RelationObservationDescriptor,
+      focus: List[String]
+  ): Option[String] =
+    Option.when(idea.relationKind.nonEmpty)(idea.targetSquare)
+      .flatten
+      .flatMap(validSquare)
+      .filter(focus.contains)
+      .orElse(descriptor.fallbackTarget(focus))
+
+  private def validSquare(raw: String): Option[String] =
+    val cleaned = clean(raw).toLowerCase
+    Option.when(cleaned.matches("""[a-h][1-8]"""))(cleaned)
 
   private def mainPlanRow(promotedPlans: List[EvaluatedPlan]): Option[MoveReviewPlayerSurfaceRow] =
     val plans =
@@ -146,20 +209,21 @@ object MoveReviewPlayerPayloadBuilder:
           MoveReviewSurfaceAuthority(
             kind = MoveReviewSurfaceAuthority.OpeningFamily,
             openingFamily = Some(family.wireKey),
-            target = openingRouteTarget(ctx, family.wireKey)
+            target = openingRouteTarget(ctx, family.wireKey),
+            openingBook = ctx.openingData.flatMap(MoveReviewOpeningBookMetadata.fromReference)
           )
         )
     )
 
   private def openingRouteTarget(ctx: NarrativeContext, familyKey: String): Option[String] =
-    Fen.read(Standard, Fen.Full(ctx.fen)).flatMap { position =>
+    Fen.read(Standard, Fen.Full(ctx.fen)).flatMap { _ =>
       OpeningRouteCatalog.default.routes.iterator
         .filter(route => route.family == familyKey)
         .filter(route => OpeningFamilyCatalog.default.targetAllowed(familyKey, route.targetSquare))
         .flatMap(route =>
-          KnightRouteEvidence
+          PieceRouteEvidence
             .fromContext(ctx, route)
-            .filter(_ => OpeningRouteTargetEvidence.checkRouteBoard(position.board, position.color, route))
+            .filter(OpeningRouteTargetEvidence.checkRouteEvidence)
             .map(_ => route.targetSquare)
         )
         .toList

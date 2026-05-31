@@ -1,15 +1,17 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { initialReviewState, reduceReviewState, shouldFetchReviewPatterns } from '../src/review/state';
+import { initialReviewState, reduceReviewState } from '../src/review/state';
 
 describe('review state', () => {
-  test('starts in moves with utility panel cleared', () => {
+  test('starts in overview with utility panel cleared', () => {
     assert.deepEqual(initialReviewState(), {
-      primaryTab: 'moves',
+      surfaceMode: 'review',
+      primaryTab: 'overview',
       utilityPanel: null,
       momentFilter: 'all',
       selectedMomentPly: null,
       selectedCollapseId: null,
+      analysisDetailsOpen: false,
     });
   });
 
@@ -19,9 +21,9 @@ describe('review state', () => {
     assert.equal(next.utilityPanel, null);
   });
 
-  test('utility panels open without replacing the current primary tab', () => {
+  test('utility panels open and update the current primary tab', () => {
     const next = reduceReviewState(initialReviewState(), { type: 'utility-panel', panel: 'explorer' });
-    assert.equal(next.primaryTab, 'moves');
+    assert.equal(next.primaryTab, 'explorer');
     assert.equal(next.utilityPanel, 'explorer');
   });
 
@@ -41,29 +43,5 @@ describe('review state', () => {
     const next = reduceReviewState(initialReviewState(), { type: 'select-collapse', collapseId: '22-27' });
     assert.equal(next.primaryTab, 'repair');
     assert.equal(next.selectedCollapseId, '22-27');
-  });
-
-  test('patterns fetches only when the tab is active and dna is missing', () => {
-    assert.equal(
-      shouldFetchReviewPatterns(
-        { primaryTab: 'patterns' },
-        { narrativeAvailable: true, hasDnaData: false, dnaLoading: false },
-      ),
-      true,
-    );
-    assert.equal(
-      shouldFetchReviewPatterns(
-        { primaryTab: 'patterns' },
-        { narrativeAvailable: true, hasDnaData: true, dnaLoading: false },
-      ),
-      false,
-    );
-    assert.equal(
-      shouldFetchReviewPatterns(
-        { primaryTab: 'overview' },
-        { narrativeAvailable: true, hasDnaData: false, dnaLoading: false },
-      ),
-      false,
-    );
   });
 });

@@ -2,35 +2,71 @@ package lila.commentary.analysis.semantic
 
 import chess.Color
 import lila.commentary.StrategyPack
-import lila.commentary.analysis.{ StrategicConceptSemantics, StrategicIdeaSemanticContext }
+import lila.commentary.analysis.{ MoveReviewExchangeAnalyzer, StrategicConceptSemantics, StrategicIdeaSemanticContext }
+import lila.commentary.model.strategic.PositionalTag
 
 private[commentary] trait StrategicSemanticObservationProducer:
   def collect(
-      pack: StrategyPack,
-      semantic: StrategicIdeaSemanticContext
+      context: StrategicSemanticObservationContext
   ): List[StrategicSemanticObservation]
+
+private[commentary] final case class StrategicSemanticObservationContext(
+    pack: StrategyPack,
+    semantic: StrategicIdeaSemanticContext
+):
+  import StrategicSemanticObservationProducerSupport.*
+
+  lazy val playedMove: Option[String] =
+    normalizedPlayedMove(semantic)
+
+  lazy val exactTargets: List[String] =
+    exactTargetSquares(semantic)
+
+  private lazy val replayUpToSix: Option[List[MoveReviewExchangeAnalyzer.BoundedReplayStep]] =
+    MoveReviewExchangeAnalyzer
+      .boundedTopReplayPrefix(semantic.fen, semantic.engineVariations, minPlies = 1, maxPlies = 6)
+
+  lazy val relationWitnesses: List[MoveReviewExchangeAnalyzer.RelationWitness] =
+    replayAtLeast(1).toList.flatMap(replay =>
+      playedMove.toList.flatMap(move =>
+        MoveReviewExchangeAnalyzer.relationWitnesses(replay, move, exactTargets, continuationLines)
+      )
+    )
+
+  private lazy val continuationLines: List[List[String]] =
+    semantic.engineVariations.map(MoveReviewExchangeAnalyzer.normalizedLineMoves).filter(_.nonEmpty)
+
+  def relationWitnessesFor(kinds: Set[String]): List[MoveReviewExchangeAnalyzer.RelationWitness] =
+    relationWitnesses.filter(witness => kinds.contains(witness.kind))
+
+  def replayAtLeast(minPlies: Int): Option[List[MoveReviewExchangeAnalyzer.BoundedReplayStep]] =
+    replayUpToSix.filter(_.size >= minPlies)
 
 private[commentary] object StrategicSemanticObservationPipeline:
 
   private val producers: List[StrategicSemanticObservationProducer] =
-    List(MinorityAttackObservationProducer)
+    List(
+      MinorityAttackObservationProducer,
+      RelationObservationProducer
+    )
 
   def collect(
       pack: StrategyPack,
       semantic: StrategicIdeaSemanticContext
   ): List[StrategicSemanticObservation] =
-    producers.flatMap(_.collect(pack, semantic)).distinct
+    val context = StrategicSemanticObservationContext(pack, semantic)
+    producers.flatMap(_.collect(context)).distinct
 
 private[commentary] object MinorityAttackObservationProducer extends StrategicSemanticObservationProducer:
 
+  import StrategicSemanticObservationProducerSupport.*
+
   def collect(
-      pack: StrategyPack,
-      semantic: StrategicIdeaSemanticContext
+      context: StrategicSemanticObservationContext
   ): List[StrategicSemanticObservation] =
-    val side = sideFromString(pack.sideToMove)
-    val exactTargets = exactTargetSquares(semantic)
+    val side = sideFromString(context.pack.sideToMove)
     StrategicConceptSemantics
-      .minorityAttackObservations(semantic)
+      .minorityAttackObservations(context.semantic)
       .filter(observation =>
         observation.side == side &&
           observation.status == StrategicConceptSemantics.ConceptStatus.SemanticReady
@@ -38,18 +74,32 @@ private[commentary] object MinorityAttackObservationProducer extends StrategicSe
       .map { observation =>
         val focusSquares =
           if observation.targets.nonEmpty then observation.targets.take(3)
-          else flankTargetSquares(observation.wing, exactTargets).take(3)
+          else flankTargetSquares(observation.wing, context.exactTargets).take(3)
         StrategicSemanticObservation.minorityAttackFromConcept(
-          ownerSide = pack.sideToMove,
+          ownerSide = context.pack.sideToMove,
           focusSquares = focusSquares,
           observation = observation
         )
       }
 
-  private def exactTargetSquares(semantic: StrategicIdeaSemanticContext): List[String] =
+private[commentary] object RelationObservationProducer extends StrategicSemanticObservationProducer:
+
+  private[semantic] val RelationKinds: Set[String] =
+    RelationObservationCatalog.ImplementedKinds
+
+  def collect(
+      context: StrategicSemanticObservationContext
+  ): List[StrategicSemanticObservation] =
+    val relationWitnesses =
+      context.relationWitnessesFor(RelationKinds)
+    relationWitnesses.flatMap(StrategicSemanticObservation.relationWitness(context.pack.sideToMove, _))
+
+private object StrategicSemanticObservationProducerSupport:
+
+  def exactTargetSquares(semantic: StrategicIdeaSemanticContext): List[String] =
     val enemyWeakSquares =
       semantic.positionalFeatures.collect {
-        case lila.commentary.model.strategic.PositionalTag.WeakSquare(square, owner)
+        case PositionalTag.WeakSquare(square, owner)
             if !matchesSide(owner, semantic.sideToMove) =>
           square.key
       }
@@ -59,7 +109,12 @@ private[commentary] object MinorityAttackObservationProducer extends StrategicSe
         .flatMap(_.squares.map(_.key))
     (enemyWeakSquares ++ structuralTargetSquares).distinct
 
-  private def flankTargetSquares(flank: String, squares: List[String]): List[String] =
+  def normalizedPlayedMove(semantic: StrategicIdeaSemanticContext): Option[String] =
+    semantic.playedMove
+      .map(lila.commentary.analysis.NarrativeUtils.normalizeUciMove)
+      .filter(MoveReviewExchangeAnalyzer.isUciMove)
+
+  def flankTargetSquares(flank: String, squares: List[String]): List[String] =
     val files =
       normalize(flank) match
         case "queenside" => Set('a', 'b', 'c', 'd')
@@ -68,11 +123,11 @@ private[commentary] object MinorityAttackObservationProducer extends StrategicSe
     if files.isEmpty then Nil
     else squares.filter(square => square.headOption.exists(files.contains))
 
-  private def matchesSide(color: Color, side: String): Boolean =
+  def matchesSide(color: Color, side: String): Boolean =
     if color.white then normalize(side) == "white" else normalize(side) == "black"
 
-  private def sideFromString(side: String): Color =
+  def sideFromString(side: String): Color =
     if normalize(side) == "black" then Color.Black else Color.White
 
-  private def normalize(raw: String): String =
+  def normalize(raw: String): String =
     raw.trim.toLowerCase

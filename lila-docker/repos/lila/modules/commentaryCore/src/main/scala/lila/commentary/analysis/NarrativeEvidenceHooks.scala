@@ -41,9 +41,7 @@ private[analysis] object NarrativeEvidenceHooks:
     }
 
   private def variationPreview(fen: String, line: lila.commentary.model.strategic.VariationLine, limit: Int): Option[String] =
-    val tokens =
-      if line.parsedMoves.nonEmpty then line.parsedMoves.take(limit).map(_.san.trim).filter(_.nonEmpty)
-      else NarrativeUtils.uciListToSan(fen, line.moves.take(limit)).map(_.trim).filter(_.nonEmpty)
+    val tokens = LineScopedCitation.sanMoves(fen, line).take(limit).map(_.trim).filter(_.nonEmpty)
     Option.when(tokens.nonEmpty)(tokens.mkString(" "))
 
   private def joinNatural(items: List[String]): String =

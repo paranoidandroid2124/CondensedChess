@@ -22,7 +22,7 @@ type ContractFile = {
 const contract = JSON.parse(
   readFileSync(
     fileURLToPath(
-      new URL('../../../modules/commentary/src/test/resources/playerFacingSupportContract.json', import.meta.url),
+      new URL('../../../modules/commentaryTools/src/test/resources/playerFacingSupportContract.json', import.meta.url),
     ),
     'utf8',
   ),

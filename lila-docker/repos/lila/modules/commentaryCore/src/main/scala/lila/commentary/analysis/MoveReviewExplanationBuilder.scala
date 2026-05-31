@@ -1,7 +1,6 @@
 package lila.commentary.analysis
 
-import chess.Square
-import chess.format.Fen
+import chess.format.{ Fen, Uci }
 import chess.variant.Standard
 import lila.commentary.{ MoveReviewExplanation, MoveReviewRefs, StrategyPack }
 import lila.commentary.model.*
@@ -35,25 +34,24 @@ private[commentary] object MoveReviewExplanationBuilder:
 
   def current(ctx: NarrativeContext): Option[CommentaryIdeaSurface.PlayedMove] =
     for
-      uci <- ctx.playedMove.map(MoveReviewPvLine.normalizeUci).filter(_.matches("^[a-h][1-8][a-h][1-8][qrbn]?$"))
+      uci <- ctx.playedMove.map(MoveReviewPvLine.normalizeUci)
+      parsed <- Uci(uci).collect { case move: Uci.Move => move }
       san <- ctx.playedSan.map(_.trim).filter(_.nonEmpty)
-      from <- Square.fromKey(uci.take(2))
-      to <- Square.fromKey(uci.slice(2, 4))
       before <- Fen.read(Standard, Fen.Full(ctx.fen))
-      piece <- before.board.pieceAt(from)
+      piece <- before.board.pieceAt(parsed.orig)
       afterFen <- MoveReviewPvLine.legalFenAfter(ctx.fen, uci)
       after <- Fen.read(Standard, Fen.Full(afterFen))
-      movedPiece <- after.board.pieceAt(to)
+      movedPiece <- after.board.pieceAt(parsed.dest)
       if movedPiece.color == piece.color
     yield
       CommentaryIdeaSurface.PlayedMove(
         uci = uci,
         san = san,
-        from = from,
-        to = to,
+        from = parsed.orig,
+        to = parsed.dest,
         piece = piece,
         afterFen = afterFen,
-        capturedRole = before.board.pieceAt(to).filter(_.color != piece.color).map(_.role)
+        capturedRole = before.board.pieceAt(parsed.dest).filter(_.color != piece.color).map(_.role)
       )
 
   private def moveReviewEvidence(

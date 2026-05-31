@@ -9,6 +9,7 @@ import lila.commentary.model.{ ExtendedAnalysisData, NarrativeContext }
 import lila.commentary.model.authoring.PlanHypothesis
 import lila.commentary.model.strategic.PieceActivity
 import lila.commentary.model.strategic.PositionalTag
+import lila.commentary.analysis.semantic.RelationObservationCatalog
 
 object StrategyPackBuilder:
 
@@ -16,6 +17,8 @@ object StrategyPackBuilder:
   private val MaxRoutes = 4
   private val MaxFocus = 6
   private val MaxEvidence = 8
+  private val TrappedPieceFallbackEvidence =
+    RelationObservationCatalog.deferredFallbackEvidenceTermForKind(MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece)
 
   def build(
       data: ExtendedAnalysisData,
@@ -35,21 +38,27 @@ object StrategyPackBuilder:
     val evidence = buildEvidence(ctx, routes, moveRefs, structureArc)
     val signalDigest = NarrativeSignalDigestBuilder.build(ctx)
 
-    Option.when(plans.nonEmpty || routes.nonEmpty || moveRefs.nonEmpty || directionalTargets.nonEmpty || longTermFocus.nonEmpty) {
-      val basePack =
-        StrategyPack(
-          sideToMove = sideToMove,
-          plans = plans,
-          pieceRoutes = routes,
-          pieceMoveRefs = moveRefs,
-          directionalTargets = directionalTargets,
-          longTermFocus = longTermFocus,
-          evidence = evidence,
-          signalDigest = signalDigest
-        )
-      val enrichedPack = StrategicIdeaSelector.enrich(basePack, semanticContext)
-      enrichedPack
-    }
+    val basePack =
+      StrategyPack(
+        sideToMove = sideToMove,
+        plans = plans,
+        pieceRoutes = routes,
+        pieceMoveRefs = moveRefs,
+        directionalTargets = directionalTargets,
+        longTermFocus = longTermFocus,
+        evidence = evidence,
+        signalDigest = signalDigest
+      )
+    val enrichedPack = StrategicIdeaSelector.enrich(basePack, semanticContext)
+    val hasBaseSignal =
+      plans.nonEmpty ||
+        routes.nonEmpty ||
+        moveRefs.nonEmpty ||
+        directionalTargets.nonEmpty ||
+        longTermFocus.nonEmpty ||
+        evidence.nonEmpty
+
+    Option.when(hasBaseSignal || enrichedPack.strategicIdeas.nonEmpty)(enrichedPack)
 
   def promptHints(pack: StrategyPack): List[String] =
     val planHints = pack.plans.take(2).map { p =>
@@ -289,7 +298,7 @@ object StrategyPackBuilder:
                     evidence = List(
                       Some("directional_target"),
                       Some(s"readiness_$readiness"),
-                      Option.when(pa.isTrapped)("trapped_piece_signal"),
+                      Option.when(pa.isTrapped)(TrappedPieceFallbackEvidence).flatten,
                       Option.when(pa.mobilityScore < 0.4)("low_mobility_signal"),
                       Option.when(pa.coordinationLinks.contains(targetSquare))("coordination_link"),
                       Some("piece_activity")

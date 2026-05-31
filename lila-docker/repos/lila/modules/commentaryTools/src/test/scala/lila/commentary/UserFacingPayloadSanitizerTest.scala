@@ -5,7 +5,10 @@ import play.api.libs.json.{ JsObject, Json }
 
 import lila.commentary.analysis.PlanStateTracker
 import lila.commentary.analysis.PlayerFacingClaimProvenanceClass
+import lila.commentary.analysis.MoveReviewExchangeAnalyzer
+import lila.commentary.analysis.UserFacingSignalSanitizer
 import lila.commentary.analysis.PlanEvidenceEvaluator.{ ClaimCertification, EvaluatedPlan, PlanEvidenceStatus, UserFacingPlanEligibility }
+import lila.commentary.analysis.semantic.RelationObservationCatalog
 import lila.commentary.model.{ FactFragment, StrategicPlanExperiment }
 import lila.commentary.model.authoring.*
 import lila.strategicPuzzle.StrategicPuzzle.*
@@ -33,6 +36,23 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
     bannedPhrases.foreach { phrase =>
       assert(!text.toLowerCase.contains(phrase.toLowerCase), clue(text))
     }
+
+  test("user-facing signal sanitizer routes deferred relation helper notation through fallback wording") {
+    val text =
+      UserFacingSignalSanitizer.sanitize(
+        "Domination(Knight,e5) TrappedPiece(Queen,h4) Zwischenzug(Nf7) StalemateTrap(g8) PerpetualCheck(h5)."
+      )
+    val lower = text.toLowerCase
+
+    assert(lower.contains("key-square restriction"), clue(text))
+    assert(lower.contains("piece mobility"), clue(text))
+    assert(lower.contains("move-order caution"), clue(text))
+    assert(!lower.contains("domination"), clue(text))
+    assert(!lower.contains("trapped piece"), clue(text))
+    assert(!lower.contains("zwischenzug"), clue(text))
+    assert(!lower.contains("stalemate"), clue(text))
+    assert(!lower.contains("perpetual"), clue(text))
+  }
 
   private def typedEvaluation(
       plan: PlanHypothesis,
@@ -847,6 +867,337 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
     )
   }
 
+  test("preserves bounded strategic relation authority and drops malformed relation tokens") {
+    val staleSummaryRow =
+      MoveReviewPlayerSurfaceRow(
+        label = "Line relation",
+        text = "A stale summary relation row should lose authority.",
+        authority =
+          Some(
+            MoveReviewSurfaceAuthority(
+              kind = MoveReviewSurfaceAuthority.StrategicRelation,
+              token = Some("xray"),
+              target = Some("g6")
+            )
+          )
+      )
+    val rows =
+      List(
+        MoveReviewPlayerSurfaceRow(
+          label = "Line relation",
+          text = "The checked line gives x-ray evidence around e4, f5, g6.",
+          authority =
+            Some(
+              MoveReviewSurfaceAuthority(
+                kind = MoveReviewSurfaceAuthority.StrategicRelation,
+                token = Some("xray"),
+                target = Some("g6")
+              )
+            )
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Line relation",
+          text = "This untargeted relation token should lose authority.",
+          authority =
+            Some(
+              MoveReviewSurfaceAuthority(
+                kind = MoveReviewSurfaceAuthority.StrategicRelation,
+                token = Some("xray")
+              )
+            )
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Line relation",
+          text = "This malformed relation token should lose authority.",
+          authority =
+            Some(
+              MoveReviewSurfaceAuthority(
+                kind = MoveReviewSurfaceAuthority.StrategicRelation,
+                token = Some("source:xray_relation"),
+                target = Some("g6")
+              )
+            )
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Line relation",
+          text = "This uncataloged relation token should lose authority.",
+          authority =
+            Some(
+              MoveReviewSurfaceAuthority(
+                kind = MoveReviewSurfaceAuthority.StrategicRelation,
+                token = Some("unsupported_relation"),
+                target = Some("g6")
+              )
+            )
+        )
+      )
+    val response =
+      CommentResponse(
+        commentary = "Public payload",
+        concepts = Nil,
+        moveReviewPlayerSurface = Some(MoveReviewPlayerSurface(summaryRows = List(staleSummaryRow), advancedRows = rows))
+      )
+
+    val sanitized = UserFacingPayloadSanitizer.sanitize(response)
+
+    assertEquals(
+      sanitized.moveReviewPlayerSurface.toList.flatMap(_.summaryRows.map(_.authority)),
+      List(None),
+      clue(sanitized.moveReviewPlayerSurface)
+    )
+    assertEquals(
+      sanitized.moveReviewPlayerSurface.toList.flatMap(_.advancedRows.map(_.authority)),
+      List(
+        Some(
+          MoveReviewSurfaceAuthority(
+            kind = MoveReviewSurfaceAuthority.StrategicRelation,
+            token = Some("xray"),
+            target = Some("g6")
+          )
+        ),
+        None,
+        None,
+        None
+      ),
+      clue(sanitized.moveReviewPlayerSurface)
+    )
+  }
+
+  test("strategic relation sanitizer accepts exactly the implemented relation catalog") {
+    val catalogTokens = RelationObservationCatalog.Implemented.map(_.relationKind)
+    val deferredTokens = RelationObservationCatalog.DeferredRelationKinds
+
+    assertEquals(catalogTokens.distinct.size, catalogTokens.size, clue(catalogTokens))
+    assertEquals(catalogTokens.toSet, RelationObservationCatalog.ImplementedKinds, clue(catalogTokens))
+    assertEquals(RelationObservationCatalog.ImplementedKinds, MoveReviewExchangeAnalyzer.RelationKind.Implemented.toSet, clue(catalogTokens))
+    assertEquals(deferredTokens.toSet.intersect(catalogTokens.toSet), Set.empty[String], clue(deferredTokens))
+
+    val implementedRows =
+      catalogTokens.map { token =>
+        MoveReviewPlayerSurfaceRow(
+          label = "Line relation",
+          text = s"The checked line supports the $token relation.",
+          authority =
+            Some(
+              MoveReviewSurfaceAuthority(
+                kind = MoveReviewSurfaceAuthority.StrategicRelation,
+                token = Some(token),
+                target = Some("g6")
+              )
+            )
+        )
+      }
+    val deferredRows =
+      deferredTokens.map { token =>
+        MoveReviewPlayerSurfaceRow(
+          label = "Line relation",
+          text = s"Deferred relation $token should not become public authority.",
+          authority =
+            Some(
+              MoveReviewSurfaceAuthority(
+                kind = MoveReviewSurfaceAuthority.StrategicRelation,
+                token = Some(token),
+                target = Some("g6")
+              )
+            )
+        )
+      }
+    val rows =
+      (implementedRows ++ deferredRows) :+
+        MoveReviewPlayerSurfaceRow(
+          label = "Line relation",
+          text = "This uncataloged relation token should lose authority.",
+          authority =
+            Some(
+              MoveReviewSurfaceAuthority(
+                kind = MoveReviewSurfaceAuthority.StrategicRelation,
+                token = Some("unsupported_relation"),
+                target = Some("g6")
+              )
+            )
+        )
+    val response =
+      CommentResponse(
+        commentary = "Public payload",
+        concepts = Nil,
+        moveReviewPlayerSurface = Some(MoveReviewPlayerSurface(advancedRows = rows))
+      )
+
+    val sanitized = UserFacingPayloadSanitizer.sanitize(response)
+    val authorities = sanitized.moveReviewPlayerSurface.toList.flatMap(_.advancedRows.map(_.authority))
+
+    assertEquals(
+      authorities,
+      (
+        catalogTokens.map(token =>
+          Some(
+            MoveReviewSurfaceAuthority(
+              kind = MoveReviewSurfaceAuthority.StrategicRelation,
+              token = Some(token),
+              target = Some("g6")
+            )
+          )
+        ) ++ deferredTokens.map(_ => None)
+      ) :+ None,
+      clue(deferredTokens)
+    )
+    assertEquals(
+      authorities.slice(catalogTokens.size, catalogTokens.size + deferredTokens.size),
+      deferredTokens.map(_ => None),
+      clue(sanitized.moveReviewPlayerSurface)
+    )
+  }
+
+  test("strips raw strategic idea carriers while preserving strategic relation surface authority") {
+    val admittedPlan =
+      PlanHypothesis(
+        planId = "pressure_plan",
+        planName = "Pressure Plan",
+        rank = 1,
+        score = 0.72,
+        preconditions = Nil,
+        executionSteps = Nil,
+        failureModes = Nil,
+        viability = PlanViability(0.72, "medium", "risk")
+      )
+    val relationIdea =
+      StrategyIdeaSignal(
+        ideaId = "idea_1",
+        ownerSide = "white",
+        kind = StrategicIdeaKind.LineOccupation,
+        group = StrategicIdeaGroup.PieceAndLineManagement,
+        readiness = StrategicIdeaReadiness.Build,
+        focusSquares = List("e4", "f5", "g6"),
+        confidence = 0.72,
+        evidenceRefs = List("source:xray_relation", "xray_semantic", "raw_proof_family")
+      )
+    val relationRow =
+      MoveReviewPlayerSurfaceRow(
+        label = "Line relation",
+        text = "The checked line gives x-ray evidence around e4, f5, g6.",
+        authority =
+          Some(
+            MoveReviewSurfaceAuthority(
+              kind = MoveReviewSurfaceAuthority.StrategicRelation,
+              token = Some("xray"),
+              target = Some("g6")
+            )
+          )
+      )
+    val response =
+      CommentResponse(
+        commentary = "Public payload",
+        concepts = Nil,
+        mainStrategicPlans = List(admittedPlan),
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              plans = List(StrategySidePlan("white", "long", "Line pressure")),
+              strategicIdeas = List(relationIdea)
+            )
+          ),
+        moveReviewPlayerSurface = Some(MoveReviewPlayerSurface(advancedRows = List(relationRow)))
+      )
+
+    val sanitized =
+      UserFacingPayloadSanitizer.sanitize(response, admittedPlans = List(probeBackedEvaluation(admittedPlan)))
+
+    assertEquals(sanitized.strategyPack.toList.flatMap(_.strategicIdeas), Nil, clue(sanitized.strategyPack))
+    assertEquals(
+      sanitized.moveReviewPlayerSurface.toList.flatMap(_.advancedRows.flatMap(_.authority)),
+      List(
+        MoveReviewSurfaceAuthority(
+          kind = MoveReviewSurfaceAuthority.StrategicRelation,
+          token = Some("xray"),
+          target = Some("g6")
+        )
+      ),
+      clue(sanitized.moveReviewPlayerSurface)
+    )
+  }
+
+  test("strips deferred relation evidence terms from sanitized strategy pack support metadata") {
+    val admittedPlan =
+      PlanHypothesis(
+        planId = "pressure_plan",
+        planName = "Pressure Plan",
+        rank = 1,
+        score = 0.72,
+        preconditions = Nil,
+        executionSteps = Nil,
+        failureModes = Nil,
+        viability = PlanViability(0.72, "medium", "risk")
+      )
+    val fallbackTerm =
+      RelationObservationCatalog
+        .deferredFallbackEvidenceTermForKind(MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece)
+        .getOrElse(fail("missing trapped-piece fallback evidence"))
+    val pack =
+      StrategyPack(
+        sideToMove = "white",
+        plans = List(StrategySidePlan("white", "long", "Pressure Plan")),
+        pieceRoutes =
+          List(
+            StrategyPieceRoute(
+              side = "white",
+              piece = "N",
+              from = "c2",
+              route = List("e3"),
+              purpose = "Improve the piece",
+              confidence = 0.7,
+              evidence = List("trapped_piece_signal", fallbackTerm, "low_mobility_signal")
+            )
+          ),
+        pieceMoveRefs =
+          List(
+            StrategyPieceMoveRef(
+              ownerSide = "white",
+              piece = "N",
+              from = "c2",
+              target = "e3",
+              idea = "Improve the piece",
+              evidence = List("domination", "piece_activity")
+            )
+          ),
+        directionalTargets =
+          List(
+            StrategyDirectionalTarget(
+              targetId = "target_white_n_c2_e4",
+              ownerSide = "white",
+              piece = "N",
+              from = "c2",
+              targetSquare = "e4",
+              readiness = DirectionalTargetReadiness.Premature,
+              evidence = List("zwischenzug_line", fallbackTerm, "directional_target")
+            )
+          ),
+        evidence = List("perpetual_check", fallbackTerm, "idea:line_occupation:xray")
+      )
+    val response =
+      CommentResponse(
+        commentary = "Public payload",
+        concepts = Nil,
+        mainStrategicPlans = List(admittedPlan),
+        strategyPack = Some(pack),
+        moveReviewPlayerSurface = Some(MoveReviewPlayerSurface())
+      )
+
+    val sanitized =
+      UserFacingPayloadSanitizer.sanitizeCachedMoveReview(response)
+    val sanitizedPack = sanitized.strategyPack.getOrElse(fail("sanitized strategy pack missing"))
+    val publicEvidence =
+      sanitizedPack.evidence ++
+        sanitizedPack.pieceRoutes.flatMap(_.evidence) ++
+        sanitizedPack.pieceMoveRefs.flatMap(_.evidence) ++
+        sanitizedPack.directionalTargets.flatMap(_.evidence)
+
+    assert(publicEvidence.contains(fallbackTerm), clue(publicEvidence))
+    assert(publicEvidence.contains("low_mobility_signal"), clue(publicEvidence))
+    assert(publicEvidence.contains("directional_target"), clue(publicEvidence))
+    assert(!publicEvidence.exists(RelationObservationCatalog.deferredFallbackForMotifTag(_).nonEmpty), clue(publicEvidence))
+  }
+
   test("drops invalid moveReview player surface authority") {
     val response =
       CommentResponse(
@@ -1032,6 +1383,66 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
           )
         ),
         Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.OpeningFamily, openingFamily = Some("caro_kann")))
+      )
+    )
+  }
+
+  test("sanitizes opening book metadata only on opening-family authority") {
+    val rows =
+      List(
+        MoveReviewPlayerSurfaceRow(
+          label = "Opening family",
+          text = "The Queen's Gambit family carries public book metadata.",
+          authority =
+            Some(
+              MoveReviewSurfaceAuthority(
+                kind = MoveReviewSurfaceAuthority.OpeningFamily,
+                openingFamily = Some("queens_gambit"),
+                openingBook =
+                  Some(
+                    MoveReviewOpeningBookMetadata(
+                      eco = Some("d06"),
+                      totalGames = Some(12345),
+                      topMoves = List("e6", "raw note", "Nf6")
+                    )
+                  )
+              )
+            )
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Counterplay break",
+          text = "Non-opening authorities must not carry opening book metadata.",
+          authority =
+            Some(
+              MoveReviewSurfaceAuthority(
+                kind = MoveReviewSurfaceAuthority.CounterplayBreak,
+                token = Some("d5"),
+                openingBook = Some(MoveReviewOpeningBookMetadata(eco = Some("D06"), totalGames = Some(12345)))
+              )
+            )
+        )
+      )
+    val response =
+      CommentResponse(
+        commentary = "Public payload",
+        concepts = Nil,
+        moveReviewPlayerSurface = Some(MoveReviewPlayerSurface(summaryRows = rows))
+      )
+
+    val sanitized = UserFacingPayloadSanitizer.sanitize(response)
+
+    assertEquals(
+      sanitized.moveReviewPlayerSurface.toList.flatMap(_.summaryRows.map(_.authority)),
+      List(
+        Some(
+          MoveReviewSurfaceAuthority(
+            kind = MoveReviewSurfaceAuthority.OpeningFamily,
+            openingFamily = Some("queens_gambit"),
+            openingBook =
+              Some(MoveReviewOpeningBookMetadata(eco = Some("D06"), totalGames = Some(12345), topMoves = List("e6", "Nf6")))
+          )
+        ),
+        Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CounterplayBreak, token = Some("d5")))
       )
     )
   }

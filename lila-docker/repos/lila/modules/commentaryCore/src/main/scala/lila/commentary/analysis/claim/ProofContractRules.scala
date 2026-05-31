@@ -324,7 +324,7 @@ private[commentary] object ProofContractRules:
           status = ProofContractStatus.Releasable,
           acceptedSources = Set.empty,
           allowedScopes = Set(PlayerFacingPacketScope.MoveLocal, PlayerFacingPacketScope.PositionLocal),
-          requiredWitnesses = WeakOwnerWitnesses,
+          requiredWitnesses = WeakOwnerWitnesses + ProofWitness.StructureTransition,
           certifiedEligible = false,
           supportedLocalEligible = true,
           defaultFailureTaxonomy = "attacking_piece_trade_unowned"

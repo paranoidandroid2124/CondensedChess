@@ -159,6 +159,42 @@ class PlanMatcherOpeningTest extends FunSuite:
     )
   }
 
+  test("raw removing-defender motif does not mint defender-trade subplan authority") {
+    val motifs = List(
+      Motif.RemovingTheDefender(
+        attacker = Queen,
+        victim = Knight,
+        protectedTarget = Rook,
+        square = Square.D6,
+        color = Color.White,
+        plyIndex = 12,
+        move = Some("Qxd6")
+      )
+    )
+
+    val ctx = IntegratedContext(
+      evalCp = 120,
+      classification = Some(openingClassification.copy(
+        simplifyBias = SimplifyBiasResult(
+          isSimplificationWindow = true,
+          evalAdvantage = 120,
+          isEndgameNear = false,
+          exchangeAvailable = true
+        )
+      )),
+      isWhiteToMove = true,
+      features = Some(openingFeatures(devLag = 0))
+    )
+
+    val result = PlanMatcher.matchPlans(motifs, ctx, Color.White)
+    val exchange = result.topPlans
+      .find(_.supports.contains(s"theme:${PlanTaxonomy.PlanTheme.FavorableExchange.id}"))
+      .getOrElse(fail(s"missing exchange plan: ${result.topPlans}"))
+
+    assert(exchange.supports.contains(s"subplan:${PlanTaxonomy.PlanKind.SimplificationWindow.id}"), clue(exchange.supports))
+    assert(!exchange.supports.contains(s"subplan:${PlanTaxonomy.PlanKind.DefenderTrade.id}"), clue(exchange.supports))
+  }
+
   test("opening concept distinguishes flank fianchetto support inside existing opening goals") {
     val ctx =
       openingNarrativeContext(
@@ -170,6 +206,62 @@ class PlanMatcherOpeningTest extends FunSuite:
     val evaluation = OpeningGoals.analyze(ctx).getOrElse(fail("expected opening goal"))
     assertEquals(evaluation.goalName, "Flank Fianchetto Support")
     assert(Set(OpeningGoals.Status.Achieved, OpeningGoals.Status.Partial).contains(evaluation.status), clue(evaluation))
+  }
+
+  test("opening concept recognizes Catalan d-pawn tension release as prose-only goal") {
+    val ctx =
+      openingNarrativeContext(
+        fen = "rnbqkb1r/pp3ppp/4pn2/2Pp4/2P5/6P1/PP2PPBP/RNBQK1NR b KQkq - 0 5",
+        playedMove = "d4c5",
+        playedSan = "dxc5"
+      )
+
+    val evaluation = OpeningGoals.analyze(ctx).getOrElse(fail("expected opening goal"))
+    assertEquals(evaluation.goalName, "Catalan Tension Release")
+    assertEquals(evaluation.status, OpeningGoals.Status.Achieved, clue(evaluation))
+    assert(evaluation.supportedEvidence.exists(_.toLowerCase.contains("tension")), clue(evaluation.supportedEvidence))
+  }
+
+  test("opening concept recognizes Open Catalan pawn recovery as prose-only goal") {
+    val ctx =
+      openingNarrativeContext(
+        fen = "rn1qkb1r/pppb1ppp/4pn2/8/2QP4/6P1/PP2PPBP/RNB1K1NR b KQkq - 0 6",
+        playedMove = "a4c4",
+        playedSan = "Qxc4"
+      )
+
+    val evaluation = OpeningGoals.analyze(ctx).getOrElse(fail("expected opening goal"))
+    assertEquals(evaluation.goalName, "Open Catalan Pawn Recovery")
+    assertEquals(evaluation.status, OpeningGoals.Status.Achieved, clue(evaluation))
+    assert(evaluation.supportedEvidence.exists(_.toLowerCase.contains("c4")), clue(evaluation.supportedEvidence))
+  }
+
+  test("opening concept recognizes Sicilian c-pawn challenge as prose-only goal") {
+    val ctx =
+      openingNarrativeContext(
+        fen = "rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
+        playedMove = "c7c5",
+        playedSan = "...c5"
+      )
+
+    val evaluation = OpeningGoals.analyze(ctx).getOrElse(fail("expected opening goal"))
+    assertEquals(evaluation.goalName, "Sicilian c-pawn Challenge")
+    assertEquals(evaluation.status, OpeningGoals.Status.Achieved, clue(evaluation))
+    assert(evaluation.supportedEvidence.exists(_.toLowerCase.contains("c-pawn")), clue(evaluation.supportedEvidence))
+  }
+
+  test("opening concept recognizes King's Gambit f-pawn break as prose-only goal") {
+    val ctx =
+      openingNarrativeContext(
+        fen = "rnbqkbnr/pppp1ppp/8/4p3/4PP2/8/PPPP2PP/RNBQKBNR b KQkq - 0 2",
+        playedMove = "f2f4",
+        playedSan = "f4"
+      )
+
+    val evaluation = OpeningGoals.analyze(ctx).getOrElse(fail("expected opening goal"))
+    assertEquals(evaluation.goalName, "King's Gambit f-pawn Break")
+    assertEquals(evaluation.status, OpeningGoals.Status.Achieved, clue(evaluation))
+    assert(evaluation.supportedEvidence.exists(_.toLowerCase.contains("f-pawn")), clue(evaluation.supportedEvidence))
   }
 
   test("intro event theme recognizes Scandinavian as early queen exposure") {

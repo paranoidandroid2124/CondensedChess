@@ -2024,11 +2024,7 @@ object CommentaryEngine:
     }
 
   private def variationFirstMoveSan(fen: String, v: VariationLine): Option[String] =
-    v.ourMove.map(_.san).map(_.trim).filter(_.nonEmpty).orElse {
-      v.moves.headOption
-        .map(m => NarrativeUtils.uciToSanOrFormat(fen, m).trim)
-        .filter(_.nonEmpty)
-    }
+    LineScopedCitation.sanMoves(fen, v).headOption.map(_.trim).filter(_.nonEmpty)
 
   private def variationMatchesPlayed(ctx: NarrativeContext, v: VariationLine): Boolean =
     val playedUci = ctx.playedMove.map(NarrativeUtils.normalizeUciMove).filter(_.nonEmpty)
@@ -2042,14 +2038,8 @@ object CommentaryEngine:
     byUci || bySan
 
   private def variationLinePreview(fen: String, v: VariationLine): Option[String] =
-    if v.parsedMoves.nonEmpty then
-      Option.when(v.parsedMoves.nonEmpty)(v.parsedMoves.take(4).map(_.san).mkString(" ").trim).filter(_.nonEmpty)
-    else
-      val tokens = v.moves.take(4).zipWithIndex.map { case (m, idx) =>
-        if idx == 0 then NarrativeUtils.uciToSanOrFormat(fen, m)
-        else NarrativeUtils.formatUciAsSan(m)
-      }
-      Option.when(tokens.nonEmpty)(tokens.mkString(" ").trim).filter(_.nonEmpty)
+    val tokens = LineScopedCitation.sanMoves(fen, v).take(4)
+    Option.when(tokens.nonEmpty)(tokens.mkString(" ").trim).filter(_.nonEmpty)
 
   private def buildCriticalBranchNarrative(
     ctx: NarrativeContext,

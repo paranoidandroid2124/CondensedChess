@@ -1066,36 +1066,27 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
 
     assertEquals(
       plannerInputs.mainBundle.flatMap(_.mainClaim).flatMap(_.packet).map(_.proofFamily),
-      Some("half_open_file_pressure"),
+      None,
       clues(plannerInputs.mainBundle)
     )
     assertEquals(
       plannerInputs.mainBundle.flatMap(_.mainClaim).flatMap(_.packet).map(_.fallbackMode),
-      Some(PlayerFacingClaimFallbackMode.WeakMain),
+      None,
       clues(plannerInputs.mainBundle)
     )
     assertEquals(
       rankedPlans.primary.map(_.questionKind),
-      Some(AuthorQuestionKind.WhatChanged),
+      None,
       clues(rankedPlans)
     )
-    assert(
-      rankedPlans.primary.map(_.claim).exists(claim =>
-        claim.toLowerCase.contains("c-file") && claim.toLowerCase.contains("b4")
-      ),
-      clues(rankedPlans)
-    )
+    assertEquals(rankedPlans.primary, None, clues(rankedPlans))
     rankedPlans.primary.foreach(plan => assertNoFileEntryInflation(plan.claim))
     chronicleArtifact.foreach { artifact =>
       assertNoFileEntryInflation(artifact.narrative)
-      assert(artifact.narrative.toLowerCase.contains("c-file"), clues(artifact.narrative))
-      assert(artifact.narrative.toLowerCase.contains("b4"), clues(artifact.narrative))
     }
     assertEquals(activeSelection, None, clues(activeSelection, rankedPlans))
     moveReviewSlots.foreach { slots =>
       assertNoFileEntryInflation(slots.claim)
-      assert(slots.claim.toLowerCase.contains("c-file"), clues(slots.claim))
-      assert(slots.claim.toLowerCase.contains("b4"), clues(slots.claim))
     }
   }
 

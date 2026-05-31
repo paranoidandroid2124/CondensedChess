@@ -262,7 +262,7 @@ private[commentary] object QuietMoveIntentBuilder:
     val quantifier = quietClaimQuantifier(ctx, provenanceClass)
     val stabilityGrade = quietClaimStability(ctx, provenanceClass)
     val attributionGrade = quietAttributionGrade(ctx, claim.intentClass, anchorSquare)
-    val taintFlags = quietTaintFlags(ctx, provenanceClass, quantifier)
+    val taintFlags = quietTaintFlags(provenanceClass, quantifier)
     val certificateStatus =
       if provenanceClass != PlayerFacingClaimProvenanceClass.ProbeBacked then PlayerFacingCertificateStatus.Invalid
       else if attributionGrade == PlayerFacingClaimAttributionGrade.StateOnly then PlayerFacingCertificateStatus.Invalid
@@ -403,7 +403,6 @@ private[commentary] object QuietMoveIntentBuilder:
       else PlayerFacingClaimAttributionGrade.Distinctive
 
   private def quietTaintFlags(
-      ctx: NarrativeContext,
       provenanceClass: PlayerFacingClaimProvenanceClass,
       quantifier: PlayerFacingClaimQuantifier
   ): Set[PlayerFacingClaimTaintFlag] =
@@ -450,19 +449,18 @@ private[commentary] object QuietMoveIntentBuilder:
   private def quietBestDefenseMove(
       ctx: NarrativeContext
   ): Option[String] =
-    ctx.engineEvidence.toList.flatMap(_.variations).headOption.flatMap { line =>
-      line.parsedMoves.lift(1).flatMap(move => clean(move.san))
-        .orElse(line.moves.lift(1).flatMap(clean))
-    }
+    MoveReviewExchangeAnalyzer
+      .boundedTopReplay(ctx.fen, ctx.engineEvidence.toList.flatMap(_.variations), maxPlies = 2)
+      .flatMap(_.lift(1))
+      .map(_.move.toSanStr.toString)
+      .flatMap(clean)
 
   private def quietBestDefenseBranchKey(
       ctx: NarrativeContext
   ): Option[String] =
-    ctx.engineEvidence.toList.flatMap(_.variations).headOption.flatMap { line =>
-      line.moves.take(2).flatMap(clean) match
-        case first :: second :: Nil => Some(s"${normalize(first)}|${normalize(second)}")
-        case _                      => None
-    }
+    MoveReviewExchangeAnalyzer
+      .boundedTopReplay(ctx.fen, ctx.engineEvidence.toList.flatMap(_.variations), maxPlies = 2)
+      .flatMap(MoveReviewExchangeAnalyzer.branchKey(_))
 
   private def quietOwnerPathWitness(
       ctx: NarrativeContext,

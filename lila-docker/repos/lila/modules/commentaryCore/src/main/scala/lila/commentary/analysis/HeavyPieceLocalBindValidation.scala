@@ -181,7 +181,7 @@ private[commentary] object HeavyPieceLocalBindValidation:
         directReplyResults.find(result =>
           hasReplyCoverage(result) &&
             result.bestReplyPv.flatMap(clean).nonEmpty &&
-            branchKey(result).nonEmpty
+            MoveReviewExchangeAnalyzer.probeStableBranchKey(result, BranchKeyMoveCount).nonEmpty
         )
       val bestDefenseReplay =
         bestDefenseResult.flatMap(result =>
@@ -193,7 +193,9 @@ private[commentary] object HeavyPieceLocalBindValidation:
       val bestDefenseFound =
         bestDefenseResult.flatMap(displayBestDefense)
       val bestDefenseBranchKey =
-        bestDefenseResult.flatMap(branchKey)
+        bestDefenseResult.flatMap(result =>
+          MoveReviewExchangeAnalyzer.probeStableBranchKey(result, BranchKeyMoveCount)
+        )
       val sameBranchValidationResults =
         validationResults.filter(result => matchesDefendedBranch(result, bestDefenseBranchKey))
       val sameBranchContinuityResults =
@@ -875,39 +877,8 @@ private[commentary] object HeavyPieceLocalBindValidation:
       expectedBranchKey: Option[String]
   ): Boolean =
     expectedBranchKey.exists(expected =>
-      branchKey(result).contains(expected)
+      MoveReviewExchangeAnalyzer.probeStableBranchKey(result, BranchKeyMoveCount).contains(expected)
     )
-
-  private def branchKey(
-      result: ProbeResult
-  ): Option[String] =
-    result.variationHash.flatMap(clean).map(normalize)
-      .orElse(result.seedId.flatMap(clean).map(normalize))
-      .orElse(branchLineKey(result.bestReplyPv))
-      .orElse(
-        result.replyPvs
-          .flatMap(_.headOption)
-          .flatMap(branchLineKey)
-      )
-
-  private def branchLineKey(
-      moves: List[String]
-  ): Option[String] =
-    val normalizedMoves =
-      moves.flatMap(normalizeUciMove).take(BranchKeyMoveCount)
-    Option.when(normalizedMoves.size == BranchKeyMoveCount)(
-      normalizedMoves.mkString(" ")
-    )
-
-  private def normalizeUciMove(
-      raw: String
-  ): Option[String] =
-    clean(raw).map(_.toLowerCase).filter(isUciMove)
-
-  private def isUciMove(
-      raw: String
-  ): Boolean =
-    "(?i)^[a-h][1-8][a-h][1-8][qrbn]?$".r.matches(Option(raw).getOrElse(""))
 
   private def heavyPieceSlice(
       phase: String,

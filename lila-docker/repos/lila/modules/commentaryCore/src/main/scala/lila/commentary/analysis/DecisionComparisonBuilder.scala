@@ -98,15 +98,10 @@ private[analysis] object DecisionComparisonBuilder:
       }
 
   private def leadSan(fen: String, line: VariationLine): Option[String] =
-    line.ourMove.map(_.san).map(normalize).filter(_.nonEmpty)
-      .orElse {
-        line.moves.headOption.map(m => NarrativeUtils.uciToSanOrFormat(fen, m)).map(normalize).filter(_.nonEmpty)
-      }
+    LineScopedCitation.sanMoves(fen, line).headOption.map(normalize).filter(_.nonEmpty)
 
   private def linePreview(fen: String, line: VariationLine): Option[List[String]] =
-    val tokens =
-      if line.parsedMoves.nonEmpty then line.parsedMoves.take(4).map(_.san.trim).filter(_.nonEmpty)
-      else NarrativeUtils.uciListToSan(fen, line.moves.take(4)).map(_.trim).filter(_.nonEmpty)
+    val tokens = LineScopedCitation.sanMoves(fen, line).take(4).map(_.trim).filter(_.nonEmpty)
     Option.when(tokens.nonEmpty)(tokens)
 
   private def equalMoveToken(a: String, b: String): Boolean =

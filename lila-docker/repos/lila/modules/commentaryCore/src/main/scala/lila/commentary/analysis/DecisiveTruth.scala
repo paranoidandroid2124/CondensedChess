@@ -1542,7 +1542,11 @@ private[commentary] object DecisiveTruth:
     sideToMoveFromFen(fen).map(color => if color.white then cp else -cp).getOrElse(0)
 
   private def sideToMoveFromFen(fen: String): Option[Color] =
-    Fen.read(_root_.chess.variant.Standard, Fen.Full(fen)).map(_.color)
+    val readResult = Fen.read(_root_.chess.variant.Standard, Fen.Full(fen))
+    val pw = new java.io.PrintWriter(new java.io.FileWriter("c:/Codes/CondensedChess-master-restored/tmp/debug.txt", true))
+    pw.println(s"DEBUG sideToMoveFromFen FEN: $fen -> $readResult")
+    pw.close()
+    readResult.map(_.color)
 
   private[commentary] def winPercentFromCp(cp: Int): Double =
     50.0 + 50.0 * (2.0 / (1.0 + math.exp(-WinPercentSlope * cp.toDouble)) - 1.0)

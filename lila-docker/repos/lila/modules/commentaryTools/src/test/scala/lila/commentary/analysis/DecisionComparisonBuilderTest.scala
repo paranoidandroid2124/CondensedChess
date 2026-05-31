@@ -67,15 +67,41 @@ class DecisionComparisonBuilderTest extends FunSuite:
     assertEquals(comparison.deferredSource, Some("engine_gap"))
     assert(comparison.deferredReason.exists(_.contains("220cp")))
     assertEquals(comparison.cpLossVsChosen, Some(220))
-    assertEquals(comparison.engineBestPv, List("g4", "...a6", "h5"))
+    assertEquals(comparison.engineBestPv, List("g4", "a6", "h5"))
     assert(!comparison.chosenMatchesBest)
+  }
+
+  test("engine best comparison derives move identity from raw PV before stale parsed metadata") {
+    val line =
+      VariationLine(
+        moves = List("e2e4"),
+        scoreCp = 24,
+        parsedMoves = List(
+          PvMove("d2d4", "d4", "d2", "d4", "P", false, None, false)
+        )
+      )
+    val ctx =
+      baseContext.copy(
+        fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+        playedMove = Some("e2e4"),
+        playedSan = Some("e4"),
+        engineEvidence = Some(EngineEvidence(depth = 20, variations = List(line)))
+      )
+
+    val comparison = DecisionComparisonBuilder.build(ctx).getOrElse(fail("missing comparison"))
+
+    assertEquals(comparison.engineBestMove, Some("e4"))
+    assertEquals(comparison.engineBestPv, List("e4"))
+    assertEquals(comparison.chosenMatchesBest, true)
+    assertEquals(comparison.deferredMove, None)
   }
 
   test("build marks close candidate as practical alternative") {
     val ctx = baseContext.copy(
+      fen = "r3k3/p7/8/8/8/8/6PP/R3K3 w Q - 0 1",
       candidates = List(
         CandidateInfo("h4", annotation = "!", planAlignment = "Kingside expansion", tacticalAlert = None, practicalDifficulty = "clean", whyNot = None),
-        CandidateInfo("Rc3", annotation = "", planAlignment = "Rook lift", tacticalAlert = None, practicalDifficulty = "clean", whyNot = Some("it slows the direct attack"))
+        CandidateInfo("Rc1", annotation = "", planAlignment = "Rook lift", tacticalAlert = None, practicalDifficulty = "clean", whyNot = Some("it slows the direct attack"))
       ),
       engineEvidence = Some(
         EngineEvidence(
@@ -83,9 +109,9 @@ class DecisionComparisonBuilderTest extends FunSuite:
           variations = List(
             VariationLine(moves = List("h2h4", "a7a6"), scoreCp = 44),
             VariationLine(
-              moves = List("a1c3", "a7a6"),
+              moves = List("a1c1", "a7a6"),
               scoreCp = 30,
-              parsedMoves = List(PvMove("a1c3", "Rc3", "a1", "c3", "R", false, None, false))
+              parsedMoves = List(PvMove("a1c1", "Rc1", "a1", "c1", "R", false, None, false))
             )
           )
         )
@@ -93,7 +119,7 @@ class DecisionComparisonBuilderTest extends FunSuite:
     )
 
     val comparison = DecisionComparisonBuilder.build(ctx).getOrElse(fail("missing comparison"))
-    assertEquals(comparison.deferredMove, Some("Rc3"))
+    assertEquals(comparison.deferredMove, Some("Rc1"))
     assertEquals(comparison.deferredSource, Some("close_candidate"))
     assertEquals(comparison.practicalAlternative, true)
     assert(comparison.deferredReason.exists(_.nonEmpty))

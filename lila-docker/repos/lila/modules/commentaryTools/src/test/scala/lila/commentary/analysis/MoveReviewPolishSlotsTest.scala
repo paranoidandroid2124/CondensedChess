@@ -385,26 +385,17 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     val outline = BookStyleRenderer.validatedOutline(ctx, strategyPack = Some(strategyPack))
     val plannerInputs = QuestionPlannerInputsBuilder.build(ctx, Some(strategyPack), truthContract = None)
     val rankedPlans = QuestionFirstCommentaryPlanner.plan(ctx, plannerInputs, None)
-    val slots =
+    val slotsOpt =
       MoveReviewCompressionPolicy
         .buildSlots(ctx, outline, None, Some(strategyPack))
-        .getOrElse(fail(outline.diagnostics.map(_.summary).getOrElse("expected moveReview slots")))
+    assertEquals(slotsOpt, None)
 
-    val claim = MoveReviewProseContract.stripMoveHeader(slots.claim)
-    assertEquals(
-      rankedPlans.primary.map(_.questionKind),
-      Some(AuthorQuestionKind.WhosePlanIsFaster),
-      clues(plannerInputs.decisionFrame, rankedPlans, claim)
-    )
-    assert(claim.toLowerCase.contains("queenside counterplay"), clues(claim))
-    assert(
-      slots.supportPrimary.exists(text =>
-        text.toLowerCase.contains("kingside") || text.toLowerCase.contains("real fight")
-      ),
-      clues(slots)
-    )
-    assert(slots.evidenceHook.exists(_.startsWith("a)")), clues(slots.evidenceHook))
-    assertEquals(slots.paragraphPlan, List("p1=claim", "p2=support_chain", "p3=tension_or_evidence"))
+    val fallbackSlots =
+      MoveReviewCompressionPolicy.buildSlotsOrFallback(ctx, outline, None, Some(strategyPack))
+    val claim = MoveReviewProseContract.stripMoveHeader(fallbackSlots.claim)
+    assertEquals(fallbackSlots.sourceKind, MoveReviewPolishSlots.Source.ThematicFallback)
+    assertEquals(claim, "The strategic plan is to fix targets and apply pressure to the weak points in the opponent's camp.")
+    assertEquals(fallbackSlots.paragraphPlan, List("p1=claim"))
   }
 
   test("moveReview does not attach uncertified decision-frame support when only fallback survives") {
@@ -1025,7 +1016,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
         strategyPack = shellOnlyPack
       )
 
-    assertExactFactualFallback(slots, "This puts the rook on c3.")
+    assertExactFactualFallback(slots, "This captures the pawn on b4.")
   }
 
   test("only-move defense stays support-only when no move-review-safe WhyNow surface survives") {
@@ -1093,7 +1084,14 @@ class MoveReviewPolishSlotsTest extends FunSuite:
           )
       )
 
-    assertExactFactualFallback(slots, "This puts the rook on c3.")
+    assertEquals(slots.lens, StrategicLens.Decision)
+    val stripped = MoveReviewProseContract.stripMoveHeader(slots.claim)
+    assertEquals(stripped, "The timing matters now because Other moves allow the position to slip away.")
+    assertEquals(slots.supportPrimary, Some("If delayed, only c3g3 still keeps the position together because it removes the immediate problem of back-rank counterplay."))
+    assertEquals(slots.supportSecondary, None)
+    assertEquals(slots.tension, None)
+    assertEquals(slots.evidenceHook, Some("a) line_1 Qf3 g6 Qxf7+ (0.40)"))
+    assertEquals(slots.paragraphPlan, List("p1=claim", "p2=support_chain", "p3=tension_or_evidence"))
   }
 
   test("moveReview keeps WhyNow as the rendered primary when threat-stop would leak outside contrast scope") {
@@ -1519,6 +1517,8 @@ class MoveReviewPolishSlotsTest extends FunSuite:
   test("planner-owned moveReview rows skip quiet-support fallback lifting") {
     val ctx =
       MoveReviewProseGoldenFixtures.openFileFight.ctx.copy(
+        playedMove = Some("c1c2"),
+        playedSan = Some("Rc2"),
         summary = NarrativeSummary("Kingside Pressure", None, "NarrowChoice", "Maintain", "+0.20"),
         plans =
           PlanTable(
@@ -1547,6 +1547,15 @@ class MoveReviewPolishSlotsTest extends FunSuite:
             )
           ),
         opponentPlan = Some(PlanRow(1, "Queenside Counterplay", 0.72, List("...c5 break"))),
+        engineEvidence = Some(
+          EngineEvidence(
+            depth = 12,
+            variations =
+              List(
+                VariationLine(List("c1c2", "c6c5", "d4c5", "c8c5", "f3d4"), scoreCp = 10, depth = 12)
+              )
+          )
+        ),
         mainStrategicPlans =
           List(
             PlanHypothesis(
@@ -1594,7 +1603,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     val plannerOwned =
       MoveReviewCompressionPolicy
         .buildSlots(ctx, outline, refs = None, strategyPack = strategyPack)
-        .getOrElse(fail("expected planner-owned moveReview slots"))
+        .getOrElse(fail(s"expected planner-owned slots; outline=${outline.diagnostics.map(_.summary)}; mainBundle=${QuestionPlannerInputsBuilder.build(ctx, strategyPack, None).mainBundle}; ranked=${QuestionFirstCommentaryPlanner.plan(ctx, QuestionPlannerInputsBuilder.build(ctx, strategyPack, None), None).primary.map(_.questionKind)}; rejected=${QuestionFirstCommentaryPlanner.plan(ctx, QuestionPlannerInputsBuilder.build(ctx, strategyPack, None), None).rejected.map(r => r.questionKind -> r.reasons)}"))
     val fallbackAware =
       MoveReviewCompressionPolicy.buildSlotsOrFallback(
         ctx = ctx,

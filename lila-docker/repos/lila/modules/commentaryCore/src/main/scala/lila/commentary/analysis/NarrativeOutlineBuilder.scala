@@ -10,6 +10,7 @@ import lila.commentary.analysis.PlanTaxonomy.{ PlanTheme, ThemeResolver, Subplan
 import lila.commentary.analysis.render.*
 import lila.commentary.analysis.render.FragmentAuthority.{ rawFragmentText, releasedFragmentText, supportFragment }
 import lila.commentary.analysis.claim.PlayerFacingClaimPrefixKind
+import lila.commentary.analysis.semantic.RelationObservationCatalog
 /**
  * NarrativeOutlineBuilder: SSOT for "what to say"
  *
@@ -451,20 +452,7 @@ object NarrativeOutlineBuilder:
     val motifs = (deltaMotifs ++ counterfactualMotifs ++ conceptMotifs).distinct
     val motifSignals = motifs.map(normalizeMotifKey).filter(_.nonEmpty)
     val highTensionByMotif =
-      motifSignals.exists { m =>
-        List(
-          "mate",
-          "sacrifice",
-          "king_hunt",
-          "smothered",
-          "greek_gift",
-          "fork",
-          "skewer",
-          "deflection",
-          "interference",
-          "zwischenzug"
-        ).exists(m.contains)
-      }
+      motifSignals.exists(tacticalTensionMotif)
     val highTensionByThreat =
       ctx.threats.toUs.headOption.exists(t => t.lossIfIgnoredCp >= 250 || t.kind.equalsIgnoreCase("Mate"))
     val highTension = highTensionByMotif || highTensionByThreat
@@ -3019,11 +3007,13 @@ object NarrativeOutlineBuilder:
       .map(normalizeMotifKey)
       .filter(_.nonEmpty)
       .filter(m => motifPhaseCompatible(m, phase))
-      .filterNot(m => existingLower.contains(m.replace("_", " ")))
+      .flatMap(themeKeywordForMotif)
+      .filterNot(term => existingLower.contains(term.toLowerCase))
+      .distinct
       .take(2)
     if salient.isEmpty then None
     else
-      val terms = salient.take(2).map(m => s"**${m.replace("_", " ")}**")
+      val terms = salient.take(2).map(term => s"**$term**")
       val text = terms match
         case List(t1, t2) => s"Themes include $t1 and $t2."
         case List(t1)     => s"Key theme: $t1."
@@ -3041,6 +3031,11 @@ object NarrativeOutlineBuilder:
       )
       Some(polished)
   }
+
+  private def themeKeywordForMotif(motif: String): Option[String] =
+    deferredRelationCanonicalTerm(motif) match
+      case Some(term) => term
+      case None       => Some(motif.replace("_", " "))
 
   private def buildCanonicalMotifTermSentence(
     motifs: List[String],
@@ -3098,7 +3093,30 @@ object NarrativeOutlineBuilder:
   private def canonicalTermForMotif(rawMotif: String): Option[String] =
     val motif = normalizeMotifKey(rawMotif)
     if motif.isEmpty then None
-    else if motif.contains("passed_pawn") || motif.contains("promotion_race") then Some("passed pawn")
+    else
+      deferredRelationCanonicalTerm(motif) match
+        case Some(term) => term
+        case None       => ordinaryCanonicalTermForMotif(motif)
+
+  private def deferredRelationCanonicalTerm(motif: String): Option[Option[String]] =
+    RelationObservationCatalog.deferredFallbackForMotifTag(motif).map(_.label)
+
+  private def tacticalTensionMotif(motif: String): Boolean =
+    RelationObservationCatalog.deferredFallbackForMotifTag(motif).isEmpty &&
+      List(
+        "mate",
+        "sacrifice",
+        "king_hunt",
+        "smothered",
+        "greek_gift",
+        "fork",
+        "skewer",
+        "deflection",
+        "interference"
+      ).exists(motif.contains)
+
+  private def ordinaryCanonicalTermForMotif(motif: String): Option[String] =
+    if motif.contains("passed_pawn") || motif.contains("promotion_race") then Some("passed pawn")
     else if motif.contains("pawn_storm") then Some("pawn storm")
     else if motif.contains("zwischenzug") then Some("zwischenzug")
     else if motif.contains("interference") then Some("interference")

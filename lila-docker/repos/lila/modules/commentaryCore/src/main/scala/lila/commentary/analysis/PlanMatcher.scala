@@ -5,6 +5,7 @@ import lila.commentary.model.*
 import lila.commentary.model.Motif.*
 import lila.commentary.analysis.L3.{ PawnPlayAnalysis, PositionClassification, ThreatAnalysis, TensionPolicy }
 import lila.commentary.analysis.semantic.StrategicObservationIds.ProofFamilyId
+import lila.commentary.analysis.semantic.RelationObservationCatalog
 import lila.commentary.model.structure.{ PlanAlignment, StructureId, StructureProfile }
 import chess.Color.White
 import lila.commentary.analysis.PlanTaxonomy.{ PlanTheme, PlanKind }
@@ -302,7 +303,7 @@ object PlanMatcher:
 
   private def restriction(m: List[Motif], ctx: IntegratedContext, side: Color, s: SideSnapshot): PlanMatch =
     val ev = evidence(m, 0.18) {
-      case Domination(_, _, _, c, _, _) if c == side => "domination restricts enemy mobility"
+      case Domination(_, _, _, c, _, _) if c == side => s"${deferredDominationLabel} reduces enemy mobility"
       case Blockade(_, _, _, c, _, _) if c == side   => "blockade limits counterplay"
       case OpenFileControl(_, c, _, _) if c == side  => "file control supports prophylaxis"
     }
@@ -324,6 +325,12 @@ object PlanMatcher:
       Option.when(!s.clamp && ev.isEmpty)("need stable restraint geometry").toList,
       subplanId = Some(Subplan.Restriction)
     )
+
+  private def deferredDominationLabel: String =
+    RelationObservationCatalog
+      .deferredFallbackForKind(MoveReviewExchangeAnalyzer.RelationKind.Domination)
+      .flatMap(_.label)
+      .getOrElse("key-square restriction")
 
   private def redeployment(m: List[Motif], ctx: IntegratedContext, side: Color, s: SideSnapshot): PlanMatch =
     val ev = evidence(m, 0.17) {
@@ -454,7 +461,8 @@ object PlanMatcher:
       case Capture(_, _, _, t, c, _, _, _) if c == side &&
           (t == CaptureType.Exchange || t == CaptureType.Recapture || t == CaptureType.Winning) =>
         "capture pattern supports favorable exchange"
-      case RemovingTheDefender(_, _, _, _, c, _, _) if c == side => "defender removal supports exchange design"
+      case RemovingTheDefender(_, _, _, _, c, _, _) if c == side =>
+        "defender-removal motif supports a generic exchange idea"
     }
     val evalEdge = ctx.evalFor(side)
     val simplifyWindow = ctx.classification.exists(_.simplifyBias.shouldSimplify)
@@ -463,7 +471,6 @@ object PlanMatcher:
         (if simplifyWindow then 0.20 else 0.0) +
         (if evalEdge >= 80 then 0.10 else if evalEdge <= -80 then -0.08 else 0.0) +
         math.min(0.15, ev.size * 0.05)
-    val subplanId = favorableExchangeSubplan(m, ctx, side)
     themed(
       Theme.FavorableExchange,
       Plan.Exchange(side, "favorable simplification"),
@@ -472,7 +479,7 @@ object PlanMatcher:
       List("exchange only when structure improves"),
       Option.when(evalEdge <= -80)("behind on eval; simplification may help opponent").toList,
       Option.when(!simplifyWindow && ev.isEmpty)("need clear exchange asymmetry first").toList,
-      subplanId = Some(subplanId)
+      subplanId = Some(Subplan.FavorableExchange)
     )
 
   private def weaknessFixationSubplan(
@@ -504,23 +511,6 @@ object PlanMatcher:
     else if iqpTargetStructure && isolatedPawnTarget then
       Subplan.IQPInducement
     else Subplan.WeaknessFixation
-
-  private def favorableExchangeSubplan(
-      m: List[Motif],
-      ctx: IntegratedContext,
-      side: Color
-  ): String =
-    val hasDefenderRemoval =
-      m.exists {
-        case RemovingTheDefender(_, _, _, _, c, _, _) if c == side => true
-        case _                                                     => false
-      }
-    val planTaggedDefenderTrade =
-      ctx.planAlignment.exists(_.reasonCodes.exists(code =>
-        code.toLowerCase.contains("defender") || code.toLowerCase.contains("remove")
-      ))
-    if hasDefenderRemoval || planTaggedDefenderTrade then Subplan.DefenderTrade
-    else Subplan.FavorableExchange
 
   private def flankInfrastructure(m: List[Motif], ctx: IntegratedContext, side: Color, s: SideSnapshot): PlanMatch =
     val ev = evidence(m, 0.19) {

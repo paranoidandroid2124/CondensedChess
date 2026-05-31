@@ -14,7 +14,11 @@ class BreakPreventionWitnessTest extends FunSuite:
 
   test("exact named-break witness succeeds with a stable defended branch") {
     val diagnosis = BreakPreventionWitness.diagnose(
-      ctx = breakCtx(),
+      ctx = breakCtx(
+        fen = "4k3/8/8/8/8/8/4K3/R7 w - - 0 1",
+        playedMove = "a1a8",
+        engineMoves = List("a1a8", "e8e7")
+      ),
       surface = StrategyPackSurface.from(Some(breakPack())),
       preventedNow = List(namedBreakPlan())
     )

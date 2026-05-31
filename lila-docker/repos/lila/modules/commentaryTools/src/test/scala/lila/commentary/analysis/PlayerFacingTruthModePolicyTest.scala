@@ -733,6 +733,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
   test("tactical sacrifice with immediate recoup resolves to Tactical") {
     val ctx =
       baseCtx().copy(
+        fen = "4k3/3n4/8/1B6/8/8/3P4/3QK3 w - - 0 1",
         semantic = Some(
           SemanticSection(
             structuralWeaknesses = Nil,
@@ -906,15 +907,17 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
   }
 
   test("main-path exchange forcing requires both an anchored line and move-linked exchange evidence") {
+    val exchangeFen = "r2q1rk1/pp2bppp/2np1n2/2p1p3/2P5/2NP2P1/PP2QPBP/R1B2RK1 w - - 0 10"
     val ctx =
       baseCtx().copy(
+        fen = exchangeFen,
         decision = Some(
           DecisionRationale(
-            focalPoint = Some(TargetSquare("c4")),
+            focalPoint = Some(TargetSquare("c6")),
             logicSummary = "The exchange theme is in the air.",
             delta = PVDelta(
               resolvedThreats = Nil,
-              newOpportunities = List("exchange on c4"),
+              newOpportunities = List("exchange on c6"),
               planAdvancements = Nil,
               concessions = Nil
             ),
@@ -931,21 +934,21 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
               ownerSide = "white",
               piece = "B",
               from = "g2",
-              target = "c4",
-              idea = "exchange on c4",
+              target = "c6",
+              idea = "exchange on c6",
               tacticalTheme = Some("exchange"),
               evidence = List("probe")
             )
           ),
           directionalTargets = List(
             StrategyDirectionalTarget(
-              targetId = "target_c4",
+              targetId = "target_c6",
               ownerSide = "white",
               piece = "B",
               from = "g2",
-              targetSquare = "c4",
+              targetSquare = "c6",
               readiness = DirectionalTargetReadiness.Build,
-              strategicReasons = List("exchange on c4"),
+              strategicReasons = List("exchange on c6"),
               evidence = List("probe")
             )
           )
@@ -960,6 +963,10 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       ),
       None
     )
+    assertEquals(
+      PlayerFacingTruthModePolicy.classify(ctx, pack, None),
+      PlayerFacingTruthMode.Minimal
+    )
 
     val exchangeCtx =
       ctx.copy(
@@ -968,13 +975,12 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
             depth = 18,
             variations = List(
               VariationLine(
-                moves = List("g2c4", "d5c4", "d1d8"),
+                moves = List("g2c6", "b7c6"),
                 scoreCp = 34,
                 depth = 18,
                 parsedMoves = List(
-                  PvMove("g2c4", "Bxc4", "g2", "c4", "B", isCapture = true, capturedPiece = Some("p"), givesCheck = false),
-                  PvMove("d5c4", "dxc4", "d5", "c4", "P", isCapture = true, capturedPiece = Some("b"), givesCheck = false),
-                  PvMove("d1d8", "Qd8+", "d1", "d8", "Q", isCapture = false, capturedPiece = None, givesCheck = true)
+                  PvMove("g2c6", "Bxc6", "g2", "c6", "B", isCapture = true, capturedPiece = Some("n"), givesCheck = false),
+                  PvMove("b7c6", "bxc6", "b7", "c6", "P", isCapture = true, capturedPiece = Some("b"), givesCheck = false)
                 )
               )
             )
@@ -984,18 +990,18 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
 
     val provingOnlyCtx =
       baseCtx().copy(
+        fen = exchangeFen,
         engineEvidence = Some(
           EngineEvidence(
             depth = 18,
             variations = List(
               VariationLine(
-                moves = List("g2c4", "d5c4", "d1d8"),
+                moves = List("g2c6", "b7c6"),
                 scoreCp = 34,
                 depth = 18,
                 parsedMoves = List(
-                  PvMove("g2c4", "Bxc4", "g2", "c4", "B", isCapture = true, capturedPiece = Some("p"), givesCheck = false),
-                  PvMove("d5c4", "dxc4", "d5", "c4", "P", isCapture = true, capturedPiece = Some("b"), givesCheck = false),
-                  PvMove("d1d8", "Qd8+", "d1", "d8", "Q", isCapture = false, capturedPiece = None, givesCheck = true)
+                  PvMove("g2c6", "Bxc6", "g2", "c6", "B", isCapture = true, capturedPiece = Some("n"), givesCheck = false),
+                  PvMove("b7c6", "bxc6", "b7", "c6", "P", isCapture = true, capturedPiece = Some("b"), givesCheck = false)
                 )
               )
             )
@@ -1023,8 +1029,9 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
 
     val directCaptureCtx =
       baseCtx().copy(
-        playedMove = Some("g2c4"),
-        playedSan = Some("Bxc4"),
+        fen = exchangeFen,
+        playedMove = Some("g2c6"),
+        playedSan = Some("Bxc6"),
         engineEvidence = exchangeCtx.engineEvidence
       )
 
@@ -1042,7 +1049,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     val basePrevented =
       PreventedPlanInfo(
         planId = "Queenside counterplay",
-        deniedSquares = List("c4"),
+        deniedSquares = List("e3"),
         breakNeutralized = None,
         mobilityDelta = -1,
         counterplayScoreDrop = 80,
@@ -1054,17 +1061,17 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
           sideToMove = "white",
           directionalTargets = List(
             StrategyDirectionalTarget(
-              targetId = "target_c4",
+              targetId = "target_e3",
               ownerSide = "white",
               piece = "N",
-              from = "e3",
-              targetSquare = "c4",
+              from = "c2",
+              targetSquare = "e3",
               readiness = DirectionalTargetReadiness.Build,
-              strategicReasons = List("control c4"),
+              strategicReasons = List("control e3"),
               evidence = List("probe")
             )
           ),
-          signalDigest = Some(NarrativeSignalDigest(decision = Some("control c4")))
+          signalDigest = Some(NarrativeSignalDigest(decision = Some("control e3")))
         )
       )
 
@@ -1099,7 +1106,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
           preventedPlans = List(
             basePrevented.copy(
               preventedThreatType = Some("entry_square"),
-              citationLine = Some("...Qa5 can no longer enter on c4.")
+              citationLine = Some("...Qe3 can no longer enter on e3.")
             )
           )
         )),
@@ -1108,7 +1115,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
             choiceType = ChoiceType.NarrowChoice,
             targets = Targets(Nil, Nil),
             planConcurrency = PlanConcurrency("Attack", None, "independent"),
-            whyNot = Some("Black can no longer use c4 as an entry square.")
+            whyNot = Some("Black can no longer use e3 as an entry square.")
           )
         )
       )
@@ -1116,6 +1123,25 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     assertEquals(
       PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidence(
         specificCtx,
+        StrategyPackSurface.from(pack),
+        None
+      ).map(_.deltaClass),
+      Some(PlayerFacingMoveDeltaClass.CounterplayReduction)
+    )
+
+    val replayBackedCtx =
+      specificCtx.copy(
+        engineEvidence = Some(
+          EngineEvidence(
+            depth = 16,
+            variations = List(VariationLine(List("e2e3", "f6e4"), 15, depth = 16))
+          )
+        )
+      )
+
+    assertEquals(
+      PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidence(
+        replayBackedCtx,
         StrategyPackSurface.from(pack),
         None
       ).map(_.deltaClass),
@@ -1181,13 +1207,13 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
             depth = 18,
             variations = List(
               VariationLine(
-                moves = List("c1c8", "f8e8", "c8e8"),
+                moves = List("f3e5", "c6e5", "f4e5"),
                 scoreCp = 90,
                 depth = 18,
                 parsedMoves = List(
-                  PvMove("c1c8", "Rc8", "c1", "c8", "R", isCapture = false, capturedPiece = None, givesCheck = false),
-                  PvMove("f8e8", "Rfe8", "f8", "e8", "R", isCapture = false, capturedPiece = None, givesCheck = false),
-                  PvMove("c8e8", "Rxe8+", "c8", "e8", "R", isCapture = true, capturedPiece = Some("r"), givesCheck = true)
+                  PvMove("f3e5", "Ne5", "f3", "e5", "N", isCapture = false, capturedPiece = None, givesCheck = false),
+                  PvMove("c6e5", "Nxe5", "c6", "e5", "N", isCapture = true, capturedPiece = Some("n"), givesCheck = false),
+                  PvMove("f4e5", "fxe5", "f4", "e5", "P", isCapture = true, capturedPiece = Some("n"), givesCheck = false)
                 )
               )
             )
@@ -1223,7 +1249,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
 
     assertEquals(delta.packet.proofSource, "local_file_entry_bind")
     assertEquals(delta.packet.proofFamily, "half_open_file_pressure")
-    assertEquals(delta.packet.bestDefenseBranchKey, Some("c1c8|f8e8"))
+    assertEquals(delta.packet.bestDefenseBranchKey, Some("f3e5|c6e5"))
     assertEquals(delta.packet.sameBranchState, PlayerFacingSameBranchState.Proven)
     assertEquals(delta.packet.persistence, PlayerFacingClaimPersistence.Stable)
     assertEquals(delta.packet.releaseRisks, Nil)
@@ -1383,7 +1409,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
             depth = 18,
             variations = List(
               VariationLine(
-                moves = List("c1c8", "f8e8", "c8e8"),
+                moves = List("f3e5", "c6e5", "f4e5"),
                 scoreCp = 88,
                 depth = 18
               )
@@ -1408,7 +1434,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
 
     assertEquals(delta.packet.proofSource, "counterplay_axis_suppression")
     assertEquals(delta.packet.proofFamily, "neutralize_key_break")
-    assertEquals(delta.packet.bestDefenseBranchKey, Some("c1c8|f8e8"))
+    assertEquals(delta.packet.bestDefenseBranchKey, Some("f3e5|c6e5"))
     assertEquals(delta.packet.sameBranchState, PlayerFacingSameBranchState.Proven)
     assertEquals(delta.packet.persistence, PlayerFacingClaimPersistence.Stable)
     assertEquals(delta.packet.releaseRisks, Nil)
@@ -1543,7 +1569,8 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       "The move has to happen now because otherwise c1c8 is demanded immediately."
     )
     assertEquals(primary.prefixKind, PlayerFacingClaimPrefixKind.None)
-    assertEquals(primary.evidence, None)
+    assert(primary.evidence.exists(_.branchScoped), clues(primary))
+    assert(primary.evidence.exists(_.purposes.contains("planner_line_proof")), clues(primary))
     assert(primary.contrast.nonEmpty, clues(primary))
     assert(primary.consequence.nonEmpty, clues(primary))
   }
@@ -1895,7 +1922,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
             depth = 18,
             variations = List(
               VariationLine(
-                moves = List("c1c8", "f8e8", "c8e8"),
+                moves = List("f3e5", "c6e5", "f4e5"),
                 scoreCp = 88,
                 depth = 18
               )
@@ -2868,7 +2895,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     assert(source.contains("OpeningRouteCatalog"), clue(source))
     assert(!source.contains("benoniD6KnightRouteEvidence"), clue(source))
     assert(source.contains("findRouteWitness"), clue(source))
-    assert(source.contains("checkRouteBoard"), clue(source))
+    assert(source.contains("checkRouteEvidence"), clue(source))
     assert(!source.contains("benoniD6SurfaceEvidenceWitness"), clue(source))
     assert(!source.contains("benoniD6TargetFixationWitness"), clue(source))
     assert(!source.contains("\"benoni_d6_knight_route\""), clue(source))
@@ -3482,7 +3509,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     assertEquals(bundle.flatMap(_.mainClaim), None)
   }
 
-  test("trade-key-defender packet stays blocked without an exact cert owner path") {
+  test("unproven trade-key-defender text degrades to a replayed exchange-sequence owner") {
     val ctx =
       baseCtx().copy(
         fen = "r2qr1k1/pp2bpp1/2n1bn1p/3p4/3N4/2N1B1P1/PPQ1PPBP/R4RK1 w - - 4 13",
@@ -3572,12 +3599,12 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
         None
       ).get
 
-    assertEquals(delta.packet.proofFamily, "trade_key_defender")
+    assertEquals(delta.packet.proofFamily, PlanTaxonomy.PlanKind.SimplificationWindow.id)
     assertEquals(delta.packet.sameBranchState, PlayerFacingSameBranchState.Proven)
     assert(delta.packet.proofPathWitness.ownerSeedTerms.contains("e6"))
     assert(delta.packet.proofPathWitness.structureTransitionTerms.nonEmpty)
-    assert(delta.packet.suppressionReasons.contains(PlayerFacingClaimSuppressionReason.SupportOnlyReinflation))
-    assertNotEquals(delta.packet.fallbackMode, PlayerFacingClaimFallbackMode.WeakMain)
+    assert(!delta.packet.suppressionReasons.contains(PlayerFacingClaimSuppressionReason.SupportOnlyReinflation))
+    assertNotEquals(delta.packet.proofFamily, "trade_key_defender")
   }
 
   test("board/PV defender-trade branch materializes a supported-local move owner") {
@@ -3592,7 +3619,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
           List(
             evidenceBackedPlan(
               planId = "defender_trade_board_pv_branch",
-              planName = "Exchange the defender of a7",
+              planName = "Exchange the defender of c5",
               subplanId = PlanTaxonomy.PlanKind.DefenderTrade.id,
               executionSteps = List("Put the bishop on a3 so Black's bishop must be exchanged."),
               themeL1 = PlanTaxonomy.PlanTheme.FavorableExchange.id
@@ -3608,11 +3635,11 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
           ),
         decision = Some(
           DecisionRationale(
-            focalPoint = Some(TargetSquare("a7")),
-            logicSummary = "The exchange removes the bishop defender from the a7 branch.",
+            focalPoint = Some(TargetSquare("c5")),
+            logicSummary = "The exchange removes the bishop defender from the c5 branch.",
             delta = PVDelta(
               resolvedThreats = Nil,
-              newOpportunities = List("exchange the defender guarding a7"),
+              newOpportunities = List("exchange the defender guarding c5"),
               planAdvancements = List("remove the defender on a3"),
               concessions = Nil
             ),
@@ -3649,24 +3676,24 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
               piece = "B",
               from = "c1",
               target = "a3",
-              idea = "exchange the defender guarding a7",
+              idea = "exchange the defender guarding c5",
               tacticalTheme = Some("exchange"),
               evidence = List("probe")
             )
           ),
           directionalTargets = List(
             StrategyDirectionalTarget(
-              targetId = "target_a7",
+              targetId = "target_c5",
               ownerSide = "white",
               piece = "B",
               from = "c1",
-              targetSquare = "a7",
+              targetSquare = "c5",
               readiness = DirectionalTargetReadiness.Build,
               strategicReasons = List("defender"),
               evidence = List("probe")
             )
           ),
-          signalDigest = Some(NarrativeSignalDigest(decision = Some("exchange the defender guarding a7")))
+          signalDigest = Some(NarrativeSignalDigest(decision = Some("exchange the defender guarding c5")))
         )
       )
     val surface = StrategyPackSurface.from(pack)
@@ -3689,6 +3716,37 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     assert(packet.proofPathWitness.ownerSeedTerms.contains("defender:f8"), clues(packet))
     assert(packet.proofPathWitness.structureTransitionTerms.contains("defender_removed:f8-a3"), clues(packet))
 
+    val carrierTextOnlyDelta =
+      PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidence(
+        ctx.copy(
+          mainStrategicPlans = Nil,
+          strategicPlanExperiments = Nil
+        ),
+        surface,
+        None
+      )
+
+    assert(
+      carrierTextOnlyDelta.forall(_.packet.proofSource != PlayerFacingTruthModePolicy.DefenderTradeProofSource),
+      clues(carrierTextOnlyDelta)
+    )
+    assert(
+      carrierTextOnlyDelta.forall(_.packet.fallbackMode != PlayerFacingClaimFallbackMode.WeakMain),
+      clues(carrierTextOnlyDelta)
+    )
+
+    val missingPlayedMoveDelta =
+      PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidence(ctx.copy(playedMove = None), surface, None)
+
+    assert(
+      missingPlayedMoveDelta.forall(_.packet.proofSource != PlayerFacingTruthModePolicy.DefenderTradeProofSource),
+      clues(missingPlayedMoveDelta)
+    )
+    assert(
+      missingPlayedMoveDelta.forall(_.packet.fallbackMode != PlayerFacingClaimFallbackMode.WeakMain),
+      clues(missingPlayedMoveDelta)
+    )
+
     val inputs = QuestionPlannerInputsBuilder.build(ctx, pack, truthContract = None)
     val ranked = QuestionFirstCommentaryPlanner.plan(ctx, inputs, truthContract = None)
     val primary = ranked.primary.getOrElse(fail("board/PV defender trade should admit WhyThis"))
@@ -3704,6 +3762,105 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     assertEquals(primary.contrast, None)
     assertEquals(primary.consequence, None)
     assert(primary.admissibilityReasons.contains("strategic_claim_supported_local"), clues(primary))
+  }
+
+  test("replacement defender geometry does not re-promote broad defender plans to exact owner") {
+    val ctx =
+      baseCtx().copy(
+        fen = "k7/8/5b2/4b3/8/8/3Q4/1R4K1 w - - 0 1",
+        ply = 1,
+        playedMove = Some("b1b2"),
+        playedSan = Some("Rb2"),
+        mainStrategicPlans =
+          List(
+            evidenceBackedPlan(
+              planId = "defender_trade_replacement_line",
+              planName = "Trade the defender of c3",
+              subplanId = PlanTaxonomy.PlanKind.DefenderTrade.id,
+              executionSteps = List("Invite the bishop trade on b2."),
+              themeL1 = PlanTaxonomy.PlanTheme.FavorableExchange.id
+            )
+          ),
+        strategicPlanExperiments =
+          List(
+            evidenceBackedExperiment(
+              planId = "defender_trade_replacement_line",
+              subplanId = PlanTaxonomy.PlanKind.DefenderTrade.id,
+              themeL1 = PlanTaxonomy.PlanTheme.FavorableExchange.id
+            )
+          ),
+        decision = Some(
+          DecisionRationale(
+            focalPoint = Some(TargetSquare("c3")),
+            logicSummary = "The line trades one bishop defender but leaves another defender on c3.",
+            delta = PVDelta(
+              resolvedThreats = Nil,
+              newOpportunities = List("exchange the defender around c3"),
+              planAdvancements = List("trade the defender"),
+              concessions = Nil
+            ),
+            confidence = ConfidenceLevel.Probe
+          )
+        ),
+        engineEvidence = Some(
+          EngineEvidence(
+            depth = 18,
+            variations =
+              List(
+                VariationLine(
+                  moves = List("b1b2", "e5b2", "d2b2"),
+                  scoreCp = 16,
+                  depth = 18
+                )
+              )
+          )
+        )
+      ).withTypedEvidenceFromLegacy
+    val pack =
+      Some(
+        StrategyPack(
+          sideToMove = "white",
+          pieceMoveRefs = List(
+            StrategyPieceMoveRef(
+              ownerSide = "white",
+              piece = "R",
+              from = "b1",
+              target = "b2",
+              idea = "trade the defender of c3",
+              tacticalTheme = Some("exchange"),
+              evidence = List("probe")
+            )
+          ),
+          directionalTargets = List(
+            StrategyDirectionalTarget(
+              targetId = "target_c3",
+              ownerSide = "white",
+              piece = "R",
+              from = "b1",
+              targetSquare = "c3",
+              readiness = DirectionalTargetReadiness.Build,
+              strategicReasons = List("trade the defender"),
+              evidence = List("probe")
+            )
+          )
+        )
+      )
+
+    val delta =
+      PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidence(ctx, StrategyPackSurface.from(pack), None)
+
+    assert(
+      delta.forall(_.packet.proofSource != PlayerFacingTruthModePolicy.DefenderTradeProofSource),
+      clues(delta)
+    )
+    assert(
+      delta.forall(_.packet.proofFamily != PlanTaxonomy.PlanKind.DefenderTrade.id),
+      clues(delta)
+    )
+    assert(
+      delta.forall(_.packet.fallbackMode != PlayerFacingClaimFallbackMode.WeakMain),
+      clues(delta)
+    )
   }
 
   test("board/PV bad-piece liquidation branch materializes a supported-local move owner") {
@@ -3798,6 +3955,18 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     assertEquals(packet.fallbackMode, PlayerFacingClaimFallbackMode.WeakMain)
     assert(packet.proofPathWitness.ownerSeedTerms.contains("bad_piece:c1"), clues(packet))
     assert(packet.proofPathWitness.structureTransitionTerms.contains("bad_piece_removed:c1-f8"), clues(packet))
+
+    val missingPlayedMoveDelta =
+      PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidence(ctx.copy(playedMove = None), surface, None)
+
+    assert(
+      missingPlayedMoveDelta.forall(_.packet.proofSource != PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource),
+      clues(missingPlayedMoveDelta)
+    )
+    assert(
+      missingPlayedMoveDelta.forall(_.packet.fallbackMode != PlayerFacingClaimFallbackMode.WeakMain),
+      clues(missingPlayedMoveDelta)
+    )
 
     val inputs = QuestionPlannerInputsBuilder.build(ctx, pack, truthContract = None)
     val ranked = QuestionFirstCommentaryPlanner.plan(ctx, inputs, truthContract = None)
@@ -4057,10 +4226,10 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
         None
       ).getOrElse(fail("standalone entry-square denial should still build a packet"))
 
-    assertEquals(delta.deltaClass, PlayerFacingMoveDeltaClass.ResourceRemoval)
+    assertEquals(delta.deltaClass, PlayerFacingMoveDeltaClass.CounterplayReduction)
     assertEquals(delta.packet.triggerKind, "entry_square_denial")
-    assertEquals(delta.packet.proofSource, "resource_removal_delta")
-    assertEquals(delta.packet.proofFamily, "resource_removal")
+    assertEquals(delta.packet.proofSource, "counterplay_reduction_delta")
+    assertEquals(delta.packet.proofFamily, "counterplay_reduction")
     assertEquals(delta.packet.bestDefenseBranchKey, Some("a2a3|b7b5"))
     assertEquals(delta.packet.sameBranchState, PlayerFacingSameBranchState.Proven)
     assertEquals(delta.packet.persistence, PlayerFacingClaimPersistence.Stable)

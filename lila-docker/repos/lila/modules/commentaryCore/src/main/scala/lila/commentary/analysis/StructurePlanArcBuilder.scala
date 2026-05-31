@@ -5,6 +5,7 @@ import _root_.chess.format.Fen
 import lila.commentary.RouteSurfaceMode
 import lila.commentary.model.*
 import lila.commentary.model.strategic.{ PieceActivity, PositionalTag }
+import lila.commentary.analysis.semantic.RelationObservationCatalog
 
 private[analysis] final case class PieceDeploymentCue(
     ownerSide: String,
@@ -49,6 +50,8 @@ private[analysis] object StructurePlanArcBuilder:
   val ProseConfidenceCutoff = 0.55
   val SecondaryConfidenceCutoff = 0.55
   val ExactRouteCutoff = 0.82
+  private val TrappedPieceFallbackEvidence =
+    RelationObservationCatalog.deferredFallbackEvidenceTermForKind(MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece)
 
   def build(ctx: NarrativeContext): Option[StructurePlanArc] =
     val semantic = ctx.semantic
@@ -165,7 +168,7 @@ private[analysis] object StructurePlanArcBuilder:
   def evidenceFromStrategicActivity(activity: PieceActivity, destination: String): List[String] =
     List(
       Option.when(activity.isBadBishop)("bishop_quality_signal"),
-      Option.when(activity.isTrapped)("trapped_piece_signal"),
+      Option.when(activity.isTrapped)(TrappedPieceFallbackEvidence).flatten,
       Option.when(activity.mobilityScore < 0.4)("low_mobility_signal"),
       Option.when(activity.keyRoutes.size >= 2)("multi_hop_route"),
       Option.when(activity.coordinationLinks.nonEmpty)(s"coordination_links_${activity.coordinationLinks.size.min(4)}"),
@@ -252,7 +255,7 @@ private[analysis] object StructurePlanArcBuilder:
       cue: PieceDeploymentCue,
       planLabel: String
   ): String =
-    parseUci(ctx.playedMove).fold(s"This move supports that route by making ${planLabel.toLowerCase} easier to organize.") {
+    playedMoveSquares(ctx).fold(s"This move supports that route by making ${planLabel.toLowerCase} easier to organize.") {
       case (from, to) if from == cue.from && cue.route.headOption.contains(to) =>
         "This move starts that route immediately."
       case (from, to) if from == cue.from && cue.destination == to =>
@@ -600,8 +603,11 @@ private[analysis] object StructurePlanArcBuilder:
   private def squareByKey(key: String): Option[Square] =
     Square.all.find(_.key == key)
 
-  private def parseUci(uci: Option[String]): Option[(String, String)] =
-    uci.flatMap(normalized).filter(_.length >= 4).map(move => move.take(2) -> move.drop(2).take(2))
+  private def playedMoveSquares(ctx: NarrativeContext): Option[(String, String)] =
+    ctx.playedMove
+      .flatMap(move => MoveReviewExchangeAnalyzer.boundedReplay(ctx.fen, List(move), maxPlies = 1))
+      .flatMap(_.headOption)
+      .map(step => step.move.orig.key -> step.move.dest.key)
 
   private def sameFile(square: String, destination: String): Boolean =
     square.headOption.isDefined && destination.headOption.isDefined && square.head == destination.head

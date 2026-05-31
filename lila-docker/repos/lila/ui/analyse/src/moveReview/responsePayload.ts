@@ -126,6 +126,13 @@ export type MoveReviewSurfaceAuthorityV2 = {
   token?: string | null;
   openingFamily?: string | null;
   target?: string | null;
+  openingBook?: MoveReviewOpeningBookMetadataV2 | null;
+};
+
+export type MoveReviewOpeningBookMetadataV2 = {
+  eco?: string | null;
+  totalGames?: number | null;
+  topMoves: string[];
 };
 
 export type MoveReviewPlayerSurfaceRowV1 = {
@@ -171,6 +178,27 @@ export type MoveReviewPlayerSurfaceV1 = {
   probeRows: MoveReviewPlayerSurfaceRowV1[];
   authorRows: MoveReviewPlayerAuthorRowV1[];
 };
+
+const strategicRelationAuthorityTokens = new Set([
+  'defender_trade',
+  'bad_piece_liquidation',
+  'overload',
+  'deflection',
+  'discovered_attack',
+  'double_check',
+  'back_rank_mate',
+  'mate_net',
+  'greek_gift',
+  'fork',
+  'hanging_piece',
+  'xray',
+  'clearance',
+  'battery',
+  'pin',
+  'skewer',
+  'interference',
+  'decoy',
+]);
 
 export type DecodedMoveReviewResponse = {
   html: string;
@@ -291,12 +319,12 @@ export function moveReviewNeedsRetry(decoded: Pick<DecodedMoveReviewResponse, 'd
   return decoded.diagnostics?.status === 'retryable_fallback';
 }
 
-function surfaceRowFromUnknown(raw: unknown): MoveReviewPlayerSurfaceRowV1 | null {
+function surfaceRowFromUnknown(raw: unknown, allowStrategicRelation = false): MoveReviewPlayerSurfaceRowV1 | null {
   if (!isRecord(raw)) return null;
   if (typeof raw.label !== 'string' || typeof raw.text !== 'string') return null;
   const refSans = raw.refSans == null ? [] : stringListFromUnknown(raw.refSans);
   if (!refSans) return null;
-  const authority = raw.authority == null ? null : surfaceAuthorityFromUnknown(raw.authority);
+  const authority = raw.authority == null ? null : surfaceAuthorityFromUnknown(raw.authority, allowStrategicRelation);
   return {
     label: raw.label,
     text: raw.text,
@@ -306,12 +334,12 @@ function surfaceRowFromUnknown(raw: unknown): MoveReviewPlayerSurfaceRowV1 | nul
   };
 }
 
-function surfaceAuthorityFromUnknown(raw: unknown): MoveReviewSurfaceAuthorityV2 | null {
+function surfaceAuthorityFromUnknown(raw: unknown, allowStrategicRelation: boolean): MoveReviewSurfaceAuthorityV2 | null {
   if (!isRecord(raw) || typeof raw.kind !== 'string') return null;
   if (!isAuthorityKey(raw.kind)) return null;
 
   const token = typeof raw.token === 'string' ? raw.token : null;
-  if (token !== null && !isSurfaceAuthorityToken(token)) return null;
+  if (token !== null && !isSurfaceAuthorityTokenForKind(raw.kind, token)) return null;
 
   const target = typeof raw.target === 'string' ? raw.target : null;
   if (target !== null && !isChessSquare(target)) return null;
@@ -324,39 +352,90 @@ function surfaceAuthorityFromUnknown(raw: unknown): MoveReviewSurfaceAuthorityV2
     token,
     openingFamily,
     target,
+    openingBook: raw.kind === 'opening_family' ? openingBookFromUnknown(raw.openingBook) : null,
   };
-  return isSurfaceAuthorityShape(authority) ? authority : null;
+  return isSurfaceAuthorityShape(authority, allowStrategicRelation) ? authority : null;
 }
 
-function isSurfaceAuthorityShape(authority: MoveReviewSurfaceAuthorityV2): boolean {
+function isSurfaceAuthorityShape(authority: MoveReviewSurfaceAuthorityV2, allowStrategicRelation: boolean): boolean {
   switch (authority.kind) {
     case 'counterplay_break':
-      return !!authority.token && !authority.openingFamily && !authority.target;
+      return !!authority.token && !authority.openingFamily && !authority.target && !authority.openingBook;
     case 'central_break':
     case 'central_liquidation':
     case 'central_challenge':
-      return !!authority.token && isSurfaceAuthorityRouteToken(authority.token) && !authority.openingFamily && !authority.target;
+      return (
+        !!authority.token &&
+        isSurfaceAuthorityRouteToken(authority.token) &&
+        !authority.openingFamily &&
+        !authority.target &&
+        !authority.openingBook
+      );
     case 'practical_plan':
-      return !authority.token && !authority.openingFamily && !authority.target;
+      return !authority.token && !authority.openingFamily && !authority.target && !authority.openingBook;
     case 'opening_family':
       return !!authority.openingFamily && !authority.token;
+    case 'strategic_relation':
+      return (
+        allowStrategicRelation &&
+        !!authority.token &&
+        isStrategicRelationAuthorityToken(authority.token) &&
+        !!authority.target &&
+        !authority.openingFamily &&
+        !authority.openingBook
+      );
     default:
       return false;
   }
+}
+
+function openingBookFromUnknown(raw: unknown): MoveReviewOpeningBookMetadataV2 | null {
+  if (!isRecord(raw)) return null;
+  const eco = typeof raw.eco === 'string' && isOpeningEco(raw.eco) ? raw.eco : null;
+  const totalGames =
+    typeof raw.totalGames === 'number' && Number.isFinite(raw.totalGames)
+      ? Math.trunc(raw.totalGames)
+      : null;
+  const topMoves = raw.topMoves == null ? [] : stringListFromUnknown(raw.topMoves);
+  if (!topMoves) return null;
+  const cleanTopMoves = topMoves.filter(isOpeningBookMove).slice(0, 3);
+  const cleanTotalGames = totalGames !== null && totalGames > 0 && totalGames <= 100000000 ? totalGames : null;
+  if (!eco && cleanTotalGames === null && !cleanTopMoves.length) return null;
+  return {
+    eco,
+    totalGames: cleanTotalGames,
+    topMoves: cleanTopMoves,
+  };
+}
+
+function isOpeningEco(value: string): boolean {
+  return /^[A-E][0-9]{2}$/.test(value);
+}
+
+function isOpeningBookMove(value: string): boolean {
+  return /^(?:[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?|O-O(?:-O)?[+#]?)$/.test(value);
 }
 
 function isSurfaceAuthorityToken(value: string): boolean {
   return /^(?:\.\.\.)?[a-h][1-8](?:-[a-h][1-8])?$/.test(value);
 }
 
+function isSurfaceAuthorityTokenForKind(kind: string, value: string): boolean {
+  return kind === 'strategic_relation' ? isStrategicRelationAuthorityToken(value) : isSurfaceAuthorityToken(value);
+}
+
+function isStrategicRelationAuthorityToken(value: string): boolean {
+  return isAuthorityKey(value) && strategicRelationAuthorityTokens.has(value);
+}
+
 function isSurfaceAuthorityRouteToken(value: string): boolean {
   return /^(?:\.\.\.)?[a-h][1-8]-[a-h][1-8]$/.test(value);
 }
 
-function surfaceRowsFromUnknown(raw: unknown): MoveReviewPlayerSurfaceRowV1[] | null {
+function surfaceRowsFromUnknown(raw: unknown, allowStrategicRelation = false): MoveReviewPlayerSurfaceRowV1[] | null {
   if (raw == null) return [];
   if (!Array.isArray(raw)) return null;
-  const rows = raw.map(surfaceRowFromUnknown);
+  const rows = raw.map(row => surfaceRowFromUnknown(row, allowStrategicRelation));
   if (rows.some(row => !row)) return null;
   return rows as MoveReviewPlayerSurfaceRowV1[];
 }
@@ -411,7 +490,7 @@ function isAuthorityKey(value: string): boolean {
 function playerAuthorRowFromUnknown(raw: unknown): MoveReviewPlayerAuthorRowV1 | null {
   if (!isRecord(raw)) return null;
   if (typeof raw.title !== 'string' || typeof raw.status !== 'string' || typeof raw.question !== 'string') return null;
-  const branches = surfaceRowsFromUnknown(raw.branches);
+  const branches = surfaceRowsFromUnknown(raw.branches, false);
   if (!branches) return null;
   return {
     title: raw.title,
@@ -435,9 +514,9 @@ export function moveReviewPlayerSurfaceFromResponse(data: MaybeResponse): MoveRe
   if (!isRecord(raw)) return null;
   if (raw.schema !== 'chesstory.move_review.player_surface.v1' && raw.schema !== 'chesstory.move_review.player_surface.v2')
     return null;
-  const summaryRows = surfaceRowsFromUnknown(raw.summaryRows);
-  const advancedRows = surfaceRowsFromUnknown(raw.advancedRows);
-  const probeRows = surfaceRowsFromUnknown(raw.probeRows);
+  const summaryRows = surfaceRowsFromUnknown(raw.summaryRows, false);
+  const advancedRows = surfaceRowsFromUnknown(raw.advancedRows, true);
+  const probeRows = surfaceRowsFromUnknown(raw.probeRows, false);
   const authorRows = playerAuthorRowsFromUnknown(raw.authorRows);
   const decisionComparison = raw.decisionComparison == null ? null : playerDecisionComparisonFromUnknown(raw.decisionComparison);
   if (!summaryRows || !advancedRows || !probeRows || !authorRows) return null;

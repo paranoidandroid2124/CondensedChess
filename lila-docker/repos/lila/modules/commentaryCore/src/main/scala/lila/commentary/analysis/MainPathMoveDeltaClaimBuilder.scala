@@ -225,19 +225,17 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
       ctx: NarrativeContext,
       candidateEvidenceLines: List[String]
   ): List[String] =
-    val external =
-      candidateEvidenceLines
-        .flatMap(clean)
-        .filter(lineShowsImmediateTacticalProof)
-        .take(1)
+    // Candidate text is display-only; line-only tactical proof must come from replayed engine PV.
+    val _ = candidateEvidenceLines
     val engine =
-      Option.when(external.isEmpty) {
-        variationPreview(ctx.engineEvidence.toList.flatMap(_.variations))
-          .map(text => s"Line: a) $text.")
-          .flatMap(clean)
-          .filter(lineShowsImmediateTacticalProof)
-      }.flatten.toList
-    (external ++ engine).distinct.take(1)
+      ctx.engineEvidence.toList
+        .flatMap(_.variations)
+        .find(variationHasImmediateTacticalProof(ctx, _))
+        .flatMap(variation => variationPreview(ctx.fen, List(variation)))
+        .map(text => s"Line: a) $text.")
+        .flatMap(clean)
+        .toList
+    engine.distinct.take(1)
 
   private def strategicEvidenceLines(
       delta: PlayerFacingMoveDeltaEvidence,
@@ -261,7 +259,7 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
         .take(1)
     val engine =
       Option.when(external.isEmpty) {
-        variationPreview(ctx.engineEvidence.toList.flatMap(_.variations))
+        variationPreview(ctx.fen, ctx.engineEvidence.toList.flatMap(_.variations))
           .map(text => s"Line: a) $text.")
           .flatMap(clean)
           .filter(line =>
@@ -566,27 +564,39 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
         contract.truthClass == DecisiveTruthClass.CompensatedInvestment
     ) &&
       ctx.engineEvidence.toList.flatMap(_.variations).headOption.exists { variation =>
-        val window = variation.parsedMoves.take(4)
-        val captureCount = window.count(_.isCapture)
-        val checkCount = window.count(_.givesCheck)
-        variation.mate.nonEmpty ||
-        variation.tags.contains(VariationTag.Forced) ||
-        (captureCount >= 2) ||
-        (checkCount >= 2) ||
-        (captureCount >= 1 && checkCount >= 1)
+        tacticalReplayWindow(ctx, variation).exists { case (captureCount, checkCount) =>
+          variation.mate.nonEmpty ||
+          variation.tags.contains(VariationTag.Forced) ||
+          (captureCount >= 2) ||
+          (checkCount >= 2) ||
+          (captureCount >= 1 && checkCount >= 1)
+        }
       }
 
-  private def lineShowsImmediateTacticalProof(text: String): Boolean =
-    val window = Option(text).getOrElse("").split("\\s+").toList.take(12)
-    val captureCount = window.count(_.contains("x"))
-    val checkCount = window.count(token => token.contains("+") || token.contains("#") || token.toLowerCase.contains("mate"))
-    captureCount >= 2 || checkCount >= 2 || (captureCount >= 1 && checkCount >= 1)
+  private def tacticalReplayWindow(
+      ctx: NarrativeContext,
+      variation: VariationLine
+  ): Option[(Int, Int)] =
+    MoveReviewExchangeAnalyzer
+      .boundedReplay(ctx.fen, MoveReviewExchangeAnalyzer.normalizedLineMoves(variation), maxPlies = 4)
+      .filter(_.nonEmpty)
+      .map(steps => steps.count(_.move.captures) -> steps.count(_.after.check.yes))
 
-  private def variationPreview(variations: List[VariationLine]): Option[String] =
+  private def variationHasImmediateTacticalProof(
+      ctx: NarrativeContext,
+      variation: VariationLine
+  ): Boolean =
+    tacticalReplayWindow(ctx, variation).exists { case (captureCount, checkCount) =>
+      variation.mate.nonEmpty ||
+        variation.tags.contains(VariationTag.Forced) ||
+        captureCount >= 2 ||
+        checkCount >= 2 ||
+        (captureCount >= 1 && checkCount >= 1)
+    }
+
+  private def variationPreview(fen: String, variations: List[VariationLine]): Option[String] =
     variations.headOption.flatMap { line =>
-      val moves =
-        if line.parsedMoves.nonEmpty then line.parsedMoves.take(3).map(_.san.trim).filter(_.nonEmpty)
-        else line.moves.take(3).map(_.trim).filter(_.nonEmpty)
+      val moves = LineScopedCitation.sanMoves(fen, line).take(3).map(_.trim).filter(_.nonEmpty)
       Option.when(moves.nonEmpty)(moves.mkString(" "))
     }
 

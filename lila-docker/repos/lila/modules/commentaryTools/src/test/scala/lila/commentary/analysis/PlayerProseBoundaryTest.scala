@@ -1,5 +1,6 @@
 package lila.commentary.analysis
 
+import lila.commentary.analysis.semantic.RelationObservationCatalog
 import munit.FunSuite
 
 class PlayerProseBoundaryTest extends FunSuite:
@@ -31,4 +32,34 @@ class PlayerProseBoundaryTest extends FunSuite:
       )
 
     assert(evaluation.reasons.contains("duplicate_sentence_detected"), clue(evaluation))
+  }
+
+  test("relation helper notation is denied from the player-facing prose boundary") {
+    def pascalHelper(kind: String): String =
+      kind
+        .split("_")
+        .toList
+        .filter(_.nonEmpty)
+        .map(part => part.head.toUpper.toString + part.drop(1))
+        .mkString
+
+    val relationKinds = RelationObservationCatalog.InventoryKinds
+    val missingSnakeHits =
+      relationKinds.filterNot(kind => PlayerProseBoundary.helperLeakHits(s"$kind(target)").contains(kind))
+    val missingPascalHits =
+      relationKinds.filterNot(kind =>
+        PlayerProseBoundary.helperLeakHits(s"${pascalHelper(kind)}(target)").contains(kind)
+      )
+    val acceptedHelperRows =
+      relationKinds.filterNot(kind =>
+        PlayerProseBoundary
+          .validateSanitized(s"${pascalHelper(kind)}(target) should not reach players as a helper call.")
+          .reasons
+          .contains("helper_symbol_leak_detected")
+      )
+
+    assertEquals(relationKinds.sorted, MoveReviewExchangeAnalyzer.RelationKind.All.sorted)
+    assertEquals(missingSnakeHits, Nil)
+    assertEquals(missingPascalHits, Nil)
+    assertEquals(acceptedHelperRows, Nil)
   }

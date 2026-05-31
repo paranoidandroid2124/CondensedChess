@@ -27,7 +27,7 @@ class DecisiveTruthContractTest extends FunSuite:
   private def ctx(
       playedMove: String,
       playedSan: String,
-      fen: String = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
+      fen: String = "4k3/8/8/8/8/8/8/4K3 b - - 0 1",
       semantic: Option[SemanticSection] = None,
       criticality: String = "Critical",
       choiceType: String = "StyleChoice",
@@ -687,7 +687,7 @@ class DecisiveTruthContractTest extends FunSuite:
           playedSan = "Qa4",
           fen = "rnbqkbnr/pppp1ppp/8/4p3/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
         ),
-      cpBefore = Some(20),
+      cpBefore = Some(100),
       cpAfter = Some(0),
       strategyPack = Some(pack),
       comparisonOverride = Some(raw)
@@ -726,7 +726,7 @@ class DecisiveTruthContractTest extends FunSuite:
           playedSan = "Rxd5",
           fen = "3r2k1/8/8/3b4/8/8/8/3R2K1 w - - 0 1"
         ),
-      cpBefore = Some(40),
+      cpBefore = Some(360),
       cpAfter = Some(0),
       strategyPack = Some(pack),
       comparisonOverride = Some(raw)
@@ -821,8 +821,8 @@ class DecisiveTruthContractTest extends FunSuite:
           fen = "rnbqkbnr/pppp1ppp/8/4p3/8/5N2/PPPPPPPP/RNBQKB1R w KQkq - 0 1",
           choiceType = "OnlyMove"
         ),
-      cpBefore = Some(30),
-      cpAfter = Some(-10),
+      cpBefore = Some(360),
+      cpAfter = Some(0),
       strategyPack = Some(pack),
       comparisonOverride = Some(raw)
     )
@@ -871,7 +871,7 @@ class DecisiveTruthContractTest extends FunSuite:
               VariationLine(moves = List("g1f3"), scoreCp = 205)
             )
         ),
-      cpBefore = Some(20),
+      cpBefore = Some(360),
       cpAfter = Some(0),
       strategyPack = Some(pack),
       comparisonOverride = Some(raw)
@@ -879,13 +879,85 @@ class DecisiveTruthContractTest extends FunSuite:
     val sanitizedPack = DecisiveTruth.sanitizeStrategyPack(Some(pack), frame.toContract).getOrElse(fail("missing pack"))
 
     assertEquals(frame.truthClass, DecisiveTruthClass.Blunder)
-    assertEquals(frame.failureInterpretation.failureMode, FailureInterpretationMode.QuietPositionalCollapse)
+    assertEquals(frame.failureInterpretation.failureMode, FailureInterpretationMode.TacticalRefutation)
     assertEquals(frame.failureInterpretation.interpretationAllowed, false)
     assertEquals(sanitizedPack.longTermFocus, Nil)
     assertEquals(sanitizedPack.strategicIdeas, Nil)
     assertEquals(sanitizedPack.pieceRoutes, Nil)
     assertEquals(sanitizedPack.directionalTargets, Nil)
     assert(sanitizedPack.signalDigest.flatMap(_.dominantIdeaFocus).isEmpty, clue(sanitizedPack.signalDigest))
+  }
+
+  test("truth-sanitized relation support reaches player surface outside tactical failure gate") {
+    val relationIdea =
+      StrategyIdeaSignal(
+        ideaId = "idea_1",
+        ownerSide = "white",
+        kind = StrategicIdeaKind.LineOccupation,
+        group = StrategicIdeaGroup.PieceAndLineManagement,
+        readiness = StrategicIdeaReadiness.Build,
+        focusSquares = List("e4", "f5", "g6"),
+        confidence = 0.72,
+        evidenceRefs = List("source:xray_relation", "xray_semantic", "blocker:f5")
+      )
+    val pack =
+      StrategyPack(
+        sideToMove = "white",
+        strategicIdeas = List(relationIdea)
+      )
+    val relationCtx =
+      ctx(
+        playedMove = "b1e4",
+        playedSan = "Be4",
+        fen = "6k1/5ppp/6q1/5n2/8/8/8/1B5K w - - 0 1",
+        engineVariations = List(VariationLine(moves = List("b1e4"), scoreCp = 42))
+      ).copy(renderMode = NarrativeRenderMode.MoveReview)
+    val raw =
+      comparison(
+        chosenMove = "Be4",
+        engineBestMove = Some("Be4"),
+        cpLoss = 0,
+        chosenMatchesBest = true
+      )
+    val frame =
+      DecisiveTruth.deriveFrame(
+        ctx = relationCtx,
+        cpBefore = Some(42),
+        cpAfter = Some(42),
+        strategyPack = Some(pack),
+        comparisonOverride = Some(raw)
+      )
+    val sanitizedPack =
+      DecisiveTruth.sanitizeStrategyPack(Some(pack), frame.toContract).getOrElse(fail("missing pack"))
+
+    assert(frame.truthClass != DecisiveTruthClass.Blunder, clue(frame))
+    assert(sanitizedPack.strategicIdeas.exists(_.evidenceRefs.contains("source:xray_relation")), clue(sanitizedPack))
+
+    val surface =
+      MoveReviewPlayerPayloadBuilder.build(
+        ctx = relationCtx,
+        moveReviewExplanation = None,
+        moveReviewLedger = None,
+        refs = None,
+        evaluatedPlans = Nil,
+        authoringSurface = AuthoringEvidenceSurface(Nil, Nil, None),
+        strategyPack = Some(sanitizedPack)
+      )
+    val relationRow =
+      surface.advancedRows
+        .find(_.authority.exists(_.kind == MoveReviewSurfaceAuthority.StrategicRelation))
+        .getOrElse(fail(s"missing relation row: ${surface.advancedRows}"))
+
+    assertEquals(
+      relationRow.authority,
+      Some(
+        MoveReviewSurfaceAuthority(
+          kind = MoveReviewSurfaceAuthority.StrategicRelation,
+          token = Some("xray"),
+          target = Some("g6")
+        )
+      )
+    )
   }
 
   test("failed speculative sacrifice is tagged separately from generic tactical blunders") {
@@ -928,8 +1000,8 @@ class DecisiveTruthContractTest extends FunSuite:
               VariationLine(moves = List("g1f3"), scoreCp = 205)
             )
         ),
-      cpBefore = Some(40),
-      cpAfter = Some(-180),
+      cpBefore = Some(360),
+      cpAfter = Some(0),
       strategyPack = Some(pack),
       comparisonOverride = Some(raw)
     )
@@ -1343,7 +1415,7 @@ class DecisiveTruthContractTest extends FunSuite:
       ctx = ctx("c7c6", "Qc6"),
       momentType = Some("AdvantageSwing"),
       cpBefore = Some(100),
-      cpAfter = Some(420),
+      cpAfter = Some(500),
       comparisonOverride = Some(raw)
     )
 

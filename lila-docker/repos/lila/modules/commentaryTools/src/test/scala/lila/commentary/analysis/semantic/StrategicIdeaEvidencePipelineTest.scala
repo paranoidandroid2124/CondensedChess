@@ -2,7 +2,7 @@ package lila.commentary.analysis.semantic
 
 import _root_.chess.{ Color, File, Rook, Square }
 
-import lila.commentary.{ StrategicIdeaKind, StrategyPack }
+import lila.commentary.{ StrategicIdeaKind, StrategicIdeaReadiness, StrategyPack }
 import lila.commentary.analysis.{ StrategicIdeaSemanticContext, StrategicStateFeatures }
 import lila.commentary.model.strategic.{ PositionalTag, PreventedPlan }
 import munit.FunSuite
@@ -95,7 +95,30 @@ class StrategicIdeaEvidencePipelineTest extends FunSuite:
 
     assert(observations.exists(_.source == StrategicObservationIds.EvidenceSourceId.PreventedPlan), clues(observations))
     assert(observations.exists(_.source == StrategicObservationIds.EvidenceSourceId.MateNet), clues(observations))
-    assert(observations.exists(_.source == StrategicObservationIds.EvidenceSourceId.RemovingTheDefender), clues(observations))
     assert(observations.exists(_.source == StrategicObservationIds.EvidenceSourceId.CounterplaySuppression), clues(observations))
     assert(observations.flatMap(_.factIds).forall(fact => !fact.wireKey.startsWith("source:")))
+  }
+
+  test("raw removing-defender tags degrade to a generic exchange label without defender authority") {
+    val semantic =
+      StrategicIdeaSemanticContext
+        .empty("white")
+        .copy(
+          positionalFeatures = List(PositionalTag.RemovingTheDefender(Rook, Color.White))
+        )
+
+    val observations =
+      StrategicIdeaEvidencePipeline.collect(StrategyPack(sideToMove = "white"), semantic)
+
+    assert(
+      !observations.exists(_.source == StrategicObservationIds.EvidenceSourceId.RemovingTheDefender),
+      clues(observations)
+    )
+    assert(
+      observations.exists(observation =>
+        observation.source == StrategicObservationIds.EvidenceSourceId.CaptureExchangeTransformation &&
+          observation.readiness == StrategicIdeaReadiness.Build
+      ),
+      clues(observations)
+    )
   }

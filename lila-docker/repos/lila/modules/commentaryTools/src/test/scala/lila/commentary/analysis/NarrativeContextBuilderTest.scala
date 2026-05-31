@@ -73,6 +73,41 @@ class NarrativeContextBuilderTest extends FunSuite {
     assertEquals(narrativeCtx.threats.toUs.head.square, Some("e5"))
   }
 
+  test("summary key threat uses deferred relation fallback labels instead of raw motif names") {
+    val threat = Threat(
+      kind = ThreatKind.Positional,
+      lossIfIgnoredCp = 140,
+      turnsToImpact = 3,
+      motifs = List("Domination"),
+      attackSquares = List("e5"),
+      targetPieces = Nil,
+      bestDefense = None,
+      defenseCount = 0
+    )
+    val threatAnalysis = ThreatAnalysis(
+      threats = List(threat),
+      defense = DefenseAssessment(ThreatSeverity.Low, None, Nil, false, true, 20, "Test"),
+      threatSeverity = ThreatSeverity.Low,
+      immediateThreat = false,
+      strategicThreat = true,
+      threatIgnorable = false,
+      defenseRequired = false,
+      counterThreatBetter = false,
+      prophylaxisNeeded = true,
+      resourceAvailable = false,
+      maxLossIfIgnored = 140,
+      primaryDriver = "positional_threat",
+      insufficientData = false
+    )
+    val ctx = IntegratedContext(evalCp = 50, isWhiteToMove = true, threatsToUs = Some(threatAnalysis))
+
+    val narrativeCtx = NarrativeContextBuilder.build(minimalData(Some(ctx)), ctx, None)
+    val keyThreat = narrativeCtx.summary.keyThreat.getOrElse(fail("missing key threat"))
+
+    assert(keyThreat.contains("key-square restriction"), clue(keyThreat))
+    assert(!keyThreat.toLowerCase.contains("domination"), clue(keyThreat))
+  }
+
   // ============================================================
   // A2: PAWN PLAY TABLE  
   // ============================================================

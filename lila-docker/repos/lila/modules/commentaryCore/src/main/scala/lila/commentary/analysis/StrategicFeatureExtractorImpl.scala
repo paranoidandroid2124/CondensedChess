@@ -354,7 +354,7 @@ class StrategicFeatureExtractorImpl(
     // From Positional Features
     positionalFeatures.foreach {
       case PositionalTag.MateNet(_) => concepts += "Mate threats"
-      case PositionalTag.RemovingTheDefender(_, _) => concepts += "Removing defenders"
+      case PositionalTag.RemovingTheDefender(_, _) => concepts += "Exchange pressure"
       case PositionalTag.Initiative(_) => concepts += "Initiative"
       case PositionalTag.Outpost(sq, color) => concepts += s"${color.name} outpost at ${sq.key}"
       case PositionalTag.OpenFile(file, color) => concepts += s"${color.name} control of ${file}-file"

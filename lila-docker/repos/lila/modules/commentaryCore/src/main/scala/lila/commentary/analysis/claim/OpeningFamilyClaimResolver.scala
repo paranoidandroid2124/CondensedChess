@@ -50,11 +50,12 @@ private[commentary] object OpeningFamilyClaimResolver:
 
   def decideOpeningFamilyClaim(
       claim: OpeningFamilyClaim,
-      proof: OpeningFamilyMatchProof
+      proof: OpeningFamilyMatchProof,
+      openingLookup: OpeningNameLookup = OpeningNameLookup.default
   ): Option[ClaimAuthorityDecision] =
     val openingLower = normalizeOpening(proof.opening)
     if !isOpeningStage(proof.phase, proof.ply) then None
-    else if openingProofMatchesFamily(openingLower, proof.fen, claim.wireKey)
+    else if openingProofMatchesFamily(openingLower, proof.fen, claim.wireKey, openingLookup)
     then Some(ClaimAuthorityDecision(ClaimAuthorityTier.SupportedLocal))
     else
       Some(
@@ -84,12 +85,19 @@ private[commentary] object OpeningFamilyClaimResolver:
   private def openingProofMatchesFamily(
       openingLower: String,
       fen: Option[String],
-      familyKey: String
+      familyKey: String,
+      openingLookup: OpeningNameLookup
   ): Boolean =
     openingMatchesFamily(openingLower, familyKey) &&
-      bookFenMatchesFamily(fen, familyKey)
+      bookFenMatchesFamily(fen, familyKey, openingLookup)
 
-  private def bookFenMatchesFamily(fen: Option[String], familyKey: String): Boolean =
-    fen.flatMap(OpeningNameLookup.default.lookup)
+  private def bookFenMatchesFamily(
+      fen: Option[String],
+      familyKey: String,
+      openingLookup: OpeningNameLookup
+  ): Boolean =
+    fen
+      .map(openingLookup.lookupAll)
+      .getOrElse(Nil)
       .flatMap(_.name)
       .exists(name => openingMatchesFamily(normalizeOpening(Some(name)), familyKey))

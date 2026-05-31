@@ -1,9 +1,81 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   decodeMoveReviewResponse,
   moveReviewNeedsRetry,
 } from '../src/moveReview/responsePayload';
+
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
+
+const quotedStrings = (source: string): string[] => [...source.matchAll(/'([^']+)'/g)].map(match => match[1] ?? '');
+
+const backendCatalogRelationTokens = (): string[] => {
+  const analyzerSource = readFileSync(
+    resolve(repoRoot, 'modules/commentaryCore/src/main/scala/lila/commentary/analysis/MoveReviewExchangeAnalyzer.scala'),
+    'utf8',
+  );
+  const catalogSource = readFileSync(
+    resolve(repoRoot, 'modules/commentaryCore/src/main/scala/lila/commentary/analysis/semantic/StrategicSemanticObservation.scala'),
+    'utf8',
+  );
+  const relationKindBlock = analyzerSource.match(/object RelationKind:([\s\S]*?)val All:/)?.[1] ?? '';
+  const valuesByName = new Map(
+    [...relationKindBlock.matchAll(/\bval\s+([A-Za-z0-9]+)\s*=\s*"([^"]+)"/g)].map(match => [
+      match[1] ?? '',
+      match[2] ?? '',
+    ]),
+  );
+  const implementedBlock =
+    catalogSource.match(/val Implemented: List\[RelationObservationDescriptor\]\s*=\s*List\(([\s\S]*?)\)\s*val DeferredRelationKinds/)?.[1] ?? '';
+  const implementedNames = [
+    ...implementedBlock.matchAll(/relationKind\s*=\s*MoveReviewExchangeAnalyzer\.RelationKind\.([A-Za-z0-9]+)/g),
+  ].map(match => match[1] ?? '');
+
+  return implementedNames.map(name => {
+    const token = valuesByName.get(name);
+    assert.ok(token, `Missing backend relation token for ${name}`);
+    return token;
+  });
+};
+
+const frontendRelationTokens = (): string[] => {
+  const source = readFileSync(resolve(repoRoot, 'ui/analyse/src/moveReview/responsePayload.ts'), 'utf8');
+  const tokenBlock = source.match(/const strategicRelationAuthorityTokens = new Set\(\[([\s\S]*?)\]\);/)?.[1] ?? '';
+
+  return quotedStrings(tokenBlock);
+};
+
+const backendDeferredRelationTokens = (): string[] => {
+  const analyzerSource = readFileSync(
+    resolve(repoRoot, 'modules/commentaryCore/src/main/scala/lila/commentary/analysis/MoveReviewExchangeAnalyzer.scala'),
+    'utf8',
+  );
+  const catalogSource = readFileSync(
+    resolve(repoRoot, 'modules/commentaryCore/src/main/scala/lila/commentary/analysis/semantic/StrategicSemanticObservation.scala'),
+    'utf8',
+  );
+  const relationKindBlock = analyzerSource.match(/object RelationKind:([\s\S]*?)val All:/)?.[1] ?? '';
+  const valuesByName = new Map(
+    [...relationKindBlock.matchAll(/\bval\s+([A-Za-z0-9]+)\s*=\s*"([^"]+)"/g)].map(match => [
+      match[1] ?? '',
+      match[2] ?? '',
+    ]),
+  );
+  const deferredBlock =
+    catalogSource.match(/val Deferred: List\[DeferredRelationDescriptor\]\s*=\s*List\(([\s\S]*?)\)\s*val Implemented/)?.[1] ?? '';
+  const deferredNames = [
+    ...deferredBlock.matchAll(/relationKind\s*=\s*MoveReviewExchangeAnalyzer\.RelationKind\.([A-Za-z0-9]+)/g),
+  ].map(match => match[1] ?? '');
+
+  return deferredNames.map(name => {
+    const token = valuesByName.get(name);
+    assert.ok(token, `Missing backend deferred relation token for ${name}`);
+    return token;
+  });
+};
 
 describe('moveReview response payload', () => {
   test('decodeMoveReviewResponse accepts minimized payload without raw strategic carriers', () => {
@@ -342,7 +414,54 @@ describe('moveReview response payload', () => {
       token: null,
       openingFamily: 'queens_gambit',
       target: 'd5',
+      openingBook: null,
     });
+  });
+
+  test('decodeMoveReviewResponse preserves bounded opening book metadata', () => {
+    const decoded = decodeMoveReviewResponse({
+      moveReviewPlayerSurface: {
+        schema: 'chesstory.move_review.player_surface.v2',
+        summaryRows: [
+          {
+            label: 'Opening',
+            text: 'The opening structure is backed by public aggregate book data.',
+            authority: {
+              kind: 'opening_family',
+              openingFamily: 'queens_gambit',
+              openingBook: {
+                eco: 'D06',
+                totalGames: 12345.9,
+                topMoves: ['e6', 'raw note', 'Nf6', 'O-O'],
+              },
+            },
+          },
+          {
+            label: 'Counterplay break',
+            text: 'Opening metadata is not accepted on other authority shapes.',
+            authority: {
+              kind: 'counterplay_break',
+              token: 'd5',
+              openingBook: {
+                eco: 'D06',
+                totalGames: 12345,
+                topMoves: ['e6'],
+              },
+            },
+          },
+        ],
+        advancedRows: [],
+        probeRows: [],
+        authorRows: [],
+      },
+    });
+
+    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[0]?.authority?.openingBook, {
+      eco: 'D06',
+      totalGames: 12345,
+      topMoves: ['e6', 'Nf6', 'O-O'],
+    });
+    assert.equal(decoded.moveReviewPlayerSurface?.summaryRows[1]?.authority?.openingBook, null);
   });
 
   test('decodeMoveReviewResponse keeps surface row while downgrading malformed authority', () => {
@@ -412,8 +531,118 @@ describe('moveReview response payload', () => {
       token: 'd5',
       openingFamily: null,
       target: null,
+      openingBook: null,
     });
     assert.equal(decoded.moveReviewPlayerSurface?.summaryRows[2]?.authority, null);
+  });
+
+  test('decodeMoveReviewResponse preserves bounded strategic relation authority', () => {
+    const relationTokens = backendCatalogRelationTokens();
+    const decoded = decodeMoveReviewResponse({
+      moveReviewPlayerSurface: {
+        schema: 'chesstory.move_review.player_surface.v2',
+        summaryRows: [
+          {
+            label: 'Line relation',
+            text: 'A stale summary relation row should not carry relation authority.',
+            authority: {
+              kind: 'strategic_relation',
+              token: relationTokens[0],
+              target: 'g6',
+            },
+          },
+        ],
+        advancedRows: [
+          ...relationTokens.map(token => ({
+            label: 'Line relation',
+            text: `The checked line gives ${token} evidence around e4, f5, g6.`,
+            authority: {
+              kind: 'strategic_relation',
+              token,
+              target: 'g6',
+            },
+          })),
+          {
+            label: 'Line relation',
+            text: 'Malformed relation source ids are not public authority.',
+            authority: {
+              kind: 'strategic_relation',
+              token: 'source:xray_relation',
+              target: 'g6',
+            },
+          },
+          {
+            label: 'Line relation',
+            text: 'Untargeted relation tokens are not public authority.',
+            authority: {
+              kind: 'strategic_relation',
+              token: relationTokens[0],
+            },
+          },
+          {
+            label: 'Line relation',
+            text: 'Uncataloged relation ids are not public authority.',
+            authority: {
+              kind: 'strategic_relation',
+              token: 'unsupported_relation',
+              target: 'g6',
+            },
+          },
+        ],
+        probeRows: [],
+        authorRows: [],
+      },
+    });
+
+    assert.equal(decoded.moveReviewPlayerSurface?.summaryRows[0]?.authority, null);
+    assert.deepEqual(
+      decoded.moveReviewPlayerSurface?.advancedRows.slice(0, relationTokens.length).map(row => row.authority?.token),
+      relationTokens,
+    );
+    assert.deepEqual(decoded.moveReviewPlayerSurface?.advancedRows[0]?.authority, {
+      kind: 'strategic_relation',
+      token: 'defender_trade',
+      openingFamily: null,
+      target: 'g6',
+      openingBook: null,
+    });
+    assert.equal(decoded.moveReviewPlayerSurface?.advancedRows[relationTokens.length]?.authority, null);
+    assert.equal(decoded.moveReviewPlayerSurface?.advancedRows[relationTokens.length + 1]?.authority, null);
+    assert.equal(decoded.moveReviewPlayerSurface?.advancedRows[relationTokens.length + 2]?.authority, null);
+  });
+
+  test('frontend strategic relation authority tokens stay aligned with backend relation catalog', () => {
+    assert.deepEqual(frontendRelationTokens(), backendCatalogRelationTokens());
+  });
+
+  test('frontend strategic relation authority tokens exclude backend deferred relation inventory', () => {
+    const deferredTokens = backendDeferredRelationTokens();
+    const frontendTokens = new Set(frontendRelationTokens());
+    assert.ok(deferredTokens.length > 0);
+    assert.deepEqual(
+      deferredTokens.filter(token => frontendTokens.has(token)),
+      [],
+    );
+
+    const decoded = decodeMoveReviewResponse({
+      moveReviewPlayerSurface: {
+        schema: 'chesstory.move_review.player_surface.v2',
+        summaryRows: [],
+        advancedRows: deferredTokens.map(token => ({
+          label: 'Line relation',
+          text: `Deferred relation ${token} is not public authority.`,
+          authority: {
+            kind: 'strategic_relation',
+            token,
+            target: 'g6',
+          },
+        })),
+        probeRows: [],
+        authorRows: [],
+      },
+    });
+
+    assert.deepEqual(decoded.moveReviewPlayerSurface?.advancedRows.map(row => row.authority), deferredTokens.map(() => null));
   });
 
   test('retry gating ignores malformed or absent diagnostics', () => {

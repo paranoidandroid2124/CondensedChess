@@ -57,3 +57,18 @@ final class WeaknessTargetProfileTest extends FunSuite:
       Some(WeaknessTargetProfile.ResolvedByPressure)
     )
   }
+
+  test("does not trust a resulting FEN when the PV cannot replay to it") {
+    val fen = "4k3/8/8/4p3/8/8/8/4K3 w - - 0 1"
+    val staleResultingFen = "4k3/8/8/8/4p3/8/8/4K3 b - - 0 1"
+
+    assertEquals(
+      WeaknessTargetProfile.lineOutcomeFromFen(
+        fen = fen,
+        moves = List("e1e9"),
+        targetSquare = "e5",
+        resultingFen = Some(staleResultingFen)
+      ),
+      None
+    )
+  }

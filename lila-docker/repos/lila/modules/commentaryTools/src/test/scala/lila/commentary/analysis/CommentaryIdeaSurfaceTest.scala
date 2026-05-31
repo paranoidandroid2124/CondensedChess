@@ -187,6 +187,9 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
     assert(CommentaryIdeaSurface.motifCorroboratedByFact("pin_xray_pressure", Fact.Pin(Square.B4, Bishop, Square.C3, Knight, Square.E1, _root_.chess.King, true, FactScope.Now)))
     assert(CommentaryIdeaSurface.motifCorroboratedByFact("fork_deflection", Fact.Fork(Square.F5, Knight, List(Square.E7 -> Rook), FactScope.Now)))
     assert(CommentaryIdeaSurface.motifCorroboratedByFact("outpost_maneuver", Fact.Outpost(Square.D5, Knight, FactScope.Now)))
+    assert(CommentaryIdeaSurface.motifCorroboratedByFact("battery", Fact.HangingPiece(Square.F3, Bishop, List(Square.E4), Nil, FactScope.Now)))
+    assert(!CommentaryIdeaSurface.motifCorroboratedByFact("trapped_piece", Fact.HangingPiece(Square.F3, Bishop, List(Square.E4), Nil, FactScope.Now)))
+    assert(!CommentaryIdeaSurface.motifCorroboratedByFact("trapped_piece_queen", Fact.HangingPiece(Square.F3, Bishop, List(Square.E4), Nil, FactScope.Now)))
     assert(!CommentaryIdeaSurface.motifCorroboratedByFact("opposition", Fact.Fork(Square.F5, Knight, List(Square.E7 -> Rook), FactScope.Now)))
   }
 
@@ -777,7 +780,8 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
         proofPathWitness = PlayerFacingProofPathWitness(
           ownerSeedTerms = List("b5"),
           continuationTerms = List("a4"),
-          structureTransitionTerms = List("b5")
+          structureTransitionTerms = List("b5"),
+          exactSliceProof = Some(PlayerFacingExactSliceProof.CounterplayAxisSuppression("b5"))
         ),
         fallbackMode = PlayerFacingClaimFallbackMode.WeakMain
       )

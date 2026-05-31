@@ -1,6 +1,7 @@
 package lila.commentary.analysis
 
 import lila.commentary.model.{ CandidateTag, Fact, HypothesisAxis, HypothesisHorizon, NarrativeContext }
+import lila.commentary.analysis.semantic.RelationObservationCatalog
 
 /**
  * Infinite Diversity Lexicon
@@ -1813,26 +1814,47 @@ object NarrativeLexicon {
   }
 
   def getMotifAppearsStatement(bead: Int, motif: String): String = {
-    val m = motif.trim
-    if (m.isEmpty) ""
-    else
-      pick(bead, List(
-        s"A new motif appears: $m.",
-        s"Tactically, $m enters the position.",
-        s"This introduces the idea of $m."
-      ))
+    deferredMotifDeltaLabel(motif) match
+      case Some(None) => ""
+      case Some(Some(m)) =>
+        pick(bead, List(
+          s"A new practical theme appears: $m.",
+          s"The position now points to $m.",
+          s"This introduces the practical idea of $m."
+        ))
+      case None =>
+        val m = motif.trim
+        if (m.isEmpty) ""
+        else
+          pick(bead, List(
+            s"A new motif appears: $m.",
+            s"Tactically, $m enters the position.",
+            s"This introduces the idea of $m."
+          ))
   }
 
   def getMotifFadesStatement(bead: Int, motif: String): String = {
-    val m = motif.trim
-    if (m.isEmpty) ""
-    else
-      pick(bead, List(
-        s"The $m motif fades from the position.",
-        s"One theme disappears: $m.",
-        s"The immediate idea of $m no longer applies."
-      ))
+    deferredMotifDeltaLabel(motif) match
+      case Some(None) => ""
+      case Some(Some(m)) =>
+        pick(bead, List(
+          s"The $m theme fades from the position.",
+          s"One practical theme eases: $m.",
+          s"The immediate idea of $m no longer applies."
+        ))
+      case None =>
+        val m = motif.trim
+        if (m.isEmpty) ""
+        else
+          pick(bead, List(
+            s"The $m motif fades from the position.",
+            s"One theme disappears: $m.",
+            s"The immediate idea of $m no longer applies."
+          ))
   }
+
+  private def deferredMotifDeltaLabel(rawMotif: String): Option[Option[String]] =
+    RelationObservationCatalog.deferredFallbackForMotifTag(rawMotif).map(_.label)
 
   private val motifPrefixSignals: Set[String] = Set(
     "bad_bishop",
@@ -1911,7 +1933,9 @@ object NarrativeLexicon {
 
   def isMotifPrefixSignal(rawMotif: String): Boolean =
     val normalized = normalizeMotifTag(rawMotif)
-    normalized.nonEmpty && motifPrefixSignals.exists(sig => motifMatches(normalized, sig))
+    normalized.nonEmpty &&
+      RelationObservationCatalog.deferredFallbackForMotifTag(normalized).isEmpty &&
+      motifPrefixSignals.exists(sig => motifMatches(normalized, sig))
 
   def getEndgamePatternPrefix(bead: Int, rawPattern: String): Option[String] =
     val pattern = normalizeMotifTag(rawPattern)

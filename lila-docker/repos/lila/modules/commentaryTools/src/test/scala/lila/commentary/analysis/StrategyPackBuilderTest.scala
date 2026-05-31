@@ -5,6 +5,7 @@ import lila.commentary.*
 import lila.commentary.model.*
 import lila.commentary.model.authoring.{ AuthorQuestion, AuthorQuestionKind, EvidenceBranch, PlanHypothesis, PlanViability, QuestionEvidence }
 import lila.commentary.model.strategic.{ CounterfactualMatch, EngineEvidence, PieceActivity, PlanContinuity, PlanLifecyclePhase, PositionalTag, PvMove, VariationLine }
+import lila.commentary.analysis.semantic.RelationObservationCatalog
 import munit.FunSuite
 
 class StrategyPackBuilderTest extends FunSuite:
@@ -301,6 +302,35 @@ class StrategyPackBuilderTest extends FunSuite:
     assert(target.strategicReasons.nonEmpty, clue(target))
   }
 
+  test("build degrades trapped-piece activity through deferred relation fallback evidence") {
+    val fen = "4k3/8/8/8/8/8/2N5/4K3 w - - 0 1"
+    val pa = PieceActivity(
+      piece = Knight,
+      square = Square.C2,
+      mobilityScore = 0.22,
+      isTrapped = true,
+      isBadBishop = false,
+      keyRoutes = Nil,
+      coordinationLinks = List(Square.E3),
+      directionalTargets = List(Square.E4)
+    )
+    val expected =
+      RelationObservationCatalog
+        .deferredFallbackEvidenceTermForKind(MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece)
+        .getOrElse(fail("missing trapped-piece fallback evidence"))
+
+    val pack = StrategyPackBuilder
+      .build(
+        data(fen = fen, pieceActivity = List(pa)),
+        ctx(mainPlans = List(hypothesis("Clamp the center", 0.80, 1)))
+      )
+      .getOrElse(fail("pack missing"))
+
+    val target = pack.directionalTargets.headOption.getOrElse(fail("directional target missing"))
+    assert(target.evidence.contains(expected), clue(target.evidence))
+    assert(!target.evidence.contains("trapped_piece_signal"), clue(target.evidence))
+  }
+
   test("build never emits directional target for enemy-occupied square") {
     val fen = "4k3/8/8/8/8/4p3/2N5/4K3 w - - 0 1"
     val pa = PieceActivity(
@@ -322,6 +352,39 @@ class StrategyPackBuilderTest extends FunSuite:
       .getOrElse(fail("pack missing"))
 
     assertEquals(pack.directionalTargets, Nil)
+  }
+
+  test("build keeps relation-only semantic evidence without legacy plan or route carriers") {
+    val fen = "6k1/5ppp/6q1/5n2/8/8/8/1B5K w - - 0 1"
+    val playedMove = "b1e4"
+    val relationData =
+      data(fen = fen).copy(prevMove = Some(playedMove), ply = 1)
+    val relationContext =
+      ctx()
+        .copy(
+          fen = fen,
+          ply = 1,
+          playedMove = Some(playedMove),
+          playedSan = Some("Be4"),
+          engineEvidence = Some(
+            EngineEvidence(
+              depth = 18,
+              variations = List(VariationLine(moves = List(playedMove), scoreCp = 42))
+            )
+          )
+        )
+
+    val pack =
+      StrategyPackBuilder
+        .build(relationData, relationContext)
+        .getOrElse(fail("relation-only strategy pack missing"))
+
+    assertEquals(pack.plans, Nil)
+    assertEquals(pack.pieceRoutes, Nil)
+    assertEquals(pack.pieceMoveRefs, Nil)
+    assertEquals(pack.directionalTargets, Nil)
+    assert(pack.strategicIdeas.exists(_.evidenceRefs.contains("source:xray_relation")), clue(pack.strategicIdeas))
+    assert(pack.evidence.exists(_.startsWith("idea:line_occupation:")), clue(pack.evidence))
   }
 
   test("queen multi-hop redeployment stays toward-only even when fit is high") {

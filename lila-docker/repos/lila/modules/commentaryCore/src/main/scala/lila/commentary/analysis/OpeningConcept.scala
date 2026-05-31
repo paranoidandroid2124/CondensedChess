@@ -95,6 +95,9 @@ object OpeningGoals:
     else
       hasPiece(sit, Square.G7, color, _root_.chess.Bishop) || hasPiece(sit, Square.B7, color, _root_.chess.Bishop)
 
+  private def hasNonPawnPiece(sit: Option[Position], sq: Square, color: Color): Boolean =
+    sit.exists(_.board.pieceAt(sq).exists(piece => piece.color == color && piece.role != _root_.chess.Pawn))
+
   private def rookPawnAdvanced(sit: Option[Position], color: Color): Boolean =
     if color == Color.White then
       List(Square.A3, Square.A4, Square.B3, Square.B4, Square.G4, Square.H3, Square.H4).exists(hasPawn(sit, _, color))
@@ -136,6 +139,26 @@ object OpeningGoals:
         if safe && sound then Evaluation(name, Status.Achieved, List("King safe", "Sound"), Nil, 0.9)
         else if sound then Evaluation(name, Status.Partial, List("Sound"), List("King safety"), 0.8)
         else Evaluation(name, Status.Premature, List("Structure ready"), List("Soundness"), 0.6)
+
+  object SicilianC5Challenge extends GoalDefinition:
+    val id = "sicilian_c5_challenge"
+    val name = "Sicilian c-pawn Challenge"
+    def triggers(uci: String) = uci == "c7c5"
+    def evaluate(ctx: NarrativeContext, sit: Option[Position]): Evaluation =
+      val sicilianShell =
+        ctx.ply <= 8 &&
+          hasPawn(sit, Square.E4, Color.White) &&
+          hasPawn(sit, Square.C5, Color.Black) &&
+          !hasPawn(sit, Square.C7, Color.Black) &&
+          !hasPawn(sit, Square.D5, Color.Black) &&
+          !hasPawn(sit, Square.E6, Color.Black)
+
+      if !sicilianShell then
+        Evaluation(name, Status.Mismatch, Nil, List("Structure mismatch (needs early ...c5 against e4)"), 0.0)
+      else
+        val sound = checkCp(ctx, Color.Black, -60)
+        if sound then Evaluation(name, Status.Achieved, List("c-pawn challenge reached", "e4 contested"), Nil, 0.92)
+        else Evaluation(name, Status.Premature, List("c-pawn challenge reached"), List("tactical stability"), 0.62)
 
   // 2. French Base Chipper (...c5)
   object FrenchBaseChipper extends GoalDefinition:
@@ -187,6 +210,28 @@ object OpeningGoals:
         else if sideScore >= -100 then Evaluation(name, Status.Partial, List("Storm brewing"), List("Stability"), 0.7)
         else Evaluation(name, Status.Premature, List("Aggressive intent"), List("Soundness"), 0.5)
 
+  object KingsGambitF4Break extends GoalDefinition:
+    val id = "kings_gambit_f4_break"
+    val name = "King's Gambit f-pawn Break"
+    def triggers(uci: String) = uci == "f2f4"
+    def evaluate(ctx: NarrativeContext, sit: Option[Position]): Evaluation =
+      val kingsGambitShell =
+        ctx.ply <= 6 &&
+          hasPawn(sit, Square.E4, Color.White) &&
+          hasPawn(sit, Square.E5, Color.Black) &&
+          hasPawn(sit, Square.F4, Color.White) &&
+          !hasPawn(sit, Square.F2, Color.White) &&
+          !hasPawn(sit, Square.D4, Color.White)
+
+      if !kingsGambitShell then
+        Evaluation(name, Status.Mismatch, Nil, List("Structure mismatch (needs early e4/e5 plus f4)"), 0.0)
+      else
+        val safe = isKingSafe(ctx)
+        val sound = checkCp(ctx, Color.White, -90)
+        if safe && sound then Evaluation(name, Status.Achieved, List("f-pawn break reached", "king safety acceptable"), Nil, 0.9)
+        else if sound then Evaluation(name, Status.Partial, List("f-pawn break reached"), List("king safety"), 0.78)
+        else Evaluation(name, Status.Premature, List("gambit intent"), List("tactical stability"), 0.58)
+
   // 5. Benoni Queenside Expansion (...b5)
   object BenoniExpansion extends GoalDefinition:
     val id = "benoni_expansion"
@@ -224,6 +269,48 @@ object OpeningGoals:
         if safe && sound then Evaluation(name, Status.Achieved, List("King safe"), Nil, 0.9)
         else if sound then Evaluation(name, Status.Partial, List("Sound"), List("King safety"), 0.8)
         else Evaluation(name, Status.Premature, List("Ambition high"), List("Preparation").filter(_ => !safe), 0.7)
+
+  object CatalanTensionRelease extends GoalDefinition:
+    val id = "catalan_tension_release"
+    val name = "Catalan Tension Release"
+    def triggers(uci: String) = uci == "d4c5"
+    def evaluate(ctx: NarrativeContext, sit: Option[Position]): Evaluation =
+      val catalanShell =
+        hasPawn(sit, Square.C4, Color.White) &&
+          (hasPawn(sit, Square.G3, Color.White) || fianchettoEstablished(sit, Color.White)) &&
+          (hasPawn(sit, Square.E6, Color.Black) || hasPiece(sit, Square.F6, Color.Black, _root_.chess.Knight))
+      val tensionReleased =
+        hasPawn(sit, Square.C5, Color.White) &&
+          !hasPawn(sit, Square.D4, Color.White) &&
+          hasPawn(sit, Square.D5, Color.Black)
+
+      if !(catalanShell && tensionReleased) then
+        Evaluation(name, Status.Mismatch, Nil, List("Structure mismatch (needs Catalan shell and d-pawn tension release on c5)"), 0.0)
+      else
+        val sound = checkCp(ctx, Color.White, -40)
+        if sound then Evaluation(name, Status.Achieved, List("d-pawn tension released", "Catalan fianchetto intact"), Nil, 0.9)
+        else Evaluation(name, Status.Partial, List("d-pawn tension released"), List("sound follow-up"), 0.7)
+
+  object OpenCatalanPawnRecovery extends GoalDefinition:
+    val id = "open_catalan_pawn_recovery"
+    val name = "Open Catalan Pawn Recovery"
+    def triggers(uci: String) = toSquare(uci).contains(Square.C4)
+    def evaluate(ctx: NarrativeContext, sit: Option[Position]): Evaluation =
+      val recoveredOnC4 = hasNonPawnPiece(sit, Square.C4, Color.White)
+      val openCatalanShell =
+        hasPawn(sit, Square.D4, Color.White) &&
+          !hasPawn(sit, Square.C2, Color.White) &&
+          fianchettoEstablished(sit, Color.White) &&
+          hasPawn(sit, Square.E6, Color.Black) &&
+          !hasPawn(sit, Square.D5, Color.Black) &&
+          hasPiece(sit, Square.F6, Color.Black, _root_.chess.Knight)
+
+      if !(recoveredOnC4 && openCatalanShell) then
+        Evaluation(name, Status.Mismatch, Nil, List("Structure mismatch (needs Open Catalan c4 recovery with Bg2 and d4)"), 0.0)
+      else
+        val sound = checkCp(ctx, Color.White, -60)
+        if sound then Evaluation(name, Status.Achieved, List("c4 pawn recovered", "long diagonal active"), Nil, 0.88)
+        else Evaluation(name, Status.Partial, List("c4 pawn recovered"), List("coordination after recovery"), 0.72)
   
   // 7. QG Challenge (...c5)
   object QGChallenge extends GoalDefinition:
@@ -619,8 +706,8 @@ object OpeningGoals:
 
   val allGoals: List[GoalDefinition] = List(
     NimzoChallenge, ScandinavianExpansion, 
-    SicilianLiberator, FrenchBaseChipper, FrenchChainBreaker, 
-    KIDKingsideStorm, BenoniExpansion, CatalanExpansion, QGChallenge,
+    SicilianLiberator, SicilianC5Challenge, FrenchBaseChipper, FrenchChainBreaker,
+    KIDKingsideStorm, KingsGambitF4Break, BenoniExpansion, CatalanExpansion, CatalanTensionRelease, OpenCatalanPawnRecovery, QGChallenge,
     GruenfeldCenterChallenge, SlavFreeingBreak,
     LondonPeak, CaroLiquidator, OpenCenterBreak, E5Equalizer,
     EnglishSqueeze, AustrianAttack,

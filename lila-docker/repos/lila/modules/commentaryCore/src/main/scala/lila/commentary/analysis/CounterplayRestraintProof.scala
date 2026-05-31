@@ -134,7 +134,10 @@ private[commentary] object CounterplayRestraintProof:
       val directBestDefensePresent =
         directReplyResults.nonEmpty && bestDefenseFound.nonEmpty
       val bestDefenseBranchKey =
-        directReplyResults.iterator.flatMap(branchKey).toList.headOption
+        directReplyResults.iterator
+          .flatMap(MoveReviewExchangeAnalyzer.probeFullReplyLineKey)
+          .toList
+          .headOption
       val sameBranchValidationResults =
         bestDefenseBranchKey match
           case Some(branch) =>
@@ -477,30 +480,11 @@ private[commentary] object CounterplayRestraintProof:
       }
       .distinct
 
-  private def branchKey(
-      result: ProbeResult
-  ): Option[String] =
-    branchLineKey(result.bestReplyPv)
-      .orElse {
-        result.replyPvs.toList
-          .flatten
-          .flatMap(branchLineKey)
-          .headOption
-      }
-
-  private def branchLineKey(
-      moves: List[String]
-  ): Option[String] =
-    Option.when(moves.nonEmpty)(moves.flatMap(clean).mkString(" "))
-
   private def matchesDefendedBranch(
       result: ProbeResult,
       expectedBranchKey: String
   ): Boolean =
-    branchKey(result).contains(expectedBranchKey) ||
-      result.replyPvs.toList.flatten.exists(line =>
-        branchLineKey(line).contains(expectedBranchKey)
-      )
+    MoveReviewExchangeAnalyzer.probeFullReplyLineMatches(result, expectedBranchKey)
 
   private def displayHypothesis(
       plan: PlanEvidenceEvaluator.EvaluatedPlan

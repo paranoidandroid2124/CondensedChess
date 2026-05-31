@@ -72,7 +72,10 @@ private[commentary] object RestrictedDefenseConversionProof:
       val directBestDefensePresent =
         directReplyResults.nonEmpty && bestDefenseFound.nonEmpty
       val bestDefenseBranchKey =
-        directReplyResults.iterator.flatMap(branchKey).toList.headOption
+        directReplyResults.iterator
+          .flatMap(MoveReviewExchangeAnalyzer.probeFullReplyLineKey)
+          .toList
+          .headOption
       val sameBranchReplyResults =
         bestDefenseBranchKey match
           case Some(branch) =>
@@ -315,30 +318,11 @@ private[commentary] object RestrictedDefenseConversionProof:
     val fragilityPenalty = if moveOrderFragility.fragile then 0.08 else 0.0
     (base + replyBonus + preventionBonus - fragilityPenalty).max(0.05).min(0.97)
 
-  private def branchKey(
-      result: ProbeResult
-  ): Option[String] =
-    branchLineKey(result.bestReplyPv)
-      .orElse {
-        result.replyPvs.toList
-          .flatten
-          .flatMap(branchLineKey)
-          .headOption
-      }
-
-  private def branchLineKey(
-      moves: List[String]
-  ): Option[String] =
-    Option.when(moves.nonEmpty)(moves.flatMap(clean).mkString(" "))
-
   private def matchesDefendedBranch(
       result: ProbeResult,
       expectedBranchKey: String
   ): Boolean =
-    branchKey(result).contains(expectedBranchKey) ||
-      result.replyPvs.toList.flatten.exists(line =>
-        branchLineKey(line).contains(expectedBranchKey)
-      )
+    MoveReviewExchangeAnalyzer.probeFullReplyLineMatches(result, expectedBranchKey)
 
   private def clean(raw: String): Option[String] =
     Option(raw).map(_.trim).filter(_.nonEmpty)

@@ -1,6 +1,7 @@
 package lila.commentary.analysis.L3
 
 import chess.Color
+import lila.commentary.analysis.MoveReviewExchangeAnalyzer
 import lila.commentary.model.Motif
 
 /**
@@ -235,13 +236,13 @@ object ThreatAnalyzer:
       // `PvLine.score` is already normalized to the side-to-move's perspective.
       // Positive delta means PV1 preserves more value than PV2 for that same side.
       val evalLoss = (pv1.score - pv2.score).max(0)
-      // For other captures, rely on evalLoss threshold instead
-      val pv2FirstMove = pv2.moves.headOption
-      val pv2IsPawnCapture = pv2FirstMove.exists(isPawnDiagonalCapture)
+      val pv1FirstStep = firstLegalStep(fen, pv1)
+      val pv2FirstStep = firstLegalStep(fen, pv2)
+      val pv2IsCapture = pv2FirstStep.exists(_.move.captures)
       val pv2IsMate = pv2.mate.exists(_ < 0)  // Negative mate = opponent mates us
       
-      // Detect threat if: mate, pawn capture, OR significant eval loss
-      val hasSignificantThreat = pv2IsMate || pv2IsPawnCapture || evalLoss >= MATERIAL_THREAT_THRESHOLD
+      // Detect threat if: mate, board-verified capture, OR significant eval loss
+      val hasSignificantThreat = pv2IsMate || pv2IsCapture || evalLoss >= MATERIAL_THREAT_THRESHOLD
       
       // P1 FIX: High threshold for implied threats in quiet positions (noise reduction)
       val totalPieces = chess.format.Fen.read(chess.variant.Standard, chess.format.Fen.Full(fen)).map(_.board.occupied.count).getOrElse(32)
@@ -252,9 +253,9 @@ object ThreatAnalyzer:
                    else if evalLoss >= MATERIAL_THREAT_THRESHOLD then ThreatKind.Material
                    else ThreatKind.Positional
         
-        // Extract attack square from PV2's first move (destination) or fallback to best defense destination
-        val pv2DestSquare = pv2FirstMove.flatMap(m => if m.length >= 4 then Some(m.substring(2, 4)) else None)
-        val pv1DestSquare = pv1.moves.headOption.flatMap(m => if m.length >= 4 then Some(m.substring(2, 4)) else None)
+        // Extract attack square from legal replay only.
+        val pv2DestSquare = pv2FirstStep.map(_.move.dest.key)
+        val pv1DestSquare = pv1FirstStep.map(_.move.dest.key)
         val attackSquaresList = pv2DestSquare.toList ++ pv1DestSquare.toList
         
         val impliedThreat = Threat(
@@ -264,7 +265,7 @@ object ThreatAnalyzer:
           motifs = List("PvDelta"),
           attackSquares = attackSquaresList.distinct.take(1), // Keep only first valid square
           targetPieces = Nil,
-          bestDefense = pv1.moves.headOption,  // Still UCI, will note in defense
+          bestDefense = pv1FirstStep.map(_.uci),  // Still UCI, will note in defense
           defenseCount = 1
         )
         
@@ -278,31 +279,13 @@ object ThreatAnalyzer:
       else
         threats
 
-  /**
-   * FIX v4 #2: Conservative UCI capture detection
-   * 
-   * PROBLEM: Without board state, we can't know if a target square is occupied.
-   * SOLUTION: Only detect PAWN diagonal moves as definite captures.
-   *           For other pieces, rely on evalLoss threshold instead of UCI heuristics.
-   * 
-   * NOTE: bestDefense and alternatives fields contain UCI notation, not SAN.
-   * L4 should convert if human-readable format is needed.
-   */
-  private def isPawnDiagonalCapture(uci: String): Boolean =
-    if uci.length < 4 then false
-    else
-      val fromFile = uci.charAt(0)
-      val toFile = uci.charAt(2)
-      val fromRank = uci.charAt(1).asDigit
-      val toRank = uci.charAt(3).asDigit
-      
-      // Pawn move = from rank 2-7, rank change of 1
-      val isPawnMove = fromRank >= 2 && fromRank <= 7 && (toRank - fromRank).abs == 1
-      
-      // Pawn can only change file when capturing (or en passant)
-      val fileChange = fromFile != toFile
-      
-      isPawnMove && fileChange
+  private def firstLegalStep(
+    fen: String,
+    pv: PvLine
+  ): Option[MoveReviewExchangeAnalyzer.BoundedReplayStep] =
+    MoveReviewExchangeAnalyzer
+      .boundedReplay(fen, pv.moves, maxPlies = 1)
+      .flatMap(_.headOption)
 
   case class ThresholdConfig(
     ignorableThreshold: Int,

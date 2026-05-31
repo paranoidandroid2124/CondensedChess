@@ -1,7 +1,7 @@
 package lila.commentary.analysis.semantic.evidence
 
 import lila.commentary.*
-import lila.commentary.analysis.StrategicIdeaSemanticContext
+import lila.commentary.analysis.{ PlanTaxonomy, StrategicIdeaSemanticContext }
 import lila.commentary.analysis.semantic.{ StrategicIdeaEvidence, StrategicIdeaEvidenceProducer }
 import lila.commentary.analysis.semantic.StrategicObservationIds.EvidenceSourceId
 import lila.commentary.model.{ PlanId }
@@ -18,17 +18,17 @@ private[commentary] object TransformationEvidenceProducer extends StrategicIdeaE
       semantic: StrategicIdeaSemanticContext
   ): List[StrategicIdeaEvidence] =
     val side = pack.sideToMove
-    val removingTheDefender =
+    val defenderTagExchangeSupport =
       semantic.positionalFeatures.collect {
         case PositionalTag.RemovingTheDefender(target, color) if matchesSide(color, side) =>
           evidence(
             ownerSide = side,
             kind = StrategicIdeaKind.FavorableTradeOrTransformation,
-            readiness = StrategicIdeaReadiness.Ready,
-            source = EvidenceSourceId.RemovingTheDefender,
-            confidence = 0.84,
+            readiness = StrategicIdeaReadiness.Build,
+            source = EvidenceSourceId.CaptureExchangeTransformation,
+            confidence = 0.74,
             beneficiaryPieces = List(roleToken(target)),
-            factIds = List("removing_the_defender", s"removing_defender_${target.name.toLowerCase}")
+            factIds = List("capture_or_exchange", s"removing_defender_tag_support_${target.name.toLowerCase}")
           )
       }
 
@@ -101,12 +101,12 @@ private[commentary] object TransformationEvidenceProducer extends StrategicIdeaE
       pack.pieceMoveRefs
         .filter(ref => ref.ownerSide == side && ref.tacticalTheme.contains("capture_or_exchange"))
         .flatMap { ref =>
-          Option.when(favorableTradeContext(side, ref, semantic, removingTheDefender.nonEmpty || winningEndgameTransition.nonEmpty)) {
+          Option.when(favorableTradeContext(side, ref, semantic, winningEndgameTransition.nonEmpty)) {
             evidence(
               ownerSide = side,
               kind = StrategicIdeaKind.FavorableTradeOrTransformation,
               readiness =
-                if winningEndgameTransition.nonEmpty || removingTheDefender.nonEmpty then StrategicIdeaReadiness.Ready
+                if winningEndgameTransition.nonEmpty then StrategicIdeaReadiness.Ready
                 else StrategicIdeaReadiness.Build,
               source = EvidenceSourceId.CaptureExchangeTransformation,
               confidence = 0.62 + moveRefSupportBonus(side, ref, semantic),
@@ -117,32 +117,50 @@ private[commentary] object TransformationEvidenceProducer extends StrategicIdeaE
           }
         }
 
+    def softTransformationPlanSupport(plan: lila.commentary.model.PlanMatch): Boolean =
+      plan.supports.exists { raw =>
+        val text = raw.trim.toLowerCase
+        text.contains("theme:favorable_exchange") ||
+          text.contains(s"subplan:${PlanTaxonomy.PlanKind.DefenderTrade.id}") ||
+          text.contains(s"subplan:${PlanTaxonomy.PlanKind.SimplificationWindow.id}") ||
+          text.contains(s"subplan:${PlanTaxonomy.PlanKind.SimplificationConversion.id}")
+      }
+
     val planBridge =
-      topPlansFor(side, semantic).flatMap { plan =>
-        Option.when(
-          (
-            plan.plan.id == PlanId.Exchange ||
-              plan.plan.id == PlanId.Simplification ||
-              plan.plan.id == PlanId.QueenTrade
-          ) &&
+      semantic.plans
+        .filter(plan => matchesSide(plan.plan.color, side) || softTransformationPlanSupport(plan))
+        .sortBy(plan => -plan.score)
+        .flatMap { plan =>
+          val softPlanSupport = softTransformationPlanSupport(plan)
+          Option.when(
             (
-              removingTheDefender.nonEmpty ||
-                winningEndgameTransition.nonEmpty ||
-                classificationWindow.nonEmpty ||
-                exchangeAvailabilityBridge.nonEmpty ||
-                structureIs(semantic, StructureId.IQPBlack)
-            )
-        ) {
-          evidence(
-            ownerSide = side,
-            kind = StrategicIdeaKind.FavorableTradeOrTransformation,
+              plan.plan.id == PlanId.Exchange ||
+                plan.plan.id == PlanId.Simplification ||
+                plan.plan.id == PlanId.QueenTrade
+            ) &&
+              (
+                defenderTagExchangeSupport.nonEmpty ||
+                  winningEndgameTransition.nonEmpty ||
+                  classificationWindow.nonEmpty ||
+                  exchangeAvailabilityBridge.nonEmpty ||
+                  softPlanSupport ||
+                  structureIs(semantic, StructureId.IQPBlack)
+              )
+          ) {
+            evidence(
+              ownerSide = side,
+              kind = StrategicIdeaKind.FavorableTradeOrTransformation,
             readiness = StrategicIdeaReadiness.Build,
             source = EvidenceSourceId.PlanMatchTransformation,
-            confidence = 0.68 + math.min(0.04, plan.score * 0.06),
-            factIds = List("plan_match_transformation", s"plan_${plan.plan.id.toString.toLowerCase}")
-          )
+            confidence =
+              (if softPlanSupport then 0.92 else 0.68) +
+                math.min(0.04, plan.score * 0.06),
+              factIds =
+                List("plan_match_transformation", s"plan_${plan.plan.id.toString.toLowerCase}") ++
+                  Option.when(softPlanSupport)("soft_transformation_plan_support").toList
+            )
+          }
         }
-      }
 
     val iqpSimplification =
       semantic.classification.toList.flatMap { classification =>
@@ -183,4 +201,4 @@ private[commentary] object TransformationEvidenceProducer extends StrategicIdeaE
         }
       }
 
-    removingTheDefender ++ winningEndgameTransition ++ classificationWindow ++ exchangeAvailabilityBridge ++ moveRefEvidence ++ planBridge ++ iqpSimplification
+    defenderTagExchangeSupport ++ winningEndgameTransition ++ classificationWindow ++ exchangeAvailabilityBridge ++ moveRefEvidence ++ planBridge ++ iqpSimplification

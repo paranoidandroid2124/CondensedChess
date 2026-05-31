@@ -5,6 +5,7 @@ import lila.commentary.CommentaryConfig
 import lila.commentary.model._
 import lila.commentary.model.strategic._
 import lila.commentary.analysis.L3._
+import lila.commentary.analysis.semantic.RelationObservationCatalog
 import lila.commentary.model.structure.AlignmentBand
 import lila.commentary.analysis.structure.TranspositionPvAligner
 
@@ -702,7 +703,7 @@ object NarrativeContextBuilder:
             if (t.lossIfIgnoredCp >= 800 || t.kind == ThreatKind.Mate) "URGENT"
             else if (t.lossIfIgnoredCp >= 300) "IMPORTANT"
             else "LOW"
-          val attacker = t.motifs.headOption.map(_.takeWhile(_ != '(')).getOrElse("attacker")
+          val attacker = t.motifs.headOption.flatMap(publicThreatMotifLabel).getOrElse("attacker")
           s"$urgency: $attacker on ${t.attackSquares.head}"
         }
     }
@@ -752,6 +753,16 @@ object NarrativeContextBuilder:
       evalDelta = evalDelta
     )
   }
+
+  private def publicThreatMotifLabel(raw: String): Option[String] =
+    val motif = Option(raw).map(_.takeWhile(_ != '(').trim).filter(_.nonEmpty)
+    motif.flatMap(RelationObservationCatalog.deferredFallbackForMotifTag) match
+      case Some(fallback) if fallback.allowsNonRelationText =>
+        fallback.label.orElse(Some("practical threat"))
+      case Some(_) =>
+        None
+      case None =>
+        motif
   
   private def buildThreatTable(ctx: IntegratedContext, topSan: Option[String], topUci: Option[String], fen: String): ThreatTable = {
     // TO US threats: bestDefense is valid (how we can defend against opponent's threat)

@@ -61,7 +61,11 @@ private[commentary] object CentralBreakTimingWitness:
         val breakCandidate =
           playedDirectCentralBreak(position, played)
             .orElse(firstCentralBreak(position, pv1))
-        val branch = branchKey(pv1.moves)
+        val replay =
+          MoveReviewExchangeAnalyzer
+            .boundedReplay(ctx.fen, normalizedPvMoves(pv1), maxPlies = BreakHorizonPly + 1)
+            .getOrElse(Nil)
+        val branch = MoveReviewExchangeAnalyzer.branchKey(replay)
         val gap = pvGap.getOrElse(0)
         val shapeFailure =
           played
@@ -83,7 +87,8 @@ private[commentary] object CentralBreakTimingWitness:
             candidate = candidate,
             gap = gap,
             branchMissing = branch.isEmpty,
-            pv1 = pv1
+            branchKey = branch,
+            replayMoves = replay.map(_.uci)
           )
         val (releasable, reviewOnly) = witnesses.partition(_.releasable)
         val boardFailure =
@@ -137,7 +142,8 @@ private[commentary] object CentralBreakTimingWitness:
       candidate: BreakCandidate,
       gap: Int,
       branchMissing: Boolean,
-      pv1: VariationLine
+      branchKey: Option[String],
+      replayMoves: List[String]
   ): Witness =
     val playedIsBreak =
       sameMove(playedMove, candidate.move)
@@ -160,7 +166,6 @@ private[commentary] object CentralBreakTimingWitness:
           Option.when(!playedIsBreak && hasBoardLink)("board:break_support").toList ++
           Option.when(!hasBoardLink)("plan_only").toList
       ).distinct
-    val branch = branchKey(pv1.moves).toList
     Witness(
       support = support,
       breakMove = candidate.uci,
@@ -186,8 +191,8 @@ private[commentary] object CentralBreakTimingWitness:
             s"break_token:$breakToken",
             s"break_move:${candidate.uci}"
           ) ++
-            branch.map(key => s"best_branch:$key") ++
-            pv1.moves.take(BreakHorizonPly + 1).map(move => s"pv:${normalizeUci(move)}")
+            branchKey.map(key => s"best_branch:$key") ++
+            replayMoves.take(BreakHorizonPly + 1).map(move => s"pv:${normalizeUci(move)}")
         ).distinct
     )
 
@@ -311,11 +316,6 @@ private[commentary] object CentralBreakTimingWitness:
 
   private def sameMove(left: Move, right: Move): Boolean =
     left.orig == right.orig && left.dest == right.dest && left.promotion == right.promotion
-
-  private def branchKey(moves: List[String]): Option[String] =
-    moves.take(2).map(normalizeUci).filter(_.nonEmpty) match
-      case first :: second :: Nil => Some(s"${first.toLowerCase}|${second.toLowerCase}")
-      case _                      => None
 
   private def breakTokenFor(side: Color, move: Move): String =
     val route = s"${move.orig.key}-${move.dest.key}"

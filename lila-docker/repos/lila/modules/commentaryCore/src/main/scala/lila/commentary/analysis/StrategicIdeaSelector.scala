@@ -9,7 +9,12 @@ import lila.commentary.analysis.semantic.StrategicObservationIds.{
   FactId,
   SemanticObservationId
 }
-import lila.commentary.analysis.semantic.{ StrategicIdeaEvidence, StrategicIdeaEvidencePipeline }
+import lila.commentary.analysis.semantic.{
+  RelationObservationCatalog,
+  StrategicIdeaEvidence,
+  StrategicIdeaEvidencePipeline,
+  StrategicSemanticObservation
+}
 import lila.commentary.analysis.semantic.StrategicSemanticObservationPipeline
 import lila.commentary.*
 import lila.commentary.model.{ PlanId, PlanMatch, StrategicPlanExperiment }
@@ -27,6 +32,9 @@ private[commentary] object StrategicIdeaSelector:
       focusFiles: List[String] = Nil,
       focusDiagonals: List[String] = Nil,
       focusZone: Option[String] = None,
+      targetSquare: Option[String] = None,
+      relationKind: Option[String] = None,
+      relationFocusSquares: List[String] = Nil,
       beneficiaryPieces: List[String] = Nil,
       score: Double,
       evidenceRefs: List[EvidenceRef] = Nil,
@@ -139,7 +147,10 @@ private[commentary] object StrategicIdeaSelector:
               focusZone = candidate.focusZone,
               beneficiaryPieces = candidate.beneficiaryPieces.distinct,
               confidence = candidate.score.min(0.98),
-              evidenceRefs = surfaceEvidenceRefs(candidate.evidenceRefs)
+              evidenceRefs = surfaceEvidenceRefs(candidate),
+              targetSquare = candidate.targetSquare,
+              relationKind = candidate.relationKind,
+              relationFocusSquares = candidate.relationFocusSquares
             )
           }
         }
@@ -192,9 +203,15 @@ private[commentary] object StrategicIdeaSelector:
       EvidenceRef.Fact(FactId.semantic(SemanticObservationId.TargetPressureSemantic)).wireKey
     )
 
-  private def surfaceEvidenceRefs(refs: List[EvidenceRef]): List[String] =
-    val distinct = refs.map(_.wireKey).distinct
-    val priority = PrioritySupportEvidenceRefs.filter(distinct.contains)
+  private def surfaceEvidenceRefs(candidate: Candidate): List[String] =
+    val distinct = candidate.evidenceRefs.map(_.wireKey).distinct
+    val relationPriority =
+      candidate.relationKind
+        .flatMap(RelationObservationCatalog.descriptorForKind)
+        .toList
+        .flatMap(_.wireEvidenceRefs)
+        .filter(distinct.contains)
+    val priority = (relationPriority ++ PrioritySupportEvidenceRefs.filter(distinct.contains)).distinct
     (priority ++ distinct.filterNot(priority.contains)).take(6)
 
   private def sourceWire(source: EvidenceSourceId): String =
@@ -230,10 +247,12 @@ private[commentary] object StrategicIdeaSelector:
     // Runtime selection is limited to typed structural and semantic sources,
     // not prose-only text fields.
     val side = pack.sideToMove
+    val semanticObservations = StrategicSemanticObservationPipeline.collect(pack, semantic)
     (
       collectPawnBreakEvidence(side, semantic) ++
         StrategicIdeaEvidencePipeline.collect(pack, semantic) ++
-        collectTargetFixingEvidence(side, pack, semantic)
+        collectSemanticTransformationEvidence(side, semanticObservations) ++
+        collectTargetFixingEvidence(side, pack, semantic, semanticObservations)
     ).sortBy(ev => (-ev.confidence, ev.kind, ev.source.wireKey))
 
   private def collectPawnBreakEvidence(
@@ -420,10 +439,41 @@ private[commentary] object StrategicIdeaSelector:
     analysisBreakReady ++ analysisTension ++ analysisBreakRace ++ base ++ tension ++ fileOpening ++ planBridge ++
       frenchCounterBreak ++ frenchF6Break
 
+  private def collectSemanticTransformationEvidence(
+      side: String,
+      observations: List[StrategicSemanticObservation]
+  ): List[StrategicIdeaEvidence] =
+    observations
+      .filter(_.ownerSide == side)
+      .flatMap { observation =>
+        RelationObservationCatalog
+          .descriptorForObservationId(observation.id)
+          .filter(descriptor => observation.source.contains(descriptor.source))
+          .toList
+          .map { descriptor =>
+            evidence(
+              ownerSide = side,
+              kind = descriptor.ideaKind,
+              readiness = descriptor.readiness,
+              source = descriptor.source,
+              confidence = descriptor.confidence,
+              focusSquares = observation.focusSquares,
+              focusZone = observation.focusZone,
+              targetSquare = observation.targetSquare,
+              beneficiaryPieces = descriptor.beneficiaryPieces,
+              factIds = Nil,
+              typedFactIds = observation.facts,
+              relationKind = Some(descriptor.relationKind),
+              relationFocusSquares = observation.focusSquares
+            )
+          }
+      }
+
   private def collectTargetFixingEvidence(
       side: String,
       pack: StrategyPack,
-      semantic: StrategicIdeaSemanticContext
+      semantic: StrategicIdeaSemanticContext,
+      semanticObservations: List[StrategicSemanticObservation]
   ): List[StrategicIdeaEvidence] =
     val enemyWeakSquares =
       semantic.positionalFeatures.collect {
@@ -465,8 +515,7 @@ private[commentary] object StrategicIdeaSelector:
       }
 
     val minorityObservations =
-      StrategicSemanticObservationPipeline
-        .collect(pack, semantic)
+      semanticObservations
         .filter(observation =>
           observation.id == SemanticObservationId.MinorityAttackSemantic &&
             observation.ownerSide == side
@@ -668,6 +717,8 @@ private[commentary] object StrategicIdeaSelector:
       .values
       .flatMap { grouped =>
         val best = grouped.maxBy(_.confidence)
+        val bestRelation =
+          grouped.filter(_.relationKind.nonEmpty).toList.sortBy(ev => (-ev.confidence, ev.source.wireKey)).headOption
         val stackCap =
           best.kind match
             case StrategicIdeaKind.TargetFixing                   => 0.10
@@ -690,6 +741,9 @@ private[commentary] object StrategicIdeaSelector:
         val tacticalCompetitionPenalty =
           slowIdeaTacticalCompetitionPenalty(best.kind, semantic.strategicPlanExperiments)
         val score = (baseScore + planEvidenceDelta + tacticalCompetitionPenalty).max(0.0).min(0.98)
+        val selectedRelationKind = bestRelation.flatMap(_.relationKind)
+        val relationTarget = bestRelation.flatMap(_.targetSquare)
+        val genericTarget = best.targetSquare.orElse(grouped.flatMap(_.targetSquare).headOption)
         Option.when(!blocked) {
           Candidate(
             ownerSide = best.ownerSide,
@@ -700,14 +754,14 @@ private[commentary] object StrategicIdeaSelector:
             focusFiles = grouped.flatMap(_.focusFiles).distinct.take(2),
             focusDiagonals = grouped.flatMap(_.focusDiagonals).distinct.take(2),
             focusZone = mostCommon(grouped.flatMap(_.focusZone)),
+            targetSquare =
+              if selectedRelationKind.nonEmpty then relationTarget
+              else genericTarget,
+            relationKind = selectedRelationKind,
+            relationFocusSquares = bestRelation.map(_.relationFocusSquares).getOrElse(Nil),
             beneficiaryPieces = grouped.flatMap(_.beneficiaryPieces).distinct.take(4),
             score = score,
-            evidenceRefs =
-              (
-                grouped.map(ev => EvidenceRef.Source(ev.source)) ++
-                  grouped.flatMap(_.factIds.map(EvidenceRef.Fact(_))) ++
-                  matchingPlanEvidence.flatMap(planEvidenceRefs)
-              ).distinct.take(8),
+            evidenceRefs = candidateEvidenceRefs(grouped, matchingPlanEvidence, bestRelation),
             evidenceCount = grouped.size,
             sourceCount = grouped.map(_.source).distinct.size
           )
@@ -715,6 +769,27 @@ private[commentary] object StrategicIdeaSelector:
       }
       .toList
       .sortBy(candidate => (-candidate.score, candidate.kind))
+
+  private def candidateEvidenceRefs(
+      grouped: Iterable[StrategicIdeaEvidence],
+      matchingPlanEvidence: Iterable[StrategicPlanExperiment],
+      bestRelation: Option[StrategicIdeaEvidence]
+  ): List[EvidenceRef] =
+    val refs =
+      (
+        grouped.map(ev => EvidenceRef.Source(ev.source)) ++
+          grouped.flatMap(_.factIds.map(EvidenceRef.Fact(_))) ++
+          matchingPlanEvidence.flatMap(planEvidenceRefs)
+      ).toList.distinct
+    val priority = relationEvidenceRefs(bestRelation).filter(refs.contains)
+    (priority ++ refs.filterNot(priority.contains)).take(8)
+
+  private def relationEvidenceRefs(relationEvidence: Option[StrategicIdeaEvidence]): List[EvidenceRef] =
+    relationEvidence
+      .flatMap(_.relationKind)
+      .flatMap(RelationObservationCatalog.descriptorForKind)
+      .toList
+      .flatMap(_.evidenceRefs)
 
   private def selectFamilies(
       rankedFamilies: List[FamilyCandidate]
@@ -829,6 +904,7 @@ private[commentary] object StrategicIdeaSelector:
         if members.exists(candidate => hasStrongConversionAnchor(candidate, semantic)) ||
             hasStructuredIqpConversionWindow(members, semantic)
         then 0.18
+        else if members.exists(candidate => hasDefenderTagExchangeSupport(candidate) || hasSoftTransformationPlanSupport(candidate)) then 0.18
         else if members.forall(isWeakConversionWindowOnly(_, semantic)) then -0.12
         else 0.0
       case StrategicIdeaFamily.ForcingOrTacticalNow =>
@@ -1391,6 +1467,9 @@ private[commentary] object StrategicIdeaSelector:
       focusFiles: List[String] = Nil,
       focusDiagonals: List[String] = Nil,
       focusZone: Option[String] = None,
+      targetSquare: Option[String] = None,
+      relationKind: Option[String] = None,
+      relationFocusSquares: List[String] = Nil,
       beneficiaryPieces: List[String] = Nil,
       factIds: List[String] = Nil,
       typedFactIds: List[FactId] = Nil
@@ -1405,9 +1484,12 @@ private[commentary] object StrategicIdeaSelector:
       focusFiles = focusFiles,
       focusDiagonals = focusDiagonals,
       focusZone = focusZone,
+      targetSquare = targetSquare,
       beneficiaryPieces = beneficiaryPieces,
       factIds = factIds,
-      typedFactIds = typedFactIds
+      typedFactIds = typedFactIds,
+      relationKind = relationKind,
+      relationFocusSquares = relationFocusSquares
     )
 
   private def mergeReadiness(readinessValues: Iterable[String]): String =
@@ -1924,6 +2006,14 @@ private[commentary] object StrategicIdeaSelector:
         candidateHasSource(candidate, EvidenceSourceId.CaptureExchangeTransformation)
     ) &&
       !hasStrongConversionAnchor(candidate, semantic)
+
+  private def hasDefenderTagExchangeSupport(candidate: Candidate): Boolean =
+    candidateHasSource(candidate, EvidenceSourceId.CaptureExchangeTransformation) &&
+      candidateHasAnyFact(candidate, _.contains("removing_defender_tag_support_"))
+
+  private def hasSoftTransformationPlanSupport(candidate: Candidate): Boolean =
+    candidateHasSource(candidate, EvidenceSourceId.PlanMatchTransformation) &&
+      candidateHasAnyFact(candidate, _.contains("soft_transformation_plan_support"))
 
   private def hasStructuredIqpConversionWindow(
       members: List[Candidate],

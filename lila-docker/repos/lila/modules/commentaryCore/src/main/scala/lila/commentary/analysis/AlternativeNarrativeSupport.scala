@@ -37,10 +37,14 @@ private[analysis] object AlternativeNarrativeSupport:
               NarrativeUtils.uciToSanOrFormat(ctx.fen, uci) == played
             )
           ))
-          val playedUci = playedLine.flatMap(_.moves.headOption).orElse(
-            ctx.candidates.find(c => equalMoveToken(ctx.fen)(c.move, played)).flatMap(_.uci)
+          val closePlayedLine =
+            playedLine.filter(line =>
+              bestLine.exists(best => math.abs(line.effectiveScore - best.effectiveScore) <= CloseAlternativeThresholdCp)
+            )
+          val playedUci = closePlayedLine.flatMap(_.moves.headOption).orElse(
+            closePlayedLine.flatMap(_ => ctx.candidates.find(c => equalMoveToken(ctx.fen)(c.move, played)).flatMap(_.uci))
           )
-          (Some(played), playedUci)
+          closePlayedLine.fold((Option.empty[String], Option.empty[String]))(_ => (Some(played), playedUci))
         case None =>
           val altLine = ctx.engineEvidence.flatMap(_.alternatives(CloseAlternativeThresholdCp).headOption)
           val altMove = altLine.flatMap(variationLeadSan(ctx.fen, _))
@@ -177,10 +181,7 @@ private[analysis] object AlternativeNarrativeSupport:
     s"$lead stays secondary because $reason."
 
   private def variationLeadSan(fen: String, line: VariationLine): Option[String] =
-    line.ourMove.map(_.san).map(normalize).filter(_.nonEmpty)
-      .orElse {
-        line.moves.headOption.map(m => NarrativeUtils.uciToSanOrFormat(fen, m)).map(normalize).filter(_.nonEmpty)
-      }
+    LineScopedCitation.sanMoves(fen, line).headOption.map(normalize).filter(_.nonEmpty)
 
   private def normalizeSentenceFragment(raw: String): String =
     normalize(raw).stripSuffix(".")

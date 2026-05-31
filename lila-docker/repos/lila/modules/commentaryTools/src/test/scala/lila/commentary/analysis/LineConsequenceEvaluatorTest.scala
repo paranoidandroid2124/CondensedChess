@@ -148,6 +148,35 @@ final class LineConsequenceEvaluatorTest extends FunSuite:
     assertEquals(LineConsequenceEvaluator.narrativeCandidate(ctx, refs = None).map(_.release), Some(LineConsequenceRelease.ReplayBackedInternal))
   }
 
+  test("engine-only line consequence can use a concrete legal prefix without trusting a stale tail") {
+    val ucis = List("g1f3", "b8c6", "f1b5", "a7a6", "b5c6", "d7c6", "a1a8")
+    val ctx = context(ExchangeFen, "g1f3", "Nf3", List(VariationLine(ucis, scoreCp = 42, depth = 20)))
+    val evidence =
+      LineConsequenceEvaluator
+        .fromEngine(ctx, maxPly = 7)
+        .headOption
+        .getOrElse(fail("missing engine prefix evidence"))
+
+    assertEquals(evidence.kind, LineConsequenceKind.ExchangeSequence)
+    assertEquals(evidence.release, LineConsequenceRelease.ReplayBackedInternal)
+    assertEquals(evidence.uciMoves, ucis.take(6))
+    assertEquals(evidence.windowPly, 6)
+  }
+
+  test("engine-only stale tail cannot promote a preview prefix through mate metadata") {
+    val ucis = List("g1f3", "a1a8")
+    val ctx = context(ExchangeFen, "g1f3", "Nf3", List(VariationLine(ucis, scoreCp = 42, mate = Some(1), depth = 20)))
+    val evidence =
+      LineConsequenceEvaluator
+        .fromEngine(ctx, maxPly = 2)
+        .headOption
+        .getOrElse(fail("missing engine diagnostic evidence"))
+
+    assertEquals(evidence.kind, LineConsequenceKind.PreviewOnly)
+    assertEquals(evidence.release, LineConsequenceRelease.DiagnosticOnly)
+    assert(evidence.rejectReasons.contains("line_consequence:engine_replay_failed"), clue(evidence))
+  }
+
   test("internal narrative candidate can inspect an eight-ply replay window") {
     val fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
     val ucis = List("g1f3", "g8f6", "g2g3", "g7g6", "f1g2", "f8g7", "e1g1", "e8g8")

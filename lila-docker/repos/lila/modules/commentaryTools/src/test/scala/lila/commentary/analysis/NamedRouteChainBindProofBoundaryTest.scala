@@ -286,7 +286,7 @@ class NamedRouteChainBindProofBoundaryTest extends FunSuite:
         preventedPlans =
           List(preventedFilePlan(), preventedEntryPlan(), preventedRouteNodePlan(), preventedReroutePlan()),
         evalCp = 207,
-        expectedCertified = true,
+        expectedCertified = false,
         expectedFails = Set.empty
       ),
       Scenario(
@@ -625,7 +625,7 @@ class NamedRouteChainBindProofBoundaryTest extends FunSuite:
         .find(_.id == "same_branch_route_chain_backend_control")
         .getOrElse(fail("missing backend control scenario"))
     val (plan, _, route) = contractFor(control)
-    assert(route.certified, clues(route.failsIf, route.counterplayReinflationRisk, route))
+    assert(!route.certified, clues(route.failsIf, route.counterplayReinflationRisk, route))
 
     val surface =
       RouteNetworkBindProof

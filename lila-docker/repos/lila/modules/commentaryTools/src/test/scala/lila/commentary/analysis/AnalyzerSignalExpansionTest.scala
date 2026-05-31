@@ -1,9 +1,9 @@
 package lila.commentary.analysis
 
-import chess.{ Color, File, Rook }
+import chess.{ Color, File, Knight, Queen, Rook, Square }
 import lila.commentary.analysis.L3.*
 import lila.commentary.analysis.PlanMatcher.ActivePlans
-import lila.commentary.model.{ Motif, Plan, PlanMatch, TransitionType }
+import lila.commentary.model.{ Motif, NatureType as ModelNatureType, Plan, PlanMatch, PositionNature, TransitionType }
 import lila.commentary.model.strategic.PlanContinuity
 import munit.FunSuite
 
@@ -135,11 +135,11 @@ class AnalyzerSignalExpansionTest extends FunSuite:
 
   test("ThreatAnalyzer uses side-to-move-normalized MultiPV deltas for black") {
     val analysis = ThreatAnalyzer.analyze(
-      fen = "6k1/8/8/8/8/8/6q1/6K1 b - - 0 1",
+      fen = "6k1/8/8/8/8/8/6q1/7K b - - 0 1",
       motifs = Nil,
       multiPv = List(
         PvLine(List("g2g1"), evalCp = 50, mate = None, depth = 18),
-        PvLine(List("g2h1"), evalCp = -250, mate = None, depth = 18)
+        PvLine(List("g2h2"), evalCp = -250, mate = None, depth = 18)
       ),
       phase1 = classification(),
       sideToMove = "black"
@@ -227,4 +227,40 @@ class AnalyzerSignalExpansionTest extends FunSuite:
     )
 
     assertEquals(sequence.transitionType, TransitionType.ForcedPivot)
+  }
+
+  test("raw removing-defender tactical tags surface only as a softer exchange concept") {
+    val extractor =
+      new StrategicFeatureExtractorImpl(
+        new strategic.ProphylaxisAnalyzerImpl,
+        new strategic.ActivityAnalyzerImpl,
+        new strategic.StructureAnalyzerImpl,
+        new strategic.EndgameAnalyzerImpl,
+        new strategic.PracticalityScorerImpl
+      )
+    val data =
+      extractor.extract(
+        fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
+        metadata = AnalysisMetadata(Color.White, ply = 12, prevMove = None),
+        baseData = BaseAnalysisData(
+          nature = PositionNature(ModelNatureType.Dynamic, tension = 0.4, stability = 0.6, description = "test"),
+          motifs = List(
+            Motif.RemovingTheDefender(
+              attacker = Queen,
+              victim = Knight,
+              protectedTarget = Rook,
+              square = Square.D6,
+              color = Color.White,
+              plyIndex = 12,
+              move = Some("Qxd6")
+            )
+          ),
+          plans = Nil
+        ),
+        vars = Nil,
+        playedMove = None
+      )
+
+    assert(data.conceptSummary.contains("Exchange pressure"), clue(data.conceptSummary))
+    assert(!data.conceptSummary.contains("Removing defenders"), clue(data.conceptSummary))
   }

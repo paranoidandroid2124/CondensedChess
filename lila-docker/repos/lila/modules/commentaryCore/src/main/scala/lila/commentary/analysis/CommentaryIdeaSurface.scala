@@ -2,6 +2,7 @@ package lila.commentary.analysis
 
 import chess.{ Color, King, Piece, Role, Square }
 import lila.commentary.analysis.claim.ProofContractRules
+import lila.commentary.analysis.semantic.RelationObservationCatalog
 import lila.commentary.{ MoveReviewMoveRef, MoveReviewPvInterpretation }
 import lila.commentary.model.*
 import scala.annotation.unused
@@ -390,19 +391,23 @@ private[commentary] object CommentaryIdeaSurface:
         line.reply.nonEmpty
       case "pin" =>
         fact match
-          case pin: Fact.Pin => line.continuation.exists(moveTouchesAny(_, List(pin.pinned, pin.behind)))
+          case pin: Fact.Pin => continuationTouchesAny(line, List(pin.pinned, pin.behind))
           case _             => false
       case "skewer" =>
         fact match
-          case skewer: Fact.Skewer => line.continuation.exists(moveTouchesAny(_, List(skewer.front, skewer.back)))
+          case skewer: Fact.Skewer => continuationTouchesAny(line, List(skewer.front, skewer.back))
           case _                   => false
       case _ => false
 
-  private def moveTouchesAny(move: MoveReviewMoveRef, squares: List[Square]): Boolean =
-    val normalized = MoveReviewPvLine.normalizeUci(move.uci)
-    val from = Square.fromKey(normalized.take(2))
-    val to = Square.fromKey(normalized.slice(2, 4))
-    squares.exists(square => from.contains(square) || to.contains(square))
+  private def continuationTouchesAny(line: MoveReviewPvLine.LineFacts, squares: List[Square]): Boolean =
+    val beforeFen = line.reply.map(_.fenAfter).getOrElse(line.first.fenAfter)
+    line.continuation.exists(moveTouchesAny(beforeFen, _, squares))
+
+  private def moveTouchesAny(beforeFen: String, move: MoveReviewMoveRef, squares: List[Square]): Boolean =
+    MoveReviewExchangeAnalyzer
+      .boundedReplay(beforeFen, List(move.uci), maxPlies = 1)
+      .flatMap(_.headOption)
+      .exists(step => squares.exists(square => step.move.orig == square || step.move.dest == square))
 
   private def sanEquivalent(left: String, right: String): Boolean =
     def clean(value: String): String =
@@ -455,7 +460,7 @@ private[commentary] object CommentaryIdeaSurface:
       characterBand: MoveCharacterBand,
       @unused truthContract: Option[DecisiveTruthContract]
   ): Option[MoveReviewIdeaDescriptor] =
-    Option.when(evidence.hasCaptureMotif && played.isCapture && isImmediateRecapture(played.toKey, lineFacts.flatMap(_.reply))) {
+    Option.when(evidence.hasCaptureMotif && played.isCapture && isImmediateRecapture(played.toKey, lineFacts)) {
       val purpose =
         if played.capturedRole.exists(_ != chess.Pawn) || played.role != chess.Pawn then "clarify_exchange"
         else "resolve_capture_tension"
@@ -752,7 +757,9 @@ private[commentary] object CommentaryIdeaSurface:
       else if continuation.exists(move => isCentralBreak(move.uci, played.isWhite)) then "delayed_center_break"
       else if purpose == "challenge_center" && Set("c2c4", "c7c5").contains(played.uci) then "tension_maintained"
       else if isCentralBreak(played.uci, played.isWhite) then "immediate_center_break"
-      else if (reply.toList ++ continuation.toList).exists(move => isCenterCapture(move.uci)) then "center_released"
+      else if legalCenterCapture(played.afterFen, reply) ||
+          legalCenterCapture(reply.map(_.fenAfter).getOrElse(played.afterFen), continuation)
+      then "center_released"
       else "tension_maintained"
 
     def classifyOpponentReply(
@@ -764,7 +771,7 @@ private[commentary] object CommentaryIdeaSurface:
       val opening = evidence.openingName.map(_.toLowerCase).getOrElse("")
       if opening.contains("ruy lopez") && uci == "a7a6" then Some("asks_piece_commitment")
       else if played.isWhite && (opening.contains("italian") || played.uci == "f1c4") && uci == "g8f6" then Some("attacks_center_pawn")
-      else if played.isCapture && isImmediateRecapture(played.toKey, Some(reply)) then Some("recaptures")
+      else if played.isCapture && legalCaptureToSquare(played.afterFen, Some(reply), played.toKey) then Some("recaptures")
       else if evidence.facts.exists(f => f.isInstanceOf[Fact.HangingPiece] || f.isInstanceOf[Fact.TargetPiece]) then Some("addresses_target")
       else if Set("e7e6", "d7d6", "c7c6", "e2e3", "d2d3", "c2c3").contains(uci) then Some("reinforces_center")
       else if Set("c7c5", "c2c4", "d7d5", "d2d4", "e7e5", "e2e4").contains(uci) then Some("challenges_center")
@@ -1072,38 +1079,41 @@ private[commentary] object CommentaryIdeaSurface:
 
   def motifCorroboratedByFact(rawMotif: String, fact: Fact): Boolean =
     val motif = normalizeMotifKey(rawMotif)
-    fact match
-      case _: Fact.Pin =>
-        motif.contains("pin") || motif.contains("xray")
-      case _: Fact.Skewer =>
-        motif.contains("skewer") || motif.contains("xray")
-      case _: Fact.Fork =>
-        motif.contains("fork") || motif.contains("deflection")
-      case _: Fact.HangingPiece =>
-        motif.contains("trapped_piece") || motif.contains("battery")
-      case _: Fact.WeakSquare =>
-        List("minority_attack", "color_complex", "bad_bishop", "good_bishop", "outpost").exists(motif.contains)
-      case _: Fact.Outpost =>
-        List("outpost", "knight_domination", "maneuver", "knight_vs_bishop").exists(motif.contains)
-      case _: Fact.Opposition =>
-        motif.contains("opposition")
-      case _: Fact.KingActivity =>
-        motif.contains("king_cut_off") || motif.contains("passed_pawn")
-      case _ => false
+    RelationObservationCatalog.deferredFallbackForMotifTag(motif).isEmpty &&
+      (
+        fact match
+          case _: Fact.Pin =>
+            motif.contains("pin") || motif.contains("xray")
+          case _: Fact.Skewer =>
+            motif.contains("skewer") || motif.contains("xray")
+          case _: Fact.Fork =>
+            motif.contains("fork") || motif.contains("deflection")
+          case _: Fact.HangingPiece =>
+            motif.contains("battery")
+          case _: Fact.WeakSquare =>
+            List("minority_attack", "color_complex", "bad_bishop", "good_bishop", "outpost").exists(motif.contains)
+          case _: Fact.Outpost =>
+            List("outpost", "knight_domination", "maneuver", "knight_vs_bishop").exists(motif.contains)
+          case _: Fact.Opposition =>
+            motif.contains("opposition")
+          case _: Fact.KingActivity =>
+            motif.contains("king_cut_off") || motif.contains("passed_pawn")
+          case _ => false
+      )
 
   private val CenterSquares: Set[String] = Set("d4", "e4", "d5", "e5")
 
-  private def toSquare(uci: String): Option[String] =
-    val move = MoveReviewPvLine.normalizeUci(uci)
-    Option.when(move.length >= 4)(move.slice(2, 4))
-
-  private def isCaptureLike(move: MoveReviewMoveRef): Boolean =
-    val uci = MoveReviewPvLine.normalizeUci(move.uci)
-    move.san.contains("x") ||
-      (uci.length >= 4 && uci.charAt(0) != uci.charAt(2) && move.san.headOption.forall(!"KQRBN".contains(_)))
-
-  private def isImmediateRecapture(targetSquare: String, reply: Option[MoveReviewMoveRef]): Boolean =
-    reply.exists(move => isCaptureLike(move) && toSquare(move.uci).contains(targetSquare))
+  private def isImmediateRecapture(
+      targetSquare: String,
+      lineFacts: Option[MoveReviewPvLine.LineFacts]
+  ): Boolean =
+    lineFacts.exists(line =>
+      legalCaptureToSquare(
+        beforeFen = line.first.fenAfter,
+        move = line.reply,
+        targetSquare = targetSquare
+      )
+    )
 
   private def isCentralBreak(uci: String, whiteMove: Boolean): Boolean =
     val move = MoveReviewPvLine.normalizeUci(uci)
@@ -1111,11 +1121,32 @@ private[commentary] object CommentaryIdeaSurface:
     val blackBreaks = Set("d7d5", "e7e5", "c7c5")
     if whiteMove then whiteBreaks.contains(move) else blackBreaks.contains(move)
 
-  private def isCenterCapture(uci: String): Boolean =
-    val move = MoveReviewPvLine.normalizeUci(uci)
-    move.length >= 4 &&
-      CenterSquares.contains(move.slice(2, 4)) &&
-      move.take(2).headOption.exists(file => file != move.slice(2, 4).headOption.getOrElse(file))
+  private def legalCenterCapture(
+      beforeFen: String,
+      move: Option[MoveReviewMoveRef]
+  ): Boolean =
+    move.exists(ref =>
+      MoveReviewExchangeAnalyzer
+        .boundedReplay(beforeFen, List(ref.uci), maxPlies = 1)
+        .flatMap(_.headOption)
+        .exists(step =>
+          step.move.captures &&
+            CenterSquares.contains(step.move.dest.key) &&
+            step.move.orig.file != step.move.dest.file
+        )
+    )
+
+  private def legalCaptureToSquare(
+      beforeFen: String,
+      move: Option[MoveReviewMoveRef],
+      targetSquare: String
+  ): Boolean =
+    move.exists(ref =>
+      MoveReviewExchangeAnalyzer
+        .boundedReplay(beforeFen, List(ref.uci), maxPlies = 1)
+        .flatMap(_.headOption)
+        .exists(step => step.move.captures && step.move.dest.key == targetSquare)
+    )
 
   private def normalizeMotifKey(value: String): String =
     Option(value).getOrElse("").trim.toLowerCase.replaceAll("""[^a-z0-9]+""", "_")

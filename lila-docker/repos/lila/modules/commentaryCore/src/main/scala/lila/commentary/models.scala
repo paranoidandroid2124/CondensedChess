@@ -321,7 +321,10 @@ case class StrategyIdeaSignal(
     focusZone: Option[String] = None,
     beneficiaryPieces: List[String] = Nil,
     confidence: Double,
-    evidenceRefs: List[String] = Nil
+    evidenceRefs: List[String] = Nil,
+    targetSquare: Option[String] = None,
+    relationKind: Option[String] = None,
+    relationFocusSquares: List[String] = Nil
 )
 object StrategyIdeaSignal:
   given Writes[StrategyIdeaSignal] = Json.writes[StrategyIdeaSignal]
@@ -581,11 +584,50 @@ case class AuthorEvidenceSummary(
 object AuthorEvidenceSummary:
   given Writes[AuthorEvidenceSummary] = Json.writes[AuthorEvidenceSummary]
 
+case class MoveReviewOpeningBookMetadata(
+    eco: Option[String] = None,
+    totalGames: Option[Int] = None,
+    topMoves: List[String] = Nil
+)
+object MoveReviewOpeningBookMetadata:
+  private val MaxPublicGameCount = 100_000_000
+  private val EcoPattern = """[A-E][0-9]{2}""".r
+  private val TopMovePattern = """(?:[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?|O-O(?:-O)?[+#]?)""".r
+
+  def fromReference(reference: lila.commentary.model.OpeningReference): Option[MoveReviewOpeningBookMetadata] =
+    sanitize(
+      MoveReviewOpeningBookMetadata(
+        eco = reference.eco,
+        totalGames = Some(reference.totalGames),
+        topMoves = reference.topMoves.map(_.san)
+      )
+    )
+
+  def sanitize(metadata: MoveReviewOpeningBookMetadata): Option[MoveReviewOpeningBookMetadata] =
+    val eco = metadata.eco.map(_.trim.toUpperCase).filter(value => EcoPattern.matches(value))
+    val totalGames = metadata.totalGames.filter(games => games > 0 && games <= MaxPublicGameCount)
+    val topMoves =
+      metadata.topMoves
+        .flatMap(cleanTopMove)
+        .distinct
+        .take(3)
+    Option
+      .when(eco.nonEmpty || totalGames.nonEmpty || topMoves.nonEmpty)(
+        MoveReviewOpeningBookMetadata(eco = eco, totalGames = totalGames, topMoves = topMoves)
+      )
+
+  private def cleanTopMove(value: String): Option[String] =
+    val cleaned = Option(value).map(_.trim).getOrElse("")
+    Option.when(cleaned.nonEmpty && cleaned.length <= 16 && TopMovePattern.matches(cleaned))(cleaned)
+
+  given Writes[MoveReviewOpeningBookMetadata] = Json.writes[MoveReviewOpeningBookMetadata]
+
 case class MoveReviewSurfaceAuthority(
     kind: String,
     token: Option[String] = None,
     openingFamily: Option[String] = None,
-    target: Option[String] = None
+    target: Option[String] = None,
+    openingBook: Option[MoveReviewOpeningBookMetadata] = None
 )
 object MoveReviewSurfaceAuthority:
   val CounterplayBreak = "counterplay_break"
@@ -594,6 +636,7 @@ object MoveReviewSurfaceAuthority:
   val CentralLiquidation = "central_liquidation"
   val CentralChallenge = "central_challenge"
   val OpeningFamily = "opening_family"
+  val StrategicRelation = "strategic_relation"
 
   given Writes[MoveReviewSurfaceAuthority] = Json.writes[MoveReviewSurfaceAuthority]
 

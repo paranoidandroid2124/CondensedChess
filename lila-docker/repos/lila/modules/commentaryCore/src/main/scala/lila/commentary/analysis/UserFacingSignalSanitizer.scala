@@ -1,8 +1,17 @@
 package lila.commentary.analysis
 
+import lila.commentary.analysis.semantic.RelationObservationCatalog
+
 import scala.util.matching.Regex
 
 private[commentary] object UserFacingSignalSanitizer:
+
+  private val DeferredDominationText =
+    deferredRelationFallbackText(MoveReviewExchangeAnalyzer.RelationKind.Domination, "key-square restriction")
+  private val DeferredTrappedPieceText =
+    deferredRelationFallbackText(MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece, "piece mobility")
+  private val DeferredZwischenzugText =
+    deferredRelationFallbackText(MoveReviewExchangeAnalyzer.RelationKind.Zwischenzug, "move-order caution")
 
   private val placeholderRewrites: List[(String, String)] = List(
     "deferred as PlayableByPV under strict evidence mode" -> "deferred under the current evidence threshold",
@@ -125,9 +134,12 @@ private[commentary] object UserFacingSignalSanitizer:
       .replaceAll("""(?i)\bOpenFileControl\([^)]*\)""", "pressure on the open file")
       .replaceAll("""(?i)\bCentralization\([^)]*\)""", "piece improvement")
       .replaceAll("""(?i)\bRookLift\([^)]*\)""", "a rook lift")
-      .replaceAll("""(?i)\bDomination\([^)]*\)""", "piece domination")
+      .replaceAll("""(?i)\bDomination\([^)]*\)""", DeferredDominationText)
       .replaceAll("""(?i)\bManeuver\([^)]*\)""", "piece improvement")
-      .replaceAll("""(?i)\bTrappedPiece\([^)]*\)""", "a trapped piece")
+      .replaceAll("""(?i)\bTrappedPiece\([^)]*\)""", DeferredTrappedPieceText)
+      .replaceAll("""(?i)\bZwischenzug\([^)]*\)""", DeferredZwischenzugText)
+      .replaceAll("""(?i)\bStalemateTrap\([^)]*\)""", "")
+      .replaceAll("""(?i)\bPerpetualCheck\([^)]*\)""", "")
       .replaceAll("""(?i)\bKnightVsBishop\([^)]*\)""", "the knight against the bishop")
       .replaceAll("""(?i)\bBlockade\([^)]*\)""", "a blockade")
       .replaceAll("""(?i)\bSmotheredMate\([^)]*\)""", "smothered-mate ideas")
@@ -135,6 +147,13 @@ private[commentary] object UserFacingSignalSanitizer:
       .replaceAll("""(?i)\bSkewer\([^)]*\)""", "a skewer")
       .replaceAll("""(?i)\bFork\([^)]*\)""", "fork pressure")
       .replaceAll("""(?i)\bCheck\([^)]*\)""", "checking pressure")
+
+  private def deferredRelationFallbackText(kind: String, fallback: String): String =
+    RelationObservationCatalog
+      .deferredFallbackForKind(kind)
+      .filter(_.allowsNonRelationText)
+      .flatMap(_.label)
+      .getOrElse(fallback)
 
   private def collapseWhitespace(text: String): String =
     text
