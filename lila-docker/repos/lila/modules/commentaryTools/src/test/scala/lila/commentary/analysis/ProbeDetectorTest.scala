@@ -1,9 +1,10 @@
 package lila.commentary.analysis
 
-import chess.Color
+import chess.{ Color, Square }
 import lila.commentary.analysis.L3.PvLine
 import lila.commentary.model.{ Plan, PlanMatch, PlanScoringResult }
 import lila.commentary.model.authoring.{ AuthorQuestion, AuthorQuestionKind, PlanHypothesis, PlanViability }
+import lila.commentary.model.strategic.PreventedPlan
 import munit.FunSuite
 
 class ProbeDetectorTest extends FunSuite:
@@ -15,8 +16,144 @@ class ProbeDetectorTest extends FunSuite:
     kind = AuthorQuestionKind.WhyThis,
     priority = 1,
     question = "Why choose the central advance here?",
-    evidencePurposes = List("reply_multipv")
+    evidencePurposes = List(ThemePlanProbePurpose.ReplyMultiPv)
   )
+
+  test("theme probe purpose helpers own reply and validation family classification") {
+    assert(ThemePlanProbePurpose.isDirectReplyPurpose(ThemePlanProbePurpose.ReplyMultiPv))
+    assert(ThemePlanProbePurpose.isDirectReplyPurpose(ThemePlanProbePurpose.DefenseReplyMultiPv))
+    assert(!ThemePlanProbePurpose.isDirectReplyPurpose(ThemePlanProbePurpose.ConvertReplyMultiPv))
+    assert(ThemePlanProbePurpose.isConversionReplyPurpose(ThemePlanProbePurpose.ConvertReplyMultiPv))
+    assert(ThemePlanProbePurpose.isConversionReplyPurpose(ThemePlanProbePurpose.DefenseReplyMultiPv))
+    assert(ThemePlanProbePurpose.isRouteValidationPurpose(ThemePlanProbePurpose.RouteDenialValidation))
+    assert(ThemePlanProbePurpose.isRouteContinuityPurpose(ThemePlanProbePurpose.ConvertReplyMultiPv))
+    assert(ThemePlanProbePurpose.isAuthorEvidencePurpose(ThemePlanProbePurpose.KeepTensionBranches))
+    assert(ThemePlanProbePurpose.requiresMultipleBranches(ThemePlanProbePurpose.KeepTensionBranches))
+    assert(ThemePlanProbePurpose.requiresMultipleBranches(ThemePlanProbePurpose.RecaptureBranches))
+    assert(!ThemePlanProbePurpose.requiresMultipleBranches(ThemePlanProbePurpose.ReplyMultiPv))
+    assertEquals(ThemePlanProbePurpose.requiredSignalsForPurpose(ThemePlanProbePurpose.ReplyMultiPv), Some(List("replyPvs")))
+    assertEquals(
+      ThemePlanProbePurpose.objectiveForPurpose(ThemePlanProbePurpose.NullMoveThreat),
+      Some("validate_restriction_prophylaxis")
+    )
+    assertEquals(ThemePlanProbePurpose.horizonForPurpose(ThemePlanProbePurpose.ConvertReplyMultiPv), Some("medium"))
+    assertEquals(ThemePlanProbePurpose.budgetForPurpose(ThemePlanProbePurpose.KeepTensionBranches), Some(1))
+    assert(ThemePlanProbePurpose.isPlayedMoveCounterfactualPurpose(ThemePlanProbePurpose.PlayedMoveCounterfactual))
+    assert(ThemePlanProbePurpose.isNullMoveThreatPurpose(ThemePlanProbePurpose.NullMoveThreat.toLowerCase))
+  }
+
+  test("probe purpose classifier owns legacy candidate probe id families") {
+    assert(ProbePurposeClassifier.isCompetitiveProbeId("competitive_e2e4"))
+    assert(ProbePurposeClassifier.isAggressiveProbeId("aggressive_why_not_e2e4"))
+    assert(ProbePurposeClassifier.isCompetitiveProbeId(" Competitive_d2d4 "))
+    assert(!ProbePurposeClassifier.isAggressiveProbeId("competitive_e2e4"))
+  }
+
+  test("probe purpose classifier owns latent purpose profiles") {
+    assertEquals(
+      ProbePurposeClassifier.requiredSignalsForPurpose(ProbePurposeClassifier.LatentPlanRefutation),
+      Some(List("replyPvs", "keyMotifs", "l1Delta", "futureSnapshot"))
+    )
+    assertEquals(
+      ProbePurposeClassifier.objectiveForPurpose(ProbePurposeClassifier.FreeTempoBranches),
+      Some("validate_latent_plan")
+    )
+    assertEquals(
+      ProbePurposeClassifier.horizonForPurpose(ProbePurposeClassifier.LatentPlanImmediate),
+      Some("medium")
+    )
+    assertEquals(
+      ProbePurposeClassifier.defaultMaxCpLossForPurpose(ProbePurposeClassifier.LatentPlanImmediate),
+      Some(80)
+    )
+    assert(ProbePurposeClassifier.isKnownSupportPurpose(ProbePurposeClassifier.FreeTempoBranches))
+    assert(ProbePurposeClassifier.isKnownProbePurpose(ProbePurposeClassifier.LatentPlanRefutation))
+    assert(!ProbePurposeClassifier.isKnownSupportPurpose(ProbePurposeClassifier.LatentPlanRefutation))
+  }
+
+  test("plan evidence evaluator owns prevented-plan signal terms") {
+    val prevented =
+      PreventedPlan(
+        planId = "deny_entry",
+        deniedSquares = List(Square.D5, Square.C4, Square.D5),
+        breakNeutralized = Some(" f5 "),
+        mobilityDelta = 0,
+        counterplayScoreDrop = 42,
+        deniedResourceClass = Some(" entry_square "),
+        deniedEntryScope = Some(" sector ")
+      )
+
+    assertEquals(
+      PlanEvidenceEvaluator.preventedPlanSignalTerms(prevented),
+      List("counterplay_drop:42", "neutralized_break:f5", "denied_resource:entry_square")
+    )
+    assertEquals(
+      PlanEvidenceEvaluator.preventedPlanSignalTerms(
+        prevented,
+        includeDeniedSquares = true,
+        includeDeniedEntryScope = true
+      ),
+      List(
+        "counterplay_drop:42",
+        "neutralized_break:f5",
+        "denied_squares:c4,d5",
+        "denied_resource:entry_square",
+        "denied_entry_scope:sector"
+      )
+    )
+    assertEquals(PlanEvidenceEvaluator.prophylacticDeniedResourceTerm("Entry Square"), Some("denied_resource:entry_square"))
+    assert(PlanEvidenceEvaluator.isProphylacticDeniedResourceTerm("denied_resource:entry_square"))
+    assert(!PlanEvidenceEvaluator.isProphylacticDeniedResourceTerm("denied_resource:generic_note"))
+    assertEquals(
+      PlanEvidenceEvaluator.claimCertificationTerms(
+        PlanEvidenceEvaluator.ClaimCertification(
+          quantifier = PlayerFacingClaimQuantifier.BestResponse,
+          stabilityGrade = PlayerFacingClaimStabilityGrade.Stable,
+          provenanceClass = PlayerFacingClaimProvenanceClass.ProbeBacked
+        )
+      ),
+      List("best_response", "stable", "probe_backed")
+    )
+    assertEquals(PlanEvidenceEvaluator.supportProbeTerms(List(" probe-a ", "")), List("support_probe:probe-a"))
+  }
+
+  test("theme resolver owns theme and subplan support tags") {
+    val tags =
+      PlanTaxonomy.ThemeResolver.canonicalSupportTags(
+        List(" theme:Restriction_Prophylaxis ", "subplan:Prophylaxis_Restraint", "other")
+      )
+
+    assertEquals(tags, List("theme:restriction_prophylaxis", "subplan:prophylaxis_restraint"))
+    assertEquals(
+      PlanTaxonomy.ThemeResolver.themeIdFromSupport("theme:Pawn_Break_Preparation"),
+      Some("pawn_break_preparation")
+    )
+    assertEquals(
+      PlanTaxonomy.ThemeResolver.subplanFromSupport("subplan:central_break_timing"),
+      Some(PlanTaxonomy.PlanKind.CentralBreakTiming)
+    )
+    assertEquals(
+      PlanTaxonomy.ThemeResolver.subplanAnnotation("Central plan", PlanTaxonomy.PlanKind.CentralBreakTiming),
+      "Central plan [subplan:central_break_timing]"
+    )
+    assertEquals(
+      PlanTaxonomy.ThemeResolver.subplanFromAnnotatedText("Central plan [subplan:central_break_timing]"),
+      Some(PlanTaxonomy.PlanKind.CentralBreakTiming)
+    )
+    assertEquals(
+      PlanTaxonomy.ThemeResolver.structuralStateTag("Rook Pawn March"),
+      "structural_state:rook_pawn_march"
+    )
+    assertEquals(
+      PlanTaxonomy.ThemeResolver.latentSeedTag("Rook-Pawn-March"),
+      "latent_seed:rook_pawn_march"
+    )
+    assertEquals(
+      PlanTaxonomy.ThemeResolver.seedIdFromEvidenceSource("latent_seed:rook_pawn_march"),
+      Some("rook_pawn_march")
+    )
+    assert(PlanTaxonomy.ThemeResolver.hasStructuralStateEvidence(List("structural_state:rook_pawn_march")))
+  }
 
   private def emptyScoring: PlanScoringResult =
     PlanScoringResult(
@@ -121,7 +258,7 @@ class ProbeDetectorTest extends FunSuite:
       multiPv = competitivePv,
       fen = StartFen
     )
-    assert(!competitiveRequests.exists(_.id.startsWith("competitive_")), clue(competitiveRequests))
+    assert(!competitiveRequests.exists(req => ProbePurposeClassifier.isCompetitiveProbeId(req.id)), clue(competitiveRequests))
 
     val tacticalFen = "4k3/8/8/3p4/4P3/8/8/4K3 w - - 0 1"
     val defensivePv = List(
@@ -134,7 +271,7 @@ class ProbeDetectorTest extends FunSuite:
       multiPv = defensivePv,
       fen = tacticalFen
     )
-    assert(!defensiveRequests.exists(_.id.startsWith("aggressive_why_not_")), clue(defensiveRequests))
+    assert(!defensiveRequests.exists(req => ProbePurposeClassifier.isAggressiveProbeId(req.id)), clue(defensiveRequests))
   }
 
   test("low-confidence ghost probes are shadow-only while high-confidence ghosts remain emitted") {

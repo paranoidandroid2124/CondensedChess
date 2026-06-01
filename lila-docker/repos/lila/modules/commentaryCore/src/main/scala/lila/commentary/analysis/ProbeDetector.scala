@@ -19,19 +19,6 @@ object ProbeDetector:
   private val MaxMovesPerPlan = 3
   private val DefaultDepth = 20
   private val MaxProbeRequests = 8
-  private val PurposeBudget: Map[String, Int] = Map(
-    "theme_plan_validation" -> 3,
-    "route_denial_validation" -> 2,
-    "color_complex_squeeze_validation" -> 2,
-    "long_term_restraint_validation" -> 2,
-    "reply_multipv" -> 2,
-    "defense_reply_multipv" -> 2,
-    "convert_reply_multipv" -> 2,
-    "recapture_branches" -> 1,
-    "keep_tension_branches" -> 1,
-    "played_move_counterfactual" -> 1,
-    "NullMoveThreat" -> 2
-  )
 
   case class StrategicFrame(
     cause: String,
@@ -100,12 +87,12 @@ object ProbeDetector:
 
     // Task A (QID, etc): probe the played move itself with reply MultiPV,
     // even when it already appears in root MultiPV, to surface opponent branching.
-    authorQuestions.find(_.evidencePurposes.contains("defense_reply_multipv")).foreach { q =>
+    authorQuestions.find(_.evidencePurposes.contains(ThemePlanProbePurpose.DefenseReplyMultiPv)).foreach { q =>
       evidence += mkProbe(
         id = s"evidence_reply_${q.id}",
         probeFen = fen,
         moves = List(playedUci),
-        purpose = "defense_reply_multipv",
+        purpose = ThemePlanProbePurpose.DefenseReplyMultiPv,
         question = q,
         multiPv = 3,
         planName = "Evidence: defense reply MultiPV"
@@ -113,15 +100,15 @@ object ProbeDetector:
     }
     authorQuestions
       .find(q =>
-        q.evidencePurposes.contains("reply_multipv") &&
-          !q.evidencePurposes.contains("defense_reply_multipv")
+        q.evidencePurposes.contains(ThemePlanProbePurpose.ReplyMultiPv) &&
+          !q.evidencePurposes.contains(ThemePlanProbePurpose.DefenseReplyMultiPv)
       )
       .foreach { q =>
         evidence += mkProbe(
           id = s"evidence_reply_${q.id}",
           probeFen = fen,
           moves = List(playedUci),
-          purpose = "reply_multipv",
+          purpose = ThemePlanProbePurpose.ReplyMultiPv,
           question = q,
           multiPv = 3,
           planName = "Evidence: reply MultiPV"
@@ -129,14 +116,14 @@ object ProbeDetector:
       }
 
     // Task B (recapture branching): after a capture, probe at least 2 distinct recaptures if possible.
-    authorQuestions.find(_.evidencePurposes.contains("recapture_branches")).foreach { q =>
+    authorQuestions.find(_.evidencePurposes.contains(ThemePlanProbePurpose.RecaptureBranches)).foreach { q =>
       val recaptures = recaptureUcis(afterPlayedFen, playedUci).take(3)
       if (recaptures.size >= 2)
         evidence += mkProbe(
-          id = s"evidence_recapture_${q.id}",
-          probeFen = afterPlayedFen,
-          moves = recaptures,
-          purpose = "recapture_branches",
+            id = s"evidence_recapture_${q.id}",
+            probeFen = afterPlayedFen,
+            moves = recaptures,
+            purpose = ThemePlanProbePurpose.RecaptureBranches,
           question = q,
           multiPv = 2,
           planName = "Evidence: recapture branches"
@@ -145,7 +132,7 @@ object ProbeDetector:
 
     // Keep-tension branching: when the best move keeps tension (often castling),
     // probe the opponent's main structural choices (e.g., ...dxc4 vs ...c5 in QID).
-    authorQuestions.find(_.evidencePurposes.contains("keep_tension_branches")).foreach { q =>
+    authorQuestions.find(_.evidencePurposes.contains(ThemePlanProbePurpose.KeepTensionBranches)).foreach { q =>
       val bestUci = candidates.headOption.flatMap(_.uci).filterNot(_ == playedUci)
       bestUci.foreach { uci =>
         val afterBestFen = NarrativeUtils.uciListToFen(fen, List(uci))
@@ -156,7 +143,7 @@ object ProbeDetector:
             id = s"evidence_keep_${q.id}",
             probeFen = afterBestFen,
             moves = opts,
-            purpose = "keep_tension_branches",
+            purpose = ThemePlanProbePurpose.KeepTensionBranches,
             question = q,
             multiPv = 2,
             planName = "Evidence: keep tension branches"
@@ -166,14 +153,14 @@ object ProbeDetector:
 
     // Conversion probing: when we are in a conversion window, probe the best move's reply MultiPV
     // so we can describe the defender's main resource and how the advantage persists.
-    authorQuestions.find(_.evidencePurposes.contains("convert_reply_multipv")).foreach { q =>
+    authorQuestions.find(_.evidencePurposes.contains(ThemePlanProbePurpose.ConvertReplyMultiPv)).foreach { q =>
       val bestUci = candidates.headOption.flatMap(_.uci).filter(legalUci.contains)
       bestUci.foreach { uci =>
         evidence += mkProbe(
           id = s"evidence_convert_${q.id}",
           probeFen = fen,
           moves = List(uci),
-          purpose = "convert_reply_multipv",
+          purpose = ThemePlanProbePurpose.ConvertReplyMultiPv,
           question = q,
           multiPv = 3,
           planName = "Evidence: convert reply MultiPV"
@@ -284,7 +271,7 @@ object ProbeDetector:
                   id = s"played_${mv}_${Integer.toHexString(fen.hashCode)}",
                   moves = List(mv),
                   planName = Some("Played move probe"),
-                  purpose = Some("played_move_counterfactual")
+                  purpose = Some(ThemePlanProbePurpose.PlayedMoveCounterfactual)
                 )
               }
             }
@@ -344,7 +331,7 @@ object ProbeDetector:
                   else
                     val labeledPlanName =
                       contract.subplanId
-                        .map(sp => s"${h.planName} [subplan:${sp.id}]")
+                        .map(ThemeResolver.subplanAnnotation(h.planName, _))
                         .getOrElse(h.planName)
                     Some(
                       ProbeRequest(
@@ -385,7 +372,7 @@ object ProbeDetector:
                 else
                   val labeledPlanName =
                     contract.subplanId
-                      .map(sp => s"${pm.plan.name} [subplan:${sp.id}]")
+                      .map(ThemeResolver.subplanAnnotation(pm.plan.name, _))
                       .getOrElse(pm.plan.name)
                   Some(
                     ProbeRequest(
@@ -419,11 +406,11 @@ object ProbeDetector:
               fen = nullFen,
               moves = Nil, // We want the engine's best move FOR THE OPPONENT
               depth = DefaultDepth,
-              purpose = Some("NullMoveThreat"),
+              purpose = Some(ThemePlanProbePurpose.NullMoveThreat),
               planName = Some("Restriction/Prophylaxis Null-Move Check"),
-              objective = objectiveForPurpose("NullMoveThreat"),
-              requiredSignals = requiredSignalsForPurpose("NullMoveThreat"),
-              horizon = horizonForPurpose("NullMoveThreat"),
+              objective = objectiveForPurpose(ThemePlanProbePurpose.NullMoveThreat),
+              requiredSignals = requiredSignalsForPurpose(ThemePlanProbePurpose.NullMoveThreat),
+              horizon = horizonForPurpose(ThemePlanProbePurpose.NullMoveThreat),
               baselineMove = baseline.flatMap(_.moves.headOption),
               baselineEvalCp = baseline.map(_.evalCp),
               baselineMate = baseline.flatMap(_.mate),
@@ -443,7 +430,7 @@ object ProbeDetector:
     val counters = scala.collection.mutable.Map.empty[String, Int].withDefaultValue(0)
     requests.filter { req =>
       val key = req.purpose.getOrElse("none")
-      val limit = PurposeBudget.getOrElse(key, 2)
+      val limit = ThemePlanProbePurpose.budgetForPurpose(key).getOrElse(2)
       val current = counters(key)
       if current >= limit then false
       else
@@ -507,9 +494,8 @@ object ProbeDetector:
   private def themePlanContract(pm: PlanMatch): ThemePlanContract =
     val taggedSubplan =
       pm.supports
-        .collectFirst { case s if s.startsWith("subplan:") => s.stripPrefix("subplan:").trim }
-        .filter(_.nonEmpty)
-        .flatMap(PlanKind.fromId)
+        .flatMap(ThemeResolver.subplanFromSupport)
+        .headOption
     val inferredSubplan =
       taggedSubplan
         .orElse(ThemeResolver.subplanFromPlanId(pm.plan.id.toString))
@@ -556,8 +542,6 @@ object ProbeDetector:
   private def hypothesisPlanKind(h: PlanHypothesis): Option[PlanKind] =
     ThemeResolver.subplanFromHypothesis(h).orElse(h.subplanId.flatMap(PlanKind.fromId))
 
-  private val SignalPriority = List("replyPvs", "keyMotifs", "l1Delta", "futureSnapshot")
-
   private def broadenThemeContractForDefaultSubplan(
       subplan: PlanKind,
       baseSignals: List[String]
@@ -572,51 +556,20 @@ object ProbeDetector:
             .toSet
         baseSignals.toSet ++ themeSignals
       else baseSignals.toSet
-    SignalPriority.filter(merged.contains) ++ (merged -- SignalPriority.toSet).toList.sorted
+    ThemePlanProbePurpose.orderSignals(merged)
 
   private def requiredSignalsForPurpose(purpose: String): List[String] =
-    ThemePlanProbePurpose.contractForPurpose(purpose).map(_.requiredSignals).getOrElse(
-      purpose match
-        case "latent_plan_refutation" => List("replyPvs", "keyMotifs", "l1Delta", "futureSnapshot")
-        case "latent_plan_immediate"  => List("replyPvs", "l1Delta")
-        case "free_tempo_branches"    => List("replyPvs", "futureSnapshot")
-        case "reply_multipv" | "defense_reply_multipv" | "convert_reply_multipv" |
-            "recapture_branches" | "keep_tension_branches" =>
-          List("replyPvs")
-        case "played_move_counterfactual" =>
-          List("replyPvs", "l1Delta")
-        case "NullMoveThreat" =>
-          List("replyPvs", "keyMotifs", "l1Delta")
-        case _ =>
-          Nil
-    )
+    ThemePlanProbePurpose.requiredSignalsForPurpose(purpose)
+      .orElse(ProbePurposeClassifier.requiredSignalsForPurpose(purpose))
+      .getOrElse(Nil)
 
   private def objectiveForPurpose(purpose: String): Option[String] =
-    ThemePlanProbePurpose.contractForPurpose(purpose).map(_.objective).orElse(
-      purpose match
-        case "latent_plan_refutation" => Some("refute_plan")
-        case "latent_plan_immediate"  => Some("validate_immediate_viability")
-        case "free_tempo_branches"    => Some("validate_latent_plan")
-        case "reply_multipv"          => Some("compare_reply_branches")
-        case "defense_reply_multipv"  => Some("validate_defensive_resources")
-        case "convert_reply_multipv"  => Some("validate_conversion_route")
-        case "recapture_branches"     => Some("compare_recapture_structures")
-        case "keep_tension_branches"  => Some("compare_tension_branches")
-        case "played_move_counterfactual" => Some("counterfactual_probe")
-        case "NullMoveThreat"         => Some("validate_restriction_prophylaxis")
-        case _                        => None
-    )
+    ThemePlanProbePurpose.objectiveForPurpose(purpose)
+      .orElse(ProbePurposeClassifier.objectiveForPurpose(purpose))
 
   private def horizonForPurpose(purpose: String): Option[String] =
-    ThemePlanProbePurpose.contractForPurpose(purpose).map(_.horizon).orElse(
-      purpose match
-        case "latent_plan_refutation" | "free_tempo_branches" => Some("long")
-        case "latent_plan_immediate" | "convert_reply_multipv" => Some("medium")
-        case "reply_multipv" | "defense_reply_multipv" | "recapture_branches" | "keep_tension_branches" =>
-          Some("short")
-        case "played_move_counterfactual" | "NullMoveThreat" => Some("short")
-        case _ => None
-    )
+    ThemePlanProbePurpose.horizonForPurpose(purpose)
+      .orElse(ProbePurposeClassifier.horizonForPurpose(purpose))
 
   /**
    * Structured probe-derived signals for hypothesis validation/ranking.
@@ -646,11 +599,11 @@ object ProbeDetector:
     val longSupportSignals = scala.collection.mutable.ListBuffer.empty[String]
     val longConflictSignals = scala.collection.mutable.ListBuffer.empty[String]
 
-    if matchingRequests.exists(_.purpose.contains("reply_multipv")) then
+    if matchingRequests.exists(_.purpose.exists(ThemePlanProbePurpose.isReplyMultiPvPurpose)) then
       supportSignals += "reply multipv coverage collected"
-    if matchingRequests.exists(_.purpose.exists(_.contains("convert"))) then
+    if matchingRequests.exists(_.purpose.exists(ThemePlanProbePurpose.isConvertReplyPurpose)) then
       supportSignals += "conversion branch checked by probe"
-    if matchingRequests.exists(_.purpose.exists(_.contains("tension"))) then
+    if matchingRequests.exists(_.purpose.exists(ThemePlanProbePurpose.isKeepTensionBranchPurpose)) then
       supportSignals += "tension-release branch was explicitly tested"
 
     matchingResults.foreach { pr =>
@@ -759,13 +712,14 @@ object ProbeDetector:
               "king-safety-exposure"
             else if collapse.contains("structure") || collapse.contains("pawn") then
               "structural-collapse"
-            else if pr.purpose.exists(_.contains("convert")) || pr.motifTags.exists(containsLongSignalKeyword) then
+            else if pr.purpose.exists(ThemePlanProbePurpose.isConvertReplyPurpose) ||
+              pr.motifTags.exists(containsLongSignalKeyword) then
               "conversion-cost"
             else "initiative-handoff"
           val turningPoint =
             if moverLoss >= 90 || pr.mate.nonEmpty then "immediate-sequence"
             else if
-              pr.purpose.exists(_.contains("convert")) ||
+              pr.purpose.exists(ThemePlanProbePurpose.isConvertReplyPurpose) ||
                 pr.futureSnapshot.exists(fs => fs.planPrereqsMet.nonEmpty || fs.planBlockersRemoved.nonEmpty)
             then "simplification-transition"
             else "middlegame-regrouping"

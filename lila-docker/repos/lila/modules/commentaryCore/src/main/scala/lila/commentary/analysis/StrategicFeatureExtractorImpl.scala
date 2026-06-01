@@ -34,14 +34,14 @@ class StrategicFeatureExtractorImpl(
         .filter(pr => pr.probedMove.exists(pm => lila.commentary.analysis.NarrativeUtils.uciEquivalent(moveNorm, pm)))
         .sortBy { pr =>
           val purposeRank =
-            if (pr.purpose.contains("played_move_counterfactual")) 0 else 1
-          (purposeRank, -pr.depth.getOrElse(0), -pr.bestReplyPv.size)
+            if pr.purpose.exists(ThemePlanProbePurpose.isPlayedMoveCounterfactualPurpose) then 0 else 1
+          (purposeRank, -pr.depth.getOrElse(0), -MoveReviewExchangeAnalyzer.probeBestReplyLength(pr))
         }
         .headOption
     def buildProbeCounterfactualLine(move: String): Option[VariationLine] =
       pickProbeForMove(move).map { probe =>
         VariationLine(
-          moves = move :: probe.bestReplyPv.take(3),
+          moves = move :: MoveReviewExchangeAnalyzer.probeBestReplyPrefix(probe, 3),
           scoreCp = probe.evalCp,
           mate = probe.mate,
           depth = probe.depth.getOrElse(0),
@@ -100,17 +100,17 @@ class StrategicFeatureExtractorImpl(
     val relativeScore = if (color.white) normalizedBestScore else -normalizedBestScore
     
     // Look for a true Null-Move Threat evaluated by the engine client
-    val nullMoveProbe = probeResults.find(_.purpose.contains("NullMoveThreat"))
+    val nullMoveProbe = probeResults.find(_.purpose.exists(ThemePlanProbePurpose.isNullMoveThreatPurpose))
     
     val (threatLineRaw, threatPlanId) = nullMoveProbe match {
-      case Some(probe) if probe.bestReplyPv.nonEmpty =>
+      case Some(probe) if MoveReviewExchangeAnalyzer.probeBestReplyPrefix(probe, 1).nonEmpty =>
         // We have a concrete engine refutation line!
         // Best reply PV is the sequence of moves the opponent would use to destroy us
         // evalCp is always White POV centipawns (same contract as VariationLine.scoreCp).
         val threatScore = probe.evalCp
         
         val threatLine = VariationLine(
-          moves = probe.bestReplyPv.take(3), // Top 3 moves of the threat sequence
+          moves = MoveReviewExchangeAnalyzer.probeBestReplyPrefix(probe, 3), // Top 3 moves of the threat sequence
           scoreCp = threatScore,
           depth = probe.depth.getOrElse(0),
           resultingFen = None,
@@ -118,7 +118,7 @@ class StrategicFeatureExtractorImpl(
           tags = Nil,
           parsedMoves = lila.commentary.analysis.MoveAnalyzer.parsePv(
             nullMoveProbe.flatMap(_.fen).getOrElse(fen),
-            probe.bestReplyPv.take(3)
+            MoveReviewExchangeAnalyzer.probeBestReplyPrefix(probe, 3)
           )
         )
         val causalThreatOpt = lila.commentary.analysis.ThreatExtractor.extractThreatConcept(

@@ -16,11 +16,6 @@ import lila.commentary.model.authoring.{ AuthorQuestion, QuestionEvidence }
  */
 object EvidencePlanner:
 
-  private val MultiBranchPurposes = Set(
-    "keep_tension_branches",
-    "recapture_branches"
-  )
-
   def requiredPurposes(question: AuthorQuestion): Set[String] =
     question.evidencePurposes.map(_.trim).filter(_.nonEmpty).toSet
 
@@ -31,7 +26,7 @@ object EvidencePlanner:
     isSatisfied(requiredPurposes(question), availablePurposes)
 
   def minBranches(expectedPurposes: Set[String]): Int =
-    if expectedPurposes.exists(MultiBranchPurposes.contains) then 2 else 1
+    if expectedPurposes.exists(ThemePlanProbePurpose.requiresMultipleBranches) then 2 else 1
 
   def minBranches(question: AuthorQuestion): Int =
     minBranches(requiredPurposes(question))

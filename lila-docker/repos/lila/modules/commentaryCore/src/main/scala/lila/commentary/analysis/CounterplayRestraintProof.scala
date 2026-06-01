@@ -61,13 +61,6 @@ private[commentary] object CounterplayRestraintProof:
 
   private val ApplicableSubplans =
     Set(PlanKind.ProphylaxisRestraint.id, PlanKind.BreakPrevention.id, PlanKind.KeySquareDenial.id)
-  private val DirectReplyPurposes =
-    Set("defense_reply_multipv", "reply_multipv")
-  private val ValidationPurposes =
-    Set(
-      ThemePlanProbePurpose.RouteDenialValidation,
-      ThemePlanProbePurpose.LongTermRestraintValidation
-    )
   private val ClearlyBetterAdvantageCp = 150
   private val LateMiddlegamePlyFloor = 20
   private val CounterplayCompressionFloor = 100
@@ -115,20 +108,17 @@ private[commentary] object CounterplayRestraintProof:
         plan.supportProbeIds.flatMap(probeResultsById.get).distinctBy(_.id)
       val validationResults =
         supportResults.filter(result =>
-          result.purpose.exists(purpose =>
-            ValidationPurposes.contains(normalize(purpose))
-          )
+          result.purpose.exists(ThemePlanProbePurpose.isRouteValidationPurpose)
         )
       val directReplyResults =
         supportResults.filter(result =>
-          result.purpose.exists(purpose =>
-            DirectReplyPurposes.contains(normalize(purpose))
-          )
+          result.purpose.exists(ThemePlanProbePurpose.isDirectReplyPurpose)
         )
-      val defenderResources = distinctDefenderResources(directReplyResults)
+      val defenderResources =
+        MoveReviewExchangeAnalyzer.probeDistinctReplyHeads(directReplyResults)
       val bestDefenseFound =
         directReplyResults.iterator
-          .flatMap(result => result.bestReplyPv.headOption.flatMap(clean))
+          .flatMap(MoveReviewExchangeAnalyzer.probeBestReplyHead)
           .toList
           .headOption
       val directBestDefensePresent =
@@ -146,7 +136,7 @@ private[commentary] object CounterplayRestraintProof:
       val bestReplyStable =
         directBestDefensePresent &&
           defenderResources.nonEmpty &&
-          directReplyResults.forall(hasReplyCoverage) &&
+          directReplyResults.forall(MoveReviewExchangeAnalyzer.probeHasReplyCoverage) &&
           directReplyResults.forall(result =>
             result.l1Delta.flatMap(_.collapseReason).forall(reason => clean(reason).isEmpty)
           )
@@ -225,7 +215,7 @@ private[commentary] object CounterplayRestraintProof:
           )("collapse_under_best_defense"),
           Option.when(
             directReplyResults.nonEmpty &&
-              directReplyResults.exists(hasReplyCoverage) &&
+              directReplyResults.exists(MoveReviewExchangeAnalyzer.probeHasReplyCoverage) &&
               !bestReplyStable &&
               !futureSnapshotPersistence
           )("reply_order_not_stable")
@@ -327,7 +317,7 @@ private[commentary] object CounterplayRestraintProof:
           (plan.hypothesis.evidenceSources ++
             directReplyResults.flatMap(_.purpose.flatMap(clean)) ++
             sameBranchValidationResults.flatMap(_.purpose.flatMap(clean)) ++
-            relevantPreventedPlans.flatMap(preventedEvidenceSignals)).distinct
+            relevantPreventedPlans.flatMap(PlanEvidenceEvaluator.preventedPlanSignalTerms(_))).distinct
       )
     }
 
@@ -465,21 +455,6 @@ private[commentary] object CounterplayRestraintProof:
       snapshot.planBlockersRemoved.nonEmpty ||
       snapshot.planPrereqsMet.nonEmpty
 
-  private def distinctDefenderResources(
-      results: List[ProbeResult]
-  ): List[String] =
-    results
-      .flatMap { result =>
-        val replyHeads =
-          result.replyPvs.toList
-            .flatten
-            .flatMap(_.headOption.flatMap(clean))
-        val bestReply =
-          result.bestReplyPv.headOption.flatMap(clean).toList
-        (replyHeads ++ bestReply).distinct
-      }
-      .distinct
-
   private def matchesDefendedBranch(
       result: ProbeResult,
       expectedBranchKey: String
@@ -498,25 +473,6 @@ private[commentary] object CounterplayRestraintProof:
       isWhiteToMove: Boolean
   ): Int =
     if isWhiteToMove then evalCp else -evalCp
-
-  private def hasReplyCoverage(
-      result: ProbeResult
-  ): Boolean =
-    result.bestReplyPv.nonEmpty ||
-      result.replyPvs.exists(_.exists(_.nonEmpty))
-
-  private def preventedEvidenceSignals(
-      plan: PreventedPlan
-  ): List[String] =
-    List(
-      Option.when(plan.counterplayScoreDrop > 0)(
-        s"counterplay_drop:${plan.counterplayScoreDrop}"
-      ),
-      plan.breakNeutralized.flatMap(signal => clean(signal).map(value => s"neutralized_break:$value")),
-      plan.deniedResourceClass.flatMap(resourceClass =>
-        clean(resourceClass).map(value => s"denied_resource:$value")
-      )
-    ).flatten
 
   private def queenCount(
       fen: String

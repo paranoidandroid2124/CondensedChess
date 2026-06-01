@@ -8,7 +8,7 @@ import lila.commentary.analysis.semantic.StrategicObservationIds.ProofFamilyId
 import lila.commentary.analysis.semantic.RelationObservationCatalog
 import lila.commentary.model.structure.{ PlanAlignment, StructureId, StructureProfile }
 import chess.Color.White
-import lila.commentary.analysis.PlanTaxonomy.{ PlanTheme, PlanKind }
+import lila.commentary.analysis.PlanTaxonomy.{ PlanTheme, PlanKind, ThemeResolver }
 
 private val ThemeDiversityPenalty: Boolean =
   sys.env.get("AI_THEME_DIVERSITY_PENALTY")
@@ -198,7 +198,7 @@ object PlanMatcher:
     val events = ListBuffer.empty[CompatibilityEvent]
 
     def theme(pm: PlanMatch): String =
-      pm.supports.collectFirst { case s if s.startsWith("theme:") => s.stripPrefix("theme:") }.getOrElse("")
+      pm.supports.flatMap(ThemeResolver.themeIdFromSupport).headOption.getOrElse("")
 
     def adjust(list: List[PlanMatch], t: String, factor: Double, reason: String): List[PlanMatch] =
       list.map { p =>
@@ -644,13 +644,15 @@ object PlanMatcher:
       plan = plan,
       score = clamp(score),
       evidence = evidence.take(4),
-      supports = (List(s"theme:$themeId") ++ subplanId.map(id => s"subplan:$id") ++ supports).distinct.take(8),
+      supports = (List(ThemeResolver.themeTag(themeId)) ++ subplanId.map(ThemeResolver.subplanTag) ++ supports)
+        .distinct
+        .take(8),
       blockers = blockers.distinct.take(4),
       missingPrereqs = missing.distinct.take(3)
     )
 
   private def themeOf(pm: PlanMatch): String =
-    pm.supports.collectFirst { case s if s.startsWith("theme:") => s.stripPrefix("theme:") }.getOrElse("")
+    pm.supports.flatMap(ThemeResolver.themeIdFromSupport).headOption.getOrElse("")
 
   private def computeL1PolicyScores(plans: List[PlanMatch]): Map[String, Double] =
     val nonNegative = plans.map(p => p -> p.score.max(0.0))

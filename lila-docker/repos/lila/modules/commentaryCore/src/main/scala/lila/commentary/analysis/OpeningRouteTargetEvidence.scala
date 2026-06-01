@@ -30,7 +30,7 @@ private[commentary] object OpeningRouteTargetEvidence:
   def ownerSeedTerms(route: OpeningRouteCatalog.Route): List[String] =
     List(
       route.targetSquare,
-      s"fixed_target:${route.targetSquare}",
+      PlayerFacingExactSliceProofFacts.fixedTargetTerm(route.targetSquare),
       s"route_target:${route.routeId}",
       route.targetMode
     ).distinct

@@ -162,6 +162,68 @@ private[commentary] object PlayerFacingExactSliceProofFacts:
         Some(normalize(targetSquare)).filter(squareKey)
       case _ => None
 
+  def fixedTargetTerm(square: String): String =
+    exactTargetTerm("fixed_target", square)
+
+  def weakSquareTerm(square: String): String =
+    exactTargetTerm("weak_square", square)
+
+  def coordinatedTargetTerm(square: String): String =
+    exactTargetTerm("coordinated_target", square)
+
+  def targetWitnessTerm(proof: PlayerFacingExactSliceProof): Option[String] =
+    targetSquare(proof).map { square =>
+      proof match
+        case _: PlayerFacingExactSliceProof.ColorComplexSqueeze =>
+          weakSquareTerm(square)
+        case _: PlayerFacingExactSliceProof.TargetFocusedCoordination =>
+          coordinatedTargetTerm(square)
+        case _ =>
+          fixedTargetTerm(square)
+    }
+
+  def targetWitnessTermForPath(proofSource: String, square: String): String =
+    normalize(proofSource) match
+      case source if source == ProofSourceId.ColorComplexSqueezeProbe.wireKey =>
+        weakSquareTerm(square)
+      case source if source == ProofSourceId.TargetFocusedCoordinationProbe.wireKey =>
+        coordinatedTargetTerm(square)
+      case _ =>
+        fixedTargetTerm(square)
+
+  def localFileEntryTerm(file: String, entrySquare: String): Option[String] =
+    Option.when(fileToken(file) && squareKey(entrySquare))(
+      s"file-entry:${normalize(file)}:${normalize(entrySquare)}"
+    )
+
+  def localFileEntryTerms(file: String, entrySquare: String): List[String] =
+    localFileEntryTerm(file, entrySquare).toList
+
+  def coordinationSupportTerms(fromSquare: String, targetPiece: String): List[String] =
+    List(
+      cleanTerm("support_from", fromSquare),
+      cleanTerm("target_piece", targetPiece),
+      Some("coordinated_piece_pressure")
+    ).flatten
+
+  def colorComplexTerm(squareColor: String): Option[String] =
+    val color = normalize(squareColor)
+    Option.when(Set("light", "dark").contains(color))(s"color_complex:$color")
+
+  def minorPieceTerm(roleName: String, square: String): Option[String] =
+    val role = normalize(roleName)
+    Option.when(Set("bishop", "knight").contains(role) && squareKey(square))(
+      s"minor_piece:${role}_${normalize(square)}"
+    )
+
+  def attacksTerm(square: String): Option[String] =
+    squareTerm("attacks", square)
+
+  def minorPieceAttackTerm(fromSquare: String, targetSquare: String): Option[String] =
+    Option.when(squareKey(fromSquare) && squareKey(targetSquare))(
+      s"minor_piece_attack:${normalize(fromSquare)}-${normalize(targetSquare)}"
+    )
+
   private def proofFamily(kind: PlanTaxonomy.PlanKind): String =
     ProofFamilyId
       .fromPlanKind(kind)
@@ -192,8 +254,18 @@ private[commentary] object PlayerFacingExactSliceProofFacts:
       !token.contains("|") &&
       (
         token.matches("""(?:\.\.\.)?[a-h][1-8](?:-[a-h][1-8])?""") ||
-          token.matches("""denied_resource:(?:break|entry_square|forcing_threat|piece_activity|counterplay_route|route_node|reroute_square|pressure|color_complex_escape)""")
+          PlanEvidenceEvaluator.isProphylacticDeniedResourceTerm(token)
       )
+
+  private def exactTargetTerm(prefix: String, square: String): String =
+    s"$prefix:${normalize(square)}"
+
+  private def squareTerm(prefix: String, square: String): Option[String] =
+    Option.when(squareKey(square))(s"$prefix:${normalize(square)}")
+
+  private def cleanTerm(prefix: String, value: String): Option[String] =
+    val token = normalize(value)
+    Option.when(token.nonEmpty)(s"$prefix:$token")
 
   private def normalize(raw: String): String =
     Option(raw).getOrElse("").trim.toLowerCase

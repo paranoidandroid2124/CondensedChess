@@ -82,6 +82,14 @@ final class MoveReviewPvLineTest extends FunSuite:
     assertEquals(MoveReviewPvLine.shortLine(Some(refs), Some("invalid")).map(_.san), Some(List("Bc4", "Ng6")))
   }
 
+  test("projects normalized PV support marker terms") {
+    assertEquals(MoveReviewPvLine.pvMoveTerm(" e7e8=Q+ "), Some("pv:e7e8q"))
+    assertEquals(
+      MoveReviewPvLine.pvMoveTerms(List("e2e4", "", "e1h1")),
+      List("pv:e2e4", "pv:e1g1")
+    )
+  }
+
   test("appends played plus after-PV as proof variation without disturbing root line order") {
     val fen = "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3"
     val afterFen = NarrativeUtils.uciListToFen(fen, List("f1c4"))

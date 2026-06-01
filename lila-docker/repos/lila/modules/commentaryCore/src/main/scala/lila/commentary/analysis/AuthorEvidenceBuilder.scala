@@ -42,13 +42,13 @@ object AuthorEvidenceBuilder:
         val grouped = rs.groupBy(_.purpose.getOrElse(""))
         grouped.toList.flatMap { case (purpose, prs) =>
           purpose match
-            case "recapture_branches" =>
+            case ThemePlanProbePurpose.RecaptureBranches =>
               val branches =
                 prs
                   .flatMap(pr => pr.probedMove.map(m => m -> pr))
                   .distinctBy(_._1)
                   .flatMap { (recapUci, pr) =>
-                    val pvTail = pr.bestReplyPv.take(10)
+                    val pvTail = MoveReviewExchangeAnalyzer.probeBestReplyPrefix(pr, 10)
                     val lineUcis = playedUci :: recapUci :: pvTail
                     val sans = NarrativeUtils.uciListToSan(fen, lineUcis)
                     val ok = sans.size == lineUcis.size
@@ -78,12 +78,12 @@ object AuthorEvidenceBuilder:
                 QuestionEvidence(questionId = q.id, purpose = purpose, branches = branches)
               )
 
-            case "reply_multipv" | "defense_reply_multipv" | "convert_reply_multipv" =>
+            case purpose if ThemePlanProbePurpose.isAuthorReplyBranchPurpose(purpose) =>
               val branches =
                 prs
                   .flatMap(pr => pr.probedMove.map(m => m -> pr))
                   .flatMap { (_, pr) =>
-                    val pvs = pr.replyPvs.getOrElse(if (pr.bestReplyPv.nonEmpty) List(pr.bestReplyPv) else Nil)
+                    val pvs = MoveReviewExchangeAnalyzer.probeDisplayReplyLines(pr)
                     pvs.take(3).flatMap { pv =>
                       val lineUcis = playedUci :: pv.take(9)
                       val sans = NarrativeUtils.uciListToSan(fen, lineUcis)
@@ -118,7 +118,7 @@ object AuthorEvidenceBuilder:
                 QuestionEvidence(questionId = q.id, purpose = purpose, branches = branches)
               )
 
-            case "keep_tension_branches" =>
+            case ThemePlanProbePurpose.KeepTensionBranches =>
               val bestUci = bestUciOpt.getOrElse("")
               val afterBestFen = afterBestFenOpt.getOrElse("")
               if (bestUci.isEmpty || afterBestFen.isEmpty) Nil
@@ -128,7 +128,7 @@ object AuthorEvidenceBuilder:
                     .flatMap(pr => pr.probedMove.map(m => m -> pr))
                     .distinctBy(_._1)
                     .flatMap { (theirUci, pr) =>
-                      val pvTail = pr.bestReplyPv.take(10)
+                      val pvTail = MoveReviewExchangeAnalyzer.probeBestReplyPrefix(pr, 10)
                       val lineUcis = bestUci :: theirUci :: pvTail
                       val sans = NarrativeUtils.uciListToSan(fen, lineUcis)
                       val ok = sans.size == lineUcis.size

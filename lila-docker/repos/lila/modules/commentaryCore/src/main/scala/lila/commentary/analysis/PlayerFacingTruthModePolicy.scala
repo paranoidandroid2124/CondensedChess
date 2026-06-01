@@ -880,6 +880,12 @@ private[commentary] object PlayerFacingTruthModePolicy:
       rivalReleaseRisk: Boolean
     )
 
+  private def rivalSecondaryPlanTerm(family: String): Option[String] =
+    clean(family).map(value => s"secondary_plan:$value")
+
+  private def rivalSecondaryIdeaTerm(family: String): Option[String] =
+    clean(family).map(value => s"secondary_idea:$value")
+
   private val BoundedFavorableSimplificationFamily =
     ProofFamilyId.fromPlanKind(PlanTaxonomy.PlanKind.SimplificationWindow).get.wireKey
   private[commentary] val ExactTargetFixationProofSource =
@@ -1315,7 +1321,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
           proofFamily = HalfOpenFilePressureFamily,
           triggerKind = "file_entry_denial",
           ownerSeedTerms = List(pair.file, pair.entrySquare),
-          structureTransitionTerms = List(s"file-entry:${pair.file}:${pair.entrySquare}"),
+          structureTransitionTerms = PlayerFacingExactSliceProofFacts.localFileEntryTerms(pair.file, pair.entrySquare),
           exactSliceProof =
             Some(PlayerFacingExactSliceProof.LocalFileEntryBind(pair.file, pair.entrySquare))
         )
@@ -1327,7 +1333,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
           proofFamily = HalfOpenFilePressureFamily,
           triggerKind = "file_entry_denial",
           ownerSeedTerms = List(pair.file, pair.entrySquare),
-          structureTransitionTerms = List(s"file-entry:${pair.file}:${pair.entrySquare}"),
+          structureTransitionTerms = PlayerFacingExactSliceProofFacts.localFileEntryTerms(pair.file, pair.entrySquare),
           exactSliceProof =
             Some(PlayerFacingExactSliceProof.LocalFileEntryBind(pair.file, pair.entrySquare))
         )
@@ -1726,21 +1732,13 @@ private[commentary] object PlayerFacingTruthModePolicy:
       )(queenTradeShieldLineMoves(ctx)).getOrElse(Nil)
     val centralBreakTimingContinuation =
       Option.when(ownerSeed.proofFamily == CentralBreakTimingWitness.ProofFamily) {
-        CentralBreakTimingWitness.exact(ctx).toList.flatMap { witness =>
-          (
-            List(
-              "central_break_timing_branch",
-              s"central_break:${witness.breakSquare}",
-              s"break_move:${witness.breakMove}"
-            ) ++ witness.structureTransitionTerms
-          ).distinct
-        }
+        CentralBreakTimingWitness.exact(ctx).toList.flatMap(_.structureTransitionTerms)
       }.getOrElse(Nil)
     (
       bestDefenseBranchKey.toList ++
         bestDefenseMove.toList ++
         exactTradeContinuation.toList.flatMap(square =>
-          List("exact_trade_continuation", s"exchange_square:$square", square)
+          List("exact_trade_continuation") ++ MoveReviewExchangeAnalyzer.exchangeSquareFact(square) ++ List(square)
         ) ++
         exactSliceContinuation ++
         exactIqpContinuation ++
@@ -1749,15 +1747,10 @@ private[commentary] object PlayerFacingTruthModePolicy:
         queenTradeShieldContinuation ++
         centralBreakTimingContinuation ++
         ownerLinkedProbeBackedPlans(ctx, ownerSeed).flatMap { plan =>
-          val cert = plan.claimCertification
-          List(
-            Option.when(cert.quantifier == PlayerFacingClaimQuantifier.Universal)("universal"),
-            Option.when(cert.quantifier == PlayerFacingClaimQuantifier.BestResponse)("best_response"),
-            Option.when(cert.stabilityGrade == PlayerFacingClaimStabilityGrade.Stable)("stable"),
-            Option.when(cert.provenanceClass == PlayerFacingClaimProvenanceClass.ProbeBacked)("probe_backed"),
-            plan.subplanId.flatMap(clean).map(id => s"subplan:$id"),
-            clean(plan.themeL1).map(theme => s"theme:$theme")
-          ).flatten ++ plan.supportProbeIds.map(id => s"support_probe:$id")
+          PlanEvidenceEvaluator.claimCertificationTerms(plan) ++
+            plan.subplanId.flatMap(clean).map(PlanTaxonomy.ThemeResolver.subplanTag).toList ++
+            clean(plan.themeL1).map(PlanTaxonomy.ThemeResolver.themeTag).toList ++
+            PlanEvidenceEvaluator.supportProbeTerms(plan)
         }
     ).distinct
 
@@ -1789,8 +1782,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
         (if persistence == PlayerFacingClaimPersistence.Stable then 2 else if persistence != PlayerFacingClaimPersistence.Broken then 1 else 0)
     val rivalTerms =
       (
-        secondaryPlan.filter(_ != ownerSeed.proofFamily).map(family => s"secondary_plan:$family").toList ++
-          secondaryIdeaFamily.filter(_ != ownerSeed.proofFamily).map(family => s"secondary_idea:$family").toList ++
+        secondaryPlan.filter(_ != ownerSeed.proofFamily).flatMap(rivalSecondaryPlanTerm).toList ++
+          secondaryIdeaFamily.filter(_ != ownerSeed.proofFamily).flatMap(rivalSecondaryIdeaTerm).toList ++
           exactSignalFamilies.collect { case (family, tag) if family != ownerSeed.proofFamily => s"$tag:$family" }
       ).distinct
     val rivalKind =
@@ -1923,10 +1916,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
       descriptor: ExactSliceDescriptor,
       square: String
   ): String =
-    descriptor.kind match
-      case ExactSliceKind.ColorComplexSqueezeProbe      => s"weak_square:$square"
-      case ExactSliceKind.TargetFocusedCoordinationProbe => s"coordinated_target:$square"
-      case _                                            => s"fixed_target:$square"
+    PlayerFacingExactSliceProofFacts.targetWitnessTermForPath(descriptor.proofSource, square)
 
   private def exactSlicePositionProbeDescriptor(
       packet: PlayerFacingClaimPacket
@@ -2019,8 +2009,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
       boundedTopReplay(ctx, maxPlies = 4).toList.flatMap { replay =>
         val continuationMoves =
           MoveReviewExchangeAnalyzer.replayUcis(replay, fromPly = 2, maxPlies = 2).flatMap(clean).map(normalize)
-        val bestBranchTerm =
-          MoveReviewExchangeAnalyzer.linePrefixKeyFromMoves(continuationMoves).map(key => s"best_branch:$key").toList
+        val bestBranchTerm = MoveReviewExchangeAnalyzer.bestBranchFactFromMoves(continuationMoves)
         Option.when(targetSquares.nonEmpty && continuationMoves.nonEmpty) {
           targetSquares.flatMap(square =>
             List(
@@ -2708,13 +2697,11 @@ private[commentary] object PlayerFacingTruthModePolicy:
     ) {
       defenderTradeWitness(ctx).toList.flatMap { witness =>
         (
-          List(
-            "defender_trade_branch",
-            s"exchange_square:${witness.exchangeSquare}",
-            s"defended_target:${witness.targetSquare}",
-            witness.exchangeSquare,
-            witness.targetSquare
-          ) ++ witness.lineMoves
+          witness.structureTransitionTerms ++
+            List(
+              witness.exchangeSquare,
+              witness.targetSquare
+            ) ++ witness.lineMoves
         ).distinct
       }
     }.getOrElse(Nil)
@@ -2800,13 +2787,11 @@ private[commentary] object PlayerFacingTruthModePolicy:
     ) {
       badPieceLiquidationWitness(ctx).toList.flatMap { witness =>
         (
-          List(
-            "bad_piece_liquidation_branch",
-            s"bad_piece:${witness.badPieceSquare}",
-            s"exchange_square:${witness.exchangeSquare}",
-            witness.badPieceSquare,
-            witness.exchangeSquare
-          ) ++ witness.structureTransitionTerms ++ witness.lineMoves
+          witness.structureTransitionTerms ++
+            List(
+              witness.badPieceSquare,
+              witness.exchangeSquare
+            ) ++ witness.lineMoves
         ).distinct
       }
     }.getOrElse(Nil)
@@ -2881,7 +2866,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
                           s"before_not_isolated:$target",
                           s"after_isolated:$target",
                           "central_isolated_pawn"
-                        ) ++ prefix.map(move => s"pv:$move")
+                        ) ++ MoveReviewPvLine.pvMoveTerms(prefix)
                       ).distinct
                   )
                 ),
@@ -3032,17 +3017,16 @@ private[commentary] object PlayerFacingTruthModePolicy:
         ownerSeedTerms =
           List(
             targetSquare.get,
-            s"coordinated_target:${targetSquare.get}",
+            PlayerFacingExactSliceProofFacts.coordinatedTargetTerm(targetSquare.get),
             TargetFocusedCoordinationProofFamily,
             "rook_on_c1"
           ).distinct,
         structureTransitionTerms =
           moveRefs
             .flatMap(ref =>
-              List(
-                s"support_from:${normalize(ref.from)}",
-                s"target_piece:${normalize(ref.target)}",
-                "coordinated_piece_pressure"
+              PlayerFacingExactSliceProofFacts.coordinationSupportTerms(
+                fromSquare = ref.from,
+                targetPiece = ref.target
               )
             )
             .distinct,
@@ -3074,21 +3058,21 @@ private[commentary] object PlayerFacingTruthModePolicy:
                 targetSquare = target,
                 ownerSeedTerms =
                   List(
-                    target,
-                    s"weak_square:$target",
-                    s"color_complex:$squareColor",
-                    s"minor_piece:${roleName}_$from",
-                    s"attacks:$target",
-                    s"minor_piece_attack:$from-$target",
-                    ColorComplexSqueezeProbeProofSource,
-                    ColorComplexSqueezeProofFamily
-                  ).distinct,
+                    Some(target),
+                    Some(PlayerFacingExactSliceProofFacts.weakSquareTerm(target)),
+                    PlayerFacingExactSliceProofFacts.colorComplexTerm(squareColor),
+                    PlayerFacingExactSliceProofFacts.minorPieceTerm(roleName, from),
+                    PlayerFacingExactSliceProofFacts.attacksTerm(target),
+                    PlayerFacingExactSliceProofFacts.minorPieceAttackTerm(from, target),
+                    Some(ColorComplexSqueezeProbeProofSource),
+                    Some(ColorComplexSqueezeProofFamily)
+                  ).flatten.distinct,
                 structureTransitionTerms =
                   List(
-                    "color_complex_squeeze_probe",
-                    s"weak_square:$target",
-                    s"minor_piece_attack:$from-$target"
-                  ).distinct,
+                    Some("color_complex_squeeze_probe"),
+                    Some(PlayerFacingExactSliceProofFacts.weakSquareTerm(target)),
+                    PlayerFacingExactSliceProofFacts.minorPieceAttackTerm(from, target)
+                  ).flatten.distinct,
                 exactSliceProof = PlayerFacingExactSliceProof.ColorComplexSqueeze(
                   targetSquare = target,
                   squareColor = squareColor,
@@ -3380,7 +3364,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
         ownerSeedTerms =
           List(
             targetSquare,
-            s"fixed_target:$targetSquare",
+            PlayerFacingExactSliceProofFacts.fixedTargetTerm(targetSquare),
             "backward_pawn_target"
           ).distinct,
         structureTransitionTerms =
@@ -3506,7 +3490,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
   private def carlsbadOwnerSeedTerms(target: CarlsbadTarget): List[String] =
     List(
       target.targetSquare,
-      s"fixed_target:${target.targetSquare}",
+      PlayerFacingExactSliceProofFacts.fixedTargetTerm(target.targetSquare),
       "queenside",
       PlanTaxonomy.PlanKind.BackwardPawnTargeting.id
     ).distinct
@@ -3763,7 +3747,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
       plan: PreventedPlanInfo
   ): Option[String] =
     plan.deniedResourceClass
-      .flatMap(prophylacticResourceClassKey)
+      .flatMap(PlanEvidenceEvaluator.prophylacticResourceClassKey)
       .map(_.replace('_', ' '))
 
   private def prophylacticResourceProofToken(
@@ -3771,26 +3755,11 @@ private[commentary] object PlayerFacingTruthModePolicy:
   ): Option[String] =
     plan.deniedSquares.flatMap(prophylacticDeniedSquareToken).headOption.orElse(
       plan.deniedResourceClass
-        .flatMap(prophylacticResourceClassKey)
-        .map(resource => s"denied_resource:$resource")
+        .flatMap(PlanEvidenceEvaluator.prophylacticDeniedResourceTerm)
     )
 
   private def prophylacticDeniedSquareToken(raw: String): Option[String] =
     clean(raw).filter(_.matches("""(?:\.\.\.)?[a-h][1-8](?:-[a-h][1-8])?"""))
-
-  private def prophylacticResourceClassKey(raw: String): Option[String] =
-    val key = raw.trim.toLowerCase.replace('-', '_').replaceAll("\\s+", "_")
-    Option.when(Set(
-      "break",
-      "entry_square",
-      "forcing_threat",
-      "piece_activity",
-      "counterplay_route",
-      "route_node",
-      "reroute_square",
-      "pressure",
-      "color_complex_escape"
-    ).contains(key))(key)
 
   private def claimProvenance(
       ctx: NarrativeContext,

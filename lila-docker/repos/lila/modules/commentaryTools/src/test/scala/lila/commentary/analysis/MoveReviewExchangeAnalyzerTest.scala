@@ -403,6 +403,9 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
     assertEquals(MoveReviewExchangeAnalyzer.branchKeyFromMoves(moves.take(1)), None)
     assertEquals(MoveReviewExchangeAnalyzer.linePrefixKeyFromMoves(moves.take(1)), Some("d3d8"))
     assertEquals(MoveReviewExchangeAnalyzer.branchFactFromMoves(moves, maxPlies = 3), List("branch:d3d8|e8d8|h2h4"))
+    assertEquals(MoveReviewExchangeAnalyzer.exchangeSquareFact(" D8 "), List("exchange_square:d8"))
+    assertEquals(MoveReviewExchangeAnalyzer.bestBranchFactFromKey(" d3d8|e8d8 "), Some("best_branch:d3d8|e8d8"))
+    assertEquals(MoveReviewExchangeAnalyzer.bestBranchFactFromMoves(moves.take(1)), List("best_branch:d3d8"))
 
     val root = java.nio.file.Paths.get("").toAbsolutePath
     val analyzerPath =
@@ -413,13 +416,20 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
     val policyText = java.nio.file.Files.readString(policyPath)
 
     assert(analyzerText.contains("def branchFactFromMoves"), clues(analyzerPath))
+    assert(analyzerText.contains("def exchangeSquareFact"), clues(analyzerPath))
+    assert(analyzerText.contains("def bestBranchFactFromMoves"), clues(analyzerPath))
     assert(policyText.contains("MoveReviewExchangeAnalyzer.branchKeyFromMoves"), clues(policyPath))
-    assert(policyText.contains("MoveReviewExchangeAnalyzer.linePrefixKeyFromMoves"), clues(policyPath))
+    assert(policyText.contains("MoveReviewExchangeAnalyzer.exchangeSquareFact"), clues(policyPath))
+    assert(policyText.contains("MoveReviewExchangeAnalyzer.bestBranchFactFromMoves"), clues(policyPath))
     assert(!policyText.contains("private def branchKeyFromMoves"), clues(policyPath))
     assert(!policyText.contains("mkString(\"|\")"), clues(policyPath))
+    assert(!policyText.contains("defender_trade_branch"), clues(policyPath))
+    assert(!policyText.contains("bad_piece_liquidation_branch"), clues(policyPath))
+    assert(!policyText.contains("defended_target:"), clues(policyPath))
+    assert(!policyText.contains("bad_piece:"), clues(policyPath))
   }
 
-  test("probe branch key helpers centralize proof consumer identity formats") {
+  test("probe helpers centralize proof consumer identity and reply-line formats") {
     val stableByHash =
       ProbeResult(
         id = "stable-hash",
@@ -456,6 +466,27 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
         deltaVsBaseline = 0,
         keyMotifs = Nil
       )
+    val coverageOnly =
+      ProbeResult(
+        id = "coverage-only",
+        evalCp = 0,
+        bestReplyPv = List(" "),
+        deltaVsBaseline = 0,
+        keyMotifs = Nil
+      )
+    val replyFallback =
+      ProbeResult(
+        id = "reply-fallback",
+        evalCp = 0,
+        bestReplyPv = List("e2e4", "e7e5"),
+        deltaVsBaseline = 0,
+        keyMotifs = Nil
+      )
+    val replyOverride =
+      replyFallback.copy(
+        id = "reply-override",
+        replyPvs = Some(List(List("d2d4", "d7d5"), Nil))
+      )
 
     assertEquals(MoveReviewExchangeAnalyzer.probeStableBranchKey(stableByHash), Some("branch-a"))
     assertEquals(MoveReviewExchangeAnalyzer.probeStableBranchKey(stableByPv), Some("d3d8 e8d8"))
@@ -463,6 +494,20 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
     assertEquals(MoveReviewExchangeAnalyzer.probeFullReplyLineKey(fullLine), Some("Qg4 h4"))
     assert(MoveReviewExchangeAnalyzer.probeFullReplyLineMatches(fullLine, "Qg4 h4"))
     assertEquals(MoveReviewExchangeAnalyzer.probeFirstReplyOrMoveKey(firstReply), Some("Nc6"))
+    assertEquals(MoveReviewExchangeAnalyzer.probeBestReplyHead(stableByPv), Some("D3D8"))
+    assertEquals(MoveReviewExchangeAnalyzer.probeDistinctReplyHeads(List(fullLine, stableByPv)), List("Qg4", "D3D8"))
+    assert(MoveReviewExchangeAnalyzer.probeHasReplyCoverage(coverageOnly))
+    assertEquals(MoveReviewExchangeAnalyzer.probeBestReplyHead(coverageOnly), None)
+    assertEquals(MoveReviewExchangeAnalyzer.probeDisplayReplyLines(replyFallback), List(List("e2e4", "e7e5")))
+    assertEquals(MoveReviewExchangeAnalyzer.probeDisplayReplyLines(replyOverride), List(List("d2d4", "d7d5")))
+    assertEquals(
+      MoveReviewExchangeAnalyzer.probeAllReplyLines(replyOverride),
+      List(List("e2e4", "e7e5"), List("d2d4", "d7d5"))
+    )
+    assertEquals(MoveReviewExchangeAnalyzer.probeBestReplyLines(replyOverride), List(List("e2e4", "e7e5")))
+    assertEquals(MoveReviewExchangeAnalyzer.probeBestReplyPrefix(replyOverride, 1), List("e2e4"))
+    assertEquals(MoveReviewExchangeAnalyzer.probeBestReplyPrefix(replyOverride, 0), Nil)
+    assertEquals(MoveReviewExchangeAnalyzer.probeBestReplyLength(replyOverride), 2)
   }
 
   test("owner seed terms consume typed relation focus before raw witness focus") {

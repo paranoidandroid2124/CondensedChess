@@ -314,6 +314,91 @@ object PlanTaxonomy:
   object ThemeResolver:
     import PlanTheme.*
 
+    private val ThemeTagPrefix = "theme:"
+    private val SubplanTagPrefix = "subplan:"
+    private val StructuralStateTagPrefix = "structural_state:"
+    private val LatentSeedTagPrefix = "latent_seed:"
+    private val SeedTagPrefix = "seed:"
+    private val SubplanAnnotationRegex = """(?i)\s*\[subplan:[^\]]+\]""".r
+
+    def themeTag(theme: PlanTheme): String =
+      themeTag(theme.id)
+
+    def themeTag(themeId: String): String =
+      s"$ThemeTagPrefix${canonicalTagId(themeId)}"
+
+    def subplanTag(subplan: PlanKind): String =
+      subplanTag(subplan.id)
+
+    def subplanTag(subplanId: String): String =
+      s"$SubplanTagPrefix${canonicalTagId(subplanId)}"
+
+    def structuralStateTag(stateId: String): String =
+      s"$StructuralStateTagPrefix${canonicalTagId(stateId)}"
+
+    def latentSeedTag(seedId: String): String =
+      s"$LatentSeedTagPrefix${canonicalTagId(seedId)}"
+
+    def seedTag(seedId: String): String =
+      s"$SeedTagPrefix${canonicalTagId(seedId)}"
+
+    def themeIdFromSupport(raw: String): Option[String] =
+      tagPayload(raw, ThemeTagPrefix)
+
+    def subplanIdFromSupport(raw: String): Option[String] =
+      tagPayload(raw, SubplanTagPrefix)
+
+    def subplanFromSupport(raw: String): Option[PlanKind] =
+      subplanIdFromSupport(raw).flatMap(subplanFromId)
+
+    def structuralStateIdFromEvidenceSource(raw: String): Option[String] =
+      tagPayload(raw, StructuralStateTagPrefix)
+
+    def latentSeedIdFromEvidenceSource(raw: String): Option[String] =
+      tagPayload(raw, LatentSeedTagPrefix)
+
+    def seedIdFromEvidenceSource(raw: String): Option[String] =
+      latentSeedIdFromEvidenceSource(raw).orElse(tagPayload(raw, SeedTagPrefix))
+
+    def themeTagFromEmbeddedText(raw: String): Option[String] =
+      val low = normalize(raw)
+      val idx = low.indexOf(ThemeTagPrefix)
+      if idx < 0 then None
+      else
+        Option(low.substring(idx + ThemeTagPrefix.length).trim)
+          .filter(_.nonEmpty)
+          .map(themeTag)
+
+    def hasStructuralStateEvidence(sources: Iterable[String]): Boolean =
+      sources.exists(structuralStateIdFromEvidenceSource(_).nonEmpty)
+
+    def subplanAnnotation(label: String, subplan: PlanKind): String =
+      s"${Option(label).getOrElse("").trim} [${subplanTag(subplan)}]".trim
+
+    def subplanFromAnnotatedText(raw: String): Option[PlanKind] =
+      val low = normalize(raw)
+      val idx = low.indexOf(SubplanTagPrefix)
+      if idx < 0 then None
+      else
+        val token =
+          low
+            .substring(idx + SubplanTagPrefix.length)
+            .takeWhile(ch => ch.isLetterOrDigit || ch == '_' || ch == '-')
+            .trim
+        subplanFromId(token)
+
+    def stripSubplanAnnotations(raw: String): String =
+      SubplanAnnotationRegex.replaceAllIn(Option(raw).getOrElse(""), "")
+
+    def hasSubplanAnnotation(raw: String): Boolean =
+      SubplanAnnotationRegex.findFirstIn(Option(raw).getOrElse("")).nonEmpty
+
+    def canonicalSupportTags(supports: Iterable[String]): List[String] =
+      (
+        supports.flatMap(themeIdFromSupport).map(themeTag) ++
+          supports.flatMap(subplanIdFromSupport).map(subplanTag)
+      ).toList.distinct
+
     private val planAliases: List[(String, PlanTheme)] = List(
       "openfile" -> PieceRedeployment,
       "oppositebishopsconversion" -> AdvantageTransformation,
@@ -518,16 +603,14 @@ object PlanTaxonomy:
 
     def fromEvidenceSource(raw: String): PlanTheme =
       val low = normalize(raw)
-      if low.startsWith("theme:") then
-        PlanTheme.fromId(low.stripPrefix("theme:")).getOrElse(Unknown)
-      else if low.startsWith("subplan:") then
-        subplanFromId(low.stripPrefix("subplan:")).map(_.theme).getOrElse(Unknown)
-      else if low.startsWith("structural_state:") then
-        fromStructuralState(low.stripPrefix("structural_state:"))
-      else if low.startsWith("latent_seed:") then
-        fromSeedId(low.stripPrefix("latent_seed:"))
-      else if low.startsWith("seed:") then
-        fromSeedId(low.stripPrefix("seed:"))
+      if low.startsWith(ThemeTagPrefix) then
+        themeIdFromSupport(low).flatMap(PlanTheme.fromId).getOrElse(Unknown)
+      else if low.startsWith(SubplanTagPrefix) then
+        subplanFromSupport(low).map(_.theme).getOrElse(Unknown)
+      else if low.startsWith(StructuralStateTagPrefix) then
+        structuralStateIdFromEvidenceSource(low).map(fromStructuralState).getOrElse(Unknown)
+      else if low.startsWith(LatentSeedTagPrefix) || low.startsWith(SeedTagPrefix) then
+        seedIdFromEvidenceSource(low).map(fromSeedId).getOrElse(Unknown)
       else
         fromPlanId(low)
 
@@ -614,15 +697,20 @@ object PlanTaxonomy:
 
     def subplanFromEvidenceSource(raw: String): Option[PlanKind] =
       val low = normalize(raw)
-      if low.startsWith("subplan:") then
-        subplanFromId(low.stripPrefix("subplan:"))
-      else if low.startsWith("structural_state:") then
-        subplanFromStructuralState(low.stripPrefix("structural_state:"))
-      else if low.startsWith("latent_seed:") then
-        subplanFromSeedId(low.stripPrefix("latent_seed:"))
-      else if low.startsWith("seed:") then
-        subplanFromSeedId(low.stripPrefix("seed:"))
+      if low.startsWith(SubplanTagPrefix) then
+        subplanFromSupport(low)
+      else if low.startsWith(StructuralStateTagPrefix) then
+        structuralStateIdFromEvidenceSource(low).flatMap(subplanFromStructuralState)
+      else if low.startsWith(LatentSeedTagPrefix) || low.startsWith(SeedTagPrefix) then
+        seedIdFromEvidenceSource(low).flatMap(subplanFromSeedId)
       else subplanFromPlanId(low)
+
+    private def tagPayload(raw: String, prefix: String): Option[String] =
+      val low = normalize(raw)
+      Option.when(low.startsWith(prefix))(low.stripPrefix(prefix).trim).filter(_.nonEmpty)
+
+    private def canonicalTagId(raw: String): String =
+      normalize(raw).replace('-', '_').replaceAll("\\s+", "_")
 
     def subplanFromHypothesis(h: PlanHypothesis): Option[PlanKind] =
       h.subplanId
@@ -647,8 +735,7 @@ object PlanTaxonomy:
         case PlanTheme.Unknown => None
 
   private def themeFromPrecondition(raw: String): Option[String] =
-    val low = normalize(raw)
-    low.split("theme:").lift(1).map(_.trim).filter(_.nonEmpty).map(v => s"theme:$v")
+    ThemeResolver.themeTagFromEmbeddedText(raw)
 
   private def strip_text_noise(s: String): String =
     Option(s).getOrElse("").trim.toLowerCase.replace("_", "").replace(" ", "").replace("-", "")

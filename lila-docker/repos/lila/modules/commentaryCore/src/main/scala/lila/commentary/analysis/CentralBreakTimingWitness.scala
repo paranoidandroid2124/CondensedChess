@@ -191,8 +191,8 @@ private[commentary] object CentralBreakTimingWitness:
             s"break_token:$breakToken",
             s"break_move:${candidate.uci}"
           ) ++
-            branchKey.map(key => s"best_branch:$key") ++
-            replayMoves.take(BreakHorizonPly + 1).map(move => s"pv:${normalizeUci(move)}")
+            branchKey.flatMap(MoveReviewExchangeAnalyzer.bestBranchFactFromKey).toList ++
+            MoveReviewPvLine.pvMoveTerms(replayMoves.take(BreakHorizonPly + 1))
         ).distinct
     )
 

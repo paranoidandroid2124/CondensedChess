@@ -102,10 +102,53 @@ Current authority is internal and MoveReview-first:
   match its relation kind before semantic emission, and semantic consumers cross
   that boundary through the analyzer-owned relation projection rather than raw
   witness fields. Defender/bad-piece owner seed and transition terms are
-  expanded through the analyzer relation projection, keeping policy code from
-  reading relation facts or focus squares directly. Branch-key and `branch:*` fact formatting is
+  expanded through the analyzer relation projection, and policy continuation
+  terms consume those analyzer-built structure terms instead of rebuilding
+  relation markers. Branch-key and `branch:*` fact formatting is
   also analyzer-owned through shared branch helpers rather than policy-local UCI
-  slicing. Deferred relation motifs stay in the same
+  slicing; `best_branch:*` and `exchange_square:*` fact formatting use the same
+  analyzer boundary.
+  `PlayerFacingExactSliceProofFacts` owns typed exact-slice proof shape/path
+  checks and target witness label formatting for fixed targets, coordinated
+  targets, weak squares, local file-entry structure markers, target-focused
+  support markers, and color-complex minor-piece attack markers.
+  Probe reply coverage, best-reply heads, and defender-resource reply
+  heads are likewise read through analyzer helpers (`probeHasReplyCoverage`,
+  `probeBestReplyHead`, `probeDistinctReplyHeads`,
+  `probeBestReplyLineDisplay`, `probeDisplayReplyLines`,
+  `probeAllReplyLines`, `probeBestReplyLines`, `probeBestReplyPrefix`,
+  `probeBestReplyLength`) instead of proof-local `replyPvs` parsing.
+  Probe purpose families for reply, conversion, route-validation,
+  route-continuity, author-evidence, played-counterfactual, and null-move
+  threat probes are classified by `ThemePlanProbePurpose` helpers rather than
+  proof- or feature-local raw purpose sets; author branch-cardinality gates
+  and request budgets, required signals, objectives, and horizons for these
+  purpose families use the same helper boundary. Latent hypothesis/refutation purpose profiles,
+  including required signals, objectives, horizons, and default cp-loss gates,
+  are classified through `ProbePurposeClassifier`. Legacy candidate probe id
+  families such as competitive/aggressive probes are classified through
+  `ProbePurposeClassifier` helpers before candidate tagging or why-not prose.
+  Prevented-plan evidence term projection (`counterplay_drop`,
+  `neutralized_break`, `denied_squares`, `denied_resource`,
+  `denied_entry_scope`) is centralized through `PlanEvidenceEvaluator` rather
+  than repeated in proof modules. Prophylactic denied-resource class
+  normalization and exact-slice token validation use the same evaluator
+  boundary. Plan certification trace terms and `support_probe:*` markers use
+  the same evaluator projection boundary. PV support markers (`pv:*`) are
+  projected through `MoveReviewPvLine.pvMoveTerms` rather than witness-local raw
+  prefix assembly.
+  Theme/subplan support tags are created and parsed through
+  `PlanTaxonomy.ThemeResolver`, including embedded subplan annotations on
+  probe plan names, user-facing stripping of those annotations, and embedded
+  theme preconditions, not planner- or detector-local prefix slicing.
+  Taxonomy-backed proof contract ids use the same resolver boundary.
+  Structural state and latent-seed evidence tags use the same resolver
+  boundary.
+  Policy-local rival assessment tags (`secondary_plan:*`,
+  `secondary_idea:*`, and `exact:*`) remain suppression/release-risk traces
+  inside `PlayerFacingTruthModePolicy`; they are not expansion owner names,
+  proof sources, proof families, or product row kinds.
+  Deferred relation motifs stay in the same
   catalog inventory with required witness and fallback-lane metadata, projected
   through a catalog-owned `DeferredRelationFallback` read-model, but only
   implemented board-replayed descriptors can emit relation authority. Legacy

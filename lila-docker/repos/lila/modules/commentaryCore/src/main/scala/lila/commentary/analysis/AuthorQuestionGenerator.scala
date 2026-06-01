@@ -90,7 +90,7 @@ object AuthorQuestionGenerator:
         why = Some(reasonText),
         anchors = List(theme.name),
         confidence = ConfidenceLevel.Engine,
-        evidencePurposes = List("reply_multipv")
+        evidencePurposes = List(ThemePlanProbePurpose.ReplyMultiPv)
       )
     }
 
@@ -132,7 +132,7 @@ object AuthorQuestionGenerator:
           question = q,
           why = why,
           anchors = List("defense", "threat"),
-          evidencePurposes = List("defense_reply_multipv")
+          evidencePurposes = List(ThemePlanProbePurpose.DefenseReplyMultiPv)
         )
       )
 
@@ -178,7 +178,7 @@ object AuthorQuestionGenerator:
           question = s"Why is $playedSan the right moment to convert the advantage for $us?",
           why = why,
           anchors = List("conversion", "simplify"),
-          evidencePurposes = List("convert_reply_multipv")
+          evidencePurposes = List(ThemePlanProbePurpose.ConvertReplyMultiPv)
         )
       )
 
@@ -210,7 +210,7 @@ object AuthorQuestionGenerator:
           question = s"Why choose $playedSan here instead of keeping the tension$alt?",
           why = Some("This choice often decides whether the other side can simplify into a comfortable structure."),
           anchors = List("central tension"),
-          evidencePurposes = List("keep_tension_branches", "reply_multipv")
+          evidencePurposes = List(ThemePlanProbePurpose.KeepTensionBranches, ThemePlanProbePurpose.ReplyMultiPv)
         )
       }
 
@@ -249,7 +249,7 @@ object AuthorQuestionGenerator:
             question = s"If $us keeps the tension with $bestSan, whose plan is faster: ...$capSan or ...$pushSan?",
             why = Some("Keeping the tension is not about waiting: it forces the opponent to reveal their plan before you clarify the center."),
             anchors = List("central tension", capSan, pushSan),
-            evidencePurposes = List("keep_tension_branches")
+            evidencePurposes = List(ThemePlanProbePurpose.KeepTensionBranches)
           )
         )
 
@@ -290,7 +290,7 @@ object AuthorQuestionGenerator:
         question = question,
         why = why,
         anchors = List("decision compare"),
-        evidencePurposes = List("reply_multipv")
+        evidencePurposes = List(ThemePlanProbePurpose.ReplyMultiPv)
       )
     }
 
@@ -323,7 +323,7 @@ object AuthorQuestionGenerator:
         question = s"Why does $playedSan have to be timed right now?",
         why = why,
         anchors = List("timing"),
-        evidencePurposes = List("reply_multipv")
+        evidencePurposes = List(ThemePlanProbePurpose.ReplyMultiPv)
       )
     }
 
@@ -356,7 +356,7 @@ object AuthorQuestionGenerator:
         question = s"Why does $playedSan fit the position$alternativeText?",
         why = why,
         anchors = List("quiet intent"),
-        evidencePurposes = List("reply_multipv")
+        evidencePurposes = List(ThemePlanProbePurpose.ReplyMultiPv)
       )
     }
 
@@ -375,7 +375,7 @@ object AuthorQuestionGenerator:
         question = s"What matters most here for $us around ${seed.questionFocusText}?",
         why = Some(seed.why),
         anchors = seed.anchors,
-        evidencePurposes = List("reply_multipv")
+        evidencePurposes = List(ThemePlanProbePurpose.ReplyMultiPv)
       )
     }
 
@@ -421,7 +421,7 @@ object AuthorQuestionGenerator:
         question = s"What changed in the position after $playedSan?",
         why = why,
         anchors = List("move change"),
-        evidencePurposes = List("reply_multipv")
+        evidencePurposes = List(ThemePlanProbePurpose.ReplyMultiPv)
       )
     }
 
@@ -457,7 +457,7 @@ object AuthorQuestionGenerator:
         question = s"After $playedSan, whose plan is faster: $us's or $them's?",
         why = Some("Both sides have active ideas, so the race is likely to be decided by timing."),
         anchors = List("race", "timing"),
-        evidencePurposes = List("reply_multipv")
+        evidencePurposes = List(ThemePlanProbePurpose.ReplyMultiPv)
       )
     }
 
@@ -493,7 +493,7 @@ object AuthorQuestionGenerator:
             question = s"After $playedSan, what changes depending on how $them recaptures — $list?",
             why = Some("Different recaptures lead to different pawn structures and piece placements."),
             anchors = List("recapture choice", "structure"),
-            evidencePurposes = List("recapture_branches")
+            evidencePurposes = List(ThemePlanProbePurpose.RecaptureBranches)
           )
         }
       }

@@ -17,19 +17,19 @@ export function renderMoveReviewLedgerSignalRows(
 ): string[] {
   if (!ledger) return [];
   const rows = [
-    `<div class="move-review-strategic-summary__row"><strong>Motif:</strong> ${escapeHtml(ledger.motifLabel)}</div>`,
-    `<div class="move-review-strategic-summary__row"><strong>Stage:</strong> ${escapeHtml([ledger.stageLabel, ledger.stageReason || ''].filter(Boolean).join(' · '))}</div>`,
-    `<div class="move-review-strategic-summary__row"><strong>Carry-over:</strong> ${escapeHtml(ledger.carryOver ? 'Continuing plan state' : 'Fresh state')}</div>`,
+    `<div class="move-review-strategic-summary__row"><strong>Theme:</strong> ${escapeHtml(ledger.motifLabel)}</div>`,
+    `<div class="move-review-strategic-summary__row"><strong>Phase:</strong> ${escapeHtml([ledger.stageLabel, ledger.stageReason || ''].filter(Boolean).join(' · '))}</div>`,
+    `<div class="move-review-strategic-summary__row"><strong>Continuation:</strong> ${escapeHtml(ledger.carryOver ? 'Continuing plan' : 'New plan')}</div>`,
   ];
   if (ledger.prerequisites.length)
     rows.push(
-      `<div class="move-review-strategic-summary__row"><strong>Prereqs:</strong> ${escapeHtml(
+      `<div class="move-review-strategic-summary__row"><strong>Requirements:</strong> ${escapeHtml(
         ledger.prerequisites.slice(0, 2).join(' · '),
       )}</div>`,
     );
   if (ledger.conversionTrigger)
     rows.push(
-      `<div class="move-review-strategic-summary__row"><strong>Conversion:</strong> ${escapeHtml(
+      `<div class="move-review-strategic-summary__row"><strong>Realization:</strong> ${escapeHtml(
         ledger.conversionTrigger,
       )}</div>`,
     );

@@ -5,6 +5,7 @@ import munit.FunSuite
 class PlanTaxonomyTest extends FunSuite:
 
   import PlanTaxonomy.PlanKind
+  import PlanTaxonomy.PlanTheme
   import PlanTaxonomy.ThemeResolver
 
   private def seed(id: String) =
@@ -25,5 +26,22 @@ class PlanTaxonomyTest extends FunSuite:
     assertEquals(
       ThemeResolver.subplanFromEvidenceSource("structural_state:generic_center_plan"),
       Some(PlanKind.CentralBreakTiming)
+    )
+  }
+
+  test("theme resolver owns embedded theme tag projection") {
+    assertEquals(
+      ThemeResolver.themeTagFromEmbeddedText("owner precondition theme:Pawn Break Preparation"),
+      Some(ThemeResolver.themeTag(PlanTheme.PawnBreakPreparation))
+    )
+  }
+
+  test("theme resolver owns embedded subplan annotation stripping") {
+    val raw = "Further probe work still targets Piece Activation [subplan:worst_piece_improvement]."
+
+    assert(ThemeResolver.hasSubplanAnnotation(raw))
+    assertEquals(
+      ThemeResolver.stripSubplanAnnotations(raw),
+      "Further probe work still targets Piece Activation."
     )
   }

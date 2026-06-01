@@ -77,6 +77,12 @@ private[commentary] object MoveReviewPvLine:
   def normalizeUci(uci: String): String =
     NarrativeUtils.normalizeUciMove(uci)
 
+  def pvMoveTerm(uci: String): Option[String] =
+    Option(normalizeUci(uci)).map(_.trim).filter(_.nonEmpty).map(move => s"pv:$move")
+
+  def pvMoveTerms(uciMoves: Iterable[String]): List[String] =
+    uciMoves.toList.flatMap(pvMoveTerm)
+
   private def coupledLine(line: MoveReviewVariationRef, playedUci: String): Boolean =
     line.moves.headOption.exists { first =>
       normalizeUci(first.uci) == playedUci &&

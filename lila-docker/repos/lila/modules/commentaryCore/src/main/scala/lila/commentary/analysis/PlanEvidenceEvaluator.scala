@@ -3,6 +3,7 @@ package lila.commentary.analysis
 import play.api.libs.json.*
 import lila.commentary.model.{ ProbeContractValidator, ProbeRequest, ProbeResult }
 import lila.commentary.model.authoring.PlanHypothesis
+import lila.commentary.model.strategic.PreventedPlan
 import lila.commentary.analysis.PlanTaxonomy.{ PlanTheme, ThemeResolver, SubplanCatalog, PlanKind, SubplanSpec }
 import lila.commentary.analysis.structure.TranspositionPvAligner
 
@@ -13,6 +14,20 @@ import lila.commentary.analysis.structure.TranspositionPvAligner
  * is controlled by evidence status partitioning.
  */
 object PlanEvidenceEvaluator:
+
+  private val DeniedResourcePrefix = "denied_resource:"
+  private val ProphylacticResourceClasses =
+    Set(
+      "break",
+      "entry_square",
+      "forcing_threat",
+      "piece_activity",
+      "counterplay_route",
+      "route_node",
+      "reroute_square",
+      "pressure",
+      "color_complex_escape"
+    )
 
   enum PlanEvidenceStatus:
     case PlayableEvidenceBacked
@@ -29,6 +44,42 @@ object PlanEvidenceEvaluator:
     case PvCoupledOnly
     case Deferred
     case Refuted
+
+  def preventedPlanSignalTerms(
+      plan: PreventedPlan,
+      includeDeniedSquares: Boolean = false,
+      includeDeniedEntryScope: Boolean = false
+  ): List[String] =
+    List(
+      Option.when(plan.counterplayScoreDrop > 0)(
+        s"counterplay_drop:${plan.counterplayScoreDrop}"
+      ),
+      plan.breakNeutralized.flatMap(signal => cleanText(signal).map(value => s"neutralized_break:$value")),
+      Option.when(includeDeniedSquares && plan.deniedSquares.nonEmpty)(
+        s"denied_squares:${plan.deniedSquares.map(_.key).distinct.sorted.mkString(",")}"
+      ),
+      plan.deniedResourceClass.flatMap(resourceClass =>
+        deniedResourceTerm(resourceClass)
+      ),
+      plan.deniedEntryScope
+        .filter(_ => includeDeniedEntryScope)
+        .flatMap(scope => cleanText(scope).map(value => s"denied_entry_scope:$value"))
+    ).flatten
+
+  def deniedResourceTerm(resourceClass: String): Option[String] =
+    cleanText(resourceClass).map(value => s"$DeniedResourcePrefix$value")
+
+  def prophylacticResourceClassKey(raw: String): Option[String] =
+    val key = normalizeResourceKey(raw)
+    Option.when(ProphylacticResourceClasses.contains(key))(key)
+
+  def prophylacticDeniedResourceTerm(raw: String): Option[String] =
+    prophylacticResourceClassKey(raw).flatMap(deniedResourceTerm)
+
+  def isProphylacticDeniedResourceTerm(raw: String): Boolean =
+    val token = normalizeToken(raw)
+    token.startsWith(DeniedResourcePrefix) &&
+      prophylacticResourceClassKey(token.stripPrefix(DeniedResourcePrefix)).nonEmpty
 
   case class EvaluatedPlan(
       hypothesis: PlanHypothesis,
@@ -57,6 +108,26 @@ object PlanEvidenceEvaluator:
   def isBoundedPracticalSupportPlan(plan: EvaluatedPlan): Boolean =
     plan.userFacingEligibility == UserFacingPlanEligibility.StructuralOnly ||
       plan.userFacingEligibility == UserFacingPlanEligibility.PvCoupledOnly
+
+  def claimCertificationTerms(plan: EvaluatedPlan): List[String] =
+    claimCertificationTerms(plan.claimCertification)
+
+  def claimCertificationTerms(cert: ClaimCertification): List[String] =
+    List(
+      Option.when(cert.quantifier == PlayerFacingClaimQuantifier.Universal)("universal"),
+      Option.when(cert.quantifier == PlayerFacingClaimQuantifier.BestResponse)("best_response"),
+      Option.when(cert.stabilityGrade == PlayerFacingClaimStabilityGrade.Stable)("stable"),
+      Option.when(cert.provenanceClass == PlayerFacingClaimProvenanceClass.ProbeBacked)("probe_backed")
+    ).flatten
+
+  def supportProbeTerm(probeId: String): Option[String] =
+    cleanText(probeId).map(id => s"support_probe:$id")
+
+  def supportProbeTerms(probeIds: Iterable[String]): List[String] =
+    probeIds.toList.flatMap(supportProbeTerm)
+
+  def supportProbeTerms(plan: EvaluatedPlan): List[String] =
+    supportProbeTerms(plan.supportProbeIds)
 
   case class ClaimCertification(
       certificateStatus: PlayerFacingCertificateStatus = PlayerFacingCertificateStatus.Invalid,
@@ -510,11 +581,18 @@ object PlanEvidenceEvaluator:
 
   private def seedIdOf(h: PlanHypothesis): Option[String] =
     h.evidenceSources
-      .collectFirst { case src if src.startsWith("latent_seed:") => src.stripPrefix("latent_seed:").trim }
+      .flatMap(ThemeResolver.latentSeedIdFromEvidenceSource)
+      .headOption
       .filter(_.nonEmpty)
 
   private def normalizeText(raw: String): String =
     raw.toLowerCase.filter(_.isLetterOrDigit)
+
+  private def normalizeToken(raw: String): String =
+    Option(raw).getOrElse("").trim.toLowerCase
+
+  private def normalizeResourceKey(raw: String): String =
+    normalizeToken(raw).replace('-', '_').replaceAll("\\s+", "_")
 
   private def reqThemeId(req: ProbeRequest): String =
     req.planId
@@ -525,24 +603,11 @@ object PlanEvidenceEvaluator:
 
   private def reqPlanKind(req: ProbeRequest): Option[String] =
     req.planName
-      .flatMap(explicitSubplanFromPlanName)
+      .flatMap(ThemeResolver.subplanFromAnnotatedText(_).map(_.id))
       .orElse(req.planName.flatMap(name => ThemeResolver.subplanFromPlanName(name).map(_.id)))
       .orElse(req.seedId.flatMap(seed => ThemeResolver.subplanFromSeedId(seed).map(_.id)))
       .orElse(req.planId.flatMap(pid => ThemeResolver.subplanFromPlanId(pid).map(_.id)))
       .filter(_.nonEmpty)
-
-  private def explicitSubplanFromPlanName(raw: String): Option[String] =
-    val marker = "subplan:"
-    val low = Option(raw).getOrElse("").trim.toLowerCase
-    val idx = low.indexOf(marker)
-    if idx < 0 then None
-    else
-      val token =
-        low
-          .substring(idx + marker.length)
-          .takeWhile(ch => ch.isLetterOrDigit || ch == '_' || ch == '-')
-          .trim
-      PlanKind.fromId(token).map(_.id)
 
   private def hypothesisThemeId(h: PlanHypothesis): String =
     ThemeResolver.fromHypothesis(h).id
@@ -643,7 +708,7 @@ object PlanEvidenceEvaluator:
   ): ClaimCertification =
     val supportResults = supports.map(_._2).distinctBy(_.id)
     val hasTranspositionSupport = transpositionSupports.nonEmpty
-    val replyCoverage = supportResults.count(hasReplyCoverage)
+    val replyCoverage = supportResults.count(MoveReviewExchangeAnalyzer.probeHasReplyCoverage)
     val futureCoverage = supportResults.count(_.futureSnapshot.exists(isPositiveFutureSnapshot))
     val quantifier =
       if supportResults.size >= 2 || (replyCoverage > 0 && futureCoverage > 0) then
@@ -762,7 +827,7 @@ object PlanEvidenceEvaluator:
 
   private def indicatesForcing(themeId: String, result: ProbeResult): Boolean =
     (themeId == PlanTheme.FavorableExchange.id &&
-      hasReplyCoverage(result)) ||
+      MoveReviewExchangeAnalyzer.probeHasReplyCoverage(result)) ||
       result.motifTags.exists(tag => ForcingMotifTags.contains(normalizeText(tag)))
 
   private val ForcingMotifTags =
@@ -980,32 +1045,13 @@ object PlanEvidenceEvaluator:
       case _ => false
 
   private def defaultMaxCpLoss(purpose: String): Int =
-    if ThemePlanProbePurpose.isThemeValidationPurpose(purpose) then 95
-    else purpose match
-      case "latent_plan_immediate"  => 80
-      case "free_tempo_branches"    => 90
-      case "latent_plan_refutation" => 120
-      case "reply_multipv" | "defense_reply_multipv" | "convert_reply_multipv" => 100
-      case "recapture_branches" | "keep_tension_branches" => 100
-      case _ => 0
+    ProbePurposeClassifier.defaultMaxCpLossForPurpose(purpose).getOrElse(0)
 
   private def knownSupportPurpose(purpose: String): Boolean =
-    ThemePlanProbePurpose.isThemeValidationPurpose(purpose) ||
-      Set(
-        "latent_plan_immediate",
-        "free_tempo_branches",
-        "reply_multipv",
-        "defense_reply_multipv",
-        "convert_reply_multipv",
-        "recapture_branches",
-        "keep_tension_branches"
-      ).contains(purpose)
+    ProbePurposeClassifier.isKnownSupportPurpose(purpose)
 
   private def knownProbePurpose(purpose: String): Boolean =
-    knownSupportPurpose(purpose) || ProbePurposeClassifier.isRefutationPurpose(purpose)
-
-  private def hasReplyCoverage(result: ProbeResult): Boolean =
-    result.bestReplyPv.nonEmpty || result.replyPvs.exists(_.exists(_.nonEmpty))
+    ProbePurposeClassifier.isKnownProbePurpose(purpose)
 
   private def isPositiveFutureSnapshot(snapshot: lila.commentary.model.FutureSnapshot): Boolean =
     snapshot.planPrereqsMet.nonEmpty ||
@@ -1014,8 +1060,7 @@ object PlanEvidenceEvaluator:
       snapshot.resolvedThreatKinds.nonEmpty
 
   private def hasStructuralEvidence(h: PlanHypothesis): Boolean =
-    val evidenceLow = h.evidenceSources.map(_.toLowerCase)
-    evidenceLow.exists(_.startsWith("structural_state:"))
+    ThemeResolver.hasStructuralStateEvidence(h.evidenceSources)
 
   private def describeSignalList(signals: List[String]): String =
     signals

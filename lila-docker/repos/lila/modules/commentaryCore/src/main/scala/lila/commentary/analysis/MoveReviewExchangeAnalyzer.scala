@@ -588,16 +588,14 @@ private[commentary] object MoveReviewExchangeAnalyzer:
         case details: RelationDetails.DefenderTrade if witness.kind == RelationKind.DefenderTrade =>
           List(
             "defender_trade_branch",
-            s"defender:${details.defenderSquare}",
-            s"exchange_square:${details.exchangeSquare}",
-            s"defended_target:${details.targetSquare}"
-          )
+            s"defender:${details.defenderSquare}"
+          ) ++ exchangeSquareFact(details.exchangeSquare) ++
+            List(s"defended_target:${details.targetSquare}")
         case details: RelationDetails.BadPieceLiquidation if witness.kind == RelationKind.BadPieceLiquidation =>
           List(
             "bad_piece_liquidation_branch",
-            s"bad_piece:${details.badPieceSquare}",
-            s"exchange_square:${details.exchangeSquare}"
-          )
+            s"bad_piece:${details.badPieceSquare}"
+          ) ++ exchangeSquareFact(details.exchangeSquare)
         case details: RelationDetails.Overload if witness.kind == RelationKind.Overload =>
           List(
             "overload_relation_witness",
@@ -760,7 +758,7 @@ private[commentary] object MoveReviewExchangeAnalyzer:
       extras: List[String]
   ): List[String] =
     relationProjectionFromWitness(witness)
-      .map(projection => (projection.factTerms ++ extras ++ projection.lineMoves.map(move => s"pv:$move")).distinct)
+      .map(projection => (projection.factTerms ++ extras ++ MoveReviewPvLine.pvMoveTerms(projection.lineMoves)).distinct)
       .getOrElse(Nil)
 
   def defenderTradeWitness(branch: DefenderTradeBranch): RelationWitness =
@@ -769,10 +767,10 @@ private[commentary] object MoveReviewExchangeAnalyzer:
       focusSquares = List(branch.targetSquare, branch.exchangeSquare),
       facts = List(
         "defender_trade_branch",
-        s"defender:${branch.defenderSquare}",
-        s"exchange_square:${branch.exchangeSquare}",
-        s"defended_target:${branch.targetSquare}"
-      ) ++ branchFactFromMoves(branch.lineMoves),
+        s"defender:${branch.defenderSquare}"
+      ) ++ exchangeSquareFact(branch.exchangeSquare) ++
+        List(s"defended_target:${branch.targetSquare}") ++
+        branchFactFromMoves(branch.lineMoves),
       lineMoves = branch.lineMoves,
       targetSquare = Some(branch.targetSquare),
       details = RelationDetails.DefenderTrade(
@@ -788,9 +786,9 @@ private[commentary] object MoveReviewExchangeAnalyzer:
       focusSquares = List(branch.badPieceSquare, branch.exchangeSquare),
       facts = List(
         "bad_piece_liquidation_branch",
-        s"bad_piece:${branch.badPieceSquare}",
-        s"exchange_square:${branch.exchangeSquare}"
-      ) ++ branchFactFromMoves(branch.lineMoves),
+        s"bad_piece:${branch.badPieceSquare}"
+      ) ++ exchangeSquareFact(branch.exchangeSquare) ++
+        branchFactFromMoves(branch.lineMoves),
       lineMoves = branch.lineMoves,
       targetSquare = Some(branch.exchangeSquare),
       details = RelationDetails.BadPieceLiquidation(
@@ -1269,6 +1267,47 @@ private[commentary] object MoveReviewExchangeAnalyzer:
       .orElse(result.probedMove.flatMap(clean))
       .orElse(result.candidateMove.flatMap(clean))
 
+  def probeHasReplyCoverage(result: ProbeResult): Boolean =
+    result.bestReplyPv.nonEmpty ||
+      result.replyPvs.exists(_.exists(_.nonEmpty))
+
+  def probeBestReplyHead(result: ProbeResult): Option[String] =
+    result.bestReplyPv.headOption.flatMap(clean)
+
+  def probeDistinctReplyHeads(result: ProbeResult): List[String] =
+    val replyHeads =
+      result.replyPvs.toList
+        .flatten
+        .flatMap(_.headOption.flatMap(clean))
+    val bestReply =
+      probeBestReplyHead(result).toList
+    (replyHeads ++ bestReply).distinct
+
+  def probeDistinctReplyHeads(results: List[ProbeResult]): List[String] =
+    results.flatMap(probeDistinctReplyHeads).distinct
+
+  def probeBestReplyLineDisplay(result: ProbeResult): Option[String] =
+    Option.when(result.bestReplyPv.flatMap(clean).nonEmpty)(
+      result.bestReplyPv.flatMap(clean).mkString(" ")
+    )
+
+  def probeDisplayReplyLines(result: ProbeResult): List[List[String]] =
+    result.replyPvs
+      .getOrElse(if result.bestReplyPv.nonEmpty then List(result.bestReplyPv) else Nil)
+      .filter(_.nonEmpty)
+
+  def probeAllReplyLines(result: ProbeResult): List[List[String]] =
+    (result.bestReplyPv :: result.replyPvs.toList.flatten).filter(_.nonEmpty).distinct
+
+  def probeBestReplyLines(result: ProbeResult): List[List[String]] =
+    List(result.bestReplyPv).filter(_.nonEmpty)
+
+  def probeBestReplyPrefix(result: ProbeResult, maxPlies: Int): List[String] =
+    if maxPlies <= 0 then Nil else result.bestReplyPv.take(maxPlies)
+
+  def probeBestReplyLength(result: ProbeResult): Int =
+    result.bestReplyPv.size
+
   def probeReplyPrefixKeyFromMoves(moves: List[String], plies: Int = 2): Option[String] =
     val normalized = normalizedBoundedMoves(moves, plies)
     Option.when(plies > 0 && normalized.size == plies)(normalized.mkString(" "))
@@ -1285,6 +1324,21 @@ private[commentary] object MoveReviewExchangeAnalyzer:
 
   def branchFactFromMoves(moves: List[String], maxPlies: Int = 2): List[String] =
     linePrefixKeyFromMoves(moves, maxPlies).map(key => s"branch:$key").toList
+
+  def exchangeSquareFact(square: String): List[String] =
+    exchangeSquareTerm(square).toList
+
+  def exchangeSquareTerm(square: String): Option[String] =
+    squareFromKey(square)
+      .map(_.key)
+      .orElse(clean(square).map(_.toLowerCase))
+      .map(squareKey => s"exchange_square:$squareKey")
+
+  def bestBranchFactFromKey(key: String): Option[String] =
+    clean(key).map(cleanKey => s"best_branch:$cleanKey")
+
+  def bestBranchFactFromMoves(moves: List[String], maxPlies: Int = 2): List[String] =
+    linePrefixKeyFromMoves(moves, maxPlies).flatMap(bestBranchFactFromKey).toList
 
   def replayUcis(replay: List[BoundedReplayStep], fromPly: Int, maxPlies: Int): List[String] =
     replay.drop(fromPly).take(maxPlies).map(_.uci)

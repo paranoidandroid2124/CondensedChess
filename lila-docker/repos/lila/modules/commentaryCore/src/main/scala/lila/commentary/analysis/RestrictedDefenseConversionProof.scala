@@ -41,8 +41,6 @@ private[commentary] object RestrictedDefenseConversionProof:
   ):
     def certified: Boolean = failsIf.isEmpty
 
-  private val ConversionReplyPurposes =
-    Set("convert_reply_multipv", "defense_reply_multipv")
   private val MinimumWinningAdvantageCp = 200
   private val RestrictedResourceCap = 2
   private val CounterplayCompressionFloor = 80
@@ -59,14 +57,13 @@ private[commentary] object RestrictedDefenseConversionProof:
         plan.supportProbeIds.flatMap(probeResultsById.get).distinctBy(_.id)
       val directReplyResults =
         supportResults.filter(result =>
-          result.purpose.exists(purpose =>
-            ConversionReplyPurposes.contains(normalize(purpose))
-          )
+          result.purpose.exists(ThemePlanProbePurpose.isConversionReplyPurpose)
         )
-      val defenderResources = distinctDefenderResources(directReplyResults)
+      val defenderResources =
+        MoveReviewExchangeAnalyzer.probeDistinctReplyHeads(directReplyResults)
       val bestDefenseFound =
         directReplyResults.iterator
-          .flatMap(result => result.bestReplyPv.headOption.flatMap(clean))
+          .flatMap(MoveReviewExchangeAnalyzer.probeBestReplyHead)
           .toList
           .headOption
       val directBestDefensePresent =
@@ -83,7 +80,7 @@ private[commentary] object RestrictedDefenseConversionProof:
           case None => Nil
       val bestReplyStable =
         directBestDefensePresent &&
-          directReplyResults.forall(hasReplyCoverage) &&
+          directReplyResults.forall(MoveReviewExchangeAnalyzer.probeHasReplyCoverage) &&
           directReplyResults.forall(result =>
             result.l1Delta.flatMap(_.collapseReason).forall(reason => clean(reason).isEmpty)
           )
@@ -140,7 +137,7 @@ private[commentary] object RestrictedDefenseConversionProof:
           )("collapse_under_best_defense"),
           Option.when(
             directReplyResults.nonEmpty &&
-              directReplyResults.exists(hasReplyCoverage) &&
+              directReplyResults.exists(MoveReviewExchangeAnalyzer.probeHasReplyCoverage) &&
               !bestReplyStable &&
               !futureSnapshotPersistence
           )("reply_order_not_stable")
@@ -216,7 +213,7 @@ private[commentary] object RestrictedDefenseConversionProof:
         evidenceSources =
           (plan.hypothesis.evidenceSources ++
             directReplyResults.flatMap(_.purpose.flatMap(clean)) ++
-            relevantPreventedPlans.flatMap(preventedEvidenceSignals)).distinct
+            relevantPreventedPlans.flatMap(PlanEvidenceEvaluator.preventedPlanSignalTerms(_))).distinct
       )
     }
 
@@ -234,21 +231,6 @@ private[commentary] object RestrictedDefenseConversionProof:
   ): Boolean =
     normalize(plan.themeL1) == PlanTaxonomy.PlanTheme.AdvantageTransformation.id
 
-  private def distinctDefenderResources(
-      results: List[ProbeResult]
-  ): List[String] =
-    results
-      .flatMap { result =>
-        val replyHeads =
-          result.replyPvs.toList
-            .flatten
-            .flatMap(_.headOption.flatMap(clean))
-        val bestReply =
-          result.bestReplyPv.headOption.flatMap(clean).toList
-        (replyHeads ++ bestReply).distinct
-      }
-      .distinct
-
   private def displayHypothesis(
       plan: PlanEvidenceEvaluator.EvaluatedPlan
   ): String =
@@ -262,12 +244,6 @@ private[commentary] object RestrictedDefenseConversionProof:
   ): Int =
     if isWhiteToMove then evalCp else -evalCp
 
-  private def hasReplyCoverage(
-      result: ProbeResult
-  ): Boolean =
-    result.bestReplyPv.nonEmpty ||
-      result.replyPvs.exists(_.exists(_.nonEmpty))
-
   private def isPositiveFutureSnapshot(
       snapshot: FutureSnapshot
   ): Boolean =
@@ -275,17 +251,6 @@ private[commentary] object RestrictedDefenseConversionProof:
       snapshot.planBlockersRemoved.nonEmpty ||
       snapshot.targetsDelta.strategicAdded.nonEmpty ||
       snapshot.resolvedThreatKinds.nonEmpty
-
-  private def preventedEvidenceSignals(
-      plan: PreventedPlan
-  ): List[String] =
-    List(
-      Option.when(plan.counterplayScoreDrop > 0)(
-        s"counterplay_drop:${plan.counterplayScoreDrop}"
-      ),
-      plan.breakNeutralized.flatMap(signal => clean(signal).map(value => s"neutralized_break:$value")),
-      plan.deniedResourceClass.flatMap(resourceClass => clean(resourceClass).map(value => s"denied_resource:$value"))
-    ).flatten
 
   private def confidenceScore(
       conversionAdvantageReady: Boolean,

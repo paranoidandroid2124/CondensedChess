@@ -181,10 +181,13 @@ class FullGameDraftNormalizerTest extends FunSuite:
       UserFacingSignalSanitizer.placeholderHits(
         "The direct alternative stays secondary because Piece Activation is deferred as PlayableByPV under strict evidence mode."
       )
+    val annotationHits =
+      UserFacingSignalSanitizer.placeholderHits("Further probe work still targets Piece Activation [subplan:worst_piece_improvement].")
 
     assertEquals(proseHits, Nil)
     assert(rawHits.contains("raw_label"))
     assert(bridgeHits.contains("playablebypv"))
+    assert(annotationHits.contains("subplan"))
   }
 
   test("normalize strips markdown emphasis and raw played-pv markers") {

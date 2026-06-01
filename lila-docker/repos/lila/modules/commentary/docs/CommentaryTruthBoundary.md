@@ -165,6 +165,11 @@ metadata is a fallback only when raw moves are absent and cannot override the
 engine line. Raw move text by itself can still support display and citation
 wording, but it cannot certify same-branch state, continuation persistence, or
 pawn-structure transition truth without legal replay.
+Exact-slice target witness labels (`fixed_target`, `coordinated_target`,
+`weak_square`), local file-entry structure markers, target-focused support
+markers, and color-complex minor-piece attack markers are formatted by
+`PlayerFacingExactSliceProofFacts`; producers must not create parallel label
+formats while the typed proof remains the authority check.
 Decision comparison and branch-citation wording use the same identity rule:
 stale parsed SAN cannot rename a raw engine PV move or create a different
 alternative branch label.
@@ -234,8 +239,9 @@ a declared focal or structural weakness target; the exchanged square and
 arbitrary defended pieces cannot stand in as the removed target.
 For prophylactic restraint, exact-slice truth is limited to a square/route or
 typed denied-resource token derived from runtime resource classification.
-English plan labels and generic counterplay phrases do not certify the exact
-resource.
+`PlanEvidenceEvaluator` owns denied-resource term projection, class
+normalization, and exact-slice resource-token validation. English plan labels
+and generic counterplay phrases do not certify the exact resource.
 Carlsbad fixed-target truth is mirror-slice based: White-side pressure targets
 Black `c6` only when the board has the `c6`/`d5` enemy chain, a friendly `d4`
 pawn, and a friendly minority pawn on `b2`, `b4`, or `b5`; Black-side pressure

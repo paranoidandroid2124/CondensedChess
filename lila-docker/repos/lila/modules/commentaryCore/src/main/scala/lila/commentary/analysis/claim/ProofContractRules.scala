@@ -105,6 +105,12 @@ private[commentary] object ProofContractRules:
   private def proofFamily(subplan: PlanTaxonomy.PlanKind): ProofFamilyId =
     ProofFamilyId.fromPlanKind(subplan).getOrElse(sys.error(s"missing proof family registry for subplan ${subplan.id}"))
 
+  private def contractId(theme: PlanTaxonomy.PlanTheme): String =
+    PlanTaxonomy.ThemeResolver.themeTag(theme)
+
+  private def contractId(subplan: PlanTaxonomy.PlanKind): String =
+    PlanTaxonomy.ThemeResolver.subplanTag(subplan)
+
   private def themeContract(
       theme: PlanTaxonomy.PlanTheme,
       status: ProofContractStatus,
@@ -112,7 +118,7 @@ private[commentary] object ProofContractRules:
   ): ProofContract =
     val family = proofFamily(theme)
     ProofContract(
-      id = s"theme:${theme.id}",
+      id = contractId(theme),
       proofFamily = family.wireKey,
       theme = Some(theme),
       subplan = None,
@@ -146,7 +152,7 @@ private[commentary] object ProofContractRules:
         acceptedSelectorSources.map(_.wireKey) ++
         Option.when(includeSubplanSource)(family.wireKey)
     ProofContract(
-      id = s"subplan:${subplan.id}",
+      id = contractId(subplan),
       proofFamily = family.wireKey,
       theme = Some(subplan.theme),
       subplan = Some(subplan),
@@ -193,7 +199,7 @@ private[commentary] object ProofContractRules:
     PlanTaxonomy.PlanTheme.ranked.map { theme =>
       if theme == PlanTaxonomy.PlanTheme.WeaknessFixation then
         ProofContract(
-          id = s"theme:${theme.id}",
+          id = contractId(theme),
           proofFamily = proofFamily(theme).wireKey,
           theme = Some(theme),
           subplan = None,

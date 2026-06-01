@@ -92,6 +92,11 @@ The maintained path is:
    produced in the same board/probe witness branch; owner, anchor, structure,
    and continuation terms are trace/prose data and are never reconstructed into
    proof authority downstream.
+   Exact-slice target witness labels such as fixed targets, coordinated
+   targets, weak squares, local file-entry structure markers, target-focused
+   support markers, and color-complex minor-piece attack markers are formatted
+   through `PlayerFacingExactSliceProofFacts`, not producer-local prefix
+   assembly.
 8. `ProofContractRules` states which proof families can ever reach authority
    and validates required witnesses fail-closed before supported or certified
    admission.
@@ -178,8 +183,10 @@ The maintained path is:
      board-pattern support for prose selection only; they do not replace
      `OpeningFamilyClaimResolver`, create a new opening-family carrier, or
      certify target/owner truth. The c/f-pawn opening-break prose entries do
-     not expand `CentralBreakTimingWitness` or product `central_break`
-     authority.
+     not expand `CentralBreakTimingWitness` or produce `central_break`
+     authority. Central-break structure markers such as `central_break` and
+     `break_move` come from `CentralBreakTimingWitness` rather than policy-local
+     reconstruction.
 10. `QuestionFirstCommentaryPlanner` selects and ranks questions. It does not
    own low-level proof/source/scope/fallback authority. Prevented-plan
    break/timing surfaces are admitted only through the shared
@@ -264,6 +271,9 @@ The maintained path is:
     `CentralBreakTiming`, `CentralPawnAdvance`, `MaterialTransition`, or
     `PreviewOnly`). A consequence is player-surface eligible only when it comes
     from `MoveReviewRefs` validated by `MoveReviewPvLine` legal FEN replay.
+    PV support markers (`pv:*`) are projected through
+    `MoveReviewPvLine.pvMoveTerms`, so witness producers keep legal line-prefix
+    traceability without repeating raw prefix formatting.
     Legal engine-only `VariationLine` replay may become
     `ReplayBackedInternal` for decision evidence, narrative hooks, and ledger
     notes, but it remains blocked from the player decision strip. The public
@@ -810,11 +820,58 @@ for those owner packets. Other implemented relation rows stay support-only here,
 their king, attacker, defender/cleared-square, line or material target,
 lure/execution, mate pattern, and front/back or pinned/behind coordinates are
 also preserved as typed analyzer details for any later certified or
-softer-label consumer.
+softer-label consumer. Defender-trade and bad-piece policy continuation terms
+consume analyzer-built structure terms instead of reassembling relation markers
+locally.
 Branch-key and branch-fact string formatting is likewise centralized in
 `MoveReviewExchangeAnalyzer`; policy consumers may reuse replayed witness
 line moves, but they must not rebuild branch keys with local UCI slicing or
-`mkString` logic.
+`mkString` logic, including `branch:*`, `best_branch:*`, and
+`exchange_square:*` fact terms.
+The same analyzer owns proof-consumer reads of probe reply coverage,
+best-reply heads, displayable best-reply lines, all/best branch reply lines,
+and distinct defender-resource reply heads through `probeHasReplyCoverage`,
+`probeBestReplyHead`, `probeBestReplyLineDisplay`,
+`probeDisplayReplyLines`, `probeAllReplyLines`, `probeBestReplyLines`, and
+`probeDistinctReplyHeads`; best-reply prefix/length consumers use
+`probeBestReplyPrefix` and `probeBestReplyLength`. Strategic-plan
+promotion/experiment code plus authoring/candidate evidence, strategic feature
+extraction, strategic ledger line candidates, heavy-piece, local-file,
+route-network, two-axis, counterplay, and restricted-conversion proofs must not
+keep local `replyPvs` branch/resource parsers.
+Probe purpose classification is owned by `ThemePlanProbePurpose`: reply,
+defense-reply, conversion-reply, route-validation, route-continuity,
+author-evidence, played-counterfactual, and null-move threat consumers use its
+constants and predicates instead of local raw string sets or substring checks.
+Author evidence branch-cardinality gates and request budgets, required signals,
+objectives, and horizons for these purpose families also use this helper
+boundary.
+Latent hypothesis/refutation purpose profiles, including required signals,
+objectives, horizons, and default cp-loss gates, are owned by
+`ProbePurposeClassifier` instead of detector/evaluator-local raw matches.
+Prevented-plan evidence term projection (`counterplay_drop`,
+`neutralized_break`, `denied_squares`, `denied_resource`,
+`denied_entry_scope`) is owned by `PlanEvidenceEvaluator`; proof modules consume
+that helper instead of repeating term formatting. Prophylactic denied-resource
+class normalization and exact-slice token validation use the same evaluator
+boundary. Plan certification trace terms (`universal`, `best_response`,
+`stable`, `probe_backed`) and `support_probe:*` markers are likewise projected
+through `PlanEvidenceEvaluator`.
+Theme/subplan support tags are created and parsed through
+`PlanTaxonomy.ThemeResolver`; planner, detector, and hypothesis code must not
+repeat raw `theme:`/`subplan:` prefix slicing. Embedded subplan annotations on
+probe plan names, their user-facing stripping, and embedded theme preconditions
+use the same resolver boundary. Taxonomy-backed proof contract ids also use
+this resolver rather than local prefix assembly. Structural-state and
+latent-seed evidence tags are also created and parsed through
+`PlanTaxonomy.ThemeResolver`.
+Legacy candidate probe id families such as competitive/aggressive probes are
+classified by `ProbePurposeClassifier` helpers before candidate tags,
+plan-alignment labels, or why-not prose are built.
+`PlayerFacingTruthModePolicy` may create suppression-local rival assessment
+trace terms such as `secondary_plan:*`, `secondary_idea:*`, and `exact:*`
+evidence tags inside `RivalAssessment`; these are not proof source/family
+authority and must not become expansion owner names or public row kinds.
 `MoveReviewPlayerPayloadBuilder` may project selected relation ideas into
 `moveReviewPlayerSurface.advancedRows` with `authority.kind =
 strategic_relation`, the relation token, and one relation-focus-derived target square. That is

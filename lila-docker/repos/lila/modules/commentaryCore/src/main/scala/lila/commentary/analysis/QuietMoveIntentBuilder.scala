@@ -480,13 +480,8 @@ private[commentary] object QuietMoveIntentBuilder:
       quietBestDefenseBranchKey(ctx).toList ++
         quietBestDefenseMove(ctx).toList ++
         quietEvidencePlans(ctx, quietProofFamily(intentClass)).flatMap { plan =>
-          val cert = plan.claimCertification
-          List(
-            Option.when(cert.quantifier == PlayerFacingClaimQuantifier.Universal)("universal"),
-            Option.when(cert.quantifier == PlayerFacingClaimQuantifier.BestResponse)("best_response"),
-            Option.when(cert.stabilityGrade == PlayerFacingClaimStabilityGrade.Stable)("stable"),
-            Option.when(cert.provenanceClass == PlayerFacingClaimProvenanceClass.ProbeBacked)("probe_backed")
-          ).flatten ++ plan.supportProbeIds.map(id => s"support_probe:$id")
+          PlanEvidenceEvaluator.claimCertificationTerms(plan) ++
+            PlanEvidenceEvaluator.supportProbeTerms(plan)
         }
     PlayerFacingProofPathWitness(
       ownerSeedTerms = ownerSeedTerms.distinct,

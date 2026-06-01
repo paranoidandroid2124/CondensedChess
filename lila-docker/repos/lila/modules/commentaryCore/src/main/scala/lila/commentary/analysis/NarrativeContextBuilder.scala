@@ -414,7 +414,7 @@ object NarrativeContextBuilder:
       val bestReplyStable =
         supportResults.nonEmpty &&
           refuteResults.isEmpty &&
-          supportResults.exists(hasReplyCoverage) &&
+          supportResults.exists(MoveReviewExchangeAnalyzer.probeHasReplyCoverage) &&
           supportResults.forall(_.l1Delta.flatMap(_.collapseReason).forall(_.trim.isEmpty))
       val futureSnapshotAligned =
         supportResults.exists(result => result.futureSnapshot.exists(isPositiveFutureSnapshot)) &&
@@ -439,7 +439,7 @@ object NarrativeContextBuilder:
           dualAxisBindCertification.exists(_.moveOrderFragility.fragile) ||
           (
             supportResults.nonEmpty &&
-              supportResults.exists(hasReplyCoverage) &&
+              supportResults.exists(MoveReviewExchangeAnalyzer.probeHasReplyCoverage) &&
               !bestReplyStable &&
               !futureSnapshotAligned
           )
@@ -565,9 +565,6 @@ object NarrativeContextBuilder:
       case PlanEvidenceEvaluator.PlanEvidenceStatus.PlayablePvCoupled       => "pv_coupled"
       case PlanEvidenceEvaluator.PlanEvidenceStatus.Deferred                => "deferred"
       case PlanEvidenceEvaluator.PlanEvidenceStatus.Refuted                 => "refuted"
-
-  private def hasReplyCoverage(result: ProbeResult): Boolean =
-    result.bestReplyPv.nonEmpty || result.replyPvs.exists(_.exists(_.nonEmpty))
 
   private def isPositiveFutureSnapshot(snapshot: FutureSnapshot): Boolean =
     snapshot.planPrereqsMet.nonEmpty ||
@@ -1326,9 +1323,7 @@ object NarrativeContextBuilder:
       // Probe PV samples (a1/a2): convert probe reply PVs into SAN lines, starting from opponent reply.
       val probeLines = probe.flatMap { pr =>
         val moveUciOpt = c.uci
-        val replyPvs = pr.replyPvs.getOrElse {
-          if (pr.bestReplyPv.nonEmpty) List(pr.bestReplyPv) else Nil
-        }
+        val replyPvs = MoveReviewExchangeAnalyzer.probeDisplayReplyLines(pr)
 
         moveUciOpt.map { moveUci =>
           replyPvs.take(2).flatMap { pv =>
@@ -1340,8 +1335,11 @@ object NarrativeContextBuilder:
       
       // 1. Logic for tags
       val probeTags = probe.map { pr =>
-        if (pr.id.startsWith("competitive")) List(CandidateTag.Competitive)
-        else if (pr.id.startsWith("aggressive") && (if (isWhiteToMove) -pr.deltaVsBaseline else pr.deltaVsBaseline) >= 50) 
+        if (ProbePurposeClassifier.isCompetitiveProbeId(pr.id)) List(CandidateTag.Competitive)
+        else if (
+          ProbePurposeClassifier.isAggressiveProbeId(pr.id) &&
+            (if (isWhiteToMove) -pr.deltaVsBaseline else pr.deltaVsBaseline) >= 50
+        )
           List(CandidateTag.TacticalGamble)
         else Nil
       }.getOrElse(Nil)
@@ -1355,17 +1353,17 @@ object NarrativeContextBuilder:
               data.fen,
               data.ply + 1,
               lila.commentary.model.strategic.VariationLine(
-                moves = uci :: pr.bestReplyPv.take(5),
+                moves = uci :: MoveReviewExchangeAnalyzer.probeBestReplyPrefix(pr, 5),
                 scoreCp = 0
               )
             )
           }
         if (moverLoss >= 50) {
-           val bestReply = pr.bestReplyPv.headOption.getOrElse("?")
+           val bestReply = MoveReviewExchangeAnalyzer.probeBestReplyHead(pr).getOrElse("?")
            val replySan = c.uci.map(u => NarrativeUtils.uciListToSan(data.fen, List(u, bestReply)).lift(1).getOrElse(bestReply)).getOrElse(bestReply)
            val collapseNote = pr.l1Delta.flatMap(_.collapseReason).map(r => s" ($r)").getOrElse("")
            
-           if (pr.id.startsWith("aggressive"))
+           if (ProbePurposeClassifier.isAggressiveProbeId(pr.id))
              lineCitation
                .map(citation => s"the line $citation is clearly refuted$collapseNote")
                .orElse(Some(s"refuted: $replySan is a clear answer$collapseNote"))
@@ -1373,7 +1371,7 @@ object NarrativeContextBuilder:
              lineCitation
                .map(citation => s"the line $citation is inferior by $moverLoss cp$collapseNote")
                .orElse(Some(s"inferior by $moverLoss cp after $replySan$collapseNote"))
-        } else if (pr.id.startsWith("competitive") && moverLoss.abs < 30) {
+        } else if (ProbePurposeClassifier.isCompetitiveProbeId(pr.id) && moverLoss.abs < 30) {
            Some("verified as a strong alternative")
         } else None
       }
@@ -1390,7 +1388,7 @@ object NarrativeContextBuilder:
       val uci = pr.probedMove.get
       val san = NarrativeUtils.uciListToSan(data.fen, List(uci)).headOption.getOrElse(uci)
       val moverLoss = if (isWhiteToMove) -pr.deltaVsBaseline else pr.deltaVsBaseline
-      val bestReply = pr.bestReplyPv.headOption.getOrElse("?")
+      val bestReply = MoveReviewExchangeAnalyzer.probeBestReplyHead(pr).getOrElse("?")
       val replySan = NarrativeUtils.uciListToSan(data.fen, List(uci, bestReply)).lift(1).getOrElse(bestReply)
       val collapseNote = pr.l1Delta.flatMap(_.collapseReason).map(r => s" ($r)").getOrElse("")
       val ghostCitation =
@@ -1398,20 +1396,22 @@ object NarrativeContextBuilder:
           data.fen,
           data.ply + 1,
           lila.commentary.model.strategic.VariationLine(
-            moves = uci :: pr.bestReplyPv.take(5),
+            moves = uci :: MoveReviewExchangeAnalyzer.probeBestReplyPrefix(pr, 5),
             scoreCp = 0
           )
         )
 
-      val ghostTags = if (pr.id.startsWith("aggressive")) List(CandidateTag.TacticalGamble, CandidateTag.Sharp)
-                      else if (pr.id.startsWith("competitive")) List(CandidateTag.Competitive)
-                      else Nil
+      val ghostTags =
+        if (ProbePurposeClassifier.isAggressiveProbeId(pr.id)) List(CandidateTag.TacticalGamble, CandidateTag.Sharp)
+        else if (ProbePurposeClassifier.isCompetitiveProbeId(pr.id)) List(CandidateTag.Competitive)
+        else Nil
 
       CandidateInfo(
         move = san,
         uci = Some(uci),
         annotation = if (moverLoss >= 200) "??" else "?",
-        planAlignment = if (pr.id.startsWith("aggressive")) "Tactical Gamble" else "Alternative Path",
+        planAlignment =
+          if (ProbePurposeClassifier.isAggressiveProbeId(pr.id)) "Tactical Gamble" else "Alternative Path",
         structureGuidance = None,
         alignmentBand = None,
         tacticalAlert = None,
@@ -1421,9 +1421,10 @@ object NarrativeContextBuilder:
             .map(citation => s"the line $citation is refuted (-$moverLoss cp)$collapseNote")
             .orElse(Some(s"refuted by $replySan (-$moverLoss cp)$collapseNote")),
         tags = ghostTags,
-        lineSanMoves = NarrativeUtils.uciListToSan(data.fen, uci :: pr.bestReplyPv.take(5)),
+        lineSanMoves =
+          NarrativeUtils.uciListToSan(data.fen, uci :: MoveReviewExchangeAnalyzer.probeBestReplyPrefix(pr, 5)),
         probeLines =
-          pr.replyPvs.getOrElse(if (pr.bestReplyPv.nonEmpty) List(pr.bestReplyPv) else Nil).take(2).flatMap { pv =>
+          MoveReviewExchangeAnalyzer.probeDisplayReplyLines(pr).take(2).flatMap { pv =>
             val sanLine = NarrativeUtils.uciListToSan(data.fen, uci :: pv.take(6)).drop(1).mkString(" ")
             Option(sanLine).map(_.trim).filter(_.nonEmpty)
           }

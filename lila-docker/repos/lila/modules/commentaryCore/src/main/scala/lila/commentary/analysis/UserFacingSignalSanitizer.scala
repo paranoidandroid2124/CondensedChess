@@ -40,7 +40,6 @@ private[commentary] object UserFacingSignalSanitizer:
     "more confirmation is still needed" -> ""
   )
   private val rawLabelRegex = """(?i)(?<!\bkey\s)\b(?:subplan|theme|support|seed|proposal):\s*([a-z0-9_-]+)\b""".r
-  private val bracketedSubplanRegex = """\s*\[subplan:[^\]]+\]""".r
   private val placeholderLiteralPatterns: List[String] = List(
     "playablebypv",
     "playedpv",
@@ -60,7 +59,6 @@ private[commentary] object UserFacingSignalSanitizer:
     "????.??.??"
   )
   private val placeholderRegexes: List[(String, String)] = List(
-    "subplan" -> """(?i)\[subplan:[^\]]+\]""",
     "raw_label" -> """(?i)\b(?:subplan|theme|support|seed|proposal):[a-z0-9_]+\b"""
   )
   private val clubPlayerRegexRewrites: List[(Regex, String)] = List(
@@ -94,7 +92,7 @@ private[commentary] object UserFacingSignalSanitizer:
               .foldLeft(
                 rawLabelRegex
                   .replaceAllIn(
-                    placeholderRewrites.foldLeft(bracketedSubplanRegex.replaceAllIn(Option(raw).getOrElse(""), "")) {
+                    placeholderRewrites.foldLeft(PlanTaxonomy.ThemeResolver.stripSubplanAnnotations(raw)) {
                       case (acc, (needle, replacement)) => acc.replace(needle, replacement)
                     },
                     m => humanizeLabel(m.group(1))
@@ -111,12 +109,14 @@ private[commentary] object UserFacingSignalSanitizer:
     val source = Option(raw).getOrElse("")
     val low = source.toLowerCase
     val literalHits = placeholderLiteralPatterns.filter(low.contains)
+    val subplanAnnotationHits =
+      Option.when(PlanTaxonomy.ThemeResolver.hasSubplanAnnotation(source))("subplan").toList
     val regexHits =
       placeholderRegexes.flatMap { case (label, pattern) =>
         val regex = pattern.r
         regex.findFirstMatchIn(source).map(_ => label)
       }
-    (literalHits ++ regexHits).distinct
+    (literalHits ++ subplanAnnotationHits ++ regexHits).distinct
 
   def allowCompensationSupportText(raw: String): Boolean =
     val text = sanitize(raw).trim

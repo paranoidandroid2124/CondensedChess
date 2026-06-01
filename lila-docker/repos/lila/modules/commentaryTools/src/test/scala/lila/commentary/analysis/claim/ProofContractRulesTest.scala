@@ -56,6 +56,24 @@ class ProofContractRulesTest extends FunSuite:
     )
   }
 
+  test("taxonomy contract ids use canonical theme resolver tags") {
+    val themeContract =
+      ProofContractRules
+        .contracts
+        .find(contract =>
+          contract.theme.contains(PlanTaxonomy.PlanTheme.WeaknessFixation) &&
+            contract.subplan.isEmpty
+        )
+        .getOrElse(fail("missing weakness fixation theme contract"))
+    val subplanContract =
+      ProofContractRules
+        .contractForProofFamily(PlanTaxonomy.PlanKind.StaticWeaknessFixation.id)
+        .getOrElse(fail("missing static weakness fixation subplan contract"))
+
+    assertEquals(themeContract.id, PlanTaxonomy.ThemeResolver.themeTag(PlanTaxonomy.PlanTheme.WeaknessFixation))
+    assertEquals(subplanContract.id, PlanTaxonomy.ThemeResolver.subplanTag(PlanTaxonomy.PlanKind.StaticWeaknessFixation))
+  }
+
   test("immediate tactical-gain taxonomy cannot become strategic authority contract") {
     val tacticalContracts =
       ProofContractRules.contracts.filter(_.theme.contains(PlanTaxonomy.PlanTheme.ImmediateTacticalGain))
@@ -318,6 +336,35 @@ class ProofContractRulesTest extends FunSuite:
     assertEquals(
       PlayerFacingExactSliceProofFacts.targetSquare(PlayerFacingExactSliceProof.ExactTargetFixation("D6")),
       Some("d6")
+    )
+    assertEquals(PlayerFacingExactSliceProofFacts.fixedTargetTerm("D6"), "fixed_target:d6")
+    assertEquals(
+      PlayerFacingExactSliceProofFacts.targetWitnessTermForPath(
+        PlayerFacingTruthModePolicy.ColorComplexSqueezeProbeProofSource,
+        "E5"
+      ),
+      "weak_square:e5"
+    )
+    assertEquals(
+      PlayerFacingExactSliceProofFacts.targetWitnessTerm(
+        PlayerFacingExactSliceProof.TargetFocusedCoordination("D6", List("c1", "d3"), List("target_knight"))
+      ),
+      Some("coordinated_target:d6")
+    )
+    assertEquals(
+      PlayerFacingExactSliceProofFacts.localFileEntryTerm("c", "C7"),
+      Some("file-entry:c:c7")
+    )
+    assertEquals(
+      PlayerFacingExactSliceProofFacts.coordinationSupportTerms("E3", "Target_Knight"),
+      List("support_from:e3", "target_piece:target_knight", "coordinated_piece_pressure")
+    )
+    assertEquals(PlayerFacingExactSliceProofFacts.colorComplexTerm("Light"), Some("color_complex:light"))
+    assertEquals(PlayerFacingExactSliceProofFacts.minorPieceTerm("Knight", "C4"), Some("minor_piece:knight_c4"))
+    assertEquals(PlayerFacingExactSliceProofFacts.attacksTerm("E5"), Some("attacks:e5"))
+    assertEquals(
+      PlayerFacingExactSliceProofFacts.minorPieceAttackTerm("C4", "E5"),
+      Some("minor_piece_attack:c4-e5")
     )
     assertEquals(PlayerFacingExactSliceProofFacts.targetSquare(centralProof), None)
   }

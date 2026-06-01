@@ -651,7 +651,7 @@ object MoveReviewStrategicLedgerBuilder:
       result: ProbeResult
   ): List[String] =
     val baseFen = result.fen.filter(_.trim.nonEmpty).getOrElse(ctx.fen)
-    val uciMoves = result.probedMove.toList ++ result.bestReplyPv.take(3)
+    val uciMoves = result.probedMove.toList ++ MoveReviewExchangeAnalyzer.probeBestReplyPrefix(result, 3)
     NarrativeUtils.uciListToSan(baseFen, uciMoves).map(_.trim).filter(_.nonEmpty).take(4)
 
   private def decisionLineCandidate(

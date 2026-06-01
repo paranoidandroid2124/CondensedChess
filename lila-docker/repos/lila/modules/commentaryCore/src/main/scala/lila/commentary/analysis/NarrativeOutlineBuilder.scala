@@ -361,8 +361,8 @@ object NarrativeOutlineBuilder:
             evidenceSemanticKeys(plan.planName) ++
             evidenceSemanticKeys(plan.planId)
         directKeys ++
-          Option.when(theme != PlanTheme.Unknown)(s"theme:${theme.id}") ++
-          subplan.map(sp => s"subplan:${sp.id}")
+          Option.when(theme != PlanTheme.Unknown)(ThemeResolver.themeTag(theme)) ++
+          subplan.map(ThemeResolver.subplanTag)
       }
     planKeys.toSet
 
@@ -373,14 +373,14 @@ object NarrativeOutlineBuilder:
         ThemeResolver.fromPlanName(raw),
         ThemeResolver.fromPlanId(raw),
         ThemeResolver.fromSeedId(raw)
-      ).filter(_ != PlanTheme.Unknown).map(theme => s"theme:${theme.id}")
+      ).filter(_ != PlanTheme.Unknown).map(ThemeResolver.themeTag)
     val subplanKeys =
       List(
         ThemeResolver.subplanFromEvidenceSource(raw),
         ThemeResolver.subplanFromPlanName(raw),
         ThemeResolver.subplanFromPlanId(raw),
         ThemeResolver.subplanFromSeedId(raw)
-      ).flatten.map(subplan => s"subplan:${subplan.id}")
+      ).flatten.map(ThemeResolver.subplanTag)
     (themeKeys ++ subplanKeys).toSet
 
   private def renderPreconditions(plan: PlanHypothesis): Option[String] =

@@ -52,7 +52,7 @@ function normalizeList(items?: string[]): string[] {
 }
 
 function buildDeferredLabel(comparison: DecisionComparisonDigestLike): string {
-  return comparison.practicalAlternative ? 'Practical alternative' : 'Deferred branch';
+  return comparison.practicalAlternative ? 'Practical alternative' : 'Deferred line';
 }
 
 function normalizeSquare(value?: string | null): string {
@@ -88,7 +88,7 @@ export function formatDecisionTargetComparison(target?: DecisionTargetComparison
   if (!chosenTarget || !bestTarget || !chosenKind || !bestKind) return null;
   if (chosenTarget === bestTarget && chosenKind === bestKind) return null;
 
-  return `Line target: chosen ${chosenTarget} (${chosenKind}); engine ${bestTarget} (${bestKind}).`;
+  return `Target square: chosen ${chosenTarget} (${chosenKind}); engine ${bestTarget} (${bestKind}).`;
 }
 
 export function formatDecisionComparisonHeadline(comparison?: DecisionComparisonDigestLike | null): string | null {
@@ -120,17 +120,17 @@ export function buildDecisionComparisonRows(
   const rows: DecisionComparisonRow[] = [];
 
   const engineLine = normalizeList(comparison.engineBestPv).slice(0, 4).join(' ');
-  if (includeEngineLine && engineLine) rows.push({ label: 'Engine line', value: engineLine });
+  if (includeEngineLine && engineLine) rows.push({ label: 'Recommended line', value: engineLine });
 
   const comparative = comparison.comparativeConsequence?.trim();
   const compared = comparative ? comparison.comparedMove?.trim() : '';
-  if (compared) rows.push({ label: 'Compared branch', value: compared });
+  if (compared) rows.push({ label: 'Compared line', value: compared });
   if (comparative) rows.push({ label: 'Exact comparison', value: comparative });
 
   const deferredMove = comparative ? '' : comparison.deferredMove?.trim();
   const deferredReason = comparative ? '' : comparison.deferredReason?.trim();
   if (deferredMove) {
-    const label = comparison.practicalAlternative ? 'Practical alternative' : 'Deferred branch';
+    const label = comparison.practicalAlternative ? 'Practical alternative' : 'Deferred line';
     const value =
       mergeReasonIntoDeferred && deferredReason ? `${deferredMove} · ${deferredReason}` : deferredMove;
     rows.push({ label, value });
@@ -140,7 +140,7 @@ export function buildDecisionComparisonRows(
     rows.push({ label: 'Why deferred', value: deferredReason });
 
   if (includeEvidence && comparison.evidence?.trim())
-    rows.push({ label: 'Evidence', value: comparison.evidence.trim() });
+    rows.push({ label: 'Reference lines', value: comparison.evidence.trim() });
 
   return rows;
 }

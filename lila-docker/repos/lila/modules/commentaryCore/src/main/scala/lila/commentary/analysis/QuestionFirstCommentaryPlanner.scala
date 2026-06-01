@@ -700,7 +700,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
     buildAuthorEvidence(question, inputs)
       .orElse {
         val needsMultiBranch =
-          question.evidencePurposes.exists(p => p == "keep_tension_branches" || p == "recapture_branches")
+          question.evidencePurposes.exists(ThemePlanProbePurpose.requiresMultipleBranches)
         if needsMultiBranch then None else fallbackLine.flatMap(buildSingleLineEvidence(_, sourceKinds))
       }
 

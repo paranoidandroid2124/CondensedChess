@@ -126,19 +126,6 @@ private[commentary] object RouteNetworkBindProof:
 
   private val ApplicableSubplans =
     Set(PlanKind.BreakPrevention.id, PlanKind.KeySquareDenial.id)
-  private val DirectReplyPurposes =
-    Set("defense_reply_multipv", "reply_multipv")
-  private val ValidationPurposes =
-    Set(
-      ThemePlanProbePurpose.RouteDenialValidation,
-      ThemePlanProbePurpose.LongTermRestraintValidation
-    )
-  private val ContinuityPurposes =
-    Set(
-      ThemePlanProbePurpose.RouteDenialValidation,
-      ThemePlanProbePurpose.LongTermRestraintValidation,
-      "convert_reply_multipv"
-    )
   private val ClearlyBetterAdvantageCp = 150
   private val LateMiddlegamePlyFloor = 20
   private val RestrictedResourceCap = 2
@@ -147,6 +134,11 @@ private[commentary] object RouteNetworkBindProof:
   private val ClaimScope = "named_route_network_bind"
   private val HighRisk = "high"
   private val PlannerWhyThisOnly = "planner_why_this_only"
+  private val RerouteReleaseRiskPrefix = "reroute:"
+  private val SectorReleaseRiskPrefix = "sector:"
+  private val ColorComplexEscapeRisk = "color_complex_escape"
+  private val MissingFileReleaseRisk = "file:missing"
+  private val MissingEntryReleaseRisk = "entry:missing"
   private val RouteIntentTokens =
     List("reroute", "route network", "route-net", "detour", "switch wing", "route shell", "dead-end", "dead end")
   private val RouteEdgeTokens =
@@ -227,15 +219,15 @@ private[commentary] object RouteNetworkBindProof:
         plan.supportProbeIds.flatMap(probeResultsById.get).distinctBy(_.id)
       val validationResults =
         supportResults.filter(result =>
-          result.purpose.exists(purpose => ValidationPurposes.contains(normalize(purpose)))
+          result.purpose.exists(ThemePlanProbePurpose.isRouteValidationPurpose)
         )
       val continuityResults =
         supportResults.filter(result =>
-          result.purpose.exists(purpose => ContinuityPurposes.contains(normalize(purpose)))
+          result.purpose.exists(ThemePlanProbePurpose.isRouteContinuityPurpose)
         )
       val directReplyResults =
         supportResults.filter(result =>
-          result.purpose.exists(purpose => DirectReplyPurposes.contains(normalize(purpose)))
+          result.purpose.exists(ThemePlanProbePurpose.isDirectReplyPurpose)
         )
       val branchIdentity =
         resolveBranchIdentity(directReplyResults, localFileEntryBindCertification)
@@ -335,13 +327,14 @@ private[commentary] object RouteNetworkBindProof:
       val directBestDefensePresent =
         bestDefenseFound.nonEmpty &&
           bestDefenseBranchKey.nonEmpty &&
-          bestDefenseResult.exists(hasReplyCoverage)
-      val defenderResources = distinctDefenderResources(directReplyResults)
+          bestDefenseResult.exists(MoveReviewExchangeAnalyzer.probeHasReplyCoverage)
+      val defenderResources =
+        MoveReviewExchangeAnalyzer.probeDistinctReplyHeads(directReplyResults)
       val bestReplyStable =
         directBestDefensePresent &&
           defenderResources.nonEmpty &&
           defenderResources.size <= RestrictedResourceCap &&
-          directReplyResults.forall(hasReplyCoverage) &&
+          directReplyResults.forall(MoveReviewExchangeAnalyzer.probeHasReplyCoverage) &&
           directReplyResults.forall(result =>
             result.l1Delta.flatMap(_.collapseReason).forall(reason => clean(reason).isEmpty)
           ) &&
@@ -352,7 +345,7 @@ private[commentary] object RouteNetworkBindProof:
           allSameBranchEdgesVisible
       val convertReplyAligned =
         sameBranchContinuityResults.exists(result =>
-          normalize(result.purpose.getOrElse("")) == "convert_reply_multipv" &&
+          result.purpose.exists(ThemePlanProbePurpose.isConvertReplyPurpose) &&
             expectedRouteEdges.forall { case (from, to) => mentionsRouteEdge(result, from, to) } &&
             result.futureSnapshot.exists(mentionsBoundedContinuation)
         )
@@ -459,7 +452,7 @@ private[commentary] object RouteNetworkBindProof:
       val colorComplexEscape =
         supportResults.exists(result => mentionsColorComplexEscape(result)) ||
           routeSignals.exists(signal =>
-            signal.deniedResourceClass.exists(resource => normalize(resource) == "color_complex_escape")
+            signal.deniedResourceClass.exists(isColorComplexEscapeRisk)
           )
       val postureInflation =
         chainClaimAttempted &&
@@ -467,8 +460,7 @@ private[commentary] object RouteNetworkBindProof:
       val heavyPieceRouteShell =
         chainClaimAttempted && heavyPieceShell
       val untouchedSectorEscape =
-        releaseRisksRemaining.exists(_.startsWith("reroute:")) ||
-          releaseRisksRemaining.exists(_.startsWith("sector:"))
+        hasRouteReleaseRisk(releaseRisksRemaining)
       val localPrereqMissing =
         localFileEntryBindCertification.forall(!_.certified)
       val enginePvParaphrase =
@@ -547,7 +539,7 @@ private[commentary] object RouteNetworkBindProof:
           Option.when(heavyPieceRouteShell)("heavy_piece_route_shell"),
           Option.when(untouchedSectorEscape)("untouched_sector_reroute"),
           Option.when(chainClaimAttempted && untouchedSectorEscape)("untouched_sector_escape"),
-          Option.when(colorComplexEscape)("color_complex_escape"),
+          Option.when(colorComplexEscape)(ColorComplexEscapeRisk),
           Option.when(chainOnlyOnNonBestBranch)("chain_only_on_nonbest_branch"),
           Option.when(crossBranchStitching)("cross_branch_stitching"),
           Option.when(staticWithoutProgress)("static_net_without_progress"),
@@ -613,7 +605,13 @@ private[commentary] object RouteNetworkBindProof:
         evidenceSources =
           (plan.hypothesis.evidenceSources ++
             supportResults.flatMap(_.purpose.flatMap(clean)) ++
-            relevantPreventedPlans.flatMap(preventedEvidenceSignals))
+            relevantPreventedPlans.flatMap(plan =>
+              PlanEvidenceEvaluator.preventedPlanSignalTerms(
+                plan,
+                includeDeniedSquares = true,
+                includeDeniedEntryScope = true
+              )
+            ))
             .distinct
       )
     }
@@ -1023,7 +1021,7 @@ private[commentary] object RouteNetworkBindProof:
           )("collapse_under_best_defense"),
           Option.when(
             directReplyResults.nonEmpty &&
-              directReplyResults.exists(hasReplyCoverage) &&
+              directReplyResults.exists(MoveReviewExchangeAnalyzer.probeHasReplyCoverage) &&
               !bestReplyStable &&
               !futureSnapshotPersistence
           )("reply_order_not_stable")
@@ -1048,17 +1046,52 @@ private[commentary] object RouteNetworkBindProof:
           rerouteAxis.forall(_.square != signal.square) &&
             intermediateAxis.forall(_.square != signal.square)
         )
-        .map(signal => s"reroute:${signal.square}")
+        .map(signal => rerouteReleaseRisk(signal.square))
     val sectorEscapes =
-      supportResults.filter(mentionsSectorEscape).map(_ => "sector:untouched")
+      supportResults.filter(mentionsSectorEscape).map(_ => sectorReleaseRisk("untouched"))
     val colorEscapes =
-      supportResults.filter(mentionsColorComplexEscape).map(_ => "color_complex_escape")
+      supportResults.filter(mentionsColorComplexEscape).map(_ => ColorComplexEscapeRisk)
     val alternativeFileOrEntry =
       List(
-        Option.when(primaryFile.isEmpty)("file:missing"),
-        Option.when(entryAxis.isEmpty)("entry:missing")
+        Option.when(primaryFile.isEmpty)(MissingFileReleaseRisk),
+        Option.when(entryAxis.isEmpty)(MissingEntryReleaseRisk)
       ).flatten
     (alternativeReroutes ++ sectorEscapes ++ colorEscapes ++ alternativeFileOrEntry).distinct
+
+  private def rerouteReleaseRisk(
+      square: String
+  ): String =
+    releaseRisk(RerouteReleaseRiskPrefix, square)
+
+  private def sectorReleaseRisk(
+      value: String
+  ): String =
+    releaseRisk(SectorReleaseRiskPrefix, value)
+
+  private def releaseRisk(
+      prefix: String,
+      value: String
+  ): String =
+    s"$prefix$value"
+
+  private def hasRouteReleaseRisk(
+      risks: List[String]
+  ): Boolean =
+    risks.exists(risk =>
+      hasReleaseRiskPrefix(risk, RerouteReleaseRiskPrefix) ||
+        hasReleaseRiskPrefix(risk, SectorReleaseRiskPrefix)
+    )
+
+  private def hasReleaseRiskPrefix(
+      risk: String,
+      prefix: String
+  ): Boolean =
+    Option(risk).exists(_.startsWith(prefix))
+
+  private def isColorComplexEscapeRisk(
+      risk: String
+  ): Boolean =
+    normalize(risk) == ColorComplexEscapeRisk
 
   private def confidenceScore(
       lateMiddlegameSlice: Boolean,
@@ -1175,21 +1208,6 @@ private[commentary] object RouteNetworkBindProof:
         snapshot.targetsDelta.strategicRemoved
     ) ++ result.motifTags ++ result.l1Delta.flatMap(_.collapseReason).toList
 
-  private def distinctDefenderResources(
-      results: List[ProbeResult]
-  ): List[String] =
-    results
-      .flatMap { result =>
-        val replyHeads =
-          result.replyPvs.toList
-            .flatten
-            .flatMap(_.headOption.flatMap(clean))
-        val bestReply =
-          result.bestReplyPv.headOption.flatMap(clean).toList
-        (replyHeads ++ bestReply).distinct
-      }
-      .distinct
-
   private def matchesDefendedBranch(
       result: ProbeResult,
       expectedBranchKey: Option[String]
@@ -1224,12 +1242,12 @@ private[commentary] object RouteNetworkBindProof:
     val selectedResults =
       selectedKey.toList.flatMap(key => groupedByStrongKey.getOrElse(key, Nil))
     val bestDefenseResult =
-      selectedResults.find(hasReplyCoverage)
+      selectedResults.find(MoveReviewExchangeAnalyzer.probeHasReplyCoverage)
     val bestDefenseFound =
       if expectedStrongKey == selectedKey then
         localFileEntryBindCertification.flatMap(_.bestDefenseFound)
-          .orElse(bestDefenseResult.flatMap(_.bestReplyPv.headOption.flatMap(clean)))
-      else bestDefenseResult.flatMap(_.bestReplyPv.headOption.flatMap(clean))
+          .orElse(bestDefenseResult.flatMap(MoveReviewExchangeAnalyzer.probeBestReplyHead))
+      else bestDefenseResult.flatMap(MoveReviewExchangeAnalyzer.probeBestReplyHead)
     val sameBranchIdentityMissing =
       directReplyResults.nonEmpty && strongDirectKeys.isEmpty
     val ambiguousDefendedBranch =
@@ -1351,23 +1369,6 @@ private[commentary] object RouteNetworkBindProof:
         SurfaceInflationTokens.exists(token => normalize(text).contains(token))
       )
 
-  private def preventedEvidenceSignals(
-      plan: PreventedPlan
-  ): List[String] =
-    List(
-      Option.when(plan.counterplayScoreDrop > 0)(s"counterplay_drop:${plan.counterplayScoreDrop}"),
-      plan.breakNeutralized.flatMap(signal => clean(signal).map(value => s"neutralized_break:$value")),
-      Option.when(plan.deniedSquares.nonEmpty)(
-        s"denied_squares:${plan.deniedSquares.map(_.key).distinct.sorted.mkString(",")}"
-      ),
-      plan.deniedResourceClass.flatMap(resourceClass =>
-        clean(resourceClass).map(value => s"denied_resource:$value")
-      ),
-      plan.deniedEntryScope.flatMap(scope =>
-        clean(scope).map(value => s"denied_entry_scope:$value")
-      )
-    ).flatten
-
   private def displayHypothesis(
       plan: PlanEvidenceEvaluator.EvaluatedPlan
   ): String =
@@ -1380,12 +1381,6 @@ private[commentary] object RouteNetworkBindProof:
       isWhiteToMove: Boolean
   ): Int =
     if isWhiteToMove then evalCp else -evalCp
-
-  private def hasReplyCoverage(
-      result: ProbeResult
-  ): Boolean =
-    result.bestReplyPv.nonEmpty ||
-      result.replyPvs.exists(_.exists(_.nonEmpty))
 
   private def queenCount(
       fen: String

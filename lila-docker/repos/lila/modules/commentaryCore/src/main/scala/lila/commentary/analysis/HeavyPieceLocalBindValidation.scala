@@ -85,19 +85,6 @@ private[commentary] object HeavyPieceLocalBindValidation:
 
   private val ApplicableSubplans =
     Set(PlanKind.BreakPrevention.id, PlanKind.KeySquareDenial.id)
-  private val DirectReplyPurposes =
-    Set("defense_reply_multipv", "reply_multipv")
-  private val ValidationPurposes =
-    Set(
-      ThemePlanProbePurpose.RouteDenialValidation,
-      ThemePlanProbePurpose.LongTermRestraintValidation
-    )
-  private val ContinuityPurposes =
-    Set(
-      ThemePlanProbePurpose.RouteDenialValidation,
-      ThemePlanProbePurpose.LongTermRestraintValidation,
-      "convert_reply_multipv"
-    )
   private val ClaimScope = "heavy_piece_local_bind"
   private val HighReinflationRisk = "high"
   private val NegativeOnlyLane = "negative_only_lane"
@@ -161,37 +148,33 @@ private[commentary] object HeavyPieceLocalBindValidation:
         plan.supportProbeIds.flatMap(probeResultsById.get).distinctBy(_.id)
       val validationResults =
         supportResults.filter(result =>
-          result.purpose.exists(purpose =>
-            ValidationPurposes.contains(normalize(purpose))
-          )
+          result.purpose.exists(ThemePlanProbePurpose.isRouteValidationPurpose)
         )
       val continuityResults =
         supportResults.filter(result =>
-          result.purpose.exists(purpose =>
-            ContinuityPurposes.contains(normalize(purpose))
-          )
+          result.purpose.exists(ThemePlanProbePurpose.isRouteContinuityPurpose)
         )
       val directReplyResults =
         supportResults.filter(result =>
-          result.purpose.exists(purpose =>
-            DirectReplyPurposes.contains(normalize(purpose))
-          )
+          result.purpose.exists(ThemePlanProbePurpose.isDirectReplyPurpose)
         )
       val bestDefenseResult =
         directReplyResults.find(result =>
-          hasReplyCoverage(result) &&
-            result.bestReplyPv.flatMap(clean).nonEmpty &&
+          MoveReviewExchangeAnalyzer.probeHasReplyCoverage(result) &&
+            MoveReviewExchangeAnalyzer.probeBestReplyLineDisplay(result).nonEmpty &&
             MoveReviewExchangeAnalyzer.probeStableBranchKey(result, BranchKeyMoveCount).nonEmpty
         )
       val bestDefenseReplay =
         bestDefenseResult.flatMap(result =>
-          replayBranchLine(
-            baseFen = resultBaseFen(result, fen),
-            line = result.bestReplyPv
+          MoveReviewExchangeAnalyzer.probeBestReplyLines(result).headOption.flatMap(line =>
+            replayBranchLine(
+              baseFen = resultBaseFen(result, fen),
+              line = line
+            )
           )
         )
       val bestDefenseFound =
-        bestDefenseResult.flatMap(displayBestDefense)
+        bestDefenseResult.flatMap(MoveReviewExchangeAnalyzer.probeBestReplyLineDisplay)
       val bestDefenseBranchKey =
         bestDefenseResult.flatMap(result =>
           MoveReviewExchangeAnalyzer.probeStableBranchKey(result, BranchKeyMoveCount)
@@ -211,12 +194,13 @@ private[commentary] object HeavyPieceLocalBindValidation:
           bestDefenseFound.nonEmpty &&
           bestDefenseBranchKey.nonEmpty &&
           bestDefenseReplay.exists(_.complete)
-      val defenderResources = distinctDefenderResources(directReplyResults)
+      val defenderResources =
+        MoveReviewExchangeAnalyzer.probeDistinctReplyHeads(directReplyResults)
       val bestReplyStable =
         directBestDefensePresent &&
           defenderResources.nonEmpty &&
           defenderResources.size <= RestrictedResourceCap &&
-          directReplyResults.forall(hasReplyCoverage) &&
+          directReplyResults.forall(MoveReviewExchangeAnalyzer.probeHasReplyCoverage) &&
           directReplyResults.forall(result =>
             result.l1Delta.flatMap(_.collapseReason).forall(reason => clean(reason).isEmpty)
           )
@@ -367,10 +351,18 @@ private[commentary] object HeavyPieceLocalBindValidation:
         evidenceSources =
           (plan.hypothesis.evidenceSources ++
             supportResults.flatMap(_.purpose.flatMap(clean)) ++
-            relevantPreventedPlans.flatMap(preventedEvidenceSignals) ++
+            relevantPreventedPlans.flatMap(plan =>
+              PlanEvidenceEvaluator.preventedPlanSignalTerms(
+                plan,
+                includeDeniedSquares = true,
+                includeDeniedEntryScope = true
+              )
+            ) ++
             bestDefenseReplay.toList.flatMap(replayEvidenceSignals) ++
             supportResults.flatMap(result =>
-              replayBranchLine(resultBaseFen(result, fen), result.bestReplyPv).toList.flatMap(replayEvidenceSignals)
+              MoveReviewExchangeAnalyzer.probeBestReplyLines(result).flatMap(line =>
+                replayBranchLine(resultBaseFen(result, fen), line).toList.flatMap(replayEvidenceSignals)
+              )
             ))
             .distinct
       )
@@ -761,7 +753,7 @@ private[commentary] object HeavyPieceLocalBindValidation:
         )("collapse_under_best_defense"),
         Option.when(
           directReplyResults.nonEmpty &&
-            directReplyResults.exists(hasReplyCoverage) &&
+            directReplyResults.exists(MoveReviewExchangeAnalyzer.probeHasReplyCoverage) &&
             !bestReplyStable &&
             !futureSnapshotPersistence
         )("reply_order_not_stable")
@@ -809,13 +801,6 @@ private[commentary] object HeavyPieceLocalBindValidation:
       .max(0.0)
       .min(0.94)
 
-  private def displayBestDefense(
-      result: ProbeResult
-  ): Option[String] =
-    Option.when(result.bestReplyPv.flatMap(clean).nonEmpty)(
-      result.bestReplyPv.flatMap(clean).mkString(" ")
-    )
-
   private def confirmsFileDenial(
       result: ProbeResult,
       file: FileAxisSignal
@@ -843,7 +828,7 @@ private[commentary] object HeavyPieceLocalBindValidation:
       )
 
   private def routeValidationPurpose(result: ProbeResult): Boolean =
-    result.purpose.exists(purpose => ValidationPurposes.contains(normalize(purpose)))
+    result.purpose.exists(ThemePlanProbePurpose.isRouteValidationPurpose)
 
   private def mentionsBoundedContinuation(
       snapshot: FutureSnapshot
@@ -858,19 +843,6 @@ private[commentary] object HeavyPieceLocalBindValidation:
       raw: String
   ): Boolean =
     ContinuityTokens.exists(token => normalize(raw).contains(token))
-
-  private def distinctDefenderResources(
-      results: List[ProbeResult]
-  ): List[String] =
-    results
-      .flatMap { result =>
-        val replyHeads =
-          result.replyPvs.toList.flatten.flatMap(_.headOption.flatMap(clean))
-        val bestReply =
-          result.bestReplyPv.headOption.flatMap(clean).toList
-        (replyHeads ++ bestReply).distinct
-      }
-      .distinct
 
   private def matchesDefendedBranch(
       result: ProbeResult,
@@ -920,25 +892,6 @@ private[commentary] object HeavyPieceLocalBindValidation:
   ): Int =
     if isWhiteToMove then evalCp else -evalCp
 
-  private def hasReplyCoverage(
-      result: ProbeResult
-  ): Boolean =
-    result.bestReplyPv.nonEmpty ||
-      result.replyPvs.exists(_.exists(_.nonEmpty))
-
-  private def preventedEvidenceSignals(
-      plan: PreventedPlan
-  ): List[String] =
-    List(
-      Option.when(plan.counterplayScoreDrop > 0)(s"counterplay_drop:${plan.counterplayScoreDrop}"),
-      plan.breakNeutralized.flatMap(signal => clean(signal).map(value => s"neutralized_break:$value")),
-      Option.when(plan.deniedSquares.nonEmpty)(
-        s"denied_squares:${plan.deniedSquares.map(_.key).distinct.sorted.mkString(",")}"
-      ),
-      plan.deniedResourceClass.flatMap(resource => clean(resource).map(value => s"denied_resource:$value")),
-      plan.deniedEntryScope.flatMap(scope => clean(scope).map(value => s"denied_entry_scope:$value"))
-    ).flatten
-
   private def containsInflationShell(
       hypothesis: PlanHypothesis
   ): Boolean =
@@ -983,12 +936,12 @@ private[commentary] object HeavyPieceLocalBindValidation:
   private def branchLines(
       result: ProbeResult
   ): List[List[String]] =
-    (result.bestReplyPv :: result.replyPvs.toList.flatten).filter(_.nonEmpty).distinct
+    MoveReviewExchangeAnalyzer.probeAllReplyLines(result)
 
   private def bestDefenseLines(
       result: ProbeResult
   ): List[List[String]] =
-    List(result.bestReplyPv).filter(_.nonEmpty)
+    MoveReviewExchangeAnalyzer.probeBestReplyLines(result)
 
   private def resultBaseFen(
       result: ProbeResult,

@@ -69,8 +69,7 @@ object HypothesisGenerator:
       refutation = failureModes.headOption,
       evidenceSources =
         (
-          pm.supports.collect { case s if s.startsWith("theme:") => s } ++
-          pm.supports.collect { case s if s.startsWith("subplan:") => s } ++
+          ThemeResolver.canonicalSupportTags(pm.supports) ++
           pm.evidence.take(2).map(_.description)
         ).distinct
     )
@@ -127,7 +126,8 @@ object HypothesisGenerator:
 
   private def themeIdFromPlanMatch(pm: PlanMatch): String =
     pm.supports
-      .collectFirst { case s if s.startsWith("theme:") => s.stripPrefix("theme:").trim }
+      .flatMap(ThemeResolver.themeIdFromSupport)
+      .headOption
       .filter(_.nonEmpty)
       .orElse {
         val resolved = ThemeResolver.fromPlanId(pm.plan.id.toString)
@@ -137,6 +137,7 @@ object HypothesisGenerator:
 
   private def subplanIdFromPlanMatch(pm: PlanMatch): Option[String] =
     pm.supports
-      .collectFirst { case s if s.startsWith("subplan:") => s.stripPrefix("subplan:").trim }
+      .flatMap(ThemeResolver.subplanIdFromSupport)
+      .headOption
       .filter(_.nonEmpty)
       .orElse(ThemeResolver.subplanFromPlanId(pm.plan.id.toString).map(_.id))

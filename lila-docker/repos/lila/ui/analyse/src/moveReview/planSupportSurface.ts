@@ -26,8 +26,8 @@ export function strategicPlanExperimentIndex(
 export function strategicPlanSupportBits(experiment: StrategicPlanExperiment | null | undefined): string[] {
   if (!experiment) return [];
   const bits: string[] = [];
-  if (experiment.evidenceTier === 'evidence_backed') bits.push('Probe-backed');
-  else if (experiment.evidenceTier === 'pv_coupled') bits.push('Engine-line only');
+  if (experiment.evidenceTier === 'evidence_backed') bits.push('Deeply verified');
+  else if (experiment.evidenceTier === 'pv_coupled') bits.push('Recommended line only');
   if (experiment.moveOrderSensitive) bits.push('Move-order sensitive');
   return bits;
 }

@@ -131,9 +131,9 @@ object PlanProposalEngine:
         viability = toViability(score, "outpost can collapse under pawn lever timing"),
         refutation = Some("if center opens immediately, outpost plan may be too slow"),
         evidenceSources = List(
-          s"theme:${PlanTheme.PieceRedeployment.id}",
-          s"subplan:${PlanKind.OutpostEntrenchment.id}",
-          "structural_state:entrenched_piece"
+          ThemeResolver.themeTag(PlanTheme.PieceRedeployment),
+          ThemeResolver.subplanTag(PlanKind.OutpostEntrenchment),
+          ThemeResolver.structuralStateTag("entrenched_piece")
         ),
         themeL1 = PlanTheme.PieceRedeployment.id,
         subplanId = Some(PlanKind.OutpostEntrenchment.id)
@@ -161,9 +161,9 @@ object PlanProposalEngine:
         viability = toViability(base, "flank expansion can backfire if center is unstable"),
         refutation = Some("if tactical threats appear in center, postpone pawn march"),
         evidenceSources = List(
-          s"theme:${PlanTheme.FlankInfrastructure.id}",
-          s"subplan:${PlanKind.RookPawnMarch.id}",
-          "structural_state:rook_pawn_march"
+          ThemeResolver.themeTag(PlanTheme.FlankInfrastructure),
+          ThemeResolver.subplanTag(PlanKind.RookPawnMarch),
+          ThemeResolver.structuralStateTag("rook_pawn_march")
         ),
         themeL1 = PlanTheme.FlankInfrastructure.id,
         subplanId = Some(PlanKind.RookPawnMarch.id)
@@ -191,9 +191,9 @@ object PlanProposalEngine:
         viability = toViability(score, "requires coordinated piece arrival to convert"),
         refutation = Some("if opponent neutralizes hook contact, switch to central plan"),
         evidenceSources = List(
-          s"theme:${PlanTheme.FlankInfrastructure.id}",
-          s"subplan:${PlanKind.HookCreation.id}",
-          "structural_state:hook_creation"
+          ThemeResolver.themeTag(PlanTheme.FlankInfrastructure),
+          ThemeResolver.subplanTag(PlanKind.HookCreation),
+          ThemeResolver.structuralStateTag("hook_creation")
         ),
         themeL1 = PlanTheme.FlankInfrastructure.id,
         subplanId = Some(PlanKind.HookCreation.id)
@@ -221,9 +221,9 @@ object PlanProposalEngine:
         viability = toViability(clampScore, "clamp may dissipate after major-piece trades"),
         refutation = Some("if clamp squares are no longer contested, transition plan"),
         evidenceSources = List(
-          s"theme:${PlanTheme.RestrictionProphylaxis.id}",
-          s"subplan:${PlanKind.ProphylaxisRestraint.id}",
-          "structural_state:color_complex_clamp"
+          ThemeResolver.themeTag(PlanTheme.RestrictionProphylaxis),
+          ThemeResolver.subplanTag(PlanKind.ProphylaxisRestraint),
+          ThemeResolver.structuralStateTag("color_complex_clamp")
         ),
         themeL1 = PlanTheme.RestrictionProphylaxis.id,
         subplanId = Some(PlanKind.ProphylaxisRestraint.id)
@@ -250,9 +250,9 @@ object PlanProposalEngine:
         viability = toViability(genericScore, "generic plan can lose race to forcing lines"),
         refutation = None,
         evidenceSources = List(
-          s"theme:${PlanTheme.PawnBreakPreparation.id}",
-          s"subplan:${PlanKind.CentralBreakTiming.id}",
-          "structural_state:generic_center_plan"
+          ThemeResolver.themeTag(PlanTheme.PawnBreakPreparation),
+          ThemeResolver.subplanTag(PlanKind.CentralBreakTiming),
+          ThemeResolver.structuralStateTag("generic_center_plan")
         ),
         themeL1 = PlanTheme.PawnBreakPreparation.id,
         subplanId = Some(PlanKind.CentralBreakTiming.id)
@@ -295,10 +295,10 @@ object PlanProposalEngine:
                 viability = toViability(score, "seed idea needs proof against best defense"),
                 refutation = Some("requires probe validation before being asserted"),
                 evidenceSources = List(
-                  s"latent_seed:${seed.id}",
+                  ThemeResolver.latentSeedTag(seed.id),
                   "proposal:plan_first",
-                  s"theme:${seedTheme.id}"
-                ) ++ seedSubplan.map(sp => s"subplan:${sp.id}"),
+                  ThemeResolver.themeTag(seedTheme)
+                ) ++ seedSubplan.map(ThemeResolver.subplanTag),
                 themeL1 = seedTheme.id,
                 subplanId = seedSubplan.map(_.id)
               )
@@ -394,7 +394,7 @@ object PlanProposalEngine:
       themeL1 = theme.id,
       subplanId = subplan.map(_.id),
       evidenceSources =
-        (h.evidenceSources ++ List(s"theme:${theme.id}") ++ subplan.map(sp => s"subplan:${sp.id}"))
+        (h.evidenceSources ++ List(ThemeResolver.themeTag(theme)) ++ subplan.map(ThemeResolver.subplanTag))
           .distinct
     )
 
@@ -416,7 +416,7 @@ object PlanProposalEngine:
             if idx == 0 then
               h.copy(
                 subplanId = Some(subplan.id),
-                evidenceSources = (h.evidenceSources :+ s"subplan:${subplan.id}").distinct
+                evidenceSources = (h.evidenceSources :+ ThemeResolver.subplanTag(subplan)).distinct
               )
             else
               val scaled = (h.score * (0.93 - (idx - 1) * 0.06)).max(0.15)
@@ -425,7 +425,7 @@ object PlanProposalEngine:
                 planName = s"${h.planName} (${subplan.id.replace("_", " ")})",
                 score = scaled,
                 viability = toViability(scaled, h.viability.risk),
-                evidenceSources = (h.evidenceSources :+ s"subplan:${subplan.id}" :+ "proposal:l2_variant").distinct
+                evidenceSources = (h.evidenceSources :+ ThemeResolver.subplanTag(subplan) :+ "proposal:l2_variant").distinct
               )
           }
       }

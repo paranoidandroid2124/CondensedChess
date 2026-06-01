@@ -1,0 +1,1003 @@
+﻿diff --git a/lila-docker/repos/lila/modules/commentaryCore/src/main/scala/lila/commentary/analysis/PlayerFacingTruthModePolicy.scala b/lila-docker/repos/lila/modules/commentaryCore/src/main/scala/lila/commentary/analysis/PlayerFacingTruthModePolicy.scala
+index 6674c37155..20af370f2e 100644
+--- a/lila-docker/repos/lila/modules/commentaryCore/src/main/scala/lila/commentary/analysis/PlayerFacingTruthModePolicy.scala
++++ b/lila-docker/repos/lila/modules/commentaryCore/src/main/scala/lila/commentary/analysis/PlayerFacingTruthModePolicy.scala
+@@ -4,7 +4,7 @@ package lila.commentary.analysis
+ import lila.commentary.analysis.claim.*
+ import lila.commentary.analysis.semantic.StrategicObservationIds.{ EvidenceRef, EvidenceSourceId, ProofFamilyId, ProofSourceId }
+ import lila.commentary.analysis.structure.{ CarlsbadTarget, PawnStructureTargets, WeaknessTargetProfile }
+-import _root_.chess.{ Bishop, Board, Color, King, Pawn, Queen, Square }
++import _root_.chess.{ Bishop, Pawn, Square }
+ import _root_.chess.format.Fen
+ import _root_.chess.variant.Standard
+ 
+@@ -77,7 +77,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
+   ): PlayerFacingTruthMode =
+     val surface = StrategyPackSurface.from(strategyPack)
+     val sacrificeClass = classifySacrifice(ctx, surface, truthContract)
+-    val forcingProof = forcingProofAvailable(ctx.engineEvidence.toList.flatMap(_.variations))
++    val forcingProof = forcingProofAvailable(ctx.fen, ctx.engineEvidence.toList.flatMap(_.variations))
+     val deltaEvidence = strategicDeltaEvidence(ctx, surface, truthContract)
+     val centralBreakTimingStrategic =
+       deltaEvidence.exists(delta =>
+@@ -198,7 +198,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
+       strategyPack: Option[StrategyPack] = None
+   ): Option[String] =
+     val sacrificeClass = classifySacrifice(ctx, StrategyPackSurface.from(strategyPack), truthContract)
+-    val forcingProof = forcingProofAvailable(ctx.engineEvidence.toList.flatMap(_.variations))
++    val forcingProof = forcingProofAvailable(ctx.fen, ctx.engineEvidence.toList.flatMap(_.variations))
+     truthContract.flatMap(contract => tacticalLeadFromContract(contract, forcingProof))
+       .orElse(
+         Option.when(sacrificeClass == PlayerFacingSacrificeClass.TacticalSacrifice) {
+@@ -255,6 +255,10 @@ private[commentary] object PlayerFacingTruthModePolicy:
+         result(PlayerFacingMoveDeltaClass.ExchangeForcing)
+       else if centralBreakTimingWitness.nonEmpty then
+         result(PlayerFacingMoveDeltaClass.PlanAdvance)
++      else if exactPressureIncreaseWitness(ctx, surface).nonEmpty then
++        result(PlayerFacingMoveDeltaClass.PressureIncrease)
++      else if colorComplexSqueezeWitness(ctx, surface).nonEmpty then
++        result(PlayerFacingMoveDeltaClass.CounterplayReduction)
+       else if hasMainPathSpecificResourceRemoval(ctx, preventedNow, bestLine) then
+         result(PlayerFacingMoveDeltaClass.ResourceRemoval)
+       else if hasMainPathCounterplayReduction(preventedNow) then
+@@ -282,7 +286,9 @@ private[commentary] object PlayerFacingTruthModePolicy:
+     delta.deltaClass match
+       case PlayerFacingMoveDeltaClass.ExchangeForcing =>
+         val exchangeHit = containsAny(low, List(" x", "trade", "exchange", "simplif", "capture"))
+-        exchangeHit && lineTouchesAnchor(low, squareAnchors, delta.anchorTerms)
++        replayBackedExchangeLineEvidence(delta) &&
++          exchangeHit &&
++          lineTouchesAnchor(low, squareAnchors, delta.anchorTerms)
+       case PlayerFacingMoveDeltaClass.ResourceRemoval =>
+         val removalHit = containsAny(low, List("prevent", "deny", "stop", "no longer", "can t", "cannot", "loses", "limit"))
+         removalHit && lineTouchesAnchor(low, squareAnchors, delta.anchorTerms)
+@@ -299,6 +305,29 @@ private[commentary] object PlayerFacingTruthModePolicy:
+         containsAny(low, List("advance", "prepare", "improve", "activate", "support", "coordinate")) &&
+           lineTouchesAnchor(low, squareAnchors, delta.anchorTerms)
+ 
++  private def replayBackedExchangeLineEvidence(
++      delta: PlayerFacingMoveDeltaEvidence
++  ): Boolean =
++    val packet = delta.packet
++    val proofFamily = normalize(packet.proofFamily)
++    val replayBackedFamilies =
++      Set(
++        BoundedFavorableSimplificationFamily,
++        IQPInducementFamily,
++        DefenderTradeFamily,
++        BadPieceLiquidationFamily,
++        QueenTradeShieldFamily,
++        TradeKeyDefenderFamily
++      ).map(normalize)
++    delta.deltaClass == PlayerFacingMoveDeltaClass.ExchangeForcing &&
++      replayBackedFamilies.contains(proofFamily) &&
++      packet.bestDefenseBranchKey.nonEmpty &&
++      (
++        packet.sameBranchState == PlayerFacingSameBranchState.Proven ||
++          packet.proofPathWitness.hasContinuation ||
++          packet.proofPathWitness.hasStructureTransition
++      )
++
+   private def isTactical(
+       truthContract: Option[DecisiveTruthContract],
+       sacrificeClass: PlayerFacingSacrificeClass,
+@@ -320,7 +349,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
+         .orElse(ctx.semantic.flatMap(_.compensation.map(_.investedMaterial)))
+         .filter(_ > 0)
+     if !looksLikeSacrifice(investedMaterial, truthContract) then PlayerFacingSacrificeClass.None
+-    else if variationShowsImmediateTacticalSettlement(ctx.engineEvidence.toList.flatMap(_.variations)) then
++    else if variationShowsImmediateTacticalSettlement(ctx.fen, ctx.engineEvidence.toList.flatMap(_.variations)) then
+       PlayerFacingSacrificeClass.TacticalSacrifice
+     else if hasStrategicSacrificeEvidence(ctx, surface, truthContract) then
+       PlayerFacingSacrificeClass.StrategicSacrifice
+@@ -391,32 +420,48 @@ private[commentary] object PlayerFacingTruthModePolicy:
+     moveLinkedCompensation && (semanticCompensation || verifiedCompensation)
+ 
+   private def variationShowsImmediateTacticalSettlement(
++      fen: String,
+       variations: List[VariationLine]
+   ): Boolean =
+     variations.headOption.exists { variation =>
+-      val window = variation.parsedMoves.take(4)
+-      val captureCount = window.count(_.isCapture)
+-      val checkCount = window.count(_.givesCheck)
+-      variation.mate.nonEmpty ||
+-      variation.tags.contains(VariationTag.Forced) ||
+-      (captureCount >= 2) ||
+-      (checkCount >= 2) ||
+-      (captureCount >= 1 && checkCount >= 1)
++      tacticalWindow(fen, variation).exists { window =>
++        variation.mate.nonEmpty ||
++        variation.tags.contains(VariationTag.Forced) ||
++        (window.captureCount >= 2) ||
++        (window.checkCount >= 2) ||
++        (window.captureCount >= 1 && window.checkCount >= 1)
++      }
+     }
+ 
+   private def forcingProofAvailable(
++      fen: String,
+       variations: List[VariationLine]
+   ): Boolean =
+     variations.headOption.exists { variation =>
+-      val window = variation.parsedMoves.take(4)
+-      val captureCount = window.count(_.isCapture)
+-      val checkCount = window.count(_.givesCheck)
+-      variation.mate.nonEmpty ||
+-      variation.tags.contains(VariationTag.Forced) ||
+-      (checkCount >= 2) ||
+-      (captureCount >= 1 && checkCount >= 1)
++      tacticalWindow(fen, variation).exists { window =>
++        variation.mate.nonEmpty ||
++        variation.tags.contains(VariationTag.Forced) ||
++        (window.checkCount >= 2) ||
++        (window.captureCount >= 1 && window.checkCount >= 1)
++      }
+     }
+ 
++  private final case class TacticalReplayWindow(captureCount: Int, checkCount: Int)
++
++  private def tacticalWindow(
++      fen: String,
++      variation: VariationLine
++  ): Option[TacticalReplayWindow] =
++    MoveReviewExchangeAnalyzer
++      .boundedReplay(fen, MoveReviewExchangeAnalyzer.normalizedLineMoves(variation), maxPlies = 4)
++      .filter(_.nonEmpty)
++      .map(steps =>
++        TacticalReplayWindow(
++          captureCount = steps.count(_.move.captures),
++          checkCount = steps.count(_.after.check.yes)
++        )
++      )
++
+   private def hasConcreteStrategicEvidence(
+       ctx: NarrativeContext,
+       surface: StrategyPackSurface.Snapshot,
+@@ -548,19 +593,16 @@ private[commentary] object PlayerFacingTruthModePolicy:
+       val resolvedThreats = decisionDelta.toList.flatMap(_.resolvedThreats.map(normalize))
+       val opportunities = decisionDelta.toList.flatMap(_.newOpportunities.map(normalize))
+       val planAdvancements = decisionDelta.toList.flatMap(_.planAdvancements.map(normalize))
+-      val exchangeMoveRef =
+-        moveRef.exists(ref =>
+-          ref.tacticalTheme.exists(theme => normalize(theme).contains("exchange")) ||
+-            normalize(ref.idea).contains("exchange") ||
+-            normalize(ref.idea).contains("trade") ||
+-            normalize(ref.idea).contains("simplif")
+-        )
+       val boundedSimplificationSignal =
+         boundedSimplificationLineAnchors(ctx, surface).nonEmpty
+       val iqpInducementSignal =
+         exactIqpInducementWitness(ctx).nonEmpty
+       val defenderTradeSignal =
+         defenderTradeWitness(ctx).nonEmpty
++      val badPieceLiquidationSignal =
++        badPieceLiquidationWitness(ctx).nonEmpty
++      val queenTradeShieldSignal =
++        hasQueenTradeShieldWitness(ctx)
+       def result(kind: PlayerFacingMoveDeltaClass): Option[PlayerFacingMoveDeltaEvidence] =
+         Some(
+           activeStrategicDeltaEvidence(
+@@ -586,13 +628,12 @@ private[commentary] object PlayerFacingTruthModePolicy:
+           lostMotifs.exists(text =>
+             containsAny(text, List("defend", "resource", "counterplay", "guard", "escape", "hold"))
+           )
+-      then result(PlayerFacingMoveDeltaClass.ResourceRemoval)
+-      else if exchangeMoveRef ||
+-          opportunities.exists(text => containsAny(text, List("exchange", "trade", "simplif", "capture"))) ||
+-          planAdvancements.exists(text => containsAny(text, List("exchange", "trade", "simplif"))) ||
+-          boundedSimplificationSignal ||
++      then result(PlayerFacingMoveDeltaClass.CounterplayReduction)
++      else if boundedSimplificationSignal ||
+           iqpInducementSignal ||
+-          defenderTradeSignal
++          defenderTradeSignal ||
++          badPieceLiquidationSignal ||
++          queenTradeShieldSignal
+       then result(PlayerFacingMoveDeltaClass.ExchangeForcing)
+       else if delta.flatMap(_.openFileCreated).exists(_.trim.nonEmpty) ||
+           opportunities.exists(text =>
+@@ -622,15 +663,9 @@ private[commentary] object PlayerFacingTruthModePolicy:
+         plan.preventedThreatType.exists(_.trim.nonEmpty) ||
+           plan.breakNeutralized.exists(_.trim.nonEmpty) ||
+           plan.deniedSquares.nonEmpty
+-      val alternativeEvidence =
+-        ctx.meta.flatMap(_.whyNot).exists(text => whyNotMentionsPreventedResource(text, plan)) ||
+-          ctx.candidates.drop(1).exists(candidate =>
+-            candidate.whyNot.exists(text => whyNotMentionsPreventedResource(text, plan))
+-          )
+       val lineEvidence =
+-        plan.citationLine.exists(line => citationShowsSpecificResourceLoss(line, plan)) ||
+-          bestLine.exists(line => variationShowsSpecificResourceLoss(line, plan))
+-      resourceIdentity && (alternativeEvidence || lineEvidence)
++        bestLine.exists(line => variationShowsSpecificResourceLoss(ctx, line, plan))
++      resourceIdentity && lineEvidence
+     }
+ 
+   private def hasMainPathExchangeForcing(
+@@ -646,7 +681,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
+     val defenderTradeWitnessed =
+       defenderTradeWitness(ctx).nonEmpty
+     val provingLineShowsExchange =
+-      bestLine.exists(line => variationShowsAnchoredExchange(line, squareAnchors))
++      bestLine.exists(line => variationShowsAnchoredExchange(ctx, line, squareAnchors))
+     val moveLinkedExchangeEvidence =
+       whyNotSources(ctx).exists(text => textShowsAnchoredExchange(text, squareAnchors)) ||
+         decisionDeltaExchangeEvidence(ctx).exists(text => textShowsAnchoredExchange(text, squareAnchors))
+@@ -1001,13 +1036,6 @@ private[commentary] object PlayerFacingTruthModePolicy:
+       structureTransitionTerms: List[String]
+   )
+ 
+-  private final case class DefenderTradeBranch(
+-      defenderSquare: String,
+-      exchangeSquare: String,
+-      targetSquare: String,
+-      lineMoves: List[String]
+-  )
+-
+   private final case class BadPieceLiquidationWitness(
+       badPieceSquare: String,
+       exchangeSquare: String,
+@@ -1016,12 +1044,6 @@ private[commentary] object PlayerFacingTruthModePolicy:
+       structureTransitionTerms: List[String]
+   )
+ 
+-  private final case class BadPieceLiquidationBranch(
+-      badPieceSquare: String,
+-      exchangeSquare: String,
+-      lineMoves: List[String]
+-  )
+-
+   private[commentary] final case class PositionProbeQuestionSeed(
+       questionFocusText: String,
+       why: String,
+@@ -1103,8 +1125,10 @@ private[commentary] object PlayerFacingTruthModePolicy:
+   ): PlayerFacingClaimPacket =
+     val ownerSeed = ownerSeedForMainPath(ctx, surface, deltaClass, preventedNow)
+     val anchorTerms = packetAnchorTerms(anchors, surface)
+-    val bestDefenseMove = bestDefenseMoveFromContext(ctx)
+-    val bestDefenseBranchKey = bestDefenseBranchKeyFromContext(ctx)
++    val bestDefenseBranchKey =
++      replayedOwnerBranchKey(ctx, ownerSeed).orElse(bestDefenseBranchKeyFromContext(ctx))
++    val bestDefenseMove =
++      bestDefenseBranchKey.flatMap(_ => bestDefenseMoveFromContext(ctx))
+     val continuationTerms =
+       continuationWitnessTermsForMainPath(
+         ctx = ctx,
+@@ -1388,7 +1412,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
+           structureTransitionTerms = targetComplexTerms
+         )
+       case PlayerFacingMoveDeltaClass.ExchangeForcing
+-          if likelyTradeKeyDefender(ctx, surface) || tradeOwnerTerms.nonEmpty || tradeTransitionTerms.nonEmpty =>
++          if likelyTradeKeyDefender(ctx, surface) =>
+         ClaimOwnerSeed(
+           proofSource = ExchangeForcingDeltaProofSource,
+           proofFamily = TradeKeyDefenderFamily,
+@@ -1403,7 +1427,10 @@ private[commentary] object PlayerFacingTruthModePolicy:
+             (owner == NeutralizeKeyBreakFamily && !preventedNow.exists(_.breakNeutralized.exists(_.trim.nonEmpty))) ||
+             (owner == CounterplayRestraintFamily && !hasNamedPreventedResource(preventedNow)) ||
+             (owner == "prophylaxis_restraint" && !hasNamedPreventedResource(preventedNow)) ||
+-            (owner == CentralBreakTimingWitness.ProofFamily && centralBreakTimingWitness.isEmpty)
++            (owner == CentralBreakTimingWitness.ProofFamily && centralBreakTimingWitness.isEmpty) ||
++            (owner == DefenderTradeFamily && defenderTradeWitness(ctx).isEmpty) ||
++            (owner == BadPieceLiquidationFamily && badPieceLiquidationWitness(ctx).isEmpty) ||
++            (owner == QueenTradeShieldFamily && !hasQueenTradeShieldWitness(ctx))
+           }
+         ClaimOwnerSeed(
+           proofSource = genericProofSource(deltaClass),
+@@ -1571,13 +1598,18 @@ private[commentary] object PlayerFacingTruthModePolicy:
+       tradeOwnerTerms: List[String],
+       targetComplexTerms: List[String]
+   ): Boolean =
+-    exactBoundedSimplificationExchangeSquare(ctx, surface).nonEmpty &&
++    val replayedExchange = exactBoundedSimplificationExchangeSquare(ctx).nonEmpty
++    val typedBoundedSupport =
++      planOwner.contains(BoundedFavorableSimplificationFamily) ||
++        surface.dominantIdea.exists(ideaIsBoundedFavorableSimplification) ||
++        surface.secondaryIdea.exists(ideaIsBoundedFavorableSimplification)
++    val softerExchangeSequence =
++      (planOwner.contains(TradeKeyDefenderFamily) ||
++        boundedExchangeSequenceSurfaceVisible(surface)) &&
++        exchangeSequenceNarrativeAnchor(ctx)
++    replayedExchange &&
+       tradeOwnerTerms.nonEmpty &&
+-      (
+-        planOwner.contains(BoundedFavorableSimplificationFamily) ||
+-          surface.dominantIdea.exists(ideaIsBoundedFavorableSimplification) ||
+-          surface.secondaryIdea.exists(ideaIsBoundedFavorableSimplification)
+-      ) &&
++      (typedBoundedSupport || softerExchangeSequence) &&
+       !boundedSimplificationTradeKeyDefenderRelabel(ctx, surface) &&
+       !boundedSimplificationBetterEndgameInflation(ctx, surface) &&
+       (targetComplexTerms.nonEmpty || tradeOwnerTerms.exists(_.matches(".*[a-h][1-8].*")))
+@@ -1815,12 +1847,27 @@ private[commentary] object PlayerFacingTruthModePolicy:
+   ): Boolean =
+     sources.exists(source => ideaHasSource(idea, source))
+ 
+-  private def boundedFavorableSimplificationIdeaVisible(
++  private def typedBoundedFavorableSimplificationIdeaVisible(
+       surface: StrategyPackSurface.Snapshot
+   ): Boolean =
+     surface.dominantIdea.exists(ideaIsBoundedFavorableSimplification) ||
+       surface.secondaryIdea.exists(ideaIsBoundedFavorableSimplification)
+ 
++  private def boundedExchangeSequenceSurfaceVisible(
++      surface: StrategyPackSurface.Snapshot
++  ): Boolean =
++    surface.topMoveRef.exists(ref =>
++      containsAny(normalize(ref.idea), List("trade", "exchange", "simplif", "defender")) ||
++        ref.tacticalTheme.exists(theme => containsAny(normalize(theme), List("trade", "exchange", "simplif")))
++    )
++
++  private def exchangeSequenceNarrativeAnchor(ctx: NarrativeContext): Boolean =
++    ctx.decision.exists { decision =>
++      decision.focalPoint.nonEmpty ||
++        (decision.delta.newOpportunities ++ decision.delta.planAdvancements)
++          .exists(text => containsAny(normalize(text), List("trade", "exchange", "simplif", "defender")))
++    }
++
+   private def ideaIsBoundedFavorableSimplification(
+       idea: StrategyIdeaSignal
+   ): Boolean =
+@@ -1955,35 +2002,10 @@ private[commentary] object PlayerFacingTruthModePolicy:
+     queenTradeShieldLineMoves(ctx).nonEmpty
+ 
+   private def queenTradeShieldLineMoves(ctx: NarrativeContext): List[String] =
+-    Fen.read(Standard, Fen.Full(ctx.fen))
+-      .flatMap(position => queenTradeShieldLineMoves(position.board, position.color, normalizedTopUciMoves(ctx)))
++    boundedTopReplay(ctx, maxPlies = 8)
++      .flatMap(MoveReviewExchangeAnalyzer.queenTradeShieldLine)
+       .getOrElse(Nil)
+ 
+-  private def queenTradeShieldLineMoves(
+-      board: Board,
+-      movingSide: Color,
+-      topMoves: List[String]
+-  ): Option[List[String]] =
+-    topMoves.zipWithIndex.flatMap { (move, index) =>
+-      val sameSideMove = index % 2 == 0
+-      val reply = topMoves.lift(index + 1)
+-      for
+-        queenFrom <- squareFromKey(squareKey(move, from = true))
+-        queenExchange <- squareFromKey(squareKey(move, from = false))
+-        if sameSideMove
+-        movingQueen <- board.pieceAt(queenFrom)
+-        capturedQueen <- board.pieceAt(queenExchange)
+-        if movingQueen.color == movingSide && movingQueen.role == Queen
+-        if capturedQueen.color != movingSide && capturedQueen.role == Queen
+-        replyMove <- reply
+-        kingFrom <- squareFromKey(squareKey(replyMove, from = true))
+-        replyDest <- squareFromKey(squareKey(replyMove, from = false))
+-        recapturingKing <- board.pieceAt(kingFrom)
+-        if recapturingKing.color != movingSide && recapturingKing.role == King
+-        if replyDest == queenExchange
+-      yield topMoves.take(index + 2)
+-    }.headOption
+-
+   private def exactSliceContinuationTerms(
+       ctx: NarrativeContext,
+       ownerSeed: ClaimOwnerSeed
+@@ -1994,9 +2016,9 @@ private[commentary] object PlayerFacingTruthModePolicy:
+           .map(normalize)
+           .filter(_.matches("[a-h][1-8]"))
+           .distinct
+-      ctx.engineEvidence.toList.flatMap(_.variations).headOption.toList.flatMap { line =>
++      boundedTopReplay(ctx, maxPlies = 4).toList.flatMap { replay =>
+         val continuationMoves =
+-          line.moves.drop(2).take(2).flatMap(clean).map(normalize)
++          MoveReviewExchangeAnalyzer.replayUcis(replay, fromPly = 2, maxPlies = 2).flatMap(clean).map(normalize)
+         Option.when(targetSquares.nonEmpty && continuationMoves.nonEmpty) {
+           targetSquares.flatMap(square =>
+             List(
+@@ -2086,7 +2108,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
+           continuationTerms.nonEmpty
+       then
+         PlayerFacingSameBranchState.Proven
+-      else if ownerSeed.proofFamily == DefenderTradeFamily &&
++      else if ownerSeed.proofSource == DefenderTradeProofSource &&
++          ownerSeed.proofFamily == DefenderTradeFamily &&
+           concreteOwnerSeed &&
+           defenderTradeContinuation.nonEmpty &&
+           continuationTerms.nonEmpty
+@@ -2144,7 +2167,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
+           claimGate.stabilityGrade != PlayerFacingClaimStabilityGrade.Unstable
+       then
+         PlayerFacingClaimPersistence.Stable
+-      else if defenderTradeContinuationTerms(ctx, ownerSeed).nonEmpty &&
++      else if ownerSeed.proofSource == DefenderTradeProofSource &&
++          defenderTradeContinuationTerms(ctx, ownerSeed).nonEmpty &&
+           ownerSeed.proofFamily == DefenderTradeFamily &&
+           claimGate.stabilityGrade != PlayerFacingClaimStabilityGrade.Unstable
+       then
+@@ -2333,31 +2357,34 @@ private[commentary] object PlayerFacingTruthModePolicy:
+       case PlayerFacingClaimFallbackMode.Suppress   => PlayerFacingPacketScope.BackendOnly
+ 
+   private def bestDefenseMoveFromContext(ctx: NarrativeContext): Option[String] =
+-    bestDefenseMoveFromVariations(ctx.engineEvidence.toList.flatMap(_.variations))
+-
+-  private def bestDefenseBranchKeyFromContext(ctx: NarrativeContext): Option[String] =
+-    bestDefenseBranchKeyFromVariations(ctx.engineEvidence.toList.flatMap(_.variations))
++    boundedTopReplay(ctx, maxPlies = 2)
++      .flatMap(_.lift(1))
++      .map(_.move.toSanStr.toString)
++      .flatMap(clean)
+ 
+-  private def bestDefenseMoveFromVariations(
+-      variations: List[VariationLine]
++  private def replayedOwnerBranchKey(
++      ctx: NarrativeContext,
++      ownerSeed: ClaimOwnerSeed
+   ): Option[String] =
+-    variations.headOption.flatMap { line =>
+-      line.parsedMoves.lift(1).flatMap(move => clean(move.san))
+-        .orElse(line.moves.lift(1).flatMap(clean))
+-    }
++    val lineMoves =
++      if ownerSeed.proofSource == DefenderTradeProofSource && ownerSeed.proofFamily == DefenderTradeFamily then
++        defenderTradeWitness(ctx).map(_.lineMoves)
++      else if ownerSeed.proofSource == BadPieceLiquidationProofSource && ownerSeed.proofFamily == BadPieceLiquidationFamily then
++        badPieceLiquidationWitness(ctx).map(_.lineMoves)
++      else if ownerSeed.proofSource == QueenTradeShieldProofSource && ownerSeed.proofFamily == QueenTradeShieldFamily then
++        Some(queenTradeShieldLineMoves(ctx))
++      else if ownerSeed.proofFamily == BoundedFavorableSimplificationFamily then
++        boundedTopReplay(ctx, maxPlies = 2).map(_.map(_.uci))
++      else None
++    lineMoves.flatMap(branchKeyFromMoves)
+ 
+-  private def bestDefenseBranchKeyFromVariations(
+-      variations: List[VariationLine]
+-  ): Option[String] =
+-    variations.headOption.flatMap(line =>
+-      branchKeyFromMoves(line.moves)
+-        .orElse(branchKeyFromMoves(line.parsedMoves.flatMap(move => clean(move.uci))))
+-    )
++  private def bestDefenseBranchKeyFromContext(ctx: NarrativeContext): Option[String] =
++    boundedTopReplay(ctx, maxPlies = 2).flatMap(MoveReviewExchangeAnalyzer.branchKey(_))
+ 
+   private def branchKeyFromMoves(
+       moves: List[String]
+   ): Option[String] =
+-    moves.take(2).flatMap(clean) match
++    moves.take(2).flatMap(clean).map(NarrativeUtils.normalizeUciMove).filter(MoveReviewExchangeAnalyzer.isUciMove) match
+       case first :: second :: Nil => Some(s"${normalize(first)}|${normalize(second)}")
+       case _                      => None
+ 
+@@ -2376,17 +2403,11 @@ private[commentary] object PlayerFacingTruthModePolicy:
+       ctx: NarrativeContext,
+       surface: StrategyPackSurface.Snapshot
+   ): Boolean =
+-    val evidenceText =
+-      ctx.decision.toList.flatMap(decision =>
+-        decision.delta.newOpportunities ++ decision.delta.planAdvancements ++ decision.delta.resolvedThreats
+-      ).map(normalize)
+     StrategicNarrativePlanSupport.evidenceBackedMainPlans(ctx).exists(plan =>
+-      plan.subplanId.contains(PlanTaxonomy.PlanKind.DefenderTrade.id)
++      plan.subplanId.exists(id => normalize(id) == normalize(PlanTaxonomy.PlanKind.DefenderTrade.id))
+     ) ||
+-      evidenceText.exists(text => containsAny(text, List("defender", "guard", "cover", "protector"))) ||
+-      surface.topMoveRef.exists(ref =>
+-        containsAny(normalize(ref.idea), List("defender", "guard", "cover", "protector"))
+-      )
++      surface.dominantIdea.exists(ideaHasSource(_, EvidenceSourceId.RemovingTheDefender)) ||
++      surface.secondaryIdea.exists(ideaHasSource(_, EvidenceSourceId.RemovingTheDefender))
+ 
+   private def genericProofSource(deltaClass: PlayerFacingMoveDeltaClass): String =
+     deltaClass match
+@@ -2444,7 +2465,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
+         sameBranchState == PlayerFacingSameBranchState.Proven &&
+         persistence == PlayerFacingClaimPersistence.Stable
+     else if ownerSeed.proofFamily == DefenderTradeFamily then
+-      bestDefenseBranchKey.nonEmpty &&
++      ownerSeed.proofSource == DefenderTradeProofSource &&
++        bestDefenseBranchKey.nonEmpty &&
+         sameBranchState == PlayerFacingSameBranchState.Proven &&
+         persistence == PlayerFacingClaimPersistence.Stable
+     else if ownerSeed.proofFamily == BadPieceLiquidationFamily then
+@@ -2506,11 +2528,12 @@ private[commentary] object PlayerFacingTruthModePolicy:
+       ctx: NarrativeContext,
+       surface: StrategyPackSurface.Snapshot
+   ): Boolean =
+-    leadingProofFamily(ctx).contains(DefenderTradeFamily) ||
+-      secondaryProofFamily(ctx).contains(DefenderTradeFamily) ||
+-      surface.dominantIdea.exists(ideaHasSource(_, EvidenceSourceId.RemovingTheDefender)) ||
+-      surface.secondaryIdea.exists(ideaHasSource(_, EvidenceSourceId.RemovingTheDefender)) ||
+-      likelyTradeKeyDefender(ctx, surface)
++    exactBoundedSimplificationExchangeSquare(ctx).isEmpty &&
++      (
++        leadingProofFamily(ctx).contains(DefenderTradeFamily) ||
++          secondaryProofFamily(ctx).contains(DefenderTradeFamily) ||
++          likelyTradeKeyDefender(ctx, surface)
++      )
+ 
+   private def boundedSimplificationRouteBindRelabel(
+       rivalAssessment: RivalAssessment
+@@ -2565,14 +2588,17 @@ private[commentary] object PlayerFacingTruthModePolicy:
+       ctx: NarrativeContext,
+       surface: StrategyPackSurface.Snapshot
+   ): Option[String] =
+-    Option.when(boundedFavorableSimplificationIdeaVisible(surface)) {
++    Option.when(
++      typedBoundedFavorableSimplificationIdeaVisible(surface) ||
++        (boundedExchangeSequenceSurfaceVisible(surface) && exchangeSequenceNarrativeAnchor(ctx))
++    ) {
+       exactBoundedSimplificationExchangeSquare(ctx)
+     }.flatten
+ 
+   private def exactBoundedSimplificationExchangeSquare(
+       ctx: NarrativeContext
+   ): Option[String] =
+-    ctx.engineEvidence.toList.flatMap(_.variations).headOption.flatMap(immediateExchangeContinuationSquare)
++    boundedTopReplay(ctx, maxPlies = 2).flatMap(MoveReviewExchangeAnalyzer.immediateExchangeSquare)
+ 
+   private val IqpInducementReleasedClaim =
+     "This sequence leaves an isolated pawn as the local target."
+@@ -2613,13 +2639,10 @@ private[commentary] object PlayerFacingTruthModePolicy:
+   private def defenderTradeWitness(
+       ctx: NarrativeContext
+   ): Option[DefenderTradeWitness] =
+-    val topMoves = normalizedTopUciMoves(ctx)
+-    val played = ctx.playedMove.map(NarrativeUtils.normalizeUciMove).filter(_.nonEmpty).orElse(topMoves.headOption)
++    val played = reviewedPlayedMove(ctx)
+     val branch =
+-      Fen.read(Standard, Fen.Full(ctx.fen)).flatMap(position =>
+-        played.flatMap(playedMove =>
+-          defenderTradeBranch(ctx, position.board, position.color, playedMove, topMoves)
+-        )
++      boundedTopReplayPrefix(ctx, minPlies = 3, maxPlies = 4).flatMap(replay =>
++        played.flatMap(playedMove => defenderTradeBranch(ctx, replay, playedMove))
+       )
+     branch.map { branch =>
+       DefenderTradeWitness(
+@@ -2651,60 +2674,27 @@ private[commentary] object PlayerFacingTruthModePolicy:
+ 
+   private def defenderTradeBranch(
+       ctx: NarrativeContext,
+-      board: Board,
+-      movingSide: Color,
+-      playedMove: String,
+-      topMoves: List[String]
+-  ): Option[DefenderTradeBranch] =
+-    val normalizedPlayed = NarrativeUtils.normalizeUciMove(playedMove)
++      replay: List[MoveReviewExchangeAnalyzer.BoundedReplayStep],
++      playedMove: String
++  ): Option[MoveReviewExchangeAnalyzer.DefenderTradeBranch] =
+     Option.when(defenderTradeFamilyVisible(ctx)) {
+-      for
+-        firstMove <- topMoves.headOption.filter(_ == normalizedPlayed)
+-        defenderMove <- topMoves.lift(1)
+-        recaptureMove <- topMoves.lift(2)
+-        exchangeSquare <- squareFromKey(squareKey(firstMove, from = false))
+-        defenderSquare <- squareFromKey(squareKey(defenderMove, from = true))
+-        defenderDest <- squareFromKey(squareKey(defenderMove, from = false))
+-        recaptureDest <- squareFromKey(squareKey(recaptureMove, from = false))
+-        defender <- board.pieceAt(defenderSquare)
+-        if defender.color != movingSide
+-        if defenderDest == exchangeSquare && recaptureDest == exchangeSquare
+-      yield DefenderTradeBranch(
+-        defenderSquare = defenderSquare.key,
+-        exchangeSquare = exchangeSquare.key,
+-        targetSquare = defenderTradeTargetSquare(ctx).getOrElse(exchangeSquare.key),
+-        lineMoves = topMoves.take(3)
++      val explicitTargets =
++        ctx.decision.flatMap(_.focalPoint).collect { case TargetSquare(key) => key }.toList
++      MoveReviewExchangeAnalyzer.defenderTradeBranch(
++        replay = replay,
++        playedMove = playedMove,
++        explicitTargets = explicitTargets
+       )
+     }.flatten
+ 
+   private def defenderTradeFamilyVisible(ctx: NarrativeContext): Boolean =
+     leadingProofFamily(ctx).contains(DefenderTradeFamily) ||
+       ctx.strategicPlanEvidence.probeBackedMainPlans.exists(plan =>
+-        plan.subplanId.exists(id => normalize(id) == PlanTaxonomy.PlanKind.DefenderTrade.id)
++        plan.subplanId.exists(id => normalize(id) == normalize(PlanTaxonomy.PlanKind.DefenderTrade.id))
+       ) ||
+       ctx.mainStrategicPlans.exists(plan =>
+-        plan.subplanId.exists(id => normalize(id) == PlanTaxonomy.PlanKind.DefenderTrade.id)
+-      ) ||
+-      defenderTradeCarrierTextVisible(ctx)
+-
+-  private def defenderTradeCarrierTextVisible(ctx: NarrativeContext): Boolean =
+-    val texts =
+-      ctx.decision.toList.flatMap(decision =>
+-        List(decision.logicSummary) ++
+-          decision.delta.newOpportunities ++
+-          decision.delta.planAdvancements
+-      ) ++
+-        ctx.mainStrategicPlans.flatMap(plan =>
+-          List(plan.planName) ++ plan.executionSteps ++ plan.preconditions ++ plan.evidenceSources
+-        )
+-    texts.exists { text =>
+-      val normalized = normalize(text)
+-      containsAny(normalized, List("defender", "guard")) &&
+-        containsAny(normalized, List("exchange", "trade", "remove"))
+-    }
+-
+-  private def defenderTradeTargetSquare(ctx: NarrativeContext): Option[String] =
+-    ctx.decision.flatMap(_.focalPoint).collect { case TargetSquare(key) => key }
++        plan.subplanId.exists(id => normalize(id) == normalize(PlanTaxonomy.PlanKind.DefenderTrade.id))
++      )
+ 
+   private def defenderTradeAnchorTerms(ctx: NarrativeContext): List[String] =
+     defenderTradeWitness(ctx).toList.flatMap { witness =>
+@@ -2749,13 +2739,10 @@ private[commentary] object PlayerFacingTruthModePolicy:
+   private def badPieceLiquidationWitness(
+       ctx: NarrativeContext
+   ): Option[BadPieceLiquidationWitness] =
+-    val topMoves = normalizedTopUciMoves(ctx)
+-    val played = ctx.playedMove.map(NarrativeUtils.normalizeUciMove).filter(_.nonEmpty).orElse(topMoves.headOption)
++    val played = reviewedPlayedMove(ctx)
+     val branch =
+-      Fen.read(Standard, Fen.Full(ctx.fen)).flatMap(position =>
+-        played.flatMap(playedMove =>
+-          badPieceLiquidationBranch(position.board, position.color, playedMove, topMoves)
+-        )
++      boundedTopReplayPrefix(ctx, minPlies = 2, maxPlies = 6).flatMap(replay =>
++        played.flatMap(playedMove => badPieceLiquidationBranch(replay, playedMove))
+       )
+     branch.map { branch =>
+       BadPieceLiquidationWitness(
+@@ -2783,80 +2770,34 @@ private[commentary] object PlayerFacingTruthModePolicy:
+     }
+ 
+   private def normalizedTopUciMoves(ctx: NarrativeContext): List[String] =
+-    ctx.engineEvidence.toList.flatMap(_.variations).headOption.toList
+-      .flatMap(line =>
+-        val parsedUciMoves =
+-          line.parsedMoves
+-            .flatMap(move => clean(move.uci))
+-            .map(NarrativeUtils.normalizeUciMove)
+-            .filter(isUciMove)
+-        if parsedUciMoves.nonEmpty then parsedUciMoves
+-        else line.moves.map(NarrativeUtils.normalizeUciMove).filter(isUciMove)
+-      )
++    MoveReviewExchangeAnalyzer.normalizedTopUciMoves(ctx.engineEvidence.toList.flatMap(_.variations))
+ 
+-  private def isUciMove(move: String): Boolean =
+-    move.matches("""[a-h][1-8][a-h][1-8][qrbn]?""")
++  private def reviewedPlayedMove(ctx: NarrativeContext): Option[String] =
++    ctx.playedMove
++      .map(NarrativeUtils.normalizeUciMove)
++      .filter(MoveReviewExchangeAnalyzer.isUciMove)
+ 
+-  private def squareKey(move: String, from: Boolean): String =
+-    if from then move.take(2) else move.slice(2, 4)
++  private def boundedTopReplay(
++      ctx: NarrativeContext,
++      maxPlies: Int
++  ): Option[List[MoveReviewExchangeAnalyzer.BoundedReplayStep]] =
++    MoveReviewExchangeAnalyzer.boundedReplay(ctx.fen, normalizedTopUciMoves(ctx), maxPlies)
++
++  private def boundedTopReplayPrefix(
++      ctx: NarrativeContext,
++      minPlies: Int,
++      maxPlies: Int
++  ): Option[List[MoveReviewExchangeAnalyzer.BoundedReplayStep]] =
++    MoveReviewExchangeAnalyzer.boundedReplayPrefix(ctx.fen, normalizedTopUciMoves(ctx), minPlies, maxPlies)
+ 
+   private def squareFromKey(key: String): Option[Square] =
+-    Square.fromKey(Option(key).map(_.trim.toLowerCase).getOrElse(""))
++    MoveReviewExchangeAnalyzer.squareFromKey(key)
+ 
+   private def badPieceLiquidationBranch(
+-      board: Board,
+-      movingSide: Color,
+-      playedMove: String,
+-      topMoves: List[String]
+-  ): Option[BadPieceLiquidationBranch] =
+-    val normalizedPlayed = NarrativeUtils.normalizeUciMove(playedMove)
+-    for
+-      firstMove <- topMoves.headOption.filter(_ == normalizedPlayed)
+-      badPieceSquareKey = squareKey(firstMove, from = true)
+-      firstDestKey = squareKey(firstMove, from = false)
+-      badPieceSquare <- squareFromKey(badPieceSquareKey)
+-      firstDest <- squareFromKey(firstDestKey)
+-      piece <- board.pieceAt(badPieceSquare)
+-      if piece.color == movingSide && piece.role == Bishop
+-      if isBadBishopOnCurrentBoard(board, movingSide, badPieceSquare)
+-      branch <- sameBranchBadPieceLiquidation(board, movingSide, firstDest, topMoves)
+-    yield BadPieceLiquidationBranch(
+-      badPieceSquare = badPieceSquare.key,
+-      exchangeSquare = branch.exchangeSquare,
+-      lineMoves = branch.lineMoves
+-    )
+-
+-  private def sameBranchBadPieceLiquidation(
+-      board: Board,
+-      movingSide: Color,
+-      firstDest: Square,
+-      topMoves: List[String]
+-  ): Option[BadPieceLiquidationBranch] =
+-    topMoves.zipWithIndex.drop(2).flatMap { (move, index) =>
+-      val sameSideMove = index % 2 == 0
+-      val recapture = topMoves.lift(index + 1)
+-      for
+-        from <- squareFromKey(squareKey(move, from = true))
+-        exchange <- squareFromKey(squareKey(move, from = false))
+-        if sameSideMove && from == firstDest
+-        capturedBefore <- board.pieceAt(exchange)
+-        if capturedBefore.color != movingSide
+-        reply <- recapture
+-        replyDest <- squareFromKey(squareKey(reply, from = false))
+-        if replyDest == exchange
+-      yield BadPieceLiquidationBranch(
+-        badPieceSquare = firstDest.key,
+-        exchangeSquare = exchange.key,
+-        lineMoves = topMoves.take(index + 2)
+-      )
+-    }.headOption
+-
+-  private def isBadBishopOnCurrentBoard(board: Board, color: Color, square: Square): Boolean =
+-    board.pieceAt(square).exists(piece => piece.color == color && piece.role == Bishop) &&
+-      board
+-        .byPiece(color, Pawn)
+-        .squares
+-        .count(pawn => Set("c", "d", "e", "f").contains(pawn.key.take(1)) && pawn.isLight == square.isLight) >= 2
++      replay: List[MoveReviewExchangeAnalyzer.BoundedReplayStep],
++      playedMove: String
++  ): Option[MoveReviewExchangeAnalyzer.BadPieceLiquidationBranch] =
++    MoveReviewExchangeAnalyzer.badPieceLiquidationBranch(replay, playedMove)
+ 
+   private def badPieceLiquidationAnchorTerms(ctx: NarrativeContext): List[String] =
+     badPieceLiquidationWitness(ctx).toList.flatMap { witness =>
+@@ -2904,18 +2845,13 @@ private[commentary] object PlayerFacingTruthModePolicy:
+       ctx: NarrativeContext
+   ): (Option[IqpInducementWitness], List[String]) =
+     val variations = ctx.engineEvidence.toList.flatMap(_.variations)
+-    if iqpInducementTacticalFirst(variations) then
++    if iqpInducementTacticalFirst(ctx.fen, variations) then
+       (None, List("iqp:tactical_first"))
+     else
+       val beforePosition = Fen.read(Standard, Fen.Full(ctx.fen))
+-      val topMoves =
+-        variations.headOption.toList
+-          .flatMap(_.moves)
+-          .map(NarrativeUtils.normalizeUciMove)
+-          .filter(_.matches("""[a-h][1-8][a-h][1-8][qrbn]?"""))
++      val topMoves = MoveReviewExchangeAnalyzer.normalizedTopUciMoves(variations)
+       val played =
+-        ctx.playedMove.map(NarrativeUtils.normalizeUciMove).filter(_.nonEmpty)
+-          .orElse(topMoves.headOption)
++        reviewedPlayedMove(ctx)
+       (beforePosition, played) match
+         case (Some(before), Some(playedMove)) =>
+           val movingSide = before.color
+@@ -2932,7 +2868,10 @@ private[commentary] object PlayerFacingTruthModePolicy:
+               .distinct
+           val evaluated =
+             candidatePrefixes.flatMap { prefix =>
+-              Fen.read(Standard, Fen.Full(NarrativeUtils.uciListToFen(ctx.fen, prefix))).toList.map(after => prefix -> after)
++              MoveReviewExchangeAnalyzer
++                .boundedReplay(ctx.fen, prefix, maxPlies = prefix.length)
++                .flatMap(_.lastOption.map(_.after))
++                .map(after => prefix -> after)
+             }
+           val induced =
+             evaluated.flatMap { case (prefix, after) =>
+@@ -3006,16 +2945,16 @@ private[commentary] object PlayerFacingTruthModePolicy:
+     }
+ 
+   private def iqpInducementTacticalFirst(
++      fen: String,
+       variations: List[VariationLine]
+   ): Boolean =
+     variations.headOption.exists { variation =>
+-      val window = variation.parsedMoves.take(4)
+-      val captureCount = window.count(_.isCapture)
+-      val checkCount = window.count(_.givesCheck)
+-      variation.mate.nonEmpty ||
+-      variation.tags.contains(VariationTag.Forced) ||
+-      checkCount >= 2 ||
+-      (captureCount >= 1 && checkCount >= 1)
++      tacticalWindow(fen, variation).exists { window =>
++        variation.mate.nonEmpty ||
++        variation.tags.contains(VariationTag.Forced) ||
++        window.checkCount >= 2 ||
++        (window.captureCount >= 1 && window.checkCount >= 1)
++      }
+     }
+ 
+   private def exactPressureIncreaseWitness(
+@@ -3521,11 +3460,12 @@ private[commentary] object PlayerFacingTruthModePolicy:
+       idea.evidenceRefs.exists(ref =>
+         containsAny(normalize(ref), List("weak_complex", "enemy_weak_square", "target_fixing"))
+       ) &&
+-      exactTargetFixationPosition(ctx).exists { case (board, sideToMove) =>
++      exactTargetFixationPosition(ctx).exists { _ =>
+         OpeningRouteCatalog.default.routes.exists(route =>
+           focusSquares.contains(route.targetSquare) &&
+-            OpeningRouteTargetEvidence.checkRouteBoard(board, sideToMove, route) &&
+-            KnightRouteEvidence.fromContext(ctx, route).nonEmpty
++            KnightRouteEvidence
++              .fromContext(ctx, route)
++              .exists(OpeningRouteTargetEvidence.checkRouteEvidence)
+         )
+       }
+ 
+@@ -3533,13 +3473,14 @@ private[commentary] object PlayerFacingTruthModePolicy:
+       ctx: NarrativeContext,
+       surface: StrategyPackSurface.Snapshot
+   ): Option[ExactSliceWitness] =
+-    exactTargetFixationPosition(ctx).flatMap { case (board, sideToMove) =>
++    val allowedTargets = routeWitnessTargetAllowlist(ctx, surface)
++    exactTargetFixationPosition(ctx).flatMap { _ =>
+       OpeningRouteCatalog.default.routes.iterator
++        .filter(route => allowedTargets.isEmpty || allowedTargets.contains(normalize(route.targetSquare)))
+         .flatMap(route =>
+           KnightRouteEvidence
+             .fromContext(ctx, route)
+-            .filter(_ => OpeningRouteTargetEvidence.checkRouteBoard(board, sideToMove, route))
+-            .filter(_ => routeTargetVisible(ctx, surface, route))
++            .filter(OpeningRouteTargetEvidence.checkRouteEvidence)
+             .map(evidence =>
+               ExactSliceWitness(
+                 descriptor = ExactTargetFixationDescriptor,
+@@ -3554,29 +3495,22 @@ private[commentary] object PlayerFacingTruthModePolicy:
+         .headOption
+     }
+ 
+-  private def routeTargetVisible(
++  private def routeWitnessTargetAllowlist(
+       ctx: NarrativeContext,
+-      surface: StrategyPackSurface.Snapshot,
+-      route: OpeningRouteCatalog.Route
+-  ): Boolean =
+-    val target = route.targetSquare
+-    val targetVisible =
+-      ctx.decision.flatMap(_.focalPoint).exists(square => normalize(square.label) == target) ||
+-        surface.allIdeas.exists(idea =>
+-          idea.kind == StrategicIdeaKind.TargetFixing &&
+-            (idea.focusSquares.map(normalize).contains(target) ||
+-              idea.evidenceRefs.exists(ref => normalize(ref).contains(target)))
+-        ) ||
+-        surface.allDirectionalTargets.exists(targetInfo => normalize(targetInfo.targetSquare) == target) ||
+-        surface.allRoutes.exists(routeInfo => routeInfo.route.map(normalize).contains(route.to)) ||
+-        surface.evidenceHints.exists(hint => normalize(hint).contains(target))
+-    val routeVisible =
+-      surface.evidenceHints.exists(hint => normalize(hint).contains(route.routeId)) ||
+-        surface.allRoutes.exists(routeInfo =>
+-          routeInfo.route.map(normalize) == route.path ||
+-            routeInfo.evidence.exists(evidence => normalize(evidence).contains(route.routeId))
+-        )
+-    targetVisible || routeVisible
++      surface: StrategyPackSurface.Snapshot
++  ): Set[String] =
++    val boardWeakPawnTargets =
++      exactTargetFixationPosition(ctx).toList.flatMap { case (board, sideToMove) =>
++        PawnStructureTargets.weakPawnTargetsForPressure(board, sideToMove)
++      }
++    (
++      ctx.decision.toList.flatMap(_.focalPoint.collect { case TargetSquare(key) => key }) ++
++        surface.allDirectionalTargets.map(_.targetSquare) ++
++        surface.allIdeas.flatMap(_.focusSquares) ++
++        surface.allMoveRefs.map(_.target) ++
++        ctx.semantic.toList.flatMap(_.structuralWeaknesses.flatMap(_.squares)) ++
++        boardWeakPawnTargets
++    ).map(normalize).filter(_.matches("[a-h][1-8]")).toSet
+ 
+   private def exactTargetFixationPosition(
+       ctx: NarrativeContext
+@@ -3828,24 +3762,6 @@ private[commentary] object PlayerFacingTruthModePolicy:
+       )
+     }
+ 
+-  private def immediateExchangeContinuationSquare(
+-      variation: VariationLine
+-  ): Option[String] =
+-    variation.parsedMoves.take(2) match
+-      case first :: second :: Nil
+-          if first.isCapture &&
+-            second.isCapture &&
+-            normalize(first.to) == normalize(second.to) =>
+-        Some(normalize(first.to))
+-      case _ =>
+-        variation.moves.take(2).flatMap(clean) match
+-          case first :: second :: Nil
+-              if first.length >= 4 &&
+-                second.length >= 4 &&
+-                normalize(first.slice(2, 4)) == normalize(second.slice(2, 4)) =>
+-            Some(normalize(first.slice(2, 4)))
+-          case _ => None
+-
+   private def hasNamedPreventedResource(
+       preventedNow: List[PreventedPlanInfo]
+   ): Boolean =
+@@ -4366,68 +4282,60 @@ private[commentary] object PlayerFacingTruthModePolicy:
+     val low = normalize(text)
+     delta.deltaClass match
+       case PlayerFacingMoveDeltaClass.ExchangeForcing =>
+-        text.contains("x") || containsAny(low, List("trade", "exchange", "simplif"))
++        replayBackedExchangeLineEvidence(delta) &&
++          (text.contains("x") || containsAny(low, List("trade", "exchange", "simplif")))
+       case PlayerFacingMoveDeltaClass.CounterplayReduction | PlayerFacingMoveDeltaClass.ResourceRemoval =>
+         delta.anchorTerms.exists(anchor => anchor.length >= 2 && low.contains(anchor))
+       case _ =>
+         false
+ 
+   private def variationShowsAnchoredExchange(
++      ctx: NarrativeContext,
+       variation: VariationLine,
+       squareAnchors: List[String]
+   ): Boolean =
+-    val window = variation.parsedMoves.take(4)
+-    val captures = window.filter(_.isCapture)
++    val captures =
++      MoveReviewExchangeAnalyzer
++        .boundedReplay(ctx.fen, MoveReviewExchangeAnalyzer.normalizedLineMoves(variation), maxPlies = 4)
++        .getOrElse(Nil)
++        .filter(_.move.captures)
+     captures.nonEmpty && (
+       squareAnchors.isEmpty ||
+-        captures.exists(move =>
+-          squareAnchors.contains(normalize(move.to)) || squareAnchors.contains(normalize(move.from))
++        captures.exists(step =>
++          squareAnchors.contains(step.move.dest.key) || squareAnchors.contains(step.move.orig.key)
+         )
+     )
+ 
+   private def variationShowsSpecificResourceLoss(
++      ctx: NarrativeContext,
+       variation: VariationLine,
+       plan: PreventedPlanInfo
+   ): Boolean =
+-    val lowMoves = variation.moves.take(4).map(normalize)
++    val replay =
++      MoveReviewExchangeAnalyzer
++        .boundedReplay(ctx.fen, MoveReviewExchangeAnalyzer.normalizedLineMoves(variation), maxPlies = 4)
++        .getOrElse(Nil)
+     val breakHit =
+-      plan.breakNeutralized.exists(file =>
+-        lowMoves.exists(move => move.contains(normalize(file)))
++      plan.breakNeutralized.exists(raw =>
++        resourceSquareToken(raw).exists(square =>
++          replay.exists(step => step.move.orig.key == square || step.move.dest.key == square)
++        ) ||
++          BreakFileToken.extract(raw).exists(file =>
++            replay.exists(step => step.move.orig.key.startsWith(file) || step.move.dest.key.startsWith(file))
++          )
+       )
+     val squareHit =
+       plan.deniedSquares.map(normalize).exists(square =>
+-        variation.parsedMoves.take(4).exists(move =>
+-          normalize(move.to) == square || normalize(move.from) == square
++        squareFromKey(square).exists(target =>
++          replay.exists(step => step.move.orig == target || step.move.dest == target)
+         )
+       )
+-    val threatHit =
+-      plan.preventedThreatType.exists(threat =>
+-        lowMoves.exists(move => move.contains(normalize(threat)))
+-      )
+-    breakHit || squareHit || threatHit
+-
+-  private def citationShowsSpecificResourceLoss(
+-      text: String,
+-      plan: PreventedPlanInfo
+-  ): Boolean =
+-    val low = normalize(text)
+-    val squareHit = plan.deniedSquares.map(normalize).exists(low.contains)
+-    val breakHit = plan.breakNeutralized.map(normalize).exists(low.contains)
+-    val threatHit = plan.preventedThreatType.map(normalize).exists(low.contains)
+-    val lossHit = containsAny(low, List("prevent", "deny", "stop", "no longer", "can t", "cannot", "lose", "loses"))
+-    lossHit && (squareHit || breakHit || threatHit)
++    breakHit || squareHit
+ 
+-  private def whyNotMentionsPreventedResource(
+-      text: String,
+-      plan: PreventedPlanInfo
+-  ): Boolean =
+-    val low = normalize(text)
+-    val removalHit = containsAny(low, List("prevent", "deny", "stop", "no longer", "can t", "cannot", "lose", "loses"))
+-    val squareHit = plan.deniedSquares.map(normalize).exists(low.contains)
+-    val breakHit = plan.breakNeutralized.map(normalize).exists(low.contains)
+-    val planHit = normalize(plan.planId).nonEmpty && low.contains(normalize(plan.planId))
+-    val threatHit = plan.preventedThreatType.map(normalize).exists(low.contains)
+-    removalHit && (squareHit || breakHit || planHit || threatHit)
++  private def resourceSquareToken(raw: String): Option[String] =
++    """(?i)(?:^|[^a-z0-9])([a-h][1-8])(?=$|[^a-z0-9])""".r
++      .findFirstMatchIn(Option(raw).getOrElse(""))
++      .map(_.group(1).toLowerCase)
+ 
+   private def textShowsAnchoredExchange(
+       text: String,

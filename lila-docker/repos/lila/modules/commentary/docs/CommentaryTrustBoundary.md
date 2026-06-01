@@ -402,12 +402,52 @@ capture/check glyphs in candidate text are display hints unless a replayed
 engine PV satisfies the tactical window. Exchange-forcing line evidence also
 requires a replay-backed exchange packet with branch and continuation/structure
 witnesses; line text containing `x`, `trade`, or `exchange` cannot create that
-line hook. Active strategic delta text containing exchange/trade/simplification
+line hook. Exact-slice target witness labels (`fixed_target`,
+`coordinated_target`, `weak_square`) and local file-entry structure markers are
+formatted through `PlayerFacingExactSliceProofFacts`; target-focused support
+markers and color-complex minor-piece attack markers use the same boundary.
+They may support trace/prose context but do not replace the typed proof check. Active strategic delta text containing exchange/trade/simplification
 language also cannot open `ExchangeForcing` truth mode without one of the
 replay-backed exchange witnesses.
 The same rule now covers quiet-move best-defense metadata and central-break
 timing branch/PV witness terms. Break-prevention route evidence accepts only a
 legal replayed played line, best-line prefix, or played+continuation splice;
+probe reply coverage and reply-line/resource reads for strategic-plan
+promotion/experiment code, authoring/candidate evidence, strategic feature
+extraction, strategic ledger line candidates, and the heavy-piece, local-file,
+route-network, two-axis, counterplay, and restricted-conversion proofs also go
+through `MoveReviewExchangeAnalyzer` helpers rather than local `replyPvs` or
+`bestReplyPv` parsing. `branch:*`, `best_branch:*`, and `exchange_square:*`
+fact formatting also stays behind that analyzer boundary rather than
+policy-local UCI string assembly. Defender-trade and bad-piece continuation
+terms consume analyzer-built relation structure terms instead of policy-local
+relation marker assembly.
+Probe purpose predicates for those consumers are centralized in
+`ThemePlanProbePurpose`; local raw purpose sets or substring checks do not carry
+trust authority for route-validation, conversion, author-evidence,
+played-counterfactual, or null-move threat semantics; author evidence
+branch-cardinality gates and request budgets, required signals, objectives,
+and horizons for these purpose families use the same helper boundary.
+Latent hypothesis/refutation purpose profiles, including required signals,
+objectives, horizons, and default cp-loss gates, are interpreted through
+`ProbePurposeClassifier`, not detector/evaluator-local raw matches.
+Prevented-plan evidence terms (`counterplay_drop`, `neutralized_break`,
+`denied_squares`, `denied_resource`, `denied_entry_scope`) are projected through
+`PlanEvidenceEvaluator`, not proof-local string assembly. Prophylactic
+denied-resource class normalization and exact-slice token validation use the
+same evaluator boundary. Plan certification trace terms and `support_probe:*`
+markers use the same evaluator projection boundary.
+Theme/subplan support tags are interpreted through
+`PlanTaxonomy.ThemeResolver`, not detector-, planner-, or hypothesis-local raw
+prefix slicing. Embedded subplan annotations on probe plan names are interpreted
+and stripped through the same resolver boundary, as are embedded theme
+preconditions and taxonomy-backed proof contract ids. Structural-state and
+latent-seed evidence tags are likewise interpreted through
+`PlanTaxonomy.ThemeResolver`.
+Legacy candidate probe id families also do not carry trust authority directly:
+competitive/aggressive probe ids must be interpreted through
+`ProbePurposeClassifier` before candidate tags, plan-alignment labels, or
+why-not prose are produced.
 invalid splices are dropped instead of becoming route proof. `L3.ThreatAnalyzer`
 can use MultiPV score gaps as numeric context, but capture-derived threat
 claims, attack squares, and best-defense UCI metadata must come from a legal
@@ -640,8 +680,11 @@ project only already bounded surface inputs such as selected evaluated plans,
 the certified explanation, the strategic ledger, refs, and authoring summaries.
 Decision-comparison UI follows the same boundary. `LineConsequenceEvaluator`
 may summarize a PV/ref line, but only `MoveReviewRefs` lines that pass
-`MoveReviewPvLine` legal FEN replay can become `SurfaceCandidate`. Legal
-engine-only `VariationLine` summaries can become `ReplayBackedInternal` for
+`MoveReviewPvLine` legal FEN replay can become `SurfaceCandidate`. PV support
+markers (`pv:*`) are projected through
+`MoveReviewPvLine.pvMoveTerms`; witness producers must not reassemble that
+prefix locally.
+Legal engine-only `VariationLine` summaries can become `ReplayBackedInternal` for
 internal decision evidence, narrative hooks, and ledger notes, while remaining
 blocked from the product decision strip by release type and the engine-only
 surface-blocking reason. The ref path stays strict across the checked line.
@@ -896,6 +939,10 @@ Names that describe rollout state or breadth, such as `broad`, `global`,
 proof families, public authority tokens, package names, or product row kinds.
 If legacy terms remain in tests or diagnostics, the consuming runtime path must
 translate them to a stable domain/proof boundary before any authority decision.
+Policy-local rival assessment tags such as `secondary_plan:*`,
+`secondary_idea:*`, and `exact:*` remain suppression/release-risk traces inside
+`PlayerFacingTruthModePolicy`; they are not authority tokens and cannot open a
+strategic expansion path.
 
 ## CTH Priority Summary
 

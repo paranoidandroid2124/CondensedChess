@@ -557,7 +557,7 @@ function decorateMoveReviewHtml(
                 probeRows.length
                     ? `
               <div class="move-review-probe-summary">
-                <div class="move-review-probe-summary__title">Evidence Probes</div>
+                <div class="move-review-probe-summary__title">Analytical Lines</div>
                 ${probeRows.join('')}
               </div>
             `
@@ -567,7 +567,7 @@ function decorateMoveReviewHtml(
                 authorRows.length
                     ? `
               <div class="move-review-authoring-summary">
-                <div class="move-review-probe-summary__title">Authoring Evidence</div>
+                <div class="move-review-probe-summary__title">Alternative Lines</div>
                 ${authorRows.join('')}
               </div>
             `

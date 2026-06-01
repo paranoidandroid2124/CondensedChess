@@ -119,11 +119,14 @@ private[commentary] object TransformationEvidenceProducer extends StrategicIdeaE
 
     def softTransformationPlanSupport(plan: lila.commentary.model.PlanMatch): Boolean =
       plan.supports.exists { raw =>
-        val text = raw.trim.toLowerCase
-        text.contains("theme:favorable_exchange") ||
-          text.contains(s"subplan:${PlanTaxonomy.PlanKind.DefenderTrade.id}") ||
-          text.contains(s"subplan:${PlanTaxonomy.PlanKind.SimplificationWindow.id}") ||
-          text.contains(s"subplan:${PlanTaxonomy.PlanKind.SimplificationConversion.id}")
+        PlanTaxonomy.ThemeResolver.fromEvidenceSource(raw) == PlanTaxonomy.PlanTheme.FavorableExchange ||
+          PlanTaxonomy.ThemeResolver.subplanFromEvidenceSource(raw).exists(
+            Set(
+              PlanTaxonomy.PlanKind.DefenderTrade,
+              PlanTaxonomy.PlanKind.SimplificationWindow,
+              PlanTaxonomy.PlanKind.SimplificationConversion
+            ).contains
+          )
       }
 
     val planBridge =
