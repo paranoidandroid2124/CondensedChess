@@ -21,7 +21,7 @@ Current work is a boundary redesign plus docs compression:
   explorer/source/sample-game payloads.
 - static opening coverage now comes from `openings.tsv` runtime rows plus
   tooling provenance reports, while preserving the same label-plus-FEN family
-  proof boundary; the removed Scala broad-variation fixture floor is no longer
+  proof boundary; removed fixture floors are no longer
   treated as coverage authority. The pool is currently pruned to 1276 rows that
   replay against captured Lichess masters evidence as `master-backed`; the live
   audit found and removed 438 `not-found-in-masters` expansion rows. Same-EPD
@@ -195,7 +195,7 @@ Current authority is internal and MoveReview-first:
 - `FragmentAuthority` decides renderer release safety.
 - `CommentaryApi` and frontend code consume typed payloads only.
 
-## Active Frontier
+## Maintained Scope
 
 Open for maintenance:
 
@@ -213,38 +213,9 @@ Open for maintenance:
   support as `strategic_relation` advanced rows without creating proof authority
 - docs and package cleanup that preserves the current authority boundary
 
-Closed unless a new audit explicitly opens them:
-
-- broad heavy-piece/local-bind/global-squeeze expansion
-- Track 5 lesson authority
-- Chronicle/Active runtime reopening; their remaining planner and compression
-  helpers are test/tooling-only legacy diagnostics
-- public API/frontend wire expansion except audited typed diagnostics or
-  payload minimization that does not create product authority
-- support-only or deferred carrier promotion
-
-## Strategic Expansion Naming Boundary
-
-Expansion labels are planning vocabulary, not runtime module names or authority
-tokens. Before reopening a closed strategic asset, map it onto four stable
-axes:
-
-| planning label | stable boundary | implementation rule |
-| --- | --- | --- |
-| broad heavy-piece/local-bind/global-squeeze expansion | split into resource/route restriction assets such as `LocalFileEntryBind`, `CounterplayAxisSuppression`, `ProphylacticRestraint`, `RouteNetworkBindProof`, `TwoAxisBindProof`, and `HeavyPieceLocalBindValidation` | do not add positive public authority to broad or negative-lane helpers; new release paths need a typed exact-slice proof and `ClaimAuthorityResolver` admission |
-| B7/B8 broad expansion | historical frontier/coverage shorthand | keep `B7`/`B8` names in guard/test diagnostics only; do not introduce proof families, sources, packages, or product rows with those labels |
-| broad color-complex expansion | `ColorComplexSqueeze` exact-slice family through `color_complex_squeeze_probe`; generic `color_complex_clamp` remains selector/support evidence | do not promote generic color-complex prose, coordinates, or minor-piece words into authority |
-| mobility-cage expansion | currently design/recon; nearest live evidence is mobility restriction, route denial, or deferred relation support | choose a concrete witness family before implementation; do not create a catch-all mobility-cage module |
-| Track 5 lesson authority | scoped takeaway only through `MoveReviewScopedTakeaway` | do not use Track names or lesson labels as runtime authority; broad lesson authority stays closed |
-| Chronicle/Active runtime reopening | legacy diagnostic/tooling surface under `commentaryTools/src/test` | do not consume `GameChronicle*`, Active-note DTOs, or active branch/thread carriers in released MoveReview truth/signoff |
-
-New strategic work should use domain/proof names, not rollout or breadth names.
-Acceptable names describe the chess asset and proof boundary, for example
-`LocalFileEntryBind`, `CounterplayAxisSuppression`,
-`ColorComplexSqueeze`, or a cataloged relation witness. Avoid `broad`,
-`global`, `Track`, `Frontier`, `B7`, `B8`, `Active`, and `Chronicle` in new
-runtime source modules, proof families, public authority tokens, or product row
-kinds unless they are documenting legacy/test-only boundaries.
+Do not introduce rollout, history, or umbrella expansion labels as runtime
+modules, proof families, public authority tokens, package names, or product row
+kinds.
 
 Color-complex has an explicit exact-board contract. It is closed to generic
 `color_complex_squeeze` source packets and opens only through

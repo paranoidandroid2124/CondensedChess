@@ -11,18 +11,14 @@ surface must become less specific or fail closed.
 
 ## Signoff Surface
 
-MoveReview is the only user-facing commentary truth surface. Chronicle,
-Active, and Game Arc are legacy diagnostic/tooling surfaces. Their bridge,
-thread, note-composition, and compression helpers are isolated to
+MoveReview is the only user-facing commentary truth surface. Removed product
+surfaces and historical diagnostics are isolated to
 `modules/commentaryTools/src/test` and may not participate in released truth
 signoff unless a current MoveReview consumer and runtime audit explicitly
-reopen that boundary.
-Runtime truth projection must not accept `GameChronicleMoment` or
-`GameChronicleResponse` as signoff inputs. Chronicle fallback semantics may
-exist only in test/tooling diagnostics; released truth paths consume the current
-MoveReview/arc runtime models and proof-contract projections.
-Active-note payload fields and active branch dossiers are not truth inputs in
-runtime `GameArc`; tooling that reconstructs them must do so outside `src/main`.
+reopen that boundary. Runtime truth projection must not accept retired replay
+DTOs, note payloads, or branch dossiers as signoff inputs; released truth paths
+consume the current MoveReview/arc runtime models and proof-contract
+projections.
 
 Future `SupportedLocal` or scoped-takeaway expansion must enter through
 MoveReview first and must preserve the audited payload contract.
@@ -113,7 +109,7 @@ result may match through a same-EPD static book alias retained for
 transposition-aware canonicalization, but not through board-shape predicates,
 strategic transposition proofs, or rendered prose.
 `MoveReviewPlayerPayloadBuilder` may emit an `Opening family` support row only
-after that resolver decision; label-only opening data, broad opening phase, raw
+after that resolver decision; label-only opening data, generic opening phase, raw
 rendered prose, or FEN lookup without the structured opening label must remain
 suppressed. The row is not a `CertifiedOwner` claim and does not by itself
 certify a strategic target square. The row may carry a target square only as
@@ -123,7 +119,7 @@ standalone exact-slice owner claim. It may also carry sanitized `openingBook`
 metadata from the admitted `OpeningReference` aggregate (ECO, total games, and
 top SAN moves), but this is display support only and is not master-game truth,
 family admission, or source provenance. Expanding `openings.tsv` with common
-variation endpoints only broadens the static FEN/name lookup pool; it does not
+variation endpoints only widens the static FEN/name lookup pool; it does not
 lower this truth boundary.
 
 Exact-slice signoff must consume the typed `PlayerFacingExactSliceProof`
@@ -184,10 +180,10 @@ mobility or own-pawn ray-blocker constraint. The strategic activity analyzer
 reuses that rule for support signals; central-pawn count alone is not board
 truth.
 Defender-trade truth cannot originate in `PlanMatcher` from a raw
-`RemovingTheDefender` motif or broad text labels. Those are generic exchange
+`RemovingTheDefender` motif or generic text labels. Those are generic exchange
 support only; defender-trade ownership requires the replayed defense-relation
 branch or typed semantic observation described above.
-Broad defender/trade prose also cannot create `trade_key_defender` ownership in
+Generic defender/trade prose also cannot create `trade_key_defender` ownership in
 MoveReview truth mode. When it is paired with a legal immediate
 capture/recapture, move-linked exchange cue, and narrative anchor, it may speak
 only as the softer `simplification_window` exchange sequence.
@@ -279,7 +275,7 @@ in the matching opening-family target allowlist, but that allowlist only permits
 bounded target metadata after legal route evidence and board target-mode
 validation. Likewise, the `openings.tsv`
 static book pool and player target projection samples expand resolver lookup
-coverage only; removed broad-variation Scala fixtures are not coverage
+coverage only; removed fixture floors are not coverage
 authority, and FEN substrings or fixed branch-key text are not truth.
 The current opening pool is pruned to 1276 rows that replay against captured
 Lichess masters evidence as `master-backed`; 438 live-audited
@@ -307,7 +303,7 @@ truth, or a replacement for the label-plus-FEN opening-family resolver.
 Generic exact target-fixation witnesses must also bind the chosen square back
 to the same target-fixing idea. If an idea lists several focus squares, runtime
 may not select the only current `WeaknessTargetProfile` square unless the idea
-id or typed evidence refs name that exact target; broad focus lists remain
+id or typed evidence refs name that exact target; generic focus lists remain
 support-only and fail closed.
 
 Break/file-axis truth must come from structured square or file-marker evidence
@@ -544,7 +540,7 @@ defenders, guards, trades, or removal is not truth for the exact owner path
 without typed family context and the replayed defender-target relation.
 Generic plan-owner fallback is subject to the same boundary: exact
 defender-trade, bad-piece-liquidation, and queen-trade-shield families are
-stripped unless their board-replayed witness exists, so a broad plan label
+stripped unless their board-replayed witness exists, so a generic plan label
 cannot re-promote after the exact witness fails closed.
 
 ## No-Go Truth Failures
@@ -563,7 +559,7 @@ These are release blockers:
   strategic plan truth from serialized strings
 - frontend fallback retry/drop behavior is inferred from commentary prose
   rather than backend `diagnostics.status`
-- broad lesson or rule wording appears without local scoped-takeaway authority
+- general lesson or rule wording appears without local scoped-takeaway authority
 - decision comparison is rebuilt from `topEngineMove`, `cpLossVsChosen`, or
   latent/deferred carriers
 - line/PV consequence wording is surfaced from engine-only `VariationLine`
@@ -574,7 +570,7 @@ These are release blockers:
 - strategic plan truth is inferred from raw `evidenceTier`, compatibility
   markers, or subplan ids instead of typed evaluator evidence plus exact
   witness where required
-- local bind truth is rejected from broad heavy-piece movement labels without
+- local bind truth is rejected from generic movement labels without
   exact replay evidence of a real release
 - MoveReview strategic support, probe, authoring, or decision-comparison UI is
   rebuilt from raw `strategyPack`, `signalDigest`, `authorEvidence`,
@@ -593,7 +589,7 @@ These are release blockers:
 - guardrail tags
 
 It may project into the existing MoveReview learning-point compatibility field,
-but it is not Track 5 lesson authority and must not generalize into broad rules.
+but it is not general lesson authority and must not generalize into rules.
 
 ## Audit Gate
 

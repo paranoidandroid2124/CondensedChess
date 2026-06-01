@@ -24,26 +24,21 @@ the same change. Do not append dated logs; rewrite the current-state map.
 
 User-facing commentary authority is MoveReview-only.
 
-Removed product surfaces such as Game Chronicle, Guided Review, Defeat DNA, and
-Active strategic-note UI/API entrypoints are not public authority paths. Legacy
-Chronicle/Active planner, thread-selection, active-note, and chronicle
-compression code is not runtime infrastructure: it lives only under
-`modules/commentaryTools/src/test` for historical diagnostics and corpus
-review tooling. The maintained `src/main` runtime must not call Active bridge
-planning, Active thread selection, Active strategic-note composition, or
-Chronicle compression to decide released commentary.
-`GameChronicleResponse` and `GameChronicleMoment` are test/tooling DTOs only;
-they must not live in or be referenced by `modules/commentaryCore/src/main` or
-`modules/commentary/src/main`. Compatibility callers that still need historical
-Chronicle replay diagnostics must project through compact tooling carriers such
-as `DecisionFrameCarrierInput` before entering shared runtime builders.
+Removed product surfaces and historical diagnostics are not public authority
+paths. Historical planner, thread-selection, note-composition, and compression
+code is not runtime infrastructure: it lives only under
+`modules/commentaryTools/src/test` for diagnostics and corpus review tooling.
+The maintained `src/main` runtime must not call those helpers to decide
+released commentary. Historical replay DTOs must not live in or be referenced by
+`modules/commentaryCore/src/main` or `modules/commentary/src/main`.
+Compatibility callers that still need historical replay diagnostics must project
+through compact tooling carriers such as `DecisionFrameCarrierInput` before
+entering shared runtime builders.
 Runtime `GameArc` may retain generic diagnostic data such as top-engine
 alternatives in memory for tooling, but its JSON writer omits raw strategic,
-probe, authoring, plan-experiment, and Active-style carriers. It must not
-expose Active-note payload fields, active branch dossiers, strategic-thread
-lists, or `ActivePlanRef` plan tags.
+probe, authoring, plan-experiment, and historical note carriers.
 `UserFacingPayloadSanitizer` is MoveReview/bootstrap-only and does not carry a
-Chronicle/Active response sanitizer in the runtime API layer.
+historical response sanitizer in the runtime API layer.
 
 No current change may reintroduce public payloads, frontend panels, or owner
 claims from those removed surfaces without a new runtime audit.
@@ -134,8 +129,8 @@ The maintained path is:
      display labels, and public target-square allowlists come from
      `OpeningFamilyCatalog` main-resource TSV data, not local resolver or
      sanitizer maps. `openings.tsv` is the static book coverage pool for
-     common opening-family variation endpoints. The Scala broad-variation
-     fixture floor is no longer a coverage authority; provenance cleanup is
+    common opening-family variation endpoints. Removed fixture floors are no
+    longer coverage authority; provenance cleanup is
      handled by opening audit tooling over the runtime TSV rows. The current
      pool is pruned to 1276 runtime rows that replay against captured Lichess
      masters evidence as `master-backed`; 438 live-audited
@@ -235,7 +230,7 @@ The maintained path is:
     `OpeningFamilyClaimResolver` admits that family as `SupportedLocal` against
     phase, ply, and FEN proof. This row carries
     `MoveReviewSurfaceAuthority.OpeningFamily` plus `openingFamily`; it does
-    not parse rendered prose and does not trust a broad phase label alone. It
+    not parse rendered prose and does not trust a generic phase label alone. It
     may attach `authority.target` only when a same-family `OpeningRouteCatalog`
     descriptor is legally satisfied by `PieceRouteEvidence.fromContext`,
     `OpeningRouteTargetEvidence.checkRouteEvidence` accepts the replayed
@@ -467,7 +462,7 @@ non-empty transposition proof ids plus `transposition_aligned` provenance.
 The same `PlanEvidenceEvaluator.isMainAdmittedPlan` predicate is used by the
 typed read-model and downstream payload/sanitizer sanity checks, so a proof id
 or compatibility marker without matching typed provenance still fails closed.
-Cached/default sanitize paths and legacy Chronicle moments do not have this
+Cached/default sanitize paths and historical moments do not have this
 typed admission input and fail closed for strategic plan payload metadata.
 `TranspositionAligned` is produced only by `TranspositionPvAligner`, which
 legally replays a PV line from the current FEN, requires a supplied endpoint or
@@ -673,7 +668,7 @@ PV-derived support: break and denied-square hits are checked against replayed
 origin/destination squares from the current FEN, while raw line text remains
 only citation prose. `citationLine`, `whyNot`, and other rendered resource
 phrases cannot promote `ResourceRemoval`; without a replayed resource hit the
-line degrades to broader counterplay-reduction support when otherwise eligible.
+line degrades to counterplay-reduction support when otherwise eligible.
 The same downgrade applies to active strategic delta text: resolved-threat or
 lost-motif phrases about resources, guards, or defensive cover are treated as
 counterplay reduction unless a replayed resource-removal witness exists.
@@ -901,59 +896,33 @@ The MoveReview API path passes the sanitized `strategyPack` into that builder,
 so relation rows originate from the same truth-vetted strategy pack that feeds
 the prose and ledger rather than from cached prose or raw carrier fields.
 `PlanMatcher` does not mint `defender_trade` from a raw
-`RemovingTheDefender` motif or broad reason-code text. Those signals can only
+`RemovingTheDefender` motif or generic reason-code text. Those signals can only
 support a generic `simplification_window`/favorable-exchange idea until the
 semantic replay producer or owner witness proves the defender-trade branch.
-`PlayerFacingTruthModePolicy` follows the same downgrade path: broad
+`PlayerFacingTruthModePolicy` follows the same downgrade path: generic
 defender/trade prose cannot create a `trade_key_defender` owner seed. If a
 legal immediate capture/recapture sequence, move-linked exchange cue, and
 narrative anchor are all present, the row degrades to `simplification_window`;
 without those pieces it stays generic or closed.
 The generic owner fallback also strips exact favorable-exchange families
 (`defender_trade`, `bad_piece_liquidation`, `queen_trade_shield`) when their
-replay witness is absent, so a broad plan owner cannot bypass the analyzer
+replay witness is absent, so a generic plan owner cannot bypass the analyzer
 after fail-closed rejection.
 `StrategicFeatureExtractorImpl` follows the same softer-label rule for
 high-level concepts: raw `RemovingTheDefender` tactical tags surface as generic
 `Exchange pressure`, not as a user-facing "removing defenders" concept.
 
-## Strategic Expansion Boundary Names
+## Strategic Asset Naming
 
-Closed expansion names are not maintained pipeline stages. They are audit
-shorthand that must be translated before implementation:
-
-- `broad heavy-piece/local-bind/global-squeeze expansion` maps to existing
-  resource and route restriction boundaries. `LocalFileEntryBind`,
-  `CounterplayAxisSuppression`, `ProphylacticRestraint`,
-  `RouteNetworkBindProof`, and `TwoAxisBindProof` are positive/contract-facing
-  names; `HeavyPieceLocalBindValidation` is a release-risk and negative-lane
-  guard, not a place to add broad public claims.
-- `B7` and `B8` are historical frontier/coverage labels. Runtime authority,
-  proof families, source ids, and public row kinds must use chess/proof names
-  instead.
-- `broad color-complex expansion` is not a pipeline hook. The releasable path is
-  the `ColorComplexSqueeze` exact-slice proof with
-  `color_complex_squeeze_probe`; generic `color_complex_clamp` or color-complex
-  support remains selector/support evidence.
-- `mobility-cage expansion` has no current admission path. A future slice must
-  first choose a concrete board witness family, such as route denial, mobility
-  restriction support, or a cataloged relation witness, before it can enter the
-  runtime.
-- `Track 5 lesson authority` is not a runtime authority layer. The current
-  runtime boundary is `MoveReviewScopedTakeaway`; broad lesson release remains
-  closed.
-- `Chronicle/Active runtime reopening` is a legacy surface migration concern,
-  not a MoveReview pipeline step. Released MoveReview truth must not consume
-  `GameChronicle*`, Active-note DTOs, or active branch/thread carriers.
-
-When adding a new strategic asset, name the source module after the stable
-domain/proof role and route it through the existing owner:
+Do not introduce rollout, history, or umbrella expansion labels as runtime
+modules, proof families, public authority tokens, package names, or product row
+kinds. When adding a new strategic asset, name the source module after the
+stable domain/proof role and route it through the existing owner:
 `ProofContractRules` for authority eligibility, `ClaimAuthorityResolver` and
 `PlannerClaimAdmission` for admission, `StrategicSemanticObservationContext`
 and `RelationObservationCatalog` for selector/support observations, and
 `MoveReviewPlayerPayloadBuilder` for product surface projection. Do not create
-parallel expansion-specific runners, carriers, or product rows from umbrella
-labels.
+parallel runners, carriers, or product rows from umbrella labels.
 
 ## Proof Contract Registry
 
@@ -1167,8 +1136,8 @@ reports derive `supportRows` and `advancedRows` from
 `moveReviewPlayerSurface`. Raw carrier reconstruction is not used for
 MoveReview QC support rows. If a MoveReview raw artifact or canonical surface is
 absent, QC queues keep the MoveReview commentary only and do not synthesize
-support rows from raw carriers or legacy chronicle metadata. Active-note and
-Chronicle QC helpers are test/tooling-only and cannot feed MoveReview release
+support rows from raw carriers or historical metadata. Historical QC helpers
+are test/tooling-only and cannot feed MoveReview release
 authority.
 
 ## Current Verification Targets

@@ -8,28 +8,23 @@ It complements `CommentaryPipelineSSOT.md` and `CommentaryTruthBoundary.md`.
 
 ## Current State
 
-The live product trust boundary is MoveReview-only. Chronicle, Active, Game
-Arc, and whole-game replay are legacy diagnostic/tooling surfaces, not runtime
-trust infrastructure. Active bridge planning, Active thread selection,
-Active strategic-note composition, and Chronicle compression are confined to
-`modules/commentaryTools/src/test`; they must not supply MoveReview release
-authority unless a new runtime audit explicitly reopens that boundary.
-`GameChronicleResponse` and `GameChronicleMoment` are outside the runtime trust
-boundary. Any legacy replay tooling that still needs their data must convert to
-a compact, non-authority carrier before calling shared builders, and runtime
-trust/signoff code must not consume those Chronicle DTOs directly.
-Active-note DTO fields, active branch dossiers, strategic-thread lists, and
-`ActivePlanRef` tags are likewise test/tooling-only; runtime `GameArc` must not
-carry them as empty compatibility payloads.
+The live product trust boundary is MoveReview-only. Removed product surfaces,
+whole-game replay, and historical diagnostics are not runtime trust
+infrastructure. Their helpers are confined to `modules/commentaryTools/src/test`;
+they must not supply MoveReview release authority unless a new runtime audit
+explicitly reopens that boundary. Historical replay tooling that still needs
+retired data must convert to a compact, non-authority carrier before calling
+shared builders, and runtime trust/signoff code must not consume retired DTOs
+directly.
 
 Current operating posture:
 
 - maintain existing exact-board promoted slices
-- keep broad strategic expansion closed
+- keep umbrella strategic expansion closed
 - allow new runtime authority only through proof contracts and the
   claim-authority kernel
 - keep support-only/deferred/latent carriers internal
-- keep Track 5 lesson authority deferred
+- keep lesson authority deferred unless exact scoped-takeaway rules admit it
 
 ## Authority Ladder
 
@@ -406,8 +401,9 @@ line hook. Exact-slice target witness labels (`fixed_target`,
 `coordinated_target`, `weak_square`) and local file-entry structure markers are
 formatted through `PlayerFacingExactSliceProofFacts`; target-focused support
 markers and color-complex minor-piece attack markers use the same boundary.
-They may support trace/prose context but do not replace the typed proof check. Active strategic delta text containing exchange/trade/simplification
-language also cannot open `ExchangeForcing` truth mode without one of the
+They may support trace/prose context but do not replace the typed proof check.
+Strategic delta text containing exchange/trade/simplification language also
+cannot open `ExchangeForcing` truth mode without one of the
 replay-backed exchange witnesses.
 The same rule now covers quiet-move best-defense metadata and central-break
 timing branch/PV witness terms. Break-prevention route evidence accepts only a
@@ -455,14 +451,14 @@ first-step replay. `StructurePlanArcBuilder` route-contribution prose also
 requires the reviewed move to replay from the current FEN before it can say the
 move started, reached, guarded, or connected a deployment route. Resource-removal line authority is also replay-only:
 `citationLine`, `whyNot`, and rendered resource phrases cannot promote a
-`ResourceRemoval` owner without a replayed break/file/square hit. Active
-resolved-threat/lost-motif text about resources or defensive cover is therefore
+`ResourceRemoval` owner without a replayed break/file/square hit. Strategic
+delta text about resources or defensive cover is therefore
 only a softer counterplay-reduction signal unless replay supplies that hit.
 Plan-level favorable-exchange matching is intentionally softer: raw
-`RemovingTheDefender` motifs and broad defender/removal reason-code text cannot
+`RemovingTheDefender` motifs and generic defender/removal reason-code text cannot
 mint a `defender_trade` subplan. They remain generic simplification support
 unless the replay-backed semantic producer or owner witness proves the branch.
-MoveReview owner seeding applies the same boundary. Broad defender/trade prose
+MoveReview owner seeding applies the same boundary. Generic defender/trade prose
 does not mint `trade_key_defender`; a legal immediate exchange may only degrade
 to `simplification_window` when it also has a move-linked exchange cue and a
 narrative anchor.
@@ -503,10 +499,10 @@ The MoveReview public surface may expose an `Opening family` support row only
 through `MoveReviewPlayerPayloadBuilder`, after the structured opening name is
 matched through `OpeningFamilyCatalog` and the resolver admits the same family
 as `SupportedLocal` for phase, ply, and FEN. This prevents stale explorer
-labels, broad opening-phase text, or cached prose from becoming row-level
-authority. Static book expansion is intentionally data-only: broader
+labels, generic opening-phase text, or cached prose from becoming row-level
+authority. Static book expansion is intentionally data-only: wider
 `openings.tsv` variation coverage may make more real positions eligible for
-the same resolver decision. The removed broad-variation Scala fixture floor is
+the same resolver decision. Removed fixture floors are
 not coverage authority; runtime rows still must not bypass the label-plus-FEN
 proof pair or infer target authority from the variation name. Optional
 `openingBook` metadata on that row is sanitized aggregate display data only:
@@ -534,7 +530,7 @@ forms remain tooling support; without them, rows are `unverified`,
 `quarantine`, not player-facing truth. `provenanceStatusCounts` and
 `--only-status` are cleanup triage aids only.
 `opening_families.tsv` aliases, including Benko/Volga labels under the Benoni
-family, only broaden catalog matching for this `SupportedLocal` resolver path;
+family, only widen catalog matching for this `SupportedLocal` resolver path;
 they do not create board truth or target proof by themselves.
 Opening-goal prose expansion is also bounded to the existing carrier. New
 `OpeningGoals` entries for Gruenfeld `...d5`, Slav/Semi-Slav `...e5`, Dutch
@@ -572,7 +568,7 @@ Current strict rules:
   canonical `WeaknessTargetProfile` may feed bounded practical target rows,
   guard exact target-fixation witnesses, and serve as the endpoint fact for
   `TranspositionAligned` only after legal PV replay and veto checks pass. Target
-  text, broad focus-square lists, or `targetPressureDelta` do not certify a
+  text, generic focus-square lists, or `targetPressureDelta` do not certify a
   claim without an accepted typed proof path. A generic exact target-fixation
   surface with multiple focus squares must name the selected square in the same
   idea id or typed evidence refs before it can become public owner evidence.
@@ -897,13 +893,13 @@ raw-carrier or chronicle metadata fallback for MoveReview support rows, and
 active-note QC rows must not export chronicle objective/focus/execution metadata
 as support rows.
 
-## Active Risk Map
+## Risk Map
 
 | risk | current control |
 | --- | --- |
 | support-only becomes owner | claim-authority kernel, proof contracts, planner adapter |
 | fallback truth rewrite | truth contract first; no-contract fallback is failure-only |
-| broad strategic overclaim | exact packet/certified slice required |
+| umbrella strategic overclaim | exact packet/certified slice required |
 | plan promotion blocked by bookkeeping drift | hard/soft probe validation split in `PlanEvidenceEvaluator` |
 | raw evidence-tier string becomes authority | `StrategicPlanEvidenceView` is the current runtime read-model |
 | sibling score treated as refutation | `alternativeDominance` remains ranking metadata, not `Refuted` |
@@ -915,53 +911,26 @@ as support rows.
 | tactical neutralize support leaks through diagnostics | `ClaimAuthorityResolver` tactical veto plus QC veto rejection for `neutralize_key_break` |
 | generic or self-referential break support leaks | typed-proof/named-token surface gate rejects tokenless, term-only, mismatch, and played-move-collision `neutralize_key_break` rows |
 | color-complex premature release | typed exact-slice proof plus authority-closed failure |
-| lesson overgeneralization | Track 5 deferred; scoped takeaway only |
+| lesson overgeneralization | scoped takeaway only |
 
-## Expansion Naming Risk
-
-Mixed expansion names are a trust risk because they can make a breadth label
-look like proof authority. Treat these labels as non-authority aliases:
-
-| alias | trust interpretation |
-| --- | --- |
-| broad heavy-piece/local-bind/global-squeeze expansion | umbrella for route/resource restriction work; not a proof family or module base |
-| B7/B8 broad expansion | historical frontier shorthand; test/diagnostic language only |
-| broad color-complex expansion | closed generic expansion; only `color_complex_squeeze_probe` can open `ColorComplexSqueeze` authority |
-| mobility-cage expansion | design/recon placeholder until a concrete board witness is chosen |
-| Track 5 lesson authority | broad lesson release, still closed; scoped takeaway remains the only local instruction lane |
-| Chronicle/Active runtime reopening | legacy/tooling surface boundary, not MoveReview release infrastructure |
+## Naming Risk
 
 Runtime implementation names should identify the chess asset and proof lane:
 `LocalFileEntryBind`, `CounterplayAxisSuppression`,
 `ProphylacticRestraint`, `ColorComplexSqueeze`, or a cataloged relation witness.
-Names that describe rollout state or breadth, such as `broad`, `global`,
-`Track`, `Frontier`, `B7`, `B8`, `Active`, and `Chronicle`, must not become new
-proof families, public authority tokens, package names, or product row kinds.
-If legacy terms remain in tests or diagnostics, the consuming runtime path must
-translate them to a stable domain/proof boundary before any authority decision.
+Do not introduce rollout, history, or umbrella expansion labels as runtime
+modules, proof families, public authority tokens, package names, or product row
+kinds. If historical terms remain in tests or diagnostics, the consuming
+runtime path must translate them to a stable domain/proof boundary before any
+authority decision.
 Policy-local rival assessment tags such as `secondary_plan:*`,
 `secondary_idea:*`, and `exact:*` remain suppression/release-risk traces inside
 `PlayerFacingTruthModePolicy`; they are not authority tokens and cannot open a
 strategic expansion path.
 
-## CTH Priority Summary
+## Lesson Defer Rationale
 
-Detailed historical B-frontier logs are no longer canonical in this file. The
-current conclusion is:
-
-- B1/B2/B3 exact slices remain maintained.
-- B4/B5/B6 remain narrow bounded-scope results only.
-- B7/B8 and broad color-complex, heavy-piece, mobility-cage, or global squeeze
-  expansion remain design/recon territory.
-- New authority must start from exact board positions, exact witness extraction,
-  best-defense evidence where relevant, and proof-contract promotion.
-
-Underlying evidence lives in local generated artifacts and targeted test/tool
-reports. Those artifacts are evidence, not authority predicates.
-
-## Track 5 Defer Rationale
-
-Broad lesson authority remains closed because current local proof can validate
+General lesson authority remains closed because current local proof can validate
 only a reviewed move, FEN, branch, and evidence tier. It cannot safely state a
 general chess lesson without additional corpus coverage, exception handling,
 and user-facing scope wording.
@@ -974,7 +943,7 @@ Allowed today:
 
 Not allowed today:
 
-- broad rules such as "always" or "in every position"
+- general rules such as "always" or "in every position"
 - shared-lesson helper labels
 - whole-position strategic truth from local support rows
 - lesson claims from color-complex readiness rows
