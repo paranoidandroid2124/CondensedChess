@@ -100,6 +100,47 @@ private[commentary] object RouteNetworkBindProof:
       ambiguousDefendedBranch: Boolean
   )
 
+  private final case class ProbeEvidenceSlices(
+      supportResults: List[ProbeResult],
+      validationResults: List[ProbeResult],
+      continuityResults: List[ProbeResult],
+      directReplyResults: List[ProbeResult]
+  )
+
+  private final case class PreliminaryBranchEvidence(
+      sameBranchValidationResults: List[ProbeResult],
+      sameBranchContinuityResults: List[ProbeResult],
+      sameBranchPersistenceResults: List[ProbeResult],
+      sameBranchEdgeEvidence: List[ProbeResult]
+  )
+
+  private final case class RouteBranchEvidence(
+      sameBranchValidationResults: List[ProbeResult],
+      sameBranchContinuityResults: List[ProbeResult],
+      sameBranchRerouteResults: List[ProbeResult],
+      sameBranchEdgeResultsByPair: Map[(String, String), List[ProbeResult]],
+      allSameBranchEdgesVisible: Boolean,
+      offBranchRerouteEvidence: List[ProbeResult],
+      offBranchEdgeEvidence: List[ProbeResult]
+  )
+
+  private final case class RouteContinuityFacts(
+      directBestDefensePresent: Boolean,
+      bestReplyStable: Boolean,
+      futureSnapshotPersistent: Boolean,
+      boundedContinuationVisible: Boolean,
+      sameDefendedBranch: Boolean,
+      pressurePersistence: Boolean,
+      routeContinuity: RouteContinuity
+  )
+
+  private final case class RouteArtifacts(
+      routeNodes: List[RouteNode],
+      intermediateNodes: List[RouteNode],
+      rerouteDenials: List[RerouteDenial],
+      routeEdges: List[RouteEdge]
+  )
+
   private final case class FileAxisSignal(
       label: String,
       file: String,
@@ -223,23 +264,13 @@ private[commentary] object RouteNetworkBindProof:
       mentionsRouteNetworkIntent(plan.hypothesis) ||
         routeSignals.exists(signal => planMentionsSquare(plan.hypothesis, signal.square))
     Option.when(isApplicablePlan(plan) && routeClaimAttempted) {
-      val supportResults =
-        plan.supportProbeIds.flatMap(probeResultsById.get).distinctBy(_.id)
-      val validationResults =
-        supportResults.filter(result =>
-          result.purpose.exists(purpose => ValidationPurposes.contains(normalize(purpose)))
-        )
-      val continuityResults =
-        supportResults.filter(result =>
-          result.purpose.exists(purpose => ContinuityPurposes.contains(normalize(purpose)))
-        )
-      val directReplyResults =
-        supportResults.filter(result =>
-          result.purpose.exists(purpose => DirectReplyPurposes.contains(normalize(purpose)))
-        )
+      val probeEvidence = probeEvidenceSlices(plan, probeResultsById)
+      val supportResults = probeEvidence.supportResults
+      val validationResults = probeEvidence.validationResults
+      val continuityResults = probeEvidence.continuityResults
+      val directReplyResults = probeEvidence.directReplyResults
       val branchIdentity =
         resolveBranchIdentity(directReplyResults, localFileEntryBindCertification)
-      val bestDefenseResult = branchIdentity.bestDefenseResult
       val bestDefenseFound = branchIdentity.bestDefenseFound
       val bestDefenseBranchKey = branchIdentity.selectedKey
       val baseRerouteAxis =
@@ -256,19 +287,13 @@ private[commentary] object RouteNetworkBindProof:
       val chainClaimAttempted =
         baseRerouteAxis.nonEmpty &&
           chainSignalsMentioned.nonEmpty
-      val sameBranchValidationResults =
-        validationResults.filter(result => matchesDefendedBranch(result, bestDefenseBranchKey))
-      val sameBranchContinuityResults =
-        (directReplyResults ++ continuityResults)
-          .distinctBy(_.id)
-          .filter(result => matchesDefendedBranch(result, bestDefenseBranchKey))
-      val sameBranchPersistenceResults =
-        (directReplyResults ++ validationResults)
-          .distinctBy(_.id)
-          .filter(result => matchesDefendedBranch(result, bestDefenseBranchKey))
-      val sameBranchEdgeEvidence =
-        (sameBranchValidationResults ++ sameBranchContinuityResults ++ sameBranchPersistenceResults)
-          .distinctBy(_.id)
+      val preliminaryBranchEvidence =
+        sameBranchEvidence(
+          validationResults = validationResults,
+          continuityResults = continuityResults,
+          directReplyResults = directReplyResults,
+          bestDefenseBranchKey = bestDefenseBranchKey
+        )
       val intermediateAxis =
         Option.when(chainClaimAttempted)(baseRerouteAxis).flatten
       val rerouteAxis =
@@ -279,126 +304,47 @@ private[commentary] object RouteNetworkBindProof:
                 entrySquare = entry.square,
                 intermediateSquare = intermediate.square,
                 signals = chainSignalsMentioned,
-                sameBranchResults = sameBranchEdgeEvidence,
+                sameBranchResults = preliminaryBranchEvidence.sameBranchEdgeEvidence,
                 hypothesis = plan.hypothesis
               )
             )
           )
         else baseRerouteAxis
       val expectedRouteEdges =
-        entryAxis.toList.flatMap(entry =>
-          rerouteAxis.toList.flatMap { reroute =>
-            intermediateAxis match
-              case Some(intermediate) =>
-                List(
-                  entry.square -> intermediate.square,
-                  intermediate.square -> reroute.square
-                )
-              case None =>
-                List(entry.square -> reroute.square)
-          }
+        buildExpectedRouteEdges(entryAxis, intermediateAxis, rerouteAxis)
+      val branchEvidence =
+        routeBranchEvidence(
+          preliminary = preliminaryBranchEvidence,
+          validationResults = validationResults,
+          continuityResults = continuityResults,
+          directReplyResults = directReplyResults,
+          bestDefenseBranchKey = bestDefenseBranchKey,
+          rerouteAxis = rerouteAxis,
+          expectedRouteEdges = expectedRouteEdges
         )
-      val sameBranchRerouteResults =
-        rerouteAxis.toList.flatMap(reroute =>
-          sameBranchPersistenceResults.filter(result => mentionsRerouteDenial(result, reroute.square))
-        )
-      val sameBranchEdgeResultsByPair =
-        expectedRouteEdges.map { case (from, to) =>
-          (from -> to) ->
-            sameBranchEdgeEvidence.filter(result => mentionsRouteEdge(result, from, to))
-        }.toMap
-      val allSameBranchEdgesVisible =
-        expectedRouteEdges.nonEmpty &&
-          expectedRouteEdges.forall(pair => sameBranchEdgeResultsByPair.getOrElse(pair, Nil).nonEmpty)
-      val offBranchRerouteEvidence =
-        bestDefenseBranchKey.toList.flatMap(branchKey =>
-          rerouteAxis.toList.flatMap(reroute =>
-            (validationResults ++ continuityResults ++ directReplyResults)
-              .distinctBy(_.id)
-              .filter(result =>
-                mentionsRerouteDenial(result, reroute.square) &&
-                  !matchesDefendedBranch(result, Some(branchKey))
-              )
-          )
-        )
-      val offBranchEdgeEvidence =
-        bestDefenseBranchKey.toList.flatMap(branchKey =>
-          expectedRouteEdges.flatMap { case (from, to) =>
-            (validationResults ++ continuityResults ++ directReplyResults)
-              .distinctBy(_.id)
-              .filter(result =>
-                mentionsRouteEdge(result, from, to) &&
-                  !matchesDefendedBranch(result, Some(branchKey))
-              )
-          }
-        )
-      val directBestDefensePresent =
-        bestDefenseFound.nonEmpty &&
-          bestDefenseBranchKey.nonEmpty &&
-          bestDefenseResult.exists(hasReplyCoverage)
+      val sameBranchValidationResults = branchEvidence.sameBranchValidationResults
+      val sameBranchRerouteResults = branchEvidence.sameBranchRerouteResults
+      val allSameBranchEdgesVisible = branchEvidence.allSameBranchEdgesVisible
+      val offBranchRerouteEvidence = branchEvidence.offBranchRerouteEvidence
+      val offBranchEdgeEvidence = branchEvidence.offBranchEdgeEvidence
       val defenderResources = distinctDefenderResources(directReplyResults)
-      val bestReplyStable =
-        directBestDefensePresent &&
-          defenderResources.nonEmpty &&
-          defenderResources.size <= RestrictedResourceCap &&
-          directReplyResults.forall(hasReplyCoverage) &&
-          directReplyResults.forall(result =>
-            result.l1Delta.flatMap(_.collapseReason).forall(reason => clean(reason).isEmpty)
-          ) &&
-          localFileEntryBindCertification.forall(_.routeContinuity.bestDefenseStable)
-      val futureSnapshotPersistent =
-        localFileEntryBindCertification.exists(_.routeContinuity.futureSnapshotPersistent) &&
-          sameBranchRerouteResults.nonEmpty &&
-          allSameBranchEdgesVisible
-      val convertReplyAligned =
-        sameBranchContinuityResults.exists(result =>
-          normalize(result.purpose.getOrElse("")) == "convert_reply_multipv" &&
-            expectedRouteEdges.forall { case (from, to) => mentionsRouteEdge(result, from, to) } &&
-            result.futureSnapshot.exists(mentionsBoundedContinuation)
+      val continuityFacts =
+        routeContinuityFacts(
+          localFileEntryBindCertification = localFileEntryBindCertification,
+          branchIdentity = branchIdentity,
+          directReplyResults = directReplyResults,
+          defenderResources = defenderResources,
+          expectedRouteEdges = expectedRouteEdges,
+          branchEvidence = branchEvidence
         )
-      val boundedContinuationVisible =
-        sameBranchContinuityResults.exists(result =>
-          result.futureSnapshot.exists(mentionsBoundedContinuation) ||
-            result.motifTags.exists(mentionsContinuation)
+      val routeArtifacts =
+        buildRouteArtifacts(
+          entryAxis = entryAxis,
+          intermediateAxis = intermediateAxis,
+          rerouteAxis = rerouteAxis,
+          expectedRouteEdges = expectedRouteEdges,
+          branchEvidence = branchEvidence
         )
-      val sameDefendedBranch =
-        directBestDefensePresent &&
-          sameBranchRerouteResults.nonEmpty &&
-          allSameBranchEdgesVisible &&
-          sameBranchContinuityResults.nonEmpty
-      val pressurePersistence =
-        localFileEntryBindCertification.exists(_.pressurePersistence) &&
-          bestReplyStable &&
-          futureSnapshotPersistent &&
-          sameDefendedBranch
-      val routeNodes =
-        List(
-          entryAxis.map(toRouteNode("entry")),
-          intermediateAxis.map(toRouteNode("intermediate")),
-          rerouteAxis.map(toRouteNode("reroute"))
-        ).flatten
-      val intermediateNodes =
-        intermediateAxis.toList.map(toRouteNode("intermediate"))
-      val rerouteDenials =
-        rerouteAxis.toList.map { reroute =>
-          RerouteDenial(
-            square = reroute.square,
-            counterplayScoreDrop = reroute.counterplayScoreDrop,
-            witnessedOnBestDefense = sameBranchRerouteResults.nonEmpty,
-            witnessSources =
-              sameBranchRerouteResults.flatMap(_.purpose.flatMap(clean)).distinct
-          )
-        }
-      val routeEdges =
-        expectedRouteEdges.map { case (from, to) =>
-          val witnesses = sameBranchEdgeResultsByPair.getOrElse(from -> to, Nil)
-          RouteEdge(
-            from = from,
-            to = to,
-            witnessCount = witnesses.size,
-            sameDefendedBranch = witnesses.nonEmpty
-          )
-        }
       val axisIndependence =
         buildAxisIndependence(
           primaryFile = primaryFile,
@@ -421,16 +367,7 @@ private[commentary] object RouteNetworkBindProof:
         if sameBranchRerouteResults.nonEmpty && allSameBranchEdgesVisible then "low" else HighRisk
       val redundantAxisRisk =
         if axisIndependence.proven then "low" else HighRisk
-      val routeContinuity =
-        RouteContinuity(
-          directBestDefensePresent = directBestDefensePresent,
-          bestDefenseStable = bestReplyStable,
-          futureSnapshotPersistent = futureSnapshotPersistent,
-          convertReplyAligned = convertReplyAligned,
-          boundedContinuationVisible = boundedContinuationVisible,
-          sameDefendedBranch = sameDefendedBranch,
-          routeEdgeVisible = allSameBranchEdgesVisible
-        )
+      val routeContinuity = continuityFacts.routeContinuity
       val lateMiddlegameSlice =
         normalize(phase) == "middlegame" &&
           ply >= LateMiddlegamePlyFloor &&
@@ -449,8 +386,8 @@ private[commentary] object RouteNetworkBindProof:
         buildMoveOrderFragility(
           plan = plan,
           directReplyResults = directReplyResults,
-          bestReplyStable = bestReplyStable,
-          futureSnapshotPersistence = futureSnapshotPersistent,
+          bestReplyStable = continuityFacts.bestReplyStable,
+          futureSnapshotPersistence = continuityFacts.futureSnapshotPersistent,
           inheritedReasons =
             localFileEntryBindCertification.toList.flatMap(_.moveOrderFragility.reasons)
         )
@@ -476,7 +413,7 @@ private[commentary] object RouteNetworkBindProof:
       val staticWithoutProgress =
         sameBranchRerouteResults.nonEmpty &&
           allSameBranchEdgesVisible &&
-          !boundedContinuationVisible
+          !continuityFacts.boundedContinuationVisible
       val fakeRouteChain =
         chainClaimAttempted &&
           (rerouteAxis.isEmpty || !allSameBranchEdgesVisible || sameBranchRerouteResults.isEmpty)
@@ -504,7 +441,7 @@ private[commentary] object RouteNetworkBindProof:
               (
                 bestDefenseBranchKey.nonEmpty &&
                   expectedRouteEdges.nonEmpty &&
-                  !sameDefendedBranch
+                  !continuityFacts.sameDefendedBranch
               )
           )
       val crossBranchStitching =
@@ -515,7 +452,7 @@ private[commentary] object RouteNetworkBindProof:
             bestDefenseBranchKey.nonEmpty &&
               rerouteAxis.nonEmpty &&
               (validationResults ++ continuityResults).nonEmpty &&
-              !sameDefendedBranch
+              !continuityFacts.sameDefendedBranch
           )
           )
       val exactRouteMention =
@@ -573,17 +510,17 @@ private[commentary] object RouteNetworkBindProof:
         strategyHypothesis = displayHypothesis(plan),
         claimScope = ClaimScope,
         primaryAxis = primaryFile.map(_.label),
-        routeNodes = routeNodes,
-        intermediateNodes = intermediateNodes,
-        routeEdges = routeEdges,
-        rerouteDenials = rerouteDenials,
+        routeNodes = routeArtifacts.routeNodes,
+        intermediateNodes = routeArtifacts.intermediateNodes,
+        routeEdges = routeArtifacts.routeEdges,
+        rerouteDenials = routeArtifacts.rerouteDenials,
         axisIndependence = axisIndependence,
         bestDefenseFound = bestDefenseFound,
         bestDefenseBranchKey = bestDefenseBranchKey,
-        sameDefendedBranch = sameDefendedBranch,
-        pressurePersistence = pressurePersistence,
+        sameDefendedBranch = continuityFacts.sameDefendedBranch,
+        pressurePersistence = continuityFacts.pressurePersistence,
         routeContinuity = routeContinuity,
-        continuationBound = boundedContinuationVisible,
+        continuationBound = continuityFacts.boundedContinuationVisible,
         releaseRisksRemaining = releaseRisksRemaining,
         routeNetworkMirageRisk = routeNetworkMirageRisk,
         redundantAxisRisk = redundantAxisRisk,
@@ -597,13 +534,13 @@ private[commentary] object RouteNetworkBindProof:
             lateMiddlegameSlice = lateMiddlegameSlice,
             clearlyBetter = clearlyBetter,
             localPrereqPresent = !localPrereqMissing,
-            directBestDefensePresent = directBestDefensePresent,
+            directBestDefensePresent = continuityFacts.directBestDefensePresent,
             axisIndependence = axisIndependence.proven,
             rerouteDenied = sameBranchRerouteResults.nonEmpty,
             routeEdgeVisible = allSameBranchEdgesVisible,
-            bestReplyStable = bestReplyStable,
-            boundedContinuationVisible = boundedContinuationVisible,
-            sameDefendedBranch = sameDefendedBranch,
+            bestReplyStable = continuityFacts.bestReplyStable,
+            boundedContinuationVisible = continuityFacts.boundedContinuationVisible,
+            sameDefendedBranch = continuityFacts.sameDefendedBranch,
             releaseRiskCount = releaseRisksRemaining.size,
             moveOrderFragility = moveOrderFragility,
             distinctiveEnough = distinctiveEnough,
@@ -665,6 +602,225 @@ private[commentary] object RouteNetworkBindProof:
   ): Boolean =
     normalize(plan.themeL1) == PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id &&
       plan.subplanId.exists(id => ApplicableSubplans.contains(normalize(id)))
+
+  private def probeEvidenceSlices(
+      plan: PlanEvidenceEvaluator.EvaluatedPlan,
+      probeResultsById: Map[String, ProbeResult]
+  ): ProbeEvidenceSlices =
+    val supportResults =
+      plan.supportProbeIds.flatMap(probeResultsById.get).distinctBy(_.id)
+    ProbeEvidenceSlices(
+      supportResults = supportResults,
+      validationResults =
+        supportResults.filter(result =>
+          result.purpose.exists(purpose => ValidationPurposes.contains(normalize(purpose)))
+        ),
+      continuityResults =
+        supportResults.filter(result =>
+          result.purpose.exists(purpose => ContinuityPurposes.contains(normalize(purpose)))
+        ),
+      directReplyResults =
+        supportResults.filter(result =>
+          result.purpose.exists(purpose => DirectReplyPurposes.contains(normalize(purpose)))
+        )
+    )
+
+  private def sameBranchEvidence(
+      validationResults: List[ProbeResult],
+      continuityResults: List[ProbeResult],
+      directReplyResults: List[ProbeResult],
+      bestDefenseBranchKey: Option[String]
+  ): PreliminaryBranchEvidence =
+    val sameBranchValidationResults =
+      validationResults.filter(result => matchesDefendedBranch(result, bestDefenseBranchKey))
+    val sameBranchContinuityResults =
+      (directReplyResults ++ continuityResults)
+        .distinctBy(_.id)
+        .filter(result => matchesDefendedBranch(result, bestDefenseBranchKey))
+    val sameBranchPersistenceResults =
+      (directReplyResults ++ validationResults)
+        .distinctBy(_.id)
+        .filter(result => matchesDefendedBranch(result, bestDefenseBranchKey))
+    PreliminaryBranchEvidence(
+      sameBranchValidationResults = sameBranchValidationResults,
+      sameBranchContinuityResults = sameBranchContinuityResults,
+      sameBranchPersistenceResults = sameBranchPersistenceResults,
+      sameBranchEdgeEvidence =
+        (sameBranchValidationResults ++ sameBranchContinuityResults ++ sameBranchPersistenceResults)
+          .distinctBy(_.id)
+    )
+
+  private def buildExpectedRouteEdges(
+      entryAxis: Option[EntryAxisSignal],
+      intermediateAxis: Option[RerouteSignal],
+      rerouteAxis: Option[RerouteSignal]
+  ): List[(String, String)] =
+    entryAxis.toList.flatMap(entry =>
+      rerouteAxis.toList.flatMap { reroute =>
+        intermediateAxis match
+          case Some(intermediate) =>
+            List(
+              entry.square -> intermediate.square,
+              intermediate.square -> reroute.square
+            )
+          case None =>
+            List(entry.square -> reroute.square)
+      }
+    )
+
+  private def routeBranchEvidence(
+      preliminary: PreliminaryBranchEvidence,
+      validationResults: List[ProbeResult],
+      continuityResults: List[ProbeResult],
+      directReplyResults: List[ProbeResult],
+      bestDefenseBranchKey: Option[String],
+      rerouteAxis: Option[RerouteSignal],
+      expectedRouteEdges: List[(String, String)]
+  ): RouteBranchEvidence =
+    val sameBranchRerouteResults =
+      rerouteAxis.toList.flatMap(reroute =>
+        preliminary.sameBranchPersistenceResults.filter(result => mentionsRerouteDenial(result, reroute.square))
+      )
+    val sameBranchEdgeResultsByPair =
+      expectedRouteEdges.map { case (from, to) =>
+        (from -> to) ->
+          preliminary.sameBranchEdgeEvidence.filter(result => mentionsRouteEdge(result, from, to))
+      }.toMap
+    val allSameBranchEdgesVisible =
+      expectedRouteEdges.nonEmpty &&
+        expectedRouteEdges.forall(pair => sameBranchEdgeResultsByPair.getOrElse(pair, Nil).nonEmpty)
+    val branchProbeResults =
+      (validationResults ++ continuityResults ++ directReplyResults).distinctBy(_.id)
+    val offBranchRerouteEvidence =
+      bestDefenseBranchKey.toList.flatMap(branchKey =>
+        rerouteAxis.toList.flatMap(reroute =>
+          branchProbeResults.filter(result =>
+            mentionsRerouteDenial(result, reroute.square) &&
+              !matchesDefendedBranch(result, Some(branchKey))
+          )
+        )
+      )
+    val offBranchEdgeEvidence =
+      bestDefenseBranchKey.toList.flatMap(branchKey =>
+        expectedRouteEdges.flatMap { case (from, to) =>
+          branchProbeResults.filter(result =>
+            mentionsRouteEdge(result, from, to) &&
+              !matchesDefendedBranch(result, Some(branchKey))
+          )
+        }
+    )
+    RouteBranchEvidence(
+      sameBranchValidationResults = preliminary.sameBranchValidationResults,
+      sameBranchContinuityResults = preliminary.sameBranchContinuityResults,
+      sameBranchRerouteResults = sameBranchRerouteResults,
+      sameBranchEdgeResultsByPair = sameBranchEdgeResultsByPair,
+      allSameBranchEdgesVisible = allSameBranchEdgesVisible,
+      offBranchRerouteEvidence = offBranchRerouteEvidence,
+      offBranchEdgeEvidence = offBranchEdgeEvidence
+    )
+
+  private def routeContinuityFacts(
+      localFileEntryBindCertification: Option[LocalFileEntryProof.Contract],
+      branchIdentity: BranchIdentityResolution,
+      directReplyResults: List[ProbeResult],
+      defenderResources: List[String],
+      expectedRouteEdges: List[(String, String)],
+      branchEvidence: RouteBranchEvidence
+  ): RouteContinuityFacts =
+    val directBestDefensePresent =
+      branchIdentity.bestDefenseFound.nonEmpty &&
+        branchIdentity.selectedKey.nonEmpty &&
+        branchIdentity.bestDefenseResult.exists(hasReplyCoverage)
+    val bestReplyStable =
+      directBestDefensePresent &&
+        defenderResources.nonEmpty &&
+        defenderResources.size <= RestrictedResourceCap &&
+        directReplyResults.forall(hasReplyCoverage) &&
+        directReplyResults.forall(result =>
+          result.l1Delta.flatMap(_.collapseReason).forall(reason => clean(reason).isEmpty)
+        ) &&
+        localFileEntryBindCertification.forall(_.routeContinuity.bestDefenseStable)
+    val futureSnapshotPersistent =
+      localFileEntryBindCertification.exists(_.routeContinuity.futureSnapshotPersistent) &&
+        branchEvidence.sameBranchRerouteResults.nonEmpty &&
+        branchEvidence.allSameBranchEdgesVisible
+    val convertReplyAligned =
+      branchEvidence.sameBranchContinuityResults.exists(result =>
+        normalize(result.purpose.getOrElse("")) == "convert_reply_multipv" &&
+          expectedRouteEdges.forall { case (from, to) => mentionsRouteEdge(result, from, to) } &&
+          result.futureSnapshot.exists(mentionsBoundedContinuation)
+      )
+    val boundedContinuationVisible =
+      branchEvidence.sameBranchContinuityResults.exists(result =>
+        result.futureSnapshot.exists(mentionsBoundedContinuation) ||
+          result.motifTags.exists(mentionsContinuation)
+      )
+    val sameDefendedBranch =
+      directBestDefensePresent &&
+        branchEvidence.sameBranchRerouteResults.nonEmpty &&
+        branchEvidence.allSameBranchEdgesVisible &&
+        branchEvidence.sameBranchContinuityResults.nonEmpty
+    val pressurePersistence =
+      localFileEntryBindCertification.exists(_.pressurePersistence) &&
+        bestReplyStable &&
+        futureSnapshotPersistent &&
+        sameDefendedBranch
+    RouteContinuityFacts(
+      directBestDefensePresent = directBestDefensePresent,
+      bestReplyStable = bestReplyStable,
+      futureSnapshotPersistent = futureSnapshotPersistent,
+      boundedContinuationVisible = boundedContinuationVisible,
+      sameDefendedBranch = sameDefendedBranch,
+      pressurePersistence = pressurePersistence,
+      routeContinuity =
+        RouteContinuity(
+          directBestDefensePresent = directBestDefensePresent,
+          bestDefenseStable = bestReplyStable,
+          futureSnapshotPersistent = futureSnapshotPersistent,
+          convertReplyAligned = convertReplyAligned,
+          boundedContinuationVisible = boundedContinuationVisible,
+          sameDefendedBranch = sameDefendedBranch,
+          routeEdgeVisible = branchEvidence.allSameBranchEdgesVisible
+        )
+    )
+
+  private def buildRouteArtifacts(
+      entryAxis: Option[EntryAxisSignal],
+      intermediateAxis: Option[RerouteSignal],
+      rerouteAxis: Option[RerouteSignal],
+      expectedRouteEdges: List[(String, String)],
+      branchEvidence: RouteBranchEvidence
+  ): RouteArtifacts =
+    RouteArtifacts(
+      routeNodes =
+        List(
+          entryAxis.map(toRouteNode("entry")),
+          intermediateAxis.map(toRouteNode("intermediate")),
+          rerouteAxis.map(toRouteNode("reroute"))
+        ).flatten,
+      intermediateNodes =
+        intermediateAxis.toList.map(toRouteNode("intermediate")),
+      rerouteDenials =
+        rerouteAxis.toList.map { reroute =>
+          RerouteDenial(
+            square = reroute.square,
+            counterplayScoreDrop = reroute.counterplayScoreDrop,
+            witnessedOnBestDefense = branchEvidence.sameBranchRerouteResults.nonEmpty,
+            witnessSources =
+              branchEvidence.sameBranchRerouteResults.flatMap(_.purpose.flatMap(clean)).distinct
+          )
+        },
+      routeEdges =
+        expectedRouteEdges.map { case (from, to) =>
+          val witnesses = branchEvidence.sameBranchEdgeResultsByPair.getOrElse(from -> to, Nil)
+          RouteEdge(
+            from = from,
+            to = to,
+            witnessCount = witnesses.size,
+            sameDefendedBranch = witnesses.nonEmpty
+          )
+        }
+    )
 
   private def primaryAxisFromContract(
       contract: LocalFileEntryProof.Contract

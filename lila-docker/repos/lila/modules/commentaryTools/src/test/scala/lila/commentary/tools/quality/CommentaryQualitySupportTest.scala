@@ -411,28 +411,6 @@ class CommentaryQualitySupportTest extends FunSuite:
           cacheHit = false,
           moveReviewBundleDigestHash = Some("b3")
         )
-      ),
-      buildSamePlyParityReport(
-        List(
-          paritySurface(
-            "2024_03_03_4_1_bochnicka_vladimir_krivoborodov_egor_lichess_broadcast_master_classical_67",
-            14,
-            SurfaceName.MoveReview,
-            sliceKind = "strategic_choice"
-          ),
-          paritySurface(
-            "2024_03_03_4_1_bochnicka_vladimir_krivoborodov_egor_lichess_broadcast_master_classical_67",
-            20,
-            SurfaceName.MoveReview,
-            sliceKind = "practical_simplification"
-          ),
-          paritySurface(
-            "2024_03_03_4_1_bochnicka_vladimir_krivoborodov_egor_lichess_broadcast_master_classical_67",
-            54,
-            SurfaceName.MoveReview,
-            sliceKind = "long_structural_squeeze"
-          )
-        )
       )
     ).fold(err => fail(err), identity)
 

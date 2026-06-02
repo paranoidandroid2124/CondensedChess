@@ -5,11 +5,13 @@ import java.nio.file.{ Path, Paths }
 import lila.commentary.PgnAnalysisHelper
 import lila.commentary.analysis.strategic.BreakClampCandidateScanner
 import lila.commentary.model.strategic.VariationLine
-import lila.commentary.tools.realpgn.RealPgnNarrativeEvalRunner
+import lila.commentary.tools.review.CommentaryPlayerQcSupport.LocalUciEngine
 
 object BreakClampCandidateScanRunner:
 
-  private final class LocalEngine(engine: RealPgnNarrativeEvalRunner.LocalUciEngine)
+  private final case class Dummy()
+
+  private final class LocalEngine(engine: LocalUciEngine)
       extends BreakClampCandidateScanner.Engine:
     override def newGame(): Unit = engine.newGame()
     override def analyze(fen: String, depth: Int, multiPv: Int): List[VariationLine] =
@@ -49,7 +51,7 @@ object BreakClampCandidateScanRunner:
         case None =>
           BreakClampCandidateScanner.scan(games, engine = None, config = config)
         case Some(path) =>
-          val engine = RealPgnNarrativeEvalRunner.LocalUciEngine(path, timeoutMs = 30000L)
+          val engine = LocalUciEngine(path, timeoutMs = 30000L)
           try BreakClampCandidateScanner.scan(games, engine = Some(LocalEngine(engine)), config = config)
           finally engine.close()
     val (matrix, review) = BreakClampCandidateScanner.writeArtifacts(report)

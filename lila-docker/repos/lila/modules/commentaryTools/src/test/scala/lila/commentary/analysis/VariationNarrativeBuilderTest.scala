@@ -67,3 +67,30 @@ final class VariationNarrativeBuilderTest extends FunSuite:
     assert(narrative.contains("forcing"), clue(narrative))
     assert(narrative.contains("checks the king"), clue(narrative))
   }
+
+  test("preview-only narrative uses SAN preview without move-number-only fragments") {
+    val fen = "7r/pppr3p/2n1kp2/3Np3/4P3/P4P2/1PP3PP/2R1K2R w K - 0 18"
+    val ucis = List("c2c3")
+    val ctx = context(fen, "c2c3", "c3", List(VariationLine(ucis, scoreCp = 57, depth = 8)))
+    val consequence =
+      LineConsequenceEvidence(
+        lineId = Some("line_preview"),
+        sanMoves = List("c3"),
+        uciMoves = ucis,
+        scoreCp = Some(57),
+        mate = None,
+        depth = Some(8),
+        windowPly = 1,
+        kind = LineConsequenceKind.PreviewOnly,
+        triggerSan = Some("c3"),
+        consequence = "",
+        whyItMatters = None,
+        release = LineConsequenceRelease.SurfaceCandidate,
+        rejectReasons = Nil
+      )
+
+    val narrative = VariationNarrativeBuilder.build(ctx, consequence).getOrElse(fail("failed to build preview narrative"))
+
+    assertEquals(narrative, "The checked line continues c3.")
+    assert(!narrative.contains("18."), clue(narrative))
+  }

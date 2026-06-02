@@ -403,7 +403,7 @@ private[commentary] object MoveReviewCompressionPolicy:
         Some(
           MoveReviewPolishSlots(
             lens = draft.lens,
-            claim = claim,
+            claim = prefixMoveHeader(ctx, claim),
             supportPrimary = None,
             supportSecondary = None,
             tension = None,
@@ -891,7 +891,7 @@ private[commentary] object MoveReviewCompressionPolicy:
             .trim
         Option.when(preview.nonEmpty) {
           val eval = formatVariationScore(variation.scoreCp, variation.mate)
-          s"Line: a) $preview$eval."
+          s"$preview$eval."
         }
       }
     }

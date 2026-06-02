@@ -4,6 +4,14 @@ This is the onboarding map for the current Chesstory commentary-analysis work.
 It points to the live authority documents and summarizes the current operating
 state.
 
+Use this map to avoid stale or branch-external assumptions, but do not treat it
+as approval to preserve duplicated implementation shapes. When cleanup or
+deduplication is the task, inspect the current source and call sites first,
+then simplify in place while keeping the runtime truth/trust boundary intact.
+Adding a new helper, `Evidence`, `Support`, `Boundary`, `Contract`, or policy
+object requires a live-code reason that an existing boundary cannot carry the
+same responsibility.
+
 ## Current Status
 
 Current work is a boundary redesign plus docs compression:
@@ -174,8 +182,7 @@ Closed unless a new audit explicitly opens them:
 
 - broad heavy-piece/local-bind/global-squeeze expansion
 - Track 5 lesson authority
-- Chronicle/Active runtime reopening; their remaining planner and compression
-  helpers are test/tooling-only legacy diagnostics
+- Chronicle/Active runtime reopening; their remaining planner, compression, and evaluation helpers have been completely cleaned up and removed from the workspace
 - public API/frontend wire expansion except audited typed diagnostics or
   payload minimization that does not create product authority
 - support-only or deferred carrier promotion
@@ -193,7 +200,7 @@ axes:
 | broad color-complex expansion | `ColorComplexSqueeze` exact-slice family through `color_complex_squeeze_probe`; generic `color_complex_clamp` remains selector/support evidence | do not promote generic color-complex prose, coordinates, or minor-piece words into authority |
 | mobility-cage expansion | currently design/recon; nearest live evidence is mobility restriction, route denial, or deferred relation support | choose a concrete witness family before implementation; do not create a catch-all mobility-cage module |
 | Track 5 lesson authority | scoped takeaway only through `MoveReviewScopedTakeaway` | do not use Track names or lesson labels as runtime authority; broad lesson authority stays closed |
-| Chronicle/Active runtime reopening | legacy diagnostic/tooling surface under `commentaryTools/src/test` | do not consume `GameChronicle*`, Active-note DTOs, or active branch/thread carriers in released MoveReview truth/signoff |
+| Chronicle/Active runtime reopening | completely removed from the workspace | do not consume `GameChronicle*`, Active-note DTOs, or active branch/thread carriers in released MoveReview truth/signoff |
 
 New strategic work should use domain/proof names, not rollout or breadth names.
 Acceptable names describe the chess asset and proof boundary, for example

@@ -3,7 +3,7 @@ package lila.commentary.tools.quality
 import java.nio.file.{ Path, Paths }
 
 import play.api.libs.json.Json
-import lila.commentary.tools.review.{ ChronicleActivePlannerSliceRunner, CommentaryPlayerQcSupport }
+import lila.commentary.tools.review.CommentaryPlayerQcSupport
 
 object CommentaryQualityContrastRunner:
 
@@ -16,8 +16,6 @@ object CommentaryQualityContrastRunner:
         Paths.get("C:\\Codes\\CondensedChess\\tmp\\commentary-player-qc\\reports\\commentary_quality_real16_20260330\\move_review_outputs_real16.jsonl"),
       afterMoveReviewPath: Path =
         Paths.get("C:\\Codes\\CondensedChess\\tmp\\commentary-player-qc\\reports\\commentary_quality_contrast_real16_20260330\\move_review_outputs_real16_contrast.jsonl"),
-      surfaceEntriesPath: Path =
-        Paths.get("C:\\Codes\\CondensedChess\\tmp\\commentary-player-qc\\reports\\commentary_quality_real16_20260330\\planner_surface_entries_real16.jsonl"),
       outDir: Path =
         Paths.get("C:\\Codes\\CondensedChess\\tmp\\commentary-player-qc\\reports\\commentary_quality_contrast_real16_20260330")
   )
@@ -36,23 +34,10 @@ object CommentaryQualityContrastRunner:
         case Left(err) =>
           System.err.println(s"[quality-contrast] failed to read after moveReview outputs `${config.afterMoveReviewPath}`: $err")
           sys.exit(1)
-    val surfaceEntries =
-      readJsonLines[ChronicleActivePlannerSliceRunner.SliceSurfaceEntry](config.surfaceEntriesPath) match
-        case Right(value) => value
-        case Left(err) =>
-          System.err.println(s"[quality-contrast] failed to read planner surface entries `${config.surfaceEntriesPath}`: $err")
-          sys.exit(1)
 
     ensureDir(config.outDir)
 
-    val paritySnapshots =
-      afterEntries.map(moveReviewParitySnapshot) ++
-        surfaceEntries.flatMap(entry => List(chronicleParitySnapshot(entry), activeParitySnapshot(entry)))
-    val parityReport = buildSamePlyParityReport(paritySnapshots)
-    writeJson(config.outDir.resolve("commentary_quality_contrast_same_ply_parity_after.json"), Json.toJson(parityReport))
-    writeText(config.outDir.resolve("commentary_quality_contrast_same_ply_parity_after.md"), renderSamePlyParityMarkdown(parityReport))
-
-    buildContrastReport(beforeEntries, afterEntries, surfaceEntries, parityReport) match
+    buildContrastReport(beforeEntries, afterEntries) match
       case Left(err) =>
         System.err.println(s"[quality-contrast] failed to build contrast report: $err")
         sys.exit(1)
@@ -70,6 +55,5 @@ object CommentaryQualityContrastRunner:
     Config(
       beforeMoveReviewPath = positional.headOption.map(Paths.get(_)).getOrElse(Paths.get("C:\\Codes\\CondensedChess\\tmp\\commentary-player-qc\\reports\\commentary_quality_real16_20260330\\move_review_outputs_real16.jsonl")),
       afterMoveReviewPath = positional.lift(1).map(Paths.get(_)).getOrElse(Paths.get("C:\\Codes\\CondensedChess\\tmp\\commentary-player-qc\\reports\\commentary_quality_contrast_real16_20260330\\move_review_outputs_real16_contrast.jsonl")),
-      surfaceEntriesPath = positional.lift(2).map(Paths.get(_)).getOrElse(Paths.get("C:\\Codes\\CondensedChess\\tmp\\commentary-player-qc\\reports\\commentary_quality_real16_20260330\\planner_surface_entries_real16.jsonl")),
-      outDir = positional.lift(3).map(Paths.get(_)).getOrElse(Paths.get("C:\\Codes\\CondensedChess\\tmp\\commentary-player-qc\\reports\\commentary_quality_contrast_real16_20260330"))
+      outDir = positional.lift(2).map(Paths.get(_)).getOrElse(Paths.get("C:\\Codes\\CondensedChess\\tmp\\commentary-player-qc\\reports\\commentary_quality_contrast_real16_20260330"))
     )

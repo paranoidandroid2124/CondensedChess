@@ -3,11 +3,13 @@ package lila.commentary.tools.claim
 import java.nio.file.{ Path, Paths }
 
 import lila.commentary.model.strategic.VariationLine
-import lila.commentary.tools.realpgn.RealPgnNarrativeEvalRunner
+import lila.commentary.tools.review.CommentaryPlayerQcSupport.LocalUciEngine
 
 object AdmissionUnitReviewRunner:
 
-  private final class LocalEngine(engine: RealPgnNarrativeEvalRunner.LocalUciEngine)
+  private final case class Dummy()
+
+  private final class LocalEngine(engine: LocalUciEngine)
       extends SourceReview.SourceReviewEngine:
     override def newGame(): Unit = engine.newGame()
     override def analyze(fen: String, depth: Int, multiPv: Int): List[VariationLine] =
@@ -57,7 +59,7 @@ object AdmissionUnitReviewRunner:
         case None =>
           AdmissionUnitReview.admit(games, engine = None, config = config)
         case Some(path) =>
-          val engine = RealPgnNarrativeEvalRunner.LocalUciEngine(path, timeoutMs = 30000L)
+          val engine = LocalUciEngine(path, timeoutMs = 30000L)
           try AdmissionUnitReview.admit(games, engine = Some(LocalEngine(engine)), config = config)
           finally engine.close()
     val (matrix, review) = AdmissionUnitReview.writeArtifacts(report)

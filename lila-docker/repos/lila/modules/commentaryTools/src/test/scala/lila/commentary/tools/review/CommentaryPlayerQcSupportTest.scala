@@ -1,6 +1,6 @@
 package lila.commentary.tools.review
 
-import java.nio.file.Paths
+import java.nio.file.{ Files, Paths }
 
 import chess.{ Black, White }
 import munit.FunSuite
@@ -216,6 +216,61 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
 
     assertEquals(coupled.map(_.first.uci), Some("c7c5"), clue(snapshot.refs))
     assertEquals(coupled.flatMap(_.reply).map(_.uci), Some("g1f3"), clue(snapshot.refs))
+  }
+
+  test("corpusBackedOpeningReference injects peer PGNs instead of an empty minimal opening reference") {
+    val tmp = Files.createTempDirectory("commentary-opening-reference")
+    val mainPgn = tmp.resolve("main.pgn")
+    val peerPgn = tmp.resolve("peer.pgn")
+    val otherPgn = tmp.resolve("other.pgn")
+    Files.writeString(mainPgn, """[Event "Main"]""" + "\n\n1. d4 d5 1/2-1/2")
+    Files.writeString(peerPgn, """[Event "Peer"]""" + "\n\n1. d4 d5 2. c4 e6 1/2-1/2")
+    Files.writeString(otherPgn, """[Event "Other"]""" + "\n\n1. e4 e5 1/2-1/2")
+
+    val main =
+      CatalogEntry(
+        gameKey = "main",
+        source = "test",
+        sourceId = "main",
+        pgnPath = mainPgn.toString,
+        mixBucket = MixBucket.Club,
+        familyTags = Nil,
+        ratingBucket = RatingBucket.Club,
+        timeControlBucket = TimeControlBucket.Rapid,
+        openingMacroFamily = Some("other"),
+        opening = Some("Queen's Gambit Declined"),
+        eco = Some("D37"),
+        white = Some("WhiteMain"),
+        black = Some("BlackMain"),
+        result = Some("1/2-1/2"),
+        date = Some("2026.03.01"),
+        totalPlies = 2
+      )
+    val peer =
+      main.copy(
+        gameKey = "peer",
+        sourceId = "peer",
+        pgnPath = peerPgn.toString,
+        white = Some("WhitePeer"),
+        black = Some("BlackPeer"),
+        totalPlies = 4
+      )
+    val other =
+      main.copy(
+        gameKey = "other",
+        sourceId = "other",
+        pgnPath = otherPgn.toString,
+        opening = Some("King's Pawn Game"),
+        eco = Some("C20"),
+        totalPlies = 8
+      )
+
+    val ref = corpusBackedOpeningReference(main, List(main, peer, other)).getOrElse(fail("expected reference"))
+
+    assertEquals(ref.name, Some("Queen's Gambit Declined"))
+    assertEquals(ref.totalGames, 1)
+    assertEquals(ref.sampleGames.map(_.id), List("peer"))
+    assert(ref.sampleGames.head.pgn.exists(_.contains("""[Event "Peer"]""")), clue(ref.sampleGames))
   }
 
   test("selectCorpus enforces event cap and per-player cap") {
@@ -530,6 +585,9 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
         playedSan = "Rc3",
         playedUci = "c1c3",
         opening = Some("English Opening"),
+        openingReferenceTotalGames = Some(2),
+        openingReferenceSampleGameIds = List("game_2", "game_3"),
+        openingReferencePeerSampleIds = List("game_2"),
         commentary = "12... Rc3: This puts the rook on c3.",
         supportRows = Nil,
         advancedRows = Nil,
@@ -576,6 +634,9 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
     val parsed = js.validate[MoveReviewOutputEntry].asEither.toOption.get
 
     assertEquals(parsed.plannerPrimaryKind, Some("WhosePlanIsFaster"))
+    assertEquals(parsed.openingReferenceTotalGames, Some(2))
+    assertEquals(parsed.openingReferenceSampleGameIds, List("game_2", "game_3"))
+    assertEquals(parsed.openingReferencePeerSampleIds, List("game_2"))
     assertEquals(parsed.moveReviewFallbackMode, "planner_owned")
     assertEquals(parsed.plannerSceneType, Some("plan_clash"))
     assertEquals(parsed.plannerSceneReasons, List("proof_family=PlanRace"))

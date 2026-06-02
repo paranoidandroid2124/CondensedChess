@@ -16,8 +16,7 @@ object CommentaryPlayerReviewShardBuilder:
     "normal_strategic_middlegames",
     "prophylaxis_defense",
     "tactical_cited_line",
-    "compensation_practical",
-    "chronicle_full_game_moments"
+    "compensation_practical"
   )
 
   def main(args: Array[String]): Unit =
@@ -44,13 +43,9 @@ object CommentaryPlayerReviewShardBuilder:
     if entry.tier.nonEmpty && usesAuditSharding(List(entry)) then
       val surfaceKey =
         entry.surface match
-          case ReviewSurface.Chronicle if entry.reviewKind == ReviewKind.WholeGame => "chronicle_whole_game"
-          case ReviewSurface.Chronicle                                             => "chronicle_focus"
-          case ReviewSurface.MoveReview                                             => "moveReview"
-          case ReviewSurface.ActiveNote                                            => "active_note"
-          case other                                                               => other
+          case ReviewSurface.MoveReview => "moveReview"
+          case other                    => other
       s"${surfaceKey}_${entry.tier.getOrElse("unknown")}"
-    else if entry.surface == ReviewSurface.Chronicle then "chronicle_full_game_moments"
     else
       entry.sliceKind match
         case SliceKind.OpeningTransition       => "quiet_openings"
@@ -65,7 +60,7 @@ object CommentaryPlayerReviewShardBuilder:
   private def usesAuditSharding(entries: Iterable[ReviewQueueEntry]): Boolean =
     entries.exists(entry =>
       entry.tier.nonEmpty &&
-        Set(ReviewKind.WholeGame, ReviewKind.FocusMoment, ReviewKind.MoveReviewFocus, ReviewKind.ActiveParity).contains(entry.reviewKind)
+        Set(ReviewKind.MoveReviewFocus).contains(entry.reviewKind)
     )
 
   private def parseConfig(args: List[String]): Config =

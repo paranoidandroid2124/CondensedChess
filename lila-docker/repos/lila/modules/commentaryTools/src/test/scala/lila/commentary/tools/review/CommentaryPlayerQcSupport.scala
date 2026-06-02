@@ -286,6 +286,9 @@ object CommentaryPlayerQcSupport:
       playedSan: String,
       playedUci: String,
       opening: Option[String],
+      openingReferenceTotalGames: Option[Int] = None,
+      openingReferenceSampleGameIds: List[String] = Nil,
+      openingReferencePeerSampleIds: List[String] = Nil,
       commentary: String,
       supportRows: List[SupportRow],
       advancedRows: List[SupportRow],
@@ -604,6 +607,210 @@ object CommentaryPlayerQcSupport:
   object ChronicleQueueReport:
     given Writes[ChronicleQueueReport] = Json.writes[ChronicleQueueReport]
 
+  final case class FocusMomentReport(
+      ply: Int,
+      moveNumber: Int,
+      side: String,
+      momentType: String,
+      selectionKind: String,
+      dominantIdea: Option[String],
+      secondaryIdea: Option[String],
+      campaignOwner: Option[String],
+      ownerMismatch: Boolean,
+      gameArcCompensationPosition: Boolean,
+      moveReviewCompensationPosition: Boolean,
+      compensationPosition: Boolean,
+      exemplarVisible: Boolean,
+      gameArcCompensationSubtype: Option[String],
+      moveReviewCompensationSubtype: Option[String],
+      compensationSubtype: Option[String],
+      gameArcPreparationCompensationSubtype: Option[String],
+      moveReviewPreparationCompensationSubtype: Option[String],
+      gameArcPayoffCompensationSubtype: Option[String],
+      moveReviewPayoffCompensationSubtype: Option[String],
+      gameArcDisplaySubtypeSource: String,
+      moveReviewDisplaySubtypeSource: String,
+      activeCompensationMention: Boolean,
+      moveReviewCompensationMention: Boolean,
+      execution: Option[String],
+      objective: Option[String],
+      focus: Option[String],
+      gameArcNarrative: String,
+      moveReviewCommentary: String,
+      moveReviewSourceMode: String,
+      activeNoteStatus: String,
+      activeNote: Option[String],
+      probeRequestCount: Int,
+      probeRefinementRequestCount: Int,
+      maintenanceExemplarCandidate: Boolean = false,
+      failureMode: Option[String] = None,
+      failureIntentConfidence: Double = 0.0,
+      failureIntentAnchor: Option[String] = None,
+      failureInterpretationAllowed: Boolean = false
+  )
+  object FocusMomentReport:
+    given OFormat[FocusMomentReport] = Json.format[FocusMomentReport]
+
+  final case class GameReport(
+      id: String,
+      tier: String,
+      family: String,
+      label: String,
+      event: Option[String],
+      date: Option[String],
+      opening: Option[String],
+      result: Option[String],
+      totalPlies: Int,
+      initialMomentCount: Int,
+      refinedMomentCount: Int,
+      strategicMomentCount: Int,
+      threadCount: Int,
+      activeNoteCount: Int,
+      probeCandidateMoments: Int,
+      probeCandidateRequests: Int,
+      probeExecutedRequests: Int,
+      probeUnsupportedRequests: Int,
+      usedProbeRefinement: Boolean,
+      overallThemes: List[String],
+      visibleMomentPlies: List[Int],
+      focusMoments: List[FocusMomentReport]
+  )
+  object GameReport:
+    given OFormat[GameReport] = Json.format[GameReport]
+
+  final case class Summary(
+      totalGames: Int,
+      totalFocusMoments: Int,
+      totalActiveNotes: Int,
+      gamesUsingProbeRefinement: Int,
+      totalProbeCandidateRequests: Int,
+      totalProbeExecutedRequests: Int,
+      totalProbeUnsupportedRequests: Int,
+      familyCounts: Map[String, Int],
+      compensationSubtypeCounts: Map[String, Int]
+  )
+  object Summary:
+    given OFormat[Summary] = Json.format[Summary]
+
+  final case class NegativeGuardResult(
+      id: String,
+      label: String,
+      targetPly: Int,
+      compensationPosition: Boolean,
+      moveReviewCompensationMention: Boolean,
+      passed: Boolean
+  )
+  object NegativeGuardResult:
+    given OFormat[NegativeGuardResult] = Json.format[NegativeGuardResult]
+
+  final case class AuditFailure(
+      category: String,
+      severity: String,
+      key: String,
+      gameId: Option[String],
+      ply: Option[Int],
+      detail: String
+  )
+  object AuditFailure:
+    given OFormat[AuditFailure] = Json.format[AuditFailure]
+
+  final case class SignoffSummary(
+      falsePositiveCount: Int,
+      falseNegativeCount: Int,
+      positiveExemplarExpectedCount: Int,
+      positiveExemplarEvaluatedCount: Int,
+      crossSurfaceAgreementRate: Double,
+      subtypeAgreementRate: Double,
+      payoffTheaterAgreementRate: Double,
+      pathVsPayoffDivergenceCount: Int,
+      displaySubtypeSourceDistribution: Map[String, Int],
+      mustFixFailureCount: Int,
+      mustFixFailureCounts: Map[String, Int],
+      negativeGuardPassCount: Int,
+      negativeGuardFailCount: Int,
+      negativeGuards: List[NegativeGuardResult],
+      releaseGatePassed: Boolean,
+      mustFixFailures: List[AuditFailure]
+  )
+  object SignoffSummary:
+    given Reads[SignoffSummary] = Reads { js =>
+      for
+        falsePositiveCount <- (js \ "falsePositiveCount").validate[Int]
+        falseNegativeCount <- (js \ "falseNegativeCount").validate[Int]
+        positiveExemplarExpectedCount <- (js \ "positiveExemplarExpectedCount").validateOpt[Int]
+        positiveExemplarEvaluatedCount <- (js \ "positiveExemplarEvaluatedCount").validateOpt[Int]
+        crossSurfaceAgreementRate <- (js \ "crossSurfaceAgreementRate").validate[Double]
+        subtypeAgreementRate <- (js \ "subtypeAgreementRate").validate[Double]
+        payoffTheaterAgreementRate <- (js \ "payoffTheaterAgreementRate").validate[Double]
+        pathVsPayoffDivergenceCount <- (js \ "pathVsPayoffDivergenceCount").validate[Int]
+        displaySubtypeSourceDistribution <- (js \ "displaySubtypeSourceDistribution").validateOpt[Map[String, Int]]
+        mustFixFailureCount <- (js \ "mustFixFailureCount").validateOpt[Int]
+        mustFixFailureCounts <- (js \ "mustFixFailureCounts").validateOpt[Map[String, Int]]
+        negativeGuardPassCount <- (js \ "negativeGuardPassCount").validate[Int]
+        negativeGuardFailCount <- (js \ "negativeGuardFailCount").validate[Int]
+        negativeGuards <- (js \ "negativeGuards").validate[List[NegativeGuardResult]]
+        releaseGatePassed <- (js \ "releaseGatePassed").validateOpt[Boolean]
+        mustFixFailures <- (js \ "mustFixFailures").validateOpt[List[AuditFailure]]
+      yield SignoffSummary(
+        falsePositiveCount = falsePositiveCount,
+        falseNegativeCount = falseNegativeCount,
+        positiveExemplarExpectedCount = positiveExemplarExpectedCount.getOrElse(6),
+        positiveExemplarEvaluatedCount = positiveExemplarEvaluatedCount.getOrElse(0),
+        crossSurfaceAgreementRate = crossSurfaceAgreementRate,
+        subtypeAgreementRate = subtypeAgreementRate,
+        payoffTheaterAgreementRate = payoffTheaterAgreementRate,
+        pathVsPayoffDivergenceCount = pathVsPayoffDivergenceCount,
+        displaySubtypeSourceDistribution = displaySubtypeSourceDistribution.getOrElse(Map.empty),
+        mustFixFailureCount = mustFixFailureCount.getOrElse(0),
+        mustFixFailureCounts = mustFixFailureCounts.getOrElse(Map.empty),
+        negativeGuardPassCount = negativeGuardPassCount,
+        negativeGuardFailCount = negativeGuardFailCount,
+        negativeGuards = negativeGuards,
+        releaseGatePassed = releaseGatePassed.getOrElse(false),
+        mustFixFailures = mustFixFailures.getOrElse(Nil)
+      )
+    }
+    given OWrites[SignoffSummary] = Json.writes[SignoffSummary]
+    given OFormat[SignoffSummary] = OFormat(summon[Reads[SignoffSummary]], summon[OWrites[SignoffSummary]])
+
+  final case class RunReport(
+      version: Int = 1,
+      generatedAt: String,
+      corpusTitle: String,
+      corpusAsOfDate: String,
+      depth: Int,
+      multiPv: Int,
+      enginePath: String,
+      summary: Summary,
+      signoff: SignoffSummary,
+      games: List[GameReport]
+  )
+  object RunReport:
+    given OFormat[RunReport] = Json.format[RunReport]
+
+  final case class Corpus(
+      version: Int,
+      generatedAt: String,
+      asOfDate: String,
+      title: String,
+      description: String,
+      games: List[CorpusGame]
+  )
+  object Corpus:
+    given OFormat[Corpus] = Json.format[Corpus]
+
+  final case class CorpusGame(
+      id: String,
+      tier: String,
+      family: String,
+      label: String,
+      notes: List[String],
+      expectedThemes: List[String],
+      pgn: String
+  )
+  object CorpusGame:
+    given OFormat[CorpusGame] = Json.format[CorpusGame]
+
   final case class SliceSnapshot(
       entry: CatalogEntry,
       plyData: PgnAnalysisHelper.PlyData,
@@ -906,6 +1113,88 @@ object CommentaryPlayerQcSupport:
         description = entry.variation
       )
     }
+
+  def buildOpeningIndex(catalog: List[CatalogEntry]): Map[String, List[CatalogEntry]] =
+    catalog
+      .flatMap(entry => openingLookupKeys(entry).map(key => key -> entry))
+      .groupMap(_._1)(_._2)
+
+  def corpusBackedOpeningReference(
+      entry: CatalogEntry,
+      catalog: List[CatalogEntry]
+  ): Option[lila.commentary.model.OpeningReference] =
+    corpusBackedOpeningReference(entry, buildOpeningIndex(catalog), maxSampleGames = 5)
+
+  def corpusBackedOpeningReference(
+      entry: CatalogEntry,
+      openingIndex: Map[String, List[CatalogEntry]],
+      maxSampleGames: Int
+  ): Option[lila.commentary.model.OpeningReference] =
+    val peers =
+      openingLookupKeys(entry)
+        .flatMap(key => openingIndex.getOrElse(key, Nil))
+        .filterNot(_.gameKey == entry.gameKey)
+        .distinct
+        .sortBy(other => (-other.totalPlies, other.gameKey))
+        .take(maxSampleGames)
+
+    val sampleEntries =
+      if peers.nonEmpty then peers
+      else List(entry)
+
+    val sampleGames =
+      sampleEntries.flatMap(catalogEntryToExplorerGame)
+
+    Option.when(sampleGames.nonEmpty) {
+      lila.commentary.model.OpeningReference(
+        eco = entry.eco,
+        name = entry.opening.orElse(entry.openingMacroFamily),
+        totalGames = sampleEntries.size,
+        topMoves = Nil,
+        sampleGames = sampleGames,
+        description = entry.variation
+      )
+    }.orElse(minimalOpeningReference(entry))
+
+  private def openingLookupKeys(entry: CatalogEntry): List[String] =
+    List(entry.eco, entry.opening, entry.openingMacroFamily)
+      .flatten
+      .map(_.trim.toLowerCase)
+      .filter(key => key.nonEmpty && key != "other" && key != "unknown")
+      .distinct
+
+  private def catalogEntryToExplorerGame(entry: CatalogEntry): Option[lila.commentary.model.ExplorerGame] =
+    val pgn =
+      try Some(Files.readString(Paths.get(entry.pgnPath)))
+      catch case NonFatal(_) => None
+    val (year, month) = parseYearMonth(entry.date)
+    pgn.map { raw =>
+      lila.commentary.model.ExplorerGame(
+        id = entry.gameKey,
+        winner =
+          entry.result.flatMap {
+            case "1-0" => Some(chess.White)
+            case "0-1" => Some(chess.Black)
+            case _     => None
+          },
+        white = lila.commentary.model.ExplorerPlayer(entry.white.getOrElse("?"), entry.whiteElo.getOrElse(0)),
+        black = lila.commentary.model.ExplorerPlayer(entry.black.getOrElse("?"), entry.blackElo.getOrElse(0)),
+        year = year,
+        month = month,
+        event = entry.event.map(_.trim).filter(_.nonEmpty),
+        pgn = Some(raw)
+      )
+    }
+
+  private def parseYearMonth(date: Option[String]): (Int, Int) =
+    date match
+      case Some(raw) =>
+        val normalized = raw.trim.replace('-', '.')
+        val parts = normalized.split("\\.").toList
+        val year = parts.headOption.flatMap(_.toIntOption).getOrElse(0)
+        val month = parts.lift(1).flatMap(_.toIntOption).getOrElse(1)
+        (year, month)
+      case None => (0, 1)
 
   def guessPhase(fen: String, ply: Int): String =
     val pieces = fen.takeWhile(_ != ' ').count(_.isLetter)
@@ -1648,22 +1937,7 @@ object CommentaryPlayerQcSupport:
       case Some(surface) => buildMoveReviewRowsFromPlayerSurface(surface)
       case None          => (Nil, Nil)
 
-  def buildChronicleRows(moment: GameChronicleMoment): (List[SupportRow], List[SupportRow]) =
-    val proxy =
-      CommentResponse(
-        commentary = moment.narrative,
-        concepts = moment.concepts,
-        variations = moment.variations,
-        probeRequests = moment.probeRequests,
-        authorQuestions = moment.authorQuestions,
-        authorEvidence = moment.authorEvidence,
-        mainStrategicPlans = moment.mainStrategicPlans,
-        strategicPlanExperiments = moment.strategicPlanExperiments,
-        sourceMode = moment.activeStrategicSourceMode.getOrElse("rule"),
-        strategyPack = moment.strategyPack,
-        signalDigest = moment.signalDigest
-      )
-    buildMoveReviewRows(proxy)
+
 
   def moveReviewPlannerRuntime(snapshot: SliceSnapshot): MoveReviewRuntimeTrace =
     val rawCtx = snapshot.rawCtx.getOrElse(snapshot.ctx)

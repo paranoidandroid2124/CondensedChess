@@ -57,7 +57,8 @@ private[analysis] object DecisionComparisonComparativeSupport:
     for
       packet <- exactTargetFixationPacket(mainBundle)
       square <- exactTargetFixationSquare(packet)
-      bestMove <- cleanMove(comparison.engineBestMove.orElse(comparison.chosenMove))
+      bestMove <- DecisionComparisonBuilder
+        .cleanMoveText(comparison.engineBestMove.orElse(comparison.chosenMove))
       comparedMove <- comparedMove(comparison, ctx, bestMove)
     yield ComparativeLane(
       comparedMove = comparedMove,
@@ -72,7 +73,8 @@ private[analysis] object DecisionComparisonComparativeSupport:
   ): Option[String] =
     val chosenAlternative =
       Option.unless(comparison.chosenMatchesBest) {
-        cleanMove(comparison.chosenMove).filter(move => !sameMoveToken(move, bestMove))
+        DecisionComparisonBuilder.cleanMoveText(comparison.chosenMove)
+          .filter(move => !DecisionComparisonBuilder.equalMoveToken(move, bestMove))
       }.flatten
     chosenAlternative.orElse(topAlternativeMove(ctx, bestMove))
 
@@ -83,7 +85,7 @@ private[analysis] object DecisionComparisonComparativeSupport:
     ctx.engineEvidence
       .flatMap(_.alternatives(AlternativeThresholdCp).headOption)
       .flatMap(leadSan(ctx.fen, _))
-      .filter(move => !sameMoveToken(move, bestMove))
+      .filter(move => !DecisionComparisonBuilder.equalMoveToken(move, bestMove))
 
   private def exactTargetFixationPacket(
       mainBundle: Option[MainPathClaimBundle]
@@ -97,22 +99,4 @@ private[analysis] object DecisionComparisonComparativeSupport:
     PlayerFacingTruthModePolicy.exactSliceTargetSquare(packet)
 
   private def leadSan(fen: String, line: VariationLine): Option[String] =
-    LineScopedCitation.sanMoves(fen, line).headOption.flatMap(cleanMove)
-
-  private def sameMoveToken(left: String, right: String): Boolean =
-    normalizeMoveToken(left) == normalizeMoveToken(right)
-
-  private def normalizeMoveToken(raw: String): String =
-    normalize(raw).replaceAll("""[+#?!]+$""", "").toLowerCase
-
-  private def cleanMove(raw: Option[String]): Option[String] =
-    raw.flatMap(cleanMove)
-
-  private def cleanMove(raw: String): Option[String] =
-    cleanText(raw)
-
-  private def cleanText(raw: String): Option[String] =
-    Option(raw).map(normalize).filter(_.nonEmpty)
-
-  private def normalize(raw: String): String =
-    Option(raw).getOrElse("").replaceAll("\\s+", " ").trim
+    LineScopedCitation.sanMoves(fen, line).headOption.flatMap(DecisionComparisonBuilder.cleanMoveText)

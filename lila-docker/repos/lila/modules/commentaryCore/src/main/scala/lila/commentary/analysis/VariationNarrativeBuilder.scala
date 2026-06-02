@@ -63,7 +63,8 @@ private[analysis] object VariationNarrativeBuilder:
           Some(s"On the checked line $formattedLine, $description.")
 
         case LineConsequenceKind.PreviewOnly =>
-          Some(s"The checked line continues $formattedLine.")
+          val preview = evidence.sanMoves.take(4).map(_.trim).filter(_.nonEmpty).mkString(" ")
+          Option.when(preview.nonEmpty)(s"The checked line continues $preview.")
 
   private def pieceName(role: Role): String =
     role match

@@ -6,13 +6,11 @@ import play.api.libs.json.*
 
 import scala.collection.mutable
 
-import lila.commentary.analysis.{ LiveNarrativeCompressionCore, UserFacingSignalSanitizer }
-import lila.commentary.tools.realpgn.RealPgnNarrativeEvalRunner
+import lila.commentary.analysis.UserFacingSignalSanitizer
 
 object CommentaryPlayerReviewQueueBuilder:
 
   import CommentaryPlayerQcSupport.*
-  import lila.commentary.tools.realpgn.RealPgnNarrativeEvalRunner.*
 
   final case class Config(
       manifestPath: Path = DefaultManifestDir.resolve("slice_manifest.jsonl"),
@@ -57,15 +55,10 @@ object CommentaryPlayerReviewQueueBuilder:
             sys.exit(1)
           }
         val rawDir = Paths.get(entry.rawDir)
-        val wholeGame = buildWholeGameEntry(entry, game, rawDir)
         val focusRows = game.focusMoments.flatMap(moment => buildAuditMomentEntries(entry, moment, rawDir, config.fullReview))
-        wholeGame.toList ++ focusRows
+        focusRows
       }
 
-    val chronicleMomentCount =
-      queue.count(row => row.surface == ReviewSurface.Chronicle && row.reviewKind == ReviewKind.FocusMoment)
-    val wholeGameCount =
-      queue.count(row => row.surface == ReviewSurface.Chronicle && row.reviewKind == ReviewKind.WholeGame)
     val moveReviewCount = queue.count(_.surface == ReviewSurface.MoveReview)
     val mandatory = queue.count(entry => config.fullReview || isMandatoryReview(entry.sliceKind, entry.flags))
     val summary =
@@ -73,8 +66,8 @@ object CommentaryPlayerReviewQueueBuilder:
         version = 1,
         generatedAt = java.time.Instant.now().toString,
         moveReviewOutputCount = moveReviewCount,
-        chronicleMomentCount = chronicleMomentCount,
-        wholeGameReviewCount = wholeGameCount,
+        chronicleMomentCount = 0,
+        wholeGameReviewCount = 0,
         mandatoryReviewCount = mandatory,
         sampledReviewCount = queue.size - mandatory,
         reviewedCount = queue.size,
@@ -97,10 +90,6 @@ object CommentaryPlayerReviewQueueBuilder:
         case Left(err) =>
           System.err.println(s"[player-qc-queue] failed to read moveReview outputs `${config.moveReviewOutputsPath}`: $err")
           sys.exit(1)
-
-    val chronicleReport = readRunReportOrExit(config.chronicleReportPath)
-    val chronicleByKey =
-      chronicleReport.games.map(game => game.id -> game.focusMoments.map(moment => moment.ply -> moment).toMap).toMap
 
     val queue =
       manifest.flatMap { entry =>
@@ -125,32 +114,6 @@ object CommentaryPlayerReviewQueueBuilder:
                 )
               }
             }
-
-          case ReviewSurface.Chronicle =>
-            chronicleByKey
-              .get(entry.gameKey)
-              .flatMap(_.get(entry.targetPly))
-              .flatMap { moment =>
-                val support = chronicleSupportRows(moment)
-                val advanced = chronicleAdvancedRows(moment)
-                val flags = reviewFlags(moment.gameArcNarrative, support, advanced, entry.sliceKind)
-                val include = config.fullReview || isMandatoryReview(entry.sliceKind, flags) || sampleByHash(entry.sampleId)
-                Option.when(include) {
-                  ReviewQueueEntry(
-                    sampleId = entry.sampleId,
-                    gameId = entry.gameKey,
-                    surface = ReviewSurface.Chronicle,
-                    reviewKind = ReviewKind.FocusMoment,
-                    sliceKind = entry.sliceKind,
-                    fen = entry.fen,
-                    playedSan = entry.playedSan,
-                    mainProse = moment.gameArcNarrative,
-                    supportRows = flattenRows(support),
-                    advancedRows = flattenRows(advanced),
-                    flags = flags
-                  )
-                }
-              }
           case _ => None
       }
 
@@ -160,7 +123,7 @@ object CommentaryPlayerReviewQueueBuilder:
         version = 1,
         generatedAt = java.time.Instant.now().toString,
         moveReviewOutputCount = moveReview.size,
-        chronicleMomentCount = chronicleByKey.values.map(_.size).sum,
+        chronicleMomentCount = 0,
         wholeGameReviewCount = 0,
         mandatoryReviewCount = mandatory,
         sampledReviewCount = queue.size - mandatory,
@@ -177,32 +140,6 @@ object CommentaryPlayerReviewQueueBuilder:
       rawDir: Path,
       fullReview: Boolean
   ): List[ReviewQueueEntry] =
-    val chronicleSampleId = s"${entry.auditId}:${moment.ply}:chronicle"
-    val chronicleSupport = chronicleSupportRows(moment)
-    val chronicleAdvanced = chronicleAdvancedRows(moment)
-    val chronicleFlags =
-      reviewFlags(moment.gameArcNarrative, chronicleSupport, chronicleAdvanced, WholeGameSliceKind.ChronicleFocus)
-    val chronicleEntry =
-      Option.when(fullReview || isMandatoryReview(WholeGameSliceKind.ChronicleFocus, chronicleFlags) || sampleByHash(chronicleSampleId)) {
-        ReviewQueueEntry(
-          sampleId = chronicleSampleId,
-          auditId = Some(entry.auditId),
-          gameId = entry.gameId,
-          surface = ReviewSurface.Chronicle,
-          reviewKind = ReviewKind.FocusMoment,
-          sliceKind = WholeGameSliceKind.ChronicleFocus,
-          tier = Some(entry.tier),
-          openingFamily = Some(entry.openingFamily),
-          label = Some(entry.label),
-          fen = momentFen(rawDir, entry.gameId, moment.ply).getOrElse(""),
-          playedSan = "",
-          mainProse = moment.gameArcNarrative,
-          supportRows = flattenRows(chronicleSupport),
-          advancedRows = flattenRows(chronicleAdvanced),
-          flags = chronicleFlags
-        )
-      }
-
     val moveReviewRowPayload = moveReviewPayload(entry.gameId, moment, rawDir)
     val moveReviewSampleId = s"${entry.auditId}:${moment.ply}:moveReview"
     val moveReviewFlags =
@@ -224,7 +161,7 @@ object CommentaryPlayerReviewQueueBuilder:
           tier = Some(entry.tier),
           openingFamily = Some(entry.openingFamily),
           label = Some(entry.label),
-          pairedSampleId = Some(chronicleSampleId),
+          pairedSampleId = None,
           fen = momentFen(rawDir, entry.gameId, moment.ply).getOrElse(""),
           playedSan = "",
           mainProse = moveReviewRowPayload.commentary,
@@ -234,111 +171,7 @@ object CommentaryPlayerReviewQueueBuilder:
         )
       }
 
-    val activeSampleId = s"${entry.auditId}:${moment.ply}:active"
-    val activeRows = activeReviewRows(moment, moveReviewRowPayload.commentary)
-    val activeFlags = activeReviewFlags(moment, activeRows._1, activeRows._2)
-    val activeEntry =
-      Option.when(fullReview || activeFlags.nonEmpty || sampleByHash(activeSampleId)) {
-        ReviewQueueEntry(
-          sampleId = activeSampleId,
-          auditId = Some(entry.auditId),
-          gameId = entry.gameId,
-          surface = ReviewSurface.ActiveNote,
-          reviewKind = ReviewKind.ActiveParity,
-          sliceKind = WholeGameSliceKind.ActiveParity,
-          tier = Some(entry.tier),
-          openingFamily = Some(entry.openingFamily),
-          label = Some(entry.label),
-          pairedSampleId = Some(chronicleSampleId),
-          fen = momentFen(rawDir, entry.gameId, moment.ply).getOrElse(""),
-          playedSan = "",
-          mainProse = moment.activeNote.getOrElse(""),
-          supportRows = flattenRows(activeRows._1),
-          advancedRows = flattenRows(activeRows._2),
-          flags = activeFlags
-        )
-      }
-
-    List(chronicleEntry, moveReviewEntry, activeEntry).flatten
-
-  private def buildWholeGameEntry(entry: AuditSetEntry, game: GameReport, rawDir: Path): Option[ReviewQueueEntry] =
-    val rawPath = rawDir.resolve(s"${entry.gameId}.game_arc.json")
-    val rawJs =
-      if Files.exists(rawPath) then Json.parse(Files.readString(rawPath))
-      else Json.obj()
-
-    val intro = (rawJs \ "intro").asOpt[String].getOrElse(s"${entry.label} review.")
-    val conclusion = (rawJs \ "conclusion").asOpt[String].getOrElse("")
-    val moments = (rawJs \ "moments").asOpt[List[JsObject]].getOrElse(Nil)
-    val review = (rawJs \ "review").asOpt[JsObject]
-    val whitePlans = planNamesForSide(moments, "white")
-    val blackPlans = planNamesForSide(moments, "black")
-    val blunderCount = review.flatMap(obj => (obj \ "blundersCount").asOpt[Int]).getOrElse(moments.count(m => (m \ "moveClassification").asOpt[String].contains("Blunder")))
-    val missedWinCount = review.flatMap(obj => (obj \ "missedWinsCount").asOpt[Int]).getOrElse(moments.count(m => (m \ "moveClassification").asOpt[String].contains("MissedWin")))
-    val turningPoints = turningPointSummary(moments)
-    val rootCauses = collapseRootCauseSummary(moments)
-    val wholeGameStory =
-      wholeGameStorySummary(
-        whitePlans = whitePlans,
-        blackPlans = blackPlans,
-        turningPoints = turningPoints,
-        punishment = renderPunishmentSummary(moments, blunderCount, missedWinCount, rootCauses),
-        result = List(entry.result, game.result).flatten.headOption.getOrElse("unknown"),
-        nonStrategicShortGame = isNonStrategicShortGame(moments)
-      )
-    val support =
-      List(
-        Some(SupportRow("Themes", renderList(game.overallThemes))),
-        Option.when(whitePlans.nonEmpty)(SupportRow("White plan", whitePlans.mkString(", "))),
-        Option.when(blackPlans.nonEmpty)(SupportRow("Black plan", blackPlans.mkString(", "))),
-        Some(SupportRow("Turning points", turningPoints)),
-        Some(SupportRow("Punishment", renderPunishmentSummary(moments, blunderCount, missedWinCount, rootCauses))),
-        Some(SupportRow("Result", List(entry.result, game.result).flatten.headOption.getOrElse("unknown")))
-      ).flatten.filter(row => row.text.trim.nonEmpty)
-    val advanced =
-      List(
-        Option.when(conclusion.trim.nonEmpty)(SupportRow("Conclusion", conclusion.trim)),
-        Option.when(game.visibleMomentPlies.nonEmpty)(SupportRow("Moment plies", game.visibleMomentPlies.mkString(", "))),
-        Option.when(rootCauses.nonEmpty)(SupportRow("Root causes", rootCauses.mkString(", "))),
-        Option.when(game.probeExecutedRequests > 0)(SupportRow("Probe refinement", s"executed ${game.probeExecutedRequests} probe requests"))
-      ).flatten
-    val mainProse = List(intro.trim, wholeGameStory.getOrElse("").trim, conclusion.trim).filter(_.nonEmpty).mkString("\n\n")
-    val flags = wholeGameReviewFlags(mainProse, moments, whitePlans, blackPlans)
-
-    Some(
-      ReviewQueueEntry(
-        sampleId = s"${entry.auditId}:whole_game",
-        auditId = Some(entry.auditId),
-        gameId = entry.gameId,
-        surface = ReviewSurface.Chronicle,
-        reviewKind = ReviewKind.WholeGame,
-        sliceKind = WholeGameSliceKind.ChronicleWholeGame,
-        tier = Some(entry.tier),
-        openingFamily = Some(entry.openingFamily),
-        label = Some(entry.label),
-        fen = "",
-        playedSan = "",
-        mainProse = mainProse,
-        supportRows = flattenRows(support),
-        advancedRows = flattenRows(advanced),
-        flags = flags
-      )
-    )
-
-  private def chronicleSupportRows(moment: FocusMomentReport): List[SupportRow] =
-    List(
-      moment.objective.map(value => SupportRow("Objective", value)),
-      moment.focus.map(value => SupportRow("Focus", value)),
-      moment.execution.map(value => SupportRow("Execution", value)),
-      moment.dominantIdea.map(value => SupportRow("Dominant idea", value)),
-      moment.secondaryIdea.map(value => SupportRow("Secondary idea", value))
-    ).flatten.filter(row => LiveNarrativeCompressionCore.keepPlayerFacingSentence(row.text))
-
-  private def chronicleAdvancedRows(moment: FocusMomentReport): List[SupportRow] =
-    moment.activeNote
-      .filter(LiveNarrativeCompressionCore.keepPlayerFacingSentence)
-      .map(value => List(SupportRow("Active note", value)))
-      .getOrElse(Nil)
+    moveReviewEntry.toList
 
   private final case class MoveReviewPayload(
       commentary: String,
@@ -411,236 +244,6 @@ object CommentaryPlayerReviewQueueBuilder:
       .map(_.trim)
       .filter(_.nonEmpty)
 
-  private def activeReviewRows(moment: FocusMomentReport, moveReviewCommentary: String): (List[SupportRow], List[SupportRow]) =
-    val support =
-      List(
-        Some(SupportRow("Status", moment.activeNoteStatus)),
-        Option.when(moveReviewCommentary.trim.nonEmpty)(SupportRow("MoveReview", moveReviewCommentary))
-      ).flatten
-    (support, Nil)
-
-  private def activeReviewFlags(
-      moment: FocusMomentReport,
-      supportRows: List[SupportRow],
-      advancedRows: List[SupportRow]
-  ): List[String] =
-    val note = moment.activeNote.getOrElse("").trim
-    val flags = mutable.ListBuffer.empty[String]
-    if note.isEmpty || moment.activeNoteStatus == "omitted" then flags += FixFamily.ActiveNoteMissingContract
-    if note.nonEmpty && !LiveNarrativeCompressionCore.hasConcreteAnchor(note) then flags += FixFamily.AnchorlessActiveContinuation
-    if note.nonEmpty && sentenceCount(note) <= 1 && note.toLowerCase.contains("compensation") then flags += FixFamily.DryContractNote
-    val expectedTokens =
-      List(moment.dominantIdea, moment.objective, moment.focus, moment.execution).flatten.flatMap(tokenizeMeaningful).distinct
-    if note.nonEmpty && expectedTokens.nonEmpty && expectedTokens.forall(token => !note.toLowerCase.contains(token)) then
-      flags += FixFamily.ChronicleActiveStoryDrift
-    val metaFlags = reviewFlags(note, supportRows, advancedRows, WholeGameSliceKind.ActiveParity)
-    (flags.toList ++ metaFlags).distinct
-
-  private def wholeGameReviewFlags(
-      mainProse: String,
-      moments: List[JsObject],
-      whitePlans: List[String],
-      blackPlans: List[String]
-  ): List[String] =
-    val flags = mutable.ListBuffer.empty[String]
-    val tensionPeakCount = moments.count(m => (m \ "momentType").asOpt[String].contains("TensionPeak"))
-    val turningMoments =
-      moments.filter(m =>
-        Set("AdvantageSwing", "StrategicBridge", "MatePivot", "Equalization").contains((m \ "momentType").asOpt[String].getOrElse(""))
-      )
-    val blunders = moments.filter(m => (m \ "moveClassification").asOpt[String].contains("Blunder"))
-    val missedWins = moments.filter(m => (m \ "moveClassification").asOpt[String].contains("MissedWin"))
-    if !isNonStrategicShortGame(moments) && (whitePlans.isEmpty || blackPlans.isEmpty) then
-      flags += FixFamily.SideAsymmetryOrMissingSidePlan
-    if tensionPeakCount >= 6 && turningMoments.size <= 1 then flags += FixFamily.GenericTensionPeakOverload
-    if turningMoments.nonEmpty && turningMoments.forall(m => !(m \ "narrative").asOpt[String].exists(LiveNarrativeCompressionCore.hasConcreteAnchor)) then
-      flags += FixFamily.TurningPointUnderexplained
-    if blunders.nonEmpty && renderPunishmentSummary(moments, blunders.size, missedWins.size, collapseRootCauseSummary(moments)).toLowerCase.contains("blunders=") then
-      flags += FixFamily.BlunderWithoutPunishFeedback
-    if missedWins.nonEmpty && renderPunishmentSummary(moments, blunders.size, missedWins.size, collapseRootCauseSummary(moments)).toLowerCase.contains("missedwins=") then
-      flags += FixFamily.MissedPunishUnderexplained
-    val longStory = mainProse.trim
-    if whitePlans.nonEmpty && blackPlans.nonEmpty &&
-      (!mentionsAnyPlan(longStory, whitePlans) || !mentionsAnyPlan(longStory, blackPlans))
-    then flags += FixFamily.WholeGamePlanDrift
-    if longStory.nonEmpty &&
-      List("plan", "pressure", "compensation", "initiative", "counterplay").exists(longStory.toLowerCase.contains) &&
-      !LiveNarrativeCompressionCore.hasConcreteAnchor(longStory)
-    then flags += FixFamily.ConcreteAnchorMissingInLongTermStory
-    flags.toList.distinct
-
-  private def planNamesForSide(moments: List[JsObject], side: String): List[String] =
-    val planNames =
-      moments
-        .flatMap(moment => (moment \ "strategyPack" \ "plans").asOpt[List[JsObject]].getOrElse(Nil))
-        .filter(plan => (plan \ "side").asOpt[String].exists(_.equalsIgnoreCase(side)))
-        .flatMap(plan => (plan \ "planName").asOpt[String])
-        .map(_.trim)
-        .filter(_.nonEmpty)
-        .distinct
-        .take(5)
-    if planNames.nonEmpty then planNames
-    else
-      moments
-        .filter(moment => (moment \ "side").asOpt[String].exists(_.equalsIgnoreCase(side)))
-        .flatMap(moment =>
-          List(
-            (moment \ "objective").asOpt[String],
-            (moment \ "focus").asOpt[String],
-            (moment \ "execution").asOpt[String],
-            (moment \ "dominantIdea").asOpt[String],
-            (moment \ "strategyPack" \ "longTermFocus").asOpt[List[String]].flatMap(_.headOption)
-          ).flatten
-        )
-        .map(_.trim)
-        .filter(text => text.nonEmpty && LiveNarrativeCompressionCore.keepPlayerFacingSentence(text))
-        .distinct
-        .take(3)
-
-  private def turningPointSummary(moments: List[JsObject]): String =
-    val summary =
-      moments
-        .flatMap { moment =>
-          val momentType = (moment \ "momentType").asOpt[String]
-          val ply = (moment \ "ply").asOpt[Int]
-          Option.when(momentType.exists(_ != "TensionPeak")) {
-            val anchor = turningPointAnchor(moment)
-            anchor match
-              case Some(text) => s"${momentType.getOrElse("Moment")} @${ply.getOrElse(0)}: $text"
-              case None       => s"${momentType.getOrElse("Moment")} @${ply.getOrElse(0)}"
-          }
-        }
-        .distinct
-        .take(6)
-    if summary.nonEmpty then summary.mkString(", ") else "No non-trivial turning point summary"
-
-  private def collapseRootCauseSummary(moments: List[JsObject]): List[String] =
-    moments
-      .flatMap(moment => (moment \ "collapse" \ "rootCause").asOpt[String])
-      .map(_.trim)
-      .filter(_.nonEmpty)
-      .groupBy(identity)
-      .toList
-      .sortBy { case (_, entries) => -entries.size }
-      .map { case (cause, entries) => s"$cause x${entries.size}" }
-
-  private def renderPunishmentSummary(
-      moments: List[JsObject],
-      blunders: Int,
-      missedWins: Int,
-      rootCauses: List[String]
-  ): String =
-    val blunderSummary =
-      moments
-        .filter(m => (m \ "moveClassification").asOpt[String].contains("Blunder"))
-        .take(2)
-        .flatMap { moment =>
-          val ply = (moment \ "ply").asOpt[Int].getOrElse(0)
-          punishmentAnchor(moment).map(anchor => s"Blunder @$ply was punished through $anchor")
-        }
-    val missedWinSummary =
-      moments
-        .filter(m => (m \ "moveClassification").asOpt[String].contains("MissedWin"))
-        .take(2)
-        .flatMap { moment =>
-          val ply = (moment \ "ply").asOpt[Int].getOrElse(0)
-          punishmentAnchor(moment).map(anchor => s"Missed win @$ply left $anchor unfinished")
-        }
-    val summaries = (blunderSummary ++ missedWinSummary).distinct
-    if summaries.nonEmpty then summaries.mkString("; ")
-    else
-      List(
-        Some(s"blunders=$blunders"),
-        Some(s"missedWins=$missedWins"),
-        Option.when(rootCauses.nonEmpty)(rootCauses.mkString("; "))
-      ).flatten.mkString(", ")
-
-  private def wholeGameStorySummary(
-      whitePlans: List[String],
-      blackPlans: List[String],
-      turningPoints: String,
-      punishment: String,
-      result: String,
-      nonStrategicShortGame: Boolean
-  ): Option[String] =
-    if nonStrategicShortGame then
-      Some("This was too short for a stable two-sided strategic battle.")
-    else
-      val sidePlanSentence =
-        (whitePlans.headOption, blackPlans.headOption) match
-          case (Some(whitePlan), Some(blackPlan)) =>
-            Some(s"White was mainly playing for $whitePlan, while Black was mainly playing for $blackPlan.")
-          case (Some(whitePlan), None) =>
-            Some(s"White's clearest plan was $whitePlan.")
-          case (None, Some(blackPlan)) =>
-            Some(s"Black's clearest plan was $blackPlan.")
-          case _ =>
-            None
-      val turningSentence =
-        Option.when(turningPoints != "No non-trivial turning point summary") {
-          s"The decisive shift came through $turningPoints."
-        }
-      val punishmentSentence =
-        Option.when(!punishment.toLowerCase.startsWith("blunders=") && !punishment.toLowerCase.startsWith("missedwins=")) {
-          s"The punishment story was $punishment."
-        }
-      val resultSentence =
-        Option.when(result.trim.nonEmpty) {
-          s"The final verdict was $result."
-        }
-      List(sidePlanSentence, turningSentence, punishmentSentence, resultSentence).flatten match
-        case Nil       => None
-        case sentences => Some(sentences.mkString(" "))
-
-  private def turningPointAnchor(moment: JsObject): Option[String] =
-    val direct =
-      List(
-        (moment \ "objective").asOpt[String],
-        (moment \ "focus").asOpt[String],
-        (moment \ "execution").asOpt[String],
-        (moment \ "dominantIdea").asOpt[String],
-        (moment \ "strategyPack" \ "longTermFocus").asOpt[List[String]].flatMap(_.headOption)
-      ).flatten
-        .map(_.trim)
-        .filter(text => text.nonEmpty && LiveNarrativeCompressionCore.keepPlayerFacingSentence(text))
-        .find(text => LiveNarrativeCompressionCore.hasConcreteAnchor(text) || looksStrategicAnchor(text))
-    direct.orElse {
-      (moment \ "narrative").asOpt[String]
-        .flatMap(_.split("(?<=[.!?])\\s+").map(_.trim).find(_.nonEmpty))
-        .map(LiveNarrativeCompressionCore.rewritePlayerLanguage)
-        .filter(text => text.nonEmpty && !LiveNarrativeCompressionCore.isLowValueNarrativeSentence(text))
-        .filter(text => LiveNarrativeCompressionCore.hasConcreteAnchor(text) || looksStrategicAnchor(text))
-    }
-
-  private def punishmentAnchor(moment: JsObject): Option[String] =
-    turningPointAnchor(moment)
-      .orElse((moment \ "collapse" \ "rootCause").asOpt[String].map(_.trim).filter(_.nonEmpty))
-
-  private def mentionsAnyPlan(text: String, plans: List[String]): Boolean =
-    val low = Option(text).getOrElse("").toLowerCase
-    plans.exists(plan => plan.trim.nonEmpty && low.contains(plan.trim.toLowerCase))
-
-  private def looksStrategicAnchor(text: String): Boolean =
-    val low = Option(text).getOrElse("").toLowerCase
-    List("pressure", "target", "break", "counterplay", "exchange", "file", "pawn", "king", "outpost").exists(low.contains)
-
-  private def isNonStrategicShortGame(moments: List[JsObject]): Boolean =
-    if moments.isEmpty then true
-    else
-      val maxPly = moments.flatMap(moment => (moment \ "ply").asOpt[Int]).maxOption.getOrElse(0)
-      val allTensionPeaks = moments.forall(moment => (moment \ "momentType").asOpt[String].contains("TensionPeak"))
-      val hasStrategicAnchor =
-        moments.exists(moment =>
-          List(
-            (moment \ "objective").asOpt[String],
-            (moment \ "focus").asOpt[String],
-            (moment \ "execution").asOpt[String],
-            (moment \ "dominantIdea").asOpt[String]
-          ).flatten.exists(text => text.trim.nonEmpty && looksStrategicAnchor(text))
-        )
-      (moments.size <= 1 && maxPly <= 8 && !hasStrategicAnchor) ||
-      (allTensionPeaks && maxPly <= 12 && !hasStrategicAnchor)
-
   private def momentFen(rawDir: Path, gameId: String, ply: Int): Option[String] =
     val rawGamePath = rawDir.resolve(s"${gameId}.game_arc.json")
     if !Files.exists(rawGamePath) then None
@@ -651,15 +254,6 @@ object CommentaryPlayerReviewQueueBuilder:
         .getOrElse(Nil)
         .find(moment => (moment \ "ply").asOpt[Int].contains(ply))
         .flatMap(moment => (moment \ "fen").asOpt[String])
-
-  private def tokenizeMeaningful(raw: String): List[String] =
-    Option(raw)
-      .getOrElse("")
-      .toLowerCase
-      .split("[^a-z0-9]+")
-      .toList
-      .map(_.trim)
-      .filter(token => token.length >= 4)
 
   private def readAuditSet(path: Path): Either[String, AuditSetManifest] =
     try
@@ -675,9 +269,6 @@ object CommentaryPlayerReviewQueueBuilder:
       case Left(err) =>
         System.err.println(s"[player-qc-queue] failed to parse chronicle report `${path}`: $err")
         sys.exit(1)
-
-  private def renderList(values: List[String]): String =
-    values.map(_.trim).filter(_.nonEmpty).distinct.mkString(", ")
 
   private def parseConfig(args: List[String]): Config =
     @annotation.tailrec

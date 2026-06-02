@@ -342,7 +342,16 @@ private[analysis] object OpeningPrecedentBranching:
   private def openingPrecedentSanMoves(pgn: Option[String]): List[String] =
     val resultTokens = Set("1-0", "0-1", "1/2-1/2", "*")
     pgn.toList
-      .flatMap(_.trim.split("\\s+").toList)
+      .flatMap { raw =>
+        raw
+          .replace("\r\n", "\n")
+          .replace('\r', '\n')
+          .linesIterator
+          .filterNot(line => line.trim.startsWith("["))
+          .mkString(" ")
+          .split("\\s+")
+          .toList
+      }
       .map(_.trim)
       .filter(_.nonEmpty)
       .map(_.replaceAll("""^\d+\.(?:\.\.)?""", ""))

@@ -11,18 +11,15 @@ surface must become less specific or fail closed.
 
 ## Signoff Surface
 
-MoveReview is the only user-facing commentary truth surface. Chronicle,
-Active, and Game Arc are legacy diagnostic/tooling surfaces. Their bridge,
-thread, note-composition, and compression helpers are isolated to
-`modules/commentaryTools/src/test` and may not participate in released truth
-signoff unless a current MoveReview consumer and runtime audit explicitly
-reopen that boundary.
-Runtime truth projection must not accept `GameChronicleMoment` or
-`GameChronicleResponse` as signoff inputs. Chronicle fallback semantics may
-exist only in test/tooling diagnostics; released truth paths consume the current
-MoveReview/arc runtime models and proof-contract projections.
-Active-note payload fields and active branch dossiers are not truth inputs in
-runtime `GameArc`; tooling that reconstructs them must do so outside `src/main`.
+MoveReview is the only user-facing commentary truth surface. Legacy Chronicle and Active-note
+components (including active bridge planning, thread selection, strategic-note composition,
+chronicle compression, and related test/tooling helpers) have been completely removed
+and cleaned up from the workspace.
+Runtime truth projection must not accept `GameChronicleMoment` or `GameChronicleResponse` as
+signoff inputs. Chronicle fallback semantics have been removed. Released truth paths consume
+only the current MoveReview/arc runtime models and proof-contract projections.
+Active-note payload fields and active branch dossiers are not truth inputs in runtime `GameArc` and
+have been completely removed.
 
 Future `SupportedLocal` or scoped-takeaway expansion must enter through
 MoveReview first and must preserve the audited payload contract.
@@ -296,8 +293,13 @@ evaluations such as `GruenfeldCenterChallenge`, `SlavFreeingBreak`,
 `CatalanTensionRelease`, `OpenCatalanPawnRecovery`, `SicilianC5Challenge`, and
 `KingsGambitF4Break` are admitted from the parsed post-move board pattern plus
 available engine score, then consumed through `openingGoalEvaluation`; they
-are not `CertifiedOwner`, target-fixation truth, exact central-break timing
-truth, or a replacement for the label-plus-FEN opening-family resolver.
+are gated to opening phase/event context or the early opening-data window, so
+opening labels alone cannot keep producing goal prose in later
+middlegame/endgame slices. They are not `CertifiedOwner`, target-fixation
+truth, exact central-break timing truth, or a replacement for the label-plus-FEN
+opening-family resolver. Opening-relation planner ownership also cannot rest on
+a self-only `OpeningReference.sampleGames` replay; replay support needs at least
+two total/sample games and an opening event or the early opening-data window.
 Generic exact target-fixation witnesses must also bind the chosen square back
 to the same target-fixing idea. If an idea lists several focus squares, runtime
 may not select the only current `WeaknessTargetProfile` square unless the idea

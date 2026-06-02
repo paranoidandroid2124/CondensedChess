@@ -20,23 +20,24 @@ This document owns the current pipeline map for:
 If a runtime pipeline change makes this document stale, update this document in
 the same change. Do not append dated logs; rewrite the current-state map.
 
+This document is not a license to add parallel wrappers around an already
+mapped boundary. For no-behavior-change cleanup, verify the live implementation
+and call sites, remove or collapse duplicated responsibility where possible, and
+preserve the documented truth/trust contract without minting new authority
+surfaces.
+
 ## Product Surface
 
 User-facing commentary authority is MoveReview-only.
 
 Removed product surfaces such as Game Chronicle, Guided Review, Defeat DNA, and
 Active strategic-note UI/API entrypoints are not public authority paths. Legacy
-Chronicle/Active planner, thread-selection, active-note, and chronicle
-compression code is not runtime infrastructure: it lives only under
-`modules/commentaryTools/src/test` for historical diagnostics and corpus
-review tooling. The maintained `src/main` runtime must not call Active bridge
-planning, Active thread selection, Active strategic-note composition, or
-Chronicle compression to decide released commentary.
-`GameChronicleResponse` and `GameChronicleMoment` are test/tooling DTOs only;
-they must not live in or be referenced by `modules/commentaryCore/src/main` or
-`modules/commentary/src/main`. Compatibility callers that still need historical
-Chronicle replay diagnostics must project through compact tooling carriers such
-as `DecisionFrameCarrierInput` before entering shared runtime builders.
+Chronicle/Active planner, thread-selection, active-note, chronicle compression, and
+evaluation tooling have been completely removed and cleaned up from the workspace.
+The maintained runtime must not call Active bridge planning, Active thread selection,
+Active strategic-note composition, or Chronicle compression.
+`GameChronicleResponse` and `GameChronicleMoment` are deleted and cannot be referenced
+or used anywhere in the workspace.
 Runtime `GameArc` may retain generic diagnostic data such as top-engine
 alternatives in memory for tooling, but its JSON writer omits raw strategic,
 probe, authoring, plan-experiment, and Active-style carriers. It must not
@@ -175,9 +176,12 @@ The maintained path is:
      `BogoIndianE4Outpost`, plus Catalan-specific
      `CatalanTensionRelease` and `OpenCatalanPawnRecovery`, Sicilian
      `SicilianC5Challenge`, and King's Gambit `KingsGambitF4Break`, are
-     board-pattern support for prose selection only; they do not replace
-     `OpeningFamilyClaimResolver`, create a new opening-family carrier, or
-     certify target/owner truth. The c/f-pawn opening-break prose entries do
+     board-pattern support for prose selection only. `openingData` by itself
+     may keep this carrier open only in the early opening-data ply window;
+     later non-opening phases need an opening phase or explicit opening event.
+     Opening goals do not replace `OpeningFamilyClaimResolver`, create a new
+     opening-family carrier, or certify target/owner truth. The c/f-pawn
+     opening-break prose entries do
      not expand `CentralBreakTimingWitness` or product `central_break`
      authority.
 10. `QuestionFirstCommentaryPlanner` selects and ranks questions. It does not
@@ -185,7 +189,10 @@ The maintained path is:
    break/timing surfaces are admitted only through the shared
    `ClaimAuthorityResolver` neutralize-key-break timing gate with a typed exact
    break witness; generic prevented threat labels or cp-only counterplay
-   windows remain support material.
+   windows remain support material. Single-line planner evidence strips any
+   existing `Line:`/branch label before adding the canonical branch label, and
+   probe-request reminder prose is not promoted into branch-scoped line
+   evidence.
 11. `NarrativeOutlineBuilder` assembles beats from admitted inputs.
 12. `analysis.render.FragmentAuthority` decides fragment release safety for
     render-only, support-only, unsafe truth, unsafe lesson, and anchor-required
@@ -239,6 +246,14 @@ The maintained path is:
     sanitized ECO, positive aggregate total-game count, and up to three SAN top
     moves. Raw explorer responses, source ids, sample games, and provenance
     caches are not emitted.
+    `OpeningReference.sampleGames` remains internal replay support for
+    `OpeningPrecedentBranching` and opening-relation claims; full PGN samples
+    are normalized by stripping tag-pair lines and results before SAN route
+    extraction, and catch-all opening macro families such as `other` or
+    `unknown` are not valid peer-precedent keys. Planner-owned opening-relation
+    replay additionally requires at least two total/sample games plus an
+    explicit opening event or the early opening-data ply window; self-only
+    replay remains support-only.
     `MoveReviewSupportedLocalSurfaceRows` may also
     add a `Central break` summary row when the main-path packet is admitted as
     `SupportedLocal`, `CentralBreakTimingWitness.exact` is present, the packet
@@ -308,7 +323,7 @@ The maintained path is:
     reconstructing from raw carriers. When the main planner fails, a mid-tier
     thematic fallback (`theme_fallback` / `thematicFallbackSlots` mapped via active plan themes) generates generic
     strategic guidelines instead of falling back straight to raw move descriptions. However, if the truth contract indicates a blunder or tactical refutation, thematic fallback is disabled (fail-closed) to ensure fallback to exact factual/default move descriptions.
-    Prose constraints in `MoveReviewProseContract` and `MoveReviewSoftRepair` are relaxed (allowing up to 3 sentences in single-paragraph and 6 in multi-paragraph slots). SupportedLocal strategic claims are no longer limited to claim-only formatting (supportedLocalSurfaceOnly is disabled) and can render full support paragraphs and replayed multi-move variation narratives generated by `VariationNarrativeBuilder`.
+    Prose constraints in `MoveReviewProseContract` and `MoveReviewSoftRepair` are relaxed (allowing up to 3 sentences in single-paragraph and 6 in multi-paragraph slots). SupportedLocal strategic claims are no longer limited to claim-only formatting (supportedLocalSurfaceOnly is disabled) and can render full support paragraphs and replayed multi-move variation narratives generated by `VariationNarrativeBuilder`. Planner-owned claim-only MoveReview slots still pass through the same move-header prefixing as supported slots, so a support-free rule-mode claim does not lose the reviewed move label.
     `AlternativeNarrativeSupport` can supply close-candidate PV contrast to
     planner/compression prose when the branches are legal FEN-replayed
     `VariationLine` evidence. UCI-only source fixtures do not need
@@ -885,9 +900,7 @@ shorthand that must be translated before implementation:
 - `Track 5 lesson authority` is not a runtime authority layer. The current
   runtime boundary is `MoveReviewScopedTakeaway`; broad lesson release remains
   closed.
-- `Chronicle/Active runtime reopening` is a legacy surface migration concern,
-  not a MoveReview pipeline step. Released MoveReview truth must not consume
-  `GameChronicle*`, Active-note DTOs, or active branch/thread carriers.
+- `Chronicle/Active runtime reopening` is closed; all legacy chronicle/active classes, DTOs, and test helpers have been completely removed and cleaned up from the workspace.
 
 When adding a new strategic asset, name the source module after the stable
 domain/proof role and route it through the existing owner:
@@ -1111,8 +1124,7 @@ reports derive `supportRows` and `advancedRows` from
 MoveReview QC support rows. If a MoveReview raw artifact or canonical surface is
 absent, QC queues keep the MoveReview commentary only and do not synthesize
 support rows from raw carriers or legacy chronicle metadata. Active-note and
-Chronicle QC helpers are test/tooling-only and cannot feed MoveReview release
-authority.
+Chronicle QC helpers have been completely removed and cleaned up from the workspace.
 
 ## Current Verification Targets
 

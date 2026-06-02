@@ -112,6 +112,31 @@ private[commentary] object LocalFileEntryProof:
       ambiguousDefendedBranch: Boolean
   )
 
+  private final case class ProbeEvidenceSlices(
+      validationResults: List[ProbeResult],
+      continuityResults: List[ProbeResult],
+      directReplyResults: List[ProbeResult]
+  )
+
+  private final case class SameBranchEvidence(
+      validationResults: List[ProbeResult],
+      persistenceResults: List[ProbeResult],
+      continuityResults: List[ProbeResult]
+  )
+
+  private final case class LocalBindContinuityFacts(
+      directBestDefensePresent: Boolean,
+      defenderResources: List[String],
+      bestReplyStable: Boolean,
+      fileRouteLossVisible: Boolean,
+      entryAxisPersistence: Boolean,
+      futureSnapshotPersistence: Boolean,
+      boundedContinuationVisible: Boolean,
+      sameDefendedBranch: Boolean,
+      pressurePersistence: Boolean,
+      routeContinuity: RouteContinuity
+  )
+
   private val ApplicableSubplans =
     Set(
       PlanKind.BreakPrevention.id,
@@ -186,55 +211,21 @@ private[commentary] object LocalFileEntryProof:
     val fileAxisSignals = relevantPreventedPlans.flatMap(fileAxisSignal)
     val entryAxisSignals = relevantPreventedPlans.flatMap(entryAxisSignal)
     Option.when(isApplicablePlan(plan) && fileAxisSignals.nonEmpty && entryAxisSignals.nonEmpty) {
-      val supportResults =
-        plan.supportProbeIds.flatMap(probeResultsById.get).distinctBy(_.id)
-      val validationResults =
-        supportResults.filter(result =>
-          result.purpose.exists(purpose =>
-            ValidationPurposes.contains(normalize(purpose))
-          )
-        )
-      val continuityResults =
-        supportResults.filter(result =>
-          result.purpose.exists(purpose =>
-            ContinuityPurposes.contains(normalize(purpose))
-          )
-        )
-      val directReplyResults =
-        supportResults.filter(result =>
-          result.purpose.exists(purpose =>
-            DirectReplyPurposes.contains(normalize(purpose))
-          )
-        )
+      val probeEvidence = probeEvidenceSlices(plan, probeResultsById)
+      val validationResults = probeEvidence.validationResults
+      val continuityResults = probeEvidence.continuityResults
+      val directReplyResults = probeEvidence.directReplyResults
       val branchIdentity =
         resolveBranchIdentity(directReplyResults)
       val bestDefenseFound = branchIdentity.bestDefenseFound
       val bestDefenseBranchKey = branchIdentity.selectedKey
-      val sameBranchValidationResults =
-        validationResults.filter(result =>
-          matchesDefendedBranch(result, bestDefenseBranchKey)
+      val sameBranchEvidence =
+        buildSameBranchEvidence(
+          validationResults = validationResults,
+          continuityResults = continuityResults,
+          directReplyResults = directReplyResults,
+          bestDefenseBranchKey = bestDefenseBranchKey
         )
-      val sameBranchPersistenceResults =
-        (directReplyResults ++ validationResults)
-          .distinctBy(_.id)
-          .filter(result => matchesDefendedBranch(result, bestDefenseBranchKey))
-      val sameBranchContinuityResults =
-        (directReplyResults ++ continuityResults)
-          .distinctBy(_.id)
-          .filter(result => matchesDefendedBranch(result, bestDefenseBranchKey))
-      val directBestDefensePresent =
-        directReplyResults.nonEmpty &&
-          bestDefenseFound.nonEmpty &&
-          bestDefenseBranchKey.nonEmpty
-      val defenderResources = distinctDefenderResources(directReplyResults)
-      val bestReplyStable =
-        directBestDefensePresent &&
-          defenderResources.nonEmpty &&
-          defenderResources.size <= RestrictedResourceCap &&
-          directReplyResults.forall(hasReplyCoverage) &&
-          directReplyResults.forall(result =>
-            result.l1Delta.flatMap(_.collapseReason).forall(reason => clean(reason).isEmpty)
-          )
       val primaryFile =
         strongestFileAxis(fileAxisSignals)
       val corroboratingEntry =
@@ -245,40 +236,16 @@ private[commentary] object LocalFileEntryProof:
         buildAxisIndependence(primaryFile, entryAxisSignals, corroboratingEntry)
       val fileUsabilityMeasured =
         primaryFile.exists(axisBurdenMeasured)
-      val fileRouteLossVisible =
-        primaryFile.exists(file =>
-          sameBranchPersistenceResults.exists(result => confirmsFileDenial(result, file))
-        )
       val entryAxisMeasured =
         corroboratingEntry.exists(axisBurdenMeasured)
-      val entryAxisPersistence =
-        corroboratingEntry.exists(entry =>
-          sameBranchPersistenceResults.exists(result =>
-            confirmsEntryDenial(result, entry.square)
-          )
+      val continuityFacts =
+        localBindContinuityFacts(
+          branchIdentity = branchIdentity,
+          directReplyResults = directReplyResults,
+          sameBranchEvidence = sameBranchEvidence,
+          primaryFile = primaryFile,
+          corroboratingEntry = corroboratingEntry
         )
-      val futureSnapshotPersistence =
-        sameBranchValidationResults.nonEmpty &&
-          fileRouteLossVisible &&
-          entryAxisPersistence
-      val convertReplyAligned =
-        sameBranchContinuityResults.exists(result =>
-          normalize(result.purpose.getOrElse("")) == "convert_reply_multipv" &&
-            result.futureSnapshot.exists(mentionsBoundedContinuation)
-        )
-      val boundedContinuationVisible =
-        sameBranchContinuityResults.exists(result =>
-          result.futureSnapshot.exists(mentionsBoundedContinuation) ||
-            result.motifTags.exists(mentionsContinuation)
-        )
-      val sameDefendedBranch =
-        directBestDefensePresent &&
-          sameBranchValidationResults.nonEmpty &&
-          sameBranchContinuityResults.nonEmpty
-      val pressurePersistence =
-        bestReplyStable &&
-          futureSnapshotPersistence &&
-          sameDefendedBranch
       val releaseRisksRemaining =
         remainingReleaseRisks(
           primaryFile = primaryFile,
@@ -289,14 +256,7 @@ private[commentary] object LocalFileEntryProof:
       val tacticalReleasesRemaining =
         directReplyResults.flatMap(tacticalReleaseSignals).distinct
       val routeContinuity =
-        RouteContinuity(
-          directBestDefensePresent = directBestDefensePresent,
-          bestDefenseStable = bestReplyStable,
-          futureSnapshotPersistent = futureSnapshotPersistence,
-          convertReplyAligned = convertReplyAligned,
-          boundedContinuationVisible = boundedContinuationVisible,
-          sameDefendedBranch = sameDefendedBranch
-        )
+        continuityFacts.routeContinuity
       val lateMiddlegameSlice =
         normalize(phase) == "middlegame" &&
           ply >= LateMiddlegamePlyFloor &&
@@ -312,76 +272,50 @@ private[commentary] object LocalFileEntryProof:
           PlayerFacingClaimOntologyKind.LongTermRestraint
         ).contains(plan.claimCertification.ontologyFamily)
       val fileUsabilityEvidence =
-        FileUsabilityEvidence(
-          file = primaryFile.map(_.label),
-          deniedEntryScope = primaryFile.flatMap(_.deniedEntryScope),
-          deniedResourceClass = primaryFile.flatMap(_.deniedResourceClass),
-          counterplayScoreDrop = primaryFile.map(_.counterplayScoreDrop).getOrElse(0),
-          breakNeutralizationStrength = primaryFile.flatMap(_.breakNeutralizationStrength),
-          defensiveSufficiency = primaryFile.flatMap(_.defensiveSufficiency),
-          opponentFacingRouteLoss =
-            fileUsabilityMeasured &&
-              primaryFile.exists(_.deniedEntryScope.contains("file")) &&
-              fileRouteLossVisible,
-          sameBranchFilePersistence = fileRouteLossVisible
+        buildFileUsabilityEvidence(
+          primaryFile = primaryFile,
+          fileUsabilityMeasured = fileUsabilityMeasured,
+          fileRouteLossVisible = continuityFacts.fileRouteLossVisible
         )
       val fileOccupancyOnlyRisk =
         primaryFile.isEmpty || !fileUsabilityEvidence.opponentFacingRouteLoss
       val fortressRisk =
         fileUsabilityEvidence.opponentFacingRouteLoss &&
-          entryAxisPersistence &&
-          bestReplyStable &&
-          sameDefendedBranch &&
-          !boundedContinuationVisible
-      val fragilityReasons =
-        List(
-          Option.when(plan.status == PlanEvidenceEvaluator.PlanEvidenceStatus.PlayablePvCoupled)(
-            "pv_coupled_only"
-          ),
-          Option.when(plan.pvCoupled && plan.missingSignals.nonEmpty)(
-            "missing_signals_under_pv_coupling"
-          ),
-          Option.when(
-            directReplyResults.exists(result =>
-              result.l1Delta.flatMap(_.collapseReason).exists(reason => clean(reason).nonEmpty)
-            )
-          )("collapse_under_best_defense"),
-          Option.when(
-            directReplyResults.nonEmpty &&
-              directReplyResults.exists(hasReplyCoverage) &&
-              !bestReplyStable &&
-              !futureSnapshotPersistence
-          )("reply_order_not_stable")
-        ).flatten.distinct
+          continuityFacts.entryAxisPersistence &&
+          continuityFacts.bestReplyStable &&
+          continuityFacts.sameDefendedBranch &&
+          !continuityFacts.boundedContinuationVisible
       val moveOrderFragility =
-        MoveOrderFragility(
-          fragile = fragilityReasons.nonEmpty,
-          reasons = fragilityReasons
+        buildMoveOrderFragility(
+          plan = plan,
+          directReplyResults = directReplyResults,
+          bestReplyStable = continuityFacts.bestReplyStable,
+          futureSnapshotPersistence = continuityFacts.futureSnapshotPersistence
         )
       val coreFails =
         List(
           Option.when(validationResults.isEmpty)("pv_restatement_only"),
-          Option.when(!directBestDefensePresent)("direct_best_defense_missing"),
+          Option.when(!continuityFacts.directBestDefensePresent)("direct_best_defense_missing"),
           Option.when(!lateMiddlegameSlice)("slice_scope_violation"),
           Option.when(!clearlyBetter)("slight_edge_overclaim"),
           Option.when(fileOccupancyOnlyRisk || !fileUsabilityMeasured)("file_occupancy_only"),
           Option.when(!entryAxisMeasured)("entry_axis_burden_missing"),
           Option.when(!axisIndependence.proven)("entry_axis_not_independent"),
           Option.when(
-            directBestDefensePresent &&
+            continuityFacts.directBestDefensePresent &&
               corroboratingEntry.nonEmpty &&
-              !entryAxisPersistence
+              !continuityFacts.entryAxisPersistence
           )("entry_axis_persistence_missing"),
           Option.when(releaseRisksRemaining.nonEmpty)("hidden_off_file_release"),
           Option.when(tacticalReleasesRemaining.nonEmpty)("hidden_tactical_release"),
           Option.when(branchIdentity.ambiguousDefendedBranch)("stitched_defended_branch"),
           Option.when(
-            directBestDefensePresent &&
+            continuityFacts.directBestDefensePresent &&
               validationResults.nonEmpty &&
-              !sameDefendedBranch
+              !continuityFacts.sameDefendedBranch
           )("stitched_defended_branch"),
-          Option.when(!bestReplyStable)("cooperative_defense"),
-          Option.when(fileUsabilityEvidence.opponentFacingRouteLoss && entryAxisPersistence && !boundedContinuationVisible)(
+          Option.when(!continuityFacts.bestReplyStable)("cooperative_defense"),
+          Option.when(fileUsabilityEvidence.opponentFacingRouteLoss && continuityFacts.entryAxisPersistence && !continuityFacts.boundedContinuationVisible)(
             "fortress_like_but_not_progressing"
           ),
           Option.when(moveOrderFragility.fragile)("move_order_fragility")
@@ -398,7 +332,7 @@ private[commentary] object LocalFileEntryProof:
           !ontologyAllowed ||
           !routeContinuity.boundedContinuationVisible ||
           containsInflationShell(plan.hypothesis) ||
-          defenderResources.size > RestrictedResourceCap
+          continuityFacts.defenderResources.size > RestrictedResourceCap
         then HighReinflationRisk
         else BoundedFileEntryOnly
       val failsIf =
@@ -412,8 +346,8 @@ private[commentary] object LocalFileEntryProof:
         corroboratingEntryAxis = corroboratingEntry.map(toEntryAxis),
         axisIndependence = axisIndependence,
         fileUsabilityEvidence = fileUsabilityEvidence,
-        entryAxisPersistence = entryAxisPersistence,
-        pressurePersistence = pressurePersistence,
+        entryAxisPersistence = continuityFacts.entryAxisPersistence,
+        pressurePersistence = continuityFacts.pressurePersistence,
         bestDefenseFound = bestDefenseFound,
         bestDefenseBranchKey = bestDefenseBranchKey,
         routeContinuity = routeContinuity,
@@ -428,16 +362,16 @@ private[commentary] object LocalFileEntryProof:
           confidenceScore(
             lateMiddlegameSlice = lateMiddlegameSlice,
             clearlyBetter = clearlyBetter,
-            directBestDefensePresent = directBestDefensePresent,
+            directBestDefensePresent = continuityFacts.directBestDefensePresent,
             fileUsabilityMeasured = fileUsabilityMeasured,
-            fileRouteLossVisible = fileRouteLossVisible,
+            fileRouteLossVisible = continuityFacts.fileRouteLossVisible,
             entryAxisMeasured = entryAxisMeasured,
-            entryAxisPersistence = entryAxisPersistence,
+            entryAxisPersistence = continuityFacts.entryAxisPersistence,
             axisIndependence = axisIndependence.proven,
-            bestReplyStable = bestReplyStable,
-            futureSnapshotPersistence = futureSnapshotPersistence,
-            boundedContinuationVisible = boundedContinuationVisible,
-            sameDefendedBranch = sameDefendedBranch,
+            bestReplyStable = continuityFacts.bestReplyStable,
+            futureSnapshotPersistence = continuityFacts.futureSnapshotPersistence,
+            boundedContinuationVisible = continuityFacts.boundedContinuationVisible,
+            sameDefendedBranch = continuityFacts.sameDefendedBranch,
             releaseRiskCount = releaseRisksRemaining.size,
             tacticalReleaseCount = tacticalReleasesRemaining.size,
             moveOrderFragility = moveOrderFragility,
@@ -448,8 +382,8 @@ private[commentary] object LocalFileEntryProof:
           ),
         evidenceSources =
           (plan.hypothesis.evidenceSources ++
-            sameBranchPersistenceResults.flatMap(_.purpose.flatMap(clean)) ++
-            sameBranchContinuityResults.flatMap(_.purpose.flatMap(clean)) ++
+            sameBranchEvidence.persistenceResults.flatMap(_.purpose.flatMap(clean)) ++
+            sameBranchEvidence.continuityResults.flatMap(_.purpose.flatMap(clean)) ++
             relevantPreventedPlans.flatMap(preventedEvidenceSignals)).distinct
       )
     }
@@ -512,6 +446,177 @@ private[commentary] object LocalFileEntryProof:
     (normalize(plan.themeL1) == PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id ||
       normalize(plan.themeL1) == PlanTaxonomy.PlanTheme.PieceRedeployment.id) &&
       plan.subplanId.exists(id => ApplicableSubplans.contains(normalize(id)))
+
+  private def probeEvidenceSlices(
+      plan: PlanEvidenceEvaluator.EvaluatedPlan,
+      probeResultsById: Map[String, ProbeResult]
+  ): ProbeEvidenceSlices =
+    val supportResults =
+      plan.supportProbeIds.flatMap(probeResultsById.get).distinctBy(_.id)
+    ProbeEvidenceSlices(
+      validationResults =
+        supportResults.filter(result =>
+          result.purpose.exists(purpose =>
+            ValidationPurposes.contains(normalize(purpose))
+          )
+        ),
+      continuityResults =
+        supportResults.filter(result =>
+          result.purpose.exists(purpose =>
+            ContinuityPurposes.contains(normalize(purpose))
+          )
+        ),
+      directReplyResults =
+        supportResults.filter(result =>
+          result.purpose.exists(purpose =>
+            DirectReplyPurposes.contains(normalize(purpose))
+          )
+        )
+    )
+
+  private def buildSameBranchEvidence(
+      validationResults: List[ProbeResult],
+      continuityResults: List[ProbeResult],
+      directReplyResults: List[ProbeResult],
+      bestDefenseBranchKey: Option[String]
+  ): SameBranchEvidence =
+    SameBranchEvidence(
+      validationResults =
+        validationResults.filter(result =>
+          matchesDefendedBranch(result, bestDefenseBranchKey)
+        ),
+      persistenceResults =
+        (directReplyResults ++ validationResults)
+          .distinctBy(_.id)
+          .filter(result => matchesDefendedBranch(result, bestDefenseBranchKey)),
+      continuityResults =
+        (directReplyResults ++ continuityResults)
+          .distinctBy(_.id)
+          .filter(result => matchesDefendedBranch(result, bestDefenseBranchKey))
+    )
+
+  private def localBindContinuityFacts(
+      branchIdentity: BranchIdentityResolution,
+      directReplyResults: List[ProbeResult],
+      sameBranchEvidence: SameBranchEvidence,
+      primaryFile: Option[FileAxisSignal],
+      corroboratingEntry: Option[EntryAxisSignal]
+  ): LocalBindContinuityFacts =
+    val directBestDefensePresent =
+      directReplyResults.nonEmpty &&
+        branchIdentity.bestDefenseFound.nonEmpty &&
+        branchIdentity.selectedKey.nonEmpty
+    val defenderResources = distinctDefenderResources(directReplyResults)
+    val bestReplyStable =
+      directBestDefensePresent &&
+        defenderResources.nonEmpty &&
+        defenderResources.size <= RestrictedResourceCap &&
+        directReplyResults.forall(hasReplyCoverage) &&
+        directReplyResults.forall(result =>
+          result.l1Delta.flatMap(_.collapseReason).forall(reason => clean(reason).isEmpty)
+        )
+    val fileRouteLossVisible =
+      primaryFile.exists(file =>
+        sameBranchEvidence.persistenceResults.exists(result => confirmsFileDenial(result, file))
+      )
+    val entryAxisPersistence =
+      corroboratingEntry.exists(entry =>
+        sameBranchEvidence.persistenceResults.exists(result =>
+          confirmsEntryDenial(result, entry.square)
+        )
+      )
+    val futureSnapshotPersistence =
+      sameBranchEvidence.validationResults.nonEmpty &&
+        fileRouteLossVisible &&
+        entryAxisPersistence
+    val convertReplyAligned =
+      sameBranchEvidence.continuityResults.exists(result =>
+        normalize(result.purpose.getOrElse("")) == "convert_reply_multipv" &&
+          result.futureSnapshot.exists(mentionsBoundedContinuation)
+      )
+    val boundedContinuationVisible =
+      sameBranchEvidence.continuityResults.exists(result =>
+        result.futureSnapshot.exists(mentionsBoundedContinuation) ||
+          result.motifTags.exists(mentionsContinuation)
+      )
+    val sameDefendedBranch =
+      directBestDefensePresent &&
+        sameBranchEvidence.validationResults.nonEmpty &&
+        sameBranchEvidence.continuityResults.nonEmpty
+    val pressurePersistence =
+      bestReplyStable &&
+        futureSnapshotPersistence &&
+        sameDefendedBranch
+    LocalBindContinuityFacts(
+      directBestDefensePresent = directBestDefensePresent,
+      defenderResources = defenderResources,
+      bestReplyStable = bestReplyStable,
+      fileRouteLossVisible = fileRouteLossVisible,
+      entryAxisPersistence = entryAxisPersistence,
+      futureSnapshotPersistence = futureSnapshotPersistence,
+      boundedContinuationVisible = boundedContinuationVisible,
+      sameDefendedBranch = sameDefendedBranch,
+      pressurePersistence = pressurePersistence,
+      routeContinuity =
+        RouteContinuity(
+          directBestDefensePresent = directBestDefensePresent,
+          bestDefenseStable = bestReplyStable,
+          futureSnapshotPersistent = futureSnapshotPersistence,
+          convertReplyAligned = convertReplyAligned,
+          boundedContinuationVisible = boundedContinuationVisible,
+          sameDefendedBranch = sameDefendedBranch
+        )
+    )
+
+  private def buildFileUsabilityEvidence(
+      primaryFile: Option[FileAxisSignal],
+      fileUsabilityMeasured: Boolean,
+      fileRouteLossVisible: Boolean
+  ): FileUsabilityEvidence =
+    FileUsabilityEvidence(
+      file = primaryFile.map(_.label),
+      deniedEntryScope = primaryFile.flatMap(_.deniedEntryScope),
+      deniedResourceClass = primaryFile.flatMap(_.deniedResourceClass),
+      counterplayScoreDrop = primaryFile.map(_.counterplayScoreDrop).getOrElse(0),
+      breakNeutralizationStrength = primaryFile.flatMap(_.breakNeutralizationStrength),
+      defensiveSufficiency = primaryFile.flatMap(_.defensiveSufficiency),
+      opponentFacingRouteLoss =
+        fileUsabilityMeasured &&
+          primaryFile.exists(_.deniedEntryScope.contains("file")) &&
+          fileRouteLossVisible,
+      sameBranchFilePersistence = fileRouteLossVisible
+    )
+
+  private def buildMoveOrderFragility(
+      plan: PlanEvidenceEvaluator.EvaluatedPlan,
+      directReplyResults: List[ProbeResult],
+      bestReplyStable: Boolean,
+      futureSnapshotPersistence: Boolean
+  ): MoveOrderFragility =
+    val fragilityReasons =
+      List(
+        Option.when(plan.status == PlanEvidenceEvaluator.PlanEvidenceStatus.PlayablePvCoupled)(
+          "pv_coupled_only"
+        ),
+        Option.when(plan.pvCoupled && plan.missingSignals.nonEmpty)(
+          "missing_signals_under_pv_coupling"
+        ),
+        Option.when(
+          directReplyResults.exists(result =>
+            result.l1Delta.flatMap(_.collapseReason).exists(reason => clean(reason).nonEmpty)
+          )
+        )("collapse_under_best_defense"),
+        Option.when(
+          directReplyResults.nonEmpty &&
+            directReplyResults.exists(hasReplyCoverage) &&
+            !bestReplyStable &&
+            !futureSnapshotPersistence
+        )("reply_order_not_stable")
+      ).flatten.distinct
+    MoveOrderFragility(
+      fragile = fragilityReasons.nonEmpty,
+      reasons = fragilityReasons
+    )
 
   private def strongestFileAxis(
       signals: List[FileAxisSignal]

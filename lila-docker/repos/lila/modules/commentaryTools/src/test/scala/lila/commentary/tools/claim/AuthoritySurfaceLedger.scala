@@ -1574,30 +1574,15 @@ object AuthoritySurfaceLedger:
       truthContract: Option[DecisiveTruthContract],
       outline: NarrativeOutline
   ): String =
-    ranked.primary
-      .flatMap { primary =>
-        GameChronicleCompressionPolicy.renderPlanSurface(
-          ctx,
-          GameChronicleCompressionPolicy.ChronicleRenderSurface(
-            primary = primary,
-            secondary = ranked.secondary,
-            contrastTrace = ContrastiveSupportAdmissibility.decide(primary, inputs, truthContract),
-            quietSupportTrace = QuietStrategicSupportComposer.diagnose(ctx, inputs, ranked, Some(pack))
-          ),
-          beatEvidence = Nil
-        ).map(_.narrative)
-      }
-      .orElse(
-        GameChronicleCompressionPolicy
-          .renderWithTrace(
-            ctx = ctx,
-            parts = emptyParts.copy(focusedOutline = outline),
-            strategyPack = Some(pack),
-            truthContract = truthContract
-          )
-          .map(_.narrative)
-      )
-      .getOrElse("-")
+    val slots = MoveReviewCompressionPolicy.buildSlotsOrFallbackFromPlannerRuntime(
+      ctx = ctx,
+      inputs = inputs,
+      rankedPlans = ranked,
+      strategyPack = Some(pack),
+      truthContract = truthContract
+    )
+    val narrative = LiveNarrativeCompressionCore.deterministicProse(slots)
+    narrative
 
   private def defaultQuestions =
     List(

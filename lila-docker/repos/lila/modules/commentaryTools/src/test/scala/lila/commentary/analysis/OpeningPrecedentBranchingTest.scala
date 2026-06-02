@@ -7,6 +7,21 @@ import lila.commentary.model.authoring.PlanHypothesis
 
 class OpeningPrecedentBranchingTest extends FunSuite:
 
+  test("precedentSanMoves strips PGN tags, move numbers, and results from full PGN text") {
+    val fullPgn =
+      """[Event "Peer"]
+        |[White "Alpha"]
+        |[Black "Beta"]
+        |[Result "1/2-1/2"]
+        |
+        |1. d4 d5 2. c4 e6 3. Nf3 Nf6 1/2-1/2
+        |""".stripMargin
+
+    val moves = OpeningPrecedentBranching.precedentSanMoves(Some(fullPgn))
+
+    assertEquals(moves, List("d4", "d5", "c4", "e6", "Nf3", "Nf6"))
+  }
+
   private def ctx: NarrativeContext =
     NarrativeContext(
       fen = "r1bq1rk1/pp3ppp/2n1pn2/2bp4/2PP4/2N2NP1/PP2PPBP/R1BQ1RK1 w - - 0 8",

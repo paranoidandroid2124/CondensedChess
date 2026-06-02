@@ -2141,6 +2141,29 @@ class NarrativeContextBuilderTest extends FunSuite {
     assertEquals(result.openingEvent, None, "OpeningEvent should be None for middlegame phase")
   }
 
+  test("opening goal evaluation does not fire from openingData alone in late non-opening phase") {
+    val beforeBc4 = "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3"
+    val ctx = IntegratedContext(evalCp = 50, isWhiteToMove = true)
+    val openingRef = OpeningReference(
+      eco = Some("C50"),
+      name = Some("Italian Game"),
+      totalGames = 420000,
+      topMoves = List(ExplorerMove("f1c4", "Bc4", 210000, 93000, 52000, 65000, 2460)),
+      sampleGames = Nil
+    )
+    val data =
+      minimalData(Some(ctx)).copy(
+        fen = beforeBc4,
+        phase = "middlegame",
+        ply = 35,
+        prevMove = Some("f1c4")
+      )
+    val result = NarrativeContextBuilder.build(data, ctx, None, Nil, Some(openingRef))
+
+    assertEquals(result.openingEvent, None, "OpeningEvent should be None for late middlegame phase")
+    assertEquals(result.openingGoalEvaluation, None, "OpeningGoals should not use openingData alone outside the opening window")
+  }
+
   test("G2: Opening event is None when Masters DB returns 0 games") {
     val ctx = IntegratedContext(evalCp = 50, isWhiteToMove = true)
     val openingRef = OpeningReference(

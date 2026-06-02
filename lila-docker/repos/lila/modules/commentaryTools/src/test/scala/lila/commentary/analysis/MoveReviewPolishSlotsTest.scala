@@ -1086,7 +1086,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
 
     assertEquals(slots.lens, StrategicLens.Decision)
     val stripped = MoveReviewProseContract.stripMoveHeader(slots.claim)
-    assertEquals(stripped, "The timing matters now because Other moves allow the position to slip away.")
+    assertEquals(stripped, "The timing matters now because other moves allow the position to slip away.")
     assertEquals(slots.supportPrimary, Some("If delayed, only c3g3 still keeps the position together because it removes the immediate problem of back-rank counterplay."))
     assertEquals(slots.supportSecondary, None)
     assertEquals(slots.tension, None)

@@ -6,7 +6,7 @@ import scala.jdk.CollectionConverters.*
 
 import munit.FunSuite
 import play.api.libs.json.{ JsObject, Json }
-import lila.commentary.tools.review.{ ChronicleActivePlannerSliceRunner, CommentaryPlayerQcSupport }
+import lila.commentary.tools.review.CommentaryPlayerQcSupport
 
 class CommentaryQualityQuietSupportTest extends FunSuite:
 
@@ -192,64 +192,7 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
       quietSupportCandidateText = quietSupportCandidateText
     )
 
-  private def chronicleEntry(
-      sampleId: String,
-      sliceKind: String,
-      playedSan: String,
-      chronicleNarrative: Option[String] = None,
-      plannerSelectedQuestion: Option[String] = Some("WhatChanged"),
-      plannerSelectedOwnerKind: Option[String] = Some("MoveDelta"),
-      plannerSelectedSource: Option[String] = Some("pv_delta"),
-      chronicleReplayPrimaryKind: Option[String] = Some("WhatChanged"),
-      chronicleReplaySelectedOwnerKind: Option[String] = Some("MoveDelta"),
-      chronicleReplaySelectedSource: Option[String] = Some("pv_delta"),
-      chronicleReplayNarrative: Option[String] = None,
-      chronicleReplayQuietSupport: ChronicleQuietSupportTrace = ChronicleQuietSupportTrace()
-  ): ChronicleActivePlannerSliceRunner.SliceSurfaceEntry =
-    ChronicleActivePlannerSliceRunner.SliceSurfaceEntry(
-      sampleId = sampleId,
-      gameKey = sampleId.takeWhile(_ != ':'),
-      mixBucket = "club",
-      sliceKind = sliceKind,
-      targetPly = 42,
-      playedSan = playedSan,
-      momentPresent = chronicleNarrative.nonEmpty,
-      authorQuestionKinds = Nil,
-      authorEvidenceKinds = Nil,
-      chronicleMode = "planner_owned",
-      chroniclePrimaryKind = chronicleReplayPrimaryKind,
-      chronicleSecondaryKind = None,
-      chronicleSelectedOwnerKind = plannerSelectedOwnerKind,
-      chronicleSelectedSource = plannerSelectedSource,
-      chronicleNarrative = chronicleNarrative,
-      chronicleBlankLike = false,
-      activeMode = "omitted_no_moment",
-      activePrimaryKind = None,
-      activeSecondaryKind = None,
-      activeSelectedOwnerKind = None,
-      activeSelectedSource = None,
-      activePlannerApproved = false,
-      activeNoteBuilt = false,
-      activeValidatorPassed = false,
-      activeFinalizationStage = None,
-      activeRejectReason = None,
-      activeHardReasons = Nil,
-      activeWarningReasons = Nil,
-      activeNoteStatus = None,
-      activeNote = None,
-      activeNoteCandidate = None,
-      activeBlankLike = false,
-      plannerSelectedQuestion = plannerSelectedQuestion,
-      plannerSelectedOwnerKind = plannerSelectedOwnerKind,
-      plannerSelectedSource = plannerSelectedSource,
-      chronicleReplayMode = "planner_owned",
-      chronicleReplayPrimaryKind = chronicleReplayPrimaryKind,
-      chronicleReplaySelectedOwnerKind = chronicleReplaySelectedOwnerKind,
-      chronicleReplaySelectedSource = chronicleReplaySelectedSource,
-      chronicleReplayNarrative = chronicleReplayNarrative,
-      chronicleReplayBlankLike = false,
-      chronicleReplayQuietSupport = chronicleReplayQuietSupport
-    )
+
 
   test("opening deviation bucket stays upstream-blocked without opening translator") {
     withTempDir { dir =>
@@ -639,195 +582,7 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
     }
   }
 
-  test("chronicle mirror summary stays replay-safe while counting quiet-support attaches") {
-    withTempDir { dir =>
-      val eligibleRaw =
-        writeRawPayload(
-          dir,
-          "phase-b-eligible",
-          "a5",
-          24,
-          "Kh7",
-          18,
-          signalDigest =
-            Json.obj(
-              "deploymentRoute" -> Json.arr("a5", "a6"),
-              "structuralCue" -> "fluid center",
-              "practicalVerdict" -> "space remains under control"
-            )
-        )
-      val blockedRaw =
-        writeRawPayload(
-          dir,
-          "phase-b-blocked",
-          "Ke7",
-          28,
-          "Kf8",
-          20,
-          signalDigest =
-            Json.obj(
-              "structuralCue" -> "center tension"
-            )
-        )
-      val beforeEntries =
-        List(
-          moveReviewEntry(
-            sampleId = "g-phaseb:long_structural_squeeze:68:moveReview",
-            sliceKind = SliceKind.LongStructuralSqueeze,
-            playedSan = "a5",
-            rawResponsePath = eligibleRaw,
-            commentary = "This is a pawn move to a5.",
-            moveReviewFallbackMode = "exact_factual",
-            plannerSelectedQuestion = None,
-            plannerSelectedSource = None,
-            plannerOwnerCandidates = List("source_kind=pv_delta")
-          ),
-          moveReviewEntry(
-            sampleId = "g-phaseb-blocked:long_structural_squeeze:69:moveReview",
-            sliceKind = SliceKind.LongStructuralSqueeze,
-            playedSan = "Ke7",
-            rawResponsePath = blockedRaw,
-            commentary = "This is a king move to e7.",
-            moveReviewFallbackMode = "exact_factual",
-            plannerSelectedQuestion = None,
-            plannerSelectedOwnerKind = Some("ForcingDefense"),
-            plannerSelectedSource = Some("threat")
-          )
-        )
-      val afterEntries =
-        List(
-          moveReviewEntry(
-            sampleId = "g-phaseb:long_structural_squeeze:68:moveReview",
-            sliceKind = SliceKind.LongStructuralSqueeze,
-            playedSan = "a5",
-            rawResponsePath = eligibleRaw,
-            commentary = "This is a pawn move to a5.\n\nThis reinforces the fluid center.",
-            moveReviewFallbackMode = "exact_factual",
-            plannerSelectedQuestion = None,
-            plannerSelectedSource = None,
-            plannerOwnerCandidates = List("source_kind=pv_delta"),
-            quietSupportLiftApplied = Some(true),
-            runtimeGatePassed = Some(true),
-            runtimeSelectedOwnerKind = Some("MoveDelta"),
-            runtimeSelectedSource = Some("pv_delta"),
-            quietSupportCandidateBucket = Some(Bucket.LongStructuralSqueeze),
-            quietSupportCandidateSourceKinds = List("MoveDelta.pv_delta", "Digest.structure"),
-            quietSupportCandidateVerbFamily = Some("reinforces"),
-            quietSupportCandidateText = Some("This reinforces the fluid center.")
-          ),
-          moveReviewEntry(
-            sampleId = "g-phaseb-blocked:long_structural_squeeze:69:moveReview",
-            sliceKind = SliceKind.LongStructuralSqueeze,
-            playedSan = "Ke7",
-            rawResponsePath = blockedRaw,
-            commentary = "This is a king move to e7.",
-            moveReviewFallbackMode = "exact_factual",
-            plannerSelectedQuestion = None,
-            plannerSelectedOwnerKind = Some("ForcingDefense"),
-            plannerSelectedSource = Some("threat"),
-            runtimeGatePassed = Some(false),
-            runtimeGateRejectReasons = List("scene_type_not_allowed:forcing_defense")
-          )
-        )
-      val beforeChronicleEntries =
-        List(
-          chronicleEntry(
-            sampleId = "g-phaseb:long_structural_squeeze:68:chronicle",
-            sliceKind = SliceKind.LongStructuralSqueeze,
-            playedSan = "a5",
-            chronicleNarrative = Some("This is a pawn move to a5."),
-            plannerSelectedQuestion = Some("WhatChanged"),
-            plannerSelectedOwnerKind = Some("MoveDelta"),
-            plannerSelectedSource = Some("pv_delta")
-          ),
-          chronicleEntry(
-            sampleId = "g-phaseb-blocked:long_structural_squeeze:69:chronicle",
-            sliceKind = SliceKind.LongStructuralSqueeze,
-            playedSan = "Ke7",
-            chronicleNarrative = Some("The move has to happen now."),
-            plannerSelectedQuestion = Some("WhyNow"),
-            plannerSelectedOwnerKind = Some("ForcingDefense"),
-            plannerSelectedSource = Some("threat"),
-            chronicleReplayPrimaryKind = Some("WhyNow"),
-            chronicleReplaySelectedOwnerKind = Some("ForcingDefense"),
-            chronicleReplaySelectedSource = Some("threat")
-          )
-        )
-      val afterChronicleEntries =
-        List(
-          chronicleEntry(
-            sampleId = "g-phaseb:long_structural_squeeze:68:chronicle",
-            sliceKind = SliceKind.LongStructuralSqueeze,
-            playedSan = "a5",
-            chronicleNarrative = Some("This is a pawn move to a5."),
-            plannerSelectedQuestion = Some("WhatChanged"),
-            plannerSelectedOwnerKind = Some("MoveDelta"),
-            plannerSelectedSource = Some("pv_delta"),
-            chronicleReplayNarrative = Some("This is a pawn move to a5. This reinforces the fluid center."),
-            chronicleReplayQuietSupport =
-              ChronicleQuietSupportTrace(
-                applied = true,
-                runtimeGatePassed = Some(true),
-                runtimeSceneType = Some("quiet_improvement"),
-                runtimeSelectedOwnerKind = Some("MoveDelta"),
-                runtimeSelectedSource = Some("pv_delta"),
-                runtimePvDeltaAvailable = Some(true),
-                runtimeSignalDigestAvailable = Some(true),
-                runtimeMoveLinkedPvDeltaAnchorAvailable = Some(true),
-                candidateBucket = Some(Bucket.LongStructuralSqueeze),
-                candidateSourceKinds = List("MoveDelta.pv_delta", "Digest.structure"),
-                candidateVerbFamily = Some("reinforces"),
-                candidateText = Some("This reinforces the fluid center.")
-              )
-          ),
-          chronicleEntry(
-            sampleId = "g-phaseb-blocked:long_structural_squeeze:69:chronicle",
-            sliceKind = SliceKind.LongStructuralSqueeze,
-            playedSan = "Ke7",
-            chronicleNarrative = Some("The move has to happen now."),
-            plannerSelectedQuestion = Some("WhyNow"),
-            plannerSelectedOwnerKind = Some("ForcingDefense"),
-            plannerSelectedSource = Some("threat"),
-            chronicleReplayPrimaryKind = Some("WhyNow"),
-            chronicleReplaySelectedOwnerKind = Some("ForcingDefense"),
-            chronicleReplaySelectedSource = Some("threat"),
-            chronicleReplayNarrative = Some("The move has to happen now."),
-            chronicleReplayQuietSupport =
-              ChronicleQuietSupportTrace(
-                applied = false,
-                rejectReasons = List("surface_primary_not_movedelta_pv_delta"),
-                runtimeGatePassed = Some(false),
-                runtimeSceneType = Some("forcing_defense"),
-                runtimeSelectedOwnerKind = Some("ForcingDefense"),
-                runtimeSelectedSource = Some("threat")
-              )
-          )
-        )
 
-      val (_, _, summary) =
-        buildQuietSupportEvaluation(
-          beforeEntries = beforeEntries,
-          afterEntries = afterEntries,
-          beforeSource = s"${dir.toString}/before-moveReview",
-          afterSource = s"${dir.toString}/after-moveReview",
-          beforeChronicleEntries = beforeChronicleEntries,
-          afterChronicleEntries = afterChronicleEntries,
-          beforeChronicleSource = Some(s"${dir.toString}/before-chronicle"),
-          afterChronicleSource = Some(s"${dir.toString}/after-chronicle")
-        )
-
-      val chronicle = summary.chronicleMirror.getOrElse(fail("missing chronicle mirror summary"))
-
-      assertEquals(chronicle.selectedQuietRowCount, 1, clues(chronicle))
-      assertEquals(chronicle.quietSupportAppliedCount, 1, clues(chronicle))
-      assertEquals(chronicle.ownerDivergenceCount, 0, clues(chronicle))
-      assertEquals(chronicle.questionDivergenceCount, 0, clues(chronicle))
-      assertEquals(chronicle.strongerVerbLeakageCount, 0, clues(chronicle))
-      assertEquals(chronicle.blockedLaneContaminationCount, 0, clues(chronicle))
-      assertEquals(chronicle.crossSurfaceOwnerDivergenceCount, 0, clues(chronicle))
-      assert(chronicle.representatives.exists(_.chronicleSampleId.endsWith(":chronicle")), clues(chronicle))
-    }
-  }
 
   test("baseline evaluator splits stable quiet-support rows from planner drift rows") {
     withTempDir { dir =>
@@ -1040,7 +795,7 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             sliceKind = SliceKind.LongStructuralSqueeze,
             playedSan = "Ke7",
             rawResponsePath = blockedSpikeRaw,
-            commentary = "The timing matters now because Other moves allow the position to slip away.",
+            commentary = "The timing matters now because other moves allow the position to slip away.",
             moveReviewFallbackMode = "planner_owned",
             plannerSceneType = Some("forcing_defense"),
             plannerSelectedQuestion = Some("WhyNow"),

@@ -6,11 +6,13 @@ import lila.commentary.PgnAnalysisHelper
 import lila.commentary.analysis.strategic.BreakClampCandidateScanner
 import lila.commentary.analysis.strategic.BreakClampSourceTriage
 import lila.commentary.model.strategic.VariationLine
-import lila.commentary.tools.realpgn.RealPgnNarrativeEvalRunner
+import lila.commentary.tools.review.CommentaryPlayerQcSupport.LocalUciEngine
 
 object BreakClampSourceTriageRunner:
 
-  private final class LocalEngine(engine: RealPgnNarrativeEvalRunner.LocalUciEngine)
+  private final case class Dummy()
+
+  private final class LocalEngine(engine: LocalUciEngine)
       extends BreakClampCandidateScanner.Engine
       with SourceReview.SourceReviewEngine:
     override def newGame(): Unit = engine.newGame()
@@ -64,7 +66,7 @@ object BreakClampSourceTriageRunner:
             config = config
           )
         case Some(path) =>
-          val engine = RealPgnNarrativeEvalRunner.LocalUciEngine(path, timeoutMs = 30000L)
+          val engine = LocalUciEngine(path, timeoutMs = 30000L)
           val adapter = LocalEngine(engine)
           try
             BreakClampSourceTriage.triage(

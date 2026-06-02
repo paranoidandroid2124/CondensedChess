@@ -172,7 +172,7 @@ class CertifiedDecisionFrameBuilderTest extends FunSuite:
       lineScopedClaim = None
     )
 
-  private def moment(
+  private def momentInput(
       moveClassification: Option[String] = None,
       pack: Option[StrategyPack] = strategyPack(),
       experiments: List[StrategicPlanExperiment] = List(
@@ -182,40 +182,26 @@ class CertifiedDecisionFrameBuilderTest extends FunSuite:
           bestReplyStable = true,
           futureSnapshotAligned = true
         )
-      )
+      ),
+      truthMode: PlayerFacingTruthMode = PlayerFacingTruthMode.Strategic
   ) =
-    GameChronicleMoment(
-      momentId = "ply_43",
-      ply = 43,
-      moveNumber = 22,
+    DecisionFrameCarrierInput(
       side = "white",
-      moveClassification = moveClassification,
-      momentType = "SustainedPressure",
-      fen = narrativeCtx.fen,
-      narrative = "Narrative",
-      concepts = List("pressure"),
-      variations = Nil,
-      cpBefore = 0,
-      cpAfter = 0,
-      mateBefore = None,
-      mateAfter = None,
-      wpaSwing = None,
-      strategicSalience = Some("High"),
-      transitionType = None,
-      transitionConfidence = None,
-      activePlan = Some(ActivePlanRef("Kingside Pressure", Some("rook_lift_scaffold"), Some("Build"), Some(0.82))),
-      topEngineMove = None,
-      collapse = None,
       strategyPack = pack,
       signalDigest = Some(
         NarrativeSignalDigest(
+          dominantIdeaKind = pack.flatMap(_.signalDigest.flatMap(_.dominantIdeaKind)),
+          dominantIdeaReadiness = pack.flatMap(_.signalDigest.flatMap(_.dominantIdeaReadiness)),
+          dominantIdeaFocus = pack.flatMap(_.signalDigest.flatMap(_.dominantIdeaFocus)),
           decision = Some("Rook lift toward g3 and pressure on g7."),
           strategicFlow = Some("Keep the kingside pressure rolling."),
           counterplayScoreDrop = Some(70)
         )
       ),
       mainStrategicPlans = List(plan("kingside_attack", "Kingside Pressure")),
-      strategicPlanExperiments = experiments
+      strategicPlanExperiments = experiments,
+      truthMode = truthMode,
+      tensionScore = None
     )
 
   private def deltaBundle =
@@ -290,12 +276,9 @@ class CertifiedDecisionFrameBuilderTest extends FunSuite:
       tacticalEvidence = None
     )
 
-  private val dossier =
+  private val dossierInput =
     Some(
-      ActiveBranchDossier(
-        dominantLens = "pressureincrease",
-        chosenBranchLabel = "pressure increase -> g7",
-        whyChosen = Some("This move increases pressure on g7."),
+      DecisionFrameDossierInput(
         routeCue = Some(
           ActiveBranchRouteCue(
             routeId = "route_1",
@@ -309,7 +292,8 @@ class CertifiedDecisionFrameBuilderTest extends FunSuite:
             surfaceMode = RouteSurfaceMode.Exact
           )
         ),
-        evidenceCue = Some("Pressure on g7 is the point.")
+        evidenceCue = Some("Pressure on g7 is the point."),
+        whyChosen = Some("This move increases pressure on g7.")
       )
     )
 
@@ -444,8 +428,7 @@ class CertifiedDecisionFrameBuilderTest extends FunSuite:
   test("builder derives urgency tiers from truth mode and forcing or tension signals") {
     val immediate =
       CertifiedDecisionFrameBuilder.buildCarrier(
-        moment(moveClassification = Some("blunder"), pack = None, experiments = Nil)
-          .decisionFrameInput(PlayerFacingTruthMode.Tactical),
+        momentInput(moveClassification = Some("blunder"), pack = None, experiments = Nil, truthMode = PlayerFacingTruthMode.Tactical),
         PlayerFacingMoveDeltaBundle(Nil, Nil, Nil, Nil, Some("This is a blunder, and the tactical point has to come first."), None),
         dossier = None
       )
@@ -512,7 +495,7 @@ class CertifiedDecisionFrameBuilderTest extends FunSuite:
         visibleDirectionalTargets = Nil
       )
     val genericMoment =
-      moment(
+      momentInput(
         pack = zoneOnlyPack,
         experiments =
           List(
@@ -529,7 +512,7 @@ class CertifiedDecisionFrameBuilderTest extends FunSuite:
 
     val frame =
       CertifiedDecisionFrameBuilder.buildCarrier(
-        genericMoment.decisionFrameInput(PlayerFacingTruthMode.Strategic),
+        genericMoment,
         supportOnlyDeltaBundle,
         dossier = None
       )
@@ -594,7 +577,7 @@ class CertifiedDecisionFrameBuilderTest extends FunSuite:
         visibleDirectionalTargets = Nil
       )
     val anchoredMoment =
-      moment(pack = zoneOnlyPack).copy(
+      momentInput(pack = zoneOnlyPack).copy(
         mainStrategicPlans =
           List(
             plan("kingside_attack", "Kingside Pressure").copy(
@@ -605,7 +588,7 @@ class CertifiedDecisionFrameBuilderTest extends FunSuite:
 
     val frame =
       CertifiedDecisionFrameBuilder.buildCarrier(
-        anchoredMoment.decisionFrameInput(PlayerFacingTruthMode.Strategic),
+        anchoredMoment,
         supportOnlyDeltaBundle,
         dossier = None
       )
@@ -616,9 +599,9 @@ class CertifiedDecisionFrameBuilderTest extends FunSuite:
   test("active alignment keeps only carriers that match the certified frame") {
     val frame =
       CertifiedDecisionFrameBuilder.buildCarrier(
-        moment().decisionFrameInput(PlayerFacingTruthMode.Strategic),
+        momentInput(),
         deltaBundle,
-        dossier.map(_.decisionFrameInput)
+        dossierInput
       )
 
     assertEquals(
@@ -631,15 +614,15 @@ class CertifiedDecisionFrameBuilderTest extends FunSuite:
       List("target_g7"),
       clues(frame)
     )
-    assert(dossier.exists(value => frame.alignedDossier(Some(value.decisionFrameInput)).nonEmpty), clue(frame))
+    assert(dossierInput.exists(value => frame.alignedDossier(Some(value)).nonEmpty), clue(frame))
   }
 
   test("certified frame exports active idea refs from intent and battlefront only") {
     val frame =
       CertifiedDecisionFrameBuilder.buildCarrier(
-        moment().decisionFrameInput(PlayerFacingTruthMode.Strategic),
+        momentInput(),
         deltaBundle,
-        dossier.map(_.decisionFrameInput)
+        dossierInput
       )
 
     val ideaRefs = frame.ideaRefs()
@@ -673,15 +656,15 @@ class CertifiedDecisionFrameBuilderTest extends FunSuite:
   test("active alignment omits carriers when the frame is not certified") {
     val uncertified =
       CertifiedDecisionFrameBuilder.buildCarrier(
-        moment(
+        momentInput(
           pack = strategyPack(),
           experiments = List(StrategicPlanExperiment(planId = "kingside_attack", evidenceTier = "pv_coupled"))
-        ).decisionFrameInput(PlayerFacingTruthMode.Strategic),
+        ),
         deltaBundle,
-        dossier.map(_.decisionFrameInput)
+        dossierInput
       )
 
     assertEquals(uncertified.alignedRouteRefs(deltaBundle.visibleRouteRefs), Nil, clues(uncertified))
     assertEquals(uncertified.alignedTargets(deltaBundle.visibleDirectionalTargets), Nil, clues(uncertified))
-    assertEquals(dossier.flatMap(value => uncertified.alignedDossier(Some(value.decisionFrameInput))), None, clues(uncertified))
+    assertEquals(dossierInput.flatMap(value => uncertified.alignedDossier(Some(value))), None, clues(uncertified))
   }

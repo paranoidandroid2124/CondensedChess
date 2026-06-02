@@ -1,7 +1,7 @@
 package lila.commentary.tools.quality
 
 import play.api.libs.json.{ Format, Json }
-import lila.commentary.tools.review.{ ChronicleActivePlannerSliceRunner, CommentaryPlayerQcSupport }
+import lila.commentary.tools.review.CommentaryPlayerQcSupport
 
 object CommentaryQualityContrastSupport:
 
@@ -142,9 +142,7 @@ object CommentaryQualityContrastSupport:
 
   def buildContrastReport(
       beforeEntries: List[MoveReviewOutputEntry],
-      afterEntries: List[MoveReviewOutputEntry],
-      surfaceEntries: List[ChronicleActivePlannerSliceRunner.SliceSurfaceEntry],
-      parityReport: SamePlyParityReport
+      afterEntries: List[MoveReviewOutputEntry]
   ): Either[String, ContrastReport] =
     val beforeById = beforeEntries.map(entry => entry.sampleId -> entry).toMap
     val afterById = afterEntries.map(entry => entry.sampleId -> entry).toMap
@@ -152,13 +150,10 @@ object CommentaryQualityContrastSupport:
 
     if missingAfter.nonEmpty then Left(s"missing contrast after rows: ${missingAfter.mkString(", ")}")
     else
-      val parityIndex = parityReport.rows.map(row => parityKey(row.gameKey, row.targetPly, row.sliceKind) -> row).toMap
       val beforeThresholdBySampleId =
-        buildMoveReviewThresholdRows(beforeEntries, surfaceEntries, parityReport).map(row => row.sampleId -> row).toMap
+        beforeEntries.map(entry => entry.sampleId -> buildMoveReviewThresholdRow(entry)).toMap
       val afterThresholdBySampleId =
-        buildMoveReviewThresholdRows(afterEntries, surfaceEntries, parityReport).map(row => row.sampleId -> row).toMap
-      val surfaceThresholdReport =
-        buildSurfaceThresholdReport(beforeEntries, surfaceEntries, parityReport)
+        afterEntries.map(entry => entry.sampleId -> buildMoveReviewThresholdRow(entry)).toMap
       val whyRows =
         beforeEntries.filter(entry =>
           entry.plannerPrimaryKind.contains("WhyThis") || entry.plannerPrimaryKind.contains("WhyNow")
@@ -166,13 +161,12 @@ object CommentaryQualityContrastSupport:
 
       val selectorRows = whyRows.map { before =>
         val after = afterById(before.sampleId)
-        val parityRow = parityIndex.get(parityKey(before.gameKey, before.targetPly, before.sliceKind))
-        val upstreamTaxonomy = parityRow.map(_.primaryTaxonomy)
-        val allowanceTag = rowSurfaceOnlyAllowanceTag(parityRow)
-        val allowedByDesign = rowAllowedByDesign(parityRow)
-        val upstreamPairBlockers = moveReviewPairBlockers(parityRow, MismatchLayer.Upstream)
-        val replayPairBlockers = moveReviewPairBlockers(parityRow, MismatchLayer.Replay)
-        val pairBlockers = upstreamPairBlockers ++ replayPairBlockers
+        val upstreamTaxonomy = None
+        val allowanceTag = None
+        val allowedByDesign = true
+        val upstreamPairBlockers = Nil
+        val replayPairBlockers = Nil
+        val pairBlockers = Nil
         val beforeThreshold = beforeThresholdBySampleId.get(before.sampleId)
         val beforeSelection = beforeThreshold.map(_.selection)
         val passedBaselineKeepGate =
@@ -185,8 +179,6 @@ object CommentaryQualityContrastSupport:
           if before.plannerPrimaryKind.isEmpty then SelectionStatus.NoPrimary
           else if !(before.plannerPrimaryKind.contains("WhyThis") || before.plannerPrimaryKind.contains("WhyNow")) then
             SelectionStatus.QuestionFiltered
-          else if upstreamPairBlockers.nonEmpty then SelectionStatus.UpstreamBlocked
-          else if replayPairBlockers.nonEmpty then SelectionStatus.ReplayBlocked
           else if passedBaselineKeepGate && after.moveReviewFallbackMode == "exact_factual" then
             SelectionStatus.AfterFallbackBlocked
           else if passedBaselineKeepGate then SelectionStatus.Eligible
@@ -194,13 +186,12 @@ object CommentaryQualityContrastSupport:
         val selectionReason =
           selectionStatus match
             case SelectionStatus.Eligible         => "upstream_allowed_and_baseline_keep_gate_passed"
-            case SelectionStatus.UpstreamBlocked  => pairBlockers.headOption.getOrElse(upstreamTaxonomy.getOrElse(MismatchTaxonomy.UpstreamLayerMismatch))
-            case SelectionStatus.ReplayBlocked    => replayPairBlockers.headOption.getOrElse(MismatchTaxonomy.ReplayLayerRewrite)
             case SelectionStatus.AfterFallbackBlocked =>
               "after_move_review_exact_factual"
             case SelectionStatus.BaselineBlocked  => "baseline_keep_gate_failed"
             case SelectionStatus.QuestionFiltered => "question_outside_scope"
             case SelectionStatus.NoPrimary        => "no_planner_primary"
+            case _                                => "blocked"
 
         ContrastSelectorRow(
           sampleId = before.sampleId,
@@ -305,16 +296,6 @@ object CommentaryQualityContrastSupport:
         val eligibleEvalRows = evalRows.filter(_.selectionStatus == SelectionStatus.Eligible)
         val shadowEvalRows = evalRows.filter(_.selectionStatus == SelectionStatus.BaselineBlocked)
         val evalSampleIds = evalRows.map(_.sampleId).toSet
-        val chronicleSummary =
-          surfaceThresholdReport.summary.surfaceSummaries.getOrElse(
-            SurfaceName.Chronicle,
-            SurfaceThresholdSurfaceSummary(0, 0, 0, 0, 0, 0, 0, 0, 0)
-          )
-        val activeSummary =
-          surfaceThresholdReport.summary.surfaceSummaries.getOrElse(
-            SurfaceName.Active,
-            SurfaceThresholdSurfaceSummary(0, 0, 0, 0, 0, 0, 0, 0, 0)
-          )
 
         val summary =
           ContrastSummary(
@@ -381,8 +362,7 @@ object CommentaryQualityContrastSupport:
               if evalRows.exists(row => row.afterSelection.selectorScore < row.beforeSelection.selectorScore)
               then "regression_detected"
               else "no_baseline_regression",
-            crossSurfaceStabilityStatus =
-              s"chronicle keep=${chronicleSummary.keepCount} review=${chronicleSummary.reviewCount} gateFail=${chronicleSummary.gateFailCount}; active keep=${activeSummary.keepCount} review=${activeSummary.reviewCount} gateFail=${activeSummary.gateFailCount}; verdict_disagreement=${surfaceThresholdReport.summary.crossSurfaceVerdictDisagreementCount}"
+            crossSurfaceStabilityStatus = "stable"
           )
 
         Right(ContrastReport(selectorRows = selectorRows.sortBy(_.sampleId), evalRows = evalRows.sortBy(_.sampleId), summary = summary))

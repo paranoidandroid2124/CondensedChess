@@ -1,7 +1,7 @@
 package lila.commentary.tools.quality
 
 import munit.FunSuite
-import lila.commentary.tools.review.{ ChronicleActivePlannerSliceRunner, CommentaryPlayerQcSupport }
+import lila.commentary.tools.review.CommentaryPlayerQcSupport
 
 class CommentaryQualityContrastSupportTest extends FunSuite:
 
@@ -52,70 +52,6 @@ class CommentaryQualityContrastSupportTest extends FunSuite:
       contrast_reject_reason = contrastRejectReason
     )
 
-  private def surfaceEntry(sampleId: String): ChronicleActivePlannerSliceRunner.SliceSurfaceEntry =
-    ChronicleActivePlannerSliceRunner.SliceSurfaceEntry(
-      sampleId = sampleId.replace(":moveReview", ":chronicle"),
-      gameKey = "g1",
-      mixBucket = CommentaryPlayerQcSupport.MixBucket.Club,
-      sliceKind = "strategic_choice",
-      targetPly = 14,
-      playedSan = "Re1",
-      momentPresent = true,
-      authorQuestionKinds = List("WhyNow"),
-      authorEvidenceKinds = List("reply_multipv"),
-      chronicleMode = "planner_owned",
-      chroniclePrimaryKind = Some("WhyNow"),
-      chronicleSecondaryKind = None,
-      chronicleSelectedOwnerKind = Some("ForcingDefense"),
-      chronicleSelectedSource = Some("truth_contract"),
-      chronicleNarrative = Some("Chronicle keeps the timing point concrete."),
-      chronicleBlankLike = false,
-      activeMode = "attached",
-      activePrimaryKind = Some("WhyNow"),
-      activeSecondaryKind = None,
-      activeSelectedOwnerKind = Some("ForcingDefense"),
-      activeSelectedSource = Some("truth_contract"),
-      activePlannerApproved = true,
-      activeNoteBuilt = true,
-      activeValidatorPassed = true,
-      activeFinalizationStage = Some("attached"),
-      activeRejectReason = None,
-      activeHardReasons = Nil,
-      activeWarningReasons = Nil,
-      activeNoteStatus = Some("attached"),
-      activeNote = Some("Active note stays aligned."),
-      activeNoteCandidate = Some("Active note stays aligned."),
-      activeBlankLike = false,
-      plannerSceneType = Some("forcing_defense"),
-      plannerSelectedQuestion = Some("WhyNow"),
-      plannerSelectedOwnerKind = Some("ForcingDefense"),
-      plannerSelectedSource = Some("truth_contract"),
-      chronicleReplayMode = "planner_owned",
-      chronicleReplayPrimaryKind = Some("WhyNow"),
-      chronicleReplaySecondaryKind = None,
-      chronicleReplaySelectedOwnerKind = Some("ForcingDefense"),
-      chronicleReplaySelectedSource = Some("truth_contract"),
-      chronicleReplayNarrative = Some("Chronicle replay keeps the timing point concrete."),
-      chronicleReplayBlankLike = false,
-      activeReplayMode = "attached",
-      activeReplayPrimaryKind = Some("WhyNow"),
-      activeReplaySecondaryKind = None,
-      activeReplaySelectedOwnerKind = Some("ForcingDefense"),
-      activeReplaySelectedSource = Some("truth_contract"),
-      activeReplayPlannerApproved = true,
-      activeReplayNoteBuilt = true,
-      activeReplayValidatorPassed = true,
-      activeReplayFinalizationStage = Some("attached"),
-      activeReplayRejectReason = None,
-      activeReplayHardReasons = Nil,
-      activeReplayWarningReasons = Nil,
-      activeReplayNote = Some("Active replay stays aligned."),
-      activeReplayNoteCandidate = Some("Active replay stays aligned."),
-      activeReplayBlankLike = false,
-      chronicleSurfaceReplayOutcome = Some("planner_owned"),
-      activeSurfaceReplayOutcome = Some("attached")
-    )
-
   test("after moveReview exact factual rows are blocked out of eligible contrast gain metrics") {
     val sampleId = "g1:strategic_choice:14:moveReview"
     val before =
@@ -139,25 +75,12 @@ class CommentaryQualityContrastSupportTest extends FunSuite:
         fallbackMode = "exact_factual",
         contrastAdmissible = Some(false)
       )
-    val parityReport =
-      SamePlyParityReport(
-        summary =
-          SamePlyParitySummary(
-            groupedPlies = 0,
-            mismatchedPlies = 0,
-            taxonomyCounts = Map.empty,
-            layerCounts = Map.empty
-          ),
-        rows = Nil
-      )
 
     val report =
       CommentaryQualityContrastSupport
         .buildContrastReport(
           beforeEntries = List(before),
-          afterEntries = List(after),
-          surfaceEntries = List(surfaceEntry(sampleId)),
-          parityReport = parityReport
+          afterEntries = List(after)
         )
         .getOrElse(fail("expected contrast report"))
 

@@ -3,19 +3,16 @@ package lila.commentary.analysis
 import chess.{ Color, Square }
 import lila.commentary.CommentaryConfig
 import lila.commentary.model._
+import lila.commentary.model.authoring.{ AuthorQuestion, PlanHypothesis }
 import lila.commentary.model.strategic._
 import lila.commentary.analysis.L3._
 import lila.commentary.analysis.semantic.RelationObservationCatalog
 import lila.commentary.model.structure.AlignmentBand
 import lila.commentary.analysis.structure.TranspositionPvAligner
 
-/**
- * NarrativeContext Builder
- * 
- * Converts existing analysis results into hierarchical NarrativeContext.
- */
 object NarrativeContextBuilder:
   private val commentaryConfig = CommentaryConfig.fromEnv
+  private val OpeningDataGoalPlyCutoff = 20
 
   final case class BuildResult(
       context: NarrativeContext,
@@ -23,9 +20,66 @@ object NarrativeContextBuilder:
       selectedMainEvaluatedPlans: List[PlanEvidenceEvaluator.EvaluatedPlan] = Nil
   )
 
-  /**
-   * Build NarrativeContext from ExtendedAnalysisData and IntegratedContext.
-   */
+  private case class NarrativeFactSets(
+      facts: List[Fact],
+      mainPvFacts: List[Fact],
+      threatLineFacts: List[Fact],
+      counterfactualFacts: List[Fact]
+  )
+
+  private case class MoveDeltaSelection(
+      delta: Option[MoveDelta],
+      afterMove: Boolean
+  )
+
+  private case class StrategicPlanContext(
+      partition: PlanEvidenceEvaluator.PartitionedPlans,
+      experiments: List[StrategicPlanExperiment],
+      mainPlans: List[PlanHypothesis],
+      evidence: PlanEvidenceEvaluator.StrategicPlanEvidenceView
+  )
+
+  private case class ContextSupportSections(
+      semantic: Option[SemanticSection],
+      meta: Option[MetaSignals],
+      strategicFlow: Option[String]
+  )
+
+  private case class AuthorProbeContext(
+      playedSan: Option[String],
+      authorQuestions: List[AuthorQuestion],
+      probeRequests: List[ProbeRequest],
+      probeValidation: PlanEvidenceEvaluator.ProbeValidation,
+      rootProbeResults: List[ProbeResult],
+      enrichedCandidates: List[CandidateInfo],
+      targets: Targets
+  )
+
+  private case class BuildRootMaterial(
+      color: Color,
+      board: chess.Board,
+      topSan: Option[String],
+      topUci: Option[String]
+  )
+
+  private case class OpeningCandidateMaterial(
+      openingEvent: Option[OpeningEvent],
+      candidates: List[CandidateInfo],
+      updatedBudget: OpeningEventBudget
+  )
+
+  private case class CandidateScoreContext(
+      bestScore: Int,
+      secondScore: Int,
+      isWhiteToMove: Boolean
+  ):
+    def lossFromBest(score: Int): Int =
+      if isWhiteToMove then (bestScore - score).max(0)
+      else (score - bestScore).max(0)
+
+    def bestGap: Int =
+      lossFromBest(secondScore)
+
   def build(
     data: ExtendedAnalysisData,
     ctx: IntegratedContext,
@@ -63,27 +117,227 @@ object NarrativeContextBuilder:
     renderMode: NarrativeRenderMode = NarrativeRenderMode.FullGame,
     variantKey: String = EarlyOpeningNarrationPolicy.StandardVariant
   ): BuildResult = {
-    // Keep "root" probes (same base fen, or missing fen for backward compatibility) separate
-    // so they don't pollute candidate lists and meta signals.
-    val rootProbeResultsRaw = probeResults.filter(pr => pr.fen.forall(_ == data.fen))
-    val prevalidatedRootProbeResults = rootProbeResultsRaw.filter(pr => ProbeContractValidator.validate(pr).isValid)
-
-    // A7/B7: Candidates built early to extract top move SAN/UCI for threat linkage
-    val baseCandidates = buildCandidates(data)
-    val color = if (data.isWhiteToMove) Color.White else Color.Black
-    val board = chess.format.Fen.read(chess.variant.Standard, chess.format.Fen.Full(data.fen)).map(_.board).getOrElse(chess.Board.empty)
-
-    val topSan = baseCandidates.headOption.map(_.move)
-    val topUci = baseCandidates.headOption.flatMap(_.uci)
-
+    val root = buildRootMaterial(data)
     val header = buildHeader(ctx)
     val summary = buildSummary(data, ctx)
-    val threats = buildThreatTable(ctx, topSan, topUci, data.fen)
+    val threats = buildThreatTable(ctx, root.topSan, root.topUci, data.fen)
     val pawnPlay = buildPawnPlayTable(ctx)
     val plans = buildPlanTable(data)
     val l1 = buildL1Snapshot(ctx)
-    val phase0 = buildPhaseContext(ctx, prevAnalysis)
-    val afterPhaseTrigger =
+    val phase = buildPhaseWithAfterTransition(ctx, data, prevAnalysis, afterAnalysis)
+    val moveDelta = selectMoveDelta(data, prevAnalysis, afterAnalysis)
+    val alignmentForTone = if commentaryConfig.structKbEnabled then ctx.planAlignment else None
+    val authorProbeContext = buildAuthorProbeContext(data, ctx, probeResults, alignmentForTone)
+    val strategicPlans = buildStrategicPlanContext(data, authorProbeContext.probeRequests, authorProbeContext.probeValidation)
+    val supportSections =
+      buildContextSupportSections(data, ctx, authorProbeContext.targets, authorProbeContext.rootProbeResults, afterAnalysis)
+
+    val opponentPlan = buildOpponentPlan(data, ctx)
+
+
+    val decision =
+      buildDecisionIfNeeded(data, ctx, header, authorProbeContext, supportSections)
+
+    val opening = buildOpeningCandidateMaterial(
+      data = data,
+      ctx = ctx,
+      authorProbeContext = authorProbeContext,
+      decision = decision,
+      openingRef = openingRef,
+      prevOpeningRef = prevOpeningRef,
+      openingBudget = openingBudget
+    )
+    val authorEvidence = buildAuthorEvidence(data, authorProbeContext, opening.candidates)
+    val factSets = buildNarrativeFactSets(data, root.board, root.color)
+
+    val baseContext =
+      assembleNarrativeContext(
+        data = data,
+        header = header,
+        summary = summary,
+        threats = threats,
+        pawnPlay = pawnPlay,
+        plans = plans,
+        l1 = l1,
+        phase = phase,
+        moveDelta = moveDelta,
+        candidates = opening.candidates,
+        authorProbeContext = authorProbeContext,
+        authorEvidence = authorEvidence,
+        factSets = factSets,
+        strategicPlans = strategicPlans,
+        supportSections = supportSections,
+        opponentPlan = opponentPlan,
+        decision = decision,
+        openingEvent = opening.openingEvent,
+        openingRef = openingRef,
+        updatedBudget = opening.updatedBudget,
+        renderMode = renderMode,
+        variantKey = variantKey
+    )
+    buildResult(baseContext, strategicPlans)
+  }
+
+  private def buildRootMaterial(data: ExtendedAnalysisData): BuildRootMaterial = {
+    val baseCandidates = buildCandidates(data)
+    BuildRootMaterial(
+      color = if (data.isWhiteToMove) Color.White else Color.Black,
+      board = boardFromFen(data.fen),
+      topSan = baseCandidates.headOption.map(_.move),
+      topUci = baseCandidates.headOption.flatMap(_.uci)
+    )
+  }
+
+  private def boardFromFen(fen: String): chess.Board =
+    chess.format.Fen.read(chess.variant.Standard, chess.format.Fen.Full(fen)).map(_.board).getOrElse(chess.Board.empty)
+
+  private def buildOpeningCandidateMaterial(
+      data: ExtendedAnalysisData,
+      ctx: IntegratedContext,
+      authorProbeContext: AuthorProbeContext,
+      decision: Option[DecisionRationale],
+      openingRef: Option[OpeningReference],
+      prevOpeningRef: Option[OpeningReference],
+      openingBudget: OpeningEventBudget
+  ): OpeningCandidateMaterial = {
+    val openingEvent = detectOpeningEvent(data, openingRef, decision, openingBudget, prevOpeningRef)
+    OpeningCandidateMaterial(
+      openingEvent = openingEvent,
+      candidates =
+        attachHypothesisCards(
+          data = data,
+          ctx = ctx,
+          candidates = authorProbeContext.enrichedCandidates,
+          probeResults = authorProbeContext.rootProbeResults,
+          probeRequests = authorProbeContext.probeRequests,
+          openingEvent = openingEvent
+        ),
+      updatedBudget = updatedOpeningBudget(openingBudget, data.ply, openingEvent)
+    )
+  }
+
+  private def buildAuthorEvidence(
+      data: ExtendedAnalysisData,
+      authorProbeContext: AuthorProbeContext,
+      candidates: List[CandidateInfo]
+  ): List[lila.commentary.model.authoring.QuestionEvidence] =
+    val bestEngineMove = data.alternatives.headOption.flatMap(_.moves.headOption)
+    AuthorEvidenceBuilder.build(
+      fen = data.fen,
+      ply = data.ply,
+      playedMove = data.prevMove,
+      bestMove = bestEngineMove.orElse(candidates.headOption.flatMap(_.uci)),
+      authorQuestions = authorProbeContext.authorQuestions,
+      probeResults = authorProbeContext.rootProbeResults
+    )
+
+  private def buildResult(
+      baseContext: NarrativeContext,
+      strategicPlans: StrategicPlanContext
+  ): BuildResult =
+    BuildResult(
+      context = baseContext.copy(openingGoalEvaluation = openingGoalEvaluation(baseContext)),
+      diagnosticPlanSidecar = strategicPlans.partition.diagnosticSidecar,
+      selectedMainEvaluatedPlans = strategicPlans.partition.selectedMainEvaluatedPlans
+    )
+
+  private def assembleNarrativeContext(
+      data: ExtendedAnalysisData,
+      header: ContextHeader,
+      summary: NarrativeSummary,
+      threats: ThreatTable,
+      pawnPlay: PawnPlayTable,
+      plans: PlanTable,
+      l1: L1Snapshot,
+      phase: PhaseContext,
+      moveDelta: MoveDeltaSelection,
+      candidates: List[CandidateInfo],
+      authorProbeContext: AuthorProbeContext,
+      authorEvidence: List[lila.commentary.model.authoring.QuestionEvidence],
+      factSets: NarrativeFactSets,
+      strategicPlans: StrategicPlanContext,
+      supportSections: ContextSupportSections,
+      opponentPlan: Option[PlanRow],
+      decision: Option[DecisionRationale],
+      openingEvent: Option[OpeningEvent],
+      openingRef: Option[OpeningReference],
+      updatedBudget: OpeningEventBudget,
+      renderMode: NarrativeRenderMode,
+      variantKey: String
+  ): NarrativeContext =
+    NarrativeContext(
+      fen = data.fen,
+      header = header,
+      ply = data.ply,
+      playedMove = data.prevMove,
+      playedSan = authorProbeContext.playedSan,
+      counterfactual = data.counterfactual,
+      summary = summary,
+      threats = threats,
+      pawnPlay = pawnPlay,
+      plans = plans,
+      planContinuity = data.planContinuity,
+      snapshots = List(l1),
+      delta = moveDelta.delta,
+      phase = phase,
+      candidates = candidates,
+      authorQuestions = authorProbeContext.authorQuestions,
+      authorEvidence = authorEvidence,
+      facts = factSets.facts,
+      mainPvFacts = factSets.mainPvFacts,
+      threatLineFacts = factSets.threatLineFacts,
+      counterfactualFacts = factSets.counterfactualFacts,
+      probeRequests = authorProbeContext.probeRequests,
+      mainStrategicPlans = strategicPlans.mainPlans,
+      strategicPlanExperiments = strategicPlans.experiments,
+      strategicPlanEvidence = strategicPlans.evidence,
+      meta = supportSections.meta,
+      strategicFlow = supportSections.strategicFlow,
+      semantic = supportSections.semantic,
+      opponentPlan = opponentPlan,
+      decision = decision,
+      openingEvent = openingEvent,
+      openingData = openingRef,
+      updatedBudget = updatedBudget,
+      engineEvidence = Some(lila.commentary.model.strategic.EngineEvidence(
+        depth = data.alternatives.map(_.depth).maxOption.getOrElse(0),
+        variations = data.alternatives
+      )),
+      deltaAfterMove = moveDelta.afterMove,
+      strategicSalience = data.strategicSalience,
+      renderMode = renderMode,
+      variantKey = EarlyOpeningNarrationPolicy.normalizeVariantKey(Some(variantKey))
+    )
+
+  private def buildDecisionIfNeeded(
+      data: ExtendedAnalysisData,
+      ctx: IntegratedContext,
+      header: ContextHeader,
+      authorProbeContext: AuthorProbeContext,
+      supportSections: ContextSupportSections
+  ): Option[DecisionRationale] =
+    Option.when(shouldBuildDecisionRationale(header.choiceType, authorProbeContext.enrichedCandidates, authorProbeContext.rootProbeResults)) {
+      calculateDecisionRationale(
+        data,
+        ctx,
+        authorProbeContext.enrichedCandidates,
+        supportSections.semantic,
+        authorProbeContext.targets,
+        authorProbeContext.rootProbeResults
+      )
+    }
+
+  private def rootProbeResultsFor(fen: String, results: List[ProbeResult]): List[ProbeResult] =
+    results.filter(result => result.fen.forall(_ == fen))
+
+  private def buildPhaseWithAfterTransition(
+      ctx: IntegratedContext,
+      data: ExtendedAnalysisData,
+      prevAnalysis: Option[ExtendedAnalysisData],
+      afterAnalysis: Option[ExtendedAnalysisData]
+  ): PhaseContext = {
+    val phase = buildPhaseContext(ctx, prevAnalysis)
+    val transition =
       afterAnalysis
         .filter(_ => data.prevMove.isDefined)
         .flatMap(after =>
@@ -91,28 +345,55 @@ object NarrativeContextBuilder:
             s"Transition from ${data.phase.capitalize} to ${after.phase.capitalize}"
           )
         )
+    transition.fold(phase)(trigger => phase.copy(transitionTrigger = Some(trigger)))
+  }
 
-    val phase =
-      afterPhaseTrigger match
-        case Some(t) => phase0.copy(transitionTrigger = Some(t))
-        case None    => phase0
-
+  private def selectMoveDelta(
+      data: ExtendedAnalysisData,
+      prevAnalysis: Option[ExtendedAnalysisData],
+      afterAnalysis: Option[ExtendedAnalysisData]
+  ): MoveDeltaSelection = {
     val afterDelta =
       afterAnalysis
         .filter(_ => data.prevMove.isDefined)
         .map(after => buildDelta(data, after))
+    MoveDeltaSelection(
+      delta = afterDelta.orElse(prevAnalysis.map(prev => buildDelta(prev, data))),
+      afterMove = afterDelta.isDefined
+    )
+  }
 
-    val prevDelta = prevAnalysis.map(prev => buildDelta(prev, data))
-    val delta = afterDelta.orElse(prevDelta)
-    val alignmentForTone = if commentaryConfig.structKbEnabled then ctx.planAlignment else None
-    val questionCandidates = buildCandidatesEnriched(data, prevalidatedRootProbeResults, alignmentForTone)
-
-    val playedSan = data.prevMove.flatMap { uci =>
+  private def playedSanFromPrevMove(data: ExtendedAnalysisData): Option[String] =
+    data.prevMove.flatMap { uci =>
       NarrativeUtils
         .uciListToSan(data.fen, List(uci))
         .headOption
         .orElse(Some(NarrativeUtils.formatUciAsSan(uci)))
     }
+
+  private def updatedOpeningBudget(
+      openingBudget: OpeningEventBudget,
+      ply: Int,
+      openingEvent: Option[OpeningEvent]
+  ): OpeningEventBudget =
+    openingEvent match {
+      case Some(OpeningEvent.Intro(_, _, _, _)) => openingBudget.afterIntro
+      case Some(OpeningEvent.TheoryEnds(_, _)) => openingBudget.afterTheoryEnds
+      case Some(_) => openingBudget.afterEvent
+      case None => openingBudget.updatePly(ply)
+    }
+
+  private def buildAuthorProbeContext(
+      data: ExtendedAnalysisData,
+      ctx: IntegratedContext,
+      probeResults: List[ProbeResult],
+      alignmentForTone: Option[lila.commentary.model.structure.PlanAlignment]
+  ): AuthorProbeContext = {
+    val prevalidatedRootProbeResults =
+      rootProbeResultsFor(data.fen, probeResults)
+        .filter(pr => ProbeContractValidator.validate(pr).isValid)
+    val questionCandidates = buildCandidatesEnriched(data, prevalidatedRootProbeResults, alignmentForTone)
+    val playedSan = playedSanFromPrevMove(data)
     val authorQuestions =
       AuthorQuestionGenerator.generate(
         data = data,
@@ -120,70 +401,98 @@ object NarrativeContextBuilder:
         candidates = questionCandidates,
         playedSan = playedSan
       )
+    val probeRequests = buildProbeRequests(data, ctx, questionCandidates, authorQuestions)
+    val probeValidation =
+      PlanEvidenceEvaluator.validateProbeResults(probeResults, probeRequests)
+    val rootProbeResults = rootProbeResultsFor(data.fen, probeValidation.validResults)
+    val enrichedCandidates = buildCandidatesEnriched(data, rootProbeResults, alignmentForTone)
+    AuthorProbeContext(
+      playedSan = playedSan,
+      authorQuestions = authorQuestions,
+      probeRequests = probeRequests,
+      probeValidation = probeValidation,
+      rootProbeResults = rootProbeResults,
+      enrichedCandidates = enrichedCandidates,
+      targets = buildTargets(data, ctx, rootProbeResults)
+    )
+  }
+
+  private def buildProbeRequests(
+      data: ExtendedAnalysisData,
+      ctx: IntegratedContext,
+      candidates: List[CandidateInfo],
+      authorQuestions: List[AuthorQuestion]
+  ): List[ProbeRequest] = {
     val planScoring = PlanScoringResult(
       topPlans = data.plans,
-      confidence = 0.0, // fallback
+      confidence = 0.0,
       phase = ctx.phase
     )
     val multiPv = data.alternatives.map(v => PvLine(v.moves, v.scoreCp, v.mate, v.depth))
-    val probeRequests =
-      ProbeDetector
-        .detect(
-          ctx = ctx,
-          planScoring = planScoring,
-          planHypotheses = data.planHypotheses,
-          multiPv = multiPv,
-          fen = data.fen,
-          playedMove = data.prevMove,
-          candidates = questionCandidates,
-          authorQuestions = authorQuestions
-        )
-        .distinctBy(_.id)
+    ProbeDetector
+      .detect(
+        ctx = ctx,
+        planScoring = planScoring,
+        planHypotheses = data.planHypotheses,
+        multiPv = multiPv,
+        fen = data.fen,
+        playedMove = data.prevMove,
+        candidates = candidates,
+        authorQuestions = authorQuestions
+      )
+      .distinctBy(_.id)
+  }
 
-    val probeValidation =
-      PlanEvidenceEvaluator.validateProbeResults(probeResults, probeRequests)
-    val rootProbeResults = probeValidation.validResults.filter(pr => pr.fen.forall(_ == data.fen))
-    val droppedProbeCount = probeValidation.droppedCount
-    val enrichedCandidates = buildCandidatesEnriched(data, rootProbeResults, alignmentForTone)
-    val targets = buildTargets(data, ctx, rootProbeResults)
+  private def buildStrategicPlanContext(
+      data: ExtendedAnalysisData,
+      probeRequests: List[ProbeRequest],
+      probeValidation: PlanEvidenceEvaluator.ProbeValidation
+  ): StrategicPlanContext = {
     val transpositionProofs =
       TranspositionPvAligner.alignPlans(
         fen = data.fen,
         lines = data.alternatives,
         hypotheses = data.planHypotheses
       )
-
-    val strategicPartition =
+    val partition =
       PlanEvidenceEvaluator.partition(
         hypotheses = data.planHypotheses,
         probeRequests = probeRequests,
         validatedProbeResults = probeValidation.validResults,
         rulePlanIds = data.plans.map(_.plan.id.toString.toLowerCase).toSet,
         isWhiteToMove = data.isWhiteToMove,
-        droppedProbeCount = droppedProbeCount,
+        droppedProbeCount = probeValidation.droppedCount,
         droppedProbeReasons = probeValidation.droppedReasons,
         invalidByRequestId = probeValidation.invalidByRequestId,
         softByRequestId = probeValidation.softByRequestId,
         transpositionProofs = transpositionProofs
       )
+    StrategicPlanContext(
+      partition = partition,
+      experiments =
+        buildStrategicPlanExperiments(
+          evaluated = partition.evaluated,
+          validatedProbeResults = probeValidation.validResults,
+          preventedPlans = data.preventedPlans,
+          evalCp = data.evalCp,
+          isWhiteToMove = data.isWhiteToMove,
+          phase = data.phase,
+          ply = data.ply,
+          fen = data.fen
+        ),
+      mainPlans = partition.selectedMainEvaluatedPlans.map(_.hypothesis),
+      evidence = PlanEvidenceEvaluator.StrategicPlanEvidenceView.from(partition)
+    )
+  }
 
-    val strategicPlanExperiments =
-      buildStrategicPlanExperiments(
-        evaluated = strategicPartition.evaluated,
-        validatedProbeResults = probeValidation.validResults,
-        preventedPlans = data.preventedPlans,
-        evalCp = data.evalCp,
-        isWhiteToMove = data.isWhiteToMove,
-        phase = data.phase,
-        ply = data.ply,
-        fen = data.fen
-      )
-    val mainStrategicPlans =
-      strategicPartition.selectedMainEvaluatedPlans.map(_.hypothesis)
-    val strategicPlanEvidence =
-      PlanEvidenceEvaluator.StrategicPlanEvidenceView.from(strategicPartition)
-
-    // Phase A: Semantic section from ExtendedAnalysisData
+  private def buildContextSupportSections(
+      data: ExtendedAnalysisData,
+      ctx: IntegratedContext,
+      targets: Targets,
+      rootProbeResults: List[ProbeResult],
+      afterAnalysis: Option[ExtendedAnalysisData]
+  ): ContextSupportSections = {
+    val lowStrategicSalience = data.strategicSalience == StrategicSalience.Low
     val hasCurrentBreakCarrier =
       data.preventedPlans.exists(plan =>
         plan.sourceScope == FactScope.Now &&
@@ -192,62 +501,20 @@ object NarrativeContextBuilder:
           plan.breakNeutralized.exists(_.trim.nonEmpty)
       )
     val semantic =
-      if data.strategicSalience == StrategicSalience.Low && data.endgameFeatures.isEmpty && !hasCurrentBreakCarrier then None
+      if lowStrategicSalience && data.endgameFeatures.isEmpty && !hasCurrentBreakCarrier then None
       else buildSemanticSection(data, afterAnalysis)
+    ContextSupportSections(
+      semantic = semantic,
+      meta = Option.unless(lowStrategicSalience)(buildMetaSignals(data, ctx, targets, rootProbeResults)).flatten,
+      strategicFlow = Option.unless(lowStrategicSalience)(buildStrategicFlow(data)).flatten
+    )
+  }
 
-    // B-axis: Meta signals (Step 1-3)
-    // Only populate meta if we have meaningful source data
-    val rawMeta = buildMetaSignals(data, ctx, targets, rootProbeResults)
-    val meta = 
-      if data.strategicSalience == StrategicSalience.Low then None
-      else rawMeta
-
-    val strategicFlow = 
-      if data.strategicSalience == StrategicSalience.Low then None
-      else buildStrategicFlow(data)
-
-    // Phase B: Opponent plan (side=!toMove)
-    val opponentPlan = buildOpponentPlan(data, ctx)
-
-
-    // Phase F: Decision Rationale (Synthesis)
-    val decision =
-      Option.when(shouldBuildDecisionRationale(header.choiceType, enrichedCandidates, rootProbeResults)) {
-        calculateDecisionRationale(data, ctx, enrichedCandidates, semantic, targets, rootProbeResults)
-      }
-
-    // Phase A9: Opening Event Detection (event-driven, not per-move)
-    val openingEvent = detectOpeningEvent(data, openingRef, decision, openingBudget, prevOpeningRef)
-    val candidates =
-      attachHypothesisCards(
-        data = data,
-        ctx = ctx,
-        candidates = enrichedCandidates,
-        probeResults = rootProbeResults,
-        probeRequests = probeRequests,
-        openingEvent = openingEvent
-      )
-    
-    // Compute updated budget based on fired event
-    val updatedBudget = openingEvent match {
-      case Some(OpeningEvent.Intro(_, _, _, _)) => openingBudget.afterIntro
-      case Some(OpeningEvent.TheoryEnds(_, _)) => openingBudget.afterTheoryEnds
-      case Some(_) => openingBudget.afterEvent  // BranchPoint, OutOfBook, Novelty
-      case None => openingBudget.updatePly(data.ply)
-    }
-
-    val bestEngineMove = data.alternatives.headOption.flatMap(_.moves.headOption)
-
-    val authorEvidence =
-      AuthorEvidenceBuilder.build(
-        fen = data.fen,
-        ply = data.ply,
-        playedMove = data.prevMove,
-        bestMove = bestEngineMove.orElse(candidates.headOption.flatMap(_.uci)),
-        authorQuestions = authorQuestions,
-        probeResults = rootProbeResults
-      )
-
+  private def buildNarrativeFactSets(
+      data: ExtendedAnalysisData,
+      board: chess.Board,
+      color: Color
+  ): NarrativeFactSets = {
     val motifFactsRaw = FactExtractor.fromMotifs(board, data.motifs, FactScope.Now)
     val motifFacts =
       if data.endgameFeatures.isDefined then
@@ -257,7 +524,6 @@ object NarrativeContextBuilder:
           case _                  => true
         }
       else motifFactsRaw
-    val mainPvFacts = FactExtractor.fromMotifs(board, data.motifs, FactScope.MainPv)
     val staticFacts = FactExtractor.extractStaticFacts(board, color)
     val endgameFacts = FactExtractor.extractEndgameFacts(board, color, data.endgameFeatures)
     val counterfactualFacts =
@@ -266,55 +532,11 @@ object NarrativeContextBuilder:
       data.preventedPlans.flatMap(_.sourceLine.toList).flatMap { line =>
         FactExtractor.fromMotifs(board, MoveAnalyzer.tokenizePv(data.fen, line.moves), FactScope.ThreatLine)
       }
-
-    val baseContext =
-      NarrativeContext(
-          fen = data.fen,
-          header = header,
-          ply = data.ply,
-          playedMove = data.prevMove,
-          playedSan = playedSan,
-          counterfactual = data.counterfactual,
-          summary = summary,
-          threats = threats,
-          pawnPlay = pawnPlay,
-          plans = plans,
-          planContinuity = data.planContinuity,
-          snapshots = List(l1),
-          delta = delta,
-          phase = phase,
-          candidates = candidates,
-          authorQuestions = authorQuestions,
-          authorEvidence = authorEvidence,
-          facts = motifFacts ++ staticFacts ++ endgameFacts,
-          mainPvFacts = mainPvFacts,
-          threatLineFacts = threatLineFacts,
-          counterfactualFacts = counterfactualFacts,
-          probeRequests = probeRequests,
-          mainStrategicPlans = mainStrategicPlans,
-          strategicPlanExperiments = strategicPlanExperiments,
-          strategicPlanEvidence = strategicPlanEvidence,
-          meta = meta,
-          strategicFlow = strategicFlow,
-          semantic = semantic,
-          opponentPlan = opponentPlan,
-          decision = decision,
-          openingEvent = openingEvent,
-          openingData = openingRef,
-          updatedBudget = updatedBudget,
-          engineEvidence = Some(lila.commentary.model.strategic.EngineEvidence(
-            depth = data.alternatives.map(_.depth).maxOption.getOrElse(0),
-            variations = data.alternatives
-          )),
-          deltaAfterMove = afterDelta.isDefined,
-          strategicSalience = data.strategicSalience,
-          renderMode = renderMode,
-          variantKey = EarlyOpeningNarrationPolicy.normalizeVariantKey(Some(variantKey))
-        )
-    BuildResult(
-      context = baseContext.copy(openingGoalEvaluation = openingGoalEvaluation(baseContext)),
-      diagnosticPlanSidecar = strategicPartition.diagnosticSidecar,
-      selectedMainEvaluatedPlans = strategicPartition.selectedMainEvaluatedPlans
+    NarrativeFactSets(
+      facts = motifFacts ++ staticFacts ++ endgameFacts,
+      mainPvFacts = FactExtractor.fromMotifs(board, data.motifs, FactScope.MainPv),
+      threatLineFacts = threatLineFacts,
+      counterfactualFacts = counterfactualFacts
     )
   }
 
@@ -330,8 +552,40 @@ object NarrativeContextBuilder:
   private def openingContext(ctx: NarrativeContext): Boolean =
     ctx.header.phase.equalsIgnoreCase("Opening") ||
       ctx.phase.current.equalsIgnoreCase("Opening") ||
-      ctx.openingData.nonEmpty ||
-      ctx.openingEvent.nonEmpty
+      ctx.openingEvent.nonEmpty ||
+      (ctx.ply <= OpeningDataGoalPlyCutoff && ctx.openingData.nonEmpty)
+
+  private final case class PlanExperimentCertifications(
+      restrictedDefense: Option[RestrictedDefenseConversionProof.Contract],
+      counterplayAxis: Option[CounterplayRestraintProof.Contract],
+      dualAxisBind: Option[TwoAxisBindProof.Contract],
+      localFileEntryBind: Option[LocalFileEntryProof.Contract],
+      namedRouteNetworkBind: Option[RouteNetworkBindProof.Contract],
+      heavyPieceLocalBind: Option[HeavyPieceLocalBindValidation.Contract]
+  )
+
+  private final case class PlanExperimentCertificationContext(
+    plan: PlanEvidenceEvaluator.EvaluatedPlan,
+    probeResultsById: Map[String, ProbeResult],
+    preventedPlans: List[PreventedPlan],
+    evalCp: Int,
+    isWhiteToMove: Boolean,
+    phase: String,
+    ply: Int,
+    fen: String
+  )
+
+  private final case class PlanExperimentProbeEvidence(
+    supportResults: List[ProbeResult],
+    refuteResults: List[ProbeResult]
+  )
+
+  private final case class PlanExperimentSignals(
+    bestReplyStable: Boolean,
+    futureSnapshotAligned: Boolean,
+    counterBreakNeutralized: Boolean,
+    moveOrderSensitive: Boolean
+  )
 
   private[commentary] def buildStrategicPlanExperiments(
       evaluated: List[PlanEvidenceEvaluator.EvaluatedPlan],
@@ -345,18 +599,9 @@ object NarrativeContextBuilder:
   ): List[StrategicPlanExperiment] =
     val resultsById = validatedProbeResults.groupBy(_.id).view.mapValues(_.head).toMap
     evaluated.map { plan =>
-      val supportResults = plan.supportProbeIds.flatMap(resultsById.get).distinctBy(_.id)
-      val refuteResults = plan.refuteProbeIds.flatMap(resultsById.get).distinctBy(_.id)
-      val restrictedDefenseCertification =
-        RestrictedDefenseConversionProof.evaluate(
-          plan = plan,
-          probeResultsById = resultsById,
-          preventedPlans = preventedPlans,
-          evalCp = evalCp,
-          isWhiteToMove = isWhiteToMove
-        )
-      val counterplayAxisCertification =
-        CounterplayRestraintProof.evaluate(
+      val probeEvidence = planExperimentProbeEvidence(plan, resultsById)
+      val certifications =
+        planExperimentCertifications(
           plan = plan,
           probeResultsById = resultsById,
           preventedPlans = preventedPlans,
@@ -366,161 +611,291 @@ object NarrativeContextBuilder:
           ply = ply,
           fen = fen
         )
-      val dualAxisBindCertification =
-        TwoAxisBindProof.evaluate(
-          plan = plan,
-          probeResultsById = resultsById,
-          preventedPlans = preventedPlans,
-          evalCp = evalCp,
-          isWhiteToMove = isWhiteToMove,
-          phase = phase,
-          ply = ply,
-          fen = fen
-        )
-      val localFileEntryBindCertification =
-        LocalFileEntryProof.evaluate(
-          plan = plan,
-          probeResultsById = resultsById,
-          preventedPlans = preventedPlans,
-          evalCp = evalCp,
-          isWhiteToMove = isWhiteToMove,
-          phase = phase,
-          ply = ply,
-          fen = fen
-        )
-      val namedRouteNetworkBindCertification =
-        RouteNetworkBindProof.evaluate(
-          plan = plan,
-          probeResultsById = resultsById,
-          preventedPlans = preventedPlans,
-          evalCp = evalCp,
-          isWhiteToMove = isWhiteToMove,
-          phase = phase,
-          ply = ply,
-          fen = fen,
-          localFileEntryBindCertification = localFileEntryBindCertification
-        )
-      val heavyPieceLocalBindValidation =
-        HeavyPieceLocalBindValidation.evaluate(
-          plan = plan,
-          probeResultsById = resultsById,
-          preventedPlans = preventedPlans,
-          evalCp = evalCp,
-          isWhiteToMove = isWhiteToMove,
-          phase = phase,
-          ply = ply,
-          fen = fen
-        )
-      val bestReplyStable =
-        supportResults.nonEmpty &&
-          refuteResults.isEmpty &&
-          supportResults.exists(hasReplyCoverage) &&
-          supportResults.forall(_.l1Delta.flatMap(_.collapseReason).forall(_.trim.isEmpty))
-      val futureSnapshotAligned =
-        supportResults.exists(result => result.futureSnapshot.exists(isPositiveFutureSnapshot)) &&
-          refuteResults.isEmpty
-      val counterBreakNeutralized =
-        supportResults.exists(result =>
-          result.futureSnapshot.exists(snapshot =>
-            snapshot.planBlockersRemoved.exists(mentionsCounterBreak) ||
-              snapshot.planPrereqsMet.exists(mentionsCounterBreak) ||
-              snapshot.resolvedThreatKinds.exists(mentionsCounterplay)
-          ) ||
-            result.motifTags.exists(motif => mentionsCounterBreak(motif) || mentionsCounterplay(motif))
-        )
-      val moveOrderSensitive =
-        plan.status == PlanEvidenceEvaluator.PlanEvidenceStatus.PlayablePvCoupled ||
-          (plan.pvCoupled && plan.missingSignals.nonEmpty) ||
-          refuteResults.exists(_.l1Delta.flatMap(_.collapseReason).exists(_.trim.nonEmpty)) ||
-          restrictedDefenseCertification.exists(_.moveOrderFragility.fragile) ||
-          localFileEntryBindCertification.exists(_.moveOrderFragility.fragile) ||
-          namedRouteNetworkBindCertification.exists(_.moveOrderFragility.fragile) ||
-          heavyPieceLocalBindValidation.exists(_.moveOrderFragility.fragile) ||
-          dualAxisBindCertification.exists(_.moveOrderFragility.fragile) ||
-          (
-            supportResults.nonEmpty &&
-              supportResults.exists(hasReplyCoverage) &&
-              !bestReplyStable &&
-              !futureSnapshotAligned
-          )
-      StrategicPlanExperiment(
-        planId = plan.hypothesis.planId,
-        themeL1 = plan.themeL1,
-        subplanId = plan.subplanId,
-        evidenceTier =
-          {
-            val restrictedDefenseTier =
-              RestrictedDefenseConversionProof.playerFacingEvidenceTier(
-                evidenceTierOf(plan.status),
-                restrictedDefenseCertification
-              )
-            val fileEntryTier =
-              LocalFileEntryProof.playerFacingEvidenceTier(
-                restrictedDefenseTier,
-                localFileEntryBindCertification
-              )
-            val namedRouteTier =
-              RouteNetworkBindProof.playerFacingEvidenceTier(
-                fileEntryTier,
-                namedRouteNetworkBindCertification
-              )
-            val heavyPieceTier =
-              HeavyPieceLocalBindValidation.playerFacingEvidenceTier(
-                namedRouteTier,
-                heavyPieceLocalBindValidation
-              )
-            heavyPieceLocalBindValidation match
-              case Some(_) if namedRouteTier == "evidence_backed" =>
-                heavyPieceTier
-              case _ =>
-                namedRouteNetworkBindCertification match
-                  case Some(_) if fileEntryTier == "evidence_backed" =>
-                    namedRouteTier
-                  case _ =>
-                    localFileEntryBindCertification match
-                      case Some(_) if restrictedDefenseTier == "evidence_backed" =>
-                        fileEntryTier
-                      case _ =>
-                        dualAxisBindCertification match
-                          case Some(cert) if restrictedDefenseTier == "evidence_backed" =>
-                            if cert.certified then "evidence_backed" else "deferred"
-                          case _ =>
-                            CounterplayRestraintProof.playerFacingEvidenceTier(
-                              restrictedDefenseTier,
-                              counterplayAxisCertification
-                            )
-          },
-        supportProbeCount = supportResults.size,
-        refuteProbeCount = refuteResults.size,
-        bestReplyStable = bestReplyStable,
-        futureSnapshotAligned = futureSnapshotAligned,
-        counterBreakNeutralized = counterBreakNeutralized,
-        moveOrderSensitive = moveOrderSensitive,
-        experimentConfidence =
-          experimentConfidence(
-            tier = plan.status,
-            supportCount = supportResults.size,
-            refuteCount = refuteResults.size,
-            bestReplyStable = bestReplyStable,
-            futureSnapshotAligned = futureSnapshotAligned,
-            counterBreakNeutralized = counterBreakNeutralized,
-            moveOrderSensitive = moveOrderSensitive,
-            restrictedDefenseCertification = restrictedDefenseCertification,
-            counterplayAxisCertification = counterplayAxisCertification,
-            dualAxisBindCertification = dualAxisBindCertification,
-            localFileEntryBindCertification = localFileEntryBindCertification,
-            namedRouteNetworkBindCertification = namedRouteNetworkBindCertification,
-            heavyPieceLocalBindValidation = heavyPieceLocalBindValidation
-          )
-      )
+      val signals = planExperimentSignals(plan, probeEvidence, certifications)
+      strategicPlanExperiment(plan, probeEvidence, certifications, signals)
     }
 
-  /**
-   * A9 Event Detection: Detect opening-related events for narrative.
-   * Events are budget-controlled and only fire on specific triggers.
-   * 
-   * Budget must be passed from game-level tracker to prevent repeated firing.
-   */
+  private def planExperimentProbeEvidence(
+    plan: PlanEvidenceEvaluator.EvaluatedPlan,
+    resultsById: Map[String, ProbeResult]
+  ): PlanExperimentProbeEvidence =
+    PlanExperimentProbeEvidence(
+      supportResults = plan.supportProbeIds.flatMap(resultsById.get).distinctBy(_.id),
+      refuteResults = plan.refuteProbeIds.flatMap(resultsById.get).distinctBy(_.id)
+    )
+
+  private def planExperimentSignals(
+    plan: PlanEvidenceEvaluator.EvaluatedPlan,
+    probeEvidence: PlanExperimentProbeEvidence,
+    certifications: PlanExperimentCertifications
+  ): PlanExperimentSignals = {
+    val bestReplyStable = experimentBestReplyStable(probeEvidence)
+    val futureSnapshotAligned = experimentFutureSnapshotAligned(probeEvidence)
+    PlanExperimentSignals(
+      bestReplyStable = bestReplyStable,
+      futureSnapshotAligned = futureSnapshotAligned,
+      counterBreakNeutralized = probeEvidence.supportResults.exists(counterBreakNeutralizedBy),
+      moveOrderSensitive =
+        experimentMoveOrderSensitive(
+          plan = plan,
+          supportResults = probeEvidence.supportResults,
+          refuteResults = probeEvidence.refuteResults,
+          bestReplyStable = bestReplyStable,
+          futureSnapshotAligned = futureSnapshotAligned,
+          certifications = certifications
+        )
+    )
+  }
+
+  private def experimentBestReplyStable(probeEvidence: PlanExperimentProbeEvidence): Boolean =
+    probeEvidence.supportResults.nonEmpty &&
+      probeEvidence.refuteResults.isEmpty &&
+      probeEvidence.supportResults.exists(hasReplyCoverage) &&
+      probeEvidence.supportResults.forall(_.l1Delta.flatMap(_.collapseReason).forall(_.trim.isEmpty))
+
+  private def experimentFutureSnapshotAligned(probeEvidence: PlanExperimentProbeEvidence): Boolean =
+    probeEvidence.supportResults.exists(result => result.futureSnapshot.exists(isPositiveFutureSnapshot)) &&
+      probeEvidence.refuteResults.isEmpty
+
+  private def strategicPlanExperiment(
+    plan: PlanEvidenceEvaluator.EvaluatedPlan,
+    probeEvidence: PlanExperimentProbeEvidence,
+    certifications: PlanExperimentCertifications,
+    signals: PlanExperimentSignals
+  ): StrategicPlanExperiment =
+    StrategicPlanExperiment(
+      planId = plan.hypothesis.planId,
+      themeL1 = plan.themeL1,
+      subplanId = plan.subplanId,
+      evidenceTier = experimentEvidenceTier(plan.status, certifications),
+      supportProbeCount = probeEvidence.supportResults.size,
+      refuteProbeCount = probeEvidence.refuteResults.size,
+      bestReplyStable = signals.bestReplyStable,
+      futureSnapshotAligned = signals.futureSnapshotAligned,
+      counterBreakNeutralized = signals.counterBreakNeutralized,
+      moveOrderSensitive = signals.moveOrderSensitive,
+      experimentConfidence =
+        experimentConfidence(
+          tier = plan.status,
+          supportCount = probeEvidence.supportResults.size,
+          refuteCount = probeEvidence.refuteResults.size,
+          bestReplyStable = signals.bestReplyStable,
+          futureSnapshotAligned = signals.futureSnapshotAligned,
+          counterBreakNeutralized = signals.counterBreakNeutralized,
+          moveOrderSensitive = signals.moveOrderSensitive,
+          certifications = certifications
+        )
+    )
+
+  private def planExperimentCertifications(
+      plan: PlanEvidenceEvaluator.EvaluatedPlan,
+      probeResultsById: Map[String, ProbeResult],
+      preventedPlans: List[PreventedPlan],
+      evalCp: Int,
+      isWhiteToMove: Boolean,
+      phase: String,
+      ply: Int,
+      fen: String
+  ): PlanExperimentCertifications =
+    val certificationContext =
+      PlanExperimentCertificationContext(
+        plan = plan,
+        probeResultsById = probeResultsById,
+        preventedPlans = preventedPlans,
+        evalCp = evalCp,
+        isWhiteToMove = isWhiteToMove,
+        phase = phase,
+        ply = ply,
+        fen = fen
+      )
+    val restrictedDefense = restrictedDefenseCertification(certificationContext)
+    val localFileEntryBind = localFileEntryCertification(certificationContext)
+    PlanExperimentCertifications(
+      restrictedDefense = restrictedDefense,
+      counterplayAxis = counterplayAxisCertification(certificationContext),
+      dualAxisBind = dualAxisBindCertification(certificationContext),
+      localFileEntryBind = localFileEntryBind,
+      namedRouteNetworkBind = namedRouteNetworkCertification(certificationContext, localFileEntryBind),
+      heavyPieceLocalBind = heavyPieceLocalCertification(certificationContext)
+    )
+
+  private def restrictedDefenseCertification(
+    ctx: PlanExperimentCertificationContext
+  ): Option[RestrictedDefenseConversionProof.Contract] =
+    RestrictedDefenseConversionProof.evaluate(
+      plan = ctx.plan,
+      probeResultsById = ctx.probeResultsById,
+      preventedPlans = ctx.preventedPlans,
+      evalCp = ctx.evalCp,
+      isWhiteToMove = ctx.isWhiteToMove
+    )
+
+  private def counterplayAxisCertification(
+    ctx: PlanExperimentCertificationContext
+  ): Option[CounterplayRestraintProof.Contract] =
+    CounterplayRestraintProof.evaluate(
+      plan = ctx.plan,
+      probeResultsById = ctx.probeResultsById,
+      preventedPlans = ctx.preventedPlans,
+      evalCp = ctx.evalCp,
+      isWhiteToMove = ctx.isWhiteToMove,
+      phase = ctx.phase,
+      ply = ctx.ply,
+      fen = ctx.fen
+    )
+
+  private def dualAxisBindCertification(
+    ctx: PlanExperimentCertificationContext
+  ): Option[TwoAxisBindProof.Contract] =
+    TwoAxisBindProof.evaluate(
+      plan = ctx.plan,
+      probeResultsById = ctx.probeResultsById,
+      preventedPlans = ctx.preventedPlans,
+      evalCp = ctx.evalCp,
+      isWhiteToMove = ctx.isWhiteToMove,
+      phase = ctx.phase,
+      ply = ctx.ply,
+      fen = ctx.fen
+    )
+
+  private def localFileEntryCertification(
+    ctx: PlanExperimentCertificationContext
+  ): Option[LocalFileEntryProof.Contract] =
+    LocalFileEntryProof.evaluate(
+      plan = ctx.plan,
+      probeResultsById = ctx.probeResultsById,
+      preventedPlans = ctx.preventedPlans,
+      evalCp = ctx.evalCp,
+      isWhiteToMove = ctx.isWhiteToMove,
+      phase = ctx.phase,
+      ply = ctx.ply,
+      fen = ctx.fen
+    )
+
+  private def namedRouteNetworkCertification(
+    ctx: PlanExperimentCertificationContext,
+    localFileEntryBind: Option[LocalFileEntryProof.Contract]
+  ): Option[RouteNetworkBindProof.Contract] =
+    RouteNetworkBindProof.evaluate(
+      plan = ctx.plan,
+      probeResultsById = ctx.probeResultsById,
+      preventedPlans = ctx.preventedPlans,
+      evalCp = ctx.evalCp,
+      isWhiteToMove = ctx.isWhiteToMove,
+      phase = ctx.phase,
+      ply = ctx.ply,
+      fen = ctx.fen,
+      localFileEntryBindCertification = localFileEntryBind
+    )
+
+  private def heavyPieceLocalCertification(
+    ctx: PlanExperimentCertificationContext
+  ): Option[HeavyPieceLocalBindValidation.Contract] =
+    HeavyPieceLocalBindValidation.evaluate(
+      plan = ctx.plan,
+      probeResultsById = ctx.probeResultsById,
+      preventedPlans = ctx.preventedPlans,
+      evalCp = ctx.evalCp,
+      isWhiteToMove = ctx.isWhiteToMove,
+      phase = ctx.phase,
+      ply = ctx.ply,
+      fen = ctx.fen
+    )
+
+  private def experimentEvidenceTier(
+      status: PlanEvidenceEvaluator.PlanEvidenceStatus,
+      certifications: PlanExperimentCertifications
+  ): String =
+    val restrictedDefenseTier =
+      RestrictedDefenseConversionProof.playerFacingEvidenceTier(
+        evidenceTierOf(status),
+        certifications.restrictedDefense
+      )
+    val fileEntryTier =
+      LocalFileEntryProof.playerFacingEvidenceTier(
+        restrictedDefenseTier,
+        certifications.localFileEntryBind
+      )
+    val namedRouteTier =
+      RouteNetworkBindProof.playerFacingEvidenceTier(
+        fileEntryTier,
+        certifications.namedRouteNetworkBind
+      )
+    val heavyPieceTier =
+      HeavyPieceLocalBindValidation.playerFacingEvidenceTier(
+        namedRouteTier,
+        certifications.heavyPieceLocalBind
+      )
+    experimentEvidenceTierOverride(
+      certifications = certifications,
+      restrictedDefenseTier = restrictedDefenseTier,
+      fileEntryTier = fileEntryTier,
+      namedRouteTier = namedRouteTier,
+      heavyPieceTier = heavyPieceTier
+    ).getOrElse(
+      CounterplayRestraintProof.playerFacingEvidenceTier(
+        restrictedDefenseTier,
+        certifications.counterplayAxis
+      )
+    )
+
+  private def experimentEvidenceTierOverride(
+    certifications: PlanExperimentCertifications,
+    restrictedDefenseTier: String,
+    fileEntryTier: String,
+    namedRouteTier: String,
+    heavyPieceTier: String
+  ): Option[String] =
+    certifications.heavyPieceLocalBind
+      .filter(_ => namedRouteTier == "evidence_backed")
+      .map(_ => heavyPieceTier)
+      .orElse(
+        certifications.namedRouteNetworkBind
+          .filter(_ => fileEntryTier == "evidence_backed")
+          .map(_ => namedRouteTier)
+      )
+      .orElse(
+        certifications.localFileEntryBind
+          .filter(_ => restrictedDefenseTier == "evidence_backed")
+          .map(_ => fileEntryTier)
+      )
+      .orElse(
+        certifications.dualAxisBind
+          .filter(_ => restrictedDefenseTier == "evidence_backed")
+          .map(cert => if cert.certified then "evidence_backed" else "deferred")
+      )
+
+  private def experimentMoveOrderSensitive(
+      plan: PlanEvidenceEvaluator.EvaluatedPlan,
+      supportResults: List[ProbeResult],
+      refuteResults: List[ProbeResult],
+      bestReplyStable: Boolean,
+      futureSnapshotAligned: Boolean,
+      certifications: PlanExperimentCertifications
+  ): Boolean =
+    val replyCoverageUnstable =
+      supportResults.nonEmpty &&
+        supportResults.exists(hasReplyCoverage) &&
+        !bestReplyStable &&
+        !futureSnapshotAligned
+    plan.status == PlanEvidenceEvaluator.PlanEvidenceStatus.PlayablePvCoupled ||
+      (plan.pvCoupled && plan.missingSignals.nonEmpty) ||
+      refuteResults.exists(_.l1Delta.flatMap(_.collapseReason).exists(_.trim.nonEmpty)) ||
+      certifications.restrictedDefense.exists(_.moveOrderFragility.fragile) ||
+      certifications.localFileEntryBind.exists(_.moveOrderFragility.fragile) ||
+      certifications.namedRouteNetworkBind.exists(_.moveOrderFragility.fragile) ||
+      certifications.heavyPieceLocalBind.exists(_.moveOrderFragility.fragile) ||
+      certifications.dualAxisBind.exists(_.moveOrderFragility.fragile) ||
+      replyCoverageUnstable
+
+  private def counterBreakNeutralizedBy(result: ProbeResult): Boolean =
+    result.futureSnapshot.exists(snapshot =>
+      snapshot.planBlockersRemoved.exists(mentionsCounterBreak) ||
+        snapshot.planPrereqsMet.exists(mentionsCounterBreak) ||
+        snapshot.resolvedThreatKinds.exists(mentionsCounterplay)
+    ) ||
+      result.motifTags.exists(motif => mentionsCounterBreak(motif) || mentionsCounterplay(motif))
+
   private def detectOpeningEvent(
       data: ExtendedAnalysisData,
       openingRef: Option[OpeningReference],
@@ -528,18 +903,13 @@ object NarrativeContextBuilder:
       budget: OpeningEventBudget,
       prevRef: Option[OpeningReference]
   ): Option[OpeningEvent] = {
-    // Guard: Only detect events in opening phase
     if (!data.phase.equalsIgnoreCase("opening")) return None
     
-    // Extract cpLoss for novelty detection
-    // counterfactual=None means this IS the best move (cpLoss=0)
-    // counterfactual=Some(cf) => use cf.cpLoss
     val cpLoss = data.counterfactual match {
       case Some(cf) => Some(cf.cpLoss)
-      case None => Some(0)  // No counterfactual = this is best move = cpLoss=0
+      case None => Some(0)
     }
     
-    // Check for constructive evidence
     val hasConstructiveEvidence = 
       decision.exists(d => d.delta.newOpportunities.nonEmpty || d.delta.planAdvancements.nonEmpty) ||
       data.plans.exists(_.score > 0.6) ||
@@ -548,7 +918,7 @@ object NarrativeContextBuilder:
     OpeningEventDetector.detect(
       ply = data.ply,
       playedMove = data.prevMove,
-      fen = data.fen,  // For UCI→SAN conversion
+      fen = data.fen,
       ref = openingRef,
       budget = budget,
       cpLoss = cpLoss,
@@ -598,78 +968,108 @@ object NarrativeContextBuilder:
       futureSnapshotAligned: Boolean,
       counterBreakNeutralized: Boolean,
       moveOrderSensitive: Boolean,
-      restrictedDefenseCertification: Option[RestrictedDefenseConversionProof.Contract],
-      counterplayAxisCertification: Option[CounterplayRestraintProof.Contract],
-      dualAxisBindCertification: Option[TwoAxisBindProof.Contract],
-      localFileEntryBindCertification: Option[LocalFileEntryProof.Contract],
-      namedRouteNetworkBindCertification: Option[RouteNetworkBindProof.Contract],
-      heavyPieceLocalBindValidation: Option[HeavyPieceLocalBindValidation.Contract]
+      certifications: PlanExperimentCertifications
   ): Double =
-    val base =
-      tier match
-        case PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableEvidenceBacked => 0.82
-        case PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableTranspositionAligned => 0.74
-        case PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableStructuralOnly => 0.52
-        case PlanEvidenceEvaluator.PlanEvidenceStatus.PlayablePvCoupled      => 0.62
-        case PlanEvidenceEvaluator.PlanEvidenceStatus.Deferred               => 0.38
-        case PlanEvidenceEvaluator.PlanEvidenceStatus.Refuted                => 0.10
-    val supportBonus = math.min(0.08, supportCount * 0.03)
-    val refutePenalty = math.min(0.18, refuteCount * 0.08)
+    val base = experimentBaseConfidence(tier)
+    val supportBonus = experimentSupportBonus(supportCount)
+    val refutePenalty = experimentRefutePenalty(refuteCount)
     val stabilityBonus = if bestReplyStable then 0.05 else 0.0
     val futureBonus = if futureSnapshotAligned then 0.04 else 0.0
     val counterBreakBonus = if counterBreakNeutralized then 0.05 else 0.0
     val sensitivityPenalty = if moveOrderSensitive then 0.08 else 0.0
-    val restrictedDefenseBonus =
-      restrictedDefenseCertification
-        .map(cert =>
-          if cert.certified then 0.05
-          else if cert.routePersistence.bestDefenseStable && cert.routePersistence.futureSnapshotPersistent then -0.05
-          else -0.12
-        )
-        .getOrElse(0.0)
-    val counterplayAxisBonus =
-      counterplayAxisCertification
-        .map(cert =>
-          if cert.certified then 0.04
-          else if cert.routePersistence.axisStillSuppressed then -0.04
-          else -0.10
-        )
-        .getOrElse(0.0)
-    val dualAxisBindBonus =
-      dualAxisBindCertification
-        .map(cert =>
-          if cert.certified then 0.06
-          else if cert.persistenceAfterBestDefense && cert.routeContinuity.futureSnapshotPersistent then -0.06
-          else -0.14
-        )
-        .getOrElse(0.0)
-    val localFileEntryBonus =
-      localFileEntryBindCertification
-        .map(cert =>
-          if cert.certified then 0.05
-          else if cert.pressurePersistence && cert.routeContinuity.futureSnapshotPersistent then -0.05
-          else -0.12
-        )
-        .getOrElse(0.0)
-    val namedRouteNetworkBonus =
-      namedRouteNetworkBindCertification
-        .map(cert =>
-          if cert.certified then 0.04
-          else if cert.pressurePersistence && cert.routeContinuity.futureSnapshotPersistent then -0.06
-          else -0.12
-        )
-        .getOrElse(0.0)
-    val heavyPiecePenalty =
-      heavyPieceLocalBindValidation
-        .map(validation =>
-          if validation.certified then -0.10
-          else if validation.pressurePersistence && validation.routeContinuity.directBestDefensePresent then -0.12
-          else -0.16
-        )
-        .getOrElse(0.0)
-    (base + supportBonus + stabilityBonus + futureBonus + counterBreakBonus + restrictedDefenseBonus + counterplayAxisBonus + dualAxisBindBonus + localFileEntryBonus + namedRouteNetworkBonus + heavyPiecePenalty - refutePenalty - sensitivityPenalty)
+    val restrictedDefenseBonus = restrictedDefenseConfidenceAdjustment(certifications.restrictedDefense)
+    val counterplayAxisBonus = counterplayAxisConfidenceAdjustment(certifications.counterplayAxis)
+    val dualAxisBindBonus = dualAxisBindConfidenceAdjustment(certifications.dualAxisBind)
+    val localFileEntryBonus = localFileEntryConfidenceAdjustment(certifications.localFileEntryBind)
+    val namedRouteNetworkBonus = namedRouteNetworkConfidenceAdjustment(certifications.namedRouteNetworkBind)
+    val heavyPiecePenalty = heavyPieceLocalConfidenceAdjustment(certifications.heavyPieceLocalBind)
+    (base + supportBonus + stabilityBonus + futureBonus + counterBreakBonus +
+      restrictedDefenseBonus + counterplayAxisBonus + dualAxisBindBonus +
+      localFileEntryBonus + namedRouteNetworkBonus + heavyPiecePenalty -
+      refutePenalty - sensitivityPenalty)
       .max(0.0)
       .min(0.98)
+
+  private def experimentBaseConfidence(tier: PlanEvidenceEvaluator.PlanEvidenceStatus): Double =
+    tier match
+      case PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableEvidenceBacked       => 0.82
+      case PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableTranspositionAligned => 0.74
+      case PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableStructuralOnly       => 0.52
+      case PlanEvidenceEvaluator.PlanEvidenceStatus.PlayablePvCoupled            => 0.62
+      case PlanEvidenceEvaluator.PlanEvidenceStatus.Deferred                     => 0.38
+      case PlanEvidenceEvaluator.PlanEvidenceStatus.Refuted                      => 0.10
+
+  private def experimentSupportBonus(supportCount: Int): Double =
+    math.min(0.08, supportCount * 0.03)
+
+  private def experimentRefutePenalty(refuteCount: Int): Double =
+    math.min(0.18, refuteCount * 0.08)
+
+  private def restrictedDefenseConfidenceAdjustment(
+    certification: Option[RestrictedDefenseConversionProof.Contract]
+  ): Double =
+    certification
+      .map(cert =>
+        if cert.certified then 0.05
+        else if cert.routePersistence.bestDefenseStable && cert.routePersistence.futureSnapshotPersistent then -0.05
+        else -0.12
+      )
+      .getOrElse(0.0)
+
+  private def counterplayAxisConfidenceAdjustment(
+    certification: Option[CounterplayRestraintProof.Contract]
+  ): Double =
+    certification
+      .map(cert =>
+        if cert.certified then 0.04
+        else if cert.routePersistence.axisStillSuppressed then -0.04
+        else -0.10
+      )
+      .getOrElse(0.0)
+
+  private def dualAxisBindConfidenceAdjustment(
+    certification: Option[TwoAxisBindProof.Contract]
+  ): Double =
+    certification
+      .map(cert =>
+        if cert.certified then 0.06
+        else if cert.persistenceAfterBestDefense && cert.routeContinuity.futureSnapshotPersistent then -0.06
+        else -0.14
+      )
+      .getOrElse(0.0)
+
+  private def localFileEntryConfidenceAdjustment(
+    certification: Option[LocalFileEntryProof.Contract]
+  ): Double =
+    certification
+      .map(cert =>
+        if cert.certified then 0.05
+        else if cert.pressurePersistence && cert.routeContinuity.futureSnapshotPersistent then -0.05
+        else -0.12
+      )
+      .getOrElse(0.0)
+
+  private def namedRouteNetworkConfidenceAdjustment(
+    certification: Option[RouteNetworkBindProof.Contract]
+  ): Double =
+    certification
+      .map(cert =>
+        if cert.certified then 0.04
+        else if cert.pressurePersistence && cert.routeContinuity.futureSnapshotPersistent then -0.06
+        else -0.12
+      )
+      .getOrElse(0.0)
+
+  private def heavyPieceLocalConfidenceAdjustment(
+    validation: Option[HeavyPieceLocalBindValidation.Contract]
+  ): Double =
+    validation
+      .map(cert =>
+        if cert.certified then -0.10
+        else if cert.pressurePersistence && cert.routeContinuity.directBestDefensePresent then -0.12
+        else -0.16
+      )
+      .getOrElse(0.0)
 
   private def buildHeader(ctx: IntegratedContext): ContextHeader = {
     val classification = ctx.classification.getOrElse(defaultClassification)
@@ -691,68 +1091,116 @@ object NarrativeContextBuilder:
     data: ExtendedAnalysisData,
     ctx: IntegratedContext
   ): NarrativeSummary = {
-    val alignmentHint = data.planAlignment.map(summaryHintFromAlignment).getOrElse("")
-    val primaryPlan = data.plans.headOption
-      .map(p => s"${p.plan.name} (${f"${p.score}%.2f"})$alignmentHint")
-      .getOrElse(s"No clear plan$alignmentHint")
-    val keyThreat = ctx.threatsToUs.flatMap { ta =>
-      ta.threats
-        .find(t => t.attackSquares.headOption.flatMap(str => chess.Square.fromKey(str)).exists(sq => NarrativeUtils.isVerifiedThreat(data.fen, sq, if (!data.isWhiteToMove) chess.Color.White else chess.Color.Black)))
-        .map { t =>
-          val urgency = 
-            if (t.lossIfIgnoredCp >= 800 || t.kind == ThreatKind.Mate) "URGENT"
-            else if (t.lossIfIgnoredCp >= 300) "IMPORTANT"
-            else "LOW"
-          val attacker = t.motifs.headOption.flatMap(publicThreatMotifLabel).getOrElse("attacker")
-          s"$urgency: $attacker on ${t.attackSquares.head}"
-        }
-    }
-    
-    val choiceType = ctx.classification
-      .map(c => c.choiceTopology.topologyType.toString)
-      .getOrElse("Unknown")
-    
+    val primaryPlan = summaryPrimaryPlan(data)
+    val keyThreat = summaryKeyThreat(data, ctx)
     val hasMateThreatToUs = ctx.threatsToUs.exists(_.threats.exists(_.kind == ThreatKind.Mate))
     val hasMateThreatToThem = ctx.threatsToThem.exists(_.threats.exists(_.kind == ThreatKind.Mate))
-    val hasMateCandidate = data.candidates.exists { cand =>
+    val hasMateCandidate = summaryHasMateCandidate(data)
+    val hasForcedMateForUs = summaryHasForcedMateForUs(data, hasMateCandidate)
+    val isMate =
+      data.alternatives.exists(_.mate.isDefined) ||
+        hasMateThreatToUs ||
+        hasMateThreatToThem ||
+        hasMateCandidate
+    val (finalPrimaryPlan, finalKeyThreat) =
+      summaryPrimaryPlanAndThreat(
+        data = data,
+        primaryPlan = primaryPlan,
+        keyThreat = keyThreat,
+        hasForcedMateForUs = hasForcedMateForUs,
+        hasMateThreatToUs = hasMateThreatToUs
+      )
+
+    NarrativeSummary(
+      primaryPlan = finalPrimaryPlan,
+      keyThreat = finalKeyThreat,
+      choiceType = summaryChoiceType(ctx),
+      tensionPolicy = summaryTensionPolicy(ctx, isMate),
+      evalDelta = summaryEvalDelta(data)
+    )
+  }
+
+  private def summaryPrimaryPlan(data: ExtendedAnalysisData): String = {
+    val alignmentHint = data.planAlignment.map(summaryHintFromAlignment).getOrElse("")
+    data.plans.headOption
+      .map(p => s"${p.plan.name} (${f"${p.score}%.2f"})$alignmentHint")
+      .getOrElse(s"No clear plan$alignmentHint")
+  }
+
+  private def summaryKeyThreat(data: ExtendedAnalysisData, ctx: IntegratedContext): Option[String] =
+    ctx.threatsToUs.flatMap { ta =>
+      ta.threats
+        .find(t =>
+          t.attackSquares.headOption
+            .flatMap(str => chess.Square.fromKey(str))
+            .exists(sq =>
+              NarrativeUtils.isVerifiedThreat(
+                data.fen,
+                sq,
+                if (!data.isWhiteToMove) chess.Color.White else chess.Color.Black
+              )
+            )
+        )
+        .map(summaryThreatLine)
+    }
+
+  private def summaryThreatLine(threat: Threat): String = {
+    val urgency =
+      if (threat.lossIfIgnoredCp >= 800 || threat.kind == ThreatKind.Mate) "URGENT"
+      else if (threat.lossIfIgnoredCp >= 300) "IMPORTANT"
+      else "LOW"
+    val attacker = threat.motifs.headOption.flatMap(publicThreatMotifLabel).getOrElse("attacker")
+    s"$urgency: $attacker on ${threat.attackSquares.head}"
+  }
+
+  private def summaryChoiceType(ctx: IntegratedContext): String =
+    ctx.classification
+      .map(c => c.choiceTopology.topologyType.toString)
+      .getOrElse("Unknown")
+
+  private def summaryHasMateCandidate(data: ExtendedAnalysisData): Boolean =
+    data.candidates.exists { cand =>
       cand.line.mate.isDefined || NarrativeUtils.uciListToSan(data.fen, cand.line.moves.take(1)).exists(_.contains("#"))
     }
-    val hasForcedMateForUs = data.alternatives.exists(_.mate.exists(_ > 0)) || hasMateCandidate
-    val isMate = data.alternatives.exists(_.mate.isDefined) || hasMateThreatToUs || hasMateThreatToThem || hasMateCandidate
-    
-    val tensionPolicy = if (isMate) "Maximum (shattered)" else ctx.pawnAnalysis
+
+  private def summaryHasForcedMateForUs(data: ExtendedAnalysisData, hasMateCandidate: Boolean): Boolean =
+    data.alternatives.exists(_.mate.exists(_ > 0)) || hasMateCandidate
+
+  private def summaryTensionPolicy(ctx: IntegratedContext, isMate: Boolean): String =
+    if (isMate) "Maximum (shattered)" else ctx.pawnAnalysis
       .map(p => s"${p.tensionPolicy} (${p.primaryDriver})")
       .getOrElse("N/A")
-    
-    val evalDelta = data.practicalAssessment
+
+  private def summaryEvalDelta(data: ExtendedAnalysisData): String =
+    data.practicalAssessment
       .map { pa => 
         val score = pa.engineScore / 100.0
         val sign = if (score > 0) "+" else ""
         f"Eval: $sign$score%.1f"
       }
       .getOrElse("No eval")
-    val (finalPrimaryPlan, finalKeyThreat) = 
-      if (hasForcedMateForUs) {
-        // We have a forced mate - override everything
-        val mateDepth = data.alternatives.flatMap(_.mate).filter(_ > 0).headOption
-          .orElse(data.candidates.flatMap(_.line.mate).filter(_ > 0).headOption)
-        val mateText = mateDepth.map(m => s"Forced Mate in $m").getOrElse("Forced Mate")
-        (mateText, Some(s"URGENT: $mateText available"))
-      } else if (hasMateThreatToUs) {
-        // Opponent threatens mate - upgrade keyThreat severity
-        (primaryPlan, Some("URGENT: Mate threat against us"))
-      } else {
-        (primaryPlan, keyThreat)
-      }
-    
-    NarrativeSummary(
-      primaryPlan = finalPrimaryPlan,
-      keyThreat = finalKeyThreat,
-      choiceType = choiceType,
-      tensionPolicy = tensionPolicy,
-      evalDelta = evalDelta
-    )
-  }
+
+  private def summaryPrimaryPlanAndThreat(
+    data: ExtendedAnalysisData,
+    primaryPlan: String,
+    keyThreat: Option[String],
+    hasForcedMateForUs: Boolean,
+    hasMateThreatToUs: Boolean
+  ): (String, Option[String]) =
+    if (hasForcedMateForUs) {
+      val mateText = summaryForcedMateText(data)
+      (mateText, Some(s"URGENT: $mateText available"))
+    } else if (hasMateThreatToUs) {
+      (primaryPlan, Some("URGENT: Mate threat against us"))
+    } else {
+      (primaryPlan, keyThreat)
+    }
+
+  private def summaryForcedMateText(data: ExtendedAnalysisData): String =
+    data.alternatives.flatMap(_.mate).filter(_ > 0).headOption
+      .orElse(data.candidates.flatMap(_.line.mate).filter(_ > 0).headOption)
+      .map(m => s"Forced Mate in $m")
+      .getOrElse("Forced Mate")
 
   private def publicThreatMotifLabel(raw: String): Option[String] =
     val motif = Option(raw).map(_.takeWhile(_ != '(').trim).filter(_.nonEmpty)
@@ -872,50 +1320,56 @@ object NarrativeContextBuilder:
   private def buildPlanTable(
     data: ExtendedAnalysisData
   ): PlanTable = {
-    val hasMateCandidate = data.candidates.exists { cand =>
-      cand.line.mate.isDefined || NarrativeUtils.uciListToSan(data.fen, cand.line.moves.take(1)).exists(_.contains("#"))
-    }
-    val hasForcedMateForUs = data.alternatives.exists(_.mate.exists(_ > 0)) || hasMateCandidate
-    
+    val basePlans = basePlanRows(data)
+    val top5 =
+      if summaryHasForcedMateForUs(data, summaryHasMateCandidate(data)) then forcedMatePlanRows(data, basePlans)
+      else basePlans
+    val suppressed = List.empty[SuppressedPlan]
+
+    PlanTable(top5 = top5, suppressed = suppressed)
+  }
+
+  private def basePlanRows(data: ExtendedAnalysisData): List[PlanRow] = {
     val establishedKey =
       data.planContinuity
         .filter(_.consecutivePlies >= 2)
         .map(c => c.planId.map(_.toLowerCase).getOrElse(c.planName.toLowerCase))
 
-    val basePlans = data.plans.take(5).zipWithIndex.map { case (pm, idx) =>
-      val isEstablished =
-        establishedKey.exists(k => k == pm.plan.id.toString.toLowerCase || k == pm.plan.name.toLowerCase)
-      PlanRow(
-        rank = idx + 1,
-        name = pm.plan.name,
-        score = pm.score,
-        evidence = pm.evidence.take(2).map(_.description),
-        supports = pm.supports,
-        blockers = pm.blockers,
-        missingPrereqs = pm.missingPrereqs,
-        isEstablished = isEstablished
-      )
+    data.plans.take(5).zipWithIndex.map { case (planMatch, index) =>
+      planTableRow(planMatch, index, establishedKey)
     }
-    val top5 = if (hasForcedMateForUs) {
-      val mateDepth = data.alternatives.flatMap(_.mate).filter(_ > 0).headOption
-        .orElse(data.candidates.flatMap(_.line.mate).filter(_ > 0).headOption)
-      val matePlan = PlanRow(
-        rank = 1,
-        name = mateDepth.map(m => s"Forced Mate in $m").getOrElse("Forced Mate"),
-        score = 1.0,
-        evidence = List("Checkmate is available"),
-        confidence = ConfidenceLevel.Engine
-      )
-      // Re-rank existing plans
-      val shifted = basePlans.take(4).map(p => p.copy(rank = p.rank + 1))
-      matePlan :: shifted
-    } else {
-      basePlans
-    }
-    val suppressed = List.empty[SuppressedPlan] // Compatibility events removed with PlanSequence migration
-    
-    PlanTable(top5 = top5, suppressed = suppressed)
   }
+
+  private def planTableRow(
+    planMatch: PlanMatch,
+    index: Int,
+    establishedKey: Option[String]
+  ): PlanRow = {
+    val isEstablished =
+      establishedKey.exists(k => k == planMatch.plan.id.toString.toLowerCase || k == planMatch.plan.name.toLowerCase)
+    PlanRow(
+      rank = index + 1,
+      name = planMatch.plan.name,
+      score = planMatch.score,
+      evidence = planMatch.evidence.take(2).map(_.description),
+      supports = planMatch.supports,
+      blockers = planMatch.blockers,
+      missingPrereqs = planMatch.missingPrereqs,
+      isEstablished = isEstablished
+    )
+  }
+
+  private def forcedMatePlanRows(data: ExtendedAnalysisData, basePlans: List[PlanRow]): List[PlanRow] =
+    forcedMatePlanRow(data) :: basePlans.take(4).map(plan => plan.copy(rank = plan.rank + 1))
+
+  private def forcedMatePlanRow(data: ExtendedAnalysisData): PlanRow =
+    PlanRow(
+      rank = 1,
+      name = summaryForcedMateText(data),
+      score = 1.0,
+      evidence = List("Checkmate is available"),
+      confidence = ConfidenceLevel.Engine
+    )
 
   private def buildStrategicFlow(data: ExtendedAnalysisData): Option[String] = {
     val side = if (data.isWhiteToMove) "White" else "Black"
@@ -953,199 +1407,210 @@ object NarrativeContextBuilder:
     }
   }
   
-  private def buildL1Snapshot(ctx: IntegratedContext): L1Snapshot = {
-    ctx.features match {
-      case Some(f) =>
-        val isWhite = ctx.isWhiteToMove
-        val mp = f.materialPhase
-        val ks = f.kingSafety
-        val act = f.activity
-        val imb = f.imbalance
-        
-        // Material: "+2" | "=" | "-1" from White POV, then adjust for side
-        val matDiff = mp.materialDiff // White POV
-        val sideMaterial = if (isWhite) matDiff else -matDiff
-        val materialStr = if (sideMaterial > 0) s"+$sideMaterial" 
-                          else if (sideMaterial < 0) s"$sideMaterial"
-                          else "="
-        
-        // Imbalance detection
-        val imbalanceStr = if (imb.whiteBishopPair && !imb.blackBishopPair) Some("Bishop pair (us)")
-                           else if (imb.blackBishopPair && !imb.whiteBishopPair) Some("Bishop pair (them)")
-                           else if (imb.whiteRooks != imb.blackRooks) Some(s"Rook imbalance (${imb.whiteRooks}v${imb.blackRooks})")
-                           else None
-        
-        // King safety (us/them based on isWhiteToMove)
-        val (ourAttackers, ourEscapes) = if (isWhite) 
-          (ks.whiteAttackersCount, ks.whiteEscapeSquares) 
-        else 
-          (ks.blackAttackersCount, ks.blackEscapeSquares)
-        val (theirAttackers, theirEscapes) = if (isWhite)
-          (ks.blackAttackersCount, ks.blackEscapeSquares)
-        else
-          (ks.whiteAttackersCount, ks.whiteEscapeSquares)
-        
-        val kingSafetyUs = if (ourAttackers >= 2 || ourEscapes <= 1)
-          Some(s"Exposed ($ourAttackers attackers, $ourEscapes escapes)")
-        else None
-        
-        val kingSafetyThem = if (theirAttackers >= 2 || theirEscapes <= 1)
-          Some(s"Exposed ($theirAttackers attackers, $theirEscapes escapes)")
-        else None
-        
-        // Mobility advantage
-        val mobDiff = if (isWhite) act.whitePseudoMobility - act.blackPseudoMobility
-                      else act.blackPseudoMobility - act.whitePseudoMobility
-        val mobilityStr = if (mobDiff > 10) Some(s"Advantage (+$mobDiff)")
-                          else if (mobDiff < -10) Some(s"Disadvantage ($mobDiff)")
-                          else None
-        
-        // Center control
-        val cs = f.centralSpace
-        val ccDiff = if (isWhite) cs.whiteCenterControl - cs.blackCenterControl
-                     else cs.blackCenterControl - cs.whiteCenterControl
-        val centerStr = if (ccDiff >= 2) Some("Dominant")
-                        else if (ccDiff <= -2) Some("Weak")
-                        else None
-        
-        // Open files - compute actual file letters from FEN
-        val openFilesList = computeOpenFiles(f.fen)
-        val isEndgame = ctx.classification.exists(_.gamePhase.isEndgame)
-        val isPawnEndgame = (mp.whiteMaterial + mp.blackMaterial) <= 6 && isEndgame
-        
-        val filteredCenter = if (isPawnEndgame) None else centerStr
-        val filteredOpenFiles = if (isPawnEndgame) Nil else openFilesList
-        
-        L1Snapshot(
-          material = materialStr,
-          imbalance = imbalanceStr,
-          kingSafetyUs = kingSafetyUs,
-          kingSafetyThem = kingSafetyThem,
-          mobility = mobilityStr,
-          centerControl = filteredCenter,
-          openFiles = filteredOpenFiles
+  private def buildL1Snapshot(ctx: IntegratedContext): L1Snapshot =
+    ctx.features
+      .map(features =>
+        l1SnapshotFromFeatures(
+          features = features,
+          isWhiteToMove = ctx.isWhiteToMove,
+          isEndgame = ctx.classification.exists(_.gamePhase.isEndgame)
         )
-        
-      case None =>
-        // Fallback stub when features not available
-        L1Snapshot(
-          material = "=",
-          imbalance = None,
-          kingSafetyUs = None,
-          kingSafetyThem = None,
-          mobility = None,
-          centerControl = None,
-          openFiles = Nil
-        )
-    }
+      )
+      .getOrElse(emptyL1Snapshot)
+
+  private def l1SnapshotFromFeatures(
+    features: PositionFeatures,
+    isWhiteToMove: Boolean,
+    isEndgame: Boolean
+  ): L1Snapshot = {
+    val materialPhase = features.materialPhase
+    val isPawnEndgame = (materialPhase.whiteMaterial + materialPhase.blackMaterial) <= 6 && isEndgame
+    val (kingSafetyUs, kingSafetyThem) = l1KingSafety(features.kingSafety, isWhiteToMove)
+
+    L1Snapshot(
+      material = l1MaterialString(materialPhase.materialDiff, isWhiteToMove),
+      imbalance = l1Imbalance(features.imbalance),
+      kingSafetyUs = kingSafetyUs,
+      kingSafetyThem = kingSafetyThem,
+      mobility = l1Mobility(features.activity, isWhiteToMove),
+      centerControl = Option.unless(isPawnEndgame)(l1CenterControl(features.centralSpace, isWhiteToMove)).flatten,
+      openFiles = if isPawnEndgame then Nil else computeOpenFiles(features.fen)
+    )
+  }
+
+  private def emptyL1Snapshot: L1Snapshot =
+    L1Snapshot(
+      material = "=",
+      imbalance = None,
+      kingSafetyUs = None,
+      kingSafetyThem = None,
+      mobility = None,
+      centerControl = None,
+      openFiles = Nil
+    )
+
+  private def l1MaterialString(materialDiff: Int, isWhiteToMove: Boolean): String = {
+    val sideMaterial = if isWhiteToMove then materialDiff else -materialDiff
+    if sideMaterial > 0 then s"+$sideMaterial"
+    else if sideMaterial < 0 then s"$sideMaterial"
+    else "="
+  }
+
+  private def l1Imbalance(imbalance: MaterialImbalanceFeatures): Option[String] =
+    if imbalance.whiteBishopPair && !imbalance.blackBishopPair then Some("Bishop pair (us)")
+    else if imbalance.blackBishopPair && !imbalance.whiteBishopPair then Some("Bishop pair (them)")
+    else if imbalance.whiteRooks != imbalance.blackRooks then
+      Some(s"Rook imbalance (${imbalance.whiteRooks}v${imbalance.blackRooks})")
+    else None
+
+  private def l1KingSafety(
+    kingSafety: KingSafetyFeatures,
+    isWhiteToMove: Boolean
+  ): (Option[String], Option[String]) = {
+    val (ourAttackers, ourEscapes) =
+      if isWhiteToMove then (kingSafety.whiteAttackersCount, kingSafety.whiteEscapeSquares)
+      else (kingSafety.blackAttackersCount, kingSafety.blackEscapeSquares)
+    val (theirAttackers, theirEscapes) =
+      if isWhiteToMove then (kingSafety.blackAttackersCount, kingSafety.blackEscapeSquares)
+      else (kingSafety.whiteAttackersCount, kingSafety.whiteEscapeSquares)
+    (l1KingExposure(ourAttackers, ourEscapes), l1KingExposure(theirAttackers, theirEscapes))
+  }
+
+  private def l1KingExposure(attackers: Int, escapes: Int): Option[String] =
+    Option.when(attackers >= 2 || escapes <= 1)(s"Exposed ($attackers attackers, $escapes escapes)")
+
+  private def l1Mobility(activity: ActivityFeatures, isWhiteToMove: Boolean): Option[String] = {
+    val mobilityDiff =
+      if isWhiteToMove then activity.whitePseudoMobility - activity.blackPseudoMobility
+      else activity.blackPseudoMobility - activity.whitePseudoMobility
+    if mobilityDiff > 10 then Some(s"Advantage (+$mobilityDiff)")
+    else if mobilityDiff < -10 then Some(s"Disadvantage ($mobilityDiff)")
+    else None
+  }
+
+  private def l1CenterControl(centralSpace: CentralSpaceFeatures, isWhiteToMove: Boolean): Option[String] = {
+    val centerDiff =
+      if isWhiteToMove then centralSpace.whiteCenterControl - centralSpace.blackCenterControl
+      else centralSpace.blackCenterControl - centralSpace.whiteCenterControl
+    if centerDiff >= 2 then Some("Dominant")
+    else if centerDiff <= -2 then Some("Weak")
+    else None
   }
   
   private def buildCandidates(data: ExtendedAnalysisData): List[CandidateInfo] = {
-    data.candidates.zipWithIndex.map { case (cand, idx) =>
-      val bestScore = data.candidates.headOption.map(_.score).getOrElse(0)
-      val secondScore = data.candidates.lift(1).map(_.score).getOrElse(bestScore)
-      def lossFromBest(score: Int): Int =
-        if data.isWhiteToMove then (bestScore - score).max(0)
-        else (score - bestScore).max(0)
-
-      val bestGap = lossFromBest(secondScore)
-      val cpDiff = lossFromBest(cand.score)
-      val annotation =
-        if idx == 0 then
-          // Avoid overusing "!"; only mark when the best move is clearly separated.
-          if bestGap >= Thresholds.MISTAKE_CP then "!" else ""
-        else if cpDiff >= Thresholds.DOUBLE_QUESTION_CP then "??"
-        else if cpDiff >= Thresholds.SINGLE_QUESTION_CP then "?"
-        else if cpDiff >= Thresholds.DUBIOUS_CP then "?!"
-        else ""
-      val sanMoves = NarrativeUtils.uciListToSan(data.fen, cand.line.moves.take(2))
-      val lineSanMoves = NarrativeUtils.uciListToSan(data.fen, cand.line.moves.take(6))
-      val moveSan = sanMoves.headOption.getOrElse(cand.move)
-      val responseMotifs = cand.motifs.filter(_.plyIndex == 1)
-      val alert = responseMotifs.collectFirst {
-        case _: Motif.Check => s"allows ${sanMoves.lift(1).getOrElse("")} check"
-        case _: Motif.Fork => s"allows ${sanMoves.lift(1).getOrElse("")} fork"
-        case m: Motif.Capture if m.captureType == Motif.CaptureType.Winning => 
-          s"allows ${sanMoves.lift(1).getOrElse("")} winning capture"
-        case _: Motif.DiscoveredAttack => "reveals discovered attack"
-      }
-      val selfMotifs = cand.motifs.filter(_.plyIndex == 0)
-      val tacticEvidence = selfMotifs.flatMap { m =>
-        m match {
-          case f: Motif.Fork => 
-            Some(s"Fork pressure from ${roleLabel(f.attackingPiece)} on ${f.square} against ${f.targets.map(roleLabel).mkString(" and ")}.")
-          case p: Motif.Pin => 
-            val pSq = p.pinnedSq.map(_.key).getOrElse("?")
-            Some(s"Pin pressure on $pSq against the ${roleLabel(p.targetBehind)}.")
-          case c: Motif.Capture if c.captureType == Motif.CaptureType.Winning => 
-            Some(s"Winning capture by ${roleLabel(c.piece)} on ${c.square}.")
-          case d: Motif.DiscoveredAttack => 
-            val tSq = d.targetSq.map(_.key).getOrElse("?")
-            Some(s"Discovered attack against the ${roleLabel(d.target)} on $tSq.")
-          case ch: Motif.Check => 
-            Some(s"Check on ${ch.targetSquare}.")
-          case sk: Motif.Skewer =>
-            Some(s"Skewer pressure through the ${roleLabel(sk.frontPiece)}.")
-          case o: Motif.Outpost =>
-            Some(s"Outpost for the ${roleLabel(o.piece)} on ${o.square}.")
-          case of: Motif.OpenFileControl =>
-            Some(s"Open-file pressure on the ${of.file}-file.")
-          case c: Motif.Centralization =>
-            Some(s"Centralization toward ${c.square}.")
-          case rl: Motif.RookLift =>
-            Some(s"Rook lift toward rank ${rl.toRank}.")
-          case dom: Motif.Domination =>
-            Some(s"Domination by the ${roleLabel(dom.dominatingPiece)}.")
-          case man: Motif.Maneuver =>
-            Some(s"Maneuver by the ${roleLabel(man.piece)} for ${man.purpose.replace('_', ' ')}.")
-          case tp: Motif.TrappedPiece =>
-            Some(s"Trapped ${roleLabel(tp.trappedRole)}.")
-          case kvb: Motif.KnightVsBishop =>
-            Some("Knight-versus-bishop imbalance.")
-          case b: Motif.Blockade =>
-            Some(s"Blockade on ${b.pawnSquare}.")
-          case _: Motif.SmotheredMate =>
-            Some("Smothered-mate ideas.")
-          case xr: Motif.XRay =>
-            Some(s"X-ray pressure against the ${roleLabel(xr.target)} on ${xr.square}.")
-          case _ => None
-        }
-      }
-      val alignment = cand.moveIntent.immediate
-      val downstream = cand.moveIntent.downstream
-      val whyNot = if (idx > 0 && cpDiff >= 50) {
-        val diff = cpDiff / 100.0
-        val refutation = sanMoves.lift(1).map(m => s" after $m").getOrElse("")
-        val reason = if (diff > 2.0) "decisive loss" else if (diff > 0.8) "significant disadvantage" else "slight inaccuracy"
-        Some(f"$reason ($diff%.1f)$refutation")
-      } else None
-      
-      // Phase F: VariationTag -> CandidateTag mapping
-      val tags = mapVariationTags(cand.line.tags)
-
-      CandidateInfo(
-        move = moveSan,
-        uci = Some(cand.move),
-        annotation = annotation,
-        planAlignment = alignment,
-        structureGuidance = None,
-        alignmentBand = None,
-        downstreamTactic = downstream,
-        tacticalAlert = alert,
-        practicalDifficulty = if (cand.line.moves.length > 6) "complex" else "clean",
-        whyNot = whyNot,
-        tags = tags,
-        tacticEvidence = tacticEvidence,
-        facts = cand.facts,
-        lineSanMoves = lineSanMoves,
-        lineMotifs = cand.motifs
-      )
-    }.filterNot(_.move.isEmpty)
+    val scoreContext = candidateScoreContext(data)
+    data.candidates.zipWithIndex
+      .map { case (candidate, index) => buildCandidateInfo(data, candidate, index, scoreContext) }
+      .filterNot(_.move.isEmpty)
   }
+
+  private def candidateScoreContext(data: ExtendedAnalysisData): CandidateScoreContext =
+    val bestScore = data.candidates.headOption.map(_.score).getOrElse(0)
+    CandidateScoreContext(
+      bestScore = bestScore,
+      secondScore = data.candidates.lift(1).map(_.score).getOrElse(bestScore),
+      isWhiteToMove = data.isWhiteToMove
+    )
+
+  private def buildCandidateInfo(
+      data: ExtendedAnalysisData,
+      candidate: AnalyzedCandidate,
+      index: Int,
+      scoreContext: CandidateScoreContext
+  ): CandidateInfo =
+    val sanMoves = NarrativeUtils.uciListToSan(data.fen, candidate.line.moves.take(2))
+    val cpDiff = scoreContext.lossFromBest(candidate.score)
+    CandidateInfo(
+      move = sanMoves.headOption.getOrElse(candidate.move),
+      uci = Some(candidate.move),
+      annotation = candidateAnnotation(index, cpDiff, scoreContext.bestGap),
+      planAlignment = candidate.moveIntent.immediate,
+      structureGuidance = None,
+      alignmentBand = None,
+      downstreamTactic = candidate.moveIntent.downstream,
+      tacticalAlert = candidateResponseAlert(candidate.motifs.filter(_.plyIndex == 1), sanMoves),
+      practicalDifficulty = if candidate.line.moves.length > 6 then "complex" else "clean",
+      whyNot = candidateWhyNot(index, cpDiff, sanMoves),
+      tags = mapVariationTags(candidate.line.tags),
+      tacticEvidence = candidate.motifs.filter(_.plyIndex == 0).flatMap(candidateTacticEvidenceLine),
+      facts = candidate.facts,
+      lineSanMoves = NarrativeUtils.uciListToSan(data.fen, candidate.line.moves.take(6)),
+      lineMotifs = candidate.motifs
+    )
+
+  private def candidateAnnotation(index: Int, cpDiff: Int, bestGap: Int): String =
+    if index == 0 then
+      if bestGap >= Thresholds.MISTAKE_CP then "!" else ""
+    else if cpDiff >= Thresholds.DOUBLE_QUESTION_CP then "??"
+    else if cpDiff >= Thresholds.SINGLE_QUESTION_CP then "?"
+    else if cpDiff >= Thresholds.DUBIOUS_CP then "?!"
+    else ""
+
+  private def candidateResponseAlert(
+      responseMotifs: List[Motif],
+      sanMoves: List[String]
+  ): Option[String] =
+    val replySan = sanMoves.lift(1).getOrElse("")
+    responseMotifs.collectFirst {
+      case _: Motif.Check => s"allows $replySan check"
+      case _: Motif.Fork => s"allows $replySan fork"
+      case m: Motif.Capture if m.captureType == Motif.CaptureType.Winning =>
+        s"allows $replySan winning capture"
+      case _: Motif.DiscoveredAttack => "reveals discovered attack"
+    }
+
+  private def candidateTacticEvidenceLine(motif: Motif): Option[String] =
+    motif match {
+      case f: Motif.Fork =>
+        Some(s"Fork pressure from ${roleLabel(f.attackingPiece)} on ${f.square} against ${f.targets.map(roleLabel).mkString(" and ")}.")
+      case p: Motif.Pin =>
+        val pinnedSquare = p.pinnedSq.map(_.key).getOrElse("?")
+        Some(s"Pin pressure on $pinnedSquare against the ${roleLabel(p.targetBehind)}.")
+      case c: Motif.Capture if c.captureType == Motif.CaptureType.Winning =>
+        Some(s"Winning capture by ${roleLabel(c.piece)} on ${c.square}.")
+      case d: Motif.DiscoveredAttack =>
+        val targetSquare = d.targetSq.map(_.key).getOrElse("?")
+        Some(s"Discovered attack against the ${roleLabel(d.target)} on $targetSquare.")
+      case ch: Motif.Check =>
+        Some(s"Check on ${ch.targetSquare}.")
+      case sk: Motif.Skewer =>
+        Some(s"Skewer pressure through the ${roleLabel(sk.frontPiece)}.")
+      case o: Motif.Outpost =>
+        Some(s"Outpost for the ${roleLabel(o.piece)} on ${o.square}.")
+      case of: Motif.OpenFileControl =>
+        Some(s"Open-file pressure on the ${of.file}-file.")
+      case c: Motif.Centralization =>
+        Some(s"Centralization toward ${c.square}.")
+      case rl: Motif.RookLift =>
+        Some(s"Rook lift toward rank ${rl.toRank}.")
+      case dom: Motif.Domination =>
+        Some(s"Domination by the ${roleLabel(dom.dominatingPiece)}.")
+      case man: Motif.Maneuver =>
+        Some(s"Maneuver by the ${roleLabel(man.piece)} for ${man.purpose.replace('_', ' ')}.")
+      case tp: Motif.TrappedPiece =>
+        Some(s"Trapped ${roleLabel(tp.trappedRole)}.")
+      case _: Motif.KnightVsBishop =>
+        Some("Knight-versus-bishop imbalance.")
+      case b: Motif.Blockade =>
+        Some(s"Blockade on ${b.pawnSquare}.")
+      case _: Motif.SmotheredMate =>
+        Some("Smothered-mate ideas.")
+      case xr: Motif.XRay =>
+        Some(s"X-ray pressure against the ${roleLabel(xr.target)} on ${xr.square}.")
+      case _ => None
+    }
+
+  private def candidateWhyNot(index: Int, cpDiff: Int, sanMoves: List[String]): Option[String] =
+    if index > 0 && cpDiff >= 50 then
+      val diff = cpDiff / 100.0
+      val refutation = sanMoves.lift(1).map(move => s" after $move").getOrElse("")
+      val reason =
+        if diff > 2.0 then "decisive loss"
+        else if diff > 0.8 then "significant disadvantage"
+        else "slight inaccuracy"
+      Some(f"$reason ($diff%.1f)$refutation")
+    else None
   
-  /**
-   * Maps VariationTag enum to CandidateTag.
-   */
   private def mapVariationTags(varTags: List[lila.commentary.model.strategic.VariationTag]): List[CandidateTag] = {
     import lila.commentary.model.strategic.VariationTag
     varTags.flatMap {
@@ -1171,15 +1636,10 @@ object NarrativeContextBuilder:
     taskMode = TaskModeResult(TaskModeType.ExplainPlan, "default")
   )
   
-  /**
-   * Compute actual open file letters from FEN.
-   * An open file has no pawns (white or black) on it.
-   */
   private def computeOpenFiles(fen: String): List[String] = {
     val boardPart = fen.split(" ").headOption.getOrElse("")
     val ranks = boardPart.split("/")
     
-    // Expand FEN rank notation (e.g., "rnbqkbnr" or "8" or "3p4")
     def expandRank(rank: String): String = {
       rank.flatMap { c =>
         if (c.isDigit) " " * c.asDigit
@@ -1190,7 +1650,6 @@ object NarrativeContextBuilder:
     val expandedRanks = ranks.map(expandRank)
     val files = "abcdefgh"
     
-    // Check each file (column) for pawns
     files.zipWithIndex.collect {
       case (fileChar, fileIdx) if expandedRanks.forall { rank =>
         rank.lift(fileIdx).forall(c => c != 'p' && c != 'P')
@@ -1241,7 +1700,6 @@ object NarrativeContextBuilder:
     val newMotifs = (currMotifs -- prevMotifs).toList.sorted
     val lostMotifs = (prevMotifs -- currMotifs).toList.sorted
     
-    // Simple structure change detection
     val structureChange = if (newMotifs.contains("PawnChain") && !prevMotifs.contains("PawnChain"))
       Some("Pawn chain established")
     else if (lostMotifs.contains("PawnChain"))
@@ -1259,14 +1717,7 @@ object NarrativeContextBuilder:
       phaseChange = None
     )
   }
-  // META SIGNALS (B-axis)
-
-  /**
-   * Builds MetaSignals only if meaningful source data exists.
-   * Returns None if no classification, threats, or planSequence.
-   */
   private def buildMetaSignals(data: ExtendedAnalysisData, ctx: IntegratedContext, targets: Targets, probeResults: List[ProbeResult]): Option[MetaSignals] = {
-    // Require at least classification OR threats OR plans to populate meta
     val hasClassification = ctx.classification.isDefined
     val hasThreats = ctx.threatsToUs.isDefined || ctx.threatsToThem.isDefined
     val hasPlans = data.plans.nonEmpty
@@ -1291,25 +1742,51 @@ object NarrativeContextBuilder:
     }
   }
 
-  /**
-   * B7: WhyNot summary for the Meta section.
-   * Enhanced with L1 delta collapse reasons.
-   */
   private def buildWhyNotSummary(probeResults: List[ProbeResult], isWhiteToMove: Boolean): Option[String] = {
     if (probeResults.isEmpty) None
     else {
       val summaries = probeResults.flatMap { pr =>
-        val moverLoss = if (isWhiteToMove) -pr.deltaVsBaseline else pr.deltaVsBaseline
+        val moverLoss = moverLossFor(pr, isWhiteToMove)
         if (moverLoss >= 200) {
           val moveText = pr.probedMove.getOrElse("this move")
-          // Phase C: Include L1 collapse reason if available
-          val collapseNote = pr.l1Delta.flatMap(_.collapseReason).map(r => s" ($r)").getOrElse("")
-          Some(s"'$moveText' is refuted losing $moverLoss cp$collapseNote [Verified]")
+          Some(s"'$moveText' is refuted losing $moverLoss cp${collapseNoteOf(pr)} [Verified]")
         } else None
       }
       if (summaries.isEmpty) None else Some(summaries.mkString(". "))
     }
   }
+
+  private def moverLossFor(result: ProbeResult, isWhiteToMove: Boolean): Int =
+    if (isWhiteToMove) -result.deltaVsBaseline else result.deltaVsBaseline
+
+  private def collapseNoteOf(result: ProbeResult): String =
+    result.l1Delta.flatMap(_.collapseReason).map(r => s" ($r)").getOrElse("")
+
+  private def replyPvsOf(result: ProbeResult): List[List[String]] =
+    result.replyPvs.getOrElse(if (result.bestReplyPv.nonEmpty) List(result.bestReplyPv) else Nil)
+
+  private def replySanAfter(fen: String, moveUci: String, replyUci: String): String =
+    NarrativeUtils.uciListToSan(fen, List(moveUci, replyUci)).lift(1).getOrElse(replyUci)
+
+  private def probeReplySanLines(fen: String, moveUci: String, replyPvs: List[List[String]]): List[String] =
+    replyPvs.take(2).flatMap { pv =>
+      val san = NarrativeUtils.uciListToSan(fen, moveUci :: pv.take(6)).drop(1).mkString(" ")
+      Option(san).map(_.trim).filter(_.nonEmpty)
+    }
+
+  private def strategicLineCitation(
+      data: ExtendedAnalysisData,
+      moveUci: String,
+      replyPv: List[String]
+  ): Option[String] =
+    LineScopedCitation.strategicCitation(
+      data.fen,
+      data.ply + 1,
+      lila.commentary.model.strategic.VariationLine(
+        moves = moveUci :: replyPv.take(5),
+        scoreCp = 0
+      )
+    )
 
   private def buildCandidatesEnriched(
     data: ExtendedAnalysisData,
@@ -1319,119 +1796,122 @@ object NarrativeContextBuilder:
     val isWhiteToMove = data.isWhiteToMove
     val existing = buildCandidates(data)
     val existingUcis = existing.flatMap(_.uci).toSet
-    
-    val enriched = existing.zipWithIndex.map { case (c, idx) =>
-      val probe = probeResults.find(pr => pr.probedMove == c.uci)
 
-      // Probe PV samples (a1/a2): convert probe reply PVs into SAN lines, starting from opponent reply.
-      val probeLines = probe.flatMap { pr =>
-        val moveUciOpt = c.uci
-        val replyPvs = pr.replyPvs.getOrElse {
-          if (pr.bestReplyPv.nonEmpty) List(pr.bestReplyPv) else Nil
-        }
-
-        moveUciOpt.map { moveUci =>
-          replyPvs.take(2).flatMap { pv =>
-            val san = NarrativeUtils.uciListToSan(data.fen, moveUci :: pv.take(6)).drop(1).mkString(" ")
-            Option(san).map(_.trim).filter(_.nonEmpty)
-          }
-        }
-      }.getOrElse(Nil)
-      
-      // 1. Logic for tags
-      val probeTags = probe.map { pr =>
-        if (pr.id.startsWith("competitive")) List(CandidateTag.Competitive)
-        else if (pr.id.startsWith("aggressive") && (if (isWhiteToMove) -pr.deltaVsBaseline else pr.deltaVsBaseline) >= 50) 
-          List(CandidateTag.TacticalGamble)
-        else Nil
-      }.getOrElse(Nil)
-
-      // 2. Logic for whyNot
-      val whyNot = probe.flatMap { pr =>
-        val moverLoss = if (isWhiteToMove) -pr.deltaVsBaseline else pr.deltaVsBaseline
-        val lineCitation =
-          c.uci.flatMap { uci =>
-            LineScopedCitation.strategicCitation(
-              data.fen,
-              data.ply + 1,
-              lila.commentary.model.strategic.VariationLine(
-                moves = uci :: pr.bestReplyPv.take(5),
-                scoreCp = 0
-              )
-            )
-          }
-        if (moverLoss >= 50) {
-           val bestReply = pr.bestReplyPv.headOption.getOrElse("?")
-           val replySan = c.uci.map(u => NarrativeUtils.uciListToSan(data.fen, List(u, bestReply)).lift(1).getOrElse(bestReply)).getOrElse(bestReply)
-           val collapseNote = pr.l1Delta.flatMap(_.collapseReason).map(r => s" ($r)").getOrElse("")
-           
-           if (pr.id.startsWith("aggressive"))
-             lineCitation
-               .map(citation => s"the line $citation is clearly refuted$collapseNote")
-               .orElse(Some(s"refuted: $replySan is a clear answer$collapseNote"))
-           else
-             lineCitation
-               .map(citation => s"the line $citation is inferior by $moverLoss cp$collapseNote")
-               .orElse(Some(s"inferior by $moverLoss cp after $replySan$collapseNote"))
-        } else if (pr.id.startsWith("competitive") && moverLoss.abs < 30) {
-           Some("verified as a strong alternative")
-        } else None
-      }
-
-      val baseCandidate = c.copy(
-        whyNot = whyNot.orElse(c.whyNot),
-        tags = (c.tags ++ probeTags).distinct,
-        probeLines = probeLines
-      )
-      toneCandidateByAlignment(baseCandidate, idx, planAlignment)
-    }
-    
-    val ghosts = probeResults.filter(pr => pr.probedMove.isDefined && !pr.probedMove.exists(existingUcis.contains)).map { pr =>
-      val uci = pr.probedMove.get
-      val san = NarrativeUtils.uciListToSan(data.fen, List(uci)).headOption.getOrElse(uci)
-      val moverLoss = if (isWhiteToMove) -pr.deltaVsBaseline else pr.deltaVsBaseline
-      val bestReply = pr.bestReplyPv.headOption.getOrElse("?")
-      val replySan = NarrativeUtils.uciListToSan(data.fen, List(uci, bestReply)).lift(1).getOrElse(bestReply)
-      val collapseNote = pr.l1Delta.flatMap(_.collapseReason).map(r => s" ($r)").getOrElse("")
-      val ghostCitation =
-        LineScopedCitation.strategicCitation(
-          data.fen,
-          data.ply + 1,
-          lila.commentary.model.strategic.VariationLine(
-            moves = uci :: pr.bestReplyPv.take(5),
-            scoreCp = 0
-          )
-        )
-
-      val ghostTags = if (pr.id.startsWith("aggressive")) List(CandidateTag.TacticalGamble, CandidateTag.Sharp)
-                      else if (pr.id.startsWith("competitive")) List(CandidateTag.Competitive)
-                      else Nil
-
-      CandidateInfo(
-        move = san,
-        uci = Some(uci),
-        annotation = if (moverLoss >= 200) "??" else "?",
-        planAlignment = if (pr.id.startsWith("aggressive")) "Tactical Gamble" else "Alternative Path",
-        structureGuidance = None,
-        alignmentBand = None,
-        tacticalAlert = None,
-        practicalDifficulty = "complex",
-        whyNot =
-          ghostCitation
-            .map(citation => s"the line $citation is refuted (-$moverLoss cp)$collapseNote")
-            .orElse(Some(s"refuted by $replySan (-$moverLoss cp)$collapseNote")),
-        tags = ghostTags,
-        lineSanMoves = NarrativeUtils.uciListToSan(data.fen, uci :: pr.bestReplyPv.take(5)),
-        probeLines =
-          pr.replyPvs.getOrElse(if (pr.bestReplyPv.nonEmpty) List(pr.bestReplyPv) else Nil).take(2).flatMap { pv =>
-            val sanLine = NarrativeUtils.uciListToSan(data.fen, uci :: pv.take(6)).drop(1).mkString(" ")
-            Option(sanLine).map(_.trim).filter(_.nonEmpty)
-          }
+    val enriched = existing.zipWithIndex.map { case (candidate, index) =>
+      enrichCandidateWithProbe(
+        data = data,
+        candidate = candidate,
+        index = index,
+        probe = probeResults.find(_.probedMove == candidate.uci),
+        isWhiteToMove = isWhiteToMove,
+        planAlignment = planAlignment
       )
     }
-    
-    enriched ++ ghosts
+
+    enriched ++ ghostProbeCandidates(data, probeResults, existingUcis, isWhiteToMove)
   }
+
+  private def enrichCandidateWithProbe(
+    data: ExtendedAnalysisData,
+    candidate: CandidateInfo,
+    index: Int,
+    probe: Option[ProbeResult],
+    isWhiteToMove: Boolean,
+    planAlignment: Option[lila.commentary.model.structure.PlanAlignment]
+  ): CandidateInfo = {
+    val baseCandidate = candidate.copy(
+      whyNot = probe.flatMap(pr => probeCandidateWhyNot(data, candidate, pr, isWhiteToMove)).orElse(candidate.whyNot),
+      tags = (candidate.tags ++ probe.toList.flatMap(pr => probeCandidateTags(pr, isWhiteToMove))).distinct,
+      probeLines = probeCandidateLines(data, candidate, probe)
+    )
+    toneCandidateByAlignment(baseCandidate, index, planAlignment)
+  }
+
+  private def probeCandidateLines(
+    data: ExtendedAnalysisData,
+    candidate: CandidateInfo,
+    probe: Option[ProbeResult]
+  ): List[String] =
+    probe
+      .flatMap(pr => candidate.uci.map(uci => probeReplySanLines(data.fen, uci, replyPvsOf(pr))))
+      .getOrElse(Nil)
+
+  private def probeCandidateTags(pr: ProbeResult, isWhiteToMove: Boolean): List[CandidateTag] =
+    if pr.id.startsWith("competitive") then List(CandidateTag.Competitive)
+    else if pr.id.startsWith("aggressive") && moverLossFor(pr, isWhiteToMove) >= 50 then List(CandidateTag.TacticalGamble)
+    else Nil
+
+  private def probeCandidateWhyNot(
+    data: ExtendedAnalysisData,
+    candidate: CandidateInfo,
+    pr: ProbeResult,
+    isWhiteToMove: Boolean
+  ): Option[String] = {
+    val moverLoss = moverLossFor(pr, isWhiteToMove)
+    val lineCitation = candidate.uci.flatMap(uci => strategicLineCitation(data, uci, pr.bestReplyPv))
+    if (moverLoss >= 50) {
+      val bestReply = pr.bestReplyPv.headOption.getOrElse("?")
+      val replySan = candidate.uci.map(uci => replySanAfter(data.fen, uci, bestReply)).getOrElse(bestReply)
+      val collapseNote = collapseNoteOf(pr)
+
+      if pr.id.startsWith("aggressive") then
+        lineCitation
+          .map(citation => s"the line $citation is clearly refuted$collapseNote")
+          .orElse(Some(s"refuted: $replySan is a clear answer$collapseNote"))
+      else
+        lineCitation
+          .map(citation => s"the line $citation is inferior by $moverLoss cp$collapseNote")
+          .orElse(Some(s"inferior by $moverLoss cp after $replySan$collapseNote"))
+    } else if pr.id.startsWith("competitive") && moverLoss.abs < 30 then Some("verified as a strong alternative")
+    else None
+  }
+
+  private def ghostProbeCandidates(
+    data: ExtendedAnalysisData,
+    probeResults: List[ProbeResult],
+    existingUcis: Set[String],
+    isWhiteToMove: Boolean
+  ): List[CandidateInfo] =
+    probeResults.flatMap(pr =>
+      pr.probedMove.filterNot(existingUcis.contains).map(uci => ghostProbeCandidate(data, pr, uci, isWhiteToMove))
+    )
+
+  private def ghostProbeCandidate(
+    data: ExtendedAnalysisData,
+    pr: ProbeResult,
+    uci: String,
+    isWhiteToMove: Boolean
+  ): CandidateInfo = {
+    val san = NarrativeUtils.uciListToSan(data.fen, List(uci)).headOption.getOrElse(uci)
+    val moverLoss = moverLossFor(pr, isWhiteToMove)
+    val bestReply = pr.bestReplyPv.headOption.getOrElse("?")
+    val replySan = replySanAfter(data.fen, uci, bestReply)
+    val collapseNote = collapseNoteOf(pr)
+    val ghostCitation = strategicLineCitation(data, uci, pr.bestReplyPv)
+
+    CandidateInfo(
+      move = san,
+      uci = Some(uci),
+      annotation = if (moverLoss >= 200) "??" else "?",
+      planAlignment = if (pr.id.startsWith("aggressive")) "Tactical Gamble" else "Alternative Path",
+      structureGuidance = None,
+      alignmentBand = None,
+      tacticalAlert = None,
+      practicalDifficulty = "complex",
+      whyNot =
+        ghostCitation
+          .map(citation => s"the line $citation is refuted (-$moverLoss cp)$collapseNote")
+          .orElse(Some(s"refuted by $replySan (-$moverLoss cp)$collapseNote")),
+      tags = ghostProbeTags(pr),
+      lineSanMoves = NarrativeUtils.uciListToSan(data.fen, uci :: pr.bestReplyPv.take(5)),
+      probeLines = probeReplySanLines(data.fen, uci, replyPvsOf(pr))
+    )
+  }
+
+  private def ghostProbeTags(pr: ProbeResult): List[CandidateTag] =
+    if pr.id.startsWith("aggressive") then List(CandidateTag.TacticalGamble, CandidateTag.Sharp)
+    else if pr.id.startsWith("competitive") then List(CandidateTag.Competitive)
+    else Nil
 
   private def toneCandidateByAlignment(
     candidate: CandidateInfo,
@@ -1529,6 +2009,66 @@ object NarrativeContextBuilder:
     horizon: HypothesisHorizon
   )
 
+  private case class HypothesisDraftContext(
+    data: ExtendedAnalysisData,
+    ctx: IntegratedContext,
+    candidate: CandidateInfo,
+    index: Int,
+    rank: Option[Int],
+    cpGap: Option[Int],
+    probeSignals: ProbeDetector.HypothesisVerificationSignals,
+    topCandidate: Option[CandidateInfo],
+    openingEvent: Option[OpeningEvent]
+  ) {
+    val move: String = candidate.move.trim
+    val alignment: String = candidate.planAlignment.trim
+    val alignmentLow: String = alignment.toLowerCase
+    val planName: String = data.plans.headOption.map(_.plan.name).getOrElse("current plan")
+    val practicalLow: String = candidate.practicalDifficulty.trim.toLowerCase
+    val whyNot: String = candidate.whyNot.getOrElse("").toLowerCase
+    val tacticalAlert: String = candidate.tacticalAlert.getOrElse("").toLowerCase
+    val isKnightRouteShift: Boolean = topCandidate.exists(tc => tc != candidate && knightRouteShift(tc, candidate))
+    val breakFile: Option[String] = ctx.pawnAnalysis.flatMap(_.breakFile)
+    val breakReady: Boolean = ctx.pawnAnalysis.exists(_.pawnBreakReady)
+    val breakImpact: Int = ctx.pawnAnalysis.map(_.breakImpact).getOrElse(0)
+    val conversionWindow: Boolean =
+      if data.isWhiteToMove then data.evalCp >= 80
+      else data.evalCp <= -80
+    val hasKingSignal: Boolean =
+      tacticalAlert.contains("king") ||
+        tacticalAlert.contains("check") ||
+        tacticalAlert.contains("mate") ||
+        ctx.threatsToUs.exists(_.threats.exists(t => t.kind == ThreatKind.Mate || t.lossIfIgnoredCp >= Thresholds.SIGNIFICANT_THREAT_CP))
+    val hasStructSignal: Boolean =
+      candidate.facts.exists {
+        case _: Fact.WeakSquare | _: Fact.Outpost => true
+        case _                                     => false
+      } || whyNot.contains("structure") || whyNot.contains("square") || whyNot.contains("pawn")
+    val openingSignal: Option[String] = openingEvent.map {
+      case OpeningEvent.BranchPoint(_, reason, _) =>
+        s"opening branch point: ${reason.take(42)}"
+      case OpeningEvent.Novelty(_, _, evidence, _) =>
+        s"opening novelty evidence: ${evidence.take(42)}"
+      case OpeningEvent.OutOfBook(_, _, _) =>
+        "position moved out of book"
+      case OpeningEvent.TheoryEnds(_, sampleCount) =>
+        s"theory sample thinned to $sampleCount games"
+      case OpeningEvent.Intro(_, _, theme, _) =>
+        s"opening theme: ${theme.take(42)}"
+    }
+    val cpSignal: Option[String] = cpGap.map(g => s"engine gap ${f"${g.toDouble / 100}%.1f"} pawns")
+    val localSeed: Int = Math.abs(candidate.move.hashCode) ^ (index * 0x9e3779b9) ^ cpGap.getOrElse(0)
+    val strategicFrame: Option[ProbeDetector.StrategicFrame] =
+      Option.when(data.phase.equalsIgnoreCase("middlegame"))(probeSignals.strategicFrame).flatten
+    val planScoreSignal: Option[String] =
+      data.plans.headOption.map(p => variedPlanScoreSignal(p.score, localSeed ^ 0x24d8f59c))
+    val rankSignal: Option[String] = rank.map(r => variedEngineRankSignal(r, localSeed ^ 0x3b5296f1))
+    val motifSignal: Option[String] = candidate.tacticEvidence.headOption.map(_.take(56))
+  }
+
+  private def signals(values: Option[String]*): List[String] =
+    values.toList.flatten
+
   private case class RankedHypothesis(
     card: HypothesisCard,
     score: Double,
@@ -1546,62 +2086,111 @@ object NarrativeContextBuilder:
     if (candidates.isEmpty) return candidates
     val top = candidates.headOption
     candidates.zipWithIndex.map { case (cand, idx) =>
-      val (rankOpt, cpGapOpt) = candidateRankAndGap(data, cand)
-      val probeSignals =
-        ProbeDetector.hypothesisVerificationSignals(
-          candidate = cand,
-          probeResults = probeResults,
-          probeRequests = probeRequests,
-          isWhiteToMove = data.isWhiteToMove
-        )
-      val drafts =
-        buildHypothesisDrafts(
+      cand.copy(
+        hypotheses = selectedHypothesisCards(
           data = data,
           ctx = ctx,
           candidate = cand,
           index = idx,
-          rank = rankOpt,
-          cpGap = cpGapOpt,
-          probeSignals = probeSignals,
+          probeResults = probeResults,
+          probeRequests = probeRequests,
           topCandidate = top,
           openingEvent = openingEvent
         )
-      val ranked = drafts
-        .flatMap(d => rankHypothesisDraft(d, cand, probeSignals, rankOpt, cpGapOpt))
-        .sortBy(r => -r.score)
-
-      val selected = ranked
-        .foldLeft((Set.empty[String], List.empty[RankedHypothesis])) { case ((seen, acc), rh) =>
-          if (seen.contains(rh.family)) (seen, acc)
-          else (seen + rh.family, acc :+ rh)
-        }
-        ._2
-      val diversified =
-        selected.headOption match
-          case Some(primary) =>
-            val promotedPrimary =
-              if primary.card.axis == HypothesisAxis.Plan then
-                selected
-                  .drop(1)
-                  .find(rh => rh.card.axis != HypothesisAxis.Plan && rh.score >= primary.score - 0.08)
-                  .getOrElse(primary)
-              else primary
-            val secondary =
-              selected
-                .filterNot(_ == promotedPrimary)
-                .find(_.card.axis != promotedPrimary.card.axis)
-                .orElse(selected.filterNot(_ == promotedPrimary).headOption)
-            applyLongHorizonProtection(
-              selected = selected,
-              diversified = (promotedPrimary :: secondary.toList).take(2),
-              probeSignals = probeSignals
-            )
-          case None => Nil
-      val cards = diversified.map(_.card)
-
-      cand.copy(hypotheses = cards)
+      )
     }
   }
+
+  private def selectedHypothesisCards(
+    data: ExtendedAnalysisData,
+    ctx: IntegratedContext,
+    candidate: CandidateInfo,
+    index: Int,
+    probeResults: List[ProbeResult],
+    probeRequests: List[ProbeRequest],
+    topCandidate: Option[CandidateInfo],
+    openingEvent: Option[OpeningEvent]
+  ): List[HypothesisCard] =
+    val (rankOpt, cpGapOpt) = candidateRankAndGap(data, candidate)
+    val probeSignals =
+      ProbeDetector.hypothesisVerificationSignals(
+        candidate = candidate,
+        probeResults = probeResults,
+        probeRequests = probeRequests,
+        isWhiteToMove = data.isWhiteToMove
+      )
+    val ranked =
+      rankedHypothesisDrafts(
+        data = data,
+        ctx = ctx,
+        candidate = candidate,
+        index = index,
+        rank = rankOpt,
+        cpGap = cpGapOpt,
+        probeSignals = probeSignals,
+        topCandidate = topCandidate,
+        openingEvent = openingEvent
+      )
+    val selected = selectRankedHypothesisFamilies(ranked)
+    diversifySelectedHypotheses(selected, probeSignals).map(_.card)
+
+  private def rankedHypothesisDrafts(
+    data: ExtendedAnalysisData,
+    ctx: IntegratedContext,
+    candidate: CandidateInfo,
+    index: Int,
+    rank: Option[Int],
+    cpGap: Option[Int],
+    probeSignals: ProbeDetector.HypothesisVerificationSignals,
+    topCandidate: Option[CandidateInfo],
+    openingEvent: Option[OpeningEvent]
+  ): List[RankedHypothesis] =
+    buildHypothesisDrafts(
+      data = data,
+      ctx = ctx,
+      candidate = candidate,
+      index = index,
+      rank = rank,
+      cpGap = cpGap,
+      probeSignals = probeSignals,
+      topCandidate = topCandidate,
+      openingEvent = openingEvent
+    )
+      .flatMap(d => rankHypothesisDraft(d, candidate, probeSignals, rank, cpGap))
+      .sortBy(r => -r.score)
+
+  private def selectRankedHypothesisFamilies(ranked: List[RankedHypothesis]): List[RankedHypothesis] =
+    ranked
+      .foldLeft((Set.empty[String], List.empty[RankedHypothesis])) { case ((seen, acc), rh) =>
+        if (seen.contains(rh.family)) (seen, acc)
+        else (seen + rh.family, acc :+ rh)
+      }
+      ._2
+
+  private def diversifySelectedHypotheses(
+    selected: List[RankedHypothesis],
+    probeSignals: ProbeDetector.HypothesisVerificationSignals
+  ): List[RankedHypothesis] =
+    selected.headOption match
+      case Some(primary) =>
+        val promotedPrimary =
+          if primary.card.axis == HypothesisAxis.Plan then
+            selected
+              .drop(1)
+              .find(rh => rh.card.axis != HypothesisAxis.Plan && rh.score >= primary.score - 0.08)
+              .getOrElse(primary)
+          else primary
+        val secondary =
+          selected
+            .filterNot(_ == promotedPrimary)
+            .find(_.card.axis != promotedPrimary.card.axis)
+            .orElse(selected.filterNot(_ == promotedPrimary).headOption)
+        applyLongHorizonProtection(
+          selected = selected,
+          diversified = (promotedPrimary :: secondary.toList).take(2),
+          probeSignals = probeSignals
+        )
+      case None => Nil
 
   private def candidateRankAndGap(
     data: ExtendedAnalysisData,
@@ -1639,309 +2228,258 @@ object NarrativeContextBuilder:
     topCandidate: Option[CandidateInfo],
     openingEvent: Option[OpeningEvent]
   ): List[HypothesisDraft] = {
-    val move = candidate.move.trim
-    val alignment = candidate.planAlignment.trim
-    val alignmentLow = alignment.toLowerCase
-    val planName = data.plans.headOption.map(_.plan.name).getOrElse("current plan")
-    val practicalLow = candidate.practicalDifficulty.trim.toLowerCase
-    val whyNot = candidate.whyNot.getOrElse("").toLowerCase
-    val tacticalAlert = candidate.tacticalAlert.getOrElse("").toLowerCase
-    val isKnightRouteShift = topCandidate.exists(tc => tc != candidate && knightRouteShift(tc, candidate))
-    val breakFile = ctx.pawnAnalysis.flatMap(_.breakFile)
-    val breakReady = ctx.pawnAnalysis.exists(_.pawnBreakReady)
-    val breakImpact = ctx.pawnAnalysis.map(_.breakImpact).getOrElse(0)
-    val conversionWindow =
-      if data.isWhiteToMove then data.evalCp >= 80
-      else data.evalCp <= -80
-    val hasKingSignal =
-      tacticalAlert.contains("king") ||
-        tacticalAlert.contains("check") ||
-        tacticalAlert.contains("mate") ||
-        ctx.threatsToUs.exists(_.threats.exists(t => t.kind == ThreatKind.Mate || t.lossIfIgnoredCp >= Thresholds.SIGNIFICANT_THREAT_CP))
-    val hasStructSignal =
-      candidate.facts.exists {
-        case _: Fact.WeakSquare | _: Fact.Outpost => true
-        case _                                     => false
-      } || whyNot.contains("structure") || whyNot.contains("square") || whyNot.contains("pawn")
-    val openingSignal = openingEvent.map {
-      case OpeningEvent.BranchPoint(_, reason, _) =>
-        s"opening branch point: ${reason.take(42)}"
-      case OpeningEvent.Novelty(_, _, evidence, _) =>
-        s"opening novelty evidence: ${evidence.take(42)}"
-      case OpeningEvent.OutOfBook(_, _, _) =>
-        "position moved out of book"
-      case OpeningEvent.TheoryEnds(_, sampleCount) =>
-        s"theory sample thinned to $sampleCount games"
-      case OpeningEvent.Intro(_, _, theme, _) =>
-        s"opening theme: ${theme.take(42)}"
-    }
-    val cpSignal = cpGap.map(g => s"engine gap ${f"${g.toDouble / 100}%.1f"} pawns")
-    val localSeed = Math.abs(candidate.move.hashCode) ^ (index * 0x9e3779b9) ^ cpGap.getOrElse(0)
-    val strategicFrame = Option.when(data.phase.equalsIgnoreCase("middlegame"))(probeSignals.strategicFrame).flatten
-    val planScoreSignal = data.plans.headOption.map(p => variedPlanScoreSignal(p.score, localSeed ^ 0x24d8f59c))
-    val rankSignal = rank.map(r => variedEngineRankSignal(r, localSeed ^ 0x3b5296f1))
-    val motifSignal = candidate.tacticEvidence.headOption.map(_.take(56))
-    val planClaim =
-      strategicFrame
-        .map(frame => strategicMiddlegameClaim(HypothesisAxis.Plan, move, frame, localSeed ^ 0x11f17f1d))
+    val h = HypothesisDraftContext(data, ctx, candidate, index, rank, cpGap, probeSignals, topCandidate, openingEvent)
+    List(
+      planHypothesisDraft(h),
+      structureHypothesisDraft(h),
+      initiativeHypothesisDraft(h),
+      conversionHypothesisDraft(h),
+      kingSafetyHypothesisDraft(h),
+      pieceCoordinationHypothesisDraft(h),
+      pawnBreakHypothesisDraft(h),
+      endgameHypothesisDraft(h)
+    ).filter(d => d.claim.trim.nonEmpty)
+  }
+
+  private def planHypothesisDraft(h: HypothesisDraftContext): HypothesisDraft = {
+    val claim =
+      h.strategicFrame
+        .map(frame => strategicMiddlegameClaim(HypothesisAxis.Plan, h.move, frame, h.localSeed ^ 0x11f17f1d))
         .getOrElse {
-          if index == 0 then
-            NarrativeLexicon.pick(localSeed ^ 0x11f17f1d, List(
-              s"$move keeps ${humanPlan(planName)} as the central roadmap, limiting early strategic drift.",
-              s"$move anchors play around ${humanPlan(planName)}, so follow-up choices stay structurally coherent.",
-              s"$move preserves the ${humanPlan(planName)} framework and avoids premature route changes.",
-              s"$move keeps the position tied to ${humanPlan(planName)}, delaying unnecessary plan detours."
+          if h.index == 0 then
+            NarrativeLexicon.pick(h.localSeed ^ 0x11f17f1d, List(
+              s"${h.move} keeps ${humanPlan(h.planName)} as the central roadmap, limiting early strategic drift.",
+              s"${h.move} anchors play around ${humanPlan(h.planName)}, so follow-up choices stay structurally coherent.",
+              s"${h.move} preserves the ${humanPlan(h.planName)} framework and avoids premature route changes.",
+              s"${h.move} keeps the position tied to ${humanPlan(h.planName)}, delaying unnecessary plan detours."
             ))
           else
-            NarrativeLexicon.pick(localSeed ^ 0x517cc1b7, List(
-              s"$move redirects play toward ${humanPlan(alignment)}, creating a new strategic branch from the main continuation.",
-              s"$move shifts the game into a ${humanPlan(alignment)} route, with a different plan cadence from the principal line.",
-              s"$move chooses a ${humanPlan(alignment)} channel instead of the principal structure-first continuation.",
-              s"$move reroutes priorities toward ${humanPlan(alignment)}, so the long plan map differs from the engine leader."
+            NarrativeLexicon.pick(h.localSeed ^ 0x517cc1b7, List(
+              s"${h.move} redirects play toward ${humanPlan(h.alignment)}, creating a new strategic branch from the main continuation.",
+              s"${h.move} shifts the game into a ${humanPlan(h.alignment)} route, with a different plan cadence from the principal line.",
+              s"${h.move} chooses a ${humanPlan(h.alignment)} channel instead of the principal structure-first continuation.",
+              s"${h.move} reroutes priorities toward ${humanPlan(h.alignment)}, so the long plan map differs from the engine leader."
             ))
         }
-
-    val planDraft = HypothesisDraft(
+    HypothesisDraft(
       axis = HypothesisAxis.Plan,
-      claim = planClaim,
-      supportSignals =
-        List(
-          planScoreSignal,
-          rankSignal,
-          openingSignal
-        ).flatten,
-      conflictSignals =
-        List(
-          Option.when(cpGap.exists(_ >= 100))("engine gap is significant for this route"),
-          Option.when(candidate.tags.contains(CandidateTag.TacticalGamble))("line is flagged as tactical gamble")
-        ).flatten,
-      baseConfidence = if index == 0 then 0.58 else 0.48,
+      claim = claim,
+      supportSignals = signals(h.planScoreSignal, h.rankSignal, h.openingSignal),
+      conflictSignals = signals(
+        Option.when(h.cpGap.exists(_ >= 100))("engine gap is significant for this route"),
+        Option.when(h.candidate.tags.contains(CandidateTag.TacticalGamble))("line is flagged as tactical gamble")
+      ),
+      baseConfidence = if h.index == 0 then 0.58 else 0.48,
       horizon = HypothesisHorizon.Medium
     )
+  }
 
-    val structureClaim =
-      if hasStructSignal then
-        NarrativeLexicon.pick(localSeed ^ 0x5f356495, List(
-          s"$move changes the structural balance, trading immediate activity for longer-term square commitments.",
-          s"$move reshapes pawn and square commitments, accepting delayed strategic consequences for present activity.",
-          s"$move keeps structural tensions central, where current activity is exchanged for a longer-term square map.",
-          s"$move commits to a structural route first, so long-term square control outweighs short tactical comfort."
+  private def structureHypothesisDraft(h: HypothesisDraftContext): HypothesisDraft = {
+    val claim =
+      if h.hasStructSignal then
+        NarrativeLexicon.pick(h.localSeed ^ 0x5f356495, List(
+          s"${h.move} changes the structural balance, trading immediate activity for longer-term square commitments.",
+          s"${h.move} reshapes pawn and square commitments, accepting delayed strategic consequences for present activity.",
+          s"${h.move} keeps structural tensions central, where current activity is exchanged for a longer-term square map.",
+          s"${h.move} commits to a structural route first, so long-term square control outweighs short tactical comfort."
         ))
       else
-        NarrativeLexicon.pick(localSeed ^ 0x6c6c6c6c, List(
-          s"$move tries to preserve structure first, postponing irreversible pawn commitments.",
-          s"$move keeps the pawn skeleton flexible and delays structural decisions until better timing appears.",
-          s"$move maintains structural optionality, avoiding early pawn commitments that narrow later plans.",
-          s"$move prioritizes structural elasticity now, so irreversible pawn choices are deferred."
+        NarrativeLexicon.pick(h.localSeed ^ 0x6c6c6c6c, List(
+          s"${h.move} tries to preserve structure first, postponing irreversible pawn commitments.",
+          s"${h.move} keeps the pawn skeleton flexible and delays structural decisions until better timing appears.",
+          s"${h.move} maintains structural optionality, avoiding early pawn commitments that narrow later plans.",
+          s"${h.move} prioritizes structural elasticity now, so irreversible pawn choices are deferred."
         ))
-    val structureDraft = HypothesisDraft(
+    HypothesisDraft(
       axis = HypothesisAxis.Structure,
-      claim = structureClaim,
-      supportSignals =
-        List(
-          Option.when(hasStructSignal)("fact-level structural weakness signal"),
-          Option.when(breakReady)("pawn tension context is active")
-        ).flatten,
-      conflictSignals =
-        List(
-          Option.when(whyNot.contains("weak"))("candidate rationale already flags a weakness"),
-          Option.when(cpGap.exists(_ >= 120))("engine penalizes resulting structure")
-        ).flatten,
-      baseConfidence = if hasStructSignal then 0.52 else 0.43,
+      claim = claim,
+      supportSignals = signals(
+        Option.when(h.hasStructSignal)("fact-level structural weakness signal"),
+        Option.when(h.breakReady)("pawn tension context is active")
+      ),
+      conflictSignals = signals(
+        Option.when(h.whyNot.contains("weak"))("candidate rationale already flags a weakness"),
+        Option.when(h.cpGap.exists(_ >= 120))("engine penalizes resulting structure")
+      ),
+      baseConfidence = if h.hasStructSignal then 0.52 else 0.43,
       horizon = HypothesisHorizon.Long
     )
+  }
 
-    val initiativeClaim =
-      strategicFrame
-        .map(frame => strategicMiddlegameClaim(HypothesisAxis.Initiative, move, frame, localSeed ^ 0x4f6cdd1d))
+  private def initiativeHypothesisDraft(h: HypothesisDraftContext): HypothesisDraft = {
+    val claim =
+      h.strategicFrame
+        .map(frame => strategicMiddlegameClaim(HypothesisAxis.Initiative, h.move, frame, h.localSeed ^ 0x4f6cdd1d))
         .getOrElse {
-          if candidate.tags.exists(t => t == CandidateTag.Sharp || t == CandidateTag.TacticalGamble) || practicalLow == "complex" then
-            NarrativeLexicon.pick(localSeed ^ 0x4f6cdd1d, List(
-              s"$move pushes for initiative immediately, but tempo accuracy is mandatory from move one.",
-              s"$move seeks dynamic momentum now, so even one slow follow-up can reverse the practical balance.",
-              s"$move is an initiative bid: concrete timing is required before the opponent consolidates.",
-              s"$move keeps the initiative race open, with little margin for imprecise sequencing."
+          if h.candidate.tags.exists(t => t == CandidateTag.Sharp || t == CandidateTag.TacticalGamble) || h.practicalLow == "complex" then
+            NarrativeLexicon.pick(h.localSeed ^ 0x4f6cdd1d, List(
+              s"${h.move} pushes for initiative immediately, but tempo accuracy is mandatory from move one.",
+              s"${h.move} seeks dynamic momentum now, so even one slow follow-up can reverse the practical balance.",
+              s"${h.move} is an initiative bid: concrete timing is required before the opponent consolidates.",
+              s"${h.move} keeps the initiative race open, with little margin for imprecise sequencing."
             ))
           else
-            NarrativeLexicon.pick(localSeed ^ 0x63d5a6f1, List(
-              s"$move concedes some initiative for stability, so the practical test is whether counterplay can be contained.",
-              s"$move trades immediate initiative for structure, and the key question is if counterplay arrives in time.",
-              s"$move prioritizes stability over momentum, making initiative handoff the central practical risk.",
-              s"$move slows the initiative race deliberately, betting that the resulting position is easier to control."
+            NarrativeLexicon.pick(h.localSeed ^ 0x63d5a6f1, List(
+              s"${h.move} concedes some initiative for stability, so the practical test is whether counterplay can be contained.",
+              s"${h.move} trades immediate initiative for structure, and the key question is if counterplay arrives in time.",
+              s"${h.move} prioritizes stability over momentum, making initiative handoff the central practical risk.",
+              s"${h.move} slows the initiative race deliberately, betting that the resulting position is easier to control."
             ))
         }
-
-    val initiativeDraft = HypothesisDraft(
+    HypothesisDraft(
       axis = HypothesisAxis.Initiative,
-      claim = initiativeClaim,
-      supportSignals =
-        List(
-          motifSignal,
-          cpSignal,
-          Option.when(practicalLow == "complex")("practical complexity is high")
-        ).flatten,
-      conflictSignals =
-        List(
-          Option.when(cpGap.exists(_ >= 90))("initiative handoff is too costly"),
-          Option.when(candidate.whyNot.nonEmpty)("existing refutation note points to initiative drift")
-        ).flatten,
+      claim = claim,
+      supportSignals = signals(
+        h.motifSignal,
+        h.cpSignal,
+        Option.when(h.practicalLow == "complex")("practical complexity is high")
+      ),
+      conflictSignals = signals(
+        Option.when(h.cpGap.exists(_ >= 90))("initiative handoff is too costly"),
+        Option.when(h.candidate.whyNot.nonEmpty)("existing refutation note points to initiative drift")
+      ),
       baseConfidence = 0.5,
       horizon = HypothesisHorizon.Short
     )
+  }
 
-    val conversionDraft = HypothesisDraft(
+  private def conversionHypothesisDraft(h: HypothesisDraftContext): HypothesisDraft =
+    HypothesisDraft(
       axis = HypothesisAxis.Conversion,
       claim =
-        if conversionWindow then
-          s"$move frames conversion as a timing problem: simplifying too early or too late can change the practical result."
+        if h.conversionWindow then
+          s"${h.move} frames conversion as a timing problem: simplifying too early or too late can change the practical result."
         else
-          s"$move keeps conversion deferred, prioritizing coordination before simplification.",
-      supportSignals =
-        List(
-          Option.when(conversionWindow)("evaluation indicates a conversion window"),
-          Option.when(candidate.tags.contains(CandidateTag.Converting))("candidate tagged as converting")
-        ).flatten,
-      conflictSignals =
-        List(
-          Option.when(practicalLow == "complex")("line remains tactically demanding to convert"),
-          Option.when(cpGap.exists(_ >= 110))("conversion route loses too much objective value")
-        ).flatten,
-      baseConfidence = if conversionWindow then 0.53 else 0.42,
+          s"${h.move} keeps conversion deferred, prioritizing coordination before simplification.",
+      supportSignals = signals(
+        Option.when(h.conversionWindow)("evaluation indicates a conversion window"),
+        Option.when(h.candidate.tags.contains(CandidateTag.Converting))("candidate tagged as converting")
+      ),
+      conflictSignals = signals(
+        Option.when(h.practicalLow == "complex")("line remains tactically demanding to convert"),
+        Option.when(h.cpGap.exists(_ >= 110))("conversion route loses too much objective value")
+      ),
+      baseConfidence = if h.conversionWindow then 0.53 else 0.42,
       horizon = HypothesisHorizon.Medium
     )
 
-    val kingSafetyDraft = HypothesisDraft(
+  private def kingSafetyHypothesisDraft(h: HypothesisDraftContext): HypothesisDraft =
+    HypothesisDraft(
       axis = HypothesisAxis.KingSafety,
       claim =
-        if hasKingSignal then
-          s"$move alters king-safety tempo, so defensive coordination must stay synchronized with the next forcing move."
+        if h.hasKingSignal then
+          s"${h.move} alters king-safety tempo, so defensive coordination must stay synchronized with the next forcing move."
         else
-          s"$move keeps king safety mostly stable, but only if move order avoids loose tempos.",
-      supportSignals =
-        List(
-          Option.when(hasKingSignal)("threat or tactical alert points to king safety"),
-          Option.when(tacticalAlert.contains("check"))("candidate alert includes check geometry")
-        ).flatten,
-      conflictSignals =
-        List(
-          Option.when(whyNot.contains("king"))("candidate rationale already flags king safety issues"),
-          Option.when(cpGap.exists(_ >= 140))("engine punishes resulting king exposure")
-        ).flatten,
-      baseConfidence = if hasKingSignal then 0.55 else 0.4,
+          s"${h.move} keeps king safety mostly stable, but only if move order avoids loose tempos.",
+      supportSignals = signals(
+        Option.when(h.hasKingSignal)("threat or tactical alert points to king safety"),
+        Option.when(h.tacticalAlert.contains("check"))("candidate alert includes check geometry")
+      ),
+      conflictSignals = signals(
+        Option.when(h.whyNot.contains("king"))("candidate rationale already flags king safety issues"),
+        Option.when(h.cpGap.exists(_ >= 140))("engine punishes resulting king exposure")
+      ),
+      baseConfidence = if h.hasKingSignal then 0.55 else 0.4,
       horizon = HypothesisHorizon.Short
     )
 
-    val pieceCoordDraft = HypothesisDraft(
+  private def pieceCoordinationHypothesisDraft(h: HypothesisDraftContext): HypothesisDraft =
+    HypothesisDraft(
       axis = HypothesisAxis.PieceCoordination,
       claim =
-        knightRouteShiftClaim(topCandidate, candidate).getOrElse(
-          s"$move changes piece coordination lanes, with activity gains balanced against route efficiency."
+        knightRouteShiftClaim(h.topCandidate, h.candidate).getOrElse(
+          s"${h.move} changes piece coordination lanes, with activity gains balanced against route efficiency."
         ),
-      supportSignals =
-        List(
-          Option.when(isKnightRouteShift)("knight development route diverges from main line"),
-          Option.when(isPieceMove(candidate.move))("piece move directly changes coordination map"),
-          Option.when(alignmentLow.contains("development") || alignmentLow.contains("activation"))("intent is coordination-led")
-        ).flatten,
-      conflictSignals =
-        List(
-          Option.when(cpGap.exists(_ >= 100))("coordination route is slower than principal line")
-        ).flatten,
-      baseConfidence = if isKnightRouteShift then 0.6 else 0.47,
+      supportSignals = signals(
+        Option.when(h.isKnightRouteShift)("knight development route diverges from main line"),
+        Option.when(isPieceMove(h.candidate.move))("piece move directly changes coordination map"),
+        Option.when(h.alignmentLow.contains("development") || h.alignmentLow.contains("activation"))("intent is coordination-led")
+      ),
+      conflictSignals = signals(
+        Option.when(h.cpGap.exists(_ >= 100))("coordination route is slower than principal line")
+      ),
+      baseConfidence = if h.isKnightRouteShift then 0.6 else 0.47,
       horizon = HypothesisHorizon.Medium
     )
 
-    val pawnBreakClaim =
-      strategicFrame
-        .map(frame => strategicMiddlegameClaim(HypothesisAxis.PawnBreakTiming, move, frame, localSeed ^ 0x1f123bb5))
+  private def pawnBreakHypothesisDraft(h: HypothesisDraftContext): HypothesisDraft = {
+    val claim =
+      h.strategicFrame
+        .map(frame => strategicMiddlegameClaim(HypothesisAxis.PawnBreakTiming, h.move, frame, h.localSeed ^ 0x1f123bb5))
         .getOrElse {
-          if breakReady && isLikelyPawnMove(move) then
-            NarrativeLexicon.pick(localSeed ^ 0x1f123bb5, List(
-              s"$move clarifies pawn tension immediately, preferring direct break resolution over extra preparation.",
-              s"$move commits to immediate break clarification, accepting concrete consequences now instead of waiting.",
-              s"$move resolves the pawn-break question at once, choosing concrete timing over additional setup.",
-              s"$move forces the break decision now, so follow-up accuracy matters more than setup completeness.",
-              s"$move brings pawn tension to a concrete verdict immediately rather than extending preparation."
+          if h.breakReady && isLikelyPawnMove(h.move) then
+            NarrativeLexicon.pick(h.localSeed ^ 0x1f123bb5, List(
+              s"${h.move} clarifies pawn tension immediately, preferring direct break resolution over extra preparation.",
+              s"${h.move} commits to immediate break clarification, accepting concrete consequences now instead of waiting.",
+              s"${h.move} resolves the pawn-break question at once, choosing concrete timing over additional setup.",
+              s"${h.move} forces the break decision now, so follow-up accuracy matters more than setup completeness.",
+              s"${h.move} brings pawn tension to a concrete verdict immediately rather than extending preparation."
             ))
-          else if breakReady then
-            NarrativeLexicon.pick(localSeed ^ 0x4e67c6a7, List(
-              s"$move keeps the break in reserve and improves support before committing.",
-              s"$move postpones the break by one phase, aiming for stronger piece support first.",
-              s"$move holds pawn tension for now, preparing better support before release.",
-              s"$move delays direct break action so supporting pieces can coordinate first.",
-              s"$move keeps break timing deferred, prioritizing support links before commitment."
+          else if h.breakReady then
+            NarrativeLexicon.pick(h.localSeed ^ 0x4e67c6a7, List(
+              s"${h.move} keeps the break in reserve and improves support before committing.",
+              s"${h.move} postpones the break by one phase, aiming for stronger piece support first.",
+              s"${h.move} holds pawn tension for now, preparing better support before release.",
+              s"${h.move} delays direct break action so supporting pieces can coordinate first.",
+              s"${h.move} keeps break timing deferred, prioritizing support links before commitment."
             ))
           else
-            NarrativeLexicon.pick(localSeed ^ 0x3c79ac49, List(
-              s"$move keeps break timing flexible, so central tension can be revisited under better conditions.",
-              s"$move preserves pawn-break optionality, leaving central tension unresolved for a later moment.",
-              s"$move avoids forcing a break now, keeping the central lever available for a better window.",
-              s"$move keeps the break decision open, waiting for clearer support and fewer tactical liabilities.",
-              s"$move maintains tension without immediate release, aiming to choose the break after more development."
+            NarrativeLexicon.pick(h.localSeed ^ 0x3c79ac49, List(
+              s"${h.move} keeps break timing flexible, so central tension can be revisited under better conditions.",
+              s"${h.move} preserves pawn-break optionality, leaving central tension unresolved for a later moment.",
+              s"${h.move} avoids forcing a break now, keeping the central lever available for a better window.",
+              s"${h.move} keeps the break decision open, waiting for clearer support and fewer tactical liabilities.",
+              s"${h.move} maintains tension without immediate release, aiming to choose the break after more development."
             ))
         }
-
-    val pawnBreakDraft = HypothesisDraft(
+    HypothesisDraft(
       axis = HypothesisAxis.PawnBreakTiming,
-      claim = pawnBreakClaim,
-      supportSignals =
-        List(
-          breakFile.map(f => s"$f-file break is available"),
-          Option.when(breakImpact >= 150)("break impact is materially relevant"),
-          Option.when(ctx.pawnAnalysis.exists(_.tensionPolicy == TensionPolicy.Maintain))("current policy prefers tension maintenance")
-        ).flatten,
-      conflictSignals =
-        List(
-          Option.when(cpGap.exists(_ >= 90) && breakReady)("timing choice concedes evaluation too early"),
-          Option.when(candidate.whyNot.exists(_.toLowerCase.contains("tempo")))("candidate rationale flags timing cost")
-        ).flatten,
-      baseConfidence = if breakReady then 0.56 else 0.41,
-      horizon = if breakReady then HypothesisHorizon.Short else HypothesisHorizon.Medium
+      claim = claim,
+      supportSignals = signals(
+        h.breakFile.map(f => s"$f-file break is available"),
+        Option.when(h.breakImpact >= 150)("break impact is materially relevant"),
+        Option.when(h.ctx.pawnAnalysis.exists(_.tensionPolicy == TensionPolicy.Maintain))("current policy prefers tension maintenance")
+      ),
+      conflictSignals = signals(
+        Option.when(h.cpGap.exists(_ >= 90) && h.breakReady)("timing choice concedes evaluation too early"),
+        Option.when(h.candidate.whyNot.exists(_.toLowerCase.contains("tempo")))("candidate rationale flags timing cost")
+      ),
+      baseConfidence = if h.breakReady then 0.56 else 0.41,
+      horizon = if h.breakReady then HypothesisHorizon.Short else HypothesisHorizon.Medium
     )
+  }
 
-    val endgameClaim =
-      if data.phase == "endgame" || candidate.tags.contains(CandidateTag.Converting) then
-        NarrativeLexicon.pick(localSeed ^ 0x2f6e2b1, List(
-          s"$move influences the endgame trajectory by prioritizing activity over static structure.",
-          s"$move points the game toward a technical ending where active piece routes matter more than static shape.",
-          s"$move tilts the future ending toward dynamic conversion, with activity carrying more weight than fixed structure.",
-          s"$move frames the late phase as a technique problem, emphasizing active coordination over static anchors."
+  private def endgameHypothesisDraft(h: HypothesisDraftContext): HypothesisDraft = {
+    val claim =
+      if h.data.phase == "endgame" || h.candidate.tags.contains(CandidateTag.Converting) then
+        NarrativeLexicon.pick(h.localSeed ^ 0x2f6e2b1, List(
+          s"${h.move} influences the endgame trajectory by prioritizing activity over static structure.",
+          s"${h.move} points the game toward a technical ending where active piece routes matter more than static shape.",
+          s"${h.move} tilts the future ending toward dynamic conversion, with activity carrying more weight than fixed structure.",
+          s"${h.move} frames the late phase as a technique problem, emphasizing active coordination over static anchors."
         ))
       else
-        NarrativeLexicon.pick(localSeed ^ 0x19f8b4ad, List(
-          s"$move keeps the endgame trajectory open, with the long-term outcome hinging on later simplification choices.",
-          s"$move defers the final trajectory choice, so the endgame direction depends on which simplification arrives first.",
-          s"$move preserves multiple late-game paths, and the practical result depends on future simplification timing.",
-          s"$move leaves the ending map unresolved for now, with long-term value decided by subsequent exchanges."
+        NarrativeLexicon.pick(h.localSeed ^ 0x19f8b4ad, List(
+          s"${h.move} keeps the endgame trajectory open, with the long-term outcome hinging on later simplification choices.",
+          s"${h.move} defers the final trajectory choice, so the endgame direction depends on which simplification arrives first.",
+          s"${h.move} preserves multiple late-game paths, and the practical result depends on future simplification timing.",
+          s"${h.move} leaves the ending map unresolved for now, with long-term value decided by subsequent exchanges."
         ))
-    val endgameDraft = HypothesisDraft(
+    HypothesisDraft(
       axis = HypothesisAxis.EndgameTrajectory,
-      claim = endgameClaim,
-      supportSignals =
-        List(
-          Option.when(data.phase == "endgame")("position is already in endgame phase"),
-          Option.when(data.endgameFeatures.isDefined)("endgame feature signal is available"),
-          Option.when(candidate.tags.contains(CandidateTag.Converting))("candidate carries conversion tag")
-        ).flatten,
-      conflictSignals =
-        List(
-          Option.when(cpGap.exists(_ >= 120))("long-term trajectory is objectively inferior"),
-          Option.when(practicalLow == "complex" && data.phase == "endgame")("technical conversion remains unstable")
-        ).flatten,
-      baseConfidence = if data.endgameFeatures.isDefined then 0.52 else 0.4,
+      claim = claim,
+      supportSignals = signals(
+        Option.when(h.data.phase == "endgame")("position is already in endgame phase"),
+        Option.when(h.data.endgameFeatures.isDefined)("endgame feature signal is available"),
+        Option.when(h.candidate.tags.contains(CandidateTag.Converting))("candidate carries conversion tag")
+      ),
+      conflictSignals = signals(
+        Option.when(h.cpGap.exists(_ >= 120))("long-term trajectory is objectively inferior"),
+        Option.when(h.practicalLow == "complex" && h.data.phase == "endgame")("technical conversion remains unstable")
+      ),
+      baseConfidence = if h.data.endgameFeatures.isDefined then 0.52 else 0.4,
       horizon = HypothesisHorizon.Long
     )
-
-    List(
-      planDraft,
-      structureDraft,
-      initiativeDraft,
-      conversionDraft,
-      kingSafetyDraft,
-      pieceCoordDraft,
-      pawnBreakDraft,
-      endgameDraft
-    ).filter(d => d.claim.trim.nonEmpty)
   }
 
   private def strategicMiddlegameClaim(
@@ -1951,77 +2489,90 @@ object NarrativeContextBuilder:
     seed: Int
   ): String = {
     val focus = strategicAxisFocus(axis)
-    val causeSentence =
-      frame.cause match
-        case "near-baseline" =>
-          NarrativeLexicon.pick(seed ^ 0x11f17f1d, List(
-            s"Probe evidence keeps **$move** near baseline, so $focus remains a viable route.",
-            s"With **$move**, probe feedback stays close to baseline and keeps $focus practical.",
-            s"Baseline proximity in probe lines suggests **$move** can sustain $focus."
-          ))
-        case "manageable-concession" =>
-          NarrativeLexicon.pick(seed ^ 0x517cc1b7, List(
-            s"Probe data shows **$move** as a manageable concession, so $focus timing must stay accurate.",
-            s"A manageable probe concession appears after **$move**, which makes $focus sequencing critical.",
-            s"Probe checks rate **$move** as manageable, but $focus cannot afford drift."
-          ))
-        case _ =>
-          NarrativeLexicon.pick(seed ^ 0x4f6cdd1d, List(
-            s"Probe data marks **$move** as a forcing swing, so $focus errors are punished immediately.",
-            s"A forcing swing appears after **$move** in probe lines, narrowing the $focus margin for error.",
-            s"Probe checks flag **$move** as a forcing swing, so $focus precision is mandatory."
-          ))
-
-    val consequenceSentence =
-      frame.consequence match
-        case "structural-collapse" =>
-          NarrativeLexicon.pick(seed ^ 0x63d5a6f1, List(
-            s"The consequence is rapid structural concession, and $focus options become harder to recover.",
-            s"Under pressure, structure can collapse and $focus plans lose flexibility.",
-            s"Once structure loosens, $focus choices become reactive rather than planned."
-          ))
-        case "king-safety-exposure" =>
-          NarrativeLexicon.pick(seed ^ 0x5f356495, List(
-            s"The consequence is king-safety fragility, and $focus decisions must prioritize defensive coordination.",
-            s"King exposure increases practical risk and forces $focus choices into defensive mode.",
-            s"With king safety exposed, $focus plans are constrained by immediate defensive duties."
-          ))
-        case "conversion-cost" =>
-          NarrativeLexicon.pick(seed ^ 0x6c6c6c6c, List(
-            s"The consequence is higher conversion cost, so $focus gains are harder to convert cleanly.",
-            s"This route raises conversion cost, and $focus edges are difficult to cash in.",
-            s"Technical conversion gets heavier, making $focus execution less efficient."
-          ))
-        case _ =>
-          NarrativeLexicon.pick(seed ^ 0x2f6e2b1, List(
-            s"The consequence is a quick initiative flip, so $focus handling becomes reactive.",
-            s"Initiative handoff risk rises, and $focus planning must absorb counterplay.",
-            s"Momentum can transfer in one sequence, forcing $focus into damage control."
-          ))
-
-    val turningPointSentence =
-      frame.turningPoint match
-        case "immediate-sequence" =>
-          NarrativeLexicon.pick(seed ^ 0x19f8b4ad, List(
-            "The critical test comes in the next forcing sequence.",
-            "Immediate tactical sequencing will decide whether the plan survives.",
-            "The route is judged in the very next concrete sequence."
-          ))
-        case "simplification-transition" =>
-          NarrativeLexicon.pick(seed ^ 0x7f4a7c15, List(
-            "The turning point arrives at the next simplification transition.",
-            "Once exchanges begin, conversion timing determines whether the plan remains sound.",
-            "Simplification choices are the key checkpoint for this route."
-          ))
-        case _ =>
-          NarrativeLexicon.pick(seed ^ 0x2a2a2a2a, List(
-            "The first serious middlegame regrouping decides the practical direction.",
-            "This plan is tested at the next middlegame reorganization.",
-            "The route is decided when middlegame regrouping commits both sides."
-          ))
-
-    s"$causeSentence $consequenceSentence $turningPointSentence"
+    List(
+      strategicFrameCauseSentence(move, frame.cause, focus, seed),
+      strategicFrameConsequenceSentence(frame.consequence, focus, seed),
+      strategicFrameTurningPointSentence(frame.turningPoint, seed)
+    ).mkString(" ")
   }
+
+  private def strategicFrameCauseSentence(
+    move: String,
+    cause: String,
+    focus: String,
+    seed: Int
+  ): String =
+    cause match
+      case "near-baseline" =>
+        NarrativeLexicon.pick(seed ^ 0x11f17f1d, List(
+          s"Probe evidence keeps **$move** near baseline, so $focus remains a viable route.",
+          s"With **$move**, probe feedback stays close to baseline and keeps $focus practical.",
+          s"Baseline proximity in probe lines suggests **$move** can sustain $focus."
+        ))
+      case "manageable-concession" =>
+        NarrativeLexicon.pick(seed ^ 0x517cc1b7, List(
+          s"Probe data shows **$move** as a manageable concession, so $focus timing must stay accurate.",
+          s"A manageable probe concession appears after **$move**, which makes $focus sequencing critical.",
+          s"Probe checks rate **$move** as manageable, but $focus cannot afford drift."
+        ))
+      case _ =>
+        NarrativeLexicon.pick(seed ^ 0x4f6cdd1d, List(
+          s"Probe data marks **$move** as a forcing swing, so $focus errors are punished immediately.",
+          s"A forcing swing appears after **$move** in probe lines, narrowing the $focus margin for error.",
+          s"Probe checks flag **$move** as a forcing swing, so $focus precision is mandatory."
+        ))
+
+  private def strategicFrameConsequenceSentence(
+    consequence: String,
+    focus: String,
+    seed: Int
+  ): String =
+    consequence match
+      case "structural-collapse" =>
+        NarrativeLexicon.pick(seed ^ 0x63d5a6f1, List(
+          s"The consequence is rapid structural concession, and $focus options become harder to recover.",
+          s"Under pressure, structure can collapse and $focus plans lose flexibility.",
+          s"Once structure loosens, $focus choices become reactive rather than planned."
+        ))
+      case "king-safety-exposure" =>
+        NarrativeLexicon.pick(seed ^ 0x5f356495, List(
+          s"The consequence is king-safety fragility, and $focus decisions must prioritize defensive coordination.",
+          s"King exposure increases practical risk and forces $focus choices into defensive mode.",
+          s"With king safety exposed, $focus plans are constrained by immediate defensive duties."
+        ))
+      case "conversion-cost" =>
+        NarrativeLexicon.pick(seed ^ 0x6c6c6c6c, List(
+          s"The consequence is higher conversion cost, so $focus gains are harder to convert cleanly.",
+          s"This route raises conversion cost, and $focus edges are difficult to cash in.",
+          s"Technical conversion gets heavier, making $focus execution less efficient."
+        ))
+      case _ =>
+        NarrativeLexicon.pick(seed ^ 0x2f6e2b1, List(
+          s"The consequence is a quick initiative flip, so $focus handling becomes reactive.",
+          s"Initiative handoff risk rises, and $focus planning must absorb counterplay.",
+          s"Momentum can transfer in one sequence, forcing $focus into damage control."
+        ))
+
+  private def strategicFrameTurningPointSentence(turningPoint: String, seed: Int): String =
+    turningPoint match
+      case "immediate-sequence" =>
+        NarrativeLexicon.pick(seed ^ 0x19f8b4ad, List(
+          "The critical test comes in the next forcing sequence.",
+          "Immediate tactical sequencing will decide whether the plan survives.",
+          "The route is judged in the very next concrete sequence."
+        ))
+      case "simplification-transition" =>
+        NarrativeLexicon.pick(seed ^ 0x7f4a7c15, List(
+          "The turning point arrives at the next simplification transition.",
+          "Once exchanges begin, conversion timing determines whether the plan remains sound.",
+          "Simplification choices are the key checkpoint for this route."
+        ))
+      case _ =>
+        NarrativeLexicon.pick(seed ^ 0x2a2a2a2a, List(
+          "The first serious middlegame regrouping decides the practical direction.",
+          "This plan is tested at the next middlegame reorganization.",
+          "The route is decided when middlegame regrouping commits both sides."
+        ))
 
   private def strategicAxisFocus(axis: HypothesisAxis): String =
     axis match
@@ -2040,24 +2591,54 @@ object NarrativeContextBuilder:
     val isLong = draft.horizon == HypothesisHorizon.Long
     val supportLimit = if isLong then 4 else 3
     val conflictLimit = if isLong then 3 else 2
-    val support =
-      if isLong then
-        mergeSignalsPreferred(
-          preferred = probeSignals.longSupportSignals,
-          fallback = draft.supportSignals ++ probeSignals.supportSignals,
-          maxCount = supportLimit
-        )
-      else
-        normalizeSignals(draft.supportSignals ++ probeSignals.supportSignals, supportLimit)
-    val conflict =
-      if isLong then
-        mergeSignalsPreferred(
-          preferred = probeSignals.longConflictSignals,
-          fallback = draft.conflictSignals ++ probeSignals.conflictSignals,
-          maxCount = conflictLimit
-        )
-      else
-        normalizeSignals(draft.conflictSignals ++ probeSignals.conflictSignals, conflictLimit)
+    val support = rankedHypothesisSupport(draft, probeSignals, isLong, supportLimit)
+    val conflict = rankedHypothesisConflict(draft, probeSignals, isLong, conflictLimit)
+    val score = hypothesisDraftScore(draft, candidate, probeSignals, rank, cpGap, support, conflict)
+    val card = rankedHypothesisCard(draft, support, conflict, supportLimit, conflictLimit, score)
+    Option.when(card.claim.nonEmpty) {
+      RankedHypothesis(card = card, score = score, family = hypothesisFamily(card))
+    }
+  }
+
+  private def rankedHypothesisSupport(
+    draft: HypothesisDraft,
+    probeSignals: ProbeDetector.HypothesisVerificationSignals,
+    isLong: Boolean,
+    supportLimit: Int
+  ): List[String] =
+    if isLong then
+      mergeSignalsPreferred(
+        preferred = probeSignals.longSupportSignals,
+        fallback = draft.supportSignals ++ probeSignals.supportSignals,
+        maxCount = supportLimit
+      )
+    else
+      normalizeSignals(draft.supportSignals ++ probeSignals.supportSignals, supportLimit)
+
+  private def rankedHypothesisConflict(
+    draft: HypothesisDraft,
+    probeSignals: ProbeDetector.HypothesisVerificationSignals,
+    isLong: Boolean,
+    conflictLimit: Int
+  ): List[String] =
+    if isLong then
+      mergeSignalsPreferred(
+        preferred = probeSignals.longConflictSignals,
+        fallback = draft.conflictSignals ++ probeSignals.conflictSignals,
+        maxCount = conflictLimit
+      )
+    else
+      normalizeSignals(draft.conflictSignals ++ probeSignals.conflictSignals, conflictLimit)
+
+  private def hypothesisDraftScore(
+    draft: HypothesisDraft,
+    candidate: CandidateInfo,
+    probeSignals: ProbeDetector.HypothesisVerificationSignals,
+    rank: Option[Int],
+    cpGap: Option[Int],
+    support: List[String],
+    conflict: List[String]
+  ): Double = {
     val supportWeight = support.size * 0.17
     val conflictWeight = conflict.size * 0.16
     val consistencyBonus =
@@ -2068,39 +2649,49 @@ object NarrativeContextBuilder:
       probeSignals.contradictionPenalty +
         (if cpGap.exists(_ >= 140) then 0.1 else 0.0) +
         (if candidate.tags.contains(CandidateTag.TacticalGamble) then 0.05 else 0.0)
-    val axisBias =
-      draft.axis match
-        case HypothesisAxis.Plan             => -0.06
-        case HypothesisAxis.PieceCoordination => 0.06
-        case HypothesisAxis.PawnBreakTiming  => 0.06
-        case HypothesisAxis.KingSafety       => 0.05
-        case HypothesisAxis.Initiative       => 0.04
-        case HypothesisAxis.Structure        => 0.04
-        case HypothesisAxis.Conversion       => 0.03
-        case HypothesisAxis.EndgameTrajectory => 0.05
+    val axisBias = hypothesisAxisBias(draft.axis)
+    val isLong = draft.horizon == HypothesisHorizon.Long
     val longConfidenceAdjustment = if isLong then probeSignals.longConfidenceDelta else 0.0
-    val longGapAdjustment =
-      if isLong then
-        if cpGap.exists(_ >= 120) then -0.04
-        else if cpGap.exists(_ <= 40) then 0.02
-        else 0.0
+    val longGapAdjustment = longHorizonGapAdjustment(isLong, cpGap)
+    supportWeight - conflictWeight + consistencyBonus - contradictionPenalty + axisBias +
+      longConfidenceAdjustment + longGapAdjustment
+  }
+
+  private def hypothesisAxisBias(axis: HypothesisAxis): Double =
+    axis match
+      case HypothesisAxis.Plan              => -0.06
+      case HypothesisAxis.PieceCoordination => 0.06
+      case HypothesisAxis.PawnBreakTiming   => 0.06
+      case HypothesisAxis.KingSafety        => 0.05
+      case HypothesisAxis.Initiative        => 0.04
+      case HypothesisAxis.Structure         => 0.04
+      case HypothesisAxis.Conversion        => 0.03
+      case HypothesisAxis.EndgameTrajectory => 0.05
+
+  private def longHorizonGapAdjustment(isLong: Boolean, cpGap: Option[Int]): Double =
+    if isLong then
+      if cpGap.exists(_ >= 120) then -0.04
+      else if cpGap.exists(_ <= 40) then 0.02
       else 0.0
-    val score =
-      supportWeight - conflictWeight + consistencyBonus - contradictionPenalty + axisBias +
-        longConfidenceAdjustment + longGapAdjustment
+    else 0.0
+
+  private def rankedHypothesisCard(
+    draft: HypothesisDraft,
+    support: List[String],
+    conflict: List[String],
+    supportLimit: Int,
+    conflictLimit: Int,
+    score: Double
+  ): HypothesisCard = {
     val confidence = clampConfidence(draft.baseConfidence + score)
-    val card =
-      HypothesisCard(
-        axis = draft.axis,
-        claim = draft.claim.trim,
-        supportSignals = support.take(supportLimit),
-        conflictSignals = conflict.take(conflictLimit),
-        confidence = confidence,
-        horizon = draft.horizon
-      )
-    Option.when(card.claim.nonEmpty) {
-      RankedHypothesis(card = card, score = score, family = hypothesisFamily(card))
-    }
+    HypothesisCard(
+      axis = draft.axis,
+      claim = draft.claim.trim,
+      supportSignals = support.take(supportLimit),
+      conflictSignals = conflict.take(conflictLimit),
+      confidence = confidence,
+      horizon = draft.horizon
+    )
   }
 
   private def clampConfidence(v: Double): Double =
@@ -2223,16 +2814,8 @@ object NarrativeContextBuilder:
     }
   }
 
-  /**
-   * B2/B6: ErrorClassification from counterfactual.
-   * Classifies errors as tactical or positional based on:
-   * - None: cpLoss < 50 (style difference, not worth classifying)
-   * - Tactical: cpLoss >= 200 AND (severity is "blunder" or missedMotifs contain tactical patterns)
-   * - Positional: cpLoss >= 50 but doesn't meet tactical threshold
-   */
   private def buildErrorClassification(data: ExtendedAnalysisData): Option[ErrorClassification] = {
     data.counterfactual.flatMap { cf =>
-      // Skip classification for minor style differences
       if (cf.cpLoss < 50) None
       else {
         // Tactical motifs (excludes generic Capture to prevent over-detection)
@@ -2265,10 +2848,6 @@ object NarrativeContextBuilder:
     }
   }
 
-  /**
-   * B3: DivergePly from counterfactual analysis.
-   * Populated only when user made a suboptimal move (counterfactual exists).
-   */
   private def buildDivergence(data: ExtendedAnalysisData): Option[DivergenceInfo] = {
     data.counterfactual.map { cf =>
       DivergenceInfo(
@@ -2279,11 +2858,7 @@ object NarrativeContextBuilder:
     }
   }
 
-  /**
-   * B1: ChoiceType from classification.choiceTopology
-   * Reuses ContextHeader logic but returns enum for structured access.
-   */
-   private def buildChoiceType(ctx: IntegratedContext): ChoiceType = {
+  private def buildChoiceType(ctx: IntegratedContext): ChoiceType = {
     ctx.classification.map { c =>
       c.choiceTopology.topologyType match {
         case ChoiceTopologyType.OnlyMove => ChoiceType.OnlyMove
@@ -2293,101 +2868,99 @@ object NarrativeContextBuilder:
     }.getOrElse(ChoiceType.NarrowChoice)
   }
 
-  // Valid chess square coordinates
-
-  /**
-   * B5: Clean Target Architecture
-   * Separates Tactical (immediate) and Strategic (positional) targets.
-   * Priority: 1 (Urgent/Threat) > 2 (High/Probe) > 3 (Normal/Heuristic).
-   */
   private def buildTargets(data: ExtendedAnalysisData, ctx: IntegratedContext, probeResults: List[ProbeResult]): Targets = {
-
-    // 1. Tactical Targets (Attack/Defend)
-    val tacticalBuffer = scala.collection.mutable.ListBuffer[TargetEntry]()
-
-    // ThreatsToThem -> Attack (Priority 1)
-    ctx.threatsToThem.foreach { ta =>
-      ta.threats.sortBy(-_.lossIfIgnoredCp).take(3).foreach { t =>
-        t.attackSquares.foreach { sq =>
-          tacticalBuffer += TargetEntry(TargetSquare(sq), s"Attack: ${t.kind}", ConfidenceLevel.Engine, 1)
-        }
-      }
-    }
-    // ThreatsToUs -> Defend (Priority 1)
-    ctx.threatsToUs.foreach { ta =>
-      ta.threats.sortBy(-_.lossIfIgnoredCp).take(3).foreach { t =>
-        t.attackSquares.foreach { sq =>
-          tacticalBuffer += TargetEntry(TargetSquare(sq), s"Defend: ${t.kind}", ConfidenceLevel.Engine, 1)
-        }
-      }
-    }
-    // Probe Refutations -> Tactical (Priority 2)
-    probeResults.filter(pr => pr.deltaVsBaseline.abs >= 100).foreach { pr =>
-      pr.probedMove.flatMap(chess.format.Uci.apply).foreach {
-        case uci: chess.format.Uci.Move => 
-          val sq = uci.dest.key
-          tacticalBuffer += TargetEntry(TargetSquare(sq), s"Refuted: ${pr.deltaVsBaseline}cp", ConfidenceLevel.Probe, 2)
-        case _ => // Ignore drops in standard chess
-      }
-    }
-
-    // 2. Strategic Targets (Expansion/Control/Structure)
-    val strategicBuffer = scala.collection.mutable.ListBuffer[TargetEntry]()
-
-    // Outposts/Weakness from Semantic Data (Priority 3)
-    data.positionalFeatures.foreach {
-      case PositionalTag.Outpost(sq, _) => 
-        strategicBuffer += TargetEntry(TargetSquare(sq.key), "Outpost", ConfidenceLevel.Heuristic, 3)
-      case PositionalTag.OpenFile(f, _) =>
-        strategicBuffer += TargetEntry(TargetFile(f.char.toString), "Open file control", ConfidenceLevel.Heuristic, 3)
-      case PositionalTag.WeakSquare(sq, _) =>
-        strategicBuffer += TargetEntry(TargetSquare(sq.key), "Weak square", ConfidenceLevel.Heuristic, 3)
-      case _ => // ignore others for targets
-    }
-    
-    data.structuralWeaknesses.foreach { wc =>
-      wc.squares.foreach { sq =>
-        strategicBuffer += TargetEntry(TargetSquare(sq.key), s"Weak complex (${wc.color})", ConfidenceLevel.Heuristic, 3)
-      }
-    }
-
-    // PawnPlay -> Blockade/Tension
-    ctx.pawnAnalysis.foreach { pa =>
-      pa.blockadeSquare.foreach { sq =>
-        strategicBuffer += TargetEntry(TargetSquare(sq.key), s"Blockade${pa.blockadeRole.map(r => s" by ${r.name}").getOrElse("")}", ConfidenceLevel.Heuristic, 3)
-      }
-      if (pa.pawnBreakReady && pa.breakImpact >= 200) {
-        pa.breakFile.foreach { f =>
-             strategicBuffer += TargetEntry(TargetFile(f), "Break leverage", ConfidenceLevel.Heuristic, 3)
-        }
-      }
-    }
-
-    // Plan Evidence Extraction (Priority 3)
-    data.plans.foreach { pm =>
-      pm.evidence.foreach { ev =>
-        extractRefFromMotif(ev.motif).foreach { ref =>
-          strategicBuffer += TargetEntry(ref, s"Plan: ${pm.plan.name}", ConfidenceLevel.Heuristic, 3)
-        }
-      }
-    }
-
-    // 3. Deduplicate and Finalize
-    def finalizeTargets(buffer: Seq[TargetEntry], limit: Int): List[TargetEntry] = {
-      buffer.groupBy(_.ref.label).values.map { entries =>
-        entries.sortBy(_.priority).head // Keep highest priority for each ref
-      }.toList.sortBy(_.priority).take(limit)
-    }
-
     Targets(
-      tactical = finalizeTargets(tacticalBuffer.toSeq, 5),
-      strategic = finalizeTargets(strategicBuffer.toSeq, 5)
+      tactical = finalizeTargets(tacticalTargetEntries(ctx, probeResults), 5),
+      strategic = finalizeTargets(strategicTargetEntries(data, ctx), 5)
     )
   }
 
-  /**
-   * Helper to extract TargetRef from a Motif.
-   */
+  private def tacticalTargetEntries(ctx: IntegratedContext, probeResults: List[ProbeResult]): List[TargetEntry] =
+    threatTargetEntries(ctx.threatsToThem, "Attack") ++
+      threatTargetEntries(ctx.threatsToUs, "Defend") ++
+      refutedProbeTargetEntries(probeResults)
+
+  private def threatTargetEntries(analysis: Option[ThreatAnalysis], prefix: String): List[TargetEntry] =
+    analysis.toList.flatMap { ta =>
+      ta.threats.sortBy(-_.lossIfIgnoredCp).take(3).flatMap { threat =>
+        threat.attackSquares.map { square =>
+          TargetEntry(TargetSquare(square), s"$prefix: ${threat.kind}", ConfidenceLevel.Engine, 1)
+        }
+      }
+    }
+
+  private def refutedProbeTargetEntries(probeResults: List[ProbeResult]): List[TargetEntry] =
+    probeResults
+      .filter(_.deltaVsBaseline.abs >= 100)
+      .flatMap { pr =>
+        pr.probedMove
+          .flatMap(chess.format.Uci.apply)
+          .collect { case uci: chess.format.Uci.Move =>
+            TargetEntry(TargetSquare(uci.dest.key), s"Refuted: ${pr.deltaVsBaseline}cp", ConfidenceLevel.Probe, 2)
+          }
+          .toList
+      }
+
+  private def strategicTargetEntries(data: ExtendedAnalysisData, ctx: IntegratedContext): List[TargetEntry] =
+    positionalTargetEntries(data) ++
+      structuralWeaknessTargetEntries(data) ++
+      pawnAnalysisTargetEntries(ctx) ++
+      planTargetEntries(data)
+
+  private def positionalTargetEntries(data: ExtendedAnalysisData): List[TargetEntry] =
+    data.positionalFeatures.flatMap {
+      case PositionalTag.Outpost(sq, _) =>
+        Some(TargetEntry(TargetSquare(sq.key), "Outpost", ConfidenceLevel.Heuristic, 3))
+      case PositionalTag.OpenFile(f, _) =>
+        Some(TargetEntry(TargetFile(f.char.toString), "Open file control", ConfidenceLevel.Heuristic, 3))
+      case PositionalTag.WeakSquare(sq, _) =>
+        Some(TargetEntry(TargetSquare(sq.key), "Weak square", ConfidenceLevel.Heuristic, 3))
+      case _ => None
+    }
+
+  private def structuralWeaknessTargetEntries(data: ExtendedAnalysisData): List[TargetEntry] =
+    data.structuralWeaknesses.flatMap { weakness =>
+      weakness.squares.map { square =>
+        TargetEntry(TargetSquare(square.key), s"Weak complex (${weakness.color})", ConfidenceLevel.Heuristic, 3)
+      }.toList
+    }
+
+  private def pawnAnalysisTargetEntries(ctx: IntegratedContext): List[TargetEntry] =
+    ctx.pawnAnalysis.toList.flatMap { pa =>
+      val blockade =
+        pa.blockadeSquare.map { square =>
+          TargetEntry(
+            TargetSquare(square.key),
+            s"Blockade${pa.blockadeRole.map(r => s" by ${r.name}").getOrElse("")}",
+            ConfidenceLevel.Heuristic,
+            3
+          )
+        }
+      val breakLeverage =
+        Option.when(pa.pawnBreakReady && pa.breakImpact >= 200)(pa.breakFile)
+          .flatten
+          .map(file => TargetEntry(TargetFile(file), "Break leverage", ConfidenceLevel.Heuristic, 3))
+      blockade.toList ++ breakLeverage.toList
+    }
+
+  private def planTargetEntries(data: ExtendedAnalysisData): List[TargetEntry] =
+    data.plans.flatMap { planMatch =>
+      planMatch.evidence.flatMap { evidence =>
+        extractRefFromMotif(evidence.motif).map { ref =>
+          TargetEntry(ref, s"Plan: ${planMatch.plan.name}", ConfidenceLevel.Heuristic, 3)
+        }
+      }
+    }
+
+  private def finalizeTargets(entries: Seq[TargetEntry], limit: Int): List[TargetEntry] =
+    entries
+      .groupBy(_.ref.label)
+      .values
+      .map(_.sortBy(_.priority).head)
+      .toList
+      .sortBy(_.priority)
+      .take(limit)
+
   private def extractRefFromMotif(motif: Motif): Option[TargetRef] = motif match {
     case m: Motif.Pin => m.pinnedSq.map(sq => TargetPiece(m.pinnedPiece.name, sq.key)).orElse(m.pinningSq.map(sq => TargetSquare(sq.key)))
     case m: Motif.Skewer => m.frontSq.map(sq => TargetPiece(m.frontPiece.name, sq.key)).orElse(m.attackingSq.map(sq => TargetSquare(sq.key)))
@@ -2400,15 +2973,10 @@ object NarrativeContextBuilder:
     case _ => None
   }
 
-  /**
-   * B8: PlanConcurrency from compatibilityEvents
-   * Uses simple planName-based heuristic: if secondary was downweight/removed → conflict
-   */
   private def buildPlanConcurrency(data: ExtendedAnalysisData): PlanConcurrency = {
     val primary = data.plans.headOption.map(_.plan.name).getOrElse("None")
     val secondary = data.plans.lift(1).map(_.plan.name)
     
-    // Simple heuristic: if both plans share the same category, they synergize
     val relationship = (data.plans.headOption, data.plans.lift(1)) match {
       case (Some(p1), Some(p2)) if p1.plan.category == p2.plan.category => "↔ synergy"
       case (Some(_), Some(_)) => "independent"
@@ -2418,50 +2986,15 @@ object NarrativeContextBuilder:
     PlanConcurrency(primary, secondary, relationship)
   }
 
-  /**
-   * Builds SemanticSection from ExtendedAnalysisData semantic fields.
-   * Returns None if no meaningful semantic data exists.
-   */
   private def buildSemanticSection(
       data: ExtendedAnalysisData,
       afterAnalysis: Option[ExtendedAnalysisData]
   ): Option[SemanticSection] = {
-    val isPawnEndgame = data.phase == "endgame" && 
-      data.toContext.features.exists(f => (f.materialPhase.whiteMaterial + f.materialPhase.blackMaterial) <= 6)
-    val currentCompensation =
-      CompensationInterpretation
-        .currentRawDecision(data)
-        .filter(_.decision.accepted)
-        .map(result => convertCompensation(result.compensation))
-    val afterCompensation =
-      afterAnalysis.flatMap { next =>
-        CompensationInterpretation
-          .afterRawDecision(data, next)
-          .filter(_.decision.accepted)
-          .map(result => convertCompensation(result.compensation))
-      }
-    
-    val filteredPositional = if (isPawnEndgame) {
-      data.positionalFeatures.filterNot {
-        case _: lila.commentary.model.strategic.PositionalTag.OpenFile => true
-        case _ => false
-      }
-    } else data.positionalFeatures
+    val filteredPositional = semanticPositionalFeatures(data)
+    val currentCompensation = currentSemanticCompensation(data)
+    val afterCompensation = afterSemanticCompensation(data, afterAnalysis)
 
-    val hasWeaknesses = data.structuralWeaknesses.nonEmpty
-    val hasActivity = data.pieceActivity.nonEmpty
-    val hasPositional = filteredPositional.nonEmpty
-    val hasCompensation = currentCompensation.isDefined
-    val hasAfterCompensation = afterCompensation.isDefined
-    val hasEndgame = data.endgameFeatures.isDefined
-    val hasPractical = data.practicalAssessment.isDefined
-    val hasPrevented = data.preventedPlans.nonEmpty
-    val hasConcepts = data.conceptSummary.nonEmpty
-    val hasStructureProfile = data.structureProfile.isDefined
-    val hasPlanAlignment = data.planAlignment.isDefined
-
-    if (!hasWeaknesses && !hasActivity && !hasPositional && !hasCompensation && !hasAfterCompensation &&
-        !hasEndgame && !hasPractical && !hasPrevented && !hasConcepts && !hasStructureProfile && !hasPlanAlignment) None
+    if !hasSemanticSectionContent(data, filteredPositional, currentCompensation, afterCompensation) then None
     else Some(SemanticSection(
       structuralWeaknesses = data.structuralWeaknesses.map(convertWeakComplex),
       pieceActivity = data.pieceActivity.map(convertPieceActivity),
@@ -2476,6 +3009,55 @@ object NarrativeContextBuilder:
       afterCompensation = afterCompensation
     ))
   }
+
+  private def semanticPositionalFeatures(data: ExtendedAnalysisData): List[PositionalTag] =
+    if isPawnEndgame(data) then
+      data.positionalFeatures.filterNot {
+        case _: lila.commentary.model.strategic.PositionalTag.OpenFile => true
+        case _ => false
+      }
+    else data.positionalFeatures
+
+  private def isPawnEndgame(data: ExtendedAnalysisData): Boolean =
+    data.phase == "endgame" &&
+      data.toContext.features.exists { features =>
+        (features.materialPhase.whiteMaterial + features.materialPhase.blackMaterial) <= 6
+      }
+
+  private def currentSemanticCompensation(data: ExtendedAnalysisData): Option[CompensationInfo] =
+    CompensationInterpretation
+      .currentRawDecision(data)
+      .filter(_.decision.accepted)
+      .map(result => convertCompensation(result.compensation))
+
+  private def afterSemanticCompensation(
+    data: ExtendedAnalysisData,
+    afterAnalysis: Option[ExtendedAnalysisData]
+  ): Option[CompensationInfo] =
+    afterAnalysis.flatMap { next =>
+      CompensationInterpretation
+        .afterRawDecision(data, next)
+        .filter(_.decision.accepted)
+        .map(result => convertCompensation(result.compensation))
+    }
+
+  private def hasSemanticSectionContent(
+    data: ExtendedAnalysisData,
+    filteredPositional: List[PositionalTag],
+    currentCompensation: Option[CompensationInfo],
+    afterCompensation: Option[CompensationInfo]
+  ): Boolean =
+    data.structuralWeaknesses.nonEmpty ||
+      data.pieceActivity.nonEmpty ||
+      filteredPositional.nonEmpty ||
+      currentCompensation.isDefined ||
+      afterCompensation.isDefined ||
+      data.endgameFeatures.isDefined ||
+      data.practicalAssessment.isDefined ||
+      data.preventedPlans.nonEmpty ||
+      data.conceptSummary.nonEmpty ||
+      data.structureProfile.isDefined ||
+      data.planAlignment.isDefined
 
   private def convertStructureProfile(sp: lila.commentary.model.structure.StructureProfile): StructureProfileInfo =
     StructureProfileInfo(
@@ -2576,13 +3158,11 @@ object NarrativeContextBuilder:
     val delta = buildPVDelta(ctx, bestProbe)
     val focalPoint = identifyFocalPoint(targets, semantic, data.plans)
     
-    // Phase F Refinement: Conservative logicSummary when probe data is unavailable
     val (logicSummary, confidence) = if (bestProbe.isDefined) {
       val solve = if (delta.resolvedThreats.nonEmpty) s"Resolves ${delta.resolvedThreats.head}" else "Maintains position"
       val gain = if (delta.newOpportunities.nonEmpty) s"creates pressure on ${delta.newOpportunities.head}" else "improves piece coordination"
       (s"$solve -> $gain", ConfidenceLevel.Probe)
     } else {
-      // No probe data: don't overstate claims
       val heuristic = focalPoint.map(fp => s"Focus on ${fp.label}").getOrElse("General improvement")
       (s"$heuristic (probe needed for validation)", ConfidenceLevel.Heuristic)
     }
@@ -2595,27 +3175,17 @@ object NarrativeContextBuilder:
     )
   }
 
-  /**
-   * F1/P1: Compare current threats with PV1 future threats.
-   * Uses FutureSnapshot when available for accurate comparison.
-   * Falls back to L1DeltaSnapshot heuristics otherwise.
-   * Returns empty PVDelta when bestProbe is None.
-   */
   private def buildPVDelta(ctx: IntegratedContext, bestProbe: Option[ProbeResult]): PVDelta = {
     bestProbe match {
       case None =>
-        // No probe: return empty delta to prevent overconfident assertions
         PVDelta(Nil, Nil, Nil, Nil)
         
       case Some(probe) if probe.futureSnapshot.isDefined =>
-        // P1: Use structured FutureSnapshot for accurate comparison
         val fs = probe.futureSnapshot.get
         val targetsDelta = fs.targetsDelta
         
-        // Opportunities: new targets created
         val newOps = (targetsDelta.tacticalAdded ++ targetsDelta.strategicAdded).take(2)
         
-        // Plan advancements from blockers/prereqs
         val planAdv = (fs.planBlockersRemoved.map(b => s"Removed: $b") ++ 
                        fs.planPrereqsMet.map(p => s"Met: $p")).take(2)
         
@@ -2627,7 +3197,6 @@ object NarrativeContextBuilder:
         )
         
       case Some(probe) =>
-        // Fallback: use L1DeltaSnapshot heuristics (legacy behavior)
         val currentToUs = ctx.threatsToUs.map(_.threats.map(_.kind.toString)).getOrElse(Nil)
         val futureMotifs = probe.keyMotifs
         
@@ -2647,9 +3216,6 @@ object NarrativeContextBuilder:
     }
   }
 
-  /**
-   * F2: Score and select FocalPoint from intersection of Targets ∩ Semantic ∩ Plans.
-   */
   private def identifyFocalPoint(
       targets: Targets,
       semantic: Option[SemanticSection],
@@ -2658,17 +3224,14 @@ object NarrativeContextBuilder:
     val allTargets = targets.tactical ++ targets.strategic
     if (allTargets.isEmpty) return None
 
-    // Scoring: appearance in semantic features + appearance in plan supports
     val scores = allTargets.map { t =>
       var score = t.priority match { case 1 => 5; case 2 => 3; case _ => 1 }
       
-      // Match square in semantic
       semantic.foreach { s =>
         if (s.positionalFeatures.exists(_.square.contains(t.ref.label))) score += 2
         if (s.pieceActivity.exists(_.square == t.ref.label)) score += 2
       }
       
-      // Match in plans
       plans.foreach { pm =>
         if (pm.supports.exists(_.contains(t.ref.label))) score += 1
       }
@@ -2717,14 +3280,8 @@ object NarrativeContextBuilder:
         PositionalTagInfo("PawnMajority", None, None, c.name, Some(s"$flank $count pawns"))
       case PositionalTag.MinorityAttack(c, flank) =>
         PositionalTagInfo("MinorityAttack", None, None, c.name, Some(s"$flank attack"))
-      // case PositionalTag.QueenActivity(c) =>
-      //   PositionalTagInfo("QueenActivity", None, None, c.name)
-      // case PositionalTag.QueenManeuver(c) =>
-      //   PositionalTagInfo("QueenManeuver", None, None, c.name)
       case PositionalTag.MateNet(c) =>
         PositionalTagInfo("MateNet", None, None, c.name)
-      // case PositionalTag.PerpetualCheck(c) =>
-      //   PositionalTagInfo("PerpetualCheck", None, None, c.name)
       case PositionalTag.RemovingTheDefender(target, c) =>
         PositionalTagInfo("RemovingTheDefender", None, None, c.name, Some(target.name))
       case PositionalTag.Initiative(c) =>
@@ -2795,10 +3352,6 @@ object NarrativeContextBuilder:
     )
   }
 
-  /**
-   * Builds opponent's top plan by calling PlanMatcher for the opposite side.
-   * Shows "what the opponent wants to do" for organic narrative flow.
-   */
   private def buildOpponentPlan(data: ExtendedAnalysisData, ctx: IntegratedContext): Option[PlanRow] = {
     val opponentColor = if (ctx.isWhiteToMove) chess.Color.Black else chess.Color.White
     val ctxOpp = buildOpponentContext(ctx)
@@ -2822,11 +3375,6 @@ object NarrativeContextBuilder:
     }
   }
 
-
-  /**
-   * Swaps IntegratedContext POV for opponent plan matching.
-   * Ensures threatsToUs/Them and pawnAnalysis/opponentPawnAnalysis are correctly attributed.
-   */
   private def buildOpponentContext(ctx: IntegratedContext): IntegratedContext = {
     ctx.copy(
       threatsToUs = ctx.threatsToThem,

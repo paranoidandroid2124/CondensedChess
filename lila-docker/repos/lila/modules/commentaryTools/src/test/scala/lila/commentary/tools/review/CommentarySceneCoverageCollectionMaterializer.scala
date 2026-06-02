@@ -5,8 +5,6 @@ import java.nio.file.{ Files, Path, Paths }
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
-import scala.util.control.NonFatal
-
 import play.api.libs.json.*
 
 import lila.commentary.*
@@ -332,7 +330,7 @@ object CommentarySceneCoverageCollectionMaterializer:
         case Left(err) =>
           throw new IllegalArgumentException(s"${entry.gameKey}: invalid PGN in catalog: $err")
 
-    val openingRef = localOpeningReference(entry, openingIndex)
+    val openingRef = corpusBackedOpeningReference(entry, openingIndex, maxSampleGames = 5)
     val snapshotsByPly = scala.collection.mutable.Map.empty[Int, (SliceSnapshot, SliceSnapshot)]
 
     plyData
@@ -513,43 +511,6 @@ object CommentarySceneCoverageCollectionMaterializer:
         manifestEntries = manifestEntriesFor(SliceKind.ProphylaxisRestraint, snapshot)
       )
     }
-
-  private def buildOpeningIndex(catalog: List[CatalogEntry]): Map[String, List[CatalogEntry]] =
-    catalog
-      .flatMap(entry =>
-        openingLookupKeys(entry).map(key => key -> entry)
-      )
-      .groupMap(_._1)(_._2)
-
-  private def localOpeningReference(
-      entry: CatalogEntry,
-      openingIndex: Map[String, List[CatalogEntry]]
-  ): Option[lila.commentary.model.OpeningReference] =
-    val peers =
-      openingLookupKeys(entry)
-        .flatMap(key => openingIndex.getOrElse(key, Nil))
-        .filterNot(_.gameKey == entry.gameKey)
-        .distinct
-        .sortBy(other => (-other.totalPlies, other.gameKey))
-        .take(5)
-
-    val sampleEntries =
-      if peers.nonEmpty then peers
-      else List(entry)
-
-    val sampleGames =
-      sampleEntries.flatMap(catalogEntryToExplorerGame)
-
-    Option.when(sampleGames.nonEmpty) {
-      lila.commentary.model.OpeningReference(
-        eco = entry.eco,
-        name = entry.opening.orElse(entry.openingMacroFamily),
-        totalGames = sampleEntries.size,
-        topMoves = Nil,
-        sampleGames = sampleGames,
-        description = entry.variation
-      )
-    }.orElse(minimalOpeningReference(entry))
 
   private def readManifestInputs(config: Config): (List[SliceManifestEntry], List[SliceManifestEntry]) =
     val acceptedEntries =
@@ -1063,46 +1024,6 @@ object CommentarySceneCoverageCollectionMaterializer:
 
   private def sampleBaseId(sampleId: String): String =
     sampleId.split(':').dropRight(1).mkString(":")
-
-  private def openingLookupKeys(entry: CatalogEntry): List[String] =
-    List(entry.eco, entry.opening, entry.openingMacroFamily)
-      .flatten
-      .map(_.trim.toLowerCase)
-      .filter(_.nonEmpty)
-      .distinct
-
-  private def catalogEntryToExplorerGame(entry: CatalogEntry): Option[lila.commentary.model.ExplorerGame] =
-    val pgn =
-      try Some(Files.readString(Paths.get(entry.pgnPath)))
-      catch case NonFatal(_) => None
-    val (year, month) = parseYearMonth(entry.date)
-    pgn.map { raw =>
-      lila.commentary.model.ExplorerGame(
-        id = entry.gameKey,
-        winner =
-          entry.result.flatMap {
-            case "1-0"     => Some(chess.White)
-            case "0-1"     => Some(chess.Black)
-            case _         => None
-          },
-        white = lila.commentary.model.ExplorerPlayer(entry.white.getOrElse("?"), entry.whiteElo.getOrElse(0)),
-        black = lila.commentary.model.ExplorerPlayer(entry.black.getOrElse("?"), entry.blackElo.getOrElse(0)),
-        year = year,
-        month = month,
-        event = entry.event.map(_.trim).filter(_.nonEmpty),
-        pgn = Some(raw)
-      )
-    }
-
-  private def parseYearMonth(date: Option[String]): (Int, Int) =
-    date match
-      case Some(raw) =>
-        val normalized = raw.trim.replace('-', '.')
-        val parts = normalized.split("\\.").toList
-        val year = parts.headOption.flatMap(_.toIntOption).getOrElse(0)
-        val month = parts.lift(1).flatMap(_.toIntOption).getOrElse(1)
-        (year, month)
-      case None => (0, 1)
 
   private def fixtureSeedSpecs: List[FixtureSeedSpec] =
     List(

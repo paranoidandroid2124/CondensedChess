@@ -1,6 +1,6 @@
 package lila.commentary.analysis
 
-import lila.commentary.{ AuthorEvidenceSummary, AuthorQuestionSummary, GameChronicleMoment }
+import lila.commentary.{ AuthorEvidenceSummary, AuthorQuestionSummary }
 import lila.commentary.model.*
 import lila.commentary.model.authoring.{ AuthorQuestion, AuthorQuestionKind }
 import munit.FunSuite
@@ -86,47 +86,4 @@ class AuthoringEvidenceSummaryBuilderTest extends FunSuite:
     assertEquals(summary.linkedPlans, List("Kingside Bind", "kingside_bind"))
     assertEquals(surface.questions.map(_.id), List("why_this_1"))
     assertEquals(surface.headline, Some("author evidence: 0 resolved, 1 pending"))
-  }
-
-  test("game narrative moment preserves authoring payload for API transport") {
-    val moment = GameArcMoment(
-      ply = 24,
-      momentType = "TensionPeak",
-      narrative = "White keeps the bind.",
-      analysisData = analysisData,
-      probeRequests = List(
-        ProbeRequest(
-          id = "probe_why_this_1",
-          fen = testFen,
-          moves = List("g2g4"),
-          depth = 16,
-          questionId = Some("why_this_1")
-        )
-      ),
-      authorQuestions = List(
-        AuthorQuestionSummary(
-          id = "why_this_1",
-          kind = "WhyThis",
-          priority = 1,
-          question = "Why choose the kingside bind now?",
-          confidence = "Probe"
-        )
-      ),
-      authorEvidence = List(
-        AuthorEvidenceSummary(
-          questionId = "why_this_1",
-          questionKind = "WhyThis",
-          question = "Why choose the kingside bind now?",
-          status = "pending",
-          pendingProbeIds = List("probe_why_this_1"),
-          pendingProbeCount = 1
-        )
-      )
-    )
-
-    val apiMoment = GameChronicleMoment.fromArcMoment(moment)
-
-    assertEquals(apiMoment.probeRequests.map(_.id), List("probe_why_this_1"))
-    assertEquals(apiMoment.authorQuestions.map(_.id), List("why_this_1"))
-    assertEquals(apiMoment.authorEvidence.map(_.status), List("pending"))
   }

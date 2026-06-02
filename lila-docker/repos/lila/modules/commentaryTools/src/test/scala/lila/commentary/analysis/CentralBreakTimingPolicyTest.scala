@@ -12,8 +12,7 @@ class CentralBreakTimingPolicyTest extends FunSuite:
       pack: lila.commentary.StrategyPack,
       inputs: QuestionPlannerInputs,
       ranked: RankedQuestionPlans,
-      moveReview: String,
-      chronicle: String
+      moveReview: String
   )
 
   private val MadernaExactFen =
@@ -99,7 +98,6 @@ class CentralBreakTimingPolicyTest extends FunSuite:
     assertEquals(claim.packet.map(_.proofSource), Some(PlanTaxonomy.PlanKind.CentralBreakTiming.id))
     assertEquals(scene.ranked.primary.map(_.claim), Some(claim.claimText))
     assertEquals(sentenceOccurrences(scene.moveReview, claim.claimText), 1, clues(scene.moveReview))
-    assertEquals(sentenceOccurrences(scene.chronicle, claim.claimText), 1, clues(scene.chronicle))
   }
 
   test("tactical-first ownership vetoes central-break timing prose") {
@@ -359,17 +357,7 @@ class CentralBreakTimingPolicyTest extends FunSuite:
           truthContract = truthContract
         )
       )
-    val chronicle =
-      GameChronicleCompressionPolicy
-        .renderWithTrace(
-          ctx = ctx,
-          parts = emptyParts.copy(focusedOutline = outline),
-          strategyPack = Some(pack),
-          truthContract = truthContract
-        )
-        .map(_.narrative)
-        .getOrElse("-")
-    Snapshot(ctx, pack, inputs, ranked, moveReview, chronicle)
+    Snapshot(ctx, pack, inputs, ranked, moveReview)
 
   private def centralPacket(scene: Snapshot): PlayerFacingClaimPacket =
     scene.inputs.mainBundle
@@ -427,16 +415,4 @@ class CentralBreakTimingPolicyTest extends FunSuite:
       AuthorQuestion("why_now", AuthorQuestionKind.WhyNow, 60, "Why now?")
     )
 
-  private val emptyParts =
-    CommentaryEngine.HybridNarrativeParts(
-      lead = "Lead",
-      defaultBridge = "Bridge",
-      criticalBranch = None,
-      body = "Body",
-      primaryPlan = None,
-      focusedOutline = NarrativeOutline(beats = Nil),
-      phase = "Middlegame",
-      tacticalPressure = false,
-      cpWhite = Some(20),
-      bead = 1
-    )
+

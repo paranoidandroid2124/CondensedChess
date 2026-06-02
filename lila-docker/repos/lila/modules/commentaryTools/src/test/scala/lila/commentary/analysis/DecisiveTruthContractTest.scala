@@ -116,38 +116,6 @@ class DecisiveTruthContractTest extends FunSuite:
       investmentTruthChainKey = investmentTruthChainKey
     )
 
-  private def chronicleMoment(
-      ply: Int,
-      momentType: String,
-      moveClassification: Option[String] = None,
-      transitionType: Option[String] = None
-  ): GameChronicleMoment =
-    GameChronicleMoment(
-      momentId = s"ply_$ply",
-      ply = ply,
-      moveNumber = (ply + 1) / 2,
-      side = if ply % 2 == 1 then "white" else "black",
-      moveClassification = moveClassification,
-      momentType = momentType,
-      fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
-      narrative = "Narrative",
-      selectionKind = "key",
-      selectionLabel = Some("Key Moment"),
-      concepts = Nil,
-      variations = Nil,
-      cpBefore = 0,
-      cpAfter = 0,
-      mateBefore = None,
-      mateAfter = None,
-      wpaSwing = None,
-      strategicSalience = Some("High"),
-      transitionType = transitionType,
-      transitionConfidence = None,
-      activePlan = None,
-      topEngineMove = None,
-      collapse = None,
-      strategyPack = None
-    )
 
   private def compensationInfo(
       investedMaterial: Int,
@@ -1549,37 +1517,4 @@ class DecisiveTruthContractTest extends FunSuite:
     assertEquals(projection.chainKey, None)
   }
 
-  test("fallback moment projection ignores raw conversion transitions without a truth contract") {
-    val projection =
-      ChronicleTruthSemantics.projection(
-        chronicleMoment(
-          ply = 36,
-          momentType = "SustainedPressure",
-          transitionType = Some("ExchangeConversion")
-        ),
-        None
-      )
 
-    assertEquals(projection.ownershipRole, TruthOwnershipRole.NoneRole)
-    assertEquals(projection.visibilityRole, TruthVisibilityRole.Hidden)
-    assertEquals(projection.surfaceMode, TruthSurfaceMode.Neutral)
-    assertEquals(projection.surfacedMoveOwnsTruth, false)
-  }
-
-  test("fallback moment projection preserves blunder failure classification") {
-    val projection =
-      ChronicleTruthSemantics.projection(
-        chronicleMoment(
-          ply = 18,
-          momentType = "AdvantageSwing",
-          moveClassification = Some("Blunder")
-        ),
-        None
-      )
-
-    assertEquals(projection.classificationKey, "blunder")
-    assertEquals(projection.ownershipRole, TruthOwnershipRole.BlunderOwner)
-    assertEquals(projection.visibilityRole, TruthVisibilityRole.PrimaryVisible)
-    assertEquals(projection.surfaceMode, TruthSurfaceMode.FailureExplain)
-    assertEquals(projection.surfacedMoveOwnsTruth, true)
-  }

@@ -16,6 +16,14 @@ Do not redo the full `producer -> carrier/model -> builder -> outline ->
 renderer -> API -> frontend` trace when these master docs already answer the
 request.
 
+Treat these documents as a current-state map and safety boundary, not as a
+mandate to preserve every current implementation shape. For cleanup,
+deduplication, or suspected AI-generated over-abstraction, inspect the live code
+and call sites first; if the code shows duplicated or unnecessary wrappers,
+prefer simplifying the implementation while preserving the documented runtime
+truth/trust contract. Do not use a doc phrase by itself to justify adding a new
+module, helper, test fixture, or parallel boundary.
+
 Relevant scope includes commentary helper modules and consumption paths across
 strategic, semantic, endgame, opening, probe, plan, pawn, structure, threat,
 practicality, counterfactual, authoring, outline, renderer, API, and frontend.
@@ -40,6 +48,9 @@ Re-audit the master commentary docs only when:
 - Truth/signoff behavior changes must update `CommentaryTruthBoundary.md`.
 - Canonical helper names, audited runtime package paths, or directory ownership
   changes must update the relevant master docs in the same change.
+- Documentation wording changes that only clarify agent workflow do not require
+  broad runtime doc rewrites. Keep them narrow and avoid turning cleanup notes
+  into new authority rules.
 
 ## Hard Guardrails
 
@@ -57,6 +68,10 @@ Re-audit the master commentary docs only when:
   slice/source predicate.
 - Reuse existing commentary planner/build/replay architecture. Do not introduce
   parallel runtime paths for CQF or commentary-analysis helpers.
+- Prefer deletion, in-place simplification, or reuse of an existing boundary
+  over adding another `Evidence`, `Support`, `Boundary`, `Contract`, or
+  `Policy` object. If such a file already duplicates another concept, identify
+  the overlap explicitly before extending it.
 - Keep runtime and tooling separate: live planner/build/replay helpers belong
   under active `src/main/...`; corpus evaluation, scoring, report generation,
   and CQF runners belong under active `src/test/...`.

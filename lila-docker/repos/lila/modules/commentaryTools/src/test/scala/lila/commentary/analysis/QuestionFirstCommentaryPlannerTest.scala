@@ -383,6 +383,48 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     assert(primary.contrast.exists(_.contains("Qe2")), clues(primary.contrast))
   }
 
+  test("single-line fallback evidence strips existing line labels before adding a branch label") {
+    val q = question("q_line_label", AuthorQuestionKind.WhyThis)
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        baseCtx(List(q)),
+        inputs(
+          mainBundle =
+            Some(
+              MainPathClaimBundle(
+                Some(mainClaim("This keeps the forcing line under control.")),
+                Some(lineClaim("Line: a) dxe5 Qxd8+ Kxd8"))
+              )
+            )
+        ),
+        None
+      )
+
+    val plan = plans.primary.getOrElse(fail("missing primary"))
+    assertEquals(plan.evidence.map(_.text), Some("a) dxe5 Qxd8+ Kxd8"))
+  }
+
+  test("single-line fallback evidence does not promote probe reminders as concrete lines") {
+    val q = question("q_probe_reminder", AuthorQuestionKind.WhyThis)
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        baseCtx(List(q)),
+        inputs(
+          mainBundle =
+            Some(
+              MainPathClaimBundle(
+                Some(mainClaim("This keeps the forcing line under control.")),
+                Some(lineClaim("Further probe work still targets Improving piece placement through Na6 and Nc6."))
+              )
+            )
+        ),
+        None
+      )
+
+    val plan = plans.primary.getOrElse(fail("missing primary"))
+    assertEquals(plan.evidence, None)
+  }
+
   test("WhyThis fails closed when only decision comparison exists") {
     val q = question("q1", AuthorQuestionKind.WhyThis)
     val ctx = baseCtx(List(q))
@@ -1192,6 +1234,71 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     assertEquals(primary.questionKind, AuthorQuestionKind.WhyThis)
     assertEquals(primary.plannerOwnerKind, PlannerOwnerKind.OpeningRelation)
     assertEquals(primary.plannerSource, "opening_relation_translator")
+  }
+
+  test("self-only opening samples do not create late opening relation owners") {
+    val q = question("q_late_self_only_opening", AuthorQuestionKind.WhyThis)
+    val ctx =
+      baseCtx(List(q)).copy(
+        ply = 35,
+        phase = PhaseContext("Endgame", "Technical conversion"),
+        openingEvent = None,
+        openingData =
+          Some(
+            OpeningReference(
+              eco = Some("B07"),
+              name = Some("King's Pawn Game: Maróczy Defense"),
+              totalGames = 1,
+              topMoves = Nil,
+              sampleGames =
+                List(
+                  ExplorerGame(
+                    id = "current_game_only",
+                    winner = None,
+                    white = ExplorerPlayer("White", 1800),
+                    black = ExplorerPlayer("Black", 1800),
+                    year = 2026,
+                    month = 3,
+                    event = Some("Current game"),
+                    pgn = Some("1. e4 d6 2. d4 Nf6 3. Nc3 e5 4. Nf3")
+                  )
+                )
+            )
+          )
+      )
+
+    assertEquals(QuestionFirstCommentaryPlanner.openingRelationReplayClaim(ctx), None)
+    assertEquals(
+      QuestionFirstCommentaryPlanner.openingRelationReplayClaim(
+        ctx.copy(
+          ply = 14,
+          phase = PhaseContext("Opening", "Opening branch point"),
+          openingEvent = Some(OpeningEvent.Novelty("Ke7", 14, "development logic", 1))
+        )
+      ),
+      None
+    )
+
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        ctx,
+        inputs(
+          mainBundle =
+            Some(
+              MainPathClaimBundle(
+                Some(mainClaim("This improves pressure on e5.", sourceKind = "main_delta")),
+                Some(lineClaim("18. c3 Na5 19.Ne3"))
+              )
+            )
+        ),
+        None
+      )
+
+    assert(plans.ownerTrace.sceneType != SceneType.OpeningRelation, clues(plans.ownerTrace))
+    assert(
+      !plans.ownerTrace.ownerCandidateLabels.exists(_.contains("source_kind=opening_relation_translator")),
+      clues(plans.ownerTrace.ownerCandidateLabels)
+    )
   }
 
   test("scene trace keeps pure endgame translators under endgame transition") {

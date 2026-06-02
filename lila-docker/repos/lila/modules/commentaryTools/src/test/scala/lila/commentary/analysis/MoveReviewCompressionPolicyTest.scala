@@ -2,6 +2,7 @@ package lila.commentary.analysis
 
 import lila.commentary.*
 import lila.commentary.model.*
+import lila.commentary.model.authoring.AuthorQuestionKind
 import munit.FunSuite
 
 final class MoveReviewCompressionPolicyTest extends FunSuite:
@@ -110,6 +111,58 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     )
     assertEquals(slots.paragraphPlan, List("p1=claim"), clues(slots))
     assertEquals(slots.moveReviewExplanation, None, clues(slots))
+  }
+
+  test("claim-only planner slots keep the move-review move header") {
+    val primary =
+      QuestionPlan(
+        questionId = "q_claim_only",
+        questionKind = AuthorQuestionKind.WhyNow,
+        priority = 100,
+        claim = "The timing matters now because other moves allow the position to slip away.",
+        evidence = None,
+        contrast = None,
+        consequence = None,
+        fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
+        strengthTier = QuestionPlanStrengthTier.Strong,
+        sourceKinds = List("truth_contract"),
+        admissibilityReasons = List("timing_owner"),
+        plannerOwnerKind = PlannerOwnerKind.ForcingDefense,
+        plannerSource = "truth_contract"
+      )
+    val slots =
+      MoveReviewCompressionPolicy.buildSlotsOrFallbackFromPlannerRuntime(
+        quietH3Ctx,
+        QuestionPlannerInputs(
+          mainBundle = None,
+          quietIntent = None,
+          decisionFrame = CertifiedDecisionFrame(),
+          decisionComparison = None,
+          alternativeNarrative = None,
+          truthMode = PlayerFacingTruthMode.Strategic,
+          preventedPlansNow = Nil,
+          pvDelta = None,
+          counterfactual = None,
+          practicalAssessment = None,
+          opponentThreats = Nil,
+          forcingThreats = Nil,
+          evidenceByQuestionId = Map.empty,
+          candidateEvidenceLines = Nil,
+          evidenceBackedPlans = Nil,
+          opponentPlan = None,
+          factualFallback = None
+        ),
+        RankedQuestionPlans(primary = Some(primary), secondary = None, rejected = Nil),
+        strategyPack = None,
+        truthContract = None
+      )
+
+    assertEquals(slots.paragraphPlan, List("p1=claim"))
+    assert(slots.claim.startsWith("1. h3:"), clues(slots.claim))
+    assertEquals(
+      MoveReviewProseContract.stripMoveHeader(slots.claim),
+      "The timing matters now because other moves allow the position to slip away."
+    )
   }
 
   test("basic lane carries the same move review explanation used for visible slots") {

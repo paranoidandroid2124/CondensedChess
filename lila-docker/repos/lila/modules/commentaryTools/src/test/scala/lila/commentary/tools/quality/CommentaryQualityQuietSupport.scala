@@ -5,7 +5,7 @@ import java.nio.file.{ Files, Paths }
 import scala.util.control.NonFatal
 
 import play.api.libs.json.{ Format, JsValue, Json }
-import lila.commentary.tools.review.{ ChronicleActivePlannerSliceRunner, CommentaryPlayerQcSupport }
+import lila.commentary.tools.review.CommentaryPlayerQcSupport
 
 object CommentaryQualityQuietSupport:
 
@@ -1113,42 +1113,6 @@ object CommentaryQualityQuietSupport:
   object QuietSupportLaneSummary:
     given Format[QuietSupportLaneSummary] = Json.format[QuietSupportLaneSummary]
 
-  final case class ChronicleMirrorRepresentative(
-      moveReviewSampleId: String,
-      chronicleSampleId: String,
-      bucket: String,
-      lane: String,
-      playedSan: String,
-      quietSupportApplied: Boolean,
-      ownerDivergence: Boolean,
-      questionDivergence: Boolean,
-      strongerVerbLeakageTerms: List[String],
-      blockedLaneContamination: Boolean,
-      crossSurfaceOwnerDivergence: Boolean,
-      beforeNarrative: Option[String],
-      afterNarrative: Option[String],
-      quietSupportCandidateText: Option[String]
-  )
-  object ChronicleMirrorRepresentative:
-    given Format[ChronicleMirrorRepresentative] = Json.format[ChronicleMirrorRepresentative]
-
-  final case class ChronicleMirrorSummary(
-      beforeSource: String,
-      afterSource: String,
-      selectedQuietRowCount: Int,
-      blockedRowCount: Int,
-      quietSupportAppliedCount: Int,
-      ownerDivergenceCount: Int,
-      questionDivergenceCount: Int,
-      strongerVerbLeakageCount: Int,
-      blockedLaneContaminationCount: Int,
-      crossSurfaceOwnerDivergenceCount: Int,
-      representatives: List[ChronicleMirrorRepresentative],
-      acceptanceNotes: List[String]
-  )
-  object ChronicleMirrorSummary:
-    given Format[ChronicleMirrorSummary] = Json.format[ChronicleMirrorSummary]
-
   final case class QuietSupportSummary(
       schemaVersion: String = Schema.QuietSupportSummaryVersion,
       beforeSource: String,
@@ -1166,8 +1130,7 @@ object CommentaryQualityQuietSupport:
       eligibleDriftSelectedCount: Int,
       blockedRowCount: Int,
       laneSummaries: List[QuietSupportLaneSummary],
-      acceptanceNotes: List[String],
-      chronicleMirror: Option[ChronicleMirrorSummary] = None
+      acceptanceNotes: List[String]
   )
   object QuietSupportSummary:
     given Format[QuietSupportSummary] = Json.using[Json.WithDefaultValues].format[QuietSupportSummary]
@@ -1178,19 +1141,7 @@ object CommentaryQualityQuietSupport:
       supportingSignals: List[String]
   )
 
-  private final case class ChronicleMirrorRow(
-      selector: QuietSupportSelectorRow,
-      chronicleSampleId: String,
-      quietSupportApplied: Boolean,
-      ownerDivergence: Boolean,
-      questionDivergence: Boolean,
-      strongerVerbLeakageTerms: List[String],
-      blockedLaneContamination: Boolean,
-      crossSurfaceOwnerDivergence: Boolean,
-      beforeNarrative: Option[String],
-      afterNarrative: Option[String],
-      quietSupportCandidateText: Option[String]
-  )
+
 
   private final case class QuietSupportTraceView(
       liftApplied: Option[Boolean],
@@ -1641,195 +1592,9 @@ object CommentaryQualityQuietSupport:
       beforeEntries: List[MoveReviewOutputEntry],
       afterEntries: List[MoveReviewOutputEntry],
       beforeSource: String,
-      afterSource: String,
-      beforeChronicleEntries: List[ChronicleActivePlannerSliceRunner.SliceSurfaceEntry] = Nil,
-      afterChronicleEntries: List[ChronicleActivePlannerSliceRunner.SliceSurfaceEntry] = Nil,
-      beforeChronicleSource: Option[String] = None,
-      afterChronicleSource: Option[String] = None
-  ): (List[QuietSupportSelectorRow], List[QuietSupportEvalRow], QuietSupportSummary) =
-    val (selectorRows, evalRows, baselineSummary) =
-      buildBaselineEvaluation(beforeEntries, afterEntries, beforeSource, afterSource)
-    val chronicleMirror =
-      Option.when(
-        beforeChronicleEntries.nonEmpty ||
-          afterChronicleEntries.nonEmpty ||
-          beforeChronicleSource.nonEmpty ||
-          afterChronicleSource.nonEmpty
-      ) {
-        buildChronicleMirrorSummary(
-          selectorRows = selectorRows,
-          afterMoveReviewEntries = afterEntries,
-          beforeChronicleEntries = beforeChronicleEntries,
-          afterChronicleEntries = afterChronicleEntries,
-          beforeSource = beforeChronicleSource.getOrElse("chronicle_before_unspecified"),
-          afterSource = afterChronicleSource.getOrElse("chronicle_after_unspecified")
-        )
-      }
-    (selectorRows, evalRows, baselineSummary.copy(chronicleMirror = chronicleMirror))
-
-  private def buildChronicleMirrorSummary(
-      selectorRows: List[QuietSupportSelectorRow],
-      afterMoveReviewEntries: List[MoveReviewOutputEntry],
-      beforeChronicleEntries: List[ChronicleActivePlannerSliceRunner.SliceSurfaceEntry],
-      afterChronicleEntries: List[ChronicleActivePlannerSliceRunner.SliceSurfaceEntry],
-      beforeSource: String,
       afterSource: String
-  ): ChronicleMirrorSummary =
-    val afterMoveReviewBySample = afterMoveReviewEntries.map(entry => entry.sampleId -> entry).toMap
-    val beforeChronicleBySample = beforeChronicleEntries.map(entry => entry.sampleId -> entry).toMap
-    val afterChronicleBySample = afterChronicleEntries.map(entry => entry.sampleId -> entry).toMap
-
-    val rows =
-      selectorRows.map { selector =>
-        val chronicleSampleId = chronicleSampleIdFor(selector.sampleId)
-        val beforeChronicle = beforeChronicleBySample.get(chronicleSampleId)
-        val afterChronicle = afterChronicleBySample.get(chronicleSampleId)
-        val moveReviewQuietSupport = afterMoveReviewBySample.get(selector.sampleId).map(quietSupportTraceView)
-        val replayQuestion = afterChronicle.flatMap(chronicleReplayQuestion)
-        val replayProofFamily = afterChronicle.flatMap(chronicleReplayProofFamily)
-        val replayProofSource = afterChronicle.flatMap(chronicleReplayProofSource)
-        val plannerQuestion = afterChronicle.flatMap(chroniclePlannerQuestion)
-        val plannerProofFamily = afterChronicle.flatMap(chroniclePlannerProofFamily)
-        val plannerProofSource = afterChronicle.flatMap(chroniclePlannerProofSource)
-        val quietSupportApplied = afterChronicle.exists(_.chronicleReplayQuietSupport.applied)
-        val ownerDivergence =
-          selector.selected && (
-            afterChronicle.isEmpty ||
-              !sameOpt(plannerProofFamily, replayProofFamily) ||
-              !sameOpt(plannerProofSource, replayProofSource)
-          )
-        val questionDivergence =
-          selector.selected && (
-            afterChronicle.isEmpty ||
-              !sameOpt(plannerQuestion, replayQuestion)
-          )
-        val beforeNarrative = beforeChronicle.flatMap(chronicleNarrativeText)
-        val afterNarrative = afterChronicle.flatMap(chronicleNarrativeText)
-        val leakageTerms =
-          if selector.selected then strongerVerbLeakageTerms(beforeNarrative.getOrElse(""), afterNarrative.getOrElse(""))
-          else Nil
-        val replayAsQuietMoveDelta =
-          replayProofFamily.contains("MoveDelta") &&
-            replayProofSource.contains("pv_delta")
-        val blockedLaneContamination =
-          selector.lane == Lane.Blocked && (
-            quietSupportApplied ||
-              (
-                replayAsQuietMoveDelta &&
-                  (
-                    !sameOpt(plannerProofFamily, replayProofFamily) ||
-                      !sameOpt(plannerProofSource, replayProofSource)
-                  )
-              )
-          )
-        val crossSurfaceOwnerDivergence =
-          selector.selected && (
-            afterChronicle.isEmpty ||
-              !sameOpt(moveReviewQuietSupport.flatMap(_.runtimeSelectedOwnerKind), replayProofFamily) ||
-              !sameOpt(moveReviewQuietSupport.flatMap(_.runtimeSelectedSource), replayProofSource)
-          )
-
-        ChronicleMirrorRow(
-          selector = selector,
-          chronicleSampleId = chronicleSampleId,
-          quietSupportApplied = quietSupportApplied,
-          ownerDivergence = ownerDivergence,
-          questionDivergence = questionDivergence,
-          strongerVerbLeakageTerms = leakageTerms,
-          blockedLaneContamination = blockedLaneContamination,
-          crossSurfaceOwnerDivergence = crossSurfaceOwnerDivergence,
-          beforeNarrative = beforeNarrative,
-          afterNarrative = afterNarrative,
-          quietSupportCandidateText =
-            afterChronicle.flatMap(entry => entry.chronicleReplayQuietSupport.candidateText)
-        )
-      }
-
-    val uniqueRows =
-      rows
-        .groupBy(_.chronicleSampleId)
-        .values
-        .map(_.sortBy(row => (if row.selector.selected then 0 else 1, row.selector.bucket)).head)
-        .toList
-        .sortBy(_.chronicleSampleId)
-    val selectedQuietRows = uniqueRows.filter(_.selector.selected)
-    val blockedRows = uniqueRows.filter(_.selector.lane == Lane.Blocked)
-    val highlightedRows =
-      (
-        selectedQuietRows.filter(_.quietSupportApplied) :::
-          blockedRows.filter(_.blockedLaneContamination) :::
-          selectedQuietRows.filter(row =>
-            row.ownerDivergence || row.questionDivergence || row.crossSurfaceOwnerDivergence ||
-              row.strongerVerbLeakageTerms.nonEmpty
-          ) :::
-          selectedQuietRows.take(3)
-      ).distinctBy(_.chronicleSampleId).take(8)
-
-    ChronicleMirrorSummary(
-      beforeSource = beforeSource,
-      afterSource = afterSource,
-      selectedQuietRowCount = selectedQuietRows.size,
-      blockedRowCount = blockedRows.size,
-      quietSupportAppliedCount = selectedQuietRows.count(_.quietSupportApplied),
-      ownerDivergenceCount = selectedQuietRows.count(_.ownerDivergence),
-      questionDivergenceCount = selectedQuietRows.count(_.questionDivergence),
-      strongerVerbLeakageCount = selectedQuietRows.count(_.strongerVerbLeakageTerms.nonEmpty),
-      blockedLaneContaminationCount = blockedRows.count(_.blockedLaneContamination),
-      crossSurfaceOwnerDivergenceCount = selectedQuietRows.count(_.crossSurfaceOwnerDivergence),
-      representatives =
-        highlightedRows.map { row =>
-          ChronicleMirrorRepresentative(
-            moveReviewSampleId = row.selector.sampleId,
-            chronicleSampleId = row.chronicleSampleId,
-            bucket = row.selector.bucket,
-            lane = row.selector.lane,
-            playedSan = row.selector.playedSan,
-            quietSupportApplied = row.quietSupportApplied,
-            ownerDivergence = row.ownerDivergence,
-            questionDivergence = row.questionDivergence,
-            strongerVerbLeakageTerms = row.strongerVerbLeakageTerms,
-            blockedLaneContamination = row.blockedLaneContamination,
-            crossSurfaceOwnerDivergence = row.crossSurfaceOwnerDivergence,
-            beforeNarrative = row.beforeNarrative,
-            afterNarrative = row.afterNarrative,
-            quietSupportCandidateText = row.quietSupportCandidateText
-          )
-        },
-      acceptanceNotes =
-        List(
-          s"selected quiet row count = ${selectedQuietRows.size}",
-          acceptanceCountNote(
-            label = "chronicle quiet-support applied count",
-            value = selectedQuietRows.count(_.quietSupportApplied),
-            minimum = 1
-          ),
-          acceptanceCountNote(
-            label = "chronicle owner divergence count",
-            value = selectedQuietRows.count(_.ownerDivergence),
-            maximum = 0
-          ),
-          acceptanceCountNote(
-            label = "chronicle question divergence count",
-            value = selectedQuietRows.count(_.questionDivergence),
-            maximum = 0
-          ),
-          acceptanceCountNote(
-            label = "chronicle stronger-verb leakage count",
-            value = selectedQuietRows.count(_.strongerVerbLeakageTerms.nonEmpty),
-            maximum = 0
-          ),
-          acceptanceCountNote(
-            label = "chronicle blocked-lane contamination count",
-            value = blockedRows.count(_.blockedLaneContamination),
-            maximum = 0
-          ),
-          acceptanceCountNote(
-            label = "chronicle cross-surface owner divergence count",
-            value = selectedQuietRows.count(_.crossSurfaceOwnerDivergence),
-            maximum = 0
-          )
-        )
-    )
+  ): (List[QuietSupportSelectorRow], List[QuietSupportEvalRow], QuietSupportSummary) =
+    buildBaselineEvaluation(beforeEntries, afterEntries, beforeSource, afterSource)
 
   private def renderBaselineSummaryMarkdown(
       summary: QuietSupportSummary,
@@ -1860,42 +1625,6 @@ object CommentaryQualityQuietSupport:
     val notes =
       if summary.acceptanceNotes.isEmpty then "- none"
       else summary.acceptanceNotes.map(note => s"- $note").mkString("\n")
-
-    val chronicleSection =
-      summary.chronicleMirror.map { chronicle =>
-        val chronicleNotes =
-          if chronicle.acceptanceNotes.isEmpty then "- none"
-          else chronicle.acceptanceNotes.map(note => s"- $note").mkString("\n")
-        val chronicleRows =
-          if chronicle.representatives.isEmpty then "- none"
-          else
-            chronicle.representatives.map { row =>
-              s"- `${row.chronicleSampleId}` san=`${row.playedSan}` bucket=`${row.bucket}` lane=`${row.lane}` applied=`${row.quietSupportApplied}` ownerDivergence=`${row.ownerDivergence}` questionDivergence=`${row.questionDivergence}` crossSurfaceOwnerDivergence=`${row.crossSurfaceOwnerDivergence}` contamination=`${row.blockedLaneContamination}` leakage=`${row.strongerVerbLeakageTerms.mkString(",")}` before=`${row.beforeNarrative.getOrElse("")}` after=`${row.afterNarrative.getOrElse("")}` candidate=`${row.quietSupportCandidateText.getOrElse("")}`"
-            }.mkString("\n")
-        List(
-          "",
-          "## Chronicle mirror",
-          "",
-          s"- before chronicle source: `${chronicle.beforeSource}`",
-          s"- after chronicle source: `${chronicle.afterSource}`",
-          s"- selected quiet rows: `${chronicle.selectedQuietRowCount}`",
-          s"- blocked rows: `${chronicle.blockedRowCount}`",
-          s"- quiet-support applied rows: `${chronicle.quietSupportAppliedCount}`",
-          s"- owner divergence rows: `${chronicle.ownerDivergenceCount}`",
-          s"- question divergence rows: `${chronicle.questionDivergenceCount}`",
-          s"- stronger-verb leakage rows: `${chronicle.strongerVerbLeakageCount}`",
-          s"- blocked-lane contamination rows: `${chronicle.blockedLaneContaminationCount}`",
-          s"- cross-surface owner divergence rows: `${chronicle.crossSurfaceOwnerDivergenceCount}`",
-          "",
-          "Representative Chronicle rows:",
-          "",
-          chronicleRows,
-          "",
-          "Chronicle acceptance notes:",
-          "",
-          chronicleNotes
-        ).mkString("\n")
-      }.getOrElse("")
 
     List(
         "# Quiet-Support Baseline",
@@ -1929,8 +1658,7 @@ object CommentaryQualityQuietSupport:
       "",
       "## Acceptance notes",
       "",
-      notes,
-      chronicleSection
+      notes
     ).mkString("\n")
 
   def renderQuietSupportSummaryMarkdown(
@@ -2298,49 +2026,7 @@ object CommentaryQualityQuietSupport:
     val addedTokens = tokenize(afterText).filterNot(beforeTokens.contains)
     EligibilityProfile.ForbiddenVerbStems.filter(stem => addedTokens.exists(_.startsWith(stem)))
 
-  private def chronicleSampleIdFor(
-      moveReviewSampleId: String
-  ): String =
-    if moveReviewSampleId.endsWith(":moveReview") then
-      moveReviewSampleId.stripSuffix(":moveReview") + ":chronicle"
-    else moveReviewSampleId
 
-  private def chronicleNarrativeText(
-      entry: ChronicleActivePlannerSliceRunner.SliceSurfaceEntry
-  ): Option[String] =
-    entry.chronicleReplayNarrative
-      .orElse(entry.chronicleNarrative)
-      .flatMap(text => Option(normalize(text)).filter(_.nonEmpty))
-
-  private def chronicleReplayQuestion(
-      entry: ChronicleActivePlannerSliceRunner.SliceSurfaceEntry
-  ): Option[String] =
-    entry.chronicleReplayPrimaryKind.orElse(entry.chroniclePrimaryKind)
-
-  private def chronicleReplayProofFamily(
-      entry: ChronicleActivePlannerSliceRunner.SliceSurfaceEntry
-  ): Option[String] =
-    entry.chronicleReplaySelectedOwnerKind.orElse(entry.chronicleSelectedOwnerKind)
-
-  private def chronicleReplayProofSource(
-      entry: ChronicleActivePlannerSliceRunner.SliceSurfaceEntry
-  ): Option[String] =
-    entry.chronicleReplaySelectedSource.orElse(entry.chronicleSelectedSource)
-
-  private def chroniclePlannerQuestion(
-      entry: ChronicleActivePlannerSliceRunner.SliceSurfaceEntry
-  ): Option[String] =
-    entry.plannerSelectedQuestion.orElse(entry.chroniclePrimaryKind)
-
-  private def chroniclePlannerProofFamily(
-      entry: ChronicleActivePlannerSliceRunner.SliceSurfaceEntry
-  ): Option[String] =
-    entry.plannerSelectedOwnerKind.orElse(entry.chronicleSelectedOwnerKind)
-
-  private def chroniclePlannerProofSource(
-      entry: ChronicleActivePlannerSliceRunner.SliceSurfaceEntry
-  ): Option[String] =
-    entry.plannerSelectedSource.orElse(entry.chronicleSelectedSource)
 
   private def tokenize(
       raw: String

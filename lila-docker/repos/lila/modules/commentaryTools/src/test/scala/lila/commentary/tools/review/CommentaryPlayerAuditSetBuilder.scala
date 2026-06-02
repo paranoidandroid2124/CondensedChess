@@ -10,7 +10,6 @@ import scala.collection.mutable
 object CommentaryPlayerAuditSetBuilder:
 
   import CommentaryPlayerQcSupport.*
-  import lila.commentary.tools.realpgn.RealPgnNarrativeEvalRunner.*
 
   private val DefaultShardRunDirs = List(
     ExternalRoot.resolve("manifests").resolve("active_parity_closure_runs_v2").resolve("edge_case_000"),

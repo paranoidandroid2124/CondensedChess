@@ -7,7 +7,7 @@ import play.api.libs.json.{ Format, JsNull, JsObject, JsValue, Json, Writes }
 import lila.commentary.*
 import lila.commentary.analysis.DecisiveTruthContract
 import lila.commentary.model.authoring.{ AuthorQuestion, QuestionEvidence }
-import lila.commentary.tools.review.{ ChronicleActivePlannerSliceRunner, CommentaryPlayerQcSupport }
+import lila.commentary.tools.review.CommentaryPlayerQcSupport
 
 object CommentaryQualitySupport:
 
@@ -316,27 +316,6 @@ object CommentaryQualitySupport:
       snapshot: CommentaryPlayerQcSupport.SliceSnapshot
   ): SurfaceDigestHashes =
     sharedReplayDigests(snapshot)
-
-  def chronicleReplayDigests(
-      snapshot: CommentaryPlayerQcSupport.SliceSnapshot
-  ): SurfaceDigestHashes =
-    sharedReplayDigests(snapshot)
-
-  def activeReplayDigests(
-      snapshot: CommentaryPlayerQcSupport.SliceSnapshot,
-      routeRefs: List[ActiveStrategicRouteRef],
-      moveRefs: List[ActiveStrategicMoveRef],
-      dossier: Option[ActiveBranchDossier]
-  ): SurfaceDigestHashes =
-    sharedReplayDigests(
-      snapshot,
-      Json.obj(
-        "routeRefs" -> routeRefs.map(routeRefJson),
-        "moveRefs" -> moveRefs.map(moveRefJson),
-        "dossier" -> dossier.map(activeDossierJson).getOrElse(JsNull)
-      )
-    )
-
   private def sharedReplayDigests(
       snapshot: CommentaryPlayerQcSupport.SliceSnapshot,
       augmentationJson: JsValue = JsNull
@@ -362,55 +341,6 @@ object CommentaryQualitySupport:
         "endgameTransitionClaim" -> snapshot.signalDigest.flatMap(_.endgameTransitionClaim)
       )
     digestSet(snapshotJson, carryJson, augmentationJson)
-
-  def chronicleDigests(
-      moment: GameChronicleMoment
-  ): SurfaceDigestHashes =
-    val snapshotJson =
-      Json.obj(
-        "fen" -> moment.fen,
-        "ply" -> moment.ply,
-        "moveClassification" -> moment.moveClassification,
-        "momentType" -> moment.momentType,
-        "selectionKind" -> moment.selectionKind,
-        "selectionReason" -> moment.selectionReason,
-        "signalDigest" -> jsonOrNull(moment.signalDigest),
-        "strategyPack" -> jsonOrNull(moment.strategyPack),
-        "transitionType" -> moment.transitionType,
-        "transitionConfidence" -> moment.transitionConfidence,
-        "strategicBranch" -> moment.strategicBranch,
-        "activeStrategicSourceMode" -> moment.activeStrategicSourceMode
-      )
-    val carryJson =
-      Json.obj(
-        "authorQuestions" -> moment.authorQuestions.map(authorQuestionSummaryJson),
-        "authorEvidence" -> moment.authorEvidence.map(authorEvidenceSummaryJson),
-        "mainStrategicPlans" -> moment.mainStrategicPlans.map(planHypothesisJson),
-        "strategicThread" -> moment.strategicThread.map(thread => Json.obj("threadId" -> thread.threadId, "themeKey" -> thread.themeKey))
-      )
-    digestSet(snapshotJson, carryJson, JsNull)
-
-  def activeDigests(
-      moment: GameChronicleMoment,
-      routeRefs: List[ActiveStrategicRouteRef],
-      moveRefs: List[ActiveStrategicMoveRef],
-      dossier: Option[ActiveBranchDossier]
-  ): SurfaceDigestHashes =
-    val shared = chronicleDigests(moment)
-    val augmentationJson =
-      Json.obj(
-        "routeRefs" -> routeRefs.map(routeRefJson),
-        "moveRefs" -> moveRefs.map(moveRefJson),
-        "dossier" -> dossier.map(activeDossierJson).getOrElse(JsNull)
-      )
-    digestSet(
-      snapshotJson = Json.obj("snapshotDigestHash" -> shared.snapshotDigestHash),
-      carryJson = Json.obj("carryDigestHash" -> shared.carryDigestHash),
-      augmentationJson = augmentationJson,
-      preserveSnapshot = shared.snapshotDigestHash,
-      preserveCarry = shared.carryDigestHash
-    )
-
   def moveReviewParitySnapshot(
       entry: CommentaryPlayerQcSupport.MoveReviewOutputEntry
   ): SurfaceParitySnapshot =
@@ -434,71 +364,7 @@ object CommentaryQualitySupport:
         )
     )
 
-  def chronicleParitySnapshot(
-      entry: ChronicleActivePlannerSliceRunner.SliceSurfaceEntry
-  ): SurfaceParitySnapshot =
-    SurfaceParitySnapshot(
-      sampleId = entry.sampleId,
-      gameKey = entry.gameKey,
-      surface = SurfaceName.Chronicle,
-      sliceKind = entry.sliceKind,
-      targetPly = entry.targetPly,
-      playedSan = entry.playedSan,
-      selectedQuestion =
-        entry.chronicleReplayPrimaryKind
-          .orElse(entry.plannerSelectedQuestion)
-          .orElse(entry.chroniclePrimaryKind),
-      selectedOwnerKind =
-        entry.chronicleReplaySelectedOwnerKind
-          .orElse(entry.chronicleSelectedOwnerKind),
-      selectedSource =
-        entry.chronicleReplaySelectedSource
-          .orElse(entry.chronicleSelectedSource),
-      replayOutcome =
-        entry.chronicleSurfaceReplayOutcome
-          .orElse(Some(entry.chronicleReplayMode))
-          .orElse(Some(entry.chronicleMode)),
-      digests =
-        SurfaceDigestHashes(
-          snapshotDigestHash = entry.chronicleSnapshotDigestHash,
-          carryDigestHash = entry.chronicleCarryDigestHash,
-          augmentationDigestHash = entry.chronicleAugmentationDigestHash,
-          bundleDigestHash = entry.chronicleBundleDigestHash
-        )
-    )
 
-  def activeParitySnapshot(
-      entry: ChronicleActivePlannerSliceRunner.SliceSurfaceEntry
-  ): SurfaceParitySnapshot =
-    SurfaceParitySnapshot(
-      sampleId = entry.sampleId,
-      gameKey = entry.gameKey,
-      surface = SurfaceName.Active,
-      sliceKind = entry.sliceKind,
-      targetPly = entry.targetPly,
-      playedSan = entry.playedSan,
-      selectedQuestion =
-        entry.activeReplayPrimaryKind
-          .orElse(entry.plannerSelectedQuestion)
-          .orElse(entry.activePrimaryKind),
-      selectedOwnerKind =
-        entry.activeReplaySelectedOwnerKind
-          .orElse(entry.activeSelectedOwnerKind),
-      selectedSource =
-        entry.activeReplaySelectedSource
-          .orElse(entry.activeSelectedSource),
-      replayOutcome =
-        entry.activeSurfaceReplayOutcome
-          .orElse(Some(entry.activeReplayMode))
-          .orElse(Some(entry.activeMode)),
-      digests =
-        SurfaceDigestHashes(
-          snapshotDigestHash = entry.activeSnapshotDigestHash,
-          carryDigestHash = entry.activeCarryDigestHash,
-          augmentationDigestHash = entry.activeAugmentationDigestHash,
-          bundleDigestHash = entry.activeBundleDigestHash
-        )
-    )
 
   def buildSamePlyParityReport(
       surfaces: List[SurfaceParitySnapshot]
@@ -761,12 +627,9 @@ object CommentaryQualitySupport:
     (List(before, after), List(summary))
 
   def buildRealEvaluationSeedSlice(
-      moveReviewEntries: List[CommentaryPlayerQcSupport.MoveReviewOutputEntry],
-      parityReport: SamePlyParityReport
+      moveReviewEntries: List[CommentaryPlayerQcSupport.MoveReviewOutputEntry]
   ): Either[String, (List[CommentaryQualityEvalRecord], List[CommentaryQualityEvalSummary])] =
     val moveReviewBySampleId = moveReviewEntries.map(entry => entry.sampleId -> entry).toMap
-    val taxonomyByParityKey =
-      parityReport.rows.map(row => s"${row.gameKey}:${row.targetPly}:${row.sliceKind}" -> row.primaryTaxonomy).toMap
     val missing = realEvalSeedSpecs.filterNot(spec => moveReviewBySampleId.contains(spec.sampleId)).map(_.sampleId)
 
     if missing.nonEmpty then Left(s"missing moveReview seed rows: ${missing.mkString(", ")}")
@@ -774,7 +637,7 @@ object CommentaryQualitySupport:
       val resolved =
         realEvalSeedSpecs.map { spec =>
           val entry = moveReviewBySampleId(spec.sampleId)
-          val taxonomy = taxonomyByParityKey.get(s"${entry.gameKey}:${entry.targetPly}:${entry.sliceKind}")
+          val taxonomy = None
           val before =
             makeEvaluationRecord(
               comparisonKey = spec.comparisonKey,
@@ -815,141 +678,11 @@ object CommentaryQualitySupport:
         }
       Right(resolved.flatMap(pair => List(pair._1, pair._2)) -> resolved.map(buildComparisonSummary))
 
-  def buildSurfaceThresholdReport(
-      moveReviewEntries: List[CommentaryPlayerQcSupport.MoveReviewOutputEntry],
-      surfaceEntries: List[ChronicleActivePlannerSliceRunner.SliceSurfaceEntry],
-      parityReport: SamePlyParityReport
-  ): SurfaceThresholdReport =
-    val parityByKey =
-      parityReport.rows.map(row => parityKey(row.gameKey, row.targetPly, row.sliceKind) -> row).toMap
-    val chronicleByKey =
-      surfaceEntries.map(entry => parityKey(entry.gameKey, entry.targetPly, entry.sliceKind) -> entry).toMap
-
-    val moveReviewRows =
-      moveReviewEntries.flatMap { entry =>
-        chronicleByKey.get(parityKey(entry.gameKey, entry.targetPly, entry.sliceKind)).map { surfaceEntry =>
-          buildMoveReviewThresholdRow(entry, surfaceEntry, parityByKey.get(parityKey(entry.gameKey, entry.targetPly, entry.sliceKind)))
-        }
-      }
-    val surfaceRows =
-      surfaceEntries.flatMap { entry =>
-        val parityRow = parityByKey.get(parityKey(entry.gameKey, entry.targetPly, entry.sliceKind))
-        List(
-          buildChronicleThresholdRow(entry, parityRow),
-          buildActiveThresholdRow(entry, parityRow)
-        )
-      }
-    val rows = (moveReviewRows ++ surfaceRows).sortBy(row => (row.sampleId, row.surface))
-    val rowsByParityKey = rows.groupBy(row => parityKey(row.gameKey, row.targetPly, row.sliceKind))
-    val surfaceSummaries =
-      rows
-        .groupBy(_.surface)
-        .view
-        .mapValues { grouped =>
-          SurfaceThresholdSurfaceSummary(
-            totalRows = grouped.size,
-            keepCount = grouped.count(_.selection.thresholdVerdict == EvalVerdict.Keep),
-            reviewCount = grouped.count(_.selection.thresholdVerdict == EvalVerdict.Review),
-            gateFailCount = grouped.count(row => !row.selection.moveAttributionGatePassed),
-            usefulnessBlockedCount = grouped.count(_.selection.usefulnessRewardBlocked),
-            disagreementCount =
-              grouped.count(row => !row.plannerQuestionAligned || !row.plannerOwnerAligned),
-            blankLikeCount = grouped.count(_.blankLike),
-            plannerOwnedLikeCount =
-              grouped.count(row => isPlannerOwnedLike(row.surfaceOutcome)),
-            fallbackLikeCount =
-              grouped.count(row => isFallbackLike(row.surfaceOutcome))
-          )
-        }
-        .toMap
-    val crossSurfaceVerdictDisagreementCount =
-      rowsByParityKey.count { case (_, grouped) =>
-        grouped.filter(row => row.surface == SurfaceName.Chronicle || row.surface == SurfaceName.Active)
-          .map(_.selection.thresholdVerdict)
-          .distinct
-          .size > 1
-      }
-    val crossSurfaceGateDisagreementCount =
-      rowsByParityKey.count { case (_, grouped) =>
-        grouped.filter(row => row.surface == SurfaceName.Chronicle || row.surface == SurfaceName.Active)
-          .map(_.selection.moveAttributionGatePassed)
-          .distinct
-          .size > 1
-      }
-
-    SurfaceThresholdReport(
-      summary =
-        SurfaceThresholdSummary(
-          totalRows = rows.size,
-          surfaceSummaries = surfaceSummaries,
-          crossSurfaceVerdictDisagreementCount = crossSurfaceVerdictDisagreementCount,
-          crossSurfaceGateDisagreementCount = crossSurfaceGateDisagreementCount,
-          crossSurfaceQuestionDisagreementCount = rows.count(_.crossSurfaceQuestionDisagreement),
-          crossSurfaceOwnerDisagreementCount = rows.count(_.crossSurfaceOwnerDisagreement)
-        ),
-      rows = rows
-    )
-
-  def renderSurfaceThresholdMarkdown(
-      report: SurfaceThresholdReport
-  ): String =
-    val renderedSummaries =
-      if report.summary.surfaceSummaries.isEmpty then "- none"
-      else
-        report.summary.surfaceSummaries.toList.sortBy(_._1).map { case (surface, summary) =>
-          s"- `$surface` total=`${summary.totalRows}` keep=`${summary.keepCount}` review=`${summary.reviewCount}` gateFail=`${summary.gateFailCount}` usefulnessBlocked=`${summary.usefulnessBlockedCount}` disagreement=`${summary.disagreementCount}` blankLike=`${summary.blankLikeCount}`"
-        }.mkString("\n")
-    val renderedRows =
-      if report.rows.isEmpty then "- none"
-      else
-        report.rows.take(24).map { row =>
-          s"- `${row.sampleId}` surface=`${row.surface}` outcome=`${row.surfaceOutcome}` verdict=`${row.selection.thresholdVerdict}` selector=`${row.selection.selectorScore}` gate=`${row.selection.moveAttributionGatePassed}` usefulnessBlocked=`${row.selection.usefulnessRewardBlocked}` plannerAligned=`${row.plannerQuestionAligned && row.plannerOwnerAligned}` upstream=`${row.upstreamTaxonomy.getOrElse("aligned")}`"
-        }.mkString("\n")
-
-    s"""# Commentary Quality Surface Threshold Report
-       |
-       |- Schema version: `${EvalSchema.SurfaceThresholdVersion}`
-       |- Summary version: `${EvalSchema.SurfaceThresholdSummaryVersion}`
-       |- Cross-surface verdict disagreement: `${report.summary.crossSurfaceVerdictDisagreementCount}`
-       |- Cross-surface gate disagreement: `${report.summary.crossSurfaceGateDisagreementCount}`
-       |- Cross-surface question disagreement: `${report.summary.crossSurfaceQuestionDisagreementCount}`
-       |- Cross-surface owner disagreement: `${report.summary.crossSurfaceOwnerDisagreementCount}`
-       |
-       |## Surface summaries
-       |
-       |$renderedSummaries
-       |
-       |## Representative rows
-       |
-       |$renderedRows
-       |""".stripMargin
-
-  def buildMoveReviewThresholdRows(
-      moveReviewEntries: List[CommentaryPlayerQcSupport.MoveReviewOutputEntry],
-      surfaceEntries: List[ChronicleActivePlannerSliceRunner.SliceSurfaceEntry],
-      parityReport: SamePlyParityReport
-  ): List[SurfaceThresholdRow] =
-    val parityByKey =
-      parityReport.rows.map(row => parityKey(row.gameKey, row.targetPly, row.sliceKind) -> row).toMap
-    val surfaceByKey =
-      surfaceEntries.map(entry => parityKey(entry.gameKey, entry.targetPly, entry.sliceKind) -> entry).toMap
-    moveReviewEntries.flatMap { entry =>
-      surfaceByKey.get(parityKey(entry.gameKey, entry.targetPly, entry.sliceKind)).map { surfaceEntry =>
-        buildMoveReviewThresholdRow(
-          entry,
-          surfaceEntry,
-          parityByKey.get(parityKey(entry.gameKey, entry.targetPly, entry.sliceKind))
-        )
-      }
-    }
-
-  private def buildMoveReviewThresholdRow(
-      entry: CommentaryPlayerQcSupport.MoveReviewOutputEntry,
-      surfaceEntry: ChronicleActivePlannerSliceRunner.SliceSurfaceEntry,
-      parityRow: Option[SamePlyParityRow]
+  def buildMoveReviewThresholdRow(
+      entry: CommentaryPlayerQcSupport.MoveReviewOutputEntry
   ): SurfaceThresholdRow =
     val candidateText = normalizeText(entry.commentary)
-    val upstreamAllowanceTag = rowSurfaceOnlyAllowanceTag(parityRow)
+    val upstreamAllowanceTag = None
     val questionAligned = alignedOption(entry.plannerSelectedQuestion, entry.plannerSelectedQuestion)
     val ownerAligned =
       alignedOption(entry.plannerSelectedOwnerKind, entry.plannerSelectedOwnerKind) &&
@@ -982,13 +715,13 @@ object CommentaryQualitySupport:
       surfaceQuestion = entry.plannerSelectedQuestion,
       surfaceProofFamily = entry.plannerSelectedOwnerKind,
       surfaceProofSource = entry.plannerSelectedSource,
-      upstreamTaxonomy = parityRow.map(_.primaryTaxonomy),
-      upstreamAllowedByDesign = rowAllowedByDesign(parityRow),
+      upstreamTaxonomy = None,
+      upstreamAllowedByDesign = true,
       upstreamAllowanceTag = upstreamAllowanceTag,
       plannerQuestionAligned = questionAligned,
       plannerOwnerAligned = ownerAligned,
-      crossSurfaceQuestionDisagreement = crossSurfaceQuestionDisagreement(surfaceEntry),
-      crossSurfaceOwnerDisagreement = crossSurfaceOwnerDisagreement(surfaceEntry),
+      crossSurfaceQuestionDisagreement = false,
+      crossSurfaceOwnerDisagreement = false,
       blankLike = blankLikeText(candidateText),
       rubric = rubric,
       selection = evaluateSelection(rubric),
@@ -1001,140 +734,6 @@ object CommentaryQualitySupport:
         List(
           Option.when(entry.moveReviewFallbackMode == "exact_factual")("fallback_like"),
           Option.when(blankLikeText(candidateText))("blank_like")
-        ).flatten
-    )
-
-  private def buildChronicleThresholdRow(
-      entry: ChronicleActivePlannerSliceRunner.SliceSurfaceEntry,
-      parityRow: Option[SamePlyParityRow]
-  ): SurfaceThresholdRow =
-    val candidateText = normalizeText(entry.chronicleReplayNarrative.orElse(entry.chronicleNarrative).getOrElse(""))
-    val surfaceQuestion = entry.chronicleReplayPrimaryKind.orElse(entry.chroniclePrimaryKind)
-    val surfaceProofFamily =
-      entry.chronicleReplaySelectedOwnerKind.orElse(entry.chronicleSelectedOwnerKind)
-    val surfaceProofSource =
-      entry.chronicleReplaySelectedSource.orElse(entry.chronicleSelectedSource)
-    val outcome =
-      entry.chronicleSurfaceReplayOutcome
-        .orElse(Some(entry.chronicleReplayMode))
-        .orElse(Some(entry.chronicleMode))
-        .getOrElse("omitted")
-    val rubric =
-      thresholdRubric(
-        candidateText = candidateText,
-        blankLike = entry.chronicleReplayBlankLike || blankLikeText(candidateText),
-        plannerQuestion = entry.plannerSelectedQuestion,
-        plannerProofFamily = entry.plannerSelectedOwnerKind,
-        plannerProofSource = entry.plannerSelectedSource,
-        surfaceQuestion = surfaceQuestion,
-        surfaceProofFamily = surfaceProofFamily,
-        surfaceProofSource = surfaceProofSource,
-        surfaceOutcome = outcome,
-        exactFactual = outcome == "factual_fallback"
-      )
-    SurfaceThresholdRow(
-      sampleId = entry.sampleId,
-      gameKey = entry.gameKey,
-      surface = SurfaceName.Chronicle,
-      sliceKind = entry.sliceKind,
-      targetPly = entry.targetPly,
-      playedSan = entry.playedSan,
-      candidateText = candidateText,
-      surfaceOutcome = outcome,
-      plannerQuestion = entry.plannerSelectedQuestion,
-      plannerProofFamily = entry.plannerSelectedOwnerKind,
-      plannerProofSource = entry.plannerSelectedSource,
-      surfaceQuestion = surfaceQuestion,
-      surfaceProofFamily = surfaceProofFamily,
-      surfaceProofSource = surfaceProofSource,
-      upstreamTaxonomy = parityRow.map(_.primaryTaxonomy),
-      upstreamAllowedByDesign = rowAllowedByDesign(parityRow),
-      upstreamAllowanceTag = rowSurfaceOnlyAllowanceTag(parityRow),
-      plannerQuestionAligned = alignedOption(entry.plannerSelectedQuestion, surfaceQuestion),
-      plannerOwnerAligned =
-        alignedOption(entry.plannerSelectedOwnerKind, surfaceProofFamily) &&
-          alignedOption(entry.plannerSelectedSource, surfaceProofSource),
-      crossSurfaceQuestionDisagreement = crossSurfaceQuestionDisagreement(entry),
-      crossSurfaceOwnerDisagreement = crossSurfaceOwnerDisagreement(entry),
-      blankLike = entry.chronicleReplayBlankLike || blankLikeText(candidateText),
-      rubric = rubric,
-      selection = evaluateSelection(rubric),
-      evidenceNotes =
-        List(
-          Option.when(outcome == "planner_owned")("planner_owned_surface"),
-          Option.when(outcome == "factual_fallback")("factual_fallback_surface")
-        ).flatten,
-      flags =
-        List(
-          Option.when(outcome == "factual_fallback")("fallback_like"),
-          Option.when(entry.chronicleReplayBlankLike || blankLikeText(candidateText))("blank_like")
-        ).flatten
-    )
-
-  private def buildActiveThresholdRow(
-      entry: ChronicleActivePlannerSliceRunner.SliceSurfaceEntry,
-      parityRow: Option[SamePlyParityRow]
-  ): SurfaceThresholdRow =
-    val candidateText =
-      normalizeText(entry.activeReplayNote.orElse(entry.activeNote).getOrElse(""))
-    val surfaceQuestion = entry.activeReplayPrimaryKind.orElse(entry.activePrimaryKind)
-    val surfaceProofFamily = entry.activeReplaySelectedOwnerKind.orElse(entry.activeSelectedOwnerKind)
-    val surfaceProofSource = entry.activeReplaySelectedSource.orElse(entry.activeSelectedSource)
-    val outcome =
-      entry.activeSurfaceReplayOutcome
-        .orElse(Some(entry.activeReplayMode))
-        .orElse(Some(entry.activeMode))
-        .getOrElse("omitted_no_primary")
-    val rubric =
-      thresholdRubric(
-        candidateText = candidateText,
-        blankLike = entry.activeReplayBlankLike || blankLikeText(candidateText),
-        plannerQuestion = entry.plannerSelectedQuestion,
-        plannerProofFamily = entry.plannerSelectedOwnerKind,
-        plannerProofSource = entry.plannerSelectedSource,
-        surfaceQuestion = surfaceQuestion,
-        surfaceProofFamily = surfaceProofFamily,
-        surfaceProofSource = surfaceProofSource,
-        surfaceOutcome = outcome,
-        exactFactual = false
-      )
-    SurfaceThresholdRow(
-      sampleId = entry.sampleId.replace(":chronicle", ":active"),
-      gameKey = entry.gameKey,
-      surface = SurfaceName.Active,
-      sliceKind = entry.sliceKind,
-      targetPly = entry.targetPly,
-      playedSan = entry.playedSan,
-      candidateText = candidateText,
-      surfaceOutcome = outcome,
-      plannerQuestion = entry.plannerSelectedQuestion,
-      plannerProofFamily = entry.plannerSelectedOwnerKind,
-      plannerProofSource = entry.plannerSelectedSource,
-      surfaceQuestion = surfaceQuestion,
-      surfaceProofFamily = surfaceProofFamily,
-      surfaceProofSource = surfaceProofSource,
-      upstreamTaxonomy = parityRow.map(_.primaryTaxonomy),
-      upstreamAllowedByDesign = rowAllowedByDesign(parityRow),
-      upstreamAllowanceTag = rowSurfaceOnlyAllowanceTag(parityRow),
-      plannerQuestionAligned = alignedOption(entry.plannerSelectedQuestion, surfaceQuestion),
-      plannerOwnerAligned =
-        alignedOption(entry.plannerSelectedOwnerKind, surfaceProofFamily) &&
-          alignedOption(entry.plannerSelectedSource, surfaceProofSource),
-      crossSurfaceQuestionDisagreement = crossSurfaceQuestionDisagreement(entry),
-      crossSurfaceOwnerDisagreement = crossSurfaceOwnerDisagreement(entry),
-      blankLike = entry.activeReplayBlankLike || blankLikeText(candidateText),
-      rubric = rubric,
-      selection = evaluateSelection(rubric),
-      evidenceNotes =
-        List(
-          Option.when(outcome == "attached")("attached_surface"),
-          Option.when(outcome == "omitted_after_primary")("omitted_after_primary"),
-          Option.when(outcome == "omitted_no_primary")("omitted_no_primary")
-        ).flatten,
-      flags =
-        List(
-          Option.when(outcome != "attached")("fallback_like"),
-          Option.when(entry.activeReplayBlankLike || blankLikeText(candidateText))("blank_like")
         ).flatten
     )
 
@@ -1224,19 +823,7 @@ object CommentaryQualitySupport:
   def parityKey(gameKey: String, ply: Int, sliceKind: String): String =
     s"$gameKey:$ply:$sliceKind"
 
-  private def crossSurfaceQuestionDisagreement(
-      entry: ChronicleActivePlannerSliceRunner.SliceSurfaceEntry
-  ): Boolean =
-    entry.chronicleReplayPrimaryKind.orElse(entry.chroniclePrimaryKind) !=
-      entry.activeReplayPrimaryKind.orElse(entry.activePrimaryKind)
 
-  private def crossSurfaceOwnerDisagreement(
-      entry: ChronicleActivePlannerSliceRunner.SliceSurfaceEntry
-  ): Boolean =
-    entry.chronicleReplaySelectedOwnerKind.orElse(entry.chronicleSelectedOwnerKind) !=
-      entry.activeReplaySelectedOwnerKind.orElse(entry.activeSelectedOwnerKind) ||
-      entry.chronicleReplaySelectedSource.orElse(entry.chronicleSelectedSource) !=
-        entry.activeReplaySelectedSource.orElse(entry.activeSelectedSource)
 
   private def alignedOption(left: Option[String], right: Option[String]): Boolean =
     (left, right) match
@@ -1736,30 +1323,6 @@ object CommentaryQualitySupport:
       "branches" -> evidence.branches.map(branch => Json.obj("keyMove" -> branch.keyMove, "line" -> branch.line))
     )
 
-  private def authorQuestionSummaryJson(
-      question: AuthorQuestionSummary
-  ): JsObject =
-    Json.obj(
-      "id" -> question.id,
-      "kind" -> question.kind,
-      "priority" -> question.priority,
-      "question" -> question.question,
-      "anchors" -> question.anchors,
-      "confidence" -> question.confidence
-    )
-
-  private def authorEvidenceSummaryJson(
-      evidence: AuthorEvidenceSummary
-  ): JsObject =
-    Json.obj(
-      "questionId" -> evidence.questionId,
-      "questionKind" -> evidence.questionKind,
-      "status" -> evidence.status,
-      "purposes" -> evidence.purposes,
-      "branchCount" -> evidence.branchCount,
-      "linkedPlans" -> evidence.linkedPlans
-    )
-
   private def planHypothesisJson(
       plan: lila.commentary.model.authoring.PlanHypothesis
   ): JsObject =
@@ -1768,49 +1331,6 @@ object CommentaryQualitySupport:
       "planName" -> plan.planName,
       "rank" -> plan.rank,
       "score" -> plan.score
-    )
-
-  private def routeRefJson(
-      route: ActiveStrategicRouteRef
-  ): JsObject =
-    Json.obj(
-      "routeId" -> route.routeId,
-      "ownerSide" -> route.ownerSide,
-      "piece" -> route.piece,
-      "route" -> route.route,
-      "purpose" -> route.purpose,
-      "surfaceMode" -> route.surfaceMode
-    )
-
-  private def moveRefJson(
-      moveRef: ActiveStrategicMoveRef
-  ): JsObject =
-    Json.obj(
-      "label" -> moveRef.label,
-      "source" -> moveRef.source,
-      "uci" -> moveRef.uci,
-      "san" -> moveRef.san
-    )
-
-  private def activeDossierJson(
-      dossier: ActiveBranchDossier
-  ): JsObject =
-    Json.obj(
-      "dominantLens" -> dossier.dominantLens,
-      "threadLabel" -> dossier.threadLabel,
-      "threadStage" -> dossier.threadStage,
-      "chosenBranchLabel" -> dossier.chosenBranchLabel,
-      "engineBranchLabel" -> dossier.engineBranchLabel,
-      "deferredBranchLabel" -> dossier.deferredBranchLabel,
-      "whyChosen" -> dossier.whyChosen,
-      "whyDeferred" -> dossier.whyDeferred,
-      "opponentResource" -> dossier.opponentResource,
-      "evidenceCue" -> dossier.evidenceCue,
-      "continuationFocus" -> dossier.continuationFocus,
-      "practicalRisk" -> dossier.practicalRisk,
-      "comparisonGapCp" -> dossier.comparisonGapCp,
-      "routeCue" -> jsonOrNull(dossier.routeCue),
-      "moveCue" -> jsonOrNull(dossier.moveCue)
     )
 
   private def renderCountMap(

@@ -21,6 +21,7 @@ object MoveReviewCorpusRunner:
       manifestPath: Path = DefaultManifestDir.resolve("slice_manifest.jsonl"),
       outPath: Path = DefaultMoveReviewRunDir.resolve("move_review_outputs.jsonl"),
       rawDir: Path = DefaultMoveReviewRunDir.resolve("raw"),
+      catalogPath: Path = DefaultCatalogDir.resolve("catalog.jsonl"),
       depth: Int = 10,
       multiPv: Int = 3,
       enginePath: Path
@@ -43,6 +44,21 @@ object MoveReviewCorpusRunner:
       sys.exit(1)
 
     ensureDir(config.rawDir)
+    val manifestCatalog = entries.map(loadCatalogEntry).distinctBy(_.gameKey)
+    val externalCatalog =
+      readJsonLines[CatalogEntry](config.catalogPath) match
+        case Right(value) if value.nonEmpty =>
+          println(s"[move-review-corpus] loaded opening catalog `${config.catalogPath}` (games=${value.size})")
+          value
+        case Right(_) =>
+          println(s"[move-review-corpus] opening catalog `${config.catalogPath}` is empty; using manifest PGNs only")
+          Nil
+        case Left(err) =>
+          println(s"[move-review-corpus] opening catalog unavailable `${config.catalogPath}`: $err; using manifest PGNs only")
+          Nil
+    val openingCatalog = (manifestCatalog ++ externalCatalog).distinctBy(_.gameKey)
+    val openingIndex = buildOpeningIndex(openingCatalog)
+    val catalogByGameKey = openingCatalog.map(entry => entry.gameKey -> entry).toMap
     val engine = new LocalUciEngine(config.enginePath, timeoutMs = 30000L)
     val ws = new StandaloneAhcWSClient(new DefaultAsyncHttpClient())
     val api =
@@ -58,7 +74,12 @@ object MoveReviewCorpusRunner:
     try
       val outputs =
         entries.map { entry =>
-          val catalogEntry = loadCatalogEntry(entry)
+          val catalogEntry = catalogByGameKey.getOrElse(entry.gameKey, loadCatalogEntry(entry))
+          val openingReference = corpusBackedOpeningReference(catalogEntry, openingIndex, maxSampleGames = 5)
+          val openingReferenceSampleGameIds =
+            openingReference.toList.flatMap(_.sampleGames.map(_.id))
+          val openingReferencePeerSampleIds =
+            openingReferenceSampleGameIds.filterNot(_ == catalogEntry.gameKey)
           val pgn = Files.readString(Paths.get(entry.pgnPath))
           val plyData = PgnAnalysisHelper.extractPlyDataStrict(pgn) match
             case Right(value) =>
@@ -75,11 +96,11 @@ object MoveReviewCorpusRunner:
           val afterVars = engine.analyze(afterFen, config.depth, config.multiPv)
           val afterBest = afterVars.headOption
           val analyzedPly =
-            analyzePly(
-              catalogEntry,
-              plyData,
-              beforeVars,
-              afterBest.map(best =>
+            analyzePlyWithOpeningRef(
+              entry = catalogEntry,
+              plyData = plyData,
+              beforeVariations = beforeVars,
+              afterEval = afterBest.map(best =>
                 MoveEval(
                   ply = entry.targetPly,
                   cp = best.scoreCp,
@@ -87,7 +108,8 @@ object MoveReviewCorpusRunner:
                   pv = best.moves,
                   variations = afterVars
                 )
-              )
+              ),
+              openingRef = openingReference
             )
           val runtimeTrace = analyzedPly.map(moveReviewPlannerRuntime)
           val plannerTrace = runtimeTrace.map(_.planner).getOrElse(MoveReviewPlannerTrace())
@@ -105,7 +127,7 @@ object MoveReviewCorpusRunner:
                 eval = beforeVars.headOption.map(v => EvalData(cp = v.scoreCp, mate = v.mate, pv = Some(v.moves))),
                 variations = Some(beforeVars),
                 probeResults = None,
-                openingData = minimalOpeningReference(catalogEntry),
+                openingData = openingReference,
                 afterFen = Some(afterFen),
                 afterEval = afterBest.map(v => EvalData(cp = v.scoreCp, mate = v.mate, pv = Some(v.moves))),
                 afterVariations = Some(afterVars),
@@ -135,6 +157,9 @@ object MoveReviewCorpusRunner:
             playedSan = entry.playedSan,
             playedUci = entry.playedUci,
             opening = entry.opening.orElse(catalogEntry.opening),
+            openingReferenceTotalGames = openingReference.map(_.totalGames),
+            openingReferenceSampleGameIds = openingReferenceSampleGameIds,
+            openingReferencePeerSampleIds = openingReferencePeerSampleIds,
             commentary = result.response.commentary,
             supportRows = supportRows,
             advancedRows = advancedRows,
@@ -211,6 +236,7 @@ object MoveReviewCorpusRunner:
   private def loadCatalogEntry(entry: SliceManifestEntry): CatalogEntry =
     val pgn = Files.readString(Paths.get(entry.pgnPath))
     val headers = parseHeaders(pgn)
+    val totalPlies = PgnAnalysisHelper.extractPlyDataStrict(pgn).toOption.map(_.size).getOrElse(0)
     CatalogEntry(
       gameKey = entry.gameKey,
       source = entry.pgnPath,
@@ -231,7 +257,8 @@ object MoveReviewCorpusRunner:
       round = headers.get("Round"),
       result = headers.get("Result"),
       timeControl = headers.get("TimeControl"),
-      variant = headers.getOrElse("Variant", entry.variant)
+      variant = headers.getOrElse("Variant", entry.variant),
+      totalPlies = totalPlies
     )
 
   private def parseConfig(args: List[String]): Config =
@@ -249,13 +276,14 @@ object MoveReviewCorpusRunner:
       manifestPath = positional.headOption.map(Paths.get(_)).getOrElse(DefaultManifestDir.resolve("slice_manifest.jsonl")),
       outPath = positional.lift(1).map(Paths.get(_)).getOrElse(DefaultMoveReviewRunDir.resolve("move_review_outputs.jsonl")),
       rawDir = positional.lift(2).map(Paths.get(_)).getOrElse(DefaultMoveReviewRunDir.resolve("raw")),
+      catalogPath = optionString(args, "--catalog").map(Paths.get(_)).getOrElse(DefaultCatalogDir.resolve("catalog.jsonl")),
       depth = optionInt(args, "--depth").getOrElse(10).max(8),
       multiPv = optionInt(args, "--multi-pv").orElse(optionInt(args, "--multiPv")).getOrElse(3).max(1),
       enginePath = enginePath
     )
 
   private def positionalArgs(args: List[String]): List[String] =
-    val optionsWithValue = Set("--engine", "--depth", "--multi-pv", "--multiPv")
+    val optionsWithValue = Set("--engine", "--catalog", "--depth", "--multi-pv", "--multiPv")
     val out = scala.collection.mutable.ListBuffer.empty[String]
     var idx = 0
     while idx < args.length do

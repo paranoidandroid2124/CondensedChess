@@ -13,16 +13,8 @@ import lila.commentary.model.structure.{ StructureId }
 
 private[evidence] object StrategicIdeaEvidenceSupport:
 
-  private enum ExperimentEvidenceTier:
-    case Refuted, Other
-
-  private def experimentTier(experiment: StrategicPlanExperiment): ExperimentEvidenceTier =
-    experiment.evidenceTier match
-      case "refuted" => ExperimentEvidenceTier.Refuted
-      case _         => ExperimentEvidenceTier.Other
-
   private def isPlayableExperiment(experiment: StrategicPlanExperiment): Boolean =
-    experimentTier(experiment) != ExperimentEvidenceTier.Refuted
+    experiment.evidenceTier != "refuted"
 
   def evidence(
       ownerSide: String,

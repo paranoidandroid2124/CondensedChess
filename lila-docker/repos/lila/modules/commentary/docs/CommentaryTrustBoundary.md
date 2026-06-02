@@ -8,19 +8,16 @@ It complements `CommentaryPipelineSSOT.md` and `CommentaryTruthBoundary.md`.
 
 ## Current State
 
-The live product trust boundary is MoveReview-only. Chronicle, Active, Game
-Arc, and whole-game replay are legacy diagnostic/tooling surfaces, not runtime
-trust infrastructure. Active bridge planning, Active thread selection,
-Active strategic-note composition, and Chronicle compression are confined to
-`modules/commentaryTools/src/test`; they must not supply MoveReview release
-authority unless a new runtime audit explicitly reopens that boundary.
-`GameChronicleResponse` and `GameChronicleMoment` are outside the runtime trust
-boundary. Any legacy replay tooling that still needs their data must convert to
-a compact, non-authority carrier before calling shared builders, and runtime
-trust/signoff code must not consume those Chronicle DTOs directly.
-Active-note DTO fields, active branch dossiers, strategic-thread lists, and
-`ActivePlanRef` tags are likewise test/tooling-only; runtime `GameArc` must not
-carry them as empty compatibility payloads.
+The live product trust boundary is MoveReview-only. Legacy Chronicle and Active-note
+components (including active bridge planning, thread selection, strategic-note composition,
+chronicle compression, and related test/tooling helpers) have been completely removed
+and cleaned up from the workspace.
+`GameChronicleResponse` and `GameChronicleMoment` are deleted and cannot be referenced or
+used in the workspace. Any legacy replay code must use non-authority carriers such as
+`DecisionFrameCarrierInput` and `DecisionFrameDossierInput` directly, and runtime trust/signoff
+code must not refer to chronicle DTOs.
+Active-note DTO fields, active branch dossiers, strategic-thread lists, and `ActivePlanRef` tags
+have been completely removed; runtime `GameArc` must not carry them.
 
 Current operating posture:
 
@@ -82,9 +79,9 @@ MoveReview plan payloads are retained only when `CommentaryApi` passes a
 matching typed `EvaluatedPlan` whose eligibility is main-admitted and whose
 evidence id set is non-empty: support probe ids for `ProbeBacked`, or
 transposition proof ids plus `transposition_aligned` provenance for
-`TranspositionAligned`. Cached/default sanitizer paths and chronicle moments
-have no typed admission carrier and therefore fail closed for
-`mainStrategicPlans` and their plan-experiment metadata.
+`TranspositionAligned`. Cached/default sanitizer paths have no typed admission
+carrier and therefore fail closed for `mainStrategicPlans` and their plan-experiment
+metadata.
 `StructuralOnly` and `PvCoupledOnly` evaluated plans may speak only through
 bounded practical-guidance rows on `moveReviewPlayerSurface`; they do not
 become selected main plans, `check_qualifying` inputs, retained plan metadata,
@@ -474,6 +471,16 @@ ECO, positive total-game count, and up to three SAN top moves from
 `OpeningReference`. It is allowed only on `opening_family` authority; sanitizer
 and frontend decoder drop it from other authority shapes and never expose raw
 explorer responses, sample games, source ids, or audit-cache provenance.
+`OpeningReference.sampleGames` may support internal opening-relation replay via
+`OpeningPrecedentBranching`, but that support is not public authority. Full PGN
+samples are reduced to SAN route tokens after tag-pair lines and game results
+are stripped; PGN headers, event labels, source ids, and catch-all macro-family
+keys such as `other` or `unknown` must not become precedent moves or peer-match
+authority. Planner-owned opening-relation replay additionally needs enough
+precedent (`totalGames >= 2` or at least two sample games) and either an
+explicit opening event or the early opening-data ply window. A self-only corpus
+fallback can remain diagnostic/support material, but it must not own an
+opening-relation claim.
 Static opening expansion is paused while the pool is provenance-cleaned.
 `OpeningPoolAudit` and `OpeningMasterDbAuditRunner` classify malformed PGN
 tails, normalized endpoint transposition duplicates, and optional masters
@@ -502,8 +509,12 @@ Opening-goal prose expansion is also bounded to the existing carrier. New
 tension release, Open Catalan `c4` pawn recovery, Sicilian `...c5` c-pawn
 challenge, and King's Gambit `f4` break may influence outline/explanation
 wording only after the post-move board pattern and engine score produce
-`openingGoalEvaluation`; they must not act as family admission, target
-authority, exact central-break timing authority, or truth-contract evidence.
+`openingGoalEvaluation`. A bare `OpeningReference` can keep that carrier open
+only inside the early opening-data window; later non-opening phases need an
+opening phase or explicit opening event, so stale opening labels do not
+reclassify middlegame/endgame moves as opening-goal prose. Opening goals must
+not act as family admission, target authority, exact central-break timing
+authority, or truth-contract evidence.
 
 Current strict rules:
 
@@ -649,7 +660,9 @@ Engine-only internal summaries may use only the legal prefix that already proves
 a concrete local consequence such as an exchange sequence, material transition,
 central pawn advance, or replayed checks. Stale tail moves are removed from the
 internal evidence and cannot carry mate/check proof; a legal prefix that is only
-preview text remains diagnostic-only.
+preview text remains diagnostic-only. Probe-request reminder prose such as
+`Further probe work still targets ...` is also not branch-scoped line evidence;
+the planner must not wrap it as a `One concrete line...` citation.
 Close-candidate alternative PV prose may support MoveReview text only through
 `AlternativeNarrativeSupport` plus `ContrastiveSupportAdmissibility`. The
 admission boundary requires an enriched comparative sentence (`while`,
@@ -850,9 +863,7 @@ veto-bucketed in QC and must not count as admitted product-visible support.
 Tokenless or played-move-collision `neutralize_key_break` diagnostics are also
 QC rejections, not admitted product-visible support.
 Missing MoveReview raw artifacts or missing canonical surfaces do not authorize
-raw-carrier or chronicle metadata fallback for MoveReview support rows, and
-active-note QC rows must not export chronicle objective/focus/execution metadata
-as support rows.
+raw-carrier fallback for MoveReview support rows.
 
 ## Active Risk Map
 
@@ -886,7 +897,7 @@ look like proof authority. Treat these labels as non-authority aliases:
 | broad color-complex expansion | closed generic expansion; only `color_complex_squeeze_probe` can open `ColorComplexSqueeze` authority |
 | mobility-cage expansion | design/recon placeholder until a concrete board witness is chosen |
 | Track 5 lesson authority | broad lesson release, still closed; scoped takeaway remains the only local instruction lane |
-| Chronicle/Active runtime reopening | legacy/tooling surface boundary, not MoveReview release infrastructure |
+| Chronicle/Active runtime reopening | closed; legacy Chronicle and Active-note code completely removed from the workspace |
 
 Runtime implementation names should identify the chess asset and proof lane:
 `LocalFileEntryBind`, `CounterplayAxisSuppression`,

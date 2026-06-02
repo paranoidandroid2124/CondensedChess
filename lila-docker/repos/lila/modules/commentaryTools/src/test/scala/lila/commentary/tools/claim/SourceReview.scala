@@ -10,7 +10,7 @@ import lila.commentary.analysis.render.QuietStrategicSupportComposer
 import lila.commentary.model.*
 import lila.commentary.model.authoring.{ AuthorQuestion, AuthorQuestionKind, NarrativeOutline }
 import lila.commentary.model.strategic.VariationLine
-import lila.commentary.tools.realpgn.RealPgnNarrativeEvalRunner
+import lila.commentary.tools.review.CommentaryPlayerQcSupport.LocalUciEngine
 
 private[commentary] object SourceReview:
 
@@ -50,7 +50,7 @@ private[commentary] object SourceReview:
     def newGame(): Unit
     def analyze(fen: String, depth: Int, multiPv: Int): List[VariationLine]
 
-  private final class LocalSourceReviewEngine(engine: RealPgnNarrativeEvalRunner.LocalUciEngine) extends SourceReviewEngine:
+  private final class LocalSourceReviewEngine(engine: LocalUciEngine) extends SourceReviewEngine:
     override def newGame(): Unit = engine.newGame()
     override def analyze(fen: String, depth: Int, multiPv: Int): List[VariationLine] =
       engine.analyze(fen, depth, multiPv)
@@ -292,7 +292,7 @@ private[commentary] object SourceReview:
     ).mkString("\t")
 
   private[commentary] def observations(
-      engine: Option[RealPgnNarrativeEvalRunner.LocalUciEngine],
+      engine: Option[LocalUciEngine],
       depth: Int = 16,
       multiPv: Int = 3
   ): List[Observation] =
@@ -317,7 +317,7 @@ private[commentary] object SourceReview:
     sources.map(observe(_, engine, depth, multiPv))
 
   private[commentary] def windowObservations(
-      engine: Option[RealPgnNarrativeEvalRunner.LocalUciEngine],
+      engine: Option[LocalUciEngine],
       depth: Int = 16,
       multiPv: Int = 3,
       sourceIds: Set[String] = Set.empty
@@ -933,29 +933,15 @@ private[commentary] object SourceReview:
       ranked: RankedQuestionPlans,
       outline: NarrativeOutline
   ): String =
-    ranked.primary
-      .flatMap { primary =>
-        GameChronicleCompressionPolicy.renderPlanSurface(
-          ctx,
-          GameChronicleCompressionPolicy.ChronicleRenderSurface(
-            primary = primary,
-            secondary = ranked.secondary,
-            contrastTrace = lila.commentary.analysis.practical.ContrastiveSupportAdmissibility.decide(primary, inputs, None),
-            quietSupportTrace = QuietStrategicSupportComposer.diagnose(ctx, inputs, ranked, Some(pack))
-          ),
-          beatEvidence = Nil
-        ).map(_.narrative)
-      }
-      .orElse(
-        GameChronicleCompressionPolicy
-          .renderWithTrace(
-            ctx = ctx,
-            parts = emptyParts.copy(focusedOutline = outline),
-            strategyPack = Some(pack),
-            truthContract = None
-          )
-          .map(_.narrative)
-      )
+    val slots = MoveReviewCompressionPolicy.buildSlotsOrFallbackFromPlannerRuntime(
+      ctx = ctx,
+      inputs = inputs,
+      rankedPlans = ranked,
+      strategyPack = Some(pack),
+      truthContract = None
+    )
+    val narrative = LiveNarrativeCompressionCore.deterministicProse(slots)
+    Some(narrative)
       .map(clean)
       .filter(_.nonEmpty)
       .getOrElse("-")
@@ -1147,7 +1133,7 @@ private[commentary] object SourceReview:
       maybeEnginePath match
         case None => SourceReview.observations(None, depth = depth, multiPv = multiPv)
         case Some(path) =>
-          val engine = RealPgnNarrativeEvalRunner.LocalUciEngine(path, timeoutMs = 30000L)
+          val engine = LocalUciEngine(path, timeoutMs = 30000L)
           try SourceReview.observations(Some(engine), depth = depth, multiPv = multiPv)
           finally engine.close()
     val (matrix, review) = writeArtifacts(observations)
@@ -1169,7 +1155,7 @@ private[commentary] object SourceReview:
         case None =>
           SourceReview.windowObservations(None, depth = depth, multiPv = multiPv, sourceIds = selectedIds)
         case Some(path) =>
-          val engine = RealPgnNarrativeEvalRunner.LocalUciEngine(path, timeoutMs = 30000L)
+          val engine = LocalUciEngine(path, timeoutMs = 30000L)
           try SourceReview.windowObservations(Some(engine), depth = depth, multiPv = multiPv, sourceIds = selectedIds)
           finally engine.close()
     val (matrix, review) = writeWindowArtifacts(observations)

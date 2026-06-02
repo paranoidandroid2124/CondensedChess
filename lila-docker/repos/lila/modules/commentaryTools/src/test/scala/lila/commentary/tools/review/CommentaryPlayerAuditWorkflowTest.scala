@@ -9,7 +9,6 @@ import play.api.libs.json.Json
 class CommentaryPlayerAuditWorkflowTest extends FunSuite:
 
   import CommentaryPlayerQcSupport.*
-  import lila.commentary.tools.realpgn.RealPgnNarrativeEvalRunner.*
 
   private def tempDir(name: String): Path =
     Files.createTempDirectory(name)
@@ -298,26 +297,14 @@ class CommentaryPlayerAuditWorkflowTest extends FunSuite:
         auditSetPath
       )
 
-    assertEquals(queue.size, 4)
-    assertEquals(summary.wholeGameReviewCount, 1)
+    assertEquals(queue.size, 1)
+    assertEquals(summary.wholeGameReviewCount, 0)
     assert(queue.forall(_.auditId.contains("edge_case_000:game_focus")))
-    assert(queue.exists(entry => entry.surface == ReviewSurface.Chronicle && entry.reviewKind == ReviewKind.WholeGame))
     val moveReviewEntry =
       queue.find(entry => entry.surface == ReviewSurface.MoveReview).getOrElse(fail("missing moveReview row"))
     assert(moveReviewEntry.supportRows.exists(_.contains("Surface plan only")), clue(moveReviewEntry.supportRows))
     assert(moveReviewEntry.advancedRows.exists(_.contains("Surface execution only")), clue(moveReviewEntry.advancedRows))
     assert(!moveReviewEntry.supportRows.exists(_.contains("Raw carrier plan")), clue(moveReviewEntry.supportRows))
-    val activeEntry =
-      queue.find(entry => entry.surface == ReviewSurface.ActiveNote).getOrElse(fail("missing active row"))
-    assert(activeEntry.pairedSampleId.nonEmpty)
-    assert(!activeEntry.supportRows.exists(_.startsWith("Objective:")), clue(activeEntry.supportRows))
-    assert(!activeEntry.supportRows.exists(_.startsWith("Focus:")), clue(activeEntry.supportRows))
-    assert(!activeEntry.supportRows.exists(_.startsWith("Execution:")), clue(activeEntry.supportRows))
-    assert(!activeEntry.supportRows.exists(_.startsWith("Chronicle idea:")), clue(activeEntry.supportRows))
-    val wholeGame = queue.find(entry => entry.surface == ReviewSurface.Chronicle && entry.reviewKind == ReviewKind.WholeGame).getOrElse(fail("missing whole-game row"))
-    assert(wholeGame.mainProse.contains("White was mainly playing for"), clue(wholeGame.mainProse))
-    assert(wholeGame.mainProse.contains("The decisive shift came through"), clue(wholeGame.mainProse))
-    assert(wholeGame.supportRows.exists(_.contains("Punishment: Blunder @24 was punished")), clue(wholeGame.supportRows))
   }
 
   test("buildAuditQueue does not synthesize MoveReview support rows from chronicle metadata when raw surface is absent") {

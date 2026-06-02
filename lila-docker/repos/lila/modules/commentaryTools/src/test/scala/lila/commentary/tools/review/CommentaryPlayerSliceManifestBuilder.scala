@@ -11,7 +11,6 @@ import play.shaded.ahc.org.asynchttpclient.DefaultAsyncHttpClient
 
 import lila.commentary.*
 import lila.commentary.analysis.OpeningExplorerClient
-import lila.commentary.tools.realpgn.RealPgnNarrativeEvalRunner
 
 object CommentaryPlayerSliceManifestBuilder:
 
@@ -63,7 +62,6 @@ object CommentaryPlayerSliceManifestBuilder:
         providerConfig = AiProviderConfig.fromEnv.copy(provider = "none")
       )
     val engine = new LocalUciEngine(config.enginePath, timeoutMs = 30000L)
-    val chronicleEngine = new RealPgnNarrativeEvalRunner.LocalUciEngine(config.enginePath, timeoutMs = 30000L)
     try
       val manifest =
         filteredCatalog.zipWithIndex.flatMap { case (entry, idx) =>
@@ -91,7 +89,7 @@ object CommentaryPlayerSliceManifestBuilder:
           val rawSlices = selectSlices(analyzed)
           val questionWhyNow =
             Option.when(rawSlices.exists(_._1 == SliceKind.QuestionWhyNow)) {
-              selectVisibleQuestionWhyNowSnapshot(entry, pgn, analyzed, api, chronicleEngine, config)
+              selectQuestionWhyNowSnapshot(analyzed, allowedPlies = None)
             }.flatten
           val selectedSlices =
             rawSlices.filterNot(_._1 == SliceKind.QuestionWhyNow) ++
@@ -111,49 +109,8 @@ object CommentaryPlayerSliceManifestBuilder:
       )
     finally
       engine.close()
-      chronicleEngine.close()
       ws.close()
       summon[ActorSystem].terminate()
-
-  private def selectVisibleQuestionWhyNowSnapshot(
-      entry: CatalogEntry,
-      pgn: String,
-      analyzed: List[SliceSnapshot],
-      api: CommentaryApi,
-      engine: RealPgnNarrativeEvalRunner.LocalUciEngine,
-      config: Config
-  ): Option[SliceSnapshot] =
-    val artifacts =
-      RealPgnNarrativeEvalRunner.analyzeChronicleGame(
-        pgn = pgn,
-        api = api,
-        engine = engine,
-        depth = config.depth,
-        multiPv = config.multiPv,
-        gameId = Some(entry.gameKey)
-      )
-    val visibleMomentsByPly = artifacts.response.moments.map(moment => moment.ply -> moment).toMap
-    val threadsById = artifacts.internalResponse.strategicThreads.map(thread => thread.threadId -> thread).toMap
-    val carriedVisibleWhyNowPlies =
-      artifacts.internalResponse.moments.flatMap { internalMoment =>
-        visibleMomentsByPly.get(internalMoment.ply).flatMap { visibleMoment =>
-          val momentState =
-            ChronicleActivePlannerSliceRunner.analyzeMoment(
-              gameKey = entry.gameKey,
-              mixBucket = entry.mixBucket,
-              internalMoment = internalMoment,
-              visibleMoment = Some(visibleMoment),
-              threadsById = threadsById,
-              api = api
-            )
-          val carriesWhyNow =
-            momentState.authorQuestionKinds.contains("WhyNow") || momentState.authorEvidenceKinds.contains("WhyNow")
-          val surfacedWhyNow =
-            momentState.chroniclePrimaryKind.contains("WhyNow") || momentState.activePrimaryKind.contains("WhyNow")
-          Option.when(carriesWhyNow && surfacedWhyNow)(internalMoment.ply)
-        }
-      }.toSet
-    selectQuestionWhyNowSnapshot(analyzed, allowedPlies = Some(carriedVisibleWhyNowPlies))
 
   private def parseConfig(args: List[String]): Config =
     val positional = positionalArgs(args)
