@@ -533,14 +533,16 @@ private[commentary] object QuietMoveIntentBuilder:
     val matched =
       proofFamily match
         case family if family == ProofFamilyId.NeutralizeKeyBreak.wireKey =>
-          evidenceBacked.filter(_.subplanId.contains(PlanTaxonomy.PlanKind.BreakPrevention.id))
+          evidenceBacked.filter(plan => PlanEvidenceEvaluator.planKind(plan).contains(PlanTaxonomy.PlanKind.BreakPrevention))
         case family if family == ProofFamilyId.CounterplayRestraint.wireKey =>
           evidenceBacked.filter(plan =>
-            plan.subplanId.contains(PlanTaxonomy.PlanKind.ProphylaxisRestraint.id) ||
-              plan.themeL1 == PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id
+            PlanEvidenceEvaluator.planKind(plan).contains(PlanTaxonomy.PlanKind.ProphylaxisRestraint) ||
+              PlanEvidenceEvaluator.planTheme(plan) == PlanTaxonomy.PlanTheme.RestrictionProphylaxis
           )
         case _ =>
-          evidenceBacked.filter(plan => PlanMatcher.proofFamily(plan.themeL1, plan.subplanId) == proofFamily)
+          evidenceBacked.filter(plan =>
+            PlanSemanticsContract.proofFamily(PlanEvidenceEvaluator.planTheme(plan), PlanEvidenceEvaluator.planKind(plan)) == proofFamily
+          )
     if matched.nonEmpty then matched else evidenceBacked
 
   private def quietProbeBackedCertifications(

@@ -1,13 +1,13 @@
 package lila.commentary.analysis.claim
 
 import lila.commentary.analysis.*
-import lila.commentary.analysis.semantic.StrategicObservationIds.{ ProofFamilyId, ProofSourceId }
+import lila.commentary.analysis.semantic.StrategicObservationIds.ProofFamilyId
 import lila.commentary.model.authoring.AuthorQuestionKind
 import munit.FunSuite
 
 final class ClaimAuthorityResolverTest extends FunSuite:
 
-  private val Source = ProofSourceId.ExchangeForcingDelta.wireKey
+  private val Source = PlayerFacingTruthModePolicy.DefenderTradeProofSource
   private val Family = ProofFamilyId.fromPlanKind(PlanTaxonomy.PlanKind.DefenderTrade).get.wireKey
 
   test("move-delta SupportedLocal admission does not depend on matching prose") {
@@ -22,6 +22,25 @@ final class ClaimAuthorityResolverTest extends FunSuite:
     assertEquals(decision.map(_.tier), Some(ClaimAuthorityTier.SupportedLocal), clue(decision))
   }
 
+  test("relation transformation SupportedLocal admission requires a proven stable branch") {
+    val unstablePacket =
+      packet(Source).copy(sameBranchState = PlayerFacingSameBranchState.Missing)
+    val decision =
+      ClaimAuthorityResolver.planAuthorityDecision(
+        ctx = None,
+        inputs =
+          inputs(
+            sourceKind = Source,
+            claimText = "This removes a defender on the local branch.",
+            packetOverride = Some(unstablePacket)
+          ),
+        truthContract = None,
+        plan = plan(plannerSource = Source, claim = "This removes a defender on the local branch.")
+      )
+
+    assertEquals(decision, None)
+  }
+
   test("move-delta SupportedLocal admission still requires the structured source to match") {
     val decision =
       ClaimAuthorityResolver.planAuthorityDecision(
@@ -34,9 +53,13 @@ final class ClaimAuthorityResolverTest extends FunSuite:
     assertEquals(decision, None)
   }
 
-  private def inputs(sourceKind: String, claimText: String): QuestionPlannerInputs =
+  private def inputs(
+      sourceKind: String,
+      claimText: String,
+      packetOverride: Option[PlayerFacingClaimPacket] = None
+  ): QuestionPlannerInputs =
     QuestionPlannerInputs(
-      mainBundle = Some(MainPathClaimBundle(Some(mainClaim(sourceKind, claimText)), None)),
+      mainBundle = Some(MainPathClaimBundle(Some(mainClaim(sourceKind, claimText, packetOverride)), None)),
       quietIntent = None,
       decisionFrame = CertifiedDecisionFrame(),
       decisionComparison = None,
@@ -55,7 +78,11 @@ final class ClaimAuthorityResolverTest extends FunSuite:
       factualFallback = None
     )
 
-  private def mainClaim(sourceKind: String, claimText: String): MainPathScopedClaim =
+  private def mainClaim(
+      sourceKind: String,
+      claimText: String,
+      packetOverride: Option[PlayerFacingClaimPacket]
+  ): MainPathScopedClaim =
     MainPathScopedClaim(
       scope = PlayerFacingClaimScope.MoveLocal,
       mode = PlayerFacingTruthMode.Strategic,
@@ -65,7 +92,7 @@ final class ClaimAuthorityResolverTest extends FunSuite:
       evidenceLines = List("the local branch trades the defender"),
       sourceKind = sourceKind,
       tacticalOwnership = None,
-      packet = Some(packet(sourceKind))
+      packet = Some(packetOverride.getOrElse(packet(sourceKind)))
     )
 
   private def packet(proofSource: String): PlayerFacingClaimPacket =
@@ -84,13 +111,15 @@ final class ClaimAuthorityResolverTest extends FunSuite:
       triggerKind = PlanTaxonomy.PlanKind.DefenderTrade.id,
       anchorTerms = List("defender_trade"),
       bestDefenseMove = Some("c4d5"),
-      sameBranchState = PlayerFacingSameBranchState.Missing,
+      bestDefenseBranchKey = Some("c4d5|e6d5"),
+      sameBranchState = PlayerFacingSameBranchState.Proven,
       persistence = PlayerFacingClaimPersistence.Stable,
       proofPathWitness =
         PlayerFacingProofPathWitness(
           ownerSeedTerms = List("defender_trade"),
           continuationTerms = List("trade_defender"),
-          structureTransitionTerms = List("defender_removed")
+          structureTransitionTerms = List("defender_removed"),
+          exactSliceProof = Some(PlayerFacingExactSliceProof.DefenderTrade("e6", "d5", "c4"))
         ),
       fallbackMode = PlayerFacingClaimFallbackMode.WeakMain
     )

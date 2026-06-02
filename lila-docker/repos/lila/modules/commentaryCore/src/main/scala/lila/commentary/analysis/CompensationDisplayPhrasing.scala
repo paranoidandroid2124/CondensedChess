@@ -37,59 +37,51 @@ private[analysis] object CompensationDisplayPhrasing:
   private def concreteCompensationWindow(surface: Snapshot): Option[String] =
     anchoredCompensationWindow(surface).filter(hasStrongCompensationAnchor)
 
-  private def compensationIdeaSignature(text: String): String =
-    StrategyPackSurface
-      .normalizeText(text)
-      .toLowerCase
-      .replaceAll("""^the material can wait while\s+""", "")
-      .replaceAll("""^winning the material back can wait because\s+""", "")
-      .replaceAll("""^the point is to keep\s+""", "")
-      .replaceAll("""^this works only while\s+""", "")
-      .replaceAll("""^use that pressure(?: on [^.]+?)? first(?:, then think about winning the material back)?\.?$""", "use that pressure")
-      .replaceAll("""^the [a-z]+ can head for\s+""", "")
-      .replaceAll("""^a likely follow up is bringing the [a-z]+ to\s+""", "")
-      .replaceAll("""^a likely follow up is\s+""", "")
-      .replaceAll("""\s+before winning the material back\.?$""", "")
-      .replaceAll("""\s+is still there\.?$""", "")
-      .replaceAll("""\s+stays available\.?$""", "")
-      .replaceAll("""\s+stays in view\.?$""", "")
-      .replaceAll("""\s+next\.?$""", "")
-      .replaceAll("""[^\w\s-]""", "")
-      .replaceAll("""\s+""", " ")
-      .trim
+  private def matchesSubtypeTheme(text: String, subtype: CompensationSubtype): Boolean =
+    val low = text.toLowerCase
+    val theaterMatch = subtype.pressureTheater match
+      case "queenside" => low.contains("queenside") || low.contains("queen side")
+      case "center"    => low.contains("central") || low.contains("center")
+      case "kingside"  => low.contains("kingside") || low.contains("king side") || low.contains("king")
+      case _           => true
 
-  private def sameCompensationIdea(left: String, right: String): Boolean =
-    val leftSig = compensationIdeaSignature(left)
-    val rightSig = compensationIdeaSignature(right)
-    leftSig.nonEmpty && rightSig.nonEmpty && (
-      leftSig == rightSig ||
-        (leftSig.length >= 12 && leftSig.contains(rightSig)) ||
-        (rightSig.length >= 12 && rightSig.contains(leftSig))
-    )
+    val modeMatch = subtype.pressureMode match
+      case "target_fixing"      => low.contains("target") || low.contains("fixing") || low.contains("fixed")
+      case "line_occupation"    => low.contains("file") || low.contains("line") || low.contains("open")
+      case "counterplay_denial" => low.contains("counterplay") || low.contains("pawn") || low.contains("quiet") || low.contains("active")
+      case "break_preparation"  => low.contains("break")
+      case "defender_tied_down" => low.contains("defender") || low.contains("tied") || low.contains("passive")
+      case "conversion_window"  => low.contains("exchange") || low.contains("trade") || low.contains("material")
+      case _                    => true
 
-  private def repeatedFollowUpAnchor(claim: String, support: String): Boolean =
+    theaterMatch && modeMatch
+
+  private def sameCompensationIdea(surface: Snapshot, left: String, right: String): Boolean =
+    surface.effectiveCompensationSubtype.exists { subtype =>
+      matchesSubtypeTheme(left, subtype) && matchesSubtypeTheme(right, subtype)
+    }
+
+  private def repeatedFollowUpAnchor(surface: Snapshot, claim: String, support: String): Boolean =
     val claimLow = StrategyPackSurface.normalizeText(claim).toLowerCase
     val supportLow = StrategyPackSurface.normalizeText(support).toLowerCase
-    StrategicSentenceRenderer.pieceHeadFor(supportLow).exists { case (_, square) =>
-      claimLow.contains(s"head for $square") ||
-      claimLow.contains(s"pressure on $square") ||
-      claimLow.contains(s"pressure against $square")
-    } || (
-      supportLow.startsWith("a likely follow up is bringing the ") &&
-        SquarePattern.findFirstMatchIn(supportLow).exists { m =>
-          val square = m.group(1)
-          claimLow.contains(s"head for $square") ||
-          claimLow.contains(s"pressure on $square") ||
-          claimLow.contains(s"pressure against $square")
-        }
-    )
+    val squares = List(
+      surface.topDirectionalTarget.map(_.targetSquare),
+      surface.topRoute.flatMap(_.route.lastOption),
+      surface.topMoveRef.map(_.target)
+    ).flatten.map(StrategyPackSurface.normalizeText).filter(_.nonEmpty).map(_.toLowerCase)
 
-  def dedupeCompensationSupport(claim: String, support: List[String]): List[String] =
+    squares.exists { square =>
+      claimLow.contains(square) && supportLow.contains(square)
+    }
+
+  def dedupeCompensationSupport(surface: Snapshot, claim: String, support: List[String]): List[String] =
     support.foldLeft(List.empty[String]) { (accepted, candidate) =>
       val duplicateOfClaim =
-        sameCompensationIdea(claim, candidate) || repeatedFollowUpAnchor(claim, candidate)
+        sameCompensationIdea(surface, claim, candidate) || repeatedFollowUpAnchor(surface, claim, candidate)
       val duplicateOfAccepted =
-        accepted.exists(existing => sameCompensationIdea(existing, candidate) || repeatedFollowUpAnchor(existing, candidate))
+        accepted.exists(existing =>
+          sameCompensationIdea(surface, existing, candidate) || repeatedFollowUpAnchor(surface, existing, candidate)
+        )
       if duplicateOfClaim || duplicateOfAccepted then accepted else accepted :+ candidate
     }
 
@@ -219,29 +211,52 @@ private[analysis] object CompensationDisplayPhrasing:
       case _ =>
         None
     }.orElse(
-      surface.objectiveText.map(StrategyPackSurface.normalizeText).flatMap { other =>
-        StrategicSentenceRenderer.pieceHeadFor(other)
-          .map { case (piece, square) => s"the $piece can still head for $square" }
-          .orElse {
-            if other.toLowerCase.startsWith("pressure ") && LiveNarrativeCompressionCore.hasConcreteAnchor(other) then
-              Some(s"${other.toLowerCase} is still there")
-            else if LiveNarrativeCompressionCore.hasConcreteAnchor(other) then
-              Some(s"${other.toLowerCase} stays in view")
-            else None
-          }
+      surface.objectiveText.flatMap { objText =>
+        val normalizedObj = StrategyPackSurface.normalizeText(objText)
+        val rawObj = surface.topDirectionalTarget.flatMap(StrategyPackSurface.targetText).orElse(surface.longTermFocus)
+        val structMatch =
+          for
+            target <- surface.topDirectionalTarget
+            if rawObj.contains(normalizedObj)
+            piece = StrategyPackSurface.pieceName(target.piece)
+            square = StrategyPackSurface.normalizeText(target.targetSquare)
+            if square.nonEmpty
+          yield s"the $piece can still head for $square"
+
+        structMatch.orElse {
+          val other = normalizedObj
+          if other.toLowerCase.startsWith("pressure ") && LiveNarrativeCompressionCore.hasConcreteAnchor(other) then
+            Some(s"${other.toLowerCase} is still there")
+          else if LiveNarrativeCompressionCore.hasConcreteAnchor(other) then
+            Some(s"${other.toLowerCase} stays in view")
+          else None
+        }
       }
     ).orElse(
-      surface.executionText.map(StrategyPackSurface.normalizeText).flatMap { other =>
-        StrategicSentenceRenderer.pieceToward(other)
-          .map { case (piece, square) => s"the $piece can still head for $square" }
-          .orElse {
-            StrategicSentenceRenderer.pieceViaPath(other).flatMap { case (piece, path) =>
-              path.split("-").lastOption.filter(_.nonEmpty).map(square => s"the $piece can still head for $square")
+      surface.executionText.flatMap { execText =>
+        val normalizedExec = StrategyPackSurface.normalizeText(execText)
+        val rawExec = surface.topRoute.flatMap(StrategyPackSurface.routeText)
+          .orElse(surface.topMoveRef.flatMap(StrategyPackSurface.moveRefText))
+        val structMatch =
+          Option.when(rawExec.contains(normalizedExec)) {
+            surface.topRoute.flatMap { route =>
+              val piece = StrategyPackSurface.pieceName(route.piece)
+              route.route.lastOption.map(StrategyPackSurface.normalizeText).filter(_.nonEmpty).map(square =>
+                s"the $piece can still head for $square"
+              )
+            }.orElse {
+              surface.topMoveRef.flatMap { moveRef =>
+                val piece = StrategyPackSurface.pieceName(moveRef.piece)
+                val square = StrategyPackSurface.normalizeText(moveRef.target)
+                Option.when(square.nonEmpty)(s"the $piece can still head for $square")
+              }
             }
-          }
-          .orElse {
-            Option.when(LiveNarrativeCompressionCore.hasConcreteAnchor(other))(s"${other.toLowerCase} stays available")
-          }
+          }.flatten
+
+        structMatch.orElse {
+          val other = normalizedExec
+          Option.when(LiveNarrativeCompressionCore.hasConcreteAnchor(other))(s"${other.toLowerCase} stays available")
+        }
       }
     )
 

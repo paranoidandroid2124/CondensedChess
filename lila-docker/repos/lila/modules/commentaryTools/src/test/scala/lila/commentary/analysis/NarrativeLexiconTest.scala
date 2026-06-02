@@ -198,7 +198,7 @@ class NarrativeLexiconTest extends FunSuite:
     assert(tableSource.contains("MotifPrefixRule"), clue(tableSource))
   }
 
-  test("deferred relation motifs degrade through catalog-safe motif prefixes") {
+  test("legacy relation motifs degrade through boundary-safe motif prefixes") {
     val zwischenzug =
       NarrativeLexicon.getMotifPrefix(bead = 0, motifs = List("zwischenzug"), ply = 24).getOrElse("")
     val trapped =
@@ -220,7 +220,7 @@ class NarrativeLexiconTest extends FunSuite:
     assert(domination.toLowerCase.contains("restriction") || domination.toLowerCase.contains("limiting"), clue(domination))
   }
 
-  test("deferred relation motifs are not generic motif-prefix signals") {
+  test("legacy relation motifs are not generic motif-prefix signals") {
     assert(!NarrativeLexicon.isMotifPrefixSignal("zwischenzug"))
     assert(!NarrativeLexicon.isMotifPrefixSignal("trapped_piece_queen"))
     assert(!NarrativeLexicon.isMotifPrefixSignal("domination"))
@@ -230,13 +230,13 @@ class NarrativeLexiconTest extends FunSuite:
     assert(NarrativeLexicon.isMotifPrefixSignal("knight_domination"))
   }
 
-  test("diagnostic-only deferred relation motifs do not emit motif prefixes") {
+  test("legacy diagnostic-only relation motifs do not emit motif prefixes") {
     assertEquals(NarrativeLexicon.getMotifPrefix(bead = 0, motifs = List("stalemate_trap"), ply = 52), None)
     assertEquals(NarrativeLexicon.getMotifPrefix(bead = 0, motifs = List("perpetual_check"), ply = 52), None)
     assert(NarrativeLexicon.getMotifPrefix(bead = 0, motifs = List("stalemate"), ply = 52).nonEmpty)
   }
 
-  test("outline canonical motif terms consume the deferred relation catalog") {
+  test("outline canonical motif terms keep relation-shaped legacy labels bounded") {
     val source =
       Files.readString(Paths.get("modules/commentaryCore/src/main/scala/lila/commentary/analysis/NarrativeOutlineBuilder.scala"))
     val body =
@@ -247,7 +247,7 @@ class NarrativeLexiconTest extends FunSuite:
     assert(!body.contains("deferredFallbackLabelForMotifTag"), clue(body))
   }
 
-  test("outline theme keywords consume the deferred relation catalog") {
+  test("outline theme keywords keep relation-shaped legacy labels bounded") {
     val source =
       Files.readString(Paths.get("modules/commentaryCore/src/main/scala/lila/commentary/analysis/NarrativeOutlineBuilder.scala"))
     val body =
@@ -259,7 +259,7 @@ class NarrativeLexiconTest extends FunSuite:
     assert(body.contains("case Some(term) => term"), clue(body))
   }
 
-  test("outline tactical tension does not promote deferred relation motif tags") {
+  test("outline tactical tension does not promote legacy relation motif tags") {
     val source =
       Files.readString(Paths.get("modules/commentaryCore/src/main/scala/lila/commentary/analysis/NarrativeOutlineBuilder.scala"))
     val tensionBody =
@@ -271,7 +271,7 @@ class NarrativeLexiconTest extends FunSuite:
     assert(source.contains("RelationObservationCatalog.deferredFallbackForMotifTag(motif).isEmpty"), clue(source))
   }
 
-  test("motif delta prose degrades deferred relation labels through the catalog") {
+  test("motif delta prose degrades legacy relation labels through the boundary") {
     val appears = NarrativeLexicon.getMotifAppearsStatement(bead = 0, motif = "zwischenzug")
     val fades = NarrativeLexicon.getMotifFadesStatement(bead = 0, motif = "trapped_piece_queen")
 

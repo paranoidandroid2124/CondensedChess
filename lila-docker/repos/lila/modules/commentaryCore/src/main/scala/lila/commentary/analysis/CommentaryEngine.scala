@@ -9,7 +9,6 @@ import lila.commentary.model.authoring.{ NarrativeOutline, OutlineBeat, OutlineB
 import lila.commentary.model.strategic.{ VariationLine, PlanContinuity, StrategicSalience }
 import lila.commentary.analysis.L3.*
 import lila.commentary.analysis.PositionAnalyzer
-import lila.commentary.analysis.PlanTaxonomy.ThemeResolver
 import lila.commentary.analysis.DecisiveTruth.toContract
 import scala.annotation.unused
 // import scala.util.{ Either, Left, Right } // Removed as it caused warnings
@@ -139,7 +138,11 @@ object CommentaryEngine:
   private def themeMaxShareFromHypotheses(
       hypotheses: List[lila.commentary.model.authoring.PlanHypothesis]
   ): Double =
-    val themes = hypotheses.map(ThemeResolver.fromHypothesis).map(_.id).filter(_.nonEmpty)
+    val themes =
+      hypotheses
+        .map(PlanClaimBoundary.PlanProposal.fromHypothesis)
+        .map(_.theme.id)
+        .filter(_.nonEmpty)
     if themes.isEmpty then 1.0
     else
       val counts = themes.groupBy(identity).view.mapValues(_.size).toMap

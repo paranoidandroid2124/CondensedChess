@@ -119,8 +119,10 @@ private[commentary] object TransformationEvidenceProducer extends StrategicIdeaE
 
     def softTransformationPlanSupport(plan: lila.commentary.model.PlanMatch): Boolean =
       plan.supports.exists { raw =>
-        PlanTaxonomy.ThemeResolver.fromEvidenceSource(raw) == PlanTaxonomy.PlanTheme.FavorableExchange ||
-          PlanTaxonomy.ThemeResolver.subplanFromEvidenceSource(raw).exists(
+        PlanTaxonomy.ThemeResolver.themeIdFromSupport(raw)
+          .flatMap(PlanTaxonomy.PlanTheme.fromId)
+          .contains(PlanTaxonomy.PlanTheme.FavorableExchange) ||
+          PlanTaxonomy.ThemeResolver.subplanIdFromSupport(raw).flatMap(PlanTaxonomy.PlanKind.fromId).exists(
             Set(
               PlanTaxonomy.PlanKind.DefenderTrade,
               PlanTaxonomy.PlanKind.SimplificationWindow,

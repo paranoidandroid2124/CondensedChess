@@ -27,8 +27,37 @@ object PlanProposalEngine:
     val them = !us
 
     val structural = structuralProposals(state, features, us)
+    val pieceRedeployment =
+      if ctx.phaseEnum == lila.commentary.analysis.L3.GamePhaseType.Opening then Nil
+      else PieceRedeploymentEvidence.planHypotheses(fen, us)
+    val advantageTransformation =
+      if ctx.phaseEnum == lila.commentary.analysis.L3.GamePhaseType.Opening then Nil
+      else AdvantageTransformationEvidence.planHypotheses(fen, us)
+    val flankInfrastructure =
+      if ctx.phaseEnum == lila.commentary.analysis.L3.GamePhaseType.Opening then Nil
+      else FlankInfrastructureEvidence.planHypotheses(fen, us)
+    val pawnBreaks =
+      if ctx.phaseEnum == lila.commentary.analysis.L3.GamePhaseType.Opening then Nil
+      else PawnBreakEvidence.planHypotheses(fen, us)
+    val restriction =
+      if ctx.phaseEnum == lila.commentary.analysis.L3.GamePhaseType.Opening then Nil
+      else RestrictionPlanEvidence.planHypotheses(fen, us)
+    val weaknessFixation =
+      if ctx.phaseEnum == lila.commentary.analysis.L3.GamePhaseType.Opening then Nil
+      else WeaknessFixationEvidence.planHypotheses(fen, us)
+    val favorableExchange =
+      if ctx.phaseEnum == lila.commentary.analysis.L3.GamePhaseType.Opening then Nil
+      else FavorableExchangeEvidence.planHypotheses(fen, us)
     val seeded = seedProposals(fen, features, ctx, us, them)
-    val combined = mergeDuplicates(structural ++ seeded).map(ensureHierarchy)
+    val planFirstItems =
+      (
+        structural ++ pieceRedeployment ++ advantageTransformation ++ flankInfrastructure ++ pawnBreaks ++ weaknessFixation ++
+          favorableExchange ++ restriction ++ seeded
+      )
+        .map(markPlanFirst)
+    val combined =
+      mergeDuplicates(planFirstItems)
+        .map(ensureHierarchy)
     val expanded = expandSubplanAlternatives(combined)
     val ranked = rankBySubplanViability(expanded)
 
@@ -98,106 +127,10 @@ object PlanProposalEngine:
       features: Option[PositionFeatures],
       us: Color
   ): List[PlanHypothesis] =
-    val entrenched =
-      if us.white then state.whiteEntrenchedPieces else state.blackEntrenchedPieces
-    val rookPawnReady =
-      if us.white then state.whiteRookPawnMarchReady else state.blackRookPawnMarchReady
-    val hookChance =
-      if us.white then state.whiteHookCreationChance else state.blackHookCreationChance
     val clamp =
       if us.white then state.whiteColorComplexClamp else state.blackColorComplexClamp
 
     val out = scala.collection.mutable.ListBuffer.empty[PlanHypothesis]
-
-    if entrenched > 0 then
-      val score = (0.58 + math.min(0.22, entrenched * 0.08)).min(0.9)
-      out += PlanHypothesis(
-        planId = "MinorPieceManeuver",
-        planName = "Entrench a minor piece on a stable outpost",
-        rank = 0,
-        score = score,
-        preconditions = List(
-          s"entrenched candidates: $entrenched",
-          "support network exists for a durable outpost"
-        ),
-        executionSteps = List(
-          "reinforce the outpost square with pawn and piece support",
-          "avoid exchanges that release the entrenched piece pressure"
-        ),
-        failureModes = List(
-          "opponent can challenge the outpost with timely pawn breaks",
-          "support pieces become overloaded"
-        ),
-        viability = toViability(score, "outpost can collapse under pawn lever timing"),
-        refutation = Some("if center opens immediately, outpost plan may be too slow"),
-        evidenceSources = List(
-          ThemeResolver.themeTag(PlanTheme.PieceRedeployment),
-          ThemeResolver.subplanTag(PlanKind.OutpostEntrenchment),
-          ThemeResolver.structuralStateTag("entrenched_piece")
-        ),
-        themeL1 = PlanTheme.PieceRedeployment.id,
-        subplanId = Some(PlanKind.OutpostEntrenchment.id)
-      )
-
-    if rookPawnReady then
-      val base = if hookChance then 0.76 else 0.67
-      out += PlanHypothesis(
-        planId = "PawnStorm",
-        planName = "Rook-pawn march to gain flank space",
-        rank = 0,
-        score = base,
-        preconditions = List(
-          "rook-pawn file is available for expansion",
-          "king/flank alignment supports pawn advance"
-        ),
-        executionSteps = List(
-          "advance a/h-pawn to claim space and create hooks",
-          "coordinate heavy pieces behind the pawn front"
-        ),
-        failureModes = List(
-          "center breaks punish flank overextension",
-          "king safety debt becomes too high"
-        ),
-        viability = toViability(base, "flank expansion can backfire if center is unstable"),
-        refutation = Some("if tactical threats appear in center, postpone pawn march"),
-        evidenceSources = List(
-          ThemeResolver.themeTag(PlanTheme.FlankInfrastructure),
-          ThemeResolver.subplanTag(PlanKind.RookPawnMarch),
-          ThemeResolver.structuralStateTag("rook_pawn_march")
-        ),
-        themeL1 = PlanTheme.FlankInfrastructure.id,
-        subplanId = Some(PlanKind.RookPawnMarch.id)
-      )
-
-    if hookChance then
-      val score = if rookPawnReady then 0.74 else 0.63
-      out += PlanHypothesis(
-        planId = "KingsideAttack",
-        planName = "Attack the hook and force structural concessions",
-        rank = 0,
-        score = score,
-        preconditions = List(
-          "hook contact exists on flank pawn chain",
-          "enough attacking pieces can join within two moves"
-        ),
-        executionSteps = List(
-          "fix the hook square and increase piece pressure",
-          "open files/diagonals behind the hook"
-        ),
-        failureModes = List(
-          "insufficient attacking mass",
-          "counterplay arrives faster on opposite wing"
-        ),
-        viability = toViability(score, "requires coordinated piece arrival to convert"),
-        refutation = Some("if opponent neutralizes hook contact, switch to central plan"),
-        evidenceSources = List(
-          ThemeResolver.themeTag(PlanTheme.FlankInfrastructure),
-          ThemeResolver.subplanTag(PlanKind.HookCreation),
-          ThemeResolver.structuralStateTag("hook_creation")
-        ),
-        themeL1 = PlanTheme.FlankInfrastructure.id,
-        subplanId = Some(PlanKind.HookCreation.id)
-      )
 
     if clamp then
       val clampScore = 0.69
@@ -251,11 +184,10 @@ object PlanProposalEngine:
         refutation = None,
         evidenceSources = List(
           ThemeResolver.themeTag(PlanTheme.PawnBreakPreparation),
-          ThemeResolver.subplanTag(PlanKind.CentralBreakTiming),
           ThemeResolver.structuralStateTag("generic_center_plan")
         ),
         themeL1 = PlanTheme.PawnBreakPreparation.id,
-        subplanId = Some(PlanKind.CentralBreakTiming.id)
+        subplanId = None
       )
 
     out.toList
@@ -281,8 +213,9 @@ object PlanProposalEngine:
             val preconds = seed.preconditions.take(3).map(pc => preconditionText(pc.condition))
             val failures =
               (seed.typicalCounters.take(2).map(counterText) :+ "fails if tactical refutation appears first").distinct
-            val seedTheme = ThemeResolver.fromSeed(seed)
-            val seedSubplan = ThemeResolver.subplanFromSeed(seed)
+            val seedProposal = PlanClaimBoundary.PlanProposal.fromSeed(seed)
+            val seedTheme = seedProposal.theme
+            val seedSubplan = seedProposal.supportKind
             List(
               PlanHypothesis(
                 planId = seed.mapsToPlan.map(_.toString).getOrElse(seed.id),
@@ -366,6 +299,9 @@ object PlanProposalEngine:
       (adjusted * 0.42 - 0.12).max(0.12).min(0.38)
     else adjusted.max(0.25).min(0.9)
 
+  private def markPlanFirst(h: PlanHypothesis): PlanHypothesis =
+    h.copy(evidenceSources = (h.evidenceSources :+ "proposal:plan_first").distinct)
+
   private def mergeDuplicates(items: List[PlanHypothesis]): List[PlanHypothesis] =
     items
       .groupBy(keyOf)
@@ -385,50 +321,21 @@ object PlanProposalEngine:
       .sortBy(h => -h.score)
 
   private def ensureHierarchy(h: PlanHypothesis): PlanHypothesis =
-    val theme = ThemeResolver.fromHypothesis(h)
-    val subplan =
-      ThemeResolver
-        .subplanFromHypothesis(h)
-        .orElse(ThemeResolver.defaultSubplanForTheme(theme))
+    val proposal = PlanClaimBoundary.PlanProposal.fromHypothesis(h)
     h.copy(
-      themeL1 = theme.id,
-      subplanId = subplan.map(_.id),
+      themeL1 = proposal.theme.id,
+      subplanId = proposal.supportKind.map(_.id),
       evidenceSources =
-        (h.evidenceSources ++ List(ThemeResolver.themeTag(theme)) ++ subplan.map(ThemeResolver.subplanTag))
+        (
+          h.evidenceSources ++
+            proposal.fallbackTheme.map(ThemeResolver.themeTag) ++
+            proposal.supportKind.map(ThemeResolver.subplanTag)
+        )
           .distinct
     )
 
   private def expandSubplanAlternatives(items: List[PlanHypothesis]): List[PlanHypothesis] =
     items
-      .flatMap { h =>
-        val theme = ThemeResolver.fromHypothesis(h)
-        val baseSubplan = h.subplanId.flatMap(PlanKind.fromId)
-        val alternatives =
-          SubplanCatalog
-            .byTheme(theme)
-            .map(_._1)
-            .filterNot(s => baseSubplan.contains(s))
-            .take(2)
-        val ordered = baseSubplan.toList ++ alternatives
-        if ordered.isEmpty then List(h)
-        else
-          ordered.zipWithIndex.map { case (subplan, idx) =>
-            if idx == 0 then
-              h.copy(
-                subplanId = Some(subplan.id),
-                evidenceSources = (h.evidenceSources :+ ThemeResolver.subplanTag(subplan)).distinct
-              )
-            else
-              val scaled = (h.score * (0.93 - (idx - 1) * 0.06)).max(0.15)
-              h.copy(
-                subplanId = Some(subplan.id),
-                planName = s"${h.planName} (${subplan.id.replace("_", " ")})",
-                score = scaled,
-                viability = toViability(scaled, h.viability.risk),
-                evidenceSources = (h.evidenceSources :+ ThemeResolver.subplanTag(subplan) :+ "proposal:l2_variant").distinct
-              )
-          }
-      }
       .groupBy(h => s"${h.planId.toLowerCase}|${h.subplanId.getOrElse("").toLowerCase}")
       .values
       .toList

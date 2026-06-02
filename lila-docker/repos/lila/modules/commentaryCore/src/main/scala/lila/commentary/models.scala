@@ -309,6 +309,68 @@ case class StrategyDirectionalTarget(
 object StrategyDirectionalTarget:
   given Writes[StrategyDirectionalTarget] = Json.writes[StrategyDirectionalTarget]
 
+case class StrategyRelationSupport(
+    relationKind: String,
+    focusSquares: List[String] = Nil,
+    targetSquare: Option[String] = None,
+    targetSquares: List[String] = Nil,
+    targetRoles: List[String] = Nil,
+    targetRole: Option[String] = None,
+    attackerSquare: Option[String] = None,
+    attackerSquares: List[String] = Nil,
+    attackerRole: Option[String] = None,
+    defenderSquare: Option[String] = None,
+    defenderRole: Option[String] = None,
+    controllerSquare: Option[String] = None,
+    controllerRole: Option[String] = None,
+    moverSquare: Option[String] = None,
+    moverRole: Option[String] = None,
+    exchangeSquare: Option[String] = None,
+    badPieceSquare: Option[String] = None,
+    clearedSquare: Option[String] = None,
+    beneficiarySquare: Option[String] = None,
+    beneficiaryRole: Option[String] = None,
+    clearingTo: Option[String] = None,
+    blockerSquare: Option[String] = None,
+    blockerRole: Option[String] = None,
+    pinnedSquare: Option[String] = None,
+    pinnedRole: Option[String] = None,
+    behindSquare: Option[String] = None,
+    behindRole: Option[String] = None,
+    frontSquare: Option[String] = None,
+    frontRole: Option[String] = None,
+    backSquare: Option[String] = None,
+    backRole: Option[String] = None,
+    kingSquare: Option[String] = None,
+    checkerSquares: List[String] = Nil,
+    matingMove: Option[String] = None,
+    patternId: Option[String] = None,
+    bishopSquare: Option[String] = None,
+    entryMove: Option[String] = None,
+    intermediateMove: Option[String] = None,
+    threatType: Option[String] = None,
+    responseMove: Option[String] = None,
+    payoffMove: Option[String] = None,
+    checkingMoves: List[String] = Nil,
+    cycleMoves: List[String] = Nil,
+    repeatedPositionPly: Option[Int] = None,
+    trappingMove: Option[String] = None,
+    baitFromSquare: Option[String] = None,
+    baitSquare: Option[String] = None,
+    baitRole: Option[String] = None,
+    luredFromSquare: Option[String] = None,
+    luredRole: Option[String] = None,
+    executionFromSquare: Option[String] = None,
+    executionToSquare: Option[String] = None,
+    legalEscapeCount: Option[Int] = None,
+    legalMoveCount: Option[Int] = None,
+    absolutePin: Option[Boolean] = None,
+    axis: Option[String] = None,
+    lineMoves: List[String] = Nil
+)
+object StrategyRelationSupport:
+  given Writes[StrategyRelationSupport] = Json.writes[StrategyRelationSupport]
+
 case class StrategyIdeaSignal(
     ideaId: String,
     ownerSide: String,
@@ -324,7 +386,8 @@ case class StrategyIdeaSignal(
     evidenceRefs: List[String] = Nil,
     targetSquare: Option[String] = None,
     relationKind: Option[String] = None,
-    relationFocusSquares: List[String] = Nil
+    relationFocusSquares: List[String] = Nil,
+    relationSupport: Option[StrategyRelationSupport] = None
 )
 object StrategyIdeaSignal:
   given Writes[StrategyIdeaSignal] = Json.writes[StrategyIdeaSignal]

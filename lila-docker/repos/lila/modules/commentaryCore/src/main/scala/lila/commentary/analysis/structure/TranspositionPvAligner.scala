@@ -4,7 +4,8 @@ import _root_.chess.{ Board, Color, Square }
 import _root_.chess.format.{ Fen, Uci }
 import _root_.chess.variant.Standard
 
-import lila.commentary.analysis.PlanTaxonomy.{ PlanKind, PlanTheme, ThemeResolver }
+import lila.commentary.analysis.PlanClaimBoundary
+import lila.commentary.analysis.PlanTaxonomy.{ PlanKind, PlanTheme }
 import lila.commentary.model.authoring.PlanHypothesis
 import lila.commentary.model.strategic.VariationLine
 
@@ -152,14 +153,12 @@ private[commentary] object TranspositionPvAligner:
       .getOrElse(0)
 
   private def isWeaknessPlan(hypothesis: PlanHypothesis): Boolean =
-    ThemeResolver.fromHypothesis(hypothesis).id == PlanTheme.WeaknessFixation.id ||
-      hypothesisPlanKind(hypothesis).exists(WeaknessSubplans.contains)
+    val proposal = PlanClaimBoundary.PlanProposal.fromHypothesis(hypothesis)
+    proposal.fallbackTheme.contains(PlanTheme.WeaknessFixation) ||
+      proposal.supportKind.exists(kind => WeaknessSubplans.contains(kind.id))
 
   private def hypothesisPlanKind(hypothesis: PlanHypothesis): Option[String] =
-    hypothesis.subplanId
-      .flatMap(PlanKind.fromId)
-      .map(_.id)
-      .orElse(ThemeResolver.subplanFromHypothesis(hypothesis).map(_.id))
+    PlanClaimBoundary.PlanProposal.fromHypothesis(hypothesis).supportKind.map(_.id)
 
   private def targetHints(hypothesis: PlanHypothesis): List[String] =
     hypothesis.evidenceSources.flatMap(targetHintSquare).distinct

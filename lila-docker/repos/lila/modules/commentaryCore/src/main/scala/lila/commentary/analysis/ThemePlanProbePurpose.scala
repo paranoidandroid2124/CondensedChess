@@ -175,16 +175,10 @@ object ThemePlanProbePurpose:
       .getOrElse(contracts(ThemePlanValidation))
 
   def purposeForSubplan(subplan: PlanKind): String =
-    subplan match
-      case PlanKind.KeySquareDenial =>
-        RouteDenialValidation
-      case PlanKind.ProphylaxisRestraint | PlanKind.BreakPrevention |
-          PlanKind.FlankClamp | PlanKind.CentralSpaceBind | PlanKind.MobilitySuppression =>
-        LongTermRestraintValidation
-      case PlanKind.OppositeBishopsConversion =>
-        ColorComplexSqueezeValidation
-      case _ =>
-        ThemePlanValidation
+    PlanSemanticsContract
+      .forKind(subplan)
+      .map(_.probePurpose)
+      .getOrElse(ThemePlanValidation)
 
   def mergedSignals(base: List[String], purpose: String): List[String] =
     val contractSignals = contractForPurpose(purpose).map(_.requiredSignals).getOrElse(Nil).toSet

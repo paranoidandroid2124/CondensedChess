@@ -32,5 +32,9 @@ private[commentary] object ClaimAuthorityDecision:
       "truth_contract_missing"
     )
 
+  def isTacticalVetoCode(raw: String): Boolean =
+    val code = Option(raw).getOrElse("").trim.toLowerCase
+    TacticalVetoCodes.contains(code) || code.contains("tactical")
+
   def tacticalVetoCodes(codes: List[String]): List[String] =
-    codes.filter(TacticalVetoCodes.contains)
+    codes.filter(isTacticalVetoCode)

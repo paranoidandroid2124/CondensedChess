@@ -1,17 +1,12 @@
 package lila.commentary.analysis
 
-import lila.commentary.analysis.semantic.RelationObservationCatalog
-
 import scala.util.matching.Regex
 
 private[commentary] object UserFacingSignalSanitizer:
 
-  private val DeferredDominationText =
-    deferredRelationFallbackText(MoveReviewExchangeAnalyzer.RelationKind.Domination, "key-square restriction")
-  private val DeferredTrappedPieceText =
-    deferredRelationFallbackText(MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece, "piece mobility")
-  private val DeferredZwischenzugText =
-    deferredRelationFallbackText(MoveReviewExchangeAnalyzer.RelationKind.Zwischenzug, "move-order caution")
+  private val LegacyDominationText = "key-square restriction"
+  private val LegacyTrappedPieceText = "piece mobility"
+  private val LegacyZwischenzugText = "move-order caution"
 
   private val placeholderRewrites: List[(String, String)] = List(
     "deferred as PlayableByPV under strict evidence mode" -> "deferred under the current evidence threshold",
@@ -105,6 +100,32 @@ private[commentary] object UserFacingSignalSanitizer:
       )
     )
 
+  def sanitizePlanDetail(raw: String): Option[String] =
+    Option(raw)
+      .map(_.trim)
+      .filter(_.nonEmpty)
+      .filterNot(isInternalPlanDetailText)
+      .map(sanitize)
+      .map(_.trim)
+      .filter(_.nonEmpty)
+      .filterNot(isInternalPlanDetailText)
+
+  def sanitizePlanDetailList(values: List[String]): List[String] =
+    values.flatMap(sanitizePlanDetail)
+
+  def isInternalPlanDetailText(raw: String): Boolean =
+    val lower = Option(raw).getOrElse("").trim.toLowerCase
+    lower.startsWith("test ") ||
+      lower.startsWith("defer ") ||
+      lower.contains(" probe ") ||
+      lower.contains("probe ") ||
+      lower.contains("probe-backed") ||
+      lower.contains("probe validation") ||
+      lower.contains("use probe") ||
+      lower.contains("candidate move") ||
+      lower.contains("candidate capture") ||
+      lower.contains("raw request")
+
   def placeholderHits(raw: String): List[String] =
     val source = Option(raw).getOrElse("")
     val low = source.toLowerCase
@@ -134,10 +155,10 @@ private[commentary] object UserFacingSignalSanitizer:
       .replaceAll("""(?i)\bOpenFileControl\([^)]*\)""", "pressure on the open file")
       .replaceAll("""(?i)\bCentralization\([^)]*\)""", "piece improvement")
       .replaceAll("""(?i)\bRookLift\([^)]*\)""", "a rook lift")
-      .replaceAll("""(?i)\bDomination\([^)]*\)""", DeferredDominationText)
+      .replaceAll("""(?i)\bDomination\([^)]*\)""", LegacyDominationText)
       .replaceAll("""(?i)\bManeuver\([^)]*\)""", "piece improvement")
-      .replaceAll("""(?i)\bTrappedPiece\([^)]*\)""", DeferredTrappedPieceText)
-      .replaceAll("""(?i)\bZwischenzug\([^)]*\)""", DeferredZwischenzugText)
+      .replaceAll("""(?i)\bTrappedPiece\([^)]*\)""", LegacyTrappedPieceText)
+      .replaceAll("""(?i)\bZwischenzug\([^)]*\)""", LegacyZwischenzugText)
       .replaceAll("""(?i)\bStalemateTrap\([^)]*\)""", "")
       .replaceAll("""(?i)\bPerpetualCheck\([^)]*\)""", "")
       .replaceAll("""(?i)\bKnightVsBishop\([^)]*\)""", "the knight against the bishop")
@@ -147,13 +168,6 @@ private[commentary] object UserFacingSignalSanitizer:
       .replaceAll("""(?i)\bSkewer\([^)]*\)""", "a skewer")
       .replaceAll("""(?i)\bFork\([^)]*\)""", "fork pressure")
       .replaceAll("""(?i)\bCheck\([^)]*\)""", "checking pressure")
-
-  private def deferredRelationFallbackText(kind: String, fallback: String): String =
-    RelationObservationCatalog
-      .deferredFallbackForKind(kind)
-      .filter(_.allowsNonRelationText)
-      .flatMap(_.label)
-      .getOrElse(fallback)
 
   private def collapseWhitespace(text: String): String =
     text

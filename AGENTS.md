@@ -52,6 +52,12 @@ Re-audit the master commentary docs only when:
   continuation/persistence/release rules, and scope overrides should live in a
   canonical runtime boundary first. Downstream planner and renderer code should
   consume the certified result instead of repeating ad hoc string checks.
+- Do not reconstruct chess or commentary logic by parsing prose, evidence-ref
+  strings, fact strings, labels, helper names, or serialized debug terms. If a
+  downstream runtime consumer needs a square, move, role, target, relation
+  detail, authority tier, or witness result, carry it through a typed/structured
+  model from the canonical producer and serialize only at the public boundary.
+  String tokens may remain audit/display metadata, not runtime truth inputs.
 - Do not admit planner ownership from broad scope alone. For example,
   `PositionLocal` by itself must not admit `WhatMattersHere`; use a certified
   slice/source predicate.

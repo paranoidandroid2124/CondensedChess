@@ -51,6 +51,8 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
     ProofFamilyId.fromPlanKind(PlanTaxonomy.PlanKind.DefenderTrade).get.wireKey
   private val BadPieceLiquidationFamily =
     ProofFamilyId.fromPlanKind(PlanTaxonomy.PlanKind.BadPieceLiquidation).get.wireKey
+  private val RelationTransformationFamily =
+    ProofFamilyId.RelationTransformation.wireKey
   private val BoundedFavorableSimplificationFamily =
     ProofFamilyId.fromPlanKind(PlanTaxonomy.PlanKind.SimplificationWindow).get.wireKey
 
@@ -306,6 +308,9 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
           else if delta.packet.proofFamily == BadPieceLiquidationFamily &&
               delta.packet.proofSource == PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource
           then "This trade clears the bad piece from the local branch."
+          else if delta.packet.proofFamily == RelationTransformationFamily &&
+              delta.packet.proofSource == PlayerFacingTruthModePolicy.RelationTransformationProofSource
+          then "This move creates a concrete tactical relation on the checked line."
           else if delta.packet.proofFamily == BoundedFavorableSimplificationFamily then
             delta.modalityTier match
               case PlayerFacingClaimModalityTier.Forces =>
@@ -549,6 +554,7 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
         packet.proofSource == PlayerFacingTruthModePolicy.IQPInducementProbeProofSource ||
         packet.proofSource == PlayerFacingTruthModePolicy.DefenderTradeProofSource ||
         packet.proofSource == PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource ||
+        packet.proofSource == PlayerFacingTruthModePolicy.RelationTransformationProofSource ||
         packet.proofSource == CentralBreakTimingWitness.ProofSource
     ) {
       packet.proofSource

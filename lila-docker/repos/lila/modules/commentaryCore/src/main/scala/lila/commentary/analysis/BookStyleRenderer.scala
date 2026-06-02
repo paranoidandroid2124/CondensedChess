@@ -2,7 +2,6 @@ package lila.commentary.analysis
 
 import lila.commentary.model._
 import lila.commentary.model.authoring._
-import lila.commentary.analysis.PlanTaxonomy.ThemeResolver
 
 /**
  * BookStyleRenderer: Pure prose assembler (SSOT Phase 5)
@@ -254,7 +253,7 @@ object BookStyleRenderer:
     List(practicalSummary).filter(_.nonEmpty).mkString(" ").trim
 
   private def themeIdOfHypothesis(plan: PlanHypothesis): String =
-    ThemeResolver.fromHypothesis(plan).id
+    PlanClaimBoundary.PlanProposal.fromHypothesis(plan).theme.id
 
   private def topStrategicPlanName(ctx: NarrativeContext): Option[String] =
     StrategicNarrativePlanSupport.evidenceBackedLeadingPlanName(ctx)

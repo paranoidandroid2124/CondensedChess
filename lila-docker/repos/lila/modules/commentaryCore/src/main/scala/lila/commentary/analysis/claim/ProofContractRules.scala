@@ -293,9 +293,9 @@ private[commentary] object ProofContractRules:
         subplanContract(
           subplan = subplan,
           status = ProofContractStatus.Releasable,
-          acceptedSources = Set(ProofSourceId.ExchangeForcingDelta),
+          acceptedSources = Set.empty,
           allowedScopes = Set(PlayerFacingPacketScope.MoveLocal, PlayerFacingPacketScope.PositionLocal),
-          requiredWitnesses = WeakOwnerWitnesses + ProofWitness.StructureTransition,
+          requiredWitnesses = WeakOwnerWitnesses + ProofWitness.StructureTransition + ProofWitness.ExactSlice,
           certifiedEligible = false,
           supportedLocalEligible = true,
           defaultFailureTaxonomy = "attacking_piece_trade_unowned"
@@ -330,7 +330,7 @@ private[commentary] object ProofContractRules:
           status = ProofContractStatus.Releasable,
           acceptedSources = Set.empty,
           allowedScopes = Set(PlayerFacingPacketScope.MoveLocal, PlayerFacingPacketScope.PositionLocal),
-          requiredWitnesses = WeakOwnerWitnesses + ProofWitness.StructureTransition,
+          requiredWitnesses = WeakOwnerWitnesses + ProofWitness.StructureTransition + ProofWitness.ExactSlice,
           certifiedEligible = false,
           supportedLocalEligible = true,
           defaultFailureTaxonomy = "attacking_piece_trade_unowned"
@@ -437,6 +437,15 @@ private[commentary] object ProofContractRules:
         certifiedEligible = true,
         supportedLocalEligible = true,
         defaultFailureTaxonomy = "color_complex_authority_closed"
+      ),
+      customContract(
+        id = ProofFamilyId.RelationTransformation,
+        acceptedSources = Set(ProofSourceId.RelationTransformation),
+        allowedScopes = Set(PlayerFacingPacketScope.MoveLocal),
+        requiredWitnesses = WeakOwnerWitnesses + ProofWitness.ExactSlice,
+        certifiedEligible = false,
+        supportedLocalEligible = true,
+        defaultFailureTaxonomy = "relation_transformation_witness_missing"
       )
     )
 
@@ -569,20 +578,7 @@ private[commentary] object ProofContractRules:
       packet.releaseRisks.contains(PlayerFacingClaimReleaseRisk.RivalRelease)
 
   private def tacticalVetoPresent(packet: PlayerFacingClaimPacket): Boolean =
-    (packet.suppressionReasons ++ packet.releaseRisks).exists(isTacticalVetoCode)
-
-  private def isTacticalVetoCode(raw: String): Boolean =
-    val code = normalize(raw)
-    code == "truth_contract_blunder" ||
-      code == "truth_contract_missed_win" ||
-      code == "truth_contract_tactical_refutation" ||
-      code == "truth_contract_tactical_failure_mode" ||
-      code == "planner_truth_mode_tactical" ||
-      code == "main_claim_tactical" ||
-      code == "context_severe_counterfactual" ||
-      code == "tactical_context_missing" ||
-      code == "truth_contract_missing" ||
-      code.contains("tactical")
+    (packet.suppressionReasons ++ packet.releaseRisks).exists(ClaimAuthorityDecision.isTacticalVetoCode)
 
   private def claimOnlySurfacePresent(packet: PlayerFacingClaimPacket): Boolean =
     packet.fallbackMode == PlayerFacingClaimFallbackMode.WeakMain

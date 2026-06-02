@@ -1,10 +1,10 @@
 package lila.commentary.analysis.semantic.evidence
 
 import lila.commentary.*
-import lila.commentary.analysis.{ BreakFileToken, PlanTaxonomy, PositionFeatures, StrategicIdeaSemanticContext, StrategicStateFeatures }
+import lila.commentary.analysis.{ BreakFileToken, PlanMoveEvidenceSupport, PlanTaxonomy, PositionFeatures, StrategicIdeaSemanticContext, StrategicStateFeatures }
 import lila.commentary.analysis.semantic.{ StrategicIdeaEvidence, StrategicIdeaEvidenceTier }
 import lila.commentary.analysis.semantic.StrategicObservationIds.EvidenceSourceId
-import _root_.chess.{ Bishop, Board, Color, File, Knight, Pawn, Queen, Rank, Role, Rook, Square }
+import _root_.chess.{ Bishop, Color, File, Knight, Pawn, Queen, Rank, Role, Rook, Square }
 import lila.commentary.analysis.L3.{ PawnPlayAnalysis, ThreatAnalysis, ThreatKind }
 import lila.commentary.model.{ Motif, PlanId, PlanMatch, StrategicPlanExperiment }
 import lila.commentary.model.strategic.{ PositionalTag, PreventedPlan }
@@ -12,6 +12,8 @@ import lila.commentary.model.structure.{ StructureId }
 
 
 private[evidence] object StrategicIdeaEvidenceSupport:
+
+  import PlanMoveEvidenceSupport.{ diagonalClear, hasPiece, isOpenFile, isSemiOpenFileFor, pawnAt }
 
   private enum ExperimentEvidenceTier:
     case Refuted, Other
@@ -285,25 +287,6 @@ private[evidence] object StrategicIdeaEvidenceSupport:
 
   def bishopPairFor(side: String, features: PositionFeatures): Boolean =
     if side == "white" then features.imbalance.whiteBishopPair else features.imbalance.blackBishopPair
-
-  def hasPiece(board: Board, color: Color, square: Square, role: Role): Boolean =
-    board.pieceAt(square).exists(piece => piece.color == color && piece.role == role)
-
-  def pawnAt(board: Board, color: Color, square: Square): Boolean =
-    hasPiece(board, color, square, Pawn)
-
-  def diagonalClear(board: Board, from: Square, to: Square): Boolean =
-    val fileStep = math.signum(to.file.value - from.file.value)
-    val rankStep = math.signum(to.rank.value - from.rank.value)
-    val fileDiff = (to.file.value - from.file.value).abs
-    val rankDiff = (to.rank.value - from.rank.value).abs
-    if fileDiff != rankDiff || fileDiff == 0 then false
-    else
-      (1 until fileDiff).forall { offset =>
-        Square
-          .at(from.file.value + offset * fileStep, from.rank.value + offset * rankStep)
-          .forall(board.pieceAt(_).isEmpty)
-      }
 
   def zoneFromSquares(squares: List[Square]): Option[String] =
     mostCommon(squares.flatMap(zoneFromSquare))
@@ -660,12 +643,3 @@ private[evidence] object StrategicIdeaEvidenceSupport:
 
   def isSeventhRankFor(side: String, square: Square): Boolean =
     if side == "white" then square.rank == Rank.Seventh else square.rank == Rank.Second
-
-  def isOpenFile(board: Board, file: File): Boolean =
-    (board.pawns & _root_.chess.Bitboard.file(file)).isEmpty
-
-  def isSemiOpenFileFor(board: Board, file: File, color: Color): Boolean =
-    val mask = _root_.chess.Bitboard.file(file)
-    val ours = board.pawns & board.byColor(color) & mask
-    val theirs = board.pawns & board.byColor(!color) & mask
-    ours.isEmpty && theirs.nonEmpty

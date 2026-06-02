@@ -525,7 +525,7 @@ private[commentary] object StrategyPackSurface:
     val label = normalizeText(StrategicIdeaSelector.playerFacingIdeaText(idea))
     Option.when(label.nonEmpty)(label)
 
-  private def routeText(route: StrategyPieceRoute): Option[String] =
+  private[analysis] def routeText(route: StrategyPieceRoute): Option[String] =
     val routeSquares = route.route.map(normalizeText).filter(_.nonEmpty)
     val destination = routeSquares.lastOption
     val purpose = playerFacingRoutePurpose(route.purpose)
@@ -537,7 +537,7 @@ private[commentary] object StrategyPackSurface:
       else (List(s"$piece toward $square") ++ purpose.map(p => s"for $p")).mkString(" ")
     }
 
-  private def moveRefText(moveRef: StrategyPieceMoveRef): Option[String] =
+  private[analysis] def moveRefText(moveRef: StrategyPieceMoveRef): Option[String] =
     val piece = pieceName(moveRef.piece)
     val target = normalizeText(moveRef.target)
     val idea = normalizeText(moveRef.idea)
@@ -545,7 +545,7 @@ private[commentary] object StrategyPackSurface:
       (List(s"$piece toward $target") ++ Option.when(idea.nonEmpty)(s"for $idea").toList).mkString(" ")
     }
 
-  private def targetText(target: StrategyDirectionalTarget): Option[String] =
+  private[analysis] def targetText(target: StrategyDirectionalTarget): Option[String] =
     val piece = pieceName(target.piece)
     val square = normalizeText(target.targetSquare)
     Option.when(square.nonEmpty) {

@@ -98,13 +98,21 @@ Current authority is internal and MoveReview-first:
   analyzer-owned typed relation details for king-attack, material-target, line,
   and lure-and-win geometry, so later consumers can
   reuse the same legal replay/attack-defense witness without introducing
-  motif-local parsers. A relation witness with non-empty typed details must
+  motif-local parsers. Implemented relation extraction is registered through
+  `MoveReviewExchangeAnalyzer.ImplementedRelationWitnessTemplates`; adding a
+  relation motif means adding one analyzer hook to that registry, then wiring
+  the catalog descriptor, not creating a parallel replay path. A relation
+  witness with non-empty typed details must
   match its relation kind before semantic emission, and semantic consumers cross
   that boundary through the analyzer-owned relation projection rather than raw
   witness fields. Defender/bad-piece owner seed and transition terms are
-  expanded through the analyzer relation projection, and policy continuation
-  terms consume those analyzer-built structure terms instead of rebuilding
-  relation markers. Branch-key and `branch:*` fact formatting is
+  expanded from the projection's structured `relationSupport`, and policy
+  continuation terms consume those analyzer-built structure terms instead of
+  rebuilding relation markers or reusing dynamic support fact strings as
+  runtime inputs. The same structured support helper enriches selector
+  idea/focus text for `StrategyPack` digest, and relation prompt hints use the
+  player-facing idea text when matching support is present, without granting
+  proof authority. Branch-key and `branch:*` fact formatting is
   also analyzer-owned through shared branch helpers rather than policy-local UCI
   slicing; `best_branch:*` and `exchange_square:*` fact formatting use the same
   analyzer boundary.
@@ -138,35 +146,126 @@ Current authority is internal and MoveReview-first:
   projected through `MoveReviewPvLine.pvMoveTerms` rather than witness-local raw
   prefix assembly.
   Theme/subplan support tags are created and parsed through
-  `PlanTaxonomy.ThemeResolver`, including embedded subplan annotations on
-  probe plan names, user-facing stripping of those annotations, and embedded
-  theme preconditions, not planner- or detector-local prefix slicing.
+  `PlanTaxonomy.ThemeResolver`, including legacy embedded subplan annotation
+  parsing/stripping and embedded theme preconditions, not planner- or
+  detector-local prefix slicing. Live probe generation no longer encodes
+  subplan authority in display `planName`; request contracts carry purpose,
+  objective, required signals, horizon, and stable plan binding separately.
   Taxonomy-backed proof contract ids use the same resolver boundary.
   Structural state and latent-seed evidence tags use the same resolver
   boundary.
+  User-facing plan semantic policy is owned by `PlanSemanticsContract`.
+  `PlanTaxonomy.ThemeResolver` may classify and tag proposal/debug/compatibility
+  carriers, but strategic idea-kind mapping, probe-purpose routing, and
+  thematic fallback eligibility consume the typed semantics contract rather
+  than raw plan names, aliases, evidence-source strings, execution steps, or
+  failure-mode prose.
+  The runtime admission boundary now starts at `PlanClaimBoundary`:
+  `PlanProposal` records whether a theme/subplan came from explicit typed
+  metadata, support tags, or proposal-only inference; broad aliases and default
+  subplans do not mint supportable subplans. `PlanSupport`,
+  `AdmittedPlanClaim`, and `RenderedPlanText` are the typed lifecycle names for
+  the planned support -> user-facing claim -> prose boundary. MoveReview
+  producer/probe/outline/ledger/transposition consumers now use this boundary:
+  `PlanMatch`, `ProbeRequest`, `PlanContinuity`, `LatentSeed`, `PlanRow`,
+  `StrategicPlanExperiment`, and `PlanHypothesis` are projected through
+  `PlanProposal` before their theme/subplan meaning is consumed. Thematic
+  fallback, player-surface plan family checks, truth-mode proof-family and
+  trigger-kind projection, strategic ledger motif profile, outline slot
+  selection, and transposition weakness alignment consume the typed boundary
+  rather than reparsing plan names.
+  Weak long-plan candidate quality is improved inside the same runtime path by
+  board/legal-move evidence helpers rather than new planner surfaces:
+  `PieceRedeploymentEvidence` for worst-piece, bishop, rook-file,
+  non-king open-file-pressure targets, and outpost reroutes; it excludes
+  pawn/king reroutes, same-file rook moves from rook-file transfer, and active
+  queen centralization from worst-piece improvement unless the queen is a
+  low-activity recovery. `AdvantageTransformationEvidence` for passer
+  conversion/manufacture, simplification-conversion, invasion transition with
+  check or a non-king resource target, and
+  opposite-bishops conversion; `FlankInfrastructureEvidence` for aligned or
+  hook-backed rook-pawn march, hook creation, and rook-lift scaffolds;
+  `PawnBreakEvidence` for concrete central/wing pawn breaks under the
+  pawn-break taxonomy theme and tension-maintaining quiet moves that support
+  the preserved tension by castling, minor-piece centralization/mobility gain,
+  or a major piece on a tension file;
+  `RestrictionPlanEvidence` for board-measured break prevention,
+  key-square denial, quiet mobility suppression, central-space bind, and flank clamp
+  without duplicating those specific move-level candidates as generic
+  prophylaxis;
+  `WeaknessFixationEvidence` for `WeaknessTargetProfile`-anchored
+  static/backward/IQP target moves and semantic-ready minority-attack
+  prep/break support moves; and `FavorableExchangeEvidence` for
+  defended queen-vs-queen exchange, defender-trade, bad-piece liquidation, and
+  bounded recapture-like simplification-window candidates rather than large
+  tactical material wins.
+  Piece-redeployment, flank-infrastructure, pawn-break, restriction, and
+  weakness-fixation helpers keep diagnostic reason tokens in evidence/probe
+  metadata, while `PlanHypothesis` preconditions and execution steps are
+  phrased from board-backed candidate fields before MoveReview rows render
+  them.
+  Helper ownership is theme/family scoped; do not introduce one helper per
+  PlanKind when an existing family helper can own the typed evidence.
+  Rook-lift scaffolds need a lift-rank rook move plus enemy king-file pressure,
+  check, or a non-king resource target; a flank-file lift alone is not support.
+  Helper-owned specific long-plan subplans are not emitted directly from
+  `PlanProposalEngine` broad structural booleans; outpost, rook-pawn, hook,
+  pawn-break, weakness, exchange, restriction, and transformation specifics
+  should come from their family helper candidates.
+  Shared pawn/target/material primitives live in `PlanMoveEvidenceSupport`.
+  `ProbeDetector` consumes these refined subplan candidates before broad theme
+  move families, and covered weak subplans fail closed rather than falling back
+  to generic theme moves when no refined candidate exists.
+  `generic_center_plan` is retained only as theme/debug metadata and is not a
+  live `CentralBreakTiming` subplan projection.
+  `PlanEvidenceEvaluator.planSupport`, `admittedPlanClaim`, and
+  `StrategicPlanEvidenceView.mainAdmittedClaims` are the runtime projections
+  into the support/admission lifecycle types. `MoveReviewPlayerPayloadBuilder`
+  uses `RenderedPlanText` for promoted-plan row strings after admission rather
+  than rebuilding plan meaning from rendered prose. It also owns final player
+  detail cleanup for plan rows: probe/test/candidate-request wording from
+  hypothesis detail fields is suppressed through
+  `UserFacingSignalSanitizer.sanitizePlanDetail`, and typed contract/name
+  fallback is allowed only when a non-empty detail field was suppressed rather
+  than when a plan had no detail. Its player-surface family gates for weakness targets,
+  prophylaxis rows, and promoted/practical sibling suppression consume
+  `PlanProposal.fallbackTheme` and `supportKind`; inferred proposal themes from
+  plan names, execution steps, or failure-mode prose are not row-creation or
+  row-suppression authority. A promoted plan may also get a `Plan status`
+  advanced row from matching `StrategicPlanExperiment` flow state, but only
+  when the experiment's exact plan id matches the admitted plan and any typed
+  support kind remains compatible through `PlanClaimBoundary`; broad theme or
+  same-subplan sibling matches do not attach flow wording.
+  `UserFacingPayloadSanitizer` uses the same plan-detail sanitizer for retained
+  sanitized plan hypotheses and strategy-pack plan priorities/risk/long-term
+  focus, so cached/internal carriers do not keep probe/test/candidate request
+  wording after payload cleanup.
   Policy-local rival assessment tags (`secondary_plan:*`,
   `secondary_idea:*`, and `exact:*`) remain suppression/release-risk traces
   inside `PlayerFacingTruthModePolicy`; they are not expansion owner names,
   proof sources, proof families, or product row kinds.
-  Deferred relation motifs stay in the same
-  catalog inventory with required witness and fallback-lane metadata, projected
-  through a catalog-owned `DeferredRelationFallback` read-model, but only
-  implemented board-replayed descriptors can emit relation authority. Legacy
-  motif-prefix, theme-keyword, canonical motif-term, and motif delta prose
-  consume that fallback projection for softer non-relation text or
-  diagnostic-only suppression. Legacy plan evidence also uses the fallback
-  label for deferred domination. User-facing helper notation for deferred
-  relations is rewritten or suppressed through the same catalog fallback, and
-  threat-summary labels consume the same fallback instead of raw deferred motif
-  names.
-  Strategy-pack/structure-arc piece-activity evidence uses the catalog fallback
-  evidence term for trapped-piece activity.
-  The final sanitizer removes deferred relation motif terms from cached or
-  legacy strategy-pack evidence lists while preserving the fallback term.
-  Deferred tags do not raise the generic context beat into high-tension
-  tactical tone or pass as generic motif-prefix signals. Generic
-  fact-corroboration helpers also check the deferred relation catalog before
-  treating a motif as board-supported.
+  `RelationKind.Deferred` is currently empty; only implemented board-replayed
+  descriptors can emit relation authority. Legacy motif-prefix, theme-keyword,
+  canonical motif-term, and motif delta prose keep old relation-shaped labels
+  generic or suppressed instead of treating them as catalog evidence. Legacy
+  trapped-piece, domination, and zwischenzug text is lowered to generic
+  piece-mobility, key-square restriction, or move-order caution wording unless
+  the analyzer witness exists; legacy stalemate-trap and perpetual-check text is
+  suppressed unless the matching replayed witness exists.
+  Strategy-pack/structure-arc piece-activity evidence does not promote legacy
+  trapped-piece activity into relation evidence. The final sanitizer removes
+  legacy relation-shaped evidence terms from cached or legacy strategy-pack
+  evidence lists. Legacy relation-shaped tags do not raise the generic context
+  beat into high-tension tactical tone or pass as generic motif-prefix signals.
+  Generic fact-corroboration helpers also block those tags before treating a
+  motif as board-supported.
+  `trapped_piece`, `domination`, `stalemate_trap`, `zwischenzug`, and
+  `perpetual_check` are now implemented only through analyzer relation
+  witnesses: trapped-piece requires no safe or defense-preserving reply route,
+  domination requires a bound target reduced to at most one legal reply route,
+  stalemate-trap requires the replayed move to leave the defender stalemated,
+  zwischenzug requires a forcing check plus material payoff on the same line,
+  and perpetual-check requires a repeated legal checking-position key.
 - `StrategicSemanticObservationPipeline` emits typed semantic observations
   through minority-attack and a catalog-driven relation producer.
   `StrategicSemanticObservationContext` owns the normalized reviewed move, exact
@@ -175,25 +274,37 @@ Current authority is internal and MoveReview-first:
   set from that shared context instead of replaying or filtering locally.
   Replay-backed relation observations require the reviewed `playedMove` and do not
   infer it from the engine top line. Selector use of these observations does
-  not create proof authority by itself. Deferred relation motifs stay in the
-  same catalog inventory as non-public rows with required witness shape and
-  defer reason; they have no implemented descriptor, selector evidence, or
-  frontend authority token until a board-replayed witness graduates them.
+  not create proof authority by itself. Unknown relation motifs have no
+  descriptor, selector evidence, or frontend authority token.
+  The selector may preserve one implemented structured relation candidate as a
+  secondary idea when stronger non-relation family evidence would otherwise hide
+  it from the player surface; this is support visibility only and still
+  requires matching `relationSupport`.
   Implemented descriptors also own bounded public target fallback over
   relation-specific focus, keeping surface projection policy out of the payload
   builder. Any public relation carrier must preserve relation-specific focus
   before it can reach the public row, and selector merge does not synthesize
-  relation focus or relation target from generic focus/target squares; legacy
-  carriers without a selected relation kind must also have exactly one matching
-  catalog source/fact pair and cannot promote generic `targetSquare` metadata as
-  analyzer target.
+  relation focus or relation target from generic focus/target squares.
+  `MoveReviewPlayerPayloadBuilder` admits a public relation row only from a
+  selected implemented `relationKind` plus matching structured
+  `relationSupport`; source/fact evidence strings and legacy target metadata are
+  not row-admission inputs. `RelationSurfaceText` follows the same boundary and
+  returns no player-row or summary-cue wording when matching structured support
+  is absent. It may enrich support text with structured role, fork target-role,
+  line-axis, absolute-pin, tactical-duty, king-pattern cycle, lure, and
+  execution-route detail from that carrier, including bounded why/next-check
+  move-review cues. Those relation cues lead the summary surface when present,
+  while remaining support-only metadata.
   `StrategicIdeaEvidence` preserves relation identity and relation focus only
-  for implemented catalog kinds; deferred or unknown relation names are stripped
-  before selector candidates are built.
+  for implemented catalog kinds; unknown relation names are stripped before
+  selector candidates are built.
 - `QuestionFirstCommentaryPlanner` ranks questions; it does not own proof
   authority.
 - `FragmentAuthority` decides renderer release safety.
 - `CommentaryApi` and frontend code consume typed payloads only.
+  `ui/analyse/src/moveReview/playerSurfaceRendering.ts` renders decoded
+  `moveReviewPlayerSurface` rows, including relation/target chips, without
+  reconstructing relation authority from text.
 
 ## Maintained Scope
 
@@ -206,11 +317,10 @@ Open for maintenance:
 - relation-witness hardening that centralizes legal replay plus attack/defense
   evidence in `MoveReviewExchangeAnalyzer`, routes semantic producer access
   through `StrategicSemanticObservationContext`, and keeps new motif rows
-  selector/support-only until a proof contract admits them; deferred motif
-  families are tracked in the relation inventory but remain non-public and
-  uncataloged until they receive a board-replayed witness
+  selector/support-only until a proof contract admits them
 - MoveReview player-surface relation metadata that exposes cataloged relation
-  support as `strategic_relation` advanced rows without creating proof authority
+  support as `strategic_relation` summary cues and advanced rows without
+  creating proof authority
 - docs and package cleanup that preserves the current authority boundary
 
 Do not introduce rollout, history, or umbrella expansion labels as runtime

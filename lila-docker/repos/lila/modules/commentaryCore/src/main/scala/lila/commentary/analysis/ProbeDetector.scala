@@ -19,6 +19,38 @@ object ProbeDetector:
   private val MaxMovesPerPlan = 3
   private val DefaultDepth = 20
   private val MaxProbeRequests = 8
+  private val RefinedOnlySubplans: Set[PlanKind] = Set(
+    PlanKind.OutpostEntrenchment,
+    PlanKind.WorstPieceImprovement,
+    PlanKind.BishopReanchor,
+    PlanKind.RookFileTransfer,
+    PlanKind.OpenFilePressure,
+    PlanKind.ProphylaxisRestraint,
+    PlanKind.BreakPrevention,
+    PlanKind.KeySquareDenial,
+    PlanKind.MobilitySuppression,
+    PlanKind.FlankClamp,
+    PlanKind.CentralSpaceBind,
+    PlanKind.PasserConversion,
+    PlanKind.PassedPawnManufacture,
+    PlanKind.SimplificationConversion,
+    PlanKind.InvasionTransition,
+    PlanKind.OppositeBishopsConversion,
+    PlanKind.RookPawnMarch,
+    PlanKind.HookCreation,
+    PlanKind.RookLiftScaffold,
+    PlanKind.CentralBreakTiming,
+    PlanKind.WingBreakTiming,
+    PlanKind.TensionMaintenance,
+    PlanKind.StaticWeaknessFixation,
+    PlanKind.BackwardPawnTargeting,
+    PlanKind.MinorityAttackFixation,
+    PlanKind.IQPInducement,
+    PlanKind.SimplificationWindow,
+    PlanKind.DefenderTrade,
+    PlanKind.QueenTradeShield,
+    PlanKind.BadPieceLiquidation
+  )
 
   case class StrategicFrame(
     cause: String,
@@ -329,10 +361,6 @@ object ProbeDetector:
                     else Nil
                   if selectedMoves.isEmpty then None
                   else
-                    val labeledPlanName =
-                      contract.subplanId
-                        .map(ThemeResolver.subplanAnnotation(h.planName, _))
-                        .getOrElse(h.planName)
                     Some(
                       ProbeRequest(
                         id = stableRequestId(h, fen),
@@ -340,7 +368,7 @@ object ProbeDetector:
                         moves = selectedMoves,
                         depth = DefaultDepth,
                         planId = Some(h.planId),
-                        planName = Some(labeledPlanName),
+                        planName = Some(h.planName),
                         planScore = Some(h.score),
                         purpose = Some(contract.purpose),
                         objective = contract.objective,
@@ -370,10 +398,6 @@ object ProbeDetector:
                   else Nil
                 if selectedMoves.isEmpty then None
                 else
-                  val labeledPlanName =
-                    contract.subplanId
-                      .map(ThemeResolver.subplanAnnotation(pm.plan.name, _))
-                      .getOrElse(pm.plan.name)
                   Some(
                     ProbeRequest(
                       id = stableRequestId(pm.plan, fen),
@@ -381,7 +405,7 @@ object ProbeDetector:
                       moves = selectedMoves,
                       depth = DefaultDepth,
                       planId = Some(pm.plan.id.toString),
-                      planName = Some(labeledPlanName),
+                      planName = Some(pm.plan.name),
                       planScore = Some(pm.score),
                       purpose = Some(contract.purpose),
                       objective = contract.objective,
@@ -492,15 +516,7 @@ object ProbeDetector:
   )
 
   private def themePlanContract(pm: PlanMatch): ThemePlanContract =
-    val taggedSubplan =
-      pm.supports
-        .flatMap(ThemeResolver.subplanFromSupport)
-        .headOption
-    val inferredSubplan =
-      taggedSubplan
-        .orElse(ThemeResolver.subplanFromPlanId(pm.plan.id.toString))
-        .orElse(ThemeResolver.subplanFromPlanName(pm.plan.name))
-    themePlanContractForSubplan(inferredSubplan)
+    themePlanContractForSubplan(PlanClaimBoundary.PlanProposal.fromPlanMatch(pm).supportKind)
 
   private def themePlanContract(h: PlanHypothesis): ThemePlanContract =
     themePlanContractForSubplan(hypothesisPlanKind(h))
@@ -537,10 +553,10 @@ object ProbeDetector:
     s"${h.planId.trim.toLowerCase}|${sub.toLowerCase}"
 
   private def hypothesisThemeId(h: PlanHypothesis): PlanTheme =
-    ThemeResolver.fromHypothesis(h)
+    PlanClaimBoundary.PlanProposal.fromHypothesis(h).theme
 
   private def hypothesisPlanKind(h: PlanHypothesis): Option[PlanKind] =
-    ThemeResolver.subplanFromHypothesis(h).orElse(h.subplanId.flatMap(PlanKind.fromId))
+    PlanClaimBoundary.PlanProposal.fromHypothesis(h).supportKind
 
   private def broadenThemeContractForDefaultSubplan(
       subplan: PlanKind,
@@ -791,7 +807,7 @@ object ProbeDetector:
         .flatMap(pm => representativeMoves(pos, pm, legalMoves))
         .distinct
     val fallback =
-      movesFromHypothesis(h, legalMoves)
+      movesFromHypothesis(pos, h, legalMoves)
         .map(_.toUci.uci)
         .distinct
         .filterNot(fromRulePlans.contains)
@@ -801,7 +817,7 @@ object ProbeDetector:
     val hypPlanId = h.planId.trim.toLowerCase
     val pmPlanId = pm.plan.id.toString.trim.toLowerCase
     val hypTheme = hypothesisThemeId(h)
-    val pmTheme = ThemeResolver.fromPlanId(pm.plan.id.toString)
+    val pmTheme = PlanClaimBoundary.PlanProposal.fromPlanMatch(pm).theme
     val hypSubplan = hypothesisPlanKind(h).map(_.id)
     val pmSubplan = themePlanContract(pm).subplanId.map(_.id)
     hypPlanId == pmPlanId ||
@@ -809,12 +825,32 @@ object ProbeDetector:
       (hypTheme != PlanTheme.Unknown && hypTheme == pmTheme)
 
   private def movesFromHypothesis(
+      pos: Position,
       h: PlanHypothesis,
       legalMoves: List[Move]
   ): List[Move] =
-    val subplanMoves = hypothesisPlanKind(h).toList.flatMap(sp => movesFromSubplan(sp, legalMoves))
+    val subplans = hypothesisPlanKind(h).toList
+    val hasRefinedOnlySubplan = subplans.exists(RefinedOnlySubplans.contains)
+    val subplanMoves =
+      subplans.flatMap { sp =>
+        val refined =
+          (
+            PieceRedeploymentEvidence.movesForSubplan(pos, sp, legalMoves) ++
+              FlankInfrastructureEvidence.movesForSubplan(pos, sp, legalMoves) ++
+              PawnBreakEvidence.movesForSubplan(pos, sp, legalMoves) ++
+              WeaknessFixationEvidence.movesForSubplan(pos, sp, legalMoves) ++
+              FavorableExchangeEvidence.movesForSubplan(pos, sp, legalMoves) ++
+              RestrictionPlanEvidence.movesForSubplan(pos, sp, legalMoves) ++
+              AdvantageTransformationEvidence.movesForSubplan(pos, sp, legalMoves)
+          ).distinct
+        if refined.nonEmpty then refined
+        else if RefinedOnlySubplans.contains(sp) then Nil
+        else movesFromSubplan(sp, legalMoves)
+      }
     val themeMoves = movesFromTheme(hypothesisThemeId(h), legalMoves)
-    (subplanMoves ++ themeMoves).distinct
+    if subplanMoves.nonEmpty then subplanMoves.distinct
+    else if hasRefinedOnlySubplan then Nil
+    else themeMoves.distinct
 
   private def movesFromSubplan(
       subplan: PlanKind,
@@ -828,41 +864,32 @@ object ProbeDetector:
         )
       case PlanKind.ProphylaxisRestraint | PlanKind.BreakPrevention | PlanKind.KeySquareDenial |
           PlanKind.MobilitySuppression =>
-        legalMoves.filter(mv => !mv.captures && mv.piece.role != Pawn)
+        Nil
       case PlanKind.OutpostEntrenchment | PlanKind.WorstPieceImprovement =>
-        legalMoves.filter(mv =>
-          !mv.captures && (mv.piece.role == Knight || mv.piece.role == Bishop)
-        )
+        Nil
       case PlanKind.BishopReanchor =>
-        legalMoves.filter(mv => mv.piece.role == Bishop && !mv.captures)
-      case PlanKind.RookFileTransfer | PlanKind.RookLiftScaffold =>
-        legalMoves.filter(mv => mv.piece.role == Rook && !mv.captures)
+        Nil
+      case PlanKind.RookFileTransfer =>
+        Nil
+      case PlanKind.RookLiftScaffold =>
+        Nil
       case PlanKind.OpenFilePressure =>
-        legalMoves.filter(mv =>
-          (mv.piece.role == Rook || mv.piece.role == Queen) &&
-            (!mv.captures || mv.dest.file == mv.orig.file)
-        )
+        Nil
       case PlanKind.FlankClamp | PlanKind.RookPawnMarch | PlanKind.HookCreation | PlanKind.WingBreakTiming |
           PlanKind.MinorityAttackFixation =>
-        legalMoves.filter(mv =>
-          mv.piece.role == Pawn &&
-            !mv.dest.file.isCentral &&
-            (!mv.captures || mv.dest.file.isKingside || mv.dest.file.isQueenside)
-        )
+        Nil
       case PlanKind.CentralSpaceBind | PlanKind.CentralBreakTiming | PlanKind.TensionMaintenance |
           PlanKind.IQPInducement =>
-        legalMoves.filter(mv =>
-          mv.piece.role == Pawn &&
-            (mv.orig.file.isCentral || mv.dest.file.isCentral || mv.captures)
-        )
+        Nil
       case PlanKind.StaticWeaknessFixation | PlanKind.BackwardPawnTargeting =>
-        legalMoves.filter(mv => mv.captures || (mv.piece.role == Pawn && !mv.dest.file.isCentral))
-      case PlanKind.SimplificationWindow | PlanKind.DefenderTrade | PlanKind.QueenTradeShield |
-          PlanKind.SimplificationConversion | PlanKind.InvasionTransition | PlanKind.OppositeBishopsConversion |
+        Nil
+      case PlanKind.SimplificationWindow | PlanKind.DefenderTrade | PlanKind.QueenTradeShield =>
+        Nil
+      case PlanKind.SimplificationConversion | PlanKind.InvasionTransition | PlanKind.OppositeBishopsConversion |
           PlanKind.BadPieceLiquidation =>
-        legalMoves.filter(mv => mv.captures || mv.piece.role == Rook)
+        Nil
       case PlanKind.PasserConversion | PlanKind.PassedPawnManufacture =>
-        legalMoves.filter(mv => mv.piece.role == Pawn && !mv.captures)
+        Nil
       case PlanKind.ForcingTacticalShot | PlanKind.DefenderOverload | PlanKind.ClearanceBreak |
           PlanKind.BatteryPressure =>
         legalMoves.filter(mv => mv.captures || mv.after.check.yes)

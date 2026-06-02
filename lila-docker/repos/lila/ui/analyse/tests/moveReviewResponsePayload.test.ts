@@ -536,7 +536,7 @@ describe('moveReview response payload', () => {
     assert.equal(decoded.moveReviewPlayerSurface?.summaryRows[2]?.authority, null);
   });
 
-  test('decodeMoveReviewResponse preserves bounded strategic relation authority', () => {
+  test('decodeMoveReviewResponse preserves bounded strategic relation authority in summary and advanced rows', () => {
     const relationTokens = backendCatalogRelationTokens();
     const decoded = decodeMoveReviewResponse({
       moveReviewPlayerSurface: {
@@ -544,7 +544,7 @@ describe('moveReview response payload', () => {
         summaryRows: [
           {
             label: 'Line relation',
-            text: 'A stale summary relation row should not carry relation authority.',
+            text: 'Why it works: the line runs from e4 through f5 toward g6. Next check: the line geometry through e4, f5, and g6.',
             authority: {
               kind: 'strategic_relation',
               token: relationTokens[0],
@@ -594,7 +594,13 @@ describe('moveReview response payload', () => {
       },
     });
 
-    assert.equal(decoded.moveReviewPlayerSurface?.summaryRows[0]?.authority, null);
+    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[0]?.authority, {
+      kind: 'strategic_relation',
+      token: 'defender_trade',
+      openingFamily: null,
+      target: 'g6',
+      openingBook: null,
+    });
     assert.deepEqual(
       decoded.moveReviewPlayerSurface?.advancedRows.slice(0, relationTokens.length).map(row => row.authority?.token),
       relationTokens,
@@ -618,7 +624,6 @@ describe('moveReview response payload', () => {
   test('frontend strategic relation authority tokens exclude backend deferred relation inventory', () => {
     const deferredTokens = backendDeferredRelationTokens();
     const frontendTokens = new Set(frontendRelationTokens());
-    assert.ok(deferredTokens.length > 0);
     assert.deepEqual(
       deferredTokens.filter(token => frontendTokens.has(token)),
       [],

@@ -2,6 +2,8 @@ package lila.commentary.analysis.strategic
 
 import chess.*
 import lila.commentary.model.strategic.*
+import lila.commentary.analysis.PlanMoveEvidenceSupport.*
+
 
 object EndgamePatternOracle:
 
@@ -64,6 +66,7 @@ object EndgamePatternOracle:
     if adjustedConfidence < PatternConfidenceThreshold then core
     else
       core.copy(
+        keySquaresControlled = core.keySquaresControlled,
         oppositionType = overrides.oppositionType.getOrElse(core.oppositionType),
         ruleOfSquare = overrides.ruleOfSquare.getOrElse(core.ruleOfSquare),
         triangulationAvailable = overrides.triangulationAvailable.getOrElse(core.triangulationAvailable),
@@ -318,7 +321,7 @@ object EndgamePatternOracle:
   ): Option[PatternMatch] =
     if !hasOnlyKingsAndPawns(board) then None
     else
-      val outsideCandidates = passedPawns(board, color)
+      val outsideCandidates: List[Square] = passedPawns(board, color)
         .filter(isFlankPawn)
         .sortBy(p => -relativeRank(p, color))
       (outsideCandidates.headOption, board.kingPosOf(color), board.kingPosOf(!color)) match
@@ -439,8 +442,8 @@ object EndgamePatternOracle:
       val ourAllPawns = board.byPiece(color, Pawn).squares
       if ourAllPawns.count(p => !isRookPawn(p)) > 0 then None
       else
-        val ourPassers = passedPawns(board, color).filter(isRookPawn).sortBy(p => -relativeRank(p, color))
-        val enemyPassers = passedPawns(board, !color).filterNot(isRookPawn).sortBy(p => -relativeRank(p, !color))
+        val ourPassers: List[Square] = passedPawns(board, color).filter(isRookPawn).sortBy(p => -relativeRank(p, color))
+        val enemyPassers: List[Square] = passedPawns(board, !color).filterNot(isRookPawn).sortBy(p => -relativeRank(p, !color))
         (board.kingPosOf(color), board.kingPosOf(!color), ourPassers.headOption, enemyPassers.headOption) match
           case (Some(ourKing), Some(enemyKing), Some(ourPawn), Some(enemyPawn)) =>
             val ourAdvanced = relativeRank(ourPawn, color) >= 6
@@ -787,15 +790,6 @@ object EndgamePatternOracle:
   private def hasOnlyKingsAndPawns(board: Board): Boolean =
     board.queens.count == 0 && board.rooks.count == 0 && board.bishops.count == 0 && board.knights.count == 0
 
-  private def isRookPawn(square: Square): Boolean =
-    square.file == File.A || square.file == File.H
-
-  private def isFlankPawn(square: Square): Boolean =
-    square.file == File.A || square.file == File.B || square.file == File.G || square.file == File.H
-
-  private def isCornerRegion(square: Square): Boolean =
-    (square.file.value <= File.B.value || square.file.value >= File.G.value) &&
-    (square.rank.value <= Rank.Second.value || square.rank.value >= Rank.Seventh.value)
 
   private def isShortSideCorner(defenderKing: Square, pawn: Square, attacker: Color): Boolean =
     val targetRank = if attacker.white then Rank.Eighth else Rank.First
@@ -814,33 +808,6 @@ object EndgamePatternOracle:
       }
       .toList
 
-  private def passedPawns(board: Board, color: Color): List[Square] =
-    board.byPiece(color, Pawn).squares.filter(isPassedPawn(board, _, color))
-
-  private def isPassedPawn(board: Board, pawnSq: Square, color: Color): Boolean =
-    val oppPawnsByFile = board.byPiece(!color, Pawn).squares.groupBy(_.file)
-    val fileValue = pawnSq.file.value
-    val filesToCheck = List(fileValue - 1, fileValue, fileValue + 1).filter(idx => idx >= 0 && idx <= 7)
-    filesToCheck.forall { idx =>
-      File.all.lift(idx).forall { f =>
-        oppPawnsByFile.get(f).forall { pawns =>
-          pawns.forall { oppPawn =>
-            if color.white then oppPawn.rank.value <= pawnSq.rank.value
-            else oppPawn.rank.value >= pawnSq.rank.value
-          }
-        }
-      }
-    }
-
-  private def relativeRank(square: Square, color: Color): Int =
-    if color.white then square.rank.value + 1 else 8 - square.rank.value
-
-  private def promotionSquare(pawnSq: Square, color: Color): Option[Square] =
-    val promoRank = if color.white then 7 else 0
-    Square.at(pawnSq.file.value, promoRank)
-
-  private def advanceSquare(square: Square, color: Color): Option[Square] =
-    Square.at(square.file.value, square.rank.value + (if color.white then 1 else -1))
 
   private def isOppositeColoredBishopBlockade(
       board: Board,
@@ -849,7 +816,7 @@ object EndgamePatternOracle:
       defenderBishop: Square,
       defenderKing: Square
   ): Boolean =
-    val stopSquare = advanceSquare(pawn, attacker).orElse(promotionSquare(pawn, attacker))
+    val stopSquare = forwardSquare(pawn, attacker).orElse(promotionSquare(pawn, attacker))
     val promotion = promotionSquare(pawn, attacker)
     val kingBlockade =
       stopSquare.exists(sq => chebyshev(defenderKing, sq) <= 1) ||
@@ -875,17 +842,7 @@ object EndgamePatternOracle:
         rank += rankStep
       clear
 
-  private def isRookBehindPawn(board: Board, color: Color, pawnSq: Square): Boolean =
-    board.byPiece(color, Rook).squares.exists { rookSq =>
-      rookSq.file == pawnSq.file &&
-      (if color.white then rookSq.rank.value < pawnSq.rank.value else rookSq.rank.value > pawnSq.rank.value)
-    }
 
-  private def chebyshev(a: Square, b: Square): Int =
-    math.max((a.file.value - b.file.value).abs, (a.rank.value - b.rank.value).abs)
-
-  private def fileDistance(a: File, b: File): Int =
-    (a.value - b.value).abs
 
   private def clamp01(v: Double): Double =
     math.max(0.0, math.min(1.0, v))

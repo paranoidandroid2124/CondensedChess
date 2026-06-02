@@ -1,11 +1,12 @@
 package lila.commentary.analysis
 
-import _root_.chess.{ Bishop, Bitboard, Board, Color, King, Knight, Move, Pawn, Position, Queen, Role, Rook, Square }
+import _root_.chess.{ Bishop, Bitboard, Board, Color, King, Knight, Move, Pawn, Piece, Position, Queen, Role, Rook, Square }
 import _root_.chess.format.{ Fen, Uci }
 import _root_.chess.variant.Standard
 
 import lila.commentary.analysis.tactical.TacticalPatternDetectors
 import lila.commentary.analysis.structure.WeaknessTargetProfile
+import lila.commentary.StrategyRelationSupport
 import lila.commentary.model.ProbeResult
 import lila.commentary.model.strategic.VariationLine
 
@@ -46,7 +47,21 @@ private[commentary] object MoveReviewExchangeAnalyzer:
       focusSquares: List[String],
       targetSquare: Option[String],
       factTerms: List[String],
-      lineMoves: List[String]
+      lineMoves: List[String],
+      support: Option[StrategyRelationSupport] = None
+  )
+
+  final case class RelationWitnessInput(
+      replay: List[BoundedReplayStep],
+      playedMove: String,
+      explicitTargets: List[String] = Nil,
+      continuationLines: List[List[String]] = Nil
+  )
+
+  final case class RelationWitnessTemplate(
+      kind: String,
+      witnessHook: String,
+      extract: RelationWitnessInput => Option[RelationWitness]
   )
 
   sealed trait RelationDetails
@@ -107,6 +122,36 @@ private[commentary] object MoveReviewExchangeAnalyzer:
         targetSquare: String,
         attackerRole: String,
         targetRole: String
+    ) extends RelationDetails
+    final case class TrappedPiece(
+        targetSquare: String,
+        targetRole: String,
+        attackerSquares: List[String],
+        legalEscapeCount: Int
+    ) extends RelationDetails
+    final case class Domination(
+        controllerSquare: String,
+        targetSquare: String,
+        controllerRole: String,
+        targetRole: String,
+        legalMoveCount: Int
+    ) extends RelationDetails
+    final case class StalemateTrap(
+        kingSquare: String,
+        trappingMove: String
+    ) extends RelationDetails
+    final case class Zwischenzug(
+        intermediateMove: String,
+        threatType: String,
+        responseMove: String,
+        payoffMove: String,
+        targetSquare: String
+    ) extends RelationDetails
+    final case class PerpetualCheck(
+        kingSquare: String,
+        checkingMoves: List[String],
+        cycleMoves: List[String],
+        repeatedPositionPly: Int
     ) extends RelationDetails
     final case class Decoy(
         baitFromSquare: String,
@@ -204,8 +249,13 @@ private[commentary] object MoveReviewExchangeAnalyzer:
         BackRankMate,
         MateNet,
         GreekGift,
+        Zwischenzug,
         Fork,
         HangingPiece,
+        TrappedPiece,
+        Domination,
+        StalemateTrap,
+        PerpetualCheck,
         XRay,
         Clearance,
         Battery,
@@ -216,13 +266,7 @@ private[commentary] object MoveReviewExchangeAnalyzer:
       )
 
     val Deferred: List[String] =
-      List(
-        Zwischenzug,
-        Domination,
-        TrappedPiece,
-        StalemateTrap,
-        PerpetualCheck
-      )
+      Nil
 
     val All: List[String] =
       Implemented ++ Deferred
@@ -357,26 +401,138 @@ private[commentary] object MoveReviewExchangeAnalyzer:
       explicitTargets: List[String] = Nil,
       continuationLines: List[List[String]] = Nil
   ): List[RelationWitness] =
+    val input = RelationWitnessInput(
+      replay = replay,
+      playedMove = playedMove,
+      explicitTargets = explicitTargets,
+      continuationLines = continuationLines
+    )
+    ImplementedRelationWitnessTemplates.flatMap(_.extract(input))
+
+  val ImplementedRelationWitnessTemplates: List[RelationWitnessTemplate] =
     List(
-      defenderTradeBranch(replay, playedMove, explicitTargets).map(defenderTradeWitness),
-      badPieceLiquidationBranch(replay, playedMove).map(badPieceLiquidationWitness),
-      overloadWitness(replay, playedMove, explicitTargets),
-      deflectionWitness(replay, playedMove, explicitTargets),
-      discoveredAttackWitness(replay, playedMove, explicitTargets),
-      doubleCheckWitness(replay, playedMove, explicitTargets),
-      backRankMateWitness(replay, playedMove, explicitTargets),
-      mateNetWitness(replay, playedMove, explicitTargets),
-      greekGiftWitness(replay, playedMove, explicitTargets, continuationLines),
-      forkWitness(replay, playedMove, explicitTargets),
-      hangingPieceWitness(replay, playedMove, explicitTargets),
-      xrayWitness(replay, playedMove, explicitTargets),
-      clearanceWitness(replay, playedMove, explicitTargets),
-      batteryWitness(replay, playedMove, explicitTargets),
-      pinWitness(replay, playedMove, explicitTargets),
-      skewerWitness(replay, playedMove, explicitTargets),
-      interferenceWitness(replay, playedMove, explicitTargets),
-      decoyWitness(replay, playedMove, explicitTargets)
-    ).flatten
+      RelationWitnessTemplate(
+        kind = RelationKind.DefenderTrade,
+        witnessHook = "defenderTradeBranch",
+        extract = input => defenderTradeBranch(input.replay, input.playedMove, input.explicitTargets).map(defenderTradeWitness)
+      ),
+      RelationWitnessTemplate(
+        kind = RelationKind.BadPieceLiquidation,
+        witnessHook = "badPieceLiquidationBranch",
+        extract = input => badPieceLiquidationBranch(input.replay, input.playedMove).map(badPieceLiquidationWitness)
+      ),
+      RelationWitnessTemplate(
+        kind = RelationKind.Overload,
+        witnessHook = "overloadWitness",
+        extract = input => overloadWitness(input.replay, input.playedMove, input.explicitTargets)
+      ),
+      RelationWitnessTemplate(
+        kind = RelationKind.Deflection,
+        witnessHook = "deflectionWitness",
+        extract = input => deflectionWitness(input.replay, input.playedMove, input.explicitTargets)
+      ),
+      RelationWitnessTemplate(
+        kind = RelationKind.DiscoveredAttack,
+        witnessHook = "discoveredAttackWitness",
+        extract = input => discoveredAttackWitness(input.replay, input.playedMove, input.explicitTargets)
+      ),
+      RelationWitnessTemplate(
+        kind = RelationKind.DoubleCheck,
+        witnessHook = "doubleCheckWitness",
+        extract = input => doubleCheckWitness(input.replay, input.playedMove, input.explicitTargets)
+      ),
+      RelationWitnessTemplate(
+        kind = RelationKind.BackRankMate,
+        witnessHook = "backRankMateWitness",
+        extract = input => backRankMateWitness(input.replay, input.playedMove, input.explicitTargets)
+      ),
+      RelationWitnessTemplate(
+        kind = RelationKind.MateNet,
+        witnessHook = "mateNetWitness",
+        extract = input => mateNetWitness(input.replay, input.playedMove, input.explicitTargets)
+      ),
+      RelationWitnessTemplate(
+        kind = RelationKind.GreekGift,
+        witnessHook = "greekGiftWitness",
+        extract = input => greekGiftWitness(input.replay, input.playedMove, input.explicitTargets, input.continuationLines)
+      ),
+      RelationWitnessTemplate(
+        kind = RelationKind.Zwischenzug,
+        witnessHook = "zwischenzugWitness",
+        extract = input => zwischenzugWitness(input.replay, input.playedMove, input.explicitTargets)
+      ),
+      RelationWitnessTemplate(
+        kind = RelationKind.Fork,
+        witnessHook = "forkWitness",
+        extract = input => forkWitness(input.replay, input.playedMove, input.explicitTargets)
+      ),
+      RelationWitnessTemplate(
+        kind = RelationKind.HangingPiece,
+        witnessHook = "hangingPieceWitness",
+        extract = input => hangingPieceWitness(input.replay, input.playedMove, input.explicitTargets)
+      ),
+      RelationWitnessTemplate(
+        kind = RelationKind.TrappedPiece,
+        witnessHook = "trappedPieceWitness",
+        extract = input => trappedPieceWitness(input.replay, input.playedMove, input.explicitTargets)
+      ),
+      RelationWitnessTemplate(
+        kind = RelationKind.Domination,
+        witnessHook = "dominationWitness",
+        extract = input => dominationWitness(input.replay, input.playedMove, input.explicitTargets)
+      ),
+      RelationWitnessTemplate(
+        kind = RelationKind.StalemateTrap,
+        witnessHook = "stalemateTrapWitness",
+        extract = input => stalemateTrapWitness(input.replay, input.playedMove, input.explicitTargets)
+      ),
+      RelationWitnessTemplate(
+        kind = RelationKind.PerpetualCheck,
+        witnessHook = "perpetualCheckWitness",
+        extract = input => perpetualCheckWitness(input.replay, input.playedMove, input.explicitTargets, input.continuationLines)
+      ),
+      RelationWitnessTemplate(
+        kind = RelationKind.XRay,
+        witnessHook = "xrayWitness",
+        extract = input => xrayWitness(input.replay, input.playedMove, input.explicitTargets)
+      ),
+      RelationWitnessTemplate(
+        kind = RelationKind.Clearance,
+        witnessHook = "clearanceWitness",
+        extract = input => clearanceWitness(input.replay, input.playedMove, input.explicitTargets)
+      ),
+      RelationWitnessTemplate(
+        kind = RelationKind.Battery,
+        witnessHook = "batteryWitness",
+        extract = input => batteryWitness(input.replay, input.playedMove, input.explicitTargets)
+      ),
+      RelationWitnessTemplate(
+        kind = RelationKind.Pin,
+        witnessHook = "pinWitness",
+        extract = input => pinWitness(input.replay, input.playedMove, input.explicitTargets)
+      ),
+      RelationWitnessTemplate(
+        kind = RelationKind.Skewer,
+        witnessHook = "skewerWitness",
+        extract = input => skewerWitness(input.replay, input.playedMove, input.explicitTargets)
+      ),
+      RelationWitnessTemplate(
+        kind = RelationKind.Interference,
+        witnessHook = "interferenceWitness",
+        extract = input => interferenceWitness(input.replay, input.playedMove, input.explicitTargets)
+      ),
+      RelationWitnessTemplate(
+        kind = RelationKind.Decoy,
+        witnessHook = "decoyWitness",
+        extract = input => decoyWitness(input.replay, input.playedMove, input.explicitTargets)
+      )
+    )
+
+  def implementedRelationWitnessKinds: Set[String] =
+    ImplementedRelationWitnessTemplates.map(_.kind).toSet
+
+  def relationWitnessTemplateForKind(kind: String): Option[RelationWitnessTemplate] =
+    ImplementedRelationWitnessTemplates.find(_.kind == kind)
 
   def defenderTradeRelationWitness(
       replay: List[BoundedReplayStep],
@@ -407,6 +563,11 @@ private[commentary] object MoveReviewExchangeAnalyzer:
       case details: RelationDetails.GreekGift if witness.kind == RelationKind.GreekGift => Some(details)
       case details: RelationDetails.Fork if witness.kind == RelationKind.Fork => Some(details)
       case details: RelationDetails.HangingPiece if witness.kind == RelationKind.HangingPiece => Some(details)
+      case details: RelationDetails.TrappedPiece if witness.kind == RelationKind.TrappedPiece => Some(details)
+      case details: RelationDetails.Domination if witness.kind == RelationKind.Domination => Some(details)
+      case details: RelationDetails.StalemateTrap if witness.kind == RelationKind.StalemateTrap => Some(details)
+      case details: RelationDetails.Zwischenzug if witness.kind == RelationKind.Zwischenzug => Some(details)
+      case details: RelationDetails.PerpetualCheck if witness.kind == RelationKind.PerpetualCheck => Some(details)
       case details: RelationDetails.Decoy if witness.kind == RelationKind.Decoy => Some(details)
       case details: RelationDetails.XRay if witness.kind == RelationKind.XRay => Some(details)
       case details: RelationDetails.Clearance if witness.kind == RelationKind.Clearance => Some(details)
@@ -426,8 +587,307 @@ private[commentary] object MoveReviewExchangeAnalyzer:
         focusSquares = relationFocusSquaresFromWitness(witness),
         targetSquare = relationTargetSquareFromWitness(witness),
         factTerms = relationFactTermsFromWitness(witness),
+        lineMoves = witness.lineMoves,
+        support = relationSupportFromWitness(witness)
+      )
+    }
+
+  def relationSupportFromWitness(witness: RelationWitness): Option[StrategyRelationSupport] =
+    val baseFocus = relationFocusSquaresFromWitness(witness)
+    val baseTarget = relationTargetSquareFromWitness(witness)
+    def support(
+        focusSquares: List[String] = baseFocus,
+        targetSquare: Option[String] = baseTarget,
+        targetSquares: List[String] = Nil,
+        targetRoles: List[String] = Nil,
+        targetRole: Option[String] = None,
+        attackerSquare: Option[String] = None,
+        attackerSquares: List[String] = Nil,
+        attackerRole: Option[String] = None,
+        defenderSquare: Option[String] = None,
+        defenderRole: Option[String] = None,
+        controllerSquare: Option[String] = None,
+        controllerRole: Option[String] = None,
+        moverSquare: Option[String] = None,
+        moverRole: Option[String] = None,
+        exchangeSquare: Option[String] = None,
+        badPieceSquare: Option[String] = None,
+        clearedSquare: Option[String] = None,
+        beneficiarySquare: Option[String] = None,
+        beneficiaryRole: Option[String] = None,
+        clearingTo: Option[String] = None,
+        blockerSquare: Option[String] = None,
+        blockerRole: Option[String] = None,
+        pinnedSquare: Option[String] = None,
+        pinnedRole: Option[String] = None,
+        behindSquare: Option[String] = None,
+        behindRole: Option[String] = None,
+        frontSquare: Option[String] = None,
+        frontRole: Option[String] = None,
+        backSquare: Option[String] = None,
+        backRole: Option[String] = None,
+        kingSquare: Option[String] = None,
+        checkerSquares: List[String] = Nil,
+        matingMove: Option[String] = None,
+        patternId: Option[String] = None,
+        bishopSquare: Option[String] = None,
+        entryMove: Option[String] = None,
+        intermediateMove: Option[String] = None,
+        threatType: Option[String] = None,
+        responseMove: Option[String] = None,
+        payoffMove: Option[String] = None,
+        checkingMoves: List[String] = Nil,
+        cycleMoves: List[String] = Nil,
+        repeatedPositionPly: Option[Int] = None,
+        trappingMove: Option[String] = None,
+        baitFromSquare: Option[String] = None,
+        baitSquare: Option[String] = None,
+        baitRole: Option[String] = None,
+        luredFromSquare: Option[String] = None,
+        luredRole: Option[String] = None,
+        executionFromSquare: Option[String] = None,
+        executionToSquare: Option[String] = None,
+        legalEscapeCount: Option[Int] = None,
+        legalMoveCount: Option[Int] = None,
+        absolutePin: Option[Boolean] = None,
+        axis: Option[String] = None
+    ): StrategyRelationSupport =
+      StrategyRelationSupport(
+        relationKind = witness.kind,
+        focusSquares = focusSquares,
+        targetSquare = targetSquare,
+        targetSquares = targetSquares.flatMap(square => squareFromKey(square).map(_.key)).distinct,
+        targetRoles = targetRoles.flatMap(pieceRoleName),
+        targetRole = targetRole,
+        attackerSquare = attackerSquare,
+        attackerSquares = attackerSquares.flatMap(square => squareFromKey(square).map(_.key)).distinct,
+        attackerRole = attackerRole,
+        defenderSquare = defenderSquare,
+        defenderRole = defenderRole,
+        controllerSquare = controllerSquare,
+        controllerRole = controllerRole,
+        moverSquare = moverSquare,
+        moverRole = moverRole,
+        exchangeSquare = exchangeSquare,
+        badPieceSquare = badPieceSquare,
+        clearedSquare = clearedSquare,
+        beneficiarySquare = beneficiarySquare,
+        beneficiaryRole = beneficiaryRole,
+        clearingTo = clearingTo,
+        blockerSquare = blockerSquare,
+        blockerRole = blockerRole,
+        pinnedSquare = pinnedSquare,
+        pinnedRole = pinnedRole,
+        behindSquare = behindSquare,
+        behindRole = behindRole,
+        frontSquare = frontSquare,
+        frontRole = frontRole,
+        backSquare = backSquare,
+        backRole = backRole,
+        kingSquare = kingSquare,
+        checkerSquares = checkerSquares.flatMap(square => squareFromKey(square).map(_.key)).distinct,
+        matingMove = matingMove,
+        patternId = patternId,
+        bishopSquare = bishopSquare,
+        entryMove = entryMove,
+        intermediateMove = intermediateMove,
+        threatType = threatType,
+        responseMove = responseMove,
+        payoffMove = payoffMove,
+        checkingMoves = checkingMoves,
+        cycleMoves = cycleMoves,
+        repeatedPositionPly = repeatedPositionPly,
+        trappingMove = trappingMove,
+        baitFromSquare = baitFromSquare,
+        baitSquare = baitSquare,
+        baitRole = baitRole,
+        luredFromSquare = luredFromSquare,
+        luredRole = luredRole,
+        executionFromSquare = executionFromSquare,
+        executionToSquare = executionToSquare,
+        legalEscapeCount = legalEscapeCount,
+        legalMoveCount = legalMoveCount,
+        absolutePin = absolutePin,
+        axis = axis,
         lineMoves = witness.lineMoves
       )
+
+    typedDetailsFromWitness(witness).map {
+      case RelationDetails.Empty =>
+        support()
+      case details: RelationDetails.DefenderTrade =>
+        support(
+          defenderSquare = Some(details.defenderSquare),
+          exchangeSquare = Some(details.exchangeSquare),
+          targetSquare = Some(details.targetSquare)
+        )
+      case details: RelationDetails.BadPieceLiquidation =>
+        support(
+          badPieceSquare = Some(details.badPieceSquare),
+          exchangeSquare = Some(details.exchangeSquare),
+          targetSquare = Some(details.exchangeSquare)
+        )
+      case details: RelationDetails.Overload =>
+        support(
+          defenderSquare = Some(details.defenderSquare),
+          targetSquares = details.targetSquares,
+          attackerSquare = Some(details.attackerSquare)
+        )
+      case details: RelationDetails.Deflection =>
+        support(
+          defenderSquare = Some(details.defenderSquare),
+          targetSquare = Some(details.targetSquare),
+          attackerSquare = Some(details.attackerSquare)
+        )
+      case details: RelationDetails.DiscoveredAttack =>
+        support(
+          attackerSquare = Some(details.attackerSquare),
+          clearedSquare = Some(details.clearedSquare),
+          targetSquare = Some(details.targetSquare),
+          attackerRole = Some(details.attackerRole)
+        )
+      case details: RelationDetails.DoubleCheck =>
+        support(
+          kingSquare = Some(details.kingSquare),
+          checkerSquares = details.checkerSquares,
+          moverSquare = Some(details.moverSquare),
+          moverRole = Some(details.moverRole),
+          attackerSquare = Some(details.moverSquare),
+          attackerRole = Some(details.moverRole),
+          targetSquare = Some(details.kingSquare)
+        )
+      case details: RelationDetails.MatePattern =>
+        support(
+          kingSquare = Some(details.kingSquare),
+          checkerSquares = details.checkerSquares,
+          matingMove = Some(details.matingMove),
+          patternId = details.patternId,
+          targetSquare = Some(details.kingSquare)
+        )
+      case details: RelationDetails.GreekGift =>
+        support(
+          bishopSquare = Some(details.bishopSquare),
+          targetSquare = Some(details.targetSquare),
+          entryMove = Some(details.entryMove),
+          patternId = Some(details.patternId)
+        )
+      case details: RelationDetails.Fork =>
+        support(
+          attackerSquare = Some(details.attackerSquare),
+          attackerRole = Some(details.attackerRole),
+          targetSquares = details.targets.map(_.square),
+          targetRoles = details.targets.map(_.role)
+        )
+      case details: RelationDetails.HangingPiece =>
+        support(
+          attackerSquare = Some(details.attackerSquare),
+          targetSquare = Some(details.targetSquare),
+          attackerRole = Some(details.attackerRole),
+          targetRole = Some(details.targetRole)
+        )
+      case details: RelationDetails.TrappedPiece =>
+        support(
+          targetSquare = Some(details.targetSquare),
+          targetRole = Some(details.targetRole),
+          attackerSquares = details.attackerSquares,
+          legalEscapeCount = Some(details.legalEscapeCount)
+        )
+      case details: RelationDetails.Domination =>
+        support(
+          controllerSquare = Some(details.controllerSquare),
+          targetSquare = Some(details.targetSquare),
+          controllerRole = Some(details.controllerRole),
+          targetRole = Some(details.targetRole),
+          legalMoveCount = Some(details.legalMoveCount)
+        )
+      case details: RelationDetails.StalemateTrap =>
+        support(
+          kingSquare = Some(details.kingSquare),
+          trappingMove = Some(details.trappingMove),
+          targetSquare = Some(details.kingSquare)
+        )
+      case details: RelationDetails.Zwischenzug =>
+        support(
+          intermediateMove = Some(details.intermediateMove),
+          threatType = Some(details.threatType),
+          responseMove = Some(details.responseMove),
+          payoffMove = Some(details.payoffMove),
+          targetSquare = Some(details.targetSquare)
+        )
+      case details: RelationDetails.PerpetualCheck =>
+        support(
+          kingSquare = Some(details.kingSquare),
+          checkingMoves = details.checkingMoves,
+          cycleMoves = details.cycleMoves,
+          repeatedPositionPly = Some(details.repeatedPositionPly),
+          targetSquare = Some(details.kingSquare)
+        )
+      case details: RelationDetails.Decoy =>
+        support(
+          baitFromSquare = Some(details.baitFromSquare),
+          baitSquare = Some(details.baitSquare),
+          baitRole = Some(details.baitRole),
+          luredFromSquare = Some(details.luredFromSquare),
+          luredRole = Some(details.luredRole),
+          executionFromSquare = Some(details.executionFromSquare),
+          executionToSquare = Some(details.executionToSquare)
+        )
+      case details: RelationDetails.XRay =>
+        support(
+          attackerSquare = Some(details.attackerSquare),
+          blockerSquare = Some(details.blockerSquare),
+          targetSquare = Some(details.targetSquare),
+          attackerRole = Some(details.attackerRole),
+          blockerRole = Some(details.blockerRole),
+          targetRole = Some(details.targetRole)
+        )
+      case details: RelationDetails.Clearance =>
+        support(
+          beneficiarySquare = Some(details.beneficiarySquare),
+          clearedSquare = Some(details.clearedSquare),
+          targetSquare = Some(details.targetSquare),
+          beneficiaryRole = Some(details.beneficiaryRole),
+          clearingTo = Some(details.clearingTo)
+        )
+      case details: RelationDetails.Battery =>
+        support(
+          frontSquare = Some(details.frontSquare),
+          backSquare = Some(details.backSquare),
+          targetSquare = Some(details.targetSquare),
+          frontRole = Some(details.frontRole),
+          backRole = Some(details.backRole),
+          axis = Some(details.axis)
+        )
+      case details: RelationDetails.Interference =>
+        support(
+          blockerSquare = Some(details.blockerSquare),
+          defenderSquare = Some(details.defenderSquare),
+          targetSquare = Some(details.targetSquare),
+          blockerRole = Some(details.blockerRole),
+          defenderRole = Some(details.defenderRole),
+          targetRole = Some(details.targetRole)
+        )
+      case details: RelationDetails.Pin =>
+        support(
+          attackerSquare = Some(details.attackerSquare),
+          pinnedSquare = Some(details.pinnedSquare),
+          behindSquare = Some(details.behindSquare),
+          targetSquare = Some(details.targetSquare),
+          attackerRole = Some(details.attackerRole),
+          pinnedRole = Some(details.pinnedRole),
+          behindRole = Some(details.behindRole),
+          absolutePin = Some(details.absolute)
+        )
+      case details: RelationDetails.Skewer =>
+        support(
+          attackerSquare = Some(details.attackerSquare),
+          frontSquare = Some(details.frontSquare),
+          backSquare = Some(details.backSquare),
+          targetSquare = Some(details.targetSquare),
+          attackerRole = Some(details.attackerRole),
+          frontRole = Some(details.frontRole),
+          backRole = Some(details.backRole)
+        )
     }
 
   def defenderTradeBranchFromWitness(witness: RelationWitness): Option[DefenderTradeBranch] =
@@ -460,6 +920,951 @@ private[commentary] object MoveReviewExchangeAnalyzer:
   def discoveredAttackDetailsFromWitness(witness: RelationWitness): Option[RelationDetails.DiscoveredAttack] =
     typedDetailsFromWitness(witness).collect { case details: RelationDetails.DiscoveredAttack => details }
 
+  def relationTransformationProofFromWitness(witness: RelationWitness): Option[PlayerFacingExactSliceProof] =
+    typedDetailsFromWitness(witness).flatMap {
+      case details: RelationDetails.Overload =>
+        Some(
+          PlayerFacingExactSliceProof.Overload(
+            defenderSquare = details.defenderSquare,
+            targetSquares = details.targetSquares,
+            attackerSquare = details.attackerSquare
+          )
+        )
+      case details: RelationDetails.Deflection =>
+        Some(
+          PlayerFacingExactSliceProof.Deflection(
+            defenderSquare = details.defenderSquare,
+            targetSquare = details.targetSquare,
+            attackerSquare = details.attackerSquare
+          )
+        )
+      case details: RelationDetails.DiscoveredAttack =>
+        Some(
+          PlayerFacingExactSliceProof.DiscoveredAttack(
+            attackerSquare = details.attackerSquare,
+            clearedSquare = details.clearedSquare,
+            targetSquare = details.targetSquare,
+            attackerRole = details.attackerRole
+          )
+        )
+      case details: RelationDetails.DoubleCheck =>
+        Some(
+          PlayerFacingExactSliceProof.DoubleCheck(
+            kingSquare = details.kingSquare,
+            checkerSquares = details.checkerSquares,
+            moverSquare = details.moverSquare,
+            moverRole = details.moverRole
+          )
+        )
+      case details: RelationDetails.MatePattern if details.relationKind == RelationKind.BackRankMate =>
+        Some(
+          PlayerFacingExactSliceProof.BackRankMate(
+            kingSquare = details.kingSquare,
+            checkerSquares = details.checkerSquares,
+            matingMove = details.matingMove
+          )
+        )
+      case details: RelationDetails.MatePattern if details.relationKind == RelationKind.MateNet =>
+        Some(
+          PlayerFacingExactSliceProof.MateNet(
+            kingSquare = details.kingSquare,
+            checkerSquares = details.checkerSquares,
+            matingMove = details.matingMove,
+            patternId = details.patternId
+          )
+        )
+      case details: RelationDetails.GreekGift =>
+        Some(
+          PlayerFacingExactSliceProof.GreekGift(
+            bishopSquare = details.bishopSquare,
+            targetSquare = details.targetSquare,
+            entryMove = details.entryMove,
+            patternId = details.patternId
+          )
+        )
+      case details: RelationDetails.Fork =>
+        Some(
+          PlayerFacingExactSliceProof.Fork(
+            attackerSquare = details.attackerSquare,
+            attackerRole = details.attackerRole,
+            targets =
+              details.targets.map(target =>
+                PlayerFacingExactSliceProof.TargetPiece(square = target.square, role = target.role)
+              )
+          )
+        )
+      case details: RelationDetails.HangingPiece =>
+        Some(
+          PlayerFacingExactSliceProof.HangingPiece(
+            attackerSquare = details.attackerSquare,
+            targetSquare = details.targetSquare,
+            attackerRole = details.attackerRole,
+            targetRole = details.targetRole
+          )
+        )
+      case details: RelationDetails.TrappedPiece =>
+        Some(
+          PlayerFacingExactSliceProof.TrappedPiece(
+            targetSquare = details.targetSquare,
+            targetRole = details.targetRole,
+            attackerSquares = details.attackerSquares,
+            legalEscapeCount = details.legalEscapeCount
+          )
+        )
+      case details: RelationDetails.Domination =>
+        Some(
+          PlayerFacingExactSliceProof.Domination(
+            controllerSquare = details.controllerSquare,
+            targetSquare = details.targetSquare,
+            controllerRole = details.controllerRole,
+            targetRole = details.targetRole,
+            legalMoveCount = details.legalMoveCount
+          )
+        )
+      case details: RelationDetails.StalemateTrap =>
+        Some(
+          PlayerFacingExactSliceProof.StalemateTrap(
+            kingSquare = details.kingSquare,
+            trappingMove = details.trappingMove
+          )
+        )
+      case details: RelationDetails.PerpetualCheck =>
+        Some(
+          PlayerFacingExactSliceProof.PerpetualCheck(
+            kingSquare = details.kingSquare,
+            checkingMoves = details.checkingMoves,
+            cycleMoves = details.cycleMoves,
+            repeatedPositionPly = details.repeatedPositionPly
+          )
+        )
+      case details: RelationDetails.Zwischenzug =>
+        Some(
+          PlayerFacingExactSliceProof.Zwischenzug(
+            intermediateMove = details.intermediateMove,
+            threatType = details.threatType,
+            responseMove = details.responseMove,
+            payoffMove = details.payoffMove,
+            targetSquare = details.targetSquare
+          )
+        )
+      case details: RelationDetails.Decoy =>
+        Some(
+          PlayerFacingExactSliceProof.Decoy(
+            baitFromSquare = details.baitFromSquare,
+            baitSquare = details.baitSquare,
+            luredFromSquare = details.luredFromSquare,
+            executionFromSquare = details.executionFromSquare,
+            executionToSquare = details.executionToSquare,
+            baitRole = details.baitRole,
+            luredRole = details.luredRole
+          )
+        )
+      case details: RelationDetails.XRay =>
+        Some(
+          PlayerFacingExactSliceProof.XRay(
+            attackerSquare = details.attackerSquare,
+            blockerSquare = details.blockerSquare,
+            targetSquare = details.targetSquare,
+            attackerRole = details.attackerRole,
+            blockerRole = details.blockerRole,
+            targetRole = details.targetRole
+          )
+        )
+      case details: RelationDetails.Clearance =>
+        Some(
+          PlayerFacingExactSliceProof.Clearance(
+            beneficiarySquare = details.beneficiarySquare,
+            clearedSquare = details.clearedSquare,
+            targetSquare = details.targetSquare,
+            beneficiaryRole = details.beneficiaryRole,
+            clearingTo = details.clearingTo
+          )
+        )
+      case details: RelationDetails.Battery =>
+        Some(
+          PlayerFacingExactSliceProof.Battery(
+            frontSquare = details.frontSquare,
+            backSquare = details.backSquare,
+            targetSquare = details.targetSquare,
+            frontRole = details.frontRole,
+            backRole = details.backRole,
+            axis = details.axis
+          )
+        )
+      case details: RelationDetails.Pin =>
+        Some(
+          PlayerFacingExactSliceProof.Pin(
+            attackerSquare = details.attackerSquare,
+            pinnedSquare = details.pinnedSquare,
+            behindSquare = details.behindSquare,
+            targetSquare = details.targetSquare,
+            attackerRole = details.attackerRole,
+            pinnedRole = details.pinnedRole,
+            behindRole = details.behindRole,
+            absolute = details.absolute
+          )
+        )
+      case details: RelationDetails.Skewer =>
+        Some(
+          PlayerFacingExactSliceProof.Skewer(
+            attackerSquare = details.attackerSquare,
+            frontSquare = details.frontSquare,
+            backSquare = details.backSquare,
+            targetSquare = details.targetSquare,
+            attackerRole = details.attackerRole,
+            frontRole = details.frontRole,
+            backRole = details.backRole
+          )
+        )
+      case details: RelationDetails.Interference =>
+        Some(
+          PlayerFacingExactSliceProof.Interference(
+            blockerSquare = details.blockerSquare,
+            defenderSquare = details.defenderSquare,
+            targetSquare = details.targetSquare,
+            blockerRole = details.blockerRole,
+            defenderRole = details.defenderRole,
+            targetRole = details.targetRole
+          )
+        )
+      case _ => None
+    }.filter(PlayerFacingExactSliceProofFacts.validShape)
+
+  def relationTransformationProofFromSupport(
+      support: StrategyRelationSupport
+  ): Option[PlayerFacingExactSliceProof] =
+    support.relationKind match
+      case RelationKind.Overload =>
+        for
+          defender <- support.defenderSquare
+          attacker <- support.attackerSquare
+        yield PlayerFacingExactSliceProof.Overload(
+          defenderSquare = defender,
+          targetSquares = support.targetSquares,
+          attackerSquare = attacker
+        )
+      case RelationKind.Deflection =>
+        for
+          defender <- support.defenderSquare
+          target <- support.targetSquare
+          attacker <- support.attackerSquare
+        yield PlayerFacingExactSliceProof.Deflection(
+          defenderSquare = defender,
+          targetSquare = target,
+          attackerSquare = attacker
+        )
+      case RelationKind.DiscoveredAttack =>
+        for
+          attacker <- support.attackerSquare
+          cleared <- support.clearedSquare
+          target <- support.targetSquare
+          role <- support.attackerRole
+        yield PlayerFacingExactSliceProof.DiscoveredAttack(
+          attackerSquare = attacker,
+          clearedSquare = cleared,
+          targetSquare = target,
+          attackerRole = role
+        )
+      case RelationKind.DoubleCheck =>
+        for
+          king <- support.kingSquare
+          mover <- support.moverSquare
+          role <- support.moverRole
+        yield PlayerFacingExactSliceProof.DoubleCheck(
+          kingSquare = king,
+          checkerSquares = support.checkerSquares,
+          moverSquare = mover,
+          moverRole = role
+        )
+      case RelationKind.BackRankMate =>
+        for
+          king <- support.kingSquare
+          matingMove <- support.matingMove
+        yield PlayerFacingExactSliceProof.BackRankMate(
+          kingSquare = king,
+          checkerSquares = support.checkerSquares,
+          matingMove = matingMove
+        )
+      case RelationKind.MateNet =>
+        for
+          king <- support.kingSquare
+          matingMove <- support.matingMove
+        yield PlayerFacingExactSliceProof.MateNet(
+          kingSquare = king,
+          checkerSquares = support.checkerSquares,
+          matingMove = matingMove,
+          patternId = support.patternId
+        )
+      case RelationKind.GreekGift =>
+        for
+          bishop <- support.bishopSquare
+          target <- support.targetSquare
+          entryMove <- support.entryMove
+          patternId <- support.patternId
+        yield PlayerFacingExactSliceProof.GreekGift(
+          bishopSquare = bishop,
+          targetSquare = target,
+          entryMove = entryMove,
+          patternId = patternId
+        )
+      case RelationKind.Fork =>
+        for
+          attacker <- support.attackerSquare
+          attackerRole <- support.attackerRole
+        yield PlayerFacingExactSliceProof.Fork(
+          attackerSquare = attacker,
+          attackerRole = attackerRole,
+          targets =
+            support.targetSquares
+              .zip(support.targetRoles)
+              .map((square, role) => PlayerFacingExactSliceProof.TargetPiece(square = square, role = role))
+        )
+      case RelationKind.HangingPiece =>
+        for
+          attacker <- support.attackerSquare
+          target <- support.targetSquare
+          attackerRole <- support.attackerRole
+          targetRole <- support.targetRole
+        yield PlayerFacingExactSliceProof.HangingPiece(
+          attackerSquare = attacker,
+          targetSquare = target,
+          attackerRole = attackerRole,
+          targetRole = targetRole
+        )
+      case RelationKind.TrappedPiece =>
+        for
+          target <- support.targetSquare
+          targetRole <- support.targetRole
+          legalEscapeCount <- support.legalEscapeCount
+        yield PlayerFacingExactSliceProof.TrappedPiece(
+          targetSquare = target,
+          targetRole = targetRole,
+          attackerSquares = support.attackerSquares,
+          legalEscapeCount = legalEscapeCount
+        )
+      case RelationKind.Domination =>
+        for
+          controller <- support.controllerSquare
+          target <- support.targetSquare
+          controllerRole <- support.controllerRole
+          targetRole <- support.targetRole
+          legalMoveCount <- support.legalMoveCount
+        yield PlayerFacingExactSliceProof.Domination(
+          controllerSquare = controller,
+          targetSquare = target,
+          controllerRole = controllerRole,
+          targetRole = targetRole,
+          legalMoveCount = legalMoveCount
+        )
+      case RelationKind.StalemateTrap =>
+        for
+          king <- support.kingSquare
+          trappingMove <- support.trappingMove
+        yield PlayerFacingExactSliceProof.StalemateTrap(
+          kingSquare = king,
+          trappingMove = trappingMove
+        )
+      case RelationKind.PerpetualCheck =>
+        for
+          king <- support.kingSquare
+          repeatedPositionPly <- support.repeatedPositionPly
+        yield PlayerFacingExactSliceProof.PerpetualCheck(
+          kingSquare = king,
+          checkingMoves = support.checkingMoves,
+          cycleMoves = support.cycleMoves,
+          repeatedPositionPly = repeatedPositionPly
+        )
+      case RelationKind.Zwischenzug =>
+        for
+          intermediateMove <- support.intermediateMove
+          threatType <- support.threatType
+          responseMove <- support.responseMove
+          payoffMove <- support.payoffMove
+          target <- support.targetSquare
+        yield PlayerFacingExactSliceProof.Zwischenzug(
+          intermediateMove = intermediateMove,
+          threatType = threatType,
+          responseMove = responseMove,
+          payoffMove = payoffMove,
+          targetSquare = target
+        )
+      case RelationKind.Decoy =>
+        for
+          baitFrom <- support.baitFromSquare
+          bait <- support.baitSquare
+          luredFrom <- support.luredFromSquare
+          executionFrom <- support.executionFromSquare
+          executionTo <- support.executionToSquare
+          baitRole <- support.baitRole
+          luredRole <- support.luredRole
+        yield PlayerFacingExactSliceProof.Decoy(
+          baitFromSquare = baitFrom,
+          baitSquare = bait,
+          luredFromSquare = luredFrom,
+          executionFromSquare = executionFrom,
+          executionToSquare = executionTo,
+          baitRole = baitRole,
+          luredRole = luredRole
+        )
+      case RelationKind.XRay =>
+        for
+          attacker <- support.attackerSquare
+          blocker <- support.blockerSquare
+          target <- support.targetSquare
+          attackerRole <- support.attackerRole
+          blockerRole <- support.blockerRole
+          targetRole <- support.targetRole
+        yield PlayerFacingExactSliceProof.XRay(
+          attackerSquare = attacker,
+          blockerSquare = blocker,
+          targetSquare = target,
+          attackerRole = attackerRole,
+          blockerRole = blockerRole,
+          targetRole = targetRole
+        )
+      case RelationKind.Clearance =>
+        for
+          beneficiary <- support.beneficiarySquare
+          cleared <- support.clearedSquare
+          target <- support.targetSquare
+          beneficiaryRole <- support.beneficiaryRole
+          clearingTo <- support.clearingTo
+        yield PlayerFacingExactSliceProof.Clearance(
+          beneficiarySquare = beneficiary,
+          clearedSquare = cleared,
+          targetSquare = target,
+          beneficiaryRole = beneficiaryRole,
+          clearingTo = clearingTo
+        )
+      case RelationKind.Battery =>
+        for
+          front <- support.frontSquare
+          back <- support.backSquare
+          target <- support.targetSquare
+          frontRole <- support.frontRole
+          backRole <- support.backRole
+          axis <- support.axis
+        yield PlayerFacingExactSliceProof.Battery(
+          frontSquare = front,
+          backSquare = back,
+          targetSquare = target,
+          frontRole = frontRole,
+          backRole = backRole,
+          axis = axis
+        )
+      case RelationKind.Pin =>
+        for
+          attacker <- support.attackerSquare
+          pinned <- support.pinnedSquare
+          behind <- support.behindSquare
+          target <- support.targetSquare
+          attackerRole <- support.attackerRole
+          pinnedRole <- support.pinnedRole
+          behindRole <- support.behindRole
+          absolute <- support.absolutePin
+        yield PlayerFacingExactSliceProof.Pin(
+          attackerSquare = attacker,
+          pinnedSquare = pinned,
+          behindSquare = behind,
+          targetSquare = target,
+          attackerRole = attackerRole,
+          pinnedRole = pinnedRole,
+          behindRole = behindRole,
+          absolute = absolute
+        )
+      case RelationKind.Skewer =>
+        for
+          attacker <- support.attackerSquare
+          front <- support.frontSquare
+          back <- support.backSquare
+          target <- support.targetSquare
+          attackerRole <- support.attackerRole
+          frontRole <- support.frontRole
+          backRole <- support.backRole
+        yield PlayerFacingExactSliceProof.Skewer(
+          attackerSquare = attacker,
+          frontSquare = front,
+          backSquare = back,
+          targetSquare = target,
+          attackerRole = attackerRole,
+          frontRole = frontRole,
+          backRole = backRole
+        )
+      case RelationKind.Interference =>
+        for
+          blocker <- support.blockerSquare
+          defender <- support.defenderSquare
+          target <- support.targetSquare
+          blockerRole <- support.blockerRole
+          defenderRole <- support.defenderRole
+          targetRole <- support.targetRole
+        yield PlayerFacingExactSliceProof.Interference(
+          blockerSquare = blocker,
+          defenderSquare = defender,
+          targetSquare = target,
+          blockerRole = blockerRole,
+          defenderRole = defenderRole,
+          targetRole = targetRole
+        )
+      case _ => None
+
+  def sameRelationTransformationProof(
+      left: PlayerFacingExactSliceProof,
+      right: PlayerFacingExactSliceProof
+  ): Boolean =
+    (left, right) match
+      case (
+            PlayerFacingExactSliceProof.Overload(leftDefender, leftTargets, leftAttacker),
+            PlayerFacingExactSliceProof.Overload(rightDefender, rightTargets, rightAttacker)
+          ) =>
+        normalizedProofSquareKey(leftDefender) == normalizedProofSquareKey(rightDefender) &&
+          normalizedProofSquareKey(leftAttacker) == normalizedProofSquareKey(rightAttacker) &&
+          normalizedProofSquareKeys(leftTargets).sorted == normalizedProofSquareKeys(rightTargets).sorted
+      case (
+            PlayerFacingExactSliceProof.Deflection(leftDefender, leftTarget, leftAttacker),
+            PlayerFacingExactSliceProof.Deflection(rightDefender, rightTarget, rightAttacker)
+          ) =>
+        normalizedProofSquareKey(leftDefender) == normalizedProofSquareKey(rightDefender) &&
+          normalizedProofSquareKey(leftTarget) == normalizedProofSquareKey(rightTarget) &&
+          normalizedProofSquareKey(leftAttacker) == normalizedProofSquareKey(rightAttacker)
+      case (
+            PlayerFacingExactSliceProof.DiscoveredAttack(leftAttacker, leftCleared, leftTarget, leftRole),
+            PlayerFacingExactSliceProof.DiscoveredAttack(rightAttacker, rightCleared, rightTarget, rightRole)
+          ) =>
+        normalizedProofSquareKey(leftAttacker) == normalizedProofSquareKey(rightAttacker) &&
+        normalizedProofSquareKey(leftCleared) == normalizedProofSquareKey(rightCleared) &&
+          normalizedProofSquareKey(leftTarget) == normalizedProofSquareKey(rightTarget) &&
+          normalizedProofToken(leftRole) == normalizedProofToken(rightRole)
+      case (
+            PlayerFacingExactSliceProof.DoubleCheck(leftKing, leftCheckers, leftMover, leftRole),
+            PlayerFacingExactSliceProof.DoubleCheck(rightKing, rightCheckers, rightMover, rightRole)
+          ) =>
+        normalizedProofSquareKey(leftKing) == normalizedProofSquareKey(rightKing) &&
+          normalizedProofSquareKeys(leftCheckers).sorted == normalizedProofSquareKeys(rightCheckers).sorted &&
+          normalizedProofSquareKey(leftMover) == normalizedProofSquareKey(rightMover) &&
+          normalizedProofToken(leftRole) == normalizedProofToken(rightRole)
+      case (
+            PlayerFacingExactSliceProof.BackRankMate(leftKing, leftCheckers, leftMatingMove),
+            PlayerFacingExactSliceProof.BackRankMate(rightKing, rightCheckers, rightMatingMove)
+          ) =>
+        normalizedProofSquareKey(leftKing) == normalizedProofSquareKey(rightKing) &&
+          normalizedProofSquareKeys(leftCheckers).sorted == normalizedProofSquareKeys(rightCheckers).sorted &&
+          normalizedProofToken(leftMatingMove) == normalizedProofToken(rightMatingMove)
+      case (
+            PlayerFacingExactSliceProof.MateNet(leftKing, leftCheckers, leftMatingMove, leftPatternId),
+            PlayerFacingExactSliceProof.MateNet(rightKing, rightCheckers, rightMatingMove, rightPatternId)
+          ) =>
+        normalizedProofSquareKey(leftKing) == normalizedProofSquareKey(rightKing) &&
+          normalizedProofSquareKeys(leftCheckers).sorted == normalizedProofSquareKeys(rightCheckers).sorted &&
+          normalizedProofToken(leftMatingMove) == normalizedProofToken(rightMatingMove) &&
+          leftPatternId.map(normalizedProofToken) == rightPatternId.map(normalizedProofToken)
+      case (
+            PlayerFacingExactSliceProof.GreekGift(leftBishop, leftTarget, leftEntryMove, leftPatternId),
+            PlayerFacingExactSliceProof.GreekGift(rightBishop, rightTarget, rightEntryMove, rightPatternId)
+          ) =>
+        normalizedProofSquareKey(leftBishop) == normalizedProofSquareKey(rightBishop) &&
+          normalizedProofSquareKey(leftTarget) == normalizedProofSquareKey(rightTarget) &&
+          normalizedProofToken(leftEntryMove) == normalizedProofToken(rightEntryMove) &&
+          normalizedProofToken(leftPatternId) == normalizedProofToken(rightPatternId)
+      case (
+            PlayerFacingExactSliceProof.Fork(leftAttacker, leftRole, leftTargets),
+            PlayerFacingExactSliceProof.Fork(rightAttacker, rightRole, rightTargets)
+          ) =>
+        normalizedProofSquareKey(leftAttacker) == normalizedProofSquareKey(rightAttacker) &&
+          normalizedProofToken(leftRole) == normalizedProofToken(rightRole) &&
+          normalizedProofTargetPieces(leftTargets) == normalizedProofTargetPieces(rightTargets)
+      case (
+            PlayerFacingExactSliceProof.HangingPiece(leftAttacker, leftTarget, leftAttackerRole, leftTargetRole),
+            PlayerFacingExactSliceProof.HangingPiece(rightAttacker, rightTarget, rightAttackerRole, rightTargetRole)
+          ) =>
+        normalizedProofSquareKey(leftAttacker) == normalizedProofSquareKey(rightAttacker) &&
+          normalizedProofSquareKey(leftTarget) == normalizedProofSquareKey(rightTarget) &&
+          normalizedProofToken(leftAttackerRole) == normalizedProofToken(rightAttackerRole) &&
+          normalizedProofToken(leftTargetRole) == normalizedProofToken(rightTargetRole)
+      case (
+            PlayerFacingExactSliceProof.TrappedPiece(leftTarget, leftRole, leftAttackers, leftEscapeCount),
+            PlayerFacingExactSliceProof.TrappedPiece(rightTarget, rightRole, rightAttackers, rightEscapeCount)
+          ) =>
+        normalizedProofSquareKey(leftTarget) == normalizedProofSquareKey(rightTarget) &&
+          normalizedProofToken(leftRole) == normalizedProofToken(rightRole) &&
+          normalizedProofSquareKeys(leftAttackers).sorted == normalizedProofSquareKeys(rightAttackers).sorted &&
+          leftEscapeCount == rightEscapeCount
+      case (
+            PlayerFacingExactSliceProof.Domination(leftController, leftTarget, leftControllerRole, leftTargetRole, leftMoveCount),
+            PlayerFacingExactSliceProof.Domination(rightController, rightTarget, rightControllerRole, rightTargetRole, rightMoveCount)
+          ) =>
+        normalizedProofSquareKey(leftController) == normalizedProofSquareKey(rightController) &&
+          normalizedProofSquareKey(leftTarget) == normalizedProofSquareKey(rightTarget) &&
+          normalizedProofToken(leftControllerRole) == normalizedProofToken(rightControllerRole) &&
+          normalizedProofToken(leftTargetRole) == normalizedProofToken(rightTargetRole) &&
+          leftMoveCount == rightMoveCount
+      case (
+            PlayerFacingExactSliceProof.StalemateTrap(leftKing, leftTrappingMove),
+            PlayerFacingExactSliceProof.StalemateTrap(rightKing, rightTrappingMove)
+          ) =>
+        normalizedProofSquareKey(leftKing) == normalizedProofSquareKey(rightKing) &&
+          normalizedProofToken(leftTrappingMove) == normalizedProofToken(rightTrappingMove)
+      case (
+            PlayerFacingExactSliceProof.PerpetualCheck(leftKing, leftChecks, leftCycle, leftRepeatPly),
+            PlayerFacingExactSliceProof.PerpetualCheck(rightKing, rightChecks, rightCycle, rightRepeatPly)
+          ) =>
+        normalizedProofSquareKey(leftKing) == normalizedProofSquareKey(rightKing) &&
+          leftChecks.map(normalizedProofToken) == rightChecks.map(normalizedProofToken) &&
+          leftCycle.map(normalizedProofToken) == rightCycle.map(normalizedProofToken) &&
+          leftRepeatPly == rightRepeatPly
+      case (
+            PlayerFacingExactSliceProof.Zwischenzug(leftIntermediate, leftThreat, leftResponse, leftPayoff, leftTarget),
+            PlayerFacingExactSliceProof.Zwischenzug(rightIntermediate, rightThreat, rightResponse, rightPayoff, rightTarget)
+          ) =>
+        normalizedProofToken(leftIntermediate) == normalizedProofToken(rightIntermediate) &&
+          normalizedProofToken(leftThreat) == normalizedProofToken(rightThreat) &&
+          normalizedProofToken(leftResponse) == normalizedProofToken(rightResponse) &&
+          normalizedProofToken(leftPayoff) == normalizedProofToken(rightPayoff) &&
+          normalizedProofSquareKey(leftTarget) == normalizedProofSquareKey(rightTarget)
+      case (
+            PlayerFacingExactSliceProof.Decoy(
+              leftBaitFrom,
+              leftBait,
+              leftLuredFrom,
+              leftExecutionFrom,
+              leftExecutionTo,
+              leftBaitRole,
+              leftLuredRole
+            ),
+            PlayerFacingExactSliceProof.Decoy(
+              rightBaitFrom,
+              rightBait,
+              rightLuredFrom,
+              rightExecutionFrom,
+              rightExecutionTo,
+              rightBaitRole,
+              rightLuredRole
+            )
+          ) =>
+        normalizedProofSquareKey(leftBaitFrom) == normalizedProofSquareKey(rightBaitFrom) &&
+          normalizedProofSquareKey(leftBait) == normalizedProofSquareKey(rightBait) &&
+          normalizedProofSquareKey(leftLuredFrom) == normalizedProofSquareKey(rightLuredFrom) &&
+          normalizedProofSquareKey(leftExecutionFrom) == normalizedProofSquareKey(rightExecutionFrom) &&
+          normalizedProofSquareKey(leftExecutionTo) == normalizedProofSquareKey(rightExecutionTo) &&
+          normalizedProofToken(leftBaitRole) == normalizedProofToken(rightBaitRole) &&
+          normalizedProofToken(leftLuredRole) == normalizedProofToken(rightLuredRole)
+      case (
+            PlayerFacingExactSliceProof.XRay(leftAttacker, leftBlocker, leftTarget, leftAttackerRole, leftBlockerRole, leftTargetRole),
+            PlayerFacingExactSliceProof.XRay(rightAttacker, rightBlocker, rightTarget, rightAttackerRole, rightBlockerRole, rightTargetRole)
+          ) =>
+        normalizedProofSquareKey(leftAttacker) == normalizedProofSquareKey(rightAttacker) &&
+          normalizedProofSquareKey(leftBlocker) == normalizedProofSquareKey(rightBlocker) &&
+          normalizedProofSquareKey(leftTarget) == normalizedProofSquareKey(rightTarget) &&
+          normalizedProofToken(leftAttackerRole) == normalizedProofToken(rightAttackerRole) &&
+          normalizedProofToken(leftBlockerRole) == normalizedProofToken(rightBlockerRole) &&
+          normalizedProofToken(leftTargetRole) == normalizedProofToken(rightTargetRole)
+      case (
+            PlayerFacingExactSliceProof.Clearance(leftBeneficiary, leftCleared, leftTarget, leftRole, leftClearingTo),
+            PlayerFacingExactSliceProof.Clearance(rightBeneficiary, rightCleared, rightTarget, rightRole, rightClearingTo)
+          ) =>
+        normalizedProofSquareKey(leftBeneficiary) == normalizedProofSquareKey(rightBeneficiary) &&
+          normalizedProofSquareKey(leftCleared) == normalizedProofSquareKey(rightCleared) &&
+          normalizedProofSquareKey(leftTarget) == normalizedProofSquareKey(rightTarget) &&
+          normalizedProofToken(leftRole) == normalizedProofToken(rightRole) &&
+          normalizedProofSquareKey(leftClearingTo) == normalizedProofSquareKey(rightClearingTo)
+      case (
+            PlayerFacingExactSliceProof.Battery(leftFront, leftBack, leftTarget, leftFrontRole, leftBackRole, leftAxis),
+            PlayerFacingExactSliceProof.Battery(rightFront, rightBack, rightTarget, rightFrontRole, rightBackRole, rightAxis)
+          ) =>
+        normalizedProofSquareKey(leftFront) == normalizedProofSquareKey(rightFront) &&
+          normalizedProofSquareKey(leftBack) == normalizedProofSquareKey(rightBack) &&
+          normalizedProofSquareKey(leftTarget) == normalizedProofSquareKey(rightTarget) &&
+          normalizedProofToken(leftFrontRole) == normalizedProofToken(rightFrontRole) &&
+          normalizedProofToken(leftBackRole) == normalizedProofToken(rightBackRole) &&
+          normalizedProofToken(leftAxis) == normalizedProofToken(rightAxis)
+      case (
+            PlayerFacingExactSliceProof.Pin(
+              leftAttacker,
+              leftPinned,
+              leftBehind,
+              leftTarget,
+              leftAttackerRole,
+              leftPinnedRole,
+              leftBehindRole,
+              leftAbsolute
+            ),
+            PlayerFacingExactSliceProof.Pin(
+              rightAttacker,
+              rightPinned,
+              rightBehind,
+              rightTarget,
+              rightAttackerRole,
+              rightPinnedRole,
+              rightBehindRole,
+              rightAbsolute
+            )
+          ) =>
+        normalizedProofSquareKey(leftAttacker) == normalizedProofSquareKey(rightAttacker) &&
+          normalizedProofSquareKey(leftPinned) == normalizedProofSquareKey(rightPinned) &&
+          normalizedProofSquareKey(leftBehind) == normalizedProofSquareKey(rightBehind) &&
+          normalizedProofSquareKey(leftTarget) == normalizedProofSquareKey(rightTarget) &&
+          normalizedProofToken(leftAttackerRole) == normalizedProofToken(rightAttackerRole) &&
+          normalizedProofToken(leftPinnedRole) == normalizedProofToken(rightPinnedRole) &&
+          normalizedProofToken(leftBehindRole) == normalizedProofToken(rightBehindRole) &&
+          leftAbsolute == rightAbsolute
+      case (
+            PlayerFacingExactSliceProof.Skewer(leftAttacker, leftFront, leftBack, leftTarget, leftAttackerRole, leftFrontRole, leftBackRole),
+            PlayerFacingExactSliceProof.Skewer(rightAttacker, rightFront, rightBack, rightTarget, rightAttackerRole, rightFrontRole, rightBackRole)
+          ) =>
+        normalizedProofSquareKey(leftAttacker) == normalizedProofSquareKey(rightAttacker) &&
+          normalizedProofSquareKey(leftFront) == normalizedProofSquareKey(rightFront) &&
+          normalizedProofSquareKey(leftBack) == normalizedProofSquareKey(rightBack) &&
+          normalizedProofSquareKey(leftTarget) == normalizedProofSquareKey(rightTarget) &&
+          normalizedProofToken(leftAttackerRole) == normalizedProofToken(rightAttackerRole) &&
+          normalizedProofToken(leftFrontRole) == normalizedProofToken(rightFrontRole) &&
+          normalizedProofToken(leftBackRole) == normalizedProofToken(rightBackRole)
+      case (
+            PlayerFacingExactSliceProof.Interference(leftBlocker, leftDefender, leftTarget, leftBlockerRole, leftDefenderRole, leftTargetRole),
+            PlayerFacingExactSliceProof.Interference(rightBlocker, rightDefender, rightTarget, rightBlockerRole, rightDefenderRole, rightTargetRole)
+          ) =>
+        normalizedProofSquareKey(leftBlocker) == normalizedProofSquareKey(rightBlocker) &&
+          normalizedProofSquareKey(leftDefender) == normalizedProofSquareKey(rightDefender) &&
+          normalizedProofSquareKey(leftTarget) == normalizedProofSquareKey(rightTarget) &&
+          normalizedProofToken(leftBlockerRole) == normalizedProofToken(rightBlockerRole) &&
+          normalizedProofToken(leftDefenderRole) == normalizedProofToken(rightDefenderRole) &&
+          normalizedProofToken(leftTargetRole) == normalizedProofToken(rightTargetRole)
+      case _ => false
+
+  def relationTransformationProofTerms(
+      proof: PlayerFacingExactSliceProof
+  ): List[String] =
+    proof match
+      case PlayerFacingExactSliceProof.Overload(defenderSquare, targetSquares, attackerSquare) =>
+        List(
+          "overload_relation_branch",
+          s"defender:${normalizedProofToken(defenderSquare)}",
+          s"attacker:${normalizedProofToken(attackerSquare)}"
+        ) ++ normalizedProofSquareKeys(targetSquares).map(square => s"target:$square")
+      case PlayerFacingExactSliceProof.Deflection(defenderSquare, targetSquare, attackerSquare) =>
+        List(
+          "deflection_relation_branch",
+          s"defender:${normalizedProofToken(defenderSquare)}",
+          s"defended_target:${normalizedProofToken(targetSquare)}",
+          s"attacker:${normalizedProofToken(attackerSquare)}"
+        )
+      case PlayerFacingExactSliceProof.DiscoveredAttack(attackerSquare, clearedSquare, targetSquare, attackerRole) =>
+        List(
+          "discovered_attack_relation_branch",
+          s"attacker:${normalizedProofToken(attackerSquare)}",
+          s"cleared_square:${normalizedProofToken(clearedSquare)}",
+          s"target:${normalizedProofToken(targetSquare)}",
+          s"attacker_role:${normalizedProofToken(attackerRole)}"
+        )
+      case PlayerFacingExactSliceProof.DoubleCheck(kingSquare, checkerSquares, moverSquare, moverRole) =>
+        List(
+          "double_check_relation_branch",
+          s"king:${normalizedProofToken(kingSquare)}",
+          s"checkers:${normalizedProofSquareKeys(checkerSquares).sorted.mkString("|")}",
+          s"mover:${normalizedProofToken(moverSquare)}",
+          s"mover_role:${normalizedProofToken(moverRole)}"
+        )
+      case PlayerFacingExactSliceProof.BackRankMate(kingSquare, checkerSquares, matingMove) =>
+        List(
+          "back_rank_mate_relation_branch",
+          "mate",
+          s"king:${normalizedProofToken(kingSquare)}",
+          s"checkers:${normalizedProofSquareKeys(checkerSquares).sorted.mkString("|")}",
+          s"mating_move:${normalizedProofToken(matingMove)}"
+        )
+      case PlayerFacingExactSliceProof.MateNet(kingSquare, checkerSquares, matingMove, patternId) =>
+        List(
+          "mate_net_relation_branch",
+          "mate",
+          s"king:${normalizedProofToken(kingSquare)}",
+          s"checkers:${normalizedProofSquareKeys(checkerSquares).sorted.mkString("|")}",
+          s"mating_move:${normalizedProofToken(matingMove)}"
+        ) ++ patternId.map(id => s"pattern:${normalizedProofToken(id)}").toList
+      case PlayerFacingExactSliceProof.GreekGift(bishopSquare, targetSquare, entryMove, patternId) =>
+        List(
+          "greek_gift_relation_branch",
+          "sacrifice_entry",
+          s"bishop:${normalizedProofToken(bishopSquare)}",
+          s"target:${normalizedProofToken(targetSquare)}",
+          s"entry_move:${normalizedProofToken(entryMove)}",
+          s"pattern:${normalizedProofToken(patternId)}"
+        )
+      case PlayerFacingExactSliceProof.Fork(attackerSquare, attackerRole, targets) =>
+        List(
+          "fork_relation_branch",
+          s"attacker:${normalizedProofToken(attackerSquare)}",
+          s"attacker_role:${normalizedProofToken(attackerRole)}"
+        ) ++ normalizedProofTargetPieces(targets).map((square, role) => s"target:$square:$role")
+      case PlayerFacingExactSliceProof.HangingPiece(attackerSquare, targetSquare, attackerRole, targetRole) =>
+        List(
+          "hanging_piece_relation_branch",
+          s"attacker:${normalizedProofToken(attackerSquare)}",
+          s"target:${normalizedProofToken(targetSquare)}",
+          s"attacker_role:${normalizedProofToken(attackerRole)}",
+          s"target_role:${normalizedProofToken(targetRole)}",
+          "undefended_target"
+        )
+      case PlayerFacingExactSliceProof.TrappedPiece(targetSquare, targetRole, attackerSquares, legalEscapeCount) =>
+        List(
+          "trapped_piece_relation_branch",
+          s"target:${normalizedProofToken(targetSquare)}",
+          s"target_role:${normalizedProofToken(targetRole)}",
+          s"attackers:${normalizedProofSquareKeys(attackerSquares).sorted.mkString("|")}",
+          s"legal_escape_count:$legalEscapeCount",
+          "no_safe_escape"
+        )
+      case PlayerFacingExactSliceProof.Domination(
+            controllerSquare,
+            targetSquare,
+            controllerRole,
+            targetRole,
+            legalMoveCount
+          ) =>
+        List(
+          "domination_relation_branch",
+          s"controller:${normalizedProofToken(controllerSquare)}",
+          s"target:${normalizedProofToken(targetSquare)}",
+          s"controller_role:${normalizedProofToken(controllerRole)}",
+          s"target_role:${normalizedProofToken(targetRole)}",
+          s"legal_move_count:$legalMoveCount",
+          "restricted_target"
+        )
+      case PlayerFacingExactSliceProof.StalemateTrap(kingSquare, trappingMove) =>
+        List(
+          "stalemate_trap_relation_branch",
+          "stalemate",
+          s"king:${normalizedProofToken(kingSquare)}",
+          s"trapping_move:${normalizedProofToken(trappingMove)}"
+        )
+      case PlayerFacingExactSliceProof.PerpetualCheck(kingSquare, checkingMoves, cycleMoves, repeatedPositionPly) =>
+        List(
+          "perpetual_check_relation_branch",
+          "repeated_check_sequence",
+          s"king:${normalizedProofToken(kingSquare)}",
+          s"checks:${checkingMoves.map(normalizedProofToken).mkString("|")}",
+          s"cycle:${cycleMoves.map(normalizedProofToken).mkString("|")}",
+          s"repeated_position_ply:$repeatedPositionPly"
+        )
+      case PlayerFacingExactSliceProof.Zwischenzug(intermediateMove, threatType, responseMove, payoffMove, targetSquare) =>
+        List(
+          "zwischenzug_relation_branch",
+          s"intermediate_move:${normalizedProofToken(intermediateMove)}",
+          s"threat_type:${normalizedProofToken(threatType)}",
+          s"response_move:${normalizedProofToken(responseMove)}",
+          s"payoff_move:${normalizedProofToken(payoffMove)}",
+          s"target:${normalizedProofToken(targetSquare)}",
+          "forcing_intermediate_move"
+        )
+      case PlayerFacingExactSliceProof.Decoy(
+            baitFromSquare,
+            baitSquare,
+            luredFromSquare,
+            executionFromSquare,
+            executionToSquare,
+            baitRole,
+            luredRole
+          ) =>
+        List(
+          "decoy_relation_branch",
+          s"bait_from:${normalizedProofToken(baitFromSquare)}",
+          s"bait:${normalizedProofToken(baitSquare)}",
+          s"lured_from:${normalizedProofToken(luredFromSquare)}",
+          s"execution:${normalizedProofToken(executionFromSquare)}-${normalizedProofToken(executionToSquare)}",
+          s"bait_role:${normalizedProofToken(baitRole)}",
+          s"lured_role:${normalizedProofToken(luredRole)}"
+        )
+      case PlayerFacingExactSliceProof.XRay(attackerSquare, blockerSquare, targetSquare, attackerRole, blockerRole, targetRole) =>
+        List(
+          "xray_relation_branch",
+          s"attacker:${normalizedProofToken(attackerSquare)}",
+          s"blocker:${normalizedProofToken(blockerSquare)}",
+          s"target:${normalizedProofToken(targetSquare)}",
+          s"attacker_role:${normalizedProofToken(attackerRole)}",
+          s"blocker_role:${normalizedProofToken(blockerRole)}",
+          s"target_role:${normalizedProofToken(targetRole)}"
+        )
+      case PlayerFacingExactSliceProof.Clearance(beneficiarySquare, clearedSquare, targetSquare, beneficiaryRole, clearingTo) =>
+        List(
+          "clearance_relation_branch",
+          s"beneficiary:${normalizedProofToken(beneficiarySquare)}",
+          s"cleared_square:${normalizedProofToken(clearedSquare)}",
+          s"target:${normalizedProofToken(targetSquare)}",
+          s"beneficiary_role:${normalizedProofToken(beneficiaryRole)}",
+          s"clearing_to:${normalizedProofToken(clearingTo)}"
+        )
+      case PlayerFacingExactSliceProof.Battery(frontSquare, backSquare, targetSquare, frontRole, backRole, axis) =>
+        List(
+          "battery_relation_branch",
+          s"front:${normalizedProofToken(frontSquare)}",
+          s"back:${normalizedProofToken(backSquare)}",
+          s"target:${normalizedProofToken(targetSquare)}",
+          s"front_role:${normalizedProofToken(frontRole)}",
+          s"back_role:${normalizedProofToken(backRole)}",
+          s"axis:${normalizedProofToken(axis)}"
+        )
+      case PlayerFacingExactSliceProof.Pin(
+            attackerSquare,
+            pinnedSquare,
+            behindSquare,
+            targetSquare,
+            attackerRole,
+            pinnedRole,
+            behindRole,
+            absolute
+          ) =>
+        List(
+          "pin_relation_branch",
+          s"attacker:${normalizedProofToken(attackerSquare)}",
+          s"pinned:${normalizedProofToken(pinnedSquare)}",
+          s"behind:${normalizedProofToken(behindSquare)}",
+          s"target:${normalizedProofToken(targetSquare)}",
+          s"attacker_role:${normalizedProofToken(attackerRole)}",
+          s"pinned_role:${normalizedProofToken(pinnedRole)}",
+          s"behind_role:${normalizedProofToken(behindRole)}",
+          if absolute then "absolute_pin" else "relative_pin"
+        )
+      case PlayerFacingExactSliceProof.Skewer(attackerSquare, frontSquare, backSquare, targetSquare, attackerRole, frontRole, backRole) =>
+        List(
+          "skewer_relation_branch",
+          s"attacker:${normalizedProofToken(attackerSquare)}",
+          s"front:${normalizedProofToken(frontSquare)}",
+          s"back:${normalizedProofToken(backSquare)}",
+          s"target:${normalizedProofToken(targetSquare)}",
+          s"attacker_role:${normalizedProofToken(attackerRole)}",
+          s"front_role:${normalizedProofToken(frontRole)}",
+          s"back_role:${normalizedProofToken(backRole)}"
+        )
+      case PlayerFacingExactSliceProof.Interference(blockerSquare, defenderSquare, targetSquare, blockerRole, defenderRole, targetRole) =>
+        List(
+          "interference_relation_branch",
+          s"blocker:${normalizedProofToken(blockerSquare)}",
+          s"defender:${normalizedProofToken(defenderSquare)}",
+          s"target:${normalizedProofToken(targetSquare)}",
+          s"blocker_role:${normalizedProofToken(blockerRole)}",
+          s"defender_role:${normalizedProofToken(defenderRole)}",
+          s"target_role:${normalizedProofToken(targetRole)}"
+        )
+      case _ => Nil
+
+  private def normalizedProofTargetPieces(
+      targets: List[PlayerFacingExactSliceProof.TargetPiece]
+  ): List[(String, String)] =
+    targets
+      .flatMap(target =>
+        normalizedProofSquareKey(target.square).map(square => square -> normalizedProofToken(target.role))
+      )
+      .filter((_, role) => role.nonEmpty)
+      .distinct
+      .sortBy((square, role) => (square, role))
+
+  private def normalizedProofSquareKeys(raw: List[String]): List[String] =
+    raw.flatMap(normalizedProofSquareKey).distinct
+
+  private def normalizedProofSquareKey(raw: String): Option[String] =
+    squareFromKey(raw).map(_.key)
+
+  private def normalizedProofToken(raw: String): String =
+    Option(raw).getOrElse("").trim.toLowerCase
+
   def doubleCheckDetailsFromWitness(witness: RelationWitness): Option[RelationDetails.DoubleCheck] =
     typedDetailsFromWitness(witness).collect { case details: RelationDetails.DoubleCheck => details }
 
@@ -474,6 +1879,21 @@ private[commentary] object MoveReviewExchangeAnalyzer:
 
   def hangingPieceDetailsFromWitness(witness: RelationWitness): Option[RelationDetails.HangingPiece] =
     typedDetailsFromWitness(witness).collect { case details: RelationDetails.HangingPiece => details }
+
+  def trappedPieceDetailsFromWitness(witness: RelationWitness): Option[RelationDetails.TrappedPiece] =
+    typedDetailsFromWitness(witness).collect { case details: RelationDetails.TrappedPiece => details }
+
+  def dominationDetailsFromWitness(witness: RelationWitness): Option[RelationDetails.Domination] =
+    typedDetailsFromWitness(witness).collect { case details: RelationDetails.Domination => details }
+
+  def stalemateTrapDetailsFromWitness(witness: RelationWitness): Option[RelationDetails.StalemateTrap] =
+    typedDetailsFromWitness(witness).collect { case details: RelationDetails.StalemateTrap => details }
+
+  def zwischenzugDetailsFromWitness(witness: RelationWitness): Option[RelationDetails.Zwischenzug] =
+    typedDetailsFromWitness(witness).collect { case details: RelationDetails.Zwischenzug => details }
+
+  def perpetualCheckDetailsFromWitness(witness: RelationWitness): Option[RelationDetails.PerpetualCheck] =
+    typedDetailsFromWitness(witness).collect { case details: RelationDetails.PerpetualCheck => details }
 
   def decoyDetailsFromWitness(witness: RelationWitness): Option[RelationDetails.Decoy] =
     typedDetailsFromWitness(witness).collect { case details: RelationDetails.Decoy => details }
@@ -521,6 +1941,16 @@ private[commentary] object MoveReviewExchangeAnalyzer:
           (details.attackerSquare :: details.targets.map(_.square)).distinct
         case details: RelationDetails.HangingPiece if witness.kind == RelationKind.HangingPiece =>
           List(details.attackerSquare, details.targetSquare)
+        case details: RelationDetails.TrappedPiece if witness.kind == RelationKind.TrappedPiece =>
+          (details.targetSquare :: details.attackerSquares).distinct
+        case details: RelationDetails.Domination if witness.kind == RelationKind.Domination =>
+          List(details.targetSquare, details.controllerSquare)
+        case details: RelationDetails.StalemateTrap if witness.kind == RelationKind.StalemateTrap =>
+          List(details.kingSquare)
+        case details: RelationDetails.Zwischenzug if witness.kind == RelationKind.Zwischenzug =>
+          List(details.targetSquare, details.intermediateMove.slice(2, 4))
+        case details: RelationDetails.PerpetualCheck if witness.kind == RelationKind.PerpetualCheck =>
+          details.kingSquare :: details.checkingMoves.flatMap(uci => squareFromKey(uci.takeRight(2)).map(_.key))
         case details: RelationDetails.Decoy if witness.kind == RelationKind.Decoy =>
           List(details.baitFromSquare, details.baitSquare, details.luredFromSquare)
         case details: RelationDetails.XRay if witness.kind == RelationKind.XRay =>
@@ -564,6 +1994,16 @@ private[commentary] object MoveReviewExchangeAnalyzer:
           details.targets.headOption.map(_.square)
         case details: RelationDetails.HangingPiece if witness.kind == RelationKind.HangingPiece =>
           Some(details.targetSquare)
+        case details: RelationDetails.TrappedPiece if witness.kind == RelationKind.TrappedPiece =>
+          Some(details.targetSquare)
+        case details: RelationDetails.Domination if witness.kind == RelationKind.Domination =>
+          Some(details.targetSquare)
+        case details: RelationDetails.StalemateTrap if witness.kind == RelationKind.StalemateTrap =>
+          Some(details.kingSquare)
+        case details: RelationDetails.Zwischenzug if witness.kind == RelationKind.Zwischenzug =>
+          Some(details.targetSquare)
+        case details: RelationDetails.PerpetualCheck if witness.kind == RelationKind.PerpetualCheck =>
+          Some(details.kingSquare)
         case details: RelationDetails.Decoy if witness.kind == RelationKind.Decoy =>
           Some(details.baitSquare)
         case details: RelationDetails.XRay if witness.kind == RelationKind.XRay =>
@@ -668,6 +2108,51 @@ private[commentary] object MoveReviewExchangeAnalyzer:
             s"target_role:${details.targetRole}",
             "undefended_target"
           )
+        case details: RelationDetails.TrappedPiece if witness.kind == RelationKind.TrappedPiece =>
+          List(
+            "trapped_piece_relation_witness",
+            s"target:${details.targetSquare}",
+            s"target_role:${details.targetRole}",
+            s"attackers:${details.attackerSquares.sorted.mkString("|")}",
+            s"legal_escape_count:${details.legalEscapeCount}",
+            "no_safe_escape"
+          )
+        case details: RelationDetails.Domination if witness.kind == RelationKind.Domination =>
+          List(
+            "domination_relation_witness",
+            s"controller:${details.controllerSquare}",
+            s"controller_role:${details.controllerRole}",
+            s"target:${details.targetSquare}",
+            s"target_role:${details.targetRole}",
+            s"legal_move_count:${details.legalMoveCount}",
+            "restricted_target"
+          )
+        case details: RelationDetails.StalemateTrap if witness.kind == RelationKind.StalemateTrap =>
+          List(
+            "stalemate_trap_relation_witness",
+            "stalemate",
+            s"king:${details.kingSquare}",
+            s"trapping_move:${details.trappingMove}"
+          )
+        case details: RelationDetails.Zwischenzug if witness.kind == RelationKind.Zwischenzug =>
+          List(
+            "zwischenzug_relation_witness",
+            s"intermediate_move:${details.intermediateMove}",
+            s"threat_type:${details.threatType}",
+            s"response_move:${details.responseMove}",
+            s"payoff_move:${details.payoffMove}",
+            s"target:${details.targetSquare}",
+            "forcing_intermediate_move"
+          )
+        case details: RelationDetails.PerpetualCheck if witness.kind == RelationKind.PerpetualCheck =>
+          List(
+            "perpetual_check_relation_witness",
+            "repeated_check_sequence",
+            s"king:${details.kingSquare}",
+            s"checks:${details.checkingMoves.mkString("|")}",
+            s"cycle:${details.cycleMoves.mkString("|")}",
+            s"repeated_position_ply:${details.repeatedPositionPly}"
+          )
         case details: RelationDetails.Decoy if witness.kind == RelationKind.Decoy =>
           List(
             "decoy_relation_witness",
@@ -744,13 +2229,52 @@ private[commentary] object MoveReviewExchangeAnalyzer:
       else Nil
     (details ++ branchTerms).distinct
 
+  def relationOwnerPacketTermsFromSupport(support: StrategyRelationSupport): List[String] =
+    val detailTerms =
+      support.relationKind match
+        case RelationKind.DefenderTrade =>
+          List("defender_trade_branch") ++
+            relationSquareTerm("defender", support.defenderSquare) ++
+            support.exchangeSquare.toList.flatMap(exchangeSquareFact) ++
+            relationSquareTerm("defended_target", support.targetSquare)
+        case RelationKind.BadPieceLiquidation =>
+          List("bad_piece_liquidation_branch") ++
+            relationSquareTerm("bad_piece", support.badPieceSquare) ++
+            support.exchangeSquare.toList.flatMap(exchangeSquareFact)
+        case RelationKind.Overload =>
+          List("overload_relation_branch") ++
+            relationSquareTerm("defender", support.defenderSquare) ++
+            support.targetSquares.flatMap(square => relationSquareTerm("target", Some(square))) ++
+            relationSquareTerm("attacker", support.attackerSquare)
+        case RelationKind.Deflection =>
+          List("deflection_relation_branch") ++
+            relationSquareTerm("defender", support.defenderSquare) ++
+            relationSquareTerm("defended_target", support.targetSquare) ++
+            relationSquareTerm("attacker", support.attackerSquare)
+        case RelationKind.DiscoveredAttack =>
+          List("discovered_attack_relation_branch") ++
+            relationSquareTerm("attacker", support.attackerSquare) ++
+            relationSquareTerm("cleared_square", support.clearedSquare) ++
+            relationSquareTerm("target", support.targetSquare) ++
+            support.attackerRole.toList.map(role => s"attacker_role:${role.trim.toLowerCase}")
+        case _ =>
+          Nil
+    (detailTerms ++ branchFactFromMoves(support.lineMoves)).distinct
+
+  private def relationSquareTerm(prefix: String, square: Option[String]): List[String] =
+    square.toList.flatMap(value => squareFromKey(value).map(square => s"$prefix:${square.key}"))
+
   def ownerSeedTermsFromWitness(
       witness: RelationWitness,
-      familyId: String,
+      proofFamily: String,
       aliases: List[String]
   ): List[String] =
     relationProjectionFromWitness(witness)
-      .map(projection => (aliases ++ projection.focusSquares ++ projection.factTerms ++ List(familyId)).distinct)
+      .flatMap(projection =>
+        projection.support.map { support =>
+          (aliases ++ projection.focusSquares ++ relationOwnerPacketTermsFromSupport(support) ++ List(proofFamily)).distinct
+        }
+      )
       .getOrElse(Nil)
 
   def transitionTermsFromWitness(
@@ -758,7 +2282,11 @@ private[commentary] object MoveReviewExchangeAnalyzer:
       extras: List[String]
   ): List[String] =
     relationProjectionFromWitness(witness)
-      .map(projection => (projection.factTerms ++ extras ++ MoveReviewPvLine.pvMoveTerms(projection.lineMoves)).distinct)
+      .flatMap(projection =>
+        projection.support.map { support =>
+          (relationOwnerPacketTermsFromSupport(support) ++ extras ++ MoveReviewPvLine.pvMoveTerms(projection.lineMoves)).distinct
+        }
+      )
       .getOrElse(Nil)
 
   def defenderTradeWitness(branch: DefenderTradeBranch): RelationWitness =
@@ -1018,6 +2546,53 @@ private[commentary] object MoveReviewExchangeAnalyzer:
         )
       )
 
+  def zwischenzugWitness(
+      replay: List[BoundedReplayStep],
+      playedMove: String,
+      explicitTargets: List[String] = Nil
+  ): Option[RelationWitness] =
+    val normalizedPlayed = NarrativeUtils.normalizeUciMove(playedMove)
+    for
+      first <- replay.headOption.filter(_.uci == normalizedPlayed)
+      if normalizedExplicitTargetKeys(explicitTargets).forall(squareFromKey(_).nonEmpty)
+      reply <- replay.lift(1)
+      payoff <- replay.lift(2)
+      movingSide = first.move.piece.color
+      if first.after.check.yes
+      if reply.move.piece.color != movingSide
+      if payoff.move.piece.color == movingSide
+      if payoff.move.captures
+      captured <- payoff.capturedRole
+      if pieceValue(captured) >= pieceValue(Knight)
+      target = payoff.move.dest
+      explicit = normalizedExplicitTargetKeys(explicitTargets)
+      if explicit.isEmpty || explicit.contains(target.key)
+      king <- first.after.board.kingPosOf(!movingSide)
+      threatType = if first.after.checkMate then "mate_threat" else "check"
+    yield
+      RelationWitness(
+        kind = RelationKind.Zwischenzug,
+        focusSquares = List(king.key, first.move.dest.key, target.key).distinct,
+        facts = List(
+          "zwischenzug_relation_witness",
+          s"intermediate_move:${first.uci}",
+          s"threat_type:$threatType",
+          s"response_move:${reply.uci}",
+          s"payoff_move:${payoff.uci}",
+          s"target:${target.key}",
+          "forcing_intermediate_move"
+        ) ++ branchFactFromMoves(replay.take(3).map(_.uci), maxPlies = 3),
+        lineMoves = replay.take(3).map(_.uci),
+        targetSquare = Some(target.key),
+        details = RelationDetails.Zwischenzug(
+          intermediateMove = first.uci,
+          threatType = threatType,
+          responseMove = reply.uci,
+          payoffMove = payoff.uci,
+          targetSquare = target.key
+        )
+      )
+
   def forkWitness(
       replay: List[BoundedReplayStep],
       playedMove: String,
@@ -1051,6 +2626,81 @@ private[commentary] object MoveReviewExchangeAnalyzer:
         explicitTargetSet = explicitTargetSet
       )
     yield witness.copy(lineMoves = replay.take(1).map(_.uci))
+
+  def trappedPieceWitness(
+      replay: List[BoundedReplayStep],
+      playedMove: String,
+      explicitTargets: List[String] = Nil
+  ): Option[RelationWitness] =
+    val normalizedPlayed = NarrativeUtils.normalizeUciMove(playedMove)
+    for
+      first <- replay.headOption.filter(_.uci == normalizedPlayed)
+      movingSide = first.move.piece.color
+      targetSet = relationTargetSquares(first.after.board, movingSide, explicitTargets).toSet
+      witness <- trappedPieceAfterMove(first, movingSide, targetSet)
+    yield witness.copy(lineMoves = replay.take(1).map(_.uci))
+
+  def dominationWitness(
+      replay: List[BoundedReplayStep],
+      playedMove: String,
+      explicitTargets: List[String] = Nil
+  ): Option[RelationWitness] =
+    val normalizedPlayed = NarrativeUtils.normalizeUciMove(playedMove)
+    for
+      first <- replay.headOption.filter(_.uci == normalizedPlayed)
+      movingSide = first.move.piece.color
+      targetSet = relationTargetSquares(first.after.board, movingSide, explicitTargets).toSet
+      witness <- dominationAfterMove(first.after, movingSide, first.move.dest, first.move.piece.role, targetSet)
+    yield witness.copy(lineMoves = replay.take(1).map(_.uci))
+
+  def stalemateTrapWitness(
+      replay: List[BoundedReplayStep],
+      playedMove: String,
+      explicitTargets: List[String] = Nil
+  ): Option[RelationWitness] =
+    val normalizedPlayed = NarrativeUtils.normalizeUciMove(playedMove)
+    for
+      first <- replay.headOption.filter(_.uci == normalizedPlayed)
+      if first.after.staleMate
+      pattern <- tacticalPattern(RelationKind.StalemateTrap)
+      if pattern.matches(Some(first.before), first.after, first.uci)
+      king <- first.after.board.kingPosOf(first.after.color)
+      explicit = normalizedExplicitTargetKeys(explicitTargets)
+      if explicit.isEmpty || (explicit.forall(squareFromKey(_).nonEmpty) && explicit.contains(king.key))
+    yield
+      RelationWitness(
+        kind = RelationKind.StalemateTrap,
+        focusSquares = List(king.key),
+        facts = List(
+          "stalemate_trap_relation_witness",
+          "stalemate",
+          s"king:${king.key}",
+          s"trapping_move:${first.uci}"
+        ),
+        lineMoves = replay.take(1).map(_.uci),
+        targetSquare = Some(king.key),
+        details = RelationDetails.StalemateTrap(
+          kingSquare = king.key,
+          trappingMove = first.uci
+        )
+      )
+
+  def perpetualCheckWitness(
+      replay: List[BoundedReplayStep],
+      playedMove: String,
+      explicitTargets: List[String] = Nil,
+      continuationLines: List[List[String]] = Nil
+  ): Option[RelationWitness] =
+    val normalizedPlayed = NarrativeUtils.normalizeUciMove(playedMove)
+    for
+      first <- replay.headOption.filter(_.uci == normalizedPlayed)
+      if normalizedExplicitTargetKeys(explicitTargets).isEmpty
+      movingSide = first.move.piece.color
+      candidate <- perpetualCheckCandidateLines(continuationLines, replay.map(_.uci), normalizedPlayed).iterator
+        .flatMap(line => perpetualCheckFromLine(first.before, movingSide, line))
+        .toList
+        .headOption
+    yield candidate
 
   def clearanceWitness(
       replay: List[BoundedReplayStep],
@@ -1346,12 +2996,118 @@ private[commentary] object MoveReviewExchangeAnalyzer:
   def legalMove(position: Position, uci: String): Option[Move] =
     Uci(uci).collect { case move: Uci.Move => move }.flatMap(position.move(_).toOption)
 
+  private def perpetualCheckCandidateLines(
+      continuationLines: List[List[String]],
+      fallbackLine: List[String],
+      normalizedPlayed: String
+  ): List[List[String]] =
+    (continuationLines :+ fallbackLine)
+      .map(line => normalizedBoundedMoves(line, maxPlies = 8))
+      .filter(line => line.headOption.contains(normalizedPlayed) && line.size >= 5)
+      .distinct
+
+  private def perpetualCheckFromLine(
+      start: Position,
+      checkingSide: Color,
+      rawLine: List[String]
+  ): Option[RelationWitness] =
+    val line = normalizedBoundedMoves(rawLine, maxPlies = 8)
+    val steps = scala.collection.mutable.ListBuffer.empty[BoundedReplayStep]
+    val checkingPositions = scala.collection.mutable.ListBuffer.empty[(Int, String, BoundedReplayStep)]
+    var current = start
+    var ok = line.size >= 5
+    var ply = 0
+    val iterator = line.iterator
+    while iterator.hasNext && ok do
+      val uci = iterator.next()
+      ply += 1
+      legalMove(current, uci) match
+        case Some(move) =>
+          val capturedRole =
+            move.capture
+              .flatMap(current.board.roleAt)
+              .orElse(current.board.roleAt(move.dest))
+          val step = BoundedReplayStep(
+            uci = uci,
+            before = current,
+            move = move,
+            after = move.after,
+            capturedRole = capturedRole
+          )
+          steps += step
+          if move.piece.color == checkingSide then
+            if step.after.check.yes then
+              checkingPositions += ((ply, repeatedPositionKey(step.after), step))
+            else ok = false
+          current = step.after
+        case None =>
+          ok = false
+
+    if !ok || checkingPositions.size < 3 then None
+    else
+      val seen = scala.collection.mutable.Map.empty[String, (Int, BoundedReplayStep)]
+      var repeated: Option[(Int, Int, BoundedReplayStep)] = None
+      val checkIterator = checkingPositions.iterator
+      while checkIterator.hasNext && repeated.isEmpty do
+        val (repeatPly, key, step) = checkIterator.next()
+        seen.get(key) match
+          case Some((firstPly, _)) if repeatPly - firstPly >= 4 =>
+            repeated = Some((firstPly, repeatPly, step))
+          case Some(_) =>
+            ()
+          case None =>
+            seen += key -> (repeatPly, step)
+
+      repeated.flatMap { case (firstPly, repeatPly, repeatedStep) =>
+        val checkingMoves =
+          checkingPositions.toList.collect { case (checkPly, _, step) if checkPly <= repeatPly => step.uci }
+        val cycleMoves = steps.toList.slice(firstPly - 1, repeatPly).map(_.uci)
+        for
+          king <- repeatedStep.after.board.kingPosOf(!checkingSide)
+          checkers = repeatedStep.after.checkers.squares.toList.map(_.key).sorted
+          if checkingMoves.size >= 3 && cycleMoves.size >= 4
+        yield
+          RelationWitness(
+            kind = RelationKind.PerpetualCheck,
+            focusSquares = (king.key :: checkers).distinct,
+            facts = List(
+              "perpetual_check_relation_witness",
+              "repeated_check_sequence",
+              s"king:${king.key}",
+              s"checks:${checkingMoves.mkString("|")}",
+              s"cycle:${cycleMoves.mkString("|")}",
+              s"repeated_position_ply:$repeatPly"
+            ),
+            lineMoves = steps.take(repeatPly).map(_.uci).toList,
+            targetSquare = Some(king.key),
+            details = RelationDetails.PerpetualCheck(
+              kingSquare = king.key,
+              checkingMoves = checkingMoves,
+              cycleMoves = cycleMoves,
+              repeatedPositionPly = repeatPly
+            )
+          )
+      }
+
+  private def repeatedPositionKey(position: Position): String =
+    Fen.write(position).value.split(" ").take(4).mkString(" ")
 
   def isUciMove(move: String): Boolean =
     move.matches("""[a-h][1-8][a-h][1-8][qrbn]?""")
 
   def squareFromKey(key: String): Option[Square] =
     Square.fromKey(Option(key).map(_.trim.toLowerCase).getOrElse(""))
+
+  private def pieceRoleName(raw: String): Option[String] =
+    Option(raw).map(_.trim.toLowerCase).flatMap {
+      case "p" | "pawn"   => Some("pawn")
+      case "n" | "knight" => Some("knight")
+      case "b" | "bishop" => Some("bishop")
+      case "r" | "rook"   => Some("rook")
+      case "q" | "queen"  => Some("queen")
+      case "k" | "king"   => Some("king")
+      case _               => None
+    }
 
   def isConstrainedBadBishop(board: Board, color: Color, square: Square): Boolean =
     isBadBishopOnCurrentBoard(board, color, square)
@@ -1624,6 +3380,180 @@ private[commentary] object MoveReviewExchangeAnalyzer:
         )
       )
     }
+
+  private def trappedPieceAfterMove(
+      first: BoundedReplayStep,
+      movingSide: Color,
+      targetSet: Set[Square]
+  ): Option[RelationWitness] =
+    val after = first.after
+    val board = after.board
+    val movedAttacks =
+      roleAttacks(first.move.piece.role, first.move.dest, movingSide, board.occupied).squares.toSet
+    targetSet.toList
+      .flatMap(target =>
+        board
+          .pieceAt(target)
+          .filter(piece => piece.color != movingSide && trappedPieceTargetRole(piece.role))
+          .map(piece => target -> piece)
+      )
+      .flatMap { case (target, piece) =>
+        val attackers = board.attackers(target, movingSide).squares.toList.map(_.key).sorted
+        val legalMoves = trappedPieceLegalMoves(after, target, piece)
+        val safeRoutes = legalMoves.filter(trappedPieceMovePreservesSafety(_, piece.color, movingSide))
+        Option.when(
+          attackers.nonEmpty &&
+            safeRoutes.isEmpty &&
+            trappedPieceMoveLinks(first, target, piece, movedAttacks)
+        ) {
+          RelationWitness(
+            kind = RelationKind.TrappedPiece,
+            focusSquares = (target.key :: attackers).distinct,
+            facts = List(
+              "trapped_piece_relation_witness",
+              s"target:${target.key}",
+              s"target_role:${piece.role.name}",
+              s"attackers:${attackers.mkString("|")}",
+              s"legal_escape_count:${legalMoves.size}",
+              "no_safe_escape"
+            ),
+            lineMoves = Nil,
+            targetSquare = Some(target.key),
+            details = RelationDetails.TrappedPiece(
+              targetSquare = target.key,
+              targetRole = piece.role.name,
+              attackerSquares = attackers,
+              legalEscapeCount = legalMoves.size
+            )
+          )
+        }
+      }
+      .sortBy(witness =>
+        val value = witness.targetSquare.flatMap(squareFromKey).flatMap(board.roleAt).map(pieceValue).getOrElse(0)
+        (-value, witness.targetSquare.getOrElse(""))
+      )
+      .headOption
+
+  private def trappedPieceTargetRole(role: Role): Boolean =
+    role == Knight || role == Bishop || role == Rook || role == Queen
+
+  private def trappedPieceMoveLinks(
+      first: BoundedReplayStep,
+      target: Square,
+      targetPiece: Piece,
+      movedAttacks: Set[Square]
+  ): Boolean =
+    val before = first.before.board
+    val after = first.after.board
+    val movingSide = first.move.piece.color
+    val movedTo = first.move.dest
+    val directAttack = after.attackers(target, movingSide).exists(_ == movedTo)
+    val pressureIncreased = after.attackers(target, movingSide).count > before.attackers(target, movingSide).count
+    val movedIntoTargetRoute =
+      trappedPieceCandidateDestinations(before, target, targetPiece).contains(movedTo) ||
+        trappedPieceCandidateDestinations(after, target, targetPiece).contains(movedTo)
+    val movedControlsRoute =
+      trappedPieceCandidateDestinations(after, target, targetPiece).exists(movedAttacks.contains)
+    directAttack || pressureIncreased || movedIntoTargetRoute || movedControlsRoute
+
+  private def trappedPieceLegalMoves(
+      position: Position,
+      target: Square,
+      piece: Piece
+  ): List[Move] =
+    trappedPieceCandidateDestinations(position.board, target, piece).flatMap { destination =>
+      legalMove(position, s"${target.key}${destination.key}").filter(move => move.orig == target && move.dest == destination)
+    }
+
+  private def trappedPieceCandidateDestinations(
+      board: Board,
+      target: Square,
+      piece: Piece
+  ): List[Square] =
+    roleAttacks(piece.role, target, piece.color, board.occupied).squares.toList
+      .filterNot(destination => board.pieceAt(destination).exists(_.color == piece.color))
+      .filterNot(destination => board.pieceAt(destination).exists(_.role == King))
+
+  private def trappedPieceMovePreservesSafety(
+      move: Move,
+      targetColor: Color,
+      attackerColor: Color
+  ): Boolean =
+    val destination = move.dest
+    val board = move.after.board
+    val attackers = board.attackers(destination, attackerColor).count
+    val defenders = board.attackers(destination, targetColor).count
+    attackers == 0 || defenders >= attackers
+
+  private def dominationAfterMove(
+      position: Position,
+      movingSide: Color,
+      controller: Square,
+      controllerRole: Role,
+      targetSet: Set[Square]
+  ): Option[RelationWitness] =
+    val board = position.board
+    roleAttacks(controllerRole, controller, movingSide, board.occupied).squares.toList
+      .filter(targetSet.contains)
+      .flatMap(target =>
+        board
+          .pieceAt(target)
+          .filter(piece => piece.color != movingSide && dominatedTargetRole(piece.role))
+          .map(piece => target -> piece)
+      )
+      .flatMap { case (target, piece) =>
+        val legalMoves = pieceLegalMoves(position, target, piece)
+        Option.when(legalMoves.nonEmpty && legalMoves.size <= 1) {
+          RelationWitness(
+            kind = RelationKind.Domination,
+            focusSquares = List(target.key, controller.key),
+            facts = List(
+              "domination_relation_witness",
+              s"controller:${controller.key}",
+              s"controller_role:${controllerRole.name}",
+              s"target:${target.key}",
+              s"target_role:${piece.role.name}",
+              s"legal_move_count:${legalMoves.size}",
+              "restricted_target"
+            ),
+            lineMoves = Nil,
+            targetSquare = Some(target.key),
+            details = RelationDetails.Domination(
+              controllerSquare = controller.key,
+              targetSquare = target.key,
+              controllerRole = controllerRole.name,
+              targetRole = piece.role.name,
+              legalMoveCount = legalMoves.size
+            )
+          )
+        }
+      }
+      .sortBy(witness =>
+        val value = witness.targetSquare.flatMap(squareFromKey).flatMap(board.roleAt).map(pieceValue).getOrElse(0)
+        (-value, witness.targetSquare.getOrElse(""))
+      )
+      .headOption
+
+  private def dominatedTargetRole(role: Role): Boolean =
+    role == Knight || role == Bishop || role == Rook || role == Queen
+
+  private def pieceLegalMoves(
+      position: Position,
+      square: Square,
+      piece: Piece
+  ): List[Move] =
+    pieceCandidateDestinations(position.board, square, piece).flatMap { destination =>
+      legalMove(position, s"${square.key}${destination.key}").filter(move => move.orig == square && move.dest == destination)
+    }
+
+  private def pieceCandidateDestinations(
+      board: Board,
+      square: Square,
+      piece: Piece
+  ): List[Square] =
+    roleAttacks(piece.role, square, piece.color, board.occupied).squares.toList
+      .filterNot(destination => board.pieceAt(destination).exists(_.color == piece.color))
+      .filterNot(destination => board.pieceAt(destination).exists(_.role == King))
 
   private def sameColorRayPieceBehind(
       board: Board,

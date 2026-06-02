@@ -2,6 +2,7 @@ package lila.commentary.analysis.semantic.evidence
 
 import lila.commentary.*
 import lila.commentary.analysis.StrategicIdeaSemanticContext
+import lila.commentary.analysis.PlanMoveEvidenceSupport.pawnAt
 import lila.commentary.analysis.semantic.{ StrategicIdeaEvidence, StrategicIdeaEvidenceProducer, StrategicIdeaEvidenceTier }
 import lila.commentary.analysis.semantic.StrategicObservationIds.EvidenceSourceId
 import _root_.chess.{ Color, Square }

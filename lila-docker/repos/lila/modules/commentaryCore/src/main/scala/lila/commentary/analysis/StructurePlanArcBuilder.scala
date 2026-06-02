@@ -5,7 +5,7 @@ import _root_.chess.format.Fen
 import lila.commentary.RouteSurfaceMode
 import lila.commentary.model.*
 import lila.commentary.model.strategic.{ PieceActivity, PositionalTag }
-import lila.commentary.analysis.semantic.RelationObservationCatalog
+import PlanMoveEvidenceSupport.*
 
 private[analysis] final case class PieceDeploymentCue(
     ownerSide: String,
@@ -50,8 +50,6 @@ private[analysis] object StructurePlanArcBuilder:
   val ProseConfidenceCutoff = 0.55
   val SecondaryConfidenceCutoff = 0.55
   val ExactRouteCutoff = 0.82
-  private val TrappedPieceFallbackEvidence =
-    RelationObservationCatalog.deferredFallbackEvidenceTermForKind(MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece)
 
   def build(ctx: NarrativeContext): Option[StructurePlanArc] =
     val semantic = ctx.semantic
@@ -141,10 +139,12 @@ private[analysis] object StructurePlanArcBuilder:
         .filter(_.color == routeColor)
         .flatMap { piece =>
           val route = activity.keyRoutes.map(_.key).distinct.take(3)
-          Option.when(route.nonEmpty)(
-            buildPieceDeploymentCue(
+          for
+            token <- pieceToken(piece.role.toString)
+            if route.nonEmpty
+            cue <- buildPieceDeploymentCue(
               ownerSide = sideName(routeColor),
-              piece = pieceToken(piece.role),
+              piece = token,
               from = activity.square.key,
               route = route,
               purpose = derivedStrategicPurpose(
@@ -162,13 +162,12 @@ private[analysis] object StructurePlanArcBuilder:
               ownerColor = Some(routeColor),
               source = "piece_activity"
             )
-          ).flatten
+          yield cue
         }
 
   def evidenceFromStrategicActivity(activity: PieceActivity, destination: String): List[String] =
     List(
       Option.when(activity.isBadBishop)("bishop_quality_signal"),
-      Option.when(activity.isTrapped)(TrappedPieceFallbackEvidence).flatten,
       Option.when(activity.mobilityScore < 0.4)("low_mobility_signal"),
       Option.when(activity.keyRoutes.size >= 2)("multi_hop_route"),
       Option.when(activity.coordinationLinks.nonEmpty)(s"coordination_links_${activity.coordinationLinks.size.min(4)}"),
@@ -412,7 +411,7 @@ private[analysis] object StructurePlanArcBuilder:
         (name.contains("activation") && (role == _root_.chess.Knight || role == _root_.chess.Bishop))
       }
     purposeBase(
-      piece = pieceToken(role),
+      piece = pieceToken(role.toString).getOrElse(role.toString.toLowerCase),
       plan = planLabels.headOption.getOrElse("").toLowerCase,
       structure = structureHint.getOrElse("").toLowerCase,
       isTrapped = activity.isTrapped,
@@ -571,17 +570,7 @@ private[analysis] object StructurePlanArcBuilder:
       case "K" => "king"
       case other => other.toLowerCase
 
-  private def pieceToken(role: Role): String =
-    role match
-      case _root_.chess.Pawn   => "P"
-      case _root_.chess.Knight => "N"
-      case _root_.chess.Bishop => "B"
-      case _root_.chess.Rook   => "R"
-      case _root_.chess.Queen  => "Q"
-      case _root_.chess.King   => "K"
 
-  private def sideName(color: Color): String =
-    if color.white then "white" else "black"
 
   private def colorFromSide(side: String): Option[Color] =
     normalized(side).map(_.toLowerCase).collect {
@@ -643,16 +632,3 @@ private[analysis] object StructurePlanArcBuilder:
 
   private def capitalizeFirst(value: String): String =
     normalized(value).map(v => s"${v.head.toUpper}${v.tail}").getOrElse(value)
-
-  private def isOpenOrSemiOpenFileFor(
-      board: Board,
-      file: File,
-      color: Color
-  ): Boolean =
-    val mask = _root_.chess.Bitboard.file(file)
-    val ownPawns = board.pawns & board.byColor(color) & mask
-    ownPawns.isEmpty
-
-  private def isCentralSquare(square: Square): Boolean =
-    Set(File.C, File.D, File.E, File.F).contains(square.file) &&
-      Set(_root_.chess.Rank.Third, _root_.chess.Rank.Fourth, _root_.chess.Rank.Fifth, _root_.chess.Rank.Sixth).contains(square.rank)

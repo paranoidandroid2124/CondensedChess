@@ -6,6 +6,7 @@ import lila.commentary.model.Motif.*
 
 import _root_.chess.*
 import _root_.chess.format.{ Fen, Uci }
+import lila.commentary.analysis.PlanMoveEvidenceSupport.*
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -1224,14 +1225,6 @@ object MoveAnalyzer:
       val blocked = adjacent & pos.board.byColor(!color)
       isKnightCheck && (blocked == adjacent)
     }
-
-  private def pieceValue(role: Role): Int = role match
-    case Pawn   => 1
-    case Knight => 3
-    case Bishop => 3
-    case Rook   => 5
-    case Queen  => 9
-    case King   => 100
 
   /**
    * Detect compensation for Exchange Sacrifice (Rook for minor piece).

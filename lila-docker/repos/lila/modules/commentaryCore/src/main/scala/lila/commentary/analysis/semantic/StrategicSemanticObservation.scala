@@ -4,7 +4,7 @@ import lila.commentary.analysis.structure.StructuralDelta
 import lila.commentary.analysis.StrategicConceptSemantics
 import lila.commentary.analysis.MoveReviewExchangeAnalyzer
 import lila.commentary.analysis.semantic.StrategicObservationIds.*
-import lila.commentary.{ StrategicIdeaKind, StrategicIdeaReadiness }
+import lila.commentary.{ StrategicIdeaKind, StrategicIdeaReadiness, StrategyRelationSupport }
 
 private[commentary] enum StrategicSemanticObservationRole:
   case SupportOnly
@@ -20,7 +20,8 @@ private[commentary] final case class StrategicSemanticObservation(
     facts: List[FactId] = Nil,
     role: StrategicSemanticObservationRole = StrategicSemanticObservationRole.SupportOnly,
     proofSource: Option[ProofSourceId] = None,
-    proofFamily: Option[ProofFamilyId] = None
+    proofFamily: Option[ProofFamilyId] = None,
+    relationSupport: Option[StrategyRelationSupport] = None
 ):
   def supportOnly: Boolean =
     role == StrategicSemanticObservationRole.SupportOnly
@@ -58,7 +59,8 @@ private[commentary] object StrategicSemanticObservation:
       focusSquares: List[String] = Nil,
       focusZone: Option[String] = None,
       targetSquare: Option[String] = None,
-      facts: List[FactId] = Nil
+      facts: List[FactId] = Nil,
+      relationSupport: Option[StrategyRelationSupport] = None
   ): StrategicSemanticObservation =
     StrategicSemanticObservation(
       id = id,
@@ -68,7 +70,8 @@ private[commentary] object StrategicSemanticObservation:
       targetSquare = targetSquare,
       source = Some(source),
       facts = facts.distinct,
-      role = StrategicSemanticObservationRole.SelectorSource
+      role = StrategicSemanticObservationRole.SelectorSource,
+      relationSupport = relationSupport
     )
 
   def minorityAttack(
@@ -145,7 +148,8 @@ private[commentary] object StrategicSemanticObservation:
         targetSquare = projection.targetSquare,
         facts =
           descriptor.semanticFact ::
-            projection.factTerms.flatMap(FactId.dynamic)
+            projection.factTerms.flatMap(FactId.dynamic),
+        relationSupport = projection.support
       )
 
   def targetPressureFacts(
@@ -193,7 +197,8 @@ private[commentary] final case class RelationObservationDescriptor(
     publicLabel: String,
     surfaceRowLabel: String,
     beneficiaryPieces: List[String] = Nil,
-    surfaceTargetFocus: RelationSurfaceTargetFocus = RelationSurfaceTargetFocus.Last
+    surfaceTargetFocus: RelationSurfaceTargetFocus = RelationSurfaceTargetFocus.Last,
+    selectorPriority: Int = 0
 ):
   def sourceRef: EvidenceRef =
     EvidenceRef.Source(source)
@@ -241,53 +246,7 @@ private[commentary] final case class DeferredRelationFallback(
 private[commentary] object RelationObservationCatalog:
 
   val Deferred: List[DeferredRelationDescriptor] =
-    List(
-      DeferredRelationDescriptor(
-        relationKind = MoveReviewExchangeAnalyzer.RelationKind.Zwischenzug,
-        internalLabel = "zwischenzug",
-        requiredWitness = "legal replay proving an intermezzo before the expected recapture or direct threat response",
-        deferReason = "motif detectors exist, but the MoveReview relation boundary still lacks target-bound exchange or threat comparison",
-        fallbackLane = DeferredRelationFallbackLane.PracticalGuidance,
-        fallbackLabel = Some("move-order caution"),
-        fallbackRationale = "unproven intermezzo claims may only speak as move-order guidance without naming a relation token"
-      ),
-      DeferredRelationDescriptor(
-        relationKind = MoveReviewExchangeAnalyzer.RelationKind.Domination,
-        internalLabel = "domination",
-        requiredWitness = "legal replay proving enemy-piece restriction with escape-square control and persistence",
-        deferReason = "motif-level domination signals are not yet normalized into a move-local attack/defense relation witness",
-        fallbackLane = DeferredRelationFallbackLane.ThematicFallback,
-        fallbackLabel = Some("key-square restriction"),
-        fallbackRationale = "restriction themes can remain generic structure guidance until escape-square proof exists"
-      ),
-      DeferredRelationDescriptor(
-        relationKind = MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece,
-        internalLabel = "trapped piece",
-        requiredWitness = "legal replay proving a valuable target has no safe escape or defense-preserving route",
-        deferReason = "existing trapped-piece motifs do not yet provide the target-bound persistence witness required for MoveReview surface authority",
-        fallbackLane = DeferredRelationFallbackLane.PracticalGuidance,
-        fallbackLabel = Some("piece mobility"),
-        fallbackRationale = "piece-safety pressure may be described as practical handling, not as a trapped-piece relation"
-      ),
-      DeferredRelationDescriptor(
-        relationKind = MoveReviewExchangeAnalyzer.RelationKind.StalemateTrap,
-        internalLabel = "stalemate trap",
-        requiredWitness = "legal replay proving the trap continuation and the drawing/stalemate resource",
-        deferReason = "pattern detection exists, but relation admission needs a replayed continuation witness before it can become public support",
-        fallbackLane = DeferredRelationFallbackLane.DiagnosticOnly,
-        fallbackLabel = None,
-        fallbackRationale = "draw-resource claims are tactical truth claims and stay silent without a replayed trap"
-      ),
-      DeferredRelationDescriptor(
-        relationKind = MoveReviewExchangeAnalyzer.RelationKind.PerpetualCheck,
-        internalLabel = "perpetual check",
-        requiredWitness = "legal replay proving a stable checking cycle or repetition-forcing continuation",
-        deferReason = "the current relation boundary has no repetition or cycle witness for MoveReview support rows",
-        fallbackLane = DeferredRelationFallbackLane.DiagnosticOnly,
-        fallbackLabel = None,
-        fallbackRationale = "repetition or forced-draw claims remain fail-closed until cycle evidence exists"
-      )
-    )
+    Nil
 
   val Implemented: List[RelationObservationDescriptor] =
     List(
@@ -311,7 +270,8 @@ private[commentary] object RelationObservationCatalog:
         confidence = 0.78,
         publicLabel = "bad-piece liquidation",
         surfaceRowLabel = "Tactical relation",
-        beneficiaryPieces = List("B")
+        beneficiaryPieces = List("B"),
+        selectorPriority = 2
       ),
       RelationObservationDescriptor(
         relationKind = MoveReviewExchangeAnalyzer.RelationKind.Overload,
@@ -385,6 +345,18 @@ private[commentary] object RelationObservationCatalog:
         beneficiaryPieces = List("B")
       ),
       RelationObservationDescriptor(
+        relationKind = MoveReviewExchangeAnalyzer.RelationKind.Zwischenzug,
+        observationId = SemanticObservationId.ZwischenzugSemantic,
+        source = EvidenceSourceId.ZwischenzugRelation,
+        ideaKind = StrategicIdeaKind.FavorableTradeOrTransformation,
+        readiness = StrategicIdeaReadiness.Build,
+        confidence = 0.69,
+        publicLabel = "zwischenzug",
+        surfaceRowLabel = "Tactical relation",
+        surfaceTargetFocus = RelationSurfaceTargetFocus.First,
+        selectorPriority = 2
+      ),
+      RelationObservationDescriptor(
         relationKind = MoveReviewExchangeAnalyzer.RelationKind.Fork,
         observationId = SemanticObservationId.ForkSemantic,
         source = EvidenceSourceId.ForkRelation,
@@ -403,6 +375,53 @@ private[commentary] object RelationObservationCatalog:
         confidence = 0.69,
         publicLabel = "hanging piece",
         surfaceRowLabel = "Tactical relation"
+      ),
+      RelationObservationDescriptor(
+        relationKind = MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece,
+        observationId = SemanticObservationId.TrappedPieceSemantic,
+        source = EvidenceSourceId.TrappedPieceRelation,
+        ideaKind = StrategicIdeaKind.FavorableTradeOrTransformation,
+        readiness = StrategicIdeaReadiness.Build,
+        confidence = 0.68,
+        publicLabel = "trapped piece",
+        surfaceRowLabel = "Tactical relation",
+        surfaceTargetFocus = RelationSurfaceTargetFocus.First,
+        selectorPriority = 1
+      ),
+      RelationObservationDescriptor(
+        relationKind = MoveReviewExchangeAnalyzer.RelationKind.Domination,
+        observationId = SemanticObservationId.DominationSemantic,
+        source = EvidenceSourceId.DominationRelation,
+        ideaKind = StrategicIdeaKind.LineOccupation,
+        readiness = StrategicIdeaReadiness.Build,
+        confidence = 0.66,
+        publicLabel = "domination",
+        surfaceRowLabel = "Restriction relation",
+        surfaceTargetFocus = RelationSurfaceTargetFocus.First
+      ),
+      RelationObservationDescriptor(
+        relationKind = MoveReviewExchangeAnalyzer.RelationKind.StalemateTrap,
+        observationId = SemanticObservationId.StalemateTrapSemantic,
+        source = EvidenceSourceId.StalemateTrapRelation,
+        ideaKind = StrategicIdeaKind.FavorableTradeOrTransformation,
+        readiness = StrategicIdeaReadiness.Ready,
+        confidence = 0.76,
+        publicLabel = "stalemate trap",
+        surfaceRowLabel = "Tactical relation",
+        surfaceTargetFocus = RelationSurfaceTargetFocus.First,
+        selectorPriority = 2
+      ),
+      RelationObservationDescriptor(
+        relationKind = MoveReviewExchangeAnalyzer.RelationKind.PerpetualCheck,
+        observationId = SemanticObservationId.PerpetualCheckSemantic,
+        source = EvidenceSourceId.PerpetualCheckRelation,
+        ideaKind = StrategicIdeaKind.KingAttackBuildUp,
+        readiness = StrategicIdeaReadiness.Build,
+        confidence = 0.72,
+        publicLabel = "perpetual check",
+        surfaceRowLabel = "Tactical relation",
+        surfaceTargetFocus = RelationSurfaceTargetFocus.First,
+        selectorPriority = 2
       ),
       RelationObservationDescriptor(
         relationKind = MoveReviewExchangeAnalyzer.RelationKind.XRay,
@@ -548,24 +567,6 @@ private[commentary] object RelationObservationCatalog:
 
   def descriptorForObservationId(id: SemanticObservationId): Option[RelationObservationDescriptor] =
     byObservationId.get(id)
-
-  def descriptorForEvidence(
-      relationKind: Option[String],
-      evidenceRefs: List[String]
-  ): Option[RelationObservationDescriptor] =
-    relationKind match
-      case Some(kind) =>
-        descriptorForKind(kind).filter(descriptor => evidenceRefsContain(descriptor, evidenceRefs))
-      case None =>
-        Implemented.filter(descriptor => evidenceRefsContain(descriptor, evidenceRefs)) match
-          case descriptor :: Nil => Some(descriptor)
-          case _                 => None
-
-  def evidenceRefsContain(
-      descriptor: RelationObservationDescriptor,
-      evidenceRefs: List[String]
-  ): Boolean =
-    descriptor.wireEvidenceRefs.forall(evidenceRefs.contains)
 
   private def normalizeMotifTag(raw: String): String =
     Option(raw).getOrElse("").trim

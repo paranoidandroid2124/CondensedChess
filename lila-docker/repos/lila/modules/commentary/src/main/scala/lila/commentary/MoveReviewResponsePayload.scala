@@ -20,7 +20,7 @@ object MoveReviewResponsePayload:
       "endgameStateToken" -> response.endgameStateToken,
       "sourceMode" -> response.sourceMode,
       "model" -> response.model,
-      "moveReviewPlayerSurface" -> response.moveReviewPlayerSurface,
+      "moveReviewPlayerSurface" -> response.moveReviewPlayerSurface.map(UserFacingPayloadSanitizer.sanitizeMoveReviewPlayerSurface),
       "diagnostics" -> MoveReviewResponseDiagnostics.json(response),
       "cacheHit" -> cacheHit
     )

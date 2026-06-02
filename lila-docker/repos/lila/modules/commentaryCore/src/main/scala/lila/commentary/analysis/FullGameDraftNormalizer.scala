@@ -1,6 +1,6 @@
 package lila.commentary.analysis
 
-import lila.commentary.analysis.PlanTaxonomy.{ SubplanCatalog, PlanTheme, ThemeResolver }
+import lila.commentary.analysis.PlanTaxonomy.{ PlanKind, PlanTheme, SubplanCatalog, ThemeResolver }
 
 private[commentary] object FullGameDraftNormalizer:
 
@@ -75,11 +75,12 @@ private[commentary] object FullGameDraftNormalizer:
     if trimmed.isEmpty then None
     else
       ThemeResolver
-        .subplanFromEvidenceSource(trimmed)
+        .subplanIdFromSupport(trimmed)
+        .flatMap(PlanKind.fromId)
         .flatMap(SubplanCatalog.specs.get)
         .map(_.objective)
         .orElse {
-          ThemeResolver.fromEvidenceSource(trimmed) match
+          ThemeResolver.themeIdFromSupport(trimmed).flatMap(PlanTheme.fromId).getOrElse(PlanTheme.Unknown) match
             case PlanTheme.OpeningPrinciples       => Some("development and king safety")
             case PlanTheme.RestrictionProphylaxis  => Some("restriction and prophylaxis")
             case PlanTheme.PieceRedeployment       => Some("piece improvement")

@@ -8,6 +8,7 @@ import lila.commentary.analysis.semantic.StrategicObservationIds.{ ProofFamilyId
 import lila.commentary.analysis.structure.WeaknessTargetProfile
 import lila.commentary.analysis.PlanEvidenceEvaluator.{ EvaluatedPlan, UserFacingPlanEligibility }
 import lila.commentary.analysis.PlanTaxonomy.{ PlanKind, PlanTheme }
+import lila.commentary.model.StrategicPlanExperiment
 import chess.format.{ Fen, Uci }
 import chess.variant.Standard
 
@@ -67,9 +68,10 @@ object MoveReviewPlayerPayloadBuilder:
     val promotedPlans = evaluatedPlans.filter(PlanEvidenceEvaluator.isMainAdmittedPlan).sortBy(_.hypothesis.rank)
     val practicalRows = practicalPlanRows(evaluatedPlans)
     val openingRows = openingFamilyRow(ctx).toList
+    val relationExplanationRows = strategicRelationExplanationRows(strategyPack)
     val relationRows = strategicRelationRows(strategyPack)
     val summaryRows =
-      (mainPlanRow(promotedPlans).toList ++ openingRows ++ practicalRows ++ sanitizeRows(supportedLocalRows, knownSans))
+      (relationExplanationRows ++ mainPlanRow(promotedPlans).toList ++ openingRows ++ practicalRows ++ sanitizeRows(supportedLocalRows, knownSans))
         .distinctBy(row => (row.label, row.text))
     MoveReviewPlayerSurface(
       schema = Schema,
@@ -95,6 +97,13 @@ object MoveReviewPlayerPayloadBuilder:
       .distinctBy(row => (row.authority.flatMap(_.token), row.authority.flatMap(_.target), row.text))
       .take(2)
 
+  private def strategicRelationExplanationRows(strategyPack: Option[StrategyPack]): List[MoveReviewPlayerSurfaceRow] =
+    strategyPack.toList
+      .flatMap(_.strategicIdeas)
+      .flatMap(strategicRelationExplanationRow)
+      .distinctBy(row => (row.authority.flatMap(_.token), row.authority.flatMap(_.target), row.text))
+      .take(1)
+
   private def strategicRelationRow(idea: StrategyIdeaSignal): Option[MoveReviewPlayerSurfaceRow] =
     strategicRelationDescriptor(idea)
       .flatMap { descriptor =>
@@ -102,30 +111,71 @@ object MoveReviewPlayerPayloadBuilder:
         val focus = strategicRelationFocus(idea)
         if focus.isEmpty then None
         else
-          val focusText = focus.take(3).mkString(", ")
-          val text =
-            if focusText.nonEmpty then s"The checked line gives ${descriptor.publicLabel} evidence around $focusText."
-            else s"The checked line gives ${descriptor.publicLabel} evidence."
-          row(
-            label = descriptor.surfaceRowLabel,
-            text = text,
-            tone = Some("relation")
-          ).map(
-            _.copy(
-              authority =
-                Some(
-                  MoveReviewSurfaceAuthority(
-                    kind = MoveReviewSurfaceAuthority.StrategicRelation,
-                    token = Some(relation),
-                    target = relationTargetFromIdea(idea, descriptor, focus)
+          val target = relationTargetFromIdea(idea, descriptor, focus)
+          RelationSurfaceText.surfaceRowText(
+            descriptor = descriptor,
+            idea = idea,
+            focusSquares = focus,
+            targetSquare = target
+          ).flatMap { text =>
+            row(
+              label = descriptor.surfaceRowLabel,
+              text = text,
+              tone = Some("relation")
+            ).map(
+              _.copy(
+                authority =
+                  Some(
+                    MoveReviewSurfaceAuthority(
+                      kind = MoveReviewSurfaceAuthority.StrategicRelation,
+                      token = Some(relation),
+                      target = target
+                    )
                   )
-                )
+              )
             )
-          )
+          }
+      }
+
+  private def strategicRelationExplanationRow(idea: StrategyIdeaSignal): Option[MoveReviewPlayerSurfaceRow] =
+    strategicRelationDescriptor(idea)
+      .flatMap { descriptor =>
+        val relation = descriptor.relationKind
+        val focus = strategicRelationFocus(idea)
+        if focus.isEmpty then None
+        else
+          val target = relationTargetFromIdea(idea, descriptor, focus)
+          RelationSurfaceText.reviewExplanationText(
+            descriptor = descriptor,
+            idea = idea,
+            focusSquares = focus,
+            targetSquare = target
+          ).flatMap { text =>
+            row(
+              label = descriptor.surfaceRowLabel,
+              text = text,
+              tone = Some("relation")
+            ).map(
+              _.copy(
+                authority =
+                  Some(
+                    MoveReviewSurfaceAuthority(
+                      kind = MoveReviewSurfaceAuthority.StrategicRelation,
+                      token = Some(relation),
+                      target = target
+                    )
+                  )
+              )
+            )
+          }
       }
 
   private def strategicRelationDescriptor(idea: StrategyIdeaSignal) =
-    RelationObservationCatalog.descriptorForEvidence(idea.relationKind, idea.evidenceRefs)
+    for
+      kind <- idea.relationKind
+      support <- idea.relationSupport if support.relationKind == kind
+      descriptor <- RelationObservationCatalog.descriptorForKind(kind)
+    yield descriptor
 
   private def strategicRelationFocus(idea: StrategyIdeaSignal): List[String] =
     idea.relationFocusSquares.flatMap(validSquare).distinct
@@ -148,7 +198,8 @@ object MoveReviewPlayerPayloadBuilder:
   private def mainPlanRow(promotedPlans: List[EvaluatedPlan]): Option[MoveReviewPlayerSurfaceRow] =
     val plans =
       promotedPlans
-        .flatMap(plan => cleanOpt(Some(plan.hypothesis.planName)))
+        .flatMap(plan => renderedPlanText(plan, Some(plan.hypothesis.planName)))
+        .map(_.text)
         .distinct
         .take(2)
     row("Main plans", plans.mkString(" / "))
@@ -159,23 +210,107 @@ object MoveReviewPlayerPayloadBuilder:
       evaluatedPlans: List[EvaluatedPlan]
   ): List[MoveReviewPlayerSurfaceRow] =
     val planRows =
-      promotedPlans.take(2).flatMap(planRowsFromPromotedPlan)
+      promotedPlans.take(2).flatMap(plan => planRowsFromPromotedPlan(ctx, plan))
     val promotedRows = planRows.distinctBy(row => (row.label, row.text))
     (promotedRows ++ practicalAdvancedRows(ctx, evaluatedPlans, promotedPlans, slots = 8 - promotedRows.size)).take(8)
 
-  private def planRowsFromPromotedPlan(plan: EvaluatedPlan): List[MoveReviewPlayerSurfaceRow] =
+  private def planRowsFromPromotedPlan(ctx: NarrativeContext, plan: EvaluatedPlan): List[MoveReviewPlayerSurfaceRow] =
     val hypothesis = plan.hypothesis
+    val executionText =
+      planSurfaceText(hypothesis.executionSteps, fallback = Some(hypothesis.planName))
+    val objectiveText =
+      planSurfaceText(hypothesis.preconditions, fallback = contractObjective(plan))
     List(
-      row("Execution", hypothesis.executionSteps.take(2).mkString(" - ")),
-      row("Objective", hypothesis.preconditions.take(2).mkString(" - ")),
+      renderedPlanText(plan, executionText).flatMap(text => row("Execution", text.text)),
+      renderedPlanText(plan, objectiveText).flatMap(text => row("Objective", text.text)),
       Option.when(isProphylaxisPlan(plan)) {
         val text =
-          cleanOpt(Some(hypothesis.planName))
+          renderedPlanText(plan, Some(hypothesis.planName)).map(_.text)
             .orElse(cleanOpt(hypothesis.failureModes.headOption))
             .getOrElse("")
         row("Prophylaxis", text)
-      }.flatten
+      }.flatten,
+      planFlowStatusRow(ctx, plan)
     ).flatten
+
+  private def planFlowStatusRow(ctx: NarrativeContext, plan: EvaluatedPlan): Option[MoveReviewPlayerSurfaceRow] =
+    matchingPlanExperiment(ctx, plan)
+      .flatMap(planFlowStatusText)
+      .flatMap(text => row("Plan status", text))
+
+  private def matchingPlanExperiment(ctx: NarrativeContext, plan: EvaluatedPlan): Option[StrategicPlanExperiment] =
+    val proposal = PlanEvidenceEvaluator.planProposal(plan)
+    val planId = normalizedPlanId(plan.hypothesis.planId)
+    val supportKind = proposal.supportKind
+    ctx.strategicPlanExperiments
+      .flatMap { experiment =>
+        val experimentProposal = PlanClaimBoundary.PlanProposal.fromExperiment(experiment)
+        val exactPlanIdMatch =
+          planId.nonEmpty && normalizedPlanId(experiment.planId) == planId
+        val supportKindCompatible =
+          supportKind.forall(kind => experimentProposal.supportKind.contains(kind))
+        Option.when(exactPlanIdMatch && supportKindCompatible && hasFlowStatusSignal(experiment)) {
+          experiment
+        }
+      }
+      .headOption
+
+  private def hasFlowStatusSignal(experiment: StrategicPlanExperiment): Boolean =
+    experiment.bestReplyStable ||
+      experiment.futureSnapshotAligned ||
+      experiment.counterBreakNeutralized ||
+      experiment.moveOrderSensitive ||
+      (experiment.supportProbeCount > 0 && experiment.refuteProbeCount == 0)
+
+  private def planFlowStatusText(experiment: StrategicPlanExperiment): Option[String] =
+    val caution =
+      Option.when(experiment.moveOrderSensitive)(
+        "The move order remains sensitive, so the continuation still matters."
+      )
+    val support =
+      List(
+        Option.when(experiment.bestReplyStable)(
+          "Checked replies keep the route stable after the response."
+        ),
+        Option.when(experiment.futureSnapshotAligned)(
+          "The later position still points to the same plan."
+        ),
+        Option.when(experiment.counterBreakNeutralized)(
+          "The line also removes the counter-break that could interrupt it."
+        )
+      ).flatten
+    val fallback =
+      Option.when(support.isEmpty && !experiment.moveOrderSensitive && experiment.supportProbeCount > 0 && experiment.refuteProbeCount == 0)(
+        "Checked support keeps the plan viable, but it has not become a stable route yet."
+      )
+    cleanOpt(Some((caution.toList ++ support ++ fallback.toList).take(2).mkString(" ")))
+
+  private def normalizedPlanId(raw: String): String =
+    cleanToken(Option(raw).getOrElse(""))
+
+  private def renderedPlanText(
+      plan: EvaluatedPlan,
+      rawText: Option[String]
+  ): Option[PlanClaimBoundary.RenderedPlanText] =
+    for
+      claim <- PlanEvidenceEvaluator.admittedPlanClaim(plan)
+      text <- cleanOpt(rawText)
+    yield PlanClaimBoundary.RenderedPlanText(claim, text)
+
+  private def planSurfaceText(
+      candidates: List[String],
+      fallback: Option[String]
+  ): Option[String] =
+    val hasDetail =
+      candidates.exists(text => Option(text).exists(_.trim.nonEmpty))
+    val visible =
+      UserFacingSignalSanitizer.sanitizePlanDetailList(candidates).take(2)
+    if visible.nonEmpty then Some(visible.mkString(" - "))
+    else if hasDetail then fallback.flatMap(UserFacingSignalSanitizer.sanitizePlanDetail)
+    else None
+
+  private def contractObjective(plan: EvaluatedPlan): Option[String] =
+    PlanEvidenceEvaluator.planProposal(plan).contract.map(_.objective)
 
   private def practicalPlanRows(plans: List[EvaluatedPlan]): List[MoveReviewPlayerSurfaceRow] =
     plans
@@ -277,9 +412,9 @@ object MoveReviewPlayerPayloadBuilder:
     )
 
   private def sameTheme(left: EvaluatedPlan, right: EvaluatedPlan): Boolean =
-    val leftTheme = cleanToken(left.hypothesis.themeL1)
-    val rightTheme = cleanToken(right.hypothesis.themeL1)
-    leftTheme.nonEmpty && leftTheme == rightTheme
+    val leftTheme = playerSurfacePlanTheme(left)
+    val rightTheme = playerSurfacePlanTheme(right)
+    leftTheme.exists(theme => theme != PlanTheme.Unknown && rightTheme.contains(theme))
 
   private def executionOverlapRatio(practical: EvaluatedPlan, promoted: EvaluatedPlan): Double =
     val practicalAtoms = executionAtoms(practical.hypothesis.executionSteps)
@@ -302,8 +437,10 @@ object MoveReviewPlayerPayloadBuilder:
     val hypothesis = plan.hypothesis
     List(
       practicalTargetRow(ctx, plan),
-      row("Practical objective", hypothesis.preconditions.take(2).mkString(" - "), tone = Some("practical")),
-      row("Practical steps", hypothesis.executionSteps.take(2).mkString(" - "), tone = Some("practical"))
+      planSurfaceText(hypothesis.preconditions, fallback = contractObjective(plan))
+        .flatMap(text => row("Practical objective", text, tone = Some("practical"))),
+      planSurfaceText(hypothesis.executionSteps, fallback = Some(hypothesis.planName))
+        .flatMap(text => row("Practical steps", text, tone = Some("practical")))
     ).flatten.map(_.copy(authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))))
 
   private def practicalTargetRow(
@@ -319,14 +456,14 @@ object MoveReviewPlayerPayloadBuilder:
     }.flatten
 
   private def isWeaknessPlan(plan: EvaluatedPlan): Boolean =
-    plan.themeL1 == PlanTheme.WeaknessFixation.id ||
-      plan.subplanId.exists(id =>
+    playerSurfacePlanTheme(plan).contains(PlanTheme.WeaknessFixation) ||
+      playerSurfacePlanKind(plan).exists(kind =>
         Set(
-          PlanKind.StaticWeaknessFixation.id,
-          PlanKind.MinorityAttackFixation.id,
-          PlanKind.BackwardPawnTargeting.id,
-          PlanKind.IQPInducement.id
-        ).contains(id)
+          PlanKind.StaticWeaknessFixation,
+          PlanKind.MinorityAttackFixation,
+          PlanKind.BackwardPawnTargeting,
+          PlanKind.IQPInducement
+        ).contains(kind)
       )
 
   private def sideLabel(side: _root_.chess.Color): String =
@@ -466,17 +603,23 @@ object MoveReviewPlayerPayloadBuilder:
     }
 
   private def isProphylaxisPlan(plan: EvaluatedPlan): Boolean =
-    plan.themeL1 == PlanTheme.RestrictionProphylaxis.id ||
-      plan.subplanId.exists(id =>
+    playerSurfacePlanTheme(plan).contains(PlanTheme.RestrictionProphylaxis) ||
+      playerSurfacePlanKind(plan).exists(kind =>
         Set(
-          PlanKind.ProphylaxisRestraint.id,
-          PlanKind.BreakPrevention.id,
-          PlanKind.FlankClamp.id,
-          PlanKind.CentralSpaceBind.id,
-          PlanKind.MobilitySuppression.id,
-          PlanKind.KeySquareDenial.id
-        ).contains(id)
+          PlanKind.ProphylaxisRestraint,
+          PlanKind.BreakPrevention,
+          PlanKind.FlankClamp,
+          PlanKind.CentralSpaceBind,
+          PlanKind.MobilitySuppression,
+          PlanKind.KeySquareDenial
+        ).contains(kind)
       )
+
+  private def playerSurfacePlanTheme(plan: EvaluatedPlan): Option[PlanTheme] =
+    PlanEvidenceEvaluator.planProposal(plan).fallbackTheme
+
+  private def playerSurfacePlanKind(plan: EvaluatedPlan): Option[PlanKind] =
+    PlanEvidenceEvaluator.planProposal(plan).supportKind
 
   private def row(
       label: String,
@@ -854,37 +997,64 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
               authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CounterplayBreak, token = Some(token)))
             )
           )
-      else if packet.proofSource == CentralBreakTimingWitness.ProofSource &&
-          packet.proofFamily == CentralBreakTimingWitness.ProofFamily
-      then
-        ClaimAuthorityResolver
-          .supportedLocalCentralBreakTimingAdmission(
-            ctx = Some(ctx),
-            inputs = inputs,
-            truthContract = truthContract,
-            packet = packet
-          )
-          .filter(admission =>
-            admission.decision.tier == ClaimAuthorityTier.SupportedLocal &&
-              admission.decision.vetoReasons.isEmpty
-          )
-          .flatMap { admission =>
-            CentralBreakTimingSurfaceGate
-              .decide(admission.witness)
-              .token
-              .map(token =>
-                token ->
-                  CentralBreakTimingSurfaceGate.surfaceText(admission.witness, token)
-              )
-          }
-          .flatMap { case (token, text) =>
-            row(
-              CentralBreakLabel,
-              text,
-              authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CentralBreak, token = Some(token)))
+      else
+        RelationSurfaceText.supportedLocalProofSurface(packet).flatMap { relation =>
+          val decision =
+            ClaimAuthorityResolver.supportedLocalRelationTransformationPacketDecision(
+              ctx = Some(ctx),
+              inputs = inputs,
+              truthContract = truthContract,
+              packet = packet
             )
-          }
-        else None
+          Option
+            .when(decision.tier == ClaimAuthorityTier.SupportedLocal && decision.vetoReasons.isEmpty)(relation)
+            .flatMap(relation =>
+              row(
+                "Tactical relation",
+                relation.text,
+                authority =
+                  Some(
+                    MoveReviewSurfaceAuthority(
+                      kind = MoveReviewSurfaceAuthority.StrategicRelation,
+                      token = Some(relation.relationKind),
+                      target = Some(relation.targetSquare)
+                    )
+                  )
+              )
+            )
+        }.orElse {
+          if packet.proofSource == CentralBreakTimingWitness.ProofSource &&
+              packet.proofFamily == CentralBreakTimingWitness.ProofFamily
+          then
+            ClaimAuthorityResolver
+              .supportedLocalCentralBreakTimingAdmission(
+                ctx = Some(ctx),
+                inputs = inputs,
+                truthContract = truthContract,
+                packet = packet
+              )
+              .filter(admission =>
+                admission.decision.tier == ClaimAuthorityTier.SupportedLocal &&
+                  admission.decision.vetoReasons.isEmpty
+              )
+              .flatMap { admission =>
+                CentralBreakTimingSurfaceGate
+                  .decide(admission.witness)
+                  .token
+                  .map(token =>
+                    token ->
+                      CentralBreakTimingSurfaceGate.surfaceText(admission.witness, token)
+                  )
+              }
+              .flatMap { case (token, text) =>
+                row(
+                  CentralBreakLabel,
+                  text,
+                  authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CentralBreak, token = Some(token)))
+                )
+              }
+          else None
+        }
       }
 
   private def mainPathClaims(inputs: QuestionPlannerInputs): List[MainPathScopedClaim] =

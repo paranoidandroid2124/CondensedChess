@@ -12,7 +12,15 @@ private[analysis] final case class AlternativeNarrative(
 
 private[analysis] object AlternativeNarrativeSupport:
 
-  private val CloseAlternativeThresholdCp = 120
+  /** Calculates the dynamic CP threshold for alternative moves. */
+  private def calc_dynamic_limit(ctx: NarrativeContext): Int =
+    val bestLine = ctx.engineEvidence.flatMap(_.best)
+    val bestScore = bestLine.map(_.scoreCp).getOrElse(0)
+    val isTactical = ctx.threats.toUs.exists(t => t.lossIfIgnoredCp >= 200 || Option(t.kind).exists(_.equalsIgnoreCase("mate")))
+    val base = if (isTactical) 60 else 120
+    val absScore = math.abs(bestScore)
+    if (absScore > 300) math.max(50, base - (absScore - 300) / 10)
+    else base
 
   def build(ctx: NarrativeContext): Option[AlternativeNarrative] =
     fromCloseAlternative(ctx)
@@ -28,25 +36,27 @@ private[analysis] object AlternativeNarrativeSupport:
     val moveA = bestMoveOpt
     val uciA = bestLine.flatMap(_.moves.headOption)
 
+    val limit = calc_dynamic_limit(ctx)
+
     val (moveB, uciB) =
       playedMoveOpt.filter(pm => !bestMoveOpt.exists(equalMoveToken(ctx.fen)(pm, _))) match
         case Some(played) =>
+          val playedUciNorm = NarrativeUtils.sanToUci(ctx.fen, played).getOrElse(NarrativeUtils.normalizeUciMove(played))
           val playedLine = ctx.engineEvidence.flatMap(_.variations.find(v => 
             v.moves.headOption.exists(uci => 
-              NarrativeUtils.uciEquivalent(uci, played) || 
-              NarrativeUtils.uciToSanOrFormat(ctx.fen, uci) == played
+              NarrativeUtils.uciEquivalent(uci, playedUciNorm)
             )
           ))
           val closePlayedLine =
             playedLine.filter(line =>
-              bestLine.exists(best => math.abs(line.effectiveScore - best.effectiveScore) <= CloseAlternativeThresholdCp)
+              bestLine.exists(best => math.abs(line.effectiveScore - best.effectiveScore) <= limit)
             )
           val playedUci = closePlayedLine.flatMap(_.moves.headOption).orElse(
             closePlayedLine.flatMap(_ => ctx.candidates.find(c => equalMoveToken(ctx.fen)(c.move, played)).flatMap(_.uci))
           )
           closePlayedLine.fold((Option.empty[String], Option.empty[String]))(_ => (Some(played), playedUci))
         case None =>
-          val altLine = ctx.engineEvidence.flatMap(_.alternatives(CloseAlternativeThresholdCp).headOption)
+          val altLine = ctx.engineEvidence.flatMap(_.alternatives(limit).headOption)
           val altMove = altLine.flatMap(variationLeadSan(ctx.fen, _))
           (altMove, altLine.flatMap(_.moves.headOption))
 

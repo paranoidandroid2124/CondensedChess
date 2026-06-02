@@ -28,6 +28,10 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
     "{seed}",
     "{us}",
     "{them}",
+    "candidate move",
+    "candidate capture",
+    "probe validation",
+    "raw request",
     "return vector",
     "cash out"
   )
@@ -37,7 +41,7 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
       assert(!text.toLowerCase.contains(phrase.toLowerCase), clue(text))
     }
 
-  test("user-facing signal sanitizer routes deferred relation helper notation through fallback wording") {
+  test("user-facing signal sanitizer routes legacy relation helper notation through fallback wording") {
     val text =
       UserFacingSignalSanitizer.sanitize(
         "Domination(Knight,e5) TrappedPiece(Queen,h4) Zwischenzug(Nf7) StalemateTrap(g8) PerpetualCheck(h5)."
@@ -867,11 +871,11 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
     )
   }
 
-  test("preserves bounded strategic relation authority and drops malformed relation tokens") {
-    val staleSummaryRow =
+  test("preserves bounded strategic relation authority on summary and advanced rows while dropping malformed relation tokens") {
+    val summaryCueRow =
       MoveReviewPlayerSurfaceRow(
         label = "Line relation",
-        text = "A stale summary relation row should lose authority.",
+        text = "Why it works: the line runs from e4 through f5 toward g6. Next check: the line geometry through e4, f5, and g6.",
         authority =
           Some(
             MoveReviewSurfaceAuthority(
@@ -935,14 +939,22 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
       CommentResponse(
         commentary = "Public payload",
         concepts = Nil,
-        moveReviewPlayerSurface = Some(MoveReviewPlayerSurface(summaryRows = List(staleSummaryRow), advancedRows = rows))
+        moveReviewPlayerSurface = Some(MoveReviewPlayerSurface(summaryRows = List(summaryCueRow), advancedRows = rows))
       )
 
     val sanitized = UserFacingPayloadSanitizer.sanitize(response)
 
     assertEquals(
       sanitized.moveReviewPlayerSurface.toList.flatMap(_.summaryRows.map(_.authority)),
-      List(None),
+      List(
+        Some(
+          MoveReviewSurfaceAuthority(
+            kind = MoveReviewSurfaceAuthority.StrategicRelation,
+            token = Some("xray"),
+            target = Some("g6")
+          )
+        )
+      ),
       clue(sanitized.moveReviewPlayerSurface)
     )
     assertEquals(
@@ -1117,7 +1129,7 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
     )
   }
 
-  test("strips deferred relation evidence terms from sanitized strategy pack support metadata") {
+  test("strips legacy relation evidence terms from sanitized strategy pack support metadata") {
     val admittedPlan =
       PlanHypothesis(
         planId = "pressure_plan",
@@ -1129,10 +1141,7 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
         failureModes = Nil,
         viability = PlanViability(0.72, "medium", "risk")
       )
-    val fallbackTerm =
-      RelationObservationCatalog
-        .deferredFallbackEvidenceTermForKind(MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece)
-        .getOrElse(fail("missing trapped-piece fallback evidence"))
+    val fallbackTerm = "piece_mobility"
     val pack =
       StrategyPack(
         sideToMove = "white",
@@ -1195,6 +1204,8 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
     assert(publicEvidence.contains(fallbackTerm), clue(publicEvidence))
     assert(publicEvidence.contains("low_mobility_signal"), clue(publicEvidence))
     assert(publicEvidence.contains("directional_target"), clue(publicEvidence))
+    assert(!publicEvidence.contains("zwischenzug_line"), clue(publicEvidence))
+    assert(!publicEvidence.contains("perpetual_check"), clue(publicEvidence))
     assert(!publicEvidence.exists(RelationObservationCatalog.deferredFallbackForMotifTag(_).nonEmpty), clue(publicEvidence))
   }
 
@@ -1595,6 +1606,79 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
     )
     assertEquals(sanitized.signalDigest.flatMap(_.latentPlan), None, clue(sanitized))
     assertEquals(sanitized.signalDigest.flatMap(_.latentReason), None, clue(sanitized))
+  }
+
+  test("drops internal plan diagnostic details while preserving useful strategic detail") {
+    val plan =
+      PlanHypothesis(
+        planId = "central_break",
+        planName = "Validated central break",
+        rank = 1,
+        score = 0.72,
+        preconditions = List("candidate move e4e5", "The center can open"),
+        executionSteps = List("test e4e5 as the concrete pawn break", "Improve the knight before opening the center"),
+        failureModes = List("requires probe validation before being asserted", "The route must not hang a piece"),
+        viability = PlanViability(0.72, "medium", "probe evidence pending"),
+        refutation = Some("use probe replies to verify whether the opened structure favors this side"),
+        evidenceSources = List("probe_backed:validated_support")
+      )
+    val response =
+      CommentResponse(
+        commentary = "Central break payload",
+        concepts = Nil,
+        mainStrategicPlans = List(plan),
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              plans =
+                List(
+                  StrategySidePlan(
+                    side = "white",
+                    horizon = "long",
+                    planName = "Validated central break",
+                    priorities = List("candidate move e4e5", "Improve the knight before opening the center"),
+                    riskTriggers = List("raw request purpose should not surface", "Keep the route safe")
+                  )
+                ),
+              longTermFocus = List("white execution: candidate move e4e5", "white plan: improve the knight")
+            )
+          )
+      )
+
+    val sanitized =
+      UserFacingPayloadSanitizer.sanitize(
+        response,
+        admittedPlans = List(probeBackedEvaluation(plan))
+      )
+    val sanitizedPlan =
+      sanitized.mainStrategicPlans.headOption.getOrElse(fail("expected sanitized plan"))
+    val sanitizedPack =
+      sanitized.strategyPack.getOrElse(fail("expected sanitized strategy pack"))
+    val rendered =
+      (
+        sanitizedPlan.preconditions ++
+          sanitizedPlan.executionSteps ++
+          sanitizedPlan.failureModes ++
+          sanitizedPlan.refutation.toList ++
+          List(sanitizedPlan.viability.risk) ++
+          sanitizedPack.plans.flatMap(plan => plan.priorities ++ plan.riskTriggers) ++
+          sanitizedPack.longTermFocus
+      ).mkString(" ")
+
+    assertEquals(sanitizedPlan.preconditions, List("The center can open"), clue(sanitizedPlan))
+    assertEquals(sanitizedPlan.executionSteps, List("Improve the knight before opening the center"), clue(sanitizedPlan))
+    assertEquals(sanitizedPlan.failureModes, List("The route must not hang a piece"), clue(sanitizedPlan))
+    assertEquals(sanitizedPlan.refutation, None, clue(sanitizedPlan))
+    assertEquals(sanitizedPlan.viability.risk, "", clue(sanitizedPlan))
+    assertEquals(
+      sanitizedPack.plans.flatMap(_.priorities),
+      List("Improve the knight before opening the center"),
+      clue(sanitizedPack)
+    )
+    assertEquals(sanitizedPack.plans.flatMap(_.riskTriggers), List("Keep the route safe"), clue(sanitizedPack))
+    assertEquals(sanitizedPack.longTermFocus, List("white plan: improve the knight"), clue(sanitizedPack))
+    assertNoLeaks(rendered)
   }
 
   test("sanitizes stored strategic puzzle runtime shell on read") {

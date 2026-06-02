@@ -480,8 +480,7 @@ object PlanTaxonomy:
       "entrenched" -> PlanKind.OutpostEntrenchment,
       "rook_pawn_march" -> PlanKind.RookPawnMarch,
       "hook_creation" -> PlanKind.HookCreation,
-      "color_complex_clamp" -> PlanKind.FlankClamp,
-      "generic_center_plan" -> PlanKind.CentralBreakTiming
+      "color_complex_clamp" -> PlanKind.FlankClamp
     )
 
     private val seedAliases: List[(String, PlanTheme)] = List(

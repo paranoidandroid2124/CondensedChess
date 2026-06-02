@@ -113,7 +113,8 @@ object StrategicPlanExperiment:
 case class PhaseContext(
   current: String,            // "Opening", "Middlegame", "Endgame"
   reason: String,             // "Material: 45, Queens present"
-  transitionTrigger: Option[String] = None // "Minor piece trade triggered Endgame"
+  transitionTrigger: Option[String] = None, // "Minor piece trade triggered Endgame"
+  previous: Option[String] = None
 )
 
 

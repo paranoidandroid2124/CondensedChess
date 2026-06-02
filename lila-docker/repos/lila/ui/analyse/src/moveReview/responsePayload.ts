@@ -189,8 +189,13 @@ const strategicRelationAuthorityTokens = new Set([
   'back_rank_mate',
   'mate_net',
   'greek_gift',
+  'zwischenzug',
   'fork',
   'hanging_piece',
+  'trapped_piece',
+  'domination',
+  'stalemate_trap',
+  'perpetual_check',
   'xray',
   'clearance',
   'battery',
@@ -514,7 +519,7 @@ export function moveReviewPlayerSurfaceFromResponse(data: MaybeResponse): MoveRe
   if (!isRecord(raw)) return null;
   if (raw.schema !== 'chesstory.move_review.player_surface.v1' && raw.schema !== 'chesstory.move_review.player_surface.v2')
     return null;
-  const summaryRows = surfaceRowsFromUnknown(raw.summaryRows, false);
+  const summaryRows = surfaceRowsFromUnknown(raw.summaryRows, true);
   const advancedRows = surfaceRowsFromUnknown(raw.advancedRows, true);
   const probeRows = surfaceRowsFromUnknown(raw.probeRows, false);
   const authorRows = playerAuthorRowsFromUnknown(raw.authorRows);

@@ -1,7 +1,7 @@
 package lila.commentary.analysis
 
 import lila.commentary.{ DecisionComparisonDigest, MoveReviewLedgerLine, MoveReviewRefs, MoveReviewStrategicLedger, NarrativeSignalDigest, StrategyPack }
-import lila.commentary.analysis.PlanTaxonomy.{ PlanKind, PlanTheme, ThemeResolver }
+import lila.commentary.analysis.PlanTaxonomy.{ PlanKind, PlanTheme }
 import lila.commentary.model.{ FactScope, NarrativeContext, ProbeResult }
 import lila.commentary.model.authoring.QuestionEvidence
 import lila.commentary.model.strategic.{ EndgamePatternState, PlanLifecyclePhase }
@@ -326,23 +326,19 @@ object MoveReviewStrategicLedgerBuilder:
     ).flatMap(normalizedToken).toSet
 
   private def collectPlanProfile(ctx: NarrativeContext): PlanProfile =
+    val evaluatedProposals =
+      ctx.strategicPlanEvidence.mainAdmittedClaims.map(_.proposal)
+    val hypothesisProposals =
+      Option.when(evaluatedProposals.isEmpty)(
+        ctx.mainStrategicPlans.map(PlanClaimBoundary.PlanProposal.fromHypothesis)
+      ).toList.flatten
+    val continuityProposals =
+      ctx.planContinuity.toList.map(PlanClaimBoundary.PlanProposal.fromContinuity)
+    val proposals = evaluatedProposals ++ hypothesisProposals ++ continuityProposals
     val themes =
-      (
-        ctx.mainStrategicPlans.flatMap { hypothesis =>
-          val theme = ThemeResolver.fromHypothesis(hypothesis)
-          Option.when(theme != PlanTheme.Unknown)(theme)
-        } ++
-          ctx.planContinuity.toList.flatMap(_.planId).flatMap { raw =>
-            val theme = ThemeResolver.fromPlanId(raw)
-            Option.when(theme != PlanTheme.Unknown)(theme)
-          }
-      ).toSet
-
+      proposals.flatMap(_.fallbackTheme).toSet
     val subplans =
-      (
-        ctx.mainStrategicPlans.flatMap(ThemeResolver.subplanFromHypothesis) ++
-          ctx.planContinuity.toList.flatMap(_.planId).flatMap(ThemeResolver.subplanFromPlanId)
-      ).toSet
+      proposals.flatMap(_.supportKind).toSet
 
     PlanProfile(themes = themes, subplans = subplans)
 

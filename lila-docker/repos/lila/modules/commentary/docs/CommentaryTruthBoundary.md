@@ -62,6 +62,18 @@ liquidation truth. Those favorable-exchange owner paths require their own
 board-backed witness: real defender-target relation removal for defender trade,
 and current-board bishop constraint plus legal capture/recapture for bad-piece
 liquidation.
+`overload`, `deflection`, `discovered_attack`, `double_check`,
+`back_rank_mate`, `mate_net`, `greek_gift`, `fork`, `hanging_piece`,
+`trapped_piece`, `domination`, `stalemate_trap`, `perpetual_check`,
+`zwischenzug`, `decoy`, `xray`, `clearance`, `battery`, `pin`, `skewer`, and
+`interference` may speak as bounded `SupportedLocal` relation-transformation
+claims only when the board/PV analyzer witness matches the selected structured
+`StrategyRelationSupport`, carries the matching typed
+`PlayerFacingExactSliceProof`, and survives the proven/stable branch gate.
+King/mate/draw/pattern checks consume the exact analyzer witness and structured
+PV continuation lines where needed; no target prose, helper name, evidence ref,
+or fact string can substitute. They remain support authority, not certified
+owner truth or lesson authority.
 
 Strategic plan refutation must be exact-board/probe truth. Sibling plan ranking
 or alternative-dominance metadata can demote selection, but it is not a chess
@@ -72,6 +84,93 @@ Strategic plan promotion and demotion must be consumed through the typed
 `StrategicPlanExperiment.evidenceTier` strings, compatibility markers, and
 subplan ids cannot by themselves certify truth, refutation, provenance,
 quantifier, stability, or exact-family ownership.
+`PlanSemanticsContract` may permit only the semantic shape of a plan claim,
+such as strategic idea-kind mapping, subplan probe-purpose routing, or thematic
+fallback eligibility. It does not certify board truth, refutation, exact proof
+family, provenance, quantifier, stability, or owner authority.
+`PlanClaimBoundary.PlanProposal` records where plan theme/subplan meaning came
+from. Explicit subplans and typed support tags can become support candidates;
+broad aliases, plan names, and default subplan inference remain proposal-only
+and cannot certify truth or user-facing ownership. `PlanSupport`,
+`AdmittedPlanClaim`, and `RenderedPlanText` name the intended downstream stages,
+but exact board truth still requires evaluator/probe/replay evidence at the
+admission boundary.
+This applies before producer and consumer code can create downstream authority:
+`PlanMatch`, `ProbeRequest`, `PlanContinuity`, `LatentSeed`, plan rows,
+experiments, and hypotheses must pass through `PlanClaimBoundary.PlanProposal`
+before their plan meaning is consumed. `PlanProposalEngine` must not promote a
+broad theme or seed alias into a default subplan or L2 subplan variant without
+typed support. Probe display names are not truth carriers; live probe requests
+carry contract metadata in purpose/objective/required-signals/horizon fields
+and stable plan binding, not in parsable `planName` prose.
+Board-backed plan candidate helpers can improve the support candidates for
+weak PlanKind families, but they do not certify strategic truth on their own.
+`PieceRedeploymentEvidence`, `AdvantageTransformationEvidence`,
+`FlankInfrastructureEvidence`, `PawnBreakEvidence`,
+`RestrictionPlanEvidence`, and `WeaknessFixationEvidence`, plus
+`FavorableExchangeEvidence`, may propose or probe legal moves for piece
+non-pawn/non-king piece reroutes, rook-file transfer only after an actual file
+change, active-queen centralization excluded from worst-piece improvement
+unless it is a low-activity recovery, open-file pressure
+against non-king file targets, passed-pawn conversion/manufacture, simplification-conversion,
+invasion with check or a non-king resource target, opposite-bishops conversion, aligned/hook-backed rook-pawn or hook infrastructure,
+rook-lift scaffolds with enemy king-file pressure, check, or a non-king
+resource target,
+concrete pawn breaks or tension-maintaining quiet moves that support the
+preserved tension by castling, minor-piece centralization/mobility gain, or a
+major piece on a tension file, board-measured
+specific restriction/space-clamp candidates, quiet mobility-suppression candidates,
+`WeaknessTargetProfile`-anchored static/backward/IQP targets,
+semantic-ready minority-attack prep/break support moves, and bounded defended
+queen-vs-queen exchange/defender-trade/bad-piece/bounded recapture-like
+simplification-window captures. Large tactical material wins do not become
+`simplification_window` support through this helper. Shared pawn/target/material
+primitives for these helpers live in
+`PlanMoveEvidenceSupport`; helper-local prose or duplicated predicates are not
+truth inputs. Their candidates must still pass probe/evaluator admission before
+becoming user-facing plan claims, and exact-family rows such as
+product-visible central-break or exact target-fixation truth still require
+their separate exact witness. Favorable-exchange candidates do not replace the
+existing defender-trade, queen-trade, simplification, or bad-piece-liquidation
+proof witnesses.
+Move-level restriction candidates are not also re-emitted as generic
+`prophylaxis_restraint`; broad prophylaxis needs structural/seed support or the
+separate exact denied-resource proof path. `wing_break_timing` remains
+`pawn_break_preparation` support rather than a flank-infrastructure truth
+projection.
+`queen_trade_shield` support requires a queen-vs-queen capture with a
+non-king recapture-like defender; a minor-piece queen win or undefended queen
+capture is not queen-trade truth. Helper-owned specific long-plan subplans are
+not created from `PlanProposalEngine` broad structural booleans alone.
+Minority-attack fixation support from `WeaknessFixationEvidence` remains
+support-only unless the separate Carlsbad fixed-target exact-slice proof path
+admits it.
+The `generic_center_plan` structural state is not a central-break truth source;
+it stays a theme-level hint unless a concrete `PawnBreakEvidence` candidate or
+exact central-break witness exists.
+`PlanEvidenceEvaluator.planSupport` and `admittedPlanClaim` are the runtime
+projection points from evaluated evidence into `PlanSupport` and
+`AdmittedPlanClaim`; downstream user-facing consumers should prefer
+`StrategicPlanEvidenceView.mainAdmittedClaims` when they need admitted plan
+meaning rather than diagnostic/evaluated-plan metadata.
+For MoveReview promoted-plan rows, `MoveReviewPlayerPayloadBuilder` creates
+`RenderedPlanText` only after `admittedPlanClaim`; rendered strings are not
+parsed back into chess or plan meaning. The builder also filters internal
+diagnostic/probe/test/candidate-request wording out of promoted-plan and
+practical-plan detail rows through
+`UserFacingSignalSanitizer.sanitizePlanDetail`. Fallback wording may come only
+from the typed plan contract objective or admitted plan name after a non-empty
+detail field was suppressed; fallback text does not certify board truth, and an
+empty detail field does not authorize a new detail row. The same builder uses only
+`PlanProposal.fallbackTheme` and `supportKind` for player-surface plan-family
+gates such as weakness-target practical rows, prophylaxis rows, and
+promoted/practical sibling suppression; inferred themes from plan names,
+execution steps, or failure-mode prose remain proposal hints, not truth or
+surface authority.
+`UserFacingPayloadSanitizer` applies the same plan-detail filter to retained
+sanitized plan hypotheses and strategy-pack plan priorities/risk/long-term
+focus. This cleanup does not certify the plan; it only prevents support/probe
+request diagnostics from surviving as user-facing strategic detail.
 Board-bound probe truth requires the returned probe certificate to echo the
 requested FEN and probed move; missing or malformed values are not truth. Both
 echoed FEN strings must parse and echoed moves must be valid UCI. For
@@ -182,7 +281,9 @@ truth.
 Defender-trade truth cannot originate in `PlanMatcher` from a raw
 `RemovingTheDefender` motif or generic text labels. Those are generic exchange
 support only; defender-trade ownership requires the replayed defense-relation
-branch or typed semantic observation described above.
+branch and typed exact-slice relation proof described above. Broad
+`exchange_forcing_delta` source identity is not sufficient for the
+defender-trade proof contract.
 Generic defender/trade prose also cannot create `trade_key_defender` ownership in
 MoveReview truth mode. When it is paired with a legal immediate
 capture/recapture, move-linked exchange cue, and narrative anchor, it may speak
@@ -374,13 +475,19 @@ same analyzer are selector evidence only unless the proof contract admits the
 owner packet, and they require the reviewed played move identity rather than
 inferring it from the engine top line.
 The shared `RelationWitness` read-model is not a new truth shortcut. Overload,
-deflection, discovered-attack, double-check, back-rank mate, mate-net, Greek gift, fork, hanging-piece, x-ray, clearance, battery, pin, skewer, interference, and decoy relation observations may
+deflection, discovered-attack, double-check, back-rank mate, mate-net, Greek gift,
+zwischenzug, fork, hanging-piece, trapped-piece, domination, stalemate-trap,
+perpetual-check, x-ray, clearance, battery, pin, skewer, interference, and
+decoy relation observations may
 support selector ranking or practical prose only after legal replay over the
 current FEN proves the local attack/defense relation. Semantic relation
 producers share one bounded top-PV replay context and one extracted
 relation-witness set, so relation support rows are not produced from divergent
 per-producer replay, witness, or local kind-filtering attempts. They do not certify owner
-truth without a separate proof contract. When an explicit target set is
+truth without a separate proof contract. Implemented relation truth must originate
+from a `MoveReviewExchangeAnalyzer.ImplementedRelationWitnessTemplates` entry
+and `RelationObservationCatalog`; unknown motif names cannot become relation
+truth. When an explicit target set is
 supplied, the relation witness must prove that target and may not fall back to
 an arbitrary material piece; discovered-attack witnesses follow the same target
 binding. Double-check support requires a replayed reviewed move that leaves the
@@ -402,54 +509,47 @@ continuation. Explicit target lists close this pattern relation instead of
 reopening material fallback.
 Fork support requires a replayed move attacking at least two bound targets.
 Hanging-piece support requires the replayed mover to attack an
-undefended bound target. Pin and skewer support also stay on this boundary: a long-range
+undefended bound target. Trapped-piece support requires a legal replayed move,
+a bound non-pawn target under attack, and zero legal safe or defense-preserving
+reply routes for that target. Domination support requires the replayed mover to
+control a bound non-pawn target whose legal reply routes are reduced to at most
+one. Stalemate-trap support requires the replayed reviewed move to leave the
+defender stalemated. Zwischenzug support requires a replayed forcing check,
+legal reply, and non-pawn material payoff on the same line. Perpetual-check
+support requires a legal continuation line whose checking side repeats the same
+checking-position key. Pin and skewer support also stay on this boundary: a long-range
 replayed move must create actual ray geometry through the pinned/front piece and
 the piece behind it. Invalid explicit target tokens close the relation witness instead of
 triggering structural or material fallback. `RelationObservationCatalog` is a routing catalog,
 not a truth source: it can map implemented relation witnesses into
 semantic/source/idea metadata, bounded public relation labels, and relation
-producer admission. The runtime inventory keeps a non-public deferred list
-for motif families that are present in adjacent model or detector assets but
-lack a board-replayed relation witness: `zwischenzug`, `domination`,
-`trapped_piece`, `stalemate_trap`, and `perpetual_check`.
-Deferred entries record the required witness shape, defer reason, and fallback
-lane, and project a catalog-owned `DeferredRelationFallback` read-model for
-non-relation consumers; they are not cataloged selector rows, not relation
-producer inputs, and not frontend authority tokens. They remain outside public
-relation metadata until a legal board witness exists. The fallback projection
-is not truth admission:
-`zwischenzug` and `trapped_piece` may fall to practical guidance, `domination`
-to thematic fallback, while `stalemate_trap` and `perpetual_check` are
-diagnostic-only because unproven drawing resources must stay fail-closed. The
-legacy motif-prefix table, theme-keyword path, canonical motif-term path, and
-motif appears/fades delta prose use the same fallback projection, emitting
-only softer non-relation practical/thematic text or suppressing diagnostic-only
-motifs, so deferred relation names cannot become truth claims through prose.
-Legacy plan evidence also consumes the deferred domination fallback label
-instead of naming `domination` as a plan proof term.
-User-facing helper-notation cleanup follows the same boundary: deferred
-practical/thematic helpers are rewritten to catalog fallback wording, while
-diagnostic-only deferred helpers are suppressed.
-Threat-summary labels follow that catalog boundary as well: deferred relation
-motifs from `ThreatAnalysis` may only surface as softer fallback wording, not
-as raw relation names.
-Strategy-pack and structure-arc piece-activity evidence consumes the catalog
-fallback evidence term for trapped-piece activity instead of emitting raw
-`trapped_piece` relation labels as public support metadata. Cached or legacy
-strategy-pack evidence receives the same sanitizer treatment: deferred relation
-motif terms are stripped, while catalog fallback evidence terms can remain as
-lower-authority support.
-Deferred relation tags also cannot raise generic context prose into a
-high-tension tactical opening frame without a non-deferred motif or actual
+producer admission. The runtime relation inventory has no remaining deferred
+relation kind; unknown relation names are not cataloged selector rows, relation
+producer inputs, or frontend authority tokens. Legacy motif-prefix prose,
+theme-keyword prose, canonical motif-term prose, and motif appears/fades delta
+prose still keep old relation-shaped labels generic or suppressed instead of
+treating them as catalog evidence. Legacy trapped-piece, domination, and
+zwischenzug helper notation is lowered to piece-mobility, key-square
+restriction, or move-order caution wording unless the matching analyzer
+relation witness exists. Legacy stalemate-trap and perpetual-check helper
+notation is suppressed unless the matching replayed witness exists.
+Threat-summary labels follow that same boundary: legacy relation-shaped motifs
+from `ThreatAnalysis` may only surface as softer generic wording or
+suppression, not as raw relation names.
+Strategy-pack and structure-arc piece-activity evidence no longer promotes
+legacy trapped-piece activity into relation evidence. Cached or legacy
+strategy-pack evidence receives the same sanitizer treatment: legacy
+relation-shaped evidence terms are stripped.
+Legacy relation-shaped tags also cannot raise generic context prose into a
+high-tension tactical opening frame without a non-legacy motif or actual
 threat evidence, and they are not generic motif-prefix signals for future
 consumers. Generic fact corroboration follows the same boundary, so an ordinary
-tactical fact cannot certify a deferred relation tag as board-proven motif
-support. The
-catalog inventory can name both implemented and deferred motif families, but
-truth admission is still descriptor-based and descriptor lookup resolves only
-implemented board-replayed relations. The selector evidence carrier mirrors
-that rule by preserving relation identity/focus only for implemented catalog
-kinds; deferred or unknown names cannot survive into a relation candidate.
+tactical fact cannot certify a legacy relation-shaped tag as board-proven motif
+support. Truth admission is still descriptor-based and descriptor lookup
+resolves only implemented board-replayed relations. The selector evidence
+carrier mirrors that rule by preserving relation identity/focus only for
+implemented catalog kinds; unknown names cannot survive into a relation
+candidate.
 Unknown relation witnesses do not become target-pressure or other selector
 evidence; missing catalog entries fail closed.
 The relation semantic producer consumes the implemented catalog relation set, so
@@ -458,13 +558,15 @@ producer reachability follows the routing catalog.
 metadata reaches the MoveReview surface, but that carrier does not promote the
 relation into proof/source/family truth.
 Move-local defender-trade and bad-piece owner witnesses reuse the analyzer
-`RelationWitness` typed details and fact vocabulary for branch, exchange, target,
-and PV terms; policy-local extras can add owner transition wording but cannot
-replace the board-replayed relation facts. The analyzer owns decoding of those
-details back into branch fields and expanding shared owner/transition terms
-through `relationProjectionFromWitness`; policy code does not parse raw detail
-keys or read relation facts/focus squares directly for these owner packets. A
-typed-detail mismatch emits no owner-seed or transition terms.
+`RelationWitness` typed details for branch, exchange, target, and PV terms;
+policy-local extras can add owner transition wording but cannot replace the
+board-replayed relation details. The analyzer owns decoding of those details
+back into branch fields and expanding shared owner/transition terms through the
+structured `relationSupport` carrier attached to `relationProjectionFromWitness`;
+policy code does not parse raw detail keys, read relation facts/focus squares
+directly, or consume dynamic fact strings as runtime truth for these owner
+packets. A typed-detail mismatch emits no owner-seed, transition terms, or typed
+exact-slice relation proof.
 Branch-key construction and `branch:*` fact projection are also analyzer-owned;
 policy code consumes the helper output from replayed witness line moves instead
 of rebuilding branch identity with UCI substring or local pipe-join logic.
@@ -479,59 +581,98 @@ support row is rejected; raw witness focus, target, or fact fields are fallback
 only for intentionally untyped legacy witnesses.
 Semantic observation admission consumes the analyzer-owned
 `relationProjectionFromWitness` carrier after that check, so downstream
-relation rows receive one canonical kind/focus/target/fact projection instead
+relation rows receive one canonical kind/focus/target/support projection instead
 of reconstructing truth from raw witness strings.
 `moveReviewPlayerSurface` may expose those implemented relation rows only as
 `strategic_relation` support metadata. The relation token and required target
 square are public display metadata, not proof-family/source truth and not a
 frontend permission to rebuild omitted relation claims from prose. Projection
-requires the catalog source ref plus the matching semantic observation fact and
-a relation-focus-derived target; a source-only idea remains internal support.
-`RelationObservationCatalog` owns that source/fact admission helper and the
-selected-`relationKind` no-fallback rule, so downstream builders do not repeat
-or widen relation matching. It also owns public target fallback for older
-carriers that lack an analyzer target, so surface projection does not recreate
-motif-specific target order from raw relation strings or promote a legacy
-carrier's generic `targetSquare` into relation target. Each relation descriptor exposes its own source ref
-and semantic fact pair, keeping selector prioritization and public projection on
-the same catalog admission tokens.
+requires a selected implemented `relationKind`, matching structured
+`relationSupport`, and a relation-focus-derived target; source/fact strings
+alone remain internal support metadata. API serialization re-sanitizes the
+player surface before emission; that step preserves the bounded metadata but
+does not create, widen, or reclassify relation truth.
+The exception is not a support-row shortcut: defender-trade and
+bad-piece-liquidation can appear as supported-local summary relation rows only
+when the claim packet already carries matching
+`PlayerFacingExactSliceProof.DefenderTrade` or
+`PlayerFacingExactSliceProof.BadPieceLiquidation`, proven same-branch state,
+stable persistence, no release risk, and `ClaimAuthorityResolver` admission.
+That row is claim-packet consumption, not a promotion of support prose.
+`RelationObservationCatalog` owns the selected-`relationKind` no-fallback rule
+and public target fallback, so downstream builders do not repeat or widen
+relation matching. Surface projection does not recreate motif-specific target
+order from raw relation strings or promote a legacy carrier's generic
+`targetSquare` into relation target. Each relation descriptor exposes its source
+ref and semantic fact pair for selector prioritization and diagnostics, not for
+player-surface row admission.
 Relation witness support facts cannot manufacture those admission tokens:
 dynamic facts reject semantic observation ids, evidence-source ids,
-proof-source ids, proof-family ids, and `source:` wire keys. Only the catalog
-descriptor may provide the relation source ref and matching semantic fact.
+proof-source ids, proof-family ids, and `source:` wire keys.
+`RelationSurfaceText` may use only kind/focus-matching structured
+`relationSupport` to make bounded relation wording more specific for relation
+rows, selector idea/focus text, and why/next-check move-review summary cues; it
+cannot parse `evidenceRefs`, admit a relation row, change the relation token, or
+choose a target outside the relation-focus boundary.
+Its row-text and summary-cue entrypoints also fail closed when matching
+structured support is missing, so relation evidence prose cannot be produced
+from label/focus metadata alone. Fork target roles, king-pattern moves or
+cycles, overload duties, controller roles, and trapped-piece attacker lists are
+display detail from that support carrier; they do not create proof-family truth.
+Putting the summary cue before plan/opening/practical rows is a player-review
+presentation rule, not a truth upgrade.
+Selector digest and long-term-focus enrichment may consume that exact support
+wording, but it remains support evidence and does not mint proof authority.
 When the analyzer supplies a relation target, that square is carried through
 semantic evidence and selected idea metadata to the surface row only while it
 remains bound to the relation focus squares; descriptor target fallback may use
 that same relation-focus ordering, but generic idea focus and legacy
 `targetSquare` metadata are not truth evidence.
 When multiple relation observations merge into one selected idea, the selector
-keeps a representative `relationKind`; the surface row uses that kind only with
-its matching catalog source and semantic fact, so catalog ordering cannot invent
-a different public relation. The selector also preserves relation-specific focus
-squares for that representative relation, so public relation prose does not use
-focus squares borrowed from another merged relation witness. A selected relation
-kind without relation-specific focus remains unprojected instead of borrowing
-merged idea focus. Selector merge does not synthesize relation focus from
-generic `focusSquares` or relation target from generic `targetSquare`; missing
+keeps a representative `relationKind`; representative choice uses
+catalog-owned structured selector priority plus any narrow typed-support
+priority before confidence, but the surface row uses that kind only when
+matching structured `relationSupport` remains attached, so catalog ordering
+cannot invent a different public relation. The same priority is used when the
+selector preserves the visible secondary relation from the selected and merged
+candidate sets, so an already selected generic relation can be replaced by a
+higher-priority replay-backed relation candidate. Typed-support priority is
+limited to structured support detail such as
+`StrategyRelationSupport.absolutePin == true`, not a label or fact string. The
+selector also preserves relation-specific focus squares for that representative
+relation, so public relation prose does not use focus squares borrowed from
+another merged relation witness. A selected relation kind without
+relation-specific focus remains unprojected instead of borrowing merged idea
+focus. Selector merge does not synthesize relation focus from generic
+`focusSquares` or relation target from generic `targetSquare`; missing
 relation-focus or relation-target evidence stays missing until catalog fallback
 over relation focus is applied at the public surface.
 It also prioritizes the representative relation's source ref and semantic fact
 before evidence truncation, keeping the catalog admission pair intact while
 other support refs remain lower priority.
-Catalog-order fallback is reserved for legacy ideas that carry no
-`relationKind`, exactly one matching relation source/fact pair, and non-empty
-`relationFocusSquares`; ambiguous or relation-focusless legacy relation evidence
-remains unprojected. A named relation whose source/fact pair does not match also
-remains unprojected.
+Selector secondary-slot preservation for a structured relation candidate is not
+truth promotion. It only keeps an already replay-backed, cataloged,
+`relationSupport`-matched relation visible to downstream player-surface
+projection when a stronger idea family or a lower-priority relation would
+otherwise occupy the visible slots. Catalog and typed-support selector priority
+likewise choose among already replay-backed relation witnesses; they do not
+create relation truth and cannot promote uncataloged or support-mismatched
+evidence.
+Catalog-order fallback is not a public row admission path for legacy ideas that
+carry no `relationKind`; source/fact string matches and non-empty
+`relationFocusSquares` still remain unprojected without structured support.
 Raw top-level `strategyPack.strategicIdeas` are stripped from final
 user-facing payloads and cannot serve as a parallel relation-truth channel.
 The public `strategic_relation` token is catalog-bound: an uncataloged relation
 key is not relation truth even if it has the right wire-key shape.
-Backend sanitization preserves that token only on `advancedRows`, the sole
-builder-owned relation surface lane; stale summary, probe, or author-row
-relation authorities are dropped rather than reinterpreted.
+Backend sanitization preserves that token on builder-owned relation surface
+lanes: the summary why/next-check cue and advanced support row. Probe rows and
+author branches still drop relation authority rather than reinterpreting it.
 The analyse frontend decoder enforces the same constraint when decoding cached
 or legacy payloads, so frontend code does not widen backend relation authority.
+The analyse player-surface renderer may display decoded relation and target
+chips, but it is not a truth source and must not infer relation authority from
+row prose or fallback commentary.
 Move-local owner witnesses follow that same rule: defender trade, bad-piece
 liquidation, and IQP inducement fail closed when the reviewed played move is
 missing, even if the top engine line legally replays.
@@ -568,8 +709,9 @@ These are release blockers:
 - strategic plan refutation is inferred from sibling score/ranking rather than
   exact board/probe evidence
 - strategic plan truth is inferred from raw `evidenceTier`, compatibility
-  markers, or subplan ids instead of typed evaluator evidence plus exact
-  witness where required
+  markers, aliases, plan names, or subplan ids instead of
+  `PlanSemanticsContract` plus typed evaluator evidence and exact witness where
+  required
 - local bind truth is rejected from generic movement labels without
   exact replay evidence of a real release
 - MoveReview strategic support, probe, authoring, or decision-comparison UI is

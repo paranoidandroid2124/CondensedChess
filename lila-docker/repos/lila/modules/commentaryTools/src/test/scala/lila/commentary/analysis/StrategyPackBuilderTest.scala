@@ -302,7 +302,7 @@ class StrategyPackBuilderTest extends FunSuite:
     assert(target.strategicReasons.nonEmpty, clue(target))
   }
 
-  test("build degrades trapped-piece activity through deferred relation fallback evidence") {
+  test("build does not promote trapped-piece activity without a relation witness") {
     val fen = "4k3/8/8/8/8/8/2N5/4K3 w - - 0 1"
     val pa = PieceActivity(
       piece = Knight,
@@ -314,10 +314,10 @@ class StrategyPackBuilderTest extends FunSuite:
       coordinationLinks = List(Square.E3),
       directionalTargets = List(Square.E4)
     )
-    val expected =
-      RelationObservationCatalog
-        .deferredFallbackEvidenceTermForKind(MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece)
-        .getOrElse(fail("missing trapped-piece fallback evidence"))
+    assertEquals(
+      RelationObservationCatalog.deferredFallbackEvidenceTermForKind(MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece),
+      None
+    )
 
     val pack = StrategyPackBuilder
       .build(
@@ -327,8 +327,9 @@ class StrategyPackBuilderTest extends FunSuite:
       .getOrElse(fail("pack missing"))
 
     val target = pack.directionalTargets.headOption.getOrElse(fail("directional target missing"))
-    assert(target.evidence.contains(expected), clue(target.evidence))
-    assert(!target.evidence.contains("trapped_piece_signal"), clue(target.evidence))
+    assert(!target.evidence.exists(_.contains("trapped_piece")), clue(target.evidence))
+    assert(!target.evidence.exists(_.contains("deferred_piece_mobility")), clue(target.evidence))
+    assert(target.evidence.contains("low_mobility_signal"), clue(target.evidence))
   }
 
   test("build never emits directional target for enemy-occupied square") {
@@ -384,7 +385,13 @@ class StrategyPackBuilderTest extends FunSuite:
     assertEquals(pack.pieceMoveRefs, Nil)
     assertEquals(pack.directionalTargets, Nil)
     assert(pack.strategicIdeas.exists(_.evidenceRefs.contains("source:xray_relation")), clue(pack.strategicIdeas))
-    assert(pack.evidence.exists(_.startsWith("idea:line_occupation:")), clue(pack.evidence))
+    assertEquals(pack.signalDigest.flatMap(_.dominantIdeaFocus), Some("x-ray line e4-f5-g6"), clue(pack.signalDigest))
+    assert(pack.longTermFocus.contains("dominant idea: the line runs from e4 through f5 toward g6"), clue(pack.longTermFocus))
+    assert(pack.evidence.contains("idea:line_occupation:x-ray line e4-f5-g6"), clue(pack.evidence))
+    assert(
+      StrategyPackBuilder.promptHints(pack).contains("white idea open-line pressure: the line runs from e4 through f5 toward g6"),
+      clue(StrategyPackBuilder.promptHints(pack))
+    )
   }
 
   test("queen multi-hop redeployment stays toward-only even when fit is high") {

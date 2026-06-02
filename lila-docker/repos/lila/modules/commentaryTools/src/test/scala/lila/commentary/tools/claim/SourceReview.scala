@@ -207,7 +207,7 @@ private[commentary] object SourceReview:
 
   private val IqpInducementContract =
     SurfaceContractDescriptor(
-      reviewGroupNeedle = "iqp_inducement",
+      reviewGroupNeedle = "iqp",
       proofSource = PlayerFacingTruthModePolicy.IQPInducementProbeProofSource,
       proofFamily = PlanTaxonomy.PlanKind.IQPInducement.id,
       contractIdNeedle = Some(PlanTaxonomy.PlanKind.IQPInducement.id),
@@ -817,6 +817,29 @@ private[commentary] object SourceReview:
           surface.contractFailures
             .filterNot(failure => failure == "-" || failure == "none")
             .map(badPieceLiquidationFailureCode)
+      case Some(descriptor) if descriptor.reviewGroupNeedle == IqpInducementContract.reviewGroupNeedle =>
+        if descriptor.contractMismatch(surface) then List("proof:iqp_inducement_contract_mismatch")
+        else if descriptor.missingProofSource(surface) then List("iqp_witness_missing")
+        else
+          val contractFails = surface.contractFailures
+            .filterNot(failure => failure == "-" || failure == "none")
+            .map(failure => s"iqp_${blockerCode(failure)}")
+          if contractFails.nonEmpty then contractFails
+          else surface.ownerFailureCodes
+      case Some(descriptor) if descriptor.reviewGroupNeedle == DefenderTradeContract.reviewGroupNeedle =>
+        if descriptor.contractMismatch(surface) then List("proof:defender_trade_contract_mismatch")
+        else if descriptor.missingProofSource(surface) then List("defender_trade_witness_missing")
+        else
+          surface.contractFailures
+            .filterNot(failure => failure == "-" || failure == "none")
+            .map(failure => s"defender_trade_${blockerCode(failure)}")
+      case Some(descriptor) if descriptor.reviewGroupNeedle == QueenTradeBoundaryContract.reviewGroupNeedle =>
+        if descriptor.contractMismatch(surface) then List("proof:queen_trade_boundary_contract_mismatch")
+        else if descriptor.missingProofSource(surface) then List("queen_trade_boundary_witness_missing")
+        else
+          surface.contractFailures
+            .filterNot(failure => failure == "-" || failure == "none")
+            .map(failure => s"queen_trade_boundary_${blockerCode(failure)}")
       case _ if reviewGroup.contains("iqp") && surface.contractId.isEmpty =>
         surface.ownerFailureCodes
       case _ =>
@@ -845,12 +868,20 @@ private[commentary] object SourceReview:
         else if reviewGroup.contains("bad_piece_liquidation") && ownerFailureCodes.nonEmpty then
           ownerFailureCodes.map(badPieceLiquidationBlockerFromFailureCode)
         else if reviewGroup.contains("bad_piece_liquidation") then List("owner:bad_piece_liquidation_witness_missing")
+        else if reviewGroup.contains("defender_trade") && ownerFailureCodes.nonEmpty then
+          ownerFailureCodes.map(blockerFromFailureCode)
         else if reviewGroup.contains("defender_trade") then List("owner:defender_trade_owner_missing")
+        else if reviewGroup.contains("queen_trade") && ownerFailureCodes.nonEmpty then
+          ownerFailureCodes.map(blockerFromFailureCode)
+        else if reviewGroup.contains("queen_trade") then List("owner:queen_trade_owner_missing")
         else if reviewGroup.contains("carlsbad") then List("owner:carlsbad_probe_missing")
         else List("owner:root_vocabulary_or_extraction_gap")
       case Diagnosis.MoveOwnerMissing =>
         val reviewGroup = source.reviewGroup.toLowerCase
-        if reviewGroup.contains("break_prevention") && ownerFailureCodes.nonEmpty then
+        if reviewGroup.contains("iqp") && ownerFailureCodes.nonEmpty then
+          ownerFailureCodes.map(blockerFromFailureCode)
+        else if reviewGroup.contains("iqp") then List("owner:iqp_not_induced_or_side_mismatch")
+        else if reviewGroup.contains("break_prevention") && ownerFailureCodes.nonEmpty then
           ownerFailureCodes.map(blockerFromFailureCode)
         else if reviewGroup.contains("break_prevention") then List("owner:break_prevention_witness_missing")
         else if reviewGroup.contains("central_break_timing") && ownerFailureCodes.nonEmpty then
@@ -862,7 +893,12 @@ private[commentary] object SourceReview:
         else if reviewGroup.contains("bad_piece_liquidation") && ownerFailureCodes.nonEmpty then
           ownerFailureCodes.map(badPieceLiquidationBlockerFromFailureCode)
         else if reviewGroup.contains("bad_piece_liquidation") then List("owner:bad_piece_liquidation_witness_missing")
+        else if reviewGroup.contains("defender_trade") && ownerFailureCodes.nonEmpty then
+          ownerFailureCodes.map(blockerFromFailureCode)
         else if reviewGroup.contains("defender_trade") then List("owner:defender_trade_owner_missing")
+        else if reviewGroup.contains("queen_trade") && ownerFailureCodes.nonEmpty then
+          ownerFailureCodes.map(blockerFromFailureCode)
+        else if reviewGroup.contains("queen_trade") then List("owner:queen_trade_owner_missing")
         else List("owner:move_owner_missing")
       case Diagnosis.PlannerOwnerSceneBlocked  => List("owner:planner_scene_blocked")
       case Diagnosis.PlannerOwnerSuppressed    => List("owner:planner_suppressed")

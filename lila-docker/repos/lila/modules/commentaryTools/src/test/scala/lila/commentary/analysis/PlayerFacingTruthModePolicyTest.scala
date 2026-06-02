@@ -4,11 +4,12 @@ import java.nio.file.{ Files, Paths }
 
 import chess.format.Fen
 import munit.FunSuite
-import lila.commentary.{ DirectionalTargetReadiness, GameChronicleMoment, NarrativeSignalDigest, RouteSurfaceMode, StrategicIdeaGroup, StrategicIdeaKind, StrategicIdeaReadiness, StrategyDirectionalTarget, StrategyIdeaSignal, StrategyPack, StrategyPieceMoveRef, StrategyPieceRoute }
+import lila.commentary.{ DirectionalTargetReadiness, GameChronicleMoment, NarrativeSignalDigest, RouteSurfaceMode, StrategicIdeaGroup, StrategicIdeaKind, StrategicIdeaReadiness, StrategyDirectionalTarget, StrategyIdeaSignal, StrategyPack, StrategyPieceMoveRef, StrategyPieceRoute, StrategyRelationSupport }
 import lila.commentary.model.*
 import lila.commentary.model.authoring.{ AuthorQuestion, AuthorQuestionKind, PlanHypothesis, PlanViability }
 import lila.commentary.model.strategic.{ EngineEvidence, PvMove, VariationLine }
 import lila.commentary.analysis.claim.PlayerFacingClaimPrefixKind
+import lila.commentary.analysis.semantic.StrategicObservationIds.{ ProofFamilyId, ProofSourceId }
 
 class PlayerFacingTruthModePolicyTest extends FunSuite:
 
@@ -3715,6 +3716,10 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     assertEquals(packet.releaseRisks, Nil)
     assert(packet.proofPathWitness.ownerSeedTerms.contains("defender:f8"), clues(packet))
     assert(packet.proofPathWitness.structureTransitionTerms.contains("defender_removed:f8-a3"), clues(packet))
+    assertEquals(
+      packet.proofPathWitness.exactSliceProof,
+      Some(PlayerFacingExactSliceProof.DefenderTrade("f8", "a3", "c5"))
+    )
 
     val carrierTextOnlyDelta =
       PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidence(
@@ -3955,6 +3960,10 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     assertEquals(packet.fallbackMode, PlayerFacingClaimFallbackMode.WeakMain)
     assert(packet.proofPathWitness.ownerSeedTerms.contains("bad_piece:c1"), clues(packet))
     assert(packet.proofPathWitness.structureTransitionTerms.contains("bad_piece_removed:c1-f8"), clues(packet))
+    assertEquals(
+      packet.proofPathWitness.exactSliceProof,
+      Some(PlayerFacingExactSliceProof.BadPieceLiquidation("c1", "f8"))
+    )
 
     val missingPlayedMoveDelta =
       PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidence(ctx.copy(playedMove = None), surface, None)
@@ -3979,6 +3988,542 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     assertEquals(primary.contrast, None)
     assertEquals(primary.consequence, None)
     assert(primary.admissibilityReasons.contains("strategic_claim_supported_local"), clues(primary))
+  }
+
+  test("board/PV relation transformation witnesses materialize typed supported-local relation proof") {
+    final case class Scenario(
+        relationKind: String,
+        fen: String,
+        playedMove: String,
+        line: List[String],
+        focus: List[String],
+        target: String,
+        support: StrategyRelationSupport,
+        proof: PlayerFacingExactSliceProof
+    )
+
+    val scenarios =
+      List(
+        Scenario(
+          relationKind = MoveReviewExchangeAnalyzer.RelationKind.Overload,
+          fen = "k7/7p/5n2/3p4/8/8/8/3Q2K1 w - - 0 1",
+          playedMove = "d1d3",
+          line = List("d1d3", "a8a7"),
+          focus = List("f6", "d5", "h7"),
+          target = "f6",
+          support =
+            StrategyRelationSupport(
+              relationKind = MoveReviewExchangeAnalyzer.RelationKind.Overload,
+              focusSquares = List("f6", "d5", "h7"),
+              defenderSquare = Some("f6"),
+              targetSquares = List("d5", "h7"),
+              attackerSquare = Some("d3"),
+              targetSquare = Some("f6")
+            ),
+          proof = PlayerFacingExactSliceProof.Overload("f6", List("d5", "h7"), "d3")
+        ),
+        Scenario(
+          relationKind = MoveReviewExchangeAnalyzer.RelationKind.Deflection,
+          fen = "3k1b1r/p2b1ppp/1n3n2/4p3/8/1R4P1/P1QPqPBP/2B2RK1 w - - 0 17",
+          playedMove = "c1a3",
+          line = List("c1a3", "f8a3"),
+          focus = List("g7", "f8", "a3"),
+          target = "g7",
+          support =
+            StrategyRelationSupport(
+              relationKind = MoveReviewExchangeAnalyzer.RelationKind.Deflection,
+              focusSquares = List("g7", "f8", "a3"),
+              defenderSquare = Some("f8"),
+              targetSquare = Some("g7"),
+              attackerSquare = Some("a3")
+            ),
+          proof = PlayerFacingExactSliceProof.Deflection("f8", "g7", "a3")
+        ),
+        Scenario(
+          relationKind = MoveReviewExchangeAnalyzer.RelationKind.DiscoveredAttack,
+          fen = "k7/7q/8/8/8/3N4/8/1B4K1 w - - 0 1",
+          playedMove = "d3f4",
+          line = List("d3f4", "a8a7"),
+          focus = List("b1", "d3", "h7"),
+          target = "h7",
+          support =
+            StrategyRelationSupport(
+              relationKind = MoveReviewExchangeAnalyzer.RelationKind.DiscoveredAttack,
+              focusSquares = List("b1", "d3", "h7"),
+              attackerSquare = Some("b1"),
+              clearedSquare = Some("d3"),
+              targetSquare = Some("h7"),
+              attackerRole = Some("bishop")
+          ),
+          proof = PlayerFacingExactSliceProof.DiscoveredAttack("b1", "d3", "h7", "bishop")
+        ),
+        Scenario(
+          relationKind = MoveReviewExchangeAnalyzer.RelationKind.DoubleCheck,
+          fen = "4k3/8/8/8/4N3/8/8/4R1K1 w - - 0 1",
+          playedMove = "e4f6",
+          line = List("e4f6"),
+          focus = List("e8", "e1", "f6"),
+          target = "e8",
+          support =
+            StrategyRelationSupport(
+              relationKind = MoveReviewExchangeAnalyzer.RelationKind.DoubleCheck,
+              focusSquares = List("e8", "e1", "f6"),
+              targetSquare = Some("e8"),
+              kingSquare = Some("e8"),
+              checkerSquares = List("e1", "f6"),
+              moverSquare = Some("f6"),
+              moverRole = Some("knight")
+            ),
+          proof = PlayerFacingExactSliceProof.DoubleCheck("e8", List("e1", "f6"), "f6", "knight")
+        ),
+        Scenario(
+          relationKind = MoveReviewExchangeAnalyzer.RelationKind.BackRankMate,
+          fen = "6k1/5ppp/8/8/8/8/8/4R1K1 w - - 0 1",
+          playedMove = "e1e8",
+          line = List("e1e8"),
+          focus = List("g8", "e8"),
+          target = "g8",
+          support =
+            StrategyRelationSupport(
+              relationKind = MoveReviewExchangeAnalyzer.RelationKind.BackRankMate,
+              focusSquares = List("g8", "e8"),
+              targetSquare = Some("g8"),
+              kingSquare = Some("g8"),
+              checkerSquares = List("e8"),
+              matingMove = Some("e1e8"),
+              patternId = Some("back_rank_mate")
+            ),
+          proof = PlayerFacingExactSliceProof.BackRankMate("g8", List("e8"), "e1e8")
+        ),
+        Scenario(
+          relationKind = MoveReviewExchangeAnalyzer.RelationKind.MateNet,
+          fen = "6rk/6pp/7N/8/8/8/8/6K1 w - - 0 1",
+          playedMove = "h6f7",
+          line = List("h6f7"),
+          focus = List("h8", "f7"),
+          target = "h8",
+          support =
+            StrategyRelationSupport(
+              relationKind = MoveReviewExchangeAnalyzer.RelationKind.MateNet,
+              focusSquares = List("h8", "f7"),
+              targetSquare = Some("h8"),
+              kingSquare = Some("h8"),
+              checkerSquares = List("f7"),
+              matingMove = Some("h6f7"),
+              patternId = Some("smothered_mate")
+            ),
+          proof = PlayerFacingExactSliceProof.MateNet("h8", List("f7"), "h6f7", Some("smothered_mate"))
+        ),
+        Scenario(
+          relationKind = MoveReviewExchangeAnalyzer.RelationKind.GreekGift,
+          fen = "6k1/6pp/8/6NQ/8/3B4/8/4K3 w - - 0 1",
+          playedMove = "d3h7",
+          line = List("d3h7"),
+          focus = List("h7"),
+          target = "h7",
+          support =
+            StrategyRelationSupport(
+              relationKind = MoveReviewExchangeAnalyzer.RelationKind.GreekGift,
+              focusSquares = List("h7"),
+              targetSquare = Some("h7"),
+              bishopSquare = Some("h7"),
+              entryMove = Some("d3h7"),
+              patternId = Some("greek_gift")
+            ),
+          proof = PlayerFacingExactSliceProof.GreekGift("h7", "h7", "d3h7", "greek_gift")
+        ),
+        Scenario(
+          relationKind = MoveReviewExchangeAnalyzer.RelationKind.StalemateTrap,
+          fen = "7k/5K2/8/6Q1/8/8/8/8 w - - 0 1",
+          playedMove = "g5g6",
+          line = List("g5g6"),
+          focus = List("h8"),
+          target = "h8",
+          support =
+            StrategyRelationSupport(
+              relationKind = MoveReviewExchangeAnalyzer.RelationKind.StalemateTrap,
+              focusSquares = List("h8"),
+              targetSquare = Some("h8"),
+              kingSquare = Some("h8"),
+              trappingMove = Some("g5g6")
+            ),
+          proof = PlayerFacingExactSliceProof.StalemateTrap("h8", "g5g6")
+        ),
+        Scenario(
+          relationKind = MoveReviewExchangeAnalyzer.RelationKind.PerpetualCheck,
+          fen = "7k/8/8/8/8/8/8/4Q1K1 w - - 0 1",
+          playedMove = "e1e8",
+          line = List("e1e8", "h8h7", "e8h5", "h7g8", "h5e8", "g8h7", "e8h5"),
+          focus = List("h7", "e8", "h5"),
+          target = "h7",
+          support =
+            StrategyRelationSupport(
+              relationKind = MoveReviewExchangeAnalyzer.RelationKind.PerpetualCheck,
+              focusSquares = List("h7", "e8", "h5"),
+              targetSquare = Some("h7"),
+              kingSquare = Some("h7"),
+              checkingMoves = List("e1e8", "e8h5", "h5e8", "e8h5"),
+              cycleMoves = List("e8h5", "h7g8", "h5e8", "g8h7", "e8h5"),
+              repeatedPositionPly = Some(7)
+            ),
+          proof =
+            PlayerFacingExactSliceProof.PerpetualCheck(
+              kingSquare = "h7",
+              checkingMoves = List("e1e8", "e8h5", "h5e8", "e8h5"),
+              cycleMoves = List("e8h5", "h7g8", "h5e8", "g8h7", "e8h5"),
+              repeatedPositionPly = 7
+            )
+        ),
+        Scenario(
+          relationKind = MoveReviewExchangeAnalyzer.RelationKind.Fork,
+          fen = "k7/4r3/8/8/3N3q/8/8/6K1 w - - 0 1",
+          playedMove = "d4f5",
+          line = List("d4f5", "a8b8"),
+          focus = List("f5", "h4", "e7"),
+          target = "h4",
+          support =
+            StrategyRelationSupport(
+              relationKind = MoveReviewExchangeAnalyzer.RelationKind.Fork,
+              focusSquares = List("f5", "h4", "e7"),
+              targetSquare = Some("h4"),
+              targetSquares = List("h4", "e7"),
+              targetRoles = List("queen", "rook"),
+              attackerSquare = Some("f5"),
+              attackerRole = Some("knight")
+            ),
+          proof =
+            PlayerFacingExactSliceProof.Fork(
+              attackerSquare = "f5",
+              attackerRole = "knight",
+              targets =
+                List(
+                  PlayerFacingExactSliceProof.TargetPiece("h4", "queen"),
+                  PlayerFacingExactSliceProof.TargetPiece("e7", "rook")
+                )
+            )
+        ),
+        Scenario(
+          relationKind = MoveReviewExchangeAnalyzer.RelationKind.HangingPiece,
+          fen = "k7/8/8/5b2/2B5/8/8/6K1 w - - 0 1",
+          playedMove = "c4d3",
+          line = List("c4d3", "a8b8"),
+          focus = List("d3", "f5"),
+          target = "f5",
+          support =
+            StrategyRelationSupport(
+              relationKind = MoveReviewExchangeAnalyzer.RelationKind.HangingPiece,
+              focusSquares = List("d3", "f5"),
+              targetSquare = Some("f5"),
+              targetRole = Some("bishop"),
+              attackerSquare = Some("d3"),
+              attackerRole = Some("bishop")
+            ),
+          proof = PlayerFacingExactSliceProof.HangingPiece("d3", "f5", "bishop", "bishop")
+        ),
+        Scenario(
+          relationKind = MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece,
+          fen = "n3k3/2p5/1p6/8/8/8/4K3/7R w - - 0 1",
+          playedMove = "h1a1",
+          line = List("h1a1", "e8d8"),
+          focus = List("a8", "a1"),
+          target = "a8",
+          support =
+            StrategyRelationSupport(
+              relationKind = MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece,
+              focusSquares = List("a8", "a1"),
+              targetSquare = Some("a8"),
+              targetRole = Some("knight"),
+              attackerSquares = List("a1"),
+              legalEscapeCount = Some(0)
+            ),
+          proof = PlayerFacingExactSliceProof.TrappedPiece("a8", "knight", List("a1"), 0)
+        ),
+        Scenario(
+          relationKind = MoveReviewExchangeAnalyzer.RelationKind.Domination,
+          fen = "n3k3/2p5/8/8/8/8/4K3/7R w - - 0 1",
+          playedMove = "h1a1",
+          line = List("h1a1", "e8d8"),
+          focus = List("a8", "a1"),
+          target = "a8",
+          support =
+            StrategyRelationSupport(
+              relationKind = MoveReviewExchangeAnalyzer.RelationKind.Domination,
+              focusSquares = List("a8", "a1"),
+              targetSquare = Some("a8"),
+              targetRole = Some("knight"),
+              controllerSquare = Some("a1"),
+              controllerRole = Some("rook"),
+              legalMoveCount = Some(1)
+            ),
+          proof = PlayerFacingExactSliceProof.Domination("a1", "a8", "rook", "knight", 1)
+        ),
+        Scenario(
+          relationKind = MoveReviewExchangeAnalyzer.RelationKind.Zwischenzug,
+          fen = "6k1/8/8/7r/8/8/8/4Q1K1 w - - 0 1",
+          playedMove = "e1e8",
+          line = List("e1e8", "g8h7", "e8h5"),
+          focus = List("h5", "e8"),
+          target = "h5",
+          support =
+            StrategyRelationSupport(
+              relationKind = MoveReviewExchangeAnalyzer.RelationKind.Zwischenzug,
+              focusSquares = List("h5", "e8"),
+              targetSquare = Some("h5"),
+              intermediateMove = Some("e1e8"),
+              threatType = Some("check"),
+              responseMove = Some("g8h7"),
+              payoffMove = Some("e8h5")
+            ),
+          proof = PlayerFacingExactSliceProof.Zwischenzug("e1e8", "check", "g8h7", "e8h5", "h5")
+        ),
+        Scenario(
+          relationKind = MoveReviewExchangeAnalyzer.RelationKind.Decoy,
+          fen = "k7/8/8/3q4/5N2/8/4B3/3Q2K1 w - - 0 1",
+          playedMove = "f4d3",
+          line = List("f4d3", "d5d3", "e2d3"),
+          focus = List("f4", "d3", "d5"),
+          target = "d3",
+          support =
+            StrategyRelationSupport(
+              relationKind = MoveReviewExchangeAnalyzer.RelationKind.Decoy,
+              focusSquares = List("f4", "d3", "d5"),
+              targetSquare = Some("d3"),
+              baitFromSquare = Some("f4"),
+              baitSquare = Some("d3"),
+              baitRole = Some("knight"),
+              luredFromSquare = Some("d5"),
+              luredRole = Some("queen"),
+              executionFromSquare = Some("e2"),
+              executionToSquare = Some("d3")
+            ),
+          proof = PlayerFacingExactSliceProof.Decoy("f4", "d3", "d5", "e2", "d3", "knight", "queen")
+        ),
+        Scenario(
+          relationKind = MoveReviewExchangeAnalyzer.RelationKind.XRay,
+          fen = "k7/8/6q1/5n2/8/8/8/1B5K w - - 0 1",
+          playedMove = "b1e4",
+          line = List("b1e4", "a8b8"),
+          focus = List("e4", "f5", "g6"),
+          target = "g6",
+          support =
+            StrategyRelationSupport(
+              relationKind = MoveReviewExchangeAnalyzer.RelationKind.XRay,
+              focusSquares = List("e4", "f5", "g6"),
+              targetSquare = Some("g6"),
+              attackerSquare = Some("e4"),
+              blockerSquare = Some("f5"),
+              attackerRole = Some("bishop"),
+              blockerRole = Some("knight"),
+              targetRole = Some("queen")
+            ),
+          proof = PlayerFacingExactSliceProof.XRay("e4", "f5", "g6", "bishop", "knight", "queen")
+        ),
+        Scenario(
+          relationKind = MoveReviewExchangeAnalyzer.RelationKind.Clearance,
+          fen = "k7/7q/8/8/8/3N4/8/1B4K1 w - - 0 1",
+          playedMove = "d3f4",
+          line = List("d3f4", "a8a7"),
+          focus = List("b1", "d3", "h7"),
+          target = "h7",
+          support =
+            StrategyRelationSupport(
+              relationKind = MoveReviewExchangeAnalyzer.RelationKind.Clearance,
+              focusSquares = List("b1", "d3", "h7"),
+              targetSquare = Some("h7"),
+              beneficiarySquare = Some("b1"),
+              beneficiaryRole = Some("bishop"),
+              clearedSquare = Some("d3"),
+              clearingTo = Some("f4")
+            ),
+          proof = PlayerFacingExactSliceProof.Clearance("b1", "d3", "h7", "bishop", "f4")
+        ),
+        Scenario(
+          relationKind = MoveReviewExchangeAnalyzer.RelationKind.Battery,
+          fen = "k7/7p/8/8/8/8/8/1B1Q2K1 w - - 0 1",
+          playedMove = "d1d3",
+          line = List("d1d3", "a8a7"),
+          focus = List("d3", "b1", "h7"),
+          target = "h7",
+          support =
+            StrategyRelationSupport(
+              relationKind = MoveReviewExchangeAnalyzer.RelationKind.Battery,
+              focusSquares = List("d3", "b1", "h7"),
+              targetSquare = Some("h7"),
+              frontSquare = Some("d3"),
+              frontRole = Some("queen"),
+              backSquare = Some("b1"),
+              backRole = Some("bishop"),
+              axis = Some("diagonal")
+            ),
+          proof = PlayerFacingExactSliceProof.Battery("d3", "b1", "h7", "queen", "bishop", "diagonal")
+        ),
+        Scenario(
+          relationKind = MoveReviewExchangeAnalyzer.RelationKind.Pin,
+          fen = "4kb2/8/8/8/8/2N5/8/4K3 b - - 0 1",
+          playedMove = "f8b4",
+          line = List("f8b4", "e1d1"),
+          focus = List("b4", "c3", "e1"),
+          target = "c3",
+          support =
+            StrategyRelationSupport(
+              relationKind = MoveReviewExchangeAnalyzer.RelationKind.Pin,
+              focusSquares = List("b4", "c3", "e1"),
+              targetSquare = Some("c3"),
+              attackerSquare = Some("b4"),
+              attackerRole = Some("bishop"),
+              pinnedSquare = Some("c3"),
+              pinnedRole = Some("knight"),
+              behindSquare = Some("e1"),
+              behindRole = Some("king"),
+              absolutePin = Some(true)
+            ),
+          proof = PlayerFacingExactSliceProof.Pin("b4", "c3", "e1", "c3", "bishop", "knight", "king", true)
+        ),
+        Scenario(
+          relationKind = MoveReviewExchangeAnalyzer.RelationKind.Skewer,
+          fen = "r6k/8/8/8/8/8/7K/4Q2R b - - 0 1",
+          playedMove = "a8a1",
+          line = List("a8a1", "h2g1"),
+          focus = List("a1", "e1", "h1"),
+          target = "e1",
+          support =
+            StrategyRelationSupport(
+              relationKind = MoveReviewExchangeAnalyzer.RelationKind.Skewer,
+              focusSquares = List("a1", "e1", "h1"),
+              targetSquare = Some("e1"),
+              attackerSquare = Some("a1"),
+              attackerRole = Some("rook"),
+              frontSquare = Some("e1"),
+              frontRole = Some("queen"),
+              backSquare = Some("h1"),
+              backRole = Some("rook")
+            ),
+          proof = PlayerFacingExactSliceProof.Skewer("a1", "e1", "h1", "e1", "rook", "queen", "rook")
+        ),
+        Scenario(
+          relationKind = MoveReviewExchangeAnalyzer.RelationKind.Interference,
+          fen = "k2r4/8/8/3q1N2/8/8/8/3Q2K1 w - - 0 1",
+          playedMove = "f5d6",
+          line = List("f5d6", "a8b8"),
+          focus = List("d6", "d8", "d5"),
+          target = "d5",
+          support =
+            StrategyRelationSupport(
+              relationKind = MoveReviewExchangeAnalyzer.RelationKind.Interference,
+              focusSquares = List("d6", "d8", "d5"),
+              targetSquare = Some("d5"),
+              blockerSquare = Some("d6"),
+              blockerRole = Some("knight"),
+              defenderSquare = Some("d8"),
+              defenderRole = Some("rook"),
+              targetRole = Some("queen")
+            ),
+          proof = PlayerFacingExactSliceProof.Interference("d6", "d8", "d5", "knight", "rook", "queen")
+        )
+      )
+
+    scenarios.foreach { scenario =>
+      val ctx =
+        baseCtx().copy(
+          fen = scenario.fen,
+          ply = 1,
+          playedMove = Some(scenario.playedMove),
+          playedSan = Some(scenario.playedMove),
+          authorQuestions = defaultQuestions,
+          semantic =
+            Some(
+              SemanticSection(
+                structuralWeaknesses =
+                  List(
+                    WeakComplexInfo(
+                      owner = "Black",
+                      squareColor = "dark",
+                      squares = scenario.focus.filter(_.matches("[a-h][1-8]")),
+                      isOutpost = false,
+                      cause = s"${scenario.relationKind} target"
+                    )
+                  ),
+                pieceActivity = Nil,
+                positionalFeatures = Nil,
+                compensation = None,
+                endgameFeatures = None,
+                practicalAssessment = None,
+                preventedPlans = Nil,
+                conceptSummary = Nil
+              )
+            ),
+          engineEvidence =
+            Some(
+              EngineEvidence(
+                depth = 18,
+                variations = List(VariationLine(moves = scenario.line, scoreCp = 70, depth = 18))
+              )
+            )
+        )
+      val pack =
+        Some(
+          StrategyPack(
+            sideToMove = "white",
+            strategicIdeas =
+              List(
+                StrategyIdeaSignal(
+                  ideaId = s"idea_${scenario.relationKind}",
+                  ownerSide = "white",
+                  kind = StrategicIdeaKind.FavorableTradeOrTransformation,
+                  group = StrategicIdeaGroup.InteractionAndTransformation,
+                  readiness = StrategicIdeaReadiness.Build,
+                  focusSquares = scenario.focus,
+                  confidence = 0.72,
+                  targetSquare = Some(scenario.target),
+                  relationKind = Some(scenario.relationKind),
+                  relationFocusSquares = scenario.focus,
+                  relationSupport = Some(scenario.support)
+                )
+              )
+          )
+        )
+      val surface = StrategyPackSurface.from(pack)
+      val delta =
+        PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidence(ctx, surface, None)
+          .getOrElse(fail(s"${scenario.relationKind} relation proof should create move-delta evidence"))
+      val packet = delta.packet
+
+      assertEquals(delta.deltaClass, PlayerFacingMoveDeltaClass.ExchangeForcing)
+      assertEquals(packet.proofSource, ProofSourceId.RelationTransformation.wireKey)
+      assertEquals(packet.proofFamily, ProofFamilyId.RelationTransformation.wireKey)
+      assertEquals(packet.scope, PlayerFacingPacketScope.MoveLocal)
+      assertEquals(packet.sameBranchState, PlayerFacingSameBranchState.Proven)
+      assertEquals(packet.persistence, PlayerFacingClaimPersistence.Stable)
+      assertEquals(packet.fallbackMode, PlayerFacingClaimFallbackMode.WeakMain)
+      assertEquals(packet.proofPathWitness.exactSliceProof, Some(scenario.proof))
+
+      val inputs = QuestionPlannerInputsBuilder.build(ctx, pack, truthContract = None)
+      val ranked = QuestionFirstCommentaryPlanner.plan(ctx, inputs, truthContract = None)
+      val primary =
+        ranked.primary.getOrElse(fail(s"${scenario.relationKind} relation proof should admit WhyThis"))
+
+      assertEquals(primary.plannerOwnerKind, PlannerOwnerKind.MoveDelta)
+      assertEquals(primary.plannerSource, ProofSourceId.RelationTransformation.wireKey)
+      assertEquals(primary.claim, "This move creates a concrete tactical relation on the checked line.")
+      assertEquals(primary.prefixKind, PlayerFacingClaimPrefixKind.SupportedLocal)
+      assertEquals(primary.contrast, None)
+      assertEquals(primary.consequence, None)
+      assert(primary.admissibilityReasons.contains("strategic_claim_supported_local"), clues(primary))
+
+      val missingTypedCarrier =
+        PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidence(
+          ctx,
+          StrategyPackSurface.from(
+            pack.map(pack => pack.copy(strategicIdeas = pack.strategicIdeas.map(_.copy(relationSupport = None))))
+          ),
+          None
+        )
+
+      assert(
+        missingTypedCarrier.forall(_.packet.proofSource != ProofSourceId.RelationTransformation.wireKey),
+        clues(missingTypedCarrier)
+      )
+    }
   }
 
   test("bad-piece liquidation is admitted by board/PV facts beyond the original source row") {
@@ -4068,6 +4613,10 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     assertEquals(delta.packet.fallbackMode, PlayerFacingClaimFallbackMode.WeakMain)
     assert(delta.packet.proofPathWitness.ownerSeedTerms.contains("bad_piece:c1"), clues(delta.packet))
     assert(delta.packet.proofPathWitness.structureTransitionTerms.contains("bad_piece_removed:c1-f8"), clues(delta.packet))
+    assertEquals(
+      delta.packet.proofPathWitness.exactSliceProof,
+      Some(PlayerFacingExactSliceProof.BadPieceLiquidation("c1", "f8"))
+    )
   }
 
   test("bad-piece liquidation rejects the same trade when the piece is not constrained") {

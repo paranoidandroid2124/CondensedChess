@@ -99,6 +99,24 @@ private[commentary] object ClaimAuthorityResolver:
       .map(_.decision)
       .getOrElse(ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, authorityFailureCodes(packet)))
 
+  def supportedLocalRelationTransformationPacketDecision(
+      ctx: Option[NarrativeContext],
+      inputs: QuestionPlannerInputs,
+      truthContract: Option[DecisiveTruthContract],
+      packet: PlayerFacingClaimPacket
+  ): ClaimAuthorityDecision =
+    if !hasTypedRelationTransformationProof(packet) then
+      ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, authorityFailureCodes(packet))
+    else
+      val tacticalReasons = tacticalVetoReasons(ctx, inputs, truthContract)
+      if tacticalReasons.nonEmpty then ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, tacticalReasons)
+      else if supportsLocalMoveDelta(packet) &&
+          packet.bestDefenseBranchKey.nonEmpty &&
+          packet.sameBranchState == PlayerFacingSameBranchState.Proven &&
+          packet.persistence == PlayerFacingClaimPersistence.Stable
+      then ClaimAuthorityDecision(ClaimAuthorityTier.SupportedLocal)
+      else ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, authorityFailureCodes(packet))
+
   def supportedLocalCentralBreakTimingAdmission(
       ctx: Option[NarrativeContext],
       inputs: QuestionPlannerInputs,
@@ -197,13 +215,17 @@ private[commentary] object ClaimAuthorityResolver:
       val isTacticalFailure = truthContract.exists { contract =>
         contract.truthClass == DecisiveTruthClass.Blunder ||
           contract.truthClass == DecisiveTruthClass.MissedWin ||
-          (contract.reasonFamily == DecisiveReasonKind.TacticalRefutation && contract.isBad) ||
+          contract.truthClass == DecisiveTruthClass.Mistake ||
+          contract.reasonFamily == DecisiveReasonKind.TacticalRefutation ||
           contract.failureMode == FailureInterpretationMode.TacticalRefutation
       }
       val severeCounterfactual =
         ctx.exists(narrativeCtx => TacticalTensionPolicy.evaluate(narrativeCtx, truthContract).severeCounterfactual)
+      val hasImmediateThreat = inputs.opponentThreats.exists(threat =>
+        threat.lossIfIgnoredCp > 0 || Option(threat.kind).exists(_.equalsIgnoreCase("mate"))
+      )
 
-      if isTacticalFailure || severeCounterfactual then
+      if isTacticalFailure || severeCounterfactual || hasImmediateThreat then
         false
       else if winPercentLoss < 10.0 then
         true
@@ -239,6 +261,7 @@ private[commentary] object ClaimAuthorityResolver:
     matchingMoveDeltaPacket(inputs, plan)
       .filter(packet =>
         supportsLocalMoveDelta(packet) &&
+          relationTransformationBranchAdmissible(packet) &&
           (!hasExactOwnerPath(packet) || exactMoveDeltaSupportedLocal(packet))
       )
       .map(_ => ClaimAuthorityDecision(ClaimAuthorityTier.SupportedLocal))
@@ -306,6 +329,65 @@ private[commentary] object ClaimAuthorityResolver:
       packet.bestDefenseBranchKey.nonEmpty &&
       packet.sameBranchState == PlayerFacingSameBranchState.Proven &&
       packet.persistence == PlayerFacingClaimPersistence.Stable
+
+  private def relationTransformationBranchAdmissible(packet: PlayerFacingClaimPacket): Boolean =
+    !hasTypedRelationTransformationProof(packet) ||
+      (
+        packet.bestDefenseBranchKey.nonEmpty &&
+          packet.sameBranchState == PlayerFacingSameBranchState.Proven &&
+          packet.persistence == PlayerFacingClaimPersistence.Stable
+      )
+
+  private def hasTypedRelationTransformationProof(packet: PlayerFacingClaimPacket): Boolean =
+    packet.proofPathWitness.exactSliceProof.exists {
+      case proof: PlayerFacingExactSliceProof.DefenderTrade =>
+        PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof)
+      case proof: PlayerFacingExactSliceProof.BadPieceLiquidation =>
+        PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof)
+      case proof: PlayerFacingExactSliceProof.Overload =>
+        PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof)
+      case proof: PlayerFacingExactSliceProof.Deflection =>
+        PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof)
+      case proof: PlayerFacingExactSliceProof.DiscoveredAttack =>
+        PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof)
+      case proof: PlayerFacingExactSliceProof.DoubleCheck =>
+        PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof)
+      case proof: PlayerFacingExactSliceProof.BackRankMate =>
+        PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof)
+      case proof: PlayerFacingExactSliceProof.MateNet =>
+        PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof)
+      case proof: PlayerFacingExactSliceProof.GreekGift =>
+        PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof)
+      case proof: PlayerFacingExactSliceProof.Fork =>
+        PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof)
+      case proof: PlayerFacingExactSliceProof.HangingPiece =>
+        PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof)
+      case proof: PlayerFacingExactSliceProof.TrappedPiece =>
+        PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof)
+      case proof: PlayerFacingExactSliceProof.Domination =>
+        PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof)
+      case proof: PlayerFacingExactSliceProof.StalemateTrap =>
+        PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof)
+      case proof: PlayerFacingExactSliceProof.PerpetualCheck =>
+        PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof)
+      case proof: PlayerFacingExactSliceProof.Zwischenzug =>
+        PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof)
+      case proof: PlayerFacingExactSliceProof.Decoy =>
+        PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof)
+      case proof: PlayerFacingExactSliceProof.XRay =>
+        PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof)
+      case proof: PlayerFacingExactSliceProof.Clearance =>
+        PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof)
+      case proof: PlayerFacingExactSliceProof.Battery =>
+        PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof)
+      case proof: PlayerFacingExactSliceProof.Pin =>
+        PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof)
+      case proof: PlayerFacingExactSliceProof.Skewer =>
+        PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof)
+      case proof: PlayerFacingExactSliceProof.Interference =>
+        PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof)
+      case _ => false
+    }
 
   private def isSupportedPositionProbePlan(plan: QuestionPlan): Boolean =
     plan.plannerOwnerKind == PlannerOwnerKind.PositionProbe &&

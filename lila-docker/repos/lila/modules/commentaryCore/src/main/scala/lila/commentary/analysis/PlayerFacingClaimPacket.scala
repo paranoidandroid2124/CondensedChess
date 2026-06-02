@@ -72,6 +72,155 @@ private[commentary] object PlayerFacingExactSliceProof:
       breakSquare: String,
       breakToken: String
   ) extends PlayerFacingExactSliceProof
+  final case class DefenderTrade(
+      defenderSquare: String,
+      exchangeSquare: String,
+      targetSquare: String
+  ) extends PlayerFacingExactSliceProof
+  final case class BadPieceLiquidation(
+      badPieceSquare: String,
+      exchangeSquare: String
+  ) extends PlayerFacingExactSliceProof
+  final case class Overload(
+      defenderSquare: String,
+      targetSquares: List[String],
+      attackerSquare: String
+  ) extends PlayerFacingExactSliceProof
+  final case class Deflection(
+      defenderSquare: String,
+      targetSquare: String,
+      attackerSquare: String
+  ) extends PlayerFacingExactSliceProof
+  final case class DiscoveredAttack(
+      attackerSquare: String,
+      clearedSquare: String,
+      targetSquare: String,
+      attackerRole: String
+  ) extends PlayerFacingExactSliceProof
+  final case class DoubleCheck(
+      kingSquare: String,
+      checkerSquares: List[String],
+      moverSquare: String,
+      moverRole: String
+  ) extends PlayerFacingExactSliceProof
+  final case class BackRankMate(
+      kingSquare: String,
+      checkerSquares: List[String],
+      matingMove: String
+  ) extends PlayerFacingExactSliceProof
+  final case class MateNet(
+      kingSquare: String,
+      checkerSquares: List[String],
+      matingMove: String,
+      patternId: Option[String]
+  ) extends PlayerFacingExactSliceProof
+  final case class GreekGift(
+      bishopSquare: String,
+      targetSquare: String,
+      entryMove: String,
+      patternId: String
+  ) extends PlayerFacingExactSliceProof
+  final case class TargetPiece(square: String, role: String)
+  final case class Fork(
+      attackerSquare: String,
+      attackerRole: String,
+      targets: List[TargetPiece]
+  ) extends PlayerFacingExactSliceProof
+  final case class HangingPiece(
+      attackerSquare: String,
+      targetSquare: String,
+      attackerRole: String,
+      targetRole: String
+  ) extends PlayerFacingExactSliceProof
+  final case class TrappedPiece(
+      targetSquare: String,
+      targetRole: String,
+      attackerSquares: List[String],
+      legalEscapeCount: Int
+  ) extends PlayerFacingExactSliceProof
+  final case class Domination(
+      controllerSquare: String,
+      targetSquare: String,
+      controllerRole: String,
+      targetRole: String,
+      legalMoveCount: Int
+  ) extends PlayerFacingExactSliceProof
+  final case class StalemateTrap(
+      kingSquare: String,
+      trappingMove: String
+  ) extends PlayerFacingExactSliceProof
+  final case class PerpetualCheck(
+      kingSquare: String,
+      checkingMoves: List[String],
+      cycleMoves: List[String],
+      repeatedPositionPly: Int
+  ) extends PlayerFacingExactSliceProof
+  final case class Zwischenzug(
+      intermediateMove: String,
+      threatType: String,
+      responseMove: String,
+      payoffMove: String,
+      targetSquare: String
+  ) extends PlayerFacingExactSliceProof
+  final case class Decoy(
+      baitFromSquare: String,
+      baitSquare: String,
+      luredFromSquare: String,
+      executionFromSquare: String,
+      executionToSquare: String,
+      baitRole: String,
+      luredRole: String
+  ) extends PlayerFacingExactSliceProof
+  final case class XRay(
+      attackerSquare: String,
+      blockerSquare: String,
+      targetSquare: String,
+      attackerRole: String,
+      blockerRole: String,
+      targetRole: String
+  ) extends PlayerFacingExactSliceProof
+  final case class Clearance(
+      beneficiarySquare: String,
+      clearedSquare: String,
+      targetSquare: String,
+      beneficiaryRole: String,
+      clearingTo: String
+  ) extends PlayerFacingExactSliceProof
+  final case class Battery(
+      frontSquare: String,
+      backSquare: String,
+      targetSquare: String,
+      frontRole: String,
+      backRole: String,
+      axis: String
+  ) extends PlayerFacingExactSliceProof
+  final case class Pin(
+      attackerSquare: String,
+      pinnedSquare: String,
+      behindSquare: String,
+      targetSquare: String,
+      attackerRole: String,
+      pinnedRole: String,
+      behindRole: String,
+      absolute: Boolean
+  ) extends PlayerFacingExactSliceProof
+  final case class Skewer(
+      attackerSquare: String,
+      frontSquare: String,
+      backSquare: String,
+      targetSquare: String,
+      attackerRole: String,
+      frontRole: String,
+      backRole: String
+  ) extends PlayerFacingExactSliceProof
+  final case class Interference(
+      blockerSquare: String,
+      defenderSquare: String,
+      targetSquare: String,
+      blockerRole: String,
+      defenderRole: String,
+      targetRole: String
+  ) extends PlayerFacingExactSliceProof
 
 private[commentary] object PlayerFacingExactSliceProofFacts:
   final case class Path(proofSource: String, proofFamily: String):
@@ -104,6 +253,34 @@ private[commentary] object PlayerFacingExactSliceProofFacts:
       case PlayerFacingExactSliceProof.CentralBreakTiming(_, _, _) =>
         val family = proofFamily(PlanTaxonomy.PlanKind.CentralBreakTiming)
         Path(family, family)
+      case PlayerFacingExactSliceProof.DefenderTrade(_, _, _) =>
+        val family = proofFamily(PlanTaxonomy.PlanKind.DefenderTrade)
+        Path(family, family)
+      case PlayerFacingExactSliceProof.BadPieceLiquidation(_, _) =>
+        val family = proofFamily(PlanTaxonomy.PlanKind.BadPieceLiquidation)
+        Path(family, family)
+      case _: PlayerFacingExactSliceProof.Overload |
+          _: PlayerFacingExactSliceProof.Deflection |
+          _: PlayerFacingExactSliceProof.DiscoveredAttack |
+          _: PlayerFacingExactSliceProof.DoubleCheck |
+          _: PlayerFacingExactSliceProof.BackRankMate |
+          _: PlayerFacingExactSliceProof.MateNet |
+          _: PlayerFacingExactSliceProof.GreekGift |
+          _: PlayerFacingExactSliceProof.Fork |
+          _: PlayerFacingExactSliceProof.HangingPiece |
+          _: PlayerFacingExactSliceProof.TrappedPiece |
+          _: PlayerFacingExactSliceProof.Domination |
+          _: PlayerFacingExactSliceProof.StalemateTrap |
+          _: PlayerFacingExactSliceProof.PerpetualCheck |
+          _: PlayerFacingExactSliceProof.Zwischenzug |
+          _: PlayerFacingExactSliceProof.Decoy |
+          _: PlayerFacingExactSliceProof.XRay |
+          _: PlayerFacingExactSliceProof.Clearance |
+          _: PlayerFacingExactSliceProof.Battery |
+          _: PlayerFacingExactSliceProof.Pin |
+          _: PlayerFacingExactSliceProof.Skewer |
+          _: PlayerFacingExactSliceProof.Interference =>
+        Path(ProofSourceId.RelationTransformation.wireKey, ProofFamilyId.RelationTransformation.wireKey)
 
   def matchesPacket(
       packet: PlayerFacingClaimPacket,
@@ -149,6 +326,202 @@ private[commentary] object PlayerFacingExactSliceProofFacts:
           squareKey(breakSquare) &&
           uciDestination(breakMove).contains(normalize(breakSquare)) &&
           routeToken(breakToken)
+      case PlayerFacingExactSliceProof.DefenderTrade(defenderSquare, exchangeSquare, targetSquare) =>
+        squareKey(defenderSquare) &&
+          squareKey(exchangeSquare) &&
+          squareKey(targetSquare)
+      case PlayerFacingExactSliceProof.BadPieceLiquidation(badPieceSquare, exchangeSquare) =>
+        squareKey(badPieceSquare) &&
+          squareKey(exchangeSquare)
+      case PlayerFacingExactSliceProof.Overload(defenderSquare, targetSquares, attackerSquare) =>
+        squareKey(defenderSquare) &&
+          targetSquares.map(normalize).filter(squareKey).distinct.size >= 2 &&
+          squareKey(attackerSquare)
+      case PlayerFacingExactSliceProof.Deflection(defenderSquare, targetSquare, attackerSquare) =>
+        squareKey(defenderSquare) &&
+          squareKey(targetSquare) &&
+          squareKey(attackerSquare)
+      case PlayerFacingExactSliceProof.DiscoveredAttack(attackerSquare, clearedSquare, targetSquare, attackerRole) =>
+        squareKey(attackerSquare) &&
+          squareKey(clearedSquare) &&
+          squareKey(targetSquare) &&
+          normalize(attackerRole).nonEmpty
+      case PlayerFacingExactSliceProof.DoubleCheck(kingSquare, checkerSquares, moverSquare, moverRole) =>
+        val normalizedCheckers = checkerSquares.map(normalize).filter(squareKey).distinct
+        squareKey(kingSquare) &&
+          normalizedCheckers.size >= 2 &&
+          squareKey(moverSquare) &&
+          normalizedCheckers.contains(normalize(moverSquare)) &&
+          normalize(moverRole).nonEmpty
+      case PlayerFacingExactSliceProof.BackRankMate(kingSquare, checkerSquares, matingMove) =>
+        squareKey(kingSquare) &&
+          checkerSquares.map(normalize).filter(squareKey).distinct.nonEmpty &&
+          uciMove(matingMove)
+      case PlayerFacingExactSliceProof.MateNet(kingSquare, checkerSquares, matingMove, patternId) =>
+        squareKey(kingSquare) &&
+          checkerSquares.map(normalize).filter(squareKey).distinct.nonEmpty &&
+          uciMove(matingMove) &&
+          patternId.forall(id => normalize(id).nonEmpty)
+      case PlayerFacingExactSliceProof.GreekGift(bishopSquare, targetSquare, entryMove, patternId) =>
+        squareKey(bishopSquare) &&
+          squareKey(targetSquare) &&
+          normalize(bishopSquare) == normalize(targetSquare) &&
+          uciMove(entryMove) &&
+          uciDestination(entryMove).contains(normalize(bishopSquare)) &&
+          normalize(patternId).nonEmpty
+      case PlayerFacingExactSliceProof.Fork(attackerSquare, attackerRole, targets) =>
+        squareKey(attackerSquare) &&
+          normalize(attackerRole).nonEmpty &&
+          targets
+            .filter(target => squareKey(target.square) && normalize(target.role).nonEmpty)
+            .map(target => normalize(target.square))
+            .distinct
+            .size >= 2
+      case PlayerFacingExactSliceProof.HangingPiece(attackerSquare, targetSquare, attackerRole, targetRole) =>
+        squareKey(attackerSquare) &&
+          squareKey(targetSquare) &&
+          normalize(attackerRole).nonEmpty &&
+          normalize(targetRole).nonEmpty
+      case PlayerFacingExactSliceProof.TrappedPiece(targetSquare, targetRole, attackerSquares, legalEscapeCount) =>
+        squareKey(targetSquare) &&
+          normalize(targetRole).nonEmpty &&
+          attackerSquares.map(normalize).filter(squareKey).distinct.nonEmpty &&
+          legalEscapeCount == 0
+      case PlayerFacingExactSliceProof.Domination(
+            controllerSquare,
+            targetSquare,
+            controllerRole,
+            targetRole,
+            legalMoveCount
+          ) =>
+        squareKey(controllerSquare) &&
+          squareKey(targetSquare) &&
+          normalize(controllerRole).nonEmpty &&
+          normalize(targetRole).nonEmpty &&
+          legalMoveCount >= 0 &&
+          legalMoveCount <= 1
+      case PlayerFacingExactSliceProof.StalemateTrap(kingSquare, trappingMove) =>
+        squareKey(kingSquare) &&
+          uciMove(trappingMove)
+      case PlayerFacingExactSliceProof.PerpetualCheck(kingSquare, checkingMoves, cycleMoves, repeatedPositionPly) =>
+        squareKey(kingSquare) &&
+          checkingMoves.size >= 3 &&
+          checkingMoves.forall(uciMove) &&
+          cycleMoves.size >= 4 &&
+          cycleMoves.forall(uciMove) &&
+          repeatedPositionPly > 0
+      case PlayerFacingExactSliceProof.Zwischenzug(
+            intermediateMove,
+            threatType,
+            responseMove,
+            payoffMove,
+            targetSquare
+          ) =>
+        uciMove(intermediateMove) &&
+          normalize(threatType).nonEmpty &&
+          uciMove(responseMove) &&
+          uciMove(payoffMove) &&
+          squareKey(targetSquare) &&
+          uciDestination(payoffMove).contains(normalize(targetSquare))
+      case PlayerFacingExactSliceProof.Decoy(
+            baitFromSquare,
+            baitSquare,
+            luredFromSquare,
+            executionFromSquare,
+            executionToSquare,
+            baitRole,
+            luredRole
+          ) =>
+        squareKey(baitFromSquare) &&
+          squareKey(baitSquare) &&
+          squareKey(luredFromSquare) &&
+          squareKey(executionFromSquare) &&
+          squareKey(executionToSquare) &&
+          normalize(executionToSquare) == normalize(baitSquare) &&
+          normalize(baitRole).nonEmpty &&
+          normalize(luredRole).nonEmpty
+      case PlayerFacingExactSliceProof.XRay(
+            attackerSquare,
+            blockerSquare,
+            targetSquare,
+            attackerRole,
+            blockerRole,
+            targetRole
+          ) =>
+        squareKey(attackerSquare) &&
+          squareKey(blockerSquare) &&
+          squareKey(targetSquare) &&
+          normalize(attackerRole).nonEmpty &&
+          normalize(blockerRole).nonEmpty &&
+          normalize(targetRole).nonEmpty
+      case PlayerFacingExactSliceProof.Clearance(
+            beneficiarySquare,
+            clearedSquare,
+            targetSquare,
+            beneficiaryRole,
+            clearingTo
+          ) =>
+        squareKey(beneficiarySquare) &&
+          squareKey(clearedSquare) &&
+          squareKey(targetSquare) &&
+          squareKey(clearingTo) &&
+          normalize(beneficiaryRole).nonEmpty
+      case PlayerFacingExactSliceProof.Battery(frontSquare, backSquare, targetSquare, frontRole, backRole, axis) =>
+        squareKey(frontSquare) &&
+          squareKey(backSquare) &&
+          squareKey(targetSquare) &&
+          normalize(frontRole).nonEmpty &&
+          normalize(backRole).nonEmpty &&
+          Set("file", "rank", "diagonal").contains(normalize(axis))
+      case PlayerFacingExactSliceProof.Pin(
+            attackerSquare,
+            pinnedSquare,
+            behindSquare,
+            targetSquare,
+            attackerRole,
+            pinnedRole,
+            behindRole,
+            _
+          ) =>
+        squareKey(attackerSquare) &&
+          squareKey(pinnedSquare) &&
+          squareKey(behindSquare) &&
+          squareKey(targetSquare) &&
+          normalize(targetSquare) == normalize(pinnedSquare) &&
+          normalize(attackerRole).nonEmpty &&
+          normalize(pinnedRole).nonEmpty &&
+          normalize(behindRole).nonEmpty
+      case PlayerFacingExactSliceProof.Skewer(
+            attackerSquare,
+            frontSquare,
+            backSquare,
+            targetSquare,
+            attackerRole,
+            frontRole,
+            backRole
+          ) =>
+        squareKey(attackerSquare) &&
+          squareKey(frontSquare) &&
+          squareKey(backSquare) &&
+          squareKey(targetSquare) &&
+          normalize(targetSquare) == normalize(frontSquare) &&
+          normalize(attackerRole).nonEmpty &&
+          normalize(frontRole).nonEmpty &&
+          normalize(backRole).nonEmpty
+      case PlayerFacingExactSliceProof.Interference(
+            blockerSquare,
+            defenderSquare,
+            targetSquare,
+            blockerRole,
+            defenderRole,
+            targetRole
+          ) =>
+        squareKey(blockerSquare) &&
+          squareKey(defenderSquare) &&
+          squareKey(targetSquare) &&
+          normalize(blockerRole).nonEmpty &&
+          normalize(defenderRole).nonEmpty &&
+          normalize(targetRole).nonEmpty
 
   def targetSquare(proof: PlayerFacingExactSliceProof): Option[String] =
     proof match
@@ -159,6 +532,52 @@ private[commentary] object PlayerFacingExactSliceProofFacts:
       case PlayerFacingExactSliceProof.TargetFocusedCoordination(targetSquare, _, _) =>
         Some(normalize(targetSquare)).filter(squareKey)
       case PlayerFacingExactSliceProof.ColorComplexSqueeze(targetSquare, _, _, _) =>
+        Some(normalize(targetSquare)).filter(squareKey)
+      case PlayerFacingExactSliceProof.DefenderTrade(_, _, targetSquare) =>
+        Some(normalize(targetSquare)).filter(squareKey)
+      case PlayerFacingExactSliceProof.BadPieceLiquidation(_, exchangeSquare) =>
+        Some(normalize(exchangeSquare)).filter(squareKey)
+      case PlayerFacingExactSliceProof.Overload(defenderSquare, _, _) =>
+        Some(normalize(defenderSquare)).filter(squareKey)
+      case PlayerFacingExactSliceProof.Deflection(_, targetSquare, _) =>
+        Some(normalize(targetSquare)).filter(squareKey)
+      case PlayerFacingExactSliceProof.DiscoveredAttack(_, _, targetSquare, _) =>
+        Some(normalize(targetSquare)).filter(squareKey)
+      case PlayerFacingExactSliceProof.DoubleCheck(kingSquare, _, _, _) =>
+        Some(normalize(kingSquare)).filter(squareKey)
+      case PlayerFacingExactSliceProof.BackRankMate(kingSquare, _, _) =>
+        Some(normalize(kingSquare)).filter(squareKey)
+      case PlayerFacingExactSliceProof.MateNet(kingSquare, _, _, _) =>
+        Some(normalize(kingSquare)).filter(squareKey)
+      case PlayerFacingExactSliceProof.GreekGift(_, targetSquare, _, _) =>
+        Some(normalize(targetSquare)).filter(squareKey)
+      case PlayerFacingExactSliceProof.Fork(_, _, targets) =>
+        targets.map(target => normalize(target.square)).find(squareKey)
+      case PlayerFacingExactSliceProof.HangingPiece(_, targetSquare, _, _) =>
+        Some(normalize(targetSquare)).filter(squareKey)
+      case PlayerFacingExactSliceProof.TrappedPiece(targetSquare, _, _, _) =>
+        Some(normalize(targetSquare)).filter(squareKey)
+      case PlayerFacingExactSliceProof.Domination(_, targetSquare, _, _, _) =>
+        Some(normalize(targetSquare)).filter(squareKey)
+      case PlayerFacingExactSliceProof.StalemateTrap(kingSquare, _) =>
+        Some(normalize(kingSquare)).filter(squareKey)
+      case PlayerFacingExactSliceProof.PerpetualCheck(kingSquare, _, _, _) =>
+        Some(normalize(kingSquare)).filter(squareKey)
+      case PlayerFacingExactSliceProof.Zwischenzug(_, _, _, _, targetSquare) =>
+        Some(normalize(targetSquare)).filter(squareKey)
+      case PlayerFacingExactSliceProof.Decoy(_, baitSquare, _, _, _, _, _) =>
+        Some(normalize(baitSquare)).filter(squareKey)
+      case PlayerFacingExactSliceProof.XRay(_, _, targetSquare, _, _, _) =>
+        Some(normalize(targetSquare)).filter(squareKey)
+      case PlayerFacingExactSliceProof.Clearance(_, _, targetSquare, _, _) =>
+        Some(normalize(targetSquare)).filter(squareKey)
+      case PlayerFacingExactSliceProof.Battery(_, _, targetSquare, _, _, _) =>
+        Some(normalize(targetSquare)).filter(squareKey)
+      case PlayerFacingExactSliceProof.Pin(_, _, _, targetSquare, _, _, _, _) =>
+        Some(normalize(targetSquare)).filter(squareKey)
+      case PlayerFacingExactSliceProof.Skewer(_, _, _, targetSquare, _, _, _) =>
+        Some(normalize(targetSquare)).filter(squareKey)
+      case PlayerFacingExactSliceProof.Interference(_, _, targetSquare, _, _, _) =>
         Some(normalize(targetSquare)).filter(squareKey)
       case _ => None
 

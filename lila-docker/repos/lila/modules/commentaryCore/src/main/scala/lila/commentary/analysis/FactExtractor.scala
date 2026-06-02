@@ -3,6 +3,8 @@ package lila.commentary.analysis
 import chess.{ Board, Square, Role, Color }
 import lila.commentary.model._
 import lila.commentary.model.strategic.{ EndgameFeature, RuleOfSquareStatus, EndgameOppositionType, TheoreticalOutcomeHint, RookEndgamePattern as OracleRookPattern }
+import PlanMoveEvidenceSupport.*
+
 
 /**
  * FactExtractor
@@ -214,21 +216,6 @@ object FactExtractor {
     facts.toList.distinct
   }
 
-  private def isPassedPawn(board: Board, pawnSq: Square, color: Color): Boolean = {
-    val oppPawnsByFile = board.byPiece(!color, chess.Pawn).squares.groupBy(_.file)
-    val fileValue = pawnSq.file.value
-    val filesToCheck = List(fileValue - 1, fileValue, fileValue + 1).filter(f => f >= 0 && f <= 7)
-    filesToCheck.forall { idx =>
-      chess.File.all.lift(idx).forall { f =>
-        oppPawnsByFile.get(f).forall { pawns =>
-          pawns.forall { oppPawn =>
-            if (color.white) oppPawn.rank.value <= pawnSq.rank.value
-            else oppPawn.rank.value >= pawnSq.rank.value
-          }
-        }
-      }
-    }
-  }
 
   private def mapMotifToFact(motif: Motif, board: Board, scope: FactScope): Option[Fact] = {
     motif match {
@@ -315,13 +302,4 @@ object FactExtractor {
   private def roleForScope(board: Board, square: Square, fallback: Role, scope: FactScope): Option[Role] =
     if strictNow(scope) then board.roleAt(square)
     else board.roleAt(square).orElse(Some(fallback))
-
-  private def pieceValue(role: Role): Int = role match {
-    case chess.Pawn   => 1
-    case chess.Knight => 3
-    case chess.Bishop => 3
-    case chess.Rook   => 5
-    case chess.Queen  => 9
-    case chess.King   => 0
-  }
 }

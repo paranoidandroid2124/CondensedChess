@@ -284,6 +284,67 @@ class PlanEvidenceEvaluatorTest extends FunSuite:
     )
   }
 
+  test("partition does not reinflate broad plan aliases into admitted subplans") {
+    val backedPlan =
+      hypothesis(
+        id = "PieceActivation",
+        name = "Piece activation",
+        score = 0.74,
+        sources = List("support:engine_hypothesis", "theme:piece_redeployment")
+      )
+    val request = ProbeRequest(
+      id = "probe_support_no_default_subplan",
+      fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
+      moves = List("g1f3"),
+      depth = 18,
+      purpose = Some("theme_plan_validation"),
+      planId = Some("PieceActivation"),
+      requiredSignals = List("replyPvs", "futureSnapshot")
+    )
+    val result = ProbeResult(
+      id = "probe_support_no_default_subplan",
+      evalCp = 24,
+      bestReplyPv = List("g8f6", "e2e4"),
+      replyPvs = Some(List(List("g8f6", "e2e4"))),
+      deltaVsBaseline = 8,
+      keyMotifs = List("piece_activation"),
+      purpose = Some("theme_plan_validation"),
+      futureSnapshot = Some(
+        FutureSnapshot(
+          resolvedThreatKinds = List("Development"),
+          newThreatKinds = Nil,
+          targetsDelta = TargetsDelta(Nil, Nil, Nil, Nil),
+          planBlockersRemoved = List("development_complete"),
+          planPrereqsMet = List("piece_activation_ready")
+        )
+      )
+    )
+
+    val partition =
+      PlanEvidenceEvaluator.partition(
+        hypotheses = List(backedPlan),
+        probeRequests = List(request),
+        validatedProbeResults = validatedResults(request, result),
+        rulePlanIds = Set("pieceactivation"),
+        isWhiteToMove = true,
+        droppedProbeCount = 0
+      )
+
+    val evaluated = partition.evaluated.headOption.getOrElse(fail("missing evaluated plan"))
+    val diagnostic = partition.diagnosticSidecar.entries.headOption.getOrElse(fail("missing diagnostic entry"))
+    assertEquals(evaluated.subplanId, None)
+    assertEquals(evaluated.hypothesis.subplanId, None)
+    assertEquals(diagnostic.subplanId, None)
+    assertEquals(evaluated.planProposal.kindSource, PlanClaimBoundary.PlanKindSource.Missing)
+    assertEquals(evaluated.planProposal.theme, PlanTaxonomy.PlanTheme.PieceRedeployment)
+    assertEquals(PlanEvidenceEvaluator.planKind(evaluated), None)
+    assertEquals(PlanEvidenceEvaluator.planTheme(evaluated), PlanTaxonomy.PlanTheme.PieceRedeployment)
+    val admittedClaim = PlanEvidenceEvaluator.admittedPlanClaim(evaluated).getOrElse(fail("missing admitted claim"))
+    assertEquals(admittedClaim.stage, PlanClaimBoundary.PlanStage.Admitted)
+    assertEquals(admittedClaim.supportProbeIds, List("probe_support_no_default_subplan"))
+    assertEquals(admittedClaim.proposal.supportKind, None)
+  }
+
   test("partition does not attach a probe to another plan by partial name match") {
     val exactPlan =
       hypothesis(

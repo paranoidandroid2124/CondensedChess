@@ -4,6 +4,8 @@ import chess._
 import chess.Bitboard
 import lila.commentary.analysis.BreakFileToken
 import lila.commentary.analysis.MoveReviewExchangeAnalyzer
+import lila.commentary.analysis.PlanMoveEvidenceSupport
+import PlanMoveEvidenceSupport.*
 import lila.commentary.analysis.structure.WeaknessTargetProfile
 import lila.commentary.model._
 import lila.commentary.model.strategic._
@@ -416,7 +418,7 @@ class ActivityAnalyzerImpl extends ActivityAnalyzer {
       if (Set(File.C, File.D, File.E, File.F).contains(sq.file) && Set(Rank.Third, Rank.Fourth, Rank.Fifth, Rank.Sixth).contains(sq.rank))
         0.30
       else 0.0
-    val knightBonus = if (role == Knight && isOutpostSquare(board, sq, color)) 0.35 else 0.0
+    val knightBonus = if (role == Knight && PlanMoveEvidenceSupport.isOutpostSquare(board, sq, color)) 0.35 else 0.0
     val rookBonus =
       if (role == Rook && (isOpenFile(board, sq.file) || isSemiOpenFileFor(board, sq.file, color))) 0.30
       else 0.0
@@ -540,7 +542,7 @@ class ActivityAnalyzerImpl extends ActivityAnalyzer {
       if (Set(File.C, File.D, File.E, File.F).contains(target.file) && Set(Rank.Third, Rank.Fourth, Rank.Fifth, Rank.Sixth).contains(target.rank))
         0.22
       else 0.0
-    val outpostBonus = if (role == Knight && isOutpostSquare(board, target, color)) 0.30 else 0.0
+    val outpostBonus = if (role == Knight && PlanMoveEvidenceSupport.isOutpostSquare(board, target, color)) 0.30 else 0.0
     val rookFileBonus =
       if (role == Rook && (isOpenFile(board, target.file) || isSemiOpenFileFor(board, target.file, color))) 0.25
       else 0.0
@@ -574,21 +576,9 @@ class ActivityAnalyzerImpl extends ActivityAnalyzer {
     }
   }
 
-  private def isOutpostSquare(board: Board, sq: Square, color: Color): Boolean = {
-    val supportedByPawn = board.attackers(sq, color).intersects(board.byPiece(color, Pawn))
-    val attackedByEnemyPawn = board.attackers(sq, !color).intersects(board.byPiece(!color, Pawn))
-    supportedByPawn && !attackedByEnemyPawn
-  }
 
-  private def isOpenFile(board: Board, file: File): Boolean =
-    (board.pawns & Bitboard.file(file)).isEmpty
 
-  private def isSemiOpenFileFor(board: Board, file: File, color: Color): Boolean = {
-    val mask = Bitboard.file(file)
-    val ours = board.pawns & board.byColor(color) & mask
-    val theirs = board.pawns & board.byColor(!color) & mask
-    ours.isEmpty && theirs.nonEmpty
-  }
+
 
   private def isThirdRankLiftSquare(sq: Square, color: Color): Boolean =
     (color.white && sq.rank == Rank.Third) || (!color.white && sq.rank == Rank.Sixth)
@@ -983,14 +973,8 @@ class StructureAnalyzerImpl extends StructureAnalyzer {
     isAttackedBy(board, sq, by)
   }
 
-  private def pieceValue(role: Role): Int = role match {
-    case Pawn => 100
-    case Knight => 300
-    case Bishop => 300
-    case Rook => 500
-    case Queen => 900
-    case King => 0
-  }
+  private def pieceValue(role: Role): Int =
+    if (role == King) 0 else PlanMoveEvidenceSupport.pieceValueCp(role)
 }
 
 class EndgameAnalyzerImpl extends EndgameAnalyzer {
@@ -1242,35 +1226,8 @@ class EndgameAnalyzerImpl extends EndgameAnalyzer {
     math.max(0.0, math.min(1.0, raw))
   }
 
-  private def isPassedPawn(board: Board, pawnSq: Square, color: Color): Boolean = {
-    val oppPawnsByFile = board.byPiece(!color, Pawn).squares.groupBy(_.file)
-    val fileValue = pawnSq.file.value
-    val filesToCheck = List(fileValue - 1, fileValue, fileValue + 1).filter(f => f >= 0 && f <= 7)
-    filesToCheck.forall { idx =>
-      File.all.lift(idx).forall { f =>
-        oppPawnsByFile.get(f).forall { pawns =>
-          pawns.forall { oppPawn =>
-            if (color.white) oppPawn.rank.value <= pawnSq.rank.value else oppPawn.rank.value >= pawnSq.rank.value
-          }
-        }
-      }
-    }
-  }
-
-  private def relativeRank(square: Square, color: Color): Int =
-    if (color.white) square.rank.value + 1 else 8 - square.rank.value
-
-  private def chebyshev(a: Square, b: Square): Int =
-    math.max((a.file.value - b.file.value).abs, (a.rank.value - b.rank.value).abs)
-
-  private def pieceValue(role: Role): Int = role match {
-    case Pawn => 1
-    case Knight => 3
-    case Bishop => 3
-    case Rook => 5
-    case Queen => 9
-    case King => 0
-  }
+  private def pieceValue(role: Role): Int =
+    if (role == King) 0 else PlanMoveEvidenceSupport.pieceValue(role)
 }
 
 class PracticalityScorerImpl extends PracticalityScorer {

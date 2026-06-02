@@ -6,6 +6,7 @@ import chess.variant.Standard
 import lila.commentary.model._
 import lila.commentary.model.authoring._
 import lila.commentary.model.strategic.VariationLine
+import lila.commentary.analysis.PlanMoveEvidenceSupport.*
 import lila.commentary.analysis.PlanTaxonomy.{ PlanTheme, ThemeResolver, SubplanCatalog, PlanKind }
 import lila.commentary.analysis.render.*
 import lila.commentary.analysis.render.FragmentAuthority.{ rawFragmentText, releasedFragmentText, supportFragment }
@@ -330,23 +331,10 @@ object NarrativeOutlineBuilder:
       }
 
   private def themeIdOfHypothesis(plan: PlanHypothesis): String =
-    PlanTheme.fromId(plan.themeL1)
-      .filter(_ != PlanTheme.Unknown)
-      .map(_.id)
-      .getOrElse(ThemeResolver.fromHypothesis(plan).id)
+    PlanClaimBoundary.PlanProposal.fromHypothesis(plan).theme.id
 
   private def subplanIdOfHypothesis(plan: PlanHypothesis): Option[String] =
-    plan.subplanId
-      .flatMap(PlanKind.fromId)
-      .map(_.id)
-      .orElse(ThemeResolver.subplanFromHypothesis(plan).map(_.id))
-
-  private def routeNameRestatesPrimarySubplan(plan: PlanHypothesis): Boolean =
-    val primarySubplan = subplanIdOfHypothesis(plan).flatMap(PlanKind.fromId)
-    primarySubplan.exists { subplan =>
-      ThemeResolver.subplanFromPlanName(plan.planName).contains(subplan) ||
-      ThemeResolver.subplanFromPlanId(plan.planId).contains(subplan)
-    }
+    PlanClaimBoundary.PlanProposal.fromHypothesis(plan).supportKind.map(_.id)
 
   private def primaryStrategicKeys(
       ctx: NarrativeContext,
@@ -354,33 +342,31 @@ object NarrativeOutlineBuilder:
   ): Set[String] =
     val planKeys =
       plans.headOption.toList.flatMap { plan =>
-        val theme = ThemeResolver.fromHypothesis(plan)
-        val subplan = ThemeResolver.subplanFromHypothesis(plan)
+        val proposal = PlanClaimBoundary.PlanProposal.fromHypothesis(plan)
         val directKeys =
           plan.evidenceSources.flatMap(evidenceSemanticKeys) ++
             evidenceSemanticKeys(plan.planName) ++
             evidenceSemanticKeys(plan.planId)
         directKeys ++
-          Option.when(theme != PlanTheme.Unknown)(ThemeResolver.themeTag(theme)) ++
-          subplan.map(ThemeResolver.subplanTag)
+          proposal.fallbackTheme.map(ThemeResolver.themeTag) ++
+          proposal.supportKind.map(ThemeResolver.subplanTag)
       }
     planKeys.toSet
 
   private def evidenceSemanticKeys(raw: String): Set[String] =
     val themeKeys =
-      List(
-        ThemeResolver.fromEvidenceSource(raw),
-        ThemeResolver.fromPlanName(raw),
-        ThemeResolver.fromPlanId(raw),
-        ThemeResolver.fromSeedId(raw)
-      ).filter(_ != PlanTheme.Unknown).map(ThemeResolver.themeTag)
+      ThemeResolver
+        .themeIdFromSupport(raw)
+        .flatMap(PlanTheme.fromId)
+        .filter(_ != PlanTheme.Unknown)
+        .map(ThemeResolver.themeTag)
+        .toList
     val subplanKeys =
-      List(
-        ThemeResolver.subplanFromEvidenceSource(raw),
-        ThemeResolver.subplanFromPlanName(raw),
-        ThemeResolver.subplanFromPlanId(raw),
-        ThemeResolver.subplanFromSeedId(raw)
-      ).flatten.map(ThemeResolver.subplanTag)
+      ThemeResolver
+        .subplanIdFromSupport(raw)
+        .flatMap(PlanKind.fromId)
+        .map(ThemeResolver.subplanTag)
+        .toList
     (themeKeys ++ subplanKeys).toSet
 
   private def renderPreconditions(plan: PlanHypothesis): Option[String] =
@@ -1299,6 +1285,7 @@ object NarrativeOutlineBuilder:
               )
             }.flatten
           val reason = buildConcreteAnnotationIssue(
+            fen = ctx.fen,
             bead = b ^ 0x6d2b79f5,
             playedSan = playedSan,
             playedUci = playedUci,
@@ -2083,11 +2070,7 @@ object NarrativeOutlineBuilder:
       .filter(_.nonEmpty)
       .mkString("|")
 
-  private def isLikelyPawnMove(move: String): Boolean =
-    Option(move).getOrElse("").trim.matches("""^[a-h](?:x[a-h])?[1-8](?:=[QRBN])?[+#]?$""")
 
-  private def isPieceMove(move: String): Boolean =
-    Option(move).getOrElse("").headOption.exists(ch => "KQRBN".contains(ch))
 
   private def buildAlternativesBeat(
     ctx: NarrativeContext,
@@ -2715,13 +2698,11 @@ object NarrativeOutlineBuilder:
         val evalPart = NarrativeLexicon.getEvalSwingAfterMoveStatement(b, mover, moverCp)
 
         val phasePart =
-          d.phaseChange.flatMap { s =>
-            val raw = s.stripPrefix("Transition from ").trim
-            raw.split(" to ", 2).toList match
-              case from :: to :: Nil if from.nonEmpty && to.nonEmpty =>
-                Some(NarrativeLexicon.getPhaseTransitionStatement(b ^ 0x1f1f1f, from, to))
-              case _ => None
-          }
+          for
+            from <- ctx.phase.previous
+            to = ctx.phase.current
+            if from.toLowerCase != to.toLowerCase
+          yield NarrativeLexicon.getPhaseTransitionStatement(b ^ 0x1f1f1f, from, to)
 
         val highlightPart: Option[String] =
           phasePart.orElse {
@@ -2857,6 +2838,7 @@ object NarrativeOutlineBuilder:
       .mkString(" ")
 
   private def buildConcreteAnnotationIssue(
+    fen: String,
     bead: Int,
     playedSan: String,
     playedUci: Option[String],
@@ -2892,7 +2874,7 @@ object NarrativeOutlineBuilder:
             Some(s"Issue: after this, ...$reply gives the opponent a forcing tactical reply.")
           case _ => None
       }.flatten
-    val threatIssue = unresolvedThreatIssue(threatsToUs, playedSan, playedUci, bestSan, bestUci)
+    val threatIssue = unresolvedThreatIssue(fen, threatsToUs, playedSan, playedUci, bestSan, bestUci)
     val factIssue = playedCand.flatMap(c => extractFactConsequence(c, currentPly)).map(s => s"Issue: $s")
     val alertIssue = alert.map(a => s"Issue: ${a.stripSuffix(".")}.")
     val whyNotIssue = whyNot.flatMap(humanizeWhyNot).map(r => s"Issue: $r.")
@@ -2945,6 +2927,7 @@ object NarrativeOutlineBuilder:
     List(cause, linkedConsequence.getOrElse("")).filter(_.trim.nonEmpty).mkString(" ")
 
   private def unresolvedThreatIssue(
+    fen: String,
     threatsToUs: List[ThreatRow],
     playedSan: String,
     playedUci: Option[String],
@@ -2954,8 +2937,8 @@ object NarrativeOutlineBuilder:
     threatsToUs
       .filter(_.lossIfIgnoredCp >= Thresholds.SIGNIFICANT_THREAT_CP)
       .find { t =>
-        val playedHandles = defenseMatches(t.bestDefense, playedSan, playedUci)
-        val bestHandles = defenseMatches(t.bestDefense, bestSan, bestUci)
+        val playedHandles = defenseMatches(fen, t.bestDefense, playedSan, playedUci)
+        val bestHandles = defenseMatches(fen, t.bestDefense, bestSan, bestUci)
         !playedHandles && (bestHandles || t.bestDefense.nonEmpty)
       }
       .map { t =>
@@ -2970,13 +2953,21 @@ object NarrativeOutlineBuilder:
         ))
       }
 
-  private def defenseMatches(bestDefense: Option[String], san: String, uci: Option[String]): Boolean =
+  private def defenseMatches(fen: String, bestDefense: Option[String], san: String, uci: Option[String]): Boolean =
     bestDefense.exists { raw =>
+      val rawClean = raw.trim.replaceAll("""^\d+\.(?:\.\.)?\s*""", "").replaceAll("""^\.{2,}\s*""", "")
+      val optUci = NarrativeUtils.sanToUci(fen, rawClean)
+      val byUciMatch =
+        optUci.exists { defUci =>
+          uci.exists(u => NarrativeUtils.uciEquivalent(u, defUci)) ||
+            NarrativeUtils.sanToUci(fen, san).exists(u => NarrativeUtils.uciEquivalent(u, defUci))
+        }
+
       val defense = normalizeMoveToken(raw)
       val sanNorm = normalizeMoveToken(san)
       val bySan = sanNorm.nonEmpty && (defense == sanNorm || defense.startsWith(sanNorm))
       val byUci = uci.exists(u => defense == normalizeMoveToken(u))
-      bySan || byUci
+      byUciMatch || bySan || byUci
     }
 
   private def normalizeMoveToken(raw: String): String =
@@ -3099,10 +3090,36 @@ object NarrativeOutlineBuilder:
         case None       => ordinaryCanonicalTermForMotif(motif)
 
   private def deferredRelationCanonicalTerm(motif: String): Option[Option[String]] =
-    RelationObservationCatalog.deferredFallbackForMotifTag(motif).map(_.label)
+    if legacyTrappedPieceMotif(motif) then Some(Some("piece mobility"))
+    else if legacyDominationMotif(motif) then Some(Some("key-square restriction"))
+    else if legacyStalemateTrapMotif(motif) then Some(None)
+    else if legacyZwischenzugMotif(motif) then Some(Some("move-order caution"))
+    else if legacyPerpetualCheckMotif(motif) then Some(None)
+    else RelationObservationCatalog.deferredFallbackForMotifTag(motif).map(_.label)
+
+  private def legacyTrappedPieceMotif(motif: String): Boolean =
+    motif == "trapped_piece" ||
+      motif.startsWith("trapped_piece_queen") ||
+      motif.startsWith("trapped_piece_rook")
+
+  private def legacyDominationMotif(motif: String): Boolean =
+    motif == "domination"
+
+  private def legacyStalemateTrapMotif(motif: String): Boolean =
+    motif == "stalemate_trap"
+
+  private def legacyZwischenzugMotif(motif: String): Boolean =
+    motif == "zwischenzug"
+
+  private def legacyPerpetualCheckMotif(motif: String): Boolean =
+    motif == "perpetual_check"
 
   private def tacticalTensionMotif(motif: String): Boolean =
     RelationObservationCatalog.deferredFallbackForMotifTag(motif).isEmpty &&
+      !legacyDominationMotif(motif) &&
+      !legacyStalemateTrapMotif(motif) &&
+      !legacyZwischenzugMotif(motif) &&
+      !legacyPerpetualCheckMotif(motif) &&
       List(
         "mate",
         "sacrifice",
@@ -3122,7 +3139,7 @@ object NarrativeOutlineBuilder:
     else if motif.contains("interference") then Some("interference")
     else if motif.contains("zugzwang") then Some("zugzwang")
     else if motif.contains("smothered_mate") || motif.contains("smothered") then Some("smothered mate")
-    else if motif.contains("trapped_piece") || motif.contains("trapped") then Some("trapped")
+    else if motif.contains("trapped_piece") || motif.contains("trapped") then Some("piece mobility")
     else if motif.contains("prophylaxis") then Some("prophylactic")
     else if motif.contains("isolated_pawn") || motif == "iqp" then Some("isolated")
     else if motif.contains("deflection") then Some("deflection")
@@ -3131,7 +3148,8 @@ object NarrativeOutlineBuilder:
     else if motif.contains("bishop_pair") then Some("bishop pair")
     else if motif.contains("opposite_bishops") || motif.contains("opposite_color_bishops") then Some("opposite-colored bishops")
     else if motif.contains("simplification") then Some("simplification")
-    else if motif.contains("knight_domination") || motif.contains("domination") then Some("dominate")
+    else if motif.contains("knight_domination") then Some("dominate")
+    else if motif.contains("domination") then Some("key-square restriction")
     else if motif.contains("novelty") then Some("novelty")
     else if motif.contains("rook_lift") then Some("rook lift")
     else if motif.contains("stalemate") then Some("stalemate")
@@ -3494,39 +3512,9 @@ object NarrativeOutlineBuilder:
       knights = board.byPiece(color, Knight).count
     )
 
-  private def isPassedPawn(board: Board, pawn: Square, color: Color): Boolean =
-    val enemyPawns = board.byPiece(!color, Pawn).squares
-    enemyPawns.forall { enemy =>
-      val fileClose = (enemy.file.value - pawn.file.value).abs <= 1
-      val blocksForward =
-        if color.white then enemy.rank.value >= pawn.rank.value
-        else enemy.rank.value <= pawn.rank.value
-      !(fileClose && blocksForward)
-    }
 
-  private def relativeRank(square: Square, color: Color): Int =
-    if color.white then square.rank.value + 1 else 8 - square.rank.value
 
-  private def isRookPawn(square: Square): Boolean =
-    square.file == File.A || square.file == File.H
 
-  private def isFlankPawn(square: Square): Boolean =
-    square.file == File.A || square.file == File.B || square.file == File.G || square.file == File.H
-
-  private def promotionSquare(pawn: Square, color: Color): Option[Square] =
-    Square.at(pawn.file.value, if color.white then 7 else 0)
-
-  private def isRookBehindPawn(board: Board, color: Color, pawn: Square): Boolean =
-    board.byPiece(color, Rook).squares.exists { rook =>
-      rook.file == pawn.file &&
-        (if color.white then rook.rank.value < pawn.rank.value else rook.rank.value > pawn.rank.value)
-    }
-
-  private def chebyshev(a: Square, b: Square): Int =
-    math.max((a.file.value - b.file.value).abs, (a.rank.value - b.rank.value).abs)
-
-  private def fileDistance(a: File, b: File): Int =
-    (a.value - b.value).abs
 
 
   private def collectDerivedContextMotifs(ctx: NarrativeContext): List[String] =

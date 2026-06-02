@@ -187,13 +187,17 @@ class StrategicSemanticObservationPipelineTest extends FunSuite:
         semantic.copy(board = None, structuralWeaknesses = Nil)
       )
 
-    assert(
-      ideas.exists(idea =>
+    val overloadIdea =
+      ideas.find(idea =>
         idea.kind == StrategicIdeaKind.FavorableTradeOrTransformation &&
           idea.evidenceRefs.contains("source:overload_relation") &&
           idea.evidenceRefs.contains("overload_semantic")
-      ),
-      clues(ideas)
+      )
+    assert(overloadIdea.nonEmpty, clues(ideas))
+    assertEquals(
+      overloadIdea.map(StrategicIdeaSelector.playerFacingIdeaText),
+      Some("the defender on f6 is overloaded across d5 and h7 under pressure from d3"),
+      clues(overloadIdea)
     )
 
     val doubleCheckFen = "4k3/8/8/8/4N3/8/8/4R1K1 w - - 0 1"
@@ -214,15 +218,19 @@ class StrategicSemanticObservationPipelineTest extends FunSuite:
     assert(doubleCheck.exists(_.wireEvidenceRefs.contains("king:e8")), clues(doubleCheck))
 
     val doubleCheckIdeas = StrategicIdeaSelector.select(StrategyPack(sideToMove = "white"), doubleCheckSemantic)
-    assert(
-      doubleCheckIdeas.exists(idea =>
+    val doubleCheckIdea =
+      doubleCheckIdeas.find(idea =>
         idea.kind == StrategicIdeaKind.FavorableTradeOrTransformation &&
           idea.relationKind.contains(MoveReviewExchangeAnalyzer.RelationKind.DoubleCheck) &&
           idea.targetSquare.contains("e8") &&
           idea.evidenceRefs.contains("source:double_check_relation") &&
           idea.evidenceRefs.contains("double_check_semantic")
-      ),
-      clues(doubleCheckIdeas)
+      )
+    assert(doubleCheckIdea.nonEmpty, clues(doubleCheckIdeas))
+    assertEquals(
+      doubleCheckIdea.map(StrategicIdeaSelector.playerFacingIdeaText),
+      Some("knight on f6 gives double check on the king on e8 from e1 and f6"),
+      clues(doubleCheckIdea)
     )
 
     val backRankMateFen = "6k1/5ppp/8/8/8/8/8/4R1K1 w - - 0 1"
@@ -339,13 +347,18 @@ class StrategicSemanticObservationPipelineTest extends FunSuite:
     assert(fork.exists(_.wireEvidenceRefs.contains("target:h4:queen")), clues(fork))
 
     val forkIdeas = StrategicIdeaSelector.select(StrategyPack(sideToMove = "white"), forkSemantic)
-    assert(
-      forkIdeas.exists(idea =>
+    val forkIdea =
+      forkIdeas.find(idea =>
         idea.kind == StrategicIdeaKind.FavorableTradeOrTransformation &&
           idea.evidenceRefs.contains("source:fork_relation") &&
           idea.evidenceRefs.contains("fork_semantic")
-      ),
-      clues(forkIdeas)
+      )
+    assert(forkIdea.nonEmpty, clues(forkIdeas))
+    assertEquals(forkIdea.flatMap(_.relationSupport).map(_.targetRoles), Some(List("queen", "rook")), clues(forkIdea))
+    assertEquals(
+      forkIdea.map(StrategicIdeaSelector.playerFacingIdeaText),
+      Some("knight on f5 forks the queen on h4 and the rook on e7"),
+      clues(forkIdea)
     )
 
     val hangingFen = "k7/8/8/5b2/2B5/8/8/6K1 w - - 0 1"
@@ -493,6 +506,12 @@ class StrategicSemanticObservationPipelineTest extends FunSuite:
     assert(xrayIdea.nonEmpty, clues(ideas))
     assertEquals(xrayIdea.flatMap(_.relationKind), Some(MoveReviewExchangeAnalyzer.RelationKind.XRay), clues(ideas))
     assertEquals(xrayIdea.map(_.evidenceRefs.take(2)), Some(List("source:xray_relation", "xray_semantic")), clues(ideas))
+    assertEquals(xrayIdea.map(StrategicIdeaSelector.focusSummary), Some("x-ray line e4-f5-g6"), clues(xrayIdea))
+    assertEquals(
+      xrayIdea.map(StrategicIdeaSelector.playerFacingIdeaText),
+      Some("the line runs from e4 through f5 toward g6"),
+      clues(xrayIdea)
+    )
 
     val xrayTargetMismatch =
       xraySemantic.copy(
@@ -599,13 +618,18 @@ class StrategicSemanticObservationPipelineTest extends FunSuite:
     assert(pin.exists(_.wireEvidenceRefs.contains("absolute_pin")), clues(pin))
 
     val pinIdeas = StrategicIdeaSelector.select(StrategyPack(sideToMove = "black"), pinSemantic)
-    assert(
-      pinIdeas.exists(idea =>
+    val pinIdea =
+      pinIdeas.find(idea =>
         idea.kind == StrategicIdeaKind.LineOccupation &&
           idea.evidenceRefs.contains("source:pin_relation") &&
           idea.evidenceRefs.contains("pin_semantic")
-      ),
-      clues(pinIdeas)
+      )
+    assert(pinIdea.nonEmpty, clues(pinIdeas))
+    assertEquals(pinIdea.map(StrategicIdeaSelector.focusSummary), Some("pin b4-c3-e1"), clues(pinIdea))
+    assertEquals(
+      pinIdea.map(StrategicIdeaSelector.playerFacingIdeaText),
+      Some("absolute pin: the attacker on b4 pins the knight on c3 to the king behind on e1"),
+      clues(pinIdea)
     )
 
     val skewerFen = "r6k/8/8/8/8/8/7K/4Q2R b - - 0 1"
@@ -707,12 +731,17 @@ class StrategicSemanticObservationPipelineTest extends FunSuite:
     assert(decoy.exists(_.wireEvidenceRefs.contains("lured_from:d5")), clues(decoy))
 
     val ideas = StrategicIdeaSelector.select(StrategyPack(sideToMove = "white"), semantic)
-    assert(
-      ideas.exists(idea =>
+    val decoyIdea =
+      ideas.find(idea =>
         idea.kind == StrategicIdeaKind.FavorableTradeOrTransformation &&
           idea.evidenceRefs.contains("source:decoy_relation") &&
           idea.evidenceRefs.contains("decoy_semantic")
-      ),
-      clues(ideas)
+      )
+    assert(decoyIdea.nonEmpty, clues(ideas))
+    assertEquals(decoyIdea.map(StrategicIdeaSelector.focusSummary), Some("decoy on d3"), clues(decoyIdea))
+    assertEquals(
+      decoyIdea.map(StrategicIdeaSelector.playerFacingIdeaText),
+      Some("the knight bait on d3 draws the queen from d5 before e2-d3"),
+      clues(decoyIdea)
     )
   }

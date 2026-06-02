@@ -1854,7 +1854,30 @@ object NarrativeLexicon {
   }
 
   private def deferredMotifDeltaLabel(rawMotif: String): Option[Option[String]] =
-    RelationObservationCatalog.deferredFallbackForMotifTag(rawMotif).map(_.label)
+    if legacyTrappedPieceMotif(rawMotif) then Some(Some("piece mobility"))
+    else if legacyDominationMotif(rawMotif) then Some(Some("key-square restriction"))
+    else if legacyStalemateTrapMotif(rawMotif) then Some(None)
+    else if legacyZwischenzugMotif(rawMotif) then Some(Some("move-order caution"))
+    else if legacyPerpetualCheckMotif(rawMotif) then Some(None)
+    else RelationObservationCatalog.deferredFallbackForMotifTag(rawMotif).map(_.label)
+
+  private def legacyTrappedPieceMotif(rawMotif: String): Boolean =
+    val normalized = normalizeMotifTag(rawMotif)
+    normalized == "trapped_piece" ||
+      normalized.startsWith("trapped_piece_queen") ||
+      normalized.startsWith("trapped_piece_rook")
+
+  private def legacyDominationMotif(rawMotif: String): Boolean =
+    normalizeMotifTag(rawMotif) == "domination"
+
+  private def legacyStalemateTrapMotif(rawMotif: String): Boolean =
+    normalizeMotifTag(rawMotif) == "stalemate_trap"
+
+  private def legacyZwischenzugMotif(rawMotif: String): Boolean =
+    normalizeMotifTag(rawMotif) == "zwischenzug"
+
+  private def legacyPerpetualCheckMotif(rawMotif: String): Boolean =
+    normalizeMotifTag(rawMotif) == "perpetual_check"
 
   private val motifPrefixSignals: Set[String] = Set(
     "bad_bishop",
@@ -1934,6 +1957,11 @@ object NarrativeLexicon {
   def isMotifPrefixSignal(rawMotif: String): Boolean =
     val normalized = normalizeMotifTag(rawMotif)
     normalized.nonEmpty &&
+      !legacyTrappedPieceMotif(normalized) &&
+      !legacyDominationMotif(normalized) &&
+      !legacyStalemateTrapMotif(normalized) &&
+      !legacyZwischenzugMotif(normalized) &&
+      !legacyPerpetualCheckMotif(normalized) &&
       RelationObservationCatalog.deferredFallbackForMotifTag(normalized).isEmpty &&
       motifPrefixSignals.exists(sig => motifMatches(normalized, sig))
 

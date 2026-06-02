@@ -7,6 +7,7 @@ import chess.Color
 import lila.commentary.analysis.PositionFeatures
 import lila.commentary.analysis.PositionAnalyzer
 import lila.commentary.model.Motif
+import lila.commentary.analysis.PlanMoveEvidenceSupport.*
 
 /**
  * Break & Pawn Play Analyzer
@@ -392,11 +393,6 @@ object BreakAnalyzer:
   private def colorMatches(motifColor: Color, isWhite: Boolean): Boolean =
     (isWhite && motifColor == Color.White) || (!isWhite && motifColor == Color.Black)
 
-  private def isCentralFile(file: File): Boolean =
-    file == File.C || file == File.D || file == File.E || file == File.F
-
-  private def relativeRank(square: Square, color: Color): Int =
-    if color.white then square.rank.value + 1 else 8 - square.rank.value
 
   private def fileOpennessBonus(board: Board, file: File): Int =
     val fileMask = Bitboard.file(file)

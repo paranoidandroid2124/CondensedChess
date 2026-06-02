@@ -543,8 +543,9 @@ class ProofContractRulesTest extends FunSuite:
     assert(!contract.certifiedEligible, clues(contract))
     assert(contract.supportedLocalEligible, clues(contract))
     assert(contract.acceptedSources.contains(PlayerFacingTruthModePolicy.DefenderTradeProofSource), clues(contract))
-    assert(contract.acceptedSources.contains("exchange_forcing_delta"), clues(contract))
+    assert(!contract.acceptedSources.contains("exchange_forcing_delta"), clues(contract))
     assert(contract.requiredWitnesses.contains(ProofWitness.StructureTransition), clues(contract))
+    assert(contract.requiredWitnesses.contains(ProofWitness.ExactSlice), clues(contract))
     assert(!contract.id.toLowerCase.contains("source-"), clues(contract))
     assert(!contract.acceptedSources.exists(_.toLowerCase.contains("source-")), clues(contract))
   }
@@ -560,6 +561,207 @@ class ProofContractRulesTest extends FunSuite:
     assert(contract.supportedLocalEligible, clues(contract))
     assert(contract.acceptedSources.contains(PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource), clues(contract))
     assert(contract.requiredWitnesses.contains(ProofWitness.StructureTransition), clues(contract))
+    assert(contract.requiredWitnesses.contains(ProofWitness.ExactSlice), clues(contract))
+  }
+
+  test("relation transformation contracts require typed exact-slice relation proof") {
+    val defender =
+      relationTransformationPacket(
+        proofSource = PlayerFacingTruthModePolicy.DefenderTradeProofSource,
+        proofFamily = PlanTaxonomy.PlanKind.DefenderTrade.id,
+        proof = Some(PlayerFacingExactSliceProof.DefenderTrade("d4", "e5", "c5"))
+      )
+    val missingDefenderProof =
+      defender.copy(proofPathWitness = defender.proofPathWitness.copy(exactSliceProof = None))
+    val mismatchedDefenderProof =
+      defender.copy(
+        proofPathWitness =
+          defender.proofPathWitness.copy(
+            exactSliceProof = Some(PlayerFacingExactSliceProof.BadPieceLiquidation("c1", "e3"))
+          )
+      )
+    val badPiece =
+      relationTransformationPacket(
+        proofSource = PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource,
+        proofFamily = PlanTaxonomy.PlanKind.BadPieceLiquidation.id,
+        proof = Some(PlayerFacingExactSliceProof.BadPieceLiquidation("c1", "e3"))
+      )
+    val overload =
+      relationTransformationPacket(
+        proofSource = ProofSourceId.RelationTransformation.wireKey,
+        proofFamily = ProofFamilyId.RelationTransformation.wireKey,
+        proof = Some(PlayerFacingExactSliceProof.Overload("f6", List("d5", "h7"), "d3"))
+      )
+    val deflection =
+      relationTransformationPacket(
+        proofSource = ProofSourceId.RelationTransformation.wireKey,
+        proofFamily = ProofFamilyId.RelationTransformation.wireKey,
+        proof = Some(PlayerFacingExactSliceProof.Deflection("f8", "g7", "a3"))
+      )
+    val discovered =
+      relationTransformationPacket(
+        proofSource = ProofSourceId.RelationTransformation.wireKey,
+        proofFamily = ProofFamilyId.RelationTransformation.wireKey,
+        proof = Some(PlayerFacingExactSliceProof.DiscoveredAttack("b1", "d3", "h7", "bishop"))
+      )
+    val fork =
+      relationTransformationPacket(
+        proofSource = ProofSourceId.RelationTransformation.wireKey,
+        proofFamily = ProofFamilyId.RelationTransformation.wireKey,
+        proof =
+          Some(
+            PlayerFacingExactSliceProof.Fork(
+              attackerSquare = "f5",
+              attackerRole = "knight",
+              targets =
+                List(
+                  PlayerFacingExactSliceProof.TargetPiece("h4", "queen"),
+                  PlayerFacingExactSliceProof.TargetPiece("e7", "rook")
+                )
+            )
+          )
+      )
+    val hanging =
+      relationTransformationPacket(
+        proofSource = ProofSourceId.RelationTransformation.wireKey,
+        proofFamily = ProofFamilyId.RelationTransformation.wireKey,
+        proof = Some(PlayerFacingExactSliceProof.HangingPiece("d3", "f5", "bishop", "bishop"))
+      )
+    val trapped =
+      relationTransformationPacket(
+        proofSource = ProofSourceId.RelationTransformation.wireKey,
+        proofFamily = ProofFamilyId.RelationTransformation.wireKey,
+        proof = Some(PlayerFacingExactSliceProof.TrappedPiece("a8", "knight", List("a1"), 0))
+      )
+    val domination =
+      relationTransformationPacket(
+        proofSource = ProofSourceId.RelationTransformation.wireKey,
+        proofFamily = ProofFamilyId.RelationTransformation.wireKey,
+        proof = Some(PlayerFacingExactSliceProof.Domination("a1", "a8", "rook", "knight", 1))
+      )
+    val zwischenzug =
+      relationTransformationPacket(
+        proofSource = ProofSourceId.RelationTransformation.wireKey,
+        proofFamily = ProofFamilyId.RelationTransformation.wireKey,
+        proof = Some(PlayerFacingExactSliceProof.Zwischenzug("e1e8", "check", "g8h7", "e8h5", "h5"))
+      )
+    val decoy =
+      relationTransformationPacket(
+        proofSource = ProofSourceId.RelationTransformation.wireKey,
+        proofFamily = ProofFamilyId.RelationTransformation.wireKey,
+        proof = Some(PlayerFacingExactSliceProof.Decoy("f4", "d3", "d5", "e2", "d3", "knight", "queen"))
+      )
+    val xray =
+      relationTransformationPacket(
+        proofSource = ProofSourceId.RelationTransformation.wireKey,
+        proofFamily = ProofFamilyId.RelationTransformation.wireKey,
+        proof = Some(PlayerFacingExactSliceProof.XRay("e4", "f5", "g6", "bishop", "knight", "queen"))
+      )
+    val clearance =
+      relationTransformationPacket(
+        proofSource = ProofSourceId.RelationTransformation.wireKey,
+        proofFamily = ProofFamilyId.RelationTransformation.wireKey,
+        proof = Some(PlayerFacingExactSliceProof.Clearance("b1", "d3", "h7", "bishop", "f4"))
+      )
+    val battery =
+      relationTransformationPacket(
+        proofSource = ProofSourceId.RelationTransformation.wireKey,
+        proofFamily = ProofFamilyId.RelationTransformation.wireKey,
+        proof = Some(PlayerFacingExactSliceProof.Battery("d3", "b1", "h7", "queen", "bishop", "diagonal"))
+      )
+    val pin =
+      relationTransformationPacket(
+        proofSource = ProofSourceId.RelationTransformation.wireKey,
+        proofFamily = ProofFamilyId.RelationTransformation.wireKey,
+        proof = Some(PlayerFacingExactSliceProof.Pin("b4", "c3", "e1", "c3", "bishop", "knight", "king", true))
+      )
+    val skewer =
+      relationTransformationPacket(
+        proofSource = ProofSourceId.RelationTransformation.wireKey,
+        proofFamily = ProofFamilyId.RelationTransformation.wireKey,
+        proof = Some(PlayerFacingExactSliceProof.Skewer("a1", "e1", "h1", "e1", "rook", "queen", "rook"))
+      )
+    val interference =
+      relationTransformationPacket(
+        proofSource = ProofSourceId.RelationTransformation.wireKey,
+        proofFamily = ProofFamilyId.RelationTransformation.wireKey,
+        proof = Some(PlayerFacingExactSliceProof.Interference("d6", "d8", "d5", "knight", "rook", "queen"))
+      )
+    val doubleCheck =
+      relationTransformationPacket(
+        proofSource = ProofSourceId.RelationTransformation.wireKey,
+        proofFamily = ProofFamilyId.RelationTransformation.wireKey,
+        proof = Some(PlayerFacingExactSliceProof.DoubleCheck("e8", List("e1", "f6"), "f6", "knight"))
+      )
+    val backRankMate =
+      relationTransformationPacket(
+        proofSource = ProofSourceId.RelationTransformation.wireKey,
+        proofFamily = ProofFamilyId.RelationTransformation.wireKey,
+        proof = Some(PlayerFacingExactSliceProof.BackRankMate("g8", List("e8"), "e1e8"))
+      )
+    val mateNet =
+      relationTransformationPacket(
+        proofSource = ProofSourceId.RelationTransformation.wireKey,
+        proofFamily = ProofFamilyId.RelationTransformation.wireKey,
+        proof = Some(PlayerFacingExactSliceProof.MateNet("h8", List("f7"), "h6f7", Some("smothered_mate")))
+      )
+    val greekGift =
+      relationTransformationPacket(
+        proofSource = ProofSourceId.RelationTransformation.wireKey,
+        proofFamily = ProofFamilyId.RelationTransformation.wireKey,
+        proof = Some(PlayerFacingExactSliceProof.GreekGift("h7", "h7", "d3h7", "greek_gift"))
+      )
+    val stalemateTrap =
+      relationTransformationPacket(
+        proofSource = ProofSourceId.RelationTransformation.wireKey,
+        proofFamily = ProofFamilyId.RelationTransformation.wireKey,
+        proof = Some(PlayerFacingExactSliceProof.StalemateTrap("h8", "g5g6"))
+      )
+    val perpetualCheck =
+      relationTransformationPacket(
+        proofSource = ProofSourceId.RelationTransformation.wireKey,
+        proofFamily = ProofFamilyId.RelationTransformation.wireKey,
+        proof =
+          Some(
+            PlayerFacingExactSliceProof.PerpetualCheck(
+              kingSquare = "h7",
+              checkingMoves = List("e1e8", "e8h5", "h5e8", "e8h5"),
+              cycleMoves = List("e8h5", "h7g8", "h5e8", "g8h7", "e8h5"),
+              repeatedPositionPly = 7
+            )
+          )
+      )
+
+    assertEquals(ProofContractRules.failureCodes(defender), Nil)
+    assertEquals(ProofContractRules.failureCodes(badPiece), Nil)
+    assertEquals(ProofContractRules.failureCodes(overload), Nil)
+    assertEquals(ProofContractRules.failureCodes(deflection), Nil)
+    assertEquals(ProofContractRules.failureCodes(discovered), Nil)
+    assertEquals(ProofContractRules.failureCodes(fork), Nil)
+    assertEquals(ProofContractRules.failureCodes(hanging), Nil)
+    assertEquals(ProofContractRules.failureCodes(trapped), Nil)
+    assertEquals(ProofContractRules.failureCodes(domination), Nil)
+    assertEquals(ProofContractRules.failureCodes(zwischenzug), Nil)
+    assertEquals(ProofContractRules.failureCodes(decoy), Nil)
+    assertEquals(ProofContractRules.failureCodes(xray), Nil)
+    assertEquals(ProofContractRules.failureCodes(clearance), Nil)
+    assertEquals(ProofContractRules.failureCodes(battery), Nil)
+    assertEquals(ProofContractRules.failureCodes(pin), Nil)
+    assertEquals(ProofContractRules.failureCodes(skewer), Nil)
+    assertEquals(ProofContractRules.failureCodes(interference), Nil)
+    assertEquals(ProofContractRules.failureCodes(doubleCheck), Nil)
+    assertEquals(ProofContractRules.failureCodes(backRankMate), Nil)
+    assertEquals(ProofContractRules.failureCodes(mateNet), Nil)
+    assertEquals(ProofContractRules.failureCodes(greekGift), Nil)
+    assertEquals(ProofContractRules.failureCodes(stalemateTrap), Nil)
+    assertEquals(ProofContractRules.failureCodes(perpetualCheck), Nil)
+    assert(ProofContractRules.failureCodes(missingDefenderProof).contains("witness:exact_slice_missing"))
+    assert(ProofContractRules.failureCodes(mismatchedDefenderProof).contains("witness:exact_slice_missing"))
+    assert(
+      ProofContractRules
+        .failureCodes(overload.copy(proofSource = ProofSourceId.ExchangeForcingDelta.wireKey))
+        .contains("contract:source_not_accepted")
+    )
   }
 
   private def exactSliceContractPacket(
@@ -584,6 +786,31 @@ class ProofContractRulesTest extends FunSuite:
           ownerSeedTerms = List("c6", "fixed_target:c6"),
           continuationTerms = List("h4f2|b7b5"),
           structureTransitionTerms = List("exact_slice_test"),
+          exactSliceProof = proof
+        )
+    )
+
+  private def relationTransformationPacket(
+      proofSource: String,
+      proofFamily: String,
+      proof: Option[PlayerFacingExactSliceProof]
+  ): PlayerFacingClaimPacket =
+    PlayerFacingClaimPacket(
+      proofSource = proofSource,
+      proofFamily = proofFamily,
+      scope = PlayerFacingPacketScope.MoveLocal,
+      triggerKind = proofFamily,
+      anchorTerms = List("d4", "e5", "c5"),
+      bestDefenseMove = Some("d4e5"),
+      bestDefenseBranchKey = Some("d4e5|c6e5"),
+      sameBranchState = PlayerFacingSameBranchState.Proven,
+      persistence = PlayerFacingClaimPersistence.Stable,
+      fallbackMode = PlayerFacingClaimFallbackMode.WeakMain,
+      proofPathWitness =
+        PlayerFacingProofPathWitness(
+          ownerSeedTerms = List("d4", "e5", "c5"),
+          continuationTerms = List("d4e5", "c6e5"),
+          structureTransitionTerms = List("relation_transform"),
           exactSliceProof = proof
         )
     )

@@ -18,14 +18,14 @@ class PlanTaxonomyTest extends FunSuite:
     assertEquals(ThemeResolver.subplanFromSeed(seed("OpenFile_Doubling")), Some(PlanKind.OpenFilePressure))
   }
 
-  test("subplanFromEvidenceSource resolves structural-state aliases") {
+  test("subplanFromEvidenceSource resolves only concrete structural-state aliases") {
     assertEquals(
       ThemeResolver.subplanFromEvidenceSource("structural_state:entrenched_piece"),
       Some(PlanKind.OutpostEntrenchment)
     )
     assertEquals(
       ThemeResolver.subplanFromEvidenceSource("structural_state:generic_center_plan"),
-      Some(PlanKind.CentralBreakTiming)
+      None
     )
   }
 

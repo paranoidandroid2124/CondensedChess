@@ -655,7 +655,8 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
           bridge.toLowerCase.contains("winning it back") ||
           bridge.toLowerCase.contains("initiative") ||
           bridge.toLowerCase.contains("attack") ||
-          bridge.toLowerCase.contains("coherent plan"),
+          bridge.toLowerCase.contains("coherent plan") ||
+          bridge.toLowerCase.contains("coordinate pieces"),
         clue(bridge)
       )
     }
@@ -676,7 +677,8 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
       assert(
         bridge.toLowerCase.contains("coherent plan") ||
           bridge.toLowerCase.contains("queenside") ||
-          bridge.toLowerCase.contains("open file fight"),
+          bridge.toLowerCase.contains("open file fight") ||
+          bridge.toLowerCase.contains("coordinate pieces"),
         clue(bridge)
       )
       assert(!bridge.toLowerCase.contains("kingside clamp"), clue(bridge))

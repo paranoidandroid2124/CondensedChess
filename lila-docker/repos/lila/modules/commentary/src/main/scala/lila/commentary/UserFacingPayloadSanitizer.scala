@@ -86,11 +86,11 @@ object UserFacingPayloadSanitizer:
   private def sanitizePlanHypothesis(plan: PlanHypothesis): PlanHypothesis =
     plan.copy(
       planName = clean(plan.planName),
-      preconditions = cleanList(plan.preconditions),
-      executionSteps = cleanList(plan.executionSteps),
-      failureModes = cleanList(plan.failureModes),
-      viability = plan.viability.copy(risk = clean(plan.viability.risk)),
-      refutation = cleanOpt(plan.refutation),
+      preconditions = cleanPlanDetailList(plan.preconditions),
+      executionSteps = cleanPlanDetailList(plan.executionSteps),
+      failureModes = cleanPlanDetailList(plan.failureModes),
+      viability = plan.viability.copy(risk = cleanPlanDetail(plan.viability.risk).getOrElse("")),
+      refutation = plan.refutation.flatMap(cleanPlanDetail),
       evidenceSources = Nil
     )
 
@@ -112,7 +112,7 @@ object UserFacingPayloadSanitizer:
         pieceMoveRefs = pack.pieceMoveRefs.map(sanitizePieceMoveRef),
         directionalTargets = pack.directionalTargets.map(sanitizeDirectionalTarget),
         strategicIdeas = Nil,
-        longTermFocus = cleanList(pack.longTermFocus),
+        longTermFocus = cleanPlanDetailList(pack.longTermFocus),
         evidence = cleanPublicEvidenceList(pack.evidence),
         signalDigest = pack.signalDigest.map(sanitizeSignalDigest)
       )
@@ -121,8 +121,8 @@ object UserFacingPayloadSanitizer:
   private def sanitizeSidePlan(plan: StrategySidePlan): StrategySidePlan =
     plan.copy(
       planName = clean(plan.planName),
-      priorities = cleanList(plan.priorities),
-      riskTriggers = cleanList(plan.riskTriggers)
+      priorities = cleanPlanDetailList(plan.priorities),
+      riskTriggers = cleanPlanDetailList(plan.riskTriggers)
     )
 
   private def sanitizePieceRoute(route: StrategyPieceRoute): StrategyPieceRoute =
@@ -149,7 +149,26 @@ object UserFacingPayloadSanitizer:
     cleanList(values).filterNot(deferredRelationEvidenceLeak)
 
   private def deferredRelationEvidenceLeak(value: String): Boolean =
-    RelationObservationCatalog.deferredFallbackForMotifTag(value).nonEmpty
+    RelationObservationCatalog.deferredFallbackForMotifTag(value).nonEmpty ||
+      legacyRelationEvidenceLeak(value)
+
+  private def legacyRelationEvidenceLeak(value: String): Boolean =
+    val normalized =
+      Option(value).getOrElse("").trim.toLowerCase
+        .replaceAll("[^a-z0-9]+", "_")
+        .replaceAll("_+", "_")
+        .stripPrefix("_")
+        .stripSuffix("_")
+    normalized == "trapped_piece" ||
+      normalized == "trapped_piece_signal" ||
+      normalized.startsWith("trapped_piece_queen") ||
+      normalized.startsWith("trapped_piece_rook") ||
+      normalized == "domination" ||
+      normalized == "stalemate_trap" ||
+      normalized == "zwischenzug" ||
+      normalized.startsWith("zwischenzug_") ||
+      normalized == "perpetual_check" ||
+      normalized.startsWith("perpetual_check_")
 
   private def sanitizeSignalDigest(digest: NarrativeSignalDigest): NarrativeSignalDigest =
     digest.copy(
@@ -262,11 +281,11 @@ object UserFacingPayloadSanitizer:
       confidence = clean(interpretation.confidence)
     )
 
-  private def sanitizeMoveReviewPlayerSurface(surface: MoveReviewPlayerSurface): MoveReviewPlayerSurface =
+  def sanitizeMoveReviewPlayerSurface(surface: MoveReviewPlayerSurface): MoveReviewPlayerSurface =
     surface.copy(
-      schema = clean(surface.schema),
+      schema = "chesstory.move_review.player_surface.v2",
       title = cleanOpt(surface.title),
-      summaryRows = surface.summaryRows.flatMap(row => sanitizeMoveReviewPlayerSurfaceRow(row, allowStrategicRelation = false)),
+      summaryRows = surface.summaryRows.flatMap(row => sanitizeMoveReviewPlayerSurfaceRow(row, allowStrategicRelation = true)),
       advancedRows = surface.advancedRows.flatMap(row => sanitizeMoveReviewPlayerSurfaceRow(row, allowStrategicRelation = true)),
       decisionComparison = surface.decisionComparison.map(sanitizeMoveReviewPlayerDecisionComparison),
       probeRows = surface.probeRows.flatMap(row => sanitizeMoveReviewPlayerSurfaceRow(row, allowStrategicRelation = false)),
@@ -519,3 +538,9 @@ object UserFacingPayloadSanitizer:
 
   private def cleanList(values: List[String]): List[String] =
     values.map(clean).map(_.trim).filter(_.nonEmpty)
+
+  private def cleanPlanDetail(value: String): Option[String] =
+    UserFacingSignalSanitizer.sanitizePlanDetail(value)
+
+  private def cleanPlanDetailList(values: List[String]): List[String] =
+    UserFacingSignalSanitizer.sanitizePlanDetailList(values)

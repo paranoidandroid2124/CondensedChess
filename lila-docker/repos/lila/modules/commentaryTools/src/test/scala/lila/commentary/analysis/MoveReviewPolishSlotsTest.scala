@@ -1016,7 +1016,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
         strategyPack = shellOnlyPack
       )
 
-    assertExactFactualFallback(slots, "This captures the pawn on b4.")
+    assertExactFactualFallback(slots, "This puts the rook on c3.")
   }
 
   test("only-move defense stays support-only when no move-review-safe WhyNow surface survives") {
@@ -1198,7 +1198,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
         strategyPack = None
       )
 
-    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "The strategic plan is to activate the pieces and find more active squares for them.")
+    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "This captures on c6.")
     assertEquals(slots.paragraphPlan, List("p1=claim"))
   }
 
@@ -1459,7 +1459,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
         strategyPack = None
       )
 
-    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "The strategic plan is to activate the pieces and find more active squares for them.")
+    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "This captures.")
     assertEquals(slots.paragraphPlan, List("p1=claim"))
   }
 
@@ -1497,7 +1497,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     assertEquals(rankedPlans.primary, None, clues(rankedPlans))
     assertEquals(rankedPlans.ownerTrace.selectedQuestion, None, clues(rankedPlans.ownerTrace))
     assertEquals(rankedPlans.ownerTrace.selectedPlannerOwnerKind, None, clues(rankedPlans.ownerTrace))
-    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "The strategic plan is to activate the pieces and find more active squares for them.")
+    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "This puts the rook on c3.")
     assertEquals(slots.supportPrimary, None)
     assertEquals(slots.supportSecondary, None)
     assertEquals(slots.paragraphPlan, List("p1=claim"))
@@ -1653,6 +1653,6 @@ class MoveReviewPolishSlotsTest extends FunSuite:
       MoveReviewPolishSlotsBuilder.buildOrFallback(ctx, outline, refs = refs, strategyPack = None)
 
     val claim = MoveReviewProseContract.stripMoveHeader(slots.claim)
-    assertEquals(claim, "The strategic plan is to activate the pieces and find more active squares for them.")
+    assertEquals(claim, "This puts the rook on c3.")
     assertEquals(slots.evidenceHook, None)
   }

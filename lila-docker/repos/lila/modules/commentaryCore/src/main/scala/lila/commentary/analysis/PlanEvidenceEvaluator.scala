@@ -93,6 +93,7 @@ object PlanEvidenceEvaluator:
       pvCoupled: Boolean = false,
       themeL1: String = PlanTheme.Unknown.id,
       subplanId: Option[String] = None,
+      planProposal: PlanClaimBoundary.PlanProposal = PlanClaimBoundary.PlanProposal.empty,
       claimCertification: ClaimCertification = ClaimCertification()
   )
 
@@ -119,6 +120,42 @@ object PlanEvidenceEvaluator:
       Option.when(cert.stabilityGrade == PlayerFacingClaimStabilityGrade.Stable)("stable"),
       Option.when(cert.provenanceClass == PlayerFacingClaimProvenanceClass.ProbeBacked)("probe_backed")
     ).flatten
+
+  def planProposal(plan: EvaluatedPlan): PlanClaimBoundary.PlanProposal =
+    if plan.planProposal != PlanClaimBoundary.PlanProposal.empty then plan.planProposal
+    else
+      PlanClaimBoundary.PlanProposal.fromHypothesis(
+        plan.hypothesis.copy(
+          themeL1 = plan.themeL1,
+          subplanId = plan.subplanId
+        )
+      )
+
+  def planTheme(plan: EvaluatedPlan): PlanTheme =
+    val proposal = planProposal(plan)
+    if proposal.theme != PlanTheme.Unknown then proposal.theme
+    else PlanTheme.fromId(plan.themeL1).getOrElse(PlanTheme.Unknown)
+
+  def planKind(plan: EvaluatedPlan): Option[PlanKind] =
+    planProposal(plan).supportKind.orElse(plan.subplanId.flatMap(PlanKind.fromId))
+
+  def planSupport(plan: EvaluatedPlan): PlanClaimBoundary.PlanSupport =
+    PlanClaimBoundary.PlanSupport(
+      proposal = planProposal(plan),
+      supportProbeIds = plan.supportProbeIds,
+      transpositionProofIds = plan.transpositionProofIds,
+      refuteProbeIds = plan.refuteProbeIds,
+      missingSignals = plan.missingSignals
+    )
+
+  def admittedPlanClaim(plan: EvaluatedPlan): Option[PlanClaimBoundary.AdmittedPlanClaim] =
+    Option.when(isMainAdmittedPlan(plan))(
+      PlanClaimBoundary.AdmittedPlanClaim(
+        proposal = planProposal(plan),
+        supportProbeIds = plan.supportProbeIds,
+        transpositionProofIds = plan.transpositionProofIds
+      )
+    )
 
   def supportProbeTerm(probeId: String): Option[String] =
     cleanText(probeId).map(id => s"support_probe:$id")
@@ -207,11 +244,20 @@ object PlanEvidenceEvaluator:
     def mainAdmittedPlans: List[EvaluatedPlan] =
       selectedPlans.filter(PlanEvidenceEvaluator.isMainAdmittedPlan)
 
+    def mainAdmittedClaims: List[PlanClaimBoundary.AdmittedPlanClaim] =
+      mainAdmittedPlans.flatMap(PlanEvidenceEvaluator.admittedPlanClaim)
+
     def probeBackedPlans: List[EvaluatedPlan] =
       mainAdmittedPlans.filter(_.userFacingEligibility == UserFacingPlanEligibility.ProbeBacked)
 
+    def probeBackedClaims: List[PlanClaimBoundary.AdmittedPlanClaim] =
+      probeBackedPlans.flatMap(PlanEvidenceEvaluator.admittedPlanClaim)
+
     def transpositionAlignedMainPlans: List[EvaluatedPlan] =
       mainAdmittedPlans.filter(_.userFacingEligibility == UserFacingPlanEligibility.TranspositionAligned)
+
+    def transpositionAlignedMainClaims: List[PlanClaimBoundary.AdmittedPlanClaim] =
+      transpositionAlignedMainPlans.flatMap(PlanEvidenceEvaluator.admittedPlanClaim)
 
     def pvCoupledPlans: List[EvaluatedPlan] =
       evaluatedPlans.filter(_.userFacingEligibility == UserFacingPlanEligibility.PvCoupledOnly)
@@ -357,8 +403,9 @@ object PlanEvidenceEvaluator:
 
       val evaluated =
         hypotheses.map { h =>
-          val themeId = hypothesisThemeId(h)
-          val subplanId = hypothesisPlanKind(h)
+          val planProposal = PlanClaimBoundary.PlanProposal.fromHypothesis(h)
+          val themeId = planProposal.theme.id
+          val subplanId = planProposal.supportKind.map(_.id)
           val subplanSpec =
             subplanId.flatMap(PlanKind.fromId).flatMap(SubplanCatalog.specs.get)
           val linkedRequests = probeRequests.filter(req => requestMatchesHypothesis(req, h))
@@ -457,6 +504,7 @@ object PlanEvidenceEvaluator:
             pvCoupled = pvCoupled,
             themeL1 = themeId,
             subplanId = subplanId,
+            planProposal = planProposal,
             claimCertification = claimCertification
           )
         }
@@ -550,25 +598,26 @@ object PlanEvidenceEvaluator:
 
   private def requestMatchesHypothesis(req: ProbeRequest, h: PlanHypothesis): Boolean =
     val reqPlanId = req.planId.map(_.trim.toLowerCase).filter(_.nonEmpty)
-    val reqPlanName = req.planName.map(normalizeText).filter(_.nonEmpty)
+    val reqPlanName =
+      req.planName.map(name => normalizeText(ThemeResolver.stripSubplanAnnotations(name))).filter(_.nonEmpty)
     val reqSeed = req.seedId.map(_.trim.toLowerCase).filter(_.nonEmpty)
     val hypPlanId = h.planId.trim.toLowerCase
     val hypPlanName = normalizeText(h.planName)
     val hypSeed = seedIdOf(h).map(_.trim.toLowerCase)
     val reqTheme = reqThemeId(req)
-    val hypTheme = hypothesisThemeId(h)
+    val hypProposal = PlanClaimBoundary.PlanProposal.fromHypothesis(h)
+    val hypTheme = hypProposal.theme.id
     val reqSubplan = reqPlanKind(req)
-    val hypSubplan = hypothesisPlanKind(h)
+    val hypSubplan = hypProposal.supportKind.map(_.id)
     val themeAligned = reqTheme.nonEmpty && reqTheme == hypTheme
     val subplanAligned = reqSubplan.forall(rsp => hypSubplan.contains(rsp))
     val contractCompatible = requestContractCompatible(req, hypSubplan)
     val explicitBinding = reqPlanId.nonEmpty || reqPlanName.nonEmpty || reqSeed.nonEmpty
-    val explicitChecks =
-      List(
-        reqPlanId.map(_ == hypPlanId),
-        reqSeed.map(seed => hypSeed.contains(seed)),
-        reqPlanName.map(_ == hypPlanName)
-      ).flatten
+    val explicitChecks = List(
+      reqPlanId.map(_ == hypPlanId),
+      reqSeed.map(seed => hypSeed.contains(seed)),
+      reqPlanName.map(_ == hypPlanName)
+    ).flatten
     val explicitMatch = explicitChecks.nonEmpty && explicitChecks.forall(identity)
     explicitMatch || (!explicitBinding && themeAligned && (subplanAligned || contractCompatible))
 
@@ -595,28 +644,16 @@ object PlanEvidenceEvaluator:
     normalizeToken(raw).replace('-', '_').replaceAll("\\s+", "_")
 
   private def reqThemeId(req: ProbeRequest): String =
-    req.planId
-      .map(pid => ThemeResolver.fromPlanId(pid).id)
-      .filter(_ != PlanTheme.Unknown.id)
-      .orElse(req.planName.map(name => ThemeResolver.fromPlanName(name).id).filter(_ != PlanTheme.Unknown.id))
-      .getOrElse("")
+    PlanClaimBoundary.PlanProposal.fromProbeRequest(req).fallbackTheme.map(_.id).getOrElse("")
 
   private def reqPlanKind(req: ProbeRequest): Option[String] =
-    req.planName
-      .flatMap(ThemeResolver.subplanFromAnnotatedText(_).map(_.id))
-      .orElse(req.planName.flatMap(name => ThemeResolver.subplanFromPlanName(name).map(_.id)))
-      .orElse(req.seedId.flatMap(seed => ThemeResolver.subplanFromSeedId(seed).map(_.id)))
-      .orElse(req.planId.flatMap(pid => ThemeResolver.subplanFromPlanId(pid).map(_.id)))
-      .filter(_.nonEmpty)
+    PlanClaimBoundary.PlanProposal.fromProbeRequest(req).supportKind.map(_.id)
 
   private def hypothesisThemeId(h: PlanHypothesis): String =
-    ThemeResolver.fromHypothesis(h).id
+    PlanClaimBoundary.PlanProposal.fromHypothesis(h).theme.id
 
   private def hypothesisPlanKind(h: PlanHypothesis): Option[String] =
-    h.subplanId
-      .flatMap(PlanKind.fromId)
-      .map(_.id)
-      .orElse(ThemeResolver.subplanFromHypothesis(h).map(_.id))
+    PlanClaimBoundary.PlanProposal.fromHypothesis(h).supportKind.map(_.id)
 
   private def subplanSignalsMissing(
       specOpt: Option[SubplanSpec],

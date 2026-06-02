@@ -167,7 +167,7 @@ class StrategicObservationIdsTest extends FunSuite:
     assertEquals(ProofContractRules.contractForProofFamily(observation.id.wireKey), None)
   }
 
-  test("relation observation catalog covers implemented witness kinds and defers unresolved motif families") {
+  test("relation observation catalog covers implemented witness kinds and leaves no unresolved motif families") {
     val implementedKinds = RelationObservationCatalog.Implemented.map(_.relationKind)
     val implementedKindSet = implementedKinds.toSet
     val deferredKinds = RelationObservationCatalog.Deferred.map(_.relationKind)
@@ -194,13 +194,7 @@ class StrategicObservationIdsTest extends FunSuite:
     )
     assertEquals(
       RelationObservationCatalog.DeferredRelationKinds,
-      List(
-        MoveReviewExchangeAnalyzer.RelationKind.Zwischenzug,
-        MoveReviewExchangeAnalyzer.RelationKind.Domination,
-        MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece,
-        MoveReviewExchangeAnalyzer.RelationKind.StalemateTrap,
-        MoveReviewExchangeAnalyzer.RelationKind.PerpetualCheck
-      )
+      Nil
     )
     assertEquals(RelationObservationCatalog.DeferredRelationKinds, deferredKinds)
     assertEquals(deferredKinds.distinct, deferredKinds)
@@ -212,8 +206,7 @@ class StrategicObservationIdsTest extends FunSuite:
       RelationObservationCatalog.DeferredRelationKinds.forall(kind =>
         RelationObservationCatalog.isDeferredKind(kind) &&
           !RelationObservationCatalog.isImplementedKind(kind) &&
-          RelationObservationCatalog.descriptorForKind(kind).isEmpty &&
-          RelationObservationCatalog.descriptorForEvidence(Some(kind), List("source:" + kind, kind + "_semantic")).isEmpty
+          RelationObservationCatalog.descriptorForKind(kind).isEmpty
       )
     )
     assert(
@@ -227,53 +220,31 @@ class StrategicObservationIdsTest extends FunSuite:
     )
     assertEquals(
       RelationObservationCatalog.Deferred.map(descriptor => descriptor.relationKind -> descriptor.fallbackLane).toMap,
-      Map(
-        MoveReviewExchangeAnalyzer.RelationKind.Zwischenzug -> DeferredRelationFallbackLane.PracticalGuidance,
-        MoveReviewExchangeAnalyzer.RelationKind.Domination -> DeferredRelationFallbackLane.ThematicFallback,
-        MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece -> DeferredRelationFallbackLane.PracticalGuidance,
-        MoveReviewExchangeAnalyzer.RelationKind.StalemateTrap -> DeferredRelationFallbackLane.DiagnosticOnly,
-        MoveReviewExchangeAnalyzer.RelationKind.PerpetualCheck -> DeferredRelationFallbackLane.DiagnosticOnly
-      )
+      Map.empty[String, DeferredRelationFallbackLane]
     )
     assertEquals(
       RelationObservationCatalog.Deferred.map(descriptor => descriptor.relationKind -> descriptor.fallbackLabel).toMap,
-      Map(
-        MoveReviewExchangeAnalyzer.RelationKind.Zwischenzug -> Some("move-order caution"),
-        MoveReviewExchangeAnalyzer.RelationKind.Domination -> Some("key-square restriction"),
-        MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece -> Some("piece mobility"),
-        MoveReviewExchangeAnalyzer.RelationKind.StalemateTrap -> None,
-        MoveReviewExchangeAnalyzer.RelationKind.PerpetualCheck -> None
-      )
+      Map.empty[String, Option[String]]
     )
     assertEquals(
       RelationObservationCatalog.DeferredRelationKinds.filter(RelationObservationCatalog.allowsDeferredNonRelationFallback),
-      List(
-        MoveReviewExchangeAnalyzer.RelationKind.Zwischenzug,
-        MoveReviewExchangeAnalyzer.RelationKind.Domination,
-        MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece
-      )
+      Nil
     )
     assertEquals(
-      List(
-        MoveReviewExchangeAnalyzer.RelationKind.StalemateTrap,
-        MoveReviewExchangeAnalyzer.RelationKind.PerpetualCheck
-      ).flatMap(RelationObservationCatalog.deferredFallbackForKind).map(_.lane),
-      List(DeferredRelationFallbackLane.DiagnosticOnly, DeferredRelationFallbackLane.DiagnosticOnly)
+      MoveReviewExchangeAnalyzer.RelationKind.All.flatMap(RelationObservationCatalog.deferredFallbackForKind).map(_.lane),
+      Nil
     )
     assertEquals(
       RelationObservationCatalog.DeferredRelationKinds.filter(RelationObservationCatalog.isDiagnosticOnlyDeferred),
-      List(
-        MoveReviewExchangeAnalyzer.RelationKind.StalemateTrap,
-        MoveReviewExchangeAnalyzer.RelationKind.PerpetualCheck
-      )
+      Nil
     )
     val deferredMotifExpectations =
       List(
-        "zwischenzug" -> Some(MoveReviewExchangeAnalyzer.RelationKind.Zwischenzug),
-        "trapped_piece_queen" -> Some(MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece),
-        "domination" -> Some(MoveReviewExchangeAnalyzer.RelationKind.Domination),
-        "stalemate_trap" -> Some(MoveReviewExchangeAnalyzer.RelationKind.StalemateTrap),
-        "perpetual_check" -> Some(MoveReviewExchangeAnalyzer.RelationKind.PerpetualCheck),
+        "zwischenzug" -> None,
+        "trapped_piece_queen" -> None,
+        "domination" -> None,
+        "stalemate_trap" -> None,
+        "perpetual_check" -> None,
         "stalemate" -> None,
         "knight_domination" -> None
       )
@@ -287,25 +258,19 @@ class StrategicObservationIdsTest extends FunSuite:
       RelationObservationCatalog
         .deferredFallbackForMotifTag("trapped_piece_queen")
         .map(fallback => (fallback.relationKind, fallback.lane, fallback.label)),
-      Some(
-        (
-          MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece,
-          DeferredRelationFallbackLane.PracticalGuidance,
-          Some("piece mobility")
-        )
-      )
+      None
     )
     assertEquals(
       RelationObservationCatalog
         .deferredFallbackForKind(MoveReviewExchangeAnalyzer.RelationKind.PerpetualCheck)
         .exists(_.diagnosticOnly),
-      true
+      false
     )
     assertEquals(
       RelationObservationCatalog
         .deferredFallbackForKind(MoveReviewExchangeAnalyzer.RelationKind.Zwischenzug)
         .exists(_.allowsNonRelationText),
-      true
+      false
     )
     assertEquals(
       RelationObservationCatalog.ImplementedKinds,
@@ -319,7 +284,7 @@ class StrategicObservationIdsTest extends FunSuite:
       MoveReviewExchangeAnalyzer.RelationKind.All.toSet -- RelationObservationCatalog.ImplementedKinds,
       RelationObservationCatalog.DeferredRelationKinds.toSet
     )
-    assertNotEquals(
+    assertEquals(
       RelationObservationCatalog.ImplementedKinds,
       MoveReviewExchangeAnalyzer.RelationKind.All.toSet
     )
@@ -337,23 +302,8 @@ class StrategicObservationIdsTest extends FunSuite:
     assertEquals(xray.sourceRef.wireKey, "source:xray_relation")
     assertEquals(xray.semanticFact.wireKey, "xray_semantic")
     assertEquals(xray.semanticRef.wireKey, "xray_semantic")
-
-    assertEquals(
-      RelationObservationCatalog.descriptorForEvidence(Some(clearance.relationKind), bothRefs),
-      Some(clearance)
-    )
-    assertEquals(
-      RelationObservationCatalog.descriptorForEvidence(Some(clearance.relationKind), xrayRefs),
-      None
-    )
-    assertEquals(
-      RelationObservationCatalog.descriptorForEvidence(None, xrayRefs),
-      Some(xray)
-    )
-    assertEquals(
-      RelationObservationCatalog.descriptorForEvidence(None, bothRefs),
-      None
-    )
+    assertEquals(xrayRefs, List("source:xray_relation", "xray_semantic"))
+    assert(bothRefs.contains("source:clearance_relation"), clues(bothRefs))
   }
 
   test("runtime relation admission does not consume the broad relation inventory") {
@@ -385,6 +335,8 @@ class StrategicObservationIdsTest extends FunSuite:
     assert(!semanticObservationText.contains("relationFocusSquaresFromWitness(witness)"), clues(semanticObservationPath))
     assert(!semanticObservationText.contains("relationTargetSquareFromWitness(witness)"), clues(semanticObservationPath))
     assert(!semanticObservationText.contains("relationFactTermsFromWitness(witness)"), clues(semanticObservationPath))
+    assert(!semanticObservationText.contains("descriptorForEvidence"), clues(semanticObservationPath))
+    assert(!semanticObservationText.contains("evidenceRefsContain"), clues(semanticObservationPath))
 
     val pipelineText = java.nio.file.Files.readString(checkedFiles.head)
     val forbiddenProducerNames =
@@ -444,36 +396,33 @@ class StrategicObservationIdsTest extends FunSuite:
     assert(!proseBoundary.contains("descriptorForKind"), clues(proseBoundary))
   }
 
-  test("legacy plan evidence uses deferred relation fallback labels") {
+  test("legacy plan evidence uses implemented-safe generic labels") {
     val root = java.nio.file.Paths.get("").toAbsolutePath
     val planMatcherPath =
       root.resolve("modules/commentaryCore/src/main/scala/lila/commentary/analysis/PlanMatcher.scala")
     val planMatcherText = java.nio.file.Files.readString(planMatcherPath)
 
-    assert(planMatcherText.contains("deferredFallbackForKind"), clues(planMatcherPath))
+    assert(planMatcherText.contains("legacyDominationPlanLabel"), clues(planMatcherPath))
+    assert(!planMatcherText.contains("deferredFallbackForKind"), clues(planMatcherPath))
     assert(!planMatcherText.contains("domination restricts enemy mobility"), clues(planMatcherPath))
   }
 
-  test("deferred relation public prose consumers stay catalog-routed") {
+  test("relation public prose consumers stay catalog-routed and legacy helpers stay generic") {
     val root = java.nio.file.Paths.get("").toAbsolutePath
     val requiredHooks =
       Map(
         "modules/commentaryCore/src/main/scala/lila/commentary/analysis/NarrativeLexicon.scala" ->
           List("deferredMotifDeltaLabel", "deferredFallbackForMotifTag"),
         "modules/commentaryCore/src/main/scala/lila/commentary/analysis/NarrativeMotifPrefixTable.scala" ->
-          List("deferredRelationTemplates", "deferredFallbackForMotifTag"),
+          List("deferredRelationTemplates", "legacyRelationTemplates", "deferredFallbackForMotifTag"),
         "modules/commentaryCore/src/main/scala/lila/commentary/analysis/NarrativeOutlineBuilder.scala" ->
           List("deferredRelationCanonicalTerm", "deferredFallbackForMotifTag", "tacticalTensionMotif"),
         "modules/commentaryCore/src/main/scala/lila/commentary/analysis/NarrativeContextBuilder.scala" ->
           List("publicThreatMotifLabel", "deferredFallbackForMotifTag"),
         "modules/commentaryCore/src/main/scala/lila/commentary/analysis/PlanMatcher.scala" ->
-          List("deferredDominationLabel", "deferredFallbackForKind"),
-        "modules/commentaryCore/src/main/scala/lila/commentary/analysis/StrategyPackBuilder.scala" ->
-          List("deferredFallbackEvidenceTermForKind"),
-        "modules/commentaryCore/src/main/scala/lila/commentary/analysis/StructurePlanArcBuilder.scala" ->
-          List("deferredFallbackEvidenceTermForKind"),
+          List("legacyDominationPlanLabel"),
         "modules/commentaryCore/src/main/scala/lila/commentary/analysis/UserFacingSignalSanitizer.scala" ->
-          List("deferredRelationFallbackText", "deferredFallbackForKind"),
+          List("LegacyDominationText", "LegacyTrappedPieceText", "LegacyZwischenzugText"),
         "modules/commentaryCore/src/main/scala/lila/commentary/analysis/CommentaryIdeaSurface.scala" ->
           List("deferredFallbackForMotifTag")
       )
@@ -505,7 +454,7 @@ class StrategicObservationIdsTest extends FunSuite:
       requiredHooks.keys.toList.flatMap { relativePath =>
         val path = root.resolve(relativePath)
         val text = java.nio.file.Files.readString(path)
-        List("trapped_piece_signal").filter(text.contains).map(term => s"$relativePath:$term")
+        List("trapped_piece_signal", "DeferredDominationText").filter(text.contains).map(term => s"$relativePath:$term")
       }.sorted
 
     assertEquals(missingHooks, Nil)
@@ -519,57 +468,32 @@ class StrategicObservationIdsTest extends FunSuite:
       root.resolve("modules/commentaryCore/src/main/scala/lila/commentary/analysis/MoveReviewExchangeAnalyzer.scala")
     val analyzerText = java.nio.file.Files.readString(analyzerPath)
     val relationWitnessesStart = analyzerText.indexOf("def relationWitnesses(")
-    val relationWitnessesEnd = analyzerText.indexOf(").flatten", relationWitnessesStart)
+    val relationWitnessesEnd = analyzerText.indexOf("val ImplementedRelationWitnessTemplates", relationWitnessesStart)
     assert(relationWitnessesStart >= 0, clues(analyzerPath))
     assert(relationWitnessesEnd > relationWitnessesStart, clues(analyzerPath))
     val relationWitnessesBody =
       analyzerText.substring(relationWitnessesStart, relationWitnessesEnd)
-    val witnessHooksByKind =
-      Map(
-        MoveReviewExchangeAnalyzer.RelationKind.DefenderTrade -> "defenderTradeBranch(",
-        MoveReviewExchangeAnalyzer.RelationKind.BadPieceLiquidation -> "badPieceLiquidationBranch(",
-        MoveReviewExchangeAnalyzer.RelationKind.Overload -> "overloadWitness(",
-        MoveReviewExchangeAnalyzer.RelationKind.Deflection -> "deflectionWitness(",
-        MoveReviewExchangeAnalyzer.RelationKind.DiscoveredAttack -> "discoveredAttackWitness(",
-        MoveReviewExchangeAnalyzer.RelationKind.DoubleCheck -> "doubleCheckWitness(",
-        MoveReviewExchangeAnalyzer.RelationKind.BackRankMate -> "backRankMateWitness(",
-        MoveReviewExchangeAnalyzer.RelationKind.MateNet -> "mateNetWitness(",
-        MoveReviewExchangeAnalyzer.RelationKind.GreekGift -> "greekGiftWitness(",
-        MoveReviewExchangeAnalyzer.RelationKind.Fork -> "forkWitness(",
-        MoveReviewExchangeAnalyzer.RelationKind.HangingPiece -> "hangingPieceWitness(",
-        MoveReviewExchangeAnalyzer.RelationKind.XRay -> "xrayWitness(",
-        MoveReviewExchangeAnalyzer.RelationKind.Clearance -> "clearanceWitness(",
-        MoveReviewExchangeAnalyzer.RelationKind.Battery -> "batteryWitness(",
-        MoveReviewExchangeAnalyzer.RelationKind.Pin -> "pinWitness(",
-        MoveReviewExchangeAnalyzer.RelationKind.Skewer -> "skewerWitness(",
-        MoveReviewExchangeAnalyzer.RelationKind.Interference -> "interferenceWitness(",
-        MoveReviewExchangeAnalyzer.RelationKind.Decoy -> "decoyWitness("
-      )
-    val missingHookDefinitions =
-      witnessHooksByKind.keySet -- RelationObservationCatalog.ImplementedKinds
-    val missingCatalogEntries =
-      RelationObservationCatalog.ImplementedKinds -- witnessHooksByKind.keySet
-    val missingExtractionHooks =
-      witnessHooksByKind.toList.collect {
-        case (kind, hook) if !relationWitnessesBody.contains(hook) => s"$kind:$hook"
-      }.sorted
-    val deferredWitnessHooks =
-      Map(
-        MoveReviewExchangeAnalyzer.RelationKind.Zwischenzug -> "zwischenzugWitness(",
-        MoveReviewExchangeAnalyzer.RelationKind.Domination -> "dominationWitness(",
-        MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece -> "trappedPieceWitness(",
-        MoveReviewExchangeAnalyzer.RelationKind.StalemateTrap -> "stalemateTrapWitness(",
-        MoveReviewExchangeAnalyzer.RelationKind.PerpetualCheck -> "perpetualCheckWitness("
-      )
-    val deferredExtractionHooks =
-      deferredWitnessHooks.toList.collect {
-        case (kind, hook) if relationWitnessesBody.contains(hook) => s"$kind:$hook"
-      }.sorted
+    val templateKinds = MoveReviewExchangeAnalyzer.implementedRelationWitnessKinds
+    val templateHookNames =
+      MoveReviewExchangeAnalyzer.ImplementedRelationWitnessTemplates.map(_.witnessHook)
+    val deferredTemplates =
+      MoveReviewExchangeAnalyzer.RelationKind.Deferred.filter(templateKinds.contains)
 
-    assertEquals(missingHookDefinitions, Set.empty[String])
-    assertEquals(missingCatalogEntries, Set.empty[String])
-    assertEquals(missingExtractionHooks, Nil)
-    assertEquals(deferredExtractionHooks, Nil)
+    assert(relationWitnessesBody.contains("ImplementedRelationWitnessTemplates"), clues(relationWitnessesBody))
+    assertEquals(templateKinds, RelationObservationCatalog.ImplementedKinds)
+    assertEquals(templateKinds, MoveReviewExchangeAnalyzer.RelationKind.Implemented.toSet)
+    assertEquals(
+      MoveReviewExchangeAnalyzer.ImplementedRelationWitnessTemplates.map(_.kind).distinct,
+      MoveReviewExchangeAnalyzer.ImplementedRelationWitnessTemplates.map(_.kind)
+    )
+    assertEquals(templateHookNames.distinct, templateHookNames)
+    assert(templateHookNames.forall(_.trim.nonEmpty), clue(templateHookNames))
+    assertEquals(deferredTemplates, Nil)
+    assert(
+      MoveReviewExchangeAnalyzer.RelationKind.Deferred.forall(kind =>
+        MoveReviewExchangeAnalyzer.relationWitnessTemplateForKind(kind).isEmpty
+      )
+    )
   }
 
   test("strategic idea evidence relation carrier admits only implemented catalog kinds") {
@@ -583,12 +507,12 @@ class StrategicObservationIdsTest extends FunSuite:
         relationKind = Some(MoveReviewExchangeAnalyzer.RelationKind.XRay),
         relationFocusSquares = List("G6", "bad", "f5")
       )
-    val deferred =
+    val emptyRelation =
       implemented.copy(
         relationKind = None,
         relationFocusSquares = Nil
       )
-    val fromDeferred =
+    val fromZwischenzug =
       StrategicIdeaEvidence.from(
         ownerSide = "white",
         kind = lila.commentary.StrategicIdeaKind.LineOccupation,
@@ -622,10 +546,12 @@ class StrategicObservationIdsTest extends FunSuite:
 
     assertEquals(implemented.relationKind, Some(MoveReviewExchangeAnalyzer.RelationKind.XRay))
     assertEquals(implemented.relationFocusSquares, List("g6", "f5"))
-    assertEquals(fromDeferred.relationKind, deferred.relationKind)
-    assertEquals(fromDeferred.relationFocusSquares, deferred.relationFocusSquares)
+    assertEquals(fromZwischenzug.relationKind, Some(MoveReviewExchangeAnalyzer.RelationKind.Zwischenzug))
+    assertEquals(fromZwischenzug.relationFocusSquares, List("g6", "f5"))
     assertEquals(fromUnknown.relationKind, None)
     assertEquals(fromUnknown.relationFocusSquares, Nil)
+    assertEquals(fromUnknown.relationKind, emptyRelation.relationKind)
+    assertEquals(fromUnknown.relationFocusSquares, emptyRelation.relationFocusSquares)
     assertEquals(relationWithoutRelationFocus.relationKind, Some(MoveReviewExchangeAnalyzer.RelationKind.XRay))
     assertEquals(relationWithoutRelationFocus.relationFocusSquares, Nil)
   }

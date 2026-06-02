@@ -16,8 +16,13 @@ private[commentary] object StrategicObservationIds:
     case BackRankMateSemantic extends SemanticObservationId("back_rank_mate_semantic")
     case MateNetSemantic extends SemanticObservationId("mate_net_semantic")
     case GreekGiftSemantic extends SemanticObservationId("greek_gift_semantic")
+    case ZwischenzugSemantic extends SemanticObservationId("zwischenzug_semantic")
     case ForkSemantic extends SemanticObservationId("fork_semantic")
     case HangingPieceSemantic extends SemanticObservationId("hanging_piece_semantic")
+    case TrappedPieceSemantic extends SemanticObservationId("trapped_piece_semantic")
+    case DominationSemantic extends SemanticObservationId("domination_semantic")
+    case StalemateTrapSemantic extends SemanticObservationId("stalemate_trap_semantic")
+    case PerpetualCheckSemantic extends SemanticObservationId("perpetual_check_semantic")
     case XRaySemantic extends SemanticObservationId("xray_semantic")
     case ClearanceSemantic extends SemanticObservationId("clearance_semantic")
     case BatterySemantic extends SemanticObservationId("battery_semantic")
@@ -134,8 +139,13 @@ private[commentary] object StrategicObservationIds:
     val DoubleCheckRelation = register("double_check_relation")
     val BackRankMateRelation = register("back_rank_mate_relation")
     val GreekGiftRelation = register("greek_gift_relation")
+    val ZwischenzugRelation = register("zwischenzug_relation")
     val ForkRelation = register("fork_relation")
     val HangingPieceRelation = register("hanging_piece_relation")
+    val TrappedPieceRelation = register("trapped_piece_relation")
+    val DominationRelation = register("domination_relation")
+    val StalemateTrapRelation = register("stalemate_trap_relation")
+    val PerpetualCheckRelation = register("perpetual_check_relation")
     val XRayRelation = register("xray_relation")
     val ClearanceRelation = register("clearance_relation")
     val BatteryRelation = register("battery_relation")
@@ -244,8 +254,13 @@ private[commentary] object StrategicObservationIds:
         DoubleCheckRelation,
         BackRankMateRelation,
         GreekGiftRelation,
+        ZwischenzugRelation,
         ForkRelation,
         HangingPieceRelation,
+        TrappedPieceRelation,
+        DominationRelation,
+        StalemateTrapRelation,
+        PerpetualCheckRelation,
         XRayRelation,
         ClearanceRelation,
         BatteryRelation,
@@ -292,6 +307,7 @@ private[commentary] object StrategicObservationIds:
     val CounterplayAxisSuppression = register("counterplay_axis_suppression")
     val ProphylacticMove = register("prophylactic_move")
     val ExchangeForcingDelta = register("exchange_forcing_delta")
+    val RelationTransformation = register("relation_transformation")
     val ActiveMoveDelta = register("active_move_delta")
 
     val NewAccessDelta = register("new_access_delta")
@@ -311,6 +327,7 @@ private[commentary] object StrategicObservationIds:
         CounterplayAxisSuppression,
         ProphylacticMove,
         ExchangeForcingDelta,
+        RelationTransformation,
         ActiveMoveDelta,
         NewAccessDelta,
         PressureIncreaseDelta,
@@ -343,6 +360,7 @@ private[commentary] object StrategicObservationIds:
     val TradeKeyDefender = register("trade_key_defender")
     val TargetFocusedCoordination = register("target_focused_coordination")
     val ColorComplexSqueeze = register("color_complex_squeeze")
+    val RelationTransformation = register("relation_transformation")
 
     val NewAccess = register("new_access")
     val PressureIncrease = register("pressure_increase")
@@ -363,6 +381,7 @@ private[commentary] object StrategicObservationIds:
           TradeKeyDefender,
           TargetFocusedCoordination,
           ColorComplexSqueeze,
+          RelationTransformation,
           NewAccess,
           PressureIncrease,
           ExchangeForcing,

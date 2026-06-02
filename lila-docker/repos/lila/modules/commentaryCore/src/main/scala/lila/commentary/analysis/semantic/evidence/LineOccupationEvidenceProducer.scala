@@ -2,6 +2,7 @@ package lila.commentary.analysis.semantic.evidence
 
 import lila.commentary.*
 import lila.commentary.analysis.StrategicIdeaSemanticContext
+import lila.commentary.analysis.PlanMoveEvidenceSupport.{ isOpenFile, isSemiOpenFileFor }
 import lila.commentary.analysis.semantic.{ StrategicIdeaEvidence, StrategicIdeaEvidenceProducer }
 import lila.commentary.analysis.semantic.StrategicObservationIds.EvidenceSourceId
 import _root_.chess.{ File, Queen, Rank, Rook, Square }
@@ -107,6 +108,7 @@ private[commentary] object LineOccupationEvidenceProducer extends StrategicIdeaE
                   (if seventh then 0.02 else 0.0),
               focusSquares = List(square.key),
               focusFiles = Option.when(open || semiOpen)(List(fileToken(square.file))).getOrElse(Nil),
+              focusDiagonals = Nil,
               focusZone = if seventh then Some("back rank") else zoneFromFileToken(fileToken(square.file)),
               beneficiaryPieces = List(piece),
               factIds =

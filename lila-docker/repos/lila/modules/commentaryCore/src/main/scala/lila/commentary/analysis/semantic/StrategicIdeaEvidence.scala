@@ -1,6 +1,6 @@
 package lila.commentary.analysis.semantic
 
-import lila.commentary.{ StrategicIdeaGroup, StrategicIdeaKind }
+import lila.commentary.{ StrategicIdeaGroup, StrategicIdeaKind, StrategyRelationSupport }
 import lila.commentary.analysis.semantic.StrategicObservationIds.{ EvidenceSourceId, FactId }
 
 private[commentary] enum StrategicIdeaEvidenceTier:
@@ -23,7 +23,8 @@ private[commentary] final case class StrategicIdeaEvidence(
     beneficiaryPieces: List[String] = Nil,
     factIds: List[FactId] = Nil,
     relationKind: Option[String] = None,
-    relationFocusSquares: List[String] = Nil
+    relationFocusSquares: List[String] = Nil,
+    relationSupport: Option[StrategyRelationSupport] = None
 ):
   def signature: String = s"$ownerSide|$kind"
 
@@ -45,10 +46,15 @@ private[commentary] object StrategicIdeaEvidence:
       typedFactIds: List[FactId] = Nil,
       relationKind: Option[String] = None,
       relationFocusSquares: List[String] = Nil,
+      relationSupport: Option[StrategyRelationSupport] = None,
       tier: StrategicIdeaEvidenceTier = StrategicIdeaEvidenceTier.SelectorSupport
   ): StrategicIdeaEvidence =
     val normalizedRelationKind =
       relationKind.map(_.trim).filter(RelationObservationCatalog.isImplementedKind)
+    val normalizedRelationSupport =
+      normalizedRelationKind.flatMap(kind =>
+        relationSupport.filter(support => support.relationKind == kind)
+      )
     StrategicIdeaEvidence(
       ownerSide = ownerSide,
       kind = kind,
@@ -65,7 +71,8 @@ private[commentary] object StrategicIdeaEvidence:
       beneficiaryPieces = beneficiaryPieces.distinct.filter(_.nonEmpty),
       factIds = (typedFactIds ++ factIds.distinct.flatMap(FactId.dynamic)).distinct,
       relationKind = normalizedRelationKind,
-      relationFocusSquares = normalizedRelationKind.toList.flatMap(_ => normalizedSquareKeys(relationFocusSquares))
+      relationFocusSquares = normalizedRelationKind.toList.flatMap(_ => normalizedSquareKeys(relationFocusSquares)),
+      relationSupport = normalizedRelationSupport
     )
 
   private def normalizedSquareKeys(keys: List[String]): List[String] =

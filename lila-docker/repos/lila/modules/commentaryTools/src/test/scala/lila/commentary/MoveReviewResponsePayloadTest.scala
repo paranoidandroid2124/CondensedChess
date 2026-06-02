@@ -188,3 +188,87 @@ class MoveReviewResponsePayloadTest extends FunSuite:
     assertEquals(publicMeta.keys.contains("estimatedCostUsd"), false, clue(publicMeta))
     assertEquals(publicMeta.keys.contains("strategyCoverage"), false, clue(publicMeta))
   }
+
+  test("moveReview wire payload preserves relation cue authority without leaking row source metadata") {
+    val response =
+      CommentResponse(
+        commentary = "The checked line explains why the move works.",
+        concepts = Nil,
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              strategicIdeas =
+                List(
+                  StrategyIdeaSignal(
+                    ideaId = "idea_1",
+                    ownerSide = "white",
+                    kind = StrategicIdeaKind.LineOccupation,
+                    group = StrategicIdeaGroup.PieceAndLineManagement,
+                    readiness = StrategicIdeaReadiness.Build,
+                    focusSquares = List("e4", "f5", "g6"),
+                    confidence = 0.72,
+                    evidenceRefs = List("source:xray_relation", "xray_semantic"),
+                    relationKind = Some("xray"),
+                    relationFocusSquares = List("e4", "f5", "g6")
+                  )
+                )
+            )
+          ),
+        moveReviewPlayerSurface =
+          Some(
+            MoveReviewPlayerSurface(
+              summaryRows =
+                List(
+                  MoveReviewPlayerSurfaceRow(
+                    label = "Line relation",
+                    text =
+                      "Why it works: the line runs from e4 through f5 toward g6. Next check: the line geometry through e4, f5, and g6.",
+                    tone = Some("relation"),
+                    source = Some("source:xray_relation"),
+                    authority =
+                      Some(
+                        MoveReviewSurfaceAuthority(
+                          kind = MoveReviewSurfaceAuthority.StrategicRelation,
+                          token = Some("xray"),
+                          target = Some("g6")
+                        )
+                      )
+                  )
+                ),
+              advancedRows =
+                List(
+                  MoveReviewPlayerSurfaceRow(
+                    label = "Line relation",
+                    text = "The checked line gives x-ray evidence around e4, f5, g6.",
+                    source = Some("xray_semantic"),
+                    authority =
+                      Some(
+                        MoveReviewSurfaceAuthority(
+                          kind = MoveReviewSurfaceAuthority.StrategicRelation,
+                          token = Some("xray"),
+                          target = Some("g6")
+                        )
+                      )
+                  )
+                )
+            )
+          )
+      )
+
+    val payload =
+      MoveReviewResponsePayload.json(
+        response = response,
+        html = "<section>public relation html</section>",
+        cacheHit = false
+      )
+    val summaryRow = payload \ "moveReviewPlayerSurface" \ "summaryRows" \ 0
+    val advancedRow = payload \ "moveReviewPlayerSurface" \ "advancedRows" \ 0
+
+    assertEquals(payload.keys.contains("strategyPack"), false, clue(payload))
+    assertEquals((summaryRow \ "authority" \ "kind").as[String], "strategic_relation", clue(payload))
+    assertEquals((summaryRow \ "authority" \ "token").as[String], "xray", clue(payload))
+    assertEquals((summaryRow \ "authority" \ "target").as[String], "g6", clue(payload))
+    assertEquals((summaryRow \ "source").asOpt[String], None, clue(payload))
+    assertEquals((advancedRow \ "source").asOpt[String], None, clue(payload))
+  }

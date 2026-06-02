@@ -125,19 +125,8 @@ object HypothesisGenerator:
     else "stable practical path"
 
   private def themeIdFromPlanMatch(pm: PlanMatch): String =
-    pm.supports
-      .flatMap(ThemeResolver.themeIdFromSupport)
-      .headOption
-      .filter(_.nonEmpty)
-      .orElse {
-        val resolved = ThemeResolver.fromPlanId(pm.plan.id.toString)
-        Option.when(resolved != PlanTheme.Unknown)(resolved.id)
-      }
-      .getOrElse(PlanTheme.Unknown.id)
+    val proposal = PlanClaimBoundary.PlanProposal.fromPlanMatch(pm)
+    Option.when(proposal.theme != PlanTheme.Unknown)(proposal.theme.id).getOrElse(PlanTheme.Unknown.id)
 
   private def subplanIdFromPlanMatch(pm: PlanMatch): Option[String] =
-    pm.supports
-      .flatMap(ThemeResolver.subplanIdFromSupport)
-      .headOption
-      .filter(_.nonEmpty)
-      .orElse(ThemeResolver.subplanFromPlanId(pm.plan.id.toString).map(_.id))
+    PlanClaimBoundary.PlanProposal.fromPlanMatch(pm).supportKind.map(_.id)

@@ -170,7 +170,7 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
             name = "OpenFilePressure",
             score = 0.92,
             evidence = List("rook doubling on open d-file"),
-            supports = Nil,
+            supports = List("subplan:open_file_pressure"),
             blockers = Nil,
             missingPrereqs = Nil
           )
@@ -196,7 +196,7 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     assertEquals(slots.paragraphPlan, List("p1=claim"))
   }
 
-  test("thematic fallback is blocked (fail-closed) when truthContract indicates a blunder or tactical refutation") {
+  test("thematic fallback is blocked when plan row only provides a name alias") {
     val ctx = quietH3Ctx.copy(
       plans = PlanTable(
         top5 = List(
@@ -206,6 +206,39 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
             score = 0.92,
             evidence = List("rook doubling on open d-file"),
             supports = Nil,
+            blockers = Nil,
+            missingPrereqs = Nil
+          )
+        ),
+        suppressed = Nil
+      )
+    )
+    val slots =
+      MoveReviewPolishSlotsBuilder.buildOrFallback(
+        ctx,
+        BookStyleRenderer.validatedOutline(ctx),
+        refs = None,
+        strategyPack = None,
+        truthContract = None
+      )
+
+    assertNotEquals(slots.sourceKind, MoveReviewPolishSlots.Source.ThematicFallback)
+    assertEquals(
+      MoveReviewProseContract.stripMoveHeader(slots.claim),
+      "This moves the pawn to h3."
+    )
+  }
+
+  test("thematic fallback is blocked (fail-closed) when truthContract indicates a blunder or tactical refutation") {
+    val ctx = quietH3Ctx.copy(
+      plans = PlanTable(
+        top5 = List(
+          PlanRow(
+            rank = 1,
+            name = "OpenFilePressure",
+            score = 0.92,
+            evidence = List("rook doubling on open d-file"),
+            supports = List("subplan:open_file_pressure"),
             blockers = Nil,
             missingPrereqs = Nil
           )
@@ -258,6 +291,99 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     )
   }
 
+  test("thematic fallback is blocked for opening-only plan themes") {
+    val ctx = quietH3Ctx.copy(
+      plans = PlanTable(
+        top5 = List(
+          PlanRow(
+            rank = 1,
+            name = "OpeningDevelopment",
+            score = 0.92,
+            evidence = List("develop a minor piece"),
+            supports = List("subplan:opening_development"),
+            blockers = Nil,
+            missingPrereqs = Nil
+          )
+        ),
+        suppressed = Nil
+      )
+    )
+    val slots =
+      MoveReviewPolishSlotsBuilder.buildOrFallback(
+        ctx,
+        BookStyleRenderer.validatedOutline(ctx),
+        refs = None,
+        strategyPack = None,
+        truthContract = None
+      )
+
+    assertNotEquals(slots.sourceKind, MoveReviewPolishSlots.Source.ThematicFallback)
+    assertEquals(
+      MoveReviewProseContract.stripMoveHeader(slots.claim),
+      "This moves the pawn to h3."
+    )
+  }
+
+  test("thematic fallback is blocked when truthContract indicates a missed win") {
+    val ctx = quietH3Ctx.copy(
+      plans = PlanTable(
+        top5 = List(
+          PlanRow(
+            rank = 1,
+            name = "OpenFilePressure",
+            score = 0.92,
+            evidence = List("rook doubling on open d-file"),
+            supports = List("subplan:open_file_pressure"),
+            blockers = Nil,
+            missingPrereqs = Nil
+          )
+        ),
+        suppressed = Nil
+      )
+    )
+    val missedWinContract = DecisiveTruthContract(
+      playedMove = Some("h2h3"),
+      verifiedBestMove = Some("e2e4"),
+      truthClass = DecisiveTruthClass.MissedWin,
+      cpLoss = 180,
+      swingSeverity = 180,
+      reasonFamily = DecisiveReasonKind.MissedWin,
+      allowConcreteBenchmark = false,
+      chosenMatchesBest = false,
+      compensationAllowed = false,
+      truthPhase = None,
+      ownershipRole = TruthOwnershipRole.BlunderOwner,
+      visibilityRole = TruthVisibilityRole.PrimaryVisible,
+      surfaceMode = TruthSurfaceMode.FailureExplain,
+      exemplarRole = TruthExemplarRole.NonExemplar,
+      surfacedMoveOwnsTruth = true,
+      verifiedPayoffAnchor = None,
+      compensationProseAllowed = false,
+      benchmarkProseAllowed = false,
+      investmentTruthChainKey = None,
+      maintenanceExemplarCandidate = false,
+      benchmarkCriticalMove = false,
+      failureMode = FailureInterpretationMode.NoClearPlan,
+      failureIntentConfidence = 0.9,
+      failureIntentAnchor = None,
+      failureInterpretationAllowed = true
+    )
+    val slots =
+      MoveReviewPolishSlotsBuilder.buildOrFallback(
+        ctx,
+        BookStyleRenderer.validatedOutline(ctx),
+        refs = None,
+        strategyPack = None,
+        truthContract = Some(missedWinContract)
+      )
+
+    assertNotEquals(slots.sourceKind, MoveReviewPolishSlots.Source.ThematicFallback)
+    assertEquals(
+      MoveReviewProseContract.stripMoveHeader(slots.claim),
+      "This moves the pawn to h3."
+    )
+  }
+
   test("thematic fallback remains available for non-tactical inaccuracy truth") {
     val ctx = quietH3Ctx.copy(
       plans = PlanTable(
@@ -267,7 +393,7 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
             name = "OpenFilePressure",
             score = 0.92,
             evidence = List("rook doubling on open d-file"),
-            supports = Nil,
+            supports = List("subplan:open_file_pressure"),
             blockers = Nil,
             missingPrereqs = Nil
           )

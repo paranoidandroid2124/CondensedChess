@@ -4,8 +4,6 @@ import chess.*
 import lila.commentary.model.*
 import lila.commentary.model.Motif.*
 import lila.commentary.analysis.L3.{ PawnPlayAnalysis, PositionClassification, ThreatAnalysis, TensionPolicy }
-import lila.commentary.analysis.semantic.StrategicObservationIds.ProofFamilyId
-import lila.commentary.analysis.semantic.RelationObservationCatalog
 import lila.commentary.model.structure.{ PlanAlignment, StructureId, StructureProfile }
 import chess.Color.White
 import lila.commentary.analysis.PlanTaxonomy.{ PlanTheme, PlanKind, ThemeResolver }
@@ -96,27 +94,10 @@ object PlanMatcher:
     val ClearanceBreak = PlanKind.ClearanceBreak.id
 
   def triggerKind(themeL1: String, subplanId: Option[String]): String =
-    PlanTaxonomy.PlanKind.fromId(subplanId.getOrElse("")).map {
-      case PlanTaxonomy.PlanKind.BreakPrevention     => "break_neutralization"
-      case PlanTaxonomy.PlanKind.KeySquareDenial     => "entry_square_denial"
-      case PlanTaxonomy.PlanKind.OpenFilePressure    => "bounded_file_pressure"
-      case PlanTaxonomy.PlanKind.RookFileTransfer    => "bounded_file_pressure"
-      case PlanTaxonomy.PlanKind.DefenderTrade       => ProofFamilyId.TradeKeyDefender.wireKey
-      case PlanTaxonomy.PlanKind.SimplificationWindow => PlanTaxonomy.PlanKind.SimplificationWindow.id
-      case PlanTaxonomy.PlanKind.ProphylaxisRestraint => ProofFamilyId.CounterplayRestraint.wireKey
-      case other                                       => other.id
-    }.orElse(PlanTaxonomy.PlanTheme.fromId(themeL1).map(_.id)).getOrElse("strategic_claim")
+    PlanSemanticsContract.triggerKind(themeL1, subplanId)
 
   def proofFamily(themeL1: String, subplanId: Option[String]): String =
-    PlanTaxonomy.PlanKind.fromId(subplanId.getOrElse("")).map {
-      case PlanTaxonomy.PlanKind.BreakPrevention     => ProofFamilyId.NeutralizeKeyBreak.wireKey
-      case PlanTaxonomy.PlanKind.KeySquareDenial     => ProofFamilyId.HalfOpenFilePressure.wireKey
-      case PlanTaxonomy.PlanKind.OpenFilePressure    => ProofFamilyId.HalfOpenFilePressure.wireKey
-      case PlanTaxonomy.PlanKind.RookFileTransfer    => ProofFamilyId.HalfOpenFilePressure.wireKey
-      case PlanTaxonomy.PlanKind.DefenderTrade       => ProofFamilyId.TradeKeyDefender.wireKey
-      case PlanTaxonomy.PlanKind.SimplificationWindow => PlanTaxonomy.PlanKind.SimplificationWindow.id
-      case other                                       => other.id
-    }.orElse(PlanTaxonomy.PlanTheme.fromId(themeL1).map(_.id)).getOrElse("strategic_claim")
+    PlanSemanticsContract.proofFamily(themeL1, subplanId)
 
   case class ActivePlans(
       primary: PlanMatch,
@@ -303,7 +284,7 @@ object PlanMatcher:
 
   private def restriction(m: List[Motif], ctx: IntegratedContext, side: Color, s: SideSnapshot): PlanMatch =
     val ev = evidence(m, 0.18) {
-      case Domination(_, _, _, c, _, _) if c == side => s"${deferredDominationLabel} reduces enemy mobility"
+      case Domination(_, _, _, c, _, _) if c == side => s"${legacyDominationPlanLabel} reduces enemy mobility"
       case Blockade(_, _, _, c, _, _) if c == side   => "blockade limits counterplay"
       case OpenFileControl(_, c, _, _) if c == side  => "file control supports prophylaxis"
     }
@@ -326,11 +307,8 @@ object PlanMatcher:
       subplanId = Some(Subplan.Restriction)
     )
 
-  private def deferredDominationLabel: String =
-    RelationObservationCatalog
-      .deferredFallbackForKind(MoveReviewExchangeAnalyzer.RelationKind.Domination)
-      .flatMap(_.label)
-      .getOrElse("key-square restriction")
+  private def legacyDominationPlanLabel: String =
+    "key-square restriction"
 
   private def redeployment(m: List[Motif], ctx: IntegratedContext, side: Color, s: SideSnapshot): PlanMatch =
     val ev = evidence(m, 0.17) {

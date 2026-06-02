@@ -11,12 +11,14 @@ import lila.commentary.analysis.semantic.StrategicObservationIds.{
 }
 import lila.commentary.analysis.semantic.{
   RelationObservationCatalog,
+  RelationObservationDescriptor,
   StrategicIdeaEvidence,
   StrategicIdeaEvidencePipeline,
   StrategicSemanticObservation
 }
 import lila.commentary.analysis.semantic.StrategicSemanticObservationPipeline
 import lila.commentary.*
+import PlanMoveEvidenceSupport.*
 import lila.commentary.model.{ PlanId, PlanMatch, StrategicPlanExperiment }
 import lila.commentary.model.strategic.{ PositionalTag, PreventedPlan, WeakComplex }
 import lila.commentary.model.structure.{ CenterState, StructureId }
@@ -35,6 +37,7 @@ private[commentary] object StrategicIdeaSelector:
       targetSquare: Option[String] = None,
       relationKind: Option[String] = None,
       relationFocusSquares: List[String] = Nil,
+      relationSupport: Option[StrategyRelationSupport] = None,
       beneficiaryPieces: List[String] = Nil,
       score: Double,
       evidenceRefs: List[EvidenceRef] = Nil,
@@ -131,10 +134,15 @@ private[commentary] object StrategicIdeaSelector:
               .orElse(
                 dominantCandidates.drop(1).find(candidate =>
                   candidate.group != dominant.group &&
-                    math.abs(dominant.score - candidate.score) <= 0.12
+                  math.abs(dominant.score - candidate.score) <= 0.12
                 )
               )
-          List(Some(dominant), secondary).flatten.zipWithIndex.map { case (candidate, idx) =>
+          val selected =
+            preserveStructuredRelationCandidate(
+              selected = List(Some(dominant), secondary).flatten,
+              candidates = resolved ++ merged
+            )
+          selected.zipWithIndex.map { case (candidate, idx) =>
             StrategyIdeaSignal(
               ideaId = s"idea_${idx + 1}",
               ownerSide = candidate.ownerSide,
@@ -150,11 +158,52 @@ private[commentary] object StrategicIdeaSelector:
               evidenceRefs = surfaceEvidenceRefs(candidate),
               targetSquare = candidate.targetSquare,
               relationKind = candidate.relationKind,
-              relationFocusSquares = candidate.relationFocusSquares
+              relationFocusSquares = candidate.relationFocusSquares,
+              relationSupport = candidate.relationSupport
             )
           }
         }
       }
+
+  private def preserveStructuredRelationCandidate(
+      selected: List[Candidate],
+      candidates: List[Candidate]
+  ): List[Candidate] =
+    val relationCandidate =
+      candidates
+        .filter(hasStructuredRelationSupport)
+        .distinctBy(candidateSurfaceKey)
+        .sortBy(candidate =>
+          (
+            -candidateRelationSelectorPriority(candidate),
+            -candidate.score,
+            candidate.kind,
+            candidate.relationKind.getOrElse("")
+          )
+        )
+        .headOption
+    relationCandidate match
+      case Some(relation) =>
+        (relation :: selected.filterNot(candidate => candidateSurfaceKey(candidate) == candidateSurfaceKey(relation)))
+          .distinctBy(candidateSurfaceKey)
+          .take(2)
+      case None => selected.take(2)
+
+  private def candidateSurfaceKey(candidate: Candidate): (String, String, Option[String], List[String], Option[String]) =
+    (
+      candidate.kind,
+      candidate.group,
+      candidate.relationKind,
+      candidate.relationFocusSquares,
+      candidate.targetSquare
+    )
+
+  private def hasStructuredRelationSupport(candidate: Candidate): Boolean =
+    candidate.relationKind.exists(kind =>
+      RelationObservationCatalog.isImplementedKind(kind) &&
+        candidate.relationFocusSquares.nonEmpty &&
+        candidate.relationSupport.exists(_.relationKind == kind)
+    )
 
   def humanizedKind(kind: String): String =
     kind match
@@ -171,7 +220,7 @@ private[commentary] object StrategicIdeaSelector:
       case other                                             => other.replace('_', ' ')
 
   def playerFacingIdeaText(signal: StrategyIdeaSignal): String =
-    signal.kind match
+    relationSupportIdeaText(signal).getOrElse(signal.kind match
       case StrategicIdeaKind.PawnBreak =>
         pawnBreakText(signal.ownerSide, signal.focusSquares, signal.focusFiles, signal.focusZone)
       case StrategicIdeaKind.KingAttackBuildUp =>
@@ -196,6 +245,18 @@ private[commentary] object StrategicIdeaSelector:
         val label = humanizedKind(other)
         val focus = focusSummary(signal)
         if focus.nonEmpty && focus != "the key sector" then s"$label ${focusJoiner(focus)}" else label
+    )
+
+  private def relationSupportIdeaText(signal: StrategyIdeaSignal): Option[String] =
+    relationDescriptor(signal).flatMap { descriptor =>
+      val focus = relationFocusSquares(signal)
+      RelationSurfaceText.ideaText(
+        descriptor = descriptor,
+        idea = signal,
+        focusSquares = focus,
+        targetSquare = relationTargetSquare(signal, descriptor, focus)
+      )
+    }
 
   private val PrioritySupportEvidenceRefs =
     List(
@@ -218,12 +279,42 @@ private[commentary] object StrategicIdeaSelector:
     EvidenceRef.Source(source).wireKey
 
   def focusSummary(signal: StrategyIdeaSignal): String =
-    focusSummary(
-      focusSquares = signal.focusSquares,
-      focusFiles = signal.focusFiles,
-      focusDiagonals = signal.focusDiagonals,
-      focusZone = signal.focusZone
+    relationSupportFocusSummary(signal).getOrElse(
+      focusSummary(
+        focusSquares = signal.focusSquares,
+        focusFiles = signal.focusFiles,
+        focusDiagonals = signal.focusDiagonals,
+        focusZone = signal.focusZone
+      )
     )
+
+  private def relationSupportFocusSummary(signal: StrategyIdeaSignal): Option[String] =
+    relationDescriptor(signal).flatMap { descriptor =>
+      val focus = relationFocusSquares(signal)
+      RelationSurfaceText.focusSummary(
+        descriptor = descriptor,
+        idea = signal,
+        focusSquares = focus,
+        targetSquare = relationTargetSquare(signal, descriptor, focus)
+      )
+    }
+
+  private def relationDescriptor(signal: StrategyIdeaSignal): Option[RelationObservationDescriptor] =
+    signal.relationKind.flatMap(RelationObservationCatalog.descriptorForKind)
+
+  private def relationFocusSquares(signal: StrategyIdeaSignal): List[String] =
+    normalizeSquareKeys(signal.relationFocusSquares)
+
+  private def relationTargetSquare(
+      signal: StrategyIdeaSignal,
+      descriptor: RelationObservationDescriptor,
+      focusSquares: List[String]
+  ): Option[String] =
+    signal.targetSquare
+      .flatMap(squareFromKey)
+      .map(_.key)
+      .filter(focusSquares.contains)
+      .orElse(descriptor.fallbackTarget(focusSquares))
 
   def packetAnchorTerms(signal: StrategyIdeaSignal): List[String] =
     (
@@ -464,7 +555,8 @@ private[commentary] object StrategicIdeaSelector:
               factIds = Nil,
               typedFactIds = observation.facts,
               relationKind = Some(descriptor.relationKind),
-              relationFocusSquares = observation.focusSquares
+              relationFocusSquares = observation.focusSquares,
+              relationSupport = observation.relationSupport
             )
           }
       }
@@ -718,7 +810,7 @@ private[commentary] object StrategicIdeaSelector:
       .flatMap { grouped =>
         val best = grouped.maxBy(_.confidence)
         val bestRelation =
-          grouped.filter(_.relationKind.nonEmpty).toList.sortBy(ev => (-ev.confidence, ev.source.wireKey)).headOption
+          grouped.filter(_.relationKind.nonEmpty).toList.sortBy(ev => (-relationSelectorPriority(ev), -ev.confidence, ev.source.wireKey)).headOption
         val stackCap =
           best.kind match
             case StrategicIdeaKind.TargetFixing                   => 0.10
@@ -759,6 +851,7 @@ private[commentary] object StrategicIdeaSelector:
               else genericTarget,
             relationKind = selectedRelationKind,
             relationFocusSquares = bestRelation.map(_.relationFocusSquares).getOrElse(Nil),
+            relationSupport = bestRelation.flatMap(_.relationSupport),
             beneficiaryPieces = grouped.flatMap(_.beneficiaryPieces).distinct.take(4),
             score = score,
             evidenceRefs = candidateEvidenceRefs(grouped, matchingPlanEvidence, bestRelation),
@@ -783,6 +876,33 @@ private[commentary] object StrategicIdeaSelector:
       ).toList.distinct
     val priority = relationEvidenceRefs(bestRelation).filter(refs.contains)
     (priority ++ refs.filterNot(priority.contains)).take(8)
+
+  private def relationSelectorPriority(evidence: StrategicIdeaEvidence): Int =
+    val descriptorPriority =
+      evidence.relationKind
+        .flatMap(RelationObservationCatalog.descriptorForKind)
+        .map(_.selectorPriority)
+        .getOrElse(0)
+    descriptorPriority + structuredSupportSelectorPriority(evidence.relationKind, evidence.relationSupport)
+
+  private def candidateRelationSelectorPriority(candidate: Candidate): Int =
+    val descriptorPriority =
+      candidate.relationKind
+        .flatMap(RelationObservationCatalog.descriptorForKind)
+        .map(_.selectorPriority)
+        .getOrElse(0)
+    descriptorPriority + structuredSupportSelectorPriority(candidate.relationKind, candidate.relationSupport)
+
+  private def structuredSupportSelectorPriority(
+      relationKind: Option[String],
+      support: Option[StrategyRelationSupport]
+  ): Int =
+    relationKind
+      .filter(_ == MoveReviewExchangeAnalyzer.RelationKind.Pin)
+      .flatMap(_ => support.flatMap(_.absolutePin))
+      .filter(identity)
+      .map(_ => 2)
+      .getOrElse(0)
 
   private def relationEvidenceRefs(relationEvidence: Option[StrategicIdeaEvidence]): List[EvidenceRef] =
     relationEvidence
@@ -1089,41 +1209,7 @@ private[commentary] object StrategicIdeaSelector:
     val matchedKinds =
       experiment.subplanId
         .flatMap(PlanTaxonomy.PlanKind.fromId)
-        .map {
-          case PlanTaxonomy.PlanKind.BreakPrevention | PlanTaxonomy.PlanKind.KeySquareDenial =>
-            if experiment.counterBreakNeutralized then Set(StrategicIdeaKind.CounterplaySuppression, StrategicIdeaKind.Prophylaxis)
-            else Set(StrategicIdeaKind.Prophylaxis)
-          case PlanTaxonomy.PlanKind.ProphylaxisRestraint =>
-            Set(StrategicIdeaKind.Prophylaxis)
-          case PlanTaxonomy.PlanKind.OutpostEntrenchment =>
-            Set(StrategicIdeaKind.OutpostCreationOrOccupation)
-          case PlanTaxonomy.PlanKind.WorstPieceImprovement | PlanTaxonomy.PlanKind.BishopReanchor =>
-            Set(StrategicIdeaKind.MinorPieceImbalanceExploitation, StrategicIdeaKind.LineOccupation)
-          case PlanTaxonomy.PlanKind.RookFileTransfer | PlanTaxonomy.PlanKind.OpenFilePressure =>
-            Set(StrategicIdeaKind.LineOccupation)
-          case PlanTaxonomy.PlanKind.FlankClamp | PlanTaxonomy.PlanKind.CentralSpaceBind |
-              PlanTaxonomy.PlanKind.MobilitySuppression =>
-            Set(StrategicIdeaKind.SpaceGainOrRestriction)
-          case PlanTaxonomy.PlanKind.StaticWeaknessFixation | PlanTaxonomy.PlanKind.MinorityAttackFixation |
-              PlanTaxonomy.PlanKind.BackwardPawnTargeting | PlanTaxonomy.PlanKind.IQPInducement =>
-            Set(StrategicIdeaKind.TargetFixing)
-          case PlanTaxonomy.PlanKind.CentralBreakTiming | PlanTaxonomy.PlanKind.WingBreakTiming |
-              PlanTaxonomy.PlanKind.TensionMaintenance =>
-            Set(StrategicIdeaKind.PawnBreak)
-          case PlanTaxonomy.PlanKind.SimplificationWindow | PlanTaxonomy.PlanKind.DefenderTrade |
-              PlanTaxonomy.PlanKind.QueenTradeShield | PlanTaxonomy.PlanKind.SimplificationConversion |
-              PlanTaxonomy.PlanKind.PasserConversion | PlanTaxonomy.PlanKind.PassedPawnManufacture |
-              PlanTaxonomy.PlanKind.BadPieceLiquidation | PlanTaxonomy.PlanKind.InvasionTransition |
-              PlanTaxonomy.PlanKind.OppositeBishopsConversion =>
-            Set(StrategicIdeaKind.FavorableTradeOrTransformation)
-          case PlanTaxonomy.PlanKind.RookPawnMarch | PlanTaxonomy.PlanKind.HookCreation |
-              PlanTaxonomy.PlanKind.RookLiftScaffold =>
-            Set(StrategicIdeaKind.KingAttackBuildUp)
-          case PlanTaxonomy.PlanKind.OpeningDevelopment |
-              PlanTaxonomy.PlanKind.ForcingTacticalShot | PlanTaxonomy.PlanKind.DefenderOverload |
-              PlanTaxonomy.PlanKind.ClearanceBreak | PlanTaxonomy.PlanKind.BatteryPressure =>
-            Set.empty[String]
-        }
+        .map(PlanSemanticsContract.strategicIdeaKinds)
         .getOrElse(themeIdeaKinds(experiment.themeL1))
     matchedKinds.contains(kind)
 
@@ -1470,6 +1556,7 @@ private[commentary] object StrategicIdeaSelector:
       targetSquare: Option[String] = None,
       relationKind: Option[String] = None,
       relationFocusSquares: List[String] = Nil,
+      relationSupport: Option[StrategyRelationSupport] = None,
       beneficiaryPieces: List[String] = Nil,
       factIds: List[String] = Nil,
       typedFactIds: List[FactId] = Nil
@@ -1489,7 +1576,8 @@ private[commentary] object StrategicIdeaSelector:
       factIds = factIds,
       typedFactIds = typedFactIds,
       relationKind = relationKind,
-      relationFocusSquares = relationFocusSquares
+      relationFocusSquares = relationFocusSquares,
+      relationSupport = relationSupport
     )
 
   private def mergeReadiness(readinessValues: Iterable[String]): String =
@@ -2092,24 +2180,7 @@ private[commentary] object StrategicIdeaSelector:
   private def normalizeSquareKeys(keys: List[String]): List[String] =
     keys.flatMap(squareFromKey).map(_.key).distinct
 
-  private def hasPiece(board: Board, color: Color, square: Square, role: Role): Boolean =
-    board.pieceAt(square).exists(piece => piece.color == color && piece.role == role)
 
-  private def pawnAt(board: Board, color: Color, square: Square): Boolean =
-    hasPiece(board, color, square, Pawn)
-
-  private def diagonalClear(board: Board, from: Square, to: Square): Boolean =
-    val fileStep = math.signum(to.file.value - from.file.value)
-    val rankStep = math.signum(to.rank.value - from.rank.value)
-    val fileDiff = (to.file.value - from.file.value).abs
-    val rankDiff = (to.rank.value - from.rank.value).abs
-    if fileDiff != rankDiff || fileDiff == 0 then false
-    else
-      (1 until fileDiff).forall { offset =>
-        Square
-          .at(from.file.value + offset * fileStep, from.rank.value + offset * rankStep)
-          .forall(board.pieceAt(_).isEmpty)
-      }
 
   private def zoneFromSquareKeys(keys: List[String]): Option[String] =
     zoneFromSquares(keys.flatMap(squareFromKey))
@@ -2131,8 +2202,7 @@ private[commentary] object StrategicIdeaSelector:
       case "holes"         => if weakness.isOutpost then 0.64 else 0.60
       case _               => 0.66
 
-  private def mostCommon(values: List[String]): Option[String] =
-    values.groupBy(identity).toList.sortBy { case (value, grouped) => (-grouped.size, value) }.headOption.map(_._1)
+
 
   private def focusSummary(
       focusSquares: List[String],
@@ -2388,14 +2458,7 @@ private[commentary] object StrategicIdeaSelector:
   private def isSeventhRankFor(side: String, square: Square): Boolean =
     if side == "white" then square.rank == Rank.Seventh else square.rank == Rank.Second
 
-  private def isOpenFile(board: Board, file: File): Boolean =
-    (board.pawns & _root_.chess.Bitboard.file(file)).isEmpty
 
-  private def isSemiOpenFileFor(board: Board, file: File, color: Color): Boolean =
-    val mask = _root_.chess.Bitboard.file(file)
-    val ours = board.pawns & board.byColor(color) & mask
-    val theirs = board.pawns & board.byColor(!color) & mask
-    ours.isEmpty && theirs.nonEmpty
 
   private def fileHasBothColorsPawns(board: Board, file: File): Boolean =
     val mask = _root_.chess.Bitboard.file(file)

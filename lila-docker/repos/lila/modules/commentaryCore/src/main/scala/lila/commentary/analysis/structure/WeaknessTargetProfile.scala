@@ -3,8 +3,8 @@ package lila.commentary.analysis.structure
 import _root_.chess.{ Board, Color, File, Pawn, Square }
 import _root_.chess.format.{ Fen, Uci }
 import _root_.chess.variant.Standard
-
 import lila.commentary.analysis.PositionAnalyzer
+import lila.commentary.analysis.PlanMoveEvidenceSupport._
 
 private[commentary] final case class WeaknessTargetProfile(
     targetSquare: String,
@@ -161,26 +161,12 @@ private[commentary] object WeaknessTargetProfile:
       )
     }.toList
 
-  private def forwardSquare(square: Square, side: Color): Option[Square] =
-    val rank = square.rank.value + (if side.white then 1 else -1)
-    Square.at(square.file.value, rank)
+
 
   private def pressureFiles(square: String): List[String] =
     square.headOption.toList.map(_.toString)
 
-  private def adjacentSquares(square: String): List[String] =
-    for
-      file <- square.headOption.toList
-      rank <- square.lift(1).toList
-      fileIndex = file - 'a'
-      rankIndex = rank.asDigit
-      df <- List(-1, 0, 1)
-      dr <- List(-1, 0, 1)
-      if df != 0 || dr != 0
-      nextFile = (fileIndex + df + 'a').toChar
-      nextRank = rankIndex + dr
-      if nextFile >= 'a' && nextFile <= 'h' && nextRank >= 1 && nextRank <= 8
-    yield s"$nextFile$nextRank"
+
 
   private def structureContext(fen: String, board: Board, sideToMove: Color): Option[String] =
     PositionAnalyzer.extractFeatures(fen, 1).map { features =>

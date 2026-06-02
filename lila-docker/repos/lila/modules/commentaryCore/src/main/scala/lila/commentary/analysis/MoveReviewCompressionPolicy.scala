@@ -615,21 +615,33 @@ private[commentary] object MoveReviewCompressionPolicy:
   ): Option[MoveReviewPolishSlots] =
     val activeTheme =
       if ctx.plans.top5.nonEmpty then
-        PlanTaxonomy.ThemeResolver.fromPlanName(ctx.plans.top5.head.name)
+        ctx.plans.top5.headOption
+          .flatMap(row => PlanClaimBoundary.PlanProposal.fromPlanRow(row).fallbackTheme)
+          .getOrElse(PlanTaxonomy.PlanTheme.Unknown)
       else if plannerRuntime.inputs.evidenceBackedPlans.nonEmpty then
-        PlanTaxonomy.ThemeResolver.fromHypotheses(plannerRuntime.inputs.evidenceBackedPlans)
+        fallbackThemeFromProposals(
+          plannerRuntime.inputs.evidenceBackedPlans.map(PlanClaimBoundary.PlanProposal.fromHypothesis)
+        )
       else if ctx.strategicPlanExperiments.nonEmpty then
-        ctx.strategicPlanExperiments.map(theme_from_exp).find(_ != PlanTaxonomy.PlanTheme.Unknown).getOrElse(PlanTaxonomy.PlanTheme.Unknown)
+        fallbackThemeFromProposals(
+          ctx.strategicPlanExperiments.map(PlanClaimBoundary.PlanProposal.fromExperiment)
+        )
       else
         PlanTaxonomy.PlanTheme.Unknown
 
+    val fallbackPolicy = PlanSemanticsContract.fallbackPolicy(activeTheme)
     val thematicFallbackBlocked = truthContract.exists { contract =>
       contract.truthClass == DecisiveTruthClass.Blunder ||
+        contract.truthClass == DecisiveTruthClass.MissedWin ||
         contract.reasonFamily == DecisiveReasonKind.TacticalRefutation ||
         contract.failureMode == FailureInterpretationMode.TacticalRefutation
     }
 
-    Option.when(activeTheme != PlanTaxonomy.PlanTheme.Unknown && !thematicFallbackBlocked) {
+    Option.when(
+      activeTheme != PlanTaxonomy.PlanTheme.Unknown &&
+        fallbackPolicy.mayEmitStrategicFallback &&
+        !thematicFallbackBlocked
+    ) {
       val claim = theme_fallback_prose(activeTheme)
       val prefixClaim = prefixMoveHeader(ctx, claim)
       MoveReviewPolishSlots(
@@ -646,11 +658,11 @@ private[commentary] object MoveReviewCompressionPolicy:
       )
     }
 
-  private def theme_from_exp(e: StrategicPlanExperiment): PlanTaxonomy.PlanTheme =
-    PlanTaxonomy.PlanTheme.fromId(e.themeL1).filter(_ != PlanTaxonomy.PlanTheme.Unknown)
-      .orElse(e.subplanId.flatMap(PlanTaxonomy.ThemeResolver.subplanFromId).map(_.theme))
-      .orElse(Option(PlanTaxonomy.ThemeResolver.fromPlanId(e.planId)).filter(_ != PlanTaxonomy.PlanTheme.Unknown))
-      .getOrElse(PlanTaxonomy.PlanTheme.Unknown)
+  private def fallbackThemeFromProposals(
+      proposals: Iterable[PlanClaimBoundary.PlanProposal]
+  ): PlanTaxonomy.PlanTheme =
+    val themes = proposals.flatMap(_.fallbackTheme).toList.distinct
+    PlanTaxonomy.PlanTheme.ranked.find(themes.contains).orElse(themes.headOption).getOrElse(PlanTaxonomy.PlanTheme.Unknown)
 
   private def theme_fallback_prose(theme: PlanTaxonomy.PlanTheme): String =
     theme match

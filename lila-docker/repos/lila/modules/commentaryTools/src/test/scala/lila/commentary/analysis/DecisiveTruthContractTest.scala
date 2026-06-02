@@ -898,7 +898,20 @@ class DecisiveTruthContractTest extends FunSuite:
         readiness = StrategicIdeaReadiness.Build,
         focusSquares = List("e4", "f5", "g6"),
         confidence = 0.72,
-        evidenceRefs = List("source:xray_relation", "xray_semantic", "blocker:f5")
+        evidenceRefs = List("source:xray_relation", "xray_semantic", "blocker:f5"),
+        targetSquare = Some("g6"),
+        relationKind = Some(MoveReviewExchangeAnalyzer.RelationKind.XRay),
+        relationFocusSquares = List("e4", "f5", "g6"),
+        relationSupport =
+          Some(
+            StrategyRelationSupport(
+              relationKind = MoveReviewExchangeAnalyzer.RelationKind.XRay,
+              focusSquares = List("e4", "f5", "g6"),
+              targetSquare = Some("g6"),
+              attackerSquare = Some("e4"),
+              blockerSquare = Some("f5")
+            )
+          )
       )
     val pack =
       StrategyPack(
@@ -932,6 +945,7 @@ class DecisiveTruthContractTest extends FunSuite:
 
     assert(frame.truthClass != DecisiveTruthClass.Blunder, clue(frame))
     assert(sanitizedPack.strategicIdeas.exists(_.evidenceRefs.contains("source:xray_relation")), clue(sanitizedPack))
+    assert(sanitizedPack.strategicIdeas.exists(_.relationSupport.exists(_.blockerSquare.contains("f5"))), clue(sanitizedPack))
 
     val surface =
       MoveReviewPlayerPayloadBuilder.build(
@@ -958,6 +972,7 @@ class DecisiveTruthContractTest extends FunSuite:
         )
       )
     )
+    assert(relationRow.text.contains("the line runs from e4 through f5 toward g6"), clue(relationRow))
   }
 
   test("failed speculative sacrifice is tagged separately from generic tactical blunders") {

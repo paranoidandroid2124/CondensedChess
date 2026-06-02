@@ -1080,6 +1080,11 @@ private[commentary] object CommentaryIdeaSurface:
   def motifCorroboratedByFact(rawMotif: String, fact: Fact): Boolean =
     val motif = normalizeMotifKey(rawMotif)
     RelationObservationCatalog.deferredFallbackForMotifTag(motif).isEmpty &&
+      !legacyTrappedPieceMotif(motif) &&
+      motif != "domination" &&
+      motif != "stalemate_trap" &&
+      motif != "zwischenzug" &&
+      motif != "perpetual_check" &&
       (
         fact match
           case _: Fact.Pin =>
@@ -1100,6 +1105,11 @@ private[commentary] object CommentaryIdeaSurface:
             motif.contains("king_cut_off") || motif.contains("passed_pawn")
           case _ => false
       )
+
+  private def legacyTrappedPieceMotif(motif: String): Boolean =
+    motif == "trapped_piece" ||
+      motif.startsWith("trapped_piece_queen") ||
+      motif.startsWith("trapped_piece_rook")
 
   private val CenterSquares: Set[String] = Set("d4", "e4", "d5", "e5")
 

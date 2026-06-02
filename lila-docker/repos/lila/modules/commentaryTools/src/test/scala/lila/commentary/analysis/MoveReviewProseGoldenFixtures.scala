@@ -652,6 +652,19 @@ object MoveReviewProseGoldenFixtures:
             theme = "piece_restriction",
             evidence = List("e5 outpost fixed", "kingside space")
           )
+        ),
+        plans = PlanTable(
+          top5 = List(
+            PlanRow(
+              rank = 1,
+              name = "Punish the Entrenched Knight",
+              score = 0.82,
+              evidence = List("supports Punish the Entrenched Knight"),
+              supports = List("theme:piece_restriction", "subplan:entrenched_knight"),
+              confidence = ConfidenceLevel.Heuristic
+            )
+          ),
+          suppressed = Nil
         )
       )
     )
@@ -796,6 +809,19 @@ object MoveReviewProseGoldenFixtures:
             evidence = List("subplan:opposite_bishops_conversion", "different color complexes"),
             subplan = Some("opposite_bishops_conversion")
           )
+        ),
+        plans = PlanTable(
+          top5 = List(
+            PlanRow(
+              rank = 1,
+              name = "Opposite Bishops Conversion",
+              score = 0.82,
+              evidence = List("supports Opposite Bishops Conversion"),
+              supports = List("theme:advantage_transformation", "subplan:opposite_bishops_conversion"),
+              confidence = ConfidenceLevel.Heuristic
+            )
+          ),
+          suppressed = Nil
         ),
         planContinuity = Some(
           PlanContinuity(
