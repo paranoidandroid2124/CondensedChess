@@ -22,6 +22,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       ctx: NarrativeContext = MoveReviewProseGoldenFixtures.rookPawnMarch.ctx,
       moveReviewExplanation: Option[MoveReviewExplanation] = None,
       moveReviewLedger: Option[MoveReviewStrategicLedger] = None,
+      refs: Option[MoveReviewRefs] = None,
       evaluatedPlans: List[EvaluatedPlan] = Nil,
       authoringSurface: AuthoringEvidenceSurface = emptyAuthoringSurface,
       supportedLocalRows: List[MoveReviewPlayerSurfaceRow] = Nil,
@@ -32,7 +33,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       ctx = ctx,
       moveReviewExplanation = moveReviewExplanation,
       moveReviewLedger = moveReviewLedger,
-      refs = None,
+      refs = refs,
       evaluatedPlans = evaluatedPlans,
       authoringSurface = authoringSurface,
       supportedLocalRows = supportedLocalRows,
@@ -143,6 +144,70 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assertEquals(surface.schema, "chesstory.move_review.player_surface.v2")
     assertEquals(surface.title, Some("Move review title"))
     assertEquals(surface.decisionComparison, None)
+  }
+
+  test("uses move review explanation short line as player support") {
+    val surface =
+      build(
+        ctx = relationOnlyContext(InitialFen, "e2e4"),
+        moveReviewExplanation =
+          Some(
+            MoveReviewExplanation(
+              title = "Move review: e4",
+              prose = "e4 keeps the center question concrete.",
+              shortLine = Some(MoveReviewShortLine(san = List("e4", "e5", "Nf3"))),
+              pvInterpretation =
+                Some(
+                  MoveReviewPvInterpretation(
+                    linePurpose = "central test",
+                    tension = "center",
+                    learningPoint = "The checked line keeps the center question concrete."
+                  )
+                )
+            )
+          )
+      )
+
+    assertEquals(surface.summaryRows.map(_.label), List("Checked line"))
+    assertEquals(
+      surface.summaryRows.head.text,
+      "The checked line keeps the center question concrete. Short line: e4 e5 Nf3."
+    )
+    assertEquals(surface.summaryRows.head.refSans, List("e4", "e5", "Nf3"))
+    assertEquals(surface.summaryRows.head.authority, None)
+  }
+
+  test("uses move review refs as player support when explanation has no short line") {
+    val refs =
+      MoveReviewRefs(
+        startFen = InitialFen,
+        startPly = 1,
+        variations =
+          List(
+            MoveReviewVariationRef(
+              lineId = "line_01",
+              scoreCp = 15,
+              mate = None,
+              depth = 8,
+              moves =
+                List(
+                  MoveReviewMoveRef("l01_m01", "e4", "e2e4", InitialFen, 1, 1, Some("1.")),
+                  MoveReviewMoveRef("l01_m02", "e5", "e7e5", InitialFen, 2, 1, Some("1...")),
+                  MoveReviewMoveRef("l01_m03", "Nf3", "g1f3", InitialFen, 3, 2, Some("2."))
+                )
+            )
+          )
+      )
+    val surface =
+      build(
+        ctx = relationOnlyContext(InitialFen, "e2e4"),
+        refs = Some(refs)
+      )
+
+    assertEquals(surface.summaryRows.map(_.label), List("Checked line"))
+    assertEquals(surface.summaryRows.head.text, "Short line: e4 e5 Nf3.")
+    assertEquals(surface.summaryRows.head.refSans, List("e4", "e5", "Nf3"))
+    assertEquals(surface.summaryRows.head.authority, None)
   }
 
   test("uses only certified decision comparison surface input for the player strip") {
@@ -413,6 +478,41 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assert(!rendered.contains(rawObjective), clue(rendered))
     assert(!rendered.contains(rawPlan), clue(rendered))
     assert(!rendered.contains(rawSeed), clue(rendered))
+  }
+
+  test("author question titles split camel-case question kinds") {
+    val surface =
+      build(
+        authoringSurface =
+          AuthoringEvidenceSurface(
+            questions =
+              List(
+                AuthorQuestionSummary(
+                  id = "race",
+                  kind = "WhosePlanIsFaster",
+                  priority = 1,
+                  question = "After Nb4, whose plan is faster?",
+                  why = Some("Both sides have active ideas."),
+                  anchors = Nil,
+                  confidence = "Medium"
+                ),
+                AuthorQuestionSummary(
+                  id = "why",
+                  kind = "WhyThis",
+                  priority = 2,
+                  question = "Why choose Nb4?",
+                  why = Some("The alternative also looks natural."),
+                  anchors = Nil,
+                  confidence = "Medium"
+                )
+              ),
+            evidence = Nil,
+            headline = None
+          )
+      )
+
+    assertEquals(surface.authorRows.map(_.title), List("Whose Plan Is Faster", "Why This"))
+    assert(!surface.authorRows.exists(row => row.title == "Whoseplanisfaster" || row.title == "Whythis"), clue(surface.authorRows))
   }
 
   test("authoring branch source ids are not exposed as player surface row sources") {

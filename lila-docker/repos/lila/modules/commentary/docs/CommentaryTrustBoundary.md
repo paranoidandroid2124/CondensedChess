@@ -15,9 +15,8 @@ and cleaned up from the workspace.
 `GameChronicleResponse` and `GameChronicleMoment` are deleted and cannot be referenced or
 used in the workspace. Any legacy replay code must use non-authority carriers such as
 `DecisionFrameCarrierInput` and `DecisionFrameDossierInput` directly, and runtime trust/signoff
-code must not refer to chronicle DTOs.
-Active-note DTO fields, active branch dossiers, strategic-thread lists, and `ActivePlanRef` tags
-have been completely removed; runtime `GameArc` must not carry them.
+Active-note DTO fields, active branch dossiers, strategic-thread lists, `ActivePlanRef` tags, and `GameArc` models
+have been completely removed.
 
 Current operating posture:
 
@@ -250,6 +249,10 @@ restriction evidence instead of emitting `domination` as a plan evidence term.
 `UserFacingSignalSanitizer` applies the same rule to leaked helper notation:
 deferred practical/thematic helpers are rewritten to catalog fallback wording,
 and diagnostic-only deferred helpers are removed rather than named.
+MoveReview thematic fallback prose must remain a fallback, not proof promotion:
+theme-owned fallback text may use short move-facing chess language, but it must
+not name deferred relation evidence, raw plan internals, or repeated
+`The strategic plan is...` boilerplate as if they were certified facts.
 Threat-summary labels in `NarrativeContextBuilder` consume the same catalog
 fallback, so deferred relation motifs from `ThreatAnalysis` do not surface as
 raw key-threat labels.
@@ -509,7 +512,10 @@ Opening-goal prose expansion is also bounded to the existing carrier. New
 tension release, Open Catalan `c4` pawn recovery, Sicilian `...c5` c-pawn
 challenge, and King's Gambit `f4` break may influence outline/explanation
 wording only after the post-move board pattern and engine score produce
-`openingGoalEvaluation`. A bare `OpeningReference` can keep that carrier open
+`openingGoalEvaluation`. Player-facing MoveReview title/prose uses bounded
+opening-idea phrases from that carrier and keeps raw catalog goal names in typed
+fragments/tags rather than in public sentences. A bare `OpeningReference` can
+keep that carrier open
 only inside the early opening-data window; later non-opening phases need an
 opening phase or explicit opening event, so stale opening labels do not
 reclassify middlegame/endgame moves as opening-goal prose. Opening goals must
@@ -531,6 +537,19 @@ Current strict rules:
   structure-transition witness described above; otherwise they may remain
   diagnostic or degrade to `ExchangeSequence`, `MaterialTransition`, practical
   target, or thematic fallback wording when tactical truth allows it.
+- polish and repair may paraphrase the slot claim's opening clause for natural
+  prose only while preserving concrete slot facts, SAN tokens, move numbers, and
+  square anchors. They must not replace an admitted slot with a generic
+  restatement or reintroduce sidecar/system language. Repair may keep a
+  paraphrased first paragraph when the reviewed move anchor and a bounded claim
+  fact remain present, instead of restoring the deterministic claim solely
+  because the prefix words changed. Polish validation may canonicalize SAN case,
+  tolerate duplicate draft SAN mentions being stated once, and allow equivalent
+  or omitted eval tokens; invented SAN, order inversion, wrong move-number style,
+  changed eval values, placeholder, system-language, and unanchored abstract
+  claims still fail closed. Anchored ordinary chess phrases such as counterplay
+  restraint, coordinated pieces, or holding a position together are not rejected
+  solely by phrase match.
 - break/file-axis admission uses the centralized `BreakFileToken` parser; a
   plain prose word or incidental `a`-`h` letter is not evidence for a file.
 - position-probe question seeds must use the exact FEN being generated. The
@@ -817,7 +836,9 @@ boundary. Structured continuity tokens remain compatibility state until a
 server-signed, versioned, expiring, request-bound token contract exists.
 QC/report queue tooling follows the same rule: when `moveReviewPlayerSurface`
 exists, support rows come from that surface rather than raw `signalDigest`,
-`mainStrategicPlans`, or `strategicPlanExperiments`.
+`mainStrategicPlans`, or `strategicPlanExperiments`. In that tooling path,
+`summaryRows` plus backend `decisionComparison` form support rows, while
+`advancedRows`, `probeRows`, and author rows remain advanced review details.
 
 Frontend code must not rebuild strategic meaning from:
 
@@ -834,12 +855,18 @@ Frontend code must not rebuild strategic meaning from:
 MoveReview and narrative views render only typed payload fields that survived
 backend authority. For MoveReview support panels, that typed field is
 `moveReviewPlayerSurface` schema `chesstory.move_review.player_surface.v2`.
+Backend sanitization treats the schema as a structured identifier and preserves
+the exact dot-separated v1/v2 value instead of prose-sanitizing it.
 Rows may carry sanitized `authority` with only `kind`, `token`,
 `openingFamily`, and `target`; malformed authority is removed by the backend
 sanitizer, and the frontend decoder downgrades unsupported or malformed
 authority shapes from cached/stale surfaces while preserving the row text.
 Only `counterplay_break` may carry a square token; `central_break`,
 `central_liquidation`, and `central_challenge` require route-shaped tokens.
+Planner-owned threat-defense wording must not expose raw UCI coordinates as
+player prose: where the current context can identify the played move it renders
+the played SAN, and context-free contrast support lowers UCI-only defense
+anchors to a generic defensive reply.
 Cached v1 rows decode with no authority. Opening-family
 authority may keep `openingFamily` only for sanctioned key shapes and may keep
 `target` only for backend allowlist pairs from `OpeningFamilyCatalog`;
@@ -847,7 +874,13 @@ unsupported targets are stripped while the opening row may remain. The current
 builder projection emits target metadata only when same-family legal route
 evidence satisfies `OpeningRouteCatalog`, `PieceRouteEvidence`, and
 `OpeningRouteTargetEvidence.checkRouteEvidence`; stale cached target metadata that
-does not pass shape/allowlist checks is still downgraded. Legacy top-level
+does not pass shape/allowlist checks is still downgraded. During fresh
+MoveReview construction, `MoveReviewPlayerPayloadBuilder` may project the
+current backend-built `moveReviewExplanation.shortLine` and bounded PV learning
+point into an authority-free `Checked line` summary row; this is not a cached
+top-level explanation reconstruction path. If that explanation line is absent,
+the builder may use the preferred current-move `MoveReviewRefs` variation for
+the same authority-free row instead of parsing planner prose. Legacy top-level
 `moveReviewExplanation` is not a public fact-fragment authority: backend
 sanitization strips `factFragments`, and frontend decoding ignores that field.
 Legacy top-level `moveReviewLedger` may provide only metadata/signal attributes

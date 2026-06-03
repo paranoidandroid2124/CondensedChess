@@ -15,7 +15,6 @@ object CommentaryPlayerReviewQueueBuilder:
   final case class Config(
       manifestPath: Path = DefaultManifestDir.resolve("slice_manifest.jsonl"),
       moveReviewOutputsPath: Path = DefaultMoveReviewRunDir.resolve("move_review_outputs.jsonl"),
-      chronicleReportPath: Path = DefaultChronicleRunDir.resolve("report.json"),
       outPath: Path = DefaultReviewDir.resolve("review_queue.jsonl"),
       summaryPath: Path = DefaultReportDir.resolve("review_queue_summary.json"),
       auditSetPath: Option[Path] = None,
@@ -27,14 +26,14 @@ object CommentaryPlayerReviewQueueBuilder:
     val (queue, summary) =
       config.auditSetPath match
         case Some(path) => buildAuditQueue(config, path)
-        case None       => buildLegacyQueue(config)
+        case None       => buildManifestQueue(config)
 
     writeJsonLines(config.outPath, queue)
     writeJson(config.summaryPath, Json.toJson(summary))
     val mandatory = queue.count(entry => config.fullReview || isMandatoryReview(entry.sliceKind, entry.flags))
     println(s"[player-qc-queue] wrote `${config.outPath}` (reviewed=${queue.size}, mandatory=$mandatory)")
 
-  private[tools] def buildAuditQueue(config: Config, auditSetPath: Path): (List[ReviewQueueEntry], ChronicleQueueReport) =
+  private[tools] def buildAuditQueue(config: Config, auditSetPath: Path): (List[ReviewQueueEntry], ReviewQueueReport) =
     val auditSet =
       readAuditSet(auditSetPath) match
         case Right(value) => value
@@ -55,19 +54,18 @@ object CommentaryPlayerReviewQueueBuilder:
             sys.exit(1)
           }
         val rawDir = Paths.get(entry.rawDir)
-        val focusRows = game.focusMoments.flatMap(moment => buildAuditMomentEntries(entry, moment, rawDir, config.fullReview))
-        focusRows
+        val moveReviewRows =
+          game.moveReviewFocusRows.flatMap(row => buildAuditMoveReviewEntries(entry, row, rawDir, config.fullReview))
+        moveReviewRows
       }
 
     val moveReviewCount = queue.count(_.surface == ReviewSurface.MoveReview)
     val mandatory = queue.count(entry => config.fullReview || isMandatoryReview(entry.sliceKind, entry.flags))
     val summary =
-      ChronicleQueueReport(
+      ReviewQueueReport(
         version = 1,
         generatedAt = java.time.Instant.now().toString,
         moveReviewOutputCount = moveReviewCount,
-        chronicleMomentCount = 0,
-        wholeGameReviewCount = 0,
         mandatoryReviewCount = mandatory,
         sampledReviewCount = queue.size - mandatory,
         reviewedCount = queue.size,
@@ -77,7 +75,7 @@ object CommentaryPlayerReviewQueueBuilder:
 
     (queue, summary)
 
-  private def buildLegacyQueue(config: Config): (List[ReviewQueueEntry], ChronicleQueueReport) =
+  private def buildManifestQueue(config: Config): (List[ReviewQueueEntry], ReviewQueueReport) =
     val manifest =
       readJsonLines[SliceManifestEntry](config.manifestPath) match
         case Right(value) => value
@@ -119,12 +117,10 @@ object CommentaryPlayerReviewQueueBuilder:
 
     val mandatory = queue.count(entry => config.fullReview || isMandatoryReview(entry.sliceKind, entry.flags))
     val summary =
-      ChronicleQueueReport(
+      ReviewQueueReport(
         version = 1,
         generatedAt = java.time.Instant.now().toString,
         moveReviewOutputCount = moveReview.size,
-        chronicleMomentCount = 0,
-        wholeGameReviewCount = 0,
         mandatoryReviewCount = mandatory,
         sampledReviewCount = queue.size - mandatory,
         reviewedCount = queue.size,
@@ -134,35 +130,35 @@ object CommentaryPlayerReviewQueueBuilder:
 
     (queue, summary)
 
-  private def buildAuditMomentEntries(
+  private def buildAuditMoveReviewEntries(
       entry: AuditSetEntry,
-      moment: FocusMomentReport,
+      row: MoveReviewFocusReport,
       rawDir: Path,
       fullReview: Boolean
   ): List[ReviewQueueEntry] =
-    val moveReviewRowPayload = moveReviewPayload(entry.gameId, moment, rawDir)
-    val moveReviewSampleId = s"${entry.auditId}:${moment.ply}:moveReview"
+    val moveReviewRowPayload = moveReviewPayload(entry.gameId, row, rawDir)
+    val moveReviewSampleId = s"${entry.auditId}:${row.ply}:moveReview"
     val moveReviewFlags =
       reviewFlags(
         moveReviewRowPayload.commentary,
         moveReviewRowPayload.supportRows,
         moveReviewRowPayload.advancedRows,
-        WholeGameSliceKind.MoveReviewFocus
+        SliceKind.MoveReviewFocus
       )
     val moveReviewEntry =
-      Option.when(fullReview || isMandatoryReview(WholeGameSliceKind.MoveReviewFocus, moveReviewFlags) || sampleByHash(moveReviewSampleId)) {
+      Option.when(fullReview || isMandatoryReview(SliceKind.MoveReviewFocus, moveReviewFlags) || sampleByHash(moveReviewSampleId)) {
         ReviewQueueEntry(
           sampleId = moveReviewSampleId,
           auditId = Some(entry.auditId),
           gameId = entry.gameId,
           surface = ReviewSurface.MoveReview,
           reviewKind = ReviewKind.MoveReviewFocus,
-          sliceKind = WholeGameSliceKind.MoveReviewFocus,
+          sliceKind = SliceKind.MoveReviewFocus,
           tier = Some(entry.tier),
           openingFamily = Some(entry.openingFamily),
           label = Some(entry.label),
           pairedSampleId = None,
-          fen = momentFen(rawDir, entry.gameId, moment.ply).getOrElse(""),
+          fen = moveReviewRowPayload.fen.getOrElse(""),
           playedSan = "",
           mainProse = moveReviewRowPayload.commentary,
           supportRows = flattenRows(moveReviewRowPayload.supportRows),
@@ -175,23 +171,26 @@ object CommentaryPlayerReviewQueueBuilder:
 
   private final case class MoveReviewPayload(
       commentary: String,
+      fen: Option[String],
       supportRows: List[SupportRow],
       advancedRows: List[SupportRow]
   )
 
-  private def moveReviewPayload(gameId: String, moment: FocusMomentReport, rawDir: Path): MoveReviewPayload =
-    val rawMoveReviewPath = rawDir.resolve(s"${gameId}.ply_${moment.ply}.move_review.json")
+  private def moveReviewPayload(gameId: String, row: MoveReviewFocusReport, rawDir: Path): MoveReviewPayload =
+    val rawMoveReviewPath = rawDir.resolve(s"${gameId}.ply_${row.ply}.move_review.json")
     if !Files.exists(rawMoveReviewPath) then
       MoveReviewPayload(
-        commentary = moment.moveReviewCommentary,
+        commentary = row.moveReviewCommentary,
+        fen = None,
         supportRows = Nil,
         advancedRows = Nil
       )
     else
       val js = Json.parse(Files.readString(rawMoveReviewPath))
-      val commentary = (js \ "commentary").asOpt[String].getOrElse(moment.moveReviewCommentary)
+      val commentary = (js \ "commentary").asOpt[String].getOrElse(row.moveReviewCommentary)
+      val fen = (js \ "fen").asOpt[String].map(_.trim).filter(_.nonEmpty)
       val (support, advanced) = moveReviewRowsFromJson(js)
-      MoveReviewPayload(commentary = commentary, supportRows = support, advancedRows = advanced)
+      MoveReviewPayload(commentary = commentary, fen = fen, supportRows = support, advancedRows = advanced)
 
   private def moveReviewRowsFromJson(js: JsValue): (List[SupportRow], List[SupportRow]) =
     moveReviewPlayerSurfaceRowsFromJson(js).getOrElse((Nil, Nil))
@@ -204,7 +203,8 @@ object CommentaryPlayerReviewQueueBuilder:
         value == "chesstory.move_review.player_surface.v2"
     )) {
       val support =
-        rowsFromJson(surface \ "summaryRows")
+        rowsFromJson(surface \ "summaryRows") ++
+          decisionComparisonRowFromJson(surface \ "decisionComparison")
       val advanced =
         rowsFromJson(surface \ "advancedRows") ++
           rowsFromJson(surface \ "probeRows") ++
@@ -218,6 +218,25 @@ object CommentaryPlayerReviewQueueBuilder:
         label <- (row \ "label").asOpt[String].map(_.trim).filter(_.nonEmpty)
         text <- (row \ "text").asOpt[String].flatMap(sanitizeSurfaceText)
       yield SupportRow(label, text)
+    }
+
+  private def decisionComparisonRowFromJson(value: JsLookupResult): List[SupportRow] =
+    value.asOpt[JsObject].toList.flatMap { row =>
+      val label = (row \ "kicker").asOpt[String].map(_.trim).filter(_.nonEmpty).getOrElse("Decision compare")
+      val chosenSan = (row \ "chosenSan").asOpt[String].map(_.trim).filter(_.nonEmpty)
+      val engineSan =
+        (row \ "engineSan").asOpt[String].map(_.trim).filter(_.nonEmpty).filterNot { engine =>
+          (row \ "chosenMatchesBest").asOpt[Boolean].contains(true) || chosenSan.contains(engine)
+        }
+      val text =
+        List(
+          chosenSan.map(move => s"played $move"),
+          engineSan.map(move => s"engine looked at $move"),
+          (row \ "comparedSan").asOpt[String].map(move => s"compared ${move.trim}"),
+          (row \ "gapLabel").asOpt[String].map(gap => s"gap ${gap.trim}"),
+          (row \ "secondaryText").asOpt[String]
+        ).flatten.mkString(", ")
+      sanitizeSurfaceText(text).map(clean => SupportRow(label, clean))
     }
 
   private def authorRowsFromJson(value: JsLookupResult): List[SupportRow] =
@@ -244,17 +263,6 @@ object CommentaryPlayerReviewQueueBuilder:
       .map(_.trim)
       .filter(_.nonEmpty)
 
-  private def momentFen(rawDir: Path, gameId: String, ply: Int): Option[String] =
-    val rawGamePath = rawDir.resolve(s"${gameId}.game_arc.json")
-    if !Files.exists(rawGamePath) then None
-    else
-      val js = Json.parse(Files.readString(rawGamePath))
-      (js \ "moments")
-        .asOpt[List[JsObject]]
-        .getOrElse(Nil)
-        .find(moment => (moment \ "ply").asOpt[Int].contains(ply))
-        .flatMap(moment => (moment \ "fen").asOpt[String])
-
   private def readAuditSet(path: Path): Either[String, AuditSetManifest] =
     try
       Json.parse(Files.readString(path)).validate[AuditSetManifest].asEither.left.map(_.toString)
@@ -267,7 +275,7 @@ object CommentaryPlayerReviewQueueBuilder:
       .asEither match
       case Right(value) => value
       case Left(err) =>
-        System.err.println(s"[player-qc-queue] failed to parse chronicle report `${path}`: $err")
+        System.err.println(s"[player-qc-queue] failed to parse run report `${path}`: $err")
         sys.exit(1)
 
   private def parseConfig(args: List[String]): Config =
@@ -302,10 +310,8 @@ object CommentaryPlayerReviewQueueBuilder:
           manifestPath = positional.headOption.map(Paths.get(_)).getOrElse(DefaultManifestDir.resolve("slice_manifest.jsonl")),
           moveReviewOutputsPath =
             positional.lift(1).map(Paths.get(_)).getOrElse(DefaultMoveReviewRunDir.resolve("move_review_outputs.jsonl")),
-          chronicleReportPath =
-            positional.lift(2).map(Paths.get(_)).getOrElse(DefaultChronicleRunDir.resolve("report.json")),
-          outPath = positional.lift(3).map(Paths.get(_)).getOrElse(DefaultReviewDir.resolve("review_queue.jsonl")),
-          summaryPath = positional.lift(4).map(Paths.get(_)).getOrElse(DefaultReportDir.resolve("review_queue_summary.json")),
+          outPath = positional.lift(2).map(Paths.get(_)).getOrElse(DefaultReviewDir.resolve("review_queue.jsonl")),
+          summaryPath = positional.lift(3).map(Paths.get(_)).getOrElse(DefaultReportDir.resolve("review_queue_summary.json")),
           auditSetPath = None,
           fullReview = fullReview
         )

@@ -9,7 +9,7 @@ import lila.commentary.analysis.practical.ContrastiveSupportAdmissibility
 import lila.commentary.analysis.render.QuietStrategicSupportComposer
 import lila.commentary.{ DirectionalTargetReadiness, NarrativeSignalDigest, StrategyDirectionalTarget, StrategyPack }
 import lila.commentary.model.*
-import lila.commentary.model.authoring.{ AuthorQuestion, AuthorQuestionKind, NarrativeOutline, PlanHypothesis, PlanViability, QuestionEvidence }
+import lila.commentary.model.authoring.{ AuthorQuestion, AuthorQuestionKind, PlanHypothesis, PlanViability, QuestionEvidence }
 import lila.commentary.model.strategic.{ EngineEvidence, VariationLine }
 
 object AuthoritySurfaceLedger:
@@ -31,7 +31,6 @@ object AuthoritySurfaceLedger:
       plannerOwner: String,
       primary: String,
       moveReview: String,
-      chronicle: String,
       leak: Boolean,
       rejected: String,
       contractId: String = "-",
@@ -47,7 +46,6 @@ object AuthoritySurfaceLedger:
         plannerOwner,
         clean(primary),
         clean(moveReview),
-        clean(chronicle),
         leak.toString,
         clean(rejected),
         contractId,
@@ -352,7 +350,6 @@ object AuthoritySurfaceLedger:
       "plannerOwner",
       "primary",
       "moveReview",
-      "chronicle",
       "leak",
       "rejected",
       "contractId",
@@ -411,7 +408,7 @@ object AuthoritySurfaceLedger:
     lines.mkString("\n") + "\n"
 
   private def reviewLine(obs: Observation): String =
-    s"- ${obs.sample.id} (${obs.sample.reviewGroup}) plannerOwner=${clean(obs.plannerOwner)} taxonomy=${obs.taxonomy} contract=${obs.contractId}:${obs.contractStatus}:${obs.contractFailures} primary=${clean(obs.primary)} moveReview=${clean(obs.moveReview)} chronicle=${clean(obs.chronicle)}"
+    s"- ${obs.sample.id} (${obs.sample.reviewGroup}) plannerOwner=${clean(obs.plannerOwner)} taxonomy=${obs.taxonomy} contract=${obs.contractId}:${obs.contractStatus}:${obs.contractFailures} primary=${clean(obs.primary)} moveReview=${clean(obs.moveReview)}"
 
   private def naturalReviewGroup(fixture: TaskShiftProvingFixtures.ReviewFixture): String =
     val tags = fixture.expectedTags.toSet
@@ -449,7 +446,6 @@ object AuthoritySurfaceLedger:
       if sample.softenOwnerPath then softenMainClaimOwnerPath(inputs)
       else inputs
     val ranked = QuestionFirstCommentaryPlanner.plan(planningCtx, effectiveInputs, truthContract)
-    val outline = BookStyleRenderer.validatedOutline(planningCtx, strategyPack = Some(pack), truthContract = truthContract)
     val rawMoveReview =
       moveReviewNarrative(
         MoveReviewCompressionPolicy.buildSlotsOrFallbackFromPlannerRuntime(
@@ -460,8 +456,6 @@ object AuthoritySurfaceLedger:
           truthContract = truthContract
         )
       )
-    val rawChronicle =
-      chronicleNarrative(planningCtx, pack, effectiveInputs, ranked, truthContract, outline)
     val rawPrimary = ranked.primary.map(_.claim).getOrElse("-")
     val primary =
       if sample.softenOwnerPath then softenLocalReading(rawPrimary)
@@ -469,9 +463,6 @@ object AuthoritySurfaceLedger:
     val moveReview =
       if sample.softenOwnerPath && primary != "-" then primary
       else rawMoveReview
-    val chronicle =
-      if sample.softenOwnerPath && primary != "-" then primary
-      else rawChronicle
     val baselineRelease =
       Option.when(sample.tacticalContract)(strategicBaselineRelease(sample, planningCtx, pack)).flatten
     val mainClaimPacket =
@@ -489,7 +480,7 @@ object AuthoritySurfaceLedger:
       }
     Observation(
       sample = sample,
-      release = releaseLabel(sample, ranked, primary, moveReview, chronicle, baselineRelease),
+      release = releaseLabel(sample, ranked, primary, moveReview, baselineRelease),
       taxonomy = sample.taxonomy,
       plannerOwner = ranked.primary
         .zip(ownerDisplaySource)
@@ -497,8 +488,7 @@ object AuthoritySurfaceLedger:
         .getOrElse("-"),
       primary = primary,
       moveReview = moveReview,
-      chronicle = chronicle,
-      leak = sample.tacticalContract && strategicLeak(primary, moveReview, chronicle),
+      leak = sample.tacticalContract && strategicLeak(primary, moveReview),
       rejected = ranked.rejected.map(r => s"${r.questionKind}:${r.reasons.mkString("+")}").mkString(" | "),
       contractId = proofTrace.flatMap(_.contractId).getOrElse("-"),
       contractStatus = proofTrace.flatMap(_.contractStatus).getOrElse("-"),
@@ -1566,24 +1556,6 @@ object AuthoritySurfaceLedger:
         )
     )
 
-  private def chronicleNarrative(
-      ctx: NarrativeContext,
-      pack: lila.commentary.StrategyPack,
-      inputs: QuestionPlannerInputs,
-      ranked: RankedQuestionPlans,
-      truthContract: Option[DecisiveTruthContract],
-      outline: NarrativeOutline
-  ): String =
-    val slots = MoveReviewCompressionPolicy.buildSlotsOrFallbackFromPlannerRuntime(
-      ctx = ctx,
-      inputs = inputs,
-      rankedPlans = ranked,
-      strategyPack = Some(pack),
-      truthContract = truthContract
-    )
-    val narrative = LiveNarrativeCompressionCore.deterministicProse(slots)
-    narrative
-
   private def defaultQuestions =
     List(
       AuthorQuestion("why_this", AuthorQuestionKind.WhyThis, 100, "Why this move?"),
@@ -1592,19 +1564,7 @@ object AuthoritySurfaceLedger:
       AuthorQuestion("why_now", AuthorQuestionKind.WhyNow, 60, "Why now?")
     )
 
-  private val emptyParts =
-    CommentaryEngine.HybridNarrativeParts(
-      lead = "Lead",
-      defaultBridge = "Bridge",
-      criticalBranch = None,
-      body = "Body",
-      primaryPlan = None,
-      focusedOutline = NarrativeOutline(beats = Nil),
-      phase = "Middlegame",
-      tacticalPressure = false,
-      cpWhite = Some(20),
-      bead = 1
-    )
+
 
   private def tacticalFailureContract(fixture: SceneFixture): DecisiveTruthContract =
     DecisiveTruthContract(
@@ -1639,7 +1599,6 @@ object AuthoritySurfaceLedger:
       ranked: RankedQuestionPlans,
       primary: String,
       moveReview: String,
-      chronicle: String,
       baselineRelease: Option[String]
   ): String =
      ranked.primary match
@@ -1650,7 +1609,7 @@ object AuthoritySurfaceLedger:
       case Some(plan) =>
         s"Other:${plan.plannerOwnerKind.wireName}"
       case None if sample.tacticalContract &&
-          !strategicLeak(primary, moveReview, chronicle) &&
+          !strategicLeak(primary, moveReview) &&
           (baselineRelease.nonEmpty || ranked.rejected.exists(_.reasons.contains("strategic_claim_tactical_veto"))) =>
         "TacticalVeto"
       case None =>

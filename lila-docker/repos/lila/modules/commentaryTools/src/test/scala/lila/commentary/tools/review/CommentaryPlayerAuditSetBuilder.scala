@@ -12,11 +12,11 @@ object CommentaryPlayerAuditSetBuilder:
   import CommentaryPlayerQcSupport.*
 
   private val DefaultShardRunDirs = List(
-    ExternalRoot.resolve("manifests").resolve("active_parity_closure_runs_v2").resolve("edge_case_000"),
-    ExternalRoot.resolve("manifests").resolve("active_parity_closure_runs_v2").resolve("master_classical_000"),
-    ExternalRoot.resolve("manifests").resolve("active_parity_closure_runs_v2").resolve("master_classical_080"),
-    ExternalRoot.resolve("manifests").resolve("active_parity_closure_runs_v2").resolve("titled_practical_000"),
-    ExternalRoot.resolve("manifests").resolve("active_parity_closure_runs_v2").resolve("titled_practical_040")
+    ExternalRoot.resolve("manifests").resolve("move_review_qc_runs").resolve("edge_case_000"),
+    ExternalRoot.resolve("manifests").resolve("move_review_qc_runs").resolve("master_classical_000"),
+    ExternalRoot.resolve("manifests").resolve("move_review_qc_runs").resolve("master_classical_080"),
+    ExternalRoot.resolve("manifests").resolve("move_review_qc_runs").resolve("titled_practical_000"),
+    ExternalRoot.resolve("manifests").resolve("move_review_qc_runs").resolve("titled_practical_040")
   )
 
   private val DefaultSingleCorpora = List(
@@ -87,7 +87,7 @@ object CommentaryPlayerAuditSetBuilder:
     AuditSetManifest(
       generatedAt = generatedAt.toString,
       title = "Commentary Player QC 202-game audit set",
-      description = "Deterministic 202-game audit set built from active parity shard reports plus singled-out residual exemplars.",
+      description = "Deterministic 202-game audit set built from MoveReview shard reports plus singled-out residual exemplars.",
       games = entries.toList.sortBy(entry => (entry.sourceTag, entry.tier, entry.openingFamily, entry.label, entry.gameId))
     )
 

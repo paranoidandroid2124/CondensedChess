@@ -57,7 +57,7 @@ class StandardCommentaryClaimPolicyTest extends FunSuite:
       variantKey = variantKey
     )
 
-  test("quiet standard opening collapses to a shared no-event note across moveReview and chronicle") {
+  test("quiet standard opening collapses to a no-event note in moveReview") {
     val moveReviewCtx = quietOpeningCtx()
     val moveReview = BookStyleRenderer.render(moveReviewCtx)
 
@@ -68,18 +68,6 @@ class StandardCommentaryClaimPolicyTest extends FunSuite:
     assertEquals(sentenceCount(moveReview), 1, clue(moveReview))
     assert(!moveReview.toLowerCase.contains("hanging"), clue(moveReview))
     assert(!moveReview.toLowerCase.contains("underdefended"), clue(moveReview))
-
-    val chronicleCtx = quietOpeningCtx(renderMode = NarrativeRenderMode.FullGame)
-    val moment =
-      KeyMoment(
-        ply = chronicleCtx.ply,
-        momentType = "OpeningSetup",
-        score = 0,
-        description = "Quiet opening setup"
-      )
-    val (chronicle, _) = CommentaryEngine.renderHybridMomentNarrative(chronicleCtx, moment)
-
-    assertEquals(chronicle, moveReview)
   }
 
   test("quiet standard opening suppresses central-pawn hanging wording") {

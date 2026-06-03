@@ -22,47 +22,13 @@ class CommentaryPlayerAuditWorkflowTest extends FunSuite:
     val payload = values.map(value => Json.stringify(Json.toJson(value))).mkString("", "\n", "\n")
     Files.writeString(path, payload, StandardCharsets.UTF_8)
 
-  private def sampleFocusMoment(
+  private def sampleMoveReviewFocus(
       ply: Int = 24,
-      gameArcNarrative: String = "White fixed the d5 square and should now build around it.",
-      moveReviewCommentary: String = "12... Nd5: The move fixes the knight on d5 and prepares c4 next.",
-      activeNote: Option[String] = Some("The key idea is to keep the knight on d5 and follow with c4.")
-  ): FocusMomentReport =
-    FocusMomentReport(
+      moveReviewCommentary: String = "12... Nd5: The move fixes the knight on d5 and prepares c4 next."
+  ): MoveReviewFocusReport =
+    MoveReviewFocusReport(
       ply = ply,
-      moveNumber = 12,
-      side = "white",
-      momentType = "AdvantageSwing",
-      selectionKind = "key",
-      dominantIdea = Some("pressure on d5"),
-      secondaryIdea = Some("the c-file"),
-      campaignOwner = Some("White"),
-      ownerMismatch = false,
-      gameArcCompensationPosition = false,
-      moveReviewCompensationPosition = false,
-      compensationPosition = false,
-      exemplarVisible = false,
-      gameArcCompensationSubtype = None,
-      moveReviewCompensationSubtype = None,
-      compensationSubtype = None,
-      gameArcPreparationCompensationSubtype = None,
-      moveReviewPreparationCompensationSubtype = None,
-      gameArcPayoffCompensationSubtype = None,
-      moveReviewPayoffCompensationSubtype = None,
-      gameArcDisplaySubtypeSource = "path",
-      moveReviewDisplaySubtypeSource = "path",
-      activeCompensationMention = false,
-      moveReviewCompensationMention = false,
-      execution = Some("rook toward c1"),
-      objective = Some("c4 to support the knight"),
-      focus = Some("The knight stays pointed at d5."),
-      gameArcNarrative = gameArcNarrative,
-      moveReviewCommentary = moveReviewCommentary,
-      moveReviewSourceMode = "rule",
-      activeNoteStatus = activeNote.fold("omitted")(_ => "rule"),
-      activeNote = activeNote,
-      probeRequestCount = 0,
-      probeRefinementRequestCount = 0
+      moveReviewCommentary = moveReviewCommentary
     )
 
   private def sampleGameReport(id: String, tier: String, family: String, label: String): GameReport =
@@ -76,19 +42,12 @@ class CommentaryPlayerAuditWorkflowTest extends FunSuite:
       opening = Some("Sample Opening"),
       result = Some("1-0"),
       totalPlies = 80,
-      initialMomentCount = 3,
-      refinedMomentCount = 3,
-      strategicMomentCount = 3,
-      threadCount = 2,
-      activeNoteCount = 1,
-      probeCandidateMoments = 0,
       probeCandidateRequests = 0,
       probeExecutedRequests = 0,
       probeUnsupportedRequests = 0,
       usedProbeRefinement = false,
       overallThemes = List("Improving piece placement", "Pressure on d5"),
-      visibleMomentPlies = List(24),
-      focusMoments = List(sampleFocusMoment())
+      moveReviewFocusRows = List(sampleMoveReviewFocus())
     )
 
   private def sampleRunReport(game: GameReport): RunReport =
@@ -101,8 +60,6 @@ class CommentaryPlayerAuditWorkflowTest extends FunSuite:
       enginePath = "stockfish",
       summary = Summary(
         totalGames = 1,
-        totalFocusMoments = game.focusMoments.size,
-        totalActiveNotes = game.activeNoteCount,
         gamesUsingProbeRefinement = 0,
         totalProbeCandidateRequests = 0,
         totalProbeExecutedRequests = 0,
@@ -136,7 +93,6 @@ class CommentaryPlayerAuditWorkflowTest extends FunSuite:
     val shardDir = root.resolve("master_classical_000")
     val rawDir = shardDir.resolve("raw")
     Files.createDirectories(rawDir)
-    Files.writeString(rawDir.resolve("stale.game_arc.json"), "{}")
 
     val report = sampleRunReport(sampleGameReport("game_main", "master_classical", "sicilian", "Main Game"))
     writeJson(shardDir.resolve("report.json"), Json.toJson(report))
@@ -190,7 +146,7 @@ class CommentaryPlayerAuditWorkflowTest extends FunSuite:
     assert(auditSet.games.exists(_.reportPath.endsWith("single_runs\\single_actorxu_77\\report.json")))
   }
 
-  test("buildAuditQueue emits whole-game, chronicle focus, moveReview, and active-note rows for one audit game") {
+  test("buildAuditQueue emits MoveReview rows for one audit game") {
     val root = tempDir("audit-queue-builder")
     val runDir = root.resolve("edge_case_000")
     val rawDir = runDir.resolve("raw")
@@ -200,39 +156,9 @@ class CommentaryPlayerAuditWorkflowTest extends FunSuite:
     val report = sampleRunReport(game)
     writeJson(runDir.resolve("report.json"), Json.toJson(report))
 
-    val rawGame =
-      Json.obj(
-        "intro" -> "White built around d5 and Black never solved the outpost.",
-        "conclusion" -> "The d5 square decided the game.",
-        "themes" -> Json.arr("Pressure on d5"),
-        "review" -> Json.obj(
-          "blundersCount" -> 1,
-          "missedWinsCount" -> 0,
-          "selectedMomentPlies" -> Json.arr(24),
-          "momentTypeCounts" -> Json.obj("AdvantageSwing" -> 1)
-        ),
-        "moments" -> Json.arr(
-          Json.obj(
-            "ply" -> 24,
-            "side" -> "white",
-            "fen" -> "8/8/8/3N4/8/8/8/8 w - - 0 1",
-            "momentType" -> "AdvantageSwing",
-            "moveClassification" -> "Blunder",
-            "narrative" -> "Nd5 fixes the outpost and Black never gets rid of it.",
-            "collapse" -> Json.obj("rootCause" -> "Tactical Miss"),
-            "strategyPack" -> Json.obj(
-              "plans" -> Json.arr(
-                Json.obj("side" -> "white", "planName" -> "Improving piece placement"),
-                Json.obj("side" -> "black", "planName" -> "Attacking a fixed pawn")
-              )
-            )
-          )
-        )
-      )
-    writeJson(rawDir.resolve("game_focus.game_arc.json"), rawGame)
-
     val rawMoveReview =
       Json.obj(
+        "fen" -> "8/8/8/3N4/8/8/8/8 w - - 0 1",
         "commentary" -> "12... Nd5: The move fixes the knight on d5 and prepares c4 next.",
         "mainStrategicPlans" -> Json.arr(
           Json.obj("planId" -> "plan_1", "subplanId" -> play.api.libs.json.JsNull, "planName" -> "Raw carrier plan")
@@ -258,6 +184,14 @@ class CommentaryPlayerAuditWorkflowTest extends FunSuite:
           ),
           "advancedRows" -> Json.arr(
             Json.obj("label" -> "Execution", "text" -> "Surface execution only")
+          ),
+          "decisionComparison" -> Json.obj(
+            "kicker" -> "Decision point",
+            "gapLabel" -> "220cp",
+            "chosenSan" -> "Nd5",
+            "engineSan" -> "Nf4",
+            "secondaryText" -> "The checked line reaches an exchange sequence.",
+            "chosenMatchesBest" -> false
           ),
           "probeRows" -> Json.arr(),
           "authorRows" -> Json.arr()
@@ -286,7 +220,7 @@ class CommentaryPlayerAuditWorkflowTest extends FunSuite:
     val auditSetPath = root.resolve("audit_set.json")
     writeJson(auditSetPath, Json.toJson(auditSet))
 
-    val (queue, summary) =
+    val (queue, _) =
       CommentaryPlayerReviewQueueBuilder.buildAuditQueue(
         CommentaryPlayerReviewQueueBuilder.Config(
           outPath = root.resolve("review_queue.jsonl"),
@@ -298,16 +232,17 @@ class CommentaryPlayerAuditWorkflowTest extends FunSuite:
       )
 
     assertEquals(queue.size, 1)
-    assertEquals(summary.wholeGameReviewCount, 0)
     assert(queue.forall(_.auditId.contains("edge_case_000:game_focus")))
     val moveReviewEntry =
       queue.find(entry => entry.surface == ReviewSurface.MoveReview).getOrElse(fail("missing moveReview row"))
+    assertEquals(moveReviewEntry.fen, "8/8/8/3N4/8/8/8/8 w - - 0 1")
     assert(moveReviewEntry.supportRows.exists(_.contains("Surface plan only")), clue(moveReviewEntry.supportRows))
+    assert(moveReviewEntry.supportRows.exists(row => row.contains("Decision point") && row.contains("exchange sequence")), clue(moveReviewEntry.supportRows))
     assert(moveReviewEntry.advancedRows.exists(_.contains("Surface execution only")), clue(moveReviewEntry.advancedRows))
     assert(!moveReviewEntry.supportRows.exists(_.contains("Raw carrier plan")), clue(moveReviewEntry.supportRows))
   }
 
-  test("buildAuditQueue does not synthesize MoveReview support rows from chronicle metadata when raw surface is absent") {
+  test("buildAuditQueue uses report commentary when raw MoveReview payload is absent") {
     val root = tempDir("audit-queue-missing-move-review")
     val runDir = root.resolve("edge_case_000")
     val rawDir = runDir.resolve("raw")
@@ -315,16 +250,6 @@ class CommentaryPlayerAuditWorkflowTest extends FunSuite:
 
     val game = sampleGameReport("game_focus", "edge_case", "other", "Focus Game")
     writeJson(runDir.resolve("report.json"), Json.toJson(sampleRunReport(game)))
-    writeJson(
-      rawDir.resolve("game_focus.game_arc.json"),
-      Json.obj(
-        "intro" -> "White built around d5.",
-        "conclusion" -> "The d5 square decided the game.",
-        "themes" -> Json.arr("Pressure on d5"),
-        "review" -> Json.obj("blundersCount" -> 0, "missedWinsCount" -> 0, "selectedMomentPlies" -> Json.arr(24)),
-        "moments" -> Json.arr()
-      )
-    )
     val auditSet =
       AuditSetManifest(
         generatedAt = "2026-03-22T00:00:00Z",
@@ -373,14 +298,6 @@ class CommentaryPlayerAuditWorkflowTest extends FunSuite:
 
     val game = sampleGameReport("game_focus", "edge_case", "other", "Focus Game")
     writeJson(runDir.resolve("report.json"), Json.toJson(sampleRunReport(game)))
-    writeJson(
-      rawDir.resolve("game_focus.game_arc.json"),
-      Json.obj(
-        "intro" -> "White built around d5.",
-        "conclusion" -> "The d5 square decided the game.",
-        "moments" -> Json.arr()
-      )
-    )
     writeJson(
       rawDir.resolve("game_focus.ply_24.move_review.json"),
       Json.obj(
@@ -447,7 +364,7 @@ class CommentaryPlayerAuditWorkflowTest extends FunSuite:
           gameId = "game_a",
           surface = ReviewSurface.MoveReview,
           reviewKind = ReviewKind.MoveReviewFocus,
-          sliceKind = WholeGameSliceKind.MoveReviewFocus,
+          sliceKind = SliceKind.MoveReviewFocus,
           tier = Some("master_classical"),
           openingFamily = Some("sicilian"),
           label = Some("Game A"),

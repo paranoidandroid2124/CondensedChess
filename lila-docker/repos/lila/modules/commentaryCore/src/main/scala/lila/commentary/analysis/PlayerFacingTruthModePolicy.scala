@@ -2750,7 +2750,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
           lineMoves = relation.lineMoves,
           ownerSeedTerms = MoveReviewExchangeAnalyzer.ownerSeedTermsFromWitness(
             witness = relation,
-            familyId = PlanTaxonomy.PlanKind.DefenderTrade.id,
+            planKindId = PlanTaxonomy.PlanKind.DefenderTrade.id,
             aliases = List("defender", "local_branch")
           ),
           structureTransitionTerms = MoveReviewExchangeAnalyzer.transitionTermsFromWitness(
@@ -2847,7 +2847,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
           lineMoves = relation.lineMoves,
           ownerSeedTerms = MoveReviewExchangeAnalyzer.ownerSeedTermsFromWitness(
             witness = relation,
-            familyId = PlanTaxonomy.PlanKind.BadPieceLiquidation.id,
+            planKindId = PlanTaxonomy.PlanKind.BadPieceLiquidation.id,
             aliases = List("bad_piece")
           ),
           structureTransitionTerms = MoveReviewExchangeAnalyzer.transitionTermsFromWitness(

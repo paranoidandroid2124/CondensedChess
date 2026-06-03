@@ -30,7 +30,6 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     val soft = byId("B15A-supported-local-soft")
     assertEquals(soft.release, "Suppressed", clues(soft))
     assertEquals(soft.primary, "-")
-    assertEquals(soft.chronicle, "-")
     assertEquals(soft.plannerOwner, "-")
     assert(soft.rejected.contains("truth_contract_missing"), clues(soft))
     assert(!soft.leak, clues(soft))
@@ -39,7 +38,6 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     assertEquals(cSoft.release, "SupportedLocal")
     assertEquals(cSoft.primary, "A key idea is that this trade keeps the same local edge on e6.")
     assert(cSoft.moveReview.contains(cSoft.primary), clues(cSoft))
-    assertEquals(cSoft.chronicle, cSoft.primary)
     assert(cSoft.plannerOwner.contains("MoveDelta"), clues(cSoft))
     assert(!cSoft.primary.startsWith("This trade"), clues(cSoft))
     assert(!cSoft.moveReview.startsWith("This trade"), clues(cSoft))
@@ -70,7 +68,6 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     assertEquals(sourceC.contractId, "-")
     assert(!sourceC.moveReview.contains("A key idea is that"), clues(sourceC))
     assert(!sourceC.moveReview.contains("So the task is"), clues(sourceC))
-    assert(!sourceC.chronicle.contains("So the task is"), clues(sourceC))
 
     val naturalIqpIds =
       List(
@@ -86,13 +83,11 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
       assertEquals(naturalIqp.primary, "This sequence leaves an isolated pawn as the local target.")
       val expectedText = PlayerFacingClaimPrefixKind.SupportedLocal.render(naturalIqp.primary)
       assert(naturalIqp.moveReview.contains(expectedText), clues(naturalIqp))
-      assert(naturalIqp.chronicle.contains(expectedText), clues(naturalIqp))
       assert(naturalIqp.plannerOwner.contains(s"WhyThis:MoveDelta:${PlayerFacingTruthModePolicy.IQPInducementProbeProofSource}"), clues(naturalIqp))
       assertEquals(naturalIqp.contractStatus, "Releasable")
       assert(naturalIqp.contractId.contains(PlanTaxonomy.PlanKind.IQPInducement.id), clues(naturalIqp))
       assertEquals(naturalIqp.taxonomy, "source_iqp_inducement")
       assert(!naturalIqp.moveReview.contains("So the task is"), clues(naturalIqp))
-      assert(!naturalIqp.chronicle.contains("So the task is"), clues(naturalIqp))
     }
 
     List(
@@ -104,13 +99,11 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
       assertEquals(sourceBreakPrevention.primary, s"This keeps $breakToken from coming right away.")
       val expectedText = PlayerFacingClaimPrefixKind.SupportedLocal.render(sourceBreakPrevention.primary)
       assert(sourceBreakPrevention.moveReview.contains(expectedText), clues(sourceBreakPrevention))
-      assert(sourceBreakPrevention.chronicle.contains(expectedText.replace(" ...", "..").replace("...", "..")), clues(sourceBreakPrevention))
       assert(sourceBreakPrevention.plannerOwner.contains("WhyThis:MoveDelta:counterplay_axis_suppression"), clues(sourceBreakPrevention))
       assertEquals(sourceBreakPrevention.contractStatus, "Releasable")
       assert(sourceBreakPrevention.contractId.contains("neutralize_key_break"), clues(sourceBreakPrevention))
       assertEquals(sourceBreakPrevention.taxonomy, "source_break_prevention")
       assert(!sourceBreakPrevention.moveReview.contains("So the task is"), clues(sourceBreakPrevention))
-      assert(!sourceBreakPrevention.chronicle.contains("So the task is"), clues(sourceBreakPrevention))
     }
 
     val sourceSimplification = byId("source-salov-ljubojevic-1992-simplification-window")
@@ -169,7 +162,6 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     assertEquals(prophylaxisControl.primary, "-")
     assertEquals(prophylaxisControl.taxonomy, "prophylaxis_restraint_supported_local")
     assert(!prophylaxisControl.moveReview.contains("So the task is"), clues(prophylaxisControl))
-    assert(!prophylaxisControl.chronicle.contains("So the task is"), clues(prophylaxisControl))
 
     val prophylaxisTactical = byId("prophylaxis-restraint-tactical-veto")
     assertEquals(prophylaxisTactical.release, "Suppressed")
@@ -220,7 +212,6 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
       assert(row.plannerOwner.contains("MoveDelta:counterplay_axis_suppression"), clues(row))
       assert(row.contractId.contains("neutralize_key_break"), clues(row))
       assert(row.moveReview.contains("A key idea is that "), clues(row))
-      assert(row.chronicle.contains("A key idea is that "), clues(row))
       assert(!row.moveReview.contains("So the task is"), clues(row))
     }
     assertEquals(

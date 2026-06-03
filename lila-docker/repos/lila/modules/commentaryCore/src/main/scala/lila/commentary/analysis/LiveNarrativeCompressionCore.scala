@@ -30,7 +30,6 @@ private[commentary] object LiveNarrativeCompressionCore:
     "forgiveness" -> """(?i)\bforgiveness\b""".r,
     "activation lane" -> """(?i)\bactivation lane\b""".r,
     "counterplay suppression" -> """(?i)\bcounterplay suppression\b""".r,
-    "cuts out counterplay" -> """(?i)\bcuts out counterplay\b""".r,
     "making available" -> """(?i)\bmaking [^.]+ available\b""".r,
     "coordination improvement" -> """(?i)\bcoordination improvement\b""".r,
     "rather than drifting" -> """(?i)\brather than drifting into\b""".r,
@@ -43,9 +42,7 @@ private[commentary] object LiveNarrativeCompressionCore:
     "plan still revolves around" -> """(?i)\bthe plan still revolves around\b""".r,
     "useful route" -> """(?i)\ba useful route is\b""".r,
     "useful target" -> """(?i)\bthe next useful target is\b""".r,
-    "pieces coordinated" -> """(?i)\bkeeps the pieces coordinated\b""".r,
     "easy to handle" -> """(?i)\bkeeps the position easy to handle\b""".r,
-    "holds together" -> """(?i)\bholds the position together\b""".r,
     "keep bringing" -> """(?i)\bthe next step is to keep bringing the\b""".r
   )
 
@@ -332,9 +329,7 @@ private[commentary] object LiveNarrativeCompressionCore:
       low.matches("""the move keeps the game in [^.]+\.""") ||
       low.matches("""the move keeps the game in [^.]+, with [^.]+ as the main theme\.""") ||
       low.matches("""the follow-up is to stay inside [^.]+ themes without losing the position's balance\.""") ||
-      low.contains("keeps the pieces coordinated") ||
       low.contains("keeps the position easy to handle") ||
-      low.contains("holds the position together") ||
       low.contains("the square that keeps") && low.contains("grounded") ||
       low.contains("still looks playable in the engine line") ||
       low.contains("needs stronger support beyond that line") ||

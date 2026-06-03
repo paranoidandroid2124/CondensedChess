@@ -22,10 +22,10 @@ private[analysis] final case class OpeningBranchPrecedent(
 ):
   def representativeSentence: String =
     val winnerPart = winnerSummary.map(summary => s", where $summary").getOrElse("")
-    s"In $gameDescriptor, after $routePreview, play headed into the $branchLabel branch$winnerPart."
+    s"In $gameDescriptor, after $routePreview, play headed into the ${OpeningPrecedentBranching.playerBranchLabel(branchLabel)} branch$winnerPart."
 
   def summarySentence: String =
-    s"The clearest master precedent here points to the $branchLabel branch, where $mechanismSummary."
+    s"The clearest master precedent here points to the ${OpeningPrecedentBranching.playerBranchLabel(branchLabel)} branch, where $mechanismSummary."
 
 private[analysis] object OpeningPrecedentBranching:
 
@@ -107,7 +107,7 @@ private[analysis] object OpeningPrecedentBranching:
         .max(0.0)
         .min(1.0)
     val branchLabel = branchLabelOf(planHint, branchHint, structureHint, sanMoves, mechanism)
-    val mechanismSummary = mechanismSummaryOf(mechanism, branchLabel)
+    val mechanismSummary = mechanismSummaryOf(mechanism, playerBranchLabel(branchLabel))
     for
       text <- snippet
       route <- routePreview
@@ -132,30 +132,45 @@ private[analysis] object OpeningPrecedentBranching:
       openingRefMovesOf(ctx).map(normalizeMoveToken).filter(_.nonEmpty).toSet
     val followsRepresentative = played.exists(p => trigger.contains(p))
     val staysWithinReference = followsRepresentative || played.exists(topReferenceMoves.contains)
-    val planLabel = branchPlanLabelOf(ctx, precedent)
+    val branchLabel = playerBranchLabel(precedent.branchLabel)
+    val planLabel = playerBranchLabel(branchPlanLabelOf(ctx, precedent))
     ctx.openingEvent match
       case Some(OpeningEvent.OutOfBook(_, _, _)) =>
-        s"The current move bends away from the established ${precedent.branchLabel} branch and instead tries to justify $planLabel over the board."
+        cleanRelationSentence(
+          if normalizeText(planLabel).equalsIgnoreCase(normalizeText(branchLabel)) then
+            s"The current move leaves the established $branchLabel branch, so that idea has to work in the concrete line."
+          else
+            s"The current move leaves the established $branchLabel branch and points toward $planLabel instead."
+        )
       case Some(OpeningEvent.Novelty(_, _, _, _)) =>
-        s"The current move deliberately bends away from the usual ${precedent.branchLabel} branch, betting that $planLabel will compensate."
+        s"The current move deliberately bends away from the usual $branchLabel branch, betting that $planLabel will compensate."
       case Some(OpeningEvent.BranchPoint(_, _, _)) if followsRepresentative =>
-        s"The current move keeps the game inside that ${precedent.branchLabel} branch rather than forcing a new split."
+        s"The current move keeps the game inside that $branchLabel branch rather than forcing a new split."
       case Some(OpeningEvent.BranchPoint(_, _, _)) =>
         val continuation =
-          if normalizeText(planLabel).equalsIgnoreCase(normalizeText(precedent.branchLabel)) then
+          if normalizeText(planLabel).equalsIgnoreCase(normalizeText(branchLabel)) then
             "but with a different move order"
           else s"and points instead toward $planLabel"
-        s"Here the move steps away from the precedent's ${precedent.branchLabel} route $continuation."
+        s"Here the move steps away from the precedent's $branchLabel route $continuation."
       case Some(OpeningEvent.TheoryEnds(_, _)) =>
-        s"The current move still leans on that ${precedent.branchLabel} branch, but from here the plans have to be justified without much theory support."
+        s"The current move still leans on that $branchLabel branch, but from here the plans have to be justified without much theory support."
       case Some(OpeningEvent.Intro(_, _, _, _)) if staysWithinReference =>
-        s"So the move stays within the classical ${precedent.branchLabel} branch."
+        s"So the move stays within the classical $branchLabel branch."
       case Some(OpeningEvent.Intro(_, _, _, _)) =>
-        s"So the move already shades away from the classical ${precedent.branchLabel} branch toward $planLabel."
+        s"So the move already shades away from the classical $branchLabel branch toward $planLabel."
       case _ if staysWithinReference =>
-        s"The current move keeps to that ${precedent.branchLabel} branch."
+        s"The current move keeps to that $branchLabel branch."
       case _ =>
-        s"The current move bends the game away from that ${precedent.branchLabel} branch toward $planLabel."
+        s"The current move bends the game away from that $branchLabel branch toward $planLabel."
+
+  private def cleanRelationSentence(raw: String): String =
+    raw
+      .replace("the current structure structure play", "the current setup")
+      .replace("current structure structure play", "the current setup")
+      .replace("structure structure", "structure")
+      .replaceAll("""(?i)\bthe\s+current\s+structure\s+structure\s+play\b""", "the current setup")
+      .replaceAll("""(?i)\bcurrent\s+structure\s+structure\s+play\b""", "the current setup")
+      .replaceAll("""(?i)\bstructure\s+structure\b""", "structure")
 
   private def focusMovesOf(ctx: NarrativeContext): Set[String] =
     val played = ctx.playedSan.toList
@@ -254,7 +269,7 @@ private[analysis] object OpeningPrecedentBranching:
       explicitPlan
         .orElse(explicitBranch)
         .orElse(heuristicBranch)
-        .orElse(structureHint.map(s => s"$s structure play"))
+        .orElse(structureHint.map(structurePlanLabel))
         .getOrElse(defaultBranchLabel(mechanism))
     normalizeBranchLabel(raw)
 
@@ -403,10 +418,36 @@ private[analysis] object OpeningPrecedentBranching:
     if normalized.endsWith(" branch") then normalized.stripSuffix(" branch")
     else normalized
 
+  private[analysis] def playerBranchLabel(raw: String): String =
+    val label = normalizeBranchLabel(raw) match
+      case "development logic"           => "piece development"
+      case "thematic break preparation"  => "pawn-break timing"
+      case "flank fianchetto support"    => "fianchetto setup"
+      case "fianchetto support"          => "fianchetto setup"
+      case "early queen exposure"        => "early queen activity"
+      case "castle race"                 => "king-safety race"
+      case "center reaction"             => "center reaction"
+      case label if label.contains("current structure structure") => "the current setup"
+      case label if label.contains("structure structure")          => label.replace("structure structure", "structure")
+      case label                         => label
+    collapseStructureLabel(label)
+
+  private def collapseStructureLabel(label: String): String =
+    label
+      .replaceAll("""(?i)\bthe\s+current\s+structure\s+structure\s+play\b""", "the current setup")
+      .replaceAll("""(?i)\bcurrent\s+structure\s+structure\s+play\b""", "the current setup")
+      .replaceAll("""(?i)\bstructure\s+structure\b""", "structure")
+
   private def branchPlanLabelOf(ctx: NarrativeContext, precedent: OpeningBranchPrecedent): String =
     planHintOf(ctx)
-      .orElse(structureHintOf(ctx).map(s => s"$s structure play"))
+      .orElse(structureHintOf(ctx).map(structurePlanLabel))
       .getOrElse(precedent.branchLabel)
+
+  private def structurePlanLabel(raw: String): String =
+    val normalized = normalizeBranchLabel(raw)
+    if normalized == "the current structure" || normalized == "current structure" then "the current setup"
+    else if normalized.contains("structure") || normalized.contains("setup") then normalized
+    else s"$normalized structure play"
 
   private def normalizeMoveToken(raw: String): String =
     Option(raw).getOrElse("").trim.toLowerCase

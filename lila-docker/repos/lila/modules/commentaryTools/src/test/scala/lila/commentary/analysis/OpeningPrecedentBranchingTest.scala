@@ -124,7 +124,7 @@ class OpeningPrecedentBranchingTest extends FunSuite:
     assert(relation.toLowerCase.contains("queenside pressure branch"))
   }
 
-  test("out-of-book opening move is described as bending away from the representative branch") {
+  test("out-of-book opening move is described as leaving the representative branch") {
     val outOfBookCtx =
       ctx.copy(
         playedMove = Some("g2g4"),
@@ -132,7 +132,7 @@ class OpeningPrecedentBranchingTest extends FunSuite:
         openingEvent = Some(OpeningEvent.OutOfBook("g4", List("b3", "dxc5", "Qc2"), 16))
       )
     val relation = OpeningPrecedentBranching.relationSentence(outOfBookCtx, outOfBookCtx.openingData, requireFocus = true).getOrElse(fail("missing relation"))
-    assert(relation.toLowerCase.contains("bends away"))
+    assert(relation.toLowerCase.contains("leaves the established"))
     assert(relation.toLowerCase.contains("queenside pressure"))
   }
 
@@ -178,7 +178,7 @@ class OpeningPrecedentBranchingTest extends FunSuite:
     val precedent = OpeningPrecedentBranching.representative(fianchettoCtx, fianchettoCtx.openingData, requireFocus = false).getOrElse(fail("missing precedent"))
     assertEquals(precedent.branchLabel, "flank fianchetto support")
     assertEquals(precedent.mechanism, OpeningBranchMechanism.StructuralTransformation)
-    assert(precedent.summarySentence.toLowerCase.contains("flank fianchetto support"))
+    assert(precedent.summarySentence.toLowerCase.contains("fianchetto setup"))
   }
 
   test("generic opening hints upgrade to early queen exposure when precedent route is queen-led") {
@@ -223,7 +223,7 @@ class OpeningPrecedentBranchingTest extends FunSuite:
     val precedent = OpeningPrecedentBranching.representative(queenCtx, queenCtx.openingData, requireFocus = false).getOrElse(fail("missing precedent"))
     assertEquals(precedent.branchLabel, "early queen exposure")
     assertEquals(precedent.mechanism, OpeningBranchMechanism.InitiativeSwing)
-    assert(precedent.representativeSentence.toLowerCase.contains("early queen exposure branch"))
+    assert(precedent.representativeSentence.toLowerCase.contains("early queen activity branch"))
   }
 
   test("outline keeps the released precedent summary family singular after comparison assembly") {

@@ -301,6 +301,8 @@ class MoveReviewStrategicLedgerBuilderTest extends FunSuite:
     val ledger = build(MoveReviewProseGoldenFixtures.rookPawnMarch.ctx, refs = Some(refs))
     val resource = ledger.resourceLine.getOrElse(fail("missing variation resource line"))
     assertEquals(resource.source, "variation")
+    assertEquals(resource.title, "Alternate line")
+    assert(!resource.title.contains("Deferred branch"), clue(resource.title))
     assertEquals(resource.sanMoves.length, 3)
   }
 

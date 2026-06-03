@@ -685,7 +685,7 @@ object MoveReviewStrategicLedgerBuilder:
       refsValue.variations.lift(preferredIndex).orElse(refsValue.variations.headOption)
     }.flatMap { variation =>
       val candidate = LineCandidate(
-        title = if preferredIndex == 0 then "Aligned line" else "Deferred branch",
+        title = if preferredIndex == 0 then "Aligned line" else "Alternate line",
         sanMoves = variation.moves.take(4).map(_.san.trim).filter(_.nonEmpty),
         scoreCp = Some(variation.scoreCp),
         mate = variation.mate,

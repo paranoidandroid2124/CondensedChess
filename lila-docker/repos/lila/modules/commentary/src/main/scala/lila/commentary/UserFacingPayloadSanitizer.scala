@@ -12,6 +12,9 @@ import lila.strategicPuzzle.StrategicPuzzle.*
 object UserFacingPayloadSanitizer:
 
   private val MoveReviewLedgerSchema = "chesstory.move_review.ledger.v1"
+  private val CurrentMoveReviewPlayerSurfaceSchema = "chesstory.move_review.player_surface.v2"
+  private val MoveReviewPlayerSurfaceSchemas =
+    Set("chesstory.move_review.player_surface.v1", CurrentMoveReviewPlayerSurfaceSchema)
   private val MoveReviewLedgerLineSources = Set("probe", "decision_compare", "variation", "authoring")
   private val StrategicRelationTokens =
     RelationObservationCatalog.ImplementedKinds
@@ -264,7 +267,7 @@ object UserFacingPayloadSanitizer:
 
   private def sanitizeMoveReviewPlayerSurface(surface: MoveReviewPlayerSurface): MoveReviewPlayerSurface =
     surface.copy(
-      schema = clean(surface.schema),
+      schema = sanitizeMoveReviewPlayerSurfaceSchema(surface.schema),
       title = cleanOpt(surface.title),
       summaryRows = surface.summaryRows.flatMap(row => sanitizeMoveReviewPlayerSurfaceRow(row, allowStrategicRelation = false)),
       advancedRows = surface.advancedRows.flatMap(row => sanitizeMoveReviewPlayerSurfaceRow(row, allowStrategicRelation = true)),
@@ -272,6 +275,12 @@ object UserFacingPayloadSanitizer:
       probeRows = surface.probeRows.flatMap(row => sanitizeMoveReviewPlayerSurfaceRow(row, allowStrategicRelation = false)),
       authorRows = surface.authorRows.flatMap(sanitizeMoveReviewPlayerAuthorRow)
     )
+
+  private def sanitizeMoveReviewPlayerSurfaceSchema(schema: String): String =
+    val normalized =
+      Option(schema).getOrElse("").trim.replaceAll("""\s*\.\s*""", ".")
+    if MoveReviewPlayerSurfaceSchemas.contains(normalized) then normalized
+    else CurrentMoveReviewPlayerSurfaceSchema
 
   private def sanitizeMoveReviewPlayerSurfaceRow(
       row: MoveReviewPlayerSurfaceRow,

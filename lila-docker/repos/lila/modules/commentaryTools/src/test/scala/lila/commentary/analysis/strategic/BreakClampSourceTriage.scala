@@ -61,7 +61,6 @@ object BreakClampSourceTriage:
         review.release,
         review.primary,
         review.moveReview,
-        review.chronicle,
         row.selectedEnginePv.mkString(" ")
       ).map(clean).mkString("\t")
 
@@ -195,7 +194,6 @@ object BreakClampSourceTriage:
       "release",
       "surfaceText",
       "moveReviewSurface",
-      "chronicleSurface",
       "selectedEnginePv"
     ).mkString("\t")
 

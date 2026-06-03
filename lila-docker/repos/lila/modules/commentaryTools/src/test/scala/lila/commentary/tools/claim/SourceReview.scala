@@ -6,9 +6,8 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.{ Files, Path, Paths }
 
 import lila.commentary.PgnAnalysisHelper
-import lila.commentary.analysis.render.QuietStrategicSupportComposer
 import lila.commentary.model.*
-import lila.commentary.model.authoring.{ AuthorQuestion, AuthorQuestionKind, NarrativeOutline }
+import lila.commentary.model.authoring.{ AuthorQuestion, AuthorQuestionKind }
 import lila.commentary.model.strategic.VariationLine
 import lila.commentary.tools.review.CommentaryPlayerQcSupport.LocalUciEngine
 
@@ -70,7 +69,6 @@ private[commentary] object SourceReview:
       enginePv: List[String],
       primary: String,
       moveReview: String,
-      chronicle: String,
       reason: String,
       mainProofSource: String = "-",
       mainClaimScope: String = "-",
@@ -109,7 +107,6 @@ private[commentary] object SourceReview:
         clean(enginePv.mkString(" ")),
         clean(primary),
         clean(moveReview),
-        clean(chronicle),
         clean(reason)
       ).mkString("\t")
 
@@ -117,7 +114,6 @@ private[commentary] object SourceReview:
       release: String,
       primary: String,
       moveReview: String,
-      chronicle: String,
       rejected: String,
       ownerTrace: PlannerOwnerTrace,
       mainClaimScope: Option[String],
@@ -287,7 +283,6 @@ private[commentary] object SourceReview:
       "enginePv",
       "primary",
       "moveReview",
-      "chronicle",
       "reason"
     ).mkString("\t")
 
@@ -380,7 +375,6 @@ private[commentary] object SourceReview:
       Nil,
       "-",
       "-",
-      "-",
       err,
       admissionBlockers = "replay:failed"
     )
@@ -415,7 +409,6 @@ private[commentary] object SourceReview:
         engineLines.headOption.toList.flatMap(_.moves),
         "-",
         "-",
-        "-",
         "tactical-first source candidate stays out of B/C strategic admission",
         admissionBlockers = "tactical:first"
       )
@@ -433,7 +426,6 @@ private[commentary] object SourceReview:
         Some(ply.fen),
         Some(ply.playedUci),
         Nil,
-        "-",
         "-",
         "-",
         "engine_missing_before_admission",
@@ -517,7 +509,6 @@ private[commentary] object SourceReview:
         engineLines.headOption.toList.flatMap(_.moves),
         surface.primary,
         surface.moveReview,
-        surface.chronicle,
         if admitted then "exact replay and surfaces agree" else s"admission_blocked: $blockers; planner_owner_missing_or_surface_unsafe: ${surface.rejected}",
         mainProofSource = surface.mainProofSource.getOrElse("-"),
         mainClaimScope = surface.mainClaimScope.getOrElse("-"),
@@ -574,28 +565,22 @@ private[commentary] object SourceReview:
       )
     val proofTrace =
       mainClaim.flatMap(_.packet).map(_.proofTrace)
-    val outline = BookStyleRenderer.validatedOutline(ctx, strategyPack = Some(pack), truthContract = None)
-    val moveReview =
-      Option(
-        clean(
-          LiveNarrativeCompressionCore.deterministicProse(
-            MoveReviewCompressionPolicy.buildSlotsOrFallbackFromPlannerRuntime(
-              ctx = ctx,
-              inputs = inputs,
-              rankedPlans = ranked,
-              strategyPack = Some(pack),
-              truthContract = None
-            )
-          )
+    val renderedMoveReview =
+      LiveNarrativeCompressionCore.deterministicProse(
+        MoveReviewCompressionPolicy.buildSlotsOrFallbackFromPlannerRuntime(
+          ctx = ctx,
+          inputs = inputs,
+          rankedPlans = ranked,
+          strategyPack = Some(pack),
+          truthContract = None
         )
-      ).filter(_.nonEmpty).getOrElse("-")
-    val chronicle =
-      chronicleNarrative(ctx, pack, inputs, ranked, outline)
+      )
+    val moveReview =
+      Option(clean(MoveReviewProseContract.stripMoveHeader(renderedMoveReview))).filter(_.nonEmpty).getOrElse("-")
     EvaluationSurface(
       release = release,
       primary = primary,
       moveReview = moveReview,
-      chronicle = chronicle,
       rejected = ranked.rejected.map(r => s"${r.questionKind}:${r.reasons.mkString("+")}").mkString(" | "),
       ownerTrace = ranked.ownerTrace,
       mainClaimScope = mainClaim.map(_.scope.toString),
@@ -657,9 +642,8 @@ private[commentary] object SourceReview:
         case Some(kind) => kind.render(surface.primary)
         case _          => surface.primary
     val containsClaim =
-      (containsSemantic(surface.moveReview, surface.primary) || containsSemantic(surface.moveReview, renderedPrimary)) &&
-        (containsSemantic(surface.chronicle, surface.primary) || containsSemantic(surface.chronicle, renderedPrimary))
-    val texts = List(surface.moveReview, surface.chronicle)
+      containsSemantic(surface.moveReview, surface.primary) || containsSemantic(surface.moveReview, renderedPrimary)
+    val texts = List(surface.moveReview)
     val localReadingSafe =
       texts.forall { text =>
         val low = text.toLowerCase
@@ -926,26 +910,6 @@ private[commentary] object SourceReview:
       s"risks=${packet.releaseRisks.mkString("+")}"
     ).mkString(";")
 
-  private def chronicleNarrative(
-      ctx: NarrativeContext,
-      pack: lila.commentary.StrategyPack,
-      inputs: QuestionPlannerInputs,
-      ranked: RankedQuestionPlans,
-      outline: NarrativeOutline
-  ): String =
-    val slots = MoveReviewCompressionPolicy.buildSlotsOrFallbackFromPlannerRuntime(
-      ctx = ctx,
-      inputs = inputs,
-      rankedPlans = ranked,
-      strategyPack = Some(pack),
-      truthContract = None
-    )
-    val narrative = LiveNarrativeCompressionCore.deterministicProse(slots)
-    Some(narrative)
-      .map(clean)
-      .filter(_.nonEmpty)
-      .getOrElse("-")
-
   private def taxonomy(source: SourceWitnessCatalog.SourceCandidate): String =
     val low = source.reviewGroup.toLowerCase
     if low.contains("tactical") then "source_tactical_first"
@@ -981,19 +945,7 @@ private[commentary] object SourceReview:
       AuthorQuestion("why_now", AuthorQuestionKind.WhyNow, 60, "Why now?")
     )
 
-  private val emptyParts =
-    CommentaryEngine.HybridNarrativeParts(
-      lead = "Lead",
-      defaultBridge = "Bridge",
-      criticalBranch = None,
-      body = "Body",
-      primaryPlan = None,
-      focusedOutline = NarrativeOutline(beats = Nil),
-      phase = "Middlegame",
-      tacticalPressure = false,
-      cpWhite = Some(20),
-      bead = 1
-    )
+
 
   private[commentary] def markdown(observations: List[Observation]): String =
     val counts = observations.groupBy(_.verdict).view.mapValues(_.size).toList.sortBy(_._1)

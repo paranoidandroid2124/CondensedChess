@@ -73,50 +73,6 @@ class DecisiveTruthContractTest extends FunSuite:
       chosenMatchesBest = chosenMatchesBest
     )
 
-  private def minimalAnalysisData(ply: Int): ExtendedAnalysisData =
-    ExtendedAnalysisData(
-      fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
-      nature = PositionNature(NatureType.Dynamic, 0.5, 0.5, "Dynamic position"),
-      motifs = Nil,
-      plans = Nil,
-      preventedPlans = Nil,
-      pieceActivity = Nil,
-      structuralWeaknesses = Nil,
-      compensation = None,
-      endgameFeatures = None,
-      practicalAssessment = None,
-      prevMove = None,
-      ply = ply,
-      evalCp = 0,
-      isWhiteToMove = true
-    )
-
-  private def arcMoment(
-      ply: Int,
-      momentType: String,
-      moveClassification: Option[String],
-      truthPhase: Option[String],
-      surfacedMoveOwnsTruth: Boolean,
-      verifiedPayoffAnchor: Option[String],
-      benchmarkProseAllowed: Boolean,
-      investmentTruthChainKey: Option[String]
-  ): GameArcMoment =
-    GameArcMoment(
-      ply = ply,
-      momentType = momentType,
-      narrative = "Narrative",
-      analysisData = minimalAnalysisData(ply),
-      moveClassification = moveClassification,
-      cpBefore = Some(0),
-      cpAfter = Some(0),
-      truthPhase = truthPhase,
-      surfacedMoveOwnsTruth = surfacedMoveOwnsTruth,
-      verifiedPayoffAnchor = verifiedPayoffAnchor,
-      benchmarkProseAllowed = benchmarkProseAllowed,
-      investmentTruthChainKey = investmentTruthChainKey
-    )
-
-
   private def compensationInfo(
       investedMaterial: Int,
       conversionPlan: String,
@@ -866,7 +822,8 @@ class DecisiveTruthContractTest extends FunSuite:
         readiness = StrategicIdeaReadiness.Build,
         focusSquares = List("e4", "f5", "g6"),
         confidence = 0.72,
-        evidenceRefs = List("source:xray_relation", "xray_semantic", "blocker:f5")
+        evidenceRefs = List("source:xray_relation", "xray_semantic", "blocker:f5"),
+        relationFocusSquares = List("e4", "f5", "g6")
       )
     val pack =
       StrategyPack(
@@ -1489,32 +1446,3 @@ class DecisiveTruthContractTest extends FunSuite:
 
     assertEquals(contract.isCriticalBestMove, false)
   }
-
-  test("fallback moment projection does not recreate investment ownership from serialized fields") {
-    val projection =
-      DecisiveTruth.momentProjection(
-        arcMoment(
-          ply = 55,
-          momentType = "InvestmentPivot",
-          moveClassification = Some("WinningInvestment"),
-          truthPhase = Some("FirstInvestmentCommitment"),
-          surfacedMoveOwnsTruth = true,
-          verifiedPayoffAnchor = Some("open-file pressure"),
-          benchmarkProseAllowed = true,
-          investmentTruthChainKey = Some("white:open-file pressure")
-        ),
-        None
-      )
-
-    assertEquals(projection.classificationKey, "winninginvestment")
-    assertEquals(projection.ownershipRole, TruthOwnershipRole.NoneRole)
-    assertEquals(projection.visibilityRole, TruthVisibilityRole.Hidden)
-    assertEquals(projection.surfaceMode, TruthSurfaceMode.Neutral)
-    assertEquals(projection.exemplarRole, TruthExemplarRole.NonExemplar)
-    assertEquals(projection.surfacedMoveOwnsTruth, false)
-    assertEquals(projection.verifiedPayoffAnchor, None)
-    assertEquals(projection.benchmarkProseAllowed, false)
-    assertEquals(projection.chainKey, None)
-  }
-
-

@@ -12,6 +12,8 @@ import scala.annotation.unused
 
 class MoveReviewPolishSlotsTest extends FunSuite:
 
+  private val expectedPieceActivityFallback = "The move improves piece activity and looks for better squares."
+
   private def assertNoStateSummaryLeak(text: String): Unit =
     val low = MoveReviewProseContract.stripMoveHeader(text).toLowerCase
     assert(!low.contains("carlsbad"), clues(low))
@@ -48,7 +50,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     assertEquals(slots.lens, StrategicLens.Decision)
     val stripped = MoveReviewProseContract.stripMoveHeader(slots.claim)
     if (slots.sourceKind == MoveReviewPolishSlots.Source.ThematicFallback) {
-      assertEquals(stripped, "The strategic plan is to activate the pieces and find more active squares for them.")
+      assertEquals(stripped, expectedPieceActivityFallback)
     } else {
       assertEquals(stripped, expectedClaim)
     }
@@ -394,7 +396,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
       MoveReviewCompressionPolicy.buildSlotsOrFallback(ctx, outline, None, Some(strategyPack))
     val claim = MoveReviewProseContract.stripMoveHeader(fallbackSlots.claim)
     assertEquals(fallbackSlots.sourceKind, MoveReviewPolishSlots.Source.ThematicFallback)
-    assertEquals(claim, "The strategic plan is to fix targets and apply pressure to the weak points in the opponent's camp.")
+    assertEquals(claim, "The move keeps pressure on fixed weaknesses.")
     assertEquals(fallbackSlots.paragraphPlan, List("p1=claim"))
   }
 
@@ -424,7 +426,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
         strategyPack = Some(strategyPack)
       )
 
-    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "The strategic plan is to activate the pieces and find more active squares for them.")
+    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), expectedPieceActivityFallback)
     assertEquals(slots.supportPrimary, None)
     assertEquals(slots.supportSecondary, None)
   }
@@ -486,7 +488,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     val slots =
       MoveReviewPolishSlotsBuilder.buildOrFallback(fixture.ctx, outline, refs = None, strategyPack = fixture.strategyPack)
     assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.ThematicFallback)
-    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "The strategic plan is to activate the pieces and find more active squares for them.")
+    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), expectedPieceActivityFallback)
   }
 
   test("quiet intent ignores break-ready hints and refuses to emit break-preparation prose") {
@@ -560,6 +562,29 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     assert(repaired.actions.contains("claim_restore"))
     assert(!repaired.materialApplied)
     assertEquals(repaired.materialActions, Nil)
+  }
+
+  test("soft repair keeps natural claim paraphrase when concrete move anchor remains") {
+    val slots =
+      MoveReviewPolishSlots(
+        lens = StrategicLens.Decision,
+        claim = "1. e4: This move claims central space.",
+        supportPrimary = Some("It opens lines for both bishops."),
+        supportSecondary = None,
+        tension = None,
+        evidenceHook = None,
+        coda = None,
+        factGuardrails = Nil,
+        paragraphPlan = List("p1=claim", "p2=support_chain")
+      )
+    val natural =
+      """White takes the center with e4.
+        |
+        |It opens lines for both bishops.""".stripMargin
+    val repaired = MoveReviewSoftRepair.repair(natural, slots)
+    assert(!repaired.actions.contains("claim_restore"), clues(repaired.actions, repaired.text))
+    assert(repaired.text.startsWith("White takes the center with e4."), clues(repaired.text))
+    assert(repaired.evaluation.claimLikeFirstParagraph, clues(repaired.evaluation, repaired.text))
   }
 
   test("deterministic third paragraph wraps bare variation evidence in prose") {
@@ -1198,7 +1223,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
         strategyPack = None
       )
 
-    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "The strategic plan is to activate the pieces and find more active squares for them.")
+    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), expectedPieceActivityFallback)
     assertEquals(slots.paragraphPlan, List("p1=claim"))
   }
 
@@ -1459,7 +1484,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
         strategyPack = None
       )
 
-    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "The strategic plan is to activate the pieces and find more active squares for them.")
+    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), expectedPieceActivityFallback)
     assertEquals(slots.paragraphPlan, List("p1=claim"))
   }
 
@@ -1497,7 +1522,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     assertEquals(rankedPlans.primary, None, clues(rankedPlans))
     assertEquals(rankedPlans.ownerTrace.selectedQuestion, None, clues(rankedPlans.ownerTrace))
     assertEquals(rankedPlans.ownerTrace.selectedPlannerOwnerKind, None, clues(rankedPlans.ownerTrace))
-    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "The strategic plan is to activate the pieces and find more active squares for them.")
+    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), expectedPieceActivityFallback)
     assertEquals(slots.supportPrimary, None)
     assertEquals(slots.supportSecondary, None)
     assertEquals(slots.paragraphPlan, List("p1=claim"))
@@ -1653,6 +1678,6 @@ class MoveReviewPolishSlotsTest extends FunSuite:
       MoveReviewPolishSlotsBuilder.buildOrFallback(ctx, outline, refs = refs, strategyPack = None)
 
     val claim = MoveReviewProseContract.stripMoveHeader(slots.claim)
-    assertEquals(claim, "The strategic plan is to activate the pieces and find more active squares for them.")
+    assertEquals(claim, expectedPieceActivityFallback)
     assertEquals(slots.evidenceHook, None)
   }

@@ -20,43 +20,19 @@ object CommentaryPlayerReviewMerge:
   )
 
   private val RootCauseHints = Map(
-    FixFamily.WholeGamePlanDrift -> "Whole-game Chronicle is describing moments correctly but not binding them into one stable plan/payoff story.",
-    FixFamily.SideAsymmetryOrMissingSidePlan -> "One side's strategic intent is not surviving aggregation into the whole-game Chronicle surface.",
-    FixFamily.TurningPointUnderexplained -> "Turning points are selected, but their concrete swing or strategic meaning is not explained with enough anchor.",
-    FixFamily.BlunderWithoutPunishFeedback -> "Chronicle detects the mistake but does not clearly say how it was punished or what should have been punished.",
-    FixFamily.MissedPunishUnderexplained -> "Chronicle notices a missed chance but does not tell the player what conversion or punishment was available.",
-    FixFamily.ResultPayoffVerdictMismatch -> "The reported story of the game does not line up with who actually cashed in and why.",
-    FixFamily.GenericTensionPeakOverload -> "Too many moments are kept as generic TensionPeak beats instead of being promoted into a clearer arc.",
-    FixFamily.ConcreteAnchorMissingInLongTermStory -> "Long-term strategic language survives, but concrete squares/files/targets are still missing.",
     FixFamily.GenericFillerMainProse -> "MoveReview main prose is collapsing into safe filler instead of leading with the anchored idea.",
     FixFamily.AnchoredSupportMissingFromProse -> "Specific support evidence exists, but it is staying in support rows instead of the body.",
     FixFamily.ConditionalityBlur -> "Candidate/provisional ideas are not keeping their provenance and conditional framing in the main prose.",
     FixFamily.MisanchoredConcreteClaim -> "Specific strategic claims are being stated without a stable concrete carrier.",
-    FixFamily.StrategicFlattening -> "Strategic richness is being compressed down to generic safe language.",
-    FixFamily.ChronicleActiveStoryDrift -> "Active note is no longer carrying the same semantic story as Chronicle/MoveReview at the same focus moment.",
-    FixFamily.ActiveNoteMissingContract -> "Active note generation or validation is dropping moments that should keep an active coaching layer.",
-    FixFamily.AnchorlessActiveContinuation -> "Active note continuation exists, but it is not grounded in a route/target/file/square.",
-    FixFamily.DryContractNote -> "Active note is closing the contract mechanically without giving a useful forward continuation."
+    FixFamily.StrategicFlattening -> "Strategic richness is being compressed down to generic safe language."
   )
 
   private val PatchTargets = Map(
-    FixFamily.WholeGamePlanDrift -> List("Chronicle whole-game aggregation", "CommentaryEngine flow framing"),
-    FixFamily.SideAsymmetryOrMissingSidePlan -> List("Chronicle whole-game aggregation", "StrategyPack side-plan carryover"),
-    FixFamily.TurningPointUnderexplained -> List("Chronicle turning-point renderer", "Game Arc moment promotion"),
-    FixFamily.BlunderWithoutPunishFeedback -> List("Chronicle punishment feedback wording", "collapse/root-cause rendering"),
-    FixFamily.MissedPunishUnderexplained -> List("Chronicle punishment feedback wording", "alternative-line explanation"),
-    FixFamily.ResultPayoffVerdictMismatch -> List("Chronicle conclusion/payoff framing", "practical verdict carryover"),
-    FixFamily.GenericTensionPeakOverload -> List("Chronicle moment selection", "whole-game summary framing"),
-    FixFamily.ConcreteAnchorMissingInLongTermStory -> List("shared thesis/support path", "Chronicle long-term story compression"),
     FixFamily.GenericFillerMainProse -> List("MoveReview main-thesis selection", "MoveReview compression"),
     FixFamily.AnchoredSupportMissingFromProse -> List("MoveReview support-to-body promotion", "move-delta carrier"),
     FixFamily.ConditionalityBlur -> List("MoveReview provenance phrasing", "conditionality carryover"),
     FixFamily.MisanchoredConcreteClaim -> List("shared truth/provenance guard", "MoveReview concrete-claim gating"),
-    FixFamily.StrategicFlattening -> List("MoveReview compression", "shared player-facing rewrite"),
-    FixFamily.ChronicleActiveStoryDrift -> List("Active note semantic alignment", "Chronicle/MoveReview shared contract"),
-    FixFamily.ActiveNoteMissingContract -> List("Active note attach/validation path", "strict compensation rescue"),
-    FixFamily.AnchorlessActiveContinuation -> List("Active note builder", "Active note validator"),
-    FixFamily.DryContractNote -> List("Active note builder", "fallback quality gate")
+    FixFamily.StrategicFlattening -> List("MoveReview compression", "shared player-facing rewrite")
   )
 
   def main(args: Array[String]): Unit =
@@ -113,7 +89,7 @@ object CommentaryPlayerReviewMerge:
       judgments.map { judgment =>
         val metadata = queueMetadata.get(judgment.sampleId)
         val surface = judgment.surface.orElse(metadata.map(_.surface)).getOrElse("unknown")
-        val reviewKind = judgment.reviewKind.orElse(metadata.map(_.reviewKind)).getOrElse(ReviewKind.FocusMoment)
+        val reviewKind = judgment.reviewKind.orElse(metadata.map(_.reviewKind)).getOrElse(ReviewKind.MoveReviewFocus)
         val tier = judgment.tier.orElse(metadata.flatMap(_.tier)).getOrElse("unknown")
         val openingFamily = judgment.openingFamily.orElse(metadata.flatMap(_.openingFamily)).getOrElse("unknown")
         (judgment, surface, reviewKind, tier, openingFamily)

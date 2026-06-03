@@ -655,23 +655,23 @@ private[commentary] object MoveReviewCompressionPolicy:
   private def theme_fallback_prose(theme: PlanTaxonomy.PlanTheme): String =
     theme match
       case PlanTaxonomy.PlanTheme.RestrictionProphylaxis =>
-        "The strategic plan is to restrain the opponent's active plans and consolidate the position."
+        "The move keeps the opponent's activity restrained and aims to consolidate."
       case PlanTaxonomy.PlanTheme.PieceRedeployment =>
-        "The strategic plan is to activate the pieces and find more active squares for them."
+        "The move improves piece activity and looks for better squares."
       case PlanTaxonomy.PlanTheme.SpaceClamp =>
-        "The strategic plan is to gain space and restrict the mobility of the opponent's pieces."
+        "The move gains space while limiting the opponent's mobility."
       case PlanTaxonomy.PlanTheme.WeaknessFixation =>
-        "The strategic plan is to fix targets and apply pressure to the weak points in the opponent's camp."
+        "The move keeps pressure on fixed weaknesses."
       case PlanTaxonomy.PlanTheme.PawnBreakPreparation =>
-        "The strategic plan is to coordinate the pieces and prepare a central or wing pawn break."
+        "The move coordinates the pieces for a central or wing pawn break."
       case PlanTaxonomy.PlanTheme.FavorableExchange =>
-        "The strategic plan is to seek favorable exchanges and improve the piece quality."
+        "The move steers toward favorable exchanges and better piece quality."
       case PlanTaxonomy.PlanTheme.FlankInfrastructure =>
-        "The strategic plan is to build flank infrastructure and prepare for an attack."
+        "The move builds on the flank and prepares attacking chances."
       case PlanTaxonomy.PlanTheme.AdvantageTransformation =>
-        "The strategic plan is to transform the advantage and simplify the game toward a won ending."
+        "The move steers the advantage toward a simpler winning ending."
       case PlanTaxonomy.PlanTheme.ImmediateTacticalGain | PlanTaxonomy.PlanTheme.OpeningPrinciples | _ =>
-        "The strategic plan is to improve piece activity and coordinate the forces."
+        "The move improves piece activity and coordination."
 
   private def basicMoveExplanationSlots(
       ctx: NarrativeContext,

@@ -693,7 +693,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       case AuthorQuestionKind.WhatMattersHere =>
         buildWhatMattersHerePlan(ctx, question, inputs, truthContract, sceneType)
       case AuthorQuestionKind.WhyThis =>
-        buildWhyThisPlan(question, inputs, truthContract, sceneType)
+        buildWhyThisPlan(ctx, question, inputs, truthContract, sceneType)
       case AuthorQuestionKind.WhyNow =>
         buildWhyNowPlan(ctx, question, ply, inputs, truthContract, sceneType)
       case AuthorQuestionKind.WhatChanged =>
@@ -1028,6 +1028,42 @@ private[commentary] object QuestionFirstCommentaryPlanner:
 
   private def cleanLine(raw: String): Option[String] =
     Option(raw).map(_.trim.replaceAll("\\s+", " ")).filter(_.nonEmpty)
+
+  private def sanitizeThreatDefense(
+      ctx: Option[NarrativeContext],
+      threat: ThreatRow
+  ): ThreatRow =
+    threat.copy(bestDefense = threat.bestDefense.map(defenseMoveLabel(ctx, _)))
+
+  private def defenseMoveLabel(
+      ctx: Option[NarrativeContext],
+      raw: String
+  ): String =
+    val cleaned = cleanLine(raw).getOrElse("")
+    moveLabel(ctx, raw).getOrElse {
+      if isUciMove(cleaned) then "the defensive reply" else cleaned
+    }
+
+  private def moveLabel(
+      ctx: Option[NarrativeContext],
+      raw: String
+  ): Option[String] =
+    val cleaned = cleanLine(raw).getOrElse("")
+    ctx.flatMap { current =>
+      val normalized = NarrativeUtils.normalizeUciMove(cleaned)
+      current.playedMove
+        .map(NarrativeUtils.normalizeUciMove)
+        .filter(_ == normalized)
+        .flatMap(_ => current.playedSan.flatMap(cleanLine))
+        .orElse {
+          Option.when(isUciMove(normalized)) {
+            NarrativeUtils.uciListToSan(current.fen, List(normalized)).headOption.flatMap(cleanLine)
+          }.flatten
+        }
+    }.orElse(Option.when(cleaned.nonEmpty && !isUciMove(cleaned))(cleaned))
+
+  private def isUciMove(raw: String): Boolean =
+    raw.matches("""[a-h][1-8][a-h][1-8][qrbn]?""")
 
   private def ensureSentence(raw: String): String =
     val text = Option(raw).map(_.trim).getOrElse("")
@@ -1550,6 +1586,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
     PlayerFacingTruthModePolicy.positionProbeTaskConsequence(packet)
 
   private def buildWhyThisPlan(
+      ctx: Option[NarrativeContext],
       question: AuthorQuestion,
       inputs: QuestionPlannerInputs,
       truthContract: Option[DecisiveTruthContract],
@@ -1558,7 +1595,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
     given QuestionPlannerInputs = inputs
     whyThisDomainFirstPlan(question, inputs, truthContract, sceneType).getOrElse {
       val moveOwnerClaim = whyThisMoveOwnerClaim(inputs)
-      whyThisPlanMaterial(inputs, truthContract, moveOwnerClaim) match
+      whyThisPlanMaterial(ctx, inputs, truthContract, moveOwnerClaim) match
         case None =>
           reject(question, QuestionPlanFallbackMode.FactualFallback, "missing_move_owner")
         case Some(material) =>
@@ -1610,6 +1647,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
     }
 
   private def whyThisPlanMaterial(
+      ctx: Option[NarrativeContext],
       inputs: QuestionPlannerInputs,
       truthContract: Option[DecisiveTruthContract],
       moveOwnerClaim: Option[MainPathScopedClaim]
@@ -1626,7 +1664,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
           claim = claim,
           evidenceSourceKinds = (List("main_bundle", "quiet_intent") ++ routeSource.toList).distinct,
           contrast = whyThisContrast(inputs, truthContract),
-          consequence = whyThisConsequence(inputs),
+          consequence = whyThisConsequence(ctx, inputs),
           strengthTier =
             if tacticalOwner then QuestionPlanStrengthTier.Strong
             else QuestionPlanStrengthTier.Moderate,
@@ -1652,15 +1690,20 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       .orElse(inputs.decisionComparison.flatMap(_.deferredMove.map(move => s"The practical alternative $move remains secondary here.")))
       .orElse(onlyMovePressure(inputs, truthContract))
 
-  private def whyThisConsequence(inputs: QuestionPlannerInputs): Option[QuestionPlanConsequence] =
+  private def whyThisConsequence(ctx: Option[NarrativeContext], inputs: QuestionPlannerInputs): Option[QuestionPlanConsequence] =
     inputs.pvDelta
       .flatMap(planAdvanceOrOpportunity)
       .map(wrapUpConsequence)
       .orElse {
         inputs.counterfactual
           .filter(_.cpLoss > 0)
-          .map(cf => wrapUpConsequence(s"If the move is missed, ${cf.bestMove} becomes the cleaner continuation instead."))
+          .map(cf => wrapUpConsequence(counterfactualConsequenceText(ctx, cf.bestMove)))
       }
+
+  private def counterfactualConsequenceText(ctx: Option[NarrativeContext], bestMove: String): String =
+    moveLabel(ctx, bestMove)
+      .map(move => s"If the move is missed, $move becomes the cleaner continuation instead.")
+      .getOrElse("If the move is missed, the opponent gets a cleaner continuation instead.")
 
   private def buildWhyNowPlan(
       ctx: Option[NarrativeContext],
@@ -1679,10 +1722,10 @@ private[commentary] object QuestionFirstCommentaryPlanner:
           QuestionPlanFallbackMode.DemotedToWhyThis,
           demotedTo = AuthorQuestionKind.WhyThis,
           reasons = List("generic_urgency_only"),
-          fallbackBuild = buildWhyThisPlan(question, inputs, truthContract, sceneType)
+          fallbackBuild = buildWhyThisPlan(ctx, question, inputs, truthContract, sceneType)
         )
       case Some(owner) =>
-        val material = whyNowPlanMaterial(owner, inputs)
+        val material = whyNowPlanMaterial(ctx, owner, inputs)
         val evidence =
           evidenceForQuestion(
             question = question,
@@ -1711,17 +1754,19 @@ private[commentary] object QuestionFirstCommentaryPlanner:
         )
 
   private def whyNowPlanMaterial(
+      ctx: Option[NarrativeContext],
       owner: WhyNowTimingOwner,
       inputs: QuestionPlannerInputs
   ): WhyNowPlanMaterial =
     owner match
       case WhyNowTimingOwner.Threat(threat) =>
+        val defense = threat.bestDefense.map(defenseMoveLabel(ctx, _))
         WhyNowPlanMaterial(
           claim =
-            threat.bestDefense
+            defense
               .map(defense => s"The move has to happen now because otherwise $defense is demanded immediately.")
               .getOrElse(s"The move has to happen now because the opponent's ${threat.kind.toLowerCase} threat is already live."),
-          contrast = threat.bestDefense.map(defense => s"If White drifts, $defense is the reply."),
+          contrast = defense.map(defense => s"If White drifts, $defense is the reply."),
           consequence = Some(
             wrapUpConsequence(s"That keeps the immediate ${threat.kind.toLowerCase} pressure from taking over.")
           ),
@@ -2103,7 +2148,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
           QuestionPlanFallbackMode.DemotedToWhyThis,
           demotedTo = AuthorQuestionKind.WhyThis,
           reasons = List("generic_opponent_plan_only"),
-          fallbackBuild = buildWhyThisPlan(question, inputs, truthContract, sceneType)
+          fallbackBuild = buildWhyThisPlan(ctx, question, inputs, truthContract, sceneType)
         )
       case Some(material) =>
         buildWhatMustBeStoppedOwnedPlan(question, material)
@@ -2115,9 +2160,9 @@ private[commentary] object QuestionFirstCommentaryPlanner:
   ): Option[WhatMustBeStoppedMaterial] =
     val urgentThreat = bestImmediateThreat(inputs.opponentThreats)
     val preventedNow = preventedPlanNeedingStop(ctx, inputs, truthContract)
-    whatMustBeStoppedClaim(urgentThreat, preventedNow).map { claim =>
+    whatMustBeStoppedClaim(urgentThreat.map(sanitizeThreatDefense(ctx, _)), preventedNow).map { claim =>
       WhatMustBeStoppedMaterial(
-        urgentThreat = urgentThreat,
+        urgentThreat = urgentThreat.map(sanitizeThreatDefense(ctx, _)),
         preventedPlan = preventedNow,
         claim = claim
       )
@@ -2277,7 +2322,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
         QuestionPlanFallbackMode.DemotedToWhyThis,
         demotedTo = AuthorQuestionKind.WhyThis,
         reasons = List("single_sided_plan_only"),
-        fallbackBuild = buildWhyThisPlan(question, inputs, truthContract, sceneType)
+        fallbackBuild = buildWhyThisPlan(ctx, question, inputs, truthContract, sceneType)
       )
     else reject(question, QuestionPlanFallbackMode.FactualFallback, "missing_certified_race_pair")
 

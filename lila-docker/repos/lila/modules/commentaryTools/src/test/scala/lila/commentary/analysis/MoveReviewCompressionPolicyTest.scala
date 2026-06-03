@@ -113,6 +113,20 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     assertEquals(slots.moveReviewExplanation, None, clues(slots))
   }
 
+  test("live narrative filter allows anchored normal chess phrases") {
+    val phrases = List(
+      "This cuts out counterplay on b5.",
+      "This keeps the pieces coordinated around d4.",
+      "This holds the position together after Qd8."
+    )
+
+    phrases.foreach { phrase =>
+      assertEquals(LiveNarrativeCompressionCore.playerLanguageHits(phrase), Nil, clues(phrase))
+      assert(LiveNarrativeCompressionCore.keepPlayerFacingSentence(phrase), clues(phrase))
+      assert(!LiveNarrativeCompressionCore.isLowValueNarrativeSentence(phrase), clues(phrase))
+    }
+  }
+
   test("claim-only planner slots keep the move-review move header") {
     val primary =
       QuestionPlan(
@@ -244,7 +258,7 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.ThematicFallback)
     assertEquals(
       MoveReviewProseContract.stripMoveHeader(slots.claim),
-      "The strategic plan is to activate the pieces and find more active squares for them."
+      "The move improves piece activity and looks for better squares."
     )
     assertEquals(slots.paragraphPlan, List("p1=claim"))
   }

@@ -5,7 +5,6 @@ import play.api.libs.json.*
 import java.io.{ BufferedReader, BufferedWriter, InputStreamReader, OutputStreamWriter }
 import java.nio.charset.StandardCharsets
 import java.nio.file.{ Files, Path, Paths }
-import java.time.Instant
 import java.util.concurrent.{ LinkedBlockingQueue, TimeUnit }
 
 import scala.jdk.CollectionConverters.*
@@ -28,7 +27,6 @@ object CommentaryPlayerQcSupport:
   val DefaultCatalogDir: Path = ExternalRoot.resolve("catalog")
   val DefaultManifestDir: Path = ExternalRoot.resolve("manifests")
   val DefaultMoveReviewRunDir: Path = ExternalRoot.resolve("runs").resolve("move_review")
-  val DefaultChronicleRunDir: Path = ExternalRoot.resolve("runs").resolve("chronicle")
   val DefaultReviewDir: Path = ExternalRoot.resolve("reviews")
   val DefaultReportDir: Path = ExternalRoot.resolve("reports")
   val DefaultTruthInventoryDir: Path = ExternalRoot.resolve("inventory")
@@ -71,6 +69,7 @@ object CommentaryPlayerQcSupport:
     val EndgameConversion = "endgame_conversion"
     val TransitionHeavyEndgames = "transition_heavy_endgames"
     val QuestionWhyNow = "question_why_now"
+    val MoveReviewFocus = "move_review_focus"
     val sceneCoverageLaneKinds = Set(
       ProphylaxisRestraint,
       LongStructuralSqueeze,
@@ -110,58 +109,23 @@ object CommentaryPlayerQcSupport:
 
   object ReviewSurface:
     val MoveReview = "moveReview"
-    val Chronicle = "chronicle"
-    val ActiveNote = "active_note"
 
   object ReviewKind:
-    val FocusMoment = "focus_moment"
-    val WholeGame = "whole_game"
-    val ActiveParity = "active_parity"
-    val MoveReviewFocus = "move_review_focus"
-
-  object WholeGameSliceKind:
-    val ChronicleWholeGame = "chronicle_whole_game"
-    val ChronicleFocus = "chronicle_focus"
-    val ActiveParity = "active_parity"
     val MoveReviewFocus = "move_review_focus"
 
   object FixFamily:
-    val WholeGamePlanDrift = "whole_game_plan_drift"
-    val SideAsymmetryOrMissingSidePlan = "side_asymmetry_or_missing_side_plan"
-    val TurningPointUnderexplained = "turning_point_underexplained"
-    val BlunderWithoutPunishFeedback = "blunder_without_punish_feedback"
-    val MissedPunishUnderexplained = "missed_punish_underexplained"
-    val ResultPayoffVerdictMismatch = "result_payoff_verdict_mismatch"
-    val GenericTensionPeakOverload = "generic_tensionpeak_overload"
-    val ConcreteAnchorMissingInLongTermStory = "concrete_anchor_missing_in_long_term_story"
     val GenericFillerMainProse = "generic_filler_main_prose"
     val AnchoredSupportMissingFromProse = "anchored_support_missing_from_prose"
     val ConditionalityBlur = "conditionality_blur"
     val MisanchoredConcreteClaim = "misanchored_concrete_claim"
     val StrategicFlattening = "strategic_flattening"
-    val ChronicleActiveStoryDrift = "chronicle_active_story_drift"
-    val ActiveNoteMissingContract = "active_note_missing_contract"
-    val AnchorlessActiveContinuation = "anchorless_active_continuation"
-    val DryContractNote = "dry_contract_note"
 
     val all = List(
-      WholeGamePlanDrift,
-      SideAsymmetryOrMissingSidePlan,
-      TurningPointUnderexplained,
-      BlunderWithoutPunishFeedback,
-      MissedPunishUnderexplained,
-      ResultPayoffVerdictMismatch,
-      GenericTensionPeakOverload,
-      ConcreteAnchorMissingInLongTermStory,
       GenericFillerMainProse,
       AnchoredSupportMissingFromProse,
       ConditionalityBlur,
       MisanchoredConcreteClaim,
-      StrategicFlattening,
-      ChronicleActiveStoryDrift,
-      ActiveNoteMissingContract,
-      AnchorlessActiveContinuation,
-      DryContractNote
+      StrategicFlattening
     )
 
   final case class CatalogEntry(
@@ -192,29 +156,6 @@ object CommentaryPlayerQcSupport:
   )
   object CatalogEntry:
     given Format[CatalogEntry] = Json.format[CatalogEntry]
-
-  final case class ChronicleCorpusGame(
-      id: String,
-      tier: String,
-      family: String,
-      label: String,
-      notes: List[String],
-      expectedThemes: List[String],
-      pgn: String
-  )
-  object ChronicleCorpusGame:
-    given Format[ChronicleCorpusGame] = Json.format[ChronicleCorpusGame]
-
-  final case class ChronicleCorpus(
-      version: Int = 1,
-      generatedAt: String,
-      asOfDate: String,
-      title: String,
-      description: String,
-      games: List[ChronicleCorpusGame]
-  )
-  object ChronicleCorpus:
-    given Format[ChronicleCorpus] = Json.format[ChronicleCorpus]
 
   final case class SliceManifestEntry(
       sampleId: String,
@@ -257,25 +198,6 @@ object CommentaryPlayerQcSupport:
   )
   object MoveReviewQuietSupportTrace:
     given Format[MoveReviewQuietSupportTrace] = Json.format[MoveReviewQuietSupportTrace]
-
-  final case class ChronicleQuietSupportTrace(
-      applied: Boolean = false,
-      rejectReasons: List[String] = Nil,
-      runtimeGatePassed: Option[Boolean] = None,
-      runtimeGateRejectReasons: List[String] = Nil,
-      runtimeSceneType: Option[String] = None,
-      runtimeSelectedOwnerKind: Option[String] = None,
-      runtimeSelectedSource: Option[String] = None,
-      runtimePvDeltaAvailable: Option[Boolean] = None,
-      runtimeSignalDigestAvailable: Option[Boolean] = None,
-      runtimeMoveLinkedPvDeltaAnchorAvailable: Option[Boolean] = None,
-      candidateBucket: Option[String] = None,
-      candidateSourceKinds: List[String] = Nil,
-      candidateVerbFamily: Option[String] = None,
-      candidateText: Option[String] = None
-  )
-  object ChronicleQuietSupportTrace:
-    given Format[ChronicleQuietSupportTrace] = Json.format[ChronicleQuietSupportTrace]
 
   final case class MoveReviewOutputEntry(
       sampleId: String,
@@ -513,7 +435,7 @@ object CommentaryPlayerQcSupport:
       auditId: Option[String] = None,
       gameId: String,
       surface: String,
-      reviewKind: String = ReviewKind.FocusMoment,
+      reviewKind: String = ReviewKind.MoveReviewFocus,
       sliceKind: String,
       tier: Option[String] = None,
       openingFamily: Option[String] = None,
@@ -534,7 +456,7 @@ object CommentaryPlayerQcSupport:
           auditId = (js \ "auditId").asOpt[String],
           gameId = (js \ "gameId").asOpt[String].getOrElse(sampleId),
           surface = (js \ "surface").asOpt[String].getOrElse(ReviewSurface.MoveReview),
-          reviewKind = (js \ "reviewKind").asOpt[String].getOrElse(ReviewKind.FocusMoment),
+          reviewKind = (js \ "reviewKind").asOpt[String].getOrElse(ReviewKind.MoveReviewFocus),
           sliceKind = (js \ "sliceKind").asOpt[String].getOrElse(SliceKind.StrategicChoice),
           tier = (js \ "tier").asOpt[String],
           openingFamily = (js \ "openingFamily").asOpt[String],
@@ -592,64 +514,25 @@ object CommentaryPlayerQcSupport:
     given OWrites[JudgmentEntry] = Json.writes[JudgmentEntry]
     given OFormat[JudgmentEntry] = OFormat(summon[Reads[JudgmentEntry]], summon[OWrites[JudgmentEntry]])
 
-  final case class ChronicleQueueReport(
+  final case class ReviewQueueReport(
       version: Int,
       generatedAt: String,
       moveReviewOutputCount: Int,
-      chronicleMomentCount: Int,
-      wholeGameReviewCount: Int = 0,
       mandatoryReviewCount: Int,
       sampledReviewCount: Int,
       reviewedCount: Int,
       fullReview: Boolean = false,
       auditSetGameCount: Int = 0
   )
-  object ChronicleQueueReport:
-    given Writes[ChronicleQueueReport] = Json.writes[ChronicleQueueReport]
+  object ReviewQueueReport:
+    given Writes[ReviewQueueReport] = Json.writes[ReviewQueueReport]
 
-  final case class FocusMomentReport(
+  final case class MoveReviewFocusReport(
       ply: Int,
-      moveNumber: Int,
-      side: String,
-      momentType: String,
-      selectionKind: String,
-      dominantIdea: Option[String],
-      secondaryIdea: Option[String],
-      campaignOwner: Option[String],
-      ownerMismatch: Boolean,
-      gameArcCompensationPosition: Boolean,
-      moveReviewCompensationPosition: Boolean,
-      compensationPosition: Boolean,
-      exemplarVisible: Boolean,
-      gameArcCompensationSubtype: Option[String],
-      moveReviewCompensationSubtype: Option[String],
-      compensationSubtype: Option[String],
-      gameArcPreparationCompensationSubtype: Option[String],
-      moveReviewPreparationCompensationSubtype: Option[String],
-      gameArcPayoffCompensationSubtype: Option[String],
-      moveReviewPayoffCompensationSubtype: Option[String],
-      gameArcDisplaySubtypeSource: String,
-      moveReviewDisplaySubtypeSource: String,
-      activeCompensationMention: Boolean,
-      moveReviewCompensationMention: Boolean,
-      execution: Option[String],
-      objective: Option[String],
-      focus: Option[String],
-      gameArcNarrative: String,
-      moveReviewCommentary: String,
-      moveReviewSourceMode: String,
-      activeNoteStatus: String,
-      activeNote: Option[String],
-      probeRequestCount: Int,
-      probeRefinementRequestCount: Int,
-      maintenanceExemplarCandidate: Boolean = false,
-      failureMode: Option[String] = None,
-      failureIntentConfidence: Double = 0.0,
-      failureIntentAnchor: Option[String] = None,
-      failureInterpretationAllowed: Boolean = false
+      moveReviewCommentary: String
   )
-  object FocusMomentReport:
-    given OFormat[FocusMomentReport] = Json.format[FocusMomentReport]
+  object MoveReviewFocusReport:
+    given OFormat[MoveReviewFocusReport] = Json.format[MoveReviewFocusReport]
 
   final case class GameReport(
       id: String,
@@ -661,27 +544,46 @@ object CommentaryPlayerQcSupport:
       opening: Option[String],
       result: Option[String],
       totalPlies: Int,
-      initialMomentCount: Int,
-      refinedMomentCount: Int,
-      strategicMomentCount: Int,
-      threadCount: Int,
-      activeNoteCount: Int,
-      probeCandidateMoments: Int,
       probeCandidateRequests: Int,
       probeExecutedRequests: Int,
       probeUnsupportedRequests: Int,
       usedProbeRefinement: Boolean,
       overallThemes: List[String],
-      visibleMomentPlies: List[Int],
-      focusMoments: List[FocusMomentReport]
+      moveReviewFocusRows: List[MoveReviewFocusReport]
   )
   object GameReport:
-    given OFormat[GameReport] = Json.format[GameReport]
+    given Reads[GameReport] = Reads { js =>
+      for
+        id <- (js \ "id").validate[String]
+        tier <- (js \ "tier").validate[String]
+        family <- (js \ "family").validate[String]
+        label <- (js \ "label").validate[String]
+      yield GameReport(
+        id = id,
+        tier = tier,
+        family = family,
+        label = label,
+        event = (js \ "event").asOpt[String],
+        date = (js \ "date").asOpt[String],
+        opening = (js \ "opening").asOpt[String],
+        result = (js \ "result").asOpt[String],
+        totalPlies = (js \ "totalPlies").asOpt[Int].getOrElse(0),
+        probeCandidateRequests = (js \ "probeCandidateRequests").asOpt[Int].getOrElse(0),
+        probeExecutedRequests = (js \ "probeExecutedRequests").asOpt[Int].getOrElse(0),
+        probeUnsupportedRequests = (js \ "probeUnsupportedRequests").asOpt[Int].getOrElse(0),
+        usedProbeRefinement = (js \ "usedProbeRefinement").asOpt[Boolean].getOrElse(false),
+        overallThemes = (js \ "overallThemes").asOpt[List[String]].getOrElse(Nil),
+        moveReviewFocusRows =
+          (js \ "moveReviewFocusRows").asOpt[List[MoveReviewFocusReport]]
+            .orElse((js \ "focusMoments").asOpt[List[MoveReviewFocusReport]])
+            .getOrElse(Nil)
+      )
+    }
+    given OWrites[GameReport] = Json.writes[GameReport]
+    given OFormat[GameReport] = OFormat(summon[Reads[GameReport]], summon[OWrites[GameReport]])
 
   final case class Summary(
       totalGames: Int,
-      totalFocusMoments: Int,
-      totalActiveNotes: Int,
       gamesUsingProbeRefinement: Int,
       totalProbeCandidateRequests: Int,
       totalProbeExecutedRequests: Int,
@@ -1077,29 +979,6 @@ object CommentaryPlayerQcSupport:
     }
 
     selected.toList
-
-  def chronicleCorpusFromCatalog(entries: List[CatalogEntry]): ChronicleCorpus =
-    ChronicleCorpus(
-      generatedAt = Instant.now().toString,
-      asOfDate = java.time.LocalDate.now().toString,
-      title = "Commentary Player QC Corpus",
-      description = "External mixed PGN corpus for MoveReview qualitative signoff.",
-      games =
-        entries.map { entry =>
-          val pgn = Files.readString(Paths.get(entry.pgnPath), StandardCharsets.UTF_8)
-          ChronicleCorpusGame(
-            id = entry.gameKey,
-            tier = entry.mixBucket,
-            family = entry.openingMacroFamily.getOrElse("other"),
-            label =
-              List(entry.white.getOrElse("?"), entry.black.getOrElse("?"))
-                .mkString(" vs ") + entry.event.fold("")(event => s" ($event)"),
-            notes = entry.notes,
-            expectedThemes = entry.familyTags,
-            pgn = pgn
-          )
-        }
-    )
 
   def minimalOpeningReference(entry: CatalogEntry): Option[lila.commentary.model.OpeningReference] =
     val name = entry.opening.orElse(entry.openingMacroFamily)
@@ -1711,11 +1590,11 @@ object CommentaryPlayerQcSupport:
 
   def manifestEntriesFor(sliceKind: String, snapshot: SliceSnapshot): List[SliceManifestEntry] =
     val baseId = s"${snapshot.entry.gameKey}:${sliceKind}:${snapshot.plyData.ply}"
-    List("moveReview", "chronicle").map { surface =>
+    List(
       SliceManifestEntry(
-        sampleId = s"$baseId:$surface",
+        sampleId = s"$baseId:moveReview",
         gameKey = snapshot.entry.gameKey,
-        surface = surface,
+        surface = ReviewSurface.MoveReview,
         sliceKind = sliceKind,
         targetPly = snapshot.plyData.ply,
         fen = snapshot.plyData.fen,
@@ -1727,7 +1606,7 @@ object CommentaryPlayerQcSupport:
         variant = snapshot.entry.variant,
         mixBucket = Some(snapshot.entry.mixBucket)
       )
-    }
+    )
 
   def sentenceCount(text: String): Int =
     protectChessMoveNumbers(Option(text).getOrElse(""))

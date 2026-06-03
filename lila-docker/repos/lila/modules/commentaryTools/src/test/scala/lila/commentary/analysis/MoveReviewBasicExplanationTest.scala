@@ -134,8 +134,12 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
         .getOrElse(fail("expected PV-proved opening goal explanation"))
 
     assertEquals(explanation.source, "opening_goal", clue(explanation))
-    assert(explanation.title.contains("Development Logic"), clue(explanation.title))
+    assert(explanation.title.contains("development idea"), clue(explanation.title))
+    assert(!explanation.title.contains("Development Logic"), clue(explanation.title))
+    assert(!explanation.prose.contains("Development Logic"), clue(explanation.prose))
     assert(explanation.prose.contains("Italian Game"), clue(explanation.prose))
+    assert(!explanation.prose.contains("supports the explanation"), clue(explanation.prose))
+    assert(!explanation.prose.contains("admit it by itself"), clue(explanation.prose))
     assert(explanation.reasonTags.contains("opening_goal"), clue(explanation.reasonTags))
     assert(explanation.reasonTags.contains("development_logic"), clue(explanation.reasonTags))
     assert(explanation.reasonTags.contains("review_intent:normal_development"), clue(explanation.reasonTags))
@@ -278,7 +282,11 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
         .getOrElse(fail("expected opening explanation"))
 
     assert(headerText.contains("Injected Opening Goal"), clue(headerText))
-    assert(explanation.title.contains("Injected Opening Goal"), clue(explanation))
+    assert(explanation.factFragments.toList.flatten.collectFirst {
+      case fragment: FactFragment.OpeningGoalFragment => fragment.goalName
+    }.contains("Injected Opening Goal"), clue(explanation.factFragments))
+    assert(!explanation.title.contains("Injected Opening Goal"), clue(explanation.title))
+    assert(!explanation.prose.contains("Injected Opening Goal"), clue(explanation.prose))
   }
 
   test("tactical fork fact admits PV-backed basic prose outside opening") {

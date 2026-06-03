@@ -731,7 +731,7 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
     val parsed = js.validate[ReviewQueueEntry].asEither.toOption.get
 
     assertEquals(parsed.gameId, "sample_1")
-    assertEquals(parsed.reviewKind, ReviewKind.FocusMoment)
+    assertEquals(parsed.reviewKind, ReviewKind.MoveReviewFocus)
     assertEquals(parsed.tier, None)
   }
 
@@ -1021,21 +1021,6 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
           playedUci = "a7a6",
           variant = "standard",
           mixBucket = Some(MixBucket.MasterClassical)
-        ),
-        SliceManifestEntry(
-          sampleId = "game-1:opening_transition:10:chronicle",
-          gameKey = "game-1",
-          surface = "chronicle",
-          sliceKind = SliceKind.OpeningTransition,
-          targetPly = 10,
-          fen = questionFen,
-          playedSan = "a6",
-          opening = Some("Sicilian Defense"),
-          tags = List("master_classical", SliceKind.OpeningTransition),
-          pgnPath = "C:\\tmp\\game-1.pgn",
-          playedUci = "a7a6",
-          variant = "standard",
-          mixBucket = Some(MixBucket.MasterClassical)
         )
       )
 
@@ -1044,8 +1029,7 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
     assertEquals(
       retargeted.map(_.sampleId),
       List(
-        "game-1:opening_deviation_after_stable_development:10:moveReview",
-        "game-1:opening_deviation_after_stable_development:10:chronicle"
+        "game-1:opening_deviation_after_stable_development:10:moveReview"
       )
     )
     assert(retargeted.forall(_.sliceKind == "opening_deviation_after_stable_development"))

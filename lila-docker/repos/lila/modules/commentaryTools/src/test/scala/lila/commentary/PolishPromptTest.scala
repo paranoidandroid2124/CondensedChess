@@ -77,6 +77,10 @@ class PolishPromptTest extends FunSuite:
     assert(prompt.contains("Do not turn sidecar metadata into prose."))
     assert(prompt.contains("Avoid these internal-system phrases:"))
     assert(prompt.contains("strategic stack"))
+    assert(!prompt.contains("Paragraph 1 must begin with this exact opening clause"))
+    assert(!prompt.contains("Keep the slot claim's opening clause intact"))
+    assert(prompt.contains("SAN tokens, move numbers, and square anchors"))
+    assert(prompt.contains("may rewrite the opening clause for natural prose"))
     if slots.paragraphPlan == List("p1=claim") then
       assert(prompt.contains("Keep a single brief paragraph built from the slot claim only."))
     else
@@ -222,4 +226,8 @@ class PolishPromptTest extends FunSuite:
 
     assert(repairPrompt.contains("## DRY FACTS"))
     assert(repairPrompt.contains("- OpeningGoal | san: Bc4 | opening: Italian Game | goal: Development Logic | supported: Nf6, d3"))
+    assert(!repairPrompt.contains("Paragraph 1 must begin with this exact opening clause"))
+    assert(!repairPrompt.contains("Keep the slot claim's opening clause intact"))
+    assert(repairPrompt.contains("SAN tokens, move numbers, and square anchors"))
+    assert(repairPrompt.contains("may rewrite the opening clause for natural prose"))
   }

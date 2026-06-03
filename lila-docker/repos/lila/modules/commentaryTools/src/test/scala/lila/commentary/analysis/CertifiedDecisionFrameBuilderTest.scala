@@ -9,6 +9,11 @@ import lila.commentary.model.strategic.PlanContinuity
 
 class CertifiedDecisionFrameBuilderTest extends FunSuite:
 
+  private def qualifiedMainPathText(raw: String): String =
+    val method = MainPathMoveDeltaClaimBuilder.getClass.getDeclaredMethod("qualify_text", classOf[String])
+    method.setAccessible(true)
+    method.invoke(MainPathMoveDeltaClaimBuilder, raw).asInstanceOf[String]
+
   private def plan(id: String, name: String) =
     PlanHypothesis(
       planId = id,
@@ -313,6 +318,17 @@ class CertifiedDecisionFrameBuilderTest extends FunSuite:
       frame.orderedSupports(2),
       List("White is playing for pressure on g7.", frame.battlefront.get.sentence),
       clues(frame)
+    )
+  }
+
+  test("weak main-path qualification rewrites whole templates instead of splicing broken prefixes") {
+    assertEquals(
+      qualifiedMainPathText("This makes the exchange on d5 hard to avoid."),
+      "This prepares an exchange on d5."
+    )
+    assertEquals(
+      qualifiedMainPathText("This advances the plan toward d5."),
+      "This builds toward d5."
     )
   }
 

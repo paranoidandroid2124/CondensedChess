@@ -263,7 +263,7 @@ class NarrativeLexiconTest extends FunSuite:
     val source =
       Files.readString(Paths.get("modules/commentaryCore/src/main/scala/lila/commentary/analysis/NarrativeOutlineBuilder.scala"))
     val tensionBody =
-      source.substring(source.indexOf("val highTensionByMotif"), source.indexOf("val highTensionByThreat"))
+      source.substring(source.indexOf("private def contextHighTension"), source.indexOf("private def contextMotifHash"))
 
     assert(tensionBody.contains("motifSignals.exists(tacticalTensionMotif)"), clue(tensionBody))
     assert(!tensionBody.contains("zwischenzug"), clue(tensionBody))

@@ -828,6 +828,29 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
     )
   }
 
+  test("preserves structured moveReview player surface schema identifier") {
+    val response =
+      CommentResponse(
+        commentary = "Public payload",
+        concepts = Nil,
+        moveReviewPlayerSurface =
+          Some(
+            MoveReviewPlayerSurface(
+              schema = "chesstory.move_review.player_surface.v2",
+              summaryRows = List(MoveReviewPlayerSurfaceRow(label = "Checked line", text = "Short line: Bc4 Nf6 d3."))
+            )
+          )
+      )
+
+    val sanitized = UserFacingPayloadSanitizer.sanitize(response)
+
+    assertEquals(
+      sanitized.moveReviewPlayerSurface.map(_.schema),
+      Some("chesstory.move_review.player_surface.v2"),
+      clue(sanitized.moveReviewPlayerSurface)
+    )
+  }
+
   test("preserves valid practical moveReview player surface authority") {
     val rows =
       List(

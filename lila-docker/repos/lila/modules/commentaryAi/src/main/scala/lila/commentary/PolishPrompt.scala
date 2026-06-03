@@ -224,8 +224,9 @@ object PolishPrompt:
            |$proseModeReminder
            |$modeReminder
            |$slotBudgetReminder
-           |Paragraph 1 must begin with this exact opening clause: "$claimLead".
-           |Keep the slot claim's opening clause intact rather than paraphrasing it into a generic restatement.
+           |Slot claim opening clause for reference: "$claimLead".
+           |Paragraph 1 should preserve the slot claim's concrete chess facts, SAN tokens, move numbers, and square anchors, but may rewrite the opening clause for natural prose.
+           |Do not replace the slot claim with a generic restatement.
            |Do not introduce a new topic beyond the slots.
            |Do not turn sidecar metadata into prose.
            |Avoid these internal-system phrases: $bannedSystemLanguage.
@@ -323,8 +324,9 @@ object PolishPrompt:
            |
            |$proseModeReminder
            |If the original draft is isolated-move / MoveReview prose, keep 2-3 short paragraphs and 2-4 total sentences unless the slot plan is compact.
-           |Paragraph 1 must begin with this exact opening clause: "$claimLead".
-           |Keep the slot claim's opening clause intact rather than paraphrasing it into a generic restatement.
+           |Slot claim opening clause for reference: "$claimLead".
+           |Paragraph 1 should restore the slot claim's concrete chess facts, SAN tokens, move numbers, and square anchors, but may rewrite the opening clause for natural prose.
+           |Do not replace the slot claim with a generic restatement.
            |
            |## STRICT REPAIR REQUIREMENTS
            |- Keep factual claims from the slots.

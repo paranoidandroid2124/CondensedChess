@@ -72,7 +72,6 @@ object AdmissionUnitReview:
         obs.enginePv.mkString(" "),
         obs.primary,
         obs.moveReview,
-        obs.chronicle,
         obs.reason
       ).map(clean).mkString("\t")
 
@@ -395,7 +394,6 @@ object AdmissionUnitReview:
       "enginePv",
       "primary",
       "moveReview",
-      "chronicle",
       "reason"
     ).mkString("\t")
 

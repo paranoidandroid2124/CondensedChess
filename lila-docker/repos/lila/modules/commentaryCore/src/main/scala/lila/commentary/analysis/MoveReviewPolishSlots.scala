@@ -129,10 +129,26 @@ object MoveReviewProseContract:
     val claimCore = stripMoveHeader(claim)
     stripped.startsWith(claimCore.stripSuffix(".")) ||
     commonPrefixWords(stripped, claimCore) >= 4 ||
-    significantClaimTokenOverlap(stripped, claimCore) >= 3
+    significantClaimTokenOverlap(stripped, claimCore) >= 3 ||
+    claimMoveAnchorPreserved(paragraph, claim, claimCore)
 
   def stripMoveHeader(paragraph: String): String =
-    Option(paragraph).getOrElse("").replaceFirst("""^\d+\.(?:\.\.)?\s+[^:]+:\s*""", "").trim
+    Option(paragraph).getOrElse("").replaceFirst(moveHeaderRegex.regex, "").trim
+
+  private val moveHeaderRegex = """^\s*\d+\.(?:\.\.)?\s+([^:]+):\s*""".r
+
+  private def claimMoveAnchorPreserved(paragraph: String, claim: String, claimCore: String): Boolean =
+    moveHeaderToken(claim).exists { anchor =>
+      normalizeCompact(anchor).nonEmpty &&
+        normalizeCompact(paragraph).contains(normalizeCompact(anchor)) &&
+        significantClaimTokenOverlap(paragraph, claimCore) >= 1
+    }
+
+  private def moveHeaderToken(paragraph: String): Option[String] =
+    moveHeaderRegex.findFirstMatchIn(Option(paragraph).getOrElse("")).map(_.group(1).trim).filter(_.nonEmpty)
+
+  private def normalizeCompact(text: String): String =
+    Option(text).getOrElse("").toLowerCase.replaceAll("""[^a-z0-9]""", "")
 
   private def commonPrefixWords(a: String, b: String): Int =
     val as = normalizeWords(a)
@@ -140,7 +156,12 @@ object MoveReviewProseContract:
     as.zip(bs).takeWhile { case (x, y) => x == y }.size
 
   private def normalizeWords(text: String): List[String] =
-    Option(text).getOrElse("").toLowerCase.replaceAll("""[^a-z0-9\s]""", " ").split("\\s+").toList.filter(_.nonEmpty)
+    Option(text).getOrElse("").toLowerCase.replaceAll("""[^a-z0-9\s]""", " ").split("\\s+").toList.filter(_.nonEmpty).map(canonicalClaimToken)
+
+  private def canonicalClaimToken(token: String): String =
+    token match
+      case "central" | "centre" => "center"
+      case other                  => other
 
   def significantClaimTokenOverlap(a: String, b: String): Int =
     val as = normalizeWords(a).filter(token => token.length > 2 && !claimStopWords.contains(token)).toSet
@@ -296,9 +317,13 @@ object MoveReviewSoftRepair:
 
   private def normalizeEvidenceHook(text: String): String =
     val trimmed = text.trim
-    if trimmed.toLowerCase.startsWith("one concrete line that keeps the idea in play is") then trimmed
+    if trimmed.matches("""(?i)^one concrete line that keeps the idea in play is\s+[a-z]\)\s+(?:the|on)\s+checked\s+line\b.*""") then
+      trimmed.replaceFirst("""(?i)^one concrete line that keeps the idea in play is\s+[a-z]\)\s+""", "")
+    else if trimmed.toLowerCase.startsWith("one concrete line that keeps the idea in play is") then trimmed
     else if trimmed.toLowerCase.startsWith("a concrete line is") then
       trimmed.replaceFirst("(?i)^a concrete line is", "One concrete line that keeps the idea in play is")
+    else if trimmed.matches("""(?i)^[a-z]\)\s+(?:the|on)\s+checked\s+line\b.*""") then
+      trimmed.replaceFirst("""^[a-z]\)\s+""", "")
     else if trimmed.matches("""^[a-z]\)\s+.*""") then s"One concrete line that keeps the idea in play is $trimmed"
     else trimmed
 

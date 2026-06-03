@@ -39,6 +39,18 @@ class PolishValidationTest extends munit.FunSuite:
     assert(PolishValidation.isPolishedCommentaryValid(polished, original, allowedSans = allowed))
   }
 
+  test("accepts deduplicated original SAN mentions when order is preserved") {
+    val original = "Rad1 improves the file pressure, and the checked line returns to Rad1."
+    val polished = "Rad1 improves the file pressure without repeating the move token."
+    assert(PolishValidation.isPolishedCommentaryValid(polished, original, allowedSans = Nil))
+  }
+
+  test("accepts lowercase SAN from natural polish after canonicalization") {
+    val original = "Nf3 and Rad1 keep the pieces coordinated."
+    val polished = "nf3 comes first, then rad1 keeps the file pressure."
+    assert(PolishValidation.isPolishedCommentaryValid(polished, original, allowedSans = Nil))
+  }
+
   test("rejects black-to-move ellipsis marker mutation") {
     val original = "17... d5! is the thematic equalizer."
     val polished = "17. d5! is the thematic equalizer."
@@ -69,6 +81,18 @@ class PolishValidationTest extends munit.FunSuite:
   test("keeps multi-pv eval tokens unchanged") {
     val original = "a) Bxh7+ Kxh7 Qh5+ (+1.5)\nb) O-O b6 Re1 (+0.3)"
     val polished = "a) Bxh7+ Kxh7 Qh5+ (+1.5), with pressure.\nb) O-O b6 Re1 (+0.3), more stable."
+    assert(PolishValidation.isPolishedCommentaryValid(polished, original, allowedSans = Nil))
+  }
+
+  test("accepts equivalent shortened eval formatting") {
+    val original = "a) Rad1 (+0.20)"
+    val polished = "a) rad1 (+0.2), with cleaner pressure."
+    assert(PolishValidation.isPolishedCommentaryValid(polished, original, allowedSans = Nil))
+  }
+
+  test("accepts omitted eval tokens instead of forcing template rollback") {
+    val original = "a) Rad1 (+0.20)"
+    val polished = "a) Rad1 keeps the pressure without restating the engine number."
     assert(PolishValidation.isPolishedCommentaryValid(polished, original, allowedSans = Nil))
   }
 

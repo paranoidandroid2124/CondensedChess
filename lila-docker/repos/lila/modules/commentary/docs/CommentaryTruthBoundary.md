@@ -14,12 +14,9 @@ surface must become less specific or fail closed.
 MoveReview is the only user-facing commentary truth surface. Legacy Chronicle and Active-note
 components (including active bridge planning, thread selection, strategic-note composition,
 chronicle compression, and related test/tooling helpers) have been completely removed
-and cleaned up from the workspace.
-Runtime truth projection must not accept `GameChronicleMoment` or `GameChronicleResponse` as
 signoff inputs. Chronicle fallback semantics have been removed. Released truth paths consume
-only the current MoveReview/arc runtime models and proof-contract projections.
-Active-note payload fields and active branch dossiers are not truth inputs in runtime `GameArc` and
-have been completely removed.
+only the current MoveReview runtime models and proof-contract projections.
+Active-note payload fields, active branch dossiers, and `GameArc`/`GameArcMoment` models have been completely removed.
 
 Future `SupportedLocal` or scoped-takeaway expansion must enter through
 MoveReview first and must preserve the audited payload contract.

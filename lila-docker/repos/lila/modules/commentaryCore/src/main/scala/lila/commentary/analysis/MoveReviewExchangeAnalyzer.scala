@@ -748,11 +748,11 @@ private[commentary] object MoveReviewExchangeAnalyzer:
 
   def ownerSeedTermsFromWitness(
       witness: RelationWitness,
-      familyId: String,
+      planKindId: String,
       aliases: List[String]
   ): List[String] =
     relationProjectionFromWitness(witness)
-      .map(projection => (aliases ++ projection.focusSquares ++ projection.factTerms ++ List(familyId)).distinct)
+      .map(projection => (aliases ++ projection.focusSquares ++ projection.factTerms ++ List(planKindId)).distinct)
       .getOrElse(Nil)
 
   def transitionTermsFromWitness(

@@ -5,7 +5,6 @@ import java.nio.file.{ Path, Paths }
 import scala.concurrent.ExecutionContext
 
 import akka.actor.ActorSystem
-import play.api.libs.json.Json
 import play.api.libs.ws.ahc.StandaloneAhcWSClient
 import play.shaded.ahc.org.asynchttpclient.DefaultAsyncHttpClient
 
@@ -19,7 +18,6 @@ object CommentaryPlayerSliceManifestBuilder:
   final case class Config(
       catalogPath: Path = DefaultCatalogDir.resolve("catalog.jsonl"),
       manifestPath: Path = DefaultManifestDir.resolve("slice_manifest.jsonl"),
-      chronicleCorpusPath: Path = DefaultManifestDir.resolve("chronicle_corpus.json"),
       depth: Int = 10,
       multiPv: Int = 3,
       mixBucket: Option[String] = None,
@@ -100,12 +98,11 @@ object CommentaryPlayerSliceManifestBuilder:
         }
 
       writeJsonLines(config.manifestPath, manifest)
-      writeJson(config.chronicleCorpusPath, Json.toJson(chronicleCorpusFromCatalog(filteredCatalog)))
 
       val counts =
-        manifest.groupBy(_.sliceKind).view.mapValues(_.size / 2).toMap
+        manifest.groupBy(_.sliceKind).view.mapValues(_.size).toMap
       println(
-        s"[player-qc-slices] wrote `${config.manifestPath}` (entries=${manifest.size}, pairedSlices=${manifest.size / 2}, catalogGames=${filteredCatalog.size}, counts=${counts.toSeq.sortBy(_._1).mkString(", ")})"
+        s"[player-qc-slices] wrote `${config.manifestPath}` (entries=${manifest.size}, catalogGames=${filteredCatalog.size}, counts=${counts.toSeq.sortBy(_._1).mkString(", ")})"
       )
     finally
       engine.close()
@@ -126,8 +123,6 @@ object CommentaryPlayerSliceManifestBuilder:
     Config(
       catalogPath = positional.headOption.map(Paths.get(_)).getOrElse(DefaultCatalogDir.resolve("catalog.jsonl")),
       manifestPath = positional.lift(1).map(Paths.get(_)).getOrElse(DefaultManifestDir.resolve("slice_manifest.jsonl")),
-      chronicleCorpusPath =
-        positional.lift(2).map(Paths.get(_)).getOrElse(DefaultManifestDir.resolve("chronicle_corpus.json")),
       depth = optionInt(args, "--depth").getOrElse(10).max(8),
       multiPv = optionInt(args, "--multi-pv").orElse(optionInt(args, "--multiPv")).getOrElse(3).max(1),
       mixBucket = optionString(args, "--mix-bucket").map(_.trim).filter(_.nonEmpty),

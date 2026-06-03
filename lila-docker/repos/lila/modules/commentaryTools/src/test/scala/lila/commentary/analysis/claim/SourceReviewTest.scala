@@ -384,7 +384,6 @@ class SourceReviewTest extends FunSuite:
       assert(row.packetSummary.contains("proof_family=neutralize_key_break"), clues(row))
       val expectedText = PlayerFacingClaimPrefixKind.SupportedLocal.render(row.primary)
       assert(row.moveReview.contains(expectedText), clues(row))
-      assert(row.chronicle.contains(expectedText.replace(" ...", "..").replace("...", "..")), clues(row))
     }
     rows.filterNot(row => admitted.exists(_.source.id == row.source.id)).foreach { row =>
       assert(row.admissionBlockers.startsWith("owner:break_prevention_"), clues(row))
@@ -557,7 +556,6 @@ class SourceReviewTest extends FunSuite:
       assertEquals(row.release, "SupportedLocal", clues(row))
       val expectedRendered = PlayerFacingClaimPrefixKind.SupportedLocal.render(row.primary)
       assert(row.moveReview.contains(expectedRendered), clues(row))
-      assert(row.chronicle.contains(expectedRendered.replace(" ...", "..").replace("...", "..")), clues(row))
       assert(!row.primary.toLowerCase.contains("counterplay"), clues(row))
     }
     val pfleger = byId("source-pfleger-maalouf-1961-a6-a5-break-prevention")
@@ -919,7 +917,6 @@ class SourceReviewTest extends FunSuite:
     )
     val expectedBadPieceSurface = PlayerFacingClaimPrefixKind.SupportedLocal.render(badPieceLiquidation.primary)
     assertEquals(badPieceLiquidation.moveReview, expectedBadPieceSurface)
-    assertEquals(badPieceLiquidation.chronicle, expectedBadPieceSurface)
     assertEquals(badPieceLiquidation.taxonomy, "source_bad_piece_liquidation")
   }
 

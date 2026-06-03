@@ -3,8 +3,6 @@ package lila.commentary.tools.review
 import java.nio.charset.StandardCharsets
 import java.nio.file.{ Files, Path, Paths }
 
-import play.api.libs.json.Json
-
 import lila.commentary.PgnAnalysisHelper
 
 object CommentaryPlayerCorpusCatalogBuilder:
@@ -14,7 +12,6 @@ object CommentaryPlayerCorpusCatalogBuilder:
   final case class Config(
       rawPgnDir: Path = DefaultRawPgnDir,
       catalogPath: Path = DefaultCatalogDir.resolve("catalog.jsonl"),
-      chronicleCorpusPath: Path = DefaultManifestDir.resolve("chronicle_corpus.json"),
       normalizedGamesDir: Path = DefaultCatalogDir.resolve("games")
   )
 
@@ -81,10 +78,9 @@ object CommentaryPlayerCorpusCatalogBuilder:
       sys.exit(1)
 
     writeJsonLines(config.catalogPath, selected)
-    writeJson(config.chronicleCorpusPath, Json.toJson(chronicleCorpusFromCatalog(selected)))
 
     println(
-      s"[player-qc-catalog] wrote `${config.catalogPath}` (selected=${selected.size}, candidates=${candidates.size}) and `${config.chronicleCorpusPath}`"
+      s"[player-qc-catalog] wrote `${config.catalogPath}` (selected=${selected.size}, candidates=${candidates.size})"
     )
 
   private def parseConfig(args: List[String]): Config =
@@ -92,10 +88,8 @@ object CommentaryPlayerCorpusCatalogBuilder:
     Config(
       rawPgnDir = positional.headOption.map(Paths.get(_)).getOrElse(DefaultRawPgnDir),
       catalogPath = positional.lift(1).map(Paths.get(_)).getOrElse(DefaultCatalogDir.resolve("catalog.jsonl")),
-      chronicleCorpusPath =
-        positional.lift(2).map(Paths.get(_)).getOrElse(DefaultManifestDir.resolve("chronicle_corpus.json")),
       normalizedGamesDir =
-        positional.lift(3).map(Paths.get(_)).getOrElse(DefaultCatalogDir.resolve("games"))
+        positional.lift(2).map(Paths.get(_)).getOrElse(DefaultCatalogDir.resolve("games"))
     )
 
   private def positionalArgs(args: List[String]): List[String] =

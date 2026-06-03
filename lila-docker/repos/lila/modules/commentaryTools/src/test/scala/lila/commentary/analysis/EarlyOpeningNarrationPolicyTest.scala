@@ -85,25 +85,7 @@ class EarlyOpeningNarrationPolicyTest extends FunSuite:
     assert(!prose.contains("Ranked stack:"), clue(prose))
   }
 
-  test("collapsed standard opening keeps game-arc narrative compact and neutral") {
-    val ctx = earlyOpeningContext(renderMode = NarrativeRenderMode.FullGame)
-    val moment =
-      KeyMoment(
-        ply = ctx.ply,
-        momentType = "OpeningSetup",
-        score = 0,
-        description = "Development frame",
-        selectionKind = "opening"
-      )
 
-    val parts = CommentaryEngine.buildHybridNarrativeParts(ctx, moment)
-    val (rendered, _) = CommentaryEngine.renderHybridMomentNarrative(ctx, moment, prepared = Some(parts))
-
-    assert(EarlyOpeningNarrationPolicy.collapsedEarlyOpening(ctx), clue(ctx))
-    assertEquals(parts.criticalBranch, None)
-    assert(sentenceCount(rendered) <= EarlyOpeningNarrationPolicy.MaxCollapsedSentences, clue(rendered))
-    assert(!rendered.contains("Critical branch:"), clue(rendered))
-  }
 
   test("chess960 does not trigger the standard early-opening collapse") {
     val ctx =

@@ -278,7 +278,7 @@ object CommentaryQualityQuietSupport:
           )
         ),
       nextRecommendedMove =
-        "quiet_support_chronicle_replay: mirror the accepted MoveReview quiet-support chain into Chronicle replay only for planner-owned claim-only quiet scenes, without reopening owner selection or blocked lanes."
+        "quiet_support_move_review_replay: keep the accepted MoveReview quiet-support chain bounded to one support sentence under the existing planner owner."
     )
 
   def renderQuietRichMarkdown(
@@ -392,7 +392,7 @@ object CommentaryQualityQuietSupport:
       "",
       rewriteBullets,
       "",
-      "## 4. MoveReview / Chronicle quiet-support plan",
+      "## 4. MoveReview quiet-support plan",
       "",
       planBullets,
       "",
@@ -910,34 +910,10 @@ object CommentaryQualityQuietSupport:
         safeBecause =
       "MoveReview already has supportPrimary/supportSecondary slots. The quiet-support lane can fill one of them only when quietness passes and the modality envelope stays inside support-level verbs."
       ),
-      SurfaceQuietSupportPlan(
-        surface = "Chronicle",
-        attachMode = "claim-only replay filler only under the existing planner owner",
-        sentenceBudget = 1,
-        allowedSources =
-          List(
-            "MoveDelta.pv_delta",
-            "OpeningRelation.translator",
-            "EndgameTransition.translator",
-            "Digest.route",
-            "Digest.structure",
-            "Digest.pressure"
-          ),
-        safeBecause =
-      "Chronicle can replay one bounded quiet-support sentence only when the planner-selected owner already stays on MoveDelta/pv_delta and the rendered replay surface would otherwise be claim-only."
-      ),
-      SurfaceQuietSupportPlan(
-        surface = "Active",
-        attachMode = "diagnostic_only",
-        sentenceBudget = 0,
-        allowedSources = Nil,
-        safeBecause =
-      "The contrast-support lane already cut Active from signoff scope. Reopening attach logic here would mix validator debt into a quiet-support experiment."
-      )
     )
 
   object EligibilityProfile:
-    val ActiveBuckets =
+    val EligibleBuckets =
       Set(
         Bucket.LongStructuralSqueeze,
         Bucket.SlowRouteImprovement,
@@ -1186,7 +1162,7 @@ object CommentaryQualityQuietSupport:
   ): List[QuietSupportSelectorRow] =
     val beforeReport = buildQuietRichReport(beforeEntries, beforeSource)
     beforeReport.rows
-      .filter(row => EligibilityProfile.ActiveBuckets.contains(row.bucket))
+      .filter(row => EligibilityProfile.EligibleBuckets.contains(row.bucket))
       .map { row =>
         val selectedReasons =
           List(
@@ -1244,12 +1220,12 @@ object CommentaryQualityQuietSupport:
     val afterReport = buildQuietRichReport(afterEntries, afterSource)
     val beforeRows =
       beforeReport.rows
-        .filter(row => EligibilityProfile.ActiveBuckets.contains(row.bucket))
+        .filter(row => EligibilityProfile.EligibleBuckets.contains(row.bucket))
         .map(row => rowKey(row.sampleId, row.bucket) -> row)
         .toMap
     val afterRows =
       afterReport.rows
-        .filter(row => EligibilityProfile.ActiveBuckets.contains(row.bucket))
+        .filter(row => EligibilityProfile.EligibleBuckets.contains(row.bucket))
         .map(row => rowKey(row.sampleId, row.bucket) -> row)
         .toMap
     val beforeEntriesBySample = beforeEntries.map(entry => entry.sampleId -> entry).toMap

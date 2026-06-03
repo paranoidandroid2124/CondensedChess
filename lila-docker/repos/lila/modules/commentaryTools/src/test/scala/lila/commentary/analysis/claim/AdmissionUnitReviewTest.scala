@@ -64,7 +64,6 @@ class AdmissionUnitReviewTest extends FunSuite:
       enginePv = List(playedUci, "b7b5", "a3a4", "c6b4"),
       primary = primary,
       moveReview = primary,
-      chronicle = primary,
       reason = "test observation",
       mainProofSource = mainProofSource,
       mainClaimScope = "MoveLocal",

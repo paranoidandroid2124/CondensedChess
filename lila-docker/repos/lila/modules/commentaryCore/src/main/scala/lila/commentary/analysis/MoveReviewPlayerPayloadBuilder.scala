@@ -68,8 +68,17 @@ object MoveReviewPlayerPayloadBuilder:
     val practicalRows = practicalPlanRows(evaluatedPlans)
     val openingRows = openingFamilyRow(ctx).toList
     val relationRows = strategicRelationRows(strategyPack)
+    val explanationRows = moveReviewExplanation.toList.flatMap(explanationSupportRows(_, knownSans))
+    val referenceRows = if explanationRows.isEmpty then referenceLineRows(ctx, refs, knownSans) else Nil
     val summaryRows =
-      (mainPlanRow(promotedPlans).toList ++ openingRows ++ practicalRows ++ sanitizeRows(supportedLocalRows, knownSans))
+      (
+        mainPlanRow(promotedPlans).toList ++
+          openingRows ++
+          practicalRows ++
+          sanitizeRows(supportedLocalRows, knownSans) ++
+          explanationRows ++
+          referenceRows
+      )
         .distinctBy(row => (row.label, row.text))
     MoveReviewPlayerSurface(
       schema = Schema,
@@ -401,6 +410,60 @@ object MoveReviewPlayerPayloadBuilder:
       )
       .headOption
 
+  private def explanationSupportRows(
+      explanation: MoveReviewExplanation,
+      knownSans: Set[String]
+  ): List[MoveReviewPlayerSurfaceRow] =
+    val sanMoves = cleanList(explanation.shortLine.toList.flatMap(_.san))
+    val lineText = Option.when(sanMoves.nonEmpty)(s"Short line: ${sanMoves.mkString(" ")}.")
+    val learningPoint =
+      explanation.pvInterpretation
+        .flatMap(interpretation => cleanOpt(Some(interpretation.learningPoint)))
+        .map(value => value.replaceAll("""\.+$""", ""))
+    lineText.toList.flatMap { line =>
+      val text = learningPoint.fold(line)(point => s"$point. $line")
+      row(
+        label = "Checked line",
+        text = text,
+        refSans = refSans(sanMoves, knownSans),
+        tone = Some("line")
+      )
+    }
+
+  private def referenceLineRows(
+      ctx: NarrativeContext,
+      refs: Option[MoveReviewRefs],
+      knownSans: Set[String]
+  ): List[MoveReviewPlayerSurfaceRow] =
+    refs.toList
+      .flatMap(ref => preferredVariation(ctx, ref).toList)
+      .flatMap { variation =>
+        val sanMoves = cleanList(variation.moves.map(_.san)).take(5)
+        Option.when(sanMoves.nonEmpty) {
+          row(
+            label = "Checked line",
+            text = s"Short line: ${sanMoves.mkString(" ")}.",
+            refSans = refSans(sanMoves, knownSans),
+            tone = Some("line")
+          )
+        }.flatten
+      }
+
+  private def preferredVariation(
+      ctx: NarrativeContext,
+      refs: MoveReviewRefs
+  ): Option[MoveReviewVariationRef] =
+    val playedUci = ctx.playedMove.map(NarrativeUtils.normalizeUciMove).filter(_.nonEmpty)
+    val playedSan = ctx.playedSan.map(normalizeMove).filter(_.nonEmpty)
+    refs.variations
+      .find { variation =>
+        variation.moves.headOption.exists { move =>
+          playedUci.exists(_ == NarrativeUtils.normalizeUciMove(move.uci)) ||
+            playedSan.exists(_ == normalizeMove(move.san))
+        }
+      }
+      .orElse(refs.variations.headOption)
+
   private def ledgerRows(
       moveReviewLedger: Option[MoveReviewStrategicLedger],
       knownSans: Set[String]
@@ -604,7 +667,7 @@ object MoveReviewPlayerPayloadBuilder:
     Option(value).getOrElse("").replaceAll("[+#?!]+", "").trim.toLowerCase
 
   private def humanizeToken(raw: String): String =
-    clean(raw.replace("_", " ").replace("-", " "))
+    clean(raw.replaceAll("([a-z])([A-Z])", "$1 $2").replace("_", " ").replace("-", " "))
       .split("\\s+")
       .filter(_.nonEmpty)
       .map(part => part.take(1).toUpperCase + part.drop(1).toLowerCase)

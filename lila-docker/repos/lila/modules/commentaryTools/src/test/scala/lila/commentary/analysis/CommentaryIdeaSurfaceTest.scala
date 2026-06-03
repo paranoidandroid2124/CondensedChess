@@ -259,6 +259,9 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
     assert(descriptor.reasonTags.contains("line_proof:opening_goal"), clue(descriptor.reasonTags))
     assert(descriptor.reasonTags.contains("line_subject:f1c4"), clue(descriptor.reasonTags))
     assert(descriptor.baseProse.contains("Italian Game"), clue(descriptor.baseProse))
+    assert(descriptor.title.contains("development idea"), clue(descriptor.title))
+    assert(!descriptor.title.contains("Development Logic"), clue(descriptor.title))
+    assert(!descriptor.baseProse.contains("Development Logic"), clue(descriptor.baseProse))
   }
 
   test("normal development descriptors are pinned to exact legal opening PVs") {
@@ -318,6 +321,10 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
     assertEquals(qg.reviewIntent, "normal_development", clue(qg))
     assertEquals(qg.linePurpose, Some("challenge_center"), clue(qg))
     assert(qg.confirms.contains("opening_goal"), clue(qg.confirms))
+    assert(!italian.title.contains("Development Logic"), clue(italian.title))
+    assert(!italian.baseProse.contains("Development Logic"), clue(italian.baseProse))
+    assert(!qg.title.contains("Center Challenge"), clue(qg.title))
+    assert(!qg.baseProse.contains("Center Challenge"), clue(qg.baseProse))
   }
 
   test("descriptor rule order keeps grounded opening before tactical fallback") {
@@ -675,8 +682,40 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
     assertEquals(descriptor.reviewIntent, "prevents_counterplay", clue(descriptor))
     assertEquals(descriptor.linePurpose, Some("prevent_counterplay"), clue(descriptor))
     assertEquals(descriptor.source, "certified_strategy_support", clue(descriptor))
+    assert(descriptor.baseProse.contains("h3 keeps counterplay restrained around b5."), clue(descriptor.baseProse))
+    assert(!descriptor.baseProse.contains("certified"), clue(descriptor.baseProse))
     assert(descriptor.reasonTags.contains("line_proof:certified_strategy"), clue(descriptor.reasonTags))
     assert(descriptor.reasonTags.contains("proof_family:neutralize_key_break"), clue(descriptor.reasonTags))
+  }
+
+  test("certified strategic support prose maps internal proof labels to player-facing chess language") {
+    val startFen =
+      "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+    val current =
+      played("h2h3", "h3", Square.H2, Square.H3, Piece(Color.White, Pawn))
+    val line =
+      Some(exactLineFacts(startFen, "h2h3", List("h2h3", "b7b5", "a2a4"), List("h3", "b5", "a4"), "strategy"))
+    val exchange =
+      CommentaryIdeaSurface
+        .describe(
+          current,
+          evidence(strategicDelta = Some(strategicDelta("neutralize_key_break", "counterplay_axis_suppression", PlayerFacingMoveDeltaClass.ExchangeForcing))),
+          line
+        )
+        .getOrElse(fail("expected exchange descriptor"))
+    val plan =
+      CommentaryIdeaSurface
+        .describe(
+          current,
+          evidence(strategicDelta = Some(strategicDelta("neutralize_key_break", "counterplay_axis_suppression", PlayerFacingMoveDeltaClass.PlanAdvance))),
+          line
+        )
+        .getOrElse(fail("expected plan descriptor"))
+
+    assert(exchange.baseProse.contains("h3 clarifies the exchange around b5."), clue(exchange.baseProse))
+    assert(plan.baseProse.contains("h3 supports the plan around b5."), clue(plan.baseProse))
+    assert(!exchange.baseProse.contains("certified"), clue(exchange.baseProse))
+    assert(!plan.baseProse.contains("certified"), clue(plan.baseProse))
   }
 
   test("truth contract only derives an internal character band") {

@@ -363,7 +363,7 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
     assertEquals(
       MoveReviewExchangeAnalyzer.ownerSeedTermsFromWitness(
         witness = witness,
-        familyId = "pin",
+        planKindId = "pin",
         aliases = List("pin")
       ),
       Nil
@@ -483,7 +483,7 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
     val terms =
       MoveReviewExchangeAnalyzer.ownerSeedTermsFromWitness(
         witness = witness,
-        familyId = "trade_key_defender",
+        planKindId = "trade_key_defender",
         aliases = List("defender_trade")
       )
     val projection =

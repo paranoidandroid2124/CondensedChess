@@ -13,8 +13,6 @@ object CommentaryQualitySupport:
 
   object SurfaceName:
     val MoveReview = "moveReview"
-    val Chronicle = "chronicle"
-    val Active = "active"
 
   object MismatchTaxonomy:
     val BundleMissing = "bundle_missing"
@@ -72,11 +70,6 @@ object CommentaryQualitySupport:
     val MaxOverclaimPenaltyForKeep = 1
 
   object SurfaceOnlyAugmentationAllowance:
-    val ActiveNoPrimaryAgainstChronicleFallback = "active_no_primary_vs_chronicle_factual_fallback"
-    val ActiveNoPrimaryAgainstMoveReviewExactFactual = "active_no_primary_vs_move_review_exact_factual"
-    val ActiveAttachedAgainstChroniclePlannerOwned = "active_attached_vs_chronicle_planner_owned"
-    val ActiveOmittedAfterPrimaryAgainstPlannerOwned = "active_omitted_after_primary_vs_planner_owned"
-    val ActiveAttachedAgainstMoveReviewPlannerOwned = "active_attached_vs_move_review_planner_owned"
     val ReviewRequired = "review_required"
 
   final case class SurfaceDigestHashes(
@@ -848,11 +841,8 @@ object CommentaryQualitySupport:
       "simply winning"
     ).exists(normalized.contains)
 
-  private def isPlannerOwnedLike(surfaceOutcome: String): Boolean =
-    Set("planner_owned", "move_review_planner_owned", "attached").contains(surfaceOutcome)
-
   private def isFallbackLike(surfaceOutcome: String): Boolean =
-    Set("factual_fallback", "exact_factual", "move_review_exact_factual", "omitted_after_primary", "omitted_no_primary")
+    Set("factual_fallback", "exact_factual", "move_review_exact_factual")
       .contains(surfaceOutcome)
 
   private def normalizeText(raw: String): String =
@@ -912,7 +902,6 @@ object CommentaryQualitySupport:
         )
       )
     else if snapshotEqual && carryEqual && !augmentationEqual then
-      val allowance = surfaceOnlyAugmentationAllowance(left, right)
       Some(
         PairwiseParityMismatch(
           leftSurface = left.surface,
@@ -924,8 +913,8 @@ object CommentaryQualitySupport:
               "surface_augmentation_digest_diverged",
               if replayTupleEqual then "selection_aligned" else "selection_shift_after_augmentation"
             ),
-          allowanceTag = allowance,
-          allowedByDesign = allowance.isDefined
+          allowanceTag = None,
+          allowedByDesign = false
         )
       )
     else if snapshotEqual && carryEqual && augmentationEqual && !replayTupleEqual then
@@ -1035,51 +1024,6 @@ object CommentaryQualitySupport:
     val disallowed = mismatches.filterNot(_.allowedByDesign)
     val pool = if disallowed.nonEmpty then disallowed else mismatches
     pool.sortBy(mismatch => mismatchRank(mismatch.taxonomy)).head
-
-  private def surfaceOnlyAugmentationAllowance(
-      left: SurfaceParitySnapshot,
-      right: SurfaceParitySnapshot
-  ): Option[String] =
-    val ordered =
-      if left.surface == SurfaceName.Active && right.surface != SurfaceName.Active then Some(left -> right)
-      else if right.surface == SurfaceName.Active && left.surface != SurfaceName.Active then Some(right -> left)
-      else None
-
-    ordered.flatMap { case (active, other) =>
-      if active.replayOutcome.contains("omitted_no_primary") &&
-          other.surface == SurfaceName.Chronicle &&
-          other.replayOutcome.contains("factual_fallback") &&
-          selectionUnset(active) &&
-          selectionUnset(other)
-      then Some(SurfaceOnlyAugmentationAllowance.ActiveNoPrimaryAgainstChronicleFallback)
-      else if active.replayOutcome.contains("omitted_no_primary") &&
-          other.surface == SurfaceName.MoveReview &&
-          other.replayOutcome.contains("move_review_exact_factual") &&
-          selectionUnset(active) &&
-          selectionUnset(other)
-      then Some(SurfaceOnlyAugmentationAllowance.ActiveNoPrimaryAgainstMoveReviewExactFactual)
-      else if active.replayOutcome.contains("omitted_after_primary") &&
-          isPlannerOwnedLike(other.replayOutcome.getOrElse("")) &&
-          active.selectedQuestion == other.selectedQuestion &&
-          active.selectedOwnerKind == other.selectedOwnerKind &&
-          active.selectedSource == other.selectedSource
-      then Some(SurfaceOnlyAugmentationAllowance.ActiveOmittedAfterPrimaryAgainstPlannerOwned)
-      else if active.replayOutcome.contains("attached") &&
-          other.surface == SurfaceName.Chronicle &&
-          other.replayOutcome.contains("planner_owned") &&
-          active.selectedQuestion == other.selectedQuestion &&
-          active.selectedOwnerKind == other.selectedOwnerKind &&
-          active.selectedSource == other.selectedSource
-      then Some(SurfaceOnlyAugmentationAllowance.ActiveAttachedAgainstChroniclePlannerOwned)
-      else if active.replayOutcome.contains("attached") &&
-          other.surface == SurfaceName.MoveReview &&
-          other.replayOutcome.contains("move_review_planner_owned") &&
-          active.selectedQuestion == other.selectedQuestion &&
-          active.selectedOwnerKind == other.selectedOwnerKind &&
-          active.selectedSource == other.selectedSource
-      then Some(SurfaceOnlyAugmentationAllowance.ActiveAttachedAgainstMoveReviewPlannerOwned)
-      else None
-    }
 
   private def realEvalSeedSpecs: List[RealEvalSeedSpec] =
     List(
@@ -1242,13 +1186,6 @@ object CommentaryQualitySupport:
       case "move_review_exact_factual" => "factual_fallback"
       case other                     => other
     }
-
-  private def selectionUnset(
-      snapshot: SurfaceParitySnapshot
-  ): Boolean =
-    snapshot.selectedQuestion.isEmpty &&
-      snapshot.selectedOwnerKind.isEmpty &&
-      snapshot.selectedSource.isEmpty
 
   private def jsonOrNull[A: Writes](
       value: Option[A]

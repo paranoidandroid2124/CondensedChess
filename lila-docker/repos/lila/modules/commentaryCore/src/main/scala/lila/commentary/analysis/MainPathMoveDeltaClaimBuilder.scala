@@ -605,31 +605,36 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
 
   private def qualify_text(raw: String): String =
     val low = raw.trim
-    if low.startsWith("This opens access") then
-      low.replace("This opens access", "This attempts to open access")
-    else if low.startsWith("This makes the exchange") then
-      low.replace("This makes the exchange", "This prepares the exchange")
-    else if low.startsWith("This removes") then
-      low.replace("This removes", "This attempts to remove")
-    else if low.startsWith("This limits") then
-      low.replace("This limits", "This seeks to limit")
-    else if low.startsWith("This keeps") then
-      low.replace("This keeps", "This tries to keep")
-    else if low.startsWith("This continues") then
-      low.replace("This continues", "This attempts to continue")
-    else if low.startsWith("This cuts down") then
-      low.replace("This cuts down", "This aims to cut down")
-    else if low.startsWith("This slows down") then
-      low.replace("This slows down", "This seeks to slow down")
-    else if low.startsWith("This advances") then
-      low.replace("This advances", "This plans to advance")
-    else if low.startsWith("This supports") then
-      low.replace("This supports", "This hopes to support")
-    else if low.startsWith("This trade clears") then
-      low.replace("This trade clears", "This trade intends to clear")
-    else if low.startsWith("This favorable simplification keeps") then
-      low.replace("This favorable simplification keeps", "This simplification aims to keep")
-    else if low.startsWith("This ") then
-      low.replaceFirst("This ", "This tentatively ")
-    else
-      s"$low (intended)"
+    val hardExchange = """^This makes the exchange on ([^.]+) hard to avoid\.$""".r
+    val planAdvance = """^This advances the plan toward ([^.]+)\.$""".r
+    low match
+      case hardExchange(square) => s"This prepares an exchange on $square."
+      case planAdvance(square)  => s"This builds toward $square."
+      case _ if low.startsWith("This opens access") =>
+        low.replace("This opens access", "This attempts to open access")
+      case _ if low.startsWith("This makes the exchange") =>
+        low.replace("This makes the exchange", "This prepares the exchange")
+      case _ if low.startsWith("This removes") =>
+        low.replace("This removes", "This attempts to remove")
+      case _ if low.startsWith("This limits") =>
+        low.replace("This limits", "This seeks to limit")
+      case _ if low.startsWith("This keeps") =>
+        low.replace("This keeps", "This tries to keep")
+      case _ if low.startsWith("This continues") =>
+        low.replace("This continues", "This attempts to continue")
+      case _ if low.startsWith("This cuts down") =>
+        low.replace("This cuts down", "This aims to cut down")
+      case _ if low.startsWith("This slows down") =>
+        low.replace("This slows down", "This seeks to slow down")
+      case _ if low.startsWith("This advances") =>
+        low.replace("This advances", "This plans to advance")
+      case _ if low.startsWith("This supports") =>
+        low.replace("This supports", "This hopes to support")
+      case _ if low.startsWith("This trade clears") =>
+        low.replace("This trade clears", "This trade intends to clear")
+      case _ if low.startsWith("This favorable simplification keeps") =>
+        low.replace("This favorable simplification keeps", "This simplification aims to keep")
+      case _ if low.startsWith("This ") =>
+        low.replaceFirst("This ", "This tentatively ")
+      case _ =>
+        s"$low (intended)"

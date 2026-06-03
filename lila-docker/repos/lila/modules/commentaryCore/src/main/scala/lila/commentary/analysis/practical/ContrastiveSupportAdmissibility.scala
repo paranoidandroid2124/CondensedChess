@@ -85,7 +85,8 @@ private[commentary] object ContrastiveSupportAdmissibility:
 
   private def threatContrast(threat: ThreatRow): Option[ContrastSupportTrace] =
     clean(threat.bestDefense)
-      .map { defense =>
+      .map { rawDefense =>
+        val defense = displayDefense(rawDefense)
         val consequence =
           clean(threat.kind).map(kind => s"the opponent's ${kind.toLowerCase} threat lands")
             .getOrElse("the reply becomes forced")
@@ -93,9 +94,17 @@ private[commentary] object ContrastiveSupportAdmissibility:
           sourceKind = SourceKind.ExplicitReplyLoss,
           anchor = defense,
           consequence = consequence,
-          sentence = s"If delayed, $defense is the reply."
+          sentence =
+            if defense == "the defensive reply" then "If delayed, the reply becomes forced."
+            else s"If delayed, $defense is the reply."
         )
       }
+
+  private def displayDefense(raw: String): String =
+    if isUciMove(raw) then "the defensive reply" else raw
+
+  private def isUciMove(raw: String): Boolean =
+    raw.matches("""[a-h][1-8][a-h][1-8][qrbn]?""")
 
   private def preventedResourceContrast(plan: PreventedPlanInfo): Option[ContrastSupportTrace] =
     clean(plan.citationLine)
@@ -285,7 +294,11 @@ private[commentary] object ContrastiveSupportAdmissibility:
   private def counterfactualConsequence(inputs: QuestionPlannerInputs): Option[String] =
     inputs.counterfactual
       .filter(_.cpLoss > 0)
-      .flatMap(cf => clean(cf.bestMove).map(bestMove => s"If the move is missed, $bestMove becomes the cleaner continuation instead."))
+      .map { cf =>
+        clean(cf.bestMove).filterNot(isUciMove) match
+          case Some(bestMove) => s"If the move is missed, $bestMove becomes the cleaner continuation instead."
+          case None           => "If the move is missed, the opponent gets a cleaner continuation instead."
+      }
 
   private def renderOnlyMoveSentence(anchor: String, consequence: String): String =
     consequenceVerbPhrase(consequence) match
@@ -295,14 +308,21 @@ private[commentary] object ContrastiveSupportAdmissibility:
         s"If delayed, only $anchor still keeps the position together because ${becauseClause(consequence)}"
 
   private def renderTopEngineSentence(move: String, consequence: String, allowTiming: Boolean): String =
-    consequenceVerbPhrase(consequence) match
-      case Some(verbPhrase) =>
-        if allowTiming then s"If delayed, $move is still the move that $verbPhrase"
-        else s"The move $move stays best because it $verbPhrase"
-      case None =>
-        val clause = becauseClause(consequence)
-        if allowTiming then s"If delayed, $move is still the move that matters, because $clause"
-        else s"The move $move stays best because $clause"
+    if opponentCleanerContinuation(consequence) then
+      if allowTiming then s"If delayed, $move avoids giving the opponent a cleaner continuation."
+      else s"The move $move stays best because it avoids giving the opponent a cleaner continuation."
+    else
+      consequenceVerbPhrase(consequence) match
+        case Some(verbPhrase) =>
+          if allowTiming then s"If delayed, $move is still the move that $verbPhrase"
+          else s"The move $move stays best because it $verbPhrase"
+        case None =>
+          val clause = becauseClause(consequence)
+          if allowTiming then s"If delayed, $move is still the move that matters, because $clause"
+          else s"The move $move stays best because $clause"
+
+  private def opponentCleanerContinuation(consequence: String): Boolean =
+    normalize(consequence).startsWith("if the move is missed the opponent gets a cleaner continuation")
 
   private def renderAlternativeSentence(move: String, consequence: String): String =
     s"The alternative $move stays secondary because ${becauseClause(consequence)}"

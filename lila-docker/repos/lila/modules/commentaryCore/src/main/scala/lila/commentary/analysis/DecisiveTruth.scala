@@ -613,16 +613,6 @@ private[commentary] object DecisiveTruth:
       benchmarkProseAllowed = benchmarkProseAllowed
     )
 
-  def momentProjection(
-      moment: GameArcMoment,
-      contractOpt: Option[DecisiveTruthContract]
-  ): MomentTruthProjection =
-    contractOpt.map(contractProjection).getOrElse(
-      fallbackMomentProjection(
-        classificationKey = normalizedWholeGameText(moment.moveClassification.getOrElse("")).getOrElse(""),
-        verifiedPayoffAnchor = moment.verifiedPayoffAnchor
-      )
-    )
 
   def sanitizeContext(
       ctx: NarrativeContext,

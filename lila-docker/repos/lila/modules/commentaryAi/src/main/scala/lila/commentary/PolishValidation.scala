@@ -7,22 +7,44 @@ private[commentary] object PolishValidation:
   private case class MoveMarker(number: Int, style: String):
     inline def token: String = s"$number$style"
 
+  private val sanTokenPattern =
+    """(?:O-O(?:-O)?|[KQRBNkqrbn]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBNqrbn])?)"""
   private val moveTokenRegex =
-    """(?<![A-Za-z0-9])((?:O-O(?:-O)?|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?)(?:[+#])?(?:[!?]{1,2})?)""".r
+    raw"""(?<![A-Za-z0-9])($sanTokenPattern(?:[+#])?(?:[!?]{1,2})?)""".r
   private val moveMarkerRegex =
-    """(?<![A-Za-z0-9])(\d+)(\.\.\.|\.|)(?=\s*(?:O-O(?:-O)?|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?(?:[+#])?(?:[!?]{1,2})?))""".r
+    raw"""(?<![A-Za-z0-9])(\d+)(\.\.\.|\.|)(?=\s*$sanTokenPattern(?:[+#])?(?:[!?]{1,2})?)""".r
   private val evalTokenRegex =
     """(?i)\(\s*(?:[+-]?\d+(?:\.\d+)?|#?[+-]?\d+|mate\s+in\s+\d+|mated\s+in\s+\d+)\s*\)""".r
   private val variationBranchRegex =
     """(?m)^\s*([a-z]\))""".r
+  private val promotionRoleRegex = """=([qrbn])""".r
+  private val numericEvalRegex = """^([+-]?)(\d+(?:\.\d+)?)$""".r
 
   private def canonicalSanToken(token: String): String =
-    Option(token).getOrElse("").trim
+    val stripped = Option(token).getOrElse("").trim
       .replaceAll("""[!?]+$""", "")
       .replaceAll("""[+#]+$""", "")
+    val promotionFixed =
+      promotionRoleRegex.replaceAllIn(stripped, m => s"=${m.group(1).toUpperCase}")
+    if promotionFixed.startsWith("O-O") then promotionFixed.toUpperCase
+    else
+      promotionFixed.headOption match
+        case Some(ch) if "kqrbn".contains(ch) => ch.toUpper.toString + promotionFixed.drop(1)
+        case _                               => promotionFixed
 
   private def canonicalEvalToken(token: String): String =
-    Option(token).getOrElse("").trim.toLowerCase.replaceAll("""\s+""", "")
+    val inner = Option(token).getOrElse("").trim
+      .stripPrefix("(")
+      .stripSuffix(")")
+      .trim
+      .toLowerCase
+      .replaceAll("""\s+""", " ")
+    inner match
+      case numericEvalRegex(sign, number) =>
+        val normalized = BigDecimal(number).bigDecimal.stripTrailingZeros.toPlainString
+        s"$sign$normalized"
+      case _ =>
+        inner.replaceAll("""\s+""", "")
 
   private def extractMoveTokensOrdered(text: String): List[String] =
     val t = Option(text).getOrElse("")
@@ -64,6 +86,11 @@ private[commentary] object PolishValidation:
   private def tokenCounts(xs: List[String]): Map[String, Int] =
     xs.groupMapReduce(identity)(_ => 1)(_ + _)
 
+  private def firstOccurrences(xs: List[String]): List[String] =
+    xs.foldLeft(List.empty[String]) { (acc, token) =>
+      if acc.contains(token) then acc else acc :+ token
+    }
+
   def validatePolishedCommentary(
       polished: String,
       original: String,
@@ -82,7 +109,8 @@ private[commentary] object PolishValidation:
       count <= allowedCount.getOrElse(san, 0)
     }
     val sanPresenceSatisfied = !originalHasMoves || polishedMoves.nonEmpty
-    val preservesOriginalSequence = isSubsequence(originalMoves, polishedMoves)
+    val preservesOriginalSequence =
+      isSubsequence(firstOccurrences(originalMoves), firstOccurrences(polishedMoves))
     val respectsAllowedOrder = isSubsequence(polishedMoves, allowedMoves)
     val numberingRequired = originalMarkers.nonEmpty && originalHasMoves
     val numberingSatisfied = !numberingRequired || polishedMarkers.nonEmpty
@@ -101,7 +129,7 @@ private[commentary] object PolishValidation:
     val evalWithinCountBudget = evalPolishedCount.forall { case (token, count) =>
       count <= evalAllowedCount.getOrElse(token, 0)
     }
-    val evalOrderSatisfied = isSubsequence(originalEvalTokens, polishedEvalTokens)
+    val evalOrderSatisfied = isSubsequence(polishedEvalTokens, originalEvalTokens)
 
     val originalBranches = extractVariationBranchesOrdered(original)
     val polishedBranches = extractVariationBranchesOrdered(polished)
@@ -119,7 +147,6 @@ private[commentary] object PolishValidation:
     if !respectsAllowedOrder then reasons += "san_order_violation"
     if !numberingSatisfied then reasons += "numbering_missing"
     if !markerStyleOrderSatisfied then reasons += "marker_style_mismatch"
-    if originalEvalTokens.nonEmpty && polishedEvalTokens.isEmpty then reasons += "eval_missing"
     if !evalWithinCountBudget then reasons += "eval_count_budget_exceeded"
     if !evalOrderSatisfied then reasons += "eval_order_violation"
     if !branchWithinCountBudget then reasons += "variation_branch_count_exceeded"

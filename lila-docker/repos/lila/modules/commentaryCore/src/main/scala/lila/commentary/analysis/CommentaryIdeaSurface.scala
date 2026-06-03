@@ -162,17 +162,18 @@ private[commentary] object CommentaryIdeaSurface:
       val reasonTags = List("opening_goal", slug(goal.goalName))
       val purpose = lineFacts.flatMap(line => PvMeaning.classifyOpeningPurpose(played, evidence, line.continuation, reasonTags))
       val openingPart = evidence.openingName.map(name => s" in the $name").getOrElse("")
+      val goalPhrase = openingGoalPhrase(goal.goalName)
       val supported = goal.supportedEvidence.map(_.trim).filter(_.nonEmpty).mkString(", ")
       val supportText =
-        if supported.nonEmpty then s" The existing opening-goal evidence is: $supported."
+        if supported.nonEmpty then s" The board evidence is: $supported."
         else ""
       descriptor(
         ideaKind = "opening_goal",
         reviewIntent = "normal_development",
         moveCharacterBand = characterBand,
         source = "opening_goal",
-        title = s"${played.san} advances ${goal.goalName}",
-        baseProse = s"${played.san}$openingPart develops through ${goal.goalName}; the opening name supports the explanation but does not admit it by itself.$supportText",
+        title = s"${played.san} follows $goalPhrase",
+        baseProse = s"${played.san}$openingPart fits $goalPhrase.$supportText",
         reasonTags = reasonTags,
         linePurpose = purpose,
         lineProof = lineProof("opening_goal", played, line),
@@ -718,12 +719,12 @@ private[commentary] object CommentaryIdeaSurface:
   private def strategicPurpose(played: PlayedMove, delta: PlayerFacingMoveDeltaEvidence): String =
     val anchor = preferredStrategicSubject(delta).map(subject => s" around $subject").getOrElse("")
     strategicIntent(delta) match
-      case "prevents_counterplay" => s"${played.san} restrains the certified counterplay resource$anchor."
-      case "clarifies_exchange"   => s"${played.san} uses a certified exchange proof$anchor."
-      case "advances_plan"        => s"${played.san} supports the certified local plan$anchor."
-      case "answers_threat"       => s"${played.san} limits the certified defensive resource$anchor."
-      case "creates_threat"       => s"${played.san} increases certified local pressure$anchor."
-      case _                      => s"${played.san} improves the certified local setup$anchor."
+      case "prevents_counterplay" => s"${played.san} keeps counterplay restrained$anchor."
+      case "clarifies_exchange"   => s"${played.san} clarifies the exchange$anchor."
+      case "advances_plan"        => s"${played.san} supports the plan$anchor."
+      case "answers_threat"       => s"${played.san} limits the defensive resource$anchor."
+      case "creates_threat"       => s"${played.san} increases local pressure$anchor."
+      case _                      => s"${played.san} improves the local setup$anchor."
 
   private def preferredStrategicSubject(delta: PlayerFacingMoveDeltaEvidence): Option[String] =
     (delta.packet.anchorTerms ++ delta.anchorTerms ++ delta.packet.proofPathWitness.ownerSeedTerms ++ delta.packet.proofPathWitness.continuationTerms)
@@ -1153,6 +1154,15 @@ private[commentary] object CommentaryIdeaSurface:
 
   private def slug(value: String): String =
     normalizeMotifKey(value).stripPrefix("_").stripSuffix("_")
+
+  private def openingGoalPhrase(goalName: String): String =
+    val key = slug(goalName)
+    if key.contains("development") || key.contains("fianchetto") then "a development idea"
+    else if key.contains("challenge") || key.contains("sicilian") then "a center challenge"
+    else if key.contains("break") || key.contains("gambit") then "a thematic pawn-break plan"
+    else if key.contains("tension") || key.contains("release") then "a tension-handling idea"
+    else if key.contains("safety") || key.contains("castle") then "a king-safety idea"
+    else "an opening idea"
 
   private def hangingStatement(
       bead: Int,

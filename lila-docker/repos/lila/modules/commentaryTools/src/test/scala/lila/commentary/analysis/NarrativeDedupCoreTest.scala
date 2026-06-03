@@ -7,14 +7,14 @@ class NarrativeDedupCoreTest extends FunSuite:
   test("exact duplicates collapse to one kept sentence") {
     val candidates = List(
       NarrativeDedupCore.buildCandidate(
-        surface = "chronicle",
+        surface = "moveReview",
         role = "plan_lead",
         text = "Pressure on b2 is the main idea.",
         priority = 100,
         order = 0
       ),
       NarrativeDedupCore.buildCandidate(
-        surface = "chronicle",
+        surface = "moveReview",
         role = "plan_lead",
         text = "Pressure on b2 is the main idea.",
         priority = 90,
@@ -30,7 +30,7 @@ class NarrativeDedupCoreTest extends FunSuite:
   test("near-duplicate wrappers collapse to one semantic anchor") {
     val candidates = List(
       NarrativeDedupCore.buildCandidate(
-        surface = "chronicle",
+        surface = "moveReview",
         role = "support",
         text = "The key idea is pressure on b2.",
         priority = 80,
@@ -38,7 +38,7 @@ class NarrativeDedupCoreTest extends FunSuite:
         familyOverride = Some(NarrativeDedupCore.NarrativeClaimFamily.PressureAnchor)
       ),
       NarrativeDedupCore.buildCandidate(
-        surface = "chronicle",
+        surface = "moveReview",
         role = "support",
         text = "A concrete target is pressure on b2.",
         priority = 80,
@@ -64,7 +64,7 @@ class NarrativeDedupCoreTest extends FunSuite:
     ))
   }
 
-  test("active note prose must add a distinct claim beyond the base narrative") {
+  test("supplemental prose must add a distinct claim beyond the base narrative") {
     assert(!NarrativeDedupCore.proseAddsDistinctClaim(
       candidateProse = "The key idea is pressure on b2.",
       baseProse = "Pressure on b2."
