@@ -1,9 +1,6 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  moveReviewLedgerRootAttrs,
-  renderMoveReviewLedgerSignalRows,
-} from '../src/moveReview/ledgerSurface';
+import { moveReviewLedgerRootAttrs } from '../src/moveReview/ledgerSurface';
 import type { MoveReviewStrategicLedgerV1 } from '../src/moveReview/responsePayload';
 
 const sampleLedger: MoveReviewStrategicLedgerV1 = {
@@ -35,15 +32,6 @@ const sampleLedger: MoveReviewStrategicLedgerV1 = {
 };
 
 describe('moveReview ledger surface', () => {
-  test('renders compact signal rows inside the existing strategic summary', () => {
-    const rows = renderMoveReviewLedgerSignalRows(sampleLedger).join('');
-    assert.match(rows, /Motif:/);
-    assert.match(rows, /Stage:/);
-    assert.match(rows, /Carry-over:/);
-    assert.match(rows, /Prereqs:/);
-    assert.match(rows, /Conversion:/);
-  });
-
   test('exports root observability attrs from the ledger', () => {
     assert.deepEqual(moveReviewLedgerRootAttrs(sampleLedger), {
       'data-commentary-motif': 'rook_pawn_march',

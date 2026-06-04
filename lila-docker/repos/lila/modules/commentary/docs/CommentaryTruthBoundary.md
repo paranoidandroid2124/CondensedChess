@@ -180,6 +180,9 @@ metadata is a fallback only when raw moves are absent and cannot override the
 engine line. Raw move text by itself can still support display and citation
 wording, but it cannot certify same-branch state, continuation persistence, or
 pawn-structure transition truth without legal replay.
+Author evidence and forced-line truth use the same legal post-move replay for
+reviewed, best, and branch-entry UCI moves; illegal or stale UCI fails closed
+instead of reusing the original FEN as a synthetic post-move board.
 Quiet-move intent is also display support, not truth signoff. Public
 `Piece improvement`, `King safety`, or `Technical conversion` rows require the
 existing user-facing packet gate plus legal replay of the reviewed UCI move and
@@ -253,9 +256,11 @@ lost-motif prose is a counterplay-reduction hint, not ResourceRemoval truth,
 unless that replayed hit is present.
 ExchangeForcing truth follows the same boundary: exchange/trade/simplification
 phrases in active delta text are practical hints only unless a legal replayed
-exchange witness proves the branch. Defender-trade truth additionally requires
-a declared focal or structural weakness target; the exchanged square and
-arbitrary defended pieces cannot stand in as the removed target.
+exchange witness proves the branch. Line-scoped strategic support may recognize
+concrete SAN capture tokens only after the replay-backed exchange packet is
+present. Defender-trade truth additionally requires a declared focal or
+structural weakness target; the exchanged square and arbitrary defended pieces
+cannot stand in as the removed target.
 For prophylactic restraint, exact-slice truth is limited to a square/route or
 typed denied-resource token derived from runtime resource classification.
 English plan labels and generic counterplay phrases do not certify the exact
@@ -517,22 +522,24 @@ and defended-target terms; `bad_piece_liquidation_branch` with bad-piece and
 exchange terms). Policy-built defender/bad-piece packets additionally carry
 typed exact-slice proof payloads (`DefenderTrade` or `BadPieceLiquidation`),
 and the row builder validates those payloads against packet source/family and
-witness terms before using their squares. Legacy packets without exact proof
-remain limited to the same square-shaped branch fact gate; exact-proof/term
+witness terms before using their squares. Packets without the matching typed
+exact proof do not project public exchange-ownership rows; exact-proof/term
 mismatches do not fall back to generic exchange ownership. Queen-trade rows require the typed
 `PlayerFacingExactSliceProof.QueenTradeShield` to match the packet and mirror
 every typed line move in packet witness terms. These rows cannot certify truth
 from raw exchange labels, generic branch labels, term-mismatched packet
 evidence, malformed square-prefixed branch terms, or tactical truth-mode
 packets. Defender/bad-piece row wording may repeat only the parsed exchange,
-defender/target, and bad-piece squares from those branch facts.
+defender/target, and bad-piece squares from the typed proof terms.
 The shared `RelationWitness` read-model is not a new truth shortcut. Overload,
 deflection, discovered-attack, double-check, back-rank mate, mate-net, Greek gift, fork, hanging-piece, x-ray, clearance, battery, pin, skewer, interference, and decoy relation observations may
 support selector ranking or practical prose only after legal replay over the
 current FEN proves the local attack/defense relation. Semantic relation
-producers share one bounded top-PV replay context and one extracted
-relation-witness set, so relation support rows are not produced from divergent
-per-producer replay, witness, or local kind-filtering attempts. They do not certify owner
+producers share a context-owned relation-witness list assembled from the
+six-ply standard top-PV replay plus the dedicated twelve-ply/probe-PV
+draw-resource exception, so relation support rows are not produced from
+divergent per-producer replay, duplicate draw-resource projection, or local
+kind-filtering attempts. They do not certify owner
 truth without a separate proof contract. When an explicit target set is
 supplied, the relation witness must prove that target and may not fall back to
 an arbitrary material piece; discovered-attack witnesses follow the same target
@@ -584,9 +591,10 @@ valid explicit target, the target must be a higher-value enemy non-pawn/non-king
 piece, and the target must have no legal escape that preserves the piece outside
 attack by the pressure side. Generic trapped-piece activity, raw motif text, and helper
 notation remain below truth admission.
-For these witness-only relation families, the analyzer projection boundary also
-requires typed `RelationDetails`; raw focus/fact strings on a `RelationWitness`
-cannot become semantic relation evidence or a player-facing relation row.
+For these implemented relation descriptors whose raw motif tags are
+witness-only, the analyzer projection boundary also requires typed
+`RelationDetails`; raw focus/fact strings on a `RelationWitness` cannot become
+semantic relation evidence or a player-facing relation row.
 The `domination` relation is public only through an analyzer-owned board witness:
 the reviewed move must legally replay, the moved attacker must attack a valid
 explicit same/lower-value target, every pseudo-escape square must be controlled
@@ -611,28 +619,53 @@ relation witnesses. A `Smothered mate`, `Arabian mate`, `Boden's mate`,
 top-PV `MateNet` witness and the matching `TacticalPatternDetectors` id in the
 typed mate-pattern details; raw detector vocabulary or motif notation is not
 truth admission, and the label does not create a new proof family.
+Discovered-attack practical rows follow the same analyzer-owned boundary: the
+reviewed move must be the legal first top-PV move, the typed witness must name
+the long-range attacker, cleared square, and newly attacked target, and the row
+does not create owner proof.
+Defender-trade and bad-piece trade practical rows also follow that
+analyzer-owned boundary. A defender-trade fallback row needs the legal top-PV
+capture/capture/recapture branch, a declared focal or current weakness-profile
+target that is not the exchange square, and typed proof that the defender count
+for that target is strictly reduced after the recapture. A bad-piece trade
+fallback row needs the legal top-PV bad-bishop liquidation branch and the typed
+bad-piece details. A queen-trade fallback row needs the legal first two top-PV
+plies to be the reviewed queen capture and the opponent king's recapture on
+that same square. These rows are lower-authority `PracticalPlan` support; they
+do not certify exact owner truth for the exchange family.
 The legacy motif-prefix table, theme-keyword path, canonical motif-term path, and
 motif appears/fades delta prose use the same catalog boundary, emitting
 only softer non-relation practical/thematic text for deferred lanes when present
 or suppressing witness-only raw relation tags such as `trapped_piece`,
 `domination`, `zwischenzug`, `stalemate_trap`, and `perpetual_check`, so
 deferred relation names and witness-only raw relation tags cannot become
-truth claims through prose.
+truth claims through prose or `conceptSummary` aliasing.
 Legacy plan evidence still falls back to `key-square restriction` for raw
 domination-style material instead of naming `domination` as a plan proof term.
-User-facing helper-notation cleanup follows the same boundary: deferred
-practical/thematic helpers are rewritten to fallback wording when present,
-`Zwischenzug(...)` is rewritten to `move-order caution`, and PV-only
-`StalemateTrap(...)` and `PerpetualCheck(...)` helpers are suppressed.
+That fallback label is catalog-owned through the implemented descriptor's
+witness-only fallback field. User-facing helper-notation cleanup follows the
+same boundary: deferred practical/thematic helpers are rewritten to fallback
+wording when present, `Zwischenzug(...)` is rewritten to the descriptor's
+`move-order caution` fallback, and PV-only `StalemateTrap(...)` and
+`PerpetualCheck(...)` helpers plus mate-pattern-only `SmotheredMate(...)` are
+suppressed rather than softened into named public relation labels.
 Threat-summary labels follow that catalog boundary as well: deferred relation
 motifs from `ThreatAnalysis` may only surface as softer fallback wording when
-available, not as raw relation names.
+available, not as raw relation names. PV-only draw-resource motif tags such as
+`stalemate_trap` and `perpetual_check` do not get raw public threat-summary
+labels.
+Candidate tactic evidence uses the same catalog-owned witness-only fallback
+labels for raw `Domination` and `TrappedPiece` motifs; those annotations are
+support prose only and do not create relation truth.
 Strategy-pack and structure-arc piece-activity evidence does not convert generic
 trapped-piece activity into a relation fallback term;
 raw `trapped_piece` relation labels require the board-replayed relation witness.
-Cached or legacy strategy-pack evidence receives the same sanitizer treatment:
-deferred relation motif terms and witness-only raw relation tags are stripped,
-while softer fallback evidence terms can remain as lower-authority support.
+Cached or legacy strategy-pack support metadata and move-review ledger
+prerequisites receive the same sanitizer treatment: deferred relation motif
+terms, stale `deferred_*` fallback tokens, and witness-only raw relation tags
+are stripped from evidence lists, long-term focus, side-plan priorities and risk
+triggers, and directional target reasons and prerequisites, while ordinary
+non-deferred support evidence can remain lower authority.
 Deferred relation tags and witness-only raw relation tags also cannot raise
 generic context prose into a high-tension tactical opening frame without an
 implemented relation witness, non-deferred motif, or actual threat evidence, and
@@ -712,13 +745,25 @@ public projection on the same catalog admission tokens. The catalog may order
 PV-backed draw-resource relations ahead of generic relation rows inside the
 display cap so stalemate-trap and perpetual-check support is not hidden, but
 this ordering is not truth signoff and does not bypass the legal top-PV replay
-or draw-stability gates. Standard relation witnesses remain bounded to the
+or draw-stability gates. Practical fallback replay uses the normalized reviewed
+UCI and the already-certified first `BoundedReplayStep`; raw `playedMove` text
+is not reparsed as a stricter or looser truth source after the replay match.
+Standard relation witnesses remain bounded to the
 six-ply relation replay prefix; the only deeper relation replay exception is
 the twelve-ply draw-resource prefix for stalemate-trap and perpetual-check
 witnesses.
 Relation row prose selection is also descriptor-typed: the row kind, not the
 display label, chooses draw-resource, move-order, mobility-restriction,
-line-geometry, or generic tactical-relation wording.
+line-geometry, or tactical-relation wording. Descriptor-specific relation rows
+may name only the analyzer-projected focus-order squares already carried by the
+selected relation witness; that display detail does not recover piece roles,
+branch ownership, or conversion truth from raw strings. Defender-trade or
+bad-piece wording in this row remains support-only; exact owner proof still
+requires the dedicated typed owner packet.
+Line-geometry relation rows may likewise name focus-order squares as
+role-neutral geometry only; pin/skewer rows do not claim absolute pins,
+material wins, axes, or piece roles unless another typed public contract admits
+that stronger claim.
 Relation witness support facts cannot manufacture catalog source or semantic admission tokens:
 dynamic facts reject semantic observation ids, evidence-source ids,
 proof-source ids, proof-family ids, and `source:` wire keys. Only the catalog
@@ -853,7 +898,7 @@ These are release blockers:
 - guardrail tags
 
 It may project into the existing MoveReview learning-point compatibility field,
-but it is not Track 5 lesson authority and must not generalize into broad rules.
+but it is not broad lesson authority and must not generalize into broad rules.
 
 ## Audit Gate
 

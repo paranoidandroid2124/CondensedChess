@@ -276,15 +276,8 @@ private[commentary] object ClaimAuthorityResolver:
       packet.fallbackMode == PlayerFacingClaimFallbackMode.WeakMain &&
       packet.suppressionReasons.isEmpty &&
       packet.releaseRisks.isEmpty &&
-      supportedLocalPositionProbeAdmissible(packet) &&
+      ProofContractRules.supportedLocalAdmissible(packet) &&
       PlayerFacingClaimProof.allowsWeakMainClaim(packet)
-
-  private def supportedLocalPositionProbeAdmissible(packet: PlayerFacingClaimPacket): Boolean =
-    ProofContractRules.contractForPacket(packet).exists { contract =>
-      contract.supportedLocalEligible &&
-        contract.accepts(packet) &&
-        ProofContractRules.failureCodes(packet, Some(contract)).isEmpty
-    }
 
   private def decideSupportedMoveDelta(
       inputs: QuestionPlannerInputs,

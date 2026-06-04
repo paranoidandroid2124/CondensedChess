@@ -13,7 +13,7 @@ import lila.commentary.model.Motif
  * Uses Hybrid approach:
  * 1. L2 Motifs -> base threat detection (filtered by side)
  * 2. MultiPV delta -> loss correction (signed, not absolute)
- * 3. Phase 1 -> threshold adjustment
+ * 3. Position classification -> threshold adjustment
  * 
  * IMPORTANT: Eval POV Assumption
  * This code assumes that `PvLine.score` is ALREADY normalized to the
@@ -40,7 +40,7 @@ object ThreatAnalyzer:
    * 
    * @param motifs L2 tactical motifs detected in the position
    * @param multiPv MultiPV lines from engine analysis
-   * @param phase1 Phase 1 classification (for threshold adjustment)
+   * @param phase1 position classification for threshold adjustment
    * @param sideToMove Which side is to move ("white" or "black")
    * @return Complete threat analysis
    */
@@ -217,7 +217,7 @@ object ThreatAnalyzer:
       case _ => Nil
 
   /**
-   * FIX #1 & #5: Correct MultiPV detection
+   * Correct MultiPV detection:
    * - Use UCI pattern matching (not SAN)
    * - Use side-to-move-normalized eval deltas
    * - Classify threats correctly based on mate signals
@@ -244,7 +244,7 @@ object ThreatAnalyzer:
       // Detect threat if: mate, board-verified capture, OR significant eval loss
       val hasSignificantThreat = pv2IsMate || pv2IsCapture || evalLoss >= MATERIAL_THREAT_THRESHOLD
       
-      // P1 FIX: High threshold for implied threats in quiet positions (noise reduction)
+      // High threshold for implied threats in quiet positions.
       val totalPieces = chess.format.Fen.read(chess.variant.Standard, chess.format.Fen.Full(fen)).map(_.board.occupied.count).getOrElse(32)
       val isSuppressedOpening = totalPieces >= 31 // Start position has 32 pieces
       
@@ -269,7 +269,7 @@ object ThreatAnalyzer:
           defenseCount = 1
         )
         
-        // Keep all threats, don't merge by kind (FIX #5: preserve multiple threats)
+        // Preserve existing base threats alongside the MultiPV-implied threat.
         impliedThreat :: threats
       else if evalLoss > 0 then
         // Boost existing threats with eval evidence
@@ -294,9 +294,6 @@ object ThreatAnalyzer:
     depthReliable: Boolean
   )
 
-  /**
-   * FIX v3 #4: Actually use MIN_DEPTH_FOR_RELIABILITY and set depthReliable properly
-   */
   private def adjustThresholds(phase1: PositionClassification, multiPv: List[PvLine]): ThresholdConfig =
     val avgDepth = if multiPv.isEmpty then 0 else multiPv.map(_.depth).sum / multiPv.size
     
@@ -313,9 +310,6 @@ object ThreatAnalyzer:
       depthReliable = avgDepth >= MIN_DEPTH_FOR_RELIABILITY
     )
 
-  /**
-   * FIX #3: Actually populate defense evidence from MultiPV
-   */
   private def populateDefenseEvidence(
     threats: List[Threat],
     multiPv: List[PvLine]
@@ -330,7 +324,7 @@ object ThreatAnalyzer:
       }
       val defenseCount = adequateDefenses.size
       
-      // Check depth reliability (FIX #4: use MIN_DEPTH_FOR_RELIABILITY)
+      // Damp threat loss when the average MultiPV depth is below the reliability floor.
       val avgDepth = multiPv.map(_.depth).sum.toDouble / multiPv.size.max(1)
       val reliabilityFactor = if avgDepth >= MIN_DEPTH_FOR_RELIABILITY then 1.0 else 0.8
       
@@ -351,7 +345,7 @@ object ThreatAnalyzer:
     val hasMate = threats.exists(_.kind == ThreatKind.Mate)
     val hasImmediate = threats.exists(_.isImmediate)
     val hasStrategic = threats.exists(_.isStrategic)
-    val thresholds = adjustThresholds(phase1, multiPv) // Re-calculate thresholds inside
+    val thresholds = adjustThresholds(phase1, multiPv)
     val hasUrgentImmediate = threats.exists { t =>
       t.isImmediate && t.lossIfIgnoredCp >= thresholds.immediateThreshold
     }
@@ -369,7 +363,7 @@ object ThreatAnalyzer:
                           maxLoss < thresholds.ignorableThreshold &&
                           phase1.riskProfile.isLowRisk
     
-    val counterThreatBetter = false  // TODO: Requires analyzing our threats
+    val counterThreatBetter = false
     
     val prophylaxisNeeded = !hasImmediate && hasStrategic && maxLoss >= 100
     val totalDefenses = threats.map(_.defenseCount).sum
@@ -407,8 +401,6 @@ object ThreatAnalyzer:
       primaryDriver = primaryDriver,
       insufficientData = multiPv.size < 2
     )
-  // HELPER: Empty analysis for no-threat positions
-
   def noThreat: ThreatAnalysis = ThreatAnalysis(
     threats = Nil,
     defense = DefenseAssessment(

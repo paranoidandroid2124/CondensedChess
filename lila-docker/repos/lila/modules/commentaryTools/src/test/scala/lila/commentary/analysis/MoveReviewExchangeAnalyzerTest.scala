@@ -7,6 +7,13 @@ import scala.jdk.CollectionConverters.*
 
 class MoveReviewExchangeAnalyzerTest extends FunSuite:
 
+  private def projectedRelation(
+      witness: MoveReviewExchangeAnalyzer.RelationWitness
+  ): MoveReviewExchangeAnalyzer.RelationProjection =
+    MoveReviewExchangeAnalyzer
+      .relationProjectionFromWitness(witness)
+      .getOrElse(fail(s"relation witness should project for ${witness.kind}"))
+
   test("engine raw PV moves override stale parsed move metadata") {
     val fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
     val line =
@@ -287,7 +294,7 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
     assert(!semanticObservationText.contains("witness.facts"), clues(semanticObservationPath))
   }
 
-  test("implemented relation projection helpers cover every implemented kind") {
+  test("implemented relation projection covers every implemented kind") {
     val root = java.nio.file.Paths.get("").toAbsolutePath
     val analyzerPath =
       root.resolve("modules/commentaryCore/src/main/scala/lila/commentary/analysis/MoveReviewExchangeAnalyzer.scala")
@@ -299,42 +306,41 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
       assert(end > start, clues(from, until, analyzerPath))
       analyzerText.substring(start, end)
 
-    val focusProjection =
-      slice("def relationFocusSquaresFromWitness", "def relationTargetSquareFromWitness")
-    val targetProjection =
-      slice("def relationTargetSquareFromWitness", "def relationFactTermsFromWitness")
-    val factProjection =
-      slice("def relationFactTermsFromWitness", "def ownerSeedTermsFromWitness")
-    val implementedKindSourceNames =
+    val relationProjection =
+      slice("def relationProjectionFromWitness", "def defenderTradeBranchFromWitness")
+    val ownerTransitionProjection =
+      slice("def ownerSeedTermsFromWitness", "def defenderTradeWitness")
+    val projectionCoverageMarkers =
       List(
-        "DefenderTrade",
-        "BadPieceLiquidation",
-        "Overload",
-        "Deflection",
-        "DiscoveredAttack",
-        "DoubleCheck",
-        "BackRankMate",
-        "MateNet",
-        "GreekGift",
-        "StalemateTrap",
-        "PerpetualCheck",
-        "Fork",
-        "HangingPiece",
-        "TrappedPiece",
-        "XRay",
-        "Clearance",
-        "Battery",
-        "Pin",
-        "Skewer",
-        "Interference",
-        "Decoy"
+        "DefenderTrade" -> "RelationDetails.DefenderTrade",
+        "BadPieceLiquidation" -> "RelationDetails.BadPieceLiquidation",
+        "Overload" -> "RelationDetails.Overload",
+        "Deflection" -> "RelationDetails.Deflection",
+        "DiscoveredAttack" -> "RelationDetails.DiscoveredAttack",
+        "DoubleCheck" -> "RelationDetails.DoubleCheck",
+        "BackRankMate" -> "RelationKind.BackRankMate",
+        "MateNet" -> "RelationKind.MateNet",
+        "GreekGift" -> "RelationDetails.GreekGift",
+        "StalemateTrap" -> "RelationDetails.StalemateTrap",
+        "PerpetualCheck" -> "RelationDetails.PerpetualCheck",
+        "Fork" -> "RelationDetails.Fork",
+        "HangingPiece" -> "RelationDetails.HangingPiece",
+        "TrappedPiece" -> "RelationDetails.TrappedPiece",
+        "XRay" -> "RelationDetails.XRay",
+        "Clearance" -> "RelationDetails.Clearance",
+        "Battery" -> "RelationDetails.Battery",
+        "Pin" -> "RelationDetails.Pin",
+        "Skewer" -> "RelationDetails.Skewer",
+        "Interference" -> "RelationDetails.Interference",
+        "Decoy" -> "RelationDetails.Decoy"
       )
     def missingFrom(section: String): List[String] =
-      implementedKindSourceNames.filterNot(kind => section.contains(s"RelationKind.$kind"))
+      projectionCoverageMarkers.collect { case (kind, marker) if !section.contains(marker) => kind }
 
-    assertEquals(missingFrom(focusProjection), Nil)
-    assertEquals(missingFrom(targetProjection), Nil)
-    assertEquals(missingFrom(factProjection), Nil)
+    assertEquals(missingFrom(relationProjection), Nil)
+    assert(ownerTransitionProjection.contains("relationProjectionFromWitness(witness)"))
+    assert(ownerTransitionProjection.contains("projection.focusSquares"))
+    assert(ownerTransitionProjection.contains("projection.factTerms ++ extras"))
   }
 
   test("mismatched typed relation details do not fall back to raw witness fields") {
@@ -360,9 +366,6 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
     assertEquals(MoveReviewExchangeAnalyzer.typedDetailsFromWitness(witness), None)
     assertEquals(MoveReviewExchangeAnalyzer.relationDetailsValidForKind(witness), false)
     assertEquals(MoveReviewExchangeAnalyzer.relationProjectionFromWitness(witness), None)
-    assertEquals(MoveReviewExchangeAnalyzer.relationFocusSquaresFromWitness(witness), Nil)
-    assertEquals(MoveReviewExchangeAnalyzer.relationTargetSquareFromWitness(witness), None)
-    assertEquals(MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(witness), Nil)
     assertEquals(
       MoveReviewExchangeAnalyzer.ownerSeedTermsFromWitness(
         witness = witness,
@@ -393,9 +396,6 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
 
       assertEquals(MoveReviewExchangeAnalyzer.relationDetailsValidForKind(rawOnly), false, clues(kind))
       assertEquals(MoveReviewExchangeAnalyzer.relationProjectionFromWitness(rawOnly), None, clues(kind))
-      assertEquals(MoveReviewExchangeAnalyzer.relationFocusSquaresFromWitness(rawOnly), Nil, clues(kind))
-      assertEquals(MoveReviewExchangeAnalyzer.relationTargetSquareFromWitness(rawOnly), None, clues(kind))
-      assertEquals(MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(rawOnly), Nil, clues(kind))
     }
   }
 
@@ -508,10 +508,7 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
         planKindId = "trade_key_defender",
         aliases = List("defender_trade")
       )
-    val projection =
-      MoveReviewExchangeAnalyzer
-        .relationProjectionFromWitness(witness)
-        .getOrElse(fail("typed defender-trade witness should project through the analyzer"))
+    val projection = projectedRelation(witness)
 
     assertEquals(projection.kind, MoveReviewExchangeAnalyzer.RelationKind.DefenderTrade)
     assertEquals(projection.focusSquares, List("g7", "a3"))
@@ -547,7 +544,8 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
     assert(witness.facts.exists(_.contains("d5")) && witness.facts.exists(_.contains("h7")), clues(witness))
     val details =
       MoveReviewExchangeAnalyzer
-        .overloadDetailsFromWitness(witness)
+        .typedDetailsFromWitness(witness)
+        .collect { case details: MoveReviewExchangeAnalyzer.RelationDetails.Overload => details }
         .getOrElse(fail("overload witness should carry typed relation details"))
     assertEquals(details.defenderSquare, "f6")
     assertEquals(details.targetSquares, List("d5", "h7"))
@@ -572,7 +570,8 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
     assert(witness.lineMoves == List("c1a3", "f8a3"), clues(witness))
     val details =
       MoveReviewExchangeAnalyzer
-        .deflectionDetailsFromWitness(witness)
+        .typedDetailsFromWitness(witness)
+        .collect { case details: MoveReviewExchangeAnalyzer.RelationDetails.Deflection => details }
         .getOrElse(fail("deflection witness should carry typed relation details"))
     assertEquals(details.defenderSquare, "f8")
     assertEquals(details.targetSquare, "g7")
@@ -597,7 +596,8 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
     assertEquals(witness.focusSquares, List("b1", "d3", "h7"))
     val details =
       MoveReviewExchangeAnalyzer
-        .discoveredAttackDetailsFromWitness(witness)
+        .typedDetailsFromWitness(witness)
+        .collect { case details: MoveReviewExchangeAnalyzer.RelationDetails.DiscoveredAttack => details }
         .getOrElse(fail("discovered attack witness should carry typed relation details"))
     assertEquals(details.attackerSquare, "b1")
     assertEquals(details.clearedSquare, "d3")
@@ -626,7 +626,8 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
     assert(witness.facts.exists(_.startsWith("checkers:")), clues(witness))
     val details =
       MoveReviewExchangeAnalyzer
-        .doubleCheckDetailsFromWitness(witness)
+        .typedDetailsFromWitness(witness)
+        .collect { case details: MoveReviewExchangeAnalyzer.RelationDetails.DoubleCheck => details }
         .getOrElse(fail("double-check witness should carry typed king-attack details"))
     assertEquals(details.kingSquare, "e8")
     assertEquals(details.checkerSquares, List("e1", "f6"))
@@ -638,10 +639,11 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
         facts = List("double_check_relation_witness", "king:a1", "checkers:a1"),
         targetSquare = Some("a1")
       )
-    assertEquals(MoveReviewExchangeAnalyzer.relationFocusSquaresFromWitness(staleRaw), List("e8", "e1", "f6"))
-    assertEquals(MoveReviewExchangeAnalyzer.relationTargetSquareFromWitness(staleRaw), Some("e8"))
-    assert(MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(staleRaw).contains("mover:f6"), clues(staleRaw))
-    assert(!MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(staleRaw).contains("king:a1"), clues(staleRaw))
+    val staleProjection = projectedRelation(staleRaw)
+    assertEquals(staleProjection.focusSquares, List("e8", "e1", "f6"))
+    assertEquals(staleProjection.targetSquare, Some("e8"))
+    assert(staleProjection.factTerms.contains("mover:f6"), clues(staleRaw))
+    assert(!staleProjection.factTerms.contains("king:a1"), clues(staleRaw))
     assertEquals(MoveReviewExchangeAnalyzer.doubleCheckWitness(replay, "e4f6", explicitTargets = List("e8")), None)
     assertEquals(MoveReviewExchangeAnalyzer.doubleCheckWitness(replay, "e4g5"), None)
   }
@@ -665,7 +667,8 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
     assert(witness.facts.contains("mating_move:e1e8"), clues(witness))
     val details =
       MoveReviewExchangeAnalyzer
-        .matePatternDetailsFromWitness(witness)
+        .typedDetailsFromWitness(witness)
+        .collect { case details: MoveReviewExchangeAnalyzer.RelationDetails.MatePattern => details }
         .getOrElse(fail("back-rank mate witness should carry typed mate details"))
     assertEquals(details.relationKind, MoveReviewExchangeAnalyzer.RelationKind.BackRankMate)
     assertEquals(details.kingSquare, "g8")
@@ -677,10 +680,11 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
         facts = List("back_rank_mate_relation_witness", "king:a1", "mating_move:a1a2"),
         targetSquare = Some("a1")
       )
-    assertEquals(MoveReviewExchangeAnalyzer.relationFocusSquaresFromWitness(staleRaw), List("g8", "e8"))
-    assertEquals(MoveReviewExchangeAnalyzer.relationTargetSquareFromWitness(staleRaw), Some("g8"))
-    assert(MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(staleRaw).contains("mating_move:e1e8"), clues(staleRaw))
-    assert(!MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(staleRaw).contains("king:a1"), clues(staleRaw))
+    val staleProjection = projectedRelation(staleRaw)
+    assertEquals(staleProjection.focusSquares, List("g8", "e8"))
+    assertEquals(staleProjection.targetSquare, Some("g8"))
+    assert(staleProjection.factTerms.contains("mating_move:e1e8"), clues(staleRaw))
+    assert(!staleProjection.factTerms.contains("king:a1"), clues(staleRaw))
     assertEquals(MoveReviewExchangeAnalyzer.backRankMateWitness(replay, "e1e8", explicitTargets = List("g8")), None)
     assertEquals(MoveReviewExchangeAnalyzer.backRankMateWitness(replay, "e1e7"), None)
     assertEquals(MoveReviewExchangeAnalyzer.mateNetWitness(replay, "e1e8"), None)
@@ -705,7 +709,8 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
     assert(witness.facts.contains("mating_move:h6f7"), clues(witness))
     val details =
       MoveReviewExchangeAnalyzer
-        .matePatternDetailsFromWitness(witness)
+        .typedDetailsFromWitness(witness)
+        .collect { case details: MoveReviewExchangeAnalyzer.RelationDetails.MatePattern => details }
         .getOrElse(fail("mate-net witness should carry typed mate details"))
     assertEquals(details.relationKind, MoveReviewExchangeAnalyzer.RelationKind.MateNet)
     assertEquals(details.kingSquare, "h8")
@@ -717,10 +722,11 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
         facts = List("mate_net_relation_witness", "pattern:wrong", "king:a1"),
         targetSquare = Some("a1")
       )
-    assertEquals(MoveReviewExchangeAnalyzer.relationFocusSquaresFromWitness(staleRaw), List("h8", "f7"))
-    assertEquals(MoveReviewExchangeAnalyzer.relationTargetSquareFromWitness(staleRaw), Some("h8"))
-    assert(MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(staleRaw).contains("pattern:smothered_mate"), clues(staleRaw))
-    assert(!MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(staleRaw).contains("pattern:wrong"), clues(staleRaw))
+    val staleProjection = projectedRelation(staleRaw)
+    assertEquals(staleProjection.focusSquares, List("h8", "f7"))
+    assertEquals(staleProjection.targetSquare, Some("h8"))
+    assert(staleProjection.factTerms.contains("pattern:smothered_mate"), clues(staleRaw))
+    assert(!staleProjection.factTerms.contains("pattern:wrong"), clues(staleRaw))
     assertEquals(MoveReviewExchangeAnalyzer.mateNetWitness(replay, "h6f7", explicitTargets = List("h8")), None)
     assertEquals(MoveReviewExchangeAnalyzer.mateNetWitness(replay, "h6g8"), None)
   }
@@ -744,7 +750,8 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
     assert(witness.facts.contains("entry_move:d3h7"), clues(witness))
     val details =
       MoveReviewExchangeAnalyzer
-        .greekGiftDetailsFromWitness(witness)
+        .typedDetailsFromWitness(witness)
+        .collect { case details: MoveReviewExchangeAnalyzer.RelationDetails.GreekGift => details }
         .getOrElse(fail("Greek gift witness should carry typed sacrifice-entry details"))
     assertEquals(details.bishopSquare, "h7")
     assertEquals(details.targetSquare, "h7")
@@ -756,10 +763,11 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
         facts = List("greek_gift_relation_witness", "target:a1", "bishop:a1"),
         targetSquare = Some("a1")
       )
-    assertEquals(MoveReviewExchangeAnalyzer.relationFocusSquaresFromWitness(staleRaw), List("h7"))
-    assertEquals(MoveReviewExchangeAnalyzer.relationTargetSquareFromWitness(staleRaw), Some("h7"))
-    assert(MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(staleRaw).contains("entry_move:d3h7"), clues(staleRaw))
-    assert(!MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(staleRaw).contains("target:a1"), clues(staleRaw))
+    val staleProjection = projectedRelation(staleRaw)
+    assertEquals(staleProjection.focusSquares, List("h7"))
+    assertEquals(staleProjection.targetSquare, Some("h7"))
+    assert(staleProjection.factTerms.contains("entry_move:d3h7"), clues(staleRaw))
+    assert(!staleProjection.factTerms.contains("target:a1"), clues(staleRaw))
     assertEquals(MoveReviewExchangeAnalyzer.greekGiftWitness(replay, "d3h7", explicitTargets = List("h7")), None)
     assertEquals(MoveReviewExchangeAnalyzer.greekGiftWitness(replay, "d3h5"), None)
   }
@@ -804,7 +812,8 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
     assert(witness.facts.contains("branch:d1a4"), clues(witness))
     val details =
       MoveReviewExchangeAnalyzer
-        .zwischenzugDetailsFromWitness(witness)
+        .typedDetailsFromWitness(witness)
+        .collect { case details: MoveReviewExchangeAnalyzer.RelationDetails.Zwischenzug => details }
         .getOrElse(fail("zwischenzug witness should carry typed move-order details"))
     assertEquals(details.intermediateMove, "d1a4")
     assertEquals(details.expectedRecaptureSquare, "d4")
@@ -817,8 +826,9 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
         facts = List("zwischenzug_relation_witness", "expected_recapture:a1"),
         targetSquare = Some("a1")
       )
-    assertEquals(MoveReviewExchangeAnalyzer.relationFocusSquaresFromWitness(staleRaw), List("a4", "d4", "e8"))
-    assertEquals(MoveReviewExchangeAnalyzer.relationTargetSquareFromWitness(staleRaw), Some("d4"))
+    val staleProjection = projectedRelation(staleRaw)
+    assertEquals(staleProjection.focusSquares, List("a4", "d4", "e8"))
+    assertEquals(staleProjection.targetSquare, Some("d4"))
 
     val relationKinds =
       MoveReviewExchangeAnalyzer
@@ -871,10 +881,7 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
     assertEquals(details.entryMove, "g5g6")
     assertEquals(details.terminalMove, "g5g6")
 
-    val projection =
-      MoveReviewExchangeAnalyzer
-        .relationProjectionFromWitness(witness)
-        .getOrElse(fail("PV-backed stalemate trap should project through the relation boundary"))
+    val projection = projectedRelation(witness)
     assertEquals(projection.kind, MoveReviewExchangeAnalyzer.RelationKind.StalemateTrap)
     assertEquals(projection.focusSquares, List("h8", "g6"))
     assertEquals(projection.targetSquare, Some("h8"))
@@ -928,10 +935,7 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
     assertEquals(details.cycleReturnMove, "h4e1")
     assert(details.repeatedPositionKey.contains(" w "), clues(details))
 
-    val projection =
-      MoveReviewExchangeAnalyzer
-        .relationProjectionFromWitness(witness)
-        .getOrElse(fail("PV-backed perpetual check should project through the relation boundary"))
+    val projection = projectedRelation(witness)
     assertEquals(projection.kind, MoveReviewExchangeAnalyzer.RelationKind.PerpetualCheck)
     assertEquals(projection.focusSquares, List("g1", "e1"))
     assertEquals(projection.targetSquare, Some("g1"))
@@ -970,7 +974,8 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
     assert(witness.facts.contains("target:h4:queen"), clues(witness))
     val details =
       MoveReviewExchangeAnalyzer
-        .forkDetailsFromWitness(witness)
+        .typedDetailsFromWitness(witness)
+        .collect { case details: MoveReviewExchangeAnalyzer.RelationDetails.Fork => details }
         .getOrElse(fail("fork witness should carry typed material-target details"))
     assertEquals(details.attackerSquare, "f5")
     assertEquals(details.attackerRole, "knight")
@@ -981,10 +986,11 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
         facts = List("fork_relation_witness", "attacker:a1", "target:a1:queen"),
         targetSquare = Some("a1")
       )
-    assertEquals(MoveReviewExchangeAnalyzer.relationFocusSquaresFromWitness(staleRaw), List("f5", "h4", "e7"))
-    assertEquals(MoveReviewExchangeAnalyzer.relationTargetSquareFromWitness(staleRaw), Some("h4"))
-    assert(MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(staleRaw).contains("target:h4:queen"), clues(staleRaw))
-    assert(!MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(staleRaw).contains("attacker:a1"), clues(staleRaw))
+    val staleProjection = projectedRelation(staleRaw)
+    assertEquals(staleProjection.focusSquares, List("f5", "h4", "e7"))
+    assertEquals(staleProjection.targetSquare, Some("h4"))
+    assert(staleProjection.factTerms.contains("target:h4:queen"), clues(staleRaw))
+    assert(!staleProjection.factTerms.contains("attacker:a1"), clues(staleRaw))
     assertEquals(MoveReviewExchangeAnalyzer.forkWitness(replay, "d4f5", explicitTargets = List("e7")), None)
     assertEquals(MoveReviewExchangeAnalyzer.forkWitness(replay, "d4f5", explicitTargets = List("e7", "bad")), None)
     assertEquals(MoveReviewExchangeAnalyzer.forkWitness(replay, "d4e2"), None)
@@ -1008,7 +1014,8 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
     assert(witness.facts.contains("undefended_target"), clues(witness))
     val details =
       MoveReviewExchangeAnalyzer
-        .hangingPieceDetailsFromWitness(witness)
+        .typedDetailsFromWitness(witness)
+        .collect { case details: MoveReviewExchangeAnalyzer.RelationDetails.HangingPiece => details }
         .getOrElse(fail("hanging-piece witness should carry typed material-target details"))
     assertEquals(details.attackerSquare, "d3")
     assertEquals(details.targetSquare, "f5")
@@ -1020,10 +1027,11 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
         facts = List("hanging_piece_relation_witness", "attacker:a1", "target:a1"),
         targetSquare = Some("a1")
       )
-    assertEquals(MoveReviewExchangeAnalyzer.relationFocusSquaresFromWitness(staleRaw), List("d3", "f5"))
-    assertEquals(MoveReviewExchangeAnalyzer.relationTargetSquareFromWitness(staleRaw), Some("f5"))
-    assert(MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(staleRaw).contains("target_role:bishop"), clues(staleRaw))
-    assert(!MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(staleRaw).contains("target:a1"), clues(staleRaw))
+    val staleProjection = projectedRelation(staleRaw)
+    assertEquals(staleProjection.focusSquares, List("d3", "f5"))
+    assertEquals(staleProjection.targetSquare, Some("f5"))
+    assert(staleProjection.factTerms.contains("target_role:bishop"), clues(staleRaw))
+    assert(!staleProjection.factTerms.contains("target:a1"), clues(staleRaw))
     assertEquals(MoveReviewExchangeAnalyzer.hangingPieceWitness(replay, "c4d3", explicitTargets = List("a8")), None)
     assertEquals(MoveReviewExchangeAnalyzer.hangingPieceWitness(replay, "c4d3", explicitTargets = List("f5", "bad")), None)
     assertEquals(MoveReviewExchangeAnalyzer.hangingPieceWitness(replay, "c4e2"), None)
@@ -1047,7 +1055,8 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
     assert(witness.facts.contains("no_safe_escape"), clues(witness))
     val details =
       MoveReviewExchangeAnalyzer
-        .trappedPieceDetailsFromWitness(witness)
+        .typedDetailsFromWitness(witness)
+        .collect { case details: MoveReviewExchangeAnalyzer.RelationDetails.TrappedPiece => details }
         .getOrElse(fail("trapped-piece witness should carry typed target details"))
     assertEquals(details.attackerSquare, "g7")
     assertEquals(details.targetSquare, "h8")
@@ -1059,10 +1068,11 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
         facts = List("trapped_piece_relation_witness", "attacker:a1", "target:a1"),
         targetSquare = Some("a1")
       )
-    assertEquals(MoveReviewExchangeAnalyzer.relationFocusSquaresFromWitness(staleRaw), List("g7", "h8"))
-    assertEquals(MoveReviewExchangeAnalyzer.relationTargetSquareFromWitness(staleRaw), Some("h8"))
-    assert(MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(staleRaw).contains("target_role:rook"), clues(staleRaw))
-    assert(!MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(staleRaw).contains("target:a1"), clues(staleRaw))
+    val staleProjection = projectedRelation(staleRaw)
+    assertEquals(staleProjection.focusSquares, List("g7", "h8"))
+    assertEquals(staleProjection.targetSquare, Some("h8"))
+    assert(staleProjection.factTerms.contains("target_role:rook"), clues(staleRaw))
+    assert(!staleProjection.factTerms.contains("target:a1"), clues(staleRaw))
 
     val relationKinds =
       MoveReviewExchangeAnalyzer
@@ -1100,7 +1110,8 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
     assert(witness.facts.contains("controlled_escapes:b6|c7"), clues(witness))
     val details =
       MoveReviewExchangeAnalyzer
-        .dominationDetailsFromWitness(witness)
+        .typedDetailsFromWitness(witness)
+        .collect { case details: MoveReviewExchangeAnalyzer.RelationDetails.Domination => details }
         .getOrElse(fail("domination witness should carry typed restriction details"))
     assertEquals(details.attackerSquare, "b7")
     assertEquals(details.targetSquare, "a8")
@@ -1113,10 +1124,11 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
         facts = List("domination_relation_witness", "attacker:a1", "target:a1"),
         targetSquare = Some("a1")
       )
-    assertEquals(MoveReviewExchangeAnalyzer.relationFocusSquaresFromWitness(staleRaw), List("b7", "a8", "b6", "c7"))
-    assertEquals(MoveReviewExchangeAnalyzer.relationTargetSquareFromWitness(staleRaw), Some("a8"))
-    assert(MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(staleRaw).contains("target_role:knight"), clues(staleRaw))
-    assert(!MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(staleRaw).contains("target:a1"), clues(staleRaw))
+    val staleProjection = projectedRelation(staleRaw)
+    assertEquals(staleProjection.focusSquares, List("b7", "a8", "b6", "c7"))
+    assertEquals(staleProjection.targetSquare, Some("a8"))
+    assert(staleProjection.factTerms.contains("target_role:knight"), clues(staleRaw))
+    assert(!staleProjection.factTerms.contains("target:a1"), clues(staleRaw))
 
     val relationKinds =
       MoveReviewExchangeAnalyzer
@@ -1152,7 +1164,8 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
     assert(witness.facts.contains("blocker:f5"), clues(witness))
     val details =
       MoveReviewExchangeAnalyzer
-        .xrayDetailsFromWitness(witness)
+        .typedDetailsFromWitness(witness)
+        .collect { case details: MoveReviewExchangeAnalyzer.RelationDetails.XRay => details }
         .getOrElse(fail("x-ray witness should carry typed line-relation details"))
     assertEquals(details.attackerSquare, "e4")
     assertEquals(details.blockerSquare, "f5")
@@ -1166,10 +1179,11 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
         facts = List("xray_relation_witness", "attacker:a1", "blocker:a1", "target:a1"),
         targetSquare = Some("a1")
       )
-    assertEquals(MoveReviewExchangeAnalyzer.relationFocusSquaresFromWitness(staleRaw), List("e4", "f5", "g6"))
-    assertEquals(MoveReviewExchangeAnalyzer.relationTargetSquareFromWitness(staleRaw), Some("g6"))
-    assert(MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(staleRaw).contains("blocker_role:knight"), clues(staleRaw))
-    assert(!MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(staleRaw).contains("attacker:a1"), clues(staleRaw))
+    val staleProjection = projectedRelation(staleRaw)
+    assertEquals(staleProjection.focusSquares, List("e4", "f5", "g6"))
+    assertEquals(staleProjection.targetSquare, Some("g6"))
+    assert(staleProjection.factTerms.contains("blocker_role:knight"), clues(staleRaw))
+    assert(!staleProjection.factTerms.contains("attacker:a1"), clues(staleRaw))
     assertEquals(MoveReviewExchangeAnalyzer.xrayWitness(replay, "b1e4", explicitTargets = List("h7")), None)
     assertEquals(MoveReviewExchangeAnalyzer.xrayWitness(replay, "b1e4", explicitTargets = List("bad")), None)
   }
@@ -1191,7 +1205,8 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
     assert(witness.facts.contains("beneficiary:b1"), clues(witness))
     val details =
       MoveReviewExchangeAnalyzer
-        .clearanceDetailsFromWitness(witness)
+        .typedDetailsFromWitness(witness)
+        .collect { case details: MoveReviewExchangeAnalyzer.RelationDetails.Clearance => details }
         .getOrElse(fail("clearance witness should carry typed line-relation details"))
     assertEquals(details.beneficiarySquare, "b1")
     assertEquals(details.clearedSquare, "d3")
@@ -1204,10 +1219,11 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
         facts = List("clearance_relation_witness", "beneficiary:a1", "cleared_square:a1", "target:a1"),
         targetSquare = Some("a1")
       )
-    assertEquals(MoveReviewExchangeAnalyzer.relationFocusSquaresFromWitness(staleRaw), List("b1", "d3", "h7"))
-    assertEquals(MoveReviewExchangeAnalyzer.relationTargetSquareFromWitness(staleRaw), Some("h7"))
-    assert(MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(staleRaw).contains("clearing_to:f4"), clues(staleRaw))
-    assert(!MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(staleRaw).contains("beneficiary:a1"), clues(staleRaw))
+    val staleProjection = projectedRelation(staleRaw)
+    assertEquals(staleProjection.focusSquares, List("b1", "d3", "h7"))
+    assertEquals(staleProjection.targetSquare, Some("h7"))
+    assert(staleProjection.factTerms.contains("clearing_to:f4"), clues(staleRaw))
+    assert(!staleProjection.factTerms.contains("beneficiary:a1"), clues(staleRaw))
     assertEquals(MoveReviewExchangeAnalyzer.clearanceWitness(replay, "d3f4", explicitTargets = List("a8")), None)
   }
 
@@ -1228,7 +1244,8 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
     assert(witness.facts.contains("axis:diagonal"), clues(witness))
     val details =
       MoveReviewExchangeAnalyzer
-        .batteryDetailsFromWitness(witness)
+        .typedDetailsFromWitness(witness)
+        .collect { case details: MoveReviewExchangeAnalyzer.RelationDetails.Battery => details }
         .getOrElse(fail("battery witness should carry typed line-relation details"))
     assertEquals(details.frontSquare, "d3")
     assertEquals(details.backSquare, "b1")
@@ -1242,10 +1259,11 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
         facts = List("battery_relation_witness", "front:a1", "back:a1", "target:a1"),
         targetSquare = Some("a1")
       )
-    assertEquals(MoveReviewExchangeAnalyzer.relationFocusSquaresFromWitness(staleRaw), List("d3", "b1", "h7"))
-    assertEquals(MoveReviewExchangeAnalyzer.relationTargetSquareFromWitness(staleRaw), Some("h7"))
-    assert(MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(staleRaw).contains("axis:diagonal"), clues(staleRaw))
-    assert(!MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(staleRaw).contains("front:a1"), clues(staleRaw))
+    val staleProjection = projectedRelation(staleRaw)
+    assertEquals(staleProjection.focusSquares, List("d3", "b1", "h7"))
+    assertEquals(staleProjection.targetSquare, Some("h7"))
+    assert(staleProjection.factTerms.contains("axis:diagonal"), clues(staleRaw))
+    assert(!staleProjection.factTerms.contains("front:a1"), clues(staleRaw))
     assertEquals(MoveReviewExchangeAnalyzer.batteryWitness(replay, "d1d3", explicitTargets = List("a8")), None)
   }
 
@@ -1267,7 +1285,8 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
     assert(witness.facts.contains("absolute_pin"), clues(witness))
     val details =
       MoveReviewExchangeAnalyzer
-        .pinDetailsFromWitness(witness)
+        .typedDetailsFromWitness(witness)
+        .collect { case details: MoveReviewExchangeAnalyzer.RelationDetails.Pin => details }
         .getOrElse(fail("pin witness should carry typed line-relation details"))
     assertEquals(details.attackerSquare, "b4")
     assertEquals(details.pinnedSquare, "c3")
@@ -1283,10 +1302,11 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
         facts = List("pin_relation_witness", "attacker:a1", "pinned:a1", "behind:a1"),
         targetSquare = Some("a1")
       )
-    assertEquals(MoveReviewExchangeAnalyzer.relationFocusSquaresFromWitness(staleRaw), List("b4", "c3", "e1"))
-    assertEquals(MoveReviewExchangeAnalyzer.relationTargetSquareFromWitness(staleRaw), Some("c3"))
-    assert(MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(staleRaw).contains("attacker:b4"), clues(staleRaw))
-    assert(!MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(staleRaw).contains("attacker:a1"), clues(staleRaw))
+    val staleProjection = projectedRelation(staleRaw)
+    assertEquals(staleProjection.focusSquares, List("b4", "c3", "e1"))
+    assertEquals(staleProjection.targetSquare, Some("c3"))
+    assert(staleProjection.factTerms.contains("attacker:b4"), clues(staleRaw))
+    assert(!staleProjection.factTerms.contains("attacker:a1"), clues(staleRaw))
     assertEquals(MoveReviewExchangeAnalyzer.pinWitness(replay, "f8b4", explicitTargets = List("a8")), None)
     assertEquals(MoveReviewExchangeAnalyzer.pinWitness(replay, "f8b4", explicitTargets = List("c3", "bad")), None)
     assertEquals(MoveReviewExchangeAnalyzer.pinWitness(replay, "f8e7"), None)
@@ -1310,7 +1330,8 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
     assert(witness.facts.contains("front_role:queen"), clues(witness))
     val details =
       MoveReviewExchangeAnalyzer
-        .skewerDetailsFromWitness(witness)
+        .typedDetailsFromWitness(witness)
+        .collect { case details: MoveReviewExchangeAnalyzer.RelationDetails.Skewer => details }
         .getOrElse(fail("skewer witness should carry typed line-relation details"))
     assertEquals(details.attackerSquare, "a1")
     assertEquals(details.frontSquare, "e1")
@@ -1325,10 +1346,11 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
         facts = List("skewer_relation_witness", "attacker:a8", "front:a8", "back:a8"),
         targetSquare = Some("a8")
       )
-    assertEquals(MoveReviewExchangeAnalyzer.relationFocusSquaresFromWitness(staleRaw), List("a1", "e1", "h1"))
-    assertEquals(MoveReviewExchangeAnalyzer.relationTargetSquareFromWitness(staleRaw), Some("e1"))
-    assert(MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(staleRaw).contains("front:e1"), clues(staleRaw))
-    assert(!MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(staleRaw).contains("front:a8"), clues(staleRaw))
+    val staleProjection = projectedRelation(staleRaw)
+    assertEquals(staleProjection.focusSquares, List("a1", "e1", "h1"))
+    assertEquals(staleProjection.targetSquare, Some("e1"))
+    assert(staleProjection.factTerms.contains("front:e1"), clues(staleRaw))
+    assert(!staleProjection.factTerms.contains("front:a8"), clues(staleRaw))
     assertEquals(MoveReviewExchangeAnalyzer.skewerWitness(replay, "a8a1", explicitTargets = List("a8")), None)
     assertEquals(MoveReviewExchangeAnalyzer.skewerWitness(replay, "a8a1", explicitTargets = List("e1", "bad")), None)
     assertEquals(MoveReviewExchangeAnalyzer.skewerWitness(replay, "a8a2"), None)
@@ -1351,7 +1373,8 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
     assert(witness.facts.contains("defender:d8"), clues(witness))
     val details =
       MoveReviewExchangeAnalyzer
-        .interferenceDetailsFromWitness(witness)
+        .typedDetailsFromWitness(witness)
+        .collect { case details: MoveReviewExchangeAnalyzer.RelationDetails.Interference => details }
         .getOrElse(fail("interference witness should carry typed line-relation details"))
     assertEquals(details.blockerSquare, "d6")
     assertEquals(details.defenderSquare, "d8")
@@ -1365,10 +1388,11 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
         facts = List("interference_relation_witness", "blocker:a1", "defender:a1", "target:a1"),
         targetSquare = Some("a1")
       )
-    assertEquals(MoveReviewExchangeAnalyzer.relationFocusSquaresFromWitness(staleRaw), List("d6", "d8", "d5"))
-    assertEquals(MoveReviewExchangeAnalyzer.relationTargetSquareFromWitness(staleRaw), Some("d5"))
-    assert(MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(staleRaw).contains("defender_role:rook"), clues(staleRaw))
-    assert(!MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(staleRaw).contains("defender:a1"), clues(staleRaw))
+    val staleProjection = projectedRelation(staleRaw)
+    assertEquals(staleProjection.focusSquares, List("d6", "d8", "d5"))
+    assertEquals(staleProjection.targetSquare, Some("d5"))
+    assert(staleProjection.factTerms.contains("defender_role:rook"), clues(staleRaw))
+    assert(!staleProjection.factTerms.contains("defender:a1"), clues(staleRaw))
     assertEquals(MoveReviewExchangeAnalyzer.interferenceWitness(replay, "f5d6", explicitTargets = List("a8")), None)
   }
 
@@ -1389,7 +1413,8 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
     assert(witness.facts.contains("lured_role:queen"), clues(witness))
     val details =
       MoveReviewExchangeAnalyzer
-        .decoyDetailsFromWitness(witness)
+        .typedDetailsFromWitness(witness)
+        .collect { case details: MoveReviewExchangeAnalyzer.RelationDetails.Decoy => details }
         .getOrElse(fail("decoy witness should carry typed lure-and-win details"))
     assertEquals(details.baitFromSquare, "f4")
     assertEquals(details.baitSquare, "d3")
@@ -1404,9 +1429,10 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
         facts = List("decoy_relation_witness", "bait:a1", "lured_from:a1", "lured_role:queen"),
         targetSquare = Some("a1")
       )
-    assertEquals(MoveReviewExchangeAnalyzer.relationFocusSquaresFromWitness(staleRaw), List("f4", "d3", "d5"))
-    assertEquals(MoveReviewExchangeAnalyzer.relationTargetSquareFromWitness(staleRaw), Some("d3"))
-    assert(MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(staleRaw).contains("execution:e2-d3"), clues(staleRaw))
-    assert(!MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(staleRaw).contains("bait:a1"), clues(staleRaw))
+    val staleProjection = projectedRelation(staleRaw)
+    assertEquals(staleProjection.focusSquares, List("f4", "d3", "d5"))
+    assertEquals(staleProjection.targetSquare, Some("d3"))
+    assert(staleProjection.factTerms.contains("execution:e2-d3"), clues(staleRaw))
+    assert(!staleProjection.factTerms.contains("bait:a1"), clues(staleRaw))
     assertEquals(MoveReviewExchangeAnalyzer.decoyWitness(replay, "f4d3", explicitTargets = List("a8")), None)
   }

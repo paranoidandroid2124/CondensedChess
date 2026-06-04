@@ -53,6 +53,13 @@ private[commentary] object StrategyPackSurface:
       allIdeas: List[StrategyIdeaSignal] = Nil,
       displayNormalization: Option[DisplayNormalization] = None
   ):
+    private lazy val rawAttackDisplayPreferred: Boolean =
+      StrategyPackSurface.preferRawAttackDisplay(this)
+    private lazy val displayNormalizationForSurface: Option[DisplayNormalization] =
+      if rawAttackDisplayPreferred then None else displayNormalization
+    private lazy val activeDisplayNormalization: Option[DisplayNormalization] =
+      displayNormalizationForSurface.filter(_.normalizationActive)
+
     def rawDominantIdeaText: Option[String] = dominantIdea.flatMap(StrategyPackSurface.ideaText)
     def rawSecondaryIdeaText: Option[String] = secondaryIdea.flatMap(StrategyPackSurface.ideaText)
     def rawExecutionText: Option[String] =
@@ -63,27 +70,27 @@ private[commentary] object StrategyPackSurface:
       longTermFocus.orElse(
         dominantIdea.map(StrategicIdeaSelector.focusSummary).map(StrategyPackSurface.normalizeText).filter(_.nonEmpty)
       )
-    def preferRawAttackDisplay: Boolean = StrategyPackSurface.preferRawAttackDisplay(this)
+    def preferRawAttackDisplay: Boolean = rawAttackDisplayPreferred
     def normalizedDominantIdeaText: Option[String] =
-      Option.when(!preferRawAttackDisplay)(displayNormalization.filter(_.normalizationActive).flatMap(_.normalizedDominantIdeaText)).flatten
+      activeDisplayNormalization.flatMap(_.normalizedDominantIdeaText)
     def normalizedExecutionText: Option[String] =
-      Option.when(!preferRawAttackDisplay)(displayNormalization.filter(_.normalizationActive).flatMap(_.normalizedExecutionText)).flatten
+      activeDisplayNormalization.flatMap(_.normalizedExecutionText)
     def normalizedObjectiveText: Option[String] =
-      Option.when(!preferRawAttackDisplay)(displayNormalization.filter(_.normalizationActive).flatMap(_.normalizedObjectiveText)).flatten
+      activeDisplayNormalization.flatMap(_.normalizedObjectiveText)
     def normalizedLongTermFocusText: Option[String] =
-      Option.when(!preferRawAttackDisplay)(displayNormalization.filter(_.normalizationActive).flatMap(_.normalizedLongTermFocusText)).flatten
+      activeDisplayNormalization.flatMap(_.normalizedLongTermFocusText)
     def normalizedCompensationLead: Option[String] =
-      Option.when(!preferRawAttackDisplay)(displayNormalization.filter(_.normalizationActive).flatMap(_.normalizedCompensationLead)).flatten
+      activeDisplayNormalization.flatMap(_.normalizedCompensationLead)
     def displayCompensationSubtype: Option[CompensationSubtype] =
-      Option.when(!preferRawAttackDisplay)(displayNormalization.filter(_.normalizationActive).flatMap(_.selectedDisplaySubtype)).flatten
+      activeDisplayNormalization.flatMap(_.selectedDisplaySubtype)
     def preparationCompensationSubtype: Option[CompensationSubtype] =
-      Option.when(!preferRawAttackDisplay)(displayNormalization.flatMap(_.preparationSubtype)).flatten
+      displayNormalizationForSurface.flatMap(_.preparationSubtype)
     def payoffCompensationSubtype: Option[CompensationSubtype] =
-      Option.when(!preferRawAttackDisplay)(displayNormalization.flatMap(_.payoffSubtype)).flatten
+      displayNormalizationForSurface.flatMap(_.payoffSubtype)
     def displaySubtypeSource: String =
-      Option.when(!preferRawAttackDisplay)(displayNormalization.map(_.displaySubtypeSource)).flatten.getOrElse("raw_fallback")
-    def payoffConfidence: Int = Option.when(!preferRawAttackDisplay)(displayNormalization.map(_.payoffConfidence)).flatten.getOrElse(0)
-    def pathConfidence: Int = Option.when(!preferRawAttackDisplay)(displayNormalization.map(_.pathConfidence)).flatten.getOrElse(0)
+      displayNormalizationForSurface.map(_.displaySubtypeSource).getOrElse("raw_fallback")
+    def payoffConfidence: Int = displayNormalizationForSurface.map(_.payoffConfidence).getOrElse(0)
+    def pathConfidence: Int = displayNormalizationForSurface.map(_.pathConfidence).getOrElse(0)
     def effectiveCompensationSubtype: Option[CompensationSubtype] =
       displayCompensationSubtype.orElse(compensationSubtype)
     def strictCompensationSubtype: Option[CompensationSubtype] =
@@ -100,7 +107,7 @@ private[commentary] object StrategyPackSurface:
     def executionText: Option[String] = normalizedExecutionText.orElse(rawExecutionText)
     def objectiveText: Option[String] = normalizedObjectiveText.orElse(rawObjectiveText)
     def focusText: Option[String] = normalizedLongTermFocusText.orElse(rawFocusText)
-    def normalizationActive: Boolean = displayNormalization.exists(_.normalizationActive) && !preferRawAttackDisplay
+    def normalizationActive: Boolean = activeDisplayNormalization.nonEmpty
     def normalizationConfidence: Int = displayNormalization.map(_.normalizationConfidence).getOrElse(0)
     def compensationPosition: Boolean =
       compensationSummary.exists(_.nonEmpty) || investedMaterial.exists(_ > 0)

@@ -116,8 +116,8 @@ object UserFacingPayloadSanitizer:
         pieceMoveRefs = pack.pieceMoveRefs.map(sanitizePieceMoveRef),
         directionalTargets = pack.directionalTargets.map(sanitizeDirectionalTarget),
         strategicIdeas = Nil,
-        longTermFocus = cleanList(pack.longTermFocus),
-        evidence = cleanPublicEvidenceList(pack.evidence),
+        longTermFocus = cleanPublicSupportList(pack.longTermFocus),
+        evidence = cleanPublicSupportList(pack.evidence),
         signalDigest = pack.signalDigest.map(sanitizeSignalDigest)
       )
     }
@@ -125,36 +125,38 @@ object UserFacingPayloadSanitizer:
   private def sanitizeSidePlan(plan: StrategySidePlan): StrategySidePlan =
     plan.copy(
       planName = clean(plan.planName),
-      priorities = cleanList(plan.priorities),
-      riskTriggers = cleanList(plan.riskTriggers)
+      priorities = cleanPublicSupportList(plan.priorities),
+      riskTriggers = cleanPublicSupportList(plan.riskTriggers)
     )
 
   private def sanitizePieceRoute(route: StrategyPieceRoute): StrategyPieceRoute =
     route.copy(
       purpose = clean(route.purpose),
-      evidence = cleanPublicEvidenceList(route.evidence)
+      evidence = cleanPublicSupportList(route.evidence)
     )
 
   private def sanitizePieceMoveRef(moveRef: StrategyPieceMoveRef): StrategyPieceMoveRef =
     moveRef.copy(
       idea = clean(moveRef.idea),
       tacticalTheme = cleanOpt(moveRef.tacticalTheme),
-      evidence = cleanPublicEvidenceList(moveRef.evidence)
+      evidence = cleanPublicSupportList(moveRef.evidence)
     )
 
   private def sanitizeDirectionalTarget(target: StrategyDirectionalTarget): StrategyDirectionalTarget =
     target.copy(
-      strategicReasons = cleanList(target.strategicReasons),
-      prerequisites = cleanList(target.prerequisites),
-      evidence = cleanPublicEvidenceList(target.evidence)
+      strategicReasons = cleanPublicSupportList(target.strategicReasons),
+      prerequisites = cleanPublicSupportList(target.prerequisites),
+      evidence = cleanPublicSupportList(target.evidence)
     )
 
-  private def cleanPublicEvidenceList(values: List[String]): List[String] =
-    cleanList(values).filterNot(relationEvidenceLeak)
+  private def cleanPublicSupportList(values: List[String]): List[String] =
+    cleanList(values.filterNot(relationSupportLeak)).filterNot(relationSupportLeak)
 
-  private def relationEvidenceLeak(value: String): Boolean =
-    RelationObservationCatalog.deferredFallbackForMotifTag(value).nonEmpty ||
-      RelationObservationCatalog.relationWitnessOnlyMotifTag(value)
+  private def relationSupportLeak(value: String): Boolean =
+    value.trim.toLowerCase.startsWith("deferred_") ||
+      RelationObservationCatalog.deferredFallbackForMotifTag(value).nonEmpty ||
+      RelationObservationCatalog.relationWitnessOnlyMotifTag(value) ||
+      RelationObservationCatalog.pvDrawResourceOnlyMotifTag(value)
 
   private def sanitizeSignalDigest(digest: NarrativeSignalDigest): NarrativeSignalDigest =
     digest.copy(
@@ -216,7 +218,7 @@ object UserFacingPayloadSanitizer:
         stageKey = stageKey,
         stageLabel = stageLabel,
         stageReason = cleanOpt(ledger.stageReason),
-        prerequisites = cleanList(ledger.prerequisites),
+        prerequisites = cleanPublicSupportList(ledger.prerequisites),
         conversionTrigger = cleanOpt(ledger.conversionTrigger),
         primaryLine = ledger.primaryLine.flatMap(sanitizeLedgerLine),
         resourceLine = ledger.resourceLine.flatMap(sanitizeLedgerLine)
@@ -268,22 +270,31 @@ object UserFacingPayloadSanitizer:
     )
 
   private def sanitizeMoveReviewPlayerSurface(surface: MoveReviewPlayerSurface): MoveReviewPlayerSurface =
+    val schema = sanitizeMoveReviewPlayerSurfaceSchema(surface.schema)
+    val allowAuthority =
+      schema == CurrentMoveReviewPlayerSurfaceSchema
     val summaryRows =
-      surface.summaryRows.flatMap(row => sanitizeMoveReviewPlayerSurfaceRow(row, allowStrategicRelation = false))
+      surface.summaryRows.flatMap(row =>
+        sanitizeMoveReviewPlayerSurfaceRow(row, allowStrategicRelation = false, allowAuthority = allowAuthority)
+      )
     val suppressedRelationKinds =
       MoveReviewSupportedLocalSurfaceRows.relationKindsForRows(summaryRows)
     val advancedRows =
       surface.advancedRows
-        .flatMap(row => sanitizeMoveReviewPlayerSurfaceRow(row, allowStrategicRelation = true))
+        .flatMap(row =>
+          sanitizeMoveReviewPlayerSurfaceRow(row, allowStrategicRelation = true, allowAuthority = allowAuthority)
+        )
         .filterNot(row => strategicRelationSuppressedBySummary(row, suppressedRelationKinds))
     surface.copy(
-      schema = sanitizeMoveReviewPlayerSurfaceSchema(surface.schema),
+      schema = schema,
       title = cleanOpt(surface.title),
       summaryRows = summaryRows,
       advancedRows = advancedRows,
       decisionComparison = surface.decisionComparison.map(sanitizeMoveReviewPlayerDecisionComparison),
-      probeRows = surface.probeRows.flatMap(row => sanitizeMoveReviewPlayerSurfaceRow(row, allowStrategicRelation = false)),
-      authorRows = surface.authorRows.flatMap(sanitizeMoveReviewPlayerAuthorRow)
+      probeRows = surface.probeRows.flatMap(row =>
+        sanitizeMoveReviewPlayerSurfaceRow(row, allowStrategicRelation = false, allowAuthority = allowAuthority)
+      ),
+      authorRows = surface.authorRows.flatMap(row => sanitizeMoveReviewPlayerAuthorRow(row, allowAuthority))
     )
 
   private def strategicRelationSuppressedBySummary(
@@ -303,7 +314,8 @@ object UserFacingPayloadSanitizer:
 
   private def sanitizeMoveReviewPlayerSurfaceRow(
       row: MoveReviewPlayerSurfaceRow,
-      allowStrategicRelation: Boolean
+      allowStrategicRelation: Boolean,
+      allowAuthority: Boolean
   ): Option[MoveReviewPlayerSurfaceRow] =
     for
       label <- cleanOpt(Some(row.label))
@@ -314,7 +326,9 @@ object UserFacingPayloadSanitizer:
       tone = cleanOpt(row.tone),
       source = None,
       refSans = cleanList(row.refSans),
-      authority = sanitizeMoveReviewSurfaceAuthority(row.authority, allowStrategicRelation)
+      authority =
+        if allowAuthority then sanitizeMoveReviewSurfaceAuthority(row.authority, allowStrategicRelation)
+        else None
     )
 
   private def sanitizeMoveReviewSurfaceAuthority(
@@ -352,12 +366,9 @@ object UserFacingPayloadSanitizer:
           authority.openingFamily.isEmpty &&
           authority.target.isEmpty &&
           authority.openingBook.isEmpty
-      case MoveReviewSurfaceAuthority.CentralBreak =>
-        authority.token.exists(validSurfaceAuthorityRouteToken) &&
-          authority.openingFamily.isEmpty &&
-          authority.target.isEmpty &&
-          authority.openingBook.isEmpty
-      case MoveReviewSurfaceAuthority.CentralLiquidation | MoveReviewSurfaceAuthority.CentralChallenge =>
+      case MoveReviewSurfaceAuthority.CentralBreak |
+          MoveReviewSurfaceAuthority.CentralLiquidation |
+          MoveReviewSurfaceAuthority.CentralChallenge =>
         authority.token.exists(validSurfaceAuthorityRouteToken) &&
           authority.openingFamily.isEmpty &&
           authority.target.isEmpty &&
@@ -412,7 +423,6 @@ object UserFacingPayloadSanitizer:
       chosenSan = cleanOpt(comparison.chosenSan),
       engineSan = cleanOpt(comparison.engineSan),
       comparedSan = cleanOpt(comparison.comparedSan),
-      deferredSan = None,
       secondaryText = cleanOpt(comparison.secondaryText),
       targetComparison = sanitizeMoveReviewDecisionTargetComparison(comparison.targetComparison)
     )
@@ -437,7 +447,8 @@ object UserFacingPayloadSanitizer:
     }
 
   private def sanitizeMoveReviewPlayerAuthorRow(
-      row: MoveReviewPlayerAuthorRow
+      row: MoveReviewPlayerAuthorRow,
+      allowAuthority: Boolean
   ): Option[MoveReviewPlayerAuthorRow] =
     for
       title <- cleanOpt(Some(row.title))
@@ -449,7 +460,9 @@ object UserFacingPayloadSanitizer:
       question = question,
       why = cleanOpt(row.why),
       meta = Nil,
-      branches = row.branches.flatMap(branch => sanitizeMoveReviewPlayerSurfaceRow(branch, allowStrategicRelation = false))
+      branches = row.branches.flatMap(branch =>
+        sanitizeMoveReviewPlayerSurfaceRow(branch, allowStrategicRelation = false, allowAuthority = allowAuthority)
+      )
     )
 
   private def cachedMoveReviewPlanKeys(response: CommentResponse): Set[String] =

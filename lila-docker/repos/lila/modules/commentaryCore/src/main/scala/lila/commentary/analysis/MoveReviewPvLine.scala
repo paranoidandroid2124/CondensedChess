@@ -24,7 +24,7 @@ private[commentary] object MoveReviewPvLine:
     refs.filter(ref => normalizeFen(ref.startFen) == normalizeFen(startFen)).toList
       .flatMap(_.variations)
       .flatMap(line => validatedLine(startFen, line, normalizedPlayed))
-      .find(validated => coupledLine(validated.line, normalizedPlayed))
+      .find(_.reply.nonEmpty)
       .flatMap { validated =>
         validated.first.map { first =>
           LineFacts(validated.line, first, validated.reply, validated.continuation)
@@ -76,15 +76,6 @@ private[commentary] object MoveReviewPvLine:
 
   def normalizeUci(uci: String): String =
     NarrativeUtils.normalizeUciMove(uci)
-
-  private def coupledLine(line: MoveReviewVariationRef, playedUci: String): Boolean =
-    line.moves.headOption.exists { first =>
-      normalizeUci(first.uci) == playedUci &&
-        line.moves.size >= 2 &&
-        first.fenAfter.trim.nonEmpty &&
-        line.moves.take(3).forall(_.fenAfter.trim.nonEmpty) &&
-        strictlyOrdered(line.moves)
-    }
 
   private def replay(startFen: String, moves: List[MoveReviewMoveRef]): Option[List[MoveReviewMoveRef]] =
     val accepted = scala.collection.mutable.ListBuffer.empty[MoveReviewMoveRef]

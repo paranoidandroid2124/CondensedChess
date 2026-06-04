@@ -40,13 +40,6 @@ object MoveReviewPolishSlots:
     val ExactFactualFallback = "exact_factual_fallback"
     val ThematicFallback = "thematic_fallback"
 
-object MoveReviewSlotSanitizer:
-  def sanitizeUserText(raw: String): String =
-    UserFacingSignalSanitizer.sanitize(raw)
-
-  def placeholderHits(raw: String): List[String] =
-    UserFacingSignalSanitizer.placeholderHits(raw)
-
 object MoveReviewPolishSlotsBuilder:
 
   def build(
@@ -98,7 +91,7 @@ object MoveReviewProseContract:
     val paragraphs = splitParagraphs(text)
     val first = paragraphs.headOption.getOrElse("")
     val claimLike = claimLikeFirstParagraph(first, slots.claim)
-    val placeholderHits = MoveReviewSlotSanitizer.placeholderHits(text)
+    val placeholderHits = UserFacingSignalSanitizer.placeholderHits(text)
     val genericHits =
       (genericPhrases.filter(text.toLowerCase.contains) ++
         MoveReviewCompressionPolicy.systemLanguageHits(text)).distinct
@@ -223,7 +216,7 @@ object MoveReviewSoftRepair:
     var paragraphs = if initial.nonEmpty then initial else deterministic
     if initial.isEmpty then actions += "empty_to_deterministic"
 
-    val scrubbed = paragraphs.map(MoveReviewSlotSanitizer.sanitizeUserText)
+    val scrubbed = paragraphs.map(UserFacingSignalSanitizer.sanitize)
     if scrubbed != paragraphs then actions += "placeholder_scrub"
     paragraphs = scrubbed
 
@@ -259,7 +252,7 @@ object MoveReviewSoftRepair:
           if !alreadyCovered then
             paragraphs = paragraphs :+ p3.get
             actions += "evidence_append"
-        else if MoveReviewSlotSanitizer.placeholderHits(paragraphs(2)).nonEmpty then
+        else if UserFacingSignalSanitizer.placeholderHits(paragraphs(2)).nonEmpty then
           paragraphs = paragraphs.updated(2, p3.get)
           actions += "evidence_restore"
         else if !alreadyCovered && MoveReviewProseContract.significantClaimTokenOverlap(paragraphs.lift(2).getOrElse(""), p3.get) < 2 then

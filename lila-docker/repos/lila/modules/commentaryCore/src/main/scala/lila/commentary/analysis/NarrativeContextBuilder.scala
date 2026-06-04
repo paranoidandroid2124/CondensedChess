@@ -1254,13 +1254,21 @@ object NarrativeContextBuilder:
 
   private def publicThreatMotifLabel(raw: String): Option[String] =
     val motif = Option(raw).map(_.takeWhile(_ != '(').trim).filter(_.nonEmpty)
-    motif.flatMap(RelationObservationCatalog.deferredFallbackForMotifTag) match
-      case Some(fallback) if fallback.allowsNonRelationText =>
-        fallback.label.orElse(Some("practical threat"))
-      case Some(_) =>
-        None
-      case None =>
-        motif.flatMap(RelationObservationCatalog.relationWitnessOnlyFallbackLabelForMotifTag).orElse(motif)
+    motif.flatMap { raw =>
+      RelationObservationCatalog
+        .relationWitnessOnlyFallbackLabelForMotifTag(raw)
+        .orElse {
+          if RelationObservationCatalog.relationWitnessOnlyMotifTag(raw) ||
+            RelationObservationCatalog.pvDrawResourceOnlyMotifTag(raw)
+          then None
+          else
+            RelationObservationCatalog.deferredFallbackForMotifTag(raw) match
+              case Some(fallback) if fallback.allowsNonRelationText =>
+                fallback.label.orElse(Some("practical threat"))
+              case Some(_) => None
+              case None    => Some(raw)
+        }
+    }
   
   private def buildThreatTable(ctx: IntegratedContext, topSan: Option[String], topUci: Option[String], fen: String): ThreatTable = {
     // TO US threats: bestDefense is valid (how we can defend against opponent's threat)
@@ -1634,11 +1642,15 @@ object NarrativeContextBuilder:
       case rl: Motif.RookLift =>
         Some(s"Rook lift toward rank ${rl.toRank}.")
       case dom: Motif.Domination =>
-        Some(s"Domination by the ${roleLabel(dom.dominatingPiece)}.")
+        RelationObservationCatalog
+          .relationWitnessOnlyFallbackLabelForMotifTag(MoveReviewExchangeAnalyzer.RelationKind.Domination)
+          .map(label => s"${label.capitalize} by the ${roleLabel(dom.dominatingPiece)}.")
       case man: Motif.Maneuver =>
         Some(s"Maneuver by the ${roleLabel(man.piece)} for ${man.purpose.replace('_', ' ')}.")
       case tp: Motif.TrappedPiece =>
-        Some(s"Trapped ${roleLabel(tp.trappedRole)}.")
+        RelationObservationCatalog
+          .relationWitnessOnlyFallbackLabelForMotifTag(MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece)
+          .map(label => s"${label.capitalize} for the ${roleLabel(tp.trappedRole)}.")
       case _: Motif.KnightVsBishop =>
         Some("Knight-versus-bishop imbalance.")
       case b: Motif.Blockade =>
@@ -2109,7 +2121,8 @@ object NarrativeContextBuilder:
     val cpSignal: Option[String] = cpGap.map(g => s"engine gap ${f"${g.toDouble / 100}%.1f"} pawns")
     val localSeed: Int = Math.abs(candidate.move.hashCode) ^ (index * 0x9e3779b9) ^ cpGap.getOrElse(0)
     val strategicFrame: Option[ProbeDetector.StrategicFrame] =
-      Option.when(data.phase.equalsIgnoreCase("middlegame"))(probeSignals.strategicFrame).flatten
+      if data.phase.equalsIgnoreCase("middlegame") then probeSignals.strategicFrame
+      else None
     val planScoreSignal: Option[String] =
       data.plans.headOption.map(p => variedPlanScoreSignal(p.score, localSeed ^ 0x24d8f59c))
     val rankSignal: Option[String] = rank.map(r => variedEngineRankSignal(r, localSeed ^ 0x3b5296f1))

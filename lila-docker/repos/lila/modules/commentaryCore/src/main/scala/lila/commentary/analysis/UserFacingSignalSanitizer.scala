@@ -7,11 +7,11 @@ import scala.util.matching.Regex
 private[commentary] object UserFacingSignalSanitizer:
 
   private val DominationFallbackText =
-    relationFallbackText(MoveReviewExchangeAnalyzer.RelationKind.Domination, "key-square restriction")
+    relationFallbackText(MoveReviewExchangeAnalyzer.RelationKind.Domination)
   private val TrappedPieceFallbackText =
-    relationFallbackText(MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece, "piece mobility")
+    relationFallbackText(MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece)
   private val ZwischenzugFallbackText =
-    relationFallbackText(MoveReviewExchangeAnalyzer.RelationKind.Zwischenzug, "move-order caution")
+    relationFallbackText(MoveReviewExchangeAnalyzer.RelationKind.Zwischenzug)
 
   private val placeholderRewrites: List[(String, String)] = List(
     "deferred as PlayableByPV under strict evidence mode" -> "deferred under the current evidence threshold",
@@ -20,8 +20,8 @@ private[commentary] object UserFacingSignalSanitizer:
     "PlayedPV" -> "the played branch",
     "probe contract" -> "supporting evidence",
     "probe needed for validation" -> "",
-    "strict evidence mode" -> "current evidence threshold",
     "under strict evidence mode" -> "under the current evidence threshold",
+    "strict evidence mode" -> "current evidence threshold",
     "supported by engine-coupled continuation" -> "supported by the current engine line",
     "supported by engine coupled continuation" -> "supported by the current engine line",
     "engine-coupled continuation" -> "current engine line",
@@ -148,18 +148,22 @@ private[commentary] object UserFacingSignalSanitizer:
       .replaceAll("""(?i)\bPerpetualCheck\([^)]*\)""", "")
       .replaceAll("""(?i)\bKnightVsBishop\([^)]*\)""", "the knight against the bishop")
       .replaceAll("""(?i)\bBlockade\([^)]*\)""", "a blockade")
-      .replaceAll("""(?i)\bSmotheredMate\([^)]*\)""", "smothered-mate ideas")
+      .replaceAll("""(?i)\bSmotheredMate\([^)]*\)""", "")
       .replaceAll("""(?i)\bXRay\([^)]*\)""", "x-ray pressure")
       .replaceAll("""(?i)\bSkewer\([^)]*\)""", "a skewer")
       .replaceAll("""(?i)\bFork\([^)]*\)""", "fork pressure")
       .replaceAll("""(?i)\bCheck\([^)]*\)""", "checking pressure")
 
-  private def relationFallbackText(kind: String, fallback: String): String =
+  private def relationFallbackText(kind: String): String =
     RelationObservationCatalog
-      .deferredFallbackForKind(kind)
-      .filter(_.allowsNonRelationText)
-      .flatMap(_.label)
-      .getOrElse(fallback)
+      .relationWitnessOnlyFallbackLabelForMotifTag(kind)
+      .orElse(
+        RelationObservationCatalog
+          .deferredFallbackForKind(kind)
+          .filter(_.allowsNonRelationText)
+          .flatMap(_.label)
+      )
+      .getOrElse("")
 
   private def collapseWhitespace(text: String): String =
     text

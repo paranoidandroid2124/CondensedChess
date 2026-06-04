@@ -38,7 +38,7 @@ object NarrativeSignalDigestBuilder:
     val decisionComparison = decisionComparisonOverride.orElse(DecisionComparisonBuilder.digest(ctx))
 
     val practical = ctx.semantic.flatMap(_.practicalAssessment)
-    val compensationInfo = Option.when(allowCompensationSignals)(effectiveCompensationInfo(ctx)).flatten
+    val compensationInfo = if allowCompensationSignals then effectiveCompensationInfo(ctx) else None
     val prevented = ctx.semantic.flatMap(_.preventedPlans.headOption)
     val alignment = ctx.semantic.flatMap(_.planAlignment)
     val structure = ctx.semantic.flatMap(_.structureProfile)

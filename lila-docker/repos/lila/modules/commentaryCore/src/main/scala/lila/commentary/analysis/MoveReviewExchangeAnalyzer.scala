@@ -273,8 +273,6 @@ private[commentary] object MoveReviewExchangeAnalyzer:
     variations.headOption.toList.flatMap(normalizedLineMoves)
 
   private val DrawResourceMaxCp = 80
-  private val TypedDetailsRequiredRelations: Set[String] =
-    RelationKind.Implemented.toSet
 
   def normalizedLineMoves(line: VariationLine): List[String] =
     val rawUciMoves =
@@ -394,7 +392,7 @@ private[commentary] object MoveReviewExchangeAnalyzer:
       defenderSquare = defenderSquare.key,
       exchangeSquare = exchangeSquare.key,
       targetSquare = target,
-      lineMoves = replay.take(3).map(_.uci)
+      lineMoves = replayUcis(replay, 0, 3)
     )
 
   def relationWitnesses(
@@ -403,9 +401,27 @@ private[commentary] object MoveReviewExchangeAnalyzer:
       explicitTargets: List[String] = Nil,
       continuationLines: List[List[String]] = Nil,
       engineScoreCp: Option[Int] = None,
-      engineMate: Option[Int] = None
+      engineMate: Option[Int] = None,
+      includeDrawResources: Boolean = true
   ): List[RelationWitness] =
     val zwischenzug = zwischenzugWitness(replay, playedMove, explicitTargets)
+    val drawResourceWitnesses =
+      if includeDrawResources then
+        List(
+          stalemateTrapWitness(replay, playedMove, engineScoreCp, engineMate),
+          perpetualCheckWitness(replay, playedMove, engineScoreCp, engineMate)
+        ).flatten
+      else Nil
+    val fork =
+      if zwischenzug.isEmpty then forkWitness(replay, playedMove, explicitTargets)
+      else None
+    val loosePiecePressure =
+      if zwischenzug.isEmpty then
+        val trapped = trappedPieceWitness(replay, playedMove, explicitTargets)
+        trapped
+          .orElse(dominationWitness(replay, playedMove, explicitTargets))
+          .orElse(hangingPieceWitness(replay, playedMove, explicitTargets))
+      else None
     List(
       defenderTradeBranch(replay, playedMove, explicitTargets).map(defenderTradeWitness),
       badPieceLiquidationBranch(replay, playedMove).map(badPieceLiquidationWitness),
@@ -415,19 +431,11 @@ private[commentary] object MoveReviewExchangeAnalyzer:
       doubleCheckWitness(replay, playedMove, explicitTargets),
       backRankMateWitness(replay, playedMove, explicitTargets),
       mateNetWitness(replay, playedMove, explicitTargets),
-      greekGiftWitness(replay, playedMove, explicitTargets, continuationLines),
-      stalemateTrapWitness(replay, playedMove, engineScoreCp, engineMate),
-      perpetualCheckWitness(replay, playedMove, engineScoreCp, engineMate),
+      greekGiftWitness(replay, playedMove, explicitTargets, continuationLines)
+    ).flatten ++ drawResourceWitnesses ++ List(
       zwischenzug,
-      Option.when(zwischenzug.isEmpty)(forkWitness(replay, playedMove, explicitTargets)).flatten,
-      {
-        Option.when(zwischenzug.isEmpty) {
-          val trapped = trappedPieceWitness(replay, playedMove, explicitTargets)
-          trapped
-            .orElse(dominationWitness(replay, playedMove, explicitTargets))
-            .orElse(hangingPieceWitness(replay, playedMove, explicitTargets))
-        }.flatten
-      },
+      fork,
+      loosePiecePressure,
       xrayWitness(replay, playedMove, explicitTargets),
       clearanceWitness(replay, playedMove, explicitTargets),
       batteryWitness(replay, playedMove, explicitTargets),
@@ -481,19 +489,329 @@ private[commentary] object MoveReviewExchangeAnalyzer:
       case _ => None
 
   def relationDetailsValidForKind(witness: RelationWitness): Boolean =
-    if TypedDetailsRequiredRelations.contains(witness.kind) then typedDetailsFromWitness(witness).nonEmpty
+    if RelationKind.Implemented.contains(witness.kind) then typedDetailsFromWitness(witness).nonEmpty
     else witness.details == RelationDetails.Empty || typedDetailsFromWitness(witness).nonEmpty
 
   def relationProjectionFromWitness(witness: RelationWitness): Option[RelationProjection] =
-    Option.when(RelationKind.Implemented.contains(witness.kind) && relationDetailsValidForKind(witness)) {
+    for
+      typedDetails <- typedDetailsFromWitness(witness)
+      if RelationKind.Implemented.contains(witness.kind)
+    yield
+      val (rawFocusSquares, rawTargetSquare, rawFactTerms) =
+        typedDetails match
+          case details: RelationDetails.DefenderTrade =>
+            (
+              List(details.targetSquare, details.exchangeSquare),
+              Some(details.targetSquare),
+              List(
+                "defender_trade_branch",
+                s"defender:${details.defenderSquare}",
+                s"exchange_square:${details.exchangeSquare}",
+                s"defended_target:${details.targetSquare}"
+              )
+            )
+          case details: RelationDetails.BadPieceLiquidation =>
+            (
+              List(details.badPieceSquare, details.exchangeSquare),
+              Some(details.exchangeSquare),
+              List(
+                "bad_piece_liquidation_branch",
+                s"bad_piece:${details.badPieceSquare}",
+                s"exchange_square:${details.exchangeSquare}"
+              )
+            )
+          case details: RelationDetails.Overload =>
+            (
+              (details.defenderSquare :: details.targetSquares).take(4),
+              details.targetSquares.headOption,
+              List(
+                "overload_relation_witness",
+                s"defender:${details.defenderSquare}",
+                s"duties:${details.targetSquares.mkString("|")}",
+                s"attacker:${details.attackerSquare}"
+              )
+            )
+          case details: RelationDetails.Deflection =>
+            (
+              List(details.targetSquare, details.defenderSquare, details.attackerSquare),
+              Some(details.targetSquare),
+              List(
+                "deflection_relation_witness",
+                s"defender:${details.defenderSquare}",
+                s"defended_target:${details.targetSquare}",
+                s"attacker:${details.attackerSquare}"
+              )
+            )
+          case details: RelationDetails.DiscoveredAttack =>
+            (
+              List(details.attackerSquare, details.clearedSquare, details.targetSquare),
+              Some(details.targetSquare),
+              List(
+                "discovered_attack_relation_witness",
+                s"attacker:${details.attackerSquare}",
+                s"cleared_square:${details.clearedSquare}",
+                s"target:${details.targetSquare}",
+                s"attacker_role:${details.attackerRole}"
+              )
+            )
+          case details: RelationDetails.DoubleCheck =>
+            (
+              (details.kingSquare :: details.checkerSquares).distinct,
+              Some(details.kingSquare),
+              List(
+                "double_check_relation_witness",
+                s"king:${details.kingSquare}",
+                s"checkers:${details.checkerSquares.sorted.mkString("|")}",
+                s"mover:${details.moverSquare}",
+                s"mover_role:${details.moverRole}"
+              )
+            )
+          case details: RelationDetails.MatePattern
+              if details.relationKind == RelationKind.BackRankMate =>
+            (
+              (details.kingSquare :: details.checkerSquares).distinct,
+              Some(details.kingSquare),
+              List(
+                "back_rank_mate_relation_witness",
+                "mate",
+                s"king:${details.kingSquare}",
+                s"checkers:${details.checkerSquares.sorted.mkString("|")}",
+                s"mating_move:${details.matingMove}"
+              )
+            )
+          case details: RelationDetails.MatePattern
+              if details.relationKind == RelationKind.MateNet =>
+            (
+              (details.kingSquare :: details.checkerSquares).distinct,
+              Some(details.kingSquare),
+              List(
+                "mate_net_relation_witness",
+                "mate",
+                s"pattern:${details.patternId.getOrElse(RelationKind.MateNet)}",
+                s"king:${details.kingSquare}",
+                s"checkers:${details.checkerSquares.sorted.mkString("|")}",
+                s"mating_move:${details.matingMove}"
+              )
+            )
+          case details: RelationDetails.GreekGift =>
+            (
+              List(details.bishopSquare, details.targetSquare),
+              Some(details.targetSquare),
+              List(
+                "greek_gift_relation_witness",
+                "sacrifice_entry",
+                s"pattern:${details.patternId}",
+                s"target:${details.targetSquare}",
+                s"bishop:${details.bishopSquare}",
+                s"entry_move:${details.entryMove}"
+              )
+            )
+          case details: RelationDetails.Fork =>
+            (
+              (details.attackerSquare :: details.targets.map(_.square)).distinct,
+              details.targets.headOption.map(_.square),
+              List(
+                "fork_relation_witness",
+                s"attacker:${details.attackerSquare}",
+                s"attacker_role:${details.attackerRole}",
+                s"targets:${details.targets.map(_.square).sorted.mkString("|")}"
+              ) ++ details.targets.map(target => s"target:${target.square}:${target.role}")
+            )
+          case details: RelationDetails.HangingPiece =>
+            (
+              List(details.attackerSquare, details.targetSquare),
+              Some(details.targetSquare),
+              List(
+                "hanging_piece_relation_witness",
+                s"attacker:${details.attackerSquare}",
+                s"target:${details.targetSquare}",
+                s"attacker_role:${details.attackerRole}",
+                s"target_role:${details.targetRole}",
+                "undefended_target"
+              )
+            )
+          case details: RelationDetails.TrappedPiece =>
+            (
+              List(details.attackerSquare, details.targetSquare),
+              Some(details.targetSquare),
+              List(
+                "trapped_piece_relation_witness",
+                s"attacker:${details.attackerSquare}",
+                s"target:${details.targetSquare}",
+                s"attacker_role:${details.attackerRole}",
+                s"target_role:${details.targetRole}",
+                "no_safe_escape"
+              )
+            )
+          case details: RelationDetails.Domination =>
+            (
+              (details.attackerSquare :: details.targetSquare :: details.controlledEscapeSquares).distinct,
+              Some(details.targetSquare),
+              List(
+                "domination_relation_witness",
+                s"attacker:${details.attackerSquare}",
+                s"target:${details.targetSquare}",
+                s"attacker_role:${details.attackerRole}",
+                s"target_role:${details.targetRole}",
+                s"controlled_escapes:${details.controlledEscapeSquares.sorted.mkString("|")}",
+                "no_safe_escape",
+                "escape_square_control"
+              )
+            )
+          case details: RelationDetails.Zwischenzug =>
+            (
+              List(details.checkingPieceSquare, details.expectedRecaptureSquare, details.checkedKingSquare),
+              Some(details.expectedRecaptureSquare),
+              List(
+                "zwischenzug_relation_witness",
+                s"intermediate_move:${details.intermediateMove}",
+                s"expected_recapture:${details.expectedRecaptureSquare}",
+                s"checker:${details.checkingPieceSquare}",
+                s"checker_role:${details.checkingPieceRole}",
+                s"king:${details.checkedKingSquare}",
+                s"threat:${details.threatType}",
+                "recapture_available",
+                "in_between_check"
+              )
+            )
+          case details: RelationDetails.Decoy =>
+            (
+              List(details.baitFromSquare, details.baitSquare, details.luredFromSquare),
+              Some(details.baitSquare),
+              List(
+                "decoy_relation_witness",
+                s"bait:${details.baitSquare}",
+                s"lured_from:${details.luredFromSquare}",
+                s"lured_role:${details.luredRole}",
+                s"bait_role:${details.baitRole}",
+                s"execution:${details.executionFromSquare}-${details.executionToSquare}"
+              )
+            )
+          case details: RelationDetails.XRay =>
+            (
+              List(details.attackerSquare, details.blockerSquare, details.targetSquare),
+              Some(details.targetSquare),
+              List(
+                "xray_relation_witness",
+                s"attacker:${details.attackerSquare}",
+                s"blocker:${details.blockerSquare}",
+                s"target:${details.targetSquare}",
+                s"attacker_role:${details.attackerRole}",
+                s"blocker_role:${details.blockerRole}",
+                s"target_role:${details.targetRole}"
+              )
+            )
+          case details: RelationDetails.Clearance =>
+            (
+              List(details.beneficiarySquare, details.clearedSquare, details.targetSquare),
+              Some(details.targetSquare),
+              List(
+                "clearance_relation_witness",
+                s"beneficiary:${details.beneficiarySquare}",
+                s"cleared_square:${details.clearedSquare}",
+                s"target:${details.targetSquare}",
+                s"beneficiary_role:${details.beneficiaryRole}",
+                s"clearing_to:${details.clearingTo}"
+              )
+            )
+          case details: RelationDetails.Battery =>
+            (
+              List(details.frontSquare, details.backSquare, details.targetSquare),
+              Some(details.targetSquare),
+              List(
+                "battery_relation_witness",
+                s"front:${details.frontSquare}",
+                s"back:${details.backSquare}",
+                s"target:${details.targetSquare}",
+                s"front_role:${details.frontRole}",
+                s"back_role:${details.backRole}",
+                s"axis:${details.axis}"
+              )
+            )
+          case details: RelationDetails.Interference =>
+            (
+              List(details.blockerSquare, details.defenderSquare, details.targetSquare),
+              Some(details.targetSquare),
+              List(
+                "interference_relation_witness",
+                s"blocker:${details.blockerSquare}",
+                s"defender:${details.defenderSquare}",
+                s"target:${details.targetSquare}",
+                s"blocker_role:${details.blockerRole}",
+                s"defender_role:${details.defenderRole}",
+                s"target_role:${details.targetRole}"
+              )
+            )
+          case details: RelationDetails.Pin =>
+            (
+              List(details.attackerSquare, details.pinnedSquare, details.behindSquare),
+              Some(details.targetSquare),
+              List(
+                "pin_relation_witness",
+                s"attacker:${details.attackerSquare}",
+                s"pinned:${details.pinnedSquare}",
+                s"behind:${details.behindSquare}",
+                s"attacker_role:${details.attackerRole}",
+                s"pinned_role:${details.pinnedRole}",
+                s"behind_role:${details.behindRole}",
+                if details.absolute then "absolute_pin" else "relative_pin"
+              )
+            )
+          case details: RelationDetails.Skewer =>
+            (
+              List(details.attackerSquare, details.frontSquare, details.backSquare),
+              Some(details.targetSquare),
+              List(
+                "skewer_relation_witness",
+                s"attacker:${details.attackerSquare}",
+                s"front:${details.frontSquare}",
+                s"back:${details.backSquare}",
+                s"attacker_role:${details.attackerRole}",
+                s"front_role:${details.frontRole}",
+                s"back_role:${details.backRole}"
+              )
+            )
+          case details: RelationDetails.StalemateTrap =>
+            (
+              List(details.stalematedKingSquare, details.resourceSquare),
+              Some(details.stalematedKingSquare),
+              List(
+                "stalemate_trap_relation_witness",
+                "draw_resource",
+                "terminal:stalemate",
+                s"king:${details.stalematedKingSquare}",
+                s"resource:${details.resourceSquare}",
+                s"entry_move:${details.entryMove}",
+                s"terminal_move:${details.terminalMove}",
+                s"draw_score_cp:${details.scoreCp}"
+              )
+            )
+          case details: RelationDetails.PerpetualCheck =>
+            (
+              (details.checkedKingSquare :: details.checkerSquares).distinct,
+              Some(details.checkedKingSquare),
+              List(
+                "perpetual_check_relation_witness",
+                "draw_resource",
+                "checking_cycle",
+                s"king:${details.checkedKingSquare}",
+                s"checkers:${details.checkerSquares.sorted.mkString("|")}",
+                s"checking_side:${details.checkingSide}",
+                s"entry_move:${details.entryMove}",
+                s"cycle_start:${details.cycleStartMove}",
+                s"cycle_return:${details.cycleReturnMove}",
+                s"repetition_key:${compactPositionKey(details.repeatedPositionKey)}",
+                s"draw_score_cp:${details.scoreCp}"
+              )
+            )
+          case _ => (Nil, None, Nil)
       RelationProjection(
         kind = witness.kind,
-        focusSquares = relationFocusSquaresFromWitness(witness),
-        targetSquare = relationTargetSquareFromWitness(witness),
-        factTerms = relationFactTermsFromWitness(witness),
+        focusSquares = rawFocusSquares.flatMap(square => squareFromKey(square).map(_.key)).distinct,
+        targetSquare = rawTargetSquare.flatMap(square => squareFromKey(square).map(_.key)),
+        factTerms = (rawFactTerms ++ branchFactFromMoves(witness.lineMoves)).distinct,
         lineMoves = witness.lineMoves
       )
-    }
 
   def defenderTradeBranchFromWitness(witness: RelationWitness): Option[DefenderTradeBranch] =
     typedDetailsFromWitness(witness).collect {
@@ -516,105 +834,68 @@ private[commentary] object MoveReviewExchangeAnalyzer:
         )
     }
 
-  def overloadDetailsFromWitness(witness: RelationWitness): Option[RelationDetails.Overload] =
-    typedDetailsFromWitness(witness).collect { case details: RelationDetails.Overload => details }
-
-  def deflectionDetailsFromWitness(witness: RelationWitness): Option[RelationDetails.Deflection] =
-    typedDetailsFromWitness(witness).collect { case details: RelationDetails.Deflection => details }
-
-  def discoveredAttackDetailsFromWitness(witness: RelationWitness): Option[RelationDetails.DiscoveredAttack] =
-    typedDetailsFromWitness(witness).collect { case details: RelationDetails.DiscoveredAttack => details }
-
-  def doubleCheckDetailsFromWitness(witness: RelationWitness): Option[RelationDetails.DoubleCheck] =
-    typedDetailsFromWitness(witness).collect { case details: RelationDetails.DoubleCheck => details }
-
-  def matePatternDetailsFromWitness(witness: RelationWitness): Option[RelationDetails.MatePattern] =
-    typedDetailsFromWitness(witness).collect { case details: RelationDetails.MatePattern => details }
-
-  def greekGiftDetailsFromWitness(witness: RelationWitness): Option[RelationDetails.GreekGift] =
-    typedDetailsFromWitness(witness).collect { case details: RelationDetails.GreekGift => details }
-
-  def forkDetailsFromWitness(witness: RelationWitness): Option[RelationDetails.Fork] =
-    typedDetailsFromWitness(witness).collect { case details: RelationDetails.Fork => details }
-
-  def hangingPieceDetailsFromWitness(witness: RelationWitness): Option[RelationDetails.HangingPiece] =
-    typedDetailsFromWitness(witness).collect { case details: RelationDetails.HangingPiece => details }
-
-  def trappedPieceDetailsFromWitness(witness: RelationWitness): Option[RelationDetails.TrappedPiece] =
-    typedDetailsFromWitness(witness).collect { case details: RelationDetails.TrappedPiece => details }
-
-  def dominationDetailsFromWitness(witness: RelationWitness): Option[RelationDetails.Domination] =
-    typedDetailsFromWitness(witness).collect { case details: RelationDetails.Domination => details }
-
-  def zwischenzugDetailsFromWitness(witness: RelationWitness): Option[RelationDetails.Zwischenzug] =
-    typedDetailsFromWitness(witness).collect { case details: RelationDetails.Zwischenzug => details }
-
-  def decoyDetailsFromWitness(witness: RelationWitness): Option[RelationDetails.Decoy] =
-    typedDetailsFromWitness(witness).collect { case details: RelationDetails.Decoy => details }
-
-  def xrayDetailsFromWitness(witness: RelationWitness): Option[RelationDetails.XRay] =
-    typedDetailsFromWitness(witness).collect { case details: RelationDetails.XRay => details }
-
-  def clearanceDetailsFromWitness(witness: RelationWitness): Option[RelationDetails.Clearance] =
-    typedDetailsFromWitness(witness).collect { case details: RelationDetails.Clearance => details }
-
-  def batteryDetailsFromWitness(witness: RelationWitness): Option[RelationDetails.Battery] =
-    typedDetailsFromWitness(witness).collect { case details: RelationDetails.Battery => details }
-
-  def interferenceDetailsFromWitness(witness: RelationWitness): Option[RelationDetails.Interference] =
-    typedDetailsFromWitness(witness).collect { case details: RelationDetails.Interference => details }
-
-  def pinDetailsFromWitness(witness: RelationWitness): Option[RelationDetails.Pin] =
-    typedDetailsFromWitness(witness).collect { case details: RelationDetails.Pin => details }
-
-  def skewerDetailsFromWitness(witness: RelationWitness): Option[RelationDetails.Skewer] =
-    typedDetailsFromWitness(witness).collect { case details: RelationDetails.Skewer => details }
-
   def relationPracticalSurfaceFromWitness(
       witness: RelationWitness,
       matePatternPhraseById: String => Option[String] = _ => None
   ): Option[RelationPracticalSurface] =
     typedDetailsFromWitness(witness).flatMap {
-      case details: RelationDetails.XRay if witness.kind == RelationKind.XRay =>
+      case details: RelationDetails.DefenderTrade =>
+        Some(
+          RelationPracticalSurface(
+            s"The checked line trades on ${details.exchangeSquare} to remove the defender from ${details.defenderSquare}, loosening ${details.targetSquare}."
+          )
+        )
+      case details: RelationDetails.BadPieceLiquidation =>
+        Some(
+          RelationPracticalSurface(
+            s"The checked line trades on ${details.exchangeSquare} to clear the bad piece from ${details.badPieceSquare}."
+          )
+        )
+      case details: RelationDetails.XRay =>
         Some(
           RelationPracticalSurface(
             s"The checked line sets x-ray pressure from the ${details.attackerRole} on ${details.attackerSquare} through ${details.blockerSquare} toward ${details.targetSquare}."
           )
         )
-      case details: RelationDetails.Deflection if witness.kind == RelationKind.Deflection =>
+      case details: RelationDetails.Deflection =>
         Some(
           RelationPracticalSurface(
             s"The checked line attacks the defender on ${details.defenderSquare} from ${details.attackerSquare}; after it moves, ${details.targetSquare} loses that defense."
           )
         )
-      case details: RelationDetails.Clearance if witness.kind == RelationKind.Clearance =>
+      case details: RelationDetails.DiscoveredAttack =>
+        Some(
+          RelationPracticalSurface(
+            s"The checked line clears ${details.clearedSquare}, revealing a ${details.attackerRole} attack from ${details.attackerSquare} on ${details.targetSquare}."
+          )
+        )
+      case details: RelationDetails.Clearance =>
         Some(
           RelationPracticalSurface(
             s"The checked line clears ${details.clearedSquare}, opening the ${details.beneficiaryRole} on ${details.beneficiarySquare} toward ${details.targetSquare}."
           )
         )
       case details: RelationDetails.MatePattern
-          if details.relationKind == RelationKind.BackRankMate && witness.kind == RelationKind.BackRankMate =>
+          if details.relationKind == RelationKind.BackRankMate =>
         Some(RelationPracticalSurface(matePatternPracticalText(details, "back-rank mate"), details.patternId))
       case details: RelationDetails.MatePattern
-          if details.relationKind == RelationKind.MateNet && witness.kind == RelationKind.MateNet =>
+          if details.relationKind == RelationKind.MateNet =>
         val pattern = details.patternId.flatMap(matePatternPhraseById).getOrElse("mate net")
         Some(RelationPracticalSurface(matePatternPracticalText(details, pattern), details.patternId))
-      case details: RelationDetails.GreekGift if witness.kind == RelationKind.GreekGift =>
+      case details: RelationDetails.GreekGift =>
         Some(
           RelationPracticalSurface(
             s"The checked line starts a Greek gift sacrifice with the bishop on ${details.targetSquare}."
           )
         )
-      case details: RelationDetails.DoubleCheck if witness.kind == RelationKind.DoubleCheck =>
+      case details: RelationDetails.DoubleCheck =>
         Some(
           RelationPracticalSurface(
             s"The checked line gives double check on ${details.kingSquare} from ${details.checkerSquares.mkString(" and ")}."
           )
         )
       case details: RelationDetails.Fork
-          if witness.kind == RelationKind.Fork &&
-            (details.attackerRole == "knight" || details.attackerRole == "pawn" || details.targets.exists(_.role == "king")) =>
+          if details.attackerRole == "knight" || details.attackerRole == "pawn" || details.targets.exists(_.role == "king") =>
         val targetText =
           details.targets.take(3).map(target => s"the ${target.role} on ${target.square}").mkString(" and ")
         Some(
@@ -622,62 +903,62 @@ private[commentary] object MoveReviewExchangeAnalyzer:
             s"The checked line puts the ${details.attackerRole} on ${details.attackerSquare} attacking $targetText."
           )
         )
-      case details: RelationDetails.Overload if witness.kind == RelationKind.Overload && details.targetSquares.size >= 2 =>
+      case details: RelationDetails.Overload if details.targetSquares.size >= 2 =>
         Some(
           RelationPracticalSurface(
             s"The checked line overloads the defender on ${details.defenderSquare} across ${details.targetSquares.take(3).mkString(" and ")}."
           )
         )
-      case details: RelationDetails.Interference if witness.kind == RelationKind.Interference =>
+      case details: RelationDetails.Interference =>
         Some(
           RelationPracticalSurface(
             s"The checked line puts the ${details.blockerRole} on ${details.blockerSquare} between the ${details.defenderRole} on ${details.defenderSquare} and the ${details.targetRole} on ${details.targetSquare}."
           )
         )
-      case details: RelationDetails.HangingPiece if witness.kind == RelationKind.HangingPiece =>
+      case details: RelationDetails.HangingPiece =>
         Some(
           RelationPracticalSurface(
             s"The checked line attacks the undefended ${details.targetRole} on ${details.targetSquare} with the ${details.attackerRole} on ${details.attackerSquare}."
           )
         )
-      case details: RelationDetails.TrappedPiece if witness.kind == RelationKind.TrappedPiece =>
+      case details: RelationDetails.TrappedPiece =>
         Some(
           RelationPracticalSurface(
             s"The checked line traps the ${details.targetRole} on ${details.targetSquare} with the ${details.attackerRole} on ${details.attackerSquare}."
           )
         )
-      case details: RelationDetails.Domination if witness.kind == RelationKind.Domination && details.controlledEscapeSquares.nonEmpty =>
+      case details: RelationDetails.Domination if details.controlledEscapeSquares.nonEmpty =>
         val escapes = details.controlledEscapeSquares.take(3).mkString(" and ")
         Some(
           RelationPracticalSurface(
             s"The checked line dominates the ${details.targetRole} on ${details.targetSquare}; the ${details.attackerRole} on ${details.attackerSquare} controls $escapes."
           )
         )
-      case details: RelationDetails.Zwischenzug if witness.kind == RelationKind.Zwischenzug =>
+      case details: RelationDetails.Zwischenzug =>
         Some(
           RelationPracticalSurface(
             s"The checked line inserts ${details.intermediateMove} as a check on ${details.checkedKingSquare} before the recapture on ${details.expectedRecaptureSquare}."
           )
         )
-      case details: RelationDetails.Skewer if witness.kind == RelationKind.Skewer =>
+      case details: RelationDetails.Skewer =>
         Some(
           RelationPracticalSurface(
             s"The checked line lines up the ${details.attackerRole} on ${details.attackerSquare} against the ${details.frontRole} on ${details.frontSquare}, with the ${details.backRole} on ${details.backSquare} behind it."
           )
         )
-      case details: RelationDetails.Battery if witness.kind == RelationKind.Battery =>
+      case details: RelationDetails.Battery =>
         Some(
           RelationPracticalSurface(
             s"The checked line forms a ${details.frontRole}-${details.backRole} battery on the ${details.axis} toward ${details.targetSquare}."
           )
         )
-      case details: RelationDetails.Pin if witness.kind == RelationKind.Pin && details.absolute =>
+      case details: RelationDetails.Pin if details.absolute =>
         Some(
           RelationPracticalSurface(
             s"The checked line pins the ${details.pinnedRole} on ${details.pinnedSquare} to the ${details.behindRole} on ${details.behindSquare}."
           )
         )
-      case details: RelationDetails.Decoy if witness.kind == RelationKind.Decoy =>
+      case details: RelationDetails.Decoy =>
         Some(
           RelationPracticalSurface(
             s"The checked line offers the ${details.baitRole} on ${details.baitSquare} to lure the ${details.luredRole} from ${details.luredFromSquare}, then recaptures on ${details.executionToSquare}."
@@ -688,333 +969,6 @@ private[commentary] object MoveReviewExchangeAnalyzer:
 
   private def matePatternPracticalText(details: RelationDetails.MatePattern, pattern: String): String =
     s"The checked line ends in $pattern on ${details.kingSquare} after ${details.matingMove}."
-
-  def relationFocusSquaresFromWitness(witness: RelationWitness): List[String] =
-    val raw =
-      typedDetailsFromWitness(witness).getOrElse(RelationDetails.Empty) match
-        case details: RelationDetails.DefenderTrade if witness.kind == RelationKind.DefenderTrade =>
-          List(details.targetSquare, details.exchangeSquare)
-        case details: RelationDetails.BadPieceLiquidation if witness.kind == RelationKind.BadPieceLiquidation =>
-          List(details.badPieceSquare, details.exchangeSquare)
-        case details: RelationDetails.Overload if witness.kind == RelationKind.Overload =>
-          (details.defenderSquare :: details.targetSquares).take(4)
-        case details: RelationDetails.Deflection if witness.kind == RelationKind.Deflection =>
-          List(details.targetSquare, details.defenderSquare, details.attackerSquare)
-        case details: RelationDetails.DiscoveredAttack if witness.kind == RelationKind.DiscoveredAttack =>
-          List(details.attackerSquare, details.clearedSquare, details.targetSquare)
-        case details: RelationDetails.DoubleCheck if witness.kind == RelationKind.DoubleCheck =>
-          (details.kingSquare :: details.checkerSquares).distinct
-        case details: RelationDetails.MatePattern
-            if (witness.kind == RelationKind.BackRankMate || witness.kind == RelationKind.MateNet) &&
-              details.relationKind == witness.kind =>
-          (details.kingSquare :: details.checkerSquares).distinct
-        case details: RelationDetails.GreekGift if witness.kind == RelationKind.GreekGift =>
-          List(details.bishopSquare, details.targetSquare)
-        case details: RelationDetails.Fork if witness.kind == RelationKind.Fork =>
-          (details.attackerSquare :: details.targets.map(_.square)).distinct
-        case details: RelationDetails.HangingPiece if witness.kind == RelationKind.HangingPiece =>
-          List(details.attackerSquare, details.targetSquare)
-        case details: RelationDetails.TrappedPiece if witness.kind == RelationKind.TrappedPiece =>
-          List(details.attackerSquare, details.targetSquare)
-        case details: RelationDetails.Domination if witness.kind == RelationKind.Domination =>
-          (details.attackerSquare :: details.targetSquare :: details.controlledEscapeSquares).distinct
-        case details: RelationDetails.Zwischenzug if witness.kind == RelationKind.Zwischenzug =>
-          List(details.checkingPieceSquare, details.expectedRecaptureSquare, details.checkedKingSquare)
-        case details: RelationDetails.Decoy if witness.kind == RelationKind.Decoy =>
-          List(details.baitFromSquare, details.baitSquare, details.luredFromSquare)
-        case details: RelationDetails.XRay if witness.kind == RelationKind.XRay =>
-          List(details.attackerSquare, details.blockerSquare, details.targetSquare)
-        case details: RelationDetails.Clearance if witness.kind == RelationKind.Clearance =>
-          List(details.beneficiarySquare, details.clearedSquare, details.targetSquare)
-        case details: RelationDetails.Battery if witness.kind == RelationKind.Battery =>
-          List(details.frontSquare, details.backSquare, details.targetSquare)
-        case details: RelationDetails.Interference if witness.kind == RelationKind.Interference =>
-          List(details.blockerSquare, details.defenderSquare, details.targetSquare)
-        case details: RelationDetails.Pin if witness.kind == RelationKind.Pin =>
-          List(details.attackerSquare, details.pinnedSquare, details.behindSquare)
-        case details: RelationDetails.Skewer if witness.kind == RelationKind.Skewer =>
-          List(details.attackerSquare, details.frontSquare, details.backSquare)
-        case details: RelationDetails.StalemateTrap if witness.kind == RelationKind.StalemateTrap =>
-          List(details.stalematedKingSquare, details.resourceSquare)
-        case details: RelationDetails.PerpetualCheck if witness.kind == RelationKind.PerpetualCheck =>
-          (details.checkedKingSquare :: details.checkerSquares).distinct
-        case _ =>
-          if witness.details == RelationDetails.Empty && relationDetailsValidForKind(witness) then witness.focusSquares else Nil
-    raw.flatMap(square => squareFromKey(square).map(_.key)).distinct
-
-  def relationTargetSquareFromWitness(witness: RelationWitness): Option[String] =
-    val raw =
-      typedDetailsFromWitness(witness).getOrElse(RelationDetails.Empty) match
-        case details: RelationDetails.DefenderTrade if witness.kind == RelationKind.DefenderTrade =>
-          Some(details.targetSquare)
-        case details: RelationDetails.BadPieceLiquidation if witness.kind == RelationKind.BadPieceLiquidation =>
-          Some(details.exchangeSquare)
-        case details: RelationDetails.Overload if witness.kind == RelationKind.Overload =>
-          details.targetSquares.headOption
-        case details: RelationDetails.Deflection if witness.kind == RelationKind.Deflection =>
-          Some(details.targetSquare)
-        case details: RelationDetails.DiscoveredAttack if witness.kind == RelationKind.DiscoveredAttack =>
-          Some(details.targetSquare)
-        case details: RelationDetails.DoubleCheck if witness.kind == RelationKind.DoubleCheck =>
-          Some(details.kingSquare)
-        case details: RelationDetails.MatePattern
-            if (witness.kind == RelationKind.BackRankMate || witness.kind == RelationKind.MateNet) &&
-              details.relationKind == witness.kind =>
-          Some(details.kingSquare)
-        case details: RelationDetails.GreekGift if witness.kind == RelationKind.GreekGift =>
-          Some(details.targetSquare)
-        case details: RelationDetails.Fork if witness.kind == RelationKind.Fork =>
-          details.targets.headOption.map(_.square)
-        case details: RelationDetails.HangingPiece if witness.kind == RelationKind.HangingPiece =>
-          Some(details.targetSquare)
-        case details: RelationDetails.TrappedPiece if witness.kind == RelationKind.TrappedPiece =>
-          Some(details.targetSquare)
-        case details: RelationDetails.Domination if witness.kind == RelationKind.Domination =>
-          Some(details.targetSquare)
-        case details: RelationDetails.Zwischenzug if witness.kind == RelationKind.Zwischenzug =>
-          Some(details.expectedRecaptureSquare)
-        case details: RelationDetails.Decoy if witness.kind == RelationKind.Decoy =>
-          Some(details.baitSquare)
-        case details: RelationDetails.XRay if witness.kind == RelationKind.XRay =>
-          Some(details.targetSquare)
-        case details: RelationDetails.Clearance if witness.kind == RelationKind.Clearance =>
-          Some(details.targetSquare)
-        case details: RelationDetails.Battery if witness.kind == RelationKind.Battery =>
-          Some(details.targetSquare)
-        case details: RelationDetails.Interference if witness.kind == RelationKind.Interference =>
-          Some(details.targetSquare)
-        case details: RelationDetails.Pin if witness.kind == RelationKind.Pin =>
-          Some(details.targetSquare)
-        case details: RelationDetails.Skewer if witness.kind == RelationKind.Skewer =>
-          Some(details.targetSquare)
-        case details: RelationDetails.StalemateTrap if witness.kind == RelationKind.StalemateTrap =>
-          Some(details.stalematedKingSquare)
-        case details: RelationDetails.PerpetualCheck if witness.kind == RelationKind.PerpetualCheck =>
-          Some(details.checkedKingSquare)
-        case _ =>
-          if witness.details == RelationDetails.Empty && relationDetailsValidForKind(witness) then witness.targetSquare else None
-    raw.flatMap(square => squareFromKey(square).map(_.key))
-
-  def relationFactTermsFromWitness(witness: RelationWitness): List[String] =
-    val details =
-      typedDetailsFromWitness(witness).getOrElse(RelationDetails.Empty) match
-        case details: RelationDetails.DefenderTrade if witness.kind == RelationKind.DefenderTrade =>
-          List(
-            "defender_trade_branch",
-            s"defender:${details.defenderSquare}",
-            s"exchange_square:${details.exchangeSquare}",
-            s"defended_target:${details.targetSquare}"
-          )
-        case details: RelationDetails.BadPieceLiquidation if witness.kind == RelationKind.BadPieceLiquidation =>
-          List(
-            "bad_piece_liquidation_branch",
-            s"bad_piece:${details.badPieceSquare}",
-            s"exchange_square:${details.exchangeSquare}"
-          )
-        case details: RelationDetails.Overload if witness.kind == RelationKind.Overload =>
-          List(
-            "overload_relation_witness",
-            s"defender:${details.defenderSquare}",
-            s"duties:${details.targetSquares.mkString("|")}",
-            s"attacker:${details.attackerSquare}"
-          )
-        case details: RelationDetails.Deflection if witness.kind == RelationKind.Deflection =>
-          List(
-            "deflection_relation_witness",
-            s"defender:${details.defenderSquare}",
-            s"defended_target:${details.targetSquare}",
-            s"attacker:${details.attackerSquare}"
-          )
-        case details: RelationDetails.DiscoveredAttack if witness.kind == RelationKind.DiscoveredAttack =>
-          List(
-            "discovered_attack_relation_witness",
-            s"attacker:${details.attackerSquare}",
-            s"cleared_square:${details.clearedSquare}",
-            s"target:${details.targetSquare}",
-            s"attacker_role:${details.attackerRole}"
-          )
-        case details: RelationDetails.DoubleCheck if witness.kind == RelationKind.DoubleCheck =>
-          List(
-            "double_check_relation_witness",
-            s"king:${details.kingSquare}",
-            s"checkers:${details.checkerSquares.sorted.mkString("|")}",
-            s"mover:${details.moverSquare}",
-            s"mover_role:${details.moverRole}"
-          )
-        case details: RelationDetails.MatePattern if details.relationKind == RelationKind.BackRankMate && witness.kind == RelationKind.BackRankMate =>
-          List(
-            "back_rank_mate_relation_witness",
-            "mate",
-            s"king:${details.kingSquare}",
-            s"checkers:${details.checkerSquares.sorted.mkString("|")}",
-            s"mating_move:${details.matingMove}"
-          )
-        case details: RelationDetails.MatePattern if details.relationKind == RelationKind.MateNet && witness.kind == RelationKind.MateNet =>
-          List(
-            "mate_net_relation_witness",
-            "mate",
-            s"pattern:${details.patternId.getOrElse(RelationKind.MateNet)}",
-            s"king:${details.kingSquare}",
-            s"checkers:${details.checkerSquares.sorted.mkString("|")}",
-            s"mating_move:${details.matingMove}"
-          )
-        case details: RelationDetails.GreekGift if witness.kind == RelationKind.GreekGift =>
-          List(
-            "greek_gift_relation_witness",
-            "sacrifice_entry",
-            s"pattern:${details.patternId}",
-            s"target:${details.targetSquare}",
-            s"bishop:${details.bishopSquare}",
-            s"entry_move:${details.entryMove}"
-          )
-        case details: RelationDetails.Fork if witness.kind == RelationKind.Fork =>
-          List(
-            "fork_relation_witness",
-            s"attacker:${details.attackerSquare}",
-            s"attacker_role:${details.attackerRole}",
-            s"targets:${details.targets.map(_.square).sorted.mkString("|")}"
-          ) ++ details.targets.map(target => s"target:${target.square}:${target.role}")
-        case details: RelationDetails.HangingPiece if witness.kind == RelationKind.HangingPiece =>
-          List(
-            "hanging_piece_relation_witness",
-            s"attacker:${details.attackerSquare}",
-            s"target:${details.targetSquare}",
-            s"attacker_role:${details.attackerRole}",
-            s"target_role:${details.targetRole}",
-            "undefended_target"
-          )
-        case details: RelationDetails.TrappedPiece if witness.kind == RelationKind.TrappedPiece =>
-          List(
-            "trapped_piece_relation_witness",
-            s"attacker:${details.attackerSquare}",
-            s"target:${details.targetSquare}",
-            s"attacker_role:${details.attackerRole}",
-            s"target_role:${details.targetRole}",
-            "no_safe_escape"
-          )
-        case details: RelationDetails.Domination if witness.kind == RelationKind.Domination =>
-          List(
-            "domination_relation_witness",
-            s"attacker:${details.attackerSquare}",
-            s"target:${details.targetSquare}",
-            s"attacker_role:${details.attackerRole}",
-            s"target_role:${details.targetRole}",
-            s"controlled_escapes:${details.controlledEscapeSquares.sorted.mkString("|")}",
-            "no_safe_escape",
-            "escape_square_control"
-          )
-        case details: RelationDetails.Zwischenzug if witness.kind == RelationKind.Zwischenzug =>
-          List(
-            "zwischenzug_relation_witness",
-            s"intermediate_move:${details.intermediateMove}",
-            s"expected_recapture:${details.expectedRecaptureSquare}",
-            s"checker:${details.checkingPieceSquare}",
-            s"checker_role:${details.checkingPieceRole}",
-            s"king:${details.checkedKingSquare}",
-            s"threat:${details.threatType}",
-            "recapture_available",
-            "in_between_check"
-          )
-        case details: RelationDetails.Decoy if witness.kind == RelationKind.Decoy =>
-          List(
-            "decoy_relation_witness",
-            s"bait:${details.baitSquare}",
-            s"lured_from:${details.luredFromSquare}",
-            s"lured_role:${details.luredRole}",
-            s"bait_role:${details.baitRole}",
-            s"execution:${details.executionFromSquare}-${details.executionToSquare}"
-          )
-        case details: RelationDetails.XRay if witness.kind == RelationKind.XRay =>
-          List(
-            "xray_relation_witness",
-            s"attacker:${details.attackerSquare}",
-            s"blocker:${details.blockerSquare}",
-            s"target:${details.targetSquare}",
-            s"attacker_role:${details.attackerRole}",
-            s"blocker_role:${details.blockerRole}",
-            s"target_role:${details.targetRole}"
-          )
-        case details: RelationDetails.Clearance if witness.kind == RelationKind.Clearance =>
-          List(
-            "clearance_relation_witness",
-            s"beneficiary:${details.beneficiarySquare}",
-            s"cleared_square:${details.clearedSquare}",
-            s"target:${details.targetSquare}",
-            s"beneficiary_role:${details.beneficiaryRole}",
-            s"clearing_to:${details.clearingTo}"
-          )
-        case details: RelationDetails.Battery if witness.kind == RelationKind.Battery =>
-          List(
-            "battery_relation_witness",
-            s"front:${details.frontSquare}",
-            s"back:${details.backSquare}",
-            s"target:${details.targetSquare}",
-            s"front_role:${details.frontRole}",
-            s"back_role:${details.backRole}",
-            s"axis:${details.axis}"
-          )
-        case details: RelationDetails.Interference if witness.kind == RelationKind.Interference =>
-          List(
-            "interference_relation_witness",
-            s"blocker:${details.blockerSquare}",
-            s"defender:${details.defenderSquare}",
-            s"target:${details.targetSquare}",
-            s"blocker_role:${details.blockerRole}",
-            s"defender_role:${details.defenderRole}",
-            s"target_role:${details.targetRole}"
-          )
-        case details: RelationDetails.Pin if witness.kind == RelationKind.Pin =>
-          List(
-            "pin_relation_witness",
-            s"attacker:${details.attackerSquare}",
-            s"pinned:${details.pinnedSquare}",
-            s"behind:${details.behindSquare}",
-            s"attacker_role:${details.attackerRole}",
-            s"pinned_role:${details.pinnedRole}",
-            s"behind_role:${details.behindRole}",
-            if details.absolute then "absolute_pin" else "relative_pin"
-          )
-        case details: RelationDetails.Skewer if witness.kind == RelationKind.Skewer =>
-          List(
-            "skewer_relation_witness",
-            s"attacker:${details.attackerSquare}",
-            s"front:${details.frontSquare}",
-            s"back:${details.backSquare}",
-            s"attacker_role:${details.attackerRole}",
-            s"front_role:${details.frontRole}",
-            s"back_role:${details.backRole}"
-          )
-        case details: RelationDetails.StalemateTrap if witness.kind == RelationKind.StalemateTrap =>
-          List(
-            "stalemate_trap_relation_witness",
-            "draw_resource",
-            "terminal:stalemate",
-            s"king:${details.stalematedKingSquare}",
-            s"resource:${details.resourceSquare}",
-            s"entry_move:${details.entryMove}",
-            s"terminal_move:${details.terminalMove}",
-            s"draw_score_cp:${details.scoreCp}"
-          )
-        case details: RelationDetails.PerpetualCheck if witness.kind == RelationKind.PerpetualCheck =>
-          List(
-            "perpetual_check_relation_witness",
-            "draw_resource",
-            "checking_cycle",
-            s"king:${details.checkedKingSquare}",
-            s"checkers:${details.checkerSquares.sorted.mkString("|")}",
-            s"checking_side:${details.checkingSide}",
-            s"entry_move:${details.entryMove}",
-            s"cycle_start:${details.cycleStartMove}",
-            s"cycle_return:${details.cycleReturnMove}",
-            s"repetition_key:${compactPositionKey(details.repeatedPositionKey)}",
-            s"draw_score_cp:${details.scoreCp}"
-          )
-        case _ =>
-          if witness.details == RelationDetails.Empty && relationDetailsValidForKind(witness) then witness.facts else Nil
-    val branchTerms =
-      if relationDetailsValidForKind(witness) then branchFactFromMoves(witness.lineMoves)
-      else Nil
-    (details ++ branchTerms).distinct
 
   def ownerSeedTermsFromWitness(
       witness: RelationWitness,
@@ -1080,7 +1034,7 @@ private[commentary] object MoveReviewExchangeAnalyzer:
       movingSide = first.move.piece.color
       targetSquares = relationTargetSquares(first.after.board, movingSide, explicitTargets)
       witness <- overloadedDefender(first.before.board, first.after.board, movingSide, first.move.dest, targetSquares)
-    yield witness.copy(lineMoves = replay.take(1).map(_.uci))
+    yield witness.copy(lineMoves = replayUcis(replay, 0, 1))
 
   def deflectionWitness(
       replay: List[BoundedReplayStep],
@@ -1112,8 +1066,8 @@ private[commentary] object MoveReviewExchangeAnalyzer:
           s"defender:${defenderSquare.key}",
           s"defended_target:${target.key}",
           s"attacker:${first.move.dest.key}"
-        ) ++ branchFactFromMoves(replay.map(_.uci)),
-        lineMoves = replay.take(2).map(_.uci),
+        ) ++ branchFactFromMoves(replayUcis(replay, 0, 2)),
+        lineMoves = replayUcis(replay, 0, 2),
         targetSquare = Some(target.key),
         details = RelationDetails.Deflection(
           defenderSquare = defenderSquare.key,
@@ -1133,7 +1087,7 @@ private[commentary] object MoveReviewExchangeAnalyzer:
       movingSide = first.move.piece.color
       targetSet = relationTargetSquares(first.after.board, movingSide, explicitTargets).toSet
       witness <- discoveredAttackAfterMove(first.before.board, first.after.board, movingSide, first.move.orig, targetSet)
-    yield witness.copy(lineMoves = replay.take(1).map(_.uci))
+    yield witness.copy(lineMoves = replayUcis(replay, 0, 1))
 
   def xrayWitness(
       replay: List[BoundedReplayStep],
@@ -1146,7 +1100,7 @@ private[commentary] object MoveReviewExchangeAnalyzer:
       movingSide = first.move.piece.color
       targetSet = relationTargetSquares(first.after.board, movingSide, explicitTargets).toSet
       witness <- xrayAfterMove(first.after.board, movingSide, first.move.dest, first.move.piece.role, targetSet)
-    yield witness.copy(lineMoves = replay.take(1).map(_.uci))
+    yield witness.copy(lineMoves = replayUcis(replay, 0, 1))
 
   def doubleCheckWitness(
       replay: List[BoundedReplayStep],
@@ -1172,7 +1126,7 @@ private[commentary] object MoveReviewExchangeAnalyzer:
           s"mover:${first.move.dest.key}",
           s"mover_role:${first.move.piece.role.name}"
         ),
-        lineMoves = replay.take(1).map(_.uci),
+        lineMoves = replayUcis(replay, 0, 1),
         targetSquare = Some(king.key),
         details = RelationDetails.DoubleCheck(
           kingSquare = king.key,
@@ -1207,7 +1161,7 @@ private[commentary] object MoveReviewExchangeAnalyzer:
           s"checkers:${checkers.mkString("|")}",
           s"mating_move:${first.uci}"
         ),
-        lineMoves = replay.take(1).map(_.uci),
+        lineMoves = replayUcis(replay, 0, 1),
         targetSquare = Some(king.key),
         details = RelationDetails.MatePattern(
           relationKind = RelationKind.BackRankMate,
@@ -1243,7 +1197,7 @@ private[commentary] object MoveReviewExchangeAnalyzer:
           s"checkers:${checkers.mkString("|")}",
           s"mating_move:${first.uci}"
         ),
-        lineMoves = replay.take(1).map(_.uci),
+        lineMoves = replayUcis(replay, 0, 1),
         targetSquare = Some(king.key),
         details = RelationDetails.MatePattern(
           relationKind = RelationKind.MateNet,
@@ -1280,7 +1234,7 @@ private[commentary] object MoveReviewExchangeAnalyzer:
           s"bishop:${first.move.dest.key}",
           s"entry_move:${first.uci}"
         ),
-        lineMoves = replay.take(1).map(_.uci),
+        lineMoves = replayUcis(replay, 0, 1),
         targetSquare = Some(target.key),
         details = RelationDetails.GreekGift(
           bishopSquare = first.move.dest.key,
@@ -1322,7 +1276,7 @@ private[commentary] object MoveReviewExchangeAnalyzer:
       if first.move.dest != expectedRecaptureSquare
       king <- first.after.board.kingPosOf(first.after.color)
       threatType = if first.after.checkMate then "mate_check" else "check"
-      lineMoves = replay.take(1).map(_.uci)
+      lineMoves = replayUcis(replay, 0, 1)
     yield
       RelationWitness(
         kind = RelationKind.Zwischenzug,
@@ -1361,7 +1315,7 @@ private[commentary] object MoveReviewExchangeAnalyzer:
       movingSide = first.move.piece.color
       targetSet = relationTargetSquares(first.after.board, movingSide, explicitTargets).toSet
       witness <- forkAfterMove(first.after.board, movingSide, first.move.dest, first.move.piece.role, targetSet)
-    yield witness.copy(lineMoves = replay.take(1).map(_.uci))
+    yield witness.copy(lineMoves = replayUcis(replay, 0, 1))
 
   def hangingPieceWitness(
       replay: List[BoundedReplayStep],
@@ -1382,7 +1336,7 @@ private[commentary] object MoveReviewExchangeAnalyzer:
         targetSet = targetSet,
         explicitTargetSet = explicitTargetSet
       )
-    yield witness.copy(lineMoves = replay.take(1).map(_.uci))
+    yield witness.copy(lineMoves = replayUcis(replay, 0, 1))
 
   def trappedPieceWitness(
       replay: List[BoundedReplayStep],
@@ -1404,7 +1358,7 @@ private[commentary] object MoveReviewExchangeAnalyzer:
         targetSet = targetSet,
         explicitTargetSet = explicitTargetSet
       )
-    yield witness.copy(lineMoves = replay.take(1).map(_.uci))
+    yield witness.copy(lineMoves = replayUcis(replay, 0, 1))
 
   def dominationWitness(
       replay: List[BoundedReplayStep],
@@ -1426,7 +1380,7 @@ private[commentary] object MoveReviewExchangeAnalyzer:
         targetSet = targetSet,
         explicitTargetSet = explicitTargetSet
       )
-    yield witness.copy(lineMoves = replay.take(1).map(_.uci))
+    yield witness.copy(lineMoves = replayUcis(replay, 0, 1))
 
   def clearanceWitness(
       replay: List[BoundedReplayStep],
@@ -1439,7 +1393,7 @@ private[commentary] object MoveReviewExchangeAnalyzer:
       movingSide = first.move.piece.color
       targetSet = relationTargetSquares(first.after.board, movingSide, explicitTargets).toSet
       witness <- clearanceAfterMove(first.before.board, first.after.board, movingSide, first.move.orig, first.move.dest, targetSet)
-    yield witness.copy(lineMoves = replay.take(1).map(_.uci))
+    yield witness.copy(lineMoves = replayUcis(replay, 0, 1))
 
   def batteryWitness(
       replay: List[BoundedReplayStep],
@@ -1460,7 +1414,7 @@ private[commentary] object MoveReviewExchangeAnalyzer:
         targetSet = targetSet,
         explicitTargetSet = explicitTargetSet
       )
-    yield witness.copy(lineMoves = replay.take(1).map(_.uci))
+    yield witness.copy(lineMoves = replayUcis(replay, 0, 1))
 
   def pinWitness(
       replay: List[BoundedReplayStep],
@@ -1473,7 +1427,7 @@ private[commentary] object MoveReviewExchangeAnalyzer:
       movingSide = first.move.piece.color
       targetSet = relationTargetSquares(first.after.board, movingSide, explicitTargets).toSet
       witness <- pinAfterMove(first.after.board, movingSide, first.move.dest, first.move.piece.role, targetSet)
-    yield witness.copy(lineMoves = replay.take(1).map(_.uci))
+    yield witness.copy(lineMoves = replayUcis(replay, 0, 1))
 
   def skewerWitness(
       replay: List[BoundedReplayStep],
@@ -1486,7 +1440,7 @@ private[commentary] object MoveReviewExchangeAnalyzer:
       movingSide = first.move.piece.color
       targetSet = relationTargetSquares(first.after.board, movingSide, explicitTargets).toSet
       witness <- skewerAfterMove(first.after.board, movingSide, first.move.dest, first.move.piece.role, targetSet)
-    yield witness.copy(lineMoves = replay.take(1).map(_.uci))
+    yield witness.copy(lineMoves = replayUcis(replay, 0, 1))
 
   def interferenceWitness(
       replay: List[BoundedReplayStep],
@@ -1506,7 +1460,7 @@ private[commentary] object MoveReviewExchangeAnalyzer:
         blockerRole = first.move.piece.role,
         targetSet = targetSet
       )
-    yield witness.copy(lineMoves = replay.take(1).map(_.uci))
+    yield witness.copy(lineMoves = replayUcis(replay, 0, 1))
 
   def decoyWitness(
       replay: List[BoundedReplayStep],
@@ -1540,8 +1494,8 @@ private[commentary] object MoveReviewExchangeAnalyzer:
           s"lured_role:${reply.move.piece.role.name}",
           s"bait_role:${first.move.piece.role.name}",
           s"execution:${response.move.orig.key}-${response.move.dest.key}"
-        ) ++ branchFactFromMoves(replay.map(_.uci), maxPlies = 3),
-        lineMoves = replay.take(3).map(_.uci),
+        ) ++ branchFactFromMoves(replayUcis(replay, 0, 3), maxPlies = 3),
+        lineMoves = replayUcis(replay, 0, 3),
         targetSquare = Some(baitSquare.key),
         details = RelationDetails.Decoy(
           baitFromSquare = first.move.orig.key,
@@ -1569,6 +1523,7 @@ private[commentary] object MoveReviewExchangeAnalyzer:
       if terminal.after.staleMate
       king <- terminal.after.board.kingPosOf(terminal.after.color)
     yield
+      val lineMoves = replayUcis(replay, 0, replay.length)
       RelationWitness(
         kind = RelationKind.StalemateTrap,
         focusSquares = List(king.key, terminal.move.dest.key),
@@ -1581,8 +1536,8 @@ private[commentary] object MoveReviewExchangeAnalyzer:
           s"entry_move:${first.uci}",
           s"terminal_move:${terminal.uci}",
           s"draw_score_cp:$scoreCp"
-        ) ++ branchFactFromMoves(replay.map(_.uci)),
-        lineMoves = replay.map(_.uci),
+        ) ++ branchFactFromMoves(lineMoves),
+        lineMoves = lineMoves,
         targetSquare = Some(king.key),
         details = RelationDetails.StalemateTrap(
           stalematedKingSquare = king.key,
@@ -1606,6 +1561,7 @@ private[commentary] object MoveReviewExchangeAnalyzer:
       if drawResourceScoreStable(Some(scoreCp), engineMate)
       cycle <- repeatedCheckingCycle(replay, first.move.piece.color)
     yield
+      val lineMoves = replayUcis(replay, 0, replay.length)
       RelationWitness(
         kind = RelationKind.PerpetualCheck,
         focusSquares = (cycle.kingSquare :: cycle.checkerSquares).distinct,
@@ -1621,8 +1577,8 @@ private[commentary] object MoveReviewExchangeAnalyzer:
           s"cycle_return:${cycle.returnMove}",
           s"repetition_key:${compactPositionKey(cycle.positionKey)}",
           s"draw_score_cp:$scoreCp"
-        ) ++ branchFactFromMoves(replay.map(_.uci), maxPlies = 5),
-        lineMoves = replay.map(_.uci),
+        ) ++ branchFactFromMoves(lineMoves, maxPlies = 5),
+        lineMoves = lineMoves,
         targetSquare = Some(cycle.kingSquare),
         details = RelationDetails.PerpetualCheck(
           checkedKingSquare = cycle.kingSquare,
@@ -1723,7 +1679,7 @@ private[commentary] object MoveReviewExchangeAnalyzer:
                 reply.move.captures &&
                 reply.capturedRole.contains(_root_.chess.Queen)
             ) =>
-        replay.take(index + 2).map(_.uci)
+        replayUcis(replay, 0, index + 2)
     }
 
   def immediateExchangeSquare(replay: List[BoundedReplayStep]): Option[String] =
@@ -1737,7 +1693,7 @@ private[commentary] object MoveReviewExchangeAnalyzer:
       case _ => None
 
   def branchKey(replay: List[BoundedReplayStep], plies: Int = 2): Option[String] =
-    branchKeyFromMoves(replay.map(_.uci), plies)
+    branchKeyFromMoves(replayUcis(replay, 0, plies), plies)
 
   def branchKeyFromMoves(moves: List[String], plies: Int = 2): Option[String] =
     val normalized = normalizedBoundedMoves(moves, plies)
@@ -1798,7 +1754,7 @@ private[commentary] object MoveReviewExchangeAnalyzer:
   def branchFactFromMoves(moves: List[String], maxPlies: Int = 2): List[String] =
     linePrefixKeyFromMoves(moves, maxPlies).map(key => s"branch:$key").toList
 
-  def replayUcis(replay: List[BoundedReplayStep], fromPly: Int, maxPlies: Int): List[String] =
+  private def replayUcis(replay: List[BoundedReplayStep], fromPly: Int, maxPlies: Int): List[String] =
     replay.drop(fromPly).take(maxPlies).map(_.uci)
 
   def legalMove(position: Position, uci: String): Option[Move] =
@@ -1883,7 +1839,7 @@ private[commentary] object MoveReviewExchangeAnalyzer:
               after.attackers(target, movingSide).exists(_ == movedTo)
           val targetIsPressed =
             pressureWasCreated || after.attackers(target, movingSide).count > before.attackers(target, movingSide).count
-          Option.when(targetIsPressed)(after.attackers(target, defenderColor).squares.map(_ -> target)).toList.flatten
+          if targetIsPressed then after.attackers(target, defenderColor).squares.map(_ -> target) else Nil
         }
         .groupMap(_._1)(_._2)
 
@@ -2603,7 +2559,7 @@ private[commentary] object MoveReviewExchangeAnalyzer:
               BadPieceLiquidationBranch(
                 badPieceSquare = originalSquare.key,
                 exchangeSquare = exchange.key,
-                lineMoves = replay.take(index + 2).map(_.uci)
+                lineMoves = replayUcis(replay, 0, index + 2)
               )
             )
           else loop(rest, step.move.dest)
@@ -2633,7 +2589,7 @@ private[commentary] object MoveReviewExchangeAnalyzer:
           BadPieceLiquidationBranch(
             badPieceSquare = originalSquare.key,
             exchangeSquare = firstDest.key,
-            lineMoves = replay.take(2).map(_.uci)
+            lineMoves = replayUcis(replay, 0, 2)
           )
         )
       case _ => None

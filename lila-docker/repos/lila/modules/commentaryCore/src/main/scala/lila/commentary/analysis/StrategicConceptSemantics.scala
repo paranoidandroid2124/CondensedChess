@@ -265,19 +265,12 @@ private[commentary] object StrategicConceptSemantics:
 
   private def legalFenAfter(baseFen: String, moves: List[String]): Option[String] =
     val normalizedMoves = moves.map(NarrativeUtils.normalizeUciMove).filter(_.nonEmpty)
-    Option.when(baseFen.trim.nonEmpty && normalizedMoves.nonEmpty)(()).flatMap { _ =>
-      var currentFen = baseFen
-      var ok = true
-      val iterator = normalizedMoves.iterator
-      while iterator.hasNext && ok do
-        val move = iterator.next()
-        if !move.matches("^[a-h][1-8][a-h][1-8][qrbn]?$") then ok = false
-        else
-          val nextFen = NarrativeUtils.uciListToFen(currentFen, List(move))
-          if boardStateFen(nextFen) == boardStateFen(currentFen) then ok = false
-          else currentFen = nextFen
-      Option.when(ok)(currentFen)
-    }
+    Option.when(baseFen.trim.nonEmpty && normalizedMoves.nonEmpty)(normalizedMoves)
+      .flatMap(
+        _.foldLeft(Option(baseFen))((current, move) =>
+          current.flatMap(MoveReviewPvLine.legalFenAfter(_, move))
+        )
+      )
 
   private def legalBreakFenAfter(
       baseFen: String,
@@ -297,9 +290,6 @@ private[commentary] object StrategicConceptSemantics:
       case board :: _ :: castling :: ep :: rest =>
         (board :: (if side.white then "w" else "b") :: castling :: ep :: rest).mkString(" ")
       case _ => fen
-
-  private def boardStateFen(fen: String): String =
-    normalizeFen(fen).split("\\s+").take(4).mkString(" ")
 
   private def normalizeFen(fen: String): String =
     Option(fen).getOrElse("").trim.split("\\s+").filter(_.nonEmpty).mkString(" ")

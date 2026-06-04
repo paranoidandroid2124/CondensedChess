@@ -2,10 +2,9 @@ package lila.commentary.analysis
 
 import lila.commentary.model._
 import lila.commentary.model.authoring._
-import lila.commentary.analysis.PlanTaxonomy.ThemeResolver
 
 /**
- * BookStyleRenderer: Pure prose assembler (SSOT Phase 5)
+ * BookStyleRenderer: Pure prose assembler.
  *
  * This module ONLY handles "how to phrase" - all decisions about
  * "what to say" are made by NarrativeOutlineBuilder and validated
@@ -174,7 +173,7 @@ object BookStyleRenderer:
         case OutlineBeatKind.Context => generateContext(ctx, bead)
         case OutlineBeatKind.DecisionPoint => generateDecision(beat, ctx)
         case OutlineBeatKind.Evidence => generateEvidence(beat, ctx)
-        case OutlineBeatKind.TeachingPoint => generateTeaching(ctx, bead)
+        case OutlineBeatKind.TeachingPoint => generateTeaching(ctx)
         case OutlineBeatKind.MainMove => generateMainMove(ctx, bead)
         case OutlineBeatKind.OpeningTheory => generateOpeningTheory(ctx, bead)
         case OutlineBeatKind.Alternatives => generateAlternatives(ctx, bead)
@@ -204,7 +203,7 @@ object BookStyleRenderer:
         s"$label ${b.keyMove} ${b.line}$evalPart"
       }.mkString("\n")
 
-  private def generateTeaching(ctx: NarrativeContext, bead: Int): String =
+  private def generateTeaching(ctx: NarrativeContext): String =
     ctx.counterfactual.map { cf =>
       val citation =
         LineScopedCitation.tacticalCitation(ctx.fen, ctx.ply + 1, cf.bestLine, cf.missedMotifs)
@@ -252,9 +251,6 @@ object BookStyleRenderer:
       }.getOrElse("")
 
     List(practicalSummary).filter(_.nonEmpty).mkString(" ").trim
-
-  private def themeIdOfHypothesis(plan: PlanHypothesis): String =
-    ThemeResolver.fromHypothesis(plan).id
 
   private def topStrategicPlanName(ctx: NarrativeContext): Option[String] =
     StrategicNarrativePlanSupport.evidenceBackedLeadingPlanName(ctx)

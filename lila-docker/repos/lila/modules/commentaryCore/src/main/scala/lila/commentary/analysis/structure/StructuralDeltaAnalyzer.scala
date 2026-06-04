@@ -96,7 +96,7 @@ private[commentary] object StructuralDeltaAnalyzer:
       files: List[Char],
       targets: List[String]
   ): StructureSnapshot =
-    val features = Option.when(fen.trim.nonEmpty)(PositionAnalyzer.extractFeatures(fen, 1)).flatten
+    val features = if fen.trim.nonEmpty then PositionAnalyzer.extractFeatures(fen, 1) else None
     val openFiles = files.filter(file => pawnsOnFile(board, file).isEmpty).map(_.toString).toSet
     val semiOpenFiles =
       files

@@ -9,7 +9,6 @@ import lila.commentary.model.{ ExtendedAnalysisData, NarrativeContext }
 import lila.commentary.model.authoring.PlanHypothesis
 import lila.commentary.model.strategic.PieceActivity
 import lila.commentary.model.strategic.PositionalTag
-import lila.commentary.analysis.semantic.RelationObservationCatalog
 
 object StrategyPackBuilder:
 
@@ -17,8 +16,6 @@ object StrategyPackBuilder:
   private val MaxRoutes = 4
   private val MaxFocus = 6
   private val MaxEvidence = 8
-  private val TrappedPieceFallbackEvidence =
-    RelationObservationCatalog.deferredFallbackEvidenceTermForKind(MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece)
 
   def build(
       data: ExtendedAnalysisData,
@@ -298,7 +295,6 @@ object StrategyPackBuilder:
                     evidence = List(
                       Some("directional_target"),
                       Some(s"readiness_$readiness"),
-                      Option.when(pa.isTrapped)(TrappedPieceFallbackEvidence).flatten,
                       Option.when(pa.mobilityScore < 0.4)("low_mobility_signal"),
                       Option.when(pa.coordinationLinks.contains(targetSquare))("coordination_link"),
                       Some("piece_activity")
@@ -495,7 +491,7 @@ object StrategyPackBuilder:
       target: Square,
       color: Color
   ): String =
-    val routeOpt = shortestRedeploymentRoute(role, activity.square, target, board, color, maxDepth = if role == Knight then 4 else 3)
+    val routeOpt = shortestRedeploymentRoute(role, activity.square, target, board, maxDepth = if role == Knight then 4 else 3)
     val defenders = board.attackers(target, color).count
     val attackers = board.attackers(target, !color).count
     if routeOpt.isEmpty then DirectionalTargetReadiness.Blocked
@@ -565,7 +561,6 @@ object StrategyPackBuilder:
       from: Square,
       to: Square,
       board: Board,
-      color: Color,
       maxDepth: Int
   ): Option[List[Square]] =
     val queue = scala.collection.mutable.Queue((from, List(from)))

@@ -300,9 +300,18 @@ private[commentary] object QuietMoveIntentBuilder:
           HeavyPieceLocalBindValidation.blocksPlayerFacingShell(ctx)
       )(PlayerFacingClaimReleaseRisk.HeavyPieceLeakage).toList
     val proofFamily = claim.intentClass.proofFamily
-    val proofPathWitness = quietOwnerPathWitness(ctx, claim.intentClass, anchorSquare)
+    val bestDefenseReplay =
+      MoveReviewExchangeAnalyzer.boundedTopReplay(
+        ctx.fen,
+        ctx.engineEvidence.toList.flatMap(_.variations),
+        maxPlies = 2
+      )
+    val bestDefenseBranchKey = quietBestDefenseBranchKey(bestDefenseReplay)
+    val bestDefenseMove = quietBestDefenseMove(bestDefenseReplay)
+    val proofPathWitness =
+      quietOwnerPathWitness(ctx, claim.intentClass, anchorSquare, bestDefenseBranchKey, bestDefenseMove)
     val sameBranchState =
-      quietSameBranchState(ctx, provenanceClass, proofFamily, proofPathWitness)
+      quietSameBranchState(ctx, provenanceClass, proofFamily, proofPathWitness, bestDefenseBranchKey)
     val persistence =
       quietPersistence(ctx, provenanceClass, proofFamily)
     val lineOnlyPilot =
@@ -339,8 +348,8 @@ private[commentary] object QuietMoveIntentBuilder:
           scope = PlayerFacingPacketScope.MoveLocal,
           triggerKind = claim.sourceKind,
           anchorTerms = anchorSquare.toList.flatMap(clean),
-          bestDefenseMove = quietBestDefenseMove(ctx),
-          bestDefenseBranchKey = quietBestDefenseBranchKey(ctx),
+          bestDefenseMove = bestDefenseMove,
+          bestDefenseBranchKey = bestDefenseBranchKey,
           sameBranchState = sameBranchState,
           persistence = persistence,
           proofPathWitness = proofPathWitness,
@@ -443,25 +452,24 @@ private[commentary] object QuietMoveIntentBuilder:
         else PlayerFacingClaimModalityTier.Supports
 
   private def quietBestDefenseMove(
-      ctx: NarrativeContext
+      replay: Option[List[MoveReviewExchangeAnalyzer.BoundedReplayStep]]
   ): Option[String] =
-    MoveReviewExchangeAnalyzer
-      .boundedTopReplay(ctx.fen, ctx.engineEvidence.toList.flatMap(_.variations), maxPlies = 2)
+    replay
       .flatMap(_.lift(1))
       .map(_.move.toSanStr.toString)
       .flatMap(clean)
 
   private def quietBestDefenseBranchKey(
-      ctx: NarrativeContext
+      replay: Option[List[MoveReviewExchangeAnalyzer.BoundedReplayStep]]
   ): Option[String] =
-    MoveReviewExchangeAnalyzer
-      .boundedTopReplay(ctx.fen, ctx.engineEvidence.toList.flatMap(_.variations), maxPlies = 2)
-      .flatMap(MoveReviewExchangeAnalyzer.branchKey(_))
+    replay.flatMap(MoveReviewExchangeAnalyzer.branchKey(_))
 
   private def quietOwnerPathWitness(
       ctx: NarrativeContext,
       intentClass: QuietMoveIntentClass,
-      anchorSquare: Option[String]
+      anchorSquare: Option[String],
+      bestDefenseBranchKey: Option[String],
+      bestDefenseMove: Option[String]
   ): PlayerFacingProofPathWitness =
     val ownerSeedTerms =
       anchorSquare.toList.flatMap(clean) ++
@@ -473,9 +481,9 @@ private[commentary] object QuietMoveIntentBuilder:
           )
         }.getOrElse(Nil)
     val continuationTerms =
-      quietBestDefenseBranchKey(ctx).toList ++
-        quietBestDefenseMove(ctx).toList ++
-      quietEvidencePlans(ctx, intentClass.proofFamily).flatMap { plan =>
+      bestDefenseBranchKey.toList ++
+        bestDefenseMove.toList ++
+        quietEvidencePlans(ctx, intentClass.proofFamily).flatMap { plan =>
           val cert = plan.claimCertification
           List(
             Option.when(cert.quantifier == PlayerFacingClaimQuantifier.Universal)("universal"),
@@ -495,11 +503,12 @@ private[commentary] object QuietMoveIntentBuilder:
       ctx: NarrativeContext,
       provenanceClass: PlayerFacingClaimProvenanceClass,
       proofFamily: String,
-      proofPathWitness: PlayerFacingProofPathWitness
+      proofPathWitness: PlayerFacingProofPathWitness,
+      bestDefenseBranchKey: Option[String]
   ): PlayerFacingSameBranchState =
     if provenanceClass != PlayerFacingClaimProvenanceClass.ProbeBacked then
       PlayerFacingSameBranchState.Missing
-    else if quietBestDefenseBranchKey(ctx).isEmpty then
+    else if bestDefenseBranchKey.isEmpty then
       PlayerFacingSameBranchState.Missing
     else
       val plans = quietEvidencePlans(ctx, proofFamily)

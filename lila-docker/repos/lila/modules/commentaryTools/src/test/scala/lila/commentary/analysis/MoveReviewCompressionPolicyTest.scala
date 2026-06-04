@@ -280,7 +280,7 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     assertNotEquals(slots.paragraphPlan, List("p1=claim"), clues(fixture.id, slots))
   }
 
-  test("thematic fallback is selected when strategic plans are active but exact witness proof fails") {
+  test("exact factual fallback outranks thematic fallback when a legal local move is available") {
     val ctx = quietH3Ctx.copy(
       plans = PlanTable(
         top5 = List(
@@ -307,10 +307,10 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
         truthContract = None
       )
 
-    assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.ThematicFallback)
+    assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.ExactFactualFallback)
     assertEquals(
       MoveReviewProseContract.stripMoveHeader(slots.claim),
-      "The move improves piece activity and looks for better squares."
+      "This moves the pawn to h3."
     )
     assertEquals(slots.paragraphPlan, List("p1=claim"))
   }
@@ -450,8 +450,10 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     }
   }
 
-  test("thematic fallback remains available for non-tactical inaccuracy truth") {
+  test("thematic fallback remains available for non-tactical inaccuracy truth when exact factual fallback is closed") {
     val ctx = quietH3Ctx.copy(
+      playedMove = None,
+      playedSan = None,
       plans = PlanTable(
         top5 = List(
           PlanRow(
@@ -469,7 +471,7 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     )
     val outline = BookStyleRenderer.validatedOutline(ctx)
     val inaccuracyContract = DecisiveTruthContract(
-      playedMove = Some("h2h3"),
+      playedMove = None,
       verifiedBestMove = Some("e2e4"),
       truthClass = DecisiveTruthClass.Inaccuracy,
       cpLoss = 45,
@@ -506,4 +508,8 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
       )
 
     assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.ThematicFallback)
+    assertEquals(
+      MoveReviewProseContract.stripMoveHeader(slots.claim),
+      "The move improves piece activity and looks for better squares."
+    )
   }

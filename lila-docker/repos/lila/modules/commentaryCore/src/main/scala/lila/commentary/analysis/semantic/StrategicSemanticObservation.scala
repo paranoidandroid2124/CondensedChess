@@ -595,31 +595,26 @@ private[commentary] object RelationObservationCatalog:
     deferredRelationKindForMotifTag(raw).flatMap(deferredFallbackForKind)
 
   def pvDrawResourceOnlyMotifTag(raw: String): Boolean =
-    val motif = normalizeMotifTag(raw)
-    if motif.isEmpty then false
-    else Implemented.exists(descriptor =>
-      descriptor.surfaceRowKind == RelationSurfaceRowKind.DrawResource &&
-        motifTagMatchesKind(motif, descriptor.relationKind)
-    )
+    implementedDescriptorForMotifTag(raw)(_.surfaceRowKind == RelationSurfaceRowKind.DrawResource).nonEmpty
 
   def relationWitnessOnlyMotifTag(raw: String): Boolean =
-    val motif = normalizeMotifTag(raw)
-    if motif.isEmpty then false
-    else Implemented.exists(descriptor =>
-      descriptor.witnessOnlyMotifTag &&
-        motifTagMatchesKind(motif, descriptor.relationKind)
-    )
+    implementedDescriptorForMotifTag(raw)(_.witnessOnlyMotifTag).nonEmpty
 
   def relationWitnessOnlyFallbackLabelForMotifTag(raw: String): Option[String] =
+    implementedDescriptorForMotifTag(raw)(_.witnessOnlyMotifTag)
+      .flatMap(_.witnessOnlyFallbackLabel.map(_.trim).filter(_.nonEmpty))
+
+  private def implementedDescriptorForMotifTag(
+      raw: String
+  )(matches: RelationObservationDescriptor => Boolean): Option[RelationObservationDescriptor] =
     val motif = normalizeMotifTag(raw)
     if motif.isEmpty then None
     else
       Implemented
         .find(descriptor =>
-          descriptor.witnessOnlyMotifTag &&
+          matches(descriptor) &&
             motifTagMatchesKind(motif, descriptor.relationKind)
         )
-        .flatMap(_.witnessOnlyFallbackLabel.map(_.trim).filter(_.nonEmpty))
 
   private def motifTagMatchesKind(normalizedMotif: String, kind: String): Boolean =
     val normalizedKind = normalizeMotifTag(kind)

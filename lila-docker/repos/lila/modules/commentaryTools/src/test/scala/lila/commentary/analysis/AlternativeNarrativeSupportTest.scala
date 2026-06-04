@@ -106,7 +106,7 @@ class AlternativeNarrativeSupportTest extends FunSuite:
     assert(!alt.sentence.contains("stays secondary"), clues(alt.sentence))
   }
 
-  test("falls back to legacy stays-secondary sentence when engine evidence is empty/invalid") {
+  test("returns no alternative narrative when the alternative branch lacks replayed evidence") {
     val ctx = baseContext.copy(
       candidates = List(
         CandidateInfo("h4", annotation = "!", planAlignment = "Kingside expansion", tacticalAlert = None, practicalDifficulty = "clean", whyNot = None),
@@ -125,7 +125,6 @@ class AlternativeNarrativeSupportTest extends FunSuite:
       )
     )
 
-    // With no alternative variation (only best), it should return None since there's no alternative to compare.
     val alt = AlternativeNarrativeSupport.build(ctx)
     assertEquals(alt, None)
   }

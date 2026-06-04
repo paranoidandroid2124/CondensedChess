@@ -14,6 +14,9 @@ private[commentary] final case class ClaimAuthorityDecision(
     tier == ClaimAuthorityTier.CertifiedOwner ||
       tier == ClaimAuthorityTier.SupportedLocal
 
+  def supportedLocalWithoutTacticalVeto: Boolean =
+    tier == ClaimAuthorityTier.SupportedLocal && vetoReasons.isEmpty
+
   def vetoReasons: List[String] =
     ClaimAuthorityDecision.tacticalVetoCodes(failureCodes)
 

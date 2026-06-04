@@ -358,7 +358,10 @@ object NarrativeOutlineBuilder:
       strategyPack: Option[lila.commentary.StrategyPack],
       truthContract: Option[DecisiveTruthContract]
   ): OutlinePlannerMaterial =
-    val questions = ctx.authorQuestions.sortBy(-_.priority).take(3)
+    val questions =
+      ctx.authorQuestions
+        .sortBy(question => (question.priority, question.kind.toString, question.id))
+        .take(3)
     val plannerInputs = QuestionPlannerInputsBuilder.build(ctx, strategyPack, truthContract)
     val rankedPlans = QuestionFirstCommentaryPlanner.plan(ctx, plannerInputs, truthContract)
     OutlinePlannerMaterial(
@@ -430,7 +433,7 @@ object NarrativeOutlineBuilder:
 
     val collapsedEarlyOpening = EarlyOpeningNarrationPolicy.collapsedEarlyOpening(ctx, truthContract)
     val moveLevelPrecedent =
-      Option.when(!collapsedEarlyOpening)(buildContextPrecedentSentence(ctx, bead)).flatten
+      if collapsedEarlyOpening then None else buildContextPrecedentSentence(ctx, bead)
     val mainMoveBeat = annotateBeat(buildMainMoveBeat(ctx, rec, isAnnotation, bead, moveLevelPrecedent, crossBeatState))
     if mainMoveBeat.text.nonEmpty then beats += mainMoveBeat
     LogicReconstructor.analyze(ctx).foreach { recon =>
@@ -1171,7 +1174,7 @@ object NarrativeOutlineBuilder:
     rec: TraceRecorder
   ): Option[OutlineBeat] =
     buildPlannerEvidenceBeat(rankedPlans, rec)
-      .orElse(Option.when(questions.isEmpty)(buildEngineEvidenceBeat(ctx, questions, rec)).flatten)
+      .orElse(if questions.isEmpty then buildEngineEvidenceBeat(ctx, questions, rec) else None)
 
   private def buildPlannerEvidenceBeat(
       rankedPlans: RankedQuestionPlans,
@@ -3884,7 +3887,7 @@ object NarrativeOutlineBuilder:
         case EndgameTransitionPattern(fromRaw, _, toRaw, _) =>
           val lossClause = endgamePatternLossClause(board, fromRaw)
           val gainClause =
-            Option.when(!toRaw.equalsIgnoreCase("none"))(endgamePatternHoldClause(board, toRaw, transitioned = true)).flatten
+            if toRaw.equalsIgnoreCase("none") then None else endgamePatternHoldClause(board, toRaw, transitioned = true)
           (lossClause, gainClause) match
             case (Some(loss), Some(gain)) => Some(s"$loss $gain")
             case (Some(loss), None)       => Some(loss)
@@ -3893,7 +3896,7 @@ object NarrativeOutlineBuilder:
         case _ => None
       }.orElse {
         info.primaryPattern.flatMap(pattern =>
-          Option.when(info.patternAge >= 2)(endgamePatternHoldClause(board, pattern, transitioned = false)).flatten
+          if info.patternAge >= 2 then endgamePatternHoldClause(board, pattern, transitioned = false) else None
         )
       }
     }
@@ -4206,7 +4209,11 @@ object NarrativeOutlineBuilder:
   /** Maps conceptSummary labels to motif IDs that canonicalTermForMotif can resolve. */
   private def conceptToMotif(concept: String): Option[String] =
     val low = concept.trim.toLowerCase.replaceAll("[\\s_-]+", "_")
-    if low.contains("stalemate") then Some("stalemate_trick")
+    if
+      RelationObservationCatalog.relationWitnessOnlyMotifTag(concept) ||
+        RelationObservationCatalog.pvDrawResourceOnlyMotifTag(concept)
+    then None
+    else if low.contains("stalemate") then Some("stalemate_trick")
     else if low.contains("repetition") || low.contains("repeat") then Some("repetition_threat")
     else if low.contains("perpetual") then Some("perpetual_check")
     else if low.contains("fortress") then Some("fortress")
@@ -4954,8 +4961,11 @@ object NarrativeOutlineBuilder:
       .map(_.san.trim)
       .filter(_.nonEmpty)
       .orElse {
-        variation.moves.lift(1)
-          .map(uci => NarrativeUtils.uciToSanOrFormat(NarrativeUtils.uciListToFen(fen, variation.moves.take(1)), uci).trim)
+        (for
+          first <- variation.moves.headOption
+          reply <- variation.moves.lift(1)
+          afterFirst <- MoveReviewPvLine.legalFenAfter(fen, first)
+        yield NarrativeUtils.uciToSanOrFormat(afterFirst, reply).trim)
           .filter(_.nonEmpty)
       }
 

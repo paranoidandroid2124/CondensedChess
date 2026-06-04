@@ -44,10 +44,8 @@ object MoveAnalyzer:
       .map(_.max(min).min(max))
       .getOrElse(default)
 
-  // R+3 rollout:
-  // - default: state/trajectory motif provider ON
-  // - dual-run parity measurement ON for one release
-  // - rollback flag preserves legacy PV tokenizer path
+  // Runtime switches keep the state/trajectory provider measurable against the
+  // older PV tokenizer while preserving an operational fallback.
   private def useStateTrajectoryProvider: Boolean =
     boolSetting(
       "commentary.moveAnalyzer.useStateTrajectoryProvider",
@@ -466,22 +464,22 @@ object MoveAnalyzer:
     // Interference detection
     detectInterference(mv, nextPos, color, plyIndex, Some(san)).foreach { m => motifs = motifs :+ m }
 
-    // Deflection detection (NEW - Phase 11)
+    // Deflection detection
     detectDeflection(mv, pos, nextPos, color, plyIndex, Some(san)).foreach { m => motifs = motifs :+ m }
 
-    // Decoy detection (NEW - Phase 11)  
+    // Decoy detection
     detectDecoy(mv, nextPos, color, plyIndex, Some(san)).foreach { m => motifs = motifs :+ m }
 
-    // Clearance detection (L2 Completion)
+    // Clearance detection
     detectClearance(mv, pos, nextPos, color, plyIndex, Some(san)).foreach { m => motifs = motifs :+ m }
 
-    // Trapped Piece detection (Phase 24)
+    // Trapped Piece detection
     detectTrappedPiece(nextPos, color, plyIndex, Some(san)).foreach { m => motifs = motifs :+ m }
     
-    // Blockade detection (Phase 26)
+    // Blockade detection
     detectBlockade(mv, nextPos, color, plyIndex, Some(san)).foreach { m => motifs = motifs :+ m }
 
-    // Smothered Mate (Phase 26)
+    // Smothered Mate detection
     if (nextPos.check.yes) { 
       detectSmotheredMate(mv, nextPos, color, plyIndex, Some(san)).foreach { m => motifs = motifs :+ m }
     }
@@ -907,7 +905,7 @@ object MoveAnalyzer:
       detectOpenFiles(board, plyIndex),
       detectWeakBackRank(pos, plyIndex),
       detectSpaceAdvantage(board, plyIndex),
-      detectBattery(board, plyIndex),  // L2 Completion
+      detectBattery(board, plyIndex),
       detectImbalance(board, plyIndex) // Knight vs Bishop
     )
 

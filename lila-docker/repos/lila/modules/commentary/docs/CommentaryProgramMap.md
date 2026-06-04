@@ -17,7 +17,7 @@ same responsibility.
 Current work is a boundary redesign plus docs compression:
 
 - claim authority is centralized under `analysis.claim`
-- planner authority checks are delegated through `PlannerClaimAdmission`
+- planner authority checks consume `ClaimAuthorityResolver` directly
 - render release safety is centralized under `analysis.render.FragmentAuthority`
 - public MoveReview wire is minimized around backend-owned structured
   diagnostics and the certified `moveReviewPlayerSurface`
@@ -111,11 +111,11 @@ Current five-motif decision:
 | `perpetual_check` | public when PV-backed | implemented `Draw resource` relation only from legal replay proving a repeated checking cycle, repeated position key, and draw-stable engine score |
 
 The MoveReview relation row cap is a display bound, not a proof downgrade.
-PV-backed draw-resource rows sort first. The strict witness-only board relations
-`trapped_piece`, `domination`, and `zwischenzug` sort ahead of generic
-line/tactical relation rows once they have passed the analyzer witness boundary,
-so a rich relation position does not hide the exact-board motifs behind softer
-catalog rows.
+PV-backed draw-resource rows sort first. The implemented board-replayed
+descriptors whose raw motif tags are witness-only (`trapped_piece`,
+`domination`, and `zwischenzug`) sort ahead of generic line/tactical relation
+rows once they have passed the analyzer witness boundary, so a rich relation
+position does not hide the exact-board motifs behind softer catalog rows.
 
 `trapped_piece` is an exact board relation now, not a raw motif fallback. The
 first replayed move must be the reviewed move, the moved attacker must attack an
@@ -173,7 +173,6 @@ Current authority is internal and MoveReview-first:
 - `ProofContractRules` defines proof-family eligibility.
 - `ClaimAuthorityResolver` resolves `CertifiedOwner`, `SupportedLocal`,
   `DiagnosticOnly`, or `Suppressed`.
-- `PlannerClaimAdmission` connects planner plans/inputs to that resolver.
 - `MoveReviewExchangeAnalyzer` owns bounded legal PV replay for favorable
   exchange witnesses, queen-trade/simplification geometry, exact-slice branch
   keys/continuation terms, IQP inducement prefixes, quiet/central-break
@@ -203,12 +202,15 @@ Current authority is internal and MoveReview-first:
   `key-square restriction` when old domination motifs appear, but public
   relation authority requires the board witness. User-facing helper notation is
   rewritten or suppressed through the same fallback boundary; threat-summary
-  labels consume the same fallback instead of raw relation motif names.
+  labels consume the same fallback instead of raw relation motif names, and
+  PV-only draw-resource tags do not become public threat labels or
+  `conceptSummary` motif aliases.
   Strategy-pack/structure-arc piece-activity evidence no longer turns generic
   trapped-piece activity into a relation fallback term.
   The final sanitizer removes deferred relation motif terms and witness-only raw
-  relation tags from cached or legacy strategy-pack evidence lists while
-  preserving softer fallback terms.
+  relation tags from cached or legacy strategy-pack support metadata and
+  move-review ledger prerequisites, not only evidence lists, while preserving
+  ordinary non-deferred support terms.
   Deferred tags and witness-only raw relation tags do not raise the generic
   context beat into high-tension tactical tone or pass as generic motif-prefix
   signals. Generic
@@ -217,9 +219,11 @@ Current authority is internal and MoveReview-first:
 - `StrategicSemanticObservationPipeline` emits typed semantic observations
   through minority-attack and a catalog-driven relation producer.
   `StrategicSemanticObservationContext` owns the normalized reviewed move, exact
-  target extraction, one bounded top-PV replay, and one extracted
-  relation-witness set; the relation producer consumes the implemented catalog
-  set from that shared context instead of replaying or filtering locally.
+  target extraction, a six-ply standard top-PV replay, and dedicated
+  draw-resource replay inputs for the twelve-ply top-PV exception plus validated
+  root probe reply PVs. It assembles one relation-witness list for the relation
+  producer, which consumes the implemented catalog set from that shared context
+  instead of replaying or hard-coding local kind filters.
   Replay-backed relation observations require the reviewed `playedMove` and do not
   infer it from the engine top line. Selector use of these observations does
   not create proof authority by itself. Deferred relation motifs stay in the
@@ -264,7 +268,7 @@ Open for maintenance:
 Closed unless a new audit explicitly opens them:
 
 - broad heavy-piece/local-bind/global-squeeze expansion
-- Track 5 lesson authority
+- broad lesson authority
 - Chronicle/Active runtime reopening; their remaining planner, compression, and evaluation helpers have been completely cleaned up and removed from the workspace
 - public API/frontend wire expansion except audited typed diagnostics or
   payload minimization that does not create product authority
@@ -284,7 +288,7 @@ axes:
 | B7/B8 broad expansion | historical frontier/coverage shorthand | keep `B7`/`B8` names in guard/test diagnostics only; do not introduce proof families, sources, packages, or product rows with those labels |
 | broad color-complex expansion | `ColorComplexSqueeze` exact-slice family through `color_complex_squeeze_probe`; generic `color_complex_clamp` remains selector/support evidence | do not promote generic color-complex prose, coordinates, or minor-piece words into authority |
 | mobility-cage expansion | catch-all still closed; nearest live evidence is the cataloged `trapped_piece`/`domination` mobility-restriction relation witnesses plus route denial assets | choose a concrete witness family before implementation; do not create a catch-all mobility-cage module |
-| Track 5 lesson authority | scoped takeaway only through `MoveReviewScopedTakeaway` | do not use Track names or lesson labels as runtime authority; broad lesson authority stays closed |
+| broad lesson authority | scoped takeaway only through `MoveReviewScopedTakeaway` | do not use Track names or lesson labels as runtime authority; broad lesson authority stays closed |
 | Chronicle/Active runtime reopening | completely removed from the workspace | do not consume `GameChronicle*`, Active-note DTOs, or active branch/thread carriers in released MoveReview truth/signoff |
 
 Admission-unit planning follows the same boundary: the catalog may queue only

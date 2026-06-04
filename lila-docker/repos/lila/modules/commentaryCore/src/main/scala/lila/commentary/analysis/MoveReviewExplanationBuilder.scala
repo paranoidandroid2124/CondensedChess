@@ -38,20 +38,20 @@ private[commentary] object MoveReviewExplanationBuilder:
       parsed <- Uci(uci).collect { case move: Uci.Move => move }
       san <- ctx.playedSan.map(_.trim).filter(_.nonEmpty)
       before <- Fen.read(Standard, Fen.Full(ctx.fen))
-      piece <- before.board.pieceAt(parsed.orig)
-      afterFen <- MoveReviewPvLine.legalFenAfter(ctx.fen, uci)
-      after <- Fen.read(Standard, Fen.Full(afterFen))
+      move <- before.move(parsed).toOption
+      after = move.after
+      afterFen = Fen.write(after).value
       movedPiece <- after.board.pieceAt(parsed.dest)
-      if movedPiece.color == piece.color
+      if movedPiece.color == move.piece.color
     yield
       CommentaryIdeaSurface.PlayedMove(
         uci = uci,
         san = san,
         from = parsed.orig,
         to = parsed.dest,
-        piece = piece,
+        piece = move.piece,
         afterFen = afterFen,
-        capturedRole = before.board.pieceAt(parsed.dest).filter(_.color != piece.color).map(_.role)
+        capturedRole = before.board.pieceAt(parsed.dest).filter(_.color != move.piece.color).map(_.role)
       )
 
   private def moveReviewEvidence(

@@ -19,12 +19,15 @@ object AuthorEvidenceBuilder:
     probeResults: List[ProbeResult]
   ): List[QuestionEvidence] =
     if playedMove.isEmpty then return Nil
-    val playedUci = playedMove.get
+    val playedUci = NarrativeUtils.normalizeUciMove(playedMove.get)
     if (probeResults.isEmpty) return Nil
 
-    val afterFen = NarrativeUtils.uciListToFen(fen, List(playedUci))
-    val bestUciOpt = bestMove.filter(_.nonEmpty)
-    val afterBestFenOpt = bestUciOpt.map(uci => NarrativeUtils.uciListToFen(fen, List(uci)))
+    val afterFen =
+      MoveReviewPvLine.legalFenAfter(fen, playedUci) match
+        case Some(value) => value
+        case None        => return Nil
+    val bestUciOpt = bestMove.map(NarrativeUtils.normalizeUciMove).filter(_.nonEmpty)
+    val afterBestFenOpt = bestUciOpt.flatMap(uci => MoveReviewPvLine.legalFenAfter(fen, uci))
 
     val byQuestion = probeResults.flatMap { pr =>
       pr.questionId.map(qid => qid -> pr)

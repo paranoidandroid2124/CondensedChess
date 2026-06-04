@@ -119,8 +119,8 @@ private[commentary] object CommentaryIdeaSurface:
     val characterBand = moveCharacterBand(truthContract)
     val descriptor =
       MoveReviewIdeaRules.iterator
-        .map(_.describe(played, evidence, lineFacts, characterBand, truthContract))
-        .collectFirst { case Some(desc) => desc }
+        .flatMap(_.describe(played, evidence, lineFacts, characterBand, truthContract))
+        .nextOption()
 
     descriptor.filter(desc => !desc.requiresPvForAdmission || lineFacts.nonEmpty)
 
@@ -405,10 +405,16 @@ private[commentary] object CommentaryIdeaSurface:
     line.continuation.exists(moveTouchesAny(beforeFen, _, squares))
 
   private def moveTouchesAny(beforeFen: String, move: MoveReviewMoveRef, squares: List[Square]): Boolean =
+    legalOnePlyStep(beforeFen, move)
+      .exists(step => squares.exists(square => step.move.orig == square || step.move.dest == square))
+
+  private def legalOnePlyStep(
+      beforeFen: String,
+      move: MoveReviewMoveRef
+  ): Option[MoveReviewExchangeAnalyzer.BoundedReplayStep] =
     MoveReviewExchangeAnalyzer
       .boundedReplay(beforeFen, List(move.uci), maxPlies = 1)
       .flatMap(_.headOption)
-      .exists(step => squares.exists(square => step.move.orig == square || step.move.dest == square))
 
   private def sanEquivalent(left: String, right: String): Boolean =
     def clean(value: String): String =
@@ -1128,9 +1134,7 @@ private[commentary] object CommentaryIdeaSurface:
       move: Option[MoveReviewMoveRef]
   ): Boolean =
     move.exists(ref =>
-      MoveReviewExchangeAnalyzer
-        .boundedReplay(beforeFen, List(ref.uci), maxPlies = 1)
-        .flatMap(_.headOption)
+      legalOnePlyStep(beforeFen, ref)
         .exists(step =>
           step.move.captures &&
             CenterSquares.contains(step.move.dest.key) &&
@@ -1144,9 +1148,7 @@ private[commentary] object CommentaryIdeaSurface:
       targetSquare: String
   ): Boolean =
     move.exists(ref =>
-      MoveReviewExchangeAnalyzer
-        .boundedReplay(beforeFen, List(ref.uci), maxPlies = 1)
-        .flatMap(_.headOption)
+      legalOnePlyStep(beforeFen, ref)
         .exists(step => step.move.captures && step.move.dest.key == targetSquare)
     )
 

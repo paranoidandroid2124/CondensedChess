@@ -1543,7 +1543,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
           case None =>
             Left(List("position_probe_not_certified"))
           case Some(packet) =>
-            val decision = PlannerClaimAdmission.decidePositionProbe(ctx, inputs, truthContract, packet)
+            val decision = ClaimAuthorityResolver.decidePositionProbe(ctx, inputs, truthContract, packet)
             if decision.admitted then
               Right(PositionProbePlanMaterial(claim = claim, packet = packet, decision = decision))
             else Left(positionProbeRejectionReasons(decision))
@@ -1917,7 +1917,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
     val preventedPlanChange = allowedPreventedPlans.collectFirst(Function.unlift(preventedPlanChangeClaim))
     val hasPreventedPlanChangeMaterial = allowedPreventedPlans.exists(preventedPlanHasChangeMaterial)
     val decisionComparisonChange =
-      Option.when(canPromoteDecisionComparisonChange)(decisionComparisonChangeClaim(inputs.decisionComparison)).flatten
+      if canPromoteDecisionComparisonChange then decisionComparisonChangeClaim(inputs.decisionComparison) else None
     val moveLinkedChange =
       whatChangedMoveLinkedChange(inputs, exactTargetFixationChange, localFileEntryChange, preventedPlanChange, decisionComparisonChange)
     WhatChangedPlannerMaterial(
@@ -2032,7 +2032,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       }.orElse {
         material.allowedPreventedPlans.collectFirst(Function.unlift(preventedPlanChangeContrast))
       }.orElse {
-        Option.when(material.canPromoteDecisionComparisonChange)(decisionComparisonChangeContrast(inputs.decisionComparison)).flatten
+        if material.canPromoteDecisionComparisonChange then decisionComparisonChangeContrast(inputs.decisionComparison) else None
       }
     }.flatten
 
@@ -2049,7 +2049,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
         material.allowedPreventedPlans.collectFirst(Function.unlift(preventedPlanChangeConsequence))
           .map(wrapUpConsequence)
       }.orElse {
-        Option.when(material.canPromoteDecisionComparisonChange)(decisionComparisonChangeConsequence(inputs.decisionComparison)).flatten
+        (if material.canPromoteDecisionComparisonChange then decisionComparisonChangeConsequence(inputs.decisionComparison) else None)
           .map(wrapUpConsequence)
       }
     }.flatten
@@ -2539,7 +2539,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       truthContract: Option[DecisiveTruthContract],
       plan: QuestionPlan
   ): Either[QuestionPlan, RejectedQuestionPlan] =
-    PlannerClaimAdmission.planAuthorityDecision(ctx, inputs, truthContract, plan) match
+    ClaimAuthorityResolver.planAuthorityDecision(ctx, inputs, truthContract, plan) match
       case Some(decision) if decision.tier == ClaimAuthorityTier.Suppressed =>
         Right(suppressedStrategicRelease(plan, decision))
       case Some(decision) if decision.tier == ClaimAuthorityTier.SupportedLocal =>
@@ -2857,7 +2857,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       claim: MainPathScopedClaim
   ): Option[OwnerCandidateTrace] =
     claim.packet
-      .map(packet => packet -> PlannerClaimAdmission.decidePositionProbe(ctx, inputs, truthContract, packet))
+      .map(packet => packet -> ClaimAuthorityResolver.decidePositionProbe(ctx, inputs, truthContract, packet))
       .filter { case (_, decision) => decision.admitted }
       .map { case (packet, decision) =>
         ownerCandidate(
@@ -3079,7 +3079,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       inputs: QuestionPlannerInputs
   ): List[OwnerCandidateTrace] =
     List(
-      ctx.flatMap(openingRelationReplayClaim).orElse(inputs.openingRelationClaim).map { _ =>
+      inputs.openingRelationClaim.map { _ =>
         ownerCandidate(
           plannerOwnerKind = PlannerOwnerKind.OpeningRelation,
           source = "opening_relation_translator",
@@ -3111,7 +3111,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       inputs: QuestionPlannerInputs
   ): List[OwnerCandidateTrace] =
     List(
-      ctx.flatMap(endgameTransitionReplayClaim).orElse(inputs.endgameTransitionClaim).map { _ =>
+      inputs.endgameTransitionClaim.map { _ =>
         ownerCandidate(
           plannerOwnerKind = PlannerOwnerKind.EndgameTransition,
           source = "endgame_transition_translator",

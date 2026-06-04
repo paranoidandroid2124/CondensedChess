@@ -186,7 +186,7 @@ object Motif:
       color: Color,      // Color of the capturing side
       plyIndex: Int,
       move: Option[String],
-      sacrificeROI: Option[SacrificeROI] = None  // NEW: For exchange sacrifice compensation
+      sacrificeROI: Option[SacrificeROI] = None  // Exchange sacrifice compensation
   ) extends Motif:
     val category = MotifCategory.Tactical
 
@@ -230,7 +230,7 @@ object Motif:
       attackingPiece: Role,
       targets: List[Role],
       square: Square,
-      targetSquares: List[Square], // NEW: capture specific target squares
+      targetSquares: List[Square], // Specific target squares
       color: Color,
       plyIndex: Int,
       move: Option[String]

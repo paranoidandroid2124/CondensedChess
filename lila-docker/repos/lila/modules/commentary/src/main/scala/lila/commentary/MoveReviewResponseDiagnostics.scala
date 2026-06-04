@@ -11,21 +11,31 @@ object MoveReviewResponseDiagnostics:
   private val RetryableFallback = "retryable_fallback"
 
   def json(response: CommentResponse): JsObject =
+    val sourceMode = normalizedSourceMode(response)
+    val fallbackMode = isFallbackSourceMode(sourceMode)
+    val boundaryReasons =
+      if fallbackMode then
+        PlayerProseBoundary
+          .validateSanitized(Option(response.commentary).getOrElse(""))
+          .reasons
+      else Nil
     Json.obj(
-      "status" -> status(response),
-      "sourceModeReason" -> sourceModeReason(response)
+      "status" -> status(fallbackMode, boundaryReasons),
+      "sourceModeReason" -> sourceModeReason(response, sourceMode, fallbackMode, boundaryReasons)
     )
 
-  private def status(response: CommentResponse): String =
-    val sourceMode = normalizedSourceMode(response)
-    if isFallbackMode(sourceMode) && proseBoundaryReasons(response).nonEmpty then RetryableFallback
-    else if isFallbackMode(sourceMode) then FallbackAvailable
+  private def status(fallbackMode: Boolean, boundaryReasons: List[String]): String =
+    if fallbackMode && boundaryReasons.nonEmpty then RetryableFallback
+    else if fallbackMode then FallbackAvailable
     else Ready
 
-  private def sourceModeReason(response: CommentResponse): String =
-    val sourceMode = normalizedSourceMode(response)
-    val boundaryReasons = proseBoundaryReasons(response)
-    if isFallbackMode(sourceMode) && boundaryReasons.nonEmpty then boundaryReasons.head
+  private def sourceModeReason(
+      response: CommentResponse,
+      sourceMode: String,
+      fallbackMode: Boolean,
+      boundaryReasons: List[String]
+  ): String =
+    if fallbackMode && boundaryReasons.nonEmpty then boundaryReasons.head
     else
       sourceMode match
         case "rule_circuit_open"     => "polish_circuit_open"
@@ -44,14 +54,11 @@ object MoveReviewResponseDiagnostics:
     response.polishMeta
       .toList
       .flatMap(_.validationReasons)
-      .map(normalizeCode)
-      .collectFirst { case Some(reason) if reason.nonEmpty => reason }
+      .flatMap(normalizeCode)
+      .headOption
 
-  private def isFallbackMode(sourceMode: String): Boolean =
+  private[commentary] def isFallbackSourceMode(sourceMode: String): Boolean =
     sourceMode == "rule_circuit_open" || sourceMode.startsWith("fallback_rule")
-
-  private def proseBoundaryReasons(response: CommentResponse): List[String] =
-    PlayerProseBoundary.validateSanitized(Option(response.commentary).getOrElse("")).reasons
 
   private def normalizeCode(raw: String): Option[String] =
     Option(raw)

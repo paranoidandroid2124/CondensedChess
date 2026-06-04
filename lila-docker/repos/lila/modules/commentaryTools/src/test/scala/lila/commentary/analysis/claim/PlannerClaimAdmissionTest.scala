@@ -4,7 +4,7 @@ import lila.commentary.analysis.*
 import lila.commentary.model.authoring.AuthorQuestionKind
 import munit.FunSuite
 
-class PlannerClaimAdmissionTest extends FunSuite:
+class ClaimAuthorityResolverBoundaryTest extends FunSuite:
 
   test("authority decision has one public admission ladder with no extra roles") {
     assertEquals(
@@ -51,7 +51,7 @@ class PlannerClaimAdmissionTest extends FunSuite:
 
   test("supported local surface preserves proper opening-family capitalization") {
     val surface =
-      PlannerClaimAdmission.supportedLocalSurface(
+      ClaimAuthorityResolver.supportedLocalSurface(
         "Carlsbad structure is solid."
       )
 
@@ -97,9 +97,9 @@ class PlannerClaimAdmissionTest extends FunSuite:
     )
 
   test("supported local surface preserves piece-name capitalization") {
-    val kingSurface = PlannerClaimAdmission.supportedLocalSurface("King safety depends on the dark squares.")
-    val queenSurface = PlannerClaimAdmission.supportedLocalSurface("Queen activity is the main resource.")
-    val rookSurface = PlannerClaimAdmission.supportedLocalSurface("Rook pressure keeps the file tied down.")
+    val kingSurface = ClaimAuthorityResolver.supportedLocalSurface("King safety depends on the dark squares.")
+    val queenSurface = ClaimAuthorityResolver.supportedLocalSurface("Queen activity is the main resource.")
+    val rookSurface = ClaimAuthorityResolver.supportedLocalSurface("Rook pressure keeps the file tied down.")
 
     assertEquals(kingSurface, "A key idea is that King safety depends on the dark squares.")
     assertEquals(queenSurface, "A key idea is that Queen activity is the main resource.")
@@ -107,7 +107,7 @@ class PlannerClaimAdmissionTest extends FunSuite:
   }
 
   test("supported local surface does not lowercase the first core character") {
-    val surface = PlannerClaimAdmission.supportedLocalSurface("This exchange moves into the queenless branch.")
+    val surface = ClaimAuthorityResolver.supportedLocalSurface("This exchange moves into the queenless branch.")
 
     assertEquals(surface, "A key idea is that This exchange moves into the queenless branch.")
   }

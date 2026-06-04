@@ -37,10 +37,16 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
       assert(!text.toLowerCase.contains(phrase.toLowerCase), clue(text))
     }
 
+  private def assertNoRelationSupportLeaks(values: Seq[String]): Unit =
+    assert(!values.exists(_.trim.toLowerCase.startsWith("deferred_")), clue(values))
+    assert(!values.exists(RelationObservationCatalog.deferredFallbackForMotifTag(_).nonEmpty), clue(values))
+    assert(!values.exists(RelationObservationCatalog.relationWitnessOnlyMotifTag), clue(values))
+    assert(!values.exists(RelationObservationCatalog.pvDrawResourceOnlyMotifTag), clue(values))
+
   test("user-facing signal sanitizer routes witness-only helpers and suppresses PV-only draw-resource helpers") {
     val text =
       UserFacingSignalSanitizer.sanitize(
-        "Domination(Knight,e5) TrappedPiece(Queen,h4) Zwischenzug(Nf7) StalemateTrap(g8) PerpetualCheck(h5)."
+        "Domination(Knight,e5) TrappedPiece(Queen,h4) Zwischenzug(Nf7) StalemateTrap(g8) PerpetualCheck(h5) SmotheredMate(f7)."
       )
     val lower = text.toLowerCase
 
@@ -52,6 +58,7 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
     assert(!lower.contains("zwischenzug"), clue(text))
     assert(!lower.contains("stalemate"), clue(text))
     assert(!lower.contains("perpetual"), clue(text))
+    assert(!lower.contains("smothered"), clue(text))
   }
 
   private def typedEvaluation(
@@ -200,7 +207,7 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
             stageLabel = "cash out",
             carryOver = false,
             stageReason = Some("probe evidence pending"),
-            prerequisites = List("theme:piece_redeployment"),
+            prerequisites = List("theme:piece_redeployment", "perpetual_check", "deferred_move_order_caution"),
             conversionTrigger = Some("return vector"),
             primaryLine = Some(
               MoveReviewLedgerLine(
@@ -267,7 +274,6 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
             decisionComparison = Some(
               MoveReviewPlayerDecisionComparison(
                 kicker = "Decision compare",
-                deferredSan = Some("Qe3"),
                 secondaryText = Some("accepted as PlayableByPV fallback")
               )
             ),
@@ -357,7 +363,6 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
                 comparison.chosenSan.toList ++
                 comparison.engineSan.toList ++
                 comparison.comparedSan.toList ++
-                comparison.deferredSan.toList ++
                 comparison.secondaryText.toList
             ) ++
             surface.authorRows.flatMap(row =>
@@ -372,6 +377,8 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
     val json = Json.toJson(sanitized).as[JsObject]
 
     assertNoLeaks(rendered)
+    val ledgerPrerequisites = sanitized.moveReviewLedger.toList.flatMap(_.prerequisites)
+    assertNoRelationSupportLeaks(ledgerPrerequisites)
     assertEquals(sanitized.moveReviewExplanation.flatMap(_.factFragments), None, clue(sanitized.moveReviewExplanation))
     assert(!Json.stringify(json).contains("raw_proof_family"), clue(json))
     assertEquals(json.keys.contains("latentPlans"), false, clue(json))
@@ -381,11 +388,6 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
     assertEquals(sanitized.signalDigest.flatMap(_.opponentPlan), None, clue(sanitized.signalDigest))
     assertEquals(sanitized.signalDigest.flatMap(_.dominantIdeaKind), None, clue(sanitized.signalDigest))
     assertEquals(sanitized.signalDigest.flatMap(_.decision), None, clue(sanitized.signalDigest))
-    assertEquals(
-      sanitized.moveReviewPlayerSurface.flatMap(_.decisionComparison).flatMap(_.deferredSan),
-      None,
-      clue(sanitized.moveReviewPlayerSurface)
-    )
     assertEquals(
       sanitized.moveReviewPlayerSurface.toList.flatMap(_.authorRows.flatMap(_.meta)),
       Nil,
@@ -1260,7 +1262,16 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
     val pack =
       StrategyPack(
         sideToMove = "white",
-        plans = List(StrategySidePlan("white", "long", "Pressure Plan")),
+        plans =
+          List(
+            StrategySidePlan(
+              side = "white",
+              horizon = "long",
+              planName = "Pressure Plan",
+              priorities = List("trapped_piece", "Domination(Knight,e5)", "hold e4"),
+              riskTriggers = List("deferred_move_order_caution", "clock pressure")
+            )
+          ),
         pieceRoutes =
           List(
             StrategyPieceRoute(
@@ -1270,7 +1281,7 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
               route = List("e3"),
               purpose = "Improve the piece",
               confidence = 0.7,
-              evidence = List("trapped_piece_signal", "low_mobility_signal")
+              evidence = List("TrappedPiece(Queen,h4)", "trapped_piece_signal", "low_mobility_signal")
             )
           ),
         pieceMoveRefs =
@@ -1293,9 +1304,12 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
               from = "c2",
               targetSquare = "e4",
               readiness = DirectionalTargetReadiness.Premature,
-              evidence = List("zwischenzug_line", "deferred_move_order_caution", "directional_target")
+              strategicReasons = List("domination", "directional target"),
+              prerequisites = List("perpetual_check", "route ready"),
+              evidence = List("zwischenzug_line", "Zwischenzug(Nf7)", "deferred_move_order_caution", "directional_target")
             )
           ),
+        longTermFocus = List("stalemate_trap", "cash out"),
         evidence = List("perpetual_check", "deferred_move_order_caution", "idea:line_occupation:xray")
       )
     val response =
@@ -1315,14 +1329,21 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
         sanitizedPack.pieceRoutes.flatMap(_.evidence) ++
         sanitizedPack.pieceMoveRefs.flatMap(_.evidence) ++
         sanitizedPack.directionalTargets.flatMap(_.evidence)
+    val publicSupport =
+      publicEvidence ++
+        sanitizedPack.longTermFocus ++
+        sanitizedPack.plans.flatMap(plan => plan.priorities ++ plan.riskTriggers) ++
+        sanitizedPack.directionalTargets.flatMap(target => target.strategicReasons ++ target.prerequisites)
 
-    assert(!publicEvidence.contains("trapped_piece_signal"), clue(publicEvidence))
-    assert(!publicEvidence.contains("zwischenzug_line"), clue(publicEvidence))
-    assert(publicEvidence.contains("deferred_move_order_caution"), clue(publicEvidence))
-    assert(publicEvidence.contains("low_mobility_signal"), clue(publicEvidence))
-    assert(publicEvidence.contains("directional_target"), clue(publicEvidence))
-    assert(!publicEvidence.exists(RelationObservationCatalog.deferredFallbackForMotifTag(_).nonEmpty), clue(publicEvidence))
-    assert(!publicEvidence.exists(RelationObservationCatalog.relationWitnessOnlyMotifTag), clue(publicEvidence))
+    assert(publicSupport.contains("low_mobility_signal"), clue(publicSupport))
+    assert(publicSupport.contains("directional_target"), clue(publicSupport))
+    assert(publicSupport.contains("hold e4"), clue(publicSupport))
+    assert(publicSupport.contains("clock pressure"), clue(publicSupport))
+    assert(publicSupport.contains("route ready"), clue(publicSupport))
+    assert(!publicSupport.contains("key-square restriction"), clue(publicSupport))
+    assert(!publicSupport.contains("piece mobility"), clue(publicSupport))
+    assert(!publicSupport.contains("move-order caution"), clue(publicSupport))
+    assertNoRelationSupportLeaks(publicSupport)
   }
 
   test("drops invalid moveReview player surface authority") {

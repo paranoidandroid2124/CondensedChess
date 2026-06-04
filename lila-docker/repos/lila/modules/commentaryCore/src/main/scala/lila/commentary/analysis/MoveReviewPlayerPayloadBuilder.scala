@@ -2,7 +2,7 @@ package lila.commentary.analysis
 
 import lila.commentary.*
 import lila.commentary.model.{ NarrativeContext, TargetSquare }
-import lila.commentary.analysis.claim.{ ClaimAuthorityResolver, ClaimAuthorityTier, OpeningFamilyClaimResolver }
+import lila.commentary.analysis.claim.{ ClaimAuthorityResolver, OpeningFamilyClaimResolver }
 import lila.commentary.analysis.semantic.{ RelationObservationCatalog, RelationObservationDescriptor, RelationSurfaceRowKind }
 import lila.commentary.analysis.semantic.StrategicObservationIds.{ ProofFamilyId, ProofSourceId }
 import lila.commentary.analysis.structure.WeaknessTargetProfile
@@ -22,6 +22,8 @@ object MoveReviewPlayerPayloadBuilder:
   private val MaxStrategicRelationRows = 4
   private val MaxCompensationRows = 2
   private val MoveReviewLedgerLineSources = Set("probe", "decision_compare", "variation", "authoring")
+  private val PracticalPlanAuthority =
+    Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))
 
   def decisionComparisonSurface(
       ctx: NarrativeContext,
@@ -49,7 +51,6 @@ object MoveReviewPlayerPayloadBuilder:
       chosenSan = cleanMove(digest.chosenMove),
       engineSan = cleanMove(digest.engineBestMove),
       comparedSan = cleanMove(digest.comparedMove),
-      deferredSan = None,
       secondaryText = Some(secondary),
       chosenMatchesBest = digest.chosenMatchesBest
     )
@@ -82,15 +83,16 @@ object MoveReviewPlayerPayloadBuilder:
     val explanationRows = moveReviewExplanation.toList.flatMap(explanationSupportRows(_, knownSans))
     val referenceRows = if explanationRows.isEmpty then referenceLineRows(ctx, refs, knownSans) else Nil
     val summaryRows =
-      (
-        mainPlanRow(promotedPlans).toList ++
-          openingRows ++
-          practicalRows ++
-          localRows ++
-          explanationRows ++
-          referenceRows
+      distinctVisibleRows(
+        (
+          mainPlanRow(promotedPlans).toList ++
+            openingRows ++
+            practicalRows ++
+            localRows ++
+            explanationRows ++
+            referenceRows
+        )
       )
-        .distinctBy(row => (row.label, row.text))
     MoveReviewPlayerSurface(
       schema = Schema,
       title =
@@ -140,13 +142,13 @@ object MoveReviewPlayerPayloadBuilder:
             ).flatten
           )
           .map("Compensation condition" -> _)
-      (primary.toList ++ support)
-        .flatMap { case (label, text) =>
+      distinctVisibleRows(
+        (primary.toList ++ support).flatMap { case (label, text) =>
           row(label, text, tone = Some("practical")).map(
-            _.copy(authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)))
+            _.copy(authority = PracticalPlanAuthority)
           )
         }
-        .distinctBy(row => (row.label, row.text))
+      )
         .take(MaxCompensationRows)
 
   private def compensationRowsEligible(surface: StrategyPackSurface.Snapshot): Boolean =
@@ -165,19 +167,68 @@ object MoveReviewPlayerPayloadBuilder:
     if focus.isEmpty then None
     else
       val focusText = focus.take(3).mkString(", ")
+      val tailFocusText = focus.tail.take(3).mkString(" and ")
       val anchorText = Option.when(focusText.nonEmpty)(s" around $focusText").getOrElse("")
       val text =
-        descriptor.surfaceRowKind match
-          case RelationSurfaceRowKind.DrawResource =>
-            s"The checked line keeps a ${descriptor.publicLabel} available$anchorText."
-          case RelationSurfaceRowKind.MoveOrder =>
-            s"The checked line turns the move order with ${descriptor.publicLabel}$anchorText."
-          case RelationSurfaceRowKind.MobilityRestriction =>
-            s"The checked line limits piece mobility with ${descriptor.publicLabel}$anchorText."
-          case RelationSurfaceRowKind.LineGeometry =>
-            s"The checked line uses ${descriptor.publicLabel} geometry$anchorText."
-          case RelationSurfaceRowKind.TacticalRelation =>
-            s"The checked line creates a ${descriptor.publicLabel} motif$anchorText."
+        descriptor.publicLabel match
+          case "defender-trade" if focus.size >= 2 =>
+            s"The checked line uses a ${descriptor.publicLabel} around ${focus.head} through the exchange on ${focus(1)}."
+          case "bad-piece liquidation" if focus.size >= 2 =>
+            s"The checked line uses ${descriptor.publicLabel} from ${focus.head} through the exchange on ${focus(1)}."
+          case "overload" if focus.size >= 2 =>
+            s"The checked line creates ${descriptor.publicLabel} pressure on ${focus.head} across $tailFocusText."
+          case "deflection" if focus.size >= 3 =>
+            s"The checked line creates a ${descriptor.publicLabel} motif on ${focus.head} by attacking ${focus(1)} from ${focus(2)}."
+          case "discovered-attack" if focus.size >= 3 =>
+            s"The checked line creates a ${descriptor.publicLabel} from ${focus.head} through ${focus(1)} toward ${focus(2)}."
+          case "double-check" if focus.size >= 2 =>
+            s"The checked line creates ${descriptor.publicLabel} pressure on ${focus.head} from $tailFocusText."
+          case "back-rank mate" if focus.size >= 2 =>
+            s"The checked line reaches a ${descriptor.publicLabel} pattern around ${focus.head} from $tailFocusText."
+          case "mate net" if focus.size >= 2 =>
+            s"The checked line reaches a ${descriptor.publicLabel} around ${focus.head} from $tailFocusText."
+          case "Greek gift" if focus.size >= 2 =>
+            s"The checked line starts a ${descriptor.publicLabel} sacrifice from ${focus.head} toward ${focus(1)}."
+          case "stalemate resource" if focus.size >= 2 =>
+            s"The checked line keeps a ${descriptor.publicLabel} available around ${focus.head} via ${focus(1)}."
+          case "perpetual-check resource" if focus.size >= 2 =>
+            s"The checked line keeps a ${descriptor.publicLabel} available around ${focus.head} from $tailFocusText."
+          case "fork" if focus.size >= 2 =>
+            s"The checked line creates a ${descriptor.publicLabel} from ${focus.head} across $tailFocusText."
+          case "hanging piece" if focus.size >= 2 =>
+            s"The checked line creates ${descriptor.publicLabel} pressure from ${focus.head} on ${focus(1)}."
+          case "decoy" if focus.size >= 3 =>
+            s"The checked line creates a ${descriptor.publicLabel} motif on ${focus(1)} that pulls from ${focus(2)}."
+          case "trapped-piece" if focus.size >= 2 =>
+            s"The checked line limits piece mobility with ${descriptor.publicLabel} pressure on ${focus(1)} from ${focus.head}."
+          case "key-square restriction" if focus.size >= 2 =>
+            s"The checked line limits piece mobility with ${descriptor.publicLabel} on ${focus(1)} from ${focus.head}."
+          case "zwischenzug" if focus.size >= 3 =>
+            s"The checked line turns the move order with ${descriptor.publicLabel} from ${focus.head} before the recapture on ${focus(1)}."
+          case "x-ray" if focus.size >= 3 =>
+            s"The checked line uses ${descriptor.publicLabel} geometry from ${focus.head} through ${focus(1)} toward ${focus(2)}."
+          case "clearance" if focus.size >= 3 =>
+            s"The checked line uses ${descriptor.publicLabel} geometry with ${focus(1)} clearing the line from ${focus.head} toward ${focus(2)}."
+          case "battery" if focus.size >= 3 =>
+            s"The checked line uses ${descriptor.publicLabel} geometry between ${focus.head} and ${focus(1)} toward ${focus(2)}."
+          case "pin" if focus.size >= 3 =>
+            s"The checked line uses ${descriptor.publicLabel} geometry from ${focus.head} through ${focus(1)} toward ${focus(2)}."
+          case "skewer" if focus.size >= 3 =>
+            s"The checked line uses ${descriptor.publicLabel} geometry from ${focus.head} through ${focus(1)} toward ${focus(2)}."
+          case "interference" if focus.size >= 3 =>
+            s"The checked line uses ${descriptor.publicLabel} geometry with ${focus.head} between ${focus(1)} and ${focus(2)}."
+          case _ =>
+            descriptor.surfaceRowKind match
+              case RelationSurfaceRowKind.DrawResource =>
+                s"The checked line keeps a ${descriptor.publicLabel} available$anchorText."
+              case RelationSurfaceRowKind.MoveOrder =>
+                s"The checked line turns the move order with ${descriptor.publicLabel}$anchorText."
+              case RelationSurfaceRowKind.MobilityRestriction =>
+                s"The checked line limits piece mobility with ${descriptor.publicLabel}$anchorText."
+              case RelationSurfaceRowKind.LineGeometry =>
+                s"The checked line uses ${descriptor.publicLabel} geometry$anchorText."
+              case RelationSurfaceRowKind.TacticalRelation =>
+                s"The checked line creates a ${descriptor.publicLabel} motif$anchorText."
       row(
         label = descriptor.surfaceRowLabel,
         text = text,
@@ -206,8 +257,7 @@ object MoveReviewPlayerPayloadBuilder:
       descriptor: RelationObservationDescriptor,
       focus: List[String]
   ): Option[String] =
-    Option.when(idea.relationKind.nonEmpty)(idea.targetSquare)
-      .flatten
+    idea.relationKind.flatMap(_ => idea.targetSquare)
       .flatMap(validSquare)
       .filter(focus.contains)
       .orElse(descriptor.fallbackTarget(focus))
@@ -231,7 +281,7 @@ object MoveReviewPlayerPayloadBuilder:
   ): List[MoveReviewPlayerSurfaceRow] =
     val planRows =
       promotedPlans.take(2).flatMap(planRowsFromPromotedPlan)
-    val promotedRows = planRows.distinctBy(row => (row.label, row.text))
+    val promotedRows = distinctVisibleRows(planRows)
     (promotedRows ++ practicalAdvancedRows(ctx, evaluatedPlans, promotedPlans, slots = 8 - promotedRows.size)).take(8)
 
   private def planRowsFromPromotedPlan(plan: EvaluatedPlan): List[MoveReviewPlayerSurfaceRow] =
@@ -268,7 +318,7 @@ object MoveReviewPlayerPayloadBuilder:
           fen = rawOpt(ctx.fen)
         )
       )
-      if decision.tier == ClaimAuthorityTier.SupportedLocal && decision.vetoReasons.isEmpty
+      if decision.supportedLocalWithoutTacticalVeto
       surfaceRow <- row(
         label = "Opening family",
         text = s"This still fits the ${family.structureLabel} structure.",
@@ -287,19 +337,17 @@ object MoveReviewPlayerPayloadBuilder:
     )
 
   private def openingRouteTarget(ctx: NarrativeContext, familyKey: String): Option[String] =
-    Fen.read(Standard, Fen.Full(ctx.fen)).flatMap { _ =>
-      OpeningRouteCatalog.default.routes.iterator
-        .filter(route => route.family == familyKey)
-        .filter(route => OpeningFamilyCatalog.default.targetAllowed(familyKey, route.targetSquare))
-        .flatMap(route =>
-          PieceRouteEvidence
-            .fromContext(ctx, route)
-            .filter(OpeningRouteTargetEvidence.checkRouteEvidence)
-            .map(_ => route.targetSquare)
-        )
-        .toList
-        .headOption
-    }
+    OpeningRouteCatalog.default.routes.iterator
+      .filter(route => route.family == familyKey)
+      .filter(route => OpeningFamilyCatalog.default.targetAllowed(familyKey, route.targetSquare))
+      .flatMap(route =>
+        PieceRouteEvidence
+          .fromContext(ctx, route)
+          .filter(OpeningRouteTargetEvidence.checkRouteEvidence)
+          .map(_ => route.targetSquare)
+      )
+      .toList
+      .headOption
 
   private def openingName(ctx: NarrativeContext): Option[String] =
     cleanOpt(ctx.openingData.flatMap(_.name))
@@ -323,7 +371,7 @@ object MoveReviewPlayerPayloadBuilder:
         label = "Practical plan",
         text = text,
         tone = Some("practical")
-      ).map(_.copy(authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))))
+      ).map(_.copy(authority = PracticalPlanAuthority))
     }
 
   private def practicalAdvancedRows(
@@ -334,12 +382,13 @@ object MoveReviewPlayerPayloadBuilder:
   ): List[MoveReviewPlayerSurfaceRow] =
     if slots <= 0 then Nil
     else
-      plans
-        .filter(PlanEvidenceEvaluator.isBoundedPracticalSupportPlan)
-        .filterNot(plan => hasPromotedSibling(plan, promotedPlans))
-        .sortBy(_.hypothesis.rank)
-        .flatMap(plan => practicalAdvancedRowsForPlan(ctx, plan))
-        .distinctBy(row => (row.label, row.text))
+      distinctVisibleRows(
+        plans
+          .filter(PlanEvidenceEvaluator.isBoundedPracticalSupportPlan)
+          .filterNot(plan => hasPromotedSibling(plan, promotedPlans))
+          .sortBy(_.hypothesis.rank)
+          .flatMap(plan => practicalAdvancedRowsForPlan(ctx, plan))
+      )
         .take(slots)
 
   private def hasPromotedSibling(plan: EvaluatedPlan, promotedPlans: List[EvaluatedPlan]): Boolean =
@@ -375,14 +424,14 @@ object MoveReviewPlayerPayloadBuilder:
       practicalTargetRow(ctx, plan),
       row("Practical objective", hypothesis.preconditions.take(2).mkString(" - "), tone = Some("practical")),
       row("Practical steps", hypothesis.executionSteps.take(2).mkString(" - "), tone = Some("practical"))
-    ).flatten.map(_.copy(authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))))
+    ).flatten.map(_.copy(authority = PracticalPlanAuthority))
 
   private def practicalTargetRow(
       ctx: NarrativeContext,
       plan: EvaluatedPlan
   ): Option[MoveReviewPlayerSurfaceRow] =
     val targetHints = practicalTargetHints(plan)
-    Option.when(isWeaknessPlan(plan) || targetHints.nonEmpty) {
+    if isWeaknessPlan(plan) || targetHints.nonEmpty then
       practicalCurrentTarget(ctx, targetHints)
         .map(target =>
           practicalTargetRowFor(
@@ -396,7 +445,7 @@ object MoveReviewPlayerPayloadBuilder:
             )
           )
         )
-    }.flatten
+    else None
 
   private def practicalCurrentTarget(
       ctx: NarrativeContext,
@@ -411,9 +460,7 @@ object MoveReviewPlayerPayloadBuilder:
       ctx: NarrativeContext,
       targetHints: Set[String]
   ): Option[WeaknessTargetProfile] =
-    Option
-      .when(targetHints.nonEmpty)(ctx.engineEvidence.flatMap(_.best))
-      .flatten
+    (if targetHints.nonEmpty then ctx.engineEvidence.flatMap(_.best) else None)
       .filter(line => line.moves.nonEmpty && (line.resultingFen.nonEmpty || line.moves.size >= MinWeaknessTargetOutcomePlies))
       .flatMap(line =>
         WeaknessTargetProfile
@@ -667,6 +714,9 @@ object MoveReviewPlayerPayloadBuilder:
       refSans = cleanList(refSans)
     )
 
+  private[analysis] def distinctVisibleRows(rows: List[MoveReviewPlayerSurfaceRow]): List[MoveReviewPlayerSurfaceRow] =
+    rows.distinctBy(row => (row.label, row.text))
+
   private def sanitizeRows(
       rows: List[MoveReviewPlayerSurfaceRow],
       knownSans: Set[String]
@@ -694,7 +744,6 @@ object MoveReviewPlayerPayloadBuilder:
       chosenSan = cleanOpt(comparison.chosenSan),
       engineSan = cleanOpt(comparison.engineSan),
       comparedSan = cleanOpt(comparison.comparedSan),
-      deferredSan = cleanOpt(comparison.deferredSan),
       secondaryText = cleanOpt(comparison.secondaryText)
     )
 
@@ -763,7 +812,7 @@ object MoveReviewPlayerPayloadBuilder:
   private def clean(value: String): String =
     UserFacingSignalSanitizer.sanitize(value)
 
-  private def cleanOpt(value: Option[String]): Option[String] =
+  private[analysis] def cleanOpt(value: Option[String]): Option[String] =
     value.map(clean).map(_.trim).filter(_.nonEmpty)
 
   private def cleanList(values: List[String]): List[String] =
@@ -873,7 +922,7 @@ private[commentary] object NeutralizeKeyBreakSurfaceGate:
   private def legalPlayedTargetSquare(ctx: NarrativeContext): Option[String] =
     for
       position <- Fen.read(Standard, Fen.Full(ctx.fen))
-      uci <- ctx.playedMove.map(_.trim.toLowerCase).filter(_.nonEmpty)
+      uci <- ctx.playedMove.map(NarrativeUtils.normalizeUciMove).filter(MoveReviewExchangeAnalyzer.isUciMove)
       move <- Uci(uci).collect { case move: Uci.Move => move }.flatMap(position.move(_).toOption)
     yield move.dest.key
 
@@ -924,9 +973,9 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
   private val ConnectedRooksLabel = "Connected rooks"
   private val DoubledRooksLabel = "Doubled rooks"
   private val XRayPressureLabel = "X-ray pressure"
-  private val ClearanceLabel = "Clearance"
   private val DoubleCheckLabel = "Double check"
   private val DeflectionLabel = "Deflection"
+  private val DiscoveredAttackLabel = "Discovered attack"
   private val InterferenceLabel = "Interference"
   private val BatteryPressureLabel = "Battery pressure"
   private val PinPressureLabel = "Pin pressure"
@@ -982,9 +1031,9 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
   private val PracticalRelationKindByLabel =
     Map(
       XRayPressureLabel -> MoveReviewExchangeAnalyzer.RelationKind.XRay,
-      ClearanceLabel -> MoveReviewExchangeAnalyzer.RelationKind.Clearance,
       DoubleCheckLabel -> MoveReviewExchangeAnalyzer.RelationKind.DoubleCheck,
       DeflectionLabel -> MoveReviewExchangeAnalyzer.RelationKind.Deflection,
+      DiscoveredAttackLabel -> MoveReviewExchangeAnalyzer.RelationKind.DiscoveredAttack,
       InterferenceLabel -> MoveReviewExchangeAnalyzer.RelationKind.Interference,
       BatteryPressureLabel -> MoveReviewExchangeAnalyzer.RelationKind.Battery,
       PinPressureLabel -> MoveReviewExchangeAnalyzer.RelationKind.Pin,
@@ -1024,9 +1073,6 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       ProofSourceId.TargetFocusedCoordinationProbe.wireKey,
       ProofSourceId.ColorComplexSqueezeProbe.wireKey
     )
-  private val PracticalPlanAuthority =
-    Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))
-
   private[commentary] def relationKindsForRows(rows: List[MoveReviewPlayerSurfaceRow]): Set[String] =
     rows
       .filter(_.authority.exists(_.kind == MoveReviewSurfaceAuthority.PracticalPlan))
@@ -1045,107 +1091,119 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
     val packetRows =
       mainPathClaims(inputs)
         .flatMap(claim => rowForClaim(ctx, inputs, truthContract, claim))
+    val packetAndPlanRows =
+      MoveReviewPlayerPayloadBuilder.distinctVisibleRows(planRows ++ packetRows)
+    val typedSurfaceRows =
+      MoveReviewPlayerPayloadBuilder.distinctVisibleRows(
+        (
+          namedRouteNetworkRow(ctx, inputs, truthContract).toList ++
+            dualAxisBindRow(ctx, inputs, truthContract).toList ++
+            restrictedDefenseConversionRow(ctx, inputs, truthContract).toList
+        )
+      )
     val exactRows =
-      (planRows ++ packetRows ++ namedRouteNetworkRow(ctx, inputs, truthContract).toList ++
-        dualAxisBindRow(ctx, inputs, truthContract).toList ++
-        restrictedDefenseConversionRow(ctx, inputs, truthContract).toList)
-        .distinctBy(row => (row.label, row.text))
-        .take(MaxSupportedLocalRows)
+      if packetAndPlanRows.nonEmpty && typedSurfaceRows.nonEmpty then
+        MoveReviewPlayerPayloadBuilder.distinctVisibleRows(
+          packetAndPlanRows.take(MaxSupportedLocalRows - 1) ++ typedSurfaceRows.take(1)
+        )
+          .take(MaxSupportedLocalRows)
+      else (packetAndPlanRows ++ typedSurfaceRows).take(MaxSupportedLocalRows)
     if exactRows.nonEmpty then exactRows
+    else if tacticalPracticalVeto(inputs, truthContract) then Nil
     else
-      practicalCentralRow(ctx, inputs, truthContract)
-        .orElse(backRankMatePracticalRow(ctx, inputs, truthContract))
-        .orElse(mateNetPracticalRow(ctx, inputs, truthContract))
-        .orElse(greekGiftPracticalRow(ctx, inputs, truthContract))
-        .orElse(doubleCheckPracticalRow(ctx, inputs, truthContract))
-        .orElse(zwischenzugPracticalRow(ctx, inputs, truthContract))
-        .orElse(forkPracticalRow(ctx, inputs, truthContract))
-        .orElse(overloadPracticalRow(ctx, inputs, truthContract))
-        .orElse(decoyPracticalRow(ctx, inputs, truthContract))
-        .orElse(deflectionPracticalRow(ctx, inputs, truthContract))
-        .orElse(trappedPiecePracticalRow(ctx, inputs, truthContract))
-        .orElse(dominationPracticalRow(ctx, inputs, truthContract))
-        .orElse(hangingPiecePracticalRow(ctx, inputs, truthContract))
-        .orElse(skewerPracticalRow(ctx, inputs, truthContract))
-        .orElse(xrayPracticalRow(ctx, inputs, truthContract))
-        .orElse(clearancePracticalRow(ctx, inputs, truthContract))
-        .orElse(interferencePracticalRow(ctx, inputs, truthContract))
-        .orElse(batteryPracticalRow(ctx, inputs, truthContract))
-        .orElse(pinPracticalRow(ctx, inputs, truthContract))
-        .orElse(openingPracticalGoalRow(ctx, inputs, truthContract))
-        .orElse(knightOutpostPracticalRow(ctx, inputs, truthContract))
-        .orElse(bishopPairPracticalRow(ctx, inputs, truthContract))
-        .orElse(oppositeColorBishopsPracticalRow(ctx, inputs, truthContract))
-        .orElse(flankPawnPracticalRow(ctx, inputs, truthContract))
-        .orElse(rookLiftPracticalRow(ctx, inputs, truthContract))
-        .orElse(seventhRankPracticalRow(ctx, inputs, truthContract))
-        .orElse(rookBehindPasserPracticalRow(ctx, inputs, truthContract))
-        .orElse(passerBlockadePracticalRow(ctx, inputs, truthContract))
-        .orElse(fileEntryPracticalRow(ctx, inputs, truthContract))
-        .orElse(connectedRooksPracticalRow(ctx, inputs, truthContract))
-        .orElse(doubledRooksPracticalRow(ctx, inputs, truthContract))
-        .orElse(connectedPassersPracticalRow(ctx, inputs, truthContract))
-        .orElse(outsidePasserPracticalRow(ctx, inputs, truthContract))
-        .orElse(passedPawnPracticalRow(ctx, inputs, truthContract))
-        .orElse(kingActivationPracticalRow(ctx, inputs, truthContract))
-        .orElse(quietIntentRow(ctx, inputs, truthContract))
+      lazy val topPvReplayCache = PlayedTopPvReplayCache(ctx)
+      backRankMatePracticalRow(topPvReplayCache)
+        .orElse(mateNetPracticalRow(topPvReplayCache))
+        .orElse(greekGiftPracticalRow(topPvReplayCache))
+        .orElse(doubleCheckPracticalRow(topPvReplayCache))
+        .orElse(defenderTradePracticalRow(ctx, topPvReplayCache))
+        .orElse(badPieceTradePracticalRow(topPvReplayCache))
+        .orElse(queenTradePracticalRow(topPvReplayCache))
+        .orElse(zwischenzugPracticalRow(ctx, topPvReplayCache))
+        .orElse(forkPracticalRow(topPvReplayCache))
+        .orElse(overloadPracticalRow(topPvReplayCache))
+        .orElse(decoyPracticalRow(topPvReplayCache))
+        .orElse(deflectionPracticalRow(topPvReplayCache))
+        .orElse(discoveredAttackPracticalRow(topPvReplayCache))
+        .orElse(trappedPiecePracticalRow(ctx, topPvReplayCache))
+        .orElse(dominationPracticalRow(ctx, topPvReplayCache))
+        .orElse(hangingPiecePracticalRow(topPvReplayCache))
+        .orElse(skewerPracticalRow(topPvReplayCache))
+        .orElse(xrayPracticalRow(topPvReplayCache))
+        .orElse(interferencePracticalRow(topPvReplayCache))
+        .orElse(batteryPracticalRow(topPvReplayCache))
+        .orElse(pinPracticalRow(topPvReplayCache))
+        .orElse(practicalCentralRow(ctx))
+        .orElse(openingPracticalGoalRow(ctx, topPvReplayCache))
+        .orElse(knightOutpostPracticalRow(topPvReplayCache))
+        .orElse(bishopPairPracticalRow(topPvReplayCache))
+        .orElse(oppositeColorBishopsPracticalRow(topPvReplayCache))
+        .orElse(flankPawnPracticalRow(ctx, topPvReplayCache))
+        .orElse(rookLiftPracticalRow(topPvReplayCache))
+        .orElse(seventhRankPracticalRow(topPvReplayCache))
+        .orElse(rookBehindPasserPracticalRow(topPvReplayCache))
+        .orElse(passerBlockadePracticalRow(topPvReplayCache))
+        .orElse(fileEntryPracticalRow(topPvReplayCache))
+        .orElse(connectedRooksPracticalRow(topPvReplayCache))
+        .orElse(doubledRooksPracticalRow(topPvReplayCache))
+        .orElse(connectedPassersPracticalRow(topPvReplayCache))
+        .orElse(outsidePasserPracticalRow(topPvReplayCache))
+        .orElse(passedPawnPracticalRow(topPvReplayCache))
+        .orElse(kingActivationPracticalRow(topPvReplayCache))
+        .orElse(quietIntentRow(ctx, inputs))
         .toList
 
-  private def practicalCentralRow(
-      ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
-  ): Option[MoveReviewPlayerSurfaceRow] =
-    if tacticalPracticalVeto(inputs, truthContract) then None
-    else
-      CentralBreakTimingWitness.practical(ctx).flatMap { practical =>
-        BreakSurfaceToken.canonicalRoute(practical.token).flatMap { token =>
-          practical.kind match
-            case CentralBreakTimingWitness.PracticalKind.Liquidation =>
-              row(
-                CentralLiquidationLabel,
-                s"The move releases central tension through ${BreakSurfaceToken.displayRoute(token)}.",
-                authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CentralLiquidation, token = Some(token)))
-              )
-            case CentralBreakTimingWitness.PracticalKind.Challenge =>
-              row(
-                CentralChallengeLabel,
-                s"The move challenges the center through ${BreakSurfaceToken.displayRoute(token)}.",
-                authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CentralChallenge, token = Some(token)))
-              )
-        }
+  private def practicalCentralRow(ctx: NarrativeContext): Option[MoveReviewPlayerSurfaceRow] =
+    CentralBreakTimingWitness.practical(ctx).flatMap { practical =>
+      BreakSurfaceToken.canonicalRoute(practical.token).flatMap { token =>
+        practical.kind match
+          case CentralBreakTimingWitness.PracticalKind.Liquidation =>
+            row(
+              CentralLiquidationLabel,
+              s"The move releases central tension through ${BreakSurfaceToken.displayRoute(token)}.",
+              authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CentralLiquidation, token = Some(token)))
+            )
+          case CentralBreakTimingWitness.PracticalKind.Challenge =>
+            row(
+              CentralChallengeLabel,
+              s"The move challenges the center through ${BreakSurfaceToken.displayRoute(token)}.",
+              authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CentralChallenge, token = Some(token)))
+            )
       }
+    }
 
   private def openingPracticalGoalRow(
       ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
+      replayCache: PlayedTopPvReplayCache
   ): Option[MoveReviewPlayerSurfaceRow] =
-    if tacticalPracticalVeto(inputs, truthContract) then None
-    else
-      ctx.openingGoalEvaluation.flatMap { goal =>
-        if openingBreakGoalEligible(ctx, goal) then
+    ctx.openingGoalEvaluation.flatMap { goal =>
+      if openingBreakGoalEligible(ctx, goal, replayCache) then
+        row(
+          OpeningBreakLabel,
+          openingBreakText(goal),
+          authority = PracticalPlanAuthority
+        )
+      else
+        openingOutpostSquare(goal, replayCache).flatMap { square =>
           row(
-            OpeningBreakLabel,
-            openingBreakText(goal),
+            OpeningOutpostLabel,
+            s"The checked opening structure has put a knight on the $square outpost.",
             authority = PracticalPlanAuthority
           )
-        else
-          openingOutpostSquare(ctx, goal).flatMap { square =>
-            row(
-              OpeningOutpostLabel,
-              s"The checked opening structure has put a knight on the $square outpost.",
-              authority = PracticalPlanAuthority
-            )
-          }
-      }
+        }
+    }
 
-  private def openingBreakGoalEligible(ctx: NarrativeContext, goal: OpeningGoals.Evaluation): Boolean =
+  private def openingBreakGoalEligible(ctx: NarrativeContext, goal: OpeningGoals.Evaluation, replayCache: PlayedTopPvReplayCache): Boolean =
     openingGoalPracticalStatus(goal) &&
       goal.confidence >= 0.70 &&
       openingBreakGoalName(goal.goalName) &&
       openingGoalTriggeredByPlayedMove(ctx, goal) &&
-      playedOpeningBreakPawn(ctx).exists(playedMoveHasTopPvWitness(ctx, _))
+      replayCache.playedMove.exists { case (_, position, move) =>
+        move.piece.role == _root_.chess.Pawn &&
+          move.piece.color == position.color &&
+          move.dest.file.value >= 1 &&
+          move.dest.file.value <= 5
+      }
 
   private def openingGoalTriggeredByPlayedMove(ctx: NarrativeContext, goal: OpeningGoals.Evaluation): Boolean =
     ctx.playedMove
@@ -1158,7 +1216,7 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
         )
       )
 
-  private def openingOutpostSquare(ctx: NarrativeContext, goal: OpeningGoals.Evaluation): Option[String] =
+  private def openingOutpostSquare(goal: OpeningGoals.Evaluation, replayCache: PlayedTopPvReplayCache): Option[String] =
     Option.when(
       goal.status == OpeningGoals.Status.Achieved &&
         goal.confidence >= 0.85 &&
@@ -1166,8 +1224,11 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
     ) {
       goal.supportedEvidence.collectFirst {
         case OpeningOutpostEvidence(square)
-            if playedMoveIsOpeningKnightTo(ctx, square.toLowerCase) &&
-              ctx.playedMove.map(MoveReviewPvLine.normalizeUci).exists(playedMoveHasTopPvWitness(ctx, _)) =>
+            if replayCache.playedMove.exists { case (_, position, move) =>
+              move.piece.role == _root_.chess.Knight &&
+                move.piece.color == position.color &&
+                move.dest.key == square.toLowerCase
+            } =>
           square.toLowerCase
       }
     }.flatten
@@ -1213,19 +1274,6 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
   private def openingOutpostGoalName(name: String): Boolean =
     OpeningOutpostGoalNames.contains(Option(name).getOrElse("").trim.toLowerCase)
 
-  private def playedOpeningBreakPawn(ctx: NarrativeContext): Option[String] =
-    for
-      uci <- ctx.playedMove.map(MoveReviewPvLine.normalizeUci).filter(MoveReviewExchangeAnalyzer.isUciMove)
-      (position, move) <- playedMoveReplay(ctx)
-      if move.piece.role == _root_.chess.Pawn &&
-        move.piece.color == position.color &&
-        move.dest.file.value >= 1 &&
-        move.dest.file.value <= 5
-    yield uci
-
-  private def playedMoveHasTopPvWitness(ctx: NarrativeContext, playedUci: String): Boolean =
-    playedTopPvReplay(ctx, maxPlies = 1).exists(_.headOption.exists(_.uci == playedUci))
-
   private def playedTopPvReplay(
       ctx: NarrativeContext,
       maxPlies: Int
@@ -1237,6 +1285,22 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       if replay.headOption.exists(_.uci == played)
     yield replay
 
+  private final class PlayedTopPvReplayCache(ctx: NarrativeContext):
+    private val replays =
+      scala.collection.mutable.Map.empty[Int, Option[List[MoveReviewExchangeAnalyzer.BoundedReplayStep]]]
+
+    def replay(maxPlies: Int): Option[List[MoveReviewExchangeAnalyzer.BoundedReplayStep]] =
+      replays.getOrElseUpdate(maxPlies, playedTopPvReplay(ctx, maxPlies))
+
+    private lazy val playedStep: Option[MoveReviewExchangeAnalyzer.BoundedReplayStep] =
+      replay(maxPlies = 1).flatMap(_.headOption)
+
+    lazy val playedMove: Option[(String, chess.Position, chess.Move)] =
+      playedStep.map(step => (step.uci, step.before, step.move))
+
+    lazy val playedMoveAfter: Option[(String, chess.Position, chess.Move, chess.Position)] =
+      playedStep.map(step => (step.uci, step.before, step.move, step.after))
+
   private def explicitTargetSquares(ctx: NarrativeContext): List[String] =
     ctx.decision.toList
       .flatMap(_.focalPoint.collect { case TargetSquare(key) => key })
@@ -1245,9 +1309,7 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       .distinct
 
   private def playedTopPvRelationRow(
-      ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract],
+      replayCache: PlayedTopPvReplayCache,
       maxPlies: Int,
       label: String
   )(
@@ -1256,56 +1318,30 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
         witness => MoveReviewExchangeAnalyzer.relationPracticalSurfaceFromWitness(witness),
       labelFromSurface: MoveReviewExchangeAnalyzer.RelationPracticalSurface => Option[String] = _ => None
   ): Option[MoveReviewPlayerSurfaceRow] =
-    if tacticalPracticalVeto(inputs, truthContract) then None
-    else
-      for
-        played <- ctx.playedMove.map(MoveReviewPvLine.normalizeUci).filter(MoveReviewExchangeAnalyzer.isUciMove)
-        replay <- playedTopPvReplay(ctx, maxPlies = maxPlies)
-        witness <- witnessFromReplay(replay, played)
-        surface <- surfaceFromWitness(witness)
-        row <- row(
-          labelFromSurface(surface).getOrElse(label),
-          surface.text,
-          authority = PracticalPlanAuthority
-        )
-      yield row
+    for
+      replay <- replayCache.replay(maxPlies)
+      played <- replay.headOption.map(_.uci)
+      witness <- witnessFromReplay(replay, played)
+      surface <- surfaceFromWitness(witness)
+      row <- row(
+        labelFromSurface(surface).getOrElse(label),
+        surface.text,
+        authority = PracticalPlanAuthority
+      )
+    yield row
 
-  private def playedMoveIsOpeningKnightTo(ctx: NarrativeContext, square: String): Boolean =
-    playedMoveReplay(ctx).exists { case (position, move) =>
-      move.piece.role == _root_.chess.Knight &&
-        move.piece.color == position.color &&
-        move.dest.key == square
-    }
-
-  private def playedMoveReplay(ctx: NarrativeContext): Option[(chess.Position, chess.Move)] =
-    (for
-      position <- Fen.read(Standard, Fen.Full(ctx.fen))
-      uci <- ctx.playedMove.map(_.trim.toLowerCase).filter(_.matches("""[a-h][1-8][a-h][1-8][qrbn]?"""))
-      move <- Uci(uci).collect { case move: Uci.Move => move }.flatMap(position.move(_).toOption)
-    yield position -> move)
-
-  private def knightOutpostPracticalRow(
-      ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
-  ): Option[MoveReviewPlayerSurfaceRow] =
-    if tacticalPracticalVeto(inputs, truthContract) then None
-    else
-      for
-        played <- ctx.playedMove.map(MoveReviewPvLine.normalizeUci).filter(MoveReviewExchangeAnalyzer.isUciMove)
-        if playedMoveHasTopPvWitness(ctx, played)
-        (position, move) <- playedMoveReplay(ctx)
-        if knightOutpostMove(position, move)
-        afterFen <- MoveReviewPvLine.legalFenAfter(ctx.fen, played)
-        after <- Fen.read(Standard, Fen.Full(afterFen))
-        if after.board.pieceAt(move.dest).exists(piece => piece.color == move.piece.color && piece.role == _root_.chess.Knight)
-        if outpostSquare(after.board, move.dest, move.piece.color)
-        row <- row(
-          KnightOutpostLabel,
-          s"The checked line puts the knight on the ${move.dest.key} outpost.",
-          authority = PracticalPlanAuthority
-        )
-      yield row
+  private def knightOutpostPracticalRow(replayCache: PlayedTopPvReplayCache): Option[MoveReviewPlayerSurfaceRow] =
+    for
+      (_, position, move, after) <- replayCache.playedMoveAfter
+      if knightOutpostMove(position, move)
+      if after.board.pieceAt(move.dest).exists(piece => piece.color == move.piece.color && piece.role == _root_.chess.Knight)
+      if outpostSquare(after.board, move.dest, move.piece.color)
+      row <- row(
+        KnightOutpostLabel,
+        s"The checked line puts the knight on the ${move.dest.key} outpost.",
+        authority = PracticalPlanAuthority
+      )
+    yield row
 
   private def knightOutpostMove(position: chess.Position, move: chess.Move): Boolean =
     !move.captures &&
@@ -1324,28 +1360,18 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
     if color.white then square.rank.value >= _root_.chess.Rank.Fourth.value
     else square.rank.value <= _root_.chess.Rank.Fifth.value
 
-  private def bishopPairPracticalRow(
-      ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
-  ): Option[MoveReviewPlayerSurfaceRow] =
-    if tacticalPracticalVeto(inputs, truthContract) then None
-    else
-      for
-        played <- ctx.playedMove.map(MoveReviewPvLine.normalizeUci).filter(MoveReviewExchangeAnalyzer.isUciMove)
-        if playedMoveHasTopPvWitness(ctx, played)
-        (position, move) <- playedMoveReplay(ctx)
-        if bishopPairCaptureMove(position, move)
-        afterFen <- MoveReviewPvLine.legalFenAfter(ctx.fen, played)
-        after <- Fen.read(Standard, Fen.Full(afterFen))
-        if after.board.pieceAt(move.dest).exists(piece => piece.color == move.piece.color && piece.role == _root_.chess.Bishop)
-        if bishopPairFor(after.board, move.piece.color) && !bishopPairFor(after.board, !move.piece.color)
-        row <- row(
-          BishopPairLabel,
-          "The checked capture keeps the bishop pair on the board.",
-          authority = PracticalPlanAuthority
-        )
-      yield row
+  private def bishopPairPracticalRow(replayCache: PlayedTopPvReplayCache): Option[MoveReviewPlayerSurfaceRow] =
+    for
+      (_, position, move, after) <- replayCache.playedMoveAfter
+      if bishopPairCaptureMove(position, move)
+      if after.board.pieceAt(move.dest).exists(piece => piece.color == move.piece.color && piece.role == _root_.chess.Bishop)
+      if bishopPairFor(after.board, move.piece.color) && !bishopPairFor(after.board, !move.piece.color)
+      row <- row(
+        BishopPairLabel,
+        "The checked capture keeps the bishop pair on the board.",
+        authority = PracticalPlanAuthority
+      )
+    yield row
 
   private def bishopPairCaptureMove(position: chess.Position, move: chess.Move): Boolean =
     move.captures &&
@@ -1355,27 +1381,17 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
   private def bishopPairFor(board: chess.Board, color: chess.Color): Boolean =
     board.byPiece(color, _root_.chess.Bishop).count >= 2
 
-  private def oppositeColorBishopsPracticalRow(
-      ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
-  ): Option[MoveReviewPlayerSurfaceRow] =
-    if tacticalPracticalVeto(inputs, truthContract) then None
-    else
-      for
-        played <- ctx.playedMove.map(MoveReviewPvLine.normalizeUci).filter(MoveReviewExchangeAnalyzer.isUciMove)
-        if playedMoveHasTopPvWitness(ctx, played)
-        (position, move) <- playedMoveReplay(ctx)
-        if materialClarifyingCapture(position, move)
-        afterFen <- MoveReviewPvLine.legalFenAfter(ctx.fen, played)
-        after <- Fen.read(Standard, Fen.Full(afterFen))
-        if oppositeColorBishopsOnly(after.board)
-        row <- row(
-          OppositeColorBishopsLabel,
-          "The checked capture leaves opposite-colored bishops on the board.",
-          authority = PracticalPlanAuthority
-        )
-      yield row
+  private def oppositeColorBishopsPracticalRow(replayCache: PlayedTopPvReplayCache): Option[MoveReviewPlayerSurfaceRow] =
+    for
+      (_, position, move, after) <- replayCache.playedMoveAfter
+      if materialClarifyingCapture(position, move)
+      if oppositeColorBishopsOnly(after.board)
+      row <- row(
+        OppositeColorBishopsLabel,
+        "The checked capture leaves opposite-colored bishops on the board.",
+        authority = PracticalPlanAuthority
+      )
+    yield row
 
   private def materialClarifyingCapture(position: chess.Position, move: chess.Move): Boolean =
     move.captures && move.piece.color == position.color
@@ -1392,55 +1408,46 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
 
   private def quietIntentRow(
       ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
+      inputs: QuestionPlannerInputs
   ): Option[MoveReviewPlayerSurfaceRow] =
-    if tacticalPracticalVeto(inputs, truthContract) then None
-    else
-      inputs.quietIntent
-        .filter(quietIntentPubliclySupported)
-        .flatMap(intent => quietIntentLegalMove(ctx, intent).map(move => intent -> move))
-        .flatMap { case (intent, move) =>
-          val square = move.dest.key
-          val piece = quietRoleLabel(move.piece.role)
-          intent.intentClass match
-            case QuietMoveIntentClass.PieceImprovement =>
-              row(
-                PieceImprovementLabel,
-                s"The checked move improves the $piece by placing it on $square.",
-                authority = PracticalPlanAuthority
-              )
-            case QuietMoveIntentClass.KingSafety =>
-              val text =
-                if quietCastleMove(move) then "The checked move castles to improve king safety."
-                else s"The checked move brings the king to $square for safety."
-              row(KingSafetyLabel, text, authority = PracticalPlanAuthority)
-            case QuietMoveIntentClass.TechnicalConversionStep =>
-              row(
-                TechnicalConversionLabel,
-                s"The checked move improves the $piece on $square for conversion.",
-                authority = PracticalPlanAuthority
-              )
-            case QuietMoveIntentClass.CounterplayRestraint => None
-        }
+    inputs.quietIntent
+      .filter(quietIntentPubliclySupported)
+      .flatMap(intent => quietIntentLegalMove(ctx, intent).map(move => intent -> move))
+      .flatMap { case (intent, move) =>
+        val square = move.dest.key
+        val piece = quietRoleLabel(move.piece.role)
+        intent.intentClass match
+          case QuietMoveIntentClass.PieceImprovement =>
+            row(
+              PieceImprovementLabel,
+              s"The checked move improves the $piece by placing it on $square.",
+              authority = PracticalPlanAuthority
+            )
+          case QuietMoveIntentClass.KingSafety =>
+            val text =
+              if quietCastleMove(move) then "The checked move castles to improve king safety."
+              else s"The checked move brings the king to $square for safety."
+            row(KingSafetyLabel, text, authority = PracticalPlanAuthority)
+          case QuietMoveIntentClass.TechnicalConversionStep =>
+            row(
+              TechnicalConversionLabel,
+              s"The checked move improves the $piece on $square for conversion.",
+              authority = PracticalPlanAuthority
+            )
+          case QuietMoveIntentClass.CounterplayRestraint => None
+      }
 
   private def flankPawnPracticalRow(
       ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
+      replayCache: PlayedTopPvReplayCache
   ): Option[MoveReviewPlayerSurfaceRow] =
-    if tacticalPracticalVeto(inputs, truthContract) then None
-    else
-      for
-        played <- ctx.playedMove.map(MoveReviewPvLine.normalizeUci).filter(MoveReviewExchangeAnalyzer.isUciMove)
-        if playedMoveHasTopPvWitness(ctx, played)
-        (_, move) <- playedMoveReplay(ctx)
-        if rookPawnAdvance(move)
-        before <- PositionAnalyzer.extractStrategicState(ctx.fen)
-        afterFen <- MoveReviewPvLine.legalFenAfter(ctx.fen, played)
-        after <- PositionAnalyzer.extractStrategicState(afterFen)
-        row <- flankPawnRowFor(move, before, after)
-      yield row
+    for
+      (_, _, move, afterPosition) <- replayCache.playedMoveAfter
+      if rookPawnAdvance(move)
+      before <- PositionAnalyzer.extractStrategicState(ctx.fen)
+      after <- PositionAnalyzer.extractStrategicState(Fen.write(afterPosition).value)
+      row <- flankPawnRowFor(move, before, after)
+    yield row
 
   private def flankPawnRowFor(
       move: chess.Move,
@@ -1471,24 +1478,16 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       move.orig.file == move.dest.file &&
       (move.dest.file == _root_.chess.File.A || move.dest.file == _root_.chess.File.H)
 
-  private def rookLiftPracticalRow(
-      ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
-  ): Option[MoveReviewPlayerSurfaceRow] =
-    if tacticalPracticalVeto(inputs, truthContract) then None
-    else
-      for
-        played <- ctx.playedMove.map(MoveReviewPvLine.normalizeUci).filter(MoveReviewExchangeAnalyzer.isUciMove)
-        if playedMoveHasTopPvWitness(ctx, played)
-        (position, move) <- playedMoveReplay(ctx)
-        if rookLiftMove(position, move)
-        row <- row(
-          RookLiftLabel,
-          s"The checked line lifts the rook to ${move.dest.key} as attacking infrastructure.",
-          authority = PracticalPlanAuthority
-        )
-      yield row
+  private def rookLiftPracticalRow(replayCache: PlayedTopPvReplayCache): Option[MoveReviewPlayerSurfaceRow] =
+    for
+      (_, position, move) <- replayCache.playedMove
+      if rookLiftMove(position, move)
+      row <- row(
+        RookLiftLabel,
+        s"The checked line lifts the rook to ${move.dest.key} as attacking infrastructure.",
+        authority = PracticalPlanAuthority
+      )
+    yield row
 
   private def rookLiftMove(position: chess.Position, move: chess.Move): Boolean =
     val backRank = if move.piece.color.white then _root_.chess.Rank.First else _root_.chess.Rank.Eighth
@@ -1499,27 +1498,17 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       move.orig.rank == backRank &&
       move.dest.rank == liftRank
 
-  private def seventhRankPracticalRow(
-      ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
-  ): Option[MoveReviewPlayerSurfaceRow] =
-    if tacticalPracticalVeto(inputs, truthContract) then None
-    else
-      for
-        played <- ctx.playedMove.map(MoveReviewPvLine.normalizeUci).filter(MoveReviewExchangeAnalyzer.isUciMove)
-        if playedMoveHasTopPvWitness(ctx, played)
-        (position, move) <- playedMoveReplay(ctx)
-        if seventhRankEntryMove(position, move)
-        afterFen <- MoveReviewPvLine.legalFenAfter(ctx.fen, played)
-        after <- Fen.read(Standard, Fen.Full(afterFen))
-        if after.board.pieceAt(move.dest).exists(piece => piece.color == move.piece.color && piece.role == _root_.chess.Rook)
-        row <- row(
-          SeventhRankEntryLabel,
-          seventhRankEntryText(move),
-          authority = PracticalPlanAuthority
-        )
-      yield row
+  private def seventhRankPracticalRow(replayCache: PlayedTopPvReplayCache): Option[MoveReviewPlayerSurfaceRow] =
+    for
+      (_, position, move, after) <- replayCache.playedMoveAfter
+      if seventhRankEntryMove(position, move)
+      if after.board.pieceAt(move.dest).exists(piece => piece.color == move.piece.color && piece.role == _root_.chess.Rook)
+      row <- row(
+        SeventhRankEntryLabel,
+        seventhRankEntryText(move),
+        authority = PracticalPlanAuthority
+      )
+    yield row
 
   private def seventhRankEntryMove(position: chess.Position, move: chess.Move): Boolean =
     val entryRank = if move.piece.color.white then _root_.chess.Rank.Seventh else _root_.chess.Rank.Second
@@ -1533,27 +1522,17 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
     val rankLabel = if move.piece.color.white then "seventh rank" else "second rank"
     s"The checked line puts the rook on the $rankLabel at ${move.dest.key}."
 
-  private def rookBehindPasserPracticalRow(
-      ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
-  ): Option[MoveReviewPlayerSurfaceRow] =
-    if tacticalPracticalVeto(inputs, truthContract) then None
-    else
-      for
-        played <- ctx.playedMove.map(MoveReviewPvLine.normalizeUci).filter(MoveReviewExchangeAnalyzer.isUciMove)
-        if playedMoveHasTopPvWitness(ctx, played)
-        (position, move) <- playedMoveReplay(ctx)
-        if rookBehindPasserMove(position, move)
-        afterFen <- MoveReviewPvLine.legalFenAfter(ctx.fen, played)
-        after <- Fen.read(Standard, Fen.Full(afterFen))
-        pawn <- rookBehindPassedPawn(after, move)
-        row <- row(
-          RookBehindPasserLabel,
-          s"The checked line places the rook behind the passed pawn on ${pawn.key}.",
-          authority = PracticalPlanAuthority
-        )
-      yield row
+  private def rookBehindPasserPracticalRow(replayCache: PlayedTopPvReplayCache): Option[MoveReviewPlayerSurfaceRow] =
+    for
+      (_, position, move, after) <- replayCache.playedMoveAfter
+      if rookBehindPasserMove(position, move)
+      pawn <- rookBehindPassedPawn(after, move)
+      row <- row(
+        RookBehindPasserLabel,
+        s"The checked line places the rook behind the passed pawn on ${pawn.key}.",
+        authority = PracticalPlanAuthority
+      )
+    yield row
 
   private def rookBehindPasserMove(position: chess.Position, move: chess.Move): Boolean =
     !move.captures &&
@@ -1572,27 +1551,17 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
         .filter(_ => position.board.pieceAt(move.dest).exists(piece => piece.color == color && piece.role == _root_.chess.Rook))
     }.flatten
 
-  private def passerBlockadePracticalRow(
-      ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
-  ): Option[MoveReviewPlayerSurfaceRow] =
-    if tacticalPracticalVeto(inputs, truthContract) then None
-    else
-      for
-        played <- ctx.playedMove.map(MoveReviewPvLine.normalizeUci).filter(MoveReviewExchangeAnalyzer.isUciMove)
-        if playedMoveHasTopPvWitness(ctx, played)
-        (position, move) <- playedMoveReplay(ctx)
-        if passerBlockadeMove(position, move)
-        afterFen <- MoveReviewPvLine.legalFenAfter(ctx.fen, played)
-        after <- Fen.read(Standard, Fen.Full(afterFen))
-        pawn <- blockadedPassedPawn(after, move)
-        row <- row(
-          PasserBlockadeLabel,
-          s"The checked line blockades the passed pawn on ${pawn.key} with the knight.",
-          authority = PracticalPlanAuthority
-        )
-      yield row
+  private def passerBlockadePracticalRow(replayCache: PlayedTopPvReplayCache): Option[MoveReviewPlayerSurfaceRow] =
+    for
+      (_, position, move, after) <- replayCache.playedMoveAfter
+      if passerBlockadeMove(position, move)
+      pawn <- blockadedPassedPawn(after, move)
+      row <- row(
+        PasserBlockadeLabel,
+        s"The checked line blockades the passed pawn on ${pawn.key} with the knight.",
+        authority = PracticalPlanAuthority
+      )
+    yield row
 
   private def passerBlockadeMove(position: chess.Position, move: chess.Move): Boolean =
     !move.captures &&
@@ -1615,28 +1584,18 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
     if color.white then square.rank.value >= _root_.chess.Rank.Fourth.value
     else square.rank.value <= _root_.chess.Rank.Fifth.value
 
-  private def fileEntryPracticalRow(
-      ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
-  ): Option[MoveReviewPlayerSurfaceRow] =
-    if tacticalPracticalVeto(inputs, truthContract) then None
-    else
-      for
-        played <- ctx.playedMove.map(MoveReviewPvLine.normalizeUci).filter(MoveReviewExchangeAnalyzer.isUciMove)
-        if playedMoveHasTopPvWitness(ctx, played)
-        (position, move) <- playedMoveReplay(ctx)
-        if majorFileEntryMove(position, move)
-        afterFen <- MoveReviewPvLine.legalFenAfter(ctx.fen, played)
-        after <- Fen.read(Standard, Fen.Full(afterFen))
-        if after.board.pieceAt(move.dest).exists(piece => piece.color == move.piece.color && piece.role == move.piece.role)
-        fileKind <- fileEntryKind(after.board, move)
-        row <- row(
-          FileEntryLabel,
-          s"The checked line places the ${quietRoleLabel(move.piece.role)} on the $fileKind ${move.dest.file.char.toString.toLowerCase}-file.",
-          authority = PracticalPlanAuthority
-        )
-      yield row
+  private def fileEntryPracticalRow(replayCache: PlayedTopPvReplayCache): Option[MoveReviewPlayerSurfaceRow] =
+    for
+      (_, position, move, after) <- replayCache.playedMoveAfter
+      if majorFileEntryMove(position, move)
+      if after.board.pieceAt(move.dest).exists(piece => piece.color == move.piece.color && piece.role == move.piece.role)
+      fileKind <- fileEntryKind(after.board, move)
+      row <- row(
+        FileEntryLabel,
+        s"The checked line places the ${quietRoleLabel(move.piece.role)} on the $fileKind ${move.dest.file.char.toString.toLowerCase}-file.",
+        authority = PracticalPlanAuthority
+      )
+    yield row
 
   private def majorFileEntryMove(position: chess.Position, move: chess.Move): Boolean =
     val backRank = if move.piece.color.white then _root_.chess.Rank.First else _root_.chess.Rank.Eighth
@@ -1660,51 +1619,29 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
     val theirs = board.pawns & board.byColor(!color) & mask
     ours.isEmpty && theirs.nonEmpty
 
-  private def xrayPracticalRow(
-      ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
-  ): Option[MoveReviewPlayerSurfaceRow] =
-    playedTopPvRelationRow(ctx, inputs, truthContract, maxPlies = 1, label = XRayPressureLabel)(
+  private def xrayPracticalRow(replayCache: PlayedTopPvReplayCache): Option[MoveReviewPlayerSurfaceRow] =
+    playedTopPvRelationRow(replayCache, maxPlies = 1, label = XRayPressureLabel)(
       (replay, played) => MoveReviewExchangeAnalyzer.xrayWitness(replay, played)
     )
 
-  private def deflectionPracticalRow(
-      ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
-  ): Option[MoveReviewPlayerSurfaceRow] =
-    playedTopPvRelationRow(ctx, inputs, truthContract, maxPlies = 2, label = DeflectionLabel)(
+  private def deflectionPracticalRow(replayCache: PlayedTopPvReplayCache): Option[MoveReviewPlayerSurfaceRow] =
+    playedTopPvRelationRow(replayCache, maxPlies = 2, label = DeflectionLabel)(
       (replay, played) => MoveReviewExchangeAnalyzer.deflectionWitness(replay, played)
     )
 
-  private def clearancePracticalRow(
-      ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
-  ): Option[MoveReviewPlayerSurfaceRow] =
-    playedTopPvRelationRow(ctx, inputs, truthContract, maxPlies = 1, label = ClearanceLabel)(
-      (replay, played) => MoveReviewExchangeAnalyzer.clearanceWitness(replay, played)
+  private def discoveredAttackPracticalRow(replayCache: PlayedTopPvReplayCache): Option[MoveReviewPlayerSurfaceRow] =
+    playedTopPvRelationRow(replayCache, maxPlies = 1, label = DiscoveredAttackLabel)(
+      (replay, played) => MoveReviewExchangeAnalyzer.discoveredAttackWitness(replay, played)
     )
 
-  private def backRankMatePracticalRow(
-      ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
-  ): Option[MoveReviewPlayerSurfaceRow] =
-    playedTopPvRelationRow(ctx, inputs, truthContract, maxPlies = 1, label = BackRankMateLabel)(
+  private def backRankMatePracticalRow(replayCache: PlayedTopPvReplayCache): Option[MoveReviewPlayerSurfaceRow] =
+    playedTopPvRelationRow(replayCache, maxPlies = 1, label = BackRankMateLabel)(
       (replay, played) => MoveReviewExchangeAnalyzer.backRankMateWitness(replay, played)
     )
 
-  private def mateNetPracticalRow(
-      ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
-  ): Option[MoveReviewPlayerSurfaceRow] =
+  private def mateNetPracticalRow(replayCache: PlayedTopPvReplayCache): Option[MoveReviewPlayerSurfaceRow] =
     playedTopPvRelationRow(
-      ctx,
-      inputs,
-      truthContract,
+      replayCache,
       maxPlies = 1,
       label = MateNetLabel
     )(
@@ -1714,166 +1651,132 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       labelFromSurface = surface => surface.patternId.flatMap(MatePatternLabels.get)
     )
 
-  private def greekGiftPracticalRow(
-      ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
-  ): Option[MoveReviewPlayerSurfaceRow] =
-    playedTopPvRelationRow(ctx, inputs, truthContract, maxPlies = 8, label = GreekGiftLabel)(
-      (replay, played) => MoveReviewExchangeAnalyzer.greekGiftWitness(replay.take(1), played, continuationLines = List(replay.map(_.uci)))
+  private def greekGiftPracticalRow(replayCache: PlayedTopPvReplayCache): Option[MoveReviewPlayerSurfaceRow] =
+    playedTopPvRelationRow(replayCache, maxPlies = 8, label = GreekGiftLabel)(
+      (replay, played) =>
+        MoveReviewExchangeAnalyzer.greekGiftWitness(
+          replay.take(1),
+          played,
+          continuationLines = List(replay.map(_.uci))
+        )
     )
 
-  private def doubleCheckPracticalRow(
-      ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
-  ): Option[MoveReviewPlayerSurfaceRow] =
-    playedTopPvRelationRow(ctx, inputs, truthContract, maxPlies = 1, label = DoubleCheckLabel)(
+  private def doubleCheckPracticalRow(replayCache: PlayedTopPvReplayCache): Option[MoveReviewPlayerSurfaceRow] =
+    playedTopPvRelationRow(replayCache, maxPlies = 1, label = DoubleCheckLabel)(
       (replay, played) => MoveReviewExchangeAnalyzer.doubleCheckWitness(replay, played)
     )
 
-  private def forkPracticalRow(
+  private def defenderTradePracticalRow(
       ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
+      replayCache: PlayedTopPvReplayCache
   ): Option[MoveReviewPlayerSurfaceRow] =
-    playedTopPvRelationRow(ctx, inputs, truthContract, maxPlies = 1, label = ForkLabel)(
+    playedTopPvRelationRow(replayCache, maxPlies = 3, label = DefenderTradeLabel)(
+      (replay, played) => MoveReviewExchangeAnalyzer.defenderTradeRelationWitness(replay, played, explicitTargetSquares(ctx))
+    )
+
+  private def badPieceTradePracticalRow(replayCache: PlayedTopPvReplayCache): Option[MoveReviewPlayerSurfaceRow] =
+    playedTopPvRelationRow(replayCache, maxPlies = 4, label = BadPieceTradeLabel)(
+      (replay, played) => MoveReviewExchangeAnalyzer.badPieceLiquidationRelationWitness(replay, played)
+    )
+
+  private def queenTradePracticalRow(replayCache: PlayedTopPvReplayCache): Option[MoveReviewPlayerSurfaceRow] =
+    for
+      replay <- replayCache.replay(maxPlies = 2)
+      _ <- MoveReviewExchangeAnalyzer.queenTradeShieldLine(replay)
+      row <- row(
+        QueenTradeLabel,
+        "This exchange moves the game into the queenless branch.",
+        authority = PracticalPlanAuthority
+      )
+    yield row
+
+  private def forkPracticalRow(replayCache: PlayedTopPvReplayCache): Option[MoveReviewPlayerSurfaceRow] =
+    playedTopPvRelationRow(replayCache, maxPlies = 1, label = ForkLabel)(
       (replay, played) => MoveReviewExchangeAnalyzer.forkWitness(replay, played)
     )
 
-  private def overloadPracticalRow(
-      ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
-  ): Option[MoveReviewPlayerSurfaceRow] =
-    playedTopPvRelationRow(ctx, inputs, truthContract, maxPlies = 1, label = OverloadedDefenderLabel)(
+  private def overloadPracticalRow(replayCache: PlayedTopPvReplayCache): Option[MoveReviewPlayerSurfaceRow] =
+    playedTopPvRelationRow(replayCache, maxPlies = 1, label = OverloadedDefenderLabel)(
       (replay, played) => MoveReviewExchangeAnalyzer.overloadWitness(replay, played)
     )
 
-  private def interferencePracticalRow(
-      ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
-  ): Option[MoveReviewPlayerSurfaceRow] =
-    playedTopPvRelationRow(ctx, inputs, truthContract, maxPlies = 1, label = InterferenceLabel)(
+  private def interferencePracticalRow(replayCache: PlayedTopPvReplayCache): Option[MoveReviewPlayerSurfaceRow] =
+    playedTopPvRelationRow(replayCache, maxPlies = 1, label = InterferenceLabel)(
       (replay, played) => MoveReviewExchangeAnalyzer.interferenceWitness(replay, played)
     )
 
-  private def hangingPiecePracticalRow(
-      ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
-  ): Option[MoveReviewPlayerSurfaceRow] =
-    playedTopPvRelationRow(ctx, inputs, truthContract, maxPlies = 1, label = HangingPieceLabel)(
+  private def hangingPiecePracticalRow(replayCache: PlayedTopPvReplayCache): Option[MoveReviewPlayerSurfaceRow] =
+    playedTopPvRelationRow(replayCache, maxPlies = 1, label = HangingPieceLabel)(
       (replay, played) => MoveReviewExchangeAnalyzer.hangingPieceWitness(replay, played)
     )
 
   private def trappedPiecePracticalRow(
       ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
+      replayCache: PlayedTopPvReplayCache
   ): Option[MoveReviewPlayerSurfaceRow] =
-    playedTopPvRelationRow(ctx, inputs, truthContract, maxPlies = 1, label = TrappedPieceLabel)(
+    playedTopPvRelationRow(replayCache, maxPlies = 1, label = TrappedPieceLabel)(
       (replay, played) => MoveReviewExchangeAnalyzer.trappedPieceWitness(replay, played, explicitTargetSquares(ctx))
     )
 
   private def dominationPracticalRow(
       ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
+      replayCache: PlayedTopPvReplayCache
   ): Option[MoveReviewPlayerSurfaceRow] =
-    playedTopPvRelationRow(ctx, inputs, truthContract, maxPlies = 1, label = DominationLabel)(
+    playedTopPvRelationRow(replayCache, maxPlies = 1, label = DominationLabel)(
       (replay, played) => MoveReviewExchangeAnalyzer.dominationWitness(replay, played, explicitTargetSquares(ctx))
     )
 
   private def zwischenzugPracticalRow(
       ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
+      replayCache: PlayedTopPvReplayCache
   ): Option[MoveReviewPlayerSurfaceRow] =
-    playedTopPvRelationRow(ctx, inputs, truthContract, maxPlies = 2, label = ZwischenzugLabel)(
+    playedTopPvRelationRow(replayCache, maxPlies = 2, label = ZwischenzugLabel)(
       (replay, played) => MoveReviewExchangeAnalyzer.zwischenzugWitness(replay, played, explicitTargetSquares(ctx))
     )
 
-  private def skewerPracticalRow(
-      ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
-  ): Option[MoveReviewPlayerSurfaceRow] =
-    playedTopPvRelationRow(ctx, inputs, truthContract, maxPlies = 1, label = SkewerLabel)(
+  private def skewerPracticalRow(replayCache: PlayedTopPvReplayCache): Option[MoveReviewPlayerSurfaceRow] =
+    playedTopPvRelationRow(replayCache, maxPlies = 1, label = SkewerLabel)(
       (replay, played) => MoveReviewExchangeAnalyzer.skewerWitness(replay, played)
     )
 
-  private def batteryPracticalRow(
-      ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
-  ): Option[MoveReviewPlayerSurfaceRow] =
-    playedTopPvRelationRow(ctx, inputs, truthContract, maxPlies = 1, label = BatteryPressureLabel)(
+  private def batteryPracticalRow(replayCache: PlayedTopPvReplayCache): Option[MoveReviewPlayerSurfaceRow] =
+    playedTopPvRelationRow(replayCache, maxPlies = 1, label = BatteryPressureLabel)(
       (replay, played) => MoveReviewExchangeAnalyzer.batteryWitness(replay, played)
     )
 
-  private def pinPracticalRow(
-      ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
-  ): Option[MoveReviewPlayerSurfaceRow] =
-    playedTopPvRelationRow(ctx, inputs, truthContract, maxPlies = 1, label = PinPressureLabel)(
+  private def pinPracticalRow(replayCache: PlayedTopPvReplayCache): Option[MoveReviewPlayerSurfaceRow] =
+    playedTopPvRelationRow(replayCache, maxPlies = 1, label = PinPressureLabel)(
       (replay, played) => MoveReviewExchangeAnalyzer.pinWitness(replay, played)
     )
 
-  private def decoyPracticalRow(
-      ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
-  ): Option[MoveReviewPlayerSurfaceRow] =
-    playedTopPvRelationRow(ctx, inputs, truthContract, maxPlies = 3, label = DecoyLabel)(
+  private def decoyPracticalRow(replayCache: PlayedTopPvReplayCache): Option[MoveReviewPlayerSurfaceRow] =
+    playedTopPvRelationRow(replayCache, maxPlies = 3, label = DecoyLabel)(
       (replay, played) => MoveReviewExchangeAnalyzer.decoyWitness(replay, played)
     )
 
-  private def connectedRooksPracticalRow(
-      ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
-  ): Option[MoveReviewPlayerSurfaceRow] =
-    if tacticalPracticalVeto(inputs, truthContract) then None
-    else
-      for
-        played <- ctx.playedMove.map(MoveReviewPvLine.normalizeUci).filter(MoveReviewExchangeAnalyzer.isUciMove)
-        if playedMoveHasTopPvWitness(ctx, played)
-        (position, move) <- playedMoveReplay(ctx)
-        if rookCoordinationMove(position, move)
-        afterFen <- MoveReviewPvLine.legalFenAfter(ctx.fen, played)
-        after <- Fen.read(Standard, Fen.Full(afterFen))
-        rank <- connectedRooksRank(after.board, move.piece.color)
-        row <- row(
-          ConnectedRooksLabel,
-          s"The checked line connects the rooks on the ${rankLabel(rank)} rank.",
-          authority = PracticalPlanAuthority
-        )
-      yield row
+  private def connectedRooksPracticalRow(replayCache: PlayedTopPvReplayCache): Option[MoveReviewPlayerSurfaceRow] =
+    for
+      (_, position, move, after) <- replayCache.playedMoveAfter
+      if rookCoordinationMove(position, move)
+      rank <- connectedRooksRank(after.board, move.piece.color)
+      row <- row(
+        ConnectedRooksLabel,
+        s"The checked line connects the rooks on the ${rankLabel(rank)} rank.",
+        authority = PracticalPlanAuthority
+      )
+    yield row
 
-  private def doubledRooksPracticalRow(
-      ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
-  ): Option[MoveReviewPlayerSurfaceRow] =
-    if tacticalPracticalVeto(inputs, truthContract) then None
-    else
-      for
-        played <- ctx.playedMove.map(MoveReviewPvLine.normalizeUci).filter(MoveReviewExchangeAnalyzer.isUciMove)
-        if playedMoveHasTopPvWitness(ctx, played)
-        (position, move) <- playedMoveReplay(ctx)
-        if rookCoordinationMove(position, move)
-        afterFen <- MoveReviewPvLine.legalFenAfter(ctx.fen, played)
-        after <- Fen.read(Standard, Fen.Full(afterFen))
-        file <- doubledRooksFile(after.board, move.piece.color)
-        row <- row(
-          DoubledRooksLabel,
-          s"The checked line doubles the rooks on the ${file.char.toString.toLowerCase}-file.",
-          authority = PracticalPlanAuthority
-        )
-      yield row
+  private def doubledRooksPracticalRow(replayCache: PlayedTopPvReplayCache): Option[MoveReviewPlayerSurfaceRow] =
+    for
+      (_, position, move, after) <- replayCache.playedMoveAfter
+      if rookCoordinationMove(position, move)
+      file <- doubledRooksFile(after.board, move.piece.color)
+      row <- row(
+        DoubledRooksLabel,
+        s"The checked line doubles the rooks on the ${file.char.toString.toLowerCase}-file.",
+        authority = PracticalPlanAuthority
+      )
+    yield row
 
   private def rookCoordinationMove(position: chess.Position, move: chess.Move): Boolean =
     !move.captures &&
@@ -1917,27 +1820,17 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       case _root_.chess.Rank.Seventh => "seventh"
       case _root_.chess.Rank.Eighth  => "eighth"
 
-  private def connectedPassersPracticalRow(
-      ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
-  ): Option[MoveReviewPlayerSurfaceRow] =
-    if tacticalPracticalVeto(inputs, truthContract) then None
-    else
-      for
-        played <- ctx.playedMove.map(MoveReviewPvLine.normalizeUci).filter(MoveReviewExchangeAnalyzer.isUciMove)
-        if playedMoveHasTopPvWitness(ctx, played)
-        (position, move) <- playedMoveReplay(ctx)
-        if endgamePawnAdvanceMove(position, move)
-        afterFen <- MoveReviewPvLine.legalFenAfter(ctx.fen, played)
-        after <- Fen.read(Standard, Fen.Full(afterFen))
-        pair <- connectedPassedPair(after, move.piece.color)
-        row <- row(
-          ConnectedPassersLabel,
-          s"The checked line leaves connected passers on ${pair._1.key} and ${pair._2.key}.",
-          authority = PracticalPlanAuthority
-        )
-      yield row
+  private def connectedPassersPracticalRow(replayCache: PlayedTopPvReplayCache): Option[MoveReviewPlayerSurfaceRow] =
+    for
+      (_, position, move, after) <- replayCache.playedMoveAfter
+      if endgamePawnAdvanceMove(position, move)
+      pair <- connectedPassedPair(after, move.piece.color)
+      row <- row(
+        ConnectedPassersLabel,
+        s"The checked line leaves connected passers on ${pair._1.key} and ${pair._2.key}.",
+        authority = PracticalPlanAuthority
+      )
+    yield row
 
   private def connectedPassedPair(position: chess.Position, color: chess.Color): Option[(chess.Square, chess.Square)] =
     Option.when(position.board.occupied.count <= 12) {
@@ -1960,27 +1853,17 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       }.flatten
     }.flatten
 
-  private def outsidePasserPracticalRow(
-      ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
-  ): Option[MoveReviewPlayerSurfaceRow] =
-    if tacticalPracticalVeto(inputs, truthContract) then None
-    else
-      for
-        played <- ctx.playedMove.map(MoveReviewPvLine.normalizeUci).filter(MoveReviewExchangeAnalyzer.isUciMove)
-        if playedMoveHasTopPvWitness(ctx, played)
-        (position, move) <- playedMoveReplay(ctx)
-        if endgamePawnAdvanceMove(position, move)
-        afterFen <- MoveReviewPvLine.legalFenAfter(ctx.fen, played)
-        after <- Fen.read(Standard, Fen.Full(afterFen))
-        passer <- outsidePassedPawn(after, move.piece.color)
-        row <- row(
-          OutsidePasserLabel,
-          s"The checked line leaves an outside passer on ${passer.key}.",
-          authority = PracticalPlanAuthority
-        )
-      yield row
+  private def outsidePasserPracticalRow(replayCache: PlayedTopPvReplayCache): Option[MoveReviewPlayerSurfaceRow] =
+    for
+      (_, position, move, after) <- replayCache.playedMoveAfter
+      if endgamePawnAdvanceMove(position, move)
+      passer <- outsidePassedPawn(after, move.piece.color)
+      row <- row(
+        OutsidePasserLabel,
+        s"The checked line leaves an outside passer on ${passer.key}.",
+        authority = PracticalPlanAuthority
+      )
+    yield row
 
   private def outsidePassedPawn(position: chess.Position, color: chess.Color): Option[chess.Square] =
     Option.when(position.board.occupied.count <= 12) {
@@ -2019,35 +1902,17 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
     enemyKing.file == passer.file &&
       (if color.white then enemyKing.rank.value > passer.rank.value else enemyKing.rank.value < passer.rank.value)
 
-  private def passedPawnPracticalRow(
-      ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
-  ): Option[MoveReviewPlayerSurfaceRow] =
-    if tacticalPracticalVeto(inputs, truthContract) then None
-    else
-      for
-        played <- ctx.playedMove.map(MoveReviewPvLine.normalizeUci).filter(MoveReviewExchangeAnalyzer.isUciMove)
-        if playedMoveHasTopPvWitness(ctx, played)
-        (position, move) <- playedMoveReplay(ctx)
-        if passedPawnAdvanceMove(position, move)
-        afterFen <- MoveReviewPvLine.legalFenAfter(ctx.fen, played)
-        after <- Fen.read(Standard, Fen.Full(afterFen))
-        if afterMovePassedPawn(after, move)
-        row <- row(
-          PassedPawnAdvanceLabel,
-          s"The checked line advances the passed pawn to ${move.dest.key}.",
-          authority = PracticalPlanAuthority
-        )
-      yield row
-
-  private def passedPawnAdvanceMove(position: chess.Position, move: chess.Move): Boolean =
-    !move.captures &&
-      move.promotion.isEmpty &&
-      move.piece.role == _root_.chess.Pawn &&
-      move.piece.color == position.color &&
-      move.orig.file == move.dest.file &&
-      (if move.piece.color.white then move.dest.rank.value > move.orig.rank.value else move.dest.rank.value < move.orig.rank.value)
+  private def passedPawnPracticalRow(replayCache: PlayedTopPvReplayCache): Option[MoveReviewPlayerSurfaceRow] =
+    for
+      (_, position, move, after) <- replayCache.playedMoveAfter
+      if endgamePawnAdvanceMove(position, move)
+      if afterMovePassedPawn(after, move)
+      row <- row(
+        PassedPawnAdvanceLabel,
+        s"The checked line advances the passed pawn to ${move.dest.key}.",
+        authority = PracticalPlanAuthority
+      )
+    yield row
 
   private def afterMovePassedPawn(position: chess.Position, move: chess.Move): Boolean =
     PositionAnalyzer.passedPawns(move.piece.color, pawnsFor(position.board, move.piece.color), pawnsFor(position.board, !move.piece.color)).contains(move.dest)
@@ -2055,28 +1920,18 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
   private def pawnsFor(board: chess.Board, color: chess.Color): _root_.chess.Bitboard =
     board.pawns & board.byColor(color)
 
-  private def kingActivationPracticalRow(
-      ctx: NarrativeContext,
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract]
-  ): Option[MoveReviewPlayerSurfaceRow] =
-    if tacticalPracticalVeto(inputs, truthContract) then None
-    else
-      for
-        played <- ctx.playedMove.map(MoveReviewPvLine.normalizeUci).filter(MoveReviewExchangeAnalyzer.isUciMove)
-        if playedMoveHasTopPvWitness(ctx, played)
-        (position, move) <- playedMoveReplay(ctx)
-        if kingActivationMove(position, move)
-        afterFen <- MoveReviewPvLine.legalFenAfter(ctx.fen, played)
-        after <- Fen.read(Standard, Fen.Full(afterFen))
-        if after.board.pieceAt(move.dest).exists(piece => piece.color == move.piece.color && piece.role == _root_.chess.King)
-        if kingActivityImproves(position.board, after.board, move.piece.color, move.orig, move.dest)
-        row <- row(
-          KingActivationLabel,
-          s"The checked line activates the king on ${move.dest.key} for the endgame.",
-          authority = PracticalPlanAuthority
-        )
-      yield row
+  private def kingActivationPracticalRow(replayCache: PlayedTopPvReplayCache): Option[MoveReviewPlayerSurfaceRow] =
+    for
+      (_, position, move, after) <- replayCache.playedMoveAfter
+      if kingActivationMove(position, move)
+      if after.board.pieceAt(move.dest).exists(piece => piece.color == move.piece.color && piece.role == _root_.chess.King)
+      if kingActivityImproves(position.board, after.board, move.piece.color, move.orig, move.dest)
+      row <- row(
+        KingActivationLabel,
+        s"The checked line activates the king on ${move.dest.key} for the endgame.",
+        authority = PracticalPlanAuthority
+      )
+    yield row
 
   private def kingActivationMove(position: chess.Position, move: chess.Move): Boolean =
     !move.captures &&
@@ -2116,7 +1971,11 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       intent.packet.claimGate.ontologyFamily == intent.intentClass.ontologyFamily
 
   private def quietIntentLegalMove(ctx: NarrativeContext, intent: QuietMoveIntentClaim): Option[chess.Move] =
-    playedMoveReplay(ctx).map(_._2).filter(move => quietIntentMoveMatches(intent, move))
+    (for
+      position <- Fen.read(Standard, Fen.Full(ctx.fen))
+      uci <- ctx.playedMove.map(NarrativeUtils.normalizeUciMove).filter(MoveReviewExchangeAnalyzer.isUciMove)
+      move <- Uci(uci).collect { case move: Uci.Move => move }.flatMap(position.move(_).toOption)
+    yield move).filter(move => quietIntentMoveMatches(intent, move))
 
   private def quietIntentMoveMatches(intent: QuietMoveIntentClaim, move: chess.Move): Boolean =
     val anchors = quietIntentAnchorSquares(intent)
@@ -2178,7 +2037,7 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
         truthContract = truthContract
       )
     val admitted =
-      decision.exists(decision => decision.tier == ClaimAuthorityTier.SupportedLocal && decision.vetoReasons.isEmpty)
+      decision.exists(_.supportedLocalWithoutTacticalVeto)
     Option
       .when(admitted)(inputs.namedRouteNetworkSurface)
       .flatten
@@ -2205,7 +2064,7 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
         truthContract = truthContract
       )
     val admitted =
-      decision.exists(decision => decision.tier == ClaimAuthorityTier.SupportedLocal && decision.vetoReasons.isEmpty)
+      decision.exists(_.supportedLocalWithoutTacticalVeto)
     Option
       .when(admitted)(inputs.dualAxisBindSurface)
       .flatten
@@ -2238,7 +2097,7 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
         truthContract = truthContract
       )
     val admitted =
-      decision.exists(decision => decision.tier == ClaimAuthorityTier.SupportedLocal && decision.vetoReasons.isEmpty)
+      decision.exists(_.supportedLocalWithoutTacticalVeto)
     Option
       .when(admitted)(inputs.restrictedDefenseConversionSurface)
       .flatten
@@ -2254,7 +2113,7 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
         reply <- contract.bestDefenseFound
         afterFen <- MoveReviewPvLine.legalFenAfter(ctx.fen, played)
         san <- NarrativeUtils.uciToSan(afterFen, reply)
-        cleanSan <- cleanOpt(san)
+        cleanSan <- MoveReviewPlayerPayloadBuilder.cleanOpt(Option(san))
       yield cleanSan
     val text =
       replySan
@@ -2276,9 +2135,7 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
         plan = plan
       )
     }.flatten
-      .filter(admission =>
-        admission.decision.tier == ClaimAuthorityTier.SupportedLocal && admission.decision.vetoReasons.isEmpty
-      )
+      .filter(_.decision.supportedLocalWithoutTacticalVeto)
       .flatMap { admission =>
         NeutralizeKeyBreakSurfaceGate.decideForPlanPacket(plan, admission.packet, ctx).token
       }
@@ -2308,7 +2165,7 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
             packet = packet
           )
         Option
-          .when(decision.tier == ClaimAuthorityTier.SupportedLocal && decision.vetoReasons.isEmpty)(packet)
+          .when(decision.supportedLocalWithoutTacticalVeto)(packet)
           .flatMap(packet => NeutralizeKeyBreakSurfaceGate.decideForPacket(packet, ctx).token)
           .flatMap(token =>
             row(
@@ -2327,10 +2184,7 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
             truthContract = truthContract,
             packet = packet
           )
-          .filter(admission =>
-            admission.decision.tier == ClaimAuthorityTier.SupportedLocal &&
-              admission.decision.vetoReasons.isEmpty
-          )
+          .filter(_.decision.supportedLocalWithoutTacticalVeto)
           .flatMap { admission =>
             CentralBreakTimingSurfaceGate
               .decide(admission.witness)
@@ -2388,7 +2242,7 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
         packet = packet
       )
     Option
-      .when(decision.tier == ClaimAuthorityTier.SupportedLocal && decision.vetoReasons.isEmpty)(packet)
+      .when(decision.supportedLocalWithoutTacticalVeto)(packet)
       .flatMap(buildRow)
 
   private def positionProbePacket(packet: PlayerFacingClaimPacket): Boolean =
@@ -2411,6 +2265,14 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
     packet.proofSource == SimplificationWindowFamily &&
       packet.proofFamily == SimplificationWindowFamily
 
+  private def matchedExactSliceProof[A](
+      packet: PlayerFacingClaimPacket
+  )(build: PartialFunction[PlayerFacingExactSliceProof, Option[A]]): Option[A] =
+    packet.proofPathWitness.exactSliceProof.flatMap { proof =>
+      if build.isDefinedAt(proof) && PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof) then build(proof)
+      else None
+    }
+
   private def admittedPositionProbeRow(
       ctx: NarrativeContext,
       inputs: QuestionPlannerInputs,
@@ -2426,35 +2288,29 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       )
     Option
       .when(
-        (
-          decision.tier == ClaimAuthorityTier.CertifiedOwner ||
-            decision.tier == ClaimAuthorityTier.SupportedLocal
-        ) && decision.vetoReasons.isEmpty
+        decision.admitted && decision.vetoReasons.isEmpty
       )(packet)
       .flatMap(positionProbeRow)
 
   private def positionProbeRow(
       packet: PlayerFacingClaimPacket
   ): Option[MoveReviewPlayerSurfaceRow] =
-    packet.proofPathWitness.exactSliceProof.flatMap {
-      case proof @ PlayerFacingExactSliceProof.ExactTargetFixation(targetSquare)
-          if PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof) =>
+    matchedExactSliceProof(packet) {
+      case PlayerFacingExactSliceProof.ExactTargetFixation(targetSquare) =>
         val target = targetSquare.toLowerCase
         row(
           "Fixed target",
           s"The checked line keeps $target fixed as the target.",
           authority = PracticalPlanAuthority
         )
-      case proof @ PlayerFacingExactSliceProof.CarlsbadFixedTarget(targetSquare, true)
-          if PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof) =>
+      case PlayerFacingExactSliceProof.CarlsbadFixedTarget(targetSquare, true) =>
         val target = targetSquare.toLowerCase
         row(
           "Minority attack",
           s"The checked line keeps $target as the minority-attack fixed target.",
           authority = PracticalPlanAuthority
         )
-      case proof @ PlayerFacingExactSliceProof.TargetFocusedCoordination(targetSquare, supportFromSquares, _)
-          if PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof) =>
+      case PlayerFacingExactSliceProof.TargetFocusedCoordination(targetSquare, supportFromSquares, _) =>
         val target = targetSquare.toLowerCase
         val support = supportFromSquares.map(_.toLowerCase).distinct.take(2).mkString(" and ")
         row(
@@ -2462,12 +2318,12 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
           s"The checked line coordinates pressure on $target from $support.",
           authority = PracticalPlanAuthority
         )
-      case proof @ PlayerFacingExactSliceProof.ColorComplexSqueeze(
+      case PlayerFacingExactSliceProof.ColorComplexSqueeze(
             targetSquare,
             squareColor,
             minorPieceRole,
             minorPieceSquare
-          ) if PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof) =>
+          ) =>
         val target = targetSquare.toLowerCase
         val complex = squareColor.toLowerCase
         val role = minorPieceRole.toLowerCase
@@ -2477,21 +2333,18 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
           s"The checked line keeps the $role on $from attacking $target in the $complex-square complex.",
           authority = PracticalPlanAuthority
         )
-      case _ => None
     }
 
   private def counterplayRestraintRow(
       packet: PlayerFacingClaimPacket
   ): Option[MoveReviewPlayerSurfaceRow] =
-    packet.proofPathWitness.exactSliceProof.flatMap {
-      case proof @ PlayerFacingExactSliceProof.ProphylacticRestraint(resourceToken)
-          if PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof) =>
+    matchedExactSliceProof(packet) {
+      case PlayerFacingExactSliceProof.ProphylacticRestraint(resourceToken) =>
         row(
           CounterplayRestraintLabel,
           counterplayRestraintText(resourceToken),
           authority = PracticalPlanAuthority
         )
-      case _ => None
     }
 
   private def counterplayRestraintText(resourceToken: String): String =
@@ -2528,15 +2381,13 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
   private def outpostOccupationRow(
       packet: PlayerFacingClaimPacket
   ): Option[MoveReviewPlayerSurfaceRow] =
-    packet.proofPathWitness.exactSliceProof.flatMap {
-      case proof @ PlayerFacingExactSliceProof.OutpostOccupation(pieceRole, square)
-          if PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof) =>
+    matchedExactSliceProof(packet) {
+      case PlayerFacingExactSliceProof.OutpostOccupation(pieceRole, square) =>
         row(
           KnightOutpostLabel,
           s"The checked line puts the ${pieceRole.toLowerCase} on the ${square.toLowerCase} outpost.",
           authority = PracticalPlanAuthority
         )
-      case _ => None
     }
 
   private def iqpTargetSquare(packet: PlayerFacingClaimPacket): Option[String] =
@@ -2618,92 +2469,34 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
     else None
 
   private def defenderTradeBranch(packet: PlayerFacingClaimPacket): Option[(String, String, String)] =
-    packet.proofPathWitness.exactSliceProof match
-      case Some(proof @ PlayerFacingExactSliceProof.DefenderTrade(defender, exchange, target)) =>
-        Option
-          .when(PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof)) {
-            (defender.trim.toLowerCase, exchange.trim.toLowerCase, target.trim.toLowerCase)
-          }
-      case Some(_) => None
-      case None =>
-        Option.when(
-          hasRelationBranchWitness(packet, "defender_trade_branch", List("defender:", "exchange_square:", "defended_target:"))
-        ) {
-          for
-            defender <- relationBranchSquare(packet, "defender:")
-            exchange <- relationBranchSquare(packet, "exchange_square:")
-            target <- relationBranchSquare(packet, "defended_target:")
-          yield (defender, exchange, target)
-        }.flatten
+    matchedExactSliceProof(packet) {
+      case PlayerFacingExactSliceProof.DefenderTrade(defender, exchange, target) =>
+        Some((defender.trim.toLowerCase, exchange.trim.toLowerCase, target.trim.toLowerCase))
+    }
 
   private def badPieceLiquidationBranch(packet: PlayerFacingClaimPacket): Option[(String, String)] =
-    packet.proofPathWitness.exactSliceProof match
-      case Some(proof @ PlayerFacingExactSliceProof.BadPieceLiquidation(badPiece, exchange)) =>
-        Option
-          .when(PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof)) {
-            (badPiece.trim.toLowerCase, exchange.trim.toLowerCase)
-          }
-      case Some(_) => None
-      case None =>
-        Option.when(
-          hasRelationBranchWitness(packet, "bad_piece_liquidation_branch", List("bad_piece:", "exchange_square:"))
-        ) {
-          for
-            badPiece <- relationBranchSquare(packet, "bad_piece:")
-            exchange <- relationBranchSquare(packet, "exchange_square:")
-          yield (badPiece, exchange)
-        }.flatten
-
-  private def hasRelationBranchWitness(
-      packet: PlayerFacingClaimPacket,
-      branchTerm: String,
-      requiredPrefixes: List[String]
-  ): Boolean =
-    val terms = relationBranchTerms(packet)
-    terms.contains(branchTerm) &&
-      requiredPrefixes.forall(prefix => terms.exists(term => relationBranchTermMatches(term, prefix)))
-
-  private def relationBranchTerms(packet: PlayerFacingClaimPacket): List[String] =
-    (
-      packet.proofPathWitness.structureTransitionTerms ++
-        packet.proofPathWitness.continuationTerms ++
-        packet.proofPathWitness.ownerSeedTerms
-    ).map(_.trim.toLowerCase).filter(_.nonEmpty)
-
-  private def relationBranchTermMatches(term: String, prefix: String): Boolean =
-    term.startsWith(prefix) &&
-      (
-        if Set("defender:", "exchange_square:", "defended_target:", "bad_piece:").contains(prefix) then
-          term.stripPrefix(prefix).trim.matches("""[a-h][1-8]""")
-        else true
-      )
-
-  private def relationBranchSquare(packet: PlayerFacingClaimPacket, prefix: String): Option[String] =
-    relationBranchTerms(packet)
-      .collectFirst { case term if relationBranchTermMatches(term, prefix) =>
-        term.stripPrefix(prefix).trim
-      }
+    matchedExactSliceProof(packet) {
+      case PlayerFacingExactSliceProof.BadPieceLiquidation(badPiece, exchange) =>
+        Some((badPiece.trim.toLowerCase, exchange.trim.toLowerCase))
+    }
 
   private def queenTradeShieldRow(
       packet: PlayerFacingClaimPacket
   ): Option[MoveReviewPlayerSurfaceRow] =
-    packet.proofPathWitness.exactSliceProof.flatMap {
-      case proof @ PlayerFacingExactSliceProof.QueenTradeShield(_)
-          if PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof) =>
+    matchedExactSliceProof(packet) {
+      case PlayerFacingExactSliceProof.QueenTradeShield(_) =>
         row(
           QueenTradeLabel,
           "This exchange moves the game into the queenless branch.",
           authority = PracticalPlanAuthority
         )
-      case _ => None
     }
 
   private def localFileEntryRow(
       packet: PlayerFacingClaimPacket
   ): Option[MoveReviewPlayerSurfaceRow] =
-    packet.proofPathWitness.exactSliceProof.flatMap {
-      case proof @ PlayerFacingExactSliceProof.LocalFileEntryBind(file, entrySquare)
-          if PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof) =>
+    matchedExactSliceProof(packet) {
+      case PlayerFacingExactSliceProof.LocalFileEntryBind(file, entrySquare) =>
         val displayFile = file.toLowerCase.stripSuffix("-file") + "-file"
         val entry = entrySquare.toLowerCase
         row(
@@ -2711,7 +2504,6 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
           s"The checked line keeps pressure on $entry through the $displayFile.",
           authority = PracticalPlanAuthority
         )
-      case _ => None
     }
 
   private def mainPathClaims(inputs: QuestionPlannerInputs): List[MainPathScopedClaim] =
@@ -2728,8 +2520,8 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       authority: Option[MoveReviewSurfaceAuthority]
   ): Option[MoveReviewPlayerSurfaceRow] =
     for
-      cleanLabel <- cleanOpt(label)
-      cleanText <- cleanOpt(text)
+      cleanLabel <- MoveReviewPlayerPayloadBuilder.cleanOpt(Option(label))
+      cleanText <- MoveReviewPlayerPayloadBuilder.cleanOpt(Option(text))
     yield MoveReviewPlayerSurfaceRow(
       label = cleanLabel,
       text = cleanText,
@@ -2739,14 +2531,8 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       authority = authority
     )
 
-  private def cleanOpt(value: String): Option[String] =
-    Option(value)
-      .map(UserFacingSignalSanitizer.sanitize)
-      .map(_.trim)
-      .filter(_.nonEmpty)
-
   private def surfaceAxisLabel(value: String): Option[String] =
-    cleanOpt(value)
+    MoveReviewPlayerPayloadBuilder.cleanOpt(Option(value))
       .map(_.toLowerCase)
       .map(_.replaceAll("""(?i)^neutralized[-_ ]break[: ]""", ""))
       .map(_.replaceAll("\\s+", " "))

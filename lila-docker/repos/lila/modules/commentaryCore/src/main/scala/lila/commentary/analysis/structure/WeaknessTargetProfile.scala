@@ -60,12 +60,8 @@ private[commentary] object WeaknessTargetProfile:
       maxPlies: Int = 6
   ): List[WeaknessTargetProfile] =
     Fen.read(Standard, Fen.Full(fen)).map { start =>
-      val replayedFull =
-        Option.when(moves.nonEmpty)(replayLine(start, moves, targetSquare = None)).flatten
-      val finalBoard =
-        trustedResultingBoard(moves, resultingFen, replayedFull)
-          .orElse(replayLine(start, moves.take(maxPlies), targetSquare = None).map(_._1.board))
-      finalBoard.toList.flatMap(targetsForPressure(_, start.color))
+      replayedLineBoard(start, moves, targetSquare = None, resultingFen, maxPlies).toList
+        .flatMap { case (board, _) => targetsForPressure(board, start.color) }
     }.getOrElse(Nil)
 
   def lineOutcomeFromFen(
@@ -80,16 +76,9 @@ private[commentary] object WeaknessTargetProfile:
       val initialTarget =
         targetsForPressure(start.board, start.color).find(_.targetSquare == target)
       initialTarget.flatMap { initial =>
-        val replayed = replayLine(start, moves.take(maxPlies), targetSquare = Some(target))
-        val replayedFull =
-          Option.when(moves.nonEmpty)(replayLine(start, moves, targetSquare = Some(target))).flatten
-        val finalBoard =
-          trustedResultingBoard(moves, resultingFen, replayedFull)
-            .orElse(replayed.map(_._1.board))
-        finalBoard.map { board =>
+        replayedLineBoard(start, moves, targetSquare = Some(target), resultingFen, maxPlies).map { case (board, capturedByPressure) =>
           val stillTarget =
             targetsForPressure(board, start.color).exists(_.targetSquare == target)
-          val capturedByPressure = replayedFull.orElse(replayed).exists(_._2)
           val status =
             if stillTarget then Persistent
             else if capturedByPressure then ResolvedByPressure
@@ -226,17 +215,40 @@ private[commentary] object WeaknessTargetProfile:
           }
     loop(start, moves, capturedByPressure = false)
 
+  private def replayedLineBoard(
+      start: _root_.chess.Position,
+      moves: List[String],
+      targetSquare: Option[String],
+      resultingFen: Option[String],
+      maxPlies: Int
+  ): Option[(Board, Boolean)] =
+    val boundedMoves = moves.take(maxPlies)
+    if resultingFen.forall(_.trim.isEmpty) && targetSquare.isEmpty then
+      replayLine(start, boundedMoves, targetSquare).map { case (position, capturedByPressure) =>
+        position.board -> capturedByPressure
+      }
+    else
+      val replayedFull =
+        if moves.nonEmpty then replayLine(start, moves, targetSquare) else None
+      trustedResultingBoard(moves, resultingFen, replayedFull)
+        .map(board => board -> replayedFull.exists(_._2))
+        .orElse {
+          val replayedBounded =
+            if moves.nonEmpty && boundedMoves == moves then replayedFull
+            else replayLine(start, boundedMoves, targetSquare)
+          replayedBounded
+            .map(_._1.board)
+            .map(board => board -> replayedFull.orElse(replayedBounded).exists(_._2))
+        }
+
   private def trustedResultingBoard(
       moves: List[String],
       resultingFen: Option[String],
       replayedFull: Option[(_root_.chess.Position, Boolean)]
   ): Option[Board] =
     resultingFen.flatMap(next => Fen.read(Standard, Fen.Full(next)).map(_.board)).filter { board =>
-      moves.isEmpty || replayedFull.exists { case (position, _) => sameBoardState(position.board, board) }
+      moves.isEmpty || replayedFull.exists { case (position, _) => position.board == board }
     }
-
-  private def sameBoardState(left: Board, right: Board): Boolean =
-    left == right
 
   private def legalUciMove(position: _root_.chess.Position, raw: String): Option[_root_.chess.Move] =
     Uci(raw).collect { case move: Uci.Move => move }.flatMap(position.move(_).toOption)

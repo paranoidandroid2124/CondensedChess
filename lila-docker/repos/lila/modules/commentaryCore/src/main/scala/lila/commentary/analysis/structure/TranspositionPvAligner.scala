@@ -78,30 +78,33 @@ private[commentary] object TranspositionPvAligner:
   ): Option[TranspositionProof] =
     val targetSet = expectedTargets.flatMap(normalizeSquare).toSet
     val endpoint = line.resultingFen.flatMap(value => Fen.read(Standard, Fen.Full(value)))
-    if targetSet.isEmpty || lineTooShort(line, endpoint) || moverLossTooLarge(fen, line, baselineScoreCp, maxMoverLossCp) then None
+    if targetSet.isEmpty || moverLossTooLarge(fen, line, baselineScoreCp, maxMoverLossCp) then None
     else
       Fen.read(Standard, Fen.Full(fen)).flatMap { start =>
         replayLine(start, line.moves).flatMap { replayed =>
-          val terminal = endpoint.getOrElse(replayed)
-          val terminalFen = Fen.write(terminal).value
-          WeaknessTargetProfile
-            .targetsForPressure(terminal.board, start.color)
-            .find(target => targetSet.contains(target.targetSquare))
-            .flatMap { target =>
-              val delta = attackerDefenderDelta(terminal.board, start.color, target.targetSquare)
-              Option.when(delta > 0) {
-                TranspositionProof(
-                  proofId = proofId(planId, target.targetSquare, target.kind),
-                  planId = planId,
-                  subplanId = subplanId,
-                  targetSquare = target.targetSquare,
-                  targetKind = target.kind,
-                  terminalFen = terminalFen,
-                  attackerDefenderDelta = delta,
-                  linePlies = line.moves.size
-                )
+          val trustedEndpoint = endpoint.filter(_.board == replayed.board)
+          val terminal = trustedEndpoint.getOrElse(replayed)
+          if lineTooShort(line, trustedEndpoint) then None
+          else
+            val terminalFen = Fen.write(terminal).value
+            WeaknessTargetProfile
+              .targetsForPressure(terminal.board, start.color)
+              .find(target => targetSet.contains(target.targetSquare))
+              .flatMap { target =>
+                val delta = attackerDefenderDelta(terminal.board, start.color, target.targetSquare)
+                Option.when(delta > 0) {
+                  TranspositionProof(
+                    proofId = proofId(planId, target.targetSquare, target.kind),
+                    planId = planId,
+                    subplanId = subplanId,
+                    targetSquare = target.targetSquare,
+                    targetKind = target.kind,
+                    terminalFen = terminalFen,
+                    attackerDefenderDelta = delta,
+                    linePlies = line.moves.size
+                  )
+                }
               }
-            }
         }
       }
 

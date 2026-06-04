@@ -29,6 +29,12 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       playedMove = Some("e7e5"),
       playedSan = Some("e5")
     )
+  private val quietKnightCtx =
+    ctx.copy(
+      fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      playedMove = Some("g1f3"),
+      playedSan = Some("Nf3")
+    )
   private val MadernaExactFen =
     "nrb1r1k1/1pqn1pbp/p2p2p1/P1pP4/2N1PP2/2N2B2/1P4PP/R1BQR1K1 w - - 3 17"
   private val MadernaExactLines =
@@ -38,6 +44,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
     )
   private val DirectBreakFen =
     "rnbqk2r/pp2bppp/4pn2/2p5/2BP4/4PN2/PP3PPP/RNBQ1RK1 w kq - 0 8"
+  private val NoRankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil)
 
   private def withFocalTarget(base: NarrativeContext, square: String): NarrativeContext =
     val decision =
@@ -45,6 +52,57 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
         .getOrElse(DecisionRationale(None, "", PVDelta(Nil, Nil, Nil, Nil), ConfidenceLevel.Heuristic))
         .copy(focalPoint = Some(TargetSquare(square)))
     base.copy(decision = Some(decision))
+
+  private def supportedClaimPacket(
+      proofFamily: String,
+      proofSource: String,
+      triggerKind: String,
+      anchorTerms: List[String],
+      ownerSeedTerms: List[String],
+      continuationTerms: List[String],
+      structureTransitionTerms: List[String],
+      bestDefenseMove: Option[String],
+      bestDefenseBranchKey: Option[String],
+      scope: PlayerFacingPacketScope = PlayerFacingPacketScope.MoveLocal,
+      sameBranchState: PlayerFacingSameBranchState,
+      persistence: PlayerFacingClaimPersistence,
+      releaseRisks: List[String],
+      suppressionReasons: List[String],
+      fallbackMode: PlayerFacingClaimFallbackMode,
+      exactSliceProof: Option[PlayerFacingExactSliceProof] = None,
+      attributionGrade: PlayerFacingClaimAttributionGrade = PlayerFacingClaimAttributionGrade.AnchoredButShared,
+      ontologyFamily: PlayerFacingClaimOntologyKind = PlayerFacingClaimOntologyKind.Unknown
+  ): PlayerFacingClaimPacket =
+    PlayerFacingClaimPacket(
+      claimGate =
+        PlanEvidenceEvaluator.ClaimCertification(
+          certificateStatus = PlayerFacingCertificateStatus.Valid,
+          quantifier = PlayerFacingClaimQuantifier.BestResponse,
+          attributionGrade = attributionGrade,
+          stabilityGrade = PlayerFacingClaimStabilityGrade.Stable,
+          provenanceClass = PlayerFacingClaimProvenanceClass.ProbeBacked,
+          ontologyFamily = ontologyFamily
+        ),
+      proofSource = proofSource,
+      proofFamily = proofFamily,
+      scope = scope,
+      triggerKind = triggerKind,
+      anchorTerms = anchorTerms,
+      bestDefenseMove = bestDefenseMove,
+      bestDefenseBranchKey = bestDefenseBranchKey,
+      sameBranchState = sameBranchState,
+      persistence = persistence,
+      proofPathWitness =
+        PlayerFacingProofPathWitness(
+          ownerSeedTerms = ownerSeedTerms,
+          continuationTerms = continuationTerms,
+          structureTransitionTerms = structureTransitionTerms,
+          exactSliceProof = exactSliceProof
+        ),
+      suppressionReasons = suppressionReasons,
+      releaseRisks = releaseRisks,
+      fallbackMode = fallbackMode
+    )
 
   private def supportedNeutralizePacket(
       proofFamily: String = ProofFamilyId.NeutralizeKeyBreak.wireKey,
@@ -62,31 +120,20 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       exactSliceProof: Option[PlayerFacingExactSliceProof] =
         Some(PlayerFacingExactSliceProof.CounterplayAxisSuppression("...c5"))
   ): PlayerFacingClaimPacket =
-    PlayerFacingClaimPacket(
-      claimGate =
-        PlanEvidenceEvaluator.ClaimCertification(
-          certificateStatus = PlayerFacingCertificateStatus.Valid,
-          quantifier = PlayerFacingClaimQuantifier.BestResponse,
-          attributionGrade = PlayerFacingClaimAttributionGrade.AnchoredButShared,
-          stabilityGrade = PlayerFacingClaimStabilityGrade.Stable,
-          provenanceClass = PlayerFacingClaimProvenanceClass.ProbeBacked
-        ),
+    supportedClaimPacket(
       proofSource = proofSource,
       proofFamily = proofFamily,
       scope = scope,
       triggerKind = PlanTaxonomy.PlanKind.BreakPrevention.id,
       anchorTerms = anchorTerms,
+      ownerSeedTerms = ownerSeedTerms,
+      continuationTerms = List("counterplay_axis_suppression", "e4d5", "c6d5"),
+      structureTransitionTerms = structureTransitionTerms,
       bestDefenseMove = bestDefenseMove,
       bestDefenseBranchKey = Some("e4d5|c6d5"),
       sameBranchState = sameBranchState,
       persistence = persistence,
-      proofPathWitness =
-        PlayerFacingProofPathWitness(
-          ownerSeedTerms = ownerSeedTerms,
-          continuationTerms = List("counterplay_axis_suppression", "e4d5", "c6d5"),
-          structureTransitionTerms = structureTransitionTerms,
-          exactSliceProof = exactSliceProof
-        ),
+      exactSliceProof = exactSliceProof,
       suppressionReasons = suppressionReasons,
       releaseRisks = releaseRisks,
       fallbackMode = fallbackMode
@@ -142,35 +189,25 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       suppressionReasons: List[String] = Nil,
       fallbackMode: PlayerFacingClaimFallbackMode = PlayerFacingClaimFallbackMode.WeakMain
   ): PlayerFacingClaimPacket =
-    PlayerFacingClaimPacket(
-      claimGate =
-        PlanEvidenceEvaluator.ClaimCertification(
-          certificateStatus = PlayerFacingCertificateStatus.Valid,
-          quantifier = PlayerFacingClaimQuantifier.BestResponse,
-          attributionGrade = PlayerFacingClaimAttributionGrade.Distinctive,
-          stabilityGrade = PlayerFacingClaimStabilityGrade.Stable,
-          provenanceClass = PlayerFacingClaimProvenanceClass.ProbeBacked,
-          ontologyFamily = PlayerFacingClaimOntologyKind.ColorComplexSqueeze
-        ),
+    supportedClaimPacket(
       proofSource = proofSource,
       proofFamily = proofFamily,
       scope = PlayerFacingPacketScope.PositionLocal,
       triggerKind = "position_probe",
       anchorTerms = List(anchorSquare),
+      ownerSeedTerms = ownerSeedTerms,
+      continuationTerms = continuationTerms,
+      structureTransitionTerms = structureTransitionTerms,
       bestDefenseMove = Some("e8f8"),
       bestDefenseBranchKey = Some("c4e5|e8f8"),
       sameBranchState = sameBranchState,
       persistence = persistence,
-      proofPathWitness =
-        PlayerFacingProofPathWitness(
-          ownerSeedTerms = ownerSeedTerms,
-          continuationTerms = continuationTerms,
-          structureTransitionTerms = structureTransitionTerms,
-          exactSliceProof = exactSliceProof
-        ),
+      exactSliceProof = exactSliceProof,
       suppressionReasons = suppressionReasons,
       releaseRisks = releaseRisks,
-      fallbackMode = fallbackMode
+      fallbackMode = fallbackMode,
+      attributionGrade = PlayerFacingClaimAttributionGrade.Distinctive,
+      ontologyFamily = PlayerFacingClaimOntologyKind.ColorComplexSqueeze
     )
 
   private def supportedLocalFilePacket(
@@ -184,31 +221,19 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       exactSliceProof: Option[PlayerFacingExactSliceProof] =
         Some(PlayerFacingExactSliceProof.LocalFileEntryBind("c-file", "c6"))
   ): PlayerFacingClaimPacket =
-    PlayerFacingClaimPacket(
-      claimGate =
-        PlanEvidenceEvaluator.ClaimCertification(
-          certificateStatus = PlayerFacingCertificateStatus.Valid,
-          quantifier = PlayerFacingClaimQuantifier.BestResponse,
-          attributionGrade = PlayerFacingClaimAttributionGrade.AnchoredButShared,
-          stabilityGrade = PlayerFacingClaimStabilityGrade.Stable,
-          provenanceClass = PlayerFacingClaimProvenanceClass.ProbeBacked
-        ),
+    supportedClaimPacket(
       proofSource = proofSource,
       proofFamily = proofFamily,
-      scope = PlayerFacingPacketScope.MoveLocal,
       triggerKind = "file_entry_denial",
       anchorTerms = List("c-file", "c6"),
+      ownerSeedTerms = List("c-file", "c6"),
+      continuationTerms = List("local_file_entry_bind", "c-file", "c6", "d4c6", "c7c6"),
+      structureTransitionTerms = List("file-entry:c-file:c6"),
       bestDefenseMove = Some("c7c6"),
       bestDefenseBranchKey = Some("d4c6|c7c6"),
       sameBranchState = sameBranchState,
       persistence = persistence,
-      proofPathWitness =
-        PlayerFacingProofPathWitness(
-          ownerSeedTerms = List("c-file", "c6"),
-          continuationTerms = List("local_file_entry_bind", "c-file", "c6", "d4c6", "c7c6"),
-          structureTransitionTerms = List("file-entry:c-file:c6"),
-          exactSliceProof = exactSliceProof
-        ),
+      exactSliceProof = exactSliceProof,
       suppressionReasons = suppressionReasons,
       releaseRisks = releaseRisks,
       fallbackMode = fallbackMode
@@ -229,35 +254,24 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       exactSliceProof: Option[PlayerFacingExactSliceProof] =
         Some(PlayerFacingExactSliceProof.OutpostOccupation("knight", "e5"))
   ): PlayerFacingClaimPacket =
-    PlayerFacingClaimPacket(
-      claimGate =
-        PlanEvidenceEvaluator.ClaimCertification(
-          certificateStatus = PlayerFacingCertificateStatus.Valid,
-          quantifier = PlayerFacingClaimQuantifier.BestResponse,
-          attributionGrade = PlayerFacingClaimAttributionGrade.Distinctive,
-          stabilityGrade = PlayerFacingClaimStabilityGrade.Stable,
-          provenanceClass = PlayerFacingClaimProvenanceClass.ProbeBacked,
-          ontologyFamily = PlayerFacingClaimOntologyKind.Access
-        ),
+    supportedClaimPacket(
       proofSource = proofSource,
       proofFamily = proofFamily,
-      scope = PlayerFacingPacketScope.MoveLocal,
       triggerKind = PlanTaxonomy.PlanKind.OutpostEntrenchment.id,
       anchorTerms = List(square),
+      ownerSeedTerms = ownerSeedTerms,
+      continuationTerms = List("outpost:e5", "best_branch:g4e5|e8f8", "e8f8"),
+      structureTransitionTerms = structureTransitionTerms,
       bestDefenseMove = Some("e8f8"),
       bestDefenseBranchKey = Some("g4e5|e8f8"),
       sameBranchState = sameBranchState,
       persistence = persistence,
-      proofPathWitness =
-        PlayerFacingProofPathWitness(
-          ownerSeedTerms = ownerSeedTerms,
-          continuationTerms = List("outpost:e5", "best_branch:g4e5|e8f8", "e8f8"),
-          structureTransitionTerms = structureTransitionTerms,
-          exactSliceProof = exactSliceProof
-        ),
+      exactSliceProof = exactSliceProof,
       suppressionReasons = suppressionReasons,
       releaseRisks = releaseRisks,
-      fallbackMode = fallbackMode
+      fallbackMode = fallbackMode,
+      attributionGrade = PlayerFacingClaimAttributionGrade.Distinctive,
+      ontologyFamily = PlayerFacingClaimOntologyKind.Access
     )
 
   private def supportedIqpPacket(
@@ -272,30 +286,18 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       suppressionReasons: List[String] = Nil,
       fallbackMode: PlayerFacingClaimFallbackMode = PlayerFacingClaimFallbackMode.WeakMain
   ): PlayerFacingClaimPacket =
-    PlayerFacingClaimPacket(
-      claimGate =
-        PlanEvidenceEvaluator.ClaimCertification(
-          certificateStatus = PlayerFacingCertificateStatus.Valid,
-          quantifier = PlayerFacingClaimQuantifier.BestResponse,
-          attributionGrade = PlayerFacingClaimAttributionGrade.AnchoredButShared,
-          stabilityGrade = PlayerFacingClaimStabilityGrade.Stable,
-          provenanceClass = PlayerFacingClaimProvenanceClass.ProbeBacked
-        ),
+    supportedClaimPacket(
       proofSource = proofSource,
       proofFamily = proofFamily,
-      scope = PlayerFacingPacketScope.MoveLocal,
       triggerKind = PlanTaxonomy.PlanKind.IQPInducement.id,
       anchorTerms = List(targetSquare),
+      ownerSeedTerms = ownerSeedTerms,
+      continuationTerms = List("iqp_inducement_branch", "c4d5", "e6d5"),
+      structureTransitionTerms = structureTransitionTerms,
       bestDefenseMove = Some("e6d5"),
       bestDefenseBranchKey = Some("c4d5|e6d5"),
       sameBranchState = sameBranchState,
       persistence = persistence,
-      proofPathWitness =
-        PlayerFacingProofPathWitness(
-          ownerSeedTerms = ownerSeedTerms,
-          continuationTerms = List("iqp_inducement_branch", "c4d5", "e6d5"),
-          structureTransitionTerms = structureTransitionTerms
-        ),
       suppressionReasons = suppressionReasons,
       releaseRisks = releaseRisks,
       fallbackMode = fallbackMode
@@ -314,30 +316,18 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       suppressionReasons: List[String] = Nil,
       fallbackMode: PlayerFacingClaimFallbackMode = PlayerFacingClaimFallbackMode.WeakMain
   ): PlayerFacingClaimPacket =
-    PlayerFacingClaimPacket(
-      claimGate =
-        PlanEvidenceEvaluator.ClaimCertification(
-          certificateStatus = PlayerFacingCertificateStatus.Valid,
-          quantifier = PlayerFacingClaimQuantifier.BestResponse,
-          attributionGrade = PlayerFacingClaimAttributionGrade.AnchoredButShared,
-          stabilityGrade = PlayerFacingClaimStabilityGrade.Stable,
-          provenanceClass = PlayerFacingClaimProvenanceClass.ProbeBacked
-        ),
+    supportedClaimPacket(
       proofSource = proofSource,
       proofFamily = proofFamily,
-      scope = PlayerFacingPacketScope.MoveLocal,
       triggerKind = PlanTaxonomy.PlanKind.SimplificationWindow.id,
       anchorTerms = List(exchangeSquare),
+      ownerSeedTerms = ownerSeedTerms,
+      continuationTerms = continuationTerms,
+      structureTransitionTerms = structureTransitionTerms,
       bestDefenseMove = Some("f7d5"),
       bestDefenseBranchKey = Some("b5d5|f7d5"),
       sameBranchState = sameBranchState,
       persistence = persistence,
-      proofPathWitness =
-        PlayerFacingProofPathWitness(
-          ownerSeedTerms = ownerSeedTerms,
-          continuationTerms = continuationTerms,
-          structureTransitionTerms = structureTransitionTerms
-        ),
       suppressionReasons = suppressionReasons,
       releaseRisks = releaseRisks,
       fallbackMode = fallbackMode
@@ -355,35 +345,24 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       exactSliceProof: Option[PlayerFacingExactSliceProof] =
         Some(PlayerFacingExactSliceProof.ProphylacticRestraint("denied_resource:break"))
   ): PlayerFacingClaimPacket =
-    PlayerFacingClaimPacket(
-      claimGate =
-        PlanEvidenceEvaluator.ClaimCertification(
-          certificateStatus = PlayerFacingCertificateStatus.Valid,
-          quantifier = PlayerFacingClaimQuantifier.BestResponse,
-          attributionGrade = PlayerFacingClaimAttributionGrade.Distinctive,
-          stabilityGrade = PlayerFacingClaimStabilityGrade.Stable,
-          provenanceClass = PlayerFacingClaimProvenanceClass.ProbeBacked,
-          ontologyFamily = PlayerFacingClaimOntologyKind.CounterplayRestraint
-        ),
+    supportedClaimPacket(
       proofSource = proofSource,
       proofFamily = proofFamily,
-      scope = PlayerFacingPacketScope.MoveLocal,
       triggerKind = PlanTaxonomy.PlanKind.ProphylaxisRestraint.id,
       anchorTerms = List(resourceToken),
+      ownerSeedTerms = List(resourceToken, "prophylactic_move", "counterplay_restraint"),
+      continuationTerms = List("counterplay_restraint", "f8e8", "c1c8"),
+      structureTransitionTerms = List(resourceToken),
       bestDefenseMove = Some("f8e8"),
       bestDefenseBranchKey = Some("f8e8|c1c8"),
       sameBranchState = sameBranchState,
       persistence = persistence,
-      proofPathWitness =
-        PlayerFacingProofPathWitness(
-          ownerSeedTerms = List(resourceToken, "prophylactic_move", "counterplay_restraint"),
-          continuationTerms = List("counterplay_restraint", "f8e8", "c1c8"),
-          structureTransitionTerms = List(resourceToken),
-          exactSliceProof = exactSliceProof
-        ),
+      exactSliceProof = exactSliceProof,
       suppressionReasons = suppressionReasons,
       releaseRisks = releaseRisks,
-      fallbackMode = fallbackMode
+      fallbackMode = fallbackMode,
+      attributionGrade = PlayerFacingClaimAttributionGrade.Distinctive,
+      ontologyFamily = PlayerFacingClaimOntologyKind.CounterplayRestraint
     )
 
   private def supportedExchangePacket(
@@ -398,31 +377,19 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       fallbackMode: PlayerFacingClaimFallbackMode = PlayerFacingClaimFallbackMode.WeakMain
   ): PlayerFacingClaimPacket =
     val proofFamily = ProofFamilyId.fromPlanKind(planKind).map(_.wireKey).getOrElse(planKind.id)
-    PlayerFacingClaimPacket(
-      claimGate =
-        PlanEvidenceEvaluator.ClaimCertification(
-          certificateStatus = PlayerFacingCertificateStatus.Valid,
-          quantifier = PlayerFacingClaimQuantifier.BestResponse,
-          attributionGrade = PlayerFacingClaimAttributionGrade.AnchoredButShared,
-          stabilityGrade = PlayerFacingClaimStabilityGrade.Stable,
-          provenanceClass = PlayerFacingClaimProvenanceClass.ProbeBacked
-        ),
+    supportedClaimPacket(
       proofSource = proofSource,
       proofFamily = proofFamily,
-      scope = PlayerFacingPacketScope.MoveLocal,
       triggerKind = planKind.id,
       anchorTerms = List(planKind.id),
+      ownerSeedTerms = List(planKind.id, "local_branch"),
+      continuationTerms = List(planKind.id, "d4c6", "d7c6"),
+      structureTransitionTerms = structureTransitionTerms,
       bestDefenseMove = Some("d4c6"),
       bestDefenseBranchKey = Some("d4c6|d7c6"),
       sameBranchState = sameBranchState,
       persistence = persistence,
-      proofPathWitness =
-        PlayerFacingProofPathWitness(
-          ownerSeedTerms = List(planKind.id, "local_branch"),
-          continuationTerms = List(planKind.id, "d4c6", "d7c6"),
-          structureTransitionTerms = structureTransitionTerms,
-          exactSliceProof = exactSliceProof
-        ),
+      exactSliceProof = exactSliceProof,
       suppressionReasons = suppressionReasons,
       releaseRisks = releaseRisks,
       fallbackMode = fallbackMode
@@ -695,6 +662,35 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       failureInterpretationAllowed = false
     )
 
+  private def topPvPracticalContext(
+      fen: String,
+      playedMove: String,
+      playedSan: String,
+      line: List[String],
+      scoreCp: Int
+  ) =
+    ctx.copy(
+      fen = fen,
+      playedMove = Some(playedMove),
+      playedSan = Some(playedSan),
+      openingGoalEvaluation = None,
+      engineEvidence =
+        Some(
+          EngineEvidence(
+            depth = 18,
+            variations = List(VariationLine(line, scoreCp = scoreCp, depth = 18))
+          )
+        )
+    )
+
+  private def topPvPracticalRows(localCtx: NarrativeContext, playedMove: String) =
+    MoveReviewSupportedLocalSurfaceRows.build(
+      ctx = localCtx,
+      inputs = inputs().copy(mainBundle = None),
+      rankedPlans = NoRankedPlans,
+      truthContract = Some(safeTruthContract(playedMove))
+    )
+
   private def neutralizePlan(
       claim: String = "This move stops the ...c5 break before Black gets counterplay.",
       proofFamily: String = ProofFamilyId.NeutralizeKeyBreak.wireKey,
@@ -810,7 +806,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
           packet = supportedColorComplexPacket(),
           claimText = "A minor piece keeps the color-complex pressure on e5."
         ),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -840,7 +836,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
                 )
               )
           ),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("e2e3"))
       )
 
@@ -850,6 +846,36 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       rows(1).text,
       "The checked line keeps the knight on c4 attacking e5 in the dark-square complex."
     )
+  }
+
+  test("keeps certified typed surface row visible when packet rows fill the supported-local cap") {
+    val surface =
+      RouteNetworkBindProof.SurfaceNetwork(
+        file = "c-file",
+        entrySquare = "c6",
+        rerouteSquare = "b6",
+        counterplayScoreDrop = 140
+      )
+    val rows =
+      MoveReviewSupportedLocalSurfaceRows.build(
+        ctx = neutralizeCtx,
+        inputs =
+          inputs().copy(
+            mainBundle =
+              Some(
+                MainPathClaimBundle(
+                  Some(mainClaim(supportedNeutralizePacket(), "This move stops the ...c5 break before Black gets counterplay.")),
+                  Some(mainClaim(supportedColorComplexPacket(), "A minor piece keeps the color-complex pressure on e5."))
+                )
+              ),
+            namedRouteNetworkSurface = Some(surface)
+          ),
+        rankedPlans = NoRankedPlans,
+        truthContract = Some(safeTruthContract("e2e3"))
+      )
+
+    assertEquals(rows.map(_.label), List("Counterplay break", "Route denial"))
+    assertEquals(rows(1).text, "The checked line keeps c6 closed, takes the c-file away, and cuts off the b6 reroute.")
   }
 
   test("projects certified exact position-probe packets into bounded rows") {
@@ -912,7 +938,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
         MoveReviewSupportedLocalSurfaceRows.build(
           ctx = ctx,
           inputs = inputs(packet = packet, claimText = expectedText),
-          rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+          rankedPlans = NoRankedPlans,
           truthContract = Some(safeTruthContract())
         )
 
@@ -974,7 +1000,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
         MoveReviewSupportedLocalSurfaceRows.build(
           ctx = ctx,
           inputs = inputs(packet = packet),
-          rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+          rankedPlans = NoRankedPlans,
           truthContract = Some(safeTruthContract())
         )
 
@@ -1002,7 +1028,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = ctx,
         inputs = inputs(packet = moveLocal),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -1014,7 +1040,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = ctx,
         inputs = inputs(packet = supportedColorComplexPacket(exactSliceProof = None)),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -1032,7 +1058,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
                 exactSliceProof = Some(PlayerFacingExactSliceProof.ColorComplexSqueeze("e5", "light", "knight", "c4"))
               )
           ),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -1051,7 +1077,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = ctx,
         inputs = inputs(packet = packet.copy(proofPathWitness = strippedWitness)),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -1071,7 +1097,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = ctx,
         inputs = inputs(packet = packet.copy(proofPathWitness = mismatchedWitness)),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -1083,7 +1109,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = ctx,
         inputs = inputs(packet = supportedColorComplexPacket(), truthMode = PlayerFacingTruthMode.Tactical),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -1102,7 +1128,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = ctx,
         inputs = routeNetworkInputs(Some(surface)),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -1130,7 +1156,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = ctx,
         inputs = routeNetworkInputs(Some(surface)),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -1149,14 +1175,14 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = ctx,
         inputs = routeNetworkInputs(Some(surface), heavyPieceLocalBindBlocked = true),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
     val tactical =
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = ctx,
         inputs = routeNetworkInputs(Some(surface), truthMode = PlayerFacingTruthMode.Tactical),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -1169,7 +1195,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = ctx,
         inputs = dualAxisInputs(Some(certifiedDualAxisBind())),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -1186,14 +1212,14 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = ctx,
         inputs = dualAxisInputs(Some(certifiedDualAxisBind(failsIf = List("dual_axis_burden_missing")))),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
     val reinflationRisk =
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = ctx,
         inputs = dualAxisInputs(Some(certifiedDualAxisBind(counterplayReinflationRisk = "high"))),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -1206,14 +1232,14 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = ctx,
         inputs = dualAxisInputs(Some(certifiedDualAxisBind()), heavyPieceLocalBindBlocked = true),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
     val tactical =
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = ctx,
         inputs = dualAxisInputs(Some(certifiedDualAxisBind()), truthMode = PlayerFacingTruthMode.Tactical),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -1226,7 +1252,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = neutralizeCtx,
         inputs = restrictedDefenseInputs(Some(certifiedRestrictedDefenseConversion())),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("e2e3"))
       )
 
@@ -1246,7 +1272,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
           restrictedDefenseInputs(
             Some(certifiedRestrictedDefenseConversion(failsIf = List("route_persistence_missing")))
           ),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("e2e3"))
       )
     val stale =
@@ -1267,7 +1293,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
               )
             )
           ),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("e2e3"))
       )
 
@@ -1284,7 +1310,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
             Some(certifiedRestrictedDefenseConversion()),
             truthMode = PlayerFacingTruthMode.Tactical
           ),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("e2e3"))
       )
 
@@ -1299,7 +1325,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
           packet = supportedOutpostPacket(),
           claimText = "The move occupies the e5 outpost."
         ),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -1316,7 +1342,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = ctx,
         inputs = inputs(packet = supportedOutpostPacket(exactSliceProof = None)),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -1335,7 +1361,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
                 structureTransitionTerms = List("outpost_occupation")
               )
           ),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -1347,7 +1373,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = ctx,
         inputs = inputs(packet = supportedOutpostPacket(), truthMode = PlayerFacingTruthMode.Tactical),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -1362,7 +1388,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
           packet = supportedLocalFilePacket(),
           claimText = "The file-entry bind keeps c6 under pressure."
         ),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -1379,7 +1405,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = ctx,
         inputs = inputs(packet = supportedLocalFilePacket(exactSliceProof = None)),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -1398,7 +1424,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = ctx,
         inputs = inputs(packet = packet.copy(anchorTerms = Nil, proofPathWitness = strippedWitness)),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -1415,7 +1441,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = ctx,
         inputs = inputs(packet = packet.copy(proofPathWitness = splitOnlyWitness)),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -1440,7 +1466,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = ctx,
         inputs = inputs(packet = packet),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -1452,7 +1478,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = ctx,
         inputs = inputs(packet = supportedLocalFilePacket(), truthMode = PlayerFacingTruthMode.Tactical),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -1467,7 +1493,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
           packet = supportedIqpPacket(),
           claimText = "This sequence leaves an isolated pawn as the local target."
         ),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -1491,7 +1517,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
                 ownerSeedTerms = List("iqp_inducement", "iqp")
               )
           ),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -1503,7 +1529,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = ctx,
         inputs = inputs(packet = supportedIqpPacket(), truthMode = PlayerFacingTruthMode.Tactical),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -1518,7 +1544,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
           packet = supportedSimplificationPacket(),
           claimText = "This trade keeps the same local edge on d5."
         ),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -1543,7 +1569,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
                 structureTransitionTerms = List("simplification_window")
               )
           ),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -1555,7 +1581,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = ctx,
         inputs = inputs(packet = supportedSimplificationPacket(), truthMode = PlayerFacingTruthMode.Tactical),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -1567,7 +1593,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = ctx,
         inputs = inputs(packet = supportedCounterplayRestraintPacket()),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -1590,7 +1616,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
                 exactSliceProof = Some(PlayerFacingExactSliceProof.ProphylacticRestraint("counterplay window"))
               )
           ),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -1608,7 +1634,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
                 exactSliceProof = Some(PlayerFacingExactSliceProof.ProphylacticRestraint("denied_resource:route"))
               )
           ),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -1620,7 +1646,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = ctx,
         inputs = inputs(packet = supportedCounterplayRestraintPacket(), truthMode = PlayerFacingTruthMode.Tactical),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -1684,7 +1710,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
         MoveReviewSupportedLocalSurfaceRows.build(
           ctx = ctx,
           inputs = inputs(packet = packet, claimText = expectedText),
-          rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+          rankedPlans = NoRankedPlans,
           truthContract = Some(safeTruthContract())
         )
 
@@ -1699,185 +1725,122 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
   }
 
   test("does not project exchange ownership labels without required witness shape") {
-    val noStructure =
-      supportedExchangePacket(
-        planKind = PlanTaxonomy.PlanKind.DefenderTrade,
-        proofSource = PlayerFacingTruthModePolicy.DefenderTradeProofSource,
-        structureTransitionTerms = Nil
-      )
-    val genericDefenderShape =
-      supportedExchangePacket(
-        planKind = PlanTaxonomy.PlanKind.DefenderTrade,
-        proofSource = PlayerFacingTruthModePolicy.DefenderTradeProofSource,
-        structureTransitionTerms = List("defender_trade_branch", "defender_removed:c5-d4", "target_unlocked:e5")
-      )
-    val genericBadPieceShape =
-      supportedExchangePacket(
-        planKind = PlanTaxonomy.PlanKind.BadPieceLiquidation,
-        proofSource = PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource,
-        structureTransitionTerms = List("bad_piece_liquidation_branch", "bad_piece_removed:c8-e6")
-      )
-    val malformedDefenderShape =
-      supportedExchangePacket(
-        planKind = PlanTaxonomy.PlanKind.DefenderTrade,
-        proofSource = PlayerFacingTruthModePolicy.DefenderTradeProofSource,
-        structureTransitionTerms = List("defender_trade_branch", "defender:c-file", "exchange_square:d4", "defended_target:e5")
-      )
-    val malformedBadPieceShape =
-      supportedExchangePacket(
-        planKind = PlanTaxonomy.PlanKind.BadPieceLiquidation,
-        proofSource = PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource,
-        structureTransitionTerms = List("bad_piece_liquidation_branch", "bad_piece:c8", "exchange_square:e-file")
-      )
-    val mismatchedDefenderProof =
-      supportedExchangePacket(
-        planKind = PlanTaxonomy.PlanKind.DefenderTrade,
-        proofSource = PlayerFacingTruthModePolicy.DefenderTradeProofSource,
-        structureTransitionTerms = List("defender_trade_branch", "defender:c5", "exchange_square:d4", "defended_target:e5"),
-        exactSliceProof = Some(PlayerFacingExactSliceProof.DefenderTrade("c5", "d4", "f7"))
-      )
-    val mismatchedBadPieceProof =
-      supportedExchangePacket(
-        planKind = PlanTaxonomy.PlanKind.BadPieceLiquidation,
-        proofSource = PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource,
-        structureTransitionTerms = List("bad_piece_liquidation_branch", "bad_piece:c8", "exchange_square:e6"),
-        exactSliceProof = Some(PlayerFacingExactSliceProof.BadPieceLiquidation("c8", "d5"))
-      )
-    val missingDefenderBranch =
-      supportedExchangePacket(
-        planKind = PlanTaxonomy.PlanKind.DefenderTrade,
-        proofSource = PlayerFacingTruthModePolicy.DefenderTradeProofSource,
-        sameBranchState = PlayerFacingSameBranchState.Missing,
-        structureTransitionTerms =
-          List(
-            "defender_trade_branch",
-            "defender:c5",
-            "exchange_square:d4",
-            "defended_target:e5",
-            "defender_removed:c5-d4",
-            "target_unlocked:e5"
-          )
-      )
-    val unstableBadPieceBranch =
-      supportedExchangePacket(
-        planKind = PlanTaxonomy.PlanKind.BadPieceLiquidation,
-        proofSource = PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource,
-        persistence = PlayerFacingClaimPersistence.BestDefenseOnly,
-        structureTransitionTerms =
-          List(
-            "bad_piece_liquidation_branch",
-            "bad_piece:c8",
-            "exchange_square:e6",
-            "bad_piece_removed:c8-e6"
-          )
-      )
-    val noQueenProof =
-      supportedExchangePacket(
-        planKind = PlanTaxonomy.PlanKind.QueenTradeShield,
-        proofSource = PlayerFacingTruthModePolicy.QueenTradeShieldProofSource,
-        structureTransitionTerms = Nil,
-        exactSliceProof = None
-      )
-    val mismatchedQueenTerms =
-      supportedExchangePacket(
-        planKind = PlanTaxonomy.PlanKind.QueenTradeShield,
-        proofSource = PlayerFacingTruthModePolicy.QueenTradeShieldProofSource,
-        structureTransitionTerms = List("d4c6", "d7c6", "queenless_branch"),
-        exactSliceProof =
-          Some(
-            PlayerFacingExactSliceProof.QueenTradeShield(List("d4c6", "d7c6", "d3d8", "e8d8"))
+    val cases =
+      List(
+        "no defender structure" ->
+          supportedExchangePacket(
+            planKind = PlanTaxonomy.PlanKind.DefenderTrade,
+            proofSource = PlayerFacingTruthModePolicy.DefenderTradeProofSource,
+            structureTransitionTerms = Nil
+          ),
+        "generic defender shape" ->
+          supportedExchangePacket(
+            planKind = PlanTaxonomy.PlanKind.DefenderTrade,
+            proofSource = PlayerFacingTruthModePolicy.DefenderTradeProofSource,
+            structureTransitionTerms = List("defender_trade_branch", "defender_removed:c5-d4", "target_unlocked:e5")
+          ),
+        "generic bad-piece shape" ->
+          supportedExchangePacket(
+            planKind = PlanTaxonomy.PlanKind.BadPieceLiquidation,
+            proofSource = PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource,
+            structureTransitionTerms = List("bad_piece_liquidation_branch", "bad_piece_removed:c8-e6")
+          ),
+        "branch-only defender shape" ->
+          supportedExchangePacket(
+            planKind = PlanTaxonomy.PlanKind.DefenderTrade,
+            proofSource = PlayerFacingTruthModePolicy.DefenderTradeProofSource,
+            structureTransitionTerms = List("defender_trade_branch", "defender:c5", "exchange_square:d4", "defended_target:e5")
+          ),
+        "branch-only bad-piece shape" ->
+          supportedExchangePacket(
+            planKind = PlanTaxonomy.PlanKind.BadPieceLiquidation,
+            proofSource = PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource,
+            structureTransitionTerms = List("bad_piece_liquidation_branch", "bad_piece:c8", "exchange_square:e6")
+          ),
+        "malformed defender square" ->
+          supportedExchangePacket(
+            planKind = PlanTaxonomy.PlanKind.DefenderTrade,
+            proofSource = PlayerFacingTruthModePolicy.DefenderTradeProofSource,
+            structureTransitionTerms = List("defender_trade_branch", "defender:c-file", "exchange_square:d4", "defended_target:e5")
+          ),
+        "malformed bad-piece square" ->
+          supportedExchangePacket(
+            planKind = PlanTaxonomy.PlanKind.BadPieceLiquidation,
+            proofSource = PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource,
+            structureTransitionTerms = List("bad_piece_liquidation_branch", "bad_piece:c8", "exchange_square:e-file")
+          ),
+        "mismatched defender proof" ->
+          supportedExchangePacket(
+            planKind = PlanTaxonomy.PlanKind.DefenderTrade,
+            proofSource = PlayerFacingTruthModePolicy.DefenderTradeProofSource,
+            structureTransitionTerms = List("defender_trade_branch", "defender:c5", "exchange_square:d4", "defended_target:e5"),
+            exactSliceProof = Some(PlayerFacingExactSliceProof.DefenderTrade("c5", "d4", "f7"))
+          ),
+        "mismatched bad-piece proof" ->
+          supportedExchangePacket(
+            planKind = PlanTaxonomy.PlanKind.BadPieceLiquidation,
+            proofSource = PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource,
+            structureTransitionTerms = List("bad_piece_liquidation_branch", "bad_piece:c8", "exchange_square:e6"),
+            exactSliceProof = Some(PlayerFacingExactSliceProof.BadPieceLiquidation("c8", "d5"))
+          ),
+        "missing defender branch" ->
+          supportedExchangePacket(
+            planKind = PlanTaxonomy.PlanKind.DefenderTrade,
+            proofSource = PlayerFacingTruthModePolicy.DefenderTradeProofSource,
+            sameBranchState = PlayerFacingSameBranchState.Missing,
+            structureTransitionTerms =
+              List(
+                "defender_trade_branch",
+                "defender:c5",
+                "exchange_square:d4",
+                "defended_target:e5",
+                "defender_removed:c5-d4",
+                "target_unlocked:e5"
+              )
+          ),
+        "unstable bad-piece branch" ->
+          supportedExchangePacket(
+            planKind = PlanTaxonomy.PlanKind.BadPieceLiquidation,
+            proofSource = PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource,
+            persistence = PlayerFacingClaimPersistence.BestDefenseOnly,
+            structureTransitionTerms =
+              List(
+                "bad_piece_liquidation_branch",
+                "bad_piece:c8",
+                "exchange_square:e6",
+                "bad_piece_removed:c8-e6"
+              )
+          ),
+        "missing queen proof" ->
+          supportedExchangePacket(
+            planKind = PlanTaxonomy.PlanKind.QueenTradeShield,
+            proofSource = PlayerFacingTruthModePolicy.QueenTradeShieldProofSource,
+            structureTransitionTerms = Nil,
+            exactSliceProof = None
+          ),
+        "mismatched queen terms" ->
+          supportedExchangePacket(
+            planKind = PlanTaxonomy.PlanKind.QueenTradeShield,
+            proofSource = PlayerFacingTruthModePolicy.QueenTradeShieldProofSource,
+            structureTransitionTerms = List("d4c6", "d7c6", "queenless_branch"),
+            exactSliceProof =
+              Some(
+                PlayerFacingExactSliceProof.QueenTradeShield(List("d4c6", "d7c6", "d3d8", "e8d8"))
+              )
           )
       )
 
-    val defenderRows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = ctx,
-        inputs = inputs(packet = noStructure),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract())
-      )
-    val queenRows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = ctx,
-        inputs = inputs(packet = noQueenProof),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract())
-      )
-    val mismatchedQueenRows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = ctx,
-        inputs = inputs(packet = mismatchedQueenTerms),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract())
-      )
-    val genericDefenderRows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = ctx,
-        inputs = inputs(packet = genericDefenderShape),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract())
-      )
-    val genericBadPieceRows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = ctx,
-        inputs = inputs(packet = genericBadPieceShape),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract())
-      )
-    val malformedDefenderRows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = ctx,
-        inputs = inputs(packet = malformedDefenderShape),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract())
-      )
-    val malformedBadPieceRows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = ctx,
-        inputs = inputs(packet = malformedBadPieceShape),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract())
-      )
-    val mismatchedDefenderProofRows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = ctx,
-        inputs = inputs(packet = mismatchedDefenderProof),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract())
-      )
-    val mismatchedBadPieceProofRows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = ctx,
-        inputs = inputs(packet = mismatchedBadPieceProof),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract())
-      )
-    val missingBranchRows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = ctx,
-        inputs = inputs(packet = missingDefenderBranch),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract())
-      )
-    val unstableRows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = ctx,
-        inputs = inputs(packet = unstableBadPieceBranch),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract())
-      )
+    cases.foreach { case (name, packet) =>
+      val rows =
+        MoveReviewSupportedLocalSurfaceRows.build(
+          ctx = ctx,
+          inputs = inputs(packet = packet),
+          rankedPlans = NoRankedPlans,
+          truthContract = Some(safeTruthContract())
+        )
 
-    assertEquals(defenderRows, Nil)
-    assertEquals(genericDefenderRows, Nil)
-    assertEquals(genericBadPieceRows, Nil)
-    assertEquals(malformedDefenderRows, Nil)
-    assertEquals(malformedBadPieceRows, Nil)
-    assertEquals(mismatchedDefenderProofRows, Nil)
-    assertEquals(mismatchedBadPieceProofRows, Nil)
-    assertEquals(missingBranchRows, Nil)
-    assertEquals(unstableRows, Nil)
-    assertEquals(queenRows, Nil)
-    assertEquals(mismatchedQueenRows, Nil)
+      assertEquals(rows, Nil, clue(name -> rows))
+    }
   }
 
   test("suppresses exchange ownership row under tactical truth mode") {
@@ -1895,7 +1858,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
               ),
             truthMode = PlayerFacingTruthMode.Tactical
           ),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -2010,6 +1973,34 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
   test("projects diagonal central captures as central liquidation rows, not central break") {
     val diagonalCaptureFen =
+      "4k3/8/8/3p4/4P3/8/8/4K3 b - - 0 1"
+    val lines =
+      List(
+        VariationLine(List("d5e4"), scoreCp = 0, depth = 18),
+        VariationLine(List("e8d7"), scoreCp = 0, depth = 18)
+      )
+    val (centralCtx, centralInputs, centralRanked) =
+      centralScene(fen = diagonalCaptureFen, ply = 2, playedMove = "d5e4", lines = lines)
+
+    val rows =
+      MoveReviewSupportedLocalSurfaceRows.build(
+        ctx = centralCtx,
+        inputs = centralInputs,
+        rankedPlans = centralRanked,
+        truthContract = Some(safeTruthContract())
+      )
+
+    assert(!rows.exists(_.label == "Central break"), clue(rows))
+    assertEquals(rows.map(_.label), List("Central liquidation"))
+    assertEquals(rows.head.text, "The move releases central tension through d5-e4.")
+    assertEquals(
+      rows.head.authority,
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CentralLiquidation, token = Some("...d5-e4")))
+    )
+  }
+
+  test("prioritizes relation practical rows over central liquidation fallback") {
+    val diagonalCaptureFen =
       "r2q1rk1/pp2npb1/2p1b1pp/3pB3/3PN3/1BP2N2/PP3PPP/R2Q1RK1 b - - 0 15"
     val lines =
       List(
@@ -2027,13 +2018,9 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
         truthContract = Some(safeTruthContract())
       )
 
-    assert(!rows.exists(_.label == "Central break"), clue(rows))
-    assertEquals(rows.map(_.label), List("Central liquidation"))
-    assertEquals(rows.head.text, "The move releases central tension through d5-e4.")
-    assertEquals(
-      rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CentralLiquidation, token = Some("...d5-e4")))
-    )
+    assertEquals(rows.map(_.label), List("Overloaded defender"), clue(rows))
+    assert(!rows.exists(_.label == "Central liquidation"), clue(rows))
+    assertEquals(rows.head.authority, Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)))
   }
 
   test("projects prep or challenge pawn moves as central challenge rows, not central break") {
@@ -2127,7 +2114,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = injectedCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("c7c5"))
       )
 
@@ -2156,7 +2143,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = injectedCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("f2f4"))
       )
 
@@ -2213,7 +2200,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = injectedCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("d5d4"))
       )
 
@@ -2248,7 +2235,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = injectedCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("f6e4"))
       )
 
@@ -2275,7 +2262,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = flankCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("h3h4"))
       )
 
@@ -2308,7 +2295,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = flankCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("h3h4"))
       )
 
@@ -2341,7 +2328,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = flankCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("h3h4"))
       )
 
@@ -2368,7 +2355,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = liftCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("h1h3"))
       )
 
@@ -2401,7 +2388,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = liftCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("h1h3"))
       )
 
@@ -2428,7 +2415,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = shuffleCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("a1d1"))
       )
 
@@ -2455,7 +2442,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = outpostCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("f3e5"))
       )
 
@@ -2488,7 +2475,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = outpostCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("f3e5"))
       )
 
@@ -2515,7 +2502,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = unsupportedCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("f3e5"))
       )
 
@@ -2542,7 +2529,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = attackedCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("f3e5"))
       )
 
@@ -2569,7 +2556,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = bishopPairCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("c4f7"))
       )
 
@@ -2602,7 +2589,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = bishopPairCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("c4f7"))
       )
 
@@ -2629,7 +2616,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = singleBishopCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("c4f7"))
       )
 
@@ -2656,7 +2643,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = mirroredPairCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("c4f7"))
       )
 
@@ -2683,7 +2670,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = oppositeBishopCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("c4f7"))
       )
 
@@ -2716,7 +2703,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = oppositeBishopCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("c4f7"))
       )
 
@@ -2743,7 +2730,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = sameColorBishopCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("c4f7"))
       )
 
@@ -2770,7 +2757,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = majorPieceCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("c4f7"))
       )
 
@@ -2797,7 +2784,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = seventhCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("a2a7"))
       )
 
@@ -2830,7 +2817,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = seventhCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("a2a7"))
       )
 
@@ -2857,7 +2844,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = sixthCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("a2a6"))
       )
 
@@ -2884,7 +2871,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = passerRookCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("a3b3"))
       )
 
@@ -2917,7 +2904,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = passerRookCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("a3b3"))
       )
 
@@ -2944,7 +2931,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = frontRookCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("a7b7"))
       )
 
@@ -2971,7 +2958,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = blockadeCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("f4d3"))
       )
 
@@ -3004,7 +2991,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = blockadeCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("f4d3"))
       )
 
@@ -3031,7 +3018,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = blockadeCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("f4d3"))
       )
 
@@ -3058,7 +3045,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = blockadeCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("f4e2"))
       )
 
@@ -3085,7 +3072,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = fileCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("a3e3"))
       )
 
@@ -3118,7 +3105,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = fileCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("a3e3"))
       )
 
@@ -3146,7 +3133,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = fileCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("a3e3"))
       )
 
@@ -3173,7 +3160,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = blockedCtx,
         inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("a3e3"))
       )
 
@@ -3182,27 +3169,15 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
   test("projects top-PV x-ray pressure as a bounded practical row") {
     val xrayCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "k7/8/6q1/5n2/8/8/8/1B5K w - - 0 1",
-        playedMove = Some("b1e4"),
-        playedSan = Some("Be4"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("b1e4", "a8b8"), scoreCp = 42, depth = 18))
-            )
-          )
+        playedMove = "b1e4",
+        playedSan = "Be4",
+        line = List("b1e4", "a8b8"),
+        scoreCp = 42
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = xrayCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("b1e4"))
-      )
+    val rows = topPvPracticalRows(xrayCtx, "b1e4")
 
     assertEquals(rows.map(_.label), List("X-ray pressure"), clue(rows))
     assertEquals(rows.head.text, "The checked line sets x-ray pressure from the bishop on e4 through f5 toward g6.")
@@ -3215,114 +3190,30 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
   test("does not project x-ray prose without a target beyond the blocker") {
     val blockedXrayCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "k7/8/8/5n2/8/8/8/1B5K w - - 0 1",
-        playedMove = Some("b1e4"),
-        playedSan = Some("Be4"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("b1e4", "a8b8"), scoreCp = 42, depth = 18))
-            )
-          )
+        playedMove = "b1e4",
+        playedSan = "Be4",
+        line = List("b1e4", "a8b8"),
+        scoreCp = 42
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = blockedXrayCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("b1e4"))
-      )
-
-    assertEquals(rows, Nil)
-  }
-
-  test("projects top-PV clearance as a bounded practical row") {
-    val clearanceCtx =
-      ctx.copy(
-        fen = "k7/7q/8/8/8/3N4/8/1B4K1 w - - 0 1",
-        playedMove = Some("d3f4"),
-        playedSan = Some("Nf4"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("d3f4", "a8b8"), scoreCp = 80, depth = 18))
-            )
-          )
-      )
-
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = clearanceCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("d3f4"))
-      )
-
-    assertEquals(rows.map(_.label), List("Clearance"), clue(rows))
-    assertEquals(rows.head.text, "The checked line clears d3, opening the bishop on b1 toward h7.")
-    assertEquals(
-      rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
-      clue(rows)
-    )
-  }
-
-  test("does not project clearance prose without a top-PV played-move witness") {
-    val clearanceCtx =
-      ctx.copy(
-        fen = "k7/7q/8/8/8/3N4/8/1B4K1 w - - 0 1",
-        playedMove = Some("d3f4"),
-        playedSan = Some("Nf4"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("g1f1", "d3f4"), scoreCp = 80, depth = 18))
-            )
-          )
-      )
-
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = clearanceCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("d3f4"))
-      )
+    val rows = topPvPracticalRows(blockedXrayCtx, "b1e4")
 
     assertEquals(rows, Nil)
   }
 
   test("projects top-PV back-rank mates as bounded practical rows") {
     val mateCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "6k1/5ppp/8/8/8/8/8/4R1K1 w - - 0 1",
-        playedMove = Some("e1e8"),
-        playedSan = Some("Re8#"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("e1e8"), scoreCp = 9999, depth = 18))
-            )
-          )
+        playedMove = "e1e8",
+        playedSan = "Re8#",
+        line = List("e1e8"),
+        scoreCp = 9999
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = mateCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("e1e8"))
-      )
+    val rows = topPvPracticalRows(mateCtx, "e1e8")
 
     assertEquals(rows.map(_.label), List("Back-rank mate"), clue(rows))
     assertEquals(rows.head.text, "The checked line ends in back-rank mate on g8 after e1e8.")
@@ -3335,54 +3226,30 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
   test("does not project back-rank mate prose without a top-PV played-move witness") {
     val mateCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "6k1/5ppp/8/8/8/8/8/4R1K1 w - - 0 1",
-        playedMove = Some("e1e8"),
-        playedSan = Some("Re8#"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("g1f1", "e1e8"), scoreCp = 9999, depth = 18))
-            )
-          )
+        playedMove = "e1e8",
+        playedSan = "Re8#",
+        line = List("g1f1", "e1e8"),
+        scoreCp = 9999
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = mateCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("e1e8"))
-      )
+    val rows = topPvPracticalRows(mateCtx, "e1e8")
 
     assertEquals(rows, Nil)
   }
 
   test("projects named top-PV mate patterns before broad practical rows") {
     val mateNetCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "6rk/6pp/4P2N/8/8/8/8/6K1 w - - 0 1",
-        playedMove = Some("h6f7"),
-        playedSan = Some("Nf7#"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("h6f7"), scoreCp = 9999, depth = 18))
-            )
-          )
+        playedMove = "h6f7",
+        playedSan = "Nf7#",
+        line = List("h6f7"),
+        scoreCp = 9999
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = mateNetCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("h6f7"))
-      )
+    val rows = topPvPracticalRows(mateNetCtx, "h6f7")
 
     assertEquals(rows.map(_.label), List("Smothered mate"), clue(rows))
     assertEquals(rows.head.text, "The checked line ends in smothered mate on h8 after h6f7.")
@@ -3395,54 +3262,30 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
   test("does not project mate-net prose without a top-PV played-move witness") {
     val mateNetCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "6rk/6pp/7N/8/8/8/8/6K1 w - - 0 1",
-        playedMove = Some("h6f7"),
-        playedSan = Some("Nf7#"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("g1f1", "h6f7"), scoreCp = 9999, depth = 18))
-            )
-          )
+        playedMove = "h6f7",
+        playedSan = "Nf7#",
+        line = List("g1f1", "h6f7"),
+        scoreCp = 9999
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = mateNetCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("h6f7"))
-      )
+    val rows = topPvPracticalRows(mateNetCtx, "h6f7")
 
     assertEquals(rows, Nil)
   }
 
   test("projects top-PV Greek gift entries as bounded practical rows") {
     val greekGiftCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "6k1/7p/8/8/8/3B1N2/8/3QK3 w - - 0 1",
-        playedMove = Some("d3h7"),
-        playedSan = Some("Bxh7+"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("d3h7", "g8h7", "f3g5", "h7g8", "d1h5"), scoreCp = 120, depth = 18))
-            )
-          )
+        playedMove = "d3h7",
+        playedSan = "Bxh7+",
+        line = List("d3h7", "g8h7", "f3g5", "h7g8", "d1h5"),
+        scoreCp = 120
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = greekGiftCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("d3h7"))
-      )
+    val rows = topPvPracticalRows(greekGiftCtx, "d3h7")
 
     assertEquals(rows.map(_.label), List("Greek gift"), clue(rows))
     assertEquals(rows.head.text, "The checked line starts a Greek gift sacrifice with the bishop on h7.")
@@ -3455,54 +3298,30 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
   test("does not project Greek gift prose without top-PV continuation support") {
     val greekGiftCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "6k1/7p/8/8/8/3B1N2/8/3QK3 w - - 0 1",
-        playedMove = Some("d3h7"),
-        playedSan = Some("Bxh7+"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("d3h7"), scoreCp = 120, depth = 18))
-            )
-          )
+        playedMove = "d3h7",
+        playedSan = "Bxh7+",
+        line = List("d3h7"),
+        scoreCp = 120
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = greekGiftCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("d3h7"))
-      )
+    val rows = topPvPracticalRows(greekGiftCtx, "d3h7")
 
     assertEquals(rows, Nil)
   }
 
   test("projects top-PV double checks as bounded practical rows") {
     val doubleCheckCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "4k3/8/8/8/4N3/8/8/4R1K1 w - - 0 1",
-        playedMove = Some("e4f6"),
-        playedSan = Some("Nf6++"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("e4f6"), scoreCp = 130, depth = 18))
-            )
-          )
+        playedMove = "e4f6",
+        playedSan = "Nf6++",
+        line = List("e4f6"),
+        scoreCp = 130
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = doubleCheckCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("e4f6"))
-      )
+    val rows = topPvPracticalRows(doubleCheckCtx, "e4f6")
 
     assertEquals(rows.map(_.label), List("Double check"), clue(rows))
     assertEquals(rows.head.text, "The checked line gives double check on e8 from e1 and f6.")
@@ -3515,54 +3334,159 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
   test("does not project double-check prose without a top-PV played-move witness") {
     val doubleCheckCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "4k3/8/8/8/4N3/8/8/4R1K1 w - - 0 1",
-        playedMove = Some("e4f6"),
-        playedSan = Some("Nf6++"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("g1f1", "e4f6"), scoreCp = 130, depth = 18))
-            )
-          )
+        playedMove = "e4f6",
+        playedSan = "Nf6++",
+        line = List("g1f1", "e4f6"),
+        scoreCp = 130
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = doubleCheckCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("e4f6"))
+    val rows = topPvPracticalRows(doubleCheckCtx, "e4f6")
+
+    assertEquals(rows, Nil)
+  }
+
+  test("projects top-PV defender trades as bounded practical rows") {
+    val defenderTradeCtx =
+      withFocalTarget(
+        topPvPracticalContext(
+          fen = "3k1b1r/p2b1ppp/1n3n2/4p3/8/1R4P1/P1QPqPBP/2B2RK1 w - - 0 17",
+          playedMove = "c1a3",
+          playedSan = "Ba3",
+          line = List("c1a3", "f8a3", "b3a3"),
+          scoreCp = 44
+        ),
+        "c5"
       )
+
+    val rows = topPvPracticalRows(defenderTradeCtx, "c1a3")
+
+    assertEquals(rows.map(_.label), List("Defender trade"), clue(rows))
+    assertEquals(
+      rows.head.text,
+      "The checked line trades on a3 to remove the defender from f8, loosening c5."
+    )
+    assertEquals(
+      rows.head.authority,
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
+      clue(rows)
+    )
+  }
+
+  test("does not project defender-trade prose without a declared or structural target") {
+    val defenderTradeCtx =
+      topPvPracticalContext(
+        fen = "3k1b1r/p2b1ppp/1n3n2/4p3/8/1R4P1/P1QPqPBP/2B2RK1 w - - 0 17",
+        playedMove = "c1a3",
+        playedSan = "Ba3",
+        line = List("c1a3", "f8a3", "b3a3"),
+        scoreCp = 44
+      )
+
+    val rows = topPvPracticalRows(defenderTradeCtx, "c1a3")
+
+    assert(!rows.exists(_.label == "Defender trade"), clue(rows))
+  }
+
+  test("projects top-PV bad-piece liquidation as a bounded practical row") {
+    val badPieceCtx =
+      topPvPracticalContext(
+        fen = "3k1b2/8/8/8/3P4/n3P3/8/2B3K1 w - - 0 1",
+        playedMove = "c1a3",
+        playedSan = "Bxa3",
+        line = List("c1a3", "f8a3"),
+        scoreCp = 22
+      )
+
+    val rows = topPvPracticalRows(badPieceCtx, "c1a3")
+
+    assertEquals(rows.map(_.label), List("Bad piece trade"), clue(rows))
+    assertEquals(rows.head.text, "The checked line trades on a3 to clear the bad piece from c1.")
+    assertEquals(
+      rows.head.authority,
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
+      clue(rows)
+    )
+  }
+
+  test("does not project bad-piece liquidation prose for open bishop exchanges") {
+    val openBishopCtx =
+      topPvPracticalContext(
+        fen = "5r2/4k3/8/8/3P4/2P5/8/2B3K1 w - - 0 1",
+        playedMove = "c1a3",
+        playedSan = "Ba3",
+        line = List("c1a3", "e7f7", "a3f8", "f7f8"),
+        scoreCp = 18
+      )
+
+    val rows = topPvPracticalRows(openBishopCtx, "c1a3")
+
+    assert(!rows.exists(_.label == "Bad piece trade"), clue(rows))
+  }
+
+  test("projects top-PV queen trades as bounded practical rows") {
+    val queenTradeCtx =
+      topPvPracticalContext(
+        fen = "3qk3/8/8/8/8/3Q4/8/6K1 w - - 0 1",
+        playedMove = "d3d8",
+        playedSan = "Qxd8+",
+        line = List("d3d8", "e8d8"),
+        scoreCp = 20
+      )
+
+    val rows = topPvPracticalRows(queenTradeCtx, "d3d8")
+
+    assertEquals(rows.map(_.label), List("Queen trade"), clue(rows))
+    assertEquals(rows.head.text, "This exchange moves the game into the queenless branch.")
+    assertEquals(
+      rows.head.authority,
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
+      clue(rows)
+    )
+  }
+
+  test("does not project queen-trade prose without king recapture") {
+    val rookRecaptureCtx =
+      topPvPracticalContext(
+        fen = "k2qr3/8/8/8/8/3Q4/8/6K1 w - - 0 1",
+        playedMove = "d3d8",
+        playedSan = "Qxd8+",
+        line = List("d3d8", "e8d8"),
+        scoreCp = 20
+      )
+
+    val rows = topPvPracticalRows(rookRecaptureCtx, "d3d8")
+
+    assert(!rows.exists(_.label == "Queen trade"), clue(rows))
+  }
+
+  test("does not project queen-trade prose without a top-PV played-move witness") {
+    val queenTradeCtx =
+      topPvPracticalContext(
+        fen = "3qk3/8/8/8/8/3Q4/8/6K1 w - - 0 1",
+        playedMove = "d3d8",
+        playedSan = "Qxd8+",
+        line = List("g1f1", "e8d8"),
+        scoreCp = 20
+      )
+
+    val rows = topPvPracticalRows(queenTradeCtx, "d3d8")
 
     assertEquals(rows, Nil)
   }
 
   test("projects top-PV knight forks as bounded practical rows") {
     val forkCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "k7/4r3/8/8/3N3q/8/8/6K1 w - - 0 1",
-        playedMove = Some("d4f5"),
-        playedSan = Some("Nf5"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("d4f5"), scoreCp = 90, depth = 18))
-            )
-          )
+        playedMove = "d4f5",
+        playedSan = "Nf5",
+        line = List("d4f5"),
+        scoreCp = 90
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = forkCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("d4f5"))
-      )
+    val rows = topPvPracticalRows(forkCtx, "d4f5")
 
     assertEquals(rows.map(_.label), List("Fork"), clue(rows))
     assertEquals(rows.head.text, "The checked line puts the knight on f5 attacking the queen on h4 and the rook on e7.")
@@ -3575,54 +3499,30 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
   test("does not project fork prose without a top-PV played-move witness") {
     val forkCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "k7/4r3/8/8/3N3q/8/8/6K1 w - - 0 1",
-        playedMove = Some("d4f5"),
-        playedSan = Some("Nf5"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("g1f1", "d4f5"), scoreCp = 90, depth = 18))
-            )
-          )
+        playedMove = "d4f5",
+        playedSan = "Nf5",
+        line = List("g1f1", "d4f5"),
+        scoreCp = 90
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = forkCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("d4f5"))
-      )
+    val rows = topPvPracticalRows(forkCtx, "d4f5")
 
     assertEquals(rows, Nil)
   }
 
   test("projects top-PV overloaded defenders as bounded practical rows") {
     val overloadCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "k7/7p/5n2/3p4/8/8/8/3Q2K1 w - - 0 1",
-        playedMove = Some("d1d3"),
-        playedSan = Some("Qd3"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("d1d3"), scoreCp = 26, depth = 18))
-            )
-          )
+        playedMove = "d1d3",
+        playedSan = "Qd3",
+        line = List("d1d3"),
+        scoreCp = 26
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = overloadCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("d1d3"))
-      )
+    val rows = topPvPracticalRows(overloadCtx, "d1d3")
 
     assertEquals(rows.map(_.label), List("Overloaded defender"), clue(rows))
     assertEquals(rows.head.text, "The checked line overloads the defender on f6 across d5 and h7.")
@@ -3635,54 +3535,30 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
   test("does not project overload prose without a top-PV played-move witness") {
     val overloadCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "k7/7p/5n2/3p4/8/8/8/3Q2K1 w - - 0 1",
-        playedMove = Some("d1d3"),
-        playedSan = Some("Qd3"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("g1f1", "d1d3"), scoreCp = 26, depth = 18))
-            )
-          )
+        playedMove = "d1d3",
+        playedSan = "Qd3",
+        line = List("g1f1", "d1d3"),
+        scoreCp = 26
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = overloadCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("d1d3"))
-      )
+    val rows = topPvPracticalRows(overloadCtx, "d1d3")
 
     assertEquals(rows, Nil)
   }
 
   test("projects top-PV decoys as bounded practical rows") {
     val decoyCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "k7/8/8/3q4/5N2/8/4B3/3Q2K1 w - - 0 1",
-        playedMove = Some("f4d3"),
-        playedSan = Some("Nd3"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("f4d3", "d5d3", "e2d3"), scoreCp = 120, depth = 18))
-            )
-          )
+        playedMove = "f4d3",
+        playedSan = "Nd3",
+        line = List("f4d3", "d5d3", "e2d3"),
+        scoreCp = 120
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = decoyCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("f4d3"))
-      )
+    val rows = topPvPracticalRows(decoyCtx, "f4d3")
 
     assertEquals(rows.map(_.label), List("Decoy"), clue(rows))
     assertEquals(
@@ -3698,54 +3574,30 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
   test("does not project decoy prose without the full top-PV lure branch") {
     val decoyCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "k7/8/8/3q4/5N2/8/4B3/3Q2K1 w - - 0 1",
-        playedMove = Some("f4d3"),
-        playedSan = Some("Nd3"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("f4d3", "a8b8"), scoreCp = 120, depth = 18))
-            )
-          )
+        playedMove = "f4d3",
+        playedSan = "Nd3",
+        line = List("f4d3", "a8b8"),
+        scoreCp = 120
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = decoyCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("f4d3"))
-      )
+    val rows = topPvPracticalRows(decoyCtx, "f4d3")
 
     assertEquals(rows, Nil)
   }
 
   test("projects top-PV deflections as bounded practical rows") {
     val deflectionCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "3k1b1r/p2b1ppp/1n3n2/4p3/8/1R4P1/P1QPqPBP/2B2RK1 w - - 0 17",
-        playedMove = Some("c1a3"),
-        playedSan = Some("Ba3"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("c1a3", "f8a3"), scoreCp = 32, depth = 18))
-            )
-          )
+        playedMove = "c1a3",
+        playedSan = "Ba3",
+        line = List("c1a3", "f8a3"),
+        scoreCp = 32
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = deflectionCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("c1a3"))
-      )
+    val rows = topPvPracticalRows(deflectionCtx, "c1a3")
 
     assertEquals(rows.map(_.label), List("Deflection"), clue(rows))
     assertEquals(
@@ -3761,54 +3613,66 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
   test("does not project deflection prose without the top-PV defender move") {
     val deflectionCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "3k1b1r/p2b1ppp/1n3n2/4p3/8/1R4P1/P1QPqPBP/2B2RK1 w - - 0 17",
-        playedMove = Some("c1a3"),
-        playedSan = Some("Ba3"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("c1a3", "d8c7"), scoreCp = 32, depth = 18))
-            )
-          )
+        playedMove = "c1a3",
+        playedSan = "Ba3",
+        line = List("c1a3", "d8c7"),
+        scoreCp = 32
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = deflectionCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("c1a3"))
+    val rows = topPvPracticalRows(deflectionCtx, "c1a3")
+
+    assertEquals(rows, Nil)
+  }
+
+  test("projects top-PV discovered attacks as bounded practical rows") {
+    val discoveredCtx =
+      topPvPracticalContext(
+        fen = "k7/7q/8/8/8/3N4/8/1B4K1 w - - 0 1",
+        playedMove = "d3f4",
+        playedSan = "Nf4",
+        line = List("d3f4"),
+        scoreCp = 80
       )
+
+    val rows = topPvPracticalRows(discoveredCtx, "d3f4")
+
+    assertEquals(rows.map(_.label), List("Discovered attack"), clue(rows))
+    assertEquals(rows.head.text, "The checked line clears d3, revealing a bishop attack from b1 on h7.")
+    assertEquals(
+      rows.head.authority,
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
+      clue(rows)
+    )
+  }
+
+  test("does not project discovered-attack prose without a top-PV played-move witness") {
+    val discoveredCtx =
+      topPvPracticalContext(
+        fen = "k7/7q/8/8/8/3N4/8/1B4K1 w - - 0 1",
+        playedMove = "d3f4",
+        playedSan = "Nf4",
+        line = List("g1f1", "d3f4"),
+        scoreCp = 80
+      )
+
+    val rows = topPvPracticalRows(discoveredCtx, "d3f4")
 
     assertEquals(rows, Nil)
   }
 
   test("projects top-PV hanging pieces as bounded practical rows") {
     val hangingCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "k7/8/8/5r2/2B5/8/8/6K1 w - - 0 1",
-        playedMove = Some("c4d3"),
-        playedSan = Some("Bd3"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("c4d3"), scoreCp = 48, depth = 18))
-            )
-          )
+        playedMove = "c4d3",
+        playedSan = "Bd3",
+        line = List("c4d3"),
+        scoreCp = 48
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = hangingCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("c4d3"))
-      )
+    val rows = topPvPracticalRows(hangingCtx, "c4d3")
 
     assertEquals(rows.map(_.label), List("Hanging piece"), clue(rows))
     assertEquals(rows.head.text, "The checked line attacks the undefended rook on f5 with the bishop on d3.")
@@ -3821,27 +3685,15 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
   test("does not project hanging-piece prose without a top-PV played-move witness") {
     val hangingCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "k7/8/8/5r2/2B5/8/8/6K1 w - - 0 1",
-        playedMove = Some("c4d3"),
-        playedSan = Some("Bd3"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("g1f1", "c4d3"), scoreCp = 48, depth = 18))
-            )
-          )
+        playedMove = "c4d3",
+        playedSan = "Bd3",
+        line = List("g1f1", "c4d3"),
+        scoreCp = 48
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = hangingCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("c4d3"))
-      )
+    val rows = topPvPracticalRows(hangingCtx, "c4d3")
 
     assertEquals(rows, Nil)
   }
@@ -3849,29 +3701,17 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
   test("projects target-bound trapped pieces as bounded practical rows") {
     val trappedCtx =
       withFocalTarget(
-        ctx.copy(
+        topPvPracticalContext(
           fen = "k5pr/7p/8/8/8/2B5/8/6K1 w - - 0 1",
-          playedMove = Some("c3g7"),
-          playedSan = Some("Bg7"),
-          openingGoalEvaluation = None,
-          engineEvidence =
-            Some(
-              EngineEvidence(
-                depth = 18,
-                variations = List(VariationLine(List("c3g7"), scoreCp = 64, depth = 18))
-              )
-            )
+          playedMove = "c3g7",
+          playedSan = "Bg7",
+          line = List("c3g7"),
+          scoreCp = 64
         ),
         "h8"
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = trappedCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("c3g7"))
-      )
+    val rows = topPvPracticalRows(trappedCtx, "c3g7")
 
     assertEquals(rows.map(_.label), List("Trapped piece"), clue(rows))
     assertEquals(rows.head.text, "The checked line traps the rook on h8 with the bishop on g7.")
@@ -3884,27 +3724,15 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
   test("does not project trapped-piece prose without an exact focal target") {
     val trappedCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "k5pr/7p/8/8/8/2B5/8/6K1 w - - 0 1",
-        playedMove = Some("c3g7"),
-        playedSan = Some("Bg7"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("c3g7"), scoreCp = 64, depth = 18))
-            )
-          )
+        playedMove = "c3g7",
+        playedSan = "Bg7",
+        line = List("c3g7"),
+        scoreCp = 64
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = trappedCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("c3g7"))
-      )
+    val rows = topPvPracticalRows(trappedCtx, "c3g7")
 
     assertNotEquals(rows.map(_.label), List("Trapped piece"), clue(rows))
   }
@@ -3912,29 +3740,17 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
   test("projects target-bound domination as bounded practical rows") {
     val dominationCtx =
       withFocalTarget(
-        ctx.copy(
+        topPvPracticalContext(
           fen = "n6k/8/B7/1K6/8/8/8/2R5 w - - 0 1",
-          playedMove = Some("a6b7"),
-          playedSan = Some("Bb7"),
-          openingGoalEvaluation = None,
-          engineEvidence =
-            Some(
-              EngineEvidence(
-                depth = 18,
-                variations = List(VariationLine(List("a6b7"), scoreCp = 42, depth = 18))
-              )
-            )
+          playedMove = "a6b7",
+          playedSan = "Bb7",
+          line = List("a6b7"),
+          scoreCp = 42
         ),
         "a8"
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = dominationCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("a6b7"))
-      )
+    val rows = topPvPracticalRows(dominationCtx, "a6b7")
 
     assertEquals(rows.map(_.label), List("Domination"), clue(rows))
     assertEquals(
@@ -3951,29 +3767,17 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
   test("projects target-bound zwischenzug as a bounded practical row") {
     val zwischenzugCtx =
       withFocalTarget(
-        ctx.copy(
+        topPvPracticalContext(
           fen = "4k3/8/8/8/3b4/5N2/8/3QK3 w - - 0 1",
-          playedMove = Some("d1a4"),
-          playedSan = Some("Qa4+"),
-          openingGoalEvaluation = None,
-          engineEvidence =
-            Some(
-              EngineEvidence(
-                depth = 18,
-                variations = List(VariationLine(List("d1a4"), scoreCp = 42, depth = 18))
-              )
-            )
+          playedMove = "d1a4",
+          playedSan = "Qa4+",
+          line = List("d1a4"),
+          scoreCp = 42
         ),
         "d4"
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = zwischenzugCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("d1a4"))
-      )
+    val rows = topPvPracticalRows(zwischenzugCtx, "d1a4")
 
     assertEquals(rows.map(_.label), List("Zwischenzug"), clue(rows))
     assertEquals(rows.head.text, "The checked line inserts d1a4 as a check on e8 before the recapture on d4.")
@@ -3986,27 +3790,15 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
   test("projects top-PV skewers as bounded practical rows") {
     val skewerCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "r6k/8/8/8/8/8/7K/4Q2R b - - 0 1",
-        playedMove = Some("a8a1"),
-        playedSan = Some("Ra1"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("a8a1"), scoreCp = 76, depth = 18))
-            )
-          )
+        playedMove = "a8a1",
+        playedSan = "Ra1",
+        line = List("a8a1"),
+        scoreCp = 76
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = skewerCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("a8a1"))
-      )
+    val rows = topPvPracticalRows(skewerCtx, "a8a1")
 
     assertEquals(rows.map(_.label), List("Skewer"), clue(rows))
     assertEquals(
@@ -4022,54 +3814,30 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
   test("does not project skewer prose without a top-PV played-move witness") {
     val skewerCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "r6k/8/8/8/8/8/7K/4Q2R b - - 0 1",
-        playedMove = Some("a8a1"),
-        playedSan = Some("Ra1"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("h8g8", "a8a1"), scoreCp = 76, depth = 18))
-            )
-          )
+        playedMove = "a8a1",
+        playedSan = "Ra1",
+        line = List("h8g8", "a8a1"),
+        scoreCp = 76
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = skewerCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("a8a1"))
-      )
+    val rows = topPvPracticalRows(skewerCtx, "a8a1")
 
     assertEquals(rows, Nil)
   }
 
   test("projects top-PV interference as a bounded practical row") {
     val interferenceCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "k2r4/8/8/3q1N2/8/8/8/3Q2K1 w - - 0 1",
-        playedMove = Some("f5d6"),
-        playedSan = Some("Nd6"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("f5d6", "a8b8"), scoreCp = 48, depth = 18))
-            )
-          )
+        playedMove = "f5d6",
+        playedSan = "Nd6",
+        line = List("f5d6", "a8b8"),
+        scoreCp = 48
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = interferenceCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("f5d6"))
-      )
+    val rows = topPvPracticalRows(interferenceCtx, "f5d6")
 
     assertEquals(rows.map(_.label), List("Interference"), clue(rows))
     assertEquals(
@@ -4085,54 +3853,30 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
   test("does not project interference prose without a top-PV played-move witness") {
     val interferenceCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "k2r4/8/8/3q1N2/8/8/8/3Q2K1 w - - 0 1",
-        playedMove = Some("f5d6"),
-        playedSan = Some("Nd6"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("g1f1", "f5d6"), scoreCp = 48, depth = 18))
-            )
-          )
+        playedMove = "f5d6",
+        playedSan = "Nd6",
+        line = List("g1f1", "f5d6"),
+        scoreCp = 48
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = interferenceCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("f5d6"))
-      )
+    val rows = topPvPracticalRows(interferenceCtx, "f5d6")
 
     assertEquals(rows, Nil)
   }
 
   test("projects top-PV battery pressure as a bounded practical row") {
     val batteryCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "k7/7q/8/8/8/8/8/1B1Q2K1 w - - 0 1",
-        playedMove = Some("d1d3"),
-        playedSan = Some("Qd3"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("d1d3", "a8b8"), scoreCp = 34, depth = 18))
-            )
-          )
+        playedMove = "d1d3",
+        playedSan = "Qd3",
+        line = List("d1d3", "a8b8"),
+        scoreCp = 34
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = batteryCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("d1d3"))
-      )
+    val rows = topPvPracticalRows(batteryCtx, "d1d3")
 
     assertEquals(rows.map(_.label), List("Battery pressure"), clue(rows))
     assertEquals(rows.head.text, "The checked line forms a queen-bishop battery on the diagonal toward h7.")
@@ -4145,81 +3889,45 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
   test("does not project battery prose without a top-PV played-move witness") {
     val batteryCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "k7/7q/8/8/8/8/8/1B1Q2K1 w - - 0 1",
-        playedMove = Some("d1d3"),
-        playedSan = Some("Qd3"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("g1f1", "d1d3"), scoreCp = 34, depth = 18))
-            )
-          )
+        playedMove = "d1d3",
+        playedSan = "Qd3",
+        line = List("g1f1", "d1d3"),
+        scoreCp = 34
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = batteryCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("d1d3"))
-      )
+    val rows = topPvPracticalRows(batteryCtx, "d1d3")
 
     assertEquals(rows, Nil)
   }
 
   test("does not project battery prose when the target ray is blocked") {
     val blockedBatteryCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "k7/7q/8/8/4P3/8/8/1B1Q2K1 w - - 0 1",
-        playedMove = Some("d1d3"),
-        playedSan = Some("Qd3"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("d1d3", "a8b8"), scoreCp = 34, depth = 18))
-            )
-          )
+        playedMove = "d1d3",
+        playedSan = "Qd3",
+        line = List("d1d3", "a8b8"),
+        scoreCp = 34
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = blockedBatteryCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("d1d3"))
-      )
+    val rows = topPvPracticalRows(blockedBatteryCtx, "d1d3")
 
     assertEquals(rows, Nil)
   }
 
   test("projects top-PV absolute pins as bounded practical rows") {
     val pinCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "4kb2/8/8/8/8/2N5/8/4K3 b - - 0 1",
-        playedMove = Some("f8b4"),
-        playedSan = Some("Bb4"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("f8b4", "e1d1"), scoreCp = 52, depth = 18))
-            )
-          )
+        playedMove = "f8b4",
+        playedSan = "Bb4",
+        line = List("f8b4", "e1d1"),
+        scoreCp = 52
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = pinCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("f8b4"))
-      )
+    val rows = topPvPracticalRows(pinCtx, "f8b4")
 
     assertEquals(rows.map(_.label), List("Pin pressure"), clue(rows))
     assertEquals(rows.head.text, "The checked line pins the knight on c3 to the king on e1.")
@@ -4232,54 +3940,30 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
   test("does not project pin prose without a top-PV played-move witness") {
     val pinCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "4kb2/8/8/8/8/2N5/8/4K3 b - - 0 1",
-        playedMove = Some("f8b4"),
-        playedSan = Some("Bb4"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("e8f7", "f8b4"), scoreCp = 52, depth = 18))
-            )
-          )
+        playedMove = "f8b4",
+        playedSan = "Bb4",
+        line = List("e8f7", "f8b4"),
+        scoreCp = 52
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = pinCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("f8b4"))
-      )
+    val rows = topPvPracticalRows(pinCtx, "f8b4")
 
     assertEquals(rows, Nil)
   }
 
   test("keeps relative pins out of practical pin rows") {
     val relativePinCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "4kb2/8/8/8/8/2N5/3Q4/6K1 b - - 0 1",
-        playedMove = Some("f8b4"),
-        playedSan = Some("Bb4"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("f8b4", "g1f1"), scoreCp = 52, depth = 18))
-            )
-          )
+        playedMove = "f8b4",
+        playedSan = "Bb4",
+        line = List("f8b4", "g1f1"),
+        scoreCp = 52
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = relativePinCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("f8b4"))
-      )
+    val rows = topPvPracticalRows(relativePinCtx, "f8b4")
 
     assertEquals(rows.map(_.label), List("X-ray pressure"), clue(rows))
     assert(!rows.exists(_.label == "Pin pressure"), clue(rows))
@@ -4287,27 +3971,15 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
   test("projects top-PV connected rooks as a bounded practical row") {
     val connectedRooksCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "6k1/8/8/8/8/8/6K1/R6R w - - 0 1",
-        playedMove = Some("h1d1"),
-        playedSan = Some("Rd1"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("h1d1", "g8f8"), scoreCp = 32, depth = 18))
-            )
-          )
+        playedMove = "h1d1",
+        playedSan = "Rd1",
+        line = List("h1d1", "g8f8"),
+        scoreCp = 32
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = connectedRooksCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("h1d1"))
-      )
+    val rows = topPvPracticalRows(connectedRooksCtx, "h1d1")
 
     assertEquals(rows.map(_.label), List("Connected rooks"), clue(rows))
     assertEquals(rows.head.text, "The checked line connects the rooks on the first rank.")
@@ -4320,81 +3992,45 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
   test("does not project connected-rook prose without a top-PV played-move witness") {
     val connectedRooksCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "6k1/8/8/8/8/8/6K1/R6R w - - 0 1",
-        playedMove = Some("h1d1"),
-        playedSan = Some("Rd1"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("g2f1", "g8f8"), scoreCp = 32, depth = 18))
-            )
-          )
+        playedMove = "h1d1",
+        playedSan = "Rd1",
+        line = List("g2f1", "g8f8"),
+        scoreCp = 32
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = connectedRooksCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("h1d1"))
-      )
+    val rows = topPvPracticalRows(connectedRooksCtx, "h1d1")
 
     assertEquals(rows, Nil)
   }
 
   test("does not project connected-rook prose when a piece remains between the rooks") {
     val blockedRooksCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "6k1/8/8/8/8/8/6K1/RN5R w - - 0 1",
-        playedMove = Some("h1d1"),
-        playedSan = Some("Rd1"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("h1d1", "g8f8"), scoreCp = 18, depth = 18))
-            )
-          )
+        playedMove = "h1d1",
+        playedSan = "Rd1",
+        line = List("h1d1", "g8f8"),
+        scoreCp = 18
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = blockedRooksCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("h1d1"))
-      )
+    val rows = topPvPracticalRows(blockedRooksCtx, "h1d1")
 
     assertEquals(rows, Nil)
   }
 
   test("projects top-PV doubled rooks as a bounded practical row") {
     val doubledRooksCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "6k1/8/8/8/R7/8/6K1/R7 w - - 0 1",
-        playedMove = Some("a1a2"),
-        playedSan = Some("Ra2"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("a1a2", "g8f8"), scoreCp = 34, depth = 18))
-            )
-          )
+        playedMove = "a1a2",
+        playedSan = "Ra2",
+        line = List("a1a2", "g8f8"),
+        scoreCp = 34
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = doubledRooksCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("a1a2"))
-      )
+    val rows = topPvPracticalRows(doubledRooksCtx, "a1a2")
 
     assertEquals(rows.map(_.label), List("Doubled rooks"), clue(rows))
     assertEquals(rows.head.text, "The checked line doubles the rooks on the a-file.")
@@ -4407,81 +4043,45 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
   test("does not project doubled-rook prose without a top-PV played-move witness") {
     val doubledRooksCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "6k1/8/8/8/R7/8/6K1/R7 w - - 0 1",
-        playedMove = Some("a1a2"),
-        playedSan = Some("Ra2"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("g2f1", "g8f8"), scoreCp = 34, depth = 18))
-            )
-          )
+        playedMove = "a1a2",
+        playedSan = "Ra2",
+        line = List("g2f1", "g8f8"),
+        scoreCp = 34
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = doubledRooksCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("a1a2"))
-      )
+    val rows = topPvPracticalRows(doubledRooksCtx, "a1a2")
 
     assertEquals(rows, Nil)
   }
 
   test("does not project doubled-rook prose when a piece remains between the rooks") {
     val blockedRooksCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "6k1/8/8/8/R7/N7/6K1/R7 w - - 0 1",
-        playedMove = Some("a1a2"),
-        playedSan = Some("Ra2"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("a1a2", "g8f8"), scoreCp = 18, depth = 18))
-            )
-          )
+        playedMove = "a1a2",
+        playedSan = "Ra2",
+        line = List("a1a2", "g8f8"),
+        scoreCp = 18
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = blockedRooksCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("a1a2"))
-      )
+    val rows = topPvPracticalRows(blockedRooksCtx, "a1a2")
 
     assertEquals(rows, Nil)
   }
 
   test("projects top-PV connected passers as a bounded practical row") {
     val connectedCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "6k1/8/8/3P4/4P3/8/8/6K1 w - - 0 1",
-        playedMove = Some("e4e5"),
-        playedSan = Some("e5"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("e4e5", "g8f8"), scoreCp = 68, depth = 18))
-            )
-          )
+        playedMove = "e4e5",
+        playedSan = "e5",
+        line = List("e4e5", "g8f8"),
+        scoreCp = 68
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = connectedCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("e4e5"))
-      )
+    val rows = topPvPracticalRows(connectedCtx, "e4e5")
 
     assertEquals(rows.map(_.label), List("Connected passers"), clue(rows))
     assertEquals(rows.head.text, "The checked line leaves connected passers on d5 and e5.")
@@ -4494,108 +4094,60 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
   test("does not project connected-passer prose without a top-PV played-move witness") {
     val connectedCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "6k1/8/8/3P4/4P3/8/8/6K1 w - - 0 1",
-        playedMove = Some("e4e5"),
-        playedSan = Some("e5"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("g1f1", "g8f8"), scoreCp = 68, depth = 18))
-            )
-          )
+        playedMove = "e4e5",
+        playedSan = "e5",
+        line = List("g1f1", "g8f8"),
+        scoreCp = 68
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = connectedCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("e4e5"))
-      )
+    val rows = topPvPracticalRows(connectedCtx, "e4e5")
 
     assertEquals(rows, Nil)
   }
 
   test("does not project disconnected pawn advances as connected-passer prose") {
     val disconnectedCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "6k1/8/3p4/8/4P3/8/8/6K1 w - - 0 1",
-        playedMove = Some("e4e5"),
-        playedSan = Some("e5"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("e4e5", "g8f8"), scoreCp = 18, depth = 18))
-            )
-          )
+        playedMove = "e4e5",
+        playedSan = "e5",
+        line = List("e4e5", "g8f8"),
+        scoreCp = 18
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = disconnectedCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("e4e5"))
-      )
+    val rows = topPvPracticalRows(disconnectedCtx, "e4e5")
 
     assertEquals(rows, Nil)
   }
 
   test("does not project connected-passer prose when the opponent also has a passer") {
     val counterPasserCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "6k1/8/8/3P4/4P2p/8/8/6K1 w - - 0 1",
-        playedMove = Some("e4e5"),
-        playedSan = Some("e5"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("e4e5", "g8f8"), scoreCp = 32, depth = 18))
-            )
-          )
+        playedMove = "e4e5",
+        playedSan = "e5",
+        line = List("e4e5", "g8f8"),
+        scoreCp = 32
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = counterPasserCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("e4e5"))
-      )
+    val rows = topPvPracticalRows(counterPasserCtx, "e4e5")
 
     assert(!rows.exists(_.label == "Connected passers"), clue(rows))
   }
 
   test("projects top-PV outside passers as a bounded practical row") {
     val outsideCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "6k1/8/8/5P2/P7/8/8/6K1 w - - 0 1",
-        playedMove = Some("a4a5"),
-        playedSan = Some("a5"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("a4a5", "g8f8"), scoreCp = 54, depth = 18))
-            )
-          )
+        playedMove = "a4a5",
+        playedSan = "a5",
+        line = List("a4a5", "g8f8"),
+        scoreCp = 54
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = outsideCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("a4a5"))
-      )
+    val rows = topPvPracticalRows(outsideCtx, "a4a5")
 
     assertEquals(rows.map(_.label), List("Outside passer"), clue(rows))
     assertEquals(rows.head.text, "The checked line leaves an outside passer on a5.")
@@ -4608,108 +4160,60 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
   test("does not project outside-passer prose without a top-PV played-move witness") {
     val outsideCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "6k1/8/8/5P2/P7/8/8/6K1 w - - 0 1",
-        playedMove = Some("a4a5"),
-        playedSan = Some("a5"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("g1f1", "g8f8"), scoreCp = 54, depth = 18))
-            )
-          )
+        playedMove = "a4a5",
+        playedSan = "a5",
+        line = List("g1f1", "g8f8"),
+        scoreCp = 54
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = outsideCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("a4a5"))
-      )
+    val rows = topPvPracticalRows(outsideCtx, "a4a5")
 
     assertEquals(rows, Nil)
   }
 
   test("does not project lone flank passers as outside-passer prose") {
     val loneFlankCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "6k1/8/8/8/P7/8/8/6K1 w - - 0 1",
-        playedMove = Some("a4a5"),
-        playedSan = Some("a5"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("a4a5", "g8f8"), scoreCp = 24, depth = 18))
-            )
-          )
+        playedMove = "a4a5",
+        playedSan = "a5",
+        line = List("a4a5", "g8f8"),
+        scoreCp = 24
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = loneFlankCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("a4a5"))
-      )
+    val rows = topPvPracticalRows(loneFlankCtx, "a4a5")
 
     assert(!rows.exists(_.label == "Outside passer"), clue(rows))
   }
 
   test("does not project front-blocked flank passers as outside-passer prose") {
     val blockedOutsideCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "k7/8/8/5P2/P7/8/8/6K1 w - - 0 1",
-        playedMove = Some("a4a5"),
-        playedSan = Some("a5"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("a4a5", "a8b8"), scoreCp = 20, depth = 18))
-            )
-          )
+        playedMove = "a4a5",
+        playedSan = "a5",
+        line = List("a4a5", "a8b8"),
+        scoreCp = 20
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = blockedOutsideCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("a4a5"))
-      )
+    val rows = topPvPracticalRows(blockedOutsideCtx, "a4a5")
 
     assert(!rows.exists(_.label == "Outside passer"), clue(rows))
   }
 
   test("projects top-PV passed-pawn advances as a bounded practical row") {
     val passerCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "6k1/8/8/1P6/8/8/8/6K1 w - - 0 1",
-        playedMove = Some("b5b6"),
-        playedSan = Some("b6"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("b5b6", "g8f8"), scoreCp = 74, depth = 18))
-            )
-          )
+        playedMove = "b5b6",
+        playedSan = "b6",
+        line = List("b5b6", "g8f8"),
+        scoreCp = 74
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = passerCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("b5b6"))
-      )
+    val rows = topPvPracticalRows(passerCtx, "b5b6")
 
     assertEquals(rows.map(_.label), List("Passed pawn advance"), clue(rows))
     assertEquals(rows.head.text, "The checked line advances the passed pawn to b6.")
@@ -4722,81 +4226,45 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
   test("does not project passed-pawn prose without a top-PV played-move witness") {
     val passerCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "6k1/8/8/1P6/8/8/8/6K1 w - - 0 1",
-        playedMove = Some("b5b6"),
-        playedSan = Some("b6"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("g1f1", "g8f8"), scoreCp = 74, depth = 18))
-            )
-          )
+        playedMove = "b5b6",
+        playedSan = "b6",
+        line = List("g1f1", "g8f8"),
+        scoreCp = 74
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = passerCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("b5b6"))
-      )
+    val rows = topPvPracticalRows(passerCtx, "b5b6")
 
     assertEquals(rows, Nil)
   }
 
   test("does not project passed-pawn prose when the advanced pawn is still stoppable by enemy pawns") {
     val blockedCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "6k1/2p5/8/1P6/8/8/8/6K1 w - - 0 1",
-        playedMove = Some("b5b6"),
-        playedSan = Some("b6"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("b5b6", "g8f8"), scoreCp = 24, depth = 18))
-            )
-          )
+        playedMove = "b5b6",
+        playedSan = "b6",
+        line = List("b5b6", "g8f8"),
+        scoreCp = 24
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = blockedCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("b5b6"))
-      )
+    val rows = topPvPracticalRows(blockedCtx, "b5b6")
 
     assertEquals(rows, Nil)
   }
 
   test("projects top-PV endgame king activation as a bounded practical row") {
     val kingCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "6k1/8/8/8/8/8/8/4K3 w - - 0 1",
-        playedMove = Some("e1d2"),
-        playedSan = Some("Kd2"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("e1d2", "g8f8"), scoreCp = 18, depth = 18))
-            )
-          )
+        playedMove = "e1d2",
+        playedSan = "Kd2",
+        line = List("e1d2", "g8f8"),
+        scoreCp = 18
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = kingCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("e1d2"))
-      )
+    val rows = topPvPracticalRows(kingCtx, "e1d2")
 
     assertEquals(rows.map(_.label), List("King activation"), clue(rows))
     assertEquals(rows.head.text, "The checked line activates the king on d2 for the endgame.")
@@ -4809,54 +4277,30 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
   test("does not project king activation without a top-PV played-move witness") {
     val kingCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "6k1/8/8/8/8/8/8/4K3 w - - 0 1",
-        playedMove = Some("e1d2"),
-        playedSan = Some("Kd2"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("g1f1", "g8f8"), scoreCp = 18, depth = 18))
-            )
-          )
+        playedMove = "e1d2",
+        playedSan = "Kd2",
+        line = List("g1f1", "g8f8"),
+        scoreCp = 18
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = kingCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("e1d2"))
-      )
+    val rows = topPvPracticalRows(kingCtx, "e1d2")
 
     assertEquals(rows, Nil)
   }
 
   test("does not project king activation when the king does not move closer to the center") {
     val kingCtx =
-      ctx.copy(
+      topPvPracticalContext(
         fen = "6k1/8/8/8/8/8/8/4K3 w - - 0 1",
-        playedMove = Some("e1f1"),
-        playedSan = Some("Kf1"),
-        openingGoalEvaluation = None,
-        engineEvidence =
-          Some(
-            EngineEvidence(
-              depth = 18,
-              variations = List(VariationLine(List("e1f1", "g8f8"), scoreCp = 12, depth = 18))
-            )
-          )
+        playedMove = "e1f1",
+        playedSan = "Kf1",
+        line = List("e1f1", "g8f8"),
+        scoreCp = 12
       )
 
-    val rows =
-      MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = kingCtx,
-        inputs = inputs().copy(mainBundle = None),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
-        truthContract = Some(safeTruthContract("e1f1"))
-      )
+    val rows = topPvPracticalRows(kingCtx, "e1f1")
 
     assertEquals(rows, Nil)
   }
@@ -4885,21 +4329,15 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
   }
 
   test("projects probe-backed quiet piece improvement as a bounded practical row") {
-    val quietCtx =
-      ctx.copy(
-        fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-        playedMove = Some("g1f3"),
-        playedSan = Some("Nf3")
-      )
     val rows =
       MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = quietCtx,
+        ctx = quietKnightCtx,
         inputs =
           inputs().copy(
             mainBundle = None,
             quietIntent = Some(supportedQuietIntent())
           ),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("g1f3"))
       )
 
@@ -4934,7 +4372,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
                 )
               )
           ),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("e1g1"))
       )
 
@@ -4943,21 +4381,15 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
   }
 
   test("does not project quiet intent when the legal move misses the anchored square") {
-    val quietCtx =
-      ctx.copy(
-        fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-        playedMove = Some("g1f3"),
-        playedSan = Some("Nf3")
-      )
     val rows =
       MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = quietCtx,
+        ctx = quietKnightCtx,
         inputs =
           inputs().copy(
             mainBundle = None,
             quietIntent = Some(supportedQuietIntent(anchorSquare = "c4"))
           ),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("g1f3"))
       )
 
@@ -4965,21 +4397,15 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
   }
 
   test("does not project quiet intent without a square anchor") {
-    val quietCtx =
-      ctx.copy(
-        fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-        playedMove = Some("g1f3"),
-        playedSan = Some("Nf3")
-      )
     val rows =
       MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = quietCtx,
+        ctx = quietKnightCtx,
         inputs =
           inputs().copy(
             mainBundle = None,
             quietIntent = Some(supportedQuietIntent(anchorSquare = ""))
           ),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("g1f3"))
       )
 
@@ -4987,15 +4413,9 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
   }
 
   test("does not project quiet intent when packet family does not match intent class") {
-    val quietCtx =
-      ctx.copy(
-        fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-        playedMove = Some("g1f3"),
-        playedSan = Some("Nf3")
-      )
     val rows =
       MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = quietCtx,
+        ctx = quietKnightCtx,
         inputs =
           inputs().copy(
             mainBundle = None,
@@ -5007,7 +4427,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
                 )
               )
           ),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("g1f3"))
       )
 
@@ -5015,21 +4435,15 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
   }
 
   test("suppresses quiet practical rows when tactical truth mode vetoes support") {
-    val quietCtx =
-      ctx.copy(
-        fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-        playedMove = Some("g1f3"),
-        playedSan = Some("Nf3")
-      )
     val rows =
       MoveReviewSupportedLocalSurfaceRows.build(
-        ctx = quietCtx,
+        ctx = quietKnightCtx,
         inputs =
           inputs(truthMode = PlayerFacingTruthMode.Tactical).copy(
             mainBundle = None,
             quietIntent = Some(supportedQuietIntent())
           ),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(tacticalTruthContract("g1f3"))
       )
 
@@ -5053,7 +4467,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = neutralizeCtx,
         inputs = inputs(),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract("e2e3"))
       )
 
@@ -5083,7 +4497,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = ctx,
         inputs = inputs(packet = tokenless),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -5123,7 +4537,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = ctx,
         inputs = inputs(packet = mismatched),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -5144,7 +4558,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = collisionCtx,
         inputs = inputs(packet = collisionPacket),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -5165,7 +4579,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = sanOnlyCollisionCtx,
         inputs = inputs(packet = collisionPacket),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -5186,7 +4600,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = collisionCtx,
         inputs = inputs(packet = collisionPacket),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 
@@ -5207,7 +4621,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       MoveReviewSupportedLocalSurfaceRows.build(
         ctx = playedDestinationRouteCtx,
         inputs = inputs(packet = routePacket),
-        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        rankedPlans = NoRankedPlans,
         truthContract = Some(safeTruthContract())
       )
 

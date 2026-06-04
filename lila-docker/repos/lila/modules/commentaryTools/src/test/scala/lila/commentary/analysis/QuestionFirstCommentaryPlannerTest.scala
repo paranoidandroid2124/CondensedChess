@@ -216,7 +216,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
   private def threat(
       kind: String,
       lossIfIgnoredCp: Int,
-      bestDefense: Option[String] = None,
+      bestDefense: Option[String],
       turnsToImpact: Int = 1
   ): ThreatRow =
     ThreatRow(
@@ -248,8 +248,8 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
 
   private def decisionFrame(
       intent: Option[String] = None,
-      battlefront: Option[String] = None,
-      urgency: Option[String] = None
+      battlefront: Option[String],
+      urgency: Option[String]
   ): CertifiedDecisionFrame =
     CertifiedDecisionFrame(
       intent = intent.map(text => CertifiedDecisionSupport(CertifiedDecisionFrameAxis.Intent, text, 90, "intent")),
@@ -869,7 +869,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     assert(primary.contrast.exists(_.contains("Qd8")), clues(primary.contrast))
   }
 
-  test("WhyNow keeps decision-comparison timing out of the primary pool in Step 4a") {
+  test("WhyNow keeps decision-comparison timing support-only out of the primary pool") {
     val q = question("q_now_cmp", AuthorQuestionKind.WhyNow, evidencePurposes = List("reply_multipv"))
     val ctx = baseCtx(List(q), evidence = List(evidence("q_now_cmp", "reply_multipv", List("14...Rc8 15.Re1 Qc7"))))
     val plans =
@@ -920,7 +920,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     )
   }
 
-  test("WhyNow still traces engine-best timing loss even when Step 4a suppresses it") {
+  test("WhyNow still traces engine-best timing loss when timing support stays support-only") {
     val q = question("q_now_cmp_best", AuthorQuestionKind.WhyNow, evidencePurposes = List("reply_multipv"))
     val ctx = baseCtx(List(q), evidence = List(evidence("q_now_cmp_best", "reply_multipv", List("14...Rc8 15.Re1 Qc7"))))
     val plans =
@@ -2088,7 +2088,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     assert(!plans.primary.exists(plan => plan.claim.contains("c-file") || plan.claim.contains("b4")), clues(plans.primary))
   }
 
-  test("WhatChanged keeps decision-comparison timing change out of the primary pool in Step 4a") {
+  test("WhatChanged keeps decision-comparison timing support-only out of the primary pool") {
     val q = question("q_changed_cmp", AuthorQuestionKind.WhatChanged)
     val ctx = baseCtx(List(q))
     val plans =

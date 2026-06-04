@@ -59,9 +59,12 @@ object ProbeDetector:
     baseline: Option[PvLine],
     legalUci: Set[String]
   ): List[ProbeRequest] =
-    val playedUci = playedMove.filter(legalUci.contains).getOrElse("")
+    val playedUci = playedMove.map(NarrativeUtils.normalizeUciMove).filter(legalUci.contains).getOrElse("")
     if (playedUci.isEmpty) return Nil
-    val afterPlayedFen = NarrativeUtils.uciListToFen(fen, List(playedUci))
+    val afterPlayedFen =
+      MoveReviewPvLine.legalFenAfter(fen, playedUci) match
+        case Some(value) => value
+        case None        => return Nil
 
     def mkProbe(
       id: String,
@@ -74,7 +77,7 @@ object ProbeDetector:
       seedId: Option[String] = None,
       maxCpLoss: Option[Int] = None
     ): ProbeRequest =
-      val base = Option.when(probeFen == fen)(baseline).flatten
+      val base = if probeFen == fen then baseline else None
       ProbeRequest(
         id = id,
         fen = probeFen,
@@ -146,9 +149,12 @@ object ProbeDetector:
     // Keep-tension branching: when the best move keeps tension (often castling),
     // probe the opponent's main structural choices (e.g., ...dxc4 vs ...c5 in QID).
     authorQuestions.find(_.evidencePurposes.contains("keep_tension_branches")).foreach { q =>
-      val bestUci = candidates.headOption.flatMap(_.uci).filterNot(_ == playedUci)
-      bestUci.foreach { uci =>
-        val afterBestFen = NarrativeUtils.uciListToFen(fen, List(uci))
+      val bestUci =
+        candidates.headOption
+          .flatMap(_.uci)
+          .map(NarrativeUtils.normalizeUciMove)
+          .filter(uci => legalUci.contains(uci) && uci != playedUci)
+      bestUci.flatMap(uci => MoveReviewPvLine.legalFenAfter(fen, uci)).foreach { afterBestFen =>
         val (capOpt, pushOpt) = MovePredicates.planClashOptions(afterBestFen)
         val opts = List(capOpt, pushOpt).flatten.distinct.take(2)
         if (opts.size >= 2)

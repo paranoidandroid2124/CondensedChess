@@ -96,7 +96,7 @@ object BreakPreventionWitness:
       preventedNow: List[PreventedPlanInfo]
   ): Option[Witness] =
     val result = diagnose(ctx, surface, preventedNow)
-    Option.when(result.exactReady)(result.witness).flatten
+    if result.exactReady then result.witness else None
 
   def anchorTerms(
       ctx: NarrativeContext,

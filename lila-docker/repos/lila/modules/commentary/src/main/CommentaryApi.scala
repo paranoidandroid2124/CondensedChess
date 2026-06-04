@@ -338,8 +338,7 @@ final class CommentaryApi(
       incomingProbeCount: Int
   ): Unit =
     val sourceMode = Option(response.sourceMode).map(_.trim).filter(_.nonEmpty).getOrElse("rule")
-    val shouldTrace =
-      sourceMode == "rule_circuit_open" || sourceMode.startsWith("fallback_rule")
+    val shouldTrace = MoveReviewResponseDiagnostics.isFallbackSourceMode(sourceMode)
     if shouldTrace then
       val reasons =
         response.polishMeta
@@ -382,7 +381,7 @@ final class CommentaryApi(
       reasons: List[String],
       estimatedCostUsd: Option[Double]
   ): Unit =
-    val fallback = sourceMode.startsWith("fallback_rule")
+    val fallback = MoveReviewResponseDiagnostics.isFallbackSourceMode(sourceMode)
     polishAttemptCount.incrementAndGet()
     if sourceMode == "ai_polished" then polishAcceptedCount.incrementAndGet()
     if fallback then polishFallbackCount.incrementAndGet()

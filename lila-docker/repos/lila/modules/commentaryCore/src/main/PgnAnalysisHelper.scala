@@ -48,10 +48,11 @@ object PgnAnalysisHelper:
       case Right(parsed) =>
         val game = parsed.toGame
         val result = Replay.makeReplay(game, parsed.moves)
+        val replayedMoves = result.replay.chronoMoves
+        val positionsBefore = game.position :: replayedMoves.map(_.after)
         
-        val plyDataList = result.replay.chronoMoves.zipWithIndex.map { case (moveOrDrop, idx) =>
+        val plyDataList = replayedMoves.zip(positionsBefore).zipWithIndex.map { case ((moveOrDrop, positionBefore), idx) =>
           val plyNum = game.ply.value + idx + 1
-          val positionBefore = if (idx == 0) game.position else result.replay.chronoMoves.take(idx).last.after
           val fenBefore = Fen.write(positionBefore, Ply(plyNum - 1).fullMoveNumber).value
           val san = moveOrDrop.toSanStr.toString
           val uci = moveOrDrop.toUci.uci
@@ -73,7 +74,7 @@ object PgnAnalysisHelper:
             diagnostics =
               ReplayDiagnostics(
                 parsedMoves = parsed.moves.size,
-                replayedMoves = result.replay.chronoMoves.size,
+                replayedMoves = replayedMoves.size,
                 failure = result.failure.map(_.toString)
               )
           )

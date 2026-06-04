@@ -102,49 +102,8 @@ private[analysis] object AlternativeNarrativeSupport:
                 source = "close_candidate"
               )
             )
-          case (Some(evA), _) if evA.sanMoves.nonEmpty =>
-            val lineAStr = NarrativeUtils.formatSanWithMoveNumbers(startPly, evA.sanMoves.take(3))
-            val actionA = evA.kind match
-              case LineConsequenceKind.CentralPawnAdvance   => "to push a central pawn"
-              case LineConsequenceKind.ExchangeSequence     => "to initiate an exchange sequence"
-              case LineConsequenceKind.ForcingCheckSequence => "to initiate a forcing check sequence"
-              case LineConsequenceKind.MaterialTransition   => "to change the material balance"
-              case _                                        => "for positional reasons"
-            val legacyAlt = fallbackLegacy(ctx, mb)
-            val legacyReason = legacyAlt.map(_.reason).getOrElse("it leads to a less active setup")
-            val sentenceText =
-              if (playedIsBest) s"The played $ma ($intentA) follows $lineAStr, whereas $mb ($intentB) stays secondary because $legacyReason."
-              else s"While the engine prefers $lineAStr ($intentA) $actionA, the alternative $mb ($intentB) stays secondary because $legacyReason."
-            Some(
-              AlternativeNarrative(
-                move = Some(mb),
-                reason = "engine pv contrast",
-                sentence = sentenceText,
-                source = "close_candidate"
-              )
-            )
-          case _ =>
-            val legacyAlt = fallbackLegacy(ctx, mb)
-            legacyAlt.map { la =>
-              val enhancedSentence = s"The practical alternative $mb ($intentB) stays secondary because ${la.reason}."
-              la.copy(sentence = enhancedSentence)
-            }
+          case _ => None
       case _ => None
-
-  private def fallbackLegacy(ctx: NarrativeContext, altMove: String): Option[AlternativeNarrative] =
-    val candidateReason =
-      ctx.candidates.drop(1).find(c => equalMoveToken(ctx.fen)(c.move, altMove))
-        .flatMap(_.whyNot)
-        .map(normalizeSentenceFragment)
-        .filter(_.nonEmpty)
-    candidateReason.map { reason =>
-      AlternativeNarrative(
-        move = Some(altMove),
-        reason = reason,
-        sentence = renderSentence(Some(altMove), reason),
-        source = "close_candidate"
-      )
-    }
 
   private def findMoveIntent(ctx: NarrativeContext, moveSan: String, moveUci: Option[String]): String =
     ctx.candidates.find(c =>
@@ -176,15 +135,8 @@ private[analysis] object AlternativeNarrativeSupport:
       case LineConsequenceKind.MaterialTransition   => s"changes the material balance with $line"
       case _                                        => s"follows $line"
 
-  private def renderSentence(move: Option[String], reason: String): String =
-    val lead = move.map(m => s"The practical alternative $m").getOrElse("The practical alternative")
-    s"$lead stays secondary because $reason."
-
   private def variationLeadSan(fen: String, line: VariationLine): Option[String] =
     LineScopedCitation.sanMoves(fen, line).headOption.map(normalize).filter(_.nonEmpty)
-
-  private def normalizeSentenceFragment(raw: String): String =
-    normalize(raw).stripSuffix(".")
 
   private def normalize(raw: String): String =
     Option(raw).getOrElse("").replaceAll("\\s+", " ").trim

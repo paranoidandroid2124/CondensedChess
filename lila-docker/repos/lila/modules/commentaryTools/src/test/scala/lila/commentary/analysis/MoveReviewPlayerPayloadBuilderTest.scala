@@ -241,6 +241,30 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       )
     )
 
+  private def relationIdeaSignal(
+      kind: String,
+      ideaId: String = "idea_1",
+      group: String = "relation",
+      focusSquares: List[String] = List("e4", "f5", "g6"),
+      evidenceRefs: Option[List[String]] = None,
+      targetSquare: Option[String] = None,
+      relationFocusSquares: Option[List[String]] = None
+  ): StrategyIdeaSignal =
+    val descriptor = RelationObservationCatalog.descriptorForKind(kind).get
+    StrategyIdeaSignal(
+      ideaId = ideaId,
+      ownerSide = "white",
+      kind = descriptor.ideaKind,
+      group = group,
+      readiness = descriptor.readiness,
+      focusSquares = focusSquares,
+      confidence = descriptor.confidence,
+      evidenceRefs = evidenceRefs.getOrElse(descriptor.wireEvidenceRefs),
+      targetSquare = targetSquare,
+      relationKind = Some(descriptor.relationKind),
+      relationFocusSquares = relationFocusSquares.getOrElse(focusSquares)
+    )
+
   test("does not build player decision comparison without certified surface input") {
     val surface =
       build(
@@ -325,7 +349,6 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
         chosenSan = Some("h4"),
         engineSan = Some("g4"),
         comparedSan = None,
-        deferredSan = Some("raw deferred should be stripped later"),
         secondaryText = Some("The checked line reaches an exchange sequence after Bxc6, so the decision is about which structure remains."),
         chosenMatchesBest = false
       )
@@ -1492,19 +1515,17 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
   }
 
   test("strategic relation evidence appears as bounded advanced metadata") {
-    val xray = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.XRay).get
     val relationIdea =
-      StrategyIdeaSignal(
-        ideaId = "idea_1",
-        ownerSide = "white",
-        kind = xray.ideaKind,
+      relationIdeaSignal(
+        kind = MoveReviewExchangeAnalyzer.RelationKind.XRay,
         group = "line_occupation",
-        readiness = xray.readiness,
-        focusSquares = List("e4", "f5", "g6"),
-        confidence = xray.confidence,
-        evidenceRefs = xray.wireEvidenceRefs ++ List("blocker:f5"),
-        relationKind = Some(xray.relationKind),
-        relationFocusSquares = List("e4", "f5", "g6")
+        evidenceRefs =
+          Some(
+            RelationObservationCatalog
+              .descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.XRay)
+              .get
+              .wireEvidenceRefs ++ List("blocker:f5")
+          )
       )
     val surface =
       build(
@@ -1539,25 +1560,19 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assert(!row.text.contains("gives"), clue(row))
   }
 
-  test("specific supported-local relation rows suppress duplicate strategic relation rows") {
-    val xray = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.XRay).get
-    val clearance = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.Clearance).get
-    val defenderTrade = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.DefenderTrade).get
-    val mateNet = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.MateNet).get
+  test("specific supported-local relation rows suppress duplicate strategic relation rows without stale clearance suppression") {
     val ideas =
-      List(xray, clearance, defenderTrade, mateNet).map { descriptor =>
-        StrategyIdeaSignal(
-          ideaId = s"idea_${descriptor.relationKind}",
-          ownerSide = "white",
-          kind = descriptor.ideaKind,
-          group = "relation",
-          readiness = descriptor.readiness,
+      List(
+        MoveReviewExchangeAnalyzer.RelationKind.XRay,
+        MoveReviewExchangeAnalyzer.RelationKind.Clearance,
+        MoveReviewExchangeAnalyzer.RelationKind.DefenderTrade,
+        MoveReviewExchangeAnalyzer.RelationKind.MateNet
+      ).map { kind =>
+        relationIdeaSignal(
+          kind = kind,
+          ideaId = s"idea_$kind",
           focusSquares = List("b1", "d3", "h7"),
-          confidence = descriptor.confidence,
-          evidenceRefs = descriptor.wireEvidenceRefs,
-          targetSquare = Some("h7"),
-          relationKind = Some(descriptor.relationKind),
-          relationFocusSquares = List("b1", "d3", "h7")
+          targetSquare = Some("h7")
         )
       }
     val supportedClearance =
@@ -1593,8 +1608,11 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       surface.advancedRows.flatMap(row => row.authority.flatMap(_.token))
 
     assertEquals(surface.summaryRows.map(_.label), List("Clearance", "Defender trade", "Smothered mate"), clue(surface.summaryRows))
-    assertEquals(relationTokens, List(MoveReviewExchangeAnalyzer.RelationKind.XRay), clue(surface.advancedRows))
-    assert(!relationTokens.contains(MoveReviewExchangeAnalyzer.RelationKind.Clearance), clue(surface.advancedRows))
+    assertEquals(
+      relationTokens,
+      List(MoveReviewExchangeAnalyzer.RelationKind.XRay, MoveReviewExchangeAnalyzer.RelationKind.Clearance),
+      clue(surface.advancedRows)
+    )
     assert(!relationTokens.contains(MoveReviewExchangeAnalyzer.RelationKind.DefenderTrade), clue(surface.advancedRows))
     assert(!relationTokens.contains(MoveReviewExchangeAnalyzer.RelationKind.MateNet), clue(surface.advancedRows))
   }
@@ -1607,23 +1625,15 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
         MoveReviewExchangeAnalyzer.RelationKind.Fork,
         MoveReviewExchangeAnalyzer.RelationKind.Pin,
         MoveReviewExchangeAnalyzer.RelationKind.Skewer
-      )
+    )
     val ideas =
       relationKinds.zipWithIndex.map { case (kind, idx) =>
-        val descriptor = RelationObservationCatalog.descriptorForKind(kind).get
         val focus = List(s"a${idx + 1}", s"b${idx + 1}", s"c${idx + 1}")
-        StrategyIdeaSignal(
+        relationIdeaSignal(
+          kind = kind,
           ideaId = s"idea_$idx",
-          ownerSide = "white",
-          kind = descriptor.ideaKind,
-          group = "relation",
-          readiness = descriptor.readiness,
           focusSquares = focus,
-          confidence = descriptor.confidence,
-          evidenceRefs = descriptor.wireEvidenceRefs,
-          targetSquare = focus.lastOption,
-          relationKind = Some(descriptor.relationKind),
-          relationFocusSquares = focus
+          targetSquare = focus.lastOption
         )
       }
     val surface =
@@ -1652,23 +1662,15 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
         MoveReviewExchangeAnalyzer.RelationKind.Pin,
         MoveReviewExchangeAnalyzer.RelationKind.StalemateTrap,
         MoveReviewExchangeAnalyzer.RelationKind.PerpetualCheck
-      )
+    )
     val ideas =
       relationKinds.zipWithIndex.map { case (kind, idx) =>
-        val descriptor = RelationObservationCatalog.descriptorForKind(kind).get
         val focus = List(s"a${idx + 1}", s"b${idx + 1}", s"c${idx + 1}")
-        StrategyIdeaSignal(
+        relationIdeaSignal(
+          kind = kind,
           ideaId = s"idea_$idx",
-          ownerSide = "white",
-          kind = descriptor.ideaKind,
-          group = "relation",
-          readiness = descriptor.readiness,
           focusSquares = focus,
-          confidence = descriptor.confidence,
-          evidenceRefs = descriptor.wireEvidenceRefs,
-          targetSquare = focus.lastOption,
-          relationKind = Some(descriptor.relationKind),
-          relationFocusSquares = focus
+          targetSquare = focus.lastOption
         )
       }
     val surface =
@@ -1708,23 +1710,15 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
         MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece,
         MoveReviewExchangeAnalyzer.RelationKind.Domination,
         MoveReviewExchangeAnalyzer.RelationKind.Zwischenzug
-      )
+    )
     val ideas =
       relationKinds.zipWithIndex.map { case (kind, idx) =>
-        val descriptor = RelationObservationCatalog.descriptorForKind(kind).get
         val focus = List(s"a${idx + 1}", s"b${idx + 1}", s"c${idx + 1}")
-        StrategyIdeaSignal(
+        relationIdeaSignal(
+          kind = kind,
           ideaId = s"idea_$idx",
-          ownerSide = "white",
-          kind = descriptor.ideaKind,
-          group = "relation",
-          readiness = descriptor.readiness,
           focusSquares = focus,
-          confidence = descriptor.confidence,
-          evidenceRefs = descriptor.wireEvidenceRefs,
-          targetSquare = focus.lastOption,
-          relationKind = Some(descriptor.relationKind),
-          relationFocusSquares = focus
+          targetSquare = focus.lastOption
         )
       }
     val surface =
@@ -1860,20 +1854,12 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
   }
 
   test("strategic relation surface target prefers analyzer-carried target over focus order") {
-    val xray = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.XRay).get
     val relationIdea =
-      StrategyIdeaSignal(
-        ideaId = "idea_1",
-        ownerSide = "white",
-        kind = xray.ideaKind,
+      relationIdeaSignal(
+        kind = MoveReviewExchangeAnalyzer.RelationKind.XRay,
         group = "line_occupation",
-        readiness = xray.readiness,
         focusSquares = List("g6", "f5", "e4"),
-        confidence = xray.confidence,
-        evidenceRefs = xray.wireEvidenceRefs,
-        targetSquare = Some("g6"),
-        relationKind = Some(xray.relationKind),
-        relationFocusSquares = List("g6", "f5", "e4")
+        targetSquare = Some("g6")
       )
     val surface =
       build(
@@ -1894,20 +1880,12 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
   }
 
   test("strategic relation surface target ignores targetSquare outside relation focus") {
-    val xray = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.XRay).get
     val relationIdea =
-      StrategyIdeaSignal(
-        ideaId = "idea_1",
-        ownerSide = "white",
-        kind = xray.ideaKind,
+      relationIdeaSignal(
+        kind = MoveReviewExchangeAnalyzer.RelationKind.XRay,
         group = "line_occupation",
-        readiness = xray.readiness,
         focusSquares = List("e4", "f5", "g6"),
-        confidence = xray.confidence,
-        evidenceRefs = xray.wireEvidenceRefs,
-        targetSquare = Some("a1"),
-        relationKind = Some(xray.relationKind),
-        relationFocusSquares = List("e4", "f5", "g6")
+        targetSquare = Some("a1")
       )
     val surface =
       build(
@@ -1958,24 +1936,16 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
   }
 
   test("strategic relation fallback target policy is catalog-owned") {
-    val defenderTrade = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.DefenderTrade).get
-    val decoy = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.Decoy).get
     val ideas =
       List(
-        defenderTrade -> List("c5", "a3"),
-        decoy -> List("f4", "d3", "d5")
-      ).map { case (descriptor, focus) =>
-        StrategyIdeaSignal(
-          ideaId = s"idea_${descriptor.relationKind}",
-          ownerSide = "white",
-          kind = descriptor.ideaKind,
+        MoveReviewExchangeAnalyzer.RelationKind.DefenderTrade -> List("c5", "a3"),
+        MoveReviewExchangeAnalyzer.RelationKind.Decoy -> List("f4", "d3", "d5")
+      ).map { case (kind, focus) =>
+        relationIdeaSignal(
+          kind = kind,
+          ideaId = s"idea_$kind",
           group = StrategicIdeaGroup.InteractionAndTransformation,
-          readiness = descriptor.readiness,
-          focusSquares = focus,
-          confidence = descriptor.confidence,
-          evidenceRefs = descriptor.wireEvidenceRefs,
-          relationKind = Some(descriptor.relationKind),
-          relationFocusSquares = focus
+          focusSquares = focus
         )
       }
     val surface =
@@ -2047,7 +2017,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
 
     assertEquals(row.authority.flatMap(_.token), Some(MoveReviewExchangeAnalyzer.RelationKind.Clearance), clue(row))
     assert(row.text.contains("clearance geometry"), clue(row))
-    assert(row.text.contains("d1, d3, d7"), clue(row))
+    assert(row.text.contains("d3 clearing the line from d1 toward d7"), clue(row))
     assert(!row.text.contains("e4, f5, g6"), clue(row))
   }
 
@@ -2084,57 +2054,198 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     )
   }
 
-  test("strategic relation projection preserves deflection and discovered-attack geometry") {
-    val relationShapes =
+  test("strategic relation projection preserves typed relation geometry") {
+    val relationShapes: List[(String, List[String], String, String, List[String])] =
       List(
+        (
+          MoveReviewExchangeAnalyzer.RelationKind.DefenderTrade,
+          List("c5", "d4"),
+          "c5",
+          "defender-trade around c5 through the exchange on d4",
+          List("c5", "d4")
+        ),
+        (
+          MoveReviewExchangeAnalyzer.RelationKind.BadPieceLiquidation,
+          List("c8", "d7"),
+          "d7",
+          "bad-piece liquidation from c8 through the exchange on d7",
+          List("c8", "d7")
+        ),
+        (
+          MoveReviewExchangeAnalyzer.RelationKind.Overload,
+          List("f7", "h7", "d7"),
+          "h7",
+          "overload pressure on f7 across h7 and d7",
+          List("f7", "h7", "d7")
+        ),
         (
           MoveReviewExchangeAnalyzer.RelationKind.Deflection,
           List("g7", "f8", "a3"),
           "g7",
-          "deflection motif"
+          "deflection motif on g7 by attacking f8 from a3",
+          List("g7", "f8", "a3")
         ),
         (
           MoveReviewExchangeAnalyzer.RelationKind.DiscoveredAttack,
           List("b1", "d3", "h7"),
           "h7",
-          "discovered-attack motif"
+          "discovered-attack from b1 through d3 toward h7",
+          List("b1", "d3", "h7")
+        ),
+        (
+          MoveReviewExchangeAnalyzer.RelationKind.DoubleCheck,
+          List("e8", "a4", "d5"),
+          "e8",
+          "double-check pressure on e8 from a4 and d5",
+          List("e8", "a4", "d5")
+        ),
+        (
+          MoveReviewExchangeAnalyzer.RelationKind.BackRankMate,
+          List("h8", "h1"),
+          "h8",
+          "back-rank mate pattern around h8 from h1",
+          List("h8", "h1")
+        ),
+        (
+          MoveReviewExchangeAnalyzer.RelationKind.MateNet,
+          List("g8", "f7", "h6"),
+          "g8",
+          "mate net around g8 from f7 and h6",
+          List("g8", "f7", "h6")
+        ),
+        (
+          MoveReviewExchangeAnalyzer.RelationKind.GreekGift,
+          List("d3", "h7"),
+          "h7",
+          "Greek gift sacrifice from d3 toward h7",
+          List("d3", "h7")
+        ),
+        (
+          MoveReviewExchangeAnalyzer.RelationKind.StalemateTrap,
+          List("h8", "h7"),
+          "h8",
+          "stalemate resource available around h8 via h7",
+          List("h8", "h7")
+        ),
+        (
+          MoveReviewExchangeAnalyzer.RelationKind.PerpetualCheck,
+          List("g8", "g6", "g7"),
+          "g8",
+          "perpetual-check resource available around g8 from g6 and g7",
+          List("g8", "g6", "g7")
+        ),
+        (
+          MoveReviewExchangeAnalyzer.RelationKind.Fork,
+          List("e4", "c5", "g5"),
+          "c5",
+          "fork from e4 across c5 and g5",
+          List("e4", "c5", "g5")
+        ),
+        (
+          MoveReviewExchangeAnalyzer.RelationKind.HangingPiece,
+          List("b1", "h7"),
+          "h7",
+          "hanging piece pressure from b1 on h7",
+          List("b1", "h7")
+        ),
+        (
+          MoveReviewExchangeAnalyzer.RelationKind.Decoy,
+          List("f4", "d3", "d5"),
+          "d3",
+          "decoy motif on d3 that pulls from d5",
+          List("d3", "d5")
+        ),
+        (
+          MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece,
+          List("g7", "h8"),
+          "h8",
+          "trapped-piece pressure on h8 from g7",
+          List("g7", "h8")
+        ),
+        (
+          MoveReviewExchangeAnalyzer.RelationKind.Domination,
+          List("b7", "a8", "b6", "c7"),
+          "a8",
+          "key-square restriction on a8 from b7",
+          List("b7", "a8")
+        ),
+        (
+          MoveReviewExchangeAnalyzer.RelationKind.Zwischenzug,
+          List("g6", "f5", "g8"),
+          "f5",
+          "zwischenzug from g6 before the recapture on f5",
+          List("g6", "f5")
+        ),
+        (
+          MoveReviewExchangeAnalyzer.RelationKind.XRay,
+          List("e4", "f5", "g6"),
+          "g6",
+          "x-ray geometry from e4 through f5 toward g6",
+          List("e4", "f5", "g6")
+        ),
+        (
+          MoveReviewExchangeAnalyzer.RelationKind.Clearance,
+          List("b1", "d3", "h7"),
+          "h7",
+          "clearance geometry with d3 clearing the line from b1 toward h7",
+          List("b1", "d3", "h7")
+        ),
+        (
+          MoveReviewExchangeAnalyzer.RelationKind.Battery,
+          List("d3", "b1", "h7"),
+          "h7",
+          "battery geometry between d3 and b1 toward h7",
+          List("d3", "b1", "h7")
+        ),
+        (
+          MoveReviewExchangeAnalyzer.RelationKind.Pin,
+          List("b4", "c3", "e1"),
+          "c3",
+          "pin geometry from b4 through c3 toward e1",
+          List("b4", "c3", "e1")
+        ),
+        (
+          MoveReviewExchangeAnalyzer.RelationKind.Skewer,
+          List("e4", "d5", "c6"),
+          "d5",
+          "skewer geometry from e4 through d5 toward c6",
+          List("e4", "d5", "c6")
+        ),
+        (
+          MoveReviewExchangeAnalyzer.RelationKind.Interference,
+          List("d6", "d8", "d5"),
+          "d5",
+          "interference geometry with d6 between d8 and d5",
+          List("d6", "d8", "d5")
         )
       )
-    val ideas =
-      relationShapes.map { case (kind, focus, target, _) =>
-        val descriptor = RelationObservationCatalog.descriptorForKind(kind).get
-        StrategyIdeaSignal(
+    relationShapes.foreach { case (kind, focus, target, labelText, requiredFragments) =>
+      val idea =
+        relationIdeaSignal(
+          kind = kind,
           ideaId = s"idea_$kind",
-          ownerSide = "white",
-          kind = descriptor.ideaKind,
           group = StrategicIdeaGroup.InteractionAndTransformation,
-          readiness = descriptor.readiness,
           focusSquares = List("a1", "a2", "a3"),
-          confidence = descriptor.confidence,
-          evidenceRefs = descriptor.wireEvidenceRefs,
           targetSquare = Some(target),
-          relationKind = Some(kind),
-          relationFocusSquares = focus
+          relationFocusSquares = Some(focus)
         )
-      }
-    val surface =
-      build(
-        strategyPack =
-          Some(
-            StrategyPack(
-              sideToMove = "white",
-              strategicIdeas = ideas
+      val surface =
+        build(
+          strategyPack =
+            Some(
+              StrategyPack(
+                sideToMove = "white",
+                strategicIdeas = List(idea)
+              )
             )
-          )
-      )
-    val rowsByToken =
-      surface.advancedRows.flatMap(row => row.authority.flatMap(_.token.map(_ -> row))).toMap
-
-    relationShapes.foreach { case (kind, focus, target, labelText) =>
-      val row = rowsByToken.getOrElse(kind, fail(s"missing $kind relation row: ${surface.advancedRows}"))
+        )
+      val row =
+        surface.advancedRows
+          .find(_.authority.flatMap(_.token).contains(kind))
+          .getOrElse(fail(s"missing $kind relation row: ${surface.advancedRows}"))
 
       assert(row.text.contains(labelText), clue(row))
-      assert(row.text.contains(focus.mkString(", ")), clue(row))
+      requiredFragments.foreach(fragment => assert(row.text.contains(fragment), clues(fragment, row)))
       assert(!row.text.contains("a1, a2, a3"), clue(row))
       assertEquals(row.authority.flatMap(_.target), Some(target), clue(row))
     }
@@ -2177,19 +2288,14 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
   test("every cataloged relation descriptor can project through the bounded surface row") {
     RelationObservationCatalog.Implemented.foreach { descriptor =>
       val relationIdea =
-        StrategyIdeaSignal(
+        relationIdeaSignal(
+          kind = descriptor.relationKind,
           ideaId = s"idea_${descriptor.relationKind}",
-          ownerSide = "white",
-          kind = descriptor.ideaKind,
           group =
             if descriptor.ideaKind == StrategicIdeaKind.LineOccupation then StrategicIdeaGroup.PieceAndLineManagement
             else StrategicIdeaGroup.InteractionAndTransformation,
-          readiness = descriptor.readiness,
           focusSquares = List("e4", "f5", "g6"),
-          confidence = descriptor.confidence,
-          evidenceRefs = descriptor.wireEvidenceRefs,
-          relationKind = Some(descriptor.relationKind),
-          relationFocusSquares = List("e4", "f5", "g6")
+          relationFocusSquares = Some(List("e4", "f5", "g6"))
         )
       val surface =
         build(
@@ -2289,19 +2395,12 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
   }
 
   test("bad tactical truth contract suppresses player strategic and practical support rows") {
-    val xray = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.XRay).get
     val relationIdea =
-      StrategyIdeaSignal(
+      relationIdeaSignal(
+        kind = MoveReviewExchangeAnalyzer.RelationKind.XRay,
         ideaId = "idea_xray",
-        ownerSide = "white",
-        kind = xray.ideaKind,
         group = StrategicIdeaGroup.PieceAndLineManagement,
-        readiness = xray.readiness,
-        focusSquares = List("e4", "f5", "g6"),
-        confidence = xray.confidence,
-        evidenceRefs = xray.wireEvidenceRefs,
-        relationKind = Some(xray.relationKind),
-        relationFocusSquares = List("e4", "f5", "g6")
+        focusSquares = List("e4", "f5", "g6")
       )
     val surface =
       build(

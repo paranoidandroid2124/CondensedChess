@@ -28,6 +28,15 @@ class StrategicFeatureExtractorImpl(
     val color = metadata.color
     val strategicState = PositionAnalyzer.extractStrategicState(fen).getOrElse(StrategicStateFeatures.empty)
     def normalizeUci(uci: String): String = lila.commentary.analysis.NarrativeUtils.normalizeUciMove(uci)
+    def legalResultingFen(startFen: String, moves: List[String]): Option[String] =
+      val normalizedMoves = moves.map(MoveReviewPvLine.normalizeUci).filter(_.nonEmpty)
+      Option
+        .when(startFen.trim.nonEmpty && normalizedMoves.nonEmpty && normalizedMoves.forall(MoveReviewExchangeAnalyzer.isUciMove))(
+          normalizedMoves
+        )
+        .flatMap(moves => MoveReviewExchangeAnalyzer.boundedReplay(startFen, moves, maxPlies = moves.length))
+        .flatMap(_.lastOption)
+        .map(step => Fen.write(step.after).value)
     def pickProbeForMove(move: String): Option[lila.commentary.model.ProbeResult] =
       val moveNorm = normalizeUci(move)
       probeResults
@@ -79,9 +88,7 @@ class StrategicFeatureExtractorImpl(
     // We preserve both resultingFen and parsedMoves so renderers can cite short sample lines.
     val sortedVarsParsed = sortedVars.map { v =>
       val parsedMoves = if (v.moves.nonEmpty) lila.commentary.analysis.MoveAnalyzer.parsePv(fen, v.moves) else Nil
-      val resultingFen = v.resultingFen.orElse {
-        if (v.moves.nonEmpty) Some(lila.commentary.analysis.NarrativeUtils.uciListToFen(fen, v.moves)) else None
-      }
+      val resultingFen = v.resultingFen.orElse(legalResultingFen(fen, v.moves))
       v.copy(parsedMoves = parsedMoves, resultingFen = resultingFen)
     }
 
@@ -217,7 +224,7 @@ class StrategicFeatureExtractorImpl(
       val userLineFromVars = sortedVarsParsed.find(_.moves.headOption.contains(move))
       val probeLineParsed = buildProbeCounterfactualLine(move).map { pl =>
         val parsedMoves = if (pl.moves.nonEmpty) lila.commentary.analysis.MoveAnalyzer.parsePv(fen, pl.moves) else Nil
-        val resultingFen = if (pl.moves.nonEmpty) Some(lila.commentary.analysis.NarrativeUtils.uciListToFen(fen, pl.moves)) else None
+        val resultingFen = legalResultingFen(fen, pl.moves)
         pl.copy(parsedMoves = parsedMoves, resultingFen = resultingFen)
       }
       val selectedUserLine = userLineFromVars match {
@@ -333,8 +340,8 @@ class StrategicFeatureExtractorImpl(
       positionalFeatures: List[PositionalTag],
       endgameFeatures: Option[EndgameFeature],
       strategicState: StrategicStateFeatures,
-      prevEndgameState: Option[EndgamePatternState] = None,
-      currentPatternAge: Int = 0
+      prevEndgameState: Option[EndgamePatternState],
+      currentPatternAge: Int
   ): List[String] = {
     val concepts = scala.collection.mutable.ListBuffer[String]()
     

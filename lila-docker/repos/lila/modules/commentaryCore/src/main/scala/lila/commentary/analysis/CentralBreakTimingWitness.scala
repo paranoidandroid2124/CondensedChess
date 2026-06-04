@@ -66,6 +66,7 @@ private[commentary] object CentralBreakTimingWitness:
             .boundedReplay(ctx.fen, normalizedPvMoves(pv1), maxPlies = BreakHorizonPly + 1)
             .getOrElse(Nil)
         val branch = MoveReviewExchangeAnalyzer.branchKey(replay)
+        val replayMoves = replay.take(BreakHorizonPly + 1).map(_.uci)
         val gap = pvGap.getOrElse(0)
         val shapeFailure =
           played
@@ -88,7 +89,7 @@ private[commentary] object CentralBreakTimingWitness:
             gap = gap,
             branchMissing = branch.isEmpty,
             branchKey = branch,
-            replayMoves = replay.map(_.uci)
+            replayMoves = replayMoves
           )
         val (releasable, reviewOnly) = witnesses.partition(_.releasable)
         val boardFailure =
@@ -253,7 +254,7 @@ private[commentary] object CentralBreakTimingWitness:
         legalMove(current, uci) match
           case Some(move) =>
             val found =
-              Option.when(current.color == initialSide)(rejectedCentralBreakShape(move, initialSide)).flatten
+              if current.color == initialSide then rejectedCentralBreakShape(move, initialSide) else None
             (move.after, found)
           case None => (current, None)
     }._2

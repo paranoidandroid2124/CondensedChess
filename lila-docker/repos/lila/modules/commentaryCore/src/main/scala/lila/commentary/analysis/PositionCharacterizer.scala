@@ -4,8 +4,8 @@ import _root_.chess.*
 import lila.commentary.model.*
 
 /**
- * Phase 2 Analysis: Characterizes the nature of the position using L1 features.
- * Now acts as a proper L2 layer, consuming insights from PositionFeatures and Eval.
+ * Characterizes the nature of the position using L1 features.
+ * Acts as an L2 layer, consuming insights from PositionFeatures and Eval.
  */
 object PositionCharacterizer:
 

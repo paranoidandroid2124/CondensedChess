@@ -20,21 +20,19 @@ private[analysis] object NarrativeMotifPrefixTable:
       (motif.contains(needle) || motif.replace("_", "").contains(needle.replace("_", "")))
 
   private def deferredRelationTemplates(normalized: List[String]): Option[Option[List[String]]] =
-    if normalized.exists(RelationObservationCatalog.relationWitnessOnlyMotifTag) then Some(None)
-    else
-      normalized.flatMap(RelationObservationCatalog.deferredFallbackForMotifTag).headOption.map { fallback =>
-        fallback.lane match
-          case DeferredRelationFallbackLane.ExchangeSequence | DeferredRelationFallbackLane.MaterialTransition =>
-            Some(
-              List(
-                "The checked line points to a material transition rather than a named relation.",
-                "The practical reading is a concrete exchange sequence, not a settled motif label.",
-                "Material flow is the safer guide until the relation is replay-proven."
-              )
+    normalized.flatMap(RelationObservationCatalog.deferredFallbackForMotifTag).headOption.map { fallback =>
+      fallback.lane match
+        case DeferredRelationFallbackLane.ExchangeSequence | DeferredRelationFallbackLane.MaterialTransition =>
+          Some(
+            List(
+              "The checked line points to a material transition rather than a named relation.",
+              "The practical reading is a concrete exchange sequence, not a settled motif label.",
+              "Material flow is the safer guide until the relation is replay-proven."
             )
-          case _ =>
-            None
-      }
+          )
+        case _ =>
+          None
+    }
 
   private final case class MotifPrefixRule(
       keys: List[String],
@@ -150,7 +148,7 @@ private[analysis] object NarrativeMotifPrefixTable:
       "Underpromotion choices may be non-standard here.",
       "A rare underpromotion idea appears in the position."
     )),
-    MotifPrefixRule(List("stalemate", "stalemate_trick", "stalemate_trap"), List(
+    MotifPrefixRule(List("stalemate", "stalemate_trick"), List(
       "A stalemate trick is part of the defensive resources.",
       "Stalemate motifs complicate straightforward conversion.",
       "The defender has potential stalemate-based counterplay."
@@ -330,6 +328,7 @@ private[analysis] object NarrativeMotifPrefixTable:
 
   def templatesFor(motifs: List[String], ply: Int): Option[List[String]] =
     val normalized = motifs.map(normalizeMotifTag).filter(_.nonEmpty)
-    deferredRelationTemplates(normalized).getOrElse {
-      MotifPrefixRules.find(_.matches(normalized, ply)).map(_.templates)
+    val prefixCandidates = normalized.filterNot(RelationObservationCatalog.relationWitnessOnlyMotifTag)
+    deferredRelationTemplates(prefixCandidates).getOrElse {
+      MotifPrefixRules.find(_.matches(prefixCandidates, ply)).map(_.templates)
     }

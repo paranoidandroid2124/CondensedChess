@@ -232,26 +232,26 @@ object AuthorQuestionGenerator:
       val isCastle = bestSan == "O-O" || bestSan == "O-O-O"
       if bestUci.isEmpty || !isCastle then None
       else
-        val afterBestFen = NarrativeUtils.uciListToFen(fen, List(bestUci))
-        val (capUciOpt, pushUciOpt) = MovePredicates.planClashOptions(afterBestFen)
+        MoveReviewPvLine.legalFenAfter(fen, bestUci).flatMap { afterBestFen =>
+          val (capUciOpt, pushUciOpt) = MovePredicates.planClashOptions(afterBestFen)
 
-        (for
-          capUci <- capUciOpt
-          pushUci <- pushUciOpt
-        yield
-          val capSan = NarrativeUtils.uciToSanOrFormat(afterBestFen, capUci)
-          val pushSan = NarrativeUtils.uciToSanOrFormat(afterBestFen, pushUci)
+          for
+            capUci <- capUciOpt
+            pushUci <- pushUciOpt
+          yield
+            val capSan = NarrativeUtils.uciToSanOrFormat(afterBestFen, capUci)
+            val pushSan = NarrativeUtils.uciToSanOrFormat(afterBestFen, pushUci)
 
-          AuthorQuestion(
-            id = s"planclash_${Integer.toHexString((fen + bestUci).hashCode)}",
-            kind = AuthorQuestionKind.WhosePlanIsFaster,
-            priority = 2,
-            question = s"If $us keeps the tension with $bestSan, whose plan is faster: ...$capSan or ...$pushSan?",
-            why = Some("Keeping the tension is not about waiting: it forces the opponent to reveal their plan before you clarify the center."),
-            anchors = List("central tension", capSan, pushSan),
-            evidencePurposes = List("keep_tension_branches")
-          )
-        )
+            AuthorQuestion(
+              id = s"planclash_${Integer.toHexString((fen + bestUci).hashCode)}",
+              kind = AuthorQuestionKind.WhosePlanIsFaster,
+              priority = 2,
+              question = s"If $us keeps the tension with $bestSan, whose plan is faster: ...$capSan or ...$pushSan?",
+              why = Some("Keeping the tension is not about waiting: it forces the opponent to reveal their plan before you clarify the center."),
+              anchors = List("central tension", capSan, pushSan),
+              evidencePurposes = List("keep_tension_branches")
+            )
+        }
 
   private def buildDecisionComparisonQuestion(
     playedSan: String,
@@ -469,32 +469,33 @@ object AuthorQuestionGenerator:
   ): Option[AuthorQuestion] =
     val playedMove = chess.format.Uci(playedUci).collect { case m: chess.format.Uci.Move => m }
     playedMove.flatMap { m =>
-      val afterFen = NarrativeUtils.uciListToFen(fen, List(playedUci))
-      Fen.read(chess.variant.Standard, Fen.Full(afterFen)).flatMap { afterPos =>
-        val recapsUci =
-          afterPos.legalMoves.toList
-            .filter(mv => mv.captures && mv.dest == m.dest)
-            .map(_.toUci.uci)
-            .distinct
+      MoveReviewPvLine.legalFenAfter(fen, playedUci).flatMap { afterFen =>
+        Fen.read(chess.variant.Standard, Fen.Full(afterFen)).flatMap { afterPos =>
+          val recapsUci =
+            afterPos.legalMoves.toList
+              .filter(mv => mv.captures && mv.dest == m.dest)
+              .map(_.toUci.uci)
+              .distinct
 
-        val recapsSan =
-          recapsUci
-            .map(uci => NarrativeUtils.uciToSanOrFormat(afterFen, uci))
-            .filter(_.nonEmpty)
-            .distinct
-            .take(3)
+          val recapsSan =
+            recapsUci
+              .map(uci => NarrativeUtils.uciToSanOrFormat(afterFen, uci))
+              .filter(_.nonEmpty)
+              .distinct
+              .take(3)
 
-        Option.when(recapsSan.size >= 2) {
-          val list = renderEllipsisList(recapsSan, them)
-          AuthorQuestion(
-            id = s"recapture_${Integer.toHexString((fen + playedUci).hashCode)}",
-            kind = AuthorQuestionKind.WhatChanged,
-            priority = 3,
-            question = s"After $playedSan, what changes depending on how $them recaptures — $list?",
-            why = Some("Different recaptures lead to different pawn structures and piece placements."),
-            anchors = List("recapture choice", "structure"),
-            evidencePurposes = List("recapture_branches")
-          )
+          Option.when(recapsSan.size >= 2) {
+            val list = renderEllipsisList(recapsSan, them)
+            AuthorQuestion(
+              id = s"recapture_${Integer.toHexString((fen + playedUci).hashCode)}",
+              kind = AuthorQuestionKind.WhatChanged,
+              priority = 3,
+              question = s"After $playedSan, what changes depending on how $them recaptures — $list?",
+              why = Some("Different recaptures lead to different pawn structures and piece placements."),
+              anchors = List("recapture choice", "structure"),
+              evidencePurposes = List("recapture_branches")
+            )
+          }
         }
       }
     }

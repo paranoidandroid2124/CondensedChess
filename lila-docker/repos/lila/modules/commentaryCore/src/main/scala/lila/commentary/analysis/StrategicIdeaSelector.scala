@@ -1245,7 +1245,7 @@ private[commentary] object StrategicIdeaSelector:
     val dominant = ideas.headOption
     val secondary = ideas.drop(1).headOption
     val compensationCarrier =
-      Option.when(!hasCompensationDigest(base))(deriveCompensationCarrier(pack, ideas, semantic)).flatten
+      if hasCompensationDigest(base) then None else deriveCompensationCarrier(pack, ideas, semantic)
     Option.when(dominant.isDefined || digest.isDefined || compensationCarrier.exists(_.hasSignal))(
       base.copy(
         compensation = base.compensation.orElse(compensationCarrier.flatMap(_.summary)),

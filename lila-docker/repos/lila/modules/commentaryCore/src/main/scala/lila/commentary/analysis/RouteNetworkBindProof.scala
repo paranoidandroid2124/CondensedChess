@@ -297,7 +297,7 @@ private[commentary] object RouteNetworkBindProof:
           bestDefenseBranchKey = bestDefenseBranchKey
         )
       val intermediateAxis =
-        Option.when(chainClaimAttempted)(baseRerouteAxis).flatten
+        if chainClaimAttempted then baseRerouteAxis else None
       val rerouteAxis =
         if chainClaimAttempted then
           entryAxis.flatMap(entry =>

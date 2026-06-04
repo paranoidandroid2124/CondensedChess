@@ -367,8 +367,6 @@ object NarrativeLexicon {
     }
     pick(bead, templates)
   }
-  // 1.5. HUMAN TOUCH: PSYCHOLOGY & CONCESSION (New Phase 6.5)
-
   def getOpening(bead: Int, phase: String, evalText: String, tactical: Boolean = false, ply: Int = 0): String = {
     val p = phase.toLowerCase
     val localSeed = bead ^ (ply * 0x45d9f3b)
@@ -1875,10 +1873,8 @@ object NarrativeLexicon {
     "isolated_pawn",
     "king_cut_off",
     "king_hunt",
-    "king_activity",
     "knight_domination",
     "knight_vs_bishop",
-    "knight_blockade_rook_pawn",
     "liquidate",
     "liquidation",
     "lucena",
@@ -1902,10 +1898,6 @@ object NarrativeLexicon {
     "connected_passers",
     "wrong_bishop_fortress",
     "short_side_defense",
-    "breakthrough_sacrifice",
-    "shouldering",
-    "reti_maneuver",
-    "good_bishop_rook_pawn",
     "triangulation",
     "repeat",
     "repetition",

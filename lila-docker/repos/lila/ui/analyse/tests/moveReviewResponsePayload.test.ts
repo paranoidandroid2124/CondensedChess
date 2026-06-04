@@ -5,6 +5,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   decodeMoveReviewResponse,
+  type MoveReviewPlayerSurfaceV1,
   moveReviewNeedsRetry,
 } from '../src/moveReview/responsePayload';
 
@@ -12,33 +13,45 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 
 const quotedStrings = (source: string): string[] => [...source.matchAll(/'([^']+)'/g)].map(match => match[1] ?? '');
 
-const backendCatalogRelationTokens = (): string[] => {
+const backendRelationTokenByName = (): Map<string, string> => {
   const analyzerSource = readFileSync(
     resolve(repoRoot, 'modules/commentaryCore/src/main/scala/lila/commentary/analysis/MoveReviewExchangeAnalyzer.scala'),
     'utf8',
   );
-  const catalogSource = readFileSync(
-    resolve(repoRoot, 'modules/commentaryCore/src/main/scala/lila/commentary/analysis/semantic/StrategicSemanticObservation.scala'),
-    'utf8',
-  );
   const relationKindBlock = analyzerSource.match(/object RelationKind:([\s\S]*?)val All:/)?.[1] ?? '';
-  const valuesByName = new Map(
+  return new Map(
     [...relationKindBlock.matchAll(/\bval\s+([A-Za-z0-9]+)\s*=\s*"([^"]+)"/g)].map(match => [
       match[1] ?? '',
       match[2] ?? '',
     ]),
   );
-  const implementedBlock =
-    catalogSource.match(/val Implemented: List\[RelationObservationDescriptor\]\s*=\s*List\(([\s\S]*?)\)\s*val DeferredRelationKinds/)?.[1] ?? '';
-  const implementedNames = [
-    ...implementedBlock.matchAll(/relationKind\s*=\s*MoveReviewExchangeAnalyzer\.RelationKind\.([A-Za-z0-9]+)/g),
-  ].map(match => match[1] ?? '');
+};
 
-  return implementedNames.map(name => {
+const backendRelationCatalogBlock = (pattern: RegExp): string => {
+  const catalogSource = readFileSync(
+    resolve(repoRoot, 'modules/commentaryCore/src/main/scala/lila/commentary/analysis/semantic/StrategicSemanticObservation.scala'),
+    'utf8',
+  );
+  return catalogSource.match(pattern)?.[1] ?? '';
+};
+
+const backendRelationNames = (block: string): string[] => [
+  ...block.matchAll(/relationKind\s*=\s*MoveReviewExchangeAnalyzer\.RelationKind\.([A-Za-z0-9]+)/g),
+].map(match => match[1] ?? '');
+
+const backendRelationTokens = (names: string[], missingLabel: string): string[] => {
+  const valuesByName = backendRelationTokenByName();
+  return names.map(name => {
     const token = valuesByName.get(name);
-    assert.ok(token, `Missing backend relation token for ${name}`);
+    assert.ok(token, `Missing backend ${missingLabel} relation token for ${name}`);
     return token;
   });
+};
+
+const backendCatalogRelationTokens = (): string[] => {
+  const implementedBlock =
+    backendRelationCatalogBlock(/val Implemented: List\[RelationObservationDescriptor\]\s*=\s*List\(([\s\S]*?)\)\s*val DeferredRelationKinds/);
+  return backendRelationTokens(backendRelationNames(implementedBlock), 'catalog');
 };
 
 const frontendRelationTokens = (): string[] => {
@@ -49,33 +62,19 @@ const frontendRelationTokens = (): string[] => {
 };
 
 const backendDeferredRelationTokens = (): string[] => {
-  const analyzerSource = readFileSync(
-    resolve(repoRoot, 'modules/commentaryCore/src/main/scala/lila/commentary/analysis/MoveReviewExchangeAnalyzer.scala'),
-    'utf8',
-  );
-  const catalogSource = readFileSync(
-    resolve(repoRoot, 'modules/commentaryCore/src/main/scala/lila/commentary/analysis/semantic/StrategicSemanticObservation.scala'),
-    'utf8',
-  );
-  const relationKindBlock = analyzerSource.match(/object RelationKind:([\s\S]*?)val All:/)?.[1] ?? '';
-  const valuesByName = new Map(
-    [...relationKindBlock.matchAll(/\bval\s+([A-Za-z0-9]+)\s*=\s*"([^"]+)"/g)].map(match => [
-      match[1] ?? '',
-      match[2] ?? '',
-    ]),
-  );
   const deferredBlock =
-    catalogSource.match(/val Deferred: List\[DeferredRelationDescriptor\]\s*=\s*List\(([\s\S]*?)\)\s*val Implemented/)?.[1] ?? '';
-  const deferredNames = [
-    ...deferredBlock.matchAll(/relationKind\s*=\s*MoveReviewExchangeAnalyzer\.RelationKind\.([A-Za-z0-9]+)/g),
-  ].map(match => match[1] ?? '');
-
-  return deferredNames.map(name => {
-    const token = valuesByName.get(name);
-    assert.ok(token, `Missing backend deferred relation token for ${name}`);
-    return token;
-  });
+    backendRelationCatalogBlock(/val Deferred: List\[DeferredRelationDescriptor\]\s*=\s*List\(([\s\S]*?)\)\s*val Implemented/);
+  return backendRelationTokens(backendRelationNames(deferredBlock), 'deferred');
 };
+
+const playerSurface = (overrides: Partial<MoveReviewPlayerSurfaceV1> = {}): MoveReviewPlayerSurfaceV1 => ({
+  schema: 'chesstory.move_review.player_surface.v2',
+  summaryRows: [],
+  advancedRows: [],
+  probeRows: [],
+  authorRows: [],
+  ...overrides,
+});
 
 describe('moveReview response payload', () => {
   test('decodeMoveReviewResponse accepts minimized payload without raw strategic carriers', () => {
@@ -336,12 +335,7 @@ describe('moveReview response payload', () => {
 
   test('decodeMoveReviewResponse preserves decision target comparison metadata', () => {
     const decoded = decodeMoveReviewResponse({
-      moveReviewPlayerSurface: {
-        schema: 'chesstory.move_review.player_surface.v2',
-        summaryRows: [],
-        advancedRows: [],
-        probeRows: [],
-        authorRows: [],
+      moveReviewPlayerSurface: playerSurface({
         decisionComparison: {
           kicker: 'Decision point',
           secondaryText: 'The branches leave different targets.',
@@ -353,7 +347,7 @@ describe('moveReview response payload', () => {
             bestTargetKind: 'backward_pawn',
           },
         },
-      },
+      }),
     });
 
     assert.deepEqual(decoded.moveReviewPlayerSurface?.decisionComparison?.targetComparison, {
@@ -366,12 +360,7 @@ describe('moveReview response payload', () => {
 
   test('decodeMoveReviewResponse drops malformed decision target comparison metadata', () => {
     const decoded = decodeMoveReviewResponse({
-      moveReviewPlayerSurface: {
-        schema: 'chesstory.move_review.player_surface.v2',
-        summaryRows: [],
-        advancedRows: [],
-        probeRows: [],
-        authorRows: [],
+      moveReviewPlayerSurface: playerSurface({
         decisionComparison: {
           kicker: 'Decision point',
           chosenMatchesBest: false,
@@ -382,7 +371,7 @@ describe('moveReview response payload', () => {
             bestTargetKind: 'backward_pawn',
           },
         },
-      },
+      }),
     });
 
     assert.equal(decoded.moveReviewPlayerSurface?.decisionComparison?.targetComparison, null);
@@ -390,8 +379,8 @@ describe('moveReview response payload', () => {
 
   test('decodeMoveReviewResponse preserves valid surface authority target metadata', () => {
     const decoded = decodeMoveReviewResponse({
-      moveReviewPlayerSurface: {
-        schema: 'chesstory.move_review.player_surface.v2',
+      moveReviewPlayerSurface: playerSurface({
+        schema: 'chesstory . move_review . player_surface . v2' as MoveReviewPlayerSurfaceV1['schema'],
         summaryRows: [
           {
             label: 'Opening',
@@ -403,12 +392,10 @@ describe('moveReview response payload', () => {
             },
           },
         ],
-        advancedRows: [],
-        probeRows: [],
-        authorRows: [],
-      },
+      }),
     });
 
+    assert.equal(decoded.moveReviewPlayerSurface?.schema, 'chesstory.move_review.player_surface.v2');
     assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[0]?.authority, {
       kind: 'opening_family',
       token: null,
@@ -420,8 +407,7 @@ describe('moveReview response payload', () => {
 
   test('decodeMoveReviewResponse preserves bounded opening book metadata', () => {
     const decoded = decodeMoveReviewResponse({
-      moveReviewPlayerSurface: {
-        schema: 'chesstory.move_review.player_surface.v2',
+      moveReviewPlayerSurface: playerSurface({
         summaryRows: [
           {
             label: 'Opening',
@@ -450,10 +436,7 @@ describe('moveReview response payload', () => {
             },
           },
         ],
-        advancedRows: [],
-        probeRows: [],
-        authorRows: [],
-      },
+      }),
     });
 
     assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[0]?.authority?.openingBook, {
@@ -466,8 +449,7 @@ describe('moveReview response payload', () => {
 
   test('decodeMoveReviewResponse keeps surface row while downgrading malformed authority', () => {
     const decoded = decodeMoveReviewResponse({
-      moveReviewPlayerSurface: {
-        schema: 'chesstory.move_review.player_surface.v2',
+      moveReviewPlayerSurface: playerSurface({
         summaryRows: [
           {
             label: 'Opening',
@@ -479,10 +461,7 @@ describe('moveReview response payload', () => {
             },
           },
         ],
-        advancedRows: [],
-        probeRows: [],
-        authorRows: [],
-      },
+      }),
     });
 
     assert.equal(decoded.moveReviewPlayerSurface?.summaryRows[0]?.text, 'The text should remain visible.');
@@ -491,8 +470,7 @@ describe('moveReview response payload', () => {
 
   test('decodeMoveReviewResponse downgrades unsupported or malformed surface authority shapes', () => {
     const decoded = decodeMoveReviewResponse({
-      moveReviewPlayerSurface: {
-        schema: 'chesstory.move_review.player_surface.v2',
+      moveReviewPlayerSurface: playerSurface({
         summaryRows: [
           {
             label: 'Central break',
@@ -519,10 +497,7 @@ describe('moveReview response payload', () => {
             },
           },
         ],
-        advancedRows: [],
-        probeRows: [],
-        authorRows: [],
-      },
+      }),
     });
 
     assert.equal(decoded.moveReviewPlayerSurface?.summaryRows[0]?.authority, null);
@@ -539,8 +514,7 @@ describe('moveReview response payload', () => {
   test('decodeMoveReviewResponse preserves bounded strategic relation authority', () => {
     const relationTokens = backendCatalogRelationTokens();
     const decoded = decodeMoveReviewResponse({
-      moveReviewPlayerSurface: {
-        schema: 'chesstory.move_review.player_surface.v2',
+      moveReviewPlayerSurface: playerSurface({
         summaryRows: [
           {
             label: 'Line relation',
@@ -589,9 +563,7 @@ describe('moveReview response payload', () => {
             },
           },
         ],
-        probeRows: [],
-        authorRows: [],
-      },
+      }),
     });
 
     assert.equal(decoded.moveReviewPlayerSurface?.summaryRows[0]?.authority, null);
@@ -624,9 +596,7 @@ describe('moveReview response payload', () => {
     );
 
     const decoded = decodeMoveReviewResponse({
-      moveReviewPlayerSurface: {
-        schema: 'chesstory.move_review.player_surface.v2',
-        summaryRows: [],
+      moveReviewPlayerSurface: playerSurface({
         advancedRows: deferredTokens.map(token => ({
           label: 'Line relation',
           text: `Deferred relation ${token} is not public authority.`,
@@ -636,9 +606,7 @@ describe('moveReview response payload', () => {
             target: 'g6',
           },
         })),
-        probeRows: [],
-        authorRows: [],
-      },
+      }),
     });
 
     assert.deepEqual(decoded.moveReviewPlayerSurface?.advancedRows.map(row => row.authority), deferredTokens.map(() => null));

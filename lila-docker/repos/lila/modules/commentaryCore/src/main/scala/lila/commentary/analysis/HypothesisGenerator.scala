@@ -5,7 +5,6 @@ import lila.commentary.model.authoring.{ PlanHypothesis, PlanViability }
 import lila.commentary.analysis.PlanTaxonomy.{ ThemeResolver, PlanTheme }
 
 /**
- * Plan Proposal Layer v2:
  * Convert plan matches into structured hypotheses and rank them with
  * structural fit + execution difficulty + counterplay risk.
  */

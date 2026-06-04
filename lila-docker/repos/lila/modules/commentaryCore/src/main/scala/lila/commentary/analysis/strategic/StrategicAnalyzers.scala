@@ -133,9 +133,7 @@ class ActivityAnalyzerImpl extends ActivityAnalyzer {
         val mobility = calculateMobility(board, piece, square)
         val isBadBishop = checkBadBishop(board, piece, square)
         
-        // P1 FIX: Distinguish undeveloped from truly trapped
-        // "Trapped" means: no safe moves AND under attack OR deeply embedded
-        // Undeveloped piece on home rank with 0 mobility is NOT trapped, just undeveloped
+        // Undeveloped home-rank pieces with no mobility are not automatically trapped.
         val isOnHomeRank = isHomeSquare(piece, square)
         val isUnderAttack = board.attackers(square, !color).nonEmpty
         
@@ -738,7 +736,7 @@ class StructureAnalyzerImpl extends StructureAnalyzer {
     val pawnsOnHomeRank = friendlyPawns.squares.count(_.rank == homePawnRank)
     val totalPawns = board.pawns.count
     
-    // P1 FIX: No meaningful holes if too few pawns remain (Endgame noise) or in starting position
+    // No meaningful holes if too few pawns remain or the position is still near the start.
     if (totalPawns <= 2 || pawnsOnHomeRank >= 6) return Nil
     
     var attacks = Bitboard.empty
@@ -759,7 +757,6 @@ class StructureAnalyzerImpl extends StructureAnalyzer {
     sortedHoles.take(4) // Return at most 4 holes
   }
 
-  // NEW: Detect Outposts and Open Files
   def detectPositionalFeatures(board: Board, color: Color): List[PositionalTag] = {
     val features = scala.collection.mutable.ListBuffer[PositionalTag]()
     
@@ -1295,7 +1292,7 @@ class PracticalityScorerImpl extends PracticalityScorer {
     val safeMoveCount = variations.count(v => (bestScore - v.effectiveScore).abs <= safeMargin)
     val forgivenessIndex = math.min(1.0, (safeMoveCount - 1) / 4.0)
     
-    // P1 FIX: Early opening phase threshold (starts with 32)
+    // Treat high material counts as early opening structure.
     val isOpening = board.occupied.count >= 28
     val isStartingPosition = board.occupied.count >= 30
     
@@ -1324,8 +1321,7 @@ class PracticalityScorerImpl extends PracticalityScorer {
       }
     }
 
-    // P1 FIX: Align verdict with absolute practical score, not just the delta
-    // Thresholds: [-inf, -30) = Under Pressure, [-30, 30] = Balanced, (30, inf] = Comfortable
+    // Verdict thresholds: [-inf, -30) = Under Pressure, [-30, 30] = Balanced, (30, inf] = Comfortable.
     val finalScore = practicalScoreTerm
     val verdict = if (finalScore > 30.0) "Comfortable"
                   else if (finalScore < -30.0) "Under Pressure"

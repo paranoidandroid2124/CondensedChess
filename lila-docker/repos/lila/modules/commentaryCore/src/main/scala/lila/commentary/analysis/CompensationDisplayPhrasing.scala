@@ -120,16 +120,12 @@ private[analysis] object CompensationDisplayPhrasing:
       resolution: CompensationDisplaySubtypeResolver.DisplaySubtypeResolution
   ): DisplayNormalization =
     val normalizedSubtype = resolution.selectedDisplaySubtype.getOrElse(rawSubtype)
-    val normalizedDominant =
-      Option.when(resolution.normalizationActive)(normalizedDominantIdeaText(normalizedSubtype)).flatten
-    val normalizedExecution =
-      Option.when(resolution.normalizationActive)(normalizedExecutionText(surface, normalizedSubtype)).flatten
-    val normalizedObjective =
-      Option.when(resolution.normalizationActive)(normalizedObjectiveText(normalizedSubtype)).flatten
-    val normalizedFocus =
-      Option.when(resolution.normalizationActive)(normalizedLongTermFocusText(normalizedSubtype)).flatten
-    val normalizedLead =
-      Option.when(resolution.normalizationActive)(normalizedCompensationLead(surface, normalizedSubtype)).flatten
+    val activeSubtype = Option.when(resolution.normalizationActive)(normalizedSubtype)
+    val normalizedDominant = activeSubtype.flatMap(normalizedDominantIdeaText)
+    val normalizedExecution = activeSubtype.flatMap(normalizedExecutionText(surface, _))
+    val normalizedObjective = activeSubtype.flatMap(normalizedObjectiveText)
+    val normalizedFocus = activeSubtype.flatMap(normalizedLongTermFocusText)
+    val normalizedLead = activeSubtype.flatMap(normalizedCompensationLead(surface, _))
     DisplayNormalization(
       normalizedDominantIdeaText = normalizedDominant,
       normalizedExecutionText = normalizedExecution,

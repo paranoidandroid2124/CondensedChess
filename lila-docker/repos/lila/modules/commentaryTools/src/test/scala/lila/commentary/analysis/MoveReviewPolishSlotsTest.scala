@@ -12,8 +12,6 @@ import scala.annotation.unused
 
 class MoveReviewPolishSlotsTest extends FunSuite:
 
-  private val expectedPieceActivityFallback = "The move improves piece activity and looks for better squares."
-
   private def assertNoStateSummaryLeak(text: String): Unit =
     val low = MoveReviewProseContract.stripMoveHeader(text).toLowerCase
     assert(!low.contains("carlsbad"), clues(low))
@@ -48,12 +46,9 @@ class MoveReviewPolishSlotsTest extends FunSuite:
       expectedClaim: String
   ): Unit =
     assertEquals(slots.lens, StrategicLens.Decision)
+    assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.ExactFactualFallback)
     val stripped = MoveReviewProseContract.stripMoveHeader(slots.claim)
-    if (slots.sourceKind == MoveReviewPolishSlots.Source.ThematicFallback) {
-      assertEquals(stripped, expectedPieceActivityFallback)
-    } else {
-      assertEquals(stripped, expectedClaim)
-    }
+    assertEquals(stripped, expectedClaim)
     assertEquals(slots.supportPrimary, None)
     assertEquals(slots.supportSecondary, None)
     assertEquals(slots.tension, None)
@@ -160,9 +155,9 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     )
 
   private def phaseAQuietSupportPack(
-      deploymentRoute: List[String] = Nil,
-      structuralCue: Option[String] = None,
-      practicalVerdict: Option[String] = None
+      deploymentRoute: List[String],
+      structuralCue: Option[String],
+      practicalVerdict: Option[String]
   ): StrategyPack =
     StrategyPack(
       sideToMove = "white",
@@ -262,7 +257,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
       id: String,
       kind: AuthorQuestionKind,
       priority: Int = 100,
-      evidencePurposes: List[String] = Nil
+      evidencePurposes: List[String]
   ): AuthorQuestion =
     AuthorQuestion(
       id = id,
@@ -288,7 +283,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
   private def threat(
       kind: String,
       lossIfIgnoredCp: Int,
-      bestDefense: Option[String] = None,
+      bestDefense: Option[String],
       turnsToImpact: Int = 1
   ): ThreatRow =
     ThreatRow(
@@ -310,7 +305,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     }
   }
 
-  test("moveReview maps a race question plan into claim support and cited proof slots") {
+  test("moveReview falls back to exact local facts when race support lacks admitted planner ownership") {
     val ctx =
       MoveReviewProseGoldenFixtures.openFileFight.ctx.copy(
         summary = NarrativeSummary("Kingside Pressure", None, "NarrowChoice", "Maintain", "+0.20"),
@@ -385,8 +380,6 @@ class MoveReviewPolishSlotsTest extends FunSuite:
       )
     val strategyPack = surfaceDrivenPack(routePurpose = "kingside pressure", targetSquare = "g7")
     val outline = BookStyleRenderer.validatedOutline(ctx, strategyPack = Some(strategyPack))
-    val plannerInputs = QuestionPlannerInputsBuilder.build(ctx, Some(strategyPack), truthContract = None)
-    val rankedPlans = QuestionFirstCommentaryPlanner.plan(ctx, plannerInputs, None)
     val slotsOpt =
       MoveReviewCompressionPolicy
         .buildSlots(ctx, outline, None, Some(strategyPack))
@@ -395,8 +388,9 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     val fallbackSlots =
       MoveReviewCompressionPolicy.buildSlotsOrFallback(ctx, outline, None, Some(strategyPack))
     val claim = MoveReviewProseContract.stripMoveHeader(fallbackSlots.claim)
-    assertEquals(fallbackSlots.sourceKind, MoveReviewPolishSlots.Source.ThematicFallback)
-    assertEquals(claim, "The move keeps pressure on fixed weaknesses.")
+    assertEquals(fallbackSlots.sourceKind, MoveReviewPolishSlots.Source.ExactFactualFallback)
+    assertEquals(claim, "This puts the rook on c3.")
+    assertEquals(fallbackSlots.supportPrimary, None)
     assertEquals(fallbackSlots.paragraphPlan, List("p1=claim"))
   }
 
@@ -426,7 +420,8 @@ class MoveReviewPolishSlotsTest extends FunSuite:
         strategyPack = Some(strategyPack)
       )
 
-    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), expectedPieceActivityFallback)
+    assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.ExactFactualFallback)
+    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "This puts the rook on c3.")
     assertEquals(slots.supportPrimary, None)
     assertEquals(slots.supportSecondary, None)
   }
@@ -482,13 +477,13 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     assertExactFactualFallback(slots, "This puts the rook on c3.")
   }
 
-  test("state-only structure fixture now falls back to a thematic fallback") {
+  test("state-only structure fixture falls back to exact local facts before thematic fallback") {
     val fixture = MoveReviewProseGoldenFixtures.entrenchedPiece
     val outline = BookStyleRenderer.validatedOutline(fixture.ctx)
     val slots =
       MoveReviewPolishSlotsBuilder.buildOrFallback(fixture.ctx, outline, refs = None, strategyPack = fixture.strategyPack)
-    assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.ThematicFallback)
-    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), expectedPieceActivityFallback)
+    assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.ExactFactualFallback)
+    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "This puts the knight on f1.")
   }
 
   test("quiet intent ignores break-ready hints and refuses to emit break-preparation prose") {
@@ -608,7 +603,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
   test("sanitizer preserves chess ellipsis markers in prose") {
     val raw =
       "Probe evidence starts with. Rc8: Rc8 Rc3 Rg6 (+0.42). The alternative is 12.. Qh5, and fixing lines with.. h5 makes.. Rh6-g6 realistic."
-    val sanitized = MoveReviewSlotSanitizer.sanitizeUserText(raw)
+    val sanitized = UserFacingSignalSanitizer.sanitize(raw)
     assertEquals(
       sanitized,
       "Probe evidence starts with ...Rc8: Rc8 Rc3 Rg6 (+0.42). The alternative is 12...Qh5, and fixing lines with ...h5 makes ...Rh6-g6 realistic."
@@ -1041,7 +1036,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
         strategyPack = shellOnlyPack
       )
 
-    assertExactFactualFallback(slots, "This captures the pawn on b4.")
+    assertExactFactualFallback(slots, "This puts the rook on c3.")
   }
 
   test("only-move defense stays support-only when no move-review-safe WhyNow surface survives") {
@@ -1223,7 +1218,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
         strategyPack = None
       )
 
-    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), expectedPieceActivityFallback)
+    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "This captures on c6.")
     assertEquals(slots.paragraphPlan, List("p1=claim"))
   }
 
@@ -1484,7 +1479,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
         strategyPack = None
       )
 
-    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), expectedPieceActivityFallback)
+    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "This captures.")
     assertEquals(slots.paragraphPlan, List("p1=claim"))
   }
 
@@ -1497,7 +1492,9 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     val strategyPack =
       Some(
         phaseAQuietSupportPack(
-          deploymentRoute = List("c3", "g3")
+          deploymentRoute = List("c3", "g3"),
+          structuralCue = None,
+          practicalVerdict = None
         )
       )
     val outline = BookStyleRenderer.validatedOutline(ctx, strategyPack = strategyPack)
@@ -1522,7 +1519,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     assertEquals(rankedPlans.primary, None, clues(rankedPlans))
     assertEquals(rankedPlans.ownerTrace.selectedQuestion, None, clues(rankedPlans.ownerTrace))
     assertEquals(rankedPlans.ownerTrace.selectedPlannerOwnerKind, None, clues(rankedPlans.ownerTrace))
-    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), expectedPieceActivityFallback)
+    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "This puts the rook on c3.")
     assertEquals(slots.supportPrimary, None)
     assertEquals(slots.supportSecondary, None)
     assertEquals(slots.paragraphPlan, List("p1=claim"))
@@ -1678,6 +1675,6 @@ class MoveReviewPolishSlotsTest extends FunSuite:
       MoveReviewPolishSlotsBuilder.buildOrFallback(ctx, outline, refs = refs, strategyPack = None)
 
     val claim = MoveReviewProseContract.stripMoveHeader(slots.claim)
-    assertEquals(claim, expectedPieceActivityFallback)
+    assertEquals(claim, "This puts the rook on c3.")
     assertEquals(slots.evidenceHook, None)
   }

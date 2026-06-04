@@ -106,6 +106,18 @@ class NarrativeContextBuilderTest extends FunSuite {
 
     assert(keyThreat.contains("key-square restriction"), clue(keyThreat))
     assert(!keyThreat.toLowerCase.contains("domination"), clue(keyThreat))
+
+    val drawResourceCtx =
+      IntegratedContext(
+        evalCp = 50,
+        isWhiteToMove = true,
+        threatsToUs = Some(threatAnalysis.copy(threats = List(threat.copy(motifs = List("stalemate_trap")))))
+      )
+    val drawResourceKeyThreat =
+      NarrativeContextBuilder.build(minimalData(Some(drawResourceCtx)), drawResourceCtx, None).summary.keyThreat.getOrElse(fail("missing key threat"))
+
+    assert(drawResourceKeyThreat.contains("attacker on e5"), clue(drawResourceKeyThreat))
+    assert(!drawResourceKeyThreat.contains("stalemate_trap"), clue(drawResourceKeyThreat))
   }
 
   // ============================================================
@@ -543,7 +555,11 @@ class NarrativeContextBuilderTest extends FunSuite {
     val candidate = lila.commentary.model.strategic.AnalyzedCandidate(
       move = "e2e4",
       score = 50,
-      motifs = Nil,
+      motifs =
+        List(
+          Motif.Domination(chess.Knight, chess.Queen, chess.Square.E5, Color.White, 0, Some("Ne5")),
+          Motif.TrappedPiece(chess.Queen, chess.Square.H4, Color.Black, 0, Some("Qh4"))
+        ),
       prophylaxisResults = Nil,
       futureContext = "Central control",
       moveIntent = lila.commentary.model.strategic.MoveIntent("Central control", None),
@@ -566,6 +582,11 @@ class NarrativeContextBuilderTest extends FunSuite {
     // scoreCp is 50, so alert should be None. Let's try 300 in another candidate or change this one.
     // For now, just check it is None as expected for 50.
     assertEquals(narrativeCtx.candidates.head.tacticalAlert, None)
+    val tacticEvidence = narrativeCtx.candidates.head.tacticEvidence.mkString(" ")
+    assert(tacticEvidence.contains("Key-square restriction"), clue(tacticEvidence))
+    assert(tacticEvidence.contains("Piece mobility"), clue(tacticEvidence))
+    assert(!tacticEvidence.toLowerCase.contains("domination"), clue(tacticEvidence))
+    assert(!tacticEvidence.toLowerCase.contains("trapped"), clue(tacticEvidence))
   }
 
   // ============================================================
@@ -697,7 +718,7 @@ class NarrativeContextBuilderTest extends FunSuite {
   }
 
   // ============================================================
-  // PROBE LOOP (Phase 6.5): Ghost plan -> ProbeRequest
+  // Probe loop: ghost plan -> ProbeRequest
   // ============================================================
 
   test("Probe: emits LEGAL UCI moves when a high-score plan is not represented in top MultiPV moves") {

@@ -666,7 +666,6 @@ case class MoveReviewPlayerDecisionComparison(
     chosenSan: Option[String] = None,
     engineSan: Option[String] = None,
     comparedSan: Option[String] = None,
-    deferredSan: Option[String] = None,
     secondaryText: Option[String] = None,
     chosenMatchesBest: Boolean = false,
     targetComparison: Option[MoveReviewDecisionTargetComparison] = None

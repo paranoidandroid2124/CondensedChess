@@ -228,7 +228,7 @@ case class MoveDelta(
 
 case class CandidateInfo(
   move: String,                // SAN
-  uci: Option[String] = None,  // NEW: UCI format for probe result matching
+  uci: Option[String] = None,  // UCI format for probe result matching
   annotation: String,          // "!" | "?" | ""
   planAlignment: String,       // Immediate intent (e.g., "Development")
   structureGuidance: Option[String] = None, // Internal structure-aware narrative guidance

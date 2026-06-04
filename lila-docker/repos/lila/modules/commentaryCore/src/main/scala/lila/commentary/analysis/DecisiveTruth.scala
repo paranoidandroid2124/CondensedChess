@@ -216,20 +216,6 @@ private[commentary] final case class MoveTruthFrame(
     benchmarkProseAllowed: Boolean
 )
 
-private[commentary] final case class MomentTruthProjection(
-    classificationKey: String,
-    ownershipRole: TruthOwnershipRole,
-    visibilityRole: TruthVisibilityRole,
-    surfaceMode: TruthSurfaceMode,
-    exemplarRole: TruthExemplarRole,
-    surfacedMoveOwnsTruth: Boolean,
-    verifiedPayoffAnchor: Option[String],
-    benchmarkProseAllowed: Boolean,
-    chainKey: Option[String],
-    maintenanceExemplarCandidate: Boolean,
-    benchmarkCriticalMove: Boolean = false
-)
-
 private[commentary] final case class DecisiveTruthContract(
     playedMove: Option[String],
     verifiedBestMove: Option[String],
@@ -375,7 +361,6 @@ private[commentary] final case class DecisiveTruthContract(
 private[commentary] object DecisiveTruth:
 
   private val WinPercentSlope = 0.00368208
-  private val GoodAlternativeGapCp = 40
 
   extension (frame: MoveTruthFrame)
     def toContract: DecisiveTruthContract =
@@ -523,7 +508,6 @@ private[commentary] object DecisiveTruth:
         comparison = comparison,
         verifiedBestMove = verifiedBestMove,
         chosenMatchesBest = chosenMatchesBest,
-        cpLoss = cpLoss,
         moveQuality = moveQuality,
         momentType = momentType
       )
@@ -711,11 +695,12 @@ private[commentary] object DecisiveTruth:
             chosenMatchesBest = contract.chosenMatchesBest
           )
         }
+      val compensationAllowed = contract.compensationProseAllowed
       existing.copy(
         decisionComparison = sanitizedComparison,
-        compensation = Option.when(contract.compensationProseAllowed)(existing.compensation).flatten,
-        compensationVectors = Option.when(contract.compensationProseAllowed)(existing.compensationVectors).getOrElse(Nil),
-        investedMaterial = Option.when(contract.compensationProseAllowed)(existing.investedMaterial).flatten
+        compensation = if compensationAllowed then existing.compensation else None,
+        compensationVectors = if compensationAllowed then existing.compensationVectors else Nil,
+        investedMaterial = if compensationAllowed then existing.investedMaterial else None
       )
     }
 
@@ -770,21 +755,6 @@ private[commentary] object DecisiveTruth:
   def sameMoveToken(left: String, right: String): Boolean =
     normalizeMoveToken(left) == normalizeMoveToken(right)
 
-  private def contractProjection(contract: DecisiveTruthContract): MomentTruthProjection =
-    MomentTruthProjection(
-      classificationKey = contract.truthClassKey.replace("_", ""),
-      ownershipRole = contract.ownershipRole,
-      visibilityRole = contract.visibilityRole,
-      surfaceMode = contract.surfaceMode,
-      exemplarRole = contract.exemplarRole,
-      surfacedMoveOwnsTruth = contract.surfacedMoveOwnsTruth,
-      verifiedPayoffAnchor = contract.verifiedPayoffAnchor,
-      benchmarkProseAllowed = contract.benchmarkProseAllowed,
-      chainKey = contract.investmentTruthChainKey,
-      maintenanceExemplarCandidate = contract.maintenanceExemplarCandidate,
-      benchmarkCriticalMove = contract.benchmarkCriticalMove
-    )
-
   private def deriveMoveQualityFact(
       chosenMatchesBest: Boolean,
       cpLoss: Int,
@@ -826,7 +796,6 @@ private[commentary] object DecisiveTruth:
       comparison: Option[DecisionComparison],
       verifiedBestMove: Option[String],
       chosenMatchesBest: Boolean,
-      cpLoss: Int,
       moveQuality: MoveQualityFact,
       momentType: Option[String]
   ): BenchmarkFact =
@@ -1248,7 +1217,7 @@ private[commentary] object DecisiveTruth:
     val routeTargetAnchor =
       selectConcreteCarrierAnchor(strategyPack, strategicOwnership.verifiedPayoffAnchor)
     val semanticIntentAnchor =
-      Option.when(strategicOwnership.currentSemanticAnchorMatch)(strategicOwnership.verifiedPayoffAnchor).flatten
+      if strategicOwnership.currentSemanticAnchorMatch then strategicOwnership.verifiedPayoffAnchor else None
     val intentAnchor = routeTargetAnchor.orElse(semanticIntentAnchor)
     val proofBackedCriticalHold =
       tactical.immediateRefutation ||
@@ -1291,7 +1260,7 @@ private[commentary] object DecisiveTruth:
     FailureInterpretationFact(
       failureMode = failureMode,
       intentConfidence = intentConfidence,
-      intentAnchor = Option.when(moveQuality.isBad && intentAnchor.nonEmpty)(intentAnchor).flatten,
+      intentAnchor = if moveQuality.isBad then intentAnchor else None,
       interpretationAllowed = interpretationAllowed
     )
 
@@ -1321,38 +1290,6 @@ private[commentary] object DecisiveTruth:
       depthSensitive = depthSensitive,
       shallowUnderestimated = shallowUnderestimated,
       verificationTier = verificationTier
-    )
-
-  private def fallbackMomentProjection(
-      classificationKey: String,
-      verifiedPayoffAnchor: Option[String]
-  ): MomentTruthProjection =
-    val ownershipRole =
-      classificationKey match
-        case "blunder" | "missedwin" => TruthOwnershipRole.BlunderOwner
-        case _                       => TruthOwnershipRole.NoneRole
-    val surfaceMode =
-      ownershipRole match
-        case TruthOwnershipRole.BlunderOwner    => TruthSurfaceMode.FailureExplain
-        case _                                  => TruthSurfaceMode.Neutral
-    val ownsTruth =
-      ownershipRole == TruthOwnershipRole.BlunderOwner
-    val visibilityRole =
-      if ownsTruth then TruthVisibilityRole.PrimaryVisible
-      else TruthVisibilityRole.Hidden
-    MomentTruthProjection(
-      classificationKey = classificationKey,
-      ownershipRole = ownershipRole,
-      visibilityRole = visibilityRole,
-      surfaceMode = surfaceMode,
-      exemplarRole =
-        TruthExemplarRole.NonExemplar,
-      surfacedMoveOwnsTruth = ownsTruth,
-      verifiedPayoffAnchor = Option.when(ownsTruth)(verifiedPayoffAnchor).flatten,
-      benchmarkProseAllowed = false,
-      chainKey = None,
-      maintenanceExemplarCandidate = false,
-      benchmarkCriticalMove = false
     )
 
   private def derivePunishConversionFact(

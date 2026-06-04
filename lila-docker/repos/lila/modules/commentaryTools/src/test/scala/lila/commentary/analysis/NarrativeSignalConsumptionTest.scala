@@ -139,6 +139,31 @@ class NarrativeSignalConsumptionTest extends FunSuite:
     )
   }
 
+  test("context concept aliases do not bypass draw-resource relation gates") {
+    val ctx =
+      baseContext.copy(
+        semantic = Some(
+          SemanticSection(
+            structuralWeaknesses = Nil,
+            pieceActivity = Nil,
+            positionalFeatures = Nil,
+            compensation = None,
+            endgameFeatures = None,
+            practicalAssessment = None,
+            preventedPlans = Nil,
+            conceptSummary = List("stalemate_trap", "perpetual_check")
+          )
+        )
+      )
+
+    val (outline, _) = NarrativeOutlineBuilder.build(ctx, new TraceRecorder())
+    val contextBeat = outline.beats.find(_.kind == OutlineBeatKind.Context).getOrElse(fail("missing context beat"))
+    val lower = contextBeat.text.toLowerCase
+
+    assert(!lower.contains("stalemate"), clue(contextBeat.text))
+    assert(!lower.contains("perpetual"), clue(contextBeat.text))
+  }
+
   test("decision rationale without author questions stays out of planner-owned decision beats") {
     val ctx = baseContext.copy(
       decision = Some(

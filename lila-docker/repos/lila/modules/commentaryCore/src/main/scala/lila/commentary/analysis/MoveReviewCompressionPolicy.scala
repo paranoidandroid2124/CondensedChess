@@ -85,8 +85,8 @@ private[commentary] object MoveReviewCompressionPolicy:
     val slots =
       slotsFromPlanner(ctx, plannerRuntime.inputs, plannerRuntime.rankedPlans, truthContract)
         .orElse(basicMoveExplanationSlots(ctx, refs, truthContract, strategyPack))
-        .orElse(theme_fallback(ctx, plannerRuntime, refs, strategyPack, truthContract))
         .orElse(exactFactualFallbackSlots(ctx, plannerRuntime, refs, strategyPack))
+        .orElse(theme_fallback(ctx, plannerRuntime, refs, strategyPack, truthContract))
         .getOrElse(omittedSlots)
     RuntimeResult(
       slots = slots,
@@ -107,8 +107,8 @@ private[commentary] object MoveReviewCompressionPolicy:
         rankedPlans = rankedPlans
       )
     slotsFromPlanner(ctx, inputs, rankedPlans, truthContract)
-      .orElse(theme_fallback(ctx, plannerRuntime, refs = None, strategyPack, truthContract))
       .orElse(exactFactualFallbackSlots(ctx, plannerRuntime, refs = None, strategyPack))
+      .orElse(theme_fallback(ctx, plannerRuntime, refs = None, strategyPack, truthContract))
       .getOrElse(omittedSlots)
 
   private[analysis] def cleanNarrativeSentence(raw: String, ctx: NarrativeContext): Option[String] =
@@ -182,8 +182,7 @@ private[commentary] object MoveReviewCompressionPolicy:
       supportSecondary: Option[String],
       tension: Option[String],
       evidenceHook: Option[String],
-      coda: Option[String],
-      claimOnlyAllowed: Boolean
+      coda: Option[String]
   )
 
   private def slotsFromPlanner(
@@ -276,7 +275,6 @@ private[commentary] object MoveReviewCompressionPolicy:
     val primaryEvidence = plannerEvidenceHook(primary.evidence, ctx)
     val primaryConsequence = plannerConsequence(primary.consequence, ctx)
     val timingTension = plannerTimingTension(primary.questionKind, inputs, ctx)
-    val claimOnlyAllowed = supportedLocalSurfaceOnly(primary)
 
     primary.questionKind match
       case AuthorQuestionKind.WhatMattersHere =>
@@ -289,8 +287,7 @@ private[commentary] object MoveReviewCompressionPolicy:
             supportSecondary = secondarySupport,
             tension = None,
             evidenceHook = primaryEvidence,
-            coda = primaryConsequence,
-            claimOnlyAllowed = claimOnlyAllowed
+            coda = primaryConsequence
           )
         )
       case AuthorQuestionKind.WhyThis =>
@@ -303,8 +300,7 @@ private[commentary] object MoveReviewCompressionPolicy:
             supportSecondary = secondarySupport,
             tension = None,
             evidenceHook = primaryEvidence,
-            coda = primaryConsequence,
-            claimOnlyAllowed = claimOnlyAllowed
+            coda = primaryConsequence
           )
         )
       case AuthorQuestionKind.WhyNow =>
@@ -317,8 +313,7 @@ private[commentary] object MoveReviewCompressionPolicy:
             supportSecondary = secondarySupport.filterNot(text => admissibleContrast.exists(sameSentence(_, text))),
             tension = timingTension,
             evidenceHook = primaryEvidence,
-            coda = primaryConsequence,
-            claimOnlyAllowed = claimOnlyAllowed
+            coda = primaryConsequence
           )
         )
       case AuthorQuestionKind.WhatChanged =>
@@ -331,8 +326,7 @@ private[commentary] object MoveReviewCompressionPolicy:
             supportSecondary = secondarySupport,
             tension = None,
             evidenceHook = primaryEvidence,
-            coda = primaryConsequence,
-            claimOnlyAllowed = claimOnlyAllowed
+            coda = primaryConsequence
           )
         )
       case AuthorQuestionKind.WhatMustBeStopped =>
@@ -349,8 +343,7 @@ private[commentary] object MoveReviewCompressionPolicy:
             supportSecondary = secondarySupport,
             tension = timingTension,
             evidenceHook = primaryEvidence,
-            coda = primaryConsequence,
-            claimOnlyAllowed = claimOnlyAllowed
+            coda = primaryConsequence
           )
         )
       case AuthorQuestionKind.WhosePlanIsFaster =>
@@ -363,8 +356,7 @@ private[commentary] object MoveReviewCompressionPolicy:
             supportSecondary = secondarySupport,
             tension = timingTension,
             evidenceHook = primaryEvidence,
-            coda = primaryConsequence,
-            claimOnlyAllowed = claimOnlyAllowed
+            coda = primaryConsequence
           )
         )
 
@@ -401,7 +393,7 @@ private[commentary] object MoveReviewCompressionPolicy:
           )
 
       val hasSupport = hasPlannerSupport(supportPrimary, supportSecondary, tension, evidenceHook, coda)
-      if draft.claimOnlyAllowed || !hasSupport then
+      if !hasSupport then
         Some(
           MoveReviewPolishSlots(
             lens = draft.lens,
@@ -432,9 +424,6 @@ private[commentary] object MoveReviewCompressionPolicy:
         Option.when(moveReviewContractSafe(slots))(slots)
       }
     }
-
-  private def supportedLocalSurfaceOnly(primary: QuestionPlan): Boolean =
-    false
 
   private def sanitizePlannerClaim(
       draft: PlannerSlotDraft,
@@ -571,17 +560,13 @@ private[commentary] object MoveReviewCompressionPolicy:
       !low.matches("""the timing matters now\.?""")
 
   private[analysis] def relaxedCertifiedRaceSentence(raw: String, ctx: NarrativeContext): Option[String] =
-    normalized(raw)
-      .map(MoveReviewSlotSanitizer.sanitizeUserText)
-      .map(LiveNarrativeCompressionCore.rewritePlayerLanguage)
-      .flatMap(normalized)
-      .map(LiveNarrativeCompressionCore.trimLeadScaffold)
-      .flatMap(normalized)
-      .filter(text => systemLanguageHits(text).isEmpty)
-      .filter(text => LiveNarrativeCompressionCore.playerLanguageHits(text).isEmpty)
-      .filter(text => !containsNonBackedPlanName(text, ctx))
-      .filter(text => namedPlanAllowed(text, ctx))
-      .filterNot(LiveNarrativeCompressionCore.isLowValueNarrativeSentence)
+    cleanPlayerFacingSentence(
+      raw,
+      ctx,
+      requirePlayerFacingSentence = false,
+      rejectLowValue = true,
+      rejectLimitedSupport = false
+    )
 
   private def plannerParagraphPlan(
       supportLines: List[String],
@@ -620,8 +605,6 @@ private[commentary] object MoveReviewCompressionPolicy:
         PlanTaxonomy.ThemeResolver.fromPlanName(ctx.plans.top5.head.name)
       else if plannerRuntime.inputs.evidenceBackedPlans.nonEmpty then
         PlanTaxonomy.ThemeResolver.fromHypotheses(plannerRuntime.inputs.evidenceBackedPlans)
-      else if ctx.strategicPlanExperiments.nonEmpty then
-        ctx.strategicPlanExperiments.map(theme_from_exp).find(_ != PlanTaxonomy.PlanTheme.Unknown).getOrElse(PlanTaxonomy.PlanTheme.Unknown)
       else
         PlanTaxonomy.PlanTheme.Unknown
 
@@ -649,12 +632,6 @@ private[commentary] object MoveReviewCompressionPolicy:
         sourceKind = MoveReviewPolishSlots.Source.ThematicFallback
       )
     }
-
-  private def theme_from_exp(e: StrategicPlanExperiment): PlanTaxonomy.PlanTheme =
-    PlanTaxonomy.PlanTheme.fromId(e.themeL1).filter(_ != PlanTaxonomy.PlanTheme.Unknown)
-      .orElse(e.subplanId.flatMap(PlanTaxonomy.ThemeResolver.subplanFromId).map(_.theme))
-      .orElse(Option(PlanTaxonomy.ThemeResolver.fromPlanId(e.planId)).filter(_ != PlanTaxonomy.PlanTheme.Unknown))
-      .getOrElse(PlanTaxonomy.PlanTheme.Unknown)
 
   private def theme_fallback_prose(theme: PlanTaxonomy.PlanTheme): String =
     theme match
@@ -824,33 +801,43 @@ private[commentary] object MoveReviewCompressionPolicy:
     )
 
   private def cleanSentence(raw: String, ctx: NarrativeContext): Option[String] =
-    normalized(raw)
-      .map(MoveReviewSlotSanitizer.sanitizeUserText)
-      .map(LiveNarrativeCompressionCore.rewritePlayerLanguage)
-      .flatMap(normalized)
-      .map(LiveNarrativeCompressionCore.trimLeadScaffold)
-      .flatMap(normalized)
-      .filter(text => systemLanguageHits(text).isEmpty)
-      .filter(text => LiveNarrativeCompressionCore.playerLanguageHits(text).isEmpty)
-      .filter(LiveNarrativeCompressionCore.keepPlayerFacingSentence)
-      .filterNot(LiveNarrativeCompressionCore.isLowValueNarrativeSentence)
-      .filter(text => !containsNonBackedPlanName(text, ctx))
-      .filter(text => namedPlanAllowed(text, ctx))
-      .filterNot(_.equalsIgnoreCase("Concrete support is still limited."))
+    cleanPlayerFacingSentence(
+      raw,
+      ctx,
+      requirePlayerFacingSentence = true,
+      rejectLowValue = true,
+      rejectLimitedSupport = true
+    )
 
   private def cleanLocalFactualSupport(raw: String, ctx: NarrativeContext): Option[String] =
+    cleanPlayerFacingSentence(
+      raw,
+      ctx,
+      requirePlayerFacingSentence = true,
+      rejectLowValue = false,
+      rejectLimitedSupport = true
+    )
+
+  private def cleanPlayerFacingSentence(
+      raw: String,
+      ctx: NarrativeContext,
+      requirePlayerFacingSentence: Boolean,
+      rejectLowValue: Boolean,
+      rejectLimitedSupport: Boolean
+  ): Option[String] =
     normalized(raw)
-      .map(MoveReviewSlotSanitizer.sanitizeUserText)
+      .map(UserFacingSignalSanitizer.sanitize)
       .map(LiveNarrativeCompressionCore.rewritePlayerLanguage)
       .flatMap(normalized)
       .map(LiveNarrativeCompressionCore.trimLeadScaffold)
       .flatMap(normalized)
       .filter(text => systemLanguageHits(text).isEmpty)
       .filter(text => LiveNarrativeCompressionCore.playerLanguageHits(text).isEmpty)
-      .filter(LiveNarrativeCompressionCore.keepPlayerFacingSentence)
+      .filter(text => !requirePlayerFacingSentence || LiveNarrativeCompressionCore.keepPlayerFacingSentence(text))
+      .filter(text => !rejectLowValue || !LiveNarrativeCompressionCore.isLowValueNarrativeSentence(text))
       .filter(text => !containsNonBackedPlanName(text, ctx))
       .filter(text => namedPlanAllowed(text, ctx))
-      .filterNot(_.equalsIgnoreCase("Concrete support is still limited."))
+      .filter(text => !rejectLimitedSupport || !text.equalsIgnoreCase("Concrete support is still limited."))
 
   private def containsNonBackedPlanName(text: String, ctx: NarrativeContext): Boolean =
     val low = text.toLowerCase

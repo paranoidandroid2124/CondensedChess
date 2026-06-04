@@ -740,14 +740,6 @@ export default function moveReviewNarrative(ctrl?: AnalyseCtrl): MoveReviewNarra
             root.setAttribute('data-commentary-polish-source', polishMeta.sourceMode);
             root.setAttribute('data-commentary-polish-cache-hit', String(polishMeta.cacheHit));
             root.removeAttribute('data-commentary-polish-reasons');
-            root.removeAttribute('data-commentary-strategy-mode');
-            root.removeAttribute('data-commentary-strategy-score');
-            root.removeAttribute('data-commentary-strategy-covered');
-            root.removeAttribute('data-commentary-strategy-required');
-            root.removeAttribute('data-commentary-strategy-pass');
-            root.removeAttribute('data-commentary-strategy-plan');
-            root.removeAttribute('data-commentary-strategy-route');
-            root.removeAttribute('data-commentary-strategy-focus');
         } else {
             root.removeAttribute('data-commentary-polish-provider');
             root.removeAttribute('data-commentary-polish-phase');
@@ -755,15 +747,15 @@ export default function moveReviewNarrative(ctrl?: AnalyseCtrl): MoveReviewNarra
             root.removeAttribute('data-commentary-polish-source');
             root.removeAttribute('data-commentary-polish-cache-hit');
             root.removeAttribute('data-commentary-polish-reasons');
-            root.removeAttribute('data-commentary-strategy-mode');
-            root.removeAttribute('data-commentary-strategy-score');
-            root.removeAttribute('data-commentary-strategy-covered');
-            root.removeAttribute('data-commentary-strategy-required');
-            root.removeAttribute('data-commentary-strategy-pass');
-            root.removeAttribute('data-commentary-strategy-plan');
-            root.removeAttribute('data-commentary-strategy-route');
-            root.removeAttribute('data-commentary-strategy-focus');
         }
+        root.removeAttribute('data-commentary-strategy-mode');
+        root.removeAttribute('data-commentary-strategy-score');
+        root.removeAttribute('data-commentary-strategy-covered');
+        root.removeAttribute('data-commentary-strategy-required');
+        root.removeAttribute('data-commentary-strategy-pass');
+        root.removeAttribute('data-commentary-strategy-plan');
+        root.removeAttribute('data-commentary-strategy-route');
+        root.removeAttribute('data-commentary-strategy-focus');
         const ledgerAttrs = moveReviewLedgerRootAttrs(moveReviewLedger);
         ['data-commentary-motif', 'data-commentary-stage', 'data-commentary-carry-over'].forEach(attr => {
             const value = ledgerAttrs[attr];

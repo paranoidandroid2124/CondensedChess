@@ -5,7 +5,6 @@ import _root_.chess.format.Fen
 import lila.commentary.RouteSurfaceMode
 import lila.commentary.model.*
 import lila.commentary.model.strategic.{ PieceActivity, PositionalTag }
-import lila.commentary.analysis.semantic.RelationObservationCatalog
 
 private[analysis] final case class PieceDeploymentCue(
     ownerSide: String,
@@ -50,8 +49,6 @@ private[analysis] object StructurePlanArcBuilder:
   val ProseConfidenceCutoff = 0.55
   val SecondaryConfidenceCutoff = 0.55
   val ExactRouteCutoff = 0.82
-  private val TrappedPieceFallbackEvidence =
-    RelationObservationCatalog.deferredFallbackEvidenceTermForKind(MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece)
 
   def build(ctx: NarrativeContext): Option[StructurePlanArc] =
     val semantic = ctx.semantic
@@ -168,7 +165,6 @@ private[analysis] object StructurePlanArcBuilder:
   def evidenceFromStrategicActivity(activity: PieceActivity, destination: String): List[String] =
     List(
       Option.when(activity.isBadBishop)("bishop_quality_signal"),
-      Option.when(activity.isTrapped)(TrappedPieceFallbackEvidence).flatten,
       Option.when(activity.mobilityScore < 0.4)("low_mobility_signal"),
       Option.when(activity.keyRoutes.size >= 2)("multi_hop_route"),
       Option.when(activity.coordinationLinks.nonEmpty)(s"coordination_links_${activity.coordinationLinks.size.min(4)}"),

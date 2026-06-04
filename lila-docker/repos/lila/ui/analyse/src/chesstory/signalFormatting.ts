@@ -89,11 +89,13 @@ export function humanizeToken(raw: string): string {
 
 function rewriteSurfaceLabels(text: string): string {
   return text
+    .replace(/\bStrategic Focus\b/gi, 'Key theme')
+    .replace(/\bStrategic Priority\b/gi, 'Key theme')
     .replace(/\bOpening Branch Point\b/gi, 'Opening Branch')
-    .replace(/\bPreparing ([A-H]) Break Break\b/gi, (_, file: string) => `Preparing the ${file.toLowerCase()}-break`)
-    .replace(/\b([A-H]) Break Break\b/gi, (_, file: string) => `${file.toLowerCase()}-break`)
-    .replace(/\bPreparing ([A-H]) Break\b/gi, (_, file: string) => `Preparing the ${file.toLowerCase()}-break`)
-    .replace(/\b([A-H]) Break\b/gi, (_, file: string) => `${file.toLowerCase()}-break`)
+    .replace(/\bPreparing ([A-H])[- ](?:pawn\s+)?break Break\b/gi, (_, file: string) => `Preparing the ${file.toLowerCase()}-break`)
+    .replace(/\b([A-H])[- ](?:pawn\s+)?break Break\b/gi, (_, file: string) => `${file.toLowerCase()}-break`)
+    .replace(/\bPreparing ([A-H])[- ](?:pawn\s+)?break\b/gi, (_, file: string) => `Preparing the ${file.toLowerCase()}-break`)
+    .replace(/\b([A-H])[- ](?:pawn\s+)?break\b/gi, (_, file: string) => `${file.toLowerCase()}-break`)
     .replace(/\bOpening Development And Center Control\b/gi, 'Development and central control')
     .replace(/\bPiece Activation\b/gi, 'Improving piece placement')
     .replace(/\bExploiting Space Advantage\b/gi, 'Using the space advantage')
@@ -102,7 +104,7 @@ function rewriteSurfaceLabels(text: string): string {
     .replace(/\bImmediate Tactical Gain Counterplay\b/gi, 'Immediate counterplay')
     .replace(/\bAttacking Fixed Pawn\b/gi, 'Attacking a fixed pawn')
     .replace(/\bRook Pawn March To Gain Flank Space\b/gi, 'Gaining flank space with a rook pawn')
-    .replace(/\bKingside Pawn Storm\b/gi, 'Kingside pawn storm');
+    .replace(/\bKingside Pawn Storm\b/gi, 'kingside pawn storm');
 }
 
 export function cleanNarrativeSurfaceLabel(raw: string): string {

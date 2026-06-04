@@ -70,7 +70,7 @@ private[commentary] object QuietStrategicSupportComposer:
       strategyPack: Option[StrategyPack]
   ): Option[QuietStrategicSupportLine] =
     val trace = diagnose(ctx, inputs, rankedPlans, strategyPack)
-    Option.when(trace.emitted)(trace.line).flatten
+    if trace.emitted then trace.line else None
 
   def diagnose(
       ctx: NarrativeContext,

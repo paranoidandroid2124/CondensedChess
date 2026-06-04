@@ -39,7 +39,7 @@ object BreakAnalyzer:
    * 
    * @param features L1 position features
    * @param motifs L2 motifs (for PawnBreak detection)
-   * @param phase1 Phase 1 classification (for context)
+   * @param phase1 position classification context
    * @param sideToMove Which side is to move
    * @return Complete pawn play analysis with 10 concepts
    */

@@ -3,7 +3,7 @@ package lila.commentary.analysis.L3
 import chess.{Square, Role}
 
 /**
- * Main container for all Phase 1 classification results.
+ * Main container for position classification results.
  * Each field contains both the classification AND its evidence.
  */
 case class PositionClassification(
@@ -247,7 +247,7 @@ enum PassedPawnUrgency:
   case Blocked    // Cannot advance without support
 
 /**
- * Complete Phase 3 analysis result.
+ * Complete break and pawn-play analysis result.
  * Contains all 10 concepts for Break & Pawn Play.
  */
 case class PawnPlayAnalysis(
@@ -262,8 +262,8 @@ case class PawnPlayAnalysis(
   // === Concept 5-7: Passed Pawn Handling ===
   passedPawnUrgency: PassedPawnUrgency, // Concept 5: How urgent is passed pawn push
   passerBlockade: Boolean,              // Concept 6: Passed pawn is blockaded
-  blockadeSquare: Option[Square],       // NEW: Specific square of blockade
-  blockadeRole: Option[Role],           // NEW: Role of blockading piece
+  blockadeSquare: Option[Square],       // Specific square of blockade
+  blockadeRole: Option[Role],           // Role of blockading piece
   pusherSupport: Boolean,               // Concept 7: Rook/King support for promotion
   
   // === Concept 8-9: Strategic Posture ===
@@ -281,4 +281,3 @@ case class PawnPlayAnalysis(
   def hasBreakOpportunity: Boolean = pawnBreakReady
   def needsPassedPawnAction: Boolean = passedPawnUrgency == PassedPawnUrgency.Critical
   def hasTensionToResolve: Boolean = tensionPolicy == TensionPolicy.Release
-

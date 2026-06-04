@@ -66,24 +66,25 @@ object ForcedLineTruth:
       ply: Int,
       variations: List[VariationLine] = Nil
   ): Option[VerifiedTheme] =
-    val afterFen = NarrativeUtils.uciListToFen(fen, List(playedUci))
-    val posOpt = Fen.read(chess.variant.Standard, Fen.Full(afterFen))
+    MoveReviewPvLine.legalFenAfter(fen, playedUci).flatMap { afterFen =>
+      val posOpt = Fen.read(chess.variant.Standard, Fen.Full(afterFen))
 
-    // 1. TRAP SEQUENCES
-    val trapMatch =
-      Traps
-        .flatMap(trap => confirmedTrapLine(afterFen, playedUci, trap, variations))
-        .headOption
+      // 1. TRAP SEQUENCES
+      val trapMatch =
+        Traps
+          .flatMap(trap => confirmedTrapLine(afterFen, playedUci, trap, variations))
+          .headOption
 
-    trapMatch.map { matched =>
-      val displayLine =
-        NarrativeUtils.formatSanWithMoveNumbers(ply + 1, generateSanLine(afterFen, matched.remainingMoves))
-      VerifiedTheme(matched.trap.id, matched.trap.name, displayLine)
-    }.orElse {
-      // 2. TACTICAL PATTERNS (Geometry / Static)
-      val beforePosOpt = Fen.read(chess.variant.Standard, Fen.Full(fen))
-      posOpt.flatMap { pos =>
-        detectPatterns(beforePosOpt, pos, playedUci, variations)
+      trapMatch.map { matched =>
+        val displayLine =
+          NarrativeUtils.formatSanWithMoveNumbers(ply + 1, generateSanLine(afterFen, matched.remainingMoves))
+        VerifiedTheme(matched.trap.id, matched.trap.name, displayLine)
+      }.orElse {
+        // 2. TACTICAL PATTERNS (Geometry / Static)
+        val beforePosOpt = Fen.read(chess.variant.Standard, Fen.Full(fen))
+        posOpt.flatMap { pos =>
+          detectPatterns(beforePosOpt, pos, playedUci, variations)
+        }
       }
     }
   // 3. PATTERN DETECTORS (Geometric Matches)

@@ -23,15 +23,6 @@ private[commentary] final case class StrategicSemanticObservationContext(
   lazy val exactTargets: List[String] =
     exactTargetSquares(semantic)
 
-  private lazy val replayUpToSix: Option[List[MoveReviewExchangeAnalyzer.BoundedReplayStep]] =
-    MoveReviewExchangeAnalyzer
-      .boundedTopReplayPrefix(
-        semantic.fen,
-        semantic.engineVariations,
-        minPlies = 1,
-        maxPlies = StandardRelationReplayMaxPlies
-      )
-
   private lazy val drawResourceReplay: Option[List[MoveReviewExchangeAnalyzer.BoundedReplayStep]] =
     MoveReviewExchangeAnalyzer
       .boundedTopReplayPrefix(
@@ -41,35 +32,36 @@ private[commentary] final case class StrategicSemanticObservationContext(
         maxPlies = DrawResourceRelationReplayMaxPlies
       )
 
+  private lazy val replayUpToSix: Option[List[MoveReviewExchangeAnalyzer.BoundedReplayStep]] =
+    drawResourceReplay.map(_.take(StandardRelationReplayMaxPlies))
+
   lazy val relationWitnesses: List[MoveReviewExchangeAnalyzer.RelationWitness] =
-    val standardWitnesses =
-      replayAtLeast(1).toList.flatMap(replay =>
-        playedMove.toList.flatMap(move =>
+    playedMove.toList.flatMap { move =>
+      val engineScoreCp = semantic.engineVariations.headOption.map(_.scoreCp)
+      val engineMate = semantic.engineVariations.headOption.flatMap(_.mate)
+      val standardWitnesses =
+        replayAtLeast(1).toList.flatMap(replay =>
           MoveReviewExchangeAnalyzer
             .relationWitnesses(
               replay = replay,
               playedMove = move,
               explicitTargets = exactTargets,
               continuationLines = continuationLines,
-              engineScoreCp = semantic.engineVariations.headOption.map(_.scoreCp),
-              engineMate = semantic.engineVariations.headOption.flatMap(_.mate)
+              engineScoreCp = engineScoreCp,
+              engineMate = engineMate,
+              includeDrawResources = false
             )
-            .filterNot(witness => DrawResourceRelationKinds.contains(witness.kind))
         )
-      )
-    val drawResourceWitnessesFromTopPv =
-      drawResourceReplay.toList.flatMap(replay =>
-        playedMove.toList.flatMap(move =>
+      val drawResourceWitnessesFromTopPv =
+        drawResourceReplay.toList.flatMap(replay =>
           drawResourceWitnessesFromReplay(
             replay = replay,
             move = move,
-            engineScoreCp = semantic.engineVariations.headOption.map(_.scoreCp),
-            engineMate = semantic.engineVariations.headOption.flatMap(_.mate)
+            engineScoreCp = engineScoreCp,
+            engineMate = engineMate
           )
         )
-      )
-    val drawResourceWitnessesFromProbes =
-      playedMove.toList.flatMap(move =>
+      val drawResourceWitnessesFromProbes =
         semantic.probeResults
           .filter(result => validatedRootProbeForPlayedMove(result, move))
           .flatMap(result =>
@@ -92,8 +84,8 @@ private[commentary] final case class StrategicSemanticObservationContext(
                 )
             )
           )
-      )
-    (standardWitnesses ++ drawResourceWitnessesFromTopPv ++ drawResourceWitnessesFromProbes).distinct
+      (standardWitnesses ++ drawResourceWitnessesFromTopPv ++ drawResourceWitnessesFromProbes).distinct
+    }
 
   private def drawResourceWitnessesFromReplay(
       replay: List[MoveReviewExchangeAnalyzer.BoundedReplayStep],
@@ -204,11 +196,6 @@ private object StrategicSemanticObservationProducerSupport:
 
   val StandardRelationReplayMaxPlies = 6
   val DrawResourceRelationReplayMaxPlies = 12
-  val DrawResourceRelationKinds: Set[String] =
-    Set(
-      MoveReviewExchangeAnalyzer.RelationKind.StalemateTrap,
-      MoveReviewExchangeAnalyzer.RelationKind.PerpetualCheck
-    )
 
   def exactTargetSquares(semantic: StrategicIdeaSemanticContext): List[String] =
     val enemyWeakSquares =

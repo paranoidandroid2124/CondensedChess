@@ -98,13 +98,16 @@ export type StrategyCoverageMetaV1 = {
   focusHits: number;
 };
 
+const moveReviewLedgerLineSources = ['probe', 'decision_compare', 'variation', 'authoring'] as const;
+type MoveReviewLedgerLineSource = (typeof moveReviewLedgerLineSources)[number];
+
 export type MoveReviewLedgerLineV1 = {
   title: string;
   sanMoves: string[];
   scoreCp?: number | null;
   mate?: number | null;
   note?: string | null;
-  source: 'probe' | 'decision_compare' | 'variation' | 'authoring';
+  source: MoveReviewLedgerLineSource;
 };
 
 export type MoveReviewStrategicLedgerV1 = {
@@ -324,12 +327,19 @@ export function moveReviewNeedsRetry(decoded: Pick<DecodedMoveReviewResponse, 'd
   return decoded.diagnostics?.status === 'retryable_fallback';
 }
 
-function surfaceRowFromUnknown(raw: unknown, allowStrategicRelation = false): MoveReviewPlayerSurfaceRowV1 | null {
+function surfaceRowFromUnknown(
+  raw: unknown,
+  allowStrategicRelation = false,
+  allowAuthority = true,
+): MoveReviewPlayerSurfaceRowV1 | null {
   if (!isRecord(raw)) return null;
   if (typeof raw.label !== 'string' || typeof raw.text !== 'string') return null;
   const refSans = raw.refSans == null ? [] : stringListFromUnknown(raw.refSans);
   if (!refSans) return null;
-  const authority = raw.authority == null ? null : surfaceAuthorityFromUnknown(raw.authority, allowStrategicRelation);
+  const authority =
+    allowAuthority && raw.authority != null
+      ? surfaceAuthorityFromUnknown(raw.authority, allowStrategicRelation)
+      : null;
   return {
     label: raw.label,
     text: raw.text,
@@ -437,10 +447,14 @@ function isSurfaceAuthorityRouteToken(value: string): boolean {
   return /^(?:\.\.\.)?[a-h][1-8]-[a-h][1-8]$/.test(value);
 }
 
-function surfaceRowsFromUnknown(raw: unknown, allowStrategicRelation = false): MoveReviewPlayerSurfaceRowV1[] | null {
+function surfaceRowsFromUnknown(
+  raw: unknown,
+  allowStrategicRelation = false,
+  allowAuthority = true,
+): MoveReviewPlayerSurfaceRowV1[] | null {
   if (raw == null) return [];
   if (!Array.isArray(raw)) return null;
-  const rows = raw.map(row => surfaceRowFromUnknown(row, allowStrategicRelation));
+  const rows = raw.map(row => surfaceRowFromUnknown(row, allowStrategicRelation, allowAuthority));
   if (rows.some(row => !row)) return null;
   return rows as MoveReviewPlayerSurfaceRowV1[];
 }
@@ -492,10 +506,10 @@ function isAuthorityKey(value: string): boolean {
   return /^[a-z][a-z0-9_]{1,40}$/.test(value);
 }
 
-function playerAuthorRowFromUnknown(raw: unknown): MoveReviewPlayerAuthorRowV1 | null {
+function playerAuthorRowFromUnknown(raw: unknown, allowAuthority = true): MoveReviewPlayerAuthorRowV1 | null {
   if (!isRecord(raw)) return null;
   if (typeof raw.title !== 'string' || typeof raw.status !== 'string' || typeof raw.question !== 'string') return null;
-  const branches = surfaceRowsFromUnknown(raw.branches, false);
+  const branches = surfaceRowsFromUnknown(raw.branches, false, allowAuthority);
   if (!branches) return null;
   return {
     title: raw.title,
@@ -506,10 +520,10 @@ function playerAuthorRowFromUnknown(raw: unknown): MoveReviewPlayerAuthorRowV1 |
   };
 }
 
-function playerAuthorRowsFromUnknown(raw: unknown): MoveReviewPlayerAuthorRowV1[] | null {
+function playerAuthorRowsFromUnknown(raw: unknown, allowAuthority = true): MoveReviewPlayerAuthorRowV1[] | null {
   if (raw == null) return [];
   if (!Array.isArray(raw)) return null;
-  const rows = raw.map(playerAuthorRowFromUnknown);
+  const rows = raw.map(row => playerAuthorRowFromUnknown(row, allowAuthority));
   if (rows.some(row => !row)) return null;
   return rows as MoveReviewPlayerAuthorRowV1[];
 }
@@ -517,17 +531,19 @@ function playerAuthorRowsFromUnknown(raw: unknown): MoveReviewPlayerAuthorRowV1[
 export function moveReviewPlayerSurfaceFromResponse(data: MaybeResponse): MoveReviewPlayerSurfaceV1 | null {
   const raw = data?.moveReviewPlayerSurface;
   if (!isRecord(raw)) return null;
-  if (raw.schema !== 'chesstory.move_review.player_surface.v1' && raw.schema !== 'chesstory.move_review.player_surface.v2')
+  const schema = typeof raw.schema === 'string' ? raw.schema.trim().replace(/\s*\.\s*/g, '.') : null;
+  if (schema !== 'chesstory.move_review.player_surface.v1' && schema !== 'chesstory.move_review.player_surface.v2')
     return null;
-  const summaryRows = surfaceRowsFromUnknown(raw.summaryRows, false);
-  const advancedRows = surfaceRowsFromUnknown(raw.advancedRows, true);
-  const probeRows = surfaceRowsFromUnknown(raw.probeRows, false);
-  const authorRows = playerAuthorRowsFromUnknown(raw.authorRows);
+  const allowAuthority = schema === 'chesstory.move_review.player_surface.v2';
+  const summaryRows = surfaceRowsFromUnknown(raw.summaryRows, false, allowAuthority);
+  const advancedRows = surfaceRowsFromUnknown(raw.advancedRows, true, allowAuthority);
+  const probeRows = surfaceRowsFromUnknown(raw.probeRows, false, allowAuthority);
+  const authorRows = playerAuthorRowsFromUnknown(raw.authorRows, allowAuthority);
   const decisionComparison = raw.decisionComparison == null ? null : playerDecisionComparisonFromUnknown(raw.decisionComparison);
   if (!summaryRows || !advancedRows || !probeRows || !authorRows) return null;
   if (raw.decisionComparison != null && !decisionComparison) return null;
   return {
-    schema: raw.schema,
+    schema,
     title: typeof raw.title === 'string' ? raw.title : null,
     summaryRows,
     advancedRows,
@@ -633,7 +649,7 @@ function ledgerLineFromUnknown(raw: unknown): MoveReviewLedgerLineV1 | null {
   const sanMoves = raw.sanMoves.filter((value): value is string => typeof value === 'string');
   if (sanMoves.length !== raw.sanMoves.length) return null;
   if (!sanMoves.length) return null;
-  if (!['probe', 'decision_compare', 'variation', 'authoring'].includes(raw.source)) return null;
+  if (!(moveReviewLedgerLineSources as readonly string[]).includes(raw.source)) return null;
   return {
     title: raw.title,
     sanMoves,

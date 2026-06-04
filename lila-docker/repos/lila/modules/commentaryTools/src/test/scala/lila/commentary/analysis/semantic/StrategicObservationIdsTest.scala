@@ -508,15 +508,19 @@ class StrategicObservationIdsTest extends FunSuite:
           List("publicThreatMotifLabel", "deferredFallbackForMotifTag", "relationWitnessOnlyFallbackLabelForMotifTag"),
         "modules/commentaryCore/src/main/scala/lila/commentary/analysis/PlanMatcher.scala" ->
           List("relationDominationLabel", "relationWitnessOnlyFallbackLabelForMotifTag"),
-        "modules/commentaryCore/src/main/scala/lila/commentary/analysis/StrategyPackBuilder.scala" ->
-          List("deferredFallbackEvidenceTermForKind"),
-        "modules/commentaryCore/src/main/scala/lila/commentary/analysis/StructurePlanArcBuilder.scala" ->
-          List("deferredFallbackEvidenceTermForKind"),
         "modules/commentaryCore/src/main/scala/lila/commentary/analysis/UserFacingSignalSanitizer.scala" ->
-          List("relationFallbackText", "deferredFallbackForKind"),
+          List("relationFallbackText", "relationWitnessOnlyFallbackLabelForMotifTag", "deferredFallbackForKind"),
         "modules/commentaryCore/src/main/scala/lila/commentary/analysis/CommentaryIdeaSurface.scala" ->
           List("deferredFallbackForMotifTag", "relationWitnessOnlyMotifTag")
       )
+    val rawRelationEvidenceGuardFiles =
+      (
+        requiredHooks.keys.toList ++
+          List(
+            "modules/commentaryCore/src/main/scala/lila/commentary/analysis/StrategyPackBuilder.scala",
+            "modules/commentaryCore/src/main/scala/lila/commentary/analysis/StructurePlanArcBuilder.scala"
+          )
+      ).distinct
     val broadAdmissionTerms =
       List(
         "descriptorForEvidence",
@@ -542,7 +546,7 @@ class StrategicObservationIdsTest extends FunSuite:
         broadAdmissionTerms.filter(text.contains).map(term => s"$relativePath:$term")
       }.sorted
     val rawDeferredEvidenceOffenders =
-      requiredHooks.keys.toList.flatMap { relativePath =>
+      rawRelationEvidenceGuardFiles.flatMap { relativePath =>
         val path = root.resolve(relativePath)
         val text = java.nio.file.Files.readString(path)
         List("trapped_piece_signal").filter(text.contains).map(term => s"$relativePath:$term")
@@ -768,14 +772,12 @@ class StrategicObservationIdsTest extends FunSuite:
     assertEquals(observation.exists(_.wireEvidenceRefs.contains("defender:a1")), false)
     assertEquals(observation.exists(_.wireEvidenceRefs.contains("defended_target:g7")), true)
     assertEquals(observation.exists(_.wireEvidenceRefs.contains("defended_target:a1")), false)
-    assertEquals(
-      MoveReviewExchangeAnalyzer.relationFocusSquaresFromWitness(witness),
-      List("g7", "f8", "a3")
-    )
-    assertEquals(
-      MoveReviewExchangeAnalyzer.relationTargetSquareFromWitness(witness),
-      Some("g7")
-    )
+    val projection =
+      MoveReviewExchangeAnalyzer
+        .relationProjectionFromWitness(witness)
+        .getOrElse(fail("semantic relation witness should project from typed details"))
+    assertEquals(projection.focusSquares, List("g7", "f8", "a3"))
+    assertEquals(projection.targetSquare, Some("g7"))
   }
 
   test("relation witness facts cannot mint another catalog semantic admission fact") {

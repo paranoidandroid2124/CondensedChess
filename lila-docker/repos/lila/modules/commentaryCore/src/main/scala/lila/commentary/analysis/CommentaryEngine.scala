@@ -2,18 +2,16 @@ package lila.commentary.analysis
 
 import _root_.chess.*
 import _root_.chess.format.Uci
-import lila.commentary.{ CommentaryConfig, CommentaryMode, NarrativeSignalDigest }
+import lila.commentary.CommentaryConfig
 import lila.commentary.analysis.structure.{ PawnStructureClassifier, PlanAlignmentScorer, StructuralPlaybook }
 import lila.commentary.model.*
-import lila.commentary.model.authoring.{ NarrativeOutline, OutlineBeat, OutlineBeatKind }
 import lila.commentary.model.strategic.{ VariationLine, PlanContinuity, StrategicSalience }
 import lila.commentary.analysis.L3.*
 import lila.commentary.analysis.PositionAnalyzer
 import lila.commentary.analysis.PlanTaxonomy.ThemeResolver
-import lila.commentary.analysis.DecisiveTruth.toContract
 
 /**
- * The central hub for chess position analysis. 
+ * The central hub for chess position analysis.
  * Orchestrates motifs, plans, and position nature characterization.
  */
 case class PositionAssessment(
@@ -202,11 +200,19 @@ object CommentaryEngine:
       prevMove: Option[String],
       probeResults: List[ProbeResult]
   ): Option[ExtendedAnalysisData] = {
+      val resultingFen =
+        val normalizedPv = pv.map(MoveReviewPvLine.normalizeUci)
+        Option.when(normalizedPv.nonEmpty && normalizedPv.forall(MoveReviewExchangeAnalyzer.isUciMove))(normalizedPv)
+          .flatMap(
+            _.foldLeft(Option(fen))((current, move) =>
+              current.flatMap(MoveReviewPvLine.legalFenAfter(_, move))
+            )
+          )
       val mainVariation = VariationLine(
         moves = pv,
         scoreCp = 0, 
         mate = None,
-        resultingFen = Some(NarrativeUtils.uciListToFen(fen, pv)),
+        resultingFen = resultingFen,
         tags = Nil
       )
       assessExtended(
@@ -396,8 +402,6 @@ object CommentaryEngine:
           ply = ply,
           prevMove = prevMove
         )
-        // val currentPhaseName = _currentPhase.toString()
-
         semanticExtractor.extract(
           fen = fen,
           metadata = meta,

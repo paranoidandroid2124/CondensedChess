@@ -504,7 +504,7 @@ private[commentary] object SourceReview:
       mainClaim.filter(_.scope == PlayerFacingClaimScope.PositionLocal)
     val releaseDecision =
       positionProbe.flatMap(_.packet).map(packet =>
-        releaseDecisionSummary(PlannerClaimAdmission.decidePositionProbe(Some(ctx), inputs, None, packet))
+        releaseDecisionSummary(ClaimAuthorityResolver.decidePositionProbe(Some(ctx), inputs, None, packet))
       )
     val proofTrace =
       mainClaim.flatMap(_.packet).map(_.proofTrace)

@@ -1,7 +1,7 @@
 package lila.commentary.analysis
 
 import chess.*
-import chess.format.{ Fen, Uci }
+import chess.format.Fen
 import chess.variant.Standard
 import lila.commentary.{ MoveReviewRefs, MoveReviewVariationRef }
 import lila.commentary.model.NarrativeContext
@@ -115,12 +115,10 @@ private[commentary] object LineConsequenceEvaluator:
   def fromEngine(ctx: NarrativeContext, maxPly: Int = SurfaceMaxPly): List[LineConsequenceEvidence] =
     ctx.engineEvidence.toList.flatMap(_.variations).map { line =>
       val uciMoves = normalizedLineMoves(line).take(maxPly)
-      val strictSteps = replaySteps(ctx.fen, uciMoves, Nil)
-      val steps =
-        if strictSteps.nonEmpty then strictSteps
-        else replayStepsPrefix(ctx.fen, uciMoves, Nil)
-      val replayed = strictSteps.nonEmpty || enginePrefixHasConcreteConsequence(ctx, line, steps)
-      val trustedMate = if strictSteps.nonEmpty then line.mate else None
+      val steps = replayStepsPrefix(ctx.fen, uciMoves, Nil)
+      val fullReplay = uciMoves.nonEmpty && steps.size == uciMoves.size
+      val replayed = fullReplay || enginePrefixHasConcreteConsequence(ctx, line, steps)
+      val trustedMate = if fullReplay then line.mate else None
       val evidence =
         buildEvidence(
           ctx = ctx,
@@ -135,7 +133,7 @@ private[commentary] object LineConsequenceEvaluator:
           rejectReasons = (List(EngineOnly) ++ Option.when(!replayed)(EngineReplayFailed)).distinct,
           maxPly = maxPly
         )
-      if strictSteps.isEmpty && evidence.kind == LineConsequenceKind.PreviewOnly then
+      if !fullReplay && evidence.kind == LineConsequenceKind.PreviewOnly then
         evidence.copy(release = LineConsequenceRelease.DiagnosticOnly)
       else evidence
     }
@@ -279,7 +277,9 @@ private[commentary] object LineConsequenceEvaluator:
     var ok = true
     while it.hasNext && ok do
       val (uci, idx) = it.next()
-      current.flatMap(position => legalMove(position, uci).map(position -> _)) match
+      current.flatMap(position =>
+        MoveReviewExchangeAnalyzer.legalMove(position, uci).map(position -> _)
+      ) match
         case Some((position, move)) =>
           val san = preferredSan.lift(idx).map(_.trim).filter(_.nonEmpty).getOrElse(move.toSanStr.toString)
           val capturedRole = position.board.pieceAt(move.dest).map(_.role)
@@ -317,9 +317,6 @@ private[commentary] object LineConsequenceEvaluator:
         rejectReasons = List(EngineOnly, EngineReplayFailed),
         maxPly = steps.size
       ).kind != LineConsequenceKind.PreviewOnly
-
-  private def legalMove(position: Position, uci: String): Option[Move] =
-    Uci(uci).collect { case move: Uci.Move => move }.flatMap(position.move(_).toOption)
 
   private def centralPawnAdvanceStep(steps: List[LineStep]): Option[LineStep] =
     steps.find { step =>
