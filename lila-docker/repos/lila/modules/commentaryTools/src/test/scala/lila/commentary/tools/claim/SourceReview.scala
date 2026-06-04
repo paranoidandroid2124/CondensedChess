@@ -169,75 +169,18 @@ private[commentary] object SourceReview:
     private def contractIdMismatch(surface: EvaluationSurface, needle: String): Boolean =
       surface.contractId.exists(contract => contract != "-" && !contract.contains(needle))
 
-  private val BreakPreventionContract =
-    SurfaceContractDescriptor(
-      reviewGroupNeedle = "break_prevention",
-      proofSource = "counterplay_axis_suppression",
-      proofFamily = "neutralize_key_break"
-    )
-
-  private val CentralBreakTimingContract =
-    SurfaceContractDescriptor(
-      reviewGroupNeedle = "central_break_timing",
-      proofSource = PlanTaxonomy.PlanKind.CentralBreakTiming.id,
-      proofFamily = PlanTaxonomy.PlanKind.CentralBreakTiming.id
-    )
-
-  private val ProphylaxisRestraintContract =
-    SurfaceContractDescriptor(
-      reviewGroupNeedle = "prophylaxis_restraint",
-      proofSource = "prophylactic_move",
-      proofFamily = "counterplay_restraint",
-      contractIdNeedle = Some("counterplay_restraint"),
-      alignment = SurfaceContractAlignment.SupportedLocalExact
-    )
-
-  private val BadPieceLiquidationContract =
-    SurfaceContractDescriptor(
-      reviewGroupNeedle = "bad_piece_liquidation",
-      proofSource = PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource,
-      proofFamily = PlanTaxonomy.PlanKind.BadPieceLiquidation.id,
-      contractIdNeedle = Some(PlanTaxonomy.PlanKind.BadPieceLiquidation.id),
-      alignment = SurfaceContractAlignment.SupportedLocalExact
-    )
-
-  private val IqpInducementContract =
-    SurfaceContractDescriptor(
-      reviewGroupNeedle = "iqp_inducement",
-      proofSource = PlayerFacingTruthModePolicy.IQPInducementProbeProofSource,
-      proofFamily = PlanTaxonomy.PlanKind.IQPInducement.id,
-      contractIdNeedle = Some(PlanTaxonomy.PlanKind.IQPInducement.id),
-      alignment = SurfaceContractAlignment.SupportedLocalExact
-    )
-
-  private val DefenderTradeContract =
-    SurfaceContractDescriptor(
-      reviewGroupNeedle = "defender_trade",
-      proofSource = PlayerFacingTruthModePolicy.DefenderTradeProofSource,
-      proofFamily = PlanTaxonomy.PlanKind.DefenderTrade.id,
-      contractIdNeedle = Some(PlanTaxonomy.PlanKind.DefenderTrade.id),
-      alignment = SurfaceContractAlignment.SupportedLocalExact
-    )
-
-  private val QueenTradeBoundaryContract =
-    SurfaceContractDescriptor(
-      reviewGroupNeedle = "queen_trade_boundary",
-      proofSource = PlayerFacingTruthModePolicy.QueenTradeShieldProofSource,
-      proofFamily = PlanTaxonomy.PlanKind.QueenTradeShield.id,
-      contractIdNeedle = Some(PlanTaxonomy.PlanKind.QueenTradeShield.id),
-      alignment = SurfaceContractAlignment.SupportedLocalExact
-    )
-
   private val SurfaceContractDescriptors =
-    List(
-      BreakPreventionContract,
-      CentralBreakTimingContract,
-      ProphylaxisRestraintContract,
-      BadPieceLiquidationContract,
-      IqpInducementContract,
-      DefenderTradeContract,
-      QueenTradeBoundaryContract
-    )
+    AdmissionUnitCatalog.admissionUnits.map { unit =>
+      SurfaceContractDescriptor(
+        reviewGroupNeedle = unit.reviewGroupNeedle,
+        proofSource = unit.proofSource,
+        proofFamily = unit.proofFamily,
+        contractIdNeedle = Some(unit.proofFamily),
+        alignment =
+          if unit.surfaceAuthorityTiers == List("SupportedLocal") then SurfaceContractAlignment.SupportedLocalExact
+          else SurfaceContractAlignment.SourceOrPacketFamily
+      )
+    }
 
   private def surfaceContractDescriptor(reviewGroup: String): Option[SurfaceContractDescriptor] =
     val normalized = reviewGroup.toLowerCase
@@ -781,20 +724,20 @@ private[commentary] object SourceReview:
   ): List[String] =
     val reviewGroup = source.reviewGroup.toLowerCase
     surfaceContractDescriptor(source.reviewGroup) match
-      case Some(descriptor) if descriptor.reviewGroupNeedle == BreakPreventionContract.reviewGroupNeedle =>
+      case Some(descriptor) if descriptor.reviewGroupNeedle == PlanTaxonomy.PlanKind.BreakPrevention.id =>
         if descriptor.contractMismatch(surface) then List("proof:break_prevention_contract_mismatch")
         else surface.breakPreventionFailureCodes.map(normalizeBreakPreventionFailureCode)
-      case Some(descriptor) if descriptor.reviewGroupNeedle == CentralBreakTimingContract.reviewGroupNeedle =>
+      case Some(descriptor) if descriptor.reviewGroupNeedle == PlanTaxonomy.PlanKind.CentralBreakTiming.id =>
         if descriptor.contractMismatch(surface) || descriptor.missingProofSource(surface) then
           List("central_break_timing_witness_missing")
         else Nil
-      case Some(descriptor) if descriptor.reviewGroupNeedle == ProphylaxisRestraintContract.reviewGroupNeedle =>
+      case Some(descriptor) if descriptor.reviewGroupNeedle == PlanTaxonomy.PlanKind.ProphylaxisRestraint.id =>
         if descriptor.contractMismatch(surface) then List("proof:prophylaxis_restraint_contract_mismatch")
         else
           surface.contractFailures
             .filterNot(failure => failure == "-" || failure == "none")
             .map(failure => s"prophylaxis_restraint_${blockerCode(failure)}")
-      case Some(descriptor) if descriptor.reviewGroupNeedle == BadPieceLiquidationContract.reviewGroupNeedle =>
+      case Some(descriptor) if descriptor.reviewGroupNeedle == PlanTaxonomy.PlanKind.BadPieceLiquidation.id =>
         if descriptor.contractMismatch(surface) then List("proof:bad_piece_liquidation_contract_mismatch")
         else if descriptor.missingProofSource(surface) then List("bad_piece_liquidation_witness_missing")
         else
@@ -1085,7 +1028,7 @@ private[commentary] object SourceReview:
       maybeEnginePath match
         case None => SourceReview.observations(None, depth = depth, multiPv = multiPv)
         case Some(path) =>
-          val engine = LocalUciEngine(path, timeoutMs = 30000L)
+          val engine = LocalUciEngine(path)
           try SourceReview.observations(Some(engine), depth = depth, multiPv = multiPv)
           finally engine.close()
     val (matrix, review) = writeArtifacts(observations)
@@ -1107,7 +1050,7 @@ private[commentary] object SourceReview:
         case None =>
           SourceReview.windowObservations(None, depth = depth, multiPv = multiPv, sourceIds = selectedIds)
         case Some(path) =>
-          val engine = LocalUciEngine(path, timeoutMs = 30000L)
+          val engine = LocalUciEngine(path)
           try SourceReview.windowObservations(Some(engine), depth = depth, multiPv = multiPv, sourceIds = selectedIds)
           finally engine.close()
     val (matrix, review) = writeWindowArtifacts(observations)

@@ -6,12 +6,12 @@ import scala.util.matching.Regex
 
 private[commentary] object UserFacingSignalSanitizer:
 
-  private val DeferredDominationText =
-    deferredRelationFallbackText(MoveReviewExchangeAnalyzer.RelationKind.Domination, "key-square restriction")
-  private val DeferredTrappedPieceText =
-    deferredRelationFallbackText(MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece, "piece mobility")
-  private val DeferredZwischenzugText =
-    deferredRelationFallbackText(MoveReviewExchangeAnalyzer.RelationKind.Zwischenzug, "move-order caution")
+  private val DominationFallbackText =
+    relationFallbackText(MoveReviewExchangeAnalyzer.RelationKind.Domination, "key-square restriction")
+  private val TrappedPieceFallbackText =
+    relationFallbackText(MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece, "piece mobility")
+  private val ZwischenzugFallbackText =
+    relationFallbackText(MoveReviewExchangeAnalyzer.RelationKind.Zwischenzug, "move-order caution")
 
   private val placeholderRewrites: List[(String, String)] = List(
     "deferred as PlayableByPV under strict evidence mode" -> "deferred under the current evidence threshold",
@@ -140,10 +140,10 @@ private[commentary] object UserFacingSignalSanitizer:
       .replaceAll("""(?i)\bOpenFileControl\([^)]*\)""", "pressure on the open file")
       .replaceAll("""(?i)\bCentralization\([^)]*\)""", "piece improvement")
       .replaceAll("""(?i)\bRookLift\([^)]*\)""", "a rook lift")
-      .replaceAll("""(?i)\bDomination\([^)]*\)""", DeferredDominationText)
+      .replaceAll("""(?i)\bDomination\([^)]*\)""", DominationFallbackText)
       .replaceAll("""(?i)\bManeuver\([^)]*\)""", "piece improvement")
-      .replaceAll("""(?i)\bTrappedPiece\([^)]*\)""", DeferredTrappedPieceText)
-      .replaceAll("""(?i)\bZwischenzug\([^)]*\)""", DeferredZwischenzugText)
+      .replaceAll("""(?i)\bTrappedPiece\([^)]*\)""", TrappedPieceFallbackText)
+      .replaceAll("""(?i)\bZwischenzug\([^)]*\)""", ZwischenzugFallbackText)
       .replaceAll("""(?i)\bStalemateTrap\([^)]*\)""", "")
       .replaceAll("""(?i)\bPerpetualCheck\([^)]*\)""", "")
       .replaceAll("""(?i)\bKnightVsBishop\([^)]*\)""", "the knight against the bishop")
@@ -154,7 +154,7 @@ private[commentary] object UserFacingSignalSanitizer:
       .replaceAll("""(?i)\bFork\([^)]*\)""", "fork pressure")
       .replaceAll("""(?i)\bCheck\([^)]*\)""", "checking pressure")
 
-  private def deferredRelationFallbackText(kind: String, fallback: String): String =
+  private def relationFallbackText(kind: String, fallback: String): String =
     RelationObservationCatalog
       .deferredFallbackForKind(kind)
       .filter(_.allowsNonRelationText)

@@ -11,6 +11,20 @@ private[commentary] enum QuietMoveIntentClass:
   case CounterplayRestraint
   case TechnicalConversionStep
 
+  def ontologyFamily: PlayerFacingClaimOntologyKind =
+    this match
+      case CounterplayRestraint    => PlayerFacingClaimOntologyKind.LongTermRestraint
+      case KingSafety              => PlayerFacingClaimOntologyKind.KingSafety
+      case TechnicalConversionStep => PlayerFacingClaimOntologyKind.TechnicalConversion
+      case PieceImprovement        => PlayerFacingClaimOntologyKind.PieceImprovement
+
+  def proofFamily: String =
+    this match
+      case CounterplayRestraint    => ProofFamilyId.NeutralizeKeyBreak.wireKey
+      case KingSafety              => ProofFamilyId.KingSafety.wireKey
+      case TechnicalConversionStep => ProofFamilyId.TechnicalConversion.wireKey
+      case PieceImprovement        => ProofFamilyId.PieceImprovement.wireKey
+
 private[commentary] final case class QuietMoveIntentClaim(
     intentClass: QuietMoveIntentClass,
     claimText: String,
@@ -278,14 +292,14 @@ private[commentary] object QuietMoveIntentBuilder:
         stabilityGrade = stabilityGrade,
         provenanceClass = provenanceClass,
         taintFlags = taintFlags.toList,
-        ontologyFamily = quietOntologyFamily(claim.intentClass)
+        ontologyFamily = claim.intentClass.ontologyFamily
       )
     val releaseRisks =
       Option.when(
         claim.intentClass == QuietMoveIntentClass.CounterplayRestraint &&
           HeavyPieceLocalBindValidation.blocksPlayerFacingShell(ctx)
       )(PlayerFacingClaimReleaseRisk.HeavyPieceLeakage).toList
-    val proofFamily = quietProofFamily(claim.intentClass)
+    val proofFamily = claim.intentClass.proofFamily
     val proofPathWitness = quietOwnerPathWitness(ctx, claim.intentClass, anchorSquare)
     val sameBranchState =
       quietSameBranchState(ctx, provenanceClass, proofFamily, proofPathWitness)
@@ -428,24 +442,6 @@ private[commentary] object QuietMoveIntentBuilder:
         if quantifier == PlayerFacingClaimQuantifier.Existential then PlayerFacingClaimModalityTier.Available
         else PlayerFacingClaimModalityTier.Supports
 
-  private def quietOntologyFamily(
-      intentClass: QuietMoveIntentClass
-  ): PlayerFacingClaimOntologyKind =
-    intentClass match
-      case QuietMoveIntentClass.CounterplayRestraint => PlayerFacingClaimOntologyKind.LongTermRestraint
-      case QuietMoveIntentClass.KingSafety           => PlayerFacingClaimOntologyKind.KingSafety
-      case QuietMoveIntentClass.TechnicalConversionStep => PlayerFacingClaimOntologyKind.TechnicalConversion
-      case QuietMoveIntentClass.PieceImprovement     => PlayerFacingClaimOntologyKind.PieceImprovement
-
-  private def quietProofFamily(
-      intentClass: QuietMoveIntentClass
-  ): String =
-    intentClass match
-      case QuietMoveIntentClass.CounterplayRestraint => ProofFamilyId.NeutralizeKeyBreak.wireKey
-      case QuietMoveIntentClass.KingSafety           => ProofFamilyId.KingSafety.wireKey
-      case QuietMoveIntentClass.TechnicalConversionStep => ProofFamilyId.TechnicalConversion.wireKey
-      case QuietMoveIntentClass.PieceImprovement     => ProofFamilyId.PieceImprovement.wireKey
-
   private def quietBestDefenseMove(
       ctx: NarrativeContext
   ): Option[String] =
@@ -479,7 +475,7 @@ private[commentary] object QuietMoveIntentBuilder:
     val continuationTerms =
       quietBestDefenseBranchKey(ctx).toList ++
         quietBestDefenseMove(ctx).toList ++
-        quietEvidencePlans(ctx, quietProofFamily(intentClass)).flatMap { plan =>
+      quietEvidencePlans(ctx, intentClass.proofFamily).flatMap { plan =>
           val cert = plan.claimCertification
           List(
             Option.when(cert.quantifier == PlayerFacingClaimQuantifier.Universal)("universal"),

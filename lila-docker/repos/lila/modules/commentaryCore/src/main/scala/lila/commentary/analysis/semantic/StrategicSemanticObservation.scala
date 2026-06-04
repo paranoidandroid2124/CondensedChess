@@ -176,6 +176,13 @@ private[commentary] enum RelationSurfaceTargetFocus:
   case SecondOrLast
   case Last
 
+private[commentary] enum RelationSurfaceRowKind:
+  case TacticalRelation
+  case DrawResource
+  case MoveOrder
+  case MobilityRestriction
+  case LineGeometry
+
 private[commentary] enum DeferredRelationFallbackLane:
   case ExchangeSequence
   case MaterialTransition
@@ -187,13 +194,18 @@ private[commentary] final case class RelationObservationDescriptor(
     relationKind: String,
     observationId: SemanticObservationId,
     source: EvidenceSourceId,
+    requiredWitnessTerm: String,
     ideaKind: String,
     readiness: String,
     confidence: Double,
     publicLabel: String,
     surfaceRowLabel: String,
+    surfaceRowKind: RelationSurfaceRowKind = RelationSurfaceRowKind.TacticalRelation,
+    witnessOnlyMotifTag: Boolean = false,
+    witnessOnlyFallbackLabel: Option[String] = None,
     beneficiaryPieces: List[String] = Nil,
-    surfaceTargetFocus: RelationSurfaceTargetFocus = RelationSurfaceTargetFocus.Last
+    surfaceTargetFocus: RelationSurfaceTargetFocus = RelationSurfaceTargetFocus.Last,
+    surfacePriority: Int = 50
 ):
   def sourceRef: EvidenceRef =
     EvidenceRef.Source(source)
@@ -204,8 +216,11 @@ private[commentary] final case class RelationObservationDescriptor(
   def semanticRef: EvidenceRef =
     EvidenceRef.Fact(semanticFact)
 
+  def witnessFact: Option[FactId] =
+    FactId.dynamic(requiredWitnessTerm)
+
   def evidenceRefs: List[EvidenceRef] =
-    List(sourceRef, semanticRef)
+    List(sourceRef, semanticRef) ++ witnessFact.map(fact => EvidenceRef.Fact(fact))
 
   def wireEvidenceRefs: List[String] =
     evidenceRefs.map(_.wireKey)
@@ -241,53 +256,7 @@ private[commentary] final case class DeferredRelationFallback(
 private[commentary] object RelationObservationCatalog:
 
   val Deferred: List[DeferredRelationDescriptor] =
-    List(
-      DeferredRelationDescriptor(
-        relationKind = MoveReviewExchangeAnalyzer.RelationKind.Zwischenzug,
-        internalLabel = "zwischenzug",
-        requiredWitness = "legal replay proving an intermezzo before the expected recapture or direct threat response",
-        deferReason = "motif detectors exist, but the MoveReview relation boundary still lacks target-bound exchange or threat comparison",
-        fallbackLane = DeferredRelationFallbackLane.PracticalGuidance,
-        fallbackLabel = Some("move-order caution"),
-        fallbackRationale = "unproven intermezzo claims may only speak as move-order guidance without naming a relation token"
-      ),
-      DeferredRelationDescriptor(
-        relationKind = MoveReviewExchangeAnalyzer.RelationKind.Domination,
-        internalLabel = "domination",
-        requiredWitness = "legal replay proving enemy-piece restriction with escape-square control and persistence",
-        deferReason = "motif-level domination signals are not yet normalized into a move-local attack/defense relation witness",
-        fallbackLane = DeferredRelationFallbackLane.ThematicFallback,
-        fallbackLabel = Some("key-square restriction"),
-        fallbackRationale = "restriction themes can remain generic structure guidance until escape-square proof exists"
-      ),
-      DeferredRelationDescriptor(
-        relationKind = MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece,
-        internalLabel = "trapped piece",
-        requiredWitness = "legal replay proving a valuable target has no safe escape or defense-preserving route",
-        deferReason = "existing trapped-piece motifs do not yet provide the target-bound persistence witness required for MoveReview surface authority",
-        fallbackLane = DeferredRelationFallbackLane.PracticalGuidance,
-        fallbackLabel = Some("piece mobility"),
-        fallbackRationale = "piece-safety pressure may be described as practical handling, not as a trapped-piece relation"
-      ),
-      DeferredRelationDescriptor(
-        relationKind = MoveReviewExchangeAnalyzer.RelationKind.StalemateTrap,
-        internalLabel = "stalemate trap",
-        requiredWitness = "legal replay proving the trap continuation and the drawing/stalemate resource",
-        deferReason = "pattern detection exists, but relation admission needs a replayed continuation witness before it can become public support",
-        fallbackLane = DeferredRelationFallbackLane.DiagnosticOnly,
-        fallbackLabel = None,
-        fallbackRationale = "draw-resource claims are tactical truth claims and stay silent without a replayed trap"
-      ),
-      DeferredRelationDescriptor(
-        relationKind = MoveReviewExchangeAnalyzer.RelationKind.PerpetualCheck,
-        internalLabel = "perpetual check",
-        requiredWitness = "legal replay proving a stable checking cycle or repetition-forcing continuation",
-        deferReason = "the current relation boundary has no repetition or cycle witness for MoveReview support rows",
-        fallbackLane = DeferredRelationFallbackLane.DiagnosticOnly,
-        fallbackLabel = None,
-        fallbackRationale = "repetition or forced-draw claims remain fail-closed until cycle evidence exists"
-      )
-    )
+    Nil
 
   val Implemented: List[RelationObservationDescriptor] =
     List(
@@ -295,6 +264,7 @@ private[commentary] object RelationObservationCatalog:
         relationKind = MoveReviewExchangeAnalyzer.RelationKind.DefenderTrade,
         observationId = SemanticObservationId.DefenderTradeSemantic,
         source = EvidenceSourceId.RemovingTheDefender,
+        requiredWitnessTerm = "defender_trade_branch",
         ideaKind = StrategicIdeaKind.FavorableTradeOrTransformation,
         readiness = StrategicIdeaReadiness.Ready,
         confidence = 0.82,
@@ -306,6 +276,7 @@ private[commentary] object RelationObservationCatalog:
         relationKind = MoveReviewExchangeAnalyzer.RelationKind.BadPieceLiquidation,
         observationId = SemanticObservationId.BadPieceLiquidationSemantic,
         source = EvidenceSourceId.CaptureExchangeTransformation,
+        requiredWitnessTerm = "bad_piece_liquidation_branch",
         ideaKind = StrategicIdeaKind.FavorableTradeOrTransformation,
         readiness = StrategicIdeaReadiness.Ready,
         confidence = 0.78,
@@ -317,6 +288,7 @@ private[commentary] object RelationObservationCatalog:
         relationKind = MoveReviewExchangeAnalyzer.RelationKind.Overload,
         observationId = SemanticObservationId.OverloadSemantic,
         source = EvidenceSourceId.OverloadRelation,
+        requiredWitnessTerm = "overload_relation_witness",
         ideaKind = StrategicIdeaKind.FavorableTradeOrTransformation,
         readiness = StrategicIdeaReadiness.Build,
         confidence = 0.70,
@@ -327,6 +299,7 @@ private[commentary] object RelationObservationCatalog:
         relationKind = MoveReviewExchangeAnalyzer.RelationKind.Deflection,
         observationId = SemanticObservationId.DeflectionSemantic,
         source = EvidenceSourceId.DeflectionRelation,
+        requiredWitnessTerm = "deflection_relation_witness",
         ideaKind = StrategicIdeaKind.FavorableTradeOrTransformation,
         readiness = StrategicIdeaReadiness.Build,
         confidence = 0.72,
@@ -337,6 +310,7 @@ private[commentary] object RelationObservationCatalog:
         relationKind = MoveReviewExchangeAnalyzer.RelationKind.DiscoveredAttack,
         observationId = SemanticObservationId.DiscoveredAttackSemantic,
         source = EvidenceSourceId.DiscoveredAttackRelation,
+        requiredWitnessTerm = "discovered_attack_relation_witness",
         ideaKind = StrategicIdeaKind.FavorableTradeOrTransformation,
         readiness = StrategicIdeaReadiness.Build,
         confidence = 0.72,
@@ -347,6 +321,7 @@ private[commentary] object RelationObservationCatalog:
         relationKind = MoveReviewExchangeAnalyzer.RelationKind.DoubleCheck,
         observationId = SemanticObservationId.DoubleCheckSemantic,
         source = EvidenceSourceId.DoubleCheckRelation,
+        requiredWitnessTerm = "double_check_relation_witness",
         ideaKind = StrategicIdeaKind.FavorableTradeOrTransformation,
         readiness = StrategicIdeaReadiness.Build,
         confidence = 0.73,
@@ -357,6 +332,7 @@ private[commentary] object RelationObservationCatalog:
         relationKind = MoveReviewExchangeAnalyzer.RelationKind.BackRankMate,
         observationId = SemanticObservationId.BackRankMateSemantic,
         source = EvidenceSourceId.BackRankMateRelation,
+        requiredWitnessTerm = "back_rank_mate_relation_witness",
         ideaKind = StrategicIdeaKind.KingAttackBuildUp,
         readiness = StrategicIdeaReadiness.Ready,
         confidence = 0.76,
@@ -367,6 +343,7 @@ private[commentary] object RelationObservationCatalog:
         relationKind = MoveReviewExchangeAnalyzer.RelationKind.MateNet,
         observationId = SemanticObservationId.MateNetSemantic,
         source = EvidenceSourceId.MateNet,
+        requiredWitnessTerm = "mate_net_relation_witness",
         ideaKind = StrategicIdeaKind.KingAttackBuildUp,
         readiness = StrategicIdeaReadiness.Ready,
         confidence = 0.75,
@@ -377,6 +354,7 @@ private[commentary] object RelationObservationCatalog:
         relationKind = MoveReviewExchangeAnalyzer.RelationKind.GreekGift,
         observationId = SemanticObservationId.GreekGiftSemantic,
         source = EvidenceSourceId.GreekGiftRelation,
+        requiredWitnessTerm = "greek_gift_relation_witness",
         ideaKind = StrategicIdeaKind.KingAttackBuildUp,
         readiness = StrategicIdeaReadiness.Build,
         confidence = 0.74,
@@ -385,9 +363,38 @@ private[commentary] object RelationObservationCatalog:
         beneficiaryPieces = List("B")
       ),
       RelationObservationDescriptor(
+        relationKind = MoveReviewExchangeAnalyzer.RelationKind.StalemateTrap,
+        observationId = SemanticObservationId.StalemateTrapSemantic,
+        source = EvidenceSourceId.StalemateTrapRelation,
+        requiredWitnessTerm = "stalemate_trap_relation_witness",
+        ideaKind = StrategicIdeaKind.CounterplaySuppression,
+        readiness = StrategicIdeaReadiness.Build,
+        confidence = 0.74,
+        publicLabel = "stalemate resource",
+        surfaceRowLabel = "Draw resource",
+        surfaceRowKind = RelationSurfaceRowKind.DrawResource,
+        witnessOnlyMotifTag = true,
+        surfacePriority = 10
+      ),
+      RelationObservationDescriptor(
+        relationKind = MoveReviewExchangeAnalyzer.RelationKind.PerpetualCheck,
+        observationId = SemanticObservationId.PerpetualCheckSemantic,
+        source = EvidenceSourceId.PerpetualCheckRelation,
+        requiredWitnessTerm = "perpetual_check_relation_witness",
+        ideaKind = StrategicIdeaKind.CounterplaySuppression,
+        readiness = StrategicIdeaReadiness.Build,
+        confidence = 0.73,
+        publicLabel = "perpetual-check resource",
+        surfaceRowLabel = "Draw resource",
+        surfaceRowKind = RelationSurfaceRowKind.DrawResource,
+        witnessOnlyMotifTag = true,
+        surfacePriority = 10
+      ),
+      RelationObservationDescriptor(
         relationKind = MoveReviewExchangeAnalyzer.RelationKind.Fork,
         observationId = SemanticObservationId.ForkSemantic,
         source = EvidenceSourceId.ForkRelation,
+        requiredWitnessTerm = "fork_relation_witness",
         ideaKind = StrategicIdeaKind.FavorableTradeOrTransformation,
         readiness = StrategicIdeaReadiness.Build,
         confidence = 0.71,
@@ -398,6 +405,7 @@ private[commentary] object RelationObservationCatalog:
         relationKind = MoveReviewExchangeAnalyzer.RelationKind.HangingPiece,
         observationId = SemanticObservationId.HangingPieceSemantic,
         source = EvidenceSourceId.HangingPieceRelation,
+        requiredWitnessTerm = "hanging_piece_relation_witness",
         ideaKind = StrategicIdeaKind.FavorableTradeOrTransformation,
         readiness = StrategicIdeaReadiness.Build,
         confidence = 0.69,
@@ -405,69 +413,127 @@ private[commentary] object RelationObservationCatalog:
         surfaceRowLabel = "Tactical relation"
       ),
       RelationObservationDescriptor(
+        relationKind = MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece,
+        observationId = SemanticObservationId.TrappedPieceSemantic,
+        source = EvidenceSourceId.TrappedPieceRelation,
+        requiredWitnessTerm = "trapped_piece_relation_witness",
+        ideaKind = StrategicIdeaKind.FavorableTradeOrTransformation,
+        readiness = StrategicIdeaReadiness.Build,
+        confidence = 0.70,
+        publicLabel = "trapped-piece",
+        surfaceRowLabel = "Mobility restriction",
+        surfaceRowKind = RelationSurfaceRowKind.MobilityRestriction,
+        witnessOnlyMotifTag = true,
+        witnessOnlyFallbackLabel = Some("piece mobility"),
+        surfacePriority = 20
+      ),
+      RelationObservationDescriptor(
+        relationKind = MoveReviewExchangeAnalyzer.RelationKind.Domination,
+        observationId = SemanticObservationId.DominationSemantic,
+        source = EvidenceSourceId.DominationRelation,
+        requiredWitnessTerm = "domination_relation_witness",
+        ideaKind = StrategicIdeaKind.CounterplaySuppression,
+        readiness = StrategicIdeaReadiness.Build,
+        confidence = 0.66,
+        publicLabel = "key-square restriction",
+        surfaceRowLabel = "Mobility restriction",
+        surfaceRowKind = RelationSurfaceRowKind.MobilityRestriction,
+        witnessOnlyMotifTag = true,
+        witnessOnlyFallbackLabel = Some("key-square restriction"),
+        surfacePriority = 20
+      ),
+      RelationObservationDescriptor(
+        relationKind = MoveReviewExchangeAnalyzer.RelationKind.Zwischenzug,
+        observationId = SemanticObservationId.ZwischenzugSemantic,
+        source = EvidenceSourceId.ZwischenzugRelation,
+        requiredWitnessTerm = "zwischenzug_relation_witness",
+        ideaKind = StrategicIdeaKind.FavorableTradeOrTransformation,
+        readiness = StrategicIdeaReadiness.Build,
+        confidence = 0.67,
+        publicLabel = "zwischenzug",
+        surfaceRowLabel = "Move-order relation",
+        surfaceRowKind = RelationSurfaceRowKind.MoveOrder,
+        witnessOnlyMotifTag = true,
+        witnessOnlyFallbackLabel = Some("move-order caution"),
+        surfacePriority = 20
+      ),
+      RelationObservationDescriptor(
         relationKind = MoveReviewExchangeAnalyzer.RelationKind.XRay,
         observationId = SemanticObservationId.XRaySemantic,
         source = EvidenceSourceId.XRayRelation,
+        requiredWitnessTerm = "xray_relation_witness",
         ideaKind = StrategicIdeaKind.LineOccupation,
         readiness = StrategicIdeaReadiness.Build,
         confidence = 0.68,
         publicLabel = "x-ray",
-        surfaceRowLabel = "Line relation"
+        surfaceRowLabel = "Line relation",
+        surfaceRowKind = RelationSurfaceRowKind.LineGeometry
       ),
       RelationObservationDescriptor(
         relationKind = MoveReviewExchangeAnalyzer.RelationKind.Clearance,
         observationId = SemanticObservationId.ClearanceSemantic,
         source = EvidenceSourceId.ClearanceRelation,
+        requiredWitnessTerm = "clearance_relation_witness",
         ideaKind = StrategicIdeaKind.LineOccupation,
         readiness = StrategicIdeaReadiness.Build,
         confidence = 0.70,
         publicLabel = "clearance",
-        surfaceRowLabel = "Line relation"
+        surfaceRowLabel = "Line relation",
+        surfaceRowKind = RelationSurfaceRowKind.LineGeometry
       ),
       RelationObservationDescriptor(
         relationKind = MoveReviewExchangeAnalyzer.RelationKind.Battery,
         observationId = SemanticObservationId.BatterySemantic,
         source = EvidenceSourceId.BatteryRelation,
+        requiredWitnessTerm = "battery_relation_witness",
         ideaKind = StrategicIdeaKind.LineOccupation,
         readiness = StrategicIdeaReadiness.Build,
         confidence = 0.69,
         publicLabel = "battery",
-        surfaceRowLabel = "Line relation"
+        surfaceRowLabel = "Line relation",
+        surfaceRowKind = RelationSurfaceRowKind.LineGeometry
       ),
       RelationObservationDescriptor(
         relationKind = MoveReviewExchangeAnalyzer.RelationKind.Pin,
         observationId = SemanticObservationId.PinSemantic,
         source = EvidenceSourceId.PinRelation,
+        requiredWitnessTerm = "pin_relation_witness",
         ideaKind = StrategicIdeaKind.LineOccupation,
         readiness = StrategicIdeaReadiness.Build,
         confidence = 0.66,
         publicLabel = "pin",
-        surfaceRowLabel = "Line relation"
+        surfaceRowLabel = "Line relation",
+        surfaceRowKind = RelationSurfaceRowKind.LineGeometry
       ),
       RelationObservationDescriptor(
         relationKind = MoveReviewExchangeAnalyzer.RelationKind.Skewer,
         observationId = SemanticObservationId.SkewerSemantic,
         source = EvidenceSourceId.SkewerRelation,
+        requiredWitnessTerm = "skewer_relation_witness",
         ideaKind = StrategicIdeaKind.LineOccupation,
         readiness = StrategicIdeaReadiness.Build,
         confidence = 0.67,
         publicLabel = "skewer",
-        surfaceRowLabel = "Line relation"
+        surfaceRowLabel = "Line relation",
+        surfaceRowKind = RelationSurfaceRowKind.LineGeometry
       ),
       RelationObservationDescriptor(
         relationKind = MoveReviewExchangeAnalyzer.RelationKind.Interference,
         observationId = SemanticObservationId.InterferenceSemantic,
         source = EvidenceSourceId.InterferenceRelation,
+        requiredWitnessTerm = "interference_relation_witness",
         ideaKind = StrategicIdeaKind.LineOccupation,
         readiness = StrategicIdeaReadiness.Build,
         confidence = 0.67,
         publicLabel = "interference",
-        surfaceRowLabel = "Line relation"
+        surfaceRowLabel = "Line relation",
+        surfaceRowKind = RelationSurfaceRowKind.LineGeometry
       ),
       RelationObservationDescriptor(
         relationKind = MoveReviewExchangeAnalyzer.RelationKind.Decoy,
         observationId = SemanticObservationId.DecoySemantic,
         source = EvidenceSourceId.DecoyRelation,
+        requiredWitnessTerm = "decoy_relation_witness",
         ideaKind = StrategicIdeaKind.FavorableTradeOrTransformation,
         readiness = StrategicIdeaReadiness.Build,
         confidence = 0.69,
@@ -512,12 +578,7 @@ private[commentary] object RelationObservationCatalog:
     if motif.isEmpty then None
     else
       DeferredRelationKinds.find { kind =>
-        val deferred = normalizeMotifTag(kind)
-        val compactMotif = motif.replace("_", "")
-        val compactDeferred = deferred.replace("_", "")
-        motif == deferred ||
-          compactMotif == compactDeferred ||
-          motif.startsWith(s"${deferred}_")
+        motifTagMatchesKind(motif, kind)
       }
 
   def deferredFallbackForKind(kind: String): Option[DeferredRelationFallback] =
@@ -532,6 +593,42 @@ private[commentary] object RelationObservationCatalog:
 
   def deferredFallbackForMotifTag(raw: String): Option[DeferredRelationFallback] =
     deferredRelationKindForMotifTag(raw).flatMap(deferredFallbackForKind)
+
+  def pvDrawResourceOnlyMotifTag(raw: String): Boolean =
+    val motif = normalizeMotifTag(raw)
+    if motif.isEmpty then false
+    else Implemented.exists(descriptor =>
+      descriptor.surfaceRowKind == RelationSurfaceRowKind.DrawResource &&
+        motifTagMatchesKind(motif, descriptor.relationKind)
+    )
+
+  def relationWitnessOnlyMotifTag(raw: String): Boolean =
+    val motif = normalizeMotifTag(raw)
+    if motif.isEmpty then false
+    else Implemented.exists(descriptor =>
+      descriptor.witnessOnlyMotifTag &&
+        motifTagMatchesKind(motif, descriptor.relationKind)
+    )
+
+  def relationWitnessOnlyFallbackLabelForMotifTag(raw: String): Option[String] =
+    val motif = normalizeMotifTag(raw)
+    if motif.isEmpty then None
+    else
+      Implemented
+        .find(descriptor =>
+          descriptor.witnessOnlyMotifTag &&
+            motifTagMatchesKind(motif, descriptor.relationKind)
+        )
+        .flatMap(_.witnessOnlyFallbackLabel.map(_.trim).filter(_.nonEmpty))
+
+  private def motifTagMatchesKind(normalizedMotif: String, kind: String): Boolean =
+    val normalizedKind = normalizeMotifTag(kind)
+    val compactMotif = normalizedMotif.replace("_", "")
+    val compactKind = normalizedKind.replace("_", "")
+    normalizedKind.nonEmpty &&
+      (normalizedMotif == normalizedKind ||
+        compactMotif == compactKind ||
+        normalizedMotif.startsWith(s"${normalizedKind}_"))
 
   def deferredFallbackEvidenceTermForKind(kind: String): Option[String] =
     deferredFallbackForKind(kind)
@@ -556,10 +653,7 @@ private[commentary] object RelationObservationCatalog:
     relationKind match
       case Some(kind) =>
         descriptorForKind(kind).filter(descriptor => evidenceRefsContain(descriptor, evidenceRefs))
-      case None =>
-        Implemented.filter(descriptor => evidenceRefsContain(descriptor, evidenceRefs)) match
-          case descriptor :: Nil => Some(descriptor)
-          case _                 => None
+      case None => None
 
   def evidenceRefsContain(
       descriptor: RelationObservationDescriptor,

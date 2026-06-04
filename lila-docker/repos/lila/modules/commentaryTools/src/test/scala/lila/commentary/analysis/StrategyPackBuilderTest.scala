@@ -5,7 +5,7 @@ import lila.commentary.*
 import lila.commentary.model.*
 import lila.commentary.model.authoring.{ AuthorQuestion, AuthorQuestionKind, EvidenceBranch, PlanHypothesis, PlanViability, QuestionEvidence }
 import lila.commentary.model.strategic.{ CounterfactualMatch, EngineEvidence, PieceActivity, PlanContinuity, PlanLifecyclePhase, PositionalTag, PvMove, VariationLine }
-import lila.commentary.analysis.semantic.RelationObservationCatalog
+import lila.commentary.analysis.semantic.{ RelationObservationCatalog, StrategicObservationIds, StrategicSemanticObservationPipeline }
 import munit.FunSuite
 
 class StrategyPackBuilderTest extends FunSuite:
@@ -302,7 +302,7 @@ class StrategyPackBuilderTest extends FunSuite:
     assert(target.strategicReasons.nonEmpty, clue(target))
   }
 
-  test("build degrades trapped-piece activity through deferred relation fallback evidence") {
+  test("build keeps generic trapped-piece activity out of relation evidence without board witness") {
     val fen = "4k3/8/8/8/8/8/2N5/4K3 w - - 0 1"
     val pa = PieceActivity(
       piece = Knight,
@@ -314,11 +314,6 @@ class StrategyPackBuilderTest extends FunSuite:
       coordinationLinks = List(Square.E3),
       directionalTargets = List(Square.E4)
     )
-    val expected =
-      RelationObservationCatalog
-        .deferredFallbackEvidenceTermForKind(MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece)
-        .getOrElse(fail("missing trapped-piece fallback evidence"))
-
     val pack = StrategyPackBuilder
       .build(
         data(fen = fen, pieceActivity = List(pa)),
@@ -327,7 +322,11 @@ class StrategyPackBuilderTest extends FunSuite:
       .getOrElse(fail("pack missing"))
 
     val target = pack.directionalTargets.headOption.getOrElse(fail("directional target missing"))
-    assert(target.evidence.contains(expected), clue(target.evidence))
+    assertEquals(
+      RelationObservationCatalog.deferredFallbackEvidenceTermForKind(MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece),
+      None
+    )
+    assert(!target.evidence.exists(_.contains("trapped_piece")), clue(target.evidence))
     assert(!target.evidence.contains("trapped_piece_signal"), clue(target.evidence))
   }
 
@@ -385,6 +384,50 @@ class StrategyPackBuilderTest extends FunSuite:
     assertEquals(pack.directionalTargets, Nil)
     assert(pack.strategicIdeas.exists(_.evidenceRefs.contains("source:xray_relation")), clue(pack.strategicIdeas))
     assert(pack.evidence.exists(_.startsWith("idea:line_occupation:")), clue(pack.evidence))
+  }
+
+  test("semantic context carries validated root probe PV into draw-resource relation observations") {
+    val fen = "r4rk1/5ppp/8/8/7q/8/2Q3P1/R5K1 b - - 0 1"
+    val playedMove = "h4d4"
+    val reply = List("c2f2", "d4d1", "f2f1", "d1d4", "f1f2", "d4d1")
+    val probe =
+      ProbeResult(
+        id = "pack_probe_perpetual_check",
+        fen = Some(fen),
+        evalCp = 0,
+        bestReplyPv = reply,
+        replyPvs = Some(List(reply)),
+        deltaVsBaseline = 0,
+        keyMotifs = Nil,
+        purpose = Some("reply_multipv"),
+        probedMove = Some(playedMove),
+        depth = Some(18)
+      )
+    val relationData =
+      data(fen = fen, isWhiteToMove = false).copy(prevMove = Some(playedMove), ply = 1)
+    val relationContext =
+      ctx()
+        .copy(
+          fen = fen,
+          ply = 1,
+          playedMove = Some(playedMove),
+          validatedRootProbeResults = List(probe)
+        )
+
+    val semanticContext =
+      StrategicIdeaSemanticContext.from(relationData, relationContext, None)
+    val observations =
+      StrategicSemanticObservationPipeline.collect(StrategyPack(sideToMove = "black"), semanticContext)
+
+    assertEquals(semanticContext.probeResults.map(_.id), List("pack_probe_perpetual_check"))
+    assert(
+      observations.exists(observation =>
+        observation.id == StrategicObservationIds.SemanticObservationId.PerpetualCheckSemantic &&
+          observation.wireEvidenceRefs.contains("source:perpetual_check_relation") &&
+          observation.wireEvidenceRefs.contains("checking_cycle")
+      ),
+      clue(observations)
+    )
   }
 
   test("queen multi-hop redeployment stays toward-only even when fit is high") {

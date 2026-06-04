@@ -2,6 +2,7 @@ package lila.commentary.tools.claim
 
 import lila.commentary.analysis.*
 import lila.commentary.analysis.claim.*
+import lila.commentary.analysis.semantic.StrategicObservationIds.{ ProofFamilyId, ProofSourceId }
 import java.nio.charset.StandardCharsets
 import java.nio.file.{ Files, Paths }
 
@@ -40,7 +41,8 @@ private[commentary] object AdmissionUnitCatalog:
       proofFamily: String,
       proofSource: String,
       acceptedScope: PlayerFacingPacketScope,
-      defaultAuthorityTier: String,
+      surfaceAuthorityTiers: List[String],
+      sourceReviewGroup: String,
       requiredWitnesses: Set[ProofWitness],
       controlledPositive: ControlledPositiveRequirement,
       negativeControls: List[NegativeControlRequirement],
@@ -51,13 +53,20 @@ private[commentary] object AdmissionUnitCatalog:
     def contract: Option[ProofContract] =
       ProofContractRules.contractForProofFamily(proofFamily)
 
+    def authoritySummary: String =
+      if surfaceAuthorityTiers.isEmpty then "-" else surfaceAuthorityTiers.mkString("+")
+
+    def reviewGroupNeedle: String =
+      sourceReviewGroup.split(':').lastOption.getOrElse(sourceReviewGroup).toLowerCase
+
     def tsv: String =
       List(
         planKindId,
         proofFamily,
         proofSource,
         acceptedScope.toString,
-        defaultAuthorityTier,
+        authoritySummary,
+        sourceReviewGroup,
         requiredWitnesses.map(_.toString).toList.sorted.mkString("+"),
         sourceCandidateTarget.toString,
         maxAuthorityRows.toString,
@@ -85,10 +94,14 @@ private[commentary] object AdmissionUnitCatalog:
       surfaceReview = "tmp/strategic_claim_authority_surface_review.md"
     )
 
-  private def supportedLocalPositive(proofSource: String): ControlledPositiveRequirement =
+  private def authorityPositive(
+      proofSource: String,
+      acceptedScope: PlayerFacingPacketScope,
+      surfaceAuthorityTiers: List[String]
+  ): ControlledPositiveRequirement =
     ControlledPositiveRequirement(
       count = 1,
-      expectedPacket = s"proofSource=$proofSource;scope=MoveLocal;authority=SupportedLocal",
+      expectedPacket = s"proofSource=$proofSource;scope=$acceptedScope;authority=${surfaceAuthorityTiers.mkString("+")}",
       expectedSurface = "A key idea is that ..."
     )
 
@@ -104,68 +117,140 @@ private[commentary] object AdmissionUnitCatalog:
       proofFamily: String,
       proofSource: String,
       acceptedScope: PlayerFacingPacketScope,
-      requiredWitnesses: Set[ProofWitness],
-      defaultAuthorityTier: String = "SupportedLocal"
+      sourceReviewGroup: String = ""
   ): AdmissionUnitSpec =
+    val contract =
+      ProofContractRules
+        .contractForProofFamily(proofFamily)
+    val contractWitnesses =
+      contract.map(_.requiredWitnesses).getOrElse(Set.empty)
+    val contractAuthorityTiers =
+      authorityTiersFor(contract)
+    val surfaceAuthorityTiers =
+      if acceptedScope == PlayerFacingPacketScope.PositionLocal then contractAuthorityTiers
+      else contractAuthorityTiers.filter(_ == "SupportedLocal")
     AdmissionUnitSpec(
       planKindId = planKindId,
       proofFamily = proofFamily,
       proofSource = proofSource,
       acceptedScope = acceptedScope,
-      defaultAuthorityTier = defaultAuthorityTier,
-      requiredWitnesses = requiredWitnesses,
-      controlledPositive = supportedLocalPositive(proofSource),
+      surfaceAuthorityTiers = surfaceAuthorityTiers,
+      sourceReviewGroup =
+        if sourceReviewGroup.nonEmpty then sourceReviewGroup else s"A:$planKindId",
+      requiredWitnesses = contractWitnesses + ProofWitness.ClaimOnlySurface,
+      controlledPositive = authorityPositive(proofSource, acceptedScope, surfaceAuthorityTiers),
       negativeControls = defaultNegatives(planKindId),
       sourceCandidateTarget = sourceCandidateTarget,
       maxAuthorityRows = maxAuthorityRowsPerPass,
       documentationTargets = docs
     )
 
-  private val defaultWitnesses =
-    Set(
-      ProofWitness.OwnerSeed,
-      ProofWitness.Continuation,
-      ProofWitness.NoRivalRelease,
-      ProofWitness.NoTacticalVeto,
-      ProofWitness.ClaimOnlySurface
-    )
+  private def authorityTiersFor(contract: Option[ProofContract]): List[String] =
+    contract.toList.flatMap { contract =>
+      List(
+        Option.when(contract.certifiedEligible)("CertifiedOwner"),
+        Option.when(contract.supportedLocalEligible)("SupportedLocal")
+      ).flatten
+    }.distinct
 
   val admissionUnits: List[AdmissionUnitSpec] =
     List(
       unit(
+        planKindId = PlanTaxonomy.PlanKind.StaticWeaknessFixation.id,
+        proofFamily = PlanTaxonomy.PlanKind.StaticWeaknessFixation.id,
+        proofSource = PlayerFacingTruthModePolicy.ExactTargetFixationProofSource,
+        acceptedScope = PlayerFacingPacketScope.PositionLocal,
+        sourceReviewGroup = "B:static_weakness_fixation"
+      ),
+      unit(
+        planKindId = PlanTaxonomy.PlanKind.BackwardPawnTargeting.id,
+        proofFamily = PlanTaxonomy.PlanKind.BackwardPawnTargeting.id,
+        proofSource = PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeProofSource,
+        acceptedScope = PlayerFacingPacketScope.PositionLocal,
+        sourceReviewGroup = "B:carlsbad_fixed_target"
+      ),
+      unit(
         planKindId = PlanTaxonomy.PlanKind.BreakPrevention.id,
-        proofFamily = "neutralize_key_break",
-        proofSource = "counterplay_axis_suppression",
-        acceptedScope = PlayerFacingPacketScope.MoveLocal,
-        requiredWitnesses = defaultWitnesses + ProofWitness.ExactSlice
+        proofFamily = ProofFamilyId.NeutralizeKeyBreak.wireKey,
+        proofSource = ProofSourceId.CounterplayAxisSuppression.wireKey,
+        acceptedScope = PlayerFacingPacketScope.MoveLocal
       ),
       unit(
         planKindId = PlanTaxonomy.PlanKind.ProphylaxisRestraint.id,
-        proofFamily = "counterplay_restraint",
-        proofSource = "prophylactic_move",
-        acceptedScope = PlayerFacingPacketScope.MoveLocal,
-        requiredWitnesses = defaultWitnesses + ProofWitness.ExactSlice
+        proofFamily = ProofFamilyId.CounterplayRestraint.wireKey,
+        proofSource = ProofSourceId.ProphylacticMove.wireKey,
+        acceptedScope = PlayerFacingPacketScope.MoveLocal
       ),
       unit(
         planKindId = PlanTaxonomy.PlanKind.OpenFilePressure.id,
-        proofFamily = "half_open_file_pressure",
-        proofSource = "local_file_entry_bind",
+        proofFamily = ProofFamilyId.HalfOpenFilePressure.wireKey,
+        proofSource = ProofSourceId.LocalFileEntryBind.wireKey,
+        acceptedScope = PlayerFacingPacketScope.MoveLocal
+      ),
+      unit(
+        planKindId = PlanTaxonomy.PlanKind.KeySquareDenial.id,
+        proofFamily = ProofFamilyId.HalfOpenFilePressure.wireKey,
+        proofSource = ProofSourceId.LocalFileEntryBind.wireKey,
+        acceptedScope = PlayerFacingPacketScope.MoveLocal
+      ),
+      unit(
+        planKindId = PlanTaxonomy.PlanKind.RookFileTransfer.id,
+        proofFamily = ProofFamilyId.HalfOpenFilePressure.wireKey,
+        proofSource = ProofSourceId.LocalFileEntryBind.wireKey,
+        acceptedScope = PlayerFacingPacketScope.MoveLocal
+      ),
+      unit(
+        planKindId = PlanTaxonomy.PlanKind.FlankClamp.id,
+        proofFamily = ProofFamilyId.ColorComplexSqueeze.wireKey,
+        proofSource = ProofSourceId.ColorComplexSqueezeProbe.wireKey,
+        acceptedScope = PlayerFacingPacketScope.PositionLocal
+      ),
+      unit(
+        planKindId = PlanTaxonomy.PlanKind.OutpostEntrenchment.id,
+        proofFamily = PlanTaxonomy.PlanKind.OutpostEntrenchment.id,
+        proofSource = PlayerFacingTruthModePolicy.OutpostEntrenchmentProofSource,
+        acceptedScope = PlayerFacingPacketScope.MoveLocal
+      ),
+      unit(
+        planKindId = PlanTaxonomy.PlanKind.IQPInducement.id,
+        proofFamily = PlanTaxonomy.PlanKind.IQPInducement.id,
+        proofSource = PlayerFacingTruthModePolicy.IQPInducementProbeProofSource,
         acceptedScope = PlayerFacingPacketScope.MoveLocal,
-        requiredWitnesses = defaultWitnesses + ProofWitness.ExactSlice
+        sourceReviewGroup = "C:iqp_inducement"
+      ),
+      unit(
+        planKindId = PlanTaxonomy.PlanKind.SimplificationWindow.id,
+        proofFamily = PlanTaxonomy.PlanKind.SimplificationWindow.id,
+        proofSource = PlanTaxonomy.PlanKind.SimplificationWindow.id,
+        acceptedScope = PlayerFacingPacketScope.MoveLocal,
+        sourceReviewGroup = "C:simplification_window"
+      ),
+      unit(
+        planKindId = PlanTaxonomy.PlanKind.DefenderTrade.id,
+        proofFamily = PlanTaxonomy.PlanKind.DefenderTrade.id,
+        proofSource = PlayerFacingTruthModePolicy.DefenderTradeProofSource,
+        acceptedScope = PlayerFacingPacketScope.MoveLocal,
+        sourceReviewGroup = "C:defender_trade"
+      ),
+      unit(
+        planKindId = PlanTaxonomy.PlanKind.QueenTradeShield.id,
+        proofFamily = PlanTaxonomy.PlanKind.QueenTradeShield.id,
+        proofSource = PlayerFacingTruthModePolicy.QueenTradeShieldProofSource,
+        acceptedScope = PlayerFacingPacketScope.MoveLocal,
+        sourceReviewGroup = "C:queen_trade_boundary"
       ),
       unit(
         planKindId = PlanTaxonomy.PlanKind.BadPieceLiquidation.id,
         proofFamily = PlanTaxonomy.PlanKind.BadPieceLiquidation.id,
-        proofSource = "bad_piece_liquidation",
+        proofSource = PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource,
         acceptedScope = PlayerFacingPacketScope.MoveLocal,
-        requiredWitnesses = defaultWitnesses
+        sourceReviewGroup = "C:bad_piece_liquidation"
       ),
       unit(
         planKindId = PlanTaxonomy.PlanKind.CentralBreakTiming.id,
         proofFamily = PlanTaxonomy.PlanKind.CentralBreakTiming.id,
         proofSource = PlanTaxonomy.PlanKind.CentralBreakTiming.id,
-        acceptedScope = PlayerFacingPacketScope.MoveLocal,
-        requiredWitnesses = defaultWitnesses + ProofWitness.ExactSlice
+        acceptedScope = PlayerFacingPacketScope.MoveLocal
       )
     )
 
@@ -175,7 +260,8 @@ private[commentary] object AdmissionUnitCatalog:
       "proofFamily",
       "proofSource",
       "acceptedScope",
-      "defaultAuthorityTier",
+      "surfaceAuthorityTiers",
+      "sourceReviewGroup",
       "requiredWitnesses",
       "sourceCandidateTarget",
       "maxAuthorityRows",
@@ -191,7 +277,7 @@ private[commentary] object AdmissionUnitCatalog:
     val rows =
       admissionUnits
         .map { unit =>
-          s"| `${unit.planKindId}` | `${unit.proofSource}` | `${unit.proofFamily}` | `${unit.defaultAuthorityTier}` | `${unit.sourceCandidateTarget}` | `${unit.maxAuthorityRows}` | `${unit.contract.map(_.status.toString).getOrElse("-")}` |"
+          s"| `${unit.planKindId}` | `${unit.sourceReviewGroup}` | `${unit.proofSource}` | `${unit.proofFamily}` | `${unit.authoritySummary}` | `${unit.sourceCandidateTarget}` | `${unit.maxAuthorityRows}` | `${unit.contract.map(_.status.toString).getOrElse("-")}` |"
         }
         .mkString("\n")
 
@@ -210,8 +296,8 @@ private[commentary] object AdmissionUnitCatalog:
       "- Tactical-first remains absolute over strategic prose.",
       "- Runtime contracts must not contain source witness ids.",
       "",
-      "| plan kind | proof source | proof family | default authority | source candidates | max authority rows | contract status |",
-      "| --- | --- | --- | --- | --- | --- | --- |",
+      "| plan kind | review group | proof source | proof family | surface authority | source candidates | max authority rows | contract status |",
+      "| --- | --- | --- | --- | --- | --- | --- | --- |",
       rows,
       "",
       "Documentation targets:",

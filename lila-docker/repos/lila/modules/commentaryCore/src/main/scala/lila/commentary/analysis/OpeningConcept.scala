@@ -47,6 +47,20 @@ object OpeningGoals:
   private def hasPiece(sit: Option[Position], sq: Square, color: Color, role: Role): Boolean =
     sit.exists(_.board.pieceAt(sq).contains(_root_.chess.Piece(color, role)))
 
+  private def blackE4OutpostEvaluation(
+      ctx: NarrativeContext,
+      name: String,
+      structureMatches: Boolean,
+      mismatchReason: String,
+      achievedConfidence: Double
+  ): Evaluation =
+    if !structureMatches then
+      Evaluation(name, Status.Mismatch, Nil, List(mismatchReason), 0.0)
+    else if checkCp(ctx, Color.Black, -50) then
+      Evaluation(name, Status.Achieved, List("e4 outpost occupied"), Nil, achievedConfidence)
+    else
+      Evaluation(name, Status.Premature, List("Outpost occupied"), List("Soundness"), 0.62)
+
   private def toSquare(uci: String): Option[Square] =
     Option(uci).filter(_.length >= 4).flatMap(raw => Square.fromKey(raw.slice(2, 4)))
 
@@ -559,12 +573,13 @@ object OpeningGoals:
         hasPawn(sit, Square.D4, Color.White) &&
           (hasPawn(sit, Square.C4, Color.White) || hasPawn(sit, Square.G3, Color.White) || hasPiece(sit, Square.G2, Color.White, _root_.chess.Bishop))
 
-      if !(dutchShell && whiteQueenPawnCenter) then
-        Evaluation(name, Status.Mismatch, Nil, List("Structure mismatch (needs Dutch f5/d5 with a knight on e4)"), 0.0)
-      else
-        val sound = checkCp(ctx, Color.Black, -50)
-        if sound then Evaluation(name, Status.Achieved, List("e4 outpost occupied"), Nil, 0.9)
-        else Evaluation(name, Status.Premature, List("Outpost occupied"), List("Soundness"), 0.62)
+      blackE4OutpostEvaluation(
+        ctx,
+        name,
+        structureMatches = dutchShell && whiteQueenPawnCenter,
+        mismatchReason = "Structure mismatch (needs Dutch f5/d5 with a knight on e4)",
+        achievedConfidence = 0.9
+      )
 
   object QueensIndianE4Outpost extends GoalDefinition:
     val id = "queens_indian_e4_outpost"
@@ -580,12 +595,13 @@ object OpeningGoals:
           hasPawn(sit, Square.C4, Color.White) &&
           hasPawn(sit, Square.E3, Color.White)
 
-      if !(queensIndianShell && whiteQueenPawnCenter) then
-        Evaluation(name, Status.Mismatch, Nil, List("Structure mismatch (needs Queen's Indian b6/e6 with a knight on e4)"), 0.0)
-      else
-        val sound = checkCp(ctx, Color.Black, -50)
-        if sound then Evaluation(name, Status.Achieved, List("e4 outpost occupied"), Nil, 0.91)
-        else Evaluation(name, Status.Premature, List("Outpost occupied"), List("Soundness"), 0.62)
+      blackE4OutpostEvaluation(
+        ctx,
+        name,
+        structureMatches = queensIndianShell && whiteQueenPawnCenter,
+        mismatchReason = "Structure mismatch (needs Queen's Indian b6/e6 with a knight on e4)",
+        achievedConfidence = 0.91
+      )
 
   object BogoIndianE4Outpost extends GoalDefinition:
     val id = "bogo_indian_e4_outpost"
@@ -601,12 +617,13 @@ object OpeningGoals:
           hasPawn(sit, Square.C4, Color.White) &&
           hasPiece(sit, Square.D2, Color.White, _root_.chess.Knight)
 
-      if !(bogoShell && whiteQueenPawnCenter) then
-        Evaluation(name, Status.Mismatch, Nil, List("Structure mismatch (needs Bogo-Indian Bb4 with a knight on e4)"), 0.0)
-      else
-        val sound = checkCp(ctx, Color.Black, -50)
-        if sound then Evaluation(name, Status.Achieved, List("e4 outpost occupied"), Nil, 0.91)
-        else Evaluation(name, Status.Premature, List("Outpost occupied"), List("Soundness"), 0.62)
+      blackE4OutpostEvaluation(
+        ctx,
+        name,
+        structureMatches = bogoShell && whiteQueenPawnCenter,
+        mismatchReason = "Structure mismatch (needs Bogo-Indian Bb4 with a knight on e4)",
+        achievedConfidence = 0.91
+      )
 
   // 17. Flank Fianchetto Support
   object FlankFianchettoSupport extends GoalDefinition:

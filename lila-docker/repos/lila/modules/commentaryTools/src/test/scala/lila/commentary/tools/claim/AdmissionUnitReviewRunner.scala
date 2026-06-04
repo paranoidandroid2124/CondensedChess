@@ -59,7 +59,7 @@ object AdmissionUnitReviewRunner:
         case None =>
           AdmissionUnitReview.admit(games, engine = None, config = config)
         case Some(path) =>
-          val engine = LocalUciEngine(path, timeoutMs = 30000L)
+          val engine = LocalUciEngine(path)
           try AdmissionUnitReview.admit(games, engine = Some(LocalEngine(engine)), config = config)
           finally engine.close()
     val (matrix, review) = AdmissionUnitReview.writeArtifacts(report)

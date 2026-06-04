@@ -28,6 +28,7 @@ class SourceReviewTest extends FunSuite:
     val directPacketSummaryChecks = "\\.packetSummary\\.exists".r.findAllIn(text).toList
 
     assert(text.contains("SurfaceContractDescriptor"), clues("missing SourceReview surface contract descriptor"))
+    assert(text.contains("AdmissionUnitCatalog.admissionUnits"), clues("SourceReview should consume admission catalog"))
     assertEquals(directPacketSummaryChecks, Nil)
   }
 
@@ -850,7 +851,7 @@ class SourceReviewTest extends FunSuite:
     assertEquals(botvinnikScreen.engineAgreement, "near_top_multipv_contains_played_top=b3a4_gap=8cp")
     assertEquals(botvinnikScreen.admissionBlockers, "owner:iqp_not_induced_or_side_mismatch")
     assertEquals(botvinnikScreen.ownerFailureCodes, "-")
-    assertEquals(botvinnikScreen.release, "CertifiedOwner")
+    assertEquals(botvinnikScreen.release, "SupportedLocal")
 
     val originalBotvinnik = byId("source-botvinnik-vidmar-1936")
     assertEquals(originalBotvinnik.verdict, SourceReview.Verdict.RejectOwnerMissing)
@@ -858,9 +859,9 @@ class SourceReviewTest extends FunSuite:
 
     val evansCarlsbad = byId("source-evans-opsahl-1950")
     assertEquals(evansCarlsbad.verdict, SourceReview.Verdict.RejectOwnerMissing, clues(evansCarlsbad))
-    assertEquals(evansCarlsbad.diagnosis, SourceReview.Diagnosis.PlannerOwnerSuppressed, clues(evansCarlsbad))
-    assertEquals(evansCarlsbad.admissionBlockers, "owner:planner_suppressed", clues(evansCarlsbad))
-    assert(evansCarlsbad.packetSummary.contains("proof_family=backward_pawn_targeting"), clues(evansCarlsbad))
+    assertEquals(evansCarlsbad.diagnosis, SourceReview.Diagnosis.RootVocabularyOrExtractionGap, clues(evansCarlsbad))
+    assertEquals(evansCarlsbad.admissionBlockers, "owner:carlsbad_probe_missing", clues(evansCarlsbad))
+    assertEquals(evansCarlsbad.packetSummary, "-", clues(evansCarlsbad))
     val carlsenQueenTrade = byId("source-carlsen-anand-2014-g6")
     assertEquals(carlsenQueenTrade.verdict, SourceReview.Verdict.RejectOwnerMissing, clues(carlsenQueenTrade))
     assertEquals(carlsenQueenTrade.diagnosis, SourceReview.Diagnosis.RootVocabularyOrExtractionGap, clues(carlsenQueenTrade))

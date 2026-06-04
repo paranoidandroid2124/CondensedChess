@@ -1854,7 +1854,8 @@ object NarrativeLexicon {
   }
 
   private def deferredMotifDeltaLabel(rawMotif: String): Option[Option[String]] =
-    RelationObservationCatalog.deferredFallbackForMotifTag(rawMotif).map(_.label)
+    if RelationObservationCatalog.relationWitnessOnlyMotifTag(rawMotif) then Some(None)
+    else RelationObservationCatalog.deferredFallbackForMotifTag(rawMotif).map(_.label)
 
   private val motifPrefixSignals: Set[String] = Set(
     "bad_bishop",
@@ -1864,7 +1865,6 @@ object NarrativeLexicon {
     "color_complex",
     "connected_rooks",
     "deflection",
-    "domination",
     "doubled_rooks",
     "exchange_sacrifice",
     "good_bishop",
@@ -1919,21 +1919,18 @@ object NarrativeLexicon {
     "skewer_queen",
     "smothered_mate",
     "stalemate",
-    "stalemate_trap",
     "stalemate_trick",
-    "trapped_piece",
-    "trapped_piece_queen",
     "underpromotion",
     "vancura",
     "xray",
     "xray_queen",
-    "zugzwang",
-    "zwischenzug"
+    "zugzwang"
   )
 
   def isMotifPrefixSignal(rawMotif: String): Boolean =
     val normalized = normalizeMotifTag(rawMotif)
     normalized.nonEmpty &&
+      !RelationObservationCatalog.relationWitnessOnlyMotifTag(normalized) &&
       RelationObservationCatalog.deferredFallbackForMotifTag(normalized).isEmpty &&
       motifPrefixSignals.exists(sig => motifMatches(normalized, sig))
 

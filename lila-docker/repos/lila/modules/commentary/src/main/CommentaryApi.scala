@@ -2502,7 +2502,7 @@ final class CommentaryApi(
             val moveReviewExplanation = moveReviewSlots.moveReviewExplanation
             val proseRaw = LiveNarrativeCompressionCore.deterministicProse(moveReviewSlots)
             val prose = CommentaryApi.sanitizeMoveReviewProse(proseRaw)
-            val compactProse = EarlyOpeningNarrationPolicy.clampNarrative(ctx, prose)
+            val compactProse = EarlyOpeningNarrationPolicy.clampNarrative(ctx, prose, Some(truthContract))
             val baseConcepts = ctx.semantic.map(_.conceptSummary).getOrElse(Nil)
             val allowedSans =
               moveReviewRefVariations.flatMap(v => NarrativeUtils.uciListToSan(fen, v.moves))
@@ -2525,17 +2525,21 @@ final class CommentaryApi(
               )
             val decisionComparisonSurface =
               MoveReviewPlayerPayloadBuilder.decisionComparisonSurface(ctx, refs)
+            val playerSurfaceEvaluatedPlans =
+              if ctx.strategicPlanEvidence.evaluatedPlans.nonEmpty then ctx.strategicPlanEvidence.evaluatedPlans
+              else contextBuild.selectedMainEvaluatedPlans
             val moveReviewPlayerSurface =
               MoveReviewPlayerPayloadBuilder.build(
                 ctx = ctx,
                 moveReviewExplanation = moveReviewExplanation,
                 moveReviewLedger = moveReviewLedger,
                 refs = refs,
-                evaluatedPlans = contextBuild.selectedMainEvaluatedPlans,
+                evaluatedPlans = playerSurfaceEvaluatedPlans,
                 authoringSurface = authoringSurface,
                 supportedLocalRows = supportedLocalRows,
                 decisionComparisonSurface = decisionComparisonSurface,
-                strategyPack = strategyPack
+                strategyPack = strategyPack,
+                truthContract = Some(truthContract)
               )
             val strategyPromptHints = strategyHints(strategyPack)
             val validationSeed = Option(moveReviewSlots.validationSeedText).filter(_.nonEmpty).getOrElse(compactProse)
@@ -2564,7 +2568,7 @@ final class CommentaryApi(
                 dedupeMoveReviewResponse(
                   UserFacingPayloadSanitizer.sanitize(
                     CommentResponse(
-                      commentary = EarlyOpeningNarrationPolicy.clampNarrative(ctx, decision.commentary),
+                      commentary = EarlyOpeningNarrationPolicy.clampNarrative(ctx, decision.commentary, Some(truthContract)),
                       concepts = baseConcepts,
                       variations = dataWithContinuity.alternatives,
                       probeRequests = outboundProbeRequests,

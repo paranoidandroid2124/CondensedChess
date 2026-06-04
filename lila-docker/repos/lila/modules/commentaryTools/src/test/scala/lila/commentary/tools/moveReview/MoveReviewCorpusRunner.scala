@@ -59,7 +59,7 @@ object MoveReviewCorpusRunner:
     val openingCatalog = (manifestCatalog ++ externalCatalog).distinctBy(_.gameKey)
     val openingIndex = buildOpeningIndex(openingCatalog)
     val catalogByGameKey = openingCatalog.map(entry => entry.gameKey -> entry).toMap
-    val engine = new LocalUciEngine(config.enginePath, timeoutMs = 30000L)
+    val engine = new LocalUciEngine(config.enginePath)
     val ws = new StandaloneAhcWSClient(new DefaultAsyncHttpClient())
     val api =
       CommentaryApi(

@@ -26,6 +26,9 @@ private[commentary] object WeaknessTargetProfile:
   val ResolvedByPressure = "resolved_by_pressure"
   val LiquidatedByDefense = "liquidated_by_defense"
 
+  private val TargetHintPrefixes =
+    List("weakness_target:", "fixed_target:", "coordinated_target:", "target_fixing:", "enemy_weak_square:", "weak_complex:", "target:")
+
   final case class LineOutcome(
       targetSquare: String,
       targetKind: String,
@@ -95,6 +98,17 @@ private[commentary] object WeaknessTargetProfile:
         }
       }
     }
+
+  def targetHintSquares(sources: List[String]): List[String] =
+    sources.flatMap(targetHintSquare).distinct
+
+  def targetHintSquare(source: String): Option[String] =
+    val lower = Option(source).getOrElse("").trim.toLowerCase
+    TargetHintPrefixes
+      .collectFirst { case prefix if lower.startsWith(prefix) =>
+        lower.stripPrefix(prefix).trim
+      }
+      .filter(_.matches("""[a-h][1-8]"""))
 
   def targetsForPressure(
       board: Board,

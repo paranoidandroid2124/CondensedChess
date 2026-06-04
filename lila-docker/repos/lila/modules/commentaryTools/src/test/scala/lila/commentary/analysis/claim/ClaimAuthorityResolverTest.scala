@@ -84,13 +84,13 @@ final class ClaimAuthorityResolverTest extends FunSuite:
       triggerKind = PlanTaxonomy.PlanKind.DefenderTrade.id,
       anchorTerms = List("defender_trade"),
       bestDefenseMove = Some("c4d5"),
-      sameBranchState = PlayerFacingSameBranchState.Missing,
+      sameBranchState = PlayerFacingSameBranchState.Proven,
       persistence = PlayerFacingClaimPersistence.Stable,
       proofPathWitness =
         PlayerFacingProofPathWitness(
           ownerSeedTerms = List("defender_trade"),
           continuationTerms = List("trade_defender"),
-          structureTransitionTerms = List("defender_removed")
+          structureTransitionTerms = List("defender_trade_branch", "defender:c5", "exchange_square:d4", "defended_target:e5")
         ),
       fallbackMode = PlayerFacingClaimFallbackMode.WeakMain
     )

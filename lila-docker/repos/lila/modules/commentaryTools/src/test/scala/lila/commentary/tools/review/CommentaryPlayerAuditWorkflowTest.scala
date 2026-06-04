@@ -242,6 +242,97 @@ class CommentaryPlayerAuditWorkflowTest extends FunSuite:
     assert(!moveReviewEntry.supportRows.exists(_.contains("Raw carrier plan")), clue(moveReviewEntry.supportRows))
   }
 
+  test("buildAuditQueue audits MoveReview player-surface refs, safe opening metadata, and leak flags") {
+    val root = tempDir("audit-queue-player-surface-contract")
+    val runDir = root.resolve("edge_case_000")
+    val rawDir = runDir.resolve("raw")
+    Files.createDirectories(rawDir)
+
+    val game = sampleGameReport("game_focus", "edge_case", "other", "Focus Game")
+    writeJson(runDir.resolve("report.json"), Json.toJson(sampleRunReport(game)))
+    writeJson(
+      rawDir.resolve("game_focus.ply_24.move_review.json"),
+      Json.obj(
+        "fen" -> "8/8/8/3N4/8/8/8/8 w - - 0 1",
+        "commentary" -> "12... Nd5: MoveDelta.pv_delta chose e2e4 before the player text.",
+        "moveReviewPlayerSurface" -> Json.obj(
+          "schema" -> "chesstory.move_review.player_surface.v2",
+          "summaryRows" -> Json.arr(
+            Json.obj(
+              "label" -> "Checked line",
+              "text" -> "The checked line keeps d5 under control.",
+              "refSans" -> Json.arr("Nd5", "c4")
+            ),
+            Json.obj(
+              "label" -> "Opening family",
+              "text" -> "This still fits the Queen's Gambit structure.",
+              "authority" -> Json.obj(
+                "kind" -> "opening_family",
+                "openingFamily" -> "queens_gambit",
+                "target" -> "d5",
+                "openingBook" -> Json.obj(
+                  "eco" -> "D06",
+                  "totalGames" -> 12345,
+                  "topMoves" -> Json.arr("e6", "Nf6", "e2e4")
+                )
+              )
+            )
+          ),
+          "advancedRows" -> Json.arr(
+            Json.obj("label" -> "neutralize_key_break", "text" -> "The d5 break stays covered.")
+          ),
+          "probeRows" -> Json.arr(),
+          "authorRows" -> Json.arr()
+        )
+      )
+    )
+    val auditSet =
+      AuditSetManifest(
+        generatedAt = "2026-03-22T00:00:00Z",
+        title = "audit",
+        description = "audit",
+        games =
+          List(
+            AuditSetEntry(
+              auditId = "edge_case_000:game_focus",
+              gameId = "game_focus",
+              tier = "edge_case",
+              openingFamily = "other",
+              label = "Focus Game",
+              reportPath = runDir.resolve("report.json").toString,
+              rawDir = rawDir.toString,
+              sourceTag = "edge_case_000"
+            )
+          )
+      )
+    val auditSetPath = root.resolve("audit_set.json")
+    writeJson(auditSetPath, Json.toJson(auditSet))
+
+    val (queue, _) =
+      CommentaryPlayerReviewQueueBuilder.buildAuditQueue(
+        CommentaryPlayerReviewQueueBuilder.Config(
+          outPath = root.resolve("review_queue.jsonl"),
+          summaryPath = root.resolve("review_queue_summary.json"),
+          auditSetPath = Some(auditSetPath),
+          fullReview = true
+        ),
+        auditSetPath
+      )
+
+    val moveReviewEntry =
+      queue.find(entry => entry.surface == ReviewSurface.MoveReview).getOrElse(fail("missing moveReview row"))
+    val combinedRows = (moveReviewEntry.supportRows ++ moveReviewEntry.advancedRows).mkString("\n")
+
+    assert(moveReviewEntry.supportRows.exists(_.contains("Refs: Nd5 c4.")), clue(moveReviewEntry.supportRows))
+    assert(moveReviewEntry.supportRows.exists(_.contains("Opening book: ECO D06; 12k games; Book: e6 / Nf6.")), clue(moveReviewEntry.supportRows))
+    assert(moveReviewEntry.supportRows.exists(_.contains("Target: d5.")), clue(moveReviewEntry.supportRows))
+    assert(!combinedRows.contains("queens_gambit"), clue(combinedRows))
+    assert(!combinedRows.contains("e2e4"), clue(combinedRows))
+    assert(moveReviewEntry.flags.exists(_.startsWith("internal_label:")), clues(moveReviewEntry.flags))
+    assert(moveReviewEntry.flags.exists(_.startsWith("uci_leak:")), clues(moveReviewEntry.flags))
+    assert(isMandatoryReview(SliceKind.MoveReviewFocus, moveReviewEntry.flags), clues(moveReviewEntry.flags))
+  }
+
   test("buildAuditQueue uses report commentary when raw MoveReview payload is absent") {
     val root = tempDir("audit-queue-missing-move-review")
     val runDir = root.resolve("edge_case_000")

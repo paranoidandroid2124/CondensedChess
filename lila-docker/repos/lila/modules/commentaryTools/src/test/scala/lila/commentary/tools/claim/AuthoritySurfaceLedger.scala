@@ -5,8 +5,6 @@ import lila.commentary.analysis.claim.*
 import java.nio.charset.StandardCharsets
 import java.nio.file.{ Files, Paths }
 
-import lila.commentary.analysis.practical.ContrastiveSupportAdmissibility
-import lila.commentary.analysis.render.QuietStrategicSupportComposer
 import lila.commentary.{ DirectionalTargetReadiness, NarrativeSignalDigest, StrategyDirectionalTarget, StrategyPack }
 import lila.commentary.model.*
 import lila.commentary.model.authoring.{ AuthorQuestion, AuthorQuestionKind, PlanHypothesis, PlanViability, QuestionEvidence }
@@ -86,122 +84,36 @@ object AuthoritySurfaceLedger:
       )
     )
 
-  private[commentary] val sourceSurfaceFixtureIds =
+  private val sourceSurfaceFixtures =
     List(
-      "source-evans-opsahl-1950",
-      "source-carlsen-anand-2014-g6",
-      "source-capablanca-golombek-1939-iqp-inducement",
-      "source-evans-opsahl-1950-iqp-inducement",
-      "source-alekhine-bogoljubow-1936-iqp-inducement",
-      "source-najdorf-sergeant-1939-iqp-inducement",
-      "source-botvinnik-vidmar-1936-iqp-opening-inducement",
-      "source-maderna-palermo-1955-a6-a5-break-prevention",
-      "source-camara-bazan-1960-b7-b5-break-prevention",
-      "source-pfleger-maalouf-1961-a6-a5-break-prevention",
-      "source-salov-ljubojevic-1992-simplification-window",
-      "source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation"
+      sourceSurfaceSample("source-evans-opsahl-1950", "source:B:carlsbad_fixed_target", "source_carlsbad_fixed_target"),
+      sourceSurfaceSample("source-carlsen-anand-2014-g6", "source:C:queen_trade_shield", "source_queen_trade_boundary"),
+      sourceSurfaceSample("source-capablanca-golombek-1939-iqp-inducement", "source:C:iqp_inducement", "source_iqp_inducement"),
+      sourceSurfaceSample("source-evans-opsahl-1950-iqp-inducement", "source:C:iqp_inducement", "source_iqp_inducement"),
+      sourceSurfaceSample("source-alekhine-bogoljubow-1936-iqp-inducement", "source:C:iqp_inducement", "source_iqp_inducement"),
+      sourceSurfaceSample("source-najdorf-sergeant-1939-iqp-inducement", "source:C:iqp_inducement", "source_iqp_inducement"),
+      sourceSurfaceSample("source-botvinnik-vidmar-1936-iqp-opening-inducement", "source:C:iqp_inducement", "source_iqp_inducement"),
+      sourceSurfaceSample("source-lokvenc-czerniak-1952-b6-b5-break-prevention", "source:A:break_prevention", "source_break_prevention"),
+      sourceSurfaceSample("source-maderna-palermo-1955-a6-a5-break-prevention", "source:A:break_prevention", "source_break_prevention"),
+      sourceSurfaceSample("source-camara-bazan-1960-b7-b5-break-prevention", "source:A:break_prevention", "source_break_prevention"),
+      sourceSurfaceSample("source-sliwa-gromek-1960-a6-a5-break-prevention", "source:A:break_prevention", "source_break_prevention"),
+      sourceSurfaceSample("source-pfleger-maalouf-1961-a6-a5-break-prevention", "source:A:break_prevention", "source_break_prevention"),
+      sourceSurfaceSample("source-polugaevsky-giorgadze-1956-c5-c4-break-prevention", "source:A:break_prevention", "source_break_prevention"),
+      sourceSurfaceSample("source-salov-ljubojevic-1992-simplification-window", "source:C:simplification_window", "source_simplification_window"),
+      sourceSurfaceSample("source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation", "source:B:static_weakness_fixation", "source_static_weakness_fixation")
     )
 
-  private val sourceSurfaceFixtures =
-    sourceSurfaceFixtureIds.map {
-      case "source-evans-opsahl-1950" =>
-        Sample(
-          "source-evans-opsahl-1950",
-          "source-evans-opsahl-1950",
-          "source:B:carlsbad_fixed_target",
-          "Fixed source surface fixture copied from prior SourceReview evidence; surface-contract replay only.",
-          taxonomy = "source_carlsbad_fixed_target"
-        )
-      case "source-carlsen-anand-2014-g6" =>
-        Sample(
-          "source-carlsen-anand-2014-g6",
-          "source-carlsen-anand-2014-g6",
-          "source:C:queen_trade_shield",
-          "Fixed source surface fixture copied from prior SourceReview evidence; surface-contract replay only.",
-          taxonomy = "source_queen_trade_boundary"
-        )
-      case "source-capablanca-golombek-1939-iqp-inducement" =>
-        Sample(
-          "source-capablanca-golombek-1939-iqp-inducement",
-          "source-capablanca-golombek-1939-iqp-inducement",
-          "source:C:iqp_inducement",
-          "Fixed source surface fixture copied from prior SourceReview evidence; surface-contract replay only.",
-          taxonomy = "source_iqp_inducement"
-        )
-      case "source-evans-opsahl-1950-iqp-inducement" =>
-        Sample(
-          "source-evans-opsahl-1950-iqp-inducement",
-          "source-evans-opsahl-1950-iqp-inducement",
-          "source:C:iqp_inducement",
-          "Fixed source surface fixture copied from prior SourceReview evidence; surface-contract replay only.",
-          taxonomy = "source_iqp_inducement"
-        )
-      case "source-alekhine-bogoljubow-1936-iqp-inducement" =>
-        Sample(
-          "source-alekhine-bogoljubow-1936-iqp-inducement",
-          "source-alekhine-bogoljubow-1936-iqp-inducement",
-          "source:C:iqp_inducement",
-          "Fixed source surface fixture copied from prior SourceReview evidence; surface-contract replay only.",
-          taxonomy = "source_iqp_inducement"
-        )
-      case "source-najdorf-sergeant-1939-iqp-inducement" =>
-        Sample(
-          "source-najdorf-sergeant-1939-iqp-inducement",
-          "source-najdorf-sergeant-1939-iqp-inducement",
-          "source:C:iqp_inducement",
-          "Fixed source surface fixture copied from prior SourceReview evidence; surface-contract replay only.",
-          taxonomy = "source_iqp_inducement"
-        )
-      case "source-botvinnik-vidmar-1936-iqp-opening-inducement" =>
-        Sample(
-          "source-botvinnik-vidmar-1936-iqp-opening-inducement",
-          "source-botvinnik-vidmar-1936-iqp-opening-inducement",
-          "source:C:iqp_inducement",
-          "Fixed source surface fixture copied from prior SourceReview evidence; surface-contract replay only.",
-          taxonomy = "source_iqp_inducement"
-        )
-      case "source-maderna-palermo-1955-a6-a5-break-prevention" =>
-        Sample(
-          "source-maderna-palermo-1955-a6-a5-break-prevention",
-          "source-maderna-palermo-1955-a6-a5-break-prevention",
-          "source:A:break_prevention",
-          "Fixed source surface fixture copied from prior SourceReview evidence; surface-contract replay only.",
-          taxonomy = "source_break_prevention"
-        )
-      case "source-camara-bazan-1960-b7-b5-break-prevention" =>
-        Sample(
-          "source-camara-bazan-1960-b7-b5-break-prevention",
-          "source-camara-bazan-1960-b7-b5-break-prevention",
-          "source:A:break_prevention",
-          "Fixed source surface fixture copied from prior SourceReview evidence; surface-contract replay only.",
-          taxonomy = "source_break_prevention"
-        )
-      case "source-pfleger-maalouf-1961-a6-a5-break-prevention" =>
-        Sample(
-          "source-pfleger-maalouf-1961-a6-a5-break-prevention",
-          "source-pfleger-maalouf-1961-a6-a5-break-prevention",
-          "source:A:break_prevention",
-          "Fixed source surface fixture copied from prior SourceReview evidence; surface-contract replay only.",
-          taxonomy = "source_break_prevention"
-        )
-      case "source-salov-ljubojevic-1992-simplification-window" =>
-        Sample(
-          "source-salov-ljubojevic-1992-simplification-window",
-          "source-salov-ljubojevic-1992-simplification-window",
-          "source:C:simplification_window",
-          "Fixed source surface fixture copied from prior SourceReview evidence; surface-contract replay only.",
-          taxonomy = "source_simplification_window"
-        )
-      case "source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation" =>
-        Sample(
-          "source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation",
-          "source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation",
-          "source:B:static_weakness_fixation",
-          "Fixed source surface fixture copied from prior SourceReview evidence; surface-contract replay only.",
-          taxonomy = "source_static_weakness_fixation"
-        )
-      case other => sys.error(s"missing source sample metadata: $other")
-    }
+  private[commentary] val sourceSurfaceFixtureIds =
+    sourceSurfaceFixtures.map(_.id)
+
+  private def sourceSurfaceSample(id: String, reviewGroup: String, taxonomy: String): Sample =
+    Sample(
+      id,
+      id,
+      reviewGroup,
+      "Fixed source surface fixture copied from prior SourceReview evidence; surface-contract replay only.",
+      taxonomy = taxonomy
+    )
 
   private val screenSamples =
     List(
@@ -1181,6 +1093,36 @@ object AuthoritySurfaceLedger:
           )
       ),
       SceneFixture(
+        id = "source-lokvenc-czerniak-1952-b6-b5-break-prevention",
+        label = "Lokvenc-Czerniak 1952 exact break-prevention source row",
+        fen = "r1bqr1k1/p4pbp/np1p1np1/2pP4/4P3/2N2N2/PPQ1BPPP/R1B1R1K1 w - - 2 12",
+        phase = "middlegame",
+        ply = 23,
+        scoreCp = 37,
+        pvMoves =
+          List(
+            "e2b5",
+            "a6b4",
+            "c2d1",
+            "c8d7",
+            "b5f1",
+            "b6b5",
+            "a2a3",
+            "b4a6",
+            "c1f4",
+            "d8b6",
+            "h2h3",
+            "c5c4",
+            "e4e5",
+            "d6e5",
+            "f3e5",
+            "d7f5"
+          ),
+        expectedTags = List("source", "break_prevention", "counterplay_axis_suppression"),
+        note = "Copied from Stockfish-backed source review after clean route-clamp neutralize_key_break admission.",
+        playedUci = Some("e2b5")
+      ),
+      SceneFixture(
         id = "source-maderna-palermo-1955-a6-a5-break-prevention",
         label = "Maderna-Palermo 1955 exact break-prevention source row",
         fen = "1rbqr1k1/1p1n1pbp/pn1p2p1/2pP4/P3PP2/2N2B2/1P1N2PP/R1BQR1K1 w - - 5 15",
@@ -1251,6 +1193,32 @@ object AuthoritySurfaceLedger:
         playedUci = Some("d3b5")
       ),
       SceneFixture(
+        id = "source-sliwa-gromek-1960-a6-a5-break-prevention",
+        label = "Sliwa-Gromek 1960 exact break-prevention source row",
+        fen = "1r1r3k/1p1q1pbp/pn1p2p1/2pP4/Pn2PP2/NQ4PP/1P3B2/3RRBK1 w - - 2 28",
+        phase = "middlegame",
+        ply = 55,
+        scoreCp = 34,
+        pvMoves =
+          List(
+            "a4a5",
+            "d7a4",
+            "b3f3",
+            "a4a5",
+            "e4e5",
+            "d6e5",
+            "f4e5",
+            "b4d5",
+            "h3h4",
+            "a5b4",
+            "h4h5",
+            "g6h5"
+          ),
+        expectedTags = List("source", "break_prevention", "counterplay_axis_suppression"),
+        note = "Copied from Stockfish-backed source review after clean route-clamp neutralize_key_break admission.",
+        playedUci = Some("a4a5")
+      ),
+      SceneFixture(
         id = "source-pfleger-maalouf-1961-a6-a5-break-prevention",
         label = "Pfleger-Maalouf 1961 exact break-prevention source row",
         fen = "r2qr1k1/1p3pb1/pn1p1npp/2pP4/P3P3/2NQ1N2/1P1B1PPP/R3R1K1 w - - 0 17",
@@ -1285,6 +1253,28 @@ object AuthoritySurfaceLedger:
         expectedTags = List("source", "break_prevention", "counterplay_axis_suppression"),
         note = "Copied from Stockfish-backed source review after clean route-clamp neutralize_key_break admission.",
         playedUci = Some("a4a5")
+      ),
+      SceneFixture(
+        id = "source-polugaevsky-giorgadze-1956-c5-c4-break-prevention",
+        label = "Polugaevsky-Giorgadze 1956 exact break-prevention source row",
+        fen = "rnbqnrk1/5ppp/pp1p1b2/2pP4/P3P3/2N5/1P1NBPPP/R1BQ1RK1 w - - 0 12",
+        phase = "middlegame",
+        ply = 23,
+        scoreCp = 64,
+        pvMoves =
+          List(
+            "d2c4",
+            "b8d7",
+            "f2f4",
+            "a8b8",
+            "c1e3",
+            "b6b5",
+            "a4b5",
+            "a6b5"
+          ),
+        expectedTags = List("source", "break_prevention", "counterplay_axis_suppression"),
+        note = "Copied from Stockfish-backed source review after clean route-clamp neutralize_key_break admission.",
+        playedUci = Some("d2c4")
       ),
       SceneFixture(
         id = "source-salov-ljubojevic-1992-simplification-window",

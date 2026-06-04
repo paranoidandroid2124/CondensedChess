@@ -56,6 +56,8 @@ private[commentary] object MoveReviewCompressionPolicy:
     "conversion",
     "counterplay"
   )
+  private val PositiveBasicExplanationSources =
+    Set("opening_goal", "certified_strategy_support", "basic_move_explanation")
 
   def systemLanguageBanList: List[String] = LiveNarrativeCompressionCore.systemLanguageBanList
 
@@ -623,11 +625,13 @@ private[commentary] object MoveReviewCompressionPolicy:
       else
         PlanTaxonomy.PlanTheme.Unknown
 
-    val thematicFallbackBlocked = truthContract.exists { contract =>
-      contract.truthClass == DecisiveTruthClass.Blunder ||
-        contract.reasonFamily == DecisiveReasonKind.TacticalRefutation ||
-        contract.failureMode == FailureInterpretationMode.TacticalRefutation
-    }
+    val thematicFallbackBlocked =
+      plannerRuntime.inputs.truthMode == PlayerFacingTruthMode.Tactical ||
+        plannerRuntime.inputs.mainBundle.exists(_.primaryClaim.exists(_.mode == PlayerFacingTruthMode.Tactical)) ||
+        truthContract.exists { contract =>
+          contract.blocksStrategicSupport ||
+            contract.reasonFamily == DecisiveReasonKind.TacticalRefutation
+        }
 
     Option.when(activeTheme != PlanTaxonomy.PlanTheme.Unknown && !thematicFallbackBlocked) {
       val claim = theme_fallback_prose(activeTheme)
@@ -680,44 +684,48 @@ private[commentary] object MoveReviewCompressionPolicy:
       strategyPack: Option[StrategyPack]
   ): Option[MoveReviewPolishSlots] =
     MoveReviewExplanationBuilder.build(ctx, refs, truthContract, strategyPack).flatMap { explanation =>
-      cleanSentence(explanation.prose, ctx).map { claim =>
-        val support =
-          explanation.shortLine.flatMap { line =>
-            val preview = line.san.take(5).map(_.trim).filter(_.nonEmpty).mkString(" ")
-            Option.when(preview.nonEmpty)(s"Short line: $preview.")
-          }
-        val localFactGuardrails =
-          List(
-            Some(s"MoveReview title draft: ${explanation.title}"),
-            Some(s"MoveReview source: ${explanation.source}"),
-            reviewTagValue(explanation, "review_intent").map(intent => s"MoveReview review intent: $intent"),
-            reviewTagValue(explanation, "character_band").map(band => s"MoveReview character band: $band"),
-            reviewTagValue(explanation, "line_proof").map(proof => s"MoveReview line proof: $proof"),
-            reviewTagValue(explanation, "line_subject").map(subject => s"MoveReview PV subject: $subject"),
-            Option.when(explanation.reasonTags.nonEmpty)(s"MoveReview reason tags: ${explanation.reasonTags.mkString(", ")}"),
-            explanation.pvInterpretation.map(interpretation => s"PV line purpose: ${interpretation.linePurpose}"),
-            explanation.pvInterpretation.map(interpretation => s"PV confirms: ${interpretation.confirms.mkString(", ")}"),
-            explanation.pvInterpretation.map(interpretation => s"PV tension: ${interpretation.tension}"),
-            explanation.pvInterpretation.flatMap(_.opponentReplyMeaning).map(meaning => s"PV opponent reply: $meaning"),
-            explanation.pvInterpretation.map(interpretation => s"PV learning point: ${interpretation.learningPoint}")
-          ).flatten
-        MoveReviewPolishSlots(
-          lens = StrategicLens.Decision,
-          claim = prefixMoveHeader(ctx, claim),
-          supportPrimary = support,
-          supportSecondary = None,
-          tension = None,
-          evidenceHook = None,
-          coda = None,
-          factGuardrails = (localFactGuardrails ++ support.toList).distinct,
-          paragraphPlan =
-            if support.nonEmpty then List("p1=claim", "p2=support_chain")
-            else List("p1=claim"),
-          sourceKind = MoveReviewPolishSlots.Source.BasicMoveExplanation,
-          moveReviewExplanation = Some(explanation),
-          factFragments = explanation.factFragments
-        )
-      }
+      if truthContract.exists(_.blocksStrategicSupport) &&
+          PositiveBasicExplanationSources.contains(explanation.source.trim.toLowerCase)
+      then None
+      else
+        cleanSentence(explanation.prose, ctx).map { claim =>
+          val support =
+            explanation.shortLine.flatMap { line =>
+              val preview = line.san.take(5).map(_.trim).filter(_.nonEmpty).mkString(" ")
+              Option.when(preview.nonEmpty)(s"Short line: $preview.")
+            }
+          val localFactGuardrails =
+            List(
+              Some(s"MoveReview title draft: ${explanation.title}"),
+              Some(s"MoveReview source: ${explanation.source}"),
+              reviewTagValue(explanation, "review_intent").map(intent => s"MoveReview review intent: $intent"),
+              reviewTagValue(explanation, "character_band").map(band => s"MoveReview character band: $band"),
+              reviewTagValue(explanation, "line_proof").map(proof => s"MoveReview line proof: $proof"),
+              reviewTagValue(explanation, "line_subject").map(subject => s"MoveReview PV subject: $subject"),
+              Option.when(explanation.reasonTags.nonEmpty)(s"MoveReview reason tags: ${explanation.reasonTags.mkString(", ")}"),
+              explanation.pvInterpretation.map(interpretation => s"PV line purpose: ${interpretation.linePurpose}"),
+              explanation.pvInterpretation.map(interpretation => s"PV confirms: ${interpretation.confirms.mkString(", ")}"),
+              explanation.pvInterpretation.map(interpretation => s"PV tension: ${interpretation.tension}"),
+              explanation.pvInterpretation.flatMap(_.opponentReplyMeaning).map(meaning => s"PV opponent reply: $meaning"),
+              explanation.pvInterpretation.map(interpretation => s"PV learning point: ${interpretation.learningPoint}")
+            ).flatten
+          MoveReviewPolishSlots(
+            lens = StrategicLens.Decision,
+            claim = prefixMoveHeader(ctx, claim),
+            supportPrimary = support,
+            supportSecondary = None,
+            tension = None,
+            evidenceHook = None,
+            coda = None,
+            factGuardrails = (localFactGuardrails ++ support.toList).distinct,
+            paragraphPlan =
+              if support.nonEmpty then List("p1=claim", "p2=support_chain")
+              else List("p1=claim"),
+            sourceKind = MoveReviewPolishSlots.Source.BasicMoveExplanation,
+            moveReviewExplanation = Some(explanation),
+            factFragments = explanation.factFragments
+          )
+        }
     }
 
   private def reviewTagValue(explanation: MoveReviewExplanation, key: String): Option[String] =

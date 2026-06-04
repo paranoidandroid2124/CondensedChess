@@ -34,3 +34,10 @@ private[commentary] object ClaimAuthorityDecision:
 
   def tacticalVetoCodes(codes: List[String]): List[String] =
     codes.filter(TacticalVetoCodes.contains)
+
+  def isTacticalVetoCode(raw: String): Boolean =
+    val code = normalize(raw)
+    TacticalVetoCodes.contains(code) || code.contains("tactical")
+
+  private def normalize(raw: String): String =
+    Option(raw).getOrElse("").trim.toLowerCase

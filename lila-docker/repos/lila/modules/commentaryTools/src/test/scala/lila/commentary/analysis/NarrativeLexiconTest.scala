@@ -198,29 +198,13 @@ class NarrativeLexiconTest extends FunSuite:
     assert(tableSource.contains("MotifPrefixRule"), clue(tableSource))
   }
 
-  test("deferred relation motifs degrade through catalog-safe motif prefixes") {
-    val zwischenzug =
-      NarrativeLexicon.getMotifPrefix(bead = 0, motifs = List("zwischenzug"), ply = 24).getOrElse("")
-    val trapped =
-      NarrativeLexicon.getMotifPrefix(bead = 0, motifs = List("trapped_piece_queen"), ply = 24).getOrElse("")
-    val domination =
-      NarrativeLexicon.getMotifPrefix(bead = 0, motifs = List("domination"), ply = 24).getOrElse("")
-
-    assert(zwischenzug.nonEmpty, clue(zwischenzug))
-    assert(!zwischenzug.toLowerCase.contains("zwischenzug"), clue(zwischenzug))
-    assert(
-      zwischenzug.toLowerCase.contains("move-order") || zwischenzug.toLowerCase.contains("calculation"),
-      clue(zwischenzug)
-    )
-    assert(trapped.nonEmpty, clue(trapped))
-    assert(!trapped.toLowerCase.contains("trapped"), clue(trapped))
-    assert(trapped.toLowerCase.contains("mobility") || trapped.toLowerCase.contains("safe route"), clue(trapped))
-    assert(domination.nonEmpty, clue(domination))
-    assert(!domination.toLowerCase.contains("domination"), clue(domination))
-    assert(domination.toLowerCase.contains("restriction") || domination.toLowerCase.contains("limiting"), clue(domination))
+  test("raw relation motifs stay silent unless backed by relation witnesses") {
+    assertEquals(NarrativeLexicon.getMotifPrefix(bead = 0, motifs = List("zwischenzug"), ply = 24), None)
+    assertEquals(NarrativeLexicon.getMotifPrefix(bead = 0, motifs = List("trapped_piece_queen"), ply = 24), None)
+    assertEquals(NarrativeLexicon.getMotifPrefix(bead = 0, motifs = List("domination"), ply = 24), None)
   }
 
-  test("deferred relation motifs are not generic motif-prefix signals") {
+  test("relation witness-only motifs are not generic motif-prefix signals") {
     assert(!NarrativeLexicon.isMotifPrefixSignal("zwischenzug"))
     assert(!NarrativeLexicon.isMotifPrefixSignal("trapped_piece_queen"))
     assert(!NarrativeLexicon.isMotifPrefixSignal("domination"))
@@ -230,9 +214,12 @@ class NarrativeLexiconTest extends FunSuite:
     assert(NarrativeLexicon.isMotifPrefixSignal("knight_domination"))
   }
 
-  test("diagnostic-only deferred relation motifs do not emit motif prefixes") {
+  test("witness-only raw relation motifs do not emit motif prefixes") {
     assertEquals(NarrativeLexicon.getMotifPrefix(bead = 0, motifs = List("stalemate_trap"), ply = 52), None)
     assertEquals(NarrativeLexicon.getMotifPrefix(bead = 0, motifs = List("perpetual_check"), ply = 52), None)
+    assertEquals(NarrativeLexicon.getMotifPrefix(bead = 0, motifs = List("TrappedPiece(Queen,h4)"), ply = 52), None)
+    assertEquals(NarrativeLexicon.getMotifPrefix(bead = 0, motifs = List("Domination(Knight,e5)"), ply = 52), None)
+    assertEquals(NarrativeLexicon.getMotifPrefix(bead = 0, motifs = List("Zwischenzug(Nf7)"), ply = 52), None)
     assert(NarrativeLexicon.getMotifPrefix(bead = 0, motifs = List("stalemate"), ply = 52).nonEmpty)
   }
 
@@ -271,16 +258,10 @@ class NarrativeLexiconTest extends FunSuite:
     assert(source.contains("RelationObservationCatalog.deferredFallbackForMotifTag(motif).isEmpty"), clue(source))
   }
 
-  test("motif delta prose degrades deferred relation labels through the catalog") {
-    val appears = NarrativeLexicon.getMotifAppearsStatement(bead = 0, motif = "zwischenzug")
-    val fades = NarrativeLexicon.getMotifFadesStatement(bead = 0, motif = "trapped_piece_queen")
-
-    assert(appears.nonEmpty, clue(appears))
-    assert(!appears.toLowerCase.contains("zwischenzug"), clue(appears))
-    assert(appears.toLowerCase.contains("move-order caution"), clue(appears))
-    assert(fades.nonEmpty, clue(fades))
-    assert(!fades.toLowerCase.contains("trapped"), clue(fades))
-    assert(fades.toLowerCase.contains("piece mobility"), clue(fades))
+  test("motif delta prose keeps witness-only relation labels silent") {
+    assertEquals(NarrativeLexicon.getMotifAppearsStatement(bead = 0, motif = "zwischenzug"), "")
+    assertEquals(NarrativeLexicon.getMotifFadesStatement(bead = 0, motif = "trapped_piece_queen"), "")
+    assertEquals(NarrativeLexicon.getMotifAppearsStatement(bead = 0, motif = "domination"), "")
     assertEquals(NarrativeLexicon.getMotifAppearsStatement(bead = 0, motif = "stalemate_trap"), "")
     assertEquals(NarrativeLexicon.getMotifFadesStatement(bead = 0, motif = "perpetual_check"), "")
     assert(NarrativeLexicon.getMotifAppearsStatement(bead = 0, motif = "fork").toLowerCase.contains("fork"))

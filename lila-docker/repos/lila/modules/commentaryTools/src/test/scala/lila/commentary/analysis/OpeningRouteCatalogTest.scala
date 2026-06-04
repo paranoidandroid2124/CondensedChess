@@ -1,6 +1,15 @@
 package lila.commentary.analysis
 
 import munit.FunSuite
+import lila.commentary.{
+  DirectionalTargetReadiness,
+  StrategicIdeaGroup,
+  StrategicIdeaKind,
+  StrategicIdeaReadiness,
+  StrategyDirectionalTarget,
+  StrategyIdeaSignal,
+  StrategyPack
+}
 import lila.commentary.model.*
 import lila.commentary.model.strategic.{ EngineEvidence, PvMove, VariationLine }
 
@@ -245,6 +254,199 @@ class OpeningRouteCatalogTest extends FunSuite:
         clue(routeId)
       )
     }
+  }
+
+  test("direct Queen's Indian and Bogo-Indian Nf6-e4 routes replay from post-Nf6 positions") {
+    val cases =
+      List(
+        "queens_indian_f6_e4" -> "queens_indian",
+        "bogo_indian_f6_e4" -> "bogo_indian"
+      )
+
+    cases.foreach { case (routeId, family) =>
+      val route = OpeningRouteCatalog.default.route(routeId).getOrElse(fail(s"missing $routeId"))
+      val evidence = KnightRouteEvidence.evaluate(BlackKnightF6Fen, Some("f6e4"), List("f6e4"), route)
+
+      assertEquals(
+        route.family -> route.targetSquare -> route.path -> route.targetMode,
+        family -> "e4" -> List("f6", "e4") -> "occupy_target"
+      )
+      assertEquals(evidence.map(_.route.routeId), Some(routeId), clue(route))
+      assertEquals(evidence.exists(OpeningRouteTargetEvidence.checkRouteEvidence), true, clue(evidence))
+    }
+  }
+
+  test("opening route witness family admission follows current opening label") {
+    val queenIndianCtx =
+      baseContext(BlackKnightF6Fen, None).copy(
+        openingData = Some(
+          OpeningReference(
+            eco = Some("E12"),
+            name = Some("Queen's Indian Defense"),
+            totalGames = 100,
+            topMoves = Nil,
+            sampleGames = Nil
+          )
+        )
+      )
+    val bogoEventCtx =
+      baseContext(BlackKnightF6Fen, None).copy(
+        openingEvent = Some(OpeningEvent.Intro("E11", "Bogo-Indian Defense", "e4 outpost", Nil))
+      )
+    val unlabeledCtx = baseContext(BlackKnightF6Fen, None)
+    val queenIndianRoute =
+      OpeningRouteCatalog.default.route("queens_indian_f6_e4").getOrElse(fail("missing Queen's Indian route"))
+    val bogoRoute = OpeningRouteCatalog.default.route("bogo_indian_f6_e4").getOrElse(fail("missing Bogo-Indian route"))
+    val dutchRoute = OpeningRouteCatalog.default.route("dutch_g8_f6_e4").getOrElse(fail("missing Dutch route"))
+
+    assertEquals(PlayerFacingTruthModePolicy.openingRouteFamilyAdmissible(queenIndianCtx, queenIndianRoute), true)
+    assertEquals(PlayerFacingTruthModePolicy.openingRouteFamilyAdmissible(queenIndianCtx, bogoRoute), false)
+    assertEquals(PlayerFacingTruthModePolicy.openingRouteFamilyAdmissible(queenIndianCtx, dutchRoute), false)
+    assertEquals(PlayerFacingTruthModePolicy.openingRouteFamilyAdmissible(bogoEventCtx, bogoRoute), true)
+    assertEquals(PlayerFacingTruthModePolicy.openingRouteFamilyAdmissible(bogoEventCtx, queenIndianRoute), false)
+    assertEquals(PlayerFacingTruthModePolicy.openingRouteFamilyAdmissible(unlabeledCtx, dutchRoute), true)
+  }
+
+  test("main path exact route witness keeps the admitted opening family in proof terms") {
+    val ctx =
+      baseContext(
+        fen = BlackKnightF6Fen,
+        engineEvidence = Some(
+          EngineEvidence(
+            depth = 18,
+            variations = List(
+              VariationLine(
+                moves = List("f6e4", "e1e2"),
+                scoreCp = 32
+              )
+            )
+          )
+        )
+      ).copy(
+        playedMove = Some("f6e4"),
+        playedSan = Some("Ne4"),
+        openingData = Some(
+          OpeningReference(
+            eco = Some("E12"),
+            name = Some("Queen's Indian Defense"),
+            totalGames = 100,
+            topMoves = Nil,
+            sampleGames = Nil
+          )
+        )
+      )
+    val pack =
+      StrategyPack(
+        sideToMove = "black",
+        directionalTargets =
+          List(
+            StrategyDirectionalTarget(
+              targetId = "qid_e4",
+              ownerSide = "black",
+              piece = "knight",
+              from = "f6",
+              targetSquare = "e4",
+              readiness = DirectionalTargetReadiness.Contested,
+              strategicReasons = List("target fixing")
+            )
+          ),
+        strategicIdeas =
+          List(
+            StrategyIdeaSignal(
+              ideaId = "target_fixing_e4",
+              ownerSide = "black",
+              kind = StrategicIdeaKind.TargetFixing,
+              group = StrategicIdeaGroup.StructuralChange,
+              readiness = StrategicIdeaReadiness.Ready,
+              focusSquares = List("e4"),
+              confidence = 0.92,
+              evidenceRefs = List("target_fixing:e4", "enemy_weak_square:e4")
+            )
+          )
+      )
+
+    val delta =
+      PlayerFacingTruthModePolicy
+        .mainPathMoveDeltaEvidence(ctx, StrategyPackSurface.from(Some(pack)), truthContract = None)
+        .getOrElse(fail("expected route-backed exact target fixation delta"))
+    val transitionTerms = delta.packet.proofPathWitness.structureTransitionTerms
+
+    assertEquals(delta.deltaClass, PlayerFacingMoveDeltaClass.PressureIncrease)
+    assertEquals(delta.packet.proofSource, PlayerFacingTruthModePolicy.ExactTargetFixationProofSource)
+    assert(transitionTerms.contains("opening_family:queens_indian"), clue(transitionTerms))
+    assert(!transitionTerms.exists(_.contains("opening_family:bogo_indian")), clue(transitionTerms))
+    assert(!transitionTerms.exists(_.contains("opening_family:dutch")), clue(transitionTerms))
+  }
+
+  test("main path exact route witness accepts certified bishop fianchetto routes") {
+    val ctx =
+      baseContext(
+        fen = WhiteBishopF1Fen,
+        engineEvidence = Some(
+          EngineEvidence(
+            depth = 18,
+            variations = List(
+              VariationLine(
+                moves = List("f1g2", "e8e7"),
+                scoreCp = 24
+              )
+            )
+          )
+        )
+      ).copy(
+        playedMove = Some("f1g2"),
+        playedSan = Some("Bg2"),
+        openingData = Some(
+          OpeningReference(
+            eco = Some("E01"),
+            name = Some("Catalan Opening"),
+            totalGames = 100,
+            topMoves = Nil,
+            sampleGames = Nil
+          )
+        )
+      )
+    val pack =
+      StrategyPack(
+        sideToMove = "white",
+        directionalTargets =
+          List(
+            StrategyDirectionalTarget(
+              targetId = "catalan_g2",
+              ownerSide = "white",
+              piece = "bishop",
+              from = "f1",
+              targetSquare = "g2",
+              readiness = DirectionalTargetReadiness.Contested,
+              strategicReasons = List("target fixing")
+            )
+          ),
+        strategicIdeas =
+          List(
+            StrategyIdeaSignal(
+              ideaId = "target_fixing_g2",
+              ownerSide = "white",
+              kind = StrategicIdeaKind.TargetFixing,
+              group = StrategicIdeaGroup.StructuralChange,
+              readiness = StrategicIdeaReadiness.Ready,
+              focusSquares = List("g2"),
+              confidence = 0.92,
+              evidenceRefs = List("target_fixing:g2", "weak_complex:g2")
+            )
+          )
+      )
+
+    val delta =
+      PlayerFacingTruthModePolicy
+        .mainPathMoveDeltaEvidence(ctx, StrategyPackSurface.from(Some(pack)), truthContract = None)
+        .getOrElse(fail("expected bishop route-backed exact target fixation delta"))
+    val transitionTerms = delta.packet.proofPathWitness.structureTransitionTerms
+
+    assertEquals(delta.deltaClass, PlayerFacingMoveDeltaClass.PressureIncrease)
+    assertEquals(delta.packet.proofSource, PlayerFacingTruthModePolicy.ExactTargetFixationProofSource)
+    assert(transitionTerms.contains("opening_family:catalan"), clue(transitionTerms))
+    assert(transitionTerms.contains("bishop_route:f1-g2"), clue(transitionTerms))
+    assert(!transitionTerms.exists(_.contains("opening_family:english")), clue(transitionTerms))
   }
 
   test("piece route evidence supports bishop fianchetto and rook-lift descriptors") {

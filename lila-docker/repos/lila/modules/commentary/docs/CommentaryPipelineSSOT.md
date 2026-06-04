@@ -176,9 +176,17 @@ The maintained path is:
      later non-opening phases need an opening phase or explicit opening event.
      Opening goals do not replace `OpeningFamilyClaimResolver`, create a new
      opening-family carrier, or certify target/owner truth. The c/f-pawn
-     opening-break prose entries do
-     not expand `CentralBreakTimingWitness` or product `central_break`
-     authority.
+     opening-break entries do not expand `CentralBreakTimingWitness` or product
+     `central_break` authority, but achieved or partial board-pattern opening
+     break goals may later surface as lower-authority `Opening break`
+     `PracticalPlan` rows only when the reviewed pawn move legally replays,
+     matches the selected `OpeningGoals` trigger, and the top PV legally starts
+     with that same move. The Dutch, Queen's Indian,
+     and Bogo-Indian e4 outpost goals may surface only as a separate
+     lower-authority `Opening outpost` row after the
+     post-move board-pattern goal is achieved and the reviewed move legally
+     replays as a knight move to the exact outpost square named by the goal
+     evidence, with the legal top PV starting from that same reviewed move.
 10. `QuestionFirstCommentaryPlanner` selects and ranks questions. It does not
    own low-level proof/source/scope/fallback authority. Prevented-plan
    break/timing surfaces are admitted only through the shared
@@ -187,7 +195,14 @@ The maintained path is:
    windows remain support material. Single-line planner evidence strips any
    existing `Line:`/branch label before adding the canonical branch label, and
    probe-request reminder prose is not promoted into branch-scoped line
-   evidence.
+   evidence. Tactical-failure scene ownership consumes the same
+   `DecisiveTruthContract.blocksStrategicSupport` boundary used by player
+   support vetoes, so a tactical-failure `failureMode` cannot be outranked by
+   quiet intent, opening, endgame, or strategic-plan translators. The fresh
+   MoveReview compression basic-explanation lane also consumes this boundary:
+   positive `opening_goal`, `certified_strategy_support`, and
+   `basic_move_explanation` sources are rejected when strategic support is
+   blocked, leaving tactical or exact factual fallback to own the prose.
 11. `NarrativeOutlineBuilder` assembles beats from admitted inputs.
 12. `analysis.render.FragmentAuthority` decides fragment release safety for
     render-only, support-only, unsafe truth, unsafe lesson, and anchor-required
@@ -198,7 +213,12 @@ The maintained path is:
     explanation, the strategic ledger, refs, authoring summaries, and
     internally projected supported-local rows. It does not consume raw
     `strategyPack`, raw `signalDigest`, or outbound `probeRequests` as product
-    authority. `MoveReviewSupportedLocalSurfaceRows` may add a
+    authority. During fresh API construction it receives the same
+    `DecisiveTruthContract` used by the prose pipeline; when that contract is a
+    blunder, missed win, bad tactical refutation, or tactical failure mode
+    (`blocksStrategicSupport`), the builder suppresses strategic/practical
+    support rows rather than pairing a failure explanation with plan-positive
+    support. `MoveReviewSupportedLocalSurfaceRows` may add a
     `Counterplay break` summary row only when `ClaimAuthorityResolver` admits a
     `neutralize_key_break` / `counterplay_axis_suppression` timing plan or
     main-path packet claim as `SupportedLocal` with no tactical veto and an
@@ -222,8 +242,11 @@ The maintained path is:
     strips public `source`, does not expose raw proof metadata, and carries
     public `authority.kind = "counterplay_break"` plus canonical
     `authority.token` on the `chesstory.move_review.player_surface.v2` row.
-    It is not a
-    `CertifiedOwner` expansion. The builder may also project an `Opening family`
+    It is not a `CertifiedOwner` expansion. When multiple exact/supported-local
+    candidates independently pass their authority gates, the supported-local
+    projector may return at most two distinct player summary rows; practical
+    fallback rows still appear only when no exact/supported-local row survives.
+    The builder may also project an `Opening family`
     summary row through the same product surface when `ctx.openingData` or an
     opening intro supplies a structured opening name,
     `OpeningFamilyCatalog.familiesForOpening` maps it to a catalog family, and
@@ -288,8 +311,18 @@ The maintained path is:
     reuse `CentralBreakTimingWitness.exact` rather than duplicating
     central-break authority; replayed central pawn advances without that witness
     are described only as observed local pawn transitions. Sicilian c-pawn and
-    King's Gambit f-pawn opening breaks remain OpeningGoals prose support, not
-    exact `central_break_timing` witnesses.
+    King's Gambit f-pawn opening breaks remain `OpeningGoals` support, not exact
+    `central_break_timing` witnesses; when the post-move board-pattern
+    evaluation is achieved or partial, tactical truth does not veto support,
+    the selected `OpeningGoals` trigger matches the reviewed pawn move, and the
+    top PV legally starts with that move,
+    `MoveReviewSupportedLocalSurfaceRows` may expose them as an `Opening break`
+    row with `authority.kind = "practical_plan"` and no token. The same
+    lower-authority fallback may expose the bounded Dutch/Queen's Indian/
+    Bogo-Indian `...Ne4` goal as an `Opening outpost` row only when the
+    achieved goal evidence names the outpost square and the reviewed UCI move
+    legally replays as a knight landing on that square, with the legal top PV
+    starting from that same reviewed move.
     `MoveReviewPlayerPayloadBuilder.decisionComparisonSurface` is the sole gate
     for `moveReviewPlayerSurface.decisionComparison`: it consumes sanitized
     `DecisionComparisonDigest` plus a surface-candidate line consequence, applies
@@ -299,8 +332,9 @@ The maintained path is:
     strip is admitted, the builder may attach bounded `targetComparison`
     metadata for the engine-best line versus the reviewed/chosen line. That
     metadata is computed from `WeaknessTargetProfile` at the line endpoint
-    (`resultingFen` when supplied, otherwise short legal UCI replay) and does
-    not create plan promotion or proof authority. Backend sanitization and the
+    (`resultingFen` when supplied, otherwise short legal UCI replay), but only
+    when the engine-best branch has a non-empty move head distinct from the
+    reviewed move, and does not create plan promotion or proof authority. Backend sanitization and the
     frontend decoder both require legal square tokens and
     authority-key-shaped target kinds; malformed comparison metadata is dropped
     instead of reconstructing a fallback comparison. The analyse frontend may
@@ -319,9 +353,11 @@ The maintained path is:
     thematic fallback (`theme_fallback` / `thematicFallbackSlots` mapped via
     active plan themes) generates short move-facing theme summaries instead of
     raw move descriptions or repeated `The strategic plan is...` boilerplate.
-    However, if the truth contract indicates a blunder or tactical refutation,
-    thematic fallback is disabled (fail-closed) to ensure fallback to exact
-    factual/default move descriptions.
+    However, if the truth contract indicates a blunder, missed win, or tactical
+    refutation, thematic fallback is disabled (fail-closed) to ensure fallback
+    to exact factual/default move descriptions. Fresh MoveReview early-opening
+    prose clamping consumes the same truth contract so critical/tactical escape
+    hatches are not lost when intro-only opening prose is compacted.
     Slot polish prompts preserve concrete slot facts, SAN tokens, move numbers,
     and square anchors, but they do not require the first clause to be copied
     verbatim; repair prompts follow the same fact-preserving/paraphrase-allowed
@@ -361,6 +397,9 @@ The maintained path is:
     sanctioned ledger line sources (`probe`, `decision_compare`, `variation`,
     `authoring`) with non-empty SAN moves before projecting them to
     `moveReviewPlayerSurface.probeRows`; malformed ledger lines are ignored.
+    Bad tactical truth-contract surfaces suppress plan/strategy/relation support
+    rows; factual explanation, refs, decision comparison, ledger, and authoring
+    rows keep their own certification gates.
     During fresh MoveReview construction, the builder may also project the
     current backend-built `moveReviewExplanation.shortLine` plus its bounded
     `pvInterpretation.learningPoint` into an authority-free `Checked line`
@@ -489,22 +528,31 @@ planner, truth-mode, quiet-intent, outline, and surface builders consume that
 typed view. `StrategicPlanExperiment.evidenceTier` and
 `probe_backed:validated_support` remain compatibility/reporting carriers only.
 `UserFacingPayloadSanitizer` does not promote plans from that marker. The
-fresh MoveReview API path passes `contextBuild.selectedMainEvaluatedPlans` into
-the sanitizer, and only matching main-admitted evaluated plans can retain
-`mainStrategicPlans` and matching `strategicPlanExperiments`: `ProbeBacked`
+fresh MoveReview API path passes the full `ctx.strategicPlanEvidence.evaluatedPlans`
+read-model into `MoveReviewPlayerPayloadBuilder` so bounded practical rows can
+see `StructuralOnly` and `PvCoupledOnly` plans, while plan retention still uses
+`contextBuild.selectedMainEvaluatedPlans` as the sanitizer admission input. Only
+matching main-admitted evaluated plans can retain `mainStrategicPlans` and
+matching `strategicPlanExperiments`: `ProbeBacked`
 requires non-empty support probe ids, while `TranspositionAligned` requires
 non-empty transposition proof ids plus `transposition_aligned` provenance.
 The same `PlanEvidenceEvaluator.isMainAdmittedPlan` predicate is used by the
 typed read-model and downstream payload/sanitizer sanity checks, so a proof id
 or compatibility marker without matching typed provenance still fails closed.
+Outline strategic-stack context sentences consume the typed
+`mainAdmittedPlanHypotheses` projection, so a `TranspositionAligned` selected
+main plan is not hidden behind probe-only support helpers.
 Cached/default sanitize paths and legacy Chronicle moments do not have this
 typed admission input and fail closed for strategic plan payload metadata.
 `TranspositionAligned` is produced only by `TranspositionPvAligner`, which
 legally replays a PV line from the current FEN, requires a supplied endpoint or
 at least five UCI plies, recomputes `WeaknessTargetProfile` at the terminal
 position, binds only expected weakness-target squares from the plan evidence
-sources when the source is an exact `target:<square>` or
-`weakness_target:<square>` token, requires attacker-minus-defender control to
+sources when the source is an exact `target:<square>`,
+`weakness_target:<square>`, `fixed_target:<square>`, or
+`coordinated_target:<square>` token, or a route/weak-complex exact square token
+such as `target_fixing:<square>`, `enemy_weak_square:<square>`, or
+`weak_complex:<square>`, requires attacker-minus-defender control to
 be positive, and vetoes
 lines with mate against the mover or mover loss above the alignment threshold.
 It can select a main plan, but it does not unlock exact proof contracts,
@@ -520,19 +568,46 @@ are surface guidance only and do not create plan promotion. Practical advanced
 rows are suppressed when a promoted plan already covers the same top-level
 theme or at least 70% of the practical plan's execution steps, so sibling plans
 do not repeat the same guidance under a softer label.
-Weakness-fixation practical plans may also add a `Practical target` advanced
-row. The target comes from `analysis.structure.WeaknessTargetProfile`, a
-canonical board-backed profile that reuses `PositionAnalyzer` pawn primitives
-for backward, isolated, IQP, doubled, and fixed pawn targets. This row is still
-bounded practical guidance with `practical_plan` authority; it does not expose
-`authority.target` and does not promote the plan. If the current best engine
-line is available and legal replay or a supplied `resultingFen` shows that the
-target is immediately liquidated by the defending side, the `Practical target`
-row is suppressed. Capturing the target by the pressure side is treated as a
-resolved target, not as a ghost-target veto. Same-square persistence is trusted
-only when the best line supplies a `resultingFen` or at least five UCI plies;
-shorter persistent lines are treated as too shallow for target-persistence
-display.
+Weakness-fixation practical plans, and bounded practical plans carrying an
+exact square target hint, may also add a `Practical target` advanced row. The
+target comes from `analysis.structure.WeaknessTargetProfile`, a canonical
+board-backed profile that reuses `PositionAnalyzer` pawn primitives for
+backward, isolated, IQP, doubled, and fixed pawn targets. If the plan carries
+`weakness_target:<square>`, `fixed_target:<square>`,
+`coordinated_target:<square>`, exact `target:<square>`, `target_fixing:<square>`,
+`enemy_weak_square:<square>`, or `weak_complex:<square>` evidence, the row may
+use only that square after it is present in either the current board profile or
+the checked best-line endpoint profile. Role targets such as `target:e5:queen`
+are not weakness-target hints. Untargeted weakness-fixation practical plans may
+use only the current profile fallback. This row is still bounded practical
+guidance with `practical_plan` authority; it does not expose `authority.target`
+and does not promote the plan. The row now requires a non-empty best-line
+continuation whose outcome comes from legal replay or a supplied `resultingFen`;
+FEN-only target presence is not enough to publish the row. New endpoint-only
+targets require an exact square target hint plus a trusted endpoint or at least
+five legal UCI plies. If the best-line
+outcome shows that the target is immediately liquidated by the defending side,
+the `Practical target` row is suppressed. Capturing the target by the pressure
+side is treated as a resolved target, not as a ghost-target veto. Same-square
+persistence is trusted only when the best line supplies a `resultingFen` or at
+least five UCI plies; shorter persistent lines are treated as too shallow for
+target-persistence display.
+Resolved compensation surfaces may also contribute bounded `Compensation`
+advanced rows. `MoveReviewPlayerPayloadBuilder` consumes the existing
+`StrategyPackSurface` and `CompensationDisplayPhrasing` boundary only after the
+surface has a strict resolved compensation subtype, a non-fallback compensation
+display contract, a durable-pressure strict subtype, invested material or
+equivalent compensation position, and the strong-anchor narration eligibility
+check. If a `DecisiveTruthContract` is present and
+`compensationProseAllowed=false`, this row gate remains closed even if a raw
+strategy pack still carries a resolved compensation surface. The row uses
+`authority.kind = "practical_plan"` and exposes at most two player-facing
+sentences: the material-investment reason and the durable pressure anchor. The
+second row prefers the resolved persistence wording over the broader objective
+fallback so the bounded public support states what must actually remain.
+Generic initiative shells, unresolved subtype paths, transition-only conversion
+stories, non-durable tactical windows, and unanchored compensation prose produce
+no player-surface compensation row.
 Cache hits use `sanitizeCachedMoveReview`: a previously sanitized MoveReview
 response may preserve its retained plans, matching experiments, continuity
 token, and ledger only when it already has `moveReviewPlayerSurface` and its
@@ -550,73 +625,226 @@ row. They may appear only as lower-authority `Central liquidation` or
 reviewed move and tactical truth does not veto support. Otherwise typed
 probe-backed support remains a generic plan-advance signal.
 
+Counterplay-restraint packets have a narrow MoveReview surface consumer.
+`MoveReviewSupportedLocalSurfaceRows` may project `prophylactic_move` /
+`counterplay_restraint` packets as a bounded `Counterplay restraint` summary
+row only after `ClaimAuthorityResolver.supportedLocalMoveDeltaPacketDecision`
+admits the packet and the typed
+`PlayerFacingExactSliceProof.ProphylacticRestraint` matches the packet
+source/family and the same named resource token is mirrored in packet witness
+terms. The row repeats only the named prevented resource, such as a square token
+or `denied_resource:<class>`, and arbitrary prophylaxis prose cannot be parsed
+into proof.
+
+Named route-network bind has a typed MoveReview surface consumer, not a broad
+heavy-piece/local-bind release. `QuestionPlannerInputsBuilder` may carry
+`RouteNetworkBindProof.SurfaceNetwork` from the certified route-network proof,
+and `MoveReviewSupportedLocalSurfaceRows` may project it as one bounded
+`Route denial` summary row only after
+`ClaimAuthorityResolver.namedRouteNetworkSurfaceDecision` admits it. The public
+row is limited to the simple file, entry-square, and reroute-square triple.
+Route-chain surfaces with an intermediate square stay backend-only, and
+heavy-piece/local-bind blocks or tactical truth modes suppress the row.
+
+Dual-axis bind has a typed MoveReview surface consumer, not a broad
+local-bind/global-squeeze release. `NarrativeContextBuilder` preserves the
+highest-confidence certified `TwoAxisBindProof.Contract` from the existing
+plan-experiment certification pass, and `QuestionPlannerInputsBuilder` carries
+that contract as `dualAxisBindSurface`. `MoveReviewSupportedLocalSurfaceRows`
+may project one bounded `Break and entry` row only after
+`ClaimAuthorityResolver.dualAxisBindSurfaceDecision` admits a certified
+`dual_axis_local` / `break_plus_entry` contract with `bounded_dual_axis_only`,
+an explicit break axis, an explicit independent entry axis, no
+heavy-piece/local-bind block, and no tactical veto. The public row may name only
+those two axes; it does not claim global no-counterplay or whole-position bind
+authority.
+
+Restricted-defense conversion has a typed MoveReview surface consumer for
+technical conversion support, not a general winning-plan proof.
+`NarrativeContextBuilder` preserves the highest-confidence certified
+`RestrictedDefenseConversionProof.Contract` from the existing plan-experiment
+certification pass, and `QuestionPlannerInputsBuilder` carries that contract as
+`restrictedDefenseConversionSurface`. `MoveReviewSupportedLocalSurfaceRows` may
+project one bounded `Technical conversion` row only after
+`ClaimAuthorityResolver.restrictedDefenseConversionSurfaceDecision` admits a
+certified contract with a direct best defense, same-branch persistence,
+compressed defender resources, continuing counterplay suppression, and no
+tactical veto. The row may name only the checked best-defense reply when it can
+be legally rendered from the reviewed move; otherwise it stays generic.
+
+IQP inducement has a lower-authority MoveReview surface consumer. The producer
+may create an `iqp_inducement_probe` / `iqp_inducement` packet only when legal
+FEN/PV replay shows that the reviewed move or checked prefix creates a new
+opponent isolated central pawn, and the packet carries the structure-transition
+terms such as `after_isolated:<square>` or `isolated_pawn:<square>`.
+`MoveReviewSupportedLocalSurfaceRows` may project that admitted packet as one
+bounded `IQP target` summary row through
+`ClaimAuthorityResolver.supportedLocalMoveDeltaPacketDecision`. Generic IQP
+labels, source names, or target-square text without the induced-pawn transition
+term do not create the row.
+
+Bounded simplification-window support uses the same move-delta authority path.
+A `simplification_window` packet may reach the public `Simplification` row only
+after the existing proof contract has owner seed, continuation, proven branch,
+stable persistence, structure transition, and no rival/tactical release risk.
+`MoveReviewSupportedLocalSurfaceRows` additionally requires an
+`exchange_square:<square>` witness term from the checked continuation before it
+can name the exchange. Broad favorable-exchange prose, a naked square anchor,
+or a conversion label such as "same local edge" does not create the row.
+
 Move-local favorable-exchange sources follow the same split between proof and
 commentary. `defender_trade` and `bad_piece_liquidation` witnesses in
 `PlayerFacingTruthModePolicy` are built through `MoveReviewExchangeAnalyzer`,
 which performs bounded legal FEN/PV replay instead of UCI substring slicing.
+`MoveReviewSupportedLocalSurfaceRows` may project admitted exchange ownership
+packets as bounded `Defender trade`, `Bad piece trade`, or `Queen trade`
+summary rows only after `ClaimAuthorityResolver.supportedLocalMoveDeltaPacketDecision`
+accepts the packet. Defender-trade and bad-piece rows require the existing
+board-replayed structure-transition contract, proven same-branch state, stable
+persistence, plus the analyzer branch fact terms
+(`defender_trade_branch` with defender/exchange/target terms, or
+`bad_piece_liquidation_branch` with bad-piece/exchange terms); queen-trade rows
+require the typed `PlayerFacingExactSliceProof.QueenTradeShield` to match the
+packet source/family and mirror every typed line move in packet witness terms.
+When `PlayerFacingTruthModePolicy` builds defender-trade or bad-piece owner
+packets from the typed analyzer branch, it also attaches
+`PlayerFacingExactSliceProof.DefenderTrade` or
+`PlayerFacingExactSliceProof.BadPieceLiquidation`; the row builder validates
+that exact proof against packet source/family and witness terms before using
+its squares. Legacy branch-term packets without an exact proof still use the
+same square-shaped branch fact gate.
+Defender/bad-piece row text repeats only those parsed square terms: the
+exchange square plus defender/target square or bad-piece square. Malformed
+square-prefixed terms fail closed rather than degrading to generic branch prose.
+These rows repeat only the local branch/queenless-branch fact and do not turn
+generic favorable-exchange labels into owner proof.
 The same analyzer now exposes a shared `RelationWitness` read-model for
 move-local attack/defense relations. Defender-trade, bad-piece-liquidation,
 overload, deflection, discovered-attack, double-check, back-rank mate,
-mate-net, Greek gift, fork, hanging-piece, x-ray, clearance, battery, pin,
-skewer, interference, and decoy observations enter as selector/support evidence
-from the same bounded replay boundary and the same catalog-driven relation
-producer. `RelationObservationCatalog`
+mate-net, Greek gift, fork, hanging-piece, trapped-piece, domination,
+zwischenzug, x-ray, clearance, battery, pin,
+skewer, interference, decoy, PV-backed stalemate-trap, and PV-backed
+perpetual-check observations enter as selector/support evidence from the same
+catalog-driven relation producer. Standard relation witnesses use the six-ply
+legal top-PV replay prefix; PV-backed draw-resource witnesses
+(`stalemate_trap` and `perpetual_check`) use a separate twelve-ply legal top-PV
+prefix while still calling the same analyzer-owned witness functions. The same
+draw-resource replay exception may also consume validated root `ProbeResult`
+reply PVs, but only when the probe result is contract-valid, its FEN matches the
+current root FEN, and its probed/candidate move matches the reviewed played move.
+`RelationObservationCatalog`
 maps implemented relation witness kinds to semantic observation ids, typed
 selector sources, strategic idea kind/readiness, confidence, and beneficiary
-metadata. The relation-kind inventory now keeps a non-runtime deferred list for
-motif families that exist in adjacent model or detector assets but do not yet
-have a board-replayed relation witness:
-`zwischenzug`, `domination`, `trapped_piece`, `stalemate_trap`, and
-`perpetual_check`. Each deferred catalog entry records the required
-board-replayed witness shape, defer reason, and fallback lane, and projects a
-catalog-owned `DeferredRelationFallback` read-model for downstream prose
-consumers. The fallback projection is lower-authority guidance only:
-`zwischenzug` and `trapped_piece` may degrade to practical guidance,
-`domination` may degrade to thematic fallback, and
-`stalemate_trap`/`perpetual_check` remain diagnostic-only because draw-resource
-claims are tactical truth claims. Deferred entries do not carry source,
-semantic, readiness, confidence, or public relation-surface metadata. Deferred
-kinds are not produced by the relation producer and are not public relation
-tokens; they remain outside `strategic_relation` until a board-replayed witness
-is implemented and cataloged. The catalog exposes a single inventory view for
+metadata. MoveReview relation support rows also take their public row label and
+bounded wording from this catalog context: draw-resource, move-order,
+restriction, line-geometry, and tactical-motif rows are phrased differently but
+all remain display metadata over the same analyzer witness. The MoveReview
+advanced row cap still bounds relation display, but strict witness-only board
+relations (`trapped_piece`, `domination`, and `zwischenzug`) sort ahead of
+generic relation rows once admitted, while draw-resource relations keep the
+highest relation priority. The relation-kind inventory still exposes a deferred list for
+non-public relation-shaped motif families, but that list is currently empty.
+Motif vocabulary in adjacent model or detector assets does not become public
+until it receives a board-replayed relation witness, semantic id, source id, and
+implemented catalog descriptor. The catalog exposes a single inventory view for
 implemented plus deferred kinds, while runtime descriptor lookup and evidence
 admission continue to resolve only implemented kinds. The intermediate
 `StrategicIdeaEvidence` carrier follows the same boundary: relation identity and
 relation focus are retained only when the kind is implemented in
-`RelationObservationCatalog`; deferred or unknown kinds are reduced to ordinary
-non-relation evidence before selector merge.
+`RelationObservationCatalog`; unknown or uncataloged kinds are reduced to
+ordinary non-relation evidence before selector merge.
+`trapped_piece` is implemented through an analyzer-owned board witness: the
+first replayed move must match the reviewed move, the moved attacker must attack
+an explicit bound target, the explicit target set must be valid and non-empty,
+the target must be a higher-value enemy non-pawn/non-king piece, and that target
+must have no legal escape square that preserves the piece outside attack by the
+pressure side. If the same reviewed move would otherwise produce `hanging_piece`,
+the exact trapped-piece witness wins. Generic `PieceActivity.isTrapped`, raw
+motif text, helper notation, and source-shaped strings do not mint this
+relation.
+The analyzer projection boundary requires typed `RelationDetails` for
+`trapped_piece`, `domination`, `zwischenzug`, `stalemate_trap`, and
+`perpetual_check`; a raw `RelationWitness` with only focus/fact strings fails
+closed before semantic observation or player-surface relation rows.
+`domination` is implemented through the same analyzer-owned board boundary, but
+only for same/lower-value explicit targets that are not better handled by the
+trapped-piece witness and are not ray pin/skewer geometry. The reviewed move
+must legally replay, the moved attacker must attack the explicit valid target,
+all target pseudo-escape squares must be controlled by the pressure side, and
+the target must have no legal safe escape from the post-move position.
+`MoveAnalyzer` domination motifs, generic restriction prose, helper notation,
+and source-shaped strings do not mint this relation.
+The supported-local public rows for these exact-board motifs are `Trapped
+piece`, `Domination`, and `Zwischenzug`. Generic advanced relation metadata may
+still categorize the same motifs as mobility-restriction or move-order relation
+evidence, but when the supported-local row is present the player-surface builder
+and backend sanitizer suppress the duplicate `strategic_relation` advanced row
+for that same relation kind. This is a display/category projection of the
+existing cataloged relation witnesses, not a separate mobility-cage or
+move-order proof family.
+`zwischenzug` is implemented through a narrow analyzer-owned board witness: the
+reviewed move must be the first legal replayed move, explicit targets must parse
+to a non-empty bound target set, the side to move must have had a legal non-pawn
+capture on the expected recapture square before the reviewed move, the reviewed
+move must not be that recapture, and the moved piece must give direct check.
+This intentionally does not promote all existing `MoveAnalyzer.detectZwischenzug`
+motifs; fork-only and winning-capture intermediate moves remain outside the
+public relation until they receive a similarly bounded witness.
+`stalemate_trap` is implemented only through the PV-backed draw-resource witness:
+the first replayed move must match the played move, the bounded legal replay must
+end in an actual stalemate position, and the engine score must stay within the
+draw-stable centipawn band with no mate score. The semantic producer may inspect
+up to twelve legal top-PV plies, or the same bound from validated root probe
+reply PVs, for this draw-resource witness; other standard relation witnesses
+keep the six-ply relation replay window. Board shape, detector tags, raw
+motif text, or helper notation alone do not mint this relation.
+`perpetual_check` follows the same draw-resource boundary: the first replayed
+move must match the played checking move, the bounded legal replay must show at
+least three checks by the same side, a repetition-compatible position key must
+return inside the line, and the engine score must stay within the draw-stable
+centipawn band with no mate score. The same twelve-ply draw-resource top-PV or
+validated root probe-PV prefix is the only deeper public relation replay
+exception here. Heavy-piece check density, detector tags, raw
+motif text, or helper notation alone do not mint this relation.
 `NarrativeMotifPrefixTable`, `NarrativeOutlineBuilder` theme-keyword and
 canonical motif-term prose, and `NarrativeLexicon` motif appears/fades delta
-sentences consume that deferred fallback projection:
-practical/thematic lanes may emit softer non-relation wording, while
-diagnostic-only deferred motifs emit no motif prefix, theme keyword, or
-canonical/delta term. This keeps deferred motif names from bypassing the
-relation catalog through legacy motif text.
-Legacy `PlanMatcher` evidence that receives a deferred domination motif also
-uses the catalog fallback label rather than emitting `domination` as a plan
+sentences consume the relation catalog boundary:
+deferred practical/thematic lanes may emit softer non-relation wording when
+present, while witness-only raw relation tags such as `trapped_piece`,
+`domination`, `zwischenzug`, `stalemate_trap`, and `perpetual_check` emit no
+motif prefix, theme keyword, or canonical/delta term. This keeps deferred motif
+names and witness-only raw relation tags from
+bypassing the relation catalog through legacy motif text.
+Legacy `PlanMatcher` evidence that receives a raw domination motif still falls
+back to `key-square restriction` rather than emitting `domination` as a plan
 evidence term.
-`UserFacingSignalSanitizer` routes deferred relation helper notation through
-the same catalog fallback text: `Domination(...)`, `TrappedPiece(...)`, and
-`Zwischenzug(...)` become softer non-relation wording, while diagnostic-only
-`StalemateTrap(...)` and `PerpetualCheck(...)` are suppressed.
+`UserFacingSignalSanitizer` routes leaked helper notation through bounded
+fallback text: `Zwischenzug(...)` becomes softer `move-order caution` wording,
+legacy `Domination(...)` and `TrappedPiece(...)` helper notation is rewritten to
+practical restriction or piece-mobility wording without relation authority,
+while PV-only `StalemateTrap(...)` and `PerpetualCheck(...)` are suppressed.
 `NarrativeContextBuilder` also maps threat-summary motif labels through the
-deferred relation catalog, so a `ThreatAnalysis` motif such as `Domination`
+relation fallback catalog, so a `ThreatAnalysis` motif such as `Domination`
 cannot become a raw key-threat label.
-`StrategyPackBuilder` and `StructurePlanArcBuilder` use the same catalog-owned
-fallback evidence term for trapped-piece activity, so sanitized strategy-pack
-evidence does not expose raw `trapped_piece` relation labels before a
-board-replayed trapped-piece witness exists. The final user-facing sanitizer
-also strips deferred relation motif terms from cached or legacy strategy-pack
-evidence lists while preserving the catalog fallback evidence term.
-Deferred relation motif tags also do not promote the context beat into the
-high-tension tactical opening tone; tactical tone still requires non-deferred
-motifs or actual threat evidence.
-`NarrativeLexicon.isMotifPrefixSignal` also checks the deferred relation catalog
-before accepting a motif as a generic prefix signal, so new motif-prefix
-consumers do not re-admit deferred relation names by accident.
+`StrategyPackBuilder` and `StructurePlanArcBuilder` no longer convert generic
+trapped-piece activity into a catalog fallback evidence term; only the
+board-replayed relation witness can emit `trapped_piece` relation metadata. The
+final user-facing sanitizer strips deferred relation motif terms and
+witness-only raw relation tags from cached or legacy strategy-pack evidence
+lists while preserving softer fallback evidence terms.
+Deferred relation motif tags and witness-only raw relation tags also do not
+promote the context beat into the high-tension tactical opening tone; tactical
+tone still requires an implemented relation witness, non-deferred motif, or
+actual threat evidence.
+`NarrativeLexicon.isMotifPrefixSignal` also checks the relation witness-only and
+deferred catalog boundary before accepting a motif as a generic prefix signal,
+so new motif-prefix consumers do not re-admit raw relation names by accident.
+The witness-only marker and any short threat-summary fallback label are owned by
+the implemented `RelationObservationCatalog` descriptor, not by a separate
+hard-coded mini-catalog.
 `CommentaryIdeaSurface.motifCorroboratedByFact` follows the same rule: ordinary
 facts may corroborate implemented or generic motif families, but they do not
-turn a deferred relation tag such as `trapped_piece` into board-proofed motif
+turn a witness-only raw relation tag such as `trapped_piece` into board-proofed motif
 support.
 Unknown relation witnesses do not use a generic
 selector fallback; they fail closed before semantic observation emission.
@@ -634,14 +862,16 @@ Semantic relation observations must consume the analyzer-owned
 target, and support fact terms after the typed-detail boundary has run. This
 keeps semantic producers from separately reading stale raw witness focus,
 target, or fact fields.
-If a witness carries non-empty typed details that do not match its relation
-kind, the semantic producer rejects the witness instead of falling back to raw
-focus, target, or fact strings.
+Every implemented relation witness must carry typed details before it can
+project semantic observation or MoveReview support. If a witness omits typed
+details, or carries typed details that do not match its relation kind, the
+semantic producer rejects the witness instead of falling back to raw focus,
+target, or fact strings.
 Semantic relation fact terms and owner/transition terms are likewise
 canonicalized through the same analyzer-owned relation projection. Raw witness
-facts are only fallback data for relation witnesses that do not yet carry typed
-details, and invalid typed-detail mismatches do not emit branch, owner-seed, or
-transition terms.
+fields remain diagnostic/source material on the witness object, but they are no
+longer a projection fallback for implemented relation kinds, and invalid or
+missing typed details do not emit branch, owner-seed, or transition terms.
 Analyzer-owned owner seed expansion uses the same relation projection, so
 defender/bad-piece owner packets do not reintroduce stale raw witness focus or
 fact fields while deriving owner terms.
@@ -804,22 +1034,23 @@ skipped by a stale producer list.
 For relation evidence, the analyzer-carried `targetSquare` is preserved through
 `StrategicSemanticObservation`, `StrategicIdeaEvidence`, and `StrategyIdeaSignal`;
 the selected idea also carries the representative `relationKind`, so surface
-projection uses the selector-chosen relation before catalog-order fallback.
-Relation surface target fallback is descriptor-owned: if an older carrier lacks
-an analyzer target, `RelationObservationCatalog` supplies the focus-square
-fallback policy instead of `MoveReviewPlayerPayloadBuilder` repeating
-relation-kind branches. Legacy carriers without a selected `relationKind` do
-not get to treat their generic `targetSquare` as an analyzer relation target.
-The selector also keeps the chosen relation's source ref and semantic fact ahead
-of generic evidence truncation, so the catalog admission pair is not lost before
-`moveReviewPlayerSurface` projection.
-Catalog-order fallback is allowed only for older carriers with no
-`relationKind`, exactly one matching relation source/fact pair, and non-empty
-`relationFocusSquares`; ambiguous or relation-focusless legacy carriers stay
-silent rather than picking the first catalog descriptor or borrowing generic
-idea focus.
+projection requires the selector-chosen relation and no longer infers a relation
+from catalog-order source/fact matches alone. The selected relation must also
+carry the descriptor-owned analyzer witness fact term, such as
+`xray_relation_witness` or `defender_trade_branch`; source and semantic fact
+alone remain internal support.
+Relation surface target fallback is descriptor-owned: when a selected relation
+lacks an analyzer target, `RelationObservationCatalog` supplies the
+focus-square fallback policy instead of `MoveReviewPlayerPayloadBuilder`
+repeating relation-kind branches. Carriers without a selected `relationKind`
+stay silent and do not get to treat their generic `targetSquare` as analyzer
+relation target evidence.
+The selector also keeps the chosen relation's source ref, semantic fact, and
+required analyzer witness fact ahead of generic evidence truncation, so the
+catalog admission triple is not lost before `moveReviewPlayerSurface`
+projection.
 Once a selected idea names a relation kind, the public row must match that
-kind's catalog source and semantic fact or stay silent.
+kind's catalog source, semantic fact, and required witness fact or stay silent.
 It also carries `relationFocusSquares`; relation rows use that relation-specific
 focus only, so prose does not mix squares from another relation witness or
 generic merged idea focus. Missing relation-specific focus keeps any public
@@ -842,7 +1073,9 @@ bypass `ProofContractRules`,
 Defender-trade and bad-piece owner witnesses in `PlayerFacingTruthModePolicy`
 also derive their owner branch squares and common owner/transition terms from
 the same analyzer `RelationWitness` projection, keeping owner packets and
-semantic rows on one replayed branch read-model. Detail decoding is owned by
+semantic rows on one replayed branch read-model. They now carry the same typed
+branch details as exact-slice proof payloads for player-row verification; this
+does not change their SupportedLocal contract tier. Detail decoding is owned by
 analyzer helpers, not raw key reads in the policy layer. Common owner-seed and
 transition term expansion is also analyzer-owned and projection-backed, so
 policy code does not read `RelationWitness.facts` or `focusSquares` directly
@@ -859,12 +1092,36 @@ line moves, but they must not rebuild branch keys with local UCI slicing or
 `moveReviewPlayerSurface.advancedRows` with `authority.kind =
 strategic_relation`, the relation token, and one relation-focus-derived target square. That is
 public support metadata only: it comes from the cataloged selector evidence and
-requires both the catalog source ref and the matching semantic observation fact.
-The source/fact admission pair, source/fact match, and selected-`relationKind`
-fallback rule are owned by `RelationObservationCatalog`, so the selector,
+requires the catalog source ref, the matching semantic observation fact, and the
+descriptor-owned analyzer witness fact.
+The builder may expose up to four distinct catalog-approved relation rows in
+`advancedRows`; the outer advanced-row cap still applies, so this broadens
+public relation coverage without creating additional proof authority.
+When a supported-local practical row already surfaces the same relation kind
+from a concrete board/PV witness, the builder suppresses the duplicate
+`strategic_relation` advanced row for that relation kind. The more specific
+practical row remains the user-facing line; other cataloged relation kinds from
+the same `StrategyPack` can still project.
+The backend cached-payload sanitizer applies the same duplicate suppression
+after sanitizing summary rows, and only practical rows with
+`authority.kind = practical_plan` can suppress matching advanced
+`strategic_relation` authority. A stale label without practical authority does
+not suppress a valid advanced relation row.
+The source/semantic/witness admission triple, selected-`relationKind` match,
+and no-fallback rule are owned by `RelationObservationCatalog`, so the selector,
 builder, and tests consume the same descriptor helpers rather than repeating
-relation matching locally.
-Additional analyzer witness facts cannot mint another catalog admission fact;
+relation matching locally. The same descriptor owns surface priority:
+PV-backed draw-resource rows for stalemate-trap and perpetual-check evidence
+are ordered ahead of generic relation rows inside the four-row display cap.
+This priority is display-only and does not relax the legal PV, twelve-ply
+draw-resource replay cap, stalemate or repeated-check, and draw-stable score
+witness requirements.
+The descriptor also owns the relation row kind used for prose selection
+(`TacticalRelation`, `DrawResource`, `MoveOrder`, `MobilityRestriction`, or
+`LineGeometry`); `surfaceRowLabel` remains display text and is not a renderer
+policy key.
+Additional analyzer witness facts cannot mint another catalog source or
+semantic admission fact;
 dynamic facts reject semantic/source/proof authority wire keys and remain
 supplemental support evidence only.
 It does not create proof/source/family authority or frontend reconstruction rights.
@@ -874,6 +1131,10 @@ public relation carrier. Backend and frontend sanitizers accept only relation
 tokens present in `RelationObservationCatalog.Implemented`; key-shaped but
 uncataloged relation ids are dropped, and cataloged relation tokens without a
 valid target square are downgraded to display text.
+The analyse frontend relation-token allowlist mirrors the full implemented
+backend catalog, including witness-only promoted motifs such as trapped-piece,
+domination, zwischenzug, stalemate-trap, and perpetual-check rows; it does not
+define a smaller public relation subset.
 Backend sanitization preserves `strategic_relation` authority only on
 `advancedRows`, matching the builder's projection path; stale summary, probe,
 or author rows lose relation authority even when the token is cataloged.
@@ -918,10 +1179,10 @@ shorthand that must be translated before implementation:
   the `ColorComplexSqueeze` exact-slice proof with
   `color_complex_squeeze_probe`; generic `color_complex_clamp` or color-complex
   support remains selector/support evidence.
-- `mobility-cage expansion` has no current admission path. A future slice must
-  first choose a concrete board witness family, such as route denial, mobility
-  restriction support, or a cataloged relation witness, before it can enter the
-  runtime.
+- `mobility-cage expansion` remains closed as a catch-all admission path. The
+  only current public mobility-restriction surface is the cataloged
+  `trapped_piece`/`domination` relation witness; route denial and broader
+  mobility support still need their own concrete witness family before release.
 - `Track 5 lesson authority` is not a runtime authority layer. The current
   runtime boundary is `MoveReviewScopedTakeaway`; broad lesson release remains
   closed.
@@ -965,22 +1226,281 @@ Rendered prose is not split and rewritten by `CommentaryApi` for
 opening-family mismatch; unsupported family prose must be excluded before
 rendering, while the final prose sanitizer is presentation-only.
 
-Current explicit promoted family:
+Current explicit promoted exact-slice families:
 
 | proof family | proof source | status | certified | supported local | default failure |
 | --- | --- | --- | --- | --- | --- |
+| `static_weakness_fixation` | `exact_target_fixation` | `Releasable` | true | true | `position_probe_not_certified` |
+| `backward_pawn_targeting` | `carlsbad_fixed_target_probe` | `Releasable` | true | true | `position_probe_not_certified` |
+| `half_open_file_pressure` | `local_file_entry_bind` | `Releasable` | true | true | `certified_owner_path` |
 | `color_complex_squeeze` | `color_complex_squeeze_probe` | `Releasable` | true | true | `color_complex_authority_closed` |
+| `target_focused_coordination` | `target_focused_coordination_probe` | `Releasable` | true | true | `certified_owner_path` |
+| `outpost_entrenchment` | `outpost_entrenchment` | `Releasable` | false | true | `outpost_entrenchment_witness_missing` |
+| `iqp_inducement` | `iqp_inducement_probe` | `Releasable` | false | true | `iqp_inducement_probe_missing` |
+| `simplification_window` | `simplification_window` | `Releasable` | true | true | `same_job_or_conversion_relabel_blocked` |
+| `defender_trade` | `defender_trade` | `Releasable` | false | true | `attacking_piece_trade_unowned` |
+| `queen_trade_shield` | `queen_trade_shield` | `Releasable` | false | true | `source_queen_trade_boundary` |
+| `bad_piece_liquidation` | `bad_piece_liquidation` | `Releasable` | false | true | `attacking_piece_trade_unowned` |
+| `central_break_timing` | `central_break_timing` | `Releasable` | false | true | `central_break_timing_witness_missing` |
 
-Color-complex support is promoted only by the exact board witness in
+Local-file entry support is promoted only by the exact file/entry witness:
+`PlayerFacingTruthModePolicy` attaches
+`PlayerFacingExactSliceProof.LocalFileEntryBind(file, entrySquare)` from
+`LocalFileEntryProof.certifiedSurfacePair`, and the packet still needs owner
+seed, continuation, proven branch, stable persistence, no rival release, no
+tactical veto, and the matching `HalfOpenFilePressure` contract.
+Admission-unit tooling tracks `OpenFilePressure`, `KeySquareDenial`, and
+`RookFileTransfer` as separate plan-kind work units for this same exact slice,
+but all three use the same `local_file_entry_bind` proof source and
+`half_open_file_pressure` family; raw plan-kind sources are not accepted as
+public proof.
+Public consumers must use the context-aware certification path: the current FEN
+and legal reviewed-move replay must show a major piece on the claimed file and
+the named entry square either occupied or controlled by the moving side. The
+typed proof fields must also be mirrored in packet witness terms as the same
+file/entry pair through a single `file-entry:<file>:<square>` or
+`file_entry:<file>:<square>` term. Split file and entry terms under the
+`local_file_entry_bind` marker are not public release proof. The typed entry
+square must lie on the claimed file; off-file pairs fail closed. The
+FEN-less `certifiedSurfacePair(preventedPlans, evidenceBackedPlans)` overload is
+only an internal pair extractor and is not a public commentary authority path.
+`MoveReviewSupportedLocalSurfaceRows` may project that packet as a bounded
+`File entry` summary row through
+`ClaimAuthorityResolver.supportedLocalMoveDeltaPacketDecision`. The row text is
+limited to the file and entry square; it is not a broad heavy-piece bind,
+global squeeze, or no-counterplay claim.
+
+Named route-network support is promoted only from the existing certified
+surface carrier. `RouteNetworkBindProof.certifiedSurfaceNetwork` supplies the
+file/entry/reroute tuple through `QuestionPlannerInputs`; the MoveReview
+surface consumes it only through
+`ClaimAuthorityResolver.namedRouteNetworkSurfaceDecision`. The admitted row
+uses practical-plan authority, exposes no proof metadata, and cannot be built
+from planner prose, route text, or an intermediate route chain.
+
+IQP inducement support is promoted only from the existing
+`iqp_inducement_probe` contract. The public `IQP target` row requires
+SupportedLocal move-delta admission plus an induced isolated-pawn witness term
+from the board/PV transition. It is not certified owner authority, and it is
+not inferred from broad IQP prose, structural tags, or source-catalog labels.
+
+Simplification-window support is promoted only from the existing
+`simplification_window` packet after the same resolver admission. The public
+row uses practical-plan authority and is limited to the replayed exchange
+square; it is not a defender-trade, bad-piece, queen-trade, or general
+conversion owner path.
+
+Outpost support is promoted only from the `outpost_entrenchment` exact-slice
+packet. `PlayerFacingTruthModePolicy` may attach
+`PlayerFacingExactSliceProof.OutpostOccupation("knight", square)` only when the
+reviewed UCI move legally replays from the current FEN as a same-side knight
+move to that square, the legal top PV starts with that reviewed move, and the
+current/main-PV facts contain `Fact.Outpost(square, Knight, Now)`. The packet
+must keep the outpost square, `piece:knight`, and
+`outpost_occupation:knight:<square>` mirrored in witness terms, with a proven
+same branch and stable persistence. The MoveReview row is bounded to
+`Knight outpost` with practical-plan authority; broad semantic outpost tags,
+route evidence, or opening-goal outposts do not satisfy this exact-slice
+contract.
+
+Quiet-move intent has a lower-authority MoveReview surface consumer.
+`QuietMoveIntentBuilder` may feed `MoveReviewSupportedLocalSurfaceRows` only
+after its packet passes `QuietMoveIntentClaim.allowsUserFacing`, stays
+MoveLocal with no suppression or release risk, and the packet proof family,
+proof source, and ontology family match the quiet-intent class. The reviewed
+UCI move must legally replay from the current FEN. The replayed move must match
+the quiet class and the packet square anchor: piece-improvement and
+technical-conversion rows require a non-capturing non-pawn move to the anchored
+square, and king-safety rows require a legal king move or matching castle
+source. The row
+uses `authority.kind = "practical_plan"` as `Piece improvement`,
+`King safety`, or `Technical conversion`; it does not outrank exact,
+central-break, opening-goal, or tactical truth rows. `CounterplayRestraint`
+quiet intents remain closed on this path because exact counterplay/prophylaxis
+rows own that public lane.
+
+Knight outpost, bishop-pair retention, opposite-colored bishops, rook-pawn march, hook-creation, rook-lift, seventh-rank entry,
+rook-behind-passer, passer blockade, file entry, back-rank mate, detector-named mate nets, Greek gift, double check, fork, overloaded defender, decoy, deflection, hanging piece, skewer, x-ray pressure, clearance, interference, battery pressure, pin pressure, connected rooks, doubled rooks,
+connected passers, outside passer,
+passed-pawn advance, and king activation have only a
+lower-authority board-state MoveReview fallback.
+`MoveReviewSupportedLocalSurfaceRows` may emit `Knight outpost`, `Bishop
+pair`, `Opposite-color bishops`, `Rook-pawn march`, `Hook
+creation`, `Rook lift`, `Seventh-rank entry`, `Rook behind passer`, `File
+entry`, `Passer blockade`, `Back-rank mate`, `Mate net` or a detector-named mate label such as `Smothered mate`, `Greek gift`, `Double check`, `Fork`, `Overloaded defender`, `Decoy`, `Deflection`, `Hanging piece`, `Skewer`, `X-ray pressure`, `Clearance`, `Interference`, `Battery pressure`, `Pin pressure`, `Connected rooks`, `Doubled rooks`, `Connected
+passers`, `Outside passer`, `Passed pawn
+advance`, or `King activation` only when no
+exact/supported-local row has survived, tactical truth does not veto support,
+and the top PV legally starts with the same reviewed move. Within this fallback
+lane, mate/tactical/relation rows are evaluated before broader positional rows
+so a general outpost, rook-lift, file-entry, or opening support row does not
+preempt a more specific board-replayed tactic. Detector-named mate labels are
+still the `MateNet` relation contract; the public label may narrow to
+`Smothered mate`, `Arabian mate`, `Boden's mate`, `Anastasia's mate`, `Hook
+mate`, or `Corner mate` only from the matched `TacticalPatternDetectors` id.
+Knight-outpost rows
+require a legal non-capturing knight move to an advanced square, the legal
+after-board knight on the destination, friendly pawn support, and no enemy pawn
+attack on that square. Bishop-pair rows require a legal bishop capture, the
+legal after-board bishop on the destination, and after-board material with two
+bishops for the mover and no bishop pair for the opponent. Opposite-color
+bishop rows require a legal capture, exactly one bishop for each side on
+opposite-colored squares after the move, and no remaining queens, rooks, or
+knights. Rook-pawn and hook rows require the reviewed move to legally
+replay as a non-capturing same-file a/h-pawn advance and
+`PositionAnalyzer.extractStrategicState` to confirm the before/after rook-pawn
+or hook state. Rook-lift rows require the reviewed move to legally replay as a
+non-capturing rook move from the mover's back rank to the third rank for White
+or sixth rank for Black; back-rank shuffles stay closed. Seventh-rank rows
+require a legal non-capturing rook move from off the entry rank, and the legal
+after-board must keep that rook on the destination square on White's seventh
+rank or Black's second rank. Rook-behind-passer rows require a legal rook move,
+an endgame material window, the legal after-board rook on the destination
+square, and `PositionAnalyzer.passedPawns` to show a same-file friendly passer
+in front of that rook. Passer-blockade rows require a legal non-capturing
+knight move, the legal after-board knight on the destination, and
+`PositionAnalyzer.passedPawns` to show an advanced enemy passer whose forward
+stop-square is that destination. File-entry rows require a legal non-capturing rook/queen
+move from another file to a non-back-rank square, the legal after-board major
+piece on the destination square, and the same open/semi-open file definition
+used by existing line-occupation evidence to admit that destination file.
+Back-rank mate rows require the same boundary and the existing
+`MoveReviewExchangeAnalyzer.backRankMateWitness` typed relation details: the
+legally replayed reviewed move must end in checkmate and match the existing
+back-rank tactical pattern detector. Mate-net rows require the same boundary and
+the existing `MoveReviewExchangeAnalyzer.mateNetWitness` typed details: the
+legally replayed reviewed move must end in checkmate and match a non-back-rank
+mate-pattern detector. Greek-gift rows require the same boundary, the existing
+`MoveReviewExchangeAnalyzer.greekGiftWitness` typed details, and top-PV
+continuation support for the sacrifice entry; they name the sacrifice entry
+only and do not claim forced mate or material conversion.
+Double-check rows require the same boundary and the existing
+`MoveReviewExchangeAnalyzer.doubleCheckWitness` typed relation details: the
+legally replayed reviewed move must leave the opponent's king in check from at
+least two checker squares, with no explicit target fallback.
+Fork rows require the same boundary and the existing
+`MoveReviewExchangeAnalyzer.forkWitness` typed relation details, but the
+product fallback narrows public prose to knight/pawn forks or forks that include
+the king as a target. Generic queen/rook multi-attacks stay relation-support
+evidence only.
+Overloaded-defender rows require the same boundary and the existing
+`MoveReviewExchangeAnalyzer.overloadWitness` typed relation details: the legally
+replayed reviewed move must create or increase pressure on at least two targets
+that the same defender is still assigned to. The row names the duty conflict
+only; it does not claim the defender is lost or that the targets are forced.
+Decoy rows require the same boundary and the existing
+`MoveReviewExchangeAnalyzer.decoyWitness` typed relation details: the checked
+top PV must legally replay the reviewed move, the opponent's capture on the
+bait square, and the mover's recapture of the lured higher-value piece.
+Deflection rows require the same boundary and the existing
+`MoveReviewExchangeAnalyzer.deflectionWitness` typed relation details: the
+checked top PV must legally replay the reviewed move and the defender's reply
+moving away from the defended target after being attacked.
+Hanging-piece rows require the same boundary and the existing
+`MoveReviewExchangeAnalyzer.hangingPieceWitness` typed relation details: the
+legally replayed reviewed move must attack an undefended analyzer-accepted
+target, and without explicit target binding the analyzer admits only higher-value
+non-pawn targets.
+Skewer rows require the same boundary and the existing
+`MoveReviewExchangeAnalyzer.skewerWitness` typed relation details: the legally
+replayed reviewed move must be a long-range move that lines up a higher-value
+front piece or king with a non-pawn back piece on the same ray. The row names
+the geometry only; it does not claim a forced material win.
+X-ray-pressure rows require the same top-PV/tactical-veto boundary and the
+existing `MoveReviewExchangeAnalyzer.xrayWitness` typed relation details: the
+legally replayed reviewed move must place a long-range attacker behind an enemy
+blocker with an analyzer-accepted non-pawn target further down the same ray.
+Clearance rows require the same boundary and the existing
+`MoveReviewExchangeAnalyzer.clearanceWitness` typed relation details: the
+reviewed move must legally clear a square from a friendly long-range line toward
+an analyzer-accepted non-pawn target.
+Interference rows require the same boundary and the existing
+`MoveReviewExchangeAnalyzer.interferenceWitness` typed relation details: the
+legally replayed reviewed move must put the moved piece between an enemy
+long-range defender and an analyzer-accepted target that remains pressured.
+Battery-pressure rows require the same top-PV/tactical-veto boundary and the
+existing `MoveReviewExchangeAnalyzer.batteryWitness` typed relation details:
+the legally replayed reviewed move must form a clear front/back queen, rook, or
+bishop battery on a file, rank, or diagonal toward an analyzer-accepted target.
+Pin-pressure rows require the same top-PV/tactical-veto boundary and the
+existing `MoveReviewExchangeAnalyzer.pinWitness` typed relation details, but
+they surface only absolute pins where the pinned piece is tied to the king.
+Connected-rook rows require a legal non-capturing rook move, exactly two
+friendly rooks on one rank after the move, and no occupied square between them.
+Doubled-rook rows require a legal non-capturing rook move, exactly two friendly
+rooks on one file after the move, and no occupied square between them.
+Connected-passer rows require a legal non-capturing pawn advance, an endgame
+material window, no enemy passed pawn, and a legal after-board adjacent
+advanced passed-pawn pair no more than one rank apart. Outside-passer rows
+require a legal non-capturing pawn advance, an endgame material window, no
+enemy passed pawn, an advanced flank passer, a friendly pawn at least three
+files away, and no enemy king directly blocking the passer from the front.
+Passed-pawn rows
+require the reviewed move to legally replay as a non-capturing pawn advance and
+the after-board destination pawn to be included by the existing
+`PositionAnalyzer.passedPawns` definition. King-activation rows require a legal
+non-capturing non-castling king move in an endgame material window, the legal
+after-board king on the destination square, a reduced center-distance score,
+and no king-mobility loss. This path reuses existing
+outpost-square, flank-infrastructure, seventh-rank, rook-behind-passer, file-occupation,
+passed-pawn, and king-activity board
+facts; it does not create certified owner authority, strategic relation
+authority, or public proof metadata for the broader `rook_pawn_march`,
+`hook_creation`, `rook_lift_scaffold`, semantic `motif_rook_lift`,
+`outpost_entrenchment`, semantic `motif_outpost`, `OutpostOccupation`,
+`rook_on_seventh`, `seventh_rank_invasion`, `rook_behind_passed_pawn`,
+`RookBehindPassedPawn`, semantic `Blockade`, `Plan.Blockade`, endgame blockade
+draw patterns, `bishop_pair_advantage`, `opposite_color_bishops`,
+`OppositeColoredBishopsDraw`, minor-piece-imbalance owner authority, `open_file_pressure`,
+`local_file_entry_bind`, broad `back_rank_mate`/`mate_net`/`greek_gift`/`overload`/`double_check`/`fork`/`decoy`/`deflection`/`hanging_piece`/`skewer`/`xray`/`clearance`/`interference` relation owner authority,
+`connected_rooks`, `doubled_rooks`,
+`RookFileTransfer`, `BatteryPressure` plan authority, broad `pin` relation owner authority, king-attack proof, `passed_pawn_manufacture`, `ConnectedPassers`,
+`OutsidePasserDecoy`, `passer_conversion`, or promotion-race, opposition,
+zugzwang, or outcome-proof lanes.
+
+Position-probe exact slices are consumed through the same authority gate.
+`MoveReviewSupportedLocalSurfaceRows` may project PositionLocal packets from
+`exact_target_fixation`, `carlsbad_fixed_target_probe`,
+`target_focused_coordination_probe`, or `color_complex_squeeze_probe` only after
+`ClaimAuthorityResolver.decidePositionProbe` admits the packet and the typed
+`PlayerFacingExactSliceProof` case matches the packet source/family and packet
+witness terms mirror the typed target (`fixed_target:<square>` for target
+fixation and Carlsbad, `coordinated_target:<square>` for target-focused
+coordination). The rows are bounded target/coordination/color-complex summaries
+with `authority.kind = "practical_plan"`; MoveLocal exact target packets remain on
+their move-delta path and are not reclassified as position probes.
+Color-complex support itself is promoted only by the exact board witness in
 `PlayerFacingTruthModePolicy`: parsed FEN, opponent-owned semantic weak square,
 color-complex/hole/fianchetto evidence, actual friendly bishop/knight attack
 geometry on that square, same-square surface/semantic evidence, and a proven
-stable packet branch. Coordinate/minor-piece terms remain trace labels only.
+stable packet branch. The typed proof shape is rechecked on consumption: the
+declared color complex must match the target square color, and the named minor
+piece geometry must be able to attack that target. Packet witness terms must
+mirror the same weak square, color-complex token, role-specific
+`minor_piece:<role>_<square>` term, and minor-piece attack pair;
+coordinate/minor-piece terms remain trace labels only when they do not match the
+typed proof.
+Generic `color_complex_clamp` support still does not create a product row.
+Admission-unit tooling may queue `StaticWeaknessFixation`,
+`BackwardPawnTargeting`, `FlankClamp`, `OutpostEntrenchment`,
+`IQPInducement`, `SimplificationWindow`, `DefenderTrade`, `QueenTradeShield`,
+`BadPieceLiquidation`, and `CentralBreakTiming` only through their existing
+runtime contracts. `target_focused_coordination` is a runtime proof family
+rather than a `PlanTaxonomy.PlanKind` admission unit. For `FlankClamp`, the
+accepted proof source remains `color_complex_squeeze_probe`; raw
+`flank_clamp`, `color_complex_clamp`, `central_space_bind`, or
+`mobility_suppression` sources are not public proof.
 All `ExactSlice` contracts now require a typed `PlayerFacingExactSliceProof`
 attached to `PlayerFacingProofPathWitness`; generic anchor, continuation, or
 structure terms are not enough to satisfy the slice witness. The contract
 matches the proof ADT case against the packet source/family and required
-structured fields; it does not rebuild proof from witness-term strings.
+structured fields; it does not rebuild proof from witness-term strings. Public
+non-position exact slices also mirror their typed fields in packet witness
+terms: counterplay-axis suppression and prophylactic restraint require the same
+named resource token, queen-trade shield requires the typed line moves, and
+central-break timing requires the same `break_move`, `break_token`, and central
+break square terms. Outpost occupation likewise requires the typed knight role,
+outpost square, and `outpost_occupation:knight:<square>` witness term.
 Generic exact target fixation may only bind a target square that is present in
 the same FEN's `WeaknessTargetProfile`; focus-square text or an enemy pawn on a
 named square is not enough. Multi-focus target-fixing ideas must additionally
@@ -991,19 +1511,27 @@ The Carlsbad fixed-target exact slice accepts the mirrored target shape:
 minority-support predicate present. The minority pawn support predicate accepts
 the starting and advanced b-pawn squares (`b2`/`b4`/`b5` for White pressure and
 `b7`/`b5`/`b4` for Black pressure), so an already-started minority attack does
-not fail only because the original b-pawn square is empty.
+not fail only because the original b-pawn square is empty. The public MoveReview
+row and position-probe main claim may name this as a bounded `Minority attack`
+target / minority-attack fixed target only through that typed
+`CarlsbadFixedTarget(..., minoritySupport = true)` proof; the standalone
+`minority_attack_fixation` proof family remains deferred.
 Opening-route target fixation is catalog-driven. `OpeningRouteCatalog` reads the
 family/target/from/via/to/max-replay data plus a `target_mode` such as
 `attack_weak_pawn` or `occupy_target`; `PieceRouteEvidence` reads raw
 `VariationLine.moves` before stale parsed metadata, verifies legal UCI replay,
-and carries the replayed terminal `Position`. `KnightRouteEvidence` is the
-knight-only exact-slice facade. `OpeningRouteTargetEvidence.checkRouteEvidence`
+and carries the replayed terminal `Position`. `KnightRouteEvidence` is now only
+the knight-route compatibility facade; exact route witnesses consume
+`PieceRouteEvidence` directly. `OpeningRouteTargetEvidence.checkRouteEvidence`
 then verifies that the route's target mode matches the replayed terminal board,
 not the root board before the route is completed. `PlayerFacingTruthModePolicy`
 then uses `findRouteWitness` to scan catalog routes instead of naming the Benoni
 route in source, but the selected route target must match the declared focal,
 directional, idea-focus, move-ref, semantic structural-weakness, or root-board
-weak-pawn target when such a target is present.
+weak-pawn target when such a target is present. When `openingData.name` or an
+`OpeningEvent.Intro` name resolves to an `OpeningFamilyCatalog` key, route
+witness selection is also restricted to that same opening family and its target
+allowlist; unlabeled positions keep the legal replay plus target allowlist gate.
 Benoni `Nf3-d2-c4` against `d6`, reversed Benoni black
 `Nf6-d7-c5` / `Nb8-d7-c5` against `d3`, and King's Indian `Nf6-d7-c5` to `c5`
 therefore share the same witness path. The starter route pack now also covers
@@ -1014,9 +1542,9 @@ Games, Gruenfeld, Alekhine, and Nimzowitsch structures using the same
 descriptor/evaluator path; Queen's Indian and Bogo-Indian also carry direct
 `Nf6-e4` descriptors for positions where the book proof already starts after
 `...Nf6`. Four bishop fianchetto rows use `PieceRouteEvidence` only for
-opening-family player-surface target metadata; exact target-fixation witness
-promotion remains on the `KnightRouteEvidence` path unless separately
-certified. Current route data includes the master-backed mined routes with at
+opening-family player-surface target metadata and for exact target-fixation
+when the same legal replay, family/target allowlist, declared-target, and
+terminal target-mode gates pass. Current route data includes the master-backed mined routes with at
 least five opening-row witnesses; lower-support mined candidates remain
 deferred. Every route target is mirrored in `OpeningFamilyCatalog` target
 allowlists so backend player-surface target projection is not silently blocked

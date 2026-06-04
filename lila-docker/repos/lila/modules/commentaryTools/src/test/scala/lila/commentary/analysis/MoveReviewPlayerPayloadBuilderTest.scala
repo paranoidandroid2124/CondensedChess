@@ -7,7 +7,7 @@ import lila.commentary.model.authoring.{ PlanHypothesis, PlanViability }
 import lila.commentary.model.authoring.{ AuthorQuestion, AuthorQuestionKind }
 import lila.commentary.model.strategic.{ EngineEvidence, VariationLine }
 import lila.commentary.analysis.PlanEvidenceEvaluator.{ ClaimCertification, EvaluatedPlan, PlanEvidenceStatus, UserFacingPlanEligibility }
-import lila.commentary.analysis.semantic.RelationObservationCatalog
+import lila.commentary.analysis.semantic.{ RelationObservationCatalog, RelationSurfaceRowKind }
 import lila.commentary.analysis.semantic.StrategicObservationIds.EvidenceRef
 
 final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
@@ -18,6 +18,83 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
   private val InitialFen =
     "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
+  private def persistentTargetEvidence(moves: List[String] = List("e1d1", "e8d8", "d1e1", "d8e8", "e1d1")): EngineEvidence =
+    EngineEvidence(
+      depth = 18,
+      variations =
+        List(
+          VariationLine(
+            moves = moves,
+            scoreCp = 12,
+            depth = 18
+          )
+        )
+    )
+
+  private def anchoredCompensationPack: StrategyPack =
+    StrategyPack(
+      sideToMove = "black",
+      strategicIdeas =
+        List(
+          StrategyIdeaSignal(
+            ideaId = "idea_benko_targets",
+            ownerSide = "black",
+            kind = StrategicIdeaKind.TargetFixing,
+            group = "slow_structural",
+            readiness = StrategicIdeaReadiness.Build,
+            focusSquares = List("b2", "a6"),
+            focusFiles = List("a", "b"),
+            focusZone = Some("queenside"),
+            beneficiaryPieces = List("R"),
+            confidence = 0.79
+          )
+        ),
+      pieceMoveRefs =
+        List(
+          StrategyPieceMoveRef(
+            ownerSide = "black",
+            piece = "Q",
+            from = "d8",
+            target = "b6",
+            idea = "fix the queenside targets"
+          )
+        ),
+      directionalTargets =
+        List(
+          StrategyDirectionalTarget(
+            targetId = "target_b2",
+            ownerSide = "black",
+            piece = "R",
+            from = "d8",
+            targetSquare = "b2",
+            readiness = DirectionalTargetReadiness.Build,
+            strategicReasons = List("backward pawn")
+          )
+        ),
+      longTermFocus = List("fix the queenside targets before recovering the pawn"),
+      signalDigest =
+        Some(
+          NarrativeSignalDigest(
+            compensation = Some("return vector through line pressure and delayed recovery"),
+            compensationVectors = List("Line Pressure (0.7)", "Delayed Recovery (0.6)", "Fixed Targets (0.5)"),
+            investedMaterial = Some(100)
+          )
+        )
+    )
+
+  private def genericCompensationPack: StrategyPack =
+    StrategyPack(
+      sideToMove = "white",
+      signalDigest =
+        Some(
+          NarrativeSignalDigest(
+            compensation = Some("initiative against the king"),
+            compensationVectors = List("Initiative (0.6)"),
+            investedMaterial = Some(100)
+          )
+        )
+    )
+
   private def build(
       ctx: NarrativeContext = MoveReviewProseGoldenFixtures.rookPawnMarch.ctx,
       moveReviewExplanation: Option[MoveReviewExplanation] = None,
@@ -27,7 +104,8 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       authoringSurface: AuthoringEvidenceSurface = emptyAuthoringSurface,
       supportedLocalRows: List[MoveReviewPlayerSurfaceRow] = Nil,
       decisionComparisonSurface: Option[MoveReviewPlayerDecisionComparison] = None,
-      strategyPack: Option[StrategyPack] = None
+      strategyPack: Option[StrategyPack] = None,
+      truthContract: Option[DecisiveTruthContract] = None
   ): MoveReviewPlayerSurface =
     MoveReviewPlayerPayloadBuilder.build(
       ctx = ctx,
@@ -38,7 +116,8 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       authoringSurface = authoringSurface,
       supportedLocalRows = supportedLocalRows,
       decisionComparisonSurface = decisionComparisonSurface,
-      strategyPack = strategyPack
+      strategyPack = strategyPack,
+      truthContract = truthContract
     )
 
   private def plan(
@@ -87,6 +166,34 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       themeL1 = hypothesis.themeL1,
       subplanId = hypothesis.subplanId,
       claimCertification = claimCertification
+    )
+
+  private def tacticalTruthContract(): DecisiveTruthContract =
+    DecisiveTruthContract(
+      playedMove = Some("e4e5"),
+      verifiedBestMove = Some("e4e5"),
+      truthClass = DecisiveTruthClass.Blunder,
+      cpLoss = 280,
+      swingSeverity = 280,
+      reasonFamily = DecisiveReasonKind.TacticalRefutation,
+      allowConcreteBenchmark = false,
+      chosenMatchesBest = true,
+      compensationAllowed = false,
+      truthPhase = None,
+      ownershipRole = TruthOwnershipRole.NoneRole,
+      visibilityRole = TruthVisibilityRole.PrimaryVisible,
+      surfaceMode = TruthSurfaceMode.FailureExplain,
+      exemplarRole = TruthExemplarRole.NonExemplar,
+      surfacedMoveOwnsTruth = false,
+      verifiedPayoffAnchor = None,
+      compensationProseAllowed = false,
+      benchmarkProseAllowed = false,
+      investmentTruthChainKey = None,
+      maintenanceExemplarCandidate = false,
+      failureMode = FailureInterpretationMode.TacticalRefutation,
+      failureIntentConfidence = 0.0,
+      failureIntentAnchor = None,
+      failureInterpretationAllowed = false
     )
 
   private def relationOnlyData(fen: String, playedMove: String): ExtendedAnalysisData =
@@ -580,6 +687,10 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
   test("transposition-aligned evaluated plans are promoted without pretending to be probe-backed") {
     val surface =
       build(
+        ctx = MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
+          fen = "4k3/8/2p5/3p4/1P1P4/8/8/4K3 w - - 0 1",
+          engineEvidence = Some(persistentTargetEvidence())
+        ),
         evaluatedPlans =
           List(
             evaluated(
@@ -710,7 +821,8 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     val surface =
       build(
         ctx = MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
-          fen = "4k3/8/8/3p4/8/8/8/4K3 w - - 0 1"
+          fen = "4k3/8/8/3p4/8/8/8/4K3 w - - 0 1",
+          engineEvidence = Some(persistentTargetEvidence())
         ),
         evaluatedPlans =
           List(
@@ -728,6 +840,216 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assertEquals(surface.advancedRows.map(_.label), List("Practical target"))
     assert(surface.advancedRows.exists(_.text.contains("weak isolated queen pawn on d5")), clue(surface.advancedRows))
     assert(surface.advancedRows.forall(_.authority.contains(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))))
+  }
+
+  test("weakness practical target row honors typed target hints over the first board target") {
+    val surface =
+      build(
+        ctx = MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
+          fen = "4k3/8/8/3p1p2/8/8/8/4K3 w - - 0 1",
+          engineEvidence = Some(persistentTargetEvidence())
+        ),
+        evaluatedPlans =
+          List(
+            evaluated(
+              plan(
+                "Static weakness pressure",
+                evidenceSources = List("weakness_target:f5"),
+                themeL1 = PlanTaxonomy.PlanTheme.WeaknessFixation.id,
+                subplanId = Some(PlanTaxonomy.PlanKind.StaticWeaknessFixation.id)
+              ),
+              UserFacingPlanEligibility.StructuralOnly
+            )
+          )
+      )
+
+    assertEquals(surface.advancedRows.map(_.label), List("Practical target"))
+    assert(surface.advancedRows.exists(_.text.contains("on f5")), clue(surface.advancedRows))
+    assert(!surface.advancedRows.exists(_.text.contains("on d5")), clue(surface.advancedRows))
+  }
+
+  test("typed weakness target hints can publish practical target rows for non-weakness plans") {
+    val surface =
+      build(
+        ctx = MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
+          fen = "4k3/8/8/4p3/8/8/8/4K3 w - - 0 1",
+          engineEvidence = Some(persistentTargetEvidence())
+        ),
+        evaluatedPlans =
+          List(
+            evaluated(
+              plan(
+                "Piece pressure on the weak pawn",
+                evidenceSources = List("weakness_target:e5"),
+                themeL1 = PlanTaxonomy.PlanTheme.PieceRedeployment.id
+              ),
+              UserFacingPlanEligibility.StructuralOnly
+            )
+          )
+      )
+
+    assertEquals(surface.advancedRows.map(_.label), List("Practical target"))
+    assert(surface.advancedRows.exists(_.text.contains("on e5")), clue(surface.advancedRows))
+  }
+
+  test("typed weakness target hints can publish practical target rows from legal best-line endpoints") {
+    val surface =
+      build(
+        ctx = MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
+          fen = "4k3/4p3/8/8/8/8/8/4K3 w - - 0 1",
+          engineEvidence =
+            Some(
+              EngineEvidence(
+                depth = 18,
+                variations =
+                  List(
+                    VariationLine(
+                      moves = List("e1e2", "e7e5", "e2e1", "e8e7", "e1e2"),
+                      scoreCp = 12,
+                      depth = 18
+                    )
+                  )
+              )
+            )
+        ),
+        evaluatedPlans =
+          List(
+            evaluated(
+              plan(
+                "Piece pressure on the future weak pawn",
+                evidenceSources = List("weakness_target:e5"),
+                themeL1 = PlanTaxonomy.PlanTheme.PieceRedeployment.id
+              ),
+              UserFacingPlanEligibility.StructuralOnly
+            )
+          )
+      )
+
+    assertEquals(surface.advancedRows.map(_.label), List("Practical target"))
+    assert(
+      surface.advancedRows.exists(_.text.contains("checked line leaves Black a weak isolated pawn on e5")),
+      clue(surface.advancedRows)
+    )
+  }
+
+  test("new best-line endpoint target rows require a durable endpoint witness") {
+    val surface =
+      build(
+        ctx = MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
+          fen = "4k3/4p3/8/8/8/8/8/4K3 w - - 0 1",
+          engineEvidence =
+            Some(
+              EngineEvidence(
+                depth = 18,
+                variations =
+                  List(
+                    VariationLine(
+                      moves = List("e1e2", "e7e5"),
+                      scoreCp = 12,
+                      depth = 18
+                    )
+                  )
+              )
+            )
+        ),
+        evaluatedPlans =
+          List(
+            evaluated(
+              plan(
+                "Piece pressure on the future weak pawn",
+                evidenceSources = List("weakness_target:e5"),
+                themeL1 = PlanTaxonomy.PlanTheme.PieceRedeployment.id
+              ),
+              UserFacingPlanEligibility.StructuralOnly
+            )
+          )
+      )
+
+    assert(!surface.advancedRows.exists(_.label == "Practical target"), clue(surface.advancedRows))
+  }
+
+  test("weakness practical target row requires a best-line persistence witness") {
+    val surface =
+      build(
+        ctx = MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
+          fen = "4k3/8/8/4p3/8/8/8/4K3 w - - 0 1",
+          engineEvidence = None
+        ),
+        evaluatedPlans =
+          List(
+            evaluated(
+              plan(
+                "Static weakness pressure",
+                evidenceSources = List("weakness_target:e5"),
+                themeL1 = PlanTaxonomy.PlanTheme.WeaknessFixation.id,
+                subplanId = Some(PlanTaxonomy.PlanKind.StaticWeaknessFixation.id)
+              ),
+              UserFacingPlanEligibility.StructuralOnly
+            )
+          )
+      )
+
+    assert(!surface.advancedRows.exists(_.label == "Practical target"), clue(surface.advancedRows))
+  }
+
+  test("weakness practical target row requires a non-empty best-line continuation") {
+    val surface =
+      build(
+        ctx = MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
+          fen = "4k3/8/8/4p3/8/8/8/4K3 w - - 0 1",
+          engineEvidence =
+            Some(
+              EngineEvidence(
+                depth = 18,
+                variations =
+                  List(
+                    VariationLine(
+                      moves = Nil,
+                      scoreCp = 12,
+                      depth = 18,
+                      resultingFen = Some("4k3/8/8/4p3/8/8/8/4K3 w - - 0 1")
+                    )
+                  )
+              )
+            )
+        ),
+        evaluatedPlans =
+          List(
+            evaluated(
+              plan(
+                "Static weakness pressure",
+                evidenceSources = List("weakness_target:e5"),
+                themeL1 = PlanTaxonomy.PlanTheme.WeaknessFixation.id,
+                subplanId = Some(PlanTaxonomy.PlanKind.StaticWeaknessFixation.id)
+              ),
+              UserFacingPlanEligibility.StructuralOnly
+            )
+          )
+      )
+
+    assert(!surface.advancedRows.exists(_.label == "Practical target"), clue(surface.advancedRows))
+  }
+
+  test("relation-style material target tokens do not create practical target rows") {
+    val surface =
+      build(
+        ctx = MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
+          fen = "4k3/8/8/4p3/8/8/8/4K3 w - - 0 1"
+        ),
+        evaluatedPlans =
+          List(
+            evaluated(
+              plan(
+                "Piece pressure on a target",
+                evidenceSources = List("target:e5:queen"),
+                themeL1 = PlanTaxonomy.PlanTheme.PieceRedeployment.id
+              ),
+              UserFacingPlanEligibility.StructuralOnly
+            )
+          )
+      )
+
+    assert(!surface.advancedRows.exists(_.label == "Practical target"), clue(surface.advancedRows))
   }
 
   test("weakness practical target row is suppressed when the best line liquidates the target") {
@@ -856,6 +1178,47 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     )
   }
 
+  test("decision target comparison requires a non-empty best-line move") {
+    val ctx =
+      MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
+        fen = "4k3/8/8/3pp3/2N2N2/8/8/4K3 w - - 0 1",
+        playedMove = Some("f4d5"),
+        engineEvidence =
+          Some(
+            EngineEvidence(
+              depth = 18,
+              variations =
+                List(
+                  VariationLine(
+                    moves = Nil,
+                    scoreCp = 80,
+                    depth = 18,
+                    resultingFen = Some("4k3/8/8/3pp3/2N2N2/8/8/4K3 w - - 0 1")
+                  ),
+                  VariationLine(moves = List("f4d5"), scoreCp = 20, depth = 18)
+                )
+            )
+          )
+      )
+
+    val surface =
+      build(
+        ctx = ctx,
+        decisionComparisonSurface =
+          Some(
+            MoveReviewPlayerDecisionComparison(
+              kicker = "Decision point",
+              chosenSan = Some("Nxd5"),
+              engineSan = None,
+              secondaryText = Some("The checked line changes which pawn remains."),
+              chosenMatchesBest = false
+            )
+          )
+      )
+
+    assertEquals(surface.decisionComparison.flatMap(_.targetComparison), None)
+  }
+
   test("practical advanced rows are skipped when practical plans have no details") {
     val surface =
       build(
@@ -978,13 +1341,17 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       )
     val practical =
       plan(
-        "Queenside minority pressure",
-        preconditions = List("The c-pawn can become fixed"),
-        executionSteps = List("b4-b5", "Pressure c6", "Keep queenside tension"),
+        "Central weakness pressure",
+        preconditions = List("The d-pawn can become fixed"),
+        executionSteps = List("King closer", "Pressure d5", "Keep central tension"),
         themeL1 = PlanTaxonomy.PlanTheme.WeaknessFixation.id
       )
     val surface =
       build(
+        ctx = MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
+          fen = "4k3/8/8/3p4/8/8/8/4K3 w - - 0 1",
+          engineEvidence = Some(persistentTargetEvidence())
+        ),
         evaluatedPlans =
           List(
             evaluated(promoted, UserFacingPlanEligibility.ProbeBacked, supportProbeIds = List("probe_1")),
@@ -996,7 +1363,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       surface.advancedRows.map(_.label),
       List("Execution", "Objective", "Practical target", "Practical objective", "Practical steps")
     )
-    assert(surface.advancedRows.exists(row => row.text == "b4-b5 - Pressure c6"), clue(surface.advancedRows))
+    assert(surface.advancedRows.exists(row => row.text == "King closer - Pressure d5"), clue(surface.advancedRows))
   }
 
   test("opening family row carries bounded public opening book metadata") {
@@ -1073,17 +1440,70 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assert(surface.summaryRows.exists(_.text.contains("stops the d5 break")), clue(surface.summaryRows))
   }
 
+  test("resolved compensation surface reaches bounded advanced rows") {
+    val surface =
+      build(strategyPack = Some(anchoredCompensationPack))
+    val compensationRows =
+      surface.advancedRows.filter(_.label.startsWith("Compensation"))
+
+    assertEquals(compensationRows.map(_.label), List("Compensation", "Compensation condition"), clue(surface.advancedRows))
+    assert(compensationRows.exists(_.text.contains("gives up material")), clue(compensationRows))
+    assert(compensationRows.exists(_.text.toLowerCase.contains("queenside targets")), clue(compensationRows))
+    assert(
+      compensationRows.find(_.label == "Compensation condition").exists(_.text.toLowerCase.contains("stay under pressure")),
+      clue(compensationRows)
+    )
+    assert(
+      compensationRows.forall(
+        _.authority.contains(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))
+      ),
+      clue(compensationRows)
+    )
+  }
+
+  test("truth contract compensation prose veto suppresses resolved compensation rows") {
+    val contract =
+      tacticalTruthContract().copy(
+        truthClass = DecisiveTruthClass.Acceptable,
+        cpLoss = 0,
+        swingSeverity = 0,
+        reasonFamily = DecisiveReasonKind.QuietTechnicalMove,
+        visibilityRole = TruthVisibilityRole.Hidden,
+        surfaceMode = TruthSurfaceMode.Neutral,
+        failureMode = FailureInterpretationMode.NoClearPlan
+      )
+
+    assert(!contract.blocksStrategicSupport)
+
+    val surface =
+      build(
+        strategyPack = Some(anchoredCompensationPack),
+        truthContract = Some(contract)
+      )
+
+    assert(!surface.advancedRows.exists(_.label.startsWith("Compensation")), clue(surface.advancedRows))
+  }
+
+  test("generic compensation shells do not create player surface rows") {
+    val surface =
+      build(strategyPack = Some(genericCompensationPack))
+
+    assert(!surface.advancedRows.exists(_.label.startsWith("Compensation")), clue(surface.advancedRows))
+  }
+
   test("strategic relation evidence appears as bounded advanced metadata") {
+    val xray = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.XRay).get
     val relationIdea =
       StrategyIdeaSignal(
         ideaId = "idea_1",
         ownerSide = "white",
-        kind = StrategicIdeaKind.LineOccupation,
+        kind = xray.ideaKind,
         group = "line_occupation",
-        readiness = StrategicIdeaReadiness.Build,
+        readiness = xray.readiness,
         focusSquares = List("e4", "f5", "g6"),
-        confidence = 0.72,
-        evidenceRefs = List("source:xray_relation", "xray_semantic", "blocker:f5"),
+        confidence = xray.confidence,
+        evidenceRefs = xray.wireEvidenceRefs ++ List("blocker:f5"),
+        relationKind = Some(xray.relationKind),
         relationFocusSquares = List("e4", "f5", "g6")
       )
     val surface =
@@ -1115,10 +1535,228 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
         )
       )
     )
-    assert(row.text.contains("x-ray evidence"), clue(row))
+    assert(row.text.contains("x-ray geometry"), clue(row))
+    assert(!row.text.contains("gives"), clue(row))
   }
 
-  test("strategic relation row requires both catalog source and semantic observation fact") {
+  test("specific supported-local relation rows suppress duplicate strategic relation rows") {
+    val xray = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.XRay).get
+    val clearance = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.Clearance).get
+    val defenderTrade = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.DefenderTrade).get
+    val mateNet = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.MateNet).get
+    val ideas =
+      List(xray, clearance, defenderTrade, mateNet).map { descriptor =>
+        StrategyIdeaSignal(
+          ideaId = s"idea_${descriptor.relationKind}",
+          ownerSide = "white",
+          kind = descriptor.ideaKind,
+          group = "relation",
+          readiness = descriptor.readiness,
+          focusSquares = List("b1", "d3", "h7"),
+          confidence = descriptor.confidence,
+          evidenceRefs = descriptor.wireEvidenceRefs,
+          targetSquare = Some("h7"),
+          relationKind = Some(descriptor.relationKind),
+          relationFocusSquares = List("b1", "d3", "h7")
+        )
+      }
+    val supportedClearance =
+      MoveReviewPlayerSurfaceRow(
+        label = "Clearance",
+        text = "The checked line clears d3, opening the bishop on b1 toward h7.",
+        authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))
+      )
+    val supportedDefenderTrade =
+      MoveReviewPlayerSurfaceRow(
+        label = "Defender trade",
+        text = "The checked line trades on d4 to remove the defender from c5, loosening e5.",
+        authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))
+      )
+    val supportedSmotheredMate =
+      MoveReviewPlayerSurfaceRow(
+        label = "Smothered mate",
+        text = "The checked line ends in smothered mate on h8 after h6f7.",
+        authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))
+      )
+    val surface =
+      build(
+        supportedLocalRows = List(supportedClearance, supportedDefenderTrade, supportedSmotheredMate),
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              strategicIdeas = ideas
+            )
+          )
+      )
+    val relationTokens =
+      surface.advancedRows.flatMap(row => row.authority.flatMap(_.token))
+
+    assertEquals(surface.summaryRows.map(_.label), List("Clearance", "Defender trade", "Smothered mate"), clue(surface.summaryRows))
+    assertEquals(relationTokens, List(MoveReviewExchangeAnalyzer.RelationKind.XRay), clue(surface.advancedRows))
+    assert(!relationTokens.contains(MoveReviewExchangeAnalyzer.RelationKind.Clearance), clue(surface.advancedRows))
+    assert(!relationTokens.contains(MoveReviewExchangeAnalyzer.RelationKind.DefenderTrade), clue(surface.advancedRows))
+    assert(!relationTokens.contains(MoveReviewExchangeAnalyzer.RelationKind.MateNet), clue(surface.advancedRows))
+  }
+
+  test("strategic relation surface can publish four typed relation witnesses") {
+    val relationKinds =
+      List(
+        MoveReviewExchangeAnalyzer.RelationKind.XRay,
+        MoveReviewExchangeAnalyzer.RelationKind.Clearance,
+        MoveReviewExchangeAnalyzer.RelationKind.Fork,
+        MoveReviewExchangeAnalyzer.RelationKind.Pin,
+        MoveReviewExchangeAnalyzer.RelationKind.Skewer
+      )
+    val ideas =
+      relationKinds.zipWithIndex.map { case (kind, idx) =>
+        val descriptor = RelationObservationCatalog.descriptorForKind(kind).get
+        val focus = List(s"a${idx + 1}", s"b${idx + 1}", s"c${idx + 1}")
+        StrategyIdeaSignal(
+          ideaId = s"idea_$idx",
+          ownerSide = "white",
+          kind = descriptor.ideaKind,
+          group = "relation",
+          readiness = descriptor.readiness,
+          focusSquares = focus,
+          confidence = descriptor.confidence,
+          evidenceRefs = descriptor.wireEvidenceRefs,
+          targetSquare = focus.lastOption,
+          relationKind = Some(descriptor.relationKind),
+          relationFocusSquares = focus
+        )
+      }
+    val surface =
+      build(
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              strategicIdeas = ideas
+            )
+          )
+      )
+    val relationRows =
+      surface.advancedRows.filter(_.authority.exists(_.kind == MoveReviewSurfaceAuthority.StrategicRelation))
+
+    assertEquals(relationRows.flatMap(_.authority.flatMap(_.token)), relationKinds.take(4))
+    assert(!relationRows.exists(_.authority.flatMap(_.token).contains(MoveReviewExchangeAnalyzer.RelationKind.Skewer)), clue(relationRows))
+  }
+
+  test("draw-resource strategic relation rows survive the four-row cap") {
+    val relationKinds =
+      List(
+        MoveReviewExchangeAnalyzer.RelationKind.XRay,
+        MoveReviewExchangeAnalyzer.RelationKind.Clearance,
+        MoveReviewExchangeAnalyzer.RelationKind.Fork,
+        MoveReviewExchangeAnalyzer.RelationKind.Pin,
+        MoveReviewExchangeAnalyzer.RelationKind.StalemateTrap,
+        MoveReviewExchangeAnalyzer.RelationKind.PerpetualCheck
+      )
+    val ideas =
+      relationKinds.zipWithIndex.map { case (kind, idx) =>
+        val descriptor = RelationObservationCatalog.descriptorForKind(kind).get
+        val focus = List(s"a${idx + 1}", s"b${idx + 1}", s"c${idx + 1}")
+        StrategyIdeaSignal(
+          ideaId = s"idea_$idx",
+          ownerSide = "white",
+          kind = descriptor.ideaKind,
+          group = "relation",
+          readiness = descriptor.readiness,
+          focusSquares = focus,
+          confidence = descriptor.confidence,
+          evidenceRefs = descriptor.wireEvidenceRefs,
+          targetSquare = focus.lastOption,
+          relationKind = Some(descriptor.relationKind),
+          relationFocusSquares = focus
+        )
+      }
+    val surface =
+      build(
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              strategicIdeas = ideas
+            )
+          )
+      )
+    val relationRows =
+      surface.advancedRows.filter(_.authority.exists(_.kind == MoveReviewSurfaceAuthority.StrategicRelation))
+    val tokens = relationRows.flatMap(_.authority.flatMap(_.token))
+
+    assertEquals(
+      tokens,
+      List(
+        MoveReviewExchangeAnalyzer.RelationKind.StalemateTrap,
+        MoveReviewExchangeAnalyzer.RelationKind.PerpetualCheck,
+        MoveReviewExchangeAnalyzer.RelationKind.XRay,
+        MoveReviewExchangeAnalyzer.RelationKind.Clearance
+      )
+    )
+    assertEquals(relationRows.take(2).map(_.label), List("Draw resource", "Draw resource"))
+    assert(!tokens.contains(MoveReviewExchangeAnalyzer.RelationKind.Fork), clue(relationRows))
+  }
+
+  test("witness-only board relation rows survive the four-row cap") {
+    val relationKinds =
+      List(
+        MoveReviewExchangeAnalyzer.RelationKind.XRay,
+        MoveReviewExchangeAnalyzer.RelationKind.Clearance,
+        MoveReviewExchangeAnalyzer.RelationKind.Fork,
+        MoveReviewExchangeAnalyzer.RelationKind.Pin,
+        MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece,
+        MoveReviewExchangeAnalyzer.RelationKind.Domination,
+        MoveReviewExchangeAnalyzer.RelationKind.Zwischenzug
+      )
+    val ideas =
+      relationKinds.zipWithIndex.map { case (kind, idx) =>
+        val descriptor = RelationObservationCatalog.descriptorForKind(kind).get
+        val focus = List(s"a${idx + 1}", s"b${idx + 1}", s"c${idx + 1}")
+        StrategyIdeaSignal(
+          ideaId = s"idea_$idx",
+          ownerSide = "white",
+          kind = descriptor.ideaKind,
+          group = "relation",
+          readiness = descriptor.readiness,
+          focusSquares = focus,
+          confidence = descriptor.confidence,
+          evidenceRefs = descriptor.wireEvidenceRefs,
+          targetSquare = focus.lastOption,
+          relationKind = Some(descriptor.relationKind),
+          relationFocusSquares = focus
+        )
+      }
+    val surface =
+      build(
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              strategicIdeas = ideas
+            )
+          )
+      )
+    val relationRows =
+      surface.advancedRows.filter(_.authority.exists(_.kind == MoveReviewSurfaceAuthority.StrategicRelation))
+    val tokens = relationRows.flatMap(_.authority.flatMap(_.token))
+
+    assertEquals(
+      tokens,
+      List(
+        MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece,
+        MoveReviewExchangeAnalyzer.RelationKind.Domination,
+        MoveReviewExchangeAnalyzer.RelationKind.Zwischenzug,
+        MoveReviewExchangeAnalyzer.RelationKind.XRay
+      )
+    )
+    assertEquals(relationRows.take(2).map(_.label), List("Mobility restriction", "Mobility restriction"))
+    assertEquals(relationRows.lift(2).map(_.label), Some("Move-order relation"))
+    assert(!tokens.contains(MoveReviewExchangeAnalyzer.RelationKind.Fork), clue(relationRows))
+  }
+
+  test("strategic relation row requires catalog source, semantic observation fact, and witness fact") {
+    val xray = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.XRay).get
     val sourceOnlyIdea =
       StrategyIdeaSignal(
         ideaId = "idea_1",
@@ -1128,12 +1766,19 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
         readiness = StrategicIdeaReadiness.Build,
         focusSquares = List("e4", "f5", "g6"),
         confidence = 0.72,
-        evidenceRefs = List("source:xray_relation", "blocker:f5")
+        evidenceRefs = List("source:xray_relation", "blocker:f5"),
+        relationKind = Some(xray.relationKind),
+        relationFocusSquares = List("e4", "f5", "g6")
       )
     val semanticOnlyIdea =
       sourceOnlyIdea.copy(
         ideaId = "idea_2",
         evidenceRefs = List("xray_semantic", "blocker:f5")
+      )
+    val sourceSemanticOnlyIdea =
+      sourceOnlyIdea.copy(
+        ideaId = "idea_3",
+        evidenceRefs = List("source:xray_relation", "xray_semantic")
       )
 
     val surface =
@@ -1142,7 +1787,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
           Some(
             StrategyPack(
               sideToMove = "white",
-              strategicIdeas = List(sourceOnlyIdea, semanticOnlyIdea)
+              strategicIdeas = List(sourceOnlyIdea, semanticOnlyIdea, sourceSemanticOnlyIdea)
             )
           )
       )
@@ -1150,10 +1795,9 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assert(!surface.advancedRows.exists(_.authority.exists(_.kind == MoveReviewSurfaceAuthority.StrategicRelation)), clue(surface.advancedRows))
   }
 
-  test("legacy strategic relation projection requires unambiguous catalog evidence") {
+  test("strategic relation projection requires selected relation kind") {
     val xray = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.XRay).get
-    val clearance = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.Clearance).get
-    val ambiguousIdea =
+    val unselectedIdea =
       StrategyIdeaSignal(
         ideaId = "idea_1",
         ownerSide = "white",
@@ -1162,7 +1806,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
         readiness = StrategicIdeaReadiness.Build,
         focusSquares = List("e4", "f5", "g6"),
         confidence = 0.72,
-        evidenceRefs = xray.wireEvidenceRefs ++ clearance.wireEvidenceRefs,
+        evidenceRefs = xray.wireEvidenceRefs,
         relationKind = None,
         relationFocusSquares = List("e4", "f5", "g6")
       )
@@ -1172,7 +1816,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
           Some(
             StrategyPack(
               sideToMove = "white",
-              strategicIdeas = List(ambiguousIdea)
+              strategicIdeas = List(unselectedIdea)
             )
           )
       )
@@ -1183,7 +1827,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     )
   }
 
-  test("legacy strategic relation projection requires relation-specific focus") {
+  test("strategic relation projection requires relation-specific focus") {
     val xray = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.XRay).get
     val relationIdea =
       StrategyIdeaSignal(
@@ -1195,7 +1839,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
         focusSquares = List("e4", "f5", "g6"),
         confidence = 0.72,
         evidenceRefs = xray.wireEvidenceRefs,
-        relationKind = None,
+        relationKind = Some(MoveReviewExchangeAnalyzer.RelationKind.XRay),
         relationFocusSquares = Nil
       )
     val surface =
@@ -1216,18 +1860,19 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
   }
 
   test("strategic relation surface target prefers analyzer-carried target over focus order") {
+    val xray = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.XRay).get
     val relationIdea =
       StrategyIdeaSignal(
         ideaId = "idea_1",
         ownerSide = "white",
-        kind = StrategicIdeaKind.LineOccupation,
+        kind = xray.ideaKind,
         group = "line_occupation",
-        readiness = StrategicIdeaReadiness.Build,
+        readiness = xray.readiness,
         focusSquares = List("g6", "f5", "e4"),
-        confidence = 0.72,
-        evidenceRefs = List("source:xray_relation", "xray_semantic"),
+        confidence = xray.confidence,
+        evidenceRefs = xray.wireEvidenceRefs,
         targetSquare = Some("g6"),
-        relationKind = Some(MoveReviewExchangeAnalyzer.RelationKind.XRay),
+        relationKind = Some(xray.relationKind),
         relationFocusSquares = List("g6", "f5", "e4")
       )
     val surface =
@@ -1249,17 +1894,19 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
   }
 
   test("strategic relation surface target ignores targetSquare outside relation focus") {
+    val xray = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.XRay).get
     val relationIdea =
       StrategyIdeaSignal(
         ideaId = "idea_1",
         ownerSide = "white",
-        kind = StrategicIdeaKind.LineOccupation,
+        kind = xray.ideaKind,
         group = "line_occupation",
-        readiness = StrategicIdeaReadiness.Build,
+        readiness = xray.readiness,
         focusSquares = List("e4", "f5", "g6"),
-        confidence = 0.72,
-        evidenceRefs = List("source:xray_relation", "xray_semantic"),
+        confidence = xray.confidence,
+        evidenceRefs = xray.wireEvidenceRefs,
         targetSquare = Some("a1"),
+        relationKind = Some(xray.relationKind),
         relationFocusSquares = List("e4", "f5", "g6")
       )
     val surface =
@@ -1280,17 +1927,18 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     )
   }
 
-  test("legacy strategic relation targetSquare is ignored in favor of catalog target fallback") {
+  test("strategic relation projection rejects unselected legacy target carriers") {
+    val xray = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.XRay).get
     val relationIdea =
       StrategyIdeaSignal(
         ideaId = "idea_1",
         ownerSide = "white",
-        kind = StrategicIdeaKind.LineOccupation,
+        kind = xray.ideaKind,
         group = "line_occupation",
-        readiness = StrategicIdeaReadiness.Build,
+        readiness = xray.readiness,
         focusSquares = List("e4", "f5", "g6"),
-        confidence = 0.72,
-        evidenceRefs = List("source:xray_relation", "xray_semantic"),
+        confidence = xray.confidence,
+        evidenceRefs = xray.wireEvidenceRefs,
         targetSquare = Some("f5"),
         relationKind = None,
         relationFocusSquares = List("e4", "f5", "g6")
@@ -1306,11 +1954,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
           )
       )
 
-    assertEquals(
-      surface.advancedRows.flatMap(_.authority.flatMap(_.target)).headOption,
-      Some("g6"),
-      clue(surface.advancedRows)
-    )
+    assert(!surface.advancedRows.exists(_.authority.exists(_.kind == MoveReviewSurfaceAuthority.StrategicRelation)), clue(surface.advancedRows))
   }
 
   test("strategic relation fallback target policy is catalog-owned") {
@@ -1329,7 +1973,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
           readiness = descriptor.readiness,
           focusSquares = focus,
           confidence = descriptor.confidence,
-          evidenceRefs = List(EvidenceRef.Source(descriptor.source).wireKey, descriptor.observationId.wireKey),
+          evidenceRefs = descriptor.wireEvidenceRefs,
           relationKind = Some(descriptor.relationKind),
           relationFocusSquares = focus
         )
@@ -1357,9 +2001,14 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       java.nio.file.Files.readString(
         root.resolve("modules/commentaryCore/src/main/scala/lila/commentary/analysis/MoveReviewPlayerPayloadBuilder.scala")
       )
-    assert(!builderText.contains("MoveReviewExchangeAnalyzer.RelationKind.DefenderTrade"), clues(builderText))
-    assert(!builderText.contains("MoveReviewExchangeAnalyzer.RelationKind.Decoy"), clues(builderText))
-    assert(!builderText.contains("def relationTarget("), clues(builderText))
+    val builderTextOutsidePracticalRelationMap =
+      builderText.replaceAll(
+        """(?s)private val PracticalRelationKindByLabel =\s*Map\(.+?\)\s*private val IqpInducementFamily""",
+        "private val IqpInducementFamily"
+      )
+    assert(!builderTextOutsidePracticalRelationMap.contains("MoveReviewExchangeAnalyzer.RelationKind.DefenderTrade"), clues(builderText))
+    assert(!builderTextOutsidePracticalRelationMap.contains("MoveReviewExchangeAnalyzer.RelationKind.Decoy"), clues(builderText))
+    assert(!builderTextOutsidePracticalRelationMap.contains("def relationTarget("), clues(builderText))
   }
 
   test("strategic relation projection honors selected relationKind before catalog order") {
@@ -1375,12 +2024,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
         focusSquares = List("e4", "f5", "g6", "d7"),
         confidence = 0.72,
         evidenceRefs =
-          List(
-            EvidenceRef.Source(xray.source).wireKey,
-            xray.observationId.wireKey,
-            EvidenceRef.Source(clearance.source).wireKey,
-            clearance.observationId.wireKey
-          ),
+          xray.wireEvidenceRefs ++ clearance.wireEvidenceRefs,
         targetSquare = Some("d7"),
         relationKind = Some(clearance.relationKind),
         relationFocusSquares = List("d1", "d3", "d7")
@@ -1402,7 +2046,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
         .getOrElse(fail(s"missing strategic relation row: ${surface.advancedRows}"))
 
     assertEquals(row.authority.flatMap(_.token), Some(MoveReviewExchangeAnalyzer.RelationKind.Clearance), clue(row))
-    assert(row.text.contains("clearance evidence"), clue(row))
+    assert(row.text.contains("clearance geometry"), clue(row))
     assert(row.text.contains("d1, d3, d7"), clue(row))
     assert(!row.text.contains("e4, f5, g6"), clue(row))
   }
@@ -1447,13 +2091,13 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
           MoveReviewExchangeAnalyzer.RelationKind.Deflection,
           List("g7", "f8", "a3"),
           "g7",
-          "deflection evidence"
+          "deflection motif"
         ),
         (
           MoveReviewExchangeAnalyzer.RelationKind.DiscoveredAttack,
           List("b1", "d3", "h7"),
           "h7",
-          "discovered-attack evidence"
+          "discovered-attack motif"
         )
       )
     val ideas =
@@ -1543,7 +2187,8 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
           readiness = descriptor.readiness,
           focusSquares = List("e4", "f5", "g6"),
           confidence = descriptor.confidence,
-          evidenceRefs = List(EvidenceRef.Source(descriptor.source).wireKey, descriptor.observationId.wireKey),
+          evidenceRefs = descriptor.wireEvidenceRefs,
+          relationKind = Some(descriptor.relationKind),
           relationFocusSquares = List("e4", "f5", "g6")
         )
       val surface =
@@ -1566,7 +2211,10 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
         descriptor.surfaceRowLabel,
         clue(descriptor.relationKind)
       )
-      assert(row.text.contains(s"${descriptor.publicLabel} evidence"), clue(row))
+      assert(row.text.contains(descriptor.publicLabel), clue(row))
+      assert(!row.text.contains("gives"), clue(row))
+      if descriptor.surfaceRowKind == RelationSurfaceRowKind.MobilityRestriction then
+        assert(row.text.startsWith("The checked line limits piece mobility with "), clue(row))
       assertEquals(row.authority.flatMap(_.token), Some(descriptor.relationKind), clue(row))
     }
   }
@@ -1638,6 +2286,51 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
         )
       )
     )
+  }
+
+  test("bad tactical truth contract suppresses player strategic and practical support rows") {
+    val xray = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.XRay).get
+    val relationIdea =
+      StrategyIdeaSignal(
+        ideaId = "idea_xray",
+        ownerSide = "white",
+        kind = xray.ideaKind,
+        group = StrategicIdeaGroup.PieceAndLineManagement,
+        readiness = xray.readiness,
+        focusSquares = List("e4", "f5", "g6"),
+        confidence = xray.confidence,
+        evidenceRefs = xray.wireEvidenceRefs,
+        relationKind = Some(xray.relationKind),
+        relationFocusSquares = List("e4", "f5", "g6")
+      )
+    val surface =
+      build(
+        evaluatedPlans =
+          List(
+            evaluated(
+              plan(
+                name = "Validated central plan",
+                executionSteps = List("Keep the rook on d1"),
+                preconditions = List("The d-file remains controlled")
+              ),
+              UserFacingPlanEligibility.ProbeBacked,
+              supportProbeIds = List("probe_1")
+            ),
+            evaluated(plan("Structural backup"), UserFacingPlanEligibility.StructuralOnly)
+          ),
+        supportedLocalRows =
+          List(
+            MoveReviewPlayerSurfaceRow(
+              label = "Central break",
+              text = "On the checked line, this also plays the d4-d5 break at this moment."
+            )
+          ),
+        strategyPack = Some(StrategyPack(sideToMove = "white", strategicIdeas = List(relationIdea))),
+        truthContract = Some(tacticalTruthContract())
+      )
+
+    assertEquals(surface.summaryRows, Nil)
+    assertEquals(surface.advancedRows, Nil)
   }
 
   test("probe-backed plans only release rows from the promoted plan") {

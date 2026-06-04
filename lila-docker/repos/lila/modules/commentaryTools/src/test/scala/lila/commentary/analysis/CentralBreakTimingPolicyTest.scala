@@ -1,7 +1,7 @@
 package lila.commentary.analysis
 
 import lila.commentary.model.*
-import lila.commentary.model.authoring.{ AuthorQuestion, AuthorQuestionKind, NarrativeOutline, PlanHypothesis, PlanViability }
+import lila.commentary.model.authoring.{ AuthorQuestion, AuthorQuestionKind, PlanHypothesis, PlanViability }
 import lila.commentary.model.strategic.VariationLine
 import munit.FunSuite
 
@@ -112,6 +112,34 @@ class CentralBreakTimingPolicyTest extends FunSuite:
 
     assertEquals(PlayerFacingTruthModePolicy.classify(scene.ctx, Some(scene.pack), Some(tacticalTruthContract())), PlayerFacingTruthMode.Tactical)
     assertNoCentralRelease(scene)
+  }
+
+  test("tactical sacrifice replay outranks central-break strategic mode") {
+    val scene =
+      snapshot(
+        fen = MadernaExactFen,
+        ply = 33,
+        playedMove = "e4e5",
+        lines = MadernaExactLines
+      )
+    val sacrificePack =
+      scene.pack.copy(
+        signalDigest =
+          Some(
+            scene.pack.signalDigest
+              .getOrElse(lila.commentary.NarrativeSignalDigest())
+              .copy(investedMaterial = Some(100))
+          )
+      )
+
+    assert(
+      CentralBreakTimingWitness.exact(scene.ctx).nonEmpty,
+      clues(CentralBreakTimingWitness.diagnose(scene.ctx))
+    )
+    assertEquals(
+      PlayerFacingTruthModePolicy.classify(scene.ctx, Some(sacrificePack), truthContract = None),
+      PlayerFacingTruthMode.Tactical
+    )
   }
 
   test("plan support without a direct board link does not release") {
@@ -414,5 +442,3 @@ class CentralBreakTimingPolicyTest extends FunSuite:
       AuthorQuestion("what_changed", AuthorQuestionKind.WhatChanged, 80, "What changed?"),
       AuthorQuestion("why_now", AuthorQuestionKind.WhyNow, 60, "Why now?")
     )
-
-

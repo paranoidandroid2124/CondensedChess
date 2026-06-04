@@ -313,6 +313,8 @@ private[commentary] final case class QuestionPlannerInputs(
     heavyPieceLocalBindBlocked: Boolean = false,
     openingRelationClaim: Option[String] = None,
     endgameTransitionClaim: Option[String] = None,
+    restrictedDefenseConversionSurface: Option[RestrictedDefenseConversionProof.Contract] = None,
+    dualAxisBindSurface: Option[TwoAxisBindProof.Contract] = None,
     namedRouteNetworkSurface: Option[RouteNetworkBindProof.SurfaceNetwork] = None
 )
 
@@ -440,6 +442,7 @@ private[commentary] final case class WhatChangedPlannerMaterial(
     allowedPreventedPlans: List[PreventedPlanInfo],
     exactTargetFixationChange: Option[String],
     canPromoteDecisionComparisonChange: Boolean,
+    localFileEntryPair: Option[LocalFileEntryProof.SurfacePair],
     localFileEntryChange: Option[String],
     hasLocalFileEntryChange: Boolean,
     preventedPlanChange: Option[String],
@@ -513,6 +516,8 @@ private[commentary] object QuestionPlannerInputsBuilder:
       heavyPieceLocalBindBlocked = heavyPieceLocalBindBlocked,
       openingRelationClaim = QuestionFirstCommentaryPlanner.openingRelationReplayClaim(ctx),
       endgameTransitionClaim = QuestionFirstCommentaryPlanner.endgameTransitionReplayClaim(ctx),
+      restrictedDefenseConversionSurface = ctx.restrictedDefenseConversion.filter(_.certified),
+      dualAxisBindSurface = ctx.dualAxisBind.filter(_.certified),
       namedRouteNetworkSurface = namedRouteNetworkSurface
     )
 
@@ -1204,24 +1209,31 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       )
 
   private def localFileEntryChangeClaim(
-      inputs: QuestionPlannerInputs
+      pair: LocalFileEntryProof.SurfacePair
   ): Option[String] =
-    localFileEntrySurfacePair(inputs).map(pair =>
+    Some(
       s"This changes the position by taking the ${pair.file} away as a counterplay route and closing ${pair.entrySquare}."
     )
 
   private def localFileEntryChangeContrast(
-      inputs: QuestionPlannerInputs
+      pair: LocalFileEntryProof.SurfacePair
   ): Option[String] =
-    localFileEntrySurfacePair(inputs).map(pair =>
+    Some(
       s"Before the move, the ${pair.file} and the ${pair.entrySquare} entry were still available."
     )
 
   private def localFileEntrySurfacePair(
+      ctx: Option[NarrativeContext],
       inputs: QuestionPlannerInputs
   ): Option[LocalFileEntryProof.SurfacePair] =
     Option.unless(inputs.heavyPieceLocalBindBlocked) {
-      LocalFileEntryProof.certifiedSurfacePair(inputs.preventedPlansNow, inputs.evidenceBackedPlans)
+      ctx.flatMap(context =>
+        LocalFileEntryProof.certifiedSurfacePair(
+          ctx = context,
+          preventedPlans = inputs.preventedPlansNow,
+          evidenceBackedPlans = inputs.evidenceBackedPlans
+        )
+      )
     }.flatten
 
   private def preventedPlansWhenLocalBindAllowed(inputs: QuestionPlannerInputs): List[PreventedPlanInfo] =
@@ -1266,16 +1278,11 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       }
 
   private def localFileEntryChangeConsequence(
-      inputs: QuestionPlannerInputs
+      pair: LocalFileEntryProof.SurfacePair
   ): Option[String] =
-    localFileEntrySurfacePair(inputs)
-      .filter(_.counterplayScoreDrop > 0)
-      .map(pair => s"That removes roughly ${pair.counterplayScoreDrop}cp of counterplay from the local route.")
-
-  private def hasCertifiedLocalFileEntryChange(
-      inputs: QuestionPlannerInputs
-  ): Boolean =
-    localFileEntrySurfacePair(inputs).nonEmpty
+    Option.when(pair.counterplayScoreDrop > 0)(
+      s"That removes roughly ${pair.counterplayScoreDrop}cp of counterplay from the local route."
+    )
 
   private def namedRouteNetworkWhyThisClaim(
       inputs: QuestionPlannerInputs
@@ -1290,9 +1297,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
               // exact-FEN root-best control is restored for planner-owned truth.
               None
             case None =>
-              Some(
-                s"This keeps ${network.entrySquare} closed, takes the ${network.file} away, and cuts off the ${network.rerouteSquare} reroute."
-              )
+              Some(network.routeDenialText("This"))
         }
 
   private def preventedPlanChangeContrast(plan: PreventedPlanInfo): Option[String] =
@@ -1906,8 +1911,9 @@ private[commentary] object QuestionFirstCommentaryPlanner:
     val exactTargetFixationChange = exactTargetFixationChangeClaim(inputs)
     val canPromoteDecisionComparisonChange = moveOwner.nonEmpty || hasConcreteMoveDeltaChange(inputs)
     val allowedPreventedPlans = preventedPlansAllowedForPlannerSurface(ctx, inputs, truthContract)
-    val localFileEntryChange = localFileEntryChangeClaim(inputs)
-    val hasLocalFileEntryChange = hasCertifiedLocalFileEntryChange(inputs)
+    val localFileEntryPair = localFileEntrySurfacePair(ctx, inputs)
+    val localFileEntryChange = localFileEntryPair.flatMap(localFileEntryChangeClaim)
+    val hasLocalFileEntryChange = localFileEntryPair.nonEmpty
     val preventedPlanChange = allowedPreventedPlans.collectFirst(Function.unlift(preventedPlanChangeClaim))
     val hasPreventedPlanChangeMaterial = allowedPreventedPlans.exists(preventedPlanHasChangeMaterial)
     val decisionComparisonChange =
@@ -1920,6 +1926,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       allowedPreventedPlans = allowedPreventedPlans,
       exactTargetFixationChange = exactTargetFixationChange,
       canPromoteDecisionComparisonChange = canPromoteDecisionComparisonChange,
+      localFileEntryPair = localFileEntryPair,
       localFileEntryChange = localFileEntryChange,
       hasLocalFileEntryChange = hasLocalFileEntryChange,
       preventedPlanChange = preventedPlanChange,
@@ -2021,7 +2028,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
             .orElse(delta.concessions.headOption.map(concession => s"The tradeoff is that $concession."))
         }
       }.orElse {
-        localFileEntryChangeContrast(inputs)
+        material.localFileEntryPair.flatMap(localFileEntryChangeContrast)
       }.orElse {
         material.allowedPreventedPlans.collectFirst(Function.unlift(preventedPlanChangeContrast))
       }.orElse {
@@ -2037,7 +2044,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       exactTargetFixationChangeConsequence(inputs).orElse {
         inputs.pvDelta.flatMap(planAdvanceOrOpportunity).map(wrapUpConsequence)
       }.orElse {
-        localFileEntryChangeConsequence(inputs).map(wrapUpConsequence)
+        material.localFileEntryPair.flatMap(localFileEntryChangeConsequence).map(wrapUpConsequence)
       }.orElse {
         material.allowedPreventedPlans.collectFirst(Function.unlift(preventedPlanChangeConsequence))
           .map(wrapUpConsequence)
@@ -2770,9 +2777,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
     val whyThisOrWhatChanged = List(WhyThis, WhatChanged)
     val hasTacticalFailure =
       truthContract.exists(contract =>
-        contract.truthClass == DecisiveTruthClass.Blunder ||
-          contract.truthClass == DecisiveTruthClass.MissedWin ||
-          (contract.reasonFamily == DecisiveReasonKind.TacticalRefutation && contract.isBad) ||
+        contract.blocksStrategicSupport ||
           contract.reasonFamily == DecisiveReasonKind.MissedWin
       ) ||
         inputs.mainBundle.flatMap(_.mainClaim).exists(_.mode == PlayerFacingTruthMode.Tactical)

@@ -1,6 +1,7 @@
 package lila.commentary.analysis.claim
 
 import lila.commentary.tools.claim.*
+import lila.commentary.analysis.{ PlanTaxonomy, PlayerFacingTruthModePolicy }
 import munit.FunSuite
 
 class AdmissionUnitReviewTest extends FunSuite:
@@ -47,7 +48,8 @@ class AdmissionUnitReviewTest extends FunSuite:
       release: String = "-",
       primary: String = "-",
       playedUci: String = "a2a3",
-      ply: Int = 45
+      ply: Int = 45,
+      surfaceGate: String = "supported_local_surface_passed"
   ): SourceReview.Observation =
     SourceReview.Observation(
       source = source(id, reviewGroup),
@@ -55,7 +57,7 @@ class AdmissionUnitReviewTest extends FunSuite:
       diagnosis = diagnosis,
       engineAgreement = engineAgreement,
       plannerOwnership = "primary_SupportedLocal",
-      surfaceGate = "supported_local_surface_passed",
+      surfaceGate = surfaceGate,
       release = release,
       taxonomy = "source_prophylaxis_restraint",
       ply = Some(ply),
@@ -87,7 +89,7 @@ class AdmissionUnitReviewTest extends FunSuite:
     assertEquals(contract.planKindId, "prophylaxis_restraint")
     assertEquals(contract.proofSource, "prophylactic_move")
     assertEquals(contract.proofFamily, "counterplay_restraint")
-    assertEquals(contract.defaultAuthorityTier, "SupportedLocal")
+    assertEquals(contract.surfaceAuthorityTiers, List("SupportedLocal"))
   }
 
   test("builds transient prophylaxis source candidates with exact one-ply ranges") {
@@ -115,6 +117,41 @@ class AdmissionUnitReviewTest extends FunSuite:
     assertEquals(candidate.reviewGroup, "A:prophylaxis_restraint")
     assertEquals(candidate.candidatePlyRange.start, 3)
     assertEquals(candidate.candidatePlyRange.end, 3)
+  }
+
+  test("transient source candidates use the review group for their proof family") {
+    val game =
+      AdmissionUnitReview.SourceGame(
+        id = "review-group-sample",
+        label = "Review group sample",
+        pgn = samplePgn,
+        sourceUrl = "https://example.invalid/source.pgn"
+      )
+    val ply =
+      lila.commentary.PgnAnalysisHelper.PlyData(
+        ply = 9,
+        fen = "2r2rk1/pp3pp1/2n1p2p/3p4/3P1P2/P1P1PN1P/1P4P1/2R2RK1 w - - 0 23",
+        playedMove = "Nxd5",
+        playedUci = "c3d5",
+        color = chess.White
+      )
+
+    val cases =
+      List(
+        PlanTaxonomy.PlanKind.StaticWeaknessFixation.id -> "B:static_weakness_fixation",
+        PlanTaxonomy.PlanKind.BackwardPawnTargeting.id -> "B:carlsbad_fixed_target",
+        PlanTaxonomy.PlanKind.IQPInducement.id -> "C:iqp_inducement",
+        PlanTaxonomy.PlanKind.SimplificationWindow.id -> "C:simplification_window",
+        PlanTaxonomy.PlanKind.DefenderTrade.id -> "C:defender_trade",
+        PlanTaxonomy.PlanKind.QueenTradeShield.id -> "C:queen_trade_boundary",
+        PlanTaxonomy.PlanKind.BadPieceLiquidation.id -> "C:bad_piece_liquidation",
+        PlanTaxonomy.PlanKind.OpenFilePressure.id -> "A:open_file_pressure"
+      )
+
+    cases.foreach { case (planKind, reviewGroup) =>
+      val candidate = AdmissionUnitReview.sourceCandidateFor(game, ply, planKind)
+      assertEquals(candidate.reviewGroup, reviewGroup, clue(candidate))
+    }
   }
 
   test("bad-piece liquidation transient candidates use C review group and allow captures") {
@@ -152,6 +189,48 @@ class AdmissionUnitReviewTest extends FunSuite:
     assert(report.rows.forall(_.observation.source.reviewGroup == "C:bad_piece_liquidation"), clues(report.tsv))
   }
 
+  test("transition admission units do not pre-screen away capture candidates") {
+    val capturePgn =
+      """[Event "Transition capture sample"]
+        |[Site "?"]
+        |[Date "2026.01.01"]
+        |[Round "?"]
+        |[White "White"]
+        |[Black "Black"]
+        |[Result "*"]
+        |
+        |1. e4 d5 2. exd5 Qxd5 3. Nc3 Qe5+ 4. Be2 *
+        |""".stripMargin
+    val game =
+      AdmissionUnitReview.SourceGame(
+        id = "transition-capture",
+        label = "Transition capture sample",
+        pgn = capturePgn,
+        sourceUrl = "https://example.invalid/transition.pgn"
+      )
+    val transitionReport =
+      AdmissionUnitReview.admit(
+        games = List(game),
+        engine = None,
+        config = AdmissionUnitReview.AdmissionConfig(
+          planKind = PlanTaxonomy.PlanKind.SimplificationWindow.id,
+          maxCandidates = 8
+        )
+      )
+    val quietReport =
+      AdmissionUnitReview.admit(
+        games = List(game),
+        engine = None,
+        config = AdmissionUnitReview.AdmissionConfig(
+          planKind = PlanTaxonomy.PlanKind.ProphylaxisRestraint.id,
+          maxCandidates = 8
+        )
+      )
+
+    assert(transitionReport.rows.exists(_.observation.playedUci.contains("e4d5")), clues(transitionReport.tsv))
+    assert(!quietReport.rows.exists(_.observation.playedUci.contains("e4d5")), clues(quietReport.tsv))
+  }
+
   test("ranks exact counterplay-restraint SupportedLocal rows ahead of mismatches and noise") {
     val admitted =
       observation(
@@ -187,8 +266,110 @@ class AdmissionUnitReviewTest extends FunSuite:
       )
 
     assertEquals(ranked.head.observation.source.id, "source-admitted-prophylaxis")
-    assert(ranked.head.scoreReasons.contains("exact_admission_unit_supported_local"), clues(ranked.head))
+    assert(ranked.head.scoreReasons.contains("exact_admission_unit_authority"), clues(ranked.head))
     assert(ranked.exists(_.scoreReasons.contains("opening_downranked")), clues(ranked))
+  }
+
+  test("report treats CertifiedOwner exact rows as admitted authority rows") {
+    val admitted =
+      observation(
+        id = "source-admitted-static-weakness",
+        verdict = SourceReview.Verdict.AdmitAuthorityRow,
+        diagnosis = SourceReview.Diagnosis.AdmitReady,
+        blockers = "none",
+        reviewGroup = "B:static_weakness_fixation",
+        mainProofSource = PlayerFacingTruthModePolicy.ExactTargetFixationProofSource,
+        packetSummary = "proof_source=exact_target_fixation;proof_family=static_weakness_fixation;scope=PositionLocal",
+        contractId = "subplan:static_weakness_fixation",
+        contractStatus = "Releasable",
+        release = "CertifiedOwner",
+        surfaceGate = "certified_owner_surface_not_blocking",
+        primary = "This keeps d6 fixed as the target."
+      )
+    val blocked =
+      observation(
+        id = "source-blocked-static-weakness",
+        reviewGroup = "B:static_weakness_fixation",
+        blockers = "owner:static_weakness_fixation_witness_missing"
+      )
+
+    val report =
+      AdmissionUnitReview.reportFromObservations(
+        observations = List(blocked, admitted),
+        config = AdmissionUnitReview.AdmissionConfig(
+          planKind = PlanTaxonomy.PlanKind.StaticWeaknessFixation.id,
+          admitLimit = 2
+        )
+      )
+
+    assertEquals(report.admittedRows.map(_.ranked.observation.source.id), List("source-admitted-static-weakness"))
+    assert(report.admittedRows.head.ranked.scoreReasons.contains("exact_admission_unit_authority"), clues(report.tsv))
+  }
+
+  test("report rejects CertifiedOwner rows for supported-only admission units") {
+    val unsupportedAuthority =
+      observation(
+        id = "source-bad-piece-wrong-authority",
+        verdict = SourceReview.Verdict.AdmitAuthorityRow,
+        diagnosis = SourceReview.Diagnosis.AdmitReady,
+        blockers = "none",
+        reviewGroup = "C:bad_piece_liquidation",
+        mainProofSource = PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource,
+        packetSummary = "proof_source=bad_piece_liquidation;proof_family=bad_piece_liquidation;scope=MoveLocal",
+        contractId = "subplan:bad_piece_liquidation",
+        contractStatus = "Releasable",
+        release = "CertifiedOwner",
+        surfaceGate = "certified_owner_surface_not_blocking",
+        primary = "This trades off the bad bishop."
+      )
+
+    val report =
+      AdmissionUnitReview.reportFromObservations(
+        observations = List(unsupportedAuthority),
+        config = AdmissionUnitReview.AdmissionConfig(
+          planKind = PlanTaxonomy.PlanKind.BadPieceLiquidation.id,
+          admitLimit = 1
+        )
+      )
+
+    assertEquals(report.admittedRows, Nil)
+    assert(!report.rows.head.ranked.scoreReasons.contains("exact_admission_unit_authority"), clues(report.tsv))
+  }
+
+  test("report keeps certified-eligible move-delta units on SupportedLocal surface authority") {
+    val unsupportedAuthority =
+      observation(
+        id = "source-simplification-wrong-authority",
+        verdict = SourceReview.Verdict.AdmitAuthorityRow,
+        diagnosis = SourceReview.Diagnosis.AdmitReady,
+        blockers = "none",
+        reviewGroup = "C:simplification_window",
+        mainProofSource = PlanTaxonomy.PlanKind.SimplificationWindow.id,
+        packetSummary = "proof_source=simplification_window;proof_family=simplification_window;scope=MoveLocal",
+        contractId = "subplan:simplification_window",
+        contractStatus = "Releasable",
+        release = "CertifiedOwner",
+        surfaceGate = "certified_owner_surface_not_blocking",
+        primary = "This exchange keeps the same local edge."
+      )
+    val supportedAuthority =
+      unsupportedAuthority.copy(
+        source = source("source-simplification-supported", reviewGroup = "C:simplification_window"),
+        release = "SupportedLocal",
+        surfaceGate = "supported_local_surface_passed"
+      )
+
+    val report =
+      AdmissionUnitReview.reportFromObservations(
+        observations = List(unsupportedAuthority, supportedAuthority),
+        config = AdmissionUnitReview.AdmissionConfig(
+          planKind = PlanTaxonomy.PlanKind.SimplificationWindow.id,
+          admitLimit = 2
+        )
+      )
+
+    assertEquals(report.admittedRows.map(_.observation.source.id), List("source-simplification-supported"))
+    assert(report.rows.exists(_.observation.release == "CertifiedOwner"), clues(report.tsv))
   }
 
   test("report applies admit limit and keeps non-admitted blocker evidence") {

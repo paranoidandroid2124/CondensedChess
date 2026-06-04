@@ -57,13 +57,29 @@ class TranspositionPvAlignerTest extends FunSuite:
         depth = 18
       )
     val exact =
-      weaknessHypothesis("target:d5")
+      List(
+        weaknessHypothesis("target:d5"),
+        weaknessHypothesis("weakness_target:d5"),
+        weaknessHypothesis("fixed_target:d5"),
+        weaknessHypothesis("coordinated_target:d5"),
+        weaknessHypothesis("target_fixing:d5"),
+        weaknessHypothesis("enemy_weak_square:d5"),
+        weaknessHypothesis("weak_complex:d5")
+      )
     val malformed =
       weaknessHypothesis("target:d5_extra")
+    val roleTarget =
+      weaknessHypothesis("target:d5:queen")
 
-    assert(TranspositionPvAligner.alignPlans(TranspositionFen, List(line), List(exact)).nonEmpty)
+    exact.foreach { hypothesis =>
+      assert(TranspositionPvAligner.alignPlans(TranspositionFen, List(line), List(hypothesis)).nonEmpty)
+    }
     assertEquals(
       TranspositionPvAligner.alignPlans(TranspositionFen, List(line), List(malformed)),
+      Nil
+    )
+    assertEquals(
+      TranspositionPvAligner.alignPlans(TranspositionFen, List(line), List(roleTarget)),
       Nil
     )
   }

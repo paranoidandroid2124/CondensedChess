@@ -59,7 +59,7 @@ object CommentaryPlayerSliceManifestBuilder:
         commentaryConfig = CommentaryConfig.fromEnv,
         providerConfig = AiProviderConfig.fromEnv.copy(provider = "none")
       )
-    val engine = new LocalUciEngine(config.enginePath, timeoutMs = 30000L)
+    val engine = new LocalUciEngine(config.enginePath)
     try
       val manifest =
         filteredCatalog.zipWithIndex.flatMap { case (entry, idx) =>

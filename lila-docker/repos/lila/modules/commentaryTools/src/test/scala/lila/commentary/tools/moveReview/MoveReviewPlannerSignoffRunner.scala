@@ -52,7 +52,7 @@ object MoveReviewPlannerSignoffRunner:
       System.err.println(s"[move-review-planner-signoff] no moveReview entries in `${config.manifestPath}`")
       sys.exit(1)
 
-    val engine = new LocalUciEngine(config.enginePath, timeoutMs = 30000L)
+    val engine = new LocalUciEngine(config.enginePath)
     try
       val selected = scala.collection.mutable.ListBuffer.empty[SignoffEntry]
       val counts = scala.collection.mutable.Map.empty[String, Int].withDefaultValue(0)

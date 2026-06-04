@@ -31,7 +31,6 @@ private[commentary] object TranspositionPvAligner:
       PlanKind.BackwardPawnTargeting.id,
       PlanKind.IQPInducement.id
     )
-  private val TargetHintPrefixes = List("weakness_target:", "target:")
 
   def alignPlans(
       fen: String,
@@ -162,15 +161,7 @@ private[commentary] object TranspositionPvAligner:
       .orElse(ThemeResolver.subplanFromHypothesis(hypothesis).map(_.id))
 
   private def targetHints(hypothesis: PlanHypothesis): List[String] =
-    hypothesis.evidenceSources.flatMap(targetHintSquare).distinct
-
-  private def targetHintSquare(source: String): Option[String] =
-    val lower = Option(source).getOrElse("").trim.toLowerCase
-    TargetHintPrefixes
-      .collectFirst { case prefix if lower.startsWith(prefix) =>
-        lower.stripPrefix(prefix).trim
-      }
-      .flatMap(normalizeSquare)
+    WeaknessTargetProfile.targetHintSquares(hypothesis.evidenceSources)
 
   private def normalizeSquare(square: String): Option[String] =
     Option(square).map(_.trim.toLowerCase).filter(_.matches("""[a-h][1-8]"""))

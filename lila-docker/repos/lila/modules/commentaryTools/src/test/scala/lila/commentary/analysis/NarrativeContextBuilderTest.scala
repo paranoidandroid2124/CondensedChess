@@ -73,7 +73,7 @@ class NarrativeContextBuilderTest extends FunSuite {
     assertEquals(narrativeCtx.threats.toUs.head.square, Some("e5"))
   }
 
-  test("summary key threat uses deferred relation fallback labels instead of raw motif names") {
+  test("summary key threat uses relation fallback labels instead of raw motif names") {
     val threat = Threat(
       kind = ThreatKind.Positional,
       lossIfIgnoredCp = 140,

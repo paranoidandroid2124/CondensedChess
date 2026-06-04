@@ -303,7 +303,7 @@ object PlanMatcher:
 
   private def restriction(m: List[Motif], ctx: IntegratedContext, side: Color, s: SideSnapshot): PlanMatch =
     val ev = evidence(m, 0.18) {
-      case Domination(_, _, _, c, _, _) if c == side => s"${deferredDominationLabel} reduces enemy mobility"
+      case Domination(_, _, _, c, _, _) if c == side => s"${relationDominationLabel} reduces enemy mobility"
       case Blockade(_, _, _, c, _, _) if c == side   => "blockade limits counterplay"
       case OpenFileControl(_, c, _, _) if c == side  => "file control supports prophylaxis"
     }
@@ -326,10 +326,9 @@ object PlanMatcher:
       subplanId = Some(Subplan.Restriction)
     )
 
-  private def deferredDominationLabel: String =
+  private def relationDominationLabel: String =
     RelationObservationCatalog
-      .deferredFallbackForKind(MoveReviewExchangeAnalyzer.RelationKind.Domination)
-      .flatMap(_.label)
+      .relationWitnessOnlyFallbackLabelForMotifTag(MoveReviewExchangeAnalyzer.RelationKind.Domination)
       .getOrElse("key-square restriction")
 
   private def redeployment(m: List[Motif], ctx: IntegratedContext, side: Color, s: SideSnapshot): PlanMatch =

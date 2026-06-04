@@ -66,7 +66,7 @@ object BreakClampSourceTriageRunner:
             config = config
           )
         case Some(path) =>
-          val engine = LocalUciEngine(path, timeoutMs = 30000L)
+          val engine = LocalUciEngine(path)
           val adapter = LocalEngine(engine)
           try
             BreakClampSourceTriage.triage(

@@ -1081,6 +1081,7 @@ private[commentary] object CommentaryIdeaSurface:
   def motifCorroboratedByFact(rawMotif: String, fact: Fact): Boolean =
     val motif = normalizeMotifKey(rawMotif)
     RelationObservationCatalog.deferredFallbackForMotifTag(motif).isEmpty &&
+      !RelationObservationCatalog.relationWitnessOnlyMotifTag(motif) &&
       (
         fact match
           case _: Fact.Pin =>

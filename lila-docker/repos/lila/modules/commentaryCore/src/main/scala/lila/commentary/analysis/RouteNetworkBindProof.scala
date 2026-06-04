@@ -90,7 +90,9 @@ private[commentary] object RouteNetworkBindProof:
       rerouteSquare: String,
       counterplayScoreDrop: Int,
       intermediateSquare: Option[String] = None
-  )
+  ):
+    def routeDenialText(subject: String): String =
+      s"$subject keeps $entrySquare closed, takes the $file away, and cuts off the $rerouteSquare reroute."
 
   private final case class BranchIdentityResolution(
       selectedKey: Option[String],

@@ -3,6 +3,7 @@ package lila.commentary.analysis.semantic
 import chess.Color
 import lila.commentary.StrategyPack
 import lila.commentary.analysis.{ MoveReviewExchangeAnalyzer, StrategicConceptSemantics, StrategicIdeaSemanticContext }
+import lila.commentary.model.{ ProbeContractValidator, ProbeResult }
 import lila.commentary.model.strategic.PositionalTag
 
 private[commentary] trait StrategicSemanticObservationProducer:
@@ -24,14 +25,119 @@ private[commentary] final case class StrategicSemanticObservationContext(
 
   private lazy val replayUpToSix: Option[List[MoveReviewExchangeAnalyzer.BoundedReplayStep]] =
     MoveReviewExchangeAnalyzer
-      .boundedTopReplayPrefix(semantic.fen, semantic.engineVariations, minPlies = 1, maxPlies = 6)
+      .boundedTopReplayPrefix(
+        semantic.fen,
+        semantic.engineVariations,
+        minPlies = 1,
+        maxPlies = StandardRelationReplayMaxPlies
+      )
+
+  private lazy val drawResourceReplay: Option[List[MoveReviewExchangeAnalyzer.BoundedReplayStep]] =
+    MoveReviewExchangeAnalyzer
+      .boundedTopReplayPrefix(
+        semantic.fen,
+        semantic.engineVariations,
+        minPlies = 1,
+        maxPlies = DrawResourceRelationReplayMaxPlies
+      )
 
   lazy val relationWitnesses: List[MoveReviewExchangeAnalyzer.RelationWitness] =
-    replayAtLeast(1).toList.flatMap(replay =>
-      playedMove.toList.flatMap(move =>
-        MoveReviewExchangeAnalyzer.relationWitnesses(replay, move, exactTargets, continuationLines)
+    val standardWitnesses =
+      replayAtLeast(1).toList.flatMap(replay =>
+        playedMove.toList.flatMap(move =>
+          MoveReviewExchangeAnalyzer
+            .relationWitnesses(
+              replay = replay,
+              playedMove = move,
+              explicitTargets = exactTargets,
+              continuationLines = continuationLines,
+              engineScoreCp = semantic.engineVariations.headOption.map(_.scoreCp),
+              engineMate = semantic.engineVariations.headOption.flatMap(_.mate)
+            )
+            .filterNot(witness => DrawResourceRelationKinds.contains(witness.kind))
+        )
       )
-    )
+    val drawResourceWitnessesFromTopPv =
+      drawResourceReplay.toList.flatMap(replay =>
+        playedMove.toList.flatMap(move =>
+          drawResourceWitnessesFromReplay(
+            replay = replay,
+            move = move,
+            engineScoreCp = semantic.engineVariations.headOption.map(_.scoreCp),
+            engineMate = semantic.engineVariations.headOption.flatMap(_.mate)
+          )
+        )
+      )
+    val drawResourceWitnessesFromProbes =
+      playedMove.toList.flatMap(move =>
+        semantic.probeResults
+          .filter(result => validatedRootProbeForPlayedMove(result, move))
+          .flatMap(result =>
+            probeReplyLines(result).flatMap(replyLine =>
+              MoveReviewExchangeAnalyzer
+                .boundedReplayPrefix(
+                  semantic.fen,
+                  move :: replyLine,
+                  minPlies = 1,
+                  maxPlies = DrawResourceRelationReplayMaxPlies
+                )
+                .toList
+                .flatMap(replay =>
+                  drawResourceWitnessesFromReplay(
+                    replay = replay,
+                    move = move,
+                    engineScoreCp = Some(result.evalCp),
+                    engineMate = result.mate
+                  )
+                )
+            )
+          )
+      )
+    (standardWitnesses ++ drawResourceWitnessesFromTopPv ++ drawResourceWitnessesFromProbes).distinct
+
+  private def drawResourceWitnessesFromReplay(
+      replay: List[MoveReviewExchangeAnalyzer.BoundedReplayStep],
+      move: String,
+      engineScoreCp: Option[Int],
+      engineMate: Option[Int]
+  ): List[MoveReviewExchangeAnalyzer.RelationWitness] =
+    List(
+      MoveReviewExchangeAnalyzer.stalemateTrapWitness(
+        replay = replay,
+        playedMove = move,
+        engineScoreCp = engineScoreCp,
+        engineMate = engineMate
+      ),
+      MoveReviewExchangeAnalyzer.perpetualCheckWitness(
+        replay = replay,
+        playedMove = move,
+        engineScoreCp = engineScoreCp,
+        engineMate = engineMate
+      )
+    ).flatten
+
+  private def validatedRootProbeForPlayedMove(
+      result: ProbeResult,
+      move: String
+  ): Boolean =
+    ProbeContractValidator.validate(result).isValid &&
+      result.fen.map(_.trim).filter(_.nonEmpty).contains(semantic.fen.trim) &&
+      probeMoveMatchesPlayedMove(result, move)
+
+  private def probeMoveMatchesPlayedMove(result: ProbeResult, move: String): Boolean =
+    val normalizedBoundMoves =
+      (result.probedMove.toList ++ result.candidateMove.toList)
+        .map(lila.commentary.analysis.NarrativeUtils.normalizeUciMove)
+        .filter(_.nonEmpty)
+    normalizedBoundMoves.nonEmpty &&
+      normalizedBoundMoves.forall(_ == move) &&
+      normalizedBoundMoves.forall(MoveReviewExchangeAnalyzer.isUciMove)
+
+  private def probeReplyLines(result: ProbeResult): List[List[String]] =
+    (result.bestReplyPv :: result.replyPvs.toList.flatten)
+      .filter(_.nonEmpty)
+      .flatMap(normalizedStrictUciLine)
+      .distinct
 
   private lazy val continuationLines: List[List[String]] =
     semantic.engineVariations.map(MoveReviewExchangeAnalyzer.normalizedLineMoves).filter(_.nonEmpty)
@@ -96,6 +202,14 @@ private[commentary] object RelationObservationProducer extends StrategicSemantic
 
 private object StrategicSemanticObservationProducerSupport:
 
+  val StandardRelationReplayMaxPlies = 6
+  val DrawResourceRelationReplayMaxPlies = 12
+  val DrawResourceRelationKinds: Set[String] =
+    Set(
+      MoveReviewExchangeAnalyzer.RelationKind.StalemateTrap,
+      MoveReviewExchangeAnalyzer.RelationKind.PerpetualCheck
+    )
+
   def exactTargetSquares(semantic: StrategicIdeaSemanticContext): List[String] =
     val enemyWeakSquares =
       semantic.positionalFeatures.collect {
@@ -113,6 +227,11 @@ private object StrategicSemanticObservationProducerSupport:
     semantic.playedMove
       .map(lila.commentary.analysis.NarrativeUtils.normalizeUciMove)
       .filter(MoveReviewExchangeAnalyzer.isUciMove)
+
+  def normalizedStrictUciLine(moves: List[String]): Option[List[String]] =
+    val normalized =
+      moves.map(move => Option(move).fold("")(lila.commentary.analysis.NarrativeUtils.normalizeUciMove))
+    Option.when(normalized.nonEmpty && normalized.forall(MoveReviewExchangeAnalyzer.isUciMove))(normalized)
 
   def flankTargetSquares(flank: String, squares: List[String]): List[String] =
     val files =

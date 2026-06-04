@@ -7,6 +7,7 @@ import java.nio.file.{ Files, Path, Paths }
 import play.api.libs.json.*
 
 import lila.commentary.PgnAnalysisHelper
+import lila.commentary.analysis.PlanTaxonomy
 
 object AdmissionUnitReview:
 
@@ -269,17 +270,24 @@ object AdmissionUnitReview:
     }.take(config.maxCandidates).toList
 
   private def reviewGroupForPlanKind(planKind: String): String =
-    planKind match
-      case "bad_piece_liquidation" => "C:bad_piece_liquidation"
-      case other                   => s"A:$other"
+    specForPlanKind(planKind).map(_.sourceReviewGroup).getOrElse(s"A:$planKind")
 
   private def candidatePreScreen(
       ply: PgnAnalysisHelper.PlyData,
       totalPlies: Int,
       planKind: String
   ): Boolean =
-    if planKind == "bad_piece_liquidation" then badPieceLiquidationPreScreen(ply, totalPlies)
+    if tacticalTransitionPlanKinds.contains(planKind) then tacticalTransitionPreScreen(ply, totalPlies)
     else prophylaxisPreScreen(ply, totalPlies)
+
+  private val tacticalTransitionPlanKinds =
+    Set(
+      PlanTaxonomy.PlanKind.IQPInducement.id,
+      PlanTaxonomy.PlanKind.SimplificationWindow.id,
+      PlanTaxonomy.PlanKind.DefenderTrade.id,
+      PlanTaxonomy.PlanKind.QueenTradeShield.id,
+      PlanTaxonomy.PlanKind.BadPieceLiquidation.id
+    )
 
   private def prophylaxisPreScreen(
       ply: PgnAnalysisHelper.PlyData,
@@ -293,7 +301,7 @@ object AdmissionUnitReview:
       !ply.playedMove.contains("=") &&
       !ply.playedMove.startsWith("O-O")
 
-  private def badPieceLiquidationPreScreen(
+  private def tacticalTransitionPreScreen(
       ply: PgnAnalysisHelper.PlyData,
       totalPlies: Int
   ): Boolean =
@@ -324,7 +332,7 @@ object AdmissionUnitReview:
 
     if exactAdmissionUnitSupported(observation, contract) then
       score += 160
-      reasons += "exact_admission_unit_supported_local"
+      reasons += "exact_admission_unit_authority"
     if observation.admissionBlockers.contains(s"proof:${contract.planKindId}_contract_mismatch") then
       score -= 50
       reasons += "contract_mismatch"
@@ -344,13 +352,18 @@ object AdmissionUnitReview:
       observation: SourceReview.Observation,
       contract: AdmissionUnitCatalog.AdmissionUnitSpec
   ): Boolean =
+    val authorityGateMatches =
+      observation.release match
+        case "CertifiedOwner" => observation.surfaceGate == "certified_owner_surface_not_blocking"
+        case "SupportedLocal" => observation.surfaceGate == "supported_local_surface_passed"
+        case _                => false
     observation.verdict == SourceReview.Verdict.AdmitAuthorityRow &&
-      observation.release == "SupportedLocal" &&
+      contract.surfaceAuthorityTiers.contains(observation.release) &&
       observation.mainProofSource == contract.proofSource &&
       observation.packetSummary.contains(s"proof_family=${contract.proofFamily}") &&
       observation.contractId.contains(contract.proofFamily) &&
       observation.contractStatus == "Releasable" &&
-      observation.surfaceGate == "supported_local_surface_passed"
+      authorityGateMatches
 
   private def engineRank(engineAgreement: String): Int =
     if engineAgreement == "top_pv_matches_played" then 0

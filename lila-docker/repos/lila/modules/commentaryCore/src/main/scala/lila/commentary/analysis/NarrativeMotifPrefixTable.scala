@@ -1,6 +1,5 @@
 package lila.commentary.analysis
 
-import lila.commentary.analysis.MoveReviewExchangeAnalyzer.RelationKind
 import lila.commentary.analysis.semantic.{ DeferredRelationFallbackLane, RelationObservationCatalog }
 
 private[analysis] object NarrativeMotifPrefixTable:
@@ -21,43 +20,21 @@ private[analysis] object NarrativeMotifPrefixTable:
       (motif.contains(needle) || motif.replace("_", "").contains(needle.replace("_", "")))
 
   private def deferredRelationTemplates(normalized: List[String]): Option[Option[List[String]]] =
-    normalized.flatMap(RelationObservationCatalog.deferredFallbackForMotifTag).headOption.map { fallback =>
-      fallback.lane match
-        case DeferredRelationFallbackLane.PracticalGuidance if fallback.relationKind == RelationKind.Zwischenzug =>
-          Some(
-            List(
-              "Move-order details need checking before assuming the recapture.",
-              "The practical task is to verify the move order before committing.",
-              "Calculation should stay flexible around the next forcing move."
+    if normalized.exists(RelationObservationCatalog.relationWitnessOnlyMotifTag) then Some(None)
+    else
+      normalized.flatMap(RelationObservationCatalog.deferredFallbackForMotifTag).headOption.map { fallback =>
+        fallback.lane match
+          case DeferredRelationFallbackLane.ExchangeSequence | DeferredRelationFallbackLane.MaterialTransition =>
+            Some(
+              List(
+                "The checked line points to a material transition rather than a named relation.",
+                "The practical reading is a concrete exchange sequence, not a settled motif label.",
+                "Material flow is the safer guide until the relation is replay-proven."
+              )
             )
-          )
-        case DeferredRelationFallbackLane.PracticalGuidance if fallback.relationKind == RelationKind.TrappedPiece =>
-          Some(
-            List(
-              "Piece mobility is a practical concern, but the concrete trap still needs proof.",
-              "The practical task is to keep checking whether the restricted piece has a safe route.",
-              "The structure points to piece-mobility pressure rather than a confirmed trap."
-            )
-          )
-        case DeferredRelationFallbackLane.ThematicFallback if fallback.relationKind == RelationKind.Domination =>
-          Some(
-            List(
-              "The structure points toward restriction of key squares.",
-              "Control of key squares is the safer theme to track here.",
-              "The position is about limiting mobility before claiming a concrete restriction."
-            )
-          )
-        case DeferredRelationFallbackLane.ExchangeSequence | DeferredRelationFallbackLane.MaterialTransition =>
-          Some(
-            List(
-              "The checked line points to a material transition rather than a named relation.",
-              "The practical reading is a concrete exchange sequence, not a settled motif label.",
-              "Material flow is the safer guide until the relation is replay-proven."
-            )
-          )
-        case _ =>
-          None
-    }
+          case _ =>
+            None
+      }
 
   private final case class MotifPrefixRule(
       keys: List[String],
@@ -238,21 +215,6 @@ private[analysis] object NarrativeMotifPrefixTable:
       "A central liquidation sequence is redefining strategic priorities.",
       "The structure is about to shift through liquidation."
     )),
-    MotifPrefixRule(List("zwischenzug"), List(
-      "Intermediate-move (zwischenzug) resources are available.",
-      "A zwischenzug can reverse move-order assumptions.",
-      "The tactical point is finding the in-between move."
-    )),
-    MotifPrefixRule(List("trapped_piece_queen"), List(
-      "A trapped queen motif is now relevant.",
-      "The queen is close to becoming strategically trapped.",
-      "Trapping the queen is becoming a concrete tactical idea."
-    )),
-    MotifPrefixRule(List("trapped_piece"), List(
-      "A trapped piece motif is now relevant.",
-      "Piece mobility is restricted enough to create trapping ideas.",
-      "One unit is close to becoming strategically trapped."
-    )),
     MotifPrefixRule(List("king_hunt"), List(
       "A king hunt scenario is developing.",
       "King safety has become the primary tactical axis of a king hunt.",
@@ -307,11 +269,6 @@ private[analysis] object NarrativeMotifPrefixTable:
       "A rerouting maneuver is now the practical plan.",
       "Piece transfer to a better square is the main idea.",
       "A switch in piece placement can improve control."
-    )),
-    MotifPrefixRule(List("domination"), List(
-      "A domination pattern is emerging around key squares.",
-      "One side is starting to dominate a critical piece route.",
-      "Positional domination is becoming a stable long-term edge."
     )),
     MotifPrefixRule(List("knight_vs_bishop"), List(
       "The knight-versus-bishop balance now defines the strategic fight.",

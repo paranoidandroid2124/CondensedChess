@@ -124,6 +124,44 @@ class EarlyOpeningNarrationPolicyTest extends FunSuite:
     assert(!EarlyOpeningNarrationPolicy.collapsedEarlyOpening(ctx), clue(ctx))
   }
 
+  test("truth-contract tactical states bypass early-opening prose clamp") {
+    val ctx = earlyOpeningContext()
+    val truthContract = DecisiveTruthContract(
+      playedMove = Some("g1f3"),
+      verifiedBestMove = Some("e2e4"),
+      truthClass = DecisiveTruthClass.MissedWin,
+      cpLoss = 220,
+      swingSeverity = 220,
+      reasonFamily = DecisiveReasonKind.MissedWin,
+      allowConcreteBenchmark = false,
+      chosenMatchesBest = false,
+      compensationAllowed = false,
+      truthPhase = None,
+      ownershipRole = TruthOwnershipRole.NoneRole,
+      visibilityRole = TruthVisibilityRole.PrimaryVisible,
+      surfaceMode = TruthSurfaceMode.FailureExplain,
+      exemplarRole = TruthExemplarRole.NonExemplar,
+      surfacedMoveOwnsTruth = true,
+      verifiedPayoffAnchor = None,
+      compensationProseAllowed = false,
+      benchmarkProseAllowed = false,
+      investmentTruthChainKey = None,
+      maintenanceExemplarCandidate = false,
+      benchmarkCriticalMove = false,
+      failureMode = FailureInterpretationMode.NoClearPlan,
+      failureIntentConfidence = 0.0,
+      failureIntentAnchor = None,
+      failureInterpretationAllowed = false
+    )
+    val prose =
+      "First sentence keeps the move anchor. Second sentence explains the opening shell. Third sentence carries the tactical truth."
+
+    val clamped = EarlyOpeningNarrationPolicy.clampNarrative(ctx, prose, Some(truthContract))
+
+    assertEquals(clamped, prose)
+    assert(sentenceCount(clamped) > EarlyOpeningNarrationPolicy.MaxCollapsedSentences, clue(clamped))
+  }
+
   test("openings after ply ten keep the richer narrative path") {
     val ctx = earlyOpeningContext(ply = 12)
 

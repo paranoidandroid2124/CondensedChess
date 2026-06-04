@@ -42,8 +42,11 @@ case class NarrativeContext(
 
   // === EVIDENCE AUGMENTATION ===
   probeRequests: List[ProbeRequest] = Nil,
+  validatedRootProbeResults: List[ProbeResult] = Nil,
   mainStrategicPlans: List[PlanHypothesis] = Nil,
   strategicPlanExperiments: List[StrategicPlanExperiment] = Nil,
+  restrictedDefenseConversion: Option[lila.commentary.analysis.RestrictedDefenseConversionProof.Contract] = None,
+  dualAxisBind: Option[lila.commentary.analysis.TwoAxisBindProof.Contract] = None,
   strategicPlanEvidence: lila.commentary.analysis.PlanEvidenceEvaluator.StrategicPlanEvidenceView =
     lila.commentary.analysis.PlanEvidenceEvaluator.StrategicPlanEvidenceView.empty,
 

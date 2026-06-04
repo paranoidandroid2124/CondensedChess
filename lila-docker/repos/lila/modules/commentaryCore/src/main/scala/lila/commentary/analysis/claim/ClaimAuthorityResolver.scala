@@ -18,6 +18,47 @@ private[commentary] object ClaimAuthorityResolver:
       decision: ClaimAuthorityDecision
   )
 
+  def namedRouteNetworkSurfaceDecision(
+      ctx: Option[NarrativeContext],
+      inputs: QuestionPlannerInputs,
+      truthContract: Option[DecisiveTruthContract]
+  ): Option[ClaimAuthorityDecision] =
+    inputs.namedRouteNetworkSurface.map { surface =>
+      val tacticalReasons = tacticalVetoReasons(ctx, inputs, truthContract)
+      if tacticalReasons.nonEmpty then ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, tacticalReasons)
+      else if inputs.heavyPieceLocalBindBlocked then
+        ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, List("heavy_piece_local_bind_blocked"))
+      else if surface.intermediateSquare.nonEmpty then
+        ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, List("route_chain_backend_only"))
+      else ClaimAuthorityDecision(ClaimAuthorityTier.SupportedLocal)
+    }
+
+  def dualAxisBindSurfaceDecision(
+      ctx: Option[NarrativeContext],
+      inputs: QuestionPlannerInputs,
+      truthContract: Option[DecisiveTruthContract]
+  ): Option[ClaimAuthorityDecision] =
+    inputs.dualAxisBindSurface.map { contract =>
+      val tacticalReasons = tacticalVetoReasons(ctx, inputs, truthContract)
+      if tacticalReasons.nonEmpty then ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, tacticalReasons)
+      else if inputs.heavyPieceLocalBindBlocked then
+        ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, List("heavy_piece_local_bind_blocked"))
+      else if dualAxisBindSurfaceAdmissible(contract) then ClaimAuthorityDecision(ClaimAuthorityTier.SupportedLocal)
+      else ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, contract.failsIf)
+    }
+
+  def restrictedDefenseConversionSurfaceDecision(
+      ctx: Option[NarrativeContext],
+      inputs: QuestionPlannerInputs,
+      truthContract: Option[DecisiveTruthContract]
+  ): Option[ClaimAuthorityDecision] =
+    inputs.restrictedDefenseConversionSurface.map { contract =>
+      val tacticalReasons = tacticalVetoReasons(ctx, inputs, truthContract)
+      if tacticalReasons.nonEmpty then ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, tacticalReasons)
+      else if restrictedDefenseConversionSurfaceAdmissible(contract) then ClaimAuthorityDecision(ClaimAuthorityTier.SupportedLocal)
+      else ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, contract.failsIf)
+    }
+
   def decidePositionProbe(
       ctx: Option[NarrativeContext],
       inputs: QuestionPlannerInputs,
@@ -98,6 +139,22 @@ private[commentary] object ClaimAuthorityResolver:
     supportedLocalCentralBreakTimingAdmission(ctx, inputs, truthContract, packet)
       .map(_.decision)
       .getOrElse(ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, authorityFailureCodes(packet)))
+
+  def supportedLocalMoveDeltaPacketDecision(
+      ctx: Option[NarrativeContext],
+      inputs: QuestionPlannerInputs,
+      truthContract: Option[DecisiveTruthContract],
+      packet: PlayerFacingClaimPacket
+  ): ClaimAuthorityDecision =
+    if !ProofContractRules.supportsMoveDeltaProofFamily(packet.proofFamily) then
+      ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, authorityFailureCodes(packet))
+    else
+      val tacticalReasons = tacticalVetoReasons(ctx, inputs, truthContract)
+      if tacticalReasons.nonEmpty then ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, tacticalReasons)
+      else if supportsLocalMoveDelta(packet) &&
+          (!hasExactOwnerPath(packet) || exactMoveDeltaSupportedLocal(packet))
+      then ClaimAuthorityDecision(ClaimAuthorityTier.SupportedLocal)
+      else ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, authorityFailureCodes(packet))
 
   def supportedLocalCentralBreakTimingAdmission(
       ctx: Option[NarrativeContext],
@@ -195,10 +252,7 @@ private[commentary] object ClaimAuthorityResolver:
         .orElse(inputs.decisionComparison.flatMap(_.cpLossVsChosen))
       val winPercentLoss = cpLoss.map(cp => DecisiveTruth.winPercentFromCp(cp) - 50.0).getOrElse(0.0)
       val isTacticalFailure = truthContract.exists { contract =>
-        contract.truthClass == DecisiveTruthClass.Blunder ||
-          contract.truthClass == DecisiveTruthClass.MissedWin ||
-          (contract.reasonFamily == DecisiveReasonKind.TacticalRefutation && contract.isBad) ||
-          contract.failureMode == FailureInterpretationMode.TacticalRefutation
+        contract.blocksStrategicSupport
       }
       val severeCounterfactual =
         ctx.exists(narrativeCtx => TacticalTensionPolicy.evaluate(narrativeCtx, truthContract).severeCounterfactual)
@@ -275,12 +329,18 @@ private[commentary] object ClaimAuthorityResolver:
     }
 
   private def exactMoveDeltaSupportedLocal(packet: PlayerFacingClaimPacket): Boolean =
+    val simplificationWindowFamily =
+      ProofFamilyId.fromPlanKind(PlanTaxonomy.PlanKind.SimplificationWindow).map(_.wireKey).getOrElse(
+        PlanTaxonomy.PlanKind.SimplificationWindow.id
+      )
     (packet.proofSource == ProofSourceId.CounterplayAxisSuppression.wireKey &&
       packet.proofFamily == ProofFamilyId.NeutralizeKeyBreak.wireKey) ||
       (packet.proofSource == ProofSourceId.ProphylacticMove.wireKey &&
         packet.proofFamily == ProofFamilyId.CounterplayRestraint.wireKey) ||
       (packet.proofSource == ProofSourceId.LocalFileEntryBind.wireKey &&
-        packet.proofFamily == ProofFamilyId.HalfOpenFilePressure.wireKey)
+        packet.proofFamily == ProofFamilyId.HalfOpenFilePressure.wireKey) ||
+      (packet.proofSource == simplificationWindowFamily &&
+        packet.proofFamily == simplificationWindowFamily)
 
   private def matchingMoveDeltaPacket(
       inputs: QuestionPlannerInputs,
@@ -321,6 +381,33 @@ private[commentary] object ClaimAuthorityResolver:
   private def isSupportedPositionProbeFamily(proofFamily: String): Boolean =
     ProofContractRules.supportsPositionProbeProofFamily(proofFamily)
 
+  private def dualAxisBindSurfaceAdmissible(contract: TwoAxisBindProof.Contract): Boolean =
+    contract.certified &&
+      normalize(contract.claimScope) == normalize("dual_axis_local") &&
+      normalize(contract.bindArchetype) == normalize("break_plus_entry") &&
+      normalize(contract.counterplayReinflationRisk) == normalize("bounded_dual_axis_only") &&
+      contract.primaryAxis.exists(axis => normalize(axis.kind) == normalize("break_axis")) &&
+      contract.corroboratingAxes.exists(axis => normalize(axis.kind) == normalize("entry_axis"))
+
+  private def restrictedDefenseConversionSurfaceAdmissible(
+      contract: RestrictedDefenseConversionProof.Contract
+  ): Boolean =
+    val evidence = contract.restrictedDefenseEvidence
+    val route = contract.routePersistence
+    contract.certified &&
+      contract.bestDefenseFound.nonEmpty &&
+      contract.bestDefenseBranchKey.nonEmpty &&
+      evidence.defenderResourceCount > 0 &&
+      evidence.defenderResourceCount <= 2 &&
+      evidence.moveQualityCompression &&
+      evidence.preventedResourcePressure &&
+      route.bestDefenseStable &&
+      route.futureSnapshotPersistent &&
+      route.counterplayStillCompressed &&
+      route.directBestDefensePresent &&
+      route.sameDefendedBranch &&
+      !contract.moveOrderFragility.fragile
+
   private def timingWitnessMatchesPacket(
       plan: QuestionPlan,
       packet: PlayerFacingClaimPacket
@@ -332,7 +419,7 @@ private[commentary] object ClaimAuthorityResolver:
       plan.timingWitness.exists { witness =>
         witness.proofFamily == packet.proofFamily &&
           witness.source == plan.plannerSource &&
-          witness.namedBreak.flatMap(canonicalBreakToken).exists(packetToken.contains)
+          witness.namedBreak.flatMap(BreakSurfaceToken.canonical).exists(packetToken.contains)
       }
     else
       false
@@ -343,8 +430,8 @@ private[commentary] object ClaimAuthorityResolver:
   ): Boolean =
     packet.proofPathWitness.exactSliceProof.exists {
       case PlayerFacingExactSliceProof.CentralBreakTiming(breakMove, breakSquare, breakToken) =>
-        val packetToken = canonicalBreakToken(breakToken)
-        val witnessToken = canonicalBreakToken(witness.breakToken)
+        val packetToken = BreakSurfaceToken.canonical(breakToken)
+        val witnessToken = BreakSurfaceToken.canonical(witness.breakToken)
         normalize(breakMove) == normalize(witness.breakMove) &&
           normalize(breakSquare) == normalize(witness.breakSquare) &&
           packetToken.nonEmpty &&
@@ -355,24 +442,7 @@ private[commentary] object ClaimAuthorityResolver:
   private def counterplayAxisSuppressionToken(packet: PlayerFacingClaimPacket): Option[String] =
     packet.proofPathWitness.exactSliceProof.collect {
       case PlayerFacingExactSliceProof.CounterplayAxisSuppression(breakToken) => breakToken
-    }.flatMap(canonicalBreakToken)
-
-  private def canonicalBreakToken(raw: String): Option[String] =
-    val lower = Option(raw).map(_.trim.toLowerCase).getOrElse("")
-    if lower.isEmpty ||
-        lower.contains("_") ||
-        lower.contains(":") ||
-        lower.contains("|") ||
-        lower.contains(" ") ||
-        lower.contains("counterplay") ||
-        lower.contains("neutralize")
-    then None
-    else
-      val hasEllipsis = lower.startsWith("...")
-      val core = if hasEllipsis then lower.drop(3) else lower
-      Option.when(core.matches("""[a-h][1-8]""") || core.matches("""[a-h][1-8]-[a-h][1-8]""")) {
-        s"${if hasEllipsis then "..." else ""}$core"
-      }
+    }.flatMap(BreakSurfaceToken.canonical)
 
   private def authorityFailureCodes(packet: PlayerFacingClaimPacket): List[String] =
     val taxonomy =

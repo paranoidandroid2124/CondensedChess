@@ -6,8 +6,6 @@ import play.api.libs.json.*
 
 import scala.collection.mutable
 
-import lila.commentary.analysis.UserFacingSignalSanitizer
-
 object CommentaryPlayerReviewQueueBuilder:
 
   import CommentaryPlayerQcSupport.*
@@ -193,75 +191,7 @@ object CommentaryPlayerReviewQueueBuilder:
       MoveReviewPayload(commentary = commentary, fen = fen, supportRows = support, advancedRows = advanced)
 
   private def moveReviewRowsFromJson(js: JsValue): (List[SupportRow], List[SupportRow]) =
-    moveReviewPlayerSurfaceRowsFromJson(js).getOrElse((Nil, Nil))
-
-  private def moveReviewPlayerSurfaceRowsFromJson(js: JsValue): Option[(List[SupportRow], List[SupportRow])] =
-    val surface = js \ "moveReviewPlayerSurface"
-    val schema = (surface \ "schema").asOpt[String]
-    Option.when(schema.exists(value =>
-      value == "chesstory.move_review.player_surface.v1" ||
-        value == "chesstory.move_review.player_surface.v2"
-    )) {
-      val support =
-        rowsFromJson(surface \ "summaryRows") ++
-          decisionComparisonRowFromJson(surface \ "decisionComparison")
-      val advanced =
-        rowsFromJson(surface \ "advancedRows") ++
-          rowsFromJson(surface \ "probeRows") ++
-          authorRowsFromJson(surface \ "authorRows")
-      (support.distinct, advanced.distinct)
-    }
-
-  private def rowsFromJson(value: JsLookupResult): List[SupportRow] =
-    value.asOpt[List[JsObject]].getOrElse(Nil).flatMap { row =>
-      for
-        label <- (row \ "label").asOpt[String].map(_.trim).filter(_.nonEmpty)
-        text <- (row \ "text").asOpt[String].flatMap(sanitizeSurfaceText)
-      yield SupportRow(label, text)
-    }
-
-  private def decisionComparisonRowFromJson(value: JsLookupResult): List[SupportRow] =
-    value.asOpt[JsObject].toList.flatMap { row =>
-      val label = (row \ "kicker").asOpt[String].map(_.trim).filter(_.nonEmpty).getOrElse("Decision compare")
-      val chosenSan = (row \ "chosenSan").asOpt[String].map(_.trim).filter(_.nonEmpty)
-      val engineSan =
-        (row \ "engineSan").asOpt[String].map(_.trim).filter(_.nonEmpty).filterNot { engine =>
-          (row \ "chosenMatchesBest").asOpt[Boolean].contains(true) || chosenSan.contains(engine)
-        }
-      val text =
-        List(
-          chosenSan.map(move => s"played $move"),
-          engineSan.map(move => s"engine looked at $move"),
-          (row \ "comparedSan").asOpt[String].map(move => s"compared ${move.trim}"),
-          (row \ "gapLabel").asOpt[String].map(gap => s"gap ${gap.trim}"),
-          (row \ "secondaryText").asOpt[String]
-        ).flatten.mkString(", ")
-      sanitizeSurfaceText(text).map(clean => SupportRow(label, clean))
-    }
-
-  private def authorRowsFromJson(value: JsLookupResult): List[SupportRow] =
-    value.asOpt[List[JsObject]].getOrElse(Nil).flatMap { row =>
-      val label = (row \ "title").asOpt[String].map(_.trim).filter(_.nonEmpty).getOrElse("Author check")
-      val branchText =
-        (row \ "branches").asOpt[List[JsObject]].getOrElse(Nil).flatMap { branch =>
-          val branchLabel = (branch \ "label").asOpt[String].map(_.trim).filter(_.nonEmpty)
-          (branch \ "text").asOpt[String].flatMap(sanitizeSurfaceText).map { text =>
-            branchLabel.fold(text)(value => s"$value: $text")
-          }
-        }
-      val text =
-        (List((row \ "question").asOpt[String], (row \ "why").asOpt[String]).flatten ++ branchText)
-          .flatMap(sanitizeSurfaceText)
-          .distinct
-          .mkString("; ")
-      Option.when(text.nonEmpty)(SupportRow(label, text))
-    }
-
-  private def sanitizeSurfaceText(raw: String): Option[String] =
-    Option(raw)
-      .map(UserFacingSignalSanitizer.sanitize)
-      .map(_.trim)
-      .filter(_.nonEmpty)
+    buildMoveReviewRowsFromPlayerSurfaceJson(js).getOrElse((Nil, Nil))
 
   private def readAuditSet(path: Path): Either[String, AuditSetManifest] =
     try

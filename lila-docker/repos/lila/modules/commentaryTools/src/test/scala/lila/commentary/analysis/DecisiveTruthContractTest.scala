@@ -4,6 +4,7 @@ import munit.FunSuite
 import lila.commentary.*
 import lila.commentary.model.*
 import lila.commentary.analysis.DecisiveTruth.toContract
+import lila.commentary.analysis.semantic.RelationObservationCatalog
 import lila.commentary.model.strategic.{ EngineEvidence, VariationLine }
 
 class DecisiveTruthContractTest extends FunSuite:
@@ -813,16 +814,18 @@ class DecisiveTruthContractTest extends FunSuite:
   }
 
   test("truth-sanitized relation support reaches player surface outside tactical failure gate") {
+    val xray = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.XRay).get
     val relationIdea =
       StrategyIdeaSignal(
         ideaId = "idea_1",
         ownerSide = "white",
-        kind = StrategicIdeaKind.LineOccupation,
+        kind = xray.ideaKind,
         group = StrategicIdeaGroup.PieceAndLineManagement,
-        readiness = StrategicIdeaReadiness.Build,
+        readiness = xray.readiness,
         focusSquares = List("e4", "f5", "g6"),
-        confidence = 0.72,
-        evidenceRefs = List("source:xray_relation", "xray_semantic", "blocker:f5"),
+        confidence = xray.confidence,
+        evidenceRefs = xray.wireEvidenceRefs ++ List("blocker:f5"),
+        relationKind = Some(xray.relationKind),
         relationFocusSquares = List("e4", "f5", "g6")
       )
     val pack =

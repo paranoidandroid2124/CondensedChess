@@ -343,6 +343,12 @@ private[commentary] final case class DecisiveTruthContract(
         true
       case _ => false
 
+  def blocksStrategicSupport: Boolean =
+    truthClass == DecisiveTruthClass.Blunder ||
+      truthClass == DecisiveTruthClass.MissedWin ||
+      (reasonFamily == DecisiveReasonKind.TacticalRefutation && isBad) ||
+      failureMode == FailureInterpretationMode.TacticalRefutation
+
   def prefersDecisivePromotion: Boolean =
     isExemplarCandidate || hasVisibleTruth || (
       truthClass match

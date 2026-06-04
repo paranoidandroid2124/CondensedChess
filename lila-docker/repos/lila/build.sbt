@@ -210,6 +210,8 @@ lazy val commentary = module("commentary",
 lazy val commentaryTools = module("commentaryTools",
   Seq(commentary, commentaryCore, commentaryAi, db, memo, strategicPuzzle),
   playWs.bundle ++ tests.bundle ++ Seq(chess.testKit)
+).settings(
+  Test / parallelExecution := false
 )
 
 lazy val evalCache = module("evalCache",

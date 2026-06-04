@@ -90,6 +90,55 @@ class NarrativeSignalConsumptionTest extends FunSuite:
     )
   }
 
+  test("context beat carries transposition-aligned main plans without probe-only support") {
+    val plan =
+      PlanHypothesis(
+        planId = "StaticWeakness",
+        planName = "Transposed d5 pressure",
+        rank = 1,
+        score = 0.82,
+        preconditions = Nil,
+        executionSteps = Nil,
+        failureModes = Nil,
+        viability = PlanViability(0.7, "medium", "test"),
+        evidenceSources = List("weakness_target:d5"),
+        themeL1 = PlanTaxonomy.PlanTheme.WeaknessFixation.id,
+        subplanId = Some(PlanTaxonomy.PlanKind.StaticWeaknessFixation.id)
+      )
+    val evaluated =
+      PlanEvidenceEvaluator.EvaluatedPlan(
+        hypothesis = plan,
+        status = PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableTranspositionAligned,
+        userFacingEligibility = PlanEvidenceEvaluator.UserFacingPlanEligibility.TranspositionAligned,
+        reason = "test transposition proof",
+        transpositionProofIds = List("transposition:staticweakness:d5:fixed_pawn"),
+        themeL1 = PlanTaxonomy.PlanTheme.WeaknessFixation.id,
+        subplanId = Some(PlanTaxonomy.PlanKind.StaticWeaknessFixation.id),
+        claimCertification =
+          PlanEvidenceEvaluator.ClaimCertification(
+            provenanceClass = PlayerFacingClaimProvenanceClass.TranspositionAligned
+          )
+      )
+    val ctx =
+      baseContext.copy(
+        strategicPlanEvidence =
+          PlanEvidenceEvaluator.StrategicPlanEvidenceView(
+            selectedPlans = List(evaluated),
+            evaluatedPlans = List(evaluated)
+          )
+      )
+
+    assertEquals(StrategicNarrativePlanSupport.evidenceBackedMainPlans(ctx), Nil)
+
+    val (outline, _) = NarrativeOutlineBuilder.build(ctx, new TraceRecorder())
+    val contextBeat = outline.beats.find(_.kind == OutlineBeatKind.Context).getOrElse(fail("missing context beat"))
+
+    assert(
+      contextBeat.text.contains("The main plan remains Transposed d5 pressure."),
+      s"expected transposition-aligned main plan in context beat, got: ${contextBeat.text}"
+    )
+  }
+
   test("decision rationale without author questions stays out of planner-owned decision beats") {
     val ctx = baseContext.copy(
       decision = Some(

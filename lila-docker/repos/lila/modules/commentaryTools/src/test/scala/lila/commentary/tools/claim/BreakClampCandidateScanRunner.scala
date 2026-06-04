@@ -51,7 +51,7 @@ object BreakClampCandidateScanRunner:
         case None =>
           BreakClampCandidateScanner.scan(games, engine = None, config = config)
         case Some(path) =>
-          val engine = LocalUciEngine(path, timeoutMs = 30000L)
+          val engine = LocalUciEngine(path)
           try BreakClampCandidateScanner.scan(games, engine = Some(LocalEngine(engine)), config = config)
           finally engine.close()
     val (matrix, review) = BreakClampCandidateScanner.writeArtifacts(report)

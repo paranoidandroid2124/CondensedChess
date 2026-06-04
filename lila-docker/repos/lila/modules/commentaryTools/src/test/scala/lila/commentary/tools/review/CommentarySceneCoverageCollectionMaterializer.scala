@@ -193,7 +193,7 @@ object CommentarySceneCoverageCollectionMaterializer:
     ensureDir(config.fixturePackPath.getParent)
     ensureDir(config.bucketPlanPath.getParent)
 
-    val engine = new LocalUciEngine(config.enginePath, timeoutMs = 30000L)
+    val engine = new LocalUciEngine(config.enginePath)
     val openingIndex = buildOpeningIndex(catalog)
     val (acceptedEntries, legacyEntries) = readManifestInputs(config)
 

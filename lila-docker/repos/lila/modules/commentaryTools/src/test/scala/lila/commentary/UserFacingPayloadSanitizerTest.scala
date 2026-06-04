@@ -37,7 +37,7 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
       assert(!text.toLowerCase.contains(phrase.toLowerCase), clue(text))
     }
 
-  test("user-facing signal sanitizer routes deferred relation helper notation through fallback wording") {
+  test("user-facing signal sanitizer routes witness-only helpers and suppresses PV-only draw-resource helpers") {
     val text =
       UserFacingSignalSanitizer.sanitize(
         "Domination(Knight,e5) TrappedPiece(Queen,h4) Zwischenzug(Nf7) StalemateTrap(g8) PerpetualCheck(h5)."
@@ -908,7 +908,7 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
       List(
         MoveReviewPlayerSurfaceRow(
           label = "Line relation",
-          text = "The checked line gives x-ray evidence around e4, f5, g6.",
+          text = "The checked line uses x-ray geometry around e4, f5, g6.",
           authority =
             Some(
               MoveReviewSurfaceAuthority(
@@ -986,6 +986,111 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
     )
   }
 
+  test("cached player surface suppresses strategic relation rows duplicated by practical summary rows") {
+    val practicalSummary =
+      MoveReviewPlayerSurfaceRow(
+        label = "Defender trade",
+        text = "The checked line trades on d4 to remove the defender from c5, loosening e5.",
+        authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))
+      )
+    val mateSummary =
+      MoveReviewPlayerSurfaceRow(
+        label = "Smothered mate",
+        text = "The checked line ends in smothered mate on h8 after h6f7.",
+        authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))
+      )
+    val duplicateAdvanced =
+      MoveReviewPlayerSurfaceRow(
+        label = "Line relation",
+        text = "The checked line creates a defender trade motif around c5, d4, e5.",
+        authority =
+          Some(
+            MoveReviewSurfaceAuthority(
+              kind = MoveReviewSurfaceAuthority.StrategicRelation,
+              token = Some("defender_trade"),
+              target = Some("e5")
+            )
+          )
+      )
+    val mateAdvanced =
+      MoveReviewPlayerSurfaceRow(
+        label = "Line relation",
+        text = "The checked line creates a mate net motif around h8, f7.",
+        authority =
+          Some(
+            MoveReviewSurfaceAuthority(
+              kind = MoveReviewSurfaceAuthority.StrategicRelation,
+              token = Some("mate_net"),
+              target = Some("h8")
+            )
+          )
+      )
+    val otherAdvanced =
+      MoveReviewPlayerSurfaceRow(
+        label = "Line relation",
+        text = "The checked line uses x-ray geometry around e4, f5, g6.",
+        authority =
+          Some(
+            MoveReviewSurfaceAuthority(
+              kind = MoveReviewSurfaceAuthority.StrategicRelation,
+              token = Some("xray"),
+              target = Some("g6")
+            )
+          )
+      )
+    val response =
+      CommentResponse(
+        commentary = "Public payload",
+        concepts = Nil,
+        moveReviewPlayerSurface =
+          Some(
+            MoveReviewPlayerSurface(
+              summaryRows = List(practicalSummary, mateSummary),
+              advancedRows = List(duplicateAdvanced, mateAdvanced, otherAdvanced)
+            )
+          )
+      )
+
+    val sanitized = UserFacingPayloadSanitizer.sanitizeCachedMoveReview(response)
+    val surface = sanitized.moveReviewPlayerSurface.getOrElse(fail("missing sanitized player surface"))
+
+    assertEquals(surface.summaryRows.map(_.label), List("Defender trade", "Smothered mate"), clue(surface))
+    assertEquals(surface.advancedRows.map(_.text), List(otherAdvanced.text), clue(surface.advancedRows))
+    assertEquals(surface.advancedRows.flatMap(_.authority.flatMap(_.token)), List("xray"), clue(surface.advancedRows))
+  }
+
+  test("cached player surface does not suppress strategic relation rows from unauthoritative summary labels") {
+    val staleSummary =
+      MoveReviewPlayerSurfaceRow(
+        label = "Defender trade",
+        text = "A stale label without practical authority should not suppress advanced relation authority."
+      )
+    val advanced =
+      MoveReviewPlayerSurfaceRow(
+        label = "Line relation",
+        text = "The checked line creates a defender trade motif around c5, d4, e5.",
+        authority =
+          Some(
+            MoveReviewSurfaceAuthority(
+              kind = MoveReviewSurfaceAuthority.StrategicRelation,
+              token = Some("defender_trade"),
+              target = Some("e5")
+            )
+          )
+      )
+    val response =
+      CommentResponse(
+        commentary = "Public payload",
+        concepts = Nil,
+        moveReviewPlayerSurface = Some(MoveReviewPlayerSurface(summaryRows = List(staleSummary), advancedRows = List(advanced)))
+      )
+
+    val sanitized = UserFacingPayloadSanitizer.sanitizeCachedMoveReview(response)
+    val surface = sanitized.moveReviewPlayerSurface.getOrElse(fail("missing sanitized player surface"))
+
+    assertEquals(surface.advancedRows.flatMap(_.authority.flatMap(_.token)), List("defender_trade"), clue(surface))
+  }
+
   test("strategic relation sanitizer accepts exactly the implemented relation catalog") {
     val catalogTokens = RelationObservationCatalog.Implemented.map(_.relationKind)
     val deferredTokens = RelationObservationCatalog.DeferredRelationKinds
@@ -999,7 +1104,7 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
       catalogTokens.map { token =>
         MoveReviewPlayerSurfaceRow(
           label = "Line relation",
-          text = s"The checked line supports the $token relation.",
+          text = s"The checked line uses $token geometry around g6.",
           authority =
             Some(
               MoveReviewSurfaceAuthority(
@@ -1097,7 +1202,7 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
     val relationRow =
       MoveReviewPlayerSurfaceRow(
         label = "Line relation",
-        text = "The checked line gives x-ray evidence around e4, f5, g6.",
+        text = "The checked line uses x-ray geometry around e4, f5, g6.",
         authority =
           Some(
             MoveReviewSurfaceAuthority(
@@ -1140,7 +1245,7 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
     )
   }
 
-  test("strips deferred relation evidence terms from sanitized strategy pack support metadata") {
+  test("strips deferred and witness-only relation evidence from sanitized strategy pack support metadata") {
     val admittedPlan =
       PlanHypothesis(
         planId = "pressure_plan",
@@ -1152,10 +1257,6 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
         failureModes = Nil,
         viability = PlanViability(0.72, "medium", "risk")
       )
-    val fallbackTerm =
-      RelationObservationCatalog
-        .deferredFallbackEvidenceTermForKind(MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece)
-        .getOrElse(fail("missing trapped-piece fallback evidence"))
     val pack =
       StrategyPack(
         sideToMove = "white",
@@ -1169,7 +1270,7 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
               route = List("e3"),
               purpose = "Improve the piece",
               confidence = 0.7,
-              evidence = List("trapped_piece_signal", fallbackTerm, "low_mobility_signal")
+              evidence = List("trapped_piece_signal", "low_mobility_signal")
             )
           ),
         pieceMoveRefs =
@@ -1192,10 +1293,10 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
               from = "c2",
               targetSquare = "e4",
               readiness = DirectionalTargetReadiness.Premature,
-              evidence = List("zwischenzug_line", fallbackTerm, "directional_target")
+              evidence = List("zwischenzug_line", "deferred_move_order_caution", "directional_target")
             )
           ),
-        evidence = List("perpetual_check", fallbackTerm, "idea:line_occupation:xray")
+        evidence = List("perpetual_check", "deferred_move_order_caution", "idea:line_occupation:xray")
       )
     val response =
       CommentResponse(
@@ -1215,10 +1316,13 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
         sanitizedPack.pieceMoveRefs.flatMap(_.evidence) ++
         sanitizedPack.directionalTargets.flatMap(_.evidence)
 
-    assert(publicEvidence.contains(fallbackTerm), clue(publicEvidence))
+    assert(!publicEvidence.contains("trapped_piece_signal"), clue(publicEvidence))
+    assert(!publicEvidence.contains("zwischenzug_line"), clue(publicEvidence))
+    assert(publicEvidence.contains("deferred_move_order_caution"), clue(publicEvidence))
     assert(publicEvidence.contains("low_mobility_signal"), clue(publicEvidence))
     assert(publicEvidence.contains("directional_target"), clue(publicEvidence))
     assert(!publicEvidence.exists(RelationObservationCatalog.deferredFallbackForMotifTag(_).nonEmpty), clue(publicEvidence))
+    assert(!publicEvidence.exists(RelationObservationCatalog.relationWitnessOnlyMotifTag), clue(publicEvidence))
   }
 
   test("drops invalid moveReview player surface authority") {

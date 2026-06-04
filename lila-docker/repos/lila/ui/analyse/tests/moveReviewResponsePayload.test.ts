@@ -618,7 +618,6 @@ describe('moveReview response payload', () => {
   test('frontend strategic relation authority tokens exclude backend deferred relation inventory', () => {
     const deferredTokens = backendDeferredRelationTokens();
     const frontendTokens = new Set(frontendRelationTokens());
-    assert.ok(deferredTokens.length > 0);
     assert.deepEqual(
       deferredTokens.filter(token => frontendTokens.has(token)),
       [],

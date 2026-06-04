@@ -1,5 +1,8 @@
 package lila.commentary.analysis
 
+import _root_.chess.{ Board, Color, Queen, Rook, Square }
+import chess.format.Fen
+import chess.variant.Standard
 import lila.commentary.analysis.PlanTaxonomy.PlanKind
 import lila.commentary.model.{ FactScope, FutureSnapshot, NarrativeContext, PreventedPlanInfo, ProbeResult }
 import lila.commentary.model.authoring.PlanHypothesis
@@ -401,10 +404,21 @@ private[commentary] object LocalFileEntryProof:
       ctx: NarrativeContext
   ): Option[SurfacePair] =
     certifiedSurfacePair(
+      ctx = ctx,
       preventedPlans =
         ctx.semantic.toList.flatMap(_.preventedPlans).filter(_.sourceScope == FactScope.Now),
       evidenceBackedPlans = StrategicNarrativePlanSupport.evidenceBackedMainPlans(ctx)
     )
+
+  def certifiedSurfacePair(
+      ctx: NarrativeContext,
+      preventedPlans: List[PreventedPlanInfo],
+      evidenceBackedPlans: List[PlanHypothesis]
+  ): Option[SurfacePair] =
+    certifiedSurfacePair(
+      preventedPlans = preventedPlans,
+      evidenceBackedPlans = evidenceBackedPlans
+    ).filter(pair => boardSupportsSurfacePair(ctx, pair))
 
   def certifiedSurfacePair(
       preventedPlans: List[PreventedPlanInfo],
@@ -439,6 +453,61 @@ private[commentary] object LocalFileEntryProof:
           )
         }
     }
+
+  private def boardSupportsSurfacePair(
+      ctx: NarrativeContext,
+      pair: SurfacePair
+  ): Boolean =
+    (for
+      file <- claimedFile(pair.file)
+      entry <- MoveReviewExchangeAnalyzer.squareFromKey(pair.entrySquare)
+    yield localFileEntryWitnessBoards(ctx).exists { case (board, side) =>
+      majorPieceOnFile(board, file) && entryDeniedOnBoard(board, entry, side)
+    }).getOrElse(false)
+
+  private def localFileEntryWitnessBoards(
+      ctx: NarrativeContext
+  ): List[(Board, Color)] =
+    Fen.read(Standard, Fen.Full(ctx.fen)).toList.flatMap { position =>
+      val before = List(position.board -> position.color)
+      val after =
+        ctx.playedMove.toList
+          .map(NarrativeUtils.normalizeUciMove)
+          .filter(MoveReviewExchangeAnalyzer.isUciMove)
+          .flatMap(move =>
+            MoveReviewExchangeAnalyzer
+              .boundedReplay(ctx.fen, List(move), maxPlies = 1)
+              .toList
+              .flatMap(_.headOption.toList)
+          )
+          .map(step => step.after.board -> position.color)
+      before ++ after
+    }.distinct
+
+  private def majorPieceOnFile(
+      board: Board,
+      file: String
+  ): Boolean =
+    clean(file).filter(_.matches("[a-h]")).exists { fileToken =>
+      val fileChar = fileToken.head
+      List(Color.White, Color.Black).exists { side =>
+        (board.byPiece(side, Rook) | board.byPiece(side, Queen)).squares.exists(square =>
+          square.key.headOption.contains(fileChar)
+        )
+      }
+    }
+
+  private def entryDeniedOnBoard(
+      board: Board,
+      entry: Square,
+      side: Color
+  ): Boolean =
+    board.pieceAt(entry).nonEmpty || board.attackers(entry, side).nonEmpty
+
+  private def claimedFile(
+      raw: String
+  ): Option[String] =
+    clean(breakFileToken(raw)).filter(_.matches("[a-h]"))
 
   private def isApplicablePlan(
       plan: PlanEvidenceEvaluator.EvaluatedPlan

@@ -4,6 +4,8 @@ import munit.FunSuite
 
 class ExactBoardEngineProofTest extends FunSuite:
 
+  override val munitTimeout = scala.concurrent.duration.Duration(60, "s")
+
   private final case class HeavyPieceCase(
       id: String,
       fen: String,

@@ -165,7 +165,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
       case PlayerFacingTruthModePolicy.ColorComplexSqueezeProbeProofSource =>
         PlayerFacingExactSliceProof.ColorComplexSqueeze(
           targetSquare = anchorSquare,
-          squareColor = "light",
+          squareColor = "dark",
           minorPieceRole = "knight",
           minorPieceSquare = "c4"
         )
@@ -311,6 +311,47 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
       evidenceSources = List("probe"),
       themeL1 = "kingside_attack",
       subplanId = None
+    )
+
+  private def localFileEntryPlan: PlanHypothesis =
+    PlanHypothesis(
+      planId = "local_file_entry_bind",
+      planName = "Local file-entry bind",
+      rank = 1,
+      score = 0.84,
+      preconditions = Nil,
+      executionSteps = List("Keep the c-file closed and hold b4."),
+      failureModes = Nil,
+      viability = PlanViability(score = 0.84, label = "high", risk = "route"),
+      evidenceSources = List("probe"),
+      themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+      subplanId = Some(PlanTaxonomy.PlanKind.OpenFilePressure.id)
+    )
+
+  private def localFileEntryPreventedPlan: PreventedPlanInfo =
+    PreventedPlanInfo(
+      planId = "queenside_counterplay",
+      deniedSquares = List("b4"),
+      breakNeutralized = Some("...c5"),
+      mobilityDelta = 0,
+      counterplayScoreDrop = 140,
+      preventedThreatType = Some("counterplay"),
+      sourceScope = FactScope.Now,
+      citationLine = Some("The ...c5 route and b4 entry are no longer available."),
+      deniedResourceClass = Some("entry_square"),
+      deniedEntryScope = Some("file")
+    )
+
+  private def semanticWithPrevented(plan: PreventedPlanInfo): SemanticSection =
+    SemanticSection(
+      structuralWeaknesses = Nil,
+      pieceActivity = Nil,
+      positionalFeatures = Nil,
+      compensation = None,
+      endgameFeatures = None,
+      practicalAssessment = None,
+      preventedPlans = List(plan),
+      conceptSummary = List("prophylaxis", "counterplay_cut")
     )
 
   private def truthContract(
@@ -487,6 +528,17 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     assertEquals(
       primary.consequence.map(_.text),
       Some("So the task is to keep the queenside pressure trained on c6 instead of rushing a conversion.")
+    )
+  }
+
+  test("Carlsbad pressure claim uses bounded minority-attack wording") {
+    assertEquals(
+      PlayerFacingTruthModePolicy.pressureIncreaseMainClaim(
+        packet = certifiedPositionProbePacket(),
+        modalityTier = PlayerFacingClaimModalityTier.Supports,
+        fallbackAnchor = None
+      ),
+      Some("c6 is the minority-attack fixed target.")
     )
   }
 
@@ -717,7 +769,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
           List(
             "e5",
             "weak_square:e5",
-            "color_complex:light",
+            "color_complex:dark",
             "minor_piece:knight_c4",
             "attacks:e5",
             "minor_piece_attack:c4-e5"
@@ -1635,6 +1687,41 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     assertEquals(plans.primary.map(_.questionKind), Some(AuthorQuestionKind.WhyThis))
   }
 
+  test("failure-mode tactical refutation owns the scene without tactical reason-family text") {
+    val q = question("q_failure_mode_tactical", AuthorQuestionKind.WhyThis)
+    val ctx = baseCtx(List(q))
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        ctx,
+        inputs(
+          quietIntent =
+            Some(
+              QuietMoveIntentClaim(
+                intentClass = QuietMoveIntentClass.PieceImprovement,
+                claimText = "This keeps the rook active on the file.",
+                evidenceLine = Some("29...Rc8 30.Re1 Qc7"),
+                sourceKind = "quiet_intent"
+              )
+            )
+        ),
+        Some(
+          truthContract(
+            truthClass = DecisiveTruthClass.Mistake,
+            reasonFamily = DecisiveReasonKind.Conversion,
+            verifiedBestMove = Some("Qe2")
+          ).copy(
+            failureMode = FailureInterpretationMode.TacticalRefutation
+          )
+        )
+      )
+
+    assertEquals(plans.ownerTrace.sceneType, SceneType.TacticalFailure)
+    assert(
+      plans.ownerTrace.ownerCandidateLabels.exists(_.contains("TacticalFailure")),
+      clues(plans.ownerTrace.ownerCandidateLabels)
+    )
+  }
+
   test("best tactical refutation does not create tactical failure ownership without a bad move") {
     val q = question("q_changed_best_hold", AuthorQuestionKind.WhatChanged)
     val ctx = baseCtx(List(q))
@@ -1920,6 +2007,85 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
       ),
       clues(plans.rejected)
     )
+  }
+
+  test("WhatChanged can project a local file-entry pair with a FEN-backed board witness") {
+    val q = question("q_changed_local_file", AuthorQuestionKind.WhatChanged)
+    val preventedPlan = localFileEntryPreventedPlan
+    val moveBundle =
+      MainPathClaimBundle(
+        Some(mainClaim("This improves the rook before the opponent's counterplay starts.")),
+        Some(lineClaim("23.a3 Rc8"))
+      )
+    val ctx =
+      MoveReviewProseGoldenFixtures.prophylacticCut.ctx.copy(
+        authorQuestions = List(q),
+        semantic = Some(semanticWithPrevented(preventedPlan))
+      )
+    val certifiedPair =
+      LocalFileEntryProof.certifiedSurfacePair(
+        ctx = ctx,
+        preventedPlans = List(preventedPlan),
+        evidenceBackedPlans = List(localFileEntryPlan)
+      )
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        ctx,
+        inputs(
+          mainBundle = Some(moveBundle),
+          preventedPlansNow = List(preventedPlan),
+          evidenceBackedPlans = List(localFileEntryPlan)
+        ),
+        None
+      )
+
+    assertEquals(certifiedPair, Some(LocalFileEntryProof.SurfacePair("c-file", "b4", 140)))
+    assertEquals(
+      plans.primary.map(_.questionKind),
+      Some(AuthorQuestionKind.WhatChanged),
+      clues(plans.rejected, plans.ownerTrace.ownerCandidateLabels)
+    )
+    assert(
+      plans.primary.exists(plan => plan.claim.contains("c-file") && plan.claim.contains("b4")),
+      clues(plans.primary)
+    )
+  }
+
+  test("WhatChanged does not use a FEN-less local file-entry pair as public authority") {
+    val q = question("q_changed_local_file_bad_fen", AuthorQuestionKind.WhatChanged)
+    val preventedPlan = localFileEntryPreventedPlan
+    val moveBundle =
+      MainPathClaimBundle(
+        Some(mainClaim("This improves the rook before the opponent's counterplay starts.")),
+        Some(lineClaim("23.a3 Rc8"))
+      )
+    val ctx =
+      baseCtx(List(q)).copy(
+        playedMove = Some("e1e2"),
+        playedSan = Some("Ke2"),
+        semantic = Some(semanticWithPrevented(preventedPlan))
+      )
+    val certifiedPair =
+      LocalFileEntryProof.certifiedSurfacePair(
+        ctx = ctx,
+        preventedPlans = List(preventedPlan),
+        evidenceBackedPlans = List(localFileEntryPlan)
+      )
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        ctx,
+        inputs(
+          mainBundle = Some(moveBundle),
+          preventedPlansNow = List(preventedPlan),
+          evidenceBackedPlans = List(localFileEntryPlan)
+        ),
+        None
+      )
+
+    assertEquals(certifiedPair, None)
+    assertEquals(plans.primary.map(_.questionKind), Some(AuthorQuestionKind.WhatChanged))
+    assert(plans.primary.exists(_.claim.contains("improves the rook")), clues(plans.primary))
+    assert(!plans.primary.exists(plan => plan.claim.contains("c-file") || plan.claim.contains("b4")), clues(plans.primary))
   }
 
   test("WhatChanged keeps decision-comparison timing change out of the primary pool in Step 4a") {

@@ -11,9 +11,10 @@ import scala.jdk.CollectionConverters.*
 import scala.util.control.NonFatal
 
 import lila.commentary.*
-import lila.commentary.analysis.{ BookStyleRenderer, MoveReviewCompressionPolicy, MoveReviewPolishSlotsBuilder, CommentaryEngine, DecisiveTruth, EarlyOpeningNarrationPolicy, LineScopedCitation, LiveNarrativeCompressionCore, NarrativeContextBuilder, NarrativeSignalDigestBuilder, NarrativeUtils, QuestionFirstCommentaryPlanner, QuestionPlannerInputsBuilder, QuietMoveIntentBuilder, StrategyPackBuilder, UserFacingSignalSanitizer }
+import lila.commentary.analysis.{ BookStyleRenderer, MoveReviewCompressionPolicy, MoveReviewPolishSlotsBuilder, CommentaryEngine, DecisiveTruth, EarlyOpeningNarrationPolicy, LineScopedCitation, LiveNarrativeCompressionCore, NarrativeContextBuilder, NarrativeSignalDigestBuilder, NarrativeUtils, OpeningFamilyCatalog, QuestionFirstCommentaryPlanner, QuestionPlannerInputsBuilder, QuietMoveIntentBuilder, StrategyPackBuilder, UserFacingSignalSanitizer }
 import lila.commentary.analysis.practical.ContrastiveSupportAdmissibility
 import lila.commentary.analysis.render.QuietStrategicSupportComposer
+import lila.commentary.analysis.semantic.RelationObservationCatalog
 import lila.commentary.model.NarrativeRenderMode
 import lila.commentary.model.NarrativeContext
 import lila.commentary.model.authoring.AuthorQuestionKind
@@ -34,6 +35,8 @@ object CommentaryPlayerQcSupport:
     DefaultTruthInventoryDir.resolve("RealPgnNarrativeEvalTruthInventory.json")
   val TruthInventoryLookupPaths: List[Path] =
     List(DefaultTruthInventoryPath)
+  val DefaultUciTimeoutMs: Long =
+    sys.env.get("AI_ACTIVE_CORPUS_ENGINE_TIMEOUT_MS").flatMap(_.toLongOption).filter(_ > 0).getOrElse(60000L)
 
   object MixBucket:
     val MasterClassical = "master_classical"
@@ -457,7 +460,7 @@ object CommentaryPlayerQcSupport:
           gameId = (js \ "gameId").asOpt[String].getOrElse(sampleId),
           surface = (js \ "surface").asOpt[String].getOrElse(ReviewSurface.MoveReview),
           reviewKind = (js \ "reviewKind").asOpt[String].getOrElse(ReviewKind.MoveReviewFocus),
-          sliceKind = (js \ "sliceKind").asOpt[String].getOrElse(SliceKind.StrategicChoice),
+          sliceKind = (js \ "sliceKind").asOpt[String].getOrElse(SliceKind.MoveReviewFocus),
           tier = (js \ "tier").asOpt[String],
           openingFamily = (js \ "openingFamily").asOpt[String],
           label = (js \ "label").asOpt[String],
@@ -1620,6 +1623,8 @@ object CommentaryPlayerQcSupport:
   def isMandatoryReview(sliceKind: String, flags: List[String]): Boolean =
     flags.exists(flag =>
       flag.startsWith("meta_language") ||
+        flag.startsWith("internal_label") ||
+        flag.startsWith("uci_leak") ||
         flag == "sentence_budget_exceeded" ||
         flag == "missing_concrete_anchor" ||
         flag == "generic_filler_main_prose" ||
@@ -1668,6 +1673,24 @@ object CommentaryPlayerQcSupport:
     "confirmation is still pending",
     "supported by the current engine line"
   )
+  private val internalLabelFragments = List(
+    "movedelta.",
+    "pv_delta",
+    "neutralize_key_break",
+    "proof_family",
+    "proof_source",
+    "source_kind",
+    "candidate_bucket",
+    "runtime_gate",
+    "owner_kind",
+    "opening_branch_event",
+    "support_only"
+  )
+  private val uciLeakRegex = """(?i)(?<![A-Za-z0-9])(?:[a-h][1-8][a-h][1-8][qrbn]?)(?![A-Za-z0-9])""".r
+  private val chessSquareRegex = """[a-h][1-8]""".r
+  private val surfaceAuthorityKeyRegex = """[a-z][a-z0-9_]{1,40}""".r
+  private val surfaceAuthorityTokenRegex = """(?:\.\.\.)?[a-h][1-8](?:-[a-h][1-8])?""".r
+  private val surfaceAuthorityRouteTokenRegex = """(?:\.\.\.)?[a-h][1-8]-[a-h][1-8]""".r
 
   private def splitNarrativeSentences(raw: String): List[String] =
     protectChessMoveNumbers(Option(raw).getOrElse(""))
@@ -1724,13 +1747,23 @@ object CommentaryPlayerQcSupport:
     val low = Option(raw).getOrElse("").toLowerCase
     taxonomyResidueFragments.filter(low.contains)
 
+  private def internalLabelHits(raw: String): List[String] =
+    val low = Option(raw).getOrElse("").toLowerCase
+    internalLabelFragments.filter(low.contains)
+
+  private def uciLeakHits(raw: String): List[String] =
+    uciLeakRegex.findAllMatchIn(Option(raw).getOrElse("")).map(_.matched).toList.distinct
+
   def reviewFlags(
       prose: String,
       supportRows: List[SupportRow],
       advancedRows: List[SupportRow],
       sliceKind: String
   ): List[String] =
-    val combined = List(prose) ++ supportRows.map(_.text) ++ advancedRows.map(_.text)
+    val combined =
+      List(prose) ++
+        supportRows.flatMap(row => List(row.label, row.text)) ++
+        advancedRows.flatMap(row => List(row.label, row.text))
     val mainProse = leadingMainProse(prose, take = 2).mkString(" ")
     val hits =
       combined.flatMap(text => LiveNarrativeCompressionCore.systemLanguageHits(text) ++ LiveNarrativeCompressionCore.playerLanguageHits(text)).distinct
@@ -1749,6 +1782,10 @@ object CommentaryPlayerQcSupport:
       flags += "sidecar_empty_prose_risk"
     val taxonomyHits = combined.flatMap(taxonomyResidueHits).distinct
     if taxonomyHits.nonEmpty then flags += s"taxonomy_residue:${taxonomyHits.mkString(",")}"
+    val internalHits = combined.flatMap(internalLabelHits).distinct
+    if internalHits.nonEmpty then flags += s"internal_label:${internalHits.mkString(",")}"
+    val uciHits = combined.flatMap(uciLeakHits).distinct
+    if uciHits.nonEmpty then flags += s"uci_leak:${uciHits.mkString(",")}"
     if Set(
         SliceKind.CompensationOrExchangeSac,
         SliceKind.Prophylaxis,
@@ -1768,7 +1805,79 @@ object CommentaryPlayerQcSupport:
 
   private def surfaceSupportRow(row: MoveReviewPlayerSurfaceRow): Option[SupportRow] =
     val label = Option(row.label).map(_.trim).filter(_.nonEmpty).getOrElse("Detail")
-    sanitizeSurfaceText(row.text).map(text => SupportRow(label, text))
+    surfaceReviewText(row.text, row.refSans, row.authority).map(text => SupportRow(label, text))
+
+  private def surfaceSupportRow(
+      label: String,
+      text: String,
+      refSans: List[String],
+      authority: Option[MoveReviewSurfaceAuthority]
+  ): Option[SupportRow] =
+    val cleanLabel = Option(label).map(_.trim).filter(_.nonEmpty).getOrElse("Detail")
+    surfaceReviewText(text, refSans, authority).map(clean => SupportRow(cleanLabel, clean))
+
+  private def surfaceReviewText(
+      rawText: String,
+      refSans: List[String],
+      authority: Option[MoveReviewSurfaceAuthority]
+  ): Option[String] =
+    sanitizeSurfaceText(rawText).map { text =>
+      (text :: surfaceMetadataSentences(refSans, authority)).mkString(" ")
+    }
+
+  private def surfaceMetadataSentences(
+      refSans: List[String],
+      authority: Option[MoveReviewSurfaceAuthority]
+  ): List[String] =
+    val target =
+      authority
+        .flatMap(cleanAuthorityTarget)
+        .map(square => s"Target: $square.")
+    val openingBook =
+      authority
+        .filter(_.kind == MoveReviewSurfaceAuthority.OpeningFamily)
+        .flatMap(_.openingBook)
+        .flatMap(MoveReviewOpeningBookMetadata.sanitize)
+        .map(meta => meta.copy(topMoves = meta.topMoves.filter(m => uciLeakRegex.findFirstIn(m).isEmpty)))
+        .flatMap(openingBookSentence)
+    val refs = cleanRefSans(refSans)
+    val refSentence = Option.when(refs.nonEmpty)(s"Refs: ${refs.mkString(" ")}.")
+    List(target, openingBook, refSentence).flatten
+
+  private def cleanAuthorityTarget(authority: MoveReviewSurfaceAuthority): Option[String] =
+    authority.target
+      .map(_.trim.toLowerCase)
+      .filter(chessSquareRegex.matches)
+      .filter(square =>
+        authority.kind != MoveReviewSurfaceAuthority.OpeningFamily ||
+          authority.openingFamily.exists(family => OpeningFamilyCatalog.default.targetAllowed(family, square))
+      )
+
+  private def cleanRefSans(values: List[String]): List[String] =
+    values
+      .flatMap(sanitizeSurfaceText)
+      .map(_.trim)
+      .filter(value => value.nonEmpty && value.length <= 16 && uciLeakRegex.findFirstIn(value).isEmpty)
+      .distinct
+      .take(6)
+
+  private def openingBookSentence(metadata: MoveReviewOpeningBookMetadata): Option[String] =
+    val bits =
+      List(
+        metadata.eco.map(eco => s"ECO $eco"),
+        metadata.totalGames.map(games => s"${formatOpeningGameCount(games)} games"),
+        Option.when(metadata.topMoves.nonEmpty)(s"Book: ${metadata.topMoves.take(3).mkString(" / ")}")
+      ).flatten
+    Option.when(bits.nonEmpty)(s"Opening book: ${bits.mkString("; ")}.")
+
+  private def formatOpeningGameCount(value: Int): String =
+    val count = math.max(0, value)
+    if count >= 1000000 then s"${formatDecimal(count / 1000000.0, if count >= 10000000 then 0 else 1)}M"
+    else if count >= 1000 then s"${formatDecimal(count / 1000.0, if count >= 10000 then 0 else 1)}k"
+    else count.toString
+
+  private def formatDecimal(value: Double, decimals: Int): String =
+    java.lang.String.format(java.util.Locale.ROOT, s"%.${decimals}f", java.lang.Double.valueOf(value))
 
   private def surfaceDecisionComparisonRow(compare: MoveReviewPlayerDecisionComparison): Option[SupportRow] =
     val label = Option(compare.kicker).map(_.trim).filter(_.nonEmpty).getOrElse("Decision compare")
@@ -1790,7 +1899,7 @@ object CommentaryPlayerQcSupport:
     val label = Option(row.title).map(_.trim).filter(_.nonEmpty).getOrElse("Author check")
     val branchTexts =
       row.branches.flatMap { branch =>
-        sanitizeSurfaceText(branch.text).map { text =>
+        surfaceReviewText(branch.text, branch.refSans, branch.authority).map { text =>
           Option(branch.label).map(_.trim).filter(_.nonEmpty).fold(text)(label => s"$label: $text")
         }
       }
@@ -1816,7 +1925,142 @@ object CommentaryPlayerQcSupport:
       case Some(surface) => buildMoveReviewRowsFromPlayerSurface(surface)
       case None          => (Nil, Nil)
 
+  private[tools] def buildMoveReviewRowsFromPlayerSurfaceJson(js: JsValue): Option[(List[SupportRow], List[SupportRow])] =
+    val surface = js \ "moveReviewPlayerSurface"
+    val schema = (surface \ "schema").asOpt[String]
+    Option.when(schema.exists(value =>
+      value == "chesstory.move_review.player_surface.v1" ||
+        value == "chesstory.move_review.player_surface.v2"
+    )) {
+      val support =
+        rowsFromSurfaceJson(surface \ "summaryRows", allowStrategicRelation = false) ++
+          decisionComparisonRowFromJson(surface \ "decisionComparison")
+      val advanced =
+        rowsFromSurfaceJson(surface \ "advancedRows", allowStrategicRelation = true) ++
+          rowsFromSurfaceJson(surface \ "probeRows", allowStrategicRelation = false) ++
+          authorRowsFromJson(surface \ "authorRows")
+      (support.distinct, advanced.distinct)
+    }
 
+  private def rowsFromSurfaceJson(value: JsLookupResult, allowStrategicRelation: Boolean): List[SupportRow] =
+    value.asOpt[List[JsObject]].getOrElse(Nil).flatMap { row =>
+      for
+        label <- (row \ "label").asOpt[String].map(_.trim).filter(_.nonEmpty)
+        text <- (row \ "text").asOpt[String]
+      yield surfaceSupportRow(
+        label = label,
+        text = text,
+        refSans = (row \ "refSans").asOpt[List[String]].getOrElse(Nil),
+        authority = surfaceAuthorityFromJson(row \ "authority", allowStrategicRelation)
+      )
+    }.flatten
+
+  private def decisionComparisonRowFromJson(value: JsLookupResult): List[SupportRow] =
+    value.asOpt[JsObject].toList.flatMap { row =>
+      val label = (row \ "kicker").asOpt[String].map(_.trim).filter(_.nonEmpty).getOrElse("Decision compare")
+      val chosenSan = (row \ "chosenSan").asOpt[String].map(_.trim).filter(_.nonEmpty)
+      val engineSan =
+        (row \ "engineSan").asOpt[String].map(_.trim).filter(_.nonEmpty).filterNot { engine =>
+          (row \ "chosenMatchesBest").asOpt[Boolean].contains(true) || chosenSan.contains(engine)
+        }
+      val text =
+        List(
+          chosenSan.map(move => s"played $move"),
+          engineSan.map(move => s"engine looked at $move"),
+          (row \ "comparedSan").asOpt[String].map(move => s"compared ${move.trim}"),
+          (row \ "gapLabel").asOpt[String].map(gap => s"gap ${gap.trim}"),
+          (row \ "secondaryText").asOpt[String]
+        ).flatten.mkString(", ")
+      sanitizeSurfaceText(text).map(clean => SupportRow(label, clean))
+    }
+
+  private def authorRowsFromJson(value: JsLookupResult): List[SupportRow] =
+    value.asOpt[List[JsObject]].getOrElse(Nil).flatMap { row =>
+      val label = (row \ "title").asOpt[String].map(_.trim).filter(_.nonEmpty).getOrElse("Author check")
+      val branchText =
+        (row \ "branches").asOpt[List[JsObject]].getOrElse(Nil).flatMap { branch =>
+          val branchLabel = (branch \ "label").asOpt[String].map(_.trim).filter(_.nonEmpty)
+          (branch \ "text").asOpt[String].flatMap { text =>
+            surfaceReviewText(
+              text,
+              refSans = (branch \ "refSans").asOpt[List[String]].getOrElse(Nil),
+              authority = surfaceAuthorityFromJson(branch \ "authority", allowStrategicRelation = false)
+            )
+          }.map { text =>
+            branchLabel.fold(text)(value => s"$value: $text")
+          }
+        }
+      val text =
+        (List((row \ "question").asOpt[String], (row \ "why").asOpt[String]).flatten ++ branchText)
+          .flatMap(sanitizeSurfaceText)
+          .distinct
+          .mkString("; ")
+      Option.when(text.nonEmpty)(SupportRow(label, text))
+    }
+
+  private def surfaceAuthorityFromJson(
+      value: JsLookupResult,
+      allowStrategicRelation: Boolean
+  ): Option[MoveReviewSurfaceAuthority] =
+    value.asOpt[JsObject].flatMap { row =>
+      val kind = (row \ "kind").asOpt[String].map(_.trim).getOrElse("")
+      val token = (row \ "token").asOpt[String].map(_.trim).filter(_.nonEmpty)
+      val openingFamily = (row \ "openingFamily").asOpt[String].map(_.trim).filter(surfaceAuthorityKeyRegex.matches)
+      val target = (row \ "target").asOpt[String].map(_.trim.toLowerCase).filter(chessSquareRegex.matches)
+      val openingBook =
+        Option.when(kind == MoveReviewSurfaceAuthority.OpeningFamily)(
+          MoveReviewOpeningBookMetadata(
+            eco = (row \ "openingBook" \ "eco").asOpt[String],
+            totalGames = (row \ "openingBook" \ "totalGames").asOpt[Int],
+            topMoves = (row \ "openingBook" \ "topMoves").asOpt[List[String]].getOrElse(Nil)
+          )
+        ).flatMap(MoveReviewOpeningBookMetadata.sanitize)
+      val authority =
+        MoveReviewSurfaceAuthority(
+          kind = kind,
+          token = token,
+          openingFamily = openingFamily,
+          target = target,
+          openingBook = openingBook
+        )
+      Option.when(validReviewSurfaceAuthority(authority, allowStrategicRelation))(authority)
+    }
+
+  private def validReviewSurfaceAuthority(
+      authority: MoveReviewSurfaceAuthority,
+      allowStrategicRelation: Boolean
+  ): Boolean =
+    authority.kind match
+      case MoveReviewSurfaceAuthority.CounterplayBreak =>
+        authority.token.exists(surfaceAuthorityTokenRegex.matches) &&
+          authority.openingFamily.isEmpty &&
+          authority.target.isEmpty &&
+          authority.openingBook.isEmpty
+      case MoveReviewSurfaceAuthority.CentralBreak |
+          MoveReviewSurfaceAuthority.CentralLiquidation |
+          MoveReviewSurfaceAuthority.CentralChallenge =>
+        authority.token.exists(surfaceAuthorityRouteTokenRegex.matches) &&
+          authority.openingFamily.isEmpty &&
+          authority.target.isEmpty &&
+          authority.openingBook.isEmpty
+      case MoveReviewSurfaceAuthority.PracticalPlan =>
+        authority.token.isEmpty &&
+          authority.openingFamily.isEmpty &&
+          authority.target.isEmpty &&
+          authority.openingBook.isEmpty
+      case MoveReviewSurfaceAuthority.OpeningFamily =>
+        authority.openingFamily.nonEmpty &&
+          authority.token.isEmpty
+      case MoveReviewSurfaceAuthority.StrategicRelation =>
+        allowStrategicRelation &&
+          authority.token.exists(token =>
+            surfaceAuthorityKeyRegex.matches(token) && RelationObservationCatalog.ImplementedKinds.contains(token)
+          ) &&
+          authority.target.nonEmpty &&
+          authority.openingFamily.isEmpty &&
+          authority.openingBook.isEmpty
+      case _ =>
+        false
 
   def moveReviewPlannerRuntime(snapshot: SliceSnapshot): MoveReviewRuntimeTrace =
     val rawCtx = snapshot.rawCtx.getOrElse(snapshot.ctx)
@@ -2096,7 +2340,7 @@ object CommentaryPlayerQcSupport:
         )
       )
 
-  final class LocalUciEngine(enginePath: Path, timeoutMs: Long):
+  final class LocalUciEngine(enginePath: Path, timeoutMs: Long = DefaultUciTimeoutMs):
     private val process =
       new ProcessBuilder(enginePath.toAbsolutePath.normalize.toString)
         .redirectErrorStream(true)

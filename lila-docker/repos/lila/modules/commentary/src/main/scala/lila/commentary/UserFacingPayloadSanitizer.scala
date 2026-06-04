@@ -2,6 +2,7 @@ package lila.commentary
 
 import lila.commentary.analysis.PlanEvidenceEvaluator
 import lila.commentary.analysis.PlanEvidenceEvaluator.EvaluatedPlan
+import lila.commentary.analysis.MoveReviewSupportedLocalSurfaceRows
 import lila.commentary.analysis.OpeningFamilyCatalog
 import lila.commentary.analysis.UserFacingSignalSanitizer
 import lila.commentary.analysis.semantic.RelationObservationCatalog
@@ -149,10 +150,11 @@ object UserFacingPayloadSanitizer:
     )
 
   private def cleanPublicEvidenceList(values: List[String]): List[String] =
-    cleanList(values).filterNot(deferredRelationEvidenceLeak)
+    cleanList(values).filterNot(relationEvidenceLeak)
 
-  private def deferredRelationEvidenceLeak(value: String): Boolean =
-    RelationObservationCatalog.deferredFallbackForMotifTag(value).nonEmpty
+  private def relationEvidenceLeak(value: String): Boolean =
+    RelationObservationCatalog.deferredFallbackForMotifTag(value).nonEmpty ||
+      RelationObservationCatalog.relationWitnessOnlyMotifTag(value)
 
   private def sanitizeSignalDigest(digest: NarrativeSignalDigest): NarrativeSignalDigest =
     digest.copy(
@@ -266,14 +268,31 @@ object UserFacingPayloadSanitizer:
     )
 
   private def sanitizeMoveReviewPlayerSurface(surface: MoveReviewPlayerSurface): MoveReviewPlayerSurface =
+    val summaryRows =
+      surface.summaryRows.flatMap(row => sanitizeMoveReviewPlayerSurfaceRow(row, allowStrategicRelation = false))
+    val suppressedRelationKinds =
+      MoveReviewSupportedLocalSurfaceRows.relationKindsForRows(summaryRows)
+    val advancedRows =
+      surface.advancedRows
+        .flatMap(row => sanitizeMoveReviewPlayerSurfaceRow(row, allowStrategicRelation = true))
+        .filterNot(row => strategicRelationSuppressedBySummary(row, suppressedRelationKinds))
     surface.copy(
       schema = sanitizeMoveReviewPlayerSurfaceSchema(surface.schema),
       title = cleanOpt(surface.title),
-      summaryRows = surface.summaryRows.flatMap(row => sanitizeMoveReviewPlayerSurfaceRow(row, allowStrategicRelation = false)),
-      advancedRows = surface.advancedRows.flatMap(row => sanitizeMoveReviewPlayerSurfaceRow(row, allowStrategicRelation = true)),
+      summaryRows = summaryRows,
+      advancedRows = advancedRows,
       decisionComparison = surface.decisionComparison.map(sanitizeMoveReviewPlayerDecisionComparison),
       probeRows = surface.probeRows.flatMap(row => sanitizeMoveReviewPlayerSurfaceRow(row, allowStrategicRelation = false)),
       authorRows = surface.authorRows.flatMap(sanitizeMoveReviewPlayerAuthorRow)
+    )
+
+  private def strategicRelationSuppressedBySummary(
+      row: MoveReviewPlayerSurfaceRow,
+      suppressedRelationKinds: Set[String]
+  ): Boolean =
+    row.authority.exists(authority =>
+      authority.kind == MoveReviewSurfaceAuthority.StrategicRelation &&
+        authority.token.exists(suppressedRelationKinds.contains)
     )
 
   private def sanitizeMoveReviewPlayerSurfaceSchema(schema: String): String =

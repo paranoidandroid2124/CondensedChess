@@ -59,8 +59,10 @@ Current work is a boundary redesign plus docs compression:
   and repeated-square paths, and leaves low-support candidates deferred. The
   current runtime route catalog contains 52 descriptors: 48 knight-route rows
   plus 4 bishop fianchetto rows for Catalan, English, King's Indian, and
-  Queen's Indian support metadata. Every route target is present in the
-  corresponding `OpeningFamilyCatalog` target allowlist.
+  Queen's Indian. Bishop rows may become exact target-fixation evidence only
+  after the same legal replay, family/target allowlist, declared-target, and
+  terminal target-mode gates as knight routes. Every route target is present in
+  the corresponding `OpeningFamilyCatalog` target allowlist.
 - opening goal/prose coverage is expanding inside the existing `OpeningGoals`
   evaluator for Gruenfeld `...d5`, Slav/Semi-Slav `...e5`, Dutch `...Ne4`,
   Queen's Indian `...Ne4`, Bogo-Indian `...Ne4`, Catalan `dxc5` tension
@@ -73,6 +75,83 @@ Current work is a boundary redesign plus docs compression:
 
 Do not use branch-external or branch-removed documents as authority for this
 worktree.
+
+## Live Coverage Map
+
+The current motif and authority vocabulary is intentionally layered. A raw
+motif name, tactical detector id, semantic source id, relation witness, and
+proof family do not carry the same release authority.
+
+| layer | live source | current coverage | authority role |
+| --- | --- | --- | --- |
+| raw motif model | `modules/commentaryCore/src/main/scala/lila/commentary/model/Motif.scala` | 55 `Motif` case classes | detector/model vocabulary only; not public authority by itself |
+| tactical pattern detectors | `modules/commentaryCore/src/main/scala/lila/commentary/analysis/tactical/TacticalPatternDetectors.scala` | 9 detector ids | board-pattern support; named mate ids may narrow a top-PV `MateNet` practical label, but only after the analyzer-owned relation witness |
+| relation witness inventory | `MoveReviewExchangeAnalyzer.RelationKind` plus `RelationObservationCatalog` | 23 implemented relation kinds, 0 deferred relation kinds | public `strategic_relation` rows are limited to implemented descriptors with analyzer-owned board replay |
+| semantic observation ids | `StrategicObservationIds.SemanticObservationId` | 25 ids | normalized semantic ids; relation admission uses only catalog descriptors |
+| evidence source ids | `StrategicObservationIds.EvidenceSourceId` | 110 ids | support/proof vocabulary; source-shaped strings cannot mint relation authority |
+| plan taxonomy | `PlanTaxonomy` | 35 plan kinds, 10 ranked themes plus `Unknown` | planning/proof-family vocabulary; a plan label is not exact-board proof |
+
+The deferred relation set is therefore not the whole motif map. It is currently
+empty: relation-shaped motif families that already exist in nearby model or
+detector vocabulary remain non-public until they receive a public relation
+witness, source, semantic id, and catalog descriptor.
+
+| deferred relation | current fallback | graduation requirement |
+| --- | --- | --- |
+| none | n/a | n/a |
+
+Current five-motif decision:
+
+| relation motif | current decision | live authority |
+| --- | --- | --- |
+| `trapped_piece` | public when board-backed | implemented `Trapped piece` supported-local row, plus catalog relation metadata, only from the reviewed legal move attacking an explicit bound non-pawn/non-king target that has no safe legal escape |
+| `zwischenzug` | public when board-backed | implemented `Zwischenzug` supported-local row, plus catalog relation metadata, only from the reviewed legal move giving direct check while a legal non-pawn capture on the explicit bound recapture square was available and the reviewed move did not take that square |
+| `domination` | public when board-backed | implemented `Domination` supported-local row, plus catalog relation metadata, only from the reviewed legal move attacking an explicit bound same/lower-value non-pawn/non-king target whose pseudo-escape squares are all controlled and whose legal escapes all fail |
+| `stalemate_trap` | public when PV-backed | implemented `Draw resource` relation only from legal replay ending in actual stalemate with draw-stable engine score |
+| `perpetual_check` | public when PV-backed | implemented `Draw resource` relation only from legal replay proving a repeated checking cycle, repeated position key, and draw-stable engine score |
+
+The MoveReview relation row cap is a display bound, not a proof downgrade.
+PV-backed draw-resource rows sort first. The strict witness-only board relations
+`trapped_piece`, `domination`, and `zwischenzug` sort ahead of generic
+line/tactical relation rows once they have passed the analyzer witness boundary,
+so a rich relation position does not hide the exact-board motifs behind softer
+catalog rows.
+
+`trapped_piece` is an exact board relation now, not a raw motif fallback. The
+first replayed move must be the reviewed move, the moved attacker must attack an
+explicit bound target, invalid explicit targets close the witness, the target
+must be a higher-value enemy non-pawn/non-king piece, and every legal move by
+that piece must still leave it attacked or unavailable. Generic `PieceActivity`
+`isTrapped`, raw `trapped_piece` motif text, and helper notation do not mint the
+relation.
+
+`zwischenzug` is exact-board now, but deliberately narrow: the first replayed
+move must be the reviewed move, the explicit target set must be valid and
+non-empty, the side to move must have had a legal non-pawn capture on that
+target square before the move, the reviewed move must not be that recapture, and
+the reviewed move must give direct check from the moved piece. Raw
+`Zwischenzug(...)` helper notation can still be sanitized to `move-order
+caution`, but it does not mint the relation.
+
+`domination` is exact-board now, but deliberately below `trapped_piece`: higher-value
+targets are handled by the trapped-piece witness, line pins/skewers remain line
+relations, and raw `Domination(...)` or `domination` motif text is only sanitizer
+input. The public relation requires an explicit valid target, a replayed attacker
+that attacks the target, complete control of the target's pseudo-escape squares,
+and no legal target move that escapes the pressure.
+
+Draw-resource relations are not ordinary motif promotions. `stalemate_trap`
+has a public relation path only when bounded legal replay reaches an actual
+stalemate terminal after the played PV entry move and the engine score remains
+draw-stable with no mate score. `perpetual_check` has a public relation path
+only when bounded legal replay starts with the played checking move, shows at
+least three checks by the same side, returns to a repetition-compatible position
+key, and the engine score remains draw-stable with no mate score. That bounded
+line can come from the top PV or from a validated root `ProbeResult` reply PV
+whose FEN and probed/candidate move bind to the reviewed position and played
+move. Raw
+`stalemate_trap` and `perpetual_check` motif text and helper notation remain
+PV-only support and do not emit public motif prose.
 
 ## Document Roles
 
@@ -113,24 +192,27 @@ Current authority is internal and MoveReview-first:
   expanded through the analyzer relation projection, keeping policy code from
   reading relation facts or focus squares directly. Branch-key and `branch:*` fact formatting is
   also analyzer-owned through shared branch helpers rather than policy-local UCI
-  slicing. Deferred relation motifs stay in the same
-  catalog inventory with required witness and fallback-lane metadata, projected
-  through a catalog-owned `DeferredRelationFallback` read-model, but only
+  slicing. Deferred relation motifs, when present, stay in the same catalog
+  inventory with required witness and fallback-lane metadata, but only
   implemented board-replayed descriptors can emit relation authority. Legacy
   motif-prefix, theme-keyword, canonical motif-term, and motif delta prose
-  consume that fallback projection for softer non-relation text or
-  diagnostic-only suppression. Legacy plan evidence also uses the fallback
-  label for deferred domination. User-facing helper notation for deferred
-  relations is rewritten or suppressed through the same catalog fallback, and
-  threat-summary labels consume the same fallback instead of raw deferred motif
-  names.
-  Strategy-pack/structure-arc piece-activity evidence uses the catalog fallback
-  evidence term for trapped-piece activity.
-  The final sanitizer removes deferred relation motif terms from cached or
-  legacy strategy-pack evidence lists while preserving the fallback term.
-  Deferred tags do not raise the generic context beat into high-tension
-  tactical tone or pass as generic motif-prefix signals. Generic
-  fact-corroboration helpers also check the deferred relation catalog before
+  consume that catalog boundary for softer non-relation text or raw helper
+  suppression, including PV-only tags such as `stalemate_trap` and
+  `perpetual_check`, and witness-only tags such as `trapped_piece`,
+  `domination`, and `zwischenzug`. Legacy plan evidence still falls back to
+  `key-square restriction` when old domination motifs appear, but public
+  relation authority requires the board witness. User-facing helper notation is
+  rewritten or suppressed through the same fallback boundary; threat-summary
+  labels consume the same fallback instead of raw relation motif names.
+  Strategy-pack/structure-arc piece-activity evidence no longer turns generic
+  trapped-piece activity into a relation fallback term.
+  The final sanitizer removes deferred relation motif terms and witness-only raw
+  relation tags from cached or legacy strategy-pack evidence lists while
+  preserving softer fallback terms.
+  Deferred tags and witness-only raw relation tags do not raise the generic
+  context beat into high-tension tactical tone or pass as generic motif-prefix
+  signals. Generic
+  fact-corroboration helpers also check the relation catalog boundary before
   treating a motif as board-supported.
 - `StrategicSemanticObservationPipeline` emits typed semantic observations
   through minority-attack and a catalog-driven relation producer.
@@ -148,12 +230,13 @@ Current authority is internal and MoveReview-first:
   relation-specific focus, keeping surface projection policy out of the payload
   builder. Any public relation carrier must preserve relation-specific focus
   before it can reach the public row, and selector merge does not synthesize
-  relation focus or relation target from generic focus/target squares; legacy
-  carriers without a selected relation kind must also have exactly one matching
-  catalog source/fact pair and cannot promote generic `targetSquare` metadata as
-  analyzer target.
+  relation focus or relation target from generic focus/target squares; carriers
+  without a selected relation kind stay silent, and selected carriers must match
+  the descriptor-owned source/semantic/witness admission triple before they can
+  reach the public row. Generic `targetSquare` metadata is not analyzer target
+  evidence.
   `StrategicIdeaEvidence` preserves relation identity and relation focus only
-  for implemented catalog kinds; deferred or unknown relation names are stripped
+  for implemented catalog kinds; unknown or uncataloged relation names are stripped
   before selector candidates are built.
 - `QuestionFirstCommentaryPlanner` ranks questions; it does not own proof
   authority.
@@ -195,17 +278,28 @@ axes:
 
 | planning label | stable boundary | implementation rule |
 | --- | --- | --- |
-| broad heavy-piece/local-bind/global-squeeze expansion | split into resource/route restriction assets such as `LocalFileEntryBind`, `CounterplayAxisSuppression`, `ProphylacticRestraint`, `RouteNetworkBindProof`, `TwoAxisBindProof`, and `HeavyPieceLocalBindValidation` | do not add positive public authority to broad or negative-lane helpers; new release paths need a typed exact-slice proof and `ClaimAuthorityResolver` admission |
+| broad heavy-piece/local-bind/global-squeeze expansion | split into resource/route restriction assets such as `LocalFileEntryBind`, `CounterplayAxisSuppression`, `ProphylacticRestraint`, `RouteNetworkBindProof`, `TwoAxisBindProof`, and `HeavyPieceLocalBindValidation` | do not add positive public authority to broad or negative-lane helpers; new release paths need a typed exact-slice proof or typed contract carrier plus `ClaimAuthorityResolver` admission |
+| restricted-defense conversion expansion | `RestrictedDefenseConversionProof` typed contract plus `ClaimAuthorityResolver` admission | keep public wording bounded to technical conversion support after a checked best defense; do not promote generic conversion prose, compensation, or winning-plan claims |
+| outpost expansion | `OutpostOccupation` exact-slice under `OutpostEntrenchment` | keep public wording bounded to a knight occupying the named outpost after legal reviewed-move replay, top-PV identity, `Fact.Outpost`, and stable branch proof; do not promote broad outpost tags or route-access evidence |
 | B7/B8 broad expansion | historical frontier/coverage shorthand | keep `B7`/`B8` names in guard/test diagnostics only; do not introduce proof families, sources, packages, or product rows with those labels |
 | broad color-complex expansion | `ColorComplexSqueeze` exact-slice family through `color_complex_squeeze_probe`; generic `color_complex_clamp` remains selector/support evidence | do not promote generic color-complex prose, coordinates, or minor-piece words into authority |
-| mobility-cage expansion | currently design/recon; nearest live evidence is mobility restriction, route denial, or deferred relation support | choose a concrete witness family before implementation; do not create a catch-all mobility-cage module |
+| mobility-cage expansion | catch-all still closed; nearest live evidence is the cataloged `trapped_piece`/`domination` mobility-restriction relation witnesses plus route denial assets | choose a concrete witness family before implementation; do not create a catch-all mobility-cage module |
 | Track 5 lesson authority | scoped takeaway only through `MoveReviewScopedTakeaway` | do not use Track names or lesson labels as runtime authority; broad lesson authority stays closed |
 | Chronicle/Active runtime reopening | completely removed from the workspace | do not consume `GameChronicle*`, Active-note DTOs, or active branch/thread carriers in released MoveReview truth/signoff |
+
+Admission-unit planning follows the same boundary: the catalog may queue only
+plan-kind work units that already resolve through a public runtime contract.
+Current cataloged families include static/backward target fixation, local-file
+entry, color-complex flank clamp, outpost occupation, IQP inducement,
+simplification, defender/queen/bad-piece exchange ownership, and central-break
+timing. Runtime-only proof families such as `target_focused_coordination` remain
+covered by contract/surface tests rather than by a `PlanTaxonomy.PlanKind`
+admission unit.
 
 New strategic work should use domain/proof names, not rollout or breadth names.
 Acceptable names describe the chess asset and proof boundary, for example
 `LocalFileEntryBind`, `CounterplayAxisSuppression`,
-`ColorComplexSqueeze`, or a cataloged relation witness. Avoid `broad`,
+`ColorComplexSqueeze`, `OutpostOccupation`, or a cataloged relation witness. Avoid `broad`,
 `global`, `Track`, `Frontier`, `B7`, `B8`, `Active`, and `Chronicle` in new
 runtime source modules, proof families, public authority tokens, or product row
 kinds unless they are documenting legacy/test-only boundaries.

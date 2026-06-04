@@ -35,8 +35,16 @@ object NarrativeContextBuilder:
   private case class StrategicPlanContext(
       partition: PlanEvidenceEvaluator.PartitionedPlans,
       experiments: List[StrategicPlanExperiment],
+      restrictedDefenseConversion: Option[RestrictedDefenseConversionProof.Contract],
+      dualAxisBind: Option[TwoAxisBindProof.Contract],
       mainPlans: List[PlanHypothesis],
       evidence: PlanEvidenceEvaluator.StrategicPlanEvidenceView
+  )
+
+  private case class StrategicPlanExperimentResults(
+      experiments: List[StrategicPlanExperiment],
+      restrictedDefenseConversion: Option[RestrictedDefenseConversionProof.Contract],
+      dualAxisBind: Option[TwoAxisBindProof.Contract]
   )
 
   private case class ContextSupportSections(
@@ -288,8 +296,11 @@ object NarrativeContextBuilder:
       threatLineFacts = factSets.threatLineFacts,
       counterfactualFacts = factSets.counterfactualFacts,
       probeRequests = authorProbeContext.probeRequests,
+      validatedRootProbeResults = authorProbeContext.rootProbeResults,
       mainStrategicPlans = strategicPlans.mainPlans,
       strategicPlanExperiments = strategicPlans.experiments,
+      restrictedDefenseConversion = strategicPlans.restrictedDefenseConversion,
+      dualAxisBind = strategicPlans.dualAxisBind,
       strategicPlanEvidence = strategicPlans.evidence,
       meta = supportSections.meta,
       strategicFlow = supportSections.strategicFlow,
@@ -467,19 +478,22 @@ object NarrativeContextBuilder:
         softByRequestId = probeValidation.softByRequestId,
         transpositionProofs = transpositionProofs
       )
+    val experimentResults =
+      buildStrategicPlanExperimentResults(
+        evaluated = partition.evaluated,
+        validatedProbeResults = probeValidation.validResults,
+        preventedPlans = data.preventedPlans,
+        evalCp = data.evalCp,
+        isWhiteToMove = data.isWhiteToMove,
+        phase = data.phase,
+        ply = data.ply,
+        fen = data.fen
+      )
     StrategicPlanContext(
       partition = partition,
-      experiments =
-        buildStrategicPlanExperiments(
-          evaluated = partition.evaluated,
-          validatedProbeResults = probeValidation.validResults,
-          preventedPlans = data.preventedPlans,
-          evalCp = data.evalCp,
-          isWhiteToMove = data.isWhiteToMove,
-          phase = data.phase,
-          ply = data.ply,
-          fen = data.fen
-        ),
+      experiments = experimentResults.experiments,
+      restrictedDefenseConversion = experimentResults.restrictedDefenseConversion,
+      dualAxisBind = experimentResults.dualAxisBind,
       mainPlans = partition.selectedMainEvaluatedPlans.map(_.hypothesis),
       evidence = PlanEvidenceEvaluator.StrategicPlanEvidenceView.from(partition)
     )
@@ -597,8 +611,29 @@ object NarrativeContextBuilder:
       ply: Int = 0,
       fen: String = ""
   ): List[StrategicPlanExperiment] =
+    buildStrategicPlanExperimentResults(
+      evaluated = evaluated,
+      validatedProbeResults = validatedProbeResults,
+      preventedPlans = preventedPlans,
+      evalCp = evalCp,
+      isWhiteToMove = isWhiteToMove,
+      phase = phase,
+      ply = ply,
+      fen = fen
+    ).experiments
+
+  private def buildStrategicPlanExperimentResults(
+      evaluated: List[PlanEvidenceEvaluator.EvaluatedPlan],
+      validatedProbeResults: List[ProbeResult],
+      preventedPlans: List[PreventedPlan],
+      evalCp: Int,
+      isWhiteToMove: Boolean,
+      phase: String,
+      ply: Int,
+      fen: String
+  ): StrategicPlanExperimentResults =
     val resultsById = validatedProbeResults.groupBy(_.id).view.mapValues(_.head).toMap
-    evaluated.map { plan =>
+    val experimentPairs = evaluated.map { plan =>
       val probeEvidence = planExperimentProbeEvidence(plan, resultsById)
       val certifications =
         planExperimentCertifications(
@@ -612,8 +647,23 @@ object NarrativeContextBuilder:
           fen = fen
         )
       val signals = planExperimentSignals(plan, probeEvidence, certifications)
-      strategicPlanExperiment(plan, probeEvidence, certifications, signals)
+      strategicPlanExperiment(plan, probeEvidence, certifications, signals) -> certifications
     }
+    StrategicPlanExperimentResults(
+      experiments = experimentPairs.map(_._1),
+      restrictedDefenseConversion =
+        experimentPairs
+          .flatMap(_._2.restrictedDefense)
+          .filter(_.certified)
+          .sortBy(cert => -cert.confidence)
+          .headOption,
+      dualAxisBind =
+        experimentPairs
+          .flatMap(_._2.dualAxisBind)
+          .filter(_.certified)
+          .sortBy(cert => -cert.confidence)
+          .headOption
+    )
 
   private def planExperimentProbeEvidence(
     plan: PlanEvidenceEvaluator.EvaluatedPlan,
@@ -1210,7 +1260,7 @@ object NarrativeContextBuilder:
       case Some(_) =>
         None
       case None =>
-        motif
+        motif.flatMap(RelationObservationCatalog.relationWitnessOnlyFallbackLabelForMotifTag).orElse(motif)
   
   private def buildThreatTable(ctx: IntegratedContext, topSan: Option[String], topUci: Option[String], fen: String): ThreatTable = {
     // TO US threats: bestDefense is valid (how we can defend against opponent's threat)

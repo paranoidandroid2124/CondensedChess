@@ -37,7 +37,7 @@ object MoveReviewPlannerSliceBuilder:
       System.err.println(s"[move-review-planner-slice] no catalog entries in `${config.catalogPath}`")
       sys.exit(1)
 
-    val engine = new LocalUciEngine(config.enginePath, timeoutMs = 30000L)
+    val engine = new LocalUciEngine(config.enginePath)
     try
       val selected = scala.collection.mutable.ListBuffer.empty[SliceManifestEntry]
       val counts = scala.collection.mutable.Map.empty[String, Int].withDefaultValue(0)

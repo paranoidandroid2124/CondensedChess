@@ -316,8 +316,11 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
         "BackRankMate",
         "MateNet",
         "GreekGift",
+        "StalemateTrap",
+        "PerpetualCheck",
         "Fork",
         "HangingPiece",
+        "TrappedPiece",
         "XRay",
         "Clearance",
         "Battery",
@@ -375,6 +378,25 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
       ),
       Nil
     )
+  }
+
+  test("implemented relation kinds require typed relation details before projection") {
+    MoveReviewExchangeAnalyzer.RelationKind.Implemented.foreach { kind =>
+      val rawOnly =
+        MoveReviewExchangeAnalyzer.RelationWitness(
+          kind = kind,
+          focusSquares = List("a1", "a2"),
+          facts = List(s"${kind}_relation_witness"),
+          lineMoves = List("a1a2"),
+          targetSquare = Some("a2")
+        )
+
+      assertEquals(MoveReviewExchangeAnalyzer.relationDetailsValidForKind(rawOnly), false, clues(kind))
+      assertEquals(MoveReviewExchangeAnalyzer.relationProjectionFromWitness(rawOnly), None, clues(kind))
+      assertEquals(MoveReviewExchangeAnalyzer.relationFocusSquaresFromWitness(rawOnly), Nil, clues(kind))
+      assertEquals(MoveReviewExchangeAnalyzer.relationTargetSquareFromWitness(rawOnly), None, clues(kind))
+      assertEquals(MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(rawOnly), Nil, clues(kind))
+    }
   }
 
   test("branch keys are emitted only after legal replay accepts the prefix") {
@@ -761,6 +783,175 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
     assertEquals(MoveReviewExchangeAnalyzer.greekGiftWitness(replay, "d3h7"), None)
   }
 
+  test("relation witnesses expose zwischenzug only from a replayed check before a bound recapture") {
+    val fen = "4k3/8/8/8/3b4/5N2/8/3QK3 w - - 0 1"
+    val replay =
+      MoveReviewExchangeAnalyzer
+        .boundedTopReplay(fen, List(VariationLine(moves = List("d1a4"), scoreCp = 42)), maxPlies = 1)
+        .getOrElse(fail("queen in-between check should replay legally"))
+
+    val witness =
+      MoveReviewExchangeAnalyzer
+        .zwischenzugWitness(replay, "d1a4", explicitTargets = List("d4"))
+        .getOrElse(fail("Qa4+ should prove an in-between check before Nxd4"))
+
+    assertEquals(witness.kind, MoveReviewExchangeAnalyzer.RelationKind.Zwischenzug)
+    assertEquals(witness.targetSquare, Some("d4"))
+    assert(witness.facts.contains("zwischenzug_relation_witness"), clues(witness))
+    assert(witness.facts.contains("intermediate_move:d1a4"), clues(witness))
+    assert(witness.facts.contains("expected_recapture:d4"), clues(witness))
+    assert(witness.facts.contains("threat:check"), clues(witness))
+    assert(witness.facts.contains("branch:d1a4"), clues(witness))
+    val details =
+      MoveReviewExchangeAnalyzer
+        .zwischenzugDetailsFromWitness(witness)
+        .getOrElse(fail("zwischenzug witness should carry typed move-order details"))
+    assertEquals(details.intermediateMove, "d1a4")
+    assertEquals(details.expectedRecaptureSquare, "d4")
+    assertEquals(details.checkingPieceSquare, "a4")
+    assertEquals(details.checkedKingSquare, "e8")
+
+    val staleRaw =
+      witness.copy(
+        focusSquares = List("a1"),
+        facts = List("zwischenzug_relation_witness", "expected_recapture:a1"),
+        targetSquare = Some("a1")
+      )
+    assertEquals(MoveReviewExchangeAnalyzer.relationFocusSquaresFromWitness(staleRaw), List("a4", "d4", "e8"))
+    assertEquals(MoveReviewExchangeAnalyzer.relationTargetSquareFromWitness(staleRaw), Some("d4"))
+
+    val relationKinds =
+      MoveReviewExchangeAnalyzer
+        .relationWitnesses(replay, "d1a4", explicitTargets = List("d4"))
+        .map(_.kind)
+    assert(relationKinds.contains(MoveReviewExchangeAnalyzer.RelationKind.Zwischenzug), clues(relationKinds))
+    assert(!relationKinds.contains(MoveReviewExchangeAnalyzer.RelationKind.Fork), clues(relationKinds))
+
+    assertEquals(MoveReviewExchangeAnalyzer.zwischenzugWitness(replay, "d1a4"), None)
+    assertEquals(MoveReviewExchangeAnalyzer.zwischenzugWitness(replay, "d1a4", explicitTargets = List("d4", "bad")), None)
+
+    val directRecapture =
+      MoveReviewExchangeAnalyzer
+        .boundedTopReplay(fen, List(VariationLine(moves = List("f3d4"), scoreCp = 20)), maxPlies = 1)
+        .getOrElse(fail("direct recapture should replay legally"))
+    assertEquals(MoveReviewExchangeAnalyzer.zwischenzugWitness(directRecapture, "f3d4", explicitTargets = List("d4")), None)
+
+    val nonCheckingMove =
+      MoveReviewExchangeAnalyzer
+        .boundedTopReplay(fen, List(VariationLine(moves = List("d1d2"), scoreCp = 12)), maxPlies = 1)
+        .getOrElse(fail("quiet queen move should replay legally"))
+    assertEquals(MoveReviewExchangeAnalyzer.zwischenzugWitness(nonCheckingMove, "d1d2", explicitTargets = List("d4")), None)
+  }
+
+  test("relation witnesses expose stalemate trap only from PV-backed terminal stalemate") {
+    val fen = "7k/5K2/8/6Q1/8/8/8/8 w - - 0 1"
+    val replay =
+      MoveReviewExchangeAnalyzer
+        .boundedTopReplay(fen, List(VariationLine(moves = List("g5g6"), scoreCp = 0)), maxPlies = 1)
+        .getOrElse(fail("stalemate trap line should replay legally"))
+
+    val witness =
+      MoveReviewExchangeAnalyzer
+        .stalemateTrapWitness(replay, "g5g6", engineScoreCp = Some(0), engineMate = None)
+        .getOrElse(fail("Qg6 should create a PV-backed stalemate resource"))
+
+    assertEquals(witness.kind, MoveReviewExchangeAnalyzer.RelationKind.StalemateTrap)
+    assertEquals(witness.targetSquare, Some("h8"))
+    assertEquals(witness.focusSquares, List("h8", "g6"))
+    assert(witness.facts.contains("terminal:stalemate"), clues(witness))
+    assert(witness.facts.contains("draw_resource"), clues(witness))
+    assert(witness.facts.contains("draw_score_cp:0"), clues(witness))
+    val details =
+      MoveReviewExchangeAnalyzer
+        .typedDetailsFromWitness(witness)
+        .collect { case details: MoveReviewExchangeAnalyzer.RelationDetails.StalemateTrap => details }
+        .getOrElse(fail("stalemate trap witness should carry typed draw-resource details"))
+    assertEquals(details.stalematedKingSquare, "h8")
+    assertEquals(details.resourceSquare, "g6")
+    assertEquals(details.entryMove, "g5g6")
+    assertEquals(details.terminalMove, "g5g6")
+
+    val projection =
+      MoveReviewExchangeAnalyzer
+        .relationProjectionFromWitness(witness)
+        .getOrElse(fail("PV-backed stalemate trap should project through the relation boundary"))
+    assertEquals(projection.kind, MoveReviewExchangeAnalyzer.RelationKind.StalemateTrap)
+    assertEquals(projection.focusSquares, List("h8", "g6"))
+    assertEquals(projection.targetSquare, Some("h8"))
+    assert(projection.factTerms.contains("stalemate_trap_relation_witness"), clues(projection))
+    assert(projection.factTerms.contains("terminal:stalemate"), clues(projection))
+
+    assertEquals(MoveReviewExchangeAnalyzer.stalemateTrapWitness(replay, "g5g6", engineScoreCp = None, engineMate = None), None)
+    assertEquals(MoveReviewExchangeAnalyzer.stalemateTrapWitness(replay, "g5g6", engineScoreCp = Some(180), engineMate = None), None)
+    assertEquals(MoveReviewExchangeAnalyzer.stalemateTrapWitness(replay, "g5g6", engineScoreCp = Some(0), engineMate = Some(1)), None)
+
+    val nonTerminalReplay =
+      MoveReviewExchangeAnalyzer
+        .boundedTopReplay("7k/5K2/8/8/6Q1/8/8/8 w - - 0 1", List(VariationLine(moves = List("g4g5"), scoreCp = 0)), maxPlies = 1)
+        .getOrElse(fail("non-stalemate line should replay legally"))
+    assertEquals(
+      MoveReviewExchangeAnalyzer.stalemateTrapWitness(nonTerminalReplay, "g4g5", engineScoreCp = Some(0), engineMate = None),
+      None
+    )
+  }
+
+  test("relation witnesses expose perpetual check only from PV-backed repeated checking cycle") {
+    val fen = "r4rk1/5ppp/8/8/7q/8/2Q3P1/R5K1 b - - 0 1"
+    val line = List("h4e1", "g1h2", "e1h4", "h2g1", "h4e1")
+    val replay =
+      MoveReviewExchangeAnalyzer
+        .boundedTopReplay(fen, List(VariationLine(moves = line, scoreCp = 0)), maxPlies = 5)
+        .getOrElse(fail("perpetual-check line should replay legally"))
+
+    val witness =
+      MoveReviewExchangeAnalyzer
+        .perpetualCheckWitness(replay, "h4e1", engineScoreCp = Some(0), engineMate = None)
+        .getOrElse(fail("Qe1+ cycle should create a PV-backed perpetual-check resource"))
+
+    assertEquals(witness.kind, MoveReviewExchangeAnalyzer.RelationKind.PerpetualCheck)
+    assertEquals(witness.targetSquare, Some("g1"))
+    assertEquals(witness.focusSquares, List("g1", "e1"))
+    assert(witness.facts.contains("checking_cycle"), clues(witness))
+    assert(witness.facts.contains("draw_resource"), clues(witness))
+    assert(witness.facts.exists(_.startsWith("repetition_key:")), clues(witness))
+    assert(witness.facts.contains("draw_score_cp:0"), clues(witness))
+    val details =
+      MoveReviewExchangeAnalyzer
+        .typedDetailsFromWitness(witness)
+        .collect { case details: MoveReviewExchangeAnalyzer.RelationDetails.PerpetualCheck => details }
+        .getOrElse(fail("perpetual-check witness should carry typed cycle details"))
+    assertEquals(details.checkedKingSquare, "g1")
+    assertEquals(details.checkerSquares, List("e1"))
+    assertEquals(details.checkingSide, "black")
+    assertEquals(details.entryMove, "h4e1")
+    assertEquals(details.cycleStartMove, "h4e1")
+    assertEquals(details.cycleReturnMove, "h4e1")
+    assert(details.repeatedPositionKey.contains(" w "), clues(details))
+
+    val projection =
+      MoveReviewExchangeAnalyzer
+        .relationProjectionFromWitness(witness)
+        .getOrElse(fail("PV-backed perpetual check should project through the relation boundary"))
+    assertEquals(projection.kind, MoveReviewExchangeAnalyzer.RelationKind.PerpetualCheck)
+    assertEquals(projection.focusSquares, List("g1", "e1"))
+    assertEquals(projection.targetSquare, Some("g1"))
+    assert(projection.factTerms.contains("perpetual_check_relation_witness"), clues(projection))
+    assert(projection.factTerms.contains("checking_cycle"), clues(projection))
+
+    assertEquals(MoveReviewExchangeAnalyzer.perpetualCheckWitness(replay, "h4e1", engineScoreCp = None, engineMate = None), None)
+    assertEquals(MoveReviewExchangeAnalyzer.perpetualCheckWitness(replay, "h4e1", engineScoreCp = Some(160), engineMate = None), None)
+    assertEquals(MoveReviewExchangeAnalyzer.perpetualCheckWitness(replay, "h4e1", engineScoreCp = Some(0), engineMate = Some(1)), None)
+
+    val noCycleReplay =
+      MoveReviewExchangeAnalyzer
+        .boundedTopReplay(fen, List(VariationLine(moves = line.take(4), scoreCp = 0)), maxPlies = 4)
+        .getOrElse(fail("short checking line should replay legally"))
+    assertEquals(
+      MoveReviewExchangeAnalyzer.perpetualCheckWitness(noCycleReplay, "h4e1", engineScoreCp = Some(0), engineMate = None),
+      None
+    )
+  }
+
   test("relation witnesses expose fork only after a replayed move attacks multiple bound targets") {
     val fen = "k7/4r3/8/8/3N3q/8/8/6K1 w - - 0 1"
     val replay =
@@ -836,6 +1027,112 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
     assertEquals(MoveReviewExchangeAnalyzer.hangingPieceWitness(replay, "c4d3", explicitTargets = List("a8")), None)
     assertEquals(MoveReviewExchangeAnalyzer.hangingPieceWitness(replay, "c4d3", explicitTargets = List("f5", "bad")), None)
     assertEquals(MoveReviewExchangeAnalyzer.hangingPieceWitness(replay, "c4e2"), None)
+  }
+
+  test("relation witnesses expose trapped piece only when a bound target has no safe legal escape") {
+    val fen = "k5pr/7p/8/8/8/2B5/8/6K1 w - - 0 1"
+    val replay =
+      MoveReviewExchangeAnalyzer
+        .boundedTopReplay(fen, List(VariationLine(moves = List("c3g7"), scoreCp = 64)), maxPlies = 1)
+        .getOrElse(fail("bishop move should replay legally"))
+
+    val witness =
+      MoveReviewExchangeAnalyzer
+        .trappedPieceWitness(replay, "c3g7", explicitTargets = List("h8"))
+        .getOrElse(fail("bishop g7 should trap the rook on h8"))
+
+    assertEquals(witness.kind, MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece)
+    assertEquals(witness.focusSquares, List("g7", "h8"))
+    assertEquals(witness.targetSquare, Some("h8"))
+    assert(witness.facts.contains("no_safe_escape"), clues(witness))
+    val details =
+      MoveReviewExchangeAnalyzer
+        .trappedPieceDetailsFromWitness(witness)
+        .getOrElse(fail("trapped-piece witness should carry typed target details"))
+    assertEquals(details.attackerSquare, "g7")
+    assertEquals(details.targetSquare, "h8")
+    assertEquals(details.attackerRole, "bishop")
+    assertEquals(details.targetRole, "rook")
+    val staleRaw =
+      witness.copy(
+        focusSquares = List("a1"),
+        facts = List("trapped_piece_relation_witness", "attacker:a1", "target:a1"),
+        targetSquare = Some("a1")
+      )
+    assertEquals(MoveReviewExchangeAnalyzer.relationFocusSquaresFromWitness(staleRaw), List("g7", "h8"))
+    assertEquals(MoveReviewExchangeAnalyzer.relationTargetSquareFromWitness(staleRaw), Some("h8"))
+    assert(MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(staleRaw).contains("target_role:rook"), clues(staleRaw))
+    assert(!MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(staleRaw).contains("target:a1"), clues(staleRaw))
+
+    val relationKinds =
+      MoveReviewExchangeAnalyzer
+        .relationWitnesses(replay, "c3g7", explicitTargets = List("h8"))
+        .map(_.kind)
+    assert(relationKinds.contains(MoveReviewExchangeAnalyzer.RelationKind.TrappedPiece), clues(relationKinds))
+    assert(!relationKinds.contains(MoveReviewExchangeAnalyzer.RelationKind.HangingPiece), clues(relationKinds))
+    assertEquals(MoveReviewExchangeAnalyzer.trappedPieceWitness(replay, "c3g7"), None)
+    assertEquals(MoveReviewExchangeAnalyzer.trappedPieceWitness(replay, "c3g7", explicitTargets = List("h8", "bad")), None)
+
+    val escapeFen = "k6r/8/8/8/8/2B5/8/6K1 w - - 0 1"
+    val escapeReplay =
+      MoveReviewExchangeAnalyzer
+        .boundedTopReplay(escapeFen, List(VariationLine(moves = List("c3g7"), scoreCp = 64)), maxPlies = 1)
+        .getOrElse(fail("bishop move with rook escape should replay legally"))
+    assertEquals(MoveReviewExchangeAnalyzer.trappedPieceWitness(escapeReplay, "c3g7", explicitTargets = List("h8")), None)
+  }
+
+  test("relation witnesses expose domination only from target-bound escape-square control") {
+    val fen = "n6k/8/B7/1K6/8/8/8/2R5 w - - 0 1"
+    val replay =
+      MoveReviewExchangeAnalyzer
+        .boundedTopReplay(fen, List(VariationLine(moves = List("a6b7"), scoreCp = 42)), maxPlies = 1)
+        .getOrElse(fail("bishop domination move should replay legally"))
+
+    val witness =
+      MoveReviewExchangeAnalyzer
+        .dominationWitness(replay, "a6b7", explicitTargets = List("a8"))
+        .getOrElse(fail("bishop b7 should dominate the knight on a8"))
+
+    assertEquals(witness.kind, MoveReviewExchangeAnalyzer.RelationKind.Domination)
+    assertEquals(witness.focusSquares, List("b7", "a8", "b6", "c7"))
+    assertEquals(witness.targetSquare, Some("a8"))
+    assert(witness.facts.contains("escape_square_control"), clues(witness))
+    assert(witness.facts.contains("controlled_escapes:b6|c7"), clues(witness))
+    val details =
+      MoveReviewExchangeAnalyzer
+        .dominationDetailsFromWitness(witness)
+        .getOrElse(fail("domination witness should carry typed restriction details"))
+    assertEquals(details.attackerSquare, "b7")
+    assertEquals(details.targetSquare, "a8")
+    assertEquals(details.attackerRole, "bishop")
+    assertEquals(details.targetRole, "knight")
+    assertEquals(details.controlledEscapeSquares, List("b6", "c7"))
+    val staleRaw =
+      witness.copy(
+        focusSquares = List("a1"),
+        facts = List("domination_relation_witness", "attacker:a1", "target:a1"),
+        targetSquare = Some("a1")
+      )
+    assertEquals(MoveReviewExchangeAnalyzer.relationFocusSquaresFromWitness(staleRaw), List("b7", "a8", "b6", "c7"))
+    assertEquals(MoveReviewExchangeAnalyzer.relationTargetSquareFromWitness(staleRaw), Some("a8"))
+    assert(MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(staleRaw).contains("target_role:knight"), clues(staleRaw))
+    assert(!MoveReviewExchangeAnalyzer.relationFactTermsFromWitness(staleRaw).contains("target:a1"), clues(staleRaw))
+
+    val relationKinds =
+      MoveReviewExchangeAnalyzer
+        .relationWitnesses(replay, "a6b7", explicitTargets = List("a8"))
+        .map(_.kind)
+    assert(relationKinds.contains(MoveReviewExchangeAnalyzer.RelationKind.Domination), clues(relationKinds))
+    assert(!relationKinds.contains(MoveReviewExchangeAnalyzer.RelationKind.HangingPiece), clues(relationKinds))
+    assertEquals(MoveReviewExchangeAnalyzer.dominationWitness(replay, "a6b7"), None)
+    assertEquals(MoveReviewExchangeAnalyzer.dominationWitness(replay, "a6b7", explicitTargets = List("a8", "bad")), None)
+
+    val pinFen = "4kb2/8/8/8/8/2N5/8/4K3 b - - 0 1"
+    val pinReplay =
+      MoveReviewExchangeAnalyzer
+        .boundedTopReplay(pinFen, List(VariationLine(moves = List("f8b4"), scoreCp = 52)), maxPlies = 1)
+        .getOrElse(fail("pin move should replay legally"))
+    assertEquals(MoveReviewExchangeAnalyzer.dominationWitness(pinReplay, "f8b4", explicitTargets = List("c3")), None)
   }
 
   test("relation witnesses expose x-ray pressure through an enemy blocker") {

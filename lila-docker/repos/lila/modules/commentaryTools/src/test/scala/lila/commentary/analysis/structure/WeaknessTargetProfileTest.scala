@@ -31,6 +31,25 @@ final class WeaknessTargetProfileTest extends FunSuite:
     ), clues(targets))
   }
 
+  test("target hints accept only exact square target evidence") {
+    assertEquals(
+      WeaknessTargetProfile.targetHintSquares(
+        List(
+          "target:e5",
+          "weakness_target:d6",
+          "fixed_target:c6",
+          "coordinated_target:f5",
+          "target_fixing:e4",
+          "enemy_weak_square:d5",
+          "weak_complex:c4",
+          "target:e5:queen",
+          "target:d5_extra"
+        )
+      ),
+      List("e5", "d6", "c6", "f5", "e4", "d5", "c4")
+    )
+  }
+
   test("promotes isolated queen pawn over generic isolated pawn on the same square") {
     val fen = "4k3/8/8/8/3P4/8/8/4K3 b - - 0 1"
     val targets = WeaknessTargetProfile.fromFenForMover(fen)

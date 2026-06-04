@@ -974,7 +974,7 @@ object NarrativeOutlineBuilder:
     ctx: NarrativeContext,
     existingText: String
   ): Option[String] =
-    val mainPlans = StrategicNarrativePlanSupport.evidenceBackedMainPlans(ctx)
+    val mainPlans = ctx.strategicPlanEvidence.mainAdmittedPlanHypotheses
     val primary = mainPlans.headOption
     val secondary = mainPlans.lift(1)
 
@@ -3759,10 +3759,12 @@ object NarrativeOutlineBuilder:
         case None       => ordinaryCanonicalTermForMotif(motif)
 
   private def deferredRelationCanonicalTerm(motif: String): Option[Option[String]] =
-    RelationObservationCatalog.deferredFallbackForMotifTag(motif).map(_.label)
+    if RelationObservationCatalog.relationWitnessOnlyMotifTag(motif) then Some(None)
+    else RelationObservationCatalog.deferredFallbackForMotifTag(motif).map(_.label)
 
   private def tacticalTensionMotif(motif: String): Boolean =
-    RelationObservationCatalog.deferredFallbackForMotifTag(motif).isEmpty &&
+    !RelationObservationCatalog.relationWitnessOnlyMotifTag(motif) &&
+      RelationObservationCatalog.deferredFallbackForMotifTag(motif).isEmpty &&
       List(
         "mate",
         "sacrifice",

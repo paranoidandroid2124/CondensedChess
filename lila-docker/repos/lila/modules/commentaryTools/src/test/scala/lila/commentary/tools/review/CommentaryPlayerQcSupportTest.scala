@@ -358,6 +358,23 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
     assert(flags.exists(_.startsWith("taxonomy_residue:")), clues(flags))
   }
 
+  test("reviewFlags fail internal labels and UCI coordinate leaks") {
+    val flags =
+      reviewFlags(
+        prose = "The move keeps pressure on d4.",
+        supportRows =
+          List(
+            SupportRow("neutralize_key_break", "MoveDelta.pv_delta selected e2e4 as the checked reply.")
+          ),
+        advancedRows = List(SupportRow("Line detail", "The player-facing note still mentions g1f3.")),
+        sliceKind = SliceKind.StrategicChoice
+      )
+
+    assert(flags.exists(_.startsWith("internal_label:")), clues(flags))
+    assert(flags.exists(_.startsWith("uci_leak:")), clues(flags))
+    assert(isMandatoryReview(SliceKind.StrategicChoice, flags), clues(flags))
+  }
+
   test("buildMoveReviewRows prefers canonical player surface over raw carriers") {
     val response =
       CommentResponse(
@@ -465,6 +482,58 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
     assert(!combinedText.contains("Raw ghost plan"), clue(combinedText))
     assert(!combinedText.contains("raw carrier structure"), clue(combinedText))
     assert(!combinedText.contains("raw carrier consequence"), clue(combinedText))
+  }
+
+  test("buildMoveReviewRows attaches refs and safe opening metadata to player-surface prose") {
+    val response =
+      CommentResponse(
+        commentary = "7... O-O: The move prepares the e pawn break.",
+        concepts = Nil,
+        moveReviewPlayerSurface =
+          Some(
+            MoveReviewPlayerSurface(
+              summaryRows =
+                List(
+                  MoveReviewPlayerSurfaceRow(
+                    label = "Checked line",
+                    text = "The checked line keeps the center question concrete.",
+                    refSans = List("e4", "e5", "Nf3")
+                  ),
+                  MoveReviewPlayerSurfaceRow(
+                    label = "Opening family",
+                    text = "This still fits the Queen's Gambit structure.",
+                    authority =
+                      Some(
+                        MoveReviewSurfaceAuthority(
+                          kind = MoveReviewSurfaceAuthority.OpeningFamily,
+                          openingFamily = Some("queens_gambit"),
+                          target = Some("d5"),
+                          openingBook =
+                            Some(
+                              MoveReviewOpeningBookMetadata(
+                                eco = Some("D06"),
+                                totalGames = Some(12345),
+                                topMoves = List("e6", "Nf6", "e2e4")
+                              )
+                            )
+                        )
+                      )
+                  )
+                )
+            )
+          )
+      )
+
+    val (support, advanced) = buildMoveReviewRows(response)
+    val checkedLine = support.find(_.label == "Checked line").getOrElse(fail("missing checked line row"))
+    val openingFamily = support.find(_.label == "Opening family").getOrElse(fail("missing opening family row"))
+
+    assertEquals(advanced, Nil)
+    assert(checkedLine.text.contains("Refs: e4 e5 Nf3."), clue(checkedLine))
+    assert(openingFamily.text.contains("Target: d5."), clue(openingFamily))
+    assert(openingFamily.text.contains("Opening book: ECO D06; 12k games; Book: e6 / Nf6."), clue(openingFamily))
+    assert(!openingFamily.text.contains("queens_gambit"), clue(openingFamily))
+    assert(!openingFamily.text.contains("e2e4"), clue(openingFamily))
   }
 
   test("buildMoveReviewRows does not rebuild support rows from raw carriers without player surface") {

@@ -4,7 +4,7 @@ import _root_.chess.Board
 import _root_.chess.format.Fen
 
 import lila.commentary.analysis.L3.{ PawnPlayAnalysis, PositionClassification, ThreatAnalysis }
-import lila.commentary.model.{ CompensationInfo, ExtendedAnalysisData, Motif, NarrativeContext, PawnPlayTable, PlanMatch, StrategicPlanExperiment }
+import lila.commentary.model.{ CompensationInfo, ExtendedAnalysisData, Motif, NarrativeContext, PawnPlayTable, PlanMatch, ProbeResult, StrategicPlanExperiment }
 import lila.commentary.model.strategic.VariationLine
 import lila.commentary.model.structure.StructureProfile
 import lila.commentary.model.strategic.{ EndgameFeature, PieceActivity, PositionalTag, PreventedPlan, WeakComplex }
@@ -30,6 +30,7 @@ private[commentary] final case class StrategicIdeaSemanticContext(
     plans: List[PlanMatch] = Nil,
     strategicPlanExperiments: List[StrategicPlanExperiment] = Nil,
     engineVariations: List[VariationLine] = Nil,
+    probeResults: List[ProbeResult] = Nil,
     motifs: List[Motif] = Nil,
     phase: String = "middlegame",
     positionFeatures: Option[PositionFeatures] = None,
@@ -74,6 +75,7 @@ private[commentary] object StrategicIdeaSemanticContext:
       plans = data.plans,
       strategicPlanExperiments = ctx.strategicPlanExperiments,
       engineVariations = ctx.engineEvidence.toList.flatMap(_.variations),
+      probeResults = ctx.validatedRootProbeResults,
       motifs = data.motifs,
       phase = data.phase,
       positionFeatures = integrated.features.orElse(PositionAnalyzer.extractFeatures(data.fen, data.ply.max(1))),

@@ -5,6 +5,7 @@ import chess.format.Fen
 import chess.variant.Standard
 import lila.commentary.{ StrategicIdeaKind, StrategyPack }
 import lila.commentary.analysis.{ MoveReviewExchangeAnalyzer, StrategicIdeaSelector, StrategicIdeaSemanticContext }
+import lila.commentary.model.ProbeResult
 import lila.commentary.model.strategic.VariationLine
 import lila.commentary.model.strategic.WeakComplex
 import lila.commentary.model.structure.{ CenterState, StructureId, StructureProfile }
@@ -382,6 +383,238 @@ class StrategicSemanticObservationPipelineTest extends FunSuite:
       ),
       clues(hangingIdeas)
     )
+
+    val trappedFen = "k5pr/7p/8/8/8/2B5/8/6K1 w - - 0 1"
+    val trappedSemantic =
+      StrategicIdeaSemanticContext(
+        sideToMove = "white",
+        fen = trappedFen,
+        playedMove = Some("c3g7"),
+        structuralWeaknesses = List(
+          WeakComplex(
+            color = Color.Black,
+            squares = List(Square.H8),
+            isOutpost = false,
+            cause = "trapped target"
+          )
+        ),
+        engineVariations = List(VariationLine(moves = List("c3g7"), scoreCp = 64))
+      )
+    val trappedObservations =
+      StrategicSemanticObservationPipeline.collect(StrategyPack(sideToMove = "white"), trappedSemantic)
+    val trapped =
+      trappedObservations.find(_.id == StrategicObservationIds.SemanticObservationId.TrappedPieceSemantic)
+
+    assertEquals(trapped.flatMap(_.source), Some(StrategicObservationIds.EvidenceSourceId.TrappedPieceRelation))
+    assert(trapped.exists(_.wireEvidenceRefs.contains("source:trapped_piece_relation")), clues(trapped))
+    assert(trapped.exists(_.wireEvidenceRefs.contains("no_safe_escape")), clues(trapped))
+    assert(
+      trappedObservations.forall(_.id != StrategicObservationIds.SemanticObservationId.HangingPieceSemantic),
+      clues(trappedObservations)
+    )
+
+    val trappedIdeas = StrategicIdeaSelector.select(StrategyPack(sideToMove = "white"), trappedSemantic)
+    assert(
+      trappedIdeas.exists(idea =>
+        idea.kind == StrategicIdeaKind.FavorableTradeOrTransformation &&
+          idea.evidenceRefs.contains("source:trapped_piece_relation") &&
+          idea.evidenceRefs.contains("trapped_piece_semantic")
+      ),
+      clues(trappedIdeas)
+    )
+
+    val dominationFen = "n6k/8/B7/1K6/8/8/8/2R5 w - - 0 1"
+    val dominationSemantic =
+      StrategicIdeaSemanticContext(
+        sideToMove = "white",
+        fen = dominationFen,
+        playedMove = Some("a6b7"),
+        structuralWeaknesses = List(
+          WeakComplex(
+            color = Color.Black,
+            squares = List(Square.A8),
+            isOutpost = false,
+            cause = "restricted target"
+          )
+        ),
+        engineVariations = List(VariationLine(moves = List("a6b7"), scoreCp = 42))
+      )
+    val dominationObservations =
+      StrategicSemanticObservationPipeline.collect(StrategyPack(sideToMove = "white"), dominationSemantic)
+    val domination =
+      dominationObservations.find(_.id == StrategicObservationIds.SemanticObservationId.DominationSemantic)
+
+    assertEquals(domination.flatMap(_.source), Some(StrategicObservationIds.EvidenceSourceId.DominationRelation))
+    assert(domination.exists(_.wireEvidenceRefs.contains("source:domination_relation")), clues(domination))
+    assert(domination.exists(_.wireEvidenceRefs.contains("escape_square_control")), clues(domination))
+    assert(
+      dominationObservations.forall(_.id != StrategicObservationIds.SemanticObservationId.HangingPieceSemantic),
+      clues(dominationObservations)
+    )
+
+    val dominationIdeas = StrategicIdeaSelector.select(StrategyPack(sideToMove = "white"), dominationSemantic)
+    assert(
+      dominationIdeas.exists(idea =>
+        idea.kind == StrategicIdeaKind.CounterplaySuppression &&
+          idea.evidenceRefs.contains("source:domination_relation") &&
+          idea.evidenceRefs.contains("domination_semantic")
+      ),
+      clues(dominationIdeas)
+    )
+
+    val zwischenzugFen = "4k3/8/8/8/3b4/5N2/8/3QK3 w - - 0 1"
+    val zwischenzugSemantic =
+      StrategicIdeaSemanticContext(
+        sideToMove = "white",
+        fen = zwischenzugFen,
+        playedMove = Some("d1a4"),
+        structuralWeaknesses = List(
+          WeakComplex(
+            color = Color.Black,
+            squares = List(Square.D4),
+            isOutpost = false,
+            cause = "expected recapture square"
+          )
+        ),
+        engineVariations = List(VariationLine(moves = List("d1a4"), scoreCp = 42))
+      )
+    val zwischenzugObservations =
+      StrategicSemanticObservationPipeline.collect(StrategyPack(sideToMove = "white"), zwischenzugSemantic)
+    val zwischenzug =
+      zwischenzugObservations.find(_.id == StrategicObservationIds.SemanticObservationId.ZwischenzugSemantic)
+
+    assertEquals(zwischenzug.flatMap(_.source), Some(StrategicObservationIds.EvidenceSourceId.ZwischenzugRelation))
+    assert(zwischenzug.exists(_.focusSquares == List("a4", "d4", "e8")), clues(zwischenzug))
+    assert(zwischenzug.exists(_.wireEvidenceRefs.contains("source:zwischenzug_relation")), clues(zwischenzug))
+    assert(zwischenzug.exists(_.wireEvidenceRefs.contains("in_between_check")), clues(zwischenzug))
+
+    val zwischenzugIdeas = StrategicIdeaSelector.select(StrategyPack(sideToMove = "white"), zwischenzugSemantic)
+    assert(
+      zwischenzugIdeas.exists(idea =>
+        idea.kind == StrategicIdeaKind.FavorableTradeOrTransformation &&
+          idea.relationKind.contains(MoveReviewExchangeAnalyzer.RelationKind.Zwischenzug) &&
+          idea.targetSquare.contains("d4") &&
+          idea.evidenceRefs.contains("source:zwischenzug_relation") &&
+          idea.evidenceRefs.contains("zwischenzug_semantic")
+      ),
+      clues(zwischenzugIdeas)
+    )
+  }
+
+  test("draw-resource relation producer can use a deeper bounded top-PV prefix") {
+    val fen = "r4rk1/5ppp/8/8/7q/8/2Q3P1/R5K1 b - - 0 1"
+    val line = List("h4d4", "c2f2", "d4d1", "f2f1", "d1d4", "f1f2", "d4d1")
+    val sixPlyReplay =
+      MoveReviewExchangeAnalyzer
+        .boundedTopReplayPrefix(fen, List(VariationLine(moves = line, scoreCp = 0)), minPlies = 1, maxPlies = 6)
+        .getOrElse(fail("six-ply perpetual-check prefix should replay legally"))
+
+    assertEquals(
+      MoveReviewExchangeAnalyzer.perpetualCheckWitness(
+        sixPlyReplay,
+        "h4d4",
+        engineScoreCp = Some(0),
+        engineMate = None
+      ),
+      None
+    )
+
+    val semantic =
+      StrategicIdeaSemanticContext(
+        sideToMove = "black",
+        fen = fen,
+        playedMove = Some("h4d4"),
+        engineVariations = List(VariationLine(moves = line, scoreCp = 0))
+      )
+    val observations =
+      StrategicSemanticObservationPipeline.collect(StrategyPack(sideToMove = "black"), semantic)
+    val perpetual =
+      observations.find(_.id == StrategicObservationIds.SemanticObservationId.PerpetualCheckSemantic)
+
+    assertEquals(perpetual.flatMap(_.source), Some(StrategicObservationIds.EvidenceSourceId.PerpetualCheckRelation))
+    assert(perpetual.exists(_.focusSquares == List("g1", "d1")), clues(perpetual))
+    assert(perpetual.exists(_.targetSquare.contains("g1")), clues(perpetual))
+    assert(perpetual.exists(_.wireEvidenceRefs.contains("source:perpetual_check_relation")), clues(perpetual))
+    assert(perpetual.exists(_.wireEvidenceRefs.contains("checking_cycle")), clues(perpetual))
+
+    val ideas = StrategicIdeaSelector.select(StrategyPack(sideToMove = "black"), semantic)
+    assert(
+      ideas.exists(idea =>
+        idea.kind == StrategicIdeaKind.CounterplaySuppression &&
+          idea.relationKind.contains(MoveReviewExchangeAnalyzer.RelationKind.PerpetualCheck) &&
+          idea.targetSquare.contains("g1") &&
+          idea.evidenceRefs.contains("source:perpetual_check_relation") &&
+          idea.evidenceRefs.contains("perpetual_check_semantic")
+      ),
+      clues(ideas)
+    )
+  }
+
+  test("draw-resource relation producer can use validated root probe reply PV") {
+    val fen = "r4rk1/5ppp/8/8/7q/8/2Q3P1/R5K1 b - - 0 1"
+    val played = "h4d4"
+    val reply = List("c2f2", "d4d1", "f2f1", "d1d4", "f1f2", "d4d1")
+    val probe =
+      ProbeResult(
+        id = "probe_perpetual_check",
+        fen = Some(fen),
+        evalCp = 0,
+        bestReplyPv = reply,
+        replyPvs = Some(List(reply)),
+        deltaVsBaseline = 0,
+        keyMotifs = Nil,
+        purpose = Some("reply_multipv"),
+        probedMove = Some(played),
+        depth = Some(18)
+      )
+    val semantic =
+      StrategicIdeaSemanticContext(
+        sideToMove = "black",
+        fen = fen,
+        playedMove = Some(played),
+        engineVariations = Nil,
+        probeResults = List(probe)
+      )
+
+    val observations =
+      StrategicSemanticObservationPipeline.collect(StrategyPack(sideToMove = "black"), semantic)
+    val perpetual =
+      observations.find(_.id == StrategicObservationIds.SemanticObservationId.PerpetualCheckSemantic)
+
+    assertEquals(perpetual.flatMap(_.source), Some(StrategicObservationIds.EvidenceSourceId.PerpetualCheckRelation))
+    assert(perpetual.exists(_.targetSquare.contains("g1")), clues(perpetual))
+    assert(perpetual.exists(_.wireEvidenceRefs.contains("source:perpetual_check_relation")), clues(perpetual))
+    assert(perpetual.exists(_.wireEvidenceRefs.contains("checking_cycle")), clues(perpetual))
+
+    val mismatchedMove =
+      StrategicSemanticObservationPipeline.collect(
+        StrategyPack(sideToMove = "black"),
+        semantic.copy(probeResults = List(probe.copy(probedMove = Some("h4e1"))))
+      )
+    assert(
+      mismatchedMove.forall(_.id != StrategicObservationIds.SemanticObservationId.PerpetualCheckSemantic),
+      clues(mismatchedMove)
+    )
+
+    val missingFen =
+      StrategicSemanticObservationPipeline.collect(
+        StrategyPack(sideToMove = "black"),
+        semantic.copy(probeResults = List(probe.copy(fen = None)))
+      )
+    assert(
+      missingFen.forall(_.id != StrategicObservationIds.SemanticObservationId.PerpetualCheckSemantic),
+      clues(missingFen)
+    )
+
+    val invalidContract =
+      StrategicSemanticObservationPipeline.collect(
+        StrategyPack(sideToMove = "black"),
+        semantic.copy(probeResults = List(probe.copy(purpose = None)))
+      )
+    assert(
+      invalidContract.forall(_.id != StrategicObservationIds.SemanticObservationId.PerpetualCheckSemantic),
+      clues(invalidContract)
+    )
   }
 
   test("relation producer carries deflection and discovered-attack geometry into selector signals") {
@@ -492,7 +725,11 @@ class StrategicSemanticObservationPipelineTest extends FunSuite:
 
     assert(xrayIdea.nonEmpty, clues(ideas))
     assertEquals(xrayIdea.flatMap(_.relationKind), Some(MoveReviewExchangeAnalyzer.RelationKind.XRay), clues(ideas))
-    assertEquals(xrayIdea.map(_.evidenceRefs.take(2)), Some(List("source:xray_relation", "xray_semantic")), clues(ideas))
+    assertEquals(
+      xrayIdea.map(_.evidenceRefs.take(3)),
+      Some(List("source:xray_relation", "xray_semantic", "xray_relation_witness")),
+      clues(ideas)
+    )
 
     val xrayTargetMismatch =
       xraySemantic.copy(
