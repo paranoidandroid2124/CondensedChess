@@ -1971,14 +1971,17 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       java.nio.file.Files.readString(
         root.resolve("modules/commentaryCore/src/main/scala/lila/commentary/analysis/MoveReviewPlayerPayloadBuilder.scala")
       )
-    val builderTextOutsidePracticalRelationMap =
+    val builderTextOutsideRelationPolicy =
       builderText.replaceAll(
         """(?s)private val PracticalRelationKindByLabel =\s*Map\(.+?\)\s*private val IqpInducementFamily""",
         "private val IqpInducementFamily"
+      ).replaceAll(
+        """(?s)private def exchangeOwnershipRow\(.+?\)\s*:\s*Option\[MoveReviewPlayerSurfaceRow\]\s*=\s*.+?\s*private def defenderTradeBranch""",
+        "private def defenderTradeBranch"
       )
-    assert(!builderTextOutsidePracticalRelationMap.contains("MoveReviewExchangeAnalyzer.RelationKind.DefenderTrade"), clues(builderText))
-    assert(!builderTextOutsidePracticalRelationMap.contains("MoveReviewExchangeAnalyzer.RelationKind.Decoy"), clues(builderText))
-    assert(!builderTextOutsidePracticalRelationMap.contains("def relationTarget("), clues(builderText))
+    assert(!builderTextOutsideRelationPolicy.contains("MoveReviewExchangeAnalyzer.RelationKind.DefenderTrade"), clues(builderText))
+    assert(!builderTextOutsideRelationPolicy.contains("MoveReviewExchangeAnalyzer.RelationKind.Decoy"), clues(builderText))
+    assert(!builderTextOutsideRelationPolicy.contains("def relationTarget("), clues(builderText))
   }
 
   test("strategic relation projection honors selected relationKind before catalog order") {

@@ -459,6 +459,26 @@ function surfaceRowsFromUnknown(
   return rows as MoveReviewPlayerSurfaceRowV1[];
 }
 
+function summarySurfaceRowsFromUnknown(raw: unknown, allowAuthority = true): MoveReviewPlayerSurfaceRowV1[] | null {
+  if (raw == null) return [];
+  if (!Array.isArray(raw)) return null;
+  const rows = raw.map(row => surfaceRowFromUnknown(row, summaryRowAllowsStrategicRelation(row), allowAuthority));
+  if (rows.some(row => !row)) return null;
+  return rows as MoveReviewPlayerSurfaceRowV1[];
+}
+
+function summaryRowAllowsStrategicRelation(raw: unknown): boolean {
+  if (!isRecord(raw) || typeof raw.label !== 'string' || !isRecord(raw.authority)) return false;
+  const authority = raw.authority;
+  if (authority.kind !== 'strategic_relation' || typeof authority.token !== 'string' || typeof authority.target !== 'string')
+    return false;
+  if (!isChessSquare(authority.target)) return false;
+  return (
+    (raw.label === 'Defender trade' && authority.token === 'defender_trade') ||
+    (raw.label === 'Bad piece trade' && authority.token === 'bad_piece_liquidation')
+  );
+}
+
 function playerDecisionComparisonFromUnknown(raw: unknown): MoveReviewPlayerDecisionComparisonV1 | null {
   if (!isRecord(raw)) return null;
   if (typeof raw.kicker !== 'string' || typeof raw.chosenMatchesBest !== 'boolean') return null;
@@ -535,7 +555,7 @@ export function moveReviewPlayerSurfaceFromResponse(data: MaybeResponse): MoveRe
   if (schema !== 'chesstory.move_review.player_surface.v1' && schema !== 'chesstory.move_review.player_surface.v2')
     return null;
   const allowAuthority = schema === 'chesstory.move_review.player_surface.v2';
-  const summaryRows = surfaceRowsFromUnknown(raw.summaryRows, false, allowAuthority);
+  const summaryRows = summarySurfaceRowsFromUnknown(raw.summaryRows, allowAuthority);
   const advancedRows = surfaceRowsFromUnknown(raw.advancedRows, true, allowAuthority);
   const probeRows = surfaceRowsFromUnknown(raw.probeRows, false, allowAuthority);
   const authorRows = playerAuthorRowsFromUnknown(raw.authorRows, allowAuthority);

@@ -489,14 +489,17 @@ relation rows in `advancedRows`; this is a display-cap expansion only and does
 not change catalog admission, target requirements, or owner proof status.
 If a supported-local practical row already names the same relation kind from a
 board/PV witness, the builder withholds the duplicate `strategic_relation`
-advanced row for that kind. This avoids presenting the same witness once as a
-specific practical line and again as generic relation support; it does not
-promote the practical row to owner proof or relax catalog admission for other
-relations.
+advanced row for that kind. Exact defender-trade and bad-piece-liquidation owner
+packets may expose the cataloged relation token on that summary row only after
+the resolver admits the packet and the typed exact-slice proof matches its
+source/family terms. This avoids presenting the same witness once as a specific
+practical line and again as generic relation support; it does not relax catalog
+admission for other relations or let prose mint relation authority.
 The cached-payload sanitizer applies the same cross-row suppression after
 sanitizing summary rows, and the suppressing row must still carry practical-plan
-authority. A stale summary label without authority is not trusted to remove a
-valid advanced relation row.
+authority or exact defender-trade / bad-piece-liquidation summary
+`strategic_relation` authority. A stale summary label without authority is not
+trusted to remove a valid advanced relation row.
 That admission check is centralized in `RelationObservationCatalog`, including
 the rule that a selected `relationKind` must match its own source/semantic/witness triple and
 must not fall through to another catalog entry. The descriptor itself exposes
@@ -522,11 +525,11 @@ The frontend allowlist is expected to mirror that full implemented catalog,
 including trapped-piece, domination, zwischenzug, stalemate-trap, and
 perpetual-check authority metadata projected from backend witnesses.
 Backend sanitization also limits `strategic_relation` authority to
-`moveReviewPlayerSurface.advancedRows`; stale relation authorities in summary,
-probe, or author rows are treated as malformed public metadata and dropped.
-The analyse frontend decoder mirrors that row-lane boundary for cached or
-legacy payloads, so a relation token outside `advancedRows` is display text only
-and not structured authority.
+`moveReviewPlayerSurface.advancedRows` plus exact defender-trade /
+bad-piece-liquidation supported-local summary rows whose label, cataloged token,
+and square target match that exchange owner family; probe or author relation
+authorities are treated as malformed public metadata and dropped. The analyse
+frontend decoder mirrors that row-lane boundary for cached or legacy payloads.
 `PlayerProseBoundary` may use the full relation inventory only as a negative
 helper-symbol denylist, rejecting leaked helper calls such as
 `Overload(...)` or `Zwischenzug(...)`; that prose gate does not admit relation

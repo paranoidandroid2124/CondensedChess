@@ -1075,14 +1075,19 @@ The builder may expose up to four distinct catalog-approved relation rows in
 public relation coverage without creating additional proof authority.
 When a supported-local practical row already surfaces the same relation kind
 from a concrete board/PV witness, the builder suppresses the duplicate
-`strategic_relation` advanced row for that relation kind. The more specific
-practical row remains the user-facing line; other cataloged relation kinds from
-the same `StrategyPack` can still project.
+`strategic_relation` advanced row for that relation kind. Exact defender-trade
+and bad-piece-liquidation owner packets may carry that same bounded
+`strategic_relation` metadata directly on their summary row after resolver
+admission and `PlayerFacingExactSliceProofFacts.matchesPacket`; other
+supported-local practical rows remain lower-authority `practical_plan` support.
+The more specific practical row remains the user-facing line; other cataloged
+relation kinds from the same `StrategyPack` can still project.
 The backend cached-payload sanitizer applies the same duplicate suppression
-after sanitizing summary rows, and only practical rows with
-`authority.kind = practical_plan` can suppress matching advanced
-`strategic_relation` authority. A stale label without practical authority does
-not suppress a valid advanced relation row.
+after sanitizing summary rows, and only practical rows with practical-plan
+authority or exact defender-trade / bad-piece-liquidation summary
+`strategic_relation` authority can suppress matching advanced
+`strategic_relation` authority. A stale label without authority does not
+suppress a valid advanced relation row.
 The source/semantic/witness admission triple, selected-`relationKind` match,
 and no-fallback rule are owned by `RelationObservationCatalog`, so the selector,
 builder, and tests consume the same descriptor helpers rather than repeating
@@ -1111,12 +1116,12 @@ The analyse frontend relation-token allowlist mirrors the full implemented
 backend catalog, including witness-only promoted motifs such as trapped-piece,
 domination, zwischenzug, stalemate-trap, and perpetual-check rows; it does not
 define a smaller public relation subset.
-Backend sanitization preserves `strategic_relation` authority only on
-`advancedRows`, matching the builder's projection path; stale summary, probe,
-or author rows lose relation authority even when the token is cataloged.
-The analyse frontend decoder applies the same lane rule when reading cached or
-legacy JSON: `strategic_relation` authority is accepted only inside
-`advancedRows`.
+Backend sanitization preserves `strategic_relation` authority on
+`advancedRows` and on exact defender-trade / bad-piece-liquidation
+supported-local summary rows whose label, cataloged token, and square target
+match that exchange owner family; probe or author rows lose relation authority
+even when the token is cataloged. The analyse frontend decoder applies the same
+lane rule when reading cached or legacy JSON.
 The MoveReview API path passes the sanitized `strategyPack` into that builder,
 so relation rows originate from the same truth-vetted strategy pack that feeds
 the prose and ledger rather than from cached prose or raw carrier fields.
@@ -1639,13 +1644,15 @@ proof reconstructed from cached prose. `openingBook` is decoded only on
 SAN top moves; it is display metadata, not a new admission input.
 Current public row authority kinds are `counterplay_break`, `central_break`,
 `central_liquidation`, `central_challenge`, `practical_plan`,
-`opening_family`, and advanced-row-only `strategic_relation`. These are display
+`opening_family`, and catalog-bound `strategic_relation`. These are display
 or bounded support rows, not certified owner claims and not frontend
 reconstruction inputs. Cataloged relation evidence may appear as
-`strategic_relation` authority only on advanced rows. This is a schema recap of
-the catalog-bound, target-required, advanced-row-only support lane above;
-frontend rendering may show the token and target but must not reconstruct
-relation evidence from cached prose or legacy raw carriers.
+`strategic_relation` authority on advanced rows or on exact defender-trade /
+bad-piece-liquidation supported-local summary rows that already passed resolver
+and exact-slice matching. This is a schema recap of the catalog-bound,
+target-required support lane above; frontend rendering may show the token and
+target but must not reconstruct relation evidence from cached prose or legacy
+raw carriers.
 Descriptor-specific relation rows, including tactical, draw-resource,
 move-order, and mobility-restriction rows, may use only the
 analyzer-projected focus-order squares to make support prose less generic; they

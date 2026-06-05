@@ -281,7 +281,11 @@ object UserFacingPayloadSanitizer:
       schema == CurrentMoveReviewPlayerSurfaceSchema
     val summaryRows =
       surface.summaryRows.flatMap(row =>
-        sanitizeMoveReviewPlayerSurfaceRow(row, allowStrategicRelation = false, allowAuthority = allowAuthority)
+        sanitizeMoveReviewPlayerSurfaceRow(
+          row,
+          allowStrategicRelation = summaryRowAllowsStrategicRelation(row),
+          allowAuthority = allowAuthority
+        )
       )
     val suppressedRelationKinds =
       MoveReviewSupportedLocalSurfaceRows.relationKindsForRows(summaryRows)
@@ -311,6 +315,19 @@ object UserFacingPayloadSanitizer:
       authority.kind == MoveReviewSurfaceAuthority.StrategicRelation &&
         authority.token.exists(suppressedRelationKinds.contains)
     )
+
+  private def summaryRowAllowsStrategicRelation(row: MoveReviewPlayerSurfaceRow): Boolean =
+    row.authority.exists { authority =>
+      val label = cleanOpt(Some(row.label))
+      val token = cleanOpt(authority.token)
+      val target = cleanOpt(authority.target).filter(validSurfaceAuthorityTarget)
+      clean(authority.kind) == MoveReviewSurfaceAuthority.StrategicRelation &&
+      target.nonEmpty &&
+      (
+        label.contains("Defender trade") && token.contains("defender_trade") ||
+          label.contains("Bad piece trade") && token.contains("bad_piece_liquidation")
+      )
+    }
 
   private def sanitizeMoveReviewPlayerSurfaceSchema(schema: String): String =
     val normalized =

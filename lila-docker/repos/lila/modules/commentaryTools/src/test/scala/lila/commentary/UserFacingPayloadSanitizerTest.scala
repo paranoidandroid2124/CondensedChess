@@ -902,7 +902,7 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
     )
   }
 
-  test("cached player surface suppresses strategic relation rows duplicated by practical summary rows") {
+  test("cached player surface suppresses strategic relation rows duplicated by authoritative summary rows") {
     val practicalAuthority =
       Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))
     val defenderTradeAuthority =
@@ -929,11 +929,11 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
           target = Some("g6")
         )
       )
-    val practicalSummary =
+    val defenderSummary =
       MoveReviewPlayerSurfaceRow(
         label = "Defender trade",
         text = "The checked line trades on d4 to remove the defender from c5, loosening e5.",
-        authority = practicalAuthority
+        authority = defenderTradeAuthority
       )
     val mateSummary =
       MoveReviewPlayerSurfaceRow(
@@ -962,7 +962,7 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
     val response =
       responseWithSurface(
         MoveReviewPlayerSurface(
-          summaryRows = List(practicalSummary, mateSummary),
+          summaryRows = List(defenderSummary, mateSummary),
           advancedRows = List(duplicateAdvanced, mateAdvanced, otherAdvanced)
         )
       )
@@ -971,6 +971,11 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
     val surface = sanitized.moveReviewPlayerSurface.getOrElse(fail("missing sanitized player surface"))
 
     assertEquals(surface.summaryRows.map(_.label), List("Defender trade", "Smothered mate"), clue(surface))
+    assertEquals(
+      surface.summaryRows.flatMap(_.authority.flatMap(_.token)),
+      List("defender_trade"),
+      clue(surface.summaryRows)
+    )
     assertEquals(surface.advancedRows.map(_.text), List(otherAdvanced.text), clue(surface.advancedRows))
     assertEquals(surface.advancedRows.flatMap(_.authority.flatMap(_.token)), List("xray"), clue(surface.advancedRows))
   }

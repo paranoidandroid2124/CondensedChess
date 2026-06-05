@@ -1085,8 +1085,16 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
     )
   private[commentary] def relationKindsForRows(rows: List[MoveReviewPlayerSurfaceRow]): Set[String] =
     rows
-      .filter(_.authority.exists(_.kind == MoveReviewSurfaceAuthority.PracticalPlan))
-      .flatMap(row => PracticalRelationKindByLabel.get(row.label))
+      .flatMap { row =>
+        row.authority.flatMap {
+          case authority if authority.kind == MoveReviewSurfaceAuthority.StrategicRelation =>
+            authority.token
+          case authority if authority.kind == MoveReviewSurfaceAuthority.PracticalPlan =>
+            PracticalRelationKindByLabel.get(row.label)
+          case _ =>
+            None
+        }
+      }
       .toSet
 
   def build(
@@ -2462,7 +2470,13 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
         row(
           DefenderTradeLabel,
           s"The checked line trades on $exchange to remove the defender from $defender, loosening $target.",
-          authority = PracticalPlanAuthority
+          authority = Some(
+            MoveReviewSurfaceAuthority(
+              kind = MoveReviewSurfaceAuthority.StrategicRelation,
+              token = Some(MoveReviewExchangeAnalyzer.RelationKind.DefenderTrade),
+              target = Some(target)
+            )
+          )
         )
       }
     else if packet.proofSource == PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource &&
@@ -2472,7 +2486,13 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
         row(
           BadPieceTradeLabel,
           s"The checked line trades on $exchange to clear the bad piece from $badPiece.",
-          authority = PracticalPlanAuthority
+          authority = Some(
+            MoveReviewSurfaceAuthority(
+              kind = MoveReviewSurfaceAuthority.StrategicRelation,
+              token = Some(MoveReviewExchangeAnalyzer.RelationKind.BadPieceLiquidation),
+              target = Some(exchange)
+            )
+          )
         )
       }
     else if packet.proofSource == PlayerFacingTruthModePolicy.QueenTradeShieldProofSource &&

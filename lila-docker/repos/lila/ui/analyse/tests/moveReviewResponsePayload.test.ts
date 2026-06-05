@@ -525,6 +525,15 @@ describe('moveReview response payload', () => {
               target: 'g6',
             },
           },
+          {
+            label: 'Defender trade',
+            text: 'The checked line trades on d4 to remove the defender from c5, loosening e5.',
+            authority: {
+              kind: 'strategic_relation',
+              token: 'defender_trade',
+              target: 'e5',
+            },
+          },
         ],
         advancedRows: [
           ...relationTokens.map(token => ({
@@ -567,6 +576,13 @@ describe('moveReview response payload', () => {
     });
 
     assert.equal(decoded.moveReviewPlayerSurface?.summaryRows[0]?.authority, null);
+    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[1]?.authority, {
+      kind: 'strategic_relation',
+      token: 'defender_trade',
+      openingFamily: null,
+      target: 'e5',
+      openingBook: null,
+    });
     assert.deepEqual(
       decoded.moveReviewPlayerSurface?.advancedRows.slice(0, relationTokens.length).map(row => row.authority?.token),
       relationTokens,

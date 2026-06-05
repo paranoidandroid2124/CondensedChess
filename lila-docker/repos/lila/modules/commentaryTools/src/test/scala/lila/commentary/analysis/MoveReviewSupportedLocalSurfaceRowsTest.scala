@@ -450,6 +450,23 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       )
     )
 
+  private def expectedExchangeOwnershipAuthority(label: String): MoveReviewSurfaceAuthority =
+    label match
+      case "Defender trade" =>
+        MoveReviewSurfaceAuthority(
+          kind = MoveReviewSurfaceAuthority.StrategicRelation,
+          token = Some(MoveReviewExchangeAnalyzer.RelationKind.DefenderTrade),
+          target = Some("e5")
+        )
+      case "Bad piece trade" =>
+        MoveReviewSurfaceAuthority(
+          kind = MoveReviewSurfaceAuthority.StrategicRelation,
+          token = Some(MoveReviewExchangeAnalyzer.RelationKind.BadPieceLiquidation),
+          target = Some("e6")
+        )
+      case _ =>
+        MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)
+
   private def mainClaim(
       packet: PlayerFacingClaimPacket,
       claimText: String
@@ -1003,7 +1020,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       assertEquals(rows.head.text, expectedText, clue(rows))
       assertEquals(
         rows.head.authority,
-        Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
+        Some(expectedExchangeOwnershipAuthority(expectedLabel)),
         clue(rows)
       )
     }
@@ -1564,7 +1581,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       assertEquals(rows.head.text, expectedText, clue(rows))
       assertEquals(
         rows.head.authority,
-        Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
+        Some(expectedExchangeOwnershipAuthority(expectedLabel)),
         clue(rows)
       )
     }
@@ -4217,7 +4234,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       assertEquals(surface.summaryRows.map(row => row.label -> row.text), List(expectedLabel -> expectedText))
       assertEquals(
         surface.summaryRows.flatMap(_.authority),
-        List(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
+        List(expectedExchangeOwnershipAuthority(expectedLabel)),
         clue(surface.summaryRows)
       )
       assertEquals(surface.advancedRows, Nil, clue(surface.advancedRows))

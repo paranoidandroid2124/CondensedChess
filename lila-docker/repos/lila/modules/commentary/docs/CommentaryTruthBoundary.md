@@ -696,13 +696,17 @@ metadata reaches the MoveReview surface, but that carrier does not promote the
 relation into proof/source/family truth.
 When a supported-local practical row already exposes the same relation kind,
 `moveReviewPlayerSurface` treats that practical row as the concrete display and
-does not duplicate it with a generic strategic-relation advanced row. This is a
-surface precedence rule only; it does not alter relation truth, owner proof, or
-catalog admission.
+does not duplicate it with a generic strategic-relation advanced row. Exact
+defender-trade and bad-piece-liquidation owner packets may expose that relation
+metadata on the summary row after resolver admission and exact-slice packet
+matching. This is a surface precedence rule only; it does not alter relation
+truth, owner proof, or catalog admission.
 Cached MoveReview payloads pass through the same backend sanitizer rule after
-summary-row sanitization: only a practical-plan summary row can suppress a
-matching advanced `strategic_relation` token, so stale unauthoritative labels do
-not erase valid relation metadata.
+summary-row sanitization: only practical-plan authority or exact defender-trade
+/ bad-piece-liquidation summary `strategic_relation` authority with a matching
+label, catalog token, and square target can suppress a matching advanced
+`strategic_relation` token, so stale unauthoritative labels do not erase valid
+relation metadata.
 Move-local defender-trade and bad-piece owner witnesses reuse the analyzer
 `RelationWitness` typed details and fact vocabulary for branch, exchange, target,
 and PV terms; policy-local extras can add owner transition wording but cannot
@@ -796,9 +800,10 @@ It also prioritizes the representative relation's source ref, semantic fact, and
 required witness fact before evidence truncation, keeping the catalog admission
 triple intact while other support refs remain lower priority.
 The same selected-`relationKind`, catalog-evidence, raw-carrier stripping, and
-`advancedRows`-only lane rules apply at backend sanitization and cached/legacy
-frontend decoding, so frontend code neither widens nor narrows backend relation
-authority.
+target-required lane rules apply at backend sanitization and cached/legacy
+frontend decoding; the summary-lane exception is limited to exact defender-trade
+and bad-piece-liquidation owner rows, so frontend code neither widens nor
+narrows backend relation authority.
 Move-local owner witnesses follow that same rule: defender trade, bad-piece
 liquidation, and IQP inducement fail closed when the reviewed played move is
 missing, even if the top engine line legally replays.
