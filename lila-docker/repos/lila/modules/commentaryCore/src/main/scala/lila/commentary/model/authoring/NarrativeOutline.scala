@@ -103,22 +103,21 @@ case class OutlineDiagnostics(
     copy(missingEvidencePurposes = missingEvidencePurposes + purpose)
 
   def summary: String =
-    val parts = List(
-      Some(s"Questions: ${selectedQuestions.size}"),
-      Some(s"Evidence used: ${usedEvidencePurposes.mkString(", ")}"),
-      Option.when(missingEvidencePurposes.nonEmpty)(s"Missing: ${missingEvidencePurposes.mkString(", ")}"),
-      plannerPrimary.map(value => s"Planner primary: $value"),
-      plannerSecondary.map(value => s"Planner secondary: $value"),
-      Option.when(plannerRejected.nonEmpty)(s"Planner rejected: ${plannerRejected.mkString("; ")}"),
-      plannerSceneType.map(value => s"Planner scene: $value"),
-      plannerSelectedOwnerKind.map(value => s"Planner owner kind: $value"),
-      plannerSelectedSource.map(value => s"Planner source: $value"),
-      surfaceReplayOutcome.map(value => s"Surface replay: $value"),
-      Option.when(droppedBeats.nonEmpty)(s"Dropped: ${droppedBeats.size}"),
-      Option.when(downgradedBeats.nonEmpty)(s"Downgraded: ${downgradedBeats.size}"),
-      Option.when(warnings.nonEmpty)(s"Warnings: ${warnings.size}")
-    ).flatten
-    parts.mkString(" | ")
+    val parts = List.newBuilder[String]
+    parts += s"Questions: ${selectedQuestions.size}"
+    parts += s"Evidence used: ${usedEvidencePurposes.mkString(", ")}"
+    if missingEvidencePurposes.nonEmpty then parts += s"Missing: ${missingEvidencePurposes.mkString(", ")}"
+    plannerPrimary.foreach(value => parts += s"Planner primary: $value")
+    plannerSecondary.foreach(value => parts += s"Planner secondary: $value")
+    if plannerRejected.nonEmpty then parts += s"Planner rejected: ${plannerRejected.mkString("; ")}"
+    plannerSceneType.foreach(value => parts += s"Planner scene: $value")
+    plannerSelectedOwnerKind.foreach(value => parts += s"Planner owner kind: $value")
+    plannerSelectedSource.foreach(value => parts += s"Planner source: $value")
+    surfaceReplayOutcome.foreach(value => parts += s"Surface replay: $value")
+    if droppedBeats.nonEmpty then parts += s"Dropped: ${droppedBeats.size}"
+    if downgradedBeats.nonEmpty then parts += s"Downgraded: ${downgradedBeats.size}"
+    if warnings.nonEmpty then parts += s"Warnings: ${warnings.size}"
+    parts.result().mkString(" | ")
 
 /**
  * NarrativeOutline: The complete narrative structure for a position.

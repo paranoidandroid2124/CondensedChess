@@ -683,17 +683,6 @@ final class CommentaryApi(
   private def wordCount(text: String): Int =
     Option(text).getOrElse("").split("\\s+").count(_.nonEmpty)
 
-  private def fullGameLeakReasons(text: String): List[String] =
-    val placeholderReasons =
-      Option.when(FullGameDraftNormalizer.placeholderHits(text).nonEmpty)("placeholder_leak_detected").toList
-    val metaReasons =
-      Option.when(FullGameDraftNormalizer.metaLeakHits(text).nonEmpty)("meta_label_leak_detected").toList
-    val helperReasons =
-      Option.when(PlayerProseBoundary.helperLeakHits(text).nonEmpty)("helper_symbol_leak_detected").toList
-    val fragmentReasons =
-      Option.when(PlayerProseBoundary.brokenFragmentHits(text).nonEmpty)("broken_fragment_detected").toList
-    (placeholderReasons ++ metaReasons ++ helperReasons ++ fragmentReasons).distinct
-
   private def excerptForOps(text: String, maxChars: Int = 220): String =
     val cleaned = Option(text).getOrElse("").replaceAll("""\s+""", " ").trim
     if cleaned.length <= maxChars then cleaned
@@ -709,11 +698,13 @@ final class CommentaryApi(
   ): Unit =
     val normalized = reasons.map(_.trim).filter(_.nonEmpty).distinct
     val pairRelevant =
-      normalized.contains("length_ratio_out_of_bounds") ||
-        normalized.contains("placeholder_leak_detected") ||
-        normalized.contains("meta_label_leak_detected") ||
-        normalized.contains("helper_symbol_leak_detected") ||
-        normalized.contains("broken_fragment_detected")
+      normalized.exists(reason =>
+        reason == "length_ratio_out_of_bounds" ||
+          reason == "placeholder_leak_detected" ||
+          reason == "meta_label_leak_detected" ||
+          reason == "helper_symbol_leak_detected" ||
+          reason == "broken_fragment_detected"
+      )
     if pairRelevant then
       val originalWords = wordCount(original)
       val candidateWords = wordCount(candidate)
@@ -1039,15 +1030,16 @@ final class CommentaryApi(
           val missingReasons =
             if passesThreshold then Nil
             else
-              List(
-                Option.when(planSignals > 0 && planHits == 0)("strategy_plan_missing"),
-                Option.when(routeSignals > 0 && routeHits == 0)("strategy_route_missing"),
-                Option.when(focusSignals > 0 && focusHits == 0)("strategy_focus_missing"),
-                Option.when(compensationPosition && !compensationMentioned)("strategy_compensation_missing"),
-                Option.when(compensationPosition && !compensationReturnMentioned)("strategy_execution_or_objective_missing"),
-                Option.when(surface.ownerMismatch && !ownerMentioned)("strategy_campaign_owner_missing"),
-                Some("strategy_coverage_low")
-              ).flatten.distinct
+              val reasons = List.newBuilder[String]
+              if planSignals > 0 && planHits == 0 then reasons += "strategy_plan_missing"
+              if routeSignals > 0 && routeHits == 0 then reasons += "strategy_route_missing"
+              if focusSignals > 0 && focusHits == 0 then reasons += "strategy_focus_missing"
+              if compensationPosition && !compensationMentioned then reasons += "strategy_compensation_missing"
+              if compensationPosition && !compensationReturnMentioned then
+                reasons += "strategy_execution_or_objective_missing"
+              if surface.ownerMismatch && !ownerMentioned then reasons += "strategy_campaign_owner_missing"
+              reasons += "strategy_coverage_low"
+              reasons.result().distinct
 
           StrategyCoverageEvaluation(
             meta = Some(
@@ -1274,11 +1266,10 @@ final class CommentaryApi(
             else candidate.commentary
           val surfaced = PlayerProseBoundary.sanitize(unmasked)
           val proseValidation = validatePolishedCommentary(surfaced, originalSegment, Nil)
-          val leakReasons = fullGameLeakReasons(surfaced)
-          val reasons = (lockReasons ++ proseValidation.reasons ++ leakReasons ++ candidate.parseWarnings).distinct
+          val reasons = (lockReasons ++ proseValidation.reasons ++ candidate.parseWarnings).distinct
           SegmentValidation(
             decodedText = surfaced,
-            text = Option.when(reasons.isEmpty)(surfaced),
+            text = if reasons.isEmpty then Some(surfaced) else None,
             reasons = reasons
           )
 
@@ -1352,22 +1343,12 @@ final class CommentaryApi(
                 segmentMode = true
               )
 
-          def acceptedRewrite(
-              attempt: OpenAiPolishResult,
-              attempts: List[(String, OpenAiPolishResult)]
-          ): Option[SegmentRewrite] =
-            validateSegmentCandidate(attempt, seg.text, masked)
-              .text
-              .map(rewritten => SegmentRewrite(seg.id, seg.text, rewritten, attempts))
-
-          def fallbackToOriginal(attempts: List[(String, OpenAiPolishResult)]): Option[SegmentRewrite] =
-            Some(
-              SegmentRewrite(
-                seg.id,
-                seg.text,
-                PlayerProseBoundary.sanitize(seg.text),
-                attempts
-              )
+          def fallbackToOriginal(attempts: List[(String, OpenAiPolishResult)]): SegmentRewrite =
+            SegmentRewrite(
+              seg.id,
+              seg.text,
+              PlayerProseBoundary.sanitize(seg.text),
+              attempts
             )
 
           callPolish(modelInput).flatMap {
@@ -1375,8 +1356,8 @@ final class CommentaryApi(
               val primaryAttempts = List(segmentPolishFamily -> primary)
               val primaryValidation = validateSegmentCandidate(primary, seg.text, masked)
               primaryValidation.text match
-                case Some(_) =>
-                  Future.successful(acceptedRewrite(primary, primaryAttempts))
+                case Some(rewritten) =>
+                  Future.successful(Some(SegmentRewrite(seg.id, seg.text, rewritten, primaryAttempts)))
                 case None =>
                   recordFullGameInvalid(
                     stage = "segment_primary",
@@ -1394,7 +1375,7 @@ final class CommentaryApi(
                   )
                   if !FullGamePolishRepairPolicy.shouldAttemptSegmentRepair(primaryValidation.reasons) then
                     recordFullGameRepairBypass(phase = phase, reasons = primaryValidation.reasons)
-                    Future.successful(fallbackToOriginal(primaryAttempts))
+                    Future.successful(Some(fallbackToOriginal(primaryAttempts)))
                   else
                     recordFullGameRepairAttempt()
                     callRepair(modelInput, primary.commentary).map {
@@ -1402,7 +1383,7 @@ final class CommentaryApi(
                         val attempts = primaryAttempts :+ (segmentRepairFamily -> repaired)
                         val repairedValidation = validateSegmentCandidate(repaired, seg.text, masked)
                         repairedValidation.text
-                          .flatMap(_ => acceptedRewrite(repaired, attempts))
+                          .map(rewritten => SegmentRewrite(seg.id, seg.text, rewritten, attempts))
                           .orElse {
                             recordFullGameInvalid(
                               stage = "segment_repair",
@@ -1418,30 +1399,33 @@ final class CommentaryApi(
                               candidate = repairedValidation.decodedText,
                               reasons = repairedValidation.reasons
                             )
-                            fallbackToOriginal(attempts)
+                            Some(fallbackToOriginal(attempts))
                           }
                       case None =>
                         // Prefer structural safety over aggressive rewrite: keep original segment.
-                        fallbackToOriginal(primaryAttempts)
+                        Some(fallbackToOriginal(primaryAttempts))
                     }
             case None => Future.successful(None)
           }
 
         val rewritesFut =
-          candidateEditable.foldLeft(Future.successful(Vector.empty[Option[SegmentRewrite]])) { (accFut, seg) =>
-            accFut.flatMap(acc => polishSegment(seg).map(r => acc :+ r))
+          candidateEditable.foldLeft(Future.successful(Vector.empty[SegmentRewrite])) { (accFut, seg) =>
+            accFut.flatMap(acc =>
+              polishSegment(seg).map {
+                case Some(rewrite) => acc :+ rewrite
+                case None          => acc
+              }
+            )
           }
 
-        rewritesFut.map { results =>
-          val successes = results.flatten
+        rewritesFut.map { successes =>
           if successes.isEmpty then None
           else
             val rewrites = successes.map(s => s.id -> s.commentary).toMap
             val merged = segmentation.merge(rewrites)
             val mergedValidation = validatePolishedCommentary(merged, prose, allowedSans)
             val strategyValidation = evaluateStrategyCoverage(merged, strategyPack, planTier, commentaryMode)
-            val mergedLeakReasons = fullGameLeakReasons(merged)
-            val mergedReasons = (mergedValidation.reasons ++ strategyValidation.reasons ++ mergedLeakReasons).distinct
+            val mergedReasons = (mergedValidation.reasons ++ strategyValidation.reasons).distinct
             val attempts = successes.flatMap(_.attempts).toList
             if mergedReasons.nonEmpty then
               val softRepair =
@@ -1461,9 +1445,8 @@ final class CommentaryApi(
               val repairedText = softRepair.text
               val repairedValidation = validatePolishedCommentary(repairedText, prose, allowedSans)
               val repairedStrategyValidation = evaluateStrategyCoverage(repairedText, strategyPack, planTier, commentaryMode)
-              val repairedLeakReasons = fullGameLeakReasons(repairedText)
               val repairedReasons =
-                (repairedValidation.reasons ++ repairedStrategyValidation.reasons ++ repairedLeakReasons).distinct
+                (repairedValidation.reasons ++ repairedStrategyValidation.reasons).distinct
               val observedReasons =
                 if softRepair.applied then repairedReasons else mergedReasons
 
@@ -2172,11 +2155,8 @@ final class CommentaryApi(
       val evidenceHook = third.filter(LineScopedCitation.hasConcreteSanLine)
       val tension = third.filterNot(LineScopedCitation.hasConcreteSanLine)
       val paragraphPlan =
-        List(
-          Some("p1=claim"),
-          support.map(_ => "p2=support"),
-          evidenceHook.map(_ => "p3=cited_line").orElse(tension.map(_ => "p3=practical_nuance"))
-        ).flatten
+        "p1=claim" :: support.map(_ => "p2=support").toList :::
+          evidenceHook.map(_ => "p3=cited_line").orElse(tension.map(_ => "p3=practical_nuance")).toList
 
       LiveNarrativeCompressionCore.deterministicProse(
         slots.copy(
@@ -2186,7 +2166,7 @@ final class CommentaryApi(
           evidenceHook = evidenceHook,
           tension = tension,
           factGuardrails = evidenceHook.toList,
-          paragraphPlan = if paragraphPlan.nonEmpty then paragraphPlan else List("p1=claim")
+          paragraphPlan = paragraphPlan
         )
       )
     }.getOrElse(dedupeNarrativeSurface(commentary, "moveReview", "plan_lead", 80))

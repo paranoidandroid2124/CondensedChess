@@ -53,18 +53,16 @@ private[commentary] object PlayerProseBoundary:
 
   def validateSanitized(raw: String): Evaluation =
     val trimmed = Option(raw).getOrElse("").trim
-    val reasons =
-      List(
-        Option.when(trimmed.nonEmpty && looksJsonWrapper(trimmed))("json_wrapper_unparsed"),
-        Option.when(trimmed.nonEmpty && looksTruncated(trimmed))("truncated_output"),
-        Option.when(trimmed.nonEmpty && placeholderHits(trimmed).nonEmpty)("placeholder_leak_detected"),
-        Option.when(trimmed.nonEmpty && metaLeakHits(trimmed).nonEmpty)("meta_label_leak_detected"),
-        Option.when(trimmed.nonEmpty && helperLeakHits(trimmed).nonEmpty)("helper_symbol_leak_detected"),
-        Option.when(trimmed.nonEmpty && brokenFragmentHits(trimmed).nonEmpty)("broken_fragment_detected"),
-        Option.when(trimmed.nonEmpty && duplicateSentenceHits(trimmed).nonEmpty)("duplicate_sentence_detected")
-      ).flatten.distinct
+    val reasons = List.newBuilder[String]
+    if trimmed.nonEmpty && looksJsonWrapper(trimmed) then reasons += "json_wrapper_unparsed"
+    if trimmed.nonEmpty && looksTruncated(trimmed) then reasons += "truncated_output"
+    if trimmed.nonEmpty && placeholderHits(trimmed).nonEmpty then reasons += "placeholder_leak_detected"
+    if trimmed.nonEmpty && metaLeakHits(trimmed).nonEmpty then reasons += "meta_label_leak_detected"
+    if trimmed.nonEmpty && helperLeakHits(trimmed).nonEmpty then reasons += "helper_symbol_leak_detected"
+    if trimmed.nonEmpty && brokenFragmentHits(trimmed).nonEmpty then reasons += "broken_fragment_detected"
+    if trimmed.nonEmpty && duplicateSentenceHits(trimmed).nonEmpty then reasons += "duplicate_sentence_detected"
 
-    Evaluation(text = trimmed, reasons = reasons)
+    Evaluation(text = trimmed, reasons = reasons.result().distinct)
 
   def placeholderHits(raw: String): List[String] =
     UserFacingSignalSanitizer.placeholderHits(raw)
@@ -79,7 +77,8 @@ private[commentary] object PlayerProseBoundary:
   def brokenFragmentHits(raw: String): List[String] =
     splitSentences(raw).flatMap { sentence =>
       val trimmed = sentence.trim
-      Option.when(trimmed.nonEmpty && BrokenFragmentPatterns.exists(_.matches(trimmed)))("fragment")
+      if trimmed.nonEmpty && BrokenFragmentPatterns.exists(_.matches(trimmed)) then Some("fragment")
+      else None
     }.distinct
 
   def duplicateSentenceHits(raw: String): List[String] =

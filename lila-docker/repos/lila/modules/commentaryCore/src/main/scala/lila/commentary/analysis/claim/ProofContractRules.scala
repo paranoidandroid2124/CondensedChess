@@ -259,7 +259,8 @@ private[commentary] object ProofContractRules:
           allowedScopes = Set(PlayerFacingPacketScope.PositionLocal, PlayerFacingPacketScope.MoveLocal),
           requiredWitnesses =
             WeakOwnerWitnesses +
-              ProofWitness.StructureTransition,
+              ProofWitness.StructureTransition +
+              ProofWitness.ExactSlice,
           certifiedEligible = false,
           supportedLocalEligible = true,
           defaultFailureTaxonomy = "iqp_inducement_probe_missing"
@@ -287,11 +288,12 @@ private[commentary] object ProofContractRules:
         subplanContract(
           subplan = subplan,
           status = ProofContractStatus.Releasable,
-          acceptedSources = Set(ProofSourceId.ExchangeForcingDelta),
+          acceptedSources = Set.empty,
           allowedScopes = Set(PlayerFacingPacketScope.MoveLocal, PlayerFacingPacketScope.PositionLocal),
           requiredWitnesses =
             WeakOwnerWitnesses +
               ProofWitness.StructureTransition +
+              ProofWitness.ExactSlice +
               ProofWitness.BranchProof +
               ProofWitness.StablePersistence,
           certifiedEligible = false,
@@ -331,6 +333,7 @@ private[commentary] object ProofContractRules:
           requiredWitnesses =
             WeakOwnerWitnesses +
               ProofWitness.StructureTransition +
+              ProofWitness.ExactSlice +
               ProofWitness.BranchProof +
               ProofWitness.StablePersistence,
           certifiedEligible = false,
@@ -523,12 +526,12 @@ private[commentary] object ProofContractRules:
         case None =>
           List("contract:missing")
         case Some(c) =>
-          List(
-            Option.when(c.status == ProofContractStatus.Deferred)("contract:deferred_no_exact_owner"),
-            Option.when(c.status == ProofContractStatus.BackendOnly)("contract:backend_only"),
-            Option.when(!c.allowedScopes.contains(packet.scope))("contract:scope_not_allowed"),
-            Option.when(!c.acceptedSources.contains(packet.proofSource))("contract:source_not_accepted")
-          ).flatten ++ verifyContractWitness(c, packet)
+          val failures = List.newBuilder[String]
+          if c.status == ProofContractStatus.Deferred then failures += "contract:deferred_no_exact_owner"
+          if c.status == ProofContractStatus.BackendOnly then failures += "contract:backend_only"
+          if !c.allowedScopes.contains(packet.scope) then failures += "contract:scope_not_allowed"
+          if !c.acceptedSources.contains(packet.proofSource) then failures += "contract:source_not_accepted"
+          failures.result() ++ verifyContractWitness(c, packet)
     (
       contractFailures ++
         packet.suppressionReasons.map(reason => s"suppression:$reason") ++
@@ -540,35 +543,26 @@ private[commentary] object ProofContractRules:
       packet: PlayerFacingClaimPacket
   ): List[String] =
     val required = contract.requiredWitnesses
-    List(
-      Option.when(required.contains(ProofWitness.OwnerSeed) && !packet.proofPathWitness.hasOwnerSeed)(
-        "witness:owner_seed_missing"
-      ),
-      Option.when(required.contains(ProofWitness.Continuation) && !packet.proofPathWitness.hasContinuation)(
-        "witness:continuation_missing"
-      ),
-      Option.when(required.contains(ProofWitness.BranchProof) && packet.sameBranchState != PlayerFacingSameBranchState.Proven)(
-        "witness:branch_not_proven"
-      ),
-      Option.when(required.contains(ProofWitness.StablePersistence) && packet.persistence != PlayerFacingClaimPersistence.Stable)(
-        "witness:persistence_not_stable"
-      ),
-      Option.when(required.contains(ProofWitness.StructureTransition) && !packet.proofPathWitness.hasStructureTransition)(
-        "witness:structure_transition_missing"
-      ),
-      Option.when(required.contains(ProofWitness.ExactSlice) && !exactSliceWitnessPresent(packet))(
-        "witness:exact_slice_missing"
-      ),
-      Option.when(required.contains(ProofWitness.NoRivalRelease) && rivalReleasePresent(packet))(
-        "rival:release_risk"
-      ),
-      Option.when(required.contains(ProofWitness.NoTacticalVeto) && tacticalVetoPresent(packet))(
-        "witness:tactical_veto_present"
-      ),
-      Option.when(required.contains(ProofWitness.ClaimOnlySurface) && !claimOnlySurfacePresent(packet))(
-        "witness:claim_only_surface_missing"
-      )
-    ).flatten
+    val failures = List.newBuilder[String]
+    if required.contains(ProofWitness.OwnerSeed) && !packet.proofPathWitness.hasOwnerSeed then
+      failures += "witness:owner_seed_missing"
+    if required.contains(ProofWitness.Continuation) && !packet.proofPathWitness.hasContinuation then
+      failures += "witness:continuation_missing"
+    if required.contains(ProofWitness.BranchProof) && packet.sameBranchState != PlayerFacingSameBranchState.Proven then
+      failures += "witness:branch_not_proven"
+    if required.contains(ProofWitness.StablePersistence) && packet.persistence != PlayerFacingClaimPersistence.Stable then
+      failures += "witness:persistence_not_stable"
+    if required.contains(ProofWitness.StructureTransition) && !packet.proofPathWitness.hasStructureTransition then
+      failures += "witness:structure_transition_missing"
+    if required.contains(ProofWitness.ExactSlice) && !exactSliceWitnessPresent(packet) then
+      failures += "witness:exact_slice_missing"
+    if required.contains(ProofWitness.NoRivalRelease) && rivalReleasePresent(packet) then
+      failures += "rival:release_risk"
+    if required.contains(ProofWitness.NoTacticalVeto) && tacticalVetoPresent(packet) then
+      failures += "witness:tactical_veto_present"
+    if required.contains(ProofWitness.ClaimOnlySurface) && !claimOnlySurfacePresent(packet) then
+      failures += "witness:claim_only_surface_missing"
+    failures.result()
 
   private def rivalReleasePresent(packet: PlayerFacingClaimPacket): Boolean =
     packet.suppressionReasons.contains(PlayerFacingClaimSuppressionReason.RivalStoryAlive) ||

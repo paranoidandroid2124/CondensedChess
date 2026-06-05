@@ -13,30 +13,29 @@ object MoveReviewResponseDiagnostics:
   def json(response: CommentResponse): JsObject =
     val sourceMode = normalizedSourceMode(response)
     val fallbackMode = isFallbackSourceMode(sourceMode)
-    val boundaryReasons =
+    val boundaryFailure =
       if fallbackMode then
         PlayerProseBoundary
           .validateSanitized(Option(response.commentary).getOrElse(""))
           .reasons
-      else Nil
+          .headOption
+      else None
     Json.obj(
-      "status" -> status(fallbackMode, boundaryReasons),
-      "sourceModeReason" -> sourceModeReason(response, sourceMode, fallbackMode, boundaryReasons)
+      "status" -> status(fallbackMode, boundaryFailure),
+      "sourceModeReason" -> sourceModeReason(response, sourceMode, boundaryFailure)
     )
 
-  private def status(fallbackMode: Boolean, boundaryReasons: List[String]): String =
-    if fallbackMode && boundaryReasons.nonEmpty then RetryableFallback
+  private def status(fallbackMode: Boolean, boundaryFailure: Option[String]): String =
+    if fallbackMode && boundaryFailure.nonEmpty then RetryableFallback
     else if fallbackMode then FallbackAvailable
     else Ready
 
   private def sourceModeReason(
       response: CommentResponse,
       sourceMode: String,
-      fallbackMode: Boolean,
-      boundaryReasons: List[String]
+      boundaryFailure: Option[String]
   ): String =
-    if fallbackMode && boundaryReasons.nonEmpty then boundaryReasons.head
-    else
+    boundaryFailure.getOrElse {
       sourceMode match
         case "rule_circuit_open"     => "polish_circuit_open"
         case "fallback_rule_empty"   => "empty_polish"
@@ -46,6 +45,7 @@ object MoveReviewResponseDiagnostics:
         case other if other.startsWith("fallback_rule") =>
           normalizeCode(other.stripPrefix("fallback_rule_")).filter(_.nonEmpty).getOrElse("fallback_rule")
         case other => normalizeCode(other).filter(_.nonEmpty).getOrElse("unknown")
+    }
 
   private def normalizedSourceMode(response: CommentResponse): String =
     normalizeCode(response.sourceMode).filter(_.nonEmpty).getOrElse("rule")

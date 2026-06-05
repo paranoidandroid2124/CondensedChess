@@ -391,7 +391,7 @@ class SourceReviewTest extends FunSuite:
     }
   }
 
-  test("clean break-clamp source rows can reach neutralize-key-break owner packets") {
+  test("clean break-clamp source rows still require break-prevention owner witnesses") {
     val lokvencFen = "r1bqr1k1/p4pbp/np1p1np1/2pP4/4P3/2N2N2/PPQ1BPPP/R1B1R1K1 w - - 2 12"
     val madernaFen = "1rbqr1k1/1p1n1pbp/pn1p2p1/2pP4/P3PP2/2N2B2/1P1N2PP/R1BQR1K1 w - - 5 15"
     val camaraFen = "1rbqr1k1/pp1n1pbp/3p2p1/2pP4/1n2PP2/2NB3P/PP2N1P1/R1BQ1R1K w - - 3 14"
@@ -542,10 +542,7 @@ class SourceReviewTest extends FunSuite:
     val byId = rows.map(row => row.source.id -> row).toMap
     val admittedIds =
       List(
-        "source-lokvenc-czerniak-1952-b6-b5-break-prevention",
-        "source-maderna-palermo-1955-a6-a5-break-prevention",
         "source-camara-bazan-1960-b7-b5-break-prevention",
-        "source-sliwa-gromek-1960-a6-a5-break-prevention",
         "source-polugaevsky-giorgadze-1956-c5-c4-break-prevention"
       )
     admittedIds.map(byId).foreach { row =>
@@ -555,9 +552,24 @@ class SourceReviewTest extends FunSuite:
       assertEquals(row.mainProofSource, "counterplay_axis_suppression", clues(row))
       assert(row.packetSummary.contains("proof_family=neutralize_key_break"), clues(row))
       assertEquals(row.release, "SupportedLocal", clues(row))
-      val expectedRendered = PlayerFacingClaimPrefixKind.SupportedLocal.render(row.primary)
-      assert(row.moveReview.contains(expectedRendered), clues(row))
+      assert(row.moveReview.startsWith("A key idea is that"), clues(row))
       assert(!row.primary.toLowerCase.contains("counterplay"), clues(row))
+    }
+    val ownerWitnessMissingIds =
+      List(
+        "source-lokvenc-czerniak-1952-b6-b5-break-prevention",
+        "source-maderna-palermo-1955-a6-a5-break-prevention",
+        "source-sliwa-gromek-1960-a6-a5-break-prevention"
+      )
+    ownerWitnessMissingIds.map(byId).foreach { row =>
+      assertEquals(row.verdict, SourceReview.Verdict.RejectOwnerMissing, clues(row))
+      assertEquals(row.diagnosis, SourceReview.Diagnosis.RootVocabularyOrExtractionGap, clues(row))
+      assertEquals(row.admissionBlockers, "owner:break_prevention_witness_missing", clues(row))
+      assertEquals(row.mainProofSource, "counterplay_axis_suppression", clues(row))
+      assert(row.packetSummary.contains("proof_family=neutralize_key_break"), clues(row))
+      assertEquals(row.contractId, "runtime:neutralize_key_break", clues(row))
+      assertEquals(row.contractStatus, "Releasable", clues(row))
+      assertEquals(row.release, "-", clues(row))
     }
     val pfleger = byId("source-pfleger-maalouf-1961-a6-a5-break-prevention")
     assertEquals(pfleger.verdict, SourceReview.Verdict.RejectOwnerMissing, clues(pfleger))
@@ -635,6 +647,7 @@ class SourceReviewTest extends FunSuite:
     val carlsenFen = "r1bqk2r/1p1p1ppp/p1n1pn2/8/1bPNP3/2NQ4/PP3PPP/R1B1KB1R w KQkq - 5 8"
     val alekhineFen = "rnb1k2r/pp3ppp/4p3/2pqP3/PbpPn3/2N2N2/1PQ1BPPP/R1B2RK1 b kq - 1 10"
     val najdorfFen = "r1b2rk1/pp2qppp/4p3/2nn4/3N4/2N1P3/PPQ2PPP/3RKB1R w K - 0 12"
+    val kramnikOpeningFen = "rnbqkb1r/1p3ppp/p3pn2/2p5/3P4/1B2PN2/PP3PPP/RNBQ1RK1 b kq - 1 7"
     val salovSimplificationFen = "7k/p4qp1/8/1Q1pR3/3P1P2/2r3P1/7P/6K1 w - - 0 36"
     val boleslavskyStaticWeaknessFen = "rnbqr1k1/pp3pbp/3p1np1/2pP4/4P3/2N2N2/PP2BPPP/R1BQ1RK1 w - - 6 10"
     val aronianDefenderTradeFen = "3k1b1r/p2b1ppp/1n3n2/4p3/8/1R4P1/P1QPqPBP/2B2RK1 w - - 0 17"
@@ -713,6 +726,14 @@ class SourceReviewTest extends FunSuite:
               VariationLine(
                 List("c3d5", "e6d5", "f1e2", "b7b6", "e1g1", "c8b7", "d1c1", "f8c8", "h2h3", "g7g6", "e2f3", "c5e6", "c2d2"),
                 scoreCp = 20,
+                depth = 16
+              )
+            ),
+          kramnikOpeningFen ->
+            List(
+              VariationLine(
+                List("c5d4", "e3d4", "b8c6", "b1c3", "f8e7", "c1g5", "e8g8", "d1d2"),
+                scoreCp = -28,
                 depth = 16
               )
             ),
@@ -805,6 +826,7 @@ class SourceReviewTest extends FunSuite:
           "source-evans-opsahl-1950-iqp-inducement",
           "source-alekhine-bogoljubow-1936-iqp-inducement",
           "source-najdorf-sergeant-1939-iqp-inducement",
+          "source-kramnik-anand-2001-iqp-opening-inducement",
           "source-botvinnik-vidmar-1936-iqp-multipv-screen",
           "source-botvinnik-vidmar-1936",
           "source-evans-opsahl-1950",
@@ -831,7 +853,8 @@ class SourceReviewTest extends FunSuite:
     List(
       "source-evans-opsahl-1950-iqp-inducement",
       "source-alekhine-bogoljubow-1936-iqp-inducement",
-      "source-najdorf-sergeant-1939-iqp-inducement"
+      "source-najdorf-sergeant-1939-iqp-inducement",
+      "source-kramnik-anand-2001-iqp-opening-inducement"
     ).foreach { id =>
       val row = byId(id)
       assertEquals(row.verdict, SourceReview.Verdict.AdmitAuthorityRow)
@@ -880,15 +903,18 @@ class SourceReviewTest extends FunSuite:
     assertEquals(salovSimplification.primary, "-")
 
     val boleslavskyStaticWeakness = byId("source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation")
-    assertEquals(boleslavskyStaticWeakness.verdict, SourceReview.Verdict.AdmitAuthorityRow)
-    assertEquals(boleslavskyStaticWeakness.diagnosis, SourceReview.Diagnosis.AdmitReady)
-    assertEquals(boleslavskyStaticWeakness.admissionBlockers, "none")
+    assertEquals(boleslavskyStaticWeakness.verdict, SourceReview.Verdict.RejectOwnerMissing)
+    assertEquals(boleslavskyStaticWeakness.diagnosis, SourceReview.Diagnosis.RootVocabularyOrExtractionGap)
+    assertEquals(boleslavskyStaticWeakness.admissionBlockers, "owner:root_vocabulary_or_extraction_gap")
     assertEquals(boleslavskyStaticWeakness.engineAgreement, "top_pv_matches_played")
     assertEquals(boleslavskyStaticWeakness.mainProofSource, "exact_target_fixation")
+    assertEquals(boleslavskyStaticWeakness.mainClaimScope, "MoveLocal")
     assertEquals(boleslavskyStaticWeakness.contractId, "subplan:static_weakness_fixation")
     assertEquals(boleslavskyStaticWeakness.contractStatus, "Releasable")
-    assertEquals(boleslavskyStaticWeakness.release, "CertifiedOwner")
+    assertEquals(boleslavskyStaticWeakness.release, "-")
     assertEquals(boleslavskyStaticWeakness.taxonomy, "source_static_weakness_fixation")
+    assertEquals(boleslavskyStaticWeakness.primary, "-")
+    assert(boleslavskyStaticWeakness.reason.contains("strategic_claim_tactical_veto"), clues(boleslavskyStaticWeakness))
 
     val aronianDefenderTrade = byId("source-aronian-andreikin-2014-defender-trade")
     assertEquals(aronianDefenderTrade.verdict, SourceReview.Verdict.RejectOwnerMissing, clues(aronianDefenderTrade))

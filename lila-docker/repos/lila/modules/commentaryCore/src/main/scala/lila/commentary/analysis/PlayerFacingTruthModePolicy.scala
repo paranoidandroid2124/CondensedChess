@@ -1034,6 +1034,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
     case TargetFocusedCoordinationProbe
     case ColorComplexSqueezeProbe
     case OutpostOccupation
+    case IqpInducement
 
   private final case class ExactSliceDescriptor(
       kind: ExactSliceKind,
@@ -1104,13 +1105,24 @@ private[commentary] object PlayerFacingTruthModePolicy:
       releaseOwnerFamilies = Set(OutpostEntrenchmentProofFamily)
     )
 
+  private val IqpInducementDescriptor =
+    ExactSliceDescriptor(
+      kind = ExactSliceKind.IqpInducement,
+      proofSource = IQPInducementProbeProofSource,
+      proofFamily = IQPInducementFamily,
+      triggerKind = PlanTaxonomy.PlanKind.IQPInducement.id,
+      releasedScope = PlayerFacingPacketScope.MoveLocal,
+      releaseOwnerFamilies = Set(IQPInducementFamily)
+    )
+
   private val ExactSliceDescriptors =
     List(
       ExactTargetFixationDescriptor,
       CarlsbadFixedTargetProbeDescriptor,
       TargetFocusedCoordinationDescriptor,
       ColorComplexSqueezeProbeDescriptor,
-      OutpostOccupationDescriptor
+      OutpostOccupationDescriptor,
+      IqpInducementDescriptor
     )
 
   private final case class ExactSliceWitness(
@@ -1548,7 +1560,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
         proofFamily = IQPInducementFamily,
         triggerKind = PlanTaxonomy.PlanKind.IQPInducement.id,
         ownerSeedTerms = witness.ownerSeedTerms,
-        structureTransitionTerms = witness.structureTransitionTerms
+        structureTransitionTerms = witness.structureTransitionTerms,
+        exactSliceProof = Some(PlayerFacingExactSliceProof.IqpInducement(witness.targetSquare, witness.lineMoves))
       )
     }.orElse(
       defenderTradeWitness(ctx).map { witness =>

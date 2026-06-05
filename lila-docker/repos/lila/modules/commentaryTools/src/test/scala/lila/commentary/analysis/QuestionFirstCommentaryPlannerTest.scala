@@ -605,7 +605,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
               )
             )
         ),
-        None
+        Some(truthContract(reasonFamily = DecisiveReasonKind.QuietTechnicalMove, benchmarkCriticalMove = false))
       )
 
     val primary = plans.primary.getOrElse(fail("missing queen trade shield primary"))

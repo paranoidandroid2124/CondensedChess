@@ -709,7 +709,7 @@ class ProofContractRulesTest extends FunSuite:
     assert(ProofContractRules.failureCodes(malformedCentralMove).contains("witness:exact_slice_missing"))
   }
 
-  test("DefenderTrade supported-local release requires structure, branch, and stability witnesses") {
+  test("DefenderTrade supported-local release requires exact-slice, structure, branch, and stability witnesses") {
     val contract =
       ProofContractRules
         .contractForProofFamily(PlanTaxonomy.PlanKind.DefenderTrade.id)
@@ -719,21 +719,30 @@ class ProofContractRulesTest extends FunSuite:
     assert(!contract.certifiedEligible, clues(contract))
     assert(contract.supportedLocalEligible, clues(contract))
     assert(contract.acceptedSources.contains(PlayerFacingTruthModePolicy.DefenderTradeProofSource), clues(contract))
-    assert(contract.acceptedSources.contains("exchange_forcing_delta"), clues(contract))
+    assert(!contract.acceptedSources.contains("exchange_forcing_delta"), clues(contract))
     assert(contract.requiredWitnesses.contains(ProofWitness.StructureTransition), clues(contract))
+    assert(contract.requiredWitnesses.contains(ProofWitness.ExactSlice), clues(contract))
     assert(contract.requiredWitnesses.contains(ProofWitness.BranchProof), clues(contract))
     assert(contract.requiredWitnesses.contains(ProofWitness.StablePersistence), clues(contract))
     assert(!contract.id.toLowerCase.contains("source-"), clues(contract))
     assert(!contract.acceptedSources.exists(_.toLowerCase.contains("source-")), clues(contract))
 
-    val packet =
+    val packetWithoutExactProof =
       exchangeContractPacket(
         proofSource = PlayerFacingTruthModePolicy.DefenderTradeProofSource,
         proofFamily = PlanTaxonomy.PlanKind.DefenderTrade.id,
         structureTransitionTerms =
           List("defender_trade_branch", "defender:c5", "exchange_square:d4", "defended_target:e5")
       )
+    val packet =
+      packetWithoutExactProof.copy(
+        proofPathWitness =
+          packetWithoutExactProof.proofPathWitness.copy(
+            exactSliceProof = Some(PlayerFacingExactSliceProof.DefenderTrade("c5", "d4", "e5"))
+          )
+      )
     assertEquals(ProofContractRules.failureCodes(packet), Nil)
+    assert(ProofContractRules.failureCodes(packetWithoutExactProof).contains("witness:exact_slice_missing"))
     assert(
       ProofContractRules.failureCodes(packet.copy(sameBranchState = PlayerFacingSameBranchState.Missing))
         .contains("witness:branch_not_proven")
@@ -744,7 +753,7 @@ class ProofContractRulesTest extends FunSuite:
     )
   }
 
-  test("BadPieceLiquidation supported-local release requires structure, branch, and stability witnesses") {
+  test("BadPieceLiquidation supported-local release requires exact-slice, structure, branch, and stability witnesses") {
     val contract =
       ProofContractRules
         .contractForProofFamily(PlanTaxonomy.PlanKind.BadPieceLiquidation.id)
@@ -755,16 +764,25 @@ class ProofContractRulesTest extends FunSuite:
     assert(contract.supportedLocalEligible, clues(contract))
     assert(contract.acceptedSources.contains(PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource), clues(contract))
     assert(contract.requiredWitnesses.contains(ProofWitness.StructureTransition), clues(contract))
+    assert(contract.requiredWitnesses.contains(ProofWitness.ExactSlice), clues(contract))
     assert(contract.requiredWitnesses.contains(ProofWitness.BranchProof), clues(contract))
     assert(contract.requiredWitnesses.contains(ProofWitness.StablePersistence), clues(contract))
 
-    val packet =
+    val packetWithoutExactProof =
       exchangeContractPacket(
         proofSource = PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource,
         proofFamily = PlanTaxonomy.PlanKind.BadPieceLiquidation.id,
         structureTransitionTerms = List("bad_piece_liquidation_branch", "bad_piece:c8", "exchange_square:e6")
       )
+    val packet =
+      packetWithoutExactProof.copy(
+        proofPathWitness =
+          packetWithoutExactProof.proofPathWitness.copy(
+            exactSliceProof = Some(PlayerFacingExactSliceProof.BadPieceLiquidation("c8", "e6"))
+          )
+      )
     assertEquals(ProofContractRules.failureCodes(packet), Nil)
+    assert(ProofContractRules.failureCodes(packetWithoutExactProof).contains("witness:exact_slice_missing"))
     assert(
       ProofContractRules.failureCodes(packet.copy(sameBranchState = PlayerFacingSameBranchState.Ambiguous))
         .contains("witness:branch_not_proven")
@@ -871,8 +889,9 @@ class ProofContractRulesTest extends FunSuite:
       fallbackMode = PlayerFacingClaimFallbackMode.WeakMain,
       proofPathWitness =
         PlayerFacingProofPathWitness(
-          ownerSeedTerms = List("iqp"),
-          continuationTerms = List("d5"),
-          structureTransitionTerms = List("isolated_d_pawn")
+          ownerSeedTerms = List("iqp", "d5", "isolated_pawn:d5"),
+          continuationTerms = List("d5", "c4d5", "e6d5"),
+          structureTransitionTerms = List("isolated_d_pawn", "after_isolated:d5", "central_isolated_pawn"),
+          exactSliceProof = Some(PlayerFacingExactSliceProof.IqpInducement("d5", List("c4d5", "e6d5")))
         )
     )

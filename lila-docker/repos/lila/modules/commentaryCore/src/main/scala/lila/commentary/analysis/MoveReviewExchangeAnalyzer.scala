@@ -964,6 +964,18 @@ private[commentary] object MoveReviewExchangeAnalyzer:
             s"The checked line offers the ${details.baitRole} on ${details.baitSquare} to lure the ${details.luredRole} from ${details.luredFromSquare}, then recaptures on ${details.executionToSquare}."
           )
         )
+      case details: RelationDetails.StalemateTrap =>
+        Some(
+          RelationPracticalSurface(
+            s"The checked line keeps a stalemate resource around the king on ${details.stalematedKingSquare} via ${details.resourceSquare}."
+          )
+        )
+      case details: RelationDetails.PerpetualCheck =>
+        Some(
+          RelationPracticalSurface(
+            s"The checked line keeps a perpetual-check resource against the king on ${details.checkedKingSquare} from ${details.checkerSquares.take(3).mkString(" and ")}."
+          )
+        )
       case _ => None
     }
 

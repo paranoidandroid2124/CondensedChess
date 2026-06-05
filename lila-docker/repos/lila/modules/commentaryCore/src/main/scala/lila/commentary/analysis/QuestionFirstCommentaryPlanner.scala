@@ -1907,7 +1907,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
   ): WhatChangedPlannerMaterial =
     val moveOwner =
       inputs.mainBundle.flatMap(_.mainClaim).filter(_.scope == PlayerFacingClaimScope.MoveLocal)
-    val supportedLocalMoveOwner = supportedLocalWhatChangedOwner(moveOwner)
+    val supportedLocalMoveOwner = supportedLocalWhatChangedOwner(ctx, inputs, truthContract, moveOwner)
     val exactTargetFixationChange = exactTargetFixationChangeClaim(inputs)
     val canPromoteDecisionComparisonChange = moveOwner.nonEmpty || hasConcreteMoveDeltaChange(inputs)
     val allowedPreventedPlans = preventedPlansAllowedForPlannerSurface(ctx, inputs, truthContract)
@@ -1936,14 +1936,16 @@ private[commentary] object QuestionFirstCommentaryPlanner:
     )
 
   private def supportedLocalWhatChangedOwner(
+      ctx: Option[NarrativeContext],
+      inputs: QuestionPlannerInputs,
+      truthContract: Option[DecisiveTruthContract],
       moveOwner: Option[MainPathScopedClaim]
   ): Option[MainPathScopedClaim] =
     moveOwner.filter(claim =>
       claim.packet.exists(packet =>
-        packet.scope == PlayerFacingPacketScope.MoveLocal &&
-          packet.fallbackMode == PlayerFacingClaimFallbackMode.WeakMain &&
-          ProofContractRules.supportedLocalEligible(packet.proofFamily) &&
-          !ProofContractRules.certifiedEligible(packet.proofFamily)
+        ClaimAuthorityResolver
+          .supportedLocalMoveDeltaPacketDecision(ctx, inputs, truthContract, packet)
+          .supportedLocalWithoutTacticalVeto
       )
     )
 

@@ -2,8 +2,7 @@ package lila.commentary.analysis
 
 import chess._
 import chess.format.Fen
-// import chess.bitboard.Bitboard -- Removed as it caused compilation error
-import lila.commentary.model._ // For PositionNature, NatureType if defined there
+import lila.commentary.model._
 
 final case class PawnStructureFeatures(
     whitePawnCount: Int,
@@ -21,16 +20,16 @@ final case class PawnStructureFeatures(
     // Backward pawns - properly defined with semi-open file + empty stop square
     whiteBackwardPawns: Int,
     blackBackwardPawns: Int,
-    // P1: Pawn islands - groups of connected pawns
+    // Groups of connected pawns.
     whitePawnIslands: Int,
     blackPawnIslands: Int,
-    // P1: Connected pawns - pawns protected by other pawns
+    // Pawns protected by other pawns.
     whiteConnectedPawns: Int,
     blackConnectedPawns: Int,
-    // P1: Passed pawn quality - max rank (0-7, higher = more advanced)
+    // Passed pawn quality: max rank, where higher is more advanced.
     whitePassedPawnRank: Int,
     blackPassedPawnRank: Int,
-    // P1: Protected passed pawns - passers defended by other pawns
+    // Passers defended by other pawns.
     whiteProtectedPassedPawns: Int,
     blackProtectedPassedPawns: Int
 )
@@ -47,7 +46,7 @@ final case class ActivityFeatures(
     blackLowMobilityPieces: Int,
     whiteAttackedPieces: Int,       // Pieces currently attacked by enemy
     blackAttackedPieces: Int,
-    // P2: Development lag - pieces still on back rank in opening
+    // Minor pieces still on the back rank in the opening.
     whiteDevelopmentLag: Int,
     blackDevelopmentLag: Int
 )
@@ -63,13 +62,13 @@ final case class KingSafetyFeatures(
     blackKingExposedFiles: Int,
     whiteBackRankWeakness: Boolean,
     blackBackRankWeakness: Boolean,
-    // P0: Count of enemy pieces attacking king zone
+    // Enemy pieces attacking the king zone.
     whiteAttackersCount: Int,
     blackAttackersCount: Int,
-    // P2: Escape squares - safe squares for king to flee
+    // Safe squares for the king to flee.
     whiteEscapeSquares: Int,
     blackEscapeSquares: Int,
-    // P2: King ring attacked - squares around king under attack
+    // Squares around the king under attack.
     whiteKingRingAttacked: Int,
     blackKingRingAttacked: Int
 )
@@ -81,17 +80,17 @@ final case class MaterialPhaseFeatures(
     phase: String // "opening" | "middlegame" | "endgame"
 )
 
-// P0: Line control features - open files and rook placement
+// Line control features: open files and rook placement.
 final case class LineControlFeatures(
     openFilesCount: Int,
     whiteSemiOpenFiles: Int,
     blackSemiOpenFiles: Int,
-    // P0 Critical: Rook on 7th rank
+    // Rook on the seventh rank.
     whiteRookOn7th: Boolean,
     blackRookOn7th: Boolean
 )
 
-// P3: Material imbalance features - piece counts per type (excluding pawns, which are in PawnStructureFeatures)
+// Material imbalance features: piece counts by type, excluding pawns.
 final case class MaterialImbalanceFeatures(
     whiteKnights: Int,
     blackKnights: Int,
@@ -244,15 +243,15 @@ object PositionAnalyzer:
     val wBackward = backwardPawns(Color.White, wPawns, board)
     val bBackward = backwardPawns(Color.Black, bPawns, board)
 
-    // P1: Pawn islands
+    // Pawn islands.
     val wIslands = pawnIslands(wPawns)
     val bIslands = pawnIslands(bPawns)
 
-    // P1: Connected pawns
+    // Connected pawns.
     val wConnected = connectedPawns(Color.White, wPawns)
     val bConnected = connectedPawns(Color.Black, bPawns)
 
-    // P1: Passed pawn quality
+    // Passed pawn quality.
     val (wPassedRank, wProtectedPassed) = analyzePassedPawns(Color.White, wPassed, wPawns)
     val (bPassedRank, bProtectedPassed) = analyzePassedPawns(Color.Black, bPassed, bPawns)
 
@@ -342,7 +341,7 @@ object PositionAnalyzer:
     val wAttacked = attackedPieces(White)
     val bAttacked = attackedPieces(Black)
 
-    // P2: Development lag - minor pieces still on back rank
+    // Development lag: minor pieces still on the back rank.
     def developmentLag(color: Color): Int =
       val backRank = if color == Color.White then Rank.First else Rank.Eighth
       val minors = (board.knights | board.bishops) & board.byColor(color)
@@ -439,7 +438,7 @@ object PositionAnalyzer:
     val wBackRank = board.kingPosOf(Color.White).exists(_.rank == Rank.First) && wShield == 0
     val bBackRank = board.kingPosOf(Color.Black).exists(_.rank == Rank.Eighth) && bShield == 0
 
-    // P0: Attackers count - pieces attacking the king zone
+    // Weighted attackers around the king zone.
     def attackersCount(color: Color): Int =
       board.kingPosOf(color).map { kSq =>
         val kingZone = kSq.kingAttacks
@@ -460,7 +459,7 @@ object PositionAnalyzer:
         }.sum
       }.getOrElse(0)
 
-    // P2: Escape squares - safe squares for king to flee
+    // Safe squares for the king to flee.
     def escapeSquares(color: Color): Int =
        board.kingPosOf(color).map { kSq =>
          val kingMoves = kSq.kingAttacks
@@ -473,7 +472,7 @@ object PositionAnalyzer:
          }
        }.getOrElse(0)
 
-    // P2: King ring attacked - count of attacked squares around king
+    // Count of attacked squares around the king.
     def kingRingAttacked(color: Color): Int =
        board.kingPosOf(color).map { kSq =>
          val kingZone = kSq.kingAttacks
@@ -539,7 +538,7 @@ object PositionAnalyzer:
       phase = phase
     )
 
-  // P0: Line control features - open files and rook placement
+  // Line control features: open files and rook placement.
   private def computeLineControl(board: Board): LineControlFeatures =
     val wPawns = board.pawns & board.white
     val bPawns = board.pawns & board.black
@@ -573,7 +572,7 @@ object PositionAnalyzer:
       blackRookOn7th = blackRookOn7th
     )
 
-  // P3: Material imbalance - piece counts (excluding pawns) and bishop pair detection
+  // Material imbalance: piece counts and bishop-pair detection.
   private def computeImbalance(board: Board): MaterialImbalanceFeatures =
     val wKnights = (board.knights & board.white).count
     val bKnights = (board.knights & board.black).count

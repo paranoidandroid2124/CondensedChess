@@ -84,29 +84,36 @@ object AuthoritySurfaceLedger:
       )
     )
 
+  private val sourceCandidateById =
+    SourceWitnessCatalog.all.map(candidate => candidate.id -> candidate).toMap
+
   private val sourceSurfaceFixtures =
     List(
-      sourceSurfaceSample("source-evans-opsahl-1950", "source:B:carlsbad_fixed_target", "source_carlsbad_fixed_target"),
-      sourceSurfaceSample("source-carlsen-anand-2014-g6", "source:C:queen_trade_shield", "source_queen_trade_boundary"),
-      sourceSurfaceSample("source-capablanca-golombek-1939-iqp-inducement", "source:C:iqp_inducement", "source_iqp_inducement"),
-      sourceSurfaceSample("source-evans-opsahl-1950-iqp-inducement", "source:C:iqp_inducement", "source_iqp_inducement"),
-      sourceSurfaceSample("source-alekhine-bogoljubow-1936-iqp-inducement", "source:C:iqp_inducement", "source_iqp_inducement"),
-      sourceSurfaceSample("source-najdorf-sergeant-1939-iqp-inducement", "source:C:iqp_inducement", "source_iqp_inducement"),
-      sourceSurfaceSample("source-botvinnik-vidmar-1936-iqp-opening-inducement", "source:C:iqp_inducement", "source_iqp_inducement"),
-      sourceSurfaceSample("source-lokvenc-czerniak-1952-b6-b5-break-prevention", "source:A:break_prevention", "source_break_prevention"),
-      sourceSurfaceSample("source-maderna-palermo-1955-a6-a5-break-prevention", "source:A:break_prevention", "source_break_prevention"),
-      sourceSurfaceSample("source-camara-bazan-1960-b7-b5-break-prevention", "source:A:break_prevention", "source_break_prevention"),
-      sourceSurfaceSample("source-sliwa-gromek-1960-a6-a5-break-prevention", "source:A:break_prevention", "source_break_prevention"),
-      sourceSurfaceSample("source-pfleger-maalouf-1961-a6-a5-break-prevention", "source:A:break_prevention", "source_break_prevention"),
-      sourceSurfaceSample("source-polugaevsky-giorgadze-1956-c5-c4-break-prevention", "source:A:break_prevention", "source_break_prevention"),
-      sourceSurfaceSample("source-salov-ljubojevic-1992-simplification-window", "source:C:simplification_window", "source_simplification_window"),
-      sourceSurfaceSample("source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation", "source:B:static_weakness_fixation", "source_static_weakness_fixation")
+      sourceSurfaceSample("source-evans-opsahl-1950", "source_carlsbad_fixed_target"),
+      sourceSurfaceSample("source-carlsen-anand-2014-g6", "source_queen_trade_boundary"),
+      sourceSurfaceSample("source-capablanca-golombek-1939-iqp-inducement", "source_iqp_inducement"),
+      sourceSurfaceSample("source-evans-opsahl-1950-iqp-inducement", "source_iqp_inducement"),
+      sourceSurfaceSample("source-alekhine-bogoljubow-1936-iqp-inducement", "source_iqp_inducement"),
+      sourceSurfaceSample("source-najdorf-sergeant-1939-iqp-inducement", "source_iqp_inducement"),
+      sourceSurfaceSample("source-botvinnik-vidmar-1936-iqp-opening-inducement", "source_iqp_inducement"),
+      sourceSurfaceSample("source-kramnik-anand-2001-iqp-opening-inducement", "source_iqp_inducement"),
+      sourceSurfaceSample("source-bad-piece-liquidation-pilot", "source_bad_piece_liquidation"),
+      sourceSurfaceSample("source-lokvenc-czerniak-1952-b6-b5-break-prevention", "source_break_prevention"),
+      sourceSurfaceSample("source-maderna-palermo-1955-a6-a5-break-prevention", "source_break_prevention"),
+      sourceSurfaceSample("source-maderna-palermo-1955-central-break-timing", "source_central_break_timing"),
+      sourceSurfaceSample("source-camara-bazan-1960-b7-b5-break-prevention", "source_break_prevention"),
+      sourceSurfaceSample("source-sliwa-gromek-1960-a6-a5-break-prevention", "source_break_prevention"),
+      sourceSurfaceSample("source-pfleger-maalouf-1961-a6-a5-break-prevention", "source_break_prevention"),
+      sourceSurfaceSample("source-polugaevsky-giorgadze-1956-c5-c4-break-prevention", "source_break_prevention"),
+      sourceSurfaceSample("source-salov-ljubojevic-1992-simplification-window", "source_simplification_window"),
+      sourceSurfaceSample("source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation", "source_static_weakness_fixation")
     )
 
   private[commentary] val sourceSurfaceFixtureIds =
     sourceSurfaceFixtures.map(_.id)
 
-  private def sourceSurfaceSample(id: String, reviewGroup: String, taxonomy: String): Sample =
+  private def sourceSurfaceSample(id: String, taxonomy: String): Sample =
+    val reviewGroup = s"source:${sourceCandidateById(id).reviewGroup}"
     Sample(
       id,
       id,
@@ -302,14 +309,32 @@ object AuthoritySurfaceLedger:
         (obs.sample.id.startsWith("natural-") || obs.sample.id.startsWith("source-")) &&
           obs.release == "SupportedLocal"
       )
+    val supportedSummary =
+      if naturalSupported.isEmpty then "none found"
+      else
+        naturalSupported
+          .groupBy(_.taxonomy)
+          .toList
+          .sortBy(_._1)
+          .map { case (taxonomy, rows) => s"$taxonomy=${rows.size}" }
+          .mkString(", ")
+    val sourceFixtureSummary =
+      if sourceSurfaceFixtures.isEmpty then "none"
+      else
+        sourceSurfaceFixtures
+          .groupBy(_.taxonomy)
+          .toList
+          .sortBy(_._1)
+          .map { case (taxonomy, rows) => s"$taxonomy=${rows.size}" }
+          .mkString(", ")
     val lines =
       List(
         "# Strategic Claim Authority Surface Ledger",
         "",
         summary(observations),
-        s"Surface SupportedLocal fixtures: ${if naturalSupported.isEmpty then "none found" else naturalSupported.map(_.sample.id).mkString(", ")}",
+        s"Surface SupportedLocal fixtures: ${naturalSupported.size} rows ($supportedSummary)",
         s"Candidate screen rows: ${observations.count(_.sample.id.startsWith("screen-"))}",
-        s"Source surface fixtures: ${if sourceSurfaceFixtureIds.isEmpty then "none" else sourceSurfaceFixtureIds.mkString(", ")}",
+        s"Source surface fixtures: ${sourceSurfaceFixtureIds.size} fixed rows ($sourceFixtureSummary)",
         "Engine-backed source admission: SourceReview only",
         ""
       ) ++
@@ -358,17 +383,32 @@ object AuthoritySurfaceLedger:
       if sample.softenOwnerPath then softenMainClaimOwnerPath(inputs)
       else inputs
     val ranked = QuestionFirstCommentaryPlanner.plan(planningCtx, effectiveInputs, truthContract)
-    val rawMoveReview =
-      moveReviewNarrative(
-        MoveReviewCompressionPolicy.buildSlotsOrFallbackFromPlannerRuntime(
-          ctx = planningCtx,
-          inputs = effectiveInputs,
-          rankedPlans = ranked,
-          strategyPack = Some(pack),
-          truthContract = truthContract
-        )
+    val mainClaimPacket =
+      effectiveInputs.mainBundle.flatMap(_.mainClaim).flatMap(_.packet)
+    val proofTrace =
+      mainClaimPacket.map(_.proofTrace)
+    val sourceOwnerMismatch =
+      ranked.primary.exists(plan =>
+        sample.reviewGroup == "source:A:break_prevention" &&
+          !(plan.plannerOwnerKind == PlannerOwnerKind.ForcingDefense &&
+            mainClaimPacket.exists(_.proofSource == "counterplay_axis_suppression") &&
+            proofTrace.flatMap(_.contractId).contains("runtime:neutralize_key_break"))
       )
-    val rawPrimary = ranked.primary.map(_.claim).getOrElse("-")
+    val rawMoveReview =
+      if sourceOwnerMismatch then "-"
+      else
+        moveReviewNarrative(
+          MoveReviewCompressionPolicy.buildSlotsOrFallbackFromPlannerRuntime(
+            ctx = planningCtx,
+            inputs = effectiveInputs,
+            rankedPlans = ranked,
+            strategyPack = Some(pack),
+            truthContract = truthContract
+          )
+        )
+    val rawPrimary =
+      if sourceOwnerMismatch then "-"
+      else ranked.primary.map(_.claim).getOrElse("-")
     val primary =
       if sample.softenOwnerPath then softenLocalReading(rawPrimary)
       else rawPrimary
@@ -377,12 +417,8 @@ object AuthoritySurfaceLedger:
       else rawMoveReview
     val baselineRelease =
       Option.when(sample.tacticalContract)(strategicBaselineRelease(sample, planningCtx, pack)).flatten
-    val mainClaimPacket =
-      effectiveInputs.mainBundle.flatMap(_.mainClaim).flatMap(_.packet)
-    val proofTrace =
-      mainClaimPacket.map(_.proofTrace)
     val ownerDisplaySource =
-      ranked.primary.map { plan =>
+      Option.unless(sourceOwnerMismatch)(ranked.primary).flatten.map { plan =>
         if proofTrace.flatMap(_.contractId).exists(id =>
             id == "runtime:neutralize_key_break" || id == "runtime:counterplay_restraint"
           )
@@ -392,7 +428,7 @@ object AuthoritySurfaceLedger:
       }
     Observation(
       sample = sample,
-      release = releaseLabel(sample, ranked, primary, moveReview, baselineRelease),
+      release = releaseLabel(sample, ranked, primary, moveReview, baselineRelease, sourceOwnerMismatch),
       taxonomy = sample.taxonomy,
       plannerOwner = ranked.primary
         .zip(ownerDisplaySource)
@@ -1093,6 +1129,49 @@ object AuthoritySurfaceLedger:
           )
       ),
       SceneFixture(
+        id = "source-kramnik-anand-2001-iqp-opening-inducement",
+        label = "Kramnik-Anand 2001 exact opening IQP inducement source row",
+        fen = "rnbqkb1r/1p3ppp/p3pn2/2p5/3P4/1B2PN2/PP3PPP/RNBQ1RK1 b kq - 1 7",
+        phase = "opening",
+        ply = 14,
+        scoreCp = -28,
+        pvMoves = List("c5d4", "e3d4", "b8c6", "b1c3", "f8e7", "c1g5", "e8g8", "d1d2"),
+        expectedTags = List("source", "iqp_inducement"),
+        note = "Copied from SourceReview exact opening IQP inducement admission after board/PV witness validation.",
+        playedUci = Some("c5d4")
+      ),
+      SceneFixture(
+        id = "source-bad-piece-liquidation-pilot",
+        label = "Controlled exact BadPieceLiquidation source pilot",
+        fen = "5b2/4k1pp/8/8/3P4/1R2P3/P4PPP/2B3K1 w - - 0 1",
+        phase = "endgame",
+        ply = 1,
+        scoreCp = 38,
+        pvMoves = List("c1a3", "e7f7", "a3f8", "f7f8"),
+        expectedTags = List("source", "bad_piece_liquidation"),
+        note = "Controlled SourceReview pilot with engine-backed same-branch BadPieceLiquidation admission.",
+        playedUci = Some("c1a3")
+      ),
+      SceneFixture(
+        id = "source-maderna-palermo-1955-central-break-timing",
+        label = "Maderna-Palermo 1955 exact central_break_timing source row",
+        fen = "nrb1r1k1/1pqn1pbp/p2p2p1/P1pP4/2N1PP2/2N2B2/1P4PP/R1BQR1K1 w - - 3 17",
+        phase = "middlegame",
+        ply = 33,
+        scoreCp = 82,
+        pvMoves = List("e4e5", "d6e5", "f4e5", "d7e5", "c4e5"),
+        expectedTags = List("source", "central_break_timing"),
+        note = "Copied from SourceReview exact central-break timing admission after board/PV witness validation.",
+        playedUci = Some("e4e5"),
+        extraVariations = List(
+          VariationLine(
+            List("c1e3", "b7b5", "a5b6"),
+            scoreCp = 36,
+            depth = 16
+          )
+        )
+      ),
+      SceneFixture(
         id = "source-lokvenc-czerniak-1952-b6-b5-break-prevention",
         label = "Lokvenc-Czerniak 1952 exact break-prevention source row",
         fen = "r1bqr1k1/p4pbp/np1p1np1/2pP4/4P3/2N2N2/PPQ1BPPP/R1B1R1K1 w - - 2 12",
@@ -1589,11 +1668,14 @@ object AuthoritySurfaceLedger:
       ranked: RankedQuestionPlans,
       primary: String,
       moveReview: String,
-      baselineRelease: Option[String]
+      baselineRelease: Option[String],
+      sourceOwnerMismatch: Boolean
   ): String =
      ranked.primary match
       case Some(_) if sample.softenOwnerPath && (primary.startsWith("A local reading") || primary.startsWith("A key idea")) =>
         "SupportedLocal"
+      case Some(_) if sourceOwnerMismatch =>
+        "Suppressed"
       case Some(plan) if positiveRelease(plan).nonEmpty =>
         positiveRelease(plan).get
       case Some(plan) =>

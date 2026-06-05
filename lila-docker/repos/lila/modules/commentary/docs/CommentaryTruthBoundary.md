@@ -11,12 +11,11 @@ surface must become less specific or fail closed.
 
 ## Signoff Surface
 
-MoveReview is the only user-facing commentary truth surface. Legacy Chronicle and Active-note
-components (including active bridge planning, thread selection, strategic-note composition,
-chronicle compression, and related test/tooling helpers) have been completely removed
-signoff inputs. Chronicle fallback semantics have been removed. Released truth paths consume
-only the current MoveReview runtime models and proof-contract projections.
-Active-note payload fields, active branch dossiers, and `GameArc`/`GameArcMoment` models have been completely removed.
+MoveReview is the only user-facing commentary truth surface. Removed
+Chronicle/Active surfaces follow the canonical boundary in
+`CommentaryPipelineSSOT.md`: they are excluded from signoff inputs, Chronicle
+fallback semantics are gone, and released truth paths consume only the current
+MoveReview runtime models and proof-contract projections.
 
 Future `SupportedLocal` or scoped-takeaway expansion must enter through
 MoveReview first and must preserve the audited payload contract.
@@ -282,11 +281,13 @@ local-bind shells, tactical truth modes, uncertified contracts, and raw
 hypothesis prose do not certify this row.
 IQP inducement public truth is a bounded structure-transition statement. Legal
 FEN/PV replay must show that the reviewed move or checked prefix creates a new
-opponent isolated central pawn, and the packet must carry the induced target
-term such as `after_isolated:<square>` or `isolated_pawn:<square>`. The public
-`IQP target` row may name only that square; generic IQP wording, source
-precedent, or an existing isolated pawn without the induced transition is not
-truth for this row.
+opponent isolated central pawn, and the packet must carry
+`PlayerFacingExactSliceProof.IqpInducement(targetSquare, lineMoves)` plus the
+induced target terms `after_isolated:<square>` and `isolated_pawn:<square>`,
+the `central_isolated_pawn` marker, and the checked line moves. The public `IQP target`
+row may name only that square; generic IQP wording, source precedent, an
+existing isolated pawn without the induced transition, or transition terms
+without the typed exact-slice proof are not truth for this row.
 Simplification-window public truth is limited to a replayed exchange-square
 continuation. Legal branch/persistence truth must already satisfy the existing
 `simplification_window` packet contract, and the public row also requires an
@@ -516,25 +517,27 @@ inferring it from the engine top line.
 The MoveReview `Defender trade`, `Bad piece trade`, and `Queen trade` summary
 rows consume those admitted packets only. Defender/bad-piece rows require the
 structure-transition witness, proven same-branch state, and stable persistence
-to satisfy the proof contract and to carry the analyzer branch fact terms
+to satisfy the proof contract, plus matching typed exact-slice proof and
+analyzer branch fact terms
 (`defender_trade_branch` with defender, exchange,
 and defended-target terms; `bad_piece_liquidation_branch` with bad-piece and
 exchange terms). Policy-built defender/bad-piece packets additionally carry
 typed exact-slice proof payloads (`DefenderTrade` or `BadPieceLiquidation`),
 and the row builder validates those payloads against packet source/family and
 witness terms before using their squares. Packets without the matching typed
-exact proof do not project public exchange-ownership rows; exact-proof/term
-mismatches do not fall back to generic exchange ownership. Queen-trade rows require the typed
+exact proof fail supported-local exchange-ownership admission and do not project
+public exchange-ownership rows; exact-proof/term mismatches do not fall back to
+generic exchange ownership. Queen-trade rows require the typed
 `PlayerFacingExactSliceProof.QueenTradeShield` to match the packet and mirror
 every typed line move in packet witness terms. These rows cannot certify truth
 from raw exchange labels, generic branch labels, term-mismatched packet
 evidence, malformed square-prefixed branch terms, or tactical truth-mode
 packets. Defender/bad-piece row wording may repeat only the parsed exchange,
 defender/target, and bad-piece squares from the typed proof terms.
-The shared `RelationWitness` read-model is not a new truth shortcut. Overload,
-deflection, discovered-attack, double-check, back-rank mate, mate-net, Greek gift, fork, hanging-piece, x-ray, clearance, battery, pin, skewer, interference, and decoy relation observations may
-support selector ranking or practical prose only after legal replay over the
-current FEN proves the local attack/defense relation. Semantic relation
+The shared `RelationWitness` read-model is not a new truth shortcut. The
+implemented relation observations inventoried in `CommentaryPipelineSSOT.md`
+may support selector ranking or practical prose only after legal replay over
+the current FEN proves the local attack/defense relation. Semantic relation
 producers share a context-owned relation-witness list assembled from the
 six-ply standard top-PV replay plus the dedicated twelve-ply/probe-PV
 draw-resource exception, so relation support rows are not produced from
@@ -585,6 +588,10 @@ detector labels, unvalidated probe lines, unbound probe candidate moves, and
 helper notation remain PV-only support and are not truth admission. A validated
 root `ProbeResult` reply PV can feed this draw-resource witness only when its
 FEN and probed/candidate move bind to the reviewed position and played move. The
+top-PV version of those draw-resource witnesses may also project bounded
+MoveReview summary support rows (`Stalemate resource` or `Perpetual check`);
+validated probe reply PVs remain relation metadata unless another product path
+consumes them. The
 `trapped_piece` relation is public only through its analyzer-owned board
 witness: the reviewed move must legally replay, the moved attacker must attack a
 valid explicit target, the target must be a higher-value enemy non-pawn/non-king
@@ -788,21 +795,10 @@ catalog fallback over the selected relation's own focus at the public surface.
 It also prioritizes the representative relation's source ref, semantic fact, and
 required witness fact before evidence truncation, keeping the catalog admission
 triple intact while other support refs remain lower priority.
-Catalog-order fallback is closed for public relation rows: a carrier with no
-selected `relationKind` remains unprojected even if it carries exactly one
-matching relation source/semantic/witness triple and non-empty
-`relationFocusSquares`. A named relation whose required catalog evidence does
-not match also remains unprojected.
-Raw top-level `strategyPack.strategicIdeas` are stripped from final
-user-facing payloads and cannot serve as a parallel relation-truth channel.
-The public `strategic_relation` token is catalog-bound: an uncataloged relation
-key is not relation truth even if it has the right wire-key shape.
-Backend sanitization preserves that token only on `advancedRows`, the sole
-builder-owned relation surface lane; stale summary, probe, or author-row
-relation authorities are dropped rather than reinterpreted.
-The analyse frontend decoder enforces the same constraint when decoding cached
-or legacy payloads and mirrors the full implemented backend relation catalog,
-so frontend code neither widens nor narrows backend relation authority.
+The same selected-`relationKind`, catalog-evidence, raw-carrier stripping, and
+`advancedRows`-only lane rules apply at backend sanitization and cached/legacy
+frontend decoding, so frontend code neither widens nor narrows backend relation
+authority.
 Move-local owner witnesses follow that same rule: defender trade, bad-piece
 liquidation, and IQP inducement fail closed when the reviewed played move is
 missing, even if the top engine line legally replays.

@@ -86,7 +86,7 @@ private[commentary] object ClaimAuthorityResolver:
       plan: QuestionPlan
   ): Option[ClaimAuthorityDecision] =
     shouldTacticalVetoPlan(ctx, inputs, truthContract, plan)
-      .orElse(decideSupportedMoveDelta(inputs, plan))
+      .orElse(decideSupportedMoveDelta(ctx, inputs, truthContract, plan))
       .orElse(decideSupportedNeutralizeKeyBreakTiming(ctx, inputs, truthContract, plan))
 
   def supportedLocalNeutralizeKeyBreakTimingDecision(
@@ -185,9 +185,9 @@ private[commentary] object ClaimAuthorityResolver:
       plan: QuestionPlan
   ): Option[ClaimAuthorityDecision] =
     val tacticalReasons = tacticalVetoReasons(ctx, inputs, truthContract)
-    Option.when(tacticalReasons.nonEmpty && isSupportedPositionProbePlan(plan)) {
-      ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, tacticalReasons)
-    }
+    if tacticalReasons.nonEmpty && isSupportedPositionProbePlan(plan) then
+      Some(ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, tacticalReasons))
+    else None
 
   def supportedLocalSurface(raw: String): String =
     val rendered =
@@ -203,39 +203,26 @@ private[commentary] object ClaimAuthorityResolver:
   ): List[String] =
     if allowSoftVeto(ctx, inputs, truthContract) then Nil
     else
-      val missingContextReasons =
-        List(
-          Option.when(ctx.isEmpty)("tactical_context_missing"),
-          Option.when(truthContract.isEmpty)("truth_contract_missing")
-        ).flatten
-      val contractReasons =
-        truthContract.toList.flatMap { contract =>
-          List(
-            Option.when(contract.truthClass == DecisiveTruthClass.Blunder)("truth_contract_blunder"),
-            Option.when(contract.truthClass == DecisiveTruthClass.MissedWin)("truth_contract_missed_win"),
-            Option.when(contract.reasonFamily == DecisiveReasonKind.TacticalRefutation && contract.isBad)(
-              "truth_contract_tactical_refutation"
-            ),
-            Option.when(contract.failureMode == FailureInterpretationMode.TacticalRefutation)(
-              "truth_contract_tactical_failure_mode"
-            )
-          ).flatten
-        }
-      val inputReasons =
-        List(
-          Option.when(inputs.truthMode == PlayerFacingTruthMode.Tactical)("planner_truth_mode_tactical"),
-          Option.when(inputs.mainBundle.flatMap(_.mainClaim).exists(_.mode == PlayerFacingTruthMode.Tactical))(
-            "main_claim_tactical"
-          )
-        ).flatten
-      val ctxReasons =
-        ctx.toList.flatMap { narrativeCtx =>
-          val tactical = TacticalTensionPolicy.evaluate(narrativeCtx, truthContract)
-          List(
-            Option.when(tactical.severeCounterfactual)("context_severe_counterfactual")
-          ).flatten
-        }
-      (missingContextReasons ++ contractReasons ++ inputReasons ++ ctxReasons).distinct
+      val reasons = List.newBuilder[String]
+      if ctx.isEmpty then
+        reasons += "tactical_context_missing"
+        if truthContract.isEmpty then reasons += "truth_contract_missing"
+      truthContract.foreach { contract =>
+        if contract.truthClass == DecisiveTruthClass.Blunder then reasons += "truth_contract_blunder"
+        if contract.truthClass == DecisiveTruthClass.MissedWin then reasons += "truth_contract_missed_win"
+        if contract.reasonFamily == DecisiveReasonKind.TacticalRefutation && contract.isBad then
+          reasons += "truth_contract_tactical_refutation"
+        if contract.failureMode == FailureInterpretationMode.TacticalRefutation then
+          reasons += "truth_contract_tactical_failure_mode"
+      }
+      if inputs.truthMode == PlayerFacingTruthMode.Tactical then reasons += "planner_truth_mode_tactical"
+      if inputs.mainBundle.flatMap(_.mainClaim).exists(_.mode == PlayerFacingTruthMode.Tactical) then
+        reasons += "main_claim_tactical"
+      ctx.foreach { narrativeCtx =>
+        val tactical = TacticalTensionPolicy.evaluate(narrativeCtx, truthContract)
+        if tactical.severeCounterfactual then reasons += "context_severe_counterfactual"
+      }
+      reasons.result().distinct
 
   private def allowSoftVeto(
       ctx: Option[NarrativeContext],
@@ -272,23 +259,16 @@ private[commentary] object ClaimAuthorityResolver:
         false
 
   private def supportsLocalPositionProbe(packet: PlayerFacingClaimPacket): Boolean =
-    packet.scope == PlayerFacingPacketScope.PositionLocal &&
-      packet.fallbackMode == PlayerFacingClaimFallbackMode.WeakMain &&
-      packet.suppressionReasons.isEmpty &&
-      packet.releaseRisks.isEmpty &&
-      ProofContractRules.supportedLocalAdmissible(packet) &&
-      PlayerFacingClaimProof.allowsWeakMainClaim(packet)
+    supportsLocalPacket(packet, PlayerFacingPacketScope.PositionLocal)
 
   private def decideSupportedMoveDelta(
+      ctx: Option[NarrativeContext],
       inputs: QuestionPlannerInputs,
+      truthContract: Option[DecisiveTruthContract],
       plan: QuestionPlan
   ): Option[ClaimAuthorityDecision] =
     matchingMoveDeltaPacket(inputs, plan)
-      .filter(packet =>
-        supportsLocalMoveDelta(packet) &&
-          (!hasExactOwnerPath(packet) || exactMoveDeltaSupportedLocal(packet))
-      )
-      .map(_ => ClaimAuthorityDecision(ClaimAuthorityTier.SupportedLocal))
+      .map(packet => supportedLocalMoveDeltaPacketDecision(ctx, inputs, truthContract, packet))
 
   private def decideSupportedNeutralizeKeyBreakTiming(
       ctx: Option[NarrativeContext],
@@ -318,13 +298,25 @@ private[commentary] object ClaimAuthorityResolver:
 
   private def mainPathPackets(inputs: QuestionPlannerInputs): List[PlayerFacingClaimPacket] =
     inputs.mainBundle.toList.flatMap { bundle =>
-      List(bundle.mainClaim, bundle.lineScopedClaim).flatten.flatMap(_.packet)
+      (bundle.mainClaim.toList ++ bundle.lineScopedClaim.toList).flatMap(_.packet)
     }
 
   private def exactMoveDeltaSupportedLocal(packet: PlayerFacingClaimPacket): Boolean =
     val simplificationWindowFamily =
       ProofFamilyId.fromPlanKind(PlanTaxonomy.PlanKind.SimplificationWindow).map(_.wireKey).getOrElse(
         PlanTaxonomy.PlanKind.SimplificationWindow.id
+      )
+    val defenderTradeFamily =
+      ProofFamilyId.fromPlanKind(PlanTaxonomy.PlanKind.DefenderTrade).map(_.wireKey).getOrElse(
+        PlanTaxonomy.PlanKind.DefenderTrade.id
+      )
+    val queenTradeShieldFamily =
+      ProofFamilyId.fromPlanKind(PlanTaxonomy.PlanKind.QueenTradeShield).map(_.wireKey).getOrElse(
+        PlanTaxonomy.PlanKind.QueenTradeShield.id
+      )
+    val badPieceLiquidationFamily =
+      ProofFamilyId.fromPlanKind(PlanTaxonomy.PlanKind.BadPieceLiquidation).map(_.wireKey).getOrElse(
+        PlanTaxonomy.PlanKind.BadPieceLiquidation.id
       )
     (packet.proofSource == ProofSourceId.CounterplayAxisSuppression.wireKey &&
       packet.proofFamily == ProofFamilyId.NeutralizeKeyBreak.wireKey) ||
@@ -333,21 +325,30 @@ private[commentary] object ClaimAuthorityResolver:
       (packet.proofSource == ProofSourceId.LocalFileEntryBind.wireKey &&
         packet.proofFamily == ProofFamilyId.HalfOpenFilePressure.wireKey) ||
       (packet.proofSource == simplificationWindowFamily &&
-        packet.proofFamily == simplificationWindowFamily)
+        packet.proofFamily == simplificationWindowFamily) ||
+      (packet.proofSource == defenderTradeFamily &&
+        packet.proofFamily == defenderTradeFamily) ||
+      (packet.proofSource == queenTradeShieldFamily &&
+        packet.proofFamily == queenTradeShieldFamily) ||
+      (packet.proofSource == badPieceLiquidationFamily &&
+        packet.proofFamily == badPieceLiquidationFamily)
 
   private def matchingMoveDeltaPacket(
       inputs: QuestionPlannerInputs,
       plan: QuestionPlan
   ): Option[PlayerFacingClaimPacket] =
-    Option.when(plan.plannerOwnerKind == PlannerOwnerKind.MoveDelta) {
+    if plan.plannerOwnerKind == PlannerOwnerKind.MoveDelta then
       inputs.mainBundle.flatMap(_.mainClaim).filter(claim =>
         claim.scope == PlayerFacingClaimScope.MoveLocal &&
           claim.sourceKind == plan.plannerSource
       ).flatMap(_.packet).filter(ProofContractRules.supportedLocalAdmissible)
-    }.flatten
+    else None
 
   private def supportsLocalMoveDelta(packet: PlayerFacingClaimPacket): Boolean =
-    packet.scope == PlayerFacingPacketScope.MoveLocal &&
+    supportsLocalPacket(packet, PlayerFacingPacketScope.MoveLocal)
+
+  private def supportsLocalPacket(packet: PlayerFacingClaimPacket, scope: PlayerFacingPacketScope): Boolean =
+    packet.scope == scope &&
       packet.fallbackMode == PlayerFacingClaimFallbackMode.WeakMain &&
       packet.suppressionReasons.isEmpty &&
       packet.releaseRisks.isEmpty &&

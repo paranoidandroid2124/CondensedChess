@@ -76,6 +76,7 @@ private[commentary] object PlayerFacingExactSliceProof:
       breakToken: String
   ) extends PlayerFacingExactSliceProof
   final case class OutpostOccupation(pieceRole: String, square: String) extends PlayerFacingExactSliceProof
+  final case class IqpInducement(targetSquare: String, lineMoves: List[String]) extends PlayerFacingExactSliceProof
 
 private[commentary] object PlayerFacingExactSliceProofFacts:
   final case class Path(proofSource: String, proofFamily: String):
@@ -117,6 +118,8 @@ private[commentary] object PlayerFacingExactSliceProofFacts:
       case PlayerFacingExactSliceProof.OutpostOccupation(_, _) =>
         val family = proofFamily(PlanTaxonomy.PlanKind.OutpostEntrenchment)
         Path(family, family)
+      case PlayerFacingExactSliceProof.IqpInducement(_, _) =>
+        Path(ProofSourceId.IQPInducementProbe.wireKey, proofFamily(PlanTaxonomy.PlanKind.IQPInducement))
 
   def matchesPacket(
       packet: PlayerFacingClaimPacket,
@@ -178,6 +181,11 @@ private[commentary] object PlayerFacingExactSliceProofFacts:
       case PlayerFacingExactSliceProof.OutpostOccupation(pieceRole, square) =>
         normalize(pieceRole) == "knight" &&
           squareKey(square)
+      case PlayerFacingExactSliceProof.IqpInducement(targetSquare, lineMoves) =>
+        squareKey(targetSquare) &&
+          lineMoves.nonEmpty &&
+          lineMoves.size <= 4 &&
+          lineMoves.forall(uciMove)
 
   def targetSquare(proof: PlayerFacingExactSliceProof): Option[String] =
     proof match
@@ -191,6 +199,8 @@ private[commentary] object PlayerFacingExactSliceProofFacts:
         Some(normalize(targetSquare)).filter(squareKey)
       case PlayerFacingExactSliceProof.OutpostOccupation(_, square) =>
         Some(normalize(square)).filter(squareKey)
+      case PlayerFacingExactSliceProof.IqpInducement(targetSquare, _) =>
+        Some(normalize(targetSquare)).filter(squareKey)
       case PlayerFacingExactSliceProof.DefenderTrade(_, _, targetSquare) =>
         Some(normalize(targetSquare)).filter(squareKey)
       case PlayerFacingExactSliceProof.BadPieceLiquidation(_, exchangeSquare) =>
@@ -260,6 +270,15 @@ private[commentary] object PlayerFacingExactSliceProofFacts:
         terms.contains(s"outpost:$target") &&
           terms.contains(s"piece:$role") &&
           terms.contains(s"outpost_occupation:$role:$target")
+      case PlayerFacingExactSliceProof.IqpInducement(targetSquare, lineMoves) =>
+        val target = normalize(targetSquare)
+        val moves = lineMoves.map(normalize).filter(uciMove)
+        squareKey(target) &&
+          moves.nonEmpty &&
+          terms.contains(s"after_isolated:$target") &&
+          terms.contains(s"isolated_pawn:$target") &&
+          terms.contains("central_isolated_pawn") &&
+          moves.forall(move => terms.contains(move) || terms.contains(s"pv:$move"))
 
   private def packetTerms(packet: PlayerFacingClaimPacket): Set[String] =
     (

@@ -2,6 +2,7 @@ package lila.commentary
 
 import lila.commentary.analysis.PlanEvidenceEvaluator
 import lila.commentary.analysis.PlanEvidenceEvaluator.EvaluatedPlan
+import lila.commentary.analysis.MoveReviewPlayerPayloadBuilder
 import lila.commentary.analysis.MoveReviewSupportedLocalSurfaceRows
 import lila.commentary.analysis.OpeningFamilyCatalog
 import lila.commentary.analysis.UserFacingSignalSanitizer
@@ -16,9 +17,6 @@ object UserFacingPayloadSanitizer:
   private val CurrentMoveReviewPlayerSurfaceSchema = "chesstory.move_review.player_surface.v2"
   private val MoveReviewPlayerSurfaceSchemas =
     Set("chesstory.move_review.player_surface.v1", CurrentMoveReviewPlayerSurfaceSchema)
-  private val MoveReviewLedgerLineSources = Set("probe", "decision_compare", "variation", "authoring")
-  private val StrategicRelationTokens =
-    RelationObservationCatalog.ImplementedKinds
 
   def sanitize(response: CommentResponse): CommentResponse =
     sanitize(response, admittedPlans = Nil)
@@ -109,18 +107,20 @@ object UserFacingPayloadSanitizer:
       pack.plans
         .filter(plan => allowedPlanNames.contains(plan.planName.trim.toLowerCase))
         .map(sanitizeSidePlan)
-    Option.when(sanitizedPlans.nonEmpty) {
-      pack.copy(
-        plans = sanitizedPlans,
-        pieceRoutes = pack.pieceRoutes.map(sanitizePieceRoute),
-        pieceMoveRefs = pack.pieceMoveRefs.map(sanitizePieceMoveRef),
-        directionalTargets = pack.directionalTargets.map(sanitizeDirectionalTarget),
-        strategicIdeas = Nil,
-        longTermFocus = cleanPublicSupportList(pack.longTermFocus),
-        evidence = cleanPublicSupportList(pack.evidence),
-        signalDigest = pack.signalDigest.map(sanitizeSignalDigest)
+    if sanitizedPlans.nonEmpty then
+      Some(
+        pack.copy(
+          plans = sanitizedPlans,
+          pieceRoutes = pack.pieceRoutes.map(sanitizePieceRoute),
+          pieceMoveRefs = pack.pieceMoveRefs.map(sanitizePieceMoveRef),
+          directionalTargets = pack.directionalTargets.map(sanitizeDirectionalTarget),
+          strategicIdeas = Nil,
+          longTermFocus = cleanPublicSupportList(pack.longTermFocus),
+          evidence = cleanPublicSupportList(pack.evidence),
+          signalDigest = pack.signalDigest.map(sanitizeSignalDigest)
+        )
       )
-    }
+    else None
 
   private def sanitizeSidePlan(plan: StrategySidePlan): StrategySidePlan =
     plan.copy(
@@ -150,7 +150,12 @@ object UserFacingPayloadSanitizer:
     )
 
   private def cleanPublicSupportList(values: List[String]): List[String] =
-    cleanList(values.filterNot(relationSupportLeak)).filterNot(relationSupportLeak)
+    values.flatMap { value =>
+      if relationSupportLeak(value) then None
+      else
+        val cleaned = clean(value).trim
+        if cleaned.nonEmpty && !relationSupportLeak(cleaned) then Some(cleaned) else None
+    }
 
   private def relationSupportLeak(value: String): Boolean =
     value.trim.toLowerCase.startsWith("deferred_") ||
@@ -205,38 +210,39 @@ object UserFacingPayloadSanitizer:
   private def sanitizeMoveReviewLedger(ledger: MoveReviewStrategicLedger): Option[MoveReviewStrategicLedger] =
     val motifKey = clean(ledger.motifKey)
     val stageKey = clean(ledger.stageKey)
-    for
-      _ <- Option.when(ledger.schema == MoveReviewLedgerSchema)(())
-      _ <- Option.when(validSurfaceAuthorityKey(motifKey) && validSurfaceAuthorityKey(stageKey))(())
-      motifLabel <- cleanOpt(Some(ledger.motifLabel))
-      stageLabel <- cleanOpt(Some(ledger.stageLabel))
-    yield
-      ledger.copy(
-        schema = MoveReviewLedgerSchema,
-        motifKey = motifKey,
-        motifLabel = motifLabel,
-        stageKey = stageKey,
-        stageLabel = stageLabel,
-        stageReason = cleanOpt(ledger.stageReason),
-        prerequisites = cleanPublicSupportList(ledger.prerequisites),
-        conversionTrigger = cleanOpt(ledger.conversionTrigger),
-        primaryLine = ledger.primaryLine.flatMap(sanitizeLedgerLine),
-        resourceLine = ledger.resourceLine.flatMap(sanitizeLedgerLine)
-      )
+    if ledger.schema != MoveReviewLedgerSchema || !validSurfaceAuthorityKey(motifKey) || !validSurfaceAuthorityKey(stageKey)
+    then None
+    else
+      for
+        motifLabel <- cleanOpt(Some(ledger.motifLabel))
+        stageLabel <- cleanOpt(Some(ledger.stageLabel))
+      yield
+        ledger.copy(
+          schema = MoveReviewLedgerSchema,
+          motifKey = motifKey,
+          motifLabel = motifLabel,
+          stageKey = stageKey,
+          stageLabel = stageLabel,
+          stageReason = cleanOpt(ledger.stageReason),
+          prerequisites = cleanPublicSupportList(ledger.prerequisites),
+          conversionTrigger = cleanOpt(ledger.conversionTrigger),
+          primaryLine = ledger.primaryLine.flatMap(sanitizeLedgerLine),
+          resourceLine = ledger.resourceLine.flatMap(sanitizeLedgerLine)
+        )
 
   private def sanitizeLedgerLine(line: MoveReviewLedgerLine): Option[MoveReviewLedgerLine] =
     val source = clean(line.source)
     val sanMoves = cleanList(line.sanMoves)
-    for
-      title <- cleanOpt(Some(line.title))
-      _ <- Option.when(MoveReviewLedgerLineSources.contains(source) && sanMoves.nonEmpty)(())
-    yield
-      line.copy(
-        title = title,
-        sanMoves = sanMoves,
-        note = cleanOpt(line.note),
-        source = source
-      )
+    if !MoveReviewPlayerPayloadBuilder.MoveReviewLedgerLineSources.contains(source) || sanMoves.isEmpty then None
+    else
+      for title <- cleanOpt(Some(line.title))
+      yield
+        line.copy(
+          title = title,
+          sanMoves = sanMoves,
+          note = cleanOpt(line.note),
+          source = source
+        )
 
   private def sanitizeMoveReviewExplanation(explanation: MoveReviewExplanation): MoveReviewExplanation =
     explanation.copy(
@@ -353,7 +359,8 @@ object UserFacingPayloadSanitizer:
               raw.openingBook.flatMap(MoveReviewOpeningBookMetadata.sanitize)
             else None
         )
-      Option.when(validSurfaceAuthority(sanitized, allowStrategicRelation))(sanitized)
+      if validSurfaceAuthority(sanitized, allowStrategicRelation) then Some(sanitized)
+      else None
     }
 
   private def validSurfaceAuthority(
@@ -406,7 +413,7 @@ object UserFacingPayloadSanitizer:
     key.matches("""[a-z][a-z0-9_]{1,40}""")
 
   private def validStrategicRelationToken(token: String): Boolean =
-    validSurfaceAuthorityKey(token) && StrategicRelationTokens.contains(token)
+    validSurfaceAuthorityKey(token) && RelationObservationCatalog.isImplementedKind(token)
 
   private def validSurfaceAuthorityTarget(target: String): Boolean =
     target.matches("""[a-h][1-8]""")
@@ -438,12 +445,12 @@ object UserFacingPayloadSanitizer:
           bestTarget = clean(raw.bestTarget),
           bestTargetKind = clean(raw.bestTargetKind)
         )
-      Option.when(
-        validSurfaceAuthorityTarget(sanitized.chosenTarget) &&
+      if validSurfaceAuthorityTarget(sanitized.chosenTarget) &&
           validSurfaceAuthorityTarget(sanitized.bestTarget) &&
           validSurfaceAuthorityKey(sanitized.chosenTargetKind) &&
           validSurfaceAuthorityKey(sanitized.bestTargetKind)
-      )(sanitized)
+      then Some(sanitized)
+      else None
     }
 
   private def sanitizeMoveReviewPlayerAuthorRow(

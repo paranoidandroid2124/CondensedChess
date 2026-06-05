@@ -29,10 +29,7 @@ object OpeningExplorerClient:
       case (Some(static), None) => Some(static)
       case (None, refOpt)       => refOpt
 
-/**
- * P3: Client for Lichess Opening Explorer API (Masters Database).
- * Provides historical context and representative games for the narrative.
- */
+/** Client for Lichess Opening Explorer API masters data. */
 final class OpeningExplorerClient(
     ws: StandaloneWSClient,
     explorerBaseConfig: Option[String] = None,

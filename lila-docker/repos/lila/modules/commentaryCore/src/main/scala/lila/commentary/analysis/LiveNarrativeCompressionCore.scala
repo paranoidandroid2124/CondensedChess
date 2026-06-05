@@ -359,12 +359,10 @@ private[commentary] object LiveNarrativeCompressionCore:
       val evidenceHook = third.filter(LineScopedCitation.hasConcreteSanLine)
       val tension = third.filterNot(LineScopedCitation.hasConcreteSanLine)
       val paragraphPlan =
-        List(
-          Some("p1=claim"),
-          supportPrimary.map(_ => "p2=support"),
+        "p1=claim" :: supportPrimary.map(_ => "p2=support").toList :::
           evidenceHook.map(_ => "p3=cited_line")
             .orElse(tension.map(_ => "p3=practical_nuance"))
-        ).flatten
+            .toList
       MoveReviewPolishSlots(
         lens = lens,
         claim = claim,
@@ -374,7 +372,7 @@ private[commentary] object LiveNarrativeCompressionCore:
         evidenceHook = evidenceHook,
         coda = None,
         factGuardrails = evidenceHook.toList,
-        paragraphPlan = if paragraphPlan.nonEmpty then paragraphPlan else List("p1=claim")
+        paragraphPlan = paragraphPlan
       )
     }
 

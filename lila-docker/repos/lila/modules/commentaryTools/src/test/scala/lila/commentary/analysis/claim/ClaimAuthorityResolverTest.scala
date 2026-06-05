@@ -2,24 +2,39 @@ package lila.commentary.analysis.claim
 
 import lila.commentary.analysis.*
 import lila.commentary.analysis.semantic.StrategicObservationIds.{ ProofFamilyId, ProofSourceId }
+import lila.commentary.model.*
 import lila.commentary.model.authoring.AuthorQuestionKind
 import munit.FunSuite
 
 final class ClaimAuthorityResolverTest extends FunSuite:
 
-  private val Source = ProofSourceId.ExchangeForcingDelta.wireKey
+  private val Source = PlayerFacingTruthModePolicy.DefenderTradeProofSource
   private val Family = ProofFamilyId.fromPlanKind(PlanTaxonomy.PlanKind.DefenderTrade).get.wireKey
 
   test("move-delta SupportedLocal admission does not depend on matching prose") {
     val decision =
       ClaimAuthorityResolver.planAuthorityDecision(
-        ctx = None,
+        ctx = Some(baseContext),
         inputs = inputs(sourceKind = Source, claimText = "This removes a defender on the local branch."),
-        truthContract = None,
+        truthContract = Some(neutralTruthContract),
         plan = plan(plannerSource = Source, claim = "A different template says the trade changes the defender.")
       )
 
     assertEquals(decision.map(_.tier), Some(ClaimAuthorityTier.SupportedLocal), clue(decision))
+  }
+
+  test("move-delta SupportedLocal admission requires tactical-veto context") {
+    val decision =
+      ClaimAuthorityResolver.planAuthorityDecision(
+        ctx = None,
+        inputs = inputs(sourceKind = Source, claimText = "This removes a defender on the local branch."),
+        truthContract = None,
+        plan = plan(plannerSource = Source, claim = "This removes a defender on the local branch.")
+      )
+
+    assertEquals(decision.map(_.tier), Some(ClaimAuthorityTier.Suppressed), clue(decision))
+    assert(decision.exists(_.vetoReasons.contains("tactical_context_missing")), clue(decision))
+    assert(decision.exists(_.vetoReasons.contains("truth_contract_missing")), clue(decision))
   }
 
   test("move-delta SupportedLocal admission still requires the structured source to match") {
@@ -32,6 +47,24 @@ final class ClaimAuthorityResolverTest extends FunSuite:
       )
 
     assertEquals(decision, None)
+
+    val genericExchange =
+      ClaimAuthorityResolver.planAuthorityDecision(
+        ctx = None,
+        inputs =
+          inputs(
+            sourceKind = ProofSourceId.ExchangeForcingDelta.wireKey,
+            claimText = "This removes a defender on the local branch."
+          ),
+        truthContract = None,
+        plan =
+          plan(
+            plannerSource = ProofSourceId.ExchangeForcingDelta.wireKey,
+            claim = "This removes a defender on the local branch."
+          )
+      )
+
+    assertEquals(genericExchange, None)
   }
 
   private def inputs(sourceKind: String, claimText: String): QuestionPlannerInputs =
@@ -88,11 +121,59 @@ final class ClaimAuthorityResolverTest extends FunSuite:
       persistence = PlayerFacingClaimPersistence.Stable,
       proofPathWitness =
         PlayerFacingProofPathWitness(
-          ownerSeedTerms = List("defender_trade"),
+          ownerSeedTerms =
+            List("defender_trade_branch", "defender:c5", "exchange_square:d4", "defended_target:e5"),
           continuationTerms = List("trade_defender"),
-          structureTransitionTerms = List("defender_trade_branch", "defender:c5", "exchange_square:d4", "defended_target:e5")
+          structureTransitionTerms =
+            List("defender_trade_branch", "defender:c5", "exchange_square:d4", "defended_target:e5"),
+          exactSliceProof = Some(PlayerFacingExactSliceProof.DefenderTrade("c5", "d4", "e5"))
         ),
       fallbackMode = PlayerFacingClaimFallbackMode.WeakMain
+    )
+
+  private def baseContext: NarrativeContext =
+    NarrativeContext(
+      fen = "4k3/p7/8/8/8/8/7P/2R1K3 w - - 0 1",
+      header = ContextHeader("Middlegame", "Normal", "NarrowChoice", "Medium", "ExplainPlan"),
+      ply = 24,
+      playedMove = Some("c4d5"),
+      playedSan = Some("Nxd5"),
+      summary = NarrativeSummary("Exchange", None, "NarrowChoice", "Maintain", "0.00"),
+      threats = ThreatTable(Nil, Nil),
+      pawnPlay = PawnPlayTable(false, None, "Low", "Maintain", "Quiet", "Background", None, false, "quiet"),
+      plans = PlanTable(Nil, Nil),
+      delta = None,
+      phase = PhaseContext("Middlegame", "Balanced middlegame"),
+      candidates = Nil,
+      renderMode = NarrativeRenderMode.MoveReview
+    )
+
+  private def neutralTruthContract: DecisiveTruthContract =
+    DecisiveTruthContract(
+      playedMove = Some("c4d5"),
+      verifiedBestMove = Some("c4d5"),
+      truthClass = DecisiveTruthClass.Acceptable,
+      cpLoss = 0,
+      swingSeverity = 0,
+      reasonFamily = DecisiveReasonKind.QuietTechnicalMove,
+      allowConcreteBenchmark = false,
+      chosenMatchesBest = true,
+      compensationAllowed = false,
+      truthPhase = None,
+      ownershipRole = TruthOwnershipRole.NoneRole,
+      visibilityRole = TruthVisibilityRole.SupportingVisible,
+      surfaceMode = TruthSurfaceMode.Neutral,
+      exemplarRole = TruthExemplarRole.NonExemplar,
+      surfacedMoveOwnsTruth = false,
+      verifiedPayoffAnchor = None,
+      compensationProseAllowed = true,
+      benchmarkProseAllowed = false,
+      investmentTruthChainKey = None,
+      maintenanceExemplarCandidate = false,
+      failureMode = FailureInterpretationMode.NoClearPlan,
+      failureIntentConfidence = 0.0,
+      failureIntentAnchor = None,
+      failureInterpretationAllowed = false
     )
 
   private def plan(plannerSource: String, claim: String): QuestionPlan =

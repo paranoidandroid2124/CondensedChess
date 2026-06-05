@@ -83,6 +83,60 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
       subplanId = plan.subplanId
     )
 
+  private def strategicPlan(
+      planId: String,
+      planName: String,
+      rank: Int = 1,
+      score: Double = 0.7,
+      risk: String = "risk",
+      refutation: Option[String] = None,
+      subplanId: Option[String] = None,
+      preconditions: List[String] = Nil,
+      executionSteps: List[String] = Nil,
+      failureModes: List[String] = Nil,
+      evidenceSources: List[String] = List("probe_backed:validated_support")
+  ): PlanHypothesis =
+    PlanHypothesis(
+      planId = planId,
+      planName = planName,
+      rank = rank,
+      score = score,
+      preconditions = preconditions,
+      executionSteps = executionSteps,
+      failureModes = failureModes,
+      viability = PlanViability(score, "medium", risk),
+      refutation = refutation,
+      subplanId = subplanId,
+      evidenceSources = evidenceSources
+    )
+
+  private def strategicExperiment(
+      planId: String,
+      themeL1: String = "piece_redeployment",
+      subplanId: Option[String] = None,
+      evidenceTier: String = "evidence_backed",
+      supportProbeCount: Int = 1,
+      refuteProbeCount: Int = 0,
+      bestReplyStable: Boolean = true,
+      futureSnapshotAligned: Boolean = true,
+      counterBreakNeutralized: Boolean = true,
+      moveOrderSensitive: Boolean = false,
+      experimentConfidence: Double = 0.8
+  ): StrategicPlanExperiment =
+    StrategicPlanExperiment(
+      planId = planId,
+      themeL1 = themeL1,
+      subplanId = subplanId,
+      evidenceTier = evidenceTier,
+      supportProbeCount = supportProbeCount,
+      refuteProbeCount = refuteProbeCount,
+      bestReplyStable = bestReplyStable,
+      futureSnapshotAligned = futureSnapshotAligned,
+      counterBreakNeutralized = counterBreakNeutralized,
+      moveOrderSensitive = moveOrderSensitive,
+      experimentConfidence = experimentConfidence
+    )
+
   private def probeBackedEvaluation(plan: PlanHypothesis): EvaluatedPlan =
     typedEvaluation(
       plan = plan,
@@ -102,6 +156,25 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
             provenanceClass = PlayerFacingClaimProvenanceClass.TranspositionAligned
           )
       )
+
+  private def responseWithSurface(surface: MoveReviewPlayerSurface): CommentResponse =
+    CommentResponse(
+      commentary = "Public payload",
+      concepts = Nil,
+      moveReviewPlayerSurface = Some(surface)
+    )
+
+  private def strategicResponse(
+      commentary: String,
+      plans: List[PlanHypothesis],
+      experiments: List[StrategicPlanExperiment] = Nil
+  ): CommentResponse =
+    CommentResponse(
+      commentary = commentary,
+      concepts = Nil,
+      mainStrategicPlans = plans,
+      strategicPlanExperiments = experiments
+    )
 
   test("sanitizes moveReview response across structured user-facing fields") {
     val response =
@@ -134,22 +207,20 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
           )
         ),
         mainStrategicPlans = List(
-          PlanHypothesis(
+          strategicPlan(
             planId = "PieceActivation",
             planName = "PlayableByPV plan",
-            rank = 1,
-            score = 0.7,
             preconditions = List("theme:piece_redeployment", "{seed}"),
             executionSteps = List("cash out through c-file pressure"),
             failureModes = List("probe evidence pending"),
-            viability = PlanViability(score = 0.7, label = "medium", risk = "return vector collapse"),
+            risk = "return vector collapse",
             refutation = Some("engine-coupled continuation fails"),
             subplanId = Some("rook_lift_scaffold"),
             evidenceSources = List("probe_backed:validated_support")
           )
         ),
         strategicPlanExperiments = List(
-          StrategicPlanExperiment(
+          strategicExperiment(
             planId = "PieceActivation",
             themeL1 = "piece_redeployment",
             subplanId = Some("rook_lift_scaffold"),
@@ -410,36 +481,18 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
 
   test("does not admit strategic plans from probe-backed marker alone") {
     val markerOnlyPlan =
-      PlanHypothesis(
+      strategicPlan(
         planId = "marker_only",
         planName = "Marker-only plan",
-        rank = 1,
-        score = 0.7,
-        preconditions = Nil,
-        executionSteps = Nil,
-        failureModes = Nil,
-        viability = PlanViability(0.7, "medium", "marker-only risk"),
+        risk = "marker-only risk",
         evidenceSources = List("probe_backed:validated_support")
       )
     val response =
-      CommentResponse(
+      strategicResponse(
         commentary = "Marker-only payload",
-        concepts = Nil,
-        mainStrategicPlans = List(markerOnlyPlan),
-        strategicPlanExperiments = List(
-          StrategicPlanExperiment(
-            planId = "marker_only",
-            themeL1 = "piece_redeployment",
-            subplanId = None,
-            evidenceTier = "evidence_backed",
-            supportProbeCount = 1,
-            refuteProbeCount = 0,
-            bestReplyStable = true,
-            futureSnapshotAligned = true,
-            counterBreakNeutralized = true,
-            moveOrderSensitive = false,
-            experimentConfidence = 0.8
-          )
+        plans = List(markerOnlyPlan),
+        experiments = List(
+          strategicExperiment(planId = "marker_only")
         )
       )
 
@@ -451,61 +504,24 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
 
   test("admits strategic plans only from typed evaluator decisions") {
     val admittedPlan =
-      PlanHypothesis(
+      strategicPlan(
         planId = "admitted",
-        planName = "Admitted plan",
-        rank = 1,
-        score = 0.7,
-        preconditions = Nil,
-        executionSteps = Nil,
-        failureModes = Nil,
-        viability = PlanViability(0.7, "medium", "risk"),
-        evidenceSources = List("probe_backed:validated_support")
+        planName = "Admitted plan"
       )
     val deferredPlan =
-      PlanHypothesis(
+      strategicPlan(
         planId = "deferred",
         planName = "Deferred plan",
         rank = 2,
-        score = 0.65,
-        preconditions = Nil,
-        executionSteps = Nil,
-        failureModes = Nil,
-        viability = PlanViability(0.65, "medium", "risk"),
-        evidenceSources = List("probe_backed:validated_support")
+        score = 0.65
       )
     val response =
-      CommentResponse(
+      strategicResponse(
         commentary = "Typed admission payload",
-        concepts = Nil,
-        mainStrategicPlans = List(admittedPlan, deferredPlan),
-        strategicPlanExperiments = List(
-          StrategicPlanExperiment(
-            planId = "admitted",
-            themeL1 = "piece_redeployment",
-            subplanId = None,
-            evidenceTier = "evidence_backed",
-            supportProbeCount = 1,
-            refuteProbeCount = 0,
-            bestReplyStable = true,
-            futureSnapshotAligned = true,
-            counterBreakNeutralized = true,
-            moveOrderSensitive = false,
-            experimentConfidence = 0.8
-          ),
-          StrategicPlanExperiment(
-            planId = "deferred",
-            themeL1 = "piece_redeployment",
-            subplanId = None,
-            evidenceTier = "evidence_backed",
-            supportProbeCount = 1,
-            refuteProbeCount = 0,
-            bestReplyStable = true,
-            futureSnapshotAligned = true,
-            counterBreakNeutralized = true,
-            moveOrderSensitive = false,
-            experimentConfidence = 0.8
-          )
+        plans = List(admittedPlan, deferredPlan),
+        experiments = List(
+          strategicExperiment(planId = "admitted"),
+          strategicExperiment(planId = "deferred")
         )
       )
 
@@ -522,35 +538,23 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
 
   test("admits transposition-aligned strategic plans without probe ids") {
     val plan =
-      PlanHypothesis(
+      strategicPlan(
         planId = "transposition",
         planName = "Transposition target plan",
-        rank = 1,
         score = 0.76,
-        preconditions = Nil,
-        executionSteps = Nil,
-        failureModes = Nil,
-        viability = PlanViability(0.76, "medium", "risk"),
         evidenceSources = List("weakness_target:d5")
       )
     val response =
-      CommentResponse(
+      strategicResponse(
         commentary = "Transposition admission payload",
-        concepts = Nil,
-        mainStrategicPlans = List(plan),
-        strategicPlanExperiments = List(
-          StrategicPlanExperiment(
+        plans = List(plan),
+        experiments = List(
+          strategicExperiment(
             planId = "transposition",
             themeL1 = "weakness_fixation",
-            subplanId = None,
             evidenceTier = "transposition_aligned",
             supportProbeCount = 0,
-            refuteProbeCount = 0,
-            bestReplyStable = true,
-            futureSnapshotAligned = true,
-            counterBreakNeutralized = false,
-            moveOrderSensitive = false,
-            experimentConfidence = 0.8
+            counterBreakNeutralized = false
           )
         )
       )
@@ -568,21 +572,17 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
 
   test("drops malformed top-level ledger lines without dropping valid ledger metadata") {
     val plan =
-      PlanHypothesis(
+      strategicPlan(
         planId = "ledger_plan",
         planName = "Ledger plan",
-        rank = 1,
         score = 0.76,
-        preconditions = Nil,
-        executionSteps = Nil,
-        failureModes = Nil,
-        viability = PlanViability(0.76, "medium", "risk")
+        evidenceSources = Nil
       )
     val response =
-      CommentResponse(
+      strategicResponse(
         commentary = "Ledger payload",
-        concepts = Nil,
-        mainStrategicPlans = List(plan),
+        plans = List(plan)
+      ).copy(
         moveReviewLedger =
           Some(
             MoveReviewStrategicLedger(
@@ -633,38 +633,18 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
         "pv_coupled" -> UserFacingPlanEligibility.PvCoupledOnly,
         "refuted" -> UserFacingPlanEligibility.Refuted
       ).map { case (id, eligibility) =>
-        PlanHypothesis(
+        strategicPlan(
           planId = id,
-          planName = s"$id plan",
-          rank = 1,
-          score = 0.7,
-          preconditions = Nil,
-          executionSteps = Nil,
-          failureModes = Nil,
-          viability = PlanViability(0.7, "medium", "risk"),
-          evidenceSources = List("probe_backed:validated_support")
+          planName = s"$id plan"
         ) -> eligibility
       }
     val response =
-      CommentResponse(
+      strategicResponse(
         commentary = "Typed non-admission payload",
-        concepts = Nil,
-        mainStrategicPlans = plans.map(_._1),
-        strategicPlanExperiments =
+        plans = plans.map(_._1),
+        experiments =
           plans.map { case (plan, _) =>
-            StrategicPlanExperiment(
-              planId = plan.planId,
-              themeL1 = "piece_redeployment",
-              subplanId = None,
-              evidenceTier = "evidence_backed",
-              supportProbeCount = 1,
-              refuteProbeCount = 0,
-              bestReplyStable = true,
-              futureSnapshotAligned = true,
-              counterBreakNeutralized = true,
-              moveOrderSensitive = false,
-              experimentConfidence = 0.8
-            )
+            strategicExperiment(planId = plan.planId)
           }
       )
     val typedAdmissions =
@@ -690,38 +670,21 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
 
   test("does not admit plans from mismatched typed evaluator keys") {
     val payloadPlan =
-      PlanHypothesis(
+      strategicPlan(
         planId = "payload_plan",
         planName = "Payload plan",
-        rank = 1,
-        score = 0.7,
-        preconditions = Nil,
-        executionSteps = Nil,
-        failureModes = Nil,
-        viability = PlanViability(0.7, "medium", "risk"),
-        subplanId = Some("payload_subplan"),
-        evidenceSources = List("probe_backed:validated_support")
+        subplanId = Some("payload_subplan")
       )
     val unrelatedTypedPlan =
       payloadPlan.copy(planId = "other_plan", subplanId = Some("other_subplan"))
     val response =
-      CommentResponse(
+      strategicResponse(
         commentary = "Mismatched typed payload",
-        concepts = Nil,
-        mainStrategicPlans = List(payloadPlan),
-        strategicPlanExperiments = List(
-          StrategicPlanExperiment(
+        plans = List(payloadPlan),
+        experiments = List(
+          strategicExperiment(
             planId = "payload_plan",
-            themeL1 = "piece_redeployment",
-            subplanId = Some("payload_subplan"),
-            evidenceTier = "evidence_backed",
-            supportProbeCount = 1,
-            refuteProbeCount = 0,
-            bestReplyStable = true,
-            futureSnapshotAligned = true,
-            counterBreakNeutralized = true,
-            moveOrderSensitive = false,
-            experimentConfidence = 0.8
+            subplanId = Some("payload_subplan")
           )
         )
       )
@@ -738,37 +701,19 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
 
   test("preserves already sanitized cached moveReview continuity and ledger fields") {
     val cachedPlan =
-      PlanHypothesis(
+      strategicPlan(
         planId = "cached_plan",
         planName = "Cached plan",
-        rank = 1,
-        score = 0.7,
-        preconditions = Nil,
-        executionSteps = Nil,
-        failureModes = Nil,
-        viability = PlanViability(0.7, "medium", "risk"),
         evidenceSources = Nil
       )
     val response =
-      CommentResponse(
+      strategicResponse(
         commentary = "Cached payload",
-        concepts = Nil,
-        mainStrategicPlans = List(cachedPlan),
-        strategicPlanExperiments = List(
-          StrategicPlanExperiment(
-            planId = "cached_plan",
-            themeL1 = "piece_redeployment",
-            subplanId = None,
-            evidenceTier = "evidence_backed",
-            supportProbeCount = 1,
-            refuteProbeCount = 0,
-            bestReplyStable = true,
-            futureSnapshotAligned = true,
-            counterBreakNeutralized = true,
-            moveOrderSensitive = false,
-            experimentConfidence = 0.8
-          )
-        ),
+        plans = List(cachedPlan),
+        experiments = List(
+          strategicExperiment(planId = "cached_plan")
+        )
+      ).copy(
         planStateToken = Some(PlanStateTracker()),
         moveReviewLedger = Some(
           MoveReviewStrategicLedger(
@@ -797,59 +742,51 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
 
   test("preserves valid moveReview player surface authority") {
     val response =
-      CommentResponse(
-        commentary = "Public payload",
-        concepts = Nil,
-        moveReviewPlayerSurface =
-          Some(
-            MoveReviewPlayerSurface(
-              summaryRows =
-                List(
-                  MoveReviewPlayerSurfaceRow(
-                    label = "Counterplay break",
-                    text = "On the checked line, this stops the ...c5 break before it appears.",
-                    authority =
-                      Some(
-                        MoveReviewSurfaceAuthority(
-                          kind = MoveReviewSurfaceAuthority.CounterplayBreak,
-                          token = Some("...c5")
-                        )
-                      )
+      responseWithSurface(
+        MoveReviewPlayerSurface(
+          summaryRows =
+            List(
+              MoveReviewPlayerSurfaceRow(
+                label = "Counterplay break",
+                text = "On the checked line, this stops the ...c5 break before it appears.",
+                authority =
+                  Some(
+                    MoveReviewSurfaceAuthority(
+                      kind = MoveReviewSurfaceAuthority.CounterplayBreak,
+                      token = Some("...c5")
+                    )
                   )
-                )
+              )
             )
-          )
+        )
       )
 
     val sanitized = UserFacingPayloadSanitizer.sanitize(response)
+    val surface = sanitized.moveReviewPlayerSurface.getOrElse(fail("missing sanitized player surface"))
 
     assertEquals(
-      sanitized.moveReviewPlayerSurface.toList.flatMap(_.summaryRows.flatMap(_.authority)),
+      surface.summaryRows.flatMap(_.authority),
       List(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CounterplayBreak, token = Some("...c5"))),
-      clue(sanitized.moveReviewPlayerSurface)
+      clue(surface)
     )
   }
 
   test("preserves structured moveReview player surface schema identifier") {
     val response =
-      CommentResponse(
-        commentary = "Public payload",
-        concepts = Nil,
-        moveReviewPlayerSurface =
-          Some(
-            MoveReviewPlayerSurface(
-              schema = "chesstory.move_review.player_surface.v2",
-              summaryRows = List(MoveReviewPlayerSurfaceRow(label = "Checked line", text = "Short line: Bc4 Nf6 d3."))
-            )
-          )
+      responseWithSurface(
+        MoveReviewPlayerSurface(
+          schema = "chesstory.move_review.player_surface.v2",
+          summaryRows = List(MoveReviewPlayerSurfaceRow(label = "Checked line", text = "Short line: Bc4 Nf6 d3."))
+        )
       )
 
     val sanitized = UserFacingPayloadSanitizer.sanitize(response)
+    val surface = sanitized.moveReviewPlayerSurface.getOrElse(fail("missing sanitized player surface"))
 
     assertEquals(
-      sanitized.moveReviewPlayerSurface.map(_.schema),
-      Some("chesstory.move_review.player_surface.v2"),
-      clue(sanitized.moveReviewPlayerSurface)
+      surface.schema,
+      "chesstory.move_review.player_surface.v2",
+      clue(surface)
     )
   }
 
@@ -873,52 +810,43 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
         )
       )
     val response =
-      CommentResponse(
-        commentary = "Public payload",
-        concepts = Nil,
-        moveReviewPlayerSurface = Some(MoveReviewPlayerSurface(summaryRows = rows))
-      )
+      responseWithSurface(MoveReviewPlayerSurface(summaryRows = rows))
 
     val sanitized = UserFacingPayloadSanitizer.sanitize(response)
+    val surface = sanitized.moveReviewPlayerSurface.getOrElse(fail("missing sanitized player surface"))
 
     assertEquals(
-      sanitized.moveReviewPlayerSurface.toList.flatMap(_.summaryRows.flatMap(_.authority).map(_.kind)),
+      surface.summaryRows.flatMap(_.authority).map(_.kind),
       List(
         MoveReviewSurfaceAuthority.PracticalPlan,
         MoveReviewSurfaceAuthority.CentralLiquidation,
         MoveReviewSurfaceAuthority.CentralChallenge
       ),
-      clue(sanitized.moveReviewPlayerSurface)
+      clue(surface)
     )
   }
 
   test("preserves bounded strategic relation authority and drops malformed relation tokens") {
+    val validXrayAuthority =
+      Some(
+        MoveReviewSurfaceAuthority(
+          kind = MoveReviewSurfaceAuthority.StrategicRelation,
+          token = Some("xray"),
+          target = Some("g6")
+        )
+      )
     val staleSummaryRow =
       MoveReviewPlayerSurfaceRow(
         label = "Line relation",
         text = "A stale summary relation row should lose authority.",
-        authority =
-          Some(
-            MoveReviewSurfaceAuthority(
-              kind = MoveReviewSurfaceAuthority.StrategicRelation,
-              token = Some("xray"),
-              target = Some("g6")
-            )
-          )
+        authority = validXrayAuthority
       )
     val rows =
       List(
         MoveReviewPlayerSurfaceRow(
           label = "Line relation",
           text = "The checked line uses x-ray geometry around e4, f5, g6.",
-          authority =
-            Some(
-              MoveReviewSurfaceAuthority(
-                kind = MoveReviewSurfaceAuthority.StrategicRelation,
-                token = Some("xray"),
-                target = Some("g6")
-              )
-            )
+          authority = validXrayAuthority
         ),
         MoveReviewPlayerSurfaceRow(
           label = "Line relation",
@@ -957,100 +885,86 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
         )
       )
     val response =
-      CommentResponse(
-        commentary = "Public payload",
-        concepts = Nil,
-        moveReviewPlayerSurface = Some(MoveReviewPlayerSurface(summaryRows = List(staleSummaryRow), advancedRows = rows))
-      )
+      responseWithSurface(MoveReviewPlayerSurface(summaryRows = List(staleSummaryRow), advancedRows = rows))
 
     val sanitized = UserFacingPayloadSanitizer.sanitize(response)
+    val surface = sanitized.moveReviewPlayerSurface.getOrElse(fail("missing sanitized player surface"))
 
     assertEquals(
-      sanitized.moveReviewPlayerSurface.toList.flatMap(_.summaryRows.map(_.authority)),
+      surface.summaryRows.map(_.authority),
       List(None),
-      clue(sanitized.moveReviewPlayerSurface)
+      clue(surface)
     )
     assertEquals(
-      sanitized.moveReviewPlayerSurface.toList.flatMap(_.advancedRows.map(_.authority)),
-      List(
-        Some(
-          MoveReviewSurfaceAuthority(
-            kind = MoveReviewSurfaceAuthority.StrategicRelation,
-            token = Some("xray"),
-            target = Some("g6")
-          )
-        ),
-        None,
-        None,
-        None
-      ),
-      clue(sanitized.moveReviewPlayerSurface)
+      surface.advancedRows.map(_.authority),
+      List(validXrayAuthority, None, None, None),
+      clue(surface)
     )
   }
 
   test("cached player surface suppresses strategic relation rows duplicated by practical summary rows") {
+    val practicalAuthority =
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))
+    val defenderTradeAuthority =
+      Some(
+        MoveReviewSurfaceAuthority(
+          kind = MoveReviewSurfaceAuthority.StrategicRelation,
+          token = Some("defender_trade"),
+          target = Some("e5")
+        )
+      )
+    val mateNetAuthority =
+      Some(
+        MoveReviewSurfaceAuthority(
+          kind = MoveReviewSurfaceAuthority.StrategicRelation,
+          token = Some("mate_net"),
+          target = Some("h8")
+        )
+      )
+    val xrayAuthority =
+      Some(
+        MoveReviewSurfaceAuthority(
+          kind = MoveReviewSurfaceAuthority.StrategicRelation,
+          token = Some("xray"),
+          target = Some("g6")
+        )
+      )
     val practicalSummary =
       MoveReviewPlayerSurfaceRow(
         label = "Defender trade",
         text = "The checked line trades on d4 to remove the defender from c5, loosening e5.",
-        authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))
+        authority = practicalAuthority
       )
     val mateSummary =
       MoveReviewPlayerSurfaceRow(
         label = "Smothered mate",
         text = "The checked line ends in smothered mate on h8 after h6f7.",
-        authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))
+        authority = practicalAuthority
       )
     val duplicateAdvanced =
       MoveReviewPlayerSurfaceRow(
         label = "Line relation",
         text = "The checked line creates a defender trade motif around c5, d4, e5.",
-        authority =
-          Some(
-            MoveReviewSurfaceAuthority(
-              kind = MoveReviewSurfaceAuthority.StrategicRelation,
-              token = Some("defender_trade"),
-              target = Some("e5")
-            )
-          )
+        authority = defenderTradeAuthority
       )
     val mateAdvanced =
       MoveReviewPlayerSurfaceRow(
         label = "Line relation",
         text = "The checked line creates a mate net motif around h8, f7.",
-        authority =
-          Some(
-            MoveReviewSurfaceAuthority(
-              kind = MoveReviewSurfaceAuthority.StrategicRelation,
-              token = Some("mate_net"),
-              target = Some("h8")
-            )
-          )
+        authority = mateNetAuthority
       )
     val otherAdvanced =
       MoveReviewPlayerSurfaceRow(
         label = "Line relation",
         text = "The checked line uses x-ray geometry around e4, f5, g6.",
-        authority =
-          Some(
-            MoveReviewSurfaceAuthority(
-              kind = MoveReviewSurfaceAuthority.StrategicRelation,
-              token = Some("xray"),
-              target = Some("g6")
-            )
-          )
+        authority = xrayAuthority
       )
     val response =
-      CommentResponse(
-        commentary = "Public payload",
-        concepts = Nil,
-        moveReviewPlayerSurface =
-          Some(
-            MoveReviewPlayerSurface(
-              summaryRows = List(practicalSummary, mateSummary),
-              advancedRows = List(duplicateAdvanced, mateAdvanced, otherAdvanced)
-            )
-          )
+      responseWithSurface(
+        MoveReviewPlayerSurface(
+          summaryRows = List(practicalSummary, mateSummary),
+          advancedRows = List(duplicateAdvanced, mateAdvanced, otherAdvanced)
+        )
       )
 
     val sanitized = UserFacingPayloadSanitizer.sanitizeCachedMoveReview(response)
@@ -1081,11 +995,7 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
           )
       )
     val response =
-      CommentResponse(
-        commentary = "Public payload",
-        concepts = Nil,
-        moveReviewPlayerSurface = Some(MoveReviewPlayerSurface(summaryRows = List(staleSummary), advancedRows = List(advanced)))
-      )
+      responseWithSurface(MoveReviewPlayerSurface(summaryRows = List(staleSummary), advancedRows = List(advanced)))
 
     val sanitized = UserFacingPayloadSanitizer.sanitizeCachedMoveReview(response)
     val surface = sanitized.moveReviewPlayerSurface.getOrElse(fail("missing sanitized player surface"))
@@ -1147,11 +1057,7 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
             )
         )
     val response =
-      CommentResponse(
-        commentary = "Public payload",
-        concepts = Nil,
-        moveReviewPlayerSurface = Some(MoveReviewPlayerSurface(advancedRows = rows))
-      )
+      responseWithSurface(MoveReviewPlayerSurface(advancedRows = rows))
 
     val sanitized = UserFacingPayloadSanitizer.sanitize(response)
     val authorities = sanitized.moveReviewPlayerSurface.toList.flatMap(_.advancedRows.map(_.authority))
@@ -1180,15 +1086,11 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
 
   test("strips raw strategic idea carriers while preserving strategic relation surface authority") {
     val admittedPlan =
-      PlanHypothesis(
+      strategicPlan(
         planId = "pressure_plan",
         planName = "Pressure Plan",
-        rank = 1,
         score = 0.72,
-        preconditions = Nil,
-        executionSteps = Nil,
-        failureModes = Nil,
-        viability = PlanViability(0.72, "medium", "risk")
+        evidenceSources = Nil
       )
     val relationIdea =
       StrategyIdeaSignal(
@@ -1215,10 +1117,10 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
           )
       )
     val response =
-      CommentResponse(
+      strategicResponse(
         commentary = "Public payload",
-        concepts = Nil,
-        mainStrategicPlans = List(admittedPlan),
+        plans = List(admittedPlan)
+      ).copy(
         strategyPack =
           Some(
             StrategyPack(
@@ -1232,10 +1134,11 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
 
     val sanitized =
       UserFacingPayloadSanitizer.sanitize(response, admittedPlans = List(probeBackedEvaluation(admittedPlan)))
+    val surface = sanitized.moveReviewPlayerSurface.getOrElse(fail("missing sanitized player surface"))
 
     assertEquals(sanitized.strategyPack.toList.flatMap(_.strategicIdeas), Nil, clue(sanitized.strategyPack))
     assertEquals(
-      sanitized.moveReviewPlayerSurface.toList.flatMap(_.advancedRows.flatMap(_.authority)),
+      surface.advancedRows.flatMap(_.authority),
       List(
         MoveReviewSurfaceAuthority(
           kind = MoveReviewSurfaceAuthority.StrategicRelation,
@@ -1243,21 +1146,17 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
           target = Some("g6")
         )
       ),
-      clue(sanitized.moveReviewPlayerSurface)
+      clue(surface)
     )
   }
 
   test("strips deferred and witness-only relation evidence from sanitized strategy pack support metadata") {
     val admittedPlan =
-      PlanHypothesis(
+      strategicPlan(
         planId = "pressure_plan",
         planName = "Pressure Plan",
-        rank = 1,
         score = 0.72,
-        preconditions = Nil,
-        executionSteps = Nil,
-        failureModes = Nil,
-        viability = PlanViability(0.72, "medium", "risk")
+        evidenceSources = Nil
       )
     val pack =
       StrategyPack(
@@ -1313,10 +1212,10 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
         evidence = List("perpetual_check", "deferred_move_order_caution", "idea:line_occupation:xray")
       )
     val response =
-      CommentResponse(
+      strategicResponse(
         commentary = "Public payload",
-        concepts = Nil,
-        mainStrategicPlans = List(admittedPlan),
+        plans = List(admittedPlan)
+      ).copy(
         strategyPack = Some(pack),
         moveReviewPlayerSurface = Some(MoveReviewPlayerSurface())
       )
@@ -1348,36 +1247,32 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
 
   test("drops invalid moveReview player surface authority") {
     val response =
-      CommentResponse(
-        commentary = "Public payload",
-        concepts = Nil,
-        moveReviewPlayerSurface =
-          Some(
-            MoveReviewPlayerSurface(
-              summaryRows =
-                List(
-                  MoveReviewPlayerSurfaceRow(
-                    label = "Counterplay break",
-                    text = "On the checked line, this stops the ...c5 break before it appears.",
-                    authority =
-                      Some(
-                        MoveReviewSurfaceAuthority(
-                          kind = MoveReviewSurfaceAuthority.CounterplayBreak,
-                          token = Some("counterplay_axis_suppression")
-                        )
-                      )
+      responseWithSurface(
+        MoveReviewPlayerSurface(
+          summaryRows =
+            List(
+              MoveReviewPlayerSurfaceRow(
+                label = "Counterplay break",
+                text = "On the checked line, this stops the ...c5 break before it appears.",
+                authority =
+                  Some(
+                    MoveReviewSurfaceAuthority(
+                      kind = MoveReviewSurfaceAuthority.CounterplayBreak,
+                      token = Some("counterplay_axis_suppression")
+                    )
                   )
-                )
+              )
             )
-          )
+        )
       )
 
     val sanitized = UserFacingPayloadSanitizer.sanitize(response)
+    val surface = sanitized.moveReviewPlayerSurface.getOrElse(fail("missing sanitized player surface"))
 
     assertEquals(
-      sanitized.moveReviewPlayerSurface.toList.flatMap(_.summaryRows.map(_.authority)),
+      surface.summaryRows.map(_.authority),
       List(None),
-      clue(sanitized.moveReviewPlayerSurface)
+      clue(surface)
     )
   }
 
@@ -1396,21 +1291,18 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
         )
       )
     val response =
-      CommentResponse(
-        commentary = "Public payload",
-        concepts = Nil,
-        moveReviewPlayerSurface = Some(MoveReviewPlayerSurface(summaryRows = rows))
-      )
+      responseWithSurface(MoveReviewPlayerSurface(summaryRows = rows))
 
     val sanitized = UserFacingPayloadSanitizer.sanitize(response)
+    val surface = sanitized.moveReviewPlayerSurface.getOrElse(fail("missing sanitized player surface"))
 
     assertEquals(
-      sanitized.moveReviewPlayerSurface.toList.flatMap(_.summaryRows.map(_.authority)),
+      surface.summaryRows.map(_.authority),
       List(
         None,
         Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CounterplayBreak, token = Some("d5")))
       ),
-      clue(sanitized.moveReviewPlayerSurface)
+      clue(surface)
     )
   }
 
@@ -1453,16 +1345,13 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
         )
       )
     val response =
-      CommentResponse(
-        commentary = "Public payload",
-        concepts = Nil,
-        moveReviewPlayerSurface = Some(MoveReviewPlayerSurface(summaryRows = rows))
-      )
+      responseWithSurface(MoveReviewPlayerSurface(summaryRows = rows))
 
     val sanitized = UserFacingPayloadSanitizer.sanitize(response)
+    val surface = sanitized.moveReviewPlayerSurface.getOrElse(fail("missing sanitized player surface"))
 
     assertEquals(
-      sanitized.moveReviewPlayerSurface.toList.flatMap(_.summaryRows.map(_.authority)),
+      surface.summaryRows.map(_.authority),
       List(
         None,
         None,
@@ -1475,53 +1364,49 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
         ),
         Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.OpeningFamily, openingFamily = Some("queens_gambit")))
       ),
-      clue(sanitized.moveReviewPlayerSurface)
+      clue(surface)
     )
   }
 
   test("preserves opening targets from the family catalog instead of the legacy source allowlist") {
     val response =
-      CommentResponse(
-        commentary = "Public payload",
-        concepts = Nil,
-        moveReviewPlayerSurface =
-          Some(
-            MoveReviewPlayerSurface(
-              summaryRows =
-                List(
-                  MoveReviewPlayerSurfaceRow(
-                    label = "Opening family",
-                    text = "The Caro-Kann center leaves d5 as a target.",
-                    authority =
-                      Some(
-                        MoveReviewSurfaceAuthority(
-                          kind = MoveReviewSurfaceAuthority.OpeningFamily,
-                          openingFamily = Some("caro_kann"),
-                          target = Some("d5")
-                        )
-                      )
-                  ),
-                  MoveReviewPlayerSurfaceRow(
-                    label = "Opening family",
-                    text = "The Caro-Kann center should not trust h4 as a target.",
-                    authority =
-                      Some(
-                        MoveReviewSurfaceAuthority(
-                          kind = MoveReviewSurfaceAuthority.OpeningFamily,
-                          openingFamily = Some("caro_kann"),
-                          target = Some("h4")
-                        )
-                      )
+      responseWithSurface(
+        MoveReviewPlayerSurface(
+          summaryRows =
+            List(
+              MoveReviewPlayerSurfaceRow(
+                label = "Opening family",
+                text = "The Caro-Kann center leaves d5 as a target.",
+                authority =
+                  Some(
+                    MoveReviewSurfaceAuthority(
+                      kind = MoveReviewSurfaceAuthority.OpeningFamily,
+                      openingFamily = Some("caro_kann"),
+                      target = Some("d5")
+                    )
                   )
-                )
+              ),
+              MoveReviewPlayerSurfaceRow(
+                label = "Opening family",
+                text = "The Caro-Kann center should not trust h4 as a target.",
+                authority =
+                  Some(
+                    MoveReviewSurfaceAuthority(
+                      kind = MoveReviewSurfaceAuthority.OpeningFamily,
+                      openingFamily = Some("caro_kann"),
+                      target = Some("h4")
+                    )
+                  )
+              )
             )
-          )
+        )
       )
 
     val sanitized = UserFacingPayloadSanitizer.sanitize(response)
+    val surface = sanitized.moveReviewPlayerSurface.getOrElse(fail("missing sanitized player surface"))
 
     assertEquals(
-      sanitized.moveReviewPlayerSurface.toList.flatMap(_.summaryRows.map(_.authority)),
+      surface.summaryRows.map(_.authority),
       List(
         Some(
           MoveReviewSurfaceAuthority(
@@ -1571,16 +1456,13 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
         )
       )
     val response =
-      CommentResponse(
-        commentary = "Public payload",
-        concepts = Nil,
-        moveReviewPlayerSurface = Some(MoveReviewPlayerSurface(summaryRows = rows))
-      )
+      responseWithSurface(MoveReviewPlayerSurface(summaryRows = rows))
 
     val sanitized = UserFacingPayloadSanitizer.sanitize(response)
+    val surface = sanitized.moveReviewPlayerSurface.getOrElse(fail("missing sanitized player surface"))
 
     assertEquals(
-      sanitized.moveReviewPlayerSurface.toList.flatMap(_.summaryRows.map(_.authority)),
+      surface.summaryRows.map(_.authority),
       List(
         Some(
           MoveReviewSurfaceAuthority(
@@ -1597,31 +1479,26 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
 
   test("sanitizes moveReview decision target comparison metadata") {
     val response =
-      CommentResponse(
-        commentary = "Public payload",
-        concepts = Nil,
-        moveReviewPlayerSurface =
-          Some(
-            MoveReviewPlayerSurface(
-              decisionComparison =
-                Some(
-                  MoveReviewPlayerDecisionComparison(
-                    kicker = "Decision point",
-                    secondaryText = Some("The lines leave different targets."),
-                    chosenMatchesBest = false,
-                    targetComparison =
-                      Some(
-                        MoveReviewDecisionTargetComparison(
-                          chosenTarget = "e5",
-                          chosenTargetKind = "isolated_pawn",
-                          bestTarget = "d5",
-                          bestTargetKind = "backward_pawn"
-                        )
-                      )
+      responseWithSurface(
+        MoveReviewPlayerSurface(
+          decisionComparison =
+            Some(
+              MoveReviewPlayerDecisionComparison(
+                kicker = "Decision point",
+                secondaryText = Some("The lines leave different targets."),
+                chosenMatchesBest = false,
+                targetComparison =
+                  Some(
+                    MoveReviewDecisionTargetComparison(
+                      chosenTarget = "e5",
+                      chosenTargetKind = "isolated_pawn",
+                      bestTarget = "d5",
+                      bestTargetKind = "backward_pawn"
+                    )
                   )
-                )
+              )
             )
-          )
+        )
       )
 
     val sanitized = UserFacingPayloadSanitizer.sanitize(response)
@@ -1641,37 +1518,18 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
 
   test("does not preserve marker-only cached moveReview strategic metadata") {
     val markerPlan =
-      PlanHypothesis(
+      strategicPlan(
         planId = "cached_marker",
-        planName = "Cached marker plan",
-        rank = 1,
-        score = 0.7,
-        preconditions = Nil,
-        executionSteps = Nil,
-        failureModes = Nil,
-        viability = PlanViability(0.7, "medium", "risk"),
-        evidenceSources = List("probe_backed:validated_support")
+        planName = "Cached marker plan"
       )
     val response =
-      CommentResponse(
+      strategicResponse(
         commentary = "Cached marker payload",
-        concepts = Nil,
-        mainStrategicPlans = List(markerPlan),
-        strategicPlanExperiments = List(
-          StrategicPlanExperiment(
-            planId = "cached_marker",
-            themeL1 = "piece_redeployment",
-            subplanId = None,
-            evidenceTier = "evidence_backed",
-            supportProbeCount = 1,
-            refuteProbeCount = 0,
-            bestReplyStable = true,
-            futureSnapshotAligned = true,
-            counterBreakNeutralized = true,
-            moveOrderSensitive = false,
-            experimentConfidence = 0.8
-          )
-        ),
+        plans = List(markerPlan),
+        experiments = List(
+          strategicExperiment(planId = "cached_marker")
+        )
+      ).copy(
         planStateToken = Some(PlanStateTracker()),
         moveReviewPlayerSurface = Some(
           MoveReviewPlayerSurface(
@@ -1689,23 +1547,21 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
 
   test("humanizes raw plan label families in user-facing payloads") {
     val response =
-      CommentResponse(
+      strategicResponse(
         commentary = "Preparing e-break Break.",
-        concepts = Nil,
-        mainStrategicPlans = List(
-          PlanHypothesis(
+        plans = List(
+          strategicPlan(
             planId = "break",
             planName = "Preparing e-break Break",
-            rank = 1,
             score = 0.66,
-            preconditions = Nil,
             executionSteps = List("Piece Activation"),
             failureModes = List("Opening Development and Center Control"),
-            viability = PlanViability(0.66, "medium", "Exploiting Space Advantage"),
+            risk = "Exploiting Space Advantage",
             refutation = Some("Simplification into Endgame"),
             evidenceSources = List("probe_backed:validated_support")
           )
-        ),
+        )
+      ).copy(
         signalDigest = Some(
           NarrativeSignalDigest(
             latentPlan = Some("Preparing d-break Break"),

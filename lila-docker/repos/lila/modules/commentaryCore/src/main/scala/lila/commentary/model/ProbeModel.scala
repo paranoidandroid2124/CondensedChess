@@ -26,7 +26,7 @@ case class ProbeRequest(
   baselineEvalCp: Option[Int] = None,
   baselineMate: Option[Int] = None,
   baselineDepth: Option[Int] = None,
-  // v2: objective-driven probing contract
+  // Objective-driven probing contract
   objective: Option[String] = None,        // e.g. "validate_latent_plan", "refute_plan", "compare_branches"
   seedId: Option[String] = None,           // Latent seed identifier when relevant
   requiredSignals: List[String] = Nil,     // e.g. "replyPvs", "keyMotifs", "l1Delta", "futureSnapshot"
@@ -54,18 +54,18 @@ case class ProbeResult(
   replyPvs: Option[List[List[String]]] = None,
   deltaVsBaseline: Int,      // evalCp - baselineEvalCp (same POV). Negative = worse than baseline.
   keyMotifs: List[String],   // Motifs detected in the probe line
-  // Optional metadata to make ProbeResult self-describing (critical for B-axis "Why-not")
+  // Optional metadata that keeps branch probes self-describing.
   purpose: Option[String] = None,
   questionId: Option[String] = None,
   questionKind: Option[String] = None,
   probedMove: Option[String] = None, // The probed candidate move (UCI)
   mate: Option[Int] = None,          // Mate distance if applicable
   depth: Option[Int] = None,         // Depth reached by the client engine
-  // Phase C: L1 delta for stronger counterfactual explanations
+  // L1 delta for stronger counterfactual explanations.
   l1Delta: Option[L1DeltaSnapshot] = None,
-  // P1: Structured future state for accurate delta comparison
+  // Structured future state for accurate delta comparison.
   futureSnapshot: Option[FutureSnapshot] = None,
-  // v2: optional contract diagnostics
+  // Optional contract diagnostics.
   objective: Option[String] = None,
   seedId: Option[String] = None,
   requiredSignals: List[String] = Nil,
@@ -103,7 +103,7 @@ object L1DeltaSnapshot:
   given Writes[L1DeltaSnapshot] = Json.writes[L1DeltaSnapshot]
 
 /**
- * P1: Structured future state snapshot for accurate PVDelta comparison.
+ * Structured future state snapshot for accurate PVDelta comparison.
  * Populated by WASM client after applying the probed move.
  */
 case class FutureSnapshot(
@@ -119,7 +119,7 @@ object FutureSnapshot:
   given Writes[FutureSnapshot] = Json.writes[FutureSnapshot]
 
 /**
- * P1: Delta in tactical and strategic targets.
+ * Delta in tactical and strategic targets.
  */
 case class TargetsDelta(
   tacticalAdded: List[String],    // New tactical targets (squares) created
@@ -282,38 +282,37 @@ object ProbeContractValidator:
       request.engineConfigFingerprint.flatMap(expected => result.engineConfigFingerprint.map(_ != expected)).contains(true)
     val depthFloor =
       request.depthFloor
-        .orElse(Option.when(request.depth > 0)(request.depth))
+        .orElse(if request.depth > 0 then Some(request.depth) else None)
         .filter(_ > 0)
     val depthFloorUnmet =
       depthFloor.exists(floor => result.depth.exists(_ < floor))
-    val hardReasons =
-      List(
-        Option.when(fenMissing)("FEN_UNVERIFIED"),
-        Option.when(requestFenInvalid)("REQUEST_FEN_INVALID"),
-        Option.when(resultFenInvalid)("RESULT_FEN_INVALID"),
-        Option.when(fenMismatch)("FEN_MISMATCH"),
-        Option.when(idMismatch)("ID_MISMATCH"),
-        Option.when(moveMissing)("PROBED_MOVE_UNVERIFIED"),
-        Option.when(requestMoveInvalid)("REQUEST_MOVE_INVALID"),
-        Option.when(moveMismatch)("PROBED_MOVE_MISMATCH"),
-        Option.when(resultMoveInvalid)("PROBED_MOVE_INVALID"),
-        Option.when(purposeContractMissing)("PURPOSE_CONTRACT_MISSING"),
-        Option.when(depthFloor.nonEmpty && result.depth.isEmpty)("DEPTH_FLOOR_UNVERIFIED"),
-        Option.when(depthFloorUnmet)("DEPTH_FLOOR_UNMET")
-      ).flatten
-    val softReasons =
-      List(
-        Option.when(purposeMismatch)("PURPOSE_MISMATCH"),
-        Option.when(objectiveMismatch)("OBJECTIVE_MISMATCH"),
-        Option.when(seedMismatch)("SEED_MISMATCH"),
-        Option.when(request.variationHash.exists(_.trim.nonEmpty) && result.variationHash.forall(_.trim.isEmpty))("VARIATION_HASH_MISSING"),
-        Option.when(variationHashMismatch)("VARIATION_HASH_MISMATCH"),
-        Option.when(
-          request.engineConfigFingerprint.exists(_.trim.nonEmpty) &&
-            result.engineConfigFingerprint.forall(_.trim.isEmpty)
-        )("ENGINE_CONFIG_FINGERPRINT_MISSING"),
-        Option.when(engineConfigMismatch)("ENGINE_CONFIG_MISMATCH")
-      ).flatten
+    val hardReasonBuilder = List.newBuilder[String]
+    if fenMissing then hardReasonBuilder += "FEN_UNVERIFIED"
+    if requestFenInvalid then hardReasonBuilder += "REQUEST_FEN_INVALID"
+    if resultFenInvalid then hardReasonBuilder += "RESULT_FEN_INVALID"
+    if fenMismatch then hardReasonBuilder += "FEN_MISMATCH"
+    if idMismatch then hardReasonBuilder += "ID_MISMATCH"
+    if moveMissing then hardReasonBuilder += "PROBED_MOVE_UNVERIFIED"
+    if requestMoveInvalid then hardReasonBuilder += "REQUEST_MOVE_INVALID"
+    if moveMismatch then hardReasonBuilder += "PROBED_MOVE_MISMATCH"
+    if resultMoveInvalid then hardReasonBuilder += "PROBED_MOVE_INVALID"
+    if purposeContractMissing then hardReasonBuilder += "PURPOSE_CONTRACT_MISSING"
+    if depthFloor.nonEmpty && result.depth.isEmpty then hardReasonBuilder += "DEPTH_FLOOR_UNVERIFIED"
+    if depthFloorUnmet then hardReasonBuilder += "DEPTH_FLOOR_UNMET"
+    val hardReasons = hardReasonBuilder.result()
+
+    val softReasonBuilder = List.newBuilder[String]
+    if purposeMismatch then softReasonBuilder += "PURPOSE_MISMATCH"
+    if objectiveMismatch then softReasonBuilder += "OBJECTIVE_MISMATCH"
+    if seedMismatch then softReasonBuilder += "SEED_MISMATCH"
+    if request.variationHash.exists(_.trim.nonEmpty) && result.variationHash.forall(_.trim.isEmpty) then
+      softReasonBuilder += "VARIATION_HASH_MISSING"
+    if variationHashMismatch then softReasonBuilder += "VARIATION_HASH_MISMATCH"
+    if request.engineConfigFingerprint.exists(_.trim.nonEmpty) &&
+      result.engineConfigFingerprint.forall(_.trim.isEmpty)
+    then softReasonBuilder += "ENGINE_CONFIG_FINGERPRINT_MISSING"
+    if engineConfigMismatch then softReasonBuilder += "ENGINE_CONFIG_MISMATCH"
+    val softReasons = softReasonBuilder.result()
     val allHardReasons = (base.hardReasonCodes ++ hardReasons).distinct
     val certificateStatus =
       if allHardReasons.nonEmpty then ProbeCertificateStatus.Invalid
