@@ -79,10 +79,12 @@ projects the decision through `causalClaimTrace`, and tooling copies it into
 are diagnostic measurements of accepted/rejected authority, relation kinds, and
 reject reasons; they do not create a second surface or allow downstream code to
 recover causal authority from fallback wording.
-Accepted planner claims also carry `MoveReviewLocalFact` admission. The
-certified claim records a `local_fact_family`, `local_fact_authority`, strict
-flag, and guardrails before the renderer receives the surface text. For
-support-required questions, absence of that local fact is a release failure
+Accepted planner claims also carry `MoveReviewLocalFact` admission. Planner
+evidence/relation inputs are submitted to `MoveReviewLocalFact.admitPlanner`,
+which owns family, authority, and strict fallback classification. The certified
+claim records a `local_fact_family`, `local_fact_authority`, strict flag, and
+guardrails before the renderer receives the surface text. For support-required
+questions, absence of that local fact is a release failure
 (`local_fact_admission_missing`). Corpus `moveReviewLocalFact*` fields report
 planner-owned rows as `emitted` only from this causal claim admission, not from
 basic fallback candidates that did not render.
@@ -95,18 +97,20 @@ and claim wording are not family evidence.
 
 Fallback text is inside the same trust boundary. `basic_move_explanation` and
 the local surface/takeaway renderers may identify the played move, the next
-checked-line move, and local evidence role, but they must not promote those facts into
-target-creation, forced-reply, timing, plan-support, or PV-verified causal
-wording without typed authority. `CommentaryIdeaSurface` now consumes
-`MoveReviewLocalFact` and attaches `local_fact_family`,
-`local_fact_authority`, and strict-fallback eligibility to admitted basic
-descriptors before prose is rendered. If the selected high-risk
-planner claim is rejected by `MoveReviewCausalClaim`, the basic builder runs in
-strict local-fact mode: soft line-only and strategic-plan descriptors fall
-through to exact factual fallback, target pressure requires the reviewed move to
-own the target fact, defensive wording requires only-move defense truth, and
-endgame wording requires the played move to own the endgame fact. Scoped
-takeaways consume that admitted local fact metadata and stay role-neutral.
+checked-line move, and local evidence role, but they must not promote those
+facts into target-creation, forced-reply, timing, plan-support, or PV-verified
+causal wording without typed authority. `CommentaryIdeaSurface` now submits
+`MoveReviewLocalFact` candidates and attaches admitted `local_fact_family`,
+`local_fact_authority`, and strict-fallback eligibility to basic descriptors
+before prose is rendered. Candidate inputs can carry source, subject, anchors,
+line binding, and evidence refs, but renderers consume only the admitted fact.
+If the selected high-risk planner claim is rejected by `MoveReviewCausalClaim`,
+the basic builder runs in strict local-fact mode: soft line-only and
+strategic-plan descriptors fall through to exact factual fallback, target
+pressure requires the reviewed move to own the target fact, defensive wording
+requires only-move defense truth, and endgame wording requires the played move
+to own the endgame fact. Scoped takeaways consume that admitted local fact
+metadata and stay role-neutral.
 Generic support anchors such as `plan activation lane`, `plan`, or `main plan`
 are not player-facing subject authority and are skipped before a fallback
 sentence chooses its displayed subject.

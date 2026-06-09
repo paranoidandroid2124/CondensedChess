@@ -106,13 +106,18 @@ Current authority is internal and MoveReview-first:
 - `MoveReviewCausalClaim` owns high-risk MoveReview causal release. A selected
   question remains diagnostic until the gate certifies typed support, causal
   relation, subject role, concrete anchor, and an admitted local fact for
-  support-required planner questions. Local-fact family admission is derived
-  from typed owner/source evidence, not from words in the rendered claim.
+  support-required planner questions. It submits planner evidence/relation
+  inputs to `MoveReviewLocalFact`; it does not infer local-fact family,
+  authority, or strict fallback eligibility from rendered claim words.
 - `MoveReviewLocalFact` owns the shared typed local-fact family and authority
-  vocabulary used by planner, basic, and scoped MoveReview surfaces.
-- `CommentaryIdeaSurface` attaches `MoveReviewLocalFact` admission to
-  MoveReview basic descriptors before fallback rendering. In strict rejected
-  fallback, only strict-eligible `local_fact_family` /
+  vocabulary plus the candidate/admit policy used by planner, basic, and scoped
+  MoveReview surfaces. Candidate inputs carry source, subject, anchors, line
+  binding, and evidence refs so later motif/strategic producers can supply
+  evidence without giving renderers claim authority. It also owns the
+  `PlayerFacingMoveDeltaClass` -> local-fact-family mapping.
+- `CommentaryIdeaSurface` submits `MoveReviewLocalFact` candidates and attaches
+  admitted facts to MoveReview basic descriptors before fallback rendering. In
+  strict rejected fallback, only strict-eligible `local_fact_family` /
   `local_fact_authority` descriptors may render; soft line-only or
   strategic-plan candidates fall through to exact factual fallback.
 - `MoveReviewPolishSlots.localFact` preserves the admitted local fact for

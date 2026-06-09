@@ -179,6 +179,62 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     }
   }
 
+  test("MoveReviewLocalFact admits planner timing only from typed timing evidence") {
+    val timedPlan =
+      QuestionPlan(
+        questionId = "q_typed_timing",
+        questionKind = AuthorQuestionKind.WhyNow,
+        priority = 100,
+        claim = "The timing matters because the direct reply would otherwise arrive.",
+        evidence = None,
+        contrast = None,
+        consequence = None,
+        fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
+        strengthTier = QuestionPlanStrengthTier.Strong,
+        sourceKinds = List("truth_contract"),
+        admissibilityReasons = List("timing_owner"),
+        plannerOwnerKind = PlannerOwnerKind.ForcingDefense,
+        plannerSource = "truth_contract",
+        timingWitness = Some(
+          QuestionPlanTimingWitness(
+            proofFamily = "only_move_defense",
+            source = "truth_contract",
+            witnessTokens = List("reply_loss")
+          )
+        )
+      )
+    val proseOnlyPlan =
+      timedPlan.copy(
+        questionId = "q_prose_timing",
+        claim = "This supports the plan and keeps pressure in time.",
+        sourceKinds = List("move_delta"),
+        plannerOwnerKind = PlannerOwnerKind.MoveDelta,
+        plannerSource = "move_delta",
+        timingWitness = None
+      )
+
+    val typed =
+      MoveReviewLocalFact.admitPlanner(
+        timedPlan,
+        evidenceKinds = List("timing_tension", "timing_witness"),
+        relationKinds = List("timing_constraint"),
+        lineConsequenceBacked = false
+      )
+    val proseOnly =
+      MoveReviewLocalFact.admitPlanner(
+        proseOnlyPlan,
+        evidenceKinds = Nil,
+        relationKinds = Nil,
+        lineConsequenceBacked = false
+      )
+
+    assertEquals(typed.admission.map(_.family), Some(MoveReviewLocalFact.Family.Timing))
+    assertEquals(typed.admission.map(_.authority), Some(MoveReviewLocalFact.Authority.TruthContract))
+    assertEquals(typed.admission.map(_.strictFallbackEligible), Some(true))
+    assertEquals(proseOnly.admission, None)
+    assert(proseOnly.rejectReasons.contains("local_fact_family_missing"), clues(proseOnly))
+  }
+
   test("claim-only causal planner slots fall back to exact factual surface") {
     val primary =
       QuestionPlan(

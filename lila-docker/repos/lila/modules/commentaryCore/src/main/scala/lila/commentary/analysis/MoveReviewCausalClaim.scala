@@ -3,7 +3,7 @@ package lila.commentary.analysis
 import lila.commentary.model.authoring.AuthorQuestionKind
 
 private[commentary] object MoveReviewCausalClaim:
-  import MoveReviewLocalFact.{ Admission as LocalFactAdmission, Authority as LocalFactAuthority, Family as LocalFactFamily }
+  import MoveReviewLocalFact.Admission as LocalFactAdmission
 
   enum SubjectRole:
     case PlayedMove
@@ -106,7 +106,15 @@ private[commentary] object MoveReviewCausalClaim:
     val relationKinds = causalRelations(plan, contrastAdmissible, supportPrimary, tension, evidenceHook, coda, typedTimingSupport)
     val certifiedSurface =
       certifiedSurfaceText(plan.questionKind, renderedClaim, relationKinds, supportPrimary, surfaceConsequence)
-    val localFact = localFactAdmission(plan, evidenceKinds, relationKinds, surfaceConsequence.nonEmpty)
+    val localFact =
+      MoveReviewLocalFact
+        .admitPlanner(
+          plan,
+          evidenceKinds.map(_.wireName),
+          relationKinds.map(_.wireName),
+          lineConsequenceBacked = surfaceConsequence.nonEmpty
+        )
+        .admission
     val rejectReasons =
       List(
         Option.when(supportRequired && evidenceKinds.isEmpty)("causal_support_missing"),
@@ -204,122 +212,6 @@ private[commentary] object MoveReviewCausalClaim:
   private def playedMoveCausalOwner(plan: QuestionPlan): Boolean =
     plan.plannerOwnerKind == PlannerOwnerKind.MoveDelta ||
       plan.plannerOwnerKind == PlannerOwnerKind.TacticalFailure
-
-  private def localFactAdmission(
-      plan: QuestionPlan,
-      evidenceKinds: List[EvidenceKind],
-      relationKinds: List[RelationKind],
-      lineConsequenceBacked: Boolean
-  ): Option[LocalFactAdmission] =
-    val family =
-      plannerFamily(plan, relationKinds, lineConsequenceBacked)
-    val authority =
-      localFactAuthority(plan, evidenceKinds, lineConsequenceBacked)
-    family.map { factFamily =>
-      LocalFactAdmission(
-        family = factFamily,
-        authority = authority,
-        strictFallbackEligible = strictFallbackEligible(plan, factFamily, relationKinds),
-        guardrails =
-          List(
-            s"planner_owner:${plan.plannerOwnerKind.wireName}",
-            s"planner_source:${plan.plannerSource}"
-          ) ++
-            plan.sourceKinds.map(source => s"source_kind:$source") ++
-            relationKinds.map(relation => s"causal_relation:${relation.wireName}")
-      )
-    }
-
-  private def plannerFamily(
-      plan: QuestionPlan,
-      relationKinds: List[RelationKind],
-      lineConsequenceBacked: Boolean
-  ): Option[LocalFactFamily] =
-    if lineConsequenceBacked then Some(LocalFactFamily.LineConsequence)
-    else if relationKinds.contains(RelationKind.TimingConstraint) then Some(LocalFactFamily.Timing)
-    else if relationKinds.contains(RelationKind.DefensiveResource) then Some(LocalFactFamily.Defense)
-    else if relationKinds.contains(RelationKind.PlanRace) then Some(LocalFactFamily.Timing)
-    else
-      plan.plannerOwnerKind match
-        case PlannerOwnerKind.ForcingDefense    => Some(LocalFactFamily.Defense)
-        case PlannerOwnerKind.DecisionTiming    => Some(LocalFactFamily.Timing)
-        case PlannerOwnerKind.PlanRace          => Some(LocalFactFamily.Timing)
-        case PlannerOwnerKind.PositionProbe     => Some(LocalFactFamily.Pressure)
-        case PlannerOwnerKind.OpeningRelation   => Some(LocalFactFamily.OpeningGoal)
-        case PlannerOwnerKind.EndgameTransition => Some(LocalFactFamily.Endgame)
-        case PlannerOwnerKind.TacticalFailure =>
-          if sourceLooksTactical(plan) then Some(LocalFactFamily.Threat)
-          else None
-        case PlannerOwnerKind.MoveDelta =>
-          moveDeltaFamily(plan)
-
-  private def moveDeltaFamily(plan: QuestionPlan): Option[LocalFactFamily] =
-    val sources = plan.sourceKinds.map(_.toLowerCase)
-    if sources.exists(source => source.contains("timing")) then Some(LocalFactFamily.Timing)
-    else if sources.exists(source => source.contains("threat") || source.contains("tactical")) then Some(LocalFactFamily.Threat)
-    else if sources.exists(source =>
-      source.contains("prevented_plan") ||
-        source.contains("defense") ||
-        source.contains("neutralize_key_break") ||
-        source.contains("counterplay") ||
-        source.contains("local_file_entry") ||
-        source.contains("prophylactic")
-    ) then Some(LocalFactFamily.Defense)
-    else if sources.exists(source =>
-      source.contains("position_probe") ||
-        source.contains("target") ||
-        source.contains("iqp_inducement") ||
-        source.contains("carlsbad") ||
-        source.contains("color_complex") ||
-        source.contains("outpost") ||
-        source.contains("half_open_file_pressure")
-    ) then Some(LocalFactFamily.Pressure)
-    else if sources.exists(source =>
-      source.contains("defender_trade") ||
-        source.contains("bad_piece_liquidation") ||
-        source.contains("queen_trade_shield") ||
-        source.contains("simplification") ||
-        source.contains("exchange")
-    ) then Some(LocalFactFamily.LineConsequence)
-    else if sources.exists(_.contains("pv_delta")) then Some(LocalFactFamily.LineConsequence)
-    else None
-
-  private def localFactAuthority(
-      plan: QuestionPlan,
-      evidenceKinds: List[EvidenceKind],
-      lineConsequenceBacked: Boolean
-  ): LocalFactAuthority =
-    val sources = plan.sourceKinds.map(_.toLowerCase)
-    if sources.exists(_.contains("truth_contract")) || plan.plannerOwnerKind == PlannerOwnerKind.ForcingDefense then
-      LocalFactAuthority.TruthContract
-    else if lineConsequenceBacked || evidenceKinds.exists(_ == EvidenceKind.BranchLine) then
-      LocalFactAuthority.PvCoupledLine
-    else if plan.plannerOwnerKind == PlannerOwnerKind.OpeningRelation then
-      LocalFactAuthority.OpeningGoalEvidence
-    else LocalFactAuthority.CertifiedStrategy
-
-  private def strictFallbackEligible(
-      plan: QuestionPlan,
-      family: LocalFactFamily,
-      relationKinds: List[RelationKind]
-  ): Boolean =
-    family match
-      case LocalFactFamily.Defense =>
-        plan.plannerOwnerKind == PlannerOwnerKind.ForcingDefense &&
-          relationKinds.contains(RelationKind.DefensiveResource)
-      case LocalFactFamily.Timing =>
-        relationKinds.contains(RelationKind.TimingConstraint) &&
-          plan.timingWitness.nonEmpty
-      case LocalFactFamily.Threat =>
-        sourceLooksTactical(plan) &&
-          plan.sourceKinds.exists(source => source.toLowerCase.contains("canonical"))
-      case _ => false
-
-  private def sourceLooksTactical(plan: QuestionPlan): Boolean =
-    plan.sourceKinds.exists { source =>
-      val low = source.toLowerCase
-      low.contains("tactical") || low.contains("threat")
-    }
 
   private def openingRelationWhyThis(plan: QuestionPlan): Boolean =
     plan.questionKind == AuthorQuestionKind.WhyThis &&

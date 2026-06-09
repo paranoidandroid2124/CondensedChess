@@ -8,7 +8,15 @@ import lila.commentary.model.*
 import scala.annotation.unused
 
 private[commentary] object CommentaryIdeaSurface:
-  import MoveReviewLocalFact.{ Admission as LocalFactAdmission, Authority as LocalFactAuthority, Family as LocalFactFamily }
+  import MoveReviewLocalFact.{
+    Admission as LocalFactAdmission,
+    Anchor as LocalFactAnchor,
+    Candidate as LocalFactCandidate,
+    Family as LocalFactFamily,
+    LineBinding as LocalFactLineBinding,
+    Source as LocalFactSource,
+    Subject as LocalFactSubject
+  }
 
   // Data descriptors only.
   final case class PlayedMove(
@@ -187,12 +195,15 @@ private[commentary] object CommentaryIdeaSurface:
         evidence = evidence,
         lineFacts = lineFacts,
         requiresPvForAdmission = true,
-        localFact = LocalFactAdmission(
+        localFact = admittedLocalFact(LocalFactCandidate(
           family = LocalFactFamily.OpeningGoal,
-          authority = LocalFactAuthority.OpeningGoalEvidence,
-          strictFallbackEligible = true,
+          source = LocalFactSource.OpeningGoalEvidence,
+          subject = LocalFactSubject.OpeningGoal,
+          strictFallbackCandidate = true,
+          anchors = List(LocalFactAnchor("opening_goal", goal.goalName)),
+          lineBinding = LocalFactLineBinding.PvCoupled,
           guardrails = List("opening_goal_status_achieved_or_partial", "pv_coupled")
-        ),
+        )),
         factFragments = List(FactFragment.OpeningGoalFragment(
           san = played.san,
           openingName = evidence.openingName,
@@ -222,12 +233,14 @@ private[commentary] object CommentaryIdeaSurface:
         evidence = MoveReviewEvidence(Nil, Nil, None, None),
         lineFacts = lineFacts,
         requiresPvForAdmission = true,
-        localFact = LocalFactAdmission(
+        localFact = admittedLocalFact(LocalFactCandidate(
           family = LocalFactFamily.KingSafety,
-          authority = LocalFactAuthority.PvCoupledLine,
-          strictFallbackEligible = true,
+          source = LocalFactSource.PvCoupledLine,
+          subject = LocalFactSubject.KingSafety,
+          strictFallbackCandidate = true,
+          lineBinding = LocalFactLineBinding.PvCoupled,
           guardrails = List("castle_move", "pv_coupled")
-        ),
+        )),
         factFragments = List(FactFragment.KingSafetyFragment(played.san))
       )
     }
@@ -262,14 +275,15 @@ private[commentary] object CommentaryIdeaSurface:
         evidence = evidence,
         lineFacts = lineFacts,
         requiresPvForAdmission = true,
-        localFact = LocalFactAdmission(
-          family = strategicLocalFactFamily(delta),
-          authority = LocalFactAuthority.CertifiedStrategy,
-          strictFallbackEligible = false,
-          guardrails = List(
-            s"proof_family:${delta.packet.proofFamily}",
-            s"proof_source:${delta.packet.proofSource}",
-            "strict_requires_causal_or_exact_fallback"
+        localFact = admittedLocalFact(
+          MoveReviewLocalFact.strategicMoveDeltaCandidate(
+            delta,
+            anchors = preferredStrategicSubject(delta).map(subject => LocalFactAnchor("preferred_subject", subject)).toList,
+            guardrails = List(
+              s"proof_family:${delta.packet.proofFamily}",
+              s"proof_source:${delta.packet.proofSource}",
+              "strict_requires_causal_or_exact_fallback"
+            )
           )
         ),
         factFragments = List(FactFragment.StrategicSupportFragment(
@@ -316,12 +330,14 @@ private[commentary] object CommentaryIdeaSurface:
           evidence = evidence,
           lineFacts = lineFacts,
           requiresPvForAdmission = true,
-          localFact = LocalFactAdmission(
+          localFact = admittedLocalFact(LocalFactCandidate(
             family = LocalFactFamily.Threat,
-            authority = LocalFactAuthority.CanonicalFact,
-            strictFallbackEligible = true,
+            source = LocalFactSource.CanonicalFact,
+            subject = LocalFactSubject.Target,
+            strictFallbackCandidate = true,
+            lineBinding = LocalFactLineBinding.PvCoupled,
             guardrails = List(s"tactical_kind:${owned.kind}", "current_move_motif_owned", "pv_confirms_tactic")
-          ),
+          )),
           factFragments = List(FactFragment.TacticalThreatFragment(
             san = played.san,
             kind = owned.kind,
@@ -487,14 +503,16 @@ private[commentary] object CommentaryIdeaSurface:
         evidence = evidence,
         lineFacts = lineFacts,
         requiresPvForAdmission = true,
-        localFact = LocalFactAdmission(
+        localFact = admittedLocalFact(LocalFactCandidate(
           family = if defensive then LocalFactFamily.Defense else LocalFactFamily.Pressure,
-          authority = if defensive then LocalFactAuthority.TruthContract else LocalFactAuthority.CanonicalFact,
-          strictFallbackEligible = true,
+          source = if defensive then LocalFactSource.TruthContract else LocalFactSource.CanonicalFact,
+          subject = LocalFactSubject.Target,
+          strictFallbackCandidate = true,
+          lineBinding = LocalFactLineBinding.PvCoupled,
           guardrails =
             if defensive then List("only_move_defense_truth", "pv_coupled")
             else List("target_fact_attacked_by_played_move", "pv_coupled")
-        ),
+        )),
         factFragments = List(FactFragment.DirectThreatFragment(
           san = played.san,
           isDefensive = defensive,
@@ -539,12 +557,14 @@ private[commentary] object CommentaryIdeaSurface:
         evidence = evidence,
         lineFacts = lineFacts,
         requiresPvForAdmission = true,
-        localFact = LocalFactAdmission(
+        localFact = admittedLocalFact(LocalFactCandidate(
           family = LocalFactFamily.Capture,
-          authority = LocalFactAuthority.PvCoupledLine,
-          strictFallbackEligible = true,
+          source = LocalFactSource.PvCoupledLine,
+          subject = LocalFactSubject.Capture,
+          strictFallbackCandidate = true,
+          lineBinding = LocalFactLineBinding.PvCoupled,
           guardrails = List("capture_motif", "immediate_recapture")
-        ),
+        )),
         factFragments = List(FactFragment.CaptureFragment(
           san = played.san,
           purpose = purpose
@@ -578,12 +598,14 @@ private[commentary] object CommentaryIdeaSurface:
         evidence = evidence,
         lineFacts = lineFacts,
         requiresPvForAdmission = true,
-        localFact = LocalFactAdmission(
+        localFact = admittedLocalFact(LocalFactCandidate(
           family = LocalFactFamily.Endgame,
-          authority = LocalFactAuthority.CanonicalFact,
-          strictFallbackEligible = true,
+          source = LocalFactSource.CanonicalFact,
+          subject = LocalFactSubject.Endgame,
+          strictFallbackCandidate = true,
+          lineBinding = LocalFactLineBinding.PvCoupled,
           guardrails = List("endgame_fact_owned_by_played_move", "pv_coupled")
-        ),
+        )),
         factFragments = List(FactFragment.EndgameFragment(
           san = played.san,
           facts = ownedFacts.map(_.toString)
@@ -614,12 +636,14 @@ private[commentary] object CommentaryIdeaSurface:
         evidence = evidence,
         lineFacts = lineFacts,
         requiresPvForAdmission = true,
-        localFact = LocalFactAdmission(
+        localFact = admittedLocalFact(LocalFactCandidate(
           family = LocalFactFamily.LineConsequence,
-          authority = LocalFactAuthority.PvCoupledLine,
-          strictFallbackEligible = false,
+          source = LocalFactSource.PvCoupledLine,
+          subject = LocalFactSubject.PlayedMove,
+          strictFallbackCandidate = false,
+          lineBinding = LocalFactLineBinding.PvCoupled,
           guardrails = List("opening_phase_line_only", "strict_requires_typed_fact")
-        )
+        ))
       )
     }
 
@@ -719,6 +743,9 @@ private[commentary] object CommentaryIdeaSurface:
       factFragments = frags
     )
 
+  private def admittedLocalFact(candidate: LocalFactCandidate): LocalFactAdmission =
+    MoveReviewLocalFact.admitted(candidate)
+
   private def moveCharacterBand(truthContract: Option[DecisiveTruthContract]): MoveCharacterBand =
     truthContract match
       case Some(contract) if contract.isBad =>
@@ -791,15 +818,6 @@ private[commentary] object CommentaryIdeaSurface:
       case PlayerFacingMoveDeltaClass.ResourceRemoval      => "answer_direct_threat"
       case PlayerFacingMoveDeltaClass.PressureIncrease     => "create_tactical_threat"
       case PlayerFacingMoveDeltaClass.NewAccess            => "quiet_improvement"
-
-  private def strategicLocalFactFamily(delta: PlayerFacingMoveDeltaEvidence): LocalFactFamily =
-    delta.deltaClass match
-      case PlayerFacingMoveDeltaClass.CounterplayReduction => LocalFactFamily.Defense
-      case PlayerFacingMoveDeltaClass.ExchangeForcing      => LocalFactFamily.LineConsequence
-      case PlayerFacingMoveDeltaClass.PlanAdvance          => LocalFactFamily.PlanSupport
-      case PlayerFacingMoveDeltaClass.ResourceRemoval      => LocalFactFamily.Defense
-      case PlayerFacingMoveDeltaClass.PressureIncrease     => LocalFactFamily.Pressure
-      case PlayerFacingMoveDeltaClass.NewAccess            => LocalFactFamily.LineConsequence
 
   private def strategicTitle(played: PlayedMove, delta: PlayerFacingMoveDeltaEvidence): String =
     strategicIntent(delta) match

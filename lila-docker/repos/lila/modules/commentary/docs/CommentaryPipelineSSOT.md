@@ -246,12 +246,14 @@ The maintained path is:
    own the same causal story.
    The fallback lane now applies the same ownership direction to
    `basic_move_explanation` and scoped takeaways. `MoveReviewLocalFact` owns
-   the shared typed local-fact vocabulary, and `CommentaryIdeaSurface`
-   attaches that admission to every admitted MoveReview basic descriptor with a
-   `local_fact_family` (`attack`, `defense`, `threat`, `pressure`,
-   `plan_support`, `line_consequence`, `timing`, plus existing opening,
-   king-safety, capture, and endgame families) and a `local_fact_authority`
-   before it renders prose. When `MoveReviewCausalClaim` rejects a high-risk
+   the shared typed local-fact vocabulary and the candidate/admit policy. It
+   accepts source, subject, anchor, line-binding, and evidence-ref inputs and
+   returns an admitted `local_fact_family` (`attack`, `defense`, `threat`,
+   `pressure`, `plan_support`, `line_consequence`, `timing`, plus existing
+   opening, king-safety, capture, and endgame families) plus
+   `local_fact_authority`. `CommentaryIdeaSurface` submits candidates and
+   attaches only the admitted result to every admitted MoveReview basic
+   descriptor before it renders prose. When `MoveReviewCausalClaim` rejects a high-risk
    planner row, `MoveReviewCompressionPolicy` calls the basic builder in strict
    local-fact mode. Soft line-only or strategic-plan descriptors that are not
    strict-eligible fall through to exact factual fallback rather than producing
@@ -276,7 +278,12 @@ The maintained path is:
    line-consequence authority opens from `LineConsequenceEvaluator`
    `SurfaceCandidate` output or a typed `pv_delta` owner, timing opens from a
    timing relation/witness, defense from forcing-defense relation/truth, and
-   pressure/opening/endgame from their typed owner families. Words such as
+   pressure/opening/endgame from their typed owner families. That
+   source/evidence mapping now lives in `MoveReviewLocalFact.admitPlanner`,
+   while `MoveReviewCausalClaim` supplies the certified relation/evidence
+   kinds. Strategic basic descriptors likewise use `MoveReviewLocalFact`'s
+   centralized `PlayerFacingMoveDeltaClass` -> local-fact-family mapping.
+   Words such as
    `supports`, `plan`, `pressure`, `target`, or `threat` inside the rendered
    sentence do not mint a local fact family.
    Basic/scoped rows preserve the same admission on the internal

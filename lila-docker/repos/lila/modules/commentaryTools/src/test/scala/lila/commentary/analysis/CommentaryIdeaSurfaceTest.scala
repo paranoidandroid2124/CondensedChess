@@ -720,6 +720,41 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
     assert(!plan.baseProse.contains("certified"), clue(plan.baseProse))
   }
 
+  test("MoveReviewLocalFact centralizes strategic move-delta family admission") {
+    val cases =
+      List(
+        PlayerFacingMoveDeltaClass.CounterplayReduction -> MoveReviewLocalFact.Family.Defense,
+        PlayerFacingMoveDeltaClass.ExchangeForcing -> MoveReviewLocalFact.Family.LineConsequence,
+        PlayerFacingMoveDeltaClass.PlanAdvance -> MoveReviewLocalFact.Family.PlanSupport,
+        PlayerFacingMoveDeltaClass.ResourceRemoval -> MoveReviewLocalFact.Family.Defense,
+        PlayerFacingMoveDeltaClass.PressureIncrease -> MoveReviewLocalFact.Family.Pressure,
+        PlayerFacingMoveDeltaClass.NewAccess -> MoveReviewLocalFact.Family.LineConsequence
+      )
+
+    cases.foreach { case (deltaClass, expectedFamily) =>
+      val delta =
+        strategicDelta("neutralize_key_break", "counterplay_axis_suppression", deltaClass)
+      val candidate =
+        MoveReviewLocalFact.strategicMoveDeltaCandidate(
+          delta,
+          anchors = List(MoveReviewLocalFact.Anchor("preferred_subject", "b5")),
+          guardrails =
+            List(
+              s"proof_family:${delta.packet.proofFamily}",
+              s"proof_source:${delta.packet.proofSource}",
+              "strict_requires_causal_or_exact_fallback"
+            )
+        )
+      val decision = MoveReviewLocalFact.admit(candidate)
+
+      assertEquals(decision.admission.map(_.family), Some(expectedFamily), clue(deltaClass))
+      assertEquals(decision.admission.map(_.authority), Some(MoveReviewLocalFact.Authority.CertifiedStrategy), clue(deltaClass))
+      assertEquals(decision.admission.map(_.strictFallbackEligible), Some(false), clue(deltaClass))
+      assertEquals(candidate.subject, MoveReviewLocalFact.Subject.PlanResource, clue(deltaClass))
+      assertEquals(candidate.lineBinding, MoveReviewLocalFact.LineBinding.PvCoupled, clue(deltaClass))
+    }
+  }
+
   test("certified strategic support ignores generic main-plan anchor text") {
     val startFen =
       "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"

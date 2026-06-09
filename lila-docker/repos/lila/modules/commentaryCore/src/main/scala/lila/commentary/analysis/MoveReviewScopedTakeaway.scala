@@ -3,7 +3,14 @@ package lila.commentary.analysis
 import lila.commentary.model.Fact
 
 private[commentary] object MoveReviewScopedTakeaway:
-  import MoveReviewLocalFact.{ Admission as LocalFactAdmission, Authority as LocalFactAuthority, Family as LocalFactFamily }
+  import MoveReviewLocalFact.{
+    Admission as LocalFactAdmission,
+    Candidate as LocalFactCandidate,
+    Family as LocalFactFamily,
+    LineBinding as LocalFactLineBinding,
+    Source as LocalFactSource,
+    Subject as LocalFactSubject
+  }
 
   enum EvidenceTier:
     case PvCoupledLocal
@@ -54,12 +61,14 @@ private[commentary] object MoveReviewScopedTakeaway:
       evidence: CommentaryIdeaSurface.MoveReviewEvidence,
       lineFacts: Option[MoveReviewPvLine.LineFacts],
       localFact: LocalFactAdmission =
-        LocalFactAdmission(
+        MoveReviewLocalFact.admitted(LocalFactCandidate(
           family = LocalFactFamily.LineConsequence,
-          authority = LocalFactAuthority.PvCoupledLine,
-          strictFallbackEligible = false,
+          source = LocalFactSource.PvCoupledLine,
+          subject = LocalFactSubject.PlayedMove,
+          strictFallbackCandidate = false,
+          lineBinding = LocalFactLineBinding.PvCoupled,
           guardrails = List("compatibility_default")
-        )
+        ))
   ): Option[ScopedTakeaway] =
     lineFacts
       .filter(line => MoveReviewPvLine.normalizeUci(line.first.uci) == played.uci)
