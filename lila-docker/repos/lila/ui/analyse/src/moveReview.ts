@@ -28,7 +28,6 @@ import {
     type MoveReviewPlayerSurfaceV1,
     type MoveReviewStrategicLedgerV1,
     type MoveReviewRefsV1,
-    type MoveReviewExplanationV1,
     type PolishMetaV1,
     variationLinesFromResponse,
 } from './moveReview/responsePayload';
@@ -516,7 +515,6 @@ function renderAuthorRow(row: MoveReviewPlayerAuthorRowV1, refIndex: MoveReviewR
 
 function decorateMoveReviewHtml(
     html: string,
-    moveReviewExplanation: MoveReviewExplanationV1 | null,
     refs: MoveReviewRefsV1 | null,
     playerSurface: MoveReviewPlayerSurfaceV1 | null,
 ): string {
@@ -525,7 +523,7 @@ function decorateMoveReviewHtml(
     const probeRows: string[] = [];
     const authorRows: string[] = [];
     const refIndex = buildMoveReviewRefIndex(refs);
-    const titleText = playerSurface?.title?.trim() || moveReviewExplanation?.title?.trim() || '';
+    const titleText = playerSurface?.title?.trim() || '';
     const moveReviewTitle = titleText
         ? `<div class="move-review-move-review__title">${escapeHtml(titleText)}</div>`
         : '';
@@ -585,7 +583,6 @@ function decorateMoveReviewHtml(
 function decorateDecodedMoveReviewHtml(decoded: DecodedMoveReviewResponse): string {
     return decorateMoveReviewHtml(
         decoded.html,
-        decoded.moveReviewExplanation,
         decoded.refs,
         decoded.moveReviewPlayerSurface,
     );
@@ -840,7 +837,6 @@ export default function moveReviewNarrative(ctrl?: AnalyseCtrl): MoveReviewNarra
             sourceMode: 'study_saved',
             model: null,
             cacheHit: true,
-            moveReviewExplanation: null,
             mainPlansCount: 0,
             moveReviewLedger: null,
             planStateToken: null,

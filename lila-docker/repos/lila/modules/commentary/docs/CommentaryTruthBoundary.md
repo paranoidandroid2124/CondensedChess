@@ -124,8 +124,9 @@ recover a stronger causal claim downstream.
 Scoped takeaway rendering applies the same rule at the last renderer boundary:
 the purpose must match the admitted family and the admission must remain
 `pv_coupled`. The renderer consumes the admitted scoped takeaway only; raw
-checked-line defaults, opponent questions, reply-role classifiers, or tension
-classifiers cannot become truth for threat, defense, pressure, plan-support,
+checked-line defaults, opponent questions, reply-role classifiers, or old tension
+classifiers are not carried as renderer slots and cannot become truth for threat,
+defense, pressure, plan-support,
 capture, endgame, timing, or line-consequence interpretation by template choice.
 
 Exact/basic fallback prose remains non-owner truth. It may report the reviewed

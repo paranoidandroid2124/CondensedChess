@@ -784,7 +784,6 @@ private[commentary] object MoveReviewCompressionPolicy:
               explanation.pvInterpretation.map(interpretation => s"PV line purpose: ${interpretation.linePurpose}"),
               explanation.pvInterpretation.map(interpretation => s"PV confirms: ${interpretation.confirms.mkString(", ")}"),
               explanation.pvInterpretation.map(interpretation => s"PV tension: ${interpretation.tension}"),
-              explanation.pvInterpretation.flatMap(_.opponentReplyMeaning).map(meaning => s"PV opponent reply: $meaning"),
               explanation.pvInterpretation.map(interpretation => s"PV learning point: ${interpretation.learningPoint}")
             ).flatten
           MoveReviewPolishSlots(

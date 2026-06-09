@@ -1508,7 +1508,12 @@ full `mainStrategicPlans`, or `strategicPlanExperiments`. It exposes
 `mainStrategicPlanCount` for UI metadata instead of plan arrays. `probeRequests`
 remain a compatibility array on the public schema, but the current sanitized
 MoveReview response emits it empty; public MoveReview does not expose raw probe
-orchestration requests. Public polish metadata excludes validation reasons,
+orchestration requests. Top-level `moveReviewExplanation` is an internal
+backend carrier, not a public wire field; its in-memory `pvInterpretation`
+carries only the scoped line purpose, confirmed typed facts, bounded tension
+status, learning point, supporting line id, and confidence before the player
+surface is built. Stale opponent-reply meaning is not a model, sanitizer, or
+wire field. Public polish metadata excludes validation reasons,
 token counts, cost estimates, and strategy-coverage diagnostics; fallback/retry
 state is owned by `diagnostics.status/sourceModeReason` instead. Frontend
 decoding and stored snapshot restore strip those internal polish fields from
@@ -1840,7 +1845,8 @@ top-level explanation reconstruction path. If that explanation line is absent,
 the builder may use the preferred current-move `MoveReviewRefs` variation for
 the same authority-free row instead of parsing planner prose. Legacy top-level
 `moveReviewExplanation` is not a public fact-fragment authority: backend
-sanitization strips `factFragments`, and frontend decoding ignores that field.
+sanitization strips `factFragments`, and frontend decoding no longer restores
+that field or its title fallback.
 Legacy top-level `moveReviewLedger` may provide only metadata/signal attributes
 after schema/key validation; malformed line rows are dropped and no top-level
 ledger line renderer reconstructs probe/support rows. If the surface is

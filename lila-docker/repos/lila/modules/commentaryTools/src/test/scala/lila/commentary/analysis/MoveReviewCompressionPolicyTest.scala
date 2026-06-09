@@ -1216,7 +1216,7 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
         truthContract = Some(blunderContract)
       )
 
-    assertNotEquals(slots.sourceKind, MoveReviewPolishSlots.Source.ThematicFallback)
+    assertNotEquals(slots.sourceKind, "thematic_fallback")
     assertEquals(
       MoveReviewProseContract.stripMoveHeader(slots.claim),
       "This moves the pawn to h3."
@@ -1242,7 +1242,7 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
         truthContract = Some(missedWinContract)
       )
 
-    assertNotEquals(missedWinSlots.sourceKind, MoveReviewPolishSlots.Source.ThematicFallback)
+    assertNotEquals(missedWinSlots.sourceKind, "thematic_fallback")
     assertEquals(
       MoveReviewProseContract.stripMoveHeader(missedWinSlots.claim),
       "This moves the pawn to h3."
@@ -1314,7 +1314,7 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
           truthContract = None
         )
 
-      assertNotEquals(slots.sourceKind, MoveReviewPolishSlots.Source.ThematicFallback, clues(slots))
+      assertNotEquals(slots.sourceKind, "thematic_fallback", clues(slots))
       assertEquals(
         MoveReviewProseContract.stripMoveHeader(slots.claim),
         "This moves the pawn to h3."
@@ -1379,7 +1379,7 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
         truthContract = Some(inaccuracyContract)
       )
 
-    assertNotEquals(slots.sourceKind, MoveReviewPolishSlots.Source.ThematicFallback)
+    assertNotEquals(slots.sourceKind, "thematic_fallback")
     assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "")
     assertEquals(slots.supportPrimary, None)
     assertEquals(slots.supportSecondary, None)

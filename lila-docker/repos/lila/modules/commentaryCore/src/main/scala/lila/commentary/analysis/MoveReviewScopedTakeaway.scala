@@ -99,39 +99,41 @@ private[commentary] object MoveReviewScopedTakeaway:
   ): Option[String] =
     val replySan = line.reply.map(_.san).filter(_.nonEmpty).getOrElse("the reply")
     val continuationSan = line.continuation.map(_.san).filter(_.nonEmpty).getOrElse("the follow-up")
+    val checkedReply = s"the checked continuation begins with $replySan"
+    val checkedSequence = s"the checked continuation runs through $replySan, then $continuationSan"
     val openingGoalName = evidence.openingGoal.map(_.goalName.toLowerCase).getOrElse("")
     Option.when(admitsPurpose(purpose, localFact))(
       localFact.family match
         case LocalFactFamily.Threat | LocalFactFamily.Pressure =>
-          s"The PV keeps the local tactical detail bounded: ${played.san} is the move under review, $replySan is the next checked move, and the line does not authorize a broader evaluation claim."
+          s"The PV keeps the local tactical detail bounded: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader evaluation claim."
         case LocalFactFamily.Defense =>
-          s"The PV keeps the defensive detail bounded: ${played.san} is the move under review, $replySan is the next checked move, and the line does not authorize a broader threat claim."
+          s"The PV keeps the defensive detail bounded: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader threat claim."
         case LocalFactFamily.Endgame if evidence.endgameFacts.exists(_.isInstanceOf[Fact.KingActivity]) =>
-          s"The line keeps the endgame detail local to ${played.san}: $replySan is the next checked move, and $continuationSan continues the line."
+          s"The line keeps the endgame detail local to ${played.san}: $checkedSequence."
         case LocalFactFamily.Endgame =>
-          s"The line keeps the concrete endgame detail local to ${played.san}: $replySan is the next checked move, and $continuationSan continues the line."
+          s"The line keeps the concrete endgame detail local to ${played.san}: $checkedSequence."
         case LocalFactFamily.Capture =>
           s"The line clarifies the exchange: ${played.san} is met by $replySan, so the sequence remains bounded to ${played.toKey}."
         case LocalFactFamily.KingSafety =>
-          s"The line keeps the king-safety detail bounded: ${played.san} is the move under review, $replySan is the next checked move, and $continuationSan continues the line."
+          s"The line keeps the king-safety detail bounded: ${played.san} is the move under review, and $checkedSequence."
         case LocalFactFamily.OpeningGoal =>
           purpose match
             case "quiet_development" if line.continuation.exists(move => MoveReviewPvLine.normalizeUci(move.uci) == "d2d3") =>
               s"The checked line stays local to ${played.san}: after $replySan, $continuationSan remains the checked continuation."
             case "quiet_development" =>
-              s"The checked line stays local to ${played.san}: $replySan is the next checked move, and $continuationSan continues the line."
+              s"The checked line stays local to ${played.san}: $checkedSequence."
             case "center_break_setup" =>
               s"The checked line keeps the setup bounded: ${played.san} comes first, then $continuationSan continues the line."
             case "challenge_center" =>
               s"The checked line keeps the center sequence bounded: ${played.san} is the move under review, and $continuationSan continues the line."
             case _ =>
-              s"The checked line stays local to ${played.san}: $replySan is the next checked move, and $continuationSan continues the line."
+              s"The checked line stays local to ${played.san}: $checkedSequence."
         case _ =>
           purpose match
             case "quiet_development" if line.continuation.exists(move => MoveReviewPvLine.normalizeUci(move.uci) == "d2d3") =>
               s"The checked line stays local to ${played.san}: after $replySan, $continuationSan remains the checked continuation."
             case "quiet_development" =>
-              s"The checked line stays local to ${played.san}: $replySan is the next checked move, and $continuationSan continues the line."
+              s"The checked line stays local to ${played.san}: $checkedSequence."
             case "center_break_setup" =>
               s"The checked line keeps the setup bounded: ${played.san} comes first, then $continuationSan continues the line."
             case "challenge_center" =>
@@ -139,21 +141,21 @@ private[commentary] object MoveReviewScopedTakeaway:
             case "king_safety_first" =>
               s"The line keeps the king-safety sequence bounded: ${played.san} is the move under review, and $continuationSan continues the line."
             case "create_tactical_threat" if openingGoalName.nonEmpty =>
-              s"The PV keeps the opening goal bounded: ${played.san} is the move under review, $replySan is the next checked move, and the line does not authorize a broader evaluation claim."
+              s"The PV keeps the opening goal bounded: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader evaluation claim."
             case "create_tactical_threat" =>
-              s"The PV keeps the local tactical detail bounded: ${played.san} is the move under review, $replySan is the next checked move, and the line does not authorize a broader evaluation claim."
+              s"The PV keeps the local tactical detail bounded: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader evaluation claim."
             case "answer_direct_threat" =>
-              s"The PV keeps the defensive detail bounded: ${played.san} is the move under review, $replySan is the next checked move, and the line does not authorize a broader threat claim."
+              s"The PV keeps the defensive detail bounded: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader threat claim."
             case "resolve_capture_tension" =>
               s"The PV shows the capture tension clearly: ${played.san} can be answered by $replySan, so the point is what remains after the recapture rather than the capture alone."
             case "clarify_exchange" =>
               s"The line clarifies the exchange: ${played.san} is met by $replySan, so the sequence resolves which trade remains on ${played.toKey}."
             case "improve_endgame_activity" if evidence.endgameFacts.exists(_.isInstanceOf[Fact.KingActivity]) =>
-              s"The line keeps the endgame detail local to ${played.san}: $replySan is the next checked move, and $continuationSan continues the line."
+              s"The line keeps the endgame detail local to ${played.san}: $checkedSequence."
             case "improve_endgame_activity" =>
-              s"The line keeps the concrete endgame detail local to ${played.san}: $replySan is the next checked move, and $continuationSan continues the line."
+              s"The line keeps the concrete endgame detail local to ${played.san}: $checkedSequence."
             case _ =>
-              s"The checked line stays local to ${played.san}: $replySan is the next checked move, and $continuationSan continues the line."
+              s"The checked line stays local to ${played.san}: $checkedSequence."
     )
 
   private def admitsPurpose(

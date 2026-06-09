@@ -134,7 +134,7 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
         .getOrElse(fail("expected PV-proved opening goal explanation"))
 
     assertEquals(explanation.source, "opening_goal", clue(explanation))
-    assert(explanation.title.contains("development idea"), clue(explanation.title))
+    assert(explanation.title.contains("board-backed development goal"), clue(explanation.title))
     assert(!explanation.title.contains("Development Logic"), clue(explanation.title))
     assert(!explanation.prose.contains("Development Logic"), clue(explanation.prose))
     assert(explanation.prose.contains("Italian Game"), clue(explanation.prose))
@@ -196,7 +196,6 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
         .getOrElse(fail("expected exact Queen's Gambit opening explanation"))
 
     assertEquals(ruy.source, "opening_goal", clue(ruy))
-    assertEquals(ruy.pvInterpretation.flatMap(_.opponentReplyMeaning), None, clue(ruy.pvInterpretation))
     assert(ruy.pvInterpretation.exists(_.learningPoint.contains("Ba4")), clue(ruy.pvInterpretation))
     assertEquals(qg.source, "opening_goal", clue(qg))
     assertEquals(qg.pvInterpretation.map(_.linePurpose), Some("challenge_center"), clue(qg.pvInterpretation))
@@ -270,7 +269,6 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
 
     assertEquals(explanation.pvInterpretation.map(_.linePurpose), Some("quiet_development"), clue(explanation))
     assertEquals(explanation.pvInterpretation.map(_.tension), Some("scoped_local"), clue(explanation))
-    assertEquals(explanation.pvInterpretation.flatMap(_.opponentReplyMeaning), None, clue(explanation))
     assert(explanation.pvInterpretation.exists(_.confirms.contains("normal_development")), clue(explanation.pvInterpretation))
     assert(explanation.pvInterpretation.exists(_.learningPoint.contains("d3")), clue(explanation.pvInterpretation))
     assert(explanation.prose.contains("Nf6"), clue(explanation.prose))

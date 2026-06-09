@@ -272,8 +272,9 @@ The maintained path is:
    `MoveReviewScopedTakeaway` consumes the admitted local fact metadata and
    gates every scoped purpose by admitted family plus `pv_coupled` line binding.
    Public prose and `pvInterpretation` consume that scoped takeaway only; raw
-   opponent-question, reply-role, tension, and line-resolution fragments are not
-   emitted as separate renderer authority. The renderer therefore cannot turn a
+   opponent-question, reply-role, and line-resolution fragments are no longer
+   carried as compatibility slots, and tension is the bounded `scoped_local`
+   status rather than a classifier. The renderer therefore cannot turn a
    line-only compatibility default or purpose string into a target, threat,
    defense, plan-support, timing, or line-consequence claim.
    Accepted high-risk planner claims carry the same `MoveReviewLocalFact`
@@ -482,7 +483,8 @@ The maintained path is:
     reconstructing from raw carriers. If the main planner, typed basic lane, and
     exact local factual fallback all fail, MoveReview now emits the omitted slot
     rather than a lower mid-tier thematic fallback. The previous
-    plan-theme-derived `theme_fallback` prose path is not a public runtime lane.
+    plan-theme-derived fallback prose path has no public source constant or
+    runtime lane.
     Fresh MoveReview early-opening prose clamping consumes the same truth
     contract so critical/tactical escape hatches are not lost when intro-only
     opening prose is compacted.
@@ -548,7 +550,7 @@ The maintained path is:
     tokens, an empty `probeRequests` compatibility array, backend-certified
     `moveReviewPlayerSurface`, public polish metadata, and backend-owned
     diagnostics. Top-level `moveReviewExplanation` and `moveReviewLedger`
-    remain internal/cache-compatibility carriers rather than fresh public wire
+    remain internal/backend compatibility carriers rather than fresh public wire
     authority; sanitizer strips explanation `factFragments` and keeps a
     top-level ledger only for admitted plans with the expected schema,
     authority-key-shaped motif/stage keys, sanctioned line sources, and
@@ -2455,8 +2457,8 @@ Fresh `MoveReviewPlayerPayloadBuilder` construction may project the in-memory
 authority-free `Checked line` summary row on `moveReviewPlayerSurface`; when
 that line is missing, it may use the preferred current-move `MoveReviewRefs`
 variation for the same authority-free row. Legacy or cached top-level
-`moveReviewExplanation` may supply an existing title only; `factFragments` are
-ignored by the decoder and stripped by the backend sanitizer. Legacy or cached
+`moveReviewExplanation` is ignored by the frontend decoder; `factFragments` are
+stripped by the backend sanitizer before any internal/cache reuse. Legacy or cached
 top-level `moveReviewLedger` is metadata/signal only: malformed ledger keys drop
 the ledger, malformed line rows are dropped, and top-level ledger lines are not
 rendered as support/probe rows. Player-facing probe/support rows come from

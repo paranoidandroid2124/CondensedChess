@@ -2,7 +2,6 @@ import type {
   MoveReviewRefsV1,
   MoveReviewStrategicLedgerV1,
   DecodedMoveReviewResponse,
-  MoveReviewExplanationV1,
   PolishMetaV1,
 } from './responsePayload';
 import type { EndgameStateToken, PlanStateToken } from './types';
@@ -21,7 +20,6 @@ export type StoredMoveReviewEntry = {
   sourceMode: string | null;
   model: string | null;
   cacheHit: boolean | null;
-  moveReviewExplanation?: MoveReviewExplanationV1 | null;
   mainPlansCount: number;
   moveReviewLedger?: MoveReviewStrategicLedgerV1 | null;
   planStateToken?: PlanStateToken | null;
@@ -59,7 +57,6 @@ type StoredMoveReviewEntrySource = Pick<
   | 'sourceMode'
   | 'model'
   | 'cacheHit'
-  | 'moveReviewExplanation'
   | 'mainStrategicPlanCount'
   | 'moveReviewLedger'
   | 'planStateToken'
@@ -78,7 +75,6 @@ export function buildStoredMoveReviewEntry(
     sourceMode: decoded.sourceMode,
     model: decoded.model,
     cacheHit: decoded.cacheHit,
-    moveReviewExplanation: decoded.moveReviewExplanation,
     mainPlansCount: decoded.mainStrategicPlanCount,
     moveReviewLedger: decoded.moveReviewLedger,
     planStateToken: decoded.planStateToken,

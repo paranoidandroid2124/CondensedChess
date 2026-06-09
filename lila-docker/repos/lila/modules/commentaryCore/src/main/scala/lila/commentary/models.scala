@@ -111,7 +111,6 @@ case class MoveReviewPvInterpretation(
     linePurpose: String,
     confirms: List[String] = Nil,
     tension: String,
-    opponentReplyMeaning: Option[String] = None,
     learningPoint: String,
     supportedByLineId: Option[String] = None,
     confidence: String = "bounded_local"

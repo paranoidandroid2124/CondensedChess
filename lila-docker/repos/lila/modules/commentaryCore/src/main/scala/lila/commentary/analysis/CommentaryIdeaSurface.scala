@@ -84,13 +84,9 @@ private[commentary] object CommentaryIdeaSurface:
       title: String,
       baseProse: String,
       movePurpose: String,
-      opponentQuestion: Option[String],
-      lineResolution: Option[String],
       reasonTags: List[String],
       confirms: List[String],
       linePurpose: Option[String],
-      tension: Option[String],
-      opponentReplyMeaning: Option[String],
       learningPoint: Option[String],
       scopedTakeaway: Option[MoveReviewScopedTakeaway.ScopedTakeaway] = None,
       requiresPvForAdmission: Boolean,
@@ -115,7 +111,6 @@ private[commentary] object CommentaryIdeaSurface:
           linePurpose = purpose,
           confirms = confirms,
           tension = "scoped_local",
-          opponentReplyMeaning = None,
           learningPoint = takeaway.text,
           supportedByLineId = Some(line.line.lineId),
           confidence = "bounded_local"
@@ -628,9 +623,8 @@ private[commentary] object CommentaryIdeaSurface:
       lineFacts: Option[MoveReviewPvLine.LineFacts],
       requiresPvForAdmission: Boolean,
       localFact: LocalFactAdmission,
-      factFragments: List[FactFragment] = Nil
+      factFragments: List[FactFragment]
   ): MoveReviewIdeaDescriptor =
-    val frags = factFragments
     val movePurpose = baseProse.trim
     val expandedReasonTags =
       (reasonTags ++
@@ -648,18 +642,14 @@ private[commentary] object CommentaryIdeaSurface:
       title = title,
       baseProse = baseProse,
       movePurpose = movePurpose,
-      opponentQuestion = None,
-      lineResolution = None,
       reasonTags = expandedReasonTags,
       confirms = confirms,
       linePurpose = linePurpose,
-      tension = None,
-      opponentReplyMeaning = None,
       learningPoint = scopedTakeaway.map(_.text),
       scopedTakeaway = scopedTakeaway,
       requiresPvForAdmission = requiresPvForAdmission,
       localFact = localFact,
-      factFragments = frags
+      factFragments = factFragments
     )
 
   private def admittedLocalFact(candidate: LocalFactCandidate): LocalFactAdmission =
@@ -1110,12 +1100,12 @@ private[commentary] object CommentaryIdeaSurface:
 
   private def openingGoalPhrase(goalName: String): String =
     val key = slug(goalName)
-    if key.contains("development") || key.contains("fianchetto") then "a development idea"
-    else if key.contains("challenge") || key.contains("sicilian") then "a center challenge"
-    else if key.contains("break") || key.contains("gambit") then "a thematic pawn-break plan"
-    else if key.contains("tension") || key.contains("release") then "a tension-handling idea"
-    else if key.contains("safety") || key.contains("castle") then "a king-safety idea"
-    else "an opening idea"
+    if key.contains("development") || key.contains("fianchetto") then "a board-backed development goal"
+    else if key.contains("challenge") || key.contains("sicilian") then "a board-backed center goal"
+    else if key.contains("break") || key.contains("gambit") then "a board-backed pawn-break goal"
+    else if key.contains("tension") || key.contains("release") then "a board-backed tension goal"
+    else if key.contains("safety") || key.contains("castle") then "a board-backed king-safety goal"
+    else "a board-backed opening goal"
 
   private def hangingStatement(
       bead: Int,

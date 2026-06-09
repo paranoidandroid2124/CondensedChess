@@ -39,7 +39,6 @@ object MoveReviewPolishSlots:
     val Planner = "planner"
     val BasicMoveExplanation = "basic_move_explanation"
     val ExactFactualFallback = "exact_factual_fallback"
-    val ThematicFallback = "thematic_fallback"
 
 object MoveReviewPolishSlotsBuilder:
 

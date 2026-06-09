@@ -32,36 +32,6 @@ export type MoveReviewRefsV1 = {
   variations: VariationRefV1[];
 };
 
-export type MoveReviewShortLineV1 = {
-  san: string[];
-  uci: string[];
-  lineId?: string | null;
-  scoreCp?: number | null;
-  mate?: number | null;
-  depth?: number | null;
-  source: string;
-};
-
-export type MoveReviewPvInterpretationV1 = {
-  linePurpose: string;
-  confirms: string[];
-  tension: string;
-  opponentReplyMeaning?: string | null;
-  learningPoint: string;
-  supportedByLineId?: string | null;
-  confidence: string;
-};
-
-export type MoveReviewExplanationV1 = {
-  title: string;
-  prose: string;
-  qualityLabel?: string | null;
-  reasonTags: string[];
-  shortLine?: MoveReviewShortLineV1 | null;
-  pvInterpretation?: MoveReviewPvInterpretationV1 | null;
-  source: string;
-};
-
 export type PolishMetaV1 = {
   provider: string;
   model?: string | null;
@@ -243,7 +213,6 @@ export type DecodedMoveReviewResponse = {
   refs: MoveReviewRefsV1 | null;
   polishMeta: PolishMetaV1 | null;
   diagnostics: MoveReviewDiagnosticsV1 | null;
-  moveReviewExplanation: MoveReviewExplanationV1 | null;
   moveReviewLedger: MoveReviewStrategicLedgerV1 | null;
   moveReviewPlayerSurface: MoveReviewPlayerSurfaceV1 | null;
   mainStrategicPlanCount: number;
@@ -270,7 +239,6 @@ export type MaybeResponse = {
   model?: unknown;
   cacheHit?: unknown;
   moveReviewLedger?: unknown;
-  moveReviewExplanation?: unknown;
   moveReviewPlayerSurface?: unknown;
   refs?: unknown;
   polishMeta?: unknown;
@@ -716,7 +684,6 @@ export function decodeMoveReviewResponse(
     refs: refsFromResponse(data),
     polishMeta: polishMetaFromResponse(data),
     diagnostics: moveReviewDiagnosticsFromResponse(data),
-    moveReviewExplanation: moveReviewExplanationFromResponse(data),
     moveReviewLedger: moveReviewLedgerFromResponse(data),
     moveReviewPlayerSurface: moveReviewPlayerSurfaceFromResponse(data),
     mainStrategicPlanCount: mainStrategicPlanCountFromResponse(data),
@@ -732,65 +699,6 @@ function stringListFromUnknown(raw: unknown): string[] | null {
   if (!Array.isArray(raw)) return null;
   const values = raw.filter((value): value is string => typeof value === 'string');
   return values.length === raw.length ? values : null;
-}
-
-function moveReviewShortLineFromUnknown(raw: unknown): MoveReviewShortLineV1 | null {
-  if (!isRecord(raw)) return null;
-  const san = stringListFromUnknown(raw.san);
-  const uci = stringListFromUnknown(raw.uci);
-  if (!san || !uci || typeof raw.source !== 'string') return null;
-  return {
-    san,
-    uci,
-    lineId: typeof raw.lineId === 'string' ? raw.lineId : null,
-    scoreCp: typeof raw.scoreCp === 'number' ? raw.scoreCp : null,
-    mate: typeof raw.mate === 'number' ? raw.mate : null,
-    depth: typeof raw.depth === 'number' ? raw.depth : null,
-    source: raw.source,
-  };
-}
-
-function moveReviewPvInterpretationFromUnknown(raw: unknown): MoveReviewPvInterpretationV1 | null {
-  if (!isRecord(raw)) return null;
-  const confirms = stringListFromUnknown(raw.confirms);
-  if (
-    typeof raw.linePurpose !== 'string' ||
-    !confirms ||
-    typeof raw.tension !== 'string' ||
-    typeof raw.learningPoint !== 'string' ||
-    typeof raw.confidence !== 'string'
-  )
-    return null;
-  return {
-    linePurpose: raw.linePurpose,
-    confirms,
-    tension: raw.tension,
-    opponentReplyMeaning: typeof raw.opponentReplyMeaning === 'string' ? raw.opponentReplyMeaning : null,
-    learningPoint: raw.learningPoint,
-    supportedByLineId: typeof raw.supportedByLineId === 'string' ? raw.supportedByLineId : null,
-    confidence: raw.confidence,
-  };
-}
-
-export function moveReviewExplanationFromResponse(data: MaybeResponse): MoveReviewExplanationV1 | null {
-  const raw = data?.moveReviewExplanation;
-  if (!isRecord(raw)) return null;
-  if (typeof raw.title !== 'string' || typeof raw.prose !== 'string' || typeof raw.source !== 'string') return null;
-  const reasonTags = stringListFromUnknown(raw.reasonTags);
-  if (!reasonTags) return null;
-  const shortLine = moveReviewShortLineFromUnknown(raw.shortLine);
-  if (raw.shortLine != null && !shortLine) return null;
-  const pvInterpretation = moveReviewPvInterpretationFromUnknown(raw.pvInterpretation);
-  if (raw.pvInterpretation != null && !pvInterpretation) return null;
-  return {
-    title: raw.title,
-    prose: raw.prose,
-    qualityLabel: typeof raw.qualityLabel === 'string' ? raw.qualityLabel : null,
-    reasonTags,
-    shortLine,
-    pvInterpretation,
-    source: raw.source,
-  };
 }
 
 function ledgerLineFromUnknown(raw: unknown): MoveReviewLedgerLineV1 | null {

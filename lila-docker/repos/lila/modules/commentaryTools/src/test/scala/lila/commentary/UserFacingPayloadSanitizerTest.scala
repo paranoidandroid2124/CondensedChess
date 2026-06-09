@@ -311,7 +311,6 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
                 linePurpose = "PlayableByPV",
                 confirms = List("return vector"),
                 tension = "strict evidence mode",
-                opponentReplyMeaning = Some("probe evidence pending"),
                 learningPoint = "cash out through {seed}",
                 supportedByLineId = Some("support:line"),
                 confidence = "engine-coupled continuation"
@@ -419,7 +418,6 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
             explanation.pvInterpretation.toList.flatMap(interpretation =>
               List(interpretation.linePurpose, interpretation.tension, interpretation.learningPoint, interpretation.confidence) ++
                 interpretation.confirms ++
-                interpretation.opponentReplyMeaning.toList ++
                 interpretation.supportedByLineId.toList
             )
         ).mkString(" "),

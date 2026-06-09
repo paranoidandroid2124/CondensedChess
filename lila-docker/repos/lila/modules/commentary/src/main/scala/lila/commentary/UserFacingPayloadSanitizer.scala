@@ -280,7 +280,6 @@ object UserFacingPayloadSanitizer:
       linePurpose = clean(interpretation.linePurpose),
       confirms = cleanList(interpretation.confirms),
       tension = clean(interpretation.tension),
-      opponentReplyMeaning = cleanOpt(interpretation.opponentReplyMeaning),
       learningPoint = clean(interpretation.learningPoint),
       supportedByLineId = cleanOpt(interpretation.supportedByLineId),
       confidence = clean(interpretation.confidence)
