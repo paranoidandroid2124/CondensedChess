@@ -695,6 +695,9 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
           moveReviewCausalClaimQuestion = Some("WhyThis"),
           moveReviewCausalClaimSubject = Some("played_move"),
           moveReviewCausalClaimEvidence = List("contrast"),
+          moveReviewCausalClaimEvidenceSources = List("admissible_contrast"),
+          moveReviewCausalClaimEvidenceSubjects = List("played_move"),
+          moveReviewCausalClaimLineBindings = List("none"),
           moveReviewCausalClaimRelations = List("alternative_contrast"),
           moveReviewCausalClaimRejectReasons = Nil,
           moveReviewCausalClaimSupportEmbedded = Some(true),
@@ -733,6 +736,9 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
     assertEquals(parsed.moveReviewCausalClaimQuestion, Some("WhyThis"))
     assertEquals(parsed.moveReviewCausalClaimSubject, Some("played_move"))
     assertEquals(parsed.moveReviewCausalClaimEvidence, List("contrast"))
+    assertEquals(parsed.moveReviewCausalClaimEvidenceSources, List("admissible_contrast"))
+    assertEquals(parsed.moveReviewCausalClaimEvidenceSubjects, List("played_move"))
+    assertEquals(parsed.moveReviewCausalClaimLineBindings, List("none"))
     assertEquals(parsed.moveReviewCausalClaimRelations, List("alternative_contrast"))
     assertEquals(parsed.moveReviewCausalClaimSupportEmbedded, Some(true))
     assertEquals(parsed.moveReviewLocalFactStatus, Some("emitted"))
@@ -742,6 +748,7 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
     assertEquals((js \ "moveReviewLocalFactFamilies").asOpt[List[String]], Some(List("pressure")))
     assertEquals((js \ "moveReviewCausalClaimStatus").asOpt[String], Some("accepted"))
     assertEquals((js \ "moveReviewCausalClaimRelations").asOpt[List[String]], Some(List("alternative_contrast")))
+    assertEquals((js \ "moveReviewCausalClaimEvidenceSources").asOpt[List[String]], Some(List("admissible_contrast")))
     assertEquals(parsed.quietSupportLiftApplied, Some(true))
     assertEquals(parsed.quietSupportRuntimeGatePassed, Some(true))
     assertEquals(parsed.quietSupportCandidateBucket, Some("slow_route_improvement"))

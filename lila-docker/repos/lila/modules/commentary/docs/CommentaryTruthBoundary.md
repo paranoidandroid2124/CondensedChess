@@ -84,18 +84,22 @@ preferable to, or causally different from, the named alternative.
 The causal gate emits diagnostic truth-boundary trace, not a new truth owner.
 `MoveReviewCompressionPolicy.causalClaimTrace` and corpus
 `moveReviewCausalClaim*` fields may be used to count accepted relation kinds and
-rejected reasons in PGN/engine runs, but prose must still be admitted by the
-certified claim path or an existing fallback truth boundary. Downstream consumers
-must not parse fallback prose or trace strings to reconstruct causal truth.
+rejected reasons in PGN/engine runs. They also expose typed evidence source,
+subject, and line-binding measurements for audit, but prose must still be
+admitted by the certified claim path or an existing fallback truth boundary.
+Downstream consumers must not parse fallback prose or trace strings to
+reconstruct causal truth.
 For support-required planner questions, the certified claim must also carry
 `MoveReviewLocalFact` admission. Planner evidence/relation inputs go through
 `MoveReviewLocalFact.admitPlanner`, which classifies the rendered planner
 surface as timing, defense, threat, pressure, plan-support, or
 line-consequence with a typed authority before the renderer sees the string.
-Missing admission rejects the claim; accepted planner rows expose the family
-through `moveReviewLocalFact*` as rendered evidence, not as fallback truth
-recovery. The family classification is not a prose parser. Surface words such as
-`pressure`, `target`, `threat`, `plan`, or `supports` do not create truth.
+The admission preserves candidate line binding and evidence refs for audit and
+renderer gating, but those fields do not create truth independently. Missing
+admission rejects the claim; accepted planner rows expose the family through
+`moveReviewLocalFact*` as rendered evidence, not as fallback truth recovery. The
+family classification is not a prose parser. Surface words such as `pressure`,
+`target`, `threat`, `plan`, or `supports` do not create truth.
 Planner admission reads typed owner/source evidence such as timing witnesses,
 forcing-defense relations, `LineConsequenceEvaluator` surface candidates, and
 typed `pv_delta` move-local changes. A certified coda string without one of
@@ -116,6 +120,11 @@ reviewed move to own the endgame square/role. Corpus `moveReviewLocalFact*`
 fields are diagnostic trace from typed admission for this fallback truth
 boundary. `reasonTags` remain display/compatibility tags and may not be used to
 recover a stronger causal claim downstream.
+Scoped takeaway rendering applies the same rule at the last renderer boundary:
+the purpose must match the admitted family and the admission must remain
+`pv_coupled`. A checked-line default can identify the line, but it cannot become
+truth for threat, defense, pressure, plan-support, capture, endgame, timing, or
+line-consequence interpretation by template choice.
 
 Exact/basic fallback prose remains non-owner truth. It may report the reviewed
 SAN, the next checked-line move, and the local evidence category, but it cannot

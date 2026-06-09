@@ -98,7 +98,10 @@ private[commentary] object MoveReviewLocalFact:
       family: Family,
       authority: Authority,
       strictFallbackEligible: Boolean,
-      guardrails: List[String] = Nil
+      guardrails: List[String] = Nil,
+      anchors: List[Anchor] = Nil,
+      lineBinding: LineBinding = LineBinding.None,
+      evidenceRefs: List[String] = Nil
   ):
     def tags: List[String] =
       (List(
@@ -115,7 +118,10 @@ private[commentary] object MoveReviewLocalFact:
             family = candidate.family,
             authority = candidate.source.authority,
             strictFallbackEligible = candidate.strictFallbackCandidate,
-            guardrails = candidate.guardrails
+            guardrails = candidate.guardrails,
+            anchors = candidate.anchors,
+            lineBinding = candidate.lineBinding,
+            evidenceRefs = candidate.evidenceRefs
           )
         )
     )
@@ -129,9 +135,10 @@ private[commentary] object MoveReviewLocalFact:
       plan: QuestionPlan,
       evidenceKinds: List[String],
       relationKinds: List[String],
-      lineConsequenceBacked: Boolean
+      lineConsequenceBacked: Boolean,
+      lineBinding: LineBinding = LineBinding.None
   ): Decision =
-    plannerCandidate(plan, evidenceKinds, relationKinds, lineConsequenceBacked)
+    plannerCandidate(plan, evidenceKinds, relationKinds, lineConsequenceBacked, lineBinding)
       .fold(Decision(None, List("local_fact_family_missing")))(admit)
 
   def strategicMoveDeltaCandidate(
@@ -167,7 +174,8 @@ private[commentary] object MoveReviewLocalFact:
       plan: QuestionPlan,
       evidenceKinds: List[String],
       relationKinds: List[String],
-      lineConsequenceBacked: Boolean
+      lineConsequenceBacked: Boolean,
+      lineBinding: LineBinding
   ): Option[Candidate] =
     val normalizedEvidence = evidenceKinds.map(normalize)
     val normalizedRelations = relationKinds.map(normalize)
@@ -178,7 +186,7 @@ private[commentary] object MoveReviewLocalFact:
         subject = plannerSubject(plan),
         strictFallbackCandidate = strictFallbackEligible(plan, family, normalizedRelations),
         anchors = plannerAnchors(plan),
-        lineBinding = plannerLineBinding(normalizedEvidence, lineConsequenceBacked),
+        lineBinding = plannerLineBinding(normalizedEvidence, lineConsequenceBacked, lineBinding),
         evidenceRefs = normalizedEvidence.map(kind => s"evidence_kind:$kind"),
         guardrails =
           List(
@@ -295,9 +303,11 @@ private[commentary] object MoveReviewLocalFact:
 
   private def plannerLineBinding(
       evidenceKinds: List[String],
-      lineConsequenceBacked: Boolean
+      lineConsequenceBacked: Boolean,
+      lineBinding: LineBinding
   ): LineBinding =
-    if lineConsequenceBacked || evidenceKinds.contains("branch_line") then LineBinding.PvCoupled
+    if lineBinding != LineBinding.None then lineBinding
+    else if lineConsequenceBacked || evidenceKinds.contains("branch_line") then LineBinding.PvCoupled
     else LineBinding.None
 
   private def sourceLooksTactical(plan: QuestionPlan): Boolean =

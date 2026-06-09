@@ -211,6 +211,10 @@ The maintained path is:
    diagnostic/runtime trace, but MoveReview prose falls through to the existing
    basic, exact factual, or thematic fallback lanes. Templates and polish slots
    may surface the certified text; they do not invent the causal relationship.
+   The gate builds a typed causal evidence candidate before admission. Each
+   evidence item records kind, source, subject role, line binding, and
+   guardrails, so renderer-facing authority is measured from typed evidence
+   rather than from words such as `pressure`, `support`, `threat`, or `now`.
    Support kind is not enough by itself: the same gate also classifies the
    causal relation (`alternative_contrast`, `played_move_consequence`,
    `timing_constraint`, `defensive_resource`, `plan_race`, or
@@ -251,7 +255,9 @@ The maintained path is:
    returns an admitted `local_fact_family` (`attack`, `defense`, `threat`,
    `pressure`, `plan_support`, `line_consequence`, `timing`, plus existing
    opening, king-safety, capture, and endgame families) plus
-   `local_fact_authority`. `CommentaryIdeaSurface` submits candidates and
+   `local_fact_authority`, while preserving line binding and evidence refs on
+   the admission for downstream diagnostics and renderer gating.
+   `CommentaryIdeaSurface` submits candidates and
    attaches only the admitted result to every admitted MoveReview basic
    descriptor before it renders prose. When `MoveReviewCausalClaim` rejects a high-risk
    planner row, `MoveReviewCompressionPolicy` calls the basic builder in strict
@@ -262,9 +268,10 @@ The maintained path is:
    to be a recorded attacker, defensive wording requires only-move defense truth,
    and endgame facts must be owned by the reviewed move role/square.
    `MoveReviewScopedTakeaway` consumes the admitted local fact metadata and
-   keeps line text role-neutral; it may show the next checked-line move and the
-   bounded local detail, but it does not turn a purpose string into a target,
-   threat, plan-support, timing, or line-consequence claim.
+   gates every scoped purpose by admitted family plus `pv_coupled` line binding.
+   It may show the next checked-line move and the bounded local detail, but it
+   does not turn a line-only compatibility default or purpose string into a
+   target, threat, defense, plan-support, timing, or line-consequence claim.
    Accepted high-risk planner claims carry the same `MoveReviewLocalFact`
    admission shape on the causal claim itself.
    `MoveReviewCausalClaim.CertifiedClaim`

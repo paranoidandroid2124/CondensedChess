@@ -100,7 +100,7 @@ private[commentary] object MoveReviewScopedTakeaway:
     val replySan = line.reply.map(_.san).filter(_.nonEmpty).getOrElse("the reply")
     val continuationSan = line.continuation.map(_.san).filter(_.nonEmpty).getOrElse("the follow-up")
     val openingGoalName = evidence.openingGoal.map(_.goalName.toLowerCase).getOrElse("")
-    Some(
+    Option.when(admitsPurpose(purpose, localFact))(
       localFact.family match
         case LocalFactFamily.Threat | LocalFactFamily.Pressure =>
           s"The PV keeps the local tactical detail bounded: ${played.san} is the move under review, $replySan is the next checked move, and the line does not authorize a broader evaluation claim."
@@ -155,3 +155,34 @@ private[commentary] object MoveReviewScopedTakeaway:
             case _ =>
               s"The checked line stays local to ${played.san}: $replySan is the next checked move, and $continuationSan continues the line."
     )
+
+  private def admitsPurpose(
+      purpose: String,
+      localFact: LocalFactAdmission
+  ): Boolean =
+    localFact.lineBinding == LocalFactLineBinding.PvCoupled &&
+      allowedFamilies(purpose).contains(localFact.family)
+
+  private def allowedFamilies(purpose: String): Set[LocalFactFamily] =
+    purpose match
+      case "quiet_development" | "center_break_setup" | "challenge_center" | "local_piece_improvement" |
+          "local_pawn_setup" =>
+        Set(LocalFactFamily.LineConsequence, LocalFactFamily.OpeningGoal)
+      case "king_safety_first" =>
+        Set(LocalFactFamily.KingSafety, LocalFactFamily.OpeningGoal)
+      case "create_tactical_threat" =>
+        Set(LocalFactFamily.Threat, LocalFactFamily.Pressure)
+      case "answer_direct_threat" | "prevent_counterplay" =>
+        Set(LocalFactFamily.Defense)
+      case "resolve_capture_tension" =>
+        Set(LocalFactFamily.Capture)
+      case "clarify_exchange" | "local_capture" =>
+        Set(LocalFactFamily.Capture, LocalFactFamily.LineConsequence)
+      case "improve_endgame_activity" =>
+        Set(LocalFactFamily.Endgame)
+      case "advance_plan" =>
+        Set(LocalFactFamily.PlanSupport)
+      case "quiet_improvement" =>
+        Set(LocalFactFamily.LineConsequence, LocalFactFamily.PlanSupport, LocalFactFamily.Pressure)
+      case _ =>
+        Set.empty

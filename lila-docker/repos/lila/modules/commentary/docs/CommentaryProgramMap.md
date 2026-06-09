@@ -106,9 +106,11 @@ Current authority is internal and MoveReview-first:
 - `MoveReviewCausalClaim` owns high-risk MoveReview causal release. A selected
   question remains diagnostic until the gate certifies typed support, causal
   relation, subject role, concrete anchor, and an admitted local fact for
-  support-required planner questions. It submits planner evidence/relation
-  inputs to `MoveReviewLocalFact`; it does not infer local-fact family,
-  authority, or strict fallback eligibility from rendered claim words.
+  support-required planner questions. It first converts planner/string inputs
+  into typed causal evidence with explicit source, subject role, line binding,
+  and guardrail metadata, then submits that evidence/relation input to
+  `MoveReviewLocalFact`; it does not infer local-fact family, authority, or
+  strict fallback eligibility from rendered claim words.
 - `MoveReviewLocalFact` owns the shared typed local-fact family and authority
   vocabulary plus the candidate/admit policy used by planner, basic, and scoped
   MoveReview surfaces. Candidate inputs carry source, subject, anchors, line
@@ -120,6 +122,11 @@ Current authority is internal and MoveReview-first:
   strict rejected fallback, only strict-eligible `local_fact_family` /
   `local_fact_authority` descriptors may render; soft line-only or
   strategic-plan candidates fall through to exact factual fallback.
+- `MoveReviewScopedTakeaway` consumes only the admitted local fact. Semantic
+  scoped prose such as threat, pressure, defense, plan-support, capture,
+  endgame, or line-consequence wording is released only when the purpose matches
+  the admitted family and the admission remains `pv_coupled`; line-only
+  compatibility defaults cannot mint tactical or defensive interpretation.
 - `MoveReviewPolishSlots.localFact` preserves the admitted local fact for
   runtime/tooling diagnostics; `reasonTags` remain display/compatibility tags.
 - `FragmentAuthority` decides renderer release safety.

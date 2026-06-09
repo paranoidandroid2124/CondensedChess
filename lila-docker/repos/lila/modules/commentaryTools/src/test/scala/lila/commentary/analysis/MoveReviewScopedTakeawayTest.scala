@@ -67,6 +67,21 @@ final class MoveReviewScopedTakeawayTest extends FunSuite:
       continuation = Some(continuation)
     )
 
+  private def admittedFact(
+      family: MoveReviewLocalFact.Family,
+      source: MoveReviewLocalFact.Source = MoveReviewLocalFact.Source.CanonicalFact,
+      subject: MoveReviewLocalFact.Subject,
+      strictFallbackCandidate: Boolean = true
+  ): MoveReviewLocalFact.Admission =
+    MoveReviewLocalFact.admitted(MoveReviewLocalFact.Candidate(
+      family = family,
+      source = source,
+      subject = subject,
+      strictFallbackCandidate = strictFallbackCandidate,
+      lineBinding = MoveReviewLocalFact.LineBinding.PvCoupled,
+      guardrails = List("test_pv_coupled")
+    ))
+
   test("builds a scoped local takeaway with move branch and evidence metadata") {
     val takeaway =
       MoveReviewScopedTakeaway
@@ -123,7 +138,11 @@ final class MoveReviewScopedTakeawayTest extends FunSuite:
           purpose = "create_tactical_threat",
           played = played("f1c4", "Bc4", Square.F1, Square.C4),
           evidence = evidence(openingGoal = None),
-          lineFacts = Some(lineFacts("target_line"))
+          lineFacts = Some(lineFacts("target_line")),
+          localFact = admittedFact(
+            MoveReviewLocalFact.Family.Threat,
+            subject = MoveReviewLocalFact.Subject.Target
+          )
         )
         .getOrElse(fail("expected scoped takeaway"))
 
@@ -131,6 +150,30 @@ final class MoveReviewScopedTakeawayTest extends FunSuite:
     assert(!takeaway.text.contains("first answer"), clue(takeaway.text))
     assert(!takeaway.text.contains("asks for a response"), clue(takeaway.text))
     assert(!takeaway.text.contains("target evidence"), clue(takeaway.text))
+  }
+
+  test("does not render tactical or defensive scoped prose from line-only admission") {
+    val current = played("f1c4", "Bc4", Square.F1, Square.C4)
+    val line = Some(lineFacts("line_only"))
+
+    assertEquals(
+      MoveReviewScopedTakeaway.build(
+        purpose = "create_tactical_threat",
+        played = current,
+        evidence = evidence(openingGoal = None),
+        lineFacts = line
+      ),
+      None
+    )
+    assertEquals(
+      MoveReviewScopedTakeaway.build(
+        purpose = "answer_direct_threat",
+        played = current,
+        evidence = evidence(openingGoal = None),
+        lineFacts = line
+      ),
+      None
+    )
   }
 
   test("rejects globalized lesson wording at the scoped boundary") {

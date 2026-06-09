@@ -218,7 +218,8 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
         timedPlan,
         evidenceKinds = List("timing_tension", "timing_witness"),
         relationKinds = List("timing_constraint"),
-        lineConsequenceBacked = false
+        lineConsequenceBacked = false,
+        lineBinding = MoveReviewLocalFact.LineBinding.Replayed
       )
     val proseOnly =
       MoveReviewLocalFact.admitPlanner(
@@ -231,8 +232,121 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     assertEquals(typed.admission.map(_.family), Some(MoveReviewLocalFact.Family.Timing))
     assertEquals(typed.admission.map(_.authority), Some(MoveReviewLocalFact.Authority.TruthContract))
     assertEquals(typed.admission.map(_.strictFallbackEligible), Some(true))
+    assertEquals(typed.admission.map(_.lineBinding), Some(MoveReviewLocalFact.LineBinding.Replayed))
+    assertEquals(
+      typed.admission.map(_.evidenceRefs),
+      Some(List("evidence_kind:timing_tension", "evidence_kind:timing_witness"))
+    )
     assertEquals(proseOnly.admission, None)
     assert(proseOnly.rejectReasons.contains("local_fact_family_missing"), clues(proseOnly))
+  }
+
+  test("MoveReviewCausalClaim admission ignores causal words without typed evidence") {
+    val proseOnlyPlan =
+      QuestionPlan(
+        questionId = "q_prose_only_causal_words",
+        questionKind = AuthorQuestionKind.WhyNow,
+        priority = 100,
+        claim = "This supports the plan, keeps pressure, and forces the reply right now.",
+        evidence = None,
+        contrast = None,
+        consequence = None,
+        fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
+        strengthTier = QuestionPlanStrengthTier.Strong,
+        sourceKinds = List("move_delta"),
+        admissibilityReasons = List("wording_only"),
+        plannerOwnerKind = PlannerOwnerKind.MoveDelta,
+        plannerSource = "move_delta"
+      )
+    val typedPlan =
+      proseOnlyPlan.copy(
+        questionId = "q_typed_timing_claim",
+        sourceKinds = List("truth_contract"),
+        plannerOwnerKind = PlannerOwnerKind.ForcingDefense,
+        plannerSource = "truth_contract",
+        timingWitness = Some(
+          QuestionPlanTimingWitness(
+            proofFamily = "only_move_defense",
+            source = "truth_contract",
+            continuationMove = Some("Qd8"),
+            witnessTokens = List("Qd8")
+          )
+        )
+      )
+
+    val proseOnly =
+      MoveReviewCausalClaim.admit(
+        MoveReviewCausalClaim.Candidate(
+          plan = proseOnlyPlan,
+          renderedClaim = proseOnlyPlan.claim,
+          evidences = Nil
+        )
+      )
+    val typed =
+      MoveReviewCausalClaim.admit(
+        MoveReviewCausalClaim.Candidate(
+          plan = typedPlan,
+          renderedClaim = typedPlan.claim,
+          evidences =
+            List(
+              MoveReviewCausalClaim.TypedEvidence(
+                kind = MoveReviewCausalClaim.EvidenceKind.TimingWitness,
+                source = MoveReviewCausalClaim.EvidenceSource.TimingWitness,
+                text = Some("Qd8 is the direct reply witness."),
+                subjectRole = MoveReviewCausalClaim.SubjectRole.LineOrReply,
+                lineBinding = MoveReviewLocalFact.LineBinding.Replayed
+              )
+            )
+        )
+      )
+
+    assertEquals(proseOnly.claim, None)
+    assert(proseOnly.rejectReasons.contains("causal_support_missing"), clues(proseOnly))
+    assert(proseOnly.rejectReasons.contains("causal_relation_missing"), clues(proseOnly))
+    assertEquals(typed.claim.map(_.questionKind), Some(AuthorQuestionKind.WhyNow), clues(typed))
+    assertEquals(typed.claim.map(_.relationKinds), Some(List(MoveReviewCausalClaim.RelationKind.TimingConstraint)), clues(typed))
+    assertEquals(typed.claim.flatMap(_.localFact.map(_.family)), Some(MoveReviewLocalFact.Family.Timing), clues(typed))
+    assertEquals(typed.claim.flatMap(_.localFact.map(_.lineBinding)), Some(MoveReviewLocalFact.LineBinding.Replayed), clues(typed))
+  }
+
+  test("PlanRace causal admission accepts typed branch-line evidence") {
+    val plan =
+      QuestionPlan(
+        questionId = "q_plan_race_branch",
+        questionKind = AuthorQuestionKind.WhosePlanIsFaster,
+        priority = 100,
+        claim = "23...Rc8 24.Rg3 shows the counterplay race.",
+        evidence = None,
+        contrast = None,
+        consequence = None,
+        fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
+        strengthTier = QuestionPlanStrengthTier.Strong,
+        sourceKinds = List("reply_multipv"),
+        admissibilityReasons = List("plan_race_primary_in_plan_clash"),
+        plannerOwnerKind = PlannerOwnerKind.PlanRace,
+        plannerSource = "directional_target"
+      )
+    val decision =
+      MoveReviewCausalClaim.admit(
+        MoveReviewCausalClaim.Candidate(
+          plan = plan,
+          renderedClaim = plan.claim,
+          evidences =
+            List(
+              MoveReviewCausalClaim.TypedEvidence(
+                kind = MoveReviewCausalClaim.EvidenceKind.BranchLine,
+                source = MoveReviewCausalClaim.EvidenceSource.BranchLine,
+                text = Some("23...Rc8 24.Rg3 Rc7 25.Qxg7+"),
+                subjectRole = MoveReviewCausalClaim.SubjectRole.LineOrReply,
+                lineBinding = MoveReviewLocalFact.LineBinding.BranchScoped
+              )
+            )
+        )
+      )
+
+    assertEquals(decision.claim.map(_.relationKinds), Some(List(MoveReviewCausalClaim.RelationKind.PlanRace)), clues(decision))
+    assertEquals(decision.claim.flatMap(_.localFact.map(_.family)), Some(MoveReviewLocalFact.Family.Timing), clues(decision))
+    assertEquals(decision.claim.flatMap(_.localFact.map(_.lineBinding)), Some(MoveReviewLocalFact.LineBinding.BranchScoped), clues(decision))
   }
 
   test("claim-only causal planner slots fall back to exact factual surface") {

@@ -77,14 +77,15 @@ The release gate is auditable without reading prose. `MoveReviewCompressionPolic
 projects the decision through `causalClaimTrace`, and tooling copies it into
 `MoveReviewPlannerTrace` / corpus `moveReviewCausalClaim*` fields. Those fields
 are diagnostic measurements of accepted/rejected authority, relation kinds, and
-reject reasons; they do not create a second surface or allow downstream code to
+reject reasons, plus typed evidence source, subject, and line-binding
+measurements; they do not create a second surface or allow downstream code to
 recover causal authority from fallback wording.
 Accepted planner claims also carry `MoveReviewLocalFact` admission. Planner
 evidence/relation inputs are submitted to `MoveReviewLocalFact.admitPlanner`,
 which owns family, authority, and strict fallback classification. The certified
-claim records a `local_fact_family`, `local_fact_authority`, strict flag, and
-guardrails before the renderer receives the surface text. For support-required
-questions, absence of that local fact is a release failure
+claim records a `local_fact_family`, `local_fact_authority`, strict flag,
+guardrails, and line binding before the renderer receives the surface text. For
+support-required questions, absence of that local fact is a release failure
 (`local_fact_admission_missing`). Corpus `moveReviewLocalFact*` fields report
 planner-owned rows as `emitted` only from this causal claim admission, not from
 basic fallback candidates that did not render.
@@ -110,7 +111,9 @@ strategic-plan descriptors fall through to exact factual fallback, target
 pressure requires the reviewed move to own the target fact, defensive wording
 requires only-move defense truth, and endgame wording requires the played move
 to own the endgame fact. Scoped takeaways consume that admitted local fact
-metadata and stay role-neutral.
+metadata, require a purpose-family match and `pv_coupled` line binding, and
+fail closed rather than using a line-only compatibility admission to invent
+tactical or defensive interpretation.
 Generic support anchors such as `plan activation lane`, `plan`, or `main plan`
 are not player-facing subject authority and are skipped before a fallback
 sentence chooses its displayed subject.

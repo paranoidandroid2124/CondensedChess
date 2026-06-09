@@ -34,6 +34,9 @@ private[commentary] object MoveReviewCompressionPolicy:
       questionKind: String,
       subjectRole: Option[String],
       evidenceKinds: List[String],
+      evidenceSources: List[String],
+      evidenceSubjects: List[String],
+      evidenceLineBindings: List[String],
       relationKinds: List[String],
       rejectReasons: List[String],
       supportRenderedInClaim: Option[Boolean],
@@ -255,6 +258,7 @@ private[commentary] object MoveReviewCompressionPolicy:
       val decision =
         plannerCausalInputs(ctx, selection.primary, selection.secondary, inputs, selection.contrastTrace, refs).decision
       val claim = decision.claim
+      val evidences = decision.evidences
       CausalClaimTrace(
         status =
           if claim.nonEmpty then "accepted"
@@ -263,6 +267,9 @@ private[commentary] object MoveReviewCompressionPolicy:
         questionKind = selection.primary.questionKind.toString,
         subjectRole = claim.map(_.subjectRole.wireName),
         evidenceKinds = claim.map(_.evidenceKinds.map(_.wireName).distinct).getOrElse(Nil),
+        evidenceSources = evidences.map(_.source.wireName).distinct,
+        evidenceSubjects = evidences.map(_.subjectRole.wireName).distinct,
+        evidenceLineBindings = evidences.map(_.lineBinding.key).distinct,
         relationKinds = claim.map(_.relationKinds.map(_.wireName).distinct).getOrElse(Nil),
         rejectReasons = decision.rejectReasons,
         supportRenderedInClaim = claim.map(_.supportRenderedInClaim),
@@ -462,8 +469,8 @@ private[commentary] object MoveReviewCompressionPolicy:
       primary.questionKind match
         case AuthorQuestionKind.WhyThis | AuthorQuestionKind.WhyNow => certifiedContrast
         case _                                                      => primary.contrast
-    val decision =
-      MoveReviewCausalClaim.decide(
+    val causalCandidate =
+      MoveReviewCausalClaim.candidate(
         primary,
         renderedClaim,
         contrastTrace.contrast_admissible,
@@ -475,6 +482,8 @@ private[commentary] object MoveReviewCompressionPolicy:
         lineConsequenceSurface,
         typedTimingSupport
       )
+    val decision =
+      MoveReviewCausalClaim.admit(causalCandidate)
     PlannerCausalInputs(
       renderedClaim = renderedClaim,
       certifiedContrast = certifiedContrast,
