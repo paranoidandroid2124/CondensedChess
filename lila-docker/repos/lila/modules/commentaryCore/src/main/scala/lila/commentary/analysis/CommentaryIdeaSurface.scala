@@ -98,7 +98,7 @@ private[commentary] object CommentaryIdeaSurface:
       factFragments: List[FactFragment] = Nil
   ):
     def prose: String =
-      List(Some(movePurpose), opponentQuestion, lineResolution, scopedTakeaway.map(_.text).orElse(learningPoint))
+      List(Some(movePurpose), scopedTakeaway.map(_.text))
         .flatten
         .map(_.trim)
         .filter(_.nonEmpty)
@@ -109,13 +109,14 @@ private[commentary] object CommentaryIdeaSurface:
       for
         purpose <- linePurpose
         line <- lineFacts
+        takeaway <- scopedTakeaway
       yield
         MoveReviewPvInterpretation(
           linePurpose = purpose,
           confirms = confirms,
-          tension = tension.getOrElse("tension_maintained"),
-          opponentReplyMeaning = opponentReplyMeaning,
-          learningPoint = scopedTakeaway.map(_.text).orElse(learningPoint).getOrElse(""),
+          tension = "scoped_local",
+          opponentReplyMeaning = None,
+          learningPoint = takeaway.text,
           supportedByLineId = Some(line.line.lineId),
           confidence = "bounded_local"
         )
@@ -157,8 +158,7 @@ private[commentary] object CommentaryIdeaSurface:
       MoveReviewIdeaRule("tactical", tacticalDescriptor),
       MoveReviewIdeaRule("target", targetDescriptor),
       MoveReviewIdeaRule("capture", captureDescriptor),
-      MoveReviewIdeaRule("endgame", endgameDescriptor),
-      MoveReviewIdeaRule("line_backed_local", lineBackedLocalDescriptor)
+      MoveReviewIdeaRule("endgame", endgameDescriptor)
     )
 
   // MoveReview admission rules. Keep descriptor selection before rendering fields.
@@ -613,82 +613,6 @@ private[commentary] object CommentaryIdeaSurface:
       )
     }
 
-  private def lineBackedLocalDescriptor(
-      played: PlayedMove,
-      evidence: MoveReviewEvidence,
-      lineFacts: Option[MoveReviewPvLine.LineFacts],
-      characterBand: MoveCharacterBand,
-      @unused truthContract: Option[DecisiveTruthContract]
-  ): Option[MoveReviewIdeaDescriptor] =
-    lineFacts.filter(line => line.reply.nonEmpty && isOpeningPhase(evidence)).map { line =>
-      val purpose = localLinePurpose(played)
-      descriptor(
-        ideaKind = "line_backed_local",
-        reviewIntent = localReviewIntent(purpose),
-        moveCharacterBand = characterBand,
-        source = "basic_move_explanation",
-        title = localTitle(played, purpose),
-        baseProse = localPurposeText(played, purpose),
-        reasonTags = List("line_backed_local", s"local_purpose:$purpose"),
-        linePurpose = Some(purpose),
-        lineProof = lineProof("line_backed_local", played, line),
-        played = played,
-        evidence = evidence,
-        lineFacts = lineFacts,
-        requiresPvForAdmission = true,
-        localFact = admittedLocalFact(LocalFactCandidate(
-          family = LocalFactFamily.LineConsequence,
-          source = LocalFactSource.PvCoupledLine,
-          subject = LocalFactSubject.PlayedMove,
-          strictFallbackCandidate = false,
-          lineBinding = LocalFactLineBinding.PvCoupled,
-          guardrails = List("opening_phase_line_only", "strict_requires_typed_fact")
-        ))
-      )
-    }
-
-  private def localLinePurpose(played: PlayedMove): String =
-    if isCentralBreak(played.uci, played.isWhite) then "challenge_center"
-    else if played.isCapture then "local_capture"
-    else
-      played.role match
-        case chess.Knight | chess.Bishop => "quiet_development"
-        case chess.Pawn                  => "local_pawn_setup"
-        case _                           => "local_piece_improvement"
-
-  private def localReviewIntent(purpose: String): String =
-    purpose match
-      case "challenge_center"        => "keeps_tension"
-      case "local_capture"           => "clarifies_exchange"
-      case "quiet_development"       => "normal_development"
-      case "local_piece_improvement" => "quiet_improvement"
-      case _                         => "keeps_tension"
-
-  private def localTitle(played: PlayedMove, purpose: String): String =
-    purpose match
-      case "challenge_center"        => s"${played.san} challenges the center"
-      case "local_capture"           => s"${played.san} changes the local material"
-      case "quiet_development"       => s"${played.san} develops the ${roleLabel(played.role)}"
-      case "local_piece_improvement" => s"${played.san} improves the ${roleLabel(played.role)}"
-      case _                         => s"${played.san} changes the pawn setup"
-
-  private def localPurposeText(played: PlayedMove, purpose: String): String =
-    purpose match
-      case "challenge_center" =>
-        s"${played.san} challenges the center immediately."
-      case "local_capture" =>
-        s"${played.san} captures on ${played.toKey} and keeps the material change concrete."
-      case "quiet_development" =>
-        s"${played.san} develops the ${roleLabel(played.role)} to ${played.toKey}."
-      case "local_piece_improvement" =>
-        s"${played.san} improves the ${roleLabel(played.role)} on ${played.toKey}."
-      case _ =>
-        s"${played.san} changes the pawn setup on ${played.toKey}."
-
-  private def isOpeningPhase(evidence: MoveReviewEvidence): Boolean =
-    evidence.phase.trim.equalsIgnoreCase("opening") ||
-      (evidence.openingName.nonEmpty && evidence.ply > 0 && evidence.ply <= 20)
-
   private def descriptor(
       ideaKind: String,
       reviewIntent: String,
@@ -707,12 +631,7 @@ private[commentary] object CommentaryIdeaSurface:
       factFragments: List[FactFragment] = Nil
   ): MoveReviewIdeaDescriptor =
     val frags = factFragments
-    val opponentReplyMeaning = lineFacts.flatMap(_.reply).flatMap(reply => PvMeaning.classifyOpponentReply(played, evidence, reply))
     val movePurpose = baseProse.trim
-    val opponentQuestion =
-      lineFacts.flatMap(_.reply).flatMap(reply => PvMeaning.opponentQuestion(reply, opponentReplyMeaning))
-    val lineResolution =
-      linePurpose.flatMap(purpose => lineFacts.flatMap(line => PvMeaning.lineResolution(purpose, played, evidence, line)))
     val expandedReasonTags =
       (reasonTags ++
         lineProof.tags ++
@@ -729,13 +648,13 @@ private[commentary] object CommentaryIdeaSurface:
       title = title,
       baseProse = baseProse,
       movePurpose = movePurpose,
-      opponentQuestion = opponentQuestion,
-      lineResolution = lineResolution,
+      opponentQuestion = None,
+      lineResolution = None,
       reasonTags = expandedReasonTags,
       confirms = confirms,
       linePurpose = linePurpose,
-      tension = linePurpose.map(purpose => PvMeaning.classifyTension(purpose, played, lineFacts.flatMap(_.reply), lineFacts.flatMap(_.continuation))),
-      opponentReplyMeaning = opponentReplyMeaning,
+      tension = None,
+      opponentReplyMeaning = None,
       learningPoint = scopedTakeaway.map(_.text),
       scopedTakeaway = scopedTakeaway,
       requiresPvForAdmission = requiresPvForAdmission,
@@ -892,38 +811,6 @@ private[commentary] object CommentaryIdeaSurface:
         else "quiet_development"
       }
 
-    def classifyTension(
-        purpose: String,
-        played: PlayedMove,
-        reply: Option[MoveReviewMoveRef],
-        continuation: Option[MoveReviewMoveRef]
-    ): String =
-      if purpose == "resolve_capture_tension" || purpose == "clarify_exchange" then "center_released"
-      else if continuation.exists(move => isCentralBreak(move.uci, played.isWhite)) then "delayed_center_break"
-      else if purpose == "challenge_center" && Set("c2c4", "c7c5").contains(played.uci) then "tension_maintained"
-      else if isCentralBreak(played.uci, played.isWhite) then "immediate_center_break"
-      else if legalCenterCapture(played.afterFen, reply) ||
-          legalCenterCapture(reply.map(_.fenAfter).getOrElse(played.afterFen), continuation)
-      then "center_released"
-      else "tension_maintained"
-
-    def classifyOpponentReply(
-        played: PlayedMove,
-        evidence: MoveReviewEvidence,
-        reply: MoveReviewMoveRef
-    ): Option[String] =
-      val uci = MoveReviewPvLine.normalizeUci(reply.uci)
-      val opening = evidence.openingName.map(_.toLowerCase).getOrElse("")
-      if opening.contains("ruy lopez") && uci == "a7a6" then Some("asks_piece_commitment")
-      else if played.isWhite && (opening.contains("italian") || played.uci == "f1c4") && uci == "g8f6" then Some("attacks_center_pawn")
-      else if played.isCapture && legalCaptureToSquare(played.afterFen, Some(reply), played.toKey) then Some("recaptures")
-      else if evidence.facts.exists(f => f.isInstanceOf[Fact.HangingPiece] || f.isInstanceOf[Fact.TargetPiece]) then Some("addresses_target")
-      else if Set("e7e6", "d7d6", "c7c6", "e2e3", "d2d3", "c2c3").contains(uci) then Some("reinforces_center")
-      else if Set("c7c5", "c2c4", "d7d5", "d2d4", "e7e5", "e2e4").contains(uci) then Some("challenges_center")
-      else if reply.san.trim.startsWith("N") && Set("c6", "f6", "c3", "f3").contains(uci.takeRight(2)) then
-        Some("knight_development")
-      else None
-
     def confirmedFacts(
         reviewIntent: String,
         linePurpose: Option[String],
@@ -945,53 +832,6 @@ private[commentary] object CommentaryIdeaSurface:
         case _                          =>
       }
       values.toList
-
-    def opponentQuestion(
-        reply: MoveReviewMoveRef,
-        opponentReplyMeaning: Option[String]
-    ): Option[String] =
-      val replySan = reply.san.trim
-      Option.when(replySan.nonEmpty)(
-        opponentReplyMeaning match
-          case Some("recaptures") =>
-            s"$replySan recaptures in the checked line."
-          case _ =>
-            s"$replySan is the next move in the checked line."
-      )
-
-    def lineResolution(
-        purpose: String,
-        played: PlayedMove,
-        evidence: MoveReviewEvidence,
-        line: MoveReviewPvLine.LineFacts
-    ): Option[String] =
-      val replySan = line.reply.map(_.san).filter(_.nonEmpty).getOrElse("the reply")
-      val continuationSan = line.continuation.map(_.san).filter(_.nonEmpty)
-      purpose match
-        case "quiet_development" if line.continuation.exists(move => MoveReviewPvLine.normalizeUci(move.uci) == "d2d3") =>
-          continuationSan.map(move => s"$move continues the checked line after ${played.san}.")
-        case "quiet_development" =>
-          continuationSan.map(move => s"$move continues the checked line after ${played.san}.")
-        case "center_break_setup" =>
-          continuationSan.map(move => s"$move continues the checked line after ${played.san}.")
-        case "challenge_center" =>
-          continuationSan.map(move => s"$move continues the checked line after ${played.san}.")
-        case "king_safety_first" =>
-          Some(s"The line keeps ${played.san}'s king-safety purpose ahead of any broader evaluation claim.")
-        case "create_tactical_threat" =>
-          Some(s"The checked line stays bounded to the concrete local tactical detail after $replySan.")
-        case "answer_direct_threat" =>
-          Some(s"The checked line stays bounded to the concrete defensive detail after $replySan.")
-        case "resolve_capture_tension" =>
-          Some(s"The line shows the tension after $replySan, so the review is about what remains after recapture.")
-        case "clarify_exchange" =>
-          Some(s"The line uses $replySan to clarify which exchange remains on ${played.toKey}.")
-        case "improve_endgame_activity" if evidence.endgameFacts.exists(_.isInstanceOf[Fact.KingActivity]) =>
-          continuationSan.map(move => s"$move continues the checked line after ${played.san}.")
-        case "improve_endgame_activity" =>
-          continuationSan.map(move => s"$move continues the checked line after ${played.san}.")
-        case _ =>
-          continuationSan.map(move => s"$move continues the checked line after ${played.san}.")
 
   // FactProjection: canonical Fact -> surface wording, tags, IDs, and selection policy.
   def statement(bead: Int, fact: Fact, ctx: NarrativeContext): Option[String] =
@@ -1234,8 +1074,6 @@ private[commentary] object CommentaryIdeaSurface:
           case _ => false
       )
 
-  private val CenterSquares: Set[String] = Set("d4", "e4", "d5", "e5")
-
   private def isImmediateRecapture(
       targetSquare: String,
       lineFacts: Option[MoveReviewPvLine.LineFacts]
@@ -1253,19 +1091,6 @@ private[commentary] object CommentaryIdeaSurface:
     val whiteBreaks = Set("d2d4", "e2e4", "c2c4")
     val blackBreaks = Set("d7d5", "e7e5", "c7c5")
     if whiteMove then whiteBreaks.contains(move) else blackBreaks.contains(move)
-
-  private def legalCenterCapture(
-      beforeFen: String,
-      move: Option[MoveReviewMoveRef]
-  ): Boolean =
-    move.exists(ref =>
-      legalOnePlyStep(beforeFen, ref)
-        .exists(step =>
-          step.move.captures &&
-            CenterSquares.contains(step.move.dest.key) &&
-            step.move.orig.file != step.move.dest.file
-        )
-    )
 
   private def legalCaptureToSquare(
       beforeFen: String,

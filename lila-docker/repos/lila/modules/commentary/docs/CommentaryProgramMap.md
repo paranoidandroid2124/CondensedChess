@@ -121,7 +121,7 @@ Current authority is internal and MoveReview-first:
   admitted facts to MoveReview basic descriptors before fallback rendering. In
   strict rejected fallback, only strict-eligible `local_fact_family` /
   `local_fact_authority` descriptors may render; soft line-only or
-  strategic-plan candidates fall through to exact factual fallback.
+  strategic-plan candidates fall through to exact factual fallback or omission.
 - `MoveReviewScopedTakeaway` consumes only the admitted local fact. Semantic
   scoped prose such as threat, pressure, defense, plan-support, capture,
   endgame, or line-consequence wording is released only when the purpose matches

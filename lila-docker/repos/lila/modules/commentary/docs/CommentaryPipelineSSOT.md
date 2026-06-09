@@ -208,9 +208,11 @@ The maintained path is:
    first pass the `MoveReviewCausalClaim` gate with a concrete causal anchor and
    typed support evidence (`contrast`, branch line, timing tension, certified
    consequence, or timing witness). If that gate fails, planner selection remains
-   diagnostic/runtime trace, but MoveReview prose falls through to the existing
-   basic, exact factual, or thematic fallback lanes. Templates and polish slots
-   may surface the certified text; they do not invent the causal relationship.
+   diagnostic/runtime trace, but MoveReview prose falls through only to the
+   typed basic lane or exact factual fallback. If neither lane has authority, the
+   MoveReview slot is omitted rather than rescued by generic theme prose.
+   Templates and polish slots may surface the certified text; they do not invent
+   the causal relationship.
    The gate builds a typed causal evidence candidate before admission. Each
    evidence item records kind, source, subject role, line binding, and
    guardrails, so renderer-facing authority is measured from typed evidence
@@ -269,9 +271,11 @@ The maintained path is:
    and endgame facts must be owned by the reviewed move role/square.
    `MoveReviewScopedTakeaway` consumes the admitted local fact metadata and
    gates every scoped purpose by admitted family plus `pv_coupled` line binding.
-   It may show the next checked-line move and the bounded local detail, but it
-   does not turn a line-only compatibility default or purpose string into a
-   target, threat, defense, plan-support, timing, or line-consequence claim.
+   Public prose and `pvInterpretation` consume that scoped takeaway only; raw
+   opponent-question, reply-role, tension, and line-resolution fragments are not
+   emitted as separate renderer authority. The renderer therefore cannot turn a
+   line-only compatibility default or purpose string into a target, threat,
+   defense, plan-support, timing, or line-consequence claim.
    Accepted high-risk planner claims carry the same `MoveReviewLocalFact`
    admission shape on the causal claim itself.
    `MoveReviewCausalClaim.CertifiedClaim`
@@ -308,12 +312,12 @@ The maintained path is:
    measure accepted versus rejected causal authority without parsing prose.
    The same role boundary applies after fallback. `basic_move_explanation`,
    `CommentaryIdeaSurface`, and `MoveReviewScopedTakeaway` may state the played
-   SAN, the next checked-line move, and the bounded local evidence that survived,
-   but they must not describe a target as newly created, forced to be answered,
-   or verified by the PV unless a typed causal claim/evidence carrier authorized
-   that relationship. Basic/scoped surfaces also keep checked-line replies
-   role-neutral (`next checked-line move`) and filter generic display anchors
-   such as `plan activation lane`, `plan`, and `main plan` before rendering.
+   SAN, exact board-local facts, and the admitted scoped local evidence that
+   survived, but they must not describe a target as newly created, forced to be
+   answered, or verified by the PV unless a typed causal claim/evidence carrier
+   authorized that relationship. Basic/scoped surfaces do not emit raw
+   checked-line reply fragments, and they filter generic display anchors such as
+   `plan activation lane`, `plan`, and `main plan` before rendering.
 11. `NarrativeOutlineBuilder` assembles beats from admitted inputs.
     Reply SAN display derived from raw UCI lines uses legal replay of the first
     move before formatting the reply; an illegal first move leaves the display
@@ -475,16 +479,13 @@ The maintained path is:
     `MoveReviewPolishSlots` and the planner inputs/ranked plans from the same
     `MoveReviewCompressionPolicy` runtime result, so prose and player-surface
     projection reuse one planner runtime instead of replaying planner logic or
-    reconstructing from raw carriers. When the main planner and exact local
-    factual fallback both fail, a lower mid-tier thematic fallback
-    (`theme_fallback` / `thematicFallbackSlots` mapped via active plan themes)
-    generates short move-facing theme summaries instead of raw move
-    descriptions or repeated `The strategic plan is...` boilerplate.
-    However, if the truth contract indicates a blunder, missed win, or tactical
-    refutation, thematic fallback is disabled (fail-closed) to ensure fallback
-    to exact factual/default move descriptions. Fresh MoveReview early-opening
-    prose clamping consumes the same truth contract so critical/tactical escape
-    hatches are not lost when intro-only opening prose is compacted.
+    reconstructing from raw carriers. If the main planner, typed basic lane, and
+    exact local factual fallback all fail, MoveReview now emits the omitted slot
+    rather than a lower mid-tier thematic fallback. The previous
+    plan-theme-derived `theme_fallback` prose path is not a public runtime lane.
+    Fresh MoveReview early-opening prose clamping consumes the same truth
+    contract so critical/tactical escape hatches are not lost when intro-only
+    opening prose is compacted.
     Slot polish prompts preserve concrete slot facts, SAN tokens, move numbers,
     and square anchors, but they do not require the first clause to be copied
     verbatim; repair prompts follow the same fact-preserving/paraphrase-allowed

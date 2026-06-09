@@ -97,14 +97,14 @@ surface candidates or typed `pv_delta`; generic `QuestionPlanConsequence` text
 and claim wording are not family evidence.
 
 Fallback text is inside the same trust boundary. `basic_move_explanation` and
-the local surface/takeaway renderers may identify the played move, the next
-checked-line move, and local evidence role, but they must not promote those
-facts into target-creation, forced-reply, timing, plan-support, or PV-verified
-causal wording without typed authority. `CommentaryIdeaSurface` now submits
-`MoveReviewLocalFact` candidates and attaches admitted `local_fact_family`,
-`local_fact_authority`, and strict-fallback eligibility to basic descriptors
-before prose is rendered. Candidate inputs can carry source, subject, anchors,
-line binding, and evidence refs, but renderers consume only the admitted fact.
+the local surface/takeaway renderers may identify the played move and admitted
+local evidence role, but they must not promote PV reply order, target-creation,
+forced-reply, timing, plan-support, or PV-verified causal wording without typed
+authority. `CommentaryIdeaSurface` now submits `MoveReviewLocalFact` candidates
+and attaches admitted `local_fact_family`, `local_fact_authority`, and
+strict-fallback eligibility to basic descriptors before prose is rendered.
+Candidate inputs can carry source, subject, anchors, line binding, and evidence
+refs, but renderers consume only the admitted fact and scoped takeaway.
 If the selected high-risk planner claim is rejected by `MoveReviewCausalClaim`,
 the basic builder runs in strict local-fact mode: soft line-only and
 strategic-plan descriptors fall through to exact factual fallback, target
@@ -112,8 +112,9 @@ pressure requires the reviewed move to own the target fact, defensive wording
 requires only-move defense truth, and endgame wording requires the played move
 to own the endgame fact. Scoped takeaways consume that admitted local fact
 metadata, require a purpose-family match and `pv_coupled` line binding, and
-fail closed rather than using a line-only compatibility admission to invent
-tactical or defensive interpretation.
+fail closed rather than using a line-only compatibility admission, raw opponent
+question, reply-role classifier, or tension classifier to invent tactical or
+defensive interpretation.
 Generic support anchors such as `plan activation lane`, `plan`, or `main plan`
 are not player-facing subject authority and are skipped before a fallback
 sentence chooses its displayed subject.
@@ -1010,14 +1011,11 @@ denylist, so helper notation cannot survive there as generic support text.
 witness-only fallback labels for raw `Domination` and `TrappedPiece` motifs, so
 annotation prose cannot reintroduce those raw relation names without a board
 witness.
-MoveReview thematic fallback prose must remain a fallback, not proof promotion:
-theme-owned fallback text may use short move-facing chess language, but it must
-not name deferred relation evidence, raw plan internals, or repeated
-`The strategic plan is...` boilerplate as if they were certified facts. It is
-fail-closed when the truth contract identifies a blunder, missed win, or
-tactical refutation, and fresh MoveReview early-opening prose clamping consumes
-the same truth contract before compact intro-only wording can shorten tactical
-or critical prose.
+MoveReview no longer has a public thematic fallback prose lane. If planner,
+typed basic, and exact factual fallback authority all fail, the slot is omitted
+rather than filled by active-plan-theme prose. Fresh MoveReview early-opening
+prose clamping still consumes the truth contract before compact intro-only
+wording can shorten tactical or critical prose.
 Threat-summary labels in `NarrativeContextBuilder` consume the same catalog
 fallback, so relation-shaped motifs from `ThreatAnalysis` do not surface as raw
 key-threat labels, and PV-only draw-resource tags do not become public threat
@@ -1367,7 +1365,8 @@ Current strict rules:
   and bad-piece-liquidation claims require bounded legal PV replay plus the
   structure-transition witness described above; otherwise they may remain
   diagnostic or degrade to `ExchangeSequence`, `MaterialTransition`, practical
-  target, or thematic fallback wording when tactical truth allows it.
+  target, or omitted MoveReview prose when tactical truth allows no stronger
+  surface.
 - polish and repair may paraphrase the slot claim's opening clause for natural
   prose only while preserving concrete slot facts, SAN tokens, move numbers, and
   square anchors. They must not replace an admitted slot with a generic

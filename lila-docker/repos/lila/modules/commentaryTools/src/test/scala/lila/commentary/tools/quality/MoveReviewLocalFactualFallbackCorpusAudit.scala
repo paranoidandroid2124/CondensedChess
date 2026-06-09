@@ -192,10 +192,7 @@ object MoveReviewLocalFactualFallbackCorpusAudit:
 
   private def isTacticalMotifSupport(entry: MoveReviewOutputEntry): Boolean =
     contains(entry, "It also gives check") ||
-      contains(entry, "It also gives checkmate") ||
-      contains(entry, "It also creates a fork") ||
-      contains(entry, "It also creates a pin") ||
-      contains(entry, "It also creates a skewer")
+      contains(entry, "It also gives checkmate")
 
   private def contains(entry: MoveReviewOutputEntry, needle: String): Boolean =
     entry.commentary.toLowerCase.contains(needle.toLowerCase)

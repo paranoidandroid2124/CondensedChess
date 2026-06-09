@@ -54,7 +54,8 @@ debug traces.
 kinds, planner selection becomes releasable prose only after
 `MoveReviewCausalClaim` confirms a concrete causal anchor and typed support
 evidence. A failed causal gate leaves the planner row diagnostic and forces the
-surface back to existing exact factual, basic, or thematic fallback behavior.
+surface back only to typed basic or exact factual fallback behavior. If neither
+lane has authority, MoveReview omits the slot rather than using thematic prose.
 Renderer templates may express the certified claim but cannot supply missing
 causality.
 Support evidence and causal role are separate truth checks. Branch/PV evidence
@@ -122,13 +123,15 @@ boundary. `reasonTags` remain display/compatibility tags and may not be used to
 recover a stronger causal claim downstream.
 Scoped takeaway rendering applies the same rule at the last renderer boundary:
 the purpose must match the admitted family and the admission must remain
-`pv_coupled`. A checked-line default can identify the line, but it cannot become
-truth for threat, defense, pressure, plan-support, capture, endgame, timing, or
-line-consequence interpretation by template choice.
+`pv_coupled`. The renderer consumes the admitted scoped takeaway only; raw
+checked-line defaults, opponent questions, reply-role classifiers, or tension
+classifiers cannot become truth for threat, defense, pressure, plan-support,
+capture, endgame, timing, or line-consequence interpretation by template choice.
 
 Exact/basic fallback prose remains non-owner truth. It may report the reviewed
-SAN, the next checked-line move, and the local evidence category, but it cannot
-create target, forced-response, timing, or PV-verification truth by phrasing.
+SAN, board-local exact facts, and admitted local evidence category, but it
+cannot create target, forced-response, timing, motif, or PV-verification truth by
+phrasing.
 Those relationships require the same typed causal claim or exact evidence owner
 that would be required outside fallback. Generic support anchors such as
 `plan activation lane`, `plan`, or `main plan` remain diagnostic labels and are

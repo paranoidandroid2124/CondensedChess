@@ -4,7 +4,7 @@ import chess.{ Bishop, Board, Color, King, Knight, Pawn, Queen, Role, Rook, Squa
 import chess.format.Fen
 import chess.variant.Standard
 import lila.commentary.MoveReviewRefs
-import lila.commentary.model.{ Motif, NarrativeContext }
+import lila.commentary.model.NarrativeContext
 
 private[commentary] object MoveReviewLocalFactualFallback:
 
@@ -91,8 +91,6 @@ private[commentary] object MoveReviewLocalFactualFallback:
     val material = materialSupport(captured, promoted)
     val (tactical, tacticalTag) =
       tacticalSupport(
-        ctx,
-        played,
         givesCheckmate = afterPosition.exists(_.checkMate),
         givesCheck = afterPosition.exists(_.check.yes)
       )
@@ -154,40 +152,12 @@ private[commentary] object MoveReviewLocalFactualFallback:
       case (None, None) => None
 
   private def tacticalSupport(
-      ctx: NarrativeContext,
-      played: CommentaryIdeaSurface.PlayedMove,
       givesCheckmate: Boolean,
       givesCheck: Boolean
   ): (Option[String], Option[String]) =
     if givesCheckmate then Some("It also gives checkmate.") -> Some("checkmate")
     else if givesCheck then Some("It also gives check.") -> Some("check")
-    else currentMoveTacticalMotif(ctx, played)
-
-  private def currentMoveTacticalMotif(
-      ctx: NarrativeContext,
-      played: CommentaryIdeaSurface.PlayedMove
-  ): (Option[String], Option[String]) =
-    val playedCandidate =
-      ctx.candidates.find(candidate =>
-        candidate.uci.exists(uci => MoveReviewPvLine.normalizeUci(uci) == played.uci) ||
-          sanitizeSan(candidate.move) == sanitizeSan(played.san)
-      )
-    playedCandidate.toList
-      .flatMap(_.lineMotifs)
-      .collectFirst {
-        case motif: Motif.Fork if currentMoveOwnedMotif(motif, played) =>
-          Some("It also creates a fork.") -> Some("fork")
-        case motif: Motif.Pin if currentMoveOwnedMotif(motif, played) =>
-          Some("It also creates a pin.") -> Some("pin")
-        case motif: Motif.Skewer if currentMoveOwnedMotif(motif, played) =>
-          Some("It also creates a skewer.") -> Some("skewer")
-      }
-      .getOrElse(None -> None)
-
-  private def currentMoveOwnedMotif(motif: Motif, played: CommentaryIdeaSurface.PlayedMove): Boolean =
-    motif.plyIndex == 0 &&
-      motif.color == played.color &&
-      motif.move.forall(move => sanitizeSan(move) == sanitizeSan(played.san))
+    else None -> None
 
   private def coupledPvSupport(
       ctx: NarrativeContext,
@@ -223,9 +193,6 @@ private[commentary] object MoveReviewLocalFactualFallback:
       case file if file >= 'a' && file <= 'h' => Some(Pawn)
       case _                            => None
     }
-
-  private def sanitizeSan(san: String): String =
-    Option(san).getOrElse("").trim.replaceFirst("""^\d+\.{1,3}""", "").replaceAll("""[+#?!]+$""", "")
 
   private def roleLabel(role: Role): String =
     role match

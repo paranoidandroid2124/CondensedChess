@@ -196,7 +196,7 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
         .getOrElse(fail("expected exact Queen's Gambit opening explanation"))
 
     assertEquals(ruy.source, "opening_goal", clue(ruy))
-    assertEquals(ruy.pvInterpretation.flatMap(_.opponentReplyMeaning), Some("asks_piece_commitment"), clue(ruy.pvInterpretation))
+    assertEquals(ruy.pvInterpretation.flatMap(_.opponentReplyMeaning), None, clue(ruy.pvInterpretation))
     assert(ruy.pvInterpretation.exists(_.learningPoint.contains("Ba4")), clue(ruy.pvInterpretation))
     assertEquals(qg.source, "opening_goal", clue(qg))
     assertEquals(qg.pvInterpretation.map(_.linePurpose), Some("challenge_center"), clue(qg.pvInterpretation))
@@ -221,34 +221,24 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
     assertEquals(explanation, None, clue(explanation))
   }
 
-  test("PV-backed local descriptor admits a bounded center challenge without opening-goal evidence") {
+  test("PV-backed line-only opening context does not admit basic prose without opening-goal evidence") {
     val fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1"
     val explanation =
-      MoveReviewExplanationBuilder
-        .build(
-          ctx(
-            fen = fen,
-            playedMove = "c7c5",
-            playedSan = "c5",
-            phase = "Opening",
-            ply = 2,
-            phaseReason = "Sicilian center challenge",
-            opening = Some(openingRef("Sicilian Defense", "B20", "c7c5", "c5")),
-            openingGoalEvaluation = None
-          ),
-          Some(refsForLine(fen, List("c7c5", "g1f3", "b8c6"), List("c5", "Nf3", "Nc6")))
-        )
-        .getOrElse(fail("expected line-backed local descriptor"))
+      MoveReviewExplanationBuilder.build(
+        ctx(
+          fen = fen,
+          playedMove = "c7c5",
+          playedSan = "c5",
+          phase = "Opening",
+          ply = 2,
+          phaseReason = "Sicilian center challenge",
+          opening = Some(openingRef("Sicilian Defense", "B20", "c7c5", "c5")),
+          openingGoalEvaluation = None
+        ),
+        Some(refsForLine(fen, List("c7c5", "g1f3", "b8c6"), List("c5", "Nf3", "Nc6")))
+      )
 
-    assertEquals(explanation.source, "basic_move_explanation", clue(explanation))
-    assert(explanation.prose.contains("challenges the center"), clue(explanation.prose))
-    assert(explanation.prose.contains("Nf3 is the next move in the checked line"), clue(explanation.prose))
-    assert(!explanation.prose.contains("contesting the setup c5 chose"), clue(explanation.prose))
-    assert(explanation.reasonTags.contains("line_backed_local"), clue(explanation.reasonTags))
-    assert(explanation.reasonTags.contains("local_fact_family:line_consequence"), clue(explanation.reasonTags))
-    assert(explanation.reasonTags.contains("local_fact_strict:false"), clue(explanation.reasonTags))
-    assertEquals(explanation.pvInterpretation.map(_.linePurpose), Some("challenge_center"), clue(explanation.pvInterpretation))
-    assertEquals(explanation.shortLine.map(_.san), Some(List("c5", "Nf3", "Nc6")), clue(explanation.shortLine))
+    assertEquals(explanation, None, clue(explanation))
   }
 
   test("strict local fact mode blocks soft line-backed opening descriptors") {
@@ -272,15 +262,15 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
     assertEquals(explanation, None, clue(explanation))
   }
 
-  test("validated PV enriches an opening goal with semantic line meaning") {
+  test("validated PV enriches an opening goal only through admitted scoped takeaway") {
     val explanation =
       MoveReviewExplanationBuilder
         .build(italianCtx, Some(refsForLine(italianBeforeBc4, List("f1c4", "g8f6", "d2d3"), List("Bc4", "Nf6", "d3"))))
         .getOrElse(fail("expected PV-backed opening explanation"))
 
     assertEquals(explanation.pvInterpretation.map(_.linePurpose), Some("quiet_development"), clue(explanation))
-    assertEquals(explanation.pvInterpretation.map(_.tension), Some("tension_maintained"), clue(explanation))
-    assertEquals(explanation.pvInterpretation.flatMap(_.opponentReplyMeaning), Some("attacks_center_pawn"), clue(explanation))
+    assertEquals(explanation.pvInterpretation.map(_.tension), Some("scoped_local"), clue(explanation))
+    assertEquals(explanation.pvInterpretation.flatMap(_.opponentReplyMeaning), None, clue(explanation))
     assert(explanation.pvInterpretation.exists(_.confirms.contains("normal_development")), clue(explanation.pvInterpretation))
     assert(explanation.pvInterpretation.exists(_.learningPoint.contains("d3")), clue(explanation.pvInterpretation))
     assert(explanation.prose.contains("Nf6"), clue(explanation.prose))

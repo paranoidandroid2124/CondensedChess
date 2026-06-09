@@ -477,7 +477,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     assertExactFactualFallback(slots, "This puts the rook on c3.")
   }
 
-  test("state-only structure fixture falls back to exact local facts before thematic fallback") {
+  test("state-only structure fixture falls back to exact local facts instead of generic strategic prose") {
     val fixture = MoveReviewProseGoldenFixtures.entrenchedPiece
     val outline = BookStyleRenderer.validatedOutline(fixture.ctx)
     val slots =
@@ -1407,7 +1407,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     assertEquals(mateSlots.supportPrimary, Some("It also gives checkmate."))
   }
 
-  test("direct moveReview fallback only uses current-move-owned tactical motifs") {
+  test("direct moveReview fallback does not render candidate tactical motifs as exact facts") {
     val fen = "4k3/4r3/8/8/3N3q/8/8/2K5 w - - 0 1"
     val forkCandidate =
       CandidateInfo(
@@ -1444,9 +1444,10 @@ class MoveReviewPolishSlotsTest extends FunSuite:
       MoveReviewPolishSlotsBuilder.buildOrFallback(baseCtx.copy(candidates = List(quietMotifCandidate)), outline, refs = None, strategyPack = None)
 
     assertEquals(MoveReviewProseContract.stripMoveHeader(owned.claim), "This puts the knight on f5.")
-    assertEquals(owned.supportPrimary, Some("It also creates a fork."))
+    assertEquals(owned.supportPrimary, None)
     assertEquals(plyLater.supportPrimary, None)
     assertEquals(quiet.supportPrimary, None)
+    assert(!owned.factGuardrails.exists(_.contains("tactical motif")), clue(owned.factGuardrails))
   }
 
   test("direct moveReview fallback keeps ambiguous captures literal") {

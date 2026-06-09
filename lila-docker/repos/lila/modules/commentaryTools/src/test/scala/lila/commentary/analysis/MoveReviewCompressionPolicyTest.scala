@@ -1152,7 +1152,7 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     assertNotEquals(slots.paragraphPlan, List("p1=claim"), clues(fixture.id, slots))
   }
 
-  test("exact factual fallback outranks thematic fallback when a legal local move is available") {
+  test("exact factual fallback remains the surface when generic strategic fallback would have matched") {
     val ctx = quietH3Ctx.copy(
       plans = PlanTable(
         top5 = List(
@@ -1187,7 +1187,7 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     assertEquals(slots.paragraphPlan, List("p1=claim"))
   }
 
-  test("thematic fallback is blocked (fail-closed) when truthContract indicates a blunder or tactical refutation") {
+  test("removed thematic fallback leaves exact factual fallback as the fail-closed surface for truthContract risk") {
     val ctx = quietH3Ctx.copy(
       plans = PlanTable(
         top5 = List(
@@ -1249,7 +1249,7 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     )
   }
 
-  test("thematic fallback is blocked when planner inputs already carry tactical ownership") {
+  test("removed thematic fallback leaves exact factual fallback when planner inputs carry tactical ownership") {
     val ctx = quietH3Ctx.copy(
       plans = PlanTable(
         top5 = List(
@@ -1322,7 +1322,7 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     }
   }
 
-  test("thematic fallback remains available for non-tactical inaccuracy truth when exact factual fallback is closed") {
+  test("removed thematic fallback omits generic strategic prose when exact factual fallback is closed") {
     val ctx = quietH3Ctx.copy(
       playedMove = None,
       playedSan = None,
@@ -1379,9 +1379,8 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
         truthContract = Some(inaccuracyContract)
       )
 
-    assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.ThematicFallback)
-    assertEquals(
-      MoveReviewProseContract.stripMoveHeader(slots.claim),
-      "The move improves piece activity and looks for better squares."
-    )
+    assertNotEquals(slots.sourceKind, MoveReviewPolishSlots.Source.ThematicFallback)
+    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "")
+    assertEquals(slots.supportPrimary, None)
+    assertEquals(slots.supportSecondary, None)
   }

@@ -114,7 +114,6 @@ private[commentary] object MoveReviewCompressionPolicy:
       slotsFromPlanner(ctx, plannerRuntime.inputs, plannerRuntime.rankedPlans, truthContract, refs)
         .orElse(basicMoveExplanationSlots(ctx, refs, truthContract, strategyPack, strictLocalFacts))
         .orElse(exactFactualFallbackSlots(ctx, plannerRuntime, refs, strategyPack))
-        .orElse(theme_fallback(ctx, plannerRuntime, refs, strategyPack, truthContract))
         .getOrElse(omittedSlots)
     RuntimeResult(
       slots = slots,
@@ -138,7 +137,6 @@ private[commentary] object MoveReviewCompressionPolicy:
       )
     slotsFromPlanner(ctx, inputs, rankedPlans, truthContract, refs)
       .orElse(exactFactualFallbackSlots(ctx, plannerRuntime, refs, strategyPack))
-      .orElse(theme_fallback(ctx, plannerRuntime, refs, strategyPack, truthContract))
       .getOrElse(omittedSlots)
 
   private[analysis] def cleanNarrativeSentence(raw: String, ctx: NarrativeContext): Option[String] =
@@ -754,67 +752,6 @@ private[commentary] object MoveReviewCompressionPolicy:
       strategyPack: Option[StrategyPack]
   ): Option[MoveReviewPolishSlots] =
     exactFactualFallbackResult(ctx, plannerRuntime, refs, strategyPack).map(_.finalSlots)
-
-  private def theme_fallback(
-      ctx: NarrativeContext,
-      plannerRuntime: PlannerRuntime,
-      @unused refs: Option[MoveReviewRefs],
-      @unused strategyPack: Option[StrategyPack],
-      truthContract: Option[DecisiveTruthContract]
-  ): Option[MoveReviewPolishSlots] =
-    val activeTheme =
-      if ctx.plans.top5.nonEmpty then
-        PlanTaxonomy.ThemeResolver.fromPlanName(ctx.plans.top5.head.name)
-      else if plannerRuntime.inputs.evidenceBackedPlans.nonEmpty then
-        PlanTaxonomy.ThemeResolver.fromHypotheses(plannerRuntime.inputs.evidenceBackedPlans)
-      else
-        PlanTaxonomy.PlanTheme.Unknown
-
-    val thematicFallbackBlocked =
-      plannerRuntime.inputs.truthMode == PlayerFacingTruthMode.Tactical ||
-        plannerRuntime.inputs.mainBundle.exists(_.primaryClaim.exists(_.mode == PlayerFacingTruthMode.Tactical)) ||
-        truthContract.exists { contract =>
-          contract.blocksStrategicSupport ||
-            contract.reasonFamily == DecisiveReasonKind.TacticalRefutation
-        }
-
-    Option.when(activeTheme != PlanTaxonomy.PlanTheme.Unknown && !thematicFallbackBlocked) {
-      val claim = theme_fallback_prose(activeTheme)
-      val prefixClaim = prefixMoveHeader(ctx, claim)
-      MoveReviewPolishSlots(
-        lens = StrategicLens.Decision,
-        claim = prefixClaim,
-        supportPrimary = None,
-        supportSecondary = None,
-        tension = None,
-        evidenceHook = None,
-        coda = None,
-        factGuardrails = List(s"MoveReview thematic fallback theme: ${activeTheme.id}"),
-        paragraphPlan = List("p1=claim"),
-        sourceKind = MoveReviewPolishSlots.Source.ThematicFallback
-      )
-    }
-
-  private def theme_fallback_prose(theme: PlanTaxonomy.PlanTheme): String =
-    theme match
-      case PlanTaxonomy.PlanTheme.RestrictionProphylaxis =>
-        "The move keeps the opponent's activity restrained and aims to consolidate."
-      case PlanTaxonomy.PlanTheme.PieceRedeployment =>
-        "The move improves piece activity and looks for better squares."
-      case PlanTaxonomy.PlanTheme.SpaceClamp =>
-        "The move gains space while limiting the opponent's mobility."
-      case PlanTaxonomy.PlanTheme.WeaknessFixation =>
-        "The move keeps pressure on fixed weaknesses."
-      case PlanTaxonomy.PlanTheme.PawnBreakPreparation =>
-        "The move coordinates the pieces for a central or wing pawn break."
-      case PlanTaxonomy.PlanTheme.FavorableExchange =>
-        "The move steers toward favorable exchanges and better piece quality."
-      case PlanTaxonomy.PlanTheme.FlankInfrastructure =>
-        "The move builds on the flank and prepares attacking chances."
-      case PlanTaxonomy.PlanTheme.AdvantageTransformation =>
-        "The move steers the advantage toward a simpler winning ending."
-      case PlanTaxonomy.PlanTheme.ImmediateTacticalGain | PlanTaxonomy.PlanTheme.OpeningPrinciples | _ =>
-        "The move improves piece activity and coordination."
 
   private def basicMoveExplanationSlots(
       ctx: NarrativeContext,
