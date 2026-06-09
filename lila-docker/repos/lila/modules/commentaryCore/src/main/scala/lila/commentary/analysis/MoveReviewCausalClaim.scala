@@ -100,7 +100,7 @@ private[commentary] object MoveReviewCausalClaim:
       val embeddedSupport = if supportRenderedInClaim then ", support_embedded=true" else ""
       val local =
         localFact.fold("")(fact =>
-          s", local_fact=${fact.family.key}/${fact.authority.key}, local_fact_strict=${fact.strictFallbackEligible}, local_fact_line=${fact.lineBinding.key}"
+          s", local_fact=${fact.family.key}/${fact.authority.key}, local_fact_producer=${fact.producer.key}, local_fact_strict=${fact.strictFallbackEligible}, local_fact_line=${fact.lineBinding.key}"
         )
       s"MoveReview causal claim: question=${questionKind.toString}, subject=${subjectRole.wireName}, evidence=$evidence, relations=$relations$embeddedSupport$local"
 

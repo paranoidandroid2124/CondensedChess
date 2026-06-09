@@ -250,6 +250,7 @@ final class MoveReviewCoverageDiagnosticsTest extends FunSuite:
           guardrail = Some("MoveReview causal claim: local_fact=timing/truth_contract"),
           localFactFamily = Some("timing"),
           localFactAuthority = Some("truth_contract"),
+          localFactProducer = Some("planner_causal_claim"),
           localFactStrictFallbackEligible = Some(true),
           localFactGuardrails = Nil
         )

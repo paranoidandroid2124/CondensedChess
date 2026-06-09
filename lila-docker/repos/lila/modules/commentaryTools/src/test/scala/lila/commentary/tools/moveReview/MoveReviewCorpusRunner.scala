@@ -237,6 +237,7 @@ object MoveReviewCorpusRunner:
             moveReviewLocalFactStatus = coverageTrace.moveReviewLocalFactStatus,
             moveReviewLocalFactFamilies = coverageTrace.moveReviewLocalFactFamilies,
             moveReviewLocalFactAuthorities = coverageTrace.moveReviewLocalFactAuthorities,
+            moveReviewLocalFactProducers = coverageTrace.moveReviewLocalFactProducers,
             moveReviewLocalFactStrictFallbackEligible = coverageTrace.moveReviewLocalFactStrictFallbackEligible,
             moveReviewLocalFactRejectReasons = coverageTrace.moveReviewLocalFactRejectReasons
           ).withQuietSupportTrace(quietSupportTrace)

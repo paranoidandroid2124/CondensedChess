@@ -52,6 +52,74 @@ private[commentary] object MoveReviewLocalFact:
         case PvCoupledLine       => Authority.PvCoupledLine
         case TruthContract       => Authority.TruthContract
 
+  enum Producer:
+    case OpeningGoal
+    case CastlingSafety
+    case CertifiedStrategyDelta
+    case TacticalMotif
+    case TargetPressure
+    case DefensiveTruth
+    case CaptureSequence
+    case EndgameFact
+    case ScopedLineDefault
+    case PlannerCausalClaim
+
+    def key: String =
+      this match
+        case OpeningGoal            => "opening_goal"
+        case CastlingSafety         => "castling_safety"
+        case CertifiedStrategyDelta => "certified_strategy_delta"
+        case TacticalMotif          => "tactical_motif"
+        case TargetPressure         => "target_pressure"
+        case DefensiveTruth         => "defensive_truth"
+        case CaptureSequence        => "capture_sequence"
+        case EndgameFact            => "endgame_fact"
+        case ScopedLineDefault      => "scoped_line_default"
+        case PlannerCausalClaim     => "planner_causal_claim"
+
+    def supports(family: Family, source: Source): Boolean =
+      allowedFamilies.contains(family) && allowedSources.contains(source)
+
+    private def allowedFamilies: Set[Family] =
+      this match
+        case OpeningGoal            => Set(Family.OpeningGoal)
+        case CastlingSafety         => Set(Family.KingSafety)
+        case CertifiedStrategyDelta => Set(Family.Defense, Family.LineConsequence, Family.PlanSupport, Family.Pressure)
+        case TacticalMotif          => Set(Family.Threat)
+        case TargetPressure         => Set(Family.Pressure)
+        case DefensiveTruth         => Set(Family.Defense)
+        case CaptureSequence        => Set(Family.Capture)
+        case EndgameFact            => Set(Family.Endgame)
+        case ScopedLineDefault      => Set(Family.LineConsequence)
+        case PlannerCausalClaim =>
+          Set(
+            Family.Defense,
+            Family.Threat,
+            Family.Pressure,
+            Family.LineConsequence,
+            Family.Timing,
+            Family.OpeningGoal,
+            Family.Endgame
+          )
+
+    private def allowedSources: Set[Source] =
+      this match
+        case OpeningGoal            => Set(Source.OpeningGoalEvidence)
+        case CastlingSafety         => Set(Source.PvCoupledLine)
+        case CertifiedStrategyDelta => Set(Source.CertifiedStrategy)
+        case TacticalMotif          => Set(Source.CanonicalFact)
+        case TargetPressure         => Set(Source.CanonicalFact)
+        case DefensiveTruth         => Set(Source.TruthContract)
+        case CaptureSequence        => Set(Source.PvCoupledLine)
+        case EndgameFact            => Set(Source.CanonicalFact)
+        case ScopedLineDefault      => Set(Source.PvCoupledLine)
+        case PlannerCausalClaim =>
+          Set(Source.CertifiedStrategy, Source.OpeningGoalEvidence, Source.PvCoupledLine, Source.TruthContract)
+
+  object Producer:
+    val registry: List[Producer] =
+      Producer.values.toList
+
   enum Subject:
     case PlayedMove, LineOrReply, Target, PlanResource, OpeningGoal, KingSafety, Capture, Endgame
 
@@ -81,6 +149,7 @@ private[commentary] object MoveReviewLocalFact:
   final case class Candidate(
       family: Family,
       source: Source,
+      producer: Producer,
       subject: Subject,
       strictFallbackCandidate: Boolean,
       anchors: List[Anchor] = Nil,
@@ -97,6 +166,7 @@ private[commentary] object MoveReviewLocalFact:
   final case class Admission(
       family: Family,
       authority: Authority,
+      producer: Producer,
       strictFallbackEligible: Boolean,
       guardrails: List[String] = Nil,
       anchors: List[Anchor] = Nil,
@@ -107,28 +177,41 @@ private[commentary] object MoveReviewLocalFact:
       (List(
         s"local_fact_family:${family.key}",
         s"local_fact_authority:${authority.key}",
+        s"local_fact_producer:${producer.key}",
         s"local_fact_strict:${strictFallbackEligible.toString}"
       ) ++ guardrails.map(guardrail => s"local_fact_guardrail:$guardrail")).distinct
 
   def admit(candidate: Candidate): Decision =
-    Decision(
-      admission =
-        Some(
-          Admission(
-            family = candidate.family,
-            authority = candidate.source.authority,
-            strictFallbackEligible = candidate.strictFallbackCandidate,
-            guardrails = candidate.guardrails,
-            anchors = candidate.anchors,
-            lineBinding = candidate.lineBinding,
-            evidenceRefs = candidate.evidenceRefs
-          )
+    if !Producer.registry.contains(candidate.producer) then
+      Decision(
+        admission = None,
+        rejectReasons = List(s"producer_unregistered:${candidate.producer.key}")
+      )
+    else if !candidate.producer.supports(candidate.family, candidate.source) then
+      Decision(
+        admission = None,
+        rejectReasons = List(s"producer_family_source_mismatch:${candidate.producer.key}:${candidate.family.key}:${candidate.source.key}")
+      )
+    else
+      Decision(
+        admission =
+          Some(
+            Admission(
+              family = candidate.family,
+              authority = candidate.source.authority,
+              producer = candidate.producer,
+              strictFallbackEligible = candidate.strictFallbackCandidate,
+              guardrails = candidate.guardrails,
+              anchors = candidate.anchors,
+              lineBinding = candidate.lineBinding,
+              evidenceRefs = candidate.evidenceRefs
+            )
         )
-    )
+      )
 
   def admitted(candidate: Candidate): Admission =
     admit(candidate).admission.getOrElse(
-      throw new IllegalArgumentException(s"MoveReview local fact rejected: ${candidate.family.key}")
+      throw new IllegalArgumentException(s"MoveReview local fact rejected: ${candidate.family.key}:${candidate.producer.key}")
     )
 
   def admitPlanner(
@@ -149,6 +232,7 @@ private[commentary] object MoveReviewLocalFact:
     Candidate(
       family = familyForMoveDeltaClass(delta.deltaClass),
       source = Source.CertifiedStrategy,
+      producer = Producer.CertifiedStrategyDelta,
       subject = Subject.PlanResource,
       strictFallbackCandidate = false,
       anchors = anchors,
@@ -183,6 +267,7 @@ private[commentary] object MoveReviewLocalFact:
       Candidate(
         family = family,
         source = plannerSource(plan, normalizedEvidence, lineConsequenceBacked),
+        producer = Producer.PlannerCausalClaim,
         subject = plannerSubject(plan),
         strictFallbackCandidate = strictFallbackEligible(plan, family, normalizedRelations),
         anchors = plannerAnchors(plan),

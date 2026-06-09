@@ -110,17 +110,19 @@ The basic/scoped fallback boundary is now typed as well. A fallback sentence is
 not a truth owner merely because `CommentaryIdeaSurface` can assemble a purpose
 string from a PV. MoveReview basic descriptors submit `MoveReviewLocalFact`
 candidates and must receive admitted `local_fact_family` and
-`local_fact_authority` before rendering. Candidate source, subject, anchor,
-line-binding, and evidence-ref fields are future producer inputs, not renderer
-truth authority. When the causal gate rejects a high-risk planner row, strict
-local-fact mode admits only strict-eligible local facts; soft line-only,
+`local_fact_authority` before rendering. Each candidate is a producer-authored
+evidence packet with a registered producer, source, subject, anchor,
+line-binding, and evidence refs; those packet fields are admission input, not
+renderer truth authority. When the causal gate rejects a high-risk planner row,
+strict local-fact mode admits only strict-eligible local facts; soft line-only,
 plan-support, or other non-strict candidates fall through to exact factual
 fallback. Canonical pressure/threat facts need played-move ownership,
 defensive facts need only-move defense truth, and endgame facts need the
 reviewed move to own the endgame square/role. Corpus `moveReviewLocalFact*`
 fields are diagnostic trace from typed admission for this fallback truth
-boundary. `reasonTags` remain display/compatibility tags and may not be used to
-recover a stronger causal claim downstream.
+boundary, including `local_fact_producer`. `reasonTags` remain
+display/compatibility tags and may not be used to recover a stronger causal
+claim downstream.
 Scoped takeaway rendering applies the same rule at the last renderer boundary:
 the purpose must match the admitted family and the admission must remain
 `pv_coupled`. The renderer consumes the admitted scoped takeaway only; raw

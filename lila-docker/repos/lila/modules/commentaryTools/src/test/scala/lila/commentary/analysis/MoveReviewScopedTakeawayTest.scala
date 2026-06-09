@@ -76,6 +76,7 @@ final class MoveReviewScopedTakeawayTest extends FunSuite:
     MoveReviewLocalFact.admitted(MoveReviewLocalFact.Candidate(
       family = family,
       source = source,
+      producer = MoveReviewLocalFact.Producer.TacticalMotif,
       subject = subject,
       strictFallbackCandidate = strictFallbackCandidate,
       lineBinding = MoveReviewLocalFact.LineBinding.PvCoupled,

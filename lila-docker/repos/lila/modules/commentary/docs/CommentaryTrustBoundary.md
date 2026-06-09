@@ -82,8 +82,9 @@ measurements; they do not create a second surface or allow downstream code to
 recover causal authority from fallback wording.
 Accepted planner claims also carry `MoveReviewLocalFact` admission. Planner
 evidence/relation inputs are submitted to `MoveReviewLocalFact.admitPlanner`,
-which owns family, authority, and strict fallback classification. The certified
-claim records a `local_fact_family`, `local_fact_authority`, strict flag,
+which owns the `planner_causal_claim` producer packet, family, authority,
+producer, and strict fallback classification. The certified claim records a
+`local_fact_family`, `local_fact_authority`, `local_fact_producer`, strict flag,
 guardrails, and line binding before the renderer receives the surface text. For
 support-required questions, absence of that local fact is a release failure
 (`local_fact_admission_missing`). Corpus `moveReviewLocalFact*` fields report
@@ -102,9 +103,9 @@ local evidence role, but they must not promote PV reply order, target-creation,
 forced-reply, timing, plan-support, or PV-verified causal wording without typed
 authority. `CommentaryIdeaSurface` now submits `MoveReviewLocalFact` candidates
 and attaches admitted `local_fact_family`, `local_fact_authority`, and
-strict-fallback eligibility to basic descriptors before prose is rendered.
-Candidate inputs can carry source, subject, anchors, line binding, and evidence
-refs, but renderers consume only the admitted fact and scoped takeaway.
+`local_fact_producer` to basic descriptors before prose is rendered. Candidate
+inputs carry a registered producer, source, subject, anchors, line binding, and
+evidence refs, but renderers consume only the admitted fact and scoped takeaway.
 If the selected high-risk planner claim is rejected by `MoveReviewCausalClaim`,
 the basic builder runs in strict local-fact mode: soft line-only and
 strategic-plan descriptors fall through to exact factual fallback, target

@@ -252,13 +252,13 @@ The maintained path is:
    own the same causal story.
    The fallback lane now applies the same ownership direction to
    `basic_move_explanation` and scoped takeaways. `MoveReviewLocalFact` owns
-   the shared typed local-fact vocabulary and the candidate/admit policy. It
-   accepts source, subject, anchor, line-binding, and evidence-ref inputs and
-   returns an admitted `local_fact_family` (`attack`, `defense`, `threat`,
-   `pressure`, `plan_support`, `line_consequence`, `timing`, plus existing
-   opening, king-safety, capture, and endgame families) plus
-   `local_fact_authority`, while preserving line binding and evidence refs on
-   the admission for downstream diagnostics and renderer gating.
+   the shared typed local-fact vocabulary, producer registry, and
+   candidate/admit policy. A local-fact candidate is now a producer-authored
+   evidence packet: it names a registered producer, family, source, subject,
+   anchors, line binding, evidence refs, and guardrails, but no prose. Admission
+   rejects producer/family/source mismatches and returns `local_fact_family`
+   and `local_fact_authority` for renderer gating, with
+   `local_fact_producer` preserved as provenance trace.
    `CommentaryIdeaSurface` submits candidates and
    attaches only the admitted result to every admitted MoveReview basic
    descriptor before it renders prose. When `MoveReviewCausalClaim` rejects a high-risk
@@ -291,7 +291,8 @@ The maintained path is:
    `SurfaceCandidate` output or a typed `pv_delta` owner, timing opens from a
    timing relation/witness, defense from forcing-defense relation/truth, and
    pressure/opening/endgame from their typed owner families. That
-   source/evidence mapping now lives in `MoveReviewLocalFact.admitPlanner`,
+   source/evidence mapping now lives in `MoveReviewLocalFact.admitPlanner` as
+   the `planner_causal_claim` producer,
    while `MoveReviewCausalClaim` supplies the certified relation/evidence
    kinds. Strategic basic descriptors likewise use `MoveReviewLocalFact`'s
    centralized `PlayerFacingMoveDeltaClass` -> local-fact-family mapping.

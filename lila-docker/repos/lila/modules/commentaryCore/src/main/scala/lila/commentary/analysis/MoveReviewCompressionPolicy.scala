@@ -43,6 +43,7 @@ private[commentary] object MoveReviewCompressionPolicy:
       guardrail: Option[String],
       localFactFamily: Option[String],
       localFactAuthority: Option[String],
+      localFactProducer: Option[String],
       localFactStrictFallbackEligible: Option[Boolean],
       localFactGuardrails: List[String]
   )
@@ -274,6 +275,7 @@ private[commentary] object MoveReviewCompressionPolicy:
         guardrail = claim.map(_.guardrail),
         localFactFamily = claim.flatMap(_.localFact.map(_.family.key)),
         localFactAuthority = claim.flatMap(_.localFact.map(_.authority.key)),
+        localFactProducer = claim.flatMap(_.localFact.map(_.producer.key)),
         localFactStrictFallbackEligible = claim.flatMap(_.localFact.map(_.strictFallbackEligible)),
         localFactGuardrails = claim.flatMap(_.localFact).map(_.tags).getOrElse(Nil)
       )

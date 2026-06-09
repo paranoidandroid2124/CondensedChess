@@ -14,6 +14,7 @@ private[commentary] object CommentaryIdeaSurface:
     Candidate as LocalFactCandidate,
     Family as LocalFactFamily,
     LineBinding as LocalFactLineBinding,
+    Producer as LocalFactProducer,
     Source as LocalFactSource,
     Subject as LocalFactSubject
   }
@@ -193,6 +194,7 @@ private[commentary] object CommentaryIdeaSurface:
         localFact = admittedLocalFact(LocalFactCandidate(
           family = LocalFactFamily.OpeningGoal,
           source = LocalFactSource.OpeningGoalEvidence,
+          producer = LocalFactProducer.OpeningGoal,
           subject = LocalFactSubject.OpeningGoal,
           strictFallbackCandidate = true,
           anchors = List(LocalFactAnchor("opening_goal", goal.goalName)),
@@ -231,6 +233,7 @@ private[commentary] object CommentaryIdeaSurface:
         localFact = admittedLocalFact(LocalFactCandidate(
           family = LocalFactFamily.KingSafety,
           source = LocalFactSource.PvCoupledLine,
+          producer = LocalFactProducer.CastlingSafety,
           subject = LocalFactSubject.KingSafety,
           strictFallbackCandidate = true,
           lineBinding = LocalFactLineBinding.PvCoupled,
@@ -328,6 +331,7 @@ private[commentary] object CommentaryIdeaSurface:
           localFact = admittedLocalFact(LocalFactCandidate(
             family = LocalFactFamily.Threat,
             source = LocalFactSource.CanonicalFact,
+            producer = LocalFactProducer.TacticalMotif,
             subject = LocalFactSubject.Target,
             strictFallbackCandidate = true,
             lineBinding = LocalFactLineBinding.PvCoupled,
@@ -501,6 +505,7 @@ private[commentary] object CommentaryIdeaSurface:
         localFact = admittedLocalFact(LocalFactCandidate(
           family = if defensive then LocalFactFamily.Defense else LocalFactFamily.Pressure,
           source = if defensive then LocalFactSource.TruthContract else LocalFactSource.CanonicalFact,
+          producer = if defensive then LocalFactProducer.DefensiveTruth else LocalFactProducer.TargetPressure,
           subject = LocalFactSubject.Target,
           strictFallbackCandidate = true,
           lineBinding = LocalFactLineBinding.PvCoupled,
@@ -555,6 +560,7 @@ private[commentary] object CommentaryIdeaSurface:
         localFact = admittedLocalFact(LocalFactCandidate(
           family = LocalFactFamily.Capture,
           source = LocalFactSource.PvCoupledLine,
+          producer = LocalFactProducer.CaptureSequence,
           subject = LocalFactSubject.Capture,
           strictFallbackCandidate = true,
           lineBinding = LocalFactLineBinding.PvCoupled,
@@ -596,6 +602,7 @@ private[commentary] object CommentaryIdeaSurface:
         localFact = admittedLocalFact(LocalFactCandidate(
           family = LocalFactFamily.Endgame,
           source = LocalFactSource.CanonicalFact,
+          producer = LocalFactProducer.EndgameFact,
           subject = LocalFactSubject.Endgame,
           strictFallbackCandidate = true,
           lineBinding = LocalFactLineBinding.PvCoupled,

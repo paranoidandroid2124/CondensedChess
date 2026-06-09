@@ -8,6 +8,7 @@ private[commentary] object MoveReviewScopedTakeaway:
     Candidate as LocalFactCandidate,
     Family as LocalFactFamily,
     LineBinding as LocalFactLineBinding,
+    Producer as LocalFactProducer,
     Source as LocalFactSource,
     Subject as LocalFactSubject
   }
@@ -64,6 +65,7 @@ private[commentary] object MoveReviewScopedTakeaway:
         MoveReviewLocalFact.admitted(LocalFactCandidate(
           family = LocalFactFamily.LineConsequence,
           source = LocalFactSource.PvCoupledLine,
+          producer = LocalFactProducer.ScopedLineDefault,
           subject = LocalFactSubject.PlayedMove,
           strictFallbackCandidate = false,
           lineBinding = LocalFactLineBinding.PvCoupled,

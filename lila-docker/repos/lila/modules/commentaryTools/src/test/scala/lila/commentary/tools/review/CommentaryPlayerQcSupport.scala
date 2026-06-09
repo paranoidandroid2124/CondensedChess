@@ -295,6 +295,7 @@ object CommentaryPlayerQcSupport:
       moveReviewLocalFactStatus: Option[String] = None,
       moveReviewLocalFactFamilies: List[String] = Nil,
       moveReviewLocalFactAuthorities: List[String] = Nil,
+      moveReviewLocalFactProducers: List[String] = Nil,
       moveReviewLocalFactStrictFallbackEligible: Option[Boolean] = None,
       moveReviewLocalFactRejectReasons: List[String] = Nil,
       moveReviewCausalClaimStatus: Option[String] = None,

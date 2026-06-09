@@ -25,6 +25,7 @@ object MoveReviewCoverageDiagnostics:
       status: Option[String] = None,
       families: List[String] = Nil,
       authorities: List[String] = Nil,
+      producers: List[String] = Nil,
       strictFallbackEligible: Option[Boolean] = None,
       rejectReasons: List[String] = Nil
   )
@@ -39,6 +40,7 @@ object MoveReviewCoverageDiagnostics:
       moveReviewLocalFactStatus: Option[String] = None,
       moveReviewLocalFactFamilies: List[String] = Nil,
       moveReviewLocalFactAuthorities: List[String] = Nil,
+      moveReviewLocalFactProducers: List[String] = Nil,
       moveReviewLocalFactStrictFallbackEligible: Option[Boolean] = None,
       moveReviewLocalFactRejectReasons: List[String] = Nil
   )
@@ -74,6 +76,7 @@ object MoveReviewCoverageDiagnostics:
       moveReviewLocalFactStatus = localFact.status,
       moveReviewLocalFactFamilies = localFact.families,
       moveReviewLocalFactAuthorities = localFact.authorities,
+      moveReviewLocalFactProducers = localFact.producers,
       moveReviewLocalFactStrictFallbackEligible = localFact.strictFallbackEligible,
       moveReviewLocalFactRejectReasons = localFact.rejectReasons
     )
@@ -123,6 +126,7 @@ object MoveReviewCoverageDiagnostics:
                 status = Some("emitted"),
                 families = List(family),
                 authorities = trace.localFactAuthority.toList,
+                producers = trace.localFactProducer.toList,
                 strictFallbackEligible = trace.localFactStrictFallbackEligible,
                 rejectReasons = Nil
               )
@@ -141,6 +145,7 @@ object MoveReviewCoverageDiagnostics:
       val localFact = candidate.map(_.localFact)
       val families = localFact.map(_.family.key).toList
       val authorities = localFact.map(_.authority.key).toList
+      val producers = localFact.map(_.producer.key).toList
       val strictEligible = localFact.map(_.strictFallbackEligible)
       val status =
         if emitted.nonEmpty && localFact.nonEmpty then Some("emitted")
@@ -157,6 +162,7 @@ object MoveReviewCoverageDiagnostics:
         status = status,
         families = families,
         authorities = authorities,
+        producers = producers,
         strictFallbackEligible = strictEligible,
         rejectReasons = rejectReasons
       )
