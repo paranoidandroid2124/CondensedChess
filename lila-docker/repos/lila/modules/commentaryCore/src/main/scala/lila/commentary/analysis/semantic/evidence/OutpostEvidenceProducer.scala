@@ -5,6 +5,7 @@ import lila.commentary.analysis.{ StrategicIdeaSemanticContext }
 import lila.commentary.analysis.semantic.{ StrategicIdeaEvidence, StrategicIdeaEvidenceProducer }
 import lila.commentary.analysis.semantic.StrategicObservationIds.EvidenceSourceId
 import _root_.chess.Square
+import lila.commentary.model.Motif
 import lila.commentary.model.strategic.{ PositionalTag }
 
 
@@ -39,6 +40,21 @@ private[commentary] object OutpostEvidenceProducer extends StrategicIdeaEvidence
             confidence = 0.84,
             focusSquares = List(square.key),
             beneficiaryPieces = List("N", "B"),
+            factIds = List(s"outpost_${square.key}")
+          )
+      }
+
+    val motifOutpostEvidence =
+      semantic.motifs.collect {
+        case Motif.Outpost(piece, square, color, _, _) if matchesSide(color, side) && isMinorPiece(roleToken(piece)) =>
+          evidence(
+            ownerSide = side,
+            kind = StrategicIdeaKind.OutpostCreationOrOccupation,
+            readiness = StrategicIdeaReadiness.Ready,
+            source = EvidenceSourceId.OutpostTag,
+            confidence = 0.84,
+            focusSquares = List(square.key),
+            beneficiaryPieces = List(roleToken(piece)),
             factIds = List(s"outpost_${square.key}")
           )
       }
@@ -94,7 +110,7 @@ private[commentary] object OutpostEvidenceProducer extends StrategicIdeaEvidence
                 confidence = 0.60 + route.surfaceConfidence * 0.08,
                 focusSquares = List(endpoint.key),
                 beneficiaryPieces = List(route.piece),
-                factIds = List("route_outpost_access", s"route_surface_${route.surfaceMode.toLowerCase}")
+                factIds = List("route_outpost_access_shape", s"route_surface_${route.surfaceMode.toLowerCase}")
               )
             }
         }
@@ -114,9 +130,9 @@ private[commentary] object OutpostEvidenceProducer extends StrategicIdeaEvidence
                 confidence = 0.60 + readinessBonus(target.readiness),
                 focusSquares = List(endpoint.key),
                 beneficiaryPieces = List(target.piece),
-                factIds = List("directional_outpost_access")
+                factIds = List("directional_outpost_access_shape")
               )
             }
         }
 
-    tagEvidence ++ strongKnightEvidence ++ entrenchedSupport ++ routeEvidence ++ directionalEvidence
+    tagEvidence ++ motifOutpostEvidence ++ strongKnightEvidence ++ entrenchedSupport ++ routeEvidence ++ directionalEvidence

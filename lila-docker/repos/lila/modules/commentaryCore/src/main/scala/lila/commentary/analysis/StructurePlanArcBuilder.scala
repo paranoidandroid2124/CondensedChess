@@ -36,6 +36,7 @@ private[analysis] final case class StructurePlanArc(
     planBacked: Boolean = true,
     alignmentBand: Option[String],
     alignmentReasons: List[String],
+    alignmentPlanIds: List[String] = Nil,
     primaryDeployment: PieceDeploymentCue,
     secondaryDeployment: Option[PieceDeploymentCue],
     moveContribution: String,
@@ -71,14 +72,15 @@ private[analysis] object StructurePlanArcBuilder:
       val deployments = selectDeployments(pieceActivity, boardOpt, ownerSide, plan, structureName, alignment.map(_.band))
       val alignmentBand = alignment.map(_.band).flatMap(normalized)
       val alignmentReasons = alignment.toList.flatMap(_.reasonCodes).flatMap(humanizeAlignmentReason).distinct.take(3)
-        StructurePlanArc(
-          structureLabel = structureName,
-          centerState = structure.flatMap(sp => normalized(sp.centerState)),
-          planLabel = plan,
-          planBacked = backedPlanLabel.contains(plan),
-          alignmentBand = alignmentBand,
-          alignmentReasons = alignmentReasons,
-          primaryDeployment = primary,
+      StructurePlanArc(
+        structureLabel = structureName,
+        centerState = structure.flatMap(sp => normalized(sp.centerState)),
+        planLabel = plan,
+        planBacked = backedPlanLabel.contains(plan),
+        alignmentBand = alignmentBand,
+        alignmentReasons = alignmentReasons,
+        alignmentPlanIds = alignment.toList.flatMap(_.matchedPlanIds).flatMap(normalized).distinct,
+        primaryDeployment = primary,
         secondaryDeployment = deployments.drop(1).find(_.surfaceConfidence >= SecondaryConfidenceCutoff),
         moveContribution = moveContribution(ctx, primary, plan),
         prophylaxisSupport = prophylaxisSupport(ctx),

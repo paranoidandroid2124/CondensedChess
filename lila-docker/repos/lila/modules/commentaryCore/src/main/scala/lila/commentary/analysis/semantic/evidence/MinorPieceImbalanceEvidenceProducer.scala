@@ -4,7 +4,8 @@ import lila.commentary.*
 import lila.commentary.analysis.StrategicIdeaSemanticContext
 import lila.commentary.analysis.semantic.{ StrategicIdeaEvidence, StrategicIdeaEvidenceProducer }
 import lila.commentary.analysis.semantic.StrategicObservationIds.EvidenceSourceId
-import _root_.chess.Square
+import _root_.chess.{ Bishop, Knight, Square }
+import lila.commentary.model.Motif
 import lila.commentary.model.strategic.{ PositionalTag }
 import lila.commentary.model.structure.{ StructureId }
 
@@ -34,7 +35,7 @@ private[commentary] object MinorPieceImbalanceEvidenceProducer extends Strategic
             source = EvidenceSourceId.BishopPairAdvantage,
             confidence = 0.82,
             beneficiaryPieces = List("B"),
-            factIds = List("bishop_pair_advantage")
+            factIds = List("bishop_pair_advantage_shape")
           )
       }
 
@@ -48,7 +49,7 @@ private[commentary] object MinorPieceImbalanceEvidenceProducer extends Strategic
             source = EvidenceSourceId.EnemyBadBishop,
             confidence = 0.80,
             beneficiaryPieces = List("N", "B"),
-            factIds = List("enemy_bad_bishop")
+            factIds = List("enemy_bad_bishop_shape")
           )
       }
 
@@ -62,7 +63,7 @@ private[commentary] object MinorPieceImbalanceEvidenceProducer extends Strategic
             source = EvidenceSourceId.GoodBishop,
             confidence = 0.74,
             beneficiaryPieces = List("B"),
-            factIds = List("good_bishop")
+            factIds = List("good_bishop_shape")
           )
       }
 
@@ -76,7 +77,52 @@ private[commentary] object MinorPieceImbalanceEvidenceProducer extends Strategic
             source = EvidenceSourceId.OppositeColorBishops,
             confidence = 0.68,
             beneficiaryPieces = List("B"),
-            factIds = List("opposite_color_bishops")
+            factIds = List("opposite_color_bishops_shape")
+          )
+      }
+
+    val centralizationMotif =
+      semantic.motifs.collect {
+        case Motif.Centralization(piece, square, color, _, _)
+            if matchesSide(color, side) && (piece == Knight || piece == Bishop) =>
+          evidence(
+            ownerSide = side,
+            kind = StrategicIdeaKind.MinorPieceImbalanceExploitation,
+            readiness = StrategicIdeaReadiness.Build,
+            source = EvidenceSourceId.PieceCentralizationMotif,
+            confidence = 0.70,
+            focusSquares = List(square.key),
+            beneficiaryPieces = List(roleToken(piece)),
+            factIds = List("piece_centralization_shape", s"centralized_piece_${square.key}")
+          )
+      }
+
+    val maneuverMotif =
+      semantic.motifs.collect {
+        case Motif.Maneuver(piece, purpose, color, _, _) if matchesSide(color, side) && (piece == Knight || piece == Bishop) =>
+          val purposeKey = purpose.trim.toLowerCase.replaceAll("[^a-z0-9]+", "_").stripPrefix("_").stripSuffix("_")
+          evidence(
+            ownerSide = side,
+            kind = StrategicIdeaKind.MinorPieceImbalanceExploitation,
+            readiness = StrategicIdeaReadiness.Build,
+            source = EvidenceSourceId.PieceManeuverMotif,
+            confidence = 0.70,
+            beneficiaryPieces = List(roleToken(piece)),
+            factIds = List("piece_maneuver_shape") ++ Option.when(purposeKey.nonEmpty)(s"piece_maneuver_$purposeKey").toList
+          )
+      }
+
+    val knightVsBishopMotif =
+      semantic.motifs.collect {
+        case Motif.KnightVsBishop(color, true, _, _) if matchesSide(color, side) =>
+          evidence(
+            ownerSide = side,
+            kind = StrategicIdeaKind.MinorPieceImbalanceExploitation,
+            readiness = StrategicIdeaReadiness.Build,
+            source = EvidenceSourceId.KnightVsBishopMotif,
+            confidence = 0.70,
+            beneficiaryPieces = List("N"),
+            factIds = List("knight_vs_bishop_motif_shape", "knight_preferred_over_bishop")
           )
       }
 
@@ -139,7 +185,7 @@ private[commentary] object MinorPieceImbalanceEvidenceProducer extends Strategic
                   Option.when(bishopEdge > 0 || bishopPairFor(side, features))("B"),
                   Option.when(knightEdge >= 0 && enemyBadBishop.nonEmpty)("N")
                 ).flatten,
-              factIds = List("minor_piece_count_imbalance") ++ facts
+              factIds = List("minor_piece_count_imbalance_shape") ++ facts
             )
           }
         }
@@ -148,7 +194,7 @@ private[commentary] object MinorPieceImbalanceEvidenceProducer extends Strategic
     val frenchProfileBridge =
       Option.when(
         structureIs(semantic, StructureId.FrenchAdvanceChain) &&
-          side == "white" &&
+          (side == "white" || side == "black") &&
           (enemyBadBishop.nonEmpty || goodBishop.nonEmpty || strongKnightBridge.nonEmpty)
       ) {
         evidence(
@@ -162,5 +208,5 @@ private[commentary] object MinorPieceImbalanceEvidenceProducer extends Strategic
         )
       }.toList
 
-    bishopPair ++ enemyBadBishop ++ goodBishop ++ oppositeColorBishops ++ strongKnightBridge ++ activityBridge ++
-      countBasedImbalance ++ frenchProfileBridge
+    bishopPair ++ enemyBadBishop ++ goodBishop ++ oppositeColorBishops ++ centralizationMotif ++ maneuverMotif ++ knightVsBishopMotif ++ strongKnightBridge ++
+      activityBridge ++ countBasedImbalance ++ frenchProfileBridge

@@ -3,8 +3,9 @@ package lila.commentary.analysis.semantic
 import _root_.chess.{ Color, File, Rook, Square }
 
 import lila.commentary.{ StrategicIdeaKind, StrategicIdeaReadiness, StrategyPack }
-import lila.commentary.analysis.{ StrategicIdeaSemanticContext, StrategicStateFeatures }
-import lila.commentary.model.strategic.{ PositionalTag, PreventedPlan }
+import lila.commentary.analysis.{ PositionFeatures, StrategicIdeaSemanticContext, StrategicStateFeatures }
+import lila.commentary.model.FactScope
+import lila.commentary.model.strategic.{ EndgameFeature, PositionalTag, PreventedPlan, TheoreticalOutcomeHint }
 import munit.FunSuite
 
 class StrategicIdeaEvidencePipelineTest extends FunSuite:
@@ -95,8 +96,67 @@ class StrategicIdeaEvidencePipelineTest extends FunSuite:
 
     assert(observations.exists(_.source == StrategicObservationIds.EvidenceSourceId.PreventedPlan), clues(observations))
     assert(observations.exists(_.source == StrategicObservationIds.EvidenceSourceId.MateNet), clues(observations))
-    assert(observations.exists(_.source == StrategicObservationIds.EvidenceSourceId.CounterplaySuppression), clues(observations))
+    val counterplaySuppression =
+      observations.find(_.source == StrategicObservationIds.EvidenceSourceId.CounterplaySuppression)
+    assert(counterplaySuppression.nonEmpty, clues(observations))
+    assert(counterplaySuppression.exists(_.factIds.exists(_.wireKey == "counterplay_suppression_shape")), clues(observations))
+    assert(counterplaySuppression.exists(_.factIds.exists(_.wireKey == "counterplay_break_denial")), clues(observations))
     assert(observations.flatMap(_.factIds).forall(fact => !fact.wireKey.startsWith("source:")))
+  }
+
+  test("winning endgame transition keeps shape fact for support surface") {
+    val semantic =
+      StrategicIdeaSemanticContext
+        .empty("white")
+        .copy(
+          phase = "endgame",
+          positionFeatures = Some(PositionFeatures.empty),
+          endgameFeatures = Some(
+            EndgameFeature(
+              hasOpposition = false,
+              isZugzwang = false,
+              keySquaresControlled = List(Square.E6),
+              theoreticalOutcomeHint = TheoreticalOutcomeHint.Win
+            )
+          )
+        )
+
+    val observations =
+      StrategicIdeaEvidencePipeline.collect(StrategyPack(sideToMove = "white"), semantic)
+    val winningEndgame =
+      observations.find(_.source == StrategicObservationIds.EvidenceSourceId.WinningEndgameTransition)
+
+    assert(winningEndgame.nonEmpty, clues(observations))
+    assert(winningEndgame.exists(_.factIds.exists(_.wireKey == "winning_endgame_transition_shape")), clues(observations))
+    assert(winningEndgame.exists(_.factIds.forall(fact => !fact.wireKey.startsWith("source:"))), clues(winningEndgame))
+  }
+
+  test("counterplay suppression evidence stays on current-board prevented plans") {
+    val semantic =
+      StrategicIdeaSemanticContext
+        .empty("white")
+        .copy(
+          preventedPlans =
+            List(
+              PreventedPlan(
+                planId = "DenyBreakLine",
+                deniedSquares = List(Square.B5),
+                breakNeutralized = Some("b5"),
+                mobilityDelta = -2,
+                counterplayScoreDrop = 140,
+                deniedResourceClass = Some("break"),
+                sourceScope = FactScope.ThreatLine
+              )
+            )
+        )
+
+    val observations =
+      StrategicIdeaEvidencePipeline.collect(StrategyPack(sideToMove = "white"), semantic)
+
+    assert(
+      !observations.exists(_.source == StrategicObservationIds.EvidenceSourceId.CounterplaySuppression),
+      clues(observations)
+    )
   }
 
   test("raw removing-defender tags degrade to a generic exchange label without defender authority") {

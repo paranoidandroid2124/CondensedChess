@@ -67,6 +67,19 @@ final class ClaimAuthorityResolverTest extends FunSuite:
     assertEquals(genericExchange, None)
   }
 
+  test("move-delta SupportedLocal admission requires proof-contract witnesses") {
+    val decision =
+      ClaimAuthorityResolver.supportedLocalMoveDeltaPacketDecision(
+        ctx = Some(baseContext),
+        inputs = inputs(sourceKind = Source, claimText = "This removes a defender on the local branch."),
+        truthContract = Some(neutralTruthContract),
+        packet = packet(Source, exactProof = false)
+    )
+
+    assertEquals(decision.tier, ClaimAuthorityTier.Suppressed, clue(decision))
+    assert(decision.failureCodes.contains("witness:exact_slice_missing"), clue(decision))
+  }
+
   private def inputs(sourceKind: String, claimText: String): QuestionPlannerInputs =
     QuestionPlannerInputs(
       mainBundle = Some(MainPathClaimBundle(Some(mainClaim(sourceKind, claimText)), None)),
@@ -101,7 +114,7 @@ final class ClaimAuthorityResolverTest extends FunSuite:
       packet = Some(packet(sourceKind))
     )
 
-  private def packet(proofSource: String): PlayerFacingClaimPacket =
+  private def packet(proofSource: String, exactProof: Boolean = true): PlayerFacingClaimPacket =
     PlayerFacingClaimPacket(
       claimGate =
         PlanEvidenceEvaluator.ClaimCertification(
@@ -126,7 +139,7 @@ final class ClaimAuthorityResolverTest extends FunSuite:
           continuationTerms = List("trade_defender"),
           structureTransitionTerms =
             List("defender_trade_branch", "defender:c5", "exchange_square:d4", "defended_target:e5"),
-          exactSliceProof = Some(PlayerFacingExactSliceProof.DefenderTrade("c5", "d4", "e5"))
+          exactSliceProof = Option.when(exactProof)(PlayerFacingExactSliceProof.DefenderTrade("c5", "d4", "e5"))
         ),
       fallbackMode = PlayerFacingClaimFallbackMode.WeakMain
     )

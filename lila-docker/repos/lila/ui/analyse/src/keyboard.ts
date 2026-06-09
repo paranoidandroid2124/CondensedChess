@@ -121,7 +121,7 @@ function addModifierKeyListeners(ctrl: AnalyseCtrl) {
   document.addEventListener('keyup', e => {
     if (!modifierOnly) return;
     modifierOnly = false;
-    const isShift = e.key === 'Shift' && !document.activeElement?.classList.contains('mchat__say');
+    const isShift = e.key === 'Shift';
 
     if (isShift && ctrl.fork.select('next')) ctrl.setAutoShapes();
     else if (e.key === 'Control') ctrl.toggleDiscloseOf();

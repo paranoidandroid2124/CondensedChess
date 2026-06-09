@@ -116,6 +116,23 @@ final class MoveReviewScopedTakeawayTest extends FunSuite:
     assertEquals(takeaway, None)
   }
 
+  test("keeps checked-line reply wording role-neutral") {
+    val takeaway =
+      MoveReviewScopedTakeaway
+        .build(
+          purpose = "create_tactical_threat",
+          played = played("f1c4", "Bc4", Square.F1, Square.C4),
+          evidence = evidence(openingGoal = None),
+          lineFacts = Some(lineFacts("target_line"))
+        )
+        .getOrElse(fail("expected scoped takeaway"))
+
+    assert(!takeaway.text.contains("first reply"), clue(takeaway.text))
+    assert(!takeaway.text.contains("first answer"), clue(takeaway.text))
+    assert(!takeaway.text.contains("asks for a response"), clue(takeaway.text))
+    assert(!takeaway.text.contains("target evidence"), clue(takeaway.text))
+  }
+
   test("rejects globalized lesson wording at the scoped boundary") {
     val text =
       "The lesson is that this rule generally works in every position."

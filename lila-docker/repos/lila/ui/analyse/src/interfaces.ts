@@ -1,5 +1,4 @@
 import type { Player, Status, Source, Clock } from 'lib/game';
-import type { ForecastData } from './forecast/interfaces';
 
 
 import type { ExplorerOpts } from './explorer/interfaces';
@@ -7,7 +6,6 @@ import type { ExplorerOpts } from './explorer/interfaces';
 import type { AnalyseSocketSend } from './socket';
 import type { ExternalEngineInfo } from 'lib/ceval';
 import type { Coords, MoveEvent } from 'lib/prefs';
-import type { EnhanceOpts } from 'lib/richText';
 
 
 
@@ -35,14 +33,10 @@ export interface AnalyseData {
   moretimeable: boolean;
   analysis?: Analysis;
   userAnalysis: boolean;
-  forecast?: ForecastData;
   sidelines?: Tree.Node[][];
   treeParts: Tree.NodeOptionalChildren[];
   clock?: Clock;
   pref: AnalysePref;
-  userTv?: {
-    id: string;
-  };
   puzzle?: OpeningPuzzle;
   externalEngines?: ExternalEngineInfo[];
 }
@@ -190,21 +184,11 @@ export interface AnalyseOpts {
   explorer: ExplorerOpts;
   socketSend: AnalyseSocketSend;
   study?: StudyView;
-  tagTypes?: string;
-  relay?: any;
-  $side?: Cash;
-  $underboard?: Cash;
-  chat: any & {
-    enhance: EnhanceOpts;
-    instance?: any;
-  };
   moveReview?: boolean;
   inlinePgn?: string;
   importHistory?: ImportHistoryView;
   externalEngineEndpoint: string;
   embed?: boolean;
-  socketUrl?: string;
-  socketVersion?: number;
 }
 
 export interface JustCaptured extends Piece {

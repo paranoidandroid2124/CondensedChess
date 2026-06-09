@@ -5,7 +5,7 @@ import lila.commentary.analysis.StrategicIdeaSemanticContext
 import lila.commentary.analysis.semantic.{ StrategicIdeaEvidence, StrategicIdeaEvidenceProducer }
 import lila.commentary.analysis.semantic.StrategicObservationIds.EvidenceSourceId
 import _root_.chess.{ File, Queen, Rank, Rook, Square }
-import lila.commentary.model.{ PlanId }
+import lila.commentary.model.{ Motif, PlanId }
 import lila.commentary.model.strategic.{ PositionalTag }
 
 
@@ -40,9 +40,54 @@ private[commentary] object LineOccupationEvidenceProducer extends StrategicIdeaE
           )
       }
 
+    val openFileMotifEvidence =
+      semantic.motifs.collect {
+        case Motif.OpenFileControl(file, color, _, _) if matchesSide(color, side) =>
+          evidence(
+            ownerSide = side,
+            kind = StrategicIdeaKind.LineOccupation,
+            readiness = StrategicIdeaReadiness.Ready,
+            source = EvidenceSourceId.OpenFileControl,
+            confidence = 0.80,
+            focusFiles = List(fileToken(file)),
+            beneficiaryPieces = List("R", "Q"),
+            factIds = List(s"open_file_${fileToken(file)}")
+          )
+      }
+
+    val semiOpenFileMotifEvidence =
+      semantic.motifs.collect {
+        case Motif.SemiOpenFileControl(file, color, _, _) if matchesSide(color, side) =>
+          evidence(
+            ownerSide = side,
+            kind = StrategicIdeaKind.LineOccupation,
+            readiness = StrategicIdeaReadiness.Ready,
+            source = EvidenceSourceId.SemiOpenFileControl,
+            confidence = 0.78,
+            focusFiles = List(fileToken(file)),
+            beneficiaryPieces = List("R", "Q"),
+            factIds = List(s"semi_open_file_${fileToken(file)}")
+          )
+      }
+
     val doubledRooks =
       semantic.positionalFeatures.collect {
         case PositionalTag.DoubledRooks(file, color) if matchesSide(color, side) =>
+          evidence(
+            ownerSide = side,
+            kind = StrategicIdeaKind.LineOccupation,
+            readiness = StrategicIdeaReadiness.Ready,
+            source = EvidenceSourceId.DoubledRooks,
+            confidence = 0.74,
+            focusFiles = List(fileToken(file)),
+            beneficiaryPieces = List("R"),
+            factIds = List(s"doubled_rooks_${fileToken(file)}")
+          )
+      }
+
+    val motifDoubledRooks =
+      semantic.motifs.collect {
+        case Motif.DoubledPieces(Rook, file, color, _, _) if matchesSide(color, side) =>
           evidence(
             ownerSide = side,
             kind = StrategicIdeaKind.LineOccupation,
@@ -65,7 +110,7 @@ private[commentary] object LineOccupationEvidenceProducer extends StrategicIdeaE
             source = EvidenceSourceId.ConnectedRooks,
             confidence = 0.64,
             beneficiaryPieces = List("R"),
-            factIds = List("connected_rooks")
+            factIds = List("connected_rooks_shape")
           )
       }
 
@@ -80,7 +125,22 @@ private[commentary] object LineOccupationEvidenceProducer extends StrategicIdeaE
             confidence = 0.72,
             focusZone = Some("back rank"),
             beneficiaryPieces = List("R"),
-            factIds = List("rook_on_seventh")
+            factIds = List("rook_on_seventh_shape")
+          )
+      }
+
+    val seventhRankMotifEvidence =
+      semantic.motifs.collect {
+        case Motif.SeventhRankInvasion(color, _, _) if matchesSide(color, side) =>
+          evidence(
+            ownerSide = side,
+            kind = StrategicIdeaKind.LineOccupation,
+            readiness = StrategicIdeaReadiness.Ready,
+            source = EvidenceSourceId.RookOnSeventh,
+            confidence = 0.72,
+            focusZone = Some("back rank"),
+            beneficiaryPieces = List("R"),
+            factIds = List("rook_on_seventh_shape")
           )
       }
 
@@ -171,11 +231,24 @@ private[commentary] object LineOccupationEvidenceProducer extends StrategicIdeaE
                 focusFiles = focusFiles,
                 focusZone = focusZone,
                 beneficiaryPieces = List(target.piece),
-                factIds = factIds ++ List("directional_line_access")
+                factIds = factIds ++ List("directional_line_access_shape")
               )
             }
           }
         }
+
+    val compensationLineAccess =
+      (
+        pack.pieceRoutes
+          .filter(route => route.ownerSide == side && route.surfaceMode != RouteSurfaceMode.Hidden && isMajorPiece(route.piece))
+          .flatMap(route => route.route.lastOption.flatMap(squareFromKey).flatMap(endpoint => lineAccessFacts(side, endpoint, semantic))) ++
+          pack.directionalTargets
+            .filter(target => target.ownerSide == side && isMajorPiece(target.piece))
+            .flatMap(target => squareFromKey(target.targetSquare).flatMap(endpoint => lineAccessFacts(side, endpoint, semantic)))
+      ).toList
+    val compensationFocusFiles = compensationLineAccess.flatMap(_._1).distinct.take(2)
+    val compensationFocusZone = mostCommon(compensationLineAccess.flatMap(_._2))
+    val compensationLineFacts = compensationLineAccess.flatMap(_._3).distinct
 
     val featureSupport =
       semantic.positionFeatures
@@ -199,7 +272,7 @@ private[commentary] object LineOccupationEvidenceProducer extends StrategicIdeaE
               source = EvidenceSourceId.LineControlFeatures,
               confidence = 0.56,
               beneficiaryPieces = List("R", "Q"),
-              factIds = List("line_control_features")
+              factIds = List("line_control_shape")
             )
           }
         }
@@ -215,7 +288,7 @@ private[commentary] object LineOccupationEvidenceProducer extends StrategicIdeaE
               isCompensationEligiblePhase(semantic) &&
               lineCount > 0 &&
               hasCompensationLinePlanSupport(side, semantic) &&
-              hasCompensationLineAccess(side, pack, semantic)
+              compensationLineAccess.nonEmpty
           ) {
             evidence(
               ownerSide = side,
@@ -223,10 +296,13 @@ private[commentary] object LineOccupationEvidenceProducer extends StrategicIdeaE
               readiness = StrategicIdeaReadiness.Build,
               source = EvidenceSourceId.CompensationOpenLines,
               confidence = 0.70 + math.min(0.08, lineCount * 0.02) + Option.when(developmentLead >= 2)(0.04).getOrElse(0.0),
+              focusFiles = compensationFocusFiles,
+              focusZone = compensationFocusZone,
               beneficiaryPieces = List("R", "Q"),
               factIds =
-                List("compensation_open_lines", "material_deficit_compensation") ++
-                  Option.when(developmentLead >= 2)("development_lead_compensation").toList
+                List("compensation_open_lines_shape", "material_deficit_compensation") ++
+                  Option.when(developmentLead >= 2)("development_lead_compensation").toList ++
+                  compensationLineFacts
             )
           }
         }
@@ -240,7 +316,7 @@ private[commentary] object LineOccupationEvidenceProducer extends StrategicIdeaE
               isCompensationEligiblePhase(semantic) &&
               developmentLeadFor(side, features) >= 2 &&
               hasDelayedRecoveryCompensationPlan(side, semantic) &&
-              hasCompensationLineAccess(side, pack, semantic)
+              compensationLineAccess.nonEmpty
           ) {
             evidence(
               ownerSide = side,
@@ -248,8 +324,12 @@ private[commentary] object LineOccupationEvidenceProducer extends StrategicIdeaE
               readiness = StrategicIdeaReadiness.Build,
               source = EvidenceSourceId.DelayedRecoveryWindow,
               confidence = 0.74,
+              focusFiles = compensationFocusFiles,
+              focusZone = compensationFocusZone,
               beneficiaryPieces = List("R", "Q"),
-              factIds = List("delayed_material_recovery", "development_lead_compensation", "material_deficit_compensation")
+              factIds =
+                List("delayed_material_recovery", "development_lead_compensation", "material_deficit_compensation") ++
+                  compensationLineFacts
             )
           }
         }
@@ -270,5 +350,5 @@ private[commentary] object LineOccupationEvidenceProducer extends StrategicIdeaE
         }
       }
 
-    openFileEvidence ++ doubledRooks ++ connectedRooks ++ rookOnSeventh ++ occupiedLineEvidence ++ routeEvidence ++
+    openFileEvidence ++ openFileMotifEvidence ++ semiOpenFileMotifEvidence ++ doubledRooks ++ motifDoubledRooks ++ connectedRooks ++ rookOnSeventh ++ seventhRankMotifEvidence ++ occupiedLineEvidence ++ routeEvidence ++
       directionalEvidence ++ featureSupport ++ compensationOpenLines ++ delayedRecoveryWindow ++ planBridge

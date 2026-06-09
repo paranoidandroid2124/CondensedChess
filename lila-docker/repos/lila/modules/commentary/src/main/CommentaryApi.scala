@@ -908,9 +908,6 @@ final class CommentaryApi(
     val estimated = (proseWords.toDouble * 2.4 + anchorCount.toDouble * 5.0 + 96.0).toInt
     estimated.max(minCap).min(maxCap)
 
-  // MoveReview-only authority keeps this metadata diagnostic; no Active-mode enforcement path remains.
-  private val StrategyCoverageThreshold = 0.34
-
   private case class StrategyCoverageEvaluation(
       meta: Option[MoveReviewStrategyCoverageMeta],
       reasons: List[String]
@@ -922,146 +919,7 @@ final class CommentaryApi(
       @unused planTier: String,
       @unused commentaryMode: String
   ): StrategyCoverageEvaluation =
-    val shouldEnforce = false
-    if !shouldEnforce then StrategyCoverageEvaluation(meta = None, reasons = Nil)
-    else
-      val packOpt =
-        strategyPack.filter(pack =>
-          pack.strategicIdeas.nonEmpty || pack.plans.nonEmpty || pack.pieceRoutes.nonEmpty || pack.directionalTargets.nonEmpty || pack.longTermFocus.nonEmpty
-        )
-      packOpt match
-        case None =>
-          StrategyCoverageEvaluation(
-            meta = Some(
-              MoveReviewStrategyCoverageMeta(
-                mode = "no_signals",
-                enforced = false,
-                threshold = StrategyCoverageThreshold,
-                availableCategories = 0,
-                coveredCategories = 0,
-                requiredCategories = 0,
-                coverageScore = 1.0,
-                passesThreshold = true,
-                planSignals = 0,
-                planHits = 0,
-                routeSignals = 0,
-                routeHits = 0,
-                focusSignals = 0,
-                focusHits = 0
-              )
-            ),
-            reasons = Nil
-          )
-        case Some(pack) =>
-          val commentaryLower = Option(commentary).getOrElse("").toLowerCase
-          val commentaryTokens = StrategicSignalMatcher.signalTokens(commentaryLower)
-          val surface = StrategyPackSurface.from(Some(pack))
-          val digest = pack.signalDigest
-
-          def signalMentioned(text: String): Boolean =
-            val normalized = Option(text).map(_.trim).getOrElse("")
-            val tokens = StrategicSignalMatcher.signalTokens(normalized)
-            StrategicSignalMatcher.phraseMentioned(commentaryLower, normalized.toLowerCase) ||
-              (tokens.nonEmpty && tokens.intersect(commentaryTokens).nonEmpty)
-
-          val planCandidates =
-            (
-              surface.dominantIdeaText.toList ++
-                surface.secondaryIdeaText.toList ++
-                pack.plans.map(_.planName).filter(_.trim.nonEmpty)
-            ).distinct.take(2)
-          val planSignals = planCandidates.size
-          val planHits = planCandidates.count(signalMentioned)
-
-          val routeCandidates = (surface.topRoute.toList ++ pack.pieceRoutes.take(2)).distinct.take(2)
-          val routeSignals = routeCandidates.size
-          val routeHits =
-            routeCandidates.count(route =>
-              StrategicSignalMatcher.routeMentioned(commentaryLower, route) ||
-                surface.topMoveRef.exists(moveRef =>
-                  moveRef.ownerSide == route.ownerSide &&
-                    signalMentioned(s"${moveRef.piece} ${moveRef.from} ${moveRef.target} ${moveRef.idea}")
-                )
-            )
-
-          val focusCandidates =
-            (
-              surface.objectiveText.toList ++
-                surface.focusText.toList ++
-                pack.longTermFocus.map(_.trim).filter(_.nonEmpty)
-            ).distinct.take(2)
-          val focusSignals = focusCandidates.size
-          val focusHits = focusCandidates.count(signalMentioned)
-
-          val availableCategories = List(planSignals, routeSignals, focusSignals).count(_ > 0)
-          val coveredCategories = List(planHits, routeHits, focusHits).count(_ > 0)
-          val compensationPosition =
-            surface.compensationPosition ||
-              digest.exists(d => d.compensation.exists(_.trim.nonEmpty) || d.investedMaterial.exists(_ > 0))
-          val ownerMentioned =
-            surface.campaignOwner.exists(owner => commentaryLower.contains(owner)) ||
-              surface.campaignOwnerText.exists(label => commentaryLower.contains(label.toLowerCase))
-          val compensationMentioned =
-            digest.flatMap(_.compensation).exists(signalMentioned) ||
-              commentaryLower.contains("initiative") ||
-              commentaryLower.contains("compensation") ||
-              commentaryLower.contains("sacrifice") ||
-              commentaryLower.contains("invest")
-          val compensationReturnMentioned =
-            digest.toList.flatMap(_.compensationVectors).exists(signalMentioned) ||
-              surface.executionText.exists(signalMentioned) ||
-              surface.objectiveText.exists(signalMentioned) ||
-              surface.focusText.exists(signalMentioned)
-          val dominantIdeaMentioned = surface.dominantIdeaText.exists(signalMentioned)
-          val generalPass =
-            availableCategories == 0 ||
-              coveredCategories >= Math.min(2, availableCategories) ||
-              (dominantIdeaMentioned && focusHits > 0)
-          val compensationPass =
-            !compensationPosition || (compensationMentioned && compensationReturnMentioned)
-          val ownerPass = !surface.ownerMismatch || ownerMentioned
-          val requiredCategories =
-            if availableCategories == 0 then 0
-            else Math.min(2, availableCategories)
-          val coverageScore =
-            if availableCategories == 0 then 1.0
-            else coveredCategories.toDouble / availableCategories.toDouble
-          val passesThreshold = (if compensationPosition then compensationPass else generalPass) && ownerPass
-          val missingReasons =
-            if passesThreshold then Nil
-            else
-              val reasons = List.newBuilder[String]
-              if planSignals > 0 && planHits == 0 then reasons += "strategy_plan_missing"
-              if routeSignals > 0 && routeHits == 0 then reasons += "strategy_route_missing"
-              if focusSignals > 0 && focusHits == 0 then reasons += "strategy_focus_missing"
-              if compensationPosition && !compensationMentioned then reasons += "strategy_compensation_missing"
-              if compensationPosition && !compensationReturnMentioned then
-                reasons += "strategy_execution_or_objective_missing"
-              if surface.ownerMismatch && !ownerMentioned then reasons += "strategy_campaign_owner_missing"
-              reasons += "strategy_coverage_low"
-              reasons.result().distinct
-
-          StrategyCoverageEvaluation(
-            meta = Some(
-              MoveReviewStrategyCoverageMeta(
-                mode = "active_enforced",
-                enforced = true,
-                threshold = StrategyCoverageThreshold,
-                availableCategories = availableCategories,
-                coveredCategories = coveredCategories,
-                requiredCategories = requiredCategories,
-                coverageScore = coverageScore,
-                passesThreshold = passesThreshold,
-                planSignals = planSignals,
-                planHits = planHits,
-                routeSignals = routeSignals,
-                routeHits = routeHits,
-                focusSignals = focusSignals,
-                focusHits = focusHits
-              )
-            ),
-            reasons = missingReasons
-          )
+    StrategyCoverageEvaluation(meta = None, reasons = Nil)
 
   private case class CandidateValidation(
       isValid: Boolean,
@@ -2632,7 +2490,7 @@ private[commentary] object CommentaryApi:
       afterVars: List[VariationLine]
   ): List[VariationLine] =
     val normalizedPlayed =
-      lastMove.map(MoveReviewPvLine.normalizeUci).filter(_.matches("^[a-h][1-8][a-h][1-8][qrbn]?$"))
+      lastMove.map(MoveReviewPvLine.normalizeUci).filter(_.matches("(?i)^[a-h][1-8][a-h][1-8][qrbn]?$"))
     normalizedPlayed match
       case None => base
       case Some(played) if base.exists(line => line.moves.headOption.exists(move => MoveReviewPvLine.normalizeUci(move) == played) && line.moves.size >= 2) =>

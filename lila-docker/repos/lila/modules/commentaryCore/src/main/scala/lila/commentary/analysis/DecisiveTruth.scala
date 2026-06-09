@@ -362,6 +362,19 @@ private[commentary] object DecisiveTruth:
 
   private val WinPercentSlope = 0.00368208
 
+  private val PlyPrefixPattern = """^\d+\.(?:\.\.)?\s*""".r
+  private val EllipsisPrefixPattern = """^\.{2,}\s*""".r
+  private val SuffixPunctuationPattern = """[+#?!]+$""".r
+  private val WhitespacePattern = """\s+""".r
+  private val UciMovePattern = """(?i)^[a-h][1-8][a-h][1-8][nbrq]?$""".r
+  private val PathCompensationPattern = """(?i)^a path to compensation through\s+""".r
+  private val CompensationCarrierPattern = """(?i)^compensation carrier:\s*""".r
+  private val GiveUpMaterialBecausePattern = """(?i)^the move gives up material because\s+""".r
+  private val GiveUpMaterialToPattern = """(?i)^the move gives up material to\s+""".r
+  private val CompensationComesFromPattern = """(?i)^the compensation comes from\s+""".r
+  private val PointToPattern = """(?i)^the point is to\s+""".r
+  private val NonAlphaNumSpacePattern = """[^a-z0-9\s]""".r
+
   extension (frame: MoveTruthFrame)
     def toContract: DecisiveTruthContract =
       DecisiveTruthContract(
@@ -1485,17 +1498,17 @@ private[commentary] object DecisiveTruth:
     50.0 + 50.0 * (2.0 / (1.0 + math.exp(-WinPercentSlope * cp.toDouble)) - 1.0)
 
   private def normalizeMoveToken(raw: String): String =
-    Option(raw).getOrElse("").trim.toLowerCase
-      .replaceAll("""^\d+\.(?:\.\.)?\s*""", "")
-      .replaceAll("""^\.{2,}\s*""", "")
-      .replaceAll("""[+#?!]+$""", "")
-      .replaceAll("\\s+", "")
+    val step1 = Option(raw).getOrElse("").trim.toLowerCase
+    val step2 = PlyPrefixPattern.replaceAllIn(step1, "")
+    val step3 = EllipsisPrefixPattern.replaceAllIn(step2, "")
+    val step4 = SuffixPunctuationPattern.replaceAllIn(step3, "")
+    WhitespacePattern.replaceAllIn(step4, "")
 
   private def normalized(raw: String): Option[String] =
     Option(raw).map(_.trim).filter(_.nonEmpty)
 
   private def looksLikeUciMove(raw: String): Boolean =
-    Option(raw).exists(_.trim.toLowerCase.matches("^[a-h][1-8][a-h][1-8][nbrq]?$"))
+    Option(raw).exists(str => UciMovePattern.matches(str.trim.toLowerCase))
 
   private def isCompensationCarrierText(text: String): Boolean =
     val normalizedText = Option(text).getOrElse("").trim.toLowerCase
@@ -1569,16 +1582,15 @@ private[commentary] object DecisiveTruth:
     Option(raw)
       .map(UserFacingSignalSanitizer.sanitize)
       .map(_.trim.stripSuffix("."))
-      .map(
-        _.replaceFirst("(?i)^a path to compensation through\\s+", "")
-          .replaceFirst("(?i)^compensation carrier:\\s*", "")
-          .replaceFirst("(?i)^the move gives up material because\\s+", "")
-          .replaceFirst("(?i)^the move gives up material to\\s+", "")
-          .replaceFirst("(?i)^the compensation comes from\\s+", "")
-          .replaceFirst("(?i)^the point is to\\s+", "")
-          .replaceAll("\\s+", " ")
-          .trim
-      )
+      .map { text =>
+        val s1 = PathCompensationPattern.replaceFirstIn(text, "")
+        val s2 = CompensationCarrierPattern.replaceFirstIn(s1, "")
+        val s3 = GiveUpMaterialBecausePattern.replaceFirstIn(s2, "")
+        val s4 = GiveUpMaterialToPattern.replaceFirstIn(s3, "")
+        val s5 = CompensationComesFromPattern.replaceFirstIn(s4, "")
+        val s6 = PointToPattern.replaceFirstIn(s5, "")
+        WhitespacePattern.replaceAllIn(s6, " ").trim
+      }
       .filter(isVerifiedPayoffAnchor)
 
   private def isVerifiedPayoffAnchor(text: String): Boolean =
@@ -1627,7 +1639,10 @@ private[commentary] object DecisiveTruth:
 
   private def anchorMatchTokens(raw: String): Set[String] =
     Option(raw)
-      .map(_.toLowerCase.replaceAll("""[^a-z0-9\s]""", " ").replaceAll("""\s+""", " ").trim)
+      .map { str =>
+        val cleared = NonAlphaNumSpacePattern.replaceAllIn(str.toLowerCase, " ")
+        WhitespacePattern.replaceAllIn(cleared, " ").trim
+      }
       .toList
       .flatMap(_.split(" ").toList)
       .filter(token => token.length > 1 && !AnchorMatchStopTokens.contains(token))
@@ -1665,7 +1680,10 @@ private[commentary] object DecisiveTruth:
   ): String =
     val anchorKey =
       verifiedPayoffAnchor
-        .map(_.toLowerCase.replaceAll("""[^a-z0-9\s]""", " ").replaceAll("""\s+""", " ").trim)
+        .map { str =>
+          val cleared = NonAlphaNumSpacePattern.replaceAllIn(str.toLowerCase, " ")
+          WhitespacePattern.replaceAllIn(cleared, " ").trim
+        }
         .filter(_.nonEmpty)
         .getOrElse("no_anchor")
     val sideKey = sideToMoveFromFen(ctx.fen).map(color => if color.white then "white" else "black").getOrElse("unknown")

@@ -1,6 +1,5 @@
 package lila.commentary.analysis
 
-import lila.commentary.*
 import lila.commentary.model.*
 import lila.commentary.model.strategic.{ EngineEvidence, VariationLine }
 import munit.FunSuite
@@ -41,6 +40,17 @@ final class VariationNarrativeBuilderTest extends FunSuite:
 
     assert(narrative.contains("trades the bishop for the knight on c6"), clue(narrative))
     assert(narrative.contains("2. Nf3 Nc6 3. Bb5 a6 4. Bxc6 dxc6"), clue(narrative)) // move numbering (ExchangeFen starts at ply 2, which is move 2. Nf3)
+  }
+
+  test("exchange sequence narrative highlights a queen trade after a pawn-capture prelude") {
+    val fen = "rnbqkbnr/ppp2ppp/3p4/4P3/4P3/8/PPP2PPP/RNBQKBNR b KQkq - 0 3"
+    val ucis = List("d6e5", "d1d8", "e8d8", "b1c3")
+    val ctx = context(fen, "d6e5", "dxe5", List(VariationLine(ucis, scoreCp = 24, depth = 12)))
+    val consequence = LineConsequenceEvaluator.fromEngine(ctx).head
+    val narrative = VariationNarrativeBuilder.build(ctx, consequence).getOrElse(fail("failed to build narrative"))
+
+    assert(narrative.contains("queen trade on d8"), clue(narrative))
+    assert(!narrative.contains("trades the pawn for the pawn"), clue(narrative))
   }
 
   test("generates forcing check sequence narrative") {

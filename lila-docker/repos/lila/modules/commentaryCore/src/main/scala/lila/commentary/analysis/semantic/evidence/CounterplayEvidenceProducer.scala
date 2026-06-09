@@ -5,7 +5,7 @@ import lila.commentary.analysis.StrategicIdeaSemanticContext
 import lila.commentary.analysis.semantic.{ StrategicIdeaEvidence, StrategicIdeaEvidenceProducer }
 import lila.commentary.analysis.semantic.StrategicObservationIds.EvidenceSourceId
 import _root_.chess.{ Color, File, Square }
-import lila.commentary.model.{ PlanId }
+import lila.commentary.model.{ FactScope, Motif, PlanId }
 import lila.commentary.model.structure.{ StructureId }
 
 
@@ -20,7 +20,9 @@ private[commentary] object CounterplayEvidenceProducer extends StrategicIdeaEvid
     val side = pack.sideToMove
     val preventedEvidence =
       semantic.preventedPlans.flatMap { prevented =>
-        Option.when(isCounterplaySuppression(prevented)) {
+        Option.when(isCounterplaySuppression(prevented) && prevented.sourceScope == FactScope.Now) {
+          val concreteBreakDenial =
+            prevented.breakNeutralized.isDefined && prevented.deniedResourceClass.contains("break")
           evidence(
             ownerSide = side,
             kind = StrategicIdeaKind.CounterplaySuppression,
@@ -30,12 +32,31 @@ private[commentary] object CounterplayEvidenceProducer extends StrategicIdeaEvid
             focusSquares = prevented.deniedSquares.map(_.key).take(3),
             focusFiles = prevented.breakNeutralized.toList.flatMap(normalizeFileToken),
             factIds =
-              List("counterplay_suppression") ++
+              List("counterplay_suppression_shape") ++
+                Option.when(concreteBreakDenial)("counterplay_break_denial").toList ++
                 Option.when(prevented.breakNeutralized.isDefined)("break_neutralized").toList ++
                 Option.when(prevented.counterplayScoreDrop >= 100)("counterplay_score_drop").toList ++
                 Option.when(prevented.deniedResourceClass.contains("break"))("denied_break_resource").toList
           )
         }
+      }
+
+    val passerBlockadeMotif =
+      semantic.motifs.collect {
+        case Motif.Blockade(piece, square, pawnSquare, color, _, _) if matchesSide(color, side) =>
+          val pawnFile = fileToken(pawnSquare.file)
+          evidence(
+            ownerSide = side,
+            kind = StrategicIdeaKind.CounterplaySuppression,
+            readiness = StrategicIdeaReadiness.Ready,
+            source = EvidenceSourceId.PasserBlockadeMotif,
+            confidence = 0.76,
+            focusSquares = List(square.key, pawnSquare.key).distinct,
+            focusFiles = List(pawnFile),
+            focusZone = zoneFromFileToken(pawnFile).orElse(zoneFromSquareKeys(List(square.key, pawnSquare.key))),
+            beneficiaryPieces = List(roleToken(piece)),
+            factIds = List("passer_blockade_shape", s"blockade_square_${square.key}", s"blockaded_pawn_${pawnSquare.key}")
+          )
       }
 
     val counterBreakBridge =
@@ -106,7 +127,7 @@ private[commentary] object CounterplayEvidenceProducer extends StrategicIdeaEvid
             confidence = 0.92,
             focusFiles = List("b", "d"),
             focusZone = Some("queenside"),
-            factIds = List("structure_hedgehog", "hedgehog_break_denial_geometry")
+            factIds = List("structure_hedgehog", "hedgehog_break_denial_shape")
           )
         },
         Option.when(
@@ -142,7 +163,7 @@ private[commentary] object CounterplayEvidenceProducer extends StrategicIdeaEvid
             confidence = 0.88,
             focusFiles = List("c", "d"),
             focusZone = Some("center"),
-            factIds = List("structure_maroczy_bind", "maroczy_break_denial_geometry")
+            factIds = List("structure_maroczy_bind", "maroczy_break_denial_shape")
           )
         }
       ).flatten
@@ -199,4 +220,4 @@ private[commentary] object CounterplayEvidenceProducer extends StrategicIdeaEvid
         }
         .toList
 
-    preventedEvidence ++ counterBreakBridge ++ threatBridge ++ structureBridge ++ planBridge ++ compensationCounterplayDenial
+    preventedEvidence ++ passerBlockadeMotif ++ counterBreakBridge ++ threatBridge ++ structureBridge ++ planBridge ++ compensationCounterplayDenial

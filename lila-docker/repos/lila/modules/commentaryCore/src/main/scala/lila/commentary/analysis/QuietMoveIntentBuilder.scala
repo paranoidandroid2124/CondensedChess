@@ -51,6 +51,8 @@ private[commentary] final case class QuietMoveIntentClaim(
 
 private[commentary] object QuietMoveIntentBuilder:
 
+  private val SquareGroupPattern = """([a-h][1-8])""".r
+
   private final case class MoveShape(
       piece: String,
       targetSquare: Option[String],
@@ -595,7 +597,7 @@ private[commentary] object QuietMoveIntentBuilder:
 
   private def moveShape(ctx: NarrativeContext): Option[MoveShape] =
     ctx.playedSan.flatMap(normalizedSan).map { san =>
-      val targetSquare = """([a-h][1-8])""".r.findAllMatchIn(san).map(_.group(1)).toList.lastOption
+      val targetSquare = SquareGroupPattern.findAllMatchIn(san).map(_.group(1)).toList.lastOption
       val piece =
         san.headOption.collect {
           case 'K' => "king"

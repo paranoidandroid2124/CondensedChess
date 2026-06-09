@@ -799,6 +799,61 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
           authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))
         ),
         MoveReviewPlayerSurfaceRow(
+          label = "Fixed target",
+          text = "The checked line keeps d6 fixed as the target.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("d6")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Minority attack",
+          text = "The checked line keeps c6 as the minority-attack fixed target.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("c6")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "IQP target",
+          text = "The checked line leaves d5 as an isolated pawn target.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("d5")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Simplification",
+          text = "The checked line keeps the same local edge after the exchange on e6.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("e6")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Knight outpost",
+          text = "The checked line puts the knight on the e5 outpost.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("e5")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "File entry",
+          text = "The checked line keeps pressure on c6 through the c-file.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("c6")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Target coordination",
+          text = "The checked line coordinates pressure on c6 from c1 and e3.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("c6")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Color complex",
+          text = "The checked line keeps the knight on c4 attacking e5 in the dark-square complex.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("e5")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Color complex",
+          text = "The checked line keeps the knight on c4 attacking e5 in the red-square complex.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("e5")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Color complex",
+          text = "The checked line keeps the queen on c4 attacking e5 in the dark-square complex.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("e5")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Color complex",
+          text = "The checked line keeps the bishop on c4 attacking e5 in the dark-square complex.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("e5")))
+        ),
+        MoveReviewPlayerSurfaceRow(
           label = "Central liquidation",
           text = "The move releases central tension through d5-e4.",
           authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CentralLiquidation, token = Some("...d5-e4")))
@@ -807,6 +862,11 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
           label = "Central challenge",
           text = "The move challenges the center through d7-d6.",
           authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CentralChallenge, token = Some("...d7-d6")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Target coordination",
+          text = "The checked line coordinates pressure on c6 from c1 and c1.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("c6")))
         )
       )
     val response =
@@ -819,9 +879,26 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
       surface.summaryRows.flatMap(_.authority).map(_.kind),
       List(
         MoveReviewSurfaceAuthority.PracticalPlan,
+        MoveReviewSurfaceAuthority.PracticalPlan,
+        MoveReviewSurfaceAuthority.PracticalPlan,
+        MoveReviewSurfaceAuthority.PracticalPlan,
+        MoveReviewSurfaceAuthority.PracticalPlan,
+        MoveReviewSurfaceAuthority.PracticalPlan,
+        MoveReviewSurfaceAuthority.PracticalPlan,
+        MoveReviewSurfaceAuthority.PracticalPlan,
+        MoveReviewSurfaceAuthority.PracticalPlan,
+        MoveReviewSurfaceAuthority.PracticalPlan,
+        MoveReviewSurfaceAuthority.PracticalPlan,
+        MoveReviewSurfaceAuthority.PracticalPlan,
         MoveReviewSurfaceAuthority.CentralLiquidation,
-        MoveReviewSurfaceAuthority.CentralChallenge
+        MoveReviewSurfaceAuthority.CentralChallenge,
+        MoveReviewSurfaceAuthority.PracticalPlan
       ),
+      clue(surface)
+    )
+    assertEquals(
+      surface.summaryRows.flatMap(_.authority.flatMap(_.target)),
+      List("d6", "c6", "d5", "e6", "e5", "c6", "c6", "e5"),
       clue(surface)
     )
   }
@@ -1320,6 +1397,41 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
           authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, token = Some("d4-d5")))
         ),
         MoveReviewPlayerSurfaceRow(
+          label = "Practical plan",
+          text = "A generic practical plan target should not become public authority.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("d5")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Simplification window",
+          text = "An approximate simplification label should not carry target authority.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("e6")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Knight outpost plan",
+          text = "An approximate outpost label should not carry target authority.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("e5")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Knight outpost",
+          text = "The checked line puts the queen on the e5 outpost.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("e5")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "File entry plan",
+          text = "An approximate file-entry label should not carry target authority.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("c6")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Target coordination plan",
+          text = "An approximate coordination label should not carry target authority.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("c6")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Color complex plan",
+          text = "An approximate color-complex label should not carry target authority.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("e5")))
+        ),
+        MoveReviewPlayerSurfaceRow(
           label = "Central liquidation",
           text = "The move releases central tension through d5-e4.",
           authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CentralLiquidation, token = Some("d5")))
@@ -1360,6 +1472,13 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
       List(
         None,
         None,
+        None,
+        None,
+        Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
+        None,
+        None,
+        None,
+        None,
         Some(
           MoveReviewSurfaceAuthority(
             kind = MoveReviewSurfaceAuthority.OpeningFamily,
@@ -1370,6 +1489,47 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
         Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.OpeningFamily, openingFamily = Some("queens_gambit")))
       ),
       clue(surface)
+    )
+  }
+
+  test("strips stale practical-plan target metadata from exact labels without exact row wording") {
+    val rows =
+      List(
+        MoveReviewPlayerSurfaceRow(
+          label = "File entry",
+          text = "The rook already has a practical c-file post.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("c6")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Minority attack",
+          text = "The Carlsbad-type pawn shape makes c6 a natural queenside target for White's minority-attack ideas.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("c6")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "File entry",
+          text = "The checked line keeps pressure on c6 through the c-file.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("c6")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "File entry",
+          text = "The checked line keeps pressure on e6 through the c-file.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("e6")))
+        )
+      )
+    val response =
+      responseWithSurface(MoveReviewPlayerSurface(summaryRows = rows))
+
+    val sanitized = UserFacingPayloadSanitizer.sanitize(response)
+    val surface = sanitized.moveReviewPlayerSurface.getOrElse(fail("missing sanitized player surface"))
+
+    assertEquals(
+      surface.summaryRows.map(_.authority),
+      List(
+        Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
+        Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
+        Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("c6"))),
+        Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))
+      )
     )
   }
 

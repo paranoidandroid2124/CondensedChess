@@ -4,11 +4,12 @@
 /tmp_*
 /_cloudrun_service.json
 /_edge_cookies.db
+/ops-*-cookie*.txt
+/test-results/
 
 /lila-docker/conf/*.pem
 /lila-docker/logs/
 /lila-docker/repos/lila/error.txt
-/lila-docker/repos/lila/0)
 
 /lila-docker/scripts/install_auto_deploy_task.ps1
 /lila-docker/scripts/ops_auto_deploy.ps1

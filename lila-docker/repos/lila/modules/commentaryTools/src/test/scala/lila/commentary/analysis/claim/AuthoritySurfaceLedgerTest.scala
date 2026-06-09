@@ -13,52 +13,62 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     List(
       "source-capablanca-golombek-1939-iqp-inducement",
       "source-evans-opsahl-1950-iqp-inducement",
+      "source-karpov-andersson-1975-iqp-inducement",
       "source-alekhine-bogoljubow-1936-iqp-inducement",
       "source-najdorf-sergeant-1939-iqp-inducement",
-      "source-botvinnik-vidmar-1936-iqp-opening-inducement",
-      "source-kramnik-anand-2001-iqp-opening-inducement"
+      "source-botvinnik-vidmar-1936-iqp-opening-inducement"
     )
-  private val supportedSourceBreakPreventionRows =
+  private val sourceFlankClampIds =
     List(
-      "source-camara-bazan-1960-b7-b5-break-prevention" -> "...b7-b5",
-      "source-polugaevsky-giorgadze-1956-c5-c4-break-prevention" -> "...c5-c4"
+      "source-botvinnik-vidmar-1936-flank-clamp",
+      "source-botvinnik-vidmar-1936-e4-color-complex-squeeze",
+      "source-camara-bazan-1960-d5-color-complex-squeeze",
+      "source-pfleger-maalouf-1961-d5-color-complex-squeeze"
     )
   private val sourceCentralBreakTimingId =
     "source-maderna-palermo-1955-central-break-timing"
+  private val sourceBadPieceLiquidationId =
+    "source-capablanca-golombek-1939-bad-piece-liquidation"
+  private val sourceQueenTradeBoundaryIds =
+    List(
+      "source-carlsen-anand-2014-g6",
+      "source-carlsen-anand-2014-g6-queen-trade-completion"
+    )
   private val suppressedSourceBreakPreventionIds =
     List(
       "source-lokvenc-czerniak-1952-b6-b5-break-prevention",
       "source-maderna-palermo-1955-a6-a5-break-prevention",
+      "source-camara-bazan-1960-b7-b5-break-prevention",
       "source-sliwa-gromek-1960-a6-a5-break-prevention",
-      "source-pfleger-maalouf-1961-a6-a5-break-prevention"
+      "source-pfleger-maalouf-1961-a6-a5-break-prevention",
+      "source-polugaevsky-giorgadze-1956-c5-c4-break-prevention"
     )
   private val sourceBreakPreventionFixtureIds =
-    suppressedSourceBreakPreventionIds.take(2) ++
-      supportedSourceBreakPreventionRows.take(1).map(_._1) ++
-      suppressedSourceBreakPreventionIds.drop(2) ++
-      supportedSourceBreakPreventionRows.drop(1).map(_._1)
+    suppressedSourceBreakPreventionIds
   private val expectedSourceSurfaceFixtureIds =
     List(
-      "source-evans-opsahl-1950",
-      "source-carlsen-anand-2014-g6"
-    ) ++ sourceIqpInducementIds ++ List(
+      "source-evans-opsahl-1950"
+    ) ++ sourceQueenTradeBoundaryIds ++ sourceIqpInducementIds ++ sourceFlankClampIds ++ List(sourceBadPieceLiquidationId) ++ List(
       "source-bad-piece-liquidation-pilot"
     ) ++ sourceBreakPreventionFixtureIds.take(2) ++ List(sourceCentralBreakTimingId) ++
       sourceBreakPreventionFixtureIds.drop(2) ++ List(
+        "source-botvinnik-vidmar-1936-simplification-window",
         "source-salov-ljubojevic-1992-simplification-window",
         "source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation"
       )
   private val expectedSourceReleases =
     Map(
-      "source-evans-opsahl-1950" -> "Other:MoveDelta",
-      "source-carlsen-anand-2014-g6" -> "Suppressed",
+      "source-evans-opsahl-1950" -> "Suppressed",
       "source-bad-piece-liquidation-pilot" -> "SupportedLocal",
+      sourceBadPieceLiquidationId -> "SupportedLocal",
       sourceCentralBreakTimingId -> "SupportedLocal",
+      "source-botvinnik-vidmar-1936-simplification-window" -> "SupportedLocal",
       "source-salov-ljubojevic-1992-simplification-window" -> "Suppressed",
       "source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation" -> "Suppressed"
     ) ++
+      sourceQueenTradeBoundaryIds.map(_ -> "SupportedLocal") ++
       sourceIqpInducementIds.map(_ -> "SupportedLocal") ++
-      supportedSourceBreakPreventionRows.map(_._1 -> "SupportedLocal") ++
+      sourceFlankClampIds.map(_ -> "CertifiedOwner") ++
       suppressedSourceBreakPreventionIds.map(_ -> "Suppressed")
 
   test("B/C authority surface ledger covers natural rows, soft rows, and tactical-veto parity") {
@@ -79,6 +89,20 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     assert(naturalK09F.contractId.contains(PlanTaxonomy.PlanKind.SimplificationWindow.id), clues(naturalK09F))
     assertEquals(naturalK09F.contractStatus, "Releasable")
     assertEquals(naturalK09F.contractFailures, "none")
+    List("K09A-certified-coordination", "K09D-certified-coordination").foreach { id =>
+      val coordination = byId(id)
+      assertEquals(coordination.release, "CertifiedOwner", clues(coordination))
+      assertEquals(coordination.contractId, "runtime:target_focused_coordination")
+      assertEquals(coordination.contractStatus, "Releasable")
+      assertEquals(coordination.contractFailures, "none")
+      assert(coordination.plannerOwner.contains("WhatMattersHere:PositionProbe:target_focused_coordination_probe"), clues(coordination))
+      assertEquals(coordination.primary, "the pressure is coordinated on c6.")
+      assert(coordination.moveReview.contains("keep the pressure coordinated on c6"), clues(coordination))
+    }
+    val publicRows =
+      observations.filter(obs => obs.release == "SupportedLocal" || obs.release == "CertifiedOwner")
+    assert(publicRows.forall(_.contractStatus == "Releasable"), clues(publicRows.filter(_.contractStatus != "Releasable")))
+    assert(publicRows.forall(_.contractFailures == "none"), clues(publicRows.filter(_.contractFailures != "none")))
     assertEquals(byId("natural-K03A").release, "Suppressed")
     assertEquals(byId("natural-K08A").release, "Suppressed")
     assertEquals(byId("natural-K09E").release, "Suppressed")
@@ -96,12 +120,12 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     assert(!soft.leak, clues(soft))
 
     val cSoft = byId("K09B-supported-local-soft")
-    assertEquals(cSoft.release, "SupportedLocal")
-    assertEquals(cSoft.primary, "A key idea is that this trade keeps the same local edge on e6.")
-    assert(cSoft.moveReview.contains(cSoft.primary), clues(cSoft))
-    assert(cSoft.plannerOwner.contains("MoveDelta"), clues(cSoft))
-    assert(!cSoft.primary.startsWith("This trade"), clues(cSoft))
-    assert(!cSoft.moveReview.startsWith("This trade"), clues(cSoft))
+    assertEquals(cSoft.release, "Suppressed")
+    assertEquals(cSoft.primary, "-")
+    assertEquals(cSoft.moveReview, "-")
+    assertEquals(cSoft.plannerOwner, "-")
+    assert(cSoft.contractFailures.contains("witness:branch_not_proven"), clues(cSoft))
+    assert(cSoft.contractFailures.contains("witness:persistence_not_stable"), clues(cSoft))
 
     val softVeto = byId("B15A-supported-local-veto")
     assertEquals(softVeto.release, "Suppressed")
@@ -117,22 +141,32 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     assert(!exactSurface.moveReview.contains("So the task is"), clues(exactSurface))
 
     val sourceB = byId("source-evans-opsahl-1950")
-    assertEquals(sourceB.release, "Other:MoveDelta", clues(sourceB))
-    assert(sourceB.plannerOwner.contains("MoveDelta:carlsbad_fixed_target_probe"), clues(sourceB))
-    assert(sourceB.primary.contains("Further probe work still targets"), clues(sourceB))
-    assert(!sourceB.primary.contains("c6 is the fixed target"), clues(sourceB))
+    assertEquals(sourceB.release, "Suppressed", clues(sourceB))
+    assertEquals(sourceB.plannerOwner, "-", clues(sourceB))
+    assertEquals(sourceB.primary, "-", clues(sourceB))
+    assertEquals(sourceB.moveReview, "-", clues(sourceB))
     assert(sourceB.rejected.contains("position_probe_missing"), clues(sourceB))
     assertEquals(sourceB.contractStatus, "-")
     assertEquals(sourceB.contractId, "-")
 
     val sourceC = byId("source-carlsen-anand-2014-g6")
-    assertEquals(sourceC.release, "Suppressed", clues(sourceC))
-    assertEquals(sourceC.primary, "-")
-    assertEquals(sourceC.plannerOwner, "-")
-    assertEquals(sourceC.contractStatus, "-")
-    assertEquals(sourceC.contractId, "-")
-    assert(!sourceC.moveReview.contains("A key idea is that"), clues(sourceC))
+    assertEquals(sourceC.release, "SupportedLocal", clues(sourceC))
+    assertEquals(sourceC.primary, "This exchange moves the game into the queenless branch.")
+    assert(sourceC.moveReview.contains("A key idea is that This exchange moves the game into the queenless branch."), clues(sourceC))
+    assert(sourceC.plannerOwner.contains("WhyThis:MoveDelta:queen_trade_shield"), clues(sourceC))
+    assertEquals(sourceC.contractStatus, "Releasable")
+    assertEquals(sourceC.contractId, s"subplan:${PlanTaxonomy.PlanKind.QueenTradeShield.id}")
+    assertEquals(sourceC.contractFailures, "none")
     assert(!sourceC.moveReview.contains("So the task is"), clues(sourceC))
+    val sourceQueenTradeCompletion = byId("source-carlsen-anand-2014-g6-queen-trade-completion")
+    assertEquals(sourceQueenTradeCompletion.release, "SupportedLocal", clues(sourceQueenTradeCompletion))
+    assertEquals(sourceQueenTradeCompletion.primary, "This exchange moves the game into the queenless branch.")
+    assert(sourceQueenTradeCompletion.moveReview.contains("9. Qxd8+"), clues(sourceQueenTradeCompletion))
+    assert(sourceQueenTradeCompletion.plannerOwner.contains("WhyThis:MoveDelta:queen_trade_shield"), clues(sourceQueenTradeCompletion))
+    assertEquals(sourceQueenTradeCompletion.contractStatus, "Releasable")
+    assertEquals(sourceQueenTradeCompletion.contractId, s"subplan:${PlanTaxonomy.PlanKind.QueenTradeShield.id}")
+    assertEquals(sourceQueenTradeCompletion.contractFailures, "none")
+    assertEquals(sourceQueenTradeCompletion.taxonomy, "source_queen_trade_boundary")
 
     sourceIqpInducementIds.foreach { id =>
       val naturalIqp = byId(id)
@@ -147,10 +181,32 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
       assert(!naturalIqp.moveReview.contains("So the task is"), clues(naturalIqp))
     }
 
+    sourceFlankClampIds.foreach { id =>
+      val flankClamp = byId(id)
+      assertEquals(flankClamp.release, "CertifiedOwner", clues(flankClamp))
+      assert(flankClamp.primary.startsWith("A minor piece keeps the color-complex pressure on "), clues(flankClamp))
+      assert(flankClamp.plannerOwner.contains("WhatMattersHere:PositionProbe:color_complex_squeeze_probe"), clues(flankClamp))
+      assertEquals(flankClamp.contractStatus, "Releasable")
+      assertEquals(flankClamp.contractId, "runtime:color_complex_squeeze")
+      assertEquals(flankClamp.contractFailures, "none")
+      assertEquals(flankClamp.taxonomy, "source_flank_clamp")
+    }
+
+    val capablancaBadPiece = byId(sourceBadPieceLiquidationId)
+    assertEquals(capablancaBadPiece.release, "SupportedLocal", clues(capablancaBadPiece))
+    assertEquals(capablancaBadPiece.primary, "This trade clears the bad piece from the local branch.")
+    assert(capablancaBadPiece.moveReview.contains("22. Bxd6"), clues(capablancaBadPiece))
+    assert(capablancaBadPiece.plannerOwner.contains("WhyThis:MoveDelta:bad_piece_liquidation"), clues(capablancaBadPiece))
+    assertEquals(capablancaBadPiece.contractStatus, "Releasable")
+    assertEquals(capablancaBadPiece.contractId, s"subplan:${PlanTaxonomy.PlanKind.BadPieceLiquidation.id}")
+    assertEquals(capablancaBadPiece.contractFailures, "none")
+    assertEquals(capablancaBadPiece.taxonomy, "source_bad_piece_liquidation")
+    assert(!capablancaBadPiece.moveReview.contains("So the task is"), clues(capablancaBadPiece))
+
     val badPieceLiquidation = byId("source-bad-piece-liquidation-pilot")
     assertEquals(badPieceLiquidation.release, "SupportedLocal")
     assertEquals(badPieceLiquidation.primary, "This trade clears the bad piece from the local branch.")
-    assert(badPieceLiquidation.moveReview.contains("A key idea is that This trade clears the bad piece from the local branch."), clues(badPieceLiquidation))
+    assert(badPieceLiquidation.moveReview.contains("1. Ba3"), clues(badPieceLiquidation))
     assert(badPieceLiquidation.plannerOwner.contains("WhyThis:MoveDelta:bad_piece_liquidation"), clues(badPieceLiquidation))
     assertEquals(badPieceLiquidation.contractStatus, "Releasable")
     assert(badPieceLiquidation.contractId.contains(PlanTaxonomy.PlanKind.BadPieceLiquidation.id), clues(badPieceLiquidation))
@@ -167,29 +223,6 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     assertEquals(centralBreakTiming.contractFailures, "none")
     assertEquals(centralBreakTiming.taxonomy, "source_central_break_timing")
 
-    supportedSourceBreakPreventionRows.foreach { case (id, breakToken) =>
-      val sourceBreakPrevention = byId(id)
-      assertEquals(sourceBreakPrevention.release, "SupportedLocal")
-      assertEquals(
-        sourceBreakPrevention.primary,
-        s"The timing matters now because otherwise the $breakToken-break becomes available."
-      )
-      assert(
-        sourceBreakPrevention.moveReview.contains(
-          s"A key idea is that The timing matters now because otherwise the $breakToken break becomes available."
-        ),
-        clues(sourceBreakPrevention)
-      )
-      assert(
-        sourceBreakPrevention.moveReview.contains(s"If delayed, the $breakToken break comes back into play."),
-        clues(sourceBreakPrevention)
-      )
-      assert(sourceBreakPrevention.plannerOwner.contains("WhyNow:ForcingDefense:counterplay_axis_suppression"), clues(sourceBreakPrevention))
-      assertEquals(sourceBreakPrevention.contractStatus, "Releasable")
-      assert(sourceBreakPrevention.contractId.contains("neutralize_key_break"), clues(sourceBreakPrevention))
-      assertEquals(sourceBreakPrevention.taxonomy, "source_break_prevention")
-      assert(!sourceBreakPrevention.moveReview.contains("So the task is"), clues(sourceBreakPrevention))
-    }
     suppressedSourceBreakPreventionIds.foreach { id =>
       val row = byId(id)
       assertEquals(row.release, "Suppressed", clues(row))
@@ -198,13 +231,21 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
       assertEquals(row.taxonomy, "source_break_prevention")
     }
 
-    val sourceSimplification = byId("source-salov-ljubojevic-1992-simplification-window")
-    assertEquals(sourceSimplification.release, "Suppressed")
-    assertEquals(sourceSimplification.primary, "-")
-    assertEquals(sourceSimplification.plannerOwner, "-")
-    assertEquals(sourceSimplification.contractStatus, "-")
-    assertEquals(sourceSimplification.contractId, "-")
+    val sourceSimplification = byId("source-botvinnik-vidmar-1936-simplification-window")
+    assertEquals(sourceSimplification.release, "SupportedLocal")
+    assertEquals(sourceSimplification.primary, "This trade keeps the same local edge on d5.")
+    assert(sourceSimplification.plannerOwner.contains("MoveDelta:target"), clues(sourceSimplification))
+    assertEquals(sourceSimplification.contractStatus, "Releasable")
+    assertEquals(sourceSimplification.contractId, s"subplan:${PlanTaxonomy.PlanKind.SimplificationWindow.id}")
     assertEquals(sourceSimplification.taxonomy, "source_simplification_window")
+
+    val sourceSuppressedSimplification = byId("source-salov-ljubojevic-1992-simplification-window")
+    assertEquals(sourceSuppressedSimplification.release, "Suppressed")
+    assertEquals(sourceSuppressedSimplification.primary, "-")
+    assertEquals(sourceSuppressedSimplification.plannerOwner, "-")
+    assertEquals(sourceSuppressedSimplification.contractStatus, "-")
+    assertEquals(sourceSuppressedSimplification.contractId, "-")
+    assertEquals(sourceSuppressedSimplification.taxonomy, "source_simplification_window")
 
     val sourceStaticWeakness = byId("source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation")
     assertEquals(sourceStaticWeakness.release, "Suppressed")
@@ -287,6 +328,12 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     assert(byId.contains("priority-TO1"), clues(byId.keySet.toList.sorted))
     assert(byId.contains("priority-SC2"), clues(byId.keySet.toList.sorted))
     assert(observations.count(_.sample.id.startsWith("priority-")) >= 14, clues(observations.map(_.sample.id)))
+    val priorityMi1 = byId("priority-MI1")
+    assertEquals(priorityMi1.release, "SupportedLocal", clues(priorityMi1))
+    assert(priorityMi1.plannerOwner.contains("WhyThis:MoveDelta:target"), clues(priorityMi1))
+    assertEquals(priorityMi1.contractId, s"subplan:${PlanTaxonomy.PlanKind.SimplificationWindow.id}", clues(priorityMi1))
+    assertEquals(priorityMi1.contractStatus, "Releasable", clues(priorityMi1))
+    assertEquals(priorityMi1.contractFailures, "none", clues(priorityMi1))
 
     assertEquals(
       observations.filter(_.sample.id.startsWith("natural-")).filter(_.release == "SupportedLocal").map(_.sample.id),
@@ -299,28 +346,25 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
       supportedSourceRows.filter(_.taxonomy == "source_break_prevention")
     assertEquals(
       sourceBreakPreventionRows.map(_.sample.id),
-      supportedSourceBreakPreventionRows.map(_._1)
+      Nil
     )
-    sourceBreakPreventionRows.foreach { row =>
-      assert(row.plannerOwner.contains("ForcingDefense:counterplay_axis_suppression"), clues(row))
-      assert(row.contractId.contains("neutralize_key_break"), clues(row))
-      assert(row.moveReview.contains("A key idea is that "), clues(row))
-      assert(!row.moveReview.contains("So the task is"), clues(row))
-    }
     assertEquals(
       supportedSourceRows
-        .filterNot(row => sourceBreakPreventionRows.exists(_.sample.id == row.sample.id))
         .map(_.sample.id),
-      sourceIqpInducementIds ++ List(
+      sourceQueenTradeBoundaryIds ++
+      sourceIqpInducementIds ++
+      List(
+        sourceBadPieceLiquidationId,
         "source-bad-piece-liquidation-pilot",
-        sourceCentralBreakTimingId
+        sourceCentralBreakTimingId,
+        "source-botvinnik-vidmar-1936-simplification-window"
       )
     )
     assertEquals(
       observations
         .filter(obs => obs.sample.id.startsWith("source-") && obs.release == "CertifiedOwner")
         .map(_.sample.id),
-      Nil
+      sourceFlankClampIds
     )
     assertEquals(
       observations
@@ -387,13 +431,13 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     assert(review.contains("## TacticalVeto"), clues(review))
     assert(
       review.contains(
-        "Surface SupportedLocal fixtures: 12 rows (certified_owner_path=2, source_bad_piece_liquidation=1, source_break_prevention=2, source_central_break_timing=1, source_iqp_inducement=6)"
+        "Surface SupportedLocal fixtures: 15 rows (certified_owner_path=2, same_job_or_conversion_relabel_blocked=1, source_bad_piece_liquidation=2, source_central_break_timing=1, source_iqp_inducement=6, source_queen_trade_boundary=2, source_simplification_window=1)"
       ),
       clues(review)
     )
     assert(
       review.contains(
-        "Source surface fixtures: 18 fixed rows (source_bad_piece_liquidation=1, source_break_prevention=6, source_carlsbad_fixed_target=1, source_central_break_timing=1, source_iqp_inducement=6, source_queen_trade_boundary=1, source_simplification_window=1, source_static_weakness_fixation=1)"
+        "Source surface fixtures: 25 fixed rows (source_bad_piece_liquidation=2, source_break_prevention=6, source_carlsbad_fixed_target=1, source_central_break_timing=1, source_flank_clamp=4, source_iqp_inducement=6, source_queen_trade_boundary=2, source_simplification_window=2, source_static_weakness_fixation=1)"
       ),
       clues(review)
     )

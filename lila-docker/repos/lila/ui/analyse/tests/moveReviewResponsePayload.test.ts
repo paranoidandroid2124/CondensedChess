@@ -61,6 +61,35 @@ const frontendRelationTokens = (): string[] => {
   return quotedStrings(tokenBlock);
 };
 
+const backendOpeningFamilyTargets = (): Map<string, string[]> => {
+  const source = readFileSync(
+    resolve(repoRoot, 'modules/commentaryCore/src/main/resources/lila/commentary/openings/opening_families.tsv'),
+    'utf8',
+  );
+  return new Map(
+    source
+      .trim()
+      .split(/\r?\n/)
+      .slice(1)
+      .filter(line => line.trim())
+      .map(line => {
+        const [wireKey, , , , targetSquares = ''] = line.split('\t');
+        return [wireKey ?? '', targetSquares.split('|').filter(Boolean)] as const;
+      }),
+  );
+};
+
+const frontendOpeningFamilyTargets = (): Map<string, string[]> => {
+  const source = readFileSync(resolve(repoRoot, 'ui/analyse/src/moveReview/responsePayload.ts'), 'utf8');
+  const targetBlock = source.match(/const openingFamilyAuthorityTargets = new Map<string, Set<string>>\(\[([\s\S]*?)\]\);/)?.[1] ?? '';
+  return new Map(
+    [...targetBlock.matchAll(/\['([^']+)',\s*new Set\(\[([^\]]*)\]\)\]/g)].map(match => [
+      match[1] ?? '',
+      quotedStrings(match[2] ?? ''),
+    ]),
+  );
+};
+
 const backendDeferredRelationTokens = (): string[] => {
   const deferredBlock =
     backendRelationCatalogBlock(/val Deferred: List\[DeferredRelationDescriptor\]\s*=\s*List\(([\s\S]*?)\)\s*val Implemented/);
@@ -405,6 +434,359 @@ describe('moveReview response payload', () => {
     });
   });
 
+  test('decodeMoveReviewResponse downgrades opening-family targets outside the backend catalog', () => {
+    const decoded = decodeMoveReviewResponse({
+      moveReviewPlayerSurface: playerSurface({
+        summaryRows: [
+          {
+            label: 'Opening',
+            text: 'The opening family remains visible without a trusted target.',
+            authority: {
+              kind: 'opening_family',
+              openingFamily: 'queens_gambit',
+              target: 'h4',
+            },
+          },
+        ],
+      }),
+    });
+
+    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[0]?.authority, {
+      kind: 'opening_family',
+      token: null,
+      openingFamily: 'queens_gambit',
+      target: null,
+      openingBook: null,
+    });
+  });
+
+  test('decodeMoveReviewResponse preserves only exact practical-plan target rows', () => {
+    const decoded = decodeMoveReviewResponse({
+      moveReviewPlayerSurface: playerSurface({
+        summaryRows: [
+          {
+            label: 'Fixed target',
+            text: 'The checked line keeps d6 fixed as the target.',
+            authority: {
+              kind: 'practical_plan',
+              target: 'd6',
+            },
+          },
+          {
+            label: 'Minority attack',
+            text: 'The checked line keeps c6 as the minority-attack fixed target.',
+            authority: {
+              kind: 'practical_plan',
+              target: 'c6',
+            },
+          },
+          {
+            label: 'IQP target',
+            text: 'The checked line leaves d5 as an isolated pawn target.',
+            authority: {
+              kind: 'practical_plan',
+              target: 'd5',
+            },
+          },
+          {
+            label: 'Simplification',
+            text: 'The checked line keeps the same local edge after the exchange on e6.',
+            authority: {
+              kind: 'practical_plan',
+              target: 'e6',
+            },
+          },
+          {
+            label: 'Knight outpost',
+            text: 'The checked line puts the knight on the e5 outpost.',
+            authority: {
+              kind: 'practical_plan',
+              target: 'e5',
+            },
+          },
+          {
+            label: 'File entry',
+            text: 'The checked line keeps pressure on c6 through the c-file.',
+            authority: {
+              kind: 'practical_plan',
+              target: 'c6',
+            },
+          },
+          {
+            label: 'Target coordination',
+            text: 'The checked line coordinates pressure on c6 from c1 and e3.',
+            authority: {
+              kind: 'practical_plan',
+              target: 'c6',
+            },
+          },
+          {
+            label: 'Color complex',
+            text: 'The checked line keeps the knight on c4 attacking e5 in the dark-square complex.',
+            authority: {
+              kind: 'practical_plan',
+              target: 'e5',
+            },
+          },
+          {
+            label: 'Color complex',
+            text: 'The checked line keeps the knight on c4 attacking e5 in the red-square complex.',
+            authority: {
+              kind: 'practical_plan',
+              target: 'e5',
+            },
+          },
+          {
+            label: 'Color complex',
+            text: 'The checked line keeps the queen on c4 attacking e5 in the dark-square complex.',
+            authority: {
+              kind: 'practical_plan',
+              target: 'e5',
+            },
+          },
+          {
+            label: 'Color complex',
+            text: 'The checked line keeps the bishop on c4 attacking e5 in the dark-square complex.',
+            authority: {
+              kind: 'practical_plan',
+              target: 'e5',
+            },
+          },
+          {
+            label: 'Simplification window',
+            text: 'Approximate labels do not carry target authority.',
+            authority: {
+              kind: 'practical_plan',
+              target: 'e6',
+            },
+          },
+          {
+            label: 'Knight outpost plan',
+            text: 'Approximate outpost labels do not carry target authority.',
+            authority: {
+              kind: 'practical_plan',
+              target: 'e5',
+            },
+          },
+          {
+            label: 'File entry plan',
+            text: 'Approximate file-entry labels do not carry target authority.',
+            authority: {
+              kind: 'practical_plan',
+              target: 'c6',
+            },
+          },
+          {
+            label: 'Target coordination plan',
+            text: 'Approximate coordination labels do not carry target authority.',
+            authority: {
+              kind: 'practical_plan',
+              target: 'c6',
+            },
+          },
+          {
+            label: 'Color complex plan',
+            text: 'Approximate color-complex labels do not carry target authority.',
+            authority: {
+              kind: 'practical_plan',
+              target: 'e5',
+            },
+          },
+          {
+            label: 'Practical plan',
+            text: 'Generic practical-plan rows stay untargeted.',
+            authority: {
+              kind: 'practical_plan',
+              target: 'd5',
+            },
+          },
+        ],
+      }),
+    });
+
+    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[0]?.authority, {
+      kind: 'practical_plan',
+      token: null,
+      openingFamily: null,
+      target: 'd6',
+      openingBook: null,
+    });
+    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[1]?.authority, {
+      kind: 'practical_plan',
+      token: null,
+      openingFamily: null,
+      target: 'c6',
+      openingBook: null,
+    });
+    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[2]?.authority, {
+      kind: 'practical_plan',
+      token: null,
+      openingFamily: null,
+      target: 'd5',
+      openingBook: null,
+    });
+    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[3]?.authority, {
+      kind: 'practical_plan',
+      token: null,
+      openingFamily: null,
+      target: 'e6',
+      openingBook: null,
+    });
+    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[4]?.authority, {
+      kind: 'practical_plan',
+      token: null,
+      openingFamily: null,
+      target: 'e5',
+      openingBook: null,
+    });
+    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[5]?.authority, {
+      kind: 'practical_plan',
+      token: null,
+      openingFamily: null,
+      target: 'c6',
+      openingBook: null,
+    });
+    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[6]?.authority, {
+      kind: 'practical_plan',
+      token: null,
+      openingFamily: null,
+      target: 'c6',
+      openingBook: null,
+    });
+    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[7]?.authority, {
+      kind: 'practical_plan',
+      token: null,
+      openingFamily: null,
+      target: 'e5',
+      openingBook: null,
+    });
+    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[8]?.authority, {
+      kind: 'practical_plan',
+      token: null,
+      openingFamily: null,
+      target: null,
+      openingBook: null,
+    });
+    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[9]?.authority, {
+      kind: 'practical_plan',
+      token: null,
+      openingFamily: null,
+      target: null,
+      openingBook: null,
+    });
+    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[10]?.authority, {
+      kind: 'practical_plan',
+      token: null,
+      openingFamily: null,
+      target: null,
+      openingBook: null,
+    });
+    assert.equal(decoded.moveReviewPlayerSurface?.summaryRows[11]?.authority, null);
+    assert.equal(decoded.moveReviewPlayerSurface?.summaryRows[12]?.authority, null);
+    assert.equal(decoded.moveReviewPlayerSurface?.summaryRows[13]?.authority, null);
+    assert.equal(decoded.moveReviewPlayerSurface?.summaryRows[14]?.authority, null);
+  });
+
+  test('decodeMoveReviewResponse strips stale practical-plan target metadata from exact labels', () => {
+    const decoded = decodeMoveReviewResponse({
+      moveReviewPlayerSurface: playerSurface({
+        summaryRows: [
+          {
+            label: 'File entry',
+            text: 'The rook already has a practical c-file post.',
+            authority: {
+              kind: 'practical_plan',
+              target: 'c6',
+            },
+          },
+          {
+            label: 'Minority attack',
+            text: "The Carlsbad-type pawn shape makes c6 a natural queenside target for White's minority-attack ideas.",
+            authority: {
+              kind: 'practical_plan',
+              target: 'c6',
+            },
+          },
+          {
+            label: 'File entry',
+            text: 'The checked line keeps pressure on c6 through the c-file.',
+            authority: {
+              kind: 'practical_plan',
+              target: 'c6',
+            },
+          },
+          {
+            label: 'File entry',
+            text: 'The checked line keeps pressure on e6 through the c-file.',
+            authority: {
+              kind: 'practical_plan',
+              target: 'e6',
+            },
+          },
+          {
+            label: 'Target coordination',
+            text: 'The checked line coordinates pressure on c6 from c1 and c1.',
+            authority: {
+              kind: 'practical_plan',
+              target: 'c6',
+            },
+          },
+          {
+            label: 'Knight outpost',
+            text: 'The checked line puts the queen on the e5 outpost.',
+            authority: {
+              kind: 'practical_plan',
+              target: 'e5',
+            },
+          },
+        ],
+      }),
+    });
+
+    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[0]?.authority, {
+      kind: 'practical_plan',
+      token: null,
+      openingFamily: null,
+      target: null,
+      openingBook: null,
+    });
+    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[1]?.authority, {
+      kind: 'practical_plan',
+      token: null,
+      openingFamily: null,
+      target: null,
+      openingBook: null,
+    });
+    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[2]?.authority, {
+      kind: 'practical_plan',
+      token: null,
+      openingFamily: null,
+      target: 'c6',
+      openingBook: null,
+    });
+    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[3]?.authority, {
+      kind: 'practical_plan',
+      token: null,
+      openingFamily: null,
+      target: null,
+      openingBook: null,
+    });
+    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[4]?.authority, {
+      kind: 'practical_plan',
+      token: null,
+      openingFamily: null,
+      target: null,
+      openingBook: null,
+    });
+    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[5]?.authority, {
+      kind: 'practical_plan',
+      token: null,
+      openingFamily: null,
+      target: null,
+      openingBook: null,
+    });
+  });
+
   test('decodeMoveReviewResponse preserves bounded opening book metadata', () => {
     const decoded = decodeMoveReviewResponse({
       moveReviewPlayerSurface: playerSurface({
@@ -626,6 +1008,10 @@ describe('moveReview response payload', () => {
     });
 
     assert.deepEqual(decoded.moveReviewPlayerSurface?.advancedRows.map(row => row.authority), deferredTokens.map(() => null));
+  });
+
+  test('frontend opening-family target authority stays aligned with backend catalog', () => {
+    assert.deepEqual(frontendOpeningFamilyTargets(), backendOpeningFamilyTargets());
   });
 
   test('retry gating ignores malformed or absent diagnostics', () => {

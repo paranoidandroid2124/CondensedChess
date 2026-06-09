@@ -15,14 +15,21 @@ private[analysis] object VariationNarrativeBuilder:
       evidence.kind match
         case LineConsequenceKind.ExchangeSequence =>
           val exchanges = steps.filter(_.captures)
-          val description = 
-            if (exchanges.length >= 2) {
-              val first = exchanges.head
-              val target = first.dest.key
-              s"this exchange sequence trades the ${pieceName(first.role)} for the ${pieceName(first.capturedRole)} on $target, leaving a different pawn structure"
-            } else {
-              "this exchange sequence resolves the tension and alters the pawn structure"
-            }
+          val queenTradeSquare =
+            exchanges
+              .filter(_.capturedRole.contains(Queen))
+              .groupBy(_.dest)
+              .collectFirst { case (square, queenCaptures) if queenCaptures.size >= 2 => square.key }
+          val description =
+            queenTradeSquare match
+              case Some(square) =>
+                s"this exchange sequence includes a queen trade on $square, changing which pieces remain"
+              case None if exchanges.length >= 2 =>
+                val first = exchanges.head
+                val target = first.dest.key
+                s"this exchange sequence trades the ${pieceName(first.role)} for the ${pieceName(first.capturedRole)} on $target, leaving a different pawn structure"
+              case None =>
+                "this exchange sequence resolves the tension and alters the pawn structure"
           Some(s"On the checked line $formattedLine, $description.")
 
         case LineConsequenceKind.ForcingCheckSequence =>

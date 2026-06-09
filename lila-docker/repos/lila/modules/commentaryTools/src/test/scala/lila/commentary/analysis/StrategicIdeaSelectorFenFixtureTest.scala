@@ -155,14 +155,22 @@ class StrategicIdeaSelectorFenFixtureTest extends FunSuite:
 
   private def hasQueensideClampWatch(evaluated: EvaluatedFixture): Boolean =
     evaluated.semantic.board.exists { board =>
-      evaluated.semantic.sideToMove == "white" &&
-      pawnAt(board, Color.White, _root_.chess.Square.C4) &&
-      pawnAt(board, Color.White, _root_.chess.Square.D5) &&
-      pawnAt(board, Color.White, _root_.chess.Square.E4) &&
-      pawnAt(board, Color.Black, _root_.chess.Square.D6) &&
-      pawnAt(board, Color.Black, _root_.chess.Square.E5) &&
-      pawnAt(board, Color.Black, _root_.chess.Square.G6) &&
-      pawnAt(board, Color.Black, _root_.chess.Square.B7)
+      if evaluated.semantic.sideToMove == "white" then
+        pawnAt(board, Color.White, _root_.chess.Square.C4) &&
+        pawnAt(board, Color.White, _root_.chess.Square.D5) &&
+        pawnAt(board, Color.White, _root_.chess.Square.E4) &&
+        pawnAt(board, Color.Black, _root_.chess.Square.D6) &&
+        pawnAt(board, Color.Black, _root_.chess.Square.E5) &&
+        pawnAt(board, Color.Black, _root_.chess.Square.G6) &&
+        pawnAt(board, Color.Black, _root_.chess.Square.B7)
+      else
+        pawnAt(board, Color.Black, _root_.chess.Square.C5) &&
+        pawnAt(board, Color.Black, _root_.chess.Square.D4) &&
+        pawnAt(board, Color.Black, _root_.chess.Square.E5) &&
+        pawnAt(board, Color.White, _root_.chess.Square.D3) &&
+        pawnAt(board, Color.White, _root_.chess.Square.E4) &&
+        pawnAt(board, Color.White, _root_.chess.Square.G3) &&
+        pawnAt(board, Color.White, _root_.chess.Square.B2)
     }
 
   private def hasFrenchF6BreakSeed(evaluated: EvaluatedFixture): Boolean =
@@ -479,6 +487,289 @@ class StrategicIdeaSelectorFenFixtureTest extends FunSuite:
       failures.isEmpty,
       clue(failures.mkString("\n"))
     )
+  }
+
+  test("K06 French minor-piece surface keeps practical minor witness refs") {
+    val evaluated = evaluatedById("K06")
+    val minorIdea =
+      evaluated.actualIdeas
+        .find(_.kind == StrategicIdeaKind.MinorPieceImbalanceExploitation)
+        .getOrElse(fail(s"K06 missing minor-piece idea; ${kindSummary(evaluated.actualIdeas)}"))
+    val requiredRefs =
+      List(
+        "source:french_minor_piece_profile",
+        "structure_french_advance_chain",
+        "source:piece_activity_bad_bishop"
+      )
+
+    assert(
+      requiredRefs.forall(minorIdea.evidenceRefs.contains),
+      clue(s"K06 refs=${minorIdea.evidenceRefs.mkString("|")}; required=${requiredRefs.mkString("|")}")
+    )
+    assert(
+      minorIdea.focusSquares.exists(square => minorIdea.evidenceRefs.contains(s"enemy_bad_bishop_$square")),
+      clue(s"K06 focus=${minorIdea.focusSquares.mkString("|")} refs=${minorIdea.evidenceRefs.mkString("|")}")
+    )
+  }
+
+  test("FEN fixtures keep locked-center space witness refs when selected") {
+    val lockedCenterIdeas =
+      evaluatedFixtures.flatMap(evaluated =>
+        evaluated.actualIdeas
+          .filter(_.kind == StrategicIdeaKind.SpaceGainOrRestriction)
+          .filter(_.evidenceRefs.contains("source:locked_center_bind"))
+          .map(evaluated.fixture.id -> _)
+      )
+
+    assert(
+      lockedCenterIdeas.nonEmpty,
+      clue(evaluatedFixtures.map(evaluated => s"${evaluated.fixture.id}: ${kindSummary(evaluated.actualIdeas)}").mkString("\n"))
+    )
+    assert(
+      lockedCenterIdeas.forall { case (_, idea) => idea.evidenceRefs.contains("structure_locked_center") },
+      clue(lockedCenterIdeas.map { case (id, idea) => s"$id refs=${idea.evidenceRefs.mkString("|")}" }.mkString("\n"))
+    )
+  }
+
+  test("FEN fixtures keep file-opening break witness refs when selected") {
+    val fileOpeningIdeas =
+      evaluatedFixtures.flatMap(evaluated =>
+        evaluated.actualIdeas
+          .filter(_.kind == StrategicIdeaKind.PawnBreak)
+          .filter(_.evidenceRefs.contains("source:file_opening_consequence"))
+          .map(evaluated.fixture.id -> _)
+      )
+
+    assert(
+      fileOpeningIdeas.nonEmpty,
+      clue(evaluatedFixtures.map(evaluated => s"${evaluated.fixture.id}: ${kindSummary(evaluated.actualIdeas)}").mkString("\n"))
+    )
+    assert(
+      fileOpeningIdeas.forall { case (_, idea) =>
+        idea.focusFiles.exists(file => idea.evidenceRefs.contains(s"contested_file_$file"))
+      },
+      clue(fileOpeningIdeas.map { case (id, idea) => s"$id files=${idea.focusFiles.mkString("|")} refs=${idea.evidenceRefs.mkString("|")}" }.mkString("\n"))
+    )
+  }
+
+  test("FEN fixtures keep French ...f6 break seed witness refs when selected") {
+    val frenchSeedIdeas =
+      evaluatedFixtures.flatMap(evaluated =>
+        evaluated.actualIdeas
+          .filter(_.kind == StrategicIdeaKind.PawnBreak)
+          .filter(_.evidenceRefs.contains("source:french_f6_break_seed"))
+          .map(evaluated.fixture.id -> _)
+      )
+    val requiredRefs =
+      List(
+        "french_f6_break_seed_shape",
+        "white_e5_chain",
+        "black_f7_break_pawn"
+      )
+
+    assert(
+      frenchSeedIdeas.nonEmpty,
+      clue(evaluatedFixtures.map(evaluated => s"${evaluated.fixture.id}: ${kindSummary(evaluated.actualIdeas)}").mkString("\n"))
+    )
+    assert(
+      frenchSeedIdeas.forall { case (_, idea) => requiredRefs.forall(idea.evidenceRefs.contains) },
+      clue(frenchSeedIdeas.map { case (id, idea) => s"$id refs=${idea.evidenceRefs.mkString("|")}" }.mkString("\n"))
+    )
+  }
+
+  test("FEN fixtures keep outpost tag witness refs when selected") {
+    val outpostIdeas =
+      evaluatedFixtures.flatMap(evaluated =>
+        evaluated.actualIdeas
+          .filter(_.kind == StrategicIdeaKind.OutpostCreationOrOccupation)
+          .filter(_.evidenceRefs.contains("source:outpost_tag"))
+          .map(evaluated.fixture.id -> _)
+      )
+
+    assert(
+      outpostIdeas.nonEmpty,
+      clue(evaluatedFixtures.map(evaluated => s"${evaluated.fixture.id}: ${kindSummary(evaluated.actualIdeas)}").mkString("\n"))
+    )
+    assert(
+      outpostIdeas.forall { case (_, idea) =>
+        idea.focusSquares.exists(square => idea.evidenceRefs.contains(s"outpost_$square"))
+      },
+      clue(outpostIdeas.map { case (id, idea) => s"$id focus=${idea.focusSquares.mkString("|")} refs=${idea.evidenceRefs.mkString("|")}" }.mkString("\n"))
+    )
+  }
+
+  test("K04 occupied-line surface keeps practical line witness refs") {
+    val evaluated = evaluatedById("K04")
+    val lineIdea =
+      evaluated.actualIdeas
+        .find(idea =>
+          idea.kind == StrategicIdeaKind.LineOccupation &&
+            idea.evidenceRefs.contains("source:occupied_line_control")
+        )
+        .getOrElse(fail(s"K04 missing occupied-line idea; ${kindSummary(evaluated.actualIdeas)}"))
+
+    assert(
+      lineIdea.focusSquares.exists(square => lineIdea.evidenceRefs.contains(s"occupied_r_$square")),
+      clue(s"K04 focus=${lineIdea.focusSquares.mkString("|")} refs=${lineIdea.evidenceRefs.mkString("|")}")
+    )
+    assert(
+      lineIdea.focusFiles.exists(file =>
+        lineIdea.evidenceRefs.contains(s"open_file_$file") ||
+          lineIdea.evidenceRefs.contains(s"semi_open_file_$file")
+      ),
+      clue(s"K04 files=${lineIdea.focusFiles.mkString("|")} refs=${lineIdea.evidenceRefs.mkString("|")}")
+    )
+    assertEquals(lineIdea.readiness, StrategicIdeaReadiness.Ready)
+    assert(lineIdea.confidence >= 0.78, clue(lineIdea))
+    assert(lineIdea.beneficiaryPieces.exists(_.equalsIgnoreCase("R")), clue(lineIdea))
+  }
+
+  test("FEN fixtures keep weak-square pressure witness refs when selected") {
+    val weakPressureIdeas =
+      List("K14", "B21", "K14A", "B21A").flatMap(id =>
+        evaluatedById(id).actualIdeas
+          .filter(_.kind == StrategicIdeaKind.TargetFixing)
+          .filter { idea =>
+            val weakSquareBound =
+              idea.evidenceRefs.contains("source:enemy_weak_square") &&
+                idea.focusSquares.exists(square => idea.evidenceRefs.contains(s"enemy_weak_square_$square"))
+            val weakComplexBound =
+              idea.evidenceRefs.contains("source:weak_complex_fixation") &&
+                idea.evidenceRefs.exists(ref => ref.startsWith("weak_complex_") && ref != "weak_complex_fixation")
+            weakSquareBound || weakComplexBound
+          }
+          .map(id -> _)
+      )
+
+    assert(
+      weakPressureIdeas.nonEmpty,
+      clue(
+        List("K14", "B21", "K14A", "B21A")
+          .map(id => s"$id: ${kindSummary(evaluatedById(id).actualIdeas)}")
+          .mkString("\n")
+      )
+    )
+    assertEquals(weakPressureIdeas.map(_._1).toSet, Set("K14", "B21", "K14A", "B21A"))
+  }
+
+  test("FEN fixtures keep IQP trade-down witness refs when selected") {
+    val iqpTradeIdeas =
+      evaluatedFixtures.flatMap(evaluated =>
+        evaluated.actualIdeas
+          .filter(_.kind == StrategicIdeaKind.FavorableTradeOrTransformation)
+          .filter(_.evidenceRefs.contains("source:iqp_simplification_profile"))
+          .map(evaluated.fixture.id -> _)
+      )
+
+    assert(
+      iqpTradeIdeas.nonEmpty,
+      clue(evaluatedFixtures.map(evaluated => s"${evaluated.fixture.id}: ${kindSummary(evaluated.actualIdeas)}").mkString("\n"))
+    )
+    assert(
+      iqpTradeIdeas.forall { case (_, idea) =>
+        idea.evidenceRefs.contains("structure_iqp_black") &&
+          (idea.evidenceRefs.contains("capture_or_exchange") || idea.evidenceRefs.contains("iqp_trade_down_plan"))
+      },
+      clue(iqpTradeIdeas.map { case (id, idea) => s"$id refs=${idea.evidenceRefs.mkString("|")}" }.mkString("\n"))
+    )
+  }
+
+  test("FEN fixtures keep board-pattern prophylaxis witness refs when selected") {
+    val boardPatternProphylaxisIdeas =
+      evaluatedFixtures.flatMap(evaluated =>
+        evaluated.actualIdeas
+          .filter(_.kind == StrategicIdeaKind.Prophylaxis)
+          .filter(idea =>
+            idea.evidenceRefs.contains("source:bishop_pin_watch") ||
+              idea.evidenceRefs.contains("source:queenside_counterbreak_watch")
+          )
+          .map(evaluated.fixture.id -> _)
+      )
+
+    assert(
+      boardPatternProphylaxisIdeas.nonEmpty,
+      clue(evaluatedFixtures.map(evaluated => s"${evaluated.fixture.id}: ${kindSummary(evaluated.actualIdeas)}").mkString("\n"))
+    )
+    assert(
+      boardPatternProphylaxisIdeas.forall { case (_, idea) =>
+        (
+          idea.evidenceRefs.contains("source:bishop_pin_watch") &&
+            idea.focusSquares.exists(square => square == "g4" || square == "g5")
+        ) ||
+          (
+            idea.evidenceRefs.contains("source:queenside_counterbreak_watch") &&
+              idea.focusFiles.contains("b")
+          )
+      },
+      clue(
+        boardPatternProphylaxisIdeas
+          .map { case (id, idea) => s"$id focus=${idea.focusSquares.mkString("|")} files=${idea.focusFiles.mkString("|")} refs=${idea.evidenceRefs.mkString("|")}" }
+          .mkString("\n")
+      )
+    )
+  }
+
+  test("FEN fixtures keep counterplay break-denial geometry witness refs when selected") {
+    val restraintIdeas =
+      evaluatedFixtures.flatMap(evaluated =>
+        evaluated.actualIdeas
+          .filter(_.kind == StrategicIdeaKind.CounterplaySuppression)
+          .filter(idea =>
+            idea.evidenceRefs.contains("source:hedgehog_break_denial_geometry") ||
+              idea.evidenceRefs.contains("source:maroczy_break_denial_geometry")
+          )
+          .map(evaluated.fixture.id -> _)
+      )
+
+    assert(
+      restraintIdeas.nonEmpty,
+      clue(evaluatedFixtures.map(evaluated => s"${evaluated.fixture.id}: ${kindSummary(evaluated.actualIdeas)}").mkString("\n"))
+    )
+    assert(
+      restraintIdeas.forall { case (_, idea) =>
+        val refs = idea.evidenceRefs
+        if refs.contains("source:hedgehog_break_denial_geometry") then
+          refs.contains("structure_hedgehog") &&
+            refs.contains("hedgehog_break_denial_shape") &&
+            idea.focusFiles.contains("b") &&
+            idea.focusFiles.contains("d")
+        else
+          refs.contains("structure_maroczy_bind") &&
+            refs.contains("maroczy_break_denial_shape") &&
+            idea.focusFiles.contains("c") &&
+            idea.focusFiles.contains("d")
+      },
+      clue(
+        restraintIdeas
+          .map { case (id, idea) => s"$id files=${idea.focusFiles.mkString("|")} refs=${idea.evidenceRefs.mkString("|")}" }
+          .mkString("\n")
+      )
+    )
+  }
+
+  test("K08 fianchetto assault surface keeps practical attack witness refs") {
+    val evaluated = evaluatedById("K08")
+    val attackIdea =
+      evaluated.actualIdeas
+        .find(idea =>
+          idea.kind == StrategicIdeaKind.KingAttackBuildUp &&
+            idea.evidenceRefs.contains("source:fianchetto_assault_profile")
+        )
+        .getOrElse(fail(s"K08 missing fianchetto assault idea; ${kindSummary(evaluated.actualIdeas)}"))
+    val requiredRefs =
+      List(
+        "source:fianchetto_assault_profile",
+        "source:opposite_side_storm",
+        "structure_fianchetto_shell"
+      )
+
+    assert(
+      requiredRefs.forall(attackIdea.evidenceRefs.contains),
+      clue(s"K08 refs=${attackIdea.evidenceRefs.mkString("|")}; required=${requiredRefs.mkString("|")}")
+    )
+    assertEquals(attackIdea.readiness, StrategicIdeaReadiness.Build)
+    assertEquals(attackIdea.focusZone.map(_.toLowerCase), Some("kingside"))
+    assert(attackIdea.confidence >= 0.90, clue(attackIdea))
   }
 
   StrategicIdeaFenFixtures.all.foreach { fixture =>

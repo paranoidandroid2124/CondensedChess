@@ -133,14 +133,22 @@ private[evidence] object StrategicIdeaEvidenceSupport:
 
   def hasQueensideClampWatch(side: String, semantic: StrategicIdeaSemanticContext): Boolean =
     semantic.board.exists { board =>
-      side == "white" &&
-      pawnAt(board, Color.White, Square.C4) &&
-      pawnAt(board, Color.White, Square.D5) &&
-      pawnAt(board, Color.White, Square.E4) &&
-      pawnAt(board, Color.Black, Square.D6) &&
-      pawnAt(board, Color.Black, Square.E5) &&
-      pawnAt(board, Color.Black, Square.G6) &&
-      pawnAt(board, Color.Black, Square.B7)
+      if side == "white" then
+        pawnAt(board, Color.White, Square.C4) &&
+        pawnAt(board, Color.White, Square.D5) &&
+        pawnAt(board, Color.White, Square.E4) &&
+        pawnAt(board, Color.Black, Square.D6) &&
+        pawnAt(board, Color.Black, Square.E5) &&
+        pawnAt(board, Color.Black, Square.G6) &&
+        pawnAt(board, Color.Black, Square.B7)
+      else
+        pawnAt(board, Color.Black, Square.C5) &&
+        pawnAt(board, Color.Black, Square.D4) &&
+        pawnAt(board, Color.Black, Square.E5) &&
+        pawnAt(board, Color.White, Square.D3) &&
+        pawnAt(board, Color.White, Square.E4) &&
+        pawnAt(board, Color.White, Square.G3) &&
+        pawnAt(board, Color.White, Square.B2)
     }
 
   def hasOppositeSideStormAttack(side: String, semantic: StrategicIdeaSemanticContext): Boolean =

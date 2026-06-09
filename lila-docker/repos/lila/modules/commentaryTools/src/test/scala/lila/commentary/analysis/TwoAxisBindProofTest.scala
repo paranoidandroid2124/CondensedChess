@@ -3,6 +3,7 @@ package lila.commentary.analysis
 import chess.Square
 import munit.FunSuite
 
+import lila.commentary.MoveReviewSurfaceAuthority
 import lila.commentary.model.*
 import lila.commentary.model.authoring.*
 import lila.commentary.model.strategic.PreventedPlan
@@ -231,6 +232,89 @@ class TwoAxisBindProofTest extends FunSuite:
     assert(cert.persistenceAfterBestDefense, clue(cert))
     assert(cert.routeContinuity.boundedContinuationVisible, clue(cert))
     assertEquals(cert.counterplayReinflationRisk, "bounded_dual_axis_only")
+  }
+
+  test("fen_backed_dual_axis_contract projects through supported-local surface row") {
+    val cert =
+      certification(
+        plan = evaluatedRestrictionPlan(List("probe_reply", "probe_validation")),
+        probes = List(directReplyProbe("probe_reply"), validationProbe("probe_validation"))
+      )
+    val playedMove = "a3a4"
+    val localCtx =
+      MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
+        fen = QueenlessLateMiddlegameFen,
+        playedMove = Some(playedMove),
+        playedSan = Some("a4")
+      )
+    val inputs =
+      QuestionPlannerInputs(
+        mainBundle = None,
+        quietIntent = None,
+        decisionFrame = CertifiedDecisionFrame(),
+        decisionComparison = None,
+        alternativeNarrative = None,
+        truthMode = PlayerFacingTruthMode.Strategic,
+        preventedPlansNow = Nil,
+        pvDelta = None,
+        counterfactual = None,
+        practicalAssessment = None,
+        opponentThreats = Nil,
+        forcingThreats = Nil,
+        evidenceByQuestionId = Map.empty,
+        candidateEvidenceLines = Nil,
+        evidenceBackedPlans = Nil,
+        opponentPlan = None,
+        factualFallback = None,
+        dualAxisBindSurface = Some(cert)
+      )
+    val truthContract =
+      DecisiveTruthContract(
+        playedMove = Some(playedMove),
+        verifiedBestMove = Some(playedMove),
+        truthClass = DecisiveTruthClass.Best,
+        cpLoss = 0,
+        swingSeverity = 0,
+        reasonFamily = DecisiveReasonKind.QuietTechnicalMove,
+        allowConcreteBenchmark = false,
+        chosenMatchesBest = true,
+        compensationAllowed = false,
+        truthPhase = None,
+        ownershipRole = TruthOwnershipRole.NoneRole,
+        visibilityRole = TruthVisibilityRole.SupportingVisible,
+        surfaceMode = TruthSurfaceMode.Neutral,
+        exemplarRole = TruthExemplarRole.NonExemplar,
+        surfacedMoveOwnsTruth = false,
+        verifiedPayoffAnchor = None,
+        compensationProseAllowed = false,
+        benchmarkProseAllowed = false,
+        investmentTruthChainKey = None,
+        maintenanceExemplarCandidate = false,
+        failureMode = FailureInterpretationMode.NoClearPlan,
+        failureIntentConfidence = 0.0,
+        failureIntentAnchor = None,
+        failureInterpretationAllowed = false
+      )
+    val rows =
+      MoveReviewSupportedLocalSurfaceRows.build(
+        ctx = localCtx,
+        inputs = inputs,
+        rankedPlans = RankedQuestionPlans(primary = None, secondary = None, rejected = Nil),
+        truthContract = Some(truthContract)
+      )
+
+    assertEquals(localCtx.fen, QueenlessLateMiddlegameFen)
+    assertEquals(cert.bestDefenseFound, Some("f8e8"))
+    assertEquals(cert.bestDefenseBranchKey, Some("f8e8"))
+    assert(cert.routeContinuity.directBestDefensePresent, clue(cert))
+    assert(cert.routeContinuity.futureSnapshotPersistent, clue(cert))
+    assert(cert.routeContinuity.boundedContinuationVisible, clue(cert))
+    assertEquals(rows.map(_.label), List("Break and entry"))
+    assertEquals(rows.head.text, "The checked line keeps the ...c5 break shut while keeping b4 unavailable.")
+    assertEquals(
+      rows.head.authority,
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))
+    )
   }
 
   test("axis_independence_not_proven fails when the entry axis only restates the break axis") {

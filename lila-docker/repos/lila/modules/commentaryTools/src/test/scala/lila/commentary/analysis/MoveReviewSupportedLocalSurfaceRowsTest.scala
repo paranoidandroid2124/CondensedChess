@@ -1,10 +1,11 @@
 package lila.commentary.analysis
 
-import lila.commentary.{ MoveReviewSurfaceAuthority, StrategicIdeaGroup, StrategyIdeaSignal, StrategyPack }
+import lila.commentary.{ DirectionalTargetReadiness, MoveReviewSurfaceAuthority, StrategicIdeaGroup, StrategicIdeaKind, StrategicIdeaReadiness, StrategyDirectionalTarget, StrategyIdeaSignal, StrategyPack, StrategyPieceMoveRef, StrategyPieceRoute }
 import lila.commentary.analysis.semantic.RelationObservationCatalog
-import lila.commentary.analysis.semantic.StrategicObservationIds.{ ProofFamilyId, ProofSourceId }
-import lila.commentary.model.{ ConfidenceLevel, DecisionRationale, NarrativeContext, NarrativeRenderMode, PVDelta, TargetSquare }
+import lila.commentary.analysis.semantic.StrategicObservationIds.{ EvidenceRef, EvidenceSourceId, ProofFamilyId, ProofSourceId }
+import lila.commentary.model.{ ConfidenceLevel, DecisionRationale, Fact, FactScope, NarrativeContext, NarrativeRenderMode, PieceActivityInfo, PreventedPlanInfo, PVDelta, TargetSquare, WeakComplexInfo }
 import lila.commentary.model.authoring.AuthorQuestionKind
+import lila.commentary.model.authoring.{ PlanHypothesis, PlanViability }
 import lila.commentary.model.strategic.{ EngineEvidence, VariationLine }
 import munit.FunSuite
 
@@ -214,6 +215,11 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
   private def supportedLocalFilePacket(
       proofFamily: String = ProofFamilyId.HalfOpenFilePressure.wireKey,
       proofSource: String = ProofSourceId.LocalFileEntryBind.wireKey,
+      anchorSquare: String = "c6",
+      continuationTerms: List[String] = List("local_file_entry_bind", "c-file", "c6", "d4c6", "c7c6"),
+      structureTransitionTerms: List[String] = List("file-entry:c-file:c6"),
+      bestDefenseMove: Option[String] = Some("c7c6"),
+      bestDefenseBranchKey: Option[String] = Some("d4c6|c7c6"),
       sameBranchState: PlayerFacingSameBranchState = PlayerFacingSameBranchState.Proven,
       persistence: PlayerFacingClaimPersistence = PlayerFacingClaimPersistence.Stable,
       releaseRisks: List[String] = Nil,
@@ -226,12 +232,12 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       proofSource = proofSource,
       proofFamily = proofFamily,
       triggerKind = "file_entry_denial",
-      anchorTerms = List("c-file", "c6"),
-      ownerSeedTerms = List("c-file", "c6"),
-      continuationTerms = List("local_file_entry_bind", "c-file", "c6", "d4c6", "c7c6"),
-      structureTransitionTerms = List("file-entry:c-file:c6"),
-      bestDefenseMove = Some("c7c6"),
-      bestDefenseBranchKey = Some("d4c6|c7c6"),
+      anchorTerms = List("c-file", anchorSquare),
+      ownerSeedTerms = List("c-file", anchorSquare),
+      continuationTerms = continuationTerms,
+      structureTransitionTerms = structureTransitionTerms,
+      bestDefenseMove = bestDefenseMove,
+      bestDefenseBranchKey = bestDefenseBranchKey,
       sameBranchState = sameBranchState,
       persistence = persistence,
       exactSliceProof = exactSliceProof,
@@ -318,7 +324,9 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       persistence: PlayerFacingClaimPersistence = PlayerFacingClaimPersistence.Stable,
       releaseRisks: List[String] = Nil,
       suppressionReasons: List[String] = Nil,
-      fallbackMode: PlayerFacingClaimFallbackMode = PlayerFacingClaimFallbackMode.WeakMain
+      fallbackMode: PlayerFacingClaimFallbackMode = PlayerFacingClaimFallbackMode.WeakMain,
+      exactSliceProof: Option[PlayerFacingExactSliceProof] =
+        Some(PlayerFacingExactSliceProof.SimplificationWindow("d5"))
   ): PlayerFacingClaimPacket =
     supportedClaimPacket(
       proofSource = proofSource,
@@ -332,6 +340,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       bestDefenseBranchKey = Some("b5d5|f7d5"),
       sameBranchState = sameBranchState,
       persistence = persistence,
+      exactSliceProof = exactSliceProof,
       suppressionReasons = suppressionReasons,
       releaseRisks = releaseRisks,
       fallbackMode = fallbackMode
@@ -464,6 +473,22 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
           token = Some(MoveReviewExchangeAnalyzer.RelationKind.BadPieceLiquidation),
           target = Some("e6")
         )
+      case "Fixed target" =>
+        MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("d6"))
+      case "Minority attack" =>
+        MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("c6"))
+      case "File entry" =>
+        MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("c6"))
+      case "IQP target" =>
+        MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("d5"))
+      case "Simplification" =>
+        MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("d5"))
+      case "Knight outpost" =>
+        MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("e5"))
+      case "Target coordination" =>
+        MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("e5"))
+      case "Color complex" =>
+        MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("e5"))
       case _ =>
         MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)
 
@@ -860,6 +885,17 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
   test("projects exact central_break_timing packet into a central break row") {
     val (centralCtx, centralInputs, centralRanked) = centralScene()
+    val packet =
+      centralInputs.mainBundle.flatMap(_.primaryClaim.flatMap(_.packet)).getOrElse(fail("central break packet missing"))
+    val exactProof = PlayerFacingExactSliceProof.CentralBreakTiming("e4e5", "e5", "e4-e5")
+
+    assertEquals(centralCtx.fen, MadernaExactFen)
+    assertEquals(centralCtx.playedMove, Some("e4e5"))
+    assertEquals(packet.proofSource, PlanTaxonomy.PlanKind.CentralBreakTiming.id)
+    assertEquals(packet.proofFamily, PlanTaxonomy.PlanKind.CentralBreakTiming.id)
+    assertEquals(packet.proofPathWitness.exactSliceProof, Some(exactProof))
+    assert(PlayerFacingExactSliceProofFacts.matchesPacket(packet, exactProof), clue(packet))
+    assert(packet.proofPathWitness.ownerSeedTerms.contains("e4-e5"), clue(packet))
 
     val rows =
       MoveReviewSupportedLocalSurfaceRows.build(
@@ -898,9 +934,240 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
     )
     assertEquals(
       rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("e5")))
     )
     assertEquals(rows.head.source, None)
+  }
+
+  test("projects PGN-backed color-complex squeeze exact-slice packets through the public row") {
+    val cases =
+      List(
+        (
+          "source-botvinnik-vidmar-1936-flank-clamp",
+          "r2q1rk1/pp1bbppp/4pn2/3n2B1/3P4/1BNQ1N2/PP3PPP/R4RK1 w - - 5 13",
+          "f3e5",
+          "Ne5",
+          List("f3e5", "a8c8", "f1e1", "h7h6", "g5d2", "d7c6", "d3h3", "c8c7", "a1d1"),
+          "Black",
+          "e5",
+          "dark",
+          "knight",
+          "f3",
+          Some("Rc8"),
+          "The checked line keeps the knight on f3 attacking e5 in the dark-square complex."
+        ),
+        (
+          "source-botvinnik-vidmar-1936-e4-color-complex-squeeze",
+          "r2q1rk1/pp2bppp/2b1pn2/4N1B1/1n1P4/1BN4Q/PP3PPP/3R1RK1 b - - 10 15",
+          "c6d5",
+          "Bxd5",
+          List(
+            "c6d5",
+            "c3d5",
+            "f6d5",
+            "g5e7",
+            "d8e7",
+            "f2f4",
+            "f7f6",
+            "e5d3",
+            "f6f5",
+            "f1e1",
+            "b4d3",
+            "h3d3",
+            "a8d8",
+            "e1e5",
+            "g8h8",
+            "d3f3",
+            "d8d6",
+            "b3d5",
+            "d6d5",
+            "e5d5",
+            "e6d5",
+            "f3d5"
+          ),
+          "White",
+          "e4",
+          "light",
+          "bishop",
+          "c6",
+          Some("Nxd5"),
+          "The checked line keeps the bishop on c6 attacking e4 in the light-square complex."
+        ),
+        (
+          "source-camara-bazan-1960-d5-color-complex-squeeze",
+          "1rbqr1k1/pp1n1pbp/3p2p1/2pP4/1n2PP2/2NB3P/PP2N1P1/R1BQ1R1K w - - 3 14",
+          "d3b5",
+          "Bb5",
+          List(
+            "d3b5",
+            "b4a6",
+            "e4e5",
+            "d6e5",
+            "f4f5",
+            "a6c7",
+            "a2a4",
+            "c7b5",
+            "a4b5",
+            "e5e4",
+            "c1f4",
+            "d7e5",
+            "c3e4",
+            "c8f5",
+            "e2g3",
+            "d8d7",
+            "g3f5",
+            "g6f5",
+            "e4g3",
+            "b8d8",
+            "d5d6",
+            "d7d6",
+            "d1d6",
+            "d8d6"
+          ),
+          "Black",
+          "d5",
+          "light",
+          "knight",
+          "c3",
+          Some("Na6"),
+          "The checked line keeps the knight on c3 attacking d5 in the light-square complex."
+        ),
+        (
+          "source-pfleger-maalouf-1961-d5-color-complex-squeeze",
+          "r2qr1k1/1p3pb1/pn1p1npp/2pP4/P3P3/2NQ1N2/1P1B1PPP/R3R1K1 w - - 0 17",
+          "a4a5",
+          "a5",
+          List(
+            "a4a5",
+            "b6d7",
+            "c3a4",
+            "f6g4",
+            "d2c3",
+            "g4e5",
+            "f3e5",
+            "g7e5",
+            "c3e5",
+            "d7e5",
+            "d3g3",
+            "d8g5",
+            "a4b6",
+            "g5g3",
+            "h2g3",
+            "a8d8",
+            "f2f4",
+            "e5d3",
+            "e1e3",
+            "d3b4",
+            "a1d1",
+            "b4c2"
+          ),
+          "Black",
+          "d5",
+          "light",
+          "knight",
+          "c3",
+          Some("Nbd7"),
+          "The checked line keeps the knight on c3 attacking d5 in the light-square complex."
+        )
+      )
+
+    cases.foreach {
+      case (
+            sourceId,
+            fen,
+            playedMove,
+            playedSan,
+            line,
+            weaknessOwner,
+            target,
+            squareColor,
+            minorPieceRole,
+            minorPieceSquare,
+            expectedBestDefense,
+            expectedRowText
+          ) =>
+        val baseCtx =
+          topPvPracticalContext(
+            fen = fen,
+            playedMove = playedMove,
+            playedSan = playedSan,
+            line = line,
+            scoreCp = 20
+          )
+        val semantic = baseCtx.semantic.getOrElse(fail(s"expected base semantic for $sourceId"))
+        val colorComplexCtx =
+          baseCtx.copy(
+            semantic =
+              Some(
+                semantic.copy(
+                  structuralWeaknesses =
+                    List(
+                      WeakComplexInfo(
+                        owner = weaknessOwner,
+                        squareColor = squareColor,
+                        squares = List(target),
+                        isOutpost = false,
+                        cause = "color complex hole"
+                      )
+                    ),
+                  pieceActivity =
+                    List(
+                      PieceActivityInfo(
+                        piece = minorPieceRole,
+                        square = minorPieceSquare,
+                        mobilityScore = 0.72,
+                        isTrapped = false,
+                        isBadBishop = false,
+                        keyRoutes = List(target),
+                        coordinationLinks = List(target),
+                        directionalTargets = List(target)
+                      )
+                    )
+                )
+              )
+          )
+        val delta =
+          PlayerFacingTruthModePolicy
+            .mainPathMoveDeltaEvidence(colorComplexCtx, StrategyPackSurface.from(None), Some(safeTruthContract(playedMove)))
+            .getOrElse(fail(s"expected color-complex exact-slice move-delta packet for $sourceId"))
+        val packet = delta.packet
+        val exactProof =
+          PlayerFacingExactSliceProof.ColorComplexSqueeze(
+            targetSquare = target,
+            squareColor = squareColor,
+            minorPieceRole = minorPieceRole,
+            minorPieceSquare = minorPieceSquare
+          )
+        val rows =
+          noRankedSupportedLocalRows(
+            localCtx = colorComplexCtx,
+            localInputs =
+              inputs(
+                packet = packet,
+                claimText = s"A minor piece keeps the color-complex pressure on $target."
+              ),
+            playedMove = playedMove
+          )
+
+        assertEquals(colorComplexCtx.fen, fen, clue(sourceId))
+        assertEquals(colorComplexCtx.playedMove, Some(playedMove), clue(sourceId))
+        assertEquals(delta.deltaClass, PlayerFacingMoveDeltaClass.CounterplayReduction, clue(sourceId))
+        assertEquals(packet.proofSource, PlayerFacingTruthModePolicy.ColorComplexSqueezeProbeProofSource, clue(sourceId))
+        assertEquals(packet.proofFamily, PlayerFacingTruthModePolicy.ColorComplexSqueezeProofFamily, clue(sourceId))
+        assertEquals(packet.proofPathWitness.exactSliceProof, Some(exactProof), clue(sourceId))
+        assert(PlayerFacingExactSliceProofFacts.matchesPacket(packet, exactProof), clue(sourceId -> packet))
+        assertEquals(packet.bestDefenseMove, expectedBestDefense, clue(sourceId -> packet))
+        assert(packet.bestDefenseBranchKey.nonEmpty, clue(sourceId -> packet))
+        assertEquals(packet.sameBranchState, PlayerFacingSameBranchState.Proven, clue(sourceId))
+        assertEquals(packet.persistence, PlayerFacingClaimPersistence.Stable, clue(sourceId))
+        assertEquals(rows.map(_.label), List("Color complex"), clue(sourceId -> rows))
+        assertEquals(rows.head.text, expectedRowText, clue(sourceId -> rows))
+        assertEquals(
+          rows.head.authority,
+          Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some(target))),
+          clue(sourceId -> rows)
+        )
+    }
   }
 
   test("keeps two independent exact supported-local rows") {
@@ -975,7 +1242,8 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
             exactSliceProof = Some(PlayerFacingExactSliceProof.ExactTargetFixation("d6"))
           ),
           "Fixed target",
-          "The checked line keeps d6 fixed as the target."
+          "The checked line keeps d6 fixed as the target.",
+          Some("d6")
         ),
         (
           supportedPositionProbePacket(
@@ -986,9 +1254,10 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
             continuationTerms = List("carlsbad_fixed_target_probe", "fixed_target:c6", "best_branch:b4b5|a6b5"),
             structureTransitionTerms = List("carlsbad_fixed_target_probe", "fixed_target:c6"),
             exactSliceProof = Some(PlayerFacingExactSliceProof.CarlsbadFixedTarget("c6", minoritySupport = true))
-        ),
+          ),
           "Minority attack",
-          "The checked line keeps c6 as the minority-attack fixed target."
+          "The checked line keeps c6 as the minority-attack fixed target.",
+          Some("c6")
         ),
         (
           supportedPositionProbePacket(
@@ -1008,20 +1277,154 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
               )
           ),
           "Target coordination",
-          "The checked line coordinates pressure on e5 from e3 and g2."
+          "The checked line coordinates pressure on e5 from e3 and g2.",
+          Some("e5")
         )
       )
 
-    cases.foreach { case (packet, expectedLabel, expectedText) =>
+    cases.foreach { case (packet, expectedLabel, expectedText, expectedTarget) =>
       val rows =
         noRankedSupportedLocalRows(localInputs = inputs(packet = packet, claimText = expectedText))
 
       assertEquals(rows.map(_.label), List(expectedLabel), clue(rows))
+      assertEquals(rows.head.authority.flatMap(_.target), expectedTarget, clue(rows))
       assertEquals(rows.head.text, expectedText, clue(rows))
       assertEquals(
         rows.head.authority,
         Some(expectedExchangeOwnershipAuthority(expectedLabel)),
         clue(rows)
+      )
+    }
+  }
+
+  test("projects FEN-backed target-focused coordination exact-slice packets through the public row") {
+    val cases =
+      List(
+        (
+          "K09A-certified-coordination",
+          "r2qr1k1/pp2bpp1/2n1bn1p/3p4/3N4/2N1B1P1/PP2PPBP/2RQ1RK1 w - - 4 13",
+          "d1b3",
+          "Qb3",
+          List("d1b3", "d8d7", "f1d1", "a8c8", "d4e6", "f7e6", "e3f4", "e7b4", "c3e4"),
+          Some("Qd7")
+        ),
+        (
+          "K09D-certified-coordination",
+          "1r1q1rk1/pp3ppp/2n2n2/3p4/3P2b1/2N2N2/PP2BPPP/2RQ1RK1 w - - 3 13",
+          "h2h3",
+          "h3",
+          List(
+            "h2h3",
+            "g4f3",
+            "e2f3",
+            "f8e8",
+            "d1d2",
+            "d8d7",
+            "f1d1",
+            "h7h6",
+            "a2a3",
+            "c6e7",
+            "d1e1",
+            "b7b5",
+            "b2b4",
+            "a7a6",
+            "e1e5",
+            "e7g6",
+            "e5e8",
+            "b8e8",
+            "f3e2"
+          ),
+          Some("Bxf3")
+        )
+      )
+
+    cases.foreach { case (fixtureId, fen, playedMove, playedSan, line, expectedBestDefense) =>
+      val coordinationCtx =
+        topPvPracticalContext(
+          fen = fen,
+          playedMove = playedMove,
+          playedSan = playedSan,
+          line = line,
+          scoreCp = 20
+        )
+      val surface =
+        StrategyPackSurface.from(
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              pieceMoveRefs =
+                List(
+                  StrategyPieceMoveRef(
+                    ownerSide = "white",
+                    piece = "rook",
+                    from = "c1",
+                    target = "c6",
+                    idea = "contest the c6 target with coordinated pressure",
+                    evidence = List("target_knight")
+                  ),
+                  StrategyPieceMoveRef(
+                    ownerSide = "white",
+                    piece = "bishop",
+                    from = "e3",
+                    target = "c6",
+                    idea = "contest the c6 target with coordinated pressure",
+                    evidence = List("support_piece")
+                  )
+                ),
+              pieceRoutes =
+                List(
+                  StrategyPieceRoute(
+                    side = "white",
+                    piece = "rook",
+                    from = "c1",
+                    route = List("c1", "c6"),
+                    purpose = "coordination and plan activation against c6",
+                    confidence = 0.84,
+                    evidence = List("target_focused_coordination_probe")
+                  )
+                )
+            )
+          )
+        )
+      val delta =
+        PlayerFacingTruthModePolicy
+          .mainPathMoveDeltaEvidence(coordinationCtx, surface, Some(safeTruthContract(playedMove)))
+          .getOrElse(fail(s"expected target-focused coordination exact-slice packet for $fixtureId"))
+      val packet = delta.packet
+      val exactProof =
+        PlayerFacingExactSliceProof.TargetFocusedCoordination(
+          targetSquare = "c6",
+          supportFromSquares = List("c1", "e3"),
+          targetPieces = List("target_knight")
+        )
+      val rows =
+        noRankedSupportedLocalRows(
+          localCtx = coordinationCtx,
+          localInputs =
+            inputs(
+              packet = packet,
+              claimText = "the pressure is coordinated on c6."
+            ),
+          playedMove = playedMove
+        )
+
+      assertEquals(coordinationCtx.fen, fen, clue(fixtureId))
+      assertEquals(coordinationCtx.playedMove, Some(playedMove), clue(fixtureId))
+      assertEquals(delta.deltaClass, PlayerFacingMoveDeltaClass.PressureIncrease, clue(fixtureId))
+      assertEquals(packet.proofSource, PlayerFacingTruthModePolicy.TargetFocusedCoordinationProofSource, clue(fixtureId))
+      assertEquals(packet.proofFamily, PlayerFacingTruthModePolicy.TargetFocusedCoordinationProofFamily, clue(fixtureId))
+      assertEquals(packet.proofPathWitness.exactSliceProof, Some(exactProof), clue(fixtureId))
+      assert(PlayerFacingExactSliceProofFacts.matchesPacket(packet, exactProof), clue(fixtureId -> packet))
+      assertEquals(packet.bestDefenseMove, expectedBestDefense, clue(fixtureId -> packet))
+      assert(packet.bestDefenseBranchKey.nonEmpty, clue(fixtureId -> packet))
+      assertEquals(packet.sameBranchState, PlayerFacingSameBranchState.Proven, clue(fixtureId))
+      assertEquals(packet.persistence, PlayerFacingClaimPersistence.Stable, clue(fixtureId))
+      assertEquals(rows.map(_.label), List("Target coordination"), clue(fixtureId -> rows))
+      assertEquals(rows.head.text, "The checked line coordinates pressure on c6 from c1 and e3.", clue(fixtureId -> rows))
+      assertEquals(
+        rows.head.authority,
+        Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("c6"))),
+        clue(fixtureId -> rows)
       )
     }
   }
@@ -1267,6 +1670,53 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
     )
   }
 
+  test("keeps three independently admitted typed supported-local surface rows") {
+    val routeSurface =
+      RouteNetworkBindProof.SurfaceNetwork(
+        file = "c-file",
+        entrySquare = "c6",
+        rerouteSquare = "b6",
+        counterplayScoreDrop = 140
+      )
+    val rows =
+      noRankedSupportedLocalRows(
+        localCtx = neutralizeCtx,
+        localInputs =
+          routeNetworkInputs(Some(routeSurface)).copy(
+            dualAxisBindSurface = Some(certifiedDualAxisBind()),
+            restrictedDefenseConversionSurface = Some(certifiedRestrictedDefenseConversion())
+          ),
+        playedMove = "e2e3"
+      )
+
+    assertEquals(rows.map(_.label), List("Route denial", "Break and entry", "Technical conversion"))
+    assert(rows.forall(_.authority.contains(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))), clue(rows))
+  }
+
+  test("mixed packet and typed supported-local surfaces reserve two typed slots") {
+    val routeSurface =
+      RouteNetworkBindProof.SurfaceNetwork(
+        file = "c-file",
+        entrySquare = "c6",
+        rerouteSquare = "b6",
+        counterplayScoreDrop = 140
+      )
+    val rows =
+      noRankedSupportedLocalRows(
+        localCtx = neutralizeCtx,
+        localInputs =
+          inputs().copy(
+            namedRouteNetworkSurface = Some(routeSurface),
+            dualAxisBindSurface = Some(certifiedDualAxisBind()),
+            restrictedDefenseConversionSurface = Some(certifiedRestrictedDefenseConversion())
+          ),
+        playedMove = "e2e3"
+      )
+
+    assertEquals(rows.map(_.label), List("Counterplay break", "Route denial", "Break and entry"))
+    assert(!rows.exists(_.label == "Technical conversion"), clue(rows))
+  }
+
   test("does not project uncertified or stale restricted-defense conversion") {
     val uncertified =
       noRankedSupportedLocalRows(
@@ -1330,7 +1780,47 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
     assertEquals(rows.head.text, "The checked line puts the knight on the e5 outpost.")
     assertEquals(
       rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("e5")))
+    )
+  }
+
+  test("projects FEN-backed outpost exact-slice packet through the public row") {
+    val outpostCtx =
+      topPvPracticalContext(
+        fen = "6k1/8/8/8/3P4/5N2/8/6K1 w - - 0 1",
+        playedMove = "f3e5",
+        playedSan = "Ne5",
+        line = List("f3e5", "g8f8", "d4d5", "f8e8"),
+        scoreCp = 42
+      ).copy(
+        facts = List(Fact.Outpost(_root_.chess.Square.E5, _root_.chess.Knight, FactScope.Now))
+      )
+    val delta =
+      PlayerFacingTruthModePolicy
+        .mainPathMoveDeltaEvidence(outpostCtx, StrategyPackSurface.from(None), Some(safeTruthContract("f3e5")))
+        .getOrElse(fail("expected outpost exact-slice move-delta packet"))
+    val packet = delta.packet
+    val rows =
+      noRankedSupportedLocalRows(
+        localCtx = outpostCtx,
+        localInputs = inputs(packet = packet, claimText = "The move occupies the e5 outpost."),
+        playedMove = "f3e5"
+      )
+
+    assertEquals(outpostCtx.fen, "6k1/8/8/8/3P4/5N2/8/6K1 w - - 0 1")
+    assertEquals(packet.proofSource, PlayerFacingTruthModePolicy.OutpostEntrenchmentProofSource)
+    assertEquals(packet.proofFamily, PlayerFacingTruthModePolicy.OutpostEntrenchmentProofFamily)
+    assertEquals(packet.proofPathWitness.exactSliceProof, Some(PlayerFacingExactSliceProof.OutpostOccupation("knight", "e5")))
+    assert(PlayerFacingExactSliceProofFacts.matchesPacket(packet, PlayerFacingExactSliceProof.OutpostOccupation("knight", "e5")))
+    assertEquals(packet.bestDefenseMove, Some("Kf8"))
+    assert(packet.bestDefenseBranchKey.nonEmpty, clue(packet))
+    assertEquals(packet.sameBranchState, PlayerFacingSameBranchState.Proven, clue(packet))
+    assertEquals(packet.persistence, PlayerFacingClaimPersistence.Stable, clue(packet))
+    assertEquals(rows.map(_.label), List("Knight outpost"), clue(rows))
+    assertEquals(rows.head.text, "The checked line puts the knight on the e5 outpost.")
+    assertEquals(
+      rows.head.authority,
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("e5")))
     )
   }
 
@@ -1377,8 +1867,51 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
     assertEquals(rows.head.text, "The checked line keeps pressure on c6 through the c-file.")
     assertEquals(
       rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("c6")))
     )
+  }
+
+  test("does not project FEN-backed local-file entry pair when typed proof geometry is off-file") {
+    val fen = "2r2rk1/pp3pp1/2n1p2p/3p4/3P1P2/2P1PN1P/PP4P1/2R2RK1 w - - 0 23"
+    val playedMove = "a2a3"
+    val exactProof = PlayerFacingExactSliceProof.LocalFileEntryBind("c-file", "b4")
+    val line = List("a2a3", "c8c7", "c1c2", "f8c8")
+    val packet =
+      supportedLocalFilePacket(
+        anchorSquare = "b4",
+        continuationTerms = List("local_file_entry_bind", "c-file", "b4") ++ line,
+        structureTransitionTerms = List("file-entry:c-file:b4"),
+        bestDefenseMove = Some("c8c7"),
+        bestDefenseBranchKey = Some("a2a3|c8c7"),
+        exactSliceProof = Some(exactProof)
+      )
+    val localCtx =
+      topPvPracticalContext(
+        fen = fen,
+        playedMove = playedMove,
+        playedSan = "a3",
+        line = line,
+        scoreCp = 140
+      )
+    val replay =
+      MoveReviewExchangeAnalyzer
+        .boundedTopReplay(fen, List(VariationLine(line, scoreCp = 140, depth = 18)), maxPlies = 2)
+        .getOrElse(fail("local-file entry public witness line should replay legally"))
+    val rows =
+      noRankedSupportedLocalRows(
+        localCtx = localCtx,
+        localInputs = inputs(
+          packet = packet,
+          claimText = "The file-entry bind keeps b4 under pressure."
+        ),
+        playedMove = playedMove
+      )
+
+    assertEquals(replay.map(_.uci), line.take(2))
+    assertEquals(packet.proofPathWitness.exactSliceProof, Some(exactProof))
+    assert(!PlayerFacingExactSliceProofFacts.validShape(exactProof), clue(exactProof))
+    assert(!PlayerFacingExactSliceProofFacts.matchesPacket(packet, exactProof), clue(packet))
+    assert(!rows.exists(_.label == "File entry"), clue(rows))
   }
 
   test("does not project local-file entry rows without exact matching proof") {
@@ -1447,7 +1980,304 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
     assertEquals(rows.head.text, "The checked line leaves d5 as an isolated pawn target.")
     assertEquals(
       rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("d5")))
+    )
+  }
+
+  test("projects PGN-backed IQP inducement exact-slice packet through the public row") {
+    val iqpCtx =
+      topPvPracticalContext(
+        fen = "bq1rrbk1/3n1pp1/pp2pn1p/3p4/2P1P3/P1N1BP2/1P1NBQPP/2RR3K w - - 0 25",
+        playedMove = "c4d5",
+        playedSan = "cxd5",
+        line = List("c4d5", "e6d5", "e4d5", "f6d5"),
+        scoreCp = 38
+      )
+    val delta =
+      PlayerFacingTruthModePolicy
+        .mainPathMoveDeltaEvidence(iqpCtx, StrategyPackSurface.from(None), Some(safeTruthContract("c4d5")))
+        .getOrElse(fail("expected IQP inducement exact-slice move-delta packet"))
+    val packet = delta.packet
+    val exactProof = PlayerFacingExactSliceProof.IqpInducement("d5", List("c4d5", "e6d5"))
+    val rows =
+      noRankedSupportedLocalRows(
+        localCtx = iqpCtx,
+        localInputs =
+          inputs(
+            packet = packet,
+            claimText = "This sequence leaves an isolated pawn as the local target."
+          ),
+        playedMove = "c4d5"
+      )
+
+    assertEquals(iqpCtx.fen, "bq1rrbk1/3n1pp1/pp2pn1p/3p4/2P1P3/P1N1BP2/1P1NBQPP/2RR3K w - - 0 25")
+    assertEquals(delta.deltaClass, PlayerFacingMoveDeltaClass.ExchangeForcing)
+    assertEquals(packet.proofSource, PlayerFacingTruthModePolicy.IQPInducementProbeProofSource)
+    assertEquals(packet.proofFamily, ProofFamilyId.fromPlanKind(PlanTaxonomy.PlanKind.IQPInducement).get.wireKey)
+    assertEquals(packet.proofPathWitness.exactSliceProof, Some(exactProof))
+    assert(PlayerFacingExactSliceProofFacts.matchesPacket(packet, exactProof), clue(packet))
+    assertEquals(packet.bestDefenseMove, Some("exd5"))
+    assert(packet.bestDefenseBranchKey.nonEmpty, clue(packet))
+    assertEquals(packet.sameBranchState, PlayerFacingSameBranchState.Proven)
+    assertEquals(packet.persistence, PlayerFacingClaimPersistence.Stable)
+    assertEquals(rows.map(_.label), List("IQP target"), clue(rows))
+    assertEquals(rows.head.text, "The checked line leaves d5 as an isolated pawn target.")
+    assertEquals(
+      rows.head.authority,
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("d5"))),
+      clue(rows)
+    )
+  }
+
+  test("projects Evans-Opsahl IQP exact-slice packet through the public row") {
+    val iqpCtx =
+      topPvPracticalContext(
+        fen = "r3rnk1/1p3ppp/p1p5/3p2q1/PP1P2b1/2QBP3/3N1PPP/1R3RK1 w - - 3 17",
+        playedMove = "f1c1",
+        playedSan = "Rfc1",
+        line = List("f1c1", "h7h5", "b4b5", "c6b5", "a4b5"),
+        scoreCp = 34
+      )
+    val delta =
+      PlayerFacingTruthModePolicy
+        .mainPathMoveDeltaEvidence(iqpCtx, StrategyPackSurface.from(None), Some(safeTruthContract("f1c1")))
+        .getOrElse(fail("expected Evans-Opsahl IQP exact-slice move-delta packet"))
+    val packet = delta.packet
+    val exactProof = PlayerFacingExactSliceProof.IqpInducement("d5", List("f1c1", "h7h5", "b4b5", "c6b5"))
+    val rows =
+      noRankedSupportedLocalRows(
+        localCtx = iqpCtx,
+        localInputs =
+          inputs(
+            packet = packet,
+            claimText = "This sequence leaves an isolated pawn as the local target."
+          ),
+        playedMove = "f1c1"
+      )
+
+    assertEquals(iqpCtx.fen, "r3rnk1/1p3ppp/p1p5/3p2q1/PP1P2b1/2QBP3/3N1PPP/1R3RK1 w - - 3 17")
+    assertEquals(delta.deltaClass, PlayerFacingMoveDeltaClass.ExchangeForcing)
+    assertEquals(packet.proofSource, PlayerFacingTruthModePolicy.IQPInducementProbeProofSource)
+    assertEquals(packet.proofFamily, ProofFamilyId.fromPlanKind(PlanTaxonomy.PlanKind.IQPInducement).get.wireKey)
+    assertEquals(packet.proofPathWitness.exactSliceProof, Some(exactProof))
+    assert(PlayerFacingExactSliceProofFacts.matchesPacket(packet, exactProof), clue(packet))
+    assertEquals(packet.bestDefenseMove, Some("h5"))
+    assert(packet.bestDefenseBranchKey.nonEmpty, clue(packet))
+    assertEquals(packet.sameBranchState, PlayerFacingSameBranchState.Proven)
+    assertEquals(packet.persistence, PlayerFacingClaimPersistence.Stable)
+    assertEquals(rows.map(_.label), List("IQP target"), clue(rows))
+    assertEquals(rows.head.text, "The checked line leaves d5 as an isolated pawn target.")
+    assertEquals(
+      rows.head.authority,
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("d5"))),
+      clue(rows)
+    )
+  }
+
+  test("projects Capablanca-Golombek IQP exact-slice packet through the public row") {
+    val iqpCtx =
+      topPvPracticalContext(
+        fen = "r3r1k1/pp3pn1/2pq2pp/3p4/NP1P4/3QP2P/P4PP1/1RR3K1 w - - 0 23",
+        playedMove = "b4b5",
+        playedSan = "b5",
+        line = List("b4b5", "e8c8", "b5c6", "b7b6"),
+        scoreCp = 28
+      )
+    val delta =
+      PlayerFacingTruthModePolicy
+        .mainPathMoveDeltaEvidence(iqpCtx, StrategyPackSurface.from(None), Some(safeTruthContract("b4b5")))
+        .getOrElse(fail("expected Capablanca-Golombek IQP exact-slice move-delta packet"))
+    val packet = delta.packet
+    val exactProof = PlayerFacingExactSliceProof.IqpInducement("d5", List("b4b5", "e8c8", "b5c6"))
+    val rows =
+      noRankedSupportedLocalRows(
+        localCtx = iqpCtx,
+        localInputs =
+          inputs(
+            packet = packet,
+            claimText = "This sequence leaves an isolated pawn as the local target."
+          ),
+        playedMove = "b4b5"
+      )
+
+    assertEquals(iqpCtx.fen, "r3r1k1/pp3pn1/2pq2pp/3p4/NP1P4/3QP2P/P4PP1/1RR3K1 w - - 0 23")
+    assertEquals(delta.deltaClass, PlayerFacingMoveDeltaClass.ExchangeForcing)
+    assertEquals(packet.proofSource, PlayerFacingTruthModePolicy.IQPInducementProbeProofSource)
+    assertEquals(packet.proofFamily, ProofFamilyId.fromPlanKind(PlanTaxonomy.PlanKind.IQPInducement).get.wireKey)
+    assertEquals(packet.proofPathWitness.exactSliceProof, Some(exactProof))
+    assert(PlayerFacingExactSliceProofFacts.matchesPacket(packet, exactProof), clue(packet))
+    assertEquals(packet.bestDefenseMove, Some("Rec8"))
+    assert(packet.bestDefenseBranchKey.nonEmpty, clue(packet))
+    assertEquals(packet.sameBranchState, PlayerFacingSameBranchState.Proven)
+    assertEquals(packet.persistence, PlayerFacingClaimPersistence.Stable)
+    assertEquals(rows.map(_.label), List("IQP target"), clue(rows))
+    assertEquals(rows.head.text, "The checked line leaves d5 as an isolated pawn target.")
+    assertEquals(
+      rows.head.authority,
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("d5"))),
+      clue(rows)
+    )
+  }
+
+  test("projects Alekhine-Bogoljubow IQP exact-slice packet through the public row") {
+    val iqpCtx =
+      topPvPracticalContext(
+        fen = "rnb1k2r/pp3ppp/4p3/2pqP3/PbpPn3/2N2N2/1PQ1BPPP/R1B2RK1 b kq - 1 10",
+        playedMove = "e4c3",
+        playedSan = "Nxc3",
+        line = List("e4c3", "b2c3", "c5d4", "c3b4"),
+        scoreCp = 31
+      )
+    val delta =
+      PlayerFacingTruthModePolicy
+        .mainPathMoveDeltaEvidence(iqpCtx, StrategyPackSurface.from(None), Some(safeTruthContract("e4c3")))
+        .getOrElse(fail("expected Alekhine-Bogoljubow IQP exact-slice move-delta packet"))
+    val packet = delta.packet
+    val exactProof = PlayerFacingExactSliceProof.IqpInducement("c3", List("e4c3", "b2c3", "c5d4"))
+    val rows =
+      noRankedSupportedLocalRows(
+        localCtx = iqpCtx,
+        localInputs =
+          inputs(
+            packet = packet,
+            claimText = "This sequence leaves an isolated pawn as the local target."
+          ),
+        playedMove = "e4c3"
+      )
+
+    assertEquals(iqpCtx.fen, "rnb1k2r/pp3ppp/4p3/2pqP3/PbpPn3/2N2N2/1PQ1BPPP/R1B2RK1 b kq - 1 10")
+    assertEquals(delta.deltaClass, PlayerFacingMoveDeltaClass.ExchangeForcing)
+    assertEquals(packet.proofSource, PlayerFacingTruthModePolicy.IQPInducementProbeProofSource)
+    assertEquals(packet.proofFamily, ProofFamilyId.fromPlanKind(PlanTaxonomy.PlanKind.IQPInducement).get.wireKey)
+    assertEquals(packet.proofPathWitness.exactSliceProof, Some(exactProof))
+    assert(PlayerFacingExactSliceProofFacts.matchesPacket(packet, exactProof), clue(packet))
+    assertEquals(packet.bestDefenseMove, Some("bxc3"))
+    assert(packet.bestDefenseBranchKey.nonEmpty, clue(packet))
+    assertEquals(packet.sameBranchState, PlayerFacingSameBranchState.Proven)
+    assertEquals(packet.persistence, PlayerFacingClaimPersistence.Stable)
+    assertEquals(rows.map(_.label), List("IQP target"), clue(rows))
+    assertEquals(rows.head.text, "The checked line leaves c3 as an isolated pawn target.")
+    assertEquals(
+      rows.head.authority,
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("c3"))),
+      clue(rows)
+    )
+  }
+
+  test("projects Najdorf-Sergeant IQP exact-slice packet through the public row") {
+    val iqpCtx =
+      topPvPracticalContext(
+        fen = "r1b2rk1/pp2qppp/4p3/2nn4/3N4/2N1P3/PPQ2PPP/3RKB1R w K - 0 12",
+        playedMove = "c3d5",
+        playedSan = "Nxd5",
+        line = List("c3d5", "e6d5", "f1e2", "b7b6"),
+        scoreCp = 33
+      )
+    val delta =
+      PlayerFacingTruthModePolicy
+        .mainPathMoveDeltaEvidence(iqpCtx, StrategyPackSurface.from(None), Some(safeTruthContract("c3d5")))
+        .getOrElse(fail("expected Najdorf-Sergeant IQP exact-slice move-delta packet"))
+    val packet = delta.packet
+    val exactProof = PlayerFacingExactSliceProof.IqpInducement("d5", List("c3d5", "e6d5"))
+    val rows =
+      noRankedSupportedLocalRows(
+        localCtx = iqpCtx,
+        localInputs =
+          inputs(
+            packet = packet,
+            claimText = "This sequence leaves an isolated pawn as the local target."
+          ),
+        playedMove = "c3d5"
+      )
+
+    assertEquals(iqpCtx.fen, "r1b2rk1/pp2qppp/4p3/2nn4/3N4/2N1P3/PPQ2PPP/3RKB1R w K - 0 12")
+    assertEquals(delta.deltaClass, PlayerFacingMoveDeltaClass.ExchangeForcing)
+    assertEquals(packet.proofSource, PlayerFacingTruthModePolicy.IQPInducementProbeProofSource)
+    assertEquals(packet.proofFamily, ProofFamilyId.fromPlanKind(PlanTaxonomy.PlanKind.IQPInducement).get.wireKey)
+    assertEquals(packet.proofPathWitness.exactSliceProof, Some(exactProof))
+    assert(PlayerFacingExactSliceProofFacts.matchesPacket(packet, exactProof), clue(packet))
+    assertEquals(packet.bestDefenseMove, Some("exd5"))
+    assert(packet.bestDefenseBranchKey.nonEmpty, clue(packet))
+    assertEquals(packet.sameBranchState, PlayerFacingSameBranchState.Proven)
+    assertEquals(packet.persistence, PlayerFacingClaimPersistence.Stable)
+    assertEquals(rows.map(_.label), List("IQP target"), clue(rows))
+    assertEquals(rows.head.text, "The checked line leaves d5 as an isolated pawn target.")
+    assertEquals(
+      rows.head.authority,
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("d5"))),
+      clue(rows)
+    )
+  }
+
+  test("projects Botvinnik-Vidmar opening IQP exact-slice packet through the public row") {
+    val fen = "r1bq1rk1/pp1nbppp/4pn2/2pp2B1/2PP4/2NBPN2/PP3PPP/R2Q1RK1 b - - 1 8"
+    val playedMove = "c5d4"
+    val line =
+      List(
+        "c5d4",
+        "e3d4",
+        "d5c4",
+        "d3c4",
+        "h7h6",
+        "g5h4",
+        "d7b6",
+        "c4b3",
+        "c8d7",
+        "f3e5",
+        "d7c6",
+        "f1e1",
+        "b6d5",
+        "d1d3",
+        "d5f4",
+        "d3e3",
+        "f4d5"
+      )
+    val iqpCtx =
+      topPvPracticalContext(
+        fen = fen,
+        playedMove = playedMove,
+        playedSan = "cxd4",
+        line = line,
+        scoreCp = -120
+      )
+    val replay =
+      MoveReviewExchangeAnalyzer
+        .boundedTopReplay(fen, List(VariationLine(line, scoreCp = -120, depth = 18)), maxPlies = 2)
+        .getOrElse(fail("Botvinnik-Vidmar opening IQP public witness line should replay legally"))
+    val delta =
+      PlayerFacingTruthModePolicy
+        .mainPathMoveDeltaEvidence(iqpCtx, StrategyPackSurface.from(None), Some(safeTruthContract(playedMove)))
+        .getOrElse(fail("expected Botvinnik-Vidmar opening IQP exact-slice move-delta packet"))
+    val packet = delta.packet
+    val exactProof = PlayerFacingExactSliceProof.IqpInducement("d4", List("c5d4", "e3d4", "d5c4"))
+    val rows =
+      noRankedSupportedLocalRows(
+        localCtx = iqpCtx,
+        localInputs =
+          inputs(
+            packet = packet,
+            claimText = "This sequence leaves an isolated pawn as the local target."
+          ),
+        playedMove = playedMove
+      )
+
+    assertEquals(iqpCtx.fen, fen)
+    assertEquals(replay.map(_.uci), line.take(2))
+    assertEquals(delta.deltaClass, PlayerFacingMoveDeltaClass.ExchangeForcing)
+    assertEquals(packet.proofSource, PlayerFacingTruthModePolicy.IQPInducementProbeProofSource)
+    assertEquals(packet.proofFamily, ProofFamilyId.fromPlanKind(PlanTaxonomy.PlanKind.IQPInducement).get.wireKey)
+    assertEquals(packet.proofPathWitness.exactSliceProof, Some(exactProof))
+    assert(PlayerFacingExactSliceProofFacts.matchesPacket(packet, exactProof), clue(packet))
+    assertEquals(packet.bestDefenseMove, Some("exd4"))
+    assert(packet.bestDefenseBranchKey.nonEmpty, clue(packet))
+    assertEquals(packet.sameBranchState, PlayerFacingSameBranchState.Proven)
+    assertEquals(packet.persistence, PlayerFacingClaimPersistence.Stable)
+    assertEquals(rows.map(_.label), List("IQP target"), clue(rows))
+    assertEquals(rows.head.text, "The checked line leaves d4 as an isolated pawn target.")
+    assertEquals(
+      rows.head.authority,
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("d4"))),
+      clue(rows)
     )
   }
 
@@ -1479,20 +2309,274 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
   }
 
   test("projects exact simplification-window packet into a bounded row") {
+    val exactProof = PlayerFacingExactSliceProof.SimplificationWindow("d5")
+    val packet = supportedSimplificationPacket(exactSliceProof = Some(exactProof))
     val rows =
       noRankedSupportedLocalRows(
         localInputs = inputs(
-          packet = supportedSimplificationPacket(),
+          packet = packet,
           claimText = "This trade keeps the same local edge on d5."
         )
       )
 
+    assertEquals(packet.proofPathWitness.exactSliceProof, Some(exactProof))
+    assert(PlayerFacingExactSliceProofFacts.matchesPacket(packet, exactProof), clue(packet))
     assertEquals(rows.map(_.label), List("Simplification"))
     assertEquals(rows.head.text, "The checked line keeps the same local edge after the exchange on d5.")
     assertEquals(
       rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("d5")))
     )
+  }
+
+  test("projects Botvinnik-Vidmar PGN-backed simplification exact-slice packet through the public row") {
+    val fen = "r2q1rk1/pp2bppp/4pn2/3bN1B1/1n1P4/1BN4Q/PP3PPP/3R1RK1 w - - 11 16"
+    val playedMove = "c3d5"
+    val line =
+      List(
+        "c3d5",
+        "f6d5",
+        "g5e7",
+        "d8e7",
+        "f2f4",
+        "f7f6",
+        "e5d3",
+        "b4d3",
+        "h3d3",
+        "f6f5",
+        "b3d5",
+        "e6d5",
+        "f1e1",
+        "e7b4",
+        "b2b3",
+        "a8e8"
+      )
+    val simplificationCtx =
+      topPvPracticalContext(
+        fen = fen,
+        playedMove = playedMove,
+        playedSan = "Nxd5",
+        line = line,
+        scoreCp = 14
+      )
+    val replay =
+      MoveReviewExchangeAnalyzer
+        .boundedTopReplay(fen, List(VariationLine(line, scoreCp = 14, depth = 18)), maxPlies = 2)
+        .getOrElse(fail("Botvinnik-Vidmar simplification public witness line should replay legally"))
+    val surface =
+      StrategyPackSurface.from(
+        Some(
+          StrategyPack(
+            sideToMove = "white",
+            pieceMoveRefs =
+              List(
+                StrategyPieceMoveRef(
+                  ownerSide = "white",
+                  piece = "N",
+                  from = "c3",
+                  target = "d5",
+                  idea = "simplification trade keeps the local edge on d5",
+                  tacticalTheme = Some("simplification")
+                )
+              ),
+            directionalTargets =
+              List(
+                StrategyDirectionalTarget(
+                  targetId = "target_d5_simplification",
+                  ownerSide = "white",
+                  piece = "N",
+                  from = "c3",
+                  targetSquare = "d5",
+                  readiness = DirectionalTargetReadiness.Build,
+                  strategicReasons = List("trade keeps the same local edge on d5"),
+                  evidence = List("source-window")
+                )
+              ),
+            strategicIdeas =
+              List(
+                StrategyIdeaSignal(
+                  ideaId = "source-botvinnik-vidmar-1936-simplification-window-idea",
+                  ownerSide = "white",
+                  kind = StrategicIdeaKind.FavorableTradeOrTransformation,
+                  group = StrategicIdeaGroup.InteractionAndTransformation,
+                  readiness = StrategicIdeaReadiness.Ready,
+                  focusSquares = List("d5"),
+                  beneficiaryPieces = List("Nc3", "Bg5"),
+                  confidence = 0.86,
+                  evidenceRefs =
+                    List(
+                      EvidenceRef.Source(EvidenceSourceId.ClassificationTransformationWindow).wireKey
+                    ),
+                  targetSquare = Some("d5")
+                )
+              )
+          )
+        )
+      )
+    val delta =
+      PlayerFacingTruthModePolicy
+        .mainPathMoveDeltaEvidence(simplificationCtx, surface, Some(safeTruthContract(playedMove)))
+        .getOrElse(fail("expected Botvinnik-Vidmar simplification exact-slice move-delta packet"))
+    val packet = delta.packet
+    val exactProof = PlayerFacingExactSliceProof.SimplificationWindow("d5")
+    val rows =
+      noRankedSupportedLocalRows(
+        localCtx = simplificationCtx,
+        localInputs =
+          inputs(
+            packet = packet,
+            claimText = "This trade keeps the same local edge on d5."
+          ),
+        playedMove = playedMove
+      )
+
+    assertEquals(simplificationCtx.fen, fen)
+    assertEquals(replay.map(_.uci), line.take(2))
+    assertEquals(delta.deltaClass, PlayerFacingMoveDeltaClass.ExchangeForcing)
+    assertEquals(packet.proofSource, PlanTaxonomy.PlanKind.SimplificationWindow.id)
+    assertEquals(packet.proofFamily, PlanTaxonomy.PlanKind.SimplificationWindow.id)
+    assertEquals(packet.proofPathWitness.exactSliceProof, Some(exactProof))
+    assert(PlayerFacingExactSliceProofFacts.matchesPacket(packet, exactProof), clue(packet))
+    assertEquals(packet.bestDefenseMove, Some("Nfxd5"))
+    assert(packet.bestDefenseBranchKey.nonEmpty, clue(packet))
+    assertEquals(packet.sameBranchState, PlayerFacingSameBranchState.Proven)
+    assertEquals(packet.persistence, PlayerFacingClaimPersistence.Stable)
+    assertEquals(rows.map(_.label), List("Simplification"), clue(rows))
+    assertEquals(rows.head.text, "The checked line keeps the same local edge after the exchange on d5.")
+    assertEquals(
+      rows.head.authority,
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("d5"))),
+      clue(rows)
+    )
+  }
+
+  test("projects natural same-task simplification exact-slice packets through the public row") {
+    val cases =
+      List(
+        (
+          "natural-K09B",
+          "r2qr1k1/pp2bpp1/2n1bn1p/3p4/3N4/2N1B1P1/PPQ1PPBP/R4RK1 w - - 4 13",
+          List("d4e6", "f7e6", "a1d1", "g8h8", "e3f4", "d8b6", "a2a3", "a8c8", "e2e4", "c6d4", "c2d2", "d4b3"),
+          60
+        ),
+        (
+          "natural-K09F",
+          "2rqr1k1/pp2bpp1/2n1bn1p/3p4/3N4/P1N1B1P1/1P2PPBP/2RQ1RK1 w - - 1 14",
+          List("d4e6", "f7e6", "g2h3", "d8d7", "c1c2", "e7f8", "c3b5", "a7a6", "b5d4"),
+          40
+        )
+      )
+
+    cases.foreach { case (fixtureId, fen, line, scoreCp) =>
+      val playedMove = "d4e6"
+      val exchangeSquare = "e6"
+      val simplificationCtx =
+        topPvPracticalContext(
+          fen = fen,
+          playedMove = playedMove,
+          playedSan = "Nxe6",
+          line = line,
+          scoreCp = scoreCp
+        )
+      val replay =
+        MoveReviewExchangeAnalyzer
+          .boundedTopReplay(fen, List(VariationLine(line, scoreCp = scoreCp, depth = 18)), maxPlies = 2)
+          .getOrElse(fail(s"$fixtureId simplification public witness line should replay legally"))
+      val surface =
+        StrategyPackSurface.from(
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              pieceMoveRefs =
+                List(
+                  StrategyPieceMoveRef(
+                    ownerSide = "white",
+                    piece = "N",
+                    from = "d4",
+                    target = exchangeSquare,
+                    idea = s"simplification trade keeps the local edge on $exchangeSquare",
+                    tacticalTheme = Some("simplification")
+                  )
+                ),
+              directionalTargets =
+                List(
+                  StrategyDirectionalTarget(
+                    targetId = s"target_${exchangeSquare}_simplification",
+                    ownerSide = "white",
+                    piece = "N",
+                    from = "d4",
+                    targetSquare = exchangeSquare,
+                    readiness = DirectionalTargetReadiness.Build,
+                    strategicReasons = List(s"trade keeps the same local edge on $exchangeSquare"),
+                    evidence = List("natural-same-task-simplification")
+                  )
+                ),
+              strategicIdeas =
+                List(
+                  StrategyIdeaSignal(
+                    ideaId = s"$fixtureId-simplification-window-idea",
+                    ownerSide = "white",
+                    kind = StrategicIdeaKind.FavorableTradeOrTransformation,
+                    group = StrategicIdeaGroup.InteractionAndTransformation,
+                    readiness = StrategicIdeaReadiness.Ready,
+                    focusSquares = List(exchangeSquare),
+                    beneficiaryPieces = List("Nd4", "Be3"),
+                    confidence = 0.82,
+                    evidenceRefs =
+                      List(
+                        EvidenceRef.Source(EvidenceSourceId.ClassificationTransformationWindow).wireKey
+                      ),
+                    targetSquare = Some(exchangeSquare)
+                  )
+                )
+            )
+          )
+        )
+      val delta =
+        PlayerFacingTruthModePolicy
+          .mainPathMoveDeltaEvidence(simplificationCtx, surface, Some(safeTruthContract(playedMove)))
+          .getOrElse(fail(s"expected $fixtureId simplification exact-slice move-delta packet"))
+      val packet = delta.packet
+      val exactProof = PlayerFacingExactSliceProof.SimplificationWindow(exchangeSquare)
+      val rows =
+        noRankedSupportedLocalRows(
+          localCtx = simplificationCtx,
+          localInputs =
+            inputs(
+              packet = packet,
+              claimText = s"This trade keeps the same local edge on $exchangeSquare."
+            ),
+          playedMove = playedMove
+        )
+
+      assertEquals(simplificationCtx.fen, fen, clue(fixtureId))
+      assertEquals(replay.map(_.uci), line.take(2), clue(fixtureId))
+      assertEquals(delta.deltaClass, PlayerFacingMoveDeltaClass.ExchangeForcing, clue(fixtureId))
+      assertEquals(packet.proofSource, PlanTaxonomy.PlanKind.SimplificationWindow.id, clue(fixtureId))
+      assertEquals(packet.proofFamily, PlanTaxonomy.PlanKind.SimplificationWindow.id, clue(fixtureId))
+      assertEquals(packet.proofPathWitness.exactSliceProof, Some(exactProof), clue(fixtureId))
+      assert(PlayerFacingExactSliceProofFacts.matchesPacket(packet, exactProof), clue(fixtureId -> packet))
+      assertEquals(packet.bestDefenseMove, Some("fxe6"), clue(fixtureId -> packet))
+      assert(packet.bestDefenseBranchKey.nonEmpty, clue(fixtureId -> packet))
+      assertEquals(packet.sameBranchState, PlayerFacingSameBranchState.Proven, clue(fixtureId))
+      assertEquals(packet.persistence, PlayerFacingClaimPersistence.Stable, clue(fixtureId))
+      assertEquals(rows.map(_.label), List("Simplification"), clue(fixtureId -> rows))
+      assertEquals(rows.head.text, "The checked line keeps the same local edge after the exchange on e6.", clue(fixtureId -> rows))
+      assertEquals(
+        rows.head.authority,
+        Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("e6"))),
+        clue(fixtureId -> rows)
+      )
+    }
+  }
+
+  test("does not project simplification-window rows without typed exact proof") {
+    val rows =
+      noRankedSupportedLocalRows(
+        localInputs = inputs(packet = supportedSimplificationPacket(exactSliceProof = None))
+      )
+
+    assertEquals(rows, Nil)
   }
 
   test("does not project simplification-window prose without an exchange-square witness") {
@@ -1526,6 +2610,103 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       noRankedSupportedLocalRows(localInputs = inputs(packet = supportedCounterplayRestraintPacket()))
 
     assertEquals(rows.map(_.label), List("Counterplay restraint"))
+    assertEquals(rows.head.text, "The checked line keeps the opponent's break restrained.")
+    assertEquals(
+      rows.head.authority,
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))
+    )
+  }
+
+  test("projects FEN-backed counterplay-restraint exact-slice packet through the public row") {
+    val restraintPlan =
+      PlanHypothesis(
+        planId = "fen_backed_counterplay_restraint",
+        planName = "Counterplay restraint",
+        rank = 1,
+        score = 0.86,
+        preconditions = List("The opponent's break resource can be held back."),
+        executionSteps = List("Keep the restraint stable on the best-defense branch."),
+        failureModes = List("The break resource is released too soon."),
+        viability = PlanViability(0.82, "high", "best-defense branch keeps the resource denied"),
+        themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+        subplanId = Some(PlanTaxonomy.PlanKind.ProphylaxisRestraint.id)
+      )
+    val baseCtx =
+      topPvPracticalContext(
+        fen = "2r2rk1/pp3pp1/2n1p2p/3p4/3P1P2/2P1PN1P/PP4P1/2R2RK1 w - - 0 23",
+        playedMove = "a2a3",
+        playedSan = "a3",
+        line = List("a2a3", "f8e8"),
+        scoreCp = 74
+      )
+    val counterplayCtx =
+      baseCtx.copy(
+        semantic =
+          baseCtx.semantic.map(
+            _.copy(
+              preventedPlans =
+                List(
+                  PreventedPlanInfo(
+                    planId = "deny_break_resource",
+                    deniedSquares = Nil,
+                    breakNeutralized = None,
+                    mobilityDelta = -1,
+                    counterplayScoreDrop = 140,
+                    preventedThreatType = Some("counterplay"),
+                    deniedResourceClass = Some("break"),
+                    sourceScope = FactScope.Now,
+                    citationLine = Some("The checked branch keeps the break resource unavailable.")
+                  )
+                )
+            )
+          ),
+        mainStrategicPlans = List(restraintPlan),
+        strategicPlanEvidence = StrategicPlanEvidenceTestSupport.probeBacked(List(restraintPlan))
+      )
+    val truthContract =
+      safeTruthContract("a2a3").copy(verifiedPayoffAnchor = Some("denied_resource:break"))
+    val surface =
+      StrategyPackSurface.from(
+        Some(
+          StrategyPack(
+            sideToMove = "white",
+            pieceMoveRefs =
+              List(
+                StrategyPieceMoveRef(
+                  ownerSide = "white",
+                  piece = "pawn",
+                  from = "a2",
+                  target = "denied_resource:break",
+                  idea = "keeps the break resource restrained",
+                  evidence = List("top_pv_branch:a2a3 f8e8")
+                )
+              )
+          )
+        )
+      )
+    val delta =
+      PlayerFacingTruthModePolicy
+        .mainPathMoveDeltaEvidence(counterplayCtx, surface, Some(truthContract))
+        .getOrElse(fail("expected counterplay-restraint exact-slice move-delta packet"))
+    val packet = delta.packet
+    val exactProof = PlayerFacingExactSliceProof.ProphylacticRestraint("denied_resource:break")
+    val rows =
+      noRankedSupportedLocalRows(
+        localCtx = counterplayCtx,
+        localInputs = inputs(packet = packet, claimText = "The move keeps the opponent's break restrained."),
+        playedMove = "a2a3"
+      )
+
+    assertEquals(counterplayCtx.fen, "2r2rk1/pp3pp1/2n1p2p/3p4/3P1P2/2P1PN1P/PP4P1/2R2RK1 w - - 0 23")
+    assertEquals(packet.proofSource, ProofSourceId.ProphylacticMove.wireKey)
+    assertEquals(packet.proofFamily, ProofFamilyId.CounterplayRestraint.wireKey)
+    assertEquals(packet.proofPathWitness.exactSliceProof, Some(exactProof))
+    assert(PlayerFacingExactSliceProofFacts.matchesPacket(packet, exactProof), clue(packet))
+    assertEquals(packet.bestDefenseMove, Some("Rfe8"))
+    assert(packet.bestDefenseBranchKey.nonEmpty, clue(packet))
+    assertEquals(packet.sameBranchState, PlayerFacingSameBranchState.Proven)
+    assertEquals(packet.persistence, PlayerFacingClaimPersistence.Stable)
+    assertEquals(rows.map(_.label), List("Counterplay restraint"), clue(rows))
     assertEquals(rows.head.text, "The checked line keeps the opponent's break restrained.")
     assertEquals(
       rows.head.authority,
@@ -1570,6 +2751,274 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       )
 
     assertEquals(rows, Nil)
+  }
+
+  test("projects FEN-backed defender-trade exact-slice packet through the public row") {
+    val defenderPlan =
+      PlanHypothesis(
+        planId = "fen_backed_defender_trade",
+        planName = "Defender trade",
+        rank = 1,
+        score = 0.88,
+        preconditions = List("The defender can be drawn onto the exchange square."),
+        executionSteps = List("Trade on a3 and recapture to remove the defender."),
+        failureModes = List("The defender remains attached to the target."),
+        viability = PlanViability(0.84, "high", "top-PV branch removes the defender"),
+        themeL1 = PlanTaxonomy.PlanTheme.FavorableExchange.id,
+        subplanId = Some(PlanTaxonomy.PlanKind.DefenderTrade.id)
+      )
+    val defenderCtx =
+      withFocalTarget(
+        topPvPracticalContext(
+          fen = "3k1b1r/p2b1ppp/1n3n2/4p3/8/1R4P1/P1QPqPBP/2B2RK1 w - - 0 17",
+          playedMove = "c1a3",
+          playedSan = "Ba3",
+          line = List("c1a3", "f8a3", "b3a3"),
+          scoreCp = 44
+        ).copy(
+          mainStrategicPlans = List(defenderPlan),
+          strategicPlanEvidence = StrategicPlanEvidenceTestSupport.probeBacked(List(defenderPlan))
+        ),
+        "c5"
+      )
+    val delta =
+      PlayerFacingTruthModePolicy
+        .mainPathMoveDeltaEvidence(defenderCtx, StrategyPackSurface.from(None), Some(safeTruthContract("c1a3")))
+        .getOrElse(fail("expected defender-trade exact-slice move-delta packet"))
+    val packet = delta.packet
+    val exactProof = PlayerFacingExactSliceProof.DefenderTrade("f8", "a3", "c5")
+    val rows =
+      noRankedSupportedLocalRows(
+        localCtx = defenderCtx,
+        localInputs =
+          inputs(
+            packet = packet,
+            claimText = "The checked line trades on a3 to remove the defender from f8, loosening c5."
+          ),
+        playedMove = "c1a3"
+      )
+
+    assertEquals(defenderCtx.fen, "3k1b1r/p2b1ppp/1n3n2/4p3/8/1R4P1/P1QPqPBP/2B2RK1 w - - 0 17")
+    assertEquals(packet.proofSource, PlayerFacingTruthModePolicy.DefenderTradeProofSource)
+    assertEquals(packet.proofFamily, ProofFamilyId.fromPlanKind(PlanTaxonomy.PlanKind.DefenderTrade).get.wireKey)
+    assertEquals(packet.proofPathWitness.exactSliceProof, Some(exactProof))
+    assert(PlayerFacingExactSliceProofFacts.matchesPacket(packet, exactProof), clue(packet))
+    assertEquals(packet.bestDefenseMove, Some("Bxa3"))
+    assert(packet.bestDefenseBranchKey.nonEmpty, clue(packet))
+    assertEquals(packet.sameBranchState, PlayerFacingSameBranchState.Proven)
+    assertEquals(packet.persistence, PlayerFacingClaimPersistence.Stable)
+    assertEquals(rows.map(_.label), List("Defender trade"), clue(rows))
+    assertEquals(rows.head.text, "The checked line trades on a3 to remove the defender from f8, loosening c5.")
+    assertEquals(
+      rows.head.authority,
+      Some(
+        MoveReviewSurfaceAuthority(
+          kind = MoveReviewSurfaceAuthority.StrategicRelation,
+          token = Some(MoveReviewExchangeAnalyzer.RelationKind.DefenderTrade),
+          target = Some("c5")
+        )
+      ),
+      clue(rows)
+    )
+  }
+
+  test("projects PGN-backed bad-piece-liquidation exact-slice packet through the public row") {
+    val badPieceCtx =
+      topPvPracticalContext(
+        fen = "r2qr1k1/pp3pn1/2pb2pp/3pB3/NP1P4/3QP2P/P4PP1/1RR3K1 w - - 1 22",
+        playedMove = "e5d6",
+        playedSan = "Bxd6",
+        line = List("e5d6", "d8d6", "b4b5"),
+        scoreCp = 20
+      )
+    val delta =
+      PlayerFacingTruthModePolicy
+        .mainPathMoveDeltaEvidence(badPieceCtx, StrategyPackSurface.from(None), Some(safeTruthContract("e5d6")))
+        .getOrElse(fail("expected bad-piece-liquidation exact-slice move-delta packet"))
+    val packet = delta.packet
+    val exactProof = PlayerFacingExactSliceProof.BadPieceLiquidation("e5", "d6")
+    val rows =
+      noRankedSupportedLocalRows(
+        localCtx = badPieceCtx,
+        localInputs =
+          inputs(
+            packet = packet,
+            claimText = "The checked line trades on d6 to clear the bad piece from e5."
+          ),
+        playedMove = "e5d6"
+      )
+
+    assertEquals(badPieceCtx.fen, "r2qr1k1/pp3pn1/2pb2pp/3pB3/NP1P4/3QP2P/P4PP1/1RR3K1 w - - 1 22")
+    assertEquals(delta.deltaClass, PlayerFacingMoveDeltaClass.ExchangeForcing)
+    assertEquals(packet.proofSource, PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource)
+    assertEquals(packet.proofFamily, ProofFamilyId.fromPlanKind(PlanTaxonomy.PlanKind.BadPieceLiquidation).get.wireKey)
+    assertEquals(packet.proofPathWitness.exactSliceProof, Some(exactProof))
+    assert(PlayerFacingExactSliceProofFacts.matchesPacket(packet, exactProof), clue(packet))
+    assertEquals(packet.bestDefenseMove, Some("Qxd6"))
+    assert(packet.bestDefenseBranchKey.nonEmpty, clue(packet))
+    assertEquals(packet.sameBranchState, PlayerFacingSameBranchState.Proven)
+    assertEquals(packet.persistence, PlayerFacingClaimPersistence.Stable)
+    assertEquals(rows.map(_.label), List("Bad piece trade"), clue(rows))
+    assertEquals(rows.head.text, "The checked line trades on d6 to clear the bad piece from e5.")
+    assertEquals(
+      rows.head.authority,
+      Some(
+        MoveReviewSurfaceAuthority(
+          kind = MoveReviewSurfaceAuthority.StrategicRelation,
+          token = Some(MoveReviewExchangeAnalyzer.RelationKind.BadPieceLiquidation),
+          target = Some("d6")
+        )
+      ),
+      clue(rows)
+    )
+  }
+
+  test("projects FEN-backed bad-piece-liquidation pilot exact-slice packet through the public row") {
+    val badPieceCtx =
+      topPvPracticalContext(
+        fen = "5b2/4k1pp/8/8/3P4/1R2P3/P4PPP/2B3K1 w - - 0 1",
+        playedMove = "c1a3",
+        playedSan = "Ba3",
+        line = List("c1a3", "e7f7", "a3f8", "f7f8"),
+        scoreCp = 38
+      )
+    val delta =
+      PlayerFacingTruthModePolicy
+        .mainPathMoveDeltaEvidence(badPieceCtx, StrategyPackSurface.from(None), Some(safeTruthContract("c1a3")))
+        .getOrElse(fail("expected bad-piece-liquidation pilot exact-slice move-delta packet"))
+    val packet = delta.packet
+    val exactProof = PlayerFacingExactSliceProof.BadPieceLiquidation("c1", "f8")
+    val rows =
+      noRankedSupportedLocalRows(
+        localCtx = badPieceCtx,
+        localInputs =
+          inputs(
+            packet = packet,
+            claimText = "The checked line trades on f8 to clear the bad piece from c1."
+          ),
+        playedMove = "c1a3"
+      )
+
+    assertEquals(badPieceCtx.fen, "5b2/4k1pp/8/8/3P4/1R2P3/P4PPP/2B3K1 w - - 0 1")
+    assertEquals(delta.deltaClass, PlayerFacingMoveDeltaClass.ExchangeForcing)
+    assertEquals(packet.proofSource, PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource)
+    assertEquals(packet.proofFamily, ProofFamilyId.fromPlanKind(PlanTaxonomy.PlanKind.BadPieceLiquidation).get.wireKey)
+    assertEquals(packet.proofPathWitness.exactSliceProof, Some(exactProof))
+    assert(PlayerFacingExactSliceProofFacts.matchesPacket(packet, exactProof), clue(packet))
+    assertEquals(packet.bestDefenseMove, Some("Kf7"))
+    assert(packet.bestDefenseBranchKey.nonEmpty, clue(packet))
+    assertEquals(packet.sameBranchState, PlayerFacingSameBranchState.Proven)
+    assertEquals(packet.persistence, PlayerFacingClaimPersistence.Stable)
+    assertEquals(rows.map(_.label), List("Bad piece trade"), clue(rows))
+    assertEquals(rows.head.text, "The checked line trades on f8 to clear the bad piece from c1.")
+    assertEquals(
+      rows.head.authority,
+      Some(
+        MoveReviewSurfaceAuthority(
+          kind = MoveReviewSurfaceAuthority.StrategicRelation,
+          token = Some(MoveReviewExchangeAnalyzer.RelationKind.BadPieceLiquidation),
+          target = Some("f8")
+        )
+      ),
+      clue(rows)
+    )
+  }
+
+  test("projects PGN-backed queen-trade exact-slice packet through the public row") {
+    val queenTradeCtx =
+      topPvPracticalContext(
+        fen = "r1bqk2r/1p1p1ppp/p1n1pn2/8/1bPNP3/2NQ4/PP3PPP/R1B1KB1R w KQkq - 5 8",
+        playedMove = "d4c6",
+        playedSan = "Nxc6",
+        line = List("d4c6", "d7c6", "d3d8", "e8d8"),
+        scoreCp = 20
+      )
+    val delta =
+      PlayerFacingTruthModePolicy
+        .mainPathMoveDeltaEvidence(queenTradeCtx, StrategyPackSurface.from(None), Some(safeTruthContract("d4c6")))
+        .getOrElse(fail("expected queen-trade exact-slice move-delta packet"))
+    val packet = delta.packet
+    val exactProof = PlayerFacingExactSliceProof.QueenTradeShield(List("d4c6", "d7c6", "d3d8", "e8d8"))
+    val rows =
+      noRankedSupportedLocalRows(
+        localCtx = queenTradeCtx,
+        localInputs =
+          inputs(
+            packet = packet,
+            claimText = "This exchange moves the game into the queenless branch."
+          ),
+        playedMove = "d4c6"
+      )
+
+    assertEquals(
+      queenTradeCtx.fen,
+      "r1bqk2r/1p1p1ppp/p1n1pn2/8/1bPNP3/2NQ4/PP3PPP/R1B1KB1R w KQkq - 5 8"
+    )
+    assertEquals(delta.deltaClass, PlayerFacingMoveDeltaClass.ExchangeForcing)
+    assertEquals(packet.proofSource, PlayerFacingTruthModePolicy.QueenTradeShieldProofSource)
+    assertEquals(packet.proofFamily, ProofFamilyId.fromPlanKind(PlanTaxonomy.PlanKind.QueenTradeShield).get.wireKey)
+    assertEquals(packet.proofPathWitness.exactSliceProof, Some(exactProof))
+    assert(PlayerFacingExactSliceProofFacts.matchesPacket(packet, exactProof), clue(packet))
+    assertEquals(packet.bestDefenseMove, Some("dxc6"))
+    assert(packet.bestDefenseBranchKey.nonEmpty, clue(packet))
+    assertEquals(packet.sameBranchState, PlayerFacingSameBranchState.Ambiguous)
+    assertEquals(packet.persistence, PlayerFacingClaimPersistence.BestDefenseOnly)
+    assertEquals(rows.map(_.label), List("Queen trade"), clue(rows))
+    assertEquals(rows.head.text, "This exchange moves the game into the queenless branch.")
+    assertEquals(
+      rows.head.authority,
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
+      clue(rows)
+    )
+  }
+
+  test("projects Carlsen-Anand queen-trade completion exact-slice packet through the public row") {
+    val queenTradeCtx =
+      topPvPracticalContext(
+        fen = "r1bqk2r/1p3ppp/p1p1pn2/8/1bP1P3/2NQ4/PP3PPP/R1B1KB1R w KQkq - 0 9",
+        playedMove = "d3d8",
+        playedSan = "Qxd8+",
+        line = List("d3d8", "e8d8", "e4e5", "f6d7"),
+        scoreCp = 20
+      )
+    val delta =
+      PlayerFacingTruthModePolicy
+        .mainPathMoveDeltaEvidence(queenTradeCtx, StrategyPackSurface.from(None), Some(safeTruthContract("d3d8")))
+        .getOrElse(fail("expected queen-trade completion exact-slice move-delta packet"))
+    val packet = delta.packet
+    val exactProof = PlayerFacingExactSliceProof.QueenTradeShield(List("d3d8", "e8d8"))
+    val rows =
+      noRankedSupportedLocalRows(
+        localCtx = queenTradeCtx,
+        localInputs =
+          inputs(
+            packet = packet,
+            claimText = "This exchange moves the game into the queenless branch."
+          ),
+        playedMove = "d3d8"
+      )
+
+    assertEquals(
+      queenTradeCtx.fen,
+      "r1bqk2r/1p3ppp/p1p1pn2/8/1bP1P3/2NQ4/PP3PPP/R1B1KB1R w KQkq - 0 9"
+    )
+    assertEquals(queenTradeCtx.playedMove, Some("d3d8"))
+    assertEquals(delta.deltaClass, PlayerFacingMoveDeltaClass.ExchangeForcing)
+    assertEquals(packet.proofSource, PlayerFacingTruthModePolicy.QueenTradeShieldProofSource)
+    assertEquals(packet.proofFamily, ProofFamilyId.fromPlanKind(PlanTaxonomy.PlanKind.QueenTradeShield).get.wireKey)
+    assertEquals(packet.proofPathWitness.exactSliceProof, Some(exactProof))
+    assert(PlayerFacingExactSliceProofFacts.matchesPacket(packet, exactProof), clue(packet))
+    assertEquals(packet.bestDefenseMove, Some("Kxd8"))
+    assert(packet.bestDefenseBranchKey.nonEmpty, clue(packet))
+    assertEquals(packet.sameBranchState, PlayerFacingSameBranchState.Ambiguous)
+    assertEquals(packet.persistence, PlayerFacingClaimPersistence.BestDefenseOnly)
+    assertEquals(rows.map(_.label), List("Queen trade"), clue(rows))
+    assertEquals(rows.head.text, "This exchange moves the game into the queenless branch.")
+    assertEquals(
+      rows.head.authority,
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
+      clue(rows)
+    )
   }
 
   test("projects admitted exchange ownership packets into bounded rows") {
@@ -4206,6 +5655,12 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
           "This trade keeps the same local edge on d5.",
           "Simplification",
           "The checked line keeps the same local edge after the exchange on d5."
+        ),
+        (
+          supportedOutpostPacket(),
+          "The move occupies the e5 outpost.",
+          "Knight outpost",
+          "The checked line puts the knight on the e5 outpost."
         ),
         (
           supportedCounterplayRestraintPacket(),

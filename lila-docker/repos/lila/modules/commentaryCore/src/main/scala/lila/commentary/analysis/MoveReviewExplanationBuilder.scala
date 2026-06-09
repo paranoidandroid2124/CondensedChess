@@ -7,29 +7,48 @@ import lila.commentary.model.*
 
 private[commentary] object MoveReviewExplanationBuilder:
 
+  private[commentary] final case class Result(
+      explanation: MoveReviewExplanation,
+      localFact: MoveReviewLocalFact.Admission
+  )
+
   def build(
       ctx: NarrativeContext,
       refs: Option[MoveReviewRefs],
       truthContract: Option[DecisiveTruthContract] = None,
-      strategyPack: Option[StrategyPack] = None
+      strategyPack: Option[StrategyPack] = None,
+      strictLocalFacts: Boolean = false
   ): Option[MoveReviewExplanation] =
+    buildWithLocalFact(ctx, refs, truthContract, strategyPack, strictLocalFacts).map(_.explanation)
+
+  private[commentary] def buildWithLocalFact(
+      ctx: NarrativeContext,
+      refs: Option[MoveReviewRefs],
+      truthContract: Option[DecisiveTruthContract] = None,
+      strategyPack: Option[StrategyPack] = None,
+      strictLocalFacts: Boolean = false
+  ): Option[Result] =
     for
       played <- current(ctx)
       lineFacts = MoveReviewPvLine.firstCoupled(ctx.fen, played.uci, refs)
       evidence = moveReviewEvidence(ctx, played, strategyPack, truthContract)
-      descriptor <- CommentaryIdeaSurface.describe(played, evidence, lineFacts, truthContract)
+      descriptor <- CommentaryIdeaSurface.describe(played, evidence, lineFacts, truthContract, strictLocalFacts)
       pvInterpretation = descriptor.pvInterpretation(lineFacts)
       shortLine = MoveReviewPvLine.shortLine(refs, pvInterpretation.flatMap(_.supportedByLineId))
     yield
-      MoveReviewExplanation(
-        title = descriptor.title,
-        prose = descriptor.prose,
-        qualityLabel = qualityLabel(truthContract),
-        reasonTags = descriptor.reasonTags,
-        shortLine = shortLine,
-        pvInterpretation = pvInterpretation,
-        source = descriptor.source,
-        factFragments = Option.when(descriptor.factFragments.nonEmpty)(descriptor.factFragments)
+      Result(
+        explanation =
+          MoveReviewExplanation(
+            title = descriptor.title,
+            prose = descriptor.prose,
+            qualityLabel = qualityLabel(truthContract),
+            reasonTags = descriptor.reasonTags,
+            shortLine = shortLine,
+            pvInterpretation = pvInterpretation,
+            source = descriptor.source,
+            factFragments = Option.when(descriptor.factFragments.nonEmpty)(descriptor.factFragments)
+          ),
+        localFact = descriptor.localFact
       )
 
   def current(ctx: NarrativeContext): Option[CommentaryIdeaSurface.PlayedMove] =

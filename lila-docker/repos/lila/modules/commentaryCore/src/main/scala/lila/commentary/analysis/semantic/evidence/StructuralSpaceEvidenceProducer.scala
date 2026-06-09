@@ -5,7 +5,7 @@ import lila.commentary.analysis.StrategicIdeaSemanticContext
 import lila.commentary.analysis.semantic.{ StrategicIdeaEvidence, StrategicIdeaEvidenceProducer, StrategicIdeaEvidenceTier }
 import lila.commentary.analysis.semantic.StrategicObservationIds.EvidenceSourceId
 import _root_.chess.{ Color, Square }
-import lila.commentary.model.{ PlanId }
+import lila.commentary.model.{ Motif, PlanId }
 import lila.commentary.model.strategic.{ PositionalTag }
 import lila.commentary.model.structure.{ CenterState, StructureId }
 
@@ -51,6 +51,57 @@ private[commentary] object StructuralSpaceEvidenceProducer extends StrategicIdea
           )
       }
 
+    val motifEvidence =
+      semantic.motifs.collect {
+        case Motif.SpaceAdvantage(color, pawnDelta, _, _) if matchesSide(color, side) && pawnDelta >= 2 =>
+          evidence(
+            ownerSide = side,
+            kind = StrategicIdeaKind.SpaceGainOrRestriction,
+            readiness = StrategicIdeaReadiness.Ready,
+            source = EvidenceSourceId.SpaceAdvantageMotif,
+            confidence = 0.72 + math.min(0.06, (pawnDelta - 2) * 0.02),
+            focusZone = Some("center"),
+            factIds = List("space_advantage_motif_shape", s"space_pawn_delta_$pawnDelta")
+          )
+      }
+
+    val centralPawnAdvanceEvidence =
+      semantic.motifs.collect {
+        case motif @ Motif.PawnAdvance(file, _, _, color, _, _) if matchesSide(color, side) =>
+          val fileKey = fileToken(file)
+          Option
+            .when(Set("c", "d", "e", "f").contains(fileKey) && motif.relativeTo >= 4) {
+              evidence(
+                ownerSide = side,
+                kind = StrategicIdeaKind.SpaceGainOrRestriction,
+                readiness = StrategicIdeaReadiness.Build,
+                source = EvidenceSourceId.CentralPawnAdvanceMotif,
+                confidence = 0.70,
+                focusFiles = List(fileKey),
+                focusZone = Some("center"),
+                factIds = List("central_pawn_advance_shape", s"central_pawn_file_$fileKey", s"central_pawn_to_rank_${motif.relativeTo}")
+              )
+            }
+            .toList
+      }.flatten
+
+    val pawnChainEvidence =
+      semantic.motifs.collect {
+        case Motif.PawnChain(baseFile, tipFile, color, _, _) if matchesSide(color, side) =>
+          val base = fileToken(baseFile)
+          val tip = fileToken(tipFile)
+          evidence(
+            ownerSide = side,
+            kind = StrategicIdeaKind.SpaceGainOrRestriction,
+            readiness = StrategicIdeaReadiness.Build,
+            source = EvidenceSourceId.PawnChainSpaceMotif,
+            confidence = 0.74,
+            focusFiles = List(base, tip).distinct,
+            focusZone = zoneFromFileToken(tip).orElse(zoneFromFileToken(base)),
+            factIds = List("pawn_chain_space_shape", s"pawn_chain_${base}_$tip")
+          )
+      }
+
     val clampEvidence =
       semantic.strategicState
         .filter(colorComplexClampFor(side, _))
@@ -87,7 +138,7 @@ private[commentary] object StructuralSpaceEvidenceProducer extends StrategicIdea
               source = EvidenceSourceId.CentralSpaceEdge,
               confidence = 0.74 + math.min(0.08, (spaceDiffFor(side, features) - 2) * 0.02),
               focusZone = Some("center"),
-              factIds = List("central_space_edge")
+              factIds = List("central_space_edge_shape")
             )
           }
         }
@@ -106,7 +157,7 @@ private[commentary] object StructuralSpaceEvidenceProducer extends StrategicIdea
               source = EvidenceSourceId.MobilityRestriction,
               confidence = 0.68 + math.min(0.06, (enemyLow - ours) * 0.02),
               focusZone = Some("center"),
-              factIds = List("mobility_restriction")
+              factIds = List("mobility_restriction_shape")
             )
           }
         }
@@ -174,7 +225,10 @@ private[commentary] object StructuralSpaceEvidenceProducer extends StrategicIdea
       }.toList
 
     val iqpSpaceBridge =
-      Option.when(structureIs(semantic, StructureId.IQPWhite) && side == "white") {
+      Option.when(
+        (structureIs(semantic, StructureId.IQPWhite) && side == "white") ||
+        (structureIs(semantic, StructureId.IQPBlack) && side == "black")
+      ) {
         evidence(
           ownerSide = side,
           kind = StrategicIdeaKind.SpaceGainOrRestriction,
@@ -182,15 +236,14 @@ private[commentary] object StructuralSpaceEvidenceProducer extends StrategicIdea
           source = EvidenceSourceId.IqpSpaceBridge,
           confidence = 0.84,
           focusZone = Some("center"),
-          factIds = List("structure_iqp_white")
+          factIds = List(s"structure_iqp_${if side == "white" then "white" else "black"}")
         )
       }.toList
 
     val iqpCentralPresence =
       Option.when(
-        structureIs(semantic, StructureId.IQPWhite) &&
-          side == "white" &&
-          semantic.board.exists(board => pawnAt(board, Color.White, Square.D4))
+        (structureIs(semantic, StructureId.IQPWhite) && side == "white" && semantic.board.exists(board => pawnAt(board, Color.White, Square.D4))) ||
+        (structureIs(semantic, StructureId.IQPBlack) && side == "black" && semantic.board.exists(board => pawnAt(board, Color.Black, Square.D5)))
       ) {
         evidence(
           ownerSide = side,
@@ -198,13 +251,13 @@ private[commentary] object StructuralSpaceEvidenceProducer extends StrategicIdea
           readiness = StrategicIdeaReadiness.Build,
           source = EvidenceSourceId.IqpCentralPresence,
           confidence = 0.82,
-          focusSquares = List("d4"),
+          focusSquares = List(if side == "white" then "d4" else "d5"),
           focusZone = Some("center"),
-          factIds = List("structure_iqp_white", "iqp_central_presence")
+          factIds = List(s"structure_iqp_${if side == "white" then "white" else "black"}", "iqp_central_presence_shape")
         )
       }.toList
 
-    tagEvidence ++ clampEvidence ++ centralSpaceEvidence ++ mobilityRestriction ++ lockedCenterBind ++ alignmentSpaceRace ++
+    tagEvidence ++ motifEvidence ++ centralPawnAdvanceEvidence ++ pawnChainEvidence ++ clampEvidence ++ centralSpaceEvidence ++ mobilityRestriction ++ lockedCenterBind ++ alignmentSpaceRace ++
       planBridge ++ maroczyProfile ++ iqpSpaceBridge ++ iqpCentralPresence
 
   private def colorComplexToken(squareColor: String): Option[String] =

@@ -18,6 +18,17 @@ object UserFacingPayloadSanitizer:
   private val MoveReviewPlayerSurfaceSchemas =
     Set("chesstory.move_review.player_surface.v1", CurrentMoveReviewPlayerSurfaceSchema)
 
+  private val SurfaceAuthorityTokenPattern = """(?:\.\.\.)?[a-h][1-8](?:-[a-h][1-8])?""".r
+  private val SurfaceAuthorityRouteTokenPattern = """(?:\.\.\.)?[a-h][1-8]-[a-h][1-8]""".r
+  private val SurfaceAuthorityKeyPattern = """[a-z][a-z0-9_]{1,40}""".r
+  private val ChessSquarePattern = """[a-h][1-8]""".r
+
+  private val CoordinationTextPattern =
+    """The checked line coordinates pressure on ([a-h][1-8]) from ([a-h][1-8]) and ([a-h][1-8])\.""".r
+
+  private val ColorComplexTextPattern =
+    """The checked line keeps the (bishop|knight) on ([a-h][1-8]) attacking ([a-h][1-8]) in the (dark|light)-square complex\.""".r
+
   def sanitize(response: CommentResponse): CommentResponse =
     sanitize(response, admittedPlans = Nil)
 
@@ -350,13 +361,15 @@ object UserFacingPayloadSanitizer:
       source = None,
       refSans = cleanList(row.refSans),
       authority =
-        if allowAuthority then sanitizeMoveReviewSurfaceAuthority(row.authority, allowStrategicRelation)
+        if allowAuthority then sanitizeMoveReviewSurfaceAuthority(row.authority, allowStrategicRelation, Some(label), Some(text))
         else None
     )
 
   private def sanitizeMoveReviewSurfaceAuthority(
       authority: Option[MoveReviewSurfaceAuthority],
-      allowStrategicRelation: Boolean
+      allowStrategicRelation: Boolean,
+      rowLabel: Option[String],
+      rowText: Option[String]
   ): Option[MoveReviewSurfaceAuthority] =
     authority.flatMap { raw =>
       val kind = clean(raw.kind)
@@ -370,19 +383,28 @@ object UserFacingPayloadSanitizer:
           target =
             if kind == MoveReviewSurfaceAuthority.OpeningFamily then
               target.filter(square => openingFamily.exists(family => openingTargetAllowed(family, square)))
+            else if kind == MoveReviewSurfaceAuthority.PracticalPlan then
+              target.filter(square => practicalPlanTargetAllowed(rowLabel, rowText, square))
             else target,
           openingBook =
             if kind == MoveReviewSurfaceAuthority.OpeningFamily then
               raw.openingBook.flatMap(MoveReviewOpeningBookMetadata.sanitize)
             else None
         )
-      if validSurfaceAuthority(sanitized, allowStrategicRelation) then Some(sanitized)
+      val unsupportedPracticalTarget =
+        kind == MoveReviewSurfaceAuthority.PracticalPlan &&
+          target.nonEmpty &&
+          !rowLabel.exists(exactPracticalTargetLabel)
+      if !unsupportedPracticalTarget && validSurfaceAuthority(sanitized, allowStrategicRelation, rowLabel, rowText) then
+        Some(sanitized)
       else None
     }
 
   private def validSurfaceAuthority(
       authority: MoveReviewSurfaceAuthority,
-      allowStrategicRelation: Boolean
+      allowStrategicRelation: Boolean,
+      rowLabel: Option[String],
+      rowText: Option[String]
   ): Boolean =
     authority.kind match
       case MoveReviewSurfaceAuthority.CounterplayBreak =>
@@ -398,9 +420,10 @@ object UserFacingPayloadSanitizer:
           authority.target.isEmpty &&
           authority.openingBook.isEmpty
       case MoveReviewSurfaceAuthority.PracticalPlan =>
-        authority.token.isEmpty &&
+          authority.token.isEmpty &&
           authority.openingFamily.isEmpty &&
-          authority.target.isEmpty &&
+          (authority.target.isEmpty ||
+            authority.target.exists(target => practicalPlanTargetAllowed(rowLabel, rowText, target))) &&
           authority.openingBook.isEmpty
       case MoveReviewSurfaceAuthority.OpeningFamily =>
         authority.openingFamily.nonEmpty &&
@@ -421,19 +444,78 @@ object UserFacingPayloadSanitizer:
     }
 
   private def validSurfaceAuthorityToken(token: String): Boolean =
-    token.matches("""(?:\.\.\.)?[a-h][1-8](?:-[a-h][1-8])?""")
+    SurfaceAuthorityTokenPattern.matches(token)
 
   private def validSurfaceAuthorityRouteToken(token: String): Boolean =
-    token.matches("""(?:\.\.\.)?[a-h][1-8]-[a-h][1-8]""")
+    SurfaceAuthorityRouteTokenPattern.matches(token)
 
   private def validSurfaceAuthorityKey(key: String): Boolean =
-    key.matches("""[a-z][a-z0-9_]{1,40}""")
+    SurfaceAuthorityKeyPattern.matches(key)
 
   private def validStrategicRelationToken(token: String): Boolean =
     validSurfaceAuthorityKey(token) && RelationObservationCatalog.isImplementedKind(token)
 
   private def validSurfaceAuthorityTarget(target: String): Boolean =
-    target.matches("""[a-h][1-8]""")
+    ChessSquarePattern.matches(target)
+
+  private def practicalPlanTargetAllowed(
+      rowLabel: Option[String],
+      rowText: Option[String],
+      target: String
+  ): Boolean =
+    val square = target.trim.toLowerCase
+    rowLabel.zip(rowText).exists { case (label, text) =>
+      label match
+        case "Fixed target" =>
+          text == s"The checked line keeps $square fixed as the target."
+        case "Minority attack" =>
+          text == s"The checked line keeps $square as the minority-attack fixed target."
+        case "IQP target" =>
+          text == s"The checked line leaves $square as an isolated pawn target."
+        case "Simplification" =>
+          text == s"The checked line keeps the same local edge after the exchange on $square."
+        case "Knight outpost" =>
+          text == s"The checked line puts the knight on the $square outpost."
+        case "File entry" =>
+          text == s"The checked line keeps pressure on $square through the ${square.take(1)}-file."
+        case "Target coordination" =>
+          text match
+            case CoordinationTextPattern(targetSq, left, right) =>
+              targetSq == square && left != right
+            case _ => false
+        case "Color complex" =>
+          text match
+            case ColorComplexTextPattern(role, from, targetSq, complex) =>
+              targetSq == square && squareColorOf(square).contains(complex) && roleCanAttackSquare(role, from, square)
+            case _ => false
+        case _ =>
+          false
+    }
+
+  private def squareCoords(raw: String): Option[(Int, Int)] =
+    val square = raw.trim.toLowerCase
+    Option.when(ChessSquarePattern.matches(square))((square.charAt(0) - 'a' + 1, square.charAt(1).asDigit))
+
+  private def squareColorOf(raw: String): Option[String] =
+    squareCoords(raw).map { case (file, rank) =>
+      if (file + rank) % 2 == 0 then "dark" else "light"
+    }
+
+  private def roleCanAttackSquare(role: String, from: String, target: String): Boolean =
+    (squareCoords(from), squareCoords(target)) match
+      case (Some((fromFile, fromRank)), Some((targetFile, targetRank))) =>
+        val fileDelta = math.abs(fromFile - targetFile)
+        val rankDelta = math.abs(fromRank - targetRank)
+        role.trim.toLowerCase match
+          case "bishop" => fileDelta == rankDelta && fileDelta > 0
+          case "knight" => (fileDelta == 1 && rankDelta == 2) || (fileDelta == 2 && rankDelta == 1)
+          case _        => false
+      case _ => false
+
+  private def exactPracticalTargetLabel(label: String): Boolean =
+    label == "Fixed target" || label == "Minority attack" || label == "IQP target" ||
+      label == "Simplification" || label == "Knight outpost" || label == "File entry" ||
+      label == "Target coordination" || label == "Color complex"
 
   private def openingTargetAllowed(openingFamily: String, target: String): Boolean =
     OpeningFamilyCatalog.default.targetAllowed(openingFamily, target)

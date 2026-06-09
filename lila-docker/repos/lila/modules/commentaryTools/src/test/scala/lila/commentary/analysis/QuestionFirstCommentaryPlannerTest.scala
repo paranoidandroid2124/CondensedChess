@@ -2039,6 +2039,8 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
         None
       )
 
+    assertEquals(ctx.fen, "2r2rk1/pp3pp1/2n1p2p/3p4/3P1P2/2P1PN1P/PP4P1/2R2RK1 w - - 0 23")
+    assertEquals(ctx.playedMove, Some("a2a3"))
     assertEquals(certifiedPair, Some(LocalFileEntryProof.SurfacePair("c-file", "b4", 140)))
     assertEquals(
       plans.primary.map(_.questionKind),

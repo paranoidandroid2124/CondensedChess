@@ -46,6 +46,24 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
     assertEquals(MoveReviewExchangeAnalyzer.queenTradeShieldLine(replay), Some(List("d3d8", "e8d8")))
   }
 
+  test("queen-trade shield accepts a legal forcing prefix before the queen trade") {
+    val fen = "r1bqk2r/1p1p1ppp/p1n1pn2/8/1bPNP3/2NQ4/PP3PPP/R1B1KB1R w KQkq - 5 8"
+    val line =
+      VariationLine(
+        moves = List("d4c6", "d7c6", "d3d8", "e8d8", "e4e5", "f6d7", "c1f4", "b7b5"),
+        scoreCp = 20
+      )
+    val replay =
+      MoveReviewExchangeAnalyzer
+        .boundedTopReplayPrefix(fen, List(line), minPlies = 2, maxPlies = 8)
+        .getOrElse(fail("Carlsen-Anand queen-trade source prefix should replay legally"))
+
+    assertEquals(
+      MoveReviewExchangeAnalyzer.queenTradeShieldLine(replay),
+      Some(List("d4c6", "d7c6", "d3d8", "e8d8"))
+    )
+  }
+
   test("queen-trade shield rejects legal non-king recaptures and illegal string geometry") {
     val rookRecaptureFen = "k2qr3/8/8/8/8/3Q4/8/6K1 w - - 0 1"
     val rookRecapture =

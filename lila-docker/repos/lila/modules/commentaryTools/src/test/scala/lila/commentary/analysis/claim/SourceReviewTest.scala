@@ -373,7 +373,7 @@ class SourceReviewTest extends FunSuite:
       clues(rows)
     )
     val admitted = rows.filter(_.verdict == SourceReview.Verdict.AdmitAuthorityRow)
-    assert(admitted.size <= 1, clues(admitted))
+    assertEquals(admitted.map(_.source.id), Nil, clues(admitted))
     val byId = rows.map(row => row.source.id -> row).toMap
     val unzicker = byId("source-karpov-unzicker-1974-break-prevention")
     assertEquals(unzicker.admissionBlockers, "owner:break_prevention_capture_transform_recapture_unproven")
@@ -641,13 +641,19 @@ class SourceReviewTest extends FunSuite:
   test("natural SupportedLocal source rows admit with top or near-top engine authority") {
     val evansFen = "r1b1rnk1/pp2qppp/2p5/3p4/3Pn3/2NBPN2/PPQ2PPP/1R3RK1 w - - 0 13"
     val evansIqpFen = "r3rnk1/1p3ppp/p1p5/3p2q1/PP1P2b1/2QBP3/3N1PPP/1R3RK1 w - - 3 17"
+    val karpovAnderssonIqpFen = "bq1rrbk1/3n1pp1/pp2pn1p/3p4/2P1P3/P1N1BP2/1P1NBQPP/2RR3K w - - 0 25"
+    val capablancaBadPieceFen = "r2qr1k1/pp3pn1/2pb2pp/3pB3/NP1P4/3QP2P/P4PP1/1RR3K1 w - - 1 22"
     val capablancaFen = "r3r1k1/pp3pn1/2pq2pp/3p4/NP1P4/3QP2P/P4PP1/1RR3K1 w - - 0 23"
     val originalBotvinnikFen = "r1bq1rk1/pp1nbppp/4pn2/6B1/2BP4/2N2N2/PP3PPP/R2Q1RK1 b - - 0 10"
     val botvinnikFen = "r2q1rk1/pp2bppp/4pn2/3bN1B1/1n1P4/1BN4Q/PP3PPP/3R1RK1 w - - 11 16"
+    val botvinnikE4ColorComplexFen = "r2q1rk1/pp2bppp/2b1pn2/4N1B1/1n1P4/1BN4Q/PP3PPP/3R1RK1 b - - 10 15"
     val carlsenFen = "r1bqk2r/1p1p1ppp/p1n1pn2/8/1bPNP3/2NQ4/PP3PPP/R1B1KB1R w KQkq - 5 8"
+    val carlsenQueenTradeCompletionFen = "r1bqk2r/1p3ppp/p1p1pn2/8/1bP1P3/2NQ4/PP3PPP/R1B1KB1R w KQkq - 0 9"
     val alekhineFen = "rnb1k2r/pp3ppp/4p3/2pqP3/PbpPn3/2N2N2/1PQ1BPPP/R1B2RK1 b kq - 1 10"
     val najdorfFen = "r1b2rk1/pp2qppp/4p3/2nn4/3N4/2N1P3/PPQ2PPP/3RKB1R w K - 0 12"
     val kramnikOpeningFen = "rnbqkb1r/1p3ppp/p3pn2/2p5/3P4/1B2PN2/PP3PPP/RNBQ1RK1 b kq - 1 7"
+    val camaraD5ColorComplexFen = "1rbqr1k1/pp1n1pbp/3p2p1/2pP4/1n2PP2/2NB3P/PP2N1P1/R1BQ1R1K w - - 3 14"
+    val pflegerD5ColorComplexFen = "r2qr1k1/1p3pb1/pn1p1npp/2pP4/P3P3/2NQ1N2/1P1B1PPP/R3R1K1 w - - 0 17"
     val salovSimplificationFen = "7k/p4qp1/8/1Q1pR3/3P1P2/2r3P1/7P/6K1 w - - 0 36"
     val boleslavskyStaticWeaknessFen = "rnbqr1k1/pp3pbp/3p1np1/2pP4/4P3/2N2N2/PP2BPPP/R1BQ1RK1 w - - 6 10"
     val aronianDefenderTradeFen = "3k1b1r/p2b1ppp/1n3n2/4p3/8/1R4P1/P1QPqPBP/2B2RK1 w - - 0 17"
@@ -667,6 +673,43 @@ class SourceReviewTest extends FunSuite:
             List(
               VariationLine(
                 List("f1c1", "h7h5", "b4b5", "c6b5", "a4b5", "a6a5", "d3f1", "h5h4", "h2h3", "g4h3", "d2f3", "g5f6", "g2h3", "f6f3", "f1g2", "f3f5"),
+                scoreCp = 20,
+                depth = 16
+              )
+            ),
+          karpovAnderssonIqpFen ->
+            List(
+              VariationLine(
+                List(
+                  "c4d5",
+                  "e6d5",
+                  "e4d5",
+                  "f6d5",
+                  "c3d5",
+                  "a8d5",
+                  "e2a6",
+                  "f8c5",
+                  "e3c5",
+                  "b6c5",
+                  "a3a4",
+                  "d5c6",
+                  "b2b3",
+                  "d7e5",
+                  "d1e1",
+                  "e5d3",
+                  "e1e8",
+                  "c6e8",
+                  "a6d3",
+                  "d8d3"
+                ),
+                scoreCp = 20,
+                depth = 16
+              )
+            ),
+          capablancaBadPieceFen ->
+            List(
+              VariationLine(
+                List("e5d6", "d8d6", "b4b5", "e8c8", "b5c6", "b7b6", "d3a6", "c8c6", "a4b2", "c6c1", "b1c1", "d6e7", "b2d3", "g7e8", "a2a4", "a8d8", "d3e5", "g8g7", "a4a5"),
                 scoreCp = 20,
                 depth = 16
               )
@@ -705,10 +748,26 @@ class SourceReviewTest extends FunSuite:
                 depth = 16
               )
             ),
+          botvinnikE4ColorComplexFen ->
+            List(
+              VariationLine(
+                List("c6d5", "c3d5", "f6d5", "g5e7", "d8e7", "f2f4", "f7f6", "e5d3", "f6f5", "f1e1", "b4d3", "h3d3", "a8d8", "e1e5", "g8h8", "d3f3", "d8d6", "b3d5", "d6d5", "e5d5", "e6d5", "f3d5"),
+                scoreCp = 20,
+                depth = 16
+              )
+            ),
           carlsenFen ->
             List(
               VariationLine(
                 List("d4c6", "d7c6", "d3d8", "e8d8", "e4e5", "f6d7", "c1f4", "b7b5", "e1c1", "d8c7", "c3e4", "d7b6", "a2a3", "b4e7", "e4d6", "b5c4"),
+                scoreCp = 20,
+                depth = 16
+              )
+            ),
+          carlsenQueenTradeCompletionFen ->
+            List(
+              VariationLine(
+                List("d3d8", "e8d8", "e4e5", "f6d7", "c1f4", "b7b5", "h2h4", "b5c4", "h4h5", "a6a5", "h5h6", "g7g6", "e1c1", "b4c3", "b2c3", "c8a6"),
                 scoreCp = 20,
                 depth = 16
               )
@@ -732,8 +791,92 @@ class SourceReviewTest extends FunSuite:
           kramnikOpeningFen ->
             List(
               VariationLine(
-                List("c5d4", "e3d4", "b8c6", "b1c3", "f8e7", "c1g5", "e8g8", "d1d2"),
-                scoreCp = -28,
+                List(
+                  "b7b5",
+                  "b1c3",
+                  "c8b7",
+                  "e3e4",
+                  "f8e7",
+                  "e4e5",
+                  "f6e4",
+                  "f1e1",
+                  "e4c3",
+                  "b2c3",
+                  "c5c4",
+                  "b3c2",
+                  "b8d7",
+                  "d1e2",
+                  "d7b6",
+                  "a2a4",
+                  "b5b4",
+                  "c3b4",
+                  "e7b4"
+                ),
+                scoreCp = 20,
+                depth = 16
+              )
+            ),
+          camaraD5ColorComplexFen ->
+            List(
+              VariationLine(
+                List(
+                  "d3b5",
+                  "b4a6",
+                  "e4e5",
+                  "d6e5",
+                  "f4f5",
+                  "a6c7",
+                  "a2a4",
+                  "c7b5",
+                  "a4b5",
+                  "e5e4",
+                  "c1f4",
+                  "d7e5",
+                  "c3e4",
+                  "c8f5",
+                  "e2g3",
+                  "d8d7",
+                  "g3f5",
+                  "g6f5",
+                  "e4g3",
+                  "b8d8",
+                  "d5d6",
+                  "d7d6",
+                  "d1d6",
+                  "d8d6"
+                ),
+                scoreCp = 20,
+                depth = 16
+              )
+            ),
+          pflegerD5ColorComplexFen ->
+            List(
+              VariationLine(
+                List(
+                  "a4a5",
+                  "b6d7",
+                  "c3a4",
+                  "f6g4",
+                  "d2c3",
+                  "g4e5",
+                  "f3e5",
+                  "g7e5",
+                  "c3e5",
+                  "d7e5",
+                  "d3g3",
+                  "d8g5",
+                  "a4b6",
+                  "g5g3",
+                  "h2g3",
+                  "a8d8",
+                  "f2f4",
+                  "e5d3",
+                  "e1e3",
+                  "d3b4",
+                  "a1d1",
+                  "b4c2"
+                ),
+                scoreCp = 20,
                 depth = 16
               )
             ),
@@ -824,13 +967,20 @@ class SourceReviewTest extends FunSuite:
         sourceIds = Set(
           "source-capablanca-golombek-1939-iqp-inducement",
           "source-evans-opsahl-1950-iqp-inducement",
+          "source-karpov-andersson-1975-iqp-inducement",
           "source-alekhine-bogoljubow-1936-iqp-inducement",
           "source-najdorf-sergeant-1939-iqp-inducement",
           "source-kramnik-anand-2001-iqp-opening-inducement",
           "source-botvinnik-vidmar-1936-iqp-multipv-screen",
+          "source-botvinnik-vidmar-1936-simplification-window",
+          "source-botvinnik-vidmar-1936-e4-color-complex-squeeze",
+          "source-camara-bazan-1960-d5-color-complex-squeeze",
+          "source-pfleger-maalouf-1961-d5-color-complex-squeeze",
           "source-botvinnik-vidmar-1936",
           "source-evans-opsahl-1950",
+          "source-capablanca-golombek-1939-bad-piece-liquidation",
           "source-carlsen-anand-2014-g6",
+          "source-carlsen-anand-2014-g6-queen-trade-completion",
           "source-salov-ljubojevic-1992-simplification-window",
           "source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation",
           "source-aronian-andreikin-2014-defender-trade",
@@ -849,12 +999,25 @@ class SourceReviewTest extends FunSuite:
     assertEquals(capablanca.contractId, s"subplan:${PlanTaxonomy.PlanKind.IQPInducement.id}")
     assertEquals(capablanca.release, "SupportedLocal")
     assertEquals(capablanca.primary, "This sequence leaves an isolated pawn as the local target.")
+    val capablancaBadPiece = byId("source-capablanca-golombek-1939-bad-piece-liquidation")
+    assertEquals(capablancaBadPiece.verdict, SourceReview.Verdict.AdmitAuthorityRow, clues(capablancaBadPiece))
+    assertEquals(capablancaBadPiece.diagnosis, SourceReview.Diagnosis.AdmitReady, clues(capablancaBadPiece))
+    assertEquals(capablancaBadPiece.admissionBlockers, "none")
+    assertEquals(capablancaBadPiece.engineAgreement, "top_pv_matches_played")
+    assertEquals(capablancaBadPiece.mainProofSource, PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource)
+    assertEquals(capablancaBadPiece.mainClaimScope, "MoveLocal")
+    assertEquals(capablancaBadPiece.contractId, s"subplan:${PlanTaxonomy.PlanKind.BadPieceLiquidation.id}")
+    assertEquals(capablancaBadPiece.contractStatus, "Releasable")
+    assertEquals(capablancaBadPiece.contractFailures, "-")
+    assertEquals(capablancaBadPiece.release, "SupportedLocal")
+    assertEquals(capablancaBadPiece.taxonomy, "source_bad_piece_liquidation")
+    assertEquals(capablancaBadPiece.primary, "This trade clears the bad piece from the local branch.")
 
     List(
       "source-evans-opsahl-1950-iqp-inducement",
+      "source-karpov-andersson-1975-iqp-inducement",
       "source-alekhine-bogoljubow-1936-iqp-inducement",
-      "source-najdorf-sergeant-1939-iqp-inducement",
-      "source-kramnik-anand-2001-iqp-opening-inducement"
+      "source-najdorf-sergeant-1939-iqp-inducement"
     ).foreach { id =>
       val row = byId(id)
       assertEquals(row.verdict, SourceReview.Verdict.AdmitAuthorityRow)
@@ -868,6 +1031,19 @@ class SourceReviewTest extends FunSuite:
       assertEquals(row.primary, "This sequence leaves an isolated pawn as the local target.")
     }
 
+    val kramnikOpening = byId("source-kramnik-anand-2001-iqp-opening-inducement")
+    assertEquals(kramnikOpening.verdict, SourceReview.Verdict.RejectOwnerMissing, clues(kramnikOpening))
+    assertEquals(kramnikOpening.diagnosis, SourceReview.Diagnosis.EngineTopMoveDisagrees, clues(kramnikOpening))
+    assertEquals(kramnikOpening.engineAgreement, "pv_available_top_differs:b7b5")
+    assertEquals(
+      kramnikOpening.admissionBlockers,
+      "engine:source_move_absent_from_multipv;owner:iqp_not_induced_or_side_mismatch"
+    )
+    assertEquals(kramnikOpening.mainProofSource, "-")
+    assertEquals(kramnikOpening.contractId, "-")
+    assertEquals(kramnikOpening.contractStatus, "-")
+    assertEquals(kramnikOpening.release, "-")
+
     val botvinnikScreen = byId("source-botvinnik-vidmar-1936-iqp-multipv-screen")
     assertEquals(botvinnikScreen.verdict, SourceReview.Verdict.RejectOwnerMissing)
     assertEquals(botvinnikScreen.diagnosis, SourceReview.Diagnosis.RootVocabularyOrExtractionGap)
@@ -876,9 +1052,56 @@ class SourceReviewTest extends FunSuite:
     assertEquals(botvinnikScreen.ownerFailureCodes, "-")
     assertEquals(botvinnikScreen.release, "SupportedLocal")
 
+    val botvinnikSimplification = byId("source-botvinnik-vidmar-1936-simplification-window")
+    assertEquals(botvinnikSimplification.verdict, SourceReview.Verdict.AdmitAuthorityRow, clues(botvinnikSimplification))
+    assertEquals(botvinnikSimplification.diagnosis, SourceReview.Diagnosis.AdmitReady, clues(botvinnikSimplification))
+    assertEquals(botvinnikSimplification.admissionBlockers, "none")
+    assert(botvinnikSimplification.engineAgreement.startsWith("near_top_multipv_contains_played_top="), clues(botvinnikSimplification))
+    assertEquals(botvinnikSimplification.mainProofSource, PlanTaxonomy.PlanKind.SimplificationWindow.id)
+    assertEquals(botvinnikSimplification.mainClaimScope, "MoveLocal")
+    assertEquals(botvinnikSimplification.contractId, s"subplan:${PlanTaxonomy.PlanKind.SimplificationWindow.id}")
+    assertEquals(botvinnikSimplification.contractStatus, "Releasable")
+    assertEquals(botvinnikSimplification.contractFailures, "-")
+    assertEquals(botvinnikSimplification.release, "SupportedLocal")
+    assertEquals(botvinnikSimplification.taxonomy, "source_simplification_window")
+    assertEquals(botvinnikSimplification.primary, "This trade keeps the same local edge on d5.")
+
     val originalBotvinnik = byId("source-botvinnik-vidmar-1936")
     assertEquals(originalBotvinnik.verdict, SourceReview.Verdict.RejectOwnerMissing)
     assert(originalBotvinnik.admissionBlockers.contains("owner:iqp_not_induced"), clues(originalBotvinnik))
+
+    val botvinnikE4ColorComplex = byId("source-botvinnik-vidmar-1936-e4-color-complex-squeeze")
+    assertEquals(botvinnikE4ColorComplex.verdict, SourceReview.Verdict.AdmitAuthorityRow, clues(botvinnikE4ColorComplex))
+    assertEquals(botvinnikE4ColorComplex.diagnosis, SourceReview.Diagnosis.AdmitReady, clues(botvinnikE4ColorComplex))
+    assertEquals(botvinnikE4ColorComplex.admissionBlockers, "none")
+    assertEquals(botvinnikE4ColorComplex.engineAgreement, "top_pv_matches_played")
+    assertEquals(botvinnikE4ColorComplex.mainProofSource, PlayerFacingTruthModePolicy.ColorComplexSqueezeProbeProofSource)
+    assertEquals(botvinnikE4ColorComplex.mainClaimScope, "PositionLocal")
+    assertEquals(botvinnikE4ColorComplex.contractId, "runtime:color_complex_squeeze")
+    assertEquals(botvinnikE4ColorComplex.contractStatus, "Releasable")
+    assertEquals(botvinnikE4ColorComplex.contractFailures, "-")
+    assertEquals(botvinnikE4ColorComplex.release, "CertifiedOwner")
+    assertEquals(botvinnikE4ColorComplex.taxonomy, "source_boundary")
+    assertEquals(botvinnikE4ColorComplex.primary, "A minor piece keeps the color-complex pressure on e4.")
+
+    List(
+      "source-camara-bazan-1960-d5-color-complex-squeeze",
+      "source-pfleger-maalouf-1961-d5-color-complex-squeeze"
+    ).foreach { id =>
+      val row = byId(id)
+      assertEquals(row.verdict, SourceReview.Verdict.AdmitAuthorityRow, clues(row))
+      assertEquals(row.diagnosis, SourceReview.Diagnosis.AdmitReady, clues(row))
+      assertEquals(row.admissionBlockers, "none")
+      assertEquals(row.engineAgreement, "top_pv_matches_played")
+      assertEquals(row.mainProofSource, PlayerFacingTruthModePolicy.ColorComplexSqueezeProbeProofSource)
+      assertEquals(row.mainClaimScope, "PositionLocal")
+      assertEquals(row.contractId, "runtime:color_complex_squeeze")
+      assertEquals(row.contractStatus, "Releasable")
+      assertEquals(row.contractFailures, "-")
+      assertEquals(row.release, "CertifiedOwner")
+      assertEquals(row.taxonomy, "source_boundary")
+      assertEquals(row.primary, "A minor piece keeps the color-complex pressure on d5.")
+    }
 
     val evansCarlsbad = byId("source-evans-opsahl-1950")
     assertEquals(evansCarlsbad.verdict, SourceReview.Verdict.RejectOwnerMissing, clues(evansCarlsbad))
@@ -886,9 +1109,31 @@ class SourceReviewTest extends FunSuite:
     assertEquals(evansCarlsbad.admissionBlockers, "owner:carlsbad_probe_missing", clues(evansCarlsbad))
     assertEquals(evansCarlsbad.packetSummary, "-", clues(evansCarlsbad))
     val carlsenQueenTrade = byId("source-carlsen-anand-2014-g6")
-    assertEquals(carlsenQueenTrade.verdict, SourceReview.Verdict.RejectOwnerMissing, clues(carlsenQueenTrade))
-    assertEquals(carlsenQueenTrade.diagnosis, SourceReview.Diagnosis.RootVocabularyOrExtractionGap, clues(carlsenQueenTrade))
-    assertEquals(carlsenQueenTrade.admissionBlockers, "owner:root_vocabulary_or_extraction_gap", clues(carlsenQueenTrade))
+    assertEquals(carlsenQueenTrade.verdict, SourceReview.Verdict.AdmitAuthorityRow, clues(carlsenQueenTrade))
+    assertEquals(carlsenQueenTrade.diagnosis, SourceReview.Diagnosis.AdmitReady, clues(carlsenQueenTrade))
+    assertEquals(carlsenQueenTrade.admissionBlockers, "none", clues(carlsenQueenTrade))
+    assertEquals(carlsenQueenTrade.engineAgreement, "top_pv_matches_played", clues(carlsenQueenTrade))
+    assertEquals(carlsenQueenTrade.mainProofSource, PlayerFacingTruthModePolicy.QueenTradeShieldProofSource)
+    assertEquals(carlsenQueenTrade.mainClaimScope, "MoveLocal")
+    assertEquals(carlsenQueenTrade.contractId, s"subplan:${PlanTaxonomy.PlanKind.QueenTradeShield.id}")
+    assertEquals(carlsenQueenTrade.contractStatus, "Releasable")
+    assertEquals(carlsenQueenTrade.contractFailures, "-")
+    assertEquals(carlsenQueenTrade.release, "SupportedLocal")
+    assertEquals(carlsenQueenTrade.taxonomy, "source_queen_trade_boundary")
+    assertEquals(carlsenQueenTrade.primary, "This exchange moves the game into the queenless branch.")
+    val carlsenQueenTradeCompletion = byId("source-carlsen-anand-2014-g6-queen-trade-completion")
+    assertEquals(carlsenQueenTradeCompletion.verdict, SourceReview.Verdict.AdmitAuthorityRow, clues(carlsenQueenTradeCompletion))
+    assertEquals(carlsenQueenTradeCompletion.diagnosis, SourceReview.Diagnosis.AdmitReady, clues(carlsenQueenTradeCompletion))
+    assertEquals(carlsenQueenTradeCompletion.admissionBlockers, "none", clues(carlsenQueenTradeCompletion))
+    assertEquals(carlsenQueenTradeCompletion.engineAgreement, "top_pv_matches_played", clues(carlsenQueenTradeCompletion))
+    assertEquals(carlsenQueenTradeCompletion.mainProofSource, PlayerFacingTruthModePolicy.QueenTradeShieldProofSource)
+    assertEquals(carlsenQueenTradeCompletion.mainClaimScope, "MoveLocal")
+    assertEquals(carlsenQueenTradeCompletion.contractId, s"subplan:${PlanTaxonomy.PlanKind.QueenTradeShield.id}")
+    assertEquals(carlsenQueenTradeCompletion.contractStatus, "Releasable")
+    assertEquals(carlsenQueenTradeCompletion.contractFailures, "-")
+    assertEquals(carlsenQueenTradeCompletion.release, "SupportedLocal")
+    assertEquals(carlsenQueenTradeCompletion.taxonomy, "source_queen_trade_boundary")
+    assertEquals(carlsenQueenTradeCompletion.primary, "This exchange moves the game into the queenless branch.")
 
     val salovSimplification = byId("source-salov-ljubojevic-1992-simplification-window")
     assertEquals(salovSimplification.verdict, SourceReview.Verdict.RejectOwnerMissing)
@@ -983,6 +1228,40 @@ class SourceReviewTest extends FunSuite:
     assertEquals(row.verdict, SourceReview.Verdict.RejectOwnerMissing)
     assertEquals(row.diagnosis, SourceReview.Diagnosis.RootVocabularyOrExtractionGap)
     assertEquals(row.admissionBlockers, "proof:break_prevention_contract_mismatch")
+  }
+
+  test("broad IQP-simplification window scan does not admit incidental color-complex rows") {
+    val botvinnikColorComplexFen =
+      "r2q1rk1/pp1bbppp/4pn2/3n2B1/3P4/1BNQ1N2/PP3PPP/R4RK1 w - - 5 13"
+    val engine =
+      StaticSourceReviewEngine(
+        Map(
+          botvinnikColorComplexFen ->
+            List(
+              VariationLine(
+                List("f3e5", "a8c8", "f1e1", "h7h6", "g5d2", "d7c6", "d3h3", "c8c7", "a1d1"),
+                scoreCp = 44,
+                depth = 16
+              )
+            )
+        )
+      )
+    val windows =
+      SourceReview.windowObservationsWithEngine(
+        Some(engine),
+        sourceIds = Set("source-botvinnik-vidmar-1936")
+      )
+    val row =
+      windows
+        .find(_.ply.contains(25))
+        .getOrElse(fail(s"missing Botvinnik color-complex ply 25: ${windows.map(obs => obs.ply -> obs.engineAgreement)}"))
+
+    assertEquals(row.engineAgreement, "top_pv_matches_played")
+    assertEquals(row.release, "CertifiedOwner")
+    assertEquals(row.mainProofSource, PlayerFacingTruthModePolicy.ColorComplexSqueezeProbeProofSource)
+    assertEquals(row.verdict, SourceReview.Verdict.RejectOwnerMissing)
+    assertEquals(row.diagnosis, SourceReview.Diagnosis.RootVocabularyOrExtractionGap)
+    assertEquals(row.admissionBlockers, "owner:iqp_not_induced_or_side_mismatch")
   }
 
   test("window probe scans every ply in a candidate range instead of collapsing to the head ply") {

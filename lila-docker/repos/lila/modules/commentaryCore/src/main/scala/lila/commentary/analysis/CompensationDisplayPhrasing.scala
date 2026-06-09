@@ -9,6 +9,23 @@ private[analysis] object CompensationDisplayPhrasing:
   private val FilePattern = """\b([a-h]-file)\b""".r
   private val PiecePattern = """\b(the )?(queen|rook|bishop|knight|king|pawn)s?\b""".r
 
+  private val MaterialWaitPattern = """^the material can wait while\s+""".r
+  private val WinningMaterialPattern = """^winning the material back can wait because\s+""".r
+  private val KeepPointPattern = """^the point is to keep\s+""".r
+  private val WorksOnlyPattern = """^this works only while\s+""".r
+  private val UsePressurePattern = """^use that pressure(?: on [^.]+?)? first(?:, then think about winning the material back)?\.?$""".r
+  private val HeadForPattern = """^the [a-z]+ can head for\s+""".r
+  private val BringingToPattern = """^a likely follow up is bringing the [a-z]+ to\s+""".r
+  private val LikelyFollowUpPattern = """^a likely follow up is\s+""".r
+  private val BeforeWinningPattern = """\s+before winning the material back\.?$""".r
+  private val StillTherePattern = """\s+is still there\.?$""".r
+  private val StaysAvailablePattern = """\s+stays available\.?$""".r
+  private val StaysInViewPattern = """\s+stays in view\.?$""".r
+  private val NextPattern = """\s+next\.?$""".r
+  private val NonWordCharPattern = """[^\w\s-]""".r
+  private val WhitespacePattern = """\s+""".r
+  private val ForSuffixPattern = """\s+for\s+.*$""".r
+
   private def hasStrongCompensationAnchor(text: String): Boolean =
     val normalized = StrategyPackSurface.normalizeText(text).toLowerCase
     val hasSquare = SquarePattern.findFirstIn(normalized).nonEmpty
@@ -38,25 +55,22 @@ private[analysis] object CompensationDisplayPhrasing:
     anchoredCompensationWindow(surface).filter(hasStrongCompensationAnchor)
 
   private def compensationIdeaSignature(text: String): String =
-    StrategyPackSurface
-      .normalizeText(text)
-      .toLowerCase
-      .replaceAll("""^the material can wait while\s+""", "")
-      .replaceAll("""^winning the material back can wait because\s+""", "")
-      .replaceAll("""^the point is to keep\s+""", "")
-      .replaceAll("""^this works only while\s+""", "")
-      .replaceAll("""^use that pressure(?: on [^.]+?)? first(?:, then think about winning the material back)?\.?$""", "use that pressure")
-      .replaceAll("""^the [a-z]+ can head for\s+""", "")
-      .replaceAll("""^a likely follow up is bringing the [a-z]+ to\s+""", "")
-      .replaceAll("""^a likely follow up is\s+""", "")
-      .replaceAll("""\s+before winning the material back\.?$""", "")
-      .replaceAll("""\s+is still there\.?$""", "")
-      .replaceAll("""\s+stays available\.?$""", "")
-      .replaceAll("""\s+stays in view\.?$""", "")
-      .replaceAll("""\s+next\.?$""", "")
-      .replaceAll("""[^\w\s-]""", "")
-      .replaceAll("""\s+""", " ")
-      .trim
+    val step1 = StrategyPackSurface.normalizeText(text).toLowerCase
+    val step2 = MaterialWaitPattern.replaceAllIn(step1, "")
+    val step3 = WinningMaterialPattern.replaceAllIn(step2, "")
+    val step4 = KeepPointPattern.replaceAllIn(step3, "")
+    val step5 = WorksOnlyPattern.replaceAllIn(step4, "")
+    val step6 = UsePressurePattern.replaceAllIn(step5, "use that pressure")
+    val step7 = HeadForPattern.replaceAllIn(step6, "")
+    val step8 = BringingToPattern.replaceAllIn(step7, "")
+    val step9 = LikelyFollowUpPattern.replaceAllIn(step8, "")
+    val step10 = BeforeWinningPattern.replaceAllIn(step9, "")
+    val step11 = StillTherePattern.replaceAllIn(step10, "")
+    val step12 = StaysAvailablePattern.replaceAllIn(step11, "")
+    val step13 = StaysInViewPattern.replaceAllIn(step12, "")
+    val step14 = NextPattern.replaceAllIn(step13, "")
+    val step15 = NonWordCharPattern.replaceAllIn(step14, "")
+    WhitespacePattern.replaceAllIn(step15, " ").trim
 
   private def sameCompensationIdea(left: String, right: String): Boolean =
     val leftSig = compensationIdeaSignature(left)
@@ -499,7 +513,7 @@ private[analysis] object CompensationDisplayPhrasing:
     val genericExecution =
       surface.rawExecutionText
         .map(_.toLowerCase)
-        .map(text => text.replaceFirst("\\s+for\\s+.*$", "").trim)
+        .map(text => ForSuffixPattern.replaceFirstIn(text, "").trim)
         .filter(_.nonEmpty)
     surface.effectiveCompensationSubtype match
       case Some(CompensationSubtype(theater, mode, _, _))

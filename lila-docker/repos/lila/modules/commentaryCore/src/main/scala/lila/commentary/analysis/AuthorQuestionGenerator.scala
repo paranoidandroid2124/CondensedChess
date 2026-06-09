@@ -108,7 +108,7 @@ object AuthorQuestionGenerator:
     if seriousThreat.isEmpty then None
     else
       def toSanMaybe(move: String): String =
-        val isUci = move.matches("^[a-h][1-8][a-h][1-8][qrbn]?$")
+        val isUci = move.matches("(?i)^[a-h][1-8][a-h][1-8][qrbn]?$")
         if isUci then NarrativeUtils.uciToSanOrFormat(fen, move) else move
 
       val t = seriousThreat.get

@@ -46,7 +46,7 @@ private[commentary] object KingAttackEvidenceProducer extends StrategicIdeaEvide
             source = EvidenceSourceId.EnemyKingStuckCenter,
             confidence = 0.80,
             focusZone = enemyKingZone.orElse(Some("center")),
-            factIds = List("enemy_king_stuck_center")
+            factIds = List("enemy_king_central_exposure")
           )
       }
 
@@ -60,7 +60,21 @@ private[commentary] object KingAttackEvidenceProducer extends StrategicIdeaEvide
             source = EvidenceSourceId.EnemyWeakBackRank,
             confidence = 0.74,
             focusZone = enemyKingZone,
-            factIds = List("enemy_weak_back_rank")
+            factIds = List("enemy_weak_back_rank_shape")
+          )
+      }
+
+    val weakBackRankMotifEvidence =
+      semantic.motifs.collect {
+        case Motif.WeakBackRank(color, _, _) if !matchesSide(color, side) =>
+          evidence(
+            ownerSide = side,
+            kind = StrategicIdeaKind.KingAttackBuildUp,
+            readiness = StrategicIdeaReadiness.Build,
+            source = EvidenceSourceId.EnemyWeakBackRank,
+            confidence = 0.74,
+            focusZone = enemyKingZone,
+            factIds = List("enemy_weak_back_rank_shape")
           )
       }
 
@@ -78,7 +92,7 @@ private[commentary] object KingAttackEvidenceProducer extends StrategicIdeaEvide
               source = EvidenceSourceId.KingRingPressure,
               confidence = 0.78 + math.min(0.08, ring * 0.02),
               focusZone = enemyKingZone,
-              factIds = List("king_ring_pressure") ++ Option.when(exposed > 0)("king_exposed_files").toList
+              factIds = List("king_ring_pressure_shape") ++ Option.when(exposed > 0)("king_exposed_files").toList
             )
           }
         }
@@ -166,7 +180,7 @@ private[commentary] object KingAttackEvidenceProducer extends StrategicIdeaEvide
               confidence = 0.72,
               focusZone = enemyKingZone,
               beneficiaryPieces = List(roleToken(piece)),
-              factIds = List("motif_piece_lift")
+              factIds = List("motif_piece_lift", "motif_piece_lift_shape")
             )
           )
         case Motif.Check(piece, targetSquare, checkType, color, _, _) if matchesSide(color, side) =>
@@ -183,6 +197,52 @@ private[commentary] object KingAttackEvidenceProducer extends StrategicIdeaEvide
               factIds = List("motif_check_pressure", s"check_type_${checkType.toString.toLowerCase}")
             )
           )
+        case Motif.Fianchetto(fianchettoSide, color, _, _) if matchesSide(color, side) =>
+          val sideKey = fianchettoSide.toString.toLowerCase
+          Some(
+            evidence(
+              ownerSide = side,
+              kind = StrategicIdeaKind.KingAttackBuildUp,
+              readiness = StrategicIdeaReadiness.Build,
+              source = EvidenceSourceId.FianchettoMotif,
+              confidence = 0.70,
+              focusZone = Some(if fianchettoSide == Motif.FianchettoSide.Kingside then "kingside" else "queenside"),
+              beneficiaryPieces = List("B"),
+              factIds = List("fianchetto_motif_shape", s"fianchetto_side_$sideKey")
+            )
+          )
+        case Motif.Initiative(color, score, _, _) if matchesSide(color, side) && score >= 10 =>
+          Some(
+            evidence(
+              ownerSide = side,
+              kind = StrategicIdeaKind.KingAttackBuildUp,
+              readiness = StrategicIdeaReadiness.Build,
+              source = EvidenceSourceId.InitiativeMotif,
+              confidence = 0.70 + math.min(0.04, (score - 10) * 0.005),
+              focusZone = enemyKingZone,
+              factIds = List("initiative_motif_shape", s"initiative_score_$score")
+            )
+          )
+        case motif @ Motif.PawnAdvance(file, _, _, color, _, _) if matchesSide(color, side) =>
+          val fileKey = fileToken(file)
+          Option
+            .when(Set("a", "b", "g", "h").contains(fileKey) && motif.relativeTo >= 4) {
+              evidence(
+                ownerSide = side,
+                kind = StrategicIdeaKind.KingAttackBuildUp,
+                readiness = StrategicIdeaReadiness.Build,
+                source = EvidenceSourceId.FlankPawnAdvanceMotif,
+                confidence = 0.70,
+                focusFiles = List(fileKey),
+                focusZone = zoneFromFileToken(fileKey),
+                factIds =
+                  List(
+                    "flank_pawn_advance_shape",
+                    s"flank_pawn_file_$fileKey",
+                    s"flank_pawn_to_rank_${motif.relativeTo}"
+                  )
+              )
+            }
         case _ => None
       }
 
@@ -200,7 +260,7 @@ private[commentary] object KingAttackEvidenceProducer extends StrategicIdeaEvide
               focusSquares = List(endpoint.key),
               focusZone = enemyKingZone,
               beneficiaryPieces = List(route.piece),
-              factIds = List("route_attack_lane", s"route_surface_${route.surfaceMode.toLowerCase}")
+              factIds = List("route_attack_lane_shape", s"route_surface_${route.surfaceMode.toLowerCase}")
             )
           }
         }
@@ -219,7 +279,7 @@ private[commentary] object KingAttackEvidenceProducer extends StrategicIdeaEvide
               focusSquares = List(endpoint.key),
               focusZone = enemyKingZone,
               beneficiaryPieces = List(target.piece),
-              factIds = List("directional_attack_lane")
+              factIds = List("directional_attack_lane_shape")
             )
           }
         }
@@ -366,4 +426,4 @@ private[commentary] object KingAttackEvidenceProducer extends StrategicIdeaEvide
         )
       }.toList
 
-    mateNet ++ stuckCenter ++ weakBackRank ++ kingRingPressure ++ flankPawns ++ attackingThreats ++ motifPressure ++ routePressure ++ directionalPressure ++ compensationDevelopmentLead ++ compensationKingWindow ++ compensationDiagonalBattery ++ planBridge ++ oppositeSideStorm ++ fianchettoAssault
+    mateNet ++ stuckCenter ++ weakBackRank ++ weakBackRankMotifEvidence ++ kingRingPressure ++ flankPawns ++ attackingThreats ++ motifPressure ++ routePressure ++ directionalPressure ++ compensationDevelopmentLead ++ compensationKingWindow ++ compensationDiagonalBattery ++ planBridge ++ oppositeSideStorm ++ fianchettoAssault

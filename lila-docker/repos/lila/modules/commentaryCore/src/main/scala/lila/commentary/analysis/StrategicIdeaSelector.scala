@@ -17,11 +17,14 @@ import lila.commentary.analysis.semantic.{
 }
 import lila.commentary.analysis.semantic.StrategicSemanticObservationPipeline
 import lila.commentary.*
-import lila.commentary.model.{ PlanId, PlanMatch, StrategicPlanExperiment }
+import lila.commentary.model.{ Motif, PlanId, PlanMatch, StrategicPlanExperiment }
 import lila.commentary.model.strategic.{ PositionalTag, PreventedPlan, WeakComplex }
 import lila.commentary.model.structure.{ CenterState, StructureId }
 
 private[commentary] object StrategicIdeaSelector:
+
+  private val ChessSquarePattern = "^[a-h][1-8]$".r
+  private val NonAlphaNumPattern = "[^a-z0-9]+".r
 
   private final case class Candidate(
       ownerSide: String,
@@ -129,7 +132,7 @@ private[commentary] object StrategicIdeaSelector:
                   )
               )
               .orElse(
-                dominantCandidates.drop(1).find(candidate =>
+                dominantCandidates.filterNot(_ == dominant).find(candidate =>
                   candidate.group != dominant.group &&
                     math.abs(dominant.score - candidate.score) <= 0.12
                 )
@@ -203,6 +206,745 @@ private[commentary] object StrategicIdeaSelector:
       EvidenceRef.Fact(FactId.semantic(SemanticObservationId.TargetPressureSemantic)).wireKey
     )
 
+  private val FrenchProfilePriorityEvidenceRefs =
+    List(
+      EvidenceRef.Source(EvidenceSourceId.FrenchMinorPieceProfile).wireKey,
+      "structure_french_advance_chain"
+    )
+
+  private val LockedCenterPriorityEvidenceRefs =
+    List(
+      EvidenceRef.Source(EvidenceSourceId.LockedCenterBind).wireKey,
+      "structure_locked_center"
+    )
+
+  private def prioritySupportEvidenceRefs(refs: List[String]): List[String] =
+    val minorityPriority = PrioritySupportEvidenceRefs.filter(refs.contains)
+    val minoritySupportPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.MinorityAttackSupport).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.MinorityAttackSupport).wireKey ::
+            refs.filter(_.startsWith("minority_attack_support_"))
+        }
+        .toList
+        .flatten
+    val targetBridgePriority =
+      List(
+        EvidenceRef.Source(EvidenceSourceId.PlanMatchTargetFixing).wireKey,
+        EvidenceRef.Source(EvidenceSourceId.DirectionalTargetFixation).wireKey,
+        EvidenceRef.Source(EvidenceSourceId.CarlsbadFixationProfile).wireKey
+      ).filter(refs.contains) ++
+        refs.filter(ref => ref.startsWith("directional_target_") || ref == "structure_carlsbad")
+    val weakSquarePriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.EnemyWeakSquare).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.EnemyWeakSquare).wireKey ::
+            refs.filter(_.startsWith("enemy_weak_square_"))
+        }
+        .toList
+        .flatten
+    val weakComplexPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.WeakComplexFixation).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.WeakComplexFixation).wireKey ::
+            refs.filter(ref => ref.startsWith("weak_complex_") && ref != "weak_complex_fixation")
+        }
+        .toList
+        .flatten
+    val doubledPawnPressurePriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.DoubledPawnPressureMotif).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.DoubledPawnPressureMotif).wireKey ::
+            refs.filter(ref => ref == "doubled_pawn_pressure_shape" || ref.startsWith("doubled_pawn_file_"))
+        }
+        .toList
+        .flatten
+    val pawnBreakReadyPriority =
+      Option
+        .when(
+          refs.contains(EvidenceRef.Source(EvidenceSourceId.PawnAnalysisBreakReady).wireKey) ||
+            refs.contains(EvidenceRef.Source(EvidenceSourceId.PawnPlayBreakReady).wireKey)
+        ) {
+          List(
+            EvidenceRef.Source(EvidenceSourceId.PawnAnalysisBreakReady).wireKey,
+            EvidenceRef.Source(EvidenceSourceId.PawnPlayBreakReady).wireKey,
+            "pawn_analysis_break_ready_shape",
+            "pawn_play_break_ready_shape"
+          ).filter(refs.contains) ++ refs.filter(_.startsWith("break_file_"))
+        }
+        .toList
+        .flatten
+    val pawnBreakMotifPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.PawnBreakMotif).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.PawnBreakMotif).wireKey ::
+            refs.filter(ref =>
+              ref == "pawn_break_motif_shape" ||
+                ref.startsWith("break_file_") ||
+                ref.startsWith("break_target_file_")
+            )
+        }
+        .toList
+        .flatten
+    val centralBreakTensionPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.CentralBreakTension).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.CentralBreakTension).wireKey ::
+            refs.filter(_ == "locked_center")
+        }
+        .toList
+        .flatten
+    val pawnChainSpacePriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.PawnChainSpaceMotif).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.PawnChainSpaceMotif).wireKey ::
+            refs.filter(ref => ref == "pawn_chain_space_shape" || ref.startsWith("pawn_chain_"))
+        }
+        .toList
+        .flatten
+    val fileOpeningPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.FileOpeningConsequence).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.FileOpeningConsequence).wireKey ::
+            refs.filter(ref => ref == "file_opening_consequence" || ref.startsWith("contested_file_"))
+        }
+        .toList
+        .flatten
+    val frenchF6BreakSeedPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.FrenchF6BreakSeed).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.FrenchF6BreakSeed).wireKey ::
+            refs.filter(ref =>
+              ref == "french_f6_break_seed_shape" ||
+                ref == "white_e5_chain" ||
+                ref == "black_f7_break_pawn"
+            )
+        }
+        .toList
+        .flatten
+    val winningEndgamePriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.WinningEndgameTransition).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.WinningEndgameTransition).wireKey ::
+            refs.filter(_ == "winning_endgame_transition_shape")
+        }
+        .toList
+        .flatten
+    val rookEndgamePatternPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.RookEndgamePattern).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.RookEndgamePattern).wireKey ::
+            refs.filter(ref =>
+              ref == "rook_endgame_pattern_shape" ||
+                ref == "rook_behind_passed_pawn" ||
+                ref == "king_cut_off"
+            )
+        }
+        .toList
+        .flatten
+    val endgameTechniqueMotifPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.EndgameTechniqueMotif).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.EndgameTechniqueMotif).wireKey ::
+            refs.filter(ref =>
+              ref == "endgame_technique_shape" ||
+                ref.startsWith("opposition_") ||
+                ref == "zugzwang_shape" ||
+                ref == "king_activity_shape"
+            )
+        }
+        .toList
+        .flatten
+    val passedPawnConversionPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.PassedPawnConversionMotif).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.PassedPawnConversionMotif).wireKey ::
+            refs.filter(ref =>
+              ref == "passed_pawn_conversion_shape" ||
+                ref.startsWith("passed_pawn_") ||
+                ref == "pawn_promotion" ||
+                ref.startsWith("promotion_piece_") ||
+                ref == "underpromotion" ||
+                ref == "protected_passed_pawn" ||
+                ref == "advanced_passed_pawn"
+            )
+        }
+        .toList
+        .flatten
+    val compensationDiagonalPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.CompensationDiagonalBattery).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.CompensationDiagonalBattery).wireKey ::
+            refs.filter(ref =>
+              ref == "compensation_diagonal_battery" ||
+                ref == "material_deficit_compensation" ||
+                ref == "bishop_pair_compensation"
+            )
+        }
+        .toList
+        .flatten
+    val compensationKingAttackPriority =
+      Option
+        .when(
+          refs.contains(EvidenceRef.Source(EvidenceSourceId.CompensationDevelopmentLead).wireKey) ||
+            refs.contains(EvidenceRef.Source(EvidenceSourceId.CompensationKingWindow).wireKey)
+        ) {
+          List(
+            EvidenceRef.Source(EvidenceSourceId.CompensationDevelopmentLead).wireKey,
+            EvidenceRef.Source(EvidenceSourceId.CompensationKingWindow).wireKey,
+            EvidenceRef.Source(EvidenceSourceId.CompensationDiagonalBattery).wireKey,
+            "material_deficit_compensation",
+            "development_lead_compensation",
+            "uncastled_or_unsettled_king_window",
+            "compensation_diagonal_battery"
+          ).filter(refs.contains)
+        }
+        .toList
+        .flatten
+    val compensationLinePriority =
+      Option
+        .when(
+          refs.contains(EvidenceRef.Source(EvidenceSourceId.CompensationOpenLines).wireKey) ||
+            refs.contains(EvidenceRef.Source(EvidenceSourceId.DelayedRecoveryWindow).wireKey)
+        ) {
+          List(
+            EvidenceRef.Source(EvidenceSourceId.CompensationOpenLines).wireKey,
+            EvidenceRef.Source(EvidenceSourceId.DelayedRecoveryWindow).wireKey,
+            "compensation_open_lines_shape",
+            "delayed_material_recovery",
+            "material_deficit_compensation",
+            "development_lead_compensation"
+          ).filter(refs.contains) ++
+            refs.filter(ref => ref.startsWith("open_file_") || ref.startsWith("semi_open_file_") || ref == "seventh_rank_entry")
+        }
+        .toList
+        .flatten
+    val routeAttackLanePriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.RouteAttackLane).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.RouteAttackLane).wireKey ::
+            refs.filter(ref => ref == "route_attack_lane_shape" || ref == "route_surface_exact")
+        }
+        .toList
+        .flatten
+    val directionalAttackLanePriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.DirectionalAttackLane).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.DirectionalAttackLane).wireKey ::
+            refs.filter(_ == "directional_attack_lane_shape")
+        }
+        .toList
+        .flatten
+    val motifRookLiftPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.MotifRookLift).wireKey)) {
+          List(EvidenceRef.Source(EvidenceSourceId.MotifRookLift).wireKey)
+        }
+        .toList
+        .flatten
+    val motifPieceLiftPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.MotifPieceLift).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.MotifPieceLift).wireKey :: refs.filter(_ == "motif_piece_lift_shape")
+        }
+        .toList
+        .flatten
+    val motifCheckPressurePriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.MotifCheckPressure).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.MotifCheckPressure).wireKey ::
+            refs.filter(ref => ref == "check_type_normal" || ref == "check_type_discovered")
+        }
+        .toList
+        .flatten
+    val fianchettoMotifPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.FianchettoMotif).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.FianchettoMotif).wireKey ::
+            refs.filter(ref => ref == "fianchetto_motif_shape" || ref.startsWith("fianchetto_side_"))
+        }
+        .toList
+        .flatten
+    val initiativeMotifPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.InitiativeMotif).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.InitiativeMotif).wireKey ::
+            refs.filter(ref => ref == "initiative_motif_shape" || ref.startsWith("initiative_score_"))
+        }
+        .toList
+        .flatten
+    val motifBatteryPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.MotifBattery).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.MotifBattery).wireKey ::
+            refs.filter(ref => ref == "battery_axis_diagonal" || ref == "battery_axis_file")
+        }
+        .toList
+        .flatten
+    val routeLinePriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.RouteLineAccess).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.RouteLineAccess).wireKey ::
+            refs.filter(ref => ref == "route_surface_exact" || ref.startsWith("open_file_") || ref.startsWith("semi_open_file_"))
+        }
+        .toList
+        .flatten
+    val fianchettoAssaultPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.FianchettoAssaultProfile).wireKey)) {
+          List(
+            EvidenceRef.Source(EvidenceSourceId.FianchettoAssaultProfile).wireKey,
+            EvidenceRef.Source(EvidenceSourceId.OppositeSideStorm).wireKey,
+            "structure_fianchetto_shell"
+          ).filter(refs.contains)
+        }
+        .toList
+        .flatten
+    val kingRingPressurePriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.KingRingPressure).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.KingRingPressure).wireKey ::
+            refs.filter(ref => ref == "king_ring_pressure_shape" || ref == "king_exposed_files")
+        }
+        .toList
+        .flatten
+    val enemyKingStuckCenterPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.EnemyKingStuckCenter).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.EnemyKingStuckCenter).wireKey ::
+            refs.filter(_ == "enemy_king_central_exposure")
+        }
+        .toList
+        .flatten
+    val enemyWeakBackRankPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.EnemyWeakBackRank).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.EnemyWeakBackRank).wireKey ::
+            refs.filter(_ == "enemy_weak_back_rank_shape")
+        }
+        .toList
+        .flatten
+    val flankPawnPressurePriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.FlankPawnPressure).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.FlankPawnPressure).wireKey ::
+            refs.filter(ref => ref == "hook_creation_chance" || ref == "rook_pawn_march_ready")
+        }
+        .toList
+        .flatten
+    val flankPawnAdvanceMotifPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.FlankPawnAdvanceMotif).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.FlankPawnAdvanceMotif).wireKey ::
+            refs.filter(ref =>
+              ref == "flank_pawn_advance_shape" ||
+                ref.startsWith("flank_pawn_file_") ||
+                ref.startsWith("flank_pawn_to_rank_")
+            )
+        }
+        .toList
+        .flatten
+    val opponentCounterbreakDenialPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.OpponentCounterbreakDenial).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.OpponentCounterbreakDenial).wireKey ::
+            refs.filter(_ == "opponent_counter_break")
+        }
+        .toList
+        .flatten
+    val passerBlockadePriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.PasserBlockadeMotif).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.PasserBlockadeMotif).wireKey ::
+            refs.filter(ref =>
+              ref == "passer_blockade_shape" ||
+                ref.startsWith("blockade_square_") ||
+                ref.startsWith("blockaded_pawn_")
+            )
+        }
+        .toList
+        .flatten
+    val hedgehogBreakDenialPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.HedgehogBreakDenialGeometry).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.HedgehogBreakDenialGeometry).wireKey ::
+            refs.filter(ref => ref == "structure_hedgehog" || ref == "hedgehog_break_denial_shape")
+        }
+        .toList
+        .flatten
+    val maroczyBreakDenialPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.MaroczyBreakDenialGeometry).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.MaroczyBreakDenialGeometry).wireKey ::
+            refs.filter(ref => ref == "structure_maroczy_bind" || ref == "maroczy_break_denial_shape")
+        }
+        .toList
+        .flatten
+    val counterplaySuppressionPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.CounterplaySuppression).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.CounterplaySuppression).wireKey ::
+            refs.filter(ref =>
+              ref == "counterplay_suppression_shape" ||
+                ref == "counterplay_break_denial" ||
+                ref == "break_neutralized" ||
+                ref == "denied_break_resource" ||
+                ref == "counterplay_score_drop"
+            )
+        }
+        .toList
+        .flatten
+    val compensationCounterplayDenialPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.CompensationCounterplayDenial).wireKey)) {
+          List(
+            EvidenceRef.Source(EvidenceSourceId.CompensationCounterplayDenial).wireKey,
+            "material_deficit_compensation",
+            "break_neutralized"
+          ).filter(refs.contains)
+        }
+        .toList
+        .flatten
+    val doubledRooksPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.DoubledRooks).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.DoubledRooks).wireKey ::
+            refs.filter(_.startsWith("doubled_rooks_"))
+        }
+        .toList
+        .flatten
+    val rookOnSeventhPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.RookOnSeventh).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.RookOnSeventh).wireKey ::
+            refs.filter(_ == "rook_on_seventh_shape")
+        }
+        .toList
+        .flatten
+    val openFilePriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.OpenFileControl).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.OpenFileControl).wireKey ::
+            refs.filter(_.startsWith("open_file_"))
+        }
+        .toList
+        .flatten
+    val semiOpenFilePriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.SemiOpenFileControl).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.SemiOpenFileControl).wireKey ::
+            refs.filter(_.startsWith("semi_open_file_"))
+        }
+        .toList
+        .flatten
+    val occupiedLinePriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.OccupiedLineControl).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.OccupiedLineControl).wireKey ::
+            refs.filter(ref =>
+              ref.startsWith("occupied_") ||
+                ref.startsWith("open_file_") ||
+                ref.startsWith("semi_open_file_")
+            )
+        }
+        .toList
+        .flatten
+    val directionalLinePriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.DirectionalLineAccess).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.DirectionalLineAccess).wireKey ::
+            refs.filter(ref => ref == "directional_line_access_shape" || ref.startsWith("open_file_") || ref.startsWith("semi_open_file_"))
+        }
+        .toList
+        .flatten
+    val lineControlPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.LineControlFeatures).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.LineControlFeatures).wireKey ::
+            refs.filter(_ == "line_control_shape")
+        }
+        .toList
+        .flatten
+    val connectedRooksPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.ConnectedRooks).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.ConnectedRooks).wireKey ::
+            refs.filter(_ == "connected_rooks_shape")
+        }
+        .toList
+        .flatten
+    val strongKnightOutpostPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.StrongKnight).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.StrongKnight).wireKey ::
+            refs.filter(_.startsWith("strong_knight_"))
+        }
+        .toList
+        .flatten
+    val routeOutpostPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.RouteOutpostAccess).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.RouteOutpostAccess).wireKey ::
+            refs.filter(ref => ref == "route_outpost_access_shape" || ref == "route_surface_exact")
+        }
+        .toList
+        .flatten
+    val directionalOutpostPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.DirectionalOutpostAccess).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.DirectionalOutpostAccess).wireKey ::
+            refs.filter(_ == "directional_outpost_access_shape")
+        }
+        .toList
+        .flatten
+    val strongKnightVsBishopPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.StrongKnightVsBadBishop).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.StrongKnightVsBadBishop).wireKey :: refs.filter(_.startsWith("strong_knight_"))
+        }
+        .toList
+        .flatten
+    val knightVsBishopMotifPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.KnightVsBishopMotif).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.KnightVsBishopMotif).wireKey ::
+            refs.filter(ref => ref == "knight_vs_bishop_motif_shape" || ref == "knight_preferred_over_bishop")
+        }
+        .toList
+        .flatten
+    val bishopPairPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.BishopPairAdvantage).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.BishopPairAdvantage).wireKey ::
+            refs.filter(_ == "bishop_pair_advantage_shape")
+        }
+        .toList
+        .flatten
+    val oppositeColorBishopsPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.OppositeColorBishops).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.OppositeColorBishops).wireKey ::
+            refs.filter(_ == "opposite_color_bishops_shape")
+        }
+        .toList
+        .flatten
+    val enemyBadBishopPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.EnemyBadBishop).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.EnemyBadBishop).wireKey ::
+            refs.filter(_ == "enemy_bad_bishop_shape")
+        }
+        .toList
+        .flatten
+    val goodBishopCountPriority =
+      Option.when(
+        refs.contains(EvidenceRef.Source(EvidenceSourceId.GoodBishop).wireKey) &&
+          refs.contains(EvidenceRef.Source(EvidenceSourceId.MinorPieceCountImbalance).wireKey)
+      ) {
+        List(
+          EvidenceRef.Source(EvidenceSourceId.GoodBishop).wireKey,
+          "good_bishop_shape",
+          EvidenceRef.Source(EvidenceSourceId.MinorPieceCountImbalance).wireKey,
+          "minor_piece_count_imbalance_shape",
+          "good_bishop_count_edge"
+        ).filter(refs.contains)
+      }.toList.flatten
+    val iqpSimplificationPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.IqpSimplificationProfile).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.IqpSimplificationProfile).wireKey ::
+            refs.filter(ref =>
+              ref == "structure_iqp_black" ||
+                ref == "capture_or_exchange" ||
+                ref == "iqp_trade_down_plan"
+            )
+        }
+        .toList
+        .flatten
+    val exchangeAvailabilityPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.ExchangeAvailabilityBridge).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.ExchangeAvailabilityBridge).wireKey ::
+            refs.filter(_ == "structure_iqp_black")
+        }
+        .toList
+        .flatten
+    val badBishopActivityPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.PieceActivityBadBishop).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.PieceActivityBadBishop).wireKey :: refs.filter(_.startsWith("enemy_bad_bishop_"))
+        }
+        .toList
+        .flatten
+    val pieceCentralizationPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.PieceCentralizationMotif).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.PieceCentralizationMotif).wireKey ::
+            refs.filter(ref => ref == "piece_centralization_shape" || ref.startsWith("centralized_piece_"))
+        }
+        .toList
+        .flatten
+    val pieceManeuverPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.PieceManeuverMotif).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.PieceManeuverMotif).wireKey ::
+            refs.filter(_.startsWith("piece_maneuver_"))
+        }
+        .toList
+        .flatten
+    val colorComplexClampPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.ColorComplexClamp).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.ColorComplexClamp).wireKey ::
+            refs.filter(ref =>
+              ref == "enemy_color_complex_weakness" ||
+                ref == "color_complex_dark" ||
+                ref == "color_complex_light"
+            )
+        }
+        .toList
+        .flatten
+    val maroczyProfilePriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.MaroczyBindProfile).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.MaroczyBindProfile).wireKey ::
+            refs.filter(_ == "structure_maroczy_bind")
+        }
+        .toList
+        .flatten
+    val spaceAdvantageMotifPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.SpaceAdvantageMotif).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.SpaceAdvantageMotif).wireKey ::
+            refs.filter(ref => ref == "space_advantage_motif_shape" || ref.startsWith("space_pawn_delta_"))
+        }
+        .toList
+        .flatten
+    val centralPawnAdvancePriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.CentralPawnAdvanceMotif).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.CentralPawnAdvanceMotif).wireKey ::
+            refs.filter(ref =>
+              ref == "central_pawn_advance_shape" ||
+                ref.startsWith("central_pawn_file_") ||
+                ref.startsWith("central_pawn_to_rank_")
+            )
+        }
+        .toList
+        .flatten
+    val frenchMinorPriority =
+      Option.when(FrenchProfilePriorityEvidenceRefs.forall(refs.contains)) {
+        FrenchProfilePriorityEvidenceRefs ++ strongKnightVsBishopPriority ++ badBishopActivityPriority
+      }.toList.flatten
+    val lockedCenterPriority =
+      Option.when(LockedCenterPriorityEvidenceRefs.forall(refs.contains))(LockedCenterPriorityEvidenceRefs).toList.flatten
+    val iqpSpaceBridgePriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.IqpSpaceBridge).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.IqpSpaceBridge).wireKey ::
+            refs.filter(_ == "structure_iqp_white")
+        }
+        .toList
+        .flatten
+    val iqpCentralPresencePriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.IqpCentralPresence).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.IqpCentralPresence).wireKey ::
+            refs.filter(ref => ref == "structure_iqp_white" || ref == "iqp_central_presence_shape")
+        }
+        .toList
+        .flatten
+    val centralSpacePriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.CentralSpaceEdge).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.CentralSpaceEdge).wireKey ::
+            refs.filter(_ == "central_space_edge_shape")
+        }
+        .toList
+        .flatten
+    val mobilityRestrictionPriority =
+      Option
+        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.MobilityRestriction).wireKey)) {
+          EvidenceRef.Source(EvidenceSourceId.MobilityRestriction).wireKey ::
+            refs.filter(_ == "mobility_restriction_shape")
+        }
+        .toList
+        .flatten
+    (
+      minorityPriority ++
+        minoritySupportPriority ++
+        targetBridgePriority ++
+        weakSquarePriority ++
+        weakComplexPriority ++
+        doubledPawnPressurePriority ++
+        pawnChainSpacePriority ++
+        fileOpeningPriority ++
+        frenchF6BreakSeedPriority ++
+        pawnBreakReadyPriority ++
+        pawnBreakMotifPriority ++
+        centralBreakTensionPriority ++
+        winningEndgamePriority ++
+        rookEndgamePatternPriority ++
+        endgameTechniqueMotifPriority ++
+        passedPawnConversionPriority ++
+        compensationDiagonalPriority ++
+        compensationKingAttackPriority ++
+        compensationLinePriority ++
+        fianchettoAssaultPriority ++
+        routeAttackLanePriority ++
+        directionalAttackLanePriority ++
+        motifRookLiftPriority ++
+        motifPieceLiftPriority ++
+        motifCheckPressurePriority ++
+        fianchettoMotifPriority ++
+        initiativeMotifPriority ++
+        motifBatteryPriority ++
+        routeLinePriority ++
+        kingRingPressurePriority ++
+        enemyKingStuckCenterPriority ++
+        enemyWeakBackRankPriority ++
+        flankPawnPressurePriority ++
+        flankPawnAdvanceMotifPriority ++
+        opponentCounterbreakDenialPriority ++
+        passerBlockadePriority ++
+        hedgehogBreakDenialPriority ++
+        maroczyBreakDenialPriority ++
+        compensationCounterplayDenialPriority ++
+        counterplaySuppressionPriority ++
+        doubledRooksPriority ++
+        rookOnSeventhPriority ++
+        occupiedLinePriority ++
+        openFilePriority ++
+        semiOpenFilePriority ++
+        directionalLinePriority ++
+        lineControlPriority ++
+        connectedRooksPriority ++
+        centralPawnAdvancePriority ++
+        strongKnightOutpostPriority ++
+        routeOutpostPriority ++
+        directionalOutpostPriority ++
+        strongKnightVsBishopPriority ++
+        knightVsBishopMotifPriority ++
+        bishopPairPriority ++
+        oppositeColorBishopsPriority ++
+        enemyBadBishopPriority ++
+        badBishopActivityPriority ++
+        pieceCentralizationPriority ++
+        pieceManeuverPriority ++
+        frenchMinorPriority ++
+        goodBishopCountPriority ++
+        exchangeAvailabilityPriority ++
+        iqpSimplificationPriority ++
+        colorComplexClampPriority ++
+        maroczyProfilePriority ++
+        spaceAdvantageMotifPriority ++
+        lockedCenterPriority ++
+        iqpSpaceBridgePriority ++
+        iqpCentralPresencePriority ++
+        centralSpacePriority ++
+        mobilityRestrictionPriority
+    ).distinct
+
   private def surfaceEvidenceRefs(candidate: Candidate): List[String] =
     val distinct = candidate.evidenceRefs.map(_.wireKey).distinct
     val relationPriority =
@@ -211,8 +953,8 @@ private[commentary] object StrategicIdeaSelector:
         .toList
         .flatMap(_.wireEvidenceRefs)
         .filter(distinct.contains)
-    val priority = (relationPriority ++ PrioritySupportEvidenceRefs.filter(distinct.contains)).distinct
-    (priority ++ distinct.filterNot(priority.contains)).take(6)
+    val priority = (relationPriority ++ prioritySupportEvidenceRefs(distinct)).distinct
+    (priority ++ distinct.filterNot(priority.contains)).take(8)
 
   private def sourceWire(source: EvidenceSourceId): String =
     EvidenceRef.Source(source).wireKey
@@ -274,7 +1016,7 @@ private[commentary] object StrategicIdeaSelector:
             focusFiles = file.toList,
             focusZone = file.flatMap(zoneFromFileToken).orElse(zoneFromSquareKeys(focusSquares)),
             factIds =
-              List("pawn_analysis_break_ready") ++
+              List("pawn_analysis_break_ready_shape") ++
                 Option.when(analysis.advanceOrCapture)("advance_or_capture").toList ++
                 Option.when(analysis.counterBreak)("counter_break_race").toList ++
                 Option.when(focusSquares.nonEmpty)("tension_squares").toList
@@ -331,9 +1073,27 @@ private[commentary] object StrategicIdeaSelector:
             confidence = 0.84 + breakImpactBonus(pawnPlay.breakImpact),
             focusFiles = file.toList,
             focusZone = file.flatMap(zoneFromFileToken),
-            factIds = List("pawn_play_break_ready") ++ file.toList.map(v => s"break_file_$v")
+            factIds = List("pawn_play_break_ready_shape") ++ file.toList.map(v => s"break_file_$v")
           )
         }
+      }
+
+    val pawnBreakMotif =
+      semantic.motifs.collect {
+        case Motif.PawnBreak(file, targetFile, color, _, _) if matchesSide(color, side) =>
+          val fileKey = fileToken(file)
+          val targetFileKey = fileToken(targetFile)
+          val focusFiles = List(fileKey, targetFileKey).distinct
+          evidence(
+            ownerSide = side,
+            kind = StrategicIdeaKind.PawnBreak,
+            readiness = StrategicIdeaReadiness.Build,
+            source = EvidenceSourceId.PawnBreakMotif,
+            confidence = 0.76,
+            focusFiles = focusFiles,
+            focusZone = focusFiles.flatMap(zoneFromFileToken).headOption,
+            factIds = List("pawn_break_motif_shape", s"break_file_$fileKey", s"break_target_file_$targetFileKey")
+          )
       }
 
     val tension =
@@ -432,11 +1192,11 @@ private[commentary] object StrategicIdeaSelector:
           focusFiles = List("f"),
           focusSquares = List("e5", "f6"),
           focusZone = Some("center"),
-          factIds = List("french_f6_break_seed", "white_e5_chain", "black_f7_break_pawn")
+          factIds = List("french_f6_break_seed_shape", "white_e5_chain", "black_f7_break_pawn")
         )
       }.toList
 
-    analysisBreakReady ++ analysisTension ++ analysisBreakRace ++ base ++ tension ++ fileOpening ++ planBridge ++
+    analysisBreakReady ++ analysisTension ++ analysisBreakRace ++ base ++ pawnBreakMotif ++ tension ++ fileOpening ++ planBridge ++
       frenchCounterBreak ++ frenchF6Break
 
   private def collectSemanticTransformationEvidence(
@@ -583,9 +1343,53 @@ private[commentary] object StrategicIdeaSelector:
             focusZone = zoneFromSquares(weakness.squares),
               factIds =
               List("weak_complex_fixation", s"weak_complex_$cause") ++
-                Option.when(weakness.isOutpost)("weak_complex_outpost").toList
+              Option.when(weakness.isOutpost)("weak_complex_outpost").toList
           )
         }
+
+    val motifWeakComplexEvidence =
+      semantic.motifs.collect {
+        case Motif.IsolatedPawn(file, rank, color, _, _) if !matchesSide(color, side) && rank >= 1 && rank <= 8 =>
+          val square = s"${fileToken(file)}$rank"
+          evidence(
+            ownerSide = side,
+            kind = StrategicIdeaKind.TargetFixing,
+            readiness = StrategicIdeaReadiness.Build,
+            source = EvidenceSourceId.WeakComplexFixation,
+            confidence = 0.72,
+            focusSquares = List(square),
+            focusZone = zoneFromFileToken(fileToken(file)),
+            factIds = List("weak_complex_fixation", "weak_complex_isolated_pawn")
+          )
+        case Motif.BackwardPawn(file, rank, color, _, _) if !matchesSide(color, side) && rank >= 1 && rank <= 8 =>
+          val square = s"${fileToken(file)}$rank"
+          evidence(
+            ownerSide = side,
+            kind = StrategicIdeaKind.TargetFixing,
+            readiness = StrategicIdeaReadiness.Build,
+            source = EvidenceSourceId.WeakComplexFixation,
+            confidence = 0.72,
+            focusSquares = List(square),
+            focusZone = zoneFromFileToken(fileToken(file)),
+            factIds = List("weak_complex_fixation", "weak_complex_backward_pawn")
+          )
+      }
+
+    val doubledPawnPressureEvidence =
+      semantic.motifs.collect {
+        case Motif.DoubledPawns(file, color, _, _) if !matchesSide(color, side) =>
+          val fileKey = fileToken(file)
+          evidence(
+            ownerSide = side,
+            kind = StrategicIdeaKind.TargetFixing,
+            readiness = StrategicIdeaReadiness.Build,
+            source = EvidenceSourceId.DoubledPawnPressureMotif,
+            confidence = 0.70,
+            focusFiles = List(fileKey),
+            focusZone = zoneFromFileToken(fileKey),
+            factIds = List("doubled_pawn_pressure_shape", s"doubled_pawn_file_$fileKey")
+          )
+      }
 
     val planBridge =
       topPlansFor(side, semantic).flatMap { plan =>
@@ -705,7 +1509,8 @@ private[commentary] object StrategicIdeaSelector:
         )
       }.toList
 
-    weakSquareEvidence ++ colorComplexEvidence ++ minorityAttackEvidence ++ minorityAttackSupportEvidence ++ weakComplexEvidence ++
+    weakSquareEvidence ++ colorComplexEvidence ++ minorityAttackEvidence ++ minorityAttackSupportEvidence ++ weakComplexEvidence ++ motifWeakComplexEvidence ++
+      doubledPawnPressureEvidence ++
       planBridge ++ directionalFixation ++ compensationTargetFixation ++ carlsbadFixation
 
   private def mergeEvidence(
@@ -781,7 +1586,10 @@ private[commentary] object StrategicIdeaSelector:
           grouped.flatMap(_.factIds.map(EvidenceRef.Fact(_))) ++
           matchingPlanEvidence.flatMap(planEvidenceRefs)
       ).toList.distinct
-    val priority = relationEvidenceRefs(bestRelation).filter(refs.contains)
+    val relationPriority = relationEvidenceRefs(bestRelation).filter(refs.contains)
+    val supportPriorityWireKeys = prioritySupportEvidenceRefs(refs.map(_.wireKey))
+    val supportPriority = supportPriorityWireKeys.flatMap(wireKey => refs.find(_.wireKey == wireKey))
+    val priority = (relationPriority ++ supportPriority).distinct
     (priority ++ refs.filterNot(priority.contains)).take(8)
 
   private def relationEvidenceRefs(relationEvidence: Option[StrategicIdeaEvidence]): List[EvidenceRef] =
@@ -882,6 +1690,7 @@ private[commentary] object StrategicIdeaSelector:
           val stageDelta =
             previewKindAdjustment(candidate, semantic) +
               familyContextAdjustment(candidate, familyMembers, semantic) +
+              familyStageAdjustment(familyForKind(candidate.kind), familyMembers, semantic) +
               structuralWinnerBoost
           candidate.copy(score = (candidate.score + stageDelta).max(0.0).min(0.98))
         }
@@ -1318,6 +2127,7 @@ private[commentary] object StrategicIdeaSelector:
                 ideaRefs.contains(sourceWire(EvidenceSourceId.PlanMatchTransformation)) ||
                 ideaRefs.contains("exchange_availability_bridge") ||
                 ideaRefs.contains("iqp_simplification_profile") ||
+                ideaRefs.contains("winning_endgame_transition_shape") ||
                 ideaRefs.contains("capture_or_exchange")
             )
         val establishedPressureCarrier =
@@ -1591,14 +2401,22 @@ private[commentary] object StrategicIdeaSelector:
 
   private def hasQueensideClampWatch(side: String, semantic: StrategicIdeaSemanticContext): Boolean =
     semantic.board.exists { board =>
-      side == "white" &&
-      pawnAt(board, Color.White, Square.C4) &&
-      pawnAt(board, Color.White, Square.D5) &&
-      pawnAt(board, Color.White, Square.E4) &&
-      pawnAt(board, Color.Black, Square.D6) &&
-      pawnAt(board, Color.Black, Square.E5) &&
-      pawnAt(board, Color.Black, Square.G6) &&
-      pawnAt(board, Color.Black, Square.B7)
+      if side == "white" then
+        pawnAt(board, Color.White, Square.C4) &&
+        pawnAt(board, Color.White, Square.D5) &&
+        pawnAt(board, Color.White, Square.E4) &&
+        pawnAt(board, Color.Black, Square.D6) &&
+        pawnAt(board, Color.Black, Square.E5) &&
+        pawnAt(board, Color.Black, Square.G6) &&
+        pawnAt(board, Color.Black, Square.B7)
+      else
+        pawnAt(board, Color.Black, Square.C5) &&
+        pawnAt(board, Color.Black, Square.D4) &&
+        pawnAt(board, Color.Black, Square.E5) &&
+        pawnAt(board, Color.White, Square.D3) &&
+        pawnAt(board, Color.White, Square.E4) &&
+        pawnAt(board, Color.White, Square.G3) &&
+        pawnAt(board, Color.White, Square.B2)
     }
 
   private def lineAccessFacts(
@@ -1808,10 +2626,10 @@ private[commentary] object StrategicIdeaSelector:
       Set(EvidenceSourceId.RouteLineAccess, EvidenceSourceId.DirectionalLineAccess, EvidenceSourceId.LineControlFeatures)
     ) &&
       candidateHasAnyFact(candidate, fact =>
-        fact.startsWith("open_file_") ||
+          fact.startsWith("open_file_") ||
           fact.startsWith("semi_open_file_") ||
           fact == "seventh_rank_entry" ||
-          fact == "line_control_features"
+          fact == "line_control_shape"
       )
 
   private def hasStrongMinorPieceAnchor(
@@ -2119,7 +2937,7 @@ private[commentary] object StrategicIdeaSelector:
 
   private def normalizeFactToken(value: String): String =
     Option(value)
-      .map(_.trim.toLowerCase.replaceAll("[^a-z0-9]+", "_").stripPrefix("_").stripSuffix("_"))
+      .map(v => NonAlphaNumPattern.replaceAllIn(v.trim.toLowerCase, "_").stripPrefix("_").stripSuffix("_"))
       .filter(_.nonEmpty)
       .getOrElse("unknown")
 
@@ -2241,7 +3059,7 @@ private[commentary] object StrategicIdeaSelector:
 
   private def renderBreakToken(ownerSide: String, square: String): String =
     val normalized = Option(square).map(_.trim).getOrElse("")
-    if normalized.matches("[a-h][1-8]") && Option(ownerSide).exists(_.trim.equalsIgnoreCase("black")) then s"...$normalized"
+    if ChessSquarePattern.matches(normalized) && Option(ownerSide).exists(_.trim.equalsIgnoreCase("black")) then s"...$normalized"
     else normalized
 
   private def routePurposeContainsLinePressure(route: StrategyPieceRoute): Boolean =

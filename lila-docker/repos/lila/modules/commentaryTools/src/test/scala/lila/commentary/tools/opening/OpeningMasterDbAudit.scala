@@ -9,6 +9,11 @@ object OpeningMasterDbAudit:
 
   val DefaultMastersBaseUrl = "https://explorer.lichess.org/masters"
 
+  private val YearPattern = """\b(\d{4})\b""".r
+
+  def extractYear(value: String): Option[String] =
+    Option(value).flatMap(v => YearPattern.findFirstMatchIn(v.trim).map(_.group(1)))
+
   enum QueryMode:
     case Fen, Play
 
@@ -35,10 +40,12 @@ object OpeningMasterDbAudit:
           "play" -> row.uciPlay.mkString(",")
         case _ =>
           "fen" -> row.endpointKey.map(endpoint => s"$endpoint 0 1").getOrElse("")
+    val cleanSince = since.flatMap(extractYear)
+    val cleanUntil = until.flatMap(extractYear)
     val params =
       List(query, "moves" -> "0", "topGames" -> "3") ++
-        since.map("since" -> _) ++
-        until.map("until" -> _)
+        cleanSince.map("since" -> _) ++
+        cleanUntil.map("until" -> _)
     val encodedParams =
       params
         .map { case (key, value) => s"$key=${URLEncoder.encode(value, StandardCharsets.UTF_8)}" }

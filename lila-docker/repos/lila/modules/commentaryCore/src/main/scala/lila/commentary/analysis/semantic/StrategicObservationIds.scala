@@ -51,12 +51,16 @@ private[commentary] object StrategicObservationIds:
     val PawnAnalysisTension = register("pawn_analysis_tension")
     val PawnAnalysisBreakRace = register("pawn_analysis_break_race")
     val PawnPlayBreakReady = register("pawn_play_break_ready")
+    val PawnBreakMotif = register("pawn_break_motif")
     val CentralBreakTension = register("central_break_tension")
     val FileOpeningConsequence = register("file_opening_consequence")
     val PlanMatchBreakPreparation = register("plan_match_break_preparation")
     val FrenchCounterbreakProfile = register("french_counterbreak_profile")
     val FrenchF6BreakSeed = register("french_f6_break_seed")
     val SpaceAdvantageTag = register("space_advantage_tag")
+    val SpaceAdvantageMotif = register("space_advantage_motif")
+    val CentralPawnAdvanceMotif = register("central_pawn_advance_motif")
+    val PawnChainSpaceMotif = register("pawn_chain_space_motif")
     val ColorComplexClamp = register("color_complex_clamp")
     val CentralSpaceEdge = register("central_space_edge")
     val MobilityRestriction = register("mobility_restriction")
@@ -72,6 +76,7 @@ private[commentary] object StrategicObservationIds:
     val ColorComplexWeakness = register("color_complex_weakness")
     val MinorityAttackSupport = register("minority_attack_support")
     val WeakComplexFixation = register("weak_complex_fixation")
+    val DoubledPawnPressureMotif = register("doubled_pawn_pressure_motif")
     val PlanMatchTargetFixing = register("plan_match_target_fixing")
     val DirectionalTargetFixation = register("directional_target_fixation")
     val CompensationTargetFixation = register("compensation_target_fixation")
@@ -79,6 +84,7 @@ private[commentary] object StrategicObservationIds:
 
     // Lines and access.
     val OpenFileControl = register("open_file_control")
+    val SemiOpenFileControl = register("semi_open_file_control")
     val DoubledRooks = register("doubled_rooks")
     val ConnectedRooks = register("connected_rooks")
     val RookOnSeventh = register("rook_on_seventh")
@@ -102,6 +108,9 @@ private[commentary] object StrategicObservationIds:
     val OppositeColorBishops = register("opposite_color_bishops")
     val StrongKnightVsBadBishop = register("strong_knight_vs_bad_bishop")
     val PieceActivityBadBishop = register("piece_activity_bad_bishop")
+    val PieceCentralizationMotif = register("piece_centralization_motif")
+    val PieceManeuverMotif = register("piece_maneuver_motif")
+    val KnightVsBishopMotif = register("knight_vs_bishop_motif")
     val MinorPieceCountImbalance = register("minor_piece_count_imbalance")
     val FrenchMinorPieceProfile = register("french_minor_piece_profile")
 
@@ -118,10 +127,13 @@ private[commentary] object StrategicObservationIds:
     val KingRingPressure = register("king_ring_pressure")
     val FlankPawnPressure = register("flank_pawn_pressure")
     val AttackingThreatAnalysis = register("attacking_threat_analysis")
+    val FlankPawnAdvanceMotif = register("flank_pawn_advance_motif")
     val MotifRookLift = register("motif_rook_lift")
     val MotifBattery = register("motif_battery")
     val MotifPieceLift = register("motif_piece_lift")
     val MotifCheckPressure = register("motif_check_pressure")
+    val FianchettoMotif = register("fianchetto_motif")
+    val InitiativeMotif = register("initiative_motif")
     val RouteAttackLane = register("route_attack_lane")
     val DirectionalAttackLane = register("directional_attack_lane")
     val CompensationDevelopmentLead = register("compensation_development_lead")
@@ -154,6 +166,9 @@ private[commentary] object StrategicObservationIds:
     val InterferenceRelation = register("interference_relation")
     val DecoyRelation = register("decoy_relation")
     val WinningEndgameTransition = register("winning_endgame_transition")
+    val RookEndgamePattern = register("rook_endgame_pattern")
+    val EndgameTechniqueMotif = register("endgame_technique_motif")
+    val PassedPawnConversionMotif = register("passed_pawn_conversion_motif")
     val ClassificationTransformationWindow = register("classification_transformation_window")
     val ExchangeAvailabilityBridge = register("exchange_availability_bridge")
     val CaptureExchangeTransformation = register("capture_exchange_transformation")
@@ -161,6 +176,7 @@ private[commentary] object StrategicObservationIds:
     val IqpSimplificationProfile = register("iqp_simplification_profile")
     val CounterplaySuppression = register("counterplay_suppression")
     val OpponentCounterbreakDenial = register("opponent_counterbreak_denial")
+    val PasserBlockadeMotif = register("passer_blockade_motif")
     val ThreatAnalysisCounterplay = register("threat_analysis_counterplay")
     val HedgehogContainmentProfile = register("hedgehog_containment_profile")
     val HedgehogBreakDenialGeometry = register("hedgehog_break_denial_geometry")
@@ -176,12 +192,16 @@ private[commentary] object StrategicObservationIds:
         PawnAnalysisTension,
         PawnAnalysisBreakRace,
         PawnPlayBreakReady,
+        PawnBreakMotif,
         CentralBreakTension,
         FileOpeningConsequence,
         PlanMatchBreakPreparation,
         FrenchCounterbreakProfile,
         FrenchF6BreakSeed,
         SpaceAdvantageTag,
+        SpaceAdvantageMotif,
+        CentralPawnAdvanceMotif,
+        PawnChainSpaceMotif,
         ColorComplexClamp,
         CentralSpaceEdge,
         MobilityRestriction,
@@ -195,11 +215,13 @@ private[commentary] object StrategicObservationIds:
         ColorComplexWeakness,
         MinorityAttackSupport,
         WeakComplexFixation,
+        DoubledPawnPressureMotif,
         PlanMatchTargetFixing,
         DirectionalTargetFixation,
         CompensationTargetFixation,
         CarlsbadFixationProfile,
         OpenFileControl,
+        SemiOpenFileControl,
         DoubledRooks,
         ConnectedRooks,
         RookOnSeventh,
@@ -221,6 +243,9 @@ private[commentary] object StrategicObservationIds:
         OppositeColorBishops,
         StrongKnightVsBadBishop,
         PieceActivityBadBishop,
+        PieceCentralizationMotif,
+        PieceManeuverMotif,
+        KnightVsBishopMotif,
         MinorPieceCountImbalance,
         FrenchMinorPieceProfile,
         PreventedPlan,
@@ -235,10 +260,13 @@ private[commentary] object StrategicObservationIds:
         KingRingPressure,
         FlankPawnPressure,
         AttackingThreatAnalysis,
+        FlankPawnAdvanceMotif,
         MotifRookLift,
         MotifBattery,
         MotifPieceLift,
         MotifCheckPressure,
+        FianchettoMotif,
+        InitiativeMotif,
         RouteAttackLane,
         DirectionalAttackLane,
         CompensationDevelopmentLead,
@@ -269,6 +297,9 @@ private[commentary] object StrategicObservationIds:
         InterferenceRelation,
         DecoyRelation,
         WinningEndgameTransition,
+        RookEndgamePattern,
+        EndgameTechniqueMotif,
+        PassedPawnConversionMotif,
         ClassificationTransformationWindow,
         ExchangeAvailabilityBridge,
         CaptureExchangeTransformation,
@@ -276,6 +307,7 @@ private[commentary] object StrategicObservationIds:
         IqpSimplificationProfile,
         CounterplaySuppression,
         OpponentCounterbreakDenial,
+        PasserBlockadeMotif,
         ThreatAnalysisCounterplay,
         HedgehogContainmentProfile,
         HedgehogBreakDenialGeometry,

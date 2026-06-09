@@ -405,6 +405,22 @@ class ProofContractRulesTest extends FunSuite:
             ownerSeedTerms = List("bad_piece_liquidation_branch", "bad_piece:c8", "exchange_square:d5")
           )
       )
+    val simplificationProof =
+      PlayerFacingExactSliceProof.SimplificationWindow("d5")
+    val simplificationPacket =
+      exactSliceContractPacket(
+        proofSource = PlanTaxonomy.PlanKind.SimplificationWindow.id,
+        proofFamily = PlanTaxonomy.PlanKind.SimplificationWindow.id,
+        scope = PlayerFacingPacketScope.MoveLocal,
+        proof = Some(simplificationProof)
+      )
+    val mismatchedSimplificationTerms =
+      simplificationPacket.copy(
+        proofPathWitness =
+          simplificationPacket.proofPathWitness.copy(
+            ownerSeedTerms = List("exact_trade_continuation", "exchange_square:e5")
+          )
+      )
 
     assert(PlayerFacingExactSliceProofFacts.matchesPacket(centralPacket, centralProof), clues(centralPacket))
     assert(!PlayerFacingExactSliceProofFacts.matchesPacket(wrongFamily, centralProof), clues(wrongFamily))
@@ -412,6 +428,11 @@ class ProofContractRulesTest extends FunSuite:
     assert(!PlayerFacingExactSliceProofFacts.matchesPacket(mismatchedDefenderTerms, defenderProof), clues(mismatchedDefenderTerms))
     assert(PlayerFacingExactSliceProofFacts.matchesPacket(badPiecePacket, badPieceProof), clues(badPiecePacket))
     assert(!PlayerFacingExactSliceProofFacts.matchesPacket(mismatchedBadPieceTerms, badPieceProof), clues(mismatchedBadPieceTerms))
+    assert(PlayerFacingExactSliceProofFacts.matchesPacket(simplificationPacket, simplificationProof), clues(simplificationPacket))
+    assert(
+      !PlayerFacingExactSliceProofFacts.matchesPacket(mismatchedSimplificationTerms, simplificationProof),
+      clues(mismatchedSimplificationTerms)
+    )
     assert(PlayerFacingExactSliceProofFacts.validShape(centralProof))
     assert(
       !PlayerFacingExactSliceProofFacts.validShape(
@@ -853,6 +874,12 @@ class ProofContractRulesTest extends FunSuite:
             exchangeSquare,
             "bad_piece_liquidation_branch",
             s"bad_piece:$badPieceSquare",
+            s"exchange_square:$exchangeSquare"
+          )
+        case Some(PlayerFacingExactSliceProof.SimplificationWindow(exchangeSquare)) =>
+          List(
+            exchangeSquare,
+            "exact_trade_continuation",
             s"exchange_square:$exchangeSquare"
           )
         case Some(PlayerFacingExactSliceProof.OutpostOccupation(pieceRole, square)) =>

@@ -291,7 +291,20 @@ object CommentaryPlayerQcSupport:
       basicEvidenceRejectReasons: List[String] = Nil,
       supportedLocalCandidateFamilies: List[String] = Nil,
       supportedLocalAdmittedFamilies: List[String] = Nil,
-      supportedLocalRejectReasons: List[String] = Nil
+      supportedLocalRejectReasons: List[String] = Nil,
+      moveReviewLocalFactStatus: Option[String] = None,
+      moveReviewLocalFactFamilies: List[String] = Nil,
+      moveReviewLocalFactAuthorities: List[String] = Nil,
+      moveReviewLocalFactStrictFallbackEligible: Option[Boolean] = None,
+      moveReviewLocalFactRejectReasons: List[String] = Nil,
+      moveReviewCausalClaimStatus: Option[String] = None,
+      moveReviewCausalClaimQuestion: Option[String] = None,
+      moveReviewCausalClaimSubject: Option[String] = None,
+      moveReviewCausalClaimEvidence: List[String] = Nil,
+      moveReviewCausalClaimRelations: List[String] = Nil,
+      moveReviewCausalClaimRejectReasons: List[String] = Nil,
+      moveReviewCausalClaimSupportEmbedded: Option[Boolean] = None,
+      moveReviewCausalClaimGuardrail: Option[String] = None
   ):
     def withQuietSupportTrace(quietSupportTrace: MoveReviewQuietSupportTrace): MoveReviewOutputEntry =
       copy(
@@ -396,7 +409,15 @@ object CommentaryPlayerQcSupport:
       contrastConsequence: Option[String] = None,
       contrastAdmissible: Boolean = false,
       contrastRejectReason: Option[String] = None,
-      contrastReplacementUsed: Boolean = false
+      contrastReplacementUsed: Boolean = false,
+      causalClaimStatus: Option[String] = None,
+      causalClaimQuestion: Option[String] = None,
+      causalClaimSubject: Option[String] = None,
+      causalClaimEvidence: List[String] = Nil,
+      causalClaimRelations: List[String] = Nil,
+      causalClaimRejectReasons: List[String] = Nil,
+      causalClaimSupportEmbedded: Option[Boolean] = None,
+      causalClaimGuardrail: Option[String] = None
   )
 
   final case class MoveReviewRuntimeTrace(
@@ -2098,6 +2119,14 @@ object CommentaryPlayerQcSupport:
       renderSelection
         .map(_.contrastTrace)
         .getOrElse(ContrastiveSupportAdmissibility.ContrastSupportTrace())
+    val causalTrace =
+      MoveReviewCompressionPolicy.causalClaimTrace(
+        snapshot.ctx,
+        plannerInputs,
+        rankedPlans,
+        snapshot.truthContract,
+        snapshot.refs
+      )
     val plannerOwnedSlots =
       MoveReviewCompressionPolicy.buildSlots(
         ctx = snapshot.ctx,
@@ -2161,7 +2190,8 @@ object CommentaryPlayerQcSupport:
         strategyPack = snapshot.strategyPack,
         truthContract = snapshot.truthContract,
         slots = slots,
-        plannerInputs = plannerInputs
+        plannerInputs = plannerInputs,
+        causalTrace = causalTrace
       )
     val deterministicProse =
       Option(LiveNarrativeCompressionCore.deterministicProse(slots)).map(_.trim).getOrElse("")
@@ -2236,7 +2266,15 @@ object CommentaryPlayerQcSupport:
                 renderSelection.flatMap(_.primary.contrast).forall(existing =>
                   !sentence.equalsIgnoreCase(existing.trim)
                 )
-              )
+              ),
+          causalClaimStatus = causalTrace.map(_.status),
+          causalClaimQuestion = causalTrace.map(_.questionKind),
+          causalClaimSubject = causalTrace.flatMap(_.subjectRole),
+          causalClaimEvidence = causalTrace.map(_.evidenceKinds).getOrElse(Nil),
+          causalClaimRelations = causalTrace.map(_.relationKinds).getOrElse(Nil),
+          causalClaimRejectReasons = causalTrace.map(_.rejectReasons).getOrElse(Nil),
+          causalClaimSupportEmbedded = causalTrace.flatMap(_.supportRenderedInClaim),
+          causalClaimGuardrail = causalTrace.flatMap(_.guardrail)
       ),
       prose = prose,
       quietSupport = quietSupportTrace,

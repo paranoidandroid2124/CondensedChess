@@ -136,7 +136,7 @@ final class OpeningExplorerClient(
       case Some(ref) if ref.sampleGames.isEmpty => Future.successful(Some(ref))
       case Some(ref) =>
         val targetFenKey = fenKey4(fen)
-        val games = Random.shuffle(ref.sampleGames).take(maxPgnSnippets)
+        val games = new scala.util.Random().shuffle(ref.sampleGames).take(maxPgnSnippets)
         Future
           .traverse(games) { g =>
             fetchPgnSnippet(gameId = g.id, targetFenKey = targetFenKey).map(sn => g.copy(pgn = sn))
@@ -185,15 +185,7 @@ final class OpeningExplorerClient(
         else
           val bytes = response.body[Array[Byte]]
           val pgn = String(bytes, StandardCharsets.UTF_8)
-          PgnAnalysisHelper.extractPlyData(pgn).toOption.flatMap { plyData =>
-            val idxOpt = plyData.indexWhere(p => fenKey4(p.fen) == targetFenKey) match
-              case -1 => None
-              case i  => Some(i)
-            idxOpt.flatMap { idx =>
-              val slice = plyData.drop(idx).take(snippetMaxPlies)
-              Option.when(slice.nonEmpty)(formatPlySnippet(slice))
-            }
-          }
+          truncateRawPgn(pgn, targetFenKey)
       }
       .recover { case e: Throwable =>
         lila.log("commentary").debug(s"Explorer PGN fetch failed for $gameId: ${e.getMessage}")

@@ -21,13 +21,26 @@ object MoveReviewCoverageDiagnostics:
       rejectReasons: List[String] = Nil
   )
 
+  final case class LocalFactDiagnostic(
+      status: Option[String] = None,
+      families: List[String] = Nil,
+      authorities: List[String] = Nil,
+      strictFallbackEligible: Option[Boolean] = None,
+      rejectReasons: List[String] = Nil
+  )
+
   final case class Result(
       moveReviewSourceKind: Option[String] = None,
       basicEvidenceStatus: Option[String] = None,
       basicEvidenceRejectReasons: List[String] = Nil,
       supportedLocalCandidateFamilies: List[String] = Nil,
       supportedLocalAdmittedFamilies: List[String] = Nil,
-      supportedLocalRejectReasons: List[String] = Nil
+      supportedLocalRejectReasons: List[String] = Nil,
+      moveReviewLocalFactStatus: Option[String] = None,
+      moveReviewLocalFactFamilies: List[String] = Nil,
+      moveReviewLocalFactAuthorities: List[String] = Nil,
+      moveReviewLocalFactStrictFallbackEligible: Option[Boolean] = None,
+      moveReviewLocalFactRejectReasons: List[String] = Nil
   )
 
   object Result:
@@ -39,7 +52,8 @@ object MoveReviewCoverageDiagnostics:
       strategyPack: Option[StrategyPack],
       truthContract: Option[DecisiveTruthContract],
       slots: MoveReviewPolishSlots,
-      plannerInputs: QuestionPlannerInputs
+      plannerInputs: QuestionPlannerInputs,
+      causalTrace: Option[MoveReviewCompressionPolicy.CausalClaimTrace] = None
   ): Result =
     val basic = basicEvidence(ctx, refs, strategyPack, truthContract, slots.sourceKind)
     val supportedLocal =
@@ -48,13 +62,20 @@ object MoveReviewCoverageDiagnostics:
         plannerInputs,
         tacticalVetoReasons(plannerInputs, truthContract)
       )
+    val localFact =
+      localFactDiagnostic(ctx, refs, strategyPack, truthContract, slots, causalTrace)
     Result(
       moveReviewSourceKind = Some(slots.sourceKind),
       basicEvidenceStatus = Some(basic.status),
       basicEvidenceRejectReasons = basic.rejectReasons,
       supportedLocalCandidateFamilies = supportedLocal.candidateFamilies,
       supportedLocalAdmittedFamilies = supportedLocal.admittedFamilies,
-      supportedLocalRejectReasons = supportedLocal.rejectReasons
+      supportedLocalRejectReasons = supportedLocal.rejectReasons,
+      moveReviewLocalFactStatus = localFact.status,
+      moveReviewLocalFactFamilies = localFact.families,
+      moveReviewLocalFactAuthorities = localFact.authorities,
+      moveReviewLocalFactStrictFallbackEligible = localFact.strictFallbackEligible,
+      moveReviewLocalFactRejectReasons = localFact.rejectReasons
     )
 
   private def basicEvidence(
@@ -83,6 +104,63 @@ object MoveReviewCoverageDiagnostics:
             case Nil => List("basic_builder_not_emitted")
             case xs  => xs
         BasicEvidenceDiagnostic(BasicEvidenceStatus.Blocked, reasons)
+
+  private def localFactDiagnostic(
+      ctx: NarrativeContext,
+      refs: Option[MoveReviewRefs],
+      strategyPack: Option[StrategyPack],
+      truthContract: Option[DecisiveTruthContract],
+      slots: MoveReviewPolishSlots,
+      causalTrace: Option[MoveReviewCompressionPolicy.CausalClaimTrace]
+  ): LocalFactDiagnostic =
+    val renderedPlannerFact =
+      Option.when(slots.sourceKind == MoveReviewPolishSlots.Source.Planner) {
+        causalTrace
+          .filter(_.status == "accepted")
+          .flatMap(trace =>
+            trace.localFactFamily.map { family =>
+              LocalFactDiagnostic(
+                status = Some("emitted"),
+                families = List(family),
+                authorities = trace.localFactAuthority.toList,
+                strictFallbackEligible = trace.localFactStrictFallbackEligible,
+                rejectReasons = Nil
+              )
+            }
+          )
+      }.flatten
+    renderedPlannerFact.getOrElse {
+      val emitted = slots.moveReviewExplanation
+      val candidate =
+        slots.localFact
+          .filter(_ => emitted.nonEmpty)
+          .map(localFact => MoveReviewExplanationBuilder.Result(emitted.get, localFact))
+          .orElse(MoveReviewExplanationBuilder.buildWithLocalFact(ctx, refs, truthContract, strategyPack))
+      val strictCandidate =
+        MoveReviewExplanationBuilder.buildWithLocalFact(ctx, refs, truthContract, strategyPack, strictLocalFacts = true)
+      val localFact = candidate.map(_.localFact)
+      val families = localFact.map(_.family.key).toList
+      val authorities = localFact.map(_.authority.key).toList
+      val strictEligible = localFact.map(_.strictFallbackEligible)
+      val status =
+        if emitted.nonEmpty && localFact.nonEmpty then Some("emitted")
+        else if candidate.nonEmpty && strictCandidate.isEmpty then Some("blocked")
+        else if candidate.nonEmpty && localFact.nonEmpty then Some("candidate")
+        else None
+      val rejectReasons =
+        if candidate.nonEmpty && strictCandidate.isEmpty then
+          families.map(family => s"strict_fallback_rejected:$family") match
+            case Nil => List("strict_fallback_rejected")
+            case xs  => xs
+        else Nil
+      LocalFactDiagnostic(
+        status = status,
+        families = families,
+        authorities = authorities,
+        strictFallbackEligible = strictEligible,
+        rejectReasons = rejectReasons
+      )
+    }
 
   private def coupledPvMissingReason(
       played: CommentaryIdeaSurface.PlayedMove,

@@ -242,11 +242,34 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
 
     assertEquals(explanation.source, "basic_move_explanation", clue(explanation))
     assert(explanation.prose.contains("challenges the center"), clue(explanation.prose))
-    assert(explanation.prose.contains("Nf3 develops a knight toward the center"), clue(explanation.prose))
+    assert(explanation.prose.contains("Nf3 is the next move in the checked line"), clue(explanation.prose))
     assert(!explanation.prose.contains("contesting the setup c5 chose"), clue(explanation.prose))
     assert(explanation.reasonTags.contains("line_backed_local"), clue(explanation.reasonTags))
+    assert(explanation.reasonTags.contains("local_fact_family:line_consequence"), clue(explanation.reasonTags))
+    assert(explanation.reasonTags.contains("local_fact_strict:false"), clue(explanation.reasonTags))
     assertEquals(explanation.pvInterpretation.map(_.linePurpose), Some("challenge_center"), clue(explanation.pvInterpretation))
     assertEquals(explanation.shortLine.map(_.san), Some(List("c5", "Nf3", "Nc6")), clue(explanation.shortLine))
+  }
+
+  test("strict local fact mode blocks soft line-backed opening descriptors") {
+    val fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1"
+    val explanation =
+      MoveReviewExplanationBuilder.build(
+        ctx(
+          fen = fen,
+          playedMove = "c7c5",
+          playedSan = "c5",
+          phase = "Opening",
+          ply = 2,
+          phaseReason = "Sicilian center challenge",
+          opening = Some(openingRef("Sicilian Defense", "B20", "c7c5", "c5")),
+          openingGoalEvaluation = None
+        ),
+        Some(refsForLine(fen, List("c7c5", "g1f3", "b8c6"), List("c5", "Nf3", "Nc6"))),
+        strictLocalFacts = true
+      )
+
+    assertEquals(explanation, None, clue(explanation))
   }
 
   test("validated PV enriches an opening goal with semantic line meaning") {
@@ -374,7 +397,42 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
     assert(explanation.pvInterpretation.exists(_.confirms.contains("creates_threat")), clue(explanation.pvInterpretation))
     assert(!explanation.pvInterpretation.exists(_.confirms.contains("answers_threat")), clue(explanation.pvInterpretation))
     assert(explanation.reasonTags.contains("review_intent:creates_threat"), clue(explanation.reasonTags))
+    assert(explanation.reasonTags.contains("local_fact_family:pressure"), clue(explanation.reasonTags))
+    assert(explanation.reasonTags.contains("local_fact_authority:canonical_fact"), clue(explanation.reasonTags))
     assert(explanation.pvInterpretation.exists(_.learningPoint.contains("g6")), clue(explanation.pvInterpretation))
+    assert(explanation.prose.contains("concrete local target"), clue(explanation.prose))
+    assert(!explanation.prose.contains("puts pressure"), clue(explanation.prose))
+    assert(!explanation.prose.contains("creates a concrete target"), clue(explanation.prose))
+    assert(!explanation.prose.contains("first answer to the target"), clue(explanation.prose))
+    assert(!explanation.prose.contains("creates the verified target pattern"), clue(explanation.prose))
+    assert(!explanation.prose.contains("first reply"), clue(explanation.prose))
+    assert(!explanation.prose.contains("tests the point"), clue(explanation.prose))
+    assert(!explanation.prose.contains("target evidence"), clue(explanation.prose))
+    assert(!explanation.prose.contains("shown by the local evidence"), clue(explanation.prose))
+  }
+
+  test("strict local fact mode keeps only played-move-owned target pressure") {
+    val fen = "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2"
+    val ownedTarget =
+      Fact.TargetPiece(Square.E5, Pawn, List(Square.H5), Nil, FactScope.CandidatePv)
+    val unownedTarget =
+      Fact.TargetPiece(Square.E5, Pawn, List(Square.F3), Nil, FactScope.CandidatePv)
+
+    val owned =
+      MoveReviewExplanationBuilder.build(
+        ctx(fen, "d1h5", "Qh5", phaseReason = "owned target evidence", candidateFacts = List(ownedTarget)),
+        Some(refsForLine(fen, List("d1h5", "g7g6", "h5e5"), List("Qh5", "g6", "Qxe5+"))),
+        strictLocalFacts = true
+      )
+    val unowned =
+      MoveReviewExplanationBuilder.build(
+        ctx(fen, "d1h5", "Qh5", phaseReason = "unowned target evidence", candidateFacts = List(unownedTarget)),
+        Some(refsForLine(fen, List("d1h5", "g7g6", "h5e5"), List("Qh5", "g6", "Qxe5+"))),
+        strictLocalFacts = true
+      )
+
+    assert(owned.exists(_.reasonTags.contains("local_fact_family:pressure")), clue(owned))
+    assertEquals(unowned, None, clue(unowned))
   }
 
   test("only-move defense truth admits answers-threat only with coupled PV proof") {
@@ -427,6 +485,8 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
     assertEquals(noPv, None)
     assertEquals(explanation.pvInterpretation.map(_.linePurpose), Some("answer_direct_threat"), clue(explanation))
     assert(explanation.reasonTags.contains("review_intent:answers_threat"), clue(explanation.reasonTags))
+    assert(explanation.reasonTags.contains("local_fact_family:defense"), clue(explanation.reasonTags))
+    assert(!explanation.prose.contains("addresses the immediate threat"), clue(explanation.prose))
     assert(explanation.reasonTags.contains("line_proof:defensive_answer"), clue(explanation.reasonTags))
   }
 
@@ -450,7 +510,7 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
     assertEquals(explanation.source, "basic_move_explanation", clue(explanation))
     assertEquals(explanation.pvInterpretation.map(_.linePurpose), Some("king_safety_first"), clue(explanation.pvInterpretation))
     assert(explanation.reasonTags.contains("review_intent:king_safety"), clue(explanation.reasonTags))
-    assert(explanation.pvInterpretation.exists(_.learningPoint.contains("king safety")), clue(explanation.pvInterpretation))
+    assert(explanation.pvInterpretation.exists(_.learningPoint.contains("king-safety")), clue(explanation.pvInterpretation))
 
     val aliasExplanation =
       MoveReviewExplanationBuilder
@@ -489,7 +549,30 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
     assert(explanation.pvInterpretation.exists(_.confirms.contains("king_activity")), clue(explanation.pvInterpretation))
     assert(explanation.pvInterpretation.exists(_.confirms.contains("improves_endgame_activity")), clue(explanation.pvInterpretation))
     assert(explanation.reasonTags.contains("review_intent:improves_endgame_activity"), clue(explanation.reasonTags))
-    assert(explanation.prose.toLowerCase.contains("king activity"), clue(explanation.prose))
+    assert(explanation.reasonTags.contains("local_fact_family:endgame"), clue(explanation.reasonTags))
+    assert(explanation.prose.toLowerCase.contains("king-activity detail"), clue(explanation.prose))
+  }
+
+  test("endgame fact must be owned by the played move before basic prose is admitted") {
+    val fen = "8/8/8/8/8/8/4P1B1/4K2k w - - 0 1"
+    val kingActivity =
+      Fact.KingActivity(Square.D2, mobility = 5, proximityToCenter = 1, FactScope.CandidatePv)
+    val explanation =
+      MoveReviewExplanationBuilder.build(
+        ctx(
+          fen = fen,
+          playedMove = "g2h3",
+          playedSan = "Bh3",
+          phase = "Endgame",
+          ply = 60,
+          phaseReason = "unowned king activity evidence",
+          candidateFacts = List(kingActivity)
+        ),
+        Some(refsForLine(fen, List("g2h3", "h1g2", "e1d2"), List("Bh3", "Kg2", "Kd2"))),
+        strictLocalFacts = true
+      )
+
+    assertEquals(explanation, None, clue(explanation))
   }
 
   test("passed-pawn and rook endgame activity require exact facts plus legal PV") {

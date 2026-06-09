@@ -349,5 +349,7 @@ private[commentary] object CompensationInterpretation:
       )
     }.getOrElse(false)
 
+  private val SquareMentionPattern = """\b[a-h][1-8]\b""".r
+
   private def squareMentions(text: String): Set[String] =
-    """\b[a-h][1-8]\b""".r.findAllIn(text).toSet
+    SquareMentionPattern.findAllIn(text).toSet

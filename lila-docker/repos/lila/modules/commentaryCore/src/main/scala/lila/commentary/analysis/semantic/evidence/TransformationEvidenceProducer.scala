@@ -4,7 +4,7 @@ import lila.commentary.*
 import lila.commentary.analysis.{ PlanTaxonomy, StrategicIdeaSemanticContext }
 import lila.commentary.analysis.semantic.{ StrategicIdeaEvidence, StrategicIdeaEvidenceProducer }
 import lila.commentary.analysis.semantic.StrategicObservationIds.EvidenceSourceId
-import lila.commentary.model.{ PlanId }
+import lila.commentary.model.{ Motif, PlanId }
 import lila.commentary.model.strategic.{ PositionalTag, TheoreticalOutcomeHint }
 import lila.commentary.model.structure.{ StructureId }
 
@@ -45,12 +45,134 @@ private[commentary] object TransformationEvidenceProducer extends StrategicIdeaE
                 source = EvidenceSourceId.WinningEndgameTransition,
                 confidence = 0.80,
                 focusSquares = feature.keySquaresControlled.map(_.key).take(3),
-                factIds = List("winning_endgame_transition")
+                factIds = List("winning_endgame_transition_shape")
               )
             }
           }
         }
         .toList
+
+    val rookEndgamePattern =
+      semantic.motifs.collect {
+        case Motif.RookBehindPassedPawn(file, color, _, _) if matchesSide(color, side) =>
+          evidence(
+            ownerSide = side,
+            kind = StrategicIdeaKind.FavorableTradeOrTransformation,
+            readiness = StrategicIdeaReadiness.Build,
+            source = EvidenceSourceId.RookEndgamePattern,
+            confidence = 0.72,
+            focusFiles = List(fileToken(file)),
+            focusZone = Some("endgame"),
+            factIds = List("rook_endgame_pattern_shape", "rook_behind_passed_pawn")
+          )
+        case Motif.KingCutOff(_, _, color, _, _) if matchesSide(color, side) =>
+          evidence(
+            ownerSide = side,
+            kind = StrategicIdeaKind.FavorableTradeOrTransformation,
+            readiness = StrategicIdeaReadiness.Build,
+            source = EvidenceSourceId.RookEndgamePattern,
+            confidence = 0.72,
+            focusZone = Some("endgame"),
+              factIds = List("rook_endgame_pattern_shape", "king_cut_off")
+          )
+      }
+
+    val endgameTechniqueMotif =
+      semantic.motifs.collect {
+        case Motif.Opposition(opponentKingSquare, ownKingSquare, oppType, color, _, _) if matchesSide(color, side) =>
+          val oppositionKey = oppType.toString.toLowerCase
+          evidence(
+            ownerSide = side,
+            kind = StrategicIdeaKind.FavorableTradeOrTransformation,
+            readiness = StrategicIdeaReadiness.Build,
+            source = EvidenceSourceId.EndgameTechniqueMotif,
+            confidence = if oppType == Motif.OppositionType.Direct then 0.72 else 0.70,
+            focusSquares = List(ownKingSquare.key, opponentKingSquare.key),
+            focusZone = Some("endgame"),
+            factIds = List("endgame_technique_shape", s"opposition_$oppositionKey")
+          )
+        case Motif.Zugzwang(color, _, _) if !matchesSide(color, side) =>
+          evidence(
+            ownerSide = side,
+            kind = StrategicIdeaKind.FavorableTradeOrTransformation,
+            readiness = StrategicIdeaReadiness.Build,
+            source = EvidenceSourceId.EndgameTechniqueMotif,
+            confidence = 0.72,
+            focusZone = Some("endgame"),
+            factIds = List("endgame_technique_shape", "zugzwang_shape")
+          )
+        case Motif.KingStep(Motif.KingStepType.Activation, color, _, _) if matchesSide(color, side) && semantic.phase.equalsIgnoreCase("endgame") =>
+          evidence(
+            ownerSide = side,
+            kind = StrategicIdeaKind.FavorableTradeOrTransformation,
+            readiness = StrategicIdeaReadiness.Build,
+            source = EvidenceSourceId.EndgameTechniqueMotif,
+            confidence = 0.72,
+            focusZone = Some("endgame"),
+            factIds = List("endgame_technique_shape", "king_activity_shape")
+          )
+      }
+
+    val passedPawnConversionMotif =
+      semantic.motifs.collect {
+        case Motif.PassedPawn(file, rank, color, isProtected, _, _)
+            if matchesSide(color, side) && rank >= 1 && rank <= 8 =>
+          val square = s"${fileToken(file)}$rank"
+          val relativeRank = Motif.relativeRank(rank, color)
+          evidence(
+            ownerSide = side,
+            kind = StrategicIdeaKind.FavorableTradeOrTransformation,
+            readiness = StrategicIdeaReadiness.Build,
+            source = EvidenceSourceId.PassedPawnConversionMotif,
+            confidence =
+              0.72 +
+                Option.when(isProtected)(0.04).getOrElse(0.0) +
+                Option.when(relativeRank >= 6)(0.02).getOrElse(0.0),
+            focusSquares = List(square),
+            focusFiles = List(fileToken(file)),
+            focusZone = zoneFromFileToken(fileToken(file)),
+            factIds =
+              List("passed_pawn_conversion_shape", s"passed_pawn_$square") ++
+                Option.when(isProtected)("protected_passed_pawn").toList ++
+                Option.when(relativeRank >= 6)("advanced_passed_pawn").toList
+          )
+        case Motif.PassedPawnPush(file, toRank, color, _, _) if matchesSide(color, side) && toRank >= 1 && toRank <= 8 =>
+          val square = s"${fileToken(file)}$toRank"
+          val relativeRank = Motif.relativeRank(toRank, color)
+          evidence(
+            ownerSide = side,
+            kind = StrategicIdeaKind.FavorableTradeOrTransformation,
+            readiness = StrategicIdeaReadiness.Build,
+            source = EvidenceSourceId.PassedPawnConversionMotif,
+            confidence = 0.72 + Option.when(relativeRank >= 6)(0.02).getOrElse(0.0),
+            focusSquares = List(square),
+            focusFiles = List(fileToken(file)),
+            focusZone = zoneFromFileToken(fileToken(file)),
+            factIds =
+              List("passed_pawn_conversion_shape", s"passed_pawn_$square", "passed_pawn_push") ++
+                Option.when(relativeRank >= 6)("advanced_passed_pawn").toList
+          )
+        case motif @ Motif.PawnPromotion(file, promotedTo, color, _, _) if matchesSide(color, side) =>
+          val square = s"${fileToken(file)}${if color.white then 8 else 1}"
+          evidence(
+            ownerSide = side,
+            kind = StrategicIdeaKind.FavorableTradeOrTransformation,
+            readiness = StrategicIdeaReadiness.Build,
+            source = EvidenceSourceId.PassedPawnConversionMotif,
+            confidence = 0.76,
+            focusSquares = List(square),
+            focusFiles = List(fileToken(file)),
+            focusZone = zoneFromFileToken(fileToken(file)),
+            beneficiaryPieces = List(roleToken(promotedTo)),
+            factIds =
+              List(
+                "passed_pawn_conversion_shape",
+                s"passed_pawn_$square",
+                "pawn_promotion",
+                s"promotion_piece_${roleToken(promotedTo).toLowerCase}"
+              ) ++ Option.when(motif.isUnderpromotion)("underpromotion").toList
+          )
+      }
 
     val classificationWindow =
       semantic.classification.toList.flatMap { classification =>
@@ -77,11 +199,11 @@ private[commentary] object TransformationEvidenceProducer extends StrategicIdeaE
 
     val exchangeAvailabilityBridge =
       semantic.classification.toList.flatMap { classification =>
-        Option.when(
-          classification.simplifyBias.exchangeAvailable &&
-            structureIs(semantic, StructureId.IQPBlack) &&
-            side == "white"
-        ) {
+        val hasIqpTarget =
+          (structureIs(semantic, StructureId.IQPBlack) && side == "white") ||
+          (structureIs(semantic, StructureId.IQPWhite) && side == "black")
+        val structureCode = if side == "white" then "structure_iqp_black" else "structure_iqp_white"
+        Option.when(classification.simplifyBias.exchangeAvailable && hasIqpTarget) {
           evidence(
             ownerSide = side,
             kind = StrategicIdeaKind.FavorableTradeOrTransformation,
@@ -91,7 +213,7 @@ private[commentary] object TransformationEvidenceProducer extends StrategicIdeaE
             factIds =
               List(
                 Some("exchange_availability_bridge"),
-                Some("structure_iqp_black")
+                Some(structureCode)
               ).flatten
           )
         }
@@ -174,9 +296,12 @@ private[commentary] object TransformationEvidenceProducer extends StrategicIdeaE
               plan.plan.id == PlanId.Simplification ||
               plan.plan.id == PlanId.QueenTrade
           )
+        val hasIqpTarget =
+          (structureIs(semantic, StructureId.IQPBlack) && side == "white") ||
+          (structureIs(semantic, StructureId.IQPWhite) && side == "black")
+        val structureCode = if side == "white" then "structure_iqp_black" else "structure_iqp_white"
         Option.when(
-          structureIs(semantic, StructureId.IQPBlack) &&
-            side == "white" &&
+          hasIqpTarget &&
             (
               classification.simplifyBias.exchangeAvailable ||
                 classification.simplifyBias.shouldSimplify ||
@@ -194,11 +319,11 @@ private[commentary] object TransformationEvidenceProducer extends StrategicIdeaE
               else 0.64,
             focusSquares = exchangeMoveRefs.map(_.target).distinct.take(3),
             factIds =
-              List("structure_iqp_black", "iqp_simplification_profile") ++
+              List(structureCode, "iqp_simplification_profile") ++
                 Option.when(exchangeMoveRefs.nonEmpty)("capture_or_exchange").toList ++
                 Option.when(exchangePlanSupport)("iqp_trade_down_plan").toList
           )
         }
       }
 
-    defenderTagExchangeSupport ++ winningEndgameTransition ++ classificationWindow ++ exchangeAvailabilityBridge ++ moveRefEvidence ++ planBridge ++ iqpSimplification
+    defenderTagExchangeSupport ++ winningEndgameTransition ++ rookEndgamePattern ++ endgameTechniqueMotif ++ passedPawnConversionMotif ++ classificationWindow ++ exchangeAvailabilityBridge ++ moveRefEvidence ++ planBridge ++ iqpSimplification

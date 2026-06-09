@@ -165,6 +165,18 @@ final class MoveReviewCoverageDiagnosticsTest extends FunSuite:
     assertEquals(diagnostics.moveReviewSourceKind, Some("basic_move_explanation"))
     assertEquals(diagnostics.basicEvidenceStatus, Some("emitted"))
     assertEquals(diagnostics.basicEvidenceRejectReasons, Nil)
+    assertEquals(diagnostics.moveReviewLocalFactStatus, Some("emitted"))
+    assertEquals(diagnostics.moveReviewLocalFactFamilies, List("opening_goal"))
+    assertEquals(diagnostics.moveReviewLocalFactAuthorities, List("opening_goal_evidence"))
+    assertEquals(diagnostics.moveReviewLocalFactStrictFallbackEligible, Some(true))
+
+    val scrubbedSlots =
+      slots.copy(moveReviewExplanation = slots.moveReviewExplanation.map(_.copy(reasonTags = Nil)))
+    val scrubbedDiagnostics =
+      MoveReviewCoverageDiagnostics.build(italianCtx, Some(refs), None, None, scrubbedSlots, plannerInputs(italianCtx))
+    assertEquals(scrubbedDiagnostics.moveReviewLocalFactStatus, Some("emitted"))
+    assertEquals(scrubbedDiagnostics.moveReviewLocalFactFamilies, List("opening_goal"))
+    assertEquals(scrubbedDiagnostics.moveReviewLocalFactAuthorities, List("opening_goal_evidence"))
   }
 
   test("records basic evidence blocker when exact factual fallback has no coupled PV") {
@@ -198,6 +210,64 @@ final class MoveReviewCoverageDiagnosticsTest extends FunSuite:
 
     assert(diagnostics.basicEvidenceRejectReasons.contains("coupled_pv_replay_failed"), clue(diagnostics))
     assert(!diagnostics.basicEvidenceRejectReasons.contains("missing_coupled_pv_line"), clue(diagnostics))
+  }
+
+  test("records rendered planner local fact instead of basic preempted candidate") {
+    val outline = BookStyleRenderer.validatedOutline(italianCtx)
+    val baseSlots =
+      MoveReviewPolishSlotsBuilder.buildOrFallback(
+        italianCtx,
+        outline,
+        refs = None,
+        strategyPack = None,
+        truthContract = None
+      )
+    val slots =
+      baseSlots.copy(
+        claim = "3. Bc4: The immediate Qd8 threat gives this move a concrete timing window.",
+        supportPrimary = None,
+        supportSecondary = None,
+        tension = None,
+        evidenceHook = None,
+        coda = None,
+        factGuardrails = Nil,
+        paragraphPlan = List("p1=claim"),
+        sourceKind = MoveReviewPolishSlots.Source.Planner
+      )
+    val causalTrace =
+      Some(
+        MoveReviewCompressionPolicy.CausalClaimTrace(
+          status = "accepted",
+          questionKind = "WhyNow",
+          subjectRole = Some("played_move"),
+          evidenceKinds = List("timing_witness"),
+          relationKinds = List("timing_constraint"),
+          rejectReasons = Nil,
+          supportRenderedInClaim = Some(false),
+          guardrail = Some("MoveReview causal claim: local_fact=timing/truth_contract"),
+          localFactFamily = Some("timing"),
+          localFactAuthority = Some("truth_contract"),
+          localFactStrictFallbackEligible = Some(true),
+          localFactGuardrails = Nil
+        )
+      )
+
+    val diagnostics =
+      MoveReviewCoverageDiagnostics.build(
+        italianCtx,
+        refs = None,
+        strategyPack = None,
+        truthContract = None,
+        slots = slots,
+        plannerInputs = plannerInputs(italianCtx),
+        causalTrace = causalTrace
+      )
+
+    assertEquals(diagnostics.basicEvidenceStatus, Some("planner_preempted"))
+    assertEquals(diagnostics.moveReviewLocalFactStatus, Some("emitted"))
+    assertEquals(diagnostics.moveReviewLocalFactFamilies, List("timing"))
+    assertEquals(diagnostics.moveReviewLocalFactAuthorities, List("truth_contract"))
+    assertEquals(diagnostics.moveReviewLocalFactStrictFallbackEligible, Some(true))
   }
 
   test("SupportedLocal diagnostics separate admitted and rejected proof families") {

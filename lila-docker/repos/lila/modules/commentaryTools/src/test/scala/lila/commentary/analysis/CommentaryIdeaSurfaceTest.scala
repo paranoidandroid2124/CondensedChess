@@ -603,7 +603,9 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
     val current =
       played("g1f3", "Nf3", Square.G1, Square.F3, Piece(Color.White, Knight))
     val target =
-      Fact.TargetPiece(Square.E5, Pawn, List(Square.H5), Nil, FactScope.CandidatePv)
+      Fact.TargetPiece(Square.E5, Pawn, List(Square.F3), Nil, FactScope.CandidatePv)
+    val defensiveTarget =
+      Fact.TargetPiece(Square.E5, Pawn, List(Square.F3), Nil, FactScope.ThreatLine)
     val line =
       Some(lineFacts(moveRef("m1", "Nf3", "g1f3", 3), Some(moveRef("m2", "Nc6", "b8c6", 4)), Some(moveRef("m3", "d4", "d2d4", 5))))
     val defensiveContract =
@@ -619,7 +621,7 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
         .getOrElse(fail("expected target creation descriptor"))
     val defensive =
       CommentaryIdeaSurface
-        .describe(current, evidence(facts = List(target)), line, truthContract = Some(defensiveContract))
+        .describe(current, evidence(facts = List(defensiveTarget)), line, truthContract = Some(defensiveContract))
         .getOrElse(fail("expected defensive descriptor"))
 
     assertEquals(targetCreation.reviewIntent, "creates_threat", clue(targetCreation))
@@ -713,9 +715,34 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
         .getOrElse(fail("expected plan descriptor"))
 
     assert(exchange.baseProse.contains("h3 clarifies the exchange around b5."), clue(exchange.baseProse))
-    assert(plan.baseProse.contains("h3 supports the plan around b5."), clue(plan.baseProse))
+    assert(plan.baseProse.contains("h3 is tied to local plan support around b5."), clue(plan.baseProse))
     assert(!exchange.baseProse.contains("certified"), clue(exchange.baseProse))
     assert(!plan.baseProse.contains("certified"), clue(plan.baseProse))
+  }
+
+  test("certified strategic support ignores generic main-plan anchor text") {
+    val startFen =
+      "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+    val current =
+      played("h2h3", "h3", Square.H2, Square.H3, Piece(Color.White, Pawn))
+    val line =
+      Some(exactLineFacts(startFen, "h2h3", List("h2h3", "b7b5", "a2a4"), List("h3", "b5", "a4"), "strategy"))
+    val delta = strategicDelta("neutralize_key_break", "counterplay_axis_suppression", PlayerFacingMoveDeltaClass.PlanAdvance)
+    val genericDelta =
+      delta.copy(
+        anchorTerms = List("plan activation lane"),
+        packet =
+          delta.packet.copy(
+            anchorTerms = List("plan activation lane")
+          )
+      )
+    val descriptor =
+      CommentaryIdeaSurface
+        .describe(current, evidence(strategicDelta = Some(genericDelta)), line)
+        .getOrElse(fail("expected plan descriptor"))
+
+    assert(!descriptor.baseProse.contains("main plan"), clue(descriptor.baseProse))
+    assertEquals(descriptor.baseProse, "h3 is tied to local plan support around b5.", clue(descriptor.baseProse))
   }
 
   test("truth contract only derives an internal character band") {

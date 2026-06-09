@@ -607,7 +607,7 @@ private[commentary] object SourceReview:
       source: SourceWitnessCatalog.SourceCandidate,
       surface: EvaluationSurface
   ): Boolean =
-    surfaceContractDescriptor(source.reviewGroup).forall(_.aligned(surface))
+    surfaceContractDescriptor(source.reviewGroup).exists(_.aligned(surface))
 
   private def plannerOwnership(surface: EvaluationSurface): String =
     if surface.release == "CertifiedOwner" || surface.release == "SupportedLocal" then

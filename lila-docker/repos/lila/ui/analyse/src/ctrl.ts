@@ -31,7 +31,6 @@ import { makeSanAndPlay } from 'chessops/san';
 import { makeUci } from 'chessops';
 import { storedBooleanProp, storedProp, tempStorage } from 'lib/storage';
 import { PromotionCtrl } from 'lib/game/promotion';
-import { valid as crazyValid } from './crazy/crazyCtrl';
 import moveReviewNarrative, { moveReviewClear, type MoveReviewNarrative } from './moveReview';
 import ExplorerCtrl from './explorer/explorerCtrl';
 import { uciToMove } from '@lichess-org/chessground/util';
@@ -39,7 +38,6 @@ import { IdbTree } from './idbTree';
 import pgnImport from './pgnImport';
 import * as pgnExport from './pgnExport';
 import { emptyPgnError, normalizeInlinePgn, submitPgnToImportPipeline } from './pgnPipeline';
-import ForecastCtrl from './forecast/forecastCtrl';
 import * as studyApi from './studyApi';
 import { listSessionMoveReviewSnapshots, type StudyMoveReviewSnapshot } from './moveReview/studyPersistence';
 
@@ -131,7 +129,6 @@ export default class AnalyseCtrl implements CevalHandler {
   // sub controllers
   autoplay: Autoplay;
   explorer: ExplorerCtrl;
-  forecast?: ForecastCtrl;
   fork: ForkCtrl;
   promotion: PromotionCtrl;
 
@@ -211,7 +208,6 @@ export default class AnalyseCtrl implements CevalHandler {
       this.redraw,
     );
 
-    if (this.data.forecast) this.forecast = new ForecastCtrl(this.data.forecast, this.data, redraw);
     if (this.opts.moveReview) this.moveReview = moveReviewNarrative(this);
 
     this.instanciateEvalCache();
@@ -843,43 +839,17 @@ export default class AnalyseCtrl implements CevalHandler {
       encodeURIComponent(fen).replace(/%20/g, '_').replace(/%2F/g, '/');
   }
 
-  crazyValid = (role: Role, key: Key): boolean => {
-    const color = this.chessground.state.movable.color;
-    return (
-      (color === 'white' || color === 'black') &&
-      crazyValid(this.chessground, this.node.drops, { color, role }, key)
-    );
-  };
+  crazyValid = (_role: Role, _key: Key): boolean => false;
 
-  getCrazyhousePockets = () => this.node.crazy?.pockets;
+  getCrazyhousePockets = () => undefined;
 
   sendNewPiece = (role: Role, key: Key): void => {
     const color = this.chessground.state.movable.color;
     if (color === 'white' || color === 'black') this.userNewPiece({ color, role }, key);
   };
 
-  userNewPiece = (piece: Piece, pos: Key): void => {
-    if (crazyValid(this.chessground, this.node.drops, piece, pos)) {
-      const before = { fen: this.node.fen, path: this.path };
-      this.justPlayed = roleToChar(piece.role).toUpperCase() + '@' + pos;
-      this.justDropped = piece.role;
-      this.justCaptured = undefined;
-      site.sound.move();
-      this.applyUci(this.justPlayed as Uci);
-      this.redraw();
-      if (this.path !== before.path) {
-        this.enqueueStudyWrite(ref =>
-          studyApi.anaDrop(ref, {
-            role: piece.role,
-            pos,
-            fen: before.fen,
-            path: before.path,
-            variant: this.data.game.variant.key,
-            ch: ref.chapterId,
-          }).then(() => { }),
-        );
-      }
-    } else this.jump(this.path);
+  userNewPiece = (_piece: Piece, _pos: Key): void => {
+    this.jump(this.path);
   };
 
   userMove = (orig: Key, dest: Key, capture?: JustCaptured): void => {

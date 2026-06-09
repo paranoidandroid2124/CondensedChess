@@ -16,6 +16,29 @@ import lila.commentary.analysis.semantic.RelationObservationCatalog
  * All "what to say" decisions happen here; Renderer only handles phrasing.
  */
 object NarrativeOutlineBuilder:
+  private val LikelyPawnMovePattern = """^[a-h](?:x[a-h])?[1-8](?:=[QRBN])?[+#]?$""".r
+  private val NegativeLexiconPattern = """\b(blunder|mistake|inaccuracy|misses|slip|inferior|drops|loses)\b""".r
+
+  private val NegativeLexiconReplacements = List(
+    ("(?i)\\bblunder\\b".r, "detour"),
+    ("(?i)\\bmistake\\b".r, "detour"),
+    ("(?i)\\binaccuracy\\b".r, "detour"),
+    ("(?i)\\bmisses\\b".r, "bypasses"),
+    ("(?i)\\bslip\\b".r, "tempo loss"),
+    ("(?i)\\binferior\\b".r, "less direct"),
+    ("(?i)\\bdrops\\b".r, "concedes"),
+    ("(?i)\\bloses\\b".r, "concedes")
+  )
+
+  private val StrongPositiveLexiconReplacements = List(
+    ("(?i)\\bbest move\\b".r, "reference move"),
+    ("(?i)\\bexcellent choice\\b".r, "practical option"),
+    ("(?i)\\bstrong move\\b".r, "practical move"),
+    ("(?i)\\bvery accurate\\b".r, "playable"),
+    ("(?i)\\bprecise move\\b".r, "reference move"),
+    ("(?i)\\bfully sound\\b".r, "playable")
+  )
+
   private val MaxOpeningPrecedents = 3
   private val PrecedentConfidenceThreshold = 0.62
   private val PrecedentTemplateSteps = (0 until 4).toList
@@ -2518,7 +2541,7 @@ object NarrativeOutlineBuilder:
       .mkString("|")
 
   private def isLikelyPawnMove(move: String): Boolean =
-    Option(move).getOrElse("").trim.matches("""^[a-h](?:x[a-h])?[1-8](?:=[QRBN])?[+#]?$""")
+    LikelyPawnMovePattern.matches(Option(move).getOrElse("").trim)
 
   private def isPieceMove(move: String): Boolean =
     Option(move).getOrElse("").headOption.exists(ch => "KQRBN".contains(ch))
@@ -4835,9 +4858,7 @@ object NarrativeOutlineBuilder:
     )
 
   private def containsBenchmarkNegativeLexicon(text: String): Boolean =
-    val low = Option(text).getOrElse("").toLowerCase
-    List("blunder", "mistake", "inaccuracy", "misses", "slip", "inferior", "drops", "loses")
-      .exists(term => low.matches(s""".*\\b$term\\b.*"""))
+    Option(text).exists(t => NegativeLexiconPattern.findFirstIn(t.toLowerCase).isDefined)
 
   private def containsBenchmarkStrongPositiveLexicon(text: String): Boolean =
     val low = text.toLowerCase
@@ -4845,29 +4866,13 @@ object NarrativeOutlineBuilder:
       .exists(low.contains)
 
   private def neutralizeBenchmarkNegativeLexicon(text: String): String =
-    List(
-      ("(?i)\\bblunder\\b", "detour"),
-      ("(?i)\\bmistake\\b", "detour"),
-      ("(?i)\\binaccuracy\\b", "detour"),
-      ("(?i)\\bmisses\\b", "bypasses"),
-      ("(?i)\\bslip\\b", "tempo loss"),
-      ("(?i)\\binferior\\b", "less direct"),
-      ("(?i)\\bdrops\\b", "concedes"),
-      ("(?i)\\bloses\\b", "concedes")
-    ).foldLeft(text) { case (acc, (pattern, replacement)) =>
-      acc.replaceAll(pattern, replacement)
+    NegativeLexiconReplacements.foldLeft(text) { case (acc, (pattern, replacement)) =>
+      pattern.replaceAllIn(acc, replacement)
     }
 
   private def neutralizeBenchmarkStrongPositiveLexicon(text: String): String =
-    List(
-      ("(?i)\\bbest move\\b", "reference move"),
-      ("(?i)\\bexcellent choice\\b", "practical option"),
-      ("(?i)\\bstrong move\\b", "practical move"),
-      ("(?i)\\bvery accurate\\b", "playable"),
-      ("(?i)\\bprecise move\\b", "reference move"),
-      ("(?i)\\bfully sound\\b", "playable")
-    ).foldLeft(text) { case (acc, (pattern, replacement)) =>
-      acc.replaceAll(pattern, replacement)
+    StrongPositiveLexiconReplacements.foldLeft(text) { case (acc, (pattern, replacement)) =>
+      pattern.replaceAllIn(acc, replacement)
     }
 
   private def extractFactConsequence(candidate: CandidateInfo, currentPly: Int): Option[String] =

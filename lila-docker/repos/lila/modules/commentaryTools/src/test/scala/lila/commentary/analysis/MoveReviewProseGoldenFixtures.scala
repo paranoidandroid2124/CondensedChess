@@ -889,8 +889,8 @@ object MoveReviewProseGoldenFixtures:
     List(
       PlannerRuntimeFixture(
         id = "why_this_positive",
-        title = "WhyThis surfaces move-owned purpose",
-        expectation = PlannerFixtureExpectation.Positive,
+        title = "WhyThis planner primary falls closed when the surface claim is label-only",
+        expectation = PlannerFixtureExpectation.Fallback,
         questionKind = AuthorQuestionKind.WhyThis,
         ctx =
           rookPawnMarch.ctx.copy(
@@ -921,9 +921,9 @@ object MoveReviewProseGoldenFixtures:
               truthClass = DecisiveTruthClass.Blunder,
               reasonFamily = DecisiveReasonKind.TacticalRefutation
             )
-          ),
+        ),
         expectedPrimaryKind = Some(AuthorQuestionKind.WhyThis),
-        expectedClaimFragment = Some("blunder")
+        expectedFallbackClaim = Some("This puts the rook on h3.")
       ),
       PlannerRuntimeFixture(
         id = "why_this_negative",
@@ -940,7 +940,7 @@ object MoveReviewProseGoldenFixtures:
           ),
         strategyPack = Some(pressurePack()),
         expectedPrimaryKind = None,
-        expectedFallbackClaim = Some(PieceActivityFallbackClaim)
+        expectedFallbackClaim = Some("This puts the rook on c3.")
       ),
       PlannerRuntimeFixture(
         id = "why_this_fallback",
@@ -959,7 +959,7 @@ object MoveReviewProseGoldenFixtures:
               List(evidence("q_why_this_fallback", "reply_multipv", List("14...Rc8 15.Re1 Qd8")))
           ),
         expectedPrimaryKind = None,
-        expectedFallbackClaim = Some(PieceActivityFallbackClaim)
+        expectedFallbackClaim = Some("This puts the rook on c3.")
       ),
       PlannerRuntimeFixture(
         id = "why_now_tactical_fallback",
@@ -996,7 +996,7 @@ object MoveReviewProseGoldenFixtures:
             authorQuestions = List(question("q_why_now_negative", AuthorQuestionKind.WhyNow))
           ),
         expectedPrimaryKind = None,
-        expectedFallbackClaim = Some(PieceActivityFallbackClaim)
+        expectedFallbackClaim = Some("This puts the rook on c3.")
       ),
       PlannerRuntimeFixture(
         id = "why_now_fallback",
@@ -1012,7 +1012,7 @@ object MoveReviewProseGoldenFixtures:
             authorQuestions = List(question("q_why_now_fallback", AuthorQuestionKind.WhyNow))
           ),
         expectedPrimaryKind = None,
-        expectedFallbackClaim = Some(PieceActivityFallbackClaim)
+        expectedFallbackClaim = Some("This puts the rook on c3.")
       ),
       PlannerRuntimeFixture(
         id = "restricted_defense_conversion_positive",
@@ -1120,7 +1120,7 @@ object MoveReviewProseGoldenFixtures:
             )
           ),
         expectedPrimaryKind = None,
-        expectedFallbackClaim = Some(AdvantageTransformationFallbackClaim)
+        expectedFallbackClaim = Some("This puts the bishop on f3.")
       ),
       PlannerRuntimeFixture(
         id = "what_changed_positive",
@@ -1147,7 +1147,7 @@ object MoveReviewProseGoldenFixtures:
             authorQuestions = List(question("q_changed_negative", AuthorQuestionKind.WhatChanged))
           ),
         expectedPrimaryKind = None,
-        expectedFallbackClaim = Some(PieceActivityFallbackClaim)
+        expectedFallbackClaim = Some("This puts the knight on f1.")
       ),
       PlannerRuntimeFixture(
         id = "what_changed_fallback",
@@ -1163,7 +1163,7 @@ object MoveReviewProseGoldenFixtures:
             authorQuestions = List(question("q_changed_fallback", AuthorQuestionKind.WhatChanged))
           ),
         expectedPrimaryKind = None,
-        expectedFallbackClaim = Some(PieceActivityFallbackClaim)
+        expectedFallbackClaim = Some("This puts the rook on c3.")
       ),
       PlannerRuntimeFixture(
         id = "what_must_be_stopped_positive",
@@ -1195,7 +1195,7 @@ object MoveReviewProseGoldenFixtures:
           ),
         strategyPack = Some(pressurePack()),
         expectedPrimaryKind = None,
-        expectedFallbackClaim = Some(PieceActivityFallbackClaim)
+        expectedFallbackClaim = Some("This puts the rook on c3.")
       ),
       PlannerRuntimeFixture(
         id = "what_must_be_stopped_fallback",
@@ -1211,7 +1211,7 @@ object MoveReviewProseGoldenFixtures:
             authorQuestions = List(question("q_stop_fallback", AuthorQuestionKind.WhatMustBeStopped))
           ),
         expectedPrimaryKind = None,
-        expectedFallbackClaim = Some(PieceActivityFallbackClaim)
+        expectedFallbackClaim = Some("This puts the rook on c3.")
       ),
       PlannerRuntimeFixture(
         id = "whose_plan_is_faster_positive",
@@ -1221,7 +1221,7 @@ object MoveReviewProseGoldenFixtures:
         ctx = raceCtx,
         strategyPack = Some(pressurePack()),
         expectedPrimaryKind = None,
-        expectedFallbackClaim = Some(WeaknessFixationFallbackClaim)
+        expectedFallbackClaim = Some("This puts the rook on c3.")
       ),
       PlannerRuntimeFixture(
         id = "whose_plan_is_faster_negative",
@@ -1257,6 +1257,6 @@ object MoveReviewProseGoldenFixtures:
             authorQuestions = List(question("q_race_fallback", AuthorQuestionKind.WhosePlanIsFaster))
           ),
         expectedPrimaryKind = None,
-        expectedFallbackClaim = Some(PieceActivityFallbackClaim)
+        expectedFallbackClaim = Some("This puts the rook on c3.")
       )
     )

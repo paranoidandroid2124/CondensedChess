@@ -202,6 +202,104 @@ The maintained path is:
    positive `opening_goal`, `certified_strategy_support`, and
    `basic_move_explanation` sources are rejected when strategic support is
    blocked, leaving tactical or exact factual fallback to own the prose.
+   `MoveReviewCompressionPolicy` does not treat a selected `QuestionPlan.claim`
+   as renderer authority by itself. High-risk causal question kinds (`WhyThis`,
+   `WhyNow`, `WhatChanged`, `WhatMustBeStopped`, and `WhosePlanIsFaster`) must
+   first pass the `MoveReviewCausalClaim` gate with a concrete causal anchor and
+   typed support evidence (`contrast`, branch line, timing tension, certified
+   consequence, or timing witness). If that gate fails, planner selection remains
+   diagnostic/runtime trace, but MoveReview prose falls through to the existing
+   basic, exact factual, or thematic fallback lanes. Templates and polish slots
+   may surface the certified text; they do not invent the causal relationship.
+   Support kind is not enough by itself: the same gate also classifies the
+   causal relation (`alternative_contrast`, `played_move_consequence`,
+   `timing_constraint`, `defensive_resource`, `plan_race`, or
+   `change_consequence`). `WhyThis` prose may render only with admissible
+   alternative contrast or played-move-owned consequence; branch/PV evidence and
+   coda text alone remain support, not role authority.
+   When the certified relation is `WhyThis` + `alternative_contrast`, the
+   admissible contrast sentence is the certified surface claim. The raw planner
+   claim is not kept ahead of it as the first paragraph, and the renderer may
+   omit a duplicate visible support paragraph while retaining the typed causal
+   guardrail.
+   When the certified relation is played-move-owned line consequence,
+   `MoveReviewCompressionPolicy` may likewise replace the raw planner claim
+   with a `LineConsequenceEvaluator.surfaceCandidate` narrative, but only for
+   `WhyThis` or `WhatChanged`, only from FEN-validated `MoveReviewRefs`, and
+   only when the typed consequence is not `PreviewOnly`. Engine-only
+   `ReplayBackedInternal` lines and preview-only legal prefixes remain
+   diagnostic/support material for this gate; branch text alone is not promoted
+   into a played-move consequence surface.
+   `WhatChanged` uses the same role check: `change_consequence` may be backed by
+   the played-move-owned consequence relation or by admissible contrast, but a
+   certified coda/branch line without played-move ownership no longer opens a
+   causal change claim.
+   `WhyNow` uses an even narrower timing relation: generic urgency/tension text
+   can remain visible support only after a surface is admitted, but it does not
+   create `timing_constraint` authority by itself. The timing relation opens
+   only from a `QuestionPlanTimingWitness` or from an admissible contrast trace
+   whose source kind is `explicit_reply_loss`.
+   `opening_relation_translator` is narrower still: a `WhyThis` opening-relation
+   claim needs admissible contrastive support before it can render. Branch/PV
+   evidence or a line consequence alone can remain diagnostic support, but it
+   cannot make the played move, the preferred alternative, and the checked line
+   own the same causal story.
+   The fallback lane now applies the same ownership direction to
+   `basic_move_explanation` and scoped takeaways. `MoveReviewLocalFact` owns
+   the shared typed local-fact vocabulary, and `CommentaryIdeaSurface`
+   attaches that admission to every admitted MoveReview basic descriptor with a
+   `local_fact_family` (`attack`, `defense`, `threat`, `pressure`,
+   `plan_support`, `line_consequence`, `timing`, plus existing opening,
+   king-safety, capture, and endgame families) and a `local_fact_authority`
+   before it renders prose. When `MoveReviewCausalClaim` rejects a high-risk
+   planner row, `MoveReviewCompressionPolicy` calls the basic builder in strict
+   local-fact mode. Soft line-only or strategic-plan descriptors that are not
+   strict-eligible fall through to exact factual fallback rather than producing
+   a new causal or strategic explanation. Canonical fact descriptors must be
+   played-move-owned before release: target pressure requires the reviewed move
+   to be a recorded attacker, defensive wording requires only-move defense truth,
+   and endgame facts must be owned by the reviewed move role/square.
+   `MoveReviewScopedTakeaway` consumes the admitted local fact metadata and
+   keeps line text role-neutral; it may show the next checked-line move and the
+   bounded local detail, but it does not turn a purpose string into a target,
+   threat, plan-support, timing, or line-consequence claim.
+   Accepted high-risk planner claims carry the same `MoveReviewLocalFact`
+   admission shape on the causal claim itself.
+   `MoveReviewCausalClaim.CertifiedClaim`
+   records the emitted family, authority, strict flag, and local guardrails
+   before the planner slot can render. Support-required questions without an
+   admitted local fact are rejected with `local_fact_admission_missing` instead
+   of relying on a grammatical claim string. Planner rows therefore report
+   `moveReviewLocalFactStatus=emitted` from the rendered causal claim, not from
+   a basic fallback candidate that happened to be preempted.
+   Planner local-fact admission is source/evidence based, not text inferred:
+   line-consequence authority opens from `LineConsequenceEvaluator`
+   `SurfaceCandidate` output or a typed `pv_delta` owner, timing opens from a
+   timing relation/witness, defense from forcing-defense relation/truth, and
+   pressure/opening/endgame from their typed owner families. Words such as
+   `supports`, `plan`, `pressure`, `target`, or `threat` inside the rendered
+   sentence do not mint a local fact family.
+   Basic/scoped rows preserve the same admission on the internal
+   `MoveReviewPolishSlots.localFact` carrier; `reasonTags` may still expose
+   compatibility/display tags, but tooling must not treat those strings as the
+   local-fact authority source.
+   Tooling copies this through `MoveReviewCoverageDiagnostics` and corpus
+   `moveReviewLocalFact*` fields so PGN/engine runs can count emitted,
+   candidate, and strict-rejected local fact families without parsing prose.
+   `MoveReviewCompressionPolicy.causalClaimTrace` records the same gate result
+   that slot rendering uses. `RuntimeResult`, `MoveReviewPlannerTrace`, and
+   `MoveReviewCorpusRunner` expose the status, question, subject role,
+   evidence kinds, relation kinds, reject reasons, support-embedded flag, and
+   guardrail through `moveReviewCausalClaim*` fields so corpus review can
+   measure accepted versus rejected causal authority without parsing prose.
+   The same role boundary applies after fallback. `basic_move_explanation`,
+   `CommentaryIdeaSurface`, and `MoveReviewScopedTakeaway` may state the played
+   SAN, the next checked-line move, and the bounded local evidence that survived,
+   but they must not describe a target as newly created, forced to be answered,
+   or verified by the PV unless a typed causal claim/evidence carrier authorized
+   that relationship. Basic/scoped surfaces also keep checked-line replies
+   role-neutral (`next checked-line move`) and filter generic display anchors
+   such as `plan activation lane`, `plan`, and `main plan` before rendering.
 11. `NarrativeOutlineBuilder` assembles beats from admitted inputs.
     Reply SAN display derived from raw UCI lines uses legal replay of the first
     move before formatting the reply; an illegal first move leaves the display
@@ -246,11 +344,11 @@ The maintained path is:
     `authority.token` on the `chesstory.move_review.player_surface.v2` row.
     It is not a `CertifiedOwner` expansion. When multiple exact/supported-local
     candidates independently pass their authority gates, the supported-local
-    projector may return at most two distinct player summary rows. When a
+    projector may return at most three distinct player summary rows. When a
     certified typed surface carrier such as route-network, dual-axis bind, or
     restricted-defense conversion is present alongside packet/plan rows, the
-    projector preserves the leading packet/plan row and reserves the second slot
-    for the admitted typed surface row. Practical fallback rows still appear
+    projector preserves the leading packet/plan row and reserves the remaining
+    slots for admitted typed surface rows. Practical fallback rows still appear
     only when no exact/supported-local row survives.
     The builder may also project an `Opening family`
     summary row through the same product surface when `ctx.openingData` or an
@@ -295,6 +393,11 @@ The maintained path is:
     leaves`), and carries public `authority.kind = "central_break"` plus the
     route token; the surface gate only validates the exact witness route token
     shape and does not reclassify raw prose or expose proof ids.
+    The current product-surface witness is the Maderna exact scene at
+    `nrb1r1k1/1pqn1pbp/p2p2p1/P1pP4/2N1PP2/2N2B2/1P4PP/R1BQR1K1 w - - 3 17`,
+    played `e4e5`, with the typed `CentralBreakTiming("e4e5", "e5", "e4-e5")`
+    packet. This is a MoveReview player-surface witness, not a promotion of the
+    source-catalog Maderna row, which remains deferred in source review.
     Historical precedent identifiers are not injected by
     `CentralBreakTimingWitness`; source-row catalogs may retain them in
     test/tooling, but runtime witness tags stay generic.
@@ -316,7 +419,10 @@ The maintained path is:
     may inspect an eight-ply replay window. Central-break timing consequences
     reuse `CentralBreakTimingWitness.exact` rather than duplicating
     central-break authority; replayed central pawn advances without that witness
-    are described only as observed local pawn transitions. Sicilian c-pawn and
+    are described only as observed local pawn transitions. Exchange-sequence
+    narration must describe the most salient replayed exchange rather than
+    blindly using the first capture; a pawn-capture prelude does not hide a
+    later queen trade on the same checked line. Sicilian c-pawn and
     King's Gambit f-pawn opening breaks remain `OpeningGoals` support, not exact
     `central_break_timing` witnesses; when the post-move board-pattern
     evaluation is achieved or partial, tactical truth does not veto support,
@@ -567,6 +673,54 @@ It can select a main plan, but it does not unlock exact proof contracts,
 bounded MoveReview practical-guidance rows on `moveReviewPlayerSurface`. They
 do not enter `selectedMainEvaluatedPlans`, `check_qualifying`, retained
 `mainStrategicPlans`, or certified/main-claim authority.
+For `StructuralOnly` practical-plan summary rows, `MoveReviewPlayerPayloadBuilder`
+may add the typed structure label when the current semantic
+`StructureProfileInfo` is not `Unknown`, has at least 0.70 confidence, and the
+paired plan-alignment band is `OnBook` or `Playable`, with the matched
+alignment plan or narrative intent also matching the bounded plan name. Plan
+matching is exact against normalized plan text and typed matched-plan ids; prose
+containment still requires the contained phrase to have at least three words, so
+broad labels such as `pressure`, `attack`, `break`, or `queenside pressure` do
+not unlock structure prose. If a `StructurePlanArcBuilder` arc is prose-eligible
+and its plan label or typed `matchedPlanIds` match the bounded plan name, the
+row may reuse that existing structure/route prose. Both
+forms keep `authority.kind = "practical_plan"`, publish no target metadata, and
+do not convert the structure read or playbook entry into exact motif authority.
+When the profile fallback path is used, the row may also include the typed
+`centerState` as current-board structure context, for example `with the center
+locked`, after the same profile-confidence, plan-alignment, and plan-match gates
+pass.
+The same plan-matched, prose-eligible structure arc may add one `Practical
+route` advanced row using `StructurePlanArcBuilder.supportPrimaryText`. That
+row describes a safe, lower-authority piece deployment cue from the current
+board, semantic piece activity, and route-safety assessment; it does not claim
+an exact route proof, file-entry proof, outpost proof, or supported-local
+ownership.
+`Practical move` may appear beside it only when the reviewed `playedMove`
+legally replays as a one-ply UCI move from the current FEN, starts from the
+arc's deployment origin, and lands on one of that arc's route squares. Fallback
+route prose, SAN-only pawn-move guesses, unrelated legal moves, same-file
+reinforcement, adjacent-route guards, and other pieces landing on route squares
+do not open this row.
+If the same plan-matched arc also carries current-board `prophylaxisSupport`
+from the first semantic `PreventedPlanInfo` with `sourceScope = Now`, it may add
+one `Practical restraint` advanced row only when that prevented plan also has a
+positive `counterplayScoreDrop` or negative `mobilityDelta`. Line-scoped/citation
+prophylaxis support, and default-current plans without those current-board
+impact signals, do not enter this row; they remain outside the board-structural
+practical fallback because they would imply continuation authority or unsupported
+causality.
+The plan-matched structure arc may also add one cautionary `Practical fit` row
+from non-positive `PlanAlignmentInfo.reasonCodes` already humanized by
+`StructurePlanArcBuilder`, such as missing structural preconditions. The row is
+lower-authority context about why the structure fit is partial; `PA_MATCH` alone
+does not create it, and it does not publish owner, motif, target, or proof
+authority.
+When that same plan-matched, prose-eligible structure arc carries
+`practicalCoda`, MoveReview may add one `Practical task` row. The row is allowed
+only as a practical verdict riding on the already admitted structure arc; it
+does not make `PracticalInfo.verdict` an independent structural witness or exact
+authority source.
 When promoted plan advanced rows are absent or leave room, the same bounded
 practical plans may contribute `Practical objective` and `Practical steps`
 advanced rows from their existing preconditions and execution steps. These rows
@@ -574,6 +728,509 @@ are surface guidance only and do not create plan promotion. Practical advanced
 rows are suppressed when a promoted plan already covers the same top-level
 theme or at least 70% of the practical plan's execution steps, so sibling plans
 do not repeat the same guidance under a softer label.
+MoveReview may also add one `Practical pressure` advanced row from an existing
+`StrategyPack` target-fixing idea only when its typed evidence refs include
+`source:carlsbad_fixation_profile` plus a `target_pressure_semantic` /
+`target_pressure_*` fact and pack-side owner match, or
+`source:minority_attack_semantic` plus a
+`target_pressure_semantic` / `target_pressure_*` fact and pack-side owner match, or
+`source:minority_attack_support` plus a `minority_attack_support_<flank>` fact
+and a valid structural target square, or a current-board
+weakness source with its matching fact (`source:enemy_weak_square` plus
+`enemy_weak_square_<square>`, or `source:weak_complex_fixation` plus a
+`weak_complex_*` fact such as `weak_complex_isolated_pawn` or
+`weak_complex_backward_pawn` and a valid focus square), or
+`source:doubled_pawn_pressure_motif` plus `doubled_pawn_pressure_shape`,
+`doubled_pawn_file_<file>`, a valid focus file, Build readiness, pack-side
+owner match, and typed confidence, or compensation target pressure with
+`source:compensation_target_fixation`, `compensation_target_fixation`,
+`material_deficit_compensation`, a valid focus square, pack-side owner match,
+and typed confidence. The
+weakness-source branch requires pack-side owner match. Its named target list
+excludes squares already eligible for the lower-authority `Practical target`
+row on the same target square. Exact `Fixed target` / `Minority attack` rows
+with builder-owned exact wording and practical-plan target metadata remove the
+same target square from every target-naming pressure branch. A practical target
+plan or exact target row on a different square does not close this pressure
+context; the row may still describe the remaining typed focus squares. This
+square-target filtering is not applied to the doubled-pawn pressure branch,
+whose witness and text are file-scoped (`doubled_pawn_file_<file>` plus a valid
+focus file), with emitted file text taken from that matched file fact. This is support-only board-structural
+pressure context with `PracticalPlan` authority and no target metadata; generic plan-match
+target-fixing ideas, color-complex-only weakness tags, directional target
+access without board weakness corroboration, source-only weak-square tags,
+source-only/no-square weak-complex motif tags, source-only/no-target minority
+support, source-only/shape-only/no-file doubled-pawn pressure tags, and
+source-only/no-fact compensation target fixation do not open it.
+When several selector evidence carriers merge into one strategic idea, surface
+projection preserves enough selected source, shape, and witness facts for these
+bounded support-only gates to evaluate them without upgrading them to exact
+authority.
+The structural-idea surface may keep at most three distinct practical-row
+families for one move. This preserves independent board-structural teaching
+cues, such as line and trade cues behind a pressure cue, but it still emits at
+most one row per practical label and does not publish owner, target, token, or
+proof metadata.
+For color complexes, this row is structure-context grammar: an already visible
+exact `Color complex` row with builder-owned bishop/knight wording,
+`PracticalPlan` target authority, and the same dark/light complex suppresses
+the lower-authority `Practical space` context row; stale labels, non-minor-piece
+prose, or targetless approximate wording do not suppress it.
+MoveReview may similarly add one `Practical space` advanced row from an
+existing `StrategyPack` space/restriction idea only when the typed evidence refs
+carry one of the narrow structure-backed profiles: `source:color_complex_clamp`
+plus `enemy_color_complex_weakness` and a specific dark/light color-complex
+token with at least two valid focus squares and pack-side owner match; the
+single dark/light token names the complex and overrides stale `focusZone` text;
+when no single token is available, the color-complex clamp row stays closed. `source:maroczy_bind_profile` plus
+`structure_maroczy_bind` for White with pack-side owner match; or
+`source:iqp_central_presence` plus `structure_iqp_white`,
+`iqp_central_presence_shape`, and focus square `d4` for White with pack-side owner match;
+or `source:iqp_space_bridge` plus `structure_iqp_white` for White, center focus,
+`Build` readiness, pack-side owner match, and the producer confidence floor;
+or `source:locked_center_bind` plus `structure_locked_center`, center focus,
+pack-side owner match, and typed locked-center confidence. The locked-center
+source is emitted only after the producer sees a locked center with same-side
+space edge or color-complex clamp support. It may also use typed central-space
+edge support only when refs carry `source:central_space_edge` and
+`central_space_edge_shape`, with `Ready` readiness, center focus, pack-side owner
+match, and the producer confidence floor. It may also use current-board
+space-advantage motif support only when refs carry `source:space_advantage_motif`,
+`space_advantage_motif_shape`, and a `space_pawn_delta_<n>` fact with `n >= 2`,
+with `Ready` readiness, center focus, pack-side owner match, and motif confidence.
+It may also use current-board central pawn-advance motif support only when refs
+carry `source:central_pawn_advance_motif`,
+`central_pawn_advance_shape`, a matching central `central_pawn_file_<file>` fact,
+and `central_pawn_to_rank_<n>` with `n >= 4`, with center focus, `Build`
+readiness, pack-side owner match, and the motif confidence floor; the emitted
+file token is the matched central file fact, not merely the first focus file.
+It may also use current-board pawn-chain motif support only when refs carry
+`source:pawn_chain_space_motif`, `pawn_chain_space_shape`, and a
+`pawn_chain_<base>_<tip>` fact, with at least two valid focus files, `Build`
+readiness, pack-side owner match, and the pawn-chain confidence floor. The row
+names kingside/queenside space only when the pawn-chain facts resolve to one
+flank zone; mixed-flank or center-only chain facts stay flank-space-neutral.
+It may also use typed aggregate
+mobility-restriction support only when refs carry `source:mobility_restriction`
+and `mobility_restriction_shape`, center focus, pack-side owner match, and confidence
+at least `0.72`, which corresponds to at least a two-piece low-mobility gap in
+the current board-derived producer. This is support-only structure context with
+`PracticalPlan` authority and no target metadata; source-only central-space,
+source-only or one-piece mobility restriction, source-only or weak-delta
+space-advantage motif support, source-only or non-central-file central pawn
+advance motif support, source-only or shape-only pawn-chain motif
+support, pawn-chain support without two valid files, generic
+locked-center, source-only IQP space bridge, or plan-match space carriers do not open it.
+MoveReview may also add one `Practical break` advanced row from an existing
+`StrategyPack` pawn-break idea only when typed evidence refs carry
+`source:pawn_analysis_break_ready` or `source:pawn_play_break_ready`, the matching
+`pawn_analysis_break_ready_shape` or `pawn_play_break_ready_shape` fact,
+`Ready` readiness, a valid focus file, and high confidence; when a matching
+`break_file_<file>` fact is present, the emitted break file uses that fact.
+It may surface a file-opening break consequence only when refs carry
+`source:file_opening_consequence` and a `contested_file_<file>` fact matching
+the focus file, with owner/pack side agreement and typed confidence; the
+emitted opening file is the matched contested-file fact.
+It may surface central-tension break support only when refs carry
+`source:central_break_tension`, a valid central focus file, center focus,
+pack-side owner match, typed confidence, and either `locked_center` or `Ready`
+readiness; because this source carries no file-specific fact, the row names a
+break file only when the merged idea has exactly one valid central focus file,
+otherwise it stays central-break-cue-neutral.
+It may also surface current pawn-break motif support only when refs carry
+`source:pawn_break_motif`, `pawn_break_motif_shape`, and a `break_file_<file>`
+fact matching the focus file, with `Build` readiness, pack-side owner match, and
+the motif confidence floor; the emitted break file is the matched file fact.
+It may also surface the French Advance ...f6 seed only when refs carry
+`source:french_f6_break_seed`, `french_f6_break_seed_shape`, `white_e5_chain`, and
+`black_f7_break_pawn`, with Black owner, f-file focus, e5/f6 focus squares, and
+high confidence. This is a support-only current-structure break cue with
+`PracticalPlan` authority and no route/token metadata; plan-match break
+preparation, counter-break race, source-only central-break tension,
+source-only/shape-only pawn-break motif carriers,
+non-central-file tension, and broad French profile carriers do not open this row
+or satisfy `CentralBreakTiming`.
+MoveReview may also add one `Practical restraint` advanced row from an existing
+`StrategyPack` counterplay-suppression idea only when typed evidence refs carry
+board-geometry support for Hedgehog break denial (`source:hedgehog_break_denial_geometry`,
+`structure_hedgehog`, `hedgehog_break_denial_shape`, White owner, b/d file
+focus, queenside zone, high confidence) or Maroczy break denial
+(`source:maroczy_break_denial_geometry`, `structure_maroczy_bind`,
+`maroczy_break_denial_shape`, White owner, c/d file focus, center zone, high
+confidence). This is support-only current-structure restraint context with
+`PracticalPlan` authority and no route/token metadata. Duplicate suppression is
+subtype-specific: exact `Counterplay break`, `Counterplay restraint`, `Break and
+entry`, or `Route denial` rows close break/counterplay-denial practical context,
+but do not close passer-blockade practical context. For this duplicate
+suppression, exact means the builder-owned generated wording plus the
+corresponding public authority: `CounterplayBreak` token authority for
+`Counterplay break`, or `PracticalPlan` authority for `Counterplay restraint`,
+`Break and entry`, and `Route denial`. Stale labels or approximate route-denial
+prose do not close the matching lower-authority row. It may also use an
+opponent-counterbreak denial bridge only when refs carry
+`source:opponent_counterbreak_denial`, the surviving `opponent_counter_break`
+fact, a concrete focus file, `Ready` readiness, pack-side owner match, and the
+producer confidence floor. It may also use current-board counterplay-suppression
+support only when refs carry `source:counterplay_suppression`,
+`counterplay_suppression_shape`, the single-evidence `counterplay_break_denial` marker,
+`break_neutralized`, and `denied_break_resource`, with a concrete focus file,
+`Ready` readiness, pack-side owner match, and the producer confidence floor. It
+may also use current-board passer-blockade motif support only when refs carry
+`source:passer_blockade_motif`, `passer_blockade_shape`,
+`blockade_square_<square>`, and `blockaded_pawn_<square>`, with `Ready`
+readiness, pack-side owner match, and the motif confidence floor. This remains a
+lower-authority practical brake on the named passed pawn; it does not satisfy the
+exact `Passer blockade` top-PV/public row. It may also use compensation
+counterplay-denial support only when refs carry
+`source:compensation_counterplay_denial`, `material_deficit_compensation`,
+and `break_neutralized`, with a concrete focus file, pack-side owner match, and
+the compensation producer confidence floor. These bridge rows name a break file
+only when the merged idea has exactly one valid focus file; multi-file focus
+stays break-cue-neutral. Broad Hedgehog containment, broad
+Maroczy counterplay suppression,
+source-only opponent-counterbreak rows, source-only/generic counterplay-suppression
+rows, source-only/shape-only/no-pawn passer-blockade motif rows,
+source-only/generic compensation counterplay-denial rows, compensation
+denied-square-only rows, merged-ref counterplay-suppression rows,
+counterplay-score-drop-only rows, and plan-match suppression carriers do not open
+this row or satisfy
+`CounterplayBreak` / `CounterplayRestraint` proof authority.
+MoveReview may also add one `Practical line` advanced row from an existing
+`StrategyPack` line-occupation idea only when typed evidence refs carry current
+occupied major-piece line support (`source:occupied_line_control`, an
+`occupied_r_<square>` or `occupied_q_<square>` fact matching a focus square, and
+an open/semi-open file fact matching the focus file; queen support may also use
+`occupied_seventh_rank`) or doubled-rook file support
+(`source:doubled_rooks` with a `doubled_rooks_<file>` fact matching a focus
+file, including current `Motif.DoubledPieces` carriers when the role is rook)
+or seventh-rank rook support, including seventh-rank invasion motif
+carriers, (`source:rook_on_seventh` with the `rook_on_seventh_shape` fact and a
+rook beneficiary) or current open-file major-piece support, including
+open-file motif carriers (`source:open_file_control` with an `open_file_<file>`
+fact matching a focus file and a rook/queen beneficiary), or current
+semi-open-file motif support (`source:semi_open_file_control` with a
+`semi_open_file_<file>` fact matching a focus file and a rook/queen beneficiary)
+or connected-rooks coordination support
+(`source:connected_rooks` with the `connected_rooks_shape` fact and a rook
+beneficiary), or directional rook-line support (`source:directional_line_access`
+with `directional_line_access_shape`, a valid focus square, and an open/semi-open file
+fact matching a focus file), or exact-route line-control support
+(`source:line_control_features` with `line_control_shape`,
+`source:route_line_access`, `route_surface_exact`, a valid focus square, and an
+open/semi-open file fact matching a focus file), or compensation line support (`source:compensation_open_lines`
+with `compensation_open_lines_shape`, `material_deficit_compensation`, and an
+open/semi-open file fact matching a focus file), or delayed-recovery line
+support (`source:delayed_recovery_window` with `delayed_material_recovery`,
+`development_lead_compensation`, `material_deficit_compensation`, and an
+open/semi-open file fact matching a focus file). Broad route, directional, compensation,
+and delayed-recovery line rows name a file only when the merged idea has exactly
+one open/semi-open file fact; multi-file focus stays line-access-neutral. The
+idea must name the matching rook or queen beneficiary, match
+the pack side, and carry typed confidence; queen and doubled-rook support must
+also be `Ready`, seventh-rank support must be `Ready` with confidence at least
+`0.72`, open-file support must be `Ready` with confidence at least `0.80`,
+semi-open-file motif support must be `Ready` with confidence at least `0.78`,
+while connected-rook support may be `Build` or `Ready`,
+directional rook-line support must be `Build` with a rook
+beneficiary and confidence at least `0.50`, exact-route line-control support
+must be `Ready` with a rook beneficiary and confidence at least `0.60`,
+compensation line support must be `Build` with confidence at
+least `0.70`, and delayed-recovery support must be `Build` with confidence at
+least `0.74`. Duplicate suppression is subtype-specific and file-specific:
+exact `File entry` closes file/post/open-file line context only for the same
+file named by the practical row, exact `Seventh-rank entry` closes
+rook seventh-rank context only for the exact row's generated rook wording,
+exact `Connected rooks` closes connected-rooks context,
+and exact `Doubled rooks` closes doubled-rooks context only for the same file
+named by the practical row. A different exact line subtype, exact `File entry`
+on a different file, exact `Doubled rooks` on a different file, or exact rook
+seventh-rank entry beside a queen seventh-rank cue does not close unrelated
+practical line context. Duplicate suppression requires the current
+builder-owned exact wording and public authority: practical-plan target metadata
+plus the same generated `through <file>-file` wording for `File entry`, where
+the target square is on that named file, or `PracticalPlan` authority plus the
+generated top-PV wording for
+`Seventh-rank entry`, `Connected rooks`, and `Doubled rooks`; seventh-rank
+suppression is role-aware. Exact-looking
+stale labels with lower-authority line prose are not enough to close this
+context row. This is
+support-only current-board line
+context with `PracticalPlan` authority and no target/token metadata; source-only
+`open_file_control`, open-file support without a major-piece beneficiary,
+source-only/no-file semi-open-file tags, semi-open-file tags without a
+major-piece beneficiary,
+source-only occupied-line, source-only doubled-rook,
+non-rook doubled-piece motif carriers, source-only seventh-rank,
+source-only connected-rook, connected-rook without a
+rook beneficiary, source-only/no-route line-control, non-exact route line-access,
+source-only, no-file, queen, or
+low-confidence directional line-access,
+source-only or no-file compensation open-line/delayed-recovery carriers,
+plan-match line carriers, and
+source-only open-file tags do not open this row or satisfy `local_file_entry_bind`
+or `half_open_file_pressure` proof authority.
+MoveReview may also add one `Practical outpost` advanced row from an existing
+`StrategyPack` outpost idea only when typed evidence refs carry
+`source:outpost_tag` plus an `outpost_<square>` fact matching a valid focus
+square, including current minor-piece `Motif.Outpost` carriers, or occupied
+strong-knight support with `source:strong_knight` plus a
+`strong_knight_<square>` fact matching a valid focus square and a knight
+beneficiary, or exact route-outpost support with `source:route_outpost_access`,
+`route_outpost_access_shape`, and `route_surface_exact` aimed at a valid focus square
+by a minor piece; the outpost square is named only when the merged idea carries
+a single focus square, otherwise the practical row stays outpost-cue-neutral; or
+directional outpost support with
+`source:directional_outpost_access`, `directional_outpost_access_shape`, and a valid
+focus square aimed at by a minor piece; the outpost square is named only when
+the merged idea carries a single focus square, otherwise the practical row stays
+outpost-cue-neutral. The idea must match the pack side and
+carry typed confidence for the underlying outpost/strong-knight/route/directional
+bridge; tag, strong-knight, and exact-route support must be `Ready`, while
+directional outpost support must be `Build` with confidence at least `0.64`.
+The row is suppressed only when an already visible exact `Opening outpost` /
+`Knight outpost` row certifies the same outpost square the practical row would
+name; merged multi-square route/directional outpost support stays open only when
+at least one focus square is not already exact-certified. For `Knight outpost`,
+duplicate suppression requires the current exact
+builder `knight` wording and same-square practical-plan target metadata; an
+exact-looking stale label with lower-authority outpost prose is not enough to
+close this context row. For `Opening outpost`, duplicate suppression likewise
+requires the opening-goal builder wording with `PracticalPlan` authority and
+the same extracted outpost square; a stale, lower-authority, or different-square
+`Opening outpost` label does not close this context row. This is
+support-only current-board outpost context with `PracticalPlan` authority and no
+target/token metadata; unoccupied/build strong-knight, entrenched-piece,
+non-exact route outpost access, source-only, non-minor, non-`Build`, or
+low-confidence directional outpost access, opening-goal
+outpost, and plan-match outpost carriers do not open this row or satisfy exact
+`OutpostOccupation` authority.
+MoveReview may also add one `Practical trade` advanced row from an existing
+`StrategyPack` favorable-trade/transformation idea only when typed evidence refs
+carry `source:iqp_simplification_profile`, `structure_iqp_black`, and either
+`capture_or_exchange` or `iqp_trade_down_plan`, with White owner, pack-side owner match, and high typed
+confidence. If an exact `Simplification` row is already visible, this row stays
+closed. The duplicate gate requires the current exact row wording plus
+same-square practical-plan target metadata; an exact-looking stale
+`Simplification` label with lower-authority exchange prose is not enough to
+close this context row. The exchange square is named only when the idea carries
+a single focus square; multi-target exchange support stays trade-cue-neutral
+because no square-specific fact is published for this branch. It may also use IQP exchange-availability support only when refs carry
+`source:exchange_availability_bridge` and `structure_iqp_black`, with White
+owner, `Build` readiness, pack-side owner match, and the exchange-availability
+confidence floor. This is support-only IQP trade context with `PracticalPlan`
+authority and no target/token metadata; classification windows, generic
+capture/exchange, source-only exchange-availability bridges, plan-match
+transformation, soft transformation plan support, and non-IQP transformation
+carriers do not open this row or satisfy exact `SimplificationWindow` authority.
+MoveReview may also add one `Practical conversion` advanced row from an existing
+`StrategyPack` favorable-trade/transformation idea only when typed evidence refs
+carry both `source:winning_endgame_transition` and `winning_endgame_transition_shape`,
+the idea is `Ready`, the owner matches the pack side, confidence reaches the
+producer's winning-endgame threshold, and no exact `Technical conversion` row is
+already visible; because the producer may publish up to three key-square focus
+cues under one shape fact, this row names a square only when the merged idea
+has exactly one valid focus square, otherwise it stays conversion-cue-neutral.
+It may instead use current rook-endgame motif support when refs carry
+`source:rook_endgame_pattern`, `rook_endgame_pattern_shape`, and either
+`rook_behind_passed_pawn` or `king_cut_off`, with `Build` readiness, pack-side
+owner match, confidence at least `0.72`, and no exact `Technical conversion`
+row already visible; rook-endgame wording names a specific pattern only when
+exactly one rook-endgame pattern fact survives, otherwise the row stays
+rook-endgame-map neutral, or when refs carry current endgame-technique motif support
+with `source:endgame_technique_motif`, `endgame_technique_shape`, an
+`opposition_direct`, `opposition_distant`, `opposition_diagonal`, or
+`zugzwang_shape` fact, or endgame-phase `Motif.KingStep.Activation` support with
+`king_activity_shape`, endgame focus, `Build` readiness, pack-side owner match,
+confidence at least `0.72`, and no exact `Technical conversion` row already
+visible; endgame-technique wording names a specific technique only when exactly
+one technique fact survives, otherwise the row stays endgame-technique-map
+neutral, or when refs
+carry current passed-pawn motif support with
+`source:passed_pawn_conversion_motif`, `passed_pawn_conversion_shape`, and a
+`passed_pawn_<square>` fact matching a valid focus square, including
+`Motif.PassedPawnPush` carriers that also keep `passed_pawn_push` and advanced
+rank support when applicable, and `Motif.PawnPromotion` carriers that also keep
+`pawn_promotion`, `promotion_piece_<role>`, and optional `underpromotion`
+support, with `Build` readiness, pack-side owner match, confidence at least
+`0.72`, and no exact `Technical conversion` row already visible; when the row
+names a passed-pawn or promotion square, the emitted square is the matching
+`passed_pawn_<square>` fact, not merely the first focus square. This is
+support-only endgame or passer-structure context with `PracticalPlan` authority
+and no target/token metadata. Exact `Technical conversion` suppression means the
+restricted-defense conversion row's builder-owned wording with `PracticalPlan`
+authority; a stale or lower-authority `Technical conversion` label does not
+close practical conversion context. Classification-only
+transformation windows, source-only or shape-only rook-endgame pattern carriers,
+source-only or shape-only endgame-technique motif carriers, endgame-technique
+motif carriers without opposition, zugzwang, or endgame king-activity facts,
+source-only or shape-only passed-pawn motif carriers, passed-pawn carriers
+without a matching square fact, soft plan matches, and generic exchange carriers
+do not open this row or satisfy restricted-defense `Technical conversion`
+authority.
+MoveReview may also add one `Practical minor` advanced row from an existing
+`StrategyPack` minor-piece idea when typed evidence refs carry a concrete
+minor-piece bridge: `source:strong_knight_vs_bad_bishop` plus a
+`strong_knight_<square>` fact matching a focus square, or
+`source:piece_activity_bad_bishop` plus an `enemy_bad_bishop_<square>` fact
+matching a focus square, current-board enemy-bad-bishop support with
+`source:enemy_bad_bishop` plus the `enemy_bad_bishop_shape` fact, current-board bishop-pair support with
+`source:bishop_pair_advantage` plus the `bishop_pair_advantage_shape` fact,
+current-board opposite-colored-bishop support with
+`source:opposite_color_bishops` plus the `opposite_color_bishops_shape` fact, or a
+current-board good-bishop count edge carrying `source:good_bishop`,
+`good_bishop_shape`, `source:minor_piece_count_imbalance`,
+`minor_piece_count_imbalance_shape`, and `good_bishop_count_edge`, or current
+minor-piece centralization motif support with `source:piece_centralization_motif`,
+`piece_centralization_shape`, and a `centralized_piece_<square>` fact matching a
+focus square, current minor-piece maneuver support with
+`source:piece_maneuver_motif`, `piece_maneuver_shape`, and a minor beneficiary,
+or current knight-vs-bishop motif support with
+`source:knight_vs_bishop_motif`, `knight_vs_bishop_motif_shape`, and
+`knight_preferred_over_bishop`. French Advance profile refs
+`source:french_minor_piece_profile` and `structure_french_advance_chain` keep
+the existing French-specific wording, while non-French bridge rows use current
+minor-piece-map wording. Centralization rows name a concrete role/square pair
+only when the merged idea has exactly one minor beneficiary and exactly one
+centralized-piece fact; merged multi-piece or multi-square centralization stays
+minor-piece-neutral. The idea must name the relevant minor beneficiary,
+match the pack side, and carry typed confidence for the underlying bridge;
+non-French strong-knight and bishop-pair rows must also be `Ready`; bishop-pair
+support closes when an exact `Bishop pair` row is already visible, and
+opposite-colored-bishop support closes when an exact `Opposite-color bishops`
+row is already visible. For those bishop rows, exact means the builder-owned
+capture wording with `PracticalPlan` authority; a stale or lower-authority
+`Bishop pair`/`Opposite-color bishops` label does not close the practical
+minor-piece context. This is support-only structural minor-piece context with
+`PracticalPlan` authority and no target/token metadata; French profile alone,
+source-only bishop-pair advantage,
+source-only good bishop, count imbalance without
+the good-bishop count-edge pair, source-only opposite-color bishop carriers, and
+source-only or no-square/no-minor centralization motif carriers,
+source-only/no-minor maneuver motif carriers, source-only/shape-only
+knight-vs-bishop motif carriers, and plan-match
+minor-piece carriers do not open this row or satisfy exact outpost,
+bishop-pair, opposite-color-bishops, or supported-local authority.
+MoveReview may also add one `Practical prophylaxis` advanced row from an
+existing `StrategyPack` prophylaxis idea only when typed evidence refs carry a
+board-pattern prophylaxis source and matching focus geometry:
+`source:bishop_pin_watch` with a valid `g4`/`g5` focus square, or
+`source:queenside_counterbreak_watch` with a `b`-file focus. The idea owner
+must match the pack side, carry the producer confidence for that board pattern,
+and no promoted exact/probe-backed `Prophylaxis` plan row may already be
+visible. This is support-only current-board prophylaxis context with
+`PracticalPlan` authority and no target/token metadata; plan-match
+prophylaxis, threat-analysis prophylaxis, prevented-plan, counterbreak-watch,
+raw prophylaxis plans, and probe-backed prophylaxis rows do not open this row
+or satisfy exact prophylaxis-restraint authority.
+MoveReview may also add one `Practical attack` advanced row from an existing
+`StrategyPack` king-attack idea only when typed evidence refs jointly carry
+`source:fianchetto_assault_profile`, `source:opposite_side_storm`, and
+`structure_fianchetto_shell`, with kingside focus, `Build` readiness,
+pack-side owner match, and typed fianchetto-assault confidence; or when refs
+carry current king-ring pressure with `source:king_ring_pressure` plus the
+`king_ring_pressure_shape` fact, a concrete enemy-king focus zone, `Build` readiness,
+pack-side owner match, and the producer confidence floor; or when refs carry
+enemy king central-exposure support with `source:enemy_king_stuck_center` plus
+`enemy_king_central_exposure`, a concrete enemy-king focus zone, `Build` readiness,
+pack-side owner match, and the producer confidence floor; or when refs carry
+enemy weak-back-rank support, including weak-back-rank motif carriers, with
+`source:enemy_weak_back_rank` plus `enemy_weak_back_rank_shape`, a concrete
+enemy-king focus zone, `Build` readiness, pack-side owner match, and the
+producer confidence floor; or when refs carry
+current flank-pawn hook pressure with `source:flank_pawn_pressure` plus
+`hook_creation_chance`, a concrete enemy-king focus zone, `Build` readiness,
+pack-side owner match, and the producer confidence floor, unless an exact
+`Hook creation` or `Rook-pawn march` row is already visible; or when refs carry
+flank pawn-advance motif support with `source:flank_pawn_advance_motif`,
+`flank_pawn_advance_shape`, a matching `flank_pawn_file_*` fact on the
+a/b/g/h files, a `flank_pawn_to_rank_*` fact at relative rank four or beyond,
+`Build` readiness, pack-side owner match, and the motif confidence floor,
+unless an exact `Hook creation` or `Rook-pawn march`
+row is already visible. Pawn-file wording is used only when exactly one
+flank-pawn file fact survives; kingside/queenside wording is derived only from
+the surviving flank-pawn file facts, and mixed-flank facts stay attack-cue-neutral;
+or compensation diagonal-battery support when refs jointly carry
+`source:compensation_diagonal_battery`,
+`compensation_diagonal_battery`, `material_deficit_compensation`, B/Q
+beneficiary pieces, king-side/center attack focus, pack-side owner match, and
+the compensation-battery confidence floor; or when refs carry
+`source:compensation_development_lead`, `development_lead_compensation`, and
+`material_deficit_compensation`, a concrete enemy-king focus zone, `Build`
+readiness, pack-side owner match, and the producer confidence floor; or when
+refs carry `source:compensation_king_window`,
+`uncastled_or_unsettled_king_window`, and `material_deficit_compensation`, a
+concrete enemy-king focus zone, `Build` readiness, pack-side owner match, and
+the producer confidence floor; or
+when refs carry exact route-attack support with `source:route_attack_lane`,
+`route_attack_lane_shape`, a concrete enemy-king focus square and zone, a
+beneficiary piece, `Ready` readiness, pack-side owner match, and the
+route-attack confidence floor; the route square is named only when the merged
+idea carries a single focus square, otherwise the practical row stays
+route-neutral; or when refs carry directional attack-lane
+support with `source:directional_attack_lane`,
+`directional_attack_lane_shape`, a concrete enemy-king focus square and zone, a
+beneficiary piece, `Build` readiness, pack-side owner match, and the
+directional producer confidence floor; the target square is named only when the
+merged idea carries a single focus square, otherwise the practical row stays
+target-map-neutral; or when refs carry current motif-battery
+support with `source:motif_battery`, a diagonal/file battery-axis fact, two
+concrete battery squares, two beneficiary pieces, a concrete enemy-king focus
+zone, `Build` readiness, pack-side owner match, and the motif-battery confidence
+floor, unless an exact `Battery pressure` row is already visible; battery-axis
+wording is used only when exactly one battery-axis fact survives, otherwise the
+row stays battery-neutral; or when refs
+carry current rook-lift motif support with `source:motif_rook_lift`, a concrete
+focus file, rook beneficiary, concrete enemy-king focus zone, `Build` readiness,
+pack-side owner match, and the motif-rook-lift confidence floor, unless an exact
+`Rook lift` row is already visible; because this motif source carries no
+file-specific fact, the row names a file only when the merged idea has exactly
+one valid focus file, otherwise it stays rook-lift-cue-neutral; or when refs
+carry current piece-lift motif
+support with `source:motif_piece_lift` plus `motif_piece_lift_shape`, a
+beneficiary piece, concrete enemy-king focus zone, `Build` readiness, pack-side
+owner match, and the motif-piece-lift confidence floor. Because this motif source
+carries no role-specific fact, the row names a lifted piece only when the merged
+idea has exactly one beneficiary piece, otherwise it stays piece-lift-neutral; or when refs carry
+current normal/discovered check-motif support with `source:motif_check_pressure`,
+a `check_type_normal` or `check_type_discovered` fact, a concrete enemy-king
+focus square and zone, a beneficiary piece, `Ready` readiness, pack-side owner
+match, and the motif-check confidence floor; the checked square is named only
+when the merged idea carries a single focus square, and the checking piece is
+named only when the merged idea has exactly one beneficiary piece, otherwise the
+practical row stays check-motif-neutral; or when refs carry current
+fianchetto motif support with `source:fianchetto_motif`,
+`fianchetto_motif_shape`, a `fianchetto_side_kingside` or
+`fianchetto_side_queenside` fact, a concrete focus zone, bishop beneficiary,
+`Build` readiness, pack-side owner match, and the motif confidence floor; or
+when refs carry current initiative motif support with `source:initiative_motif`,
+`initiative_motif_shape`, a concrete enemy-king focus zone, `Build` readiness,
+pack-side owner match, the motif confidence floor, and an `initiative_score_*`
+fact at ten or above. Duplicate suppression is subtype-specific: exact
+back-rank mate, mate-net, or Greek-gift rows close generic attack context,
+exact `Hook creation` / `Rook-pawn march` rows close flank-hook and flank-pawn
+advance context, exact `Battery pressure` closes battery context, and exact
+`Rook lift` closes rook-lift context. A different exact attack subtype does not
+close unrelated practical attack context. This is support-only current-structure
+attack context with `PracticalPlan` authority and no target/token metadata; mate-net,
+source-only king-ring pressure, source-only enemy king central exposure,
+source-only weak back rank, source-only flank-pawn pressure, rook-pawn-ready-only
+flank pressure, source-only/flank-shape-only flank pawn-advance motif carriers,
+non-flank pawn-advance motif carriers, attacking-threat analysis, motif attack lanes,
+source-only or non-exact route-attack lanes, source-only directional attack lanes,
+source-only compensation development, source-only compensation king-window,
+source-only or axis-only/no-square motif battery, source-only or no-file/no-rook
+motif rook lift, source-only or no-zone/no-piece motif piece lift, source-only
+or no-square/no-zone/no-piece motif check pressure, mate/double/smothered check
+motifs, source-only/no-bishop/mirrored fianchetto motif carriers,
+source-only/no-zone/low-score initiative motif carriers, plan-match
+king-attack carriers, and opposite-side storm alone do not open this row or
+satisfy exact tactical authority.
+For duplicate suppression, exact attack/flank/battery/rook-lift rows mean the
+builder-owned generated wording plus `PracticalPlan` authority for
+`Back-rank mate`, `Mate net`, `Greek gift`, `Hook creation`, `Rook-pawn march`,
+`Battery pressure`, or `Rook lift`. A stale label, approximate prose, or row
+without that authority does not close the matching lower-authority
+`Practical attack` construction.
 Weakness-fixation practical plans, and bounded practical plans carrying an
 exact square target hint, may also add a `Practical target` advanced row. The
 target comes from `analysis.structure.WeaknessTargetProfile`, a canonical
@@ -587,17 +1244,18 @@ the checked best-line endpoint profile. Role targets such as `target:e5:queen`
 are not weakness-target hints. Untargeted weakness-fixation practical plans may
 use only the current profile fallback. This row is still bounded practical
 guidance with `practical_plan` authority; it does not expose `authority.target`
-and does not promote the plan. The row now requires a non-empty best-line
-continuation whose outcome comes from legal replay or a supplied `resultingFen`;
-FEN-only target presence is not enough to publish the row. New endpoint-only
-targets require an exact square target hint plus a trusted endpoint or at least
-five legal UCI plies. If the best-line
-outcome shows that the target is immediately liquidated by the defending side,
-the `Practical target` row is suppressed. Capturing the target by the pressure
-side is treated as a resolved target, not as a ghost-target veto. Same-square
-persistence is trusted only when the best line supplies a `resultingFen` or at
-least five UCI plies; shorter persistent lines are treated as too shallow for
-target-persistence display.
+and does not promote the plan. Current-board target context may publish without
+a best-line persistence witness, and may prefix the sentence with the profile's
+typed non-generic structure context when available. Generic center classifications
+such as Open/Locked/Fluid/Symmetric are not used as this prefix; concrete
+structure names remain educational context, not motif admission or target
+authority. The row is suppressed when the available best-line outcome shows
+that the defending side liquidates the target.
+Capturing the target by the pressure side is treated as a resolved target, not
+as a ghost-target veto. New endpoint-only targets still require an exact square
+target hint plus a trusted endpoint or at least five legal UCI plies, because
+those rows say the checked line leaves a target that was not already present in
+the root structure.
 Resolved compensation surfaces may also contribute bounded `Compensation`
 advanced rows. `MoveReviewPlayerPayloadBuilder` consumes the existing
 `StrategyPackSurface` and `CompensationDisplayPhrasing` boundary only after the
@@ -665,6 +1323,12 @@ heavy-piece/local-bind block, and no tactical veto. The public row may name only
 those two axes; it does not claim global no-counterplay or whole-position bind
 authority.
 
+The current FEN-backed public surface witness is the queenless late-middlegame
+fixture in `TwoAxisBindProofTest`: `2r2rk1/pp3pp1/2n1p2p/3p4/1p1P1P2/P1P1PN1P/1P4P1/2R2RK1 w - - 0 24`.
+The certified contract uses direct best defense `f8e8`, branch key
+`f8e8`, future-snapshot persistence, and bounded continuation visibility
+before `MoveReviewSupportedLocalSurfaceRows` emits the `Break and entry` row.
+
 Restricted-defense conversion has a typed MoveReview surface consumer for
 technical conversion support, not a general winning-plan proof.
 `NarrativeContextBuilder` preserves the highest-confidence certified
@@ -677,6 +1341,9 @@ certified contract with a direct best defense, same-branch persistence,
 compressed defender resources, continuing counterplay suppression, and no
 tactical veto. The row may name only the checked best-defense reply when it can
 be legally rendered from the reviewed move; otherwise it stays generic.
+Winning-endgame strategy evidence can support only the lower-authority
+`Practical conversion` row above; it does not bypass the restricted-defense
+proof contract required for `Technical conversion`.
 
 IQP inducement has a lower-authority MoveReview surface consumer. The producer
 may create an `iqp_inducement_probe` / `iqp_inducement` packet only when legal
@@ -687,18 +1354,31 @@ both `after_isolated:<square>` and `isolated_pawn:<square>`, the
 `central_isolated_pawn` marker, and the checked line moves.
 `MoveReviewSupportedLocalSurfaceRows` may project that admitted packet as one
 bounded `IQP target` summary row through
-`ClaimAuthorityResolver.supportedLocalMoveDeltaPacketDecision`. Generic IQP
-labels, source names, or target-square text without the induced-pawn transition
-term and typed exact-slice proof do not create the row.
+`ClaimAuthorityResolver.supportedLocalMoveDeltaPacketDecision`. The row keeps
+`MoveReviewSurfaceAuthority.PracticalPlan` authority but may carry only the
+typed proof's target square in `target`; generic IQP labels, source names, or
+target-square text without the induced-pawn transition term and typed
+exact-slice proof do not create the row.
+The current public source examples include
+`source-karpov-andersson-1975-iqp-inducement`: ply 49 `cxd5` is a
+`SupportedLocal` source row only after exact replay, top-PV identity, the
+`iqp_inducement_probe` packet source/family, the induced `isolated_pawn:d5`
+continuation, and the `subplan:iqp_inducement` contract all agree.
 
 Bounded simplification-window support uses the same move-delta authority path.
 A `simplification_window` packet may reach the public `Simplification` row only
 after the existing proof contract has owner seed, continuation, proven branch,
 stable persistence, structure transition, and no rival/tactical release risk.
-`MoveReviewSupportedLocalSurfaceRows` additionally requires an
+`MoveReviewSupportedLocalSurfaceRows` additionally requires a matching
+`PlayerFacingExactSliceProof.SimplificationWindow(exchangeSquare)` and an
 `exchange_square:<square>` witness term from the checked continuation before it
 can name the exchange. Broad favorable-exchange prose, a naked square anchor,
 or a conversion label such as "same local edge" does not create the row.
+The current public source example is
+`source-botvinnik-vidmar-1936-simplification-window`: ply 31 `Nxd5` is a
+`SupportedLocal` source row only after exact replay, near-top MultiPV evidence,
+the `simplification_window` packet source/family, the checked `exchange_square:d5`
+continuation, and the `subplan:simplification_window` contract all agree.
 
 Move-local favorable-exchange sources follow the same split between proof and
 commentary. `defender_trade` and `bad_piece_liquidation` witnesses in
@@ -712,6 +1392,11 @@ admitted local-branch or queenless-branch fact; generic favorable-exchange
 labels, malformed branch terms, or missing typed proofs fail closed instead of
 becoming owner proof. Detailed truth/trust conditions for these exchange rows
 are owned by `CommentaryTruthBoundary.md` and `CommentaryTrustBoundary.md`.
+The current public bad-piece source example is
+`source-capablanca-golombek-1939-bad-piece-liquidation`: ply 43 `Bxd6` is a
+`SupportedLocal` source row only after exact replay, top-PV identity, the
+`bad_piece_liquidation` packet source/family, and the
+`subplan:bad_piece_liquidation` contract all agree.
 The same analyzer now exposes a shared `RelationWitness` read-model for
 move-local attack/defense relations. Defender-trade, bad-piece-liquidation,
 overload, deflection, discovered-attack, double-check, back-rank mate,
@@ -886,11 +1571,12 @@ longer marks a bishop as bad anywhere in the active commentary analysis path.
 `queen_trade_shield` and bounded favorable-simplification exchange-square
 checks use the same replay boundary. A queen-trade shield witness requires a
 legal queen capture followed by a legal opposing king recapture of that queen;
-same-destination UCI text is not enough. A bounded simplification exchange
+same-destination UCI text is not enough, and a legal proof-sized prefix is
+sufficient even when later PV text is stale. A bounded simplification exchange
 square is recognized only from a legal immediate capture and recapture. Branch
-keys, best-defense move terms, and exact-slice continuation terms for
-MoveReview owner packets now come from bounded replayed moves over the current
-FEN, not raw `VariationLine.moves` slicing.
+keys, best-defense move terms, and exact-slice continuation terms for MoveReview
+owner packets now come from bounded replayed moves over the current FEN, not raw
+`VariationLine.moves` slicing.
 `iqp_inducement` likewise evaluates only legal replayed prefixes before it
 claims that an opponent central pawn became isolated; the prefix must be
 anchored to the reviewed `playedMove`, and illegal, malformed, or
@@ -1071,8 +1757,10 @@ public support metadata only: it comes from the cataloged selector evidence and
 requires the catalog source ref, the matching semantic observation fact, and the
 descriptor-owned analyzer witness fact.
 The builder may expose up to four distinct catalog-approved relation rows in
-`advancedRows`; the outer advanced-row cap still applies, so this broadens
-public relation coverage without creating additional proof authority.
+`advancedRows`; the outer advanced-row cap is sized so the relation,
+compensation, and typed structural-idea caps can all survive together before
+later plan-detail rows, so this broadens public relation coverage without
+creating additional proof authority.
 When a supported-local practical row already surfaces the same relation kind
 from a concrete board/PV witness, the builder suppresses the duplicate
 `strategic_relation` advanced row for that relation kind. Exact defender-trade
@@ -1159,7 +1847,17 @@ shorthand that must be translated before implementation:
 - `broad color-complex expansion` is not a pipeline hook. The releasable path is
   the `ColorComplexSqueeze` exact-slice proof with
   `color_complex_squeeze_probe`; generic `color_complex_clamp` or color-complex
-  support remains selector/support evidence.
+  support remains selector/support evidence. The bounded `Practical space` row
+  can describe a typed current-board clamp at lower authority, but it does not
+  open this exact-slice authority path or publish target metadata.
+  The current source-window public examples are
+  `source-botvinnik-vidmar-1936-flank-clamp`,
+  `source-botvinnik-vidmar-1936-e4-color-complex-squeeze`,
+  `source-camara-bazan-1960-d5-color-complex-squeeze`, and
+  `source-pfleger-maalouf-1961-d5-color-complex-squeeze`, admitted only as
+  `PositionLocal`/`CertifiedOwner` rows after exact FEN replay, top-PV move
+  identity, and the typed `PlayerFacingExactSliceProof.ColorComplexSqueeze`
+  packet match.
 - `mobility-cage expansion` remains closed as a catch-all admission path. The
   only current public mobility-restriction surface is the cataloged
   `trapped_piece`/`domination` relation witness; route denial and broader
@@ -1231,12 +1929,29 @@ structure-transition proof, or both.
 | `bad_piece_liquidation` | `bad_piece_liquidation` | `Releasable` | false | true | `attacking_piece_trade_unowned` |
 | `central_break_timing` | `central_break_timing` | `Releasable` | false | true | `central_break_timing_witness_missing` |
 
+The current public target-coordination examples are
+`K09A-certified-coordination` and `K09D-certified-coordination`; both project as
+`CertifiedOwner` only through `runtime:target_focused_coordination` after legal
+fixture PV replay and a matching
+`PlayerFacingExactSliceProof.TargetFocusedCoordination` packet with
+`coordinated_target:c6` terms. The `Target coordination` row may carry only
+that same typed square as its practical-plan `target`, and cached public
+wording must show two distinct support squares. They do not create a plan-kind
+admission unit.
+
+The current public source queen-trade row is
+`source-carlsen-anand-2014-g6-queen-trade-completion`, ply 17 `Qxd8+` from
+`r1bqk2r/1p3ppp/p1p1pn2/8/1bP1P3/2NQ4/PP3PPP/R1B1KB1R w KQkq - 0 9`; it
+projects only as `SupportedLocal` after legal replay of the queen-capture plus
+king-recapture prefix `d3d8 e8d8` and matching `queen_trade_shield` proof terms.
+
 Local-file entry support is promoted only by the exact file/entry witness:
 `PlayerFacingTruthModePolicy` attaches
 `PlayerFacingExactSliceProof.LocalFileEntryBind(file, entrySquare)` from
-`LocalFileEntryProof.certifiedSurfacePair`, and the packet still needs owner
-seed, continuation, proven branch, stable persistence, no rival release, no
-tactical veto, and the matching `HalfOpenFilePressure` contract.
+`LocalFileEntryProof.certifiedSurfacePair` only when the pair has valid typed
+same-file geometry, and the packet still needs owner seed, continuation, proven
+branch, stable persistence, no rival release, no tactical veto, and the
+matching `HalfOpenFilePressure` contract.
 Admission-unit tooling tracks `OpenFilePressure`, `KeySquareDenial`, and
 `RookFileTransfer` as separate plan-kind work units for this same exact slice,
 but all three use the same `local_file_entry_bind` proof source and
@@ -1244,19 +1959,28 @@ but all three use the same `local_file_entry_bind` proof source and
 public proof.
 Public consumers must use the context-aware certification path: the current FEN
 and legal reviewed-move replay must show a major piece on the claimed file and
-the named entry square either occupied or controlled by the moving side. The
-typed proof fields must also be mirrored in packet witness terms as the same
-file/entry pair through a single `file-entry:<file>:<square>` or
+the named same-file entry square either occupied or controlled by the moving
+side. The typed proof fields must also be mirrored in packet witness terms as
+the same file/entry pair through a single `file-entry:<file>:<square>` or
 `file_entry:<file>:<square>` term. Split file and entry terms under the
 `local_file_entry_bind` marker are not public release proof. The typed entry
 square must lie on the claimed file; off-file pairs fail closed. The
 FEN-less `certifiedSurfacePair(preventedPlans, evidenceBackedPlans)` overload is
 only an internal pair extractor and is not a public commentary authority path.
+The current public planner witness is `prophylactic_cut`: FEN
+`2r2rk1/pp3pp1/2n1p2p/3p4/3P1P2/2P1PN1P/PP4P1/2R2RK1 w - - 0 23`,
+played `a2a3`, certified pair `c-file`/`b4`. This is the shared public lane for
+`OpenFilePressure`, `KeySquareDenial`, and `RookFileTransfer`; standalone
+plan-kind labels do not open separate authority.
 `MoveReviewSupportedLocalSurfaceRows` may project that packet as a bounded
 `File entry` summary row through
 `ClaimAuthorityResolver.supportedLocalMoveDeltaPacketDecision`. The row text is
 limited to the file and entry square; it is not a broad heavy-piece bind,
-global squeeze, or no-counterplay claim.
+global squeeze, or no-counterplay claim. When the row comes from the matching
+typed `LocalFileEntryBind`, it may carry only the same typed entry square as
+practical-plan target metadata, and the public wording must name the entry
+square's own file; top-PV practical file-entry rows, off-file wording, and stale
+file-entry labels do not create target authority.
 
 Named route-network support is promoted only from the existing certified
 surface carrier. `RouteNetworkBindProof.certifiedSurfaceNetwork` supplies the
@@ -1272,13 +1996,17 @@ SupportedLocal move-delta admission plus
 `PlayerFacingExactSliceProof.IqpInducement(targetSquare, lineMoves)` whose
 target and checked line moves are mirrored in the board/PV transition terms. It
 is not certified owner authority, and it is not inferred from broad IQP prose,
-structural tags, or source-catalog labels.
+structural tags, or source-catalog labels. The Karpov-Andersson source row is
+open only on that exact replayed IQP-inducement lane; adjacent same-game IQP
+windows remain non-public unless admitted through the same contract boundary.
 
 Simplification-window support is promoted only from the existing
 `simplification_window` packet after the same resolver admission. The public
-row uses practical-plan authority and is limited to the replayed exchange
-square; it is not a defender-trade, bad-piece, queen-trade, or general
-conversion owner path.
+row uses practical-plan authority and may carry only the replayed exchange
+square as its `target`; it is not a defender-trade, bad-piece, queen-trade, or
+general conversion owner path. The Botvinnik-Vidmar source row is open only on that
+exact replayed exchange-square lane; the Salov-Ljubojevic source row remains
+suppressed because its owner proof is missing.
 
 Outpost support is promoted only from the `outpost_entrenchment` exact-slice
 packet. `PlayerFacingTruthModePolicy` may attach
@@ -1289,9 +2017,17 @@ current/main-PV facts contain `Fact.Outpost(square, Knight, Now)`. The packet
 must keep the outpost square, `piece:knight`, and
 `outpost_occupation:knight:<square>` mirrored in witness terms, with a proven
 same branch and stable persistence. The MoveReview row is bounded to
-`Knight outpost` with practical-plan authority; broad semantic outpost tags,
-route evidence, or opening-goal outposts do not satisfy this exact-slice
-contract.
+`Knight outpost` with practical-plan authority and may carry only that same
+outpost square as its `target` when the row uses the builder-owned `knight`
+wording; broad semantic outpost tags, route evidence, non-knight outpost prose,
+or opening-goal outposts do not satisfy this exact-slice contract.
+The current FEN-backed MoveReview witness is
+`6k1/8/8/8/3P4/5N2/8/6K1 w - - 0 1`, played `f3e5`, checked top-PV line
+`f3e5 g8f8 d4d5 f8e8`, and `Fact.Outpost(e5, Knight, Now)`. It creates an
+`outpost_entrenchment` packet carrying
+`PlayerFacingExactSliceProof.OutpostOccupation("knight", "e5")`; the row may
+state only that the knight reaches the `e5` outpost and may expose only `e5`
+as its public practical-plan target.
 
 Quiet-move intent has a lower-authority MoveReview surface consumer.
 `QuietMoveIntentBuilder` may feed `MoveReviewSupportedLocalSurfaceRows` only
@@ -1543,6 +2279,17 @@ row and position-probe main claim may name this as a bounded `Minority attack`
 target / minority-attack fixed target only through that typed
 `CarlsbadFixedTarget(..., minoritySupport = true)` proof; the standalone
 `minority_attack_fixation` proof family remains deferred.
+The exact `Minority attack` row may carry only the same typed `c6`/`c3` square
+as practical-plan target metadata. Generic minority-attack support and the
+lower-authority Carlsbad practical-context row do not expose target metadata.
+MoveReview may also emit a lower-authority practical target row for
+structural-only Carlsbad/minority-attack or backward-pawn-targeting plans, or
+for a structural-only plan with a matching exact `fixed_target:<c6|c3>` hint,
+when `PawnStructureTargets.carlsbadTargetForBoard` finds the same mirrored board
+shape but no exact target proof is present. This row has `PracticalPlan`
+authority without target metadata and uses structural context wording only;
+checked-line, persistence, proof, or force wording stays reserved for the typed
+`CarlsbadFixedTarget` exact slice above.
 Opening-route target fixation is catalog-driven. `OpeningRouteCatalog` reads the
 family/target/from/via/to/max-replay data plus a `target_mode` such as
 `attack_weak_pawn` or `occupy_target`; `PieceRouteEvidence` reads raw
@@ -1632,7 +2379,21 @@ same sanctioned-kind and token-shape checks when decoding cached or stale
 surfaces: `counterplay_break` may carry a square or route token, while
 `central_break`, `central_liquidation`, and `central_challenge` require a
 route-shaped token and unsupported authority kinds are downgraded without
-reconstructing fallback authority. `opening_family` rows may carry
+reconstructing fallback authority. `practical_plan` authority is normally
+tokenless and targetless, except for exact `Fixed target`, `Minority attack`,
+`IQP target`, `Simplification`, `Knight outpost`, `File entry`,
+`Target coordination`, and `Color complex` rows where backend sanitization and
+frontend decoding may preserve the typed proof square already admitted by the
+row builder. Cached or stale payloads must match the builder-owned exact row
+wording for that square; `Target coordination` target metadata additionally
+requires two distinct support squares in that wording, and `Color complex`
+target metadata additionally requires the exact bishop/knight and dark/light
+color-complex wording plus matching target-square color and minor-piece attack
+geometry. Exact-looking labels with lower-authority context prose, duplicate
+support-square coordination prose, non-minor-piece prose, invalid minor-piece
+geometry, or malformed complex wording keep at most untargeted `practical_plan`
+authority.
+`opening_family` rows may carry
 `openingFamily` from the product builder's `SupportedLocal` resolver path.
 They may carry `target` only for backend-allowlisted opening/target pairs from
 `OpeningFamilyCatalog`; unsupported targets are stripped without dropping the
@@ -1725,6 +2486,13 @@ MoveReview QC support rows. If a MoveReview raw artifact or canonical surface is
 absent, QC queues keep the MoveReview commentary only and do not synthesize
 support rows from raw carriers, legacy chronicle metadata, or removed
 Active/Chronicle QC helpers.
+MoveReview corpus rows also carry `moveReviewCausalClaimStatus`,
+`moveReviewCausalClaimQuestion`, `moveReviewCausalClaimSubject`,
+`moveReviewCausalClaimEvidence`, `moveReviewCausalClaimRelations`,
+`moveReviewCausalClaimRejectReasons`, `moveReviewCausalClaimSupportEmbedded`,
+and `moveReviewCausalClaimGuardrail`. These are diagnostic verification fields:
+they mirror the typed causal release gate and must not be used as a separate UI
+surface or as a prose-derived authority source.
 
 ## Current Verification Targets
 

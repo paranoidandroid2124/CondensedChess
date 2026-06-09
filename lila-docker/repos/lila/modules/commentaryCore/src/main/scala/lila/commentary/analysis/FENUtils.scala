@@ -15,7 +15,7 @@ object FENUtils {
    */
   def passTurn(fen: String): String = {
     val parts = fen.split(" ")
-    if (parts.length < 6) return fen // Invalid FEN format, return as is
+    if (parts.length < 4) return fen // Invalid FEN format, return as is
 
     // 1. Swap active color (w -> b, b -> w)
     val activeColor = parts(1)
@@ -26,10 +26,10 @@ object FENUtils {
     // 3. Clear en passant square (parts(3)) because a null move means no pawn just moved
     val newEnPassant = "-"
 
-    // 4. Keep halfmove (parts(4)) and fullmove (parts(5)) counters as they are, 
-    // or optionally increment halfmove. Standard Null Move practice in engines
-    // often preserves them or increments halfmove, but for probing, preserving is safest.
+    // 4. Keep halfmove and fullmove counters if they exist
+    val halfMove = if (parts.length > 4) s" ${parts(4)}" else ""
+    val fullMove = if (parts.length > 5) s" ${parts(5)}" else ""
 
-    s"${parts(0)} $newColor ${parts(2)} $newEnPassant ${parts(4)} ${parts(5)}"
+    s"${parts(0)} $newColor ${parts(2)} $newEnPassant$halfMove$fullMove"
   }
 }

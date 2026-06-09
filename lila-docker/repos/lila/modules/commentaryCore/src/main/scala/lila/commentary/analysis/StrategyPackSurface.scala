@@ -4,6 +4,8 @@ import lila.commentary.*
 
 private[commentary] object StrategyPackSurface:
 
+  private val SquareWordPattern = """\b[a-h][1-8]\b""".r
+
   final case class CompensationSubtype(
       pressureTheater: String,
       pressureMode: String,
@@ -847,7 +849,7 @@ private[commentary] object StrategyPackSurface:
   private def theatersFromText(text: String): List[String] =
     val lowered = normalizeText(text).toLowerCase
     val squareAnchors =
-      """\b[a-h][1-8]\b""".r.findAllIn(lowered).toList.flatMap(theaterFromSquare)
+      SquareWordPattern.findAllIn(lowered).toList.flatMap(theaterFromSquare)
     val tokenAnchors =
       List(
         Option.when(containsAny(lowered, List("queenside", "queen side", "b-file", "c-file")))("queenside"),

@@ -1,11 +1,11 @@
 package lila.commentary.analysis
 
 import lila.commentary.*
-import lila.commentary.model.{ NarrativeContext, TargetSquare }
+import lila.commentary.model.{ FactScope, NarrativeContext, TargetSquare }
 import lila.commentary.analysis.claim.{ ClaimAuthorityResolver, OpeningFamilyClaimResolver }
 import lila.commentary.analysis.semantic.{ RelationObservationCatalog, RelationObservationDescriptor, RelationSurfaceRowKind }
 import lila.commentary.analysis.semantic.StrategicObservationIds.{ ProofFamilyId, ProofSourceId }
-import lila.commentary.analysis.structure.WeaknessTargetProfile
+import lila.commentary.analysis.structure.{ PawnStructureTargets, WeaknessTargetProfile }
 import lila.commentary.analysis.PlanEvidenceEvaluator.{ EvaluatedPlan, UserFacingPlanEligibility }
 import lila.commentary.analysis.PlanTaxonomy.{ PlanKind, PlanTheme }
 import chess.format.{ Fen, Uci }
@@ -19,6 +19,27 @@ object MoveReviewPlayerPayloadBuilder:
   private val ExactComparativeSource = "exact"
   private val MinWeaknessTargetOutcomePlies = 5
   private val SquareToken = """[a-h][1-8]""".r
+  private val FileCharPattern = "^[a-h]$".r
+  private[analysis] val ChessSquarePattern = "^[a-h][1-8]$".r
+  private[analysis] val ChessSquareRangePattern = "^[a-h][1-8]-[a-h][1-8]$".r
+  private[analysis] val LabelSquareListPattern = """^\.{0,3}[a-h][1-8](?:,[a-h][1-8])*$""".r
+  private[analysis] val LabelSquareRangePattern = """^\.{0,3}[a-h][1-8]-[a-h][1-8]$""".r
+  private val LikelyPawnMovePattern = """^[a-h](?:x[a-h])?[1-8](?:=[QRBN])?[+#]?$""".r
+
+  private val ConnectedRooksPattern = """The checked line connects the rooks on the (?:first|second|third|fourth|fifth|sixth|seventh|eighth) rank[.]""".r
+  private val TechnicalConversionPattern = """The checked line keeps the conversion route intact after .+[.]""".r
+  private val RestrainedPattern = """The checked line keeps .+ restrained[.]""".r
+  private val UnavailablePattern = """The checked line keeps .+ unavailable as a counterplay resource[.]""".r
+  private val BreakShutPattern = """The checked line keeps the \.{0,3}[a-h][1-8](?:-[a-h][1-8]|(?:,[a-h][1-8])*) break shut while keeping \.{0,3}[a-h][1-8](?:-[a-h][1-8]|(?:,[a-h][1-8])*) unavailable[.]""".r
+  private val RouteDenialPattern = """The checked line keeps [a-h][1-8] closed, takes the [a-h]-file away, and cuts off the [a-h][1-8] reroute[.]""".r
+  private val BackRankMatePattern = """The checked line ends in back-rank mate on [a-h][1-8] after .+[.]""".r
+  private val MateNetPattern = """The checked line ends in mate net on [a-h][1-8] after .+[.]""".r
+  private val GreekGiftPattern = """The checked line starts a Greek gift sacrifice with the bishop on [a-h][1-8][.]""".r
+  private val BatteryPressurePattern = """The checked line forms a [a-z]+-[a-z]+ battery on the (?:diagonal|file) toward [a-h][1-8][.]""".r
+  private val HookCreationPattern = """The checked rook-pawn move creates a flank hook on [a-h][1-8][.]""".r
+  private val RookPawnMarchPattern = """The checked line advances the rook pawn to [a-h][1-8] for flank space[.]""".r
+  private val RookLiftPattern = """The checked line lifts the rook to [a-h][1-8] as attacking infrastructure[.]""".r
+
   private val MaxStrategicRelationRows = 4
   private val MaxCompensationRows = 2
   private[commentary] val MoveReviewLedgerLineSources = Set("probe", "decision_compare", "variation", "authoring")
@@ -73,13 +94,1235 @@ object MoveReviewPlayerPayloadBuilder:
     val promotedPlans =
       if supportBlocked then Nil
       else evaluatedPlans.filter(PlanEvidenceEvaluator.isMainAdmittedPlan).sortBy(_.hypothesis.rank)
-    val practicalRows = if supportBlocked then Nil else practicalPlanRows(evaluatedPlans)
+    val practicalStructureArc =
+      if supportBlocked then None else StructurePlanArcBuilder.build(ctx).filter(StructurePlanArcBuilder.proseEligible)
+    val practicalRows = if supportBlocked then Nil else practicalPlanRows(ctx, evaluatedPlans, practicalStructureArc)
     val openingRows = if supportBlocked then Nil else openingFamilyRow(ctx).toList
     val compensationRows = if supportBlocked || compensationBlocked then Nil else compensationAdvancedRows(strategyPack)
     val localRows = if supportBlocked then Nil else sanitizeRows(supportedLocalRows, knownSans)
     val relationRows =
       if supportBlocked then Nil
       else strategicRelationRows(strategyPack, MoveReviewSupportedLocalSurfaceRows.relationKindsForRows(localRows))
+    val structuralIdeaRows =
+      if supportBlocked then Nil
+      else
+        val structuralIdeas = strategyPack.toList.flatMap(_.strategicIdeas)
+        val strategySide = strategyPack.map(_.sideToMove.trim.toLowerCase).filter(_.nonEmpty)
+        val visibleRows = practicalRows ++ localRows
+        val exactTargetSquaresAlreadyVisible =
+          visibleRows.flatMap(exactTargetRowSquare).toSet
+        val exactColorComplexesAlreadyVisible =
+          visibleRows.flatMap(exactColorComplexRowComplex).toSet
+        val exactOutpostSquaresAlreadyVisible =
+          visibleRows.flatMap(exactOutpostRowSquare).toSet
+        val exactSimplificationAlreadyVisible =
+          visibleRows.exists(exactSimplificationRow)
+        val exactConversionAlreadyVisible =
+          visibleRows.exists(exactTechnicalConversionRow)
+        val exactFileEntryFilesAlreadyVisible =
+          visibleRows.flatMap(exactFileEntryRowFile).toSet
+        val exactSeventhRankEntryRolesAlreadyVisible =
+          visibleRows.flatMap(exactSeventhRankEntryRowRole).toSet
+        val exactConnectedRooksAlreadyVisible =
+          visibleRows.exists(exactConnectedRooksRow)
+        val exactDoubledRooksFilesAlreadyVisible =
+          visibleRows.flatMap(exactDoubledRooksRowFile).toSet
+        val exactBishopPairAlreadyVisible =
+          visibleRows.exists(exactBishopPairRow)
+        val exactOppositeColorBishopsAlreadyVisible =
+          visibleRows.exists(exactOppositeColorBishopsRow)
+        val exactCounterplayAlreadyVisible =
+          (practicalRows ++ localRows).exists(exactCounterplayRow)
+        val prophylaxisAlreadyVisible =
+          promotedPlans.exists(isProphylaxisPlan)
+        val exactAttackAlreadyVisible =
+          (practicalRows ++ localRows).exists(exactAttackRow)
+        val exactBatteryPressureAlreadyVisible =
+          (practicalRows ++ localRows).exists(exactBatteryPressureRow)
+        val exactFlankAttackAlreadyVisible =
+          (practicalRows ++ localRows).exists(exactFlankAttackRow)
+        val exactRookLiftAlreadyVisible =
+          (practicalRows ++ localRows).exists(exactRookLiftRow)
+        val practicalTargetSquaresAlreadyVisible =
+          evaluatedPlans
+            .filter(PlanEvidenceEvaluator.isBoundedPracticalSupportPlan)
+            .flatMap { plan =>
+              val hints = practicalTargetHints(plan)
+              if hints.nonEmpty then hints
+              else if isWeaknessPlan(plan) then practicalCurrentTarget(ctx, Set.empty).map(_.targetSquare).toSet
+              else Set.empty
+            }
+            .toSet
+        val pressureRows = structuralIdeas
+          .filter(_.kind == StrategicIdeaKind.TargetFixing)
+          .flatMap { idea =>
+            val refs = idea.evidenceRefs.map(_.trim.toLowerCase)
+            val targetPressureFact =
+              refs.exists(ref => ref == "target_pressure_semantic" || ref.startsWith("target_pressure_"))
+            val carlsbadProfile =
+              refs.contains("source:carlsbad_fixation_profile") &&
+                targetPressureFact &&
+                strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side))
+            val minorityPressure =
+              refs.contains("source:minority_attack_semantic") &&
+                targetPressureFact &&
+                strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side))
+            val minoritySupportPressure =
+              refs.contains("source:minority_attack_support") &&
+                refs.exists(_.startsWith("minority_attack_support_")) &&
+                idea.readiness == StrategicIdeaReadiness.Build &&
+                strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                idea.confidence >= 0.56
+            val targetSquares =
+              idea.focusSquares.flatMap(validSquare).distinct.take(3).filterNot(exactTargetSquaresAlreadyVisible.contains)
+            val weaknessPressureTargetSquares =
+              targetSquares.filterNot(practicalTargetSquaresAlreadyVisible.contains)
+            val pressureFiles = idea.focusFiles.map(_.trim.toLowerCase).filter(FileCharPattern.matches).distinct.take(2)
+            val weakSquarePressure =
+              refs.contains("source:enemy_weak_square") &&
+                weaknessPressureTargetSquares.exists(square => refs.contains(s"enemy_weak_square_$square")) &&
+                idea.readiness == StrategicIdeaReadiness.Ready &&
+                strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                idea.confidence >= 0.74
+            val weakComplexPressure =
+              refs.contains("source:weak_complex_fixation") &&
+                refs.exists(ref => ref.startsWith("weak_complex_") && ref != "weak_complex_fixation") &&
+                weaknessPressureTargetSquares.nonEmpty &&
+                strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                idea.confidence >= 0.72
+            val doubledPawnPressureFile =
+              pressureFiles.find(file => refs.contains(s"doubled_pawn_file_$file"))
+            val doubledPawnPressure =
+              refs.contains("source:doubled_pawn_pressure_motif") &&
+                refs.contains("doubled_pawn_pressure_shape") &&
+                doubledPawnPressureFile.nonEmpty &&
+                idea.readiness == StrategicIdeaReadiness.Build &&
+                strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                idea.confidence >= 0.70
+            val compensationTargetPressure =
+              refs.contains("source:compensation_target_fixation") &&
+                refs.contains("compensation_target_fixation") &&
+                refs.contains("material_deficit_compensation") &&
+                strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                idea.confidence >= 0.78
+            Option.when(
+              (
+                (carlsbadProfile || minorityPressure || minoritySupportPressure || weakSquarePressure || weakComplexPressure || compensationTargetPressure) &&
+                  targetSquares.nonEmpty
+              ) || (doubledPawnPressure && pressureFiles.nonEmpty)
+            ) {
+              val zone = cleanOpt(idea.focusZone).map(zone => s"${zone.toLowerCase} ").getOrElse("")
+              val targetText =
+                if weakSquarePressure || weakComplexPressure then weaknessPressureTargetSquares.mkString(", ")
+                else targetSquares.mkString(", ")
+              val text =
+                if carlsbadProfile then s"The current pawn structure points ${zone}pressure toward $targetText."
+                else if minorityPressure then s"The pawn-break signal adds ${zone}pressure toward $targetText."
+                else if minoritySupportPressure then s"The minority-attack structure points ${zone}pressure toward $targetText."
+                else if weakSquarePressure then s"The current weak-square map gives a practical pressure cue around $targetText."
+                else if doubledPawnPressure then s"The doubled-pawn structure gives a practical pressure cue on the ${doubledPawnPressureFile.get}-file."
+                else if compensationTargetPressure then s"The compensation structure keeps practical ${zone}pressure on $targetText."
+                else s"The current pawn weaknesses give a practical pressure cue around $targetText."
+              row("Practical pressure", text, tone = Some("practical")).map(_.copy(authority = PracticalPlanAuthority))
+            }.flatten
+          }
+        val spaceRows = structuralIdeas
+          .filter(_.kind == StrategicIdeaKind.SpaceGainOrRestriction)
+          .flatMap { idea =>
+            val refs = idea.evidenceRefs.map(_.trim.toLowerCase)
+            val colorComplexTokenZones =
+              List(
+                Option.when(refs.contains("color_complex_dark"))("dark-square complex"),
+                Option.when(refs.contains("color_complex_light"))("light-square complex")
+              ).flatten.distinct
+            val colorComplexClamp =
+              refs.contains("source:color_complex_clamp") &&
+                refs.contains("enemy_color_complex_weakness") &&
+                colorComplexTokenZones.size == 1
+            val focusSquares = idea.focusSquares.flatMap(validSquare).distinct.take(3)
+            val focusZone = cleanOpt(idea.focusZone).map(_.toLowerCase)
+            val colorComplexZone =
+              colorComplexTokenZones match
+                case zone :: Nil => Some(zone)
+                case _           => None
+            val exactColorComplexAlreadyVisible =
+              colorComplexZone.exists(exactColorComplexesAlreadyVisible.contains)
+            val focusFiles = idea.focusFiles.map(_.trim.toLowerCase).filter(FileCharPattern.matches).distinct
+            val pawnChainFactZones =
+              refs.flatMap { ref =>
+                if ref.startsWith("pawn_chain_") && ref != "pawn_chain_space_shape" then
+                  ref.stripPrefix("pawn_chain_").split("_").toList match
+                    case base :: tip :: Nil =>
+                      List(tip, base).flatMap { file =>
+                        if FileCharPattern.matches(file) then
+                          file.headOption.flatMap {
+                            case ch if ch <= 'c' => Some("queenside")
+                            case ch if ch >= 'f' => Some("kingside")
+                            case _               => None
+                          }
+                        else None
+                      }.headOption
+                    case _ => None
+                else None
+              }.distinct
+            val motifSpaceAdvantage =
+              refs.contains("source:space_advantage_motif") &&
+                refs.contains("space_advantage_motif_shape") &&
+                refs.exists(ref =>
+                  ref.stripPrefix("space_pawn_delta_").toIntOption.exists(_ >= 2)
+                ) &&
+                focusZone.contains("center") &&
+                idea.readiness == StrategicIdeaReadiness.Ready &&
+                strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                idea.confidence >= 0.72
+            val centralPawnAdvanceFile =
+              focusFiles.find(file => Set("c", "d", "e", "f").contains(file) && refs.contains(s"central_pawn_file_$file"))
+            val centralPawnAdvance =
+              refs.contains("source:central_pawn_advance_motif") &&
+                refs.contains("central_pawn_advance_shape") &&
+                centralPawnAdvanceFile.nonEmpty &&
+                refs.exists(ref => ref.stripPrefix("central_pawn_to_rank_").toIntOption.exists(_ >= 4)) &&
+                focusZone.contains("center") &&
+                idea.readiness == StrategicIdeaReadiness.Build &&
+                strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                idea.confidence >= 0.70
+            val pawnChainSpace =
+              refs.contains("source:pawn_chain_space_motif") &&
+                refs.contains("pawn_chain_space_shape") &&
+                refs.exists(ref => ref.startsWith("pawn_chain_") && ref != "pawn_chain_space_shape") &&
+                idea.focusFiles.map(_.trim.toLowerCase).filter(FileCharPattern.matches).distinct.size >= 2 &&
+                idea.readiness == StrategicIdeaReadiness.Build &&
+                strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                idea.confidence >= 0.74
+            val profileText =
+            if colorComplexClamp && focusSquares.size >= 2 && idea.confidence >= 0.78 && colorComplexZone.nonEmpty &&
+                strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                !exactColorComplexAlreadyVisible
+              then
+                Some(s"The current structure clamps the ${colorComplexZone.get} around ${focusSquares.mkString(", ")}.")
+              else if motifSpaceAdvantage then Some("The current motif map gives a practical central-space cue.")
+              else if centralPawnAdvance then
+                Some(s"The central pawn advance gives a practical ${centralPawnAdvanceFile.get}-file space cue.")
+              else if pawnChainSpace then
+                val zone =
+                  pawnChainFactZones match
+                    case zone :: Nil if zone == "kingside" || zone == "queenside" => zone
+                    case _                                                        => "flank"
+                Some(s"The pawn chain gives a practical ${zone}-space cue.")
+              else if refs.contains("source:maroczy_bind_profile") &&
+                refs.contains("structure_maroczy_bind") &&
+                idea.ownerSide.equalsIgnoreCase("white") &&
+                strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                idea.confidence >= 0.86
+              then Some("The current Maroczy bind gives a practical central-space grip.")
+              else if refs.contains("source:iqp_central_presence") &&
+                refs.contains("structure_iqp_white") &&
+                refs.contains("iqp_central_presence_shape") &&
+                idea.ownerSide.equalsIgnoreCase("white") &&
+                strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                focusSquares.contains("d4") &&
+                idea.confidence >= 0.82
+              then Some("The current IQP structure gives a practical central-space cue around d4.")
+              else if refs.contains("source:iqp_space_bridge") &&
+                refs.contains("structure_iqp_white") &&
+                idea.ownerSide.equalsIgnoreCase("white") &&
+                focusZone.contains("center") &&
+                idea.readiness == StrategicIdeaReadiness.Build &&
+                strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                idea.confidence >= 0.84
+              then Some("The current IQP structure gives a practical central-space cue.")
+              else if refs.contains("source:locked_center_bind") &&
+                refs.contains("structure_locked_center") &&
+                focusZone.contains("center") &&
+                strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                idea.confidence >= 0.70
+              then Some("The locked center gives a practical central-space bind.")
+              else if refs.contains("source:central_space_edge") &&
+                refs.contains("central_space_edge_shape") &&
+                focusZone.contains("center") &&
+                idea.readiness == StrategicIdeaReadiness.Ready &&
+                strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                idea.confidence >= 0.74
+              then Some("The current position gives a practical central-space edge.")
+              else if refs.contains("source:mobility_restriction") &&
+                refs.contains("mobility_restriction_shape") &&
+                focusZone.contains("center") &&
+                strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                idea.confidence >= 0.72
+              then Some("The current position gives a practical mobility bind.")
+              else None
+            profileText.flatMap(text =>
+              row("Practical space", text, tone = Some("practical")).map(_.copy(authority = PracticalPlanAuthority))
+            )
+          }
+        val breakRows = structuralIdeas
+          .filter(_.kind == StrategicIdeaKind.PawnBreak)
+          .flatMap { idea =>
+            val refs = idea.evidenceRefs.map(_.trim.toLowerCase)
+            val typedBreakReady =
+              refs.contains("source:pawn_analysis_break_ready") ||
+                refs.contains("source:pawn_play_break_ready")
+            val file = idea.focusFiles.map(_.trim.toLowerCase).filter(FileCharPattern.matches).distinct.headOption
+            val typedBreakReadyFile =
+              idea.focusFiles
+                .map(_.trim.toLowerCase)
+                .filter(FileCharPattern.matches)
+                .distinct
+                .find(file => refs.contains(s"break_file_$file"))
+                .orElse(file)
+            val focusZone = cleanOpt(idea.focusZone).map(_.toLowerCase)
+            val focusSquares = idea.focusSquares.flatMap(validSquare).distinct
+            val frenchF6Seed =
+              refs.contains("source:french_f6_break_seed") &&
+                refs.contains("french_f6_break_seed_shape") &&
+                refs.contains("white_e5_chain") &&
+                refs.contains("black_f7_break_pawn") &&
+                idea.ownerSide.equalsIgnoreCase("black") &&
+                file.contains("f") &&
+                focusSquares.contains("e5") &&
+                focusSquares.contains("f6") &&
+                idea.confidence >= 0.92
+            val fileOpeningConsequenceFile =
+              idea.focusFiles.map(_.trim.toLowerCase).filter(FileCharPattern.matches).distinct.find(file =>
+                refs.contains(s"contested_file_$file")
+              )
+            val fileOpeningConsequence =
+              refs.contains("source:file_opening_consequence") &&
+                fileOpeningConsequenceFile.nonEmpty &&
+                strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                idea.confidence >= 0.72
+            val centralBreakTensionFiles =
+              idea.focusFiles.map(_.trim.toLowerCase).filter(FileCharPattern.matches).distinct.filter(file =>
+                Set("c", "d", "e", "f").contains(file)
+              )
+            val centralBreakTensionFile =
+              centralBreakTensionFiles match
+                case file :: Nil => Some(file)
+                case _           => None
+            val centralBreakTension =
+              refs.contains("source:central_break_tension") &&
+                focusZone.contains("center") &&
+                centralBreakTensionFiles.nonEmpty &&
+                (refs.contains("locked_center") || idea.readiness == StrategicIdeaReadiness.Ready) &&
+                strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                idea.confidence >= 0.78
+            val pawnBreakMotifFile =
+              idea.focusFiles.map(_.trim.toLowerCase).filter(FileCharPattern.matches).distinct.find(file =>
+                refs.contains(s"break_file_$file")
+              )
+            val pawnBreakMotif =
+              refs.contains("source:pawn_break_motif") &&
+                refs.contains("pawn_break_motif_shape") &&
+                pawnBreakMotifFile.nonEmpty &&
+                idea.readiness == StrategicIdeaReadiness.Build &&
+                strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                idea.confidence >= 0.76
+            val breakText =
+              if typedBreakReady &&
+                refs.exists(ref => ref == "pawn_analysis_break_ready_shape" || ref == "pawn_play_break_ready_shape") &&
+                idea.readiness == StrategicIdeaReadiness.Ready &&
+                idea.confidence >= 0.92 &&
+                typedBreakReadyFile.nonEmpty
+              then Some(s"The current pawn structure gives a practical ${typedBreakReadyFile.get}-file break cue.")
+              else if fileOpeningConsequence then Some(s"The current pawn tension gives a practical ${fileOpeningConsequenceFile.get}-file opening cue.")
+              else if frenchF6Seed then Some("The French Advance chain gives Black a practical ...f6 break cue.")
+              else if centralBreakTension then
+                centralBreakTensionFile
+                  .map(file => s"The central tension gives a practical $file-file break cue.")
+                  .orElse(Some("The central tension gives a practical central-break cue."))
+              else if pawnBreakMotif then Some(s"The pawn break motif gives a practical ${pawnBreakMotifFile.get}-file break cue.")
+              else None
+            breakText.flatMap(text =>
+              row("Practical break", text, tone = Some("practical")).map(_.copy(authority = PracticalPlanAuthority))
+            )
+          }
+        val restraintRows =
+          structuralIdeas
+            .filter(_.kind == StrategicIdeaKind.CounterplaySuppression)
+            .flatMap { idea =>
+            val refs = idea.evidenceRefs.map(_.trim.toLowerCase)
+            val files = idea.focusFiles.map(_.trim.toLowerCase).filter(FileCharPattern.matches).distinct
+            val singleFocusFile =
+              files match
+                case file :: Nil => Some(file)
+                case _           => None
+            val focusSquares = idea.focusSquares.flatMap(validSquare).distinct
+            val zone = cleanOpt(idea.focusZone).map(_.toLowerCase)
+            val blockadeSquare = focusSquares.find(square => refs.contains(s"blockade_square_$square"))
+            val blockadedPawnSquare = focusSquares.find(square => refs.contains(s"blockaded_pawn_$square"))
+            val hedgehogGeometry =
+              !exactCounterplayAlreadyVisible &&
+                refs.contains("source:hedgehog_break_denial_geometry") &&
+                refs.contains("hedgehog_break_denial_shape") &&
+                refs.contains("structure_hedgehog") &&
+                idea.ownerSide.equalsIgnoreCase("white") &&
+                files.contains("b") &&
+                files.contains("d") &&
+                zone.contains("queenside") &&
+                idea.confidence >= 0.92
+            val maroczyGeometry =
+              !exactCounterplayAlreadyVisible &&
+                refs.contains("source:maroczy_break_denial_geometry") &&
+                refs.contains("maroczy_break_denial_shape") &&
+                refs.contains("structure_maroczy_bind") &&
+                idea.ownerSide.equalsIgnoreCase("white") &&
+                files.contains("c") &&
+                files.contains("d") &&
+                zone.contains("center") &&
+                idea.confidence >= 0.88
+            val opponentCounterbreakDenial =
+              !exactCounterplayAlreadyVisible &&
+                refs.contains("source:opponent_counterbreak_denial") &&
+                refs.contains("opponent_counter_break") &&
+                files.nonEmpty &&
+                idea.readiness == StrategicIdeaReadiness.Ready &&
+                strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                idea.confidence >= 0.80
+            val passerBlockade =
+              refs.contains("source:passer_blockade_motif") &&
+                refs.contains("passer_blockade_shape") &&
+                blockadeSquare.nonEmpty &&
+                blockadedPawnSquare.nonEmpty &&
+                idea.readiness == StrategicIdeaReadiness.Ready &&
+                strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                idea.confidence >= 0.76
+            val counterplayBreakDenied =
+              !exactCounterplayAlreadyVisible &&
+                refs.contains("source:counterplay_suppression") &&
+                refs.contains("counterplay_suppression_shape") &&
+                refs.contains("counterplay_break_denial") &&
+                refs.contains("break_neutralized") &&
+                refs.contains("denied_break_resource") &&
+                files.nonEmpty &&
+                idea.readiness == StrategicIdeaReadiness.Ready &&
+                strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                idea.confidence >= 0.82
+            val compensationCounterplayDenied =
+              !exactCounterplayAlreadyVisible &&
+                refs.contains("source:compensation_counterplay_denial") &&
+                refs.contains("material_deficit_compensation") &&
+                refs.contains("break_neutralized") &&
+                files.nonEmpty &&
+                strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                idea.confidence >= 0.78
+            val restraintText =
+              if hedgehogGeometry then
+                Some("The Hedgehog structure gives White a practical brake on Black's queenside breaks.")
+              else if maroczyGeometry then
+                Some("The Maroczy bind gives White a practical brake on Black's central breaks.")
+              else if opponentCounterbreakDenial then
+                singleFocusFile
+                  .map(file => s"The current structure gives a practical brake on the opponent's $file-file counterbreak.")
+                  .orElse(Some("The current structure gives a practical brake on the opponent's counterbreaks."))
+              else if passerBlockade then
+                Some(s"The blockade gives a practical brake on the passed pawn on ${blockadedPawnSquare.get}.")
+              else if counterplayBreakDenied then
+                singleFocusFile
+                  .map(file => s"The current structure gives a practical brake on the opponent's $file-file break.")
+                  .orElse(Some("The current structure gives a practical brake on the opponent's breaks."))
+              else if compensationCounterplayDenied then
+                singleFocusFile
+                  .map(file => s"The compensation structure gives a practical brake on the opponent's $file-file break.")
+                  .orElse(Some("The compensation structure gives a practical brake on the opponent's breaks."))
+              else None
+            restraintText.flatMap(text =>
+              row("Practical restraint", text, tone = Some("practical")).map(_.copy(authority = PracticalPlanAuthority))
+            )
+            }
+        val lineRows =
+          structuralIdeas
+            .filter(_.kind == StrategicIdeaKind.LineOccupation)
+            .flatMap { idea =>
+                val refs = idea.evidenceRefs.map(_.trim.toLowerCase)
+                val files = idea.focusFiles.map(_.trim.toLowerCase).filter(FileCharPattern.matches).distinct
+                val focusSquares = idea.focusSquares.flatMap(validSquare).distinct
+                val occupiedRookSquare =
+                  focusSquares.find(square => refs.contains(s"occupied_r_$square"))
+                val occupiedQueenSquare =
+                  focusSquares.find(square => refs.contains(s"occupied_q_$square"))
+                val openLineFile =
+                  files.find(file => refs.contains(s"open_file_$file"))
+                val semiOpenLineFile =
+                  files.find(file => refs.contains(s"semi_open_file_$file"))
+                val lineFile =
+                  openLineFile.orElse(semiOpenLineFile)
+                val lineFactFiles =
+                  files.filter(file => refs.contains(s"open_file_$file") || refs.contains(s"semi_open_file_$file"))
+                val singleLineFactFile =
+                  lineFactFiles match
+                    case file :: Nil => Some(file)
+                    case _           => None
+                val doubledRooksFile =
+                  files.find(file => refs.contains(s"doubled_rooks_$file"))
+                val exactFileEntryAlreadyVisible =
+                  singleLineFactFile.exists(exactFileEntryFilesAlreadyVisible.contains)
+                val rookFilePost =
+                  refs.contains("source:occupied_line_control") &&
+                    occupiedRookSquare.nonEmpty &&
+                    lineFile.nonEmpty &&
+                    idea.beneficiaryPieces.exists(_.trim.equalsIgnoreCase("R")) &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.78
+                val queenLinePost =
+                  refs.contains("source:occupied_line_control") &&
+                    occupiedQueenSquare.nonEmpty &&
+                    (lineFile.nonEmpty || refs.contains("occupied_seventh_rank")) &&
+                    idea.beneficiaryPieces.exists(_.trim.equalsIgnoreCase("Q")) &&
+                    idea.readiness == StrategicIdeaReadiness.Ready &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.72
+                val doubledRooksLine =
+                  refs.contains("source:doubled_rooks") &&
+                    doubledRooksFile.nonEmpty &&
+                    idea.beneficiaryPieces.exists(_.trim.equalsIgnoreCase("R")) &&
+                    idea.readiness == StrategicIdeaReadiness.Ready &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.74
+                val rookOnSeventhLine =
+                  refs.contains("source:rook_on_seventh") &&
+                    refs.contains("rook_on_seventh_shape") &&
+                    idea.beneficiaryPieces.exists(_.trim.equalsIgnoreCase("R")) &&
+                    idea.readiness == StrategicIdeaReadiness.Ready &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.72
+                val openFileLineCue =
+                  refs.contains("source:open_file_control") &&
+                    openLineFile.nonEmpty &&
+                    idea.beneficiaryPieces.exists(piece =>
+                      piece.trim.equalsIgnoreCase("R") || piece.trim.equalsIgnoreCase("Q")
+                    ) &&
+                    idea.readiness == StrategicIdeaReadiness.Ready &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.80
+                val semiOpenFileLineCue =
+                  refs.contains("source:semi_open_file_control") &&
+                    semiOpenLineFile.nonEmpty &&
+                    idea.beneficiaryPieces.exists(piece =>
+                      piece.trim.equalsIgnoreCase("R") || piece.trim.equalsIgnoreCase("Q")
+                    ) &&
+                    idea.readiness == StrategicIdeaReadiness.Ready &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.78
+                val connectedRooksLine =
+                  refs.contains("source:connected_rooks") &&
+                    refs.contains("connected_rooks_shape") &&
+                    idea.beneficiaryPieces.exists(_.trim.equalsIgnoreCase("R")) &&
+                    (idea.readiness == StrategicIdeaReadiness.Build || idea.readiness == StrategicIdeaReadiness.Ready) &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.64
+                val directionalRookLine =
+                  refs.contains("source:directional_line_access") &&
+                    refs.contains("directional_line_access_shape") &&
+                    focusSquares.nonEmpty &&
+                    files.exists(file => refs.contains(s"open_file_$file") || refs.contains(s"semi_open_file_$file")) &&
+                    idea.beneficiaryPieces.exists(_.trim.equalsIgnoreCase("R")) &&
+                    idea.readiness == StrategicIdeaReadiness.Build &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.50
+                val routeLineControl =
+                  refs.contains("source:line_control_features") &&
+                    refs.contains("line_control_shape") &&
+                    refs.contains("source:route_line_access") &&
+                    refs.contains("route_surface_exact") &&
+                    focusSquares.nonEmpty &&
+                    files.exists(file => refs.contains(s"open_file_$file") || refs.contains(s"semi_open_file_$file")) &&
+                    idea.beneficiaryPieces.exists(_.trim.equalsIgnoreCase("R")) &&
+                    idea.readiness == StrategicIdeaReadiness.Ready &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.60
+                val compensationOpenLine =
+                  refs.contains("source:compensation_open_lines") &&
+                    refs.contains("compensation_open_lines_shape") &&
+                    refs.contains("material_deficit_compensation") &&
+                    files.exists(file => refs.contains(s"open_file_$file") || refs.contains(s"semi_open_file_$file")) &&
+                    idea.beneficiaryPieces.exists(piece =>
+                      piece.trim.equalsIgnoreCase("R") || piece.trim.equalsIgnoreCase("Q")
+                    ) &&
+                    idea.readiness == StrategicIdeaReadiness.Build &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.70
+                val delayedRecoveryLine =
+                  refs.contains("source:delayed_recovery_window") &&
+                    refs.contains("delayed_material_recovery") &&
+                    refs.contains("development_lead_compensation") &&
+                    refs.contains("material_deficit_compensation") &&
+                    files.exists(file => refs.contains(s"open_file_$file") || refs.contains(s"semi_open_file_$file")) &&
+                    idea.beneficiaryPieces.exists(piece =>
+                      piece.trim.equalsIgnoreCase("R") || piece.trim.equalsIgnoreCase("Q")
+                    ) &&
+                    idea.readiness == StrategicIdeaReadiness.Build &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.74
+                val lineText =
+                if rookFilePost && !exactFileEntryAlreadyVisible then
+                  Some(s"The rook already has a practical ${lineFile.get}-file post.")
+                else if queenLinePost && lineFile.nonEmpty && !exactFileEntryAlreadyVisible then
+                  Some(s"The queen already has a practical ${lineFile.get}-file post.")
+                else if queenLinePost && !exactSeventhRankEntryRolesAlreadyVisible.contains("queen") then
+                  Some("The queen on the seventh rank gives a practical line cue.")
+                else if doubledRooksLine && !doubledRooksFile.exists(exactDoubledRooksFilesAlreadyVisible.contains) then
+                  Some(s"The doubled rooks give a practical ${doubledRooksFile.get}-file line cue.")
+                else if rookOnSeventhLine && !exactSeventhRankEntryRolesAlreadyVisible.contains("rook") then
+                  Some("The rook on the seventh rank gives a practical line cue.")
+                else if openFileLineCue && !exactFileEntryAlreadyVisible then
+                  Some(s"The open ${openLineFile.get}-file gives a practical major-piece line cue.")
+                else if semiOpenFileLineCue && !exactFileEntryAlreadyVisible then
+                  Some(s"The semi-open ${semiOpenLineFile.get}-file gives a practical major-piece line cue.")
+                else if connectedRooksLine && !exactConnectedRooksAlreadyVisible then
+                  Some("The connected rooks give a practical major-piece coordination cue.")
+                else if directionalRookLine && !exactFileEntryAlreadyVisible then
+                  singleLineFactFile
+                    .map(file => s"The rook is aimed at practical line-play on the $file-file.")
+                    .orElse(Some("The rook is aimed at practical line-play."))
+                else if routeLineControl && !exactFileEntryAlreadyVisible then
+                  singleLineFactFile
+                    .map(file => s"The rook route gives a practical $file-file line cue.")
+                    .orElse(Some("The rook route gives a practical line cue."))
+                else if compensationOpenLine && !exactFileEntryAlreadyVisible then
+                  singleLineFactFile
+                    .map(file => s"The compensation gives practical line-play on the $file-file.")
+                    .orElse(Some("The compensation gives practical line-play."))
+                else if delayedRecoveryLine && !exactFileEntryAlreadyVisible then
+                  singleLineFactFile
+                    .map(file => s"The $file-file pressure gives practical line-play before winning the material back.")
+                    .orElse(Some("The line pressure gives practical play before winning the material back."))
+                else None
+                lineText.flatMap(text =>
+                  row("Practical line", text, tone = Some("practical")).map(_.copy(authority = PracticalPlanAuthority))
+                )
+            }
+        val outpostRows =
+          structuralIdeas
+            .filter(_.kind == StrategicIdeaKind.OutpostCreationOrOccupation)
+            .flatMap { idea =>
+              val refs = idea.evidenceRefs.map(_.trim.toLowerCase)
+              val focusSquares = idea.focusSquares.flatMap(validSquare).distinct
+              val outpostSquare = focusSquares.find(square => refs.contains(s"outpost_$square"))
+              val strongKnightOutpostSquare = focusSquares.find(square => refs.contains(s"strong_knight_$square"))
+              val routeOutpostNamedSquare =
+                focusSquares match
+                  case square :: Nil => Some(square)
+                  case _             => None
+              val routeOutpostHasUnsuppressedSquare =
+                focusSquares.exists(square => !exactOutpostSquaresAlreadyVisible.contains(square))
+              val typedOutpostTag =
+                refs.contains("source:outpost_tag") &&
+                  outpostSquare.nonEmpty &&
+                  !outpostSquare.exists(exactOutpostSquaresAlreadyVisible.contains) &&
+                  idea.readiness == StrategicIdeaReadiness.Ready &&
+                  strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                  idea.confidence >= 0.84
+              val strongKnightOutpost =
+                refs.contains("source:strong_knight") &&
+                  strongKnightOutpostSquare.nonEmpty &&
+                  !strongKnightOutpostSquare.exists(exactOutpostSquaresAlreadyVisible.contains) &&
+                  idea.beneficiaryPieces.exists(_.trim.equalsIgnoreCase("N")) &&
+                  idea.readiness == StrategicIdeaReadiness.Ready &&
+                  strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                  idea.confidence >= 0.76
+              val exactRouteOutpost =
+                  refs.contains("source:route_outpost_access") &&
+                  refs.contains("route_outpost_access_shape") &&
+                  refs.contains("route_surface_exact") &&
+                  focusSquares.nonEmpty &&
+                  routeOutpostHasUnsuppressedSquare &&
+                  idea.beneficiaryPieces.exists(piece =>
+                    val normalized = piece.trim.toUpperCase
+                    normalized == "N" || normalized == "B"
+                  ) &&
+                  idea.readiness == StrategicIdeaReadiness.Ready &&
+                  strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                  idea.confidence >= 0.66
+              val directionalOutpost =
+                refs.contains("source:directional_outpost_access") &&
+                  refs.contains("directional_outpost_access_shape") &&
+                  focusSquares.nonEmpty &&
+                  routeOutpostHasUnsuppressedSquare &&
+                  idea.beneficiaryPieces.exists(piece =>
+                    val normalized = piece.trim.toUpperCase
+                    normalized == "N" || normalized == "B"
+                  ) &&
+                  idea.readiness == StrategicIdeaReadiness.Build &&
+                  strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                  idea.confidence >= 0.64
+              val outpostText =
+                if typedOutpostTag then Some(s"The current structure gives a practical outpost cue around ${outpostSquare.get}.")
+                else if strongKnightOutpost then
+                  Some(s"The strong knight gives a practical outpost cue around ${strongKnightOutpostSquare.get}.")
+                else if exactRouteOutpost then
+                  routeOutpostNamedSquare
+                    .map(square => s"The minor-piece route points toward a practical outpost cue around $square.")
+                    .orElse(Some("The minor-piece route points toward a practical outpost cue."))
+                else if directionalOutpost then
+                  routeOutpostNamedSquare
+                    .map(square => s"The minor piece is aimed at a practical outpost cue around $square.")
+                    .orElse(Some("The minor piece is aimed at a practical outpost cue."))
+                else None
+              outpostText.flatMap(text =>
+                row("Practical outpost", text, tone = Some("practical")).map(_.copy(authority = PracticalPlanAuthority))
+              )
+            }
+        val transformationRows =
+          if exactSimplificationAlreadyVisible then Nil
+          else
+            structuralIdeas
+              .filter(_.kind == StrategicIdeaKind.FavorableTradeOrTransformation)
+              .flatMap { idea =>
+                val refs = idea.evidenceRefs.map(_.trim.toLowerCase)
+                val focusSquares = idea.focusSquares.flatMap(validSquare).distinct
+                val singleFocusSquare =
+                  focusSquares match
+                    case square :: Nil => Some(square)
+                    case _             => None
+                val iqpTradeDown =
+                  refs.contains("source:iqp_simplification_profile") &&
+                    refs.contains("structure_iqp_black") &&
+                    (refs.contains("capture_or_exchange") || refs.contains("iqp_trade_down_plan")) &&
+                    idea.ownerSide.equalsIgnoreCase("white") &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.78
+                val exchangeAvailableIqp =
+                  refs.contains("source:exchange_availability_bridge") &&
+                    refs.contains("structure_iqp_black") &&
+                    idea.ownerSide.equalsIgnoreCase("white") &&
+                    idea.readiness == StrategicIdeaReadiness.Build &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.64
+                val winningEndgameConversion =
+                  refs.contains("source:winning_endgame_transition") &&
+                    refs.contains("winning_endgame_transition_shape") &&
+                    idea.readiness == StrategicIdeaReadiness.Ready &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.80 &&
+                    !exactConversionAlreadyVisible
+                val rookEndgamePatternFacts =
+                  List(
+                    Option.when(refs.contains("rook_behind_passed_pawn"))("rook-behind-passer structure"),
+                    Option.when(refs.contains("king_cut_off"))("king cut-off")
+                  ).flatten
+                val singleRookEndgamePatternFact =
+                  rookEndgamePatternFacts match
+                    case fact :: Nil => Some(fact)
+                    case _           => None
+                val rookEndgamePattern =
+                  refs.contains("source:rook_endgame_pattern") &&
+                    refs.contains("rook_endgame_pattern_shape") &&
+                    rookEndgamePatternFacts.nonEmpty &&
+                    idea.readiness == StrategicIdeaReadiness.Build &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.72 &&
+                    !exactConversionAlreadyVisible
+                val endgameTechniqueFacts =
+                  List(
+                    Option.when(refs.contains("opposition_direct"))("direct opposition"),
+                    Option.when(refs.contains("opposition_distant"))("distant opposition"),
+                    Option.when(refs.contains("opposition_diagonal"))("diagonal opposition"),
+                    Option.when(refs.contains("zugzwang_shape"))("zugzwang shape"),
+                    Option.when(refs.contains("king_activity_shape"))("active king")
+                  ).flatten
+                val singleEndgameTechniqueFact =
+                  endgameTechniqueFacts match
+                    case fact :: Nil => Some(fact)
+                    case _           => None
+                val endgameTechniqueMotif =
+                  refs.contains("source:endgame_technique_motif") &&
+                    refs.contains("endgame_technique_shape") &&
+                    endgameTechniqueFacts.nonEmpty &&
+                    cleanOpt(idea.focusZone).exists(_.equalsIgnoreCase("endgame")) &&
+                    idea.readiness == StrategicIdeaReadiness.Build &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.72 &&
+                    !exactConversionAlreadyVisible
+                val passedPawnConversionMotif =
+                  refs.contains("source:passed_pawn_conversion_motif") &&
+                    refs.contains("passed_pawn_conversion_shape") &&
+                    focusSquares.exists(square => refs.contains(s"passed_pawn_$square")) &&
+                    idea.readiness == StrategicIdeaReadiness.Build &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.72 &&
+                    !exactConversionAlreadyVisible
+                val passedPawnConversionSquare =
+                  focusSquares.find(square => refs.contains(s"passed_pawn_$square"))
+                val transformationRow =
+                  if iqpTradeDown then row("Practical trade", {
+                    singleFocusSquare
+                      .map(square => s"The IQP structure gives White a practical trade-down cue around $square.")
+                      .getOrElse("The IQP structure gives White a practical trade-down cue.")
+                  }, tone = Some("practical"))
+                  else if exchangeAvailableIqp then
+                    row("Practical trade", "The IQP structure gives White a practical exchange-availability cue.", tone = Some("practical"))
+                  else if winningEndgameConversion then
+                    val text =
+                      singleFocusSquare
+                        .map(square => s"The winning endgame structure gives a practical conversion cue around $square.")
+                        .getOrElse("The winning endgame structure gives a practical conversion cue.")
+                    row("Practical conversion", text, tone = Some("practical"))
+                  else if rookEndgamePattern then
+                    val text =
+                      singleRookEndgamePatternFact
+                        .map(fact => s"The $fact gives a practical conversion cue.")
+                        .getOrElse("The rook endgame map gives a practical conversion cue.")
+                    row("Practical conversion", text, tone = Some("practical"))
+                  else if endgameTechniqueMotif then
+                    val text =
+                      singleEndgameTechniqueFact
+                        .map(fact => s"The $fact gives a practical endgame technique cue.")
+                        .getOrElse("The endgame technique map gives a practical conversion cue.")
+                    row("Practical conversion", text, tone = Some("practical"))
+                  else if passedPawnConversionMotif then
+                    val text =
+                      if refs.contains("pawn_promotion") then
+                        passedPawnConversionSquare
+                          .map(square => s"The promotion motif gives a practical conversion cue on $square.")
+                          .getOrElse("The promotion motif gives a practical conversion cue.")
+                      else
+                        passedPawnConversionSquare
+                          .map(square => s"The passed-pawn structure gives a practical conversion cue around $square.")
+                          .getOrElse("The passed-pawn structure gives a practical conversion cue.")
+                    row("Practical conversion", text, tone = Some("practical"))
+                  else None
+                transformationRow.map(_.copy(authority = PracticalPlanAuthority))
+              }
+        val minorRows = structuralIdeas
+          .filter(_.kind == StrategicIdeaKind.MinorPieceImbalanceExploitation)
+          .flatMap { idea =>
+            val refs = idea.evidenceRefs.map(_.trim.toLowerCase)
+            val focusSquares = idea.focusSquares.flatMap(validSquare).distinct
+            val strongKnightSquare = focusSquares.find(square => refs.contains(s"strong_knight_$square"))
+            val badBishopSquare = focusSquares.find(square => refs.contains(s"enemy_bad_bishop_$square"))
+            val centralizedPieceSquares = focusSquares.filter(square => refs.contains(s"centralized_piece_$square"))
+            val singleCentralizedPieceSquare =
+              centralizedPieceSquares match
+                case square :: Nil => Some(square)
+                case _             => None
+            val ownerMatchesPack = strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side))
+            val knightBeneficiary = idea.beneficiaryPieces.exists(_.trim.equalsIgnoreCase("N"))
+            val minorBeneficiaries =
+              idea.beneficiaryPieces.filter(piece => piece.trim.equalsIgnoreCase("N") || piece.trim.equalsIgnoreCase("B")).distinct
+            val minorBeneficiary = idea.beneficiaryPieces.find(piece =>
+              piece.trim.equalsIgnoreCase("N") || piece.trim.equalsIgnoreCase("B")
+            )
+            val singleCentralizedMinorBeneficiary =
+              minorBeneficiaries match
+                case piece :: Nil => Some(piece)
+                case _            => None
+            val bishopPair =
+              !exactBishopPairAlreadyVisible &&
+                refs.contains("source:bishop_pair_advantage") &&
+                refs.contains("bishop_pair_advantage_shape") &&
+                idea.beneficiaryPieces.exists(_.trim.equalsIgnoreCase("B")) &&
+                idea.readiness == StrategicIdeaReadiness.Ready &&
+                ownerMatchesPack &&
+                idea.confidence >= 0.82
+            val frenchMinorProfile =
+              refs.contains("source:french_minor_piece_profile") &&
+                refs.contains("structure_french_advance_chain") &&
+                knightBeneficiary &&
+                idea.ownerSide.equalsIgnoreCase("white") &&
+                ownerMatchesPack
+            val frenchKnightVsBishop =
+              frenchMinorProfile &&
+                refs.contains("source:strong_knight_vs_bad_bishop") &&
+                strongKnightSquare.nonEmpty &&
+                idea.confidence >= 0.78
+            val frenchBadBishopActivity =
+              frenchMinorProfile &&
+                refs.contains("source:piece_activity_bad_bishop") &&
+                badBishopSquare.nonEmpty &&
+                idea.confidence >= 0.74
+            val strongKnightVsBishop =
+              !frenchMinorProfile &&
+                refs.contains("source:strong_knight_vs_bad_bishop") &&
+                strongKnightSquare.nonEmpty &&
+                knightBeneficiary &&
+                idea.readiness == StrategicIdeaReadiness.Ready &&
+                ownerMatchesPack &&
+                idea.confidence >= 0.78
+            val knightVsBishopMotif =
+              refs.contains("source:knight_vs_bishop_motif") &&
+                refs.contains("knight_vs_bishop_motif_shape") &&
+                refs.contains("knight_preferred_over_bishop") &&
+                knightBeneficiary &&
+                idea.readiness == StrategicIdeaReadiness.Build &&
+                ownerMatchesPack &&
+                idea.confidence >= 0.70
+            val badBishopActivity =
+              !frenchMinorProfile &&
+                refs.contains("source:piece_activity_bad_bishop") &&
+                badBishopSquare.nonEmpty &&
+                knightBeneficiary &&
+                idea.beneficiaryPieces.exists(_.trim.equalsIgnoreCase("B")) &&
+                ownerMatchesPack &&
+                idea.confidence >= 0.74
+            val goodBishopCountEdge =
+              !exactBishopPairAlreadyVisible &&
+                refs.contains("source:good_bishop") &&
+                refs.contains("good_bishop_shape") &&
+                refs.contains("source:minor_piece_count_imbalance") &&
+                refs.contains("minor_piece_count_imbalance_shape") &&
+                refs.contains("good_bishop_count_edge") &&
+                idea.beneficiaryPieces.exists(_.trim.equalsIgnoreCase("B")) &&
+                ownerMatchesPack &&
+                idea.confidence >= 0.74
+            val oppositeColorBishops =
+              !exactOppositeColorBishopsAlreadyVisible &&
+                refs.contains("source:opposite_color_bishops") &&
+                refs.contains("opposite_color_bishops_shape") &&
+                idea.beneficiaryPieces.exists(_.trim.equalsIgnoreCase("B")) &&
+                ownerMatchesPack &&
+                idea.confidence >= 0.68
+            val pieceCentralization =
+              refs.contains("source:piece_centralization_motif") &&
+                refs.contains("piece_centralization_shape") &&
+                centralizedPieceSquares.nonEmpty &&
+                minorBeneficiary.nonEmpty &&
+                idea.readiness == StrategicIdeaReadiness.Build &&
+                ownerMatchesPack &&
+                idea.confidence >= 0.70
+            val pieceManeuver =
+              refs.contains("source:piece_maneuver_motif") &&
+                refs.contains("piece_maneuver_shape") &&
+                minorBeneficiary.nonEmpty &&
+                idea.readiness == StrategicIdeaReadiness.Build &&
+                ownerMatchesPack &&
+                idea.confidence >= 0.70
+            val enemyBadBishop =
+              refs.contains("source:enemy_bad_bishop") &&
+                refs.contains("enemy_bad_bishop_shape") &&
+                knightBeneficiary &&
+                idea.beneficiaryPieces.exists(_.trim.equalsIgnoreCase("B")) &&
+                ownerMatchesPack &&
+                idea.confidence >= 0.80
+            val minorText =
+              if frenchKnightVsBishop then Some(
+                s"The French pawn chain gives White a practical knight-vs-bishop cue around ${strongKnightSquare.get}."
+              )
+              else if frenchBadBishopActivity then
+                Some(s"The French pawn chain gives White a practical minor-piece cue against the bad bishop on ${badBishopSquare.get}.")
+              else if strongKnightVsBishop then
+                Some(s"The current minor-piece map gives a practical knight-vs-bishop cue around ${strongKnightSquare.get}.")
+              else if knightVsBishopMotif then
+                Some("The current minor-piece map gives a practical knight-vs-bishop cue.")
+              else if badBishopActivity then
+                Some(s"The current minor-piece map gives a practical cue against the bad bishop on ${badBishopSquare.get}.")
+              else if bishopPair then
+                Some("The current minor-piece map gives a practical bishop-pair cue.")
+              else if goodBishopCountEdge then
+                Some("The current minor-piece map gives a practical good-bishop cue.")
+              else if oppositeColorBishops then
+                Some("The current minor-piece map gives a practical opposite-colored-bishops cue.")
+              else if pieceCentralization then
+                (singleCentralizedMinorBeneficiary, singleCentralizedPieceSquare) match
+                  case (Some(piece), Some(square)) =>
+                    Some(s"The centralized ${piece.trim.toUpperCase} on $square gives a practical minor-piece cue.")
+                  case _ =>
+                    Some("The centralized minor pieces give a practical minor-piece cue.")
+              else if pieceManeuver then
+                Some(s"The ${minorBeneficiary.get.trim.toUpperCase} maneuver gives a practical minor-piece cue.")
+              else if enemyBadBishop then
+                Some("The current minor-piece map gives a practical cue against the opponent's bad bishop.")
+              else None
+            minorText.flatMap(text =>
+              row("Practical minor", text, tone = Some("practical")).map(_.copy(authority = PracticalPlanAuthority))
+            )
+          }
+        val prophylaxisRows =
+          if prophylaxisAlreadyVisible then Nil
+          else
+            structuralIdeas
+              .filter(_.kind == StrategicIdeaKind.Prophylaxis)
+              .flatMap { idea =>
+                val refs = idea.evidenceRefs.map(_.trim.toLowerCase)
+                val focusSquares = idea.focusSquares.flatMap(validSquare).distinct
+                val focusFiles = idea.focusFiles.map(_.trim.toLowerCase).filter(FileCharPattern.matches).distinct
+                val bishopPinWatch =
+                  refs.contains("source:bishop_pin_watch") &&
+                    focusSquares.exists(square => square == "g4" || square == "g5") &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.84
+                val queensideCounterbreakWatch =
+                  refs.contains("source:queenside_counterbreak_watch") &&
+                    focusFiles.contains("b") &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.90
+                val prophylaxisText =
+                  if bishopPinWatch then Some("The current piece layout gives a practical prophylaxis cue against the bishop pin.")
+                  else if queensideCounterbreakWatch then Some("The queenside structure gives a practical prophylaxis cue against the ...b5 break.")
+                  else None
+                prophylaxisText.flatMap(text =>
+                  row("Practical prophylaxis", text, tone = Some("practical")).map(_.copy(authority = PracticalPlanAuthority))
+                )
+              }
+        val attackRows =
+          structuralIdeas
+            .filter(_.kind == StrategicIdeaKind.KingAttackBuildUp)
+            .flatMap { idea =>
+                val refs = idea.evidenceRefs.map(_.trim.toLowerCase)
+                val focusSquares = idea.focusSquares.map(_.trim.toLowerCase).filter(_.nonEmpty)
+                val focusFiles = idea.focusFiles.map(_.trim.toLowerCase).filter(_.nonEmpty)
+                val singleFocusFile =
+                  focusFiles match
+                    case file :: Nil => Some(file)
+                    case _           => None
+                val singleFocusSquare =
+                  focusSquares match
+                    case square :: Nil => Some(square)
+                    case _             => None
+                val beneficiaryPieces =
+                  idea.beneficiaryPieces.map(_.trim).filter(_.nonEmpty).distinct
+                val singleBeneficiaryPiece =
+                  beneficiaryPieces match
+                    case piece :: Nil => Some(piece)
+                    case _            => None
+                val focusZone = cleanOpt(idea.focusZone).map(_.toLowerCase)
+                val fianchettoAssault =
+                  !exactAttackAlreadyVisible &&
+                    refs.contains("source:fianchetto_assault_profile") &&
+                    refs.contains("source:opposite_side_storm") &&
+                    refs.contains("structure_fianchetto_shell") &&
+                    focusZone.contains("kingside") &&
+                    idea.readiness == StrategicIdeaReadiness.Build &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.90
+                val kingRingPressure =
+                  !exactAttackAlreadyVisible &&
+                    refs.contains("source:king_ring_pressure") &&
+                    refs.contains("king_ring_pressure_shape") &&
+                    focusZone.nonEmpty &&
+                    idea.readiness == StrategicIdeaReadiness.Build &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.78
+                val enemyKingStuckCenter =
+                  !exactAttackAlreadyVisible &&
+                    refs.contains("source:enemy_king_stuck_center") &&
+                    refs.contains("enemy_king_central_exposure") &&
+                    focusZone.nonEmpty &&
+                    idea.readiness == StrategicIdeaReadiness.Build &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.80
+                val enemyWeakBackRank =
+                  !exactAttackAlreadyVisible &&
+                    refs.contains("source:enemy_weak_back_rank") &&
+                    refs.contains("enemy_weak_back_rank_shape") &&
+                    focusZone.nonEmpty &&
+                    idea.readiness == StrategicIdeaReadiness.Build &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.74
+                val flankHookPressure =
+                  !exactFlankAttackAlreadyVisible &&
+                    refs.contains("source:flank_pawn_pressure") &&
+                    refs.contains("hook_creation_chance") &&
+                    focusZone.nonEmpty &&
+                    idea.readiness == StrategicIdeaReadiness.Build &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.77
+                val flankPawnAdvanceFiles =
+                  focusFiles.distinct.filter(file =>
+                    Set("a", "b", "g", "h").contains(file) &&
+                      refs.contains(s"flank_pawn_file_$file")
+                  )
+                val singleFlankPawnAdvanceFile =
+                  flankPawnAdvanceFiles match
+                    case file :: Nil => Some(file)
+                    case _           => None
+                val flankPawnAdvanceZones =
+                  flankPawnAdvanceFiles.flatMap {
+                    case "a" | "b" => Some("queenside")
+                    case "g" | "h" => Some("kingside")
+                    case _         => None
+                  }.distinct
+                val singleFlankPawnAdvanceZone =
+                  flankPawnAdvanceZones match
+                    case zone :: Nil => Some(zone)
+                    case _           => None
+                val flankPawnAdvance =
+                  !exactFlankAttackAlreadyVisible &&
+                    refs.contains("source:flank_pawn_advance_motif") &&
+                    refs.contains("flank_pawn_advance_shape") &&
+                    flankPawnAdvanceFiles.nonEmpty &&
+                    refs.exists(ref => ref.startsWith("flank_pawn_to_rank_") && ref.stripPrefix("flank_pawn_to_rank_").toIntOption.exists(_ >= 4)) &&
+                    idea.readiness == StrategicIdeaReadiness.Build &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.70
+                val compensationDiagonalBattery =
+                  !exactAttackAlreadyVisible &&
+                    refs.contains("source:compensation_diagonal_battery") &&
+                    refs.contains("compensation_diagonal_battery") &&
+                    refs.contains("material_deficit_compensation") &&
+                    idea.beneficiaryPieces.exists(_.trim.equalsIgnoreCase("B")) &&
+                    idea.beneficiaryPieces.exists(_.trim.equalsIgnoreCase("Q")) &&
+                    focusZone.exists(zone => zone == "kingside" || zone == "center" || zone.contains("king")) &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.74
+                val compensationDevelopmentLead =
+                  !exactAttackAlreadyVisible &&
+                    refs.contains("source:compensation_development_lead") &&
+                    refs.contains("development_lead_compensation") &&
+                    refs.contains("material_deficit_compensation") &&
+                    focusZone.exists(zone => zone == "kingside" || zone == "center" || zone.contains("king")) &&
+                    idea.readiness == StrategicIdeaReadiness.Build &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.76
+                val compensationKingWindow =
+                  !exactAttackAlreadyVisible &&
+                    refs.contains("source:compensation_king_window") &&
+                    refs.contains("uncastled_or_unsettled_king_window") &&
+                    refs.contains("material_deficit_compensation") &&
+                    focusZone.exists(zone => zone == "kingside" || zone == "center" || zone.contains("king")) &&
+                    idea.readiness == StrategicIdeaReadiness.Build &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.74
+                val exactRouteAttackLane =
+                  !exactAttackAlreadyVisible &&
+                    refs.contains("source:route_attack_lane") &&
+                    refs.contains("route_attack_lane_shape") &&
+                    focusSquares.nonEmpty &&
+                    focusZone.nonEmpty &&
+                    idea.beneficiaryPieces.exists(_.trim.nonEmpty) &&
+                    idea.readiness == StrategicIdeaReadiness.Ready &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.74
+                val directionalAttackLane =
+                  !exactAttackAlreadyVisible &&
+                    refs.contains("source:directional_attack_lane") &&
+                    refs.contains("directional_attack_lane_shape") &&
+                    focusSquares.nonEmpty &&
+                    focusZone.nonEmpty &&
+                    idea.beneficiaryPieces.exists(_.trim.nonEmpty) &&
+                    idea.readiness == StrategicIdeaReadiness.Build &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.72
+                val motifBatteryAxes =
+                  List(
+                    Option.when(refs.contains("battery_axis_diagonal"))("diagonal"),
+                    Option.when(refs.contains("battery_axis_file"))("file")
+                  ).flatten
+                val singleMotifBatteryAxis =
+                  motifBatteryAxes match
+                    case axis :: Nil => Some(axis)
+                    case _           => None
+                val motifBattery =
+                  !exactBatteryPressureAlreadyVisible &&
+                    refs.contains("source:motif_battery") &&
+                    motifBatteryAxes.nonEmpty &&
+                    focusSquares.size >= 2 &&
+                    focusZone.nonEmpty &&
+                    idea.beneficiaryPieces.count(_.trim.nonEmpty) >= 2 &&
+                    idea.readiness == StrategicIdeaReadiness.Build &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.74
+                val motifRookLift =
+                  !exactRookLiftAlreadyVisible &&
+                    refs.contains("source:motif_rook_lift") &&
+                    focusFiles.nonEmpty &&
+                    focusZone.nonEmpty &&
+                    idea.beneficiaryPieces.exists(_.trim.equalsIgnoreCase("R")) &&
+                    idea.readiness == StrategicIdeaReadiness.Build &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.78
+                val motifPieceLift =
+                  !exactAttackAlreadyVisible &&
+                    refs.contains("source:motif_piece_lift") &&
+                    refs.contains("motif_piece_lift_shape") &&
+                    focusZone.nonEmpty &&
+                    idea.beneficiaryPieces.exists(_.trim.nonEmpty) &&
+                    idea.readiness == StrategicIdeaReadiness.Build &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.72
+                val motifCheckPressure =
+                  !exactAttackAlreadyVisible &&
+                    refs.contains("source:motif_check_pressure") &&
+                    (refs.contains("check_type_normal") || refs.contains("check_type_discovered")) &&
+                    focusSquares.nonEmpty &&
+                    focusZone.nonEmpty &&
+                    idea.beneficiaryPieces.exists(_.trim.nonEmpty) &&
+                    idea.readiness == StrategicIdeaReadiness.Ready &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.68
+                val fianchettoMotif =
+                  !exactAttackAlreadyVisible &&
+                    refs.contains("source:fianchetto_motif") &&
+                    refs.contains("fianchetto_motif_shape") &&
+                    refs.exists(ref => ref == "fianchetto_side_kingside" || ref == "fianchetto_side_queenside") &&
+                    focusZone.nonEmpty &&
+                    idea.beneficiaryPieces.exists(_.trim.equalsIgnoreCase("B")) &&
+                    idea.readiness == StrategicIdeaReadiness.Build &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.70
+                val initiativeMotif =
+                  !exactAttackAlreadyVisible &&
+                    refs.contains("source:initiative_motif") &&
+                    refs.contains("initiative_motif_shape") &&
+                    refs.exists(ref => ref.stripPrefix("initiative_score_").toIntOption.exists(_ >= 10)) &&
+                    focusZone.nonEmpty &&
+                    idea.readiness == StrategicIdeaReadiness.Build &&
+                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
+                    idea.confidence >= 0.70
+                val attackText =
+                  if fianchettoAssault then Some("The fianchetto-shell structure gives a practical opposite-side attack cue.")
+                  else if kingRingPressure then
+                    Some("The current king-safety map gives a practical cue around the enemy king.")
+                  else if enemyKingStuckCenter then
+                    Some("The enemy king's central exposure gives a practical attacking cue.")
+                  else if enemyWeakBackRank then
+                    Some("The back-rank shape gives a practical attacking cue.")
+                  else if flankHookPressure then
+                    Some("The current flank-pawn map gives a practical hook-creation cue.")
+                  else if flankPawnAdvance then
+                    (singleFlankPawnAdvanceFile, singleFlankPawnAdvanceZone) match
+                      case (Some(file), Some(zone)) =>
+                        Some(s"The $file-pawn advance gives a practical $zone attacking cue.")
+                      case (None, Some(zone)) =>
+                        Some(s"The flank-pawn advances give a practical $zone attacking cue.")
+                      case _ =>
+                        Some("The flank-pawn advances give a practical attacking cue.")
+                  else if compensationDiagonalBattery then
+                    Some("The material-compensation structure gives a practical diagonal-battery attack cue.")
+                  else if compensationDevelopmentLead then
+                    Some("The material-compensation structure gives a practical development-led attacking cue.")
+                  else if compensationKingWindow then
+                    Some("The material-compensation structure gives a practical cue against the unsettled king.")
+                  else if exactRouteAttackLane then
+                    singleFocusSquare
+                      .map(square => s"The $square route gives a practical attacking lane.")
+                      .orElse(Some("The route gives a practical attacking lane."))
+                  else if directionalAttackLane then
+                    singleFocusSquare
+                      .map(square => s"The $square target gives a practical attacking lane.")
+                      .orElse(Some("The current target map gives a practical attacking lane."))
+                  else if motifBattery then
+                    singleMotifBatteryAxis
+                      .map(axis => s"The current $axis battery gives a practical attacking cue.")
+                      .orElse(Some("The current battery gives a practical attacking cue."))
+                  else if motifRookLift then
+                    singleFocusFile
+                      .map(file => s"The rook lift on the $file-file gives a practical attacking cue.")
+                      .orElse(Some("The rook lift gives a practical attacking cue."))
+                  else if motifPieceLift then
+                    singleBeneficiaryPiece
+                      .map(piece => s"The ${piece.toUpperCase} lift gives a practical attacking cue.")
+                      .orElse(Some("The piece lift gives a practical attacking cue."))
+                  else if motifCheckPressure then
+                    (singleBeneficiaryPiece, singleFocusSquare) match
+                      case (Some(piece), Some(square)) =>
+                        Some(s"The ${piece.toUpperCase} check on $square gives a practical attacking cue.")
+                      case (Some(piece), None) =>
+                        Some(s"The ${piece.toUpperCase} check motif gives a practical attacking cue.")
+                      case (None, Some(square)) =>
+                        Some(s"The check on $square gives a practical attacking cue.")
+                      case _ =>
+                        Some("The check motif gives a practical attacking cue.")
+                  else if fianchettoMotif then
+                    Some("The fianchettoed bishop gives a practical long-diagonal cue.")
+                  else if initiativeMotif then
+                    Some("The current initiative gives a practical attacking cue.")
+                  else None
+                attackText.flatMap(text =>
+                  row("Practical attack", text, tone = Some("practical")).map(_.copy(authority = PracticalPlanAuthority))
+                )
+            }
+        (pressureRows ++ spaceRows ++ breakRows ++ restraintRows ++ lineRows ++ outpostRows ++ transformationRows ++ minorRows ++ prophylaxisRows ++ attackRows)
+          .distinctBy(_.text)
     val explanationRows = moveReviewExplanation.toList.flatMap(explanationSupportRows(_, knownSans))
     val referenceRows = if explanationRows.isEmpty then referenceLineRows(ctx, refs, knownSans) else Nil
     val summaryRows =
@@ -100,9 +1343,11 @@ object MoveReviewPlayerPayloadBuilder:
           .orElse(ctx.playedSan.flatMap(san => cleanOpt(Some(s"Move review: $san")))),
       summaryRows = summaryRows,
       advancedRows =
-        (relationRows ++ compensationRows ++ (if supportBlocked then Nil else advancedRows(ctx, promotedPlans, evaluatedPlans)))
-          .distinctBy(row => (row.label, row.text, row.authority.flatMap(_.token)))
-          .take(8),
+        (
+          relationRows ++ compensationRows ++ structuralIdeaRows ++
+            (if supportBlocked then Nil else advancedRows(ctx, promotedPlans, evaluatedPlans, practicalStructureArc))
+        )
+          .distinctBy(row => (row.label, row.text, row.authority.flatMap(_.token))),
       decisionComparison = decisionComparisonSurface.map(comparison =>
         sanitizeDecisionComparison(enrichDecisionTargetComparison(ctx, comparison))
       ),
@@ -262,7 +1507,191 @@ object MoveReviewPlayerPayloadBuilder:
 
   private def validSquare(raw: String): Option[String] =
     val cleaned = clean(raw).toLowerCase
-    if cleaned.matches("""[a-h][1-8]""") then Some(cleaned) else None
+    if ChessSquarePattern.matches(cleaned) then Some(cleaned) else None
+
+  private def squareCoords(raw: String): Option[(Int, Int)] =
+    validSquare(raw).map(square => (square.charAt(0) - 'a' + 1, square.charAt(1).asDigit))
+
+  private def squareColorOf(raw: String): Option[String] =
+    squareCoords(raw).map { case (file, rank) =>
+      if (file + rank) % 2 == 0 then "dark" else "light"
+    }
+
+  private def roleCanAttackSquare(role: String, from: String, target: String): Boolean =
+    (squareCoords(from), squareCoords(target)) match
+      case (Some((fromFile, fromRank)), Some((targetFile, targetRank))) =>
+        val fileDelta = math.abs(fromFile - targetFile)
+        val rankDelta = math.abs(fromRank - targetRank)
+        clean(role).toLowerCase match
+          case "bishop" => fileDelta == rankDelta && fileDelta > 0
+          case "knight" => (fileDelta == 1 && rankDelta == 2) || (fileDelta == 2 && rankDelta == 1)
+          case _        => false
+      case _ => false
+
+  private def exactFileEntryRowFile(row: MoveReviewPlayerSurfaceRow): Option[String] =
+    exactPracticalTargetRowTarget(row, "File entry") { target =>
+      row.text == s"The checked line keeps pressure on $target through the ${target.take(1)}-file."
+    }.map(_.take(1))
+
+  private def exactSeventhRankEntryRowRole(row: MoveReviewPlayerSurfaceRow): Option[String] =
+    val SeventhRankEntryText =
+      """The checked line puts the (rook) on the (?:seventh|second) rank at [a-h][1-8][.]""".r
+    if row.label != "Seventh-rank entry" then None
+    else
+      row.authority
+        .filter(_.kind == MoveReviewSurfaceAuthority.PracticalPlan)
+        .flatMap(_ => SeventhRankEntryText.findFirstMatchIn(row.text))
+        .map(_.group(1))
+
+  private def exactConnectedRooksRow(row: MoveReviewPlayerSurfaceRow): Boolean =
+    exactPracticalPlanRow(row, "Connected rooks") {
+      ConnectedRooksPattern.matches
+    }
+
+  private def exactDoubledRooksRowFile(row: MoveReviewPlayerSurfaceRow): Option[String] =
+    val DoubledRooksText = """The checked line doubles the rooks on the ([a-h])-file[.]""".r
+    if row.label != "Doubled rooks" then None
+    else
+      row.authority
+        .filter(_.kind == MoveReviewSurfaceAuthority.PracticalPlan)
+        .flatMap(_ => DoubledRooksText.findFirstMatchIn(row.text))
+        .map(_.group(1))
+
+  private def exactBishopPairRow(row: MoveReviewPlayerSurfaceRow): Boolean =
+    exactPracticalPlanRow(row, "Bishop pair") {
+      _ == "The checked capture keeps the bishop pair on the board."
+    }
+
+  private def exactOppositeColorBishopsRow(row: MoveReviewPlayerSurfaceRow): Boolean =
+    exactPracticalPlanRow(row, "Opposite-color bishops") {
+      _ == "The checked capture leaves opposite-colored bishops on the board."
+    }
+
+  private def exactTargetRowSquare(row: MoveReviewPlayerSurfaceRow): Option[String] =
+    exactPracticalTargetRowTarget(row, "Fixed target") { target =>
+      row.text == s"The checked line keeps $target fixed as the target."
+    }.orElse(
+      exactPracticalTargetRowTarget(row, "Minority attack") { target =>
+        row.text == s"The checked line keeps $target as the minority-attack fixed target."
+      }
+    )
+
+  private def exactOutpostRowSquare(row: MoveReviewPlayerSurfaceRow): Option[String] =
+    exactKnightOutpostRowSquare(row).orElse(exactOpeningOutpostRowSquare(row))
+
+  private def exactKnightOutpostRowSquare(row: MoveReviewPlayerSurfaceRow): Option[String] =
+    exactPracticalTargetRowTarget(row, "Knight outpost") { target =>
+      row.text == s"The checked line puts the knight on the $target outpost."
+    }
+
+  private def exactOpeningOutpostRowSquare(row: MoveReviewPlayerSurfaceRow): Option[String] =
+    val OpeningOutpostText = """The checked opening structure has put a knight on the ([a-h][1-8]) outpost[.]""".r
+    if row.label != "Opening outpost" then None
+    else
+      row.authority
+        .filter(_.kind == MoveReviewSurfaceAuthority.PracticalPlan)
+        .flatMap(_ => OpeningOutpostText.findFirstMatchIn(row.text))
+        .flatMap(matchResult => validSquare(matchResult.group(1)))
+
+  private def exactSimplificationRow(row: MoveReviewPlayerSurfaceRow): Boolean =
+    exactPracticalTargetRow(row, "Simplification") { target =>
+      row.text == s"The checked line keeps the same local edge after the exchange on $target."
+    }
+
+  private def exactTechnicalConversionRow(row: MoveReviewPlayerSurfaceRow): Boolean =
+    exactPracticalPlanRow(row, "Technical conversion") { text =>
+      text == "The checked line keeps the best defense narrow and the conversion route intact." ||
+        TechnicalConversionPattern.matches(text)
+    }
+
+  private def exactCounterplayRow(row: MoveReviewPlayerSurfaceRow): Boolean =
+    exactCounterplayBreakRow(row) ||
+      exactPracticalPlanRow(row, "Counterplay restraint") { text =>
+        RestrainedPattern.matches(text) ||
+          UnavailablePattern.matches(text)
+      } ||
+      exactPracticalPlanRow(row, "Break and entry") { text =>
+        BreakShutPattern.matches(text)
+      } ||
+      exactPracticalPlanRow(row, "Route denial") { text =>
+        RouteDenialPattern.matches(text)
+      }
+
+  private def exactCounterplayBreakRow(row: MoveReviewPlayerSurfaceRow): Boolean =
+    row.label == "Counterplay break" &&
+      row.authority.exists(authority =>
+        authority.kind == MoveReviewSurfaceAuthority.CounterplayBreak &&
+          authority.token.exists(token => row.text == NeutralizeKeyBreakSurfaceGate.surfaceText(token))
+      )
+
+  private def exactAttackRow(row: MoveReviewPlayerSurfaceRow): Boolean =
+    exactPracticalPlanRow(row, "Back-rank mate") { text =>
+      BackRankMatePattern.matches(text)
+    } ||
+      exactPracticalPlanRow(row, "Mate net") { text =>
+        MateNetPattern.matches(text)
+      } ||
+      exactPracticalPlanRow(row, "Greek gift") { text =>
+        GreekGiftPattern.matches(text)
+      }
+
+  private def exactBatteryPressureRow(row: MoveReviewPlayerSurfaceRow): Boolean =
+    exactPracticalPlanRow(row, "Battery pressure") { text =>
+      BatteryPressurePattern.matches(text)
+    }
+
+  private def exactFlankAttackRow(row: MoveReviewPlayerSurfaceRow): Boolean =
+    exactPracticalPlanRow(row, "Hook creation") { text =>
+      HookCreationPattern.matches(text)
+    } ||
+      exactPracticalPlanRow(row, "Rook-pawn march") { text =>
+        RookPawnMarchPattern.matches(text)
+      }
+
+  private def exactRookLiftRow(row: MoveReviewPlayerSurfaceRow): Boolean =
+    exactPracticalPlanRow(row, "Rook lift") { text =>
+      RookLiftPattern.matches(text)
+    }
+
+  private def exactColorComplexRowComplex(row: MoveReviewPlayerSurfaceRow): Option[String] =
+    exactPracticalTargetRowTarget(row, "Color complex") { target =>
+      val ColorComplexText =
+        s"""The checked line keeps the (bishop|knight) on ([a-h][1-8]) attacking $target in the (dark|light)-square complex[.]""".r
+      row.text match
+        case ColorComplexText(role, from, complex) =>
+          squareColorOf(target).contains(complex) && roleCanAttackSquare(role, from, target)
+        case _ => false
+    }.flatMap(_ =>
+      """in the ((?:dark|light)-square complex)\.""".r
+        .findFirstMatchIn(row.text)
+        .map(_.group(1).toLowerCase)
+    )
+
+  private def exactPracticalPlanRow(
+      row: MoveReviewPlayerSurfaceRow,
+      label: String
+  )(textMatches: String => Boolean): Boolean =
+    row.label == label &&
+      row.authority.exists(_.kind == MoveReviewSurfaceAuthority.PracticalPlan) &&
+      textMatches(row.text)
+
+  private def exactPracticalTargetRow(
+      row: MoveReviewPlayerSurfaceRow,
+      label: String
+  )(textMatches: String => Boolean): Boolean =
+    exactPracticalTargetRowTarget(row, label)(textMatches).nonEmpty
+
+  private def exactPracticalTargetRowTarget(
+      row: MoveReviewPlayerSurfaceRow,
+      label: String
+  )(textMatches: String => Boolean): Option[String] =
+    if row.label != label then None
+    else
+      row.authority
+        .filter(_.kind == MoveReviewSurfaceAuthority.PracticalPlan)
+        .flatMap(_.target)
+        .flatMap(validSquare)
+        .filter(textMatches)
 
   private def mainPlanRow(promotedPlans: List[EvaluatedPlan]): Option[MoveReviewPlayerSurfaceRow] =
     val plans =
@@ -275,12 +1704,21 @@ object MoveReviewPlayerPayloadBuilder:
   private def advancedRows(
       ctx: NarrativeContext,
       promotedPlans: List[EvaluatedPlan],
-      evaluatedPlans: List[EvaluatedPlan]
+      evaluatedPlans: List[EvaluatedPlan],
+      practicalStructureArc: Option[StructurePlanArc]
   ): List[MoveReviewPlayerSurfaceRow] =
     val planRows =
       promotedPlans.take(2).flatMap(planRowsFromPromotedPlan)
     val promotedRows = distinctVisibleRows(planRows)
-    (promotedRows ++ practicalAdvancedRows(ctx, evaluatedPlans, promotedPlans, slots = 8 - promotedRows.size)).take(8)
+    (
+      promotedRows ++ practicalAdvancedRows(
+        ctx,
+        evaluatedPlans,
+        promotedPlans,
+        practicalStructureArc,
+        slots = 8 - promotedRows.size
+      )
+    ).take(8)
 
   private def planRowsFromPromotedPlan(plan: EvaluatedPlan): List[MoveReviewPlayerSurfaceRow] =
     val hypothesis = plan.hypothesis
@@ -297,11 +1735,15 @@ object MoveReviewPlayerPayloadBuilder:
       else Nil
     promotedRows ++ prophylaxisRows
 
-  private def practicalPlanRows(plans: List[EvaluatedPlan]): List[MoveReviewPlayerSurfaceRow] =
+  private def practicalPlanRows(
+      ctx: NarrativeContext,
+      plans: List[EvaluatedPlan],
+      structureArc: Option[StructurePlanArc]
+  ): List[MoveReviewPlayerSurfaceRow] =
     plans
       .filter(PlanEvidenceEvaluator.isBoundedPracticalSupportPlan)
       .sortBy(_.hypothesis.rank)
-      .flatMap(practicalPlanRow)
+      .flatMap(plan => practicalPlanRow(ctx, plan, structureArc))
       .take(2)
 
   private def openingFamilyRow(ctx: NarrativeContext): Option[MoveReviewPlayerSurfaceRow] =
@@ -360,11 +1802,46 @@ object MoveReviewPlayerPayloadBuilder:
   private def openingProofPhase(ctx: NarrativeContext): String =
     rawOpt(ctx.phase.current).orElse(rawOpt(ctx.header.phase)).getOrElse("")
 
-  private def practicalPlanRow(plan: EvaluatedPlan): Option[MoveReviewPlayerSurfaceRow] =
+  private def practicalPlanRow(
+      ctx: NarrativeContext,
+      plan: EvaluatedPlan,
+      structureArc: Option[StructurePlanArc]
+  ): Option[MoveReviewPlayerSurfaceRow] =
     cleanOpt(Some(plan.hypothesis.planName)).flatMap { name =>
       val text =
         if plan.userFacingEligibility == UserFacingPlanEligibility.StructuralOnly then
-          s"The structure points toward $name as a practical plan."
+          structureArcForPlan(name, structureArc)
+            .map(StructurePlanArcBuilder.claimText)
+            .orElse {
+              val profile = ctx.semantic.flatMap(_.structureProfile)
+              val alignment = ctx.semantic.flatMap(_.planAlignment)
+              val alignmentBand =
+                alignment
+                  .flatMap(alignment => cleanOpt(Some(alignment.band)))
+                  .map(_.toLowerCase)
+              val alignmentPlanMatched =
+                alignment.toList
+                  .flatMap(alignment => alignment.matchedPlanIds ++ alignment.narrativeIntent.toList)
+                  .exists(planTokenMatches(name, _))
+              profile
+                .filter(_.confidence >= 0.70)
+                .flatMap(profile =>
+                  cleanOpt(Some(profile.primary))
+                    .filterNot(_.equalsIgnoreCase("Unknown"))
+                    .map(structure => profile -> structure)
+                )
+                .filter(_ => alignmentBand.exists(band => band == "onbook" || band == "playable"))
+                .filter(_ => alignmentPlanMatched)
+                .map { case (profile, structure) =>
+                  val center =
+                    cleanOpt(Some(profile.centerState))
+                      .filterNot(_.equalsIgnoreCase(structure))
+                      .map(value => s" with the center ${value.toLowerCase}")
+                      .getOrElse("")
+                  s"In the $structure structure$center, $name is a practical plan."
+                }
+            }
+            .getOrElse(s"The structure points toward $name as a practical plan.")
         else s"The checked line keeps $name viable as a practical plan."
       row(
         label = "Practical plan",
@@ -377,6 +1854,7 @@ object MoveReviewPlayerPayloadBuilder:
       ctx: NarrativeContext,
       plans: List[EvaluatedPlan],
       promotedPlans: List[EvaluatedPlan],
+      structureArc: Option[StructurePlanArc],
       slots: Int
   ): List[MoveReviewPlayerSurfaceRow] =
     if slots <= 0 then Nil
@@ -386,7 +1864,7 @@ object MoveReviewPlayerPayloadBuilder:
           .filter(PlanEvidenceEvaluator.isBoundedPracticalSupportPlan)
           .filterNot(plan => hasPromotedSibling(plan, promotedPlans))
           .sortBy(_.hypothesis.rank)
-          .flatMap(plan => practicalAdvancedRowsForPlan(ctx, plan))
+          .flatMap(plan => practicalAdvancedRowsForPlan(ctx, plan, structureArc))
       )
         .take(slots)
 
@@ -417,15 +1895,102 @@ object MoveReviewPlayerPayloadBuilder:
     }.distinct
 
   private def cleanToken(value: String): String =
-    value.toLowerCase.replaceAll("""[^a-z0-9]+""", " ").trim
+    value
+      .replaceAll("""([A-Z]+)([A-Z][a-z])""", "$1 $2")
+      .replaceAll("""([a-z0-9])([A-Z])""", "$1 $2")
+      .toLowerCase
+      .replaceAll("""[^a-z0-9]+""", " ")
+      .trim
 
-  private def practicalAdvancedRowsForPlan(ctx: NarrativeContext, plan: EvaluatedPlan): List[MoveReviewPlayerSurfaceRow] =
+  private def practicalAdvancedRowsForPlan(
+      ctx: NarrativeContext,
+      plan: EvaluatedPlan,
+      structureArc: Option[StructurePlanArc]
+  ): List[MoveReviewPlayerSurfaceRow] =
     val hypothesis = plan.hypothesis
+    val structureRouteRow =
+      if plan.userFacingEligibility == UserFacingPlanEligibility.StructuralOnly then
+        structureArcForPlan(hypothesis.planName, structureArc).flatMap { arc =>
+          row("Practical route", StructurePlanArcBuilder.supportPrimaryText(arc), tone = Some("practical"))
+        }
+      else None
+    val structureMoveRow =
+      if plan.userFacingEligibility == UserFacingPlanEligibility.StructuralOnly then
+        structureArcForPlan(hypothesis.planName, structureArc).flatMap { arc =>
+          ctx.playedMove
+            .flatMap(move => MoveReviewExchangeAnalyzer.boundedReplay(ctx.fen, List(move), maxPlies = 1))
+            .flatMap(_.headOption)
+            .flatMap { step =>
+              val cue = arc.primaryDeployment
+              if step.move.orig.key == cue.from && cue.route.headOption.contains(step.move.dest.key) then
+                Some("The played move starts that structure route immediately.")
+              else if step.move.orig.key == cue.from && cue.route.drop(1).contains(step.move.dest.key) then
+                Some("The played move reaches that structure route directly.")
+              else None
+            }
+            .flatMap(text => row("Practical move", text, tone = Some("practical")))
+        }
+      else None
+    val currentBoardPreventsPlan =
+      ctx.semantic.flatMap(_.preventedPlans.headOption).exists { plan =>
+        plan.sourceScope == FactScope.Now &&
+          (plan.counterplayScoreDrop > 0 || plan.mobilityDelta < 0)
+      }
+    val structureRestraintRow =
+      if plan.userFacingEligibility == UserFacingPlanEligibility.StructuralOnly then
+        structureArcForPlan(hypothesis.planName, structureArc)
+          .filter(_ => currentBoardPreventsPlan)
+          .flatMap(_.prophylaxisSupport)
+          .flatMap(text => row("Practical restraint", text, tone = Some("practical")))
+      else None
+    val structureFitRow =
+      if plan.userFacingEligibility == UserFacingPlanEligibility.StructuralOnly then
+        structureArcForPlan(hypothesis.planName, structureArc)
+          .flatMap { arc =>
+            arc.alignmentReasons
+              .filterNot(_ == "expected plans are present")
+              .headOption
+          }
+          .flatMap(reason => row("Practical fit", s"The structure fit is still partial: $reason.", tone = Some("practical")))
+      else None
+    val structureTaskRow =
+      if plan.userFacingEligibility == UserFacingPlanEligibility.StructuralOnly then
+        structureArcForPlan(hypothesis.planName, structureArc)
+          .flatMap(_.practicalCoda)
+          .flatMap(text => row("Practical task", text, tone = Some("practical")))
+      else None
     (
       practicalTargetRow(ctx, plan).toList ++
+        structureRouteRow.toList ++
+        structureMoveRow.toList ++
+        structureRestraintRow.toList ++
+        structureFitRow.toList ++
+        structureTaskRow.toList ++
         row("Practical objective", hypothesis.preconditions.take(2).mkString(" - "), tone = Some("practical")).toList ++
         row("Practical steps", hypothesis.executionSteps.take(2).mkString(" - "), tone = Some("practical")).toList
     ).map(_.copy(authority = PracticalPlanAuthority))
+
+  private def structureArcForPlan(
+      planName: String,
+      structureArc: Option[StructurePlanArc]
+  ): Option[StructurePlanArc] =
+    structureArc.filter(arc =>
+      planTokenMatches(planName, arc.planLabel) ||
+        arc.alignmentPlanIds.exists(planTokenMatches(planName, _))
+    )
+
+  private def planTokenMatches(left: String, right: String): Boolean =
+    val leftToken = cleanToken(left)
+    val rightToken = cleanToken(right)
+    val leftWords = leftToken.split("\\s+").count(_.nonEmpty)
+    val rightWords = rightToken.split("\\s+").count(_.nonEmpty)
+    val containmentFloor = 3
+    leftToken.nonEmpty && rightToken.nonEmpty &&
+      (
+        leftToken == rightToken ||
+          (leftWords >= containmentFloor && rightWords > leftWords && rightToken.contains(leftToken)) ||
+          (rightWords >= containmentFloor && leftWords > rightWords && leftToken.contains(rightToken))
+      )
 
   private def practicalTargetRow(
       ctx: NarrativeContext,
@@ -433,11 +1998,58 @@ object MoveReviewPlayerPayloadBuilder:
   ): Option[MoveReviewPlayerSurfaceRow] =
     val targetHints = practicalTargetHints(plan)
     if isWeaknessPlan(plan) || targetHints.nonEmpty then
-      practicalCurrentTarget(ctx, targetHints)
-        .map(target =>
-          practicalTargetRowFor(
-            s"The current structure gives ${sideLabel(target.weakSide)} a weak ${targetKindLabel(target.kind)} on ${target.targetSquare} to pressure."
+      val planName = cleanToken(plan.hypothesis.planName)
+      val evidence = plan.hypothesis.evidenceSources.map(cleanToken)
+      val fixedTargetHints =
+        plan.hypothesis.evidenceSources.flatMap { source =>
+          val lower = Option(source).getOrElse("").trim.toLowerCase
+          Option
+            .when(lower.startsWith("fixed_target:"))(lower.stripPrefix("fixed_target:").trim)
+            .filter(ChessSquarePattern.matches)
+        }.toSet
+      val carlsbadPlan =
+        plan.userFacingEligibility == UserFacingPlanEligibility.StructuralOnly &&
+          (
+            plan.subplanId.contains(PlanKind.MinorityAttackFixation.id) ||
+              plan.subplanId.contains(PlanKind.BackwardPawnTargeting.id) ||
+              planName.contains("carlsbad") ||
+              planName.contains("minority attack") ||
+              evidence.exists(token => token.contains("carlsbad") || token.contains("minority attack"))
           )
+      val carlsbadContext =
+        if plan.userFacingEligibility == UserFacingPlanEligibility.StructuralOnly &&
+          (carlsbadPlan || fixedTargetHints.nonEmpty)
+        then
+          Fen.read(Standard, Fen.Full(ctx.fen)).flatMap { position =>
+            PawnStructureTargets
+              .carlsbadTargetForBoard(position.board, position.color)
+              .map(target => position.color -> target)
+              .filter { case (_, target) => carlsbadPlan || fixedTargetHints.contains(target.targetSquare) }
+          }.map { case (pressureSide, target) =>
+            practicalTargetRowFor(
+              s"The Carlsbad-type pawn shape makes ${target.targetSquare} a natural queenside target for ${sideLabel(pressureSide)}'s minority-attack ideas."
+            )
+          }
+        else None
+      carlsbadContext
+        .orElse(
+          practicalCurrentTarget(ctx, targetHints).map { target =>
+            val currentStructurePrefix =
+              target.structureContext
+                .flatMap(context =>
+                  cleanToken(context) match
+                    case "unknown" | "open center" | "locked center" | "fluid center" | "symmetric center" => None
+                    case "iqp white" | "iqp black" => Some("The current IQP structure gives")
+                    case "hanging pawns white" | "hanging pawns black" =>
+                      Some("The current hanging-pawn structure gives")
+                    case token if token.nonEmpty => Some(s"The current ${humanizeToken(context)} structure gives")
+                    case _ => None
+                )
+                .getOrElse("The current structure gives")
+            practicalTargetRowFor(
+              s"$currentStructurePrefix ${sideLabel(target.weakSide)} a weak ${targetKindLabel(target.kind)} on ${target.targetSquare} to pressure."
+            )
+          }
         )
         .orElse(
           practicalEndpointTarget(ctx, targetHints).map(target =>
@@ -511,23 +2123,17 @@ object MoveReviewPlayerPayloadBuilder:
       target: WeaknessTargetProfile
   ): Boolean =
     ctx.engineEvidence.flatMap(_.best) match
-      case None => false
-      case Some(line) if line.moves.isEmpty => false
+      case None => true
+      case Some(line) if line.moves.isEmpty => true
       case Some(line) =>
-        WeaknessTargetProfile
-          .lineOutcomeFromFen(
+        val outcome =
+          WeaknessTargetProfile.lineOutcomeFromFen(
             fen = ctx.fen,
             moves = line.moves,
             targetSquare = target.targetSquare,
             resultingFen = line.resultingFen
           )
-          .exists { outcome =>
-            outcome.status == WeaknessTargetProfile.ResolvedByPressure ||
-              (
-                outcome.status == WeaknessTargetProfile.Persistent &&
-                  (line.resultingFen.nonEmpty || line.moves.size >= MinWeaknessTargetOutcomePlies)
-              )
-          }
+        outcome.forall(_.status != WeaknessTargetProfile.LiquidatedByDefense)
 
   private def enrichDecisionTargetComparison(
       ctx: NarrativeContext,
@@ -852,7 +2458,9 @@ private[commentary] object BreakSurfaceToken:
     else
       val hasEllipsis = lower.startsWith("...")
       val core = if hasEllipsis then lower.drop(3) else lower
-      if core.matches("""[a-h][1-8]""") || core.matches("""[a-h][1-8]-[a-h][1-8]""") then
+      if MoveReviewPlayerPayloadBuilder.ChessSquarePattern.matches(core) ||
+          MoveReviewPlayerPayloadBuilder.ChessSquareRangePattern.matches(core)
+      then
         Some(s"${if hasEllipsis then "..." else ""}$core")
       else None
 
@@ -862,7 +2470,7 @@ private[commentary] object BreakSurfaceToken:
   def singleSquare(token: String): Option[String] =
     canonical(token)
       .map(_.stripPrefix("..."))
-      .filter(_.matches("""[a-h][1-8]"""))
+      .filter(MoveReviewPlayerPayloadBuilder.ChessSquarePattern.matches)
 
   def displayRoute(token: String): String =
     token.stripPrefix("...")
@@ -953,7 +2561,7 @@ private[commentary] object CentralBreakTimingSurfaceGate:
 private[commentary] object MoveReviewSupportedLocalSurfaceRows:
   import MoveReviewPlayerPayloadBuilder.PracticalPlanAuthority
 
-  private val MaxSupportedLocalRows = 2
+  private val MaxSupportedLocalRows = 3
   private val CounterplayBreakLabel = "Counterplay break"
   private val CentralBreakLabel = "Central break"
   private val CentralLiquidationLabel = "Central liquidation"
@@ -1122,7 +2730,7 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
     val exactRows =
       if packetAndPlanRows.nonEmpty && typedSurfaceRows.nonEmpty then
         MoveReviewPlayerPayloadBuilder.distinctVisibleRows(
-          packetAndPlanRows.take(MaxSupportedLocalRows - 1) ++ typedSurfaceRows.take(1)
+          packetAndPlanRows.take(1) ++ typedSurfaceRows.take(MaxSupportedLocalRows - 1)
         )
           .take(MaxSupportedLocalRows)
       else (packetAndPlanRows ++ typedSurfaceRows).take(MaxSupportedLocalRows)
@@ -1322,7 +2930,7 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
     ctx.decision.toList
       .flatMap(_.focalPoint.collect { case TargetSquare(key) => key })
       .map(_.trim.toLowerCase)
-      .filter(_.matches("""[a-h][1-8]"""))
+      .filter(MoveReviewPlayerPayloadBuilder.ChessSquarePattern.matches)
       .distinct
 
   private def playedTopPvRelationRow(
@@ -2048,7 +3656,7 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
   private def quietIntentAnchorSquares(intent: QuietMoveIntentClaim): Set[String] =
     (intent.packet.anchorTerms ++ intent.packet.proofPathWitness.ownerSeedTerms)
       .map(_.trim.toLowerCase)
-      .filter(_.matches("""[a-h][1-8]"""))
+      .filter(MoveReviewPlayerPayloadBuilder.ChessSquarePattern.matches)
       .toSet
 
   private def quietCastleMove(move: chess.Move): Boolean =
@@ -2338,14 +3946,26 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
         row(
           "Fixed target",
           s"The checked line keeps $target fixed as the target.",
-          authority = PracticalPlanAuthority
+          authority =
+            Some(
+              MoveReviewSurfaceAuthority(
+                kind = MoveReviewSurfaceAuthority.PracticalPlan,
+                target = Some(target)
+              )
+            )
         )
       case PlayerFacingExactSliceProof.CarlsbadFixedTarget(targetSquare, true) =>
         val target = targetSquare.toLowerCase
         row(
           "Minority attack",
           s"The checked line keeps $target as the minority-attack fixed target.",
-          authority = PracticalPlanAuthority
+          authority =
+            Some(
+              MoveReviewSurfaceAuthority(
+                kind = MoveReviewSurfaceAuthority.PracticalPlan,
+                target = Some(target)
+              )
+            )
         )
       case PlayerFacingExactSliceProof.TargetFocusedCoordination(targetSquare, supportFromSquares, _) =>
         val target = targetSquare.toLowerCase
@@ -2353,7 +3973,13 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
         row(
           "Target coordination",
           s"The checked line coordinates pressure on $target from $support.",
-          authority = PracticalPlanAuthority
+          authority =
+            Some(
+              MoveReviewSurfaceAuthority(
+                kind = MoveReviewSurfaceAuthority.PracticalPlan,
+                target = Some(target)
+              )
+            )
         )
       case PlayerFacingExactSliceProof.ColorComplexSqueeze(
             targetSquare,
@@ -2368,7 +3994,13 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
         row(
           ColorComplexLabel,
           s"The checked line keeps the $role on $from attacking $target in the $complex-square complex.",
-          authority = PracticalPlanAuthority
+          authority =
+            Some(
+              MoveReviewSurfaceAuthority(
+                kind = MoveReviewSurfaceAuthority.PracticalPlan,
+                target = Some(target)
+              )
+            )
         )
     }
 
@@ -2409,10 +4041,17 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
   ): Option[MoveReviewPlayerSurfaceRow] =
     matchedExactSliceProof(packet) {
       case PlayerFacingExactSliceProof.IqpInducement(targetSquare, _) =>
+        val target = targetSquare.toLowerCase
         row(
           IqpTargetLabel,
-          s"The checked line leaves ${targetSquare.toLowerCase} as an isolated pawn target.",
-          authority = PracticalPlanAuthority
+          s"The checked line leaves $target as an isolated pawn target.",
+          authority =
+            Some(
+              MoveReviewSurfaceAuthority(
+                kind = MoveReviewSurfaceAuthority.PracticalPlan,
+                target = Some(target)
+              )
+            )
         )
     }
 
@@ -2421,36 +4060,38 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
   ): Option[MoveReviewPlayerSurfaceRow] =
     matchedExactSliceProof(packet) {
       case PlayerFacingExactSliceProof.OutpostOccupation(pieceRole, square) =>
+        val target = square.toLowerCase
         row(
           KnightOutpostLabel,
-          s"The checked line puts the ${pieceRole.toLowerCase} on the ${square.toLowerCase} outpost.",
-          authority = PracticalPlanAuthority
+          s"The checked line puts the ${pieceRole.toLowerCase} on the $target outpost.",
+          authority =
+            Some(
+              MoveReviewSurfaceAuthority(
+                kind = MoveReviewSurfaceAuthority.PracticalPlan,
+                target = Some(target)
+              )
+            )
         )
     }
 
   private def simplificationWindowRow(
       packet: PlayerFacingClaimPacket
   ): Option[MoveReviewPlayerSurfaceRow] =
-    simplificationExchangeSquare(packet).flatMap(square =>
-      row(
-        SimplificationLabel,
-        s"The checked line keeps the same local edge after the exchange on $square.",
-        authority = PracticalPlanAuthority
-      )
-    )
-
-  private def simplificationExchangeSquare(packet: PlayerFacingClaimPacket): Option[String] =
-    (
-      packet.proofPathWitness.continuationTerms ++
-        packet.proofPathWitness.structureTransitionTerms ++
-        packet.proofPathWitness.ownerSeedTerms
-    ).flatMap(exchangeSquareTerm).headOption
-
-  private def exchangeSquareTerm(term: String): Option[String] =
-    val lower = Option(term).getOrElse("").trim.toLowerCase
-    if lower.startsWith("exchange_square:") then
-      Some(lower.stripPrefix("exchange_square:").trim).filter(_.matches("""[a-h][1-8]"""))
-    else None
+    matchedExactSliceProof(packet) {
+      case PlayerFacingExactSliceProof.SimplificationWindow(exchangeSquare) =>
+        val square = exchangeSquare.toLowerCase
+        row(
+          SimplificationLabel,
+          s"The checked line keeps the same local edge after the exchange on $square.",
+          authority =
+            Some(
+              MoveReviewSurfaceAuthority(
+                kind = MoveReviewSurfaceAuthority.PracticalPlan,
+                target = Some(square)
+              )
+            )
+        )
+    }
 
   private def exchangeOwnershipPacket(packet: PlayerFacingClaimPacket): Boolean =
     (packet.proofSource == PlayerFacingTruthModePolicy.DefenderTradeProofSource &&
@@ -2534,7 +4175,13 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
         row(
           FileEntryLabel,
           s"The checked line keeps pressure on $entry through the $displayFile.",
-          authority = PracticalPlanAuthority
+          authority =
+            Some(
+              MoveReviewSurfaceAuthority(
+                kind = MoveReviewSurfaceAuthority.PracticalPlan,
+                target = Some(entry)
+              )
+            )
         )
     }
 
@@ -2565,7 +4212,10 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       .map(_.toLowerCase)
       .map(_.replaceAll("""(?i)^neutralized[-_ ]break[: ]""", ""))
       .map(_.replaceAll("\\s+", " "))
-      .filter(label => label.matches("""\.{0,3}[a-h][1-8](,[a-h][1-8])*""") || label.matches("""\.{0,3}[a-h][1-8]-[a-h][1-8]"""))
+      .filter(label =>
+        MoveReviewPlayerPayloadBuilder.LabelSquareListPattern.matches(label) ||
+          MoveReviewPlayerPayloadBuilder.LabelSquareRangePattern.matches(label)
+      )
 
   private def normalizeSurfaceToken(value: String): String =
     Option(value).getOrElse("").trim.toLowerCase

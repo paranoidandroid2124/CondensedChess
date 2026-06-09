@@ -685,7 +685,23 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
           rawPvDeltaIngressReason = Some("pv_delta_present_with_content"),
           sanitizedDecisionIngressReason = Some("decision_present"),
           sanitizedPvDeltaIngressReason = Some("pv_delta_present_with_content"),
-          surfaceReplayOutcome = Some("move_review_planner_owned")
+          surfaceReplayOutcome = Some("move_review_planner_owned"),
+          moveReviewLocalFactStatus = Some("emitted"),
+          moveReviewLocalFactFamilies = List("pressure"),
+          moveReviewLocalFactAuthorities = List("canonical_fact"),
+          moveReviewLocalFactStrictFallbackEligible = Some(true),
+          moveReviewLocalFactRejectReasons = Nil,
+          moveReviewCausalClaimStatus = Some("accepted"),
+          moveReviewCausalClaimQuestion = Some("WhyThis"),
+          moveReviewCausalClaimSubject = Some("played_move"),
+          moveReviewCausalClaimEvidence = List("contrast"),
+          moveReviewCausalClaimRelations = List("alternative_contrast"),
+          moveReviewCausalClaimRejectReasons = Nil,
+          moveReviewCausalClaimSupportEmbedded = Some(true),
+          moveReviewCausalClaimGuardrail =
+            Some(
+              "MoveReview causal claim: question=WhyThis, subject=played_move, evidence=contrast, relations=alternative_contrast, support_embedded=true"
+            )
         ).withQuietSupportTrace(
           MoveReviewQuietSupportTrace(
             liftApplied = true,
@@ -713,6 +729,19 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
     assertEquals(parsed.rawDecisionIngressReason, Some("decision_present"))
     assertEquals(parsed.sanitizedPvDeltaIngressReason, Some("pv_delta_present_with_content"))
     assertEquals(parsed.plannerSupportMaterialSeparation, List("close_candidate:support_material"))
+    assertEquals(parsed.moveReviewCausalClaimStatus, Some("accepted"))
+    assertEquals(parsed.moveReviewCausalClaimQuestion, Some("WhyThis"))
+    assertEquals(parsed.moveReviewCausalClaimSubject, Some("played_move"))
+    assertEquals(parsed.moveReviewCausalClaimEvidence, List("contrast"))
+    assertEquals(parsed.moveReviewCausalClaimRelations, List("alternative_contrast"))
+    assertEquals(parsed.moveReviewCausalClaimSupportEmbedded, Some(true))
+    assertEquals(parsed.moveReviewLocalFactStatus, Some("emitted"))
+    assertEquals(parsed.moveReviewLocalFactFamilies, List("pressure"))
+    assertEquals(parsed.moveReviewLocalFactAuthorities, List("canonical_fact"))
+    assertEquals(parsed.moveReviewLocalFactStrictFallbackEligible, Some(true))
+    assertEquals((js \ "moveReviewLocalFactFamilies").asOpt[List[String]], Some(List("pressure")))
+    assertEquals((js \ "moveReviewCausalClaimStatus").asOpt[String], Some("accepted"))
+    assertEquals((js \ "moveReviewCausalClaimRelations").asOpt[List[String]], Some(List("alternative_contrast")))
     assertEquals(parsed.quietSupportLiftApplied, Some(true))
     assertEquals(parsed.quietSupportRuntimeGatePassed, Some(true))
     assertEquals(parsed.quietSupportCandidateBucket, Some("slow_route_improvement"))

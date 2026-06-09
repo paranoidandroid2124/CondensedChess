@@ -17,7 +17,8 @@ final case class MoveReviewPolishSlots(
     paragraphPlan: List[String],
     sourceKind: String = MoveReviewPolishSlots.Source.Planner,
     moveReviewExplanation: Option[MoveReviewExplanation] = None,
-    factFragments: Option[List[FactFragment]] = None
+    factFragments: Option[List[FactFragment]] = None,
+    localFact: Option[MoveReviewLocalFact.Admission] = None
 ):
   def support: List[String] = List(supportPrimary, supportSecondary).flatten.filter(_.nonEmpty)
   def validationSeedText: String =
@@ -61,6 +62,15 @@ object MoveReviewPolishSlotsBuilder:
     MoveReviewCompressionPolicy.buildSlotsOrFallback(ctx, outline, refs, strategyPack, truthContract)
 
 object MoveReviewProseContract:
+
+  private val ParagraphSplitPattern = """\n\s*\n""".r
+  private val moveHeaderRegex = """^\s*\d+\.(?:\.\.)?\s+([^:]+):\s*""".r
+  private val NonAlphaNumPattern = """[^a-z0-9]""".r
+  private val NonAlphaNumSpacePattern = """[^a-z0-9\s]""".r
+  private val WhitespacePattern = """\s+""".r
+  private val MoveEllipsisMaskPattern = """\b(\d+)\.\.\.(?=\s*(?:O-O(?:-O)?|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?|[a-h][1-8]))""".r
+  private val MovePlyMaskPattern = """\b(\d+)\.(?=\s*(?:O-O(?:-O)?|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?|[a-h][1-8]))""".r
+  private val SentenceSplitPattern = """(?<=[.!?])\s+""".r
 
   private val claimStopWords = Set(
     "this", "that", "with", "from", "into", "where", "because", "belongs", "calls",
@@ -111,8 +121,7 @@ object MoveReviewProseContract:
     )
 
   def splitParagraphs(text: String): List[String] =
-    Option(text).getOrElse("")
-      .split("""\n\s*\n""")
+    ParagraphSplitPattern.split(Option(text).getOrElse(""))
       .map(_.trim)
       .filter(_.nonEmpty)
       .toList
@@ -126,9 +135,7 @@ object MoveReviewProseContract:
     claimMoveAnchorPreserved(paragraph, claim, claimCore)
 
   def stripMoveHeader(paragraph: String): String =
-    Option(paragraph).getOrElse("").replaceFirst(moveHeaderRegex.regex, "").trim
-
-  private val moveHeaderRegex = """^\s*\d+\.(?:\.\.)?\s+([^:]+):\s*""".r
+    moveHeaderRegex.replaceFirstIn(Option(paragraph).getOrElse(""), "").trim
 
   private def claimMoveAnchorPreserved(paragraph: String, claim: String, claimCore: String): Boolean =
     moveHeaderToken(claim).exists { anchor =>
@@ -141,7 +148,7 @@ object MoveReviewProseContract:
     moveHeaderRegex.findFirstMatchIn(Option(paragraph).getOrElse("")).map(_.group(1).trim).filter(_.nonEmpty)
 
   private def normalizeCompact(text: String): String =
-    Option(text).getOrElse("").toLowerCase.replaceAll("""[^a-z0-9]""", "")
+    NonAlphaNumPattern.replaceAllIn(Option(text).getOrElse("").toLowerCase, "")
 
   private def commonPrefixWords(a: String, b: String): Int =
     val as = normalizeWords(a)
@@ -149,7 +156,8 @@ object MoveReviewProseContract:
     as.zip(bs).takeWhile { case (x, y) => x == y }.size
 
   private def normalizeWords(text: String): List[String] =
-    Option(text).getOrElse("").toLowerCase.replaceAll("""[^a-z0-9\s]""", " ").split("\\s+").toList.filter(_.nonEmpty).map(canonicalClaimToken)
+    val cleared = NonAlphaNumSpacePattern.replaceAllIn(Option(text).getOrElse("").toLowerCase, " ")
+    WhitespacePattern.split(cleared).toList.filter(_.nonEmpty).map(canonicalClaimToken)
 
   private def canonicalClaimToken(token: String): String =
     token match
@@ -168,23 +176,15 @@ object MoveReviewProseContract:
     paragraphs.flatMap(split_sentences).size
 
   private[commentary] def split_sentences(text: String): List[String] =
-    mask_moves(Option(text).getOrElse(""))
-      .split("""(?<=[.!?])\s+""")
+    SentenceSplitPattern.split(mask_moves(Option(text).getOrElse("")))
       .toList
       .map(restore_moves)
       .map(_.trim)
       .filter(_.nonEmpty)
 
   private def mask_moves(text: String): String =
-    text
-      .replaceAll(
-        """\b(\d+)\.\.\.(?=\s*(?:O-O(?:-O)?|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?|[a-h][1-8]))""",
-        "$1<ELLIPSIS>"
-      )
-      .replaceAll(
-        """\b(\d+)\.(?=\s*(?:O-O(?:-O)?|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?|[a-h][1-8]))""",
-        "$1<PLY>"
-      )
+    val maskedEllipsis = MoveEllipsisMaskPattern.replaceAllIn(text, m => s"${m.group(1)}<ELLIPSIS>")
+    MovePlyMaskPattern.replaceAllIn(maskedEllipsis, m => s"${m.group(1)}<PLY>")
 
   private def restore_moves(text: String): String =
     text
@@ -194,6 +194,13 @@ object MoveReviewProseContract:
 object MoveReviewSoftRepair:
 
   private val CosmeticActions = Set("claim_restore")
+  private val EvidenceHookLine1Pattern = """(?i)^one concrete line that keeps the idea in play is\s+[a-z]\)\s+(?:the|on)\s+checked\s+line\b.*""".r
+  private val EvidenceHookLine1ReplacePattern = """(?i)^one concrete line that keeps the idea in play is\s+[a-z]\)\s+""".r
+  private val EvidenceHookLine2Pattern = """(?i)^[a-z]\)\s+(?:the|on)\s+checked\s+line\b.*""".r
+  private val EvidenceHookLine2ReplacePattern = """^[a-z]\)\s+""".r
+  private val EvidenceHookLine3Pattern = """^[a-z]\)\s+.*""".r
+  private val EvidenceHookLine4ReplacePattern = """(?i)^a concrete line is""".r
+  private val PunctuationEndPattern = """.*[.!?]$""".r
 
   final case class RepairResult(
       text: String,
@@ -310,19 +317,19 @@ object MoveReviewSoftRepair:
 
   private def normalizeEvidenceHook(text: String): String =
     val trimmed = text.trim
-    if trimmed.matches("""(?i)^one concrete line that keeps the idea in play is\s+[a-z]\)\s+(?:the|on)\s+checked\s+line\b.*""") then
-      trimmed.replaceFirst("""(?i)^one concrete line that keeps the idea in play is\s+[a-z]\)\s+""", "")
+    if EvidenceHookLine1Pattern.matches(trimmed) then
+      EvidenceHookLine1ReplacePattern.replaceFirstIn(trimmed, "")
     else if trimmed.toLowerCase.startsWith("one concrete line that keeps the idea in play is") then trimmed
     else if trimmed.toLowerCase.startsWith("a concrete line is") then
-      trimmed.replaceFirst("(?i)^a concrete line is", "One concrete line that keeps the idea in play is")
-    else if trimmed.matches("""(?i)^[a-z]\)\s+(?:the|on)\s+checked\s+line\b.*""") then
-      trimmed.replaceFirst("""^[a-z]\)\s+""", "")
-    else if trimmed.matches("""^[a-z]\)\s+.*""") then s"One concrete line that keeps the idea in play is $trimmed"
+      EvidenceHookLine4ReplacePattern.replaceFirstIn(trimmed, "One concrete line that keeps the idea in play is")
+    else if EvidenceHookLine2Pattern.matches(trimmed) then
+      EvidenceHookLine2ReplacePattern.replaceFirstIn(trimmed, "")
+    else if EvidenceHookLine3Pattern.matches(trimmed) then s"One concrete line that keeps the idea in play is $trimmed"
     else trimmed
 
   private def ensureSentence(text: String): String =
     val trimmed = text.trim
-    if trimmed.isEmpty || trimmed.matches(""".*[.!?]$""") then trimmed
+    if trimmed.isEmpty || PunctuationEndPattern.matches(trimmed) then trimmed
     else s"$trimmed."
 
   private def trimToSentenceBudget(

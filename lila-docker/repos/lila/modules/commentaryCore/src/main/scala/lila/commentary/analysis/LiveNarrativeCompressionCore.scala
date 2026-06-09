@@ -97,13 +97,15 @@ private[commentary] object LiveNarrativeCompressionCore:
     playerLanguageHits(text).isEmpty &&
     (!requiresConcreteAnchor(text) || hasConcreteAnchor(text))
 
+  private val SafeMovesPattern = """(\d+)\s+safe moves?""".r
+
   def renderPracticalBiasPlayer(factorRaw: String, descriptionRaw: String): Option[String] =
     val factor = Option(factorRaw).getOrElse("").trim.toLowerCase
     val description = Option(descriptionRaw).getOrElse("").trim.toLowerCase
     Option.when(factor.nonEmpty || description.nonEmpty) {
       if factor.contains("mobility") then "the pieces have more room"
-      else if factor.contains("forgiveness") && """(\d+)\s+safe moves?""".r.findFirstMatchIn(description).nonEmpty then
-        val count = """(\d+)\s+safe moves?""".r.findFirstMatchIn(description).map(_.group(1)).getOrElse("more")
+      else if factor.contains("forgiveness") && SafeMovesPattern.findFirstMatchIn(description).nonEmpty then
+        val count = SafeMovesPattern.findFirstMatchIn(description).map(_.group(1)).getOrElse("more")
         s"there are $count safe follow-up moves"
       else if factor.contains("forgiveness") then "there are more safe follow-up moves"
       else if factor.contains("king") then "the king has fewer checks to answer"

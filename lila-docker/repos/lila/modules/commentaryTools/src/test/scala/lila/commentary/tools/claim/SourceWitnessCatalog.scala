@@ -721,6 +721,14 @@ private[commentary] object SourceWitnessCatalog:
         List(
           row,
           row.copy(
+            id = "source-capablanca-golombek-1939-bad-piece-liquidation",
+            candidatePlyRange = CandidatePlyRange(43, 43),
+            reviewGroup = "C:bad_piece_liquidation",
+            intendedVerdict = "screen_only",
+            validationNote =
+              "Natural bad-piece liquidation authority candidate: exact ply 43 Bxd6 must clear the bad bishop on the engine top line before matrix admission."
+          ),
+          row.copy(
             id = "source-capablanca-golombek-1939-iqp-inducement",
             candidatePlyRange = CandidatePlyRange(45, 45),
             reviewGroup = "C:iqp_inducement",
@@ -739,6 +747,18 @@ private[commentary] object SourceWitnessCatalog:
             intendedVerdict = "screen_only",
             validationNote =
               "Natural IQP authority candidate: exact ply 33 Rc1 must induce an opponent isolated central pawn on the engine top line before matrix admission."
+          )
+        )
+      case row if row.id == "source-karpov-andersson-1975-hedgehog-break-screen" =>
+        List(
+          row,
+          row.copy(
+            id = "source-karpov-andersson-1975-iqp-inducement",
+            candidatePlyRange = CandidatePlyRange(49, 49),
+            reviewGroup = "C:iqp_inducement",
+            intendedVerdict = "screen_only",
+            validationNote =
+              "Natural IQP authority candidate: exact ply 49 cxd5 must induce an opponent isolated central pawn on the engine top line before matrix admission."
           )
         )
       case row if row.id == "source-maderna-palermo-1955-a6-a5-break-prevention" =>
@@ -761,6 +781,30 @@ private[commentary] object SourceWitnessCatalog:
               "Plan-only central-break review candidate: exact ply 31 Nc4 leaves the e5 break visible but has no direct board link, so it must never release."
           )
         )
+      case row if row.id == "source-camara-bazan-1960-b7-b5-break-prevention" =>
+        List(
+          row,
+          row.copy(
+            id = "source-camara-bazan-1960-d5-color-complex-squeeze",
+            candidatePlyRange = CandidatePlyRange(27, 27),
+            reviewGroup = "A:flank_clamp",
+            intendedVerdict = "screen_only",
+            validationNote =
+              "Natural flank-clamp authority candidate: exact ply 27 Bb5 must materialize a color_complex_squeeze probe on d5 on the engine top line before matrix admission."
+          )
+        )
+      case row if row.id == "source-pfleger-maalouf-1961-a6-a5-break-prevention" =>
+        List(
+          row,
+          row.copy(
+            id = "source-pfleger-maalouf-1961-d5-color-complex-squeeze",
+            candidatePlyRange = CandidatePlyRange(33, 33),
+            reviewGroup = "A:flank_clamp",
+            intendedVerdict = "screen_only",
+            validationNote =
+              "Natural flank-clamp authority candidate: exact ply 33 a5 must materialize a color_complex_squeeze probe on d5 on the engine top line before matrix admission."
+          )
+        )
       case row if row.id == "source-botvinnik-vidmar-1936" =>
         List(
           row,
@@ -773,12 +817,36 @@ private[commentary] object SourceWitnessCatalog:
               "Negative IQP screen: exact ply 31 can materialize an IQP packet, but it must stay non-authority unless the played move is engine top PV."
           ),
           row.copy(
+            id = "source-botvinnik-vidmar-1936-simplification-window",
+            candidatePlyRange = CandidatePlyRange(31, 31),
+            reviewGroup = "C:simplification_window",
+            intendedVerdict = "screen_only",
+            validationNote =
+              "Natural simplification-window authority candidate: exact ply 31 Nxd5 must keep the same local edge on d5 on a near-top engine branch before matrix admission."
+          ),
+          row.copy(
             id = "source-botvinnik-vidmar-1936-iqp-opening-inducement",
             candidatePlyRange = CandidatePlyRange(16, 16),
             reviewGroup = "C:iqp_inducement",
             intendedVerdict = "screen_only",
             validationNote =
               "Natural IQP authority candidate: exact ply 16 ...cxd4 must induce an opponent isolated central pawn on the engine top line before matrix admission."
+          ),
+          row.copy(
+            id = "source-botvinnik-vidmar-1936-flank-clamp",
+            candidatePlyRange = CandidatePlyRange(25, 25),
+            reviewGroup = "A:flank_clamp",
+            intendedVerdict = "screen_only",
+            validationNote =
+              "Natural flank-clamp authority candidate: exact ply 25 Ne5 must materialize a color_complex_squeeze probe on the engine top line before matrix admission."
+          ),
+          row.copy(
+            id = "source-botvinnik-vidmar-1936-e4-color-complex-squeeze",
+            candidatePlyRange = CandidatePlyRange(30, 30),
+            reviewGroup = "A:flank_clamp",
+            intendedVerdict = "screen_only",
+            validationNote =
+              "Natural flank-clamp authority candidate: exact ply 30 ...Bxd5 must materialize a color_complex_squeeze probe on e4 before matrix admission."
           )
         )
       case row if row.id == "source-kramnik-anand-2001" =>
@@ -791,6 +859,18 @@ private[commentary] object SourceWitnessCatalog:
             intendedVerdict = "screen_only",
             validationNote =
               "Natural IQP authority candidate: exact ply 14 ...cxd4 must induce an opponent isolated central pawn on the engine top line before matrix admission."
+          )
+        )
+      case row if row.id == "source-carlsen-anand-2014-g6" =>
+        List(
+          row.copy(candidatePlyRange = CandidatePlyRange(15, 15)),
+          row.copy(
+            id = "source-carlsen-anand-2014-g6-queen-trade-completion",
+            candidatePlyRange = CandidatePlyRange(17, 17),
+            reviewGroup = "C:queen_trade_boundary",
+            intendedVerdict = "screen_only",
+            validationNote =
+              "Natural queen-trade completion authority candidate: exact ply 17 Qxd8+ must complete the queenless-branch shield on the engine top line before matrix admission."
           )
         )
       case row => List(row)

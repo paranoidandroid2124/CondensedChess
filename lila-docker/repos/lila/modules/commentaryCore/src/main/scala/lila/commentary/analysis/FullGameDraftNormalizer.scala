@@ -19,31 +19,53 @@ private[commentary] object FullGameDraftNormalizer:
     "The backup strategic stack is"
   )
 
-  private val MetaRewrites: List[(String, String)] = List(
-    """(?i)\bIdea:\s*""" -> "",
-    """(?i)\bPrimary route is\s+""" -> "The leading route is ",
-    """(?i)\bRanked stack:\s*""" -> "Related candidates still cluster around ",
-    """(?i)\bPreconditions:\s*""" -> "This works best when ",
-    """(?i)\bEvidence:\s*""" -> "",
-    """(?i)\bSignals:\s*""" -> "The clearest signs are ",
-    """(?i)\bRefutation/Hold:\s*""" -> "",
-    """(?i)\bStrategic focus:\s*""" -> "Key theme: ",
-    """(?i)\bStrategic priority:\s*""" -> "Key theme: ",
-    """(?i)\bStrategic focus centers on\s+""" -> "The position revolves around ",
-    """(?i)\bStrategic focus remains on\s+""" -> "The position still turns on ",
-    """(?i)\bStrategic focus is sharpening along\s+""" -> "Pressure is sharpening along ",
-    """(?i)\bKey theme centers on\s+""" -> "The position revolves around ",
-    """(?i)\bKey theme remains on\s+""" -> "The position still turns on ",
-    """(?i)\bKey theme is sharpening along\s+""" -> "Pressure is sharpening along ",
-    """(?i)\bThe strategic stack still points first to\s+""" -> "The main plan remains ",
-    """(?i)\bThe strategic stack still favors\s+""" -> "The main plan remains ",
-    """(?i)\bThe backup strategic stack is\s+""" -> "Secondary ideas still include "
+  private val MetaRewrites: List[(scala.util.matching.Regex, String)] = List(
+    """(?i)\bIdea:\s*""".r -> "",
+    """(?i)\bPrimary route is\s+""".r -> "The leading route is ",
+    """(?i)\bRanked stack:\s*""".r -> "Related candidates still cluster around ",
+    """(?i)\bPreconditions:\s*""".r -> "This works best when ",
+    """(?i)\bEvidence:\s*""".r -> "",
+    """(?i)\bSignals:\s*""".r -> "The clearest signs are ",
+    """(?i)\bRefutation/Hold:\s*""".r -> "",
+    """(?i)\bStrategic focus:\s*""".r -> "Key theme: ",
+    """(?i)\bStrategic priority:\s*""".r -> "Key theme: ",
+    """(?i)\bStrategic focus centers on\s+""".r -> "The position revolves around ",
+    """(?i)\bStrategic focus remains on\s+""".r -> "The position still turns on ",
+    """(?i)\bStrategic focus is sharpening along\s+""".r -> "Pressure is sharpening along ",
+    """(?i)\bKey theme centers on\s+""".r -> "The position revolves around ",
+    """(?i)\bKey theme remains on\s+""".r -> "The position still turns on ",
+    """(?i)\bKey theme is sharpening along\s+""".r -> "Pressure is sharpening along ",
+    """(?i)\bThe strategic stack still points first to\s+""".r -> "The main plan remains ",
+    """(?i)\bThe strategic stack still favors\s+""".r -> "The main plan remains ",
+    """(?i)\bThe backup strategic stack is\s+""".r -> "Secondary ideas still include "
   )
+
+  private val IfPrefixPattern = """(?i)^if\s+""".r
+  private val RequiresPrefixPattern = """(?i)^requires\s+""".r
+  private val NeedsPrefixPattern = """(?i)^needs\s+""".r
+  private val ThemKingPattern = """(?i)\bthem king\b""".r
+  private val OpponentBlocksPattern = """(?i)\bopponent blocks with\.\s*""".r
+  private val SpacePeriodPattern = """\s+\.""".r
+  private val DoubleWhitespacePattern = """\s{2,}""".r
+  private val ThemePrefixPattern = """^(theme|subplan|support|proposal|seed|latent_seed|structural_state):""".r
+  private val ProbePrefixPattern = """^probe:""".r
+  private val WhitespacePattern = """\s+""".r
+  private val ThisWorksBestWhenIfPattern = """(?i)\bThis works best when\s+if\b""".r
+  private val ThisWorksBestWhenReqPattern = """(?i)\bThis works best when\s+(requires|needs)\b""".r
+  private val StrategicFocusRemainsPattern = """(?i)\bStrategic focus remains on ([^.]+)\.""".r
+  private val StrategicBurdenPattern = """(?i)\bThe strategic burden is still ([^.]+)\.""".r
+  private val StrategicPriorityPattern = """(?i)\bStrategic priority remains ([^.]+)\.""".r
+  private val DoublePeriodPattern = """\.\s*\.""".r
+  private val DoubleKeyThemePattern = """(?i)\bKey theme:\s+Key theme:\s+""".r
+  private val DoubleLeadingRoutePattern = """(?i)\bThe leading route is\s+The leading route is\b""".r
+  private val DoubleMainPlanPattern = """(?i)\bThe main plan remains\s+The main plan remains\b""".r
+  private val ArticlesPattern = """\b(a|an|the)\b""".r
+  private val NonAlphaNumSpacePattern = """[^\p{L}\p{N}\s]""".r
 
   def normalize(raw: String): String =
     val sanitized = UserFacingSignalSanitizer.sanitize(raw)
     val proseified = MetaRewrites.foldLeft(sanitized) { case (acc, (pattern, replacement)) =>
-      acc.replaceAll(pattern, replacement)
+      pattern.replaceAllIn(acc, replacement)
     }
     UserFacingSignalSanitizer.sanitize(cleanup(proseified))
 
@@ -58,17 +80,14 @@ private[commentary] object FullGameDraftNormalizer:
     (placeholderHits(raw) ++ metaLeakHits(raw)).distinct
 
   def humanizeConstraint(raw: String): String =
-    Option(raw)
-      .map(_.trim)
-      .getOrElse("")
-      .replaceAll("""(?i)^if\s+""", "")
-      .replaceAll("""(?i)^requires\s+""", "")
-      .replaceAll("""(?i)^needs\s+""", "")
-      .replaceAll("""(?i)\bthem king\b""", "the enemy king")
-      .replaceAll("""(?i)\bopponent blocks with\.\s*""", "the opponent blocks with ")
-      .replaceAll("""\s+\.""", ".")
-      .replaceAll("""\s{2,}""", " ")
-      .stripSuffix(".")
+    val s1 = Option(raw).map(_.trim).getOrElse("")
+    val s2 = IfPrefixPattern.replaceAllIn(s1, "")
+    val s3 = RequiresPrefixPattern.replaceAllIn(s2, "")
+    val s4 = NeedsPrefixPattern.replaceAllIn(s3, "")
+    val s5 = ThemKingPattern.replaceAllIn(s4, "the enemy king")
+    val s6 = OpponentBlocksPattern.replaceAllIn(s5, "the opponent blocks with ")
+    val s7 = SpacePeriodPattern.replaceAllIn(s6, ".")
+    DoubleWhitespacePattern.replaceAllIn(s7, " ").stripSuffix(".")
 
   def humanizeEvidenceSource(raw: String): Option[String] =
     val trimmed = Option(raw).map(_.trim).filter(_.nonEmpty).getOrElse("")
@@ -94,41 +113,33 @@ private[commentary] object FullGameDraftNormalizer:
         }
         .orElse {
           val lowered = trimmed.toLowerCase
-          val stripped =
-            lowered
-              .replaceFirst("""^(theme|subplan|support|proposal|seed|latent_seed|structural_state):""", "")
-              .replaceAll("""^probe:""", "")
-              .replace('_', ' ')
-              .replace('-', ' ')
-              .replaceAll("""\s+""", " ")
-              .trim
+          val s1 = ThemePrefixPattern.replaceFirstIn(lowered, "")
+          val s2 = ProbePrefixPattern.replaceAllIn(s1, "")
+          val s3 = s2.replace('_', ' ').replace('-', ' ')
+          val stripped = WhitespacePattern.replaceAllIn(s3, " ").trim
           Option.when(stripped.nonEmpty && !stripped.contains(":"))(stripped)
         }
 
   private def cleanup(text: String): String =
-    Option(text)
-      .getOrElse("")
+    val s1 = Option(text).getOrElse("")
       .replace("No explicit refutation was detected.", "Nothing concrete refutes the plan yet.")
-      .replaceAll("""(?i)\bthem king\b""", "the enemy king")
-      .replaceAll("""(?i)\bopponent blocks with\.\s*""", "the opponent blocks with ")
-      .replaceAll("""(?i)\bThis works best when\s+if\b""", "This works best when ")
-      .replaceAll("""(?i)\bThis works best when\s+(requires|needs)\b""", "This works best when ")
-      .replaceAll("""(?i)\bStrategic focus remains on ([^.]+)\.""", "$1 remains the practical priority.")
-      .replaceAll("""(?i)\bThe strategic burden is still ([^.]+)\.""", "$1 remains the practical priority.")
-      .replaceAll("""(?i)\bStrategic priority remains ([^.]+)\.""", "$1 remains the practical priority.")
-      .replaceAll("""\s+\.""", ".")
-      .replaceAll("""\.\s*\.""", ". ")
-      .replaceAll("""\s{2,}""", " ")
-      .replaceAll("""(?i)\bKey theme:\s+Key theme:\s+""", "Key theme: ")
-      .replaceAll("""(?i)\bThe leading route is\s+The leading route is\b""", "The leading route is")
-      .replaceAll("""(?i)\bThe main plan remains\s+The main plan remains\b""", "The main plan remains")
-      .trim
+    val s2 = ThemKingPattern.replaceAllIn(s1, "the enemy king")
+    val s3 = OpponentBlocksPattern.replaceAllIn(s2, "the opponent blocks with ")
+    val s4 = ThisWorksBestWhenIfPattern.replaceAllIn(s3, "This works best when ")
+    val s5 = ThisWorksBestWhenReqPattern.replaceAllIn(s4, "This works best when ")
+    val s6 = StrategicFocusRemainsPattern.replaceAllIn(s5, "$1 remains the practical priority.")
+    val s7 = StrategicBurdenPattern.replaceAllIn(s6, "$1 remains the practical priority.")
+    val s8 = StrategicPriorityPattern.replaceAllIn(s7, "$1 remains the practical priority.")
+    val s9 = SpacePeriodPattern.replaceAllIn(s8, ".")
+    val s10 = DoublePeriodPattern.replaceAllIn(s9, ". ")
+    val s11 = DoubleWhitespacePattern.replaceAllIn(s10, " ")
+    val s12 = DoubleKeyThemePattern.replaceAllIn(s11, "Key theme: ")
+    val s13 = DoubleLeadingRoutePattern.replaceAllIn(s12, "The leading route is")
+    val s14 = DoubleMainPlanPattern.replaceAllIn(s13, "The main plan remains")
+    s14.trim
 
   private def semanticText(raw: String): String =
-    Option(raw)
-      .getOrElse("")
-      .toLowerCase
-      .replaceAll("""\b(a|an|the)\b""", " ")
-      .replaceAll("""[^\p{L}\p{N}\s]""", " ")
-      .replaceAll("""\s+""", " ")
-      .trim
+    val s1 = Option(raw).getOrElse("").toLowerCase
+    val s2 = ArticlesPattern.replaceAllIn(s1, " ")
+    val s3 = NonAlphaNumSpacePattern.replaceAllIn(s2, " ")
+    WhitespacePattern.replaceAllIn(s3, " ").trim

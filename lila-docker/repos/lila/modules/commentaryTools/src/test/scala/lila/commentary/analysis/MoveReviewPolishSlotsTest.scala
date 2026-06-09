@@ -610,7 +610,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     )
   }
 
-  test("tactical blunders now surface through planner-owned WhyThis claims") {
+  test("label-only tactical blunder WhyThis does not produce direct planner slots") {
     val ctx =
       MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
         authorQuestions = List(
@@ -668,12 +668,8 @@ class MoveReviewPolishSlotsTest extends FunSuite:
               reasonFamily = DecisiveReasonKind.TacticalRefutation
             )
           )
-      ).getOrElse(fail("missing slots"))
-    val claimCore = MoveReviewProseContract.stripMoveHeader(slots.claim).toLowerCase
-    assert(claimCore.contains("blunder"))
-    assert(!claimCore.contains("reorganizes the pieces around kingside clamp"))
-    val rendered = (slots.claim :: slots.support).appended(slots.evidenceHook.getOrElse("")).mkString(" ").toLowerCase
-    assert(!rendered.contains("better is"), clue(rendered))
+      )
+    assertEquals(slots, None)
   }
 
   test("compensation slots may omit moveReview prose instead of inventing a stronger compensation thesis") {
@@ -1104,14 +1100,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
           )
       )
 
-    assertEquals(slots.lens, StrategicLens.Decision)
-    val stripped = MoveReviewProseContract.stripMoveHeader(slots.claim)
-    assertEquals(stripped, "The timing matters now because other moves allow the position to slip away.")
-    assertEquals(slots.supportPrimary, Some("If delayed, only c3g3 still keeps the position together because it removes the immediate problem of back-rank counterplay."))
-    assertEquals(slots.supportSecondary, None)
-    assertEquals(slots.tension, None)
-    assertEquals(slots.evidenceHook, Some("a) line_1 Qf3 g6 Qxf7+ (0.40)"))
-    assertEquals(slots.paragraphPlan, List("p1=claim", "p2=support_chain", "p3=tension_or_evidence"))
+    assertExactFactualFallback(slots, "This puts the rook on c3.")
   }
 
   test("moveReview keeps WhyNow as the rendered primary when threat-stop would leak outside contrast scope") {

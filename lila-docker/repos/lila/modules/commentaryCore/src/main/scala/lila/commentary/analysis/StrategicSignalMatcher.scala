@@ -127,8 +127,10 @@ private[commentary] object StrategicSignalMatcher:
       comparison.flatMap(_.deferredMove)
     ).flatten.exists(candidate => phraseMentioned(textLower, candidate))
 
+  private val SquareWordPattern = "(?i)\\b[a-h][1-8]\\b".r
+
   private def extractSquares(textLower: String): Set[String] =
-    "(?i)\\b[a-h][1-8]\\b".r.findAllIn(textLower).map(_.toLowerCase).toSet
+    SquareWordPattern.findAllIn(textLower).map(_.toLowerCase).toSet
 
   private def containsOrderedRoute(textLower: String, route: List[String]): Boolean =
     if route.size < 2 then false

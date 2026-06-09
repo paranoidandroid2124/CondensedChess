@@ -69,7 +69,7 @@ private[commentary] object MoveReviewPvLine:
 
   def legalFenAfter(fen: String, uciMove: String): Option[String] =
     val normalized = normalizeUci(uciMove)
-    Option.when(normalized.matches("^[a-h][1-8][a-h][1-8][qrbn]?$"))(normalized).flatMap { moveStr =>
+    Option.when(normalized.matches("(?i)^[a-h][1-8][a-h][1-8][qrbn]?$"))(normalized).flatMap { moveStr =>
       val after = NarrativeUtils.uciListToFen(fen, List(moveStr))
       Option.when(boardStateFen(after) != boardStateFen(fen))(after)
     }

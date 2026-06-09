@@ -595,6 +595,8 @@ private[commentary] object QuestionPlannerInputsBuilder:
 
 private[commentary] object QuestionFirstCommentaryPlanner:
 
+  private val BranchPattern = """(?m)^[a-z]\)\s+""".r
+
   private val PlannerLinePurpose = "planner_line_proof"
   private val NeutralizeKeyBreakProofFamily = ProofFamilyId.NeutralizeKeyBreak.wireKey
   private val OpeningRelationDataOnlyPlyCutoff = 20
@@ -833,7 +835,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
     else 1
 
   private def countBranches(text: String): Int =
-    """(?m)^[a-z]\)\s+""".r.findAllMatchIn(Option(text).getOrElse("")).size
+    BranchPattern.findAllMatchIn(Option(text).getOrElse("")).size
 
   private def tacticalSeverity(plan: QuestionPlan): Int =
     if plan.questionKind == AuthorQuestionKind.WhatMustBeStopped then 3

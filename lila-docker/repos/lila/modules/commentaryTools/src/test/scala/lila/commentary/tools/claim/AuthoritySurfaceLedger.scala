@@ -5,7 +5,18 @@ import lila.commentary.analysis.claim.*
 import java.nio.charset.StandardCharsets
 import java.nio.file.{ Files, Paths }
 
-import lila.commentary.{ DirectionalTargetReadiness, NarrativeSignalDigest, StrategyDirectionalTarget, StrategyPack }
+import lila.commentary.{
+  DirectionalTargetReadiness,
+  NarrativeSignalDigest,
+  StrategicIdeaGroup,
+  StrategicIdeaKind,
+  StrategicIdeaReadiness,
+  StrategyDirectionalTarget,
+  StrategyIdeaSignal,
+  StrategyPack,
+  StrategyPieceMoveRef
+}
+import lila.commentary.analysis.semantic.StrategicObservationIds.{ EvidenceRef, EvidenceSourceId }
 import lila.commentary.model.*
 import lila.commentary.model.authoring.{ AuthorQuestion, AuthorQuestionKind, PlanHypothesis, PlanViability, QuestionEvidence }
 import lila.commentary.model.strategic.{ EngineEvidence, VariationLine }
@@ -91,12 +102,18 @@ object AuthoritySurfaceLedger:
     List(
       sourceSurfaceSample("source-evans-opsahl-1950", "source_carlsbad_fixed_target"),
       sourceSurfaceSample("source-carlsen-anand-2014-g6", "source_queen_trade_boundary"),
+      sourceSurfaceSample("source-carlsen-anand-2014-g6-queen-trade-completion", "source_queen_trade_boundary"),
       sourceSurfaceSample("source-capablanca-golombek-1939-iqp-inducement", "source_iqp_inducement"),
       sourceSurfaceSample("source-evans-opsahl-1950-iqp-inducement", "source_iqp_inducement"),
+      sourceSurfaceSample("source-karpov-andersson-1975-iqp-inducement", "source_iqp_inducement"),
       sourceSurfaceSample("source-alekhine-bogoljubow-1936-iqp-inducement", "source_iqp_inducement"),
       sourceSurfaceSample("source-najdorf-sergeant-1939-iqp-inducement", "source_iqp_inducement"),
       sourceSurfaceSample("source-botvinnik-vidmar-1936-iqp-opening-inducement", "source_iqp_inducement"),
-      sourceSurfaceSample("source-kramnik-anand-2001-iqp-opening-inducement", "source_iqp_inducement"),
+      sourceSurfaceSample("source-botvinnik-vidmar-1936-flank-clamp", "source_flank_clamp"),
+      sourceSurfaceSample("source-botvinnik-vidmar-1936-e4-color-complex-squeeze", "source_flank_clamp"),
+      sourceSurfaceSample("source-camara-bazan-1960-d5-color-complex-squeeze", "source_flank_clamp"),
+      sourceSurfaceSample("source-pfleger-maalouf-1961-d5-color-complex-squeeze", "source_flank_clamp"),
+      sourceSurfaceSample("source-capablanca-golombek-1939-bad-piece-liquidation", "source_bad_piece_liquidation"),
       sourceSurfaceSample("source-bad-piece-liquidation-pilot", "source_bad_piece_liquidation"),
       sourceSurfaceSample("source-lokvenc-czerniak-1952-b6-b5-break-prevention", "source_break_prevention"),
       sourceSurfaceSample("source-maderna-palermo-1955-a6-a5-break-prevention", "source_break_prevention"),
@@ -105,6 +122,7 @@ object AuthoritySurfaceLedger:
       sourceSurfaceSample("source-sliwa-gromek-1960-a6-a5-break-prevention", "source_break_prevention"),
       sourceSurfaceSample("source-pfleger-maalouf-1961-a6-a5-break-prevention", "source_break_prevention"),
       sourceSurfaceSample("source-polugaevsky-giorgadze-1956-c5-c4-break-prevention", "source_break_prevention"),
+      sourceSurfaceSample("source-botvinnik-vidmar-1936-simplification-window", "source_simplification_window"),
       sourceSurfaceSample("source-salov-ljubojevic-1992-simplification-window", "source_simplification_window"),
       sourceSurfaceSample("source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation", "source_static_weakness_fixation")
     )
@@ -114,11 +132,17 @@ object AuthoritySurfaceLedger:
 
   private def sourceSurfaceSample(id: String, taxonomy: String): Sample =
     val reviewGroup = s"source:${sourceCandidateById(id).reviewGroup}"
+    val note =
+      if taxonomy == "source_break_prevention" then
+        "Review-only source break-prevention fixture retained for deferred blocker visibility; current source-window review does not admit public authority."
+      else if taxonomy == "source_carlsbad_fixed_target" then
+        "Review-only Carlsbad fixed-target fixture retained for deferred blocker visibility; current source-window review reports missing Carlsbad owner proof."
+      else "Fixed source surface fixture copied from prior SourceReview evidence; surface-contract replay only."
     Sample(
       id,
       id,
       reviewGroup,
-      "Fixed source surface fixture copied from prior SourceReview evidence; surface-contract replay only.",
+      note,
       taxonomy = taxonomy
     )
 
@@ -304,15 +328,17 @@ object AuthoritySurfaceLedger:
     println(summary(observed))
 
   private[commentary] def surfaceReviewMarkdown(observations: List[Observation]): String =
-    val naturalSupported =
+    val surfaceSupported =
       observations.filter(obs =>
-        (obs.sample.id.startsWith("natural-") || obs.sample.id.startsWith("source-")) &&
+        (obs.sample.id.startsWith("natural-") ||
+          obs.sample.id.startsWith("source-") ||
+          obs.sample.id.startsWith("priority-")) &&
           obs.release == "SupportedLocal"
       )
     val supportedSummary =
-      if naturalSupported.isEmpty then "none found"
+      if surfaceSupported.isEmpty then "none found"
       else
-        naturalSupported
+        surfaceSupported
           .groupBy(_.taxonomy)
           .toList
           .sortBy(_._1)
@@ -332,7 +358,7 @@ object AuthoritySurfaceLedger:
         "# Strategic Claim Authority Surface Ledger",
         "",
         summary(observations),
-        s"Surface SupportedLocal fixtures: ${naturalSupported.size} rows ($supportedSummary)",
+        s"Surface SupportedLocal fixtures: ${surfaceSupported.size} rows ($supportedSummary)",
         s"Candidate screen rows: ${observations.count(_.sample.id.startsWith("screen-"))}",
         s"Source surface fixtures: ${sourceSurfaceFixtureIds.size} fixed rows ($sourceFixtureSummary)",
         "Engine-backed source admission: SourceReview only",
@@ -387,6 +413,14 @@ object AuthoritySurfaceLedger:
       effectiveInputs.mainBundle.flatMap(_.mainClaim).flatMap(_.packet)
     val proofTrace =
       mainClaimPacket.map(_.proofTrace)
+    val contractFailureCodes =
+      proofTrace.map(_.failureCodes.distinct).getOrElse(Nil)
+    val failedSoftOwnerPath =
+      sample.softenOwnerPath && contractFailureCodes.nonEmpty
+    val rejectedCurrentSourceFixture =
+      sample.reviewGroup.startsWith("source:") &&
+        (sample.taxonomy == "source_break_prevention" ||
+          sample.taxonomy == "source_carlsbad_fixed_target")
     val sourceOwnerMismatch =
       ranked.primary.exists(plan =>
         sample.reviewGroup == "source:A:break_prevention" &&
@@ -394,8 +428,10 @@ object AuthoritySurfaceLedger:
             mainClaimPacket.exists(_.proofSource == "counterplay_axis_suppression") &&
             proofTrace.flatMap(_.contractId).contains("runtime:neutralize_key_break"))
       )
+    val surfaceBlocked =
+      sourceOwnerMismatch || failedSoftOwnerPath || rejectedCurrentSourceFixture
     val rawMoveReview =
-      if sourceOwnerMismatch then "-"
+      if surfaceBlocked then "-"
       else
         moveReviewNarrative(
           MoveReviewCompressionPolicy.buildSlotsOrFallbackFromPlannerRuntime(
@@ -407,7 +443,7 @@ object AuthoritySurfaceLedger:
           )
         )
     val rawPrimary =
-      if sourceOwnerMismatch then "-"
+      if surfaceBlocked then "-"
       else ranked.primary.map(_.claim).getOrElse("-")
     val primary =
       if sample.softenOwnerPath then softenLocalReading(rawPrimary)
@@ -418,7 +454,7 @@ object AuthoritySurfaceLedger:
     val baselineRelease =
       Option.when(sample.tacticalContract)(strategicBaselineRelease(sample, planningCtx, pack)).flatten
     val ownerDisplaySource =
-      Option.unless(sourceOwnerMismatch)(ranked.primary).flatten.map { plan =>
+      Option.unless(surfaceBlocked)(ranked.primary).flatten.map { plan =>
         if proofTrace.flatMap(_.contractId).exists(id =>
             id == "runtime:neutralize_key_break" || id == "runtime:counterplay_restraint"
           )
@@ -428,7 +464,7 @@ object AuthoritySurfaceLedger:
       }
     Observation(
       sample = sample,
-      release = releaseLabel(sample, ranked, primary, moveReview, baselineRelease, sourceOwnerMismatch),
+      release = releaseLabel(sample, ranked, primary, moveReview, baselineRelease, surfaceBlocked),
       taxonomy = sample.taxonomy,
       plannerOwner = ranked.primary
         .zip(ownerDisplaySource)
@@ -441,9 +477,7 @@ object AuthoritySurfaceLedger:
       contractId = proofTrace.flatMap(_.contractId).getOrElse("-"),
       contractStatus = proofTrace.flatMap(_.contractStatus).getOrElse("-"),
       contractFailures =
-        proofTrace
-          .map(trace => if trace.failureCodes.isEmpty then "none" else trace.failureCodes.distinct.mkString("+"))
-          .getOrElse("-")
+        proofTrace.map(_ => if contractFailureCodes.isEmpty then "none" else contractFailureCodes.mkString("+")).getOrElse("-")
     )
 
   private def moveReviewNarrative(slots: MoveReviewPolishSlots): String =
@@ -971,6 +1005,36 @@ object AuthoritySurfaceLedger:
         playedUci = Some("d4c6")
       ),
       SceneFixture(
+        id = "source-carlsen-anand-2014-g6-queen-trade-completion",
+        label = "Carlsen-Anand 2014 game 6 exact queen_trade_shield completion source row",
+        fen = "r1bqk2r/1p3ppp/p1p1pn2/8/1bP1P3/2NQ4/PP3PPP/R1B1KB1R w KQkq - 0 9",
+        phase = "opening",
+        ply = 17,
+        scoreCp = 20,
+        pvMoves =
+          List(
+            "d3d8",
+            "e8d8",
+            "e4e5",
+            "f6d7",
+            "c1f4",
+            "b7b5",
+            "h2h4",
+            "b5c4",
+            "h4h5",
+            "a6a5",
+            "h5h6",
+            "g7g6",
+            "e1c1",
+            "b4c3",
+            "b2c3",
+            "c8a6"
+          ),
+        expectedTags = List("source", "queen_trade_shield"),
+        note = "Copied from Stockfish-backed source-window admission after exact queen-trade completion replay.",
+        playedUci = Some("d3d8")
+      ),
+      SceneFixture(
         id = "source-capablanca-golombek-1939-iqp-inducement",
         label = "Capablanca-Golombek 1939 exact IQP inducement source row",
         fen = "r3r1k1/pp3pn1/2pq2pp/3p4/NP1P4/3QP2P/P4PP1/1RR3K1 w - - 0 23",
@@ -1063,6 +1127,40 @@ object AuthoritySurfaceLedger:
         playedUci = Some("e4c3")
       ),
       SceneFixture(
+        id = "source-karpov-andersson-1975-iqp-inducement",
+        label = "Karpov-Andersson 1975 exact IQP inducement source row",
+        fen = "bq1rrbk1/3n1pp1/pp2pn1p/3p4/2P1P3/P1N1BP2/1P1NBQPP/2RR3K w - - 0 25",
+        phase = "middlegame",
+        ply = 49,
+        scoreCp = 20,
+        pvMoves =
+          List(
+            "c4d5",
+            "e6d5",
+            "e4d5",
+            "f6d5",
+            "c3d5",
+            "a8d5",
+            "e2a6",
+            "f8c5",
+            "e3c5",
+            "b6c5",
+            "a3a4",
+            "d5c6",
+            "b2b3",
+            "d7e5",
+            "d1e1",
+            "e5d3",
+            "e1e8",
+            "c6e8",
+            "a6d3",
+            "d8d3"
+          ),
+        expectedTags = List("source", "iqp_inducement"),
+        note = "Copied from Stockfish-backed source window probe after exact top-PV IQP inducement admission.",
+        playedUci = Some("c4d5")
+      ),
+      SceneFixture(
         id = "source-najdorf-sergeant-1939-iqp-inducement",
         label = "Najdorf-Sergeant 1939 exact IQP inducement source row",
         fen = "r1b2rk1/pp2qppp/4p3/2nn4/3N4/2N1P3/PPQ2PPP/3RKB1R w K - 0 12",
@@ -1129,16 +1227,279 @@ object AuthoritySurfaceLedger:
           )
       ),
       SceneFixture(
-        id = "source-kramnik-anand-2001-iqp-opening-inducement",
-        label = "Kramnik-Anand 2001 exact opening IQP inducement source row",
-        fen = "rnbqkb1r/1p3ppp/p3pn2/2p5/3P4/1B2PN2/PP3PPP/RNBQ1RK1 b kq - 1 7",
-        phase = "opening",
-        ply = 14,
-        scoreCp = -28,
-        pvMoves = List("c5d4", "e3d4", "b8c6", "b1c3", "f8e7", "c1g5", "e8g8", "d1d2"),
-        expectedTags = List("source", "iqp_inducement"),
-        note = "Copied from SourceReview exact opening IQP inducement admission after board/PV witness validation.",
-        playedUci = Some("c5d4")
+        id = "source-botvinnik-vidmar-1936-flank-clamp",
+        label = "Botvinnik-Vidmar 1936 exact flank-clamp color-complex source row",
+        fen = "r2q1rk1/pp1bbppp/4pn2/3n2B1/3P4/1BNQ1N2/PP3PPP/R4RK1 w - - 5 13",
+        phase = "middlegame",
+        ply = 25,
+        scoreCp = 20,
+        pvMoves =
+          List(
+            "f3e5",
+            "a8c8",
+            "f1e1",
+            "h7h6",
+            "g5d2",
+            "d7c6",
+            "d3h3",
+            "c8c7",
+            "a1d1"
+          ),
+        expectedTags = List("source", "flank_clamp", "color_complex_squeeze"),
+        note = "Copied from Stockfish-backed source window probe after exact color-complex squeeze admission.",
+        playedUci = Some("f3e5")
+      ),
+      SceneFixture(
+        id = "source-botvinnik-vidmar-1936-e4-color-complex-squeeze",
+        label = "Botvinnik-Vidmar 1936 exact e4 color-complex source row",
+        fen = "r2q1rk1/pp2bppp/2b1pn2/4N1B1/1n1P4/1BN4Q/PP3PPP/3R1RK1 b - - 10 15",
+        phase = "middlegame",
+        ply = 30,
+        scoreCp = 20,
+        pvMoves =
+          List(
+            "c6d5",
+            "c3d5",
+            "f6d5",
+            "g5e7",
+            "d8e7",
+            "f2f4",
+            "f7f6",
+            "e5d3",
+            "f6f5",
+            "f1e1",
+            "b4d3",
+            "h3d3",
+            "a8d8",
+            "e1e5",
+            "g8h8",
+            "d3f3",
+            "d8d6",
+            "b3d5",
+            "d6d5",
+            "e5d5",
+            "e6d5",
+            "f3d5"
+          ),
+        expectedTags = List("source", "flank_clamp", "color_complex_squeeze"),
+        note = "Copied from Stockfish-backed source window probe after exact e4 color-complex squeeze admission.",
+        playedUci = Some("c6d5")
+      ),
+      SceneFixture(
+        id = "source-camara-bazan-1960-d5-color-complex-squeeze",
+        label = "Camara-Bazan 1960 exact d5 color-complex source row",
+        fen = "1rbqr1k1/pp1n1pbp/3p2p1/2pP4/1n2PP2/2NB3P/PP2N1P1/R1BQ1R1K w - - 3 14",
+        phase = "middlegame",
+        ply = 27,
+        scoreCp = 20,
+        pvMoves =
+          List(
+            "d3b5",
+            "b4a6",
+            "e4e5",
+            "d6e5",
+            "f4f5",
+            "a6c7",
+            "a2a4",
+            "c7b5",
+            "a4b5",
+            "e5e4",
+            "c1f4",
+            "d7e5",
+            "c3e4",
+            "c8f5",
+            "e2g3",
+            "d8d7",
+            "g3f5",
+            "g6f5",
+            "e4g3",
+            "b8d8",
+            "d5d6",
+            "d7d6",
+            "d1d6",
+            "d8d6"
+          ),
+        expectedTags = List("source", "flank_clamp", "color_complex_squeeze"),
+        note = "Copied from Stockfish-backed admission-unit review after exact d5 color-complex squeeze admission.",
+        playedUci = Some("d3b5")
+      ),
+      SceneFixture(
+        id = "source-pfleger-maalouf-1961-d5-color-complex-squeeze",
+        label = "Pfleger-Maalouf 1961 exact d5 color-complex source row",
+        fen = "r2qr1k1/1p3pb1/pn1p1npp/2pP4/P3P3/2NQ1N2/1P1B1PPP/R3R1K1 w - - 0 17",
+        phase = "middlegame",
+        ply = 33,
+        scoreCp = 20,
+        pvMoves =
+          List(
+            "a4a5",
+            "b6d7",
+            "c3a4",
+            "f6g4",
+            "d2c3",
+            "g4e5",
+            "f3e5",
+            "g7e5",
+            "c3e5",
+            "d7e5",
+            "d3g3",
+            "d8g5",
+            "a4b6",
+            "g5g3",
+            "h2g3",
+            "a8d8",
+            "f2f4",
+            "e5d3",
+            "e1e3",
+            "d3b4",
+            "a1d1",
+            "b4c2"
+          ),
+        expectedTags = List("source", "flank_clamp", "color_complex_squeeze"),
+        note = "Copied from Stockfish-backed admission-unit review after exact d5 color-complex squeeze admission.",
+        playedUci = Some("a4a5")
+      ),
+      SceneFixture(
+        id = "source-botvinnik-vidmar-1936-simplification-window",
+        label = "Botvinnik-Vidmar 1936 exact SimplificationWindow source row",
+        fen = "r2q1rk1/pp2bppp/4pn2/3bN1B1/1n1P4/1BN4Q/PP3PPP/3R1RK1 w - - 11 16",
+        phase = "middlegame",
+        ply = 31,
+        scoreCp = 14,
+        pvMoves =
+          List(
+            "c3d5",
+            "f6d5",
+            "g5e7",
+            "d8e7",
+            "f2f4",
+            "f7f6",
+            "e5d3",
+            "b4d3",
+            "h3d3",
+            "f6f5",
+            "b3d5",
+            "e6d5",
+            "f1e1",
+            "e7b4",
+            "b2b3",
+            "a8e8"
+          ),
+        expectedTags = List("source", "simplification_window"),
+        note = "Copied from Stockfish-backed source window probe after exact near-top SimplificationWindow admission.",
+        playedUci = Some("c3d5"),
+        extraVariations =
+          List(
+            VariationLine(
+              List(
+                "b3a4",
+                "d5c6",
+                "e5c6",
+                "b7c6",
+                "f2f4",
+                "f6d5",
+                "a2a3",
+                "d5c3",
+                "b2c3",
+                "e7g5",
+                "f4g5",
+                "b4d5",
+                "a4c6"
+              ),
+              scoreCp = 8,
+              depth = 16
+            )
+          ),
+        strategyPackOverride =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              pieceMoveRefs =
+                List(
+                  StrategyPieceMoveRef(
+                    ownerSide = "white",
+                    piece = "N",
+                    from = "c3",
+                    target = "d5",
+                    idea = "simplification trade keeps the local edge on d5",
+                    tacticalTheme = Some("simplification")
+                  )
+                ),
+              directionalTargets =
+                List(
+                  StrategyDirectionalTarget(
+                    targetId = "target_d5_simplification",
+                    ownerSide = "white",
+                    piece = "N",
+                    from = "c3",
+                    targetSquare = "d5",
+                    readiness = DirectionalTargetReadiness.Build,
+                    strategicReasons = List("trade keeps the same local edge on d5"),
+                    evidence = List("source-window")
+                  )
+                ),
+              strategicIdeas =
+                List(
+                  StrategyIdeaSignal(
+                    ideaId = "source-botvinnik-vidmar-1936-simplification-window-idea",
+                    ownerSide = "white",
+                    kind = StrategicIdeaKind.FavorableTradeOrTransformation,
+                    group = StrategicIdeaGroup.InteractionAndTransformation,
+                    readiness = StrategicIdeaReadiness.Ready,
+                    focusSquares = List("d5"),
+                    beneficiaryPieces = List("Nc3", "Bg5"),
+                    confidence = 0.82,
+                    evidenceRefs =
+                      List(
+                        EvidenceRef.Source(EvidenceSourceId.ClassificationTransformationWindow).wireKey
+                      ),
+                    targetSquare = Some("d5")
+                  )
+                ),
+              signalDigest =
+                Some(
+                  NarrativeSignalDigest(
+                    dominantIdeaKind = Some(StrategicIdeaKind.FavorableTradeOrTransformation),
+                    dominantIdeaGroup = Some(StrategicIdeaGroup.InteractionAndTransformation),
+                    dominantIdeaReadiness = Some(StrategicIdeaReadiness.Ready),
+                    dominantIdeaFocus = Some("d5")
+                  )
+                )
+            )
+          )
+      ),
+      SceneFixture(
+        id = "source-capablanca-golombek-1939-bad-piece-liquidation",
+        label = "Capablanca-Golombek 1939 exact bad-piece liquidation source row",
+        fen = "r2qr1k1/pp3pn1/2pb2pp/3pB3/NP1P4/3QP2P/P4PP1/1RR3K1 w - - 1 22",
+        phase = "middlegame",
+        ply = 43,
+        scoreCp = 20,
+        pvMoves =
+          List(
+            "e5d6",
+            "d8d6",
+            "b4b5",
+            "e8c8",
+            "b5c6",
+            "b7b6",
+            "d3a6",
+            "c8c6",
+            "a4b2",
+            "c6c1",
+            "b1c1",
+            "d6e7",
+            "b2d3",
+            "g7e8",
+            "a2a4",
+            "a8d8",
+            "d3e5",
+            "g8g7",
+            "a4a5"
+          ),
+        expectedTags = List("source", "bad_piece_liquidation"),
+        note = "Copied from Stockfish-backed source-window admission after exact bad-piece liquidation replay.",
+        playedUci = Some("e5d6")
       ),
       SceneFixture(
         id = "source-bad-piece-liquidation-pilot",
@@ -1198,7 +1559,7 @@ object AuthoritySurfaceLedger:
             "d7f5"
           ),
         expectedTags = List("source", "break_prevention", "counterplay_axis_suppression"),
-        note = "Copied from Stockfish-backed source review after clean route-clamp neutralize_key_break admission.",
+        note = "Retained as review-only source break-prevention fixture after current source-window owner rejection.",
         playedUci = Some("e2b5")
       ),
       SceneFixture(
@@ -1234,7 +1595,7 @@ object AuthoritySurfaceLedger:
             "f8e6"
           ),
         expectedTags = List("source", "break_prevention", "counterplay_axis_suppression"),
-        note = "Copied from Stockfish-backed source review after clean route-clamp neutralize_key_break admission.",
+        note = "Retained as review-only source break-prevention fixture after current source-window owner rejection.",
         playedUci = Some("a4a5")
       ),
       SceneFixture(
@@ -1268,7 +1629,7 @@ object AuthoritySurfaceLedger:
             "e6g7"
           ),
         expectedTags = List("source", "break_prevention", "counterplay_axis_suppression"),
-        note = "Copied from Stockfish-backed source triage after clean route-clamp neutralize_key_break admission.",
+        note = "Retained as review-only source break-prevention fixture after current source-window contract mismatch.",
         playedUci = Some("d3b5")
       ),
       SceneFixture(
@@ -1294,7 +1655,7 @@ object AuthoritySurfaceLedger:
             "g6h5"
           ),
         expectedTags = List("source", "break_prevention", "counterplay_axis_suppression"),
-        note = "Copied from Stockfish-backed source review after clean route-clamp neutralize_key_break admission.",
+        note = "Retained as review-only source break-prevention fixture after current source-window owner rejection.",
         playedUci = Some("a4a5")
       ),
       SceneFixture(
@@ -1330,7 +1691,7 @@ object AuthoritySurfaceLedger:
             "b4c2"
           ),
         expectedTags = List("source", "break_prevention", "counterplay_axis_suppression"),
-        note = "Copied from Stockfish-backed source review after clean route-clamp neutralize_key_break admission.",
+        note = "Retained as review-only source break-prevention fixture after current source-window contract mismatch.",
         playedUci = Some("a4a5")
       ),
       SceneFixture(
@@ -1352,7 +1713,7 @@ object AuthoritySurfaceLedger:
             "a6b5"
           ),
         expectedTags = List("source", "break_prevention", "counterplay_axis_suppression"),
-        note = "Copied from Stockfish-backed source review after clean route-clamp neutralize_key_break admission.",
+        note = "Retained as review-only source break-prevention fixture after current source-window owner rejection.",
         playedUci = Some("d2c4")
       ),
       SceneFixture(
@@ -1669,13 +2030,13 @@ object AuthoritySurfaceLedger:
       primary: String,
       moveReview: String,
       baselineRelease: Option[String],
-      sourceOwnerMismatch: Boolean
+      surfaceBlocked: Boolean
   ): String =
      ranked.primary match
+      case Some(_) if surfaceBlocked =>
+        "Suppressed"
       case Some(_) if sample.softenOwnerPath && (primary.startsWith("A local reading") || primary.startsWith("A key idea")) =>
         "SupportedLocal"
-      case Some(_) if sourceOwnerMismatch =>
-        "Suppressed"
       case Some(plan) if positiveRelease(plan).nonEmpty =>
         positiveRelease(plan).get
       case Some(plan) =>

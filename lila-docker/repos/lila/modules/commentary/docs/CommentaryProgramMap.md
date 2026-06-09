@@ -43,7 +43,7 @@ proof family do not carry the same release authority.
 | tactical pattern detectors | `modules/commentaryCore/src/main/scala/lila/commentary/analysis/tactical/TacticalPatternDetectors.scala` | 9 detector ids | board-pattern support; named mate ids may narrow a top-PV `MateNet` practical label, but only after the analyzer-owned relation witness |
 | relation witness inventory | `MoveReviewExchangeAnalyzer.RelationKind` plus `RelationObservationCatalog` | 23 implemented relation kinds, 0 deferred relation kinds | public `strategic_relation` rows are limited to implemented descriptors with analyzer-owned board replay |
 | semantic observation ids | `StrategicObservationIds.SemanticObservationId` | 25 ids | normalized semantic ids; relation admission uses only catalog descriptors |
-| evidence source ids | `StrategicObservationIds.EvidenceSourceId` | 110 ids | support/proof vocabulary; source-shaped strings cannot mint relation authority |
+| evidence source ids | `StrategicObservationIds.EvidenceSourceId` | 128 ids | support/proof vocabulary; source-shaped strings cannot mint relation authority |
 | plan taxonomy | `PlanTaxonomy` | 35 plan kinds, 10 ranked themes plus `Unknown` | planning/proof-family vocabulary; a plan label is not exact-board proof |
 
 The deferred relation set is currently empty, but it is not the whole motif map:
@@ -103,6 +103,20 @@ Current authority is internal and MoveReview-first:
   semantic id, and catalog descriptor.
 - `QuestionFirstCommentaryPlanner` ranks questions; it does not own proof
   authority.
+- `MoveReviewCausalClaim` owns high-risk MoveReview causal release. A selected
+  question remains diagnostic until the gate certifies typed support, causal
+  relation, subject role, concrete anchor, and an admitted local fact for
+  support-required planner questions. Local-fact family admission is derived
+  from typed owner/source evidence, not from words in the rendered claim.
+- `MoveReviewLocalFact` owns the shared typed local-fact family and authority
+  vocabulary used by planner, basic, and scoped MoveReview surfaces.
+- `CommentaryIdeaSurface` attaches `MoveReviewLocalFact` admission to
+  MoveReview basic descriptors before fallback rendering. In strict rejected
+  fallback, only strict-eligible `local_fact_family` /
+  `local_fact_authority` descriptors may render; soft line-only or
+  strategic-plan candidates fall through to exact factual fallback.
+- `MoveReviewPolishSlots.localFact` preserves the admitted local fact for
+  runtime/tooling diagnostics; `reasonTags` remain display/compatibility tags.
 - `FragmentAuthority` decides renderer release safety.
 - `CommentaryApi` and frontend code consume typed payloads only.
 
@@ -154,6 +168,26 @@ simplification, defender/queen/bad-piece exchange ownership, and central-break
 timing. Runtime-only proof families such as `target_focused_coordination` remain
 covered by contract/surface tests rather than by a `PlanTaxonomy.PlanKind`
 admission unit.
+
+## High-Frequency Motif Authority Map
+
+The strategic motif cleanup currently treats common motifs as a ladder, not as a
+single promotion target. The current audit split is:
+
+| motif family | current defer / risk cause | support-only / practical tier | exact / target-authority tier |
+| --- | --- | --- | --- |
+| Carlsbad / minority attack | exact target authority needs the mirrored board slice and minority-support predicate; source-only Carlsbad or minority semantics used to risk overclaiming pressure | `Practical pressure` may describe structural pressure only from Carlsbad/minority source plus target-pressure facts, pack-side owner match, and no target metadata | `Fixed target` / `Minority attack` target metadata only from `CarlsbadFixedTarget(..., minoritySupport = true)` or exact fixed-target proof |
+| fixed target / weak square | lower-authority target context can be useful, but target metadata implies a durable exact target | `Practical target` and `Practical pressure` may describe current-board weakness context from bounded plan hints or typed weakness facts without proof metadata | exact target rows expose only the typed proof square and builder-owned wording |
+| local file entry | line support is common, but same-file entry authority needs exact file/entry geometry; stale file labels must not suppress unrelated context | `Practical line` may use occupied-line, open/semi-open file, doubled-rook, route-line, or compensation line facts with pack-side owner match and fact-matched file prose | `File entry` target metadata only when the exact text names the same target square through that target file |
+| outpost | route/opening outpost evidence is useful context but not exact occupation; broad outpost prose stays lower authority | `Practical outpost` may use typed outpost, strong-knight, exact route-outpost, or directional outpost support with minor-piece, readiness, confidence, and pack-side gates | `Knight outpost` target metadata only from the exact outpost occupation witness with builder-owned knight wording; `Opening outpost` remains lower-authority and targetless |
+| color complex | structure-context grammar is separate from target authority; broad dark/light complex tags must not imply a forced target | `Practical space` may describe color-complex clamp from enemy weakness, dark/light token, at least two focus squares, and pack-side owner match without target metadata | `Color complex` target metadata only from builder-owned bishop/knight attack wording that matches target-square color and minor-piece geometry |
+
+The recurring cleanup categories are: required truth gate, over-narrow exact-only
+gate, missing lower-authority construction, duplicate or inconsistent downstream
+gate, and sanitizer/frontend fail-open or fail-closed drift. Changes should keep
+using the existing producer, selector, packet/proof contract, player payload
+builder, sanitizer, frontend decoder, and existing tests before adding a new
+runtime boundary.
 
 New strategic work should use domain/proof names, not rollout or breadth names.
 Acceptable names describe the chess asset and proof boundary, for example

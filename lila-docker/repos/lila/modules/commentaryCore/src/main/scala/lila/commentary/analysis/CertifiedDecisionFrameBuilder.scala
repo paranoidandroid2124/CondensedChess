@@ -147,7 +147,7 @@ private[commentary] object CertifiedDecisionFrameBuilder:
   private val FilePattern = """\b([a-h])(?:-|\s*)file\b""".r
   private val ZonePattern = """\b(kingside|queenside|center|central)\b""".r
   private val ComplexPattern = """\b(light|dark)(?:[\s-]+square(?:s|d)?)\b""".r
-  private val UciPattern = """^[a-h][1-8][a-h][1-8][qrbn]?$""".r
+  private val UciPattern = """(?i)^[a-h][1-8][a-h][1-8][qrbn]?$""".r
   private val GenericShellTokens = Set(
     "strategic campaign",
     "the key idea is",

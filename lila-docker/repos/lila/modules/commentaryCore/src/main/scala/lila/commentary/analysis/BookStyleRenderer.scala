@@ -28,6 +28,15 @@ object BookStyleRenderer:
     "REQ_MISS",
     "BLK_CONFLICT"
   )
+
+  private val QuestionStartPattern = """(?i)^(what|how|why|can|should|is|are|do|does|did|will|would|could)\b.*""".r
+  private val DollarPattern = """\$""".r
+  private val ReqPattern = """\bREQ_[A-Z0-9_]+\b""".r
+  private val SupPattern = """\bSUP_[A-Z0-9_]+\b""".r
+  private val BlkPattern = """\bBLK_[A-Z0-9_]+\b""".r
+  private val AlignedPattern = """aligned""".r
+  private val ControlPattern = """control""".r
+  private val GoodPattern = """good""".r
   /**
    * Render NarrativeContext into book-style prose.
    */
@@ -260,8 +269,7 @@ object BookStyleRenderer:
     if trimmed.isEmpty then text
     else
       val isQuestion =
-        trimmed.endsWith("?") ||
-          trimmed.matches("(?i)^(what|how|why|can|should|is|are|do|does|did|will|would|could)\\b.*")
+        trimmed.endsWith("?") || QuestionStartPattern.matches(trimmed)
 
       val prefix =
         if isQuestion then NarrativeLexicon.pick(bead, List("A key question: ", "Worth asking: ", "One practical question: "))
@@ -277,22 +285,21 @@ object BookStyleRenderer:
     f"$sign$pawns%.1f"
 
   private def motifName(m: lila.commentary.model.Motif): String =
-    m.getClass.getSimpleName.replaceAll("\\$", "")
+    DollarPattern.replaceAllIn(m.getClass.getSimpleName, "")
 
   private def redactStructureTokens(text: String): String =
     val basic = structureLeakTokens.foldLeft(text) { (acc, token) =>
       acc.replace(token, "structure")
     }
-    basic
-      .replaceAll("\\bREQ_[A-Z0-9_]+\\b", "structure")
-      .replaceAll("\\bSUP_[A-Z0-9_]+\\b", "structure")
-      .replaceAll("\\bBLK_[A-Z0-9_]+\\b", "structure")
+    val s1 = ReqPattern.replaceAllIn(basic, "structure")
+    val s2 = SupPattern.replaceAllIn(s1, "structure")
+    BlkPattern.replaceAllIn(s2, "structure")
 
   def humanizePlan(plan: String): String =
     val low = plan.toLowerCase
-    if low.contains("attack") then low.replaceAll("aligned", "").trim
-    else if low.contains("control") then s"control of the ${low.replaceAll("control", "").trim}"
+    if low.contains("attack") then AlignedPattern.replaceAllIn(low, "").trim
+    else if low.contains("control") then s"control of the ${ControlPattern.replaceAllIn(low, "").trim}"
     else if low.contains("development") then "development of the pieces"
     else if low.contains("consolidation") then "consolidation and coordination"
     else if low.contains("prophylaxis") then "positional prophylaxis"
-    else low.replaceAll("good", "").trim
+    else GoodPattern.replaceAllIn(low, "").trim

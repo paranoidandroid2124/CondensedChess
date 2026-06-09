@@ -70,6 +70,7 @@ private[commentary] object PlayerFacingExactSliceProof:
   final case class DefenderTrade(defenderSquare: String, exchangeSquare: String, targetSquare: String)
       extends PlayerFacingExactSliceProof
   final case class BadPieceLiquidation(badPieceSquare: String, exchangeSquare: String) extends PlayerFacingExactSliceProof
+  final case class SimplificationWindow(exchangeSquare: String) extends PlayerFacingExactSliceProof
   final case class CentralBreakTiming(
       breakMove: String,
       breakSquare: String,
@@ -111,6 +112,9 @@ private[commentary] object PlayerFacingExactSliceProofFacts:
         Path(family, family)
       case PlayerFacingExactSliceProof.BadPieceLiquidation(_, _) =>
         val family = proofFamily(PlanTaxonomy.PlanKind.BadPieceLiquidation)
+        Path(family, family)
+      case PlayerFacingExactSliceProof.SimplificationWindow(_) =>
+        val family = proofFamily(PlanTaxonomy.PlanKind.SimplificationWindow)
         Path(family, family)
       case PlayerFacingExactSliceProof.CentralBreakTiming(_, _, _) =>
         val family = proofFamily(PlanTaxonomy.PlanKind.CentralBreakTiming)
@@ -173,6 +177,8 @@ private[commentary] object PlayerFacingExactSliceProofFacts:
       case PlayerFacingExactSliceProof.BadPieceLiquidation(badPieceSquare, exchangeSquare) =>
         squareKey(badPieceSquare) &&
           squareKey(exchangeSquare)
+      case PlayerFacingExactSliceProof.SimplificationWindow(exchangeSquare) =>
+        squareKey(exchangeSquare)
       case PlayerFacingExactSliceProof.CentralBreakTiming(breakMove, breakSquare, breakToken) =>
         uciMove(breakMove) &&
           squareKey(breakSquare) &&
@@ -204,6 +210,8 @@ private[commentary] object PlayerFacingExactSliceProofFacts:
       case PlayerFacingExactSliceProof.DefenderTrade(_, _, targetSquare) =>
         Some(normalize(targetSquare)).filter(squareKey)
       case PlayerFacingExactSliceProof.BadPieceLiquidation(_, exchangeSquare) =>
+        Some(normalize(exchangeSquare)).filter(squareKey)
+      case PlayerFacingExactSliceProof.SimplificationWindow(exchangeSquare) =>
         Some(normalize(exchangeSquare)).filter(squareKey)
       case _ => None
 
@@ -256,6 +264,10 @@ private[commentary] object PlayerFacingExactSliceProofFacts:
         val exchange = normalize(exchangeSquare)
         terms.contains("bad_piece_liquidation_branch") &&
           terms.contains(s"bad_piece:$badPiece") &&
+          terms.contains(s"exchange_square:$exchange")
+      case PlayerFacingExactSliceProof.SimplificationWindow(exchangeSquare) =>
+        val exchange = normalize(exchangeSquare)
+        terms.contains("exact_trade_continuation") &&
           terms.contains(s"exchange_square:$exchange")
       case PlayerFacingExactSliceProof.CentralBreakTiming(breakMove, breakSquare, breakToken) =>
         val move = normalize(breakMove)

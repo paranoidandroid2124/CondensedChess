@@ -16,31 +16,39 @@ class SourceWitnessCatalogTest extends FunSuite:
         "source-evans-opsahl-1950-iqp-inducement",
         "source-karpov-unzicker-1974-break-prevention",
         "source-karpov-andersson-1975-hedgehog-break-screen",
+        "source-karpov-andersson-1975-iqp-inducement",
         "source-lokvenc-czerniak-1952-b6-b5-break-prevention",
         "source-maderna-palermo-1955-a6-a5-break-prevention",
         "source-maderna-palermo-1955-central-break-timing",
         "source-maderna-palermo-1955-central-break-prep-review",
         "source-camara-bazan-1960-b7-b5-break-prevention",
+        "source-camara-bazan-1960-d5-color-complex-squeeze",
         "source-sliwa-gromek-1960-a6-a5-break-prevention",
         "source-luckis-bielicki-1961-a6-a5-break-prevention",
         "source-pfleger-maalouf-1961-a6-a5-break-prevention",
+        "source-pfleger-maalouf-1961-d5-color-complex-squeeze",
         "source-polugaevsky-giorgadze-1956-c5-c4-break-prevention",
         "source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation",
         "source-maderna-palermo-1955-static-weakness-fixation",
         "source-aronian-andreikin-2014-defender-trade",
         "source-bad-piece-liquidation-pilot",
         "source-capablanca-golombek-1939",
+        "source-capablanca-golombek-1939-bad-piece-liquidation",
         "source-capablanca-golombek-1939-iqp-inducement",
         "source-botvinnik-vidmar-1936",
         "source-botvinnik-vidmar-1936-iqp-multipv-screen",
+        "source-botvinnik-vidmar-1936-simplification-window",
         "source-botvinnik-vidmar-1936-iqp-opening-inducement",
+        "source-botvinnik-vidmar-1936-flank-clamp",
+        "source-botvinnik-vidmar-1936-e4-color-complex-squeeze",
         "source-kramnik-anand-2001",
         "source-kramnik-anand-2001-iqp-opening-inducement",
         "source-tartakower-capablanca-1924",
         "source-alekhine-bogoljubow-1936-iqp-inducement",
         "source-salov-ljubojevic-1992-simplification-window",
         "source-najdorf-sergeant-1939-iqp-inducement",
-        "source-carlsen-anand-2014-g6"
+        "source-carlsen-anand-2014-g6",
+        "source-carlsen-anand-2014-g6-queen-trade-completion"
       )
     )
     assertEquals(rows.map(_.id).distinct.size, rows.size)
@@ -70,11 +78,17 @@ class SourceWitnessCatalogTest extends FunSuite:
     val byId = SourceWitnessCatalog.all.map(row => row.id -> row).toMap
     val evans = byId("source-evans-opsahl-1950-iqp-inducement")
     val capablanca = byId("source-capablanca-golombek-1939-iqp-inducement")
+    val capablancaBadPiece = byId("source-capablanca-golombek-1939-bad-piece-liquidation")
     val botvinnik = byId("source-botvinnik-vidmar-1936-iqp-multipv-screen")
+    val botvinnikSimplification = byId("source-botvinnik-vidmar-1936-simplification-window")
     val botvinnikOpening = byId("source-botvinnik-vidmar-1936-iqp-opening-inducement")
+    val botvinnikFlankClamp = byId("source-botvinnik-vidmar-1936-flank-clamp")
+    val botvinnikE4ColorComplex = byId("source-botvinnik-vidmar-1936-e4-color-complex-squeeze")
     val kramnikOpening = byId("source-kramnik-anand-2001-iqp-opening-inducement")
     val alekhine = byId("source-alekhine-bogoljubow-1936-iqp-inducement")
     val najdorf = byId("source-najdorf-sergeant-1939-iqp-inducement")
+    val carlsenQueenTrade = byId("source-carlsen-anand-2014-g6")
+    val carlsenQueenTradeCompletion = byId("source-carlsen-anand-2014-g6-queen-trade-completion")
     val salovSimplification = byId("source-salov-ljubojevic-1992-simplification-window")
     val boleslavskyStaticWeakness = byId("source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation")
     val madernaStaticWeakness = byId("source-maderna-palermo-1955-static-weakness-fixation")
@@ -82,14 +96,17 @@ class SourceWitnessCatalogTest extends FunSuite:
     val badPieceLiquidation = byId("source-bad-piece-liquidation-pilot")
     val karpovUnzickerBreakPrevention = byId("source-karpov-unzicker-1974-break-prevention")
     val karpovAnderssonBreakScreen = byId("source-karpov-andersson-1975-hedgehog-break-screen")
+    val karpovAnderssonIqp = byId("source-karpov-andersson-1975-iqp-inducement")
     val lokvencBreakPrevention = byId("source-lokvenc-czerniak-1952-b6-b5-break-prevention")
     val madernaBreakPrevention = byId("source-maderna-palermo-1955-a6-a5-break-prevention")
     val madernaCentralBreak = byId("source-maderna-palermo-1955-central-break-timing")
     val madernaCentralBreakPrep = byId("source-maderna-palermo-1955-central-break-prep-review")
     val camaraBreakPrevention = byId("source-camara-bazan-1960-b7-b5-break-prevention")
+    val camaraD5ColorComplex = byId("source-camara-bazan-1960-d5-color-complex-squeeze")
     val sliwaBreakPrevention = byId("source-sliwa-gromek-1960-a6-a5-break-prevention")
     val luckisBreakPrevention = byId("source-luckis-bielicki-1961-a6-a5-break-prevention")
     val pflegerBreakPrevention = byId("source-pfleger-maalouf-1961-a6-a5-break-prevention")
+    val pflegerD5ColorComplex = byId("source-pfleger-maalouf-1961-d5-color-complex-squeeze")
     val polugaevskyBreakPrevention = byId("source-polugaevsky-giorgadze-1956-c5-c4-break-prevention")
 
     val evansWindow =
@@ -110,6 +127,27 @@ class SourceWitnessCatalogTest extends FunSuite:
     assertEquals(capablancaWindow.head.fen, "r3r1k1/pp3pn1/2pq2pp/3p4/NP1P4/3QP2P/P4PP1/1RR3K1 w - - 0 23")
     assertEquals(capablancaWindow.head.playedUci, "b4b5")
 
+    val capablancaBadPieceWindow =
+      PgnAnalysisHelper
+        .extractPlyDataStrict(capablancaBadPiece.pgn)
+        .fold(err => fail(s"${capablancaBadPiece.id} PGN did not parse strictly: $err"), identity)
+        .filter(ply => capablancaBadPiece.candidatePlyRange.contains(ply.ply))
+    assertEquals(capablancaBadPieceWindow.map(_.ply), List(43))
+    assertEquals(
+      capablancaBadPieceWindow.head.fen,
+      "r2qr1k1/pp3pn1/2pb2pp/3pB3/NP1P4/3QP2P/P4PP1/1RR3K1 w - - 1 22"
+    )
+    assertEquals(capablancaBadPieceWindow.head.playedUci, "e5d6")
+
+    val karpovAnderssonIqpWindow =
+      PgnAnalysisHelper
+        .extractPlyDataStrict(karpovAnderssonIqp.pgn)
+        .fold(err => fail(s"${karpovAnderssonIqp.id} PGN did not parse strictly: $err"), identity)
+        .filter(ply => karpovAnderssonIqp.candidatePlyRange.contains(ply.ply))
+    assertEquals(karpovAnderssonIqpWindow.map(_.ply), List(49))
+    assertEquals(karpovAnderssonIqpWindow.head.fen, "bq1rrbk1/3n1pp1/pp2pn1p/3p4/2P1P3/P1N1BP2/1P1NBQPP/2RR3K w - - 0 25")
+    assertEquals(karpovAnderssonIqpWindow.head.playedUci, "c4d5")
+
     val botvinnikWindow =
       PgnAnalysisHelper
         .extractPlyDataStrict(botvinnik.pgn)
@@ -119,6 +157,18 @@ class SourceWitnessCatalogTest extends FunSuite:
     assertEquals(botvinnikWindow.head.fen, "r2q1rk1/pp2bppp/4pn2/3bN1B1/1n1P4/1BN4Q/PP3PPP/3R1RK1 w - - 11 16")
     assertEquals(botvinnikWindow.head.playedUci, "c3d5")
 
+    val botvinnikSimplificationWindow =
+      PgnAnalysisHelper
+        .extractPlyDataStrict(botvinnikSimplification.pgn)
+        .fold(err => fail(s"${botvinnikSimplification.id} PGN did not parse strictly: $err"), identity)
+        .filter(ply => botvinnikSimplification.candidatePlyRange.contains(ply.ply))
+    assertEquals(botvinnikSimplificationWindow.map(_.ply), List(31))
+    assertEquals(
+      botvinnikSimplificationWindow.head.fen,
+      "r2q1rk1/pp2bppp/4pn2/3bN1B1/1n1P4/1BN4Q/PP3PPP/3R1RK1 w - - 11 16"
+    )
+    assertEquals(botvinnikSimplificationWindow.head.playedUci, "c3d5")
+
     val botvinnikOpeningWindow =
       PgnAnalysisHelper
         .extractPlyDataStrict(botvinnikOpening.pgn)
@@ -127,6 +177,30 @@ class SourceWitnessCatalogTest extends FunSuite:
     assertEquals(botvinnikOpeningWindow.map(_.ply), List(16))
     assertEquals(botvinnikOpeningWindow.head.fen, "r1bq1rk1/pp1nbppp/4pn2/2pp2B1/2PP4/2NBPN2/PP3PPP/R2Q1RK1 b - - 1 8")
     assertEquals(botvinnikOpeningWindow.head.playedUci, "c5d4")
+
+    val botvinnikFlankClampWindow =
+      PgnAnalysisHelper
+        .extractPlyDataStrict(botvinnikFlankClamp.pgn)
+        .fold(err => fail(s"${botvinnikFlankClamp.id} PGN did not parse strictly: $err"), identity)
+        .filter(ply => botvinnikFlankClamp.candidatePlyRange.contains(ply.ply))
+    assertEquals(botvinnikFlankClampWindow.map(_.ply), List(25))
+    assertEquals(
+      botvinnikFlankClampWindow.head.fen,
+      "r2q1rk1/pp1bbppp/4pn2/3n2B1/3P4/1BNQ1N2/PP3PPP/R4RK1 w - - 5 13"
+    )
+    assertEquals(botvinnikFlankClampWindow.head.playedUci, "f3e5")
+
+    val botvinnikE4ColorComplexWindow =
+      PgnAnalysisHelper
+        .extractPlyDataStrict(botvinnikE4ColorComplex.pgn)
+        .fold(err => fail(s"${botvinnikE4ColorComplex.id} PGN did not parse strictly: $err"), identity)
+        .filter(ply => botvinnikE4ColorComplex.candidatePlyRange.contains(ply.ply))
+    assertEquals(botvinnikE4ColorComplexWindow.map(_.ply), List(30))
+    assertEquals(
+      botvinnikE4ColorComplexWindow.head.fen,
+      "r2q1rk1/pp2bppp/2b1pn2/4N1B1/1n1P4/1BN4Q/PP3PPP/3R1RK1 b - - 10 15"
+    )
+    assertEquals(botvinnikE4ColorComplexWindow.head.playedUci, "c6d5")
 
     val kramnikOpeningWindow =
       PgnAnalysisHelper
@@ -154,6 +228,30 @@ class SourceWitnessCatalogTest extends FunSuite:
     assertEquals(najdorfWindow.map(_.ply), List(23))
     assertEquals(najdorfWindow.head.fen, "r1b2rk1/pp2qppp/4p3/2nn4/3N4/2N1P3/PPQ2PPP/3RKB1R w K - 0 12")
     assertEquals(najdorfWindow.head.playedUci, "c3d5")
+
+    val carlsenQueenTradeWindow =
+      PgnAnalysisHelper
+        .extractPlyDataStrict(carlsenQueenTrade.pgn)
+        .fold(err => fail(s"${carlsenQueenTrade.id} PGN did not parse strictly: $err"), identity)
+        .filter(ply => carlsenQueenTrade.candidatePlyRange.contains(ply.ply))
+    assertEquals(carlsenQueenTradeWindow.map(_.ply), List(15))
+    assertEquals(
+      carlsenQueenTradeWindow.head.fen,
+      "r1bqk2r/1p1p1ppp/p1n1pn2/8/1bPNP3/2NQ4/PP3PPP/R1B1KB1R w KQkq - 5 8"
+    )
+    assertEquals(carlsenQueenTradeWindow.head.playedUci, "d4c6")
+
+    val carlsenQueenTradeCompletionWindow =
+      PgnAnalysisHelper
+        .extractPlyDataStrict(carlsenQueenTradeCompletion.pgn)
+        .fold(err => fail(s"${carlsenQueenTradeCompletion.id} PGN did not parse strictly: $err"), identity)
+        .filter(ply => carlsenQueenTradeCompletion.candidatePlyRange.contains(ply.ply))
+    assertEquals(carlsenQueenTradeCompletionWindow.map(_.ply), List(17))
+    assertEquals(
+      carlsenQueenTradeCompletionWindow.head.fen,
+      "r1bqk2r/1p3ppp/p1p1pn2/8/1bP1P3/2NQ4/PP3PPP/R1B1KB1R w KQkq - 0 9"
+    )
+    assertEquals(carlsenQueenTradeCompletionWindow.head.playedUci, "d3d8")
 
     val salovSimplificationWindow =
       PgnAnalysisHelper
@@ -273,6 +371,18 @@ class SourceWitnessCatalogTest extends FunSuite:
     assertEquals(camaraBreakWindow.head.fen, "1rbqr1k1/pp1n1pbp/3p2p1/2pP4/1n2PP2/2NB3P/PP2N1P1/R1BQ1R1K w - - 3 14")
     assertEquals(camaraBreakWindow.head.playedUci, "d3b5")
 
+    val camaraD5ColorComplexWindow =
+      PgnAnalysisHelper
+        .extractPlyDataStrict(camaraD5ColorComplex.pgn)
+        .fold(err => fail(s"${camaraD5ColorComplex.id} PGN did not parse strictly: $err"), identity)
+        .filter(ply => camaraD5ColorComplex.candidatePlyRange.contains(ply.ply))
+    assertEquals(camaraD5ColorComplexWindow.map(_.ply), List(27))
+    assertEquals(
+      camaraD5ColorComplexWindow.head.fen,
+      "1rbqr1k1/pp1n1pbp/3p2p1/2pP4/1n2PP2/2NB3P/PP2N1P1/R1BQ1R1K w - - 3 14"
+    )
+    assertEquals(camaraD5ColorComplexWindow.head.playedUci, "d3b5")
+
     val sliwaBreakWindow =
       PgnAnalysisHelper
         .extractPlyDataStrict(sliwaBreakPrevention.pgn)
@@ -299,6 +409,18 @@ class SourceWitnessCatalogTest extends FunSuite:
     assertEquals(pflegerBreakWindow.map(_.ply), List(33))
     assertEquals(pflegerBreakWindow.head.fen, "r2qr1k1/1p3pb1/pn1p1npp/2pP4/P3P3/2NQ1N2/1P1B1PPP/R3R1K1 w - - 0 17")
     assertEquals(pflegerBreakWindow.head.playedUci, "a4a5")
+
+    val pflegerD5ColorComplexWindow =
+      PgnAnalysisHelper
+        .extractPlyDataStrict(pflegerD5ColorComplex.pgn)
+        .fold(err => fail(s"${pflegerD5ColorComplex.id} PGN did not parse strictly: $err"), identity)
+        .filter(ply => pflegerD5ColorComplex.candidatePlyRange.contains(ply.ply))
+    assertEquals(pflegerD5ColorComplexWindow.map(_.ply), List(33))
+    assertEquals(
+      pflegerD5ColorComplexWindow.head.fen,
+      "r2qr1k1/1p3pb1/pn1p1npp/2pP4/P3P3/2NQ1N2/1P1B1PPP/R3R1K1 w - - 0 17"
+    )
+    assertEquals(pflegerD5ColorComplexWindow.head.playedUci, "a4a5")
 
     val polugaevskyBreakWindow =
       PgnAnalysisHelper

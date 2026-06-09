@@ -3,9 +3,7 @@ import { type VNode, hl } from 'lib/view';
 import { playable } from 'lib/game';
 import * as router from 'lib/game/router';
 import { render as trainingView } from './roundTraining';
-import crazyView from '../crazy/crazyView';
 import type AnalyseCtrl from '../ctrl';
-import forecastView from '../forecast/forecastView';
 import { view as keyboardView } from '../keyboard';
 import { moveReviewToggleBox } from '../moveReview';
 
@@ -42,13 +40,10 @@ function analyseView(ctrl: AnalyseCtrl): VNode {
     ctrl.keyboardHelp && keyboardView(ctrl),
     renderSide(ctrl),
     renderBoard(ctx),
-    crazyView(ctrl, ctrl.topColor(), 'top'),
     renderTools(ctx),
-    crazyView(ctrl, ctrl.bottomColor(), 'bottom'),
     renderControls(ctrl),
     renderUnderboard(ctx),
     !ctrl.isReviewShell() && trainingView(ctrl),
-    !ctrl.isReviewShell() && ctrl.forecast && forecastView(ctrl, ctrl.forecast),
     !ctrl.synthetic &&
     !ctrl.isReviewShell() &&
     playable(ctrl.data) &&

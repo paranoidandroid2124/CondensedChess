@@ -1108,15 +1108,18 @@ private[commentary] object LocalFileEntryProof:
       squareFileToken(square).nonEmpty &&
       squareFileToken(square) != file
 
+  private val SquareFilePattern = "(?i)([a-h])[1-8]".r
+  private val SquareLikePattern = "(?i)([a-h][1-8])".r
+
   private def squareFileToken(
       raw: String
   ): String =
-    "(?i)([a-h])[1-8]".r.findFirstMatchIn(Option(raw).getOrElse("")).map(_.group(1).toLowerCase).getOrElse("")
+    SquareFilePattern.findFirstMatchIn(Option(raw).getOrElse("")).map(_.group(1).toLowerCase).getOrElse("")
 
   private def normalizeSquareLike(
       raw: String
   ): String =
-    "(?i)([a-h][1-8])".r.findFirstMatchIn(Option(raw).getOrElse("")).map(_.group(1).toLowerCase).getOrElse("")
+    SquareLikePattern.findFirstMatchIn(Option(raw).getOrElse("")).map(_.group(1).toLowerCase).getOrElse("")
 
   private def clean(
       raw: String

@@ -213,6 +213,14 @@ object MoveReviewCorpusRunner:
             contrast_admissible = Some(plannerTrace.contrastAdmissible),
             contrast_reject_reason = plannerTrace.contrastRejectReason,
             contrast_replacement_used = Some(plannerTrace.contrastReplacementUsed),
+            moveReviewCausalClaimStatus = plannerTrace.causalClaimStatus,
+            moveReviewCausalClaimQuestion = plannerTrace.causalClaimQuestion,
+            moveReviewCausalClaimSubject = plannerTrace.causalClaimSubject,
+            moveReviewCausalClaimEvidence = plannerTrace.causalClaimEvidence,
+            moveReviewCausalClaimRelations = plannerTrace.causalClaimRelations,
+            moveReviewCausalClaimRejectReasons = plannerTrace.causalClaimRejectReasons,
+            moveReviewCausalClaimSupportEmbedded = plannerTrace.causalClaimSupportEmbedded,
+            moveReviewCausalClaimGuardrail = plannerTrace.causalClaimGuardrail,
             moveReviewSnapshotDigestHash = digestHashes.snapshotDigestHash,
             moveReviewCarryDigestHash = digestHashes.carryDigestHash,
             moveReviewAugmentationDigestHash = digestHashes.augmentationDigestHash,
@@ -222,7 +230,12 @@ object MoveReviewCorpusRunner:
             basicEvidenceRejectReasons = coverageTrace.basicEvidenceRejectReasons,
             supportedLocalCandidateFamilies = coverageTrace.supportedLocalCandidateFamilies,
             supportedLocalAdmittedFamilies = coverageTrace.supportedLocalAdmittedFamilies,
-            supportedLocalRejectReasons = coverageTrace.supportedLocalRejectReasons
+            supportedLocalRejectReasons = coverageTrace.supportedLocalRejectReasons,
+            moveReviewLocalFactStatus = coverageTrace.moveReviewLocalFactStatus,
+            moveReviewLocalFactFamilies = coverageTrace.moveReviewLocalFactFamilies,
+            moveReviewLocalFactAuthorities = coverageTrace.moveReviewLocalFactAuthorities,
+            moveReviewLocalFactStrictFallbackEligible = coverageTrace.moveReviewLocalFactStrictFallbackEligible,
+            moveReviewLocalFactRejectReasons = coverageTrace.moveReviewLocalFactRejectReasons
           ).withQuietSupportTrace(quietSupportTrace)
         }
 

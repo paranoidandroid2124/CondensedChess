@@ -12,7 +12,6 @@ import {
   icon,
   hl,
 } from 'lib/view';
-import { playable } from 'lib/game';
 import { displayColumns, isMobile } from 'lib/device';
 import * as materialView from 'lib/game/view/material';
 import { renderBoardPreview } from 'lib/view/boardPreview';
@@ -32,7 +31,6 @@ import * as Prefs from 'lib/prefs';
 import statusView from 'lib/game/view/status';
 import { fixCrazySan, plyToTurn } from 'lib/game/chess';
 import { dispatchChessgroundResize } from 'lib/chessgroundResize';
-import serverSideUnderboard from '../serverSideUnderboard';
 import pgnImport, { renderPgnError } from '../pgnImport';
 import { normalizeInlinePgn } from '../pgnPipeline';
 import { storage } from 'lib/storage';
@@ -397,10 +395,6 @@ export function renderUnderboard({ ctrl }: ViewContext) {
   if (ctrl.isReviewShell()) return;
   return hl(
     'div.analyse__underboard',
-    {
-      hook:
-        ctrl.synthetic || playable(ctrl.data) ? undefined : onInsert(elm => serverSideUnderboard(elm, ctrl)),
-    },
     [renderInputs(ctrl)],
   );
 }

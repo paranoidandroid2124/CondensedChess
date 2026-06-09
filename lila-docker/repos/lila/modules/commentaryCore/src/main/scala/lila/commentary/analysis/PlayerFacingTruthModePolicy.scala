@@ -59,6 +59,9 @@ private[commentary] final case class PlayerFacingMoveDeltaEvidence(
 
 private[commentary] object PlayerFacingTruthModePolicy:
 
+  private val SquarePattern = """[a-h][1-8]""".r
+  private val SquareGroupPattern = """([a-h][1-8])""".r
+
   private val abstractShellTokens = List(
     "opencenter",
     "fluidcenter",
@@ -1438,7 +1441,10 @@ private[commentary] object PlayerFacingTruthModePolicy:
           triggerKind = BoundedFavorableSimplificationFamily,
           ownerSeedTerms =
             (material.tradeOwnerTerms ++ material.targetComplexTerms ++ moveLocalAnchorSeedTerms(ctx, surface)).distinct,
-          structureTransitionTerms = material.targetComplexTerms
+          structureTransitionTerms = material.targetComplexTerms,
+          exactSliceProof =
+            exactBoundedSimplificationExchangeSquare(ctx)
+              .map(PlayerFacingExactSliceProof.SimplificationWindow.apply)
         )
       case PlayerFacingMoveDeltaClass.ExchangeForcing
           if likelyTradeKeyDefender(ctx, surface) =>
@@ -1487,6 +1493,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
       structureTransitionTerms = List(s"file-entry:${pair.file}:${pair.entrySquare}"),
       exactSliceProof =
         Some(PlayerFacingExactSliceProof.LocalFileEntryBind(pair.file, pair.entrySquare))
+          .filter(PlayerFacingExactSliceProofFacts.validShape)
     )
 
   private def centralBreakTimingOwnerSeed(witness: CentralBreakTimingWitness.Witness): ClaimOwnerSeed =
@@ -2129,7 +2136,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
     ExactSliceDescriptors.find(_.packetMatches(packet))
 
   private def embeddedSquareKey(term: String): Option[String] =
-    "[a-h][1-8]".r.findFirstIn(normalize(term))
+    SquarePattern.findFirstIn(normalize(term))
 
   private def normalizeEvidenceToken(raw: String): String =
     Option(raw).getOrElse("").trim.toLowerCase
@@ -2218,7 +2225,13 @@ private[commentary] object PlayerFacingTruthModePolicy:
     queenTradeShieldLineMoves(ctx).nonEmpty
 
   private def queenTradeShieldLineMoves(ctx: NarrativeContext): List[String] =
-    boundedTopReplay(ctx, maxPlies = 8)
+    MoveReviewExchangeAnalyzer
+      .boundedTopReplayPrefix(
+        ctx.fen,
+        ctx.engineEvidence.toList.flatMap(_.variations),
+        minPlies = 2,
+        maxPlies = 8
+      )
       .flatMap(MoveReviewExchangeAnalyzer.queenTradeShieldLine)
       .getOrElse(Nil)
 
@@ -2664,6 +2677,14 @@ private[commentary] object PlayerFacingTruthModePolicy:
     else if ownerSeed.proofFamily == BadPieceLiquidationFamily then
       ownerSeed.proofSource == BadPieceLiquidationProofSource &&
         stableProvenBranch
+    else if ownerSeed.proofFamily == QueenTradeShieldFamily then
+      ownerSeed.proofSource == QueenTradeShieldProofSource &&
+        ownerSeed.exactSliceProof.exists(proof =>
+          PlayerFacingExactSliceProofFacts.matchesPath(proof, QueenTradeShieldProofSource, QueenTradeShieldFamily)
+        ) &&
+        bestDefenseBranchKey.nonEmpty &&
+        sameBranchState != PlayerFacingSameBranchState.Missing &&
+        persistence != PlayerFacingClaimPersistence.Broken
     else if isReviewedAbsorbedWeaknessProofFamily(ownerSeed.proofFamily) then false
     else
       ownerSeed.proofFamily match
@@ -4495,7 +4516,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
       if san == "O-O" then "This castles."
       else if san == "O-O-O" then "This castles long."
       else
-        val targetSquare = """([a-h][1-8])""".r.findAllMatchIn(san).map(_.group(1)).toList.lastOption
+        val targetSquare = SquareGroupPattern.findAllMatchIn(san).map(_.group(1)).toList.lastOption
         val piece =
           san.headOption.collect {
             case 'K' => "king"
