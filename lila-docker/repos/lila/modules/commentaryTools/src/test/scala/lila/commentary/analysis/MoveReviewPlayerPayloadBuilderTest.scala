@@ -316,6 +316,17 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
         variations =
           List(
             MoveReviewVariationRef(
+              lineId = "line_00",
+              scoreCp = 22,
+              mate = None,
+              depth = 8,
+              moves =
+                List(
+                  MoveReviewMoveRef("l00_m01", "d4", "d2d4", InitialFen, 1, 1, Some("1.")),
+                  MoveReviewMoveRef("l00_m02", "d5", "d7d5", InitialFen, 2, 1, Some("1..."))
+                )
+            ),
+            MoveReviewVariationRef(
               lineId = "line_01",
               scoreCp = 15,
               mate = None,
@@ -380,6 +391,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assertEquals(surface.chosenSan, Some("h4"))
     assertEquals(surface.engineSan, Some("g4"))
     assert(surface.secondaryText.exists(_.contains("exchange sequence")), clue(surface))
+    assertEquals(surface.refSans, List("Nf3", "Nc6", "Bb5", "a6", "Bxc6"))
   }
 
   test("does not surface diagnostic-only line consequence") {
@@ -775,6 +787,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       surface.summaryRows.head.authority,
       Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))
     )
+    assertEquals(surface.summaryRows.head.refSans, Nil)
   }
 
   test("structural-only practical plan rows can include typed structure context") {
@@ -876,8 +889,30 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
   }
 
   test("pv-coupled evaluated plans create practical plan rows but not main plans") {
+    val refs =
+      MoveReviewRefs(
+        startFen = InitialFen,
+        startPly = 1,
+        variations =
+          List(
+            MoveReviewVariationRef(
+              lineId = "line_01",
+              scoreCp = 15,
+              mate = None,
+              depth = 8,
+              moves =
+                List(
+                  MoveReviewMoveRef("l01_m01", "e4", "e2e4", InitialFen, 1, 1, Some("1.")),
+                  MoveReviewMoveRef("l01_m02", "e5", "e7e5", InitialFen, 2, 1, Some("1...")),
+                  MoveReviewMoveRef("l01_m03", "Nf3", "g1f3", InitialFen, 3, 2, Some("2."))
+                )
+            )
+          )
+      )
     val surface =
       build(
+        ctx = relationOnlyContext(InitialFen, "e2e4"),
+        refs = Some(refs),
         evaluatedPlans =
           List(
             evaluated(
@@ -888,11 +923,13 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       )
 
     assert(!surface.summaryRows.exists(_.label == "Main plans"), clue(surface.summaryRows))
-    assertEquals(surface.summaryRows.map(_.label), List("Practical plan"))
+    val practicalRows = surface.summaryRows.filter(_.label == "Practical plan")
+    assertEquals(practicalRows.size, 1)
     assertEquals(
-      surface.summaryRows.head.text,
+      practicalRows.head.text,
       "The checked line keeps central pressure viable as a practical plan."
     )
+    assertEquals(practicalRows.head.refSans, List("e4", "e5", "Nf3"))
   }
 
   test("structural-only evaluated plans create practical advanced detail rows") {
@@ -10840,8 +10877,9 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       )
       assert(row.text.contains(descriptor.publicLabel), clue(row))
       assert(!row.text.contains("gives"), clue(row))
+      assert(!row.text.contains("checked line"), clue(row))
       if descriptor.surfaceRowKind == RelationSurfaceRowKind.MobilityRestriction then
-        assert(row.text.startsWith("The checked line limits piece mobility with "), clue(row))
+        assert(row.text.startsWith("The mobility relation is "), clue(row))
       assertEquals(row.authority.flatMap(_.token), Some(descriptor.relationKind), clue(row))
     }
   }

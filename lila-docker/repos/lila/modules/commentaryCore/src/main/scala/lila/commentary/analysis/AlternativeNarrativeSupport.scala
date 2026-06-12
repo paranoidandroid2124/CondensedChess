@@ -91,6 +91,18 @@ private[analysis] object AlternativeNarrativeSupport:
                 case (LineConsequenceKind.CentralPawnAdvance, LineConsequenceKind.CentralPawnAdvance) =>
                   if (playedIsBest) playedBranchSentence(ma, intentA, lineAStr, mb, intentB, lineBStr, evA.kind, evB.kind)
                   else s"Both lines push pawns into the center: the engine prefers $lineAStr ($intentA), while the alternative $mb ($intentB) advances via $lineBStr."
+                case (LineConsequenceKind.PassedPawnCreation, _) =>
+                  if (playedIsBest) playedBranchSentence(ma, intentA, lineAStr, mb, intentB, lineBStr, evA.kind, evB.kind)
+                  else s"While the engine prefers $lineAStr ($intentA) to create a passed pawn, the alternative $mb ($intentB) continues with $lineBStr."
+                case (_, LineConsequenceKind.PassedPawnCreation) =>
+                  if (playedIsBest) playedBranchSentence(ma, intentA, lineAStr, mb, intentB, lineBStr, evA.kind, evB.kind)
+                  else s"While the engine prefers $lineAStr ($intentA), the alternative $mb ($intentB) instead creates a passed pawn with $lineBStr."
+                case (LineConsequenceKind.PromotionRace, _) =>
+                  if (playedIsBest) playedBranchSentence(ma, intentA, lineAStr, mb, intentB, lineBStr, evA.kind, evB.kind)
+                  else s"While the engine prefers $lineAStr ($intentA) to push a passed pawn toward promotion, the alternative $mb ($intentB) continues with $lineBStr."
+                case (_, LineConsequenceKind.PromotionRace) =>
+                  if (playedIsBest) playedBranchSentence(ma, intentA, lineAStr, mb, intentB, lineBStr, evA.kind, evB.kind)
+                  else s"While the engine prefers $lineAStr ($intentA), the alternative $mb ($intentB) instead enters a promotion race with $lineBStr."
                 case _ =>
                   if (playedIsBest) playedBranchSentence(ma, intentA, lineAStr, mb, intentB, lineBStr, evA.kind, evB.kind)
                   else s"While the engine prefers $lineAStr ($intentA), the alternative $mb ($intentB) opts for $lineBStr."
@@ -133,6 +145,8 @@ private[analysis] object AlternativeNarrativeSupport:
       case LineConsequenceKind.ExchangeSequence     => s"trades via $line"
       case LineConsequenceKind.ForcingCheckSequence => s"starts a forcing check sequence with $line"
       case LineConsequenceKind.MaterialTransition   => s"changes the material balance with $line"
+      case LineConsequenceKind.PassedPawnCreation   => s"creates a passed pawn via $line"
+      case LineConsequenceKind.PromotionRace        => s"pushes a passed pawn toward promotion via $line"
       case _                                        => s"follows $line"
 
   private def variationLeadSan(fen: String, line: VariationLine): Option[String] =

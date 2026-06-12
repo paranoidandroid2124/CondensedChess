@@ -81,6 +81,78 @@ final class LineConsequenceEvaluatorTest extends FunSuite:
     assertEquals(evidence.rejectReasons, Nil)
   }
 
+  test("surfaceCandidate does not prefer a later consequence owned by another move") {
+    val previewUcis = List("g1f3", "b8c6")
+    val exchangeUcis = List("g1f3", "b8c6", "f1b5", "a7a6", "b5c6", "d7c6")
+    val preview = refs(ExchangeFen, "preview", previewUcis, List("Nf3", "Nc6")).variations.head
+    val exchange =
+      refs(ExchangeFen, "exchange", exchangeUcis, List("Nf3", "Nc6", "Bb5", "a6", "Bxc6", "dxc6")).variations.head
+    val combined =
+      MoveReviewRefs(
+        startFen = ExchangeFen,
+        startPly = NarrativeUtils.plyFromFen(ExchangeFen).getOrElse(1),
+        variations = List(preview, exchange)
+      )
+    val ctx = context(ExchangeFen, "g1f3", "Nf3", List(VariationLine(exchangeUcis, scoreCp = 42, depth = 20)))
+    val evidence =
+      LineConsequenceEvaluator
+        .surfaceCandidate(ctx, Some(combined))
+        .getOrElse(fail("missing preferred line consequence"))
+
+    assertEquals(evidence.lineId, Some("preview"))
+    assertEquals(evidence.kind, LineConsequenceKind.PreviewOnly)
+  }
+
+  test("reviewedMoveSurfaceCandidate can select a concrete played-first ref line for scoped line-consequence callers") {
+    val fen = "r2q1rk1/1b2bppp/1p2p1n1/p1ppP3/5P2/2PBP1B1/PP1NQ1PP/R4RK1 b - - 0 13"
+    val alternativeUcis = List("a5a4", "a2a3", "f7f5", "e5f6", "e7f6")
+    val playedUcis = List("c5c4", "d3c2", "e7c5", "g1h1", "f7f5", "e5f6", "d8f6")
+    val alternative =
+      refs(fen, "alternative", alternativeUcis, List("a4", "a3", "f5", "exf6", "Bxf6")).variations.head
+    val played =
+      refs(fen, "played", playedUcis, List("c4", "Bc2", "Bc5", "Kh1", "f5", "exf6", "Qxf6")).variations.head
+    val combined =
+      MoveReviewRefs(
+        startFen = fen,
+        startPly = NarrativeUtils.plyFromFen(fen).getOrElse(1),
+        variations = List(alternative, played)
+      )
+    val ctx = context(fen, "c5c4", "c4", List(VariationLine(playedUcis, scoreCp = 91, depth = 10)))
+
+    val reviewed =
+      LineConsequenceEvaluator
+        .reviewedMoveSurfaceCandidate(ctx, Some(combined))
+        .getOrElse(fail("missing reviewed-move line consequence"))
+
+    assertEquals(reviewed.lineId, Some("played"))
+    assertEquals(reviewed.kind, LineConsequenceKind.ExchangeSequence)
+    assertEquals(reviewed.uciMoves.headOption, Some("c5c4"))
+    assertEquals(reviewed.triggerSan, Some("exf6"))
+  }
+
+  test("surfaceCandidate prefers a concrete consequence triggered by the reviewed move") {
+    val fen = "7k/8/4pn2/3p4/4P3/8/8/4K3 w - - 0 1"
+    val previewUcis = List("e4d5", "h8g8")
+    val exchangeUcis = List("e4d5", "f6d5")
+    val preview = refs(fen, "preview", previewUcis, List("exd5", "Kg8")).variations.head
+    val exchange = refs(fen, "exchange", exchangeUcis, List("exd5", "Nxd5")).variations.head
+    val combined =
+      MoveReviewRefs(
+        startFen = fen,
+        startPly = NarrativeUtils.plyFromFen(fen).getOrElse(1),
+        variations = List(preview, exchange)
+      )
+    val ctx = context(fen, "e4d5", "exd5", List(VariationLine(exchangeUcis, scoreCp = 42, depth = 20)))
+    val evidence =
+      LineConsequenceEvaluator
+        .surfaceCandidate(ctx, Some(combined))
+        .getOrElse(fail("missing owned line consequence"))
+
+    assertEquals(evidence.lineId, Some("exchange"))
+    assertEquals(evidence.kind, LineConsequenceKind.ExchangeSequence)
+    assertEquals(evidence.release, LineConsequenceRelease.SurfaceCandidate)
+  }
+
   test("keeps illegal or mismatched ref lines diagnostic-only") {
     val ucis = List("g1f3", "b8c6", "f1b5")
     val corrupted =
@@ -125,6 +197,40 @@ final class LineConsequenceEvaluatorTest extends FunSuite:
     assertEquals(evidence.release, LineConsequenceRelease.SurfaceCandidate)
     assert(evidence.consequence.contains("central pawn advance"), clue(evidence))
     assert(!evidence.playerSentence.contains("times the central break"), clue(evidence))
+  }
+
+  test("classifies a replayed pawn capture that creates a passed pawn") {
+    val fen = "4k3/8/1p6/2P5/8/8/8/4K3 w - - 0 1"
+    val ucis = List("c5b6")
+    val ctx = context(fen, "c5b6", "cxb6", List(VariationLine(ucis, scoreCp = 84, depth = 18)))
+    val evidence =
+      LineConsequenceEvaluator
+        .fromRefs(ctx, Some(refs(fen, "passed-pawn", ucis, List("cxb6"))))
+        .headOption
+        .getOrElse(fail("missing passed-pawn evidence"))
+
+    assertEquals(evidence.kind, LineConsequenceKind.PassedPawnCreation)
+    assertEquals(evidence.release, LineConsequenceRelease.SurfaceCandidate)
+    assertEquals(evidence.triggerSan, Some("cxb6"))
+    assert(evidence.playerSentence.contains("passed pawn"), clue(evidence))
+    assert(VariationNarrativeBuilder.build(ctx, evidence).exists(_.contains("passed pawn")), clue(evidence))
+  }
+
+  test("classifies an advanced passed-pawn push as a promotion race") {
+    val fen = "4k3/8/1P6/8/8/8/8/4K3 w - - 0 1"
+    val ucis = List("b6b7")
+    val ctx = context(fen, "b6b7", "b7", List(VariationLine(ucis, scoreCp = 150, depth = 18)))
+    val evidence =
+      LineConsequenceEvaluator
+        .fromRefs(ctx, Some(refs(fen, "promotion-race", ucis, List("b7"))))
+        .headOption
+        .getOrElse(fail("missing promotion-race evidence"))
+
+    assertEquals(evidence.kind, LineConsequenceKind.PromotionRace)
+    assertEquals(evidence.release, LineConsequenceRelease.SurfaceCandidate)
+    assertEquals(evidence.triggerSan, Some("b7"))
+    assert(evidence.playerSentence.contains("promotion race"), clue(evidence))
+    assert(VariationNarrativeBuilder.build(ctx, evidence).exists(_.contains("promotion")), clue(evidence))
   }
 
   test("unreplayed engine-only variation evidence remains diagnostic-only") {

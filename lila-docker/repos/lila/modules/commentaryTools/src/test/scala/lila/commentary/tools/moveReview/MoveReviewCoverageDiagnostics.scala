@@ -26,6 +26,7 @@ object MoveReviewCoverageDiagnostics:
       families: List[String] = Nil,
       authorities: List[String] = Nil,
       producers: List[String] = Nil,
+      evidenceRefs: List[String] = Nil,
       strictFallbackEligible: Option[Boolean] = None,
       rejectReasons: List[String] = Nil
   )
@@ -41,6 +42,7 @@ object MoveReviewCoverageDiagnostics:
       moveReviewLocalFactFamilies: List[String] = Nil,
       moveReviewLocalFactAuthorities: List[String] = Nil,
       moveReviewLocalFactProducers: List[String] = Nil,
+      moveReviewLocalFactEvidenceRefs: List[String] = Nil,
       moveReviewLocalFactStrictFallbackEligible: Option[Boolean] = None,
       moveReviewLocalFactRejectReasons: List[String] = Nil
   )
@@ -77,6 +79,7 @@ object MoveReviewCoverageDiagnostics:
       moveReviewLocalFactFamilies = localFact.families,
       moveReviewLocalFactAuthorities = localFact.authorities,
       moveReviewLocalFactProducers = localFact.producers,
+      moveReviewLocalFactEvidenceRefs = localFact.evidenceRefs,
       moveReviewLocalFactStrictFallbackEligible = localFact.strictFallbackEligible,
       moveReviewLocalFactRejectReasons = localFact.rejectReasons
     )
@@ -127,6 +130,7 @@ object MoveReviewCoverageDiagnostics:
                 families = List(family),
                 authorities = trace.localFactAuthority.toList,
                 producers = trace.localFactProducer.toList,
+                evidenceRefs = trace.localFactEvidenceRefs,
                 strictFallbackEligible = trace.localFactStrictFallbackEligible,
                 rejectReasons = Nil
               )
@@ -146,6 +150,7 @@ object MoveReviewCoverageDiagnostics:
       val families = localFact.map(_.family.key).toList
       val authorities = localFact.map(_.authority.key).toList
       val producers = localFact.map(_.producer.key).toList
+      val evidenceRefs = localFact.map(_.evidenceRefs).getOrElse(Nil)
       val strictEligible = localFact.map(_.strictFallbackEligible)
       val status =
         if emitted.nonEmpty && localFact.nonEmpty then Some("emitted")
@@ -163,6 +168,7 @@ object MoveReviewCoverageDiagnostics:
         families = families,
         authorities = authorities,
         producers = producers,
+        evidenceRefs = evidenceRefs,
         strictFallbackEligible = strictEligible,
         rejectReasons = rejectReasons
       )
@@ -186,6 +192,16 @@ object MoveReviewCoverageDiagnostics:
     val reasons = List.newBuilder[String]
     if tacticalEvidencePresent(facts, motifs) && lineFacts.nonEmpty && explanation.isEmpty then
       reasons += "tactical_not_current_move_owned"
+      reasons ++= CommentaryIdeaSurface.tacticalOwnershipRejectReasons(
+        played,
+        CommentaryIdeaSurface.MoveReviewEvidence(
+          facts = facts,
+          motifs = motifs,
+          openingGoal = None,
+          openingName = None
+        ),
+        lineFacts
+      )
     if played.isCapture &&
       motifs.exists(_.isInstanceOf[Motif.Capture]) &&
       !isImmediateRecapture(played.toKey, lineFacts.flatMap(_.reply))
@@ -220,7 +236,7 @@ object MoveReviewCoverageDiagnostics:
             (
               trace.failureCodes ++
                 policyFailureCodes(packet) ++
-                tacticalFailureCodes(packet, tacticalVetoReasons) ++
+                tacticalRiskGateCodes(packet, tacticalVetoReasons) ++
                 surfaceFailureCodes(packet, ctx)
             ).distinct match
               case Nil => List("policy:not_supported_local_admitted")
@@ -251,7 +267,7 @@ object MoveReviewCoverageDiagnostics:
     if !PlayerFacingClaimProof.allowsWeakMainClaim(packet) then reasons += "policy:weak_main_gate_blocked"
     reasons.result()
 
-  private def tacticalFailureCodes(
+  private def tacticalRiskGateCodes(
       packet: PlayerFacingClaimPacket,
       tacticalVetoReasons: List[String]
   ): List[String] =
@@ -303,7 +319,7 @@ object MoveReviewCoverageDiagnostics:
       if contract.reasonFamily == DecisiveReasonKind.TacticalRefutation && contract.isBad then
         reasons += "truth_contract_tactical_refutation"
       if contract.failureMode == FailureInterpretationMode.TacticalRefutation then
-        reasons += "truth_contract_tactical_failure_mode"
+        reasons += "truth_contract_high_risk_failure_mode"
     }
     if inputs.truthMode == PlayerFacingTruthMode.Tactical then reasons += "planner_truth_mode_tactical"
     if inputs.mainBundle.flatMap(_.mainClaim).exists(_.mode == PlayerFacingTruthMode.Tactical) then

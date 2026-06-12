@@ -70,18 +70,37 @@ final class MoveReviewScopedTakeawayTest extends FunSuite:
   private def admittedFact(
       family: MoveReviewLocalFact.Family,
       source: MoveReviewLocalFact.Source = MoveReviewLocalFact.Source.CanonicalFact,
+      producer: MoveReviewLocalFact.Producer = MoveReviewLocalFact.Producer.TacticalMotif,
       subject: MoveReviewLocalFact.Subject,
       strictFallbackCandidate: Boolean = true
   ): MoveReviewLocalFact.Admission =
     MoveReviewLocalFact.admitted(MoveReviewLocalFact.Candidate(
       family = family,
       source = source,
-      producer = MoveReviewLocalFact.Producer.TacticalMotif,
+      producer = producer,
       subject = subject,
       strictFallbackCandidate = strictFallbackCandidate,
       lineBinding = MoveReviewLocalFact.LineBinding.PvCoupled,
       guardrails = List("test_pv_coupled")
     ))
+
+  private def openingGoalFact: MoveReviewLocalFact.Admission =
+    admittedFact(
+      MoveReviewLocalFact.Family.OpeningGoal,
+      source = MoveReviewLocalFact.Source.OpeningGoalEvidence,
+      producer = MoveReviewLocalFact.Producer.OpeningGoal,
+      subject = MoveReviewLocalFact.Subject.OpeningGoal,
+      strictFallbackCandidate = false
+    )
+
+  private def lineConsequenceFact: MoveReviewLocalFact.Admission =
+    admittedFact(
+      MoveReviewLocalFact.Family.LineConsequence,
+      source = MoveReviewLocalFact.Source.PvCoupledLine,
+      producer = MoveReviewLocalFact.Producer.LineConsequence,
+      subject = MoveReviewLocalFact.Subject.PlayedMove,
+      strictFallbackCandidate = false
+    )
 
   test("builds a scoped local takeaway with move branch and evidence metadata") {
     val takeaway =
@@ -90,7 +109,8 @@ final class MoveReviewScopedTakeawayTest extends FunSuite:
           purpose = "quiet_development",
           played = played("f1c4", "Bc4", Square.F1, Square.C4),
           evidence = evidence(openingGoal = Some(developmentGoal)),
-          lineFacts = Some(lineFacts("italian_line"))
+          lineFacts = Some(lineFacts("italian_line")),
+          localFact = openingGoalFact
         )
         .getOrElse(fail("expected scoped takeaway"))
 
@@ -112,7 +132,8 @@ final class MoveReviewScopedTakeawayTest extends FunSuite:
         purpose = "quiet_development",
         played = played("f1c4", "Bc4", Square.F1, Square.C4),
         evidence = evidence(openingGoal = Some(developmentGoal)),
-        lineFacts = None
+        lineFacts = None,
+        localFact = openingGoalFact
       )
 
     assertEquals(takeaway, None)
@@ -126,7 +147,8 @@ final class MoveReviewScopedTakeawayTest extends FunSuite:
         purpose = "quiet_development",
         played = played("f1c4", "Bc4", Square.F1, Square.C4),
         evidence = evidence(openingGoal = Some(developmentGoal)),
-        lineFacts = Some(mismatchedLine)
+        lineFacts = Some(mismatchedLine),
+        localFact = openingGoalFact
       )
 
     assertEquals(takeaway, None)
@@ -162,7 +184,8 @@ final class MoveReviewScopedTakeawayTest extends FunSuite:
         purpose = "create_tactical_threat",
         played = current,
         evidence = evidence(openingGoal = None),
-        lineFacts = line
+        lineFacts = line,
+        localFact = lineConsequenceFact
       ),
       None
     )
@@ -171,7 +194,8 @@ final class MoveReviewScopedTakeawayTest extends FunSuite:
         purpose = "answer_direct_threat",
         played = current,
         evidence = evidence(openingGoal = None),
-        lineFacts = line
+        lineFacts = line,
+        localFact = lineConsequenceFact
       ),
       None
     )

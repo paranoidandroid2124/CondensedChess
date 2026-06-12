@@ -420,7 +420,7 @@ object CommentaryQualityQuietSupport:
       val profile = sourceProfile(bucket, entry, payload)
       val blockedByClosedFamily =
         entry.plannerSelectedOwnerKind.exists(family =>
-          family == "ForcingDefense" || family == "TacticalFailure"
+          Set("ForcingDefense", "ConcreteTactical", "LineConsequence", "AlternativeComparison").contains(family)
         )
       val statusReasons =
         if !quietness.passed then quietness.reasons
@@ -1034,8 +1034,12 @@ object CommentaryQualityQuietSupport:
       afterTruthOnlyMoveDefense: Option[Boolean],
       beforeTruthBenchmarkCriticalMove: Option[Boolean],
       afterTruthBenchmarkCriticalMove: Option[Boolean],
-      beforePlannerTacticalFailureSources: List[String],
-      afterPlannerTacticalFailureSources: List[String],
+      beforePlannerConcreteTacticalSources: List[String],
+      afterPlannerConcreteTacticalSources: List[String],
+      beforePlannerLineConsequenceSources: List[String],
+      afterPlannerLineConsequenceSources: List[String],
+      beforePlannerAlternativeComparisonSources: List[String],
+      afterPlannerAlternativeComparisonSources: List[String],
       beforePlannerForcingDefenseSources: List[String],
       afterPlannerForcingDefenseSources: List[String],
       beforePlannerMoveDeltaSources: List[String],
@@ -1382,8 +1386,12 @@ object CommentaryQualityQuietSupport:
               afterTruthOnlyMoveDefense = afterEntry.flatMap(_.truthOnlyMoveDefense),
               beforeTruthBenchmarkCriticalMove = beforeEntry.truthBenchmarkCriticalMove,
               afterTruthBenchmarkCriticalMove = afterEntry.flatMap(_.truthBenchmarkCriticalMove),
-              beforePlannerTacticalFailureSources = beforeEntry.plannerTacticalFailureSources,
-              afterPlannerTacticalFailureSources = afterEntry.map(_.plannerTacticalFailureSources).getOrElse(Nil),
+              beforePlannerConcreteTacticalSources = beforeEntry.plannerConcreteTacticalSources,
+              afterPlannerConcreteTacticalSources = afterEntry.map(_.plannerConcreteTacticalSources).getOrElse(Nil),
+              beforePlannerLineConsequenceSources = beforeEntry.plannerLineConsequenceSources,
+              afterPlannerLineConsequenceSources = afterEntry.map(_.plannerLineConsequenceSources).getOrElse(Nil),
+              beforePlannerAlternativeComparisonSources = beforeEntry.plannerAlternativeComparisonSources,
+              afterPlannerAlternativeComparisonSources = afterEntry.map(_.plannerAlternativeComparisonSources).getOrElse(Nil),
               beforePlannerForcingDefenseSources = beforeEntry.plannerForcingDefenseSources,
               afterPlannerForcingDefenseSources = afterEntry.map(_.plannerForcingDefenseSources).getOrElse(Nil),
               beforePlannerMoveDeltaSources = beforeEntry.plannerMoveDeltaSources,
@@ -1813,7 +1821,7 @@ object CommentaryQualityQuietSupport:
     val afterQuietSupport = afterEntry.map(quietSupportTraceView)
     val beforeMoveDeltaCandidate =
       beforeEntry.plannerOwnerCandidates.exists(_.contains("MoveDelta:source_kind=pv_delta"))
-    val beforeTacticalScene = beforeEntry.plannerSceneType.contains("tactical_failure")
+    val beforeConcreteTacticalScene = beforeEntry.plannerSceneType.contains("concrete_tactical")
     val afterPlannerOwned = afterEntry.exists(_.moveReviewFallbackMode == "planner_owned")
     val blockedFallbackSpike =
       selector.lane == Lane.Blocked &&
@@ -1823,7 +1831,7 @@ object CommentaryQualityQuietSupport:
     if blockedFallbackSpike then IsolationCategory.BlockedFallbackSpike
     else if selector.lane == Lane.Eligible && selector.selected && !ownerQuestionUnchanged && afterPlannerOwned then
         IsolationCategory.NonTargetDrift
-    else if !selector.selected && beforeTacticalScene then
+    else if !selector.selected && beforeConcreteTacticalScene then
       IsolationCategory.SelectorMismatch
     else if selector.selected && beforeMoveDeltaCandidate && afterQuietSupport.flatMap(_.runtimePvDeltaAvailable).contains(false) then
       IsolationCategory.IngressRegression
@@ -1851,7 +1859,9 @@ object CommentaryQualityQuietSupport:
     val afterDecisionIngress = afterEntry.flatMap(_.rawDecisionIngressReason)
     val afterPvDeltaIngress = afterEntry.flatMap(_.rawPvDeltaIngressReason)
     val afterForcingSources = afterEntry.map(_.plannerForcingDefenseSources).getOrElse(Nil)
-    val afterTacticalSources = afterEntry.map(_.plannerTacticalFailureSources).getOrElse(Nil)
+    val afterConcreteTacticalSources = afterEntry.map(_.plannerConcreteTacticalSources).getOrElse(Nil)
+    val afterLineConsequenceSources = afterEntry.map(_.plannerLineConsequenceSources).getOrElse(Nil)
+    val afterAlternativeComparisonSources = afterEntry.map(_.plannerAlternativeComparisonSources).getOrElse(Nil)
     val afterMoveDeltaSources = afterEntry.map(_.plannerMoveDeltaSources).getOrElse(Nil)
     val commonDetails =
       List(
@@ -1863,7 +1873,9 @@ object CommentaryQualityQuietSupport:
         afterSignal("afterDecisionIngress", afterDecisionIngress),
         afterSignal("afterPvDeltaIngress", afterPvDeltaIngress),
         signal("afterForcingSources", afterForcingSources.mkString("+")),
-        signal("afterTacticalSources", afterTacticalSources.mkString("+")),
+        signal("afterConcreteTacticalSources", afterConcreteTacticalSources.mkString("+")),
+        signal("afterLineConsequenceSources", afterLineConsequenceSources.mkString("+")),
+        signal("afterAlternativeComparisonSources", afterAlternativeComparisonSources.mkString("+")),
         signal("afterMoveDeltaSources", afterMoveDeltaSources.mkString("+"))
       )
 
@@ -1872,8 +1884,8 @@ object CommentaryQualityQuietSupport:
         trace(
           subsystem = "QuietSupportSelector",
           cause =
-            if beforeEntry.plannerSceneType.contains("tactical_failure") then
-              "baseline_selected_despite_preexisting_tactical_scene"
+            if beforeEntry.plannerSceneType.contains("concrete_tactical") then
+              "baseline_selected_despite_preexisting_concrete_tactical_scene"
             else "baseline_selected_despite_runtime_gate_mismatch",
           details =
             commonDetails ++ List(
@@ -1934,16 +1946,13 @@ object CommentaryQualityQuietSupport:
             cause = "prevented_plan_candidate_promoted_forcing_defense",
             details = commonDetails
           )
-        else if afterTacticalSources.contains("truth_contract") then
+        else if afterForcingSources.contains("only_move_defense") ||
+            afterForcingSources.contains("truth_contract") ||
+            afterEntry.flatMap(_.truthOnlyMoveDefense).contains(true)
+        then
           trace(
             subsystem = "DecisiveTruth",
-            cause = "truth_contract_promoted_tactical_failure",
-            details = commonDetails
-          )
-        else if afterForcingSources.contains("truth_contract") || afterEntry.flatMap(_.truthOnlyMoveDefense).contains(true) then
-          trace(
-            subsystem = "DecisiveTruth",
-            cause = "truth_contract_promoted_only_move_defense",
+            cause = "only_move_defense_promoted",
             details = commonDetails
           )
         else
@@ -1953,13 +1962,7 @@ object CommentaryQualityQuietSupport:
             details = commonDetails
           )
       case IsolationCategory.BlockedFallbackSpike =>
-        if afterTacticalSources.contains("truth_contract") then
-          trace(
-            subsystem = "DecisiveTruth",
-            cause = "truth_contract_reclassified_blocked_row_as_tactical_failure",
-            details = commonDetails :+ signal("fallbackIncrease", fallbackIncrease.toString)
-          )
-        else if afterMoveDeltaSources.isEmpty && afterEntry.flatMap(_.rawPvDeltaAvailable).contains(false) then
+        if afterMoveDeltaSources.isEmpty && afterEntry.flatMap(_.rawPvDeltaAvailable).contains(false) then
           trace(
             subsystem = "NarrativeContextBuilder",
             cause = "blocked_row_lost_move_delta_ingress",

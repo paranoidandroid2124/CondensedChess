@@ -136,7 +136,7 @@ final class MoveReviewEvidenceCoverageAuditTest extends FunSuite:
             supportRows = List(
               SupportRow(
                 "Counterplay break",
-                "On the checked line, this stops the ...c5 break before it appears."
+                "This stops the ...c5 break before it appears."
               )
             )
           ),
@@ -157,7 +157,7 @@ final class MoveReviewEvidenceCoverageAuditTest extends FunSuite:
             supportRows = List(
               SupportRow(
                 "Counterplay break",
-                "On the checked line, this stops the g4 break before it appears."
+                "This stops the g4 break before it appears."
               )
             )
           )

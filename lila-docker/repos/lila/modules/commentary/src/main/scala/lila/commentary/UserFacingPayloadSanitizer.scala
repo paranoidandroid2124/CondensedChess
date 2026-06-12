@@ -529,7 +529,8 @@ object UserFacingPayloadSanitizer:
       engineSan = cleanOpt(comparison.engineSan),
       comparedSan = cleanOpt(comparison.comparedSan),
       secondaryText = cleanOpt(comparison.secondaryText),
-      targetComparison = sanitizeMoveReviewDecisionTargetComparison(comparison.targetComparison)
+      targetComparison = sanitizeMoveReviewDecisionTargetComparison(comparison.targetComparison),
+      refSans = cleanList(comparison.refSans)
     )
 
   private def sanitizeMoveReviewDecisionTargetComparison(

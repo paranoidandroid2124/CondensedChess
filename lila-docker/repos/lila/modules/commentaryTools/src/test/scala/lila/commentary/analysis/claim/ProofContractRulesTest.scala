@@ -57,17 +57,17 @@ class ProofContractRulesTest extends FunSuite:
   }
 
   test("immediate tactical-gain taxonomy cannot become strategic authority contract") {
-    val tacticalContracts =
+    val immediateTacticalGainContracts =
       ProofContractRules.contracts.filter(_.theme.contains(PlanTaxonomy.PlanTheme.ImmediateTacticalGain))
 
-    assert(tacticalContracts.nonEmpty)
+    assert(immediateTacticalGainContracts.nonEmpty)
     assert(
-      tacticalContracts.forall(contract =>
+      immediateTacticalGainContracts.forall(contract =>
         !contract.authorityEligible &&
           contract.status == ProofContractStatus.BackendOnly &&
           contract.defaultFailureTaxonomy == "tactical_truth_first"
       ),
-      clues(tacticalContracts)
+      clues(immediateTacticalGainContracts)
     )
   }
 

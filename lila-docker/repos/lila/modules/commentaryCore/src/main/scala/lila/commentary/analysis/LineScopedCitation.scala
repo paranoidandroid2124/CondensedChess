@@ -130,6 +130,9 @@ object LineScopedCitation:
     val raw = Option(text).getOrElse("")
     hasInlineCitation(raw) || concreteSanTokensFromRawLine(raw).size >= 3
 
+  def firstConcreteSanToken(text: String): Option[String] =
+    concreteSanTokensFromRawLine(text).headOption.map(normalizeSanToken)
+
   def hasSourceLabelOnly(text: String): Boolean =
     val raw = Option(text).getOrElse("")
     !hasInlineCitation(raw) && SourceLabelOnlyPatterns.exists(_.findFirstIn(raw).nonEmpty)
@@ -205,17 +208,18 @@ object LineScopedCitation:
     MoveNumberToken.pattern.matcher(token.trim).matches()
 
   private def isSanToken(token: String): Boolean =
-    val clean = token.trim
+    val strippedLead = token.trim
       .replaceAll("""^[\.\u2026]+""", "")
-      .replaceAll("""[,:;]+$""", "")
+    val clean = strippedLead
+      .replaceAll("""[.,:;]+$""", "")
     clean.nonEmpty &&
-      !isMoveNumberToken(clean) &&
+      !isMoveNumberToken(strippedLead) &&
       !clean.matches("""^[a-z]\)$""")
 
   private def normalizeSanToken(token: String): String =
     token.trim
       .replaceAll("""^[\.\u2026]+""", "")
-      .replaceAll("""[,:;]+$""", "")
+      .replaceAll("""[.,:;]+$""", "")
 
   private def isConcreteSanToken(token: String): Boolean =
     ConcreteSanTokenPattern.pattern.matcher(normalizeSanToken(token)).matches()

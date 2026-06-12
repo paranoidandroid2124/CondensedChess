@@ -746,7 +746,7 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
             List(
               MoveReviewPlayerSurfaceRow(
                 label = "Counterplay break",
-                text = "On the checked line, this stops the ...c5 break before it appears.",
+                text = "This stops the ...c5 break before it appears.",
                 authority =
                   Some(
                     MoveReviewSurfaceAuthority(
@@ -1333,7 +1333,7 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
             List(
               MoveReviewPlayerSurfaceRow(
                 label = "Counterplay break",
-                text = "On the checked line, this stops the ...c5 break before it appears.",
+                text = "This stops the ...c5 break before it appears.",
                 authority =
                   Some(
                     MoveReviewSurfaceAuthority(
@@ -1366,7 +1366,7 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
         ),
         MoveReviewPlayerSurfaceRow(
           label = "Counterplay break",
-          text = "On the checked line, this stops the d5 break before it appears.",
+          text = "This stops the d5 break before it appears.",
           authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CounterplayBreak, token = Some("d5")))
         )
       )

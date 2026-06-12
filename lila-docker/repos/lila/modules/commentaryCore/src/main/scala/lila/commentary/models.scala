@@ -667,7 +667,8 @@ case class MoveReviewPlayerDecisionComparison(
     comparedSan: Option[String] = None,
     secondaryText: Option[String] = None,
     chosenMatchesBest: Boolean = false,
-    targetComparison: Option[MoveReviewDecisionTargetComparison] = None
+    targetComparison: Option[MoveReviewDecisionTargetComparison] = None,
+    refSans: List[String] = Nil
 )
 object MoveReviewPlayerDecisionComparison:
   given Writes[MoveReviewPlayerDecisionComparison] = Json.writes[MoveReviewPlayerDecisionComparison]

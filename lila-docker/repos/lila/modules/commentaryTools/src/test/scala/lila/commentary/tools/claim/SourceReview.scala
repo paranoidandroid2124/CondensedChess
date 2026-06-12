@@ -436,6 +436,15 @@ private[commentary] object SourceReview:
           surfaceGate = gate,
           ownerFailureCodes = ownerFailures
         )
+      val reportAlignedSurface =
+        admitted || familyAligned
+      val reportRelease =
+        if !admitted && source.reviewGroup.toLowerCase.contains("central_break_timing") then "-"
+        else surface.release
+      val reportPrimary =
+        if reportAlignedSurface then surface.primary else "-"
+      val reportMoveReview =
+        if reportAlignedSurface then surface.moveReview else "-"
       Observation(
         source,
         verdict,
@@ -443,15 +452,14 @@ private[commentary] object SourceReview:
         engineAgreement(ply.playedUci, engineLines),
         plannerOwnership(surface),
         gate,
-        if !admitted && source.reviewGroup.toLowerCase.contains("central_break_timing") then "-"
-        else surface.release,
+        reportRelease,
         taxonomy(source),
         Some(ply.ply),
         Some(ply.fen),
         Some(ply.playedUci),
         engineLines.headOption.toList.flatMap(_.moves),
-        surface.primary,
-        surface.moveReview,
+        reportPrimary,
+        reportMoveReview,
         if admitted then "exact replay and surfaces agree" else s"admission_blocked: $blockers; planner_owner_missing_or_surface_unsafe: ${surface.rejected}",
         mainProofSource = surface.mainProofSource.getOrElse("-"),
         mainClaimScope = surface.mainClaimScope.getOrElse("-"),
@@ -601,7 +609,22 @@ private[commentary] object SourceReview:
             .findFirstIn(text)
             .nonEmpty
         )
-    containsClaim && (localReadingSafe || centralBreakSafe)
+    val branchComparisonSafe =
+      texts.forall { text =>
+        val low = text.toLowerCase
+        low.contains("both candidate branches are viable") &&
+          !low.contains("the key strategic fact") &&
+          !low.contains("so the task is")
+      }
+    val boundedBestMoveSupportSafe =
+      texts.forall { text =>
+        val low = text.toLowerCase
+        low.startsWith("the move ") &&
+          low.contains(" stays best because ") &&
+          !low.contains("the key strategic fact") &&
+          !low.contains("so the task is")
+      }
+    containsClaim && (localReadingSafe || centralBreakSafe || branchComparisonSafe || boundedBestMoveSupportSafe)
 
   private def sourceReviewGroupAligned(
       source: SourceWitnessCatalog.SourceCandidate,
@@ -694,9 +717,14 @@ private[commentary] object SourceReview:
   ): String =
     if admitted then "none"
     else
+      val proofMismatch =
+        ownerFailureCodes.exists(_.startsWith("proof:"))
       val surfaceBlockers =
         List(
-          Option.when(ownerDiagnosis == Diagnosis.SurfaceContractBlocked || surfaceGate == "supported_local_surface_failed")(
+          Option.when(
+            !proofMismatch &&
+              (ownerDiagnosis == Diagnosis.SurfaceContractBlocked || surfaceGate == "supported_local_surface_failed")
+          )(
             "surface:supported_local_contract_failed"
           )
         ).flatten

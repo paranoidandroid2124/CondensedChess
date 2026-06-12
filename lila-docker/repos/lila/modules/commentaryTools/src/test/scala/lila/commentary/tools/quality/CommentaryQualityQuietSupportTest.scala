@@ -79,7 +79,7 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
       plannerSelectedQuestion: Option[String] = Some("WhyThis"),
       plannerSceneType: Option[String] = Some("quiet_improvement"),
       plannerSelectedOwnerKind: Option[String] = None,
-      plannerSelectedSource: Option[String] = Some("truth_contract"),
+      plannerSelectedSource: Option[String] = Some("only_move_defense"),
       plannerOwnerCandidates: List[String] = Nil,
       plannerAdmittedOwners: List[String] = Nil,
       plannerProposedOwnerMappings: List[String] = Nil,
@@ -102,7 +102,9 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
       truthChosenMatchesBest: Option[Boolean] = None,
       truthOnlyMoveDefense: Option[Boolean] = None,
       truthBenchmarkCriticalMove: Option[Boolean] = None,
-      plannerTacticalFailureSources: List[String] = Nil,
+      plannerConcreteTacticalSources: List[String] = Nil,
+      plannerLineConsequenceSources: List[String] = Nil,
+      plannerAlternativeComparisonSources: List[String] = Nil,
       plannerForcingDefenseSources: List[String] = Nil,
       plannerMoveDeltaSources: List[String] = Nil,
       quietSupportLiftApplied: Option[Boolean] = None,
@@ -171,7 +173,9 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
       truthChosenMatchesBest = truthChosenMatchesBest,
       truthOnlyMoveDefense = truthOnlyMoveDefense,
       truthBenchmarkCriticalMove = truthBenchmarkCriticalMove,
-      plannerTacticalFailureSources = plannerTacticalFailureSources,
+      plannerConcreteTacticalSources = plannerConcreteTacticalSources,
+      plannerLineConsequenceSources = plannerLineConsequenceSources,
+      plannerAlternativeComparisonSources = plannerAlternativeComparisonSources,
       plannerForcingDefenseSources = plannerForcingDefenseSources,
       plannerMoveDeltaSources = plannerMoveDeltaSources,
       surfaceReplayOutcome =
@@ -370,7 +374,9 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
           - "truthChosenMatchesBest"
           - "truthOnlyMoveDefense"
           - "truthBenchmarkCriticalMove"
-          - "plannerTacticalFailureSources"
+          - "plannerConcreteTacticalSources"
+          - "plannerLineConsequenceSources"
+          - "plannerAlternativeComparisonSources"
           - "plannerForcingDefenseSources"
           - "plannerMoveDeltaSources"
 
@@ -441,7 +447,7 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
                 rawResponsePath = eligibleRaw,
                 commentary = "This puts the queen on a5.",
                 moveReviewFallbackMode = "exact_factual",
-                plannerSceneType = Some("tactical_failure"),
+                plannerSceneType = Some("concrete_tactical"),
                 plannerSelectedQuestion = None,
                 plannerSelectedSource = None,
                 plannerOwnerCandidates = List("source_kind=pv_delta")
@@ -463,7 +469,7 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
       assertEquals(blockedRow.selected, false, clues(blockedRow))
       assertEquals(blockedRow.lane, Lane.Blocked, clues(blockedRow))
       assertEquals(mismatchRow.selected, false, clues(mismatchRow))
-      assert(mismatchRow.selectionReasons.exists(_.startsWith("before_scene_not_quiet:tactical_failure")), clues(mismatchRow))
+      assert(mismatchRow.selectionReasons.exists(_.startsWith("before_scene_not_quiet:concrete_tactical")), clues(mismatchRow))
     }
   }
 
@@ -761,7 +767,7 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             rawResponsePath = selectorMismatchRaw,
             commentary = "This puts the queen on a5.",
             moveReviewFallbackMode = "exact_factual",
-            plannerSceneType = Some("tactical_failure"),
+            plannerSceneType = Some("concrete_tactical"),
             plannerSelectedQuestion = None,
             plannerSelectedSource = None,
             plannerMoveDeltaSources = Nil
@@ -800,8 +806,8 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             plannerSceneType = Some("forcing_defense"),
             plannerSelectedQuestion = Some("WhyNow"),
             plannerSelectedOwnerKind = Some("ForcingDefense"),
-            plannerSelectedSource = Some("truth_contract"),
-            plannerForcingDefenseSources = List("truth_contract")
+            plannerSelectedSource = Some("only_move_defense"),
+            plannerForcingDefenseSources = List("only_move_defense")
           )
         )
       val afterEntries =
@@ -813,11 +819,11 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             rawResponsePath = selectorMismatchRaw,
             commentary = "This puts the queen on a5.",
             moveReviewFallbackMode = "exact_factual",
-            plannerSceneType = Some("tactical_failure"),
+            plannerSceneType = Some("concrete_tactical"),
             plannerSelectedQuestion = None,
             plannerSelectedSource = None,
             runtimeGatePassed = Some(false),
-            runtimeGateRejectReasons = List("scene_type_not_allowed:tactical_failure")
+            runtimeGateRejectReasons = List("scene_type_not_allowed:concrete_tactical")
           ),
           moveReviewEntry(
             sampleId = "g-ingress:long_structural_squeeze:43:moveReview",
@@ -826,12 +832,12 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             rawResponsePath = ingressRegressionRaw,
             commentary = "This puts the rook on c8.",
             moveReviewFallbackMode = "exact_factual",
-            plannerSceneType = Some("tactical_failure"),
+            plannerSceneType = Some("concrete_tactical"),
             plannerSelectedQuestion = None,
             plannerSelectedSource = None,
             plannerOwnerCandidates = List(
-              "DecisionTiming:source_kind=truth_contract",
-              "TacticalFailure:source_kind=truth_contract"
+              "DecisionTiming:source_kind=only_move_defense",
+              "ConcreteTactical:source_kind=tactical_contract"
             ),
             rawChoiceType = Some("StyleChoice"),
             rawDecisionPresent = Some(false),
@@ -849,12 +855,12 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             truthClass = Some("Best"),
             truthReasonFamily = Some("TacticalRefutation"),
             truthFailureMode = Some("TacticalRefutation"),
-            plannerTacticalFailureSources = List("truth_contract"),
+            plannerConcreteTacticalSources = List("tactical_contract"),
             plannerMoveDeltaSources = Nil,
             runtimeGatePassed = Some(false),
             runtimeGateRejectReasons =
-              List("pv_delta_missing", "scene_type_not_allowed:tactical_failure"),
-            runtimeSceneType = Some("tactical_failure"),
+              List("pv_delta_missing", "scene_type_not_allowed:concrete_tactical"),
+            runtimeSceneType = Some("concrete_tactical"),
             runtimePvDeltaAvailable = Some(false),
             runtimeMoveLinkedPvDeltaAnchorAvailable = Some(false)
           ),
@@ -865,7 +871,7 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             rawResponsePath = blockedSpikeRaw,
             commentary = "This puts the king on e7.",
             moveReviewFallbackMode = "exact_factual",
-            plannerSceneType = Some("tactical_failure"),
+            plannerSceneType = Some("line_consequence"),
             plannerSelectedQuestion = None,
             plannerSelectedOwnerKind = None,
             plannerSelectedSource = None,
@@ -880,9 +886,8 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             sanitizedPvDeltaIngressReason = Some("pv_delta_present_but_empty"),
             truthReasonFamily = Some("TacticalRefutation"),
             truthFailureMode = Some("NoClearPlan"),
-            plannerTacticalFailureSources = List("truth_contract"),
             runtimeGatePassed = Some(false),
-            runtimeGateRejectReasons = List("scene_type_not_allowed:tactical_failure")
+            runtimeGateRejectReasons = List("scene_type_not_allowed:line_consequence")
           )
         )
 
@@ -909,7 +914,7 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
       )
       assertEquals(
         selectorMismatchEval.upstreamPrimaryCause,
-        Some("baseline_selected_despite_preexisting_tactical_scene"),
+        Some("baseline_selected_despite_preexisting_concrete_tactical_scene"),
         clues(selectorMismatchEval)
       )
       assertEquals(ingressRegressionEval.isolationClassification, IsolationCategory.IngressRegression, clues(ingressRegressionEval))
@@ -942,12 +947,12 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
       assertEquals(blockedSpikeEval.isolationClassification, IsolationCategory.BlockedFallbackSpike, clues(blockedSpikeEval))
       assertEquals(
         blockedSpikeEval.upstreamPrimarySubsystem,
-        Some("DecisiveTruth"),
+        Some("QuestionFirstCommentaryPlanner"),
         clues(blockedSpikeEval)
       )
       assertEquals(
         blockedSpikeEval.upstreamPrimaryCause,
-        Some("truth_contract_reclassified_blocked_row_as_tactical_failure"),
+        Some("scene_reclassified_and_planner_support_dropped"),
         clues(blockedSpikeEval)
       )
       assert(summary.selectorMismatchCount >= 1, clues(summary))

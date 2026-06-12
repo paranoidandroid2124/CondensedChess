@@ -14,7 +14,18 @@ private[commentary] enum PlayerFacingClaimPrefixKind:
   private def join(prefix: String, claimText: String): String =
     val trimmed = Option(claimText).getOrElse("").trim
     if startsWithPrefix(trimmed, prefix) then trimmed
-    else s"$prefix $trimmed".trim
+    else s"$prefix ${claimAfterPrefix(prefix, trimmed)}".trim
 
   private def startsWithPrefix(text: String, prefix: String): Boolean =
     text.toLowerCase.startsWith(prefix.toLowerCase)
+
+  private def claimAfterPrefix(prefix: String, text: String): String =
+    if prefix.toLowerCase.endsWith("that") then lowerInitialDeictic(text)
+    else text
+
+  private def lowerInitialDeictic(text: String): String =
+    val lower = text.toLowerCase
+    List("this", "that", "these", "those")
+      .find(token => lower == token || lower.startsWith(s"$token "))
+      .map(token => token + text.drop(token.length))
+      .getOrElse(text)

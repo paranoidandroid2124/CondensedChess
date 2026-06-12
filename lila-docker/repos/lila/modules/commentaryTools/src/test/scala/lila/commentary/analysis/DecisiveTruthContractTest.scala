@@ -142,6 +142,34 @@ class DecisiveTruthContractTest extends FunSuite:
     assertEquals(sanitized.comparativeSource, Some(DecisionComparisonComparativeSupport.ExactTargetFixationSource))
   }
 
+  test("role-aware comparative consequence survives sanitization only as verified branch evidence") {
+    val consequence =
+      "g5 reaches an exchange sequence on the engine-best branch 10... g5 11. b4 11... gxh4 12. bxa5; Nge7 stays on the played branch 10... Nge7 11. O-O 11... Bb6 12. a4 without that concrete exchange sequence."
+    val raw =
+      comparison(
+        chosenMove = "Nge7",
+        engineBestMove = Some("g5"),
+        cpLoss = 80,
+        deferredMove = Some("g5"),
+        chosenMatchesBest = false
+      ).copy(
+        comparedMove = Some("Nge7"),
+        comparativeConsequence = Some(consequence),
+        comparativeSource = Some(DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource)
+      )
+
+    val contract = DecisiveTruth.derive(
+      ctx = ctx("g8e7", "Nge7"),
+      comparisonOverride = Some(raw)
+    )
+    val sanitized = DecisiveTruth.sanitizeDecisionComparison(Some(raw), contract).getOrElse(fail("missing comparison"))
+
+    assertEquals(sanitized.engineBestMove, Some("g5"))
+    assertEquals(sanitized.comparedMove, Some("Nge7"))
+    assertEquals(sanitized.comparativeConsequence, Some(consequence))
+    assertEquals(sanitized.comparativeSource, Some(DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource))
+  }
+
   test("verified blunder strips compensation framing from context and signal digests") {
     val comp = compensationInfo(125, "central pressure", Map("central pressure" -> 0.82))
     val raw =
@@ -663,7 +691,7 @@ class DecisiveTruthContractTest extends FunSuite:
     assertEquals(frame.failureInterpretation.interpretationAllowed, false)
   }
 
-  test("forcing-line blunder with a concrete route carrier keeps a tactical failure interpretation") {
+  test("forcing-line blunder with a concrete route carrier keeps a tactical refutation interpretation") {
     val pack =
       StrategyPack(
         sideToMove = "white",
@@ -813,7 +841,7 @@ class DecisiveTruthContractTest extends FunSuite:
     assert(sanitizedPack.signalDigest.flatMap(_.dominantIdeaFocus).isEmpty, clue(sanitizedPack.signalDigest))
   }
 
-  test("truth-sanitized relation support reaches player surface outside tactical failure gate") {
+  test("truth-sanitized relation support reaches player surface outside a high-risk tactical gate") {
     val xray = RelationObservationCatalog.descriptorForKind(MoveReviewExchangeAnalyzer.RelationKind.XRay).get
     val relationIdea =
       StrategyIdeaSignal(

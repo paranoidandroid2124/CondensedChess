@@ -23,7 +23,7 @@ private[commentary] object MoveReviewLocalFact:
         case Endgame         => "endgame"
 
   enum Authority:
-    case CanonicalFact, CertifiedStrategy, OpeningGoalEvidence, PvCoupledLine, TruthContract
+    case CanonicalFact, CertifiedStrategy, OpeningGoalEvidence, PvCoupledLine, OnlyMoveDefense
 
     def key: String =
       this match
@@ -31,10 +31,10 @@ private[commentary] object MoveReviewLocalFact:
         case CertifiedStrategy   => "certified_strategy"
         case OpeningGoalEvidence => "opening_goal_evidence"
         case PvCoupledLine       => "pv_coupled_line"
-        case TruthContract       => "truth_contract"
+        case OnlyMoveDefense     => "only_move_defense"
 
   enum Source:
-    case CanonicalFact, CertifiedStrategy, OpeningGoalEvidence, PvCoupledLine, TruthContract
+    case CanonicalFact, CertifiedStrategy, OpeningGoalEvidence, PvCoupledLine, OnlyMoveDefense
 
     def key: String =
       this match
@@ -42,7 +42,7 @@ private[commentary] object MoveReviewLocalFact:
         case CertifiedStrategy   => "certified_strategy"
         case OpeningGoalEvidence => "opening_goal_evidence"
         case PvCoupledLine       => "pv_coupled_line"
-        case TruthContract       => "truth_contract"
+        case OnlyMoveDefense     => "only_move_defense"
 
     def authority: Authority =
       this match
@@ -50,7 +50,7 @@ private[commentary] object MoveReviewLocalFact:
         case CertifiedStrategy   => Authority.CertifiedStrategy
         case OpeningGoalEvidence => Authority.OpeningGoalEvidence
         case PvCoupledLine       => Authority.PvCoupledLine
-        case TruthContract       => Authority.TruthContract
+        case OnlyMoveDefense     => Authority.OnlyMoveDefense
 
   enum Producer:
     case OpeningGoal
@@ -58,10 +58,12 @@ private[commentary] object MoveReviewLocalFact:
     case CertifiedStrategyDelta
     case TacticalMotif
     case TargetPressure
+    case RelationWitness
     case DefensiveTruth
     case CaptureSequence
     case EndgameFact
-    case ScopedLineDefault
+    case LineConsequence
+    case ClaimAuthorityPromotion
     case PlannerCausalClaim
 
     def key: String =
@@ -71,10 +73,12 @@ private[commentary] object MoveReviewLocalFact:
         case CertifiedStrategyDelta => "certified_strategy_delta"
         case TacticalMotif          => "tactical_motif"
         case TargetPressure         => "target_pressure"
+        case RelationWitness        => "relation_witness"
         case DefensiveTruth         => "defensive_truth"
         case CaptureSequence        => "capture_sequence"
         case EndgameFact            => "endgame_fact"
-        case ScopedLineDefault      => "scoped_line_default"
+        case LineConsequence        => "line_consequence"
+        case ClaimAuthorityPromotion => "claim_authority_promotion"
         case PlannerCausalClaim     => "planner_causal_claim"
 
     def supports(family: Family, source: Source): Boolean =
@@ -87,15 +91,28 @@ private[commentary] object MoveReviewLocalFact:
         case CertifiedStrategyDelta => Set(Family.Defense, Family.LineConsequence, Family.PlanSupport, Family.Pressure)
         case TacticalMotif          => Set(Family.Threat)
         case TargetPressure         => Set(Family.Pressure)
+        case RelationWitness        => Set(Family.Attack, Family.Threat, Family.Pressure, Family.Defense)
         case DefensiveTruth         => Set(Family.Defense)
         case CaptureSequence        => Set(Family.Capture)
         case EndgameFact            => Set(Family.Endgame)
-        case ScopedLineDefault      => Set(Family.LineConsequence)
-        case PlannerCausalClaim =>
+        case LineConsequence        => Set(Family.LineConsequence)
+        case ClaimAuthorityPromotion =>
           Set(
+            Family.Attack,
             Family.Defense,
             Family.Threat,
             Family.Pressure,
+            Family.PlanSupport,
+            Family.LineConsequence,
+            Family.Timing
+          )
+        case PlannerCausalClaim =>
+          Set(
+            Family.Attack,
+            Family.Defense,
+            Family.Threat,
+            Family.Pressure,
+            Family.PlanSupport,
             Family.LineConsequence,
             Family.Timing,
             Family.OpeningGoal,
@@ -109,12 +126,14 @@ private[commentary] object MoveReviewLocalFact:
         case CertifiedStrategyDelta => Set(Source.CertifiedStrategy)
         case TacticalMotif          => Set(Source.CanonicalFact)
         case TargetPressure         => Set(Source.CanonicalFact)
-        case DefensiveTruth         => Set(Source.TruthContract)
+        case RelationWitness        => Set(Source.PvCoupledLine)
+        case DefensiveTruth         => Set(Source.OnlyMoveDefense)
         case CaptureSequence        => Set(Source.PvCoupledLine)
         case EndgameFact            => Set(Source.CanonicalFact)
-        case ScopedLineDefault      => Set(Source.PvCoupledLine)
+        case LineConsequence        => Set(Source.PvCoupledLine)
+        case ClaimAuthorityPromotion => Set(Source.CertifiedStrategy, Source.PvCoupledLine)
         case PlannerCausalClaim =>
-          Set(Source.CertifiedStrategy, Source.OpeningGoalEvidence, Source.PvCoupledLine, Source.TruthContract)
+          Set(Source.CertifiedStrategy, Source.OpeningGoalEvidence, Source.PvCoupledLine, Source.OnlyMoveDefense)
 
   object Producer:
     val registry: List[Producer] =
@@ -219,22 +238,26 @@ private[commentary] object MoveReviewLocalFact:
       evidenceKinds: List[String],
       relationKinds: List[String],
       lineConsequenceBacked: Boolean,
-      lineBinding: LineBinding = LineBinding.None
+      lineBinding: LineBinding = LineBinding.None,
+      evidenceRefs: List[String] = Nil,
+      guardrails: List[String] = Nil,
+      anchors: List[Anchor] = Nil
   ): Decision =
-    plannerCandidate(plan, evidenceKinds, relationKinds, lineConsequenceBacked, lineBinding)
+    plannerCandidate(plan, evidenceKinds, relationKinds, lineConsequenceBacked, lineBinding, evidenceRefs, guardrails, anchors)
       .fold(Decision(None, List("local_fact_family_missing")))(admit)
 
   def strategicMoveDeltaCandidate(
       delta: PlayerFacingMoveDeltaEvidence,
       anchors: List[Anchor],
-      guardrails: List[String]
+      guardrails: List[String],
+      strictFallbackCandidate: Boolean = false
   ): Candidate =
     Candidate(
       family = familyForMoveDeltaClass(delta.deltaClass),
       source = Source.CertifiedStrategy,
       producer = Producer.CertifiedStrategyDelta,
       subject = Subject.PlanResource,
-      strictFallbackCandidate = false,
+      strictFallbackCandidate = strictFallbackCandidate,
       anchors = anchors,
       lineBinding = LineBinding.PvCoupled,
       evidenceRefs =
@@ -244,6 +267,55 @@ private[commentary] object MoveReviewLocalFact:
         ).flatten,
       guardrails = guardrails
     )
+
+  def lineConsequenceCandidate(
+      evidence: LineConsequenceEvidence,
+      strictFallbackCandidate: Boolean
+  ): Candidate =
+    Candidate(
+      family = Family.LineConsequence,
+      source = Source.PvCoupledLine,
+      producer = Producer.LineConsequence,
+      subject = Subject.PlayedMove,
+      strictFallbackCandidate = strictFallbackCandidate,
+      anchors = lineConsequenceAnchors(evidence),
+      lineBinding = LineBinding.PvCoupled,
+      evidenceRefs = lineConsequenceEvidenceRefs(evidence),
+      guardrails = lineConsequenceGuardrails(evidence)
+    )
+
+  def lineConsequenceEvidenceRefs(evidence: LineConsequenceEvidence): List[String] =
+    (
+      List(
+        s"line_consequence_kind:${wireKey(evidence.kind)}",
+        s"line_consequence_release:${wireKey(evidence.release)}",
+        s"line_consequence_window_ply:${evidence.windowPly}"
+      ) ++
+        evidence.lineId.map(lineId => s"line_consequence_line_id:$lineId") ++
+        evidence.triggerSan.map(san => s"line_consequence_trigger_san:$san") ++
+        evidence.scoreCp.map(cp => s"line_consequence_score_cp:$cp") ++
+        evidence.mate.map(mate => s"line_consequence_mate:$mate") ++
+        evidence.depth.map(depth => s"line_consequence_depth:$depth") ++
+        evidence.uciMoves.take(6).map(uci => s"line_consequence_uci:${MoveReviewPvLine.normalizeUci(uci)}")
+    ).map(_.trim).filter(_.nonEmpty).distinct
+
+  def lineConsequenceAnchors(evidence: LineConsequenceEvidence): List[Anchor] =
+    (
+      List(
+        Some(Anchor("line_consequence_kind", wireKey(evidence.kind))),
+        evidence.lineId.map(lineId => Anchor("line_id", lineId)),
+        evidence.triggerSan.map(san => Anchor("trigger_san", san))
+      ).flatten ++
+        evidence.uciMoves.headOption.map(uci => Anchor("first_uci", MoveReviewPvLine.normalizeUci(uci)))
+    ).distinct
+
+  def lineConsequenceGuardrails(evidence: LineConsequenceEvidence): List[String] =
+    (
+      List(
+        s"line_consequence_kind:${wireKey(evidence.kind)}",
+        s"line_consequence_release:${wireKey(evidence.release)}"
+      ) ++ evidence.rejectReasons.map(reason => s"line_consequence_reject:$reason")
+    ).distinct
 
   def familyForMoveDeltaClass(deltaClass: PlayerFacingMoveDeltaClass): Family =
     deltaClass match
@@ -259,7 +331,10 @@ private[commentary] object MoveReviewLocalFact:
       evidenceKinds: List[String],
       relationKinds: List[String],
       lineConsequenceBacked: Boolean,
-      lineBinding: LineBinding
+      lineBinding: LineBinding,
+      evidenceRefs: List[String],
+      guardrails: List[String],
+      anchors: List[Anchor]
   ): Option[Candidate] =
     val normalizedEvidence = evidenceKinds.map(normalize)
     val normalizedRelations = relationKinds.map(normalize)
@@ -270,16 +345,21 @@ private[commentary] object MoveReviewLocalFact:
         producer = Producer.PlannerCausalClaim,
         subject = plannerSubject(plan),
         strictFallbackCandidate = strictFallbackEligible(plan, family, normalizedRelations),
-        anchors = plannerAnchors(plan),
+        anchors = (plannerAnchors(plan) ++ anchors).distinct,
         lineBinding = plannerLineBinding(normalizedEvidence, lineConsequenceBacked, lineBinding),
-        evidenceRefs = normalizedEvidence.map(kind => s"evidence_kind:$kind"),
+        evidenceRefs =
+          (normalizedEvidence.map(kind => s"evidence_kind:$kind") ++
+            evidenceRefs.map(_.trim).filter(_.nonEmpty)).distinct,
         guardrails =
-          List(
-            s"planner_owner:${plan.plannerOwnerKind.wireName}",
-            s"planner_source:${plan.plannerSource}"
-          ) ++
-            plan.sourceKinds.map(source => s"source_kind:$source") ++
-            normalizedRelations.map(relation => s"causal_relation:$relation")
+          (
+            List(
+              s"planner_owner:${plan.plannerOwnerKind.wireName}",
+              s"planner_source:${plan.plannerSource}"
+            ) ++
+              plan.sourceKinds.map(source => s"source_kind:$source") ++
+              normalizedRelations.map(relation => s"causal_relation:$relation") ++
+              guardrails.map(_.trim).filter(_.nonEmpty)
+          ).distinct
       )
     }
 
@@ -292,6 +372,7 @@ private[commentary] object MoveReviewLocalFact:
     else if relationKinds.contains("timing_constraint") then Some(Family.Timing)
     else if relationKinds.contains("defensive_resource") then Some(Family.Defense)
     else if relationKinds.contains("plan_race") then Some(Family.Timing)
+    else if decisionComparisonChangeConsequence(plan, relationKinds) then Some(Family.LineConsequence)
     else
       plan.plannerOwnerKind match
         case PlannerOwnerKind.ForcingDefense    => Some(Family.Defense)
@@ -300,16 +381,35 @@ private[commentary] object MoveReviewLocalFact:
         case PlannerOwnerKind.PositionProbe     => Some(Family.Pressure)
         case PlannerOwnerKind.OpeningRelation   => Some(Family.OpeningGoal)
         case PlannerOwnerKind.EndgameTransition => Some(Family.Endgame)
-        case PlannerOwnerKind.TacticalFailure =>
-          if sourceLooksTactical(plan) then Some(Family.Threat)
+        case PlannerOwnerKind.ConcreteTactical =>
+          if sourceLooksOwnedTactical(plan) then Some(Family.Threat)
+          else None
+        case PlannerOwnerKind.LineConsequence =>
+          Some(Family.LineConsequence)
+        case PlannerOwnerKind.AlternativeComparison =>
+          if roleAwareLineConsequenceSource(plan) then Some(Family.LineConsequence)
           else None
         case PlannerOwnerKind.MoveDelta =>
           moveDeltaFamilyFromSourceKinds(plan.sourceKinds)
 
+  private def decisionComparisonChangeConsequence(
+      plan: QuestionPlan,
+      relationKinds: List[String]
+  ): Boolean =
+    plan.questionKind == AuthorQuestionKind.WhatChanged &&
+      relationKinds.contains("change_consequence") &&
+      (normalize(plan.plannerSource) == "decision_comparison" ||
+        plan.sourceKinds.exists(source => normalize(source) == "decision_comparison"))
+
+  private def roleAwareLineConsequenceSource(plan: QuestionPlan): Boolean =
+    plan.sourceKinds.exists(source =>
+      normalize(source) == normalize(DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource)
+    )
+
   private def moveDeltaFamilyFromSourceKinds(sourceKinds: List[String]): Option[Family] =
     val sources = sourceKinds.map(normalize)
     if sources.exists(_.contains("timing")) then Some(Family.Timing)
-    else if sources.exists(source => source.contains("threat") || source.contains("tactical")) then Some(Family.Threat)
+    else if sources.exists(sourceLooksOwnedTactical) then Some(Family.Threat)
     else if sources.exists(source =>
       source.contains("prevented_plan") ||
         source.contains("defense") ||
@@ -334,6 +434,10 @@ private[commentary] object MoveReviewLocalFact:
         source.contains("simplification") ||
         source.contains("exchange")
     ) then Some(Family.LineConsequence)
+    else if sources.exists(source =>
+      source.contains("plan_support") ||
+        source.contains("plan_advance")
+    ) then Some(Family.PlanSupport)
     else if sources.exists(_.contains("pv_delta")) then Some(Family.LineConsequence)
     else None
 
@@ -342,9 +446,14 @@ private[commentary] object MoveReviewLocalFact:
       evidenceKinds: List[String],
       lineConsequenceBacked: Boolean
   ): Source =
-    val sources = plan.sourceKinds.map(normalize)
-    if sources.exists(_.contains("truth_contract")) || plan.plannerOwnerKind == PlannerOwnerKind.ForcingDefense then
-      Source.TruthContract
+    val sources =
+      (
+        plan.sourceKinds ++
+          List(plan.plannerSource) ++
+          plan.timingWitness.toList.map(_.source)
+      ).map(normalize)
+    if sources.exists(_.contains("only_move_defense")) then
+      Source.OnlyMoveDefense
     else if lineConsequenceBacked || evidenceKinds.contains("branch_line") then
       Source.PvCoupledLine
     else if plan.plannerOwnerKind == PlannerOwnerKind.OpeningRelation then
@@ -364,7 +473,7 @@ private[commentary] object MoveReviewLocalFact:
         relationKinds.contains("timing_constraint") &&
           plan.timingWitness.nonEmpty
       case Family.Threat =>
-        sourceLooksTactical(plan) &&
+        sourceLooksOwnedTactical(plan) &&
           plan.sourceKinds.exists(source => normalize(source).contains("canonical"))
       case _ => false
 
@@ -372,6 +481,7 @@ private[commentary] object MoveReviewLocalFact:
     if plan.questionKind == AuthorQuestionKind.WhatMustBeStopped ||
         plan.sourceKinds.exists(kind => normalize(kind).contains("reply") || normalize(kind).contains("threat"))
     then Subject.LineOrReply
+    else if plan.sourceKinds.exists(kind => normalize(kind).contains("plan_support")) then Subject.PlanResource
     else Subject.PlayedMove
 
   private def plannerAnchors(plan: QuestionPlan): List[Anchor] =
@@ -395,11 +505,16 @@ private[commentary] object MoveReviewLocalFact:
     else if lineConsequenceBacked || evidenceKinds.contains("branch_line") then LineBinding.PvCoupled
     else LineBinding.None
 
-  private def sourceLooksTactical(plan: QuestionPlan): Boolean =
-    plan.sourceKinds.exists { source =>
-      val low = normalize(source)
-      low.contains("tactical") || low.contains("threat")
-    }
+  private def sourceLooksOwnedTactical(plan: QuestionPlan): Boolean =
+    plan.sourceKinds.exists(sourceLooksOwnedTactical)
+
+  private def sourceLooksOwnedTactical(source: String): Boolean =
+    val low = normalize(source)
+    !low.contains("tactical_sacrifice") &&
+      (low.contains("tactical") || low.contains("threat"))
 
   private def normalize(value: String): String =
     Option(value).getOrElse("").trim.toLowerCase
+
+  private def wireKey(value: Any): String =
+    Option(value).map(_.toString).getOrElse("").replaceAll("([a-z])([A-Z])", "$1_$2").toLowerCase

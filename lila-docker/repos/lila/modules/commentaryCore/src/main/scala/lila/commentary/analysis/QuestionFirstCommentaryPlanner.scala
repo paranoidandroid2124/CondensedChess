@@ -3,7 +3,7 @@ package lila.commentary.analysis
 
 import lila.commentary.analysis.claim.*
 import lila.commentary.analysis.semantic.StrategicObservationIds.ProofFamilyId
-import lila.commentary.StrategyPack
+import lila.commentary.{ MoveReviewRefs, StrategyPack }
 import lila.commentary.model.*
 import lila.commentary.model.authoring.*
 import lila.commentary.model.strategic.CounterfactualMatch
@@ -41,7 +41,9 @@ private[commentary] final case class QuestionPlanConsequence(
 
 private[commentary] enum SceneType:
   case ForcingDefense
-  case TacticalFailure
+  case ConcreteTactical
+  case LineConsequence
+  case AlternativeComparison
   case QuietImprovement
   case TransitionConversion
   case PlanClash
@@ -51,7 +53,9 @@ private[commentary] enum SceneType:
   def wireName: String =
     this match
       case ForcingDefense      => "forcing_defense"
-      case TacticalFailure     => "tactical_failure"
+      case ConcreteTactical    => "concrete_tactical"
+      case LineConsequence     => "line_consequence"
+      case AlternativeComparison => "alternative_comparison"
       case QuietImprovement    => "quiet_improvement"
       case TransitionConversion => "transition_conversion"
       case PlanClash           => "plan_clash"
@@ -59,7 +63,9 @@ private[commentary] enum SceneType:
       case EndgameTransition   => "endgame_transition"
 
 private[commentary] enum PlannerOwnerKind:
-  case TacticalFailure
+  case ConcreteTactical
+  case LineConsequence
+  case AlternativeComparison
   case ForcingDefense
   case MoveDelta
   case PositionProbe
@@ -70,7 +76,9 @@ private[commentary] enum PlannerOwnerKind:
 
   def wireName: String =
     this match
-      case TacticalFailure   => "TacticalFailure"
+      case ConcreteTactical  => "ConcreteTactical"
+      case LineConsequence   => "LineConsequence"
+      case AlternativeComparison => "AlternativeComparison"
       case ForcingDefense    => "ForcingDefense"
       case MoveDelta         => "MoveDelta"
       case PositionProbe     => "PositionProbe"
@@ -292,6 +300,14 @@ private[commentary] final case class AdmissionOutcome(
     demotedTo: Option[AuthorQuestionKind] = None
 )
 
+private[commentary] final case class PvCoupledPlanSupport(
+    planName: String,
+    playedSan: String,
+    evidenceLine: String
+):
+  def claim: String =
+    s"The checked line from $playedSan keeps $planName viable as a practical plan."
+
 private[commentary] final case class QuestionPlannerInputs(
     mainBundle: Option[MainPathClaimBundle],
     quietIntent: Option[QuietMoveIntentClaim],
@@ -315,13 +331,15 @@ private[commentary] final case class QuestionPlannerInputs(
     endgameTransitionClaim: Option[String] = None,
     restrictedDefenseConversionSurface: Option[RestrictedDefenseConversionProof.Contract] = None,
     dualAxisBindSurface: Option[TwoAxisBindProof.Contract] = None,
-    namedRouteNetworkSurface: Option[RouteNetworkBindProof.SurfaceNetwork] = None
+    namedRouteNetworkSurface: Option[RouteNetworkBindProof.SurfaceNetwork] = None,
+    pvCoupledPlanSupport: Option[PvCoupledPlanSupport] = None,
+    lineConsequence: Option[LineConsequenceEvidence] = None
 )
 
 private[commentary] enum WhyNowTimingOwner:
   case Threat(threat: ThreatRow)
   case Prevented(plan: PreventedPlanInfo)
-  case OnlyMove(reason: String)
+  case OnlyMove(reason: String, witness: Option[QuestionPlanTimingWitness])
   case DecisionComparisonOwner(comparison: DecisionComparison)
 
 private[commentary] final case class WhyThisPlanMaterial(
@@ -332,7 +350,8 @@ private[commentary] final case class WhyThisPlanMaterial(
     strengthTier: QuestionPlanStrengthTier,
     sourceKinds: List[String],
     plannerOwnerKind: PlannerOwnerKind,
-    plannerSource: String
+    plannerSource: String,
+    admissibilityReasons: List[String] = List("move_owner", "move_local_claim")
 )
 
 private[commentary] final case class PositionProbePlanMaterial(
@@ -447,6 +466,10 @@ private[commentary] final case class WhatChangedPlannerMaterial(
     hasLocalFileEntryChange: Boolean,
     preventedPlanChange: Option[String],
     hasPreventedPlanChangeMaterial: Boolean,
+    pvCoupledPlanSupport: Option[PvCoupledPlanSupport],
+    lineConsequence: Option[LineConsequenceEvidence],
+    lineConsequenceClaim: Option[String],
+    lineConsequenceRiskGate: Boolean,
     decisionComparisonChange: Option[String],
     moveLinkedChange: Option[String]
 ):
@@ -462,7 +485,8 @@ private[commentary] object QuestionPlannerInputsBuilder:
       ctx: NarrativeContext,
       strategyPack: Option[StrategyPack],
       truthContract: Option[DecisiveTruthContract],
-      candidateEvidenceLines: List[String] = Nil
+      candidateEvidenceLines: List[String] = Nil,
+      refs: Option[MoveReviewRefs] = None
   ): QuestionPlannerInputs =
     val decisionComparison = sanitizedDecisionComparison(ctx, truthContract)
     val cleanedEvidenceLines = plannerEvidenceLines(ctx, candidateEvidenceLines, decisionComparison)
@@ -471,6 +495,7 @@ private[commentary] object QuestionPlannerInputsBuilder:
     val comparativeDecisionComparison =
       comparativeDecisionComparisonFrom(
         ctx = ctx,
+        refs = refs,
         strategyPack = strategyPack,
         truthContract = truthContract,
         cleanedEvidenceLines = cleanedEvidenceLines,
@@ -494,6 +519,11 @@ private[commentary] object QuestionPlannerInputsBuilder:
       HeavyPieceLocalBindValidation.blocksPlayerFacingShell(ctx)
     val namedRouteNetworkSurface =
       namedRouteNetworkSurfaceWhenAllowed(heavyPieceLocalBindBlocked, preventedPlansNow, evidenceBackedPlans)
+    val pvCoupledPlanSupport =
+      playedMovePvCoupledPlanSupport(ctx, cleanedEvidenceLines)
+    val lineConsequence =
+      lineConsequenceCandidate(ctx, refs, truthContract)
+        .filter(_.kind != LineConsequenceKind.PreviewOnly)
 
     QuestionPlannerInputs(
       mainBundle = mainBundle,
@@ -518,8 +548,20 @@ private[commentary] object QuestionPlannerInputsBuilder:
       endgameTransitionClaim = QuestionFirstCommentaryPlanner.endgameTransitionReplayClaim(ctx),
       restrictedDefenseConversionSurface = ctx.restrictedDefenseConversion.filter(_.certified),
       dualAxisBindSurface = ctx.dualAxisBind.filter(_.certified),
-      namedRouteNetworkSurface = namedRouteNetworkSurface
+      namedRouteNetworkSurface = namedRouteNetworkSurface,
+      pvCoupledPlanSupport = pvCoupledPlanSupport,
+      lineConsequence = lineConsequence
     )
+
+  private def lineConsequenceCandidate(
+      ctx: NarrativeContext,
+      refs: Option[MoveReviewRefs],
+      truthContract: Option[DecisiveTruthContract]
+  ): Option[LineConsequenceEvidence] =
+    if truthContract.exists(_.blocksStrategicSupport) then
+      LineConsequenceEvaluator.reviewedMoveSurfaceCandidate(ctx, refs)
+        .orElse(LineConsequenceEvaluator.surfaceCandidate(ctx, refs))
+    else LineConsequenceEvaluator.surfaceCandidate(ctx, refs)
 
   private def sanitizedDecisionComparison(
       ctx: NarrativeContext,
@@ -544,6 +586,7 @@ private[commentary] object QuestionPlannerInputsBuilder:
 
   private def comparativeDecisionComparisonFrom(
       ctx: NarrativeContext,
+      refs: Option[MoveReviewRefs],
       strategyPack: Option[StrategyPack],
       truthContract: Option[DecisiveTruthContract],
       cleanedEvidenceLines: List[String],
@@ -553,6 +596,7 @@ private[commentary] object QuestionPlannerInputsBuilder:
     DecisionComparisonComparativeSupport.enrich(
       comparison = decisionComparison,
       ctx = ctx,
+      refs = refs,
       strategyPack = strategyPack,
       truthContract = truthContract,
       candidateEvidenceLines = cleanedEvidenceLines,
@@ -583,6 +627,62 @@ private[commentary] object QuestionPlannerInputsBuilder:
       )
     }.flatten
 
+  private def playedMovePvCoupledPlanSupport(
+      ctx: NarrativeContext,
+      cleanedEvidenceLines: List[String]
+  ): Option[PvCoupledPlanSupport] =
+    for
+      playedSan <- ctx.playedSan.flatMap(cleanLine)
+      line <- cleanedEvidenceLines.find(line => lineStartsWithPlayedMove(line, playedSan))
+      plan <- ctx.strategicPlanEvidence.pvCoupledPlans
+        .sortBy(plan => pvCoupledPlanSupportRank(ctx, plan))
+        .flatMap(plan => cleanLine(plan.hypothesis.planName).map(name => plan -> name))
+        .headOption
+    yield PvCoupledPlanSupport(
+      planName = plan._2,
+      playedSan = playedSan,
+      evidenceLine = line
+    )
+
+  private def pvCoupledPlanSupportRank(
+      ctx: NarrativeContext,
+      plan: PlanEvidenceEvaluator.EvaluatedPlan
+  ): (Int, Int) =
+    val text =
+      normalizeSanToken(
+        List(
+          plan.hypothesis.planName,
+          plan.hypothesis.themeL1,
+          plan.hypothesis.subplanId.getOrElse("")
+        ).mkString(" ")
+      )
+    val playedIsCapture = ctx.playedSan.exists(_.contains("x"))
+    val tacticalPlan =
+      List("attack", "counterplay", "tactical", "forcing", "initiative", "gain", "exchange").exists(text.contains)
+    val restraintPlan =
+      List("prophylaxis", "restriction", "restraint").exists(text.contains)
+    val fit =
+      if playedIsCapture && restraintPlan then 3
+      else if playedIsCapture && tacticalPlan then 0
+      else 1
+    fit -> plan.hypothesis.rank
+
+  private def lineStartsWithPlayedMove(line: String, playedSan: String): Boolean =
+    LineScopedCitation.firstConcreteSanToken(line).exists(token => sameSanToken(token, playedSan))
+
+  private def sameSanToken(left: String, right: String): Boolean =
+    normalizeSanToken(left) == normalizeSanToken(right)
+
+  private def normalizeSanToken(raw: String): String =
+    Option(raw)
+      .getOrElse("")
+      .trim
+      .replaceAll("""[+#?!]+$""", "")
+      .replaceAll("""^\d+\.(?:\.\.)?""", "")
+      .replaceAll("""[.,;:]+$""", "")
+      .trim
+      .toLowerCase
+
   private def branchDisplayLine(branch: EvidenceBranch): Option[String] =
     LineScopedCitation
       .evidenceBranchDisplayLine(branch)
@@ -599,6 +699,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
 
   private val PlannerLinePurpose = "planner_line_proof"
   private val NeutralizeKeyBreakProofFamily = ProofFamilyId.NeutralizeKeyBreak.wireKey
+  private val OnlyMoveDefenseProofFamily = "only_move_defense"
   private val OpeningRelationDataOnlyPlyCutoff = 20
 
   private[commentary] def openingRelationReplayClaim(ctx: NarrativeContext): Option[String] =
@@ -801,8 +902,12 @@ private[commentary] object QuestionFirstCommentaryPlanner:
     import AuthorQuestionKind.*
     val kind = plan.questionKind
     sceneType match
-      case SceneType.TacticalFailure =>
+      case SceneType.ConcreteTactical =>
         questionKindScore(kind, WhyThis -> 5, WhatChanged -> 4, WhatMustBeStopped -> 3, WhyNow -> 2, WhatMattersHere -> 1, WhosePlanIsFaster -> 1)
+      case SceneType.LineConsequence =>
+        questionKindScore(kind, WhatChanged -> 5, WhyThis -> 4, WhyNow -> 2, WhatMustBeStopped -> 1, WhatMattersHere -> 1, WhosePlanIsFaster -> 1)
+      case SceneType.AlternativeComparison =>
+        questionKindScore(kind, WhyThis -> 5, WhatChanged -> 4, WhyNow -> 3, WhatMattersHere -> 1, WhatMustBeStopped -> 1, WhosePlanIsFaster -> 1)
       case SceneType.ForcingDefense =>
         questionKindScore(kind, WhatMustBeStopped -> 5, WhyNow -> 4, WhatChanged -> 3, WhyThis -> 2, WhatMattersHere -> 1, WhosePlanIsFaster -> 1)
       case SceneType.PlanClash =>
@@ -1140,31 +1245,25 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       }
     }
 
-  private def plannerBestHoldNeedsForcingOwner(
-      inputs: QuestionPlannerInputs,
-      contract: DecisiveTruthContract
-  ): Boolean =
-    contract.truthClass == DecisiveTruthClass.Best &&
-      contract.reasonFamily == DecisiveReasonKind.TacticalRefutation &&
-      contract.chosenMatchesBest &&
-      contract.failureMode == FailureInterpretationMode.NoClearPlan &&
-      !hasConcreteMoveDeltaChange(inputs)
-
   private def onlyMovePressure(
-      inputs: QuestionPlannerInputs,
       truthContract: Option[DecisiveTruthContract]
   ): Option[String] =
     truthContract.flatMap { contract =>
       Option.when(
-        contract.isCriticalBestMove ||
-          contract.reasonFamily == DecisiveReasonKind.OnlyMoveDefense ||
-          plannerBestHoldNeedsForcingOwner(inputs, contract)
+        onlyMoveOwnsReviewedMove(contract)
       ) {
         contract.benchmarkMove match
           case Some(best) => s"Other moves allow the position to slip away; the benchmark move is $best"
           case None       => "Other moves allow the position to slip away"
       }
     }
+
+  private def onlyMoveOwnsReviewedMove(contract: DecisiveTruthContract): Boolean =
+    contract.chosenMatchesBest &&
+      (
+        contract.isCriticalBestMove ||
+          contract.reasonFamily == DecisiveReasonKind.OnlyMoveDefense
+      )
 
   private def becauseClause(raw: String): String =
     val text = Option(raw).getOrElse("").trim
@@ -1343,7 +1442,10 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       comparison: Option[DecisionComparison]
   ): Option[String] =
     comparison.flatMap { value =>
-      value.cpLossVsChosen
+      roleAwareDecisionComparisonConsequence(value)
+        .map(consequence => s"The concrete difference is that $consequence")
+        .orElse(
+          value.cpLossVsChosen
         .map(math.abs)
         .filter(_ >= 60)
         .map { loss =>
@@ -1357,6 +1459,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
             )
             .getOrElse(s"This changes the practical balance by preserving about ${loss}cp.")
         }
+        )
     }
 
   private def decisionComparisonChangeContrast(
@@ -1377,11 +1480,21 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       comparison: Option[DecisionComparison]
   ): Option[String] =
     comparison.flatMap { value =>
-      value.cpLossVsChosen
+      roleAwareDecisionComparisonConsequence(value)
+        .orElse(
+          value.cpLossVsChosen
         .map(math.abs)
         .filter(_ >= 60)
         .map(loss => s"That keeps roughly ${loss}cp of practical value from slipping away.")
+        )
     }
+
+  private def roleAwareDecisionComparisonConsequence(
+      comparison: DecisionComparison
+  ): Option[String] =
+    comparison.comparativeSource
+      .filter(source => source.trim == DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource)
+      .flatMap(_ => comparison.comparativeConsequence.map(_.trim).filter(DecisionComparisonComparativeSupport.roleAwareLineConsequenceText))
 
   private def comparisonAlternativeMove(
       comparison: DecisionComparison
@@ -1446,7 +1559,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
               _.deferredMove.map(move => s"The practical alternative $move keeps the more familiar opening route.")
             )
           )
-          .orElse(onlyMovePressure(inputs, truthContract))
+          .orElse(onlyMovePressure(truthContract))
           .orElse(Some("The move matters because it changes which opening script the position follows."))
 
   private def endgameTransitionContrast(
@@ -1597,10 +1710,10 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       question: AuthorQuestion,
       inputs: QuestionPlannerInputs,
       truthContract: Option[DecisiveTruthContract],
-      sceneType: SceneType
+    sceneType: SceneType
   ): Either[QuestionPlan, RejectedQuestionPlan] =
     given QuestionPlannerInputs = inputs
-    whyThisDomainFirstPlan(question, inputs, truthContract, sceneType).getOrElse {
+    whyThisDomainFirstPlan(question, inputs, sceneType).getOrElse {
       val moveOwnerClaim = whyThisMoveOwnerClaim(inputs)
       whyThisPlanMaterial(ctx, inputs, truthContract, moveOwnerClaim) match
         case None =>
@@ -1611,6 +1724,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
               question = question,
               fallbackLine =
                 inputs.mainBundle.flatMap(_.lineScopedClaim).map(_.claimText)
+                  .orElse(inputs.decisionComparison.flatMap(_.evidence))
                   .orElse(inputs.quietIntent.flatMap(_.evidenceLine)),
               sourceKinds = material.evidenceSourceKinds
             )
@@ -1624,7 +1738,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
             fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
             strengthTier = material.strengthTier,
             sourceKinds = material.sourceKinds,
-            admissibilityReasons = List("move_owner", "move_local_claim"),
+            admissibilityReasons = material.admissibilityReasons,
             plannerOwnerKind = material.plannerOwnerKind,
             plannerSource = material.plannerSource
           )
@@ -1633,12 +1747,9 @@ private[commentary] object QuestionFirstCommentaryPlanner:
   private def whyThisDomainFirstPlan(
       question: AuthorQuestion,
       inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract],
       sceneType: SceneType
   ): Option[Either[QuestionPlan, RejectedQuestionPlan]] =
     sceneType match
-      case SceneType.OpeningRelation if inputs.openingRelationClaim.nonEmpty =>
-        Some(buildOpeningRelationPlan(question, inputs, truthContract, AuthorQuestionKind.WhyThis))
       case SceneType.EndgameTransition if inputs.endgameTransitionClaim.nonEmpty =>
         Some(buildEndgameTransitionPlan(question, inputs, AuthorQuestionKind.WhyThis))
       case _ => None
@@ -1650,8 +1761,19 @@ private[commentary] object QuestionFirstCommentaryPlanner:
           claim.scope == PlayerFacingClaimScope.LineScoped &&
             claim.packet.exists(_.fallbackMode == PlayerFacingClaimFallbackMode.WeakMain)
         )
-      )
+      ).filter(plannerMoveOwnerClaimAllowed)
     }
+
+  private def plannerMoveOwnerClaimAllowed(claim: MainPathScopedClaim): Boolean =
+    claim.mode != PlayerFacingTruthMode.Tactical || tacticalClaimOwnsCurrentMove(claim)
+
+  private def tacticalClaimOwnsCurrentMove(claim: MainPathScopedClaim): Boolean =
+    claim.tacticalOwnership.exists(ownedTacticalTag) &&
+      normalizeText(claim.sourceKind) != "tactical sacrifice"
+
+  private def ownedTacticalTag(raw: String): Boolean =
+    val tag = normalizeText(raw)
+    tag.nonEmpty && tag != "tactical sacrifice"
 
   private def whyThisPlanMaterial(
       ctx: Option[NarrativeContext],
@@ -1660,13 +1782,14 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       moveOwnerClaim: Option[MainPathScopedClaim]
   ): Option[WhyThisPlanMaterial] =
     val namedRouteClaim = namedRouteNetworkWhyThisClaim(inputs)
-    namedRouteClaim
+    val moveOwnedMaterial =
+      namedRouteClaim
       .orElse(moveOwnerClaim.map(_.claimText))
       .orElse(inputs.quietIntent.map(_.claimText))
       .map { claim =>
         val namedRouteOwner = namedRouteClaim.contains(claim)
         val routeSource = Option.when(namedRouteOwner)(RouteNetworkBindProof.ProofSource)
-        val tacticalOwner = moveOwnerClaim.exists(_.mode == PlayerFacingTruthMode.Tactical)
+        val tacticalOwner = moveOwnerClaim.exists(tacticalClaimOwnsCurrentMove)
         WhyThisPlanMaterial(
           claim = claim,
           evidenceSourceKinds = (List("main_bundle", "quiet_intent") ++ routeSource.toList).distinct,
@@ -1680,7 +1803,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
               routeSource.toList).distinct,
           plannerOwnerKind =
             if namedRouteOwner then PlannerOwnerKind.MoveDelta
-            else if tacticalOwner then PlannerOwnerKind.TacticalFailure
+            else if tacticalOwner then PlannerOwnerKind.ConcreteTactical
             else PlannerOwnerKind.MoveDelta,
           plannerSource =
             moveOwnerClaim.map(_.sourceKind)
@@ -1688,6 +1811,51 @@ private[commentary] object QuestionFirstCommentaryPlanner:
               .getOrElse("move_owner")
         )
       }
+    moveOwnedMaterial.orElse(roleAwareWhyThisPlanMaterial(inputs, truthContract))
+
+  private def roleAwareWhyThisPlanMaterial(
+      inputs: QuestionPlannerInputs,
+      truthContract: Option[DecisiveTruthContract]
+  ): Option[WhyThisPlanMaterial] =
+    Option.when(DecisionComparisonComparativeSupport.roleAwareLineConsequenceAllowed(truthContract)) {
+      inputs.decisionComparison
+        .flatMap(roleAwareDecisionComparisonConsequence)
+        .map { consequence =>
+          WhyThisPlanMaterial(
+            claim = s"The concrete difference is that $consequence",
+            evidenceSourceKinds =
+              List(
+                "decision_comparison",
+                DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource
+              ),
+            contrast = None,
+            consequence = None,
+            strengthTier = QuestionPlanStrengthTier.Strong,
+            sourceKinds =
+              List(
+                "decision_comparison",
+                DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource
+              ),
+            plannerOwnerKind = PlannerOwnerKind.AlternativeComparison,
+            plannerSource = "decision_comparison",
+            admissibilityReasons =
+              List(
+                DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource,
+                "branch_scoped_alternative"
+              ) ++ roleAwareAlternativeGateReasons(truthContract)
+          )
+        }
+    }.flatten
+
+  private def roleAwareAlternativeGateReasons(
+      truthContract: Option[DecisiveTruthContract]
+  ): List[String] =
+    List(
+      Option.when(truthContract.exists(_.blocksStrategicSupport))("risk_gate_blocks_strategic_support"),
+      Option.when(truthContract.exists(contract =>
+        contract.reasonFamily == DecisiveReasonKind.OnlyMoveDefense && !contract.chosenMatchesBest
+      ))("missed_benchmark_alternative")
+    ).flatten
 
   private def whyThisContrast(
       inputs: QuestionPlannerInputs,
@@ -1695,7 +1863,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
   ): Option[String] =
     inputs.alternativeNarrative.map(_.sentence)
       .orElse(inputs.decisionComparison.flatMap(_.deferredMove.map(move => s"The practical alternative $move remains secondary here.")))
-      .orElse(onlyMovePressure(inputs, truthContract))
+      .orElse(onlyMovePressure(truthContract))
 
   private def whyThisConsequence(ctx: Option[NarrativeContext], inputs: QuestionPlannerInputs): Option[QuestionPlanConsequence] =
     inputs.pvDelta
@@ -1704,13 +1872,16 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       .orElse {
         inputs.counterfactual
           .filter(_.cpLoss > 0)
-          .map(cf => wrapUpConsequence(counterfactualConsequenceText(ctx, cf.bestMove)))
+          .map(cf => wrapUpConsequence(counterfactualConsequenceText(ctx, cf)))
       }
 
-  private def counterfactualConsequenceText(ctx: Option[NarrativeContext], bestMove: String): String =
-    moveLabel(ctx, bestMove)
-      .map(move => s"If the move is missed, $move becomes the cleaner continuation instead.")
-      .getOrElse("If the move is missed, the opponent gets a cleaner continuation instead.")
+  private def counterfactualConsequenceText(ctx: Option[NarrativeContext], counterfactual: CounterfactualMatch): String =
+    ThreatExtractor.counterfactualCausalThreatConsequence(counterfactual)
+      .getOrElse(
+        moveLabel(ctx, counterfactual.bestMove)
+          .map(move => s"If the move is missed, $move becomes the cleaner continuation instead.")
+          .getOrElse("If the move is missed, the opponent gets a cleaner continuation instead.")
+      )
 
   private def buildWhyNowPlan(
       ctx: Option[NarrativeContext],
@@ -1791,12 +1962,12 @@ private[commentary] object QuestionFirstCommentaryPlanner:
           sourceKind = "prevented_plan",
           plannerOwnerKind = PlannerOwnerKind.ForcingDefense
         )
-      case WhyNowTimingOwner.OnlyMove(reason) =>
+      case WhyNowTimingOwner.OnlyMove(reason, _) =>
         WhyNowPlanMaterial(
           claim = s"The timing matters now because ${becauseClause(reason)}.",
           contrast = decisionComparisonTimingContrast(inputs.decisionComparison),
           consequence = decisionComparisonValueConsequence(inputs.decisionComparison),
-          sourceKind = "truth_contract",
+          sourceKind = "only_move_defense",
           plannerOwnerKind = PlannerOwnerKind.ForcingDefense
         )
       case WhyNowTimingOwner.DecisionComparisonOwner(comparison) =>
@@ -1832,7 +2003,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
           .filter(plan => preventedPlanTimingClaim(plan).nonEmpty)
           .map(WhyNowTimingOwner.Prevented.apply)
       )
-      .orElse(onlyMovePressure(inputs, truthContract).map(WhyNowTimingOwner.OnlyMove.apply))
+      .orElse(onlyMoveTimingOwner(ctx, inputs, truthContract))
       .orElse(
         inputs.decisionComparison
           .filter(comparison => decisionComparisonTimingClaim(Some(comparison)).nonEmpty)
@@ -1850,8 +2021,49 @@ private[commentary] object QuestionFirstCommentaryPlanner:
         neutralizeKeyBreakThreatTimingWitness(threat)
       case WhyNowTimingOwner.Prevented(plan) =>
         neutralizeKeyBreakPreventedPlanTimingWitness(plan)
-      case WhyNowTimingOwner.OnlyMove(_) | WhyNowTimingOwner.DecisionComparisonOwner(_) =>
+      case WhyNowTimingOwner.OnlyMove(_, witness) =>
+        witness
+      case WhyNowTimingOwner.DecisionComparisonOwner(_) =>
         None
+
+  private def onlyMoveTimingOwner(
+      ctx: Option[NarrativeContext],
+      inputs: QuestionPlannerInputs,
+      truthContract: Option[DecisiveTruthContract]
+  ): Option[WhyNowTimingOwner] =
+    onlyMovePressure(truthContract)
+      .map(reason => WhyNowTimingOwner.OnlyMove(reason, onlyMoveTimingWitness(ctx, inputs, truthContract)))
+
+  private def onlyMoveTimingWitness(
+      ctx: Option[NarrativeContext],
+      inputs: QuestionPlannerInputs,
+      truthContract: Option[DecisiveTruthContract]
+  ): Option[QuestionPlanTimingWitness] =
+    truthContract
+      .filter(onlyMoveOwnsReviewedMove)
+      .flatMap { contract =>
+        val rawMoves =
+          List(
+            contract.benchmarkMove,
+            contract.verifiedBestMove,
+            contract.playedMove,
+            inputs.decisionComparison.flatMap(_.engineBestMove),
+            inputs.decisionComparison.flatMap(_.chosenMove)
+          ).flatten.flatMap(cleanLine).distinct
+        val anchor =
+          rawMoves.iterator
+            .flatMap(move => moveLabel(ctx, move).orElse(Some(move)))
+            .toList
+            .headOption
+        anchor.map { move =>
+          QuestionPlanTimingWitness(
+            proofFamily = OnlyMoveDefenseProofFamily,
+            source = "only_move_defense",
+            continuationMove = Some(move),
+            witnessTokens = (move :: rawMoves).distinct
+          )
+        }
+      }
 
   private def neutralizeKeyBreakThreatTimingWitness(threat: ThreatRow): Option[QuestionPlanTimingWitness] =
     val continuationMove = threat.bestDefense.flatMap(cleanLine)
@@ -1885,18 +2097,19 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       truthContract: Option[DecisiveTruthContract],
       sceneType: SceneType
   ): Either[QuestionPlan, RejectedQuestionPlan] =
-    val domainFirst = whatChangedDomainFirstPlan(question, inputs, truthContract, sceneType)
     val material = whatChangedPlannerMaterial(ctx, inputs, truthContract)
+    val domainFirst = whatChangedDomainFirstPlan(question, inputs, truthContract, sceneType, material)
     domainFirst.getOrElse(buildMoveAttributedWhatChangedPlan(question, inputs, material))
 
   private def whatChangedDomainFirstPlan(
       question: AuthorQuestion,
       inputs: QuestionPlannerInputs,
       truthContract: Option[DecisiveTruthContract],
-      sceneType: SceneType
+      sceneType: SceneType,
+      material: WhatChangedPlannerMaterial
   ): Option[Either[QuestionPlan, RejectedQuestionPlan]] =
     sceneType match
-      case SceneType.OpeningRelation if inputs.openingRelationClaim.nonEmpty =>
+      case SceneType.OpeningRelation if inputs.openingRelationClaim.nonEmpty && material.pvCoupledPlanSupport.isEmpty =>
         Some(buildOpeningRelationPlan(question, inputs, truthContract, AuthorQuestionKind.WhatChanged))
       case SceneType.EndgameTransition if inputs.endgameTransitionClaim.nonEmpty =>
         Some(buildEndgameTransitionPlan(question, inputs, AuthorQuestionKind.WhatChanged))
@@ -1908,20 +2121,44 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       truthContract: Option[DecisiveTruthContract]
   ): WhatChangedPlannerMaterial =
     val moveOwner =
-      inputs.mainBundle.flatMap(_.mainClaim).filter(_.scope == PlayerFacingClaimScope.MoveLocal)
+      inputs.mainBundle
+        .flatMap(_.mainClaim)
+        .filter(_.scope == PlayerFacingClaimScope.MoveLocal)
+        .filter(plannerMoveOwnerClaimAllowed)
     val supportedLocalMoveOwner = supportedLocalWhatChangedOwner(ctx, inputs, truthContract, moveOwner)
     val exactTargetFixationChange = exactTargetFixationChangeClaim(inputs)
-    val canPromoteDecisionComparisonChange = moveOwner.nonEmpty || hasConcreteMoveDeltaChange(inputs)
+    val canPromoteDecisionComparisonChange =
+      moveOwner.nonEmpty ||
+        hasConcreteMoveDeltaChange(inputs) ||
+        inputs.decisionComparison.exists(roleAwareDecisionComparisonConsequence(_).nonEmpty)
     val allowedPreventedPlans = preventedPlansAllowedForPlannerSurface(ctx, inputs, truthContract)
     val localFileEntryPair = localFileEntrySurfacePair(ctx, inputs)
     val localFileEntryChange = localFileEntryPair.flatMap(localFileEntryChangeClaim)
     val hasLocalFileEntryChange = localFileEntryPair.nonEmpty
     val preventedPlanChange = allowedPreventedPlans.collectFirst(Function.unlift(preventedPlanChangeClaim))
     val hasPreventedPlanChangeMaterial = allowedPreventedPlans.exists(preventedPlanHasChangeMaterial)
+    val pvCoupledPlanSupport =
+      Option.unless(truthContract.exists(_.blocksStrategicSupport))(inputs.pvCoupledPlanSupport).flatten
+    val lineConsequenceRiskGate =
+      truthContract.exists(_.blocksStrategicSupport)
+    val lineConsequence =
+      Option.when(lineConsequenceRiskGate)(inputs.lineConsequence).flatten
+    val lineConsequenceClaim =
+      lineConsequence.flatMap(evidence =>
+        ctx.flatMap(VariationNarrativeBuilder.build(_, evidence)).orElse(cleanLine(evidence.playerSentence))
+      )
     val decisionComparisonChange =
       if canPromoteDecisionComparisonChange then decisionComparisonChangeClaim(inputs.decisionComparison) else None
     val moveLinkedChange =
-      whatChangedMoveLinkedChange(inputs, exactTargetFixationChange, localFileEntryChange, preventedPlanChange, decisionComparisonChange)
+      whatChangedMoveLinkedChange(
+        inputs,
+        exactTargetFixationChange,
+        localFileEntryChange,
+        preventedPlanChange,
+        pvCoupledPlanSupport,
+        lineConsequenceClaim,
+        decisionComparisonChange
+      )
     WhatChangedPlannerMaterial(
       moveOwner = moveOwner,
       supportedLocalMoveOwner = supportedLocalMoveOwner,
@@ -1933,6 +2170,10 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       hasLocalFileEntryChange = hasLocalFileEntryChange,
       preventedPlanChange = preventedPlanChange,
       hasPreventedPlanChangeMaterial = hasPreventedPlanChangeMaterial,
+      pvCoupledPlanSupport = pvCoupledPlanSupport,
+      lineConsequence = lineConsequence,
+      lineConsequenceClaim = lineConsequenceClaim,
+      lineConsequenceRiskGate = lineConsequenceRiskGate,
       decisionComparisonChange = decisionComparisonChange,
       moveLinkedChange = moveLinkedChange
     )
@@ -1961,6 +2202,8 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       exactTargetFixationChange: Option[String],
       localFileEntryChange: Option[String],
       preventedPlanChange: Option[String],
+      pvCoupledPlanSupport: Option[PvCoupledPlanSupport],
+      lineConsequenceClaim: Option[String],
       decisionComparisonChange: Option[String]
   ): Option[String] =
     exactTargetFixationChange.orElse {
@@ -1973,6 +2216,10 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       localFileEntryChange
     }.orElse {
       preventedPlanChange
+    }.orElse {
+      lineConsequenceClaim
+    }.orElse {
+      pvCoupledPlanSupport.map(_.claim)
     }.orElse {
       decisionComparisonChange
     }
@@ -1994,7 +2241,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
           evidenceForQuestion(
             question = question,
             fallbackLine = whatChangedEvidenceFallbackLine(inputs, material),
-            sourceKinds = List("move_delta", "prevented_plan")
+            sourceKinds = whatChangedSourceKinds(inputs, material)
           ),
         contrast = whatChangedContrast(inputs, material),
         consequence = whatChangedConsequence(inputs, material),
@@ -2019,6 +2266,12 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       material: WhatChangedPlannerMaterial
   ): Option[String] =
     inputs.mainBundle.flatMap(_.lineScopedClaim).map(_.claimText)
+      .orElse(
+        material.lineConsequence.flatMap(evidence =>
+          cleanLine(evidence.sanMoves.take(5).mkString(" ")).map(line => s"Short line: $line.")
+        )
+      )
+      .orElse(material.pvCoupledPlanSupport.map(_.evidenceLine))
       .orElse(material.allowedPreventedPlans.flatMap(_.citationLine).find(_.trim.nonEmpty))
 
   private def whatChangedContrast(
@@ -2050,6 +2303,8 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       }.orElse {
         material.localFileEntryPair.flatMap(localFileEntryChangeConsequence).map(wrapUpConsequence)
       }.orElse {
+        material.lineConsequenceClaim.map(wrapUpConsequence)
+      }.orElse {
         material.allowedPreventedPlans.collectFirst(Function.unlift(preventedPlanChangeConsequence))
           .map(wrapUpConsequence)
       }.orElse {
@@ -2066,6 +2321,8 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       Option.when(material.exactTargetFixationChange.nonEmpty)("exact_target_fixation_delta").toList ++
       inputs.pvDelta.toList.map(_ => "pv_delta") ++
       Option.when(material.localFileEntryChange.nonEmpty || material.hasPreventedPlanChangeMaterial)("prevented_plan").toList ++
+      material.lineConsequenceClaim.toList.map(_ => "line_consequence") ++
+      material.pvCoupledPlanSupport.toList.map(_ => "pv_coupled_plan_support") ++
       inputs.decisionComparison.toList
         .filter(_ => material.decisionComparisonChange.nonEmpty)
         .map(_ => "decision_comparison")
@@ -2074,11 +2331,13 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       inputs: QuestionPlannerInputs,
       material: WhatChangedPlannerMaterial
   ): PlannerOwnerKind =
-    if material.moveOwner.exists(_.mode == PlayerFacingTruthMode.Tactical) then PlannerOwnerKind.TacticalFailure
+    if material.moveOwner.exists(tacticalClaimOwnsCurrentMove) then PlannerOwnerKind.ConcreteTactical
+    else if material.lineConsequenceClaim.nonEmpty then
+      PlannerOwnerKind.LineConsequence
     else if material.decisionComparisonChange.nonEmpty &&
       inputs.pvDelta.isEmpty &&
       material.preventedPlanChange.isEmpty
-    then PlannerOwnerKind.DecisionTiming
+    then PlannerOwnerKind.AlternativeComparison
     else if material.hasLocalFileEntryChange &&
       inputs.pvDelta.isEmpty &&
       material.moveOwner.isEmpty
@@ -2093,12 +2352,14 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       inputs: QuestionPlannerInputs,
       material: WhatChangedPlannerMaterial
   ): String =
-    if material.moveOwner.exists(_.mode == PlayerFacingTruthMode.Tactical) then
+    if material.moveOwner.exists(tacticalClaimOwnsCurrentMove) then
       material.moveOwner.map(_.sourceKind).getOrElse("move_delta")
     else if material.moveOwner.nonEmpty then
       material.moveOwner.map(_.sourceKind).getOrElse("move_delta")
-    else if inputs.pvDelta.nonEmpty then "pv_delta"
+    else if hasConcreteMoveDeltaChange(inputs) then "pv_delta"
     else if material.hasLocalFileEntryChange || material.preventedPlanChange.nonEmpty then "prevented_plan"
+    else if material.lineConsequenceClaim.nonEmpty then "line_consequence"
+    else if material.pvCoupledPlanSupport.nonEmpty then "pv_coupled_plan_support"
     else if material.decisionComparisonChange.nonEmpty then "decision_comparison"
     else material.moveOwner.map(_.sourceKind).getOrElse("move_delta")
 
@@ -2195,7 +2456,11 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       preventedPlan: Option[PreventedPlanInfo]
   ): Option[String] =
     urgentThreat.map { threat =>
-      s"This has to stop the opponent's ${threat.kind.toLowerCase} threat before it lands."
+      val threatLabel = threat.kind.trim.toLowerCase
+      val threatNoun =
+        if threatLabel.endsWith("threat") then threatLabel
+        else s"$threatLabel threat"
+      s"This has to stop the opponent's $threatNoun before it lands."
     }.orElse(preventedPlan.flatMap(preventedPlanStopClaim))
 
   private def preventedPlanStopClaim(plan: PreventedPlanInfo): Option[String] =
@@ -2426,7 +2691,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       sceneReasons = sceneTrace.reasons,
       ownerCandidates = ownerCandidates,
       admittedPlannerOwners = admittedPlannerOwnerTraces(ownerCandidates, admitted),
-      droppedPlannerOwners = droppedPlannerOwnerTraces(ownerCandidates, rejected),
+      droppedPlannerOwners = droppedPlannerOwnerTraces(ownerCandidates, admitted, rejected),
       demotionReasons = ownerTraceDemotionReasons(admitted, rejected, ownerCandidates),
       selectedQuestion = primary.map(_.questionKind),
       selectedPlannerOwnerKind = primary.map(_.plannerOwnerKind),
@@ -2439,14 +2704,15 @@ private[commentary] object QuestionFirstCommentaryPlanner:
   ): List[OwnerCandidateTrace] =
     ownerCandidates
       .filter(_.admissionDecision.contains(AdmissionDecision.PrimaryAllowed))
-      .map(candidate => admittedPlannerOwnerTrace(candidate, admitted))
+      .flatMap { candidate =>
+        val relatedPlans = relatedAdmittedPlans(candidate, admitted)
+        Option.when(relatedPlans.nonEmpty)(admittedPlannerOwnerTrace(candidate, relatedPlans))
+      }
 
   private def admittedPlannerOwnerTrace(
       candidate: OwnerCandidateTrace,
-      admitted: List[QuestionPlan]
+      relatedPlans: List[QuestionPlan]
   ): OwnerCandidateTrace =
-    val relatedPlans =
-      admitted.filter(plan => plan.plannerOwnerKind == candidate.plannerOwnerKind && plan.plannerSource == candidate.source)
     candidate.copy(
       sourceKinds = (candidate.sourceKinds ++ relatedPlans.flatMap(_.sourceKinds)).distinct.sorted,
       questionKinds = (candidate.questionKinds ++ relatedPlans.map(_.questionKind)).distinct.sortBy(_.toString),
@@ -2455,14 +2721,25 @@ private[commentary] object QuestionFirstCommentaryPlanner:
 
   private def droppedPlannerOwnerTraces(
       ownerCandidates: List[OwnerCandidateTrace],
+      admitted: List[QuestionPlan],
       rejected: List[RejectedQuestionPlan]
   ): List[DroppedPlannerOwnerTrace] =
     ownerCandidates
-      .filterNot(_.admissionDecision.contains(AdmissionDecision.PrimaryAllowed))
-      .map(candidate => droppedPlannerOwnerTrace(candidate, rejected))
+      .filterNot(candidate =>
+        candidate.admissionDecision.contains(AdmissionDecision.PrimaryAllowed) &&
+          relatedAdmittedPlans(candidate, admitted).nonEmpty
+      )
+      .map(candidate => droppedPlannerOwnerTrace(candidate, admitted, rejected))
+
+  private def relatedAdmittedPlans(
+      candidate: OwnerCandidateTrace,
+      admitted: List[QuestionPlan]
+  ): List[QuestionPlan] =
+    admitted.filter(plan => plan.plannerOwnerKind == candidate.plannerOwnerKind && plan.plannerSource == candidate.source)
 
   private def droppedPlannerOwnerTrace(
       candidate: OwnerCandidateTrace,
+      admitted: List[QuestionPlan],
       rejected: List[RejectedQuestionPlan]
   ): DroppedPlannerOwnerTrace =
     val relatedRejected =
@@ -2470,12 +2747,16 @@ private[commentary] object QuestionFirstCommentaryPlanner:
         candidate.questionKinds.contains(rejectedPlan.questionKind) ||
           rejectedPlan.reasons.contains(candidate.admissionReason.getOrElse(""))
       )
+    val primaryWithoutSurvivingPlan =
+      candidate.admissionDecision.contains(AdmissionDecision.PrimaryAllowed) &&
+        relatedAdmittedPlans(candidate, admitted).isEmpty
     val reasons =
       (relatedRejected.flatMap(_.reasons) ++
         relatedRejected.flatMap(_.demotionReasons) ++
         candidate.reasons ++
         candidate.admissionReason.toList ++
-        candidate.admissionDecision.toList.map(_.wireName)).distinct.sorted
+        candidate.admissionDecision.toList.map(_.wireName) ++
+        Option.when(primaryWithoutSurvivingPlan)("primary_admission_without_surviving_plan").toList).distinct.sorted
     DroppedPlannerOwnerTrace(
       plannerOwnerKind = candidate.plannerOwnerKind,
       source = candidate.source,
@@ -2633,8 +2914,12 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       supportAdmission("support_material_not_owner_legal")
     else
       candidate.plannerOwnerKind match
-        case PlannerOwnerKind.TacticalFailure =>
-          tacticalFailureAdmission(sceneType)
+        case PlannerOwnerKind.ConcreteTactical =>
+          concreteTacticalAdmission(sceneType)
+        case PlannerOwnerKind.LineConsequence =>
+          lineConsequenceAdmission(sceneType)
+        case PlannerOwnerKind.AlternativeComparison =>
+          alternativeComparisonAdmission(sceneType)
         case PlannerOwnerKind.ForcingDefense =>
           forcingDefenseAdmission(sceneType)
         case PlannerOwnerKind.MoveDelta =>
@@ -2662,14 +2947,33 @@ private[commentary] object QuestionFirstCommentaryPlanner:
   private def forbiddenAdmission(reason: String): AdmissionOutcome =
     AdmissionOutcome(AdmissionDecision.Forbidden, reason)
 
-  private def tacticalFailureAdmission(sceneType: SceneType): AdmissionOutcome =
-    if sceneType == SceneType.TacticalFailure then primaryAdmission("tactical_failure_primary_in_tactical_scene")
-    else supportAdmission("tactical_failure_subordinate_outside_tactical_scene")
+  private def concreteTacticalAdmission(sceneType: SceneType): AdmissionOutcome =
+    if sceneType == SceneType.ConcreteTactical then primaryAdmission("concrete_tactical_primary_in_tactical_scene")
+    else supportAdmission("concrete_tactical_support_only_outside_tactical_scene")
+
+  private def lineConsequenceAdmission(sceneType: SceneType): AdmissionOutcome =
+    sceneType match
+      case SceneType.LineConsequence | SceneType.TransitionConversion =>
+        primaryAdmission("line_consequence_primary_in_line_scene")
+      case SceneType.ConcreteTactical | SceneType.ForcingDefense =>
+        supportAdmission("line_consequence_support_only_under_forcing_or_tactical_scene")
+      case _ =>
+        supportAdmission("line_consequence_support_only_outside_line_scene")
+
+  private def alternativeComparisonAdmission(sceneType: SceneType): AdmissionOutcome =
+    sceneType match
+      case SceneType.AlternativeComparison =>
+        primaryAdmission("alternative_comparison_primary_in_alternative_scene")
+      case SceneType.ConcreteTactical | SceneType.ForcingDefense | SceneType.LineConsequence =>
+        supportAdmission("alternative_comparison_support_only_under_stronger_scene")
+      case _ =>
+        supportAdmission("alternative_comparison_support_only_outside_alternative_scene")
 
   private def forcingDefenseAdmission(sceneType: SceneType): AdmissionOutcome =
     sceneType match
       case SceneType.ForcingDefense => primaryAdmission("forcing_defense_primary_in_forcing_scene")
-      case SceneType.TacticalFailure | SceneType.PlanClash | SceneType.TransitionConversion |
+      case SceneType.ConcreteTactical | SceneType.LineConsequence | SceneType.AlternativeComparison |
+          SceneType.PlanClash | SceneType.TransitionConversion |
           SceneType.EndgameTransition =>
         supportAdmission("forcing_defense_support_only_outside_forcing_scene")
       case _ => forbiddenAdmission("forcing_defense_not_legal_in_current_scene")
@@ -2681,6 +2985,8 @@ private[commentary] object QuestionFirstCommentaryPlanner:
     sceneType match
       case SceneType.QuietImprovement | SceneType.TransitionConversion =>
         primaryAdmission("move_delta_primary_in_quiet_or_conversion_scene")
+      case SceneType.OpeningRelation if candidate.source == "pv_coupled_plan_support" =>
+        primaryAdmission("pv_coupled_plan_support_primary_in_opening_relation_scene")
       case SceneType.ForcingDefense
           if candidate.source == PlayerFacingTruthModePolicy.DefenderTradeProofSource =>
         primaryAdmission("supported_local_defender_trade_non_tactical_forcing_scene")
@@ -2716,8 +3022,8 @@ private[commentary] object QuestionFirstCommentaryPlanner:
 
   private def decisionTimingSupportedSourceAdmission(sceneType: SceneType): AdmissionOutcome =
     sceneType match
-      case SceneType.TacticalFailure =>
-        demotedAdmission("decision_timing_demoted_under_tactical_failure", AuthorQuestionKind.WhyThis)
+      case SceneType.ConcreteTactical =>
+        demotedAdmission("decision_timing_demoted_under_concrete_tactical", AuthorQuestionKind.WhyThis)
       case _ =>
         supportAdmission("decision_timing_support_only")
 
@@ -2735,6 +3041,8 @@ private[commentary] object QuestionFirstCommentaryPlanner:
   ): AdmissionOutcome =
     if !candidate.moveLinked || candidate.source == "opening_precedent_summary" then
       supportAdmission("opening_relation_raw_summary_support_only")
+    else if candidate.source == "opening_relation_translator" then
+      supportAdmission("opening_relation_translator_support_only_without_causal_contrast")
     else
       sceneType match
         case SceneType.OpeningRelation => primaryAdmission("opening_relation_primary_in_opening_scene")
@@ -2761,41 +3069,57 @@ private[commentary] object QuestionFirstCommentaryPlanner:
     val allowedPreventedPlans = preventedPlansAllowedForPlannerSurface(ctx, inputs, truthContract)
     val rawGroups =
       List(
-        tacticalFailureOwnerCandidates(inputs, truthContract),
+        causalMechanismOwnerCandidates(inputs, truthContract),
         forcingDefenseOwnerCandidates(inputs, truthContract, allowedPreventedPlans),
         positionProbeOwnerCandidates(ctx, inputs, truthContract),
-        moveDeltaOwnerCandidates(inputs),
+        moveDeltaOwnerCandidates(inputs, truthContract),
         decisionTimingOwnerCandidates(inputs, truthContract),
         planRaceOwnerCandidates(inputs),
         shadowDomainSignals(ctx, inputs)
       )
     mergeOwnerCandidates(rawGroups.flatten)
 
-  private def tacticalFailureOwnerCandidates(
+  private def causalMechanismOwnerCandidates(
       inputs: QuestionPlannerInputs,
       truthContract: Option[DecisiveTruthContract]
   ): List[OwnerCandidateTrace] =
     import AuthorQuestionKind.*
     import PlannerOwnerKind.*
 
-    val whyThisOrWhatChanged = List(WhyThis, WhatChanged)
-    val hasTacticalFailure =
-      truthContract.exists(contract =>
-        contract.blocksStrategicSupport ||
-          contract.reasonFamily == DecisiveReasonKind.MissedWin
-      ) ||
-        inputs.mainBundle.flatMap(_.mainClaim).exists(_.mode == PlayerFacingTruthMode.Tactical)
+    val riskGateBlocksStrategicSupport =
+      truthContract.exists(_.blocksStrategicSupport)
+    val hasLineConsequence =
+      inputs.lineConsequence.nonEmpty && truthContract.exists(_.blocksStrategicSupport)
+    val hasRoleAwareAlternative =
+      inputs.decisionComparison.exists(roleAwareDecisionComparisonConsequence(_).nonEmpty) &&
+        DecisionComparisonComparativeSupport.roleAwareLineConsequenceAllowed(truthContract)
 
-    Option.when(hasTacticalFailure) {
-      val source = truthContract.map(_ => "truth_contract").getOrElse("main_bundle")
-      singleSourceOwnerCandidate(
-        plannerOwnerKind = TacticalFailure,
-        source = source,
-        questionKinds = whyThisOrWhatChanged,
-        proposedOwnerMapping = "TacticalFailure/move_linked",
-        reasons = List("tactical_failure_signal")
-      )
-    }.toList
+    List(
+      Option.when(hasLineConsequence) {
+        singleSourceOwnerCandidate(
+          plannerOwnerKind = LineConsequence,
+          source = "line_consequence",
+          questionKinds = List(WhatChanged),
+          proposedOwnerMapping = "LineConsequence/played_move",
+          reasons =
+            List("pv_line_consequence") ++
+              Option.when(riskGateBlocksStrategicSupport)("risk_gate_blocks_strategic_support")
+        )
+      },
+      Option.when(hasRoleAwareAlternative) {
+        singleSourceOwnerCandidate(
+          plannerOwnerKind = AlternativeComparison,
+          source = "decision_comparison",
+          questionKinds = List(WhyThis, WhatChanged),
+          proposedOwnerMapping = "AlternativeComparison/role_aware_line_consequence",
+          reasons =
+            List(
+              DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource,
+              "branch_scoped_alternative"
+            ) ++ roleAwareAlternativeGateReasons(truthContract)
+        )
+      }
+    ).flatten
 
   private def forcingDefenseOwnerCandidates(
       inputs: QuestionPlannerInputs,
@@ -2805,7 +3129,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
     import AuthorQuestionKind.*
     import PlannerOwnerKind.*
 
-    val onlyMove = onlyMovePressure(inputs, truthContract)
+    val onlyMove = onlyMovePressure(truthContract)
     def forcingCandidate(
         source: String,
         questionKinds: List[AuthorQuestionKind],
@@ -2840,7 +3164,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
           }
       }.flatten,
       onlyMove.map { _ =>
-        forcingCandidate("truth_contract", List(WhyNow), "only_move_defense")
+        forcingCandidate("only_move_defense", List(WhyNow), "only_move_defense")
       }
     ).flatten
 
@@ -2923,7 +3247,10 @@ private[commentary] object QuestionFirstCommentaryPlanner:
         }
       }
 
-  private def moveDeltaOwnerCandidates(inputs: QuestionPlannerInputs): List[OwnerCandidateTrace] =
+  private def moveDeltaOwnerCandidates(
+      inputs: QuestionPlannerInputs,
+      truthContract: Option[DecisiveTruthContract]
+  ): List[OwnerCandidateTrace] =
     import AuthorQuestionKind.*
     import PlannerOwnerKind.*
 
@@ -2933,14 +3260,16 @@ private[commentary] object QuestionFirstCommentaryPlanner:
         source: String,
         questionKinds: List[AuthorQuestionKind],
         proposedOwnerMapping: String,
-        reason: String
+        reason: String,
+        materiality: OwnerCandidateMateriality = OwnerCandidateMateriality.OwnerCandidate
     ): OwnerCandidateTrace =
       singleSourceOwnerCandidate(
         plannerOwnerKind = plannerOwnerKind,
         source = source,
         questionKinds = questionKinds,
         proposedOwnerMapping = proposedOwnerMapping,
-        reasons = List(reason)
+        reasons = List(reason),
+        materiality = materiality
       )
 
     List(
@@ -2951,13 +3280,22 @@ private[commentary] object QuestionFirstCommentaryPlanner:
           )
         )
       }.map { claim =>
-        val tactical = claim.mode == PlayerFacingTruthMode.Tactical
+        val tactical = tacticalClaimOwnsCurrentMove(claim)
+        val tacticalWithoutOwnership = claim.mode == PlayerFacingTruthMode.Tactical && !tactical
         moveLinkedCandidate(
-          plannerOwnerKind = if tactical then TacticalFailure else MoveDelta,
+          plannerOwnerKind = if tactical then ConcreteTactical else MoveDelta,
           source = claim.sourceKind,
           questionKinds = whyThisOrWhatChanged,
-          proposedOwnerMapping = if tactical then "TacticalFailure/move_linked" else "MoveDelta/move_linked",
-          reason = "main_move_claim"
+          proposedOwnerMapping =
+            if tactical then "ConcreteTactical/move_linked"
+            else if tacticalWithoutOwnership then "MoveDelta/support_only"
+            else "MoveDelta/move_linked",
+          reason =
+            if tacticalWithoutOwnership then "tactical_claim_lacks_current_move_ownership"
+            else "main_move_claim",
+          materiality =
+            if tacticalWithoutOwnership then OwnerCandidateMateriality.SupportMaterial
+            else OwnerCandidateMateriality.OwnerCandidate
         )
       },
       inputs.quietIntent.map { intent =>
@@ -2976,6 +3314,15 @@ private[commentary] object QuestionFirstCommentaryPlanner:
           questionKinds = List(WhatChanged),
           proposedOwnerMapping = "MoveDelta/move_linked",
           reason = "move_local_delta"
+        )
+      },
+      Option.unless(truthContract.exists(_.blocksStrategicSupport))(inputs.pvCoupledPlanSupport).flatten.map { _ =>
+        moveLinkedCandidate(
+          plannerOwnerKind = MoveDelta,
+          source = "pv_coupled_plan_support",
+          questionKinds = List(WhatChanged),
+          proposedOwnerMapping = "MoveDelta/pv_coupled_plan_support",
+          reason = "pv_coupled_plan_support"
         )
       }
     ).flatten
@@ -3032,10 +3379,10 @@ private[commentary] object QuestionFirstCommentaryPlanner:
             materiality = OwnerCandidateMateriality.SupportMaterial
           )
         },
-      onlyMovePressure(inputs, truthContract).map { _ =>
+      onlyMovePressure(truthContract).map { _ =>
         singleSourceOwnerCandidate(
           plannerOwnerKind = PlannerOwnerKind.DecisionTiming,
-          source = "truth_contract",
+          source = "only_move_defense",
           questionKinds = List(AuthorQuestionKind.WhyNow),
           timingSource = Some(TimingSource.OnlyMove),
           proposedOwnerMapping = "DecisionTiming/move_linked",
@@ -3219,10 +3566,10 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       candidates: List[OwnerCandidateTrace]
   ): SceneClassificationTrace =
     val signals = sceneClassificationSignals(inputs, truthContract, candidates)
-    if signals.contains(PlannerOwnerKind.TacticalFailure) then
+    if signals.contains(PlannerOwnerKind.ConcreteTactical) then
       SceneClassificationTrace(
-        sceneType = SceneType.TacticalFailure,
-        reasons = List("proof_family=TacticalFailure")
+        sceneType = SceneType.ConcreteTactical,
+        reasons = List("mechanism=ConcreteTactical")
       )
     else if signals.contains(PlannerOwnerKind.PlanRace) then
       SceneClassificationTrace(
@@ -3237,6 +3584,16 @@ private[commentary] object QuestionFirstCommentaryPlanner:
             truthContract
               .filter(_.reasonFamily == DecisiveReasonKind.OnlyMoveDefense)
               .map(_ => "truth_reason=OnlyMoveDefense")
+      )
+    else if signals.contains(PlannerOwnerKind.AlternativeComparison) then
+      SceneClassificationTrace(
+        sceneType = SceneType.AlternativeComparison,
+        reasons = List("mechanism=AlternativeComparison")
+      )
+    else if signals.contains(PlannerOwnerKind.LineConsequence) then
+      SceneClassificationTrace(
+        sceneType = SceneType.LineConsequence,
+        reasons = List("mechanism=LineConsequence")
       )
     else if signals.hasTransitionConversion then
       SceneClassificationTrace(

@@ -265,6 +265,171 @@ class DecisionComparisonBuilderTest extends FunSuite:
     )
   }
 
+  test("role-aware line consequence compares verified best branch against played branch from refs") {
+    val fen = "r1b1k1nr/pppq2p1/2n1p2p/b2pP3/3P3B/2PB1N2/PP4PP/RN1QK2R b KQkq - 1 10"
+    val bestLine = List("g7g5", "b2b4", "g5h4", "b4a5")
+    val playedLine = List("g8e7", "e1g1", "a5b6", "a2a4")
+    val ctx =
+      baseContext.copy(
+        fen = fen,
+        ply = 20,
+        playedMove = Some("g8e7"),
+        playedSan = Some("Nge7"),
+        engineEvidence =
+          Some(
+            EngineEvidence(
+              depth = 10,
+              variations =
+                List(
+                  VariationLine(bestLine, scoreCp = 207, depth = 10),
+                  VariationLine(playedLine, scoreCp = 228, depth = 10)
+                )
+            )
+          )
+      )
+    val raw = DecisionComparisonBuilder.build(ctx).getOrElse(fail("missing comparison"))
+    val contract =
+      tacticalRefutationContract(
+        playedMove = Some("Nge7"),
+        verifiedBestMove = Some("g5"),
+        cpLoss = 21
+      )
+    val sanitized = DecisiveTruth.sanitizeDecisionComparison(Some(raw), contract).getOrElse(fail("missing sanitized comparison"))
+    val refs =
+      replayedRefs(
+        fen,
+        List(
+          ("best", bestLine, List("g5", "b4", "gxh4", "bxa5"), 207),
+          ("played", playedLine, List("Nge7", "O-O", "Bb6", "a4"), 228)
+        )
+      )
+
+    val comparison =
+      DecisionComparisonComparativeSupport
+        .enrich(
+          comparison = Some(sanitized),
+          ctx = ctx,
+          refs = Some(refs),
+          strategyPack = None,
+          truthContract = Some(contract)
+        )
+        .getOrElse(fail("missing comparison"))
+
+    assertEquals(comparison.comparedMove, Some("Nge7"))
+    assertEquals(comparison.comparativeSource, Some(DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource))
+    assert(comparison.comparativeConsequence.exists(_.contains("g5 reaches an exchange sequence")), clue(comparison))
+    assert(comparison.comparativeConsequence.exists(_.contains("Nge7 stays on the played branch")), clue(comparison))
+  }
+
+  test("role-aware line consequence does not claim absence when the best move appears later in the played branch") {
+    val fen = "rnbqkbnr/pp1ppppp/2p5/8/3PP3/8/PPP2PPP/RNBQKBNR b KQkq - 0 2"
+    val bestLine = List("d7d6", "g1f3", "g8f6", "f1d3")
+    val playedLine = List("g7g6", "f1d3", "d7d6", "g1f3")
+    val ctx =
+      baseContext.copy(
+        fen = fen,
+        ply = 4,
+        playedMove = Some("g7g6"),
+        playedSan = Some("g6"),
+        engineEvidence =
+          Some(
+            EngineEvidence(
+              depth = 10,
+              variations =
+                List(
+                  VariationLine(bestLine, scoreCp = 69, depth = 10),
+                  VariationLine(playedLine, scoreCp = 88, depth = 10)
+                )
+            )
+          )
+      )
+    val raw = DecisionComparisonBuilder.build(ctx).getOrElse(fail("missing comparison"))
+    val contract =
+      tacticalRefutationContract(
+        playedMove = Some("g6"),
+        verifiedBestMove = Some("d6"),
+        cpLoss = 19
+      )
+    val sanitized = DecisiveTruth.sanitizeDecisionComparison(Some(raw), contract).getOrElse(fail("missing sanitized comparison"))
+    val refs =
+      replayedRefs(
+        fen,
+        List(
+          ("best", bestLine, List("d6", "Nf3", "Nf6", "Bd3"), 69),
+          ("played", playedLine, List("g6", "Bd3", "d6", "Nf3"), 88)
+        )
+      )
+
+    val comparison =
+      DecisionComparisonComparativeSupport.enrich(
+        comparison = Some(sanitized),
+        ctx = ctx,
+        refs = Some(refs),
+        strategyPack = None,
+        truthContract = Some(contract)
+      )
+
+    assertEquals(comparison.flatMap(_.comparativeSource), None)
+    assert(!comparison.flatMap(_.comparativeConsequence).exists(_.contains("without that concrete central pawn advance")))
+  }
+
+  test("role-aware line consequence compares missed benchmark against played concrete branch") {
+    val fen = "r4rk1/p4bpp/5p2/p3pn2/4P1P1/7P/PP1N1P2/1K1R3R w - - 0 21"
+    val bestLine = List("e4f5", "f8d8", "d2e4", "f7d5")
+    val playedLine = List("g4f5", "a5a4", "h3h4", "f7h5")
+    val ctx =
+      baseContext.copy(
+        fen = fen,
+        ply = 40,
+        playedMove = Some("g4f5"),
+        playedSan = Some("gxf5"),
+        engineEvidence =
+          Some(
+            EngineEvidence(
+              depth = 10,
+              variations =
+                List(
+                  VariationLine(bestLine, scoreCp = -44, depth = 10),
+                  VariationLine(playedLine, scoreCp = -140, depth = 10)
+                )
+            )
+          )
+      )
+    val raw = DecisionComparisonBuilder.build(ctx).getOrElse(fail("missing comparison"))
+    val contract =
+      missedOnlyMoveContract(
+        playedMove = Some("g4f5"),
+        verifiedBestMove = Some("e4f5"),
+        cpLoss = 96
+      )
+    val sanitized = DecisiveTruth.sanitizeDecisionComparison(Some(raw), contract).getOrElse(fail("missing sanitized comparison"))
+    val refs =
+      replayedRefs(
+        fen,
+        List(
+          ("best", bestLine, List("exf5", "Rfd8", "Ne4", "Bd5"), -44),
+          ("played", playedLine, List("gxf5", "a4", "h4", "Bh5"), -140)
+        )
+      )
+
+    val comparison =
+      DecisionComparisonComparativeSupport
+        .enrich(
+          comparison = Some(sanitized),
+          ctx = ctx,
+          refs = Some(refs),
+          strategyPack = None,
+          truthContract = Some(contract)
+        )
+        .getOrElse(fail("missing comparison"))
+
+    assertEquals(comparison.comparedMove, Some("gxf5"))
+    assertEquals(comparison.comparativeSource, Some(DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource))
+    assert(comparison.comparativeConsequence.exists(_.contains("exf5 reaches a material transition")), clue(comparison))
+    assert(comparison.comparativeConsequence.exists(_.contains("gxf5 reaches a different material transition")), clue(comparison))
+    assert(comparison.comparativeConsequence.exists(_.contains("about 96cp")), clue(comparison))
+  }
+
   test("cp-gap-only comparison does not invent a comparative consequence") {
     val best =
       VariationLine(
@@ -312,20 +477,27 @@ class DecisionComparisonBuilderTest extends FunSuite:
       ucis: List[String],
       sans: List[String]
   ): MoveReviewRefs =
-    val fens = ucis.indices.toList.map(idx => NarrativeUtils.uciListToFen(fen, ucis.take(idx + 1)))
+    replayedRefs(fen, List((lineId, ucis, sans, 42)))
+
+  private def replayedRefs(
+      fen: String,
+      lines: List[(String, List[String], List[String], Int)]
+  ): MoveReviewRefs =
+    val startPly = NarrativeUtils.plyFromFen(fen).getOrElse(1)
     MoveReviewRefs(
       startFen = fen,
-      startPly = NarrativeUtils.plyFromFen(fen).getOrElse(1),
+      startPly = startPly,
       variations =
-        List(
+        lines.map { case (lineId, ucis, sans, scoreCp) =>
+          val fens = ucis.indices.toList.map(idx => NarrativeUtils.uciListToFen(fen, ucis.take(idx + 1)))
           MoveReviewVariationRef(
             lineId = lineId,
-            scoreCp = 42,
+            scoreCp = scoreCp,
             mate = None,
             depth = 20,
             moves =
               ucis.zip(sans).zipWithIndex.map { case ((uci, san), idx) =>
-                val ply = NarrativeUtils.plyFromFen(fen).map(_ + 1 + idx).getOrElse(idx + 1)
+                val ply = startPly + 1 + idx
                 MoveReviewMoveRef(
                   refId = s"$lineId-${idx + 1}",
                   san = san,
@@ -337,5 +509,71 @@ class DecisionComparisonBuilderTest extends FunSuite:
                 )
               }
           )
-        )
+        }
+    )
+
+  private def tacticalRefutationContract(
+      playedMove: Option[String],
+      verifiedBestMove: Option[String],
+      cpLoss: Int
+  ): DecisiveTruthContract =
+    DecisiveTruthContract(
+      playedMove = playedMove,
+      verifiedBestMove = verifiedBestMove,
+      truthClass = DecisiveTruthClass.Mistake,
+      cpLoss = cpLoss,
+      swingSeverity = cpLoss,
+      reasonFamily = DecisiveReasonKind.TacticalRefutation,
+      allowConcreteBenchmark = true,
+      chosenMatchesBest = false,
+      compensationAllowed = false,
+      truthPhase = None,
+      ownershipRole = TruthOwnershipRole.NoneRole,
+      visibilityRole = TruthVisibilityRole.PrimaryVisible,
+      surfaceMode = TruthSurfaceMode.FailureExplain,
+      exemplarRole = TruthExemplarRole.NonExemplar,
+      surfacedMoveOwnsTruth = false,
+      verifiedPayoffAnchor = None,
+      compensationProseAllowed = false,
+      benchmarkProseAllowed = true,
+      investmentTruthChainKey = None,
+      maintenanceExemplarCandidate = false,
+      benchmarkCriticalMove = false,
+      failureMode = FailureInterpretationMode.TacticalRefutation,
+      failureIntentConfidence = 1.0,
+      failureIntentAnchor = verifiedBestMove,
+      failureInterpretationAllowed = true
+    )
+
+  private def missedOnlyMoveContract(
+      playedMove: Option[String],
+      verifiedBestMove: Option[String],
+      cpLoss: Int
+  ): DecisiveTruthContract =
+    DecisiveTruthContract(
+      playedMove = playedMove,
+      verifiedBestMove = verifiedBestMove,
+      truthClass = DecisiveTruthClass.Acceptable,
+      cpLoss = cpLoss,
+      swingSeverity = cpLoss,
+      reasonFamily = DecisiveReasonKind.OnlyMoveDefense,
+      allowConcreteBenchmark = true,
+      chosenMatchesBest = false,
+      compensationAllowed = false,
+      truthPhase = None,
+      ownershipRole = TruthOwnershipRole.NoneRole,
+      visibilityRole = TruthVisibilityRole.PrimaryVisible,
+      surfaceMode = TruthSurfaceMode.FailureExplain,
+      exemplarRole = TruthExemplarRole.NonExemplar,
+      surfacedMoveOwnsTruth = false,
+      verifiedPayoffAnchor = None,
+      compensationProseAllowed = false,
+      benchmarkProseAllowed = true,
+      investmentTruthChainKey = None,
+      maintenanceExemplarCandidate = false,
+      benchmarkCriticalMove = true,
+      failureMode = FailureInterpretationMode.OnlyMoveFailure,
+      failureIntentConfidence = 1.0,
+      failureIntentAnchor = verifiedBestMove,
+      failureInterpretationAllowed = true
     )

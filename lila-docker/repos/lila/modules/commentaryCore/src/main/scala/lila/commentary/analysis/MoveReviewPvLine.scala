@@ -8,8 +8,11 @@ private[commentary] object MoveReviewPvLine:
       line: MoveReviewVariationRef,
       first: MoveReviewMoveRef,
       reply: Option[MoveReviewMoveRef],
-      continuation: Option[MoveReviewMoveRef]
-  )
+      continuation: Option[MoveReviewMoveRef],
+      continuationTail: List[MoveReviewMoveRef] = Nil
+  ):
+    def checkedContinuations: List[MoveReviewMoveRef] =
+      (continuation.toList ++ continuationTail).distinct
 
   final case class ValidatedLine(
       line: MoveReviewVariationRef,
@@ -27,7 +30,13 @@ private[commentary] object MoveReviewPvLine:
       .find(_.reply.nonEmpty)
       .flatMap { validated =>
         validated.first.map { first =>
-          LineFacts(validated.line, first, validated.reply, validated.continuation)
+          LineFacts(
+            validated.line,
+            first,
+            validated.reply,
+            validated.continuation,
+            validated.moves.drop(3).take(3)
+          )
         }
       }
 
@@ -61,6 +70,19 @@ private[commentary] object MoveReviewPvLine:
     val moves = line.moves
     Option.when(
       moves.headOption.exists(move => normalizeUci(move.uci) == normalizedPlayed) &&
+        moves.forall(_.fenAfter.trim.nonEmpty) &&
+        strictlyOrdered(moves)
+    )(moves)
+      .flatMap(replay(startFen, _))
+      .map(validatedMoves => ValidatedLine(line, validatedMoves))
+
+  def validatedLineFromStart(
+      startFen: String,
+      line: MoveReviewVariationRef
+  ): Option[ValidatedLine] =
+    val moves = line.moves
+    Option.when(
+      moves.nonEmpty &&
         moves.forall(_.fenAfter.trim.nonEmpty) &&
         strictlyOrdered(moves)
     )(moves)

@@ -963,7 +963,7 @@ object MoveReviewProseGoldenFixtures:
       ),
       PlannerRuntimeFixture(
         id = "why_now_tactical_fallback",
-        title = "WhyNow fails closed when tactical failure owns the scene",
+        title = "WhyNow fails closed when concrete tactical authority owns the scene",
         expectation = PlannerFixtureExpectation.Fallback,
         questionKind = AuthorQuestionKind.WhyNow,
         ctx =
@@ -1016,8 +1016,8 @@ object MoveReviewProseGoldenFixtures:
       ),
       PlannerRuntimeFixture(
         id = "restricted_defense_conversion_positive",
-        title = "A WhyNow conversion request survives as a planner-owned WhyThis technical conversion",
-        expectation = PlannerFixtureExpectation.Positive,
+        title = "WhyNow conversion request fails closed until a typed conversion producer owns it",
+        expectation = PlannerFixtureExpectation.Fallback,
         questionKind = AuthorQuestionKind.WhyNow,
         ctx =
           oppositeBishopsConversion.ctx.copy(
@@ -1066,7 +1066,8 @@ object MoveReviewProseGoldenFixtures:
               targetReasons = List("dark-square entry", "king cut-off")
             )
           ),
-        expectedPrimaryKind = Some(AuthorQuestionKind.WhyThis)
+        expectedPrimaryKind = Some(AuthorQuestionKind.WhyThis),
+        expectedFallbackClaim = Some("This puts the bishop on f3.")
       ),
       PlannerRuntimeFixture(
         id = "restricted_defense_conversion_fragile",

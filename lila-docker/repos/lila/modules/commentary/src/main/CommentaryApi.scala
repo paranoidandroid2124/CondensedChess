@@ -4,7 +4,7 @@ import scala.concurrent.Future
 import scala.annotation.unused
 import java.util.concurrent.atomic.AtomicLong
 import java.time.Instant
-import lila.commentary.analysis.{ AuthoringEvidenceSummaryBuilder, MoveReviewCompressionPolicy, MoveReviewPlayerPayloadBuilder, MoveReviewPolishSlots, MoveReviewProseContract, MoveReviewPvLine, MoveReviewSoftRepair, MoveReviewStrategicLedgerBuilder, MoveReviewSupportedLocalSurfaceRows, BookStyleRenderer, CommentaryEngine, CommentaryOpsBoard, CommentaryOpsSignals, CommentaryPayloadNormalizer, DecisiveTruth, EarlyOpeningNarrationPolicy, FullGameDraftNormalizer, LineScopedCitation, LiveNarrativeCompressionCore, NarrativeContextBuilder, NarrativeDedupCore, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, ProbePurposeClassifier, StrategicSignalMatcher, StrategyPackBuilder, StrategyPackSurface, PlayerProseBoundary, UserFacingSignalSanitizer }
+import lila.commentary.analysis.{ AuthoringEvidenceSummaryBuilder, MoveReviewCompressionPolicy, MoveReviewPlayerPayloadBuilder, MoveReviewPolishSlots, MoveReviewProseContract, MoveReviewPvLine, MoveReviewSoftRepair, MoveReviewStrategicLedgerBuilder, MoveReviewSupportedLocalSurfaceRows, BookStyleRenderer, CommentaryEngine, CommentaryOpsBoard, CommentaryOpsSignals, CommentaryPayloadNormalizer, DecisiveTruth, EarlyOpeningNarrationPolicy, FullGameDraftNormalizer, LiveNarrativeCompressionCore, NarrativeContextBuilder, NarrativeDedupCore, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, ProbePurposeClassifier, StrategyPackBuilder, PlayerProseBoundary, UserFacingSignalSanitizer }
 import lila.commentary.model.OpeningReference
 import lila.commentary.model.structure.StructureId
 import lila.commentary.model.strategic.{ VariationLine, TheoreticalOutcomeHint }
@@ -914,8 +914,8 @@ final class CommentaryApi(
   )
 
   private def evaluateStrategyCoverage(
-      commentary: String,
-      strategyPack: Option[StrategyPack],
+      @unused commentary: String,
+      @unused strategyPack: Option[StrategyPack],
       @unused planTier: String,
       @unused commentaryMode: String
   ): StrategyCoverageEvaluation =
@@ -1989,45 +1989,7 @@ final class CommentaryApi(
   private def dedupeMoveReviewCommentary(
       commentary: String
   ): String =
-    LiveNarrativeCompressionCore.slotsFromCompressedProse(commentary).map { slots =>
-      val claim =
-        dedupeNarrativeSurface(
-          prose = slots.claim,
-          surface = "moveReview",
-          role = "plan_lead",
-          priorityBase = 100,
-          familyOverride = Some(NarrativeDedupCore.NarrativeClaimFamily.PlanLead)
-        )
-      val support =
-        slots.supportPrimary
-          .map(text => dedupeNarrativeSurface(text, "moveReview", "support", 80))
-          .filter(text => !NarrativeDedupCore.sameSemanticSentence(text, claim))
-      val third =
-        slots.evidenceHook
-          .orElse(slots.tension)
-          .map(text => dedupeNarrativeSurface(text, "moveReview", "support", 70))
-          .filter(text =>
-            !NarrativeDedupCore.sameSemanticSentence(text, claim) &&
-              support.forall(other => !NarrativeDedupCore.sameSemanticSentence(text, other))
-          )
-      val evidenceHook = third.filter(LineScopedCitation.hasConcreteSanLine)
-      val tension = third.filterNot(LineScopedCitation.hasConcreteSanLine)
-      val paragraphPlan =
-        "p1=claim" :: support.map(_ => "p2=support").toList :::
-          evidenceHook.map(_ => "p3=cited_line").orElse(tension.map(_ => "p3=practical_nuance")).toList
-
-      LiveNarrativeCompressionCore.deterministicProse(
-        slots.copy(
-          claim = claim,
-          supportPrimary = support,
-          supportSecondary = None,
-          evidenceHook = evidenceHook,
-          tension = tension,
-          factGuardrails = evidenceHook.toList,
-          paragraphPlan = paragraphPlan
-        )
-      )
-    }.getOrElse(dedupeNarrativeSurface(commentary, "moveReview", "plan_lead", 80))
+    dedupeNarrativeSurface(commentary, "moveReview", "plan_lead", 80)
 
   private def dedupeMoveReviewResponse(
       response: CommentResponse

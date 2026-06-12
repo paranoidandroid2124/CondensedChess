@@ -235,6 +235,9 @@ object CommentaryPlayerQcSupport:
       plannerSupportMaterialSeparation: List[String] = Nil,
       plannerProposedOwnerMappings: List[String] = Nil,
       plannerDemotionReasons: List[String] = Nil,
+      plannerCandidateEvidenceLines: List[String] = Nil,
+      plannerPvCoupledPlanNames: List[String] = Nil,
+      plannerPvCoupledPlanSupport: Option[String] = None,
       plannerSelectedQuestion: Option[String] = None,
       plannerSelectedOwnerKind: Option[String] = None,
       plannerSelectedSource: Option[String] = None,
@@ -257,7 +260,9 @@ object CommentaryPlayerQcSupport:
       truthChosenMatchesBest: Option[Boolean] = None,
       truthOnlyMoveDefense: Option[Boolean] = None,
       truthBenchmarkCriticalMove: Option[Boolean] = None,
-      plannerTacticalFailureSources: List[String] = Nil,
+      plannerConcreteTacticalSources: List[String] = Nil,
+      plannerLineConsequenceSources: List[String] = Nil,
+      plannerAlternativeComparisonSources: List[String] = Nil,
       plannerForcingDefenseSources: List[String] = Nil,
       plannerMoveDeltaSources: List[String] = Nil,
       surfaceReplayOutcome: Option[String] = None,
@@ -296,6 +301,7 @@ object CommentaryPlayerQcSupport:
       moveReviewLocalFactFamilies: List[String] = Nil,
       moveReviewLocalFactAuthorities: List[String] = Nil,
       moveReviewLocalFactProducers: List[String] = Nil,
+      moveReviewLocalFactEvidenceRefs: List[String] = Nil,
       moveReviewLocalFactStrictFallbackEligible: Option[Boolean] = None,
       moveReviewLocalFactRejectReasons: List[String] = Nil,
       moveReviewCausalClaimStatus: Option[String] = None,
@@ -306,9 +312,19 @@ object CommentaryPlayerQcSupport:
       moveReviewCausalClaimEvidenceSubjects: List[String] = Nil,
       moveReviewCausalClaimLineBindings: List[String] = Nil,
       moveReviewCausalClaimRelations: List[String] = Nil,
+      moveReviewCausalFrameIntent: Option[String] = None,
+      moveReviewCausalFrameRoles: List[String] = Nil,
+      moveReviewCausalFrameSurfaceContract: List[String] = Nil,
       moveReviewCausalClaimRejectReasons: List[String] = Nil,
       moveReviewCausalClaimSupportEmbedded: Option[Boolean] = None,
-      moveReviewCausalClaimGuardrail: Option[String] = None
+      moveReviewCausalClaimGuardrail: Option[String] = None,
+      moveReviewCausalClaimLocalFactFamily: Option[String] = None,
+      moveReviewCausalClaimLocalFactAuthority: Option[String] = None,
+      moveReviewCausalClaimLocalFactProducer: Option[String] = None,
+      moveReviewCausalClaimLocalFactEvidenceRefs: List[String] = Nil,
+      moveReviewCausalClaimLocalFactStrictFallbackEligible: Option[Boolean] = None,
+      moveReviewCausalClaimLocalFactGuardrails: List[String] = Nil,
+      moveReviewCausalClaimLocalFactRejectReasons: List[String] = Nil
   ):
     def withQuietSupportTrace(quietSupportTrace: MoveReviewQuietSupportTrace): MoveReviewOutputEntry =
       copy(
@@ -382,6 +398,9 @@ object CommentaryPlayerQcSupport:
       supportMaterialSeparation: List[String] = Nil,
       proposedOwnerMappings: List[String] = Nil,
       demotionReasons: List[String] = Nil,
+      candidateEvidenceLines: List[String] = Nil,
+      pvCoupledPlanNames: List[String] = Nil,
+      pvCoupledPlanSupport: Option[String] = None,
       selectedQuestion: Option[String] = None,
       selectedOwnerKind: Option[String] = None,
       selectedSource: Option[String] = None,
@@ -404,7 +423,9 @@ object CommentaryPlayerQcSupport:
       truthChosenMatchesBest: Option[Boolean] = None,
       truthOnlyMoveDefense: Option[Boolean] = None,
       truthBenchmarkCriticalMove: Option[Boolean] = None,
-      tacticalFailureSources: List[String] = Nil,
+      concreteTacticalSources: List[String] = Nil,
+      lineConsequenceSources: List[String] = Nil,
+      alternativeComparisonSources: List[String] = Nil,
       forcingDefenseSources: List[String] = Nil,
       moveDeltaSources: List[String] = Nil,
       surfaceReplayOutcome: Option[String] = None,
@@ -422,9 +443,19 @@ object CommentaryPlayerQcSupport:
       causalClaimEvidenceSubjects: List[String] = Nil,
       causalClaimLineBindings: List[String] = Nil,
       causalClaimRelations: List[String] = Nil,
+      causalFrameIntent: Option[String] = None,
+      causalFrameRoles: List[String] = Nil,
+      causalFrameSurfaceContract: List[String] = Nil,
       causalClaimRejectReasons: List[String] = Nil,
       causalClaimSupportEmbedded: Option[Boolean] = None,
-      causalClaimGuardrail: Option[String] = None
+      causalClaimGuardrail: Option[String] = None,
+      causalClaimLocalFactFamily: Option[String] = None,
+      causalClaimLocalFactAuthority: Option[String] = None,
+      causalClaimLocalFactProducer: Option[String] = None,
+      causalClaimLocalFactEvidenceRefs: List[String] = Nil,
+      causalClaimLocalFactStrictFallbackEligible: Option[Boolean] = None,
+      causalClaimLocalFactGuardrails: List[String] = Nil,
+      causalClaimLocalFactRejectReasons: List[String] = Nil
   )
 
   final case class MoveReviewRuntimeTrace(
@@ -1594,7 +1625,12 @@ object CommentaryPlayerQcSupport:
     carriesQuestion(snapshot, AuthorQuestionKind.WhyNow) &&
     snapshot.plyData.ply >= 6 &&
     QuestionFirstCommentaryPlanner.hasConcreteWhyNowOwner(
-      inputs = QuestionPlannerInputsBuilder.build(snapshot.ctx, snapshot.strategyPack, snapshot.truthContract),
+      inputs = QuestionPlannerInputsBuilder.build(
+        snapshot.ctx,
+        snapshot.strategyPack,
+        snapshot.truthContract,
+        refs = snapshot.refs
+      ),
       truthContract = snapshot.truthContract
     )
 
@@ -1921,7 +1957,7 @@ object CommentaryPlayerQcSupport:
         compare.gapLabel.map(gap => s"gap $gap"),
         compare.secondaryText
       ).flatten.mkString(", ")
-    sanitizeSurfaceText(text).map(clean => SupportRow(label, clean))
+    surfaceReviewText(text, compare.refSans, authority = None).map(clean => SupportRow(label, clean))
 
   private def surfaceAuthorRow(row: MoveReviewPlayerAuthorRow): Option[SupportRow] =
     val label = Option(row.title).map(_.trim).filter(_.nonEmpty).getOrElse("Author check")
@@ -1999,7 +2035,11 @@ object CommentaryPlayerQcSupport:
           (row \ "gapLabel").asOpt[String].map(gap => s"gap ${gap.trim}"),
           (row \ "secondaryText").asOpt[String]
         ).flatten.mkString(", ")
-      sanitizeSurfaceText(text).map(clean => SupportRow(label, clean))
+      surfaceReviewText(
+        text,
+        refSans = (row \ "refSans").asOpt[List[String]].getOrElse(Nil),
+        authority = None
+      ).map(clean => SupportRow(label, clean))
     }
 
   private def authorRowsFromJson(value: JsLookupResult): List[SupportRow] =
@@ -2105,7 +2145,8 @@ object CommentaryPlayerQcSupport:
         snapshot.ctx,
         snapshot.strategyPack,
         truthContract = snapshot.truthContract,
-        candidateEvidenceLines = candidateEvidence
+        candidateEvidenceLines = candidateEvidence,
+        refs = snapshot.refs
       )
     val rankedPlans =
       QuestionFirstCommentaryPlanner.plan(snapshot.ctx, plannerInputs, truthContract = snapshot.truthContract)
@@ -2204,7 +2245,9 @@ object CommentaryPlayerQcSupport:
       Option(LiveNarrativeCompressionCore.deterministicProse(slots)).map(_.trim).getOrElse("")
     val rawPvDelta = rawCtx.decision.map(_.delta)
     val sanitizedPvDelta = snapshot.ctx.decision.map(_.delta)
-    val tacticalFailureSources = plannerCandidateSources(rankedPlans, "TacticalFailure")
+    val concreteTacticalSources = plannerCandidateSources(rankedPlans, "ConcreteTactical")
+    val lineConsequenceSources = plannerCandidateSources(rankedPlans, "LineConsequence")
+    val alternativeComparisonSources = plannerCandidateSources(rankedPlans, "AlternativeComparison")
     val forcingDefenseSources = plannerCandidateSources(rankedPlans, "ForcingDefense")
     val moveDeltaSources = plannerCandidateSources(rankedPlans, "MoveDelta")
     val prose =
@@ -2235,6 +2278,12 @@ object CommentaryPlayerQcSupport:
           supportMaterialSeparation = rankedPlans.ownerTrace.supportMaterialSeparationLabels,
           proposedOwnerMappings = rankedPlans.ownerTrace.proposedOwnerMappingLabels,
           demotionReasons = rankedPlans.ownerTrace.demotionReasons,
+          candidateEvidenceLines = plannerInputs.candidateEvidenceLines,
+          pvCoupledPlanNames =
+            snapshot.ctx.strategicPlanEvidence.pvCoupledPlans.flatMap(plan =>
+              Option(plan.hypothesis.planName).map(_.trim).filter(_.nonEmpty)
+            ),
+          pvCoupledPlanSupport = plannerInputs.pvCoupledPlanSupport.map(_.claim),
           selectedQuestion = rankedPlans.ownerTrace.selectedQuestion.map(_.toString),
           selectedOwnerKind = rankedPlans.ownerTrace.selectedPlannerOwnerKind.map(_.wireName),
           selectedSource = rankedPlans.ownerTrace.selectedPlannerSource,
@@ -2257,7 +2306,9 @@ object CommentaryPlayerQcSupport:
           truthChosenMatchesBest = snapshot.truthContract.map(_.chosenMatchesBest),
           truthOnlyMoveDefense = snapshot.truthContract.map(_.reasonFamily.toString == "OnlyMoveDefense"),
           truthBenchmarkCriticalMove = snapshot.truthContract.map(_.benchmarkCriticalMove),
-          tacticalFailureSources = tacticalFailureSources,
+          concreteTacticalSources = concreteTacticalSources,
+          lineConsequenceSources = lineConsequenceSources,
+          alternativeComparisonSources = alternativeComparisonSources,
           forcingDefenseSources = forcingDefenseSources,
           moveDeltaSources = moveDeltaSources,
           surfaceReplayOutcome =
@@ -2282,9 +2333,19 @@ object CommentaryPlayerQcSupport:
           causalClaimEvidenceSubjects = causalTrace.map(_.evidenceSubjects).getOrElse(Nil),
           causalClaimLineBindings = causalTrace.map(_.evidenceLineBindings).getOrElse(Nil),
           causalClaimRelations = causalTrace.map(_.relationKinds).getOrElse(Nil),
+          causalFrameIntent = causalTrace.flatMap(_.frameIntent),
+          causalFrameRoles = causalTrace.map(_.frameRoles).getOrElse(Nil),
+          causalFrameSurfaceContract = causalTrace.map(_.frameSurfaceContract).getOrElse(Nil),
           causalClaimRejectReasons = causalTrace.map(_.rejectReasons).getOrElse(Nil),
           causalClaimSupportEmbedded = causalTrace.flatMap(_.supportRenderedInClaim),
-          causalClaimGuardrail = causalTrace.flatMap(_.guardrail)
+          causalClaimGuardrail = causalTrace.flatMap(_.guardrail),
+          causalClaimLocalFactFamily = causalTrace.flatMap(_.localFactFamily),
+          causalClaimLocalFactAuthority = causalTrace.flatMap(_.localFactAuthority),
+          causalClaimLocalFactProducer = causalTrace.flatMap(_.localFactProducer),
+          causalClaimLocalFactEvidenceRefs = causalTrace.map(_.localFactEvidenceRefs).getOrElse(Nil),
+          causalClaimLocalFactStrictFallbackEligible = causalTrace.flatMap(_.localFactStrictFallbackEligible),
+          causalClaimLocalFactGuardrails = causalTrace.map(_.localFactGuardrails).getOrElse(Nil),
+          causalClaimLocalFactRejectReasons = causalTrace.map(_.localFactRejectReasons).getOrElse(Nil)
       ),
       prose = prose,
       quietSupport = quietSupportTrace,

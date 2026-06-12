@@ -17,6 +17,18 @@ object ThreatExtractor {
       motifs: List[Motif]    // The underlying motifs that prove the threat
   )
 
+  def counterfactualCausalThreatConsequence(counterfactual: CounterfactualMatch): Option[String] =
+    counterfactual.causalThreat
+      .filter(threat => counterfactual.cpLoss > 0 && threat.motifs.nonEmpty)
+      .flatMap(counterfactualCausalThreatClause)
+      .map(clause => s"Missing it $clause.")
+
+  def counterfactualCausalThreatClause(threat: CausalThreat): Option[String] =
+    clean(threat.narrative)
+      .map(stripSentencePunctuation)
+      .map(lowerCaseLeading)
+      .filter(hasConcreteAnchorOrAction)
+
   /**
    * Extracts the causal threat by analyzing the opponent's replies in the user's blunder PV.
    */
@@ -165,4 +177,38 @@ object ThreatExtractor {
       case _ => None
     }
   }
+
+  private def hasConcreteAnchorOrAction(text: String): Boolean =
+    LiveNarrativeCompressionCore.hasConcreteAnchor(text) ||
+      normalize(text).split("""[^a-z0-9]+""").exists(token =>
+        token.nonEmpty && Set(
+          "break",
+          "reply",
+          "recapture",
+          "threat",
+          "counterplay",
+          "mate",
+          "wins",
+          "loses",
+          "drops",
+          "fork",
+          "pin",
+          "trade"
+        ).contains(token)
+      )
+
+  private def clean(raw: String): Option[String] =
+    Option(raw).map(_.trim.replaceAll("\\s+", " ")).filter(_.nonEmpty)
+
+  private def stripSentencePunctuation(raw: String): String =
+    raw.replaceAll("""[.!?]+$""", "")
+
+  private def lowerCaseLeading(raw: String): String =
+    if raw.isEmpty then raw
+    else if "KQRBNO".contains(raw.head) then raw
+    else if raw.length >= 2 && raw.head.isUpper && !raw.charAt(1).isLower then raw
+    else s"${raw.head.toLower}${raw.drop(1)}"
+
+  private def normalize(raw: String): String =
+    Option(raw).getOrElse("").toLowerCase.replaceAll("""[^a-z0-9\s]""", " ").replaceAll("\\s+", " ").trim
 }

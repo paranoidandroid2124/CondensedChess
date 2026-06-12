@@ -106,8 +106,8 @@ class ClaimAuthorityResolverBoundaryTest extends FunSuite:
     assertEquals(rookSurface, "A key idea is that Rook pressure keeps the file tied down.")
   }
 
-  test("supported local surface does not lowercase the first core character") {
+  test("supported local surface lowers deictic starts without lowercasing piece-name starts") {
     val surface = ClaimAuthorityResolver.supportedLocalSurface("This exchange moves into the queenless branch.")
 
-    assertEquals(surface, "A key idea is that This exchange moves into the queenless branch.")
+    assertEquals(surface, "A key idea is that this exchange moves into the queenless branch.")
   }

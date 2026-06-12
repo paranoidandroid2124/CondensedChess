@@ -1,6 +1,8 @@
 package lila.commentary.analysis
 
+import lila.commentary.analysis.claim.*
 import lila.commentary.model.authoring.AuthorQuestionKind
+import lila.commentary.analysis.practical.ContrastiveSupportAdmissibility
 
 private[commentary] object MoveReviewCausalClaim:
   import MoveReviewLocalFact.Admission as LocalFactAdmission
@@ -21,6 +23,11 @@ private[commentary] object MoveReviewCausalClaim:
     case BranchLine
     case CertifiedConsequence
     case TimingWitness
+    case Attack
+    case Defense
+    case Threat
+    case Pressure
+    case PlanSupport
 
     def wireName: String =
       this match
@@ -30,27 +37,48 @@ private[commentary] object MoveReviewCausalClaim:
         case BranchLine           => "branch_line"
         case CertifiedConsequence => "certified_consequence"
         case TimingWitness        => "timing_witness"
+        case Attack               => "attack"
+        case Defense              => "defense"
+        case Threat               => "threat"
+        case Pressure             => "pressure"
+        case PlanSupport          => "plan_support"
 
   enum EvidenceSource:
     case AdmissibleContrast
     case ExplicitReplyLoss
+    case DelayedOnlyMove
+    case PreventedResource
+    case ExplicitAlternativeCollapse
+    case TopEngineMoveWithConcreteConsequence
+    case RoleAwareLineConsequence
+    case CounterfactualCausalThreat
     case SecondaryPlan
     case TimingTension
     case BranchLine
     case PlannerConsequence
     case LineConsequenceSurface
     case TimingWitness
+    case CertifiedOwnerPacket
+    case SupportedLocalPacket
 
     def wireName: String =
       this match
         case AdmissibleContrast    => "admissible_contrast"
         case ExplicitReplyLoss     => "explicit_reply_loss"
+        case DelayedOnlyMove       => "delayed_only_move"
+        case PreventedResource     => "prevented_resource"
+        case ExplicitAlternativeCollapse => "explicit_alternative_collapse"
+        case TopEngineMoveWithConcreteConsequence => "top_engine_move_with_concrete_consequence"
+        case RoleAwareLineConsequence => "role_aware_line_consequence"
+        case CounterfactualCausalThreat => "counterfactual_causal_threat"
         case SecondaryPlan         => "secondary_plan"
         case TimingTension         => "timing_tension"
         case BranchLine            => "branch_line"
         case PlannerConsequence    => "planner_consequence"
         case LineConsequenceSurface => "line_consequence_surface"
         case TimingWitness         => "timing_witness"
+        case CertifiedOwnerPacket  => "certified_owner_packet"
+        case SupportedLocalPacket  => "supported_local_packet"
 
   enum RelationKind:
     case AlternativeContrast
@@ -69,13 +97,47 @@ private[commentary] object MoveReviewCausalClaim:
         case PlanRace => "plan_race"
         case ChangeConsequence => "change_consequence"
 
+  enum CausalIntent:
+    case WhyThisMove
+    case WhyNow
+    case WhatChanged
+    case WhatMattersHere
+    case WhatMustBeStopped
+    case WhosePlanIsFaster
+    case WhatIfNot
+
+    def wireName: String =
+      this match
+        case WhyThisMove      => "why_this_move"
+        case WhyNow           => "why_now"
+        case WhatChanged      => "what_changed"
+        case WhatMattersHere  => "what_matters_here"
+        case WhatMustBeStopped => "what_must_be_stopped"
+        case WhosePlanIsFaster => "whose_plan_is_faster"
+        case WhatIfNot        => "what_if_not"
+
+  object CausalIntent:
+    def fromQuestionKind(kind: AuthorQuestionKind): CausalIntent =
+      kind match
+        case AuthorQuestionKind.WhyThis           => CausalIntent.WhyThisMove
+        case AuthorQuestionKind.WhyNow            => CausalIntent.WhyNow
+        case AuthorQuestionKind.WhatChanged       => CausalIntent.WhatChanged
+        case AuthorQuestionKind.WhatMattersHere   => CausalIntent.WhatMattersHere
+        case AuthorQuestionKind.WhatMustBeStopped => CausalIntent.WhatMustBeStopped
+        case AuthorQuestionKind.WhosePlanIsFaster => CausalIntent.WhosePlanIsFaster
+
   final case class TypedEvidence(
       kind: EvidenceKind,
       source: EvidenceSource,
       text: Option[String],
       subjectRole: SubjectRole,
       lineBinding: MoveReviewLocalFact.LineBinding = MoveReviewLocalFact.LineBinding.None,
-      guardrails: List[String] = Nil
+      evidenceRefs: List[String] = Nil,
+      anchors: List[MoveReviewLocalFact.Anchor] = Nil,
+      guardrails: List[String] = Nil,
+      localFactFamily: Option[MoveReviewLocalFact.Family] = None,
+      authorityTier: Option[ClaimAuthorityTier] = None,
+      localFactCandidate: Option[MoveReviewLocalFact.Candidate] = None
   )
 
   final case class Candidate(
@@ -84,12 +146,71 @@ private[commentary] object MoveReviewCausalClaim:
       evidences: List[TypedEvidence]
   )
 
+  final case class CausalRoles(
+      subject: SubjectRole,
+      playedMove: Boolean,
+      lineOrReply: Boolean,
+      alternative: Boolean,
+      continuation: Boolean
+  ):
+    def labels: List[String] =
+      List(
+        Option.when(playedMove)("played_move"),
+        Option.when(lineOrReply)("line_or_reply"),
+        Option.when(alternative)("alternative"),
+        Option.when(continuation)("continuation")
+      ).flatten
+
+  final case class SurfaceContract(
+      mayUseCheckedLine: Boolean,
+      mayUseForced: Boolean,
+      mayCompareAlternative: Boolean,
+      mayUseTimingClaim: Boolean,
+      lineBinding: MoveReviewLocalFact.LineBinding
+  ):
+    def guardrails: List[String] =
+      List(
+        s"surface_checked_line=$mayUseCheckedLine",
+        s"surface_forced=$mayUseForced",
+        s"surface_alternative=$mayCompareAlternative",
+        s"surface_timing=$mayUseTimingClaim",
+        s"surface_line=${lineBinding.key}"
+      )
+
+  final case class SurfacePacket(
+      claim: String,
+      supportPrimary: Option[String],
+      supportSecondary: Option[String],
+      tension: Option[String],
+      evidenceHook: Option[String],
+      coda: Option[String],
+      supportRenderedInClaim: Boolean,
+      guardrails: List[String]
+  ):
+    def hasSupport: Boolean =
+      List(supportPrimary, supportSecondary, tension, evidenceHook, coda).flatten.exists(_.trim.nonEmpty)
+
+  final case class CausalFrame(
+      plan: QuestionPlan,
+      intent: CausalIntent,
+      renderedClaim: String,
+      surfaceText: String,
+      evidences: List[TypedEvidence],
+      relationKinds: List[RelationKind],
+      roles: CausalRoles,
+      surfaceContract: SurfaceContract
+  )
+
   final case class CertifiedClaim(
       questionKind: AuthorQuestionKind,
+      intent: CausalIntent,
       surfaceText: String,
       subjectRole: SubjectRole,
       evidenceKinds: List[EvidenceKind],
       relationKinds: List[RelationKind],
+      roles: CausalRoles,
+      surfaceContract: SurfaceContract,
+      surfacePacket: SurfacePacket,
       supportRenderedInClaim: Boolean,
       supportRequired: Boolean,
       localFact: Option[LocalFactAdmission]
@@ -97,121 +218,174 @@ private[commentary] object MoveReviewCausalClaim:
     def guardrail: String =
       val evidence = evidenceKinds.map(_.wireName).distinct.mkString(",")
       val relations = relationKinds.map(_.wireName).distinct.mkString(",")
+      val roleLabels = roles.labels.distinct.mkString(",")
       val embeddedSupport = if supportRenderedInClaim then ", support_embedded=true" else ""
+      val surface = surfaceContract.guardrails.mkString(", ")
       val local =
         localFact.fold("")(fact =>
           s", local_fact=${fact.family.key}/${fact.authority.key}, local_fact_producer=${fact.producer.key}, local_fact_strict=${fact.strictFallbackEligible}, local_fact_line=${fact.lineBinding.key}"
         )
-      s"MoveReview causal claim: question=${questionKind.toString}, subject=${subjectRole.wireName}, evidence=$evidence, relations=$relations$embeddedSupport$local"
+      s"MoveReview causal claim: intent=${intent.wireName}, question=${questionKind.toString}, subject=${subjectRole.wireName}, roles=$roleLabels, evidence=$evidence, relations=$relations, $surface$embeddedSupport$local"
 
   final case class Decision(
       claim: Option[CertifiedClaim],
       rejectReasons: List[String],
-      evidences: List[TypedEvidence] = Nil
+      evidences: List[TypedEvidence] = Nil,
+      evidenceKinds: List[EvidenceKind] = Nil,
+      relationKinds: List[RelationKind] = Nil,
+      localFact: Option[LocalFactAdmission] = None,
+      localFactRejectReasons: List[String] = Nil,
+      frame: Option[CausalFrame] = None
   )
 
   def admit(candidate: Candidate): Decision =
-    val plan = candidate.plan
-    val supportRequired = requiresTypedSupport(plan.questionKind)
-    val evidenceKinds = candidate.evidences.map(_.kind).distinct
-    val relationKinds = causalRelations(candidate)
-    val certifiedSurface =
+    admitFrame(assembleFrame(candidate))
+
+  def assembleFrame(candidate: Candidate): CausalFrame =
+    val relationKinds = causalRelations(candidate.plan, candidate.evidences)
+    val surfaceText =
       certifiedSurfaceText(
-        plan.questionKind,
+        candidate.plan.questionKind,
         candidate.renderedClaim,
         relationKinds,
-        evidenceText(candidate, EvidenceKind.Contrast),
-        lineConsequenceSurfaceText(candidate)
+        evidenceText(candidate.evidences, EvidenceKind.Contrast),
+        lineConsequenceSurfaceText(candidate.evidences)
       )
-    val localFact =
-      MoveReviewLocalFact
-        .admitPlanner(
-          plan,
-          evidenceKinds.map(_.wireName),
-          relationKinds.map(_.wireName),
-          lineConsequenceBacked = lineConsequenceSurfaceText(candidate).nonEmpty,
-          lineBinding = dominantLineBinding(candidate.evidences)
-        )
-        .admission
+    val roles = causalRoles(candidate.plan, candidate.evidences)
+    CausalFrame(
+      plan = candidate.plan,
+      intent = CausalIntent.fromQuestionKind(candidate.plan.questionKind),
+      renderedClaim = candidate.renderedClaim,
+      surfaceText = surfaceText,
+      evidences = candidate.evidences,
+      relationKinds = relationKinds,
+      roles = roles,
+      surfaceContract = surfaceContract(relationKinds, candidate.evidences)
+    )
+
+  private def admitFrame(frame: CausalFrame): Decision =
+    val plan = frame.plan
+    val supportRequired = requiresTypedSupport(plan.questionKind)
+    val relationRequired = requiresCausalRelation(plan.questionKind)
+    val evidenceKinds = frame.evidences.map(_.kind).distinct
+    val relationKinds = frame.relationKinds
+    val localFactDecision =
+      promotedLocalFactDecision(frame).getOrElse(
+        MoveReviewLocalFact
+          .admitPlanner(
+            plan,
+            evidenceKinds.map(_.wireName),
+            relationKinds.map(_.wireName),
+            lineConsequenceBacked = lineConsequenceBacked(frame),
+            lineBinding = frame.surfaceContract.lineBinding,
+            evidenceRefs = localFactEvidenceRefs(frame.evidences),
+            guardrails = localFactGuardrails(frame.evidences) ++ frame.surfaceContract.guardrails,
+            anchors = frame.evidences.flatMap(_.anchors).distinct
+          )
+      )
+    val localFact = localFactDecision.admission
+    val packet = surfacePacket(frame)
     val rejectReasons =
       List(
         Option.when(supportRequired && evidenceKinds.isEmpty)("causal_support_missing"),
-        Option.when(supportRequired && relationKinds.isEmpty)("causal_relation_missing"),
-        Option.when(supportRequired && !hasConcreteCausalAnchor(certifiedSurface))("causal_claim_anchor_missing"),
+        Option.when(supportRequired && relationRequired && relationKinds.isEmpty)("causal_relation_missing"),
+        questionRoleRejectReason(plan.questionKind, relationKinds),
+        Option.when(
+          supportRequired &&
+            !hasConcreteCausalAnchor(frame.surfaceText) &&
+            frame.evidences.flatMap(_.anchors).isEmpty
+        )("causal_claim_anchor_missing"),
+        Option.when(
+          supportRequired &&
+            plan.plannerOwnerKind == PlannerOwnerKind.ConcreteTactical &&
+            !hasConcreteTacticalSurfaceAnchor(frame.surfaceText)
+        )("concrete_tactical_surface_anchor_missing"),
         Option.when(supportRequired && localFact.isEmpty)("local_fact_admission_missing"),
-        Option.when(plan.questionKind == AuthorQuestionKind.WhyThis && !whyThisRoleAuthorized(relationKinds))(
-          "why_this_role_authority_missing"
-        ),
-        Option.when(openingRelationWhyThis(plan) && !hasEvidence(candidate, EvidenceSource.AdmissibleContrast))(
+        Option.when(openingRelationWhyThis(plan) && !hasEvidence(frame.evidences, EvidenceSource.AdmissibleContrast))(
           "opening_relation_contrast_not_admissible"
         )
       ).flatten
-    if rejectReasons.nonEmpty then Decision(None, rejectReasons, candidate.evidences)
+    if rejectReasons.nonEmpty then
+      Decision(
+        None,
+        rejectReasons,
+        frame.evidences,
+        evidenceKinds,
+        relationKinds,
+        localFact,
+        localFactDecision.rejectReasons,
+        Some(frame)
+      )
     else
       Decision(
         claim =
           Some(
             CertifiedClaim(
               questionKind = plan.questionKind,
-              surfaceText = certifiedSurface,
-              subjectRole = subjectRole(plan),
+              intent = frame.intent,
+              surfaceText = frame.surfaceText,
+              subjectRole = frame.roles.subject,
               evidenceKinds = evidenceKinds,
               relationKinds = relationKinds,
-              supportRenderedInClaim = certifiedSurface != candidate.renderedClaim,
+              roles = frame.roles,
+              surfaceContract = frame.surfaceContract,
+              surfacePacket = packet,
+              supportRenderedInClaim = packet.supportRenderedInClaim,
               supportRequired = supportRequired,
               localFact = localFact
             )
-          ),
+        ),
         rejectReasons = Nil,
-        evidences = candidate.evidences
+        evidences = frame.evidences,
+        evidenceKinds = evidenceKinds,
+        relationKinds = relationKinds,
+        localFact = localFact,
+        localFactRejectReasons = localFactDecision.rejectReasons,
+        frame = Some(frame)
       )
 
   def requiresTypedSupport(kind: AuthorQuestionKind): Boolean =
     kind match
       case AuthorQuestionKind.WhyThis | AuthorQuestionKind.WhyNow | AuthorQuestionKind.WhatChanged |
-          AuthorQuestionKind.WhatMustBeStopped | AuthorQuestionKind.WhosePlanIsFaster =>
+          AuthorQuestionKind.WhatMustBeStopped | AuthorQuestionKind.WhosePlanIsFaster |
+          AuthorQuestionKind.WhatMattersHere =>
         true
-      case AuthorQuestionKind.WhatMattersHere =>
-        false
 
-  def decide(
-      plan: QuestionPlan,
-      renderedClaim: String,
-      contrastAdmissible: Boolean,
-      supportPrimary: Option[String],
-      supportSecondary: Option[String],
-      tension: Option[String],
-      evidenceHook: Option[String],
-      coda: Option[String],
-      surfaceConsequence: Option[String],
-      typedTimingSupport: Boolean
-  ): Decision =
-    admit(
-      candidate(
-        plan = plan,
-        renderedClaim = renderedClaim,
-        contrastAdmissible = contrastAdmissible,
-        supportPrimary = supportPrimary,
-        supportSecondary = supportSecondary,
-        tension = tension,
-        evidenceHook = evidenceHook,
-        coda = coda,
-        surfaceConsequence = surfaceConsequence,
-        typedTimingSupport = typedTimingSupport
-      )
-    )
+  private def requiresCausalRelation(kind: AuthorQuestionKind): Boolean =
+    kind != AuthorQuestionKind.WhatMattersHere
+
+  private def questionRoleRejectReason(
+      questionKind: AuthorQuestionKind,
+      relations: List[RelationKind]
+  ): Option[String] =
+    questionKind match
+      case AuthorQuestionKind.WhyThis =>
+        Option.when(!whyThisRoleAuthorized(relations))("why_this_role_authority_missing")
+      case AuthorQuestionKind.WhyNow =>
+        Option.when(!relations.contains(RelationKind.TimingConstraint))("why_now_timing_authority_missing")
+      case AuthorQuestionKind.WhatChanged =>
+        Option.when(!relations.contains(RelationKind.ChangeConsequence))("what_changed_consequence_authority_missing")
+      case AuthorQuestionKind.WhatMustBeStopped =>
+        Option.when(!relations.contains(RelationKind.DefensiveResource))("what_must_be_stopped_defensive_authority_missing")
+      case AuthorQuestionKind.WhosePlanIsFaster =>
+        Option.when(!relations.contains(RelationKind.PlanRace))("plan_race_authority_missing")
+      case AuthorQuestionKind.WhatMattersHere =>
+        None
 
   def candidate(
       plan: QuestionPlan,
       renderedClaim: String,
       contrastAdmissible: Boolean,
+      contrastSourceKind: Option[String],
+      contrastAnchor: Option[String],
       supportPrimary: Option[String],
       supportSecondary: Option[String],
       tension: Option[String],
       evidenceHook: Option[String],
       coda: Option[String],
       surfaceConsequence: Option[String],
-      typedTimingSupport: Boolean
+      lineConsequenceEvidence: Option[LineConsequenceEvidence],
+      promotedEvidence: List[TypedEvidence] = Nil
   ): Candidate =
     Candidate(
       plan = plan,
@@ -220,21 +394,46 @@ private[commentary] object MoveReviewCausalClaim:
         typedEvidences(
           plan = plan,
           contrastAdmissible = contrastAdmissible,
+          contrastSourceKind = contrastSourceKind,
+          contrastAnchor = contrastAnchor,
           supportPrimary = supportPrimary,
           supportSecondary = supportSecondary,
           tension = tension,
           evidenceHook = evidenceHook,
           coda = coda,
           surfaceConsequence = surfaceConsequence,
-          typedTimingSupport = typedTimingSupport
-        )
+          lineConsequenceEvidence = lineConsequenceEvidence
+        ) ++ promotedEvidence
     )
+
+  def promotedTypedEvidences(
+      admissions: List[ClaimAuthorityResolver.PromotedLocalFactAdmission]
+  ): List[TypedEvidence] =
+    admissions.map { admission =>
+      TypedEvidence(
+        kind = evidenceKindForFamily(admission.family),
+        source = evidenceSourceForDecision(admission.decision),
+        text = admission.supportText,
+        subjectRole = subjectRoleForPromotedFamily(admission.family, admission.claim),
+        lineBinding = admission.lineBinding,
+        evidenceRefs = admission.evidenceRefs,
+        anchors = admission.anchors,
+        guardrails = admission.guardrails,
+        localFactFamily = Some(admission.family),
+        authorityTier = Some(admission.decision.tier),
+        localFactCandidate = Some(admission.localFactCandidate)
+      )
+    }.distinct
 
   private def hasConcreteCausalAnchor(text: String): Boolean =
     val low = Option(text).getOrElse("").toLowerCase
     LineScopedCitation.hasConcreteSanLine(text) ||
       LiveNarrativeCompressionCore.hasConcreteAnchor(text) ||
       low.matches(""".*\b(threat|break|counterplay|mate|wins|loses|drops|fork|pin|trade|recapture|reply)\b.*""")
+
+  private def hasConcreteTacticalSurfaceAnchor(text: String): Boolean =
+    LineScopedCitation.hasConcreteSanLine(text) ||
+      LiveNarrativeCompressionCore.hasConcreteAnchor(text)
 
   private def dominantLineBinding(evidences: List[TypedEvidence]): MoveReviewLocalFact.LineBinding =
     val bindings = evidences.map(_.lineBinding).filter(_ != MoveReviewLocalFact.LineBinding.None)
@@ -252,24 +451,30 @@ private[commentary] object MoveReviewCausalClaim:
   private def typedEvidences(
       plan: QuestionPlan,
       contrastAdmissible: Boolean,
+      contrastSourceKind: Option[String],
+      contrastAnchor: Option[String],
       supportPrimary: Option[String],
       supportSecondary: Option[String],
       tension: Option[String],
       evidenceHook: Option[String],
       coda: Option[String],
       surfaceConsequence: Option[String],
-      typedTimingSupport: Boolean
+      lineConsequenceEvidence: Option[LineConsequenceEvidence]
   ): List[TypedEvidence] =
-    val explicitReplyLossContrast =
-      typedTimingSupport && plan.timingWitness.isEmpty && contrastAdmissible
     List(
       Option.when(contrastAdmissible)(
         supportPrimary.map(text =>
+          val localFactCandidate = contrastLocalFactCandidate(plan, contrastSourceKind, contrastAnchor)
           TypedEvidence(
             kind = EvidenceKind.Contrast,
-            source = if explicitReplyLossContrast then EvidenceSource.ExplicitReplyLoss else EvidenceSource.AdmissibleContrast,
+            source = contrastEvidenceSource(contrastSourceKind),
             text = Some(text),
-            subjectRole = SubjectRole.PlayedMove
+            subjectRole = SubjectRole.PlayedMove,
+            lineBinding = contrastLineBinding(contrastSourceKind),
+            evidenceRefs = contrastAnchor.map(anchor => s"contrast_anchor:$anchor").toList,
+            anchors = contrastAnchor.map(anchor => MoveReviewLocalFact.Anchor("contrast_anchor", anchor)).toList,
+            localFactFamily = localFactCandidate.map(_.family),
+            localFactCandidate = localFactCandidate
           )
         )
       ).flatten,
@@ -285,16 +490,21 @@ private[commentary] object MoveReviewCausalClaim:
           EvidenceSource.BranchLine,
           Some(text),
           SubjectRole.LineOrReply,
-          lineBinding = MoveReviewLocalFact.LineBinding.BranchScoped
+          lineBinding = MoveReviewLocalFact.LineBinding.BranchScoped,
+          anchors = branchLineAnchors(text),
+          evidenceRefs = branchLineEvidenceRefs(text)
         )
       ),
-      surfaceConsequence.map(text =>
+      lineConsequenceEvidence.map(evidence =>
         TypedEvidence(
           EvidenceKind.CertifiedConsequence,
           EvidenceSource.LineConsequenceSurface,
-          Some(text),
+          surfaceConsequence,
           SubjectRole.PlayedMove,
-          lineBinding = MoveReviewLocalFact.LineBinding.PvCoupled
+          lineBinding = MoveReviewLocalFact.LineBinding.PvCoupled,
+          evidenceRefs = MoveReviewLocalFact.lineConsequenceEvidenceRefs(evidence),
+          anchors = MoveReviewLocalFact.lineConsequenceAnchors(evidence),
+          guardrails = MoveReviewLocalFact.lineConsequenceGuardrails(evidence)
         )
       ),
       coda
@@ -309,6 +519,8 @@ private[commentary] object MoveReviewCausalClaim:
           text = witness.continuationMove.orElse(witness.namedBreak),
           subjectRole = SubjectRole.LineOrReply,
           lineBinding = witness.continuationMove.fold(MoveReviewLocalFact.LineBinding.None)(_ => MoveReviewLocalFact.LineBinding.Replayed),
+          evidenceRefs = timingWitnessEvidenceRefs(witness),
+          anchors = timingWitnessAnchors(witness),
           guardrails =
             List(
               s"timing_witness_source:${witness.source}",
@@ -318,39 +530,270 @@ private[commentary] object MoveReviewCausalClaim:
       }
     ).flatten.distinct
 
-  private def causalRelations(candidate: Candidate): List[RelationKind] =
-    val plan = candidate.plan
+  private def contrastEvidenceSource(contrastSourceKind: Option[String]): EvidenceSource =
+    contrastSourceKind match
+      case Some(ContrastiveSupportAdmissibility.SourceKind.ExplicitReplyLoss) =>
+        EvidenceSource.ExplicitReplyLoss
+      case Some(ContrastiveSupportAdmissibility.SourceKind.DelayedOnlyMove) =>
+        EvidenceSource.DelayedOnlyMove
+      case Some(ContrastiveSupportAdmissibility.SourceKind.PreventedResource) =>
+        EvidenceSource.PreventedResource
+      case Some(ContrastiveSupportAdmissibility.SourceKind.ExplicitAlternativeCollapse) =>
+        EvidenceSource.ExplicitAlternativeCollapse
+      case Some(ContrastiveSupportAdmissibility.SourceKind.TopEngineMoveWithConcreteConsequence) =>
+        EvidenceSource.TopEngineMoveWithConcreteConsequence
+      case Some(ContrastiveSupportAdmissibility.SourceKind.RoleAwareLineConsequence) =>
+        EvidenceSource.RoleAwareLineConsequence
+      case Some(ContrastiveSupportAdmissibility.SourceKind.CounterfactualCausalThreat) =>
+        EvidenceSource.CounterfactualCausalThreat
+      case _ =>
+        EvidenceSource.AdmissibleContrast
+
+  private def contrastLineBinding(contrastSourceKind: Option[String]): MoveReviewLocalFact.LineBinding =
+    contrastSourceKind match
+      case Some(ContrastiveSupportAdmissibility.SourceKind.TopEngineMoveWithConcreteConsequence) =>
+        MoveReviewLocalFact.LineBinding.PvCoupled
+      case Some(ContrastiveSupportAdmissibility.SourceKind.RoleAwareLineConsequence) =>
+        MoveReviewLocalFact.LineBinding.PvCoupled
+      case Some(ContrastiveSupportAdmissibility.SourceKind.ExplicitAlternativeCollapse) =>
+        MoveReviewLocalFact.LineBinding.BranchScoped
+      case _ =>
+        MoveReviewLocalFact.LineBinding.None
+
+  private def contrastLocalFactCandidate(
+      plan: QuestionPlan,
+      contrastSourceKind: Option[String],
+      contrastAnchor: Option[String]
+  ): Option[MoveReviewLocalFact.Candidate] =
+    contrastSourceKind match
+      case Some(ContrastiveSupportAdmissibility.SourceKind.CounterfactualCausalThreat) =>
+        val source = ContrastiveSupportAdmissibility.SourceKind.CounterfactualCausalThreat
+        Some(
+          MoveReviewLocalFact.Candidate(
+            family = MoveReviewLocalFact.Family.Threat,
+            source = MoveReviewLocalFact.Source.CertifiedStrategy,
+            producer = MoveReviewLocalFact.Producer.PlannerCausalClaim,
+            subject = MoveReviewLocalFact.Subject.LineOrReply,
+            strictFallbackCandidate = false,
+            anchors =
+              (List(MoveReviewLocalFact.Anchor("contrast_source", source)) ++
+                contrastAnchor.map(anchor => MoveReviewLocalFact.Anchor("contrast_anchor", anchor))).distinct,
+            evidenceRefs =
+              (List(s"contrast_source:$source") ++ contrastAnchor.map(anchor => s"contrast_anchor:$anchor")).distinct,
+            guardrails =
+              List(
+                "counterfactual_causal_threat:motif_backed",
+                s"planner_owner:${plan.plannerOwnerKind.wireName}",
+                s"planner_source:${plan.plannerSource}"
+              )
+          )
+        )
+      case _ =>
+        None
+
+  private def branchLineAnchors(text: String): List[MoveReviewLocalFact.Anchor] =
+    firstBranchLineToken(text).map(token => MoveReviewLocalFact.Anchor("branch_line_first_san", token)).toList
+
+  private def branchLineEvidenceRefs(text: String): List[String] =
+    firstBranchLineToken(text).map(token => s"branch_line_first_san:$token").toList
+
+  private def firstBranchLineToken(text: String): Option[String] =
+    LineScopedCitation.firstConcreteSanToken(text)
+
+  private def lineConsequenceBacked(frame: CausalFrame): Boolean =
+    hasEvidence(frame.evidences, EvidenceSource.LineConsequenceSurface) ||
+      hasEvidence(frame.evidences, EvidenceSource.RoleAwareLineConsequence) ||
+      (
+        frame.relationKinds.contains(RelationKind.ChangeConsequence) &&
+          frame.evidences.exists(evidence =>
+          evidence.source == EvidenceSource.TopEngineMoveWithConcreteConsequence ||
+              evidence.source == EvidenceSource.RoleAwareLineConsequence ||
+              evidence.source == EvidenceSource.ExplicitAlternativeCollapse
+          )
+      )
+
+  private def localFactEvidenceRefs(evidences: List[TypedEvidence]): List[String] =
+    evidences
+      .flatMap(evidence =>
+        List(
+          s"evidence_source:${evidence.source.wireName}",
+          s"evidence_subject:${evidence.subjectRole.wireName}"
+        ) ++
+          Option
+            .when(evidence.lineBinding != MoveReviewLocalFact.LineBinding.None)(s"evidence_line_binding:${evidence.lineBinding.key}")
+            .toList ++
+          evidence.evidenceRefs
+      )
+      .map(_.trim)
+      .filter(_.nonEmpty)
+      .distinct
+
+  private def localFactGuardrails(evidences: List[TypedEvidence]): List[String] =
+    evidences.flatMap(_.guardrails).map(_.trim).filter(_.nonEmpty).distinct
+
+  private def promotedLocalFactDecision(frame: CausalFrame): Option[MoveReviewLocalFact.Decision] =
+    frame.evidences.find(_.localFactCandidate.nonEmpty).flatMap { evidence =>
+      val candidate = evidence.localFactCandidate.get
+      val decision =
+        MoveReviewLocalFact.admit(
+          candidate.copy(
+            evidenceRefs = localFactEvidenceRefs(List(evidence)),
+            guardrails = (candidate.guardrails ++ localFactGuardrails(List(evidence)) ++ frame.surfaceContract.guardrails).distinct
+          )
+        )
+      Option.when(decision.admission.nonEmpty)(decision)
+    }
+
+  private def timingWitnessEvidenceRefs(witness: QuestionPlanTimingWitness): List[String] =
+    (
+      List(
+        s"timing_witness_source:${witness.source}",
+        s"timing_witness_family:${witness.proofFamily}"
+      ) ++
+        witness.namedBreak.map(value => s"timing_witness_break:$value") ++
+        witness.continuationMove.map(value => s"timing_witness_continuation:$value") ++
+        witness.branchKey.map(value => s"timing_witness_branch:$value") ++
+        witness.witnessTokens.map(token => s"timing_witness_token:$token")
+    ).map(_.trim).filter(_.nonEmpty).distinct
+
+  private def timingWitnessAnchors(witness: QuestionPlanTimingWitness): List[MoveReviewLocalFact.Anchor] =
+    (
+      List(
+        Some(MoveReviewLocalFact.Anchor("timing_source", witness.source)),
+        Some(MoveReviewLocalFact.Anchor("timing_family", witness.proofFamily)),
+        witness.namedBreak.map(value => MoveReviewLocalFact.Anchor("timing_break", value)),
+        witness.continuationMove.map(value => MoveReviewLocalFact.Anchor("timing_continuation", value)),
+        witness.branchKey.map(value => MoveReviewLocalFact.Anchor("timing_branch", value))
+      ).flatten ++ witness.witnessTokens.map(token => MoveReviewLocalFact.Anchor("timing_token", token))
+    ).distinct
+
+  private def causalRelations(plan: QuestionPlan, evidences: List[TypedEvidence]): List[RelationKind] =
+    val promotedPlayedMoveEffect =
+      playedMoveCausalOwner(plan) &&
+        evidences.exists(evidence =>
+          evidence.localFactFamily.exists(family =>
+            Set(
+              MoveReviewLocalFact.Family.Attack,
+              MoveReviewLocalFact.Family.Defense,
+              MoveReviewLocalFact.Family.Threat,
+              MoveReviewLocalFact.Family.Pressure,
+              MoveReviewLocalFact.Family.PlanSupport,
+              MoveReviewLocalFact.Family.LineConsequence
+            ).contains(family)
+          )
+        )
     val playedMoveConsequence =
       playedMoveCausalOwner(plan) &&
-        (hasEvidence(candidate, EvidenceKind.BranchLine) || hasEvidence(candidate, EvidenceKind.CertifiedConsequence))
+        (hasEvidence(evidences, EvidenceKind.BranchLine) || hasEvidence(evidences, EvidenceKind.CertifiedConsequence) ||
+          promotedPlayedMoveEffect)
+    val alternativeContrast = hasAlternativeContrast(evidences)
     List(
-      Option.when(hasEvidence(candidate, EvidenceKind.Contrast))(RelationKind.AlternativeContrast),
+      Option.when(alternativeContrast)(RelationKind.AlternativeContrast),
       Option.when(playedMoveConsequence)(RelationKind.PlayedMoveConsequence),
-      Option.when(plan.questionKind == AuthorQuestionKind.WhyNow && hasTypedTimingSupport(candidate))(RelationKind.TimingConstraint),
+      Option.when(plan.questionKind == AuthorQuestionKind.WhyNow && hasTypedTimingSupport(evidences))(RelationKind.TimingConstraint),
       Option.when(
         plan.questionKind == AuthorQuestionKind.WhatMustBeStopped &&
           plan.plannerOwnerKind == PlannerOwnerKind.ForcingDefense &&
           (
-            hasEvidence(candidate, EvidenceKind.BranchLine) ||
-              hasEvidence(candidate, EvidenceKind.CertifiedConsequence) ||
-              hasEvidence(candidate, EvidenceKind.TimingWitness)
+            hasEvidence(evidences, EvidenceKind.BranchLine) ||
+              hasEvidence(evidences, EvidenceKind.CertifiedConsequence) ||
+              hasEvidence(evidences, EvidenceKind.TimingWitness) ||
+              hasPromotedFamily(evidences, MoveReviewLocalFact.Family.Defense)
           )
       )(RelationKind.DefensiveResource),
       Option.when(
         plan.questionKind == AuthorQuestionKind.WhosePlanIsFaster &&
           plan.plannerOwnerKind == PlannerOwnerKind.PlanRace &&
           (
-            hasEvidence(candidate, EvidenceKind.Contrast) ||
-              hasEvidence(candidate, EvidenceKind.BranchLine) ||
-              hasEvidence(candidate, EvidenceKind.TimingTension) ||
-              hasEvidence(candidate, EvidenceKind.CertifiedConsequence)
+            hasEvidence(evidences, EvidenceKind.Contrast) ||
+            hasEvidence(evidences, EvidenceKind.BranchLine) ||
+              hasEvidence(evidences, EvidenceKind.TimingTension) ||
+              hasEvidence(evidences, EvidenceKind.CertifiedConsequence) ||
+              hasPromotedFamily(evidences, MoveReviewLocalFact.Family.PlanSupport)
           )
       )(RelationKind.PlanRace),
       Option.when(
         plan.questionKind == AuthorQuestionKind.WhatChanged &&
-          (playedMoveConsequence || hasEvidence(candidate, EvidenceKind.Contrast))
+          (playedMoveConsequence || alternativeContrast)
       )(RelationKind.ChangeConsequence)
     ).flatten.distinct
+
+  private def causalRoles(plan: QuestionPlan, evidences: List[TypedEvidence]): CausalRoles =
+    val subject = subjectRole(plan)
+    CausalRoles(
+      subject = subject,
+      playedMove = subject == SubjectRole.PlayedMove || evidences.exists(_.subjectRole == SubjectRole.PlayedMove),
+      lineOrReply = subject == SubjectRole.LineOrReply || evidences.exists(_.subjectRole == SubjectRole.LineOrReply),
+      alternative = hasAlternativeContrast(evidences),
+      continuation = evidences.exists(_.lineBinding != MoveReviewLocalFact.LineBinding.None)
+    )
+
+  private def surfaceContract(
+      relations: List[RelationKind],
+      evidences: List[TypedEvidence]
+  ): SurfaceContract =
+    val lineBinding = dominantLineBinding(evidences)
+    SurfaceContract(
+      mayUseCheckedLine =
+        lineBinding != MoveReviewLocalFact.LineBinding.None &&
+          (
+            relations.contains(RelationKind.PlayedMoveConsequence) ||
+              relations.contains(RelationKind.ChangeConsequence) ||
+              relations.contains(RelationKind.PlanRace)
+          ),
+      mayUseForced = evidences.exists(_.source == EvidenceSource.ExplicitReplyLoss),
+      mayCompareAlternative = relations.contains(RelationKind.AlternativeContrast),
+      mayUseTimingClaim = relations.contains(RelationKind.TimingConstraint),
+      lineBinding = lineBinding
+    )
+
+  private def surfacePacket(frame: CausalFrame): SurfacePacket =
+    val contract = frame.surfaceContract
+    val claim = frame.surfaceText
+    val promotedSupport =
+      promotedEvidenceText(frame.evidences).filterNot(sameText(_, claim))
+    val mayUseDefensiveSupport =
+      frame.relationKinds.contains(RelationKind.DefensiveResource)
+    val contrast =
+      Option
+        .when(contract.mayCompareAlternative || contract.mayUseForced || mayUseDefensiveSupport || contract.mayUseTimingClaim)(
+          evidenceText(frame.evidences, EvidenceKind.Contrast).filterNot(sameText(_, claim))
+        )
+        .flatten
+    val secondary =
+      Option
+        .when(contract.mayCompareAlternative || contract.mayUseForced || mayUseDefensiveSupport || frame.relationKinds.contains(RelationKind.PlanRace))(
+          evidenceText(frame.evidences, EvidenceKind.SecondaryPlan).filterNot(sameText(_, claim))
+        )
+        .flatten
+    val tension =
+      Option
+        .when(contract.mayUseTimingClaim)(
+          evidenceText(frame.evidences, EvidenceKind.TimingTension).filterNot(sameText(_, claim))
+        )
+        .flatten
+    val evidenceHook =
+      Option
+        .when(contract.mayUseCheckedLine)(
+          evidenceText(frame.evidences, EvidenceKind.BranchLine).filterNot(sameText(_, claim))
+        )
+        .flatten
+    val coda =
+      Option.unless(contract.mayCompareAlternative) {
+        plannerConsequenceText(frame.evidences)
+          .orElse(Option.when(contract.mayUseCheckedLine)(lineConsequenceSurfaceText(frame.evidences)).flatten)
+          .filterNot(redundantSurfaceText(_, claim))
+      }.flatten
+    SurfacePacket(
+      claim = claim,
+      supportPrimary = contrast.orElse(promotedSupport),
+      supportSecondary = secondary,
+      tension = tension,
+      evidenceHook = evidenceHook,
+      coda = coda,
+      supportRenderedInClaim = !sameText(frame.surfaceText, frame.renderedClaim),
+      guardrails = contract.guardrails
+    )
 
   private def whyThisRoleAuthorized(relations: List[RelationKind]): Boolean =
     relations.exists(relation =>
@@ -373,30 +816,96 @@ private[commentary] object MoveReviewCausalClaim:
     then surfaceConsequence.getOrElse(renderedClaim)
     else renderedClaim
 
-  private def hasTypedTimingSupport(candidate: Candidate): Boolean =
-    hasEvidence(candidate, EvidenceSource.TimingWitness) ||
-      hasEvidence(candidate, EvidenceSource.ExplicitReplyLoss)
+  private def hasTypedTimingSupport(evidences: List[TypedEvidence]): Boolean =
+    hasEvidence(evidences, EvidenceSource.TimingWitness) ||
+      hasEvidence(evidences, EvidenceSource.ExplicitReplyLoss) ||
+      hasEvidence(evidences, EvidenceSource.DelayedOnlyMove)
 
-  private def hasEvidence(candidate: Candidate, kind: EvidenceKind): Boolean =
-    candidate.evidences.exists(_.kind == kind)
+  private def hasAlternativeContrast(evidences: List[TypedEvidence]): Boolean =
+    evidences.exists(evidence =>
+      evidence.kind == EvidenceKind.Contrast &&
+        (
+            evidence.source == EvidenceSource.AdmissibleContrast ||
+            evidence.source == EvidenceSource.ExplicitAlternativeCollapse ||
+            evidence.source == EvidenceSource.TopEngineMoveWithConcreteConsequence ||
+            evidence.source == EvidenceSource.RoleAwareLineConsequence ||
+            evidence.source == EvidenceSource.CounterfactualCausalThreat
+        )
+    )
 
-  private def hasEvidence(candidate: Candidate, source: EvidenceSource): Boolean =
-    candidate.evidences.exists(_.source == source)
+  private def hasPromotedFamily(evidences: List[TypedEvidence], family: MoveReviewLocalFact.Family): Boolean =
+    evidences.exists(_.localFactFamily.contains(family))
 
-  private def evidenceText(candidate: Candidate, kind: EvidenceKind): Option[String] =
-    candidate.evidences.find(_.kind == kind).flatMap(_.text.map(_.trim).filter(_.nonEmpty))
+  private def hasEvidence(evidences: List[TypedEvidence], kind: EvidenceKind): Boolean =
+    evidences.exists(_.kind == kind)
 
-  private def lineConsequenceSurfaceText(candidate: Candidate): Option[String] =
-    candidate.evidences.find(_.source == EvidenceSource.LineConsequenceSurface).flatMap(_.text.map(_.trim).filter(_.nonEmpty))
+  private def hasEvidence(evidences: List[TypedEvidence], source: EvidenceSource): Boolean =
+    evidences.exists(_.source == source)
+
+  private def evidenceText(evidences: List[TypedEvidence], kind: EvidenceKind): Option[String] =
+    evidences.find(_.kind == kind).flatMap(_.text.map(_.trim).filter(_.nonEmpty))
+
+  private def lineConsequenceSurfaceText(evidences: List[TypedEvidence]): Option[String] =
+    evidences.find(_.source == EvidenceSource.LineConsequenceSurface).flatMap(_.text.map(_.trim).filter(_.nonEmpty))
+
+  private def plannerConsequenceText(evidences: List[TypedEvidence]): Option[String] =
+    evidences.find(_.source == EvidenceSource.PlannerConsequence).flatMap(_.text.map(_.trim).filter(_.nonEmpty))
+
+  private def promotedEvidenceText(evidences: List[TypedEvidence]): Option[String] =
+    evidences
+      .find(evidence =>
+        evidence.source == EvidenceSource.CertifiedOwnerPacket ||
+          evidence.source == EvidenceSource.SupportedLocalPacket
+      )
+      .flatMap(_.text.map(_.trim).filter(_.nonEmpty))
 
   private def sameText(left: String, right: String): Boolean =
     Option(left).getOrElse("").trim.equalsIgnoreCase(Option(right).getOrElse("").trim)
 
+  private def redundantSurfaceText(candidate: String, claim: String): Boolean =
+    sameText(candidate, claim) ||
+      {
+        val normalizedCandidate = normalizeSurfaceText(candidate)
+        val normalizedClaim = normalizeSurfaceText(claim)
+        normalizedCandidate.nonEmpty && normalizedClaim.contains(normalizedCandidate)
+      }
+
+  private def normalizeSurfaceText(value: String): String =
+    Option(value).getOrElse("").toLowerCase.replaceAll("""[^a-z0-9]+""", "")
+
   private def playedMoveCausalOwner(plan: QuestionPlan): Boolean =
     plan.plannerOwnerKind == PlannerOwnerKind.MoveDelta ||
-      plan.plannerOwnerKind == PlannerOwnerKind.TacticalFailure
+      plan.plannerOwnerKind == PlannerOwnerKind.ConcreteTactical ||
+      plan.plannerOwnerKind == PlannerOwnerKind.LineConsequence
 
   private def openingRelationWhyThis(plan: QuestionPlan): Boolean =
     plan.questionKind == AuthorQuestionKind.WhyThis &&
       (plan.plannerSource == "opening_relation_translator" ||
         plan.sourceKinds.contains("opening_relation_translator"))
+
+  private def evidenceKindForFamily(family: MoveReviewLocalFact.Family): EvidenceKind =
+    family match
+      case MoveReviewLocalFact.Family.Attack          => EvidenceKind.Attack
+      case MoveReviewLocalFact.Family.Defense         => EvidenceKind.Defense
+      case MoveReviewLocalFact.Family.Threat          => EvidenceKind.Threat
+      case MoveReviewLocalFact.Family.Pressure        => EvidenceKind.Pressure
+      case MoveReviewLocalFact.Family.PlanSupport     => EvidenceKind.PlanSupport
+      case MoveReviewLocalFact.Family.LineConsequence => EvidenceKind.CertifiedConsequence
+      case MoveReviewLocalFact.Family.Timing          => EvidenceKind.TimingWitness
+      case _                                          => EvidenceKind.CertifiedConsequence
+
+  private def evidenceSourceForDecision(decision: ClaimAuthorityDecision): EvidenceSource =
+    decision.tier match
+      case ClaimAuthorityTier.CertifiedOwner => EvidenceSource.CertifiedOwnerPacket
+      case ClaimAuthorityTier.SupportedLocal => EvidenceSource.SupportedLocalPacket
+      case _                                 => EvidenceSource.SupportedLocalPacket
+
+  private def subjectRoleForPromotedFamily(
+      family: MoveReviewLocalFact.Family,
+      claim: Option[MainPathScopedClaim]
+  ): SubjectRole =
+    if claim.exists(_.scope == PlayerFacingClaimScope.LineScoped) ||
+      family == MoveReviewLocalFact.Family.Defense ||
+      family == MoveReviewLocalFact.Family.Threat
+    then SubjectRole.LineOrReply
+    else SubjectRole.PlayedMove

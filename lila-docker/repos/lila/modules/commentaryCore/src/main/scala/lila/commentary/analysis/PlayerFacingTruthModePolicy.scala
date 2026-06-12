@@ -215,6 +215,13 @@ private[commentary] object PlayerFacingTruthModePolicy:
       surface: StrategyPackSurface.Snapshot,
       truthContract: Option[DecisiveTruthContract]
   ): Option[PlayerFacingMoveDeltaEvidence] =
+    mainPathMoveDeltaEvidences(ctx, surface, truthContract).headOption
+
+  def mainPathMoveDeltaEvidences(
+      ctx: NarrativeContext,
+      surface: StrategyPackSurface.Snapshot,
+      truthContract: Option[DecisiveTruthContract]
+  ): List[PlayerFacingMoveDeltaEvidence] =
     val preventedNow = ctx.semantic.toList.flatMap(_.preventedPlans).filter(_.sourceScope == FactScope.Now)
     val mainPathOwnerProof = hasMainPathOwnerProof(ctx, surface)
     val centralBreakTimingWitness = centralBreakTimingReleaseWitness(ctx)
@@ -236,13 +243,12 @@ private[commentary] object PlayerFacingTruthModePolicy:
         (surfaceLooksShellOnly(surface) && !mainPathOwnerProof) ||
         minorityAttackFixationPacketBlocked(ctx, surface) ||
         (!hasConcreteStrategicEvidence(ctx, surface, truthContract) && centralBreakTimingWitness.isEmpty)
-    then None
+    then Nil
     else
       val squareAnchors = extractSquareAnchors(anchors)
       val decisionDelta = ctx.decision.map(_.delta)
       val bestLine = ctx.engineEvidence.toList.flatMap(_.variations).headOption
-      def result(kind: PlayerFacingMoveDeltaClass): Option[PlayerFacingMoveDeltaEvidence] =
-        Some(
+      def result(kind: PlayerFacingMoveDeltaClass): PlayerFacingMoveDeltaEvidence =
           certifyMainPathDelta(
             ctx = ctx,
             surface = surface,
@@ -250,33 +256,23 @@ private[commentary] object PlayerFacingTruthModePolicy:
             anchors = anchors,
             preventedNow = preventedNow
           )
-        )
 
-      if BreakPreventionWitness.exact(ctx, surface, preventedNow).nonEmpty then
-        result(PlayerFacingMoveDeltaClass.CounterplayReduction)
-      else if badPieceLiquidationWitness(ctx).nonEmpty then
-        result(PlayerFacingMoveDeltaClass.ExchangeForcing)
-      else if hasMainPathExchangeForcing(ctx, surface, bestLine, squareAnchors) then
-        result(PlayerFacingMoveDeltaClass.ExchangeForcing)
-      else if centralBreakTimingWitness.nonEmpty then
-        result(PlayerFacingMoveDeltaClass.PlanAdvance)
-      else if exactPressureIncreaseWitness(ctx, surface).nonEmpty then
-        result(PlayerFacingMoveDeltaClass.PressureIncrease)
-      else if colorComplexSqueezeWitness(ctx, surface).nonEmpty then
-        result(PlayerFacingMoveDeltaClass.CounterplayReduction)
-      else if hasMainPathSpecificResourceRemoval(ctx, preventedNow, bestLine) then
-        result(PlayerFacingMoveDeltaClass.ResourceRemoval)
-      else if hasMainPathCounterplayReduction(preventedNow) then
-        result(PlayerFacingMoveDeltaClass.CounterplayReduction)
-      else if outpostOccupationWitness(ctx).nonEmpty then
-        result(PlayerFacingMoveDeltaClass.NewAccess)
-      else if hasMainPathNewAccess(ctx, surface, decisionDelta) then
-        result(PlayerFacingMoveDeltaClass.NewAccess)
-      else if hasMainPathPressureIncrease(ctx, surface, decisionDelta) then
-        result(PlayerFacingMoveDeltaClass.PressureIncrease)
-      else if hasMainPathPlanAdvance(surface, decisionDelta) then
-        result(PlayerFacingMoveDeltaClass.PlanAdvance)
-      else None
+      List(
+        Option.when(BreakPreventionWitness.exact(ctx, surface, preventedNow).nonEmpty)(PlayerFacingMoveDeltaClass.CounterplayReduction),
+        Option.when(badPieceLiquidationWitness(ctx).nonEmpty)(PlayerFacingMoveDeltaClass.ExchangeForcing),
+        Option.when(hasMainPathExchangeForcing(ctx, surface, bestLine, squareAnchors))(PlayerFacingMoveDeltaClass.ExchangeForcing),
+        Option.when(centralBreakTimingWitness.nonEmpty)(PlayerFacingMoveDeltaClass.PlanAdvance),
+        Option.when(exactPressureIncreaseWitness(ctx, surface).nonEmpty)(PlayerFacingMoveDeltaClass.PressureIncrease),
+        Option.when(colorComplexSqueezeWitness(ctx, surface).nonEmpty)(PlayerFacingMoveDeltaClass.CounterplayReduction),
+        Option.when(hasMainPathSpecificResourceRemoval(ctx, preventedNow, bestLine))(PlayerFacingMoveDeltaClass.ResourceRemoval),
+        Option.when(hasMainPathCounterplayReduction(preventedNow))(PlayerFacingMoveDeltaClass.CounterplayReduction),
+        Option.when(outpostOccupationWitness(ctx).nonEmpty)(PlayerFacingMoveDeltaClass.NewAccess),
+        Option.when(hasMainPathNewAccess(ctx, surface, decisionDelta))(PlayerFacingMoveDeltaClass.NewAccess),
+        Option.when(hasMainPathPressureIncrease(ctx, surface, decisionDelta))(PlayerFacingMoveDeltaClass.PressureIncrease),
+        Option.when(hasMainPathPlanAdvance(surface, decisionDelta))(PlayerFacingMoveDeltaClass.PlanAdvance)
+      ).flatten
+        .map(result)
+        .distinctBy(delta => (delta.deltaClass, delta.packet.proofSource, delta.packet.proofFamily))
 
   def mainPathAnchorTerms(
       surface: StrategyPackSurface.Snapshot,

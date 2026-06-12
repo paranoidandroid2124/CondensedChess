@@ -1,8 +1,12 @@
 package lila.commentary.analysis
 
+import chess.{ Color, Knight, Queen, Rook, Square }
 import lila.commentary.*
+import lila.commentary.analysis.practical.ContrastiveSupportAdmissibility
+import lila.commentary.analysis.semantic.StrategicObservationIds.{ ProofFamilyId, ProofSourceId }
 import lila.commentary.model.*
-import lila.commentary.model.authoring.AuthorQuestionKind
+import lila.commentary.model.authoring.{ AuthorQuestion, AuthorQuestionKind, PlanHypothesis, PlanViability }
+import lila.commentary.model.strategic.{ CounterfactualMatch, VariationLine }
 import munit.FunSuite
 
 final class MoveReviewCompressionPolicyTest extends FunSuite:
@@ -110,6 +114,51 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
       )
     )
 
+  private def whatChangedQuestion(id: String = "q_changed"): AuthorQuestion =
+    AuthorQuestion(
+      id = id,
+      kind = AuthorQuestionKind.WhatChanged,
+      priority = 100,
+      question = "What changed?"
+    )
+
+  private def pvCoupledPlanEvidence(
+      planName: String,
+      rank: Int = 1
+  ): PlanEvidenceEvaluator.StrategicPlanEvidenceView =
+    val hypothesis =
+      PlanHypothesis(
+        planId = planName.toLowerCase.replaceAll("[^a-z0-9]+", "_").stripPrefix("_").stripSuffix("_"),
+        planName = planName,
+        rank = rank,
+        score = 0.62,
+        preconditions = Nil,
+        executionSteps = Nil,
+        failureModes = Nil,
+        viability = PlanViability(0.62, "medium", "pv-coupled test fixture"),
+        evidenceSources = List("pv_coupled"),
+        themeL1 = "piece_redeployment"
+      )
+    val evaluated =
+      PlanEvidenceEvaluator.EvaluatedPlan(
+        hypothesis = hypothesis,
+        status = PlanEvidenceEvaluator.PlanEvidenceStatus.PlayablePvCoupled,
+        userFacingEligibility = PlanEvidenceEvaluator.UserFacingPlanEligibility.PvCoupledOnly,
+        reason = "test fixture pv-coupled plan",
+        pvCoupled = true,
+        themeL1 = hypothesis.themeL1,
+        subplanId = hypothesis.subplanId,
+        claimCertification =
+          PlanEvidenceEvaluator.ClaimCertification(
+            certificateStatus = PlayerFacingCertificateStatus.WeaklyValid,
+            attributionGrade = PlayerFacingClaimAttributionGrade.AnchoredButShared,
+            stabilityGrade = PlayerFacingClaimStabilityGrade.Unstable,
+            provenanceClass = PlayerFacingClaimProvenanceClass.PvCoupled,
+            ontologyFamily = PlayerFacingClaimOntologyKind.PlanAdvance
+          )
+      )
+    PlanEvidenceEvaluator.StrategicPlanEvidenceView(evaluatedPlans = List(evaluated))
+
   private def tacticalBlunderContract(
       playedMove: String = "h2h3",
       bestMove: String = "e2e4"
@@ -191,14 +240,14 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
         consequence = None,
         fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
         strengthTier = QuestionPlanStrengthTier.Strong,
-        sourceKinds = List("truth_contract"),
+        sourceKinds = List("only_move_defense"),
         admissibilityReasons = List("timing_owner"),
         plannerOwnerKind = PlannerOwnerKind.ForcingDefense,
-        plannerSource = "truth_contract",
+        plannerSource = "only_move_defense",
         timingWitness = Some(
           QuestionPlanTimingWitness(
             proofFamily = "only_move_defense",
-            source = "truth_contract",
+            source = "only_move_defense",
             witnessTokens = List("reply_loss")
           )
         )
@@ -230,7 +279,7 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
       )
 
     assertEquals(typed.admission.map(_.family), Some(MoveReviewLocalFact.Family.Timing))
-    assertEquals(typed.admission.map(_.authority), Some(MoveReviewLocalFact.Authority.TruthContract))
+    assertEquals(typed.admission.map(_.authority), Some(MoveReviewLocalFact.Authority.OnlyMoveDefense))
     assertEquals(typed.admission.map(_.strictFallbackEligible), Some(true))
     assertEquals(typed.admission.map(_.lineBinding), Some(MoveReviewLocalFact.LineBinding.Replayed))
     assertEquals(
@@ -261,13 +310,13 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     val typedPlan =
       proseOnlyPlan.copy(
         questionId = "q_typed_timing_claim",
-        sourceKinds = List("truth_contract"),
+        sourceKinds = List("only_move_defense"),
         plannerOwnerKind = PlannerOwnerKind.ForcingDefense,
-        plannerSource = "truth_contract",
+        plannerSource = "only_move_defense",
         timingWitness = Some(
           QuestionPlanTimingWitness(
             proofFamily = "only_move_defense",
-            source = "truth_contract",
+            source = "only_move_defense",
             continuationMove = Some("Qd8"),
             witnessTokens = List("Qd8")
           )
@@ -304,6 +353,12 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     assert(proseOnly.rejectReasons.contains("causal_support_missing"), clues(proseOnly))
     assert(proseOnly.rejectReasons.contains("causal_relation_missing"), clues(proseOnly))
     assertEquals(typed.claim.map(_.questionKind), Some(AuthorQuestionKind.WhyNow), clues(typed))
+    assertEquals(typed.frame.map(_.intent), Some(MoveReviewCausalClaim.CausalIntent.WhyNow), clues(typed))
+    assertEquals(
+      typed.frame.map(_.surfaceContract.mayUseTimingClaim),
+      Some(true),
+      clues(typed)
+    )
     assertEquals(typed.claim.map(_.relationKinds), Some(List(MoveReviewCausalClaim.RelationKind.TimingConstraint)), clues(typed))
     assertEquals(typed.claim.flatMap(_.localFact.map(_.family)), Some(MoveReviewLocalFact.Family.Timing), clues(typed))
     assertEquals(typed.claim.flatMap(_.localFact.map(_.lineBinding)), Some(MoveReviewLocalFact.LineBinding.Replayed), clues(typed))
@@ -345,8 +400,20 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
       )
 
     assertEquals(decision.claim.map(_.relationKinds), Some(List(MoveReviewCausalClaim.RelationKind.PlanRace)), clues(decision))
+    assertEquals(
+      decision.frame.map(_.surfaceContract.mayUseCheckedLine),
+      Some(true),
+      clues(decision)
+    )
+    assertEquals(decision.frame.map(_.roles.lineOrReply), Some(true), clues(decision))
     assertEquals(decision.claim.flatMap(_.localFact.map(_.family)), Some(MoveReviewLocalFact.Family.Timing), clues(decision))
     assertEquals(decision.claim.flatMap(_.localFact.map(_.lineBinding)), Some(MoveReviewLocalFact.LineBinding.BranchScoped), clues(decision))
+    assertEquals(
+      decision.claim.flatMap(_.surfacePacket.evidenceHook),
+      Some("23...Rc8 24.Rg3 Rc7 25.Qxg7+"),
+      clues(decision)
+    )
+    assert(decision.claim.exists(_.surfacePacket.guardrails.contains("surface_checked_line=true")), clues(decision))
   }
 
   test("claim-only causal planner slots fall back to exact factual surface") {
@@ -361,10 +428,10 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
         consequence = None,
         fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
         strengthTier = QuestionPlanStrengthTier.Strong,
-        sourceKinds = List("truth_contract"),
+        sourceKinds = List("only_move_defense"),
         admissibilityReasons = List("timing_owner"),
         plannerOwnerKind = PlannerOwnerKind.ForcingDefense,
-        plannerSource = "truth_contract"
+        plannerSource = "only_move_defense"
       )
     val slots =
       MoveReviewCompressionPolicy.buildSlotsOrFallbackFromPlannerRuntime(
@@ -501,7 +568,12 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     )
     assertEquals(causalTrace.map(_.status), Some("rejected"))
     assertEquals(causalTrace.map(_.questionKind), Some("WhyNow"))
-    assertEquals(causalTrace.map(_.rejectReasons), Some(List("causal_relation_missing")))
+    assertEquals(
+      causalTrace.map(_.rejectReasons),
+      Some(List("causal_relation_missing", "why_now_timing_authority_missing"))
+    )
+    assertEquals(causalTrace.flatMap(_.frameIntent), Some("why_now"))
+    assert(causalTrace.exists(_.frameSurfaceContract.contains("surface_timing=false")), clues(causalTrace))
   }
 
   test("WhyNow timing witness authorizes a timing constraint surface") {
@@ -582,9 +654,11 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     assert(MoveReviewProseContract.stripMoveHeader(slots.claim).contains("Qd8"), clues(slots.claim))
     assert(slots.factGuardrails.exists(_.contains("evidence=timing_tension,timing_witness")), clues(slots.factGuardrails))
     assert(slots.factGuardrails.exists(_.contains("relations=timing_constraint")), clues(slots.factGuardrails))
-    assert(slots.factGuardrails.exists(_.contains("local_fact=timing/truth_contract")), clues(slots.factGuardrails))
+    assert(slots.factGuardrails.exists(_.contains("local_fact=timing/certified_strategy")), clues(slots.factGuardrails))
+    assertEquals(slots.tension, Some("The immediate Qd8 threat gives this move a concrete timing window."))
+    assertEquals(slots.evidenceHook, None)
     assertEquals(causalTrace.flatMap(_.localFactFamily), Some("timing"))
-    assertEquals(causalTrace.flatMap(_.localFactAuthority), Some("truth_contract"))
+    assertEquals(causalTrace.flatMap(_.localFactAuthority), Some("certified_strategy"))
     assertEquals(causalTrace.flatMap(_.localFactStrictFallbackEligible), Some(true))
   }
 
@@ -783,6 +857,275 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     assert(!slots.claim.contains("keeps the counterplay reply under control"), clues(slots.claim))
   }
 
+  test("WhyThis role-aware line consequence admits a line-consequence local fact") {
+    val consequence =
+      "e4 reaches a central pawn advance on the engine-best branch 1. e4 e5; h3 stays on the played branch 1. h3 h6 without that concrete central pawn advance."
+    val primary =
+      QuestionPlan(
+        questionId = "q_role_aware_line_consequence",
+        questionKind = AuthorQuestionKind.WhyThis,
+        priority = 100,
+        claim = s"The concrete difference is that $consequence",
+        evidence = None,
+        contrast = None,
+        consequence = None,
+        fallbackMode = QuestionPlanFallbackMode.DemotedToWhyThis,
+        strengthTier = QuestionPlanStrengthTier.Strong,
+        sourceKinds = List("decision_comparison", DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource),
+        admissibilityReasons = List(DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource),
+        plannerOwnerKind = PlannerOwnerKind.AlternativeComparison,
+        plannerSource = "decision_comparison"
+      )
+    val slots =
+      MoveReviewCompressionPolicy.buildSlotsOrFallbackFromPlannerRuntime(
+        quietH3Ctx,
+        QuestionPlannerInputs(
+          mainBundle = None,
+          quietIntent = None,
+          decisionFrame = CertifiedDecisionFrame(),
+          decisionComparison =
+            Some(
+              DecisionComparison(
+                chosenMove = Some("h3"),
+                engineBestMove = Some("e4"),
+                engineBestScoreCp = Some(40),
+                engineBestPv = List("e4", "e5"),
+                cpLossVsChosen = None,
+                deferredMove = Some("e4"),
+                deferredReason = None,
+                deferredSource = Some("verified_best"),
+                evidence = Some("e4 e5"),
+                practicalAlternative = false,
+                chosenMatchesBest = false,
+                comparedMove = Some("h3"),
+                comparativeConsequence = Some(consequence),
+                comparativeSource = Some(DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource)
+              )
+            ),
+          alternativeNarrative = None,
+          truthMode = PlayerFacingTruthMode.Strategic,
+          preventedPlansNow = Nil,
+          pvDelta = None,
+          counterfactual = None,
+          practicalAssessment = None,
+          opponentThreats = Nil,
+          forcingThreats = Nil,
+          evidenceByQuestionId = Map.empty,
+          candidateEvidenceLines = Nil,
+          evidenceBackedPlans = Nil,
+          opponentPlan = None,
+          factualFallback = None
+        ),
+        RankedQuestionPlans(primary = Some(primary), secondary = None, rejected = Nil),
+        strategyPack = None,
+        truthContract = Some(tacticalBlunderContract(playedMove = "h2h3", bestMove = "e2e4"))
+      )
+
+    assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.Planner)
+    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), consequence)
+    assert(slots.factGuardrails.exists(_.contains("local_fact=line_consequence/pv_coupled_line")), clues(slots.factGuardrails))
+    assert(slots.factGuardrails.exists(_.contains("relations=alternative_contrast")), clues(slots.factGuardrails))
+  }
+
+  test("WhatChanged role-aware alternative contrast is not replaced by played-move line consequence") {
+    val consequence =
+      "e4 reaches a central pawn advance on the engine-best branch 1. e4 e5; h3 stays on the played branch 1. h3 h6 without that concrete central pawn advance."
+    val refs =
+      refsForLine(
+        quietH3Ctx.fen,
+        List("h2h3", "a7a6", "g1f3"),
+        List("h3", "a6", "Nf3")
+      )
+    val primary =
+      QuestionPlan(
+        questionId = "q_role_aware_line_consequence_what_changed",
+        questionKind = AuthorQuestionKind.WhatChanged,
+        priority = 100,
+        claim = s"The concrete difference is that $consequence",
+        evidence = None,
+        contrast = None,
+        consequence = None,
+        fallbackMode = QuestionPlanFallbackMode.DemotedToWhyThis,
+        strengthTier = QuestionPlanStrengthTier.Strong,
+        sourceKinds = List("decision_comparison", DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource),
+        admissibilityReasons = List(DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource),
+        plannerOwnerKind = PlannerOwnerKind.AlternativeComparison,
+        plannerSource = "decision_comparison"
+      )
+    val slots =
+      MoveReviewCompressionPolicy.buildSlotsOrFallbackFromPlannerRuntime(
+        quietH3Ctx,
+        QuestionPlannerInputs(
+          mainBundle = None,
+          quietIntent = None,
+          decisionFrame = CertifiedDecisionFrame(),
+          decisionComparison =
+            Some(
+              DecisionComparison(
+                chosenMove = Some("h3"),
+                engineBestMove = Some("e4"),
+                engineBestScoreCp = Some(40),
+                engineBestPv = List("e4", "e5"),
+                cpLossVsChosen = None,
+                deferredMove = Some("e4"),
+                deferredReason = None,
+                deferredSource = Some("verified_best"),
+                evidence = Some("e4 e5"),
+                practicalAlternative = false,
+                chosenMatchesBest = false,
+                comparedMove = Some("h3"),
+                comparativeConsequence = Some(consequence),
+                comparativeSource = Some(DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource)
+              )
+            ),
+          alternativeNarrative = None,
+          truthMode = PlayerFacingTruthMode.Strategic,
+          preventedPlansNow = Nil,
+          pvDelta = None,
+          counterfactual = None,
+          practicalAssessment = None,
+          opponentThreats = Nil,
+          forcingThreats = Nil,
+          evidenceByQuestionId = Map.empty,
+          candidateEvidenceLines = Nil,
+          evidenceBackedPlans = Nil,
+          opponentPlan = None,
+          factualFallback = None
+        ),
+        RankedQuestionPlans(primary = Some(primary), secondary = None, rejected = Nil),
+        strategyPack = None,
+        truthContract = Some(tacticalBlunderContract(playedMove = "h2h3", bestMove = "e2e4")),
+        refs = Some(refs)
+      )
+
+    assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.Planner)
+    assert(MoveReviewProseContract.stripMoveHeader(slots.claim).contains(consequence), clues(slots.claim))
+    assert(!slots.claim.contains("On the checked line"), clues(slots.claim))
+    assert(slots.factGuardrails.exists(_.contains("relations=alternative_contrast")), clues(slots.factGuardrails))
+    assert(!slots.factGuardrails.exists(_.contains("played_move_consequence")), clues(slots.factGuardrails))
+    assertEquals(slots.coda, None)
+  }
+
+  test("WhyThis counterfactual causal threat admits a threat local fact") {
+    val primary =
+      QuestionPlan(
+        questionId = "q_counterfactual_causal_threat",
+        questionKind = AuthorQuestionKind.WhyThis,
+        priority = 100,
+        claim = "Bd7 keeps the move order precise.",
+        evidence = None,
+        contrast = None,
+        consequence = Some(
+          QuestionPlanConsequence(
+            "If the move is missed, Qxd4 becomes the cleaner continuation instead.",
+            QuestionPlanConsequenceBeat.WrapUp
+          )
+        ),
+        fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
+        strengthTier = QuestionPlanStrengthTier.Strong,
+        sourceKinds = List("decision_comparison", ContrastiveSupportAdmissibility.SourceKind.CounterfactualCausalThreat),
+        admissibilityReasons = List(ContrastiveSupportAdmissibility.SourceKind.CounterfactualCausalThreat),
+        plannerOwnerKind = PlannerOwnerKind.ConcreteTactical,
+        plannerSource = "decision_comparison"
+      )
+    val fork =
+      Motif.Fork(
+        Knight,
+        List(Rook, Queen),
+        Square.F5,
+        List(Square.E7, Square.H4),
+        Color.White,
+        1,
+        Some("Nf5")
+      )
+    val ctx = quietH3Ctx.copy(playedSan = Some("Bd7"), playedMove = Some("c8d7"))
+    val inputs =
+      QuestionPlannerInputs(
+        mainBundle = None,
+        quietIntent = None,
+        decisionFrame = CertifiedDecisionFrame(),
+        decisionComparison =
+          Some(
+            DecisionComparison(
+              chosenMove = Some("Bd7"),
+              engineBestMove = Some("Bd7"),
+              engineBestScoreCp = Some(40),
+              engineBestPv = List("Bd7", "Nxc6", "Bxc6"),
+              cpLossVsChosen = None,
+              deferredMove = None,
+              deferredReason = None,
+              deferredSource = None,
+              evidence = None,
+              practicalAlternative = false,
+              chosenMatchesBest = true
+            )
+          ),
+        alternativeNarrative = None,
+        truthMode = PlayerFacingTruthMode.Strategic,
+        preventedPlansNow = Nil,
+        pvDelta = None,
+        counterfactual =
+          Some(
+            CounterfactualMatch(
+              userMove = "Bd7",
+              bestMove = "Qxd4",
+              cpLoss = 90,
+              missedMotifs = List(fork),
+              userMoveMotifs = Nil,
+              severity = "moderate",
+              userLine = VariationLine(Nil, 0),
+              causalThreat =
+                Some(
+                  ThreatExtractor.CausalThreat(
+                    concept = "Material Loss",
+                    severity = 85,
+                    narrative = "allows a devastating fork on the rook and queen",
+                    motifs = List(fork)
+                  )
+                )
+            )
+          ),
+        practicalAssessment = None,
+        opponentThreats = Nil,
+        forcingThreats = Nil,
+        evidenceByQuestionId = Map.empty,
+        candidateEvidenceLines = Nil,
+        evidenceBackedPlans = Nil,
+        opponentPlan = None,
+        factualFallback = None
+      )
+    val ranked = RankedQuestionPlans(primary = Some(primary), secondary = None, rejected = Nil)
+    val slots =
+      MoveReviewCompressionPolicy.buildSlotsOrFallbackFromPlannerRuntime(
+        ctx,
+        inputs,
+        ranked,
+        strategyPack = None,
+        truthContract = None
+      )
+    val causalTrace =
+      MoveReviewCompressionPolicy.causalClaimTrace(
+        ctx,
+        inputs,
+        ranked,
+        truthContract = None,
+        refs = None
+      )
+
+    assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.Planner)
+    assertEquals(
+      MoveReviewProseContract.stripMoveHeader(slots.claim),
+      "The move Bd7 stays best because missing it allows a devastating fork on the rook and queen."
+    )
+    assert(slots.factGuardrails.exists(_.contains("local_fact=threat/certified_strategy")), clues(slots.factGuardrails))
+    assert(slots.factGuardrails.exists(_.contains("local_fact_producer=planner_causal_claim")), clues(slots.factGuardrails))
+    assert(causalTrace.exists(_.evidenceSources.contains("counterfactual_causal_threat")), clues(causalTrace))
+    assert(
+      causalTrace.exists(_.localFactGuardrails.exists(_.contains("counterfactual_causal_threat:motif_backed"))),
+      clues(causalTrace)
+    )
+  }
+
   test("WhyThis played-move line consequence becomes the certified surface claim") {
     val rawTemplateClaim = "Nf3 keeps the structure under control in the checked line."
     val refs =
@@ -910,6 +1253,205 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     assertEquals(causalTrace.flatMap(_.localFactFamily), None)
   }
 
+  test("pv-coupled plan support admits a plan-support local fact") {
+    val primary =
+      QuestionPlan(
+        questionId = "q_pv_plan_support",
+        questionKind = AuthorQuestionKind.WhyThis,
+        priority = 100,
+        claim = "The checked line from h3 keeps Improving piece placement viable as a practical plan.",
+        evidence =
+          Some(
+            QuestionPlanEvidence(
+              text = "a) h3 e4 d5",
+              purposes = List("planner_line_proof"),
+              sourceKinds = List("pv_coupled_plan_support"),
+              branchScoped = true
+            )
+          ),
+        contrast = None,
+        consequence = None,
+        fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
+        strengthTier = QuestionPlanStrengthTier.Moderate,
+        sourceKinds = List("pv_delta", "pv_coupled_plan_support"),
+        admissibilityReasons = List("move_attributed_change"),
+        plannerOwnerKind = PlannerOwnerKind.MoveDelta,
+        plannerSource = "pv_delta"
+      )
+    val inputs =
+      QuestionPlannerInputs(
+        mainBundle = None,
+        quietIntent = None,
+        decisionFrame = CertifiedDecisionFrame(),
+        decisionComparison = None,
+        alternativeNarrative = None,
+        truthMode = PlayerFacingTruthMode.Strategic,
+        preventedPlansNow = Nil,
+        pvDelta = Some(PVDelta(Nil, Nil, Nil, Nil)),
+        counterfactual = None,
+        practicalAssessment = None,
+        opponentThreats = Nil,
+        forcingThreats = Nil,
+        evidenceByQuestionId = Map.empty,
+        candidateEvidenceLines = List("h3 e4 d5"),
+        evidenceBackedPlans = Nil,
+        opponentPlan = None,
+        factualFallback = None,
+        pvCoupledPlanSupport =
+          Some(
+            PvCoupledPlanSupport(
+              planName = "Improving piece placement",
+              playedSan = "h3",
+              evidenceLine = "h3 e4 d5"
+            )
+          )
+      )
+    val ranked = RankedQuestionPlans(primary = Some(primary), secondary = None, rejected = Nil)
+    val slots =
+      MoveReviewCompressionPolicy.buildSlotsOrFallbackFromPlannerRuntime(
+        quietH3Ctx,
+        inputs,
+        ranked,
+        strategyPack = None,
+        truthContract = None
+      )
+    val causalTrace =
+      MoveReviewCompressionPolicy.causalClaimTrace(
+        quietH3Ctx,
+        inputs,
+        ranked,
+        truthContract = None,
+        refs = None
+      )
+
+    assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.Planner)
+    assertEquals(causalTrace.flatMap(_.localFactFamily), Some("plan_support"), clues(causalTrace))
+    assertEquals(causalTrace.flatMap(_.localFactAuthority), Some("pv_coupled_line"), clues(causalTrace))
+    assertEquals(causalTrace.flatMap(_.localFactProducer), Some("planner_causal_claim"), clues(causalTrace))
+    assert(causalTrace.exists(_.evidenceKinds.contains("branch_line")), clues(causalTrace))
+    assert(causalTrace.exists(_.relationKinds.contains("played_move_consequence")), clues(causalTrace))
+  }
+
+  test("candidate evidence includes reviewed move PV refs for planner coupling") {
+    val refs = refsForLine(quietH3Ctx.fen, List("h2h3", "a7a6", "g1f3"), List("h3", "a6", "Nf3"))
+    val lines = MoveReviewCompressionPolicy.candidateEvidenceLines(Some(refs), quietH3Ctx)
+
+    assert(lines.contains("Short line: h3 a6 Nf3."), clues(lines))
+  }
+
+  test("planner builder connects reviewed move PV refs to pv-coupled plan support") {
+    val refs = refsForLine(quietH3Ctx.fen, List("h2h3", "a7a6", "g1f3"), List("h3", "a6", "Nf3"))
+    val ctx =
+      quietH3Ctx.copy(
+        authorQuestions = List(whatChangedQuestion()),
+        decision = Some(DecisionRationale(None, "checked line", PVDelta(Nil, Nil, Nil, Nil), ConfidenceLevel.Engine)),
+        strategicPlanEvidence = pvCoupledPlanEvidence("Improving piece placement")
+      )
+    val candidateEvidence = MoveReviewCompressionPolicy.candidateEvidenceLines(Some(refs), ctx)
+    val inputs = QuestionPlannerInputsBuilder.build(ctx, strategyPack = None, truthContract = None, candidateEvidence)
+    val ranked = QuestionFirstCommentaryPlanner.plan(ctx, inputs, truthContract = None)
+    val causalTrace =
+      MoveReviewCompressionPolicy.causalClaimTrace(
+        ctx,
+        inputs,
+        ranked,
+        truthContract = None,
+        refs = Some(refs)
+      )
+
+    val primary = ranked.primary.getOrElse(fail(clues(ranked.rejected, ranked.ownerTrace.ownerCandidateLabels).toString))
+    assert(
+      inputs.pvCoupledPlanSupport.exists(support =>
+        LineScopedCitation.firstConcreteSanToken(support.evidenceLine).contains("h3")
+      ),
+      clues(inputs.pvCoupledPlanSupport)
+    )
+    assertEquals(primary.questionKind, AuthorQuestionKind.WhatChanged)
+    assert(primary.sourceKinds.contains("pv_coupled_plan_support"), clues(primary.sourceKinds))
+    assert(primary.claim.contains("Improving piece placement"), clues(primary.claim))
+    assertEquals(causalTrace.flatMap(_.localFactFamily), Some("plan_support"), clues(causalTrace))
+    assertEquals(causalTrace.flatMap(_.localFactAuthority), Some("pv_coupled_line"), clues(causalTrace))
+  }
+
+  test("admitted claim packet promotes into CausalFrame evidence before local fact admission") {
+    val packet = supportedNeutralizePacketForPromotion
+    val primary =
+      QuestionPlan(
+        questionId = "q_promoted_packet_defense",
+        questionKind = AuthorQuestionKind.WhyThis,
+        priority = 100,
+        claim = "h3 keeps the counterplay break under control.",
+        evidence = None,
+        contrast = None,
+        consequence = None,
+        fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
+        strengthTier = QuestionPlanStrengthTier.Strong,
+        sourceKinds = List(ProofSourceId.CounterplayAxisSuppression.wireKey),
+        admissibilityReasons = List("move_owner"),
+        plannerOwnerKind = PlannerOwnerKind.MoveDelta,
+        plannerSource = ProofSourceId.CounterplayAxisSuppression.wireKey
+      )
+    val promotedClaim =
+      MainPathScopedClaim(
+        scope = PlayerFacingClaimScope.MoveLocal,
+        mode = PlayerFacingTruthMode.Strategic,
+        deltaClass = Some(PlayerFacingMoveDeltaClass.CounterplayReduction),
+        claimText = "h3 restrains the ...c5 counterplay break before it lands.",
+        anchorTerms = List("...c5"),
+        evidenceLines = List("h3 e4d5 c6d5"),
+        sourceKind = ProofSourceId.CounterplayAxisSuppression.wireKey,
+        tacticalOwnership = None,
+        packet = Some(packet)
+      )
+    val inputs =
+      QuestionPlannerInputs(
+        mainBundle = Some(MainPathClaimBundle(mainClaim = Some(promotedClaim), lineScopedClaim = None)),
+        quietIntent = None,
+        decisionFrame = CertifiedDecisionFrame(),
+        decisionComparison = None,
+        alternativeNarrative = None,
+        truthMode = PlayerFacingTruthMode.Strategic,
+        preventedPlansNow = Nil,
+        pvDelta = None,
+        counterfactual = None,
+        practicalAssessment = None,
+        opponentThreats = Nil,
+        forcingThreats = Nil,
+        evidenceByQuestionId = Map.empty,
+        candidateEvidenceLines = Nil,
+        evidenceBackedPlans = Nil,
+        opponentPlan = None,
+        factualFallback = None
+      )
+    val ranked = RankedQuestionPlans(primary = Some(primary), secondary = None, rejected = Nil)
+    val slots =
+      MoveReviewCompressionPolicy.buildSlotsOrFallbackFromPlannerRuntime(
+        quietH3Ctx,
+        inputs,
+        ranked,
+        strategyPack = None,
+        truthContract = None
+      )
+    val causalTrace =
+      MoveReviewCompressionPolicy.causalClaimTrace(
+        quietH3Ctx,
+        inputs,
+        ranked,
+        truthContract = None,
+        refs = None
+      )
+
+    assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.Planner)
+    assertEquals(causalTrace.map(_.status), Some("accepted"))
+    assertEquals(causalTrace.flatMap(_.localFactFamily), Some("defense"))
+    assertEquals(causalTrace.flatMap(_.localFactAuthority), Some("pv_coupled_line"))
+    assert(causalTrace.exists(_.evidenceKinds.contains("defense")), clues(causalTrace))
+    assert(causalTrace.exists(_.evidenceSources.contains("supported_local_packet")), clues(causalTrace))
+    assert(causalTrace.exists(_.relationKinds.contains("played_move_consequence")), clues(causalTrace))
+    assert(causalTrace.exists(_.localFactEvidenceRefs.exists(_.contains("authority_tier:SupportedLocal"))), clues(causalTrace))
+    assertEquals(slots.supportPrimary, Some("h3 restrains the ...c5 counterplay break before it lands."))
+  }
+
   test("preview-only line consequence cannot authorize a WhyThis surface claim") {
     val primary =
       QuestionPlan(
@@ -1019,6 +1561,95 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
       MoveReviewProseContract.stripMoveHeader(slots.claim),
       "This moves the pawn to h3."
     )
+  }
+
+  test("WhatChanged decision comparison with concrete consequence becomes a line-consequence fact") {
+    val primary =
+      QuestionPlan(
+        questionId = "q_what_changed_decision_comparison",
+        questionKind = AuthorQuestionKind.WhatChanged,
+        priority = 100,
+        claim = "h3 changes which concrete resource matters next.",
+        evidence = None,
+        contrast = None,
+        consequence = None,
+        fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
+        strengthTier = QuestionPlanStrengthTier.Moderate,
+        sourceKinds = List("decision_comparison"),
+        admissibilityReasons = List("decision_comparison"),
+        plannerOwnerKind = PlannerOwnerKind.DecisionTiming,
+        plannerSource = "decision_comparison"
+      )
+    val inputs =
+      QuestionPlannerInputs(
+        mainBundle = None,
+        quietIntent = None,
+        decisionFrame = CertifiedDecisionFrame(),
+        decisionComparison =
+          Some(
+            DecisionComparison(
+              chosenMove = Some("h3"),
+              engineBestMove = Some("h3"),
+              engineBestScoreCp = Some(80),
+              engineBestPv = List("h3", "...Qf3"),
+              cpLossVsChosen = Some(80),
+              deferredMove = Some("Qf3"),
+              deferredReason = Some("it wins the d5 pawn by force"),
+              deferredSource = Some("top_engine_move"),
+              evidence = None,
+              practicalAlternative = false,
+              chosenMatchesBest = true
+            )
+          ),
+        alternativeNarrative = None,
+        truthMode = PlayerFacingTruthMode.Strategic,
+        preventedPlansNow = Nil,
+        pvDelta = None,
+        counterfactual = None,
+        practicalAssessment = None,
+        opponentThreats = Nil,
+        forcingThreats = Nil,
+        evidenceByQuestionId = Map.empty,
+        candidateEvidenceLines = Nil,
+        evidenceBackedPlans = Nil,
+        opponentPlan = None,
+        factualFallback = None
+      )
+    val ranked = RankedQuestionPlans(primary = Some(primary), secondary = None, rejected = Nil)
+    val slots =
+      MoveReviewCompressionPolicy.buildSlotsOrFallbackFromPlannerRuntime(
+        quietH3Ctx,
+        inputs,
+        ranked,
+        strategyPack = None,
+        truthContract = None
+      )
+    val causalTrace =
+      MoveReviewCompressionPolicy.causalClaimTrace(
+        quietH3Ctx,
+        inputs,
+        ranked,
+        truthContract = None,
+        refs = None
+      )
+
+    assertEquals(causalTrace.map(_.rejectReasons), Some(Nil))
+    assertEquals(causalTrace.map(_.status), Some("accepted"))
+    assertEquals(causalTrace.flatMap(_.frameIntent), Some("what_changed"))
+    assertEquals(causalTrace.flatMap(_.localFactFamily), Some("line_consequence"))
+    assertEquals(causalTrace.flatMap(_.localFactAuthority), Some("pv_coupled_line"))
+    assertEquals(causalTrace.flatMap(_.localFactProducer), Some("planner_causal_claim"))
+    assert(causalTrace.exists(_.relationKinds.contains("change_consequence")), clues(causalTrace))
+    assert(
+      causalTrace.exists(_.evidenceSources.contains("top_engine_move_with_concrete_consequence")),
+      clues(causalTrace)
+    )
+    assert(
+      causalTrace.exists(_.localFactEvidenceRefs.contains("evidence_source:top_engine_move_with_concrete_consequence")),
+      clues(causalTrace)
+    )
+    assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.Planner)
+    assert(slots.supportPrimary.exists(_.contains("Qf3")), clues(slots))
   }
 
   test("WhatChanged played-move line consequence becomes the certified surface claim") {
@@ -1291,11 +1922,11 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
         scope = PlayerFacingClaimScope.MoveLocal,
         mode = PlayerFacingTruthMode.Tactical,
         deltaClass = None,
-        claimText = "This is a tactical failure.",
+        claimText = "This move has a concrete tactical problem.",
         anchorTerms = List("h3"),
         evidenceLines = Nil,
-        sourceKind = "truth_contract",
-        tacticalOwnership = Some("tactical_failure")
+        sourceKind = "tactical_contract",
+        tacticalOwnership = Some("current_move_tactical")
       )
 
     List(
@@ -1384,3 +2015,33 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     assertEquals(slots.supportPrimary, None)
     assertEquals(slots.supportSecondary, None)
   }
+
+  private def supportedNeutralizePacketForPromotion: PlayerFacingClaimPacket =
+    PlayerFacingClaimPacket(
+      claimGate =
+        PlanEvidenceEvaluator.ClaimCertification(
+          certificateStatus = PlayerFacingCertificateStatus.Valid,
+          quantifier = PlayerFacingClaimQuantifier.BestResponse,
+          attributionGrade = PlayerFacingClaimAttributionGrade.AnchoredButShared,
+          stabilityGrade = PlayerFacingClaimStabilityGrade.Stable,
+          provenanceClass = PlayerFacingClaimProvenanceClass.ProbeBacked,
+          ontologyFamily = PlayerFacingClaimOntologyKind.CounterplayRestraint
+        ),
+      proofSource = ProofSourceId.CounterplayAxisSuppression.wireKey,
+      proofFamily = ProofFamilyId.NeutralizeKeyBreak.wireKey,
+      scope = PlayerFacingPacketScope.MoveLocal,
+      triggerKind = PlanTaxonomy.PlanKind.BreakPrevention.id,
+      anchorTerms = List("...c5"),
+      bestDefenseMove = Some("c5"),
+      bestDefenseBranchKey = Some("e4d5|c6d5"),
+      sameBranchState = PlayerFacingSameBranchState.Proven,
+      persistence = PlayerFacingClaimPersistence.Stable,
+      proofPathWitness =
+        PlayerFacingProofPathWitness(
+          ownerSeedTerms = List("neutralize_key_break", "...c5"),
+          continuationTerms = List("counterplay_axis_suppression", "e4d5", "c6d5"),
+          structureTransitionTerms = List("...c5"),
+          exactSliceProof = Some(PlayerFacingExactSliceProof.CounterplayAxisSuppression("...c5"))
+        ),
+      fallbackMode = PlayerFacingClaimFallbackMode.WeakMain
+    )

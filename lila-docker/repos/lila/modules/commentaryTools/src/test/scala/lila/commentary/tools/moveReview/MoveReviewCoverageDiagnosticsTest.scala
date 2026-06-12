@@ -245,14 +245,19 @@ final class MoveReviewCoverageDiagnosticsTest extends FunSuite:
           evidenceSubjects = List("line_or_reply"),
           evidenceLineBindings = List("replayed"),
           relationKinds = List("timing_constraint"),
+          frameIntent = Some("why_now"),
+          frameRoles = List("played_move", "line_or_reply"),
+          frameSurfaceContract = List("surface_checked_line=false", "surface_forced=false", "surface_alternative=false", "surface_timing=true", "surface_line=replayed"),
           rejectReasons = Nil,
           supportRenderedInClaim = Some(false),
-          guardrail = Some("MoveReview causal claim: local_fact=timing/truth_contract"),
+          guardrail = Some("MoveReview causal claim: local_fact=timing/only_move_defense"),
           localFactFamily = Some("timing"),
-          localFactAuthority = Some("truth_contract"),
+          localFactAuthority = Some("only_move_defense"),
           localFactProducer = Some("planner_causal_claim"),
           localFactStrictFallbackEligible = Some(true),
-          localFactGuardrails = Nil
+          localFactEvidenceRefs = Nil,
+          localFactGuardrails = Nil,
+          localFactRejectReasons = Nil
         )
       )
 
@@ -270,7 +275,7 @@ final class MoveReviewCoverageDiagnosticsTest extends FunSuite:
     assertEquals(diagnostics.basicEvidenceStatus, Some("planner_preempted"))
     assertEquals(diagnostics.moveReviewLocalFactStatus, Some("emitted"))
     assertEquals(diagnostics.moveReviewLocalFactFamilies, List("timing"))
-    assertEquals(diagnostics.moveReviewLocalFactAuthorities, List("truth_contract"))
+    assertEquals(diagnostics.moveReviewLocalFactAuthorities, List("only_move_defense"))
     assertEquals(diagnostics.moveReviewLocalFactStrictFallbackEligible, Some(true))
   }
 

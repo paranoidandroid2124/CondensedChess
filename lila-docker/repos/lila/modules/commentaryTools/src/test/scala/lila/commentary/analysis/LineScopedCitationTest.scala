@@ -59,6 +59,17 @@ class LineScopedCitationTest extends FunSuite:
     assertEquals(LineScopedCitation.strategicCitationFromSanMoves(11, List("Bf5", "Nc3")), None)
   }
 
+  test("first concrete SAN token accepts sentence-final move punctuation") {
+    assertEquals(
+      LineScopedCitation.firstConcreteSanToken("Short line: Nb4."),
+      Some("Nb4")
+    )
+    assertEquals(
+      LineScopedCitation.firstConcreteSanToken("12... Nb4."),
+      Some("Nb4")
+    )
+  }
+
   test("evidence branch signature keeps same-head branches distinct by SAN prefix") {
     val first =
       EvidenceBranch(

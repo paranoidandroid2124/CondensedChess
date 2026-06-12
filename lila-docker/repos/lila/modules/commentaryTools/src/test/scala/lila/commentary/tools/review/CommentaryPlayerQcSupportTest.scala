@@ -443,7 +443,8 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
                     engineSan = Some("Re8"),
                     comparedSan = Some("Re8"),
                     secondaryText = Some("keeps the e-file pressure"),
-                    chosenMatchesBest = false
+                    chosenMatchesBest = false,
+                    refSans = List("O-O", "Re8")
                   )
                 ),
               probeRows =
@@ -474,7 +475,7 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
     assertEquals(support.find(_.label == "Surface support").map(_.text), Some("The c-file pressure is the visible player point."))
     assertEquals(
       support.find(_.label == "Decision compare").map(_.text),
-      Some("played O-O, engine looked at Re8, compared Re8, gap +18cp, keeps the e-file pressure")
+      Some("played O-O, engine looked at Re8, compared Re8, gap +18cp, keeps the e-file pressure Refs: O-O Re8.")
     )
     assert(advanced.exists(row => row.label == "Surface detail" && row.text.contains("supporting detail")))
     assert(advanced.exists(row => row.label == "Probe" && row.text.contains("24... e4")))

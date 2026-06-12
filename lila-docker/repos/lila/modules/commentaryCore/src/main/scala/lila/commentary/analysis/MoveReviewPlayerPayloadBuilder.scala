@@ -24,8 +24,6 @@ object MoveReviewPlayerPayloadBuilder:
   private[analysis] val ChessSquareRangePattern = "^[a-h][1-8]-[a-h][1-8]$".r
   private[analysis] val LabelSquareListPattern = """^\.{0,3}[a-h][1-8](?:,[a-h][1-8])*$""".r
   private[analysis] val LabelSquareRangePattern = """^\.{0,3}[a-h][1-8]-[a-h][1-8]$""".r
-  private val LikelyPawnMovePattern = """^[a-h](?:x[a-h])?[1-8](?:=[QRBN])?[+#]?$""".r
-
   private val ConnectedRooksPattern = """The checked line connects the rooks on the (?:first|second|third|fourth|fifth|sixth|seventh|eighth) rank[.]""".r
   private val TechnicalConversionPattern = """The checked line keeps the conversion route intact after .+[.]""".r
   private val RestrainedPattern = """The checked line keeps .+ restrained[.]""".r
@@ -73,7 +71,8 @@ object MoveReviewPlayerPayloadBuilder:
       engineSan = cleanMove(digest.engineBestMove),
       comparedSan = cleanMove(digest.comparedMove),
       secondaryText = Some(secondary),
-      chosenMatchesBest = digest.chosenMatchesBest
+      chosenMatchesBest = digest.chosenMatchesBest,
+      refSans = cleanList(evidence.sanMoves.take(5))
     )
 
   def build(
@@ -96,7 +95,7 @@ object MoveReviewPlayerPayloadBuilder:
       else evaluatedPlans.filter(PlanEvidenceEvaluator.isMainAdmittedPlan).sortBy(_.hypothesis.rank)
     val practicalStructureArc =
       if supportBlocked then None else StructurePlanArcBuilder.build(ctx).filter(StructurePlanArcBuilder.proseEligible)
-    val practicalRows = if supportBlocked then Nil else practicalPlanRows(ctx, evaluatedPlans, practicalStructureArc)
+    val practicalRows = if supportBlocked then Nil else practicalPlanRows(ctx, refs, evaluatedPlans, practicalStructureArc)
     val openingRows = if supportBlocked then Nil else openingFamilyRow(ctx).toList
     val compensationRows = if supportBlocked || compensationBlocked then Nil else compensationAdvancedRows(strategyPack)
     val localRows = if supportBlocked then Nil else sanitizeRows(supportedLocalRows, knownSans)
@@ -1412,66 +1411,67 @@ object MoveReviewPlayerPayloadBuilder:
       val focusText = focus.take(3).mkString(", ")
       val tailFocusText = focus.tail.take(3).mkString(" and ")
       val anchorText = s" around $focusText"
+      val lead = strategicRelationLead(descriptor)
       val text =
         descriptor.publicLabel match
           case "defender-trade" if focus.size >= 2 =>
-            s"The checked line uses a ${descriptor.publicLabel} around ${focus.head} through the exchange on ${focus(1)}."
+            s"$lead is a ${descriptor.publicLabel} around ${focus.head} through the exchange on ${focus(1)}."
           case "bad-piece liquidation" if focus.size >= 2 =>
-            s"The checked line uses ${descriptor.publicLabel} from ${focus.head} through the exchange on ${focus(1)}."
+            s"$lead is ${descriptor.publicLabel} from ${focus.head} through the exchange on ${focus(1)}."
           case "overload" if focus.size >= 2 =>
-            s"The checked line creates ${descriptor.publicLabel} pressure on ${focus.head} across $tailFocusText."
+            s"$lead is ${descriptor.publicLabel} pressure on ${focus.head} across $tailFocusText."
           case "deflection" if focus.size >= 3 =>
-            s"The checked line creates a ${descriptor.publicLabel} motif on ${focus.head} by attacking ${focus(1)} from ${focus(2)}."
+            s"$lead is a ${descriptor.publicLabel} motif on ${focus.head} by attacking ${focus(1)} from ${focus(2)}."
           case "discovered-attack" if focus.size >= 3 =>
-            s"The checked line creates a ${descriptor.publicLabel} from ${focus.head} through ${focus(1)} toward ${focus(2)}."
+            s"$lead is a ${descriptor.publicLabel} from ${focus.head} through ${focus(1)} toward ${focus(2)}."
           case "double-check" if focus.size >= 2 =>
-            s"The checked line creates ${descriptor.publicLabel} pressure on ${focus.head} from $tailFocusText."
+            s"$lead is ${descriptor.publicLabel} pressure on ${focus.head} from $tailFocusText."
           case "back-rank mate" if focus.size >= 2 =>
-            s"The checked line reaches a ${descriptor.publicLabel} pattern around ${focus.head} from $tailFocusText."
+            s"$lead is a ${descriptor.publicLabel} pattern around ${focus.head} from $tailFocusText."
           case "mate net" if focus.size >= 2 =>
-            s"The checked line reaches a ${descriptor.publicLabel} around ${focus.head} from $tailFocusText."
+            s"$lead is a ${descriptor.publicLabel} around ${focus.head} from $tailFocusText."
           case "Greek gift" if focus.size >= 2 =>
-            s"The checked line starts a ${descriptor.publicLabel} sacrifice from ${focus.head} toward ${focus(1)}."
+            s"$lead is a ${descriptor.publicLabel} sacrifice from ${focus.head} toward ${focus(1)}."
           case "stalemate resource" if focus.size >= 2 =>
-            s"The checked line keeps a ${descriptor.publicLabel} available around ${focus.head} via ${focus(1)}."
+            s"$lead is a ${descriptor.publicLabel} available around ${focus.head} via ${focus(1)}."
           case "perpetual-check resource" if focus.size >= 2 =>
-            s"The checked line keeps a ${descriptor.publicLabel} available around ${focus.head} from $tailFocusText."
+            s"$lead is a ${descriptor.publicLabel} available around ${focus.head} from $tailFocusText."
           case "fork" if focus.size >= 2 =>
-            s"The checked line creates a ${descriptor.publicLabel} from ${focus.head} across $tailFocusText."
+            s"$lead is a ${descriptor.publicLabel} from ${focus.head} across $tailFocusText."
           case "hanging piece" if focus.size >= 2 =>
-            s"The checked line creates ${descriptor.publicLabel} pressure from ${focus.head} on ${focus(1)}."
+            s"$lead is ${descriptor.publicLabel} pressure from ${focus.head} on ${focus(1)}."
           case "decoy" if focus.size >= 3 =>
-            s"The checked line creates a ${descriptor.publicLabel} motif on ${focus(1)} that pulls from ${focus(2)}."
+            s"$lead is a ${descriptor.publicLabel} motif on ${focus(1)} that pulls from ${focus(2)}."
           case "trapped-piece" if focus.size >= 2 =>
-            s"The checked line limits piece mobility with ${descriptor.publicLabel} pressure on ${focus(1)} from ${focus.head}."
+            s"$lead is ${descriptor.publicLabel} pressure on ${focus(1)} from ${focus.head}."
           case "key-square restriction" if focus.size >= 2 =>
-            s"The checked line limits piece mobility with ${descriptor.publicLabel} on ${focus(1)} from ${focus.head}."
+            s"$lead is ${descriptor.publicLabel} on ${focus(1)} from ${focus.head}."
           case "zwischenzug" if focus.size >= 3 =>
-            s"The checked line turns the move order with ${descriptor.publicLabel} from ${focus.head} before the recapture on ${focus(1)}."
+            s"$lead is ${descriptor.publicLabel} from ${focus.head} before the recapture on ${focus(1)}."
           case "x-ray" if focus.size >= 3 =>
-            s"The checked line uses ${descriptor.publicLabel} geometry from ${focus.head} through ${focus(1)} toward ${focus(2)}."
+            s"$lead is ${descriptor.publicLabel} geometry from ${focus.head} through ${focus(1)} toward ${focus(2)}."
           case "clearance" if focus.size >= 3 =>
-            s"The checked line uses ${descriptor.publicLabel} geometry with ${focus(1)} clearing the line from ${focus.head} toward ${focus(2)}."
+            s"$lead is ${descriptor.publicLabel} geometry with ${focus(1)} clearing the line from ${focus.head} toward ${focus(2)}."
           case "battery" if focus.size >= 3 =>
-            s"The checked line uses ${descriptor.publicLabel} geometry between ${focus.head} and ${focus(1)} toward ${focus(2)}."
+            s"$lead is ${descriptor.publicLabel} geometry between ${focus.head} and ${focus(1)} toward ${focus(2)}."
           case "pin" if focus.size >= 3 =>
-            s"The checked line uses ${descriptor.publicLabel} geometry from ${focus.head} through ${focus(1)} toward ${focus(2)}."
+            s"$lead is ${descriptor.publicLabel} geometry from ${focus.head} through ${focus(1)} toward ${focus(2)}."
           case "skewer" if focus.size >= 3 =>
-            s"The checked line uses ${descriptor.publicLabel} geometry from ${focus.head} through ${focus(1)} toward ${focus(2)}."
+            s"$lead is ${descriptor.publicLabel} geometry from ${focus.head} through ${focus(1)} toward ${focus(2)}."
           case "interference" if focus.size >= 3 =>
-            s"The checked line uses ${descriptor.publicLabel} geometry with ${focus.head} between ${focus(1)} and ${focus(2)}."
+            s"$lead is ${descriptor.publicLabel} geometry with ${focus.head} between ${focus(1)} and ${focus(2)}."
           case _ =>
             descriptor.surfaceRowKind match
               case RelationSurfaceRowKind.DrawResource =>
-                s"The checked line keeps a ${descriptor.publicLabel} available$anchorText."
+                s"$lead is ${descriptor.publicLabel} available$anchorText."
               case RelationSurfaceRowKind.MoveOrder =>
-                s"The checked line turns the move order with ${descriptor.publicLabel}$anchorText."
+                s"$lead is ${descriptor.publicLabel}$anchorText."
               case RelationSurfaceRowKind.MobilityRestriction =>
-                s"The checked line limits piece mobility with ${descriptor.publicLabel}$anchorText."
+                s"$lead is ${descriptor.publicLabel}$anchorText."
               case RelationSurfaceRowKind.LineGeometry =>
-                s"The checked line uses ${descriptor.publicLabel} geometry$anchorText."
+                s"$lead is ${descriptor.publicLabel} geometry$anchorText."
               case RelationSurfaceRowKind.TacticalRelation =>
-                s"The checked line creates a ${descriptor.publicLabel} motif$anchorText."
+                s"$lead is a ${descriptor.publicLabel} motif$anchorText."
       row(
         label = descriptor.surfaceRowLabel,
         text = text,
@@ -1488,6 +1488,14 @@ object MoveReviewPlayerPayloadBuilder:
             )
         )
       )
+
+  private def strategicRelationLead(descriptor: RelationObservationDescriptor): String =
+    descriptor.surfaceRowKind match
+      case RelationSurfaceRowKind.DrawResource        => "The draw-resource relation"
+      case RelationSurfaceRowKind.MoveOrder           => "The move-order relation"
+      case RelationSurfaceRowKind.MobilityRestriction => "The mobility relation"
+      case RelationSurfaceRowKind.LineGeometry        => "The line relation"
+      case RelationSurfaceRowKind.TacticalRelation    => "The tactical relation"
 
   private def strategicRelationDescriptor(idea: StrategyIdeaSignal) =
     RelationObservationCatalog.descriptorForEvidence(idea.relationKind, idea.evidenceRefs)
@@ -1737,13 +1745,14 @@ object MoveReviewPlayerPayloadBuilder:
 
   private def practicalPlanRows(
       ctx: NarrativeContext,
+      refs: Option[MoveReviewRefs],
       plans: List[EvaluatedPlan],
       structureArc: Option[StructurePlanArc]
   ): List[MoveReviewPlayerSurfaceRow] =
     plans
       .filter(PlanEvidenceEvaluator.isBoundedPracticalSupportPlan)
       .sortBy(_.hypothesis.rank)
-      .flatMap(plan => practicalPlanRow(ctx, plan, structureArc))
+      .flatMap(plan => practicalPlanRow(ctx, refs, plan, structureArc))
       .take(2)
 
   private def openingFamilyRow(ctx: NarrativeContext): Option[MoveReviewPlayerSurfaceRow] =
@@ -1804,6 +1813,7 @@ object MoveReviewPlayerPayloadBuilder:
 
   private def practicalPlanRow(
       ctx: NarrativeContext,
+      refs: Option[MoveReviewRefs],
       plan: EvaluatedPlan,
       structureArc: Option[StructurePlanArc]
   ): Option[MoveReviewPlayerSurfaceRow] =
@@ -1846,9 +1856,23 @@ object MoveReviewPlayerPayloadBuilder:
       row(
         label = "Practical plan",
         text = text,
+        refSans = practicalPlanRefSans(ctx, refs, plan),
         tone = Some("practical")
       ).map(_.copy(authority = PracticalPlanAuthority))
     }
+
+  private def practicalPlanRefSans(
+      ctx: NarrativeContext,
+      refs: Option[MoveReviewRefs],
+      plan: EvaluatedPlan
+  ): List[String] =
+    if plan.userFacingEligibility != UserFacingPlanEligibility.PvCoupledOnly then Nil
+    else
+      refs.toList
+        .flatMap(ref => preferredVariation(ctx, ref).filter(startsWithReviewedMove(ctx, _)).toList)
+        .flatMap { variation =>
+          variation.moves.take(5).flatMap(move => cleanOpt(Some(move.san)))
+        }
 
   private def practicalAdvancedRows(
       ctx: NarrativeContext,
@@ -2216,16 +2240,24 @@ object MoveReviewPlayerPayloadBuilder:
       ctx: NarrativeContext,
       refs: MoveReviewRefs
   ): Option[MoveReviewVariationRef] =
+    refs.variations
+      .find(startsWithReviewedMove(ctx, _))
+      .orElse(refs.variations.headOption)
+
+  private def startsWithReviewedMove(
+      ctx: NarrativeContext,
+      variation: MoveReviewVariationRef
+  ): Boolean =
+    variation.moves.headOption.exists(move => reviewedMoveMatches(ctx, move))
+
+  private def reviewedMoveMatches(
+      ctx: NarrativeContext,
+      move: MoveReviewMoveRef
+  ): Boolean =
     val playedUci = ctx.playedMove.map(NarrativeUtils.normalizeUciMove).filter(_.nonEmpty)
     val playedSan = ctx.playedSan.map(normalizeMove).filter(_.nonEmpty)
-    refs.variations
-      .find { variation =>
-        variation.moves.headOption.exists { move =>
-          playedUci.exists(_ == NarrativeUtils.normalizeUciMove(move.uci)) ||
-            playedSan.exists(_ == normalizeMove(move.san))
-        }
-      }
-      .orElse(refs.variations.headOption)
+    playedUci.exists(_ == NarrativeUtils.normalizeUciMove(move.uci)) ||
+      playedSan.exists(_ == normalizeMove(move.san))
 
   private def ledgerRows(
       moveReviewLedger: Option[MoveReviewStrategicLedger],
@@ -2512,7 +2544,7 @@ private[commentary] object NeutralizeKeyBreakSurfaceGate:
       .getOrElse(Decision(None, Some(MissingNamedBreak)))
 
   def surfaceText(token: String): String =
-    s"On the checked line, this stops the $token break before it appears."
+    s"This stops the $token break before it appears."
 
   private def packetBreakToken(packet: PlayerFacingClaimPacket): Option[String] =
     packet.proofPathWitness.exactSliceProof.collect {
@@ -2926,6 +2958,15 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
     lazy val playedMoveAfter: Option[(String, chess.Position, chess.Move, chess.Position)] =
       playedStep.map(step => (step.uci, step.before, step.move, step.after))
 
+    def sanMoves(maxPlies: Int): List[String] =
+      sanMovesFor(replay(maxPlies).toList.flatten.map(_.uci))
+
+    def sanMovesFor(uciMoves: List[String]): List[String] =
+      NarrativeUtils
+        .uciListToSan(ctx.fen, uciMoves.take(5))
+        .map(_.trim)
+        .filter(_.nonEmpty)
+
   private def explicitTargetSquares(ctx: NarrativeContext): List[String] =
     ctx.decision.toList
       .flatMap(_.focalPoint.collect { case TargetSquare(key) => key })
@@ -2948,9 +2989,12 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       played <- replay.headOption.map(_.uci)
       witness <- witnessFromReplay(replay, played)
       surface <- surfaceFromWitness(witness)
+      witnessRefs = replayCache.sanMovesFor(witness.lineMoves)
+      refs = if witnessRefs.nonEmpty then witnessRefs else replayCache.sanMoves(maxPlies)
       row <- row(
         labelFromSurface(surface).getOrElse(label),
         surface.text,
+        refSans = refs,
         authority = PracticalPlanAuthority
       )
     yield row
@@ -3218,6 +3262,7 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       row <- row(
         FileEntryLabel,
         s"The checked line places the ${quietRoleLabel(move.piece.role)} on the $fileKind ${move.dest.file.char.toString.toLowerCase}-file.",
+        refSans = replayCache.sanMoves(1),
         authority = PracticalPlanAuthority
       )
     yield row
@@ -4004,6 +4049,11 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
         )
     }
 
+  private[analysis] def positionProbeExactSliceRow(
+      packet: PlayerFacingClaimPacket
+  ): Option[MoveReviewPlayerSurfaceRow] =
+    positionProbeRow(packet)
+
   private def counterplayRestraintRow(
       packet: PlayerFacingClaimPacket
   ): Option[MoveReviewPlayerSurfaceRow] =
@@ -4193,6 +4243,7 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
   private def row(
       label: String,
       text: String,
+      refSans: List[String] = Nil,
       authority: Option[MoveReviewSurfaceAuthority]
   ): Option[MoveReviewPlayerSurfaceRow] =
     for
@@ -4203,7 +4254,7 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       text = cleanText,
       tone = None,
       source = None,
-      refSans = Nil,
+      refSans = refSans.flatMap(value => MoveReviewPlayerPayloadBuilder.cleanOpt(Some(value))).distinct,
       authority = authority
     )
 

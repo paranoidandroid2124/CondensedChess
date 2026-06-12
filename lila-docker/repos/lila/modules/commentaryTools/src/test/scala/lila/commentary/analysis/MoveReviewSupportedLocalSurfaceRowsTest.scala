@@ -874,7 +874,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
     assertEquals(rows.map(_.label), List("Counterplay break"))
     assertEquals(
       rows.head.text,
-      "On the checked line, this stops the ...c5 break before it appears."
+      "This stops the ...c5 break before it appears."
     )
     assertEquals(
       rows.head.authority,
@@ -1188,7 +1188,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       )
 
     assertEquals(rows.map(_.label), List("Counterplay break", "Color complex"))
-    assertEquals(rows.head.text, "On the checked line, this stops the ...c5 break before it appears.")
+    assertEquals(rows.head.text, "This stops the ...c5 break before it appears.")
     assertEquals(
       rows(1).text,
       "The checked line keeps the knight on c4 attacking e5 in the dark-square complex."
@@ -5439,7 +5439,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
     assertEquals(rows.map(_.label), List("Counterplay break"))
     assertEquals(
       rows.head.text,
-      "On the checked line, this stops the ...c5 break before it appears."
+      "This stops the ...c5 break before it appears."
     )
     assertEquals(
       rows.head.authority,
@@ -5563,7 +5563,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
     assertEquals(rows.map(_.label), List("Counterplay break"))
     assertEquals(
       rows.head.text,
-      "On the checked line, this stops the e4-e5 break before it appears."
+      "This stops the e4-e5 break before it appears."
     )
     assertEquals(
       rows.head.authority,
@@ -5634,7 +5634,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(
       rows.headOption.map(_.text),
-      Some("On the checked line, this stops the ...c5 break before it appears.")
+      Some("This stops the ...c5 break before it appears.")
     )
     assert(!rows.exists(_.text.contains("neutralize_key_break")), clue(rows))
     assert(!rows.exists(_.text.contains("counterplay_axis_suppression")), clue(rows))

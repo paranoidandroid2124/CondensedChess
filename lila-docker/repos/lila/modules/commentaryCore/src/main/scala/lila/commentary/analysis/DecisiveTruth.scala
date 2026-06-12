@@ -724,10 +724,15 @@ private[commentary] object DecisiveTruth:
       verifiedBestMove: Option[String]
   ): (Option[String], Option[String], Option[String]) =
     val preservedSource =
-      source.flatMap(normalized).filter(_ == DecisionComparisonComparativeSupport.ExactTargetFixationSource)
+      source.flatMap(normalized).filter(DecisionComparisonComparativeSupport.preservableComparativeSource)
     val preservedConsequence =
       Option.when(preservedSource.nonEmpty && verifiedBestMove.nonEmpty) {
-        consequence.flatMap(normalized).map(UserFacingSignalSanitizer.sanitize)
+        consequence.flatMap(normalized)
+          .filter(text =>
+            preservedSource.contains(DecisionComparisonComparativeSupport.ExactTargetFixationSource) ||
+              DecisionComparisonComparativeSupport.roleAwareLineConsequenceText(text)
+          )
+          .map(UserFacingSignalSanitizer.sanitize)
       }.flatten
     val preservedComparedMove =
       Option.when(preservedConsequence.nonEmpty) {

@@ -27,7 +27,7 @@ private[commentary] object ClaimAuthorityDecision:
       "truth_contract_blunder",
       "truth_contract_missed_win",
       "truth_contract_tactical_refutation",
-      "truth_contract_tactical_failure_mode",
+      "truth_contract_high_risk_failure_mode",
       "planner_truth_mode_tactical",
       "main_claim_tactical",
       "context_severe_counterfactual",

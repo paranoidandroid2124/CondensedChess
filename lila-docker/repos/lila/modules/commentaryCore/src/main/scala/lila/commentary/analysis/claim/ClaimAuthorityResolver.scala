@@ -18,6 +18,68 @@ private[commentary] object ClaimAuthorityResolver:
       decision: ClaimAuthorityDecision
   )
 
+  final case class PromotedLocalFactAdmission(
+      packet: PlayerFacingClaimPacket,
+      decision: ClaimAuthorityDecision,
+      claim: Option[MainPathScopedClaim],
+      family: MoveReviewLocalFact.Family,
+      source: MoveReviewLocalFact.Source,
+      subject: MoveReviewLocalFact.Subject,
+      strictFallbackCandidate: Boolean,
+      lineBinding: MoveReviewLocalFact.LineBinding,
+      evidenceRefs: List[String],
+      anchors: List[MoveReviewLocalFact.Anchor],
+      guardrails: List[String],
+      supportText: Option[String]
+  ):
+    def localFactCandidate: MoveReviewLocalFact.Candidate =
+      MoveReviewLocalFact.Candidate(
+        family = family,
+        source = source,
+        producer = MoveReviewLocalFact.Producer.ClaimAuthorityPromotion,
+        subject = subject,
+        strictFallbackCandidate = strictFallbackCandidate,
+        anchors = anchors,
+        lineBinding = lineBinding,
+        evidenceRefs = evidenceRefs,
+        guardrails = guardrails
+      )
+
+  def promotedLocalFactAdmissions(
+      ctx: Option[NarrativeContext],
+      inputs: QuestionPlannerInputs,
+      truthContract: Option[DecisiveTruthContract],
+      plan: QuestionPlan
+  ): List[PromotedLocalFactAdmission] =
+    val claimPackets = claimsWithPackets(inputs)
+    val claimAdmissions =
+      claimPackets.flatMap { case (claim, packet) =>
+        promotedDecisionForClaim(ctx, inputs, truthContract, plan, claim, packet)
+          .filter(_.admitted)
+          .flatMap(decision => promotedLocalFactAdmission(packet, decision, Some(claim)))
+      }
+    val neutralizeAdmissions =
+      supportedLocalNeutralizeKeyBreakTimingAdmission(ctx, inputs, truthContract, plan).toList
+        .filter(_.decision.admitted)
+        .flatMap(admission =>
+          promotedLocalFactAdmission(
+            packet = admission.packet,
+            decision = admission.decision,
+            claim = claimPackets.find(_._2 == admission.packet).map(_._1)
+          )
+        )
+    (claimAdmissions ++ neutralizeAdmissions).distinctBy(admission =>
+      (
+        admission.packet.proofSource,
+        admission.packet.proofFamily,
+        admission.family,
+        admission.source,
+        admission.claim.map(_.scope),
+        admission.claim.map(_.sourceKind),
+        admission.decision.tier
+      )
+    )
+
   def namedRouteNetworkSurfaceDecision(
       ctx: Option[NarrativeContext],
       inputs: QuestionPlannerInputs,
@@ -213,7 +275,7 @@ private[commentary] object ClaimAuthorityResolver:
         if contract.reasonFamily == DecisiveReasonKind.TacticalRefutation && contract.isBad then
           reasons += "truth_contract_tactical_refutation"
         if contract.failureMode == FailureInterpretationMode.TacticalRefutation then
-          reasons += "truth_contract_tactical_failure_mode"
+          reasons += "truth_contract_high_risk_failure_mode"
       }
       if inputs.truthMode == PlayerFacingTruthMode.Tactical then reasons += "planner_truth_mode_tactical"
       if inputs.mainBundle.flatMap(_.mainClaim).exists(_.mode == PlayerFacingTruthMode.Tactical) then
@@ -238,13 +300,13 @@ private[commentary] object ClaimAuthorityResolver:
         .orElse(inputs.counterfactual.map(_.cpLoss))
         .orElse(inputs.decisionComparison.flatMap(_.cpLossVsChosen))
       val winPercentLoss = cpLoss.map(cp => DecisiveTruth.winPercentFromCp(cp) - 50.0).getOrElse(0.0)
-      val isTacticalFailure = truthContract.exists { contract =>
+      val highRiskGate = truthContract.exists { contract =>
         contract.blocksStrategicSupport
       }
       val severeCounterfactual =
         ctx.exists(narrativeCtx => TacticalTensionPolicy.evaluate(narrativeCtx, truthContract).severeCounterfactual)
 
-      if isTacticalFailure || severeCounterfactual then
+      if highRiskGate || severeCounterfactual then
         false
       else if winPercentLoss < 10.0 then
         true
@@ -300,6 +362,182 @@ private[commentary] object ClaimAuthorityResolver:
     inputs.mainBundle.toList.flatMap { bundle =>
       (bundle.mainClaim.toList ++ bundle.lineScopedClaim.toList).flatMap(_.packet)
     }
+
+  private def claimsWithPackets(inputs: QuestionPlannerInputs): List[(MainPathScopedClaim, PlayerFacingClaimPacket)] =
+    inputs.mainBundle.toList.flatMap { bundle =>
+      (bundle.mainClaim.toList ++ bundle.lineScopedClaim.toList).flatMap(claim => claim.packet.map(packet => claim -> packet))
+    }
+
+  private def promotedLocalFactAdmission(
+      packet: PlayerFacingClaimPacket,
+      decision: ClaimAuthorityDecision,
+      claim: Option[MainPathScopedClaim]
+  ): Option[PromotedLocalFactAdmission] =
+    promotedFamily(packet, claim).map { family =>
+      val lineBinding = packetLineBinding(packet)
+      PromotedLocalFactAdmission(
+        packet = packet,
+        decision = decision,
+        claim = claim,
+        family = family,
+        source = promotedLocalFactSource(lineBinding),
+        subject = promotedLocalFactSubject(family),
+        strictFallbackCandidate = promotedStrictFallbackCandidate(decision, family),
+        lineBinding = lineBinding,
+        evidenceRefs = packetEvidenceRefs(packet, decision, claim),
+        anchors = packetAnchors(packet),
+        guardrails = packetGuardrails(packet, decision, family),
+        supportText = claim.flatMap(c => nonEmpty(c.claimText))
+      )
+    }
+
+  private def promotedDecisionForClaim(
+      ctx: Option[NarrativeContext],
+      inputs: QuestionPlannerInputs,
+      truthContract: Option[DecisiveTruthContract],
+      plan: QuestionPlan,
+      claim: MainPathScopedClaim,
+      packet: PlayerFacingClaimPacket
+  ): Option[ClaimAuthorityDecision] =
+    if plan.plannerOwnerKind == PlannerOwnerKind.MoveDelta &&
+        claim.scope == PlayerFacingClaimScope.MoveLocal &&
+        claim.sourceKind == plan.plannerSource
+    then Some(supportedLocalMoveDeltaPacketDecision(ctx, inputs, truthContract, packet))
+    else if plan.plannerOwnerKind == PlannerOwnerKind.PositionProbe &&
+        claim.scope == PlayerFacingClaimScope.PositionLocal
+    then Some(decidePositionProbe(ctx, inputs, truthContract, packet))
+    else None
+
+  private def promotedFamily(
+      packet: PlayerFacingClaimPacket,
+      claim: Option[MainPathScopedClaim]
+  ): Option[MoveReviewLocalFact.Family] =
+    claim.flatMap(_.deltaClass.map(MoveReviewLocalFact.familyForMoveDeltaClass))
+      .orElse(promotedFamilyFromExactProof(packet.proofPathWitness.exactSliceProof))
+      .orElse {
+        claim.collect {
+          case scopedClaim if scopedClaim.scope == PlayerFacingClaimScope.PositionLocal =>
+            MoveReviewLocalFact.Family.Pressure
+        }
+      }
+
+  private def promotedFamilyFromExactProof(
+      proof: Option[PlayerFacingExactSliceProof]
+  ): Option[MoveReviewLocalFact.Family] =
+    proof.map {
+      case _: PlayerFacingExactSliceProof.CounterplayAxisSuppression =>
+        MoveReviewLocalFact.Family.Defense
+      case _: PlayerFacingExactSliceProof.ProphylacticRestraint =>
+        MoveReviewLocalFact.Family.Defense
+      case _: PlayerFacingExactSliceProof.QueenTradeShield =>
+        MoveReviewLocalFact.Family.LineConsequence
+      case _: PlayerFacingExactSliceProof.DefenderTrade =>
+        MoveReviewLocalFact.Family.LineConsequence
+      case _: PlayerFacingExactSliceProof.BadPieceLiquidation =>
+        MoveReviewLocalFact.Family.LineConsequence
+      case _: PlayerFacingExactSliceProof.SimplificationWindow =>
+        MoveReviewLocalFact.Family.LineConsequence
+      case _: PlayerFacingExactSliceProof.CentralBreakTiming =>
+        MoveReviewLocalFact.Family.Timing
+      case _: PlayerFacingExactSliceProof.ExactTargetFixation =>
+        MoveReviewLocalFact.Family.Pressure
+      case _: PlayerFacingExactSliceProof.CarlsbadFixedTarget =>
+        MoveReviewLocalFact.Family.Pressure
+      case _: PlayerFacingExactSliceProof.TargetFocusedCoordination =>
+        MoveReviewLocalFact.Family.Pressure
+      case _: PlayerFacingExactSliceProof.ColorComplexSqueeze =>
+        MoveReviewLocalFact.Family.Pressure
+      case _: PlayerFacingExactSliceProof.LocalFileEntryBind =>
+        MoveReviewLocalFact.Family.Pressure
+      case _: PlayerFacingExactSliceProof.OutpostOccupation =>
+        MoveReviewLocalFact.Family.Pressure
+      case _: PlayerFacingExactSliceProof.IqpInducement =>
+        MoveReviewLocalFact.Family.Pressure
+    }
+
+  private def promotedLocalFactSource(
+      lineBinding: MoveReviewLocalFact.LineBinding
+  ): MoveReviewLocalFact.Source =
+    if lineBinding != MoveReviewLocalFact.LineBinding.None then MoveReviewLocalFact.Source.PvCoupledLine
+    else MoveReviewLocalFact.Source.CertifiedStrategy
+
+  private def promotedLocalFactSubject(family: MoveReviewLocalFact.Family): MoveReviewLocalFact.Subject =
+    family match
+      case MoveReviewLocalFact.Family.Defense | MoveReviewLocalFact.Family.Threat =>
+        MoveReviewLocalFact.Subject.LineOrReply
+      case MoveReviewLocalFact.Family.Attack | MoveReviewLocalFact.Family.Pressure |
+          MoveReviewLocalFact.Family.PlanSupport =>
+        MoveReviewLocalFact.Subject.PlanResource
+      case MoveReviewLocalFact.Family.LineConsequence =>
+        MoveReviewLocalFact.Subject.PlayedMove
+      case _ =>
+        MoveReviewLocalFact.Subject.PlayedMove
+
+  private def promotedStrictFallbackCandidate(
+      decision: ClaimAuthorityDecision,
+      family: MoveReviewLocalFact.Family
+  ): Boolean =
+    decision.tier == ClaimAuthorityTier.CertifiedOwner &&
+      Set(MoveReviewLocalFact.Family.Defense, MoveReviewLocalFact.Family.Threat, MoveReviewLocalFact.Family.LineConsequence)
+        .contains(family)
+
+  private def packetLineBinding(packet: PlayerFacingClaimPacket): MoveReviewLocalFact.LineBinding =
+    if packet.scope == PlayerFacingPacketScope.LineScoped then MoveReviewLocalFact.LineBinding.BranchScoped
+    else if packet.bestDefenseBranchKey.nonEmpty ||
+        packet.proofPathWitness.hasContinuation ||
+        packet.proofPathWitness.hasExactSlice
+    then MoveReviewLocalFact.LineBinding.PvCoupled
+    else MoveReviewLocalFact.LineBinding.None
+
+  private def packetEvidenceRefs(
+      packet: PlayerFacingClaimPacket,
+      decision: ClaimAuthorityDecision,
+      claim: Option[MainPathScopedClaim]
+  ): List[String] =
+    (
+      List(
+        s"authority_tier:${decision.tier.toString}",
+        s"packet_scope:${packet.scope.toString}",
+        s"packet_fallback:${packet.fallbackMode.toString}",
+        s"proof_family:${packet.proofFamily}",
+        s"proof_source:${packet.proofSource}"
+      ) ++
+        claim.map(c => s"claim_scope:${c.scope.toString}") ++
+        claim.map(c => s"claim_source:${c.sourceKind}") ++
+        packet.bestDefenseMove.map(value => s"best_defense_move:$value") ++
+        packet.bestDefenseBranchKey.map(value => s"best_defense_branch:$value") ++
+        packet.proofPathWitness.ownerSeedTerms.map(value => s"owner_seed:$value") ++
+        packet.proofPathWitness.continuationTerms.map(value => s"continuation:$value") ++
+        packet.anchorTerms.map(value => s"anchor:$value")
+    ).map(_.trim).filter(_.nonEmpty).distinct
+
+  private def packetAnchors(packet: PlayerFacingClaimPacket): List[MoveReviewLocalFact.Anchor] =
+    (
+      packet.anchorTerms.map(value => MoveReviewLocalFact.Anchor("packet_anchor", value)) ++
+        packet.proofPathWitness.ownerSeedTerms.map(value => MoveReviewLocalFact.Anchor("owner_seed", value)) ++
+        packet.proofPathWitness.continuationTerms.map(value => MoveReviewLocalFact.Anchor("continuation", value)) ++
+        packet.bestDefenseMove.map(value => MoveReviewLocalFact.Anchor("best_defense_move", value)).toList ++
+        packet.bestDefenseBranchKey.map(value => MoveReviewLocalFact.Anchor("best_defense_branch", value)).toList
+    ).distinct
+
+  private def packetGuardrails(
+      packet: PlayerFacingClaimPacket,
+      decision: ClaimAuthorityDecision,
+      family: MoveReviewLocalFact.Family
+  ): List[String] =
+    (
+      List(
+        s"promoted_authority_tier:${decision.tier.toString}",
+        s"promoted_family:${family.key}",
+        s"packet_scope:${packet.scope.toString}",
+        s"packet_fallback:${packet.fallbackMode.toString}",
+        s"packet_persistence:${packet.persistence.toString}",
+        s"packet_same_branch:${packet.sameBranchState.toString}"
+      ) ++
+        packet.suppressionReasons.map(reason => s"packet_suppression:$reason") ++
+        packet.releaseRisks.map(risk => s"packet_release_risk:$risk") ++
+        decision.failureCodes.map(code => s"authority_failure:$code")
+    ).map(_.trim).filter(_.nonEmpty).distinct
 
   private def exactMoveDeltaSupportedLocal(packet: PlayerFacingClaimPacket): Boolean =
     val simplificationWindowFamily =
@@ -446,6 +684,9 @@ private[commentary] object ClaimAuthorityResolver:
         .filter(_.nonEmpty)
         .toList
     (taxonomy ++ ProofContractRules.failureCodes(packet)).distinct
+
+  private def nonEmpty(raw: String): Option[String] =
+    Option(raw).map(_.trim).filter(_.nonEmpty)
 
   private def normalize(raw: String): String =
     Option(raw).getOrElse("").toLowerCase.replaceAll("""[^a-z0-9\s]""", " ").replaceAll("\\s+", " ").trim

@@ -1,8 +1,9 @@
 package lila.commentary.analysis
 
+import chess.{ Color, Knight, Queen, Rook, Square }
 import munit.FunSuite
 import lila.commentary.analysis.practical.ContrastiveSupportAdmissibility
-import lila.commentary.model.{ PreventedPlanInfo, ThreatRow }
+import lila.commentary.model.{ Motif, PreventedPlanInfo, ThreatRow }
 import lila.commentary.model.authoring.AuthorQuestionKind
 import lila.commentary.model.strategic.{ CounterfactualMatch, VariationLine }
 
@@ -10,7 +11,10 @@ class ContrastiveSupportAdmissibilityTest extends FunSuite:
 
   private def plan(
       kind: AuthorQuestionKind,
-      consequence: Option[QuestionPlanConsequence] = None
+      consequence: Option[QuestionPlanConsequence] = None,
+      sourceKinds: List[String] = List("planner"),
+      plannerOwnerKind: PlannerOwnerKind = PlannerOwnerKind.ForcingDefense,
+      plannerSource: String = "fixture_owner"
   ): QuestionPlan =
     QuestionPlan(
       questionId = s"${kind.toString.toLowerCase}_q",
@@ -22,10 +26,10 @@ class ContrastiveSupportAdmissibilityTest extends FunSuite:
       consequence = consequence,
       fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
       strengthTier = QuestionPlanStrengthTier.Strong,
-      sourceKinds = List("planner"),
+      sourceKinds = sourceKinds,
       admissibilityReasons = List("fixture"),
-      plannerOwnerKind = PlannerOwnerKind.ForcingDefense,
-      plannerSource = "fixture_owner"
+      plannerOwnerKind = plannerOwnerKind,
+      plannerSource = plannerSource
     )
 
   private def inputs(
@@ -120,6 +124,69 @@ class ContrastiveSupportAdmissibilityTest extends FunSuite:
     assertEquals(trace.contrast_anchor, Some("Qe6"))
     assert(trace.contrast_consequence.exists(_.contains("counterplay threat lands")))
     assert(trace.effectiveSupport(None).exists(_.startsWith("If delayed, Qe6 is the reply")))
+  }
+
+  test("keeps UCI best defense as a concrete forced-reply anchor") {
+    val threat =
+      ThreatRow(
+        kind = "material",
+        side = "them",
+        square = None,
+        lossIfIgnoredCp = 180,
+        turnsToImpact = 1,
+        bestDefense = Some("e8d8"),
+        defenseCount = 1,
+        insufficientData = false
+      )
+
+    val trace = ContrastiveSupportAdmissibility.decide(plan(AuthorQuestionKind.WhyNow), inputs(opponentThreats = List(threat)), None)
+
+    assertEquals(trace.contrast_admissible, true)
+    assertEquals(trace.contrast_source_kind, Some(ContrastiveSupportAdmissibility.SourceKind.ExplicitReplyLoss))
+    assertEquals(trace.contrast_anchor, Some("d8"))
+    assertEquals(trace.effectiveSupport(None), Some("If delayed, d8 is the reply."))
+  }
+
+  test("bounds square-only best defense wording instead of naming the square as the reply") {
+    val threat =
+      ThreatRow(
+        kind = "material",
+        side = "them",
+        square = Some("d8"),
+        lossIfIgnoredCp = 180,
+        turnsToImpact = 1,
+        bestDefense = Some("d8"),
+        defenseCount = 1,
+        insufficientData = false
+      )
+
+    val trace = ContrastiveSupportAdmissibility.decide(plan(AuthorQuestionKind.WhyNow), inputs(opponentThreats = List(threat)), None)
+
+    assertEquals(trace.contrast_admissible, true)
+    assertEquals(trace.contrast_source_kind, Some(ContrastiveSupportAdmissibility.SourceKind.ExplicitReplyLoss))
+    assertEquals(trace.contrast_anchor, Some("d8"))
+    assertEquals(trace.effectiveSupport(None), Some("If delayed, the reply has to address d8."))
+  }
+
+  test("bounds forced-reply contrast when the defense is not unique") {
+    val threat =
+      ThreatRow(
+        kind = "material",
+        side = "them",
+        square = None,
+        lossIfIgnoredCp = 180,
+        turnsToImpact = 1,
+        bestDefense = Some("Qe6"),
+        defenseCount = 2,
+        insufficientData = false
+      )
+
+    val trace = ContrastiveSupportAdmissibility.decide(plan(AuthorQuestionKind.WhyNow), inputs(opponentThreats = List(threat)), None)
+
+    assertEquals(trace.contrast_admissible, true)
+    assertEquals(trace.contrast_source_kind, Some(ContrastiveSupportAdmissibility.SourceKind.ExplicitReplyLoss))
+    assertEquals(trace.contrast_anchor, Some("Qe6"))
+    assertEquals(trace.effectiveSupport(None), Some("If delayed, Qe6 is one defensive reply."))
   }
 
   test("admits chosen-best contrast from certified planner consequence when deferred reason is missing") {
@@ -250,4 +317,254 @@ class ContrastiveSupportAdmissibilityTest extends FunSuite:
       trace.effectiveSupport(None),
       Some("The move Bd7 stays best because Qxd4 becomes the cleaner continuation instead.")
     )
+  }
+
+  test("admits motif-backed counterfactual causal threat as a concrete what-if source") {
+    val comparison =
+      DecisionComparison(
+        chosenMove = Some("Bd7"),
+        engineBestMove = Some("Bd7"),
+        engineBestScoreCp = Some(40),
+        engineBestPv = List("Bd7", "Nxc6", "Bxc6"),
+        cpLossVsChosen = None,
+        deferredMove = None,
+        deferredReason = None,
+        deferredSource = None,
+        evidence = None,
+        practicalAlternative = false,
+        chosenMatchesBest = true
+      )
+    val counterfactual =
+      CounterfactualMatch(
+        userMove = "Bd7",
+        bestMove = "Qxd4",
+        cpLoss = 90,
+        missedMotifs =
+          List(
+            Motif.Fork(
+              Knight,
+              List(Rook, Queen),
+              Square.F5,
+              List(Square.E7, Square.H4),
+              Color.White,
+              1,
+              Some("Nf5")
+            )
+          ),
+        userMoveMotifs = Nil,
+        severity = "moderate",
+        userLine = VariationLine(Nil, 0),
+        causalThreat =
+          Some(
+            ThreatExtractor.CausalThreat(
+              concept = "Material Loss",
+              severity = 85,
+              narrative = "allows a devastating fork on the rook and queen",
+              motifs =
+                List(
+                  Motif.Fork(
+                    Knight,
+                    List(Rook, Queen),
+                    Square.F5,
+                    List(Square.E7, Square.H4),
+                    Color.White,
+                    1,
+                    Some("Nf5")
+                  )
+                )
+            )
+          )
+      )
+
+    val trace =
+      ContrastiveSupportAdmissibility.decide(
+        plan(AuthorQuestionKind.WhyThis),
+        inputs(decisionComparison = Some(comparison), counterfactual = Some(counterfactual)),
+        None
+      )
+
+    assertEquals(trace.contrast_admissible, true)
+    assertEquals(
+      trace.contrast_source_kind,
+      Some(ContrastiveSupportAdmissibility.SourceKind.CounterfactualCausalThreat)
+    )
+    assertEquals(trace.contrast_anchor, Some("Bd7"))
+    assertEquals(trace.contrast_consequence, Some("Missing it allows a devastating fork on the rook and queen."))
+    assertEquals(
+      trace.effectiveSupport(None),
+      Some("The move Bd7 stays best because missing it allows a devastating fork on the rook and queen.")
+    )
+  }
+
+  test("keeps counterfactual causal threat support closed without motif proof") {
+    val comparison =
+      DecisionComparison(
+        chosenMove = Some("Bd7"),
+        engineBestMove = Some("Bd7"),
+        engineBestScoreCp = Some(40),
+        engineBestPv = List("Bd7", "Nxc6", "Bxc6"),
+        cpLossVsChosen = None,
+        deferredMove = None,
+        deferredReason = None,
+        deferredSource = None,
+        evidence = None,
+        practicalAlternative = false,
+        chosenMatchesBest = true
+      )
+    val counterfactual =
+      CounterfactualMatch(
+        userMove = "Bd7",
+        bestMove = "Qxd4",
+        cpLoss = 90,
+        missedMotifs = Nil,
+        userMoveMotifs = Nil,
+        severity = "moderate",
+        userLine = VariationLine(Nil, 0),
+        causalThreat =
+          Some(
+            ThreatExtractor.CausalThreat(
+              concept = "Positional Collapse",
+              severity = 1,
+              narrative = "concedes a devastating positional advantage",
+              motifs = Nil
+            )
+          )
+      )
+
+    val trace =
+      ContrastiveSupportAdmissibility.decide(
+        plan(AuthorQuestionKind.WhyThis),
+        inputs(decisionComparison = Some(comparison), counterfactual = Some(counterfactual)),
+        None
+      )
+
+    assertEquals(trace.contrast_admissible, true)
+    assertEquals(
+      trace.contrast_source_kind,
+      Some(ContrastiveSupportAdmissibility.SourceKind.TopEngineMoveWithConcreteConsequence)
+    )
+    assertEquals(
+      trace.effectiveSupport(None),
+      Some("The move Bd7 stays best because Qxd4 becomes the cleaner continuation instead.")
+    )
+  }
+
+  test("admits WhatChanged decision comparison when the alternative has a concrete consequence") {
+    val comparison =
+      DecisionComparison(
+        chosenMove = Some("Re1"),
+        engineBestMove = Some("Re1"),
+        engineBestScoreCp = Some(80),
+        engineBestPv = List("Re1", "...Rxe1+"),
+        cpLossVsChosen = Some(80),
+        deferredMove = Some("Qf3"),
+        deferredReason = Some("it wins the d5 pawn by force"),
+        deferredSource = Some("top_engine_move"),
+        evidence = None,
+        practicalAlternative = false,
+        chosenMatchesBest = true
+      )
+
+    val trace =
+      ContrastiveSupportAdmissibility.decide(
+        plan(
+          AuthorQuestionKind.WhatChanged,
+          sourceKinds = List("decision_comparison"),
+          plannerOwnerKind = PlannerOwnerKind.DecisionTiming,
+          plannerSource = "decision_comparison"
+        ),
+        inputs(decisionComparison = Some(comparison)),
+        None
+      )
+
+    assertEquals(trace.contrast_admissible, true)
+    assertEquals(
+      trace.contrast_source_kind,
+      Some(ContrastiveSupportAdmissibility.SourceKind.TopEngineMoveWithConcreteConsequence)
+    )
+    assertEquals(trace.contrast_anchor, Some("Qf3"))
+    assert(trace.effectiveSupport(None).exists(_.contains("Qf3")), clues(trace))
+  }
+
+  test("admits exact comparative consequence instead of treating it as raw close-candidate prose") {
+    val comparison =
+      DecisionComparison(
+        chosenMove = Some("Nd2"),
+        engineBestMove = Some("Nd2"),
+        engineBestScoreCp = Some(42),
+        engineBestPv = List("Nd2", "...Qd6"),
+        cpLossVsChosen = None,
+        deferredMove = Some("Qc2"),
+        deferredReason = Some("different strategic branches"),
+        deferredSource = Some("close_candidate"),
+        evidence = None,
+        practicalAlternative = true,
+        chosenMatchesBest = true,
+        comparedMove = Some("Qc2"),
+        comparativeConsequence = Some("Nd2 fixes d6 as the target; Qc2 leaves d6 unfixed on the compared branch."),
+        comparativeSource = Some(DecisionComparisonComparativeSupport.ExactTargetFixationSource)
+      )
+
+    val trace =
+      ContrastiveSupportAdmissibility.decide(
+        plan(
+          AuthorQuestionKind.WhyThis,
+          sourceKinds = List("decision_comparison"),
+          plannerOwnerKind = PlannerOwnerKind.DecisionTiming,
+          plannerSource = "decision_comparison"
+        ),
+        inputs(decisionComparison = Some(comparison)),
+        None
+      )
+
+    assertEquals(trace.contrast_admissible, true)
+    assertEquals(
+      trace.contrast_source_kind,
+      Some(ContrastiveSupportAdmissibility.SourceKind.TopEngineMoveWithConcreteConsequence)
+    )
+    assertEquals(trace.contrast_anchor, Some("Nd2"))
+    assertEquals(
+      trace.contrast_consequence,
+      Some("Nd2 fixes d6 as the target; Qc2 leaves d6 unfixed on the compared branch.")
+    )
+  }
+
+  test("admits role-aware line consequence as branch-scoped alternative contrast") {
+    val consequence =
+      "g5 reaches an exchange sequence on the engine-best branch 10... g5 11. b4 11... gxh4 12. bxa5; Nge7 stays on the played branch 10... Nge7 11. O-O 11... Bb6 12. a4 without that concrete exchange sequence."
+    val comparison =
+      DecisionComparison(
+        chosenMove = Some("Nge7"),
+        engineBestMove = Some("g5"),
+        engineBestScoreCp = Some(207),
+        engineBestPv = List("g5", "b4", "gxh4", "bxa5"),
+        cpLossVsChosen = Some(21),
+        deferredMove = Some("g5"),
+        deferredReason = None,
+        deferredSource = Some("verified_best"),
+        evidence = None,
+        practicalAlternative = false,
+        chosenMatchesBest = false,
+        comparedMove = Some("Nge7"),
+        comparativeConsequence = Some(consequence),
+        comparativeSource = Some(DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource)
+      )
+
+    val trace =
+      ContrastiveSupportAdmissibility.decide(
+        plan(
+          AuthorQuestionKind.WhatChanged,
+          sourceKinds = List("decision_comparison"),
+          plannerOwnerKind = PlannerOwnerKind.DecisionTiming,
+          plannerSource = "decision_comparison"
+        ),
+        inputs(decisionComparison = Some(comparison)),
+        None
+      )
+
+    assertEquals(trace.contrast_admissible, true)
+    assertEquals(trace.contrast_source_kind, Some(ContrastiveSupportAdmissibility.SourceKind.RoleAwareLineConsequence))
+    assertEquals(trace.contrast_anchor, Some("g5"))
+    assertEquals(trace.contrast_consequence, Some(consequence))
+    assertEquals(trace.effectiveSupport(None), Some(consequence))
   }

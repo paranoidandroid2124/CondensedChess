@@ -426,7 +426,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     assertEquals(slots.supportSecondary, None)
   }
 
-  test("moveReview fails closed when tactical failure owns a WhyNow request") {
+  test("moveReview fails closed when concrete tactical authority owns a WhyNow request") {
     val ctx =
       tacticalCtx(MoveReviewProseGoldenFixtures.openFileFight.ctx).copy(
         threats = ThreatTable(toUs = List(threat("Mate", 900, Some("Qd8"))), toThem = Nil),
@@ -1035,7 +1035,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     assertExactFactualFallback(slots, "This puts the rook on c3.")
   }
 
-  test("only-move defense stays support-only when no move-review-safe WhyNow surface survives") {
+  test("only-move defense can render a typed WhyNow surface without route prose") {
     val ctx =
       tacticalCtx(MoveReviewProseGoldenFixtures.openFileFight.ctx).copy(
         authorQuestions =
@@ -1100,10 +1100,15 @@ class MoveReviewPolishSlotsTest extends FunSuite:
           )
       )
 
-    assertExactFactualFallback(slots, "This puts the rook on c3.")
+    assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.Planner)
+    val rendered = MoveReviewProseContract.stripMoveHeader(slots.validationSeedText).toLowerCase
+    assert(rendered.contains("now") || rendered.contains("qxf7"), clues(rendered, slots))
+    assert(!rendered.contains("queen route"), clues(rendered, slots))
+    assert(!rendered.contains("route toward"), clues(rendered, slots))
+    assert(!rendered.contains("e5"), clues(rendered, slots))
   }
 
-  test("moveReview keeps WhyNow as the rendered primary when threat-stop would leak outside contrast scope") {
+  test("moveReview keeps defensive primary when threat-stop contrast is scoped") {
     val ctx =
       MoveReviewProseGoldenFixtures.openFileFight.ctx.copy(
         threats = ThreatTable(toUs = List(threat("Material threat", 220, Some("Qd8"))), toThem = Nil),
@@ -1146,15 +1151,15 @@ class MoveReviewPolishSlotsTest extends FunSuite:
 
     assertEquals(rankedPlans.primary.map(_.questionKind), Some(AuthorQuestionKind.WhatMustBeStopped), clues(rankedPlans))
     assertEquals(rankedPlans.secondary.map(_.questionKind), Some(AuthorQuestionKind.WhyNow), clues(rankedPlans))
-    assertEquals(renderSelection.primary.questionKind, AuthorQuestionKind.WhyNow, clues(renderSelection))
+    assertEquals(renderSelection.primary.questionKind, AuthorQuestionKind.WhatMustBeStopped, clues(renderSelection))
     assertEquals(
       renderSelection.contrastTrace.contrast_source_kind,
       Some(ContrastiveSupportAdmissibility.SourceKind.ExplicitReplyLoss),
       clues(renderSelection.contrastTrace)
     )
     val claim = MoveReviewProseContract.stripMoveHeader(slots.claim).toLowerCase
-    assert(claim.contains("timing") || claim.contains("now"), clues(claim, slots))
-    assert(!claim.contains("has to stop"), clues(claim, slots))
+    assert(claim.contains("has to stop"), clues(claim, slots))
+    assert(!claim.contains("threat threat"), clues(claim, slots))
     assert(slots.supportPrimary.exists(_.contains("Qd8")), clues(slots.supportPrimary, slots))
   }
 
@@ -1259,7 +1264,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     assertEquals(promotionSlots.supportPrimary, Some("The local material change is a pawn becoming a queen."))
   }
 
-  test("direct moveReview fallback adds coupled PV support only when the line replays") {
+  test("direct moveReview surface adds coupled PV line consequence only when the line replays") {
     val fen = "7k/8/2n5/8/2Q5/8/8/4K3 w - - 0 1"
     val ctx =
       localFallbackCtx(
@@ -1286,17 +1291,17 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     val unsupported =
       MoveReviewPolishSlotsBuilder.buildOrFallback(ctx, outline, refs = Some(corrupted), strategyPack = None)
 
-    assertEquals(MoveReviewProseContract.stripMoveHeader(supported.claim), "This captures the knight on c6.")
-    assertEquals(
-      supported.supportPrimary,
-      Some("The local material change is a captured knight. The checked line begins Qxc6 Kg8.")
-    )
+    val supportedClaim = MoveReviewProseContract.stripMoveHeader(supported.claim)
+    assertEquals(supported.sourceKind, MoveReviewPolishSlots.Source.BasicMoveExplanation)
+    assert(supportedClaim.contains("Qxc6 is tied to a checked material transition"), clues(supportedClaim, supported))
+    assert(supportedClaim.contains("Kg8") && supportedClaim.contains("Qd6"), clues(supportedClaim, supported))
+    assertEquals(supported.supportPrimary, Some("Short line: Qxc6 Kg8 Qd6."))
     assertEquals(supported.paragraphPlan, List("p1=claim", "p2=support_chain"))
     assertEquals(unsupported.supportPrimary, Some("The local material change is a captured knight."))
     assertEquals(unsupported.paragraphPlan, List("p1=claim", "p2=support_chain"))
   }
 
-  test("direct local factual fallback does not read surface-only strategy pack prose") {
+  test("typed line consequence surface does not read surface-only strategy pack prose") {
     val fen = "7k/8/2n5/8/2Q5/8/8/4K3 w - - 0 1"
     val ctx =
       localFallbackCtx(
@@ -1330,11 +1335,11 @@ class MoveReviewPolishSlotsTest extends FunSuite:
         .mkString(" ")
         .toLowerCase
 
-    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "This captures the knight on c6.")
-    assertEquals(
-      slots.supportPrimary,
-      Some("The local material change is a captured knight. The checked line begins Qxc6 Kg8.")
-    )
+    val claim = MoveReviewProseContract.stripMoveHeader(slots.claim)
+    assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.BasicMoveExplanation)
+    assert(claim.contains("Qxc6 is tied to a checked material transition"), clues(claim, slots))
+    assert(claim.contains("Kg8") && claim.contains("Qd6"), clues(claim, slots))
+    assertEquals(slots.supportPrimary, Some("Short line: Qxc6 Kg8 Qd6."))
     assert(!renderedFallback.contains("compensation"), clue(renderedFallback))
     assert(!renderedFallback.contains("pressure"), clue(renderedFallback))
     assert(!renderedFallback.contains("route"), clue(renderedFallback))

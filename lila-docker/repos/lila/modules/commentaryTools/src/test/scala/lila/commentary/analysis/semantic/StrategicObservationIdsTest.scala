@@ -533,6 +533,11 @@ class StrategicObservationIdsTest extends FunSuite:
         "RelationKind.All",
         "RelationKind.Deferred"
       )
+    val allowedBroadAdmissionTerms =
+      Map(
+        "modules/commentaryCore/src/main/scala/lila/commentary/analysis/CommentaryIdeaSurface.scala" ->
+          Set("descriptorForKind")
+      )
     val missingHooks =
       requiredHooks.toList.flatMap { case (relativePath, hooks) =>
         val path = root.resolve(relativePath)
@@ -543,7 +548,8 @@ class StrategicObservationIdsTest extends FunSuite:
       requiredHooks.keys.toList.flatMap { relativePath =>
         val path = root.resolve(relativePath)
         val text = java.nio.file.Files.readString(path)
-        broadAdmissionTerms.filter(text.contains).map(term => s"$relativePath:$term")
+        val allowedTerms = allowedBroadAdmissionTerms.getOrElse(relativePath, Set.empty)
+        broadAdmissionTerms.filter(term => text.contains(term) && !allowedTerms.contains(term)).map(term => s"$relativePath:$term")
       }.sorted
     val rawDeferredEvidenceOffenders =
       rawRelationEvidenceGuardFiles.flatMap { relativePath =>

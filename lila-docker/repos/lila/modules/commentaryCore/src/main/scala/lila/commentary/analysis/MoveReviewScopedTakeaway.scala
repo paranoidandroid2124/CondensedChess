@@ -5,12 +5,8 @@ import lila.commentary.model.Fact
 private[commentary] object MoveReviewScopedTakeaway:
   import MoveReviewLocalFact.{
     Admission as LocalFactAdmission,
-    Candidate as LocalFactCandidate,
     Family as LocalFactFamily,
-    LineBinding as LocalFactLineBinding,
-    Producer as LocalFactProducer,
-    Source as LocalFactSource,
-    Subject as LocalFactSubject
+    LineBinding as LocalFactLineBinding
   }
 
   enum EvidenceTier:
@@ -61,16 +57,7 @@ private[commentary] object MoveReviewScopedTakeaway:
       played: CommentaryIdeaSurface.PlayedMove,
       evidence: CommentaryIdeaSurface.MoveReviewEvidence,
       lineFacts: Option[MoveReviewPvLine.LineFacts],
-      localFact: LocalFactAdmission =
-        MoveReviewLocalFact.admitted(LocalFactCandidate(
-          family = LocalFactFamily.LineConsequence,
-          source = LocalFactSource.PvCoupledLine,
-          producer = LocalFactProducer.ScopedLineDefault,
-          subject = LocalFactSubject.PlayedMove,
-          strictFallbackCandidate = false,
-          lineBinding = LocalFactLineBinding.PvCoupled,
-          guardrails = List("compatibility_default")
-        ))
+      localFact: LocalFactAdmission
   ): Option[ScopedTakeaway] =
     lineFacts
       .filter(line => MoveReviewPvLine.normalizeUci(line.first.uci) == played.uci)
@@ -106,6 +93,8 @@ private[commentary] object MoveReviewScopedTakeaway:
     val openingGoalName = evidence.openingGoal.map(_.goalName.toLowerCase).getOrElse("")
     Option.when(admitsPurpose(purpose, localFact))(
       localFact.family match
+        case LocalFactFamily.Attack =>
+          s"The PV keeps the local attacking detail bounded: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader evaluation claim."
         case LocalFactFamily.Threat | LocalFactFamily.Pressure =>
           s"The PV keeps the local tactical detail bounded: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader evaluation claim."
         case LocalFactFamily.Defense =>
@@ -130,6 +119,16 @@ private[commentary] object MoveReviewScopedTakeaway:
               s"The checked line keeps the center sequence bounded: ${played.san} is the move under review, and $continuationSan continues the line."
             case _ =>
               s"The checked line stays local to ${played.san}: $checkedSequence."
+        case LocalFactFamily.LineConsequence =>
+          purpose match
+            case "clarify_exchange" =>
+              s"The checked line keeps the exchange consequence local to ${played.san}: $checkedSequence."
+            case "center_break_setup" | "challenge_center" =>
+              s"The checked line keeps the central consequence local to ${played.san}: $checkedSequence."
+            case "force_sequence" =>
+              s"The checked line keeps the forcing detail local to ${played.san}: $checkedSequence."
+            case _ =>
+              s"The checked line keeps the line consequence local to ${played.san}: $checkedSequence."
         case _ =>
           purpose match
             case "quiet_development" if line.continuation.exists(move => MoveReviewPvLine.normalizeUci(move.uci) == "d2d3") =>
@@ -175,13 +174,15 @@ private[commentary] object MoveReviewScopedTakeaway:
       case "king_safety_first" =>
         Set(LocalFactFamily.KingSafety, LocalFactFamily.OpeningGoal)
       case "create_tactical_threat" =>
-        Set(LocalFactFamily.Threat, LocalFactFamily.Pressure)
+        Set(LocalFactFamily.Attack, LocalFactFamily.Threat, LocalFactFamily.Pressure)
       case "answer_direct_threat" | "prevent_counterplay" =>
         Set(LocalFactFamily.Defense)
       case "resolve_capture_tension" =>
         Set(LocalFactFamily.Capture)
       case "clarify_exchange" | "local_capture" =>
         Set(LocalFactFamily.Capture, LocalFactFamily.LineConsequence)
+      case "force_sequence" =>
+        Set(LocalFactFamily.LineConsequence)
       case "improve_endgame_activity" =>
         Set(LocalFactFamily.Endgame)
       case "advance_plan" =>

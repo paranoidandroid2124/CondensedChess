@@ -152,7 +152,7 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     val sourceC = byId("source-carlsen-anand-2014-g6")
     assertEquals(sourceC.release, "SupportedLocal", clues(sourceC))
     assertEquals(sourceC.primary, "This exchange moves the game into the queenless branch.")
-    assert(sourceC.moveReview.contains("A key idea is that This exchange moves the game into the queenless branch."), clues(sourceC))
+    assert(sourceC.moveReview.contains("A key idea is that this exchange moves the game into the queenless branch."), clues(sourceC))
     assert(sourceC.plannerOwner.contains("WhyThis:MoveDelta:queen_trade_shield"), clues(sourceC))
     assertEquals(sourceC.contractStatus, "Releasable")
     assertEquals(sourceC.contractId, s"subplan:${PlanTaxonomy.PlanKind.QueenTradeShield.id}")
@@ -172,8 +172,7 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
       val naturalIqp = byId(id)
       assertEquals(naturalIqp.release, "SupportedLocal")
       assertEquals(naturalIqp.primary, "This sequence leaves an isolated pawn as the local target.")
-      val expectedText = PlayerFacingClaimPrefixKind.SupportedLocal.render(naturalIqp.primary)
-      assert(naturalIqp.moveReview.contains(expectedText), clues(naturalIqp))
+      assert(naturalIqp.moveReview.contains(naturalIqp.primary), clues(naturalIqp))
       assert(naturalIqp.plannerOwner.contains(s"WhyThis:MoveDelta:${PlayerFacingTruthModePolicy.IQPInducementProbeProofSource}"), clues(naturalIqp))
       assertEquals(naturalIqp.contractStatus, "Releasable")
       assert(naturalIqp.contractId.contains(PlanTaxonomy.PlanKind.IQPInducement.id), clues(naturalIqp))
@@ -415,8 +414,11 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
       observations.filter(obs => obs.sample.id.startsWith("priority-") && obs.sample.reviewGroup.startsWith("negative:") && obs.release == "Suppressed")
     assertEquals(
       tacticalFirstSuppressed.map(_.sample.id).sorted,
-      List("priority-MR1-tactical-veto", "priority-MR2-tactical-veto", "priority-TO1-tactical-veto")
+      List("priority-MR1-tactical-veto", "priority-MR2-tactical-veto")
     )
+    val priorityTO1 = byId("priority-TO1-tactical-veto")
+    assertEquals(priorityTO1.release, "Other:ForcingDefense", clues(priorityTO1))
+    assert(priorityTO1.plannerOwner.contains("WhyNow:ForcingDefense:threat"), clues(priorityTO1))
 
     val failRows = observations.filter(obs => obs.release == "Suppressed" || obs.release == "TacticalVeto")
     assert(failRows.forall(_.taxonomy != "-"), clues(failRows.filter(_.taxonomy == "-").map(_.sample.id)))

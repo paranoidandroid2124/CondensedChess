@@ -1,9 +1,10 @@
 package lila.commentary.analysis
 
+import chess.{ Color, Knight, Queen, Rook, Square }
 import munit.FunSuite
 import lila.commentary.model.*
 import lila.commentary.model.authoring.*
-import lila.commentary.model.strategic.{ EngineEvidence, PvMove, VariationLine }
+import lila.commentary.model.strategic.{ CounterfactualMatch, EngineEvidence, PvMove, VariationLine }
 import lila.commentary.analysis.claim.PlayerFacingClaimPrefixKind
 
 class QuestionFirstCommentaryPlannerTest extends FunSuite:
@@ -273,8 +274,13 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
       evidenceByQuestionId: Map[String, List[QuestionEvidence]] = Map.empty,
       evidenceBackedPlans: List[PlanHypothesis] = Nil,
       opponentPlan: Option[PlanRow] = None,
+      truthMode: PlayerFacingTruthMode = PlayerFacingTruthMode.Strategic,
       openingRelationClaim: Option[String] = None,
-      endgameTransitionClaim: Option[String] = None
+      endgameTransitionClaim: Option[String] = None,
+      candidateEvidenceLines: List[String] = Nil,
+      pvCoupledPlanSupport: Option[PvCoupledPlanSupport] = None,
+      lineConsequence: Option[LineConsequenceEvidence] = None,
+      counterfactual: Option[CounterfactualMatch] = None
   ): QuestionPlannerInputs =
     QuestionPlannerInputs(
       mainBundle = mainBundle,
@@ -282,20 +288,22 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
       decisionFrame = decisionFrame,
       decisionComparison = decisionComparison,
       alternativeNarrative = alternativeNarrative,
-      truthMode = PlayerFacingTruthMode.Strategic,
+      truthMode = truthMode,
       preventedPlansNow = preventedPlansNow,
       pvDelta = pvDelta,
-      counterfactual = None,
+      counterfactual = counterfactual,
       practicalAssessment = None,
       opponentThreats = opponentThreats,
       forcingThreats = Nil,
       evidenceByQuestionId = evidenceByQuestionId,
-      candidateEvidenceLines = Nil,
+      candidateEvidenceLines = candidateEvidenceLines,
       evidenceBackedPlans = evidenceBackedPlans,
       opponentPlan = opponentPlan,
       factualFallback = Some("This castles."),
       openingRelationClaim = openingRelationClaim,
-      endgameTransitionClaim = endgameTransitionClaim
+      endgameTransitionClaim = endgameTransitionClaim,
+      pvCoupledPlanSupport = pvCoupledPlanSupport,
+      lineConsequence = lineConsequence
     )
 
   private def evidenceBackedPlan(name: String = "Kingside pressure"): PlanHypothesis =
@@ -424,6 +432,64 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     assert(primary.contrast.exists(_.contains("Qe2")), clues(primary.contrast))
   }
 
+  test("WhyThis tactical move-owned claim uses motif-backed counterfactual causal threat consequence") {
+    val q = question("q_counterfactual_threat", AuthorQuestionKind.WhyThis)
+    val ctx = baseCtx(List(q))
+    val fork =
+      Motif.Fork(
+        Knight,
+        List(Rook, Queen),
+        Square.F5,
+        List(Square.E7, Square.H4),
+        Color.White,
+        1,
+        Some("Nf5")
+      )
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        ctx,
+        inputs(
+          mainBundle =
+            Some(
+              MainPathClaimBundle(
+                Some(mainClaim("This is a blunder, and the tactical point has to come first.", PlayerFacingTruthMode.Tactical, "tactical_contract")),
+                Some(lineClaim("14...Bxf6 15.Qxf6 Nc4"))
+              )
+            ),
+          counterfactual =
+            Some(
+              CounterfactualMatch(
+                userMove = "Nf3",
+                bestMove = "Nc4",
+                cpLoss = 120,
+                missedMotifs = List(fork),
+                userMoveMotifs = Nil,
+                severity = "blunder",
+                userLine = VariationLine(Nil, -120),
+                causalThreat =
+                  Some(
+                    ThreatExtractor.CausalThreat(
+                      concept = "Material Loss",
+                      severity = 85,
+                      narrative = "allows a devastating fork on the rook and queen",
+                      motifs = List(fork)
+                    )
+                  )
+              )
+            )
+        ),
+        None
+      )
+
+    val primary = plans.primary.getOrElse(fail("missing primary plan"))
+    assertEquals(primary.questionKind, AuthorQuestionKind.WhyThis)
+    assertEquals(primary.plannerOwnerKind, PlannerOwnerKind.ConcreteTactical)
+    assertEquals(
+      primary.consequence.map(_.text),
+      Some("Missing it allows a devastating fork on the rook and queen.")
+    )
+  }
+
   test("single-line fallback evidence strips existing line labels before adding a branch label") {
     val q = question("q_line_label", AuthorQuestionKind.WhyThis)
     val plans =
@@ -495,6 +561,62 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
 
     assertEquals(plans.primary, None)
     assertEquals(plans.rejected.headOption.map(_.questionKind), Some(AuthorQuestionKind.WhyThis))
+  }
+
+  test("WhyNow demotion can use role-aware branch comparison as a tactical WhyThis explanation") {
+    val q = question("q_role_aware_demote", AuthorQuestionKind.WhyNow)
+    val consequence =
+      "g5 reaches an exchange sequence on the engine-best branch g5 b4 gxh4; Nge7 stays on the played branch Nge7 O-O without that concrete exchange sequence."
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        baseCtx(List(q)),
+        inputs(
+          decisionComparison =
+            Some(
+              DecisionComparison(
+                chosenMove = Some("Nge7"),
+                engineBestMove = Some("g5"),
+                engineBestScoreCp = Some(207),
+                engineBestPv = List("g5", "b4", "gxh4"),
+                cpLossVsChosen = None,
+                deferredMove = Some("g5"),
+                deferredReason = None,
+                deferredSource = Some("verified_best"),
+                evidence = Some("g5 b4 gxh4"),
+                practicalAlternative = false,
+                chosenMatchesBest = false,
+                comparedMove = Some("Nge7"),
+                comparativeConsequence = Some(consequence),
+                comparativeSource = Some(DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource)
+              )
+            )
+        ),
+        Some(
+          truthContract(
+            truthClass = DecisiveTruthClass.Blunder,
+            reasonFamily = DecisiveReasonKind.TacticalRefutation,
+            verifiedBestMove = Some("g5")
+          )
+        )
+      )
+
+    val primary = plans.primary.getOrElse(fail("missing role-aware WhyThis plan"))
+    assertEquals(primary.questionKind, AuthorQuestionKind.WhyThis)
+    assertEquals(primary.fallbackMode, QuestionPlanFallbackMode.DemotedToWhyThis)
+    assertEquals(primary.plannerOwnerKind, PlannerOwnerKind.AlternativeComparison)
+    assertEquals(primary.plannerSource, "decision_comparison")
+    assert(primary.claim.contains("g5 reaches an exchange sequence"), clues(primary.claim))
+    assert(primary.claim.contains("Nge7 stays on the played branch"), clues(primary.claim))
+    assert(primary.admissibilityReasons.contains(DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource), clues(primary))
+    assert(
+      plans.ownerTrace.ownerCandidateLabels.exists(label =>
+        label.contains("AlternativeComparison") &&
+          label.contains("source_kind=decision_comparison") &&
+          label.contains("mapping=AlternativeComparison/role_aware_line_consequence") &&
+          label.contains("admission_decision=PrimaryAllowed")
+      ),
+      clues(plans.ownerTrace.ownerCandidateLabels)
+    )
   }
 
   test("WhatMattersHere admits only a certified position probe packet") {
@@ -812,7 +934,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     )
   }
 
-  test("WhatMattersHere suppresses B/C position probes under a tactical failure veto") {
+  test("WhatMattersHere suppresses B/C position probes under a high-risk tactical gate") {
     val q = question("q_probe_vetoed", AuthorQuestionKind.WhatMattersHere)
     val ctx = baseCtx(List(q))
     val plans =
@@ -1272,20 +1394,12 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
       )
 
     assertEquals(plans.ownerTrace.sceneType, SceneType.OpeningRelation)
-    assert(plans.ownerTrace.ownerCandidateLabels.exists(_.contains("source_kind=opening_relation_translator")))
+    assert(plans.ownerTrace.ownerCandidateLabels.exists(label =>
+      label.contains("source_kind=opening_relation_translator") &&
+        label.contains("admission_decision=SupportOnly")
+    ))
     assert(!plans.ownerTrace.ownerCandidateLabels.exists(_.contains("EndgameTransition")))
-    assert(
-      plans.ownerTrace.admittedPlannerOwnerLabels.exists(label =>
-        label.contains("OpeningRelation") &&
-          label.contains("source_kind=opening_relation_translator") &&
-          label.contains("admission_decision=PrimaryAllowed")
-      ),
-      clues(plans.ownerTrace.admittedPlannerOwnerLabels)
-    )
-    val primary = plans.primary.getOrElse(fail("missing primary"))
-    assertEquals(primary.questionKind, AuthorQuestionKind.WhyThis)
-    assertEquals(primary.plannerOwnerKind, PlannerOwnerKind.OpeningRelation)
-    assertEquals(primary.plannerSource, "opening_relation_translator")
+    assertEquals(plans.primary, None)
   }
 
   test("self-only opening samples do not create late opening relation owners") {
@@ -1416,7 +1530,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     assertEquals(primary.plannerSource, "endgame_transition_translator")
   }
 
-  test("opening relation scene keeps WhyThis ahead of WhatChanged inside the legal pool") {
+  test("opening relation scene keeps branch-only translator support-only") {
     val whyThis = question("q_open_why", AuthorQuestionKind.WhyThis, priority = 40)
     val whatChanged = question("q_open_change", AuthorQuestionKind.WhatChanged, priority = 90)
     val ctx =
@@ -1461,10 +1575,16 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
         None
       )
 
-    val primary = plans.primary.getOrElse(fail("missing primary"))
     assertEquals(plans.ownerTrace.sceneType, SceneType.OpeningRelation)
-    assertEquals(primary.questionKind, AuthorQuestionKind.WhyThis)
-    assertEquals(primary.plannerOwnerKind, PlannerOwnerKind.OpeningRelation)
+    assertEquals(plans.primary, None)
+    assert(
+      plans.ownerTrace.ownerCandidateLabels.exists(label =>
+        label.contains("OpeningRelation") &&
+          label.contains("source_kind=opening_relation_translator") &&
+          label.contains("admission_decision=SupportOnly")
+      ),
+      clues(plans.ownerTrace.ownerCandidateLabels)
+    )
   }
 
   test("endgame transition scene keeps WhatChanged ahead of WhyThis inside the legal pool") {
@@ -1562,7 +1682,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
         inputs(
           preventedPlansNow = List(preventedPlan(counterplayScoreDrop = 140))
         ),
-        Some(truthContract())
+        Some(truthContract(verifiedBestMove = Some("e2e4")))
       )
 
     val labels = plans.ownerTrace.ownerCandidateLabels
@@ -1574,14 +1694,85 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     ), clues(labels))
     assert(labels.exists(label =>
       label.contains("DecisionTiming") &&
-        label.contains("source_kind=truth_contract") &&
+        label.contains("source_kind=only_move_defense") &&
         label.contains("materiality=owner_candidate") &&
         label.contains("timing_source=only_move")
     ), clues(labels))
     assertEquals(plans.primary.map(_.questionKind), Some(AuthorQuestionKind.WhyNow))
   }
 
-  test("PlanRace is demoted out of the owner pool when tactical failure owns the scene") {
+  test("WhyNow only-move owner carries a typed timing witness") {
+    val q = question("q_only_move_timing_witness", AuthorQuestionKind.WhyNow)
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        baseCtx(List(q)),
+        inputs(),
+        Some(truthContract(verifiedBestMove = Some("e2e4")))
+      )
+
+    val primary = plans.primary.getOrElse(fail("missing only-move WhyNow plan"))
+    assertEquals(primary.questionKind, AuthorQuestionKind.WhyNow)
+    assertEquals(primary.plannerSource, "only_move_defense")
+    assertEquals(primary.timingWitness.map(_.proofFamily), Some("only_move_defense"))
+    assertEquals(primary.timingWitness.map(_.source), Some("only_move_defense"))
+    assertEquals(primary.timingWitness.flatMap(_.continuationMove), Some("e4"))
+    assert(primary.timingWitness.exists(_.witnessTokens.contains("e4")), clues(primary.timingWitness))
+  }
+
+  test("missed benchmark only move cannot own a WhyNow claim for the played move") {
+    val q = question("q_missed_only_move_no_played_timing_owner", AuthorQuestionKind.WhyNow)
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        baseCtx(List(q)),
+        inputs(),
+        Some(truthContract(truthClass = DecisiveTruthClass.Acceptable, verifiedBestMove = Some("Qe2")))
+      )
+
+    assert(!plans.ownerTrace.ownerCandidateLabels.exists(_.contains("ForcingDefense:source_kind=only_move_defense")), clues(plans.ownerTrace.ownerCandidateLabels))
+    assert(!plans.primary.exists(_.plannerSource == "only_move_defense"), clues(plans.primary))
+  }
+
+  test("missed benchmark role-aware branch comparison can own WhyThis") {
+    val q = question("q_missed_benchmark_role_aware_why_this", AuthorQuestionKind.WhyThis)
+    val consequence =
+      "exf5 reaches a material transition on the engine-best branch 21. exf5 Rfd8 22. Ne4 Bd5; gxf5 reaches a different material transition on the played branch 21. gxf5 a4 22. h4 Bh5, and the checked comparison favors the engine-best branch by about 96cp."
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        baseCtx(List(q)),
+        inputs(
+          decisionComparison =
+            Some(
+              DecisionComparison(
+                chosenMove = Some("gxf5"),
+                engineBestMove = Some("exf5"),
+                engineBestScoreCp = Some(-44),
+                engineBestPv = List("exf5", "Rfd8", "Ne4", "Bd5"),
+                cpLossVsChosen = Some(96),
+                deferredMove = Some("exf5"),
+                deferredReason = None,
+                deferredSource = Some("verified_best"),
+                evidence = Some("exf5 Rfd8 Ne4 Bd5"),
+                practicalAlternative = false,
+                chosenMatchesBest = false,
+                comparedMove = Some("gxf5"),
+                comparativeConsequence = Some(consequence),
+                comparativeSource = Some(DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource)
+              )
+            )
+        ),
+        Some(truthContract(truthClass = DecisiveTruthClass.Acceptable, verifiedBestMove = Some("exf5")))
+      )
+
+    val primary = plans.primary.getOrElse(fail("missing missed-benchmark comparison plan"))
+    assertEquals(primary.questionKind, AuthorQuestionKind.WhyThis)
+    assertEquals(primary.plannerOwnerKind, PlannerOwnerKind.AlternativeComparison)
+    assertEquals(primary.plannerSource, "decision_comparison")
+    assert(primary.admissibilityReasons.contains("missed_benchmark_alternative"), clues(primary))
+    assert(primary.claim.contains("exf5 reaches a material transition"), clues(primary.claim))
+    assert(primary.claim.contains("gxf5 reaches a different material transition"), clues(primary.claim))
+  }
+
+  test("PlanRace is demoted out of the owner pool when concrete tactical authority owns the scene") {
     val q = question("q_race_tactical", AuthorQuestionKind.WhosePlanIsFaster)
     val opponent =
       PlanRow(1, "Queenside counterplay", 0.72, List("pressure on the c-file"))
@@ -1614,7 +1805,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
         )
       )
 
-    assertEquals(plans.ownerTrace.sceneType, SceneType.TacticalFailure)
+    assertEquals(plans.ownerTrace.sceneType, SceneType.ConcreteTactical)
     assertEquals(plans.primary, None)
     assert(
       plans.ownerTrace.ownerCandidateLabels.exists(label =>
@@ -1626,7 +1817,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     )
   }
 
-  test("scene trace keeps tactical failure ahead of opening and endgame translators") {
+  test("scene trace keeps concrete tactical ownership ahead of opening and endgame translators") {
     val q = question("q_tactical_over_domain", AuthorQuestionKind.WhyThis)
     val ctx =
       baseCtx(List(q)).copy(
@@ -1683,8 +1874,49 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
         None
       )
 
-    assertEquals(plans.ownerTrace.sceneType, SceneType.TacticalFailure)
+    assertEquals(plans.ownerTrace.sceneType, SceneType.ConcreteTactical)
     assertEquals(plans.primary.map(_.questionKind), Some(AuthorQuestionKind.WhyThis))
+  }
+
+  test("tactical sacrifice without current move ownership stays out of the primary owner pool") {
+    val q = question("q_tactical_sacrifice_support", AuthorQuestionKind.WhyThis)
+    val ctx = baseCtx(List(q))
+    val broadSacrificeClaim =
+      MainPathScopedClaim(
+        scope = PlayerFacingClaimScope.MoveLocal,
+        mode = PlayerFacingTruthMode.Tactical,
+        deltaClass = None,
+        claimText = "This is a tactical sacrifice, and the immediate point has to come first.",
+        anchorTerms = Nil,
+        evidenceLines = List("6.e3 e6"),
+        sourceKind = "tactical_sacrifice",
+        tacticalOwnership = Some("tactical_sacrifice")
+      )
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        ctx,
+        inputs(
+          mainBundle =
+            Some(
+              MainPathClaimBundle(
+                Some(broadSacrificeClaim),
+                Some(lineClaim("6.e3 e6", sourceKind = "tactical_line"))
+              )
+            )
+        ),
+        None
+      )
+
+    assertNotEquals(plans.ownerTrace.sceneType, SceneType.ConcreteTactical)
+    assertEquals(plans.primary, None)
+    assert(
+      plans.ownerTrace.ownerCandidateLabels.exists(label =>
+        label.contains("source_kind=tactical_sacrifice") &&
+          label.contains("materiality=support_material") &&
+          label.contains("tactical_claim_lacks_current_move_ownership")
+      ),
+      clues(plans.ownerTrace.ownerCandidateLabels)
+    )
   }
 
   test("failure-mode tactical refutation owns the scene without tactical reason-family text") {
@@ -1715,14 +1947,62 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
         )
       )
 
-    assertEquals(plans.ownerTrace.sceneType, SceneType.TacticalFailure)
+    assertNotEquals(plans.ownerTrace.sceneType, SceneType.ConcreteTactical)
     assert(
-      plans.ownerTrace.ownerCandidateLabels.exists(_.contains("TacticalFailure")),
+      plans.ownerTrace.ownerCandidateLabels.forall(!_.contains("ConcreteTactical")),
       clues(plans.ownerTrace.ownerCandidateLabels)
     )
   }
 
-  test("best tactical refutation does not create tactical failure ownership without a bad move") {
+  test("WhatChanged line consequence owns a line-consequence scene without truth-only tactical ownership") {
+    val q = question("q_tactical_line_consequence", AuthorQuestionKind.WhatChanged)
+    val ctx = baseCtx(List(q))
+    val consequence =
+      LineConsequenceEvidence(
+        lineId = Some("line_01"),
+        sanMoves = List("exd5", "Nxd5"),
+        uciMoves = List("e4d5", "f6d5"),
+        scoreCp = Some(42),
+        mate = None,
+        depth = Some(12),
+        windowPly = 2,
+        kind = LineConsequenceKind.ExchangeSequence,
+        triggerSan = Some("exd5"),
+        consequence = "The checked line reaches an exchange sequence after exd5.",
+        whyItMatters = Some("That matters because the material balance is resolved on the checked line."),
+        release = LineConsequenceRelease.SurfaceCandidate,
+        rejectReasons = Nil
+      )
+    val contract =
+      truthContract(
+        truthClass = DecisiveTruthClass.Inaccuracy,
+        reasonFamily = DecisiveReasonKind.TacticalRefutation,
+        verifiedBestMove = Some("Qe2")
+      )
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        ctx,
+        inputs(
+          lineConsequence = Some(consequence)
+        ),
+        Some(contract)
+      )
+
+    assertEquals(plans.ownerTrace.sceneType, SceneType.LineConsequence)
+    assertEquals(plans.primary.map(_.questionKind), Some(AuthorQuestionKind.WhatChanged))
+    assertEquals(plans.primary.map(_.plannerOwnerKind), Some(PlannerOwnerKind.LineConsequence))
+    assertEquals(plans.primary.map(_.plannerSource), Some("line_consequence"))
+    assert(
+      plans.ownerTrace.admittedPlannerOwnerLabels.exists(label =>
+        label.contains("LineConsequence") &&
+          label.contains("source_kind=line_consequence") &&
+          label.contains("pv_line_consequence")
+      ),
+      clues(plans.ownerTrace.admittedPlannerOwnerLabels)
+    )
+  }
+
+  test("best tactical refutation does not create concrete tactical ownership without a bad move") {
     val q = question("q_changed_best_hold", AuthorQuestionKind.WhatChanged)
     val ctx = baseCtx(List(q))
     val plans =
@@ -1758,44 +2038,9 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
         )
       )
 
-    assertNotEquals(plans.ownerTrace.sceneType, SceneType.TacticalFailure)
+    assertNotEquals(plans.ownerTrace.sceneType, SceneType.ConcreteTactical)
     assertEquals(plans.primary.map(_.questionKind), Some(AuthorQuestionKind.WhatChanged))
     assertEquals(plans.ownerTrace.selectedPlannerOwnerKind, Some(PlannerOwnerKind.MoveDelta))
-  }
-
-  test("best tactical refutation hold without concrete move delta keeps truth-contract forcing defense") {
-    val q = question("q_now_best_hold", AuthorQuestionKind.WhyNow)
-    val ctx = baseCtx(List(q))
-    val plans =
-      QuestionFirstCommentaryPlanner.plan(
-        ctx,
-        inputs(
-          pvDelta = Some(PVDelta(Nil, Nil, Nil, Nil))
-        ),
-        Some(
-          truthContract(
-            truthClass = DecisiveTruthClass.Best,
-            reasonFamily = DecisiveReasonKind.TacticalRefutation,
-            verifiedBestMove = Some("e2e4"),
-            benchmarkCriticalMove = false
-          ).copy(
-            failureMode = FailureInterpretationMode.NoClearPlan
-          )
-        )
-      )
-
-    assertEquals(plans.ownerTrace.sceneType, SceneType.ForcingDefense)
-    assertEquals(plans.primary.map(_.questionKind), Some(AuthorQuestionKind.WhyNow))
-    assertEquals(plans.ownerTrace.selectedPlannerOwnerKind, Some(PlannerOwnerKind.ForcingDefense))
-    assertEquals(plans.ownerTrace.selectedPlannerSource, Some("truth_contract"))
-    assert(
-      plans.ownerTrace.ownerCandidateLabels.exists(label =>
-        label.contains("ForcingDefense") &&
-          label.contains("source_kind=truth_contract") &&
-          label.contains("admission_decision=PrimaryAllowed")
-      ),
-      clues(plans.ownerTrace.ownerCandidateLabels)
-    )
   }
 
   test("WhatChanged requires move-attributed change rather than state summary") {
@@ -2173,6 +2418,84 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
           rejected.reasons.contains("state_truth_only")
       ),
       clues(plans.rejected)
+    )
+  }
+
+  test("WhatChanged admits pv-coupled plan support when the checked line starts with the reviewed move") {
+    val q = question("q_changed_pv_plan_support", AuthorQuestionKind.WhatChanged)
+    val ctx =
+      baseCtx(List(q)).copy(
+        playedSan = Some("Rc8"),
+        playedMove = Some("a8c8")
+      )
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        ctx,
+        inputs(
+          pvDelta = Some(PVDelta(Nil, Nil, Nil, Nil)),
+          candidateEvidenceLines = List("Rc8 c3 h5"),
+          pvCoupledPlanSupport =
+            Some(
+              PvCoupledPlanSupport(
+                planName = "Improving piece placement",
+                playedSan = "Rc8",
+                evidenceLine = "Rc8 c3 h5"
+              )
+            )
+        ),
+        Some(
+          truthContract(
+            truthClass = DecisiveTruthClass.Best,
+            reasonFamily = DecisiveReasonKind.QuietTechnicalMove,
+            verifiedBestMove = Some("Rc8"),
+            benchmarkCriticalMove = false
+          )
+        )
+      )
+
+    val primary = plans.primary.getOrElse(fail(clues(plans.rejected, plans.ownerTrace.ownerCandidateLabels).toString))
+    assertEquals(primary.questionKind, AuthorQuestionKind.WhatChanged)
+    assertEquals(primary.plannerOwnerKind, PlannerOwnerKind.MoveDelta)
+    assertEquals(primary.plannerSource, "pv_coupled_plan_support")
+    assert(primary.claim.contains("Improving piece placement"), clues(primary.claim))
+    assert(primary.sourceKinds.contains("pv_coupled_plan_support"), clues(primary.sourceKinds))
+    assert(primary.evidence.exists(_.text.contains("Rc8 c3 h5")), clues(primary.evidence))
+  }
+
+  test("WhatChanged pv-coupled plan support outranks opening relation translator support-only") {
+    val q = question("q_changed_opening_pv_plan_support", AuthorQuestionKind.WhatChanged)
+    val ctx =
+      baseCtx(List(q)).copy(
+        playedSan = Some("Rb8"),
+        playedMove = Some("a8b8")
+      )
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        ctx,
+        inputs(
+          openingRelationClaim = Some("This stays within the known opening relation."),
+          candidateEvidenceLines = List("Rb8 e3 Bd6"),
+          pvCoupledPlanSupport =
+            Some(
+              PvCoupledPlanSupport(
+                planName = "Opening Development and Center Control",
+                playedSan = "Rb8",
+                evidenceLine = "Rb8 e3 Bd6"
+              )
+            )
+        ),
+        None
+      )
+
+    val primary = plans.primary.getOrElse(fail(clues(plans.rejected, plans.ownerTrace.ownerCandidateLabels).toString))
+    assertEquals(primary.questionKind, AuthorQuestionKind.WhatChanged)
+    assertEquals(primary.plannerOwnerKind, PlannerOwnerKind.MoveDelta)
+    assertEquals(primary.plannerSource, "pv_coupled_plan_support")
+    assert(primary.claim.contains("Opening Development and Center Control"), clues(primary.claim))
+    assert(primary.sourceKinds.contains("pv_coupled_plan_support"), clues(primary.sourceKinds))
+    assert(
+      plans.ownerTrace.ownerCandidateLabels.exists(_.contains("pv_coupled_plan_support")),
+      clues(plans.ownerTrace.ownerCandidateLabels)
     )
   }
 

@@ -69,6 +69,28 @@ private[analysis] object VariationNarrativeBuilder:
               case _ => "a central pawn advance changes the pawn structure"
           Some(s"On the checked line $formattedLine, $description.")
 
+        case LineConsequenceKind.PassedPawnCreation =>
+          val passer = steps.find(_.createsPassedPawn)
+          val description =
+            passer match
+              case Some(step) =>
+                s"the pawn reaches ${step.dest.key} as a passed pawn, giving the line a lasting conversion target"
+              case _ =>
+                "the line creates a passed pawn and changes the long-term conversion target"
+          Some(s"On the checked line $formattedLine, $description.")
+
+        case LineConsequenceKind.PromotionRace =>
+          val passer = steps.find(step => step.promotes || step.advancesPassedPawn)
+          val description =
+            passer match
+              case Some(step) if step.promotes =>
+                s"${step.san} promotes the pawn, so the line is decided by the promotion result"
+              case Some(step) =>
+                s"the passed pawn advances to ${step.dest.key}, turning the line into a promotion race"
+              case _ =>
+                "the passed pawn race becomes the concrete result of the line"
+          Some(s"On the checked line $formattedLine, $description.")
+
         case LineConsequenceKind.PreviewOnly =>
           val preview = evidence.sanMoves.take(4).map(_.trim).filter(_.nonEmpty).mkString(" ")
           Option.when(preview.nonEmpty)(s"The checked line continues $preview.")

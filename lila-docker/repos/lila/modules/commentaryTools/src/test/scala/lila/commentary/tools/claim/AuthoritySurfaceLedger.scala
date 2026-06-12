@@ -28,7 +28,7 @@ object AuthoritySurfaceLedger:
       fixtureId: String,
       reviewGroup: String,
       note: String,
-      tacticalContract: Boolean = false,
+      highRiskTacticalGate: Boolean = false,
       softenOwnerPath: Boolean = false,
       taxonomy: String = "-"
   )
@@ -210,17 +210,17 @@ object AuthoritySurfaceLedger:
         softenOwnerPath = true,
         taxonomy = "break_prevention_supported_local"
       ),
-      Sample("B15A-tactical-veto", "B15A", "negative:tactical_veto", "Same B15A strategic row under tactical failure.", tacticalContract = true, taxonomy = "tactical_truth_first"),
-      Sample("B16B-tactical-veto", "B16B", "negative:tactical_veto", "Same B16B strategic row under tactical failure.", tacticalContract = true, taxonomy = "tactical_truth_first"),
-      Sample("K09A-tactical-veto", "K09A", "negative:tactical_veto", "Same K09A coordination row under tactical failure.", tacticalContract = true, taxonomy = "tactical_truth_first"),
-      Sample("K09B-tactical-veto", "K09B", "negative:tactical_veto", "Same K09B simplification row under tactical failure.", tacticalContract = true, taxonomy = "tactical_truth_first"),
-      Sample("K09F-tactical-veto", "K09F", "negative:tactical_veto", "Same K09F simplification row under tactical failure.", tacticalContract = true, taxonomy = "tactical_truth_first"),
+      Sample("B15A-tactical-veto", "B15A", "negative:tactical_veto", "Same B15A strategic row under a high-risk tactical gate.", highRiskTacticalGate = true, taxonomy = "tactical_truth_first"),
+      Sample("B16B-tactical-veto", "B16B", "negative:tactical_veto", "Same B16B strategic row under a high-risk tactical gate.", highRiskTacticalGate = true, taxonomy = "tactical_truth_first"),
+      Sample("K09A-tactical-veto", "K09A", "negative:tactical_veto", "Same K09A coordination row under a high-risk tactical gate.", highRiskTacticalGate = true, taxonomy = "tactical_truth_first"),
+      Sample("K09B-tactical-veto", "K09B", "negative:tactical_veto", "Same K09B simplification row under a high-risk tactical gate.", highRiskTacticalGate = true, taxonomy = "tactical_truth_first"),
+      Sample("K09F-tactical-veto", "K09F", "negative:tactical_veto", "Same K09F simplification row under a high-risk tactical gate.", highRiskTacticalGate = true, taxonomy = "tactical_truth_first"),
       Sample(
         "break-prevention-tactical-veto",
         "break-prevention-supported-local-control",
         "negative:break_prevention_tactical_veto",
-        "Same named-break control under explicit tactical failure.",
-        tacticalContract = true,
+        "Same named-break control under an explicit high-risk tactical gate.",
+        highRiskTacticalGate = true,
         softenOwnerPath = true,
         taxonomy = "tactical_truth_first"
       ),
@@ -249,8 +249,8 @@ object AuthoritySurfaceLedger:
         "prophylaxis-restraint-tactical-veto",
         "prophylaxis-restraint-supported-local-control",
         "negative:prophylaxis_restraint_tactical_veto",
-        "Same prophylaxis-restraint control under explicit tactical failure.",
-        tacticalContract = true,
+        "Same prophylaxis-restraint control under an explicit high-risk tactical gate.",
+        highRiskTacticalGate = true,
         taxonomy = "tactical_truth_first"
       ),
       Sample(
@@ -267,15 +267,15 @@ object AuthoritySurfaceLedger:
         "Named counterplay-restraint shell blocked by move-order release risk.",
         taxonomy = "owner:prophylaxis_restraint_rival_or_relabel"
       ),
-      Sample("priority-MR1-tactical-veto", "priority-MR1", "negative:tactical_veto", "PlanPriority MR1 under explicit tactical failure.", tacticalContract = true, taxonomy = "tactical_truth_first"),
-      Sample("priority-MR2-tactical-veto", "priority-MR2", "negative:tactical_veto", "PlanPriority MR2 under explicit tactical failure.", tacticalContract = true, taxonomy = "tactical_truth_first"),
-      Sample("priority-TO1-tactical-veto", "priority-TO1", "negative:tactical_veto", "PlanPriority TO1 under explicit tactical failure.", tacticalContract = true, taxonomy = "tactical_truth_first"),
+      Sample("priority-MR1-tactical-veto", "priority-MR1", "negative:tactical_veto", "PlanPriority MR1 under an explicit high-risk tactical gate.", highRiskTacticalGate = true, taxonomy = "tactical_truth_first"),
+      Sample("priority-MR2-tactical-veto", "priority-MR2", "negative:tactical_veto", "PlanPriority MR2 under an explicit high-risk tactical gate.", highRiskTacticalGate = true, taxonomy = "tactical_truth_first"),
+      Sample("priority-TO1-tactical-veto", "priority-TO1", "negative:tactical_veto", "PlanPriority TO1 under an explicit high-risk tactical gate.", highRiskTacticalGate = true, taxonomy = "tactical_truth_first"),
       Sample(
         "B15A-supported-local-veto",
         "B15A",
         "negative:softened_tactical_veto",
-        "Same softened B15A row under tactical failure.",
-        tacticalContract = true,
+        "Same softened B15A row under a high-risk tactical gate.",
+        highRiskTacticalGate = true,
         softenOwnerPath = true,
         taxonomy = "tactical_truth_first"
       )
@@ -399,9 +399,9 @@ object AuthoritySurfaceLedger:
     val planningCtx =
       if sample.softenOwnerPath then ctx.copy(strategicPlanEvidence = PlanEvidenceEvaluator.StrategicPlanEvidenceView.empty)
       else ctx
-    val truthContract = Option.when(sample.tacticalContract)(tacticalFailureContract(fixture))
+    val truthContract = Option.when(sample.highRiskTacticalGate)(highRiskTacticalGateContract(fixture))
     val inputs =
-      if sample.tacticalContract then
+      if sample.highRiskTacticalGate then
         QuestionPlannerInputsBuilder.build(planningCtx, Some(pack), truthContract = None)
       else
         QuestionPlannerInputsBuilder.build(planningCtx, Some(pack), truthContract = truthContract)
@@ -421,6 +421,8 @@ object AuthoritySurfaceLedger:
       sample.reviewGroup.startsWith("source:") &&
         (sample.taxonomy == "source_break_prevention" ||
           sample.taxonomy == "source_carlsbad_fixed_target")
+    val softenedHighRiskTacticalGate =
+      sample.highRiskTacticalGate && sample.softenOwnerPath
     val sourceOwnerMismatch =
       ranked.primary.exists(plan =>
         sample.reviewGroup == "source:A:break_prevention" &&
@@ -429,7 +431,7 @@ object AuthoritySurfaceLedger:
             proofTrace.flatMap(_.contractId).contains("runtime:neutralize_key_break"))
       )
     val surfaceBlocked =
-      sourceOwnerMismatch || failedSoftOwnerPath || rejectedCurrentSourceFixture
+      sourceOwnerMismatch || failedSoftOwnerPath || rejectedCurrentSourceFixture || softenedHighRiskTacticalGate
     val rawMoveReview =
       if surfaceBlocked then "-"
       else
@@ -452,7 +454,7 @@ object AuthoritySurfaceLedger:
       if sample.softenOwnerPath && primary != "-" then primary
       else rawMoveReview
     val baselineRelease =
-      Option.when(sample.tacticalContract)(strategicBaselineRelease(sample, planningCtx, pack)).flatten
+      Option.when(sample.highRiskTacticalGate)(strategicBaselineRelease(sample, planningCtx, pack)).flatten
     val ownerDisplaySource =
       Option.unless(surfaceBlocked)(ranked.primary).flatten.map { plan =>
         if proofTrace.flatMap(_.contractId).exists(id =>
@@ -472,7 +474,7 @@ object AuthoritySurfaceLedger:
         .getOrElse("-"),
       primary = primary,
       moveReview = moveReview,
-      leak = sample.tacticalContract && strategicLeak(primary, moveReview),
+      leak = sample.highRiskTacticalGate && strategicLeak(primary, moveReview),
       rejected = ranked.rejected.map(r => s"${r.questionKind}:${r.reasons.mkString("+")}").mkString(" | "),
       contractId = proofTrace.flatMap(_.contractId).getOrElse("-"),
       contractStatus = proofTrace.flatMap(_.contractStatus).getOrElse("-"),
@@ -1996,7 +1998,7 @@ object AuthoritySurfaceLedger:
 
 
 
-  private def tacticalFailureContract(fixture: SceneFixture): DecisiveTruthContract =
+  private def highRiskTacticalGateContract(fixture: SceneFixture): DecisiveTruthContract =
     DecisiveTruthContract(
       playedMove = fixture.pvMoves.headOption,
       verifiedBestMove = fixture.pvMoves.headOption,
@@ -2035,13 +2037,18 @@ object AuthoritySurfaceLedger:
      ranked.primary match
       case Some(_) if surfaceBlocked =>
         "Suppressed"
+      case Some(plan) if sample.highRiskTacticalGate &&
+          baselineRelease.nonEmpty &&
+          positiveRelease(plan).isEmpty &&
+          !strategicLeak(primary, moveReview) =>
+        "TacticalVeto"
       case Some(_) if sample.softenOwnerPath && (primary.startsWith("A local reading") || primary.startsWith("A key idea")) =>
         "SupportedLocal"
       case Some(plan) if positiveRelease(plan).nonEmpty =>
         positiveRelease(plan).get
       case Some(plan) =>
         s"Other:${plan.plannerOwnerKind.wireName}"
-      case None if sample.tacticalContract &&
+      case None if sample.highRiskTacticalGate &&
           !strategicLeak(primary, moveReview) &&
           (baselineRelease.nonEmpty || ranked.rejected.exists(_.reasons.contains("strategic_claim_tactical_veto"))) =>
         "TacticalVeto"

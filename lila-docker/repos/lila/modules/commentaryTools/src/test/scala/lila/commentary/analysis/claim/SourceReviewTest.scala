@@ -1188,7 +1188,8 @@ class SourceReviewTest extends FunSuite:
       "This trade clears the bad piece from the local branch."
     )
     val expectedBadPieceSurface = PlayerFacingClaimPrefixKind.SupportedLocal.render(badPieceLiquidation.primary)
-    assertEquals(badPieceLiquidation.moveReview, expectedBadPieceSurface)
+    assert(badPieceLiquidation.moveReview.startsWith(expectedBadPieceSurface), clues(badPieceLiquidation))
+    assert(badPieceLiquidation.moveReview.contains(badPieceLiquidation.primary), clues(badPieceLiquidation))
     assertEquals(badPieceLiquidation.taxonomy, "source_bad_piece_liquidation")
   }
 

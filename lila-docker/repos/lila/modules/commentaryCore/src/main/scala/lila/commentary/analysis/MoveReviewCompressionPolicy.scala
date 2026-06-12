@@ -1,6 +1,7 @@
 package lila.commentary.analysis
 
 import lila.commentary.{ MoveReviewExplanation, MoveReviewRefs, StrategyPack }
+import lila.commentary.analysis.claim.ClaimAuthorityResolver
 import lila.commentary.analysis.practical.ContrastiveSupportAdmissibility
 import lila.commentary.analysis.render.QuietStrategicSupportComposer
 import lila.commentary.model.*
@@ -38,6 +39,9 @@ private[commentary] object MoveReviewCompressionPolicy:
       evidenceSubjects: List[String],
       evidenceLineBindings: List[String],
       relationKinds: List[String],
+      frameIntent: Option[String],
+      frameRoles: List[String],
+      frameSurfaceContract: List[String],
       rejectReasons: List[String],
       supportRenderedInClaim: Option[Boolean],
       guardrail: Option[String],
@@ -45,7 +49,9 @@ private[commentary] object MoveReviewCompressionPolicy:
       localFactAuthority: Option[String],
       localFactProducer: Option[String],
       localFactStrictFallbackEligible: Option[Boolean],
-      localFactGuardrails: List[String]
+      localFactEvidenceRefs: List[String],
+      localFactGuardrails: List[String],
+      localFactRejectReasons: List[String]
   )
 
   private final case class PlannerRuntime(
@@ -147,9 +153,10 @@ private[commentary] object MoveReviewCompressionPolicy:
       refs: Option[MoveReviewRefs],
       ctx: NarrativeContext
   ): List[String] =
-    variationGuardrail(refs, ctx)
-      .flatMap(cleanSentence(_, ctx))
-      .toList
+    (
+      variationGuardrail(refs, ctx).flatMap(cleanSentence(_, ctx)).toList ++
+        reviewedMoveVariationEvidenceLine(refs, ctx).toList
+    ).distinct
 
   def buildSlots(
       ctx: NarrativeContext,
@@ -196,7 +203,7 @@ private[commentary] object MoveReviewCompressionPolicy:
   ): PlannerRuntime =
     val candidateEvidence = candidateEvidenceLines(refs, ctx)
     val plannerInputs =
-      QuestionPlannerInputsBuilder.build(ctx, strategyPack, truthContract, candidateEvidence)
+      QuestionPlannerInputsBuilder.build(ctx, strategyPack, truthContract, candidateEvidence, refs)
     val rankedPlans = QuestionFirstCommentaryPlanner.plan(ctx, plannerInputs, truthContract)
     PlannerRuntime(
       inputs = plannerInputs,
@@ -206,23 +213,11 @@ private[commentary] object MoveReviewCompressionPolicy:
   private case class PlannerSlotDraft(
       questionKind: AuthorQuestionKind,
       lens: StrategicLens,
-      claim: String,
-      supportPrimary: Option[String],
-      supportSecondary: Option[String],
-      tension: Option[String],
-      evidenceHook: Option[String],
-      coda: Option[String],
-      causalClaim: Option[MoveReviewCausalClaim.CertifiedClaim]
+      surface: MoveReviewCausalClaim.SurfacePacket,
+      causalClaim: MoveReviewCausalClaim.CertifiedClaim
   )
 
   private final case class PlannerCausalInputs(
-      renderedClaim: String,
-      certifiedContrast: Option[String],
-      secondarySupport: Option[String],
-      primaryEvidence: Option[String],
-      lineConsequenceSurface: Option[String],
-      primaryConsequence: Option[String],
-      timingTension: Option[String],
       decision: MoveReviewCausalClaim.Decision
   )
 
@@ -241,6 +236,7 @@ private[commentary] object MoveReviewCompressionPolicy:
           selection.secondary,
           inputs,
           selection.contrastTrace,
+          truthContract,
           refs
         )
       )
@@ -255,9 +251,10 @@ private[commentary] object MoveReviewCompressionPolicy:
   ): Option[CausalClaimTrace] =
     renderSelection(inputs, rankedPlans, truthContract).map { selection =>
       val decision =
-        plannerCausalInputs(ctx, selection.primary, selection.secondary, inputs, selection.contrastTrace, refs).decision
+        plannerCausalInputs(ctx, selection.primary, selection.secondary, inputs, selection.contrastTrace, truthContract, refs).decision
       val claim = decision.claim
       val evidences = decision.evidences
+      val localFact = decision.localFact
       CausalClaimTrace(
         status =
           if claim.nonEmpty then "accepted"
@@ -265,19 +262,24 @@ private[commentary] object MoveReviewCompressionPolicy:
           else "not_applicable",
         questionKind = selection.primary.questionKind.toString,
         subjectRole = claim.map(_.subjectRole.wireName),
-        evidenceKinds = claim.map(_.evidenceKinds.map(_.wireName).distinct).getOrElse(Nil),
+        evidenceKinds = decision.evidenceKinds.map(_.wireName).distinct,
         evidenceSources = evidences.map(_.source.wireName).distinct,
         evidenceSubjects = evidences.map(_.subjectRole.wireName).distinct,
         evidenceLineBindings = evidences.map(_.lineBinding.key).distinct,
-        relationKinds = claim.map(_.relationKinds.map(_.wireName).distinct).getOrElse(Nil),
+        relationKinds = decision.relationKinds.map(_.wireName).distinct,
+        frameIntent = decision.frame.map(_.intent.wireName),
+        frameRoles = decision.frame.map(_.roles.labels).getOrElse(Nil),
+        frameSurfaceContract = decision.frame.map(_.surfaceContract.guardrails).getOrElse(Nil),
         rejectReasons = decision.rejectReasons,
         supportRenderedInClaim = claim.map(_.supportRenderedInClaim),
         guardrail = claim.map(_.guardrail),
-        localFactFamily = claim.flatMap(_.localFact.map(_.family.key)),
-        localFactAuthority = claim.flatMap(_.localFact.map(_.authority.key)),
-        localFactProducer = claim.flatMap(_.localFact.map(_.producer.key)),
-        localFactStrictFallbackEligible = claim.flatMap(_.localFact.map(_.strictFallbackEligible)),
-        localFactGuardrails = claim.flatMap(_.localFact).map(_.tags).getOrElse(Nil)
+        localFactFamily = localFact.map(_.family.key),
+        localFactAuthority = localFact.map(_.authority.key),
+        localFactProducer = localFact.map(_.producer.key),
+        localFactStrictFallbackEligible = localFact.map(_.strictFallbackEligible),
+        localFactEvidenceRefs = localFact.map(_.evidenceRefs).getOrElse(Nil),
+        localFactGuardrails = localFact.map(_.tags).getOrElse(Nil),
+        localFactRejectReasons = decision.localFactRejectReasons
       )
     }
 
@@ -346,33 +348,21 @@ private[commentary] object MoveReviewCompressionPolicy:
       secondary: Option[QuestionPlan],
       inputs: QuestionPlannerInputs,
       contrastTrace: ContrastiveSupportAdmissibility.ContrastSupportTrace,
+      truthContract: Option[DecisiveTruthContract],
       refs: Option[MoveReviewRefs]
   ): Option[PlannerSlotDraft] =
-    val causalInputs = plannerCausalInputs(ctx, primary, secondary, inputs, contrastTrace, refs)
+    val causalInputs = plannerCausalInputs(ctx, primary, secondary, inputs, contrastTrace, truthContract, refs)
 
     def slotDraft(
         questionKind: AuthorQuestionKind,
-        lens: StrategicLens,
-        supportPrimary: Option[String],
-        supportSecondary: Option[String],
-        tension: Option[String],
-        evidenceHook: Option[String],
-        coda: Option[String]
+        lens: StrategicLens
     ): Option[PlannerSlotDraft] =
-      Option.when(
-        causalInputs.decision.claim.nonEmpty ||
-          !MoveReviewCausalClaim.requiresTypedSupport(primary.questionKind)
-      ) {
+      causalInputs.decision.claim.map { claim =>
         PlannerSlotDraft(
           questionKind = questionKind,
           lens = lens,
-          claim = causalInputs.decision.claim.map(_.surfaceText).getOrElse(causalInputs.renderedClaim),
-          supportPrimary = supportPrimary,
-          supportSecondary = supportSecondary,
-          tension = tension,
-          evidenceHook = evidenceHook,
-          coda = coda,
-          causalClaim = causalInputs.decision.claim
+          surface = claim.surfacePacket,
+          causalClaim = claim
         )
       }
 
@@ -380,43 +370,22 @@ private[commentary] object MoveReviewCompressionPolicy:
       case AuthorQuestionKind.WhatMattersHere =>
         slotDraft(
             questionKind = AuthorQuestionKind.WhatMattersHere,
-            lens = plannerLens(primary, inputs),
-            supportPrimary = primary.contrast,
-            supportSecondary = causalInputs.secondarySupport,
-            tension = None,
-            evidenceHook = causalInputs.primaryEvidence,
-            coda = causalInputs.primaryConsequence
+            lens = plannerLens(primary, inputs)
         )
       case AuthorQuestionKind.WhyThis =>
         slotDraft(
             questionKind = AuthorQuestionKind.WhyThis,
-            lens = plannerLens(primary, inputs),
-            supportPrimary = causalInputs.certifiedContrast,
-            supportSecondary = causalInputs.secondarySupport,
-            tension = None,
-            evidenceHook = causalInputs.primaryEvidence,
-            coda = causalInputs.primaryConsequence
+            lens = plannerLens(primary, inputs)
         )
       case AuthorQuestionKind.WhyNow =>
         slotDraft(
             questionKind = AuthorQuestionKind.WhyNow,
-            lens = StrategicLens.Decision,
-            supportPrimary = causalInputs.certifiedContrast,
-            supportSecondary =
-              causalInputs.secondarySupport.filterNot(text => causalInputs.certifiedContrast.exists(sameSentence(_, text))),
-            tension = causalInputs.timingTension,
-            evidenceHook = causalInputs.primaryEvidence,
-            coda = causalInputs.primaryConsequence
+            lens = StrategicLens.Decision
         )
       case AuthorQuestionKind.WhatChanged =>
         slotDraft(
             questionKind = AuthorQuestionKind.WhatChanged,
-            lens = plannerLens(primary, inputs),
-            supportPrimary = primary.contrast,
-            supportSecondary = causalInputs.secondarySupport,
-            tension = None,
-            evidenceHook = causalInputs.primaryEvidence,
-            coda = causalInputs.primaryConsequence
+            lens = plannerLens(primary, inputs)
         )
       case AuthorQuestionKind.WhatMustBeStopped =>
         slotDraft(
@@ -425,22 +394,12 @@ private[commentary] object MoveReviewCompressionPolicy:
               if primary.sourceKinds.exists(kind => kind.contains("threat")) &&
                 inputs.truthMode == PlayerFacingTruthMode.Tactical
               then StrategicLens.Decision
-              else StrategicLens.Prophylaxis,
-            supportPrimary = primary.contrast,
-            supportSecondary = causalInputs.secondarySupport,
-            tension = causalInputs.timingTension,
-            evidenceHook = causalInputs.primaryEvidence,
-            coda = causalInputs.primaryConsequence
+              else StrategicLens.Prophylaxis
         )
       case AuthorQuestionKind.WhosePlanIsFaster =>
         slotDraft(
             questionKind = AuthorQuestionKind.WhosePlanIsFaster,
-            lens = StrategicLens.Decision,
-            supportPrimary = inputs.decisionFrame.battlefront.map(_.sentence).orElse(primary.contrast),
-            supportSecondary = causalInputs.secondarySupport,
-            tension = causalInputs.timingTension,
-            evidenceHook = causalInputs.primaryEvidence,
-            coda = causalInputs.primaryConsequence
+            lens = StrategicLens.Decision
         )
 
   private def plannerCausalInputs(
@@ -449,6 +408,7 @@ private[commentary] object MoveReviewCompressionPolicy:
       secondary: Option[QuestionPlan],
       inputs: QuestionPlannerInputs,
       contrastTrace: ContrastiveSupportAdmissibility.ContrastSupportTrace,
+      truthContract: Option[DecisiveTruthContract],
       refs: Option[MoveReviewRefs]
   ): PlannerCausalInputs =
     val renderedClaim = primary.prefixKind.render(primary.claim)
@@ -456,44 +416,39 @@ private[commentary] object MoveReviewCompressionPolicy:
       Option.when(contrastTrace.contrast_admissible)(contrastTrace.effectiveSupport(primary.contrast)).flatten
     val secondarySupport = secondarySupportText(primary, secondary, ctx)
     val primaryEvidence = plannerEvidenceHook(primary.evidence, ctx)
-    val lineConsequenceSurface = plannerLineConsequenceSurface(primary, ctx, refs)
+    val lineConsequenceEvidence = plannerLineConsequenceEvidence(primary, ctx, refs)
+    val lineConsequenceSurface =
+      lineConsequenceEvidence
+        .flatMap(VariationNarrativeBuilder.build(ctx, _))
+        .flatMap(cleanSentence(_, ctx))
     val primaryConsequence = lineConsequenceSurface.orElse(plannerConsequence(primary.consequence, ctx))
     val timingTension = plannerTimingTension(primary.questionKind, inputs, ctx)
-    val typedTimingSupport =
-      primary.questionKind == AuthorQuestionKind.WhyNow &&
-        (
-          primary.timingWitness.nonEmpty ||
-            contrastTrace.contrast_source_kind.contains(ContrastiveSupportAdmissibility.SourceKind.ExplicitReplyLoss)
+      val promotedEvidence =
+        MoveReviewCausalClaim.promotedTypedEvidences(
+          ClaimAuthorityResolver.promotedLocalFactAdmissions(Some(ctx), inputs, truthContract, primary)
         )
     val primaryCausalSupport =
-      primary.questionKind match
-        case AuthorQuestionKind.WhyThis | AuthorQuestionKind.WhyNow => certifiedContrast
-        case _                                                      => primary.contrast
+      if contrastTrace.contrast_admissible then certifiedContrast
+      else primary.contrast
     val causalCandidate =
       MoveReviewCausalClaim.candidate(
         primary,
         renderedClaim,
         contrastTrace.contrast_admissible,
+        contrastTrace.contrast_source_kind,
+        contrastTrace.contrast_anchor,
         primaryCausalSupport,
         secondarySupport,
         timingTension,
         primaryEvidence,
         primaryConsequence,
         lineConsequenceSurface,
-        typedTimingSupport
+        lineConsequenceEvidence,
+        promotedEvidence
       )
     val decision =
       MoveReviewCausalClaim.admit(causalCandidate)
-    PlannerCausalInputs(
-      renderedClaim = renderedClaim,
-      certifiedContrast = certifiedContrast,
-      secondarySupport = secondarySupport,
-      primaryEvidence = primaryEvidence,
-      lineConsequenceSurface = lineConsequenceSurface,
-      primaryConsequence = primaryConsequence,
-      timingTension = timingTension,
-      decision = decision
-    )
+    PlannerCausalInputs(decision)
 
   private def finalizePlannerSlots(
       ctx: NarrativeContext,
@@ -501,25 +456,26 @@ private[commentary] object MoveReviewCompressionPolicy:
   ): Option[MoveReviewPolishSlots] =
     val cleanedClaim = sanitizePlannerClaim(draft, ctx)
     cleanedClaim.flatMap { claim =>
-      val supportPrimary = sanitizeDistinctText(draft.supportPrimary, ctx, claim)
+      val surface = draft.surface
+      val supportPrimary = sanitizeDistinctText(surface.supportPrimary, ctx, claim)
       val supportSecondary =
-        sanitizeDistinctText(draft.supportSecondary, ctx, claim)
+        sanitizeDistinctText(surface.supportSecondary, ctx, claim)
           .filter(text => !supportPrimary.exists(sameSentence(_, text)))
       val tension =
-        sanitizeDistinctText(draft.tension, ctx, claim)
+        sanitizeDistinctText(surface.tension, ctx, claim)
           .filter(text =>
             !supportPrimary.exists(sameSentence(_, text)) &&
               !supportSecondary.exists(sameSentence(_, text))
           )
       val evidenceHook =
-        sanitizeDistinctEvidence(draft.evidenceHook, ctx, claim)
+        sanitizeDistinctEvidence(surface.evidenceHook, ctx, claim)
           .filter(text =>
             !supportPrimary.exists(sameSentence(_, text)) &&
               !supportSecondary.exists(sameSentence(_, text)) &&
               !tension.exists(sameSentence(_, text))
           )
       val coda =
-        sanitizeDistinctText(draft.coda, ctx, claim)
+        sanitizeDistinctText(surface.coda, ctx, claim)
           .filter(text =>
             !supportPrimary.exists(sameSentence(_, text)) &&
               !supportSecondary.exists(sameSentence(_, text)) &&
@@ -528,9 +484,9 @@ private[commentary] object MoveReviewCompressionPolicy:
           )
 
       val hasSupport = hasPlannerSupport(supportPrimary, supportSecondary, tension, evidenceHook, coda)
-      val supportSatisfiedByClaim = draft.causalClaim.exists(_.supportRenderedInClaim)
-      val causalGuardrails = draft.causalClaim.map(_.guardrail).toList
-      if draft.causalClaim.exists(_.supportRequired) && !hasSupport && !supportSatisfiedByClaim then None
+      val supportSatisfiedByClaim = draft.causalClaim.supportRenderedInClaim
+      val causalGuardrails = (draft.causalClaim.guardrail :: surface.guardrails).distinct
+      if draft.causalClaim.supportRequired && !hasSupport && !supportSatisfiedByClaim then None
       else if !hasSupport then
         Some(
           MoveReviewPolishSlots(
@@ -543,7 +499,7 @@ private[commentary] object MoveReviewCompressionPolicy:
             coda = None,
             factGuardrails = causalGuardrails,
             paragraphPlan = List("p1=claim"),
-            localFact = draft.causalClaim.flatMap(_.localFact)
+            localFact = draft.causalClaim.localFact
           )
         )
       else {
@@ -564,7 +520,7 @@ private[commentary] object MoveReviewCompressionPolicy:
                 coda.toList ++
                 causalGuardrails).distinct,
             paragraphPlan = plannerParagraphPlan(supportLines, tension, evidenceHook, coda),
-            localFact = draft.causalClaim.flatMap(_.localFact)
+            localFact = draft.causalClaim.localFact
           )
         Option.when(moveReviewContractSafe(slots))(slots)
       }
@@ -574,10 +530,10 @@ private[commentary] object MoveReviewCompressionPolicy:
       draft: PlannerSlotDraft,
       ctx: NarrativeContext
   ): Option[String] =
-    cleanSentence(draft.claim, ctx)
+    cleanSentence(draft.surface.claim, ctx)
       .orElse {
         Option.when(draft.questionKind == AuthorQuestionKind.WhosePlanIsFaster) {
-          relaxedCertifiedRaceSentence(draft.claim, ctx)
+          relaxedCertifiedRaceSentence(draft.surface.claim, ctx)
         }.flatten
       }
 
@@ -618,22 +574,28 @@ private[commentary] object MoveReviewCompressionPolicy:
       .map(_.text)
       .flatMap(cleanSentence(_, ctx))
 
-  private def plannerLineConsequenceSurface(
+  private def plannerLineConsequenceEvidence(
       primary: QuestionPlan,
       ctx: NarrativeContext,
       refs: Option[MoveReviewRefs]
-  ): Option[String] =
+  ): Option[LineConsequenceEvidence] =
     Option.when(playedMoveLineConsequenceSurfaceAllowed(primary)) {
-      LineConsequenceEvaluator
-        .surfaceCandidate(ctx, refs)
+      val candidate =
+        if primary.plannerOwnerKind == PlannerOwnerKind.LineConsequence then
+          LineConsequenceEvaluator.reviewedMoveSurfaceCandidate(ctx, refs)
+            .orElse(LineConsequenceEvaluator.surfaceCandidate(ctx, refs))
+        else LineConsequenceEvaluator.surfaceCandidate(ctx, refs)
+      candidate
         .filter(_.kind != LineConsequenceKind.PreviewOnly)
-        .flatMap(VariationNarrativeBuilder.build(ctx, _))
-        .flatMap(cleanSentence(_, ctx))
     }.flatten
 
   private def playedMoveLineConsequenceSurfaceAllowed(primary: QuestionPlan): Boolean =
     (primary.questionKind == AuthorQuestionKind.WhyThis || primary.questionKind == AuthorQuestionKind.WhatChanged) &&
-      (primary.plannerOwnerKind == PlannerOwnerKind.MoveDelta || primary.plannerOwnerKind == PlannerOwnerKind.TacticalFailure)
+      (
+        primary.plannerOwnerKind == PlannerOwnerKind.MoveDelta ||
+          primary.plannerOwnerKind == PlannerOwnerKind.LineConsequence ||
+          primary.plannerOwnerKind == PlannerOwnerKind.AlternativeComparison
+      )
 
   private def plannerTimingTension(
       kind: AuthorQuestionKind,
@@ -662,12 +624,30 @@ private[commentary] object MoveReviewCompressionPolicy:
       ctx: NarrativeContext
   ): Option[String] =
     secondary
+      .filterNot(sameTimingWitness(primary, _))
       .flatMap(plan =>
         plan.contrast
           .orElse(plan.consequence.filter(_.certified).map(_.text))
       )
       .flatMap(cleanSentence(_, ctx))
       .filter(text => !sameSentence(primary.claim, text))
+
+  private def sameTimingWitness(left: QuestionPlan, right: QuestionPlan): Boolean =
+    left.timingWitness.exists(leftWitness =>
+      right.timingWitness.exists(rightWitness =>
+        leftWitness.proofFamily == rightWitness.proofFamily &&
+          leftWitness.source == rightWitness.source &&
+          timingWitnessKeys(leftWitness).intersect(timingWitnessKeys(rightWitness)).nonEmpty
+      )
+    )
+
+  private def timingWitnessKeys(witness: QuestionPlanTimingWitness): Set[String] =
+    (
+      witness.namedBreak.toList ++
+        witness.continuationMove.toList ++
+        witness.branchKey.toList ++
+        witness.witnessTokens
+    ).map(_.trim.toLowerCase).filter(_.nonEmpty).toSet
 
   private def sanitizeDistinctText(
       textOpt: Option[String],
@@ -993,6 +973,47 @@ private[commentary] object MoveReviewCompressionPolicy:
         }
       }
     }
+
+  private def reviewedMoveVariationEvidenceLine(
+      refs: Option[MoveReviewRefs],
+      ctx: NarrativeContext
+  ): Option[String] =
+    refs
+      .flatMap(_.variations.find(startsWithReviewedMove(ctx, _)))
+      .flatMap { variation =>
+        val preview =
+          variation.moves
+            .take(5)
+            .flatMap(move => normalized(move.san))
+            .mkString(" ")
+            .trim
+        Option.when(preview.nonEmpty)(s"Short line: $preview.")
+      }
+
+  private def startsWithReviewedMove(
+      ctx: NarrativeContext,
+      variation: lila.commentary.MoveReviewVariationRef
+  ): Boolean =
+    variation.moves.headOption.exists(move => reviewedMoveMatches(ctx, move))
+
+  private def reviewedMoveMatches(
+      ctx: NarrativeContext,
+      move: lila.commentary.MoveReviewMoveRef
+  ): Boolean =
+    val playedUci = ctx.playedMove.map(NarrativeUtils.normalizeUciMove).filter(_.nonEmpty)
+    val playedSan = ctx.playedSan.flatMap(normalized).map(normalizeSanMove).filter(_.nonEmpty)
+    playedUci.exists(_ == NarrativeUtils.normalizeUciMove(move.uci)) ||
+      playedSan.exists(_ == normalizeSanMove(move.san))
+
+  private def normalizeSanMove(raw: String): String =
+    Option(raw)
+      .getOrElse("")
+      .trim
+      .replaceAll("""[+#?!]+$""", "")
+      .replaceAll("""^\d+\.(?:\.\.)?""", "")
+      .replaceAll("""[.,;:]+$""", "")
+      .trim
+      .toLowerCase
 
   private def formatVariationScore(scoreCp: Int, mate: Option[Int]): String =
     mate match

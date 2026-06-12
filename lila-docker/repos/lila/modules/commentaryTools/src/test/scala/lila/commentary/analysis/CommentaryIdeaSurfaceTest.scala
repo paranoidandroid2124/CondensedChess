@@ -59,14 +59,14 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
       motifs: List[Motif] = Nil,
       openingGoal: Option[OpeningGoals.Evaluation] = None,
       openingName: Option[String] = None,
-      strategicDelta: Option[PlayerFacingMoveDeltaEvidence] = None
+      strategicDeltas: List[PlayerFacingMoveDeltaEvidence] = Nil
   ): CommentaryIdeaSurface.MoveReviewEvidence =
     CommentaryIdeaSurface.MoveReviewEvidence(
       facts = facts,
       motifs = motifs,
       openingGoal = openingGoal,
       openingName = openingName,
-      strategicDelta = strategicDelta
+      strategicDeltas = strategicDeltas
     )
 
   private def moveRef(refId: String, san: String, uci: String, ply: Int): MoveReviewMoveRef =
@@ -507,6 +507,37 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
         evidence(facts = List(pinFact)),
         Some(exactLineFacts(pinFen, "f8b4", List("f8b4", "e1f1", "b4c3"), List("Bb4", "Kf1", "Bxc3"), "pin_no_motif"))
       )
+    val delayedPin =
+      CommentaryIdeaSurface
+        .describe(
+          played("f8b4", "Bb4", Square.F8, Square.B4, Piece(Color.Black, Bishop)),
+          evidence(
+            facts = List(pinFact),
+            motifs = List(
+              Motif.Pin(
+                pinningPiece = Bishop,
+                pinnedPiece = Knight,
+                targetBehind = _root_.chess.King,
+                color = Color.Black,
+                plyIndex = 0,
+                move = Some("Bb4"),
+                pinningSq = Some(Square.B4),
+                pinnedSq = Some(Square.C3),
+                behindSq = Some(Square.E1)
+              )
+            )
+          ),
+          Some(
+            exactLineFacts(
+              pinFen,
+              "f8b4",
+              List("f8b4", "e1f1", "b4a5", "f1g1", "a5c3"),
+              List("Bb4", "Kf1", "Ba5", "Kg1", "Bxc3"),
+              "pin_delayed_confirmation"
+            )
+          )
+        )
+        .getOrElse(fail("expected exact pin descriptor from checked continuation tail"))
 
     assertEquals(pin.reviewIntent, "creates_threat", clue(pin))
     assertEquals(pin.ideaKind, "pin", clue(pin))
@@ -518,6 +549,8 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
     assertEquals(skewer.linePurpose, Some("create_tactical_threat"), clue(skewer))
     assert(skewer.confirms.contains("skewer"), clue(skewer.confirms))
     assertEquals(leakedPin, None, clue("pin fact without current-move motif ownership should stay closed"))
+    assertEquals(delayedPin.ideaKind, "pin", clue(delayedPin))
+    assert(delayedPin.reasonTags.contains("line_proof:tactical_threat"), clue(delayedPin.reasonTags))
   }
 
   test("endgame activity descriptors cover exact passed-pawn and rook-activity PVs") {
@@ -667,17 +700,17 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
     val certified =
       strategicDelta("neutralize_key_break", "counterplay_axis_suppression", PlayerFacingMoveDeltaClass.CounterplayReduction)
     val packetOnly =
-      CommentaryIdeaSurface.describe(current, evidence(strategicDelta = Some(certified)), None)
+      CommentaryIdeaSurface.describe(current, evidence(strategicDeltas = List(certified)), None)
     val descriptor =
       CommentaryIdeaSurface
-        .describe(current, evidence(strategicDelta = Some(certified)), line)
+        .describe(current, evidence(strategicDeltas = List(certified)), line)
         .getOrElse(fail("expected certified strategic support descriptor"))
     val risky =
       certified.copy(packet = certified.packet.copy(releaseRisks = List(PlayerFacingClaimReleaseRisk.RivalRelease)))
 
     assertEquals(packetOnly, None)
     assertEquals(
-      CommentaryIdeaSurface.describe(current, evidence(strategicDelta = Some(risky)), line),
+      CommentaryIdeaSurface.describe(current, evidence(strategicDeltas = List(risky)), line),
       None
     )
     assertEquals(descriptor.reviewIntent, "prevents_counterplay", clue(descriptor))
@@ -700,7 +733,7 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
       CommentaryIdeaSurface
         .describe(
           current,
-          evidence(strategicDelta = Some(strategicDelta("neutralize_key_break", "counterplay_axis_suppression", PlayerFacingMoveDeltaClass.ExchangeForcing))),
+          evidence(strategicDeltas = List(strategicDelta("neutralize_key_break", "counterplay_axis_suppression", PlayerFacingMoveDeltaClass.ExchangeForcing))),
           line
         )
         .getOrElse(fail("expected exchange descriptor"))
@@ -708,7 +741,7 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
       CommentaryIdeaSurface
         .describe(
           current,
-          evidence(strategicDelta = Some(strategicDelta("neutralize_key_break", "counterplay_axis_suppression", PlayerFacingMoveDeltaClass.PlanAdvance))),
+          evidence(strategicDeltas = List(strategicDelta("neutralize_key_break", "counterplay_axis_suppression", PlayerFacingMoveDeltaClass.PlanAdvance))),
           line
         )
         .getOrElse(fail("expected plan descriptor"))
@@ -772,7 +805,7 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
       )
     val descriptor =
       CommentaryIdeaSurface
-        .describe(current, evidence(strategicDelta = Some(genericDelta)), line)
+        .describe(current, evidence(strategicDeltas = List(genericDelta)), line)
         .getOrElse(fail("expected plan descriptor"))
 
     assert(!descriptor.baseProse.contains("main plan"), clue(descriptor.baseProse))

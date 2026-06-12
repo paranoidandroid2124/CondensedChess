@@ -4,6 +4,7 @@ import _root_.chess.{ Color, Knight, Pawn, Queen, Rook, Square }
 import lila.commentary.*
 import lila.commentary.model.*
 import lila.commentary.model.authoring.OutlineBeatKind
+import lila.commentary.model.strategic.{ EngineEvidence, VariationLine }
 import munit.FunSuite
 
 final class MoveReviewBasicExplanationTest extends FunSuite:
@@ -615,6 +616,67 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
       )
 
     assertEquals(explanation, None, clue(explanation))
+  }
+
+  test("capture can admit line consequence when the checked line owns a material transition") {
+    val fen =
+      "r2qk2r/pp3ppp/2nBpn2/3p1b2/3P4/2P2N1P/PP2BPP1/RN1QK2R b KQkq - 0 9"
+    val result =
+      MoveReviewExplanationBuilder
+        .buildWithLocalFact(
+          ctx(fen, "d8d6", "Qxd6", phaseReason = "capture with checked material transition"),
+          Some(
+            refsForLine(
+              fen,
+              List("d8d6", "e1g1", "b7b6", "b1d2", "e8g8", "e2b5"),
+              List("Qxd6", "O-O", "b6", "Nbd2", "O-O", "Bb5")
+            )
+          )
+        )
+        .getOrElse(fail("expected capture-backed line consequence"))
+    val explanation = result.explanation
+
+    assertEquals(explanation.source, "line_consequence", clue(explanation))
+    assertEquals(result.localFact.family, MoveReviewLocalFact.Family.LineConsequence, clue(result.localFact))
+    assertEquals(result.localFact.producer, MoveReviewLocalFact.Producer.LineConsequence, clue(result.localFact))
+    assertEquals(result.localFact.lineBinding, MoveReviewLocalFact.LineBinding.PvCoupled, clue(result.localFact))
+    assert(explanation.reasonTags.contains("line_consequence_kind:material_transition"), clue(explanation.reasonTags))
+    assert(explanation.reasonTags.contains("line_consequence_trigger_san:Qxd6"), clue(explanation.reasonTags))
+    assertEquals(explanation.pvInterpretation.map(_.linePurpose), Some("clarify_exchange"), clue(explanation.pvInterpretation))
+  }
+
+  test("relation witness can come from a validated played-first ref line outside the engine top line") {
+    val fen = "k2r4/8/8/3q1N2/8/8/8/3Q2K1 w - - 0 1"
+    val context =
+      ctx(fen, "f5d6", "Nd6", phaseReason = "interference against a defender")
+        .copy(
+          decision = Some(
+            DecisionRationale(
+              focalPoint = Some(TargetSquare("d5")),
+              logicSummary = "Block the rook's defense of the queen.",
+              delta = PVDelta(Nil, Nil, Nil, Nil),
+              confidence = ConfidenceLevel.Engine
+            )
+          ),
+          engineEvidence = Some(EngineEvidence(depth = 16, variations = List(VariationLine(moves = List("d1a4"), scoreCp = 0))))
+        )
+
+    val result =
+      MoveReviewExplanationBuilder
+        .buildWithLocalFact(
+          context,
+          Some(refsForLine(fen, List("f5d6", "a8b8"), List("Nd6", "Kb8"))),
+          strictLocalFacts = true
+        )
+        .getOrElse(fail("expected relation witness from checked ref line"))
+
+    assertEquals(result.explanation.source, "relation_witness", clue(result.explanation))
+    assertEquals(result.localFact.family, MoveReviewLocalFact.Family.Pressure, clue(result.localFact))
+    assertEquals(result.localFact.producer, MoveReviewLocalFact.Producer.RelationWitness, clue(result.localFact))
+    assertEquals(result.localFact.lineBinding, MoveReviewLocalFact.LineBinding.PvCoupled, clue(result.localFact))
+    assert(result.explanation.reasonTags.contains("relation_kind:interference"), clue(result.explanation.reasonTags))
+    assert(result.explanation.reasonTags.contains("line_move:f5d6"), clue(result.explanation.reasonTags))
+    assert(result.localFact.guardrails.contains("fen_validated_line_replayed"), clue(result.localFact.guardrails))
   }
 
   test("PV interpretation is omitted for invalid line while shortLine remains visible") {

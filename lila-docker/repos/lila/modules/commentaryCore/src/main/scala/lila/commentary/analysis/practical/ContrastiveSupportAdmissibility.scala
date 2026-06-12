@@ -12,6 +12,8 @@ private[commentary] object ContrastiveSupportAdmissibility:
     val DelayedOnlyMove = "delayed_only_move"
     val ExplicitReplyLoss = "explicit_reply_loss"
     val TopEngineMoveWithConcreteConsequence = "top_engine_move_with_concrete_consequence"
+    val RoleAwareLineConsequence = "role_aware_line_consequence"
+    val CounterfactualCausalThreat = "counterfactual_causal_threat"
 
   object RejectReason:
     val QuestionOutsideScope = "question_outside_scope"
@@ -44,6 +46,8 @@ private[commentary] object ContrastiveSupportAdmissibility:
     primary.questionKind match
       case AuthorQuestionKind.WhyThis => decideWhyThis(primary, inputs, truthContract)
       case AuthorQuestionKind.WhyNow  => decideWhyNow(primary, inputs, truthContract)
+      case AuthorQuestionKind.WhatChanged => decideWhatChanged(primary, inputs)
+      case AuthorQuestionKind.WhatMustBeStopped => decideWhatMustBeStopped(primary, inputs)
       case _                          => reject(RejectReason.QuestionOutsideScope)
 
   private def decideWhyThis(
@@ -70,18 +74,67 @@ private[commentary] object ContrastiveSupportAdmissibility:
       inputs: QuestionPlannerInputs,
       truthContract: Option[DecisiveTruthContract]
   ): ContrastSupportTrace =
-    bestImmediateThreat(inputs.opponentThreats)
-      .flatMap(threatContrast)
-      .orElse(inputs.preventedPlansNow.iterator.map(preventedResourceContrast).collectFirst(Function.unlift(identity)))
-      .orElse {
+    whyNowContrastForPrimarySource(primary, inputs, truthContract)
+      .getOrElse(reject(RejectReason.MissingContrastCandidate))
+
+  private def decideWhatMustBeStopped(
+      primary: QuestionPlan,
+      inputs: QuestionPlannerInputs
+  ): ContrastSupportTrace =
+    primary.plannerSource match
+      case "threat" =>
+        bestImmediateThreat(inputs.opponentThreats)
+          .flatMap(threatContrast)
+          .getOrElse(reject(RejectReason.MissingContrastCandidate))
+      case "prevented_plan" =>
+        inputs.preventedPlansNow.iterator
+          .map(preventedResourceContrast)
+          .collectFirst(Function.unlift(identity))
+          .getOrElse(reject(RejectReason.MissingContrastCandidate))
+      case _ =>
+        reject(RejectReason.MissingContrastCandidate)
+
+  private def decideWhatChanged(
+      primary: QuestionPlan,
+      inputs: QuestionPlannerInputs
+  ): ContrastSupportTrace =
+    if primary.plannerSource == "decision_comparison" || primary.sourceKinds.exists(sameText(_, "decision_comparison")) then
+      inputs.decisionComparison
+        .map(decideDecisionComparison(primary, inputs, _, allowTiming = false))
+        .getOrElse(reject(RejectReason.MissingContrastCandidate))
+    else reject(RejectReason.QuestionOutsideScope)
+
+  private def whyNowContrastForPrimarySource(
+      primary: QuestionPlan,
+      inputs: QuestionPlannerInputs,
+      truthContract: Option[DecisiveTruthContract]
+  ): Option[ContrastSupportTrace] =
+    primary.plannerSource match
+      case "threat" =>
+        bestImmediateThreat(inputs.opponentThreats).flatMap(threatContrast)
+      case "prevented_plan" =>
+        inputs.preventedPlansNow.iterator.map(preventedResourceContrast).collectFirst(Function.unlift(identity))
+      case "only_move_defense" =>
         truthContract
           .filter(contract =>
             contract.isCriticalBestMove || contract.reasonFamily == DecisiveReasonKind.OnlyMoveDefense
           )
-          .flatMap(_ => inputs.decisionComparison.flatMap(onlyMoveTimingContrast(primary, inputs, _)))
-      }
-      .orElse(inputs.decisionComparison.map(decideDecisionComparison(primary, inputs, _, allowTiming = true)))
-      .getOrElse(reject(RejectReason.MissingContrastCandidate))
+          .flatMap(contract =>
+            inputs.decisionComparison
+              .flatMap(onlyMoveTimingContrast(primary, inputs, _))
+              .orElse(
+                onlyMoveContrast(contract).map { case (anchor, consequence, sentence) =>
+                  allow(SourceKind.DelayedOnlyMove, anchor, consequence, sentence)
+                }
+              )
+          )
+      case "decision_comparison" =>
+        inputs.decisionComparison.map(decideDecisionComparison(primary, inputs, _, allowTiming = true))
+      case _ =>
+        bestImmediateThreat(inputs.opponentThreats)
+          .flatMap(threatContrast)
+          .orElse(inputs.preventedPlansNow.iterator.map(preventedResourceContrast).collectFirst(Function.unlift(identity)))
+          .orElse(inputs.decisionComparison.map(decideDecisionComparison(primary, inputs, _, allowTiming = true)))
 
   private def threatContrast(threat: ThreatRow): Option[ContrastSupportTrace] =
     clean(threat.bestDefense)
@@ -95,13 +148,18 @@ private[commentary] object ContrastiveSupportAdmissibility:
           anchor = defense,
           consequence = consequence,
           sentence =
-            if defense == "the defensive reply" then "If delayed, the reply becomes forced."
+            if coordinateOnly(rawDefense) then s"If delayed, the reply has to address $defense."
+            else if threat.defenseCount > 1 then s"If delayed, $defense is one defensive reply."
+            else if defense == "the defensive reply" then "If delayed, the reply becomes forced."
             else s"If delayed, $defense is the reply."
         )
       }
 
   private def displayDefense(raw: String): String =
-    if isUciMove(raw) then "the defensive reply" else raw
+    if isUciMove(raw) then NarrativeUtils.formatUciAsSan(raw) else raw
+
+  private def coordinateOnly(raw: String): Boolean =
+    raw.matches("""[a-h][1-8]""")
 
   private def isUciMove(raw: String): Boolean =
     raw.matches("""[a-h][1-8][a-h][1-8][qrbn]?""")
@@ -141,12 +199,18 @@ private[commentary] object ContrastiveSupportAdmissibility:
   private def onlyMoveContrast(
       contract: DecisiveTruthContract
   ): Option[(String, String, String)] =
-    clean(contract.benchmarkMove)
+    val benchmark = clean(contract.benchmarkMove)
+    val anchor =
+      benchmark
+        .orElse(clean(contract.verifiedBestMove))
+        .orElse(clean(contract.playedMove))
+    anchor
       .map { move =>
+        val label = benchmark.getOrElse("the played move")
         (
           move,
           "it is the only move that still holds the position together",
-          s"Only $move still keeps the position together if the move is delayed."
+          s"Only $label still keeps the position together if the move is delayed."
         )
       }
 
@@ -178,7 +242,7 @@ private[commentary] object ContrastiveSupportAdmissibility:
       allowTiming: Boolean
   ): ContrastSupportTrace =
     clean(comparison.deferredSource) match
-      case Some(source) if sameText(source, "close_candidate") =>
+      case Some(source) if sameText(source, "close_candidate") && exactComparativeConsequence(comparison).isEmpty =>
         inputs.alternativeNarrative match
           case Some(alt) if enrichedCloseCandidateSentence(alt.sentence) =>
             allow(
@@ -195,13 +259,31 @@ private[commentary] object ContrastiveSupportAdmissibility:
         reject(RejectReason.ExplanationFreeEvalGap)
       case _ =>
         val anchor =
-          clean(comparison.deferredMove)
+          comparativeAnchor(comparison)
+            .orElse(clean(comparison.deferredMove))
             .orElse(clean(comparison.engineBestMove))
             .orElse(clean(comparison.chosenMove))
         val consequence = resolvedConsequence(primary, inputs, comparison)
         (anchor, consequence) match
+          case (Some(move), Some(value)) if roleAwareComparativeConsequence(comparison).nonEmpty =>
+            allow(
+              sourceKind = SourceKind.RoleAwareLineConsequence,
+              anchor = move,
+              consequence = value,
+              sentence = renderRoleAwareLineConsequenceSentence(value, allowTiming)
+            )
           case (Some(move), Some(value))
-              if clean(comparison.deferredSource).exists(isVerifiedOrTopEngineSource) || comparison.chosenMatchesBest =>
+              if comparison.chosenMatchesBest && counterfactualCausalThreatConsequence(inputs).exists(sameText(_, value)) =>
+            allow(
+              sourceKind = SourceKind.CounterfactualCausalThreat,
+              anchor = move,
+              consequence = value,
+              sentence = renderCounterfactualCausalThreatSentence(move, value, allowTiming)
+            )
+          case (Some(move), Some(value))
+              if clean(comparison.deferredSource).exists(isVerifiedOrTopEngineSource) ||
+                comparison.chosenMatchesBest ||
+                exactComparativeConsequence(comparison).nonEmpty =>
             allow(
               sourceKind = SourceKind.TopEngineMoveWithConcreteConsequence,
               anchor = move,
@@ -239,10 +321,40 @@ private[commentary] object ContrastiveSupportAdmissibility:
     decisionComparisonConsequence(comparison).orElse(fallbackPlannerConsequence(primary, inputs, comparison))
 
   private def decisionComparisonConsequence(comparison: DecisionComparison): Option[String] =
-    clean(comparison.deferredReason)
-      .filterNot(looksLikeEngineGapReason)
-      .filterNot(looksLikeGeneralizedBranch)
+    exactComparativeConsequence(comparison)
+      .orElse(roleAwareComparativeConsequence(comparison))
+      .orElse(
+        clean(comparison.deferredReason)
+          .filterNot(looksLikeEngineGapReason)
+          .filterNot(looksLikeGeneralizedBranch)
+          .filter(hasConcreteAnchorOrAction)
+      )
+
+  private def exactComparativeConsequence(comparison: DecisionComparison): Option[String] =
+    clean(comparison.comparativeSource)
+      .filter(source => sameText(source, DecisionComparisonComparativeSupport.ExactTargetFixationSource))
+      .flatMap(_ => clean(comparison.comparativeConsequence))
+      .filter(looksLikeExactTargetFixationConsequence)
       .filter(hasConcreteAnchorOrAction)
+
+  private def looksLikeExactTargetFixationConsequence(text: String): Boolean =
+    val normalized = normalize(text)
+    normalized.contains(" fixes ") &&
+      normalized.contains(" as the target") &&
+      normalized.contains(" leaves ") &&
+      normalized.contains(" compared branch")
+
+  private def roleAwareComparativeConsequence(comparison: DecisionComparison): Option[String] =
+    clean(comparison.comparativeSource)
+      .filter(source => sameText(source, DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource))
+      .flatMap(_ => clean(comparison.comparativeConsequence))
+      .filter(DecisionComparisonComparativeSupport.roleAwareLineConsequenceText)
+      .filter(hasConcreteAnchorOrAction)
+
+  private def comparativeAnchor(comparison: DecisionComparison): Option[String] =
+    exactComparativeConsequence(comparison)
+      .orElse(roleAwareComparativeConsequence(comparison))
+      .flatMap(_ => clean(comparison.engineBestMove).orElse(clean(comparison.chosenMove)))
 
   private def fallbackPlannerConsequence(
       primary: QuestionPlan,
@@ -250,9 +362,13 @@ private[commentary] object ContrastiveSupportAdmissibility:
       comparison: DecisionComparison
   ): Option[String] =
     Option.when(comparison.chosenMatchesBest) {
-      primary.consequence
+      val certifiedPlannerConsequence =
+        primary.consequence
         .filter(_.certified)
         .flatMap(consequence => clean(consequence.text))
+      counterfactualCausalThreatConsequence(inputs)
+        .filter(_ => certifiedPlannerConsequence.exists(looksLikeGenericCounterfactualConsequence))
+        .orElse(certifiedPlannerConsequence)
         .orElse(derivedInputConsequence(inputs))
         .filterNot(looksLikeGeneralizedBranch)
         .filter(looksLikeCertifiedPlannerConsequence)
@@ -262,6 +378,7 @@ private[commentary] object ContrastiveSupportAdmissibility:
     immediateThreatConsequence(inputs)
       .orElse(preventedCounterplayConsequence(inputs))
       .orElse(pvDeltaConsequence(inputs))
+      .orElse(counterfactualCausalThreatConsequence(inputs))
       .orElse(counterfactualConsequence(inputs))
 
   private def immediateThreatConsequence(inputs: QuestionPlannerInputs): Option[String] =
@@ -300,6 +417,9 @@ private[commentary] object ContrastiveSupportAdmissibility:
           case None           => "If the move is missed, the opponent gets a cleaner continuation instead."
       }
 
+  private def counterfactualCausalThreatConsequence(inputs: QuestionPlannerInputs): Option[String] =
+    inputs.counterfactual.flatMap(ThreatExtractor.counterfactualCausalThreatConsequence)
+
   private def renderOnlyMoveSentence(anchor: String, consequence: String): String =
     consequenceVerbPhrase(consequence) match
       case Some(verbPhrase) =>
@@ -326,6 +446,16 @@ private[commentary] object ContrastiveSupportAdmissibility:
 
   private def renderAlternativeSentence(move: String, consequence: String): String =
     s"The alternative $move stays secondary because ${becauseClause(consequence)}"
+
+  private def renderRoleAwareLineConsequenceSentence(consequence: String, allowTiming: Boolean): String =
+    val sentence = ensureSentence(consequence)
+    if allowTiming then s"If delayed, $sentence"
+    else sentence
+
+  private def renderCounterfactualCausalThreatSentence(move: String, consequence: String, allowTiming: Boolean): String =
+    val clause = becauseClause(consequence)
+    if allowTiming then s"If delayed, $clause"
+    else s"The move $move stays best because $clause"
 
   private def consequenceVerbPhrase(consequence: String): Option[String] =
     val clause = becauseClause(consequence)
@@ -358,8 +488,17 @@ private[commentary] object ContrastiveSupportAdmissibility:
       normalized.startsWith("that creates a concrete follow up ") ||
       normalized.startsWith("that removes the immediate problem ") ||
       normalized.startsWith("that removes roughly ") ||
+      normalized.startsWith("missing it ") ||
       normalized.startsWith("if the move is missed, ") ||
       normalized.startsWith("if the move is missed ")
+
+  private def looksLikeGenericCounterfactualConsequence(text: String): Boolean =
+    val normalized = normalize(text)
+    normalized.startsWith("if the move is missed ") &&
+      (
+        normalized.contains("cleaner continuation") ||
+          normalized.contains("opponent gets a cleaner continuation")
+      )
 
   private def bestImmediateThreat(threats: List[ThreatRow]): Option[ThreatRow] =
     threats
