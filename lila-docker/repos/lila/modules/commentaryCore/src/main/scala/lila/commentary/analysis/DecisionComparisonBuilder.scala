@@ -18,7 +18,8 @@ private[analysis] final case class DecisionComparison(
     chosenMatchesBest: Boolean,
     comparedMove: Option[String] = None,
     comparativeConsequence: Option[String] = None,
-    comparativeSource: Option[String] = None
+    comparativeSource: Option[String] = None,
+    roleAwareBranchEvidence: Option[RoleAwareLineConsequenceEvidence] = None
 ):
   def toDigest: DecisionComparisonDigest =
     DecisionComparisonDigest(
@@ -37,6 +38,38 @@ private[analysis] final case class DecisionComparison(
       practicalAlternative = practicalAlternative,
       chosenMatchesBest = chosenMatchesBest
     )
+
+private[analysis] final case class RoleAwareLineConsequenceEvidence(
+    engineBest: LineConsequenceEvidence,
+    played: LineConsequenceEvidence
+):
+  def evidenceRefs: List[String] =
+    (
+      List("branch_role:engine_best", "branch_role:played") ++
+        branchEvidenceRefs("engine_best", engineBest) ++
+        branchEvidenceRefs("played", played)
+    ).map(_.trim).filter(_.nonEmpty).distinct
+
+  def guardrails: List[String] =
+    (
+      List(
+        DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource,
+        "alternative_role:engine_best_branch",
+        "alternative_role:played_branch",
+        "checked_branch_comparison"
+      ) ++
+        branchGuardrails("engine_best", engineBest) ++
+        branchGuardrails("played", played)
+    ).map(_.trim).filter(_.nonEmpty).distinct
+
+  private def branchEvidenceRefs(role: String, evidence: LineConsequenceEvidence): List[String] =
+    (
+      MoveReviewLocalFact.lineConsequenceEvidenceRefs(evidence).map(ref => s"$role:$ref") ++
+        evidence.sanMoves.take(6).map(san => s"$role:san:$san")
+    ).distinct
+
+  private def branchGuardrails(role: String, evidence: LineConsequenceEvidence): List[String] =
+    MoveReviewLocalFact.lineConsequenceGuardrails(evidence).map(guardrail => s"$role:$guardrail")
 
 private[analysis] object DecisionComparisonBuilder:
 

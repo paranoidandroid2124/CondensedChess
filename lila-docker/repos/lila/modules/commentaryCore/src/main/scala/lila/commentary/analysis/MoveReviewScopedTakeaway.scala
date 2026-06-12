@@ -6,7 +6,8 @@ private[commentary] object MoveReviewScopedTakeaway:
   import MoveReviewLocalFact.{
     Admission as LocalFactAdmission,
     Family as LocalFactFamily,
-    LineBinding as LocalFactLineBinding
+    LineBinding as LocalFactLineBinding,
+    Producer as LocalFactProducer
   }
 
   enum EvidenceTier:
@@ -37,7 +38,8 @@ private[commentary] object MoveReviewScopedTakeaway:
     "scope:move_review_local",
     "owner:pv_coupled_line",
     "schema:compatibility_projection",
-    "excludes:support_only_strategy_pack",
+    "requires:admitted_typed_local_fact",
+    "excludes:raw_strategy_pack_text",
     "excludes:fallback_provider"
   )
 
@@ -92,22 +94,34 @@ private[commentary] object MoveReviewScopedTakeaway:
     val checkedSequence = s"the checked continuation runs through $replySan, then $continuationSan"
     val openingGoalName = evidence.openingGoal.map(_.goalName.toLowerCase).getOrElse("")
     Option.when(admitsPurpose(purpose, localFact))(
-      localFact.family match
-        case LocalFactFamily.Attack =>
+      (localFact.producer, localFact.family) match
+        case (LocalFactProducer.CertifiedStrategyDelta, LocalFactFamily.Defense) =>
+          s"The PV keeps the counterplay-restraint detail bounded: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader defensive claim."
+        case (LocalFactProducer.CertifiedStrategyDelta, LocalFactFamily.PlanSupport) =>
+          s"The PV keeps the plan-support detail bounded: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader plan claim."
+        case (LocalFactProducer.CertifiedStrategyDelta, LocalFactFamily.Pressure) =>
+          s"The PV keeps the positional pressure detail bounded: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader plan claim."
+        case (LocalFactProducer.CertifiedStrategyDelta, LocalFactFamily.LineConsequence) =>
+          s"The PV keeps the strategic consequence bounded: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader plan claim."
+        case (_, LocalFactFamily.Attack) =>
           s"The PV keeps the local attacking detail bounded: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader evaluation claim."
-        case LocalFactFamily.Threat | LocalFactFamily.Pressure =>
+        case (_, LocalFactFamily.Pressure) if purpose == "restrict_piece_mobility" =>
+          s"The PV keeps the mobility restriction local: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader evaluation claim."
+        case (_, LocalFactFamily.Timing) if purpose == "move_order_timing" =>
+          s"The PV keeps the move-order detail local: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader timing claim."
+        case (_, LocalFactFamily.Threat | LocalFactFamily.Pressure) =>
           s"The PV keeps the local tactical detail bounded: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader evaluation claim."
-        case LocalFactFamily.Defense =>
+        case (_, LocalFactFamily.Defense) =>
           s"The PV keeps the defensive detail bounded: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader threat claim."
-        case LocalFactFamily.Endgame if evidence.endgameFacts.exists(_.isInstanceOf[Fact.KingActivity]) =>
+        case (_, LocalFactFamily.Endgame) if evidence.endgameFacts.exists(_.isInstanceOf[Fact.KingActivity]) =>
           s"The line keeps the endgame detail local to ${played.san}: $checkedSequence."
-        case LocalFactFamily.Endgame =>
+        case (_, LocalFactFamily.Endgame) =>
           s"The line keeps the concrete endgame detail local to ${played.san}: $checkedSequence."
-        case LocalFactFamily.Capture =>
+        case (_, LocalFactFamily.Capture) =>
           s"The line clarifies the exchange: ${played.san} is met by $replySan, so the sequence remains bounded to ${played.toKey}."
-        case LocalFactFamily.KingSafety =>
+        case (_, LocalFactFamily.KingSafety) =>
           s"The line keeps the king-safety detail bounded: ${played.san} is the move under review, and $checkedSequence."
-        case LocalFactFamily.OpeningGoal =>
+        case (_, LocalFactFamily.OpeningGoal) =>
           purpose match
             case "quiet_development" if line.continuation.exists(move => MoveReviewPvLine.normalizeUci(move.uci) == "d2d3") =>
               s"The checked line stays local to ${played.san}: after $replySan, $continuationSan remains the checked continuation."
@@ -119,7 +133,7 @@ private[commentary] object MoveReviewScopedTakeaway:
               s"The checked line keeps the center sequence bounded: ${played.san} is the move under review, and $continuationSan continues the line."
             case _ =>
               s"The checked line stays local to ${played.san}: $checkedSequence."
-        case LocalFactFamily.LineConsequence =>
+        case (_, LocalFactFamily.LineConsequence) =>
           purpose match
             case "clarify_exchange" =>
               s"The checked line keeps the exchange consequence local to ${played.san}: $checkedSequence."
@@ -147,6 +161,10 @@ private[commentary] object MoveReviewScopedTakeaway:
               s"The PV keeps the local tactical detail bounded: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader evaluation claim."
             case "answer_direct_threat" =>
               s"The PV keeps the defensive detail bounded: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader threat claim."
+            case "restrict_piece_mobility" =>
+              s"The PV keeps the mobility restriction local: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader evaluation claim."
+            case "move_order_timing" =>
+              s"The PV keeps the move-order detail local: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader timing claim."
             case "resolve_capture_tension" =>
               s"The PV shows the capture tension clearly: ${played.san} can be answered by $replySan, so the point is what remains after the recapture rather than the capture alone."
             case "clarify_exchange" =>
@@ -177,6 +195,10 @@ private[commentary] object MoveReviewScopedTakeaway:
         Set(LocalFactFamily.Attack, LocalFactFamily.Threat, LocalFactFamily.Pressure)
       case "answer_direct_threat" | "prevent_counterplay" =>
         Set(LocalFactFamily.Defense)
+      case "restrict_piece_mobility" =>
+        Set(LocalFactFamily.Pressure)
+      case "move_order_timing" =>
+        Set(LocalFactFamily.Timing)
       case "resolve_capture_tension" =>
         Set(LocalFactFamily.Capture)
       case "clarify_exchange" | "local_capture" =>

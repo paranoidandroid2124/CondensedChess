@@ -5,6 +5,7 @@ import chess.format.{ Fen, Uci }
 import chess.variant.Standard
 import lila.commentary.{ MoveReviewExplanation, MoveReviewRefs, StrategyPack }
 import lila.commentary.model.*
+import lila.commentary.model.strategic.VariationLine
 
 private[commentary] object MoveReviewExplanationBuilder:
 
@@ -31,8 +32,9 @@ private[commentary] object MoveReviewExplanationBuilder:
   ): Option[Result] =
     for
       played <- current(ctx)
-      lineFacts = MoveReviewPvLine.firstCoupled(ctx.fen, played.uci, refs)
+      standardLineFacts = MoveReviewPvLine.firstCoupled(ctx.fen, played.uci, refs)
       evidence = moveReviewEvidence(ctx, played, refs, strategyPack, truthContract, strictLocalFacts)
+      lineFacts = standardLineFacts.orElse(drawResourceLineFacts(ctx.fen, played, refs, evidence))
       descriptor <- CommentaryIdeaSurface.describe(played, evidence, lineFacts, truthContract, strictLocalFacts)
       pvInterpretation = descriptor.pvInterpretation(lineFacts)
       shortLine = MoveReviewPvLine.shortLine(refs, pvInterpretation.flatMap(_.supportedByLineId))
@@ -99,6 +101,17 @@ private[commentary] object MoveReviewExplanationBuilder:
       lineConsequenceCandidate(ctx, refs, truthContract)
         .filter(_.kind != LineConsequenceKind.PreviewOnly)
         .filter(_.uciMoves.headOption.exists(uci => MoveReviewPvLine.normalizeUci(uci) == played.uci))
+    val forcedLineTheme =
+      ForcedLineTruth.detect(
+        fen = ctx.fen,
+        playedUci = played.uci,
+        ply = ctx.ply,
+        variations = forcedLineTruthVariations(ctx, refs)
+      )
+    val surface = StrategyPackSurface.from(strategyPack)
+    val practicalPositionFacts =
+      if truthContract.exists(_.blocksStrategicSupport) then Nil
+      else CommentaryIdeaSurface.practicalPositionFacts(played, surface)
     CommentaryIdeaSurface.MoveReviewEvidence(
       facts = facts,
       motifs = motifs,
@@ -107,14 +120,38 @@ private[commentary] object MoveReviewExplanationBuilder:
       lineConsequence = lineConsequence,
       postMoveTargetFacts = postMoveTargetFacts(played),
       relationWitnesses = relationWitnesses(ctx, played, facts, motifs, refs),
-      strategicDeltas = PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidences(ctx, StrategyPackSurface.from(strategyPack), truthContract),
+      strategicDeltas = PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidences(ctx, surface, truthContract),
       phase = Option(ctx.phase.current).filter(_.trim.nonEmpty).getOrElse(ctx.header.phase),
       ply = ctx.ply,
-      strictLocalFacts = strictLocalFacts
+      strictLocalFacts = strictLocalFacts,
+      forcedLineTheme = forcedLineTheme,
+      practicalPositionFacts = practicalPositionFacts
     )
 
   private def qualityLabel(truthContract: Option[DecisiveTruthContract]): Option[String] =
     truthContract.map(_.truthClass.toString)
+
+  private def drawResourceLineFacts(
+      startFen: String,
+      played: CommentaryIdeaSurface.PlayedMove,
+      refs: Option[MoveReviewRefs],
+      evidence: CommentaryIdeaSurface.MoveReviewEvidence
+  ): Option[MoveReviewPvLine.LineFacts] =
+    Option
+      .when(evidence.relationWitnesses.exists(drawResourceWitnessForPlayedMove(_, played)))(
+        MoveReviewPvLine.playedCoupled(startFen, played.uci, refs)
+      )
+      .flatten
+
+  private def drawResourceWitnessForPlayedMove(
+      witness: MoveReviewExchangeAnalyzer.RelationWitness,
+      played: CommentaryIdeaSurface.PlayedMove
+  ): Boolean =
+    (
+      witness.kind == MoveReviewExchangeAnalyzer.RelationKind.StalemateTrap ||
+        witness.kind == MoveReviewExchangeAnalyzer.RelationKind.PerpetualCheck
+    ) &&
+      witness.lineMoves.headOption.exists(uci => MoveReviewPvLine.normalizeUci(uci) == played.uci)
 
   private def openingNameFromEvent(ctx: NarrativeContext): Option[String] =
     ctx.openingEvent.collect { case event: OpeningEvent.Intro => event.name }
@@ -128,6 +165,19 @@ private[commentary] object MoveReviewExplanationBuilder:
       LineConsequenceEvaluator.reviewedMoveSurfaceCandidate(ctx, refs)
         .orElse(LineConsequenceEvaluator.surfaceCandidate(ctx, refs))
     else LineConsequenceEvaluator.surfaceCandidate(ctx, refs)
+
+  private def forcedLineTruthVariations(ctx: NarrativeContext, refs: Option[MoveReviewRefs]): List[VariationLine] =
+    (
+      ctx.engineEvidence.toList.flatMap(_.variations) ++
+        refs.toList.flatMap(_.variations).map(ref =>
+          VariationLine(
+            moves = ref.moves.map(move => MoveReviewPvLine.normalizeUci(move.uci)).filter(_.nonEmpty),
+            scoreCp = ref.scoreCp,
+            mate = ref.mate,
+            depth = ref.depth
+          )
+        )
+    ).filter(_.moves.nonEmpty).distinct
 
   private def postMoveTargetFacts(played: CommentaryIdeaSurface.PlayedMove): List[Fact] =
     Fen.read(Standard, Fen.Full(played.afterFen))
@@ -192,10 +242,121 @@ private[commentary] object MoveReviewExplanationBuilder:
       )
     (
       witnessesFrom(engineReplays.distinct, targetSets) ++
-        witnessesFrom(refReplays.distinct, targetSets.filter(_.nonEmpty))
+        witnessesFrom(refReplays.distinct, targetSets.filter(_.nonEmpty)) ++
+        drawResourceRelationWitnesses(ctx, played, refs)
     )
       .filter(MoveReviewExchangeAnalyzer.relationDetailsValidForKind)
       .distinct
+
+  private def drawResourceRelationWitnesses(
+      ctx: NarrativeContext,
+      played: CommentaryIdeaSurface.PlayedMove,
+      refs: Option[MoveReviewRefs]
+  ): List[MoveReviewExchangeAnalyzer.RelationWitness] =
+    val variations = ctx.engineEvidence.toList.flatMap(_.variations)
+    val engineWitnesses =
+      ctx.engineEvidence.flatMap(_.best).toList.flatMap { topLine =>
+        MoveReviewExchangeAnalyzer
+          .boundedTopReplayPrefix(
+            ctx.fen,
+            variations,
+            minPlies = 1,
+            maxPlies = MoveReviewExchangeAnalyzer.DrawResourceRelationReplayMaxPlies
+          )
+          .filter(replay => replay.headOption.exists(step => MoveReviewPvLine.normalizeUci(step.uci) == played.uci))
+          .toList
+          .flatMap(replay =>
+            drawResourceWitnessesFromReplay(
+              replay = replay,
+              played = played,
+              engineScoreCp = Some(topLine.scoreCp),
+              engineMate = topLine.mate
+            )
+          )
+      }
+    val refWitnesses =
+      refs.toList.flatMap(_.variations).flatMap { variation =>
+        MoveReviewPvLine.validatedLine(ctx.fen, variation, played.uci).toList.flatMap { validated =>
+          MoveReviewExchangeAnalyzer
+            .boundedReplayPrefix(
+              ctx.fen,
+              validated.moves.map(move => MoveReviewPvLine.normalizeUci(move.uci)),
+              minPlies = 1,
+              maxPlies = MoveReviewExchangeAnalyzer.DrawResourceRelationReplayMaxPlies
+            )
+            .toList
+            .flatMap(replay =>
+              drawResourceWitnessesFromReplay(
+                replay = replay,
+                played = played,
+                engineScoreCp = Some(variation.scoreCp),
+                engineMate = variation.mate
+              )
+            )
+        }
+      }
+    val probeWitnesses =
+      ctx.validatedRootProbeResults
+        .filter(drawResourceProbeMatchesPlayed(ctx.fen, _, played.uci))
+        .flatMap(result =>
+          drawResourceProbeReplyLines(result).flatMap(replyLine =>
+            MoveReviewExchangeAnalyzer
+              .boundedReplayPrefix(
+                ctx.fen,
+                played.uci :: replyLine,
+                minPlies = 1,
+                maxPlies = MoveReviewExchangeAnalyzer.DrawResourceRelationReplayMaxPlies
+              )
+              .toList
+              .flatMap(replay =>
+                drawResourceWitnessesFromReplay(
+                  replay = replay,
+                  played = played,
+                  engineScoreCp = Some(result.evalCp),
+                  engineMate = result.mate
+                )
+              )
+          )
+        )
+    (engineWitnesses ++ refWitnesses ++ probeWitnesses).distinct
+
+  private def drawResourceWitnessesFromReplay(
+      replay: List[MoveReviewExchangeAnalyzer.BoundedReplayStep],
+      played: CommentaryIdeaSurface.PlayedMove,
+      engineScoreCp: Option[Int],
+      engineMate: Option[Int]
+  ): List[MoveReviewExchangeAnalyzer.RelationWitness] =
+    List(
+      MoveReviewExchangeAnalyzer.stalemateTrapWitness(replay, played.uci, engineScoreCp, engineMate),
+      MoveReviewExchangeAnalyzer.perpetualCheckWitness(replay, played.uci, engineScoreCp, engineMate)
+    ).flatten
+
+  private def drawResourceProbeMatchesPlayed(
+      fen: String,
+      result: ProbeResult,
+      playedUci: String
+  ): Boolean =
+    ProbeContractValidator.validate(result).isValid &&
+      result.fen.map(_.trim).filter(_.nonEmpty).contains(fen.trim) &&
+      {
+        val normalizedBoundMoves =
+          (result.probedMove.toList ++ result.candidateMove.toList)
+            .map(MoveReviewPvLine.normalizeUci)
+            .filter(_.nonEmpty)
+        normalizedBoundMoves.nonEmpty &&
+          normalizedBoundMoves.forall(_ == playedUci) &&
+          normalizedBoundMoves.forall(MoveReviewExchangeAnalyzer.isUciMove)
+      }
+
+  private def drawResourceProbeReplyLines(result: ProbeResult): List[List[String]] =
+    (result.bestReplyPv :: result.replyPvs.toList.flatten)
+      .filter(_.nonEmpty)
+      .flatMap(drawResourceStrictUciLine)
+      .distinct
+
+  private def drawResourceStrictUciLine(moves: List[String]): Option[List[String]] =
+    val normalized = moves.map(move => Option(move).fold("")(MoveReviewPvLine.normalizeUci))
+    Option.when(normalized.nonEmpty && normalized.forall(MoveReviewExchangeAnalyzer.isUciMove))(normalized)
 
   private def explicitTargetSquares(ctx: NarrativeContext): List[String] =
     ctx.decision.toList

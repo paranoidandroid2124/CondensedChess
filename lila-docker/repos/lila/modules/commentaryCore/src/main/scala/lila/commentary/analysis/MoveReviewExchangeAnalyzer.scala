@@ -273,6 +273,7 @@ private[commentary] object MoveReviewExchangeAnalyzer:
     variations.headOption.toList.flatMap(normalizedLineMoves)
 
   private val DrawResourceMaxCp = 80
+  private[commentary] val DrawResourceRelationReplayMaxPlies = 12
 
   def normalizedLineMoves(line: VariationLine): List[String] =
     val rawUciMoves =

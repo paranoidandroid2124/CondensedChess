@@ -3,6 +3,7 @@ package lila.commentary.analysis
 import chess.{ Color, Knight, Queen, Rook, Square }
 import lila.commentary.*
 import lila.commentary.analysis.practical.ContrastiveSupportAdmissibility
+import lila.commentary.analysis.semantic.RelationSurfaceRowKind
 import lila.commentary.analysis.semantic.StrategicObservationIds.{ ProofFamilyId, ProofSourceId }
 import lila.commentary.model.*
 import lila.commentary.model.authoring.{ AuthorQuestion, AuthorQuestionKind, PlanHypothesis, PlanViability }
@@ -290,6 +291,37 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     assert(proseOnly.rejectReasons.contains("local_fact_family_missing"), clues(proseOnly))
   }
 
+  test("MoveReviewLocalFact keeps role-aware alternative comparison out of generic planner producer") {
+    val alternativePlan =
+      QuestionPlan(
+        questionId = "q_role_aware_alternative",
+        questionKind = AuthorQuestionKind.WhyThis,
+        priority = 100,
+        claim = "The engine-best branch reaches a concrete result while the played branch does not.",
+        evidence = None,
+        contrast = None,
+        consequence = None,
+        fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
+        strengthTier = QuestionPlanStrengthTier.Strong,
+        sourceKinds = List(DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource),
+        admissibilityReasons = List("role_aware_line_consequence"),
+        plannerOwnerKind = PlannerOwnerKind.AlternativeComparison,
+        plannerSource = "decision_comparison"
+      )
+
+    val decision =
+      MoveReviewLocalFact.admitPlanner(
+        alternativePlan,
+        evidenceKinds = List("branch_line"),
+        relationKinds = List("alternative_contrast"),
+        lineConsequenceBacked = true
+      )
+
+    assertEquals(decision.admission.map(_.family), Some(MoveReviewLocalFact.Family.LineConsequence))
+    assertEquals(decision.admission.map(_.authority), Some(MoveReviewLocalFact.Authority.AlternativeComparison))
+    assertEquals(decision.admission.map(_.producer), Some(MoveReviewLocalFact.Producer.AlternativeComparison))
+  }
+
   test("MoveReviewCausalClaim admission ignores causal words without typed evidence") {
     val proseOnlyPlan =
       QuestionPlan(
@@ -362,6 +394,180 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     assertEquals(typed.claim.map(_.relationKinds), Some(List(MoveReviewCausalClaim.RelationKind.TimingConstraint)), clues(typed))
     assertEquals(typed.claim.flatMap(_.localFact.map(_.family)), Some(MoveReviewLocalFact.Family.Timing), clues(typed))
     assertEquals(typed.claim.flatMap(_.localFact.map(_.lineBinding)), Some(MoveReviewLocalFact.LineBinding.Replayed), clues(typed))
+  }
+
+  test("forced-reply contrast becomes typed timing fact only when reply evidence is explicit") {
+    val plan =
+      QuestionPlan(
+        questionId = "q_forced_reply_timing",
+        questionKind = AuthorQuestionKind.WhyNow,
+        priority = 100,
+        claim = "The timing matters because the defensive reply has to be handled now.",
+        evidence = None,
+        contrast = None,
+        consequence = None,
+        fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
+        strengthTier = QuestionPlanStrengthTier.Strong,
+        sourceKinds = List("threat"),
+        admissibilityReasons = List("urgent_threat"),
+        plannerOwnerKind = PlannerOwnerKind.ForcingDefense,
+        plannerSource = "threat"
+      )
+    def decision(forced: Boolean): MoveReviewCausalClaim.Decision =
+      MoveReviewCausalClaim.admit(
+        MoveReviewCausalClaim.candidate(
+          plan = plan,
+          renderedClaim = plan.claim,
+          contrastAdmissible = true,
+          contrastSourceKind = Some(ContrastiveSupportAdmissibility.SourceKind.ExplicitReplyLoss),
+          contrastAnchor = Some("Qe6"),
+          contrastForcedReply = forced,
+          contrastEvidenceRefs = List("reply_anchor:Qe6", "reply_defense_count:1"),
+          contrastGuardrails = List(if forced then "forced_reply_unique" else "forced_reply_non_unique"),
+          supportPrimary = Some(if forced then "If delayed, Qe6 is the reply." else "If delayed, Qe6 is one defensive reply."),
+          supportSecondary = None,
+          tension = None,
+          evidenceHook = None,
+          coda = None,
+          surfaceConsequence = None,
+          lineConsequenceEvidence = None,
+          pvCoupledPlanSupport = None
+        )
+      )
+
+    val forced = decision(forced = true)
+    val nonUnique = decision(forced = false)
+
+    assertEquals(forced.claim.map(_.relationKinds), Some(List(MoveReviewCausalClaim.RelationKind.TimingConstraint)), clues(forced))
+    assertEquals(forced.claim.flatMap(_.localFact.map(_.family)), Some(MoveReviewLocalFact.Family.Timing), clues(forced))
+    assertEquals(forced.claim.flatMap(_.localFact.map(_.authority)), Some(MoveReviewLocalFact.Authority.ForcedReply), clues(forced))
+    assertEquals(forced.claim.flatMap(_.localFact.map(_.producer)), Some(MoveReviewLocalFact.Producer.ForcedReply), clues(forced))
+    assertEquals(forced.frame.map(_.surfaceContract.mayUseForced), Some(true), clues(forced))
+    assert(forced.claim.exists(_.surfaceContract.guardrails.contains("surface_forced=true")), clues(forced))
+    assert(forced.claim.flatMap(_.localFact).exists(_.guardrails.contains("forced_reply_unique")), clues(forced))
+
+    assertEquals(nonUnique.claim.flatMap(_.localFact.map(_.producer)), Some(MoveReviewLocalFact.Producer.ForcedReply), clues(nonUnique))
+    assertEquals(nonUnique.frame.map(_.surfaceContract.mayUseForced), Some(false), clues(nonUnique))
+    assert(nonUnique.claim.exists(_.surfaceContract.guardrails.contains("surface_forced=false")), clues(nonUnique))
+    assert(nonUnique.claim.flatMap(_.localFact).exists(_.guardrails.contains("forced_reply_non_unique")), clues(nonUnique))
+  }
+
+  test("forced-reply contrast can own WhatMustBeStopped as a defense fact") {
+    val plan =
+      QuestionPlan(
+        questionId = "q_forced_reply_defense",
+        questionKind = AuthorQuestionKind.WhatMustBeStopped,
+        priority = 100,
+        claim = "The move has to stop the immediate material reply.",
+        evidence = None,
+        contrast = None,
+        consequence = None,
+        fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
+        strengthTier = QuestionPlanStrengthTier.Strong,
+        sourceKinds = List("threat"),
+        admissibilityReasons = List("urgent_threat"),
+        plannerOwnerKind = PlannerOwnerKind.ForcingDefense,
+        plannerSource = "threat"
+      )
+    val decision =
+      MoveReviewCausalClaim.admit(
+        MoveReviewCausalClaim.candidate(
+          plan = plan,
+          renderedClaim = plan.claim,
+          contrastAdmissible = true,
+          contrastSourceKind = Some(ContrastiveSupportAdmissibility.SourceKind.ExplicitReplyLoss),
+          contrastAnchor = Some("Qe6"),
+          contrastForcedReply = true,
+          contrastEvidenceRefs = List("reply_anchor:Qe6", "reply_defense_count:1", "threat_kind:material"),
+          contrastGuardrails = List("forced_reply_unique", "threat_kind:material"),
+          supportPrimary = Some("If delayed, Qe6 is the reply."),
+          supportSecondary = None,
+          tension = None,
+          evidenceHook = None,
+          coda = None,
+          surfaceConsequence = None,
+          lineConsequenceEvidence = None,
+          pvCoupledPlanSupport = None
+        )
+      )
+
+    assertEquals(decision.rejectReasons, Nil, clues(decision))
+    assertEquals(decision.claim.map(_.relationKinds), Some(List(MoveReviewCausalClaim.RelationKind.DefensiveResource)), clues(decision))
+    assertEquals(decision.claim.flatMap(_.localFact.map(_.family)), Some(MoveReviewLocalFact.Family.Defense), clues(decision))
+    assertEquals(decision.claim.flatMap(_.localFact.map(_.authority)), Some(MoveReviewLocalFact.Authority.ForcedReply), clues(decision))
+    assertEquals(decision.claim.flatMap(_.localFact.map(_.producer)), Some(MoveReviewLocalFact.Producer.ForcedReply), clues(decision))
+    assert(decision.claim.flatMap(_.localFact).exists(_.evidenceRefs.contains("threat_kind:material")), clues(decision))
+  }
+
+  test("forced-line truth local fact becomes CausalFrame typed evidence") {
+    val plan =
+      QuestionPlan(
+        questionId = "q_forced_line_truth",
+        questionKind = AuthorQuestionKind.WhyThis,
+        priority = 100,
+        claim = "Bxh7+ is tied to a confirmed Greek Gift Sacrifice sequence.",
+        evidence = None,
+        contrast = None,
+        consequence = None,
+        fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
+        strengthTier = QuestionPlanStrengthTier.Strong,
+        sourceKinds = List("forced_line_truth"),
+        admissibilityReasons = List("typed_local_fact"),
+        plannerOwnerKind = PlannerOwnerKind.ConcreteTactical,
+        plannerSource = "forced_line_truth"
+      )
+    val localFact =
+      MoveReviewLocalFact.admitted(
+        MoveReviewLocalFact.Candidate(
+          family = MoveReviewLocalFact.Family.Threat,
+          source = MoveReviewLocalFact.Source.PvCoupledLine,
+          producer = MoveReviewLocalFact.Producer.ForcedLineTruth,
+          subject = MoveReviewLocalFact.Subject.Target,
+          strictFallbackCandidate = true,
+          anchors = List(MoveReviewLocalFact.Anchor("forced_line_theme", "greek_gift")),
+          lineBinding = MoveReviewLocalFact.LineBinding.PvCoupled,
+          evidenceRefs = List("forced_line_theme:greek_gift"),
+          guardrails = List("forced_line_truth_verified", "played_move_first", "pv_coupled")
+        )
+      )
+    val result =
+      MoveReviewExplanationBuilder.Result(
+        explanation =
+          MoveReviewExplanation(
+            title = "Bxh7+ has a confirmed Greek Gift Sacrifice sequence",
+            prose = "Bxh7+ is tied to the confirmed Greek Gift Sacrifice sequence.",
+            source = "forced_line_truth"
+          ),
+        localFact = localFact
+      )
+    val decision =
+      MoveReviewCausalClaim.admit(
+        MoveReviewCausalClaim.candidate(
+          plan = plan,
+          renderedClaim = plan.claim,
+          contrastAdmissible = false,
+          contrastSourceKind = None,
+          contrastAnchor = None,
+          contrastForcedReply = false,
+          contrastEvidenceRefs = Nil,
+          contrastGuardrails = Nil,
+          supportPrimary = None,
+          supportSecondary = None,
+          tension = None,
+          evidenceHook = None,
+          coda = None,
+          surfaceConsequence = None,
+          lineConsequenceEvidence = None,
+          pvCoupledPlanSupport = None,
+          localFactResult = Some(result)
+        )
+      )
+
+    assertEquals(decision.rejectReasons, Nil, clues(decision))
+    assertEquals(decision.evidences.map(_.source), List(MoveReviewCausalClaim.EvidenceSource.ForcedLineTruth), clues(decision))
+    assertEquals(decision.claim.map(_.relationKinds), Some(List(MoveReviewCausalClaim.RelationKind.PlayedMoveConsequence)), clues(decision))
+    assertEquals(decision.claim.flatMap(_.localFact.map(_.producer)), Some(MoveReviewLocalFact.Producer.ForcedLineTruth), clues(decision))
+    assertEquals(decision.claim.flatMap(_.localFact.map(_.family)), Some(MoveReviewLocalFact.Family.Threat), clues(decision))
   }
 
   test("PlanRace causal admission accepts typed branch-line evidence") {
@@ -662,6 +868,192 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     assertEquals(causalTrace.flatMap(_.localFactStrictFallbackEligible), Some(true))
   }
 
+  test("WhyNow move-order relation local fact authorizes timing constraint surface") {
+    val localFact =
+      MoveReviewLocalFact.admitted(
+        MoveReviewLocalFact.Candidate(
+          family = MoveReviewLocalFact.Family.Timing,
+          source = MoveReviewLocalFact.Source.PvCoupledLine,
+          producer = MoveReviewLocalFact.Producer.RelationWitness,
+          subject = MoveReviewLocalFact.Subject.Target,
+          strictFallbackCandidate = true,
+          anchors = List(MoveReviewLocalFact.Anchor("relation_target", "d4")),
+          lineBinding = MoveReviewLocalFact.LineBinding.PvCoupled,
+          evidenceRefs = List("relation_kind:zwischenzug", "relation_fact:zwischenzug_relation_witness"),
+          guardrails = List(
+            "relation_witness_typed_details",
+            "fen_validated_line_replayed",
+            "played_move_first",
+            "relation_kind:zwischenzug"
+          ),
+          relationSurface = Some(RelationSurfaceRowKind.MoveOrder)
+        )
+      )
+    val relationResult =
+      MoveReviewExplanationBuilder.Result(
+        explanation =
+          MoveReviewExplanation(
+            title = "h3 has checked move order",
+            prose = "h3 is tied to a checked zwischenzug relation in the PV.",
+            source = "relation_witness"
+          ),
+        localFact = localFact
+      )
+    val primary =
+      QuestionPlan(
+        questionId = "q_move_order_timing",
+        questionKind = AuthorQuestionKind.WhyNow,
+        priority = 100,
+        claim = relationResult.explanation.prose,
+        evidence = None,
+        contrast = None,
+        consequence = None,
+        fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
+        strengthTier = QuestionPlanStrengthTier.Strong,
+        sourceKinds = List("timing_proof", "relation_witness"),
+        admissibilityReasons = List("timing_owner", "delay_sensitive_proof"),
+        plannerOwnerKind = PlannerOwnerKind.DecisionTiming,
+        plannerSource = "relation_witness"
+      )
+    val inputs =
+      QuestionPlannerInputs(
+        mainBundle = None,
+        quietIntent = None,
+        decisionFrame = CertifiedDecisionFrame(),
+        decisionComparison = None,
+        alternativeNarrative = None,
+        truthMode = PlayerFacingTruthMode.Strategic,
+        preventedPlansNow = Nil,
+        pvDelta = None,
+        counterfactual = None,
+        practicalAssessment = None,
+        opponentThreats = Nil,
+        forcingThreats = Nil,
+        evidenceByQuestionId = Map.empty,
+        candidateEvidenceLines = Nil,
+        evidenceBackedPlans = Nil,
+        opponentPlan = None,
+        factualFallback = None,
+        localFactResult = Some(relationResult)
+      )
+    val slots =
+      MoveReviewCompressionPolicy.buildSlotsOrFallbackFromPlannerRuntime(
+        quietH3Ctx,
+        inputs,
+        RankedQuestionPlans(primary = Some(primary), secondary = None, rejected = Nil),
+        strategyPack = None,
+        truthContract = None
+      )
+    val causalTrace =
+      MoveReviewCompressionPolicy.causalClaimTrace(
+        quietH3Ctx,
+        inputs,
+        RankedQuestionPlans(primary = Some(primary), secondary = None, rejected = Nil),
+        truthContract = None,
+        refs = None
+      )
+
+    assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.Planner)
+    assert(slots.factGuardrails.exists(_.contains("relations=timing_constraint")), clues(slots.factGuardrails))
+    assertEquals(causalTrace.map(_.status), Some("accepted"))
+    assertEquals(causalTrace.map(_.relationKinds), Some(List("timing_constraint")))
+    assertEquals(causalTrace.flatMap(_.localFactFamily), Some("timing"))
+    assertEquals(causalTrace.flatMap(_.localFactAuthority), Some("pv_coupled_line"))
+    assertEquals(causalTrace.flatMap(_.localFactProducer), Some("relation_witness"))
+    assert(causalTrace.exists(_.evidenceSources.contains("relation_witness")), clues(causalTrace))
+  }
+
+  test("planner-owned typed local fact preserves reviewed-move short-line support") {
+    val localFact =
+      MoveReviewLocalFact.admitted(
+        MoveReviewLocalFact.Candidate(
+          family = MoveReviewLocalFact.Family.Pressure,
+          source = MoveReviewLocalFact.Source.CertifiedStrategy,
+          producer = MoveReviewLocalFact.Producer.CertifiedStrategyDelta,
+          subject = MoveReviewLocalFact.Subject.Target,
+          strictFallbackCandidate = false,
+          anchors = List(MoveReviewLocalFact.Anchor("target", "e4")),
+          lineBinding = MoveReviewLocalFact.LineBinding.PvCoupled,
+          evidenceRefs = List("strategy_ref:source:line_control_features"),
+          guardrails = List("practical_position_support", "move_touches_strategy_anchor", "pv_coupled")
+        )
+      )
+    val result =
+      MoveReviewExplanationBuilder.Result(
+        explanation =
+          MoveReviewExplanation(
+            title = "h3 has checked local pressure",
+            prose = "h3 is tied to checked local pressure around e4.",
+            source = "practical_position_support"
+          ),
+        localFact = localFact
+      )
+    val primary =
+      QuestionPlan(
+        questionId = "q_typed_fact_short_line",
+        questionKind = AuthorQuestionKind.WhyThis,
+        priority = 100,
+        claim = result.explanation.prose,
+        evidence = None,
+        contrast = None,
+        consequence = None,
+        fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
+        strengthTier = QuestionPlanStrengthTier.Moderate,
+        sourceKinds = List("typed_local_fact"),
+        admissibilityReasons = List("move_attributed_change"),
+        plannerOwnerKind = PlannerOwnerKind.MoveDelta,
+        plannerSource = "typed_local_fact"
+      )
+    val inputs =
+      QuestionPlannerInputs(
+        mainBundle = None,
+        quietIntent = None,
+        decisionFrame = CertifiedDecisionFrame(),
+        decisionComparison = None,
+        alternativeNarrative = None,
+        truthMode = PlayerFacingTruthMode.Strategic,
+        preventedPlansNow = Nil,
+        pvDelta = Some(PVDelta(Nil, Nil, Nil, Nil)),
+        counterfactual = None,
+        practicalAssessment = None,
+        opponentThreats = Nil,
+        forcingThreats = Nil,
+        evidenceByQuestionId = Map.empty,
+        candidateEvidenceLines = Nil,
+        evidenceBackedPlans = Nil,
+        opponentPlan = None,
+        factualFallback = None,
+        localFactResult = Some(result)
+      )
+    val refs = refsForLine(quietH3Ctx.fen, List("h2h3", "a7a6", "g1f3"), List("h3", "a6", "Nf3"))
+    val ranked = RankedQuestionPlans(primary = Some(primary), secondary = None, rejected = Nil)
+    val slots =
+      MoveReviewCompressionPolicy.buildSlotsOrFallbackFromPlannerRuntime(
+        quietH3Ctx,
+        inputs,
+        ranked,
+        strategyPack = None,
+        truthContract = None,
+        refs = Some(refs)
+      )
+    val causalTrace =
+      MoveReviewCompressionPolicy.causalClaimTrace(
+        quietH3Ctx,
+        inputs,
+        ranked,
+        truthContract = None,
+        refs = Some(refs)
+      )
+
+    assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.Planner)
+    assertEquals(slots.evidenceHook, Some("Short line: h3 a6 Nf3."))
+    assert(slots.factGuardrails.exists(_.contains("support_embedded=true")), clues(slots.factGuardrails))
+    assertEquals(causalTrace.map(_.status), Some("accepted"))
+    assert(causalTrace.exists(_.evidenceSources.contains("typed_local_fact")), clues(causalTrace))
+    assert(causalTrace.exists(_.evidenceSources.contains("branch_line")), clues(causalTrace))
+    assert(causalTrace.exists(_.relationKinds.contains("played_move_consequence")), clues(causalTrace))
+  }
+
   test("opening relation WhyThis needs admissible contrast before renderer release") {
     val primary =
       QuestionPlan(
@@ -923,8 +1315,11 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
 
     assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.Planner)
     assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), consequence)
-    assert(slots.factGuardrails.exists(_.contains("local_fact=line_consequence/pv_coupled_line")), clues(slots.factGuardrails))
+    assert(slots.factGuardrails.exists(_.contains("local_fact=line_consequence/alternative_comparison")), clues(slots.factGuardrails))
+    assert(slots.factGuardrails.exists(_.contains("local_fact_producer=alternative_comparison")), clues(slots.factGuardrails))
     assert(slots.factGuardrails.exists(_.contains("relations=alternative_contrast")), clues(slots.factGuardrails))
+    assert(slots.factGuardrails.exists(_.contains("alternative_role:engine_best_branch")), clues(slots.factGuardrails))
+    assert(slots.factGuardrails.exists(_.contains("alternative_role:played_branch")), clues(slots.factGuardrails))
   }
 
   test("WhatChanged role-aware alternative contrast is not replaced by played-move line consequence") {
@@ -1002,6 +1397,8 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     assert(MoveReviewProseContract.stripMoveHeader(slots.claim).contains(consequence), clues(slots.claim))
     assert(!slots.claim.contains("On the checked line"), clues(slots.claim))
     assert(slots.factGuardrails.exists(_.contains("relations=alternative_contrast")), clues(slots.factGuardrails))
+    assert(slots.factGuardrails.exists(_.contains("local_fact=line_consequence/alternative_comparison")), clues(slots.factGuardrails))
+    assert(slots.factGuardrails.exists(_.contains("local_fact_producer=alternative_comparison")), clues(slots.factGuardrails))
     assert(!slots.factGuardrails.exists(_.contains("played_move_consequence")), clues(slots.factGuardrails))
     assertEquals(slots.coda, None)
   }
@@ -1259,7 +1656,7 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
         questionId = "q_pv_plan_support",
         questionKind = AuthorQuestionKind.WhyThis,
         priority = 100,
-        claim = "The checked line from h3 keeps Improving piece placement viable as a practical plan.",
+        claim = "The checked line from h3 keeps Improving piece placement connected to e4 as a practical plan.",
         evidence =
           Some(
             QuestionPlanEvidence(
@@ -1302,7 +1699,10 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
             PvCoupledPlanSupport(
               planName = "Improving piece placement",
               playedSan = "h3",
-              evidenceLine = "h3 e4 d5"
+              evidenceLine = "h3 e4 d5",
+              planAnchorLine = Some("Further probe work still targets Improving piece placement through e4."),
+              anchorTokens = List("e4"),
+              matchedAnchorTokens = List("e4")
             )
           )
       )
@@ -1327,9 +1727,93 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.Planner)
     assertEquals(causalTrace.flatMap(_.localFactFamily), Some("plan_support"), clues(causalTrace))
     assertEquals(causalTrace.flatMap(_.localFactAuthority), Some("pv_coupled_line"), clues(causalTrace))
-    assertEquals(causalTrace.flatMap(_.localFactProducer), Some("planner_causal_claim"), clues(causalTrace))
-    assert(causalTrace.exists(_.evidenceKinds.contains("branch_line")), clues(causalTrace))
+    assertEquals(causalTrace.flatMap(_.localFactProducer), Some("certified_strategy_delta"), clues(causalTrace))
+    assert(causalTrace.exists(_.evidenceKinds.contains("plan_support")), clues(causalTrace))
+    assert(causalTrace.exists(_.evidenceSources.contains("pv_coupled_plan_support")), clues(causalTrace))
     assert(causalTrace.exists(_.relationKinds.contains("played_move_consequence")), clues(causalTrace))
+  }
+
+  test("pv-coupled plan support requires a meaningful checked continuation") {
+    val primary =
+      QuestionPlan(
+        questionId = "q_pv_plan_support_one_ply",
+        questionKind = AuthorQuestionKind.WhatChanged,
+        priority = 100,
+        claim = "The checked line from h3 keeps Improving piece placement viable as a practical plan.",
+        evidence =
+          Some(
+            QuestionPlanEvidence(
+              text = "a) h3",
+              purposes = List("planner_line_proof"),
+              sourceKinds = List("pv_coupled_plan_support"),
+              branchScoped = true
+            )
+          ),
+        contrast = None,
+        consequence = None,
+        fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
+        strengthTier = QuestionPlanStrengthTier.Moderate,
+        sourceKinds = List("pv_delta", "pv_coupled_plan_support"),
+        admissibilityReasons = List("move_attributed_change"),
+        plannerOwnerKind = PlannerOwnerKind.MoveDelta,
+        plannerSource = "pv_delta"
+      )
+    val inputs =
+      QuestionPlannerInputs(
+        mainBundle = None,
+        quietIntent = None,
+        decisionFrame = CertifiedDecisionFrame(),
+        decisionComparison = None,
+        alternativeNarrative = None,
+        truthMode = PlayerFacingTruthMode.Strategic,
+        preventedPlansNow = Nil,
+        pvDelta = Some(PVDelta(Nil, Nil, Nil, Nil)),
+        counterfactual = None,
+        practicalAssessment = None,
+        opponentThreats = Nil,
+        forcingThreats = Nil,
+        evidenceByQuestionId = Map.empty,
+        candidateEvidenceLines = List("h3"),
+        evidenceBackedPlans = Nil,
+        opponentPlan = None,
+        factualFallback = None,
+        pvCoupledPlanSupport =
+          Some(
+            PvCoupledPlanSupport(
+              planName = "Improving piece placement",
+              playedSan = "h3",
+              evidenceLine = "h3"
+            )
+          )
+      )
+    val ranked = RankedQuestionPlans(primary = Some(primary), secondary = None, rejected = Nil)
+    val slots =
+      MoveReviewCompressionPolicy.buildSlotsOrFallbackFromPlannerRuntime(
+        quietH3Ctx,
+        inputs,
+        ranked,
+        strategyPack = None,
+        truthContract = None
+      )
+    val causalTrace =
+      MoveReviewCompressionPolicy.causalClaimTrace(
+        quietH3Ctx,
+        inputs,
+        ranked,
+        truthContract = None,
+        refs = None
+      )
+
+    assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.ExactFactualFallback)
+    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "This moves the pawn to h3.")
+    assertEquals(causalTrace.map(_.status), Some("rejected"))
+    assert(causalTrace.exists(_.rejectReasons.contains("local_fact_admission_missing")), clues(causalTrace))
+    assert(
+      causalTrace.exists(_.localFactRejectReasons.contains("pv_coupled_plan_support_evidence_missing")),
+      clues(causalTrace)
+    )
+    assertEquals(causalTrace.flatMap(_.localFactFamily), None)
+    assert(!causalTrace.exists(_.evidenceSources.contains("pv_coupled_plan_support")), clues(causalTrace))
   }
 
   test("candidate evidence includes reviewed move PV refs for planner coupling") {
@@ -1339,7 +1823,21 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     assert(lines.contains("Short line: h3 a6 Nf3."), clues(lines))
   }
 
-  test("planner builder connects reviewed move PV refs to pv-coupled plan support") {
+  test("candidate evidence prefers a validated reviewed-move continuation over a one-ply reviewed ref") {
+    val onePly = refsForLine(quietH3Ctx.fen, List("h2h3"), List("h3"))
+    val continuation =
+      refsForLine(quietH3Ctx.fen, List("h2h3", "a7a6", "g1f3"), List("h3", "a6", "Nf3"))
+    val refs =
+      onePly.copy(
+        variations =
+          onePly.variations ++ continuation.variations.map(_.copy(lineId = "line_02"))
+      )
+    val lines = MoveReviewCompressionPolicy.candidateEvidenceLines(Some(refs), quietH3Ctx)
+
+    assert(lines.contains("Short line: h3 a6 Nf3."), clues(lines))
+  }
+
+  test("planner builder does not authorize unmatched pv-coupled plan support as a local fact") {
     val refs = refsForLine(quietH3Ctx.fen, List("h2h3", "a7a6", "g1f3"), List("h3", "a6", "Nf3"))
     val ctx =
       quietH3Ctx.copy(
@@ -1359,18 +1857,60 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
         refs = Some(refs)
       )
 
-    val primary = ranked.primary.getOrElse(fail(clues(ranked.rejected, ranked.ownerTrace.ownerCandidateLabels).toString))
     assert(
       inputs.pvCoupledPlanSupport.exists(support =>
         LineScopedCitation.firstConcreteSanToken(support.evidenceLine).contains("h3")
       ),
       clues(inputs.pvCoupledPlanSupport)
     )
-    assertEquals(primary.questionKind, AuthorQuestionKind.WhatChanged)
-    assert(primary.sourceKinds.contains("pv_coupled_plan_support"), clues(primary.sourceKinds))
-    assert(primary.claim.contains("Improving piece placement"), clues(primary.claim))
-    assertEquals(causalTrace.flatMap(_.localFactFamily), Some("plan_support"), clues(causalTrace))
-    assertEquals(causalTrace.flatMap(_.localFactAuthority), Some("pv_coupled_line"), clues(causalTrace))
+    assertEquals(inputs.pvCoupledPlanSupport.exists(_.anchorMatched), false, clues(inputs.pvCoupledPlanSupport))
+    assertEquals(ranked.primary, None, clues(ranked))
+    assertEquals(causalTrace.map(_.status), None, clues(causalTrace))
+  }
+
+  test("planner builder does not connect one-ply PV refs to pv-coupled plan support") {
+    val refs = refsForLine(quietH3Ctx.fen, List("h2h3"), List("h3"))
+    val ctx =
+      quietH3Ctx.copy(
+        authorQuestions = List(whatChangedQuestion()),
+        decision = Some(DecisionRationale(None, "checked line", PVDelta(Nil, Nil, Nil, Nil), ConfidenceLevel.Engine)),
+        strategicPlanEvidence = pvCoupledPlanEvidence("Improving piece placement")
+      )
+    val candidateEvidence = MoveReviewCompressionPolicy.candidateEvidenceLines(Some(refs), ctx)
+    val inputs = QuestionPlannerInputsBuilder.build(ctx, strategyPack = None, truthContract = None, candidateEvidence)
+
+    assert(candidateEvidence.exists(_.contains("h3")), clues(candidateEvidence))
+    assertEquals(inputs.pvCoupledPlanSupport, None, clues(inputs.pvCoupledPlanSupport))
+  }
+
+  test("planner builder records matched plan anchors on pv-coupled plan support") {
+    val refs = refsForLine(quietH3Ctx.fen, List("h2h3", "a7a6", "g1f3"), List("h3", "a6", "Nf3"))
+    val ctx =
+      quietH3Ctx.copy(
+        authorQuestions = List(whatChangedQuestion()),
+        decision = Some(DecisionRationale(None, "checked line", PVDelta(Nil, Nil, Nil, Nil), ConfidenceLevel.Engine)),
+        strategicPlanEvidence = pvCoupledPlanEvidence("Improving piece placement")
+      )
+    val candidateEvidence =
+      MoveReviewCompressionPolicy.candidateEvidenceLines(Some(refs), ctx) :+
+        "Further probe work still targets Improving piece placement through a6 and Nf3."
+    val inputs = QuestionPlannerInputsBuilder.build(ctx, strategyPack = None, truthContract = None, candidateEvidence)
+    val support = inputs.pvCoupledPlanSupport.getOrElse(fail("missing pv-coupled support"))
+    val ranked = QuestionFirstCommentaryPlanner.plan(ctx, inputs, truthContract = None)
+    val causalTrace =
+      MoveReviewCompressionPolicy.causalClaimTrace(
+        ctx,
+        inputs,
+        ranked,
+        truthContract = None,
+        refs = Some(refs)
+      )
+
+    assertEquals(support.anchorMatched, true, clues(support))
+    assertEquals(support.matchedAnchorTokens, List("a6", "Nf3"), clues(support))
+    assert(support.claim.contains("connected to a6 and Nf3"), clues(support.claim))
+    assert(causalTrace.exists(_.localFactGuardrails.contains("local_fact_guardrail:plan_anchor_matched:true")), clues(causalTrace))
+    assert(causalTrace.exists(_.localFactEvidenceRefs.contains("plan_anchor_matched_token:a6")), clues(causalTrace))
   }
 
   test("admitted claim packet promotes into CausalFrame evidence before local fact admission") {
@@ -1445,6 +1985,7 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     assertEquals(causalTrace.map(_.status), Some("accepted"))
     assertEquals(causalTrace.flatMap(_.localFactFamily), Some("defense"))
     assertEquals(causalTrace.flatMap(_.localFactAuthority), Some("pv_coupled_line"))
+    assertEquals(causalTrace.flatMap(_.localFactProducer), Some("certified_strategy_delta"))
     assert(causalTrace.exists(_.evidenceKinds.contains("defense")), clues(causalTrace))
     assert(causalTrace.exists(_.evidenceSources.contains("supported_local_packet")), clues(causalTrace))
     assert(causalTrace.exists(_.relationKinds.contains("played_move_consequence")), clues(causalTrace))
@@ -1712,6 +2253,8 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     assertEquals(slots.paragraphPlan, List("p1=claim"))
     assert(slots.factGuardrails.exists(_.contains("relations=played_move_consequence")), clues(slots.factGuardrails))
     assert(slots.factGuardrails.exists(_.contains("change_consequence")), clues(slots.factGuardrails))
+    assert(slots.factGuardrails.exists(_.contains("local_fact=line_consequence/pv_coupled_line")), clues(slots.factGuardrails))
+    assert(slots.factGuardrails.exists(_.contains("local_fact_producer=line_consequence")), clues(slots.factGuardrails))
   }
 
   test("basic lane carries the same move review explanation used for visible slots") {
@@ -1733,6 +2276,44 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     assert(slots.factGuardrails.exists(_ == "MoveReview line proof: opening_goal"), clues(slots.factGuardrails))
     assert(slots.factGuardrails.exists(_ == "MoveReview PV subject: f1c4"), clues(slots.factGuardrails))
     assert(slots.moveReviewExplanation.exists(explanation => slots.claim.contains(explanation.prose.take(24).trim)), clues(slots))
+  }
+
+  test("basic typed local fact is surfaced through CausalFrame before direct basic rendering") {
+    val ctx = italianCtx.copy(openingGoalEvaluation = None)
+    val strategyPack =
+      StrategyPack(
+        sideToMove = "white",
+        strategicIdeas =
+          List(
+            StrategyIdeaSignal(
+              ideaId = "idea_c4_pressure",
+              ownerSide = "white",
+              kind = StrategicIdeaKind.TargetFixing,
+              group = "local_pressure",
+              readiness = StrategicIdeaReadiness.Ready,
+              focusSquares = List("c4"),
+              confidence = 0.91,
+              evidenceRefs = List("line_control_features"),
+              targetSquare = Some("c4")
+            )
+          )
+      )
+    val slots =
+      MoveReviewPolishSlotsBuilder.buildOrFallback(
+        ctx,
+        BookStyleRenderer.validatedOutline(ctx, strategyPack = Some(strategyPack)),
+        refs = Some(refsForLine(italianBeforeBc4, List("f1c4", "g8f6", "d2d3"), List("Bc4", "Nf6", "d3"))),
+        strategyPack = Some(strategyPack),
+        truthContract = None
+      )
+
+    assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.Planner, clues(slots))
+    assert(slots.moveReviewExplanation.exists(_.source == "practical_position_support"), clues(slots))
+    assertEquals(slots.localFact.map(_.family), Some(MoveReviewLocalFact.Family.Pressure), clues(slots))
+    assertEquals(slots.localFact.map(_.producer), Some(MoveReviewLocalFact.Producer.CertifiedStrategyDelta), clues(slots))
+    assert(slots.factGuardrails.exists(_.contains("local_fact=pressure/certified_strategy")), clues(slots.factGuardrails))
+    assert(slots.factGuardrails.exists(_.contains("local_fact_producer=certified_strategy_delta")), clues(slots.factGuardrails))
+    assert(slots.evidenceHook.exists(_.startsWith("Short line: Bc4")), clues(slots))
   }
 
   test("basic opening explanation is blocked when truth contract blocks strategic support") {

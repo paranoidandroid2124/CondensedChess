@@ -36,7 +36,7 @@ private[commentary] object ClaimAuthorityResolver:
       MoveReviewLocalFact.Candidate(
         family = family,
         source = source,
-        producer = MoveReviewLocalFact.Producer.ClaimAuthorityPromotion,
+        producer = promotedProducer(family, source),
         subject = subject,
         strictFallbackCandidate = strictFallbackCandidate,
         anchors = anchors,
@@ -44,6 +44,14 @@ private[commentary] object ClaimAuthorityResolver:
         evidenceRefs = evidenceRefs,
         guardrails = guardrails
       )
+
+    private def promotedProducer(
+        family: MoveReviewLocalFact.Family,
+        source: MoveReviewLocalFact.Source
+    ): MoveReviewLocalFact.Producer =
+      val strategyProducer = MoveReviewLocalFact.Producer.CertifiedStrategyDelta
+      if strategyProducer.supports(family, source) then strategyProducer
+      else MoveReviewLocalFact.Producer.ClaimAuthorityPromotion
 
   def promotedLocalFactAdmissions(
       ctx: Option[NarrativeContext],
@@ -68,7 +76,17 @@ private[commentary] object ClaimAuthorityResolver:
             claim = claimPackets.find(_._2 == admission.packet).map(_._1)
           )
         )
-    (claimAdmissions ++ neutralizeAdmissions).distinctBy(admission =>
+    val centralBreakTimingAdmissions =
+      supportedLocalCentralBreakTimingAdmissions(ctx, inputs, truthContract, plan)
+        .filter(_.decision.admitted)
+        .flatMap(admission =>
+          promotedLocalFactAdmission(
+            packet = admission.packet,
+            decision = admission.decision,
+            claim = claimPackets.find(_._2 == admission.packet).map(_._1)
+          )
+        )
+    (claimAdmissions ++ neutralizeAdmissions ++ centralBreakTimingAdmissions).distinctBy(admission =>
       (
         admission.packet.proofSource,
         admission.packet.proofFamily,
@@ -79,6 +97,19 @@ private[commentary] object ClaimAuthorityResolver:
         admission.decision.tier
       )
     )
+
+  private def supportedLocalCentralBreakTimingAdmissions(
+      ctx: Option[NarrativeContext],
+      inputs: QuestionPlannerInputs,
+      truthContract: Option[DecisiveTruthContract],
+      plan: QuestionPlan
+  ): List[SupportedLocalCentralBreakTimingAdmission] =
+    if plan.plannerSource != CentralBreakTimingWitness.ProofSource &&
+        !plan.sourceKinds.contains(CentralBreakTimingWitness.ProofSource)
+    then Nil
+    else
+      mainPathPackets(inputs)
+        .flatMap(packet => supportedLocalCentralBreakTimingAdmission(ctx, inputs, truthContract, packet))
 
   def namedRouteNetworkSurfaceDecision(
       ctx: Option[NarrativeContext],
@@ -412,48 +443,14 @@ private[commentary] object ClaimAuthorityResolver:
       packet: PlayerFacingClaimPacket,
       claim: Option[MainPathScopedClaim]
   ): Option[MoveReviewLocalFact.Family] =
-    claim.flatMap(_.deltaClass.map(MoveReviewLocalFact.familyForMoveDeltaClass))
-      .orElse(promotedFamilyFromExactProof(packet.proofPathWitness.exactSliceProof))
+    packet.proofPathWitness.exactSliceProof.map(MoveReviewLocalFact.familyForExactProof)
+      .orElse(claim.flatMap(_.deltaClass.map(MoveReviewLocalFact.familyForMoveDeltaClass)))
       .orElse {
         claim.collect {
           case scopedClaim if scopedClaim.scope == PlayerFacingClaimScope.PositionLocal =>
             MoveReviewLocalFact.Family.Pressure
         }
       }
-
-  private def promotedFamilyFromExactProof(
-      proof: Option[PlayerFacingExactSliceProof]
-  ): Option[MoveReviewLocalFact.Family] =
-    proof.map {
-      case _: PlayerFacingExactSliceProof.CounterplayAxisSuppression =>
-        MoveReviewLocalFact.Family.Defense
-      case _: PlayerFacingExactSliceProof.ProphylacticRestraint =>
-        MoveReviewLocalFact.Family.Defense
-      case _: PlayerFacingExactSliceProof.QueenTradeShield =>
-        MoveReviewLocalFact.Family.LineConsequence
-      case _: PlayerFacingExactSliceProof.DefenderTrade =>
-        MoveReviewLocalFact.Family.LineConsequence
-      case _: PlayerFacingExactSliceProof.BadPieceLiquidation =>
-        MoveReviewLocalFact.Family.LineConsequence
-      case _: PlayerFacingExactSliceProof.SimplificationWindow =>
-        MoveReviewLocalFact.Family.LineConsequence
-      case _: PlayerFacingExactSliceProof.CentralBreakTiming =>
-        MoveReviewLocalFact.Family.Timing
-      case _: PlayerFacingExactSliceProof.ExactTargetFixation =>
-        MoveReviewLocalFact.Family.Pressure
-      case _: PlayerFacingExactSliceProof.CarlsbadFixedTarget =>
-        MoveReviewLocalFact.Family.Pressure
-      case _: PlayerFacingExactSliceProof.TargetFocusedCoordination =>
-        MoveReviewLocalFact.Family.Pressure
-      case _: PlayerFacingExactSliceProof.ColorComplexSqueeze =>
-        MoveReviewLocalFact.Family.Pressure
-      case _: PlayerFacingExactSliceProof.LocalFileEntryBind =>
-        MoveReviewLocalFact.Family.Pressure
-      case _: PlayerFacingExactSliceProof.OutpostOccupation =>
-        MoveReviewLocalFact.Family.Pressure
-      case _: PlayerFacingExactSliceProof.IqpInducement =>
-        MoveReviewLocalFact.Family.Pressure
-    }
 
   private def promotedLocalFactSource(
       lineBinding: MoveReviewLocalFact.LineBinding

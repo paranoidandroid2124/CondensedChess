@@ -415,7 +415,21 @@ private[commentary] object MoveReviewCompressionPolicy:
     val certifiedContrast =
       Option.when(contrastTrace.contrast_admissible)(contrastTrace.effectiveSupport(primary.contrast)).flatten
     val secondarySupport = secondarySupportText(primary, secondary, ctx)
-    val primaryEvidence = plannerEvidenceHook(primary.evidence, ctx)
+    val lineBoundLocalFactCanRenderCheckedLine =
+      primary.plannerOwnerKind == PlannerOwnerKind.MoveDelta ||
+        primary.plannerOwnerKind == PlannerOwnerKind.ConcreteTactical ||
+        primary.plannerOwnerKind == PlannerOwnerKind.LineConsequence
+    val primaryEvidence =
+      plannerEvidenceHook(primary.evidence, ctx)
+        .orElse(
+          inputs.localFactResult
+            .filter(result =>
+              lineBoundLocalFactCanRenderCheckedLine &&
+                sameSentence(primary.claim, result.explanation.prose) &&
+                result.localFact.lineBinding != MoveReviewLocalFact.LineBinding.None
+            )
+            .flatMap(_ => reviewedMoveVariationEvidenceLine(refs, ctx))
+        )
     val lineConsequenceEvidence = plannerLineConsequenceEvidence(primary, ctx, refs)
     val lineConsequenceSurface =
       lineConsequenceEvidence
@@ -423,10 +437,10 @@ private[commentary] object MoveReviewCompressionPolicy:
         .flatMap(cleanSentence(_, ctx))
     val primaryConsequence = lineConsequenceSurface.orElse(plannerConsequence(primary.consequence, ctx))
     val timingTension = plannerTimingTension(primary.questionKind, inputs, ctx)
-      val promotedEvidence =
-        MoveReviewCausalClaim.promotedTypedEvidences(
-          ClaimAuthorityResolver.promotedLocalFactAdmissions(Some(ctx), inputs, truthContract, primary)
-        )
+    val promotedEvidence =
+      MoveReviewCausalClaim.promotedTypedEvidences(
+        ClaimAuthorityResolver.promotedLocalFactAdmissions(Some(ctx), inputs, truthContract, primary)
+      )
     val primaryCausalSupport =
       if contrastTrace.contrast_admissible then certifiedContrast
       else primary.contrast
@@ -437,6 +451,9 @@ private[commentary] object MoveReviewCompressionPolicy:
         contrastTrace.contrast_admissible,
         contrastTrace.contrast_source_kind,
         contrastTrace.contrast_anchor,
+        contrastTrace.contrast_forced_reply,
+        contrastTrace.contrast_evidence_refs,
+        contrastTrace.contrast_guardrails,
         primaryCausalSupport,
         secondarySupport,
         timingTension,
@@ -444,7 +461,9 @@ private[commentary] object MoveReviewCompressionPolicy:
         primaryConsequence,
         lineConsequenceSurface,
         lineConsequenceEvidence,
-        promotedEvidence
+        inputs.pvCoupledPlanSupport,
+        promotedEvidence,
+        inputs.localFactResult
       )
     val decision =
       MoveReviewCausalClaim.admit(causalCandidate)
@@ -748,7 +767,99 @@ private[commentary] object MoveReviewCompressionPolicy:
           PositiveBasicExplanationSources.contains(explanation.source.trim.toLowerCase)
       then None
       else
-        cleanSentence(explanation.prose, ctx).map { claim =>
+        causalBasicMoveExplanationSlots(ctx, refs, result)
+          .orElse(basicMoveExplanationDirectSlots(ctx, result))
+    }
+
+  private def causalBasicMoveExplanationSlots(
+      ctx: NarrativeContext,
+      refs: Option[MoveReviewRefs],
+      result: MoveReviewExplanationBuilder.Result
+  ): Option[MoveReviewPolishSlots] =
+    Option
+      .when(QuestionFirstCommentaryPlanner.localFactResultWhyThisEligible(result)) {
+        val sourceKinds = QuestionFirstCommentaryPlanner.localFactResultSourceKinds(result)
+        val ownerKind = QuestionFirstCommentaryPlanner.localFactResultPlannerOwnerKind(result)
+        val plannerSource = QuestionFirstCommentaryPlanner.localFactResultSource(result)
+        val evidenceHook =
+          Option.when(localFactOwnerCanRenderCheckedLine(ownerKind)) {
+            reviewedMoveVariationEvidenceLine(refs, ctx)
+          }.flatten
+        val plan =
+          QuestionPlan(
+            questionId = "q_basic_typed_local_fact",
+            questionKind = AuthorQuestionKind.WhyThis,
+            priority = 100,
+            claim = result.explanation.prose,
+            evidence = None,
+            contrast = None,
+            consequence = None,
+            fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
+            strengthTier = QuestionPlanStrengthTier.Moderate,
+            sourceKinds = sourceKinds,
+            admissibilityReasons =
+              List(
+                "typed_local_fact",
+                "basic_local_fact_causal_surface",
+                s"local_fact_family:${result.localFact.family.key}",
+                s"local_fact_producer:${result.localFact.producer.key}"
+              ),
+            plannerOwnerKind = ownerKind,
+            plannerSource = plannerSource
+          )
+        val decision =
+          MoveReviewCausalClaim.admit(
+            MoveReviewCausalClaim.candidate(
+              plan = plan,
+              renderedClaim = plan.claim,
+              contrastAdmissible = false,
+              contrastSourceKind = None,
+              contrastAnchor = None,
+              contrastForcedReply = false,
+              contrastEvidenceRefs = Nil,
+              contrastGuardrails = Nil,
+              supportPrimary = None,
+              supportSecondary = None,
+              tension = None,
+              evidenceHook = evidenceHook,
+              coda = None,
+              surfaceConsequence = None,
+              lineConsequenceEvidence = None,
+              pvCoupledPlanSupport = None,
+              localFactResult = Some(result)
+            )
+          )
+        decision.claim.flatMap { claim =>
+          finalizePlannerSlots(
+            ctx,
+            PlannerSlotDraft(
+              questionKind = plan.questionKind,
+              lens = StrategicLens.Decision,
+              surface = claim.surfacePacket,
+              causalClaim = claim
+            )
+          ).map(
+            _.copy(
+              moveReviewExplanation = Some(result.explanation),
+              factFragments = result.explanation.factFragments,
+              localFact = Some(result.localFact)
+            )
+          )
+        }
+      }
+      .flatten
+
+  private def localFactOwnerCanRenderCheckedLine(ownerKind: PlannerOwnerKind): Boolean =
+    ownerKind == PlannerOwnerKind.MoveDelta ||
+      ownerKind == PlannerOwnerKind.ConcreteTactical ||
+      ownerKind == PlannerOwnerKind.LineConsequence
+
+  private def basicMoveExplanationDirectSlots(
+      ctx: NarrativeContext,
+      result: MoveReviewExplanationBuilder.Result
+  ): Option[MoveReviewPolishSlots] =
+    val explanation = result.explanation
+    cleanSentence(explanation.prose, ctx).map { claim =>
           val support =
             explanation.shortLine.flatMap { line =>
               val preview = line.san.take(5).map(_.trim).filter(_.nonEmpty).mkString(" ")
@@ -785,7 +896,6 @@ private[commentary] object MoveReviewCompressionPolicy:
             factFragments = explanation.factFragments,
             localFact = Some(result.localFact)
           )
-        }
     }
 
   private def reviewTagValue(explanation: MoveReviewExplanation, key: String): Option[String] =
@@ -978,17 +1088,23 @@ private[commentary] object MoveReviewCompressionPolicy:
       refs: Option[MoveReviewRefs],
       ctx: NarrativeContext
   ): Option[String] =
-    refs
-      .flatMap(_.variations.find(startsWithReviewedMove(ctx, _)))
-      .flatMap { variation =>
-        val preview =
-          variation.moves
-            .take(5)
-            .flatMap(move => normalized(move.san))
-            .mkString(" ")
-            .trim
-        Option.when(preview.nonEmpty)(s"Short line: $preview.")
+    ctx.playedMove
+      .flatMap(playedUci => MoveReviewPvLine.firstCoupled(ctx.fen, playedUci, refs))
+      .flatMap(line => variationPreviewLine(line.line))
+      .orElse {
+        refs
+          .flatMap(_.variations.find(startsWithReviewedMove(ctx, _)))
+          .flatMap(variationPreviewLine)
       }
+
+  private def variationPreviewLine(variation: lila.commentary.MoveReviewVariationRef): Option[String] =
+    val preview =
+      variation.moves
+        .take(5)
+        .flatMap(move => normalized(move.san))
+        .mkString(" ")
+        .trim
+    Option.when(preview.nonEmpty)(s"Short line: $preview.")
 
   private def startsWithReviewedMove(
       ctx: NarrativeContext,

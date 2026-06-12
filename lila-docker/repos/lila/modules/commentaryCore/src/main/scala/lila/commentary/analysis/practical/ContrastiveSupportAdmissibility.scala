@@ -32,7 +32,10 @@ private[commentary] object ContrastiveSupportAdmissibility:
       contrast_consequence: Option[String] = None,
       contrast_admissible: Boolean = false,
       contrast_reject_reason: Option[String] = None,
-      contrast_sentence: Option[String] = None
+      contrast_sentence: Option[String] = None,
+      contrast_forced_reply: Boolean = false,
+      contrast_evidence_refs: List[String] = Nil,
+      contrast_guardrails: List[String] = Nil
   ):
     def effectiveSupport(existingContrast: Option[String]): Option[String] =
       if contrast_admissible then contrast_sentence.orElse(existingContrast)
@@ -140,6 +143,30 @@ private[commentary] object ContrastiveSupportAdmissibility:
     clean(threat.bestDefense)
       .map { rawDefense =>
         val defense = displayDefense(rawDefense)
+        val forcedReply = threat.defenseCount <= 1 && !coordinateOnly(rawDefense)
+        val guardrails =
+          (
+            List(
+              SourceKind.ExplicitReplyLoss,
+              if forcedReply then "forced_reply_unique" else "forced_reply_non_unique",
+              s"reply_defense_count:${threat.defenseCount.max(0)}",
+              s"reply_anchor_kind:${replyAnchorKind(rawDefense)}"
+            ) ++
+              clean(threat.kind).map(kind => s"threat_kind:${normalize(kind)}") ++
+              threat.square.map(square => s"threat_square:${square.trim.toLowerCase}")
+          ).distinct
+        val evidenceRefs =
+          (
+            List(
+              Some(s"reply_anchor:$defense"),
+              Option.when(isUciMove(rawDefense))(s"reply_uci:${rawDefense.trim.toLowerCase}"),
+              Some(s"reply_defense_count:${threat.defenseCount.max(0)}"),
+              Some(s"loss_if_ignored_cp:${threat.lossIfIgnoredCp}"),
+              Some(s"turns_to_impact:${threat.turnsToImpact}")
+            ).flatten ++
+              clean(threat.kind).map(kind => s"threat_kind:${normalize(kind)}") ++
+              threat.square.map(square => s"threat_square:${square.trim.toLowerCase}")
+          ).distinct
         val consequence =
           clean(threat.kind).map(kind => s"the opponent's ${kind.toLowerCase} threat lands")
             .getOrElse("the reply becomes forced")
@@ -149,9 +176,14 @@ private[commentary] object ContrastiveSupportAdmissibility:
           consequence = consequence,
           sentence =
             if coordinateOnly(rawDefense) then s"If delayed, the reply has to address $defense."
+            else if threat.defenseCount <= 1 && isUciMove(rawDefense) then s"If delayed, the forced reply goes to $defense."
+            else if threat.defenseCount > 1 && isUciMove(rawDefense) then s"If delayed, one defensive reply has to address $defense."
             else if threat.defenseCount > 1 then s"If delayed, $defense is one defensive reply."
             else if defense == "the defensive reply" then "If delayed, the reply becomes forced."
-            else s"If delayed, $defense is the reply."
+            else s"If delayed, $defense is the reply.",
+          forcedReply = forcedReply,
+          evidenceRefs = evidenceRefs,
+          guardrails = guardrails
         )
       }
 
@@ -163,6 +195,11 @@ private[commentary] object ContrastiveSupportAdmissibility:
 
   private def isUciMove(raw: String): Boolean =
     raw.matches("""[a-h][1-8][a-h][1-8][qrbn]?""")
+
+  private def replyAnchorKind(raw: String): String =
+    if isUciMove(raw) then "uci"
+    else if coordinateOnly(raw) then "square"
+    else "san_or_text"
 
   private def preventedResourceContrast(plan: PreventedPlanInfo): Option[ContrastSupportTrace] =
     clean(plan.citationLine)
@@ -270,7 +307,9 @@ private[commentary] object ContrastiveSupportAdmissibility:
               sourceKind = SourceKind.RoleAwareLineConsequence,
               anchor = move,
               consequence = value,
-              sentence = renderRoleAwareLineConsequenceSentence(value, allowTiming)
+              sentence = renderRoleAwareLineConsequenceSentence(value, allowTiming),
+              evidenceRefs = roleAwareComparisonEvidenceRefs(comparison),
+              guardrails = roleAwareComparisonGuardrails(comparison)
             )
           case (Some(move), Some(value))
               if comparison.chosenMatchesBest && counterfactualCausalThreatConsequence(inputs).exists(sameText(_, value)) =>
@@ -355,6 +394,32 @@ private[commentary] object ContrastiveSupportAdmissibility:
     exactComparativeConsequence(comparison)
       .orElse(roleAwareComparativeConsequence(comparison))
       .flatMap(_ => clean(comparison.engineBestMove).orElse(clean(comparison.chosenMove)))
+
+  private def roleAwareComparisonEvidenceRefs(comparison: DecisionComparison): List[String] =
+    (
+      List(
+        s"comparison_source:${SourceKind.RoleAwareLineConsequence}",
+        "branch_role:engine_best",
+        "branch_role:played"
+      ) ++
+        clean(comparison.engineBestMove).map(move => s"engine_best_move:$move") ++
+        clean(comparison.chosenMove).map(move => s"played_move:$move") ++
+        clean(comparison.comparedMove).map(move => s"compared_move:$move") ++
+        comparison.cpLossVsChosen.map(loss => s"cp_loss:${math.abs(loss)}") ++
+        comparison.roleAwareBranchEvidence.toList.flatMap(_.evidenceRefs)
+    ).map(_.trim).filter(_.nonEmpty).distinct
+
+  private def roleAwareComparisonGuardrails(comparison: DecisionComparison): List[String] =
+    (
+      List(
+        SourceKind.RoleAwareLineConsequence,
+        "alternative_role:engine_best_branch",
+        "alternative_role:played_branch",
+        "checked_branch_comparison"
+      ) ++
+        Option.when(comparison.cpLossVsChosen.exists(math.abs(_) > 0))("comparison_has_cp_gap") ++
+        comparison.roleAwareBranchEvidence.toList.flatMap(_.guardrails)
+    ).distinct
 
   private def fallbackPlannerConsequence(
       primary: QuestionPlan,
@@ -510,14 +575,20 @@ private[commentary] object ContrastiveSupportAdmissibility:
       sourceKind: String,
       anchor: String,
       consequence: String,
-      sentence: String
+      sentence: String,
+      forcedReply: Boolean = false,
+      evidenceRefs: List[String] = Nil,
+      guardrails: List[String] = Nil
   ): ContrastSupportTrace =
     ContrastSupportTrace(
       contrast_source_kind = clean(anchor).flatMap(_ => Some(sourceKind)),
       contrast_anchor = clean(anchor),
       contrast_consequence = clean(consequence),
       contrast_admissible = true,
-      contrast_sentence = clean(sentence).map(ensureSentence)
+      contrast_sentence = clean(sentence).map(ensureSentence),
+      contrast_forced_reply = forcedReply,
+      contrast_evidence_refs = evidenceRefs.map(_.trim).filter(_.nonEmpty).distinct,
+      contrast_guardrails = guardrails.map(_.trim).filter(_.nonEmpty).distinct
     )
 
   private def reject(reason: String): ContrastSupportTrace =

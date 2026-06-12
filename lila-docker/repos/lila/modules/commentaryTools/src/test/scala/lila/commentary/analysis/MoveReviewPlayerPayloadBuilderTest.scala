@@ -505,6 +505,35 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assert(!surface.secondaryText.exists(_.contains("line_consequence:")), clue(surface))
   }
 
+  test("role-aware player decision strip uses admitted alternative-comparison local fact") {
+    val comparison = roleAwareDecisionComparison()
+    val surface =
+      MoveReviewPlayerPayloadBuilder
+        .roleAwareDecisionComparisonSurface(Some(comparison), Some(roleAwareAlternativeLocalFact))
+        .getOrElse(fail("missing role-aware player decision strip"))
+
+    assertEquals(surface.kicker, "Decision point")
+    assertEquals(surface.gapLabel, Some("96cp"))
+    assertEquals(surface.chosenSan, Some("gxf5"))
+    assertEquals(surface.engineSan, Some("exf5"))
+    assertEquals(surface.comparedSan, Some("gxf5"))
+    assert(surface.secondaryText.exists(_.contains("engine-best branch")), clue(surface))
+    assertEquals(surface.refSans, List("exf5", "Rfd8", "Ne4", "Bd5", "gxf5", "a4", "h4", "Bh5"))
+  }
+
+  test("role-aware player decision strip requires CausalFrame local-fact admission") {
+    val comparison = roleAwareDecisionComparison()
+
+    assertEquals(MoveReviewPlayerPayloadBuilder.roleAwareDecisionComparisonSurface(Some(comparison), None), None)
+    assertEquals(
+      MoveReviewPlayerPayloadBuilder.roleAwareDecisionComparisonSurface(
+        Some(comparison),
+        Some(roleAwareAlternativeLocalFact.copy(authority = MoveReviewLocalFact.Authority.PvCoupledLine))
+      ),
+      None
+    )
+  }
+
   test("probe rows come from the certified ledger only") {
     val surface =
       build(
@@ -888,7 +917,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     )
   }
 
-  test("pv-coupled evaluated plans create practical plan rows but not main plans") {
+  test("pv-coupled evaluated plans do not create practical plan rows without local fact authority") {
     val refs =
       MoveReviewRefs(
         startFen = InitialFen,
@@ -923,13 +952,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       )
 
     assert(!surface.summaryRows.exists(_.label == "Main plans"), clue(surface.summaryRows))
-    val practicalRows = surface.summaryRows.filter(_.label == "Practical plan")
-    assertEquals(practicalRows.size, 1)
-    assertEquals(
-      practicalRows.head.text,
-      "The checked line keeps central pressure viable as a practical plan."
-    )
-    assertEquals(practicalRows.head.refSans, List("e4", "e5", "Nf3"))
+    assert(!surface.summaryRows.exists(_.label == "Practical plan"), clue(surface.summaryRows))
   }
 
   test("structural-only evaluated plans create practical advanced detail rows") {
@@ -1408,7 +1431,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assertEquals(surface.advancedRows(1).authority.flatMap(_.target), None)
   }
 
-  test("pv-coupled evaluated plans create practical advanced detail rows") {
+  test("pv-coupled evaluated plans do not create practical advanced detail rows without local fact authority") {
     val surface =
       build(
         evaluatedPlans =
@@ -1424,9 +1447,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
           )
       )
 
-    assertEquals(surface.advancedRows.map(_.label), List("Practical objective", "Practical steps"))
-    assert(surface.advancedRows.exists(row => row.text == "The e-file remains tense"))
-    assert(surface.advancedRows.exists(row => row.text == "Keep the knight centralized"))
+    assert(!surface.advancedRows.exists(_.label.startsWith("Practical")), clue(surface.advancedRows))
   }
 
   test("weakness practical plans include dynamic board target detail") {
@@ -11052,4 +11073,61 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       whyItMatters = Some("The decision is about which structure remains."),
       release = LineConsequenceRelease.SurfaceCandidate,
       rejectReasons = Nil
+    )
+
+  private def roleAwareDecisionComparison(): DecisionComparison =
+    DecisionComparison(
+      chosenMove = Some("gxf5"),
+      engineBestMove = Some("exf5"),
+      engineBestScoreCp = Some(-44),
+      engineBestPv = List("exf5", "Rfd8", "Ne4", "Bd5"),
+      cpLossVsChosen = Some(96),
+      deferredMove = Some("exf5"),
+      deferredReason = Some("role-aware line consequence"),
+      deferredSource = Some("verified_best"),
+      evidence = Some("exf5 reaches a material transition; gxf5 stays on the played branch."),
+      practicalAlternative = false,
+      chosenMatchesBest = false,
+      comparedMove = Some("gxf5"),
+      comparativeConsequence =
+        Some(
+          "exf5 reaches a material transition on the engine-best branch; gxf5 reaches a different material transition on the played branch."
+        ),
+      comparativeSource = Some(DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource),
+      roleAwareBranchEvidence =
+        Some(
+          RoleAwareLineConsequenceEvidence(
+            engineBest =
+              surfaceLineEvidence().copy(
+                lineId = Some("best"),
+                sanMoves = List("exf5", "Rfd8", "Ne4", "Bd5"),
+                uciMoves = List("e4f5", "f8d8", "d2e4", "f7d5"),
+                scoreCp = Some(-44),
+                triggerSan = Some("exf5"),
+                kind = LineConsequenceKind.MaterialTransition,
+                consequence = "The engine-best branch reaches a material transition after exf5.",
+                whyItMatters = Some("The engine-best branch keeps the cleaner material transition.")
+              ),
+            played =
+              surfaceLineEvidence().copy(
+                lineId = Some("played"),
+                sanMoves = List("gxf5", "a4", "h4", "Bh5"),
+                uciMoves = List("g4f5", "a5a4", "h3h4", "f7h5"),
+                scoreCp = Some(-140),
+                triggerSan = Some("gxf5"),
+                kind = LineConsequenceKind.MaterialTransition,
+                consequence = "The played branch reaches a different material transition after gxf5.",
+                whyItMatters = Some("The played branch is the checked alternative branch.")
+              )
+          )
+        )
+    )
+
+  private def roleAwareAlternativeLocalFact: MoveReviewLocalFact.Admission =
+    MoveReviewLocalFact.Admission(
+      family = MoveReviewLocalFact.Family.LineConsequence,
+      authority = MoveReviewLocalFact.Authority.AlternativeComparison,
+      producer = MoveReviewLocalFact.Producer.AlternativeComparison,
+      strictFallbackEligible = true,
+      lineBinding = MoveReviewLocalFact.LineBinding.PvCoupled
     )

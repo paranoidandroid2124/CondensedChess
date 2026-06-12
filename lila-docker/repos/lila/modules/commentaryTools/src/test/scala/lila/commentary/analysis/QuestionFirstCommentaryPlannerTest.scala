@@ -2,10 +2,12 @@ package lila.commentary.analysis
 
 import chess.{ Color, Knight, Queen, Rook, Square }
 import munit.FunSuite
+import lila.commentary.MoveReviewExplanation
 import lila.commentary.model.*
 import lila.commentary.model.authoring.*
 import lila.commentary.model.strategic.{ CounterfactualMatch, EngineEvidence, PvMove, VariationLine }
 import lila.commentary.analysis.claim.PlayerFacingClaimPrefixKind
+import lila.commentary.analysis.semantic.RelationSurfaceRowKind
 
 class QuestionFirstCommentaryPlannerTest extends FunSuite:
 
@@ -280,7 +282,8 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
       candidateEvidenceLines: List[String] = Nil,
       pvCoupledPlanSupport: Option[PvCoupledPlanSupport] = None,
       lineConsequence: Option[LineConsequenceEvidence] = None,
-      counterfactual: Option[CounterfactualMatch] = None
+      counterfactual: Option[CounterfactualMatch] = None,
+      localFactResult: Option[MoveReviewExplanationBuilder.Result] = None
   ): QuestionPlannerInputs =
     QuestionPlannerInputs(
       mainBundle = mainBundle,
@@ -303,7 +306,8 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
       openingRelationClaim = openingRelationClaim,
       endgameTransitionClaim = endgameTransitionClaim,
       pvCoupledPlanSupport = pvCoupledPlanSupport,
-      lineConsequence = lineConsequence
+      lineConsequence = lineConsequence,
+      localFactResult = localFactResult
     )
 
   private def evidenceBackedPlan(name: String = "Kingside pressure"): PlanHypothesis =
@@ -490,25 +494,222 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     )
   }
 
-  test("single-line fallback evidence strips existing line labels before adding a branch label") {
-    val q = question("q_line_label", AuthorQuestionKind.WhyThis)
+  test("line-geometry relation local fact does not classify the scene as tactical") {
+    val q = question("q_line_geometry", AuthorQuestionKind.WhyThis)
+    val ctx = baseCtx(List(q))
+    val localFact =
+      MoveReviewLocalFact.admitted(
+        MoveReviewLocalFact.Candidate(
+          family = MoveReviewLocalFact.Family.Pressure,
+          source = MoveReviewLocalFact.Source.PvCoupledLine,
+          producer = MoveReviewLocalFact.Producer.RelationWitness,
+          subject = MoveReviewLocalFact.Subject.Target,
+          strictFallbackCandidate = true,
+          anchors = List(MoveReviewLocalFact.Anchor("relation_target", "g6")),
+          lineBinding = MoveReviewLocalFact.LineBinding.PvCoupled,
+          evidenceRefs = List("relation_kind:xray", "relation_fact:xray_relation_witness"),
+          guardrails = List(
+            "relation_witness_typed_details",
+            "fen_validated_line_replayed",
+            "played_move_first",
+            "relation_kind:xray"
+          ),
+          relationSurface = Some(RelationSurfaceRowKind.LineGeometry)
+        )
+      )
+    val relationResult =
+      MoveReviewExplanationBuilder.Result(
+        explanation =
+          MoveReviewExplanation(
+            title = "Be4 has checked line geometry",
+            prose = "Be4 is tied to a checked x-ray relation in the PV.",
+            source = "relation_witness"
+          ),
+        localFact = localFact
+      )
     val plans =
       QuestionFirstCommentaryPlanner.plan(
-        baseCtx(List(q)),
-        inputs(
-          mainBundle =
-            Some(
-              MainPathClaimBundle(
-                Some(mainClaim("This keeps the forcing line under control.")),
-                Some(lineClaim("Line: a) dxe5 Qxd8+ Kxd8"))
-              )
-            )
-        ),
+        ctx,
+        inputs(localFactResult = Some(relationResult)),
         None
       )
 
-    val plan = plans.primary.getOrElse(fail("missing primary"))
-    assertEquals(plan.evidence.map(_.text), Some("a) dxe5 Qxd8+ Kxd8"))
+    val primary = plans.primary.getOrElse(fail("missing line-geometry local fact plan"))
+    assertEquals(plans.ownerTrace.sceneType, SceneType.QuietImprovement)
+    assertEquals(primary.questionKind, AuthorQuestionKind.WhyThis)
+    assertEquals(primary.plannerOwnerKind, PlannerOwnerKind.MoveDelta)
+    assertEquals(primary.plannerSource, "relation_witness")
+    assertEquals(
+      MoveReviewCausalClaim.localFactResultTypedEvidences(Some(relationResult)).flatMap(_.relationSurface).headOption,
+      Some(RelationSurfaceRowKind.LineGeometry)
+    )
+    assert(!plans.ownerTrace.ownerCandidateLabels.exists(_.contains("ConcreteTactical")), clues(plans.ownerTrace))
+  }
+
+  test("relation surface guardrail string is not planner authority") {
+    val q = question("q_relation_guardrail_not_authority", AuthorQuestionKind.WhyThis)
+    val ctx = baseCtx(List(q))
+    val localFact =
+      MoveReviewLocalFact.admitted(
+        MoveReviewLocalFact.Candidate(
+          family = MoveReviewLocalFact.Family.Pressure,
+          source = MoveReviewLocalFact.Source.PvCoupledLine,
+          producer = MoveReviewLocalFact.Producer.RelationWitness,
+          subject = MoveReviewLocalFact.Subject.Target,
+          strictFallbackCandidate = true,
+          lineBinding = MoveReviewLocalFact.LineBinding.PvCoupled,
+          evidenceRefs = List("relation_kind:xray", "relation_fact:xray_relation_witness"),
+          guardrails = List(
+            "relation_witness_typed_details",
+            "relation_kind:xray",
+            "relation_surface:tactical_relation"
+          )
+        )
+      )
+    val relationResult =
+      MoveReviewExplanationBuilder.Result(
+        explanation =
+          MoveReviewExplanation(
+            title = "Be4 has checked line geometry",
+            prose = "Be4 is tied to a checked x-ray relation in the PV.",
+            source = "relation_witness"
+          ),
+        localFact = localFact
+      )
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        ctx,
+        inputs(localFactResult = Some(relationResult)),
+        None
+      )
+
+    val primary = plans.primary.getOrElse(fail("missing relation local fact plan"))
+    assertEquals(primary.plannerOwnerKind, PlannerOwnerKind.MoveDelta)
+    assertEquals(
+      MoveReviewCausalClaim.localFactResultTypedEvidences(Some(relationResult)).flatMap(_.relationSurface).headOption,
+      None
+    )
+    assert(!plans.ownerTrace.ownerCandidateLabels.exists(_.contains("ConcreteTactical")), clues(plans.ownerTrace))
+  }
+
+  test("typed tactical relation surface can own tactical planning without guardrail string") {
+    val q = question("q_relation_typed_surface", AuthorQuestionKind.WhyThis)
+    val ctx = baseCtx(List(q))
+    val localFact =
+      MoveReviewLocalFact.admitted(
+        MoveReviewLocalFact.Candidate(
+          family = MoveReviewLocalFact.Family.Pressure,
+          source = MoveReviewLocalFact.Source.PvCoupledLine,
+          producer = MoveReviewLocalFact.Producer.RelationWitness,
+          subject = MoveReviewLocalFact.Subject.Target,
+          strictFallbackCandidate = true,
+          anchors = List(MoveReviewLocalFact.Anchor("relation_target", "g6")),
+          lineBinding = MoveReviewLocalFact.LineBinding.PvCoupled,
+          evidenceRefs = List("relation_kind:overload", "relation_fact:overload_relation_witness"),
+          guardrails = List(
+            "relation_witness_typed_details",
+            "fen_validated_line_replayed",
+            "played_move_first",
+            "relation_kind:overload"
+          ),
+          relationSurface = Some(RelationSurfaceRowKind.TacticalRelation)
+        )
+      )
+    val relationResult =
+      MoveReviewExplanationBuilder.Result(
+        explanation =
+          MoveReviewExplanation(
+            title = "Be4 has checked overload pressure",
+            prose = "Be4 is tied to a checked overload relation in the PV.",
+            source = "relation_witness"
+          ),
+        localFact = localFact
+      )
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        ctx,
+        inputs(localFactResult = Some(relationResult)),
+        None
+      )
+
+    val primary = plans.primary.getOrElse(fail("missing typed relation local fact plan"))
+    assertEquals(primary.plannerOwnerKind, PlannerOwnerKind.ConcreteTactical)
+    assertEquals(
+      MoveReviewCausalClaim.localFactResultTypedEvidences(Some(relationResult)).flatMap(_.relationSurface).headOption,
+      Some(RelationSurfaceRowKind.TacticalRelation)
+    )
+  }
+
+  test("typed move-order relation surface can own WhyNow timing without decision comparison") {
+    val q = question("q_relation_move_order_timing", AuthorQuestionKind.WhyNow)
+    val ctx = baseCtx(List(q))
+    val localFact =
+      MoveReviewLocalFact.admitted(
+        MoveReviewLocalFact.Candidate(
+          family = MoveReviewLocalFact.Family.Timing,
+          source = MoveReviewLocalFact.Source.PvCoupledLine,
+          producer = MoveReviewLocalFact.Producer.RelationWitness,
+          subject = MoveReviewLocalFact.Subject.Target,
+          strictFallbackCandidate = true,
+          anchors = List(MoveReviewLocalFact.Anchor("relation_target", "d4")),
+          lineBinding = MoveReviewLocalFact.LineBinding.PvCoupled,
+          evidenceRefs = List("relation_kind:zwischenzug", "relation_fact:zwischenzug_relation_witness"),
+          guardrails = List(
+            "relation_witness_typed_details",
+            "fen_validated_line_replayed",
+            "played_move_first",
+            "relation_kind:zwischenzug"
+          ),
+          relationSurface = Some(RelationSurfaceRowKind.MoveOrder)
+        )
+      )
+    val relationResult =
+      MoveReviewExplanationBuilder.Result(
+        explanation =
+          MoveReviewExplanation(
+            title = "Qa4+ has checked move order",
+            prose = "Qa4+ is tied to a checked zwischenzug relation in the PV.",
+            source = "relation_witness"
+          ),
+        localFact = localFact
+      )
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        ctx,
+        inputs(localFactResult = Some(relationResult)),
+        None
+      )
+
+    val primary = plans.primary.getOrElse(fail("missing move-order timing plan"))
+    assertEquals(primary.questionKind, AuthorQuestionKind.WhyNow)
+    assertEquals(primary.plannerOwnerKind, PlannerOwnerKind.DecisionTiming)
+    assertEquals(primary.plannerSource, "relation_witness")
+    assert(primary.sourceKinds.contains("relation_witness"), clues(primary))
+    assert(primary.claim.contains("zwischenzug"), clue(primary.claim))
+    assert(plans.ownerTrace.ownerCandidateLabels.exists(_.contains("timing_source=relation_witness")), clues(plans.ownerTrace))
+  }
+
+  test("single-line fallback evidence strips existing line labels before adding a branch label") {
+    def evidenceText(rawLine: String): Option[String] =
+      val q = question("q_line_label", AuthorQuestionKind.WhyThis)
+      val plans =
+        QuestionFirstCommentaryPlanner.plan(
+          baseCtx(List(q)),
+          inputs(
+            mainBundle =
+              Some(
+                MainPathClaimBundle(
+                  Some(mainClaim("This keeps the forcing line under control.")),
+                  Some(lineClaim(rawLine))
+                )
+              )
+          ),
+          None
+        )
+      plans.primary.flatMap(_.evidence.map(_.text))
+
+    assertEquals(evidenceText("Line: a) dxe5 Qxd8+ Kxd8"), Some("a) dxe5 Qxd8+ Kxd8"))
+    assertEquals(evidenceText("Short line: dxe5 Qxd8+ Kxd8"), Some("a) dxe5 Qxd8+ Kxd8"))
   }
 
   test("single-line fallback evidence does not promote probe reminders as concrete lines") {
@@ -614,6 +815,12 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
           label.contains("source_kind=decision_comparison") &&
           label.contains("mapping=AlternativeComparison/role_aware_line_consequence") &&
           label.contains("admission_decision=PrimaryAllowed")
+      ),
+      clues(plans.ownerTrace.ownerCandidateLabels)
+    )
+    assert(
+      !plans.ownerTrace.ownerCandidateLabels.exists(label =>
+        label.contains("DecisionTiming") && label.contains(DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource)
       ),
       clues(plans.ownerTrace.ownerCandidateLabels)
     )
@@ -2421,7 +2628,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     )
   }
 
-  test("WhatChanged admits pv-coupled plan support when the checked line starts with the reviewed move") {
+  test("WhatChanged admits pv-coupled plan support when the checked line starts with the reviewed move and continues") {
     val q = question("q_changed_pv_plan_support", AuthorQuestionKind.WhatChanged)
     val ctx =
       baseCtx(List(q)).copy(
@@ -2439,7 +2646,10 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
               PvCoupledPlanSupport(
                 planName = "Improving piece placement",
                 playedSan = "Rc8",
-                evidenceLine = "Rc8 c3 h5"
+                evidenceLine = "Rc8 c3 h5",
+                planAnchorLine = Some("Further probe work still targets Improving piece placement through c3."),
+                anchorTokens = List("c3"),
+                matchedAnchorTokens = List("c3")
               )
             )
         ),
@@ -2480,7 +2690,10 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
               PvCoupledPlanSupport(
                 planName = "Opening Development and Center Control",
                 playedSan = "Rb8",
-                evidenceLine = "Rb8 e3 Bd6"
+                evidenceLine = "Rb8 e3 Bd6",
+                planAnchorLine = Some("Further probe work still targets Opening Development and Center Control through Bd6."),
+                anchorTokens = List("Bd6"),
+                matchedAnchorTokens = List("Bd6")
               )
             )
         ),

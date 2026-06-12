@@ -4,6 +4,7 @@ import lila.commentary.analysis.*
 import lila.commentary.analysis.semantic.StrategicObservationIds.{ ProofFamilyId, ProofSourceId }
 import lila.commentary.model.*
 import lila.commentary.model.authoring.AuthorQuestionKind
+import lila.commentary.model.strategic.{ EngineEvidence, VariationLine }
 import munit.FunSuite
 
 final class ClaimAuthorityResolverTest extends FunSuite:
@@ -80,9 +81,87 @@ final class ClaimAuthorityResolverTest extends FunSuite:
     assert(decision.failureCodes.contains("witness:exact_slice_missing"), clue(decision))
   }
 
+  test("promoted local facts prefer exact proof family over coarse move-delta class") {
+    val source = ProofSourceId.LocalFileEntryBind.wireKey
+    val claim =
+      MainPathScopedClaim(
+        scope = PlayerFacingClaimScope.MoveLocal,
+        mode = PlayerFacingTruthMode.Strategic,
+        deltaClass = Some(PlayerFacingMoveDeltaClass.NewAccess),
+        claimText = "The file-entry bind keeps c6 under pressure.",
+        anchorTerms = List("c-file", "c6"),
+        evidenceLines = List("the local file-entry branch holds c6"),
+        sourceKind = source,
+        tacticalOwnership = None,
+        packet = Some(localFilePacket)
+      )
+    val admissions =
+      ClaimAuthorityResolver.promotedLocalFactAdmissions(
+        ctx = Some(baseContext),
+        inputs = inputs(claim),
+        truthContract = Some(neutralTruthContract),
+        plan = plan(plannerSource = source, claim = claim.claimText)
+      )
+
+    assertEquals(admissions.map(_.family), List(MoveReviewLocalFact.Family.Pressure), clue(admissions))
+    assertEquals(admissions.map(_.source), List(MoveReviewLocalFact.Source.PvCoupledLine), clue(admissions))
+    assertEquals(
+      admissions.map(_.localFactCandidate.producer),
+      List(MoveReviewLocalFact.Producer.CertifiedStrategyDelta),
+      clue(admissions)
+    )
+  }
+
+  test("promoted local facts carry central-break timing packets through existing admission") {
+    val ctx = centralBreakContext
+    val witness =
+      CentralBreakTimingWitness
+        .exact(ctx)
+        .getOrElse(fail(s"missing central-break witness: ${CentralBreakTimingWitness.diagnose(ctx)}"))
+    val source = CentralBreakTimingWitness.ProofSource
+    val packet = centralBreakPacket(witness)
+    val claim =
+      MainPathScopedClaim(
+        scope = PlayerFacingClaimScope.MoveLocal,
+        mode = PlayerFacingTruthMode.Strategic,
+        deltaClass = Some(PlayerFacingMoveDeltaClass.PlanAdvance),
+        claimText = s"${witness.breakToken} is the checked central break timing point.",
+        anchorTerms = witness.ownerSeedTerms,
+        evidenceLines = witness.structureTransitionTerms,
+        sourceKind = source,
+        tacticalOwnership = None,
+        packet = Some(packet)
+      )
+    val timingPlan =
+      plan(plannerSource = source, claim = claim.claimText).copy(
+        plannerOwnerKind = PlannerOwnerKind.DecisionTiming,
+        sourceKinds = List(source)
+      )
+    val admissions =
+      ClaimAuthorityResolver.promotedLocalFactAdmissions(
+        ctx = Some(ctx),
+        inputs = inputs(claim),
+        truthContract = Some(neutralTruthContract.copy(playedMove = Some(witness.breakMove), verifiedBestMove = Some(witness.breakMove))),
+        plan = timingPlan
+      )
+
+    assertEquals(admissions.map(_.family), List(MoveReviewLocalFact.Family.Timing), clue(admissions))
+    assertEquals(admissions.map(_.source), List(MoveReviewLocalFact.Source.PvCoupledLine), clue(admissions))
+    assertEquals(
+      admissions.map(_.localFactCandidate.producer),
+      List(MoveReviewLocalFact.Producer.ClaimAuthorityPromotion),
+      clue(admissions)
+    )
+    assert(admissions.exists(_.evidenceRefs.contains(s"proof_source:${CentralBreakTimingWitness.ProofSource}")), clue(admissions))
+    assert(admissions.exists(_.guardrails.contains("promoted_family:timing")), clue(admissions))
+  }
+
   private def inputs(sourceKind: String, claimText: String): QuestionPlannerInputs =
+    inputs(mainClaim(sourceKind, claimText))
+
+  private def inputs(claim: MainPathScopedClaim): QuestionPlannerInputs =
     QuestionPlannerInputs(
-      mainBundle = Some(MainPathClaimBundle(Some(mainClaim(sourceKind, claimText)), None)),
+      mainBundle = Some(MainPathClaimBundle(Some(claim), None)),
       quietIntent = None,
       decisionFrame = CertifiedDecisionFrame(),
       decisionComparison = None,
@@ -140,6 +219,89 @@ final class ClaimAuthorityResolverTest extends FunSuite:
           structureTransitionTerms =
             List("defender_trade_branch", "defender:c5", "exchange_square:d4", "defended_target:e5"),
           exactSliceProof = Option.when(exactProof)(PlayerFacingExactSliceProof.DefenderTrade("c5", "d4", "e5"))
+        ),
+      fallbackMode = PlayerFacingClaimFallbackMode.WeakMain
+    )
+
+  private def localFilePacket: PlayerFacingClaimPacket =
+    PlayerFacingClaimPacket(
+      claimGate =
+        PlanEvidenceEvaluator.ClaimCertification(
+          certificateStatus = PlayerFacingCertificateStatus.Valid,
+          quantifier = PlayerFacingClaimQuantifier.BestResponse,
+          attributionGrade = PlayerFacingClaimAttributionGrade.AnchoredButShared,
+          stabilityGrade = PlayerFacingClaimStabilityGrade.Stable,
+          provenanceClass = PlayerFacingClaimProvenanceClass.ProbeBacked
+        ),
+      proofSource = ProofSourceId.LocalFileEntryBind.wireKey,
+      proofFamily = ProofFamilyId.HalfOpenFilePressure.wireKey,
+      scope = PlayerFacingPacketScope.MoveLocal,
+      triggerKind = "file_entry_denial",
+      anchorTerms = List("c-file", "c6"),
+      bestDefenseMove = Some("c7c6"),
+      bestDefenseBranchKey = Some("d4c6|c7c6"),
+      sameBranchState = PlayerFacingSameBranchState.Proven,
+      persistence = PlayerFacingClaimPersistence.Stable,
+      proofPathWitness =
+        PlayerFacingProofPathWitness(
+          ownerSeedTerms = List("c-file", "c6"),
+          continuationTerms = List("local_file_entry_bind", "c-file", "c6", "d4c6", "c7c6"),
+          structureTransitionTerms = List("file-entry:c-file:c6"),
+          exactSliceProof = Some(PlayerFacingExactSliceProof.LocalFileEntryBind("c-file", "c6"))
+        ),
+      fallbackMode = PlayerFacingClaimFallbackMode.WeakMain
+    )
+
+  private def centralBreakContext: NarrativeContext =
+    baseContext.copy(
+      fen = "rnbqk2r/pp2bppp/4pn2/2p5/2BP4/4PN2/PP3PPP/RNBQ1RK1 w kq - 0 8",
+      ply = 15,
+      playedMove = Some("d4d5"),
+      playedSan = Some("d5"),
+      engineEvidence =
+        Some(
+          EngineEvidence(
+            depth = 18,
+            variations =
+              List(
+                VariationLine(List("d4d5", "e6d5", "c4d5"), scoreCp = 72, depth = 18),
+                VariationLine(List("b1c3", "e8g8", "d4d5"), scoreCp = 28, depth = 18)
+              )
+          )
+        )
+    )
+
+  private def centralBreakPacket(witness: CentralBreakTimingWitness.Witness): PlayerFacingClaimPacket =
+    PlayerFacingClaimPacket(
+      claimGate =
+        PlanEvidenceEvaluator.ClaimCertification(
+          certificateStatus = PlayerFacingCertificateStatus.Valid,
+          quantifier = PlayerFacingClaimQuantifier.BestResponse,
+          attributionGrade = PlayerFacingClaimAttributionGrade.AnchoredButShared,
+          stabilityGrade = PlayerFacingClaimStabilityGrade.Stable,
+          provenanceClass = PlayerFacingClaimProvenanceClass.ProbeBacked
+        ),
+      proofSource = CentralBreakTimingWitness.ProofSource,
+      proofFamily = CentralBreakTimingWitness.ProofFamily,
+      scope = PlayerFacingPacketScope.MoveLocal,
+      triggerKind = PlanTaxonomy.PlanKind.CentralBreakTiming.id,
+      anchorTerms = witness.ownerSeedTerms,
+      bestDefenseMove = Some(witness.breakMove),
+      sameBranchState = PlayerFacingSameBranchState.Proven,
+      persistence = PlayerFacingClaimPersistence.Stable,
+      proofPathWitness =
+        PlayerFacingProofPathWitness(
+          ownerSeedTerms = witness.ownerSeedTerms,
+          continuationTerms = witness.structureTransitionTerms,
+          structureTransitionTerms = witness.structureTransitionTerms,
+          exactSliceProof =
+            Some(
+              PlayerFacingExactSliceProof.CentralBreakTiming(
+                breakMove = witness.breakMove,
+                breakSquare = witness.breakSquare,
+                breakToken = witness.breakToken
+              )
+            )
         ),
       fallbackMode = PlayerFacingClaimFallbackMode.WeakMain
     )

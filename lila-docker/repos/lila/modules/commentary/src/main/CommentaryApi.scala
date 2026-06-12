@@ -2323,7 +2323,12 @@ final class CommentaryApi(
                 truthContract = Some(truthContract)
               )
             val decisionComparisonSurface =
-              MoveReviewPlayerPayloadBuilder.decisionComparisonSurface(ctx, refs)
+              MoveReviewPlayerPayloadBuilder.decisionComparisonSurface(
+                inputs = moveReviewRuntime.inputs,
+                localFact = moveReviewSlots.localFact,
+                ctx = ctx,
+                refs = refs
+              )
             val playerSurfaceEvaluatedPlans =
               if ctx.strategicPlanEvidence.evaluatedPlans.nonEmpty then ctx.strategicPlanEvidence.evaluatedPlans
               else contextBuild.selectedMainEvaluatedPlans

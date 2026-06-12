@@ -36,13 +36,15 @@ private[analysis] object DecisionComparisonComparativeSupport:
           existing.copy(
             comparedMove = None,
             comparativeConsequence = None,
-            comparativeSource = None
+            comparativeSource = None,
+            roleAwareBranchEvidence = None
           )
         ) { lane =>
           existing.copy(
             comparedMove = Some(lane.comparedMove),
             comparativeConsequence = Some(lane.consequence),
-            comparativeSource = Some(lane.source)
+            comparativeSource = Some(lane.source),
+            roleAwareBranchEvidence = lane.roleAwareBranchEvidence
           )
         }
     }
@@ -52,10 +54,12 @@ private[analysis] object DecisionComparisonComparativeSupport:
     normalized == ExactTargetFixationSource || normalized == RoleAwareLineConsequenceSource
 
   def roleAwareLineConsequenceText(text: String): Boolean =
-    val normalized = Option(text).getOrElse("").trim.toLowerCase
+    val raw = Option(text).getOrElse("").trim
+    val normalized = raw.toLowerCase
     normalized.contains("engine-best branch") &&
       normalized.contains("played branch") &&
       normalized.contains(" reaches ") &&
+      LineScopedCitation.hasConcreteSanLine(raw) &&
       (
         normalized.contains("exchange sequence") ||
           normalized.contains("forcing check sequence") ||
@@ -81,7 +85,8 @@ private[analysis] object DecisionComparisonComparativeSupport:
   private final case class ComparativeLane(
       comparedMove: String,
       consequence: String,
-      source: String
+      source: String,
+      roleAwareBranchEvidence: Option[RoleAwareLineConsequenceEvidence] = None
   )
 
   private def exactTargetFixationLane(
@@ -124,7 +129,14 @@ private[analysis] object DecisionComparisonComparativeSupport:
         yield ComparativeLane(
           comparedMove = playedMove,
           consequence = consequence,
-          source = RoleAwareLineConsequenceSource
+          source = RoleAwareLineConsequenceSource,
+          roleAwareBranchEvidence =
+            Some(
+              RoleAwareLineConsequenceEvidence(
+                engineBest = bestEvidence,
+                played = playedEvidence
+              )
+            )
         )
       }
 

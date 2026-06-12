@@ -225,11 +225,13 @@ private[commentary] object PlayerFacingTruthModePolicy:
     val preventedNow = ctx.semantic.toList.flatMap(_.preventedPlans).filter(_.sourceScope == FactScope.Now)
     val mainPathOwnerProof = hasMainPathOwnerProof(ctx, surface)
     val centralBreakTimingWitness = centralBreakTimingReleaseWitness(ctx)
+    val localFileEntryAnchors = localFileEntryAnchorTerms(ctx)
     val anchors =
       (
         moveLinkedAnchorTerms(surface, truthContract) ++
           boundedSimplificationLineAnchors(ctx, surface) ++
           BreakPreventionWitness.anchorTerms(ctx, surface, preventedNow) ++
+          localFileEntryAnchors ++
           centralBreakTimingWitness.toList.flatMap(_.ownerSeedTerms) ++
           exactIqpInducementAnchorTerms(ctx) ++
           exactPressureIncreaseAnchorTerms(ctx, surface) ++
@@ -242,7 +244,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
     if anchors.isEmpty ||
         (surfaceLooksShellOnly(surface) && !mainPathOwnerProof) ||
         minorityAttackFixationPacketBlocked(ctx, surface) ||
-        (!hasConcreteStrategicEvidence(ctx, surface, truthContract) && centralBreakTimingWitness.isEmpty)
+        (!hasConcreteStrategicEvidence(ctx, surface, truthContract) && centralBreakTimingWitness.isEmpty && localFileEntryAnchors.isEmpty)
     then Nil
     else
       val squareAnchors = extractSquareAnchors(anchors)
@@ -515,6 +517,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
       badPieceLiquidationWitness(ctx).nonEmpty ||
       exactCentralBreakTimingProof ||
       BreakPreventionWitness.exact(ctx, surface, preventedNow).nonEmpty ||
+      LocalFileEntryProof.certifiedSurfacePair(ctx).nonEmpty ||
       exactCounterplayRestraintOwnerProof(ctx, preventedNow)
 
   private def hasConcreteMoveLinkedAnchor(
@@ -526,6 +529,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
     hasMoveLinkedStrategicAnchor(surface) ||
       boundedSimplificationLineAnchors(ctx, surface).nonEmpty ||
       BreakPreventionWitness.anchorTerms(ctx, surface, preventedNow).nonEmpty ||
+      localFileEntryAnchorTerms(ctx).nonEmpty ||
       exactCentralBreakTimingProof ||
       exactIqpInducementAnchorTerms(ctx).nonEmpty ||
       exactPressureIncreaseAnchorTerms(ctx, surface).nonEmpty ||
@@ -571,6 +575,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
       badPieceLiquidationWitness(ctx).nonEmpty ||
       centralBreakTimingReleaseWitness(ctx).nonEmpty ||
       BreakPreventionWitness.exact(ctx, surface, preventedNow).nonEmpty ||
+      LocalFileEntryProof.certifiedSurfacePair(ctx).nonEmpty ||
       exactCounterplayRestraintOwnerProof(ctx, preventedNow)
 
   private def strategicDeltaEvidence(
@@ -581,11 +586,12 @@ private[commentary] object PlayerFacingTruthModePolicy:
     val preventedNow = currentPreventedPlans(ctx)
     val mainPathOwnerProof = hasMainPathOwnerProof(ctx, surface)
     val centralBreakTimingWitness = centralBreakTimingReleaseWitness(ctx)
+    val localFileEntryAnchors = localFileEntryAnchorTerms(ctx)
     val anchors =
       strategicDeltaAnchors(ctx, surface, truthContract, preventedNow, centralBreakTimingWitness)
     if anchors.isEmpty ||
         (surfaceLooksShellOnly(surface) && !mainPathOwnerProof) ||
-        (!hasConcreteStrategicEvidence(ctx, surface, truthContract) && centralBreakTimingWitness.isEmpty)
+        (!hasConcreteStrategicEvidence(ctx, surface, truthContract) && centralBreakTimingWitness.isEmpty && localFileEntryAnchors.isEmpty)
     then None
     else
       strategicDeltaClass(ctx, surface, preventedNow, centralBreakTimingWitness)
@@ -609,6 +615,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
       moveLinkedAnchorTerms(surface, truthContract) ++
         boundedSimplificationLineAnchors(ctx, surface) ++
         BreakPreventionWitness.anchorTerms(ctx, surface, preventedNow) ++
+        localFileEntryAnchorTerms(ctx) ++
         centralBreakTimingWitness.toList.flatMap(_.ownerSeedTerms) ++
         exactIqpInducementAnchorTerms(ctx) ++
         exactPressureIncreaseAnchorTerms(ctx, surface) ++
@@ -1407,6 +1414,9 @@ private[commentary] object PlayerFacingTruthModePolicy:
       case PlayerFacingMoveDeltaClass.NewAccess
           if material.outpostOccupationSeed.nonEmpty =>
         material.outpostOccupationSeed.get
+      case PlayerFacingMoveDeltaClass.NewAccess
+          if material.localFileEntryPair.nonEmpty =>
+        localFileEntryOwnerSeed(material.localFileEntryPair.get)
       case PlayerFacingMoveDeltaClass.CounterplayReduction
           if material.localFileEntryPair.nonEmpty =>
         localFileEntryOwnerSeed(material.localFileEntryPair.get)
@@ -1491,6 +1501,11 @@ private[commentary] object PlayerFacingTruthModePolicy:
         Some(PlayerFacingExactSliceProof.LocalFileEntryBind(pair.file, pair.entrySquare))
           .filter(PlayerFacingExactSliceProofFacts.validShape)
     )
+
+  private def localFileEntryAnchorTerms(ctx: NarrativeContext): List[String] =
+    LocalFileEntryProof.certifiedSurfacePair(ctx).toList.flatMap { pair =>
+      List(pair.file, pair.entrySquare, s"file-entry:${pair.file}:${pair.entrySquare}")
+    }.distinct
 
   private def centralBreakTimingOwnerSeed(witness: CentralBreakTimingWitness.Witness): ClaimOwnerSeed =
     ClaimOwnerSeed(

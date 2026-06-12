@@ -1,6 +1,7 @@
 package lila.commentary.analysis
 
 import lila.commentary.model.authoring.AuthorQuestionKind
+import lila.commentary.analysis.semantic.RelationSurfaceRowKind
 
 private[commentary] object MoveReviewLocalFact:
 
@@ -23,7 +24,7 @@ private[commentary] object MoveReviewLocalFact:
         case Endgame         => "endgame"
 
   enum Authority:
-    case CanonicalFact, CertifiedStrategy, OpeningGoalEvidence, PvCoupledLine, OnlyMoveDefense
+    case CanonicalFact, CertifiedStrategy, OpeningGoalEvidence, PvCoupledLine, OnlyMoveDefense, ForcedReply, AlternativeComparison
 
     def key: String =
       this match
@@ -32,9 +33,11 @@ private[commentary] object MoveReviewLocalFact:
         case OpeningGoalEvidence => "opening_goal_evidence"
         case PvCoupledLine       => "pv_coupled_line"
         case OnlyMoveDefense     => "only_move_defense"
+        case ForcedReply         => "forced_reply"
+        case AlternativeComparison => "alternative_comparison"
 
   enum Source:
-    case CanonicalFact, CertifiedStrategy, OpeningGoalEvidence, PvCoupledLine, OnlyMoveDefense
+    case CanonicalFact, CertifiedStrategy, OpeningGoalEvidence, PvCoupledLine, OnlyMoveDefense, ForcedReply, AlternativeComparison
 
     def key: String =
       this match
@@ -43,6 +46,8 @@ private[commentary] object MoveReviewLocalFact:
         case OpeningGoalEvidence => "opening_goal_evidence"
         case PvCoupledLine       => "pv_coupled_line"
         case OnlyMoveDefense     => "only_move_defense"
+        case ForcedReply         => "forced_reply"
+        case AlternativeComparison => "alternative_comparison"
 
     def authority: Authority =
       this match
@@ -51,12 +56,19 @@ private[commentary] object MoveReviewLocalFact:
         case OpeningGoalEvidence => Authority.OpeningGoalEvidence
         case PvCoupledLine       => Authority.PvCoupledLine
         case OnlyMoveDefense     => Authority.OnlyMoveDefense
+        case ForcedReply         => Authority.ForcedReply
+        case AlternativeComparison => Authority.AlternativeComparison
+
+  object Source:
+    def fromAuthority(authority: Authority): Option[Source] =
+      Source.values.find(_.authority == authority)
 
   enum Producer:
     case OpeningGoal
     case CastlingSafety
     case CertifiedStrategyDelta
     case TacticalMotif
+    case ForcedLineTruth
     case TargetPressure
     case RelationWitness
     case DefensiveTruth
@@ -65,6 +77,8 @@ private[commentary] object MoveReviewLocalFact:
     case LineConsequence
     case ClaimAuthorityPromotion
     case PlannerCausalClaim
+    case ForcedReply
+    case AlternativeComparison
 
     def key: String =
       this match
@@ -72,6 +86,7 @@ private[commentary] object MoveReviewLocalFact:
         case CastlingSafety         => "castling_safety"
         case CertifiedStrategyDelta => "certified_strategy_delta"
         case TacticalMotif          => "tactical_motif"
+        case ForcedLineTruth        => "forced_line_truth"
         case TargetPressure         => "target_pressure"
         case RelationWitness        => "relation_witness"
         case DefensiveTruth         => "defensive_truth"
@@ -80,6 +95,8 @@ private[commentary] object MoveReviewLocalFact:
         case LineConsequence        => "line_consequence"
         case ClaimAuthorityPromotion => "claim_authority_promotion"
         case PlannerCausalClaim     => "planner_causal_claim"
+        case ForcedReply            => "forced_reply"
+        case AlternativeComparison  => "alternative_comparison"
 
     def supports(family: Family, source: Source): Boolean =
       allowedFamilies.contains(family) && allowedSources.contains(source)
@@ -90,8 +107,9 @@ private[commentary] object MoveReviewLocalFact:
         case CastlingSafety         => Set(Family.KingSafety)
         case CertifiedStrategyDelta => Set(Family.Defense, Family.LineConsequence, Family.PlanSupport, Family.Pressure)
         case TacticalMotif          => Set(Family.Threat)
+        case ForcedLineTruth        => Set(Family.Attack, Family.Threat, Family.Defense)
         case TargetPressure         => Set(Family.Pressure)
-        case RelationWitness        => Set(Family.Attack, Family.Threat, Family.Pressure, Family.Defense)
+        case RelationWitness        => Set(Family.Attack, Family.Threat, Family.Pressure, Family.Defense, Family.Timing)
         case DefensiveTruth         => Set(Family.Defense)
         case CaptureSequence        => Set(Family.Capture)
         case EndgameFact            => Set(Family.Endgame)
@@ -118,13 +136,16 @@ private[commentary] object MoveReviewLocalFact:
             Family.OpeningGoal,
             Family.Endgame
           )
+        case ForcedReply => Set(Family.Defense, Family.Timing)
+        case AlternativeComparison => Set(Family.LineConsequence)
 
     private def allowedSources: Set[Source] =
       this match
         case OpeningGoal            => Set(Source.OpeningGoalEvidence)
         case CastlingSafety         => Set(Source.PvCoupledLine)
-        case CertifiedStrategyDelta => Set(Source.CertifiedStrategy)
+        case CertifiedStrategyDelta => Set(Source.CertifiedStrategy, Source.PvCoupledLine)
         case TacticalMotif          => Set(Source.CanonicalFact)
+        case ForcedLineTruth        => Set(Source.PvCoupledLine)
         case TargetPressure         => Set(Source.CanonicalFact)
         case RelationWitness        => Set(Source.PvCoupledLine)
         case DefensiveTruth         => Set(Source.OnlyMoveDefense)
@@ -134,6 +155,8 @@ private[commentary] object MoveReviewLocalFact:
         case ClaimAuthorityPromotion => Set(Source.CertifiedStrategy, Source.PvCoupledLine)
         case PlannerCausalClaim =>
           Set(Source.CertifiedStrategy, Source.OpeningGoalEvidence, Source.PvCoupledLine, Source.OnlyMoveDefense)
+        case ForcedReply            => Set(Source.ForcedReply)
+        case AlternativeComparison  => Set(Source.AlternativeComparison)
 
   object Producer:
     val registry: List[Producer] =
@@ -174,7 +197,8 @@ private[commentary] object MoveReviewLocalFact:
       anchors: List[Anchor] = Nil,
       lineBinding: LineBinding = LineBinding.None,
       evidenceRefs: List[String] = Nil,
-      guardrails: List[String] = Nil
+      guardrails: List[String] = Nil,
+      relationSurface: Option[RelationSurfaceRowKind] = None
   )
 
   final case class Decision(
@@ -190,7 +214,8 @@ private[commentary] object MoveReviewLocalFact:
       guardrails: List[String] = Nil,
       anchors: List[Anchor] = Nil,
       lineBinding: LineBinding = LineBinding.None,
-      evidenceRefs: List[String] = Nil
+      evidenceRefs: List[String] = Nil,
+      relationSurface: Option[RelationSurfaceRowKind] = None
   ):
     def tags: List[String] =
       (List(
@@ -223,7 +248,8 @@ private[commentary] object MoveReviewLocalFact:
               guardrails = candidate.guardrails,
               anchors = candidate.anchors,
               lineBinding = candidate.lineBinding,
-              evidenceRefs = candidate.evidenceRefs
+              evidenceRefs = candidate.evidenceRefs,
+              relationSurface = candidate.relationSurface
             )
         )
       )
@@ -232,6 +258,22 @@ private[commentary] object MoveReviewLocalFact:
     admit(candidate).admission.getOrElse(
       throw new IllegalArgumentException(s"MoveReview local fact rejected: ${candidate.family.key}:${candidate.producer.key}")
     )
+
+  def candidateFromAdmission(admission: Admission): Option[Candidate] =
+    Source.fromAuthority(admission.authority).map { source =>
+      Candidate(
+        family = admission.family,
+        source = source,
+        producer = admission.producer,
+        subject = subjectForFamily(admission.family),
+        strictFallbackCandidate = admission.strictFallbackEligible,
+        anchors = admission.anchors,
+        lineBinding = admission.lineBinding,
+        evidenceRefs = admission.evidenceRefs,
+        guardrails = admission.guardrails,
+        relationSurface = admission.relationSurface
+      )
+    }
 
   def admitPlanner(
       plan: QuestionPlan,
@@ -253,7 +295,7 @@ private[commentary] object MoveReviewLocalFact:
       strictFallbackCandidate: Boolean = false
   ): Candidate =
     Candidate(
-      family = familyForMoveDeltaClass(delta.deltaClass),
+      family = familyForMoveDeltaEvidence(delta),
       source = Source.CertifiedStrategy,
       producer = Producer.CertifiedStrategyDelta,
       subject = Subject.PlanResource,
@@ -326,6 +368,52 @@ private[commentary] object MoveReviewLocalFact:
       case PlayerFacingMoveDeltaClass.PressureIncrease     => Family.Pressure
       case PlayerFacingMoveDeltaClass.NewAccess            => Family.LineConsequence
 
+  def familyForMoveDeltaEvidence(delta: PlayerFacingMoveDeltaEvidence): Family =
+    delta.packet.proofPathWitness.exactSliceProof
+      .map(familyForExactProof)
+      .getOrElse(familyForMoveDeltaClass(delta.deltaClass))
+
+  def familyForExactProof(proof: PlayerFacingExactSliceProof): Family =
+    proof match
+      case _: PlayerFacingExactSliceProof.CounterplayAxisSuppression =>
+        Family.Defense
+      case _: PlayerFacingExactSliceProof.ProphylacticRestraint =>
+        Family.Defense
+      case _: PlayerFacingExactSliceProof.QueenTradeShield =>
+        Family.LineConsequence
+      case _: PlayerFacingExactSliceProof.DefenderTrade =>
+        Family.LineConsequence
+      case _: PlayerFacingExactSliceProof.BadPieceLiquidation =>
+        Family.LineConsequence
+      case _: PlayerFacingExactSliceProof.SimplificationWindow =>
+        Family.LineConsequence
+      case _: PlayerFacingExactSliceProof.CentralBreakTiming =>
+        Family.Timing
+      case _: PlayerFacingExactSliceProof.ExactTargetFixation =>
+        Family.Pressure
+      case _: PlayerFacingExactSliceProof.CarlsbadFixedTarget =>
+        Family.Pressure
+      case _: PlayerFacingExactSliceProof.TargetFocusedCoordination =>
+        Family.Pressure
+      case _: PlayerFacingExactSliceProof.ColorComplexSqueeze =>
+        Family.Pressure
+      case _: PlayerFacingExactSliceProof.LocalFileEntryBind =>
+        Family.Pressure
+      case _: PlayerFacingExactSliceProof.OutpostOccupation =>
+        Family.Pressure
+      case _: PlayerFacingExactSliceProof.IqpInducement =>
+        Family.Pressure
+
+  private def subjectForFamily(family: Family): Subject =
+    family match
+      case Family.Attack | Family.Defense | Family.Threat => Subject.LineOrReply
+      case Family.PlanSupport                             => Subject.PlanResource
+      case Family.OpeningGoal                             => Subject.OpeningGoal
+      case Family.KingSafety                              => Subject.KingSafety
+      case Family.Capture                                 => Subject.Capture
+      case Family.Endgame                                 => Subject.Endgame
+      case _                                              => Subject.PlayedMove
+
   private def plannerCandidate(
       plan: QuestionPlan,
       evidenceKinds: List[String],
@@ -339,10 +427,14 @@ private[commentary] object MoveReviewLocalFact:
     val normalizedEvidence = evidenceKinds.map(normalize)
     val normalizedRelations = relationKinds.map(normalize)
     plannerFamily(plan, normalizedRelations, lineConsequenceBacked).map { family =>
+      val source = plannerSource(plan, normalizedEvidence, lineConsequenceBacked)
+      val producer =
+        if source == Source.AlternativeComparison then Producer.AlternativeComparison
+        else Producer.PlannerCausalClaim
       Candidate(
         family = family,
-        source = plannerSource(plan, normalizedEvidence, lineConsequenceBacked),
-        producer = Producer.PlannerCausalClaim,
+        source = source,
+        producer = producer,
         subject = plannerSubject(plan),
         strictFallbackCandidate = strictFallbackEligible(plan, family, normalizedRelations),
         anchors = (plannerAnchors(plan) ++ anchors).distinct,
@@ -452,7 +544,9 @@ private[commentary] object MoveReviewLocalFact:
           List(plan.plannerSource) ++
           plan.timingWitness.toList.map(_.source)
       ).map(normalize)
-    if sources.exists(_.contains("only_move_defense")) then
+    if plan.plannerOwnerKind == PlannerOwnerKind.AlternativeComparison && roleAwareLineConsequenceSource(plan) then
+      Source.AlternativeComparison
+    else if sources.exists(_.contains("only_move_defense")) then
       Source.OnlyMoveDefense
     else if lineConsequenceBacked || evidenceKinds.contains("branch_line") then
       Source.PvCoupledLine

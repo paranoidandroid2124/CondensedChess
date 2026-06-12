@@ -158,6 +158,7 @@ export type MoveReviewPlayerDecisionComparisonV1 = {
   secondaryText?: string | null;
   chosenMatchesBest: boolean;
   targetComparison?: MoveReviewDecisionTargetComparisonV1 | null;
+  refSans: string[];
 };
 
 export type MoveReviewPlayerAuthorRowV1 = {
@@ -581,6 +582,8 @@ function summaryRowAllowsStrategicRelation(raw: unknown): boolean {
 function playerDecisionComparisonFromUnknown(raw: unknown): MoveReviewPlayerDecisionComparisonV1 | null {
   if (!isRecord(raw)) return null;
   if (typeof raw.kicker !== 'string' || typeof raw.chosenMatchesBest !== 'boolean') return null;
+  const refSans = raw.refSans == null ? [] : stringListFromUnknown(raw.refSans);
+  if (!refSans) return null;
   return {
     kicker: raw.kicker,
     gapLabel: typeof raw.gapLabel === 'string' ? raw.gapLabel : null,
@@ -590,6 +593,7 @@ function playerDecisionComparisonFromUnknown(raw: unknown): MoveReviewPlayerDeci
     secondaryText: typeof raw.secondaryText === 'string' ? raw.secondaryText : null,
     chosenMatchesBest: raw.chosenMatchesBest,
     targetComparison: decisionTargetComparisonFromUnknown(raw.targetComparison),
+    refSans,
   };
 }
 

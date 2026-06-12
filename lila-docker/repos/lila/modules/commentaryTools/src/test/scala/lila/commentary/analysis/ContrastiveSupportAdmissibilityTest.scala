@@ -122,6 +122,9 @@ class ContrastiveSupportAdmissibilityTest extends FunSuite:
     assertEquals(trace.contrast_admissible, true)
     assertEquals(trace.contrast_source_kind, Some(ContrastiveSupportAdmissibility.SourceKind.ExplicitReplyLoss))
     assertEquals(trace.contrast_anchor, Some("Qe6"))
+    assertEquals(trace.contrast_forced_reply, true)
+    assert(trace.contrast_guardrails.contains("forced_reply_unique"), clues(trace))
+    assert(trace.contrast_evidence_refs.contains("reply_defense_count:1"), clues(trace))
     assert(trace.contrast_consequence.exists(_.contains("counterplay threat lands")))
     assert(trace.effectiveSupport(None).exists(_.startsWith("If delayed, Qe6 is the reply")))
   }
@@ -144,7 +147,10 @@ class ContrastiveSupportAdmissibilityTest extends FunSuite:
     assertEquals(trace.contrast_admissible, true)
     assertEquals(trace.contrast_source_kind, Some(ContrastiveSupportAdmissibility.SourceKind.ExplicitReplyLoss))
     assertEquals(trace.contrast_anchor, Some("d8"))
-    assertEquals(trace.effectiveSupport(None), Some("If delayed, d8 is the reply."))
+    assertEquals(trace.contrast_forced_reply, true)
+    assert(trace.contrast_guardrails.contains("reply_anchor_kind:uci"), clues(trace))
+    assert(trace.contrast_evidence_refs.contains("reply_uci:e8d8"), clues(trace))
+    assertEquals(trace.effectiveSupport(None), Some("If delayed, the forced reply goes to d8."))
   }
 
   test("bounds square-only best defense wording instead of naming the square as the reply") {
@@ -165,6 +171,9 @@ class ContrastiveSupportAdmissibilityTest extends FunSuite:
     assertEquals(trace.contrast_admissible, true)
     assertEquals(trace.contrast_source_kind, Some(ContrastiveSupportAdmissibility.SourceKind.ExplicitReplyLoss))
     assertEquals(trace.contrast_anchor, Some("d8"))
+    assertEquals(trace.contrast_forced_reply, false)
+    assert(trace.contrast_guardrails.contains("forced_reply_non_unique"), clues(trace))
+    assert(trace.contrast_guardrails.contains("reply_anchor_kind:square"), clues(trace))
     assertEquals(trace.effectiveSupport(None), Some("If delayed, the reply has to address d8."))
   }
 
@@ -186,7 +195,31 @@ class ContrastiveSupportAdmissibilityTest extends FunSuite:
     assertEquals(trace.contrast_admissible, true)
     assertEquals(trace.contrast_source_kind, Some(ContrastiveSupportAdmissibility.SourceKind.ExplicitReplyLoss))
     assertEquals(trace.contrast_anchor, Some("Qe6"))
+    assertEquals(trace.contrast_forced_reply, false)
+    assert(trace.contrast_guardrails.contains("forced_reply_non_unique"), clues(trace))
+    assert(trace.contrast_evidence_refs.contains("reply_defense_count:2"), clues(trace))
     assertEquals(trace.effectiveSupport(None), Some("If delayed, Qe6 is one defensive reply."))
+  }
+
+  test("bounds non-unique UCI reply as a target to address instead of naming a square as a move") {
+    val threat =
+      ThreatRow(
+        kind = "material",
+        side = "them",
+        square = Some("d6"),
+        lossIfIgnoredCp = 180,
+        turnsToImpact = 1,
+        bestDefense = Some("e7d6"),
+        defenseCount = 3,
+        insufficientData = false
+      )
+
+    val trace = ContrastiveSupportAdmissibility.decide(plan(AuthorQuestionKind.WhyNow), inputs(opponentThreats = List(threat)), None)
+
+    assertEquals(trace.contrast_admissible, true)
+    assertEquals(trace.contrast_forced_reply, false)
+    assert(trace.contrast_guardrails.contains("reply_anchor_kind:uci"), clues(trace))
+    assertEquals(trace.effectiveSupport(None), Some("If delayed, one defensive reply has to address d6."))
   }
 
   test("admits chosen-best contrast from certified planner consequence when deferred reason is missing") {
@@ -547,7 +580,44 @@ class ContrastiveSupportAdmissibilityTest extends FunSuite:
         chosenMatchesBest = false,
         comparedMove = Some("Nge7"),
         comparativeConsequence = Some(consequence),
-        comparativeSource = Some(DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource)
+        comparativeSource = Some(DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource),
+        roleAwareBranchEvidence =
+          Some(
+            RoleAwareLineConsequenceEvidence(
+              engineBest =
+                LineConsequenceEvidence(
+                  lineId = Some("best_branch"),
+                  sanMoves = List("g5", "b4", "gxh4", "bxa5"),
+                  uciMoves = List("g7g5", "b2b4", "g5h4", "b4a5"),
+                  scoreCp = Some(207),
+                  mate = None,
+                  depth = Some(20),
+                  windowPly = 20,
+                  kind = LineConsequenceKind.ExchangeSequence,
+                  triggerSan = Some("g5"),
+                  consequence = "g5 reaches an exchange sequence.",
+                  whyItMatters = None,
+                  release = LineConsequenceRelease.SurfaceCandidate,
+                  rejectReasons = Nil
+                ),
+              played =
+                LineConsequenceEvidence(
+                  lineId = Some("played_branch"),
+                  sanMoves = List("Nge7", "O-O", "Bb6", "a4"),
+                  uciMoves = List("g8e7", "e1g1", "b4b6", "a2a4"),
+                  scoreCp = Some(228),
+                  mate = None,
+                  depth = Some(20),
+                  windowPly = 20,
+                  kind = LineConsequenceKind.PreviewOnly,
+                  triggerSan = Some("Nge7"),
+                  consequence = "Nge7 stays on the played branch.",
+                  whyItMatters = None,
+                  release = LineConsequenceRelease.SurfaceCandidate,
+                  rejectReasons = Nil
+                )
+            )
+          )
       )
 
     val trace =
@@ -566,5 +636,20 @@ class ContrastiveSupportAdmissibilityTest extends FunSuite:
     assertEquals(trace.contrast_source_kind, Some(ContrastiveSupportAdmissibility.SourceKind.RoleAwareLineConsequence))
     assertEquals(trace.contrast_anchor, Some("g5"))
     assertEquals(trace.contrast_consequence, Some(consequence))
+    assert(trace.contrast_guardrails.contains("alternative_role:engine_best_branch"), clues(trace))
+    assert(trace.contrast_guardrails.contains("alternative_role:played_branch"), clues(trace))
+    assert(trace.contrast_evidence_refs.contains("engine_best_move:g5"), clues(trace))
+    assert(trace.contrast_evidence_refs.contains("played_move:Nge7"), clues(trace))
+    assert(trace.contrast_evidence_refs.contains("engine_best:line_consequence_line_id:best_branch"), clues(trace))
+    assert(trace.contrast_evidence_refs.contains("played:line_consequence_line_id:played_branch"), clues(trace))
+    assert(trace.contrast_guardrails.contains("engine_best:line_consequence_kind:exchange_sequence"), clues(trace))
+    assert(trace.contrast_guardrails.contains("played:line_consequence_kind:preview_only"), clues(trace))
     assertEquals(trace.effectiveSupport(None), Some(consequence))
+  }
+
+  test("rejects role-aware line consequence text without a concrete branch line") {
+    val consequence =
+      "g5 reaches an exchange sequence on the engine-best branch; Nge7 stays on the played branch without that concrete exchange sequence."
+
+    assert(!DecisionComparisonComparativeSupport.roleAwareLineConsequenceText(consequence), clues(consequence))
   }

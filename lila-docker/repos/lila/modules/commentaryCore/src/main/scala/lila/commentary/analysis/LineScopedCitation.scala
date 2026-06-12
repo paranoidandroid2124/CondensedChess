@@ -133,6 +133,9 @@ object LineScopedCitation:
   def firstConcreteSanToken(text: String): Option[String] =
     concreteSanTokensFromRawLine(text).headOption.map(normalizeSanToken)
 
+  def concreteSanTokens(text: String): List[String] =
+    concreteSanTokensFromRawLine(text).map(normalizeSanToken)
+
   def hasSourceLabelOnly(text: String): Boolean =
     val raw = Option(text).getOrElse("")
     !hasInlineCitation(raw) && SourceLabelOnlyPatterns.exists(_.findFirstIn(raw).nonEmpty)

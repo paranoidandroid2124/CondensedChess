@@ -195,7 +195,7 @@ private[commentary] object RelationObservationProducer extends StrategicSemantic
 private object StrategicSemanticObservationProducerSupport:
 
   val StandardRelationReplayMaxPlies = 6
-  val DrawResourceRelationReplayMaxPlies = 12
+  val DrawResourceRelationReplayMaxPlies = MoveReviewExchangeAnalyzer.DrawResourceRelationReplayMaxPlies
 
   def exactTargetSquares(semantic: StrategicIdeaSemanticContext): List[String] =
     val enemyWeakSquares =

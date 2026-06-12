@@ -319,6 +319,11 @@ class DecisionComparisonBuilderTest extends FunSuite:
     assertEquals(comparison.comparativeSource, Some(DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource))
     assert(comparison.comparativeConsequence.exists(_.contains("g5 reaches an exchange sequence")), clue(comparison))
     assert(comparison.comparativeConsequence.exists(_.contains("Nge7 stays on the played branch")), clue(comparison))
+    val branchEvidence = comparison.roleAwareBranchEvidence.getOrElse(fail("missing branch evidence"))
+    assert(branchEvidence.evidenceRefs.contains("engine_best:line_consequence_line_id:best"), clue(branchEvidence))
+    assert(branchEvidence.evidenceRefs.contains("played:line_consequence_line_id:played"), clue(branchEvidence))
+    assert(branchEvidence.guardrails.exists(_.contains("engine_best:line_consequence_kind:exchange_sequence")), clue(branchEvidence))
+    assert(branchEvidence.guardrails.exists(_.contains("played:line_consequence_kind:preview_only")), clue(branchEvidence))
   }
 
   test("role-aware line consequence does not claim absence when the best move appears later in the played branch") {
@@ -370,6 +375,7 @@ class DecisionComparisonBuilderTest extends FunSuite:
       )
 
     assertEquals(comparison.flatMap(_.comparativeSource), None)
+    assertEquals(comparison.flatMap(_.roleAwareBranchEvidence), None)
     assert(!comparison.flatMap(_.comparativeConsequence).exists(_.contains("without that concrete central pawn advance")))
   }
 
@@ -428,6 +434,8 @@ class DecisionComparisonBuilderTest extends FunSuite:
     assert(comparison.comparativeConsequence.exists(_.contains("exf5 reaches a material transition")), clue(comparison))
     assert(comparison.comparativeConsequence.exists(_.contains("gxf5 reaches a different material transition")), clue(comparison))
     assert(comparison.comparativeConsequence.exists(_.contains("about 96cp")), clue(comparison))
+    assert(comparison.roleAwareBranchEvidence.exists(_.evidenceRefs.contains("engine_best:line_consequence_line_id:best")), clue(comparison))
+    assert(comparison.roleAwareBranchEvidence.exists(_.evidenceRefs.contains("played:line_consequence_line_id:played")), clue(comparison))
   }
 
   test("cp-gap-only comparison does not invent a comparative consequence") {

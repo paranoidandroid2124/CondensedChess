@@ -1,9 +1,10 @@
 package lila.commentary.analysis
 
 import chess.{ Color, King, Piece, Role, Square }
+import chess.format.Fen
 import lila.commentary.analysis.claim.ProofContractRules
 import lila.commentary.analysis.semantic.{ RelationObservationCatalog, RelationObservationDescriptor, RelationSurfaceRowKind }
-import lila.commentary.{ MoveReviewMoveRef, MoveReviewPvInterpretation }
+import lila.commentary.{ MoveReviewMoveRef, MoveReviewPvInterpretation, StrategicIdeaKind, StrategicIdeaReadiness, StrategyIdeaSignal }
 import lila.commentary.model.*
 import scala.annotation.unused
 
@@ -49,7 +50,9 @@ private[commentary] object CommentaryIdeaSurface:
       strategicDeltas: List[PlayerFacingMoveDeltaEvidence] = Nil,
       phase: String = "",
       ply: Int = 0,
-      strictLocalFacts: Boolean = false
+      strictLocalFacts: Boolean = false,
+      forcedLineTheme: Option[ForcedLineTruth.VerifiedTheme] = None,
+      practicalPositionFacts: List[PracticalPositionFact] = Nil
   ):
     def endgameFacts: List[Fact] =
       facts.collect {
@@ -80,6 +83,17 @@ private[commentary] object CommentaryIdeaSurface:
   ):
     def tags: List[String] =
       List(Some(s"line_proof:$proofKind"), Some(s"line_subject:$subject")).flatten
+
+  final case class PracticalPositionFact(
+      family: LocalFactFamily,
+      subject: LocalFactSubject,
+      ideaKind: String,
+      label: String,
+      text: String,
+      anchors: List[LocalFactAnchor],
+      evidenceRefs: List[String],
+      guardrails: List[String]
+  )
 
   final case class MoveReviewIdeaDescriptor(
       ideaKind: String,
@@ -153,13 +167,15 @@ private[commentary] object CommentaryIdeaSurface:
       MoveReviewIdeaRule("opening_goal", openingDescriptor),
       MoveReviewIdeaRule("castling", (played, _, lineFacts, characterBand, _) => castlingDescriptor(played, lineFacts, characterBand)),
       MoveReviewIdeaRule("strategic_support", strategicSupportDescriptor),
+      MoveReviewIdeaRule("forced_line_truth", forcedLineTruthDescriptor),
       MoveReviewIdeaRule("tactical", tacticalDescriptor),
       MoveReviewIdeaRule("target", targetDescriptor),
       MoveReviewIdeaRule("capture", captureDescriptor),
       MoveReviewIdeaRule("endgame", endgameDescriptor),
       MoveReviewIdeaRule("line_consequence", lineConsequenceDescriptor),
       MoveReviewIdeaRule("relation_witness", relationWitnessDescriptor),
-      MoveReviewIdeaRule("position_probe_support", positionProbeSupportDescriptor)
+      MoveReviewIdeaRule("position_probe_support", positionProbeSupportDescriptor),
+      MoveReviewIdeaRule("practical_position_support", practicalPositionSupportDescriptor)
     )
 
   // MoveReview admission rules. Keep descriptor selection before rendering fields.
@@ -305,6 +321,69 @@ private[commentary] object CommentaryIdeaSurface:
         factFragments = Nil
       )
 
+  private def practicalPositionSupportDescriptor(
+      played: PlayedMove,
+      evidence: MoveReviewEvidence,
+      lineFacts: Option[MoveReviewPvLine.LineFacts],
+      characterBand: MoveCharacterBand,
+      @unused truthContract: Option[DecisiveTruthContract]
+  ): Option[MoveReviewIdeaDescriptor] =
+    for
+      fact <- evidence.practicalPositionFacts.headOption
+      line <- lineFacts
+    yield
+      descriptor(
+        ideaKind = "practical_position_support",
+        reviewIntent = practicalPositionIntent(fact),
+        moveCharacterBand = characterBand,
+        source = "practical_position_support",
+        title = s"${played.san} has checked ${fact.label.toLowerCase} support",
+        baseProse = fact.text,
+        reasonTags =
+          List(
+            "practical_position_support",
+            s"strategic_idea_kind:${fact.ideaKind}",
+            "source:strategy_pack",
+            "scope:move_local"
+          ) ++ fact.evidenceRefs,
+        linePurpose = Some(practicalPositionLinePurpose(fact)),
+        lineProof =
+          lineProof(
+            "practical_position_support",
+            played,
+            line,
+            subjectOverride = fact.anchors.find(_.key == "target").map(_.value).orElse(Some(played.uci))
+          ),
+        played = played,
+        evidence = evidence,
+        lineFacts = lineFacts,
+        requiresPvForAdmission = true,
+        localFact = admittedLocalFact(LocalFactCandidate(
+          family = fact.family,
+          source = LocalFactSource.CertifiedStrategy,
+          producer = LocalFactProducer.CertifiedStrategyDelta,
+          subject = fact.subject,
+          strictFallbackCandidate = false,
+          anchors = fact.anchors,
+          lineBinding = LocalFactLineBinding.PvCoupled,
+          evidenceRefs = fact.evidenceRefs,
+          guardrails = fact.guardrails
+        )),
+        factFragments = Nil
+      )
+
+  private def practicalPositionIntent(fact: PracticalPositionFact): String =
+    fact.family match
+      case LocalFactFamily.Defense     => "prevents_counterplay"
+      case LocalFactFamily.PlanSupport => "advances_plan"
+      case _                           => "quiet_improvement"
+
+  private def practicalPositionLinePurpose(fact: PracticalPositionFact): String =
+    fact.family match
+      case LocalFactFamily.Defense     => "prevent_counterplay"
+      case LocalFactFamily.PlanSupport => "advance_plan"
+      case _                           => "quiet_improvement"
+
   private def strategicSupportDescriptor(
       played: PlayedMove,
       evidence: MoveReviewEvidence,
@@ -355,6 +434,100 @@ private[commentary] object CommentaryIdeaSurface:
         ))
       )
 
+  private def forcedLineTruthDescriptor(
+      played: PlayedMove,
+      evidence: MoveReviewEvidence,
+      lineFacts: Option[MoveReviewPvLine.LineFacts],
+      characterBand: MoveCharacterBand,
+      @unused truthContract: Option[DecisiveTruthContract]
+  ): Option[MoveReviewIdeaDescriptor] =
+    for
+      line <- lineFacts.filter(line => MoveReviewPvLine.normalizeUci(line.first.uci) == played.uci)
+      theme <- evidence.forcedLineTheme
+    yield
+      val family = forcedLineTruthFamily(theme)
+      descriptor(
+        ideaKind = "forced_line_truth",
+        reviewIntent = forcedLineTruthReviewIntent(family),
+        moveCharacterBand = characterBand,
+        source = "forced_line_truth",
+        title = s"${played.san} has a confirmed ${theme.name} sequence",
+        baseProse = forcedLineTruthText(played, theme),
+        reasonTags = forcedLineTruthEvidenceRefs(theme),
+        linePurpose = Some(forcedLineTruthPurpose(family)),
+        lineProof = lineProof("forced_line_truth", played, line),
+        played = played,
+        evidence = evidence,
+        lineFacts = lineFacts,
+        requiresPvForAdmission = true,
+        localFact = admittedLocalFact(LocalFactCandidate(
+          family = family,
+          source = LocalFactSource.PvCoupledLine,
+          producer = LocalFactProducer.ForcedLineTruth,
+          subject = LocalFactSubject.Target,
+          strictFallbackCandidate = true,
+          anchors = forcedLineTruthAnchors(theme),
+          lineBinding = LocalFactLineBinding.PvCoupled,
+          evidenceRefs = forcedLineTruthEvidenceRefs(theme),
+          guardrails = forcedLineTruthGuardrails(theme)
+        )),
+        factFragments = Nil
+      )
+
+  private def forcedLineTruthFamily(theme: ForcedLineTruth.VerifiedTheme): LocalFactFamily =
+    val key = s"${theme.id} ${theme.name}".toLowerCase
+    if key.contains("stalemate") || key.contains("perpetual") then LocalFactFamily.Defense
+    else if key.contains("mate") then LocalFactFamily.Attack
+    else LocalFactFamily.Threat
+
+  private def forcedLineTruthReviewIntent(family: LocalFactFamily): String =
+    family match
+      case LocalFactFamily.Defense => "finds_tactical_resource"
+      case LocalFactFamily.Attack  => "creates_attack"
+      case _                       => "creates_tactical_threat"
+
+  private def forcedLineTruthPurpose(family: LocalFactFamily): String =
+    family match
+      case LocalFactFamily.Defense => "answer_direct_threat"
+      case LocalFactFamily.Attack  => "create_tactical_attack"
+      case _                       => "create_tactical_threat"
+
+  private def forcedLineTruthText(
+      played: PlayedMove,
+      theme: ForcedLineTruth.VerifiedTheme
+  ): String =
+    Option(theme.line)
+      .map(_.trim)
+      .filter(_.nonEmpty)
+      .map(line => s"${played.san} is tied to the confirmed ${theme.name} sequence: $line.")
+      .getOrElse(s"${played.san} is tied to the confirmed ${theme.name} sequence.")
+
+  private def forcedLineTruthEvidenceRefs(theme: ForcedLineTruth.VerifiedTheme): List[String] =
+    (
+      List(
+        s"forced_line_theme:${theme.id}",
+        s"forced_line_name:${theme.name}"
+      ) ++ Option(theme.line).map(_.trim).filter(_.nonEmpty).map(line => s"forced_line_san:${line.take(80)}")
+    ).distinct
+
+  private def forcedLineTruthAnchors(theme: ForcedLineTruth.VerifiedTheme): List[LocalFactAnchor] =
+    (
+      List(
+        LocalFactAnchor("forced_line_theme", theme.id),
+        LocalFactAnchor("forced_line_name", theme.name)
+      ) ++ Option(theme.line).map(_.trim).filter(_.nonEmpty).map(line => LocalFactAnchor("forced_line_san", line.take(80)))
+    ).distinct
+
+  private def forcedLineTruthGuardrails(theme: ForcedLineTruth.VerifiedTheme): List[String] =
+    (
+      List(
+        "forced_line_truth_verified",
+        "played_move_first",
+        "pv_coupled",
+        s"forced_line_theme:${theme.id}"
+      ) ++ Option(theme.line).map(_.trim).filter(_.nonEmpty).map(_ => "forced_line_has_san")
+    ).distinct
+
   private def tacticalDescriptor(
       played: PlayedMove,
       evidence: MoveReviewEvidence,
@@ -366,7 +539,9 @@ private[commentary] object CommentaryIdeaSurface:
       val kind = owned.kind
         val label = kind.replace("_", " ")
         val title =
-          s"${played.san} creates a $label"
+          kind match
+            case "trapped_piece" => s"${played.san} traps a piece"
+            case _               => s"${played.san} creates a $label"
         val prose =
           kind match
             case "fork" =>
@@ -375,6 +550,10 @@ private[commentary] object CommentaryIdeaSurface:
               s"${played.san} creates a pin tied to the pinned piece and the piece behind it."
             case "skewer" =>
               s"${played.san} creates a skewer tied to the front and back targets."
+            case "discovered_attack" =>
+              s"${played.san} creates a discovered attack tied to the revealed piece and target."
+            case "trapped_piece" =>
+              s"${played.san} traps a piece that has no safe escape in the verified position."
             case _ =>
               s"${played.san} creates a tactical threat tied to the verified targets."
         descriptor(
@@ -507,9 +686,11 @@ private[commentary] object CommentaryIdeaSurface:
 
   private def tacticalMotifs(motifs: List[Motif]): List[Motif] =
     motifs.collect {
-      case motif: Motif.Fork   => motif
-      case motif: Motif.Pin    => motif
-      case motif: Motif.Skewer => motif
+      case motif: Motif.Fork             => motif
+      case motif: Motif.Pin              => motif
+      case motif: Motif.Skewer           => motif
+      case motif: Motif.DiscoveredAttack => motif
+      case motif: Motif.TrappedPiece     => motif
     }
 
   private def tacticalFactAttackerMatches(played: PlayedMove, fact: Fact): Boolean =
@@ -536,10 +717,12 @@ private[commentary] object CommentaryIdeaSurface:
 
   private def tacticalMotifTargets(motif: Motif): List[Square] =
     motif match
-      case motif: Motif.Fork   => motif.targetSquares
-      case motif: Motif.Pin    => List(motif.pinnedSq, motif.behindSq).flatten
-      case motif: Motif.Skewer => List(motif.frontSq, motif.backSq).flatten
-      case _                   => Nil
+      case motif: Motif.Fork             => motif.targetSquares
+      case motif: Motif.Pin              => List(motif.pinnedSq, motif.behindSq).flatten
+      case motif: Motif.Skewer           => List(motif.frontSq, motif.backSq).flatten
+      case motif: Motif.DiscoveredAttack => List(motif.attackingSq, motif.targetSq).flatten
+      case motif: Motif.TrappedPiece     => List(motif.trappedSquare)
+      case _                             => Nil
 
   private def motifOnlyTacticalEvidence(
       played: PlayedMove,
@@ -560,6 +743,17 @@ private[commentary] object CommentaryIdeaSurface:
             m.backSq.nonEmpty &&
             continuationTouchesAny(line, List(m.frontSq, m.backSq).flatten) =>
         Some(OwnedTacticalEvidence("skewer", None, m, List(m.attackingSq, m.frontSq, m.backSq).flatten.distinct))
+      case m: Motif.DiscoveredAttack
+          if m.movingSq.contains(played.to) &&
+            m.attackingSq.nonEmpty &&
+            m.targetSq.nonEmpty &&
+            lineConfirmsDiscoveredAttack(m, line) =>
+        Some(OwnedTacticalEvidence("discovered_attack", None, m, List(m.movingSq, m.attackingSq, m.targetSq).flatten.distinct))
+      case m: Motif.TrappedPiece
+          if m.isValuableTrap &&
+            line.reply.nonEmpty &&
+            playedAttacksTrappedPiece(played, line, m) =>
+        Some(OwnedTacticalEvidence("trapped_piece", None, m, List(played.to, m.trappedSquare).distinct))
       case _ => None
 
   private def immediateMotifOwnsMove(played: PlayedMove, motif: Motif): Boolean =
@@ -581,6 +775,17 @@ private[commentary] object CommentaryIdeaSurface:
           m.color == played.color &&
           m.attackingPiece == played.role &&
           m.attackingSq.contains(played.to) &&
+          m.move.exists(sanEquivalent(_, played.san))
+      case m: Motif.DiscoveredAttack =>
+        m.plyIndex == 0 &&
+          m.color == played.color &&
+          m.movingPiece == played.role &&
+          m.movingSq.contains(played.to) &&
+          m.move.exists(sanEquivalent(_, played.san))
+      case m: Motif.TrappedPiece =>
+        m.plyIndex == 0 &&
+          m.color == !played.color &&
+          m.isValuableTrap &&
           m.move.exists(sanEquivalent(_, played.san))
       case _ => false
 
@@ -628,12 +833,39 @@ private[commentary] object CommentaryIdeaSurface:
           case _                   => false
       case _ => false
 
+  private def lineConfirmsDiscoveredAttack(
+      motif: Motif.DiscoveredAttack,
+      line: MoveReviewPvLine.LineFacts
+  ): Boolean =
+    motif.target == King ||
+      motif.targetSq.exists(square => lineTouchesAny(line, List(square)))
+
+  private def playedAttacksTrappedPiece(
+      played: PlayedMove,
+      line: MoveReviewPvLine.LineFacts,
+      motif: Motif.TrappedPiece
+  ): Boolean =
+    Fen.read(chess.variant.Standard, Fen.Full(line.first.fenAfter)).exists { position =>
+      position.board
+        .attackers(motif.trappedSquare, played.color)
+        .squares
+        .contains(played.to)
+    }
+
   private def continuationTouchesAny(line: MoveReviewPvLine.LineFacts, squares: List[Square]): Boolean =
     val beforeFen = line.reply.map(_.fenAfter).getOrElse(line.first.fenAfter)
     val continuations = line.checkedContinuations
     MoveReviewExchangeAnalyzer
       .boundedReplay(beforeFen, continuations.map(_.uci), maxPlies = continuations.size.min(4))
       .exists(_.exists(step => squares.exists(square => step.move.orig == square || step.move.dest == square)))
+
+  private def lineTouchesAny(line: MoveReviewPvLine.LineFacts, squares: List[Square]): Boolean =
+    line.reply.exists(moveTouchesAny(_, squares)) ||
+      continuationTouchesAny(line, squares)
+
+  private def moveTouchesAny(move: MoveReviewMoveRef, squares: List[Square]): Boolean =
+    val uci = MoveReviewPvLine.normalizeUci(move.uci)
+    squares.exists(square => uci.take(2) == square.key || uci.slice(2, 4) == square.key)
 
   private def legalOnePlyStep(
       beforeFen: String,
@@ -707,9 +939,10 @@ private[commentary] object CommentaryIdeaSurface:
     val pressureFact = ownedTargetPressureFact(played, evidence)
     val defensive = defensiveTruth(truthContract) && threatLineFacts.nonEmpty
     val offensive = pressureFact.exists(owned => !owned.postMoveStatic || postMovePressureAllowed(played, evidence, owned.fact))
+    val relationPreemptsTarget = offensive && relationPreemptsTargetPressure(played, evidence, pressureFact)
     Option.when(
       lineFacts.flatMap(_.reply).nonEmpty &&
-        (defensive || offensive)
+        (defensive || (offensive && !relationPreemptsTarget))
     ) {
       val purpose = if defensive then "answer_direct_threat" else "create_tactical_threat"
       val intent = if defensive then "answers_threat" else "creates_threat"
@@ -761,6 +994,29 @@ private[commentary] object CommentaryIdeaSurface:
         ))
       )
     }
+
+  private def relationPreemptsTargetPressure(
+      played: PlayedMove,
+      evidence: MoveReviewEvidence,
+      pressureFact: Option[OwnedPressureFact]
+  ): Boolean =
+    pressureFact.flatMap(ownedPressureTarget).exists { target =>
+      evidence.relationWitnesses
+        .flatMap(relationWitnessEvidence(played, evidence, _))
+        .exists(relation =>
+          relation.projection.targetSquare.contains(target) &&
+            (
+              relation.descriptor.surfaceRowKind == RelationSurfaceRowKind.MobilityRestriction ||
+                relation.descriptor.surfaceRowKind == RelationSurfaceRowKind.MoveOrder
+            )
+        )
+    }
+
+  private def ownedPressureTarget(owned: OwnedPressureFact): Option[String] =
+    owned.fact match
+      case Fact.TargetPiece(square, _, _, _, _)  => Some(square.key)
+      case Fact.HangingPiece(square, _, _, _, _) => Some(square.key)
+      case _                                     => None
 
   private final case class OwnedPressureFact(fact: Fact, postMoveStatic: Boolean)
 
@@ -862,30 +1118,32 @@ private[commentary] object CommentaryIdeaSurface:
       characterBand: MoveCharacterBand,
       @unused truthContract: Option[DecisiveTruthContract]
   ): Option[MoveReviewIdeaDescriptor] =
-    for
-      lineEvidence <- evidence.lineConsequence.filter(validLineConsequence(played, evidence, _))
-      line <- lineFacts.filter(line => MoveReviewPvLine.normalizeUci(line.first.uci) == played.uci)
-      purpose <- lineConsequencePurpose(lineEvidence)
-    yield
-      descriptor(
-        ideaKind = "line_consequence",
-        reviewIntent = lineConsequenceIntent(lineEvidence),
-        moveCharacterBand = characterBand,
-        source = "line_consequence",
-        title = s"${played.san} has a checked line consequence",
-        baseProse = s"${played.san} is tied to a checked ${lineConsequenceLabel(lineEvidence.kind)}.",
-        reasonTags =
-          List("line_consequence", s"line_consequence_kind:${tokenKey(lineEvidence.kind)}") ++
-            MoveReviewLocalFact.lineConsequenceEvidenceRefs(lineEvidence),
-        linePurpose = Some(purpose),
-        lineProof = lineProof("line_consequence", played, line, blockedReasons = lineEvidence.rejectReasons),
-        played = played,
-        evidence = evidence,
-        lineFacts = lineFacts,
-        requiresPvForAdmission = true,
-        localFact = admittedLocalFact(MoveReviewLocalFact.lineConsequenceCandidate(lineEvidence, strictFallbackCandidate = true)),
-        factFragments = Nil
-      )
+    Option.unless(hasDrawResourceRelationEvidence(played, evidence)) {
+      for
+        lineEvidence <- evidence.lineConsequence.filter(validLineConsequence(played, evidence, _))
+        line <- lineFacts.filter(line => MoveReviewPvLine.normalizeUci(line.first.uci) == played.uci)
+        purpose <- lineConsequencePurpose(lineEvidence)
+      yield
+        descriptor(
+          ideaKind = "line_consequence",
+          reviewIntent = lineConsequenceIntent(lineEvidence),
+          moveCharacterBand = characterBand,
+          source = "line_consequence",
+          title = s"${played.san} has a checked line consequence",
+          baseProse = s"${played.san} is tied to a checked ${lineConsequenceLabel(lineEvidence.kind)}.",
+          reasonTags =
+            List("line_consequence", s"line_consequence_kind:${tokenKey(lineEvidence.kind)}") ++
+              MoveReviewLocalFact.lineConsequenceEvidenceRefs(lineEvidence),
+          linePurpose = Some(purpose),
+          lineProof = lineProof("line_consequence", played, line, blockedReasons = lineEvidence.rejectReasons),
+          played = played,
+          evidence = evidence,
+          lineFacts = lineFacts,
+          requiresPvForAdmission = true,
+          localFact = admittedLocalFact(MoveReviewLocalFact.lineConsequenceCandidate(lineEvidence, strictFallbackCandidate = true)),
+          factFragments = Nil
+        )
+    }.flatten
 
   private def validLineConsequence(
       played: PlayedMove,
@@ -991,16 +1249,16 @@ private[commentary] object CommentaryIdeaSurface:
       relationEvidence <- evidence.relationWitnesses
         .flatMap(relationWitnessEvidence(played, evidence, _))
         .headOption
-      purpose <- relationLinePurpose(relationEvidence.family)
+      purpose <- relationLinePurpose(relationEvidence)
     yield
       val label = relationEvidence.descriptor.publicLabel
       descriptor(
-        ideaKind = relationIdeaKind(relationEvidence.family),
-        reviewIntent = relationReviewIntent(relationEvidence.family),
+        ideaKind = relationIdeaKind(relationEvidence),
+        reviewIntent = relationReviewIntent(relationEvidence),
         moveCharacterBand = characterBand,
         source = "relation_witness",
         title = s"${played.san} has a checked $label relation",
-        baseProse = s"${played.san} is tied to a checked $label relation in the PV.",
+        baseProse = relationLocalFactText(played, relationEvidence),
         reasonTags = relationEvidenceRefs(relationEvidence),
         linePurpose = Some(purpose),
         lineProof = lineProof("relation_witness", played, line),
@@ -1008,19 +1266,32 @@ private[commentary] object CommentaryIdeaSurface:
         evidence = evidence,
         lineFacts = lineFacts,
         requiresPvForAdmission = true,
-        localFact = admittedLocalFact(LocalFactCandidate(
-          family = relationEvidence.family,
-          source = LocalFactSource.PvCoupledLine,
-          producer = LocalFactProducer.RelationWitness,
-          subject = LocalFactSubject.Target,
-          strictFallbackCandidate = true,
-          anchors = relationAnchors(relationEvidence),
-          lineBinding = LocalFactLineBinding.PvCoupled,
-          evidenceRefs = relationEvidenceRefs(relationEvidence),
-          guardrails = relationGuardrails(relationEvidence)
-        )),
+        localFact = admittedLocalFact(relationLocalFactCandidate(relationEvidence)),
         factFragments = Nil
       )
+
+  private def relationLocalFactCandidate(
+      evidence: RelationWitnessEvidence,
+      strictFallbackCandidate: Boolean = true
+  ): LocalFactCandidate =
+    LocalFactCandidate(
+      family = evidence.family,
+      source = LocalFactSource.PvCoupledLine,
+      producer = LocalFactProducer.RelationWitness,
+      subject = LocalFactSubject.Target,
+      strictFallbackCandidate = strictFallbackCandidate,
+      anchors = relationAnchors(evidence),
+      lineBinding = LocalFactLineBinding.PvCoupled,
+      evidenceRefs = relationEvidenceRefs(evidence),
+      guardrails = relationGuardrails(evidence),
+      relationSurface = Some(evidence.descriptor.surfaceRowKind)
+    )
+
+  private def relationLocalFactText(
+      played: PlayedMove,
+      evidence: RelationWitnessEvidence
+  ): String =
+    s"${played.san} is tied to a checked ${evidence.descriptor.publicLabel} relation in the PV."
 
   private def relationWitnessEvidence(
       played: PlayedMove,
@@ -1040,11 +1311,38 @@ private[commentary] object CommentaryIdeaSurface:
       evidence: MoveReviewEvidence,
       witness: MoveReviewExchangeAnalyzer.RelationWitness
   ): Boolean =
-    evidence.strictLocalFacts &&
-      !played.isCapture &&
-      !evidence.phase.trim.equalsIgnoreCase("endgame") &&
+    val drawResource = relationWitnessDrawResource(witness)
+    relationWitnessSurfaceEligible(evidence, witness) &&
+      (!played.isCapture || drawResource) &&
+      (!evidence.phase.trim.equalsIgnoreCase("endgame") || drawResource) &&
       MoveReviewExchangeAnalyzer.relationDetailsValidForKind(witness) &&
       witness.lineMoves.headOption.exists(uci => MoveReviewPvLine.normalizeUci(uci) == played.uci)
+
+  private def relationWitnessSurfaceEligible(
+      evidence: MoveReviewEvidence,
+      witness: MoveReviewExchangeAnalyzer.RelationWitness
+  ): Boolean =
+    evidence.strictLocalFacts || relationWitnessTacticalSurface(witness) || relationWitnessDrawResource(witness)
+
+  private def relationWitnessTacticalSurface(witness: MoveReviewExchangeAnalyzer.RelationWitness): Boolean =
+    MoveReviewExchangeAnalyzer
+      .relationProjectionFromWitness(witness)
+      .flatMap(projection => RelationObservationCatalog.descriptorForKind(projection.kind))
+      .exists(_.surfaceRowKind == RelationSurfaceRowKind.TacticalRelation)
+
+  private def relationWitnessDrawResource(witness: MoveReviewExchangeAnalyzer.RelationWitness): Boolean =
+    MoveReviewExchangeAnalyzer
+      .relationProjectionFromWitness(witness)
+      .flatMap(projection => RelationObservationCatalog.descriptorForKind(projection.kind))
+      .exists(_.surfaceRowKind == RelationSurfaceRowKind.DrawResource)
+
+  private def hasDrawResourceRelationEvidence(
+      played: PlayedMove,
+      evidence: MoveReviewEvidence
+  ): Boolean =
+    evidence.relationWitnesses.exists(witness =>
+      relationWitnessEvidence(played, evidence, witness).exists(_.descriptor.surfaceRowKind == RelationSurfaceRowKind.DrawResource)
+    )
 
   private def relationFamily(
       witness: MoveReviewExchangeAnalyzer.RelationWitness,
@@ -1052,6 +1350,12 @@ private[commentary] object CommentaryIdeaSurface:
       descriptor: RelationObservationDescriptor
   ): Option[LocalFactFamily] =
     kind match
+      case _ if descriptor.surfaceRowKind == RelationSurfaceRowKind.MobilityRestriction =>
+        Some(LocalFactFamily.Pressure)
+      case _ if descriptor.surfaceRowKind == RelationSurfaceRowKind.MoveOrder =>
+        Some(LocalFactFamily.Timing)
+      case _ if descriptor.surfaceRowKind == RelationSurfaceRowKind.DrawResource =>
+        Some(LocalFactFamily.Defense)
       case _ if relationTargetsKing(witness) =>
         Some(LocalFactFamily.Attack)
       case MoveReviewExchangeAnalyzer.RelationKind.XRay |
@@ -1061,9 +1365,6 @@ private[commentary] object CommentaryIdeaSurface:
           MoveReviewExchangeAnalyzer.RelationKind.Clearance |
           MoveReviewExchangeAnalyzer.RelationKind.Interference =>
         Some(LocalFactFamily.Pressure)
-      case MoveReviewExchangeAnalyzer.RelationKind.StalemateTrap |
-          MoveReviewExchangeAnalyzer.RelationKind.PerpetualCheck =>
-        Some(LocalFactFamily.Defense)
       case _ if descriptor.surfaceRowKind == RelationSurfaceRowKind.TacticalRelation =>
         Some(LocalFactFamily.Threat)
       case _ =>
@@ -1081,25 +1382,39 @@ private[commentary] object CommentaryIdeaSurface:
         )
       )
 
-  private def relationLinePurpose(family: LocalFactFamily): Option[String] =
-    family match
-      case LocalFactFamily.Attack | LocalFactFamily.Threat | LocalFactFamily.Pressure => Some("create_tactical_threat")
-      case LocalFactFamily.Defense                                                    => Some("answer_direct_threat")
-      case _                                                                          => None
+  private def relationLinePurpose(evidence: RelationWitnessEvidence): Option[String] =
+    evidence.descriptor.surfaceRowKind match
+      case RelationSurfaceRowKind.MobilityRestriction => Some("restrict_piece_mobility")
+      case RelationSurfaceRowKind.MoveOrder           => Some("move_order_timing")
+      case _ =>
+        evidence.family match
+          case LocalFactFamily.Attack | LocalFactFamily.Threat | LocalFactFamily.Pressure => Some("create_tactical_threat")
+          case LocalFactFamily.Defense                                                    => Some("answer_direct_threat")
+          case _                                                                          => None
 
-  private def relationIdeaKind(family: LocalFactFamily): String =
-    family match
-      case LocalFactFamily.Defense => "direct_threat"
-      case LocalFactFamily.Attack => "direct_attack"
-      case LocalFactFamily.Pressure => "direct_threat"
-      case _ => "tactical"
+  private def relationIdeaKind(evidence: RelationWitnessEvidence): String =
+    evidence.descriptor.surfaceRowKind match
+      case RelationSurfaceRowKind.DrawResource         => "draw_resource"
+      case RelationSurfaceRowKind.MobilityRestriction  => "mobility_restriction"
+      case RelationSurfaceRowKind.MoveOrder            => "move_order"
+      case _ =>
+        evidence.family match
+          case LocalFactFamily.Defense  => "direct_threat"
+          case LocalFactFamily.Attack   => "direct_attack"
+          case LocalFactFamily.Pressure => "direct_threat"
+          case _                        => "tactical"
 
-  private def relationReviewIntent(family: LocalFactFamily): String =
-    family match
-      case LocalFactFamily.Defense => "answers_threat"
-      case LocalFactFamily.Attack => "creates_attack"
-      case LocalFactFamily.Pressure => "creates_threat"
-      case _ => "creates_tactical_threat"
+  private def relationReviewIntent(evidence: RelationWitnessEvidence): String =
+    evidence.descriptor.surfaceRowKind match
+      case RelationSurfaceRowKind.DrawResource         => "draws_resource"
+      case RelationSurfaceRowKind.MobilityRestriction  => "restricts_mobility"
+      case RelationSurfaceRowKind.MoveOrder            => "times_move_order"
+      case _ =>
+        evidence.family match
+          case LocalFactFamily.Defense  => "answers_threat"
+          case LocalFactFamily.Attack   => "creates_attack"
+          case LocalFactFamily.Pressure => "creates_threat"
+          case _                        => "creates_tactical_threat"
 
   private def relationEvidenceRefs(evidence: RelationWitnessEvidence): List[String] =
     (
@@ -1261,6 +1576,166 @@ private[commentary] object CommentaryIdeaSurface:
         contract.reasonFamily == DecisiveReasonKind.OnlyMoveDefense
     )
 
+  private[commentary] def practicalPositionFacts(
+      played: PlayedMove,
+      surface: StrategyPackSurface.Snapshot
+  ): List[PracticalPositionFact] =
+    if surface.ownerMismatch then Nil
+    else
+      surface.allIdeas
+        .flatMap(practicalPositionFact(played, surface, _))
+        .distinctBy(fact => (fact.family, fact.ideaKind, fact.anchors.map(anchor => anchor.key -> anchor.value)))
+        .sortBy(fact => practicalPositionPriority(fact))
+
+  private def practicalPositionFact(
+      played: PlayedMove,
+      surface: StrategyPackSurface.Snapshot,
+      idea: StrategyIdeaSignal
+  ): Option[PracticalPositionFact] =
+    val sideMatches =
+      normalizeSide(idea.ownerSide).forall(_ == playedSide(played))
+    val confidenceFloor =
+      if idea.readiness == StrategicIdeaReadiness.Ready then 0.70 else 0.82
+    val anchor = practicalPositionAnchor(played, surface, idea)
+    for
+      anchorValue <- anchor
+      if sideMatches
+      if idea.confidence >= confidenceFloor
+      if idea.evidenceRefs.nonEmpty
+      family <- practicalPositionFamily(idea)
+    yield
+      val label = practicalPositionLabel(idea)
+      val evidenceRefs = practicalPositionEvidenceRefs(idea, anchorValue)
+      PracticalPositionFact(
+        family = family,
+        subject =
+          if family == LocalFactFamily.Pressure then LocalFactSubject.Target
+          else LocalFactSubject.PlanResource,
+        ideaKind = idea.kind,
+        label = label,
+        text = practicalPositionText(played, label, family, anchorValue),
+        anchors =
+          List(
+            LocalFactAnchor("target", anchorValue),
+            LocalFactAnchor("strategic_idea_kind", idea.kind)
+          ) ++ idea.focusFiles.take(2).map(file => LocalFactAnchor("focus_file", file)),
+        evidenceRefs = evidenceRefs,
+        guardrails =
+          List(
+            "practical_position_support",
+            "source:strategy_pack",
+            "move_touches_strategy_anchor",
+            "pv_coupled",
+            s"strategic_idea_kind:${idea.kind}",
+            s"strategic_readiness:${idea.readiness}",
+            f"strategic_confidence:${idea.confidence}%.2f"
+          ) ++ evidenceRefs
+      )
+
+  private def practicalPositionFamily(idea: StrategyIdeaSignal): Option[LocalFactFamily] =
+    idea.kind match
+      case StrategicIdeaKind.CounterplaySuppression | StrategicIdeaKind.Prophylaxis =>
+        Some(LocalFactFamily.Defense)
+      case StrategicIdeaKind.PawnBreak =>
+        Some(LocalFactFamily.PlanSupport)
+      case StrategicIdeaKind.TargetFixing | StrategicIdeaKind.LineOccupation |
+          StrategicIdeaKind.OutpostCreationOrOccupation | StrategicIdeaKind.SpaceGainOrRestriction |
+          StrategicIdeaKind.KingAttackBuildUp =>
+        Some(LocalFactFamily.Pressure)
+      case _ => None
+
+  private def practicalPositionLabel(idea: StrategyIdeaSignal): String =
+    idea.kind match
+      case StrategicIdeaKind.CounterplaySuppression => "Counterplay restraint"
+      case StrategicIdeaKind.Prophylaxis            => "Prophylaxis"
+      case StrategicIdeaKind.PawnBreak              => "Pawn-break"
+      case StrategicIdeaKind.TargetFixing           => "Target pressure"
+      case StrategicIdeaKind.LineOccupation         => "Line pressure"
+      case StrategicIdeaKind.OutpostCreationOrOccupation => "Outpost"
+      case StrategicIdeaKind.SpaceGainOrRestriction => "Space"
+      case StrategicIdeaKind.KingAttackBuildUp      => "King pressure"
+      case _                                        => "Strategic"
+
+  private def practicalPositionText(
+      played: PlayedMove,
+      label: String,
+      family: LocalFactFamily,
+      anchor: String
+  ): String =
+    family match
+      case LocalFactFamily.Defense =>
+        s"${played.san} is tied to checked counterplay restraint around $anchor."
+      case LocalFactFamily.PlanSupport =>
+        s"${played.san} is tied to checked plan support around $anchor."
+      case _ =>
+        s"${played.san} is tied to checked ${label.toLowerCase} around $anchor."
+
+  private def practicalPositionAnchor(
+      played: PlayedMove,
+      surface: StrategyPackSurface.Snapshot,
+      idea: StrategyIdeaSignal
+  ): Option[String] =
+    val playedTo = played.to.key
+    val playedFrom = played.from.key
+    val playedFile = playedTo.take(1)
+    val squareAnchors =
+      (idea.targetSquare.toList ++ idea.focusSquares ++ idea.relationFocusSquares)
+        .map(_.trim.toLowerCase)
+        .filter(MoveReviewPlayerPayloadBuilder.ChessSquarePattern.matches)
+        .distinct
+    val fileAnchors =
+      idea.focusFiles
+        .map(_.trim.toLowerCase)
+        .filter(_.matches("^[a-h]$"))
+        .distinct
+    val routeAnchors =
+      surface.allRoutes
+        .filter(route => normalizeSide(route.ownerSide).forall(_ == playedSide(played)))
+        .filter(route => route.from == playedFrom || route.route.contains(playedTo))
+        .flatMap(route => route.route.lastOption.toList ++ route.route)
+        .map(_.trim.toLowerCase)
+        .filter(MoveReviewPlayerPayloadBuilder.ChessSquarePattern.matches)
+    val moveRefAnchors =
+      surface.allMoveRefs
+        .filter(ref => normalizeSide(ref.ownerSide).forall(_ == playedSide(played)))
+        .filter(ref => ref.from == playedFrom || ref.target == playedTo)
+        .flatMap(ref => List(ref.from, ref.target))
+        .map(_.trim.toLowerCase)
+        .filter(MoveReviewPlayerPayloadBuilder.ChessSquarePattern.matches)
+    squareAnchors.find(_ == playedTo)
+      .orElse(Option.when(fileAnchors.contains(playedFile))(s"${playedFile}-file"))
+      .orElse(routeAnchors.headOption)
+      .orElse(moveRefAnchors.headOption)
+
+  private def practicalPositionEvidenceRefs(
+      idea: StrategyIdeaSignal,
+      anchor: String
+  ): List[String] =
+    (
+      List(
+        s"strategic_idea_id:${idea.ideaId}",
+        s"strategic_idea_kind:${idea.kind}",
+        s"strategic_readiness:${idea.readiness}",
+        s"anchor:$anchor"
+      ) ++
+        idea.evidenceRefs.map(ref => s"strategy_ref:$ref") ++
+        idea.focusSquares.take(4).map(square => s"focus_square:$square") ++
+        idea.focusFiles.take(4).map(file => s"focus_file:$file")
+    ).map(_.trim).filter(_.nonEmpty).distinct
+
+  private def practicalPositionPriority(fact: PracticalPositionFact): Int =
+    fact.family match
+      case LocalFactFamily.Defense     => 0
+      case LocalFactFamily.Pressure    => 1
+      case LocalFactFamily.PlanSupport => 2
+      case _                           => 3
+
+  private def playedSide(played: PlayedMove): String =
+    if played.isWhite then "white" else "black"
+
+  private def normalizeSide(raw: String): Option[String] =
+    Option(raw).map(_.trim.toLowerCase).filter(side => side == "white" || side == "black")
+
   private def certifiedStrategicSupport(delta: PlayerFacingMoveDeltaEvidence): Boolean =
     val packet = delta.packet
     packet.scope == PlayerFacingPacketScope.MoveLocal &&
@@ -1321,10 +1796,13 @@ private[commentary] object CommentaryIdeaSurface:
   ): Boolean =
     evidence.strictLocalFacts &&
       !evidence.phase.trim.equalsIgnoreCase("endgame") &&
-      delta.packet.proofFamily == CentralBreakTimingWitness.ProofFamily &&
-      delta.packet.proofSource == CentralBreakTimingWitness.ProofSource &&
       delta.packet.releaseRisks.isEmpty &&
-      delta.packet.suppressionReasons.isEmpty
+      delta.packet.suppressionReasons.isEmpty &&
+      (
+        (delta.packet.proofFamily == CentralBreakTimingWitness.ProofFamily &&
+          delta.packet.proofSource == CentralBreakTimingWitness.ProofSource) ||
+          MoveReviewSupportedLocalSurfaceRows.moveLocalExactSliceRow(delta.packet).nonEmpty
+      )
 
   private def strategicIntent(delta: PlayerFacingMoveDeltaEvidence): String =
     delta.deltaClass match
@@ -1371,9 +1849,14 @@ private[commentary] object CommentaryIdeaSurface:
       delta.packet.proofSource == CentralBreakTimingWitness.ProofSource
 
   private def preferredStrategicSubject(delta: PlayerFacingMoveDeltaEvidence): Option[String] =
-    (delta.packet.anchorTerms ++ delta.anchorTerms ++ delta.packet.proofPathWitness.ownerSeedTerms ++ delta.packet.proofPathWitness.continuationTerms)
-      .map(_.trim)
-      .find(subject => subject.nonEmpty && !genericStrategicSubject(subject))
+    MoveReviewSupportedLocalSurfaceRows
+      .moveLocalExactSliceRow(delta.packet)
+      .flatMap(_.authority.flatMap(_.target))
+      .orElse(
+        (delta.packet.anchorTerms ++ delta.anchorTerms ++ delta.packet.proofPathWitness.ownerSeedTerms ++ delta.packet.proofPathWitness.continuationTerms)
+          .map(_.trim)
+          .find(subject => subject.nonEmpty && !genericStrategicSubject(subject))
+      )
 
   private def genericStrategicSubject(subject: String): Boolean =
     val normalized = subject.trim.toLowerCase
@@ -1439,6 +1922,8 @@ private[commentary] object CommentaryIdeaSurface:
         case "center_break_setup"       => values += "center_break_setup"
         case "resolve_capture_tension"  => values += "capture_tension"
         case "answer_direct_threat"     => values += "direct_threat"
+        case "restrict_piece_mobility"  => values += "mobility_restriction"
+        case "move_order_timing"        => values += "move_order"
         case "clarify_exchange"         => values += "exchange_clarified"
         case "force_sequence"           => values += "forcing_sequence"
         case "improve_endgame_activity" => values += "endgame_activity"

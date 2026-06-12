@@ -2,9 +2,10 @@ package lila.commentary.analysis
 
 import _root_.chess.{ Color, Knight, Pawn, Queen, Rook, Square }
 import lila.commentary.*
+import lila.commentary.analysis.semantic.RelationSurfaceRowKind
 import lila.commentary.model.*
 import lila.commentary.model.authoring.OutlineBeatKind
-import lila.commentary.model.strategic.{ EngineEvidence, VariationLine }
+import lila.commentary.model.strategic.{ EngineEvidence, VariationLine, VariationTag }
 import munit.FunSuite
 
 final class MoveReviewBasicExplanationTest extends FunSuite:
@@ -50,7 +51,8 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
       facts: List[Fact] = Nil,
       candidateFacts: List[Fact] = Nil,
       candidateMotifs: List[Motif] = Nil,
-      openingGoalEvaluation: Option[OpeningGoals.Evaluation] = None
+      openingGoalEvaluation: Option[OpeningGoals.Evaluation] = None,
+      engineEvidence: Option[EngineEvidence] = None
   ): NarrativeContext =
     NarrativeContext(
       fen = fen,
@@ -82,6 +84,7 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
       openingData = opening,
       openingGoalEvaluation =
         openingGoalEvaluation.orElse(Option.when(opening.exists(_.name.contains("Italian Game")) && playedMove == "f1c4")(developmentGoal)),
+      engineEvidence = engineEvidence,
       renderMode = NarrativeRenderMode.MoveReview
     )
 
@@ -330,26 +333,69 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
     assert(explanation.prose.toLowerCase.contains("fork"), clue(explanation.prose))
   }
 
-  test("tactical fact without current-move motif ownership does not admit creates-threat prose") {
+  test("forced-line truth admits a PV-coupled tactical local fact") {
+    val fen = "6k1/7p/8/8/8/3B1N2/8/3QK3 w - - 0 1"
+    val lineUcis = List("d3h7", "g8h7", "f3g5", "h7g8", "d1h5")
+    val result =
+      MoveReviewExplanationBuilder
+        .buildWithLocalFact(
+          ctx(
+            fen = fen,
+            playedMove = "d3h7",
+            playedSan = "Bxh7+",
+            phaseReason = "forced tactical line",
+            engineEvidence = Some(
+              EngineEvidence(
+                depth = 18,
+                variations = List(
+                  VariationLine(
+                    moves = lineUcis,
+                    scoreCp = 120,
+                    mate = None,
+                    depth = 18,
+                    tags = List(VariationTag.Forced)
+                  )
+                )
+              )
+            )
+          ),
+          Some(refsForLine(fen, lineUcis, List("Bxh7+", "Kxh7", "Ng5+", "Kg8", "Qh5")))
+        )
+        .getOrElse(fail("expected forced-line local fact"))
+
+    assertEquals(result.explanation.source, "forced_line_truth", clue(result.explanation))
+    assertEquals(result.localFact.producer, MoveReviewLocalFact.Producer.ForcedLineTruth, clue(result.localFact))
+    assertEquals(result.localFact.family, MoveReviewLocalFact.Family.Threat, clue(result.localFact))
+    assertEquals(result.localFact.lineBinding, MoveReviewLocalFact.LineBinding.PvCoupled, clue(result.localFact))
+    assert(result.localFact.evidenceRefs.contains("forced_line_theme:greek_gift"), clue(result.localFact.evidenceRefs))
+  }
+
+  test("stale motif ownership can be replaced only by a replayed tactical relation witness") {
     val fen = "4k3/4r3/8/8/3N3q/8/8/6K1 w - - 0 1"
     val leakedFork =
       Fact.Fork(Square.F5, Knight, List(Square.E7 -> Rook, Square.H4 -> Queen), FactScope.CandidatePv)
     val wrongPlyMotif =
       Motif.Fork(Knight, List(Rook, Queen), Square.F5, List(Square.E7, Square.H4), Color.White, 1, Some("Nf5"))
-    val explanation =
-      MoveReviewExplanationBuilder.build(
-        ctx(
-          fen = fen,
-          playedMove = "d4f5",
-          playedSan = "Nf5",
-          phaseReason = "leaked fork evidence",
-          candidateFacts = List(leakedFork),
-          candidateMotifs = List(wrongPlyMotif)
-        ),
-        Some(refsForLine(fen, List("d4f5", "h4g5"), List("Nf5", "Qg5")))
-      )
+    val result =
+      MoveReviewExplanationBuilder
+        .buildWithLocalFact(
+          ctx(
+            fen = fen,
+            playedMove = "d4f5",
+            playedSan = "Nf5",
+            phaseReason = "leaked fork evidence",
+            candidateFacts = List(leakedFork),
+            candidateMotifs = List(wrongPlyMotif)
+          ),
+          Some(refsForLine(fen, List("d4f5", "h4g5"), List("Nf5", "Qg5")))
+        )
+        .getOrElse(fail("expected replayed relation witness to replace stale motif ownership"))
 
-    assertEquals(explanation, None, clue(explanation))
+    assertEquals(result.explanation.source, "relation_witness", clue(result.explanation))
+    assertEquals(result.localFact.family, MoveReviewLocalFact.Family.Threat, clue(result.localFact))
+    assertEquals(result.localFact.producer, MoveReviewLocalFact.Producer.RelationWitness, clue(result.localFact))
+    assertEquals(result.localFact.relationSurface, Some(RelationSurfaceRowKind.TacticalRelation), clue(result.localFact))
+    assert(result.explanation.reasonTags.contains("relation_kind:fork"), clue(result.explanation.reasonTags))
   }
 
   test("same tactical-looking PV text does not admit prose without canonical evidence") {
@@ -477,6 +523,74 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
     assert(explanation.reasonTags.contains("local_fact_family:defense"), clue(explanation.reasonTags))
     assert(!explanation.prose.contains("addresses the immediate threat"), clue(explanation.prose))
     assert(explanation.reasonTags.contains("line_proof:defensive_answer"), clue(explanation.reasonTags))
+  }
+
+  test("move-order or mobility relation preemption does not hide only-move defensive target truth") {
+    val fen = "n6k/8/B7/1K6/8/8/8/2R5 w - - 0 1"
+    val targetFact =
+      Fact.TargetPiece(Square.A8, Knight, List(Square.B7), Nil, FactScope.ThreatLine)
+    val defenseContract =
+      DecisiveTruthContract(
+        playedMove = Some("a6b7"),
+        verifiedBestMove = Some("a6b7"),
+        truthClass = DecisiveTruthClass.Best,
+        cpLoss = 0,
+        swingSeverity = 0,
+        reasonFamily = DecisiveReasonKind.OnlyMoveDefense,
+        allowConcreteBenchmark = false,
+        chosenMatchesBest = true,
+        compensationAllowed = false,
+        truthPhase = None,
+        ownershipRole = TruthOwnershipRole.NoneRole,
+        visibilityRole = TruthVisibilityRole.PrimaryVisible,
+        surfaceMode = TruthSurfaceMode.Neutral,
+        exemplarRole = TruthExemplarRole.NonExemplar,
+        surfacedMoveOwnsTruth = false,
+        verifiedPayoffAnchor = None,
+        compensationProseAllowed = false,
+        benchmarkProseAllowed = false,
+        investmentTruthChainKey = None,
+        maintenanceExemplarCandidate = false,
+        benchmarkCriticalMove = true,
+        failureMode = FailureInterpretationMode.NoClearPlan,
+        failureIntentConfidence = 0.0,
+        failureIntentAnchor = None,
+        failureInterpretationAllowed = false
+      )
+    val context =
+      ctx(
+        fen = fen,
+        playedMove = "a6b7",
+        playedSan = "Bb7",
+        phaseReason = "defensive move that also dominates a target",
+        facts = List(targetFact),
+        engineEvidence = Some(EngineEvidence(depth = 16, variations = List(VariationLine(moves = List("a6b7", "h8g8"), scoreCp = 42))))
+      ).copy(
+        decision = Some(
+          DecisionRationale(
+            focalPoint = Some(TargetSquare("a8")),
+            logicSummary = "Control the knight's escape squares.",
+            delta = PVDelta(Nil, Nil, Nil, Nil),
+            confidence = ConfidenceLevel.Engine
+          )
+        )
+      )
+
+    val result =
+      MoveReviewExplanationBuilder
+        .buildWithLocalFact(
+          context,
+          Some(refsForLine(fen, List("a6b7", "h8g8"), List("Bb7", "Kg8"))),
+          Some(defenseContract),
+          strictLocalFacts = true
+        )
+        .getOrElse(fail("expected defensive target truth to survive relation preemption"))
+
+    assertEquals(result.explanation.source, "canonical_fact", clue(result.explanation))
+    assertEquals(result.explanation.pvInterpretation.map(_.linePurpose), Some("answer_direct_threat"), clue(result.explanation))
+    assertEquals(result.localFact.family, MoveReviewLocalFact.Family.Defense, clue(result.localFact))
+    assertEquals(result.localFact.producer, MoveReviewLocalFact.Producer.DefensiveTruth, clue(result.localFact))
+    assertEquals(result.localFact.authority, MoveReviewLocalFact.Source.OnlyMoveDefense.authority, clue(result.localFact))
   }
 
   test("castling explanation requires exact PV-backed king-safety sequencing") {
@@ -674,9 +788,151 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
     assertEquals(result.localFact.family, MoveReviewLocalFact.Family.Pressure, clue(result.localFact))
     assertEquals(result.localFact.producer, MoveReviewLocalFact.Producer.RelationWitness, clue(result.localFact))
     assertEquals(result.localFact.lineBinding, MoveReviewLocalFact.LineBinding.PvCoupled, clue(result.localFact))
+    assertEquals(result.localFact.relationSurface, Some(RelationSurfaceRowKind.LineGeometry), clue(result.localFact))
     assert(result.explanation.reasonTags.contains("relation_kind:interference"), clue(result.explanation.reasonTags))
     assert(result.explanation.reasonTags.contains("line_move:f5d6"), clue(result.explanation.reasonTags))
     assert(result.localFact.guardrails.contains("fen_validated_line_replayed"), clue(result.localFact.guardrails))
+  }
+
+  test("mobility-restriction relation witness becomes a pressure local fact") {
+    val fen = "n6k/8/B7/1K6/8/8/8/2R5 w - - 0 1"
+    val context =
+      ctx(
+        fen = fen,
+        playedMove = "a6b7",
+        playedSan = "Bb7",
+        phaseReason = "domination against a knight",
+        engineEvidence = Some(EngineEvidence(depth = 16, variations = List(VariationLine(moves = List("a6b7", "h8g8"), scoreCp = 42))))
+      ).copy(
+        decision = Some(
+          DecisionRationale(
+            focalPoint = Some(TargetSquare("a8")),
+            logicSummary = "Control the knight's escape squares.",
+            delta = PVDelta(Nil, Nil, Nil, Nil),
+            confidence = ConfidenceLevel.Engine
+          )
+        )
+      )
+
+    val result =
+      MoveReviewExplanationBuilder
+        .buildWithLocalFact(
+          context,
+          Some(refsForLine(fen, List("a6b7", "h8g8"), List("Bb7", "Kg8"))),
+          strictLocalFacts = true
+        )
+        .getOrElse(fail("expected mobility-restriction relation witness"))
+
+    assertEquals(result.explanation.source, "relation_witness", clue(result.explanation))
+    assertEquals(result.localFact.family, MoveReviewLocalFact.Family.Pressure, clue(result.localFact))
+    assertEquals(result.localFact.producer, MoveReviewLocalFact.Producer.RelationWitness, clue(result.localFact))
+    assertEquals(result.localFact.relationSurface, Some(RelationSurfaceRowKind.MobilityRestriction), clue(result.localFact))
+    assert(result.explanation.reasonTags.contains("relation_kind:domination"), clue(result.explanation.reasonTags))
+    assert(result.explanation.reasonTags.contains("review_intent:restricts_mobility"), clue(result.explanation.reasonTags))
+    assertEquals(result.explanation.pvInterpretation.map(_.linePurpose), Some("restrict_piece_mobility"), clue(result.explanation))
+    assert(result.explanation.pvInterpretation.exists(_.confirms.contains("mobility_restriction")), clue(result.explanation))
+    assert(result.explanation.prose.contains("mobility restriction"), clue(result.explanation.prose))
+  }
+
+  test("move-order relation witness becomes a timing local fact") {
+    val fen = "4k3/8/8/8/3b4/5N2/8/3QK3 w - - 0 1"
+    val context =
+      ctx(
+        fen = fen,
+        playedMove = "d1a4",
+        playedSan = "Qa4+",
+        phaseReason = "in-between check before recapture",
+        engineEvidence = Some(EngineEvidence(depth = 16, variations = List(VariationLine(moves = List("d1a4", "e8f8"), scoreCp = 42))))
+      ).copy(
+        decision = Some(
+          DecisionRationale(
+            focalPoint = Some(TargetSquare("d4")),
+            logicSummary = "Insert a check before the expected recapture.",
+            delta = PVDelta(Nil, Nil, Nil, Nil),
+            confidence = ConfidenceLevel.Engine
+          )
+        )
+      )
+
+    val result =
+      MoveReviewExplanationBuilder
+        .buildWithLocalFact(
+          context,
+          Some(refsForLine(fen, List("d1a4", "e8f8"), List("Qa4+", "Kf8"))),
+          strictLocalFacts = true
+        )
+        .getOrElse(fail("expected move-order relation witness"))
+    val typed = MoveReviewCausalClaim.localFactResultTypedEvidences(Some(result))
+
+    assertEquals(result.explanation.source, "relation_witness", clue(result.explanation))
+    assertEquals(result.localFact.family, MoveReviewLocalFact.Family.Timing, clue(result.localFact))
+    assertEquals(result.localFact.producer, MoveReviewLocalFact.Producer.RelationWitness, clue(result.localFact))
+    assertEquals(result.localFact.relationSurface, Some(RelationSurfaceRowKind.MoveOrder), clue(result.localFact))
+    assert(result.explanation.reasonTags.contains("relation_kind:zwischenzug"), clue(result.explanation.reasonTags))
+    assert(result.explanation.reasonTags.contains("review_intent:times_move_order"), clue(result.explanation.reasonTags))
+    assertEquals(result.explanation.pvInterpretation.map(_.linePurpose), Some("move_order_timing"), clue(result.explanation))
+    assert(typed.exists(_.kind == MoveReviewCausalClaim.EvidenceKind.TimingWitness), clues(typed))
+    assert(typed.flatMap(_.relationSurface).contains(RelationSurfaceRowKind.MoveOrder), clues(typed))
+  }
+
+  test("draw-resource relation witness becomes a defense local fact in the main builder path") {
+    val fen = "r4rk1/5ppp/8/8/7q/8/2Q3P1/R5K1 b - - 0 1"
+    val line = List("h4e1", "g1h2", "e1h4", "h2g1", "h4e1")
+    val context =
+      ctx(
+        fen = fen,
+        playedMove = "h4e1",
+        playedSan = "Qe1+",
+        phaseReason = "perpetual-check resource in a checked line",
+        engineEvidence = Some(EngineEvidence(depth = 16, variations = List(VariationLine(moves = line, scoreCp = 0))))
+      )
+
+    val result =
+      MoveReviewExplanationBuilder
+        .buildWithLocalFact(
+          context,
+          Some(refsForLine(fen, line, List("Qe1+", "Kh2", "Qh4+", "Kg1", "Qe1+")))
+        )
+        .getOrElse(fail("expected draw-resource relation witness"))
+    val typed = MoveReviewCausalClaim.localFactResultTypedEvidences(Some(result))
+
+    assertEquals(result.explanation.source, "relation_witness", clue(result.explanation))
+    assertEquals(result.localFact.family, MoveReviewLocalFact.Family.Defense, clue(result.localFact))
+    assertEquals(result.localFact.producer, MoveReviewLocalFact.Producer.RelationWitness, clue(result.localFact))
+    assertEquals(result.localFact.lineBinding, MoveReviewLocalFact.LineBinding.PvCoupled, clue(result.localFact))
+    assertEquals(result.localFact.relationSurface, Some(RelationSurfaceRowKind.DrawResource), clue(result.localFact))
+    assert(result.explanation.reasonTags.contains("relation_kind:perpetual_check"), clue(result.explanation.reasonTags))
+    assert(result.explanation.reasonTags.contains("relation_fact:draw_resource"), clue(result.explanation.reasonTags))
+    assert(result.localFact.guardrails.contains("relation_surface:draw_resource"), clue(result.localFact.guardrails))
+    assert(result.explanation.prose.contains("perpetual-check resource"), clue(result.explanation.prose))
+    assert(QuestionFirstCommentaryPlanner.localFactResultWhyThisEligible(result), clue(result.localFact))
+    assert(typed.exists(_.kind == MoveReviewCausalClaim.EvidenceKind.Defense), clues(typed))
+    assert(typed.flatMap(_.relationSurface).contains(RelationSurfaceRowKind.DrawResource), clues(typed))
+  }
+
+  test("non-tactical relation witness still waits for the strict fallback gate") {
+    val fen = "k2r4/8/8/3q1N2/8/8/8/3Q2K1 w - - 0 1"
+    val context =
+      ctx(fen, "f5d6", "Nd6", phaseReason = "interference against a defender")
+        .copy(
+          decision = Some(
+            DecisionRationale(
+              focalPoint = Some(TargetSquare("d5")),
+              logicSummary = "Block the rook's defense of the queen.",
+              delta = PVDelta(Nil, Nil, Nil, Nil),
+              confidence = ConfidenceLevel.Engine
+            )
+          ),
+          engineEvidence = Some(EngineEvidence(depth = 16, variations = List(VariationLine(moves = List("d1a4"), scoreCp = 0))))
+        )
+
+    val result =
+      MoveReviewExplanationBuilder.buildWithLocalFact(
+        context,
+        Some(refsForLine(fen, List("f5d6", "a8b8"), List("Nd6", "Kb8")))
+      )
+
+    assertEquals(result, None, clue(result))
   }
 
   test("PV interpretation is omitted for invalid line while shortLine remains visible") {

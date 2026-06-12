@@ -2,6 +2,7 @@ package lila.commentary.analysis
 
 import _root_.chess.{ Bishop, Color, Knight, Pawn, Piece, Queen, Rook, Square }
 import lila.commentary.*
+import lila.commentary.analysis.semantic.StrategicObservationIds.{ ProofFamilyId, ProofSourceId }
 import lila.commentary.model.*
 import munit.FunSuite
 
@@ -553,6 +554,76 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
     assert(delayedPin.reasonTags.contains("line_proof:tactical_threat"), clue(delayedPin.reasonTags))
   }
 
+  test("discovered attack and trapped-piece motifs require current move and exact PV proof") {
+    val discoveredFen =
+      "k7/7q/8/8/8/3N4/8/1B4K1 w - - 0 1"
+    val trappedFen =
+      "k5pr/7p/8/8/8/2B5/8/6K1 w - - 0 1"
+
+    val discovered =
+      CommentaryIdeaSurface
+        .describe(
+          played("d3f4", "Nf4", Square.D3, Square.F4, Piece(Color.White, Knight)),
+          evidence(motifs = List(
+            Motif.DiscoveredAttack(
+              movingPiece = Knight,
+              attackingPiece = Bishop,
+              target = Queen,
+              color = Color.White,
+              plyIndex = 0,
+              move = Some("Nf4"),
+              movingSq = Some(Square.F4),
+              attackingSq = Some(Square.B1),
+              targetSq = Some(Square.H7)
+            )
+          )),
+          Some(exactLineFacts(discoveredFen, "d3f4", List("d3f4", "h7h2"), List("Nf4", "Qh2+"), "discovered"))
+        )
+        .getOrElse(fail("expected exact discovered-attack descriptor"))
+
+    val trapped =
+      CommentaryIdeaSurface
+        .describe(
+          played("c3g7", "Bg7", Square.C3, Square.G7, Piece(Color.White, Bishop)),
+          evidence(motifs = List(
+            Motif.TrappedPiece(
+              trappedRole = Rook,
+              trappedSquare = Square.H8,
+              color = Color.Black,
+              plyIndex = 0,
+              move = Some("Bg7")
+            )
+          )),
+          Some(exactLineFacts(trappedFen, "c3g7", List("c3g7", "h7h6"), List("Bg7", "h6"), "trapped"))
+        )
+        .getOrElse(fail("expected exact trapped-piece descriptor"))
+
+    val staleTrapped =
+      CommentaryIdeaSurface.describe(
+        played("c3g7", "Bg7", Square.C3, Square.G7, Piece(Color.White, Bishop)),
+        evidence(motifs = List(
+          Motif.TrappedPiece(
+            trappedRole = Rook,
+            trappedSquare = Square.H8,
+            color = Color.Black,
+            plyIndex = 0,
+            move = Some("Bg7")
+          )
+        )),
+        Some(lineFacts(moveRef("m1", "Bg7", "c3g7", 1), Some(moveRef("m2", "h6", "h7h6", 2))))
+      )
+
+    assertEquals(discovered.ideaKind, "discovered_attack", clue(discovered))
+    assertEquals(discovered.localFact.family, MoveReviewLocalFact.Family.Threat, clue(discovered.localFact))
+    assert(discovered.localFact.guardrails.contains("tactical_kind:discovered_attack"), clue(discovered.localFact.guardrails))
+    assert(discovered.localFact.anchors.exists(anchor => anchor.key == "tactical_square" && anchor.value == "h7"), clue(discovered.localFact.anchors))
+    assertEquals(trapped.ideaKind, "trapped_piece", clue(trapped))
+    assertEquals(trapped.localFact.family, MoveReviewLocalFact.Family.Threat, clue(trapped.localFact))
+    assert(trapped.localFact.guardrails.contains("tactical_kind:trapped_piece"), clue(trapped.localFact.guardrails))
+    assert(trapped.localFact.anchors.exists(anchor => anchor.key == "tactical_square" && anchor.value == "h8"), clue(trapped.localFact.anchors))
+    assertEquals(staleTrapped, None, clue("trapped-piece motif without replayed post-move board attack should stay closed"))
+  }
+
   test("endgame activity descriptors cover exact passed-pawn and rook-activity PVs") {
     val passedPawnFen =
       "8/4k3/8/8/8/8/4P3/4K3 w - - 0 1"
@@ -765,7 +836,7 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
 
     cases.foreach { case (deltaClass, expectedFamily) =>
       val delta =
-        strategicDelta("neutralize_key_break", "counterplay_axis_suppression", deltaClass)
+        strategicDelta("neutralize_key_break", "counterplay_axis_suppression", deltaClass, exactProof = None)
       val candidate =
         MoveReviewLocalFact.strategicMoveDeltaCandidate(
           delta,
@@ -785,6 +856,31 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
       assertEquals(candidate.subject, MoveReviewLocalFact.Subject.PlanResource, clue(deltaClass))
       assertEquals(candidate.lineBinding, MoveReviewLocalFact.LineBinding.PvCoupled, clue(deltaClass))
     }
+  }
+
+  test("MoveReviewLocalFact prefers exact proof family over strategic move-delta class") {
+    val delta =
+      strategicDelta(
+        ProofFamilyId.HalfOpenFilePressure.wireKey,
+        ProofSourceId.LocalFileEntryBind.wireKey,
+        PlayerFacingMoveDeltaClass.NewAccess,
+        exactProof = Some(PlayerFacingExactSliceProof.LocalFileEntryBind("c-file", "c6"))
+      )
+    val candidate =
+      MoveReviewLocalFact.strategicMoveDeltaCandidate(
+        delta,
+        anchors = List(MoveReviewLocalFact.Anchor("preferred_subject", "c6")),
+        guardrails =
+          List(
+            s"proof_family:${delta.packet.proofFamily}",
+            s"proof_source:${delta.packet.proofSource}",
+            "strict_requires_causal_or_exact_fallback"
+          )
+      )
+    val decision = MoveReviewLocalFact.admit(candidate)
+
+    assertEquals(decision.admission.map(_.family), Some(MoveReviewLocalFact.Family.Pressure), clue(candidate))
+    assertEquals(decision.admission.map(_.authority), Some(MoveReviewLocalFact.Authority.CertifiedStrategy), clue(candidate))
   }
 
   test("certified strategic support ignores generic main-plan anchor text") {
@@ -892,7 +988,9 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
   private def strategicDelta(
       proofFamily: String,
       proofSource: String,
-      deltaClass: PlayerFacingMoveDeltaClass
+      deltaClass: PlayerFacingMoveDeltaClass,
+      exactProof: Option[PlayerFacingExactSliceProof] =
+        Some(PlayerFacingExactSliceProof.CounterplayAxisSuppression("b5"))
   ): PlayerFacingMoveDeltaEvidence =
     val packet =
       PlayerFacingClaimPacket(
@@ -914,7 +1012,7 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
           ownerSeedTerms = List("b5"),
           continuationTerms = List("a4"),
           structureTransitionTerms = List("b5"),
-          exactSliceProof = Some(PlayerFacingExactSliceProof.CounterplayAxisSuppression("b5"))
+          exactSliceProof = exactProof
         ),
         fallbackMode = PlayerFacingClaimFallbackMode.WeakMain
       )

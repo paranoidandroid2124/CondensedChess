@@ -40,6 +40,24 @@ private[commentary] object MoveReviewPvLine:
         }
       }
 
+  def playedCoupled(startFen: String, playedUci: String, refs: Option[MoveReviewRefs]): Option[LineFacts] =
+    val normalizedPlayed = normalizeUci(playedUci)
+    refs.filter(ref => normalizeFen(ref.startFen) == normalizeFen(startFen)).toList
+      .flatMap(_.variations)
+      .flatMap(line => validatedLine(startFen, line, normalizedPlayed))
+      .flatMap { validated =>
+        validated.first.map { first =>
+          LineFacts(
+            validated.line,
+            first,
+            validated.reply,
+            validated.continuation,
+            validated.moves.drop(3).take(3)
+          )
+        }
+      }
+      .headOption
+
   def shortLine(refs: Option[MoveReviewRefs], preferredLineId: Option[String]): Option[MoveReviewShortLine] =
     refs.flatMap { refs =>
       preferredLineId

@@ -53,6 +53,38 @@ object MoveReviewPlayerPayloadBuilder:
       lineEvidence = LineConsequenceEvaluator.surfaceCandidate(ctx, refs)
     )
 
+  private[commentary] def decisionComparisonSurface(
+      inputs: QuestionPlannerInputs,
+      localFact: Option[MoveReviewLocalFact.Admission],
+      ctx: NarrativeContext,
+      refs: Option[MoveReviewRefs]
+  ): Option[MoveReviewPlayerDecisionComparison] =
+    roleAwareDecisionComparisonSurface(inputs.decisionComparison, localFact)
+      .orElse(decisionComparisonSurface(ctx, refs))
+
+  private[analysis] def roleAwareDecisionComparisonSurface(
+      comparison: Option[DecisionComparison],
+      localFact: Option[MoveReviewLocalFact.Admission]
+  ): Option[MoveReviewPlayerDecisionComparison] =
+    for
+      enriched <- comparison
+      if roleAwareDecisionSurfaceAdmitted(enriched, localFact)
+      branchEvidence <- enriched.roleAwareBranchEvidence
+      secondary <- cleanOpt(enriched.comparativeConsequence)
+      bestLine = branchEvidence.engineBest
+      playedLine = branchEvidence.played
+      if bestLine.narrativeReady && playedLine.narrativeReady
+    yield MoveReviewPlayerDecisionComparison(
+      kicker = "Decision point",
+      gapLabel = enriched.cpLossVsChosen.map(decisionGapLabel),
+      chosenSan = cleanMove(enriched.chosenMove),
+      engineSan = cleanMove(enriched.engineBestMove),
+      comparedSan = cleanMove(enriched.comparedMove),
+      secondaryText = Some(secondary),
+      chosenMatchesBest = enriched.chosenMatchesBest,
+      refSans = cleanList((bestLine.sanMoves.take(4) ++ playedLine.sanMoves.take(4)).distinct)
+    )
+
   private[analysis] def decisionComparisonSurface(
       comparison: Option[DecisionComparisonDigest],
       lineEvidence: Option[LineConsequenceEvidence]
@@ -74,6 +106,19 @@ object MoveReviewPlayerPayloadBuilder:
       chosenMatchesBest = digest.chosenMatchesBest,
       refSans = cleanList(evidence.sanMoves.take(5))
     )
+
+  private def roleAwareDecisionSurfaceAdmitted(
+      comparison: DecisionComparison,
+      localFact: Option[MoveReviewLocalFact.Admission]
+  ): Boolean =
+    comparison.comparativeSource.exists(_.trim == DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource) &&
+      comparison.roleAwareBranchEvidence.nonEmpty &&
+      localFact.exists(fact =>
+        fact.family == MoveReviewLocalFact.Family.LineConsequence &&
+          fact.authority == MoveReviewLocalFact.Authority.AlternativeComparison &&
+          fact.producer == MoveReviewLocalFact.Producer.AlternativeComparison &&
+          fact.lineBinding == MoveReviewLocalFact.LineBinding.PvCoupled
+      )
 
   def build(
       ctx: NarrativeContext,
@@ -1751,6 +1796,7 @@ object MoveReviewPlayerPayloadBuilder:
   ): List[MoveReviewPlayerSurfaceRow] =
     plans
       .filter(PlanEvidenceEvaluator.isBoundedPracticalSupportPlan)
+      .filterNot(_.userFacingEligibility == UserFacingPlanEligibility.PvCoupledOnly)
       .sortBy(_.hypothesis.rank)
       .flatMap(plan => practicalPlanRow(ctx, refs, plan, structureArc))
       .take(2)
@@ -1886,6 +1932,7 @@ object MoveReviewPlayerPayloadBuilder:
       distinctVisibleRows(
         plans
           .filter(PlanEvidenceEvaluator.isBoundedPracticalSupportPlan)
+          .filterNot(_.userFacingEligibility == UserFacingPlanEligibility.PvCoupledOnly)
           .filterNot(plan => hasPromotedSibling(plan, promotedPlans))
           .sortBy(_.hypothesis.rank)
           .flatMap(plan => practicalAdvancedRowsForPlan(ctx, plan, structureArc))
@@ -4053,6 +4100,19 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       packet: PlayerFacingClaimPacket
   ): Option[MoveReviewPlayerSurfaceRow] =
     positionProbeRow(packet)
+
+  private[analysis] def moveLocalExactSliceRow(
+      packet: PlayerFacingClaimPacket
+  ): Option[MoveReviewPlayerSurfaceRow] =
+    if counterplayRestraintPacket(packet) then counterplayRestraintRow(packet)
+    else if packet.proofSource == ProofSourceId.LocalFileEntryBind.wireKey &&
+        packet.proofFamily == ProofFamilyId.HalfOpenFilePressure.wireKey
+    then localFileEntryRow(packet)
+    else if outpostOccupationPacket(packet) then outpostOccupationRow(packet)
+    else if iqpInducementPacket(packet) then iqpInducementRow(packet)
+    else if simplificationWindowPacket(packet) then simplificationWindowRow(packet)
+    else if exchangeOwnershipPacket(packet) then exchangeOwnershipRow(packet)
+    else None
 
   private def counterplayRestraintRow(
       packet: PlayerFacingClaimPacket
