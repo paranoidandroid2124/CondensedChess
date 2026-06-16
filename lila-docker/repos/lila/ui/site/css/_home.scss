@@ -314,13 +314,13 @@ $home-shadow-dark: $home-shadow-light;
   }
 
   &--lichess {
-    color: #d7c59c;
-    background: rgba(#d7c59c, 0.12);
+    color: $home-primary;
+    background: rgba($home-primary, 0.12);
   }
 
   &--chesscom {
-    color: #7fa7a0;
-    background: rgba(#7fa7a0, 0.14);
+    color: $home-primary;
+    background: rgba($home-primary, 0.14);
   }
 
   &--manual,

@@ -24,7 +24,7 @@ object home:
                 p(cls := "home-eyebrow")("Study room"),
                 h1("Return to the board first."),
                 p(cls := "home-hero__summary")(
-                  "Continue the review, pattern, or notebook you were studying without losing the position that made it matter."
+                  "Continue the game, recurring position, or saved study without losing the board that made it matter."
                 ),
                 renderContinueCard(data.continueCard)
               ),
@@ -63,14 +63,14 @@ object home:
               ),
               st.section(cls := "home-section")(
                 div(cls := "home-section-head")(
-                  strong("Recent notebooks"),
+                  strong("Saved studies"),
                   span("Reopen saved boards, notes, and chapters without searching through every study.")
                 ),
                 if data.recentNotebooks.nonEmpty then
                   div(cls := "home-card-grid home-card-grid--notebooks")(
                     data.recentNotebooks.map(renderNotebook)*
                   )
-                else renderEmptyStrip("No recent notebooks yet", "Create or save one from analysis or recurring positions when the board is worth keeping.")
+                else renderEmptyStrip("No saved studies yet", "Save one from a board or recurring position when the position is worth keeping.")
               )
             ),
             st.section(cls := "home-section home-section--accounts")(
@@ -103,7 +103,7 @@ object home:
           supportLine.nonEmpty.option(p(cls := "home-continue-card__support")(supportLine)),
           div(cls := "home-continue-card__actions")(
             a(href := importedAnalysisUrl(entry._id, "review"), cls := "button button-fat")("Continue Move Review"),
-            a(href := importedAnalysisUrl(entry._id, "raw"), cls := "button button-metal")("Open analysis board")
+            a(href := importedAnalysisUrl(entry._id, "raw"), cls := "button button-metal")("Open full board")
           )
         )
       case Main.HomeContinueCard.PatternReport(job) =>
@@ -121,17 +121,17 @@ object home:
       case Main.HomeContinueCard.Notebook(entry) =>
         val chapterCount = entry.chapters.size
         st.article(cls := "home-continue-card")(
-          p(cls := "home-continue-card__eyebrow")("Study notebook"),
+          p(cls := "home-continue-card__eyebrow")("Saved study"),
           h2(cls := "home-continue-card__title")(entry.study.name.value),
           p(cls := "home-continue-card__summary")(
-            s"${if entry.study.isPublic then "Public notebook" else "Private notebook"} • $chapterCount ${if chapterCount == 1 then "chapter" else "chapters"}"
+            s"${if entry.study.isPublic then "Public study" else "Private study"} • $chapterCount ${if chapterCount == 1 then "chapter" else "chapters"}"
           ),
           p(cls := "home-continue-card__support")(
             "Reopen the saved study when the board, notes, and chapter flow already exist."
           ),
           div(cls := "home-continue-card__actions")(
-            a(href := routes.Study.show(entry.study.id).url, cls := "button button-fat")("Open notebook"),
-            a(href := analysisIndexUrl("raw"), cls := "button button-metal")("Open analysis board")
+            a(href := routes.Study.show(entry.study.id).url, cls := "button button-fat")("Open study"),
+            a(href := analysisIndexUrl("raw"), cls := "button button-metal")("Open full board")
           )
         )
       case Main.HomeContinueCard.Starter =>
@@ -143,7 +143,7 @@ object home:
           ),
           div(cls := "home-continue-card__actions")(
             a(href := routes.Importer.importGame.url, cls := "button button-fat")("Start from PGN"),
-            a(href := analysisIndexUrl("raw"), cls := "button button-metal")("Open analysis board")
+            a(href := analysisIndexUrl("raw"), cls := "button button-metal")("Open full board")
           )
         )
 
@@ -187,7 +187,7 @@ object home:
       entry.chapters.take(2).map(_.value).mkString(" • ")
     a(href := routes.Study.show(entry.study.id).url, cls := "home-card home-card--notebook")(
       div(cls := "home-card__badges")(
-        span(cls := "home-pill home-pill--notebook")(if entry.study.isPublic then "Public notebook" else "Private notebook"),
+        span(cls := "home-pill home-pill--notebook")(if entry.study.isPublic then "Public study" else "Private study"),
         entry.liked.option(span(cls := "home-pill home-pill--liked")("Liked"))
       ),
       strong(cls := "home-card__title")(entry.study.name.value),
