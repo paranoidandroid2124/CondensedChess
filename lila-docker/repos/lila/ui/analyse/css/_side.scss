@@ -604,11 +604,63 @@
       background: color-mix(in srgb, #{$c-bg-zebra} 84%, transparent);
     }
 
+    .move-review-player__scene-line-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.35rem 0.5rem;
+      min-width: 0;
+    }
+
     .move-review-player__scene-line-label {
       color: $c-font-dim;
       font-size: 0.72rem;
       font-weight: 700;
       line-height: 1.15;
+    }
+
+    .move-review-player__line-controls {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.28rem;
+      min-width: 0;
+      color: $c-font-dim;
+      font-size: 0.68rem;
+      font-weight: 700;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .move-review-player__line-count {
+      min-width: 4.6rem;
+      text-align: center;
+    }
+
+    .move-review-player__line-step {
+      @extend %button-none;
+
+      min-width: 2.2rem;
+      min-height: 1.5rem;
+      padding: 0.12rem 0.38rem;
+      border-radius: 4px;
+      background: color-mix(in srgb, #{$c-font} 6%, transparent);
+      color: $c-font;
+      font-size: 0.68rem;
+      font-weight: 700;
+      cursor: pointer;
+
+      &:hover,
+      &:focus-visible {
+        background: color-mix(in srgb, #{$c-primary} 12%, transparent);
+        color: $c-primary;
+        outline: none;
+      }
+
+      &:disabled {
+        cursor: default;
+        opacity: 0.42;
+      }
     }
 
     .move-review-player__scene-line-chips {

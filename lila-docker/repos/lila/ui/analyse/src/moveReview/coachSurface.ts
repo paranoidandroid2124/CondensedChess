@@ -365,9 +365,21 @@ function renderSceneLine(scene: MoveReviewScene, refIndex: MoveReviewRefIndex): 
   const lineSans = scene.lineSans || [];
   const chips = renderTryLineChips(lineSans, refIndex);
   if (!chips) return '';
+  const cleanSans = lineSans.filter(san => normalizeSanToken(san));
+  const controls =
+    cleanSans.length > 1
+      ? `<span class="move-review-player__line-controls" aria-label="Replay line controls">
+          <button type="button" class="move-review-player__line-step" data-move-review-line-step="-1" disabled>Back</button>
+          <span class="move-review-player__line-count" aria-live="polite">Move 1/${cleanSans.length}</span>
+          <button type="button" class="move-review-player__line-step" data-move-review-line-step="1">Next</button>
+        </span>`
+      : '';
   return `
     <div class="move-review-player__scene-line" data-scene-line="${escapeHtml(lineSans.join(' '))}">
-      <span class="move-review-player__scene-line-label">${escapeHtml(scene.lineLabel || 'Line to play through')}</span>
+      <span class="move-review-player__scene-line-head">
+        <span class="move-review-player__scene-line-label">${escapeHtml(scene.lineLabel || 'Line to play through')}</span>
+        ${controls}
+      </span>
       <span class="move-review-player__scene-line-chips">${chips}</span>
     </div>
   `;
@@ -511,7 +523,8 @@ function buildMoveReviewScenes(
   const summaryRef = firstSurfaceRowRef(playerSurface.summaryRows, refIndex) || decisionRef;
   const planSourceRows = playerSurface.advancedRows.length ? playerSurface.advancedRows : playerSurface.summaryRows;
   const planRef = firstSurfaceRowRef(planSourceRows, refIndex) || summaryRef;
-  const tryRef = lastResolvedSanRef(primaryLine, refIndex) || planRef;
+  const tryStartRef = firstResolvedSanRef(primaryLine, refIndex) || planRef;
+  const tryEndRef = lastResolvedSanRef(primaryLine, refIndex) || planRef;
   const summarySquare = firstSurfaceSquare(playerSurface.summaryRows);
   const planSquare = firstSurfaceSquare(planSourceRows) || summarySquare;
   const hasCoachSurface = !!(decision || summaryRows || hasTryLine || planRows || playerSurface.probeRows.length || playerSurface.authorRows.length);
@@ -577,9 +590,9 @@ function buildMoveReviewScenes(
       title: 'Try the line',
       kicker: 'Replay',
       body: '',
-      board: boardPayloadForRef(tryRef),
+      board: boardPayloadForRef(tryStartRef),
       boardTitle: 'Line position',
-      boardSubtitle: primaryLine[primaryLine.length - 1] || null,
+      boardSubtitle: primaryLine[0] || null,
       square: planSquare || summarySquare,
       lineSans: primaryLine,
       lineLabel: 'Replay on the board',
@@ -595,7 +608,7 @@ function buildMoveReviewScenes(
       title: 'Remember this',
       kicker: 'Memory',
       body: rememberBody,
-      board: boardPayloadForRef(tryRef || summaryRef || decisionRef),
+      board: boardPayloadForRef(tryEndRef || summaryRef || decisionRef),
       boardTitle: 'Pattern position',
       boardSubtitle: primaryLine[primaryLine.length - 1] || planSourceRows[0]?.label || null,
       square: planSquare || summarySquare,

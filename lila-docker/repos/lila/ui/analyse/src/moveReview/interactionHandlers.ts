@@ -152,6 +152,42 @@ function setActiveCoachMove(player: HTMLElement, activeMove: HTMLElement | null)
   activeMove?.classList.add('is-active');
 }
 
+function sceneLineChips(panel: HTMLElement): HTMLElement[] {
+  return Array.from(
+    panel.querySelectorAll<HTMLElement>('.move-review-player__scene-line [data-ref-id], .move-review-player__scene-line [data-board]'),
+  );
+}
+
+function setSceneLineState(panel: HTMLElement, activeMove: HTMLElement | null): void {
+  const line = panel.querySelector<HTMLElement>('.move-review-player__scene-line');
+  if (!line) return;
+  const chips = sceneLineChips(panel);
+  const activeIndex = activeMove ? chips.indexOf(activeMove) : chips.findIndex(chip => chip.classList.contains('is-active'));
+  const selectedIndex = activeIndex >= 0 ? activeIndex : 0;
+  line.dataset.lineIndex = String(selectedIndex);
+
+  const count = line.querySelector<HTMLElement>('.move-review-player__line-count');
+  if (count) count.textContent = chips.length ? `Move ${selectedIndex + 1}/${chips.length}` : 'Line';
+
+  line.querySelectorAll<HTMLButtonElement>('[data-move-review-line-step]').forEach(button => {
+    const step = Number(button.dataset.moveReviewLineStep);
+    button.disabled = !chips.length || (step < 0 && selectedIndex <= 0) || (step > 0 && selectedIndex >= chips.length - 1);
+  });
+}
+
+function stepSceneLine(button: HTMLButtonElement): void {
+  const panel = button.closest('[data-move-review-scene-panel]') as HTMLElement | null;
+  if (!panel) return;
+  const chips = sceneLineChips(panel);
+  if (!chips.length) return;
+  const rawIndex = Number(panel.querySelector<HTMLElement>('.move-review-player__scene-line')?.dataset.lineIndex || 0);
+  const current = Math.max(0, Math.min(chips.length - 1, Number.isFinite(rawIndex) ? rawIndex : 0));
+  const next = Math.max(0, Math.min(chips.length - 1, current + Number(button.dataset.moveReviewLineStep)));
+  const nextMove = chips[next];
+  syncMoveReviewElementBoard(nextMove, true);
+  nextMove.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+}
+
 function restoreMoveReviewPlayerBoard(anchor?: HTMLElement | null): boolean {
   const player =
     (anchor?.closest('[data-move-review-player]') as HTMLElement | null) ||
@@ -172,6 +208,7 @@ function syncMoveReviewElementBoard(el: HTMLElement, markActive = false): void {
 
   const panel = currentScenePanel(player);
   if (markActive && el.classList.contains('move-review-coach__move-chip')) setActiveCoachMove(player, el);
+  if (panel && markActive && el.closest('.move-review-player__scene-line')) setSceneLineState(panel, el);
   setPlayerBoardMeta(
     player,
     panel?.dataset.sceneBoardTitle || null,
@@ -190,6 +227,7 @@ function syncMoveReviewSceneBoard(player: HTMLElement, panel: HTMLElement): void
       el => boardPayloadFromElement(el) === board,
     );
     setActiveCoachMove(player, activeMove || null);
+    setSceneLineState(panel, activeMove || null);
     setPlayerBoardMeta(
       player,
       panel.dataset.sceneBoardTitle || null,
@@ -198,6 +236,7 @@ function syncMoveReviewSceneBoard(player: HTMLElement, panel: HTMLElement): void
     );
   } else {
     setActiveCoachMove(player, null);
+    setSceneLineState(panel, null);
     setPlayerBoardMeta(player, panel.dataset.sceneBoardTitle || null, panel.dataset.sceneBoardSubtitle || null, sceneBoardKicker(panel));
     hideMoveReviewPreview({ force: true });
   }
@@ -343,6 +382,10 @@ export function initMoveReviewHandlers(ctrl: AnalyseCtrl | undefined, onEvalTogg
       const player = this.closest('[data-move-review-player]') as HTMLElement | null;
       if (!player) return;
       activateMoveReviewScene(player, moveReviewSceneIndex(player) + Number(this.dataset.moveReviewSceneStep), true, true);
+    })
+    .on('click.moveReview', '.analyse__move-review-text [data-move-review-line-step]', function (this: HTMLButtonElement, e) {
+      e.preventDefault();
+      stepSceneLine(this);
     })
     .on('touchstart.moveReview', '.analyse__move-review-text [data-ref-id], .analyse__move-review-text [data-board]', function (this: HTMLElement) {
       if (!('ontouchstart' in window)) return;
