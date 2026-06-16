@@ -1834,7 +1834,7 @@ object MoveReviewPlayerPayloadBuilder:
                 .map(_.toLowerCase)
             val alignmentPlanMatched =
               alignment.toList
-                .flatMap(alignment => alignment.matchedPlanIds ++ alignment.narrativeIntent.toList)
+                .flatMap(_.matchedPlanIds)
                 .exists(planTokenMatches(name, _))
             profile
               .filter(_.confidence >= 0.70)

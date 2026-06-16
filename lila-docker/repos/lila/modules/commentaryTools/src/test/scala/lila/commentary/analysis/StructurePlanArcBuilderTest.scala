@@ -84,7 +84,7 @@ class StructurePlanArcBuilderTest extends FunSuite:
 
     val arc = StructurePlanArcBuilder.build(ctx).getOrElse(fail("missing structure arc"))
     assertEquals(arc.structureLabel, "Carlsbad")
-    assertEquals(arc.planLabel, "Build queenside pressure")
+    assertEquals(arc.planLabel, "Minority Attack")
     assertEquals(arc.primaryDeployment.piece, "R")
     assertEquals(arc.primaryDeployment.destination, "b-file")
     assert(StructurePlanArcBuilder.proseEligible(arc))
@@ -114,7 +114,7 @@ class StructurePlanArcBuilderTest extends FunSuite:
     val arc = StructurePlanArcBuilder.build(ctx).getOrElse(fail("missing structure arc"))
     assertEquals(
       arc.moveContribution,
-      "This move supports that route by making build queenside pressure easier to organize."
+      "This move supports that route by making minority attack easier to organize."
     )
   }
 
@@ -225,7 +225,7 @@ class StructurePlanArcBuilderTest extends FunSuite:
     assert(!StructurePlanArcBuilder.useExactRoute(arc.primaryDeployment))
   }
 
-  test("off-plan structures keep deployment as caution rather than prose claim") {
+  test("off-plan structures without matched typed plan stay out of structure arc") {
     val ctx = baseContext(
       playedMove = "a1b1",
       playedSan = "Rb1",
@@ -245,7 +245,5 @@ class StructurePlanArcBuilderTest extends FunSuite:
       )
     )
 
-    val arc = StructurePlanArcBuilder.build(ctx).getOrElse(fail("missing structure arc"))
-    assert(!StructurePlanArcBuilder.proseEligible(arc))
-    assert(StructurePlanArcBuilder.cautionSupportText(arc).toLowerCase.contains("still wants"))
+    assertEquals(StructurePlanArcBuilder.build(ctx), None)
   }

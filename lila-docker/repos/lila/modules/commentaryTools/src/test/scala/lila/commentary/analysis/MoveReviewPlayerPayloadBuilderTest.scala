@@ -903,7 +903,8 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
                     band = "Playable",
                     matchedPlanIds = List("MinorityAttack"),
                     missingPlanIds = Nil,
-                    reasonCodes = List("PA_MATCH")
+                    reasonCodes = List("PA_MATCH"),
+                    narrativeIntent = Some("build queenside pressure")
                   )
                 )
             )
@@ -928,6 +929,22 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     )
     assertEquals(surface.summaryRows.head.authority, None)
     assertEquals(surface.summaryRows.head.authority.flatMap(_.target), None)
+
+    val intentOnlySurface =
+      build(
+        ctx = ctx,
+        evaluatedPlans =
+          List(
+            evaluated(
+              plan("build queenside pressure"),
+              UserFacingPlanEligibility.StructuralOnly
+            )
+          )
+      )
+    assertEquals(
+      intentOnlySurface.summaryRows.head.text,
+      "The structure gives build queenside pressure practical support."
+    )
   }
 
   test("low-confidence structural context does not enrich practical plan rows") {
@@ -1075,7 +1092,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
         evaluatedPlans =
           List(
             evaluated(
-              plan("build queenside pressure"),
+              plan("Minority Attack"),
               UserFacingPlanEligibility.StructuralOnly
             )
           )
@@ -1115,7 +1132,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
         evaluatedPlans =
           List(
             evaluated(
-              plan("build queenside pressure"),
+              plan("Minority Attack"),
               UserFacingPlanEligibility.StructuralOnly
             )
           )
@@ -1174,7 +1191,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
         evaluatedPlans =
           List(
             evaluated(
-              plan("build queenside pressure"),
+              plan("Minority Attack"),
               UserFacingPlanEligibility.StructuralOnly
             )
           )
@@ -1316,7 +1333,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
         evaluatedPlans =
           List(
             evaluated(
-              plan("hold the structure and restrain counterplay"),
+              plan("Counterplay Restraint"),
               UserFacingPlanEligibility.StructuralOnly
             )
           )
@@ -1345,7 +1362,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
         evaluatedPlans =
           List(
             evaluated(
-              plan("hold the structure and restrain counterplay"),
+              plan("Counterplay Restraint"),
               UserFacingPlanEligibility.StructuralOnly
             )
           )
@@ -1366,7 +1383,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
         evaluatedPlans =
           List(
             evaluated(
-              plan("hold the structure and restrain counterplay"),
+              plan("Counterplay Restraint"),
               UserFacingPlanEligibility.StructuralOnly
             )
           )
@@ -1416,7 +1433,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
         evaluatedPlans =
           List(
             evaluated(
-              plan("hold the structure and restrain counterplay"),
+              plan("Counterplay Restraint"),
               UserFacingPlanEligibility.StructuralOnly
             )
           )
@@ -1434,7 +1451,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
         evaluatedPlans =
           List(
             evaluated(
-              plan("hold the structure and restrain counterplay"),
+              plan("Counterplay Restraint"),
               UserFacingPlanEligibility.StructuralOnly
             )
           )

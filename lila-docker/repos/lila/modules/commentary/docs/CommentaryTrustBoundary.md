@@ -149,8 +149,10 @@ The surface renderer may say:
   must not say the bad move keeps a plan viable. Player-surface structural-only
   rows may expose only weak `Structure support` or typed target/route/support
   anchors; raw hypothesis preconditions or execution steps do not create
-  practical objective/step authority. `PvCoupledOnly` evaluated plans alone are
-  diagnostic, not public plan authority;
+  practical objective/step authority. `PlanAlignment.narrativeIntent` is prose
+  context only; structural route/support matching uses typed matched plan ids or
+  probe-backed plan names. `PvCoupledOnly` evaluated plans alone are diagnostic,
+  not public plan authority;
 - practical position support: only when a `StrategyPack` idea is projected as a
   `practical_position_support` local fact by `certified_strategy_delta`. The
   projected fact must match the played side, carry evidence refs, pass

@@ -60,9 +60,8 @@ private[analysis] object StructurePlanArcBuilder:
     val ownerSide = sideNameFromFen(ctx.fen)
     val structureLabel =
       structure.flatMap(sp => normalized(sp.primary).filterNot(_.equalsIgnoreCase("Unknown")))
-        .orElse(alignment.flatMap(_.narrativeIntent).flatMap(normalized).map(capitalizeFirst))
     val backedPlanLabel = StrategicNarrativePlanSupport.evidenceBackedLeadingPlanName(ctx).flatMap(normalized)
-    val planLabel = backedPlanLabel.orElse(alignment.flatMap(_.narrativeIntent).flatMap(normalized).map(capitalizeFirst))
+    val planLabel = backedPlanLabel.orElse(alignment.flatMap(alignmentPlanLabel))
 
     for
       structureName <- structureLabel
@@ -642,11 +641,26 @@ private[analysis] object StructurePlanArcBuilder:
       case code => code.toLowerCase.replace('_', ' ')
     }
 
+  private def alignmentPlanLabel(alignment: PlanAlignmentInfo): Option[String] =
+    alignment.matchedPlanIds.flatMap(planIdLabel).headOption
+
+  private def planIdLabel(raw: String): Option[String] =
+    normalized(raw).map { value =>
+      val words =
+        value
+          .replace('_', ' ')
+          .replaceAll("""([A-Z]+)([A-Z][a-z])""", "$1 $2")
+          .replaceAll("""([a-z0-9])([A-Z])""", "$1 $2")
+          .replaceAll("""\s+""", " ")
+          .trim
+          .split(" ")
+          .toList
+          .filter(_.nonEmpty)
+      words.map(word => s"${word.head.toUpper}${word.tail.toLowerCase}").mkString(" ")
+    }.filter(_.nonEmpty)
+
   private def normalized(value: String): Option[String] =
     Option(value).map(_.trim).filter(_.nonEmpty)
-
-  private def capitalizeFirst(value: String): String =
-    normalized(value).map(v => s"${v.head.toUpper}${v.tail}").getOrElse(value)
 
   private def isOpenOrSemiOpenFileFor(
       board: Board,

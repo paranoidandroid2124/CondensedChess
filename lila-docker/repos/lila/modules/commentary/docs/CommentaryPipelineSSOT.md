@@ -185,6 +185,8 @@ or through typed target/route/support anchors. Raw hypothesis preconditions or
 execution steps do not create practical objective/step rows. Stronger plan
 rows require promoted probe/transposition evidence, a supported-local row, or
 a CausalFrame plan-support local fact that has matched its plan anchor.
+`PlanAlignment.narrativeIntent` remains prose context; structural route/support
+matching uses typed matched plan ids or probe-backed plan names.
 Practical support rows may render existing `PracticalInfo` bias factors, but
 `PracticalInfo.verdict` prose is not reopened as plan, pressure, or
 counterplay authority.
