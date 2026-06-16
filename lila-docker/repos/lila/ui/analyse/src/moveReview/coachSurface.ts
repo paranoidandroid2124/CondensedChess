@@ -231,7 +231,7 @@ function renderCoachVerdict(
   return `
     <section class="${classes}">
       <div class="move-review-coach__decision-topline">
-        <span class="move-review-coach__decision-kicker">What changed</span>
+        <span class="move-review-coach__decision-kicker">Your choice</span>
         ${comparison.gapLabel ? `<span class="move-review-coach__gap">${escapeHtml(comparison.gapLabel)}</span>` : ''}
       </div>
       ${moveBits.length ? `<div class="move-review-coach__decision-moves">${moveBits.join('')}</div>` : ''}
@@ -375,7 +375,7 @@ function renderSceneLine(scene: MoveReviewScene, refIndex: MoveReviewRefIndex): 
   if (!chips) return '';
   return `
     <div class="move-review-player__scene-line" data-scene-line="${escapeHtml(lineSans.join(' '))}">
-      <span class="move-review-player__scene-line-label">${escapeHtml(scene.lineLabel || 'Line to replay')}</span>
+      <span class="move-review-player__scene-line-label">${escapeHtml(scene.lineLabel || 'Line to play through')}</span>
       <span class="move-review-player__scene-line-chips">${chips}</span>
     </div>
   `;
@@ -389,7 +389,7 @@ function primaryTryLine(playerSurface: MoveReviewPlayerSurfaceV1): string[] {
 
 function renderSceneNav(scenes: MoveReviewScene[]): string {
   return `
-    <nav class="move-review-player__timeline" aria-label="Review flow">
+    <nav class="move-review-player__timeline" aria-label="Review chapters">
       ${scenes
         .map(
           (scene, idx) => `
@@ -443,11 +443,11 @@ function renderScenePanel(scene: MoveReviewScene, idx: number, refIndex: MoveRev
 function renderSceneControls(sceneCount: number): string {
   return `
     <footer class="move-review-player__controls">
-      <button type="button" class="move-review-player__control" data-move-review-scene-step="-1" disabled>Previous</button>
+      <button type="button" class="move-review-player__control" data-move-review-scene-step="-1" disabled>Back</button>
       <span class="move-review-player__scene-count" aria-live="polite">1/${sceneCount}</span>
       <button type="button" class="move-review-player__control move-review-player__control--primary" data-move-review-scene-step="1"${
         sceneCount <= 1 ? ' disabled' : ''
-      }>Next</button>
+      }>Next chapter</button>
     </footer>
   `;
 }
@@ -461,9 +461,9 @@ function renderMoreToCheck(
   const authorMarkup = authorRows.map(row => renderAuthorRow(row, refIndex)).join('');
   if (!probeMarkup && !authorMarkup) return '';
   return `<details class="move-review-coach__details move-review-player__detail-layer"><summary>Look deeper</summary>${
-    probeMarkup ? `<div class="move-review-coach__subsection"><h5>Side lines</h5>${probeMarkup}</div>` : ''
+    probeMarkup ? `<div class="move-review-coach__subsection"><h5>Lines to check</h5>${probeMarkup}</div>` : ''
   }${
-    authorMarkup ? `<div class="move-review-coach__subsection"><h5>Review questions</h5>${authorMarkup}</div>` : ''
+    authorMarkup ? `<div class="move-review-coach__subsection"><h5>Questions for this position</h5>${authorMarkup}</div>` : ''
   }</details>`;
 }
 
@@ -516,11 +516,11 @@ function buildMoveReviewScenes(
         decision ||
         '<p class="move-review-player__empty">Start from the current position, then move through the coach scenes.</p>',
       board: boardPayloadForRef(decisionRef),
-      boardTitle: 'Decision board',
+      boardTitle: 'Your move position',
       boardSubtitle: playerSurface.decisionComparison?.chosenSan || playerSurface.decisionComparison?.engineSan || null,
       square: summarySquare,
       lineSans: primaryLine,
-      lineLabel: 'Decision line',
+      lineLabel: 'Line to check',
     },
   ];
 
@@ -533,7 +533,7 @@ function buildMoveReviewScenes(
       kicker: 'Reason',
       body: `<div class="move-review-coach__reasons">${summaryRows}</div>`,
       board: boardPayloadForRef(summaryRef),
-      boardTitle: 'Reason board',
+      boardTitle: 'Reason position',
       boardSubtitle: playerSurface.summaryRows[0]?.label || null,
       square: summarySquare,
       lineSans: playerSurface.summaryRows.find(row => row.refSans.length)?.refSans || primaryLine,
@@ -550,7 +550,7 @@ function buildMoveReviewScenes(
       kicker: 'Plan',
       body: `<div class="move-review-coach__reasons">${planRows}</div>`,
       board: boardPayloadForRef(planRef),
-      boardTitle: 'Plan board',
+      boardTitle: 'Plan position',
       boardSubtitle: planSourceRows[0]?.label || null,
       square: planSquare,
       lineSans: planSourceRows.find(row => row.refSans.length)?.refSans || primaryLine,
@@ -567,11 +567,11 @@ function buildMoveReviewScenes(
       kicker: 'Replay',
       body: '',
       board: boardPayloadForRef(tryRef),
-      boardTitle: 'Replay board',
+      boardTitle: 'Line position',
       boardSubtitle: primaryLine[primaryLine.length - 1] || null,
       square: planSquare || summarySquare,
       lineSans: primaryLine,
-      lineLabel: 'Replay line',
+      lineLabel: 'Play through',
     });
   }
 
@@ -585,7 +585,7 @@ function buildMoveReviewScenes(
       kicker: 'Memory',
       body: rememberBody,
       board: boardPayloadForRef(tryRef || summaryRef || decisionRef),
-      boardTitle: 'Memory board',
+      boardTitle: 'Pattern position',
       boardSubtitle: primaryLine[primaryLine.length - 1] || planSourceRows[0]?.label || null,
       square: planSquare || summarySquare,
       lineSans: primaryLine,
@@ -618,7 +618,7 @@ export function decorateMoveReviewHtml(
       <div class="move-review-player__stage">
         <aside class="move-review-player__board-shell" aria-label="Current coaching board">
           <div class="move-review-player__board-meta">
-            <span class="move-review-player__board-kicker">Board for this scene</span>
+            <span class="move-review-player__board-kicker">Position in view</span>
             <strong class="move-review-player__board-title">${escapeHtml(scenes[0]?.boardTitle || 'Coaching board')}</strong>
             <span class="move-review-player__board-subtitle">${escapeHtml(scenes[0]?.boardSubtitle || scenes[0]?.label || '')}</span>
           </div>

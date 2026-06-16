@@ -100,6 +100,13 @@
     width: 100%;
     min-width: 0;
     max-width: none;
+
+    @include mq-at-least-col2 {
+      position: sticky;
+      top: 0.75rem;
+      max-height: calc(100vh - 1.5rem);
+      overflow: hidden;
+    }
   }
 
   fieldset.analyse__move-review {
@@ -260,7 +267,9 @@
     }
 
     .move-review-player__timeline {
-      position: relative;
+      position: sticky;
+      top: 0;
+      z-index: 2;
       display: flex;
       align-items: stretch;
       gap: 0.34rem;
@@ -269,6 +278,7 @@
       border: 1px solid color-mix(in srgb, #{$c-border} 72%, transparent);
       border-radius: 8px;
       background: color-mix(in srgb, #{$c-bg-low} 72%, transparent);
+      backdrop-filter: blur(6px);
       overflow: hidden;
 
       &::before {
@@ -383,7 +393,7 @@
       );
 
       @include mq-at-least-col3 {
-        grid-template-columns: minmax(9.5rem, 0.8fr) minmax(0, 1.2fr);
+        grid-template-columns: minmax(11rem, 0.95fr) minmax(0, 1.05fr);
         align-items: start;
       }
     }
@@ -450,7 +460,7 @@
         display: block;
         position: relative;
         inset: auto;
-        width: min(100%, 14.2rem);
+        width: min(100%, 16.5rem);
         max-width: none;
         margin: 0 auto;
         padding: 0;
@@ -468,7 +478,7 @@
       }
 
       .move-review-player__board-shell {
-        grid-template-columns: minmax(5.6rem, 7.2rem) minmax(0, 1fr);
+        grid-template-columns: minmax(6.4rem, 8.4rem) minmax(0, 1fr);
         align-items: center;
         gap: 0.52rem;
         top: 0.2rem;
@@ -484,7 +494,7 @@
         grid-row: 1;
 
         .pv-board {
-          width: min(100%, 7.2rem);
+          width: min(100%, 8.4rem);
         }
       }
     }
@@ -565,10 +575,14 @@
 
     .move-review-player__controls {
       display: grid;
+      position: sticky;
+      bottom: 0;
+      z-index: 2;
       grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
       gap: 0.5rem;
       align-items: center;
-      padding-top: 0.12rem;
+      padding: 0.48rem 0 0.08rem;
+      background: linear-gradient(180deg, transparent, $c-bg-box 42%);
     }
 
     .move-review-player__control {
@@ -1135,6 +1149,24 @@
         }
       }
     }
+  }
+
+  &--moveReview fieldset.analyse__move-review {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
+    max-height: 100%;
+    margin-bottom: 0;
+    padding: clamp(0.72rem, 1vw, 1rem);
+    overflow: hidden;
+  }
+
+  &--moveReview .analyse__move-review-text {
+    min-height: 0;
+    padding-inline-end: 0.15rem;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
   }
 }
 

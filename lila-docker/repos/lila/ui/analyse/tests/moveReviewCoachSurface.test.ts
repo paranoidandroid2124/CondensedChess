@@ -79,8 +79,8 @@ describe('moveReview coach surface', () => {
     assert.match(html, /move-review-coach/);
     assert.match(html, /move-review-player/);
     assert.match(html, /data-move-review-player/);
-    assert.match(html, /Key moment/);
-    assert.match(html, /Coach verdict/);
+    assert.match(html, /Move review/);
+    assert.match(html, /Your choice/);
     assert.match(html, /Why it mattered/);
     assert.match(html, /What to watch next/);
     assert.match(html, /Try the line/);
@@ -96,7 +96,8 @@ describe('moveReview coach surface', () => {
     assert.match(html, /move-review-player__detail-layer/);
     assert.match(html, /Coach notes/);
     assert.match(html, /data-scene-square="d5"/);
-    assert.match(html, /data-scene-board-title="Verdict board"/);
+    assert.match(html, /Position in view/);
+    assert.match(html, /data-scene-board-title="Your move position"/);
     assert.match(html, /data-scene-board="8\/8\/8\/8\/8\/5N2\/8\/8 b - - 1 1\|g1f3"/);
     assert.doesNotMatch(html, /authority/i);
     assert.doesNotMatch(html, /diagnostics/i);

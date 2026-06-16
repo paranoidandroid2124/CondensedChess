@@ -459,7 +459,7 @@
     padding: var(---atlas-shell-block-gap) var(---atlas-shell-gutter-x);
 
     &--moveReview {
-      grid-template-columns: minmax(14rem, 18rem) minmax(20rem, 1fr) minmax(17rem, 24rem);
+      grid-template-columns: minmax(16rem, 22rem) minmax(20rem, 1fr) minmax(17rem, 23rem);
       grid-template-areas:
         'sidebar sidebar sidebar'
         'side board tools'
@@ -481,7 +481,7 @@
       'round-training round-training';
 
     &--moveReview {
-      grid-template-columns: minmax(16rem, 21rem) minmax(28rem, 1fr) minmax(20rem, 27rem);
+      grid-template-columns: minmax(20rem, 27rem) minmax(28rem, 1fr) minmax(19rem, 25rem);
       grid-template-areas:
         'sidebar sidebar sidebar'
         'side board tools'
