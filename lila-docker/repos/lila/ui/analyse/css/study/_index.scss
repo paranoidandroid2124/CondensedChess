@@ -46,7 +46,7 @@ $top-height: 3.2rem;
   .notebook-index__eyebrow {
     font-size: 0.78rem;
     font-weight: 700;
-    letter-spacing: 0.16em;
+    letter-spacing: 0;
     text-transform: uppercase;
     color: $study-accent;
   }
@@ -140,7 +140,7 @@ $top-height: 3.2rem;
   .pager__status {
     color: $study-muted;
     font-size: 0.88rem;
-    letter-spacing: 0.02em;
+    letter-spacing: 0;
   }
 
   .pager__next {

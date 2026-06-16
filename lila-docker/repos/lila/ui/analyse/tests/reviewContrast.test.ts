@@ -427,6 +427,9 @@ describe('review shell contrast palette', () => {
     assert.match(studyIndexScss, /\$study-accent:\s*#8bc071;/);
     assert.match(studyIndexScss, /\$study-warm:\s*#e3b15b;/);
     assert.match(studyIndexScss, /@import 'list-widget';/);
+    [...studyScss.matchAll(/letter-spacing:\s*([^;]+);/g)].forEach(match =>
+      assert.equal(match[1]!.trim(), '0', `study letter-spacing must be 0, got ${match[1]}`),
+    );
     assert.match(studyListWidgetScss, /\.study\s*\{[\s\S]*?background:\s*rgba\(\$study-surface,\s*0\.72\);/);
     assert.match(studyListWidgetScss, /&__title\s*\{[\s\S]*?color:\s*\$study-text;/);
     assert.match(studyListWidgetScss, /&__detail\s*\{[\s\S]*?color:\s*\$study-warm;/);

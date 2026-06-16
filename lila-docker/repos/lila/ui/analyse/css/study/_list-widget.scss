@@ -57,7 +57,7 @@
       h3 {
         font-size: 0.75rem;
         text-transform: uppercase;
-        letter-spacing: 0.05em;
+        letter-spacing: 0;
         color: $study-muted;
         margin-bottom: 0.6rem;
       }
@@ -138,7 +138,7 @@
       padding: 0.35rem 0.7rem;
       font-size: 0.72rem;
       line-height: 1;
-      letter-spacing: 0.04em;
+      letter-spacing: 0;
     }
 
     .study__badge {
@@ -194,7 +194,7 @@
       font-size: 0.82rem;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.08em;
+      letter-spacing: 0;
     }
 
     .study__footer-glyph,
@@ -311,7 +311,7 @@
   &__eyebrow {
     font-size: 0.58rem;
     text-transform: uppercase;
-    letter-spacing: 0.16em;
+    letter-spacing: 0;
     color: $study-accent-strong;
   }
 
