@@ -403,7 +403,7 @@ body.dark .auth-url code,
 body.pro .auth-url code,
 html.dark .auth-url code,
 html.pro .auth-url code {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba($c-bg-input, 0.72);
 }
 
 // Responsive
@@ -448,7 +448,7 @@ html.pro .auth-url code {
 .auth-page .landing-header .logo {
     font-weight: 900;
     font-size: 1.5rem;
-    letter-spacing: -0.5px;
+    letter-spacing: 0;
     text-decoration: none;
     color: inherit;
 }
@@ -630,7 +630,7 @@ html.pro .auth-theme-switch__button[aria-busy='true'] {
 .auth-empty-state__eyebrow {
     font-size: 0.76rem;
     font-weight: 700;
-    letter-spacing: 0.08em;
+    letter-spacing: 0;
     text-transform: uppercase;
     color: $c-primary;
 }
@@ -710,7 +710,7 @@ html.pro .auth-theme-switch__button[aria-busy='true'] {
     border-radius: 999px;
     font-size: 0.72rem;
     font-weight: 700;
-    letter-spacing: 0.04em;
+    letter-spacing: 0;
     text-transform: uppercase;
     color: $c-font;
     background: rgba(169, 173, 158, 0.14);
@@ -768,7 +768,7 @@ html.pro .auth-theme-switch__button[aria-busy='true'] {
     flex: none;
     font-size: 0.76rem;
     font-weight: 700;
-    letter-spacing: 0.08em;
+    letter-spacing: 0;
     text-transform: uppercase;
     color: $c-primary;
 }
@@ -1014,7 +1014,7 @@ html.pro .auth-card--importer {
 .importer-hero__eyebrow {
     font-size: 0.78rem;
     font-weight: 800;
-    letter-spacing: 0.12em;
+    letter-spacing: 0;
     text-transform: uppercase;
     color: $c-accent;
     margin-bottom: 0.65rem;
@@ -1186,7 +1186,7 @@ html.pro .auth-card--importer {
 .importer-mode-card__eyebrow {
     font-size: 0.72rem;
     font-weight: 800;
-    letter-spacing: 0.08em;
+    letter-spacing: 0;
     text-transform: uppercase;
     color: $c-primary;
 }
@@ -1444,7 +1444,7 @@ body.dark .status-progress__index,
 body.pro .status-progress__index,
 html.dark .status-progress__index,
 html.pro .status-progress__index {
-    background: rgba(255, 255, 255, 0.08);
+    background: rgba($c-bg-low, 0.84);
     color: $c-font;
 }
 
@@ -1452,7 +1452,7 @@ body.dark .status-links__primary.is-disabled,
 body.pro .status-links__primary.is-disabled,
 html.dark .status-links__primary.is-disabled,
 html.pro .status-links__primary.is-disabled {
-    background: rgba(255, 255, 255, 0.08);
+    background: rgba($c-bg-low, 0.84);
     color: $c-shade !important;
 }
 
@@ -1822,7 +1822,7 @@ html.pro .status-links__primary.is-disabled {
     font-size: 0.73rem;
     font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 0;
     color: $c-primary;
 }
 
@@ -1963,7 +1963,7 @@ html.pro .status-links__primary.is-disabled {
     font-size: 0.73rem;
     font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 0;
     color: $c-primary;
 }
 
@@ -2128,7 +2128,7 @@ html.pro .status-links__primary.is-disabled {
 .account-product-compare-kicker {
     font-size: 0.73rem;
     font-weight: 800;
-    letter-spacing: 0.08em;
+    letter-spacing: 0;
     text-transform: uppercase;
     color: $c-primary;
 }
