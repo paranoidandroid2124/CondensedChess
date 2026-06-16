@@ -501,6 +501,10 @@ function renderBoardCue(scene: MoveReviewScene | undefined): string {
   const hidden = !focusSquare && !line && !lineEval ? ' hidden' : '';
   return `
     <div class="move-review-player__board-cue"${hidden}>
+      <span class="move-review-player__board-cue-item move-review-player__board-cue-item--eval"${lineEval ? '' : ' hidden'}>
+        <span>Eval</span>
+        <strong>${escapeHtml(lineEval)}</strong>
+      </span>
       <span class="move-review-player__board-cue-item move-review-player__board-cue-item--square"${focusSquare ? '' : ' hidden'}>
         <span>Watch</span>
         <strong>${escapeHtml(focusSquare)}</strong>
@@ -508,10 +512,6 @@ function renderBoardCue(scene: MoveReviewScene | undefined): string {
       <span class="move-review-player__board-cue-item move-review-player__board-cue-item--line"${line ? '' : ' hidden'}>
         <span>Line</span>
         <strong>${escapeHtml(line)}</strong>
-      </span>
-      <span class="move-review-player__board-cue-item move-review-player__board-cue-item--eval"${lineEval ? '' : ' hidden'}>
-        <span>Eval</span>
-        <strong>${escapeHtml(lineEval)}</strong>
       </span>
       <span class="move-review-player__board-cue-item move-review-player__board-cue-item--move" hidden>
         <span>Now</span>
@@ -588,7 +588,7 @@ function renderScenePanel(scene: MoveReviewScene, idx: number, refIndex: MoveRev
         <h4>${escapeHtml(scene.title)}</h4>
       </header>
       <aside class="move-review-player__scene-focus">
-        <span class="move-review-player__scene-focus-label">Position cue</span>
+        <span class="move-review-player__scene-focus-label">Eval and board cue</span>
         <p>${escapeHtml(scene.boardNote)}</p>
         ${focusSquare}
       </aside>
@@ -712,7 +712,7 @@ function buildMoveReviewScenes(
       board: boardPayloadForRef(summaryRef),
       boardTitle: 'Reason position',
       boardSubtitle: playerSurface.summaryRows[0]?.label || null,
-      boardNote: 'Keep this square in view; the reason lives on the board.',
+      boardNote: 'Keep this square and eval in view; the reason lives on the board.',
       square: summarySquare,
       lineSans: summaryLine,
       lineLabel: 'Moves behind the reason',
@@ -733,7 +733,7 @@ function buildMoveReviewScenes(
       board: boardPayloadForRef(planRef),
       boardTitle: 'Plan position',
       boardSubtitle: planSourceRows[0]?.label || null,
-      boardNote: 'Use this position to decide what the next move should improve.',
+      boardNote: 'Use the position and eval to decide what the next move should improve.',
       square: planSquare,
       lineSans: planLine,
       lineLabel: 'Plan in moves',
@@ -754,7 +754,7 @@ function buildMoveReviewScenes(
       board: boardPayloadForRef(tryStartRef),
       boardTitle: 'Position after each move',
       boardSubtitle: primaryLine[0] || null,
-      boardNote: 'Play the line one move at a time; the board follows each click.',
+      boardNote: 'Play the line one move at a time; keep the eval beside the board.',
       square: planSquare || summarySquare,
       lineSans: primaryLine,
       lineLabel: 'Replay on the board',
@@ -776,7 +776,7 @@ function buildMoveReviewScenes(
       board: boardPayloadForRef(tryEndRef || summaryRef || decisionRef),
       boardTitle: 'Pattern position',
       boardSubtitle: primaryLine[primaryLine.length - 1] || planSourceRows[0]?.label || null,
-      boardNote: 'Save this pattern as the cue to recognize in your next game.',
+      boardNote: 'Save this pattern, board cue, and eval for your next game.',
       square: planSquare || summarySquare,
       lineSans: primaryLine,
       lineLabel: 'Pattern in moves',

@@ -118,7 +118,7 @@ describe('moveReview coach surface', () => {
     assert.match(html, /move-review-player__board-title/);
     assert.match(html, /move-review-player__board-note/);
     assert.match(html, /move-review-player__scene-focus/);
-    assert.match(html, /move-review-player__scene-focus-label">Position cue/);
+    assert.match(html, /move-review-player__scene-focus-label">Eval and board cue/);
     assert.match(html, /move-review-player__scene-focus-square" data-move-review-square="d5"/);
     assert.match(html, /move-review-player__scene-line/);
     assert.match(html, /data-scene-line="Nf3 d5"/);
@@ -149,14 +149,18 @@ describe('moveReview coach surface', () => {
     assert.match(html, /move-review-player__board-cue-item--move/);
     assert.match(html, /move-review-player__board-cue-item--eval/);
     assert.match(html, /<span>Eval<\/span>\s*<strong>\+0\.4<\/strong>/);
+    assert.match(
+      html,
+      /move-review-player__board-cue-item move-review-player__board-cue-item--eval[\s\S]*?<span>Eval<\/span>\s*<strong>\+0\.4<\/strong>[\s\S]*?move-review-player__board-cue-item move-review-player__board-cue-item--square/,
+    );
     assert.match(html, /data-scene-board-title="Position tied to the choice"/);
     assert.match(html, /data-scene-board-note="Check the board and eval before reading the verdict\."/);
     assert.match(html, /<p>Check the board and eval before reading the verdict\.<\/p>/);
-    assert.match(html, /data-scene-board-note="Keep this square in view; the reason lives on the board\."/);
-    assert.match(html, /data-scene-board-note="Use this position to decide what the next move should improve\."/);
+    assert.match(html, /data-scene-board-note="Keep this square and eval in view; the reason lives on the board\."/);
+    assert.match(html, /data-scene-board-note="Use the position and eval to decide what the next move should improve\."/);
     assert.match(html, /data-scene-board-title="Position after each move"/);
-    assert.match(html, /data-scene-board-note="Play the line one move at a time; the board follows each click\."/);
-    assert.match(html, /data-scene-board-note="Save this pattern as the cue to recognize in your next game\."/);
+    assert.match(html, /data-scene-board-note="Play the line one move at a time; keep the eval beside the board\."/);
+    assert.match(html, /data-scene-board-note="Save this pattern, board cue, and eval for your next game\."/);
     assert.match(html, /data-scene-label="Verdict"/);
     assert.match(html, /data-scene-control-label="See why"/);
     assert.match(html, /data-scene-board="8\/8\/8\/8\/8\/5N2\/8\/8 b - - 1 1\|g1f3"/);

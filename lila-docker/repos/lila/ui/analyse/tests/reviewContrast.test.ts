@@ -241,12 +241,12 @@ describe('review shell contrast palette', () => {
     assert.match(sideScss, /\.move-review-player__board-anchor\s*\{/);
     assert.match(
       sideScss,
-      /\.move-review-player__board-anchor-label\s*\{[\s\S]*?font-family:\s*'Roboto Mono', monospace;[\s\S]*?font-weight:\s*800;[\s\S]*?color:\s*\$c-primary;/,
+      /\.move-review-player__board-anchor-label\s*\{[\s\S]*?font-family:\s*'Roboto Mono', monospace;[\s\S]*?font-weight:\s*800;[\s\S]*?color:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*84%,\s*#\{\$c-font\}\);[\s\S]*?text-transform:\s*uppercase;/,
     );
     assert.match(sideScss, /\.move-review-player__board-anchor-move\s*\{[\s\S]*?font-family:\s*'Roboto Mono', monospace;/);
     assert.match(
       sideScss,
-      /\.move-review-player__board-anchor-eval\s*\{[\s\S]*?border:\s*1px solid color-mix\(in srgb,\s*#\{\$c-primary\}\s*24%,\s*transparent\);[\s\S]*?background:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*14%,\s*#\{\$c-bg-low\}\);[\s\S]*?color:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*86%,\s*#\{\$c-font\}\);[\s\S]*?font-weight:\s*800;/,
+      /\.move-review-player__board-anchor-eval\s*\{[\s\S]*?border:\s*1px solid color-mix\(in srgb,\s*#\{\$c-primary\}\s*24%,\s*transparent\);[\s\S]*?background:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*18%,\s*#\{\$c-bg-low\}\);[\s\S]*?color:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*86%,\s*#\{\$c-font\}\);[\s\S]*?font-size:\s*0\.94rem;[\s\S]*?font-weight:\s*900;/,
     );
     assert.match(
       sideScss,
@@ -261,7 +261,7 @@ describe('review shell contrast palette', () => {
     assert.match(sideScss, /\.move-review-player__board-cue-item--line\s*\{[\s\S]*?background:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*10%,\s*transparent\);/);
     assert.match(
       sideScss,
-      /\.move-review-player__board-cue-item--eval\s*\{[\s\S]*?background:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*11%,\s*#\{\$c-bg-low\}\);/,
+      /\.move-review-player__board-cue-item--eval\s*\{[\s\S]*?border-color:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*32%,\s*transparent\);[\s\S]*?background:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*15%,\s*#\{\$c-bg-low\}\);[\s\S]*?strong\s*\{[\s\S]*?font-weight:\s*800;/,
     );
     assert.match(
       sideScss,
