@@ -26,9 +26,8 @@ private[analysis] object AlternativeNarrativeSupport:
     val playedMoveOpt = ctx.playedSan.filter(_.trim.nonEmpty)
 
     val moveA = bestMoveOpt
-    val uciA = bestLine.flatMap(_.moves.headOption)
 
-    val (moveB, uciB) =
+    val moveB =
       playedMoveOpt.filter(pm => !bestMoveOpt.exists(equalMoveToken(ctx.fen)(pm, _))) match
         case Some(played) =>
           val playedLine = ctx.engineEvidence.flatMap(_.variations.find(v => 
@@ -41,14 +40,11 @@ private[analysis] object AlternativeNarrativeSupport:
             playedLine.filter(line =>
               bestLine.exists(best => math.abs(line.effectiveScore - best.effectiveScore) <= CloseAlternativeThresholdCp)
             )
-          val playedUci = closePlayedLine.flatMap(_.moves.headOption).orElse(
-            closePlayedLine.flatMap(_ => ctx.candidates.find(c => equalMoveToken(ctx.fen)(c.move, played)).flatMap(_.uci))
-          )
-          closePlayedLine.fold((Option.empty[String], Option.empty[String]))(_ => (Some(played), playedUci))
+          Option.when(closePlayedLine.nonEmpty)(played)
         case None =>
           val altLine = ctx.engineEvidence.flatMap(_.alternatives(CloseAlternativeThresholdCp).headOption)
           val altMove = altLine.flatMap(variationLeadSan(ctx.fen, _))
-          (altMove, altLine.flatMap(_.moves.headOption))
+          altMove
 
     (moveA, moveB) match
       case (Some(ma), Some(mb)) =>
@@ -63,8 +59,6 @@ private[analysis] object AlternativeNarrativeSupport:
         )
 
         val startPly = NarrativeUtils.plyFromFen(ctx.fen).map(_ + 1).getOrElse(1)
-        val intentA = findMoveIntent(ctx, ma, uciA)
-        val intentB = findMoveIntent(ctx, mb, uciB)
         val playedIsBest = playedMoveOpt.exists(equalMoveToken(ctx.fen)(_, ma))
 
         (evidenceA, evidenceB) match
@@ -74,42 +68,42 @@ private[analysis] object AlternativeNarrativeSupport:
             val sentenceText =
               (evA.kind, evB.kind) match
                 case (LineConsequenceKind.CentralPawnAdvance, LineConsequenceKind.ExchangeSequence) =>
-                  if (playedIsBest) playedBranchSentence(ma, intentA, lineAStr, mb, intentB, lineBStr, evA.kind, evB.kind)
-                  else s"While the engine prefers $lineAStr ($intentA), the alternative $mb ($intentB) instead triggers an exchange sequence with $lineBStr."
+                  if (playedIsBest) playedBranchSentence(ma, lineAStr, mb, lineBStr, evA.kind, evB.kind)
+                  else s"While the engine prefers $lineAStr, the alternative $mb instead triggers an exchange sequence with $lineBStr."
                 case (LineConsequenceKind.ExchangeSequence, LineConsequenceKind.CentralPawnAdvance) =>
-                  if (playedIsBest) playedBranchSentence(ma, intentA, lineAStr, mb, intentB, lineBStr, evA.kind, evB.kind)
-                  else s"While the engine prefers $lineAStr ($intentA) leading to an exchange sequence, the alternative $mb ($intentB) instead pushes a central pawn with $lineBStr."
+                  if (playedIsBest) playedBranchSentence(ma, lineAStr, mb, lineBStr, evA.kind, evB.kind)
+                  else s"While the engine prefers $lineAStr leading to an exchange sequence, the alternative $mb instead pushes a central pawn with $lineBStr."
                 case (LineConsequenceKind.ForcingCheckSequence, _) =>
-                  if (playedIsBest) playedBranchSentence(ma, intentA, lineAStr, mb, intentB, lineBStr, evA.kind, evB.kind)
-                  else s"While the engine prefers $lineAStr ($intentA) to initiate a forcing check sequence, the alternative $mb ($intentB) continues quieter with $lineBStr."
+                  if (playedIsBest) playedBranchSentence(ma, lineAStr, mb, lineBStr, evA.kind, evB.kind)
+                  else s"While the engine prefers $lineAStr to initiate a forcing check sequence, the alternative $mb continues quieter with $lineBStr."
                 case (_, LineConsequenceKind.ForcingCheckSequence) =>
-                  if (playedIsBest) playedBranchSentence(ma, intentA, lineAStr, mb, intentB, lineBStr, evA.kind, evB.kind)
-                  else s"While the engine prefers $lineAStr ($intentA), the alternative $mb ($intentB) instead starts a forcing check sequence with $lineBStr."
+                  if (playedIsBest) playedBranchSentence(ma, lineAStr, mb, lineBStr, evA.kind, evB.kind)
+                  else s"While the engine prefers $lineAStr, the alternative $mb instead starts a forcing check sequence with $lineBStr."
                 case (LineConsequenceKind.ExchangeSequence, LineConsequenceKind.ExchangeSequence) =>
-                  if (playedIsBest) playedBranchSentence(ma, intentA, lineAStr, mb, intentB, lineBStr, evA.kind, evB.kind)
-                  else s"Both options lead to exchanges: the engine prefers $lineAStr ($intentA), whereas the alternative $mb ($intentB) trades via $lineBStr."
+                  if (playedIsBest) playedBranchSentence(ma, lineAStr, mb, lineBStr, evA.kind, evB.kind)
+                  else s"Both options lead to exchanges: the engine prefers $lineAStr, whereas the alternative $mb trades via $lineBStr."
                 case (LineConsequenceKind.CentralPawnAdvance, LineConsequenceKind.CentralPawnAdvance) =>
-                  if (playedIsBest) playedBranchSentence(ma, intentA, lineAStr, mb, intentB, lineBStr, evA.kind, evB.kind)
-                  else s"Both lines push pawns into the center: the engine prefers $lineAStr ($intentA), while the alternative $mb ($intentB) advances via $lineBStr."
+                  if (playedIsBest) playedBranchSentence(ma, lineAStr, mb, lineBStr, evA.kind, evB.kind)
+                  else s"Both lines push pawns into the center: the engine prefers $lineAStr, while the alternative $mb advances via $lineBStr."
                 case (LineConsequenceKind.PassedPawnCreation, _) =>
-                  if (playedIsBest) playedBranchSentence(ma, intentA, lineAStr, mb, intentB, lineBStr, evA.kind, evB.kind)
-                  else s"While the engine prefers $lineAStr ($intentA) to create a passed pawn, the alternative $mb ($intentB) continues with $lineBStr."
+                  if (playedIsBest) playedBranchSentence(ma, lineAStr, mb, lineBStr, evA.kind, evB.kind)
+                  else s"While the engine prefers $lineAStr to create a passed pawn, the alternative $mb continues with $lineBStr."
                 case (_, LineConsequenceKind.PassedPawnCreation) =>
-                  if (playedIsBest) playedBranchSentence(ma, intentA, lineAStr, mb, intentB, lineBStr, evA.kind, evB.kind)
-                  else s"While the engine prefers $lineAStr ($intentA), the alternative $mb ($intentB) instead creates a passed pawn with $lineBStr."
+                  if (playedIsBest) playedBranchSentence(ma, lineAStr, mb, lineBStr, evA.kind, evB.kind)
+                  else s"While the engine prefers $lineAStr, the alternative $mb instead creates a passed pawn with $lineBStr."
                 case (LineConsequenceKind.PromotionRace, _) =>
-                  if (playedIsBest) playedBranchSentence(ma, intentA, lineAStr, mb, intentB, lineBStr, evA.kind, evB.kind)
-                  else s"While the engine prefers $lineAStr ($intentA) to push a passed pawn toward promotion, the alternative $mb ($intentB) continues with $lineBStr."
+                  if (playedIsBest) playedBranchSentence(ma, lineAStr, mb, lineBStr, evA.kind, evB.kind)
+                  else s"While the engine prefers $lineAStr to push a passed pawn toward promotion, the alternative $mb continues with $lineBStr."
                 case (_, LineConsequenceKind.PromotionRace) =>
-                  if (playedIsBest) playedBranchSentence(ma, intentA, lineAStr, mb, intentB, lineBStr, evA.kind, evB.kind)
-                  else s"While the engine prefers $lineAStr ($intentA), the alternative $mb ($intentB) instead pushes a passed pawn near promotion with $lineBStr."
+                  if (playedIsBest) playedBranchSentence(ma, lineAStr, mb, lineBStr, evA.kind, evB.kind)
+                  else s"While the engine prefers $lineAStr, the alternative $mb instead pushes a passed pawn near promotion with $lineBStr."
                 case _ =>
-                  if (playedIsBest) playedBranchSentence(ma, intentA, lineAStr, mb, intentB, lineBStr, evA.kind, evB.kind)
-                  else s"While the engine prefers $lineAStr ($intentA), the alternative $mb ($intentB) opts for $lineBStr."
+                  if (playedIsBest) playedBranchSentence(ma, lineAStr, mb, lineBStr, evA.kind, evB.kind)
+                  else s"While the engine prefers $lineAStr, the alternative $mb opts for $lineBStr."
             Some(
               AlternativeNarrative(
                 move = Some(mb),
-                reason = "different strategic branches",
+                reason = "different checked branches",
                 sentence = sentenceText,
                 source = "close_candidate"
               )
@@ -117,27 +111,17 @@ private[analysis] object AlternativeNarrativeSupport:
           case _ => None
       case _ => None
 
-  private def findMoveIntent(ctx: NarrativeContext, moveSan: String, moveUci: Option[String]): String =
-    ctx.candidates.find(c =>
-      equalMoveToken(ctx.fen)(c.move, moveSan) ||
-      (moveUci.isDefined && c.uci.exists(_.equalsIgnoreCase(moveUci.get)))
-    ).map(_.planAlignment)
-     .map(_.toLowerCase)
-     .getOrElse("positional maneuvering")
-
   private def playedBranchSentence(
       playedMove: String,
-      playedIntent: String,
       playedLine: String,
       otherMove: String,
-      otherIntent: String,
       otherLine: String,
       playedKind: LineConsequenceKind,
       otherKind: LineConsequenceKind
   ): String =
     val playedAction = branchAction(playedKind, playedLine)
     val otherAction = branchAction(otherKind, otherLine)
-    s"Both candidate branches are viable: the played $playedMove ($playedIntent) $playedAction, whereas $otherMove ($otherIntent) $otherAction."
+    s"Both candidate branches are viable: the played $playedMove $playedAction, whereas $otherMove $otherAction."
 
   private def branchAction(kind: LineConsequenceKind, line: String): String =
     kind match

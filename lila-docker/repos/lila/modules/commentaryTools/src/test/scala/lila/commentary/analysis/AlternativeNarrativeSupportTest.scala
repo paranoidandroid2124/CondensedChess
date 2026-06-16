@@ -100,10 +100,13 @@ class AlternativeNarrativeSupportTest extends FunSuite:
     // FEN move count 1 + w -> startPly = 1 -> "1. h4 a6" vs "1. Rc3 a6"
     assertEquals(
       alt.sentence,
-      "Both candidate branches are viable: the played h4 (kingside expansion) follows 1. h4 a6, whereas Rc3 (rook lift) follows 1. Rc3 a6."
+      "Both candidate branches are viable: the played h4 follows 1. h4 a6, whereas Rc3 follows 1. Rc3 a6."
     )
+    assertEquals(alt.reason, "different checked branches")
     assert(!alt.sentence.contains(" is best"), clues(alt.sentence))
     assert(!alt.sentence.contains("stays secondary"), clues(alt.sentence))
+    assert(!alt.sentence.toLowerCase.contains("kingside expansion"), clues(alt.sentence))
+    assert(!alt.sentence.toLowerCase.contains("rook lift"), clues(alt.sentence))
   }
 
   test("returns no alternative narrative when the alternative branch lacks replayed evidence") {
