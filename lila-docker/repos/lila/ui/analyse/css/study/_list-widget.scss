@@ -237,10 +237,10 @@
     inset: 8px auto 8px 0;
     width: 18px;
     border-radius: 14px 0 0 14px;
-    background: linear-gradient(180deg, #6b2d16 0%, #532112 100%);
+    background: linear-gradient(180deg, #3a3d34 0%, #22241f 100%);
     box-shadow:
       inset -1px 0 0 rgba(255, 255, 255, 0.12),
-      0 8px 20px rgba(34, 18, 10, 0.28);
+      0 8px 20px rgba(0, 0, 0, 0.28);
   }
 
   &__pages {
@@ -256,8 +256,8 @@
   &__page-edge {
     flex: 1 1 0;
     border-radius: 0 8px 8px 0;
-    background: linear-gradient(180deg, #fff8ec 0%, #eadcc7 100%);
-    border: 1px solid rgba(88, 52, 28, 0.08);
+    background: linear-gradient(180deg, #d4d0c2 0%, #a9ad9e 100%);
+    border: 1px solid rgba(239, 238, 232, 0.08);
 
     &--mid {
       opacity: 0.76;
@@ -275,9 +275,9 @@
     border-radius: 0 16px 16px 12px;
     overflow: hidden;
     background:
-      radial-gradient(circle at top right, rgba(255, 255, 255, 0.24), transparent 34%),
-      linear-gradient(165deg, #402517 0%, #2a1710 100%);
-    border: 1px solid rgba(255, 225, 191, 0.12);
+      radial-gradient(circle at top right, rgba(139, 192, 113, 0.16), transparent 34%),
+      linear-gradient(165deg, #22241f 0%, #11130f 100%);
+    border: 1px solid rgba(139, 192, 113, 0.16);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.08),
       0 12px 28px rgba(17, 11, 7, 0.32);

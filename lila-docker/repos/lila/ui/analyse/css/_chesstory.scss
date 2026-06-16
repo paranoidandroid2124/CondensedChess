@@ -50,10 +50,10 @@
     inset: 14px auto 14px 0;
     width: 26px;
     border-radius: 18px 0 0 18px;
-    background: linear-gradient(180deg, #6b2d16 0%, #532112 100%);
+    background: linear-gradient(180deg, #3a3d34 0%, #22241f 100%);
     box-shadow:
       inset -1px 0 0 rgba(255, 255, 255, 0.12),
-      0 14px 28px rgba(34, 18, 10, 0.28);
+      0 14px 28px rgba(0, 0, 0, 0.28);
   }
 
   &__pages {
@@ -68,8 +68,8 @@
   &__page-edge {
     flex: 1 1 0;
     border-radius: 0 10px 10px 0;
-    background: linear-gradient(180deg, #fff8ec 0%, #eadcc7 100%);
-    border: 1px solid rgba(88, 52, 28, 0.08);
+    background: linear-gradient(180deg, #d4d0c2 0%, #a9ad9e 100%);
+    border: 1px solid rgba(239, 238, 232, 0.08);
 
     &--mid {
       opacity: 0.76;
@@ -87,9 +87,9 @@
     border-radius: 0 24px 24px 18px;
     overflow: hidden;
     background:
-      radial-gradient(circle at top right, rgba(255, 255, 255, 0.24), transparent 34%),
-      linear-gradient(165deg, #402517 0%, #2a1710 100%);
-    border: 1px solid rgba(255, 225, 191, 0.12);
+      radial-gradient(circle at top right, rgba(139, 192, 113, 0.16), transparent 34%),
+      linear-gradient(165deg, #22241f 0%, #11130f 100%);
+    border: 1px solid rgba(139, 192, 113, 0.16);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.08),
       0 20px 40px rgba(17, 11, 7, 0.32);
@@ -945,7 +945,7 @@
 
   &__side {
     border-radius: 22px;
-    background: linear-gradient(180deg, var(--atlas-surface) 0%, #f8eedc 100%) !important;
+    background: linear-gradient(180deg, var(--atlas-surface) 0%, var(--atlas-surface-strong) 100%) !important;
     padding: 0.85rem;
     animation: atlas-rise 0.58s ease both;
 
@@ -971,7 +971,7 @@
 
   &__underboard {
     border-radius: 18px;
-    background: rgba(255, 250, 240, 0.86);
+    background: rgba(28, 30, 26, 0.9);
     padding: clamp(0.65rem, 1vw, 1rem);
     animation: atlas-rise 0.62s ease both;
   }
@@ -992,7 +992,7 @@
 
     input,
     textarea {
-      background: rgba(255, 255, 255, 0.84) !important;
+      background: rgba(28, 30, 26, 0.92) !important;
       color: var(--atlas-text) !important;
       border: 1px solid var(--atlas-border) !important;
       border-radius: 10px !important;
@@ -1000,8 +1000,8 @@
       font-size: 0.84rem;
 
       &:focus {
-        border-color: rgba(166, 85, 39, 0.55) !important;
-        box-shadow: 0 0 0 2px rgba(166, 85, 39, 0.16);
+        border-color: rgba(139, 192, 113, 0.48) !important;
+        box-shadow: 0 0 0 2px rgba(139, 192, 113, 0.16);
         outline: none;
       }
     }
@@ -1024,12 +1024,12 @@
       gap: 0.85rem;
       margin-bottom: 0.95rem;
       padding: 1rem;
-      border: 1px solid rgba(166, 85, 39, 0.22);
+      border: 1px solid rgba(139, 192, 113, 0.18);
       border-radius: 16px;
       background:
-        linear-gradient(135deg, rgba(166, 85, 39, 0.08), rgba(166, 85, 39, 0)),
-        rgba(255, 255, 255, 0.64);
-      box-shadow: 0 14px 30px rgba(67, 44, 21, 0.08);
+        linear-gradient(135deg, rgba(139, 192, 113, 0.08), rgba(139, 192, 113, 0)),
+        rgba(34, 36, 31, 0.86);
+      box-shadow: 0 14px 30px rgba(0, 0, 0, 0.16);
     }
 
     &__study-head {
@@ -1053,10 +1053,10 @@
       inset: 10px auto 10px 0;
       width: 20px;
       border-radius: 16px 0 0 16px;
-      background: linear-gradient(180deg, #6b2d16 0%, #532112 100%);
+      background: linear-gradient(180deg, #3a3d34 0%, #22241f 100%);
       box-shadow:
         inset -1px 0 0 rgba(255, 255, 255, 0.12),
-        0 10px 24px rgba(34, 18, 10, 0.24);
+        0 10px 24px rgba(0, 0, 0, 0.24);
     }
 
     &__study-cover-pages {
@@ -1071,8 +1071,8 @@
     &__study-cover-page {
       flex: 1 1 0;
       border-radius: 0 8px 8px 0;
-      background: linear-gradient(180deg, #fff8ec 0%, #eadcc7 100%);
-      border: 1px solid rgba(88, 52, 28, 0.08);
+      background: linear-gradient(180deg, #d4d0c2 0%, #a9ad9e 100%);
+      border: 1px solid rgba(239, 238, 232, 0.08);
 
       &--mid {
         opacity: 0.76;
@@ -1090,9 +1090,9 @@
       border-radius: 0 18px 18px 12px;
       overflow: hidden;
       background:
-        radial-gradient(circle at top right, rgba(255, 255, 255, 0.24), transparent 34%),
-        linear-gradient(165deg, #402517 0%, #2a1710 100%);
-      border: 1px solid rgba(255, 225, 191, 0.12);
+        radial-gradient(circle at top right, rgba(139, 192, 113, 0.16), transparent 34%),
+        linear-gradient(165deg, #22241f 0%, #11130f 100%);
+      border: 1px solid rgba(139, 192, 113, 0.16);
       box-shadow:
         inset 0 1px 0 rgba(255, 255, 255, 0.08),
         0 14px 30px rgba(17, 11, 7, 0.26);
@@ -1608,64 +1608,64 @@
   }
 
   .analyse__tools .explorer-box {
-    color: #d9e6f1;
-    background: linear-gradient(180deg, #182633 0%, #14212d 100%);
+    color: #efeee8;
+    background: linear-gradient(180deg, #22241f 0%, #1c1e1a 100%);
 
     .explorer-title {
-      color: #97aec2;
-      background: rgba(255, 255, 255, 0.06);
+      color: #a9ad9e;
+      background: rgba(139, 192, 113, 0.08);
 
       .active {
-        color: #e9f2fa;
-        background: rgba(166, 85, 39, 0.26);
+        color: #efeee8;
+        background: rgba(139, 192, 113, 0.18);
 
         strong {
-          color: #ffc793;
+          color: #b4d99a;
         }
       }
 
       button {
-        color: #9db4c8;
+        color: #a9ad9e;
 
         &:hover {
-          color: #eef6ff;
-          background: rgba(255, 255, 255, 0.12);
+          color: #efeee8;
+          background: rgba(139, 192, 113, 0.12);
         }
       }
     }
 
     .moves th {
-      color: #a4b9cc;
-      background: rgba(255, 255, 255, 0.09);
+      color: #a9ad9e;
+      background: rgba(139, 192, 113, 0.08);
     }
 
     .moves td,
     .games td,
     .tablebase td {
-      color: #d4e2ee;
+      color: #efeee8;
     }
 
     .moves td:first-child,
     .tablebase td:first-child {
-      color: #edf4fb;
+      color: #efeee8;
     }
 
     .moves tbody tr.sum {
-      background: rgba(166, 85, 39, 0.24);
-      color: #f8fbff;
+      background: rgba(139, 192, 113, 0.18);
+      color: #efeee8;
     }
 
     .bar {
-      background: #203041;
+      background: #3a3d34;
 
       span.draws {
-        background: #415569;
-        color: #d4dfeb;
+        background: #4e5746;
+        color: #efeee8;
       }
 
       span:last-child {
-        background: #2b3d50;
-        color: #c1cedc;
+        background: #2d3329;
+        color: #a9ad9e;
       }
     }
   }
