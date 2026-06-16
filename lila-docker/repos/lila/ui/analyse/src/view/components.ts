@@ -306,16 +306,16 @@ export function renderTools({ ctrl, concealOf, allowVideo }: ViewContext, embedd
           },
         },
         [
-        hl('div.analyse-review__mobile-board-copy', [
-          hl('strong', 'Current board'),
-          hl(
-            'span',
-            ctrl.node.ply > 0
-              ? `Current position around move ${plyToTurn(ctrl.node.ply)}. The board stays in view while you move through the review.`
-              : 'Start position. The board stays in view while you move through the review.',
-          ),
-        ]),
-        boardPreview,
+          hl('div.analyse-review__mobile-board-copy', [
+            hl('strong', 'Board in view'),
+            hl(
+              'span',
+              ctrl.node.ply > 0
+                ? `Move ${plyToTurn(ctrl.node.ply)} position. Keep this board while you move through the coach scenes.`
+                : 'Start position. Keep this board while you move through the coach scenes.',
+            ),
+          ]),
+          boardPreview,
         ],
       ),
       allowVideo && embeddedVideo,

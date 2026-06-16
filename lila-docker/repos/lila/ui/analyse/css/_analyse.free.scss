@@ -1939,18 +1939,30 @@ html.dark .analyse-review {
 
   .analyse-review__mobile-board-rail {
     display: grid;
+    position: sticky;
     grid-template-columns: minmax(0, 1fr) 8.75rem;
     gap: 0.85rem;
     align-items: center;
-    position: sticky;
     top: var(--review-mobile-sticky-top);
     z-index: 7;
     padding: 0.85rem;
     margin: 0.85rem 0 0;
     border: 1px solid rgba(139, 192, 113, 0.22);
     border-radius: $box-radius-size;
-    background: rgba(34, 36, 31, 0.96);
+    background:
+      linear-gradient(90deg, rgba(139, 192, 113, 0.14), transparent 38%),
+      rgba(34, 36, 31, 0.96);
     box-shadow: 0 14px 28px rgba(0, 0, 0, 0.28);
+
+    &::before {
+      content: '';
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 3px;
+      border-radius: $box-radius-size 0 0 $box-radius-size;
+      background: rgba(139, 192, 113, 0.82);
+      pointer-events: none;
+    }
   }
 
   .analyse-review__mobile-board-copy {
@@ -1960,11 +1972,11 @@ html.dark .analyse-review {
 
     strong {
       font-size: 0.92rem;
-      color: var(--review-text);
+      color: #efeee8;
     }
 
     span {
-      color: var(--review-text-muted);
+      color: #a9ad9e;
       font-size: 0.82rem;
       line-height: 1.45;
     }
@@ -1976,9 +1988,10 @@ html.dark .analyse-review {
     .pv-board-square {
       width: 100%;
       aspect-ratio: 1;
-      border-radius: 0.9rem;
+      border: 1px solid rgba(139, 192, 113, 0.26);
+      border-radius: 0.65rem;
       overflow: hidden;
-      box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
+      box-shadow: 0 8px 22px rgba(0, 0, 0, 0.24);
     }
   }
 
@@ -1996,7 +2009,9 @@ html.dark .analyse-review {
   }
 
   html.dark .analyse-review__mobile-board-rail {
-    background: rgba(34, 36, 31, 0.96);
+    background:
+      linear-gradient(90deg, rgba(139, 192, 113, 0.14), transparent 38%),
+      rgba(34, 36, 31, 0.96);
     border-color: rgba(139, 192, 113, 0.22);
     box-shadow: 0 14px 28px rgba(0, 0, 0, 0.28);
   }
