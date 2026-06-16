@@ -96,14 +96,14 @@ object study:
               div(cls := "notebook-hero__body")(
                 div(cls := "notebook-hero__eyebrow")(
                   studyBits.notebookGlyph("bookmark", "notebook-hero__eyebrow-icon"),
-                  span("Research notebook"),
+                  span("Saved study"),
                   span(cls := "notebook-hero__eyebrow-sep")("•"),
                   span(study.name.value)
                 ),
                 h1(cls := "notebook-hero__title")(chapter.name.value),
                 p(cls := "notebook-hero__lede")(notebookLede(study, chapter)),
                 div(cls := "notebook-hero__meta")(
-                  heroMeta("notebook", "Notebook", study.name.value),
+                  heroMeta("notebook", "Study", study.name.value),
                   heroMeta("section", "Sections", sectionCountLabel(chapters)),
                   heroMeta("bookmark", "Access", if canWrite then "Editable" else "Read-only"),
                   heroMeta("page", "Visibility", study.visibility.toString)

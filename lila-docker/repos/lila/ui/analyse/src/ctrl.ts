@@ -389,9 +389,9 @@ export default class AnalyseCtrl implements CevalHandler {
 
   studyStatusText = (): string => {
     if (this.studyWriteError) return `Study sync paused: ${this.studyWriteError}`;
-    if (this.isStudyWriting()) return 'Saving notes and move explanations to this chapter...';
+    if (this.isStudyWriting()) return 'Saving notes and move explanations to this section...';
     return this.canWriteStudy()
-      ? 'Notes and move explanations auto-save to this chapter.'
+      ? 'Notes and move explanations auto-save to this section.'
       : 'This study section is read-only. You can still share the current section link.';
   };
 

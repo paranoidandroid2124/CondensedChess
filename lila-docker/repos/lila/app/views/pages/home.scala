@@ -64,7 +64,7 @@ object home:
               st.section(cls := "home-section")(
                 div(cls := "home-section-head")(
                   strong("Saved studies"),
-                  span("Reopen saved boards, notes, and chapters without searching through every study.")
+                  span("Reopen saved boards, notes, and sections without searching through every study.")
                 ),
                 if data.recentNotebooks.nonEmpty then
                   div(cls := "home-card-grid home-card-grid--notebooks")(
@@ -119,15 +119,15 @@ object home:
           )
         )
       case Main.HomeContinueCard.Notebook(entry) =>
-        val chapterCount = entry.chapters.size
+        val sectionCount = entry.chapters.size
         st.article(cls := "home-continue-card")(
           p(cls := "home-continue-card__eyebrow")("Saved study"),
           h2(cls := "home-continue-card__title")(entry.study.name.value),
           p(cls := "home-continue-card__summary")(
-            s"${if entry.study.isPublic then "Public study" else "Private study"} • $chapterCount ${if chapterCount == 1 then "chapter" else "chapters"}"
+            s"${if entry.study.isPublic then "Public study" else "Private study"} • $sectionCount ${if sectionCount == 1 then "section" else "sections"}"
           ),
           p(cls := "home-continue-card__support")(
-            "Reopen the saved study when the board, notes, and chapter flow already exist."
+            "Reopen the saved study when the board, notes, and section flow already exist."
           ),
           div(cls := "home-continue-card__actions")(
             a(href := routes.Study.show(entry.study.id).url, cls := "button button-fat")("Open study"),
@@ -182,8 +182,8 @@ object home:
     )
 
   private def renderNotebook(entry: lila.study.Study.WithChaptersAndLiked): Frag =
-    val chapterCount = entry.chapters.size
-    val chapterPreview =
+    val sectionCount = entry.chapters.size
+    val sectionPreview =
       entry.chapters.take(2).map(_.value).mkString(" • ")
     a(href := routes.Study.show(entry.study.id).url, cls := "home-card home-card--notebook")(
       div(cls := "home-card__badges")(
@@ -191,9 +191,9 @@ object home:
         entry.liked.option(span(cls := "home-pill home-pill--liked")("Liked"))
       ),
       strong(cls := "home-card__title")(entry.study.name.value),
-      p(cls := "home-card__summary")(s"$chapterCount ${if chapterCount == 1 then "chapter" else "chapters"}"),
-      chapterPreview.nonEmpty.option(p(cls := "home-card__meta")(chapterPreview)),
-      span(cls := "home-card__cta")("Open chapter")
+      p(cls := "home-card__summary")(s"$sectionCount ${if sectionCount == 1 then "section" else "sections"}"),
+      sectionPreview.nonEmpty.option(p(cls := "home-card__meta")(sectionPreview)),
+      span(cls := "home-card__cta")("Open section")
     )
 
   private def renderAccountLookup(account: ImportHistory.Account): Frag =

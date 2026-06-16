@@ -672,7 +672,7 @@ function renderNotebookDossierSurface(raw: unknown): VNode | null {
       ]),
       hl('div.analyse-review__summary-grid.copyables__study-dossier-summary', [
         compactSummaryCard(`${dossier.source.sampledGameCount}`, 'games read'),
-        compactSummaryCard(`${dossier.sections.length}`, 'chapters'),
+        compactSummaryCard(`${dossier.sections.length}`, 'sections'),
         compactSummaryCard(notebookStatusLabel(dossier.status), 'study state'),
       ]),
     ]),
@@ -716,14 +716,14 @@ function renderStudyWorkspacePanel(ctrl: AnalyseCtrl): VNode | null {
       renderNotebookPanelCover(
         study.name,
         study.chapterName,
-        `${study.chapters.length} ${study.chapters.length === 1 ? 'chapter' : 'chapters'}`,
+        `${study.chapters.length} ${study.chapters.length === 1 ? 'section' : 'sections'}`,
       ),
       hl('div.copyables__study-copy', [
         hl('span.copyables__study-eyebrow', 'Saved study'),
         hl('strong', study.name),
         hl(
           'span.copyables__study-subline',
-          `${study.chapterName}${study.chapters.length > 1 ? ` • ${study.chapters.length} chapters` : ''}`,
+          `${study.chapterName}${study.chapters.length > 1 ? ` • ${study.chapters.length} sections` : ''}`,
         ),
       ]),
       hl('div.copyables__study-actions', [
@@ -749,14 +749,14 @@ function renderStudyWorkspacePanel(ctrl: AnalyseCtrl): VNode | null {
     hl('div.analyse-review__summary-grid.copyables__study-summary', [
       compactSummaryCard(study.canWrite ? 'Editable' : 'Read only', 'access'),
       compactSummaryCard(visibility, 'visibility'),
-      compactSummaryCard(`${study.chapters.length}`, 'chapters'),
+      compactSummaryCard(`${study.chapters.length}`, 'sections'),
       compactSummaryCard(ctrl.isStudyWriting() ? 'Saving' : 'Ready', 'sync'),
     ]),
     renderStudyStatusCard(syncMessage, actionMessage ? ctrl.studyActionToneValue() : syncTone),
     hl('div.copyables__study-pills', [
       studyFeaturePill('page', `${study.chapterName} open`),
-      studyFeaturePill('section', 'Use the chapter navigator above'),
-      studyFeaturePill('bookmark', 'Share the exact chapter link'),
+      studyFeaturePill('section', 'Use the section navigator above'),
+      studyFeaturePill('bookmark', 'Share the exact section link'),
     ]),
     renderNotebookDossierSurface(study.notebookDossier),
   ]);
@@ -772,7 +772,7 @@ function renderStudyLaunchPanel(ctrl: AnalyseCtrl): VNode {
     hl('div.copyables__study-head', [
       renderNotebookPanelCover(
         'Untitled study',
-        'First chapter',
+        'First section',
         'Add explanations as you go',
       ),
       hl('div.copyables__study-copy', [
@@ -810,7 +810,7 @@ function renderStudyLaunchPanel(ctrl: AnalyseCtrl): VNode {
     hl('div.analyse-review__summary-grid.copyables__study-summary', [
       compactSummaryCard('PGN + lines', 'base'),
       compactSummaryCard('Saved reviews', 'saved lines'),
-      compactSummaryCard('Move Review notes', 'chapter notes'),
+      compactSummaryCard('Move Review notes', 'study notes'),
     ]),
     renderStudyStatusCard(
       busy
@@ -824,7 +824,7 @@ function renderStudyLaunchPanel(ctrl: AnalyseCtrl): VNode {
     hl('div.copyables__study-pills', [
       studyFeaturePill('page', 'Move-by-move notes'),
       studyFeaturePill('section', 'Lines stay playable'),
-      studyFeaturePill('bookmark', 'Shareable chapter link'),
+      studyFeaturePill('bookmark', 'Shareable section link'),
     ]),
   ]);
 }
