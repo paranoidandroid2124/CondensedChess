@@ -144,10 +144,10 @@ object PostCritic:
         "play has transitioned into technical endgame handling",
         "the position now demands technical endgame play"
       ),
-      "this phase is now about endgame conversion technique" -> Vector(
-        "this phase now turns on conversion technique",
-        "conversion technique now defines this phase",
-        "the phase is now decided by technical conversion"
+      "this phase is now about endgame technique" -> Vector(
+        "this phase now turns on endgame technique",
+        "technical handling now defines this phase",
+        "the phase is now decided by endgame precision"
       )
     )
 

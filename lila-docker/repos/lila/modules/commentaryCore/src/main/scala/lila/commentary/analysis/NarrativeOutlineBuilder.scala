@@ -2767,7 +2767,7 @@ object NarrativeOutlineBuilder:
     val verdict = pa.verdict.trim.toLowerCase
     val drivers = summarizePracticalDrivers(pa.biasFactors, limit = 2)
     if verdict.isEmpty && drivers.isEmpty then None
-    else if verdict.contains("conversion") then Some("The practical task is less about a new tactic than converting the edge cleanly.")
+    else if verdict.contains("conversion") then Some("The practical task is less about a new tactic than keeping the technical route clean.")
     else if verdict.contains("defen") then Some("Practically, the move also keeps the defensive task manageable.")
     else if verdict.contains("counter") then Some("Practically, the move matters because it limits the opponent's easiest counterplay.")
     else Some(generalPracticalMainMoveSentence(verdict, drivers))
@@ -3924,22 +3924,22 @@ object NarrativeOutlineBuilder:
       case pattern if pattern.equalsIgnoreCase("PhilidorDefense") => philidorLossClause(board)
       case pattern if pattern.equalsIgnoreCase("VancuraDefense")  => vancuraLossClause(board)
       case pattern if pattern.equalsIgnoreCase("WrongRookPawnWrongBishopFortress") => Some("The wrong-bishop rook-pawn corner setup has loosened because the defender can no longer sit on the promotion corner against the wrong-colored bishop.")
-      case pattern if pattern.equalsIgnoreCase("OutsidePasserDecoy") => Some("The outside passer decoy has failed because the remote passer no longer drags the enemy king away from the main pawn mass.")
-      case pattern if pattern.equalsIgnoreCase("ConnectedPassers") => Some("The connected passers plan has failed because the pawns are no longer advancing together with king support.")
-      case pattern if pattern.equalsIgnoreCase("KeySquaresOppositionBreakthrough") => Some("The key-squares breakthrough has failed because the king no longer controls the entry squares needed to escort the pawn through.")
-      case pattern if pattern.equalsIgnoreCase("TriangulationZugzwang") => Some("The triangulation zugzwang has failed because the spare triangulation tempo is gone, so the side to move is no longer being squeezed.")
-      case pattern if pattern.equalsIgnoreCase("BreakthroughSacrifice") => Some("The breakthrough sacrifice no longer works because the pawn wedge cannot force open a passer at the right moment.")
-      case pattern if pattern.equalsIgnoreCase("Shouldering") => Some("The shouldering plan has failed because the stronger king no longer keeps the enemy king pushed off the pawn's path.")
-      case pattern if pattern.equalsIgnoreCase("RetiManeuver") => Some("The Reti maneuver has failed because the king can no longer combine pursuit of the passer with support for its own pawn.")
-      case pattern if pattern.equalsIgnoreCase("ShortSideDefense") => Some("The short-side defense has failed because the defender has lost the checking distance and side-room needed to harass the king.")
+      case pattern if pattern.equalsIgnoreCase("OutsidePasserDecoy") => Some("The outside passer decoy is no longer visible because the remote passer no longer drags the enemy king away from the main pawn mass.")
+      case pattern if pattern.equalsIgnoreCase("ConnectedPassers") => Some("The connected passers shape has loosened because the pawns are no longer advancing together with king support.")
+      case pattern if pattern.equalsIgnoreCase("KeySquaresOppositionBreakthrough") => Some("The key-squares breakthrough shape has loosened because the king no longer controls the entry squares needed to escort the pawn through.")
+      case pattern if pattern.equalsIgnoreCase("TriangulationZugzwang") => Some("The triangulation zugzwang shape has loosened because the spare triangulation tempo is gone, so the side to move is no longer being squeezed.")
+      case pattern if pattern.equalsIgnoreCase("BreakthroughSacrifice") => Some("The breakthrough-sacrifice shape is no longer visible because the pawn wedge cannot force open a passer at the right moment.")
+      case pattern if pattern.equalsIgnoreCase("Shouldering") => Some("The shouldering shape has loosened because the stronger king no longer keeps the enemy king pushed off the pawn's path.")
+      case pattern if pattern.equalsIgnoreCase("RetiManeuver") => Some("The Reti maneuver shape has loosened because the king can no longer combine pursuit of the passer with support for its own pawn.")
+      case pattern if pattern.equalsIgnoreCase("ShortSideDefense") => Some("The short-side defense setup has loosened because the defender has lost the checking distance and side-room needed to harass the king.")
       case pattern if pattern.equalsIgnoreCase("OppositeColoredBishopsDraw") => Some("The opposite-colored bishops blockade has loosened because the defender can no longer control the bishop's color complex.")
       case pattern if pattern.equalsIgnoreCase("GoodBishopRookPawnConversion") => Some("The good-bishop rook-pawn setup has loosened because the bishop and king no longer control the promotion corner together.")
       case pattern if pattern.equalsIgnoreCase("KnightBlockadeRookPawnDraw") => Some("The knight rook-pawn blockade has loosened because the knight no longer controls the promotion square and blockade ring.")
       case pattern if pattern.equalsIgnoreCase("QueenVsAdvancedPawn") => Some("The queen-versus-pawn checking setup has loosened because the defender no longer keeps checking distance against the advanced pawn.")
-      case pattern if pattern.equalsIgnoreCase("TarraschDefenseActive") => Some("The Tarrasch defense has failed because the rook is no longer actively checking from behind the pawn.")
+      case pattern if pattern.equalsIgnoreCase("TarraschDefenseActive") => Some("The Tarrasch defense setup has loosened because the rook is no longer actively checking from behind the pawn.")
       case pattern if pattern.equalsIgnoreCase("PassiveRookDefense") => Some("The passive rook setup has loosened because the rook can no longer sit behind the pawn and block the file.")
       case pattern if pattern.equalsIgnoreCase("RookAndBishopVsRookDraw") => Some("The rook-and-bishop-versus-rook defensive setup has loosened because the defender has lost safe checking or corner geometry.")
-      case pattern if pattern.equalsIgnoreCase("SameColoredBishopsBlockade") => Some("The same-colored bishops blockade has failed because the defender can no longer lock the pawn chain on the shared color complex.")
+      case pattern if pattern.equalsIgnoreCase("SameColoredBishopsBlockade") => Some("The same-colored bishops blockade has loosened because the defender can no longer lock the pawn chain on the shared color complex.")
       case _ => None
     }
 
@@ -3990,17 +3990,17 @@ object NarrativeOutlineBuilder:
       val promo = promotionSquare(frame.pawn, frame.attacker)
       promo.flatMap { promotion =>
         if chebyshev(frame.attackerKing, promotion) > 1 then
-          Some("Lucena has broken down because the stronger king is no longer beside the promotion square.")
+          Some("Lucena geometry has loosened because the stronger king is no longer beside the promotion square.")
         else if chebyshev(frame.defenderKing, promotion) < 2 then
-          Some("Lucena has broken down because the defending king has reached the promotion-square zone.")
+          Some("Lucena geometry has loosened because the defending king has reached the promotion-square zone.")
         else if frame.attackerRook.file == frame.pawn.file then
-          Some("Lucena has broken down because the rook has fallen onto the pawn file instead of building a bridge from the side.")
+          Some("Lucena geometry has loosened because the rook has fallen onto the pawn file instead of building a bridge from the side.")
         else if fileDistance(frame.attackerRook.file, frame.pawn.file) < 2 then
-          Some("Lucena has broken down because the rook no longer has the lateral bridge-building distance.")
+          Some("Lucena geometry has loosened because the rook no longer has the lateral bridge-building distance.")
         else None
       }
     }.orElse(
-      Some("Lucena has broken down because the stronger side no longer keeps the promotion-square king plus bridge-building rook setup.")
+      Some("Lucena geometry has loosened because the stronger side no longer keeps the promotion-square king plus bridge-building rook setup.")
     )
 
   private def lucenaHoldClause(board: Board, transitioned: Boolean): Option[String] =
@@ -4813,7 +4813,7 @@ object NarrativeOutlineBuilder:
         case "blunder" =>
           List(
             "This is a blunder, so forcing control shifts to the opponent.",
-            "Because this blunder loosens coordination, the opponent gets a direct conversion route.",
+            "Because this blunder loosens coordination, the opponent gets a direct technical route.",
             "This blunder loses tactical control; as a result, recovery becomes difficult.",
             "This blunder concedes initiative, therefore the defensive workload spikes immediately.",
             "This blunder gives the opponent a forcing path, while your counterplay resources shrink.",
@@ -4824,7 +4824,7 @@ object NarrativeOutlineBuilder:
         case "mistake" =>
           List(
             "This is a clear mistake, so practical control swings away quickly.",
-            "This mistake yields an easier conversion plan, because your coordination is slower.",
+            "This mistake yields an easier technical plan, because your coordination is slower.",
             "This mistake concedes initiative, and as a result your defensive options narrow.",
             "This mistake gives the opponent the cleaner continuation, while your plan becomes reactive.",
             "This mistake leaves you defending without counterplay, therefore every tempo matters.",
@@ -4928,7 +4928,7 @@ object NarrativeOutlineBuilder:
       case "blunder" =>
         NarrativeLexicon.pick(bead, List(
           "this allows a forcing tactical sequence against your king or material",
-          "this collapses coordination and gives the opponent a direct conversion route",
+          "this collapses coordination and gives the opponent a direct technical route",
           "this fails to meet the immediate tactical threat and the position unravels"
         ))
       case "mistake" =>
@@ -5277,14 +5277,14 @@ object NarrativeOutlineBuilder:
     val practicalHint = informativeAlternativeDifficulty(diffLabel).map(p => s" The practical burden is $p.").getOrElse("")
     if role.equalsIgnoreCase("engine_primary") then
       List(
-        s"With **$move**, conversion around **$move** can stay smoother$planHint, but initiative around **$move** can swing when **$move** hands away a tempo.",
+        s"With **$move**, the technical route can stay smoother$planHint, but initiative around **$move** can swing when **$move** hands away a tempo.",
         s"Handled precisely, **$move** keeps piece harmony and king cover aligned$planHint through the next phase.",
-        s"From a practical-conversion view, **$move** stays reliable$planHint when defensive timing and coverage stay coordinated.",
+        s"From a practical handling view, **$move** stays reliable$planHint when defensive timing and coverage stay coordinated.",
         s"**$move** keeps practical burden manageable$planHint by preserving coordination before exchanges."
       )
     else
       List(
-        s"In practical terms, **$move** is judged by conversion ease$planHint, because defensive coordination can diverge quickly.$practicalHint",
+        s"In practical terms, **$move** is judged by technical ease$planHint, because defensive coordination can diverge quickly.$practicalHint",
         s"After **$move**, king safety and tempo stay linked, so one inaccurate sequence can hand over initiative$planHint.$practicalHint",
         s"With **$move**, a move-order slip can expose coordination gaps$planHint, and recovery windows are short.$practicalHint",
         s"After **$move**, sequence accuracy matters because coordination and activity can separate quickly$planHint.$practicalHint",
@@ -5375,7 +5375,7 @@ object NarrativeOutlineBuilder:
           s"**$move** heads for a controlled position with fewer tactical swings.",
           s"**$move** favors structural clarity and methodical handling over complications.",
           s"**$move** is a clean technical route that lightens defensive duties.",
-          s"**$move** aims for a technically manageable position with clear conversion paths.",
+          s"**$move** aims for a technically manageable position with clear follow-up paths.",
           s"**$move** keeps the game in a technical channel where precise handling is rewarded."
         )
       case "strategic" =>

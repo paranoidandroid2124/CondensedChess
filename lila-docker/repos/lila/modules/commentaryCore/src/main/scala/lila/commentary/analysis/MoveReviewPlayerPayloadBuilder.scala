@@ -898,26 +898,26 @@ object MoveReviewPlayerPayloadBuilder:
                   else if rookEndgamePattern then
                     val text =
                       singleRookEndgamePatternFact
-                        .map(fact => s"The $fact gives a practical conversion cue.")
-                        .getOrElse("The rook endgame map gives a practical conversion cue.")
-                    row("Practical conversion", text, tone = Some("practical"))
+                        .map(fact => s"The $fact is the relevant endgame cue.")
+                        .getOrElse("The rook endgame map stays as endgame structure.")
+                    row("Endgame cue", text, tone = Some("practical"))
                   else if endgameTechniqueMotif then
                     val text =
                       singleEndgameTechniqueFact
-                        .map(fact => s"The $fact gives a practical endgame technique cue.")
-                        .getOrElse("The endgame technique map gives a practical conversion cue.")
-                    row("Practical conversion", text, tone = Some("practical"))
+                        .map(fact => s"The $fact is the relevant endgame technique cue.")
+                        .getOrElse("The endgame technique map stays result-neutral.")
+                    row("Endgame cue", text, tone = Some("practical"))
                   else if passedPawnConversionMotif then
                     val text =
                       if refs.contains("pawn_promotion") then
                         passedPawnConversionSquare
-                          .map(square => s"The promotion motif gives a practical conversion cue on $square.")
-                          .getOrElse("The promotion motif gives a practical conversion cue.")
+                          .map(square => s"The promotion motif is the relevant endgame cue on $square.")
+                          .getOrElse("The promotion motif is the relevant endgame cue.")
                       else
                         passedPawnConversionSquare
-                          .map(square => s"The passed-pawn structure gives a practical conversion cue around $square.")
-                          .getOrElse("The passed-pawn structure gives a practical conversion cue.")
-                    row("Practical conversion", text, tone = Some("practical"))
+                          .map(square => s"The passed-pawn structure is the relevant endgame cue around $square.")
+                          .getOrElse("The passed-pawn structure is the relevant endgame cue.")
+                    row("Endgame cue", text, tone = Some("practical"))
                   else None
                 transformationRow.map(_.copy(authority = PracticalPlanAuthority))
               }
@@ -3184,8 +3184,8 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
             row(KingSafetyLabel, text, authority = PracticalPlanAuthority)
           case QuietMoveIntentClass.TechnicalConversionStep =>
             row(
-              TechnicalConversionLabel,
-              s"The checked move improves the $piece on $square for conversion.",
+              PieceImprovementLabel,
+              s"The checked move improves the $piece on $square for endgame handling.",
               authority = PracticalPlanAuthority
             )
           case QuietMoveIntentClass.CounterplayRestraint => None

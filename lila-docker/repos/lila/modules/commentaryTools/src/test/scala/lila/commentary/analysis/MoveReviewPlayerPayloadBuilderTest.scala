@@ -6827,7 +6827,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     )
   }
 
-  test("endgame conversion rows require typed motifs, not win hints") {
+  test("endgame cue rows require typed anchors, not win or conversion labels") {
     val idea =
       StrategyIdeaSignal(
         ideaId = "idea_winning_endgame_conversion",
@@ -6854,7 +6854,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
           )
       )
 
-    assert(!surface.advancedRows.exists(_.label == "Practical conversion"), clue(surface.advancedRows))
+    assert(!surface.advancedRows.exists(_.label == "Endgame cue"), clue(surface.advancedRows))
 
     val multiSquareSurface =
       build(
@@ -6872,7 +6872,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assert(!multiSquareSurface.advancedRows.exists(_.label == "Practical conversion"), clue(multiSquareSurface.advancedRows))
+    assert(!multiSquareSurface.advancedRows.exists(_.label == "Endgame cue"), clue(multiSquareSurface.advancedRows))
 
     val rookEndgameSurface =
       build(
@@ -6899,8 +6899,8 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(rookEndgameSurface.advancedRows.map(_.label), List("Practical conversion"))
-    assertEquals(rookEndgameSurface.advancedRows.head.text, "The rook-behind-passer structure gives a practical conversion cue.")
+    assertEquals(rookEndgameSurface.advancedRows.map(_.label), List("Endgame cue"))
+    assertEquals(rookEndgameSurface.advancedRows.head.text, "The rook-behind-passer structure is the relevant endgame cue.")
     assertEquals(rookEndgameSurface.advancedRows.head.authority.flatMap(_.target), None)
 
     val multiRookEndgameSurface =
@@ -6929,8 +6929,8 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(multiRookEndgameSurface.advancedRows.map(_.label), List("Practical conversion"))
-    assertEquals(multiRookEndgameSurface.advancedRows.head.text, "The rook endgame map gives a practical conversion cue.")
+    assertEquals(multiRookEndgameSurface.advancedRows.map(_.label), List("Endgame cue"))
+    assertEquals(multiRookEndgameSurface.advancedRows.head.text, "The rook endgame map stays as endgame structure.")
     assertEquals(multiRookEndgameSurface.advancedRows.head.authority.flatMap(_.target), None)
 
     val oppositionSurface =
@@ -6959,8 +6959,8 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(oppositionSurface.advancedRows.map(_.label), List("Practical conversion"))
-    assertEquals(oppositionSurface.advancedRows.head.text, "The direct opposition gives a practical endgame technique cue.")
+    assertEquals(oppositionSurface.advancedRows.map(_.label), List("Endgame cue"))
+    assertEquals(oppositionSurface.advancedRows.head.text, "The direct opposition is the relevant endgame technique cue.")
     assertEquals(oppositionSurface.advancedRows.head.authority.flatMap(_.target), None)
 
     val zugzwangSurface =
@@ -6989,8 +6989,8 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(zugzwangSurface.advancedRows.map(_.label), List("Practical conversion"))
-    assertEquals(zugzwangSurface.advancedRows.head.text, "The zugzwang shape gives a practical endgame technique cue.")
+    assertEquals(zugzwangSurface.advancedRows.map(_.label), List("Endgame cue"))
+    assertEquals(zugzwangSurface.advancedRows.head.text, "The zugzwang shape is the relevant endgame technique cue.")
     assertEquals(zugzwangSurface.advancedRows.head.authority.flatMap(_.target), None)
 
     val activeKingSurface =
@@ -7019,8 +7019,8 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(activeKingSurface.advancedRows.map(_.label), List("Practical conversion"))
-    assertEquals(activeKingSurface.advancedRows.head.text, "The active king gives a practical endgame technique cue.")
+    assertEquals(activeKingSurface.advancedRows.map(_.label), List("Endgame cue"))
+    assertEquals(activeKingSurface.advancedRows.head.text, "The active king is the relevant endgame technique cue.")
     assertEquals(activeKingSurface.advancedRows.head.authority.flatMap(_.target), None)
 
     val multiTechniqueSurface =
@@ -7051,8 +7051,8 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(multiTechniqueSurface.advancedRows.map(_.label), List("Practical conversion"))
-    assertEquals(multiTechniqueSurface.advancedRows.head.text, "The endgame technique map gives a practical conversion cue.")
+    assertEquals(multiTechniqueSurface.advancedRows.map(_.label), List("Endgame cue"))
+    assertEquals(multiTechniqueSurface.advancedRows.head.text, "The endgame technique map stays result-neutral.")
     assertEquals(multiTechniqueSurface.advancedRows.head.authority.flatMap(_.target), None)
 
     val passedPawnSurface =
@@ -7081,8 +7081,8 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(passedPawnSurface.advancedRows.map(_.label), List("Practical conversion"))
-    assertEquals(passedPawnSurface.advancedRows.head.text, "The passed-pawn structure gives a practical conversion cue around e6.")
+    assertEquals(passedPawnSurface.advancedRows.map(_.label), List("Endgame cue"))
+    assertEquals(passedPawnSurface.advancedRows.head.text, "The passed-pawn structure is the relevant endgame cue around e6.")
     assertEquals(passedPawnSurface.advancedRows.head.authority.flatMap(_.target), None)
 
     val matchedPassedPawnSurface =
@@ -7110,8 +7110,8 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(matchedPassedPawnSurface.advancedRows.map(_.label), List("Practical conversion"))
-    assertEquals(matchedPassedPawnSurface.advancedRows.head.text, "The passed-pawn structure gives a practical conversion cue around e6.")
+    assertEquals(matchedPassedPawnSurface.advancedRows.map(_.label), List("Endgame cue"))
+    assertEquals(matchedPassedPawnSurface.advancedRows.head.text, "The passed-pawn structure is the relevant endgame cue around e6.")
     assertEquals(matchedPassedPawnSurface.advancedRows.head.authority.flatMap(_.target), Option.empty[String])
 
     val promotionSurface =
@@ -7141,8 +7141,8 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(promotionSurface.advancedRows.map(_.label), List("Practical conversion"))
-    assertEquals(promotionSurface.advancedRows.head.text, "The promotion motif gives a practical conversion cue on a8.")
+    assertEquals(promotionSurface.advancedRows.map(_.label), List("Endgame cue"))
+    assertEquals(promotionSurface.advancedRows.head.text, "The promotion motif is the relevant endgame cue on a8.")
     assertEquals(promotionSurface.advancedRows.head.authority.flatMap(_.target), None)
 
     val rookEndgameSourceOnlySurface =
@@ -7163,7 +7163,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assert(!rookEndgameSourceOnlySurface.advancedRows.exists(_.label == "Practical conversion"), clue(rookEndgameSourceOnlySurface.advancedRows))
+    assert(!rookEndgameSourceOnlySurface.advancedRows.exists(_.label == "Endgame cue"), clue(rookEndgameSourceOnlySurface.advancedRows))
 
     val rookEndgameShapeOnlySurface =
       build(
@@ -7183,7 +7183,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assert(!rookEndgameShapeOnlySurface.advancedRows.exists(_.label == "Practical conversion"), clue(rookEndgameShapeOnlySurface.advancedRows))
+    assert(!rookEndgameShapeOnlySurface.advancedRows.exists(_.label == "Endgame cue"), clue(rookEndgameShapeOnlySurface.advancedRows))
 
     val oppositionSourceOnlySurface =
       build(
@@ -7204,7 +7204,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assert(!oppositionSourceOnlySurface.advancedRows.exists(_.label == "Practical conversion"), clue(oppositionSourceOnlySurface.advancedRows))
+    assert(!oppositionSourceOnlySurface.advancedRows.exists(_.label == "Endgame cue"), clue(oppositionSourceOnlySurface.advancedRows))
 
     val passedPawnSourceOnlySurface =
       build(
@@ -7225,7 +7225,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assert(!passedPawnSourceOnlySurface.advancedRows.exists(_.label == "Practical conversion"), clue(passedPawnSourceOnlySurface.advancedRows))
+    assert(!passedPawnSourceOnlySurface.advancedRows.exists(_.label == "Endgame cue"), clue(passedPawnSourceOnlySurface.advancedRows))
 
     val passedPawnShapeOnlySurface =
       build(
@@ -7246,7 +7246,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assert(!passedPawnShapeOnlySurface.advancedRows.exists(_.label == "Practical conversion"), clue(passedPawnShapeOnlySurface.advancedRows))
+    assert(!passedPawnShapeOnlySurface.advancedRows.exists(_.label == "Endgame cue"), clue(passedPawnShapeOnlySurface.advancedRows))
 
     val sourceOnlySurface =
       build(
@@ -7264,7 +7264,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assert(!sourceOnlySurface.advancedRows.exists(_.label == "Practical conversion"), clue(sourceOnlySurface.advancedRows))
+    assert(!sourceOnlySurface.advancedRows.exists(_.label == "Endgame cue"), clue(sourceOnlySurface.advancedRows))
 
     val classificationOnlySurface =
       build(
@@ -7288,7 +7288,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assert(!classificationOnlySurface.advancedRows.exists(_.label == "Practical conversion"), clue(classificationOnlySurface.advancedRows))
+    assert(!classificationOnlySurface.advancedRows.exists(_.label == "Endgame cue"), clue(classificationOnlySurface.advancedRows))
 
     val exactConversionSurface =
       build(
@@ -7323,7 +7323,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
       )
     )
-    assert(!exactConversionSurface.advancedRows.exists(_.label == "Practical conversion"), clue(exactConversionSurface.advancedRows))
+    assert(!exactConversionSurface.advancedRows.exists(_.label == "Endgame cue"), clue(exactConversionSurface.advancedRows))
 
     val staleConversionLabelSurface =
       build(
@@ -7358,7 +7358,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(staleConversionLabelSurface.advancedRows.map(_.label), List("Practical conversion"))
+    assertEquals(staleConversionLabelSurface.advancedRows.map(_.label), List("Endgame cue"))
   }
 
   test("French minor-piece strategic ideas create bounded practical minor rows") {

@@ -2424,7 +2424,7 @@ object NarrativeContextBuilder:
       ),
       conflictSignals = signals(
         Option.when(h.practicalLow == "complex")("line remains tactically demanding to convert"),
-        Option.when(h.cpGap.exists(_ >= 110))("conversion route loses too much objective value")
+        Option.when(h.cpGap.exists(_ >= 110))("technical route loses too much objective value")
       ),
       baseConfidence = if h.conversionWindow then 0.53 else 0.42,
       horizon = HypothesisHorizon.Medium
@@ -2542,7 +2542,7 @@ object NarrativeContextBuilder:
       ),
       conflictSignals = signals(
         Option.when(h.cpGap.exists(_ >= 120))("long-term trajectory is objectively inferior"),
-        Option.when(h.practicalLow == "complex" && h.data.phase == "endgame")("technical conversion remains unstable")
+        Option.when(h.practicalLow == "complex" && h.data.phase == "endgame")("technical handling remains unstable")
       ),
       baseConfidence = if h.data.endgameFeatures.isDefined then 0.52 else 0.4,
       horizon = HypothesisHorizon.Long
@@ -2609,9 +2609,9 @@ object NarrativeContextBuilder:
         ))
       case "conversion-cost" =>
         NarrativeLexicon.pick(seed ^ 0x6c6c6c6c, List(
-          s"The consequence is higher conversion cost, so $focus gains are harder to convert cleanly.",
-          s"This route raises conversion cost, and $focus edges are difficult to cash in.",
-          s"Technical conversion gets heavier, making $focus execution less efficient."
+          s"The consequence is higher technical cost, so $focus gains are harder to realize cleanly.",
+          s"This route raises the technical burden, and $focus edges are harder to stabilize.",
+          s"Technical handling gets heavier, making $focus execution less efficient."
         ))
       case _ =>
         NarrativeLexicon.pick(seed ^ 0x2f6e2b1, List(

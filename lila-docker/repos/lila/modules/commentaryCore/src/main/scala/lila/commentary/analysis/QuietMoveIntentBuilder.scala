@@ -221,7 +221,7 @@ private[commentary] object QuietMoveIntentBuilder:
                 claim =
                   QuietMoveIntentClaim(
                     intentClass = QuietMoveIntentClass.TechnicalConversionStep,
-                    claimText = s"This is a technical conversion step, improving the king on $square.",
+                    claimText = s"This improves the king for endgame handling by bringing it to $square.",
                     evidenceLine = quietEvidenceLine(candidateEvidenceLines, Some(square)),
                     sourceKind = "technical_king"
                   )
@@ -235,7 +235,7 @@ private[commentary] object QuietMoveIntentBuilder:
                 claim =
                   QuietMoveIntentClaim(
                     intentClass = QuietMoveIntentClass.TechnicalConversionStep,
-                    claimText = s"This is a technical conversion step, improving the ${move.piece} on $square.",
+                    claimText = s"This improves the ${move.piece} on $square for endgame handling.",
                     evidenceLine = quietEvidenceLine(candidateEvidenceLines, Some(square)),
                     sourceKind = "technical_piece"
                   )
@@ -414,7 +414,7 @@ private[commentary] object QuietMoveIntentBuilder:
           case QuietMoveIntentClass.KingSafety =>
             List("castle", "king", "safe")
           case QuietMoveIntentClass.TechnicalConversionStep =>
-            List("technical", "conversion", "improve")
+            List("technical", "endgame", "improve")
           case QuietMoveIntentClass.PieceImprovement =>
             List("improve", "activate", "centralize")
       val shared = siblings.exists { candidate =>

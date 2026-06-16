@@ -456,9 +456,9 @@ object NarrativeLexicon {
             "This is a technical endgame phase",
             "Endgame details now dominate the game",
             "We are firmly in endgame territory",
-            "The game has entered a conversion-oriented endgame",
+            "The game has entered a technical endgame",
             "The struggle has shifted into technical endgame play",
-            "This phase is now about endgame conversion technique",
+            "This phase is now about endgame technique",
             "Endgame precision now outweighs broad strategic plans"
           ),
           List(
@@ -1013,7 +1013,7 @@ object NarrativeLexicon {
       case Some(reason) if reason.nonEmpty =>
         pick(bead, List(
           s"**$move** is another candidate, but $reason, so practical timing becomes critical.",
-          s"A practical sideline is **$move**; however, $reason, which changes the conversion route.",
+          s"A practical sideline is **$move**; however, $reason, which changes the technical route.",
           s"**$move** keeps options open, yet $reason, and coordination can drift if move order slips.",
           s"**$move** is playable over the board, although $reason, so initiative management becomes harder."
         ))
@@ -1193,7 +1193,7 @@ object NarrativeLexicon {
           )
         case HypothesisHorizon.Long =>
           List(
-            s"In practical terms, the divergence is long-horizon: $axisText choices now can decide the later conversion path.",
+            s"In practical terms, the divergence is long-horizon: $axisText choices now can decide the later technical path.",
             s"The practical implication is long-term; $axisText tradeoffs here are likely to resurface in the ending.",
             s"Practically this points to a late-phase split, where $axisText decisions today shape the endgame trajectory."
           )
@@ -1456,7 +1456,7 @@ object NarrativeLexicon {
       case HypothesisAxis.Initiative =>
         pick(seed, List("initiative control", "momentum balance", "initiative timing", "tempo initiative", "initiative management", "momentum control", "dynamic balance", "initiative pulse"))
       case HypothesisAxis.Conversion =>
-        pick(seed, List("conversion timing", "conversion technique", "simplification timing", "technical conversion", "conversion roadmap", "technique precision", "simplification logic", "conversion pathing"))
+        pick(seed, List("technical timing", "endgame technique", "simplification timing", "technical handling", "technical roadmap", "technique precision", "simplification logic", "technical pathing"))
       case HypothesisAxis.KingSafety =>
         pick(seed, List("king-safety timing", "king security management", "defensive king timing", "king-cover stability", "king-safety assessment", "defensive synchronization", "protective coordination", "king-security profile"))
       case HypothesisAxis.PieceCoordination =>
@@ -1464,7 +1464,7 @@ object NarrativeLexicon {
       case HypothesisAxis.PawnBreakTiming =>
         pick(seed, List("pawn-break timing", "pawn-lever timing", "central break timing", "pawn tension timing", "break-order precision", "pawn-break execution", "tension resolution timing", "lever-activation timing"))
       case HypothesisAxis.EndgameTrajectory =>
-        pick(seed, List("endgame trajectory", "long-phase conversion path", "late-phase trajectory", "endgame direction", "technical trajectory", "endgame roadmap", "late-game trajectory", "technical-phase direction"))
+        pick(seed, List("endgame trajectory", "long-phase technical path", "late-phase trajectory", "endgame direction", "technical trajectory", "endgame roadmap", "late-game trajectory", "technical-phase direction"))
 
   private def horizonLabel(horizon: HypothesisHorizon): String =
     horizon match
@@ -1593,7 +1593,7 @@ object NarrativeLexicon {
           "The position remains dynamically balanced.",
           "Counterplay exists for both sides.",
           "The practical chances are still shared between both players.",
-          "Neither side has converted small edges into a stable advantage.",
+          "Neither side has turned small edges into a stable advantage.",
           "The game remains close, with chances only separating on move-order precision.",
           "Strategic tension persists, and both sides have viable practical tasks.",
           "The balance is delicate and requires constant tactical vigilance.",
@@ -1725,14 +1725,14 @@ object NarrativeLexicon {
       case Some(r) if r >= 3 && cpLoss <= 35 =>
         Some(pick(bead, List(
           s"Engine ordering is still close; **$bestSan** remains the cleanest reference line, while this stays playable.",
-          s"This line is playable, but **$bestSan** keeps a cleaner move-order and easier conversion path.",
+          s"This line is playable, but **$bestSan** keeps a cleaner move-order and easier technical path.",
           s"Score ordering still prefers **$bestSan**, though the practical gap stays small and strategic plans overlap."
         )))
       case Some(r) if r >= 3 =>
         Some(pick(bead, List(
           s"This sits below the principal engine candidates, so **$bestSan** gives the more reliable setup.",
           s"Engine ranking puts this in a lower tier, while **$bestSan** keeps tighter control of initiative.",
-          s"This is outside the top engine choices, and **$bestSan** remains the stable reference for conversion."
+          s"This is outside the top engine choices, and **$bestSan** remains the stable technical reference."
         )))
       case None if cpLoss <= 35 =>
         Some(pick(bead, List(
@@ -1742,7 +1742,7 @@ object NarrativeLexicon {
         )))
       case None =>
         Some(pick(bead, List(
-          s"This move is outside sampled principal lines, and **$bestSan** is the engine reference for safer conversion.",
+          s"This move is outside sampled principal lines, and **$bestSan** is the engine reference for safer handling.",
           s"The move is not in the main MultiPV set, so **$bestSan** is the robust practical alternative.",
           s"Sampled principal lines do not prioritize this, while **$bestSan** remains the practical benchmark."
         )))
@@ -2133,7 +2133,7 @@ object NarrativeLexicon {
           s"Sequencing after **$moveHint** shifts the priority toward structural technique.",
           s"Strategic clarity increases after **$moveHint** as forcing lines resolve.",
           s"The game enters a phase of technical consolidation after **$moveHint**.",
-          s"**$moveHint** leads to a structure that rewards accurate technical conversion.",
+          s"**$moveHint** leads to a structure that rewards accurate technical handling.",
           s"Tactical dust settles after **$moveHint**, leaving a technical endgame-like fight."
         )))
     else None

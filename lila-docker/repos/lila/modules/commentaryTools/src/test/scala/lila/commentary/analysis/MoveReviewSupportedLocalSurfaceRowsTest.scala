@@ -5585,6 +5585,29 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
     )
   }
 
+  test("projects quiet endgame technical intent as piece improvement, not conversion") {
+    val rows =
+      noRankedSupportedLocalRows(
+        localCtx = quietKnightCtx.copy(phase = PhaseContext("Endgame", "Technical ending")),
+        localInputs =
+          inputs().copy(
+            mainBundle = None,
+            quietIntent =
+              Some(
+                supportedQuietIntent(
+                  intentClass = QuietMoveIntentClass.TechnicalConversionStep,
+                  sourceKind = "technical_piece",
+                  claimText = "This improves the knight on f3 for endgame handling."
+                )
+              )
+          ),
+        playedMove = "g1f3"
+      )
+
+    assertEquals(rows.map(_.label), List("Piece improvement"), clue(rows))
+    assertEquals(rows.head.text, "The checked move improves the knight on f3 for endgame handling.")
+  }
+
   test("projects legal castling quiet intent as king-safety practical support") {
     val castleCtx =
       ctx.copy(

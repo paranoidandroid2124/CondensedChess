@@ -162,7 +162,7 @@ class EndgamePatternContinuityTest extends FunSuite:
       s"expected transition geometry text, got: $transitionText"
     )
     assert(
-      transitionText.contains("Lucena has broken down because the stronger king is no longer beside the promotion square"),
+      transitionText.contains("Lucena geometry has loosened because the stronger king is no longer beside the promotion square"),
       s"expected Lucena causal loss text, got: $transitionText"
     )
     assert(
