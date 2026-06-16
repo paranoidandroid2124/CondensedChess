@@ -16,11 +16,11 @@ export type ReviewViewNodes = {
 
 const tabs: [ReviewPrimaryTab, string][] = [
   ['explain', 'Coach'],
-  ['engine', 'Lines'],
-  ['explorer', 'Explorer'],
+  ['engine', 'Candidates'],
+  ['explorer', 'Opening'],
   ['moves', 'Moves'],
   ['import', 'PGN'],
-  ['board', 'Board'],
+  ['board', 'Setup'],
 ];
 
 export function reviewView(ctrl: AnalyseCtrl, nodes: ReviewViewNodes): VNode {
@@ -52,15 +52,15 @@ function tabButton(ctrl: AnalyseCtrl, active: ReviewPrimaryTab, tab: ReviewPrima
 function renderTab(ctrl: AnalyseCtrl, nodes: ReviewViewNodes, tab: ReviewPrimaryTab): VNode {
   switch (tab) {
     case 'engine':
-      return panel('Suggested lines', [nodes.cevalNode, nodes.pvsNode].filter(Boolean));
+      return panel('Candidate lines', [nodes.cevalNode, nodes.pvsNode].filter(Boolean));
     case 'explorer':
-      return panel('Explorer', [nodes.explorerNode]);
+      return panel('Opening context', [nodes.explorerNode]);
     case 'moves':
-      return panel('Game moves', [nodes.moveListNode, nodes.forkNode]);
+      return panel('Score sheet', [nodes.moveListNode, nodes.forkNode]);
     case 'import':
-      return panel('Paste PGN', [nodes.importNode]);
+      return panel('Load PGN', [nodes.importNode]);
     case 'board':
-      return panel('Board position', nodes.boardSettingsNodes);
+      return panel('Board setup', nodes.boardSettingsNodes);
     default:
       return panel('Coach review', [
         hl('div.analyse-review__explain-card', [
@@ -74,7 +74,10 @@ function renderTab(ctrl: AnalyseCtrl, nodes: ReviewViewNodes, tab: ReviewPrimary
 
 function panel(title: string, content: LooseVNodes[]): VNode {
   return hl('div.analyse-review__workspace', [
-    hl('header.analyse-review__workspace-head', [hl('span.analyse-review__eyebrow', 'Game review'), hl('h2', title)]),
-    hl('div.analyse-review__workspace-body', content.length ? content : [hl('div.analyse-review__empty', 'No review content yet.')]),
+    hl('header.analyse-review__workspace-head', [hl('span.analyse-review__eyebrow', 'Review board'), hl('h2', title)]),
+    hl(
+      'div.analyse-review__workspace-body',
+      content.length ? content : [hl('div.analyse-review__empty', 'Nothing to show for this position yet.')],
+    ),
   ]);
 }

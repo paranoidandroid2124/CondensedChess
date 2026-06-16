@@ -1,6 +1,10 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildDecisionComparisonSurface, formatDecisionTargetComparison } from '../src/decisionComparison';
+import {
+  buildDecisionComparisonRows,
+  buildDecisionComparisonSurface,
+  formatDecisionTargetComparison,
+} from '../src/decisionComparison';
 
 describe('decisionComparison surface', () => {
   test('prefers exact comparative consequence over generic deferred copy', () => {
@@ -17,7 +21,7 @@ describe('decisionComparison surface', () => {
       chosenMatchesBest: true,
     });
 
-    assert.equal(surface.headline, 'Chosen Nd2 · Compared Qc2');
+    assert.equal(surface.headline, 'Played Nd2 · Compared Qc2');
     assert.equal(
       surface.secondary,
       'Nd2 fixes d6 as the target; Qc2 leaves d6 unfixed on the compared branch.',
@@ -33,7 +37,18 @@ describe('decisionComparison surface', () => {
         bestTarget: 'd5',
         bestTargetKind: 'iqp',
       }),
-      'Line target: chosen e5 (isolated pawn); engine d5 (isolated queen pawn).',
+      'Line target: played e5 (isolated pawn); suggested d5 (isolated queen pawn).',
     );
+  });
+
+  test('labels engine pv as a candidate line for players', () => {
+    const rows = buildDecisionComparisonRows({
+      chosenMove: 'Nd2',
+      engineBestMove: 'Nd2',
+      engineBestPv: ['Nd2', '...Na6'],
+      chosenMatchesBest: true,
+    });
+
+    assert.equal(rows[0]?.label, 'Candidate line');
   });
 });

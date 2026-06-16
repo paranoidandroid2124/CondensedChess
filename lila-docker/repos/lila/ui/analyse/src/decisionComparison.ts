@@ -120,7 +120,7 @@ export function buildDecisionComparisonRows(
   const rows: DecisionComparisonRow[] = [];
 
   const engineLine = normalizeList(comparison.engineBestPv).slice(0, 4).join(' ');
-  if (includeEngineLine && engineLine) rows.push({ label: 'Suggested line', value: engineLine });
+  if (includeEngineLine && engineLine) rows.push({ label: 'Candidate line', value: engineLine });
 
   const comparative = comparison.comparativeConsequence?.trim();
   const compared = comparative ? comparison.comparedMove?.trim() : '';

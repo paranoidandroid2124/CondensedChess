@@ -53,7 +53,7 @@ export function renderControls(ctrl: AnalyseCtrl) {
         'button.fbt',
         {
           attrs: {
-            title: reviewShell ? 'Opening explorer' : 'Opening explorer and Tablebase',
+            title: reviewShell ? 'Opening context' : 'Opening explorer and Tablebase',
             'data-act': 'opening-explorer',
           },
           class: {
@@ -67,7 +67,7 @@ export function renderControls(ctrl: AnalyseCtrl) {
         'button.fbt',
         {
           class: { active: activeTool === 'action-menu' },
-          attrs: { title: reviewShell ? 'Board view and settings' : 'Menu', 'data-act': 'menu' },
+          attrs: { title: reviewShell ? 'Board setup' : 'Menu', 'data-act': 'menu' },
         },
         [icon(licon.Hamburger as any)],
       ),
@@ -82,7 +82,7 @@ function renderAnalysisToggle(ctrl: AnalyseCtrl, activeTool: string | false, sho
     'button.fbt.fbt--engine-toggle',
     {
       attrs: {
-        title: 'Toggle reference lines',
+        title: ctrl.isReviewShell() ? 'Toggle candidate lines' : 'Toggle reference lines',
         'data-act': 'analysis',
         'aria-pressed': active ? 'true' : 'false',
       },
