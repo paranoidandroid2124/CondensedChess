@@ -464,6 +464,39 @@
       line-height: 1.2;
     }
 
+    .move-review-player__board-cue {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.32rem;
+      min-width: 0;
+    }
+
+    .move-review-player__board-cue-item {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 0.28rem;
+      min-width: 0;
+      max-width: 100%;
+      padding: 0.22rem 0.42rem;
+      border: 1px solid color-mix(in srgb, #{$c-primary} 18%, transparent);
+      border-radius: 999px;
+      background: color-mix(in srgb, #{$c-primary} 8%, transparent);
+      color: $c-font-dim;
+      font-size: 0.68rem;
+      line-height: 1.15;
+
+      strong {
+        min-width: 0;
+        color: $c-font;
+        font-size: 0.72rem;
+        overflow-wrap: anywhere;
+      }
+    }
+
+    .move-review-player__board-cue-item--square strong {
+      color: $c-primary;
+    }
+
     .move-review-player__board-preview {
       position: static;
       height: auto;

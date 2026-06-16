@@ -373,6 +373,24 @@ function renderSceneLine(scene: MoveReviewScene, refIndex: MoveReviewRefIndex): 
   `;
 }
 
+function renderBoardCue(scene: MoveReviewScene | undefined): string {
+  const focusSquare = scene?.square || '';
+  const line = (scene?.lineSans || []).filter(san => normalizeSanToken(san)).slice(0, 4).join(' ');
+  const hidden = !focusSquare && !line ? ' hidden' : '';
+  return `
+    <div class="move-review-player__board-cue"${hidden}>
+      <span class="move-review-player__board-cue-item move-review-player__board-cue-item--square"${focusSquare ? '' : ' hidden'}>
+        <span>Watch</span>
+        <strong>${escapeHtml(focusSquare)}</strong>
+      </span>
+      <span class="move-review-player__board-cue-item move-review-player__board-cue-item--line"${line ? '' : ' hidden'}>
+        <span>Line</span>
+        <strong>${escapeHtml(line)}</strong>
+      </span>
+    </div>
+  `;
+}
+
 function primaryTryLine(playerSurface: MoveReviewPlayerSurfaceV1): string[] {
   const decisionLine = playerSurface.decisionComparison?.refSans || [];
   if (decisionLine.length) return decisionLine;
@@ -615,6 +633,7 @@ export function decorateMoveReviewHtml(
             <strong class="move-review-player__board-title">${escapeHtml(scenes[0]?.boardTitle || 'Coaching board')}</strong>
             <span class="move-review-player__board-subtitle">${escapeHtml(scenes[0]?.boardSubtitle || scenes[0]?.label || '')}</span>
           </div>
+          ${renderBoardCue(scenes[0])}
           <div class="move-review-pv-preview move-review-player__board-preview"></div>
         </aside>
         <div class="move-review-player__scene-stack">${scenes.map((scene, idx) => renderScenePanel(scene, idx, refIndex, sceneCount)).join('')}</div>

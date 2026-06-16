@@ -83,6 +83,10 @@ function setSceneSquare(square: string | null): void {
   currentCtrl.setAutoShapes();
 }
 
+function sceneSquareFromPanel(panel: HTMLElement | null | undefined): string | null {
+  return panel?.dataset.sceneSquare || panel?.querySelector<HTMLElement>('[data-move-review-square]')?.dataset.moveReviewSquare || null;
+}
+
 function currentScenePanel(player: HTMLElement): HTMLElement | null {
   return moveReviewScenePanels(player)[moveReviewSceneIndex(player)] || null;
 }
@@ -104,6 +108,26 @@ function setPlayerBoardMeta(
   if (kickerEl) kickerEl.textContent = kicker || 'Board follows this scene';
   if (titleEl && title) titleEl.textContent = title;
   if (subtitleEl) subtitleEl.textContent = subtitle || '';
+}
+
+function setCueItem(player: HTMLElement, selector: string, value: string | null | undefined): void {
+  const item = player.querySelector<HTMLElement>(selector);
+  if (!item) return;
+  const text = value?.trim() || '';
+  item.hidden = !text;
+  const valueEl = item.querySelector<HTMLElement>('strong');
+  if (valueEl) valueEl.textContent = text;
+}
+
+function setPlayerBoardCue(player: HTMLElement, panel: HTMLElement): void {
+  const cue = player.querySelector<HTMLElement>('.move-review-player__board-cue');
+  if (!cue) return;
+  const square = sceneSquareFromPanel(panel);
+  const line = panel.querySelector<HTMLElement>('[data-scene-line]')?.dataset.sceneLine || '';
+  const hasCue = !!square || !!line.trim();
+  cue.hidden = !hasCue;
+  setCueItem(player, '.move-review-player__board-cue-item--square', square);
+  setCueItem(player, '.move-review-player__board-cue-item--line', line);
 }
 
 function revealMoveReviewScene(player: HTMLElement, panel: HTMLElement): void {
@@ -157,6 +181,7 @@ function syncMoveReviewElementBoard(el: HTMLElement, markActive = false): void {
 }
 
 function syncMoveReviewSceneBoard(player: HTMLElement, panel: HTMLElement): void {
+  setPlayerBoardCue(player, panel);
   const firstMove = panel.querySelector<HTMLElement>('[data-ref-id], [data-board]');
   const board = panel.dataset.sceneBoard || (firstMove ? boardPayloadFromElement(firstMove) : null);
   if (board) {
@@ -177,8 +202,7 @@ function syncMoveReviewSceneBoard(player: HTMLElement, panel: HTMLElement): void
     hideMoveReviewPreview({ force: true });
   }
 
-  const square = panel.dataset.sceneSquare || panel.querySelector<HTMLElement>('[data-move-review-square]')?.dataset.moveReviewSquare || null;
-  setSceneSquare(square);
+  setSceneSquare(sceneSquareFromPanel(panel));
 }
 
 function activateMoveReviewScene(player: HTMLElement, targetIndex: number, syncBoard = true, reveal = false): void {
@@ -394,11 +418,9 @@ export function initMoveReviewHandlers(ctrl: AnalyseCtrl | undefined, onEvalTogg
         currentCtrl.setAutoShapes();
       }
     })
-    .on('mouseleave.moveReview focusout.moveReview', '.analyse__move-review-text [data-move-review-square]', () => {
-      if (currentCtrl) {
-        currentCtrl.moveReviewHoverSquare = null;
-        currentCtrl.setAutoShapes();
-      }
+    .on('mouseleave.moveReview focusout.moveReview', '.analyse__move-review-text [data-move-review-square]', function (this: HTMLElement) {
+      const player = this.closest('[data-move-review-player]') as HTMLElement | null;
+      setSceneSquare(player ? sceneSquareFromPanel(currentScenePanel(player)) : null);
     });
 }
 
