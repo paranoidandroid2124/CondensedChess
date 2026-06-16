@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const analyseFreeScss = readFileSync(fileURLToPath(new URL('../css/_analyse.free.scss', import.meta.url)), 'utf8');
 const narrativeScss = readFileSync(fileURLToPath(new URL('../css/_narrative.scss', import.meta.url)), 'utf8');
+const sideScss = readFileSync(fileURLToPath(new URL('../css/_side.scss', import.meta.url)), 'utf8');
 
 describe('review shell contrast palette', () => {
   test('keeps the review-shell palette above AA thresholds', () => {
@@ -105,6 +106,19 @@ describe('review shell contrast palette', () => {
         `${label}: expected contrast >= 4.5, got ${contrastRatio(parseHex(fg), parseHex(bg)).toFixed(2)}`,
       );
     }
+  });
+
+  test('keeps the mobile review board below the sticky scene timeline', () => {
+    assert.match(sideScss, /--move-review-sticky-board-top:\s*3\.35rem;/);
+    assert.match(sideScss, /@include mq-is-col1[\s\S]*--move-review-sticky-board-top:\s*2\.7rem;/);
+    assert.match(
+      sideScss,
+      /@include mq-is-col1[\s\S]*\.move-review-player__board-shell\s*\{[\s\S]*top:\s*var\(--move-review-sticky-board-top\);/,
+    );
+    assert.doesNotMatch(
+      sideScss,
+      /@include mq-is-col1[\s\S]*\.move-review-player__board-shell\s*\{[\s\S]*top:\s*0\.2rem;/,
+    );
   });
 });
 
