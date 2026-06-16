@@ -189,8 +189,10 @@ The surface renderer may say:
   that the reviewed bishop, rook, or queen move attacks a non-origin strategy
   lane square. Public practical attack-lane advanced rows likewise require a
   single valid focus square; an ambiguous route/target-map idea stays hidden
-  instead of falling back to broader attack cues. Generic king-ring,
-  weak-back-rank, and compensation king-window shells are diagnostic support;
+  instead of falling back to broader attack cues. Public check-pressure
+  practical attack rows also require a single valid focus square. Generic
+  king-ring, ambiguous check-motif focus lists, weak-back-rank, and compensation
+  king-window shells are diagnostic support;
   without a concrete route, battery, check, threat, central exposure, or other
   named attacking mechanism they do not publish public `Practical attack` rows.
   Route and directional endpoints become `source:route_attack_lane` or

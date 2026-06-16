@@ -1276,7 +1276,7 @@ object MoveReviewPlayerPayloadBuilder:
                   !exactAttackAlreadyVisible &&
                     refs.contains("source:motif_check_pressure") &&
                     (refs.contains("check_type_normal") || refs.contains("check_type_discovered")) &&
-                    focusSquares.nonEmpty &&
+                    singleFocusSquare.nonEmpty &&
                     focusZone.nonEmpty &&
                     idea.beneficiaryPieces.exists(_.trim.nonEmpty) &&
                     idea.readiness == StrategicIdeaReadiness.Ready &&
@@ -1333,12 +1333,9 @@ object MoveReviewPlayerPayloadBuilder:
                     (singleBeneficiaryPiece, singleFocusSquare) match
                       case (Some(piece), Some(square)) =>
                         Some("Practical attack" -> s"The ${piece.toUpperCase} check on $square gives a practical attacking cue.")
-                      case (Some(piece), None) =>
-                        Some("Practical attack" -> s"The ${piece.toUpperCase} check motif gives a practical attacking cue.")
                       case (None, Some(square)) =>
                         Some("Practical attack" -> s"The check on $square gives a practical attacking cue.")
-                      case _ =>
-                        Some("Practical attack" -> "The check motif gives a practical attacking cue.")
+                      case _ => None
                   else if fianchettoMotif then
                     Some("Practical attack" -> "The fianchettoed bishop gives a practical long-diagonal cue.")
                   else None

@@ -9686,9 +9686,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(motifCheckAmbiguousSquareSurface.advancedRows.map(_.label), List("Practical attack"), clue(motifCheckAmbiguousSquareSurface.advancedRows))
-    assertEquals(motifCheckAmbiguousSquareSurface.advancedRows.head.text, "The Q check motif gives a practical attacking cue.")
-    assertEquals(motifCheckAmbiguousSquareSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assert(!motifCheckAmbiguousSquareSurface.advancedRows.exists(_.label == "Practical attack"), clue(motifCheckAmbiguousSquareSurface.advancedRows))
 
     val motifCheckSourceOnlySurface =
       build(
