@@ -361,9 +361,24 @@
       line-height: 1;
     }
 
+    .move-review-player__timeline-copy {
+      display: grid;
+      gap: 0.08rem;
+      min-width: 0;
+    }
+
     .move-review-player__timeline-label {
       min-width: 0;
       font-size: 0.72rem;
+      font-weight: 700;
+      line-height: 1.1;
+      overflow-wrap: anywhere;
+    }
+
+    .move-review-player__timeline-kicker {
+      min-width: 0;
+      color: $c-font-dim;
+      font-size: 0.6rem;
       font-weight: 700;
       line-height: 1.1;
       overflow-wrap: anywhere;
@@ -389,6 +404,10 @@
       .move-review-player__timeline-label {
         display: inline;
         font-size: 0.62rem;
+      }
+
+      .move-review-player__timeline-kicker {
+        display: none;
       }
 
       .move-review-player__timeline-step.is-active .move-review-player__timeline-label {
@@ -510,6 +529,15 @@
       color: $c-primary;
     }
 
+    .move-review-player__board-cue-item--move {
+      border-color: color-mix(in srgb, #{$c-primary} 24%, transparent);
+      background: color-mix(in srgb, #{$c-primary} 12%, transparent);
+
+      strong {
+        color: $c-primary;
+      }
+    }
+
     .move-review-player__board-preview {
       position: static;
       height: auto;
@@ -580,6 +608,14 @@
       }
     }
 
+    .move-review-player[data-scene-direction='forward'] .move-review-player__scene.is-active {
+      animation: move-review-scene-in-forward 180ms ease-out;
+    }
+
+    .move-review-player[data-scene-direction='back'] .move-review-player__scene.is-active {
+      animation: move-review-scene-in-back 180ms ease-out;
+    }
+
     .move-review-player__scene-head {
       display: grid;
       gap: 0.14rem;
@@ -609,12 +645,33 @@
 
     .move-review-player__scene-line {
       display: grid;
+      position: relative;
       gap: 0.35rem;
       min-width: 0;
       padding: 0.52rem 0.62rem;
       border: 1px solid color-mix(in srgb, #{$c-border} 72%, transparent);
       border-radius: 8px;
       background: color-mix(in srgb, #{$c-bg-zebra} 84%, transparent);
+      overflow: hidden;
+
+      &::after {
+        content: '';
+        position: absolute;
+        right: auto;
+        bottom: 0;
+        left: 0;
+        width: var(--move-review-line-progress, 0%);
+        height: 2px;
+        border-radius: 999px;
+        background: color-mix(in srgb, #{$c-primary} 70%, transparent);
+        opacity: 0.78;
+        transition: width 160ms ease;
+      }
+
+      &.has-active-board {
+        border-color: color-mix(in srgb, #{$c-primary} 20%, #{$c-border});
+        background: color-mix(in srgb, #{$c-primary} 7%, #{$c-bg-zebra});
+      }
     }
 
     .move-review-player__scene-line-head {
@@ -1296,6 +1353,30 @@
 @keyframes move-review-scene-in {
   from {
     transform: translateX(0.35rem);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes move-review-scene-in-forward {
+  from {
+    transform: translateX(0.45rem);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes move-review-scene-in-back {
+  from {
+    transform: translateX(-0.45rem);
     opacity: 0;
   }
 

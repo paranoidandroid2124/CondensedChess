@@ -119,15 +119,28 @@ function setCueItem(player: HTMLElement, selector: string, value: string | null 
   if (valueEl) valueEl.textContent = text;
 }
 
+function updateBoardCueVisibility(player: HTMLElement): void {
+  const cue = player.querySelector<HTMLElement>('.move-review-player__board-cue');
+  if (!cue) return;
+  const hasVisibleCue = Array.from(cue.querySelectorAll<HTMLElement>('.move-review-player__board-cue-item')).some(
+    item => !item.hidden,
+  );
+  cue.hidden = !hasVisibleCue;
+}
+
 function setPlayerBoardCue(player: HTMLElement, panel: HTMLElement): void {
   const cue = player.querySelector<HTMLElement>('.move-review-player__board-cue');
   if (!cue) return;
   const square = sceneSquareFromPanel(panel);
   const line = panel.querySelector<HTMLElement>('[data-scene-line]')?.dataset.sceneLine || '';
-  const hasCue = !!square || !!line.trim();
-  cue.hidden = !hasCue;
   setCueItem(player, '.move-review-player__board-cue-item--square', square);
   setCueItem(player, '.move-review-player__board-cue-item--line', line);
+  updateBoardCueVisibility(player);
+}
+
+function setPlayerBoardMoveCue(player: HTMLElement, move: string | null | undefined): void {
+  setCueItem(player, '.move-review-player__board-cue-item--move', move);
+  updateBoardCueVisibility(player);
 }
 
 function revealMoveReviewScene(player: HTMLElement, panel: HTMLElement): void {
@@ -168,6 +181,9 @@ function setSceneLineState(panel: HTMLElement, activeMove: HTMLElement | null): 
 
   const count = line.querySelector<HTMLElement>('.move-review-player__line-count');
   if (count) count.textContent = chips.length ? `Board ${selectedIndex + 1}/${chips.length}` : 'Board line';
+  const progress = chips.length ? ((selectedIndex + 1) / chips.length) * 100 : 0;
+  line.style.setProperty('--move-review-line-progress', `${progress}%`);
+  line.classList.toggle('has-active-board', !!chips.length);
 
   line.querySelectorAll<HTMLButtonElement>('[data-move-review-line-step]').forEach(button => {
     const step = Number(button.dataset.moveReviewLineStep);
@@ -215,6 +231,7 @@ function syncMoveReviewElementBoard(el: HTMLElement, markActive = false): void {
     moveLabelFromElement(el) || panel?.dataset.sceneBoardSubtitle || null,
     sceneBoardKicker(panel),
   );
+  setPlayerBoardMoveCue(player, moveLabelFromElement(el));
 }
 
 function syncMoveReviewSceneBoard(player: HTMLElement, panel: HTMLElement): void {
@@ -234,21 +251,49 @@ function syncMoveReviewSceneBoard(player: HTMLElement, panel: HTMLElement): void
       (activeMove ? moveLabelFromElement(activeMove) : null) || panel.dataset.sceneBoardSubtitle || null,
       sceneBoardKicker(panel),
     );
+    setPlayerBoardMoveCue(player, activeMove ? moveLabelFromElement(activeMove) : null);
   } else {
     setActiveCoachMove(player, null);
     setSceneLineState(panel, null);
     setPlayerBoardMeta(player, panel.dataset.sceneBoardTitle || null, panel.dataset.sceneBoardSubtitle || null, sceneBoardKicker(panel));
+    setPlayerBoardMoveCue(player, null);
     hideMoveReviewPreview({ force: true });
   }
 
   setSceneSquare(sceneSquareFromPanel(panel));
 }
 
+function sceneControlLabel(panel: HTMLElement | null | undefined): string {
+  return panel?.dataset.sceneShortLabel || panel?.dataset.sceneLabel || 'scene';
+}
+
+function updateMoveReviewSceneControls(player: HTMLElement, panels: HTMLElement[], index: number): void {
+  player.querySelectorAll<HTMLButtonElement>('[data-move-review-scene-step]').forEach(button => {
+    const step = Number(button.dataset.moveReviewSceneStep);
+    const target = Math.max(0, Math.min(panels.length - 1, index + step));
+    const disabled = (step < 0 && index === 0) || (step > 0 && index === panels.length - 1);
+    button.disabled = disabled;
+    button.textContent =
+      step < 0
+        ? disabled
+          ? 'Back'
+          : `Back: ${sceneControlLabel(panels[target])}`
+        : disabled
+          ? 'Next'
+          : `Next: ${sceneControlLabel(panels[target])}`;
+  });
+
+  const counter = player.querySelector<HTMLElement>('.move-review-player__scene-count');
+  if (counter) counter.textContent = `${panels[index]?.dataset.sceneLabel || 'Scene'} · ${index + 1}/${panels.length}`;
+}
+
 function activateMoveReviewScene(player: HTMLElement, targetIndex: number, syncBoard = true, reveal = false): void {
   const panels = moveReviewScenePanels(player);
   if (!panels.length) return;
+  const previousIndex = moveReviewSceneIndex(player);
   const nextIndex = Math.max(0, Math.min(panels.length - 1, targetIndex));
   player.dataset.sceneIndex = String(nextIndex);
+  player.dataset.sceneDirection = nextIndex === previousIndex ? 'still' : nextIndex > previousIndex ? 'forward' : 'back';
   player.style.setProperty('--move-review-scene-progress', `${((nextIndex + 1) / panels.length) * 100}%`);
 
   panels.forEach((panel, idx) => {
@@ -265,13 +310,7 @@ function activateMoveReviewScene(player: HTMLElement, targetIndex: number, syncB
     button.tabIndex = active ? 0 : -1;
   });
 
-  player.querySelectorAll<HTMLButtonElement>('[data-move-review-scene-step]').forEach(button => {
-    const step = Number(button.dataset.moveReviewSceneStep);
-    button.disabled = (step < 0 && nextIndex === 0) || (step > 0 && nextIndex === panels.length - 1);
-  });
-
-  const counter = player.querySelector<HTMLElement>('.move-review-player__scene-count');
-  if (counter) counter.textContent = `Scene ${nextIndex + 1}/${panels.length}`;
+  updateMoveReviewSceneControls(player, panels, nextIndex);
   if (syncBoard) syncMoveReviewSceneBoard(player, panels[nextIndex]);
   if (reveal) revealMoveReviewScene(player, panels[nextIndex]);
 }

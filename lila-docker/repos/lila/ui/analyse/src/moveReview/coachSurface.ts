@@ -415,6 +415,10 @@ function renderBoardCue(scene: MoveReviewScene | undefined): string {
         <span>Line</span>
         <strong>${escapeHtml(line)}</strong>
       </span>
+      <span class="move-review-player__board-cue-item move-review-player__board-cue-item--move" hidden>
+        <span>Now</span>
+        <strong></strong>
+      </span>
     </div>
   `;
 }
@@ -442,7 +446,10 @@ function renderSceneNav(scenes: MoveReviewScene[]): string {
           tabindex="${idx === 0 ? '0' : '-1'}"
         >
           <span class="move-review-player__timeline-index">${idx + 1}</span>
-          <span class="move-review-player__timeline-label">${escapeHtml(scene.shortLabel)}</span>
+          <span class="move-review-player__timeline-copy">
+            <span class="move-review-player__timeline-label">${escapeHtml(scene.label)}</span>
+            <span class="move-review-player__timeline-kicker">${escapeHtml(scene.kicker)}</span>
+          </span>
         </button>
       `,
         )
@@ -457,6 +464,7 @@ function renderScenePanel(scene: MoveReviewScene, idx: number, refIndex: MoveRev
   const boardTitle = ` data-scene-board-title="${escapeHtml(scene.boardTitle)}"`;
   const boardSubtitle = scene.boardSubtitle ? ` data-scene-board-subtitle="${escapeHtml(scene.boardSubtitle)}"` : '';
   const square = scene.square ? ` data-scene-square="${escapeHtml(scene.square)}"` : '';
+  const label = ` data-scene-label="${escapeHtml(scene.label)}" data-scene-short-label="${escapeHtml(scene.shortLabel)}"`;
   const hidden = idx === 0 ? '' : ' hidden aria-hidden="true"';
   return `
     <section
@@ -467,7 +475,7 @@ function renderScenePanel(scene: MoveReviewScene, idx: number, refIndex: MoveRev
       data-scene-key="${scene.key}"
       role="tabpanel"
       aria-labelledby="move-review-scene-tab-${scene.key}"
-      ${board}${boardKicker}${boardTitle}${boardSubtitle}${square}${hidden}
+      ${board}${boardKicker}${boardTitle}${boardSubtitle}${square}${label}${hidden}
     >
       <header class="move-review-player__scene-head">
         <span class="move-review-player__scene-kicker">${escapeHtml(scene.kicker)} · ${idx + 1}/${sceneCount}</span>
@@ -479,14 +487,16 @@ function renderScenePanel(scene: MoveReviewScene, idx: number, refIndex: MoveRev
   `;
 }
 
-function renderSceneControls(sceneCount: number): string {
+function renderSceneControls(scenes: MoveReviewScene[]): string {
+  const sceneCount = scenes.length;
+  const nextLabel = sceneCount > 1 ? scenes[1]?.shortLabel || 'scene' : null;
   return `
     <footer class="move-review-player__controls">
       <button type="button" class="move-review-player__control" data-move-review-scene-step="-1" disabled>Back</button>
-      <span class="move-review-player__scene-count" aria-live="polite">Scene 1/${sceneCount}</span>
+      <span class="move-review-player__scene-count" aria-live="polite">${escapeHtml(scenes[0]?.label || 'Scene')} · 1/${sceneCount}</span>
       <button type="button" class="move-review-player__control move-review-player__control--primary" data-move-review-scene-step="1"${
         sceneCount <= 1 ? ' disabled' : ''
-      }>Next scene</button>
+      }>${nextLabel ? `Next: ${escapeHtml(nextLabel)}` : 'Next'}</button>
     </footer>
   `;
 }
@@ -667,7 +677,7 @@ export function decorateMoveReviewHtml(
         </aside>
         <div class="move-review-player__scene-stack">${scenes.map((scene, idx) => renderScenePanel(scene, idx, refIndex, sceneCount)).join('')}</div>
       </div>
-      ${renderSceneControls(sceneCount)}
+      ${renderSceneControls(scenes)}
     </div>
   `;
 }
