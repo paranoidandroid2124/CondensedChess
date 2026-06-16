@@ -77,7 +77,7 @@ function renderSide(ctrl: AnalyseCtrl): VNode | undefined {
       {
         attrs: { id: 'move-review-field' },
       },
-      [hl('legend', { attrs: { tabindex: '0' } }, 'Explain This Move'), hl('div.analyse__move-review-text')],
+      [hl('legend', { attrs: { tabindex: '0' } }, 'Ask About This Move'), hl('div.analyse__move-review-text')],
     ),
   ]);
 }

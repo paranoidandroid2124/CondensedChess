@@ -92,7 +92,7 @@ object landing:
                           )
                         ),
                         st.article(cls := "hero-surface hero-artifact-card hero-artifact-card--move")(
-                          p(cls := "hero-surface-kicker")("Explain This Move"),
+                          p(cls := "hero-surface-kicker")("Ask About This Move"),
                           h3(cls := "hero-surface-title")("Ask about the move in front of you"),
                           p(cls := "hero-surface-copy")(
                             "When one decision feels unclear, study that move without leaving the board."
@@ -144,7 +144,7 @@ object landing:
                     ),
                     st.article(cls := "feature-card artifact-card")(
                       p(cls := "feature-kicker")("Study 03"),
-                      h3("Explain This Move"),
+                      h3("Ask About This Move"),
                       p("Ask for commentary on the current move only when the current position needs more context."),
                       p(cls := "artifact-card__proof")("Use it when one decision matters more than a whole-game review.")
                     ),
@@ -278,7 +278,7 @@ object landing:
                       p(cls := "entry-card__proof")("Best when the board itself is the starting point."),
                       div(cls := "entry-card__chips sample-chip-row")(
                         span("Full Board"),
-                        span("Explain This Move"),
+                        span("Ask About This Move"),
                         span("Board-first")
                       ),
                       div(cls := "entry-card__actions")(
@@ -309,7 +309,7 @@ object landing:
                         strong("Verdict, why, plan, playable line, what to remember")
                       ),
                       div(cls := "truth-row")(
-                        span("Explain This Move"),
+                        span("Ask About This Move"),
                         strong("On-demand commentary for the current move")
                       ),
                       div(cls := "truth-row")(
@@ -326,7 +326,7 @@ object landing:
                       )
                     ),
                     div(cls := "truth-boundaries")(
-                      p("Explain This Move appears only when you ask."),
+                      p("Ask About This Move appears only when you ask."),
                       p("Move Review starts from the game you provide."),
                       p("The full board stays available when you want to explore directly.")
                     ),

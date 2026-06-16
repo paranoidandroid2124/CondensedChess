@@ -6,7 +6,9 @@ import { fileURLToPath } from 'node:url';
 const reviewViewSource = readFileSync(fileURLToPath(new URL('../src/review/view.ts', import.meta.url)), 'utf8');
 const controlsSource = readFileSync(fileURLToPath(new URL('../src/view/controls.ts', import.meta.url)), 'utf8');
 const actionMenuSource = readFileSync(fileURLToPath(new URL('../src/view/actionMenu.ts', import.meta.url)), 'utf8');
+const mainViewSource = readFileSync(fileURLToPath(new URL('../src/view/main.ts', import.meta.url)), 'utf8');
 const moveReviewSource = readFileSync(fileURLToPath(new URL('../src/moveReview.ts', import.meta.url)), 'utf8');
+const landingSource = readFileSync(fileURLToPath(new URL('../../../app/views/pages/landing.scala', import.meta.url)), 'utf8');
 
 describe('review player copy', () => {
   test('keeps review shell tabs and panels player-facing', () => {
@@ -40,6 +42,13 @@ describe('review player copy', () => {
   test('keeps saved move review fallback framed as replay', () => {
     assert.match(moveReviewSource, /Saved line to replay/);
     assert.doesNotMatch(moveReviewSource, /Saved Lines/);
+  });
+
+  test('keeps current-move help framed as a player question', () => {
+    [mainViewSource, landingSource].forEach(source => {
+      assert.match(source, /Ask About This Move/);
+      assert.doesNotMatch(source, /Explain This Move/);
+    });
   });
 });
 

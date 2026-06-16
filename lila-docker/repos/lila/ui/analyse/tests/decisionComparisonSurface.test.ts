@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   buildDecisionComparisonRows,
   buildDecisionComparisonSurface,
+  formatDecisionComparisonHeadline,
   formatDecisionTargetComparison,
 } from '../src/decisionComparison';
 
@@ -37,8 +38,27 @@ describe('decisionComparison surface', () => {
         bestTarget: 'd5',
         bestTargetKind: 'iqp',
       }),
-      'Line target: played e5 (isolated pawn); suggested d5 (isolated queen pawn).',
+      'Line target: played e5 (isolated pawn); coach line points at d5 (isolated queen pawn).',
     );
+  });
+
+  test('frames move comparison as a coach line instead of a bare suggestion', () => {
+    assert.equal(
+      formatDecisionComparisonHeadline({
+        engineBestMove: 'Nd2',
+        cpLossVsChosen: 11,
+      }),
+      'Coach move is Nd2 (+11cp).',
+    );
+
+    const surface = buildDecisionComparisonSurface({
+      chosenMove: 'Qc2',
+      engineBestMove: 'Nd2',
+      cpLossVsChosen: 11,
+      chosenMatchesBest: false,
+    });
+
+    assert.equal(surface.headline, 'Played Qc2 · coach move Nd2');
   });
 
   test('labels engine pv as a candidate line for players', () => {
