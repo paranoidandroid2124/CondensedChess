@@ -97,13 +97,13 @@ object MoveReviewRenderer:
           }
         }
     
-    div(cls := "move-review-content")(
+    div(cls := "move-review-content move-review-hide-eval")(
       div(cls := "move-review-toolbar")(
         button(
           cls := "move-review-score-toggle",
           attr("type") := "button",
-          attr("aria-pressed") := "true"
-        )("Numbers shown")
+          attr("aria-pressed") := "false"
+        )("Numbers hidden")
       ),
       // Hover preview board (mounted by client; stays hidden until hover).
       div(cls := "move-review-pv-preview"),

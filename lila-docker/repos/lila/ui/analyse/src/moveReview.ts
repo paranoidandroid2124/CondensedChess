@@ -306,7 +306,7 @@ export function flushMoveReviewStudySync(ctrl: AnalyseCtrl): void {
     flushMoveReviewStudySyncQueue(ctrl);
 }
 
-const moveReviewEvalDisplay = storedBooleanPropWithEffect('analyse.move_review.showEval', true, value => {
+const moveReviewEvalDisplay = storedBooleanPropWithEffect('analyse.move_review.showEval', false, value => {
     syncMoveReviewEvalDisplay(value);
 });
 

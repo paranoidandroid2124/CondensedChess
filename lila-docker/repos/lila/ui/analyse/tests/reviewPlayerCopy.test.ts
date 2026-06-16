@@ -64,13 +64,17 @@ describe('review player copy', () => {
   });
 
   test('keeps move review number visibility framed without engine jargon', () => {
+    assert.match(moveReviewRendererSource, /move-review-content move-review-hide-eval/);
+    assert.match(moveReviewRendererSource, /attr\("aria-pressed"\) := "false"/);
+    assert.match(moveReviewRendererSource, /Numbers hidden/);
+    assert.doesNotMatch(moveReviewRendererSource, /Eval: On/);
+    assert.match(moveReviewSource, /storedBooleanPropWithEffect\('analyse\.move_review\.showEval', false/);
+    assert.match(moveReviewRenderingSource, /Numbers shown/);
+    assert.match(moveReviewRenderingSource, /Numbers hidden/);
     [moveReviewRenderingSource, moveReviewRendererSource].forEach(source => {
-      assert.match(source, /Numbers shown/);
       assert.doesNotMatch(source, /Scores shown/);
       assert.doesNotMatch(source, /Scores hidden/);
-      assert.doesNotMatch(source, /Eval: On/);
     });
-    assert.match(moveReviewRenderingSource, /Numbers hidden/);
   });
 
   test('keeps move review alternatives framed as playable lines', () => {
