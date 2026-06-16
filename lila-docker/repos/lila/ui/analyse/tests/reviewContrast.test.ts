@@ -504,6 +504,9 @@ describe('review shell contrast palette', () => {
     assert.match(strategicPuzzleScss, /\$sp-primary-strong:\s*#b4d99a;/);
     assert.match(strategicPuzzleScss, /\$sp-board-light:\s*#b7bf8f;/);
     assert.match(strategicPuzzleScss, /\$sp-board-dark:\s*#6b7f57;/);
+    [...strategicPuzzleScss.matchAll(/letter-spacing:\s*([^;]+);/g)].forEach(match =>
+      assert.equal(match[1]!.trim(), '0', `strategic puzzle letter-spacing must be 0, got ${match[1]}`),
+    );
     assert.match(accountScss, /\.btn-danger\s*\{[\s\S]*?background:\s*\$c-bad;[\s\S]*?color:\s*\$c-bg-page;/);
     assert.match(homeScss, /box-shadow:\s*[\s\S]*?rgba\(0,\s*0,\s*0,\s*0\.18\)[\s\S]*?rgba\(\$home-primary,\s*0\.08\);/);
   });
