@@ -211,7 +211,7 @@ const accountIntelStageLabel = (stage: string) => {
     case 'queued':
       return 'Waiting to start.';
     case 'fetching_games':
-      return 'Fetching recent public games.';
+      return 'Reading recent games.';
     case 'extracting_primitives':
       return 'Finding recurring structures and decision points.';
     case 'publishing_surface':
@@ -389,9 +389,9 @@ function initAccountIntelProduct() {
     const confidence = surface?.confidence?.label ?? 'weak';
     const generatedAt = humanDate(surface?.generatedAt);
     return `
-      <div class="importer-summary-chip"><strong>${sampled}</strong><span>Sampled games</span></div>
+      <div class="importer-summary-chip"><strong>${sampled}</strong><span>Games read</span></div>
         <div class="importer-summary-chip"><strong>${escapeHtml(capitalize(confidence))}</strong><span>Confidence</span></div>
-        <div class="importer-summary-chip"><strong>${escapeHtml(kindLabel(state!.kind))}</strong><span>Generated ${escapeHtml(generatedAt)}</span></div>
+        <div class="importer-summary-chip"><strong>${escapeHtml(kindLabel(state!.kind))}</strong><span>Updated ${escapeHtml(generatedAt)}</span></div>
     `;
   };
 
@@ -733,10 +733,10 @@ function initAccountIntelProduct() {
   const renderSupport = () => `
     <div class="account-product-support-tabs js-ai-support-region" data-active-tab="${escapeHtml(activeSupportTab)}">
       <div class="importer-panel__head">
-        <strong class="importer-panel__title">Support tools</strong>
-        <p class="importer-panel__copy">Keep the lead position and action plan in the rail. Use these tabs only when you need notebook, comparison, history, or supporting notes.</p>
+        <strong class="importer-panel__title">More study views</strong>
+        <p class="importer-panel__copy">Keep the main position and next plan in front. Open these only when you want the notebook, older studies, or supporting notes.</p>
       </div>
-      <div class="account-product-support-tablist" role="tablist" aria-label="Support tools">
+      <div class="account-product-support-tablist" role="tablist" aria-label="More study views">
         ${renderSupportTab('study', 'Study notebook')}
         ${renderSupportTab('compare', 'Compare studies')}
         ${renderSupportTab('history', 'History')}
@@ -757,7 +757,7 @@ function initAccountIntelProduct() {
       <div class="importer-panel importer-panel--guide account-product-utility">
         <div class="importer-panel__head">
           <strong class="importer-panel__title">Study notebook</strong>
-          <p class="importer-panel__copy">Stay on this page for the answer. Create the study notebook only when you want the move tree, chapter flow, and a shareable study artifact.</p>
+          <p class="importer-panel__copy">Stay on this page for the answer. Create the study notebook when you want to keep the game, lines, and notes together.</p>
         </div>
         <div class="account-product-utility-links">
           ${notebookUrl ? `<a href="${escapeHtml(notebookUrl)}" class="account-product-secondary-link">Open study notebook</a>` : ''}
@@ -767,7 +767,7 @@ function initAccountIntelProduct() {
             <button class="copy-me__button button-metal">Copy result link</button>
           </div>
         </div>
-        ${refreshLockLabel() ? `<span class="account-product-evidence-line">Refresh lock until ${escapeHtml(refreshLockLabel())}</span>` : ''}
+        ${refreshLockLabel() ? `<span class="account-product-evidence-line">Can refresh again after ${escapeHtml(refreshLockLabel())}</span>` : ''}
       </div>
     `;
   };
@@ -790,7 +790,7 @@ function initAccountIntelProduct() {
                     <strong>${escapeHtml(idx === 0 ? `${job.status} • latest` : job.status)}</strong>
                     <span>${escapeHtml(humanDate(job.requestedAt))}</span>
                     <span>${escapeHtml(job.confidence || 'pending')}</span>
-                    <span>${escapeHtml(job.sampledGameCount ? `${job.sampledGameCount} games` : 'no sample')}</span>
+                    <span>${escapeHtml(job.sampledGameCount ? `${job.sampledGameCount} games` : 'no games yet')}</span>
                   </div>
                   <div class="account-product-history-actions">
                     <a href="${escapeHtml(job.url)}">${currentSelectedJobId === job.jobId ? 'Viewing study' : 'Open study'}</a>
@@ -868,7 +868,7 @@ function initAccountIntelProduct() {
         <strong>${escapeHtml(activeJobLabel(job.status))} • ${escapeHtml(kindLabel(state!.kind))}</strong>
         <span>${escapeHtml(progress + eta)}</span>
         <div class="auth-links status-links">
-          <a href="/account-intel/jobs/${escapeHtml(job.jobId)}" class="status-links__primary">Open study status</a>
+          <a href="/account-intel/jobs/${escapeHtml(job.jobId)}" class="status-links__primary">See progress</a>
         </div>
       </div>
     `;
