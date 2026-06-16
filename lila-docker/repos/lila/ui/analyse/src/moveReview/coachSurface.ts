@@ -386,7 +386,7 @@ function renderSceneLine(scene: MoveReviewScene, refIndex: MoveReviewRefIndex): 
     boardMoveCount > 1
       ? `<span class="move-review-player__line-controls" aria-label="Replay line controls">
           <button type="button" class="move-review-player__line-step" data-move-review-line-step="-1" disabled>Back</button>
-          <span class="move-review-player__line-count" aria-live="polite">Board 1/${boardMoveCount}</span>
+          <span class="move-review-player__line-count" aria-live="polite">Position 1/${boardMoveCount}</span>
           <button type="button" class="move-review-player__line-step" data-move-review-line-step="1">Next</button>
         </span>`
       : '';
@@ -699,7 +699,7 @@ export function decorateMoveReviewHtml(
       <div class="move-review-player__stage">
         <aside class="move-review-player__board-shell" aria-label="Current coaching board">
           <div class="move-review-player__board-meta">
-            <span class="move-review-player__board-kicker">Board follows · ${escapeHtml(scenes[0]?.kicker || 'Scene')}</span>
+            <span class="move-review-player__board-kicker">Board shows · ${escapeHtml(scenes[0]?.kicker || 'Scene')}</span>
             <strong class="move-review-player__board-title">${escapeHtml(scenes[0]?.boardTitle || 'Coaching board')}</strong>
             <span class="move-review-player__board-subtitle">${escapeHtml(scenes[0]?.boardSubtitle || scenes[0]?.label || '')}</span>
           </div>

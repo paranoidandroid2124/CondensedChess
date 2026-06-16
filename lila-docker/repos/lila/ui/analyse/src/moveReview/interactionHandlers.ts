@@ -93,7 +93,7 @@ function currentScenePanel(player: HTMLElement): HTMLElement | null {
 
 function sceneBoardKicker(panel: HTMLElement | null | undefined): string | null {
   const kicker = panel?.dataset.sceneBoardKicker;
-  return kicker ? `Board follows · ${kicker}` : null;
+  return kicker ? `Board shows · ${kicker}` : null;
 }
 
 function setPlayerBoardMeta(
@@ -105,7 +105,7 @@ function setPlayerBoardMeta(
   const kickerEl = player.querySelector<HTMLElement>('.move-review-player__board-kicker');
   const titleEl = player.querySelector<HTMLElement>('.move-review-player__board-title');
   const subtitleEl = player.querySelector<HTMLElement>('.move-review-player__board-subtitle');
-  if (kickerEl) kickerEl.textContent = kicker || 'Board follows this scene';
+  if (kickerEl) kickerEl.textContent = kicker || 'Board shows this scene';
   if (titleEl && title) titleEl.textContent = title;
   if (subtitleEl) subtitleEl.textContent = subtitle || '';
 }
@@ -180,7 +180,7 @@ function setSceneLineState(panel: HTMLElement, activeMove: HTMLElement | null): 
   line.dataset.lineIndex = String(selectedIndex);
 
   const count = line.querySelector<HTMLElement>('.move-review-player__line-count');
-  if (count) count.textContent = chips.length ? `Board ${selectedIndex + 1}/${chips.length}` : 'Board line';
+  if (count) count.textContent = chips.length ? `Position ${selectedIndex + 1}/${chips.length}` : 'Line positions';
   const progress = chips.length ? ((selectedIndex + 1) / chips.length) * 100 : 0;
   line.style.setProperty('--move-review-line-progress', `${progress}%`);
   line.classList.toggle('has-active-board', !!chips.length);
