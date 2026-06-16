@@ -210,6 +210,7 @@ function renderCoachVerdict(
   const secondary = comparison.secondaryText?.trim() || '';
   const targetComparison = formatDecisionTargetComparison(comparison.targetComparison);
   const trustedSans = comparison.refSans || [];
+  const gapLabel = playerFacingGapLabel(comparison.gapLabel);
 
   const moveBits = [
     renderCoachMoveChip('You played', chosen, resolveTrustedDecisionSanRef(chosen, trustedSans, refIndex), 'chosen'),
@@ -221,7 +222,7 @@ function renderCoachVerdict(
       : null,
   ].filter(Boolean);
 
-  if (!moveBits.length && !secondary && !comparison.gapLabel && !targetComparison) return null;
+  if (!moveBits.length && !secondary && !gapLabel && !targetComparison) return null;
 
   const classes = [
     'move-review-coach__decision',
@@ -235,13 +236,27 @@ function renderCoachVerdict(
     <section class="${classes}">
       <div class="move-review-coach__decision-topline">
         <span class="move-review-coach__decision-kicker">Your choice</span>
-        ${comparison.gapLabel ? `<span class="move-review-coach__gap">${escapeHtml(comparison.gapLabel)}</span>` : ''}
+        ${gapLabel ? `<span class="move-review-coach__gap">${escapeHtml(gapLabel)}</span>` : ''}
       </div>
       ${moveBits.length ? `<div class="move-review-coach__decision-moves">${moveBits.join('')}</div>` : ''}
       ${secondary ? `<p class="move-review-coach__decision-note">${escapeHtml(secondary)}</p>` : ''}
       ${targetComparison ? `<p class="move-review-coach__target-note">${escapeHtml(targetComparison)}</p>` : ''}
     </section>
   `;
+}
+
+function playerFacingGapLabel(rawLabel?: string | null): string {
+  const label = rawLabel?.trim() || '';
+  if (!label) return '';
+  const numeric = label.replace(/\s*cp$/i, '');
+  if (/^[+-]?(?:\d+(?:\.\d+)?|\.\d+)$/.test(numeric)) {
+    const value = Math.abs(Number(numeric));
+    if (value <= 0.7) return 'Close choice';
+    if (value <= 1.6) return 'Plan improves';
+    return 'Position swing';
+  }
+  if (/\bcp\b/i.test(label)) return 'Score gap';
+  return label;
 }
 
 function surfaceRowClasses(row: MoveReviewPlayerSurfaceRowV1): string {

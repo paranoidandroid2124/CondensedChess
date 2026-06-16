@@ -88,6 +88,8 @@ describe('moveReview coach surface', () => {
     assert.match(html, /data-move-review-player/);
     assert.match(html, /Move review/);
     assert.match(html, /Your choice/);
+    assert.match(html, /Close choice/);
+    assert.doesNotMatch(html, /\+0\.4/);
     assert.match(html, /Why it mattered/);
     assert.match(html, /What to watch next/);
     assert.match(html, /Try the line/);

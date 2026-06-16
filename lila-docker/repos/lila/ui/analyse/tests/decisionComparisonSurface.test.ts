@@ -18,7 +18,7 @@ describe('decisionComparison surface', () => {
         'Nd2 fixes d6 as the target; Qc2 leaves d6 unfixed on the compared branch.',
       comparativeSource: 'exact_target_fixation_delta',
       deferredMove: 'Qc2',
-      deferredReason: 'it trails the engine line by about 11cp',
+      deferredReason: 'it leaves the target less clear',
       chosenMatchesBest: true,
     });
 
@@ -48,7 +48,7 @@ describe('decisionComparison surface', () => {
         engineBestMove: 'Nd2',
         cpLossVsChosen: 11,
       }),
-      'Coach move is Nd2 (+11cp).',
+      'Coach move is Nd2 (tiny score gap).',
     );
 
     const surface = buildDecisionComparisonSurface({
@@ -59,6 +59,7 @@ describe('decisionComparison surface', () => {
     });
 
     assert.equal(surface.headline, 'Played Qc2 · coach move Nd2');
+    assert.equal(surface.gap, 'tiny score gap');
   });
 
   test('labels engine pv as a candidate line for players', () => {

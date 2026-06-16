@@ -42,9 +42,13 @@ type RowOptions = {
   mergeReasonIntoDeferred?: boolean;
 };
 
-function formatCp(cp?: number): string {
+function formatScoreGap(cp?: number): string {
   if (typeof cp !== 'number') return '';
-  return `${cp >= 0 ? '+' : ''}${cp}cp`;
+  const gap = Math.abs(cp);
+  if (gap <= 15) return 'tiny score gap';
+  if (gap <= 50) return 'small score gap';
+  if (gap <= 120) return 'clear score gap';
+  return 'large score gap';
 }
 
 function normalizeList(items?: string[]): string[] {
@@ -98,7 +102,7 @@ export function formatDecisionComparisonHeadline(comparison?: DecisionComparison
   const best = comparison.engineBestMove?.trim();
   const comparative = comparison.comparativeConsequence?.trim();
   const compared = comparative ? comparison.comparedMove?.trim() : '';
-  const gap = formatCp(comparison.cpLossVsChosen);
+  const gap = formatScoreGap(comparison.cpLossVsChosen);
 
   if (comparison.chosenMatchesBest && chosen && compared) return `Played ${chosen} compared with ${compared}.`;
   if (comparison.chosenMatchesBest && chosen) return `Played ${chosen} matches the coach line.`;
@@ -170,7 +174,7 @@ export function buildDecisionComparisonSurface(
   const includeEvidence = opts.includeEvidence ?? true;
   const engineLine = includeEngineLine ? normalizeList(comparison.engineBestPv).slice(0, 4).join(' ') : '';
   const evidence = includeEvidence ? comparison.evidence?.trim() || '' : '';
-  const gap = formatCp(comparison.cpLossVsChosen);
+  const gap = formatScoreGap(comparison.cpLossVsChosen);
 
   let headline: string | null = null;
   if (comparison.chosenMatchesBest && chosen && comparedMove) headline = `Played ${chosen} · Compared ${comparedMove}`;
