@@ -100,7 +100,9 @@ describe('moveReview coach surface', () => {
     assert.match(html, /move-review-player__detail-layer/);
     assert.match(html, /Coach notes/);
     assert.match(html, /Board shows · Decision/);
-    assert.match(html, /Position 1\/2/);
+    assert.match(html, /Move 1\/2/);
+    assert.match(html, /Prev move/);
+    assert.match(html, /Next move/);
     assert.match(html, /data-scene-square="d5"/);
     assert.match(html, /move-review-player__board-cue-item--move/);
     assert.match(html, /data-scene-board-title="Position tied to the choice"/);

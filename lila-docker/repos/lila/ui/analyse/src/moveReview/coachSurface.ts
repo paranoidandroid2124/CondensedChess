@@ -385,9 +385,9 @@ function renderSceneLine(scene: MoveReviewScene, refIndex: MoveReviewRefIndex): 
   const controls =
     boardMoveCount > 1
       ? `<span class="move-review-player__line-controls" aria-label="Replay line controls">
-          <button type="button" class="move-review-player__line-step" data-move-review-line-step="-1" disabled>Back</button>
-          <span class="move-review-player__line-count" aria-live="polite">Position 1/${boardMoveCount}</span>
-          <button type="button" class="move-review-player__line-step" data-move-review-line-step="1">Next</button>
+          <button type="button" class="move-review-player__line-step" data-move-review-line-step="-1" disabled>Prev move</button>
+          <span class="move-review-player__line-count" aria-live="polite">Move 1/${boardMoveCount}</span>
+          <button type="button" class="move-review-player__line-step" data-move-review-line-step="1">Next move</button>
         </span>`
       : '';
   return `

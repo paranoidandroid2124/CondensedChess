@@ -180,7 +180,7 @@ function setSceneLineState(panel: HTMLElement, activeMove: HTMLElement | null): 
   line.dataset.lineIndex = String(selectedIndex);
 
   const count = line.querySelector<HTMLElement>('.move-review-player__line-count');
-  if (count) count.textContent = chips.length ? `Position ${selectedIndex + 1}/${chips.length}` : 'Line positions';
+  if (count) count.textContent = chips.length ? `Move ${selectedIndex + 1}/${chips.length}` : 'Line moves';
   const progress = chips.length ? ((selectedIndex + 1) / chips.length) * 100 : 0;
   line.style.setProperty('--move-review-line-progress', `${progress}%`);
   line.classList.toggle('has-active-board', !!chips.length);
