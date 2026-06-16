@@ -175,7 +175,7 @@ object MoveReviewRenderer:
           " ",
           numberedSans,
           span(cls := "eval-badge eval-badge--inline")(
-            s" (${normalizedScore(v.scoreCp)})"
+            s"Eval ${normalizedScore(v.scoreCp)}"
           )
         )
         labelChar -> pv.toString
@@ -255,7 +255,7 @@ object MoveReviewRenderer:
             numberedSans
           ),
           span(cls := "eval-badge")(
-            s" (${normalizedScore(v.scoreCp)})"
+            s"Eval ${normalizedScore(v.scoreCp)}"
           )
         )
       }

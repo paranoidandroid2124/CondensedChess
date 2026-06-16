@@ -70,10 +70,12 @@ describe('review player copy', () => {
     assert.doesNotMatch(moveReviewSource, /Saved Lines/);
   });
 
-  test('keeps move review eval visible without score jargon', () => {
+  test('keeps move review eval visible as core evidence', () => {
     assert.doesNotMatch(moveReviewRendererSource, /move-review-content move-review-hide-eval/);
     assert.match(moveReviewRendererSource, /attr\("aria-pressed"\) := "true"/);
     assert.match(moveReviewRendererSource, /Eval shown/);
+    assert.match(moveReviewRendererSource, /s"Eval \$\{normalizedScore\(v\.scoreCp\)\}"/);
+    assert.doesNotMatch(moveReviewRendererSource, /s" \(\$\{normalizedScore\(v\.scoreCp\)\}\)"/);
     assert.doesNotMatch(moveReviewRendererSource, /Eval: On/);
     assert.match(moveReviewSource, /storedBooleanPropWithEffect\('analyse\.move_review\.showEval', true/);
     assert.match(moveReviewRenderingSource, /Eval shown/);

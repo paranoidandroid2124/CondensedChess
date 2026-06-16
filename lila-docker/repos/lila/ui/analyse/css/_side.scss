@@ -202,6 +202,23 @@
         }
       }
 
+      .eval-badge,
+      .eval-badge--inline {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.16rem 0.46rem;
+        border: 1px solid color-mix(in srgb, #{$c-primary} 24%, transparent);
+        border-radius: 999px;
+        background: color-mix(in srgb, #{$c-primary} 11%, #{$c-bg-low});
+        color: color-mix(in srgb, #{$c-primary} 82%, #{$c-font});
+        font-family: 'Roboto Mono', monospace;
+        font-size: 0.74rem;
+        font-weight: 700;
+        line-height: 1.1;
+        white-space: nowrap;
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, #{$c-primary} 10%, transparent);
+      }
+
       &.move-review-hide-eval {
         .eval-badge,
         .eval-badge--inline {
@@ -1492,13 +1509,6 @@
 
         .eval-badge--inline {
           margin-left: auto;
-          font-size: 0.8em;
-          padding: 0.1em 0.4em;
-          border-radius: 3px;
-          background: $c-bg-zebra;
-          color: $c-font-dim;
-          font-family: 'Roboto Mono', monospace;
-          box-shadow: inset 0 0 2px rgba(0, 0, 0, 0.1);
         }
       }
     }
@@ -1564,14 +1574,6 @@
         .eval-badge {
           margin-left: auto;
           flex: 0 0 auto;
-          font-size: 0.8em;
-          padding: 0.1em 0.4em;
-          border-radius: 3px;
-          background: $c-bg-zebra;
-          color: $c-font-dim;
-          font-family: 'Roboto Mono', monospace;
-          white-space: nowrap;
-          box-shadow: inset 0 0 2px rgba(0, 0, 0, 0.1);
         }
       }
     }
