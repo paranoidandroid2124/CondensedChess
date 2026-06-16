@@ -405,7 +405,7 @@ class StrategicPuzzleApp {
   private stageLabel(): string {
     switch (this.stage) {
       case 'plan':
-        return 'find the task';
+        return 'find the plan';
       case 'move':
         return 'choose the start';
       case 'reveal':
@@ -414,7 +414,7 @@ class StrategicPuzzleApp {
   }
 
   private renderTopbar(): string {
-    const introText = 'Find the task, choose the start, then review the task, the start, and the exact proof.';
+    const introText = 'Find the plan, choose the first move, then review why the plan works.';
     const streakLabel = this.payload.progress.authenticated ? `Current streak ${this.payload.progress.currentStreak}` : 'Guest session';
     return `
       <section class="sp-runtime-topbar">
@@ -447,45 +447,45 @@ class StrategicPuzzleApp {
       this.stage === 'reveal'
         ? this.revealFocus === 'proof'
           ? {
-              title: 'Exact proof board',
+              title: 'Full line board',
               text: 'The board is now showing the confirmed continuation. Switch back to the started position whenever you want to re-anchor the review in the first move.',
             }
           : {
               title: 'Started position',
               text: featuredStart
-                ? `${featuredStart} has already been played. The board is paused here so you can see how the bounded task begins before opening the proof.`
-                : 'The board is paused right after the stored start so you can review how the bounded task begins before opening the proof.',
+                ? `${featuredStart} has already been played. The board is paused here so you can see how the plan begins before opening the full line.`
+                : 'The board is paused right after the first move so you can review how the plan begins before opening the full line.',
             }
         : this.stage === 'move'
           ? {
               title: 'Board is live',
-              text: 'Make the first move on the board or choose one below. Only stored starts for the selected task count.',
+              text: 'Make the first move on the board or choose one below. Only moves that start the chosen plan count.',
             }
           : {
               title: 'Board state',
-              text: 'The board stays fixed while you decide which bounded task matters in this exact position.',
+              text: 'The board stays fixed while you decide which plan matters in this exact position.',
             };
     const secondary =
       this.stage === 'reveal'
         ? this.revealFocus === 'proof'
           ? {
               title: 'Selected start',
-              text: featuredStart || 'This review stores one public start.',
+              text: featuredStart || 'One first move is shown for this review.',
             }
           : {
               title: 'Next review',
-              text: 'Open the exact proof when you want the full confirmed continuation and proof endpoint on the board.',
+              text: 'Open the full line when you want the confirmed continuation on the board.',
             }
         : this.stage === 'move'
           ? {
               title: 'Accepted starts',
               text: acceptedStarts.length
                 ? acceptedStarts.join(', ')
-                : 'No public starts are stored for the selected task.',
+                : 'No first moves are shown for the chosen plan.',
             }
           : {
               title: 'Next unlock',
-              text: 'Select a task to open the first-move stage on the board.',
+              text: 'Select a plan to open the first-move stage on the board.',
             };
     return `
       <div class="sp-demo-board-callouts">
@@ -513,7 +513,7 @@ class StrategicPuzzleApp {
     if (theme && anchor && humanize(theme) !== humanize(anchor)) return `${humanize(theme)} · ${humanize(anchor)}`;
     if (theme) return humanize(theme);
     if (anchor) return humanize(anchor);
-    return 'Bounded task';
+    return 'Plan to find';
   }
 
   private renderStatePane(): string {
@@ -524,27 +524,27 @@ class StrategicPuzzleApp {
       this.stage === 'reveal'
         ? escapeHtml(reveal?.title || 'Review the plan')
         : this.stage === 'move'
-          ? 'Choose the first move that starts the task.'
-          : 'Find the bounded task first.';
+          ? 'Choose the first move that starts the plan.'
+          : 'Find the plan first.';
     const panelCopy =
       this.stage === 'reveal'
-        ? escapeHtml(reveal?.planTask || plan?.task || reveal?.summary || 'Review the proof and the plan behind it.')
+        ? escapeHtml(reveal?.planTask || plan?.task || reveal?.summary || 'Review the line and the plan behind it.')
         : this.stage === 'move'
-          ? escapeHtml(plan?.task || 'Choose the first move that starts the selected task.')
-          : escapeHtml(this.payload.runtimeShell.prompt || 'Choose the bounded strategic task that fits the exact position.');
-    const contextTitle = this.stage === 'reveal' ? 'Review focus' : this.stage === 'move' ? 'Selected task' : 'Current position';
+          ? escapeHtml(plan?.task || 'Choose the first move that starts the chosen plan.')
+          : escapeHtml(this.payload.runtimeShell.prompt || 'Choose the plan that fits the exact position.');
+    const contextTitle = this.stage === 'reveal' ? 'Review focus' : this.stage === 'move' ? 'Chosen plan' : 'Current position';
     const contextCopy =
       this.stage === 'reveal'
         ? this.revealFocus === 'proof'
-          ? 'The board is following the exact proof now. Keep the task and why-start cards as the primary reading, and use this board only as supporting truth.'
-          : 'The board is paused right after the chosen start so you can read the task and why-start first. Open exact proof only when you want the supporting continuation.'
+          ? 'The board is following the full line now. Keep the plan and first-move notes as the main review.'
+          : 'The board is paused right after the chosen start so you can read the plan and first-move idea first. Open the full line only when you want the continuation.'
         : this.stage === 'move'
           ? plan?.feedback || 'The plan is set. Choose the first move that actually starts it.'
-          : 'Pick the task that matters most in this exact position before worrying about move order.';
+          : 'Pick the plan that matters most in this exact position before worrying about move order.';
     const lineLabel =
       this.stage === 'reveal'
         ? this.revealFocus === 'proof'
-          ? 'Exact proof'
+          ? 'Full line'
           : 'Selected start'
         : this.stage === 'move'
           ? 'Accepted starts'
@@ -552,10 +552,10 @@ class StrategicPuzzleApp {
     const lineValue =
       this.stage === 'reveal'
         ? this.revealFocus === 'proof'
-          ? escapeHtml(this.lineSans.length ? this.lineSans.join(' ') : 'Proof line not shown yet.')
+          ? escapeHtml(this.lineSans.length ? this.lineSans.join(' ') : 'Full line not shown yet.')
           : escapeHtml(this.featuredStartSan || 'No start move shown yet.')
         : this.stage === 'move'
-          ? escapeHtml(this.currentStarts.length ? this.currentStarts.map(start => start.san).join(', ') : 'No start moves shown for this task.')
+          ? escapeHtml(this.currentStarts.length ? this.currentStarts.map(start => start.san).join(', ') : 'No start moves shown for this plan.')
           : escapeHtml(this.payload.runtimeShell.plans.length ? `${this.payload.runtimeShell.plans.length} plans to compare` : 'No plans to compare yet.');
     return `
       <section class="sp-demo-panel sp-runtime-pane${reveal ? ' is-reveal' : ' is-solve'}">
@@ -563,7 +563,7 @@ class StrategicPuzzleApp {
           <div class="sp-runtime-pane__section sp-runtime-pane__section--head">
             <p class="sp-demo-panel__label">${panelLabel}</p>
             <div class="sp-stepper">
-              <span class="${this.stageIndex() >= 1 ? 'is-live' : ''}">1. Find the task</span>
+              <span class="${this.stageIndex() >= 1 ? 'is-live' : ''}">1. Find the plan</span>
               <span class="${this.stageIndex() >= 2 ? 'is-live' : ''}">2. Choose the start</span>
               <span class="${this.stageIndex() >= 3 ? 'is-live' : ''}">3. Review why it works</span>
             </div>
@@ -597,13 +597,13 @@ class StrategicPuzzleApp {
     if (this.feedback.text) return this.feedback.text;
     switch (this.stage) {
       case 'plan':
-        return 'Start by identifying the task that best fits the exact position.';
+        return 'Start by identifying the plan that best fits the exact position.';
       case 'move':
-        return 'The task is fixed. Choose the move that starts it cleanly.';
+        return 'The plan is fixed. Choose the move that starts it cleanly.';
       case 'reveal':
         return this.revealFocus === 'proof'
-          ? 'The exact proof is open on the board. Use it as support for the task and why-start review.'
-          : 'The review is open at the started position. Begin with the task and chosen start before opening the proof.';
+          ? 'The full line is open on the board. Use it to check the plan and first-move idea.'
+          : 'The review is open at the started position. Begin with the plan and chosen start before opening the full line.';
     }
   }
 
@@ -613,8 +613,8 @@ class StrategicPuzzleApp {
       return `
         <div class="sp-choice-grid">
           <div class="sp-choice-grid__notice">
-            <strong>No public plan layer is stored</strong>
-            <span>This puzzle still has proof data, but no selectable plan shell is available.</span>
+            <strong>No plan choices shown yet</strong>
+            <span>This position can still be reviewed, but it does not have plan choices to compare.</span>
           </div>
         </div>
       `;
@@ -624,7 +624,7 @@ class StrategicPuzzleApp {
         ${plans
           .map(plan => {
             const featuredOutcome = this.terminalMap.get(plan.featuredTerminalId)?.outcome || 'full';
-            const badge = featuredOutcome === 'partial' ? 'Playable alternative' : 'Primary task';
+            const badge = featuredOutcome === 'partial' ? 'Playable alternative' : 'Main plan';
             const meta = [plan.familyKey ? humanize(plan.familyKey) : null, `${plan.allowedStarts.length} start${plan.allowedStarts.length === 1 ? '' : 's'}`]
               .filter(Boolean)
               .join(' · ');
@@ -648,8 +648,8 @@ class StrategicPuzzleApp {
       return `
         <div class="sp-choice-grid">
           <div class="sp-choice-grid__notice">
-            <strong>Choose a task first</strong>
-            <span>The move stage opens after you select the bounded task.</span>
+            <strong>Choose a plan first</strong>
+            <span>The move stage opens after you select the plan.</span>
           </div>
         </div>
       `;
@@ -659,7 +659,7 @@ class StrategicPuzzleApp {
         <div class="sp-choice-grid">
           <div class="sp-choice-grid__notice">
             <strong>No start move shown yet</strong>
-            <span>This task does not have a playable start move yet, so stay with the plan explanation.</span>
+            <span>This plan does not have a playable first move yet, so stay with the explanation.</span>
           </div>
         </div>
       `;
@@ -687,7 +687,7 @@ class StrategicPuzzleApp {
   private renderRevealStack(reveal: TerminalReveal): string {
     const plan = this.selectedPlan;
     const selectedStart = this.selectedStart;
-    const planTask = reveal.planTask || plan?.task || reveal.summary || 'Shared plan explanation unavailable.';
+    const planTask = reveal.planTask || plan?.task || reveal.summary || 'Plan explanation not shown yet.';
     const whyPlan = reveal.whyPlan || reveal.summary || plan?.feedback || planTask;
     const taskLead = reveal.summary || plan?.feedback || whyPlan;
     const whyMove = reveal.whyMove || selectedStart?.feedback || reveal.commentary || whyPlan;
@@ -698,7 +698,7 @@ class StrategicPuzzleApp {
     return `
       <div class="sp-runtime-reveal-stack">
         <div class="sp-summary-card">
-          <p class="sp-summary-card__eyebrow">Task</p>
+          <p class="sp-summary-card__eyebrow">Plan</p>
           <h4>${escapeHtml(planTask)}</h4>
           <p>${escapeHtml(shorten(taskLead, 420))}</p>
         </div>
@@ -716,8 +716,8 @@ class StrategicPuzzleApp {
         <details class="sp-runtime-alt-starts">
           <summary>Other good starts</summary>
           <div class="sp-runtime-alt-starts__body">
-            <strong>${escapeHtml(alternateStarts.length ? alternateStarts.join(', ') : 'No other starts stored')}</strong>
-            <p>${alternateStarts.length ? 'These starts still converge to the same bounded task.' : 'This reveal stores only one public start for the task.'}</p>
+            <strong>${escapeHtml(alternateStarts.length ? alternateStarts.join(', ') : 'No other starts shown')}</strong>
+            <p>${alternateStarts.length ? 'These starts still reach the same plan.' : 'This review shows one first move for the plan.'}</p>
           </div>
         </details>
         <div class="sp-mini-facts">
@@ -732,11 +732,11 @@ class StrategicPuzzleApp {
   }
 
   private renderProofReview(reveal: TerminalReveal, featuredStart: string): string {
-    const proofLine = reveal.lineSan.length ? reveal.lineSan.join(' ') : this.lineSans.length ? this.lineSans.join(' ') : 'Proof line not shown yet';
+    const proofLine = reveal.lineSan.length ? reveal.lineSan.join(' ') : this.lineSans.length ? this.lineSans.join(' ') : 'Full line not shown yet';
     if (this.revealFocus === 'proof') {
       return `
         <article class="sp-line-card sp-line-card--inline">
-          <p class="sp-line-card__label">Exact proof</p>
+          <p class="sp-line-card__label">Full line</p>
           <h3>${escapeHtml(proofLine)}</h3>
           <p>The board above is now following the confirmed continuation. Switch back to the started position whenever you want to review why ${escapeHtml(featuredStart)} is the right beginning.</p>
           <div class="sp-runtime-actions">
@@ -747,11 +747,11 @@ class StrategicPuzzleApp {
     }
     return `
       <article class="sp-line-card sp-line-card--inline">
-        <p class="sp-line-card__label">How The Task Begins</p>
+        <p class="sp-line-card__label">How The Plan Begins</p>
         <h3>${escapeHtml(featuredStart)}</h3>
-        <p>The board above is paused immediately after ${escapeHtml(featuredStart)}. Open the exact proof only when you want the confirmed continuation and deeper proof position.</p>
+        <p>The board above is paused immediately after ${escapeHtml(featuredStart)}. Open the full line only when you want the confirmed continuation.</p>
         <div class="sp-runtime-actions">
-          <button type="button" class="sp-demo-link is-strong" data-action="show-proof-board">Open exact proof on the board</button>
+          <button type="button" class="sp-demo-link is-strong" data-action="show-proof-board">Open full line on the board</button>
         </div>
       </article>
     `;
@@ -763,11 +763,11 @@ class StrategicPuzzleApp {
         ? this.nextAvailable
           ? 'Another plan-first puzzle is ready when you want the next position.'
           : this.payload.progress.authenticated
-            ? 'This account has cleared the current public puzzle pool. Replay the review from the start.'
-            : 'Replay the plan shell from the start, or keep sampling anonymously.'
+            ? 'You have cleared the current puzzle pool. Replay the review from the start.'
+            : 'Replay the plan from the start, or keep studying as a guest.'
         : this.stage === 'move'
-          ? 'Changing the task resets the move stage. Giving up opens the featured review from a stored start.'
-          : 'Choose the task first. If you give up, the featured task and its review will open.';
+          ? 'Changing the plan resets the move stage. Giving up opens the review from the main first move.'
+          : 'Choose the plan first. If you give up, the main plan and its review will open.';
     return `
       <div class="sp-runtime-pane__footer${this.stage === 'reveal' ? ' is-reveal' : ''}">
         <div class="sp-runtime-pane__footer-copy">
@@ -783,7 +783,7 @@ class StrategicPuzzleApp {
 
   private renderSolveFooterActions(): string {
     return `
-      ${this.stage === 'move' ? `<button type="button" class="sp-demo-link" data-action="back-plans">Back to tasks</button>` : ''}
+      ${this.stage === 'move' ? `<button type="button" class="sp-demo-link" data-action="back-plans">Back to plans</button>` : ''}
       <button type="button" class="sp-demo-link" data-action="reset">Reset puzzle</button>
       <button type="button" class="sp-demo-link is-warning" data-action="reveal">Give up and open review</button>
     `;
@@ -872,7 +872,7 @@ class StrategicPuzzleApp {
 
   private handleBoardMove(orig: Key, dest: Key) {
     if (this.stage !== 'move') {
-      this.feedback = { kind: 'neutral', text: 'Choose the task first. The board becomes interactive when the move stage opens.' };
+      this.feedback = { kind: 'neutral', text: 'Choose the plan first. The board becomes interactive when the move stage opens.' };
       this.render();
       return;
     }
@@ -885,8 +885,8 @@ class StrategicPuzzleApp {
       this.feedback = {
         kind: 'warning',
         text: this.selectedPlan
-          ? 'That move does not start the selected task. Keep the bounded plan fixed, then try again.'
-          : 'Choose the task first, then select its start move.',
+          ? 'That move does not start the chosen plan. Keep the plan fixed, then try again.'
+          : 'Choose the plan first, then select its first move.',
       };
       this.render();
       return;
@@ -913,7 +913,7 @@ class StrategicPuzzleApp {
     this.revealFocus = 'start';
     this.selectedStartUci = null;
     this.proof = null;
-    this.feedback = { kind: 'neutral', text: 'Choose the task before choosing the start move.' };
+    this.feedback = { kind: 'neutral', text: 'Choose the plan before choosing the first move.' };
     this.completion = null;
     this.render();
   }
@@ -922,7 +922,7 @@ class StrategicPuzzleApp {
     if (this.busy || !this.selectedPlan) return;
     const proof = this.followProofFromStart(this.selectedPlan.id, start);
     if (!proof) {
-      this.feedback = { kind: 'warning', text: 'The stored proof for that start is incomplete, so the reveal could not be opened.' };
+      this.feedback = { kind: 'warning', text: 'The continuation for that first move is not ready, so the review could not be opened.' };
       this.render();
       return;
     }
@@ -945,7 +945,7 @@ class StrategicPuzzleApp {
     this.proof = proof;
     this.stage = 'reveal';
     this.revealFocus = 'start';
-    this.feedback = { kind: 'neutral', text: 'The featured review is open from the stored start. This counts as a give-up for the current puzzle.' };
+    this.feedback = { kind: 'neutral', text: 'The main review is open from the first move. This counts as a give-up for the current puzzle.' };
     void this.complete(true);
     this.render();
   }
