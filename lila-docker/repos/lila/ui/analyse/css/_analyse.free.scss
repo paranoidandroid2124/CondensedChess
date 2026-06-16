@@ -1383,6 +1383,22 @@ $label-width: 5ch;
       display: flex;
       flex-direction: column;
       gap: 1rem;
+
+      .pair {
+        align-items: flex-start;
+        gap: 0.75rem;
+      }
+
+      .name {
+        flex: 0 0 clamp(5.75rem, 18%, 7.5rem);
+        line-height: 1.15;
+        overflow-wrap: anywhere;
+        white-space: normal;
+      }
+
+      .copyable {
+        min-width: 0;
+      }
     }
 
     &__summary {

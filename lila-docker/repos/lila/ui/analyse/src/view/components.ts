@@ -429,7 +429,7 @@ function renderInputs(ctrl: AnalyseCtrl): VNode | undefined {
     ctrl.isStudy() ? renderStudyWorkspacePanel(ctrl) : renderStudyLaunchPanel(ctrl),
     hl('div.copyables__panel', [
       hl('div.pair', [
-        hl('label.name', 'FEN'),
+        hl('label.name', 'Position setup'),
         hl('input.copyable', {
           attrs: { spellcheck: 'false', enterkeyhint: 'done' },
           hook: {
@@ -451,7 +451,7 @@ function renderInputs(ctrl: AnalyseCtrl): VNode | undefined {
               });
               el.addEventListener('input', () => {
                 ctrl.fenInput = el.value;
-                el.setCustomValidity(parseFen(el.value.trim()).isOk ? '' : 'Invalid FEN');
+                el.setCustomValidity(parseFen(el.value.trim()).isOk ? '' : 'Position setup needs fixes');
                 requestAnimationFrame(ctrl.redraw);
               });
             },
@@ -469,7 +469,7 @@ function renderInputs(ctrl: AnalyseCtrl): VNode | undefined {
     ]),
     hl('div.copyables__panel.copyables__panel--pgn', [
       hl('div.pair', [
-        hl('label.name', 'PGN'),
+        hl('label.name', 'Game text'),
         hl('textarea.copyable', {
           attrs: { spellcheck: 'false' },
           class: { 'is-error': !!ctrl.pgnError || pgnInspection.status === 'invalid' },
@@ -806,7 +806,7 @@ function renderStudyLaunchPanel(ctrl: AnalyseCtrl): VNode {
       ]),
     ]),
     hl('div.analyse-review__summary-grid.copyables__study-summary', [
-      compactSummaryCard('PGN + lines', 'base'),
+      compactSummaryCard('Game text + lines', 'base'),
       compactSummaryCard('Saved reviews', 'saved lines'),
       compactSummaryCard('Move Review notes', 'study notes'),
     ]),
@@ -814,7 +814,7 @@ function renderStudyLaunchPanel(ctrl: AnalyseCtrl): VNode {
       busy
         ? transferCount > 0
           ? `Creating the new study and carrying over ${transferCount} saved review${transferCount === 1 ? '' : 's'}.`
-          : 'Creating the new study from the current PGN.'
+          : 'Creating the new study from the current game.'
         : 'Saved move reviews already on this board will be carried into the new study when possible.',
       busy ? 'info' : 'success',
     ),
@@ -856,14 +856,14 @@ function inspectFenDraft(draft: string, currentFen: string): FenDraftInspection 
     return {
       status: 'current',
       headline: 'Current position',
-      message: 'Edit the FEN and press Enter to reopen the board from a new position.',
+      message: 'Edit the position setup and press Enter to reopen the board from a new position.',
     };
   }
   if (!parseFen(trimmed).isOk) {
     return {
       status: 'invalid',
-      headline: 'FEN needs fixes',
-      message: 'The jump is blocked until the FEN parses cleanly.',
+      headline: 'Position setup needs fixes',
+      message: 'The board waits until the position setup can be read.',
     };
   }
   return {
@@ -884,7 +884,7 @@ function inspectPgnDraft(draft: string, currentPgn: string): PgnDraftInspection 
     result = {
       status: 'empty',
       headline: 'Draft empty',
-      message: 'Paste a PGN to load another game on this board.',
+      message: 'Paste a game to load another game on this board.',
       chars,
       lines,
     };
@@ -903,7 +903,7 @@ function inspectPgnDraft(draft: string, currentPgn: string): PgnDraftInspection 
           ? {
               status: 'current',
               headline: 'Current board game',
-              message: 'The draft matches the PGN already loaded on this board.',
+              message: 'The draft matches the game already loaded on this board.',
               chars,
               lines,
               normalized,
@@ -912,7 +912,7 @@ function inspectPgnDraft(draft: string, currentPgn: string): PgnDraftInspection 
           : {
               status: 'ready',
               headline: 'Ready to load',
-              message: 'Loading this PGN will replace the current board and move list.',
+              message: 'Loading this game will replace the current board and move list.',
               chars,
               lines,
               normalized,
@@ -921,8 +921,8 @@ function inspectPgnDraft(draft: string, currentPgn: string): PgnDraftInspection 
     } catch (err) {
       result = {
         status: 'invalid',
-        headline: 'PGN needs fixes',
-        message: 'The board waits until the PGN parses cleanly.',
+        headline: 'Game text needs fixes',
+        message: 'The board waits until the game text can be read.',
         chars,
         lines,
         normalized,
@@ -994,7 +994,7 @@ function renderImportPreview(current: PgnDraftInspection, incoming: PgnDraftInsp
       hl('span.copyables__preview-label', 'Ready to load'),
       hl(
         'strong',
-        incoming.preview?.opening || incoming.preview?.variant || (incoming.status === 'invalid' ? 'PGN needs fixes' : 'Awaiting draft'),
+        incoming.preview?.opening || incoming.preview?.variant || (incoming.status === 'invalid' ? 'Game text needs fixes' : 'Awaiting draft'),
       ),
       hl('span', pgnDraftPlayerDetail(incoming)),
     ]),
@@ -1067,7 +1067,7 @@ function renderEmptySavedHistory(): VNode {
   return hl('div.copyables__recent.copyables__recent--empty', [
     hl('div.copyables__recent-head', [
       hl('strong', 'No saved games yet'),
-      hl('span', 'Load a PGN or player game once, and it will stay here for quick reopen on any signed-in device.'),
+      hl('span', 'Load a pasted game or player game once, and it will stay here for quick reopen on any signed-in device.'),
     ]),
     hl('div.copyables__empty-actions', [
       hl('a.copyables__recent-link', { attrs: { href: '/import' } }, 'Open recent games'),
@@ -1154,7 +1154,7 @@ function analysisMetaLine(entry: ImportHistoryAnalysis): string {
   ]
     .filter(Boolean)
     .join(' • ');
-  return line || 'Saved PGN ready to reopen.';
+  return line || 'Saved game ready to reopen.';
 }
 
 function analysisSupportLine(entry: ImportHistoryAnalysis): string | undefined {

@@ -104,4 +104,4 @@ export default function (pgn: string): Partial<AnalyseData> {
 }
 
 export const renderPgnError = (error: string = '') =>
-  `PGN error: ${pgnErrorMessages[error] ?? error}`;
+  `Game text needs fixes: ${pgnErrorMessages[error] ?? error}`;

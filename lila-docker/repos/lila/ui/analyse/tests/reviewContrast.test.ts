@@ -89,6 +89,17 @@ describe('review shell contrast palette', () => {
     );
   });
 
+  test('keeps load-game workspace labels from crowding the input fields', () => {
+    assert.match(
+      analyseFreeScss,
+      /&--workspace\s*\{[\s\S]*?\.name\s*\{[\s\S]*?flex:\s*0 0 clamp\(5\.75rem,\s*18%,\s*7\.5rem\);[\s\S]*?overflow-wrap:\s*anywhere;[\s\S]*?white-space:\s*normal;/,
+    );
+    assert.match(
+      analyseFreeScss,
+      /&--workspace\s*\{[\s\S]*?\.copyable\s*\{[\s\S]*?min-width:\s*0;/,
+    );
+  });
+
   test('keeps import-history provider badges above AA in both themes', () => {
     const lightVars = extractCustomProperties(analyseFreeScss, '.analyse-review');
     const darkVars = extractCustomProperties(analyseFreeScss, 'html.dark .analyse-review');

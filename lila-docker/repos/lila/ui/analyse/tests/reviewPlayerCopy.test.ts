@@ -8,6 +8,8 @@ const controlsSource = readFileSync(fileURLToPath(new URL('../src/view/controls.
 const actionMenuSource = readFileSync(fileURLToPath(new URL('../src/view/actionMenu.ts', import.meta.url)), 'utf8');
 const mainViewSource = readFileSync(fileURLToPath(new URL('../src/view/main.ts', import.meta.url)), 'utf8');
 const componentsSource = readFileSync(fileURLToPath(new URL('../src/view/components.ts', import.meta.url)), 'utf8');
+const pgnImportSource = readFileSync(fileURLToPath(new URL('../src/pgnImport.ts', import.meta.url)), 'utf8');
+const pgnPipelineSource = readFileSync(fileURLToPath(new URL('../src/pgnPipeline.ts', import.meta.url)), 'utf8');
 const moveReviewSource = readFileSync(fileURLToPath(new URL('../src/moveReview.ts', import.meta.url)), 'utf8');
 const analyseViewSource = readFileSync(fileURLToPath(new URL('../../../app/views/analyse.scala', import.meta.url)), 'utf8');
 const homeSource = readFileSync(fileURLToPath(new URL('../../../app/views/pages/home.scala', import.meta.url)), 'utf8');
@@ -150,11 +152,36 @@ describe('review player copy', () => {
       'score sheet line',
       'Pasted game',
       'paste a game below',
+      'Position setup',
+      'Game text',
+      'Game text + lines',
+      'Creating the new study from the current game.',
+      'Game text needs fixes',
+      'Saved game ready to reopen.',
     ].forEach(copy => assert.match(componentsSource, new RegExp(escapeRegExp(copy)), `missing load-game copy: ${copy}`));
 
-    ['Recent PGNs', 'half-moves', 'PGN lines', 'characters', 'Pasted PGN'].forEach(copy =>
+    [
+      'Recent PGNs',
+      'half-moves',
+      'PGN lines',
+      'characters',
+      'Pasted PGN',
+      'FEN needs fixes',
+      'Invalid FEN',
+      'Paste a PGN',
+      'The draft matches the PGN',
+      'Loading this PGN',
+      'PGN needs fixes',
+      'current PGN',
+      'Saved PGN ready to reopen.',
+      'Load a PGN',
+    ].forEach(copy =>
       assert.doesNotMatch(componentsSource, new RegExp(escapeRegExp(copy)), `stale file-stat copy: ${copy}`),
     );
+    assert.match(pgnImportSource, /Game text needs fixes:/);
+    assert.match(pgnPipelineSource, /Paste a game before opening the board\./);
+    assert.doesNotMatch(pgnImportSource, /PGN error:/);
+    assert.doesNotMatch(pgnPipelineSource, /Paste a PGN before importing\./);
   });
 });
 
