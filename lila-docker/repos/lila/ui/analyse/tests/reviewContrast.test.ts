@@ -190,6 +190,14 @@ describe('review shell contrast palette', () => {
     assert.match(sideScss, /\.move-review-player__board-anchor\s*\{/);
     assert.match(sideScss, /\.move-review-player__board-anchor-label\s*\{[\s\S]*?color:\s*\$c-primary;/);
     assert.match(sideScss, /\.move-review-player__board-anchor-move\s*\{[\s\S]*?font-family:\s*'Roboto Mono', monospace;/);
+    assert.match(
+      sideScss,
+      /\.move-review-player__board-shell\s*\{[\s\S]*?border-left:\s*3px solid color-mix\(in srgb,\s*#\{\$c-primary\}\s*48%,\s*#\{\$c-border\}\);[\s\S]*?box-shadow:[\s\S]*?inset 0 0 0 1px color-mix\(in srgb,\s*#\{\$c-primary\}\s*8%,\s*transparent\),/,
+    );
+    assert.match(
+      sideScss,
+      /\.move-review-player__board-preview\s*\{[\s\S]*?\.pv-board\s*\{[\s\S]*?box-shadow:[\s\S]*?0 0 0 1px color-mix\(in srgb,\s*#\{\$c-primary\}\s*20%,\s*transparent\),/,
+    );
     assert.match(sideScss, /\.move-review-player__board-cue-item\s*\{[\s\S]*?span\s*\{[\s\S]*?text-transform:\s*uppercase;/);
     assert.match(sideScss, /\.move-review-player__board-cue-item\s*\{[\s\S]*?strong\s*\{[\s\S]*?font-family:\s*'Roboto Mono', monospace;/);
     assert.match(sideScss, /\.move-review-player__board-cue-item--line\s*\{[\s\S]*?background:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*10%,\s*transparent\);/);
