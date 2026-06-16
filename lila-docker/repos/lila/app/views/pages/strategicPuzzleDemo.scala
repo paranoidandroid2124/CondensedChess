@@ -241,7 +241,7 @@ object strategicPuzzleDemo:
                       li("Pattern label"),
                       li("Other accepted starts"),
                       li("Comparison against the cleanest line"),
-                      li("Review commentary")
+                      li("Review note")
                     )
                   )
                 ),
@@ -316,12 +316,12 @@ object strategicPuzzleDemo:
                   )
                 ),
                 st.article(cls := "sp-analysis-card")(
-                  p(cls := "sp-analysis-card__label")("Terminal lens"),
-                  h3("Where AI commentary belongs"),
+                  p(cls := "sp-analysis-card__label")("End-position lens"),
+                  h3("Where the review note belongs"),
                   ul(
-                    li("One terminal card per reached line."),
-                    li("Optional overall summary only when multiple accepted routes matter."),
-                    li("No prose attached to obvious first-move failures.")
+                    li("One note for each reached line."),
+                    li("Overall reminder only when multiple accepted routes matter."),
+                    li("No note attached to obvious first-move misses.")
                   )
                 ),
                 st.article(cls := "sp-analysis-card")(
@@ -339,7 +339,7 @@ object strategicPuzzleDemo:
             footer(cls := "sp-demo-footer")(
               a(href := homeUrl, cls := "sp-demo-footer__link")("Back to home"),
               a(href := routes.StrategicPuzzle.home.url, cls := "sp-demo-footer__link")("Open a live exercise"),
-              a(href := analysisUrl, cls := "sp-demo-footer__link is-strong")("Open the sample in analysis")
+              a(href := analysisUrl, cls := "sp-demo-footer__link is-strong")("Open the sample board")
             )
           )
         )

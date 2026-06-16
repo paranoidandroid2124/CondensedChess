@@ -74,7 +74,7 @@ object journal:
                 ),
                 div(cls := "journal-rail-card journal-rail-card--soft")(
                   p(cls := "journal-card-label")("Next up"),
-                  p("Future posts can cover update logs, roadmap notes, and concrete examples of how strategic commentary should read.")
+                  p("Future posts can cover update logs, roadmap notes, and concrete examples of how strategic review notes should read.")
                 )
               ),
               selected.fold(

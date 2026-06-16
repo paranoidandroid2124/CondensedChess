@@ -145,7 +145,7 @@ object landing:
                     st.article(cls := "feature-card artifact-card")(
                       p(cls := "feature-kicker")("Study 03"),
                       h3("Ask About This Move"),
-                      p("Ask for commentary on the current move only when the current position needs more context."),
+                      p("Ask for a coach note on the current move only when the current position needs more context."),
                       p(cls := "artifact-card__proof")("Use it when one decision matters more than a whole-game review.")
                     ),
                     st.article(cls := "feature-card artifact-card")(
@@ -310,7 +310,7 @@ object landing:
                       ),
                       div(cls := "truth-row")(
                         span("Ask About This Move"),
-                        strong("On-demand commentary for the current move")
+                        strong("On-demand coach note for the current move")
                       ),
                       div(cls := "truth-row")(
                         span("Position Exercise"),

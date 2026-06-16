@@ -15,11 +15,16 @@ const pgnPipelineSource = readFileSync(fileURLToPath(new URL('../src/pgnPipeline
 const moveReviewSource = readFileSync(fileURLToPath(new URL('../src/moveReview.ts', import.meta.url)), 'utf8');
 const moveReviewRenderingSource = readFileSync(fileURLToPath(new URL('../src/moveReview/rendering.ts', import.meta.url)), 'utf8');
 const analyseViewSource = readFileSync(fileURLToPath(new URL('../../../app/views/analyse.scala', import.meta.url)), 'utf8');
+const basePageSource = readFileSync(fileURLToPath(new URL('../../../app/views/base/page.scala', import.meta.url)), 'utf8');
 const homeSource = readFileSync(fileURLToPath(new URL('../../../app/views/pages/home.scala', import.meta.url)), 'utf8');
 const importerSource = readFileSync(fileURLToPath(new URL('../../../app/views/importer.scala', import.meta.url)), 'utf8');
 const accountIntelSource = readFileSync(fileURLToPath(new URL('../../../app/views/accountIntel.scala', import.meta.url)), 'utf8');
 const journalSource = readFileSync(fileURLToPath(new URL('../../../app/views/pages/journal.scala', import.meta.url)), 'utf8');
 const landingSource = readFileSync(fileURLToPath(new URL('../../../app/views/pages/landing.scala', import.meta.url)), 'utf8');
+const strategicPuzzleDemoSource = readFileSync(
+  fileURLToPath(new URL('../../../app/views/pages/strategicPuzzleDemo.scala', import.meta.url)),
+  'utf8',
+);
 const moveReviewRendererSource = readFileSync(
   fileURLToPath(new URL('../../../modules/analyse/src/main/ui/MoveReviewRenderer.scala', import.meta.url)),
   'utf8',
@@ -117,6 +122,10 @@ describe('review player copy', () => {
       assert.match(source, /Ask About This Move/);
       assert.doesNotMatch(source, /Explain This Move/);
     });
+    assert.match(landingSource, /coach note on the current move/);
+    assert.match(landingSource, /On-demand coach note for the current move/);
+    assert.doesNotMatch(landingSource, /commentary on the current move/);
+    assert.doesNotMatch(landingSource, /On-demand commentary/);
   });
 
   test('keeps board entry copy focused on returning to the board', () => {
@@ -159,7 +168,8 @@ describe('review player copy', () => {
     assert.match(journalSource, /strategy-first study/);
     assert.match(journalSource, /open the board/);
     assert.match(journalSource, /Open board/);
-    ['Open analysis', 'jump straight into analysis', 'strategy-first analysis', 'chess analysis'].forEach(copy =>
+    assert.match(journalSource, /strategic review notes should read/);
+    ['Open analysis', 'jump straight into analysis', 'strategy-first analysis', 'chess analysis', 'strategic commentary'].forEach(copy =>
       assert.doesNotMatch(journalSource, new RegExp(escapeRegExp(copy)), `stale journal copy: ${copy}`),
     );
 
@@ -197,6 +207,24 @@ describe('review player copy', () => {
     assert.match(componentsSource, /saved games/);
     assert.doesNotMatch(componentsSource, /['"`]Analysed['"`]/);
     assert.doesNotMatch(componentsSource, /saved game reads/);
+  });
+
+  test('keeps public page copy framed as review notes, not AI commentary', () => {
+    assert.match(basePageSource, /Chess review that keeps the board in view/);
+    assert.doesNotMatch(basePageSource, /AI Chess Analysis/);
+
+    [
+      'Review note',
+      'End-position lens',
+      'Where the review note belongs',
+      'One note for each reached line.',
+      'Open the sample board',
+    ].forEach(copy =>
+      assert.match(strategicPuzzleDemoSource, new RegExp(escapeRegExp(copy)), `missing public page copy: ${copy}`),
+    );
+    ['AI commentary', 'Review commentary', 'Terminal lens', 'terminal card', 'Open the sample in analysis'].forEach(copy =>
+      assert.doesNotMatch(strategicPuzzleDemoSource, new RegExp(escapeRegExp(copy)), `stale public page copy: ${copy}`),
+    );
   });
 
   test('keeps load-game copy framed as a board replay, not file statistics', () => {

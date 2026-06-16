@@ -60,7 +60,7 @@ object page:
           ctx.blind.option(cssTag("bits.blind")),
           p.cssKeys.map(cssTag),
           meta(
-            content := p.openGraph.fold("Chesstory - AI Chess Analysis")(o => o.description),
+            content := p.openGraph.fold("Chesstory - Chess review that keeps the board in view")(o => o.description),
             name := "description"
           ),
           link(rel := "mask-icon", href := staticAssetUrl("logo/chesstory.svg"), attr("color") := "black"),
