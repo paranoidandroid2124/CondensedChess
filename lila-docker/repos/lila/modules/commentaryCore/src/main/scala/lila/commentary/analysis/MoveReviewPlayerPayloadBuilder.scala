@@ -919,7 +919,10 @@ object MoveReviewPlayerPayloadBuilder:
                           .getOrElse("The passed-pawn structure is the relevant endgame cue.")
                     row("Endgame cue", text, tone = Some("practical"))
                   else None
-                transformationRow.map(_.copy(authority = PracticalPlanAuthority))
+                transformationRow.map { row =>
+                  if row.label == "Endgame cue" then row
+                  else row.copy(authority = PracticalPlanAuthority)
+                }
               }
         val minorRows = structuralIdeas
           .filter(_.kind == StrategicIdeaKind.MinorPieceImbalanceExploitation)

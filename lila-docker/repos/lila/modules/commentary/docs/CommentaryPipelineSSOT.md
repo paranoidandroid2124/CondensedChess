@@ -246,7 +246,8 @@ transition strings as structured motif tokens or carry-over emitters. Lexicon
 endgame-pattern prefix templates and positional-tag motif promotion for
 rook-behind-passer / king-cut-off labels are not public authority paths.
 Endgame continuity/transition prose renders board-structure anchors rather than
-the raw theorem or oracle pattern id.
+the raw theorem or oracle pattern id. Player-surface `Endgame cue` rows are
+support-only context and do not carry `practical_plan` authority.
 The MoveReview strategic ledger also keeps compensation and conversion stages
 separate: invested-material or compensation summaries can select a compensation
 motif, but `Convert` needs a conversion trigger or conversion-family

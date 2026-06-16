@@ -318,7 +318,9 @@ collection does not use those pattern or transition strings as structured motif
 authority or carry-over emitters, and lexicon endgame-pattern prefix templates
 plus positional-tag motif promotion for rook-behind-passer / king-cut-off labels
 are not public authority paths. Endgame continuity prose names the board
-structure anchors, not theorem or oracle pattern ids.
+structure anchors, not theorem or oracle pattern ids. Player-surface
+`Endgame cue` rows remain support-only and do not carry `practical_plan`
+authority.
 
 Relation witnesses carry their cataloged surface as typed data. That surface may
 narrow the family: mobility restriction stays pressure, move order stays timing,

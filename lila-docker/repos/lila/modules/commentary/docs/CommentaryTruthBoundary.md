@@ -218,7 +218,8 @@ PV-coupled `opening_goal` fact may enter CausalFrame as opening-goal authority,
 but it cannot supply plan, pressure, timing, or tactical truth on its own.
 Raw strategy-pack or practical-row wording follows the same rule: it is not
 truth authority unless the typed local fact projection supplies the family,
-producer, anchors, line binding, and guardrails.
+producer, anchors, line binding, and guardrails. Player-surface `Endgame cue`
+rows are support context, not `practical_plan` authority.
 Move-local exact-slice packets can strengthen strict fallback eligibility only
 through the existing supported-local row proof gate. The exact proof and
 authority metadata may be reused; the row text itself remains renderer output.

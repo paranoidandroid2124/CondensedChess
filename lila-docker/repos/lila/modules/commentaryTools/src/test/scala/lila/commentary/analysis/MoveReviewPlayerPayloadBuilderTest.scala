@@ -6840,9 +6840,10 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
                 )
             )
           )
-      )
+    )
     assertEquals(rookEndgameSurface.advancedRows.map(_.label), List("Endgame cue"))
     assertEquals(rookEndgameSurface.advancedRows.head.text, "The rook-behind-passer structure is the relevant endgame cue.")
+    assertEquals(rookEndgameSurface.advancedRows.head.authority, None)
     assertEquals(rookEndgameSurface.advancedRows.head.authority.flatMap(_.target), None)
 
     val multiRookEndgameSurface =
