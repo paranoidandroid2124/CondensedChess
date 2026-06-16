@@ -47,7 +47,7 @@ object home:
                 div(cls := "home-card-grid home-card-grid--analysis")(
                   data.recentAnalyses.map(renderRecentAnalysis)*
                 )
-                else renderEmptyStrip("No recent games yet", "Start from PGN or import a public game once and it will show up here.")
+                else renderEmptyStrip("No recent games yet", "Start from a pasted game or import a public game once and it will show up here.")
             ),
             div(cls := "home-secondary-grid")(
               st.section(cls := "home-section")(
@@ -139,10 +139,10 @@ object home:
           p(cls := "home-continue-card__eyebrow")("Start fresh"),
           h2(cls := "home-continue-card__title")("No recent work yet"),
           p(cls := "home-continue-card__summary")(
-            "Start from a PGN, open a board, look up recurring positions, or try the current strategic position."
+            "Start from a pasted game, open a board, look up recurring positions, or try the current strategic position."
           ),
           div(cls := "home-continue-card__actions")(
-            a(href := routes.Importer.importGame.url, cls := "button button-fat")("Start from PGN"),
+            a(href := routes.Importer.importGame.url, cls := "button button-fat")("Start from game text"),
             a(href := analysisIndexUrl("raw"), cls := "button button-metal")("Open board")
           )
         )
@@ -242,7 +242,7 @@ object home:
       entry.result,
       entry.speed.filterNot(_ == "-")
     ).flatten.mkString(" • ")
-    if line.nonEmpty then line else "Saved PGN ready for review"
+    if line.nonEmpty then line else "Saved game ready for review"
 
   private def providerBadge(provider: String): Frag =
     span(cls := s"home-pill home-pill--provider home-pill--${providerTone(provider)}")(providerLabel(provider))
@@ -265,7 +265,7 @@ object home:
 
   private def sourceTypeLabel(sourceType: String): String =
     sourceType match
-      case ImportHistory.sourceManual => "Manual PGN"
+      case ImportHistory.sourceManual => "Pasted game"
       case _                          => "Player game"
 
   private def sourceBadgeTone(sourceType: String): String =

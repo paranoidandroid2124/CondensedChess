@@ -48,7 +48,7 @@ object landing:
                     div(cls := "hero-cta")(
                       a(href := sampleAnalysisUrl, cls := "btn-primary")("Open Move Review"),
                       a(href := accountIntelUrl, cls := "btn-secondary")("Study recurring positions"),
-                      a(href := pgnImportUrl, cls := "btn-secondary")("Start from PGN")
+                      a(href := pgnImportUrl, cls := "btn-secondary")("Start from game text")
                     ),
                     p(cls := "hero-disclosure")(
                       "Everything below starts from real games, positions, and boards."
@@ -238,7 +238,7 @@ object landing:
                     p(cls := "section-kicker")("Where you start"),
                     h2("Three clean ways into Chesstory"),
                     p(
-                      "You can start from a public account, a PGN, or a board. Each path stays tied to a real chess position."
+                      "You can start from a public account, a pasted game, or a board. Each path stays tied to a real chess position."
                     )
                   ),
                   div(cls := "entry-grid")(
@@ -258,17 +258,17 @@ object landing:
                     ),
                     st.article(cls := "feature-card entry-card")(
                       p(cls := "feature-kicker")("Start 02"),
-                      h3("PGN"),
+                      h3("Pasted game"),
                       p("Paste a game and go straight to Move Review, then keep the board one click away."),
                       p(cls := "entry-card__proof")("Best when you already know which game you want to understand."),
                       div(cls := "entry-card__chips sample-chip-row")(
                         span("Move Review"),
                         span("Coach scenes"),
-                        span("PGN import")
+                        span("Game text")
                       ),
                       div(cls := "entry-card__actions")(
                         a(href := sampleAnalysisUrl, cls := "btn-secondary")("Open Move Review"),
-                        a(href := pgnImportUrl, cls := "btn-text")("Start from PGN")
+                        a(href := pgnImportUrl, cls := "btn-text")("Start from game text")
                       )
                     ),
                     st.article(cls := "feature-card entry-card")(

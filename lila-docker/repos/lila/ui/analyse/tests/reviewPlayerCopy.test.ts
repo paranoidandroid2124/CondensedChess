@@ -83,6 +83,26 @@ describe('review player copy', () => {
     assert.doesNotMatch(analyseViewSource, /engine analysis/);
   });
 
+  test('keeps home and landing entry points framed as games, not PGN tooling', () => {
+    [
+      'Start from a pasted game',
+      'Start from game text',
+      'Saved game ready for review',
+      'Pasted game',
+    ].forEach(copy => assert.match(homeSource, new RegExp(escapeRegExp(copy)), `missing home copy: ${copy}`));
+    [
+      'Start from game text',
+      'public account, a pasted game, or a board',
+      'Pasted game',
+      'Game text',
+    ].forEach(copy => assert.match(landingSource, new RegExp(escapeRegExp(copy)), `missing landing copy: ${copy}`));
+
+    ['Start from PGN', 'Start from a PGN', 'Saved PGN ready for review', 'Manual PGN', 'PGN import'].forEach(copy => {
+      assert.doesNotMatch(homeSource, new RegExp(escapeRegExp(copy)), `stale home copy: ${copy}`);
+      assert.doesNotMatch(landingSource, new RegExp(escapeRegExp(copy)), `stale landing copy: ${copy}`);
+    });
+  });
+
   test('keeps journal and import history copy board-facing', () => {
     assert.match(journalSource, /what strategy still needs from the board/);
     assert.match(journalSource, /strategy-first study/);
