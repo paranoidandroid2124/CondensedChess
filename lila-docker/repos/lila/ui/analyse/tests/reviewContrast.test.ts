@@ -139,6 +139,20 @@ describe('review shell contrast palette', () => {
     );
   });
 
+  test('keeps the player board context rail compact and sticky with the board', () => {
+    assert.match(sideScss, /\.move-review-player__board-anchor\s*\{/);
+    assert.match(sideScss, /\.move-review-player__board-anchor-label\s*\{[\s\S]*?color:\s*\$c-primary;/);
+    assert.match(sideScss, /\.move-review-player__board-anchor-move\s*\{[\s\S]*?font-family:\s*'Roboto Mono', monospace;/);
+    assert.match(
+      sideScss,
+      /@include mq-is-col1[\s\S]*\.move-review-player__board-anchor\s*\{[\s\S]*?grid-column:\s*1 \/ -1;[\s\S]*?grid-row:\s*1;/,
+    );
+    assert.match(
+      sideScss,
+      /@include mq-is-col1[\s\S]*\.move-review-player__board-preview\s*\{[\s\S]*?grid-row:\s*2;/,
+    );
+  });
+
   test('keeps opened review detail layers bounded inside the current scene', () => {
     assert.match(
       sideScss,

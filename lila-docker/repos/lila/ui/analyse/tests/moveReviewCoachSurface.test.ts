@@ -1,7 +1,14 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { decorateMoveReviewHtml } from '../src/moveReview/coachSurface';
 import type { MoveReviewPlayerSurfaceV1, MoveReviewRefsV1 } from '../src/moveReview/responsePayload';
+
+const interactionHandlersSource = readFileSync(
+  fileURLToPath(new URL('../src/moveReview/interactionHandlers.ts', import.meta.url)),
+  'utf8',
+);
 
 const refs: MoveReviewRefsV1 = {
   schema: 'chesstory.refs.v1',
@@ -95,6 +102,10 @@ describe('moveReview coach surface', () => {
     assert.match(html, /move-review-player__timeline-action">Find the reason/);
     assert.match(html, /move-review-player__timeline-action">Replay the line/);
     assert.match(html, /move-review-player__board-shell/);
+    assert.match(html, /move-review-player__board-anchor/);
+    assert.match(html, /move-review-player__board-anchor-label">Board first/);
+    assert.match(html, /move-review-player__board-anchor-scene">Verdict/);
+    assert.match(html, /move-review-player__board-anchor-move">Nf3/);
     assert.match(html, /move-review-player__board-preview/);
     assert.match(html, /move-review-player__board-title/);
     assert.match(html, /move-review-player__board-note/);
@@ -191,6 +202,13 @@ describe('moveReview coach surface', () => {
     assert.match(html, /data-scene-line="Nf3 d5 e4 e5 Bb5"/);
     assert.match(html, /data-scene-line-cue="Nf3 d5 e4 e5"/);
     assert.doesNotMatch(html, /data-scene-line-cue="[^"]*Bb5/);
+  });
+
+  test('keeps board context rail synced with scene and move state', () => {
+    assert.match(interactionHandlersSource, /move-review-player__board-anchor-scene/);
+    assert.match(interactionHandlersSource, /move-review-player__board-anchor-move/);
+    assert.match(interactionHandlersSource, /panel\.dataset\.sceneLabel/);
+    assert.match(interactionHandlersSource, /moveLabelFromElement\(activeMove\)/);
   });
 
   test('moves extra reasons into scene detail layers', () => {

@@ -750,6 +750,11 @@ export function decorateMoveReviewHtml(
       ${renderSceneNav(scenes)}
       <div class="move-review-player__stage">
         <aside class="move-review-player__board-shell" aria-label="Current coaching board">
+          <div class="move-review-player__board-anchor" aria-live="polite">
+            <span class="move-review-player__board-anchor-label">Board first</span>
+            <strong class="move-review-player__board-anchor-scene">${escapeHtml(scenes[0]?.label || 'Scene')}</strong>
+            <span class="move-review-player__board-anchor-move"${scenes[0]?.boardSubtitle ? '' : ' hidden'}>${escapeHtml(scenes[0]?.boardSubtitle || '')}</span>
+          </div>
           <div class="move-review-player__board-meta">
             <span class="move-review-player__board-kicker">Board shows · ${escapeHtml(scenes[0]?.kicker || 'Scene')}</span>
             <strong class="move-review-player__board-title">${escapeHtml(scenes[0]?.boardTitle || 'Coaching board')}</strong>

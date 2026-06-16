@@ -102,11 +102,22 @@ function setPlayerBoardMeta(
   subtitle: string | null | undefined,
   kicker: string | null | undefined,
   note: string | null | undefined,
+  anchorScene?: string | null | undefined,
+  anchorMove?: string | null | undefined,
 ): void {
+  const anchorSceneEl = player.querySelector<HTMLElement>('.move-review-player__board-anchor-scene');
+  const anchorMoveEl = player.querySelector<HTMLElement>('.move-review-player__board-anchor-move');
   const kickerEl = player.querySelector<HTMLElement>('.move-review-player__board-kicker');
   const titleEl = player.querySelector<HTMLElement>('.move-review-player__board-title');
   const subtitleEl = player.querySelector<HTMLElement>('.move-review-player__board-subtitle');
   const noteEl = player.querySelector<HTMLElement>('.move-review-player__board-note');
+  const anchorSceneText = anchorScene || kicker?.replace(/^Board shows ·\s*/, '') || 'Scene';
+  const anchorMoveText = anchorMove || subtitle || '';
+  if (anchorSceneEl) anchorSceneEl.textContent = anchorSceneText;
+  if (anchorMoveEl) {
+    anchorMoveEl.textContent = anchorMoveText;
+    anchorMoveEl.hidden = !anchorMoveText;
+  }
   if (kickerEl) kickerEl.textContent = kicker || 'Board shows this scene';
   if (titleEl && title) titleEl.textContent = title;
   if (subtitleEl) subtitleEl.textContent = subtitle || '';
@@ -235,6 +246,8 @@ function syncMoveReviewElementBoard(el: HTMLElement, markActive = false): void {
     moveLabelFromElement(el) || panel?.dataset.sceneBoardSubtitle || null,
     sceneBoardKicker(panel),
     panel?.dataset.sceneBoardNote || null,
+    panel?.dataset.sceneLabel || null,
+    moveLabelFromElement(el) || panel?.dataset.sceneBoardSubtitle || null,
   );
   setPlayerBoardMoveCue(player, moveLabelFromElement(el));
 }
@@ -256,6 +269,8 @@ function syncMoveReviewSceneBoard(player: HTMLElement, panel: HTMLElement): void
       (activeMove ? moveLabelFromElement(activeMove) : null) || panel.dataset.sceneBoardSubtitle || null,
       sceneBoardKicker(panel),
       panel.dataset.sceneBoardNote || null,
+      panel.dataset.sceneLabel || null,
+      (activeMove ? moveLabelFromElement(activeMove) : null) || panel.dataset.sceneBoardSubtitle || null,
     );
     setPlayerBoardMoveCue(player, activeMove ? moveLabelFromElement(activeMove) : null);
   } else {
@@ -267,6 +282,8 @@ function syncMoveReviewSceneBoard(player: HTMLElement, panel: HTMLElement): void
       panel.dataset.sceneBoardSubtitle || null,
       sceneBoardKicker(panel),
       panel.dataset.sceneBoardNote || null,
+      panel.dataset.sceneLabel || null,
+      panel.dataset.sceneBoardSubtitle || null,
     );
     setPlayerBoardMoveCue(player, null);
     hideMoveReviewPreview({ force: true });
