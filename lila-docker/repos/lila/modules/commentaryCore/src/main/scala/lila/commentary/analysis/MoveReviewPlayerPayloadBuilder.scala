@@ -36,7 +36,6 @@ object MoveReviewPlayerPayloadBuilder:
   private val BatteryPressurePattern = """The checked line forms a [a-z]+-[a-z]+ battery on the (?:diagonal|file) toward [a-h][1-8][.]""".r
   private val HookCreationPattern = """The checked rook-pawn move creates a flank hook on [a-h][1-8][.]""".r
   private val RookPawnMarchPattern = """The checked line advances the rook pawn to [a-h][1-8] for flank space[.]""".r
-  private val RookLiftPattern = """The checked line lifts the rook to [a-h][1-8] as attacking infrastructure[.]""".r
 
   private val MaxStrategicRelationRows = 4
   private val MaxCompensationRows = 2
@@ -208,8 +207,6 @@ object MoveReviewPlayerPayloadBuilder:
           (practicalRows ++ localRows).exists(exactBatteryPressureRow)
         val exactFlankAttackAlreadyVisible =
           (practicalRows ++ localRows).exists(exactFlankAttackRow)
-        val exactRookLiftAlreadyVisible =
-          (practicalRows ++ localRows).exists(exactRookLiftRow)
         val practicalTargetSquaresAlreadyVisible =
           evaluatedPlans
             .filter(PlanEvidenceEvaluator.isBoundedPracticalSupportPlan)
@@ -1062,10 +1059,6 @@ object MoveReviewPlayerPayloadBuilder:
                 val refs = idea.evidenceRefs.map(_.trim.toLowerCase)
                 val focusSquares = idea.focusSquares.flatMap(validSquare).distinct
                 val focusFiles = idea.focusFiles.map(_.trim.toLowerCase).filter(_.nonEmpty)
-                val singleFocusFile =
-                  focusFiles match
-                    case file :: Nil => Some(file)
-                    case _           => None
                 val singleFocusSquare =
                   focusSquares match
                     case square :: Nil => Some(square)
@@ -1177,25 +1170,6 @@ object MoveReviewPlayerPayloadBuilder:
                     idea.readiness == StrategicIdeaReadiness.Build &&
                     strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
                     idea.confidence >= 0.74
-                val motifRookLift =
-                  !exactRookLiftAlreadyVisible &&
-                    refs.contains("source:motif_rook_lift") &&
-                    singleFocusFile.nonEmpty &&
-                    focusZone.nonEmpty &&
-                    idea.beneficiaryPieces.exists(_.trim.equalsIgnoreCase("R")) &&
-                    idea.readiness == StrategicIdeaReadiness.Build &&
-                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
-                    idea.confidence >= 0.78
-                val motifPieceLift =
-                  !exactAttackAlreadyVisible &&
-                    refs.contains("source:motif_piece_lift") &&
-                    refs.contains("motif_piece_lift_shape") &&
-                    singleFocusSquare.nonEmpty &&
-                    focusZone.nonEmpty &&
-                    singleBeneficiaryPiece.nonEmpty &&
-                    idea.readiness == StrategicIdeaReadiness.Build &&
-                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
-                    idea.confidence >= 0.72
                 val motifCheckPressure =
                   !exactAttackAlreadyVisible &&
                     refs.contains("source:motif_check_pressure") &&
@@ -1232,14 +1206,6 @@ object MoveReviewPlayerPayloadBuilder:
                   else if motifBattery then
                     singleMotifBatteryAxis
                       .map(axis => "Practical attack" -> s"The current $axis battery gives a practical attacking cue.")
-                  else if motifRookLift then
-                    singleFocusFile
-                      .map(file => "Practical attack" -> s"The rook lift on the $file-file gives a practical attacking cue.")
-                  else if motifPieceLift then
-                    (singleBeneficiaryPiece, singleFocusSquare) match
-                      case (Some(piece), Some(square)) =>
-                        Some("Practical attack" -> s"The ${piece.toUpperCase} lift to $square gives a practical attacking cue.")
-                      case _ => None
                   else if motifCheckPressure then
                     (singleBeneficiaryPiece, singleFocusSquare) match
                       case (Some(piece), Some(square)) =>
@@ -1568,11 +1534,6 @@ object MoveReviewPlayerPayloadBuilder:
       exactPracticalPlanRow(row, "Rook-pawn march") { text =>
         RookPawnMarchPattern.matches(text)
       }
-
-  private def exactRookLiftRow(row: MoveReviewPlayerSurfaceRow): Boolean =
-    exactPracticalPlanRow(row, "Rook lift") { text =>
-      RookLiftPattern.matches(text)
-    }
 
   private def exactColorComplexRowComplex(row: MoveReviewPlayerSurfaceRow): Option[String] =
     exactPracticalTargetRowTarget(row, "Color complex") { target =>

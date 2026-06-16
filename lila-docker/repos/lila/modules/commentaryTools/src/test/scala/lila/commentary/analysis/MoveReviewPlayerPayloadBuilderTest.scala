@@ -9406,9 +9406,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(motifRookLiftSurface.advancedRows.map(_.label), List("Practical attack"), clue(motifRookLiftSurface.advancedRows))
-    assertEquals(motifRookLiftSurface.advancedRows.head.text, "The rook lift on the f-file gives a practical attacking cue.")
-    assertEquals(motifRookLiftSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assert(!motifRookLiftSurface.advancedRows.exists(_.label == "Practical attack"), clue(motifRookLiftSurface.advancedRows))
 
     val motifRookLiftMultiFileSurface =
       build(
@@ -9533,7 +9531,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assert(motifRookLiftStaleSurface.advancedRows.exists(_.label == "Practical attack"), clue(motifRookLiftStaleSurface.advancedRows))
+    assert(!motifRookLiftStaleSurface.advancedRows.exists(_.label == "Practical attack"), clue(motifRookLiftStaleSurface.advancedRows))
 
     val motifPieceLiftSurface =
       build(
@@ -9555,9 +9553,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(motifPieceLiftSurface.advancedRows.map(_.label), List("Practical attack"), clue(motifPieceLiftSurface.advancedRows))
-    assertEquals(motifPieceLiftSurface.advancedRows.head.text, "The N lift to f5 gives a practical attacking cue.")
-    assertEquals(motifPieceLiftSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assert(!motifPieceLiftSurface.advancedRows.exists(_.label == "Practical attack"), clue(motifPieceLiftSurface.advancedRows))
 
     val motifPieceLiftMultiPieceSurface =
       build(
