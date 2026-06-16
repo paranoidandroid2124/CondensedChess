@@ -182,6 +182,9 @@ The surface renderer may say:
   same-destination `neutralize_key_break` support cannot relabel it as a public
   defensive-resource claim unless an explicit break-prevention rival survives in
   the runtime anchors.
+  Material-deficit compensation batteries or development leads may surface only
+  as compensation pressure unless a separate concrete attack lane, check,
+  threat, or tactical owner proves a public attack claim.
   Played-first rook-pawn hook/march facts may enter here only from board state
   before/after the reviewed move, not from practical-row text;
 - practical central challenge: only when `CentralBreakTimingWitness.practical`

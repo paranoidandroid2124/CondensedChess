@@ -1282,61 +1282,61 @@ object MoveReviewPlayerPayloadBuilder:
                     idea.readiness == StrategicIdeaReadiness.Build &&
                     strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
                     idea.confidence >= 0.70
-                val attackText =
+                val attackSurface =
                   if ambiguousAttackLane || broadAttackShell then None
-                  else if fianchettoAssault then Some("The fianchetto-shell structure gives a practical opposite-side attack cue.")
+                  else if fianchettoAssault then Some("Practical attack" -> "The fianchetto-shell structure gives a practical opposite-side attack cue.")
                   else if enemyKingStuckCenter then
-                    Some("The enemy king's central exposure gives a practical attacking cue.")
+                    Some("Practical attack" -> "The enemy king's central exposure gives a practical attacking cue.")
                   else if flankHookPressure then
-                    Some("The current flank-pawn map gives a practical hook-creation cue.")
+                    Some("Practical attack" -> "The current flank-pawn map gives a practical hook-creation cue.")
                   else if flankPawnAdvance then
                     (singleFlankPawnAdvanceFile, singleFlankPawnAdvanceZone) match
                       case (Some(file), Some(zone)) =>
-                        Some(s"The $file-pawn advance gives a practical $zone attacking cue.")
+                        Some("Practical attack" -> s"The $file-pawn advance gives a practical $zone attacking cue.")
                       case (None, Some(zone)) =>
-                        Some(s"The flank-pawn advances give a practical $zone attacking cue.")
+                        Some("Practical attack" -> s"The flank-pawn advances give a practical $zone attacking cue.")
                       case _ =>
-                        Some("The flank-pawn advances give a practical attacking cue.")
+                        Some("Practical attack" -> "The flank-pawn advances give a practical attacking cue.")
                   else if compensationDiagonalBattery then
-                    Some("The material-compensation structure gives a practical diagonal-battery attack cue.")
+                    Some("Compensation pressure" -> "The material-compensation structure gives practical diagonal-battery pressure.")
                   else if compensationDevelopmentLead then
-                    Some("The material-compensation structure gives a practical development-led attacking cue.")
+                    Some("Compensation pressure" -> "The material-compensation structure gives practical development-led pressure.")
                   else if exactRouteAttackLane then
                     singleFocusSquare
-                      .map(square => s"The $square route gives a practical attacking lane.")
+                      .map(square => "Practical attack" -> s"The $square route gives a practical attacking lane.")
                   else if directionalAttackLane then
                     singleFocusSquare
-                      .map(square => s"The $square target gives a practical attacking lane.")
+                      .map(square => "Practical attack" -> s"The $square target gives a practical attacking lane.")
                   else if motifBattery then
                     singleMotifBatteryAxis
-                      .map(axis => s"The current $axis battery gives a practical attacking cue.")
-                      .orElse(Some("The current battery gives a practical attacking cue."))
+                      .map(axis => "Practical attack" -> s"The current $axis battery gives a practical attacking cue.")
+                      .orElse(Some("Practical attack" -> "The current battery gives a practical attacking cue."))
                   else if motifRookLift then
                     singleFocusFile
-                      .map(file => s"The rook lift on the $file-file gives a practical attacking cue.")
-                      .orElse(Some("The rook lift gives a practical attacking cue."))
+                      .map(file => "Practical attack" -> s"The rook lift on the $file-file gives a practical attacking cue.")
+                      .orElse(Some("Practical attack" -> "The rook lift gives a practical attacking cue."))
                   else if motifPieceLift then
                     singleBeneficiaryPiece
-                      .map(piece => s"The ${piece.toUpperCase} lift gives a practical attacking cue.")
-                      .orElse(Some("The piece lift gives a practical attacking cue."))
+                      .map(piece => "Practical attack" -> s"The ${piece.toUpperCase} lift gives a practical attacking cue.")
+                      .orElse(Some("Practical attack" -> "The piece lift gives a practical attacking cue."))
                   else if motifCheckPressure then
                     (singleBeneficiaryPiece, singleFocusSquare) match
                       case (Some(piece), Some(square)) =>
-                        Some(s"The ${piece.toUpperCase} check on $square gives a practical attacking cue.")
+                        Some("Practical attack" -> s"The ${piece.toUpperCase} check on $square gives a practical attacking cue.")
                       case (Some(piece), None) =>
-                        Some(s"The ${piece.toUpperCase} check motif gives a practical attacking cue.")
+                        Some("Practical attack" -> s"The ${piece.toUpperCase} check motif gives a practical attacking cue.")
                       case (None, Some(square)) =>
-                        Some(s"The check on $square gives a practical attacking cue.")
+                        Some("Practical attack" -> s"The check on $square gives a practical attacking cue.")
                       case _ =>
-                        Some("The check motif gives a practical attacking cue.")
+                        Some("Practical attack" -> "The check motif gives a practical attacking cue.")
                   else if fianchettoMotif then
-                    Some("The fianchettoed bishop gives a practical long-diagonal cue.")
+                    Some("Practical attack" -> "The fianchettoed bishop gives a practical long-diagonal cue.")
                   else if initiativeMotif then
-                    Some("The current initiative gives a practical attacking cue.")
+                    Some("Practical attack" -> "The current initiative gives a practical attacking cue.")
                   else None
-                attackText.flatMap(text =>
-                  row("Practical attack", text, tone = Some("practical")).map(_.copy(authority = PracticalPlanAuthority))
-                )
+                attackSurface.flatMap { case (label, text) =>
+                  row(label, text, tone = Some("practical")).map(_.copy(authority = PracticalPlanAuthority))
+                }
             }
         (pressureRows ++ spaceRows ++ breakRows ++ restraintRows ++ lineRows ++ outpostRows ++ transformationRows ++ minorRows ++ prophylaxisRows ++ attackRows)
           .distinctBy(_.text)

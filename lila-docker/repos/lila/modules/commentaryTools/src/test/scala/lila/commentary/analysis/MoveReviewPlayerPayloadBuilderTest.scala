@@ -9027,10 +9027,10 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(compensationBatterySurface.advancedRows.map(_.label), List("Practical attack"), clue(compensationBatterySurface.advancedRows))
+    assertEquals(compensationBatterySurface.advancedRows.map(_.label), List("Compensation pressure"), clue(compensationBatterySurface.advancedRows))
     assertEquals(
       compensationBatterySurface.advancedRows.head.text,
-      "The material-compensation structure gives a practical diagonal-battery attack cue."
+      "The material-compensation structure gives practical diagonal-battery pressure."
     )
     assertEquals(
       compensationBatterySurface.advancedRows.head.authority,
@@ -9102,10 +9102,10 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(compensationDevelopmentLeadSurface.advancedRows.map(_.label), List("Practical attack"), clue(compensationDevelopmentLeadSurface.advancedRows))
+    assertEquals(compensationDevelopmentLeadSurface.advancedRows.map(_.label), List("Compensation pressure"), clue(compensationDevelopmentLeadSurface.advancedRows))
     assertEquals(
       compensationDevelopmentLeadSurface.advancedRows.head.text,
-      "The material-compensation structure gives a practical development-led attacking cue."
+      "The material-compensation structure gives practical development-led pressure."
     )
     assertEquals(
       compensationDevelopmentLeadSurface.advancedRows.head.authority,
