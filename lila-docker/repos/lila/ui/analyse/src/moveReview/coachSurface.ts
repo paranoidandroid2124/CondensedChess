@@ -260,7 +260,8 @@ function renderAuthorRow(row: MoveReviewPlayerAuthorRowV1, refIndex: MoveReviewR
   const branchMarkup = (row.branches || [])
     .map(branch => {
       const branchRefs = renderCoachRefs(branch, refIndex);
-      const branchMove = branchRefs || `<code class="move-review-coach__move-chip">${escapeHtml(branch.label)}</code>`;
+      const branchMove =
+        branchRefs || `<span class="move-review-coach__branch-label">${escapeHtml(branch.label)}</span>`;
       return `
         <div class="move-review-coach__question-branch">
           ${branchMove}
