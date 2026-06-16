@@ -193,6 +193,13 @@
           border-color: $c-primary;
           color: $c-primary;
         }
+
+        &[aria-pressed='true'] {
+          border-color: color-mix(in srgb, #{$c-primary} 34%, #{$c-border});
+          background: color-mix(in srgb, #{$c-primary} 10%, #{$c-bg-low});
+          color: $c-primary;
+          box-shadow: inset 0 0 0 1px color-mix(in srgb, #{$c-primary} 16%, transparent);
+        }
       }
 
       &.move-review-hide-eval {

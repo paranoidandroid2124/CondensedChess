@@ -178,6 +178,14 @@ describe('review shell contrast palette', () => {
     );
   });
 
+  test('keeps optional review numbers visibly secondary until enabled', () => {
+    assert.match(sideScss, /\.move-review-score-toggle\s*\{[\s\S]*?color:\s*\$c-font-dim;/);
+    assert.match(
+      sideScss,
+      /\.move-review-score-toggle\s*\{[\s\S]*?&\[aria-pressed='true'\]\s*\{[\s\S]*?border-color:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*34%,\s*#\{\$c-border\}\);[\s\S]*?background:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*10%,\s*#\{\$c-bg-low\}\);[\s\S]*?color:\s*\$c-primary;/,
+    );
+  });
+
   test('keeps the player board context rail compact and sticky with the board', () => {
     assert.match(sideScss, /\.move-review-player__board-anchor\s*\{/);
     assert.match(sideScss, /\.move-review-player__board-anchor-label\s*\{[\s\S]*?color:\s*\$c-primary;/);
