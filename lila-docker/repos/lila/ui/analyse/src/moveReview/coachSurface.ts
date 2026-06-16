@@ -422,11 +422,11 @@ function renderSceneLine(scene: MoveReviewScene, refIndex: MoveReviewRefIndex): 
   if (!chips) return '';
   const controls =
     boardMoveCount > 1
-      ? `<span class="move-review-player__line-controls" aria-label="Replay line controls">
+      ? `<span class="move-review-player__line-controls" aria-label="Line replay controls">
           <button type="button" class="move-review-player__line-step" data-move-review-line-step="-1" disabled>Prev move</button>
           <span class="move-review-player__line-count" aria-live="polite">Move 1/${boardMoveCount}</span>
           <button type="button" class="move-review-player__line-step" data-move-review-line-step="1">Next move</button>
-          <button type="button" class="move-review-player__line-step move-review-player__line-step--scene" data-move-review-board-reset>Lesson board</button>
+          <button type="button" class="move-review-player__line-step move-review-player__line-step--scene" data-move-review-board-reset>Back to lesson board</button>
         </span>`
       : '';
   return `
@@ -436,7 +436,7 @@ function renderSceneLine(scene: MoveReviewScene, refIndex: MoveReviewRefIndex): 
       data-scene-line-cue="${escapeHtml(boardCueLine(lineSans))}"
     >
       <span class="move-review-player__scene-line-head">
-        <span class="move-review-player__scene-line-label">${escapeHtml(scene.lineLabel || 'Line to play through')}</span>
+        <span class="move-review-player__scene-line-label">${escapeHtml(scene.lineLabel || 'Line to replay')}</span>
         ${controls}
       </span>
       <span class="move-review-player__scene-line-chips">${chips}</span>

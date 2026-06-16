@@ -126,9 +126,11 @@ describe('moveReview coach surface', () => {
     assert.match(html, /Move 1\/2/);
     assert.match(html, /Prev move/);
     assert.match(html, /Next move/);
+    assert.match(html, /aria-label="Line replay controls"/);
     assert.match(html, /data-move-review-board-reset/);
-    assert.match(html, /Lesson board/);
+    assert.match(html, /Back to lesson board/);
     assert.doesNotMatch(html, /Scene board/);
+    assert.doesNotMatch(html, /Replay line controls/);
     assert.match(html, /data-scene-square="d5"/);
     assert.match(html, /move-review-player__board-cue-item--move/);
     assert.match(html, /data-scene-board-title="Position tied to the choice"/);
