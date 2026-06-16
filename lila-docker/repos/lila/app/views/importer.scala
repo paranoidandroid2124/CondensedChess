@@ -308,7 +308,7 @@ object importer:
             div(cls := "auth-history__section-head")(
               strong("Recent games"),
               span(
-                "Reopen saved games, then continue with Move Review or the full board."
+                "Reopen saved games, then continue with Move Review or the board."
               )
             ),
             div(cls := "auth-history__list")(

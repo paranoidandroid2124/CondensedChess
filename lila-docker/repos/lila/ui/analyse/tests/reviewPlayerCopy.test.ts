@@ -8,6 +8,9 @@ const controlsSource = readFileSync(fileURLToPath(new URL('../src/view/controls.
 const actionMenuSource = readFileSync(fileURLToPath(new URL('../src/view/actionMenu.ts', import.meta.url)), 'utf8');
 const mainViewSource = readFileSync(fileURLToPath(new URL('../src/view/main.ts', import.meta.url)), 'utf8');
 const moveReviewSource = readFileSync(fileURLToPath(new URL('../src/moveReview.ts', import.meta.url)), 'utf8');
+const analyseViewSource = readFileSync(fileURLToPath(new URL('../../../app/views/analyse.scala', import.meta.url)), 'utf8');
+const homeSource = readFileSync(fileURLToPath(new URL('../../../app/views/pages/home.scala', import.meta.url)), 'utf8');
+const importerSource = readFileSync(fileURLToPath(new URL('../../../app/views/importer.scala', import.meta.url)), 'utf8');
 const landingSource = readFileSync(fileURLToPath(new URL('../../../app/views/pages/landing.scala', import.meta.url)), 'utf8');
 
 describe('review player copy', () => {
@@ -49,6 +52,19 @@ describe('review player copy', () => {
       assert.match(source, /Ask About This Move/);
       assert.doesNotMatch(source, /Explain This Move/);
     });
+  });
+
+  test('keeps board entry copy focused on returning to the board', () => {
+    [homeSource, importerSource, landingSource].forEach(source => {
+      assert.doesNotMatch(source, /full board/i);
+      assert.doesNotMatch(source, /Open full board/);
+    });
+    assert.match(homeSource, /Open board/);
+    assert.match(landingSource, /Board View/);
+    assert.match(analyseViewSource, /Review board/);
+    assert.match(analyseViewSource, /Toggle candidate lines/);
+    assert.doesNotMatch(analyseViewSource, /Analysis board/);
+    assert.doesNotMatch(analyseViewSource, /engine analysis/);
   });
 });
 

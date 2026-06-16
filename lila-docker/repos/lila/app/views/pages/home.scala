@@ -41,7 +41,7 @@ object home:
             st.section(cls := "home-section home-section--reviews")(
               div(cls := "home-section-head")(
                 strong("Recent guided reviews"),
-                span("Reopen the game as a coach-led review, or use the same board when you want to explore the full line.")
+                span("Reopen the game as a coach-led review, or return to the board when you want to explore the line.")
               ),
               if data.recentAnalyses.nonEmpty then
                 div(cls := "home-card-grid home-card-grid--analysis")(
@@ -103,7 +103,7 @@ object home:
           supportLine.nonEmpty.option(p(cls := "home-continue-card__support")(supportLine)),
           div(cls := "home-continue-card__actions")(
             a(href := importedAnalysisUrl(entry._id, "review"), cls := "button button-fat")("Continue Move Review"),
-            a(href := importedAnalysisUrl(entry._id, "raw"), cls := "button button-metal")("Open full board")
+            a(href := importedAnalysisUrl(entry._id, "raw"), cls := "button button-metal")("Open board")
           )
         )
       case Main.HomeContinueCard.PatternReport(job) =>
@@ -131,7 +131,7 @@ object home:
           ),
           div(cls := "home-continue-card__actions")(
             a(href := routes.Study.show(entry.study.id).url, cls := "button button-fat")("Open study"),
-            a(href := analysisIndexUrl("raw"), cls := "button button-metal")("Open full board")
+            a(href := analysisIndexUrl("raw"), cls := "button button-metal")("Open board")
           )
         )
       case Main.HomeContinueCard.Starter =>
@@ -143,7 +143,7 @@ object home:
           ),
           div(cls := "home-continue-card__actions")(
             a(href := routes.Importer.importGame.url, cls := "button button-fat")("Start from PGN"),
-            a(href := analysisIndexUrl("raw"), cls := "button button-metal")("Open full board")
+            a(href := analysisIndexUrl("raw"), cls := "button button-metal")("Open board")
           )
         )
 

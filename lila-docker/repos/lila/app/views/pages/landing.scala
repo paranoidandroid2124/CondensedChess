@@ -102,7 +102,7 @@ object landing:
                           )
                         ),
                         st.article(cls := "hero-surface hero-artifact-card hero-artifact-card--analysis")(
-                          p(cls := "hero-surface-kicker")("Full Board"),
+                          p(cls := "hero-surface-kicker")("Board View"),
                           h3(cls := "hero-surface-title")("Continue on the board"),
                           p(cls := "hero-surface-copy")(
                             "Open the move list and variations when the lesson needs more board work."
@@ -220,13 +220,13 @@ object landing:
                         a(href := strategicPuzzleUrl, cls := "story-card__link")("Open position exercise")
                       ),
                       st.article(cls := "timeline-card story-card")(
-                        p(cls := "story-card__label")("Full Board"),
-                        h3("The full board stays available when you need more lines"),
+                        p(cls := "story-card__label")("Board View"),
+                        h3("The board stays available when you need more lines"),
                         p(cls := "story-card__copy")(
                           "When the guided explanation is not enough, continue on the same board with the move list, variations, and current-move explanation."
                         ),
                         p(cls := "story-card__proof")("You keep the board, the line, and the direct move explanation together."),
-                        a(href := analysisUrl, cls := "story-card__link")("Open full board")
+                        a(href := analysisUrl, cls := "story-card__link")("Open board")
                       )
                     )
                   )
@@ -259,7 +259,7 @@ object landing:
                     st.article(cls := "feature-card entry-card")(
                       p(cls := "feature-kicker")("Start 02"),
                       h3("PGN"),
-                      p("Paste a game and go straight to Move Review, then keep the full board one click away."),
+                      p("Paste a game and go straight to Move Review, then keep the board one click away."),
                       p(cls := "entry-card__proof")("Best when you already know which game you want to understand."),
                       div(cls := "entry-card__chips sample-chip-row")(
                         span("Move Review"),
@@ -274,15 +274,15 @@ object landing:
                     st.article(cls := "feature-card entry-card")(
                       p(cls := "feature-kicker")("Start 03"),
                       h3("Current board"),
-                      p("Open the full board when you already have the position and want to explore lines directly."),
+                      p("Open the board when you already have the position and want to explore lines directly."),
                       p(cls := "entry-card__proof")("Best when the board itself is the starting point."),
                       div(cls := "entry-card__chips sample-chip-row")(
-                        span("Full Board"),
+                        span("Board View"),
                         span("Ask About This Move"),
                         span("Board-first")
                       ),
                       div(cls := "entry-card__actions")(
-                        a(href := analysisUrl, cls := "btn-secondary")("Open full board")
+                        a(href := analysisUrl, cls := "btn-secondary")("Open board")
                       )
                     )
                   )
@@ -317,7 +317,7 @@ object landing:
                         strong("Live position, revealed line, next exercise")
                       ),
                       div(cls := "truth-row")(
-                        span("Full Board"),
+                        span("Board View"),
                         strong("Board, move list, variations, import")
                       ),
                       div(cls := "truth-row")(
@@ -328,7 +328,7 @@ object landing:
                     div(cls := "truth-boundaries")(
                       p("Ask About This Move appears only when you ask."),
                       p("Move Review starts from the game you provide."),
-                      p("The full board stays available when you want to explore directly.")
+                      p("The board stays available when you want to explore directly.")
                     ),
                     div(cls := "quality-pills")(
                       span("Board stays visible"),
@@ -337,7 +337,7 @@ object landing:
                     ),
                     div(cls := "quality-actions truth-actions")(
                       a(href := sampleAnalysisUrl, cls := "btn-primary final-cta")("Open Move Review"),
-                      a(href := analysisUrl, cls := "btn-secondary final-cta")("Open full board")
+                      a(href := analysisUrl, cls := "btn-secondary final-cta")("Open board")
                     )
                   )
                 )

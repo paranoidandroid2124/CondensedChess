@@ -44,7 +44,7 @@ object analyse:
             shortcutRow(frag(kbd("Shift"), " + ", kbd("←"), " / ", kbd("K")), "Previous branch"),
             shortcutRow(frag(kbd("Shift"), " + ", kbd("→"), " / ", kbd("J")), "Next branch"),
             shortcutRow(kbd("F"), "Flip the board"),
-            shortcutRow(kbd("L"), "Toggle engine analysis"),
+            shortcutRow(kbd("L"), "Toggle candidate lines"),
             shortcutRow(kbd("E"), "Toggle explorer"),
             shortcutRow(kbd("V"), "Toggle variation arrows"),
             shortcutRow(kbd("X"), "Toggle threat mode"),
@@ -77,7 +77,7 @@ object analyse:
           )
           .add("inlinePgn", inlinePgn) ++ analyseUi.explorerAndCevalConfig
       views.base.embed.site(
-        title = "Analysis board",
+        title = "Review board",
         cssKeys = List("analyse.free", "commentary.widget"),
         pageModule = Some(analyseUi.bits.analyseModule("userAnalysis", cfg)),
         csp = analyseUi.bits.cspExternalEngine.compose(_.withExternalAnalysisApis)
