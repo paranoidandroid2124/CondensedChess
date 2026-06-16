@@ -94,6 +94,7 @@ describe('moveReview coach surface', () => {
     assert.match(html, /move-review-player__board-title/);
     assert.match(html, /move-review-player__scene-line/);
     assert.match(html, /data-scene-line="Nf3 d5"/);
+    assert.match(html, /data-scene-line-cue="Nf3 d5"/);
     assert.match(html, /Decision · 1\/5/);
     assert.match(html, /move-review-player__timeline-copy/);
     assert.match(html, /move-review-player__timeline-kicker">Decision/);
@@ -111,6 +112,72 @@ describe('moveReview coach surface', () => {
     assert.doesNotMatch(html, /authority/i);
     assert.doesNotMatch(html, /diagnostics/i);
     assert.doesNotMatch(html, /Evidence Probes/);
+  });
+
+  test('keeps board cue compact while preserving the full replay line', () => {
+    const longRefs: MoveReviewRefsV1 = {
+      ...refs,
+      variations: [
+        {
+          lineId: 'main',
+          scoreCp: 42,
+          mate: null,
+          depth: 18,
+          moves: [
+            ...refs.variations[0].moves,
+            {
+              refId: 'main-3',
+              san: 'e4',
+              uci: 'e2e4',
+              fenAfter: '8/8/8/3p4/4P3/5N2/8/8 b - - 0 2',
+              ply: 3,
+              moveNo: 2,
+              marker: '2.',
+            },
+            {
+              refId: 'main-4',
+              san: 'e5',
+              uci: 'e7e5',
+              fenAfter: '8/8/8/3pp3/4P3/5N2/8/8 w - - 0 3',
+              ply: 4,
+              moveNo: 2,
+              marker: '2...',
+            },
+            {
+              refId: 'main-5',
+              san: 'Bb5',
+              uci: 'f1b5',
+              fenAfter: '8/8/8/1B1pp3/4P3/5N2/8/8 b - - 1 3',
+              ply: 5,
+              moveNo: 3,
+              marker: '3.',
+            },
+          ],
+        },
+      ],
+    };
+    const longLine = ['Nf3', 'd5', 'e4', 'e5', 'Bb5'];
+    const html = decorateMoveReviewHtml(
+      '<p>Main note.</p>',
+      longRefs,
+      playerSurface({
+        decisionComparison: {
+          kicker: 'Decision point',
+          gapLabel: '+0.4',
+          chosenSan: 'Nf3',
+          engineSan: 'Nf3',
+          comparedSan: null,
+          chosenMatchesBest: true,
+          secondaryText: 'The move keeps the main plan alive.',
+          targetComparison: null,
+          refSans: longLine,
+        },
+      }),
+    );
+
+    assert.match(html, /data-scene-line="Nf3 d5 e4 e5 Bb5"/);
+    assert.match(html, /data-scene-line-cue="Nf3 d5 e4 e5"/);
+    assert.doesNotMatch(html, /data-scene-line-cue="[^"]*Bb5/);
   });
 
   test('keeps trusted SAN chips interactive and ambiguous SAN display-only', () => {

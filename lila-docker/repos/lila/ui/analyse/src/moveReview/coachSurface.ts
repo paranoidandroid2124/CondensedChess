@@ -376,6 +376,10 @@ function renderTryLineChips(lineSans: string[], refIndex: MoveReviewRefIndex): s
   return renderResolvedTryLineChips(resolveTryLine(lineSans, refIndex));
 }
 
+function boardCueLine(lineSans: string[]): string {
+  return lineSans.filter(san => normalizeSanToken(san)).slice(0, 4).join(' ');
+}
+
 function renderSceneLine(scene: MoveReviewScene, refIndex: MoveReviewRefIndex): string {
   const lineSans = scene.lineSans || [];
   const resolvedLine = resolveTryLine(lineSans, refIndex);
@@ -391,7 +395,11 @@ function renderSceneLine(scene: MoveReviewScene, refIndex: MoveReviewRefIndex): 
         </span>`
       : '';
   return `
-    <div class="move-review-player__scene-line" data-scene-line="${escapeHtml(lineSans.join(' '))}">
+    <div
+      class="move-review-player__scene-line"
+      data-scene-line="${escapeHtml(lineSans.join(' '))}"
+      data-scene-line-cue="${escapeHtml(boardCueLine(lineSans))}"
+    >
       <span class="move-review-player__scene-line-head">
         <span class="move-review-player__scene-line-label">${escapeHtml(scene.lineLabel || 'Line to play through')}</span>
         ${controls}
@@ -403,7 +411,7 @@ function renderSceneLine(scene: MoveReviewScene, refIndex: MoveReviewRefIndex): 
 
 function renderBoardCue(scene: MoveReviewScene | undefined): string {
   const focusSquare = scene?.square || '';
-  const line = (scene?.lineSans || []).filter(san => normalizeSanToken(san)).slice(0, 4).join(' ');
+  const line = boardCueLine(scene?.lineSans || []);
   const hidden = !focusSquare && !line ? ' hidden' : '';
   return `
     <div class="move-review-player__board-cue"${hidden}>
