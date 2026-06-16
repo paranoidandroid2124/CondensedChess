@@ -725,7 +725,7 @@ export function parseNotebookDossier(raw: unknown): NotebookDossierV1 | null {
 }
 
 export function notebookDossierProductLabel(kind: NotebookDossierProductKind): string {
-  return kind === myAccountProductKind ? 'My Account Intelligence Lite' : 'Opponent Prep';
+  return kind === myAccountProductKind ? 'My Patterns' : 'Opponent Prep';
 }
 
 export function notebookDossierOverviewKindLabel(kind: OverviewCardKind): string {

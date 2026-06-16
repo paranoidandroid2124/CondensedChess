@@ -1,7 +1,7 @@
 const maxInlinePgnChars = 200000;
 const base64ChunkSize = 0x2000;
 
-export const emptyPgnError = 'Empty PGN payload.';
+export const emptyPgnError = 'Paste a PGN before importing.';
 
 export const normalizeInlinePgn = (rawPgn: string | undefined | null): string | undefined => {
   const trimmed = rawPgn?.trim();

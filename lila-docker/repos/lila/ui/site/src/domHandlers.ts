@@ -209,17 +209,17 @@ const opponentPrepKind = 'opponent_prep';
 const accountIntelStageLabel = (stage: string) => {
   switch (stage) {
     case 'queued':
-      return 'Waiting for the worker.';
+      return 'Waiting to start.';
     case 'fetching_games':
       return 'Fetching recent public games.';
     case 'extracting_primitives':
-      return 'Extracting recurring structure signals.';
+      return 'Finding recurring structures and decision points.';
     case 'publishing_surface':
       return 'Preparing the pattern study.';
     case 'completed':
       return 'Pattern study is ready.';
     case 'failed':
-      return 'The job ended with an error.';
+      return 'The study ended with an error.';
     default:
       return stage.replaceAll('_', ' ');
   }
@@ -262,7 +262,7 @@ function initAccountIntelProduct() {
 
   const kindLabel = (kind: string) =>
     kind === myPatternsKind ? 'My Patterns' : kind === opponentPrepKind ? 'Prep for Opponent' : kind;
-  const activeJobLabel = (status: string) => (status === 'running' ? 'Building pattern study' : 'Queued for analysis');
+  const activeJobLabel = (status: string) => (status === 'running' ? 'Preparing pattern study' : 'Queued for study');
   const humanDate = (raw?: string | null) => {
     if (!raw) return '';
     const date = new Date(raw);
@@ -832,19 +832,19 @@ function initAccountIntelProduct() {
       <div class="importer-panel importer-panel--guide account-product-compare">
         <div class="importer-panel__head">
           <strong class="importer-panel__title">Compare studies</strong>
-          <p class="importer-panel__copy">A quick then-vs-now view keeps reruns useful instead of archival.</p>
+          <p class="importer-panel__copy">A quick then-vs-now view shows whether your study changed.</p>
         </div>
         <div class="account-product-compare-grid">
           <div class="account-product-compare-card">
             <span class="account-product-compare-kicker">Earlier</span>
-            <strong>${escapeHtml(earlier.headline || 'Earlier run')}</strong>
+            <strong>${escapeHtml(earlier.headline || 'Earlier study')}</strong>
             <p>${escapeHtml(earlier.summary || '')}</p>
             <span class="account-product-evidence-line">${escapeHtml(earlier.confidence || 'pending')} • ${escapeHtml(humanDate(earlier.generatedAt || historyEntry.requestedAt))}</span>
             <ul class="account-product-compare-list">${patternList(earlier.patterns)}</ul>
           </div>
           <div class="account-product-compare-card account-product-compare-card--now">
             <span class="account-product-compare-kicker">Now</span>
-            <strong>${escapeHtml(latest.headline || 'Latest run')}</strong>
+            <strong>${escapeHtml(latest.headline || 'Latest study')}</strong>
             <p>${escapeHtml(latest.summary || '')}</p>
             <span class="account-product-evidence-line">${escapeHtml(latest.confidence?.label || 'pending')} • ${escapeHtml(humanDate(latest.generatedAt))}</span>
             <ul class="account-product-compare-list">${patternList(latest.patterns)}</ul>
@@ -868,7 +868,7 @@ function initAccountIntelProduct() {
         <strong>${escapeHtml(activeJobLabel(job.status))} • ${escapeHtml(kindLabel(state!.kind))}</strong>
         <span>${escapeHtml(progress + eta)}</span>
         <div class="auth-links status-links">
-          <a href="/account-intel/jobs/${escapeHtml(job.jobId)}" class="status-links__primary">Open build status</a>
+          <a href="/account-intel/jobs/${escapeHtml(job.jobId)}" class="status-links__primary">Open study status</a>
         </div>
       </div>
     `;
