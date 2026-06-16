@@ -8893,12 +8893,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(flankHookSurface.advancedRows.map(_.label), List("Practical attack"), clue(flankHookSurface.advancedRows))
-    assertEquals(
-      flankHookSurface.advancedRows.head.text,
-      "The current flank-pawn map gives a practical hook-creation cue."
-    )
-    assertEquals(flankHookSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assert(!flankHookSurface.advancedRows.exists(_.label == "Practical attack"), clue(flankHookSurface.advancedRows))
 
     val flankHookWithExactMateSurface =
       build(
@@ -8926,11 +8921,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assert(flankHookWithExactMateSurface.advancedRows.exists(_.label == "Practical attack"), clue(flankHookWithExactMateSurface.advancedRows))
-    assertEquals(
-      flankHookWithExactMateSurface.advancedRows.find(_.label == "Practical attack").map(_.text),
-      Some("The current flank-pawn map gives a practical hook-creation cue.")
-    )
+    assert(!flankHookWithExactMateSurface.advancedRows.exists(_.label == "Practical attack"), clue(flankHookWithExactMateSurface.advancedRows))
 
     val flankSourceOnlySurface =
       build(
@@ -9026,7 +9017,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assert(staleHookSurface.advancedRows.exists(_.label == "Practical attack"), clue(staleHookSurface.advancedRows))
+    assert(!staleHookSurface.advancedRows.exists(_.label == "Practical attack"), clue(staleHookSurface.advancedRows))
 
     val compensationBatterySurface =
       build(

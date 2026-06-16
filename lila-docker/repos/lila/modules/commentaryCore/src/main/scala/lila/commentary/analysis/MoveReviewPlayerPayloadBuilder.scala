@@ -1098,14 +1098,6 @@ object MoveReviewPlayerPayloadBuilder:
                     idea.readiness == StrategicIdeaReadiness.Build &&
                     strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
                     idea.confidence >= 0.80
-                val flankHookPressure =
-                  !exactFlankAttackAlreadyVisible &&
-                    refs.contains("source:flank_pawn_pressure") &&
-                    refs.contains("hook_creation_chance") &&
-                    focusZone.nonEmpty &&
-                    idea.readiness == StrategicIdeaReadiness.Build &&
-                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
-                    idea.confidence >= 0.77
                 val flankPawnAdvanceFiles =
                   focusFiles.distinct.filter(file =>
                     Set("a", "b", "g", "h").contains(file) &&
@@ -1238,8 +1230,6 @@ object MoveReviewPlayerPayloadBuilder:
                   else if fianchettoAssault then Some("Practical attack" -> "The fianchetto-shell structure gives a practical opposite-side attack cue.")
                   else if enemyKingStuckCenter then
                     Some("Practical attack" -> "The enemy king's central exposure gives a practical attacking cue.")
-                  else if flankHookPressure then
-                    Some("Practical attack" -> "The current flank-pawn map gives a practical hook-creation cue.")
                   else if flankPawnAdvance then
                     (singleFlankPawnAdvanceFile, singleFlankPawnAdvanceZone) match
                       case (Some(file), Some(zone)) =>

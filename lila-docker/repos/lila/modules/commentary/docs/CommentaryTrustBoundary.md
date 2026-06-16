@@ -208,6 +208,9 @@ The surface renderer may say:
   and compensation king-window shells are diagnostic support;
   without a concrete route, battery, check, threat, central exposure, or other
   named attacking mechanism they do not publish public `Practical attack` rows.
+  `FlankPawnPressure` hook-creation chance is support-only unless an exact
+  hook square/local fact or a typed flank-pawn advance file/rank witness owns
+  the public wording.
   Minor-piece public rows follow the same rule: broad bishop-pair,
   opposite-color-bishops, good-bishop, enemy-bad-bishop, and knight-vs-bishop
   shells are support evidence unless an exact replay-backed family or a
