@@ -18,6 +18,9 @@ for tactical names, line consequences, timing, or positional change prose.
 Conversion author-question seeds are reply-line checks; classification and eval
 advantage do not by themselves assert that conversion, draw, or simplification
 has been achieved.
+IQP simplification rows likewise need a typed `IqpSimplificationProfile`
+exchange target square from `capture_or_exchange`; `ExchangeAvailabilityBridge`
+and plan labels remain support-only without that anchor.
 Endgame fallback descriptors require the played move to own the typed square
 anchor; role-only king or pawn movement does not admit opposition or
 rule-of-square claims. `RookEndgamePattern` facts have no square participants,

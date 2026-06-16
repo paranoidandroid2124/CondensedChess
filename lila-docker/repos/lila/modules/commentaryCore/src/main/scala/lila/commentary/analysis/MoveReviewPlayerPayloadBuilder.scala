@@ -817,17 +817,10 @@ object MoveReviewPlayerPayloadBuilder:
                 val iqpTradeDown =
                   refs.contains("source:iqp_simplification_profile") &&
                     refs.contains("structure_iqp_black") &&
-                    (refs.contains("capture_or_exchange") || refs.contains("iqp_trade_down_plan")) &&
+                    refs.contains("capture_or_exchange") &&
                     idea.ownerSide.equalsIgnoreCase("white") &&
                     strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
                     idea.confidence >= 0.78
-                val exchangeAvailableIqp =
-                  refs.contains("source:exchange_availability_bridge") &&
-                    refs.contains("structure_iqp_black") &&
-                    idea.ownerSide.equalsIgnoreCase("white") &&
-                    idea.readiness == StrategicIdeaReadiness.Build &&
-                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
-                    idea.confidence >= 0.64
                 val rookBehindPasserSquare =
                   focusSquares.find(square => refs.contains(s"rook_behind_passer_square_$square"))
                 val rookEndgamePattern =
@@ -874,13 +867,14 @@ object MoveReviewPlayerPayloadBuilder:
                 val passedPawnConversionSquare =
                   focusSquares.find(square => refs.contains(s"passed_pawn_$square"))
                 val transformationRow =
-                  if iqpTradeDown then row("Practical trade", {
-                    singleFocusSquare
-                      .map(square => s"The IQP structure gives White a practical trade-down cue around $square.")
-                      .getOrElse("The IQP structure gives White a practical trade-down cue.")
-                  }, tone = Some("practical"))
-                  else if exchangeAvailableIqp then
-                    row("Practical trade", "The IQP structure gives White a practical exchange-availability cue.", tone = Some("practical"))
+                  if iqpTradeDown && focusSquares.nonEmpty then
+                    val text =
+                      focusSquares match
+                        case square :: Nil =>
+                          s"The IQP trade-down cue is anchored by the exchange target on $square."
+                        case squares =>
+                          s"The IQP trade-down cue is anchored by exchange targets on ${squares.mkString(", ")}."
+                    row("Practical trade", text, tone = Some("practical"))
                   else if rookEndgamePattern then
                     val text =
                       rookBehindPasserSquare

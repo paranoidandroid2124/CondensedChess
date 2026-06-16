@@ -3821,7 +3821,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assertEquals(surface.advancedRows.head.text, "The current pawn structure points queenside pressure toward c6.")
     assertEquals(surface.advancedRows(1).text, "The current weak-square map gives a practical pressure cue around d5.")
     assertEquals(surface.advancedRows(2).text, "The rook route gives a practical c-file line cue.")
-    assertEquals(surface.advancedRows(3).text, "The IQP structure gives White a practical trade-down cue around d5.")
+    assertEquals(surface.advancedRows(3).text, "The IQP trade-down cue is anchored by the exchange target on d5.")
     assert(surface.advancedRows.forall(_.authority.flatMap(_.target).isEmpty), clue(surface.advancedRows))
   }
 
@@ -6541,7 +6541,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       )
 
     assertEquals(surface.advancedRows.map(_.label), List("Practical trade"))
-    assertEquals(surface.advancedRows.head.text, "The IQP structure gives White a practical trade-down cue around d5.")
+    assertEquals(surface.advancedRows.head.text, "The IQP trade-down cue is anchored by the exchange target on d5.")
     assertEquals(surface.advancedRows.head.authority, Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)))
     assertEquals(surface.advancedRows.head.authority.flatMap(_.target), None)
 
@@ -6562,7 +6562,10 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
           )
       )
     assertEquals(multiTargetSurface.advancedRows.map(_.label), List("Practical trade"))
-    assertEquals(multiTargetSurface.advancedRows.head.text, "The IQP structure gives White a practical trade-down cue.")
+    assertEquals(
+      multiTargetSurface.advancedRows.head.text,
+      "The IQP trade-down cue is anchored by exchange targets on d5, e5."
+    )
     assertEquals(multiTargetSurface.advancedRows.head.authority.flatMap(_.target), None)
 
     val planBackedSurface =
@@ -6587,9 +6590,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(planBackedSurface.advancedRows.map(_.label), List("Practical trade"))
-    assertEquals(planBackedSurface.advancedRows.head.text, "The IQP structure gives White a practical trade-down cue.")
-    assertEquals(planBackedSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assert(!planBackedSurface.advancedRows.exists(_.label == "Practical trade"), clue(planBackedSurface.advancedRows))
 
     val exchangeAvailabilitySurface =
       build(
@@ -6613,12 +6614,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(exchangeAvailabilitySurface.advancedRows.map(_.label), List("Practical trade"))
-    assertEquals(
-      exchangeAvailabilitySurface.advancedRows.head.text,
-      "The IQP structure gives White a practical exchange-availability cue."
-    )
-    assertEquals(exchangeAvailabilitySurface.advancedRows.head.authority.flatMap(_.target), None)
+    assert(!exchangeAvailabilitySurface.advancedRows.exists(_.label == "Practical trade"), clue(exchangeAvailabilitySurface.advancedRows))
 
     val exchangeAvailabilitySourceOnlySurface =
       build(
@@ -6775,7 +6771,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assert(staleSimplificationSurface.advancedRows.exists(_.label == "Practical trade"), clue(staleSimplificationSurface.advancedRows))
     assertEquals(
       staleSimplificationSurface.advancedRows.find(_.label == "Practical trade").map(_.text),
-      Some("The IQP structure gives White a practical trade-down cue around d5.")
+      Some("The IQP trade-down cue is anchored by the exchange target on d5.")
     )
   }
 

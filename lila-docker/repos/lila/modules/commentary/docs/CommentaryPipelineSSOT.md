@@ -42,7 +42,10 @@ MoveReview commentary flows through one path:
    converted into tactical names, line-consequence prose, timing, or positional
    change claims. Conversion author-question seeds remain reply-line checks;
    classification and eval advantage do not by themselves assert that
-   conversion, draw, or simplification has been achieved.
+   conversion, draw, or simplification has been achieved. IQP simplification
+   player rows require a typed `IqpSimplificationProfile` exchange target square
+   from `capture_or_exchange`; `ExchangeAvailabilityBridge` and plan labels are
+   support-only without that anchor.
 5. `QuestionFirstCommentaryPlanner` selects a question and planner owner from
    typed evidence.
 6. `MoveReviewCausalClaim` builds the CausalFrame and typed evidence list.
