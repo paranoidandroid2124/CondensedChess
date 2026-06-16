@@ -34,7 +34,7 @@ object analyse:
     def keyboardHelp =
       div(cls := "keyboard-help")(
         h2("Keyboard shortcuts"),
-        p("Core shortcuts for board navigation, review, and explorer control on the analysis surface."),
+        p("Core shortcuts for board navigation, review, and explorer control on the review board."),
         table(
           tbody(
             shortcutRow(frag(kbd("←"), " / ", kbd("K")), "Previous move"),

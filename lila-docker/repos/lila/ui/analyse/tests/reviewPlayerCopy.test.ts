@@ -8,6 +8,7 @@ const controlsSource = readFileSync(fileURLToPath(new URL('../src/view/controls.
 const actionMenuSource = readFileSync(fileURLToPath(new URL('../src/view/actionMenu.ts', import.meta.url)), 'utf8');
 const mainViewSource = readFileSync(fileURLToPath(new URL('../src/view/main.ts', import.meta.url)), 'utf8');
 const componentsSource = readFileSync(fileURLToPath(new URL('../src/view/components.ts', import.meta.url)), 'utf8');
+const roundTrainingSource = readFileSync(fileURLToPath(new URL('../src/view/roundTraining.ts', import.meta.url)), 'utf8');
 const pgnImportSource = readFileSync(fileURLToPath(new URL('../src/pgnImport.ts', import.meta.url)), 'utf8');
 const pgnPipelineSource = readFileSync(fileURLToPath(new URL('../src/pgnPipeline.ts', import.meta.url)), 'utf8');
 const moveReviewSource = readFileSync(fileURLToPath(new URL('../src/moveReview.ts', import.meta.url)), 'utf8');
@@ -81,8 +82,10 @@ describe('review player copy', () => {
     assert.match(landingSource, /Board View/);
     assert.match(analyseViewSource, /Review board/);
     assert.match(analyseViewSource, /Toggle candidate lines/);
+    assert.match(analyseViewSource, /review board/);
     assert.doesNotMatch(analyseViewSource, /Analysis board/);
     assert.doesNotMatch(analyseViewSource, /engine analysis/);
+    assert.doesNotMatch(analyseViewSource, /analysis surface/);
   });
 
   test('keeps home and landing entry points framed as games, not PGN tooling', () => {
@@ -182,6 +185,11 @@ describe('review player copy', () => {
     assert.match(pgnPipelineSource, /Paste a game before opening the board\./);
     assert.doesNotMatch(pgnImportSource, /PGN error:/);
     assert.doesNotMatch(pgnPipelineSource, /Paste a PGN before importing\./);
+  });
+
+  test('keeps round summary metrics from showing engine jargon', () => {
+    assert.match(roundTrainingSource, /Average move loss/);
+    assert.doesNotMatch(roundTrainingSource, /Average centipawn loss/);
   });
 });
 
