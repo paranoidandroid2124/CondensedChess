@@ -5,9 +5,12 @@ $sp-font-light: #efeee8;
 $sp-muted-light: #a9ad9e;
 $sp-border-light: #3a3d34;
 $sp-primary: #8bc071;
+$sp-primary-strong: #b4d99a;
 $sp-secondary: #e3b15b;
 $sp-amber: #b58a4b;
 $sp-ink-dark: #11130f;
+$sp-board-light: #b7bf8f;
+$sp-board-dark: #6b7f57;
 $sp-surface-dark: $sp-surface-light;
 $sp-font-dark: $sp-font-light;
 $sp-muted-dark: $sp-muted-light;
@@ -231,7 +234,7 @@ body.dark {
   }
 
   .sp-beta-feedback__saved {
-    color: #bfeadd;
+    color: $sp-primary-strong;
     background: rgba($sp-primary, 0.18);
     border-color: rgba($sp-primary, 0.3);
   }
@@ -575,7 +578,7 @@ body.dark {
   box-sizing: border-box;
   border-radius: 8px;
   overflow: hidden;
-  background: #1c1e1a;
+  background: $sp-surface-strong-light;
   box-shadow:
     inset 0 0 0 1px rgba(0, 0, 0, 0.18),
     0 16px 34px rgba(0, 0, 0, 0.18);
@@ -604,11 +607,11 @@ body.dark {
 }
 
 .sp-square.is-light {
-  background: #d7c59c;
+  background: $sp-board-light;
 }
 
 .sp-square.is-dark {
-  background: #76945f;
+  background: $sp-board-dark;
 }
 
 .sp-square.is-start::after,
@@ -652,13 +655,13 @@ body.dark {
 }
 
 .sp-piece.white {
-  background: linear-gradient(180deg, #efeee8, #d7c59c);
-  color: #22241f;
+  background: linear-gradient(180deg, $sp-font-light, $sp-board-light);
+  color: $sp-surface-light;
 }
 
 .sp-piece.black {
-  background: linear-gradient(180deg, #22241f, #11130f);
-  color: #efeee8;
+  background: linear-gradient(180deg, $sp-surface-light, $sp-ink-dark);
+  color: $sp-font-light;
 }
 
 .sp-file-label,
@@ -1385,13 +1388,13 @@ html.dark .sp-demo-link.is-warning {
 }
 
 html.dark .sp-runtime-actions__state {
-  color: #bfeadd;
+  color: $sp-primary-strong;
   background: rgba($sp-primary, 0.18);
   border-color: rgba($sp-primary, 0.3);
 }
 
 html.dark .sp-chip--streak {
-  color: #bfeadd;
+  color: $sp-primary-strong;
   background: rgba($sp-primary, 0.18);
   border-color: rgba($sp-primary, 0.3);
 }
@@ -1455,11 +1458,11 @@ html.dark .sp-history-entry {
 }
 
 html.dark .sp-square.is-light {
-  background: #d7c59c;
+  background: $sp-board-light;
 }
 
 html.dark .sp-square.is-dark {
-  background: #76945f;
+  background: $sp-board-dark;
 }
 
 html.dark .sp-live-noscript {
@@ -1469,5 +1472,5 @@ html.dark .sp-live-noscript {
 
 html.dark .sp-file-label,
 html.dark .sp-rank-label {
-  color: rgba(#f3ede3, 0.6);
+  color: rgba($sp-font-light, 0.58);
 }

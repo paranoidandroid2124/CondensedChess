@@ -11,6 +11,7 @@ const homeScss = readFileSync(fileURLToPath(new URL('../../site/css/_home.scss',
 const landingScss = readFileSync(fileURLToPath(new URL('../../site/css/_landing.scss', import.meta.url)), 'utf8');
 const authScss = readFileSync(fileURLToPath(new URL('../../site/css/_auth.scss', import.meta.url)), 'utf8');
 const accountScss = readFileSync(fileURLToPath(new URL('../../site/css/_account.scss', import.meta.url)), 'utf8');
+const strategicPuzzleScss = readFileSync(fileURLToPath(new URL('../../site/css/_strategicPuzzle.scss', import.meta.url)), 'utf8');
 
 describe('review shell contrast palette', () => {
   test('keeps the review-shell palette above AA thresholds', () => {
@@ -293,7 +294,7 @@ describe('review shell contrast palette', () => {
   });
 
   test('keeps site entry surfaces in the dark study-room palette', () => {
-    const siteScss = [homeScss, landingScss, authScss, accountScss].join('\n');
+    const siteScss = [homeScss, landingScss, authScss, accountScss, strategicPuzzleScss].join('\n');
     [
       '#fff9f1',
       '#fff',
@@ -303,12 +304,19 @@ describe('review shell contrast palette', () => {
       '#ecf3fa',
       'rgba(25, 36, 52',
       '#dc2626',
+      '#bfeadd',
+      '#d7c59c',
+      '#76945f',
+      '#f3ede3',
     ].forEach(color => assert.doesNotMatch(siteScss, new RegExp(escapeRegExp(color), 'i'), `off-palette site color: ${color}`));
 
     assert.match(homeScss, /\$home-bg-light:\s*#171816;/);
     assert.match(homeScss, /\$home-primary:\s*#8bc071;/);
     assert.match(homeScss, /\$home-accent:\s*#e3b15b;/);
     assert.match(accountScss, /\$c-bad-strong:\s*#c75f57;/);
+    assert.match(strategicPuzzleScss, /\$sp-primary-strong:\s*#b4d99a;/);
+    assert.match(strategicPuzzleScss, /\$sp-board-light:\s*#b7bf8f;/);
+    assert.match(strategicPuzzleScss, /\$sp-board-dark:\s*#6b7f57;/);
     assert.match(accountScss, /\.btn-danger\s*\{[\s\S]*?background:\s*\$c-bad;[\s\S]*?color:\s*\$c-bg-page;/);
     assert.match(homeScss, /box-shadow:\s*[\s\S]*?rgba\(0,\s*0,\s*0,\s*0\.18\)[\s\S]*?rgba\(\$home-primary,\s*0\.08\);/);
   });
