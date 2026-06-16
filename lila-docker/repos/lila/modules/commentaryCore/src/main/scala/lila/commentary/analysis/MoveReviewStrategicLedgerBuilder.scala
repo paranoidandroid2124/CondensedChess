@@ -199,7 +199,6 @@ object MoveReviewStrategicLedgerBuilder:
       carryOver = carryOver,
       prerequisites = prerequisites,
       conversionTrigger = conversionTrigger,
-      compensationSignal = compensationSignal,
       prophylaxisSignal = prophylaxisSignal,
       routeSignal = routeSignal,
       primaryLine = primaryLine,
@@ -398,7 +397,6 @@ object MoveReviewStrategicLedgerBuilder:
       carryOver: Boolean,
       prerequisites: List[String],
       conversionTrigger: Option[String],
-      compensationSignal: Boolean,
       prophylaxisSignal: Boolean,
       routeSignal: Boolean,
       primaryLine: Option[LineCandidate],
@@ -434,7 +432,7 @@ object MoveReviewStrategicLedgerBuilder:
           label = "Restrain",
           reason = Option.when(counterplayText.nonEmpty)(counterplayText.mkString(" · ")).orElse(Some("Counterplay denial is the main task"))
         )
-      case _ if ctx.planContinuity.exists(_.phase == PlanLifecyclePhase.Fruition) || conversionTrigger.nonEmpty || compensationSignal =>
+      case _ if ctx.planContinuity.exists(_.phase == PlanLifecyclePhase.Fruition) || conversionTrigger.nonEmpty =>
         val conversionText =
           conversionTrigger
             .map(trigger => s"the edge is now built around converting through $trigger")

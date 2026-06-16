@@ -71,11 +71,48 @@ class MoveReviewStrategicLedgerBuilderTest extends FunSuite:
     assert(ledger.stageReason.exists(_.toLowerCase.contains("counterplay")))
   }
 
-  test("classifies compensation fixtures as convert") {
+  test("classifies compensation fixtures with typed conversion trigger as convert") {
     val ledger = build(MoveReviewProseGoldenFixtures.exchangeSacrifice.ctx)
     assertEquals(ledger.stageKey, "convert")
     assertEquals(ledger.motifKey, "compensation_attack")
     assertEquals(ledger.conversionTrigger, Some("Mating Attack"))
+  }
+
+  test("compensation signal alone stays execution when only a probe line supports it") {
+    val legalFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+    val ctx =
+      MoveReviewProseGoldenFixtures.practicalChoice.ctx.copy(
+        fen = legalFen,
+        playedMove = Some("e2e4"),
+        playedSan = Some("e4")
+      )
+    val pack =
+      StrategyPack(
+        sideToMove = "white",
+        signalDigest =
+          Some(
+            NarrativeSignalDigest(
+              compensation = Some("long term compensation"),
+              investedMaterial = Some(100)
+            )
+          )
+      )
+    val probe =
+      ProbeResult(
+        id = "probe-compensation-execute",
+        fen = Some(legalFen),
+        evalCp = 30,
+        bestReplyPv = List("e7e5", "g1f3"),
+        deltaVsBaseline = 8,
+        keyMotifs = Nil,
+        probedMove = Some("e2e4"),
+        depth = Some(18)
+      )
+    val ledger = build(ctx, strategyPack = Some(pack), probeResults = List(probe))
+    assertEquals(ledger.motifKey, "compensation_attack")
+    assertEquals(ledger.stageKey, "execute")
+    assert(!ledger.stageReason.exists(_.toLowerCase.contains("converted")), clue(ledger.stageReason))
+    assertEquals(ledger.conversionTrigger, None)
   }
 
   test("compensation ledger stays aligned with surfaced execution and objective") {

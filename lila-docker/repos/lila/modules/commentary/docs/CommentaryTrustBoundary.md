@@ -207,9 +207,12 @@ The surface renderer may say:
   pressure witness exists. Internal full-game probe prioritization follows the
   same gate; raw compensation summaries or invested-material shells do not move
   a moment into the compensation tier unless the shared compensation
-  interpretation accepts the evidence. Centipawn loss from a counterfactual or
-  decision comparison is engine-margin evidence, not practical-difficulty
-  authority, unless a separate typed practical witness is present.
+  interpretation accepts the evidence. The MoveReview strategic ledger may use
+  compensation as a pressure motif, but it does not label the stage `Convert`
+  unless a separate conversion trigger or fruition signal exists. Centipawn
+  loss from a counterfactual or decision comparison is engine-margin evidence,
+  not practical-difficulty authority, unless a separate typed practical witness
+  is present.
   Played-first rook-pawn hook/march facts may enter here only from board state
   before/after the reviewed move, not from practical-row text;
 - practical central challenge: only when `CentralBreakTimingWitness.practical`

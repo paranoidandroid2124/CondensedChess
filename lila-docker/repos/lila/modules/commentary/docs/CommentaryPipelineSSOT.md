@@ -245,6 +245,9 @@ endgame-pattern prefix templates and positional-tag motif promotion for
 rook-behind-passer / king-cut-off labels are not public authority paths.
 Endgame continuity/transition prose renders board-structure anchors rather than
 the raw theorem or oracle pattern id.
+The MoveReview strategic ledger also keeps compensation and conversion stages
+separate: invested-material or compensation summaries can select a compensation
+motif, but `Convert` needs a conversion trigger or plan-fruition signal.
 Route and directional target endpoints are not king-attack lanes by proximity
 alone. `KingAttackEvidenceProducer` may emit `source:route_attack_lane` or
 `source:directional_attack_lane` only when `StrategicIdeaEvidenceSupport` proves
