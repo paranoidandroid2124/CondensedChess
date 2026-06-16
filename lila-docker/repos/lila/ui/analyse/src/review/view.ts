@@ -15,12 +15,12 @@ export type ReviewViewNodes = {
 };
 
 const tabs: [ReviewPrimaryTab, string][] = [
-  ['explain', 'Explain'],
-  ['engine', 'Engine'],
+  ['explain', 'Coach'],
+  ['engine', 'Reference'],
   ['explorer', 'Explorer'],
-  ['moves', 'Moves'],
-  ['import', 'Import'],
-  ['board', 'Board'],
+  ['moves', 'Move list'],
+  ['import', 'PGN'],
+  ['board', 'Board setup'],
 ];
 
 export function reviewView(ctrl: AnalyseCtrl, nodes: ReviewViewNodes): VNode {
@@ -52,17 +52,17 @@ function tabButton(ctrl: AnalyseCtrl, active: ReviewPrimaryTab, tab: ReviewPrima
 function renderTab(ctrl: AnalyseCtrl, nodes: ReviewViewNodes, tab: ReviewPrimaryTab): VNode {
   switch (tab) {
     case 'engine':
-      return panel('Engine', [nodes.cevalNode, nodes.pvsNode].filter(Boolean));
+      return panel('Reference lines', [nodes.cevalNode, nodes.pvsNode].filter(Boolean));
     case 'explorer':
       return panel('Explorer', [nodes.explorerNode]);
     case 'moves':
-      return panel('Moves', [nodes.moveListNode, nodes.forkNode]);
+      return panel('Move list', [nodes.moveListNode, nodes.forkNode]);
     case 'import':
-      return panel('Import', [nodes.importNode]);
+      return panel('PGN import', [nodes.importNode]);
     case 'board':
-      return panel('Board', nodes.boardSettingsNodes);
+      return panel('Board setup', nodes.boardSettingsNodes);
     default:
-      return panel('Explain This Move', [
+      return panel('Coach review', [
         hl('div.analyse-review__explain-card', [
           moveReviewToggleBox(ctrl),
           nodes.cevalNode,
@@ -74,7 +74,7 @@ function renderTab(ctrl: AnalyseCtrl, nodes: ReviewViewNodes, tab: ReviewPrimary
 
 function panel(title: string, content: LooseVNodes[]): VNode {
   return hl('div.analyse-review__workspace', [
-    hl('header.analyse-review__workspace-head', [hl('span.analyse-review__eyebrow', 'Move Review'), hl('h2', title)]),
+    hl('header.analyse-review__workspace-head', [hl('span.analyse-review__eyebrow', 'Review player'), hl('h2', title)]),
     hl('div.analyse-review__workspace-body', content.length ? content : [hl('div.analyse-review__empty', 'Nothing to show here.')]),
   ]);
 }

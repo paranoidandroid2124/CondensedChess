@@ -88,7 +88,7 @@ export function formatDecisionTargetComparison(target?: DecisionTargetComparison
   if (!chosenTarget || !bestTarget || !chosenKind || !bestKind) return null;
   if (chosenTarget === bestTarget && chosenKind === bestKind) return null;
 
-  return `Line target: chosen ${chosenTarget} (${chosenKind}); engine ${bestTarget} (${bestKind}).`;
+  return `Line target: played ${chosenTarget} (${chosenKind}); suggested ${bestTarget} (${bestKind}).`;
 }
 
 export function formatDecisionComparisonHeadline(comparison?: DecisionComparisonDigestLike | null): string | null {
@@ -100,11 +100,11 @@ export function formatDecisionComparisonHeadline(comparison?: DecisionComparison
   const compared = comparative ? comparison.comparedMove?.trim() : '';
   const gap = formatCp(comparison.cpLossVsChosen);
 
-  if (comparison.chosenMatchesBest && chosen && compared) return `Chosen ${chosen} compared with ${compared}.`;
-  if (comparison.chosenMatchesBest && chosen) return `Chosen ${chosen} matches the engine best.`;
-  if (chosen && best) return `Chosen ${chosen} vs engine best ${best}${gap ? ` (${gap} gap)` : ''}.`;
-  if (best) return `Engine best is ${best}${gap ? ` (${gap})` : ''}.`;
-  if (chosen) return `Chosen move ${chosen}.`;
+  if (comparison.chosenMatchesBest && chosen && compared) return `Played ${chosen} compared with ${compared}.`;
+  if (comparison.chosenMatchesBest && chosen) return `Played ${chosen} matches the suggested move.`;
+  if (chosen && best) return `Played ${chosen}; suggested ${best}${gap ? ` (${gap} difference)` : ''}.`;
+  if (best) return `Suggested move is ${best}${gap ? ` (${gap})` : ''}.`;
+  if (chosen) return `Played move ${chosen}.`;
   return null;
 }
 
@@ -120,7 +120,7 @@ export function buildDecisionComparisonRows(
   const rows: DecisionComparisonRow[] = [];
 
   const engineLine = normalizeList(comparison.engineBestPv).slice(0, 4).join(' ');
-  if (includeEngineLine && engineLine) rows.push({ label: 'Engine line', value: engineLine });
+  if (includeEngineLine && engineLine) rows.push({ label: 'Suggested line', value: engineLine });
 
   const comparative = comparison.comparativeConsequence?.trim();
   const compared = comparative ? comparison.comparedMove?.trim() : '';
@@ -173,11 +173,11 @@ export function buildDecisionComparisonSurface(
   const gap = formatCp(comparison.cpLossVsChosen);
 
   let headline: string | null = null;
-  if (comparison.chosenMatchesBest && chosen && comparedMove) headline = `Chosen ${chosen} · Compared ${comparedMove}`;
-  else if (comparison.chosenMatchesBest && chosen) headline = `Chosen ${chosen} · engine agrees`;
-  else if (chosen && best) headline = `Chosen ${chosen} · Engine ${best}`;
-  else if (best) headline = `Engine ${best}`;
-  else if (chosen) headline = `Chosen ${chosen}`;
+  if (comparison.chosenMatchesBest && chosen && comparedMove) headline = `Played ${chosen} · Compared ${comparedMove}`;
+  else if (comparison.chosenMatchesBest && chosen) headline = `Played ${chosen} · suggested line agrees`;
+  else if (chosen && best) headline = `Played ${chosen} · suggested ${best}`;
+  else if (best) headline = `Suggested ${best}`;
+  else if (chosen) headline = `Played ${chosen}`;
 
   let secondary: string | null = null;
   if (comparative) secondary = comparative;

@@ -82,13 +82,13 @@ function renderAnalysisToggle(ctrl: AnalyseCtrl, activeTool: string | false, sho
     'button.fbt.fbt--engine-toggle',
     {
       attrs: {
-        title: 'Toggle engine analysis',
+        title: 'Toggle reference lines',
         'data-act': 'analysis',
         'aria-pressed': active ? 'true' : 'false',
       },
       class: { active, latent, computing: ctrl.ceval.isComputing },
     },
-    [icon(licon.Cogs as any), showLabel ? hl('span.label', 'Engine') : null],
+    [icon(licon.Cogs as any), showLabel ? hl('span.label', 'Lines') : null],
   );
 }
 

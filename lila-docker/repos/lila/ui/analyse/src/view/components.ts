@@ -307,12 +307,12 @@ export function renderTools({ ctrl, concealOf, allowVideo }: ViewContext, embedd
         },
         [
         hl('div.analyse-review__mobile-board-copy', [
-          hl('strong', 'Move Review board'),
+          hl('strong', 'Board in view'),
           hl(
             'span',
             ctrl.node.ply > 0
-              ? `Current position around move ${plyToTurn(ctrl.node.ply)}. This compact rail keeps the board in view while the tools pane scrolls.`
-              : 'Start position. This compact rail keeps the board in view while the tools pane scrolls.',
+              ? `Current position around move ${plyToTurn(ctrl.node.ply)}. The board stays in view while you move through the review.`
+              : 'Start position. The board stays in view while you move through the review.',
           ),
         ]),
         boardPreview,

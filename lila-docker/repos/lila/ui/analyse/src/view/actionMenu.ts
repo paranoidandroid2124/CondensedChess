@@ -114,10 +114,10 @@ function boardWorkspaceView(ctrl: AnalyseCtrl, closeMenu: () => void): VNode[] {
         next => setInlineMoveList(ctrl, closeMenu, next),
       ),
     ]),
-    workspaceSection('Guides', 'Tune how much engine and annotation scaffolding stays on screen.', [
+    workspaceSection('Guides', 'Tune how much reference help stays on screen while you review.', [
       workspaceSwitchCard(
-        'Engine panel',
-        engineUnavailable ? 'Engine guidance is unavailable in this position.' : 'Show engine lines beside the move tree.',
+        'Reference lines',
+        engineUnavailable ? 'Reference lines are unavailable in this position.' : 'Show suggested lines beside the move tree.',
         ctrl.showEnginePanel(),
         next => {
           ctrl.setShowEnginePanel(next);
@@ -126,8 +126,8 @@ function boardWorkspaceView(ctrl: AnalyseCtrl, closeMenu: () => void): VNode[] {
         engineUnavailable,
       ),
       workspaceSwitchCard(
-        'Eval gauge',
-        'Keep the side gauge visible whenever engine analysis is on and space allows.',
+        'Evaluation gauge',
+        'Keep the side gauge visible when reference lines are on and space allows.',
         ctrl.showGauge(),
         next => {
           ctrl.setShowEvalGauge(next);

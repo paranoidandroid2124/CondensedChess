@@ -38,11 +38,11 @@ export function cleanNarrativeSurfaceLabel(raw: string): string {
         .replace(/\*\*/g, '')
         .replace(/`+/g, ' ')
         .replace(/\bPlayed\s*PV\b/gi, 'Played Line')
-        .replace(/\bPlayable\s*By\s*PV\b/gi, 'Engine Backed Continuation'),
+        .replace(/\bPlayable\s*By\s*PV\b/gi, 'Reliable Continuation'),
     ),
   )
     .replace(/\bPlayed Line\b/gi, 'Played line')
-    .replace(/\bEngine Backed Continuation\b/gi, 'Engine-backed continuation')
+    .replace(/\bReliable Continuation\b/gi, 'Reliable continuation')
     .replace(/\b(\w+)\s+\1\b/gi, '$1')
     .replace(/\s{2,}/g, ' ')
     .trim();
