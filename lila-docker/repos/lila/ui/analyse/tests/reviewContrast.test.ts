@@ -83,6 +83,15 @@ describe('review shell contrast palette', () => {
     );
   });
 
+  test('keeps review player typography calm across the shell and side panel', () => {
+    [...analyseFreeScss.matchAll(/letter-spacing:\s*([^;]+);/g)].forEach(match =>
+      assert.equal(match[1]!.trim(), '0', `review shell letter-spacing must be 0, got ${match[1]}`),
+    );
+    [...sideScss.matchAll(/letter-spacing:\s*([^;]+);/g)].forEach(match =>
+      assert.equal(match[1]!.trim(), '0', `review side letter-spacing must be 0, got ${match[1]}`),
+    );
+  });
+
   test('keeps review shell tool tabs as compact player work choices', () => {
     assert.match(analyseFreeScss, /&__surface-toggle\s*\{[\s\S]*?flex-direction:\s*column;/);
     assert.match(analyseFreeScss, /&__surface-toggle-label,\s*[\s\S]*?&__surface-toggle-detail\s*\{[\s\S]*?overflow-wrap:\s*anywhere;/);

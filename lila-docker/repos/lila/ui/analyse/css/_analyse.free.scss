@@ -497,7 +497,7 @@ $label-width: 5ch;
     font-weight: 700;
 
     &.is-busy {
-      letter-spacing: 0.08em;
+      letter-spacing: 0;
     }
   }
 
@@ -555,13 +555,13 @@ $label-width: 5ch;
       color: var(--review-text-muted);
       font-size: 0.8rem;
       text-transform: uppercase;
-      letter-spacing: 0.04em;
+      letter-spacing: 0;
     }
   }
 
   &__eyebrow {
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 0;
     font-size: 0.75rem;
     color: var(--review-text-muted);
   }
@@ -683,7 +683,7 @@ $label-width: 5ch;
   &__moment-pill-kicker {
     font-size: 0.78rem;
     font-weight: 700;
-    letter-spacing: 0.06em;
+    letter-spacing: 0;
     text-transform: uppercase;
   }
 
@@ -808,7 +808,7 @@ $label-width: 5ch;
 
     strong {
       font-size: 0.78rem;
-      letter-spacing: 0.04em;
+      letter-spacing: 0;
       text-transform: uppercase;
       color: var(--review-accent);
     }
@@ -1475,7 +1475,7 @@ $label-width: 5ch;
 
     &__preview-label {
       font-size: 0.72rem;
-      letter-spacing: 0.08em;
+      letter-spacing: 0;
       text-transform: uppercase;
       color: $c-font-dim;
     }
@@ -1580,7 +1580,7 @@ $label-width: 5ch;
       flex: none;
       font-size: 0.77rem;
       font-weight: 700;
-      letter-spacing: 0.06em;
+      letter-spacing: 0;
       text-transform: uppercase;
       color: $c-primary;
     }
@@ -1627,7 +1627,7 @@ $label-width: 5ch;
       border-radius: 999px;
       font-size: 0.72rem;
       font-weight: 700;
-      letter-spacing: 0.04em;
+      letter-spacing: 0;
       text-transform: uppercase;
       color: $c-font;
       background: rgba($c-border, 0.92);
