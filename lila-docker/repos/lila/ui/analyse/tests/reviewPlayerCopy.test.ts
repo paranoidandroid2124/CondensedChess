@@ -94,8 +94,22 @@ describe('review player copy', () => {
 
     assert.match(importerSource, /No saved games yet/);
     assert.match(importerSource, /saved games/);
+    [
+      "Find a player's games",
+      'Find another player',
+      'Game site',
+      'Original game',
+      'Cross-device games',
+      'Sign in to keep recent games',
+      'Open a pasted game or player game once',
+      'Saved game ready for review',
+      'Pasted game',
+    ].forEach(copy => assert.match(importerSource, new RegExp(escapeRegExp(copy)), `missing importer copy: ${copy}`));
     assert.doesNotMatch(importerSource, /No saved analyses yet/);
     assert.doesNotMatch(importerSource, /saved game reads/);
+    ['Manual PGN', 'Saved PGN ready for review', 'Source provider', 'Load a player', 'Load another username', 'import history'].forEach(
+      copy => assert.doesNotMatch(importerSource, new RegExp(escapeRegExp(copy)), `stale importer copy: ${copy}`),
+    );
   });
 
   test('keeps recent board history framed as study, not analysis work', () => {

@@ -38,9 +38,9 @@ object importer:
                   div(cls := "importer-grid importer-grid--intake")(
                     div(cls := "importer-panel importer-panel--intake")(
                       div(cls := "importer-panel__head")(
-                        strong(cls := "importer-panel__title")("Load a player"),
+                        strong(cls := "importer-panel__title")("Find a player's games"),
                         p(cls := "importer-panel__copy")(
-                          "Choose a provider, enter a public username, and bring the latest public games into Chesstory."
+                          "Choose Lichess or Chess.com, enter a public username, and bring those games to the board."
                         )
                       ),
                       form(cls := "auth-form importer-form", method := "post", action := routes.Importer.sendGame.url)(
@@ -123,7 +123,7 @@ object importer:
                       ),
                       div(cls := "importer-summary-chip")(
                         strong(providerShortLabel(provider)),
-                        span("Source provider")
+                        span("Game site")
                       ),
                       div(cls := "importer-summary-chip")(
                         strong("Review first"),
@@ -180,9 +180,9 @@ object importer:
                       ),
                       div(cls := "importer-panel importer-panel--compact")(
                         div(cls := "importer-panel__head")(
-                          strong(cls := "importer-panel__title")("Load another username"),
+                          strong(cls := "importer-panel__title")("Find another player"),
                           p(cls := "importer-panel__copy")(
-                            "Stay on the same provider and refresh the account list without starting over."
+                            "Stay on the same site and load another player's games without starting over."
                           )
                         ),
                         form(cls := "auth-form importer-form importer-form--compact", method := "post", action := routes.Importer.sendGame.url)(
@@ -251,7 +251,7 @@ object importer:
         ),
         game.sourceUrl.map(url =>
           a(href := url, target := "_blank", rel := "noopener noreferrer", cls := "auth-import-card__source")(
-            "Source"
+            "Original game"
           )
         )
       )
@@ -290,12 +290,12 @@ object importer:
       div(cls := "auth-history auth-history--empty")(
         div(cls := "auth-empty-state")(
           span(cls := "auth-empty-state__eyebrow")(
-            if ctx.isAuth then "Saved imports" else "Cross-device history"
+            if ctx.isAuth then "Saved games" else "Cross-device games"
           ),
-          strong(if ctx.isAuth then "No saved games yet" else "Sign in to keep import history"),
+          strong(if ctx.isAuth then "No saved games yet" else "Sign in to keep recent games"),
           p(
             if ctx.isAuth then
-              "Open a PGN or player game once, and it will appear here for fast reopen on the review board."
+              "Open a pasted game or player game once, and it will appear here for fast reopen on the review board."
             else
               "Guest sessions only keep local drafts. Sign in to save recent players and games across devices."
           )
@@ -397,7 +397,7 @@ object importer:
       entry.result,
       entry.speed.filterNot(_ == "-")
     ).flatten.mkString(" • ")
-    if line.nonEmpty then line else "Saved PGN ready for review"
+    if line.nonEmpty then line else "Saved game ready for review"
 
   private def providerShortLabel(provider: String): String =
     provider.trim.toLowerCase match
@@ -416,7 +416,7 @@ object importer:
 
   private def sourceTypeLabel(sourceType: String): String =
     sourceType match
-      case ImportHistory.sourceManual => "Manual PGN"
+      case ImportHistory.sourceManual => "Pasted game"
       case _ => "Player game"
 
   private def sourceBadgeTone(sourceType: String): String =
