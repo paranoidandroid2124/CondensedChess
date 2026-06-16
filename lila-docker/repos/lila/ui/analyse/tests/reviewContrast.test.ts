@@ -208,11 +208,14 @@ describe('review shell contrast palette', () => {
 
   test('keeps the player board context rail compact and sticky with the board', () => {
     assert.match(sideScss, /\.move-review-player__board-anchor\s*\{/);
-    assert.match(sideScss, /\.move-review-player__board-anchor-label\s*\{[\s\S]*?color:\s*\$c-primary;/);
+    assert.match(
+      sideScss,
+      /\.move-review-player__board-anchor-label\s*\{[\s\S]*?font-family:\s*'Roboto Mono', monospace;[\s\S]*?font-weight:\s*800;[\s\S]*?color:\s*\$c-primary;/,
+    );
     assert.match(sideScss, /\.move-review-player__board-anchor-move\s*\{[\s\S]*?font-family:\s*'Roboto Mono', monospace;/);
     assert.match(
       sideScss,
-      /\.move-review-player__board-anchor-eval\s*\{[\s\S]*?border:\s*1px solid color-mix\(in srgb,\s*#\{\$c-primary\}\s*24%,\s*transparent\);[\s\S]*?background:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*14%,\s*#\{\$c-bg-low\}\);[\s\S]*?color:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*86%,\s*#\{\$c-font\}\);/,
+      /\.move-review-player__board-anchor-eval\s*\{[\s\S]*?border:\s*1px solid color-mix\(in srgb,\s*#\{\$c-primary\}\s*24%,\s*transparent\);[\s\S]*?background:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*14%,\s*#\{\$c-bg-low\}\);[\s\S]*?color:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*86%,\s*#\{\$c-font\}\);[\s\S]*?font-weight:\s*800;/,
     );
     assert.match(
       sideScss,

@@ -581,6 +581,9 @@
     }
 
     .move-review-player__board-anchor-label {
+      font-family: 'Roboto Mono', monospace;
+      font-size: 0.72rem;
+      font-weight: 800;
       color: $c-primary;
     }
 
@@ -592,7 +595,7 @@
     }
 
     .move-review-player__board-anchor-scene {
-      color: $c-font;
+      color: $c-font-dim;
     }
 
     .move-review-player__board-anchor-move,
@@ -614,6 +617,8 @@
       border: 1px solid color-mix(in srgb, #{$c-primary} 24%, transparent);
       background: color-mix(in srgb, #{$c-primary} 14%, #{$c-bg-low});
       color: color-mix(in srgb, #{$c-primary} 86%, #{$c-font});
+      font-size: 0.78rem;
+      font-weight: 800;
       box-shadow: inset 0 0 0 1px color-mix(in srgb, #{$c-primary} 10%, transparent);
     }
 

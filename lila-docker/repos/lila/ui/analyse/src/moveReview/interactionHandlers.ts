@@ -115,7 +115,7 @@ function setPlayerBoardMeta(
   const noteEl = player.querySelector<HTMLElement>('.move-review-player__board-note');
   const anchorSceneText = anchorScene || kicker?.replace(/^On the board ·\s*/, '') || 'Review';
   const anchorMoveText = anchorMove || subtitle || '';
-  const anchorEvalText = boardEval ? `Eval ${boardEval}` : '';
+  const anchorEvalText = boardEval || '';
   if (anchorSceneEl) anchorSceneEl.textContent = anchorSceneText;
   if (anchorMoveEl) {
     anchorMoveEl.textContent = anchorMoveText;

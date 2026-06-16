@@ -105,10 +105,15 @@ describe('moveReview coach surface', () => {
     assert.match(html, /move-review-player__timeline-action">Replay the line/);
     assert.match(html, /move-review-player__board-shell/);
     assert.match(html, /move-review-player__board-anchor/);
-    assert.match(html, /move-review-player__board-anchor-label">Position evaluation/);
+    assert.match(html, /move-review-player__board-anchor-label">Eval/);
+    assert.match(
+      html,
+      /move-review-player__board-anchor-label">Eval<\/span>\s*<span class="move-review-player__board-anchor-eval">\+0\.4<\/span>\s*<strong class="move-review-player__board-anchor-scene">Verdict/,
+    );
     assert.match(html, /move-review-player__board-anchor-scene">Verdict/);
     assert.match(html, /move-review-player__board-anchor-move">Nf3/);
-    assert.match(html, /move-review-player__board-anchor-eval">Eval \+0\.4/);
+    assert.match(html, /move-review-player__board-anchor-eval">\+0\.4/);
+    assert.doesNotMatch(html, /Position evaluation/);
     assert.match(html, /move-review-player__board-preview/);
     assert.match(html, /move-review-player__board-title/);
     assert.match(html, /move-review-player__board-note/);
