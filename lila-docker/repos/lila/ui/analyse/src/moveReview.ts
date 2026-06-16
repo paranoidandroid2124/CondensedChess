@@ -61,17 +61,17 @@ const loadingStageOrder: Record<LoadingStage, number> = {
 };
 
 const loadingStageTitle: Record<LoadingStage, string> = {
-    position: 'Read the position',
-    lines: 'Check the lines',
-    compose: 'Write the lesson',
-    polish: 'Finish the review',
+    position: 'Position',
+    lines: 'Candidate lines',
+    compose: 'Coach lesson',
+    polish: 'Board replay',
 };
 
 const loadingStageMessages: Record<LoadingStage, string[]> = {
     position: [
-        'Reading the position...',
+        'Reading the current position...',
         'Checking king safety and piece activity...',
-        'Finding the move that changed the game...',
+        'Finding the moment that changed the game...',
     ],
     lines: [
         'Checking the main continuations...',
@@ -79,14 +79,14 @@ const loadingStageMessages: Record<LoadingStage, string[]> = {
         'Following forcing lines one by one...',
     ],
     compose: [
-        'Building the coach explanation...',
+        'Writing the coach explanation...',
         'Aligning plans with the current structure...',
         'Turning the line into a lesson you can replay...',
     ],
     polish: [
-        'Preparing the final review...',
-        'Ensuring move order and notation stay exact...',
-        'Getting the board and notes ready together...',
+        'Preparing the board replay...',
+        'Checking move order and notation...',
+        'Bringing board and notes together...',
     ],
 };
 
@@ -101,7 +101,7 @@ function renderLoadingHud(stage: LoadingStage, message: string, streamPreview?: 
       <div class="move-review-thinking-hud glass${isReveal ? ' move-review-thinking-hud--reveal' : ''}">
         <div class="hud-aura"></div>
         <div class="hud-content">
-          <span class="hud-stage">Step ${step}/4 · ${escapeHtml(title)}</span>
+          <span class="hud-stage">Review ${step}/4 · ${escapeHtml(title)}</span>
           <i data-icon="L" class="hud-icon pulse"></i>
           <span class="hud-text">${safeMessage}</span>
           ${isReveal ? `<span class="hud-stream">${safeStream}<span class="hud-caret">|</span></span>` : ''}

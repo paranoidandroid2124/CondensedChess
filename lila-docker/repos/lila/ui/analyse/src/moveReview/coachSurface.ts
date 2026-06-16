@@ -32,6 +32,7 @@ type MoveReviewScene = {
   board?: string | null;
   boardTitle: string;
   boardSubtitle?: string | null;
+  boardNote: string;
   square?: string | null;
   lineSans?: string[];
   lineLabel?: string;
@@ -488,6 +489,7 @@ function renderScenePanel(scene: MoveReviewScene, idx: number, refIndex: MoveRev
   const boardKicker = ` data-scene-board-kicker="${escapeHtml(scene.kicker)}"`;
   const boardTitle = ` data-scene-board-title="${escapeHtml(scene.boardTitle)}"`;
   const boardSubtitle = scene.boardSubtitle ? ` data-scene-board-subtitle="${escapeHtml(scene.boardSubtitle)}"` : '';
+  const boardNote = ` data-scene-board-note="${escapeHtml(scene.boardNote)}"`;
   const square = scene.square ? ` data-scene-square="${escapeHtml(scene.square)}"` : '';
   const label = ` data-scene-label="${escapeHtml(scene.label)}" data-scene-short-label="${escapeHtml(scene.shortLabel)}"`;
   const hidden = idx === 0 ? '' : ' hidden aria-hidden="true"';
@@ -500,7 +502,7 @@ function renderScenePanel(scene: MoveReviewScene, idx: number, refIndex: MoveRev
       data-scene-key="${scene.key}"
       role="tabpanel"
       aria-labelledby="move-review-scene-tab-${scene.key}"
-      ${board}${boardKicker}${boardTitle}${boardSubtitle}${square}${label}${hidden}
+      ${board}${boardKicker}${boardTitle}${boardSubtitle}${boardNote}${square}${label}${hidden}
     >
       <header class="move-review-player__scene-head">
         <span class="move-review-player__scene-kicker">${escapeHtml(scene.kicker)} · ${idx + 1}/${sceneCount}</span>
@@ -600,6 +602,7 @@ function buildMoveReviewScenes(
       board: boardPayloadForRef(decisionRef),
       boardTitle: 'Position tied to the choice',
       boardSubtitle: playerSurface.decisionComparison?.chosenSan || playerSurface.decisionComparison?.engineSan || null,
+      boardNote: 'Compare the move on the board before reading the verdict.',
       square: summarySquare,
       lineSans: primaryLine,
       lineLabel: 'Line behind the choice',
@@ -617,6 +620,7 @@ function buildMoveReviewScenes(
       board: boardPayloadForRef(summaryRef),
       boardTitle: 'Reason position',
       boardSubtitle: playerSurface.summaryRows[0]?.label || null,
+      boardNote: 'Keep this square in view; the reason lives on the board.',
       square: summarySquare,
       lineSans: playerSurface.summaryRows.find(row => row.refSans.length)?.refSans || primaryLine,
       lineLabel: 'Moves behind the reason',
@@ -634,6 +638,7 @@ function buildMoveReviewScenes(
       board: boardPayloadForRef(planRef),
       boardTitle: 'Plan position',
       boardSubtitle: planSourceRows[0]?.label || null,
+      boardNote: 'Use this position to decide what the next move should improve.',
       square: planSquare,
       lineSans: planSourceRows.find(row => row.refSans.length)?.refSans || primaryLine,
       lineLabel: 'Plan in moves',
@@ -651,6 +656,7 @@ function buildMoveReviewScenes(
       board: boardPayloadForRef(tryStartRef),
       boardTitle: 'Line position',
       boardSubtitle: primaryLine[0] || null,
+      boardNote: 'Play the line one move at a time; the board follows each click.',
       square: planSquare || summarySquare,
       lineSans: primaryLine,
       lineLabel: 'Replay on the board',
@@ -669,6 +675,7 @@ function buildMoveReviewScenes(
       board: boardPayloadForRef(tryEndRef || summaryRef || decisionRef),
       boardTitle: 'Pattern position',
       boardSubtitle: primaryLine[primaryLine.length - 1] || planSourceRows[0]?.label || null,
+      boardNote: 'Save this pattern as the cue to recognize in your next game.',
       square: planSquare || summarySquare,
       lineSans: primaryLine,
       lineLabel: 'Pattern in moves',
@@ -733,6 +740,7 @@ export function decorateMoveReviewHtml(
             <span class="move-review-player__board-kicker">Board shows · ${escapeHtml(scenes[0]?.kicker || 'Scene')}</span>
             <strong class="move-review-player__board-title">${escapeHtml(scenes[0]?.boardTitle || 'Coaching board')}</strong>
             <span class="move-review-player__board-subtitle">${escapeHtml(scenes[0]?.boardSubtitle || scenes[0]?.label || '')}</span>
+            <span class="move-review-player__board-note">${escapeHtml(scenes[0]?.boardNote || 'Keep the board tied to this coaching scene.')}</span>
           </div>
           ${renderBoardCue(scenes[0])}
           <div class="move-review-pv-preview move-review-player__board-preview"></div>

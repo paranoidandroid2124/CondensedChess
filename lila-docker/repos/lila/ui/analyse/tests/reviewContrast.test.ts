@@ -110,6 +110,11 @@ describe('review shell contrast palette', () => {
 
   test('keeps the mobile review board below the sticky scene timeline', () => {
     assert.match(sideScss, /--move-review-sticky-board-top:\s*3\.35rem;/);
+    assert.match(sideScss, /\.move-review-player__board-note\s*\{/);
+    assert.match(
+      sideScss,
+      /\.move-review-player__board-title,\s*[\s\S]*?\.move-review-player__board-subtitle,\s*[\s\S]*?\.move-review-player__board-note\s*\{[\s\S]*?overflow-wrap:\s*anywhere;/,
+    );
     assert.match(sideScss, /@include mq-is-col1[\s\S]*--move-review-sticky-board-top:\s*2\.7rem;/);
     assert.match(
       sideScss,

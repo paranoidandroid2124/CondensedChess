@@ -47,6 +47,16 @@ describe('review player copy', () => {
     assert.doesNotMatch(moveReviewSource, /Saved Lines/);
   });
 
+  test('keeps loading copy framed as a review, not a technical job', () => {
+    ['Position', 'Candidate lines', 'Coach lesson', 'Board replay'].forEach(copy =>
+      assert.match(moveReviewSource, new RegExp(escapeRegExp(copy)), `missing loading copy: ${copy}`),
+    );
+    assert.match(moveReviewSource, /Review \$\{step\}\/4/);
+    assert.match(moveReviewSource, /Preparing the board replay/);
+    assert.doesNotMatch(moveReviewSource, /Step \$\{step\}\/4/);
+    assert.doesNotMatch(moveReviewSource, /Preparing the final review/);
+  });
+
   test('keeps current-move help framed as a player question', () => {
     [mainViewSource, landingSource].forEach(source => {
       assert.match(source, /Ask About This Move/);

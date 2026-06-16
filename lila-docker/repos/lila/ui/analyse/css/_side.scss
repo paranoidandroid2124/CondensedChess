@@ -492,7 +492,8 @@
     }
 
     .move-review-player__board-title,
-    .move-review-player__board-subtitle {
+    .move-review-player__board-subtitle,
+    .move-review-player__board-note {
       min-width: 0;
       overflow-wrap: anywhere;
     }
@@ -507,6 +508,13 @@
       color: $c-font-dim;
       font-size: 0.76rem;
       line-height: 1.2;
+    }
+
+    .move-review-player__board-note {
+      padding-top: 0.12rem;
+      color: $c-font-dim;
+      font-size: 0.74rem;
+      line-height: 1.28;
     }
 
     .move-review-player__board-cue {
