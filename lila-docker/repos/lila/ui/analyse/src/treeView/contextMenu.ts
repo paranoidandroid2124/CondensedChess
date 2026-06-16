@@ -150,7 +150,7 @@ function view(ctrl: AnalyseCtrl, path: Tree.Path, coords: Coords): VNode {
 
       action(
         licon.Clipboard,
-        onMainline ? 'Copy main line PGN' : 'Copy variation PGN',
+        onMainline ? 'Copy main line notation' : 'Copy variation notation',
         () =>
           navigator.clipboard.writeText(
             renderVariationPgn(ctrl.data.game, ctrl.tree.getNodeList(extendedPath)),

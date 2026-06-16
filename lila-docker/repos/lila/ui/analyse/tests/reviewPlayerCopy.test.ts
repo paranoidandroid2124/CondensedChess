@@ -9,6 +9,7 @@ const actionMenuSource = readFileSync(fileURLToPath(new URL('../src/view/actionM
 const mainViewSource = readFileSync(fileURLToPath(new URL('../src/view/main.ts', import.meta.url)), 'utf8');
 const componentsSource = readFileSync(fileURLToPath(new URL('../src/view/components.ts', import.meta.url)), 'utf8');
 const roundTrainingSource = readFileSync(fileURLToPath(new URL('../src/view/roundTraining.ts', import.meta.url)), 'utf8');
+const treeContextMenuSource = readFileSync(fileURLToPath(new URL('../src/treeView/contextMenu.ts', import.meta.url)), 'utf8');
 const pgnImportSource = readFileSync(fileURLToPath(new URL('../src/pgnImport.ts', import.meta.url)), 'utf8');
 const pgnPipelineSource = readFileSync(fileURLToPath(new URL('../src/pgnPipeline.ts', import.meta.url)), 'utf8');
 const moveReviewSource = readFileSync(fileURLToPath(new URL('../src/moveReview.ts', import.meta.url)), 'utf8');
@@ -200,6 +201,15 @@ describe('review player copy', () => {
   test('keeps round summary metrics from showing engine jargon', () => {
     assert.match(roundTrainingSource, /Average move loss/);
     assert.doesNotMatch(roundTrainingSource, /Average centipawn loss/);
+  });
+
+  test('keeps move-tree context actions framed as notation, not PGN files', () => {
+    ['Copy main line notation', 'Copy variation notation'].forEach(copy =>
+      assert.match(treeContextMenuSource, new RegExp(escapeRegExp(copy)), `missing context menu copy: ${copy}`),
+    );
+    ['Copy main line PGN', 'Copy variation PGN'].forEach(copy =>
+      assert.doesNotMatch(treeContextMenuSource, new RegExp(escapeRegExp(copy)), `stale context menu copy: ${copy}`),
+    );
   });
 });
 
