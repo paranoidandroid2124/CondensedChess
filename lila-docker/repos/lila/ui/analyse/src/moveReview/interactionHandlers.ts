@@ -23,6 +23,7 @@ let suppressNextTap = false;
 let swipeStartX = 0;
 let swipeStartY = 0;
 let swipeActiveList: HTMLElement | null = null;
+let swipeActivePlayer: HTMLElement | null = null;
 let refsById = new Map<string, { fenAfter: string; uci: string }>();
 
 function boardPayloadFromElement(el: HTMLElement): string | null {
@@ -65,6 +66,78 @@ function setActiveVariationItem(item: HTMLElement, syncPreview = true): void {
   const firstMove = item.querySelector<HTMLElement>('[data-ref-id], [data-board]');
   const board = firstMove ? boardPayloadFromElement(firstMove) : null;
   if (board) updateMoveReviewPreview(board);
+}
+
+function moveReviewScenePanels(player: HTMLElement): HTMLElement[] {
+  return Array.from(player.querySelectorAll<HTMLElement>('[data-move-review-scene-panel]'));
+}
+
+function moveReviewSceneIndex(player: HTMLElement): number {
+  const raw = Number(player.dataset.sceneIndex);
+  return Number.isFinite(raw) ? raw : 0;
+}
+
+function setSceneSquare(square: string | null): void {
+  if (!currentCtrl) return;
+  currentCtrl.moveReviewHoverSquare = isBoardSquare(square) ? square : null;
+  currentCtrl.setAutoShapes();
+}
+
+function syncMoveReviewSceneBoard(player: HTMLElement, panel: HTMLElement): void {
+  player.querySelectorAll<HTMLElement>('.move-review-coach__move-chip.is-active').forEach(el => {
+    el.classList.remove('is-active');
+  });
+
+  const firstMove = panel.querySelector<HTMLElement>('[data-ref-id], [data-board]');
+  const board = panel.dataset.sceneBoard || (firstMove ? boardPayloadFromElement(firstMove) : null);
+  if (board) {
+    updateMoveReviewPreview(board);
+    const activeMove = Array.from(panel.querySelectorAll<HTMLElement>('[data-ref-id], [data-board]')).find(
+      el => boardPayloadFromElement(el) === board,
+    );
+    activeMove?.classList.add('is-active');
+  } else {
+    hideMoveReviewPreview();
+  }
+
+  const square = panel.dataset.sceneSquare || panel.querySelector<HTMLElement>('[data-move-review-square]')?.dataset.moveReviewSquare || null;
+  setSceneSquare(square);
+}
+
+function activateMoveReviewScene(player: HTMLElement, targetIndex: number, syncBoard = true): void {
+  const panels = moveReviewScenePanels(player);
+  if (!panels.length) return;
+  const nextIndex = Math.max(0, Math.min(panels.length - 1, targetIndex));
+  player.dataset.sceneIndex = String(nextIndex);
+
+  panels.forEach((panel, idx) => {
+    const active = idx === nextIndex;
+    panel.hidden = !active;
+    panel.classList.toggle('is-active', active);
+    panel.setAttribute('aria-hidden', active ? 'false' : 'true');
+  });
+
+  player.querySelectorAll<HTMLButtonElement>('[data-move-review-scene]').forEach(button => {
+    const active = Number(button.dataset.moveReviewScene) === nextIndex;
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-selected', active ? 'true' : 'false');
+    button.tabIndex = active ? 0 : -1;
+  });
+
+  player.querySelectorAll<HTMLButtonElement>('[data-move-review-scene-step]').forEach(button => {
+    const step = Number(button.dataset.moveReviewSceneStep);
+    button.disabled = (step < 0 && nextIndex === 0) || (step > 0 && nextIndex === panels.length - 1);
+  });
+
+  const counter = player.querySelector<HTMLElement>('.move-review-player__scene-count');
+  if (counter) counter.textContent = `${nextIndex + 1}/${panels.length}`;
+  if (syncBoard) syncMoveReviewSceneBoard(player, panels[nextIndex]);
+}
+
+function hydrateMoveReviewPlayers(root: HTMLElement): void {
+  root.querySelectorAll<HTMLElement>('[data-move-review-player]').forEach(player => {
+    activateMoveReviewScene(player, moveReviewSceneIndex(player), true);
+  });
 }
 
 function stepVariation(list: HTMLElement, direction: 1 | -1): void {
@@ -141,6 +214,18 @@ export function initMoveReviewHandlers(ctrl: AnalyseCtrl | undefined, onEvalTogg
     .on('click.moveReview', '.analyse__move-review-text .variation-item', function (this: HTMLElement) {
       setActiveVariationItem(this, true);
     })
+    .on('click.moveReview', '.analyse__move-review-text [data-move-review-scene]', function (this: HTMLButtonElement, e) {
+      e.preventDefault();
+      const player = this.closest('[data-move-review-player]') as HTMLElement | null;
+      if (!player) return;
+      activateMoveReviewScene(player, Number(this.dataset.moveReviewScene), true);
+    })
+    .on('click.moveReview', '.analyse__move-review-text [data-move-review-scene-step]', function (this: HTMLButtonElement, e) {
+      e.preventDefault();
+      const player = this.closest('[data-move-review-player]') as HTMLElement | null;
+      if (!player) return;
+      activateMoveReviewScene(player, moveReviewSceneIndex(player) + Number(this.dataset.moveReviewSceneStep), true);
+    })
     .on('touchstart.moveReview', '.analyse__move-review-text [data-ref-id], .analyse__move-review-text [data-board]', function (this: HTMLElement) {
       if (!('ontouchstart' in window)) return;
       const board = boardPayloadFromElement(this);
@@ -183,6 +268,25 @@ export function initMoveReviewHandlers(ctrl: AnalyseCtrl | undefined, onEvalTogg
       }
       swipeActiveList = null;
     })
+    .on('touchstart.moveReview', '.analyse__move-review-text .move-review-player__scene-stack', function (this: HTMLElement, e) {
+      const t = (e.originalEvent as TouchEvent).touches?.[0];
+      if (!t) return;
+      swipeStartX = t.clientX;
+      swipeStartY = t.clientY;
+      swipeActivePlayer = this.closest('[data-move-review-player]') as HTMLElement | null;
+    })
+    .on('touchend.moveReview', '.analyse__move-review-text .move-review-player__scene-stack', function (this: HTMLElement, e) {
+      if (!swipeActivePlayer) return;
+      const t = (e.originalEvent as TouchEvent).changedTouches?.[0];
+      const player = swipeActivePlayer;
+      swipeActivePlayer = null;
+      if (!t) return;
+      const dx = t.clientX - swipeStartX;
+      const dy = t.clientY - swipeStartY;
+      if (Math.abs(dx) >= 42 && Math.abs(dx) > Math.abs(dy)) {
+        activateMoveReviewScene(player, moveReviewSceneIndex(player) + (dx < 0 ? 1 : -1), true);
+      }
+    })
     .on('click.moveReview', '.analyse__move-review-text .move-review-score-toggle', e => {
       e.preventDefault();
       onEvalToggle();
@@ -209,9 +313,12 @@ export function mountMoveReviewPreview(root: HTMLElement): void {
   moveReviewPreview = {};
 
   const container = root.querySelector('.move-review-pv-preview') as HTMLElement | null;
-  if (!container) return;
+  if (!container) {
+    hydrateMoveReviewPlayers(root);
+    return;
+  }
 
-  container.classList.remove('is-active');
+  container.classList.toggle('is-active', !!container.closest('[data-move-review-player]'));
   container.innerHTML = '<div class="pv-board"><div class="pv-board-square"><div class="cg-wrap is2d"></div></div></div>';
 
   const wrap = container.querySelector('.cg-wrap') as HTMLElement | null;
@@ -228,6 +335,7 @@ export function mountMoveReviewPreview(root: HTMLElement): void {
 
   const firstVariation = root.querySelector('.variation-list .variation-item') as HTMLElement | null;
   if (firstVariation) setActiveVariationItem(firstVariation, false);
+  hydrateMoveReviewPlayers(root);
 }
 
 function updateMoveReviewPreview(board: string): void {

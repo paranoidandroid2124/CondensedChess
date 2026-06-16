@@ -269,7 +269,11 @@ Section labels may improve player hierarchy, but row label/text/diagnostics do
 not create chess families. Move chips render from `refSans`/resolved refs while
 preserving order and repeated SAN tokens. A chip may carry the exact preview
 board payload only when it is derived from the same resolved ref; authoring row
-labels are display text only, not SAN identity authority.
+labels are display text only, not SAN identity authority. The interactive review
+player may split that surface into Verdict/Why/Plan/Try/Remember scenes, but the
+scene index, chapter labels, target-square highlight, and board-preview payload
+remain UI synchronization state. They do not widen or certify any claim beyond
+the typed surface row and resolved ref that supplied them.
 
 Durable structural claims require producer-owned board/PV proof. File entry,
 outpost occupation, target fixation, IQP inducement, color-complex pressure,

@@ -20,6 +20,18 @@ type MoveReviewRefIndex = {
   lines: MoveReviewMoveRef[][];
 };
 
+type MoveReviewSceneKey = 'verdict' | 'why' | 'plan' | 'try' | 'remember';
+
+type MoveReviewScene = {
+  key: MoveReviewSceneKey;
+  label: string;
+  title: string;
+  kicker: string;
+  body: string;
+  board?: string | null;
+  square?: string | null;
+};
+
 function buildMoveReviewRefIndex(refs: MoveReviewRefsV1 | null): MoveReviewRefIndex {
   const refsBySan = new Map<string, MoveReviewMoveRef[]>();
   const lines: MoveReviewMoveRef[][] = [];
@@ -53,6 +65,10 @@ function sameMoveRef(a: MoveReviewMoveRef, b: MoveReviewMoveRef): boolean {
 
 function sameMoveRefSequence(a: MoveReviewMoveRef[], b: MoveReviewMoveRef[]): boolean {
   return a.length === b.length && a.every((ref, idx) => sameMoveRef(ref, b[idx]));
+}
+
+function boardPayloadForRef(ref: MoveReviewMoveRef | null | undefined): string | null {
+  return ref ? `${ref.fenAfter}|${ref.uci}` : null;
 }
 
 function equivalentSingleSanRef(normalizedSan: string, refIndex: MoveReviewRefIndex): MoveReviewMoveRef | null {
@@ -89,6 +105,31 @@ function resolveSanSequenceRefs(rawSans: string[], refIndex: MoveReviewRefIndex)
   return normalizedSans.map(() => null);
 }
 
+function firstResolvedSanRef(rawSans: string[], refIndex: MoveReviewRefIndex): MoveReviewMoveRef | null {
+  return resolveSanSequenceRefs(rawSans, refIndex).find((ref): ref is MoveReviewMoveRef => !!ref) || null;
+}
+
+function lastResolvedSanRef(rawSans: string[], refIndex: MoveReviewRefIndex): MoveReviewMoveRef | null {
+  const refs = resolveSanSequenceRefs(rawSans, refIndex).filter((ref): ref is MoveReviewMoveRef => !!ref);
+  return refs[refs.length - 1] || null;
+}
+
+function firstSurfaceRowRef(rows: MoveReviewPlayerSurfaceRowV1[], refIndex: MoveReviewRefIndex): MoveReviewMoveRef | null {
+  for (const row of rows) {
+    const ref = firstResolvedSanRef(row.refSans || [], refIndex);
+    if (ref) return ref;
+  }
+  return null;
+}
+
+function firstSurfaceSquare(rows: MoveReviewPlayerSurfaceRowV1[]): string | null {
+  for (const row of rows) {
+    const target = row.authority?.kind === 'opening_family' ? null : row.authority?.target;
+    if (target) return target;
+  }
+  return null;
+}
+
 function resolveTrustedDecisionSanRef(
   rawSan: string | null | undefined,
   trustedSans: string[],
@@ -113,6 +154,18 @@ function resolveTrustedDecisionSanRef(
   });
 
   return equivalentMoveRef(candidates);
+}
+
+function primaryDecisionRef(
+  comparison: MoveReviewPlayerDecisionComparisonV1 | null | undefined,
+  refIndex: MoveReviewRefIndex,
+): MoveReviewMoveRef | null {
+  if (!comparison) return null;
+  return (
+    resolveTrustedDecisionSanRef(comparison.chosenSan, comparison.refSans || [], refIndex) ||
+    resolveTrustedDecisionSanRef(comparison.engineSan, comparison.refSans || [], refIndex) ||
+    firstResolvedSanRef(comparison.refSans || [], refIndex)
+  );
 }
 
 function renderCoachMoveChip(
@@ -284,11 +337,11 @@ function renderAuthorRow(row: MoveReviewPlayerAuthorRowV1, refIndex: MoveReviewR
   `;
 }
 
-function renderTryLine(lineSans: string[], refIndex: MoveReviewRefIndex): string {
+function renderTryLineChips(lineSans: string[], refIndex: MoveReviewRefIndex): string {
   const cleanSans = lineSans.filter(san => normalizeSanToken(san));
   if (!cleanSans.length) return '';
   const refs = resolveSanSequenceRefs(cleanSans, refIndex);
-  const chips = cleanSans
+  return cleanSans
     .map((san, idx) =>
       renderInteractiveSanChip(san, refs[idx] || null, {
         interactiveClasses: 'move-review-coach__move-chip move-chip move-chip--interactive',
@@ -297,6 +350,11 @@ function renderTryLine(lineSans: string[], refIndex: MoveReviewRefIndex): string
       }),
     )
     .join(' ');
+}
+
+function renderTryLine(lineSans: string[], refIndex: MoveReviewRefIndex): string {
+  const chips = renderTryLineChips(lineSans, refIndex);
+  if (!chips) return '';
 
   return `
     <section class="move-review-coach__section move-review-coach__section--line">
@@ -312,6 +370,189 @@ function primaryTryLine(playerSurface: MoveReviewPlayerSurfaceV1): string[] {
   return playerSurface.summaryRows.find(row => row.refSans.length)?.refSans || [];
 }
 
+function renderSceneNav(scenes: MoveReviewScene[]): string {
+  return `
+    <nav class="move-review-player__timeline" aria-label="Review chapters">
+      ${scenes
+        .map(
+          (scene, idx) => `
+        <button
+          id="move-review-scene-tab-${scene.key}"
+          type="button"
+          class="move-review-player__timeline-step${idx === 0 ? ' is-active' : ''}"
+          data-move-review-scene="${idx}"
+          role="tab"
+          aria-selected="${idx === 0 ? 'true' : 'false'}"
+          aria-controls="move-review-scene-${scene.key}"
+          tabindex="${idx === 0 ? '0' : '-1'}"
+        >
+          <span class="move-review-player__timeline-index">${idx + 1}</span>
+          <span class="move-review-player__timeline-label">${escapeHtml(scene.label)}</span>
+        </button>
+      `,
+        )
+        .join('')}
+    </nav>
+  `;
+}
+
+function renderScenePanel(scene: MoveReviewScene, idx: number): string {
+  const board = scene.board ? ` data-scene-board="${escapeHtml(scene.board)}"` : '';
+  const square = scene.square ? ` data-scene-square="${escapeHtml(scene.square)}"` : '';
+  const hidden = idx === 0 ? '' : ' hidden aria-hidden="true"';
+  return `
+    <section
+      id="move-review-scene-${scene.key}"
+      class="move-review-player__scene move-review-player__scene--${scene.key}${idx === 0 ? ' is-active' : ''}"
+      data-move-review-scene-panel
+      data-scene-index="${idx}"
+      data-scene-key="${scene.key}"
+      role="tabpanel"
+      aria-labelledby="move-review-scene-tab-${scene.key}"
+      ${board}${square}${hidden}
+    >
+      <header class="move-review-player__scene-head">
+        <span class="move-review-player__scene-kicker">${escapeHtml(scene.kicker)}</span>
+        <h4>${escapeHtml(scene.title)}</h4>
+      </header>
+      <div class="move-review-player__scene-body">${scene.body}</div>
+    </section>
+  `;
+}
+
+function renderSceneControls(sceneCount: number): string {
+  return `
+    <footer class="move-review-player__controls">
+      <button type="button" class="move-review-player__control" data-move-review-scene-step="-1" disabled>Back</button>
+      <span class="move-review-player__scene-count" aria-live="polite">1/${sceneCount}</span>
+      <button type="button" class="move-review-player__control move-review-player__control--primary" data-move-review-scene-step="1"${
+        sceneCount <= 1 ? ' disabled' : ''
+      }>Next</button>
+    </footer>
+  `;
+}
+
+function renderMoreToCheck(
+  probeRows: MoveReviewPlayerSurfaceRowV1[],
+  authorRows: MoveReviewPlayerAuthorRowV1[],
+  refIndex: MoveReviewRefIndex,
+): string {
+  const probeMarkup = probeRows.map(row => renderCoachSurfaceRow(row, refIndex)).join('');
+  const authorMarkup = authorRows.map(row => renderAuthorRow(row, refIndex)).join('');
+  if (!probeMarkup && !authorMarkup) return '';
+  return `<details class="move-review-coach__details"><summary>More to check</summary>${
+    probeMarkup ? `<div class="move-review-coach__subsection"><h5>Extra lines</h5>${probeMarkup}</div>` : ''
+  }${
+    authorMarkup ? `<div class="move-review-coach__subsection"><h5>Review questions</h5>${authorMarkup}</div>` : ''
+  }</details>`;
+}
+
+function renderRememberSceneBody(
+  html: string,
+  hasCoachSurface: boolean,
+  probeRows: MoveReviewPlayerSurfaceRowV1[],
+  authorRows: MoveReviewPlayerAuthorRowV1[],
+  refIndex: MoveReviewRefIndex,
+): string {
+  const practice = hasCoachSurface
+    ? '<section class="move-review-coach__practice"><strong>Remember this</strong><span>Replay the line, then try to name the idea before checking the note.</span></section>'
+    : '';
+  const coachNotes = html
+    ? `<section class="move-review-coach__section move-review-coach__section--body">${
+        hasCoachSurface ? '<h4>Coach notes</h4>' : ''
+      }<div class="move-review-coach__body">${html}</div></section>`
+    : '';
+  return `${practice}${coachNotes}${renderMoreToCheck(probeRows, authorRows, refIndex)}`;
+}
+
+function buildMoveReviewScenes(
+  html: string,
+  playerSurface: MoveReviewPlayerSurfaceV1,
+  refIndex: MoveReviewRefIndex,
+): MoveReviewScene[] {
+  const titleText = playerSurface.title?.trim() || 'Move review';
+  const decision = renderCoachVerdict(playerSurface.decisionComparison, refIndex);
+  const summaryRows = playerSurface.summaryRows.map(row => renderCoachSurfaceRow(row, refIndex)).join('');
+  const primaryLine = primaryTryLine(playerSurface);
+  const tryLine = renderTryLine(primaryLine, refIndex);
+  const advancedRows = playerSurface.advancedRows.map(row => renderCoachSurfaceRow(row, refIndex)).join('');
+  const planRows = advancedRows || summaryRows;
+
+  const decisionRef = primaryDecisionRef(playerSurface.decisionComparison, refIndex) || firstResolvedSanRef(primaryLine, refIndex);
+  const summaryRef = firstSurfaceRowRef(playerSurface.summaryRows, refIndex) || decisionRef;
+  const planSourceRows = playerSurface.advancedRows.length ? playerSurface.advancedRows : playerSurface.summaryRows;
+  const planRef = firstSurfaceRowRef(planSourceRows, refIndex) || summaryRef;
+  const tryRef = lastResolvedSanRef(primaryLine, refIndex) || planRef;
+  const summarySquare = firstSurfaceSquare(playerSurface.summaryRows);
+  const planSquare = firstSurfaceSquare(planSourceRows) || summarySquare;
+  const hasCoachSurface = !!(decision || summaryRows || tryLine || planRows || playerSurface.probeRows.length || playerSurface.authorRows.length);
+
+  const scenes: MoveReviewScene[] = [
+    {
+      key: 'verdict',
+      label: 'Verdict',
+      title: titleText,
+      kicker: 'Key moment',
+      body:
+        decision ||
+        '<p class="move-review-player__empty">Start from the current position, then move through the coach chapters.</p>',
+      board: boardPayloadForRef(decisionRef),
+      square: summarySquare,
+    },
+  ];
+
+  if (summaryRows) {
+    scenes.push({
+      key: 'why',
+      label: 'Why',
+      title: 'Why it mattered',
+      kicker: 'Human reason',
+      body: `<div class="move-review-coach__reasons">${summaryRows}</div>`,
+      board: boardPayloadForRef(summaryRef),
+      square: summarySquare,
+    });
+  }
+
+  if (planRows) {
+    scenes.push({
+      key: 'plan',
+      label: 'Plan',
+      title: 'What to watch next',
+      kicker: 'Next task',
+      body: `<div class="move-review-coach__reasons">${planRows}</div>`,
+      board: boardPayloadForRef(planRef),
+      square: planSquare,
+    });
+  }
+
+  if (tryLine) {
+    scenes.push({
+      key: 'try',
+      label: 'Try line',
+      title: 'Try the line',
+      kicker: 'Play it through',
+      body: tryLine,
+      board: boardPayloadForRef(tryRef),
+      square: planSquare || summarySquare,
+    });
+  }
+
+  const rememberBody = renderRememberSceneBody(html, hasCoachSurface, playerSurface.probeRows, playerSurface.authorRows, refIndex);
+  if (rememberBody) {
+    scenes.push({
+      key: 'remember',
+      label: 'Remember',
+      title: 'Remember this',
+      kicker: 'Pattern memory',
+      body: rememberBody,
+      board: boardPayloadForRef(tryRef || summaryRef || decisionRef),
+      square: planSquare || summarySquare,
+    });
+  }
+
+  return scenes;
+}
+
 export function decorateMoveReviewHtml(
   html: string,
   refs: MoveReviewRefsV1 | null,
@@ -321,42 +562,21 @@ export function decorateMoveReviewHtml(
 
   const refIndex = buildMoveReviewRefIndex(refs);
   const titleText = playerSurface.title?.trim() || 'Move review';
-  const decision = renderCoachVerdict(playerSurface.decisionComparison, refIndex);
-  const summaryRows = playerSurface.summaryRows.map(row => renderCoachSurfaceRow(row, refIndex)).join('');
-  const advancedRows = playerSurface.advancedRows.map(row => renderCoachSurfaceRow(row, refIndex)).join('');
-  const probeRows = playerSurface.probeRows.map(row => renderCoachSurfaceRow(row, refIndex)).join('');
-  const authorRows = playerSurface.authorRows.map(row => renderAuthorRow(row, refIndex)).join('');
-  const tryLine = renderTryLine(primaryTryLine(playerSurface), refIndex);
-  const hasDeepReview = !!(advancedRows || probeRows || authorRows);
-  const hasCoachSurface = !!(decision || summaryRows || tryLine || hasDeepReview);
+  const scenes = buildMoveReviewScenes(html, playerSurface, refIndex);
+  const sceneCount = scenes.length;
 
   return `
-    <div class="move-review-coach">
+    <div class="move-review-coach move-review-player" data-move-review-player data-scene-index="0">
       <header class="move-review-coach__header">
         <span class="move-review-coach__eyebrow">Key moment</span>
         <h3>${escapeHtml(titleText)}</h3>
       </header>
-      ${decision || ''}
-      ${summaryRows ? `<section class="move-review-coach__section"><h4>Why it mattered</h4><div class="move-review-coach__reasons">${summaryRows}</div></section>` : ''}
-      ${tryLine}
-      <section class="move-review-coach__section move-review-coach__section--body">
-        ${hasCoachSurface ? '<h4>Coach notes</h4>' : ''}
-        <div class="move-review-coach__body">${html}</div>
-      </section>
-      ${
-        summaryRows || decision
-          ? '<section class="move-review-coach__practice"><strong>Remember this</strong><span>Replay the line, then try to name the idea before checking the note.</span></section>'
-          : ''
-      }
-      ${
-        hasDeepReview
-          ? `<details class="move-review-coach__details"><summary>More to check</summary>${advancedRows}${
-              probeRows ? `<div class="move-review-coach__subsection"><h5>Extra lines</h5>${probeRows}</div>` : ''
-            }${
-              authorRows ? `<div class="move-review-coach__subsection"><h5>Review questions</h5>${authorRows}</div>` : ''
-            }</details>`
-          : ''
-      }
+      ${renderSceneNav(scenes)}
+      <div class="move-review-player__stage">
+        <div class="move-review-pv-preview move-review-player__board-preview" aria-label="Current review board"></div>
+        <div class="move-review-player__scene-stack">${scenes.map((scene, idx) => renderScenePanel(scene, idx)).join('')}</div>
+      </div>
+      ${renderSceneControls(sceneCount)}
     </div>
   `;
 }

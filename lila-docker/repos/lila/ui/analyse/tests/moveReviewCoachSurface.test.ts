@@ -77,10 +77,19 @@ describe('moveReview coach surface', () => {
     const html = decorateMoveReviewHtml('<div class="commentary"><p>Main note.</p></div>', refs, playerSurface());
 
     assert.match(html, /move-review-coach/);
+    assert.match(html, /move-review-player/);
+    assert.match(html, /data-move-review-player/);
     assert.match(html, /Key moment/);
     assert.match(html, /Coach verdict/);
     assert.match(html, /Why it mattered/);
+    assert.match(html, /What to watch next/);
     assert.match(html, /Try the line/);
+    assert.match(html, /Remember this/);
+    assert.match(html, /data-move-review-scene="0"/);
+    assert.match(html, /data-move-review-scene-panel/);
+    assert.match(html, /move-review-player__board-preview/);
+    assert.match(html, /data-scene-square="d5"/);
+    assert.match(html, /data-scene-board="8\/8\/8\/8\/8\/5N2\/8\/8 b - - 1 1\|g1f3"/);
     assert.doesNotMatch(html, /authority/i);
     assert.doesNotMatch(html, /diagnostics/i);
     assert.doesNotMatch(html, /Evidence Probes/);

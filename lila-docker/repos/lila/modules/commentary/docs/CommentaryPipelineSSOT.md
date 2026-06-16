@@ -202,7 +202,11 @@ Section labels may improve player hierarchy, but row label/text/diagnostics do
 not create chess families. Move chips consume `refSans`/resolved refs for
 displayed SAN while preserving order and repeated SAN tokens. A chip may carry
 the exact preview board payload only when it is derived from the same resolved
-ref; authoring row labels are not move identity authority.
+ref; authoring row labels are not move identity authority. The interactive
+review player derives Verdict/Why/Plan/Try/Remember scenes from that same
+player surface and resolved-ref index; scene board payloads, target squares, and
+chapter labels are UI state for board synchronization, not additional claim
+authority.
 Opening-goal outpost context does not create a separate player-facing opening
 outpost family. Its `Achieved` status requires post-move board proof of the
 pawn-supported e4 outpost square; if the durable outpost proof succeeds, it
