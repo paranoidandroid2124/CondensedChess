@@ -744,11 +744,13 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
     assertEquals(staleTrapped, None, clue("trapped-piece motif without replayed post-move board attack should stay closed"))
   }
 
-  test("endgame activity descriptors cover exact passed-pawn and rook-activity PVs") {
+  test("endgame activity descriptors cover exact passed-pawn and rook-behind-passer PVs") {
     val passedPawnFen =
       "8/4k3/8/8/8/8/4P3/4K3 w - - 0 1"
     val rookFen =
-      "4k3/8/8/8/8/8/R3P3/4K3 w - - 0 1"
+      "6k1/8/1P6/8/8/R7/8/6K1 w - - 0 1"
+    val frontRookFen =
+      "6k1/R7/1P6/8/8/8/8/6K1 w - - 0 1"
     val passedPawn =
       CommentaryIdeaSurface
         .describe(
@@ -760,9 +762,9 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
     val rookActivity =
       CommentaryIdeaSurface
         .describe(
-          played("a2a7", "Ra7", Square.A2, Square.A7, Piece(Color.White, Rook)),
+          played("a3b3", "Rb3", Square.A3, Square.B3, Piece(Color.White, Rook)),
           evidence(facts = List(Fact.RookEndgamePattern("RookBehindPassedPawn", FactScope.CandidatePv))),
-          Some(exactLineFacts(rookFen, "a2a7", List("a2a7", "e8d8", "a7a8"), List("Ra7", "Kd8", "Ra8"), "rook_activity"))
+          Some(exactLineFacts(rookFen, "a3b3", List("a3b3", "g8f8"), List("Rb3", "Kf8"), "rook_activity"))
         )
         .getOrElse(fail("expected exact rook-activity descriptor"))
 
@@ -772,7 +774,17 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
     assert(passedPawn.confirms.contains("endgame_activity"), clue(passedPawn.confirms))
     assertEquals(rookActivity.reviewIntent, "improves_endgame_activity", clue(rookActivity))
     assert(rookActivity.reasonTags.contains("rook_endgame_pattern"), clue(rookActivity.reasonTags))
-    assert(rookActivity.learningPoint.exists(_.contains("Ra8")), clue(rookActivity.learningPoint))
+    assert(rookActivity.localFact.anchors.exists(anchor => anchor.key == "rook_square" && anchor.value == "b3"), clue(rookActivity.localFact))
+    assert(rookActivity.localFact.anchors.exists(anchor => anchor.key == "passed_pawn_square" && anchor.value == "b6"), clue(rookActivity.localFact))
+
+    val staleRookPattern =
+      CommentaryIdeaSurface.describe(
+        played("a7b7", "Rb7", Square.A7, Square.B7, Piece(Color.White, Rook)),
+        evidence(facts = List(Fact.RookEndgamePattern("RookBehindPassedPawn", FactScope.CandidatePv))),
+        Some(exactLineFacts(frontRookFen, "a7b7", List("a7b7", "g8f8"), List("Rb7", "Kf8"), "rook_activity"))
+      )
+
+    assertEquals(staleRookPattern, None, clue("rook pattern fact without a rook-behind-passer after-board should stay closed"))
   }
 
   test("capture descriptors stay PV-backed and owned by the idea surface") {

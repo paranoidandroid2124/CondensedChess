@@ -2283,38 +2283,43 @@ private[commentary] object CommentaryIdeaSurface:
       characterBand: MoveCharacterBand,
       @unused truthContract: Option[DecisiveTruthContract]
   ): Option[MoveReviewIdeaDescriptor] =
-    lineFacts.filter(_ => ownedEndgameFacts(played, evidence).nonEmpty).map { line =>
-      val ownedFacts = ownedEndgameFacts(played, evidence)
-      descriptor(
-        ideaKind = "endgame_activity",
-        reviewIntent = "improves_endgame_activity",
-        moveCharacterBand = characterBand,
-        source = "canonical_fact",
-        title = s"${played.san} has an endgame fact",
-        baseProse = endgameFactProse(played, ownedFacts),
-        reasonTags = evidenceTags(evidence.facts, evidence.motifs),
-        linePurpose = Some("improve_endgame_activity"),
-        lineProof = lineProof("endgame_activity", played, line),
-        played = played,
-        evidence = evidence,
-        lineFacts = lineFacts,
-        requiresPvForAdmission = true,
-        localFact = admittedLocalFact(LocalFactCandidate(
-          family = LocalFactFamily.Endgame,
-          source = LocalFactSource.CanonicalFact,
-          producer = LocalFactProducer.EndgameFact,
-          subject = LocalFactSubject.Endgame,
-          strictFallbackCandidate = true,
-          anchors = endgameAnchors(played, ownedFacts),
-          lineBinding = LocalFactLineBinding.PvCoupled,
-          evidenceRefs = endgameEvidenceRefs(ownedFacts),
-          guardrails = List("endgame_fact_owned_by_played_move", "pv_coupled") ++ endgameEvidenceRefs(ownedFacts)
-        )),
-        factFragments = List(FactFragment.EndgameFragment(
-          san = played.san,
-          facts = ownedFacts.map(_.toString)
-        ))
-      )
+    lineFacts.flatMap { line =>
+      val ownedFacts = ownedEndgameFacts(played, evidence, line)
+      Option.when(ownedFacts.nonEmpty) {
+        descriptor(
+          ideaKind = "endgame_activity",
+          reviewIntent = "improves_endgame_activity",
+          moveCharacterBand = characterBand,
+          source = "canonical_fact",
+          title = s"${played.san} has an endgame fact",
+          baseProse = endgameFactProse(played, ownedFacts),
+          reasonTags = evidenceTags(evidence.facts, evidence.motifs),
+          linePurpose = Some("improve_endgame_activity"),
+          lineProof = lineProof("endgame_activity", played, line),
+          played = played,
+          evidence = evidence,
+          lineFacts = Some(line),
+          requiresPvForAdmission = true,
+          localFact = admittedLocalFact(LocalFactCandidate(
+            family = LocalFactFamily.Endgame,
+            source = LocalFactSource.CanonicalFact,
+            producer = LocalFactProducer.EndgameFact,
+            subject = LocalFactSubject.Endgame,
+            strictFallbackCandidate = true,
+            anchors = endgameAnchors(played, ownedFacts) ++ lineEndgameAnchors(played, ownedFacts, line),
+            lineBinding = LocalFactLineBinding.PvCoupled,
+            evidenceRefs = endgameEvidenceRefs(ownedFacts) ++ lineEndgameEvidenceRefs(played, ownedFacts, line),
+            guardrails =
+              List("endgame_fact_owned_by_played_move", "pv_coupled") ++
+                endgameEvidenceRefs(ownedFacts) ++
+                lineEndgameEvidenceRefs(played, ownedFacts, line)
+          )),
+          factFragments = List(FactFragment.EndgameFragment(
+            san = played.san,
+            facts = ownedFacts.map(_.toString)
+          ))
+        )
+      }
     }
 
   private def endgameFactProse(played: PlayedMove, facts: List[Fact]): String =
@@ -2415,6 +2420,37 @@ private[commentary] object CommentaryIdeaSurface:
         List("endgame_fact:pawn_promotion", s"promotion_square:${fact.square.key}")
       case _ => Nil
     }.distinct
+
+  private def lineEndgameAnchors(
+      played: PlayedMove,
+      facts: List[Fact],
+      line: MoveReviewPvLine.LineFacts
+  ): List[LocalFactAnchor] =
+    facts.collect {
+      case fact: Fact.RookEndgamePattern if normalizedRookPattern(fact).contains("rookbehindpassedpawn") =>
+        rookBehindPassedPawnAfterPlayed(played, line).map { pawn =>
+          List(
+            LocalFactAnchor("rook_square", played.to.key),
+            LocalFactAnchor("passed_pawn_square", pawn.key)
+          )
+        }
+    }.flatten.flatten.distinct
+
+  private def lineEndgameEvidenceRefs(
+      played: PlayedMove,
+      facts: List[Fact],
+      line: MoveReviewPvLine.LineFacts
+  ): List[String] =
+    facts.collect {
+      case fact: Fact.RookEndgamePattern if normalizedRookPattern(fact).contains("rookbehindpassedpawn") =>
+        rookBehindPassedPawnAfterPlayed(played, line).map { pawn =>
+          List(
+            "endgame_fact:rook_behind_passed_pawn_line",
+            s"rook_square:${played.to.key}",
+            s"passed_pawn_square:${pawn.key}"
+          )
+        }
+    }.flatten.flatten.distinct
 
   private def descriptor(
       ideaKind: String,
@@ -3399,7 +3435,8 @@ private[commentary] object CommentaryIdeaSurface:
 
   private def ownedEndgameFacts(
       played: PlayedMove,
-      evidence: MoveReviewEvidence
+      evidence: MoveReviewEvidence,
+      line: MoveReviewPvLine.LineFacts
   ): List[Fact] =
     evidence.endgameFacts.filter {
       case fact: Fact.KingActivity =>
@@ -3411,14 +3448,46 @@ private[commentary] object CommentaryIdeaSurface:
           (played.role == chess.Pawn && fact.targetPawn == played.to)
       case _: Fact.TriangulationOpportunity =>
         played.role == King
-      case _: Fact.RookEndgamePattern =>
-        played.role == chess.Rook
+      case fact: Fact.RookEndgamePattern =>
+        played.role == chess.Rook && rookEndgamePatternOwnedByLine(played, fact, line)
       case fact: Fact.PawnPromotion =>
         played.role == chess.Pawn && fact.square == played.to
       case _: Fact.Zugzwang =>
         played.role == King
       case _ => false
     }
+
+  private def rookEndgamePatternOwnedByLine(
+      played: PlayedMove,
+      fact: Fact.RookEndgamePattern,
+      line: MoveReviewPvLine.LineFacts
+  ): Boolean =
+    normalizedRookPattern(fact) match
+      case Some("rookbehindpassedpawn") => rookBehindPassedPawnAfterPlayed(played, line).nonEmpty
+      case _                            => false
+
+  private def normalizedRookPattern(fact: Fact.RookEndgamePattern): Option[String] =
+    Option(fact.pattern).map(_.trim.toLowerCase.replaceAll("""[^a-z0-9]+""", "")).filter(_.nonEmpty)
+
+  private def rookBehindPassedPawnAfterPlayed(
+      played: PlayedMove,
+      line: MoveReviewPvLine.LineFacts
+  ): Option[Square] =
+    Fen.read(Standard, Fen.Full(line.first.fenAfter)).flatMap { position =>
+      val board = position.board
+      if board.occupied.count > 12 then None
+      else if !board.pieceAt(played.to).exists(piece => piece.color == played.color && piece.role == chess.Rook) then None
+      else
+        PositionAnalyzer
+          .passedPawns(played.color, pawnsFor(board, played.color), pawnsFor(board, !played.color))
+          .filter(_.file == played.to.file)
+          .filter(pawn => if played.color.white then played.to.rank.value < pawn.rank.value else played.to.rank.value > pawn.rank.value)
+          .sortBy(pawn => math.abs(pawn.rank.value - played.to.rank.value))
+          .headOption
+    }
+
+  private def pawnsFor(board: chess.Board, color: chess.Color): Bitboard =
+    board.pawns & board.byColor(color)
 
   private object PvMeaning:
     def classifyOpeningPurpose(

@@ -255,6 +255,8 @@ claims, and the MoveReview strategic ledger does not use those pattern or
 transition strings as structured motif tokens or carry-over emitters. Lexicon
 endgame-pattern prefix templates and positional-tag motif promotion for
 rook-behind-passer / king-cut-off labels are not public authority paths.
+Participant-free `RookEndgamePattern` facts require replay-derived rook and
+passed-pawn anchors before BasicExplanation may surface them.
 Endgame continuity/transition prose renders board-structure anchors rather than
 the raw theorem or oracle pattern id. Player-surface `Endgame cue` rows are
 support-only context and do not carry `practical_plan` authority.

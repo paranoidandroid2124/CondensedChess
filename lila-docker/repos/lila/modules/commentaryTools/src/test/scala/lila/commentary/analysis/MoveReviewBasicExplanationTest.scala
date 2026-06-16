@@ -1266,7 +1266,9 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
     val passedPawnFen =
       "8/4k3/8/8/8/8/4P3/4K3 w - - 0 1"
     val rookFen =
-      "4k3/8/8/8/8/8/R3P3/4K3 w - - 0 1"
+      "6k1/8/1P6/8/8/R7/8/6K1 w - - 0 1"
+    val frontRookFen =
+      "6k1/R7/1P6/8/8/8/8/6K1 w - - 0 1"
     val passedPawn =
       MoveReviewExplanationBuilder
         .build(
@@ -1287,22 +1289,35 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
         .build(
           ctx(
             fen = rookFen,
-            playedMove = "a2a7",
-            playedSan = "Ra7",
+            playedMove = "a3b3",
+            playedSan = "Rb3",
             phase = "Endgame",
             ply = 60,
             phaseReason = "rook activity",
             candidateFacts = List(Fact.RookEndgamePattern("RookBehindPassedPawn", FactScope.CandidatePv))
           ),
-          Some(refsForLine(rookFen, List("a2a7", "e8d8", "a7a8"), List("Ra7", "Kd8", "Ra8")))
+          Some(refsForLine(rookFen, List("a3b3", "g8f8"), List("Rb3", "Kf8")))
         )
         .getOrElse(fail("expected exact rook endgame explanation"))
+    val staleRookPattern =
+      MoveReviewExplanationBuilder.build(
+        ctx(
+          fen = frontRookFen,
+          playedMove = "a7b7",
+          playedSan = "Rb7",
+          phase = "Endgame",
+          ply = 60,
+          phaseReason = "stale rook activity",
+          candidateFacts = List(Fact.RookEndgamePattern("RookBehindPassedPawn", FactScope.CandidatePv))
+        ),
+        Some(refsForLine(frontRookFen, List("a7b7", "g8f8"), List("Rb7", "Kf8")))
+      )
 
     assertEquals(passedPawn.pvInterpretation.map(_.linePurpose), Some("improve_endgame_activity"), clue(passedPawn))
     assert(passedPawn.reasonTags.contains("pawn_promotion"), clue(passedPawn.reasonTags))
     assertEquals(rookActivity.pvInterpretation.map(_.linePurpose), Some("improve_endgame_activity"), clue(rookActivity))
     assert(rookActivity.reasonTags.contains("rook_endgame_pattern"), clue(rookActivity.reasonTags))
-    assert(rookActivity.pvInterpretation.exists(_.learningPoint.contains("Ra8")), clue(rookActivity.pvInterpretation))
+    assertEquals(staleRookPattern, None, clue(staleRookPattern))
   }
 
   test("phase-only endgame move stays closed without exact facts") {

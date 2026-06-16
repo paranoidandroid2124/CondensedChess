@@ -204,7 +204,9 @@ Endgame fallback prose may name `KingActivity` or `Opposition` fields already
 present in canonical fact evidence; those typed fields remain fallback truth
 projection unless a separate causal owner admits them. Scoped checked-line
 takeaways may use the admitted local-fact anchors for the same fields, not row
-text or guardrail strings. Oracle-only theoretical endgame outcome hints are
+text or guardrail strings. `RookEndgamePattern` fallback truth additionally
+requires replay-derived rook-square and passed-pawn anchors because the raw fact
+has no square participants. Oracle-only theoretical endgame outcome hints are
 not public win/draw truth; absent tablebase/eval/PV result evidence, public
 context and transition prose must expose the result side as `Unclear`.
 Castling fallback prose follows the same rule: it may name the after-FEN

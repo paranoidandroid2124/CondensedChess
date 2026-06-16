@@ -17,7 +17,9 @@ advantage do not by themselves assert that conversion, draw, or simplification
 has been achieved.
 Endgame fallback descriptors require the played move to own the typed square
 anchor; role-only king or pawn movement does not admit opposition or
-rule-of-square claims.
+rule-of-square claims. `RookEndgamePattern` facts have no square participants,
+so BasicExplanation admits them only when the checked line's after-board also
+anchors the played rook behind the passed pawn.
 
 ## Risk Gates
 
