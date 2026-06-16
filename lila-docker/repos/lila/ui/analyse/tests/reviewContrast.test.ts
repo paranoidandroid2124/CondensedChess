@@ -498,6 +498,9 @@ describe('review shell contrast palette', () => {
     [...homeScss.matchAll(/letter-spacing:\s*([^;]+);/g)].forEach(match =>
       assert.equal(match[1]!.trim(), '0', `home letter-spacing must be 0, got ${match[1]}`),
     );
+    [...landingScss.matchAll(/letter-spacing:\s*([^;]+);/g)].forEach(match =>
+      assert.equal(match[1]!.trim(), '0', `landing letter-spacing must be 0, got ${match[1]}`),
+    );
     assert.match(journalScss, /\$journal-bg-light:\s*#171816;/);
     assert.match(journalScss, /\$journal-primary-light:\s*#8bc071;/);
     [...journalScss.matchAll(/letter-spacing:\s*([^;]+);/g)].forEach(match =>

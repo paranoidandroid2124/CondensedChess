@@ -106,7 +106,7 @@ html {
     font-size: 1.25rem;
     text-decoration: none;
     color: inherit;
-    letter-spacing: 0.02em;
+    letter-spacing: 0;
     font-weight: 800;
     text-transform: uppercase;
   }
@@ -248,7 +248,7 @@ html {
   gap: 0.55rem;
   font-size: 0.86rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
   text-transform: uppercase;
   color: $landing-primary-strong;
 
@@ -320,7 +320,7 @@ html {
     padding: 0 0.72rem;
     border-radius: 999px;
     font-size: 0.82rem;
-    letter-spacing: 0.03em;
+    letter-spacing: 0;
     font-weight: 700;
     color: $landing-primary-strong;
     background: rgba($landing-primary, 0.14);
@@ -345,7 +345,7 @@ html {
   margin: 0;
   font-size: 0.78rem;
   font-weight: 800;
-  letter-spacing: 0.09em;
+  letter-spacing: 0;
   text-transform: uppercase;
   color: $landing-primary-strong;
 }
@@ -443,7 +443,7 @@ html {
 .hero-surface-kicker {
   font-size: 0.78rem;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
   text-transform: uppercase;
   color: $landing-primary-strong;
 }
@@ -513,7 +513,7 @@ html {
   border-radius: 999px;
   font-size: 0.74rem;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
   font-weight: 800;
   color: $landing-primary-strong;
   background: rgba($landing-surface-light, 0.92);
@@ -664,7 +664,7 @@ html {
     color: $landing-secondary;
     font-size: 0.78rem;
     font-weight: 800;
-    letter-spacing: 0.06em;
+    letter-spacing: 0;
     text-transform: uppercase;
   }
 
@@ -706,7 +706,7 @@ html {
   color: $landing-secondary;
   font-size: 0.8rem;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 
@@ -851,7 +851,7 @@ html {
 
 .journal-strip-note {
   font-size: 0.84rem;
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
 }
 
 .sample-note {
@@ -865,7 +865,7 @@ html {
     font-weight: 700;
     color: $landing-primary-strong;
     font-size: 0.93rem;
-    letter-spacing: 0.04em;
+    letter-spacing: 0;
   }
 
   p {
@@ -899,7 +899,7 @@ html {
   font-size: 0.78rem;
   font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
   color: $landing-primary-strong;
 }
 
@@ -990,7 +990,7 @@ html {
   margin: 0;
   font-size: 0.78rem;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
   text-transform: uppercase;
   color: $landing-primary-strong;
 }
@@ -1023,7 +1023,7 @@ html {
     border-radius: 999px;
     font-size: 0.74rem;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0;
     font-weight: 700;
     color: $landing-primary-strong;
     background: rgba($landing-primary, 0.13);
@@ -1048,7 +1048,7 @@ html {
     color: $landing-secondary;
     font-size: 0.77rem;
     font-weight: 800;
-    letter-spacing: 0.06em;
+    letter-spacing: 0;
     text-transform: uppercase;
   }
 
@@ -1064,7 +1064,7 @@ html {
 .section-kicker {
   margin: 0 0 0.9rem;
   font-size: 0.81rem;
-  letter-spacing: 0.11em;
+  letter-spacing: 0;
   text-transform: uppercase;
   font-weight: 800;
   color: $landing-primary-strong;
@@ -1103,7 +1103,7 @@ html {
   color: $landing-secondary;
   font-size: 0.84rem;
   font-weight: 800;
-  letter-spacing: 0.06em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 
@@ -1115,7 +1115,7 @@ html {
   padding: 0 0.5rem;
   border-radius: 999px;
   font-size: 0.73rem;
-  letter-spacing: 0.05em;
+  letter-spacing: 0;
   text-transform: uppercase;
   font-weight: 700;
   color: $landing-primary-strong;
@@ -1136,7 +1136,7 @@ html {
     font-size: 0.82rem;
     font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: 0.09em;
+    letter-spacing: 0;
     color: $landing-primary-strong;
   }
 
@@ -1224,7 +1224,7 @@ html {
     color: $landing-primary-strong;
     font-weight: 800;
     font-size: 0.86rem;
-    letter-spacing: 0.05em;
+    letter-spacing: 0;
   }
 
   h3 {
@@ -1245,7 +1245,7 @@ html {
     font-size: 0.82rem;
     line-height: 1.4;
     font-weight: 700;
-    letter-spacing: 0.02em;
+    letter-spacing: 0;
     color: $landing-primary-strong;
   }
 }
@@ -1268,7 +1268,7 @@ html {
     font-size: 0.82rem;
     font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: 0.09em;
+    letter-spacing: 0;
     color: $landing-primary-strong;
   }
 
@@ -1299,7 +1299,7 @@ html {
       border-radius: 999px;
       font-size: 0.74rem;
       text-transform: uppercase;
-      letter-spacing: 0.04em;
+      letter-spacing: 0;
       font-weight: 700;
       color: $landing-secondary;
       background: rgba($landing-secondary, 0.11);
@@ -1350,7 +1350,7 @@ html {
 .metric-value {
   color: $landing-primary-strong;
   font-weight: 800;
-  letter-spacing: 0.01em;
+  letter-spacing: 0;
   text-align: right;
 }
 
@@ -1416,7 +1416,7 @@ html {
   color: $landing-primary-strong;
   font-size: 0.8rem;
   font-weight: 800;
-  letter-spacing: 0.12em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 
