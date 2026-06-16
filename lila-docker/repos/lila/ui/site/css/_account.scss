@@ -13,6 +13,7 @@ $c-primary: #8bc071;
 $c-primary-strong: #b4d99a;
 $c-warm: #e3b15b;
 $c-bad: #d96f66;
+$c-bad-strong: #c75f57;
 
 .account-page {
     min-height: 100vh;
@@ -257,7 +258,7 @@ $c-bad: #d96f66;
 
 .btn-danger {
     background: $c-bad;
-    color: #fff;
+    color: $c-bg-page;
     border: none;
     padding: 0.75rem 1.5rem;
     border-radius: 8px;
@@ -268,7 +269,7 @@ $c-bad: #d96f66;
     font-size: 1rem;
 
     &:hover {
-        background: #DC2626;
+        background: $c-bad-strong;
         transform: translateY(-2px);
     }
 }
