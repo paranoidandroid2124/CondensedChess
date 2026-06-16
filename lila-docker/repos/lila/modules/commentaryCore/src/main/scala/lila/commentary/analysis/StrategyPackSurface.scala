@@ -585,10 +585,15 @@ private[commentary] object StrategyPackSurface:
 
   private def payoffSignalTexts(surface: Snapshot): List[String] =
     (
-      surface.longTermFocus.toList ++
-        surface.evidenceHints ++
-        surface.compensationSummary.toList ++
-        surface.compensationVectors
+      List(
+        surface.rawDominantIdeaText,
+        surface.rawSecondaryIdeaText,
+        surface.rawExecutionText,
+        surface.topDirectionalTarget.flatMap(targetText)
+      ).flatten ++
+        surface.allRoutes.flatMap(routeText) ++
+        surface.allMoveRefs.flatMap(moveRefText) ++
+        surface.allDirectionalTargets.flatMap(targetText)
     ).map(normalizeText).filter(_.nonEmpty).map(_.toLowerCase).distinct
 
   private def displaySignalTexts(surface: Snapshot): List[String] =
@@ -597,9 +602,8 @@ private[commentary] object StrategyPackSurface:
         surface.rawDominantIdeaText,
         surface.rawSecondaryIdeaText,
         surface.rawExecutionText,
-        surface.compensationSummary
+        surface.topDirectionalTarget.flatMap(targetText)
       ).flatten ++
-        surface.compensationVectors ++
         surface.allRoutes.flatMap(routeText) ++
         surface.allMoveRefs.flatMap(moveRefText) ++
         surface.allDirectionalTargets.flatMap(targetText)
@@ -678,14 +682,10 @@ private[commentary] object StrategyPackSurface:
           )
         )
       ) * 3
-    val vectorScore =
-      surface.compensationVectors.count(vector =>
-        containsAny(normalizeText(vector).toLowerCase, List("line pressure", "open file", "file pressure"))
-      ) * 2
     val dominantScore =
       (if surface.dominantIdea.exists(_.kind == StrategicIdeaKind.LineOccupation) then 2 else 0) +
         (if surface.secondaryIdea.exists(_.kind == StrategicIdeaKind.LineOccupation) then 1 else 0)
-    focusScore + vectorScore + dominantScore
+    focusScore + dominantScore
 
   private def payoffPressureMode(
       surface: Snapshot,
@@ -1332,8 +1332,7 @@ private[commentary] object StrategyPackSurface:
       normalizedMode: String,
       signalTexts: List[String]
   ): String =
-    val recoveryTexts =
-      signalTexts ++ surface.longTermFocus.toList.map(normalizeText).filter(_.nonEmpty).map(_.toLowerCase)
+    val recoveryTexts = signalTexts
     val quietDurableMode =
       Set("line_occupation", "target_fixing", "counterplay_denial", "defender_tied_down").contains(normalizedMode)
     val explicitDeferred =
@@ -1505,20 +1504,24 @@ private[commentary] object StrategyPackSurface:
     Option.when(
       compensationSummary.exists(_.nonEmpty) || compensationVectors.nonEmpty || investedMaterial.exists(_ > 0)
     ) {
-      val texts =
+      val typedTexts =
         List(
           dominantIdea.flatMap(ideaText),
           secondaryIdea.flatMap(ideaText),
           topRoute.flatMap(routeText),
           topMoveRef.flatMap(moveRefText),
-          topDirectionalTarget.flatMap(targetText),
-          longTermFocus,
-          compensationSummary
+          topDirectionalTarget.flatMap(targetText)
         ).flatten.map(normalizeText).filter(_.nonEmpty) ++
           allRoutes.flatMap(routeText).map(normalizeText).filter(_.nonEmpty) ++
           allMoveRefs.flatMap(moveRefText).map(normalizeText).filter(_.nonEmpty) ++
           allDirectionalTargets.flatMap(targetText).map(normalizeText).filter(_.nonEmpty)
-      val lowered = (texts ++ compensationVectors.map(normalizeText)).map(_.toLowerCase)
+      val contextTexts =
+        List(
+          longTermFocus,
+          compensationSummary
+        ).flatten.map(normalizeText).filter(_.nonEmpty)
+      val lowered = (typedTexts ++ contextTexts ++ compensationVectors.map(normalizeText)).map(_.toLowerCase)
+      val typedLowered = typedTexts.map(_.toLowerCase)
       val dominantKind = dominantIdea.map(_.kind)
       val secondaryKind = secondaryIdea.map(_.kind)
       val basePressureTheater =
@@ -1529,7 +1532,7 @@ private[commentary] object StrategyPackSurface:
           allRoutes.exists(route =>
             containsAny(normalizeText(route.purpose).toLowerCase, List("open-file occupation", "file occupation", "file pressure", "open file"))
           ) ||
-          lowered.exists(text =>
+          typedLowered.exists(text =>
             containsAny(
               text,
               List("line pressure", "file pressure", "open file", "semi open", "file control", "line control", "open line", "occupy the open file")
@@ -1542,7 +1545,7 @@ private[commentary] object StrategyPackSurface:
             moveRef.evidence.map(normalizeText).map(_.toLowerCase).contains("target_pawn") ||
               containsAny(normalizeText(moveRef.idea).toLowerCase, List("contest the pawn", "fixed target", "fixed pawn", "weak pawn"))
           ) ||
-          lowered.exists(text =>
+          typedLowered.exists(text =>
             containsAny(
               text,
               List("target fixing", "fixed target", "fixed targets", "minority attack", "weak target", "backward pawn", "attacking fixed pawn", "fixed pawn", "fix the")
@@ -1551,11 +1554,11 @@ private[commentary] object StrategyPackSurface:
       val breakAnchor =
         dominantKind.contains(StrategicIdeaKind.PawnBreak) ||
           secondaryKind.contains(StrategicIdeaKind.PawnBreak) ||
-          lowered.exists(text => containsAny(text, List("break", "hook", "pawn storm", "scaffold")))
+          typedLowered.exists(text => containsAny(text, List("break", "hook", "pawn storm", "scaffold")))
       val counterplayAnchor =
         dominantKind.contains(StrategicIdeaKind.CounterplaySuppression) ||
           secondaryKind.contains(StrategicIdeaKind.CounterplaySuppression) ||
-          lowered.exists(text =>
+          typedLowered.exists(text =>
             containsAny(text, List("counterplay", "deny counterplay", "denying counterplay", "cannot breathe", "clamp"))
           )
       def ideaHasConversionAnchor(idea: Option[StrategyIdeaSignal]): Boolean =
@@ -1576,13 +1579,18 @@ private[commentary] object StrategyPackSurface:
       val conversionIdeaAnchor = dominantConversionAnchor || secondaryConversionAnchor
       val conversionAnchor =
         conversionIdeaAnchor ||
-          lowered.exists(text => containsAny(text, List("cash out", "transition", "transform", "trade down", "conversion")))
+          typedLowered.exists(text => containsAny(text, List("cash out", "transition", "transform", "trade down", "conversion")))
       val defenderAnchor =
         dominantKind.contains(StrategicIdeaKind.KingAttackBuildUp) ||
           secondaryKind.contains(StrategicIdeaKind.KingAttackBuildUp) ||
-          lowered.exists(text => containsAny(text, List("tied down", "tied to", "passive defense", "passive shell", "defender")))
+          typedLowered.exists(text => containsAny(text, List("tied down", "tied to", "passive defense", "passive shell", "defender")))
+      val delayedRecoverySource =
+        List(dominantIdea, secondaryIdea).flatten.exists { signal =>
+          signal.evidenceRefs.map(normalizeText).map(_.toLowerCase).contains("source:delayed_recovery_window")
+        }
       val delayedSignal =
-        lowered.exists(text => containsAny(text, List("delayed recovery", "delay recovery", "delay material recovery")))
+        delayedRecoverySource ||
+          typedLowered.exists(text => containsAny(text, List("delayed recovery", "delay recovery", "delay material recovery")))
       val structuralTargetPressure =
         allMoveRefs.exists(moveRef =>
           moveRef.evidence.map(normalizeText).map(_.toLowerCase).contains("target_pawn") ||
@@ -1611,12 +1619,12 @@ private[commentary] object StrategyPackSurface:
           !conversionAnchor
 
       val lineScore =
-        scoreModeAnchor(dominantKind, secondaryKind, StrategicIdeaKind.LineOccupation, lineAnchor, lowered, pressureTheater)
+        scoreModeAnchor(dominantKind, secondaryKind, StrategicIdeaKind.LineOccupation, lineAnchor, typedLowered, pressureTheater)
       val targetScore =
-        scoreModeAnchor(dominantKind, secondaryKind, StrategicIdeaKind.TargetFixing, targetAnchor, lowered, pressureTheater) +
+        scoreModeAnchor(dominantKind, secondaryKind, StrategicIdeaKind.TargetFixing, targetAnchor, typedLowered, pressureTheater) +
           Option.when(
             pressureTheater == "queenside" &&
-              lowered.exists(text =>
+              typedLowered.exists(text =>
                 containsAny(text, List("minority attack", "weak target", "backward pawn", "attacking fixed pawn", "fixed queenside", "queenside targets"))
               )
           )(1).getOrElse(0) +
@@ -1629,20 +1637,20 @@ private[commentary] object StrategyPackSurface:
               )
           )(2).getOrElse(0)
       val counterplayScore =
-        scoreModeAnchor(dominantKind, secondaryKind, StrategicIdeaKind.CounterplaySuppression, counterplayAnchor, lowered, pressureTheater)
+        scoreModeAnchor(dominantKind, secondaryKind, StrategicIdeaKind.CounterplaySuppression, counterplayAnchor, typedLowered, pressureTheater)
       val breakScore =
-        scoreModeAnchor(dominantKind, secondaryKind, StrategicIdeaKind.PawnBreak, breakAnchor, lowered, pressureTheater)
+        scoreModeAnchor(dominantKind, secondaryKind, StrategicIdeaKind.PawnBreak, breakAnchor, typedLowered, pressureTheater)
       val conversionScore =
         scoreModeAnchor(
           dominantKind.filter(_ => dominantConversionAnchor),
           secondaryKind.filter(_ => secondaryConversionAnchor),
           StrategicIdeaKind.FavorableTradeOrTransformation,
           conversionAnchor,
-          lowered,
+          typedLowered,
           pressureTheater
         )
       val defenderScore =
-        scoreModeAnchor(dominantKind, secondaryKind, StrategicIdeaKind.KingAttackBuildUp, defenderAnchor, lowered, pressureTheater)
+        scoreModeAnchor(dominantKind, secondaryKind, StrategicIdeaKind.KingAttackBuildUp, defenderAnchor, typedLowered, pressureTheater)
 
       val pressureMode =
         if attackLedKingside && breakAnchor then "break_preparation"
@@ -1654,7 +1662,6 @@ private[commentary] object StrategyPackSurface:
         else if breakScore > 0 then "break_preparation"
         else if conversionScore > 0 then "conversion_window"
         else if defenderScore > 0 then "defender_tied_down"
-        else if compensationVectors.exists(_.toLowerCase.contains("line pressure")) then "line_occupation"
         else "defender_tied_down"
 
       val recoveryPolicy =

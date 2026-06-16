@@ -249,6 +249,9 @@ shape labels unless a separate result or conversion proof is present.
 Strategy idea labels and compensation subtype selection likewise treat
 rook-endgame, endgame-technique, and passed-pawn motif sources as cues, not
 conversion authority, until an exchange/transformation proof source is present.
+Compensation summary, vector, and long-term-focus prose can describe the display
+context, but subtype family, recovery, and stability anchors come from typed
+ideas, routes, move refs, or directional targets.
 Pattern ids that contain `Breakthrough` are likewise rendered as entry or
 passer-route shapes unless current board/PV/tablebase evidence proves the
 breakthrough result.

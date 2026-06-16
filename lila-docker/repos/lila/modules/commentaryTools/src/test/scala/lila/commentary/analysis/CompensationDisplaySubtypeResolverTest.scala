@@ -302,6 +302,19 @@ class CompensationDisplaySubtypeResolverTest extends FunSuite:
       )
     )
 
+  private def proseOnlyLinePressureCompensationPack: StrategyPack =
+    StrategyPack(
+      sideToMove = "white",
+      longTermFocus = List("open-file pressure before recovering the material"),
+      signalDigest = Some(
+        NarrativeSignalDigest(
+          compensation = Some("return vector through line pressure and delayed recovery"),
+          compensationVectors = List("Line Pressure (0.8)", "Delayed Recovery (0.7)"),
+          investedMaterial = Some(100)
+        )
+      )
+    )
+
   test("resolver prefers payoff subtype for fixed-target compensation shell") {
     val surface = StrategyPackSurface.from(Some(benkoLikeCompensationPack))
     val rawSubtype = surface.compensationSubtype.getOrElse(fail("missing raw subtype"))
@@ -368,4 +381,15 @@ class CompensationDisplaySubtypeResolverTest extends FunSuite:
     assertEquals(surface.dominantIdea.map(StrategicIdeaSelector.playerFacingIdeaText), Some("passed-pawn cue around e6"))
     assertNotEquals(rawSubtype.pressureMode, "conversion_window")
     assertNotEquals(rawSubtype.stabilityClass, "transition_only")
+  }
+
+  test("line-pressure prose alone is not a compensation line-occupation anchor") {
+    val surface = StrategyPackSurface.from(Some(proseOnlyLinePressureCompensationPack))
+    val rawSubtype = surface.compensationSubtype.getOrElse(fail("missing raw subtype"))
+    val effectiveSubtype = surface.effectiveCompensationSubtype.getOrElse(fail("missing effective subtype"))
+
+    assertNotEquals(rawSubtype.pressureMode, "line_occupation")
+    assertNotEquals(rawSubtype.stabilityClass, "durable_pressure")
+    assertNotEquals(effectiveSubtype.pressureMode, "line_occupation")
+    assertNotEquals(effectiveSubtype.stabilityClass, "durable_pressure")
   }
