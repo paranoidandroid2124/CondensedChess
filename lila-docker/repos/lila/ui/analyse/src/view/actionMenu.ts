@@ -82,10 +82,10 @@ export function boardSettingsView(ctrl: AnalyseCtrl, opts: BoardSettingsOpts = {
 function boardWorkspaceView(ctrl: AnalyseCtrl, closeMenu: () => void): VNode[] {
   const engineUnavailable = !ctrl.isCevalAllowed();
   return [
-    workspaceSection('View', 'Shape how the board and move stream read at a glance.', [
+    workspaceSection('View', 'Set how the board and move list read at a glance.', [
       workspaceChoiceCard(
         'Board labels',
-        'Choose whether coordinates stay off, stay inside, frame the rim, or label every square.',
+        'Choose how coordinates appear around the board.',
         [
           { key: 'off', label: 'Off' },
           { key: 'inside', label: 'Inside' },
@@ -100,7 +100,7 @@ function boardWorkspaceView(ctrl: AnalyseCtrl, closeMenu: () => void): VNode[] {
       ),
       workspaceSwitchCard(
         'Material sidebar',
-        'Keep captured material visible beside the player strips.',
+        'Show captured material beside the board.',
         ctrl.showCapturedMaterial(),
         next => {
           ctrl.setShowCapturedMaterial(next);
@@ -109,15 +109,15 @@ function boardWorkspaceView(ctrl: AnalyseCtrl, closeMenu: () => void): VNode[] {
       ),
       workspaceSwitchCard(
         'Inline move list',
-        'Show the move history as a flowing line instead of stacked columns.',
+        'Read the move history as one flowing line.',
         ctrl.treeView.modePreference() === 'inline',
         next => setInlineMoveList(ctrl, closeMenu, next),
       ),
     ]),
-    workspaceSection('Guides', 'Tune how much reference help stays on screen while you review.', [
+    workspaceSection('Guides', 'Choose what help stays on the board during review.', [
       workspaceSwitchCard(
-        'Suggested lines',
-        engineUnavailable ? 'Suggested lines are unavailable in this position.' : 'Show reference lines beside the move tree.',
+        'Reference lines',
+        engineUnavailable ? 'Reference lines are unavailable in this position.' : 'Show candidate lines beside the move tree.',
         ctrl.showEnginePanel(),
         next => {
           ctrl.setShowEnginePanel(next);
@@ -126,8 +126,8 @@ function boardWorkspaceView(ctrl: AnalyseCtrl, closeMenu: () => void): VNode[] {
         engineUnavailable,
       ),
       workspaceSwitchCard(
-        'Evaluation gauge',
-        'Keep the side gauge visible when reference lines are on and space allows.',
+        'Position gauge',
+        'Keep the evaluation gauge visible when reference lines are on and space allows.',
         ctrl.showGauge(),
         next => {
           ctrl.setShowEvalGauge(next);
@@ -136,7 +136,7 @@ function boardWorkspaceView(ctrl: AnalyseCtrl, closeMenu: () => void): VNode[] {
       ),
       workspaceSwitchCard(
         'On-board cues',
-        'Draw move annotations and review cues directly over the board.',
+        'Draw arrows, highlights, and review cues directly over the board.',
         ctrl.possiblyShowMoveAnnotationsOnBoard(),
         next => {
           ctrl.togglePossiblyShowMoveAnnotationsOnBoard(next);

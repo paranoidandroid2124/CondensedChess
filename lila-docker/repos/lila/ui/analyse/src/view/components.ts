@@ -224,7 +224,7 @@ function workspaceTools(ctrl: AnalyseCtrl): WorkspaceTool[] {
     {
       id: 'opening-explorer',
       label: 'Explorer',
-      summary: 'Opening explorer and tablebase',
+      summary: 'Openings and tablebase positions',
       icon: licon.Book,
       active: ctrl.activeControlBarTool() === 'opening-explorer',
       open: ctrl.toggleExplorer,
@@ -233,8 +233,8 @@ function workspaceTools(ctrl: AnalyseCtrl): WorkspaceTool[] {
 
   tools.push({
     id: 'action-menu',
-    label: 'Board tools',
-    summary: 'Board, notation, and display controls',
+    label: 'Board setup',
+    summary: 'Coordinates, move list, and review cues',
     icon: licon.Hamburger,
     active: ctrl.activeControlBarTool() === 'action-menu',
     open: ctrl.toggleActionMenu,
@@ -248,12 +248,12 @@ function renderWorkspaceDock(ctrl: AnalyseCtrl): VNode {
   const tools = workspaceTools(ctrl);
   return hl(`section.analyse__workspace-dock${activeTool ? '' : '.is-idle'}`, [
     hl('div.analyse__workspace-dock-head', [
-      hl('strong', activeTool ? 'Switch view' : 'Open a board view'),
+      hl('strong', activeTool ? 'Choose what to inspect' : 'Keep the board beside you'),
       hl(
         'span',
         activeTool
-          ? 'Jump between openings, Move Review, and board controls without losing the move list.'
-          : 'Keep the board and move list anchored while you open the tool you need.',
+          ? 'Move between openings, coach review, and board setup without losing the current move.'
+          : 'Open the tool you need while the board and move list stay anchored.',
       ),
     ]),
     hl(
@@ -311,8 +311,8 @@ export function renderTools({ ctrl, concealOf, allowVideo }: ViewContext, embedd
             hl(
               'span',
               ctrl.node.ply > 0
-                ? `Move ${plyToTurn(ctrl.node.ply)} position. Keep this board while you move through the coach scenes.`
-                : 'Start position. Keep this board while you move through the coach scenes.',
+                ? `Move ${plyToTurn(ctrl.node.ply)} position. Keep this board visible as the review changes.`
+                : 'Start position. Keep this board visible as the review changes.',
             ),
           ]),
           boardPreview,
