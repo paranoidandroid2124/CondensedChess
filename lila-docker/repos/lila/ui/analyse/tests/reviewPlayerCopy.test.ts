@@ -63,17 +63,19 @@ describe('review player copy', () => {
     assert.doesNotMatch(moveReviewSource, /Saved Lines/);
   });
 
-  test('keeps move review number visibility framed without engine jargon', () => {
-    assert.match(moveReviewRendererSource, /move-review-content move-review-hide-eval/);
-    assert.match(moveReviewRendererSource, /attr\("aria-pressed"\) := "false"/);
-    assert.match(moveReviewRendererSource, /Numbers hidden/);
+  test('keeps move review eval visible without score jargon', () => {
+    assert.doesNotMatch(moveReviewRendererSource, /move-review-content move-review-hide-eval/);
+    assert.match(moveReviewRendererSource, /attr\("aria-pressed"\) := "true"/);
+    assert.match(moveReviewRendererSource, /Eval shown/);
     assert.doesNotMatch(moveReviewRendererSource, /Eval: On/);
-    assert.match(moveReviewSource, /storedBooleanPropWithEffect\('analyse\.move_review\.showEval', false/);
-    assert.match(moveReviewRenderingSource, /Numbers shown/);
-    assert.match(moveReviewRenderingSource, /Numbers hidden/);
+    assert.match(moveReviewSource, /storedBooleanPropWithEffect\('analyse\.move_review\.showEval', true/);
+    assert.match(moveReviewRenderingSource, /Eval shown/);
+    assert.match(moveReviewRenderingSource, /Eval hidden/);
     [moveReviewRenderingSource, moveReviewRendererSource].forEach(source => {
       assert.doesNotMatch(source, /Scores shown/);
       assert.doesNotMatch(source, /Scores hidden/);
+      assert.doesNotMatch(source, /Numbers shown/);
+      assert.doesNotMatch(source, /Numbers hidden/);
     });
   });
 

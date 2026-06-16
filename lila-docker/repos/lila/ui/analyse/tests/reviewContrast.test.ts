@@ -178,7 +178,7 @@ describe('review shell contrast palette', () => {
     );
   });
 
-  test('keeps optional review numbers visibly secondary until enabled', () => {
+  test('keeps enabled eval visibly anchored in muted green', () => {
     assert.match(sideScss, /\.move-review-score-toggle\s*\{[\s\S]*?color:\s*\$c-font-dim;/);
     assert.match(
       sideScss,
