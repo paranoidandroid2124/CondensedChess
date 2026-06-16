@@ -14,6 +14,7 @@ const homeScss = readFileSync(fileURLToPath(new URL('../../site/css/_home.scss',
 const landingScss = readFileSync(fileURLToPath(new URL('../../site/css/_landing.scss', import.meta.url)), 'utf8');
 const authScss = readFileSync(fileURLToPath(new URL('../../site/css/_auth.scss', import.meta.url)), 'utf8');
 const accountScss = readFileSync(fileURLToPath(new URL('../../site/css/_account.scss', import.meta.url)), 'utf8');
+const journalScss = readFileSync(fileURLToPath(new URL('../../site/css/_journal.scss', import.meta.url)), 'utf8');
 const strategicPuzzleScss = readFileSync(fileURLToPath(new URL('../../site/css/_strategicPuzzle.scss', import.meta.url)), 'utf8');
 const studyIndexScss = readFileSync(fileURLToPath(new URL('../css/study/_index.scss', import.meta.url)), 'utf8');
 const studyListWidgetScss = readFileSync(fileURLToPath(new URL('../css/study/_list-widget.scss', import.meta.url)), 'utf8');
@@ -472,7 +473,7 @@ describe('review shell contrast palette', () => {
   });
 
   test('keeps site entry surfaces in the dark study-room palette', () => {
-    const siteScss = [homeScss, landingScss, authScss, accountScss, strategicPuzzleScss].join('\n');
+    const siteScss = [homeScss, landingScss, authScss, accountScss, journalScss, strategicPuzzleScss].join('\n');
     [
       '#fff9f1',
       '#fff',
@@ -491,6 +492,11 @@ describe('review shell contrast palette', () => {
     assert.match(homeScss, /\$home-bg-light:\s*#171816;/);
     assert.match(homeScss, /\$home-primary:\s*#8bc071;/);
     assert.match(homeScss, /\$home-accent:\s*#e3b15b;/);
+    assert.match(journalScss, /\$journal-bg-light:\s*#171816;/);
+    assert.match(journalScss, /\$journal-primary-light:\s*#8bc071;/);
+    [...journalScss.matchAll(/letter-spacing:\s*([^;]+);/g)].forEach(match =>
+      assert.equal(match[1]!.trim(), '0', `journal letter-spacing must be 0, got ${match[1]}`),
+    );
     assert.match(accountScss, /\$c-bad-strong:\s*#c75f57;/);
     assert.match(strategicPuzzleScss, /\$sp-primary-strong:\s*#b4d99a;/);
     assert.match(strategicPuzzleScss, /\$sp-board-light:\s*#b7bf8f;/);
