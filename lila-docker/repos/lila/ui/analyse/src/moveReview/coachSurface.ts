@@ -447,7 +447,8 @@ function renderSceneNav(scenes: MoveReviewScene[]): string {
         >
           <span class="move-review-player__timeline-index">${idx + 1}</span>
           <span class="move-review-player__timeline-copy">
-            <span class="move-review-player__timeline-label">${escapeHtml(scene.label)}</span>
+            <span class="move-review-player__timeline-label move-review-player__timeline-label--long">${escapeHtml(scene.label)}</span>
+            <span class="move-review-player__timeline-label move-review-player__timeline-label--short">${escapeHtml(scene.shortLabel)}</span>
             <span class="move-review-player__timeline-kicker">${escapeHtml(scene.kicker)}</span>
           </span>
         </button>

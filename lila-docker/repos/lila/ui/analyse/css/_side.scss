@@ -375,6 +375,10 @@
       overflow-wrap: anywhere;
     }
 
+    .move-review-player__timeline-label--short {
+      display: none;
+    }
+
     .move-review-player__timeline-kicker {
       min-width: 0;
       color: $c-font-dim;
@@ -404,6 +408,14 @@
       .move-review-player__timeline-label {
         display: inline;
         font-size: 0.62rem;
+      }
+
+      .move-review-player__timeline-label--long {
+        display: none;
+      }
+
+      .move-review-player__timeline-label--short {
+        display: inline;
       }
 
       .move-review-player__timeline-kicker {

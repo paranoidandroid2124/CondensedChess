@@ -87,18 +87,22 @@ describe('moveReview coach surface', () => {
     assert.match(html, /Remember this/);
     assert.match(html, /data-move-review-scene="0"/);
     assert.match(html, /data-move-review-scene-panel/);
-    assert.match(html, /move-review-player__timeline-label">Verdict/);
+    assert.match(html, /move-review-player__timeline-label--long">Verdict/);
+    assert.match(html, /move-review-player__timeline-label--short">Recall/);
     assert.match(html, /move-review-player__board-shell/);
     assert.match(html, /move-review-player__board-preview/);
     assert.match(html, /move-review-player__board-title/);
     assert.match(html, /move-review-player__scene-line/);
     assert.match(html, /data-scene-line="Nf3 d5"/);
-    assert.match(html, /Chapter 1\/5/);
+    assert.match(html, /Decision · 1\/5/);
+    assert.match(html, /move-review-player__timeline-copy/);
+    assert.match(html, /move-review-player__timeline-kicker">Decision/);
     assert.match(html, /move-review-player__detail-layer/);
     assert.match(html, /Coach notes/);
     assert.match(html, /data-scene-square="d5"/);
-    assert.match(html, /Position in view/);
-    assert.match(html, /data-scene-board-title="Your move position"/);
+    assert.match(html, /move-review-player__board-cue-item--move/);
+    assert.match(html, /data-scene-board-title="Position tied to the choice"/);
+    assert.match(html, /data-scene-label="Verdict"/);
     assert.match(html, /data-scene-board="8\/8\/8\/8\/8\/5N2\/8\/8 b - - 1 1\|g1f3"/);
     assert.doesNotMatch(html, /authority/i);
     assert.doesNotMatch(html, /diagnostics/i);
@@ -182,8 +186,20 @@ describe('moveReview coach surface', () => {
     assert.match(html, /data-ref-id="repeat-1"[\s\S]*data-ref-id="repeat-2"/);
   });
 
-  test('falls back to raw commentary when no player surface exists', () => {
+  test('builds a board-synced player fallback from refs', () => {
     const html = decorateMoveReviewHtml('<p>Only commentary.</p>', refs, null);
+
+    assert.match(html, /data-move-review-player/);
+    assert.match(html, /Coach review/);
+    assert.match(html, /data-scene-line="Nf3 d5"/);
+    assert.match(html, /Try the line/);
+    assert.match(html, /Remember this/);
+    assert.match(html, /Coach notes/);
+    assert.match(html, /data-scene-board="8\/8\/8\/8\/8\/5N2\/8\/8 b - - 1 1\|g1f3"/);
+  });
+
+  test('falls back to raw commentary when no player surface or refs exist', () => {
+    const html = decorateMoveReviewHtml('<p>Only commentary.</p>', null, null);
 
     assert.equal(html, '<p>Only commentary.</p>');
   });
