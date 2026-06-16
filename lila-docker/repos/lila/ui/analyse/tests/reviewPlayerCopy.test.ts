@@ -25,6 +25,10 @@ const strategicPuzzleDemoSource = readFileSync(
   fileURLToPath(new URL('../../../app/views/pages/strategicPuzzleDemo.scala', import.meta.url)),
   'utf8',
 );
+const strategicPuzzleEmptySource = readFileSync(
+  fileURLToPath(new URL('../../../app/views/pages/strategicPuzzleEmpty.scala', import.meta.url)),
+  'utf8',
+);
 const moveReviewRendererSource = readFileSync(
   fileURLToPath(new URL('../../../modules/analyse/src/main/ui/MoveReviewRenderer.scala', import.meta.url)),
   'utf8',
@@ -155,9 +159,21 @@ describe('review player copy', () => {
       'public account, a pasted game, or a board',
       'Pasted game',
       'Game text',
+      'Bring in a game',
+      'Choose a Lichess or Chess.com username',
+      'Board, move list, variations, game text',
     ].forEach(copy => assert.match(landingSource, new RegExp(escapeRegExp(copy)), `missing landing copy: ${copy}`));
 
-    ['Start from PGN', 'Start from a PGN', 'Saved PGN ready for review', 'Manual PGN', 'PGN import'].forEach(copy => {
+    [
+      'Start from PGN',
+      'Start from a PGN',
+      'Saved PGN ready for review',
+      'Manual PGN',
+      'PGN import',
+      'Import a game',
+      'Import a Lichess or Chess.com username',
+      'Board, move list, variations, import',
+    ].forEach(copy => {
       assert.doesNotMatch(homeSource, new RegExp(escapeRegExp(copy)), `stale home copy: ${copy}`);
       assert.doesNotMatch(landingSource, new RegExp(escapeRegExp(copy)), `stale landing copy: ${copy}`);
     });
@@ -218,13 +234,32 @@ describe('review player copy', () => {
       'End-position lens',
       'Where the review note belongs',
       'One note for each reached line.',
+      'Board review stays visible',
+      'Review the sample board',
+      'Board review stays on the page',
+      'The board stays exact, just not noisy.',
       'Open the sample board',
     ].forEach(copy =>
       assert.match(strategicPuzzleDemoSource, new RegExp(escapeRegExp(copy)), `missing public page copy: ${copy}`),
     );
-    ['AI commentary', 'Review commentary', 'Terminal lens', 'terminal card', 'Open the sample in analysis'].forEach(copy =>
+    [
+      'AI commentary',
+      'Review commentary',
+      'Terminal lens',
+      'terminal card',
+      'Open the sample in analysis',
+      'Analysis is still visible',
+      'Review the sample in analysis',
+      'Analysis stays on the page',
+      'The board remains analytical',
+    ].forEach(copy =>
       assert.doesNotMatch(strategicPuzzleDemoSource, new RegExp(escapeRegExp(copy)), `stale public page copy: ${copy}`),
     );
+
+    assert.match(strategicPuzzleEmptySource, /jump back to the board and your notebooks/);
+    assert.match(strategicPuzzleEmptySource, /Back to board/);
+    assert.doesNotMatch(strategicPuzzleEmptySource, /jump back into analysis/);
+    assert.doesNotMatch(strategicPuzzleEmptySource, /Back to analysis/);
   });
 
   test('keeps load-game copy framed as a board replay, not file statistics', () => {

@@ -192,7 +192,7 @@ object strategicPuzzleDemo:
                   ul(
                     li("The page asks for a plan to be sustained, not a single forcing shot."),
                     li("Opponent replies are fixed inside the route to keep training load focused."),
-                    li("Analysis is still visible through line rails, plan labels, and underboard review cards.")
+                    li("Board review stays visible through line rails, plan labels, and underboard review cards.")
                   )
                 ),
                 div(cls := "sp-rail-card sp-rail-card--soft")(
@@ -227,7 +227,7 @@ object strategicPuzzleDemo:
                   ),
                   div(cls := "sp-runtime-actions")(
                     a(href := routes.StrategicPuzzle.home.url, cls := "sp-demo-link")("Try a live exercise"),
-                    a(href := analysisUrl, cls := "sp-demo-link")("Review the sample in analysis")
+                    a(href := analysisUrl, cls := "sp-demo-link")("Review the sample board")
                   ),
                   div(cls := "sp-feedback-strip")(
                     div(
@@ -301,8 +301,8 @@ object strategicPuzzleDemo:
             ),
             st.section(cls := "sp-demo-analysis")(
               div(cls := "sp-demo-section-head")(
-                p(cls := "sp-demo-kicker")("Analysis stays on the page"),
-                h2("The board remains analytical, just not noisy."),
+                p(cls := "sp-demo-kicker")("Board review stays on the page"),
+                h2("The board stays exact, just not noisy."),
                 p("Position exercises should still show structure, comparison, and opponent resources. They just reveal them in a tighter order.")
               ),
               div(cls := "sp-analysis-grid")(

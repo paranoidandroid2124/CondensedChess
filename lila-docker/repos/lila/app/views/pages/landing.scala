@@ -42,7 +42,7 @@ object landing:
                     ),
                     div(cls := "hero-support-copy")(
                       p(
-                        "Import a game, keep the position in front of you, and move through the verdict, why, plan, line, and memory cue as one review player."
+                        "Bring in a game, keep the position in front of you, and move through the verdict, why, plan, line, and memory cue as one review player."
                       )
                     ),
                     div(cls := "hero-cta")(
@@ -245,7 +245,7 @@ object landing:
                     st.article(cls := "feature-card entry-card")(
                       p(cls := "feature-kicker")("Start 01"),
                       h3("Public account"),
-                      p("Import a Lichess or Chess.com username and start from recurring positions instead of one isolated game."),
+                      p("Choose a Lichess or Chess.com username and start from recurring positions instead of one isolated game."),
                       p(cls := "entry-card__proof")("Best when you want My Patterns, openings you actually reach, and opponent prep."),
                       div(cls := "entry-card__chips sample-chip-row")(
                         span("Lichess"),
@@ -318,7 +318,7 @@ object landing:
                       ),
                       div(cls := "truth-row")(
                         span("Board View"),
-                        strong("Board, move list, variations, import")
+                        strong("Board, move list, variations, game text")
                       ),
                       div(cls := "truth-row")(
                         span("Saved study"),
