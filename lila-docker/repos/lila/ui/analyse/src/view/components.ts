@@ -1170,7 +1170,7 @@ function providerToneClass(provider: string | undefined): string {
 }
 
 function sourceTypeLabel(sourceType: string): string {
-  return sourceType === 'manual' ? 'Manual PGN' : 'Imported game';
+  return sourceType === 'manual' ? 'Pasted PGN' : 'Imported game';
 }
 
 function sourceTypeTone(sourceType: string): string {

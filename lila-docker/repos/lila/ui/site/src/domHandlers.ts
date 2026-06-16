@@ -368,7 +368,7 @@ function initAccountIntelProduct() {
   const playerFacingEvidence = (evidence?: any) => {
     const support = evidence?.supportingGames ?? 0;
     const total = evidence?.totalSampledGames ?? 0;
-    return total > 0 ? `Seen in ${support} of ${total} games` : 'Sample still building';
+    return total > 0 ? `Seen in ${support} of ${total} games` : 'Gathering game evidence';
   };
 
   const renderEvidence = (evidence?: any) => playerFacingEvidence(evidence);

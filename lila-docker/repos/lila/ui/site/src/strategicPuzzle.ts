@@ -415,7 +415,7 @@ class StrategicPuzzleApp {
 
   private renderTopbar(): string {
     const introText = 'Find the task, choose the start, then review the task, the start, and the exact proof.';
-    const streakLabel = this.payload.progress.authenticated ? `Current streak ${this.payload.progress.currentStreak}` : 'Anonymous session';
+    const streakLabel = this.payload.progress.authenticated ? `Current streak ${this.payload.progress.currentStreak}` : 'Guest session';
     return `
       <section class="sp-runtime-topbar">
         <div class="sp-runtime-topbar__lead">
@@ -552,11 +552,11 @@ class StrategicPuzzleApp {
     const lineValue =
       this.stage === 'reveal'
         ? this.revealFocus === 'proof'
-          ? escapeHtml(this.lineSans.length ? this.lineSans.join(' ') : 'Proof line unavailable.')
-          : escapeHtml(this.featuredStartSan || 'No public start stored.')
+          ? escapeHtml(this.lineSans.length ? this.lineSans.join(' ') : 'Proof line not shown yet.')
+          : escapeHtml(this.featuredStartSan || 'No start move shown yet.')
         : this.stage === 'move'
-          ? escapeHtml(this.currentStarts.length ? this.currentStarts.map(start => start.san).join(', ') : 'No starts stored for this task.')
-          : escapeHtml(this.payload.runtimeShell.plans.length ? `${this.payload.runtimeShell.plans.length} plan candidates` : 'No plan candidates are stored.');
+          ? escapeHtml(this.currentStarts.length ? this.currentStarts.map(start => start.san).join(', ') : 'No start moves shown for this task.')
+          : escapeHtml(this.payload.runtimeShell.plans.length ? `${this.payload.runtimeShell.plans.length} plans to compare` : 'No plans to compare yet.');
     return `
       <section class="sp-demo-panel sp-runtime-pane${reveal ? ' is-reveal' : ' is-solve'}">
         <div class="sp-runtime-pane__scroll">
@@ -658,8 +658,8 @@ class StrategicPuzzleApp {
       return `
         <div class="sp-choice-grid">
           <div class="sp-choice-grid__notice">
-            <strong>No starts stored</strong>
-            <span>This task has no public start moves yet, so the proof cannot be launched from the move stage.</span>
+            <strong>No start move shown yet</strong>
+            <span>This task does not have a playable start move yet, so stay with the plan explanation.</span>
           </div>
         </div>
       `;
@@ -732,7 +732,7 @@ class StrategicPuzzleApp {
   }
 
   private renderProofReview(reveal: TerminalReveal, featuredStart: string): string {
-    const proofLine = reveal.lineSan.length ? reveal.lineSan.join(' ') : this.lineSans.length ? this.lineSans.join(' ') : 'Proof line unavailable';
+    const proofLine = reveal.lineSan.length ? reveal.lineSan.join(' ') : this.lineSans.length ? this.lineSans.join(' ') : 'Proof line not shown yet';
     if (this.revealFocus === 'proof') {
       return `
         <article class="sp-line-card sp-line-card--inline">
