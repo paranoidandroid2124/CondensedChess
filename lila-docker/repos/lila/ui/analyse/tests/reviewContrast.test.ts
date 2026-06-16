@@ -359,6 +359,47 @@ describe('review shell contrast palette', () => {
     assert.match(narrativeReviewBlocks, /color:\s*color-mix\(in srgb,\s*#\{\$c-secondary\}\s*78%,\s*#\{\$c-font\}\);/);
   });
 
+  test('keeps narrative review chips in the study-room palette', () => {
+    const narrativeChipBlocks = [
+      '.narrative-decision-compare__move',
+      '.narrative-decision-compare__move--engine',
+      '.narrative-decision-compare__move--deferred',
+      '.narrative-decision-compare__gap',
+      '.narrative-decision-compare__details',
+      '.narrative-signal-chip',
+      '.narrative-evidence-card',
+      '.narrative-evidence-status',
+      '.narrative-strategic-chip',
+      '.narrative-plan-theme-text',
+    ]
+      .map(selector => extractBlock(narrativeScss, selector))
+      .join('\n');
+
+    [
+      '#3c7ebb',
+      '#245382',
+      '#2f5f9f',
+      '#7a5c1f',
+      '#c99a2a',
+      '#4c7330',
+      '#315022',
+      '#6a9c3c',
+      '#fff7e1',
+      '#f0c66b',
+      '#91631f',
+      '#714a12',
+      '#365028',
+    ].forEach(color =>
+      assert.doesNotMatch(narrativeChipBlocks, new RegExp(escapeRegExp(color), 'i'), `off-palette narrative chip color: ${color}`),
+    );
+
+    assert.match(narrativeChipBlocks, /background:\s*rgba\(\$c-primary,\s*0\.12\);/);
+    assert.match(narrativeChipBlocks, /background:\s*rgba\(\$c-secondary,\s*0\.14\);/);
+    assert.match(narrativeChipBlocks, /background:\s*rgba\(\$c-bg-low,\s*0\.72\);/);
+    assert.match(narrativeChipBlocks, /color:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*78%,\s*#\{\$c-font\}\);/);
+    assert.match(narrativeChipBlocks, /color:\s*color-mix\(in srgb,\s*#\{\$c-secondary\}\s*78%,\s*#\{\$c-font\}\);/);
+  });
+
   test('keeps study index surfaces in the dark study-room palette', () => {
     const studyScss = [studyIndexScss, studyListWidgetScss].join('\n');
     [
@@ -461,6 +502,7 @@ describe('review shell contrast palette', () => {
 
 describe('standalone narrative contrast', () => {
   test('uses readable badge fills for classification badges', () => {
+    const badgeText = '#efeee8';
     const cases = [
       ['blunder', extractClassificationBackground('blunder')],
       ['mistake', extractClassificationBackground('mistake')],
@@ -473,10 +515,37 @@ describe('standalone narrative contrast', () => {
 
     for (const [label, bg] of cases) {
       assert.ok(
-        contrastRatio(parseHex('#ffffff'), parseHex(bg)) >= 4.5,
-        `${label}: expected white text contrast >= 4.5, got ${contrastRatio(parseHex('#ffffff'), parseHex(bg)).toFixed(2)}`,
+        contrastRatio(parseHex(badgeText), parseHex(bg)) >= 4.5,
+        `${label}: expected study-room text contrast >= 4.5, got ${contrastRatio(parseHex(badgeText), parseHex(bg)).toFixed(2)}`,
       );
     }
+  });
+
+  test('keeps narrative badges in the study-room palette', () => {
+    const badgeBlock = extractBlock(narrativeScss, '.narrative-badge');
+    [
+      '#fff',
+      '#a92f44',
+      '#8a4d00',
+      '#5d6773',
+      '#245382',
+      '#006a67',
+      '#735217',
+      '#3c7ebb',
+      '#7a5c1f',
+      '#c99a2a',
+      '#4c7330',
+      '#6a9c3c',
+    ].forEach(color =>
+      assert.doesNotMatch(badgeBlock, new RegExp(escapeRegExp(color), 'i'), `off-palette narrative badge color: ${color}`),
+    );
+
+    assert.match(badgeBlock, /&\.blunder\s*\{[\s\S]*?color:\s*#efeee8;[\s\S]*?background:\s*#7c3f3a;/);
+    assert.match(badgeBlock, /&\.great\s*\{[\s\S]*?background:\s*#4f6f3e;/);
+    assert.match(badgeBlock, /&\.brilliant\s*\{[\s\S]*?background:\s*#3f6f63;/);
+    assert.match(badgeBlock, /&\.branch\s*\{[\s\S]*?border-color:\s*rgba\(\$c-primary,\s*0\.36\);/);
+    assert.match(badgeBlock, /&\.stage\s*\{[\s\S]*?background:\s*rgba\(\$c-secondary,\s*0\.12\);/);
+    assert.match(badgeBlock, /&\.selection\s*\{[\s\S]*?background:\s*rgba\(\$c-secondary,\s*0\.16\);/);
   });
 
   test('keeps standalone narrative tabs on font-colored active text', () => {
