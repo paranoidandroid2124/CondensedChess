@@ -13,6 +13,8 @@ const landingScss = readFileSync(fileURLToPath(new URL('../../site/css/_landing.
 const authScss = readFileSync(fileURLToPath(new URL('../../site/css/_auth.scss', import.meta.url)), 'utf8');
 const accountScss = readFileSync(fileURLToPath(new URL('../../site/css/_account.scss', import.meta.url)), 'utf8');
 const strategicPuzzleScss = readFileSync(fileURLToPath(new URL('../../site/css/_strategicPuzzle.scss', import.meta.url)), 'utf8');
+const studyIndexScss = readFileSync(fileURLToPath(new URL('../css/study/_index.scss', import.meta.url)), 'utf8');
+const studyListWidgetScss = readFileSync(fileURLToPath(new URL('../css/study/_list-widget.scss', import.meta.url)), 'utf8');
 
 describe('review shell contrast palette', () => {
   test('keeps the review-shell palette above AA thresholds', () => {
@@ -353,6 +355,34 @@ describe('review shell contrast palette', () => {
     assert.match(narrativeReviewBlocks, /background:\s*rgba\(\$c-primary,\s*0\.08\);/);
     assert.match(narrativeReviewBlocks, /background:\s*rgba\(\$c-bg-low,\s*0\.72\);/);
     assert.match(narrativeReviewBlocks, /color:\s*color-mix\(in srgb,\s*#\{\$c-secondary\}\s*78%,\s*#\{\$c-font\}\);/);
+  });
+
+  test('keeps study index surfaces in the dark study-room palette', () => {
+    const studyScss = [studyIndexScss, studyListWidgetScss].join('\n');
+    [
+      '#f7f0e3',
+      '#c9b38e',
+      '#d97706',
+      '#c8b9a1',
+      '#f6ead7',
+      '#cbbda5',
+      '#c2410c',
+      '#9a3412',
+      '#fff7ed',
+      '#fff9f1',
+      'rgba(237, 223, 201',
+      'rgba(253, 186, 116',
+      'rgba(255, 255, 255',
+    ].forEach(color => assert.doesNotMatch(studyScss, new RegExp(escapeRegExp(color), 'i'), `off-palette study color: ${color}`));
+
+    assert.match(studyIndexScss, /\$study-bg:\s*#171816;/);
+    assert.match(studyIndexScss, /\$study-surface:\s*#22241f;/);
+    assert.match(studyIndexScss, /\$study-accent:\s*#8bc071;/);
+    assert.match(studyIndexScss, /\$study-warm:\s*#e3b15b;/);
+    assert.match(studyIndexScss, /@import 'list-widget';/);
+    assert.match(studyListWidgetScss, /\.study\s*\{[\s\S]*?background:\s*rgba\(\$study-surface,\s*0\.72\);/);
+    assert.match(studyListWidgetScss, /&__title\s*\{[\s\S]*?color:\s*\$study-text;/);
+    assert.match(studyListWidgetScss, /&__detail\s*\{[\s\S]*?color:\s*\$study-warm;/);
   });
 
   test('keeps site entry surfaces in the dark study-room palette', () => {

@@ -21,10 +21,10 @@
 
   .study {
     position: relative;
-    background: rgba(34, 36, 31, 0.72);
+    background: rgba($study-surface, 0.72);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba($study-border, 0.72);
     border-radius: 16px;
     padding: 1.5rem;
     overflow: hidden;
@@ -58,7 +58,7 @@
         font-size: 0.75rem;
         text-transform: uppercase;
         letter-spacing: 0.05em;
-        color: #a9ad9e;
+        color: $study-muted;
         margin-bottom: 0.6rem;
       }
     }
@@ -66,7 +66,7 @@
     li {
       @extend %nowrap-ellipsis;
       font-size: 0.85rem;
-      color: #a9ad9e;
+      color: $study-muted;
       display: flex;
       align-items: center;
       gap: 0.45rem;
@@ -87,14 +87,14 @@
         font-family: 'Merriweather', 'Georgia', serif;
         font-size: 1.25rem;
         font-weight: 600;
-        color: #efeee8;
+        color: $study-text;
         margin: 0 0 0.2rem 0;
         transition: color 0.2s ease;
       }
 
       .study__topline {
         font-size: 0.8rem;
-        color: #a9ad9e;
+        color: $study-muted;
         display: flex;
         align-items: center;
         gap: 0.4rem;
@@ -106,14 +106,14 @@
         align-items: center;
         padding: 0.2rem 0.5rem;
         border-radius: 999px;
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 255, 255, 0.07);
+        background: rgba($study-surface-strong, 0.64);
+        border: 1px solid rgba($study-border, 0.78);
       }
 
       .study__topchip--private {
-        color: #e3b15b;
-        border-color: rgba(227, 177, 91, 0.24);
-        background: rgba(227, 177, 91, 0.1);
+        color: $study-warm;
+        border-color: rgba($study-warm, 0.24);
+        background: rgba($study-warm, 0.1);
       }
 
       .study__topsep {
@@ -121,7 +121,7 @@
       }
 
       .private {
-        color: #e3b15b;
+        color: $study-warm;
       }
     }
 
@@ -144,20 +144,20 @@
     .study__badge {
       background: rgba(139, 192, 113, 0.16);
       border: 1px solid rgba(139, 192, 113, 0.24);
-      color: #8bc071;
+      color: $study-accent;
       font-weight: 700;
       text-transform: uppercase;
     }
 
     .study__meta-item {
-      background: rgba(28, 30, 26, 0.72);
-      border: 1px solid rgba(58, 61, 52, 0.82);
-      color: #d8d7cd;
+      background: rgba($study-surface-strong, 0.72);
+      border: 1px solid rgba($study-border, 0.82);
+      color: color-mix(in srgb, #{$study-text} 82%, #{$study-muted});
     }
 
     .study__empty {
       margin: 0;
-      color: #a9ad9e;
+      color: $study-muted;
       font-size: 0.85rem;
     }
 
@@ -165,7 +165,7 @@
       width: 0.9rem;
       height: 0.9rem;
       flex: 0 0 auto;
-      color: #e3b15b;
+      color: $study-warm;
     }
 
     .study__footer {
@@ -175,14 +175,14 @@
       gap: 1rem;
       margin-top: 1.4rem;
       padding-top: 1rem;
-      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      border-top: 1px solid rgba($study-border, 0.78);
     }
 
     .study__footnote {
       display: inline-flex;
       align-items: center;
       gap: 0.45rem;
-      color: #a9ad9e;
+      color: $study-muted;
       font-size: 0.82rem;
     }
 
@@ -190,7 +190,7 @@
       display: inline-flex;
       align-items: center;
       gap: 0.45rem;
-      color: #8bc071;
+      color: $study-accent;
       font-size: 0.82rem;
       font-weight: 700;
       text-transform: uppercase;
@@ -205,13 +205,13 @@
 
     &:hover {
       transform: translateY(-4px);
-      background: rgba(34, 36, 31, 0.9);
+      background: rgba($study-surface, 0.9);
       border-color: rgba(139, 192, 113, 0.28);
       box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4),
         0 0 20px rgba(139, 192, 113, 0.12);
 
       .study-name {
-        color: #8bc071;
+        color: $study-accent;
       }
 
       .notebook-cover {
@@ -237,9 +237,9 @@
     inset: 8px auto 8px 0;
     width: 18px;
     border-radius: 14px 0 0 14px;
-    background: linear-gradient(180deg, #3a3d34 0%, #22241f 100%);
+    background: linear-gradient(180deg, $study-border 0%, $study-surface 100%);
     box-shadow:
-      inset -1px 0 0 rgba(255, 255, 255, 0.12),
+      inset -1px 0 0 rgba($study-text, 0.12),
       0 8px 20px rgba(0, 0, 0, 0.28);
   }
 
@@ -256,8 +256,8 @@
   &__page-edge {
     flex: 1 1 0;
     border-radius: 0 8px 8px 0;
-    background: linear-gradient(180deg, #d4d0c2 0%, #a9ad9e 100%);
-    border: 1px solid rgba(239, 238, 232, 0.08);
+    background: linear-gradient(180deg, $study-muted 0%, #6d7268 100%);
+    border: 1px solid rgba($study-text, 0.08);
 
     &--mid {
       opacity: 0.76;
@@ -276,10 +276,10 @@
     overflow: hidden;
     background:
       radial-gradient(circle at top right, rgba(139, 192, 113, 0.16), transparent 34%),
-      linear-gradient(165deg, #22241f 0%, #11130f 100%);
+      linear-gradient(165deg, $study-surface 0%, $study-bg-edge 100%);
     border: 1px solid rgba(139, 192, 113, 0.16);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      inset 0 1px 0 rgba($study-text, 0.08),
       0 12px 28px rgba(17, 11, 7, 0.32);
     display: grid;
     align-content: start;
@@ -299,7 +299,7 @@
     justify-content: center;
     border-radius: 999px;
     background: rgba(139, 192, 113, 0.16);
-    color: #b4d99a;
+    color: $study-accent-strong;
     border: 1px solid rgba(139, 192, 113, 0.28);
   }
 
@@ -312,14 +312,14 @@
     font-size: 0.58rem;
     text-transform: uppercase;
     letter-spacing: 0.16em;
-    color: #b4d99a;
+    color: $study-accent-strong;
   }
 
   &__title {
     font-family: 'Merriweather', 'Georgia', serif;
     font-size: 0.82rem;
     line-height: 1.35;
-    color: #fff9f1;
+    color: $study-text;
     display: -webkit-box;
     overflow: hidden;
     -webkit-line-clamp: 2;
@@ -330,7 +330,7 @@
   &__detail {
     font-size: 0.65rem;
     line-height: 1.45;
-    color: rgba(237, 223, 201, 0.82);
+    color: rgba($study-muted, 0.94);
     display: -webkit-box;
     overflow: hidden;
     -webkit-line-clamp: 2;
@@ -338,6 +338,6 @@
   }
 
   &__detail {
-    color: rgba(253, 186, 116, 0.86);
+    color: $study-warm;
   }
 }
