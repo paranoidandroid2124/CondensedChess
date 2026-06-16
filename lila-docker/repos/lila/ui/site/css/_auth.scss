@@ -737,18 +737,18 @@ html.pro .auth-theme-switch__button[aria-busy='true'] {
 }
 
 .auth-badge--lichess {
-    color: #1D4ED8;
-    background: rgba(76, 139, 245, 0.15);
+    color: $c-primary-strong;
+    background: rgba($c-primary, 0.14);
 }
 
 .auth-badge--chesscom {
-    color: #3F6212;
-    background: rgba(118, 176, 65, 0.18);
+    color: $c-good;
+    background: rgba($c-good, 0.16);
 }
 
 .auth-badge--result {
-    color: #7C3AED;
-    background: rgba(124, 58, 237, 0.12);
+    color: $c-accent;
+    background: rgba($c-accent, 0.14);
 }
 
 .auth-history__title-row {

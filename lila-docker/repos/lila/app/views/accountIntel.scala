@@ -139,7 +139,7 @@ object accountIntel:
                         div(cls := "importer-panel__head")(
                           strong(cls := "importer-panel__title")("What you see first"),
                           p(cls := "importer-panel__copy")(
-                            "The first screen should answer the chess question before asking whether you want a notebook."
+                            "The first screen starts with the chess question. Save notes only after the position feels worth keeping."
                           )
                         ),
                         div(cls := "account-product-note-grid")(
