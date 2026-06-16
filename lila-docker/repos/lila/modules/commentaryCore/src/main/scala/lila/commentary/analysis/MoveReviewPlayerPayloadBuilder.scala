@@ -83,7 +83,7 @@ object MoveReviewPlayerPayloadBuilder:
       comparedSan = cleanMove(enriched.comparedMove),
       secondaryText = Some(secondary),
       chosenMatchesBest = enriched.chosenMatchesBest,
-      refSans = cleanList((bestLine.sanMoves.take(4) ++ playedLine.sanMoves.take(4)).distinct)
+      refSans = cleanLineList(bestLine.sanMoves.take(4) ++ playedLine.sanMoves.take(4))
     )
 
   private[analysis] def decisionComparisonSurface(
@@ -105,7 +105,7 @@ object MoveReviewPlayerPayloadBuilder:
       comparedSan = cleanMove(digest.comparedMove),
       secondaryText = Some(secondary),
       chosenMatchesBest = digest.chosenMatchesBest,
-      refSans = cleanList(evidence.sanMoves.take(5))
+      refSans = cleanLineList(evidence.sanMoves.take(5))
     )
 
   private def roleAwareDecisionSurfaceAdmitted(
@@ -137,7 +137,7 @@ object MoveReviewPlayerPayloadBuilder:
       comparedSan = cleanMove(enriched.comparedMove),
       secondaryText = Some(secondary),
       chosenMatchesBest = enriched.chosenMatchesBest,
-      refSans = cleanList((enriched.engineBestPv.take(4) ++ enriched.chosenMove.toList).distinct)
+      refSans = cleanLineList(enriched.engineBestPv.take(4) ++ enriched.chosenMove.toList)
     )
 
   private def pieceRelocationDecisionSurfaceAdmitted(
@@ -1792,7 +1792,7 @@ object MoveReviewPlayerPayloadBuilder:
       if decision.supportedLocalWithoutTacticalVeto
       surfaceRow <- row(
         label = "Opening family",
-        text = s"This still fits the ${family.structureLabel} structure.",
+        text = s"The opening context is ${family.displayName}.",
         tone = Some("opening")
       )
     yield surfaceRow.copy(
@@ -2479,9 +2479,6 @@ object MoveReviewPlayerPayloadBuilder:
 
   private[analysis] def cleanOpt(value: Option[String]): Option[String] =
     value.map(clean).map(_.trim).filter(_.nonEmpty)
-
-  private def cleanList(values: List[String]): List[String] =
-    values.flatMap(value => cleanOpt(Some(value))).distinct
 
   private[analysis] def cleanLineList(values: List[String]): List[String] =
     values.flatMap(value => cleanOpt(Some(value)))

@@ -4229,9 +4229,9 @@ private[commentary] object QuestionFirstCommentaryPlanner:
         val toLabel = humanizeEndgamePattern(toRaw)
         Some(
           if fromRaw.equalsIgnoreCase("none") then
-            s"A new $toLabel structure is visible, so the endgame context has changed."
+            s"A new $toLabel pattern is visible, so the endgame context has changed."
           else if toRaw.equalsIgnoreCase("none") then
-            s"The $fromLabel structure has dissolved, so that earlier endgame pattern is no longer stable by itself."
+            s"The $fromLabel pattern has dissolved, so that earlier endgame pattern is no longer stable by itself."
           else
             s"The endgame geometry has shifted from $fromLabel to $toLabel."
         )
@@ -4240,7 +4240,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       info.primaryPattern.flatMap { pattern =>
         Option.when(info.patternAge >= 2) {
           val label = humanizeEndgamePattern(pattern)
-          s"The $label structure has held, keeping that endgame pattern in view."
+          s"The $label pattern has stayed visible, keeping that endgame context in view."
         }
       }
     }
@@ -4249,6 +4249,11 @@ private[commentary] object QuestionFirstCommentaryPlanner:
     val normalized = Option(raw).getOrElse("").trim
     if normalized.isEmpty then "endgame pattern"
     else if normalized.equalsIgnoreCase("none") then "no stable endgame pattern"
+    else if normalized.equalsIgnoreCase("WrongRookPawnWrongBishopFortress") then "wrong-bishop rook-pawn corner setup"
+    else if normalized.equalsIgnoreCase("OppositeColoredBishopsDraw") then "opposite-colored bishops blockade"
+    else if normalized.equalsIgnoreCase("GoodBishopRookPawnConversion") then "good-bishop rook-pawn setup"
+    else if normalized.equalsIgnoreCase("KnightBlockadeRookPawnDraw") then "knight rook-pawn blockade"
+    else if normalized.equalsIgnoreCase("RookAndBishopVsRookDraw") then "rook-and-bishop versus rook defensive setup"
     else
       normalized
         .replaceAll("([a-z0-9])([A-Z])", "$1 $2")

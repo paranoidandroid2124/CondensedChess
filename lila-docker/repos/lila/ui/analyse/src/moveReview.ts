@@ -310,18 +310,19 @@ type MoveReviewMoveRef = {
 };
 
 type MoveReviewRefIndex = {
-    firstBySan: Map<string, MoveReviewMoveRef>;
-    anyBySan: Map<string, MoveReviewMoveRef>;
+    firstRefsBySan: Map<string, MoveReviewMoveRef[]>;
     refsBySan: Map<string, MoveReviewMoveRef[]>;
+    lines: MoveReviewMoveRef[][];
 };
 
 function buildMoveReviewRefIndex(refs: MoveReviewRefsV1 | null): MoveReviewRefIndex {
-    const firstBySan = new Map<string, MoveReviewMoveRef>();
-    const anyBySan = new Map<string, MoveReviewMoveRef>();
+    const firstRefsBySan = new Map<string, MoveReviewMoveRef[]>();
     const refsBySan = new Map<string, MoveReviewMoveRef[]>();
-    if (!refs) return { firstBySan, anyBySan, refsBySan };
+    const lines: MoveReviewMoveRef[][] = [];
+    if (!refs) return { firstRefsBySan, refsBySan, lines };
 
     refs.variations.forEach(variation => {
+        const line: MoveReviewMoveRef[] = [];
         variation.moves.forEach((move, idx) => {
             const normalized = normalizeSanToken(move.san);
             if (!normalized) return;
@@ -331,27 +332,81 @@ function buildMoveReviewRefIndex(refs: MoveReviewRefsV1 | null): MoveReviewRefIn
                 uci: move.uci,
                 fenAfter: move.fenAfter,
             };
-            if (idx === 0 && !firstBySan.has(normalized)) firstBySan.set(normalized, ref);
-            if (!anyBySan.has(normalized)) anyBySan.set(normalized, ref);
+            line.push(ref);
+            if (idx === 0) {
+                const firstRefs = firstRefsBySan.get(normalized);
+                if (firstRefs) firstRefs.push(ref);
+                else firstRefsBySan.set(normalized, [ref]);
+            }
             const refsForSan = refsBySan.get(normalized);
             if (refsForSan) refsForSan.push(ref);
             else refsBySan.set(normalized, [ref]);
         });
+        if (line.length) lines.push(line);
     });
 
-    return { firstBySan, anyBySan, refsBySan };
+    return { firstRefsBySan, refsBySan, lines };
+}
+
+function sameMoveRef(a: MoveReviewMoveRef, b: MoveReviewMoveRef): boolean {
+    return a.uci === b.uci && a.fenAfter === b.fenAfter;
+}
+
+function sameMoveRefSequence(a: MoveReviewMoveRef[], b: MoveReviewMoveRef[]): boolean {
+    return a.length === b.length && a.every((ref, idx) => sameMoveRef(ref, b[idx]));
+}
+
+function equivalentSingleSanRef(normalizedSan: string, refIndex: MoveReviewRefIndex): MoveReviewMoveRef | null {
+    const refs = refIndex.refsBySan.get(normalizedSan) || [];
+    return equivalentMoveRef(refs);
+}
+
+function equivalentFirstSanRef(rawSan: string, refIndex: MoveReviewRefIndex): MoveReviewMoveRef | null {
+    const normalizedSan = normalizeSanToken(rawSan);
+    if (!normalizedSan) return null;
+    return equivalentMoveRef(refIndex.firstRefsBySan.get(normalizedSan) || []);
+}
+
+function equivalentMoveRef(refs: MoveReviewMoveRef[]): MoveReviewMoveRef | null {
+    if (!refs.length) return null;
+    const first = refs[0];
+    return refs.every(ref => sameMoveRef(ref, first)) ? first : null;
+}
+
+function resolveSanSequenceRefs(rawSans: string[], refIndex: MoveReviewRefIndex): (MoveReviewMoveRef | null)[] {
+    const normalizedSans = rawSans.map(normalizeSanToken);
+    if (!normalizedSans.length) return [];
+    if (normalizedSans.some(san => !san)) return normalizedSans.map(() => null);
+
+    const matches: MoveReviewMoveRef[][] = [];
+    for (const line of refIndex.lines) {
+        for (let start = 0; start <= line.length - normalizedSans.length; start++) {
+            const candidate = line.slice(start, start + normalizedSans.length);
+            if (candidate.every((ref, idx) => normalizeSanToken(ref.san) === normalizedSans[idx]))
+                matches.push(candidate);
+        }
+    }
+
+    if (matches.length) {
+        const first = matches[0];
+        if (matches.every(match => sameMoveRefSequence(match, first))) return first;
+        return normalizedSans.map(() => null);
+    }
+
+    if (normalizedSans.length === 1) return [equivalentSingleSanRef(normalizedSans[0], refIndex)];
+    return normalizedSans.map(() => null);
 }
 
 function renderMoveReviewMoveChip(
     label: string,
     move: string | null | undefined,
-    refIndex: Map<string, MoveReviewMoveRef>,
+    refIndex: MoveReviewRefIndex,
     tone: 'chosen' | 'engine' | 'deferred',
 ): string | null {
     const normalized = normalizeSanToken(move);
     const raw = move?.trim() || normalized;
     if (!normalized || !raw) return null;
-    const ref = refIndex.get(normalized);
+    const ref = equivalentFirstSanRef(raw, refIndex);
     const chip = renderInteractiveSanChip(raw, ref || null, {
         interactiveClasses: 'move-review-decision-compare__move-chip move-chip move-chip--interactive',
         fallbackTag: 'span',
@@ -378,9 +433,9 @@ function renderDecisionCompareStrip(
     const targetComparison = formatDecisionTargetComparison(comparison.targetComparison);
 
     const moveBits = [
-        renderMoveReviewMoveChip('Chosen', chosen, refIndex.firstBySan, 'chosen'),
-        !comparison.chosenMatchesBest ? renderMoveReviewMoveChip('Engine', best, refIndex.firstBySan, 'engine') : null,
-        compared ? renderMoveReviewMoveChip('Compared', compared, refIndex.firstBySan, 'deferred') : null,
+        renderMoveReviewMoveChip('Chosen', chosen, refIndex, 'chosen'),
+        !comparison.chosenMatchesBest ? renderMoveReviewMoveChip('Engine', best, refIndex, 'engine') : null,
+        compared ? renderMoveReviewMoveChip('Compared', compared, refIndex, 'deferred') : null,
     ].filter(Boolean);
 
     if (!moveBits.length && !secondary) return null;
@@ -414,16 +469,11 @@ function surfaceRowClasses(row: MoveReviewPlayerSurfaceRowV1): string {
 }
 
 function renderSurfaceRow(row: MoveReviewPlayerSurfaceRowV1, refIndex: MoveReviewRefIndex): string {
-    const sanOccurrences = new Map<string, number>();
+    const rowRefs = resolveSanSequenceRefs(row.refSans || [], refIndex);
     const chips = (row.refSans || [])
-        .map(san => {
-            const normalized = normalizeSanToken(san);
-            if (!normalized) return '';
-            const refsForSan = refIndex.refsBySan.get(normalized) || [];
-            const occurrence = sanOccurrences.get(normalized) || 0;
-            sanOccurrences.set(normalized, occurrence + 1);
-            const ref = refsForSan[occurrence] || refsForSan[0] || null;
-            return renderInteractiveSanChip(san, ref, {
+        .map((san, idx) => {
+            if (!normalizeSanToken(san)) return '';
+            return renderInteractiveSanChip(san, rowRefs[idx] || null, {
                 interactiveClasses: 'move-review-strategic-summary__move-chip move-chip move-chip--interactive',
                 fallbackTag: 'code',
                 fallbackClasses: 'move-review-strategic-summary__move-chip',
@@ -431,7 +481,7 @@ function renderSurfaceRow(row: MoveReviewPlayerSurfaceRowV1, refIndex: MoveRevie
         })
         .filter(Boolean)
         .join(' ');
-    const target = row.authority?.target;
+    const target = row.authority?.kind === 'opening_family' ? null : row.authority?.target;
     const targetChip = target
         ? `<span class="move-review-strategic-summary__target-chip" data-move-review-square="${escapeHtml(target)}" tabindex="0">${escapeHtml(target)}</span>`
         : '';
@@ -479,9 +529,7 @@ function renderAuthorRow(row: MoveReviewPlayerAuthorRowV1, refIndex: MoveReviewR
     const statusKey = (row.status || 'question_only').trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '_');
     const branchMarkup = (row.branches || [])
         .map(branch => {
-            const san = (branch.refSans && branch.refSans[0]) || branch.label;
-            const normalized = normalizeSanToken(san);
-            const moveRef = normalized ? refIndex.anyBySan.get(normalized) : null;
+            const moveRef = branch.refSans?.length ? resolveSanSequenceRefs(branch.refSans, refIndex)[0] || null : null;
             const branchMove = moveRef
                 ? `<span class="move-review-authoring-summary__branch-move move-chip move-chip--interactive" data-ref-id="${escapeHtml(moveRef.refId)}" data-uci="${escapeHtml(moveRef.uci)}" data-san="${escapeHtml(moveRef.san)}" tabindex="0">${escapeHtml(branch.label)}</span>`
                 : `<code>${escapeHtml(branch.label)}</code>`;

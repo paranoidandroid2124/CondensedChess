@@ -1932,24 +1932,24 @@ object NarrativeLexicon {
     else
       val templates =
         if pattern.contains("lucena") then Some(List(
-          "Lucena geometry is present: bridge-building is the key technique.",
+          "Lucena geometry is present, with bridge-building as the relevant technique.",
           "This is a Lucena-type setup where bridge construction shapes the rook checks.",
-          "The position matches Lucena ideas, so shielding checks with a bridge is critical."
+          "The position matches Lucena geometry, so shielding checks with a bridge is the main theme."
         ))
         else if pattern.contains("philidor") then Some(List(
-          "Philidor defense geometry is active: the third-rank barrier is the key hold.",
+          "Philidor defense geometry is active around the third-rank barrier.",
           "This resembles Philidor defense, where rook activity from the third rank keeps checking resources available.",
           "Philidor structure is on the board; maintaining the defensive rank is the central task."
         ))
         else if pattern.contains("vancura") then Some(List(
           "Vancura-style defense appears: lateral rook checks are the main resource.",
           "This is a Vancura-type setup where active rook checking keeps defensive options available.",
-          "The defensive idea is Vancura geometry, with rook activity neutralizing the passer."
+          "The defensive idea is Vancura geometry, with rook activity aimed at checking the passer from the side."
         ))
         else if pattern.contains("wrongrookpawnwrongbishopfortress") || pattern.contains("wrong_bishop_fortress") then Some(List(
-          "Wrong-bishop rook-pawn fortress logic is in play, so the promotion corner matters.",
-          "This is the wrong-bishop fortress pattern: the corner setup is the key defensive resource.",
-          "The rook-pawn and wrong-bishop mismatch creates a classic fortress resource."
+          "Wrong-bishop rook-pawn corner geometry is in play, so the promotion corner matters.",
+          "This is a wrong-bishop rook-pawn setup: the corner square is the key defensive resource.",
+          "The rook-pawn and bishop-color mismatch makes the promotion corner the main anchor."
         ))
         else if pattern.contains("triangulationzugzwang") || pattern.contains("triangulation") then Some(List(
           "Triangulation and zugzwang mechanics dominate: tempo control is the key.",

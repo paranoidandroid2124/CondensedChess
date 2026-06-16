@@ -502,7 +502,7 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
                   ),
                   MoveReviewPlayerSurfaceRow(
                     label = "Opening family",
-                    text = "This still fits the Queen's Gambit structure.",
+                    text = "The opening context is Queen's Gambit.",
                     authority =
                       Some(
                         MoveReviewSurfaceAuthority(
@@ -531,8 +531,8 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
 
     assertEquals(advanced, Nil)
     assert(checkedLine.text.contains("Refs: e4 e5 Nf3."), clue(checkedLine))
-    assert(openingFamily.text.contains("Target: d5."), clue(openingFamily))
     assert(openingFamily.text.contains("Opening book: ECO D06; 12k games; Book: e6 / Nf6."), clue(openingFamily))
+    assert(!openingFamily.text.contains("Target: d5."), clue(openingFamily))
     assert(!openingFamily.text.contains("queens_gambit"), clue(openingFamily))
     assert(!openingFamily.text.contains("e2e4"), clue(openingFamily))
   }

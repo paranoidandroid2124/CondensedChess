@@ -1386,7 +1386,7 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
     )
   }
 
-  test("drops malformed practical authorities and preserves only allowlisted opening targets") {
+  test("drops malformed practical authorities and treats opening targets as context-only") {
     val rows =
       List(
         MoveReviewPlayerSurfaceRow(
@@ -1480,8 +1480,7 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
         Some(
           MoveReviewSurfaceAuthority(
             kind = MoveReviewSurfaceAuthority.OpeningFamily,
-            openingFamily = Some("queens_gambit"),
-            target = Some("d5")
+            openingFamily = Some("queens_gambit")
           )
         ),
         Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.OpeningFamily, openingFamily = Some("queens_gambit")))
@@ -1531,7 +1530,7 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
     )
   }
 
-  test("preserves opening targets from the family catalog instead of the legacy source allowlist") {
+  test("strips opening targets even when the family catalog allows the square") {
     val response =
       responseWithSurface(
         MoveReviewPlayerSurface(
@@ -1574,8 +1573,7 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
         Some(
           MoveReviewSurfaceAuthority(
             kind = MoveReviewSurfaceAuthority.OpeningFamily,
-            openingFamily = Some("caro_kann"),
-            target = Some("d5")
+            openingFamily = Some("caro_kann")
           )
         ),
         Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.OpeningFamily, openingFamily = Some("caro_kann")))

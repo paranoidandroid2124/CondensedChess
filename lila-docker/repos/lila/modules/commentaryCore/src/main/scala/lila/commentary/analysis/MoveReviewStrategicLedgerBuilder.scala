@@ -174,7 +174,7 @@ object MoveReviewStrategicLedgerBuilder:
     val carryOver = hasCarryOver(ctx, planStateToken, endgameStateToken)
     val planProfile = collectPlanProfile(ctx)
     val prerequisites = collectPrerequisites(ctx).take(2)
-    val conversionTrigger = collectConversionTrigger(ctx, endgameStateToken)
+    val conversionTrigger = collectConversionTrigger(ctx)
     val compensationSignal = hasCompensationSignal(ctx, digest)
     val prophylaxisSignal = hasProphylaxisSignal(ctx, digest)
     val openingSignal = hasOpeningSignal(ctx)
@@ -253,8 +253,7 @@ object MoveReviewStrategicLedgerBuilder:
     val endgamePattern = currentEndgamePattern(ctx, endgameStateToken)
     val conversionReady =
       conversionTrigger.nonEmpty ||
-        ctx.planContinuity.exists(_.phase == PlanLifecyclePhase.Fruition) ||
-        endgamePattern.exists(isConversionEndgamePattern)
+        ctx.planContinuity.exists(_.phase == PlanLifecyclePhase.Fruition)
     val oppositePlanReady =
       hasOppositeBishopsConversionPlan(planProfile) && conversionReady
     val tokens = collectStructuredTokens(ctx, digest, endgamePattern)
@@ -390,11 +389,6 @@ object MoveReviewStrategicLedgerBuilder:
     endgameStateToken.flatMap(_.activePattern).filter(_.trim.nonEmpty)
       .orElse(ctx.semantic.flatMap(_.endgameFeatures).flatMap(_.primaryPattern).filter(_.trim.nonEmpty))
 
-  private def isConversionEndgamePattern(raw: String): Boolean =
-    val low = normalize(raw)
-    low.contains("good bishop rook pawn conversion") ||
-      low.contains("opposite colored bishops draw")
-
   private def hasCompensationSignal(
       ctx: NarrativeContext,
       digest: Option[NarrativeSignalDigest]
@@ -461,7 +455,6 @@ object MoveReviewStrategicLedgerBuilder:
         val conversionText =
           conversionTrigger
             .map(trigger => s"the edge is now built around converting through $trigger")
-            .orElse(endgameStateToken.flatMap(_.activePattern).map(pattern => s"conversion has shifted into $pattern"))
             .orElse(Some("The accumulated edge is ready to be converted"))
         StageChoice(
           key = "convert",
@@ -559,16 +552,12 @@ object MoveReviewStrategicLedgerBuilder:
       .filter(_.nonEmpty)
       .distinct
 
-  private def collectConversionTrigger(
-      ctx: NarrativeContext,
-      endgameStateToken: Option[EndgamePatternState]
-  ): Option[String] =
+  private def collectConversionTrigger(ctx: NarrativeContext): Option[String] =
     CompensationInterpretation.effectiveSemanticDecision(ctx)
       .flatMap(_.decision.signal.summary)
       .map(_.trim)
       .filter(_.nonEmpty)
       .orElse(ctx.decision.toList.flatMap(_.delta.planAdvancements).headOption.map(trimSentence).filter(_.nonEmpty))
-      .orElse(endgameStateToken.flatMap(_.activePattern).map(trimSentence).filter(_.nonEmpty))
 
   private def choosePrimaryLine(
       ctx: NarrativeContext,

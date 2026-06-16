@@ -265,7 +265,7 @@ class CommentaryPlayerAuditWorkflowTest extends FunSuite:
             ),
             Json.obj(
               "label" -> "Opening family",
-              "text" -> "This still fits the Queen's Gambit structure.",
+              "text" -> "The opening context is Queen's Gambit.",
               "authority" -> Json.obj(
                 "kind" -> "opening_family",
                 "openingFamily" -> "queens_gambit",
@@ -325,7 +325,7 @@ class CommentaryPlayerAuditWorkflowTest extends FunSuite:
 
     assert(moveReviewEntry.supportRows.exists(_.contains("Refs: Nd5 c4.")), clue(moveReviewEntry.supportRows))
     assert(moveReviewEntry.supportRows.exists(_.contains("Opening book: ECO D06; 12k games; Book: e6 / Nf6.")), clue(moveReviewEntry.supportRows))
-    assert(moveReviewEntry.supportRows.exists(_.contains("Target: d5.")), clue(moveReviewEntry.supportRows))
+    assert(!moveReviewEntry.supportRows.exists(_.contains("Target: d5.")), clue(moveReviewEntry.supportRows))
     assert(!combinedRows.contains("queens_gambit"), clue(combinedRows))
     assert(!combinedRows.contains("e2e4"), clue(combinedRows))
     assert(moveReviewEntry.flags.exists(_.startsWith("internal_label:")), clues(moveReviewEntry.flags))

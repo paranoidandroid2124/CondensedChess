@@ -4,7 +4,6 @@ import lila.commentary.analysis.PlanEvidenceEvaluator
 import lila.commentary.analysis.PlanEvidenceEvaluator.EvaluatedPlan
 import lila.commentary.analysis.MoveReviewPlayerPayloadBuilder
 import lila.commentary.analysis.MoveReviewSupportedLocalSurfaceRows
-import lila.commentary.analysis.OpeningFamilyCatalog
 import lila.commentary.analysis.UserFacingSignalSanitizer
 import lila.commentary.analysis.semantic.RelationObservationCatalog
 import lila.commentary.model.StrategicPlanExperiment
@@ -381,7 +380,7 @@ object UserFacingPayloadSanitizer:
           openingFamily = openingFamily,
           target =
             if kind == MoveReviewSurfaceAuthority.OpeningFamily then
-              target.filter(square => openingFamily.exists(family => openingTargetAllowed(family, square)))
+              None
             else if kind == MoveReviewSurfaceAuthority.PracticalPlan then
               target.filter(square => practicalPlanTargetAllowed(rowLabel, rowText, square))
             else target,
@@ -515,9 +514,6 @@ object UserFacingPayloadSanitizer:
     label == "Fixed target" || label == "Minority attack" || label == "IQP target" ||
       label == "Simplification" || label == "Knight outpost" || label == "File entry" ||
       label == "Target coordination" || label == "Color complex"
-
-  private def openingTargetAllowed(openingFamily: String, target: String): Boolean =
-    OpeningFamilyCatalog.default.targetAllowed(openingFamily, target)
 
   private def sanitizeMoveReviewPlayerDecisionComparison(
       comparison: MoveReviewPlayerDecisionComparison

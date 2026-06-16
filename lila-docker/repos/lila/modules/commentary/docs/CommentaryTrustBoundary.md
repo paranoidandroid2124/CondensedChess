@@ -219,6 +219,11 @@ causal local fact into CausalFrame, but it does not create a new chess reason.
 Oracle-only endgame outcome hints are diagnostic/support material, not public
 win/draw or conversion authority; public context, rows, and transition prose
 must stay result-neutral without tablebase/eval/PV result evidence.
+Endgame pattern ids that contain `Draw` or `Conversion` are rendered as neutral
+shape labels unless a separate result or conversion proof is present.
+Opening-family rows are book context. Their catalog target squares do not become
+public target chips or plan/occupation claims without separate current-position
+route, board, or PV evidence.
 
 Supported-local and exact-slice packets are proof gates, not independent chess
 mechanisms. After claim-authority admission they must resolve to the strongest
@@ -252,6 +257,8 @@ still separately gated and does not widen a timing-only or support-only fact.
 Displayed SAN refs preserve legal line order, including repeated SAN tokens.
 Deduplicating a repeated capture, recapture, or castling token would change the
 evidence line rather than merely cleaning prose.
+Frontend SAN chips may become board/PV links only when they resolve to the same
+ordered ref variation; ambiguous same-SAN matches stay display-only.
 
 Alternative comparison and the player decision strip follow the same
 preservation requirement: role-aware comparison text needs admitted

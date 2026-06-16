@@ -11,7 +11,7 @@ import scala.jdk.CollectionConverters.*
 import scala.util.control.NonFatal
 
 import lila.commentary.*
-import lila.commentary.analysis.{ BookStyleRenderer, MoveReviewCompressionPolicy, CommentaryEngine, DecisiveTruth, EarlyOpeningNarrationPolicy, LineScopedCitation, LiveNarrativeCompressionCore, NarrativeContextBuilder, NarrativeSignalDigestBuilder, NarrativeUtils, OpeningFamilyCatalog, QuestionFirstCommentaryPlanner, QuestionPlannerInputsBuilder, QuietMoveIntentBuilder, StrategyPackBuilder, UserFacingSignalSanitizer }
+import lila.commentary.analysis.{ BookStyleRenderer, MoveReviewCompressionPolicy, CommentaryEngine, DecisiveTruth, EarlyOpeningNarrationPolicy, LineScopedCitation, LiveNarrativeCompressionCore, NarrativeContextBuilder, NarrativeSignalDigestBuilder, NarrativeUtils, QuestionFirstCommentaryPlanner, QuestionPlannerInputsBuilder, QuietMoveIntentBuilder, StrategyPackBuilder, UserFacingSignalSanitizer }
 import lila.commentary.analysis.practical.ContrastiveSupportAdmissibility
 import lila.commentary.analysis.render.QuietStrategicSupportComposer
 import lila.commentary.analysis.semantic.RelationObservationCatalog
@@ -1920,10 +1920,7 @@ object CommentaryPlayerQcSupport:
     authority.target
       .map(_.trim.toLowerCase)
       .filter(chessSquareRegex.matches)
-      .filter(square =>
-        authority.kind != MoveReviewSurfaceAuthority.OpeningFamily ||
-          authority.openingFamily.exists(family => OpeningFamilyCatalog.default.targetAllowed(family, square))
-      )
+      .filter(_ => authority.kind != MoveReviewSurfaceAuthority.OpeningFamily)
 
   private def cleanRefSans(values: List[String]): List[String] =
     values
