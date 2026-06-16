@@ -1113,14 +1113,14 @@ function renderSavedAccountEntry(entry: ImportHistoryAccount, priority: boolean)
       hl('div.copyables__recent-kicker', [
         renderHistoryBadge(entry.providerLabel, 'copyables__badge--provider', providerToneClass(entry.provider)),
         priority ? renderHistoryBadge('Latest', 'copyables__badge--priority') : null,
-        entry.lastAnalysedAt ? renderHistoryBadge('Analysed', 'copyables__badge--activity') : null,
+        entry.lastAnalysedAt ? renderHistoryBadge('Studied', 'copyables__badge--activity') : null,
       ]),
       hl('div.copyables__recent-body', [
         hl('div.copyables__recent-title-row', [
           hl('strong', `@${entry.username}`),
           hl('span.copyables__recent-cta', priority ? 'Open latest' : 'Open'),
         ]),
-        hl('span.copyables__recent-subline', `${entry.analysisCount} saved game reads`),
+        hl('span.copyables__recent-subline', `${entry.analysisCount} saved games`),
         hl(
           'span.copyables__recent-foot',
           priority

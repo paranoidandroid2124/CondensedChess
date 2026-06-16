@@ -357,7 +357,7 @@ object importer:
         strong(cls := "auth-history__title")(s"@${account.username}"),
         span(cls := "auth-history__cta")(if priority then "Open latest" else "Open")
       ),
-      div(cls := "auth-history__summary")(s"${account.analysisCount} saved game reads"),
+      div(cls := "auth-history__summary")(s"${account.analysisCount} saved games"),
       div(cls := "auth-history__meta")(footer)
     )
 

@@ -7,6 +7,7 @@ const reviewViewSource = readFileSync(fileURLToPath(new URL('../src/review/view.
 const controlsSource = readFileSync(fileURLToPath(new URL('../src/view/controls.ts', import.meta.url)), 'utf8');
 const actionMenuSource = readFileSync(fileURLToPath(new URL('../src/view/actionMenu.ts', import.meta.url)), 'utf8');
 const mainViewSource = readFileSync(fileURLToPath(new URL('../src/view/main.ts', import.meta.url)), 'utf8');
+const componentsSource = readFileSync(fileURLToPath(new URL('../src/view/components.ts', import.meta.url)), 'utf8');
 const moveReviewSource = readFileSync(fileURLToPath(new URL('../src/moveReview.ts', import.meta.url)), 'utf8');
 const analyseViewSource = readFileSync(fileURLToPath(new URL('../../../app/views/analyse.scala', import.meta.url)), 'utf8');
 const homeSource = readFileSync(fileURLToPath(new URL('../../../app/views/pages/home.scala', import.meta.url)), 'utf8');
@@ -88,7 +89,16 @@ describe('review player copy', () => {
     );
 
     assert.match(importerSource, /No saved games yet/);
+    assert.match(importerSource, /saved games/);
     assert.doesNotMatch(importerSource, /No saved analyses yet/);
+    assert.doesNotMatch(importerSource, /saved game reads/);
+  });
+
+  test('keeps recent board history framed as study, not analysis work', () => {
+    assert.match(componentsSource, /Studied/);
+    assert.match(componentsSource, /saved games/);
+    assert.doesNotMatch(componentsSource, /['"`]Analysed['"`]/);
+    assert.doesNotMatch(componentsSource, /saved game reads/);
   });
 });
 
