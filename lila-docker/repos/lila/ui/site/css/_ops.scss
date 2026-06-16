@@ -1,30 +1,30 @@
 .ops-page {
-  --ops-page-bg: #f8fafc;
-  --ops-card-bg: #fff;
-  --ops-card-border: #e5e7eb;
-  --ops-card-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
-  --ops-text: #0f172a;
-  --ops-text-dim: #64748b;
-  --ops-link: #1d4ed8;
-  --ops-link-hover: #1e40af;
-  --ops-input-bg: #fff;
-  --ops-input-border: #d1d5db;
-  --ops-input-border-strong: #94a3b8;
-  --ops-muted-bg: #f8fafc;
-  --ops-muted-border: #e5e7eb;
-  --ops-pill-bg: #eef2ff;
-  --ops-pill-text: #3730a3;
-  --ops-success-bg: #ecfdf3;
-  --ops-success-text: #166534;
-  --ops-warn-bg: #fef3c7;
-  --ops-warn-text: #92400e;
-  --ops-danger-bg: #fef2f2;
-  --ops-danger-text: #991b1b;
-  --ops-primary: #0f172a;
-  --ops-primary-text: #fff;
-  --ops-secondary: #e5e7eb;
-  --ops-secondary-text: #111827;
-  --ops-focus: rgba(59, 130, 246, 0.35);
+  --ops-page-bg: #11130f;
+  --ops-card-bg: #22241f;
+  --ops-card-border: #3a3d34;
+  --ops-card-shadow: 0 14px 32px rgba(0, 0, 0, 0.24);
+  --ops-text: #efeee8;
+  --ops-text-dim: #a9ad9e;
+  --ops-link: #8bc071;
+  --ops-link-hover: #b4d99a;
+  --ops-input-bg: #1c1e1a;
+  --ops-input-border: #3a3d34;
+  --ops-input-border-strong: #6d7268;
+  --ops-muted-bg: rgba(139, 192, 113, 0.08);
+  --ops-muted-border: #3a3d34;
+  --ops-pill-bg: rgba(139, 192, 113, 0.14);
+  --ops-pill-text: #b4d99a;
+  --ops-success-bg: rgba(139, 192, 113, 0.16);
+  --ops-success-text: #b4d99a;
+  --ops-warn-bg: rgba(227, 177, 91, 0.16);
+  --ops-warn-text: #e3b15b;
+  --ops-danger-bg: rgba(217, 111, 102, 0.16);
+  --ops-danger-text: #d96f66;
+  --ops-primary: #8bc071;
+  --ops-primary-text: #11130f;
+  --ops-secondary: #3a3d34;
+  --ops-secondary-text: #efeee8;
+  --ops-focus: rgba(139, 192, 113, 0.24);
   max-width: 1400px;
   min-height: 100vh;
   margin: 0 auto;
@@ -36,32 +36,32 @@
   body.pro &,
   html.dark &,
   html.pro & {
-    --ops-page-bg: #0d1016;
-    --ops-card-bg: #1c212e;
-    --ops-card-border: #2a3449;
-    --ops-card-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
-    --ops-text: #e2e8f0;
-    --ops-text-dim: #94a3b8;
-    --ops-link: #60a5fa;
-    --ops-link-hover: #93c5fd;
-    --ops-input-bg: #161a25;
-    --ops-input-border: #2a3449;
-    --ops-input-border-strong: #475569;
-    --ops-muted-bg: rgba(255, 255, 255, 0.03);
-    --ops-muted-border: #2a3449;
-    --ops-pill-bg: rgba(59, 130, 246, 0.14);
-    --ops-pill-text: #bfdbfe;
-    --ops-success-bg: rgba(34, 197, 94, 0.14);
-    --ops-success-text: #86efac;
-    --ops-warn-bg: rgba(245, 158, 11, 0.16);
-    --ops-warn-text: #fcd34d;
-    --ops-danger-bg: rgba(239, 68, 68, 0.16);
-    --ops-danger-text: #fca5a5;
-    --ops-primary: #e2e8f0;
-    --ops-primary-text: #161a25;
-    --ops-secondary: #2a3449;
-    --ops-secondary-text: #e2e8f0;
-    --ops-focus: rgba(96, 165, 250, 0.42);
+    --ops-page-bg: #11130f;
+    --ops-card-bg: #22241f;
+    --ops-card-border: #3a3d34;
+    --ops-card-shadow: 0 14px 32px rgba(0, 0, 0, 0.28);
+    --ops-text: #efeee8;
+    --ops-text-dim: #a9ad9e;
+    --ops-link: #8bc071;
+    --ops-link-hover: #b4d99a;
+    --ops-input-bg: #1c1e1a;
+    --ops-input-border: #3a3d34;
+    --ops-input-border-strong: #6d7268;
+    --ops-muted-bg: rgba(139, 192, 113, 0.08);
+    --ops-muted-border: #3a3d34;
+    --ops-pill-bg: rgba(139, 192, 113, 0.14);
+    --ops-pill-text: #b4d99a;
+    --ops-success-bg: rgba(139, 192, 113, 0.16);
+    --ops-success-text: #b4d99a;
+    --ops-warn-bg: rgba(227, 177, 91, 0.16);
+    --ops-warn-text: #e3b15b;
+    --ops-danger-bg: rgba(217, 111, 102, 0.16);
+    --ops-danger-text: #d96f66;
+    --ops-primary: #8bc071;
+    --ops-primary-text: #11130f;
+    --ops-secondary: #3a3d34;
+    --ops-secondary-text: #efeee8;
+    --ops-focus: rgba(139, 192, 113, 0.24);
   }
 }
 
@@ -178,7 +178,7 @@
   border-radius: 999px;
   font-size: 0.74rem;
   font-weight: 700;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
   text-transform: uppercase;
   background: var(--ops-pill-bg);
   color: var(--ops-pill-text);
@@ -254,7 +254,7 @@
 .ops-kv-item strong,
 .ops-table th {
   font-size: 0.8rem;
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 
@@ -395,7 +395,7 @@
 
   &.danger {
     background: var(--ops-danger-text);
-    color: #fff;
+    color: #11130f;
   }
 
   &.link {
@@ -530,8 +530,8 @@
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 0.82rem;
   line-height: 1.45;
-  background: #0f172a;
-  color: #e2e8f0;
+  background: #11130f;
+  color: #efeee8;
   padding: 1rem;
   border-radius: 16px;
   overflow: auto;
@@ -546,7 +546,7 @@
   body.pro &,
   html.dark &,
   html.pro & {
-    background: #0b1120;
+    background: #11130f;
   }
 }
 
@@ -676,7 +676,7 @@
       color: var(--ops-text-dim);
       font-size: 0.75rem;
       font-weight: 700;
-      letter-spacing: 0.04em;
+      letter-spacing: 0;
       text-transform: uppercase;
     }
   }
@@ -752,7 +752,7 @@
       margin-bottom: 0.18rem;
       font-size: 0.76rem;
       font-weight: 700;
-      letter-spacing: 0.04em;
+      letter-spacing: 0;
       text-transform: uppercase;
       color: var(--ops-text-dim);
     }

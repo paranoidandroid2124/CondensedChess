@@ -16,6 +16,7 @@ const landingScss = readFileSync(fileURLToPath(new URL('../../site/css/_landing.
 const authScss = readFileSync(fileURLToPath(new URL('../../site/css/_auth.scss', import.meta.url)), 'utf8');
 const accountScss = readFileSync(fileURLToPath(new URL('../../site/css/_account.scss', import.meta.url)), 'utf8');
 const journalScss = readFileSync(fileURLToPath(new URL('../../site/css/_journal.scss', import.meta.url)), 'utf8');
+const opsScss = readFileSync(fileURLToPath(new URL('../../site/css/_ops.scss', import.meta.url)), 'utf8');
 const strategicPuzzleScss = readFileSync(fileURLToPath(new URL('../../site/css/_strategicPuzzle.scss', import.meta.url)), 'utf8');
 const studyIndexScss = readFileSync(fileURLToPath(new URL('../css/study/_index.scss', import.meta.url)), 'utf8');
 const studyListWidgetScss = readFileSync(fileURLToPath(new URL('../css/study/_list-widget.scss', import.meta.url)), 'utf8');
@@ -557,6 +558,37 @@ describe('review shell contrast palette', () => {
     );
     assert.match(accountScss, /\.btn-danger\s*\{[\s\S]*?background:\s*\$c-bad;[\s\S]*?color:\s*\$c-bg-page;/);
     assert.match(homeScss, /box-shadow:\s*[\s\S]*?rgba\(0,\s*0,\s*0,\s*0\.18\)[\s\S]*?rgba\(\$home-primary,\s*0\.08\);/);
+  });
+
+  test('keeps ops surfaces in the dark study-room palette', () => {
+    [
+      '#f8fafc',
+      '#fff',
+      '#0f172a',
+      '#1d4ed8',
+      '#64748b',
+      '#94a3b8',
+      '#eef2ff',
+      '#3730a3',
+      '#0d1016',
+      '#1c212e',
+      '#2a3449',
+      '#e2e8f0',
+      '#60a5fa',
+      'rgba(255, 255, 255',
+      'rgba(59, 130, 246',
+      'rgba(96, 165, 250',
+    ].forEach(color => assert.doesNotMatch(opsScss, new RegExp(escapeRegExp(color), 'i'), `off-palette ops color: ${color}`));
+
+    [...opsScss.matchAll(/letter-spacing:\s*([^;]+);/g)].forEach(match =>
+      assert.equal(match[1]!.trim(), '0', `ops letter-spacing must be 0, got ${match[1]}`),
+    );
+    assert.match(opsScss, /--ops-page-bg:\s*#11130f;/);
+    assert.match(opsScss, /--ops-card-bg:\s*#22241f;/);
+    assert.match(opsScss, /--ops-link:\s*#8bc071;/);
+    assert.match(opsScss, /--ops-link-hover:\s*#b4d99a;/);
+    assert.match(opsScss, /--ops-warn-text:\s*#e3b15b;/);
+    assert.match(opsScss, /--ops-danger-text:\s*#d96f66;/);
   });
 
   test('keeps Chesstory page chrome aligned with the study-room palette', () => {
