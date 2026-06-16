@@ -648,7 +648,7 @@ function renderDossierSection(section: NotebookSectionV1): VNode {
   return hl(`section.copyables__study-section.copyables__study-section--${section.kind}`, [
     hl('div.copyables__study-section-head', [
       hl('div', [hl('strong', section.title), hl('span', section.summary)]),
-      hl('span.copyables__study-dossier-meta', `${section.kind.replace(/_/g, ' ')} • ${section.status}`),
+      hl('span.copyables__study-dossier-meta', `Study part • ${section.status}`),
     ]),
     section.evidence ? renderDossierEvidenceLine(section.evidence) : null,
     hl('div.copyables__study-section-cards', section.cards.map(renderDossierCard)),
@@ -667,9 +667,9 @@ function renderNotebookDossierSurface(raw: unknown): VNode | null {
         hl('span.copyables__study-subline', dossier.summary),
       ]),
       hl('div.analyse-review__summary-grid.copyables__study-dossier-summary', [
-        compactSummaryCard(`${dossier.source.sampledGameCount}`, 'sampled games'),
-        compactSummaryCard(`${dossier.sections.length}`, 'sections'),
-        compactSummaryCard(dossier.status, 'status'),
+        compactSummaryCard(`${dossier.source.sampledGameCount}`, 'games read'),
+        compactSummaryCard(`${dossier.sections.length}`, 'study parts'),
+        compactSummaryCard(dossier.status, 'readiness'),
       ]),
     ]),
     hl(
@@ -745,7 +745,7 @@ function renderStudyWorkspacePanel(ctrl: AnalyseCtrl): VNode | null {
     hl('div.analyse-review__summary-grid.copyables__study-summary', [
       compactSummaryCard(study.canWrite ? 'Editable' : 'Read only', 'access'),
       compactSummaryCard(visibility, 'visibility'),
-      compactSummaryCard(`${study.chapters.length}`, 'sections'),
+      compactSummaryCard(`${study.chapters.length}`, 'study parts'),
       compactSummaryCard(ctrl.isStudyWriting() ? 'Saving' : 'Ready', 'sync'),
     ]),
     renderStudyStatusCard(syncMessage, actionMessage ? ctrl.studyActionToneValue() : syncTone),
@@ -768,15 +768,15 @@ function renderStudyLaunchPanel(ctrl: AnalyseCtrl): VNode {
     hl('div.copyables__study-head', [
       renderNotebookPanelCover(
         'Untitled notebook',
-        'First section from analysis',
+        'First study section',
         'Add explanations as you go',
       ),
       hl('div.copyables__study-copy', [
-        hl('span.copyables__study-eyebrow', 'Research notebook'),
-        hl('strong', 'Turn this analysis into a notebook'),
+        hl('span.copyables__study-eyebrow', 'Study notebook'),
+        hl('strong', 'Turn this game into a study'),
         hl(
           'span.copyables__study-subline',
-          'Create a section-based research notebook, keep annotating key moves, and share the result like a chess book in progress.',
+          'Keep the game, key moves, and review notes together so the position can become a real lesson.',
         ),
       ]),
       hl('div.copyables__study-actions', [
@@ -798,22 +798,22 @@ function renderStudyLaunchPanel(ctrl: AnalyseCtrl): VNode {
               },
               [
                 renderNotebookGlyph('notebook', 'copyables__study-button-glyph'),
-                busy ? ' Creating notebook...' : ' Create notebook from analysis',
+                busy ? ' Creating study...' : ' Create study notebook',
               ],
             ),
       ]),
     ]),
     hl('div.analyse-review__summary-grid.copyables__study-summary', [
-      compactSummaryCard('PGN + move tree', 'base'),
-      compactSummaryCard('Saved explanations', 'saved lines'),
+      compactSummaryCard('PGN + lines', 'base'),
+      compactSummaryCard('Saved reviews', 'saved lines'),
       compactSummaryCard('Move Review notes', 'section intro'),
     ]),
     renderStudyStatusCard(
       busy
         ? transferCount > 0
-          ? `Creating the new notebook and moving ${transferCount} saved explanation${transferCount === 1 ? '' : 's'}.`
-          : 'Creating the new notebook shell from the current PGN.'
-        : 'Saved move explanations that already exist in this shell will be carried into the new notebook when possible.',
+          ? `Creating the new notebook and moving ${transferCount} saved review${transferCount === 1 ? '' : 's'}.`
+          : 'Creating the new notebook from the current PGN.'
+        : 'Saved move reviews already on this board will be carried into the new notebook when possible.',
       busy ? 'info' : 'success',
     ),
     error ? renderStudyStatusCard(error, 'error') : null,
@@ -854,7 +854,7 @@ function inspectFenDraft(draft: string, currentFen: string): FenDraftInspection 
     return {
       status: 'current',
       headline: 'Current position',
-      message: 'Edit the FEN and press Enter to reopen analysis from a new position.',
+      message: 'Edit the FEN and press Enter to reopen the board from a new position.',
     };
   }
   if (!parseFen(trimmed).isOk) {
@@ -867,7 +867,7 @@ function inspectFenDraft(draft: string, currentFen: string): FenDraftInspection 
   return {
     status: 'ready',
     headline: 'Ready to jump',
-    message: 'Press Enter to relaunch analysis from this board state.',
+    message: 'Press Enter to relaunch from this board state.',
   };
 }
 
@@ -901,7 +901,7 @@ function inspectPgnDraft(draft: string, currentPgn: string): PgnDraftInspection 
           ? {
               status: 'current',
               headline: 'Current board snapshot',
-              message: 'The draft matches the PGN already loaded in this shell.',
+              message: 'The draft matches the PGN already loaded on this board.',
               chars,
               lines,
               normalized,
@@ -910,7 +910,7 @@ function inspectPgnDraft(draft: string, currentPgn: string): PgnDraftInspection 
           : {
               status: 'ready',
               headline: 'Ready to import',
-              message: 'Import will replace the current analysis tree with this PGN.',
+              message: 'Import will replace the current board and move list with this PGN.',
               chars,
               lines,
               normalized,
@@ -961,7 +961,7 @@ function renderImportPreview(current: PgnDraftInspection, incoming: PgnDraftInsp
   return hl('div.copyables__preview', [
     hl('div.copyables__preview-card', [
       hl('span.copyables__preview-label', 'Current'),
-      hl('strong', current.preview?.opening || current.preview?.variant || 'Current analysis'),
+      hl('strong', current.preview?.opening || current.preview?.variant || 'Current board'),
       hl('span', `${current.preview?.plies || 0} plies • ${current.chars} chars`),
     ]),
     hl('div.copyables__preview-card', [
