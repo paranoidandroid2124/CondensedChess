@@ -87,8 +87,16 @@ describe('moveReview coach surface', () => {
     assert.match(html, /Remember this/);
     assert.match(html, /data-move-review-scene="0"/);
     assert.match(html, /data-move-review-scene-panel/);
+    assert.match(html, /move-review-player__timeline-label">Verdict/);
+    assert.match(html, /move-review-player__board-shell/);
     assert.match(html, /move-review-player__board-preview/);
+    assert.match(html, /move-review-player__board-title/);
+    assert.match(html, /move-review-player__scene-line/);
+    assert.match(html, /data-scene-line="Nf3 d5"/);
+    assert.match(html, /move-review-player__detail-layer/);
+    assert.match(html, /Coach notes/);
     assert.match(html, /data-scene-square="d5"/);
+    assert.match(html, /data-scene-board-title="Verdict board"/);
     assert.match(html, /data-scene-board="8\/8\/8\/8\/8\/5N2\/8\/8 b - - 1 1\|g1f3"/);
     assert.doesNotMatch(html, /authority/i);
     assert.doesNotMatch(html, /diagnostics/i);

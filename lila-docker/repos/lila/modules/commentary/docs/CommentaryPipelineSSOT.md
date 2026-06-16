@@ -209,6 +209,14 @@ review player derives Verdict/Why/Plan/Try/Remember scenes from that same
 player surface and resolved-ref index; scene board payloads, target squares, and
 chapter labels are UI state for board synchronization, not additional claim
 authority.
+Until the backend emits native review scenes, the frontend scene contract is a
+derived UI model. A future backend `ReviewScene` payload should provide stable
+scene key/order, title/kicker/body plus optional detail groups, active
+`refId`/line refs or SAN line, exact board payload derived from a resolved ref,
+focus square/target anchors, and a fallback reason when a scene cannot bind to a
+board. These fields are routing and synchronization data only; every chess claim
+inside them must still come from the typed player surface or the resolved ref
+that supplies the board.
 Opening-goal outpost context does not create a separate player-facing opening
 outpost family. Its `Achieved` status requires post-move board proof of the
 pawn-supported e4 outpost square; if the durable outpost proof succeeds, it

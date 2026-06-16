@@ -25,11 +25,16 @@ type MoveReviewSceneKey = 'verdict' | 'why' | 'plan' | 'try' | 'remember';
 type MoveReviewScene = {
   key: MoveReviewSceneKey;
   label: string;
+  shortLabel: string;
   title: string;
   kicker: string;
   body: string;
   board?: string | null;
+  boardTitle: string;
+  boardSubtitle?: string | null;
   square?: string | null;
+  lineSans?: string[];
+  lineLabel?: string;
 };
 
 function buildMoveReviewRefIndex(refs: MoveReviewRefsV1 | null): MoveReviewRefIndex {
@@ -364,6 +369,18 @@ function renderTryLine(lineSans: string[], refIndex: MoveReviewRefIndex): string
   `;
 }
 
+function renderSceneLine(scene: MoveReviewScene, refIndex: MoveReviewRefIndex): string {
+  const lineSans = scene.lineSans || [];
+  const chips = renderTryLineChips(lineSans, refIndex);
+  if (!chips) return '';
+  return `
+    <div class="move-review-player__scene-line" data-scene-line="${escapeHtml(lineSans.join(' '))}">
+      <span class="move-review-player__scene-line-label">${escapeHtml(scene.lineLabel || 'Focus line')}</span>
+      <span class="move-review-player__scene-line-chips">${chips}</span>
+    </div>
+  `;
+}
+
 function primaryTryLine(playerSurface: MoveReviewPlayerSurfaceV1): string[] {
   const decisionLine = playerSurface.decisionComparison?.refSans || [];
   if (decisionLine.length) return decisionLine;
@@ -387,7 +404,7 @@ function renderSceneNav(scenes: MoveReviewScene[]): string {
           tabindex="${idx === 0 ? '0' : '-1'}"
         >
           <span class="move-review-player__timeline-index">${idx + 1}</span>
-          <span class="move-review-player__timeline-label">${escapeHtml(scene.label)}</span>
+          <span class="move-review-player__timeline-label">${escapeHtml(scene.shortLabel)}</span>
         </button>
       `,
         )
@@ -396,8 +413,10 @@ function renderSceneNav(scenes: MoveReviewScene[]): string {
   `;
 }
 
-function renderScenePanel(scene: MoveReviewScene, idx: number): string {
+function renderScenePanel(scene: MoveReviewScene, idx: number, refIndex: MoveReviewRefIndex): string {
   const board = scene.board ? ` data-scene-board="${escapeHtml(scene.board)}"` : '';
+  const boardTitle = ` data-scene-board-title="${escapeHtml(scene.boardTitle)}"`;
+  const boardSubtitle = scene.boardSubtitle ? ` data-scene-board-subtitle="${escapeHtml(scene.boardSubtitle)}"` : '';
   const square = scene.square ? ` data-scene-square="${escapeHtml(scene.square)}"` : '';
   const hidden = idx === 0 ? '' : ' hidden aria-hidden="true"';
   return `
@@ -409,12 +428,13 @@ function renderScenePanel(scene: MoveReviewScene, idx: number): string {
       data-scene-key="${scene.key}"
       role="tabpanel"
       aria-labelledby="move-review-scene-tab-${scene.key}"
-      ${board}${square}${hidden}
+      ${board}${boardTitle}${boardSubtitle}${square}${hidden}
     >
       <header class="move-review-player__scene-head">
-        <span class="move-review-player__scene-kicker">${escapeHtml(scene.kicker)}</span>
+        <span class="move-review-player__scene-kicker">${escapeHtml(scene.kicker)} / ${idx + 1}</span>
         <h4>${escapeHtml(scene.title)}</h4>
       </header>
+      ${renderSceneLine(scene, refIndex)}
       <div class="move-review-player__scene-body">${scene.body}</div>
     </section>
   `;
@@ -440,7 +460,7 @@ function renderMoreToCheck(
   const probeMarkup = probeRows.map(row => renderCoachSurfaceRow(row, refIndex)).join('');
   const authorMarkup = authorRows.map(row => renderAuthorRow(row, refIndex)).join('');
   if (!probeMarkup && !authorMarkup) return '';
-  return `<details class="move-review-coach__details"><summary>More to check</summary>${
+  return `<details class="move-review-coach__details move-review-player__detail-layer"><summary>More to check</summary>${
     probeMarkup ? `<div class="move-review-coach__subsection"><h5>Extra lines</h5>${probeMarkup}</div>` : ''
   }${
     authorMarkup ? `<div class="move-review-coach__subsection"><h5>Review questions</h5>${authorMarkup}</div>` : ''
@@ -458,9 +478,7 @@ function renderRememberSceneBody(
     ? '<section class="move-review-coach__practice"><strong>Remember this</strong><span>Replay the line, then try to name the idea before checking the note.</span></section>'
     : '';
   const coachNotes = html
-    ? `<section class="move-review-coach__section move-review-coach__section--body">${
-        hasCoachSurface ? '<h4>Coach notes</h4>' : ''
-      }<div class="move-review-coach__body">${html}</div></section>`
+    ? `<details class="move-review-coach__details move-review-player__detail-layer"><summary>Coach notes</summary><div class="move-review-coach__body">${html}</div></details>`
     : '';
   return `${practice}${coachNotes}${renderMoreToCheck(probeRows, authorRows, refIndex)}`;
 }
@@ -491,13 +509,18 @@ function buildMoveReviewScenes(
     {
       key: 'verdict',
       label: 'Verdict',
+      shortLabel: 'Verdict',
       title: titleText,
       kicker: 'Key moment',
       body:
         decision ||
         '<p class="move-review-player__empty">Start from the current position, then move through the coach chapters.</p>',
       board: boardPayloadForRef(decisionRef),
+      boardTitle: 'Verdict board',
+      boardSubtitle: playerSurface.decisionComparison?.chosenSan || playerSurface.decisionComparison?.engineSan || null,
       square: summarySquare,
+      lineSans: primaryLine,
+      lineLabel: 'Decision line',
     },
   ];
 
@@ -505,11 +528,16 @@ function buildMoveReviewScenes(
     scenes.push({
       key: 'why',
       label: 'Why',
+      shortLabel: 'Why',
       title: 'Why it mattered',
       kicker: 'Human reason',
       body: `<div class="move-review-coach__reasons">${summaryRows}</div>`,
       board: boardPayloadForRef(summaryRef),
+      boardTitle: 'Why board',
+      boardSubtitle: playerSurface.summaryRows[0]?.label || null,
       square: summarySquare,
+      lineSans: playerSurface.summaryRows.find(row => row.refSans.length)?.refSans || primaryLine,
+      lineLabel: 'Reason line',
     });
   }
 
@@ -517,11 +545,16 @@ function buildMoveReviewScenes(
     scenes.push({
       key: 'plan',
       label: 'Plan',
+      shortLabel: 'Plan',
       title: 'What to watch next',
       kicker: 'Next task',
       body: `<div class="move-review-coach__reasons">${planRows}</div>`,
       board: boardPayloadForRef(planRef),
+      boardTitle: 'Plan board',
+      boardSubtitle: planSourceRows[0]?.label || null,
       square: planSquare,
+      lineSans: planSourceRows.find(row => row.refSans.length)?.refSans || primaryLine,
+      lineLabel: 'Plan line',
     });
   }
 
@@ -529,11 +562,16 @@ function buildMoveReviewScenes(
     scenes.push({
       key: 'try',
       label: 'Try line',
+      shortLabel: 'Line',
       title: 'Try the line',
       kicker: 'Play it through',
-      body: tryLine,
+      body: '',
       board: boardPayloadForRef(tryRef),
+      boardTitle: 'Line board',
+      boardSubtitle: primaryLine[primaryLine.length - 1] || null,
       square: planSquare || summarySquare,
+      lineSans: primaryLine,
+      lineLabel: 'Replay line',
     });
   }
 
@@ -542,11 +580,16 @@ function buildMoveReviewScenes(
     scenes.push({
       key: 'remember',
       label: 'Remember',
+      shortLabel: 'Recall',
       title: 'Remember this',
       kicker: 'Pattern memory',
       body: rememberBody,
       board: boardPayloadForRef(tryRef || summaryRef || decisionRef),
+      boardTitle: 'Memory board',
+      boardSubtitle: primaryLine[primaryLine.length - 1] || planSourceRows[0]?.label || null,
       square: planSquare || summarySquare,
+      lineSans: primaryLine,
+      lineLabel: 'Pattern line',
     });
   }
 
@@ -573,8 +616,15 @@ export function decorateMoveReviewHtml(
       </header>
       ${renderSceneNav(scenes)}
       <div class="move-review-player__stage">
-        <div class="move-review-pv-preview move-review-player__board-preview" aria-label="Current review board"></div>
-        <div class="move-review-player__scene-stack">${scenes.map((scene, idx) => renderScenePanel(scene, idx)).join('')}</div>
+        <aside class="move-review-player__board-shell" aria-label="Current review board">
+          <div class="move-review-player__board-meta">
+            <span class="move-review-player__board-kicker">Current board</span>
+            <strong class="move-review-player__board-title">${escapeHtml(scenes[0]?.boardTitle || 'Review board')}</strong>
+            <span class="move-review-player__board-subtitle">${escapeHtml(scenes[0]?.boardSubtitle || scenes[0]?.label || '')}</span>
+          </div>
+          <div class="move-review-pv-preview move-review-player__board-preview"></div>
+        </aside>
+        <div class="move-review-player__scene-stack">${scenes.map((scene, idx) => renderScenePanel(scene, idx, refIndex)).join('')}</div>
       </div>
       ${renderSceneControls(sceneCount)}
     </div>

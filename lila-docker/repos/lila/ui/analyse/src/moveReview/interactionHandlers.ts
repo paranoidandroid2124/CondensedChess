@@ -83,11 +83,52 @@ function setSceneSquare(square: string | null): void {
   currentCtrl.setAutoShapes();
 }
 
-function syncMoveReviewSceneBoard(player: HTMLElement, panel: HTMLElement): void {
-  player.querySelectorAll<HTMLElement>('.move-review-coach__move-chip.is-active').forEach(el => {
-    el.classList.remove('is-active');
-  });
+function currentScenePanel(player: HTMLElement): HTMLElement | null {
+  return moveReviewScenePanels(player)[moveReviewSceneIndex(player)] || null;
+}
 
+function setPlayerBoardMeta(player: HTMLElement, title: string | null | undefined, subtitle: string | null | undefined): void {
+  const titleEl = player.querySelector<HTMLElement>('.move-review-player__board-title');
+  const subtitleEl = player.querySelector<HTMLElement>('.move-review-player__board-subtitle');
+  if (titleEl && title) titleEl.textContent = title;
+  if (subtitleEl) subtitleEl.textContent = subtitle || '';
+}
+
+function moveLabelFromElement(el: HTMLElement): string | null {
+  return el.dataset.san || el.textContent?.trim() || null;
+}
+
+function setActiveCoachMove(player: HTMLElement, activeMove: HTMLElement | null): void {
+  player.querySelectorAll<HTMLElement>('.move-review-coach__move-chip.is-active').forEach(el => {
+    if (el !== activeMove) el.classList.remove('is-active');
+  });
+  activeMove?.classList.add('is-active');
+}
+
+function restoreMoveReviewPlayerBoard(anchor?: HTMLElement | null): boolean {
+  const player =
+    (anchor?.closest('[data-move-review-player]') as HTMLElement | null) ||
+    (anchor?.querySelector?.('[data-move-review-player]') as HTMLElement | null) ||
+    (moveReviewPreview.container?.closest('[data-move-review-player]') as HTMLElement | null);
+  const panel = player ? currentScenePanel(player) : null;
+  if (!player || !panel) return false;
+  syncMoveReviewSceneBoard(player, panel);
+  return true;
+}
+
+function syncMoveReviewElementBoard(el: HTMLElement, markActive = false): void {
+  const board = boardPayloadFromElement(el);
+  if (board) updateMoveReviewPreview(board);
+
+  const player = el.closest('[data-move-review-player]') as HTMLElement | null;
+  if (!player) return;
+
+  const panel = currentScenePanel(player);
+  if (markActive && el.classList.contains('move-review-coach__move-chip')) setActiveCoachMove(player, el);
+  setPlayerBoardMeta(player, panel?.dataset.sceneBoardTitle || null, moveLabelFromElement(el) || panel?.dataset.sceneBoardSubtitle || null);
+}
+
+function syncMoveReviewSceneBoard(player: HTMLElement, panel: HTMLElement): void {
   const firstMove = panel.querySelector<HTMLElement>('[data-ref-id], [data-board]');
   const board = panel.dataset.sceneBoard || (firstMove ? boardPayloadFromElement(firstMove) : null);
   if (board) {
@@ -95,9 +136,16 @@ function syncMoveReviewSceneBoard(player: HTMLElement, panel: HTMLElement): void
     const activeMove = Array.from(panel.querySelectorAll<HTMLElement>('[data-ref-id], [data-board]')).find(
       el => boardPayloadFromElement(el) === board,
     );
-    activeMove?.classList.add('is-active');
+    setActiveCoachMove(player, activeMove || null);
+    setPlayerBoardMeta(
+      player,
+      panel.dataset.sceneBoardTitle || null,
+      (activeMove ? moveLabelFromElement(activeMove) : null) || panel.dataset.sceneBoardSubtitle || null,
+    );
   } else {
-    hideMoveReviewPreview();
+    setActiveCoachMove(player, null);
+    setPlayerBoardMeta(player, panel.dataset.sceneBoardTitle || null, panel.dataset.sceneBoardSubtitle || null);
+    hideMoveReviewPreview({ force: true });
   }
 
   const square = panel.dataset.sceneSquare || panel.querySelector<HTMLElement>('[data-move-review-square]')?.dataset.moveReviewSquare || null;
@@ -163,22 +211,20 @@ export function initMoveReviewHandlers(ctrl: AnalyseCtrl | undefined, onEvalTogg
 
   $(document)
     .on('mouseover.moveReview', '.analyse__move-review-text [data-ref-id], .analyse__move-review-text [data-board]', function (this: HTMLElement) {
-      const board = boardPayloadFromElement(this);
-      if (board) updateMoveReviewPreview(board);
+      syncMoveReviewElementBoard(this, true);
     })
     .on('focusin.moveReview', '.analyse__move-review-text [data-ref-id], .analyse__move-review-text [data-board]', function (this: HTMLElement) {
-      const board = boardPayloadFromElement(this);
-      if (board) updateMoveReviewPreview(board);
+      syncMoveReviewElementBoard(this, true);
     })
     .on('focusout.moveReview', '.analyse__move-review-text [data-ref-id], .analyse__move-review-text [data-board]', function (this: HTMLElement) {
       const root = this.closest('.analyse__move-review-text') as HTMLElement | null;
       setTimeout(() => {
         if (root?.contains(document.activeElement)) return;
-        hideMoveReviewPreview();
+        if (!restoreMoveReviewPlayerBoard(this)) hideMoveReviewPreview();
       }, 0);
     })
-    .on('mouseleave.moveReview', '.analyse__move-review-text', () => {
-      hideMoveReviewPreview();
+    .on('mouseleave.moveReview', '.analyse__move-review-text', function (this: HTMLElement) {
+      if (!restoreMoveReviewPlayerBoard(this)) hideMoveReviewPreview();
     })
     .on('mouseenter.moveReview', '.analyse__move-review-text .pv-line', function (this: HTMLElement) {
       const fen = $(this).data('fen');
@@ -191,6 +237,7 @@ export function initMoveReviewHandlers(ctrl: AnalyseCtrl | undefined, onEvalTogg
     })
     .on('click.moveReview', '.analyse__move-review-text .move-chip', function (this: HTMLElement) {
       if (suppressNextTap) return;
+      syncMoveReviewElementBoard(this, true);
       const uci = $(this).data('uci');
       const san = $(this).data('san');
       if (uci) pubsub.emit('analysis.move-review.move' as any, { uci, san });
@@ -198,6 +245,7 @@ export function initMoveReviewHandlers(ctrl: AnalyseCtrl | undefined, onEvalTogg
     .on('keydown.moveReview', '.analyse__move-review-text .move-chip--interactive', function (this: HTMLElement, e) {
       if (e.key !== 'Enter' && e.key !== ' ') return;
       e.preventDefault();
+      syncMoveReviewElementBoard(this, true);
       const uci = $(this).data('uci');
       const san = $(this).data('san');
       if (uci) pubsub.emit('analysis.move-review.move' as any, { uci, san });
@@ -205,7 +253,7 @@ export function initMoveReviewHandlers(ctrl: AnalyseCtrl | undefined, onEvalTogg
     .on('keydown.moveReview', '.analyse__move-review-text [data-ref-id], .analyse__move-review-text [data-board]', function (this: HTMLElement, e) {
       if (e.key !== 'Escape') return;
       e.preventDefault();
-      hideMoveReviewPreview();
+      if (!restoreMoveReviewPlayerBoard(this)) hideMoveReviewPreview();
       this.blur();
     })
     .on('mouseenter.moveReview', '.analyse__move-review-text .variation-item', function (this: HTMLElement) {
@@ -245,7 +293,9 @@ export function initMoveReviewHandlers(ctrl: AnalyseCtrl | undefined, onEvalTogg
       cancelTouchHold();
       if (!touchHoldTriggered) return;
       touchHoldTriggered = false;
-      setTimeout(() => hideMoveReviewPreview(), 900);
+      setTimeout(() => {
+        if (!restoreMoveReviewPlayerBoard()) hideMoveReviewPreview();
+      }, 900);
     })
     .on('touchstart.moveReview', '.analyse__move-review-text .variation-list[data-variation-swipe="true"]', function (this: HTMLElement, e) {
       const t = (e.originalEvent as TouchEvent).touches?.[0];
@@ -360,6 +410,7 @@ function updateMoveReviewPreview(board: string): void {
   });
 }
 
-export function hideMoveReviewPreview(): void {
+export function hideMoveReviewPreview(options: { force?: boolean } = {}): void {
+  if (!options.force && moveReviewPreview.container?.closest('[data-move-review-player]')) return;
   moveReviewPreview.container?.classList.remove('is-active');
 }
