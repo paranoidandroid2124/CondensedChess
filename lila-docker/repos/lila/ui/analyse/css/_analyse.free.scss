@@ -402,7 +402,7 @@ $label-width: 5ch;
     margin-bottom: 0.1rem;
     border-radius: $box-radius-size;
     overflow: visible;
-    box-shadow: 0 12px 24px rgba(67, 44, 21, 0.12);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.2);
 
     > .ceval {
       border-top-left-radius: $box-radius-size;
@@ -420,8 +420,8 @@ $label-width: 5ch;
     display: grid;
     gap: 0.5rem;
     padding: 0.7rem 0.8rem 0.85rem;
-    background: rgba(20, 32, 45, 0.94);
-    border: 1px solid rgba(124, 152, 178, 0.28);
+    background: rgba(28, 30, 26, 0.94);
+    border: 1px solid rgba(139, 192, 113, 0.24);
     border-top: 0;
     border-bottom-left-radius: $box-radius-size;
     border-bottom-right-radius: $box-radius-size;
