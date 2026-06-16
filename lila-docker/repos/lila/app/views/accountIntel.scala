@@ -177,7 +177,7 @@ object accountIntel:
                   ),
                   div(cls := "auth-links")(
                     a(href := routes.UserAnalysis.index.url)("Review one game"),
-                    a(href := routes.Importer.importGame.url)("Import a PGN")
+                    a(href := routes.Importer.importGame.url)("Open a pasted game")
                   )
                 )
               )
@@ -260,7 +260,7 @@ object accountIntel:
                       ),
                       div(cls := "status-meta-grid")(
                         metaCard("Requested", job.requestedAt.toString),
-                        metaCard("Study ID", job.id),
+                        metaCard("Study reference", job.id),
                         metaCardRich("Current step", span(cls := "js-ai-status-meta-stage")(stageLabel(job.progressStage)))
                       )
                     ),
@@ -278,7 +278,7 @@ object accountIntel:
                             "The review stopped before the study was ready."
                           else if job.status == lila.accountintel.AccountIntel.JobStatus.Succeeded then
                             "The position study is ready to open."
-                          else "The games are still being reviewed."
+                          else "Chesstory is still reading the games."
                         )
                       ),
                       job.warnings.nonEmpty.option(
@@ -1025,7 +1025,7 @@ object accountIntel:
     )(
       strong(s"@${account.username}"),
       span(providerLabel(account.provider)),
-      p(s"Opened ${account.searchCount} time(s) • reviewed ${account.analysisCount} time(s)")
+      p(s"Opened ${account.searchCount} time(s) • ${account.analysisCount} saved games")
     )
 
   private def surfaceOf(job: lila.accountintel.AccountIntel.AccountIntelJob): Option[JsObject] =

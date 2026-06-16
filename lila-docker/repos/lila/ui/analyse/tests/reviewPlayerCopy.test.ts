@@ -15,6 +15,7 @@ const moveReviewSource = readFileSync(fileURLToPath(new URL('../src/moveReview.t
 const analyseViewSource = readFileSync(fileURLToPath(new URL('../../../app/views/analyse.scala', import.meta.url)), 'utf8');
 const homeSource = readFileSync(fileURLToPath(new URL('../../../app/views/pages/home.scala', import.meta.url)), 'utf8');
 const importerSource = readFileSync(fileURLToPath(new URL('../../../app/views/importer.scala', import.meta.url)), 'utf8');
+const accountIntelSource = readFileSync(fileURLToPath(new URL('../../../app/views/accountIntel.scala', import.meta.url)), 'utf8');
 const journalSource = readFileSync(fileURLToPath(new URL('../../../app/views/pages/journal.scala', import.meta.url)), 'utf8');
 const landingSource = readFileSync(fileURLToPath(new URL('../../../app/views/pages/landing.scala', import.meta.url)), 'utf8');
 
@@ -134,6 +135,15 @@ describe('review player copy', () => {
     assert.doesNotMatch(importerSource, /saved game reads/);
     ['Manual PGN', 'Saved PGN ready for review', 'Source provider', 'Load a player', 'Load another username', 'import history'].forEach(
       copy => assert.doesNotMatch(importerSource, new RegExp(escapeRegExp(copy)), `stale importer copy: ${copy}`),
+    );
+  });
+
+  test('keeps account study entry points framed as games, not PGN jobs', () => {
+    ['Review one game', 'Open a pasted game', 'Study reference', 'Chesstory is still reading the games.', 'saved games'].forEach(
+      copy => assert.match(accountIntelSource, new RegExp(escapeRegExp(copy)), `missing account study copy: ${copy}`),
+    );
+    ['Import a PGN', 'Study ID', 'The games are still being reviewed.', 'reviewed ${account.analysisCount}'].forEach(copy =>
+      assert.doesNotMatch(accountIntelSource, new RegExp(escapeRegExp(copy)), `stale account study copy: ${copy}`),
     );
   });
 
