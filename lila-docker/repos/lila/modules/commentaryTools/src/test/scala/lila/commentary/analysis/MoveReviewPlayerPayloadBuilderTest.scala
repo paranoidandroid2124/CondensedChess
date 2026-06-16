@@ -3550,9 +3550,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(lockedCenterSurface.advancedRows.map(_.label), List("Practical space"))
-    assertEquals(lockedCenterSurface.advancedRows.head.text, "The locked center gives a practical central-space bind.")
-    assertEquals(lockedCenterSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assert(!lockedCenterSurface.advancedRows.exists(_.label == "Practical space"), clue(lockedCenterSurface.advancedRows))
 
     val lockedCenterFactOnlySurface =
       build(

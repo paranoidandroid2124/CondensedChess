@@ -184,8 +184,10 @@ The surface renderer may say:
   weak or target square only from admitted `target_fixing_square` and
   `target_fixing_target_kind` anchors, and those anchors require after-FEN board
   proof that the reviewed bishop, rook, or queen move attacks that strategy
-  target square. `KingAttackBuildUp` facts may name an attack lane only from
-  admitted `attack_lane_square` and `attack_lane_axis` anchors, and those
+  target square. A locked-center structure is support context only; it cannot
+  publish `Practical space` without a separate typed breakthrough, reroute,
+  counterplay-denial, or measurable restriction anchor. `KingAttackBuildUp`
+  facts may name an attack lane only from admitted `attack_lane_square` and `attack_lane_axis` anchors, and those
   anchors require directional-attack-lane evidence plus after-FEN board proof
   that the reviewed bishop, rook, or queen move attacks a non-origin strategy
   lane square. Public practical attack-lane advanced rows likewise require a

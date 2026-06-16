@@ -248,7 +248,9 @@ square, or attack-lane square; broad strategy shells and row text are not
 authority. Central practical challenge and bad-piece liquidation use their
 specific typed proof packets, not labels. Quiet support pressure uses
 `MoveDelta.pv_delta` target anchors, not `NarrativeSignalDigest.practicalVerdict`
-text. Minor-piece ideas follow the same split: broad bishop-pair,
+text. Locked-center support stays context until a typed breakthrough, reroute,
+counterplay-denial, or measurable restriction anchor admits a public space or
+plan claim. Minor-piece ideas follow the same split: broad bishop-pair,
 opposite-color, good-bishop, bad-bishop, or knight-vs-bishop labels may remain
 support evidence, but public `Practical minor` rows need an exact replay-backed
 family or a producer-carried current square such as a centralized piece, bad

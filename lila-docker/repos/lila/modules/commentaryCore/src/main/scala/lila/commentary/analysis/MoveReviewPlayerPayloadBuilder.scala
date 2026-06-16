@@ -398,12 +398,6 @@ object MoveReviewPlayerPayloadBuilder:
                 strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
                 idea.confidence >= 0.84
               then Some("The current IQP structure gives a practical central-space cue.")
-              else if refs.contains("source:locked_center_bind") &&
-                refs.contains("structure_locked_center") &&
-                focusZone.contains("center") &&
-                strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
-                idea.confidence >= 0.70
-              then Some("The locked center gives a practical central-space bind.")
               else if refs.contains("source:central_space_edge") &&
                 refs.contains("central_space_edge_shape") &&
                 focusZone.contains("center") &&
