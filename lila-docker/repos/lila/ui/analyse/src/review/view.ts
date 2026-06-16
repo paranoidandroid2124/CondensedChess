@@ -52,7 +52,7 @@ function tabButton(ctrl: AnalyseCtrl, active: ReviewPrimaryTab, tab: ReviewPrima
 function renderTab(ctrl: AnalyseCtrl, nodes: ReviewViewNodes, tab: ReviewPrimaryTab): VNode {
   switch (tab) {
     case 'engine':
-      return panel('Engine lines', [nodes.cevalNode, nodes.pvsNode].filter(Boolean));
+      return panel('Suggested lines', [nodes.cevalNode, nodes.pvsNode].filter(Boolean));
     case 'explorer':
       return panel('Explorer', [nodes.explorerNode]);
     case 'moves':

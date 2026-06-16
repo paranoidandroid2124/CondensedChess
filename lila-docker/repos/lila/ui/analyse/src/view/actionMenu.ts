@@ -116,8 +116,8 @@ function boardWorkspaceView(ctrl: AnalyseCtrl, closeMenu: () => void): VNode[] {
     ]),
     workspaceSection('Guides', 'Tune how much reference help stays on screen while you review.', [
       workspaceSwitchCard(
-        'Engine lines',
-        engineUnavailable ? 'Engine lines are unavailable in this position.' : 'Show suggested lines beside the move tree.',
+        'Suggested lines',
+        engineUnavailable ? 'Suggested lines are unavailable in this position.' : 'Show reference lines beside the move tree.',
         ctrl.showEnginePanel(),
         next => {
           ctrl.setShowEnginePanel(next);
@@ -155,7 +155,7 @@ function boardWorkspaceView(ctrl: AnalyseCtrl, closeMenu: () => void): VNode[] {
         renderVariationOpacityRange(ctrl, 'Line emphasis'),
       ),
     ]),
-    workspaceSection('Orientation', 'Reset perspective without leaving the review shell.', [
+    workspaceSection('Orientation', 'Reset perspective without leaving the board.', [
       workspaceActionRow([
         workspaceAction(
           'Flip board',

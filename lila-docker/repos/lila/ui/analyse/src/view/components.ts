@@ -248,12 +248,12 @@ function renderWorkspaceDock(ctrl: AnalyseCtrl): VNode {
   const tools = workspaceTools(ctrl);
   return hl(`section.analyse__workspace-dock${activeTool ? '' : '.is-idle'}`, [
     hl('div.analyse__workspace-dock-head', [
-      hl('strong', activeTool ? 'Switch workspace' : 'Open a workspace'),
+      hl('strong', activeTool ? 'Switch view' : 'Open a board view'),
       hl(
         'span',
         activeTool
-          ? 'Jump between openings, guided review, and board controls without leaving the move list.'
-          : 'Keep the move list anchored and open the tool you need beside it.',
+          ? 'Jump between openings, Move Review, and board controls without losing the move list.'
+          : 'Keep the board and move list anchored while you open the tool you need.',
       ),
     ]),
     hl(
