@@ -3188,15 +3188,35 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
                     ideaId = "idea_central_space_edge",
                     readiness = StrategicIdeaReadiness.Ready,
                     confidence = 0.74,
-                    evidenceRefs = List("source:central_space_edge", "central_space_edge_shape")
+                    evidenceRefs = List("source:central_space_edge", "central_space_edge_shape", "central_space_diff_3")
                   )
                 )
             )
           )
       )
     assertEquals(centralSpaceSurface.advancedRows.map(_.label), List("Practical space"))
-    assertEquals(centralSpaceSurface.advancedRows.head.text, "The current position gives a practical central-space edge.")
+    assertEquals(centralSpaceSurface.advancedRows.head.text, "The central-space edge is anchored by a +3 current-space count.")
     assertEquals(centralSpaceSurface.advancedRows.head.authority.flatMap(_.target), None)
+
+    val centralSpaceShapeOnlySurface =
+      build(
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              strategicIdeas =
+                List(
+                  genericSpace.copy(
+                    ideaId = "idea_central_space_edge_shape_only",
+                    readiness = StrategicIdeaReadiness.Ready,
+                    confidence = 0.74,
+                    evidenceRefs = List("source:central_space_edge", "central_space_edge_shape")
+                  )
+                )
+            )
+          )
+      )
+    assert(!centralSpaceShapeOnlySurface.advancedRows.exists(_.label == "Practical space"), clue(centralSpaceShapeOnlySurface.advancedRows))
 
     val motifSpaceSurface =
       build(
@@ -3217,7 +3237,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
           )
       )
     assertEquals(motifSpaceSurface.advancedRows.map(_.label), List("Practical space"))
-    assertEquals(motifSpaceSurface.advancedRows.head.text, "The current motif map gives a practical central-space cue.")
+    assertEquals(motifSpaceSurface.advancedRows.head.text, "The central-space cue is anchored by a +3 pawn-space delta.")
     assertEquals(motifSpaceSurface.advancedRows.head.authority.flatMap(_.target), None)
 
     val centralPawnAdvanceSurface =
@@ -3418,6 +3438,26 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       )
     assert(!motifSpaceWeakDeltaSurface.advancedRows.exists(_.label == "Practical space"), clue(motifSpaceWeakDeltaSurface.advancedRows))
 
+    val motifSpaceBareNumberSurface =
+      build(
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              strategicIdeas =
+                List(
+                  genericSpace.copy(
+                    ideaId = "idea_motif_space_bare_number",
+                    readiness = StrategicIdeaReadiness.Ready,
+                    confidence = 0.76,
+                    evidenceRefs = List("source:space_advantage_motif", "space_advantage_motif_shape", "3")
+                  )
+                )
+            )
+          )
+      )
+    assert(!motifSpaceBareNumberSurface.advancedRows.exists(_.label == "Practical space"), clue(motifSpaceBareNumberSurface.advancedRows))
+
     val centralPawnAdvanceSourceOnlySurface =
       build(
         strategyPack =
@@ -3501,14 +3541,21 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
                     ideaId = "idea_mobility_restriction",
                     readiness = StrategicIdeaReadiness.Build,
                     confidence = 0.72,
-                    evidenceRefs = List("source:mobility_restriction", "mobility_restriction_shape")
+                    evidenceRefs =
+                      List(
+                        "source:mobility_restriction",
+                        "mobility_restriction_shape",
+                        "mobility_restriction_gap_2",
+                        "enemy_low_mobility_pieces_2",
+                        "own_low_mobility_pieces_0"
+                      )
                   )
                 )
             )
           )
       )
     assertEquals(mobilityBindSurface.advancedRows.map(_.label), List("Practical space"))
-    assertEquals(mobilityBindSurface.advancedRows.head.text, "The current position gives a practical mobility bind.")
+    assertEquals(mobilityBindSurface.advancedRows.head.text, "The mobility bind is anchored by a 2-piece low-mobility gap.")
     assertEquals(mobilityBindSurface.advancedRows.head.authority.flatMap(_.target), None)
 
     val onePieceMobilityGapSurface =
@@ -3522,8 +3569,8 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
                   genericSpace.copy(
                     ideaId = "idea_one_piece_mobility_gap",
                     readiness = StrategicIdeaReadiness.Build,
-                    confidence = 0.70,
-                    evidenceRefs = List("source:mobility_restriction", "mobility_restriction_shape")
+                    confidence = 0.72,
+                    evidenceRefs = List("source:mobility_restriction", "mobility_restriction_shape", "mobility_restriction_gap_1")
                   )
                 )
             )

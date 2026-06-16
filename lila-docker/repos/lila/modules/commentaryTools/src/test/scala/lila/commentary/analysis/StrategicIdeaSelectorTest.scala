@@ -166,6 +166,7 @@ class StrategicIdeaSelectorTest extends FunSuite:
       centralIdeas.find(_.evidenceRefs.contains("source:central_space_edge")).getOrElse(fail(clue(centralIdeas).toString))
 
     assert(centralIdea.evidenceRefs.contains("central_space_edge_shape"), clue(centralIdea.evidenceRefs))
+    assert(centralIdea.evidenceRefs.contains("central_space_diff_3"), clue(centralIdea.evidenceRefs))
     assertEquals(centralIdea.focusZone, Some("center"))
 
     val mobilityFeatures =
@@ -181,6 +182,9 @@ class StrategicIdeaSelectorTest extends FunSuite:
       mobilityIdeas.find(_.evidenceRefs.contains("source:mobility_restriction")).getOrElse(fail(clue(mobilityIdeas).toString))
 
     assert(mobilityIdea.evidenceRefs.contains("mobility_restriction_shape"), clue(mobilityIdea.evidenceRefs))
+    assert(mobilityIdea.evidenceRefs.contains("mobility_restriction_gap_2"), clue(mobilityIdea.evidenceRefs))
+    assert(mobilityIdea.evidenceRefs.contains("enemy_low_mobility_pieces_2"), clue(mobilityIdea.evidenceRefs))
+    assert(mobilityIdea.evidenceRefs.contains("own_low_mobility_pieces_0"), clue(mobilityIdea.evidenceRefs))
     assertEquals(mobilityIdea.focusZone, Some("center"))
 
     val iqpFen = "8/8/8/8/3P4/8/8/4K2k w - - 0 1"

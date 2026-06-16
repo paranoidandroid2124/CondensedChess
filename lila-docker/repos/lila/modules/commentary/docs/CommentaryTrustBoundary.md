@@ -21,6 +21,9 @@ has been achieved.
 IQP simplification rows likewise need a typed `IqpSimplificationProfile`
 exchange target square from `capture_or_exchange`; `ExchangeAvailabilityBridge`
 and plan labels remain support-only without that anchor.
+Central-space and mobility-bind rows need numeric typed witnesses such as
+`space_pawn_delta_*`, `central_space_diff_*`, or `mobility_restriction_gap_*`;
+shape/source labels alone remain support-only.
 Endgame fallback descriptors require the played move to own the typed square
 anchor; role-only king or pawn movement does not admit opposition or
 rule-of-square claims. `RookEndgamePattern` facts have no square participants,

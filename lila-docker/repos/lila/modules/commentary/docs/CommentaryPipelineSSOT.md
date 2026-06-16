@@ -45,7 +45,10 @@ MoveReview commentary flows through one path:
    conversion, draw, or simplification has been achieved. IQP simplification
    player rows require a typed `IqpSimplificationProfile` exchange target square
    from `capture_or_exchange`; `ExchangeAvailabilityBridge` and plan labels are
-   support-only without that anchor.
+   support-only without that anchor. Central-space and mobility-bind player rows
+   likewise require numeric typed witnesses (`space_pawn_delta_*`,
+   `central_space_diff_*`, or `mobility_restriction_gap_*`), not only shape or
+   source labels.
 5. `QuestionFirstCommentaryPlanner` selects a question and planner owner from
    typed evidence.
 6. `MoveReviewCausalClaim` builds the CausalFrame and typed evidence list.

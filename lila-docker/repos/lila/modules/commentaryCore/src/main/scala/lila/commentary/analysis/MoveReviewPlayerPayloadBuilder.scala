@@ -333,22 +333,30 @@ object MoveReviewPlayerPayloadBuilder:
                 else None
               }.distinct
             val motifSpaceAdvantage =
-              refs.contains("source:space_advantage_motif") &&
+                refs.contains("source:space_advantage_motif") &&
                 refs.contains("space_advantage_motif_shape") &&
                 refs.exists(ref =>
-                  ref.stripPrefix("space_pawn_delta_").toIntOption.exists(_ >= 2)
+                  ref.startsWith("space_pawn_delta_") && ref.stripPrefix("space_pawn_delta_").toIntOption.exists(_ >= 2)
                 ) &&
                 focusZone.contains("center") &&
                 idea.readiness == StrategicIdeaReadiness.Ready &&
                 strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
                 idea.confidence >= 0.72
+            val spacePawnDelta =
+              refs
+                .filter(_.startsWith("space_pawn_delta_"))
+                .flatMap(ref => ref.stripPrefix("space_pawn_delta_").toIntOption)
+                .filter(_ >= 2)
+                .maxOption
             val centralPawnAdvanceFile =
               focusFiles.find(file => Set("c", "d", "e", "f").contains(file) && refs.contains(s"central_pawn_file_$file"))
             val centralPawnAdvance =
-              refs.contains("source:central_pawn_advance_motif") &&
+                refs.contains("source:central_pawn_advance_motif") &&
                 refs.contains("central_pawn_advance_shape") &&
                 centralPawnAdvanceFile.nonEmpty &&
-                refs.exists(ref => ref.stripPrefix("central_pawn_to_rank_").toIntOption.exists(_ >= 4)) &&
+                refs.exists(ref =>
+                  ref.startsWith("central_pawn_to_rank_") && ref.stripPrefix("central_pawn_to_rank_").toIntOption.exists(_ >= 4)
+                ) &&
                 focusZone.contains("center") &&
                 idea.readiness == StrategicIdeaReadiness.Build &&
                 strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
@@ -361,13 +369,26 @@ object MoveReviewPlayerPayloadBuilder:
                 idea.readiness == StrategicIdeaReadiness.Build &&
                 strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
                 idea.confidence >= 0.74
+            val centralSpaceDiff =
+              refs
+                .filter(_.startsWith("central_space_diff_"))
+                .flatMap(ref => ref.stripPrefix("central_space_diff_").toIntOption)
+                .filter(_ >= 2)
+                .maxOption
+            val mobilityRestrictionGap =
+              refs
+                .filter(_.startsWith("mobility_restriction_gap_"))
+                .flatMap(ref => ref.stripPrefix("mobility_restriction_gap_").toIntOption)
+                .filter(_ >= 2)
+                .maxOption
             val profileText =
             if colorComplexClamp && focusSquares.size >= 2 && idea.confidence >= 0.78 && colorComplexZone.nonEmpty &&
                 strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
                 !exactColorComplexAlreadyVisible
               then
                 Some(s"The current structure clamps the ${colorComplexZone.get} around ${focusSquares.mkString(", ")}.")
-              else if motifSpaceAdvantage then Some("The current motif map gives a practical central-space cue.")
+              else if motifSpaceAdvantage then
+                spacePawnDelta.map(delta => s"The central-space cue is anchored by a +$delta pawn-space delta.")
               else if centralPawnAdvance then
                 Some(s"The central pawn advance gives a practical ${centralPawnAdvanceFile.get}-file space cue.")
               else if pawnChainSpace then
@@ -400,17 +421,19 @@ object MoveReviewPlayerPayloadBuilder:
               then Some("The current IQP structure gives a practical central-space cue.")
               else if refs.contains("source:central_space_edge") &&
                 refs.contains("central_space_edge_shape") &&
+                centralSpaceDiff.nonEmpty &&
                 focusZone.contains("center") &&
                 idea.readiness == StrategicIdeaReadiness.Ready &&
                 strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
                 idea.confidence >= 0.74
-              then Some("The current position gives a practical central-space edge.")
+              then centralSpaceDiff.map(diff => s"The central-space edge is anchored by a +$diff current-space count.")
               else if refs.contains("source:mobility_restriction") &&
                 refs.contains("mobility_restriction_shape") &&
+                mobilityRestrictionGap.nonEmpty &&
                 focusZone.contains("center") &&
                 strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
                 idea.confidence >= 0.72
-              then Some("The current position gives a practical mobility bind.")
+              then mobilityRestrictionGap.map(gap => s"The mobility bind is anchored by a $gap-piece low-mobility gap.")
               else None
             profileText.flatMap(text =>
               row("Practical space", text, tone = Some("practical")).map(_.copy(authority = PracticalPlanAuthority))

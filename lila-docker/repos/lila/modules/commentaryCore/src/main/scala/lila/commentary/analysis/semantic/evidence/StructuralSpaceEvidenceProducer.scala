@@ -130,15 +130,16 @@ private[commentary] object StructuralSpaceEvidenceProducer extends StrategicIdea
     val centralSpaceEvidence =
       semantic.positionFeatures
         .flatMap { features =>
-          Option.when(spaceDiffFor(side, features) >= 2) {
+          val spaceDiff = spaceDiffFor(side, features)
+          Option.when(spaceDiff >= 2) {
             evidence(
               ownerSide = side,
               kind = StrategicIdeaKind.SpaceGainOrRestriction,
               readiness = StrategicIdeaReadiness.Ready,
               source = EvidenceSourceId.CentralSpaceEdge,
-              confidence = 0.74 + math.min(0.08, (spaceDiffFor(side, features) - 2) * 0.02),
+              confidence = 0.74 + math.min(0.08, (spaceDiff - 2) * 0.02),
               focusZone = Some("center"),
-              factIds = List("central_space_edge_shape")
+              factIds = List("central_space_edge_shape", s"central_space_diff_$spaceDiff")
             )
           }
         }
@@ -149,15 +150,22 @@ private[commentary] object StructuralSpaceEvidenceProducer extends StrategicIdea
         .flatMap { features =>
           val enemyLow = lowMobilityPiecesFor(opponentSide(side), features)
           val ours = lowMobilityPiecesFor(side, features)
-          Option.when(enemyLow > ours) {
+          val mobilityGap = enemyLow - ours
+          Option.when(mobilityGap > 0) {
             evidence(
               ownerSide = side,
               kind = StrategicIdeaKind.SpaceGainOrRestriction,
               readiness = StrategicIdeaReadiness.Build,
               source = EvidenceSourceId.MobilityRestriction,
-              confidence = 0.68 + math.min(0.06, (enemyLow - ours) * 0.02),
+              confidence = 0.68 + math.min(0.06, mobilityGap * 0.02),
               focusZone = Some("center"),
-              factIds = List("mobility_restriction_shape")
+              factIds =
+                List(
+                  "mobility_restriction_shape",
+                  s"mobility_restriction_gap_$mobilityGap",
+                  s"enemy_low_mobility_pieces_$enemyLow",
+                  s"own_low_mobility_pieces_$ours"
+                )
             )
           }
         }

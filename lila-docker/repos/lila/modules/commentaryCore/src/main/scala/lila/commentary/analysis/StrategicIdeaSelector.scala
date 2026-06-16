@@ -845,7 +845,7 @@ private[commentary] object StrategicIdeaSelector:
       Option
         .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.CentralSpaceEdge).wireKey)) {
           EvidenceRef.Source(EvidenceSourceId.CentralSpaceEdge).wireKey ::
-            refs.filter(_ == "central_space_edge_shape")
+            refs.filter(ref => ref == "central_space_edge_shape" || ref.startsWith("central_space_diff_"))
         }
         .toList
         .flatten
@@ -853,7 +853,12 @@ private[commentary] object StrategicIdeaSelector:
       Option
         .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.MobilityRestriction).wireKey)) {
           EvidenceRef.Source(EvidenceSourceId.MobilityRestriction).wireKey ::
-            refs.filter(_ == "mobility_restriction_shape")
+            refs.filter(ref =>
+              ref == "mobility_restriction_shape" ||
+                ref.startsWith("mobility_restriction_gap_") ||
+                ref.startsWith("enemy_low_mobility_pieces_") ||
+                ref.startsWith("own_low_mobility_pieces_")
+            )
         }
         .toList
         .flatten
