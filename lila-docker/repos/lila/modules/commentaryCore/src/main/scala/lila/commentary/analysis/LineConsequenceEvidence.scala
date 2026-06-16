@@ -496,10 +496,10 @@ private[commentary] object LineConsequenceEvaluator:
           Some("The local result is a changed central pawn structure.")
       case LineConsequenceKind.PassedPawnCreation =>
         s"The checked line creates a passed pawn$triggerText." ->
-          Some("That matters because the resulting pawn can become a lasting conversion target.")
+          Some("That matters because the line leaves a concrete passed-pawn cue to track.")
       case LineConsequenceKind.PromotionRace =>
         s"The checked line pushes a passed pawn toward promotion$triggerText." ->
-          Some("The local result is a promotion race rather than only a move-order detail.")
+          Some("The local result is a passed-pawn advance near promotion, not only a move-order detail.")
       case LineConsequenceKind.ExchangeSequence =>
         s"The checked line reaches an exchange sequence$triggerText." ->
           primaryStructureDetailSurface(structureDetails)

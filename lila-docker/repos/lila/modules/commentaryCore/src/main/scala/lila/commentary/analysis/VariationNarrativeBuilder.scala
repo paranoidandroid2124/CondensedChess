@@ -123,9 +123,9 @@ private[analysis] object VariationNarrativeBuilder:
           val description =
             passer match
               case Some(step) =>
-                s"the pawn reaches ${step.dest.key} as a passed pawn, giving the line a lasting conversion target"
+                s"the pawn reaches ${step.dest.key} as a passed pawn, giving the line a concrete passer cue"
               case _ =>
-                "the line creates a passed pawn and changes the long-term conversion target"
+                "the line creates a passed pawn and gives the position a concrete passer cue"
           Some(s"On the checked line $formattedLine, $description.")
 
         case LineConsequenceKind.PromotionRace =>
@@ -133,11 +133,11 @@ private[analysis] object VariationNarrativeBuilder:
           val description =
             passer match
               case Some(step) if step.promotes =>
-                s"${step.san} promotes the pawn, so the line is decided by the promotion result"
+                s"${step.san} promotes the pawn, so promotion is the concrete line feature"
               case Some(step) =>
-                s"the passed pawn advances to ${step.dest.key}, turning the line into a promotion race"
+                s"the passed pawn advances to ${step.dest.key}, making promotion tempo the concrete issue"
               case _ =>
-                "the passed pawn race becomes the concrete result of the line"
+                "the passed-pawn advance makes promotion tempo the concrete issue"
           Some(s"On the checked line $formattedLine, $description.")
 
         case LineConsequenceKind.OriginSquareClearance =>

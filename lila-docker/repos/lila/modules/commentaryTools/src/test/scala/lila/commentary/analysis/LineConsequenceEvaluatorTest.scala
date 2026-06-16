@@ -567,7 +567,7 @@ final class LineConsequenceEvaluatorTest extends FunSuite:
     assert(VariationNarrativeBuilder.build(ctx, evidence).exists(_.contains("passed pawn")), clue(evidence))
   }
 
-  test("classifies an advanced passed-pawn push as a promotion race") {
+  test("classifies an advanced passed-pawn push as a bounded promotion cue") {
     val fen = "4k3/8/1P6/8/8/8/8/4K3 w - - 0 1"
     val ucis = List("b6b7")
     val ctx = context(fen, "b6b7", "b7", List(VariationLine(ucis, scoreCp = 150, depth = 18)))
@@ -580,7 +580,7 @@ final class LineConsequenceEvaluatorTest extends FunSuite:
     assertEquals(evidence.kind, LineConsequenceKind.PromotionRace)
     assertEquals(evidence.release, LineConsequenceRelease.SurfaceCandidate)
     assertEquals(evidence.triggerSan, Some("b7"))
-    assert(evidence.playerSentence.contains("promotion race"), clue(evidence))
+    assert(evidence.playerSentence.contains("passed-pawn advance near promotion"), clue(evidence))
     assert(VariationNarrativeBuilder.build(ctx, evidence).exists(_.contains("promotion")), clue(evidence))
   }
 

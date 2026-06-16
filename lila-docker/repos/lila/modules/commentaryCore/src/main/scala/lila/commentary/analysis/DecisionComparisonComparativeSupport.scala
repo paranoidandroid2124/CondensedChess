@@ -69,6 +69,7 @@ private[analysis] object DecisionComparisonComparativeSupport:
         normalized.contains("central pawn advance") ||
           normalized.contains("central break") ||
           normalized.contains("passed pawn") ||
+          normalized.contains("passed-pawn advance") ||
           normalized.contains("promotion race") ||
           normalized.contains("minor-piece reroute") ||
           normalized.contains("minor piece reroute")
@@ -280,7 +281,7 @@ private[analysis] object DecisionComparisonComparativeSupport:
       case LineConsequenceKind.PlayedMoveTargetPressure => Some("target pressure")
       case LineConsequenceKind.DelayedPawnCapture   => Some("delayed pawn capture")
       case LineConsequenceKind.PassedPawnCreation   => Some("passed pawn")
-      case LineConsequenceKind.PromotionRace        => Some("promotion race")
+      case LineConsequenceKind.PromotionRace        => Some("passed-pawn advance near promotion")
       case LineConsequenceKind.OriginSquareClearance => Some("origin-square clearance")
       case LineConsequenceKind.MinorPieceReroute    => Some("minor-piece reroute")
       case LineConsequenceKind.PreviewOnly          => None

@@ -1952,7 +1952,7 @@ private[commentary] object CommentaryIdeaSurface:
       case LineConsequenceKind.PassedPawnCreation =>
         "passed pawn creation"
       case LineConsequenceKind.PromotionRace =>
-        "promotion race"
+        "passed-pawn advance near promotion"
       case LineConsequenceKind.PreviewOnly =>
         "line preview"
 

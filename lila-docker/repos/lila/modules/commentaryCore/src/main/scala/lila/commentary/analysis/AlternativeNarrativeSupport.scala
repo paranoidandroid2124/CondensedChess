@@ -102,7 +102,7 @@ private[analysis] object AlternativeNarrativeSupport:
                   else s"While the engine prefers $lineAStr ($intentA) to push a passed pawn toward promotion, the alternative $mb ($intentB) continues with $lineBStr."
                 case (_, LineConsequenceKind.PromotionRace) =>
                   if (playedIsBest) playedBranchSentence(ma, intentA, lineAStr, mb, intentB, lineBStr, evA.kind, evB.kind)
-                  else s"While the engine prefers $lineAStr ($intentA), the alternative $mb ($intentB) instead enters a promotion race with $lineBStr."
+                  else s"While the engine prefers $lineAStr ($intentA), the alternative $mb ($intentB) instead pushes a passed pawn near promotion with $lineBStr."
                 case _ =>
                   if (playedIsBest) playedBranchSentence(ma, intentA, lineAStr, mb, intentB, lineBStr, evA.kind, evB.kind)
                   else s"While the engine prefers $lineAStr ($intentA), the alternative $mb ($intentB) opts for $lineBStr."
@@ -150,7 +150,7 @@ private[analysis] object AlternativeNarrativeSupport:
       case LineConsequenceKind.PlayedMoveTargetPressure => s"keeps target pressure via $line"
       case LineConsequenceKind.DelayedPawnCapture   => s"reaches a delayed pawn capture via $line"
       case LineConsequenceKind.PassedPawnCreation   => s"creates a passed pawn via $line"
-      case LineConsequenceKind.PromotionRace        => s"pushes a passed pawn toward promotion via $line"
+      case LineConsequenceKind.PromotionRace        => s"pushes a passed pawn near promotion via $line"
       case LineConsequenceKind.MinorPieceReroute    => s"reroutes a minor piece via $line"
       case _                                        => s"follows $line"
 
