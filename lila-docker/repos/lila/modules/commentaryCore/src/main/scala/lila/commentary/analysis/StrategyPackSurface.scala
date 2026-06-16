@@ -1444,8 +1444,6 @@ private[commentary] object StrategyPackSurface:
             containsAny(purpose, List("break", "hook", "pawn storm", "scaffold"))
           case "defender_tied_down" =>
             containsAny(purpose, List("defender", "tie down", "tied down", "passive", "pressure"))
-          case "conversion_window" =>
-            containsAny(purpose, List("convert", "conversion", "cash out", "transition", "trade"))
           case _ => false
       theaterOk && modeOk
     }
@@ -1475,8 +1473,6 @@ private[commentary] object StrategyPackSurface:
             moveRef.piece != "K" && containsAny(idea, List("break", "hook", "pawn storm", "scaffold"))
           case "defender_tied_down" =>
             moveRef.piece != "K" && containsAny(idea, List("defender", "tie down", "tied down", "passive"))
-          case "conversion_window" =>
-            moveRef.piece != "K" && containsAny(idea, List("convert", "conversion", "cash out", "transition", "trade"))
           case _ => false
       theaterOk && modeOk
     }
@@ -1577,9 +1573,7 @@ private[commentary] object StrategyPackSurface:
       val dominantConversionAnchor = ideaHasConversionAnchor(dominantIdea)
       val secondaryConversionAnchor = ideaHasConversionAnchor(secondaryIdea)
       val conversionIdeaAnchor = dominantConversionAnchor || secondaryConversionAnchor
-      val conversionAnchor =
-        conversionIdeaAnchor ||
-          typedLowered.exists(text => containsAny(text, List("cash out", "transition", "transform", "trade down", "conversion")))
+      val conversionAnchor = conversionIdeaAnchor
       val defenderAnchor =
         dominantKind.contains(StrategicIdeaKind.KingAttackBuildUp) ||
           secondaryKind.contains(StrategicIdeaKind.KingAttackBuildUp) ||
@@ -1672,8 +1666,7 @@ private[commentary] object StrategyPackSurface:
         else "immediate"
 
       val stabilityClass =
-        if pressureMode == "conversion_window" || lowered.exists(text => containsAny(text, List("cash out", "transition window")))
-        then "transition_only"
+        if pressureMode == "conversion_window" then "transition_only"
         else if
           Set("line_occupation", "target_fixing", "counterplay_denial").contains(pressureMode) ||
             recoveryPolicy == "intentionally_deferred" ||

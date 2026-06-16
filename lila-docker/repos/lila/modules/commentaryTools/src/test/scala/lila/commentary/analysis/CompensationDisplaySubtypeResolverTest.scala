@@ -315,6 +315,40 @@ class CompensationDisplaySubtypeResolverTest extends FunSuite:
       )
     )
 
+  private def routeTextOnlyConversionCompensationPack: StrategyPack =
+    StrategyPack(
+      sideToMove = "white",
+      pieceRoutes = List(
+        StrategyPieceRoute(
+          ownerSide = "white",
+          piece = "R",
+          from = "d1",
+          route = List("d1", "d4"),
+          purpose = "trade down into a clean transition",
+          strategicFit = 0.75,
+          tacticalSafety = 0.73,
+          surfaceConfidence = 0.72,
+          surfaceMode = RouteSurfaceMode.Toward
+        )
+      ),
+      pieceMoveRefs = List(
+        StrategyPieceMoveRef(
+          ownerSide = "white",
+          piece = "N",
+          from = "f3",
+          target = "d4",
+          idea = "cash out with a favorable trade"
+        )
+      ),
+      signalDigest = Some(
+        NarrativeSignalDigest(
+          compensation = Some("initiative against the king"),
+          compensationVectors = List("Initiative (0.6)"),
+          investedMaterial = Some(100)
+        )
+      )
+    )
+
   test("resolver uses typed path source for fixed-target compensation shell") {
     val surface = StrategyPackSurface.from(Some(benkoLikeCompensationPack))
     val rawSubtype = surface.compensationSubtype.getOrElse(fail("missing raw subtype"))
@@ -379,6 +413,14 @@ class CompensationDisplaySubtypeResolverTest extends FunSuite:
     val rawSubtype = surface.compensationSubtype.getOrElse(fail("missing raw subtype"))
 
     assertEquals(surface.dominantIdea.map(StrategicIdeaSelector.playerFacingIdeaText), Some("passed-pawn cue around e6"))
+    assertNotEquals(rawSubtype.pressureMode, "conversion_window")
+    assertNotEquals(rawSubtype.stabilityClass, "transition_only")
+  }
+
+  test("route and move-ref prose alone are not compensation conversion-window anchors") {
+    val surface = StrategyPackSurface.from(Some(routeTextOnlyConversionCompensationPack))
+    val rawSubtype = surface.compensationSubtype.getOrElse(fail("missing raw subtype"))
+
     assertNotEquals(rawSubtype.pressureMode, "conversion_window")
     assertNotEquals(rawSubtype.stabilityClass, "transition_only")
   }
