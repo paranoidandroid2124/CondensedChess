@@ -3405,10 +3405,11 @@ private[commentary] object CommentaryIdeaSurface:
     evidence.endgameFacts.filter {
       case fact: Fact.KingActivity =>
         played.role == King && fact.square == played.to
-      case _: Fact.Opposition =>
-        played.role == King
-      case _: Fact.RuleOfSquare =>
-        played.role == King || played.role == chess.Pawn
+      case fact: Fact.Opposition =>
+        played.role == King && (fact.king == played.to || fact.enemyKing == played.to)
+      case fact: Fact.RuleOfSquare =>
+        (played.role == King && fact.defenderKing == played.to) ||
+          (played.role == chess.Pawn && fact.targetPawn == played.to)
       case _: Fact.TriangulationOpportunity =>
         played.role == King
       case _: Fact.RookEndgamePattern =>

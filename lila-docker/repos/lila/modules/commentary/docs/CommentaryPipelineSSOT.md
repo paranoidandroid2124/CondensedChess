@@ -19,9 +19,12 @@ MoveReview commentary flows through one path:
    `CommentaryIdeaSurface`, but only for admitted local-fact families; castling,
    capture, and endgame basic descriptions remain fallback surfaces unless a
    separate typed owner exists. Endgame fallback may render typed
-   `Fact.KingActivity` or `Fact.Opposition` fields carried by canonical fact
-   evidence, and scoped checked-line takeaways may surface the admitted
-   local-fact anchors, but that does not promote the fallback into planner
+   `Fact.KingActivity`, `Fact.Opposition`, or `Fact.RuleOfSquare` fields
+   carried by canonical fact evidence only when the played move owns the typed
+   square anchor; role-only king or pawn movement does not admit opposition or
+   rule-of-square claims.
+   Scoped checked-line takeaways may surface the admitted local-fact anchors,
+   but that does not promote the fallback into planner
    authority. Oracle-only endgame outcome hints are not public result truth;
    without tablebase/eval/PV result evidence they leave public
    `theoreticalOutcomeHint` and transition task wording at `Unclear`.

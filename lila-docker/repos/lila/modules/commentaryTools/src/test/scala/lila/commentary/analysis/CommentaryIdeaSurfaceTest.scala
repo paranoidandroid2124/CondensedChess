@@ -453,6 +453,32 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
     )
   }
 
+  test("endgame opposition and rule-of-square facts must include the played square") {
+    val unrelatedOpposition =
+      Fact.Opposition(Square.E4, Square.E6, distance = 2, isDirect = true, oppositionType = "Direct", FactScope.CandidatePv)
+    val ownedOpposition =
+      Fact.Opposition(Square.D2, Square.D4, distance = 2, isDirect = true, oppositionType = "Direct", FactScope.CandidatePv)
+    val unrelatedRule =
+      Fact.RuleOfSquare(Square.D4, Square.E5, Square.E8, status = "Holds", FactScope.CandidatePv)
+    val ownedRule =
+      Fact.RuleOfSquare(Square.D2, Square.E5, Square.E8, status = "Holds", FactScope.CandidatePv)
+    val line = Some(lineFacts(moveRef("m1", "Kd2", "e1d2", 60), Some(moveRef("m2", "Ke6", "e7e6", 61))))
+    val kingMove = played("e1d2", "Kd2", Square.E1, Square.D2, Piece(Color.White, _root_.chess.King))
+
+    assertEquals(
+      CommentaryIdeaSurface.describe(kingMove, evidence(facts = List(unrelatedOpposition)), line),
+      None,
+      clue("opposition fact not involving the played king square should stay closed")
+    )
+    assert(CommentaryIdeaSurface.describe(kingMove, evidence(facts = List(ownedOpposition)), line).isDefined)
+    assertEquals(
+      CommentaryIdeaSurface.describe(kingMove, evidence(facts = List(unrelatedRule)), line),
+      None,
+      clue("rule-of-square fact not involving the played king square should stay closed")
+    )
+    assert(CommentaryIdeaSurface.describe(kingMove, evidence(facts = List(ownedRule)), line).isDefined)
+  }
+
   test("king-pawn fork shape stays closed without PV material follow-up") {
     val fen =
       "1r4k1/2r5/p3q2p/2p1P1p1/5B2/3P1P2/P4K2/3R2R1 b - - 0 39"
