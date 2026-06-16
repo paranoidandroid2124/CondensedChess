@@ -126,7 +126,7 @@ object accountIntel:
                         div(cls := "importer-panel__hint")(
                           span("Public games only"),
                           span("You can come back later"),
-                          span("Notebook is optional")
+                          span("Saved study is optional")
                         ),
                         button(cls := "auth-submit importer-submit", tpe := "submit")(
                           "Open position study",
@@ -308,9 +308,9 @@ object accountIntel:
                               "Open position study"
                             )),
                         job.notebookUrl
-                          .map(url => a(href := url, cls := "js-ai-status-notebook")("Open notebook"))
+                          .map(url => a(href := url, cls := "js-ai-status-notebook")("Open saved study"))
                           .getOrElse(
-                            a(href := "#", cls := "js-ai-status-notebook", hidden := "hidden")("Open notebook")
+                            a(href := "#", cls := "js-ai-status-notebook", hidden := "hidden")("Open saved study")
                           ),
                         a(href := routes.AccountIntel.landing("", "").url)("Back to position study")
                       )
@@ -467,7 +467,7 @@ object accountIntel:
       div(cls := "account-product-empty")(
         div(cls := "status-callout status-callout--primary")(
           strong("Study this player"),
-          span("Choose My Patterns or Prep for Opponent. The finished review will live here, while the notebook stays optional.")
+          span("Choose My Patterns or Prep for Opponent. The finished review will live here, while the saved study stays optional.")
         ),
         div(cls := "account-product-mode-switch")(
           modeLink(state, ProductKind.MyAccountIntelligenceLite, "My Patterns"),
@@ -762,7 +762,7 @@ object accountIntel:
       if kind == ProductKind.OpponentPrep then notebookUrl
       else Some(routes.StrategicPuzzle.home.url)
     val primaryLabel =
-      if kind == ProductKind.OpponentPrep then "Open notebook"
+      if kind == ProductKind.OpponentPrep then "Open saved study"
       else "Try the idea on the board"
     div(cls := "importer-panel importer-panel--guide")(
       div(cls := "importer-panel__head")(
@@ -791,7 +791,7 @@ object accountIntel:
         primaryHref.map(url => a(href := url, cls := "account-product-primary-link")(primaryLabel)),
         notebookUrl
           .filter(_ => kind == ProductKind.MyAccountIntelligenceLite)
-          .map(url => a(href := url, cls := "account-product-secondary-link")("Open notebook")),
+          .map(url => a(href := url, cls := "account-product-secondary-link")("Open saved study")),
         Option.when(kind == ProductKind.OpponentPrep)(
           a(href := routes.StrategicPuzzle.home.url, cls := "account-product-secondary-link")("Try the idea on the board")
         )
@@ -918,15 +918,15 @@ object accountIntel:
     val publishableJobId = state.selectedJobId.orElse(state.displayedJob.map(_.id))
     div(cls := "importer-panel importer-panel--guide account-product-utility")(
       div(cls := "importer-panel__head")(
-        strong(cls := "importer-panel__title")("Notebook"),
+        strong(cls := "importer-panel__title")("Saved study"),
         p(cls := "importer-panel__copy")(
-          "Stay on this page for the answer. Create a notebook only when you want the move tree, chapter flow, and a shareable study."
+          "Stay on this page for the answer. Create a saved study only when you want the move tree, chapter flow, and a shareable page."
         )
       ),
       div(cls := "account-product-utility-links")(
-        notebookUrl.map(url => a(href := url, cls := "account-product-secondary-link")("Open notebook")),
+        notebookUrl.map(url => a(href := url, cls := "account-product-secondary-link")("Open saved study")),
         publishableJobId.filter(_ => notebookUrl.isEmpty).map(_ =>
-          button(tpe := "button", cls := "account-product-secondary-link js-ai-publish-study")("Create notebook")
+          button(tpe := "button", cls := "account-product-secondary-link js-ai-publish-study")("Create saved study")
         ),
         div(cls := "copy-me account-product-copy")(
           input(
@@ -949,11 +949,11 @@ object accountIntel:
       div(cls := "importer-panel__head")(
         strong(cls := "importer-panel__title")("Keep studying"),
         p(cls := "importer-panel__copy")(
-          "Keep the lead position and action plan in view. Use these only when you want a notebook, comparison, history, or supporting notes."
+          "Keep the lead position and action plan in view. Use these only when you want a saved study, comparison, history, or supporting notes."
         )
       ),
       div(cls := "account-product-support-tablist", attr("role") := "tablist", attr("aria-label") := "Keep studying")(
-        supportTabButton("study", "Notebook", active = true),
+        supportTabButton("study", "Saved study", active = true),
         supportTabButton("compare", "Compare studies"),
         supportTabButton("history", "History"),
         overviewCards.nonEmpty.option(supportTabButton("notes", "Notes"))
@@ -1139,7 +1139,7 @@ object accountIntel:
   private def statusActionCopy(job: lila.accountintel.AccountIntel.AccountIntelJob): String =
     job.status match
       case lila.accountintel.AccountIntel.JobStatus.Succeeded =>
-        "The position study is ready. Open it now and use the notebook only if you want a move-tree version."
+        "The position study is ready. Open it now and use the saved study only if you want a move-tree version."
       case lila.accountintel.AccountIntel.JobStatus.Failed =>
         "The review stopped before the study was ready. Try again or switch players."
       case _ =>

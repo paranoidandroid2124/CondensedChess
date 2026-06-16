@@ -71,7 +71,7 @@ object importer:
                         div(cls := "importer-panel__hint")(
                           span("Public games only"),
                           span("Review starts from one game"),
-                          span("Notebook stays optional")
+                          span("Saved study stays optional")
                         ),
                         button(cls := "auth-submit importer-submit", tpe := "submit")(
                           "Load recent games",
@@ -114,7 +114,7 @@ object importer:
                     div(cls := "importer-hero__eyebrow")(providerShortLabel(provider)),
                     h1(cls := "auth-title importer-hero__title")(s"@$username"),
                     p(cls := "auth-subtitle importer-hero__subtitle")(
-                      "Open one game on the review board first. Save a notebook only when the position is worth keeping."
+                      "Open one game on the review board first. Save a study only when the position is worth keeping."
                     ),
                     div(cls := "importer-summary-strip")(
                       div(cls := "importer-summary-chip")(
@@ -127,7 +127,7 @@ object importer:
                       ),
                       div(cls := "importer-summary-chip")(
                         strong("Review first"),
-                        span("Notebook stays secondary")
+                        span("Saved study stays secondary")
                       )
                     )
                   ),
@@ -138,7 +138,7 @@ object importer:
                       div(cls := "importer-panel__head")(
                         strong(cls := "importer-panel__title")("Open a game on the board"),
                         p(cls := "importer-panel__copy")(
-                          "Pick the game you want and reopen it on the board. Notebook actions stay below because they answer a different question."
+                          "Pick the game you want and reopen it on the board. Saved-study actions stay below because they answer a different question."
                         )
                       ),
                       games.nonEmpty.option(
@@ -161,7 +161,7 @@ object importer:
                               provider = provider,
                               username = username,
                               kind = ProductKind.MyAccountIntelligenceLite.key,
-                              title = "My Patterns notebook",
+                              title = "My Patterns study",
                               body =
                                 "Use these games to spot the decisions you keep repeating and the structure worth fixing first.",
                               eyebrow = "Repair"
@@ -308,7 +308,7 @@ object importer:
             div(cls := "auth-history__section-head")(
               strong("Recent games"),
               span(
-                "Reopen saved games, then continue with Move Review or the full analysis board."
+                "Reopen saved games, then continue with Move Review or the full board."
               )
             ),
             div(cls := "auth-history__list")(
