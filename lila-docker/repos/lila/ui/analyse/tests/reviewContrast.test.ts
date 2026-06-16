@@ -8,6 +8,7 @@ const chesstoryScss = readFileSync(fileURLToPath(new URL('../css/_chesstory.scss
 const narrativeScss = readFileSync(fileURLToPath(new URL('../css/_narrative.scss', import.meta.url)), 'utf8');
 const sideScss = readFileSync(fileURLToPath(new URL('../css/_side.scss', import.meta.url)), 'utf8');
 const commentaryWidgetScss = readFileSync(fileURLToPath(new URL('../css/_commentary.widget.scss', import.meta.url)), 'utf8');
+const explorerScss = readFileSync(fileURLToPath(new URL('../css/explorer/_explorer.scss', import.meta.url)), 'utf8');
 const homeScss = readFileSync(fileURLToPath(new URL('../../site/css/_home.scss', import.meta.url)), 'utf8');
 const landingScss = readFileSync(fileURLToPath(new URL('../../site/css/_landing.scss', import.meta.url)), 'utf8');
 const authScss = readFileSync(fileURLToPath(new URL('../../site/css/_auth.scss', import.meta.url)), 'utf8');
@@ -383,6 +384,28 @@ describe('review shell contrast palette', () => {
     assert.match(studyListWidgetScss, /\.study\s*\{[\s\S]*?background:\s*rgba\(\$study-surface,\s*0\.72\);/);
     assert.match(studyListWidgetScss, /&__title\s*\{[\s\S]*?color:\s*\$study-text;/);
     assert.match(studyListWidgetScss, /&__detail\s*\{[\s\S]*?color:\s*\$study-warm;/);
+  });
+
+  test('keeps opening explorer in the dark study-room palette', () => {
+    [
+      '#fff',
+      'rgba(15, 17, 23',
+      'rgba(255, 255, 255',
+      '$m-secondary_bg--mix-40',
+      '$m-secondary_bg--mix-50',
+      '$m-primary_bg--mix-25',
+    ].forEach(color => assert.doesNotMatch(explorerScss, new RegExp(escapeRegExp(color), 'i'), `off-palette explorer color: ${color}`));
+
+    assert.match(explorerScss, /\$explorer-bg:\s*#171816;/);
+    assert.match(explorerScss, /\$explorer-surface:\s*#22241f;/);
+    assert.match(explorerScss, /\$explorer-accent:\s*#8bc071;/);
+    assert.match(explorerScss, /\.explorer-title\s*\{[\s\S]*?letter-spacing:\s*0;/);
+    assert.match(explorerScss, /\.long\s*\{[\s\S]*?letter-spacing:\s*0;/);
+    assert.match(
+      explorerScss,
+      /&:first-child\s*\{[\s\S]*?background:\s*linear-gradient\(to right,\s*\$explorer-accent-dark,\s*\$explorer-accent\);[\s\S]*?color:\s*\$explorer-bg;/,
+    );
+    assert.match(explorerScss, /\.game_menu\s*\{[\s\S]*?background:\s*\$explorer-surface-raised;/);
   });
 
   test('keeps site entry surfaces in the dark study-room palette', () => {
