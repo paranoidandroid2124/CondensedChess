@@ -246,6 +246,11 @@ object only when the typed proof shows reviewed-move ownership on the after-boar
 and, where persistence matters, the played-first checked PV keeps the object and
 pressure/resource relation alive. Transient, pre-existing, or unpressured shapes
 remain support-only or diagnostic.
+Opening-goal outpost labels are not public outpost authority; durable board/PV
+proof now surfaces through the existing `Knight outpost` family.
+Opening-goal break names are context only; when an opening pawn move is admitted,
+the player row names the checked played pawn route rather than the
+catalog/opening-goal label.
 For target fixation, a board-only witness without typed target focus is trusted
 only for the Carlsbad c-pawn target profile; generic weak-pawn pressure needs a
 typed idea, moveRef, or route hint before it can become a public claim.

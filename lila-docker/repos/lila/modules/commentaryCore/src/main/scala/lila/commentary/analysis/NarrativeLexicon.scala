@@ -501,32 +501,32 @@ object NarrativeLexicon {
     
     evaluation.status match {
       case OpeningGoals.Status.Achieved =>
-        val evidenceText = if (supported.nonEmpty) s" as ${supported.mkString(" and ")} is evident" else ""
+        val evidenceText = if (supported.nonEmpty) s": ${supported.mkString(", ")}" else ""
         pick(bead, List(
-          s"The $name goal is achieved$evidenceText.",
-          s"Strategic objective $name is reached$evidenceText.",
-          s"Position successfully transitions into the $name setup$evidenceText."
+          s"The opening context shows the $name cue$evidenceText.",
+          s"$name is present as opening context$evidenceText.",
+          s"The position carries a $name opening cue$evidenceText."
         ))
       
       case OpeningGoals.Status.Partial =>
-        val missingText = if (missing.nonEmpty) s", though ${missing.mkString(", ")} remains to be addressed" else ""
+        val missingText = if (missing.nonEmpty) s"; still missing ${missing.mkString(", ")}" else ""
         pick(bead, List(
-          s"The $name is partially established$missingText.",
-          s"$name is taking shape$missingText."
+          s"$name is only a partial opening cue$missingText.",
+          s"$name is visible as opening context$missingText."
         ))
 
       case OpeningGoals.Status.Premature =>
-        val missingText = if (missing.nonEmpty) s", mostly due to lack of ${missing.mkString(" and ")}" else ""
+        val missingText = if (missing.nonEmpty) s"; missing ${missing.mkString(" and ")}" else ""
         pick(bead, List(
-          s"Attempting $name here feels premature$missingText.",
-          s"$name is a thematic idea, but it's currently undermined by ${missing.mkString(", ")}."
+          s"$name is not yet supported by this position$missingText.",
+          s"$name remains only a candidate opening idea$missingText."
         ))
 
       case OpeningGoals.Status.Failed =>
-        val missingText = if (missing.nonEmpty) s". The position lacks ${missing.mkString(" and ")}" else ""
+        val missingText = if (missing.nonEmpty) s"; the position lacks ${missing.mkString(" and ")}" else ""
         pick(bead, List(
-          s"The $name attempt failed here$missingText.",
-          s"$name was tactically or structurally unsound in this instance: ${missing.mkString(", ")}."
+          s"$name is not supported here$missingText.",
+          s"$name remains only a background opening idea$missingText."
         ))
         
       case OpeningGoals.Status.Mismatch => 

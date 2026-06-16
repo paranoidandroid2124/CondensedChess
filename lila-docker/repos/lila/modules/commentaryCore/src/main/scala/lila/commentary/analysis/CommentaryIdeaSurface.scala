@@ -3788,8 +3788,8 @@ private[commentary] object CommentaryIdeaSurface:
           s"${played.san}$openingPart develops the $role toward opening coordination"
       else
         val goalPhrase = openingGoalPhrase(goal.goalName)
-        s"${played.san} follows $goalPhrase" ->
-          s"${played.san}$openingPart fits $goalPhrase"
+        s"${played.san} matches $goalPhrase" ->
+          s"${played.san}$openingPart matches $goalPhrase"
     OpeningGoalSurface(title, s"$lead.$supportText")
 
   private def openingGoalSupportText(evidence: List[String]): String =
@@ -3816,12 +3816,12 @@ private[commentary] object CommentaryIdeaSurface:
 
   private def openingGoalPhrase(goalName: String): String =
     val key = slug(goalName)
-    if key.contains("development") || key.contains("fianchetto") then "a board-backed development goal"
-    else if key.contains("challenge") || key.contains("sicilian") then "a board-backed center goal"
-    else if key.contains("break") || key.contains("gambit") then "a board-backed pawn-break goal"
-    else if key.contains("tension") || key.contains("release") then "a board-backed tension goal"
-    else if key.contains("safety") || key.contains("castle") then "a board-backed king-safety goal"
-    else "a board-backed opening goal"
+    if key.contains("development") || key.contains("fianchetto") then "a checked development cue"
+    else if key.contains("challenge") || key.contains("sicilian") then "a checked center cue"
+    else if key.contains("break") || key.contains("gambit") then "a checked pawn-break cue"
+    else if key.contains("tension") || key.contains("release") then "a checked tension cue"
+    else if key.contains("safety") || key.contains("castle") then "a checked king-safety cue"
+    else "a checked opening cue"
 
   private def hangingStatement(
       bead: Int,

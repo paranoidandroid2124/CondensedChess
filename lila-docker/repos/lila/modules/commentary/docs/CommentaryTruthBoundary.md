@@ -233,6 +233,11 @@ facts and practical outpost rows cannot supply that truth by themselves.
 The practical `Knight outpost` player row uses the same durability gate, so a
 transient knight landing that can be attacked by an enemy minor or immediately
 removed in the checked PV stays outpost-silent.
+Opening-goal names such as Dutch or Queen's Indian outpost are context only;
+when the same board/PV durability proof succeeds, the public row remains the
+typed `Knight outpost` family rather than an opening-label claim.
+Opening-goal break names are also context only; the MoveReview player row may
+name only the checked played pawn route, not the catalog goal label.
 `source:outpost_tag` and `source:strong_knight` strategic-idea signals are not
 truth authority and no longer publish `Practical outpost` advanced rows by
 themselves; only explicit minor-piece route/directional access cues may surface

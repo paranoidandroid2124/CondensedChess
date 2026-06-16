@@ -1588,21 +1588,13 @@ object MoveReviewPlayerPayloadBuilder:
     )
 
   private def exactOutpostRowSquare(row: MoveReviewPlayerSurfaceRow): Option[String] =
-    exactKnightOutpostRowSquare(row).orElse(exactOpeningOutpostRowSquare(row))
+    exactKnightOutpostRowSquare(row)
 
   private def exactKnightOutpostRowSquare(row: MoveReviewPlayerSurfaceRow): Option[String] =
     exactPracticalTargetRowTarget(row, "Knight outpost") { target =>
-      row.text == s"The checked line puts the knight on the $target outpost."
+      row.text == s"The checked line puts the knight on the $target outpost." ||
+        row.text == s"The checked line puts the knight on the pawn-supported $target outpost square."
     }
-
-  private def exactOpeningOutpostRowSquare(row: MoveReviewPlayerSurfaceRow): Option[String] =
-    val OpeningOutpostText = """The checked opening structure puts a knight on the pawn-supported ([a-h][1-8]) outpost square[.]""".r
-    if row.label != "Opening outpost" then None
-    else
-      row.authority
-        .filter(_.kind == MoveReviewSurfaceAuthority.PracticalPlan)
-        .flatMap(_ => OpeningOutpostText.findFirstMatchIn(row.text))
-        .flatMap(matchResult => validSquare(matchResult.group(1)))
 
   private def exactSimplificationRow(row: MoveReviewPlayerSurfaceRow): Boolean =
     exactPracticalTargetRow(row, "Simplification") { target =>
@@ -2656,8 +2648,7 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
   private val CentralBreakLabel = "Central break"
   private val CentralLiquidationLabel = "Central liquidation"
   private val CentralChallengeLabel = "Central challenge"
-  private val OpeningBreakLabel = "Opening break"
-  private val OpeningOutpostLabel = "Opening outpost"
+  private val OpeningBreakLabel = "Pawn break"
   private val KnightOutpostLabel = "Knight outpost"
   private val OpeningBreakGoalTokens =
     List("attack", "break", "challenge", "chipper", "equalizer", "expansion", "liberator", "liquidator", "release", "storm")
@@ -2893,33 +2884,39 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       replayCache: PlayedTopPvReplayCache
   ): Option[MoveReviewPlayerSurfaceRow] =
     ctx.openingGoalEvaluation.flatMap { goal =>
-      if openingBreakGoalEligible(ctx, goal, replayCache) then
+      openingBreakRoute(ctx, goal, replayCache).flatMap { token =>
         row(
           OpeningBreakLabel,
-          openingBreakText(goal),
+          openingBreakText(goal, token),
           authority = PracticalPlanAuthority
         )
-      else
-        openingOutpostSquare(goal, replayCache).flatMap { square =>
-          row(
-            OpeningOutpostLabel,
-            s"The checked opening structure puts a knight on the pawn-supported $square outpost square.",
-            authority = PracticalPlanAuthority
-          )
-        }
+      }
     }
 
-  private def openingBreakGoalEligible(ctx: NarrativeContext, goal: OpeningGoals.Evaluation, replayCache: PlayedTopPvReplayCache): Boolean =
-    openingGoalPracticalStatus(goal) &&
-      goal.confidence >= 0.70 &&
-      openingBreakGoalName(goal.goalName) &&
-      openingGoalTriggeredByPlayedMove(ctx, goal) &&
-      replayCache.playedMove.exists { case (_, position, move) =>
-        move.piece.role == _root_.chess.Pawn &&
-          move.piece.color == position.color &&
-          move.dest.file.value >= 1 &&
-          move.dest.file.value <= 5
+  private def openingBreakRoute(
+      ctx: NarrativeContext,
+      goal: OpeningGoals.Evaluation,
+      replayCache: PlayedTopPvReplayCache
+  ): Option[String] =
+    Option
+      .when(
+        openingGoalPracticalStatus(goal) &&
+          goal.confidence >= 0.70 &&
+          openingBreakGoalName(goal.goalName) &&
+          openingGoalTriggeredByPlayedMove(ctx, goal)
+      ) {
+        replayCache.playedMove.flatMap { case (_, position, move) =>
+          Option
+            .when(
+              move.piece.role == _root_.chess.Pawn &&
+                move.piece.color == position.color &&
+                move.dest.file.value >= 1 &&
+                move.dest.file.value <= 5
+            )(s"${move.orig.key}-${move.dest.key}")
+            .flatMap(BreakSurfaceToken.canonicalRoute)
+        }
       }
+      .flatten
 
   private def openingGoalTriggeredByPlayedMove(ctx: NarrativeContext, goal: OpeningGoals.Evaluation): Boolean =
     ctx.playedMove
@@ -2932,45 +2929,18 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
         )
       )
 
-  private def openingOutpostSquare(goal: OpeningGoals.Evaluation, replayCache: PlayedTopPvReplayCache): Option[String] =
-    if goal.status == OpeningGoals.Status.Achieved &&
-        goal.confidence >= 0.85 &&
-        openingOutpostGoalName(goal.goalName)
-    then
-      goal.supportedEvidence.collectFirst {
-        case OpeningOutpostEvidence(square)
-            if replayCache.playedMoveAfter.exists { case (_, position, move, after) =>
-              move.piece.role == _root_.chess.Knight &&
-                move.piece.color == position.color &&
-                move.dest.key == square.toLowerCase &&
-                advancedOutpostSquare(move.dest, move.piece.color) &&
-                after.board.pieceAt(move.dest).exists(piece => piece.color == move.piece.color && piece.role == _root_.chess.Knight) &&
-                outpostSquare(after.board, move.dest, move.piece.color) &&
-                topPvKeepsPracticalKnightOutpost(replayCache, move.dest, move.piece.color)
-            } =>
-          square.toLowerCase
-      }
-    else None
-
   private def openingGoalPracticalStatus(goal: OpeningGoals.Evaluation): Boolean =
     goal.status == OpeningGoals.Status.Achieved || goal.status == OpeningGoals.Status.Partial
 
-  private def openingBreakText(goal: OpeningGoals.Evaluation): String =
-    val name = openingBreakDisplayName(goal.goalName)
+  private def openingBreakText(goal: OpeningGoals.Evaluation, token: String): String =
+    val route = BreakSurfaceToken.displayRoute(token)
     goal.status match
       case OpeningGoals.Status.Achieved =>
-        s"$name is supported by the checked opening structure."
+        s"The checked line plays the $route pawn break."
       case OpeningGoals.Status.Partial =>
-        s"$name is on the board, but ${openingBreakCaution(goal.missingEvidence)} still needs care."
+        s"The checked line plays the $route pawn break, but ${openingBreakCaution(goal.missingEvidence)} still needs care."
       case _ =>
-        s"$name remains only a practical opening cue."
-
-  private def openingBreakDisplayName(goalName: String): String =
-    Option(goalName)
-      .getOrElse("")
-      .trim
-      .replaceAll("""(?i)\b([a-h])-pawn\s+Break\b""", "$1-pawn advance")
-      .replaceAll("""(?i)\b([a-h])-pawn\s+Challenge\b""", "$1-pawn challenge")
+        s"The $route pawn move remains only an opening cue."
 
   private def openingBreakCaution(missingEvidence: List[String]): String =
     missingEvidence
@@ -2983,14 +2953,6 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
     lower.nonEmpty &&
       !lower.contains("preparation") &&
       OpeningBreakGoalTokens.exists(lower.contains)
-
-  private val OpeningOutpostGoalNames =
-    Set("dutch e4 outpost", "queen's indian e4 outpost", "bogo-indian e4 outpost")
-
-  private val OpeningOutpostEvidence = """(?i)\b([a-h][1-8])\s+outpost occupied\b""".r
-
-  private def openingOutpostGoalName(name: String): Boolean =
-    OpeningOutpostGoalNames.contains(Option(name).getOrElse("").trim.toLowerCase)
 
   private def playedTopPvReplay(
       ctx: NarrativeContext,
@@ -3070,7 +3032,13 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       row <- row(
         KnightOutpostLabel,
         s"The checked line puts the knight on the pawn-supported ${move.dest.key} outpost square.",
-        authority = PracticalPlanAuthority
+        authority =
+          Some(
+            MoveReviewSurfaceAuthority(
+              kind = MoveReviewSurfaceAuthority.PracticalPlan,
+              target = Some(move.dest.key)
+            )
+          )
       )
     yield row
 

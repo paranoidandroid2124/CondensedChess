@@ -6406,25 +6406,6 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     )
     assert(!exactOutpostSurface.advancedRows.exists(_.label == "Practical outpost"), clue(exactOutpostSurface.advancedRows))
 
-    val exactOpeningOutpostSurface =
-      build(
-        supportedLocalRows =
-          List(
-            MoveReviewPlayerSurfaceRow(
-              label = "Opening outpost",
-              text = "The checked opening structure puts a knight on the pawn-supported d5 outpost square.",
-              authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))
-            )
-          ),
-        strategyPack =
-          Some(
-            StrategyPack(
-              sideToMove = "white",
-              strategicIdeas = List(idea)
-            )
-          )
-      )
-    assert(!exactOpeningOutpostSurface.advancedRows.exists(_.label == "Practical outpost"), clue(exactOpeningOutpostSurface.advancedRows))
   }
 
   test("tag-only outpost context stays hidden beside exact outpost rows") {
@@ -6460,27 +6441,6 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       )
 
     assert(!surface.advancedRows.exists(_.label == "Practical outpost"), clue(surface.advancedRows))
-
-    val openingSurface =
-      build(
-        supportedLocalRows =
-          List(
-            MoveReviewPlayerSurfaceRow(
-              label = "Opening outpost",
-              text = "The checked opening structure has put a knight on the e5 outpost.",
-              authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))
-            )
-          ),
-        strategyPack =
-          Some(
-            StrategyPack(
-              sideToMove = "white",
-              strategicIdeas = List(idea)
-            )
-          )
-      )
-
-    assert(!openingSurface.advancedRows.exists(_.label == "Practical outpost"), clue(openingSurface.advancedRows))
 
     val malformedPieceSurface =
       build(
@@ -6538,26 +6498,6 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
 
     assert(!surface.advancedRows.exists(_.label == "Practical outpost"), clue(surface.advancedRows))
 
-    val openingLabelSurface =
-      build(
-        supportedLocalRows =
-          List(
-            MoveReviewPlayerSurfaceRow(
-              label = "Opening outpost",
-              text = "The opening plan has a possible outpost idea around d5.",
-              tone = Some("practical")
-            )
-          ),
-        strategyPack =
-          Some(
-            StrategyPack(
-              sideToMove = "white",
-              strategicIdeas = List(idea)
-            )
-          )
-      )
-
-    assert(!openingLabelSurface.advancedRows.exists(_.label == "Practical outpost"), clue(openingLabelSurface.advancedRows))
   }
 
   test("IQP trade-down strategic ideas create bounded practical trade rows") {

@@ -190,6 +190,11 @@ object only when the producer proves the reviewed-move ownership on the
 after-board and, when persistence matters, the played-first checked PV keeps the
 object and pressure/resource relation alive. Transient, pre-existing, or
 unpressured shapes stay support-only or diagnostic.
+Opening-goal outpost context does not create a separate player-facing opening
+outpost family; if the durable outpost proof succeeds, it reuses the `Knight
+outpost` row and typed target.
+Opening-goal break context likewise renders through the checked played pawn
+route, not the catalog/opening-goal label.
 If a reviewed central pawn move is itself a board-backed
 `CentralBreakTimingWitness` and a same-destination `neutralize_key_break`
 candidate also appears, the central-break packet owns the move unless an

@@ -1028,7 +1028,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
         playedMove = "f5h4"
       )
 
-    assert(!rows.exists(row => row.label == "Opening outpost" || row.label == "Knight outpost"), clue(rows))
+    assert(!rows.exists(_.label == "Knight outpost"), clue(rows))
   }
 
   test("projects PGN-backed color-complex squeeze exact-slice packets through the public row") {
@@ -1634,7 +1634,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
     val rows =
       noRankedSupportedLocalRows(localInputs = inputs(packet = moveLocal))
 
-    assert(!rows.exists(row => row.label == "Opening outpost" || row.label == "Knight outpost"), clue(rows))
+    assert(!rows.exists(_.label == "Knight outpost"), clue(rows))
   }
 
   test("certifies played Ne4 pressure on the Carlsbad c3 pawn target from board and checked PV") {
@@ -3573,7 +3573,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
     )
   }
 
-  test("projects non-central opening pawn breaks as practical opening rows") {
+  test("projects non-central opening pawn breaks as played pawn-break rows") {
     val cases =
       List(
         (
@@ -3581,14 +3581,14 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
           2,
           "c7c5",
           List(VariationLine(List("c7c5", "g1f3"), scoreCp = 0, depth = 18)),
-          "Sicilian c-pawn challenge is supported by the checked opening structure."
+          "The checked line plays the c7-c5 pawn break."
         ),
         (
           "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
           3,
           "f2f4",
           List(VariationLine(List("f2f4", "e5f4"), scoreCp = 0, depth = 18)),
-          "King's Gambit f-pawn advance is on the board, but king safety still needs care."
+          "The checked line plays the f2-f4 pawn break, but king safety still needs care."
         )
       )
 
@@ -3604,7 +3604,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
           truthContract = Some(safeTruthContract(playedMove))
         )
 
-      assertEquals(rows.map(_.label), List("Opening break"), clues(playedMove, rows))
+      assertEquals(rows.map(_.label), List("Pawn break"), clues(playedMove, rows))
       assertEquals(rows.head.text, expectedText, clue(rows))
       assertEquals(
         rows.head.authority,
@@ -3614,7 +3614,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
     }
   }
 
-  test("does not project opening break prose without a top-PV played-move witness") {
+  test("does not project pawn-break prose without a top-PV played-move witness") {
     val injectedCtx =
       ctx.copy(
         fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
@@ -3634,10 +3634,10 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     val rows = topPvPracticalRows(injectedCtx, "c7c5")
 
-    assert(!rows.exists(_.label == "Opening break"), clue(rows))
+    assert(!rows.exists(_.label == "Pawn break"), clue(rows))
   }
 
-  test("does not project opening break prose when the goal does not match the played pawn witness") {
+  test("does not project pawn-break prose when the goal does not match the played pawn witness") {
     val injectedCtx =
       ctx.copy(
         fen = "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
@@ -3657,10 +3657,10 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     val rows = topPvPracticalRows(injectedCtx, "f2f4")
 
-    assert(!rows.exists(_.label == "Opening break"), clue(rows))
+    assert(!rows.exists(_.label == "Pawn break"), clue(rows))
   }
 
-  test("projects board-backed opening outposts as practical opening rows") {
+  test("projects board-backed opening outposts as knight outpost rows") {
     val dutchOutpostFen =
       "rnbqkb1r/ppp1p1pp/5n2/3p1p2/2PP4/8/PP2PPPP/RNBQKBNR b KQkq - 2 4"
     val lines =
@@ -3680,11 +3680,11 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
         truthContract = Some(safeTruthContract("f6e4"))
     )
 
-    assertEquals(rows.map(_.label), List("Opening outpost"), clue(rows))
-    assertEquals(rows.head.text, "The checked opening structure puts a knight on the pawn-supported e4 outpost square.")
+    assertEquals(rows.map(_.label), List("Knight outpost"), clue(rows))
+    assertEquals(rows.head.text, "The checked line puts the knight on the pawn-supported e4 outpost square.")
     assertEquals(
       rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("e4"))),
       clue(rows)
     )
   }
@@ -3708,7 +3708,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     val rows = topPvPracticalRows(injectedCtx, "d5d4")
 
-    assert(!rows.exists(row => row.label == "Opening outpost" || row.label == "Knight outpost"), clue(rows))
+    assert(!rows.exists(_.label == "Knight outpost"), clue(rows))
   }
 
   test("does not project opening outpost prose without a top-PV played-move witness") {
@@ -3766,7 +3766,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     val rows = topPvPracticalRows(injectedCtx, "f6e4")
 
-    assert(!rows.exists(row => row.label == "Opening outpost" || row.label == "Knight outpost"), clue(rows))
+    assert(!rows.exists(_.label == "Knight outpost"), clue(rows))
   }
 
   test("projects top-PV rook-pawn hook creation as a bounded practical row") {
