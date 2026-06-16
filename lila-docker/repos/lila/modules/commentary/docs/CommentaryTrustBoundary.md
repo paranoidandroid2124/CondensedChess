@@ -9,6 +9,9 @@ details.
 Renderer prose may only express claims that have typed evidence authority.
 Planner scene names, source strings, and truth-contract risk labels are
 diagnostics unless a CausalFrame/local fact contract admits them.
+Validated outline beats must already carry released text; an empty
+`OutlineBeat` is silent and the renderer must not synthesize context, opening,
+main-move, alternative, or practical verdict prose from `NarrativeContext`.
 Author-question rows may seed a question slot from candidate/PV signals, but
 candidate `downstreamTactic` strings and motif-derived labels are not authority
 for tactical names, line consequences, timing, or positional change prose.

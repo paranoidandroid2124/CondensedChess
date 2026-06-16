@@ -27,7 +27,7 @@ enum OutlineBeatKind:
  * OutlineBeat: A semantic unit of narrative content.
  *
  * @param kind The structural role of this beat
- * @param text The rendered text (may be empty if Renderer generates from Lexicon)
+ * @param text The released beat text produced by builder/producers; empty beats are dropped before rendering.
  * @param conceptIds Semantic identifiers (e.g., "Weakness_c6", "Outpost_f5")
  * @param anchors Must-mention tokens that should appear in final prose
  * @param questionIds Related AuthorQuestion IDs

@@ -13,7 +13,7 @@ import lila.commentary.model.authoring.*
  * Seed proposals are refined downstream by:
  * - PlanProposalEngine / SeedMoveGenerator (position-specific candidate generation)
  * - ProbeDetector (free-tempo/legal branches + refutation)
- * - BookStyleRenderer (conditional rendering rules)
+ * - BookStyleRenderer (validated prose assembly)
  */
 object LatentSeedLibrary:
 

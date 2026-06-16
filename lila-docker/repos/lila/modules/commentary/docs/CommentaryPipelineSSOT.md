@@ -51,7 +51,10 @@ MoveReview commentary flows through one path:
    CausalFrame/local fact contract. If planner selection does not render but a
    basic idea descriptor carries an eligible causal local fact, the policy first
    re-admits that typed fact through CausalFrame; direct basic rendering is only
-   the non-causal or rejected fallback lane.
+   the non-causal or rejected fallback lane. `BookStyleRenderer` assembles
+   released outline text only; empty outline beats are silent and do not trigger
+   renderer-generated context, opening, main-move, alternative, or practical
+   claim fallbacks.
 9. API/front-end payloads expose the selected surface and diagnostics.
 
 There is no parallel MoveReview explanation path. Exact factual fallback is the

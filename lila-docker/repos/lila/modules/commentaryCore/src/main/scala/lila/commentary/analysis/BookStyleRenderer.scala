@@ -30,13 +30,9 @@ object BookStyleRenderer:
   )
 
   private val QuestionStartPattern = """(?i)^(what|how|why|can|should|is|are|do|does|did|will|would|could)\b.*""".r
-  private val DollarPattern = """\$""".r
   private val ReqPattern = """\bREQ_[A-Z0-9_]+\b""".r
   private val SupPattern = """\bSUP_[A-Z0-9_]+\b""".r
   private val BlkPattern = """\bBLK_[A-Z0-9_]+\b""".r
-  private val AlignedPattern = """aligned""".r
-  private val ControlPattern = """control""".r
-  private val GoodPattern = """good""".r
   /**
    * Render NarrativeContext into book-style prose.
    */
@@ -76,13 +72,13 @@ object BookStyleRenderer:
     )
 
   private[analysis] def renderBeatForSelection(beat: OutlineBeat, ctx: NarrativeContext): String =
-    redactStructureTokens(renderBeat(beat, ctx, Math.abs(ctx.hashCode))).trim
+    redactStructureTokens(renderBeat(beat, Math.abs(ctx.hashCode))).trim
 
   private def renderOutlineRaw(outline: NarrativeOutline, ctx: NarrativeContext): String =
     val bead = Math.abs(ctx.hashCode)
     val renderedCandidates =
       outline.beats.zipWithIndex.flatMap { case (beat, beatIndex) =>
-        renderBeatSentences(beat, ctx, bead, beatIndex)
+        renderBeatSentences(beat, bead, beatIndex)
       }
     val kept = NarrativeDedupCore.dedupe(renderedCandidates.map(_.candidate)).map(_.order).toSet
     val selected = renderedCandidates.filter(candidate => kept.contains(candidate.candidate.order))
@@ -110,11 +106,10 @@ object BookStyleRenderer:
 
   private def renderBeatSentences(
       beat: OutlineBeat,
-      ctx: NarrativeContext,
       bead: Int,
       beatIndex: Int
   ): List[RenderedSentenceCandidate] =
-    val rendered = renderBeat(beat, ctx, bead).trim
+    val rendered = renderBeat(beat, bead).trim
     if rendered.isEmpty then Nil
     else
       val parts =
@@ -172,97 +167,12 @@ object BookStyleRenderer:
       case OutlineBeatKind.WrapUp          => Some(NarrativeDedupCore.NarrativeClaimFamily.PracticalVerdict)
       case _                               => None
 
-  private def renderBeat(beat: OutlineBeat, ctx: NarrativeContext, bead: Int): String =
+  private def renderBeat(beat: OutlineBeat, bead: Int): String =
     if beat.text.nonEmpty then
       if beat.confidenceLevel < 0.6 then softenText(beat.text, bead)
       else beat.text
     else
-      beat.kind match
-        case OutlineBeatKind.MoveHeader => beat.anchors.headOption.getOrElse("")
-        case OutlineBeatKind.Context => generateContext(ctx, bead)
-        case OutlineBeatKind.DecisionPoint => generateDecision(beat, ctx)
-        case OutlineBeatKind.Evidence => generateEvidence(beat, ctx)
-        case OutlineBeatKind.TeachingPoint => generateTeaching(ctx)
-        case OutlineBeatKind.MainMove => generateMainMove(ctx, bead)
-        case OutlineBeatKind.OpeningTheory => generateOpeningTheory(ctx, bead)
-        case OutlineBeatKind.Alternatives => generateAlternatives(ctx, bead)
-        case OutlineBeatKind.WrapUp => generateWrapUp(ctx, bead)
-        case OutlineBeatKind.PsychologicalVerdict => ""
-
-  private def generateContext(ctx: NarrativeContext, bead: Int): String =
-    val phase = ctx.phase.current
-    val evalOpt = ctx.engineEvidence.flatMap(_.best).map(_.scoreCp)
-    val evalText = evalOpt.map(cp => NarrativeLexicon.evalOutcomeClauseFromCp(bead ^ 0x52dce729, cp, ply = ctx.ply)).getOrElse("The position is unclear")
-    NarrativeLexicon.getOpening(bead, phase, evalText, ply = ctx.ply)
-
-  private def generateDecision(beat: OutlineBeat, ctx: NarrativeContext): String =
-    ctx.authorQuestions
-      .find(q => beat.questionIds.contains(q.id))
-      .map(_.question)
-      .getOrElse("")
-
-  private def generateEvidence(beat: OutlineBeat, ctx: NarrativeContext): String =
-    val evidence = ctx.authorEvidence.filter(e => beat.questionIds.contains(e.questionId))
-    if evidence.isEmpty then ""
-    else
-      val branches = evidence.flatMap(_.branches).take(4)
-      val labels = List("a)", "b)", "c)", "d)")
-      branches.zip(labels).map { case (b, label) =>
-        val evalPart = b.evalCp.map(cp => s" (${formatCp(cp)})").getOrElse("")
-        s"$label ${b.keyMove} ${b.line}$evalPart"
-      }.mkString("\n")
-
-  private def generateTeaching(ctx: NarrativeContext): String =
-    ctx.counterfactual.map { cf =>
-      val citation =
-        LineScopedCitation.tacticalCitation(ctx.fen, ctx.ply + 1, cf.bestLine, cf.missedMotifs)
-          .orElse(LineScopedCitation.strategicCitation(ctx.fen, ctx.ply + 1, cf.bestLine))
-      citation.flatMap { cited =>
-        cf.causalThreat match {
-          case Some(ct) =>
-            LineScopedCitation.afterClause(cited, s"the line ${ct.narrative}")
-          case None =>
-            val theme = cf.missedMotifs.headOption.map(motifName)
-              .orElse(Some(cf.severity.toLowerCase))
-              .getOrElse("the practical refutation")
-            LineScopedCitation.afterClause(cited, s"the idea of $theme appears")
-        }
-      }.getOrElse("")
-    }.getOrElse("")
-
-  private def generateMainMove(ctx: NarrativeContext, bead: Int): String =
-    ctx.candidates.headOption.map { main =>
-      val continuityOpt = ctx.planContinuity
-      val intentAnchor = topStrategicPlanName(ctx).getOrElse(main.planAlignment)
-      val intent = NarrativeLexicon.getIntent(bead, intentAnchor, None, ply = ctx.ply, continuity = continuityOpt)
-      val evalScore = ctx.engineEvidence.flatMap(_.best).map(_.scoreCp).getOrElse(0)
-      val evalTerm = NarrativeLexicon.evalOutcomeClauseFromCp(bead ^ 0x4b1d0f6a, evalScore, ply = ctx.ply)
-
-      NarrativeLexicon.getMainFlow(bead, main.move, main.annotation, intent, None, None, evalTerm)
-    }.getOrElse("")
-
-  private def generateOpeningTheory(ctx: NarrativeContext, bead: Int): String =
-    ctx.openingData.flatMap { ref =>
-      ref.name.map { name =>
-        NarrativeLexicon.getOpeningReference(bead, name, ref.totalGames, 0.5)
-      }
-    }.getOrElse("")
-
-  private def generateAlternatives(ctx: NarrativeContext, bead: Int): String =
-    ctx.candidates.drop(1).take(2).map { c =>
-      NarrativeLexicon.getAlternative(bead, c.move, c.whyNot)
-    }.mkString("\n")
-
-  private def generateWrapUp(ctx: NarrativeContext, bead: Int): String =
-    val practicalSummary =
-      ctx.semantic.flatMap(_.practicalAssessment).map { pa =>
-        NarrativeLexicon.getPracticalVerdict(bead, pa.verdict, cpWhite = 0, ply = ctx.ply)
-      }.getOrElse("")
-
-    List(practicalSummary).filter(_.nonEmpty).mkString(" ").trim
-
-  private def topStrategicPlanName(ctx: NarrativeContext): Option[String] =
-    StrategicNarrativePlanSupport.evidenceBackedLeadingPlanName(ctx)
+      ""
 
   private def softenText(text: String, bead: Int): String =
     val trimmed = text.trim
@@ -279,14 +189,6 @@ object BookStyleRenderer:
       else if trimmed.length == 1 then s"$prefix${trimmed.toLowerCase}"
       else s"$prefix${trimmed.head.toLower}${trimmed.tail}"
 
-  private def formatCp(cp: Int): String =
-    val sign = if cp >= 0 then "+" else ""
-    val pawns = cp.toDouble / 100
-    f"$sign$pawns%.1f"
-
-  private def motifName(m: lila.commentary.model.Motif): String =
-    DollarPattern.replaceAllIn(m.getClass.getSimpleName, "")
-
   private def redactStructureTokens(text: String): String =
     val basic = structureLeakTokens.foldLeft(text) { (acc, token) =>
       acc.replace(token, "structure")
@@ -294,12 +196,3 @@ object BookStyleRenderer:
     val s1 = ReqPattern.replaceAllIn(basic, "structure")
     val s2 = SupPattern.replaceAllIn(s1, "structure")
     BlkPattern.replaceAllIn(s2, "structure")
-
-  def humanizePlan(plan: String): String =
-    val low = plan.toLowerCase
-    if low.contains("attack") then AlignedPattern.replaceAllIn(low, "").trim
-    else if low.contains("control") then s"control of the ${ControlPattern.replaceAllIn(low, "").trim}"
-    else if low.contains("development") then "development of the pieces"
-    else if low.contains("consolidation") then "consolidation and coordination"
-    else if low.contains("prophylaxis") then "positional prophylaxis"
-    else GoodPattern.replaceAllIn(low, "").trim
