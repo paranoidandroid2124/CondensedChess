@@ -36,10 +36,10 @@ describe('review player copy', () => {
     ['Opening context', 'Board setup', 'Toggle candidate lines'].forEach(copy =>
       assert.match(controlsSource, new RegExp(escapeRegExp(copy)), `missing control copy: ${copy}`),
     );
-    ['Candidate lines', 'candidate lines are on'].forEach(copy =>
+    ['Candidate lines', 'candidate lines are on', 'Position gauge', 'move list', 'Variation handles'].forEach(copy =>
       assert.match(actionMenuSource, new RegExp(escapeRegExp(copy)), `missing board setup copy: ${copy}`),
     );
-    ['Reference lines', 'reference lines are on'].forEach(copy =>
+    ['Reference lines', 'reference lines are on', 'evaluation gauge', 'move tree', 'Disclosure buttons'].forEach(copy =>
       assert.doesNotMatch(actionMenuSource, new RegExp(escapeRegExp(copy)), `stale board setup copy: ${copy}`),
     );
   });

@@ -67,8 +67,8 @@ export function boardSettingsView(ctrl: AnalyseCtrl, opts: BoardSettingsOpts = {
     ),
     ctrlToggle(
       {
-        name: 'Disclosure buttons',
-        title: 'Show disclosure buttons to expand/collapse variations',
+        name: 'Variation handles',
+        title: 'Show handles to expand or hide branches',
         id: 'disclosure',
         checked: ctrl.disclosureMode(),
         change: v => setVariationControls(ctrl, closeMenu, v),
@@ -117,7 +117,7 @@ function boardWorkspaceView(ctrl: AnalyseCtrl, closeMenu: () => void): VNode[] {
     workspaceSection('Guides', 'Choose what help stays on the board during review.', [
       workspaceSwitchCard(
         'Candidate lines',
-        engineUnavailable ? 'Candidate lines are unavailable in this position.' : 'Show candidate lines beside the move tree.',
+        engineUnavailable ? 'Candidate lines are unavailable in this position.' : 'Show candidate lines beside the move list.',
         ctrl.showEnginePanel(),
         next => {
           ctrl.setShowEnginePanel(next);
@@ -127,7 +127,7 @@ function boardWorkspaceView(ctrl: AnalyseCtrl, closeMenu: () => void): VNode[] {
       ),
       workspaceSwitchCard(
         'Position gauge',
-        'Keep the evaluation gauge visible when candidate lines are on and space allows.',
+        'Keep the position gauge visible when candidate lines are on and space allows.',
         ctrl.showGauge(),
         next => {
           ctrl.setShowEvalGauge(next);
@@ -145,7 +145,7 @@ function boardWorkspaceView(ctrl: AnalyseCtrl, closeMenu: () => void): VNode[] {
       ),
       workspaceSwitchCard(
         'Variation controls',
-        'Show expand and collapse handles inside the move tree.',
+        'Show expand and collapse handles inside the move list.',
         ctrl.disclosureMode(),
         next => setVariationControls(ctrl, closeMenu, next),
       ),
