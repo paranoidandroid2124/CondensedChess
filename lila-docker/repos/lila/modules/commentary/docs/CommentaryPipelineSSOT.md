@@ -179,13 +179,15 @@ anchors, evidence refs, and played-first PV/replay binding. They are not generic
 tactical, pressure, or plan prose.
 
 The same boundary applies to the player payload surface. `PvCoupledOnly`
-evaluated plans are not enough to create "Practical plan" summary rows or
-practical objective/step rows. Those rows require a stronger admitted authority:
-structural-only evidence, promoted probe/transposition evidence, a
-supported-local row, or a CausalFrame plan-support local fact that has matched
-its plan anchor. Practical support rows may render existing `PracticalInfo`
-bias factors, but `PracticalInfo.verdict` prose is not reopened as plan,
-pressure, or counterplay authority.
+evaluated plans are not enough to create player-facing plan rows, and
+structural-only evaluated plans may surface only as weak `Structure support`
+or through typed target/route/support anchors. Raw hypothesis preconditions or
+execution steps do not create practical objective/step rows. Stronger plan
+rows require promoted probe/transposition evidence, a supported-local row, or
+a CausalFrame plan-support local fact that has matched its plan anchor.
+Practical support rows may render existing `PracticalInfo` bias factors, but
+`PracticalInfo.verdict` prose is not reopened as plan, pressure, or
+counterplay authority.
 
 Move-local exact-slice packets reuse the supported-local row builder only as a
 proof gate. CausalFrame receives a typed local fact carrying proof family,

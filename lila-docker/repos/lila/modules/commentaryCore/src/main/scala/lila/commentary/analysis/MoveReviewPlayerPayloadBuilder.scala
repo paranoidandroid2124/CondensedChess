@@ -167,7 +167,7 @@ object MoveReviewPlayerPayloadBuilder:
       else evaluatedPlans.filter(PlanEvidenceEvaluator.isMainAdmittedPlan).sortBy(_.hypothesis.rank)
     val practicalStructureArc =
       if supportBlocked then None else StructurePlanArcBuilder.build(ctx).filter(StructurePlanArcBuilder.proseEligible)
-    val practicalRows = if supportBlocked then Nil else practicalPlanRows(ctx, refs, evaluatedPlans, practicalStructureArc)
+    val practicalRows = if supportBlocked then Nil else practicalPlanRows(ctx, evaluatedPlans, practicalStructureArc)
     val openingRows = if supportBlocked then Nil else openingFamilyRow(ctx).toList
     val compensationRows = if supportBlocked || compensationBlocked then Nil else compensationAdvancedRows(strategyPack)
     val localRows = if supportBlocked then Nil else sanitizeRows(supportedLocalRows, knownSans)
@@ -1742,7 +1742,6 @@ object MoveReviewPlayerPayloadBuilder:
 
   private def practicalPlanRows(
       ctx: NarrativeContext,
-      refs: Option[MoveReviewRefs],
       plans: List[EvaluatedPlan],
       structureArc: Option[StructurePlanArc]
   ): List[MoveReviewPlayerSurfaceRow] =
@@ -1750,7 +1749,7 @@ object MoveReviewPlayerPayloadBuilder:
       .filter(PlanEvidenceEvaluator.isBoundedPracticalSupportPlan)
       .filterNot(_.userFacingEligibility == UserFacingPlanEligibility.PvCoupledOnly)
       .sortBy(_.hypothesis.rank)
-      .flatMap(plan => practicalPlanRow(ctx, refs, plan, structureArc))
+      .flatMap(plan => practicalPlanRow(ctx, plan, structureArc))
       .take(2)
 
   private def openingFamilyRow(ctx: NarrativeContext): Option[MoveReviewPlayerSurfaceRow] =
@@ -1798,66 +1797,50 @@ object MoveReviewPlayerPayloadBuilder:
 
   private def practicalPlanRow(
       ctx: NarrativeContext,
-      refs: Option[MoveReviewRefs],
       plan: EvaluatedPlan,
       structureArc: Option[StructurePlanArc]
   ): Option[MoveReviewPlayerSurfaceRow] =
-    cleanOpt(Some(plan.hypothesis.planName)).flatMap { name =>
+    if plan.userFacingEligibility != UserFacingPlanEligibility.StructuralOnly then None
+    else cleanOpt(Some(plan.hypothesis.planName)).flatMap { name =>
       val text =
-        if plan.userFacingEligibility == UserFacingPlanEligibility.StructuralOnly then
-          structureArcForPlan(name, structureArc)
-            .map(StructurePlanArcBuilder.claimText)
-            .orElse {
-              val profile = ctx.semantic.flatMap(_.structureProfile)
-              val alignment = ctx.semantic.flatMap(_.planAlignment)
-              val alignmentBand =
-                alignment
-                  .flatMap(alignment => cleanOpt(Some(alignment.band)))
-                  .map(_.toLowerCase)
-              val alignmentPlanMatched =
-                alignment.toList
-                  .flatMap(alignment => alignment.matchedPlanIds ++ alignment.narrativeIntent.toList)
-                  .exists(planTokenMatches(name, _))
-              profile
-                .filter(_.confidence >= 0.70)
-                .flatMap(profile =>
-                  cleanOpt(Some(profile.primary))
-                    .filterNot(_.equalsIgnoreCase("Unknown"))
-                    .map(structure => profile -> structure)
-                )
-                .filter(_ => alignmentBand.exists(band => band == "onbook" || band == "playable"))
-                .filter(_ => alignmentPlanMatched)
-                .map { case (profile, structure) =>
-                  val center =
-                    cleanOpt(Some(profile.centerState))
-                      .filterNot(_.equalsIgnoreCase(structure))
-                      .map(value => s" with the center ${value.toLowerCase}")
-                      .getOrElse("")
-                  s"In the $structure structure$center, $name is a practical plan."
-                }
-            }
-            .getOrElse(s"The structure points toward $name as a practical plan.")
-        else s"The checked line keeps $name viable as a practical plan."
+        structureArcForPlan(name, structureArc)
+          .map(arc => s"The ${arc.structureLabel} structure gives $name practical support.")
+          .orElse {
+            val profile = ctx.semantic.flatMap(_.structureProfile)
+            val alignment = ctx.semantic.flatMap(_.planAlignment)
+            val alignmentBand =
+              alignment
+                .flatMap(alignment => cleanOpt(Some(alignment.band)))
+                .map(_.toLowerCase)
+            val alignmentPlanMatched =
+              alignment.toList
+                .flatMap(alignment => alignment.matchedPlanIds ++ alignment.narrativeIntent.toList)
+                .exists(planTokenMatches(name, _))
+            profile
+              .filter(_.confidence >= 0.70)
+              .flatMap(profile =>
+                cleanOpt(Some(profile.primary))
+                  .filterNot(_.equalsIgnoreCase("Unknown"))
+                  .map(structure => profile -> structure)
+              )
+              .filter(_ => alignmentBand.exists(band => band == "onbook" || band == "playable"))
+              .filter(_ => alignmentPlanMatched)
+              .map { case (profile, structure) =>
+                val center =
+                  cleanOpt(Some(profile.centerState))
+                    .filterNot(_.equalsIgnoreCase(structure))
+                    .map(value => s" with the center ${value.toLowerCase}")
+                    .getOrElse("")
+                s"The $structure structure$center gives $name practical support."
+              }
+          }
+          .getOrElse(s"The structure gives $name practical support.")
       row(
-        label = "Practical plan",
+        label = "Structure support",
         text = text,
-        refSans = practicalPlanRefSans(ctx, refs, plan),
         tone = Some("practical")
-      ).map(_.copy(authority = PracticalPlanAuthority))
+      )
     }
-
-  private def practicalPlanRefSans(
-      ctx: NarrativeContext,
-      refs: Option[MoveReviewRefs],
-      plan: EvaluatedPlan
-  ): List[String] =
-    if plan.userFacingEligibility != UserFacingPlanEligibility.PvCoupledOnly then Nil
-    else
-      refs.toList
-        .flatMap(ref => preferredVariation(ctx, ref).filter(startsWithReviewedMove(ctx, _)).toList)
-        .flatMap { variation =>
-          variation.moves.take(5).flatMap(move => cleanOpt(Some(move.san)))
-        }
 
   private def practicalAdvancedRows(
       ctx: NarrativeContext,
@@ -1975,9 +1958,7 @@ object MoveReviewPlayerPayloadBuilder:
         structureMoveRow.toList ++
         structureRestraintRow.toList ++
         structureFitRow.toList ++
-        structureTaskRow.toList ++
-        row("Practical objective", hypothesis.preconditions.take(2).mkString(" - "), tone = Some("practical")).toList ++
-        row("Practical steps", hypothesis.executionSteps.take(2).mkString(" - "), tone = Some("practical")).toList
+        structureTaskRow.toList
     ).map(_.copy(authority = PracticalPlanAuthority))
 
   private def structureArcForPlan(
@@ -2226,7 +2207,7 @@ object MoveReviewPlayerPayloadBuilder:
   private def preferredVariation(
       ctx: NarrativeContext,
       refs: MoveReviewRefs,
-      lineConsequence: Option[LineConsequenceEvidence] = None
+      lineConsequence: Option[LineConsequenceEvidence]
   ): Option[MoveReviewVariationRef] =
     preferredLineConsequenceVariation(ctx, refs, lineConsequence)
       .orElse(refs.variations.find(startsWithReviewedMove(ctx, _)))

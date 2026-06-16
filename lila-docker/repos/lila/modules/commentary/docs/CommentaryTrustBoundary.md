@@ -146,10 +146,11 @@ The surface renderer may say:
   meaningful checked continuation and at least one matched plan-anchor SAN
   token; one-ply refs that only repeat the reviewed move, and checked lines that
   do not hit the plan anchor, remain fallback or diagnostic-only. High-risk rows
-  must not say the bad move keeps a plan viable. Player-surface "Practical
-  plan" rows and practical objective/step rows follow the same rule:
-  `PvCoupledOnly` evaluated plans alone are diagnostic, not public plan
-  authority;
+  must not say the bad move keeps a plan viable. Player-surface structural-only
+  rows may expose only weak `Structure support` or typed target/route/support
+  anchors; raw hypothesis preconditions or execution steps do not create
+  practical objective/step authority. `PvCoupledOnly` evaluated plans alone are
+  diagnostic, not public plan authority;
 - practical position support: only when a `StrategyPack` idea is projected as a
   `practical_position_support` local fact by `certified_strategy_delta`. The
   projected fact must match the played side, carry evidence refs, pass

@@ -859,7 +859,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assert(!surface.summaryRows.exists(_.label == "Main plans"), clue(surface.summaryRows))
   }
 
-  test("structural-only evaluated plans create practical plan rows but not main plans") {
+  test("structural-only evaluated plans create structure support rows but not main plans") {
     val surface =
       build(
         evaluatedPlans =
@@ -869,22 +869,19 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
               UserFacingPlanEligibility.StructuralOnly
             )
           )
-      )
+    )
 
     assert(!surface.summaryRows.exists(_.label == "Main plans"), clue(surface.summaryRows))
-    assertEquals(surface.summaryRows.map(_.label), List("Practical plan"))
+    assertEquals(surface.summaryRows.map(_.label), List("Structure support"))
     assertEquals(
       surface.summaryRows.head.text,
-      "The structure points toward Carlsbad pressure as a practical plan."
+      "The structure gives Carlsbad pressure practical support."
     )
-    assertEquals(
-      surface.summaryRows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))
-    )
+    assertEquals(surface.summaryRows.head.authority, None)
     assertEquals(surface.summaryRows.head.refSans, Nil)
   }
 
-  test("structural-only practical plan rows can include typed structure context") {
+  test("structural-only structure support rows can include typed structure context") {
     val ctx =
       MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
         semantic =
@@ -924,15 +921,12 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
           )
       )
 
-    assertEquals(surface.summaryRows.map(_.label), List("Practical plan"))
+    assertEquals(surface.summaryRows.map(_.label), List("Structure support"))
     assertEquals(
       surface.summaryRows.head.text,
-      "In the Carlsbad structure with the center locked, minority attack is a practical plan."
+      "The Carlsbad structure with the center locked gives minority attack practical support."
     )
-    assertEquals(
-      surface.summaryRows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))
-    )
+    assertEquals(surface.summaryRows.head.authority, None)
     assertEquals(surface.summaryRows.head.authority.flatMap(_.target), None)
   }
 
@@ -978,7 +972,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
 
     assertEquals(
       surface.summaryRows.head.text,
-      "The structure points toward minority attack as a practical plan."
+      "The structure gives minority attack practical support."
     )
   }
 
@@ -1020,7 +1014,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assert(!surface.summaryRows.exists(_.label == "Practical plan"), clue(surface.summaryRows))
   }
 
-  test("structural-only evaluated plans create practical advanced detail rows") {
+  test("structural-only evaluated plans without typed anchors do not create practical advanced detail rows") {
     val surface =
       build(
         evaluatedPlans =
@@ -1036,10 +1030,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
           )
       )
 
-    assertEquals(surface.advancedRows.map(_.label), List("Practical objective", "Practical steps"))
-    assert(surface.advancedRows.exists(row => row.text == "The queenside pawn chain stays fixed"))
-    assert(surface.advancedRows.exists(row => row.text == "Prepare b4 - Pressure c6"))
-    assert(surface.advancedRows.forall(_.tone.contains("practical")), clue(surface.advancedRows))
+    assertEquals(surface.advancedRows, Nil)
   }
 
   test("structural-only practical advanced rows can include structure route context") {
@@ -1866,10 +1857,10 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
               UserFacingPlanEligibility.StructuralOnly
             )
           )
-      )
+    )
 
     assert(!surface.advancedRows.exists(_.label == "Practical target"), clue(surface.advancedRows))
-    assert(surface.advancedRows.exists(_.label == "Practical objective"), clue(surface.advancedRows))
+    assertEquals(surface.advancedRows, Nil, clue(surface.advancedRows))
   }
 
   test("current-board weakness practical target context is not blocked by a short persistent best line") {
@@ -1908,7 +1899,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
           )
       )
 
-    assertEquals(surface.advancedRows.map(_.label), List("Practical target", "Practical objective"))
+    assertEquals(surface.advancedRows.map(_.label), List("Practical target"))
     assert(
       surface.advancedRows.exists(_.text.contains("current structure gives Black a weak isolated pawn on e5")),
       clue(surface.advancedRows)
@@ -2229,7 +2220,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
           )
       )
 
-    assert(surface.summaryRows.exists(_.label == "Practical plan"), clue(surface.summaryRows))
+    assert(surface.summaryRows.exists(_.label == "Structure support"), clue(surface.summaryRows))
     assertEquals(surface.advancedRows.map(_.label), List("Execution", "Objective"))
     assert(!surface.advancedRows.exists(_.label.startsWith("Practical")), clue(surface.advancedRows))
   }
@@ -2292,9 +2283,9 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
 
     assertEquals(
       surface.advancedRows.map(_.label),
-      List("Execution", "Objective", "Practical target", "Practical objective", "Practical steps")
+      List("Execution", "Objective", "Practical target")
     )
-    assert(surface.advancedRows.exists(row => row.text == "King closer - Pressure d5"), clue(surface.advancedRows))
+    assert(!surface.advancedRows.exists(row => row.text == "King closer - Pressure d5"), clue(surface.advancedRows))
   }
 
   test("opening family row carries bounded public opening book metadata") {

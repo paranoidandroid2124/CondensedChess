@@ -181,11 +181,13 @@ Positive causal prose requires a typed producer packet:
   names the reviewed move, or a line that does not hit the plan anchor, must not
   become plan-viability authority. The player payload follows this boundary:
   `PvCoupledOnly` evaluated plans cannot by themselves publish practical-plan
-  rows or practical objective/step rows. Strategy-pack practical ideas may
-  authorize only bounded defense, pressure, or plan-support prose after they are
-  projected to a `practical_position_support` local fact with played-side
-  ownership, evidence refs, readiness/confidence gating, a move-touching anchor,
-  and a played-first checked PV.
+  rows, and structural-only evaluated plans may expose only weak structure
+  support or typed target/route/support anchors. Raw hypothesis preconditions
+  or execution steps do not publish practical objective/step rows. Strategy-pack
+  practical ideas may authorize only bounded defense, pressure, or plan-support
+  prose after they are projected to a `practical_position_support` local fact
+  with played-side ownership, evidence refs, readiness/confidence gating, a
+  move-touching anchor, and a played-first checked PV.
   Played-first rook-pawn hook/march support may use this carrier only when the
   board state before/after the reviewed move proves the state delta; practical
   row text cannot create that proof.
