@@ -230,9 +230,9 @@ html {
   h1 {
     margin: 0;
     font-family: 'Merriweather', 'Georgia', serif;
-    font-size: clamp(2.6rem, 6vw, 5.4rem);
+    font-size: 4.8rem;
     line-height: 1.01;
-    letter-spacing: -0.02em;
+    letter-spacing: 0;
     max-width: 11ch;
 
     span {
@@ -265,7 +265,7 @@ html {
 .hero-summary {
   margin: 1.3rem 0 0;
   color: $landing-muted-light;
-  font-size: clamp(1.06rem, 2.1vw, 1.24rem);
+  font-size: 1.18rem;
   line-height: 1.62;
   max-width: 34rem;
 }
@@ -458,7 +458,7 @@ html {
 .hero-surface-title {
   margin: 0;
   font-family: 'Merriweather', 'Georgia', serif;
-  font-size: clamp(1.18rem, 2vw, 1.42rem);
+  font-size: 1.34rem;
   line-height: 1.22;
 }
 
@@ -597,7 +597,7 @@ html {
   h3 {
     margin: 0;
     font-family: 'Merriweather', 'Georgia', serif;
-    font-size: clamp(1.16rem, 2.2vw, 1.42rem);
+    font-size: 1.32rem;
     line-height: 1.28;
   }
 
@@ -696,7 +696,7 @@ html {
   h3 {
     margin: 0;
     font-family: 'Merriweather', 'Georgia', serif;
-    font-size: clamp(1.14rem, 2.1vw, 1.38rem);
+    font-size: 1.3rem;
     line-height: 1.28;
   }
 }
@@ -740,7 +740,7 @@ html {
   h3 {
     margin: 0;
     font-family: 'Merriweather', 'Georgia', serif;
-    font-size: clamp(1.16rem, 2.1vw, 1.42rem);
+    font-size: 1.32rem;
     line-height: 1.28;
   }
 
@@ -832,7 +832,7 @@ html {
   h2 {
     margin: 0;
     font-family: 'Merriweather', 'Georgia', serif;
-    font-size: clamp(1.3rem, 2.6vw, 1.8rem);
+    font-size: 1.62rem;
     line-height: 1.24;
   }
 
@@ -890,7 +890,7 @@ html {
 .proof-value {
   color: $landing-secondary;
   font-family: 'Merriweather', 'Georgia', serif;
-  font-size: clamp(1.12rem, 2vw, 1.36rem);
+  font-size: 1.26rem;
   line-height: 1.2;
 }
 
@@ -963,9 +963,9 @@ html {
   h2 {
     margin: 0;
     font-family: 'Merriweather', 'Georgia', serif;
-    font-size: clamp(1.7rem, 3vw, 2.4rem);
+    font-size: 2.25rem;
     line-height: 1.2;
-    letter-spacing: -0.01em;
+    letter-spacing: 0;
   }
 
   p {
@@ -998,7 +998,7 @@ html {
 .sample-mode-title {
   margin: 0.7rem 0 0;
   font-family: 'Merriweather', 'Georgia', serif;
-  font-size: clamp(1.1rem, 2vw, 1.35rem);
+  font-size: 1.24rem;
   line-height: 1.28;
 }
 
@@ -1178,7 +1178,7 @@ html {
   h3 {
     margin: 0;
     font-family: 'Merriweather', 'Georgia', serif;
-    font-size: clamp(1.15rem, 2.2vw, 1.45rem);
+    font-size: 1.34rem;
     line-height: 1.3;
   }
 
@@ -1400,7 +1400,7 @@ html {
   h3 {
     margin: 0;
     font-family: 'Merriweather', 'Georgia', serif;
-    font-size: clamp(1.4rem, 2.2vw, 1.85rem);
+    font-size: 1.62rem;
     line-height: 1.2;
   }
 }
@@ -1543,6 +1543,7 @@ html {
 
   .hero-copy h1 {
     max-width: 12ch;
+    font-size: 4rem;
   }
 
   .hero-card-stack {
@@ -1663,6 +1664,14 @@ html {
   .journal-strip-meta {
     justify-items: start;
   }
+
+  .hero-copy h1 {
+    font-size: 3.2rem;
+  }
+
+  .section-heading h2 {
+    font-size: 2rem;
+  }
 }
 
 @media (max-width: calc(#{$bp-mobile} - 1px)) {
@@ -1699,6 +1708,28 @@ html {
     font-size: 0.68rem;
     min-height: 1.6rem;
     padding-inline: 0.58rem;
+  }
+
+  .hero-copy h1 {
+    font-size: 2.6rem;
+  }
+
+  .section-heading h2 {
+    font-size: 1.72rem;
+  }
+
+  .hero-summary {
+    font-size: 1.06rem;
+  }
+
+  .hero-surface-title,
+  .artifact-card h3,
+  .entry-card h3,
+  .feature-card h3,
+  .story-card h3,
+  .journal-preview-card h3,
+  .journal-strip-card h2 {
+    font-size: 1.18rem;
   }
 }
 

@@ -22,7 +22,7 @@ object landing:
     val journalReadUrl = latestJournalPost.fold(journalUrl)(post => routes.Main.journalPost(post.slug).url)
     val journalMeta = latestJournalPost.fold("Study notes")(post => s"${post.publishedLabel} / ${post.readTime}")
 
-    Page("Chesstory - Study your games move by move")
+    Page("Chesstory - Review your games with the board in view")
       .css("landing")
       .wrap: _ =>
         frag(
@@ -33,21 +33,21 @@ object landing:
                   div(cls := "hero-copy")(
                     p(cls := "eyebrow")("Chesstory"),
                     h1(
-                      "One game can become a pattern,",
+                      "One game can become a review,",
                       br,
                       span("a lesson, and a board you remember.")
                     ),
                     p(cls := "hero-summary")(
-                      "Chesstory turns your games into guided reviews, recurring position patterns, and quiet board work you can return to later."
+                      "Chesstory turns your games into board-led Move Reviews, recurring position studies, and quiet board work you can return to later."
                     ),
                     div(cls := "hero-support-copy")(
                       p(
-                        "Import a game, keep the board in front of you, and study why the move mattered before jumping into more lines."
+                        "Import a game, keep the position in front of you, and move through the verdict, why, plan, line, and memory cue as one review player."
                       )
                     ),
                     div(cls := "hero-cta")(
-                      a(href := sampleAnalysisUrl, cls := "btn-primary")("Open a sample review"),
-                      a(href := accountIntelUrl, cls := "btn-secondary")("See account patterns"),
+                      a(href := sampleAnalysisUrl, cls := "btn-primary")("Open Move Review"),
+                      a(href := accountIntelUrl, cls := "btn-secondary")("Study recurring positions"),
                       a(href := pgnImportUrl, cls := "btn-secondary")("Start from PGN")
                     ),
                     p(cls := "hero-disclosure")(
@@ -66,11 +66,21 @@ object landing:
                           span(cls := "hero-board-callout hero-board-callout--bottom")("Move 24")
                         ),
                         div(cls := "hero-board-caption")(
-                          span("Sample position"),
+                          span("Review position"),
                           strong("Ruy Lopez middlegame structure")
                         )
                       ),
                       div(cls := "hero-card-stack")(
+                        st.article(cls := "hero-surface hero-artifact-card hero-artifact-card--review")(
+                          p(cls := "hero-surface-kicker")("Move Review"),
+                          h3(cls := "hero-surface-title")("Why this move mattered"),
+                          p(cls := "hero-surface-copy")(
+                            "The same position becomes one coaching scene with a clear next plan."
+                          ),
+                          p(cls := "hero-artifact-proof")(
+                            "The board, line, reason, and memory cue move together."
+                          )
+                        ),
                         st.article(cls := "hero-surface hero-artifact-card hero-artifact-card--pattern")(
                           p(cls := "hero-surface-kicker")("My Patterns"),
                           h3(cls := "hero-surface-title")("Recurring queenside break"),
@@ -79,16 +89,6 @@ object landing:
                           ),
                           p(cls := "hero-artifact-proof")(
                             "Keep the board, the plan, and the repeat pattern together."
-                          )
-                        ),
-                        st.article(cls := "hero-surface hero-artifact-card hero-artifact-card--review")(
-                          p(cls := "hero-surface-kicker")("Guided Review"),
-                          h3(cls := "hero-surface-title")("Why this move mattered"),
-                          p(cls := "hero-surface-copy")(
-                            "The same position becomes one review moment with a clear next plan."
-                          ),
-                          p(cls := "hero-artifact-proof")(
-                            "See the moment, the reason, and what to remember next time."
                           )
                         ),
                         st.article(cls := "hero-surface hero-artifact-card hero-artifact-card--move")(
@@ -115,7 +115,7 @@ object landing:
                     ),
                     div(cls := "hero-visual-footer")(
                       span("Start from the board, not a menu"),
-                      a(href := sampleAnalysisUrl, cls := "demo-link")("Open the sample")
+                      a(href := sampleAnalysisUrl, cls := "demo-link")("Open the review")
                     )
                   )
                 )
@@ -124,23 +124,23 @@ object landing:
                 div(cls := "landing-container")(
                   div(cls := "section-heading")(
                     p(cls := "section-kicker")("What you study"),
-                    h2("Four ways to return to the same kind of position"),
+                    h2("Four ways to keep the board in view"),
                     p(
-                      "Chesstory is built around the board: patterns you keep reaching, games you want reviewed, moves that need a reason, and positions worth solving."
+                      "Chesstory is built around the board: games you want reviewed, patterns you keep reaching, moves that need a reason, and positions worth playing through."
                     )
                   ),
                   div(cls := "product-grid")(
                     st.article(cls := "feature-card artifact-card")(
                       p(cls := "feature-kicker")("Study 01"),
-                      h3("My Patterns"),
-                      p("See recurring decisions, typical positions, and evidence games from imported public accounts."),
-                      p(cls := "artifact-card__proof")("Use it when the same position keeps appearing in your games.")
+                      h3("Move Review"),
+                      p("Review one game through coaching scenes where the board, line, reason, and takeaway stay together."),
+                      p(cls := "artifact-card__proof")("Use it when one game should feel like a short lesson with the position still visible.")
                     ),
                     st.article(cls := "feature-card artifact-card")(
                       p(cls := "feature-kicker")("Study 02"),
-                      h3("Guided Review"),
-                      p("Review one game through selected moments, repair clues, and a concise takeaway."),
-                      p(cls := "artifact-card__proof")("Use it when one game should feel like a short lesson.")
+                      h3("My Patterns"),
+                      p("See recurring decisions, typical positions, and evidence games from imported public accounts."),
+                      p(cls := "artifact-card__proof")("Use it when the same position keeps appearing in your games.")
                     ),
                     st.article(cls := "feature-card artifact-card")(
                       p(cls := "feature-kicker")("Study 03"),
@@ -161,7 +161,7 @@ object landing:
                 div(cls := "landing-container")(
                   div(cls := "section-heading")(
                     p(cls := "section-kicker")("One position story"),
-                    h2("The same board can become a pattern, a review, or a puzzle"),
+                    h2("The same board can become a pattern, a review, or a position exercise"),
                     p(
                       "The point is not more menus. The point is that one chess problem stays recognisable while you study it from different angles."
                     )
@@ -186,8 +186,8 @@ object landing:
                           )
                         ),
                         div(cls := "story-stage-footer")(
-                          a(href := sampleAnalysisUrl, cls := "btn-secondary")("Open the sample review"),
-                        a(href := strategicPuzzleUrl, cls := "btn-text")("Open position exercise")
+                          a(href := sampleAnalysisUrl, cls := "btn-secondary")("Open Move Review"),
+                          a(href := strategicPuzzleUrl, cls := "btn-text")("Open position exercise")
                         )
                       )
                     ),
@@ -199,16 +199,16 @@ object landing:
                           "Start with a public account and keep one typical board, one explanation, and one next place to look."
                         ),
                         p(cls := "story-card__proof")("You keep the recurring position, the openings you actually reach, and the games behind it."),
-                        a(href := accountIntelUrl, cls := "story-card__link")("See account patterns")
+                        a(href := accountIntelUrl, cls := "story-card__link")("Study recurring positions")
                       ),
                       st.article(cls := "timeline-card story-card")(
                         p(cls := "story-card__label")("Explanation"),
-                        h3("Guided Review turns that board into a moment that can be read"),
+                        h3("Move Review turns that board into a coaching scene"),
                         p(cls := "story-card__copy")(
-                          "The same position becomes a selected moment with why it mattered, the best chance to fix it, and a short takeaway."
+                          "The same position becomes a selected scene with why it mattered, the next plan, a playable line, and a short takeaway."
                         ),
-                        p(cls := "story-card__proof")("You get one moment, one reason, and a board that stays visible."),
-                        a(href := sampleAnalysisUrl, cls := "story-card__link")("Open a sample review")
+                        p(cls := "story-card__proof")("You get one coaching scene, one reason, and a board that stays visible."),
+                        a(href := sampleAnalysisUrl, cls := "story-card__link")("Open Move Review")
                       ),
                       st.article(cls := "timeline-card story-card")(
                         p(cls := "story-card__label")("Position Exercise"),
@@ -259,15 +259,15 @@ object landing:
                     st.article(cls := "feature-card entry-card")(
                       p(cls := "feature-kicker")("Start 02"),
                       h3("PGN"),
-                      p("Paste a game and go straight to Guided Review, then keep the full board one click away."),
+                      p("Paste a game and go straight to Move Review, then keep the full board one click away."),
                       p(cls := "entry-card__proof")("Best when you already know which game you want to understand."),
                       div(cls := "entry-card__chips sample-chip-row")(
-                        span("Guided Review"),
-                        span("Sample review"),
+                        span("Move Review"),
+                        span("Coach scenes"),
                         span("PGN import")
                       ),
                       div(cls := "entry-card__actions")(
-                        a(href := sampleAnalysisUrl, cls := "btn-secondary")("Open a sample review"),
+                        a(href := sampleAnalysisUrl, cls := "btn-secondary")("Open Move Review"),
                         a(href := pgnImportUrl, cls := "btn-text")("Start from PGN")
                       )
                     ),
@@ -305,8 +305,8 @@ object landing:
                         strong("Recurring positions, openings, evidence games")
                       ),
                       div(cls := "truth-row")(
-                        span("Guided Review"),
-                        strong("Selected moments, repair clue, what to remember")
+                        span("Move Review"),
+                        strong("Verdict, why, plan, playable line, what to remember")
                       ),
                       div(cls := "truth-row")(
                         span("Explain This Move"),
@@ -314,7 +314,7 @@ object landing:
                       ),
                       div(cls := "truth-row")(
                         span("Position Exercise"),
-                        strong("Live position, revealed line, next puzzle")
+                        strong("Live position, revealed line, next exercise")
                       ),
                       div(cls := "truth-row")(
                         span("Analysis Board"),
@@ -327,7 +327,7 @@ object landing:
                     ),
                     div(cls := "truth-boundaries")(
                       p("Explain This Move appears only when you ask."),
-                      p("Guided Review starts from the game you provide."),
+                      p("Move Review starts from the game you provide."),
                       p("The analysis board stays available when you want the board directly.")
                     ),
                     div(cls := "quality-pills")(
@@ -336,7 +336,7 @@ object landing:
                       span("Ready to revisit")
                     ),
                     div(cls := "quality-actions truth-actions")(
-                      a(href := sampleAnalysisUrl, cls := "btn-primary final-cta")("Open a sample review"),
+                      a(href := sampleAnalysisUrl, cls := "btn-primary final-cta")("Open Move Review"),
                       a(href := analysisUrl, cls := "btn-secondary final-cta")("Open analysis board")
                     )
                   )
