@@ -7,6 +7,7 @@ const analyseFreeScss = readFileSync(fileURLToPath(new URL('../css/_analyse.free
 const chesstoryScss = readFileSync(fileURLToPath(new URL('../css/_chesstory.scss', import.meta.url)), 'utf8');
 const narrativeScss = readFileSync(fileURLToPath(new URL('../css/_narrative.scss', import.meta.url)), 'utf8');
 const sideScss = readFileSync(fileURLToPath(new URL('../css/_side.scss', import.meta.url)), 'utf8');
+const commentaryWidgetScss = readFileSync(fileURLToPath(new URL('../css/_commentary.widget.scss', import.meta.url)), 'utf8');
 const homeScss = readFileSync(fileURLToPath(new URL('../../site/css/_home.scss', import.meta.url)), 'utf8');
 const landingScss = readFileSync(fileURLToPath(new URL('../../site/css/_landing.scss', import.meta.url)), 'utf8');
 const authScss = readFileSync(fileURLToPath(new URL('../../site/css/_auth.scss', import.meta.url)), 'utf8');
@@ -273,6 +274,7 @@ describe('review shell contrast palette', () => {
   test('keeps Chesstory study surfaces in the dark study-room palette', () => {
     [
       '#fff9f1',
+      '#fff',
       'rgba(237, 223, 201, 0.82)',
       'rgba(253, 186, 116, 0.86)',
       '#0f1a24',
@@ -291,6 +293,28 @@ describe('review shell contrast palette', () => {
       chesstoryScss,
       /&__study-cover-detail\s*\{[\s\S]*?color:\s*var\(--atlas-accent-strong\);/,
     );
+  });
+
+  test('keeps the commentary credit widget in the dark study-room palette', () => {
+    [
+      '#fff',
+      '#4caf50',
+      '#fbc02d',
+      '#ffd700',
+      '#f44336',
+      '#ff5252',
+      '#000',
+      'rgba(255, 255, 255',
+    ].forEach(color =>
+      assert.doesNotMatch(commentaryWidgetScss, new RegExp(escapeRegExp(color), 'i'), `off-palette commentary widget color: ${color}`),
+    );
+
+    assert.match(commentaryWidgetScss, /\$cw-bg-page:\s*#11130f;/);
+    assert.match(commentaryWidgetScss, /\$cw-surface:\s*#22241f;/);
+    assert.match(commentaryWidgetScss, /\$cw-primary:\s*#8bc071;/);
+    assert.match(commentaryWidgetScss, /\$cw-accent:\s*#e3b15b;/);
+    assert.match(commentaryWidgetScss, /\.commentary-credit-widget \.fill\s*\{[\s\S]*?background:\s*linear-gradient\(90deg,\s*\$cw-primary,\s*\$cw-primary-strong\);/);
+    assert.match(commentaryWidgetScss, /\.move-review-error\.credit-exhausted\s*\{[\s\S]*?background:\s*rgba\(\$cw-danger,\s*0\.1\);/);
   });
 
   test('keeps site entry surfaces in the dark study-room palette', () => {
