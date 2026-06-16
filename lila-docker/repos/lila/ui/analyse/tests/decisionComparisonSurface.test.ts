@@ -48,7 +48,7 @@ describe('decisionComparison surface', () => {
         engineBestMove: 'Nd2',
         cpLossVsChosen: 11,
       }),
-      'Coach move is Nd2 (tiny score gap).',
+      'Coach line starts with Nd2 (tiny score gap).',
     );
 
     const surface = buildDecisionComparisonSurface({
@@ -58,8 +58,9 @@ describe('decisionComparison surface', () => {
       chosenMatchesBest: false,
     });
 
-    assert.equal(surface.headline, 'Played Qc2 · coach move Nd2');
+    assert.equal(surface.headline, 'Played Qc2 · coach line Nd2');
     assert.equal(surface.gap, 'tiny score gap');
+    assert.doesNotMatch(surface.headline || '', /coach move/i);
   });
 
   test('labels engine pv as a candidate line for players', () => {

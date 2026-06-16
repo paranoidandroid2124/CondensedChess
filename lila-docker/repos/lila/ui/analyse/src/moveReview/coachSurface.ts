@@ -215,7 +215,7 @@ function renderCoachVerdict(
   const moveBits = [
     renderCoachMoveChip('You played', chosen, resolveTrustedDecisionSanRef(chosen, trustedSans, refIndex), 'chosen'),
     !comparison.chosenMatchesBest
-      ? renderCoachMoveChip('Coach move', best, resolveTrustedDecisionSanRef(best, trustedSans, refIndex), 'engine')
+      ? renderCoachMoveChip('Coach line', best, resolveTrustedDecisionSanRef(best, trustedSans, refIndex), 'engine')
       : null,
     compared
       ? renderCoachMoveChip('Other idea', compared, resolveTrustedDecisionSanRef(compared, trustedSans, refIndex), 'deferred')

@@ -213,6 +213,29 @@ describe('moveReview coach surface', () => {
     assert.doesNotMatch(html, /data-scene-line-cue="[^"]*Bb5/);
   });
 
+  test('labels the comparison move as a coach line, not a best-move verdict', () => {
+    const html = decorateMoveReviewHtml(
+      '<p>Main note.</p>',
+      refs,
+      playerSurface({
+        decisionComparison: {
+          kicker: 'Decision point',
+          gapLabel: 'small score gap',
+          chosenSan: 'Nf3',
+          engineSan: 'd5',
+          comparedSan: null,
+          chosenMatchesBest: false,
+          secondaryText: 'The line keeps the tension clearer.',
+          targetComparison: null,
+          refSans: ['Nf3', 'd5'],
+        },
+      }),
+    );
+
+    assert.match(html, /Coach line/);
+    assert.doesNotMatch(html, /Coach move/);
+  });
+
   test('keeps board context rail synced with scene and move state', () => {
     assert.match(interactionHandlersSource, /move-review-player__board-anchor-scene/);
     assert.match(interactionHandlersSource, /move-review-player__board-anchor-move/);

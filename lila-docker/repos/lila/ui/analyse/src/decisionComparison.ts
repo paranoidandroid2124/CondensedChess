@@ -106,8 +106,8 @@ export function formatDecisionComparisonHeadline(comparison?: DecisionComparison
 
   if (comparison.chosenMatchesBest && chosen && compared) return `Played ${chosen} compared with ${compared}.`;
   if (comparison.chosenMatchesBest && chosen) return `Played ${chosen} matches the coach line.`;
-  if (chosen && best) return `Played ${chosen}; coach move is ${best}${gap ? ` (${gap} difference)` : ''}.`;
-  if (best) return `Coach move is ${best}${gap ? ` (${gap})` : ''}.`;
+  if (chosen && best) return `Played ${chosen}; coach line starts with ${best}${gap ? ` (${gap} difference)` : ''}.`;
+  if (best) return `Coach line starts with ${best}${gap ? ` (${gap})` : ''}.`;
   if (chosen) return `Played move ${chosen}.`;
   return null;
 }
@@ -179,8 +179,8 @@ export function buildDecisionComparisonSurface(
   let headline: string | null = null;
   if (comparison.chosenMatchesBest && chosen && comparedMove) headline = `Played ${chosen} · Compared ${comparedMove}`;
   else if (comparison.chosenMatchesBest && chosen) headline = `Played ${chosen} · coach line agrees`;
-  else if (chosen && best) headline = `Played ${chosen} · coach move ${best}`;
-  else if (best) headline = `Coach move ${best}`;
+  else if (chosen && best) headline = `Played ${chosen} · coach line ${best}`;
+  else if (best) headline = `Coach line ${best}`;
   else if (chosen) headline = `Played ${chosen}`;
 
   let secondary: string | null = null;
