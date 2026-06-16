@@ -188,6 +188,10 @@ describe('review shell contrast palette', () => {
       sideScss,
       /\.eval-badge,\s*[\s\S]*?\.eval-badge--inline\s*\{[\s\S]*?border:\s*1px solid color-mix\(in srgb,\s*#\{\$c-primary\}\s*24%,\s*transparent\);[\s\S]*?background:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*11%,\s*#\{\$c-bg-low\}\);[\s\S]*?color:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*82%,\s*#\{\$c-font\}\);[\s\S]*?font-weight:\s*700;/,
     );
+    assert.match(
+      sideScss,
+      /\.move-review-coach__gap\s*\{[\s\S]*?border:\s*1px solid color-mix\(in srgb,\s*#\{\$c-primary\}\s*24%,\s*transparent\);[\s\S]*?background:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*11%,\s*#\{\$c-bg-low\}\);[\s\S]*?font-family:\s*'Roboto Mono', monospace;/,
+    );
   });
 
   test('keeps the player board context rail compact and sticky with the board', () => {

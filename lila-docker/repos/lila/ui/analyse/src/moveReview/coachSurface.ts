@@ -248,15 +248,21 @@ function renderCoachVerdict(
 function playerFacingGapLabel(rawLabel?: string | null): string {
   const label = rawLabel?.trim() || '';
   if (!label) return '';
-  const numeric = label.replace(/\s*cp$/i, '');
+  const cpMatch = label.match(/^([+-]?(?:\d+(?:\.\d+)?|\.\d+))\s*cp$/i);
+  const numeric = cpMatch?.[1] || label;
   if (/^[+-]?(?:\d+(?:\.\d+)?|\.\d+)$/.test(numeric)) {
-    const value = Math.abs(Number(numeric));
-    if (value <= 0.7) return 'Close choice';
-    if (value <= 1.6) return 'Plan improves';
-    return 'Position swing';
+    const pawnValue = Number(numeric) / (cpMatch ? 100 : 1);
+    const value = Math.abs(pawnValue);
+    const meaning = value <= 0.7 ? 'Close choice' : value <= 1.6 ? 'Plan improves' : 'Position swing';
+    return `Eval ${formatPawnEval(pawnValue)} · ${meaning}`;
   }
-  if (/\bcp\b/i.test(label)) return 'Score gap';
+  if (/\bcp\b/i.test(label)) return 'Eval gap';
   return label;
+}
+
+function formatPawnEval(value: number): string {
+  const sign = value > 0 ? '+' : '';
+  return `${sign}${value.toFixed(1)}`;
 }
 
 function surfaceRowClasses(row: MoveReviewPlayerSurfaceRowV1): string {
