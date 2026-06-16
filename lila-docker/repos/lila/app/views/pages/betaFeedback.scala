@@ -11,10 +11,10 @@ import scala.annotation.unused
 object betaFeedback:
 
   private val surfaces = List(
-    "general" -> "General beta",
-    "strategic_puzzle" -> "Strategic Puzzle",
-    "game_chronicle" -> "Game Chronicle",
-    "account_intel" -> "Account Intel"
+    "general" -> "Chesstory beta",
+    "strategic_puzzle" -> "Position Exercise",
+    "game_chronicle" -> "Guided Review",
+    "account_intel" -> "My Patterns"
   )
 
   private val priceBands = List(
@@ -36,7 +36,7 @@ object betaFeedback:
 
   private def selectedLabel(form: Form[FormInput]): String =
     val current = form("surface").value.getOrElse("general")
-    surfaces.find(_._1 == current).map(_._2).getOrElse("Open beta")
+    surfaces.find(_._1 == current).map(_._2).getOrElse("Chesstory beta")
 
   def apply(
       feedbackForm: Form[FormInput],
@@ -51,14 +51,14 @@ object betaFeedback:
               header(cls := "legal-header")(
                 h1("Open Beta Feedback"),
                 p(cls := "legal-meta")(
-                  "Tell us which paid features feel valuable after you actually use them. ",
+                  "Tell us which study moments felt valuable after you actually used them. ",
                   "This does not start billing or reserve a paid plan."
                 )
               ),
               st.section(cls := "legal-section beta-feedback-intro")(
                 h2("What we want to learn"),
                 p(
-                  "We use this form to understand whether people would pay for deeper analysis surfaces, which price bands feel reasonable, and who wants a launch email if paid plans open later."
+                  "We use this form to understand which review moments, board exercises, and pattern studies feel worth returning to, which price bands feel reasonable, and who wants a launch email if paid plans open later."
                 ),
                 div(cls := "legal-beta-pills")(
                   span(cls := "legal-beta-pill")(selectedLabel(feedbackForm)),
@@ -76,30 +76,30 @@ object betaFeedback:
                 input(tpe := "hidden", name := "entrypoint", value := feedbackForm("entrypoint").value.getOrElse("")),
                 input(tpe := "hidden", name := "returnTo", value := feedbackForm("returnTo").value.getOrElse("")),
                 div(cls := "legal-field")(
-                  label(attr("for") := "surface")("Surface"),
+                  label(attr("for") := "surface")("Study area"),
                   select(id := "surface", name := "surface")(
                     surfaces.map: (optionValue, labelText) =>
                       option(value := optionValue, if feedbackForm("surface").value.contains(optionValue) then selected := true else emptyFrag)(labelText)
                   ),
-                  p(cls := "legal-note")("Choose the area that best matches where you used the product.")
+                  p(cls := "legal-note")("Choose the part of Chesstory that best matches the board or review you just studied.")
                 ),
                 div(cls := "legal-field")(
-                  label(attr("for") := "feature")("Feature label"),
+                  label(attr("for") := "feature")("Moment or study path"),
                   input(
                     id := "feature",
                     name := "feature",
                     value := feedbackForm("feature").value.getOrElse(""),
-                    placeholder := "Full PGN review, post-game repair, strategic puzzle pack..."
+                    placeholder := "Guided review, e-file plan, position exercise, recurring pattern..."
                   ),
-                  p(cls := "legal-note")("Optional. Use this when a specific feature or prompt triggered the feedback request.")
+                  p(cls := "legal-note")("Optional. Use this when a specific move, plan, or study path made you want to leave feedback.")
                 ),
                 div(cls := "legal-field")(
-                  span(cls := "legal-label")("Would you pay for this if it kept helping your workflow?"),
+                  span(cls := "legal-label")("Would you pay for this if it kept helping your chess study?"),
                   div(cls := "legal-radio-grid")(
                     label(cls := "legal-radio-card")(
                       input(tpe := "radio", name := "willingness", value := "would_pay", if checkedValue(feedbackForm, "willingness", "would_pay") then checked := true else emptyFrag),
                       strong("Would pay"),
-                      span("This already feels like a premium surface.")
+                      span("This already feels like a study tool I would return to.")
                     ),
                     label(cls := "legal-radio-card")(
                       input(tpe := "radio", name := "willingness", value := "maybe", if checkedValue(feedbackForm, "willingness", "maybe") then checked := true else emptyFrag),

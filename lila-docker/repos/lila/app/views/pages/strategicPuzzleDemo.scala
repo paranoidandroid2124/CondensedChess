@@ -76,7 +76,7 @@ object strategicPuzzleDemo:
     div(cls := "sp-demo-board-card")(
       div(cls := "sp-demo-board-head")(
         div(
-          span(cls := "sp-demo-eyebrow")("Strategic Puzzle"),
+          span(cls := "sp-demo-eyebrow")("Position Exercise"),
           h2("Find the plan, then prove it.")
         ),
         div(cls := "sp-demo-board-badges")(
@@ -87,7 +87,7 @@ object strategicPuzzleDemo:
       ),
       div(cls := "sp-demo-board-frame")(
         div(cls := "sp-demo-board-shell")(
-          div(cls := "sp-demo-board-grid", aria.label := "Strategic puzzle board")(
+          div(cls := "sp-demo-board-grid", aria.label := "Position exercise board")(
             squares.map: square =>
               div(
                 cls := List(
@@ -151,21 +151,16 @@ object strategicPuzzleDemo:
   def apply(using Context): Page =
     val analysisUrl = routes.UserAnalysis.pgn(samplePgn).url
 
-    Page("Strategic Puzzle Demo - Chesstory")
+    Page("Position Exercise Demo - Chesstory")
       .css("strategicPuzzle")
       .wrap: _ =>
         frag(
-          div(cls := "sp-demo-aura", aria.hidden := "true")(
-            div(cls := "sp-aura sp-aura--1"),
-            div(cls := "sp-aura sp-aura--2"),
-            div(cls := "sp-aura sp-aura--3")
-          ),
           main(cls := "sp-demo-page")(
             st.section(cls := "sp-demo-hero")(
               div(cls := "sp-demo-hero__copy")(
-                p(cls := "sp-demo-kicker")("Plan-first puzzle"),
+                p(cls := "sp-demo-kicker")("Plan-first exercise"),
                 h1(
-                  "Build a strategy puzzle page that feels",
+                  "Practice a position until the plan feels",
                   br,
                   span("closer to a rehearsal than a quiz.")
                 ),
@@ -175,11 +170,11 @@ object strategicPuzzleDemo:
                 div(cls := "sp-demo-metric-row")(
                   div(cls := "sp-metric-card")(
                     strong("10"),
-                    span("sample puzzles probed")
+                    span("sample positions checked")
                   ),
                   div(cls := "sp-metric-card")(
                     strong("4.1"),
-                    span("terminal branches per puzzle")
+                    span("terminal branches per position")
                   ),
                   div(cls := "sp-metric-card")(
                     strong("2.1"),
@@ -203,9 +198,9 @@ object strategicPuzzleDemo:
                 div(cls := "sp-rail-card sp-rail-card--soft")(
                   p(cls := "sp-rail-label")("Page split"),
                   ul(
-                    li("Solve surface above the fold."),
+                    li("Exercise board above the fold."),
                     li("Line rail and reveal cards under the board."),
-                    li("Dashboard, themes, and review stay on separate pages.")
+                    li("Themes and longer review stay one step away.")
                   )
                 )
               )
@@ -231,7 +226,7 @@ object strategicPuzzleDemo:
                     )
                   ),
                   div(cls := "sp-runtime-actions")(
-                    a(href := routes.StrategicPuzzle.home.url, cls := "sp-demo-link")("Try a live puzzle"),
+                    a(href := routes.StrategicPuzzle.home.url, cls := "sp-demo-link")("Try a live exercise"),
                     a(href := analysisUrl, cls := "sp-demo-link")("Review the sample in analysis")
                   ),
                   div(cls := "sp-feedback-strip")(
@@ -245,7 +240,7 @@ object strategicPuzzleDemo:
                     ul(
                       li("Pattern label"),
                       li("Other accepted starts"),
-                      li("Engine comparison against the fastest line"),
+                      li("Comparison against the cleanest line"),
                       li("Review commentary")
                     )
                   )
@@ -308,7 +303,7 @@ object strategicPuzzleDemo:
               div(cls := "sp-demo-section-head")(
                 p(cls := "sp-demo-kicker")("Analysis stays on the page"),
                 h2("The board remains analytical, just not noisy."),
-                p("Strategic puzzles should still show structure, comparison, and opponent resources. They just reveal them in a tighter order.")
+                p("Position exercises should still show structure, comparison, and opponent resources. They just reveal them in a tighter order.")
               ),
               div(cls := "sp-analysis-grid")(
                 st.article(cls := "sp-analysis-card")(
@@ -343,7 +338,7 @@ object strategicPuzzleDemo:
             ),
             footer(cls := "sp-demo-footer")(
               a(href := homeUrl, cls := "sp-demo-footer__link")("Back to home"),
-              a(href := routes.StrategicPuzzle.home.url, cls := "sp-demo-footer__link")("Open a live puzzle"),
+              a(href := routes.StrategicPuzzle.home.url, cls := "sp-demo-footer__link")("Open a live exercise"),
               a(href := analysisUrl, cls := "sp-demo-footer__link is-strong")("Open the sample in analysis")
             )
           )

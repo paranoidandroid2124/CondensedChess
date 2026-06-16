@@ -215,9 +215,9 @@ const accountIntelStageLabel = (stage: string) => {
     case 'extracting_primitives':
       return 'Extracting recurring structure signals.';
     case 'publishing_surface':
-      return 'Finalizing the shared pattern report.';
+      return 'Preparing the pattern study.';
     case 'completed':
-      return 'Pattern report created successfully.';
+      return 'Pattern study is ready.';
     case 'failed':
       return 'The job ended with an error.';
     default:
@@ -262,7 +262,7 @@ function initAccountIntelProduct() {
 
   const kindLabel = (kind: string) =>
     kind === myPatternsKind ? 'My Patterns' : kind === opponentPrepKind ? 'Prep for Opponent' : kind;
-  const activeJobLabel = (status: string) => (status === 'running' ? 'Building pattern report' : 'Queued for analysis');
+  const activeJobLabel = (status: string) => (status === 'running' ? 'Building pattern study' : 'Queued for analysis');
   const humanDate = (raw?: string | null) => {
     if (!raw) return '';
     const date = new Date(raw);
@@ -669,7 +669,7 @@ function initAccountIntelProduct() {
           <strong class="importer-panel__title">Games that show the pattern</strong>
           <p class="importer-panel__copy">Use one game first as proof that the pattern is real, then open the rest only if you need more evidence.</p>
         </div>
-        ${lead ? renderExemplarCard(lead) : '<div class="status-callout"><strong>No evidence game yet</strong><span>The current report does not have a lead evidence game yet.</span></div>'}
+        ${lead ? renderExemplarCard(lead) : '<div class="status-callout"><strong>No evidence game yet</strong><span>The current pattern study does not have a lead evidence game yet.</span></div>'}
         ${
           rest.length
             ? `<details class="account-product-opening-details"><summary>See ${rest.length} more games</summary><div class="account-product-exemplar-list">${rest
@@ -738,7 +738,7 @@ function initAccountIntelProduct() {
       </div>
       <div class="account-product-support-tablist" role="tablist" aria-label="Support tools">
         ${renderSupportTab('study', 'Study notebook')}
-        ${renderSupportTab('compare', 'Compare reports')}
+        ${renderSupportTab('compare', 'Compare studies')}
         ${renderSupportTab('history', 'History')}
         ${(state?.surface?.overview?.cards || []).length ? renderSupportTab('notes', 'Notes') : ''}
       </div>
@@ -778,7 +778,7 @@ function initAccountIntelProduct() {
       <div class="importer-panel importer-panel--guide">
         <div class="importer-panel__head">
           <strong class="importer-panel__title">History</strong>
-          <p class="importer-panel__copy">Keep the latest report in front, but make older reports easy to reopen and compare.</p>
+          <p class="importer-panel__copy">Keep the latest pattern study in front, but make older studies easy to reopen and compare.</p>
         </div>
         <div class="account-product-history">
           ${history
@@ -793,7 +793,7 @@ function initAccountIntelProduct() {
                     <span>${escapeHtml(job.sampledGameCount ? `${job.sampledGameCount} games` : 'no sample')}</span>
                   </div>
                   <div class="account-product-history-actions">
-                    <a href="${escapeHtml(job.url)}">${currentSelectedJobId === job.jobId ? 'Viewing report' : 'Open report'}</a>
+                    <a href="${escapeHtml(job.url)}">${currentSelectedJobId === job.jobId ? 'Viewing study' : 'Open study'}</a>
                     ${job.surfacePreview ? `<button type="button" class="account-product-history-compare js-ai-history-compare" data-job-id="${escapeHtml(job.jobId)}">${compareJobId === job.jobId ? 'Comparing' : 'Compare'}</button>` : ''}
                   </div>
                 </div>`,
@@ -810,12 +810,12 @@ function initAccountIntelProduct() {
       return `
         <div class="importer-panel importer-panel--guide account-product-compare">
           <div class="importer-panel__head">
-            <strong class="importer-panel__title">Compare reports</strong>
-            <p class="importer-panel__copy">Pick an older report from history to see how the headline, confidence, and main patterns moved.</p>
+            <strong class="importer-panel__title">Compare studies</strong>
+            <p class="importer-panel__copy">Pick an older pattern study from history to see how the headline, confidence, and main patterns moved.</p>
           </div>
           <div class="status-callout">
             <strong>No comparison selected</strong>
-            <span>Use Compare on a past report to open a compact then-vs-now panel without leaving the page.</span>
+            <span>Use Compare on a past study to open a compact then-vs-now panel without leaving the page.</span>
           </div>
         </div>
       `;
@@ -831,7 +831,7 @@ function initAccountIntelProduct() {
     return `
       <div class="importer-panel importer-panel--guide account-product-compare">
         <div class="importer-panel__head">
-          <strong class="importer-panel__title">Compare reports</strong>
+          <strong class="importer-panel__title">Compare studies</strong>
           <p class="importer-panel__copy">A quick then-vs-now view keeps reruns useful instead of archival.</p>
         </div>
         <div class="account-product-compare-grid">

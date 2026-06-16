@@ -24,13 +24,13 @@ object support:
             st.article(cls := "legal-content")(
               header(cls := "legal-header")(
                 h1("Support Chesstory"),
-                p(cls := "legal-meta")("Core analysis stays open. Deeper commentary paths still follow current usage limits.")
+                p(cls := "legal-meta")("Core board study stays open. Deeper review paths still follow current usage limits.")
               ),
               st.section(cls := "legal-section")(
                 h2("Why Support"),
                 p(
-                  "Chesstory keeps the board and review workflow available without a public paid subscription. ",
-                  "If this helps your study workflow, support goes toward hosting, maintenance, and keeping the free tier sustainable while deeper review features stay online."
+                  "Chesstory keeps the board and guided review available without a public paid subscription. ",
+                  "If this helps your chess study, support goes toward hosting, maintenance, and keeping the free tier sustainable while deeper review paths stay online."
                 )
               ),
               st.section(cls := "legal-section")(
@@ -52,7 +52,7 @@ object support:
               st.section(cls := "legal-section")(
                 h2("Open Beta Feedback"),
                 p(
-                  "If you just used Strategic Puzzle, Game Chronicle, or another core analysis surface, you can tell us whether it already feels worth paying for and optionally join the paid-plan waitlist."
+                  "If you just used Guided Review, My Patterns, or a position exercise, you can tell us whether it already feels worth paying for and optionally join the paid-plan waitlist."
                 ),
                 div(cls := "legal-actions")(
                   a(
@@ -79,7 +79,7 @@ object support:
               ),
               st.section(cls := "legal-section")(
                 h2("Current Access Policy"),
-                p("Support helps sustain the service, but access still follows the product's current login, quota, and fair-use controls."),
+                p("Support helps sustain the service, but access still follows Chesstory's current login, quota, and fair-use controls."),
                 ul(
                   li("Anonymous full-game review is currently limited to 1 Game Chronicle request per day per IP."),
                   li("Signed-in free access is currently limited to 1 full-game review per day and 100 MoveReview move requests per day."),

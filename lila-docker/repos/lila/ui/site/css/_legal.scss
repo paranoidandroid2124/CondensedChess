@@ -1,19 +1,23 @@
 // Chesstory Legal Pages (Privacy Policy, Terms of Service)
 // Professional styling for legal content pages
 
-// Color variables (matching theme.pro)
-$c-bg-page: #0d1016;
-$c-bg: #161A25;
-$c-bg-low: #1c212e;
-$c-border: #2a3449;
-$c-font: #E2E8F0;
-$c-shade: #94A3B8;
-$c-primary: #3B82F6;
+// Color variables (matching Chesstory study room)
+$c-bg-page: #11130f;
+$c-bg: #171816;
+$c-bg-low: #22241f;
+$c-bg-input: #1c1e1a;
+$c-border: #3a3d34;
+$c-font: #efeee8;
+$c-shade: #a9ad9e;
+$c-primary: #8bc071;
+$c-primary-strong: #b4d99a;
+$c-warm: #e3b15b;
+$c-bad: #d96f66;
 
 .legal-page {
     min-height: 100vh;
     padding: 2rem 0 4rem;
-    background-color: #F8F9FA;
+    background-color: $c-bg-page;
 }
 
 body.dark .legal-page,
@@ -30,11 +34,11 @@ html.pro .legal-page {
 }
 
 .legal-content {
-    background: #fff;
-    border: 1px solid #E2E8F0;
-    border-radius: 16px;
+    background: $c-bg-low;
+    border: 1px solid $c-border;
+    border-radius: 8px;
     padding: 3rem 4rem;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.24);
 }
 
 body.dark .legal-content,
@@ -50,7 +54,7 @@ html.pro .legal-content {
     text-align: center;
     margin-bottom: 3rem;
     padding-bottom: 2rem;
-    border-bottom: 1px solid #E2E8F0;
+    border-bottom: 1px solid $c-border;
 }
 
 body.dark .legal-header,
@@ -65,7 +69,7 @@ html.pro .legal-header {
     font-size: 2.5rem;
     font-weight: 700;
     margin: 0 0 0.75rem 0;
-    color: #161A25;
+    color: $c-font;
 }
 
 body.dark .legal-header h1,
@@ -93,7 +97,7 @@ html.pro .legal-header h1 {
     font-family: 'Georgia', serif;
     font-size: 1.4rem;
     font-weight: 700;
-    color: #161A25;
+    color: $c-font;
     margin: 0 0 1rem 0;
     padding-bottom: 0.5rem;
     border-bottom: 2px solid $c-primary;
@@ -110,7 +114,7 @@ html.pro .legal-section h2 {
 .legal-section h3 {
     font-size: 1.1rem;
     font-weight: 600;
-    color: #374151;
+    color: $c-font;
     margin: 1.5rem 0 0.75rem 0;
 }
 
@@ -118,13 +122,13 @@ body.dark .legal-section h3,
 body.pro .legal-section h3,
 html.dark .legal-section h3,
 html.pro .legal-section h3 {
-    color: #CBD5E1;
+    color: $c-font;
 }
 
 .legal-section p {
     font-size: 1rem;
     line-height: 1.75;
-    color: #4B5563;
+    color: $c-shade;
     margin: 0 0 1rem 0;
 }
 
@@ -132,7 +136,7 @@ body.dark .legal-section p,
 body.pro .legal-section p,
 html.dark .legal-section p,
 html.pro .legal-section p {
-    color: #94A3B8;
+    color: $c-shade;
 }
 
 .legal-section ul {
@@ -143,7 +147,7 @@ html.pro .legal-section p {
 .legal-section li {
     font-size: 1rem;
     line-height: 1.75;
-    color: #4B5563;
+    color: $c-shade;
     margin-bottom: 0.5rem;
 }
 
@@ -151,11 +155,11 @@ body.dark .legal-section li,
 body.pro .legal-section li,
 html.dark .legal-section li,
 html.pro .legal-section li {
-    color: #94A3B8;
+    color: $c-shade;
 }
 
 .legal-section strong {
-    color: #1F2937;
+    color: $c-font;
     font-weight: 600;
 }
 
@@ -163,7 +167,7 @@ body.dark .legal-section strong,
 body.pro .legal-section strong,
 html.dark .legal-section strong,
 html.pro .legal-section strong {
-    color: #E2E8F0;
+    color: $c-font;
 }
 
 .legal-section a {
@@ -178,7 +182,7 @@ html.pro .legal-section strong {
 .legal-footer {
     margin-top: 3rem;
     padding-top: 2rem;
-    border-top: 1px solid #E2E8F0;
+    border-top: 1px solid $c-border;
     text-align: center;
     font-size: 0.95rem;
     color: $c-shade;
@@ -227,7 +231,7 @@ html.pro .legal-footer {
     .legal-label,
     .legal-field label {
         font-weight: 600;
-        color: #1f2937;
+        color: $c-font;
     }
 
     .legal-field input,
@@ -235,10 +239,10 @@ html.pro .legal-footer {
     .legal-field textarea {
         width: 100%;
         padding: 0.85rem 0.95rem;
-        border-radius: 12px;
-        border: 1px solid #d8dee8;
-        background: #fff;
-        color: #1f2937;
+        border-radius: 8px;
+        border: 1px solid $c-border;
+        background: $c-bg-input;
+        color: $c-font;
     }
 
     .legal-field textarea {
@@ -255,7 +259,7 @@ html.pro .legal-footer {
     }
 
     .legal-field-error {
-        color: #b42318;
+        color: $c-bad;
         font-size: 0.92rem;
     }
 
@@ -267,15 +271,15 @@ html.pro .legal-footer {
     }
 
     .legal-form-banner--success {
-        background: #e8f6ea;
-        border: 1px solid #b4d7bb;
-        color: #1f5f33;
+        background: rgba($c-primary, 0.16);
+        border: 1px solid rgba($c-primary, 0.3);
+        color: $c-primary-strong;
     }
 
     .legal-form-banner--error {
-        background: #fdecec;
-        border: 1px solid #e9b4b4;
-        color: #8f1d1d;
+        background: rgba($c-bad, 0.16);
+        border: 1px solid rgba($c-bad, 0.3);
+        color: lighten($c-bad, 16%);
     }
 
     .legal-radio-grid {
@@ -288,9 +292,9 @@ html.pro .legal-footer {
         display: grid;
         gap: 0.4rem;
         padding: 0.95rem 1rem;
-        border-radius: 14px;
-        border: 1px solid #d8dee8;
-        background: #f8fafc;
+        border-radius: 8px;
+        border: 1px solid $c-border;
+        background: $c-bg-input;
         cursor: pointer;
     }
 
@@ -319,16 +323,16 @@ html.pro .legal-footer {
     .legal-beta-pill {
         padding: 0.4rem 0.7rem;
         border-radius: 999px;
-        background: #eef2ff;
-        border: 1px solid #d9e0f5;
-        color: #334155;
+        background: rgba($c-primary, 0.12);
+        border: 1px solid rgba($c-primary, 0.24);
+        color: $c-primary-strong;
         font-size: 0.9rem;
     }
 
     .legal-beta-pill--accent {
-        background: #ecfdf3;
-        border-color: #bbf7d0;
-        color: #166534;
+        background: rgba($c-warm, 0.14);
+        border-color: rgba($c-warm, 0.28);
+        color: $c-warm;
     }
 }
 
@@ -345,33 +349,33 @@ html.pro .beta-feedback-page {
     .legal-field select,
     .legal-field textarea,
     .legal-radio-card {
-        background: #121a25;
+        background: $c-bg-input;
         border-color: $c-border;
         color: $c-font;
     }
 
     .legal-form-banner--success {
-        background: rgba(#166534, 0.18);
-        border-color: rgba(#86efac, 0.28);
-        color: #bbf7d0;
+        background: rgba($c-primary, 0.16);
+        border-color: rgba($c-primary, 0.3);
+        color: $c-primary-strong;
     }
 
     .legal-form-banner--error {
-        background: rgba(#991b1b, 0.2);
-        border-color: rgba(#fca5a5, 0.25);
-        color: #fecaca;
+        background: rgba($c-bad, 0.16);
+        border-color: rgba($c-bad, 0.3);
+        color: lighten($c-bad, 16%);
     }
 
     .legal-beta-pill {
-        background: #1b2433;
-        border-color: #324055;
-        color: $c-font;
+        background: rgba($c-primary, 0.12);
+        border-color: rgba($c-primary, 0.24);
+        color: $c-primary-strong;
     }
 
     .legal-beta-pill--accent {
-        background: rgba(#166534, 0.18);
-        border-color: rgba(#86efac, 0.28);
-        color: #bbf7d0;
+        background: rgba($c-warm, 0.14);
+        border-color: rgba($c-warm, 0.28);
+        color: $c-warm;
     }
 }
 

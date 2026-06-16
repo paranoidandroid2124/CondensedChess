@@ -1,17 +1,17 @@
-$sp-bg-light: #f3ecdf;
-$sp-surface-light: #fffaf2;
-$sp-surface-strong-light: #f5ecde;
-$sp-font-light: #182028;
-$sp-muted-light: #5f6a74;
-$sp-border-light: #d8cab7;
-$sp-primary: #1f6a5a;
-$sp-secondary: #a04e2d;
-$sp-amber: #bb8d3b;
-$sp-ink-dark: #0f1822;
-$sp-surface-dark: #172332;
-$sp-font-dark: #eef2f8;
-$sp-muted-dark: #b1bfce;
-$sp-border-dark: #304153;
+$sp-bg-light: #171816;
+$sp-surface-light: #22241f;
+$sp-surface-strong-light: #1c1e1a;
+$sp-font-light: #efeee8;
+$sp-muted-light: #a9ad9e;
+$sp-border-light: #3a3d34;
+$sp-primary: #8bc071;
+$sp-secondary: #e3b15b;
+$sp-amber: #b58a4b;
+$sp-ink-dark: #11130f;
+$sp-surface-dark: $sp-surface-light;
+$sp-font-dark: $sp-font-light;
+$sp-muted-dark: $sp-muted-light;
+$sp-border-dark: $sp-border-light;
 
 .sp-demo-page {
   ---sp-workspace-max-width: var(---cs-workspace-max-width, 100%);
@@ -30,9 +30,7 @@ $sp-border-dark: #304153;
   min-height: var(--sp-runtime-app-dvh);
   padding: var(---sp-shell-block-gap) var(---sp-shell-gutter-x);
   background:
-    radial-gradient(circle at 10% 10%, rgba($sp-secondary, 0.12), transparent 38%),
-    radial-gradient(circle at 86% 18%, rgba($sp-primary, 0.13), transparent 36%),
-    linear-gradient(180deg, rgba(#fff, 0.48), rgba(#fff, 0)),
+    linear-gradient(180deg, rgba(#22241f, 0.96), rgba(#171816, 1) 48%, rgba(#11130f, 1)),
     $sp-bg-light;
   color: $sp-font-light;
   font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif;
@@ -46,8 +44,8 @@ $sp-border-dark: #304153;
   inset: 0;
   pointer-events: none;
   background-image:
-    linear-gradient(to right, rgba(0, 0, 0, 0.028) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(0, 0, 0, 0.02) 1px, transparent 1px);
+    linear-gradient(to right, rgba($sp-primary, 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba($sp-primary, 0.025) 1px, transparent 1px);
   background-size: 96px 96px;
   opacity: 0.25;
 }
@@ -57,65 +55,12 @@ $sp-border-dark: #304153;
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background:
-    linear-gradient(180deg, rgba(#fff, 0.44), transparent 30%),
-    radial-gradient(circle at 50% 140%, rgba(#111, 0.08), transparent 45%);
+  background: linear-gradient(180deg, rgba(#11130f, 0.08), rgba(#11130f, 0));
 }
 
 .sp-demo-page > * {
   position: relative;
   z-index: 2;
-}
-
-.sp-demo-aura {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  overflow: hidden;
-  z-index: 1;
-}
-
-.sp-aura {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(90px);
-  opacity: 0.3;
-  animation: sp-orbit 20s ease-in-out infinite alternate;
-}
-
-.sp-aura--1 {
-  width: clamp(14rem, 30vw, 26rem);
-  aspect-ratio: 1;
-  top: -5rem;
-  left: -4rem;
-  background: rgba($sp-secondary, 0.58);
-}
-
-.sp-aura--2 {
-  width: clamp(16rem, 32vw, 28rem);
-  aspect-ratio: 1;
-  right: -4rem;
-  top: 20%;
-  background: rgba($sp-primary, 0.52);
-  animation-delay: -6s;
-}
-
-.sp-aura--3 {
-  width: clamp(10rem, 18vw, 16rem);
-  aspect-ratio: 1;
-  left: 44%;
-  bottom: 4%;
-  background: rgba($sp-amber, 0.4);
-  animation-delay: -11s;
-}
-
-@keyframes sp-orbit {
-  from {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  to {
-    transform: translate3d(1.5rem, -1rem, 0) scale(1.1);
-  }
 }
 
 .sp-demo-header,
@@ -175,8 +120,8 @@ $sp-border-dark: #304153;
   padding: 0.65rem 1rem;
   border: 1px solid rgba($sp-font-light, 0.1);
   border-radius: 999px;
-  background: rgba(#fff, 0.56);
-  box-shadow: 0 12px 34px rgba(22, 29, 36, 0.07);
+  background: rgba($sp-surface-light, 0.78);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.18);
   transition:
     transform 140ms ease,
     border-color 140ms ease,
@@ -187,7 +132,7 @@ $sp-border-dark: #304153;
 .sp-demo-footer__link:hover {
   transform: translateY(-1px);
   border-color: rgba($sp-primary, 0.35);
-  background: rgba(#fff, 0.74);
+  background: rgba($sp-surface-light, 0.95);
 }
 
 .sp-demo-link:focus-visible,
@@ -201,7 +146,7 @@ $sp-border-dark: #304153;
 .sp-demo-link.is-strong,
 .sp-demo-footer__link.is-strong {
   background: linear-gradient(135deg, $sp-primary, darken($sp-primary, 8%));
-  color: #fff;
+  color: #11130f;
   border-color: transparent;
 }
 
@@ -216,10 +161,10 @@ $sp-border-dark: #304153;
   display: grid;
   gap: 0.9rem;
   padding: 1rem 1.15rem;
-  border-radius: 24px;
-  background: rgba(#fff, 0.74);
+  border-radius: 8px;
+  background: rgba($sp-surface-light, 0.82);
   border: 1px solid rgba($sp-font-light, 0.12);
-  box-shadow: 0 18px 38px rgba(22, 29, 36, 0.08);
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.22);
 }
 
 .sp-beta-feedback__copy {
@@ -339,17 +284,15 @@ body.dark {
 .sp-line-card,
 .sp-analysis-card {
   border: 1px solid rgba($sp-border-light, 0.92);
-  background:
-    linear-gradient(180deg, rgba(#fff, 0.88), rgba(#fff, 0.72)),
-    $sp-surface-light;
+  background: rgba($sp-surface-light, 0.86);
   box-shadow:
-    0 18px 52px rgba(17, 26, 34, 0.1),
-    inset 0 1px 0 rgba(#fff, 0.8);
+    0 18px 52px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba($sp-font-light, 0.06);
 }
 
 .sp-demo-hero__copy,
 .sp-rail-card {
-  border-radius: 28px;
+  border-radius: 8px;
   padding: clamp(1.3rem, 2.5vw, 2rem);
 }
 
@@ -406,7 +349,7 @@ body.dark {
 }
 
 .sp-metric-card {
-  border-radius: 18px;
+  border-radius: 8px;
   padding: 0.7rem 0.8rem;
   background: rgba($sp-surface-strong-light, 0.9);
   border: 1px solid rgba($sp-border-light, 0.9);
@@ -440,9 +383,7 @@ body.dark {
 }
 
 .sp-rail-card--soft {
-  background:
-    linear-gradient(180deg, rgba(#fff, 0.72), rgba(#f9f0e4, 0.88)),
-    $sp-surface-light;
+  background: rgba($sp-surface-light, 0.86);
 }
 
 .sp-rail-card ul,
@@ -473,10 +414,10 @@ body.dark {
   place-content: center;
   gap: 0.5rem;
   text-align: center;
-  border-radius: 24px;
+  border-radius: 8px;
   padding: 1.25rem;
   border: 1px dashed rgba($sp-border-light, 0.9);
-  background: rgba(#fff, 0.72);
+  background: rgba($sp-surface-light, 0.82);
 }
 
 .sp-live-noscript h2,
@@ -485,7 +426,7 @@ body.dark {
 }
 
 .sp-demo-board-card {
-  border-radius: 34px;
+  border-radius: 8px;
   padding: clamp(0.8rem, 1.4vw, 1rem);
   position: relative;
 }
@@ -522,7 +463,7 @@ body.dark {
   border-radius: 999px;
   font-size: 0.8rem;
   border: 1px solid rgba($sp-font-light, 0.11);
-  background: rgba(#fff, 0.72);
+  background: rgba($sp-surface-strong-light, 0.78);
 }
 
 .sp-chip--theme {
@@ -553,12 +494,12 @@ body.dark {
 }
 
 .sp-demo-board-shell {
-  border-radius: 28px;
+  border-radius: 8px;
   padding: clamp(0.8rem, 1.6vw, 1rem);
-  background: linear-gradient(145deg, #dac39e, #b99663);
+  background: linear-gradient(145deg, #22241f, #1c1e1a);
   box-shadow:
-    inset 0 1px 0 rgba(#fff, 0.35),
-    0 12px 30px rgba(0, 0, 0, 0.13);
+    inset 0 1px 0 rgba($sp-font-light, 0.08),
+    0 12px 30px rgba(0, 0, 0, 0.24);
 }
 
 .sp-runtime-board-shell {
@@ -570,13 +511,11 @@ body.dark {
   display: grid;
   gap: 0.9rem;
   padding: clamp(0.85rem, 1.8vw, 1.05rem);
-  border-radius: 28px;
-  background:
-    linear-gradient(180deg, rgba(#fff, 0.5), rgba(#fff, 0.08)),
-    linear-gradient(145deg, #d7c3a0, #b78f55);
+  border-radius: 8px;
+  background: linear-gradient(145deg, #22241f, #1c1e1a);
   box-shadow:
-    inset 0 1px 0 rgba(#fff, 0.38),
-    0 18px 38px rgba(43, 34, 24, 0.16);
+    inset 0 1px 0 rgba($sp-font-light, 0.08),
+    0 18px 38px rgba(0, 0, 0, 0.22);
   transition:
     box-shadow 180ms ease,
     transform 180ms ease,
@@ -634,9 +573,9 @@ body.dark {
   display: block;
   position: relative;
   box-sizing: border-box;
-  border-radius: 24px;
+  border-radius: 8px;
   overflow: hidden;
-  background: #dbe3e9;
+  background: #1c1e1a;
   box-shadow:
     inset 0 0 0 1px rgba(0, 0, 0, 0.18),
     0 16px 34px rgba(0, 0, 0, 0.18);
@@ -653,7 +592,7 @@ body.dark {
   display: grid;
   grid-template-columns: repeat(8, 1fr);
   aspect-ratio: 1;
-  border-radius: 18px;
+  border-radius: 8px;
   overflow: hidden;
   border: 1px solid rgba(0, 0, 0, 0.18);
 }
@@ -665,11 +604,11 @@ body.dark {
 }
 
 .sp-square.is-light {
-  background: #f2dfba;
+  background: #d7c59c;
 }
 
 .sp-square.is-dark {
-  background: #93663f;
+  background: #76945f;
 }
 
 .sp-square.is-start::after,
@@ -713,13 +652,13 @@ body.dark {
 }
 
 .sp-piece.white {
-  background: linear-gradient(180deg, #fffdf7, #ebe0cf);
-  color: #24303c;
+  background: linear-gradient(180deg, #efeee8, #d7c59c);
+  color: #22241f;
 }
 
 .sp-piece.black {
-  background: linear-gradient(180deg, #243344, #0f1822);
-  color: #f6f1e8;
+  background: linear-gradient(180deg, #22241f, #11130f);
+  color: #efeee8;
 }
 
 .sp-file-label,
@@ -748,10 +687,10 @@ body.dark {
 }
 
 .sp-callout {
-  border-radius: 16px;
+  border-radius: 8px;
   padding: 0.8rem 0.9rem;
-  background: rgba(#fff, 0.68);
-  border: 1px solid rgba(#fff, 0.42);
+  background: rgba($sp-surface-strong-light, 0.86);
+  border: 1px solid rgba($sp-border-light, 0.82);
 }
 
 .sp-callout strong,
@@ -769,9 +708,9 @@ body.dark {
 }
 
 .sp-legend-row {
-  border-radius: 18px;
+  border-radius: 8px;
   padding: 0.9rem 1rem;
-  background: rgba(#fff, 0.72);
+  background: rgba($sp-surface-strong-light, 0.86);
   border: 1px solid rgba($sp-border-light, 0.82);
 }
 
@@ -808,7 +747,7 @@ body.dark {
 }
 
 .sp-demo-panel {
-  border-radius: 28px;
+  border-radius: 8px;
   padding: 0.85rem 0.95rem;
 }
 
@@ -827,7 +766,7 @@ body.dark {
   max-height: var(--sp-runtime-pane-max-height);
   padding: 0;
   overflow: hidden;
-  background: rgba(#fff, 0.94);
+  background: rgba($sp-surface-light, 0.94);
   backdrop-filter: blur(10px);
 }
 
@@ -865,9 +804,9 @@ body.dark {
   padding: 0.8rem 0.95rem;
   border-top: 1px solid rgba($sp-border-light, 0.82);
   background:
-    linear-gradient(180deg, rgba(#fff, 0.76), rgba(#fff, 0.98)),
+    linear-gradient(180deg, rgba($sp-surface-light, 0.76), rgba($sp-surface-light, 0.98)),
     $sp-surface-light;
-  box-shadow: 0 -14px 26px rgba(22, 29, 36, 0.08);
+  box-shadow: 0 -14px 26px rgba(0, 0, 0, 0.22);
 }
 
 .sp-runtime-pane__footer-copy {
@@ -929,7 +868,7 @@ body.dark {
 }
 
 .sp-choice-grid__notice {
-  border-radius: 18px;
+  border-radius: 8px;
   padding: 1rem 1.05rem;
   background: rgba($sp-surface-strong-light, 0.86);
   border: 1px solid rgba($sp-border-light, 0.82);
@@ -943,9 +882,9 @@ body.dark {
 
 .sp-choice {
   border: 1px solid rgba($sp-font-light, 0.12);
-  border-radius: 18px;
+  border-radius: 8px;
   padding: 0.95rem 1rem;
-  background: rgba(#fff, 0.84);
+  background: rgba($sp-surface-strong-light, 0.86);
   color: inherit;
   font-size: 1rem;
   font-weight: 700;
@@ -972,7 +911,7 @@ body.dark {
 
 .sp-choice.is-primary {
   border-color: rgba($sp-primary, 0.42);
-  background: linear-gradient(135deg, rgba($sp-primary, 0.12), rgba(#fff, 0.92));
+  background: linear-gradient(135deg, rgba($sp-primary, 0.12), rgba($sp-surface-light, 0.92));
 }
 
 .sp-choice.is-selected {
@@ -1000,7 +939,7 @@ body.dark {
 .sp-hidden-list,
 .sp-summary-card,
 .sp-mini-facts div {
-  border-radius: 18px;
+  border-radius: 8px;
   padding: 0.85rem 0.95rem;
   background: rgba($sp-surface-strong-light, 0.86);
   border: 1px solid rgba($sp-border-light, 0.82);
@@ -1078,7 +1017,7 @@ body.dark {
 
 .sp-history-drawer {
   margin-top: 0;
-  border-radius: 22px;
+  border-radius: 8px;
   padding: 0.95rem 1rem 1rem;
   background: rgba($sp-surface-strong-light, 0.86);
   border: 1px solid rgba($sp-border-light, 0.82);
@@ -1101,8 +1040,8 @@ body.dark {
   justify-content: space-between;
   gap: 0.8rem;
   padding: 0.8rem 0.9rem;
-  border-radius: 16px;
-  background: rgba(#fff, 0.62);
+  border-radius: 8px;
+  background: rgba($sp-surface-light, 0.72);
   border: 1px solid rgba($sp-border-light, 0.72);
 }
 
@@ -1116,8 +1055,8 @@ body.dark {
 
 .sp-demo-panel--reveal.is-open {
   box-shadow:
-    0 20px 60px rgba(17, 26, 34, 0.14),
-    inset 0 1px 0 rgba(#fff, 0.82);
+    0 20px 60px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba($sp-font-light, 0.06);
 }
 
 .sp-line-card--inline {
@@ -1125,7 +1064,7 @@ body.dark {
 }
 
 .sp-runtime-alt-starts {
-  border-radius: 22px;
+  border-radius: 8px;
   padding: 0.95rem 1rem 1rem;
   background: rgba($sp-surface-strong-light, 0.86);
   border: 1px solid rgba($sp-border-light, 0.82);
@@ -1194,7 +1133,7 @@ body.dark {
 
 .sp-line-card,
 .sp-analysis-card {
-  border-radius: 24px;
+  border-radius: 8px;
   padding: 1.15rem 1.2rem;
 }
 
@@ -1218,14 +1157,12 @@ body.dark {
   display: grid;
   gap: 1rem;
   padding: clamp(1.5rem, 3vw, 2.5rem);
-  border-radius: 32px;
+  border-radius: 8px;
   border: 1px solid rgba($sp-border-light, 0.92);
-  background:
-    linear-gradient(180deg, rgba(#fff, 0.9), rgba(#fff, 0.74)),
-    $sp-surface-light;
+  background: rgba($sp-surface-light, 0.86);
   box-shadow:
-    0 18px 52px rgba(17, 26, 34, 0.1),
-    inset 0 1px 0 rgba(#fff, 0.8);
+    0 18px 52px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba($sp-font-light, 0.06);
 
   h1,
   p {
@@ -1349,9 +1286,7 @@ body.dark {
 
 html.dark .sp-demo-page {
   background:
-    radial-gradient(circle at 14% 12%, rgba($sp-secondary, 0.14), transparent 36%),
-    radial-gradient(circle at 84% 18%, rgba($sp-primary, 0.16), transparent 36%),
-    linear-gradient(180deg, rgba(#fff, 0.03), rgba(#fff, 0)),
+    linear-gradient(180deg, rgba(#22241f, 0.96), rgba(#171816, 1) 48%, rgba(#11130f, 1)),
     $sp-ink-dark;
   color: $sp-font-dark;
 }
@@ -1366,14 +1301,12 @@ html.dark .sp-runtime-pane {
 
 html.dark .sp-demo-page::before {
   background-image:
-    linear-gradient(to right, rgba(#fff, 0.04) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(#fff, 0.03) 1px, transparent 1px);
+    linear-gradient(to right, rgba($sp-primary, 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba($sp-primary, 0.025) 1px, transparent 1px);
 }
 
 html.dark .sp-demo-page::after {
-  background:
-    linear-gradient(180deg, rgba(#0f1822, 0.18), rgba(#0f1822, 0)),
-    radial-gradient(circle at 50% 140%, rgba(#000, 0.32), transparent 45%);
+  background: linear-gradient(180deg, rgba(#11130f, 0.08), rgba(#11130f, 0));
 }
 
 html.dark .sp-demo-hero__copy,
@@ -1383,21 +1316,17 @@ html.dark .sp-demo-panel,
 html.dark .sp-line-card,
 html.dark .sp-analysis-card,
 html.dark .sp-empty-state {
-  background:
-    linear-gradient(180deg, rgba(#1f2b39, 0.96), rgba(#172332, 0.92)),
-    $sp-surface-dark;
+  background: rgba($sp-surface-dark, 0.86);
   border-color: rgba($sp-border-dark, 0.92);
   box-shadow:
     0 18px 52px rgba(0, 0, 0, 0.34),
-    inset 0 1px 0 rgba(#fff, 0.04);
+    inset 0 1px 0 rgba($sp-font-light, 0.06);
 }
 
 html.dark .sp-runtime-board-stage {
-  background:
-    linear-gradient(180deg, rgba(#fff, 0.04), rgba(#fff, 0.02)),
-    linear-gradient(145deg, #415a6d, #253746);
+  background: linear-gradient(145deg, #22241f, #1c1e1a);
   box-shadow:
-    inset 0 1px 0 rgba(#fff, 0.08),
+    inset 0 1px 0 rgba($sp-font-light, 0.08),
     0 18px 42px rgba(0, 0, 0, 0.34);
 }
 
@@ -1431,7 +1360,7 @@ html.dark .sp-callout,
 html.dark .sp-legend-row,
 html.dark .sp-metric-card,
 html.dark .sp-runtime-alt-starts {
-  background: rgba(#1a2532, 0.88);
+  background: rgba($sp-surface-strong-light, 0.88);
   border-color: rgba($sp-border-dark, 0.9);
 }
 
@@ -1493,7 +1422,7 @@ html.dark .sp-history-entry {
 
 html.dark .sp-choice.is-primary {
   border-color: rgba($sp-primary, 0.34);
-  background: linear-gradient(135deg, rgba($sp-primary, 0.16), rgba(#12171d, 0.92));
+  background: linear-gradient(135deg, rgba($sp-primary, 0.16), rgba($sp-surface-light, 0.92));
 }
 
 html.dark .sp-choice:hover,
@@ -1509,7 +1438,7 @@ html.dark .sp-history-entry span {
 
 html.dark .sp-runtime-pane__footer {
   background:
-    linear-gradient(180deg, rgba(#172332, 0.82), rgba(#172332, 0.98)),
+    linear-gradient(180deg, rgba($sp-surface-light, 0.82), rgba($sp-surface-light, 0.98)),
     $sp-surface-dark;
   border-color: rgba($sp-border-dark, 0.9);
   box-shadow: 0 -14px 28px rgba(0, 0, 0, 0.3);
@@ -1522,19 +1451,19 @@ html.dark .sp-runtime-alt-starts__body p {
 
 html.dark .sp-history-drawer,
 html.dark .sp-history-entry {
-  background: rgba(#1a2532, 0.88);
+  background: rgba($sp-surface-strong-light, 0.88);
 }
 
 html.dark .sp-square.is-light {
-  background: #cdb38b;
+  background: #d7c59c;
 }
 
 html.dark .sp-square.is-dark {
-  background: #6d4f30;
+  background: #76945f;
 }
 
 html.dark .sp-live-noscript {
-  background: rgba(#1a2532, 0.88);
+  background: rgba($sp-surface-strong-light, 0.88);
   border-color: rgba($sp-border-dark, 0.9);
 }
 
