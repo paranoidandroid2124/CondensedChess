@@ -179,6 +179,9 @@ object MoveReviewStrategicLedgerBuilder:
     val compensationSignal = hasCompensationSignal(ctx, digest)
     val prophylaxisSignal = hasProphylaxisSignal(ctx, digest)
     val openingSignal = hasOpeningSignal(ctx)
+    val conversionFruition =
+      ctx.planContinuity.exists(_.phase == PlanLifecyclePhase.Fruition) &&
+        hasOppositeBishopsConversionPlan(planProfile)
     val motif =
       pickMotif(
         ctx,
@@ -199,6 +202,7 @@ object MoveReviewStrategicLedgerBuilder:
       carryOver = carryOver,
       prerequisites = prerequisites,
       conversionTrigger = conversionTrigger,
+      conversionFruition = conversionFruition,
       prophylaxisSignal = prophylaxisSignal,
       routeSignal = routeSignal,
       primaryLine = primaryLine,
@@ -397,6 +401,7 @@ object MoveReviewStrategicLedgerBuilder:
       carryOver: Boolean,
       prerequisites: List[String],
       conversionTrigger: Option[String],
+      conversionFruition: Boolean,
       prophylaxisSignal: Boolean,
       routeSignal: Boolean,
       primaryLine: Option[LineCandidate],
@@ -432,11 +437,11 @@ object MoveReviewStrategicLedgerBuilder:
           label = "Restrain",
           reason = Option.when(counterplayText.nonEmpty)(counterplayText.mkString(" · ")).orElse(Some("Counterplay denial is the main task"))
         )
-      case _ if ctx.planContinuity.exists(_.phase == PlanLifecyclePhase.Fruition) || conversionTrigger.nonEmpty =>
+      case _ if conversionTrigger.nonEmpty || conversionFruition =>
         val conversionText =
           conversionTrigger
             .map(trigger => s"the edge is now built around converting through $trigger")
-            .orElse(Some("The accumulated edge is ready to be converted"))
+            .orElse(Some("The conversion plan has reached its payoff stage"))
         StageChoice(
           key = "convert",
           label = "Convert",

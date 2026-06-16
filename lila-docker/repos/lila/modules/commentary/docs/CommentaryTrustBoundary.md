@@ -209,10 +209,10 @@ The surface renderer may say:
   a moment into the compensation tier unless the shared compensation
   interpretation accepts the evidence. The MoveReview strategic ledger may use
   compensation as a pressure motif, but it does not label the stage `Convert`
-  unless a separate conversion trigger or fruition signal exists. Centipawn
-  loss from a counterfactual or decision comparison is engine-margin evidence,
-  not practical-difficulty authority, unless a separate typed practical witness
-  is present.
+  unless a separate conversion trigger or conversion-family plan-fruition signal
+  exists. Centipawn loss from a counterfactual or decision comparison is
+  engine-margin evidence, not practical-difficulty authority, unless a separate
+  typed practical witness is present.
   Played-first rook-pawn hook/march facts may enter here only from board state
   before/after the reviewed move, not from practical-row text;
 - practical central challenge: only when `CentralBreakTimingWitness.practical`

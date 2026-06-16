@@ -128,6 +128,28 @@ class MoveReviewStrategicLedgerBuilderTest extends FunSuite:
     val ledger = build(MoveReviewProseGoldenFixtures.oppositeBishopsConversion.ctx)
     assertEquals(ledger.motifKey, "opposite_bishops_conversion")
     assertEquals(ledger.stageKey, "convert")
+    assertEquals(ledger.stageReason, Some("The conversion plan has reached its payoff stage"))
+  }
+
+  test("non-conversion plan fruition does not become a conversion stage") {
+    val ctx =
+      MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
+        planContinuity =
+          Some(
+            PlanContinuity(
+              planName = "Rook-Pawn March",
+              planId = Some("rook_pawn_march"),
+              consecutivePlies = 3,
+              startingPly = 18,
+              phase = PlanLifecyclePhase.Fruition,
+              commitmentScore = 0.82
+            )
+          )
+      )
+    val ledger = build(ctx)
+    assertEquals(ledger.motifKey, "rook_pawn_march")
+    assertEquals(ledger.stageKey, "build")
+    assert(!ledger.stageReason.exists(_.toLowerCase.contains("converted")), clue(ledger.stageReason))
   }
 
   test("does not upgrade opposite-color bishops without a conversion plan") {
