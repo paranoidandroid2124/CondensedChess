@@ -1158,7 +1158,7 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
         questionId = "q_opening_relation",
         questionKind = AuthorQuestionKind.WhyThis,
         priority = 100,
-        claim = "The current move leaves the established opening branch, so that idea has to work in the concrete line.",
+        claim = "The current move leaves the sampled opening branch, so the idea still needs current-line support.",
         evidence =
           Some(
             QuestionPlanEvidence(
@@ -1168,8 +1168,8 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
               branchScoped = true
             )
           ),
-        contrast = Some("The practical alternative e4 keeps the more familiar opening route."),
-        consequence = Some(QuestionPlanConsequence("That changes which opening script the position follows.", QuestionPlanConsequenceBeat.WrapUp)),
+        contrast = Some("The practical alternative e4 stays closer to the familiar opening reference."),
+        consequence = Some(QuestionPlanConsequence("That changes how much opening-reference context still applies.", QuestionPlanConsequenceBeat.WrapUp)),
         fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
         strengthTier = QuestionPlanStrengthTier.Moderate,
         sourceKinds = List("opening_relation_translator"),

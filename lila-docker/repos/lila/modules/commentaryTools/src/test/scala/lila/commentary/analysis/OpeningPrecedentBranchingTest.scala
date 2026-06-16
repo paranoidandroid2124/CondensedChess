@@ -120,7 +120,7 @@ class OpeningPrecedentBranchingTest extends FunSuite:
     assert(precedent.representativeSentence.toLowerCase.contains("queenside pressure branch"))
     assert(precedent.summarySentence.toLowerCase.contains("queenside pressure branch"))
     val relation = OpeningPrecedentBranching.relationSentence(ctx, ctx.openingData, requireFocus = true).getOrElse(fail("missing relation"))
-    assert(relation.toLowerCase.contains("keeps the game inside"))
+    assert(relation.toLowerCase.contains("stays inside that sampled"))
     assert(relation.toLowerCase.contains("queenside pressure branch"))
   }
 
@@ -132,7 +132,7 @@ class OpeningPrecedentBranchingTest extends FunSuite:
         openingEvent = Some(OpeningEvent.OutOfBook("g4", List("b3", "dxc5", "Qc2"), 16))
       )
     val relation = OpeningPrecedentBranching.relationSentence(outOfBookCtx, outOfBookCtx.openingData, requireFocus = true).getOrElse(fail("missing relation"))
-    assert(relation.toLowerCase.contains("leaves the established"))
+    assert(relation.toLowerCase.contains("leaves the sampled"))
     assert(relation.toLowerCase.contains("queenside pressure"))
   }
 

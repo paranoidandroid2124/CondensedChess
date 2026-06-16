@@ -1781,16 +1781,16 @@ private[commentary] object QuestionFirstCommentaryPlanner:
   ): Option[String] =
     questionKind match
       case AuthorQuestionKind.WhatChanged =>
-        Some("Before the move, the opening was still following the more familiar setup.")
+        Some("Before the move, the opening reference still matched the more familiar setup.")
       case _ =>
         inputs.alternativeNarrative.map(_.sentence)
           .orElse(
             inputs.decisionComparison.flatMap(
-              _.deferredMove.map(move => s"The practical alternative $move keeps the more familiar opening route.")
+              _.deferredMove.map(move => s"The practical alternative $move stays closer to the familiar opening reference.")
             )
           )
           .orElse(onlyMovePressure(truthContract))
-          .orElse(Some("The move matters because it changes which opening script the position follows."))
+          .orElse(Some("The move changes how much opening-reference context still applies."))
 
   private def endgameTransitionContrast(
       questionKind: AuthorQuestionKind

@@ -235,6 +235,9 @@ shape labels unless a separate result or conversion proof is present.
 Opening-family rows are book context. Their catalog target squares do not become
 public target chips or plan/occupation claims without separate current-position
 route, board, or PV evidence.
+Opening precedent and relation prose is reference-game context only; branch
+names and inferred sample-line mechanisms do not authorize current-position
+plan, compensation, or pressure claims.
 
 Supported-local and exact-slice packets are proof gates, not independent chess
 mechanisms. After claim-authority admission they must resolve to the strongest

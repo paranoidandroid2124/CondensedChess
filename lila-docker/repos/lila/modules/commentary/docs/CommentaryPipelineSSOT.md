@@ -201,6 +201,9 @@ outpost family; if the durable outpost proof succeeds, it reuses the `Knight
 outpost` row and typed target.
 Opening-goal break context likewise renders through the checked played pawn
 route, not the catalog/opening-goal label.
+Opening precedent and relation text is reference-game context; branch labels and
+sample-line mechanisms do not become current-position plan, compensation, or
+pressure authority.
 If a reviewed central pawn move is itself a board-backed
 `CentralBreakTimingWitness` and a same-destination `neutralize_key_break`
 candidate also appears, the central-break packet owns the move unless an

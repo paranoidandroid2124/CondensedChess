@@ -25,7 +25,7 @@ private[analysis] final case class OpeningBranchPrecedent(
     s"In $gameDescriptor, after $routePreview, play headed into the ${OpeningPrecedentBranching.playerBranchLabel(branchLabel)} branch$winnerPart."
 
   def summarySentence: String =
-    s"The clearest master precedent here points to the ${OpeningPrecedentBranching.playerBranchLabel(branchLabel)} branch, where $mechanismSummary."
+    s"The closest reference-game context is the ${OpeningPrecedentBranching.playerBranchLabel(branchLabel)} branch, where $mechanismSummary."
 
 private[analysis] object OpeningPrecedentBranching:
 
@@ -138,30 +138,30 @@ private[analysis] object OpeningPrecedentBranching:
       case Some(OpeningEvent.OutOfBook(_, _, _)) =>
         cleanRelationSentence(
           if normalizeText(planLabel).equalsIgnoreCase(normalizeText(branchLabel)) then
-            s"The current move leaves the established $branchLabel branch, so that idea has to work in the concrete line."
+            s"The current move leaves the sampled $branchLabel branch, so the idea still needs current-line support."
           else
-            s"The current move leaves the established $branchLabel branch and points toward $planLabel instead."
+            s"The current move leaves the sampled $branchLabel branch and only gives contextual support around $planLabel."
         )
       case Some(OpeningEvent.Novelty(_, _, _, _)) =>
-        s"The current move deliberately bends away from the usual $branchLabel branch, betting that $planLabel will compensate."
+        s"The current move bends away from the usual $branchLabel branch, so $planLabel is only an opening-context hint here."
       case Some(OpeningEvent.BranchPoint(_, _, _)) if followsRepresentative =>
-        s"The current move keeps the game inside that $branchLabel branch rather than forcing a new split."
+        s"The current move stays inside that sampled $branchLabel branch, so the opening context remains comparable."
       case Some(OpeningEvent.BranchPoint(_, _, _)) =>
         val continuation =
           if normalizeText(planLabel).equalsIgnoreCase(normalizeText(branchLabel)) then
             "but with a different move order"
-          else s"and points instead toward $planLabel"
+          else s"and only gives contextual support around $planLabel"
         s"Here the move steps away from the precedent's $branchLabel route $continuation."
       case Some(OpeningEvent.TheoryEnds(_, _)) =>
-        s"The current move still leans on that $branchLabel branch, but from here the plans have to be justified without much theory support."
+        s"The current move still resembles that $branchLabel branch, but theory support is thinning and current lines matter more."
       case Some(OpeningEvent.Intro(_, _, _, _)) if staysWithinReference =>
-        s"So the move stays within the classical $branchLabel branch."
+        s"So the move remains inside the $branchLabel opening context."
       case Some(OpeningEvent.Intro(_, _, _, _)) =>
-        s"So the move already shades away from the classical $branchLabel branch toward $planLabel."
+        s"So the move shades away from the $branchLabel opening context and only loosely connects to $planLabel."
       case _ if staysWithinReference =>
-        s"The current move keeps to that $branchLabel branch."
+        s"The current move stays close to that $branchLabel opening context."
       case _ =>
-        s"The current move bends the game away from that $branchLabel branch toward $planLabel."
+        s"The current move leaves that $branchLabel opening context and only loosely connects to $planLabel."
 
   private def cleanRelationSentence(raw: String): String =
     raw
@@ -284,15 +284,15 @@ private[analysis] object OpeningPrecedentBranching:
   private def mechanismSummaryOf(mechanism: OpeningBranchMechanism, branchLabel: String): String =
     mechanism match
       case OpeningBranchMechanism.TacticalPressure =>
-        s"forcing threats and king-safety questions begin to decide the $branchLabel line"
+        s"the sample line contained forcing moves and king-safety pressure"
       case OpeningBranchMechanism.ExchangeCascade =>
-        s"exchange timing clarifies which side reaches the cleaner version of the $branchLabel line"
+        s"the sample line turned on exchange timing"
       case OpeningBranchMechanism.PromotionRace =>
-        s"passed-pawn tempo counts start to dominate the $branchLabel line"
+        s"the sample line included passed-pawn tempo questions"
       case OpeningBranchMechanism.StructuralTransformation =>
-        s"pawn-structure changes reroute the long-term plans inside the $branchLabel line"
+        s"pawn-structure changes shaped the reference route"
       case OpeningBranchMechanism.InitiativeSwing =>
-        s"development tempos and piece activity decide who keeps the initiative in the $branchLabel line"
+        s"development tempos and piece activity shaped the reference route"
 
   private def inferMechanism(sanMoves: List[String]): OpeningBranchMechanism =
     val normalizedMoves = sanMoves.map(normalizeSanToken).filter(_.nonEmpty)
