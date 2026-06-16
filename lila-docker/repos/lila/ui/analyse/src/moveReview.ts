@@ -209,7 +209,7 @@ function renderSavedStudyFallbackHtml(commentary: string, refs: MoveReviewRefsV1
         refs && refs.variations.length
             ? `
       <div class="alternatives">
-        <h3>Saved Lines</h3>
+        <h3>Saved line to replay</h3>
         ${refs.variations
             .map(variation => {
                 const moves = variation.moves

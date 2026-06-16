@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 
 const reviewViewSource = readFileSync(fileURLToPath(new URL('../src/review/view.ts', import.meta.url)), 'utf8');
 const controlsSource = readFileSync(fileURLToPath(new URL('../src/view/controls.ts', import.meta.url)), 'utf8');
+const actionMenuSource = readFileSync(fileURLToPath(new URL('../src/view/actionMenu.ts', import.meta.url)), 'utf8');
+const moveReviewSource = readFileSync(fileURLToPath(new URL('../src/moveReview.ts', import.meta.url)), 'utf8');
 
 describe('review player copy', () => {
   test('keeps review shell tabs and panels player-facing', () => {
@@ -27,6 +29,17 @@ describe('review player copy', () => {
     ['Opening context', 'Board setup', 'Toggle candidate lines'].forEach(copy =>
       assert.match(controlsSource, new RegExp(escapeRegExp(copy)), `missing control copy: ${copy}`),
     );
+    ['Candidate lines', 'candidate lines are on'].forEach(copy =>
+      assert.match(actionMenuSource, new RegExp(escapeRegExp(copy)), `missing board setup copy: ${copy}`),
+    );
+    ['Reference lines', 'reference lines are on'].forEach(copy =>
+      assert.doesNotMatch(actionMenuSource, new RegExp(escapeRegExp(copy)), `stale board setup copy: ${copy}`),
+    );
+  });
+
+  test('keeps saved move review fallback framed as replay', () => {
+    assert.match(moveReviewSource, /Saved line to replay/);
+    assert.doesNotMatch(moveReviewSource, /Saved Lines/);
   });
 });
 

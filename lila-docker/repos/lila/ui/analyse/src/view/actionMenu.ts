@@ -116,8 +116,8 @@ function boardWorkspaceView(ctrl: AnalyseCtrl, closeMenu: () => void): VNode[] {
     ]),
     workspaceSection('Guides', 'Choose what help stays on the board during review.', [
       workspaceSwitchCard(
-        'Reference lines',
-        engineUnavailable ? 'Reference lines are unavailable in this position.' : 'Show candidate lines beside the move tree.',
+        'Candidate lines',
+        engineUnavailable ? 'Candidate lines are unavailable in this position.' : 'Show candidate lines beside the move tree.',
         ctrl.showEnginePanel(),
         next => {
           ctrl.setShowEnginePanel(next);
@@ -127,7 +127,7 @@ function boardWorkspaceView(ctrl: AnalyseCtrl, closeMenu: () => void): VNode[] {
       ),
       workspaceSwitchCard(
         'Position gauge',
-        'Keep the evaluation gauge visible when reference lines are on and space allows.',
+        'Keep the evaluation gauge visible when candidate lines are on and space allows.',
         ctrl.showGauge(),
         next => {
           ctrl.setShowEvalGauge(next);
