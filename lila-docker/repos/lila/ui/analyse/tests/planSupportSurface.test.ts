@@ -6,7 +6,7 @@ import {
 } from '../src/moveReview/planSupportSurface';
 
 describe('plan support surface', () => {
-  test('formats pv-coupled plans as engine-line only with move-order caution', () => {
+  test('formats pv-coupled plans as candidate-line only with move-order caution', () => {
     const index = strategicPlanExperimentIndex([
       {
         planId: 'king_attack',
@@ -35,11 +35,11 @@ describe('plan support surface', () => {
         index,
         { includeRank: true },
       ),
-      '1. Kingside Attack (0.81 · Engine-line only · Move-order sensitive)',
+      '1. Kingside Attack (0.81 · Candidate-line only · Move order matters)',
     );
   });
 
-  test('formats evidence-backed plans as probe-backed', () => {
+  test('formats evidence-backed plans as checked follow-ups', () => {
     const index = strategicPlanExperimentIndex([
       {
         planId: 'minority_attack',
@@ -66,7 +66,7 @@ describe('plan support surface', () => {
         },
         index,
       ),
-      'Minority Attack (0.73 · Probe-backed)',
+      'Minority Attack (0.73 · Follow-up checked)',
     );
   });
 });
