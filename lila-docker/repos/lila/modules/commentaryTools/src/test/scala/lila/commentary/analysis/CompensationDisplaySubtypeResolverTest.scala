@@ -268,6 +268,40 @@ class CompensationDisplaySubtypeResolverTest extends FunSuite:
       )
     )
 
+  private def passedPawnCueCompensationPack: StrategyPack =
+    StrategyPack(
+      sideToMove = "white",
+      strategicIdeas = List(
+        StrategyIdeaSignal(
+          ideaId = "idea_passed_pawn_cue",
+          ownerSide = "white",
+          kind = StrategicIdeaKind.FavorableTradeOrTransformation,
+          group = "conversion_or_transformation",
+          readiness = StrategicIdeaReadiness.Build,
+          focusSquares = List("e6"),
+          focusFiles = List("e"),
+          confidence = 0.76,
+          evidenceRefs = List(
+            "source:passed_pawn_conversion_motif",
+            "passed_pawn_conversion_shape",
+            "passed_pawn_e6",
+            "protected_passed_pawn"
+          )
+        )
+      ),
+      signalDigest = Some(
+        NarrativeSignalDigest(
+          compensation = Some("initiative against the king"),
+          compensationVectors = List("Initiative (0.6)"),
+          investedMaterial = Some(100),
+          dominantIdeaKind = Some(StrategicIdeaKind.FavorableTradeOrTransformation),
+          dominantIdeaGroup = Some("conversion_or_transformation"),
+          dominantIdeaReadiness = Some(StrategicIdeaReadiness.Build),
+          dominantIdeaFocus = Some("e6")
+        )
+      )
+    )
+
   test("resolver prefers payoff subtype for fixed-target compensation shell") {
     val surface = StrategyPackSurface.from(Some(benkoLikeCompensationPack))
     val rawSubtype = surface.compensationSubtype.getOrElse(fail("missing raw subtype"))
@@ -325,4 +359,13 @@ class CompensationDisplaySubtypeResolverTest extends FunSuite:
     assertEquals(resolution.displaySubtypeSource, "raw_fallback")
     assertEquals(resolution.selectedDisplaySubtype, None)
     assert(!resolution.normalizationActive, clue(resolution))
+  }
+
+  test("passed-pawn cue alone is not a compensation conversion-window anchor") {
+    val surface = StrategyPackSurface.from(Some(passedPawnCueCompensationPack))
+    val rawSubtype = surface.compensationSubtype.getOrElse(fail("missing raw subtype"))
+
+    assertEquals(surface.dominantIdea.map(StrategicIdeaSelector.playerFacingIdeaText), Some("passed-pawn cue around e6"))
+    assertNotEquals(rawSubtype.pressureMode, "conversion_window")
+    assertNotEquals(rawSubtype.stabilityClass, "transition_only")
   }

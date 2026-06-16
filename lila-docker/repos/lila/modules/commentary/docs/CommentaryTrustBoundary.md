@@ -246,6 +246,9 @@ win/draw or conversion authority; public context, rows, and transition prose
 must stay result-neutral without tablebase/eval/PV result evidence.
 Endgame pattern ids that contain `Draw` or `Conversion` are rendered as neutral
 shape labels unless a separate result or conversion proof is present.
+Strategy idea labels and compensation subtype selection likewise treat
+rook-endgame, endgame-technique, and passed-pawn motif sources as cues, not
+conversion authority, until an exchange/transformation proof source is present.
 Pattern ids that contain `Breakthrough` are likewise rendered as entry or
 passer-route shapes unless current board/PV/tablebase evidence proves the
 breakthrough result.

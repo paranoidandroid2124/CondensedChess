@@ -549,6 +549,7 @@ class StrategicIdeaSelectorTest extends FunSuite:
     assert(conversionIdea.evidenceRefs.contains("rook_endgame_pattern_shape"), clue(conversionIdea.evidenceRefs))
     assert(conversionIdea.evidenceRefs.contains("rook_behind_passed_pawn"), clue(conversionIdea.evidenceRefs))
     assert(conversionIdea.evidenceRefs.contains("king_cut_off"), clue(conversionIdea.evidenceRefs))
+    assertEquals(StrategicIdeaSelector.playerFacingIdeaText(conversionIdea), "rook-endgame cue")
   }
 
   test("opposition motif keeps endgame-technique witnesses for support surface") {
@@ -578,6 +579,7 @@ class StrategicIdeaSelectorTest extends FunSuite:
     assertEquals(conversionIdea.focusZone, Some("endgame"))
     assert(conversionIdea.evidenceRefs.contains("endgame_technique_shape"), clue(conversionIdea.evidenceRefs))
     assert(conversionIdea.evidenceRefs.contains("opposition_direct"), clue(conversionIdea.evidenceRefs))
+    assertEquals(StrategicIdeaSelector.playerFacingIdeaText(conversionIdea), "direct-opposition cue")
   }
 
   test("zugzwang motif keeps endgame-technique witnesses for support surface") {
@@ -595,6 +597,7 @@ class StrategicIdeaSelectorTest extends FunSuite:
     assertEquals(conversionIdea.focusZone, Some("endgame"))
     assert(conversionIdea.evidenceRefs.contains("endgame_technique_shape"), clue(conversionIdea.evidenceRefs))
     assert(conversionIdea.evidenceRefs.contains("zugzwang_shape"), clue(conversionIdea.evidenceRefs))
+    assertEquals(StrategicIdeaSelector.playerFacingIdeaText(conversionIdea), "zugzwang cue")
   }
 
   test("active king-step motif keeps endgame-technique witnesses for support surface") {
@@ -613,6 +616,7 @@ class StrategicIdeaSelectorTest extends FunSuite:
     assertEquals(conversionIdea.focusZone, Some("endgame"))
     assert(conversionIdea.evidenceRefs.contains("endgame_technique_shape"), clue(conversionIdea.evidenceRefs))
     assert(conversionIdea.evidenceRefs.contains("king_activity_shape"), clue(conversionIdea.evidenceRefs))
+    assertEquals(StrategicIdeaSelector.playerFacingIdeaText(conversionIdea), "king-activity cue")
   }
 
   test("passed-pawn motifs keep conversion witnesses for support surface") {
@@ -635,6 +639,7 @@ class StrategicIdeaSelectorTest extends FunSuite:
     assert(conversionIdea.evidenceRefs.contains("passed_pawn_conversion_shape"), clue(conversionIdea.evidenceRefs))
     assert(conversionIdea.evidenceRefs.contains("passed_pawn_e6"), clue(conversionIdea.evidenceRefs))
     assert(conversionIdea.evidenceRefs.contains("protected_passed_pawn"), clue(conversionIdea.evidenceRefs))
+    assertEquals(StrategicIdeaSelector.playerFacingIdeaText(conversionIdea), "passed-pawn cue around e6")
   }
 
   test("passed-pawn push motif keeps conversion witnesses for support surface") {
@@ -658,6 +663,7 @@ class StrategicIdeaSelectorTest extends FunSuite:
     assert(conversionIdea.evidenceRefs.contains("passed_pawn_c7"), clue(conversionIdea.evidenceRefs))
     assert(conversionIdea.evidenceRefs.contains("passed_pawn_push"), clue(conversionIdea.evidenceRefs))
     assert(conversionIdea.evidenceRefs.contains("advanced_passed_pawn"), clue(conversionIdea.evidenceRefs))
+    assertEquals(StrategicIdeaSelector.playerFacingIdeaText(conversionIdea), "passed-pawn cue around c7")
   }
 
   test("pawn-promotion motif keeps conversion witnesses for support surface") {
@@ -681,6 +687,7 @@ class StrategicIdeaSelectorTest extends FunSuite:
     assert(conversionIdea.evidenceRefs.contains("passed_pawn_a8"), clue(conversionIdea.evidenceRefs))
     assert(conversionIdea.evidenceRefs.contains("pawn_promotion"), clue(conversionIdea.evidenceRefs))
     assert(conversionIdea.evidenceRefs.contains("promotion_piece_q"), clue(conversionIdea.evidenceRefs))
+    assertEquals(StrategicIdeaSelector.playerFacingIdeaText(conversionIdea), "promotion cue on a8")
   }
 
   test("static pawn weakness motifs keep target-fixing witnesses for support surface") {

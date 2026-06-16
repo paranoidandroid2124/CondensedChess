@@ -1558,9 +1558,24 @@ private[commentary] object StrategyPackSurface:
           lowered.exists(text =>
             containsAny(text, List("counterplay", "deny counterplay", "denying counterplay", "cannot breathe", "clamp"))
           )
+      def ideaHasConversionAnchor(idea: Option[StrategyIdeaSignal]): Boolean =
+        idea.exists { signal =>
+          val refs = signal.evidenceRefs.map(normalizeText).map(_.toLowerCase)
+          refs.exists(
+            Set(
+              "source:classification_transformation_window",
+              "source:exchange_availability_bridge",
+              "source:capture_exchange_transformation",
+              "source:plan_match_transformation",
+              "source:iqp_simplification_profile"
+            )
+          )
+        }
+      val dominantConversionAnchor = ideaHasConversionAnchor(dominantIdea)
+      val secondaryConversionAnchor = ideaHasConversionAnchor(secondaryIdea)
+      val conversionIdeaAnchor = dominantConversionAnchor || secondaryConversionAnchor
       val conversionAnchor =
-        dominantKind.contains(StrategicIdeaKind.FavorableTradeOrTransformation) ||
-          secondaryKind.contains(StrategicIdeaKind.FavorableTradeOrTransformation) ||
+        conversionIdeaAnchor ||
           lowered.exists(text => containsAny(text, List("cash out", "transition", "transform", "trade down", "conversion")))
       val defenderAnchor =
         dominantKind.contains(StrategicIdeaKind.KingAttackBuildUp) ||
@@ -1618,7 +1633,14 @@ private[commentary] object StrategyPackSurface:
       val breakScore =
         scoreModeAnchor(dominantKind, secondaryKind, StrategicIdeaKind.PawnBreak, breakAnchor, lowered, pressureTheater)
       val conversionScore =
-        scoreModeAnchor(dominantKind, secondaryKind, StrategicIdeaKind.FavorableTradeOrTransformation, conversionAnchor, lowered, pressureTheater)
+        scoreModeAnchor(
+          dominantKind.filter(_ => dominantConversionAnchor),
+          secondaryKind.filter(_ => secondaryConversionAnchor),
+          StrategicIdeaKind.FavorableTradeOrTransformation,
+          conversionAnchor,
+          lowered,
+          pressureTheater
+        )
       val defenderScore =
         scoreModeAnchor(dominantKind, secondaryKind, StrategicIdeaKind.KingAttackBuildUp, defenderAnchor, lowered, pressureTheater)
 

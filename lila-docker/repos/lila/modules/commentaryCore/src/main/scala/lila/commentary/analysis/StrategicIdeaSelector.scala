@@ -182,7 +182,7 @@ private[commentary] object StrategicIdeaSelector:
       case StrategicIdeaKind.LineOccupation =>
         pressureText(signal.focusSquares, signal.focusFiles, signal.focusDiagonals, signal.focusZone, fallback = "open-line pressure")
       case StrategicIdeaKind.FavorableTradeOrTransformation =>
-        exchangeText(signal.focusSquares, signal.focusZone)
+        exchangeText(signal)
       case StrategicIdeaKind.TargetFixing =>
         targetFixingText(signal.focusSquares, signal.focusZone)
       case StrategicIdeaKind.OutpostCreationOrOccupation =>
@@ -2970,8 +2970,38 @@ private[commentary] object StrategicIdeaSelector:
   ): String =
     pressureAnchor(focusSquares, focusFiles, focusDiagonals, focusZone).map(anchor => s"pressure $anchor").getOrElse(fallback)
 
-  private def exchangeText(focusSquares: List[String], focusZone: Option[String]): String =
-    if focusSquares.nonEmpty then s"exchanges on ${joinLowerTerms(focusSquares.take(3))}"
+  private def exchangeText(signal: StrategyIdeaSignal): String =
+    val refs = signal.evidenceRefs.map(_.trim.toLowerCase)
+    val focusSquares = signal.focusSquares.map(_.trim.toLowerCase).filter(ChessSquarePattern.matches)
+    val focusZone = signal.focusZone
+    if refs.contains("source:passed_pawn_conversion_motif") && refs.contains("passed_pawn_conversion_shape") then
+      val passedPawnSquare =
+        focusSquares.find(square => refs.contains(s"passed_pawn_$square")).orElse(focusSquares.headOption)
+      if refs.contains("pawn_promotion") then
+        passedPawnSquare.map(square => s"promotion cue on $square").getOrElse("promotion cue")
+      else passedPawnSquare.map(square => s"passed-pawn cue around $square").getOrElse("passed-pawn cue")
+    else if refs.contains("source:rook_endgame_pattern") && refs.contains("rook_endgame_pattern_shape") then
+      val facts =
+        List(
+          Option.when(refs.contains("rook_behind_passed_pawn"))("rook-behind-passer cue"),
+          Option.when(refs.contains("king_cut_off"))("king cut-off cue")
+        ).flatten
+      facts match
+        case fact :: Nil => fact
+        case _           => "rook-endgame cue"
+    else if refs.contains("source:endgame_technique_motif") && refs.contains("endgame_technique_shape") then
+      val facts =
+        List(
+          Option.when(refs.contains("opposition_direct"))("direct-opposition cue"),
+          Option.when(refs.contains("opposition_distant"))("distant-opposition cue"),
+          Option.when(refs.contains("opposition_diagonal"))("diagonal-opposition cue"),
+          Option.when(refs.contains("zugzwang_shape"))("zugzwang cue"),
+          Option.when(refs.contains("king_activity_shape"))("king-activity cue")
+        ).flatten
+      facts match
+        case fact :: Nil => fact
+        case _           => "endgame technique cue"
+    else if focusSquares.nonEmpty then s"exchanges on ${joinLowerTerms(focusSquares.take(3))}"
     else focusZone.flatMap(zoneFocusText).map(zone => s"favorable exchanges in $zone").getOrElse("favorable exchanges")
 
   private def targetFixingText(focusSquares: List[String], focusZone: Option[String]): String =
