@@ -394,6 +394,19 @@
       .move-review-player__timeline-step.is-active .move-review-player__timeline-label {
         display: inline;
       }
+
+      .move-review-player__scene-line-head {
+        align-items: stretch;
+      }
+
+      .move-review-player__line-controls {
+        width: 100%;
+        justify-content: space-between;
+      }
+
+      .move-review-player__line-step {
+        min-width: 3rem;
+      }
     }
 
     .move-review-player__stage {

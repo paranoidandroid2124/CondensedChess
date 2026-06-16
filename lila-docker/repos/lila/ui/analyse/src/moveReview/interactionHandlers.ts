@@ -167,7 +167,7 @@ function setSceneLineState(panel: HTMLElement, activeMove: HTMLElement | null): 
   line.dataset.lineIndex = String(selectedIndex);
 
   const count = line.querySelector<HTMLElement>('.move-review-player__line-count');
-  if (count) count.textContent = chips.length ? `Move ${selectedIndex + 1}/${chips.length}` : 'Line';
+  if (count) count.textContent = chips.length ? `Board ${selectedIndex + 1}/${chips.length}` : 'Board line';
 
   line.querySelectorAll<HTMLButtonElement>('[data-move-review-line-step]').forEach(button => {
     const step = Number(button.dataset.moveReviewLineStep);

@@ -346,13 +346,24 @@ function renderAuthorRow(row: MoveReviewPlayerAuthorRowV1, refIndex: MoveReviewR
   `;
 }
 
-function renderTryLineChips(lineSans: string[], refIndex: MoveReviewRefIndex): string {
+type ResolvedTryLine = {
+  cleanSans: string[];
+  refs: (MoveReviewMoveRef | null)[];
+};
+
+function resolveTryLine(lineSans: string[], refIndex: MoveReviewRefIndex): ResolvedTryLine {
   const cleanSans = lineSans.filter(san => normalizeSanToken(san));
-  if (!cleanSans.length) return '';
-  const refs = resolveSanSequenceRefs(cleanSans, refIndex);
-  return cleanSans
+  return {
+    cleanSans,
+    refs: cleanSans.length ? resolveSanSequenceRefs(cleanSans, refIndex) : [],
+  };
+}
+
+function renderResolvedTryLineChips(line: ResolvedTryLine): string {
+  if (!line.cleanSans.length) return '';
+  return line.cleanSans
     .map((san, idx) =>
-      renderInteractiveSanChip(san, refs[idx] || null, {
+      renderInteractiveSanChip(san, line.refs[idx] || null, {
         interactiveClasses: 'move-review-coach__move-chip move-chip move-chip--interactive',
         fallbackTag: 'code',
         fallbackClasses: 'move-review-coach__move-chip',
@@ -361,16 +372,21 @@ function renderTryLineChips(lineSans: string[], refIndex: MoveReviewRefIndex): s
     .join(' ');
 }
 
+function renderTryLineChips(lineSans: string[], refIndex: MoveReviewRefIndex): string {
+  return renderResolvedTryLineChips(resolveTryLine(lineSans, refIndex));
+}
+
 function renderSceneLine(scene: MoveReviewScene, refIndex: MoveReviewRefIndex): string {
   const lineSans = scene.lineSans || [];
-  const chips = renderTryLineChips(lineSans, refIndex);
+  const resolvedLine = resolveTryLine(lineSans, refIndex);
+  const boardMoveCount = resolvedLine.refs.filter(Boolean).length;
+  const chips = renderResolvedTryLineChips(resolvedLine);
   if (!chips) return '';
-  const cleanSans = lineSans.filter(san => normalizeSanToken(san));
   const controls =
-    cleanSans.length > 1
+    boardMoveCount > 1
       ? `<span class="move-review-player__line-controls" aria-label="Replay line controls">
           <button type="button" class="move-review-player__line-step" data-move-review-line-step="-1" disabled>Back</button>
-          <span class="move-review-player__line-count" aria-live="polite">Move 1/${cleanSans.length}</span>
+          <span class="move-review-player__line-count" aria-live="polite">Board 1/${boardMoveCount}</span>
           <button type="button" class="move-review-player__line-step" data-move-review-line-step="1">Next</button>
         </span>`
       : '';
