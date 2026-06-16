@@ -1206,16 +1206,6 @@ object MoveReviewPlayerPayloadBuilder:
                     idea.readiness == StrategicIdeaReadiness.Ready &&
                     strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
                     idea.confidence >= 0.68
-                val fianchettoMotif =
-                  !exactAttackAlreadyVisible &&
-                    refs.contains("source:fianchetto_motif") &&
-                    refs.contains("fianchetto_motif_shape") &&
-                    refs.exists(ref => ref == "fianchetto_side_kingside" || ref == "fianchetto_side_queenside") &&
-                    focusZone.nonEmpty &&
-                    idea.beneficiaryPieces.exists(_.trim.equalsIgnoreCase("B")) &&
-                    idea.readiness == StrategicIdeaReadiness.Build &&
-                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
-                    idea.confidence >= 0.70
                 val attackSurface =
                   if ambiguousAttackLane || broadAttackShell then None
                   else if enemyKingStuckCenter then
@@ -1257,8 +1247,6 @@ object MoveReviewPlayerPayloadBuilder:
                       case (None, Some(square)) =>
                         Some("Practical attack" -> s"The check on $square gives a practical attacking cue.")
                       case _ => None
-                  else if fianchettoMotif then
-                    Some("Practical attack" -> "The fianchettoed bishop gives a practical long-diagonal cue.")
                   else None
                 attackSurface.flatMap { case (label, text) =>
                   row(label, text, tone = Some("practical")).map(_.copy(authority = PracticalPlanAuthority))

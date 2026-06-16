@@ -1189,14 +1189,14 @@ class StrategicIdeaSelectorTest extends FunSuite:
       )
 
     val ideas = StrategicIdeaSelector.select(StrategyPack(sideToMove = "white"), semantic)
-    val attackIdea =
+    val supportIdea =
       ideas.find(_.evidenceRefs.contains("source:fianchetto_motif")).getOrElse(fail(clue(ideas).toString))
 
-    assertEquals(attackIdea.kind, StrategicIdeaKind.KingAttackBuildUp)
-    assert(attackIdea.beneficiaryPieces.contains("B"), clue(attackIdea))
-    assertEquals(attackIdea.focusZone, Some("kingside"))
-    assert(attackIdea.evidenceRefs.contains("fianchetto_motif_shape"), clue(attackIdea.evidenceRefs))
-    assert(attackIdea.evidenceRefs.contains("fianchetto_side_kingside"), clue(attackIdea.evidenceRefs))
+    assertEquals(supportIdea.kind, StrategicIdeaKind.KingAttackBuildUp)
+    assert(supportIdea.beneficiaryPieces.contains("B"), clue(supportIdea))
+    assertEquals(supportIdea.focusZone, Some("kingside"))
+    assert(supportIdea.evidenceRefs.contains("fianchetto_motif_shape"), clue(supportIdea.evidenceRefs))
+    assert(supportIdea.evidenceRefs.contains("fianchetto_side_kingside"), clue(supportIdea.evidenceRefs))
   }
 
   test("generic initiative motif does not become king-attack support by itself") {

@@ -9992,9 +9992,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(fianchettoMotifSurface.advancedRows.map(_.label), List("Practical attack"), clue(fianchettoMotifSurface.advancedRows))
-    assertEquals(fianchettoMotifSurface.advancedRows.head.text, "The fianchettoed bishop gives a practical long-diagonal cue.")
-    assertEquals(fianchettoMotifSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assert(!fianchettoMotifSurface.advancedRows.exists(_.label == "Practical attack"), clue(fianchettoMotifSurface.advancedRows))
 
     val fianchettoMotifSourceOnlySurface =
       build(

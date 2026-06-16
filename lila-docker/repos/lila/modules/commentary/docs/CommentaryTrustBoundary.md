@@ -208,9 +208,9 @@ The surface renderer may say:
   and compensation king-window shells are diagnostic support;
   without a concrete route, battery, check, threat, central exposure, or other
   named attacking mechanism they do not publish public `Practical attack` rows.
-  `FianchettoAssaultProfile` and fianchetto-shell/opposite-side-storm profile
-  evidence are likewise support context unless an independent typed mechanism
-  carries the public row.
+  `FianchettoMotif`, `FianchettoAssaultProfile`, and
+  fianchetto-shell/opposite-side-storm profile evidence are likewise support
+  context unless an independent typed mechanism carries the public row.
   `FlankPawnPressure` hook-creation chance is support-only unless an exact
   hook square/local fact or a typed flank-pawn advance file/rank witness owns
   the public wording.
