@@ -7,6 +7,9 @@ const analyseFreeScss = readFileSync(fileURLToPath(new URL('../css/_analyse.free
 const chesstoryScss = readFileSync(fileURLToPath(new URL('../css/_chesstory.scss', import.meta.url)), 'utf8');
 const narrativeScss = readFileSync(fileURLToPath(new URL('../css/_narrative.scss', import.meta.url)), 'utf8');
 const sideScss = readFileSync(fileURLToPath(new URL('../css/_side.scss', import.meta.url)), 'utf8');
+const homeScss = readFileSync(fileURLToPath(new URL('../../site/css/_home.scss', import.meta.url)), 'utf8');
+const landingScss = readFileSync(fileURLToPath(new URL('../../site/css/_landing.scss', import.meta.url)), 'utf8');
+const authScss = readFileSync(fileURLToPath(new URL('../../site/css/_auth.scss', import.meta.url)), 'utf8');
 
 describe('review shell contrast palette', () => {
   test('keeps the review-shell palette above AA thresholds', () => {
@@ -225,6 +228,23 @@ describe('review shell contrast palette', () => {
       chesstoryScss,
       /&__study-cover-detail\s*\{[\s\S]*?color:\s*var\(--atlas-accent-strong\);/,
     );
+  });
+
+  test('keeps site entry surfaces in the dark study-room palette', () => {
+    const siteScss = [homeScss, landingScss, authScss].join('\n');
+    [
+      '#fff9f1',
+      'rgba(237, 223, 201, 0.82)',
+      'rgba(253, 186, 116, 0.86)',
+      '#0f1a24',
+      '#ecf3fa',
+      'rgba(25, 36, 52',
+    ].forEach(color => assert.doesNotMatch(siteScss, new RegExp(escapeRegExp(color), 'i'), `off-palette site color: ${color}`));
+
+    assert.match(homeScss, /\$home-bg-light:\s*#171816;/);
+    assert.match(homeScss, /\$home-primary:\s*#8bc071;/);
+    assert.match(homeScss, /\$home-accent:\s*#e3b15b;/);
+    assert.match(homeScss, /box-shadow:\s*[\s\S]*?rgba\(0,\s*0,\s*0,\s*0\.18\)[\s\S]*?rgba\(\$home-primary,\s*0\.08\);/);
   });
 });
 

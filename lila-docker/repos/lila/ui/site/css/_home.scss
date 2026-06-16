@@ -201,7 +201,9 @@ $home-shadow-dark: $home-shadow-light;
   &:hover {
     transform: translateY(-2px);
     border-color: rgba($home-primary, 0.3);
-    box-shadow: 0 16px 40px rgba(25, 36, 52, 0.09);
+    box-shadow:
+      0 16px 40px rgba(0, 0, 0, 0.2),
+      0 0 0 1px rgba($home-primary, 0.08);
   }
 
   &__label {
@@ -264,7 +266,9 @@ $home-shadow-dark: $home-shadow-light;
   &:hover {
     transform: translateY(-2px);
     border-color: rgba($home-primary, 0.28);
-    box-shadow: 0 16px 40px rgba(25, 36, 52, 0.08);
+    box-shadow:
+      0 16px 40px rgba(0, 0, 0, 0.18),
+      0 0 0 1px rgba($home-primary, 0.08);
   }
 
   &__badges {
@@ -358,7 +362,9 @@ $home-shadow-dark: $home-shadow-light;
   &:hover {
     transform: translateY(-2px);
     border-color: rgba($home-primary, 0.26);
-    box-shadow: 0 14px 34px rgba(25, 36, 52, 0.08);
+    box-shadow:
+      0 14px 34px rgba(0, 0, 0, 0.18),
+      0 0 0 1px rgba($home-primary, 0.08);
   }
 
   &__top {
