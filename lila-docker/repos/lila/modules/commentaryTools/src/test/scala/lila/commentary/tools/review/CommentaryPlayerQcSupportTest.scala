@@ -1066,7 +1066,7 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
         quietnessSpreadCp = Some(8),
         quietnessNotes = Nil,
         directSources = Nil,
-        supportSources = List("Digest.pressure")
+        supportSources = List("Digest.structure")
       )
     val strongerDuplicate =
       weakerDuplicate.copy(

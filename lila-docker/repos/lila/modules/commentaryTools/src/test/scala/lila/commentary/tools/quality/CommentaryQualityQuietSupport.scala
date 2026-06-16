@@ -490,7 +490,6 @@ object CommentaryQualityQuietSupport:
       entry.sliceKind == SliceKind.EndgameConversion) &&
     (
       payload.signal.structuralCue.nonEmpty ||
-        payload.signal.practicalVerdict.nonEmpty ||
         payload.signal.deploymentRoute.nonEmpty
     )
 
@@ -576,7 +575,6 @@ object CommentaryQualityQuietSupport:
 
     if payload.signal.deploymentRoute.nonEmpty then support += "Digest.route"
     if payload.signal.structuralCue.nonEmpty then support += "Digest.structure"
-    if payload.signal.practicalVerdict.nonEmpty then support += "Digest.pressure"
 
     if payload.signal.prophylaxisPlan.nonEmpty ||
       payload.signal.prophylaxisThreat.nonEmpty ||
@@ -585,24 +583,28 @@ object CommentaryQualityQuietSupport:
     else if bucket == Bucket.ProphylaxisRestraint then
       missing += "move_linked_restriction_signal_missing"
 
+    val directSources = direct.result().distinct.sorted
+    val supportSources = support.result().distinct.sorted
+
     if bucket == Bucket.SlowRouteImprovement &&
-      !support.result().contains("Digest.route")
+      !supportSources.contains("Digest.route")
     then
       missing += "route_digest_missing"
 
     if bucket == Bucket.LongStructuralSqueeze &&
-      !support.result().exists(source => source == "Digest.structure" || source == "Digest.pressure")
+      !supportSources.contains("Digest.structure")
     then
       missing += "structural_support_missing"
 
     if bucket == Bucket.PressureMaintenanceWithoutImmediateTactic &&
-      !support.result().exists(source => source == "Digest.structure" || source == "Digest.pressure")
+      !directSources.contains("MoveDelta.pv_delta") &&
+      !supportSources.exists(source => source == "Digest.route" || source == "Digest.structure")
     then
       missing += "pressure_maintenance_support_missing"
 
     SourceProfile(
-      directSources = direct.result().distinct.sorted,
-      supportSources = support.result().distinct.sorted,
+      directSources = directSources,
+      supportSources = supportSources,
       missingPrerequisites = missing.result().distinct.sorted
     )
 
@@ -758,7 +760,7 @@ object CommentaryQualityQuietSupport:
           "Direct endgame-domain owner only when the translated transition sentence is present. Raw endgame hints remain support-only."
       ),
       StrategicSupportSourceInventoryRow(
-        source = "Digest.route/structure/pressure/restriction",
+        source = "Digest.route/structure/restriction",
         quietBucketSuitability =
           List(
             Bucket.ProphylaxisRestraint,
@@ -770,7 +772,7 @@ object CommentaryQualityQuietSupport:
         ownerSupportRole = SourceRole.SupportOnly,
         reusePossible = true,
         notes =
-          "NarrativeSignalDigestBuilder already carries route, structural cue, practical pressure, and restriction-style material. These are support-only and safe for one extra sentence."
+          "NarrativeSignalDigestBuilder already carries route, structural cue, and restriction-style material. Practical verdict prose is not reopened as pressure support."
       ),
       StrategicSupportSourceInventoryRow(
         source = "planner-owned primary plus existing support material",
@@ -904,7 +906,6 @@ object CommentaryQualityQuietSupport:
             "EndgameTransition.translator",
             "Digest.route",
             "Digest.structure",
-            "Digest.pressure",
             "Digest.restriction"
           ),
         safeBecause =
@@ -919,7 +920,7 @@ object CommentaryQualityQuietSupport:
         Bucket.SlowRouteImprovement,
         Bucket.PressureMaintenanceWithoutImmediateTactic
       )
-    val AllowedSupportSources = Set("Digest.route", "Digest.structure", "Digest.pressure")
+    val AllowedSupportSources = Set("Digest.route", "Digest.structure")
     val ForbiddenVerbStems = List("prepare", "launch", "force", "secure", "neutraliz")
 
   private def beforeQuietSceneEligible(sceneType: Option[String]): Boolean =

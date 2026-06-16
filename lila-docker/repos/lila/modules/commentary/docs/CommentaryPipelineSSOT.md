@@ -178,7 +178,9 @@ evaluated plans are not enough to create "Practical plan" summary rows or
 practical objective/step rows. Those rows require a stronger admitted authority:
 structural-only evidence, promoted probe/transposition evidence, a
 supported-local row, or a CausalFrame plan-support local fact that has matched
-its plan anchor.
+its plan anchor. Practical support rows may render existing `PracticalInfo`
+bias factors, but `PracticalInfo.verdict` prose is not reopened as plan,
+pressure, or counterplay authority.
 
 Move-local exact-slice packets reuse the supported-local row builder only as a
 proof gate. CausalFrame receives a typed local fact carrying proof family,
@@ -214,7 +216,9 @@ played-first checked PV. Public practical rows may consume only producer-supplie
 anchors such as line file, pawn-break file, space-gain file, target-fixing
 square, or attack-lane square; broad strategy shells and row text are not
 authority. Central practical challenge and bad-piece liquidation use their
-specific typed proof packets, not labels.
+specific typed proof packets, not labels. Quiet support pressure uses
+`MoveDelta.pv_delta` target anchors, not `NarrativeSignalDigest.practicalVerdict`
+text.
 Strategic feature extraction does not copy endgame oracle pattern or technique
 labels into `conceptSummary` or candidate immediate-intent text; those labels
 remain `EndgameInfo` context until a typed endgame local fact or replay-backed

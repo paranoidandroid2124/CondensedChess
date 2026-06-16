@@ -239,7 +239,7 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             Json.obj(
               "deploymentRoute" -> Json.arr("Rc8-c4"),
               "structuralCue" -> "queenside bind",
-              "practicalVerdict" -> "pressure remains on the c-file"
+              "practicalVerdict" -> "the position stays easier to handle"
             )
         )
       val report =
@@ -265,7 +265,6 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
       assertEquals(row.directSources, List("MoveDelta.pv_delta"), clues(row))
       assert(row.supportSources.contains("Digest.route"), clues(row))
       assert(row.supportSources.contains("Digest.structure"), clues(row))
-      assert(row.supportSources.contains("Digest.pressure"), clues(row))
       assertEquals(row.quietnessVerified, true, clues(row))
     }
   }
@@ -617,7 +616,7 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
           signalDigest =
             Json.obj(
               "deploymentRoute" -> Json.arr("a5", "a4"),
-              "practicalVerdict" -> "pressure remains on the queenside"
+              "practicalVerdict" -> "the position stays easier to handle"
             )
         )
       val beforeEntries =

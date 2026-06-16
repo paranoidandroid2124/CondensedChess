@@ -289,8 +289,14 @@ private[analysis] object StructurePlanArcBuilder:
 
   private def practicalCoda(ctx: NarrativeContext): Option[String] =
     ctx.semantic.flatMap(_.practicalAssessment).flatMap { practical =>
-      normalized(practical.verdict).map { verdict =>
-        s"In practical terms the resulting task is ${verdict.toLowerCase.stripSuffix(".")}."
+      val factors =
+        practical.biasFactors
+          .sortBy(bias => -math.abs(bias.weight))
+          .flatMap(bias => LiveNarrativeCompressionCore.renderPracticalBiasPlayer(bias.factor, bias.description))
+          .distinct
+          .take(2)
+      Option.when(factors.nonEmpty) {
+        s"Practically, the route is easier to handle because ${factors.mkString(" and ")}."
       }
     }
 

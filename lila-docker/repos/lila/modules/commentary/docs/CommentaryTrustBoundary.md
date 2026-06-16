@@ -151,7 +151,10 @@ The surface renderer may say:
   focus file, route, or move ref, and be rendered with a played-first checked
   PV. This can authorize bounded pressure, counterplay-restraint, or
   plan-support wording; it does not authorize raw practical-row prose or broad
-  plan causality. `LineOccupation` facts may name an open or semi-open file
+  plan causality. `PracticalInfo.verdict` text is not pressure or counterplay
+  authority; player-surface practical support may expose only normalized typed
+  bias factors unless a separate board/PV-backed family is admitted.
+  `LineOccupation` facts may name an open or semi-open file
   only from admitted `line_file`/`line_file_status` anchors, and may name a
   target square only from an admitted `line_target` anchor produced from the
   strategy focus fields. `PawnBreak` facts may name a file only from an admitted

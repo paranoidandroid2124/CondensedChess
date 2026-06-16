@@ -81,13 +81,8 @@ class QuietStrategicSupportComposerTest extends FunSuite:
     assertNoForbiddenVerb(line.text)
   }
 
-  test("eligible pv_delta plus pressure digest yields a bounded pressure sentence") {
-    val strategyPack =
-      Some(
-        quietPack(
-          practicalVerdict = Some("pressure remains on the c-file")
-        )
-      )
+  test("eligible pv_delta target yields a bounded pressure sentence") {
+    val strategyPack = Some(quietPack())
     val (inputs, rankedPlans) = plannerState(baseCtx, strategyPack)
 
     val line =
@@ -100,8 +95,9 @@ class QuietStrategicSupportComposerTest extends FunSuite:
       QuietStrategicSupportComposer.Bucket.PressureMaintenanceWithoutImmediateTactic,
       clues(line)
     )
+    assertEquals(line.verbFamily, QuietStrategicSupportComposer.VerbFamily.MaintainsPressure, clues(line))
     assert(line.text.toLowerCase.contains("maintains pressure"), clues(line))
-    assert(line.sourceKinds.contains("Digest.pressure"), clues(line))
+    assert(line.sourceKinds.contains("MoveDelta.pv_delta"), clues(line))
     assertNoForbiddenVerb(line.text)
   }
 
@@ -132,8 +128,10 @@ class QuietStrategicSupportComposerTest extends FunSuite:
     val strategyPack = Some(quietPack())
     val (inputs, rankedPlans) = plannerState(baseCtx, strategyPack)
 
+    val inputsWithoutTarget =
+      inputs.copy(pvDelta = inputs.pvDelta.map(_.copy(newOpportunities = Nil)))
     val line =
-      QuietStrategicSupportComposer.compose(baseCtx, inputs, rankedPlans, strategyPack)
+      QuietStrategicSupportComposer.compose(baseCtx, inputsWithoutTarget, rankedPlans, strategyPack)
 
     assertEquals(line, None)
   }
@@ -142,8 +140,10 @@ class QuietStrategicSupportComposerTest extends FunSuite:
     val strategyPack = Some(quietPack())
     val (inputs, rankedPlans) = plannerState(baseCtx, strategyPack)
 
+    val inputsWithoutTarget =
+      inputs.copy(pvDelta = inputs.pvDelta.map(_.copy(newOpportunities = Nil)))
     val trace =
-      QuietStrategicSupportComposer.diagnose(baseCtx, inputs, rankedPlans, strategyPack)
+      QuietStrategicSupportComposer.diagnose(baseCtx, inputsWithoutTarget, rankedPlans, strategyPack)
 
     assertEquals(trace.emitted, false, clues(trace))
     assertEquals(trace.line, None, clues(trace))

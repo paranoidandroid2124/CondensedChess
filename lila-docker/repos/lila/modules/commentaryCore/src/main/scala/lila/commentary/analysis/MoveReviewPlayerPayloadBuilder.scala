@@ -1967,7 +1967,7 @@ object MoveReviewPlayerPayloadBuilder:
       if plan.userFacingEligibility == UserFacingPlanEligibility.StructuralOnly then
         structureArcForPlan(hypothesis.planName, structureArc)
           .flatMap(_.practicalCoda)
-          .flatMap(text => row("Practical task", text, tone = Some("practical")))
+          .flatMap(text => row("Practical support", text, tone = Some("practical")))
       else None
     (
       practicalTargetRow(ctx, plan).toList ++

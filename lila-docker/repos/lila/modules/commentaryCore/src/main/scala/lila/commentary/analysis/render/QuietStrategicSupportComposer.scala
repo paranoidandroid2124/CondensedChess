@@ -15,7 +15,6 @@ private[commentary] object QuietStrategicSupportComposer:
   object VerbFamily:
     val KeepsAvailable = "keeps available"
     val MaintainsPressure = "maintains pressure"
-    val Limits = "limits"
     val Reinforces = "reinforces"
 
   final case class QuietStrategicSupportLine(
@@ -126,7 +125,7 @@ private[commentary] object QuietStrategicSupportComposer:
   ): QuietStrategicSupportTrace =
     val structure = structureCandidate(digest)
     val route = routeCandidate(inputs, digest)
-    val pressure = pressureCandidate(inputs, digest)
+    val pressure = pressureCandidate(inputs)
     val candidates = List(structure, route, pressure).flatten
     if candidates.isEmpty then
       QuietStrategicSupportTrace(
@@ -249,42 +248,24 @@ private[commentary] object QuietStrategicSupportComposer:
     }.flatten
 
   private def pressureCandidate(
-      inputs: QuestionPlannerInputs,
-      digest: NarrativeSignalDigest
+      inputs: QuestionPlannerInputs
   ): Option[Candidate] =
-    digest.practicalVerdict.flatMap(cleanFragment).flatMap { verdict =>
-      val pressureSentence =
-        pressureTarget(verdict)
-          .map(target => s"This maintains pressure on $target.")
-          .orElse(
-            inputs.pvDelta.toList
-              .flatMap(_.newOpportunities)
-              .flatMap(extractSquares)
-              .headOption
-              .map(square => s"This maintains pressure on $square.")
+    val square =
+      inputs.pvDelta.toList
+        .flatMap(_.newOpportunities)
+        .flatMap(extractSquares)
+        .headOption
+    square.map { target =>
+      Candidate(
+        priority = 20,
+        line =
+          QuietStrategicSupportLine(
+            text = s"This maintains pressure on $target.",
+            bucket = Bucket.PressureMaintenanceWithoutImmediateTactic,
+            sourceKinds = List("MoveDelta.pv_delta"),
+            verbFamily = VerbFamily.MaintainsPressure
           )
-      val restrictionSentence =
-        Option.when(verdict.toLowerCase.contains("counterplay")) {
-          s"This limits ${counterplayFragment(verdict)}."
-        }
-
-      pressureSentence
-        .orElse(restrictionSentence)
-        .map { sentence =>
-          val verbFamily =
-            if sentence.toLowerCase.contains("limits ") then VerbFamily.Limits
-            else VerbFamily.MaintainsPressure
-          Candidate(
-            priority = 20,
-            line =
-              QuietStrategicSupportLine(
-                text = sentence,
-                bucket = Bucket.PressureMaintenanceWithoutImmediateTactic,
-                sourceKinds = List("MoveDelta.pv_delta", "Digest.pressure"),
-                verbFamily = verbFamily
-              )
-          )
-        }
+      )
     }
 
   private def routePlanPhrase(
@@ -316,39 +297,6 @@ private[commentary] object QuietStrategicSupportComposer:
     val lowered = trimmed.toLowerCase
     if lowered.startsWith("a ") || lowered.startsWith("an ") || lowered.startsWith("the ") then trimmed
     else s"the $trimmed"
-
-  private def pressureTarget(
-      verdict: String
-  ): Option[String] =
-    val lowered = verdict.toLowerCase
-    val marker =
-      List(
-        "pressure remains on ",
-        "pressure stays on ",
-        "pressure is on ",
-        "pressure on "
-      ).find(lowered.contains)
-    marker.flatMap { prefix =>
-      val target = verdict.drop(lowered.indexOf(prefix) + prefix.length).trim
-      cleanFragment(target).map(_.stripSuffix("."))
-    }
-
-  private def counterplayFragment(
-      verdict: String
-  ): String =
-    val lowered = verdict.toLowerCase
-    val idx = lowered.indexOf("counterplay")
-    if idx <= 0 then "the counterplay"
-    else
-      val prefix =
-        verdict
-          .substring(0, idx)
-          .split("""[,:;]""")
-          .lastOption
-          .getOrElse("")
-          .trim
-      val candidate = s"$prefix counterplay".trim
-      withArticle(candidate.replaceAll("""\s+""", " ").trim)
 
   private def squeezeCue(
       cue: String

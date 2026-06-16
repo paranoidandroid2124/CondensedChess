@@ -1133,7 +1133,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assert(!unrelatedMoveSurface.advancedRows.exists(_.label == "Practical move"), clue(unrelatedMoveSurface.advancedRows))
   }
 
-  test("structural-only practical task rides only on a matched structure arc") {
+  test("structural-only practical support rides only on a matched structure arc") {
     val ctx =
       MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
         fen = "4k3/8/8/8/8/8/8/R3K3 w - - 0 1",
@@ -1150,7 +1150,15 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
               positionalFeatures = Nil,
               compensation = None,
               endgameFeatures = None,
-              practicalAssessment = Some(PracticalInfo(12, 0.64, "keep queenside pressure")),
+              practicalAssessment =
+                Some(
+                  PracticalInfo(
+                    12,
+                    0.64,
+                    "keep queenside pressure",
+                    biasFactors = List(PracticalBiasInfo("Mobility", "multiple regrouping squares", 34.0))
+                  )
+                ),
               preventedPlans = Nil,
               conceptSummary = Nil,
               structureProfile = Some(StructureProfileInfo("Carlsbad", 0.87, Nil, "Locked", List("MAJORITY"))),
@@ -1181,8 +1189,11 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
           )
       )
 
-    assertEquals(surface.advancedRows.map(_.label), List("Practical route", "Practical move", "Practical task"))
-    assertEquals(surface.advancedRows(2).text, "In practical terms the resulting task is keep queenside pressure.")
+    assertEquals(surface.advancedRows.map(_.label), List("Practical route", "Practical move", "Practical support"))
+    assertEquals(
+      surface.advancedRows(2).text,
+      "Practically, the route is easier to handle because the pieces have more room."
+    )
     assertEquals(surface.advancedRows(2).authority.flatMap(_.target), None)
 
     val unmatchedSurface =
@@ -1196,7 +1207,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assert(!unmatchedSurface.advancedRows.exists(_.label == "Practical task"), clue(unmatchedSurface.advancedRows))
+    assert(!unmatchedSurface.advancedRows.exists(_.label == "Practical support"), clue(unmatchedSurface.advancedRows))
   }
 
   test("structural-only route matching accepts typed matched plan ids") {
