@@ -317,6 +317,44 @@ describe('review shell contrast palette', () => {
     assert.match(commentaryWidgetScss, /\.move-review-error\.credit-exhausted\s*\{[\s\S]*?background:\s*rgba\(\$cw-danger,\s*0\.1\);/);
   });
 
+  test('keeps narrative plan and evidence boxes in the study-room palette', () => {
+    const narrativeReviewBlocks = [
+      '.narrative-active-plan-box',
+      '.narrative-strategic-note-box',
+      '.narrative-strategic-surface',
+      '.narrative-thread-summary',
+      '.narrative-selection-reason',
+      '.narrative-branch-dossier',
+      '.narrative-signal-box',
+      '.narrative-evidence-box',
+      '.narrative-decision-compare',
+    ]
+      .map(selector => extractBlock(narrativeScss, selector))
+      .join('\n');
+
+    [
+      '#3c7ebb',
+      '#245382',
+      '#173858',
+      '#ffffff',
+      '#2f5f9f',
+      '#7a5c1f',
+      '#c99a2a',
+      '#4c7330',
+      '#315022',
+      '#6a9c3c',
+      '#f0c66b',
+      '#91631f',
+    ].forEach(color =>
+      assert.doesNotMatch(narrativeReviewBlocks, new RegExp(escapeRegExp(color), 'i'), `off-palette narrative review color: ${color}`),
+    );
+
+    assert.match(narrativeReviewBlocks, /border:\s*1px solid rgba\(\$c-primary,\s*0\.3\);/);
+    assert.match(narrativeReviewBlocks, /background:\s*rgba\(\$c-primary,\s*0\.08\);/);
+    assert.match(narrativeReviewBlocks, /background:\s*rgba\(\$c-bg-low,\s*0\.72\);/);
+    assert.match(narrativeReviewBlocks, /color:\s*color-mix\(in srgb,\s*#\{\$c-secondary\}\s*78%,\s*#\{\$c-font\}\);/);
+  });
+
   test('keeps site entry surfaces in the dark study-room palette', () => {
     const siteScss = [homeScss, landingScss, authScss, accountScss, strategicPuzzleScss].join('\n');
     [
