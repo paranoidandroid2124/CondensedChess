@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const analyseFreeScss = readFileSync(fileURLToPath(new URL('../css/_analyse.free.scss', import.meta.url)), 'utf8');
+const chesstoryScss = readFileSync(fileURLToPath(new URL('../css/_chesstory.scss', import.meta.url)), 'utf8');
 const narrativeScss = readFileSync(fileURLToPath(new URL('../css/_narrative.scss', import.meta.url)), 'utf8');
 const sideScss = readFileSync(fileURLToPath(new URL('../css/_side.scss', import.meta.url)), 'utf8');
 
@@ -138,6 +139,29 @@ describe('review shell contrast palette', () => {
     assert.match(
       sideScss,
       /@include mq-is-col1[\s\S]*\.move-review-coach__details\[open\]\s*\{[\s\S]*?max-height:\s*min\(36vh,\s*17rem\);/,
+    );
+  });
+
+  test('keeps Chesstory study surfaces in the dark study-room palette', () => {
+    [
+      '#fff9f1',
+      'rgba(237, 223, 201, 0.82)',
+      'rgba(253, 186, 116, 0.86)',
+      '#0f1a24',
+      '#ecf3fa',
+    ].forEach(color => assert.doesNotMatch(chesstoryScss, new RegExp(escapeRegExp(color), 'i'), `off-palette color: ${color}`));
+
+    assert.match(
+      chesstoryScss,
+      /select\s*\{[\s\S]*?background:\s*var\(--atlas-surface-strong\);[\s\S]*?color:\s*var\(--atlas-text\);[\s\S]*?border:\s*1px solid rgba\(139,\s*192,\s*113,\s*0\.24\);/,
+    );
+    assert.match(
+      chesstoryScss,
+      /&__study-cover-title\s*\{[\s\S]*?color:\s*var\(--atlas-text\);/,
+    );
+    assert.match(
+      chesstoryScss,
+      /&__study-cover-detail\s*\{[\s\S]*?color:\s*var\(--atlas-accent-strong\);/,
     );
   });
 });

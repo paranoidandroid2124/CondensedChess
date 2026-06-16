@@ -806,9 +806,9 @@
       }
 
       select {
-        background: #0f1a24;
-        color: #ecf3fa;
-        border: 1px solid rgba(217, 229, 240, 0.2);
+        background: var(--atlas-surface-strong);
+        color: var(--atlas-text);
+        border: 1px solid rgba(139, 192, 113, 0.24);
       }
     }
 
@@ -1129,7 +1129,7 @@
       font-family: 'Merriweather', 'Georgia', serif;
       font-size: 0.84rem;
       line-height: 1.35;
-      color: #fff9f1;
+      color: var(--atlas-text);
       display: -webkit-box;
       overflow: hidden;
       -webkit-line-clamp: 2;
@@ -1140,7 +1140,7 @@
     &__study-cover-detail {
       font-size: 0.66rem;
       line-height: 1.45;
-      color: rgba(237, 223, 201, 0.82);
+      color: var(--atlas-muted);
       display: -webkit-box;
       overflow: hidden;
       -webkit-line-clamp: 2;
@@ -1148,7 +1148,7 @@
     }
 
     &__study-cover-detail {
-      color: rgba(253, 186, 116, 0.86);
+      color: var(--atlas-accent-strong);
     }
 
     &__study-copy {
@@ -1770,7 +1770,7 @@ html.dark {
     }
 
     &__detail {
-      color: #e3b15b;
+      color: #b4d99a;
     }
   }
 
