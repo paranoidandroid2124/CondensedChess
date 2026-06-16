@@ -419,12 +419,12 @@ function renderInputs(ctrl: AnalyseCtrl): VNode | undefined {
   };
   return hl('div.copyables.copyables--workspace', [
     hl('div.analyse-review__summary-grid.copyables__summary', [
-      compactSummaryCard(pgnInspection.headline, 'import status'),
+      compactSummaryCard(pgnInspection.headline, 'PGN read'),
       compactSummaryCard(
-        pgnInspection.preview ? `${pgnInspection.preview.plies} plies` : String(Math.max(1, pgnInspection.lines)),
-        pgnInspection.preview ? 'incoming line' : 'draft lines',
+        pgnInspection.preview ? `${pgnInspection.preview.plies} half-moves` : String(Math.max(1, pgnInspection.lines)),
+        pgnInspection.preview ? 'incoming game' : 'pasted lines',
       ),
-      compactSummaryCard(fenInspection.headline, 'fen jump'),
+      compactSummaryCard(fenInspection.headline, 'board jump'),
     ]),
     ctrl.isStudy() ? renderStudyWorkspacePanel(ctrl) : renderStudyLaunchPanel(ctrl),
     hl('div.copyables__panel', [
@@ -506,7 +506,7 @@ function renderInputs(ctrl: AnalyseCtrl): VNode | undefined {
             attrs: pgnInspection.status !== 'ready' ? { disabled: true } : {},
             hook: bind('click', submitPgnDraft),
           },
-          [icon(licon.PlayTriangle as any), ' Import PGN'],
+          [icon(licon.PlayTriangle as any), ' Load PGN'],
         ),
         pgnInspection.status !== 'current' &&
           hl(
@@ -514,7 +514,7 @@ function renderInputs(ctrl: AnalyseCtrl): VNode | undefined {
             {
               hook: bind('click', () => ctrl.resetImportDraft()),
             },
-            [icon(licon.Reload as any), ' Reset draft'],
+            [icon(licon.Reload as any), ' Reset PGN'],
           ),
       ]),
       renderInlineStatus(
@@ -566,6 +566,10 @@ function renderDossierEvidenceLine(
 
 function renderDossierTag(label: string): VNode {
   return hl('span.copyables__study-dossier-tag', label);
+}
+
+function notebookStatusLabel(status: NotebookSectionV1['status']): string {
+  return status === 'ready' ? 'ready to study' : 'needs more games';
 }
 
 function renderDossierCard(card: SectionCardV1): VNode {
@@ -648,7 +652,7 @@ function renderDossierSection(section: NotebookSectionV1): VNode {
   return hl(`section.copyables__study-section.copyables__study-section--${section.kind}`, [
     hl('div.copyables__study-section-head', [
       hl('div', [hl('strong', section.title), hl('span', section.summary)]),
-      hl('span.copyables__study-dossier-meta', `Study part • ${section.status}`),
+      hl('span.copyables__study-dossier-meta', `Notebook chapter • ${notebookStatusLabel(section.status)}`),
     ]),
     section.evidence ? renderDossierEvidenceLine(section.evidence) : null,
     hl('div.copyables__study-section-cards', section.cards.map(renderDossierCard)),
@@ -668,8 +672,8 @@ function renderNotebookDossierSurface(raw: unknown): VNode | null {
       ]),
       hl('div.analyse-review__summary-grid.copyables__study-dossier-summary', [
         compactSummaryCard(`${dossier.source.sampledGameCount}`, 'games read'),
-        compactSummaryCard(`${dossier.sections.length}`, 'study parts'),
-        compactSummaryCard(dossier.status, 'readiness'),
+        compactSummaryCard(`${dossier.sections.length}`, 'chapters'),
+        compactSummaryCard(notebookStatusLabel(dossier.status), 'notebook state'),
       ]),
     ]),
     hl(
@@ -712,14 +716,14 @@ function renderStudyWorkspacePanel(ctrl: AnalyseCtrl): VNode | null {
       renderNotebookPanelCover(
         study.name,
         study.chapterName,
-        `${study.chapters.length} ${study.chapters.length === 1 ? 'section' : 'sections'}`,
+        `${study.chapters.length} ${study.chapters.length === 1 ? 'chapter' : 'chapters'}`,
       ),
       hl('div.copyables__study-copy', [
         hl('span.copyables__study-eyebrow', 'Notebook'),
         hl('strong', study.name),
         hl(
           'span.copyables__study-subline',
-          `${study.chapterName}${study.chapters.length > 1 ? ` • ${study.chapters.length} sections` : ''}`,
+          `${study.chapterName}${study.chapters.length > 1 ? ` • ${study.chapters.length} chapters` : ''}`,
         ),
       ]),
       hl('div.copyables__study-actions', [
@@ -745,14 +749,14 @@ function renderStudyWorkspacePanel(ctrl: AnalyseCtrl): VNode | null {
     hl('div.analyse-review__summary-grid.copyables__study-summary', [
       compactSummaryCard(study.canWrite ? 'Editable' : 'Read only', 'access'),
       compactSummaryCard(visibility, 'visibility'),
-      compactSummaryCard(`${study.chapters.length}`, 'study parts'),
+      compactSummaryCard(`${study.chapters.length}`, 'chapters'),
       compactSummaryCard(ctrl.isStudyWriting() ? 'Saving' : 'Ready', 'sync'),
     ]),
     renderStudyStatusCard(syncMessage, actionMessage ? ctrl.studyActionToneValue() : syncTone),
     hl('div.copyables__study-pills', [
       studyFeaturePill('page', `${study.chapterName} open`),
-      studyFeaturePill('section', 'Use the section navigator above'),
-      studyFeaturePill('bookmark', 'Share the exact section link'),
+      studyFeaturePill('section', 'Use the chapter navigator above'),
+      studyFeaturePill('bookmark', 'Share the exact chapter link'),
     ]),
     renderNotebookDossierSurface(study.notebookDossier),
   ]);
@@ -768,7 +772,7 @@ function renderStudyLaunchPanel(ctrl: AnalyseCtrl): VNode {
     hl('div.copyables__study-head', [
       renderNotebookPanelCover(
         'Untitled notebook',
-        'First study section',
+        'First chapter',
         'Add explanations as you go',
       ),
       hl('div.copyables__study-copy', [
@@ -798,7 +802,7 @@ function renderStudyLaunchPanel(ctrl: AnalyseCtrl): VNode {
               },
               [
                 renderNotebookGlyph('notebook', 'copyables__study-button-glyph'),
-                busy ? ' Creating study...' : ' Create study notebook',
+                busy ? ' Creating notebook...' : ' Create notebook',
               ],
             ),
       ]),
@@ -806,12 +810,12 @@ function renderStudyLaunchPanel(ctrl: AnalyseCtrl): VNode {
     hl('div.analyse-review__summary-grid.copyables__study-summary', [
       compactSummaryCard('PGN + lines', 'base'),
       compactSummaryCard('Saved reviews', 'saved lines'),
-      compactSummaryCard('Move Review notes', 'section intro'),
+      compactSummaryCard('Move Review notes', 'chapter notes'),
     ]),
     renderStudyStatusCard(
       busy
         ? transferCount > 0
-          ? `Creating the new notebook and moving ${transferCount} saved review${transferCount === 1 ? '' : 's'}.`
+          ? `Creating the new notebook and carrying over ${transferCount} saved review${transferCount === 1 ? '' : 's'}.`
           : 'Creating the new notebook from the current PGN.'
         : 'Saved move reviews already on this board will be carried into the new notebook when possible.',
       busy ? 'info' : 'success',
@@ -819,8 +823,8 @@ function renderStudyLaunchPanel(ctrl: AnalyseCtrl): VNode {
     error ? renderStudyStatusCard(error, 'error') : null,
     hl('div.copyables__study-pills', [
       studyFeaturePill('page', 'Move-by-move notes'),
-      studyFeaturePill('section', 'Branches stay explorable'),
-      studyFeaturePill('bookmark', 'Shareable section URL'),
+      studyFeaturePill('section', 'Lines stay playable'),
+      studyFeaturePill('bookmark', 'Shareable chapter link'),
     ]),
   ]);
 }
@@ -882,7 +886,7 @@ function inspectPgnDraft(draft: string, currentPgn: string): PgnDraftInspection 
     result = {
       status: 'empty',
       headline: 'Draft empty',
-      message: 'Paste a PGN to stage a new game import.',
+      message: 'Paste a PGN to load another game on this board.',
       chars,
       lines,
     };
@@ -900,7 +904,7 @@ function inspectPgnDraft(draft: string, currentPgn: string): PgnDraftInspection 
         normalizedCurrent === normalized
           ? {
               status: 'current',
-              headline: 'Current board snapshot',
+              headline: 'Current board game',
               message: 'The draft matches the PGN already loaded on this board.',
               chars,
               lines,
@@ -909,8 +913,8 @@ function inspectPgnDraft(draft: string, currentPgn: string): PgnDraftInspection 
             }
           : {
               status: 'ready',
-              headline: 'Ready to import',
-              message: 'Import will replace the current board and move list with this PGN.',
+              headline: 'Ready to load',
+              message: 'Loading this PGN will replace the current board and move list.',
               chars,
               lines,
               normalized,
@@ -920,7 +924,7 @@ function inspectPgnDraft(draft: string, currentPgn: string): PgnDraftInspection 
       result = {
         status: 'invalid',
         headline: 'PGN needs fixes',
-        message: 'Import is blocked until the draft parses cleanly.',
+        message: 'The board waits until the PGN parses cleanly.',
         chars,
         lines,
         normalized,
@@ -962,7 +966,7 @@ function renderImportPreview(current: PgnDraftInspection, incoming: PgnDraftInsp
     hl('div.copyables__preview-card', [
       hl('span.copyables__preview-label', 'Current'),
       hl('strong', current.preview?.opening || current.preview?.variant || 'Current board'),
-      hl('span', `${current.preview?.plies || 0} plies • ${current.chars} chars`),
+      hl('span', `${current.preview?.plies || 0} half-moves • ${current.lines} PGN lines`),
     ]),
     hl('div.copyables__preview-card', [
       hl('span.copyables__preview-label', 'Incoming'),
@@ -973,8 +977,8 @@ function renderImportPreview(current: PgnDraftInspection, incoming: PgnDraftInsp
       hl(
         'span',
         incoming.preview
-          ? `${incoming.preview.plies} plies • ${incoming.chars} chars`
-          : `${incoming.lines} lines • ${incoming.chars} chars`,
+          ? `${incoming.preview.plies} half-moves • ${incoming.lines} PGN lines`
+          : `${incoming.lines} PGN lines • ${incoming.chars} characters`,
       ),
     ]),
   ]);
@@ -982,7 +986,7 @@ function renderImportPreview(current: PgnDraftInspection, incoming: PgnDraftInsp
 
 function renderRecentImportDrafts(ctrl: AnalyseCtrl, drafts: string[]): VNode {
   return hl('div.copyables__recent', [
-    hl('div.copyables__recent-head', [hl('strong', 'Recent drafts'), hl('span', 'Session-only drafts you already imported.')]),
+    hl('div.copyables__recent-head', [hl('strong', 'Recent PGNs'), hl('span', 'Games you loaded in this session.')]),
     hl(
       'div.copyables__recent-list',
       drafts.map((draft, index) => {
@@ -999,8 +1003,8 @@ function renderRecentImportDrafts(ctrl: AnalyseCtrl, drafts: string[]): VNode {
             hl(
               'span',
               inspection.preview
-                ? `${inspection.preview.plies} plies • ${inspection.chars} chars`
-                : `${inspection.lines} lines • ${inspection.chars} chars`,
+                ? `${inspection.preview.plies} half-moves • ${inspection.lines} PGN lines`
+                : `${inspection.lines} PGN lines • ${inspection.chars} characters`,
             ),
           ],
         );
@@ -1018,8 +1022,8 @@ function renderServerImportHistory(history: ImportHistoryView): VNode | undefine
     blocks.push(
       hl('div.copyables__recent', [
         hl('div.copyables__recent-head', [
-          hl('strong', 'Recent analyses'),
-          hl('span', 'Server-saved imports you can reopen from any signed-in device.'),
+          hl('strong', 'Recent games'),
+          hl('span', 'Games you can reopen from any signed-in device.'),
         ]),
         hl(
           'div.copyables__recent-list',
@@ -1034,8 +1038,8 @@ function renderServerImportHistory(history: ImportHistoryView): VNode | undefine
     blocks.push(
       hl('div.copyables__recent', [
         hl('div.copyables__recent-head', [
-          hl('strong', 'Recent accounts'),
-          hl('span', 'Jump back into saved account imports without retyping usernames.'),
+          hl('strong', 'Recent players'),
+          hl('span', 'Jump back into saved player game lists without retyping usernames.'),
         ]),
         hl(
           'div.copyables__recent-list',
@@ -1050,12 +1054,12 @@ function renderServerImportHistory(history: ImportHistoryView): VNode | undefine
 function renderEmptySavedHistory(): VNode {
   return hl('div.copyables__recent.copyables__recent--empty', [
     hl('div.copyables__recent-head', [
-      hl('strong', 'No saved imports yet'),
-      hl('span', 'Analyze a PGN or imported game once, and it will stay here for quick reopen on any signed-in device.'),
+      hl('strong', 'No saved games yet'),
+      hl('span', 'Load a PGN or player game once, and it will stay here for quick reopen on any signed-in device.'),
     ]),
     hl('div.copyables__empty-actions', [
       hl('a.copyables__recent-link', { attrs: { href: '/import' } }, 'Open recent games'),
-      hl('span.copyables__recent-link-note', 'or paste a PGN below to start a reusable history.'),
+      hl('span.copyables__recent-link-note', 'or paste a PGN below to start your saved game list.'),
     ]),
   ]);
 }
@@ -1087,7 +1091,7 @@ function renderSavedAnalysisEntry(entry: ImportHistoryAnalysis, current: boolean
       hl('div.copyables__recent-body', [
         hl('div.copyables__recent-title-row', [
           hl('strong', current ? `${entry.title} (Current)` : entry.title),
-          hl('span.copyables__recent-cta', current ? 'On board' : priority ? 'Resume latest' : 'Resume'),
+          hl('span.copyables__recent-cta', current ? 'On board' : priority ? 'Open latest' : 'Open'),
         ]),
         hl('span.copyables__recent-subline', analysisMetaLine(entry)),
         supportLine ? hl('span.copyables__recent-foot', supportLine) : null,
@@ -1116,12 +1120,12 @@ function renderSavedAccountEntry(entry: ImportHistoryAccount, priority: boolean)
           hl('strong', `@${entry.username}`),
           hl('span.copyables__recent-cta', priority ? 'Open latest' : 'Open'),
         ]),
-        hl('span.copyables__recent-subline', `${entry.analysisCount} saved analyses`),
+        hl('span.copyables__recent-subline', `${entry.analysisCount} saved game reads`),
         hl(
           'span.copyables__recent-foot',
           priority
-            ? 'Fastest way back to your most recently imported account list.'
-            : 'Reopen this account list without retyping the username.',
+            ? 'Fastest way back to your most recently loaded player games.'
+            : 'Reopen this player game list without retyping the username.',
         ),
         hl('span.copyables__meta', `Active ${formatImportTimestamp(entry.activityAt)}`),
       ]),
@@ -1138,14 +1142,14 @@ function analysisMetaLine(entry: ImportHistoryAnalysis): string {
   ]
     .filter(Boolean)
     .join(' • ');
-  return line || 'Saved PGN snapshot ready to reopen.';
+  return line || 'Saved PGN ready to reopen.';
 }
 
 function analysisSupportLine(entry: ImportHistoryAnalysis): string | undefined {
   const line = [
     entry.opening,
     entry.variant && entry.variant !== entry.opening ? entry.variant : undefined,
-    entry.sourceType === 'manual' ? 'Pasted PGN' : 'Imported game snapshot',
+    entry.sourceType === 'manual' ? 'Pasted PGN' : 'Imported game',
   ]
     .filter(Boolean)
     .join(' • ');
