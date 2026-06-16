@@ -287,7 +287,12 @@ describe('review shell contrast palette', () => {
       'rgba(253, 186, 116, 0.86)',
       '#0f1a24',
       '#ecf3fa',
+      'rgba(255, 255, 255',
     ].forEach(color => assert.doesNotMatch(chesstoryScss, new RegExp(escapeRegExp(color), 'i'), `off-palette color: ${color}`));
+
+    [...chesstoryScss.matchAll(/letter-spacing:\s*([^;]+);/g)].forEach(match =>
+      assert.equal(match[1]!.trim(), '0', `chesstory letter-spacing must be 0, got ${match[1]}`),
+    );
 
     assert.match(
       chesstoryScss,
@@ -301,6 +306,7 @@ describe('review shell contrast palette', () => {
       chesstoryScss,
       /&__study-cover-detail\s*\{[\s\S]*?color:\s*var\(--atlas-accent-strong\);/,
     );
+    assert.match(chesstoryScss, /\.ceval\s*\{[\s\S]*?box-shadow:\s*inset 0 -1px 0 rgba\(139,\s*192,\s*113,\s*0\.28\);/);
   });
 
   test('keeps the commentary credit widget in the dark study-room palette', () => {
