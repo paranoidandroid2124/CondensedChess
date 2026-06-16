@@ -21,17 +21,17 @@ describe('review player copy', () => {
       'Candidate lines',
       'Opening context',
       'Score sheet',
-      'Load PGN',
+      'Load a game',
       'Board setup',
       'Review scene',
       'Compare lines',
       'Book context',
-      'Load game',
+      'Bring in a game',
       'Review board',
       'Nothing to show for this position yet.',
     ].forEach(copy => assert.match(reviewViewSource, new RegExp(escapeRegExp(copy)), `missing copy: ${copy}`));
 
-    ['Suggested lines', 'Board position', 'Paste PGN', 'Game moves', 'No review content yet.'].forEach(copy =>
+    ['Suggested lines', 'Board position', 'Paste PGN', 'Load PGN', 'Game moves', 'No review content yet.'].forEach(copy =>
       assert.doesNotMatch(reviewViewSource, new RegExp(escapeRegExp(copy)), `stale tool copy: ${copy}`),
     );
   });
@@ -103,6 +103,24 @@ describe('review player copy', () => {
     assert.match(componentsSource, /saved games/);
     assert.doesNotMatch(componentsSource, /['"`]Analysed['"`]/);
     assert.doesNotMatch(componentsSource, /saved game reads/);
+  });
+
+  test('keeps load-game copy framed as a board replay, not file statistics', () => {
+    [
+      'Load game',
+      'Reset draft',
+      'Recent game drafts',
+      'On the board',
+      'Ready to load',
+      'played move',
+      'score sheet line',
+      'Pasted game',
+      'paste a game below',
+    ].forEach(copy => assert.match(componentsSource, new RegExp(escapeRegExp(copy)), `missing load-game copy: ${copy}`));
+
+    ['Recent PGNs', 'half-moves', 'PGN lines', 'characters', 'Pasted PGN'].forEach(copy =>
+      assert.doesNotMatch(componentsSource, new RegExp(escapeRegExp(copy)), `stale file-stat copy: ${copy}`),
+    );
   });
 });
 

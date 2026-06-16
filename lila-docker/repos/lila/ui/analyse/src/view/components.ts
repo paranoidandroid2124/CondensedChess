@@ -419,12 +419,12 @@ function renderInputs(ctrl: AnalyseCtrl): VNode | undefined {
   };
   return hl('div.copyables.copyables--workspace', [
     hl('div.analyse-review__summary-grid.copyables__summary', [
-      compactSummaryCard(pgnInspection.headline, 'PGN read'),
+      compactSummaryCard(pgnInspection.headline, 'game text'),
       compactSummaryCard(
-        pgnInspection.preview ? `${pgnInspection.preview.plies} half-moves` : String(Math.max(1, pgnInspection.lines)),
-        pgnInspection.preview ? 'incoming game' : 'pasted lines',
+        pgnDraftReplaySize(pgnInspection),
+        pgnInspection.preview ? 'moves to replay' : 'score text',
       ),
-      compactSummaryCard(fenInspection.headline, 'board jump'),
+      compactSummaryCard(fenInspection.headline, 'board position'),
     ]),
     ctrl.isStudy() ? renderStudyWorkspacePanel(ctrl) : renderStudyLaunchPanel(ctrl),
     hl('div.copyables__panel', [
@@ -506,7 +506,7 @@ function renderInputs(ctrl: AnalyseCtrl): VNode | undefined {
             attrs: pgnInspection.status !== 'ready' ? { disabled: true } : {},
             hook: bind('click', submitPgnDraft),
           },
-          [icon(licon.PlayTriangle as any), ' Load PGN'],
+          [icon(licon.PlayTriangle as any), ' Load game'],
         ),
         pgnInspection.status !== 'current' &&
           hl(
@@ -514,15 +514,13 @@ function renderInputs(ctrl: AnalyseCtrl): VNode | undefined {
             {
               hook: bind('click', () => ctrl.resetImportDraft()),
             },
-            [icon(licon.Reload as any), ' Reset PGN'],
+            [icon(licon.Reload as any), ' Reset draft'],
           ),
       ]),
       renderInlineStatus(
         pgnInspection.headline,
         pgnInspection.preview
-          ? `${pgnInspection.message} ${pgnInspection.preview.variant} • ${pgnInspection.preview.plies} plies${
-              pgnInspection.preview.opening ? ` • ${pgnInspection.preview.opening}` : ''
-            }`
+          ? `${pgnInspection.message} ${pgnDraftPlayerDetail(pgnInspection)}`
           : pgnInspection.message,
         pgnInspection.status === 'invalid',
       ),
@@ -947,6 +945,30 @@ function compactSummaryCard(value: string, label: string): VNode {
   return hl('div.analyse-review__summary-card', [hl('strong', value), hl('span', label)]);
 }
 
+function pgnDraftReplaySize(inspection: PgnDraftInspection): string {
+  return inspection.preview ? playedMoveLabel(inspection.preview.plies) : scoreTextLineLabel(inspection.lines);
+}
+
+function pgnDraftPlayerDetail(inspection: PgnDraftInspection): string {
+  if (inspection.preview) {
+    return [inspection.preview.variant, playedMoveLabel(inspection.preview.plies), inspection.preview.opening]
+      .filter(Boolean)
+      .join(' • ');
+  }
+  if (inspection.chars > 0) return `${scoreTextLineLabel(inspection.lines)} pasted`;
+  return 'Paste a game to begin.';
+}
+
+function playedMoveLabel(plies: number): string {
+  const count = Math.max(0, plies);
+  return `${count} played move${count === 1 ? '' : 's'}`;
+}
+
+function scoreTextLineLabel(lines: number): string {
+  const count = Math.max(1, lines);
+  return `${count} score sheet line${count === 1 ? '' : 's'}`;
+}
+
 function renderStudyStatusCard(
   message: string,
   tone: 'info' | 'success' | 'error',
@@ -964,29 +986,24 @@ function studyFeaturePill(kind: NotebookGlyphKind, label: string): VNode | null 
 function renderImportPreview(current: PgnDraftInspection, incoming: PgnDraftInspection): VNode {
   return hl('div.copyables__preview', [
     hl('div.copyables__preview-card', [
-      hl('span.copyables__preview-label', 'Current'),
+      hl('span.copyables__preview-label', 'On the board'),
       hl('strong', current.preview?.opening || current.preview?.variant || 'Current board'),
-      hl('span', `${current.preview?.plies || 0} half-moves • ${current.lines} PGN lines`),
+      hl('span', pgnDraftPlayerDetail(current)),
     ]),
     hl('div.copyables__preview-card', [
-      hl('span.copyables__preview-label', 'Incoming'),
+      hl('span.copyables__preview-label', 'Ready to load'),
       hl(
         'strong',
         incoming.preview?.opening || incoming.preview?.variant || (incoming.status === 'invalid' ? 'PGN needs fixes' : 'Awaiting draft'),
       ),
-      hl(
-        'span',
-        incoming.preview
-          ? `${incoming.preview.plies} half-moves • ${incoming.lines} PGN lines`
-          : `${incoming.lines} PGN lines • ${incoming.chars} characters`,
-      ),
+      hl('span', pgnDraftPlayerDetail(incoming)),
     ]),
   ]);
 }
 
 function renderRecentImportDrafts(ctrl: AnalyseCtrl, drafts: string[]): VNode {
   return hl('div.copyables__recent', [
-    hl('div.copyables__recent-head', [hl('strong', 'Recent PGNs'), hl('span', 'Games you loaded in this session.')]),
+    hl('div.copyables__recent-head', [hl('strong', 'Recent game drafts'), hl('span', 'Games you loaded in this session.')]),
     hl(
       'div.copyables__recent-list',
       drafts.map((draft, index) => {
@@ -1000,12 +1017,7 @@ function renderRecentImportDrafts(ctrl: AnalyseCtrl, drafts: string[]): VNode {
           },
           [
             hl('strong', inspection.preview?.opening || inspection.preview?.variant || `Draft ${index + 1}`),
-            hl(
-              'span',
-              inspection.preview
-                ? `${inspection.preview.plies} half-moves • ${inspection.lines} PGN lines`
-                : `${inspection.lines} PGN lines • ${inspection.chars} characters`,
-            ),
+            hl('span', pgnDraftPlayerDetail(inspection)),
           ],
         );
       }),
@@ -1059,7 +1071,7 @@ function renderEmptySavedHistory(): VNode {
     ]),
     hl('div.copyables__empty-actions', [
       hl('a.copyables__recent-link', { attrs: { href: '/import' } }, 'Open recent games'),
-      hl('span.copyables__recent-link-note', 'or paste a PGN below to start your saved game list.'),
+      hl('span.copyables__recent-link-note', 'or paste a game below to start your saved game list.'),
     ]),
   ]);
 }
@@ -1149,7 +1161,7 @@ function analysisSupportLine(entry: ImportHistoryAnalysis): string | undefined {
   const line = [
     entry.opening,
     entry.variant && entry.variant !== entry.opening ? entry.variant : undefined,
-    entry.sourceType === 'manual' ? 'Pasted PGN' : 'Imported game',
+    entry.sourceType === 'manual' ? 'Pasted game' : 'Imported game',
   ]
     .filter(Boolean)
     .join(' • ');
@@ -1174,7 +1186,7 @@ function providerToneClass(provider: string | undefined): string {
 }
 
 function sourceTypeLabel(sourceType: string): string {
-  return sourceType === 'manual' ? 'Pasted PGN' : 'Imported game';
+  return sourceType === 'manual' ? 'Pasted game' : 'Imported game';
 }
 
 function sourceTypeTone(sourceType: string): string {

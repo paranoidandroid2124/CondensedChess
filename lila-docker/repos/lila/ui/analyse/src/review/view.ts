@@ -19,7 +19,7 @@ const tabs: [ReviewPrimaryTab, string, string][] = [
   ['engine', 'Candidates', 'Compare lines'],
   ['explorer', 'Opening', 'Book context'],
   ['moves', 'Moves', 'Score sheet'],
-  ['import', 'PGN', 'Load game'],
+  ['import', 'Load', 'Bring in a game'],
   ['board', 'Setup', 'Board setup'],
 ];
 
@@ -61,7 +61,7 @@ function renderTab(ctrl: AnalyseCtrl, nodes: ReviewViewNodes, tab: ReviewPrimary
     case 'moves':
       return panel('Score sheet', [nodes.moveListNode, nodes.forkNode]);
     case 'import':
-      return panel('Load PGN', [nodes.importNode]);
+      return panel('Load a game', [nodes.importNode]);
     case 'board':
       return panel('Board setup', nodes.boardSettingsNodes);
     default:
