@@ -572,6 +572,19 @@ describe('standalone narrative contrast', () => {
     assert.match(badgeBlock, /&\.selection\s*\{[\s\S]*?background:\s*rgba\(\$c-secondary,\s*0\.16\);/);
   });
 
+  test('keeps narrative typography and bright literals in the study-room palette', () => {
+    [...narrativeScss.matchAll(/letter-spacing:\s*([^;]+);/g)].forEach(match =>
+      assert.equal(match[1]!.trim(), '0', `narrative letter-spacing must be 0, got ${match[1]}`),
+    );
+
+    ['#fff', '#ffffff', 'rgba(255, 255, 255'].forEach(color =>
+      assert.doesNotMatch(narrativeScss, new RegExp(escapeRegExp(color), 'i'), `off-palette narrative literal: ${color}`),
+    );
+
+    assert.match(narrativeScss, /\.timeline-marker\s*\{[\s\S]*?background:\s*\$c-font;/);
+    assert.match(narrativeScss, /\.patch-toggle-btn\s*\{[\s\S]*?&\.active\s*\{[\s\S]*?color:\s*\$c-bg-box;/);
+  });
+
   test('keeps standalone narrative tabs on font-colored active text', () => {
     assert.match(
       narrativeScss,
