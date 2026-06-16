@@ -328,6 +328,37 @@
       overflow-wrap: anywhere;
     }
 
+    @include mq-is-col1 {
+      .move-review-player__timeline {
+        gap: 0.2rem;
+      }
+
+      .move-review-player__timeline-step {
+        justify-content: center;
+        gap: 0.2rem;
+        padding: 0.18rem 0.2rem;
+      }
+
+      .move-review-player__timeline-step.is-active {
+        flex-grow: 2;
+        justify-content: flex-start;
+      }
+
+      .move-review-player__timeline-index {
+        width: 1.2rem;
+        height: 1.2rem;
+        font-size: 0.68rem;
+      }
+
+      .move-review-player__timeline-label {
+        display: none;
+      }
+
+      .move-review-player__timeline-step.is-active .move-review-player__timeline-label {
+        display: inline;
+      }
+    }
+
     .move-review-player__stage {
       display: grid;
       gap: 0.72rem;

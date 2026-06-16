@@ -1,30 +1,29 @@
-$home-bg-light: #f4efe7;
-$home-surface-light: rgba(255, 251, 246, 0.92);
-$home-surface-strong-light: #fffdf9;
-$home-ink-light: #1f2731;
-$home-muted-light: #5b6673;
-$home-border-light: rgba(160, 127, 82, 0.18);
-$home-primary: #256f63;
-$home-accent: #a35d36;
-$home-shadow-light: 0 24px 80px rgba(25, 36, 52, 0.08);
+$home-bg-light: #171816;
+$home-surface-light: rgba(34, 36, 31, 0.92);
+$home-surface-strong-light: #1c1e1a;
+$home-ink-light: #efeee8;
+$home-muted-light: #a9ad9e;
+$home-border-light: rgba(139, 192, 113, 0.18);
+$home-primary: #8bc071;
+$home-accent: #e3b15b;
+$home-shadow-light: 0 24px 80px rgba(0, 0, 0, 0.24);
 
-$home-bg-dark: #101720;
-$home-surface-dark: rgba(24, 32, 46, 0.92);
-$home-surface-strong-dark: #17202d;
-$home-ink-dark: #eef3fb;
-$home-muted-dark: #b0bbcb;
-$home-border-dark: rgba(176, 196, 222, 0.14);
-$home-primary-dark: #58c8b4;
-$home-accent-dark: #f0a27b;
-$home-shadow-dark: 0 30px 80px rgba(0, 0, 0, 0.24);
+$home-bg-dark: $home-bg-light;
+$home-surface-dark: $home-surface-light;
+$home-surface-strong-dark: $home-surface-strong-light;
+$home-ink-dark: $home-ink-light;
+$home-muted-dark: $home-muted-light;
+$home-border-dark: $home-border-light;
+$home-primary-dark: $home-primary;
+$home-accent-dark: $home-accent;
+$home-shadow-dark: $home-shadow-light;
 
 .home-page {
   --home-shell-width: min(100% - 2rem, 1320px);
   min-height: calc(100dvh - 4rem);
   padding: clamp(1rem, 2.4vw, 1.6rem) 0 clamp(2rem, 5vw, 3rem);
   background:
-    radial-gradient(circle at top left, rgba($home-accent, 0.12), transparent 34%),
-    radial-gradient(circle at 88% 16%, rgba($home-primary, 0.12), transparent 32%),
+    linear-gradient(180deg, rgba(#22241f, 0.94), rgba(#171816, 1)),
     $home-bg-light;
   color: $home-ink-light;
 }
@@ -56,7 +55,7 @@ $home-shadow-dark: 0 30px 80px rgba(0, 0, 0, 0.24);
 .home-quickstart,
 .home-section {
   border: 1px solid $home-border-light;
-  border-radius: 1.6rem;
+  border-radius: 8px;
   background: $home-surface-light;
   box-shadow: $home-shadow-light;
   backdrop-filter: blur(18px);
@@ -85,7 +84,7 @@ $home-shadow-dark: 0 30px 80px rgba(0, 0, 0, 0.24);
 .home-continue-card {
   margin-top: 1.25rem;
   padding: clamp(1rem, 2vw, 1.35rem);
-  border-radius: 1.25rem;
+  border-radius: 8px;
   background: $home-surface-strong-light;
   border: 1px solid rgba($home-primary, 0.16);
   display: grid;
@@ -158,7 +157,7 @@ $home-shadow-dark: 0 30px 80px rgba(0, 0, 0, 0.24);
 .home-action-card {
   min-height: 11rem;
   padding: 1rem;
-  border-radius: 1.2rem;
+  border-radius: 8px;
   border: 1px solid rgba($home-primary, 0.14);
   background: $home-surface-strong-light;
   display: grid;
@@ -221,7 +220,7 @@ $home-shadow-dark: 0 30px 80px rgba(0, 0, 0, 0.24);
 .home-card {
   min-height: 13rem;
   padding: 1rem;
-  border-radius: 1.2rem;
+  border-radius: 8px;
   border: 1px solid $home-border-light;
   background: $home-surface-strong-light;
   display: grid;
@@ -277,13 +276,13 @@ $home-shadow-dark: 0 30px 80px rgba(0, 0, 0, 0.24);
   }
 
   &--lichess {
-    color: #7b4b15;
-    background: rgba(#d8a76f, 0.18);
+    color: #d7c59c;
+    background: rgba(#d7c59c, 0.12);
   }
 
   &--chesscom {
-    color: #165083;
-    background: rgba(#4a97d9, 0.16);
+    color: #7fa7a0;
+    background: rgba(#7fa7a0, 0.14);
   }
 
   &--manual,
@@ -311,7 +310,7 @@ $home-shadow-dark: 0 30px 80px rgba(0, 0, 0, 0.24);
 .home-strip-card {
   min-height: 7.8rem;
   padding: 1rem;
-  border-radius: 1rem;
+  border-radius: 8px;
   border: 1px solid $home-border-light;
   background: $home-surface-strong-light;
   display: grid;
@@ -341,7 +340,7 @@ $home-shadow-dark: 0 30px 80px rgba(0, 0, 0, 0.24);
 
 .home-empty {
   padding: 1rem;
-  border-radius: 1rem;
+  border-radius: 8px;
   border: 1px dashed rgba($home-primary, 0.24);
   background: rgba($home-primary, 0.05);
   display: grid;

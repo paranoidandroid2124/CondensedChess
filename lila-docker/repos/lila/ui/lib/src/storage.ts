@@ -85,7 +85,7 @@ export interface ChesstoryStorage {
   fire(v?: string): void;
 }
 
-interface ChesstoryBooleanStorage {
+export interface ChesstoryBooleanStorage {
   get(): boolean;
   getOrDefault(defaultValue: boolean): boolean;
   set(v: boolean): void;

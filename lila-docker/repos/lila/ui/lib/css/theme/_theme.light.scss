@@ -62,16 +62,22 @@ html.light {
 
 // Chesstory Pro Theme Overrides for Light Mode
 html.pro.light {
-  $pro-cream: #f2ede6;
-  $pro-copper: #c96b3a;
+  $pro-cream: #171816;
+  $pro-green: #8bc071;
 
   --c-bg-page: #{$pro-cream};
   --c-bg: #{$pro-cream};
-  --c-primary: #{$pro-copper};
-  --c-link: #{$pro-copper};
-  --c-link-hover: #{darken($pro-copper, 10%)};
+  --c-bg-low: #1c1e1a;
+  --c-bg-zebra: #1f221d;
+  --c-bg-popup: #22241f;
+  --c-border: #3a3d34;
+  --c-font: #efeee8;
+  --c-font-dim: #a9ad9e;
+  --c-primary: #{$pro-green};
+  --c-link: #{$pro-green};
+  --c-link-hover: #b4d99a;
 
   // Update header and chrome to match
   --c-bg-header-dropdown: #{$pro-cream};
-  --c-bg-input: #{change-color($pro-cream, $lightness: 98%)};
+  --c-bg-input: #22241f;
 }

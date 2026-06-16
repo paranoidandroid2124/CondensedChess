@@ -8,37 +8,37 @@
   @return mix(#000, $color, $weight);
 }
 
-$site-hue: 204;
+$site-hue: 92;
 
 // top level $c-variables must be valid css format (rgba, hsla, hex) to be mixable by ui/build
 
-$c-bg: hsl(206, 22%, 10%); // Ink Blue Main
-$c-bg-page: hsl(208, 24%, 8%); // Darker page well
-$c-bg-low: hsl(205, 20%, 14%); // Surface
-$c-bg-zebra: hsl(206, 18%, 12%);
-$c-bg-zebra2: hsl(205, 18%, 15%);
-$c-bg-popup: hsl(205, 20%, 15%);
-$c-bg-opaque: hsla(206, 22%, 10%);
-$c-body-gradient: hsl(204, 24%, 13%);
-$c-border: hsl(204, 14%, 22%);
-$c-font: hsl(206, 18%, 86%); // Soft white text
+$c-bg: #171816;
+$c-bg-page: #11130f;
+$c-bg-low: #1c1e1a;
+$c-bg-zebra: #1f221d;
+$c-bg-zebra2: #22251f;
+$c-bg-popup: #22241f;
+$c-bg-opaque: #171816;
+$c-body-gradient: #1a1d18;
+$c-border: #3a3d34;
+$c-font: #efeee8;
 
-// Editorial premium accents
-$c-primary: hsl(22, 72%, 58%); // Copper
-$c-secondary: hsl(186, 62%, 44%); // Teal
-$c-good: hsl(150, 60%, 45%);
-$c-accent: hsl(42, 80%, 56%); // Amber
-$c-bad: hsl(350, 70%, 60%);
-$c-brag: hsl(34, 68%, 46%);
+// Chesstory study-room accents
+$c-primary: #8bc071;
+$c-secondary: #7fa7a0;
+$c-good: #77b673;
+$c-accent: #e3b15b;
+$c-bad: #d96f66;
+$c-brag: #b58a4b;
 
-$c-clas: hsl(204, 72%, 62%);
-$c-shade: hsl(220, 10%, 25%);
+$c-clas: #7fa7a0;
+$c-shade: #31352d;
 
-$c-inaccuracy: hsl(200, 70%, 60%);
-$c-mistake: hsl(40, 90%, 50%);
-$c-blunder: hsl(350, 70%, 60%);
-$c-brilliant: hsl(160, 80%, 50%);
-$c-interesting: hsl(28, 70%, 63%);
+$c-inaccuracy: #7fa7a0;
+$c-mistake: #e3b15b;
+$c-blunder: #d96f66;
+$c-brilliant: #8bc071;
+$c-interesting: #b4d99a;
 
 $c-paper: hsl(220, 10%, 90%);
 $c-dark: #1a1c22;

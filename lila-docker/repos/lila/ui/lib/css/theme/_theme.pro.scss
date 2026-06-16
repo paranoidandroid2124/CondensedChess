@@ -1,38 +1,38 @@
 @import 'theme.default';
 
-// Color Palette: "Insight Hub" (Soft Dark)
-$c-bg: #141a20; // Charcoal blue
-$c-bg-page: #0d1218;
-$c-bg-low: #1b232c;
-$c-bg-zebra: #18212a;
-$c-bg-zebra2: #1f2a35;
-$c-bg-popup: #1b232c;
-$c-bg-opaque: #141a20;
-$c-body-gradient: #111821;
-$c-border: #2d3a48;
+// Color Palette: Chesstory study room
+$c-bg: #171816;
+$c-bg-page: #11130f;
+$c-bg-low: #1c1e1a;
+$c-bg-zebra: #1f221d;
+$c-bg-zebra2: #22251f;
+$c-bg-popup: #22241f;
+$c-bg-opaque: #171816;
+$c-body-gradient: #1a1d18;
+$c-border: #3a3d34;
 
 // Typography & Text
-$c-font: #e6edf3; // Soft White
-$c-shade: #93a5b5; // Muted Slate
+$c-font: #efeee8;
+$c-shade: #a9ad9e;
 $c-paper: #F1F5F9;
 
 // Accents
-$c-primary: #c96b3a; // Copper
-$c-secondary: #2aa6a5; // Teal
-$c-good: #2aa6a5;
-$c-bad: #EF4444; // Error/Blunder Red
-$c-accent: #e2b048; // Amber
-$c-brag: #a06a42;
+$c-primary: #8bc071;
+$c-secondary: #7fa7a0;
+$c-good: #77b673;
+$c-bad: #d96f66;
+$c-accent: #e3b15b;
+$c-brag: #b58a4b;
 
 // Glass/Surface overrides (Subtle)
-$glass-surface: rgba(28, 33, 46, 0.95); // High opacity for readability
+$glass-surface: rgba(34, 36, 31, 0.95); // High opacity for readability
 $glass-border: rgba(255, 255, 255, 0.05);
 
 html.pro {
     @include shared-color-defs;
 
-    --c-primary-dim: #{rgba(#c96b3a, 0.22)};
-    --c-link-hover: #e39f74;
+    --c-primary-dim: #{rgba(#8bc071, 0.22)};
+    --c-link-hover: #b4d99a;
     --c-border-page: #{$c-border};
 
     // Chesstory: keep core layout logic in `ui/analyse/css/_layout.scss`,

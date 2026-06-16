@@ -24,14 +24,14 @@ object home:
                 p(cls := "home-eyebrow")("Chesstory Home"),
                 h1("Continue where you left off."),
                 p(cls := "home-hero__summary")(
-                  "Open the last game, pattern report, or notebook first. Start something new only when you need a different entry point."
+                  "Return to the game, pattern, or notebook you were studying. Start a new board only when a new question is ready."
                 ),
                 renderContinueCard(data.continueCard)
               ),
               div(cls := "home-quickstart")(
                 div(cls := "home-section-head")(
                   strong("Quick start"),
-                  span("Four real entry points that already exist")
+                  span("Start from the kind of chess work you want to do now")
                 ),
                 div(cls := "home-quickstart__grid")(
                   data.quickActions.map(renderQuickAction)*
@@ -40,31 +40,31 @@ object home:
             ),
             st.section(cls := "home-section")(
               div(cls := "home-section-head")(
-                strong("Recent analyses"),
-                span("Resume recent analysis snapshots in Guided Review by default, or open the same game in Full Analysis when you need the whole board.")
+                strong("Recent games"),
+                span("Resume a recent game as a guided review, or open the same board when you want to explore the full line.")
               ),
               if data.recentAnalyses.nonEmpty then
                 div(cls := "home-card-grid home-card-grid--analysis")(
                   data.recentAnalyses.map(renderRecentAnalysis)*
                 )
-              else renderEmptyStrip("No recent analyses yet", "Start from PGN or import a public game once and it will show up here.")
+                else renderEmptyStrip("No recent games yet", "Start from PGN or import a public game once and it will show up here.")
             ),
             div(cls := "home-secondary-grid")(
               st.section(cls := "home-section")(
                 div(cls := "home-section-head")(
-                  strong("Recent pattern reports"),
-                  span("Jump back into My Patterns or Prep for Opponent without rebuilding the report.")
+                strong("Recent patterns"),
+                  span("Return to recurring positions from your games or an opponent's public games.")
                 ),
                 if data.recentPatternReports.nonEmpty then
                   div(cls := "home-card-grid home-card-grid--reports")(
                     data.recentPatternReports.map(renderPatternReport)*
                   )
-                else renderEmptyStrip("No recent pattern reports yet", "Open account patterns when you want recurring positions or a prep view from public games.")
+                else renderEmptyStrip("No recent patterns yet", "Look up a public account when you want the positions that keep coming back.")
               ),
               st.section(cls := "home-section")(
                 div(cls := "home-section-head")(
                   strong("Recent notebooks"),
-                  span("Reopen saved studies without turning Home into a full notebook directory.")
+                  span("Reopen saved boards, notes, and chapters without searching through every study.")
                 ),
                 if data.recentNotebooks.nonEmpty then
                   div(cls := "home-card-grid home-card-grid--notebooks")(
@@ -76,7 +76,7 @@ object home:
             st.section(cls := "home-section home-section--accounts")(
               div(cls := "home-section-head")(
                 strong("Recent public accounts"),
-                span("Accounts tied to your recent imports or account searches. Open My Patterns from here when you want the account view.")
+                span("Open a player again when you want to study the positions that appear in their games.")
               ),
               if data.recentAccounts.nonEmpty then
                 div(cls := "home-strip-grid")(
@@ -103,7 +103,7 @@ object home:
           supportLine.nonEmpty.option(p(cls := "home-continue-card__support")(supportLine)),
           div(cls := "home-continue-card__actions")(
             a(href := importedAnalysisUrl(entry._id, "review"), cls := "button button-fat")("Continue Guided Review"),
-            a(href := importedAnalysisUrl(entry._id, "raw"), cls := "button button-metal")("Open full analysis")
+            a(href := importedAnalysisUrl(entry._id, "raw"), cls := "button button-metal")("Open analysis board")
           )
         )
       case Main.HomeContinueCard.PatternReport(job) =>
@@ -131,7 +131,7 @@ object home:
           ),
           div(cls := "home-continue-card__actions")(
             a(href := routes.Study.show(entry.study.id).url, cls := "button button-fat")("Open notebook"),
-            a(href := analysisIndexUrl("raw"), cls := "button button-metal")("Open full analysis")
+            a(href := analysisIndexUrl("raw"), cls := "button button-metal")("Open analysis board")
           )
         )
       case Main.HomeContinueCard.Starter =>
@@ -139,11 +139,11 @@ object home:
           p(cls := "home-continue-card__eyebrow")("Start fresh"),
           h2(cls := "home-continue-card__title")("No recent work yet"),
           p(cls := "home-continue-card__summary")(
-            "Start from a PGN, open full analysis directly, look up account patterns, or open the current live strategic puzzle."
+            "Start from a PGN, open a board, look up recurring patterns, or try the current strategic position."
           ),
           div(cls := "home-continue-card__actions")(
             a(href := routes.Importer.importGame.url, cls := "button button-fat")("Start from PGN"),
-            a(href := analysisIndexUrl("raw"), cls := "button button-metal")("Open full analysis")
+            a(href := analysisIndexUrl("raw"), cls := "button button-metal")("Open analysis board")
           )
         )
 
@@ -176,7 +176,7 @@ object home:
         span(cls := "home-pill home-pill--pattern")(kindLabel(job.kind.key))
       ),
       strong(cls := "home-card__title")(s"@${job.username}"),
-      p(cls := "home-card__summary")(reportHeadline(job).getOrElse("Latest finished report ready to reopen.")),
+      p(cls := "home-card__summary")(reportHeadline(job).getOrElse("The latest pattern set is ready to study again.")),
       p(cls := "home-card__meta")(s"${providerLabel(job.provider)} • ${kindLabel(job.kind.key)}"),
       span(cls := "home-card__cta")("Open")
     )
@@ -210,7 +210,7 @@ object home:
         strong(s"@${account.username}"),
         providerBadge(account.provider)
       ),
-      p(s"${account.analysisCount} saved analyses • ${account.searchCount} account searches"),
+      p(s"${account.analysisCount} saved games • ${account.searchCount} pattern checks"),
       span(cls := "home-card__cta")("Open My Patterns")
     )
 
@@ -242,7 +242,7 @@ object home:
       entry.result,
       entry.speed.filterNot(_ == "-")
     ).flatten.mkString(" • ")
-    if line.nonEmpty then line else "Saved PGN snapshot ready to resume"
+    if line.nonEmpty then line else "Saved PGN ready to resume"
 
   private def providerBadge(provider: String): Frag =
     span(cls := s"home-pill home-pill--provider home-pill--${providerTone(provider)}")(providerLabel(provider))
