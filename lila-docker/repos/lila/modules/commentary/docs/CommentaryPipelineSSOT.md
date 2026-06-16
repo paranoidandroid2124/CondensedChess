@@ -37,7 +37,9 @@ MoveReview commentary flows through one path:
    Author questions may open neutral question slots from candidate/PV signals,
    but candidate `downstreamTactic` strings and motif-derived labels are not
    converted into tactical names, line-consequence prose, timing, or positional
-   change claims.
+   change claims. Conversion author-question seeds remain reply-line checks;
+   classification and eval advantage do not by themselves assert that
+   conversion, draw, or simplification has been achieved.
 5. `QuestionFirstCommentaryPlanner` selects a question and planner owner from
    typed evidence.
 6. `MoveReviewCausalClaim` builds the CausalFrame and typed evidence list.

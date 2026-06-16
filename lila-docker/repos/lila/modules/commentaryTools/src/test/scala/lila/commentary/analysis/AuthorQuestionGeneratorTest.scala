@@ -50,6 +50,37 @@ class AuthorQuestionGeneratorTest extends FunSuite:
       lineSanMoves = lineSanMoves
     )
 
+  private def conversionClassification: PositionClassification =
+    PositionClassification(
+      nature = NatureResult(NatureType.Static, tensionScore = 0, openFilesCount = 1, mobilityDiff = 2, lockedCenter = false),
+      criticality = CriticalityResult(CriticalityType.Normal, evalDeltaCp = 0, mateDistance = None, forcingMovesInPv = 0),
+      choiceTopology = ChoiceTopologyResult(
+        topologyType = ChoiceTopologyType.StyleChoice,
+        pv1Eval = 240,
+        pv2Eval = 190,
+        pv3Eval = None,
+        gapPv1ToPv2 = 50,
+        spreadTop3 = 50,
+        pv2FailureMode = None
+      ),
+      gamePhase = GamePhaseResult(GamePhaseType.Endgame, totalMaterial = 18, queensOnBoard = false, minorPiecesCount = 0),
+      simplifyBias = SimplifyBiasResult(
+        isSimplificationWindow = true,
+        evalAdvantage = 240,
+        isEndgameNear = true,
+        exchangeAvailable = true
+      ),
+      drawBias = DrawBiasResult(
+        isDrawish = false,
+        materialSymmetry = false,
+        oppositeColorBishops = false,
+        fortressLikely = false,
+        insufficientMaterial = false
+      ),
+      riskProfile = RiskProfileResult(RiskLevel.Low, evalVolatility = 0, tacticalMotifsCount = 0, kingExposureSum = 0),
+      taskMode = TaskModeResult(TaskModeType.ExplainConvert, primaryDriver = "conversion_test")
+    )
+
   test("generate seeds WhyThis from a played-candidate signal even without tension release") {
     val ctx = IntegratedContext(evalCp = 40, isWhiteToMove = true)
     val questions =
@@ -129,6 +160,30 @@ class AuthorQuestionGeneratorTest extends FunSuite:
       )
 
     assert(questions.exists(_.kind == AuthorQuestionKind.WhyNow), clues(questions))
+  }
+
+  test("generate frames conversion seeds as reply-line checks, not conversion conclusions") {
+    val ctx =
+      IntegratedContext(
+        evalCp = 240,
+        classification = Some(conversionClassification),
+        isWhiteToMove = true
+      )
+    val questions =
+      AuthorQuestionGenerator.generate(
+        data = minimalData(ctx).copy(evalCp = 240, phase = "endgame"),
+        ctx = ctx,
+        candidates = List(playedCandidate()),
+        playedSan = Some(playedSan)
+      )
+
+    val conversionQuestion =
+      questions.find(_.id.startsWith("convert_")).getOrElse(fail(s"missing conversion question: $questions"))
+    assertEquals(conversionQuestion.kind, AuthorQuestionKind.WhyNow)
+    assert(conversionQuestion.question.contains("candidate conversion checkpoint"), clues(conversionQuestion))
+    assert(conversionQuestion.why.exists(_.contains("reply line")), clues(conversionQuestion))
+    assert(!conversionQuestion.question.contains("right moment to convert"), clues(conversionQuestion.question))
+    assert(!conversionQuestion.why.exists(_.contains("advantage easier to realize")), clues(conversionQuestion.why))
   }
 
   test("generate seeds quiet WhyThis from plan intent when no tactical trigger exists") {

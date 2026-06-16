@@ -166,16 +166,17 @@ object AuthorQuestionGenerator:
     if !isConvertMode && !(isSimplifyWindow && isClearlyBetter) then None
     else
       val why =
-        if (isSimplifyWindow)
-          Some("This looks like a conversion window: trading down can reduce counterplay and make the advantage easier to realize.")
-        else Some("With a clear advantage, the key is not to rush tactics but to convert: restrict counterplay and simplify when it helps.")
+        if isSimplifyWindow then
+          Some("The position has simplification signals, but the reply line still has to show whether counterplay is really reduced.")
+        else
+          Some("The position is flagged as a possible conversion task; the reply line has to show whether the edge stays stable.")
 
       Some(
         AuthorQuestion(
           id = s"convert_${Integer.toHexString((fen + playedUci).hashCode)}",
           kind = AuthorQuestionKind.WhyNow,
           priority = 2,
-          question = s"Why is $playedSan the right moment to convert the advantage for $us?",
+          question = s"What line would show whether $playedSan is a candidate conversion checkpoint for $us?",
           why = why,
           anchors = List("conversion", "simplify"),
           evidencePurposes = List("convert_reply_multipv")

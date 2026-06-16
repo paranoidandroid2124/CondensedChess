@@ -12,6 +12,9 @@ diagnostics unless a CausalFrame/local fact contract admits them.
 Author-question rows may seed a question slot from candidate/PV signals, but
 candidate `downstreamTactic` strings and motif-derived labels are not authority
 for tactical names, line consequences, timing, or positional change prose.
+Conversion author-question seeds are reply-line checks; classification and eval
+advantage do not by themselves assert that conversion, draw, or simplification
+has been achieved.
 
 ## Risk Gates
 
