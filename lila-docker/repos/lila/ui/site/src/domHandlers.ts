@@ -133,7 +133,6 @@ export function addDomHandlers() {
         (e.target as HTMLElement)?.click();
     },
   );
-
 }
 
 type AccountIntelState = {
@@ -262,7 +261,18 @@ function initAccountIntelProduct() {
 
   const kindLabel = (kind: string) =>
     kind === myPatternsKind ? 'My Patterns' : kind === opponentPrepKind ? 'Prep for Opponent' : kind;
-  const activeJobLabel = (status: string) => (status === 'running' ? 'Preparing pattern study' : 'Queued for study');
+  const activeJobLabel = (status: string) =>
+    status === 'running' ? 'Preparing pattern study' : 'Queued for study';
+  const studyRunLabel = (status: string) =>
+    status === 'succeeded'
+      ? 'Ready to review'
+      : status === 'running'
+        ? 'Reading games'
+        : status === 'queued'
+          ? 'Waiting to read'
+          : status === 'failed'
+            ? 'Needs another try'
+            : status;
   const humanDate = (raw?: string | null) => {
     if (!raw) return '';
     const date = new Date(raw);
@@ -305,7 +315,12 @@ function initAccountIntelProduct() {
       jobId: url.searchParams.get('jobId'),
     };
   };
-  const syncLocation = (kind: string, side: string, replace = false, jobId: string | null = currentSelectedJobId) => {
+  const syncLocation = (
+    kind: string,
+    side: string,
+    replace = false,
+    jobId: string | null = currentSelectedJobId,
+  ) => {
     const nextUrl = new URL(resultUrlForKind(kind, jobId), window.location.origin);
     if (side !== 'all') nextUrl.searchParams.set('side', side);
     const next = nextUrl.pathname + nextUrl.search;
@@ -320,28 +335,37 @@ function initAccountIntelProduct() {
         ? state?.history.find(job => job.jobId === currentSelectedJobId)?.notebookUrl
         : null;
       const surfaceJobId = state?.surfaceJobId || null;
-      const surfaceNotebook = surfaceJobId ? state?.history.find(job => job.jobId === surfaceJobId)?.notebookUrl : null;
+      const surfaceNotebook = surfaceJobId
+        ? state?.history.find(job => job.jobId === surfaceJobId)?.notebookUrl
+        : null;
       return selectedNotebook || surfaceNotebook || state?.activeJob?.notebookUrl || '';
     })();
-  const currentJobEntry = () => (currentSelectedJobId ? state?.history.find(job => job.jobId === currentSelectedJobId) : null) || null;
+  const currentJobEntry = () =>
+    (currentSelectedJobId ? state?.history.find(job => job.jobId === currentSelectedJobId) : null) || null;
   const canPublishNotebook = () => !!currentSelectedJobId && !currentNotebookUrl();
   const refreshLockLabel = () => {
     const raw = state?.activeJob?.refreshLockedUntil || currentJobEntry()?.refreshLockedUntil;
     return raw ? humanDate(raw) : '';
   };
   const currentPatterns = () => (state?.surface?.patterns || []) as any[];
-  const visiblePatterns = () => currentPatterns().filter(pattern => currentSide === 'all' || pattern?.side === currentSide);
+  const visiblePatterns = () =>
+    currentPatterns().filter(pattern => currentSide === 'all' || pattern?.side === currentSide);
   const availableSupportTabs = (): AccountIntelSupportTab[] =>
-    ((state?.surface?.overview?.cards || []).length ? ['study', 'compare', 'history', 'notes'] : ['study', 'compare', 'history']) as AccountIntelSupportTab[];
+    ((state?.surface?.overview?.cards || []).length
+      ? ['study', 'compare', 'history', 'notes']
+      : ['study', 'compare', 'history']) as AccountIntelSupportTab[];
   const normalizeSupportTab = (requested?: string | null): AccountIntelSupportTab =>
-    (availableSupportTabs().includes(requested as AccountIntelSupportTab) ? requested : 'study') as AccountIntelSupportTab;
+    (availableSupportTabs().includes(requested as AccountIntelSupportTab)
+      ? requested
+      : 'study') as AccountIntelSupportTab;
   const railShell = () => root.querySelector<HTMLElement>('.js-ai-rail-shell');
   const secondaryScroller = () => root.querySelector<HTMLElement>('.js-ai-secondary-scroll');
   const scrollSecondaryToSelector = (selector: string) => {
     const scroller = secondaryScroller();
     const target = root.querySelector<HTMLElement>(selector);
     if (!scroller || !target) return;
-    const nextTop = scroller.scrollTop + target.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 16;
+    const nextTop =
+      scroller.scrollTop + target.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 16;
     scroller.scrollTo({ top: Math.max(0, nextTop), behavior: 'smooth' });
   };
 
@@ -361,14 +385,15 @@ function initAccountIntelProduct() {
     side === 'white' || side === 'black' ? side : state?.kind === opponentPrepKind ? 'black' : 'white';
 
   const displaySideLabel = (side?: string | null) =>
-    side === 'white' ? 'White games' : side === 'black' ? 'Black games' : 'Mixed sample';
+    side === 'white' ? 'White games' : side === 'black' ? 'Black games' : 'Both colors';
 
-  const playerFacingStructureLabel = (pattern: any) => pattern?.structureFamily || 'recurring middlegame shape';
+  const playerFacingStructureLabel = (pattern: any) =>
+    pattern?.structureFamily || 'recurring middlegame shape';
 
   const playerFacingEvidence = (evidence?: any) => {
     const support = evidence?.supportingGames ?? 0;
     const total = evidence?.totalSampledGames ?? 0;
-    return total > 0 ? `Seen in ${support} of ${total} games` : 'Gathering game evidence';
+    return total > 0 ? `Seen in ${support} of ${total} games` : 'Still reading games';
   };
 
   const renderEvidence = (evidence?: any) => playerFacingEvidence(evidence);
@@ -381,7 +406,9 @@ function initAccountIntelProduct() {
   };
 
   const playerFacingDecisionPoint = (ply?: number | null) =>
-    typeof ply === 'number' && ply > 0 ? `Critical choice near move ${Math.max(1, Math.floor((ply + 1) / 2))}` : 'Critical choice repeats early';
+    typeof ply === 'number' && ply > 0
+      ? `Critical choice near move ${Math.max(1, Math.floor((ply + 1) / 2))}`
+      : 'Critical choice repeats early';
 
   const renderSummaryStrip = () => {
     const surface = state?.surface;
@@ -431,7 +458,7 @@ function initAccountIntelProduct() {
           </div>
           <div class="status-callout">
             <strong>No opening map yet</strong>
-            <span>The current sample is still too thin to summarize the openings honestly.</span>
+            <span>The games read so far are still too thin to summarize the openings honestly.</span>
           </div>
         </div>
       `;
@@ -491,7 +518,7 @@ function initAccountIntelProduct() {
     const copy =
       state?.kind === opponentPrepKind
         ? 'Use this position as the board-first reference point for the game plan.'
-        : 'Start here. This is the clearest recurring issue in the current sample.';
+        : 'Start here. This is the clearest recurring issue in the games read so far.';
     return `
       <div class="importer-panel importer-panel--results">
         <div class="importer-panel__head">
@@ -501,7 +528,7 @@ function initAccountIntelProduct() {
         ${
           pattern
             ? renderLeadPatternCard(pattern)
-            : `<div class="status-callout"><strong>No lead pattern yet</strong><span>This sample still needs more evidence before it can anchor the page on one typical position.</span></div>`
+            : `<div class="status-callout"><strong>No lead pattern yet</strong><span>The games read so far still need a clearer recurring position.</span></div>`
         }
       </div>
     `;
@@ -554,7 +581,7 @@ function initAccountIntelProduct() {
           ${actions.length ? `<div class="account-product-action-list">${actions.map(renderActionCard).join('')}</div>` : ''}
           ${
             evidenceGames.length
-              ? `<details class="account-product-evidence-block"><summary>Evidence games</summary><div class="account-product-evidence-grid">${evidenceGames
+              ? `<details class="account-product-evidence-block"><summary>Games behind this pattern</summary><div class="account-product-evidence-grid">${evidenceGames
                   .map(renderEvidenceGame)
                   .join('')}</div></details>`
               : ''
@@ -583,7 +610,7 @@ function initAccountIntelProduct() {
           ${renderSideToggle()}
           <div class="status-callout">
             <strong>No additional pattern yet</strong>
-            <span>This side of the sample is still too thin to support more than one reliable pattern card.</span>
+            <span>The games for this side still point to only one reliable pattern.</span>
           </div>
         </div>
       `;
@@ -631,7 +658,8 @@ function initAccountIntelProduct() {
         ? 'Keep the prep short enough to carry into the next game.'
         : 'Use the actions below as the shortest route from the diagnosis to the board.';
     const primaryHref = state?.kind === opponentPrepKind ? notebookUrl : strategicPuzzleUrl;
-    const primaryLabel = state?.kind === opponentPrepKind ? 'Open study notebook' : 'Try the idea on the board';
+    const primaryLabel =
+      state?.kind === opponentPrepKind ? 'Open study notebook' : 'Try the idea on the board';
     return `
       <div class="importer-panel importer-panel--guide">
         <div class="importer-panel__head">
@@ -667,9 +695,9 @@ function initAccountIntelProduct() {
       <div class="importer-panel importer-panel--guide">
         <div class="importer-panel__head">
           <strong class="importer-panel__title">Games that show the pattern</strong>
-          <p class="importer-panel__copy">Use one game first as proof that the pattern is real, then open the rest only if you need more evidence.</p>
+          <p class="importer-panel__copy">Start with one real game, then open the rest only if you want more context.</p>
         </div>
-        ${lead ? renderExemplarCard(lead) : '<div class="status-callout"><strong>No evidence game yet</strong><span>The current pattern study does not have a lead evidence game yet.</span></div>'}
+        ${lead ? renderExemplarCard(lead) : '<div class="status-callout"><strong>No anchor game yet</strong><span>The current pattern study does not have a clear game to start from yet.</span></div>'}
         ${
           rest.length
             ? `<details class="account-product-opening-details"><summary>See ${rest.length} more games</summary><div class="account-product-exemplar-list">${rest
@@ -787,10 +815,10 @@ function initAccountIntelProduct() {
               (job, idx) => `
                 <div class="account-product-history-item${compareJobId === job.jobId ? ' is-compared' : ''}${currentSelectedJobId === job.jobId ? ' is-selected' : ''}">
                   <div class="account-product-history-copy">
-                    <strong>${escapeHtml(idx === 0 ? `${job.status} • latest` : job.status)}</strong>
+                    <strong>${escapeHtml(idx === 0 ? `${studyRunLabel(job.status)} • latest` : studyRunLabel(job.status))}</strong>
                     <span>${escapeHtml(humanDate(job.requestedAt))}</span>
-                    <span>${escapeHtml(job.confidence || 'pending')}</span>
-                    <span>${escapeHtml(job.sampledGameCount ? `${job.sampledGameCount} games` : 'no games yet')}</span>
+                    <span>${escapeHtml(job.confidence || 'Still reading')}</span>
+                    <span>${escapeHtml(job.sampledGameCount ? `${job.sampledGameCount} games` : 'No games read yet')}</span>
                   </div>
                   <div class="account-product-history-actions">
                     <a href="${escapeHtml(job.url)}">${currentSelectedJobId === job.jobId ? 'Viewing study' : 'Open study'}</a>
@@ -825,7 +853,8 @@ function initAccountIntelProduct() {
     const patternList = (patterns?: any[]) =>
       (patterns || [])
         .map(
-          pattern => `<li><strong>${escapeHtml(pattern.title || 'Pattern')}</strong><span>${escapeHtml(pattern.side || 'mixed')}</span></li>`,
+          pattern =>
+            `<li><strong>${escapeHtml(pattern.title || 'Pattern')}</strong><span>${escapeHtml(pattern.side || 'mixed')}</span></li>`,
         )
         .join('');
     return `
@@ -862,13 +891,14 @@ function initAccountIntelProduct() {
       job.totalGames && job.totalGames > 0
         ? `${job.processedGames || 0}/${job.totalGames} games`
         : stageLabel(job.progressStage || 'queued');
-    const eta = typeof job.etaSec === 'number' && job.etaSec > 0 ? ` • ETA ${Math.ceil(job.etaSec / 60)} min` : '';
+    const eta =
+      typeof job.etaSec === 'number' && job.etaSec > 0 ? ` • ETA ${Math.ceil(job.etaSec / 60)} min` : '';
     return `
       <div class="status-callout status-callout--primary account-product-callout">
         <strong>${escapeHtml(activeJobLabel(job.status))} • ${escapeHtml(kindLabel(state!.kind))}</strong>
         <span>${escapeHtml(progress + eta)}</span>
         <div class="auth-links status-links">
-          <a href="/account-intel/jobs/${escapeHtml(job.jobId)}" class="status-links__primary">See progress</a>
+          <a href="/account-intel/jobs/${escapeHtml(job.jobId)}" class="status-links__primary">Open progress</a>
         </div>
       </div>
     `;
@@ -945,7 +975,7 @@ function initAccountIntelProduct() {
       <div class="account-product-evidence-card">
         <strong>${escapeHtml(`${game.white || '?'} vs ${game.black || '?'}`)}</strong>
         <span>${escapeHtml(`${game.result || '-'} • ${game.opening || 'Imported game'}`)}</span>
-        <span>${escapeHtml(game.role || 'support')}</span>
+        <span>${escapeHtml(game.role || 'supporting game')}</span>
       </div>
     `;
     return game.sourceUrl
@@ -965,7 +995,9 @@ function initAccountIntelProduct() {
     }
   };
 
-  const renderAll = (options: { resetSecondaryScroll?: boolean; scrollSupportIntoView?: boolean; focusRail?: boolean } = {}) => {
+  const renderAll = (
+    options: { resetSecondaryScroll?: boolean; scrollSupportIntoView?: boolean; focusRail?: boolean } = {},
+  ) => {
     const surface = state?.surface;
     if (!surface) return;
     const previousSecondaryScroll = secondaryScroller()?.scrollTop ?? 0;
@@ -980,7 +1012,8 @@ function initAccountIntelProduct() {
     setInner('.js-ai-active-job', renderActiveJob());
     initMiniBoards(root);
     const nextSecondaryScroller = secondaryScroller();
-    if (nextSecondaryScroller) nextSecondaryScroller.scrollTop = options.resetSecondaryScroll ? 0 : previousSecondaryScroll;
+    if (nextSecondaryScroller)
+      nextSecondaryScroller.scrollTop = options.resetSecondaryScroll ? 0 : previousSecondaryScroll;
     const nextRailShell = railShell();
     if (nextRailShell) nextRailShell.scrollTop = previousRailScroll;
     if (options.focusRail) railShell()?.focus({ preventScroll: true });
@@ -1018,7 +1051,8 @@ function initAccountIntelProduct() {
       currentSelectedJobId = state.selectedJobId || null;
       currentSide = normalizeSide(currentSide, currentPatterns());
       renderAll(options);
-      if (historyMode !== 'none') syncLocation(state.kind, currentSide, historyMode === 'replace', currentSelectedJobId);
+      if (historyMode !== 'none')
+        syncLocation(state.kind, currentSide, historyMode === 'replace', currentSelectedJobId);
       schedulePoll();
     } catch (err) {
       console.error(err);
@@ -1050,7 +1084,8 @@ function initAccountIntelProduct() {
 
   const schedulePoll = () => {
     if (pollHandle) window.clearTimeout(pollHandle);
-    if (!state?.activeJob || (state.activeJob.status !== 'queued' && state.activeJob.status !== 'running')) return;
+    if (!state?.activeJob || (state.activeJob.status !== 'queued' && state.activeJob.status !== 'running'))
+      return;
     pollHandle = window.setTimeout(() => {
       void pollActiveJob();
     }, 4000);
@@ -1065,10 +1100,14 @@ function initAccountIntelProduct() {
       activeSupportTab = 'study';
       currentSide = 'all';
       currentSelectedJobId = null;
-      fetchState(modeLink.dataset.stateUrl || stateUrlForKind(modeLink.dataset.kind || state!.kind, null), 'push', {
-        resetSecondaryScroll: true,
-        focusRail: true,
-      });
+      fetchState(
+        modeLink.dataset.stateUrl || stateUrlForKind(modeLink.dataset.kind || state!.kind, null),
+        'push',
+        {
+          resetSecondaryScroll: true,
+          focusRail: true,
+        },
+      );
       return;
     }
     const sideLink = target?.closest<HTMLAnchorElement>('.js-ai-side-link');
@@ -1114,7 +1153,8 @@ function initAccountIntelProduct() {
       })
         .then(async response => {
           const body = await response.json().catch(() => ({}));
-          if (!response.ok) throw new Error(body.error || body.message || `Failed study publish: ${response.status}`);
+          if (!response.ok)
+            throw new Error(body.error || body.message || `Failed study publish: ${response.status}`);
           await fetchState(stateUrlForKind(state!.kind, currentSelectedJobId), 'none');
           activeSupportTab = 'study';
           refreshSupportPanel();
