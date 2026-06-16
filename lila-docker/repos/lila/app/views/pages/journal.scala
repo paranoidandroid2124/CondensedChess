@@ -20,9 +20,9 @@ object journal:
             st.section(cls := "journal-hero")(
               div(cls := "journal-hero-copy")(
                 p(cls := "journal-kicker")("Chesstory Journal"),
-                h1("Notes on why we are building this, what is changing, and what strategy still needs from chess analysis."),
+                h1("Notes on why we are building this, what is changing, and what strategy still needs from the board."),
                 p(cls := "journal-intro")(
-                  "A small publishing space inside the product for founding notes, product updates, and lessons from building strategy-first analysis."
+                  "A small publishing space inside the product for founding notes, product updates, and lessons from building strategy-first study."
                 )
               ),
               featured.fold(
@@ -108,10 +108,10 @@ object journal:
                       )
                     ),
                     footer(cls := "journal-post-footer")(
-                      p("Start with the latest post or jump straight into analysis."),
+                      p("Start with the latest post or open the board."),
                       div(cls := "journal-footer-actions")(
                         a(href := routes.Main.journalPost(latest.slug).url, cls := "journal-action journal-action--secondary")("Read latest post"),
-                        a(href := routes.UserAnalysis.index.url, cls := "journal-action journal-action--primary")("Open analysis")
+                        a(href := routes.UserAnalysis.index.url, cls := "journal-action journal-action--primary")("Open board")
                       )
                     )
                   )
@@ -137,7 +137,7 @@ object journal:
                     p("Want to see the product context around these notes?"),
                     div(cls := "journal-footer-actions")(
                       a(href := homeUrl, cls := "journal-action journal-action--secondary")("Back to home"),
-                      a(href := routes.UserAnalysis.index.url, cls := "journal-action journal-action--primary")("Open analysis")
+                      a(href := routes.UserAnalysis.index.url, cls := "journal-action journal-action--primary")("Open board")
                     )
                   )
                 )

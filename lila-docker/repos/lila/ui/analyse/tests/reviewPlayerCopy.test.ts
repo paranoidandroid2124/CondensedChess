@@ -11,6 +11,7 @@ const moveReviewSource = readFileSync(fileURLToPath(new URL('../src/moveReview.t
 const analyseViewSource = readFileSync(fileURLToPath(new URL('../../../app/views/analyse.scala', import.meta.url)), 'utf8');
 const homeSource = readFileSync(fileURLToPath(new URL('../../../app/views/pages/home.scala', import.meta.url)), 'utf8');
 const importerSource = readFileSync(fileURLToPath(new URL('../../../app/views/importer.scala', import.meta.url)), 'utf8');
+const journalSource = readFileSync(fileURLToPath(new URL('../../../app/views/pages/journal.scala', import.meta.url)), 'utf8');
 const landingSource = readFileSync(fileURLToPath(new URL('../../../app/views/pages/landing.scala', import.meta.url)), 'utf8');
 
 describe('review player copy', () => {
@@ -75,6 +76,19 @@ describe('review player copy', () => {
     assert.match(analyseViewSource, /Toggle candidate lines/);
     assert.doesNotMatch(analyseViewSource, /Analysis board/);
     assert.doesNotMatch(analyseViewSource, /engine analysis/);
+  });
+
+  test('keeps journal and import history copy board-facing', () => {
+    assert.match(journalSource, /what strategy still needs from the board/);
+    assert.match(journalSource, /strategy-first study/);
+    assert.match(journalSource, /open the board/);
+    assert.match(journalSource, /Open board/);
+    ['Open analysis', 'jump straight into analysis', 'strategy-first analysis', 'chess analysis'].forEach(copy =>
+      assert.doesNotMatch(journalSource, new RegExp(escapeRegExp(copy)), `stale journal copy: ${copy}`),
+    );
+
+    assert.match(importerSource, /No saved games yet/);
+    assert.doesNotMatch(importerSource, /No saved analyses yet/);
   });
 });
 

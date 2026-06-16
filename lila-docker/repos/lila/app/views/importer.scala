@@ -292,7 +292,7 @@ object importer:
           span(cls := "auth-empty-state__eyebrow")(
             if ctx.isAuth then "Saved imports" else "Cross-device history"
           ),
-          strong(if ctx.isAuth then "No saved analyses yet" else "Sign in to keep import history"),
+          strong(if ctx.isAuth then "No saved games yet" else "Sign in to keep import history"),
           p(
             if ctx.isAuth then
               "Open a PGN or player game once, and it will appear here for fast reopen on the review board."
