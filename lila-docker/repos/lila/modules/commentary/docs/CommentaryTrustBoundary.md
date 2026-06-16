@@ -253,8 +253,9 @@ basic prose, and practical-row text are not causal authority.
 Frontend MoveReview coach surface consumes only typed player-surface fields.
 Section labels may improve player hierarchy, but row label/text/diagnostics do
 not create chess families. Move chips render from `refSans`/resolved refs while
-preserving order and repeated SAN tokens; authoring row labels are display text
-only, not SAN identity authority.
+preserving order and repeated SAN tokens. A chip may carry the exact preview
+board payload only when it is derived from the same resolved ref; authoring row
+labels are display text only, not SAN identity authority.
 
 Durable structural claims require producer-owned board/PV proof. File entry,
 outpost occupation, target fixation, IQP inducement, color-complex pressure,
@@ -298,7 +299,8 @@ Displayed SAN refs preserve legal line order, including repeated SAN tokens.
 Deduplicating a repeated capture, recapture, or castling token would change the
 evidence line rather than merely cleaning prose.
 Frontend SAN chips may become board/PV links only when they resolve to the same
-ordered ref variation; ambiguous same-SAN matches stay display-only.
+ordered ref variation. Stored preview payloads must be derived from that same
+resolved ref, and ambiguous same-SAN matches stay display-only.
 
 Alternative comparison and the player decision strip follow the same
 preservation requirement: role-aware comparison text needs admitted

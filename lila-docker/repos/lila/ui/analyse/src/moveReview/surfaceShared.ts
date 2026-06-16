@@ -2,6 +2,7 @@ export type MoveReviewInteractiveRefLike = {
   refId: string;
   san: string;
   uci: string;
+  fenAfter?: string;
 };
 
 type RenderInteractiveSanChipOpts = {
@@ -42,5 +43,6 @@ export function renderInteractiveSanChip(
 
   const classes = opts.interactiveClasses || 'move-chip move-chip--interactive';
   const tabindex = opts.includeTabIndex === false ? '' : ' tabindex="0"';
-  return `<span class="${classes}" data-ref-id="${escapeHtml(ref.refId)}" data-uci="${escapeHtml(ref.uci)}" data-san="${escapeHtml(ref.san)}"${tabindex}>${escapeHtml(rawSan)}</span>`;
+  const board = ref.fenAfter ? ` data-board="${escapeHtml(`${ref.fenAfter}|${ref.uci}`)}"` : '';
+  return `<span class="${classes}" data-ref-id="${escapeHtml(ref.refId)}" data-uci="${escapeHtml(ref.uci)}" data-san="${escapeHtml(ref.san)}"${board}${tabindex}>${escapeHtml(rawSan)}</span>`;
 }

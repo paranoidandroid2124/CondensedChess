@@ -108,6 +108,7 @@ describe('moveReview coach surface', () => {
 
     assert.match(html, /data-ref-id="main-1"/);
     assert.match(html, /data-uci="g1f3"/);
+    assert.match(html, /data-board="8\/8\/8\/8\/8\/5N2\/8\/8 b - - 1 1\|g1f3"/);
     assert.match(html, /<code class="move-review-coach__move-chip">Qh5<\/code>/);
   });
 

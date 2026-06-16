@@ -246,7 +246,7 @@
       display: grid;
       gap: 0.16rem;
       padding-bottom: 0.72rem;
-      border-bottom: 1px solid rgba($c-border, 0.78);
+      border-bottom: 1px solid color-mix(in srgb, #{$c-border} 78%, transparent);
 
       h3 {
         font-size: 1.05rem;
@@ -267,16 +267,24 @@
       display: grid;
       gap: 0.45rem;
       padding: 0.72rem 0.8rem;
-      border: 1px solid rgba($c-primary, 0.18);
+      border: 1px solid color-mix(in srgb, #{$c-primary} 18%, transparent);
       border-left: 3px solid $c-primary;
       border-radius: 8px;
-      background: linear-gradient(135deg, rgba($c-primary, 0.08), rgba($c-bg-box, 0.82));
+      background: linear-gradient(
+        135deg,
+        color-mix(in srgb, #{$c-primary} 8%, transparent),
+        color-mix(in srgb, #{$c-bg-box} 82%, transparent)
+      );
     }
 
     .move-review-coach__decision--match {
-      border-color: rgba($c-good, 0.24);
+      border-color: color-mix(in srgb, #{$c-good} 24%, transparent);
       border-left-color: $c-good;
-      background: linear-gradient(135deg, rgba($c-good, 0.08), rgba($c-bg-box, 0.82));
+      background: linear-gradient(
+        135deg,
+        color-mix(in srgb, #{$c-good} 8%, transparent),
+        color-mix(in srgb, #{$c-bg-box} 82%, transparent)
+      );
     }
 
     .move-review-coach__decision--fallback {
@@ -311,7 +319,7 @@
       font-weight: 700;
       line-height: 1;
       color: $c-primary;
-      background: rgba($c-primary, 0.1);
+      background: color-mix(in srgb, #{$c-primary} 10%, transparent);
       white-space: nowrap;
     }
 
@@ -322,15 +330,15 @@
       min-width: 0;
       padding: 0.16rem 0.44rem;
       border-radius: 999px;
-      background: rgba($c-bg-low, 0.84);
+      background: color-mix(in srgb, #{$c-bg-low} 84%, transparent);
       color: $c-font-dim;
-      box-shadow: inset 0 0 0 1px rgba($c-border, 0.8);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, #{$c-border} 80%, transparent);
     }
 
     .move-review-coach__decision-move--engine {
       color: $c-primary;
-      background: rgba($c-primary, 0.1);
-      box-shadow: inset 0 0 0 1px rgba($c-primary, 0.16);
+      background: color-mix(in srgb, #{$c-primary} 10%, transparent);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, #{$c-primary} 16%, transparent);
     }
 
     .move-review-coach__decision-move--chosen {
@@ -339,7 +347,7 @@
 
     .move-review-coach__decision-move--deferred {
       color: $c-font-dim;
-      background: rgba($m-brag_bg--mix-50, 0.2);
+      background: color-mix(in srgb, #{$m-brag_bg--mix-50} 20%, transparent);
     }
 
     .move-review-coach__decision-label {
@@ -359,7 +367,7 @@
       max-width: 100%;
       padding: 0.08rem 0.4rem;
       border-radius: 4px;
-      background: rgba($c-font, 0.06);
+      background: color-mix(in srgb, #{$c-font} 6%, transparent);
       color: $c-font;
       font-family: 'Roboto Mono', monospace;
       font-size: 0.8rem;
@@ -371,8 +379,8 @@
     .move-review-coach__move-chip.move-chip--interactive {
       cursor: pointer;
       color: $c-primary;
-      background: rgba($c-primary, 0.1);
-      box-shadow: inset 0 0 0 1px rgba($c-primary, 0.12);
+      background: color-mix(in srgb, #{$c-primary} 10%, transparent);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, #{$c-primary} 12%, transparent);
 
       &:hover {
         color: $c-bg-box;
@@ -396,7 +404,7 @@
       gap: 0.45rem;
       min-width: 0;
       padding-top: 0.72rem;
-      border-top: 1px solid rgba($c-border, 0.72);
+      border-top: 1px solid color-mix(in srgb, #{$c-border} 72%, transparent);
     }
 
     .move-review-coach__section--body {
@@ -411,12 +419,12 @@
 
     .move-review-coach__reason {
       display: grid;
-      grid-template-columns: minmax(5.8rem, 0.32fr) minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1fr);
       gap: 0.25rem 0.55rem;
       align-items: baseline;
       min-width: 0;
       padding: 0.48rem 0;
-      border-bottom: 1px solid rgba($c-border, 0.42);
+      border-bottom: 1px solid color-mix(in srgb, #{$c-border} 42%, transparent);
     }
 
     .move-review-coach__reason:last-child {
@@ -448,14 +456,14 @@
     .move-review-coach__target-chip,
     .move-review-coach__book,
     .move-review-coach__refs {
-      grid-column: 2;
+      grid-column: 1;
     }
 
     .move-review-coach__target-chip {
       justify-self: start;
       padding: 0.08rem 0.38rem;
       border-radius: 4px;
-      background: rgba($c-primary, 0.08);
+      background: color-mix(in srgb, #{$c-primary} 8%, transparent);
       color: $c-primary;
       font-size: 0.76rem;
       font-weight: 700;
@@ -475,7 +483,7 @@
       min-height: 1.25rem;
       padding: 0.06rem 0.36rem;
       border-radius: 4px;
-      background: rgba($c-font-dim, 0.08);
+      background: color-mix(in srgb, #{$c-font-dim} 8%, transparent);
       color: $c-font-dim;
       font-size: 0.74rem;
       line-height: 1.2;
@@ -501,12 +509,12 @@
 
     .move-review-coach__practice {
       display: grid;
-      grid-template-columns: minmax(5.8rem, auto) minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1fr);
       gap: 0.35rem 0.55rem;
       align-items: baseline;
       padding: 0.62rem 0.72rem;
       border-radius: 8px;
-      background: rgba($m-brag_bg--mix-50, 0.18);
+      background: color-mix(in srgb, #{$m-brag_bg--mix-50} 18%, transparent);
       color: $c-font;
 
       strong {
@@ -524,7 +532,7 @@
 
     .move-review-coach__details {
       padding-top: 0.65rem;
-      border-top: 1px solid rgba($c-border, 0.72);
+      border-top: 1px solid color-mix(in srgb, #{$c-border} 72%, transparent);
 
       summary {
         cursor: pointer;
@@ -545,7 +553,7 @@
       gap: 0.34rem;
       margin-top: 0.55rem;
       padding: 0.6rem 0;
-      border-top: 1px solid rgba($c-border, 0.52);
+      border-top: 1px solid color-mix(in srgb, #{$c-border} 52%, transparent);
     }
 
     .move-review-coach__question-head {
@@ -563,13 +571,13 @@
 
     .move-review-coach__status--resolved {
       color: $c-good;
-      background: rgba($c-good, 0.12);
+      background: color-mix(in srgb, #{$c-good} 12%, transparent);
     }
 
     .move-review-coach__status--pending,
     .move-review-coach__status--question_only {
       color: $c-font-dim;
-      background: rgba($c-font-dim, 0.08);
+      background: color-mix(in srgb, #{$c-font-dim} 8%, transparent);
     }
 
     .move-review-coach__question p,
@@ -597,19 +605,6 @@
       span {
         min-width: 0;
         overflow-wrap: anywhere;
-      }
-    }
-
-    @include mq-is-col1 {
-      .move-review-coach__reason,
-      .move-review-coach__practice {
-        grid-template-columns: 1fr;
-      }
-
-      .move-review-coach__target-chip,
-      .move-review-coach__book,
-      .move-review-coach__refs {
-        grid-column: 1;
       }
     }
 
