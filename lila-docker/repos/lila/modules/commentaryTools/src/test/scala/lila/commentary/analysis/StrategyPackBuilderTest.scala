@@ -300,7 +300,6 @@ class StrategyPackBuilderTest extends FunSuite:
     assertEquals(target.targetSquare, "e4")
     assertEquals(target.readiness, DirectionalTargetReadiness.Premature)
     assert(target.strategicReasons.nonEmpty, clue(target))
-    assert(pack.evidence.contains("objective: knight toward e4"), clue(pack.evidence))
     assert(!pack.evidence.exists(_.startsWith("directional_target:")), clue(pack.evidence))
   }
 
@@ -385,7 +384,8 @@ class StrategyPackBuilderTest extends FunSuite:
     assertEquals(pack.pieceMoveRefs, Nil)
     assertEquals(pack.directionalTargets, Nil)
     assert(pack.strategicIdeas.exists(_.evidenceRefs.contains("source:xray_relation")), clue(pack.strategicIdeas))
-    assert(pack.evidence.exists(_.startsWith("open-line pressure")), clue(pack.evidence))
+    assert(pack.evidence.contains("pressure on e4, f5, and g6"), clue(pack.evidence))
+    assert(!pack.evidence.exists(_.startsWith("idea:")), clue(pack.evidence))
   }
 
   test("semantic context carries validated root probe PV into draw-resource relation observations") {

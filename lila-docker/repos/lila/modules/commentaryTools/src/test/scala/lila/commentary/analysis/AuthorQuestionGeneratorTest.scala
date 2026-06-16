@@ -52,7 +52,7 @@ class AuthorQuestionGeneratorTest extends FunSuite:
 
   private def conversionClassification: PositionClassification =
     PositionClassification(
-      nature = NatureResult(NatureType.Static, tensionScore = 0, openFilesCount = 1, mobilityDiff = 2, lockedCenter = false),
+      nature = NatureResult(lila.commentary.analysis.L3.NatureType.Static, tensionScore = 0, openFilesCount = 1, mobilityDiff = 2, lockedCenter = false),
       criticality = CriticalityResult(CriticalityType.Normal, evalDeltaCp = 0, mateDistance = None, forcingMovesInPv = 0),
       choiceTopology = ChoiceTopologyResult(
         topologyType = ChoiceTopologyType.StyleChoice,

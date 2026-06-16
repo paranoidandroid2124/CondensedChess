@@ -3,7 +3,7 @@ package lila.commentary.analysis
 import lila.commentary.{ DirectionalTargetReadiness, MoveReviewSurfaceAuthority, StrategicIdeaGroup, StrategicIdeaKind, StrategicIdeaReadiness, StrategyDirectionalTarget, StrategyIdeaSignal, StrategyPack, StrategyPieceMoveRef, StrategyPieceRoute }
 import lila.commentary.analysis.semantic.RelationObservationCatalog
 import lila.commentary.analysis.semantic.StrategicObservationIds.{ EvidenceRef, EvidenceSourceId, ProofFamilyId, ProofSourceId }
-import lila.commentary.model.{ ConfidenceLevel, DecisionRationale, FactScope, NarrativeContext, NarrativeRenderMode, PieceActivityInfo, PreventedPlanInfo, PVDelta, TargetSquare, WeakComplexInfo }
+import lila.commentary.model.{ ConfidenceLevel, DecisionRationale, FactScope, NarrativeContext, NarrativeRenderMode, PhaseContext, PieceActivityInfo, PreventedPlanInfo, PVDelta, TargetSquare, WeakComplexInfo }
 import lila.commentary.model.authoring.AuthorQuestionKind
 import lila.commentary.model.authoring.{ PlanHypothesis, PlanViability }
 import lila.commentary.model.strategic.{ EngineEvidence, VariationLine }
