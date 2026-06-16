@@ -164,7 +164,44 @@ class CompensationDisplayPhrasingTest extends FunSuite:
     val strongSurface = StrategyPackSurface.from(Some(benkoLikeCompensationPack))
 
     assert(!CompensationDisplayPhrasing.compensationNarrationEligible(weakSurface), clue(weakSurface))
+    assertEquals(CompensationDisplayPhrasing.compensationWhyNowText(weakSurface), None)
+    assertEquals(CompensationDisplayPhrasing.compensationObjectiveText(weakSurface), None)
+    assertEquals(CompensationDisplayPhrasing.compensationPersistenceText(weakSurface), None)
+    assertEquals(CompensationDisplayPhrasing.compensationSupportText(weakSurface), Nil)
     assert(CompensationDisplayPhrasing.compensationNarrationEligible(strongSurface), clue(strongSurface))
+  }
+
+  test("compensation narration rejects prose-only line-pressure summaries without typed carriers") {
+    val proseOnlyPack =
+      StrategyPack(
+        sideToMove = "black",
+        signalDigest = Some(
+          NarrativeSignalDigest(
+            compensation = Some("return vector through line pressure and delayed recovery"),
+            compensationVectors = List("Line Pressure (0.8)", "Delayed Recovery (0.7)"),
+            investedMaterial = Some(100)
+          )
+        )
+      )
+    val surface = StrategyPackSurface.from(Some(proseOnlyPack))
+
+    assert(!CompensationDisplayPhrasing.compensationNarrationEligible(surface), clue(surface))
+    assertEquals(CompensationDisplayPhrasing.compensationWhyNowText(surface), None)
+    assertEquals(CompensationDisplayPhrasing.compensationObjectiveText(surface), None)
+    assertEquals(CompensationDisplayPhrasing.compensationPersistenceText(surface), None)
+  }
+
+  test("compensation narration requires invested material even with typed carriers") {
+    val noInvestmentPack =
+      benkoLikeCompensationPack.copy(
+        signalDigest = benkoLikeCompensationPack.signalDigest.map(_.copy(investedMaterial = None))
+      )
+    val surface = StrategyPackSurface.from(Some(noInvestmentPack))
+
+    assert(!CompensationDisplayPhrasing.compensationNarrationEligible(surface), clue(surface))
+    assertEquals(CompensationDisplayPhrasing.compensationWhyNowText(surface), None)
+    assertEquals(CompensationDisplayPhrasing.compensationObjectiveText(surface), None)
+    assertEquals(CompensationDisplayPhrasing.compensationPersistenceText(surface), None)
   }
 
   test("compensation follow-up keeps piece-head-for language concrete without generic shell phrasing") {

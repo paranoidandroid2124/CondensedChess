@@ -133,7 +133,6 @@ private[commentary] object StrategicObservationIds:
     val MotifPieceLift = register("motif_piece_lift")
     val MotifCheckPressure = register("motif_check_pressure")
     val FianchettoMotif = register("fianchetto_motif")
-    val InitiativeMotif = register("initiative_motif")
     val RouteAttackLane = register("route_attack_lane")
     val DirectionalAttackLane = register("directional_attack_lane")
     val CompensationDevelopmentLead = register("compensation_development_lead")
@@ -266,7 +265,6 @@ private[commentary] object StrategicObservationIds:
         MotifPieceLift,
         MotifCheckPressure,
         FianchettoMotif,
-        InitiativeMotif,
         RouteAttackLane,
         DirectionalAttackLane,
         CompensationDevelopmentLead,

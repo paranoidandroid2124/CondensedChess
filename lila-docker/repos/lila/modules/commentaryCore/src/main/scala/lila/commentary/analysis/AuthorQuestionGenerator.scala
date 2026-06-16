@@ -392,7 +392,7 @@ object AuthorQuestionGenerator:
 
     Option.when(changeSignal) {
       val why =
-        data.counterfactual.map(_ => "The move appears to change the practical balance compared with the missed alternative.")
+        data.counterfactual.map(_ => "The move appears to change the engine margin compared with the missed alternative.")
           .orElse(
             Option.when(data.preventedPlans.nonEmpty)(
               "The move appears to change what the opponent can do next."

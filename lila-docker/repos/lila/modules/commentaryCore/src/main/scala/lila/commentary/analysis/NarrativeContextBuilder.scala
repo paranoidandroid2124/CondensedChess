@@ -2381,7 +2381,7 @@ object NarrativeContextBuilder:
           if h.candidate.tags.exists(t => t == CandidateTag.Sharp || t == CandidateTag.TacticalGamble) || h.practicalLow == "complex" then
             NarrativeLexicon.pick(h.localSeed ^ 0x4f6cdd1d, List(
               s"${h.move} pushes for initiative immediately, but tempo accuracy is mandatory from move one.",
-              s"${h.move} seeks dynamic momentum now, so even one slow follow-up can reverse the practical balance.",
+              s"${h.move} seeks dynamic momentum now, so even one slow follow-up can let the opponent consolidate.",
               s"${h.move} is an initiative bid: concrete timing is required before the opponent consolidates.",
               s"${h.move} keeps the initiative race open, with little margin for imprecise sequencing."
             ))

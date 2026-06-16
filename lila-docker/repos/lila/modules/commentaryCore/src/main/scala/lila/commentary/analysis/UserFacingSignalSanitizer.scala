@@ -124,10 +124,6 @@ private[commentary] object UserFacingSignalSanitizer:
       }
     (literalHits ++ regexHits).distinct
 
-  def allowCompensationSupportText(raw: String): Boolean =
-    val text = sanitize(raw).trim
-    PlayerFacingSupportPolicy.allowCompensationSupportText(text)
-
   private def humanizeLabel(raw: String): String =
     Option(raw).getOrElse("").replace('_', ' ').replace('-', ' ').trim
 

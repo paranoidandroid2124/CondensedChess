@@ -457,14 +457,6 @@ private[commentary] object StrategicIdeaSelector:
         }
         .toList
         .flatten
-    val initiativeMotifPriority =
-      Option
-        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.InitiativeMotif).wireKey)) {
-          EvidenceRef.Source(EvidenceSourceId.InitiativeMotif).wireKey ::
-            refs.filter(ref => ref == "initiative_motif_shape" || ref.startsWith("initiative_score_"))
-        }
-        .toList
-        .flatten
     val motifBatteryPriority =
       Option
         .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.MotifBattery).wireKey)) {
@@ -888,7 +880,6 @@ private[commentary] object StrategicIdeaSelector:
         motifPieceLiftPriority ++
         motifCheckPressurePriority ++
         fianchettoMotifPriority ++
-        initiativeMotifPriority ++
         motifBatteryPriority ++
         routeLinePriority ++
         kingRingPressurePriority ++

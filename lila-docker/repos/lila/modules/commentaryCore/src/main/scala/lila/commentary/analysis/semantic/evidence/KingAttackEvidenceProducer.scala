@@ -211,18 +211,6 @@ private[commentary] object KingAttackEvidenceProducer extends StrategicIdeaEvide
               factIds = List("fianchetto_motif_shape", s"fianchetto_side_$sideKey")
             )
           )
-        case Motif.Initiative(color, score, _, _) if matchesSide(color, side) && score >= 10 =>
-          Some(
-            evidence(
-              ownerSide = side,
-              kind = StrategicIdeaKind.KingAttackBuildUp,
-              readiness = StrategicIdeaReadiness.Build,
-              source = EvidenceSourceId.InitiativeMotif,
-              confidence = 0.70 + math.min(0.04, (score - 10) * 0.005),
-              focusZone = enemyKingZone,
-              factIds = List("initiative_motif_shape", s"initiative_score_$score")
-            )
-          )
         case motif @ Motif.PawnAdvance(file, _, _, color, _, _) if matchesSide(color, side) =>
           val fileKey = fileToken(file)
           Option

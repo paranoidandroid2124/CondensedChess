@@ -1272,16 +1272,6 @@ object MoveReviewPlayerPayloadBuilder:
                     idea.readiness == StrategicIdeaReadiness.Build &&
                     strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
                     idea.confidence >= 0.70
-                val initiativeMotif =
-                  !exactAttackAlreadyVisible &&
-                    !broadAttackShell &&
-                    refs.contains("source:initiative_motif") &&
-                    refs.contains("initiative_motif_shape") &&
-                    refs.exists(ref => ref.stripPrefix("initiative_score_").toIntOption.exists(_ >= 10)) &&
-                    focusZone.nonEmpty &&
-                    idea.readiness == StrategicIdeaReadiness.Build &&
-                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
-                    idea.confidence >= 0.70
                 val attackSurface =
                   if ambiguousAttackLane || broadAttackShell then None
                   else if fianchettoAssault then Some("Practical attack" -> "The fianchetto-shell structure gives a practical opposite-side attack cue.")
@@ -1331,8 +1321,6 @@ object MoveReviewPlayerPayloadBuilder:
                         Some("Practical attack" -> "The check motif gives a practical attacking cue.")
                   else if fianchettoMotif then
                     Some("Practical attack" -> "The fianchettoed bishop gives a practical long-diagonal cue.")
-                  else if initiativeMotif then
-                    Some("Practical attack" -> "The current initiative gives a practical attacking cue.")
                   else None
                 attackSurface.flatMap { case (label, text) =>
                   row(label, text, tone = Some("practical")).map(_.copy(authority = PracticalPlanAuthority))
@@ -1412,10 +1400,7 @@ object MoveReviewPlayerPayloadBuilder:
         .take(MaxCompensationRows)
 
   private def compensationRowsEligible(surface: StrategyPackSurface.Snapshot): Boolean =
-    surface.strictCompensationPosition &&
-      surface.compensationContractResolved &&
-      surface.strictCompensationSubtype.exists(_.durablePressure) &&
-      StrategyPackSurface.strictCompensationSubtypeLabel(surface).nonEmpty &&
+    StrategyPackSurface.strictCompensationSubtypeLabel(surface).nonEmpty &&
       CompensationDisplayPhrasing.compensationNarrationEligible(surface)
 
   private def strategicRelationRow(

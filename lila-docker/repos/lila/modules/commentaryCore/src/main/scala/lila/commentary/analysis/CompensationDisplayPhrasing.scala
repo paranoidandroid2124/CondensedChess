@@ -1,5 +1,7 @@
 package lila.commentary.analysis
 
+import lila.commentary.{ StrategicIdeaKind, StrategyIdeaSignal }
+
 private[analysis] object CompensationDisplayPhrasing:
 
   import StrategyPackSurface.*
@@ -53,6 +55,38 @@ private[analysis] object CompensationDisplayPhrasing:
 
   private def concreteCompensationWindow(surface: Snapshot): Option[String] =
     anchoredCompensationWindow(surface).filter(hasStrongCompensationAnchor)
+
+  private def publicCompensationContract(surface: Snapshot): Boolean =
+    surface.investedMaterial.exists(_ > 0) &&
+      surface.strictCompensationPosition &&
+      surface.compensationContractResolved &&
+      surface.strictCompensationSubtype.exists(subtype =>
+        subtype.durablePressure && hasTypedCompensationCarrier(surface, subtype)
+      )
+
+  private def hasTypedCompensationCarrier(surface: Snapshot, subtype: CompensationSubtype): Boolean =
+    StrategyPackSurface.alignedRoute(surface, subtype).nonEmpty ||
+      StrategyPackSurface.alignedMoveRef(surface, subtype).nonEmpty ||
+      StrategyPackSurface.alignedDirectionalTarget(surface, subtype).nonEmpty ||
+      surface.allIdeas.exists(idea => ideaSupportsCompensationSubtype(idea, subtype))
+
+  private def ideaSupportsCompensationSubtype(idea: StrategyIdeaSignal, subtype: CompensationSubtype): Boolean =
+    val hasSquare = idea.focusSquares.exists(_.trim.nonEmpty)
+    val hasFile = idea.focusFiles.exists(_.trim.nonEmpty)
+    val hasZone = idea.focusZone.exists(_.trim.nonEmpty)
+    subtype.pressureMode match
+      case "target_fixing" =>
+        idea.kind == StrategicIdeaKind.TargetFixing && hasSquare
+      case "line_occupation" =>
+        idea.kind == StrategicIdeaKind.LineOccupation && (hasFile || hasSquare)
+      case "counterplay_denial" =>
+        idea.kind == StrategicIdeaKind.CounterplaySuppression && (hasSquare || hasFile || hasZone)
+      case "break_preparation" =>
+        idea.kind == StrategicIdeaKind.PawnBreak && (hasFile || hasSquare)
+      case "defender_tied_down" =>
+        idea.kind == StrategicIdeaKind.CounterplaySuppression && (hasSquare || hasFile || hasZone)
+      case _ =>
+        false
 
   private def compensationIdeaSignature(text: String): String =
     val step1 = StrategyPackSurface.normalizeText(text).toLowerCase
@@ -108,7 +142,7 @@ private[analysis] object CompensationDisplayPhrasing:
     }
 
   def compensationNarrationEligible(surface: Snapshot): Boolean =
-    if !surface.compensationPosition then false
+    if !publicCompensationContract(surface) then false
     else
       val concreteGiven = surface.investedMaterial.exists(_ > 0)
       val concreteGained =
@@ -173,9 +207,9 @@ private[analysis] object CompensationDisplayPhrasing:
       case CompensationSubtype(_, "counterplay_denial", _, _) =>
         "keeping the extra pawn from getting active"
       case CompensationSubtype("kingside", "break_preparation", _, _) =>
-        "a break-driven initiative against the king"
+        "kingside break pressure"
       case CompensationSubtype("kingside", "defender_tied_down", _, _) =>
-        "initiative while the defenders stay tied to the king"
+        "pressure while the defenders stay tied to the king"
       case CompensationSubtype(_, "defender_tied_down", _, _) =>
         "tying the defenders to a passive shell"
       case CompensationSubtype(_, "conversion_window", _, _) =>
@@ -185,7 +219,7 @@ private[analysis] object CompensationDisplayPhrasing:
     }
 
   def compensationPersistenceText(surface: Snapshot): Option[String] =
-    surface.effectiveCompensationSubtype.map {
+    surface.strictCompensationSubtype.map {
       case CompensationSubtype("queenside", "target_fixing", _, _) =>
         "the fixed queenside targets stay under pressure"
       case CompensationSubtype("queenside", "line_occupation", _, "durable_pressure") =>
@@ -214,10 +248,6 @@ private[analysis] object CompensationDisplayPhrasing:
 
   private def anchoredCompensationWindow(surface: Snapshot): Option[String] =
     surface.compensationSummary.map(StrategyPackSurface.normalizeText).flatMap {
-      case other if other.equalsIgnoreCase("initiative against the king") =>
-        Some("the initiative against the king stays alive")
-      case other if other.equalsIgnoreCase("attack on king") =>
-        Some("the attack against the king stays alive")
       case other if other.toLowerCase.startsWith("initiative ") &&
           LiveNarrativeCompressionCore.hasConcreteAnchor(other) =>
         Some(s"${other.toLowerCase} stays alive")
@@ -262,107 +292,69 @@ private[analysis] object CompensationDisplayPhrasing:
     s"That only works while $window."
 
   def compensationWhyNowText(surface: Snapshot): Option[String] =
-    Option.when(surface.compensationPosition) {
-      if !surface.normalizationActive then
-        val attackLed =
-          surface.preferRawAttackDisplay ||
-            surface.rawDominantIdeaText.exists(_.toLowerCase.contains("king attack")) ||
-            surface.compensationSummary.exists(_.toLowerCase.contains("initiative")) ||
-            surface.compensationVectors.exists(_.toLowerCase.contains("initiative"))
-        if attackLed then
-          concreteCompensationWindow(surface).orElse(anchoredCompensationWindow(surface))
-            .map(compensationClaimFromWindow)
-            .getOrElse("The move gives up material to keep the attack against the king alive.")
-        else
-          concreteCompensationWindow(surface).orElse(anchoredCompensationWindow(surface))
-            .map(compensationClaimFromWindow)
-            .getOrElse("The move gives up material to keep the initiative against the king alive.")
-      else
-        surface.effectiveCompensationSubtype match
-          case Some(CompensationSubtype("queenside", "target_fixing", _, _)) =>
+    Option.when(publicCompensationContract(surface))(surface.strictCompensationSubtype).flatten.flatMap {
+      case CompensationSubtype("queenside", "target_fixing", _, _) =>
             concreteCompensationWindow(surface)
               .map(compensationClaimFromWindow)
-              .getOrElse("The move gives up material to keep the queenside targets tied down.")
-          case Some(CompensationSubtype("center", "target_fixing", _, _)) =>
+              .orElse(Some("The move gives up material to keep the queenside targets tied down."))
+      case CompensationSubtype("center", "target_fixing", _, _) =>
             concreteCompensationWindow(surface)
               .map(compensationClaimFromWindow)
-              .getOrElse("The move gives up material to keep the central targets under pressure.")
-          case Some(CompensationSubtype("queenside", "line_occupation", _, "durable_pressure")) =>
+              .orElse(Some("The move gives up material to keep the central targets under pressure."))
+      case CompensationSubtype("queenside", "line_occupation", _, "durable_pressure") =>
             concreteCompensationWindow(surface)
               .map(compensationClaimFromWindow)
-              .getOrElse("The move gives up material to keep the queenside files active.")
-          case Some(CompensationSubtype("center", "line_occupation", _, "durable_pressure")) =>
+              .orElse(Some("The move gives up material to keep the queenside files active."))
+      case CompensationSubtype("center", "line_occupation", _, "durable_pressure") =>
             concreteCompensationWindow(surface)
               .map(compensationClaimFromWindow)
-              .getOrElse("The move gives up material to keep the central files active.")
-          case Some(CompensationSubtype(_, "line_occupation", _, "durable_pressure")) =>
+              .orElse(Some("The move gives up material to keep the central files active."))
+      case CompensationSubtype(_, "line_occupation", _, "durable_pressure") =>
             concreteCompensationWindow(surface)
               .map(compensationClaimFromWindow)
-              .getOrElse("The move gives up material to keep the open lines active.")
-          case Some(CompensationSubtype(_, "counterplay_denial", _, _)) =>
-            "The move gives up material to keep the extra pawn quiet."
-          case Some(CompensationSubtype("kingside", "break_preparation", _, _)) =>
-            "The move gives up material to keep the break ready."
-          case Some(CompensationSubtype("kingside", "defender_tied_down", _, _)) =>
-            "The move gives up material to keep the defenders tied to the king."
-          case Some(CompensationSubtype(_, "conversion_window", _, _)) =>
-            "The point is to force the favorable exchanges before winning the material back."
-          case Some(_) =>
-            anchoredCompensationWindow(surface)
-              .map(compensationClaimFromWindow)
-              .getOrElse("The move gives up material to keep the initiative against the king alive.")
-          case None =>
-            anchoredCompensationWindow(surface)
-              .map(compensationClaimFromWindow)
-              .getOrElse("The move gives up material to keep the initiative against the king alive.")
+              .orElse(Some("The move gives up material to keep the open lines active."))
+      case CompensationSubtype(_, "counterplay_denial", _, _) =>
+        Some("The move gives up material to keep the extra pawn quiet.")
+      case CompensationSubtype("kingside", "break_preparation", _, _) =>
+        Some("The move gives up material to keep the break ready.")
+      case CompensationSubtype("kingside", "defender_tied_down", _, _) =>
+        Some("The move gives up material to keep the defenders tied to the king.")
+      case CompensationSubtype(_, "conversion_window", _, _) =>
+        Some("The point is to force the favorable exchanges before winning the material back.")
+      case _ =>
+        anchoredCompensationWindow(surface).map(compensationClaimFromWindow)
     }
 
   def compensationObjectiveText(surface: Snapshot): Option[String] =
-    Option.when(surface.compensationPosition) {
-      surface.effectiveCompensationSubtype match
-        case Some(CompensationSubtype("queenside", "target_fixing", _, _)) =>
+    Option.when(publicCompensationContract(surface))(surface.strictCompensationSubtype).flatten.flatMap {
+      case CompensationSubtype("queenside", "target_fixing", _, _) =>
           concreteCompensationWindow(surface)
             .map(compensationConditionFromWindow)
-            .getOrElse("That only works while the queenside targets stay tied down.")
-        case Some(CompensationSubtype("center", "target_fixing", _, _)) =>
+            .orElse(Some("That only works while the queenside targets stay tied down."))
+      case CompensationSubtype("center", "target_fixing", _, _) =>
           concreteCompensationWindow(surface)
             .map(compensationConditionFromWindow)
-            .getOrElse("That only works while the central targets stay under pressure.")
-        case Some(CompensationSubtype(_, "line_occupation", _, "durable_pressure")) =>
+            .orElse(Some("That only works while the central targets stay under pressure."))
+      case CompensationSubtype(_, "line_occupation", _, "durable_pressure") =>
           concreteCompensationWindow(surface)
             .map(compensationConditionFromWindow)
-            .getOrElse("That only works while the open lines stay active.")
-        case Some(CompensationSubtype(_, "counterplay_denial", _, _)) =>
-          "That only works while the extra pawn still cannot get active."
-        case Some(CompensationSubtype("kingside", "break_preparation", _, _)) =>
-          "This works only while the break still has to be respected."
-        case Some(CompensationSubtype(_, "conversion_window", _, _)) =>
-          "The point is to force the favorable exchanges before winning the material back."
-        case Some(_) =>
+            .orElse(Some("That only works while the open lines stay active."))
+      case CompensationSubtype(_, "counterplay_denial", _, _) =>
+        Some("That only works while the extra pawn still cannot get active.")
+      case CompensationSubtype("kingside", "break_preparation", _, _) =>
+        Some("This works only while the break still has to be respected.")
+      case CompensationSubtype(_, "conversion_window", _, _) =>
+        Some("The point is to force the favorable exchanges before winning the material back.")
+      case _ =>
           concreteCompensationWindow(surface).orElse(anchoredCompensationWindow(surface))
             .map(compensationConditionFromWindow)
-            .getOrElse("That only works while the initiative against the king is still there.")
-        case None =>
-          surface.objectiveText.map { obj =>
-            StrategicSentenceRenderer.pieceHeadFor(obj)
-              .map { case (piece, square) => s"That only works while the $piece can head for $square." }
-              .getOrElse {
-                val other = StrategyPackSurface.normalizeText(obj)
-                if other.toLowerCase.startsWith("pressure ") then
-                  s"That only works while $other is still there."
-                else s"The point is to keep $other in play before winning the material back."
-              }
-          }.orElse(
-            concreteCompensationWindow(surface).orElse(anchoredCompensationWindow(surface))
-              .map(compensationConditionFromWindow)
-          ).getOrElse("That only works while the initiative against the king is still there.")
     }
 
   def compensationExecutionTail(surface: Snapshot): Option[String] =
     compensationExecutionCue(surface).flatMap(StrategicSentenceRenderer.renderCompensationFollowUpFromExecution)
 
   def compensationSupportText(surface: Snapshot): List[String] =
-    surface.effectiveCompensationSubtype.toList.flatMap {
+    surface.strictCompensationSubtype.toList.flatMap {
       case CompensationSubtype("queenside", "target_fixing", "intentionally_deferred", _) =>
         List(
           "Keep the queenside targets tied down before thinking about the material."

@@ -1176,7 +1176,7 @@ class StrategicIdeaSelectorTest extends FunSuite:
     assert(attackIdea.evidenceRefs.contains("fianchetto_side_kingside"), clue(attackIdea.evidenceRefs))
   }
 
-  test("initiative motif keeps pressure witnesses for support surface") {
+  test("generic initiative motif does not become king-attack support by itself") {
     val semantic =
       StrategicIdeaSemanticContext(
         sideToMove = "white",
@@ -1185,13 +1185,8 @@ class StrategicIdeaSelectorTest extends FunSuite:
       )
 
     val ideas = StrategicIdeaSelector.select(StrategyPack(sideToMove = "white"), semantic)
-    val attackIdea =
-      ideas.find(_.evidenceRefs.contains("source:initiative_motif")).getOrElse(fail(clue(ideas).toString))
 
-    assertEquals(attackIdea.kind, StrategicIdeaKind.KingAttackBuildUp)
-    assertEquals(attackIdea.focusZone, Some("kingside"))
-    assert(attackIdea.evidenceRefs.contains("initiative_motif_shape"), clue(attackIdea.evidenceRefs))
-    assert(attackIdea.evidenceRefs.contains("initiative_score_12"), clue(attackIdea.evidenceRefs))
+    assert(!ideas.exists(_.evidenceRefs.contains("source:initiative_motif")), clue(ideas))
   }
 
   test("weak-back-rank motif keeps enemy-back-rank witnesses for support surface") {

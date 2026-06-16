@@ -7,7 +7,7 @@ import munit.FunSuite
 import play.api.libs.json.Json
 
 import lila.commentary.*
-import lila.commentary.analysis.{ MoveReviewPvLine, UserFacingSignalSanitizer }
+import lila.commentary.analysis.MoveReviewPvLine
 import lila.commentary.model.StrategicPlanExperiment
 import lila.commentary.model.authoring.*
 import lila.commentary.model.strategic.VariationLine
@@ -812,12 +812,6 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
     assertEquals(parsed.quietSupportCandidateVerbFamily, Some("keeps available"))
     assertEquals(parsed.quietSupportCandidateText, Some("This keeps the route toward c4 available."))
     assertEquals(parsed.quietSupportFactualSentence, Some("The route toward c4 stays available."))
-  }
-
-  test("allowCompensationSupportText keeps only concrete compensation support phrasing") {
-    assert(!UserFacingSignalSanitizer.allowCompensationSupportText("Winning the material back can wait because the open lines stay active."))
-    assert(UserFacingSignalSanitizer.allowCompensationSupportText("Winning the material back can wait because pressure on d4 is still there."))
-    assert(UserFacingSignalSanitizer.allowCompensationSupportText("The rooks can take over the queenside files next."))
   }
 
   test("ReviewQueueEntry reads legacy rows without audit metadata") {

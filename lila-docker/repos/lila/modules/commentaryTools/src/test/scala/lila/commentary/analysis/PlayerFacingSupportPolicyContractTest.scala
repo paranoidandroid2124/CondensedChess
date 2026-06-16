@@ -8,11 +8,9 @@ import play.api.libs.json.*
 class PlayerFacingSupportPolicyContractTest extends FunSuite:
 
   private case class LabelCase(raw: String, expected: String)
-  private case class CompensationCase(raw: String, allowed: Boolean)
-  private case class ContractFile(labelCases: List[LabelCase], compensationCases: List[CompensationCase])
+  private case class ContractFile(labelCases: List[LabelCase])
 
   private given Reads[LabelCase] = Json.reads[LabelCase]
-  private given Reads[CompensationCase] = Json.reads[CompensationCase]
   private given Reads[ContractFile] = Json.reads[ContractFile]
 
   private val contract: ContractFile =
@@ -25,16 +23,6 @@ class PlayerFacingSupportPolicyContractTest extends FunSuite:
       assertEquals(
         PlayerFacingSupportPolicy.cleanNarrativeSurfaceLabel(entry.raw),
         entry.expected,
-        clue(entry)
-      )
-    }
-  }
-
-  test("compensation support filtering matches shared contract") {
-    contract.compensationCases.foreach { entry =>
-      assertEquals(
-        UserFacingSignalSanitizer.allowCompensationSupportText(entry.raw),
-        entry.allowed,
         clue(entry)
       )
     }

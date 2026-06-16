@@ -1663,13 +1663,13 @@ private[commentary] object QuestionFirstCommentaryPlanner:
         .map { loss =>
           value.deferredMove
             .filter(_.trim.nonEmpty)
-            .map(move => s"This changes the practical balance by keeping about ${loss}cp that would drift toward $move.")
+            .map(move => s"This changes the engine margin by keeping about ${loss}cp that would drift toward $move.")
             .orElse(
               value.deferredReason
                 .filter(_.trim.nonEmpty)
-                .map(reason => s"This changes the practical balance by preserving about ${loss}cp: $reason.")
+                .map(reason => s"This changes the engine margin by preserving about ${loss}cp: $reason.")
             )
-            .getOrElse(s"This changes the practical balance by preserving about ${loss}cp.")
+            .getOrElse(s"This changes the engine margin by preserving about ${loss}cp.")
         }
         )
     }
@@ -1697,7 +1697,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
           value.cpLossVsChosen
         .map(math.abs)
         .filter(_ >= 60)
-        .map(loss => s"That keeps roughly ${loss}cp of practical value from slipping away.")
+        .map(loss => s"That keeps roughly ${loss}cp of engine margin from slipping away.")
         )
     }
 
@@ -2866,7 +2866,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
   ): Option[QuestionPlanConsequence] =
     comparison.flatMap { value =>
       value.cpLossVsChosen.map(math.abs).filter(_ >= 60).map { loss =>
-        wrapUpConsequence(s"That preserves roughly ${loss}cp of practical value that drifting would give back.")
+        wrapUpConsequence(s"That preserves roughly ${loss}cp of engine margin that drifting would give back.")
       }
     }
 

@@ -481,7 +481,7 @@ object NarrativeLexicon {
             "Both sides must stay precise"
           ),
           List(
-            "the next move can redefine the practical balance",
+            "the next move can change the evaluation",
             "coordination and calculation are both under pressure",
             "the position is less stable than it first appears",
             "a small imbalance can have outsized consequences"
@@ -928,7 +928,7 @@ object NarrativeLexicon {
         s"$route$pivot marked the exchange turning point, with exchange timing starting to define the evaluation.",
         s"From $route$pivot, the decisive shift was the exchange sequence and resulting simplification.",
         s"$route$pivot became the turning point once exchanges reshaped piece activity and defensive resources.",
-        s"The critical turning point was $route$pivot, where exchange decisions fixed the practical balance.",
+        s"The critical turning point was $route$pivot, where exchange decisions shaped the resulting balance.",
         s"Structural clarity was reached at $route$pivot through a series of forcing exchanges.",
         s"The game transformed at $route$pivot as the exchange sequence reduced the tactical Fog of War."
       )

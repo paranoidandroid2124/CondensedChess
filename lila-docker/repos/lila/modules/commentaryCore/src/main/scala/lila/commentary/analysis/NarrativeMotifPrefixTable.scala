@@ -140,7 +140,7 @@ private[analysis] object NarrativeMotifPrefixTable:
     ), blockedKeys = List("liquidate", "liquidation"), allow = (normalized, ply) => !(hasAnyMotif(normalized, List("bad_bishop")) && ply >= 30)),
     MotifPrefixRule(List("opposite_bishops"), List(
       "Opposite-colored bishops sharpen attacking chances.",
-      "With opposite-colored bishops, king attacks gain practical value.",
+      "With opposite-colored bishops, king-safety details can matter more.",
       "Opposite-colored bishops increase both drawing and attacking resources."
     )),
     MotifPrefixRule(List("underpromotion"), List(

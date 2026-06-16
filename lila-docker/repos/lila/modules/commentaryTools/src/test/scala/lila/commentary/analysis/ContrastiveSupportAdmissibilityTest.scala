@@ -245,7 +245,7 @@ class ContrastiveSupportAdmissibilityTest extends FunSuite:
           consequence =
             Some(
               QuestionPlanConsequence(
-                "That preserves roughly 80cp of practical value that drifting would give back.",
+                "That preserves roughly 80cp of engine margin that drifting would give back.",
                 QuestionPlanConsequenceBeat.WrapUp
               )
             )
@@ -263,7 +263,7 @@ class ContrastiveSupportAdmissibilityTest extends FunSuite:
     assert(trace.contrast_consequence.exists(_.contains("preserves roughly 80cp")))
     assert(
       trace.effectiveSupport(None).contains(
-        "If delayed, O-O-O is still the move that preserves roughly 80cp of practical value that drifting would give back."
+        "If delayed, O-O-O is still the move that preserves roughly 80cp of engine margin that drifting would give back."
       )
     )
   }
@@ -291,7 +291,7 @@ class ContrastiveSupportAdmissibilityTest extends FunSuite:
           consequence =
             Some(
               QuestionPlanConsequence(
-                "That preserves roughly 80cp of practical value that drifting would give back.",
+                "That preserves roughly 80cp of engine margin that drifting would give back.",
                 QuestionPlanConsequenceBeat.WrapUp
               )
             )

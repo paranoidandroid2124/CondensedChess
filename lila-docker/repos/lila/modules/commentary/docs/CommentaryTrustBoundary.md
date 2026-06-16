@@ -184,7 +184,15 @@ The surface renderer may say:
   the runtime anchors.
   Material-deficit compensation batteries or development leads may surface only
   as compensation pressure unless a separate concrete attack lane, check,
-  threat, or tactical owner proves a public attack claim.
+  threat, or tactical owner proves a public attack claim. Generic initiative
+  motifs are practical context, not `KingAttackBuildUp` authority or public
+  `Practical attack` rows without a separate attack mechanism. Public
+  compensation rows require invested-material evidence, a strict resolved
+  compensation subtype, and durable pressure anchors carried by a typed route,
+  move ref, directional target, or typed strategic idea; raw compensation
+  summaries or vectors are not enough. Centipawn loss from a counterfactual or
+  decision comparison is engine-margin evidence, not practical-difficulty
+  authority, unless a separate typed practical witness is present.
   Played-first rook-pawn hook/march facts may enter here only from board state
   before/after the reviewed move, not from practical-row text;
 - practical central challenge: only when `CentralBreakTimingWitness.practical`

@@ -3224,11 +3224,11 @@ object NarrativeOutlineBuilder:
   private def candidateFallbackObservation(candidate: CandidateInfo, bead: Int): String =
     val move = candidate.move
     NarrativeLexicon.pick(bead ^ Math.abs(move.hashCode), List(
-      s"$move reshapes the practical balance",
+      s"$move changes the candidate comparison",
       s"$move redirects the strategic route",
       s"$move shifts which plan branch is simplest to handle",
       s"$move alters the strategic map for both sides",
-      s"$move shifts the practical focus of the position",
+      s"$move shifts the position's main focus",
       s"The move $move introduces a new strategic branch"
     ))
 

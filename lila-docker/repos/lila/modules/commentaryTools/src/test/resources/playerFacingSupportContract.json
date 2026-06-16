@@ -9,19 +9,5 @@
     { "raw": "Opening Development and Center Control", "expected": "Development and central control" },
     { "raw": "Kingside Pawn Storm", "expected": "kingside pawn storm" },
     { "raw": "Rook Pawn March To Gain Flank Space", "expected": "Gaining flank space with a rook pawn" }
-  ],
-  "compensationCases": [
-    {
-      "raw": "Winning the material back can wait because the open lines stay active.",
-      "allowed": false
-    },
-    {
-      "raw": "Winning the material back can wait because pressure on d4 is still there.",
-      "allowed": true
-    },
-    {
-      "raw": "The rooks can take over the queenside files next.",
-      "allowed": true
-    }
   ]
 }

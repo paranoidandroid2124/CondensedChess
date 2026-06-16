@@ -8459,12 +8459,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(initiativeMotifSurface.advancedRows.map(_.label), List("Practical attack"), clue(initiativeMotifSurface.advancedRows))
-    assertEquals(
-      initiativeMotifSurface.advancedRows.head.text,
-      "The current initiative gives a practical attacking cue."
-    )
-    assertEquals(initiativeMotifSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assert(!initiativeMotifSurface.advancedRows.exists(_.label == "Practical attack"), clue(initiativeMotifSurface.advancedRows))
 
     val initiativeMotifSourceOnlySurface =
       build(

@@ -4,45 +4,6 @@ import scala.util.matching.Regex
 
 private[commentary] object PlayerFacingSupportPolicy:
 
-  private val supportAbstractPattern =
-    """(?i)\b(initiative|counterplay|compensation|conversion|pressure|attack|plan|campaign|objective|execution)\b""".r
-  private val supportConcretePatterns: List[Regex] = List(
-    """(?i)\b[a-h][1-8]\b""".r,
-    """(?i)\b[a-h]-file\b""".r,
-    """(?i)\b(queenside|kingside|central|open)\s+files?\b""".r,
-    """(?i)\b(queenside|kingside|central|fixed)\s+targets?\b""".r,
-    """(?i)\b(light|dark)-squared\b""".r,
-    """(?i)\b(exchange|trade|recapture|pawn break|break|castling|castle|back-rank)\b""".r,
-    """(?:^|\s)(?:\d+\.(?:\.\.)?\s*)?(?:O-O(?:-O)?|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?)""".r,
-    """\.\.\.(?:O-O(?:-O)?|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?)""".r,
-    """(?i)\b(king|queen|rook|bishop|knight|pawn)s?\b""".r
-  )
-
-  private val compensationAbstractSupportRows: List[Regex] = List(
-    """(?i)^improving piece placement$""".r,
-    """(?i)^development and central control$""".r,
-    """(?i)^immediate counterplay$""".r,
-    """(?i)^attacking a fixed pawn$""".r,
-    """(?i)^using the space advantage$""".r,
-    """(?i)^simplifying with favorable exchanges$""".r,
-    """(?i)^simplifying toward an endgame$""".r,
-    """(?i)^kingside pawn storm$""".r,
-    """(?i)^gaining flank space with a rook pawn$""".r
-  )
-  private val compensationRelevantPattern =
-    """(?i)\b(material can wait|winning the material back|compensation|initiative|pressure|attack|open lines?|open files?|queenside files?|central files?|queenside targets?|central targets?|fixed targets?|defenders?|extra pawn)\b""".r
-  private val compensationStrongAnchorPatterns: List[Regex] = List(
-    """(?i)\b[a-h][1-8]\b""".r,
-    """(?i)\b[a-h]-file\b""".r,
-    """(?i)\bpressure (?:on|against|along)\b""".r,
-    """(?i)\b(?:queen|rook|bishop|knight|king|pawn)s?\b.*\b(?:queenside|central|open)\s+files?\b""".r,
-    """(?i)\b(?:queen|rook|bishop|knight|king|pawn)s?\b.*\b(?:can head for|heads? for|to)\s+[a-h][1-8]\b""".r,
-    """(?i)\bdefenders?\b.*\bking\b""".r,
-    """(?i)\bextra pawn\b.*\bactive\b""".r,
-    """(?i)\b[a-h]-break\b""".r,
-    """(?:^|\s)(?:\d+\.(?:\.\.)?\s*)?(?:O-O(?:-O)?|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?)""".r
-  )
-
   def cleanNarrativeSurfaceLabel(raw: String): String =
     val cleaned =
       humanizeToken(
@@ -83,22 +44,6 @@ private[commentary] object PlayerFacingSupportPolicy:
     ).foldLeft(text) { case (acc, (pattern, rewrite)) =>
       pattern.replaceAllIn(acc, rewrite)
     }
-
-  def allowPlayerFacingSupportText(text: String): Boolean =
-    Option(text).exists { value =>
-      value.nonEmpty && (
-        supportAbstractPattern.findFirstIn(value).isEmpty ||
-          supportConcretePatterns.exists(_.findFirstIn(value).nonEmpty)
-      )
-    }
-
-  def allowCompensationSupportText(text: String): Boolean =
-    text.nonEmpty &&
-      !compensationAbstractSupportRows.exists(_.findFirstIn(text).nonEmpty) &&
-      (
-        compensationRelevantPattern.findFirstIn(text).isEmpty ||
-          compensationStrongAnchorPatterns.exists(_.findFirstIn(text).nonEmpty)
-      )
 
   private def humanizeToken(raw: String): String =
     Option(raw)
