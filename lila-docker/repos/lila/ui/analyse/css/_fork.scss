@@ -1,4 +1,9 @@
 $c-fork: $c-primary;
+$fork-border: color-mix(in srgb, #{$c-primary} 16%, #{$c-border});
+$fork-bg: color-mix(in srgb, #{$c-primary} 8%, #{$c-bg-low});
+$fork-active-bg: color-mix(in srgb, #{$c-primary} 18%, #{$c-bg-low});
+$fork-correct-bg: color-mix(in srgb, #{$c-primary} 15%, #{$c-bg-low});
+$fork-wrong-bg: color-mix(in srgb, #{$c-bad} 11%, #{$c-bg-low});
 
 .analyse__fork {
   @extend %flex-center;
@@ -8,22 +13,23 @@ $c-fork: $c-primary;
   move {
     @include prevent-select;
     @extend %san, %flex-center;
-    background: $m-primary_bg--mix-25;
-    color: $c-font-clear;
+    background: $fork-bg;
+    color: $c-font;
     flex: 0 0 50%;
     cursor: pointer;
     padding: 0.2em 1em;
-    border-bottom: 1px solid $c-bg-box;
+    border-bottom: 1px solid $fork-border;
     -webkit-touch-callout: none;
 
     &:nth-child(odd) {
-      border-inline-end: 1px solid $c-bg-box;
+      border-inline-end: 1px solid $fork-border;
     }
     &.correct {
-      background: $m-secondary_bg--mix-25;
+      background: $fork-correct-bg;
     }
     &.wrong {
-      background: $m-bad_bg--mix-25;
+      background: $fork-wrong-bg;
+      color: color-mix(in srgb, #{$c-bad} 72%, #{$c-font});
     }
   }
 
@@ -32,7 +38,7 @@ $c-fork: $c-primary;
       justify-content: center;
       padding-block: 0.5em;
       font-size: 1.5em;
-      border: 1px solid $c-bg-box;
+      border: 1px solid $fork-border;
       flex: 1 1 auto;
       index,
       eval {
@@ -58,13 +64,15 @@ $c-fork: $c-primary;
   @media (hover: hover) {
     move:hover,
     &:not(:hover) move.selected {
-      background: $c-fork;
-      color: #fff;
+      background: $fork-active-bg;
+      color: color-mix(in srgb, #{$c-fork} 78%, #{$c-font});
       &.correct {
-        background: $c-secondary;
+        background: color-mix(in srgb, #{$c-primary} 24%, #{$c-bg-low});
+        color: $c-font;
       }
       &.wrong {
-        background: $c-bad;
+        background: color-mix(in srgb, #{$c-bad} 18%, #{$c-bg-low});
+        color: color-mix(in srgb, #{$c-bad} 78%, #{$c-font});
       }
     }
   }

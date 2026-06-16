@@ -9,6 +9,7 @@ const narrativeScss = readFileSync(fileURLToPath(new URL('../css/_narrative.scss
 const sideScss = readFileSync(fileURLToPath(new URL('../css/_side.scss', import.meta.url)), 'utf8');
 const commentaryWidgetScss = readFileSync(fileURLToPath(new URL('../css/_commentary.widget.scss', import.meta.url)), 'utf8');
 const explorerScss = readFileSync(fileURLToPath(new URL('../css/explorer/_explorer.scss', import.meta.url)), 'utf8');
+const forkScss = readFileSync(fileURLToPath(new URL('../css/_fork.scss', import.meta.url)), 'utf8');
 const homeScss = readFileSync(fileURLToPath(new URL('../../site/css/_home.scss', import.meta.url)), 'utf8');
 const landingScss = readFileSync(fileURLToPath(new URL('../../site/css/_landing.scss', import.meta.url)), 'utf8');
 const authScss = readFileSync(fileURLToPath(new URL('../../site/css/_auth.scss', import.meta.url)), 'utf8');
@@ -406,6 +407,27 @@ describe('review shell contrast palette', () => {
       /&:first-child\s*\{[\s\S]*?background:\s*linear-gradient\(to right,\s*\$explorer-accent-dark,\s*\$explorer-accent\);[\s\S]*?color:\s*\$explorer-bg;/,
     );
     assert.match(explorerScss, /\.game_menu\s*\{[\s\S]*?background:\s*\$explorer-surface-raised;/);
+  });
+
+  test('keeps candidate fork choices in the study-room palette', () => {
+    [
+      '#fff',
+      '$m-primary_bg--mix-25',
+      '$m-secondary_bg--mix-25',
+      '$m-bad_bg--mix-25',
+      'background: $c-fork',
+      'background: $c-secondary',
+      'background: $c-bad',
+    ].forEach(color => assert.doesNotMatch(forkScss, new RegExp(escapeRegExp(color), 'i'), `off-palette fork color: ${color}`));
+
+    assert.match(forkScss, /\$fork-bg:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*8%,\s*#\{\$c-bg-low\}\);/);
+    assert.match(forkScss, /\$fork-active-bg:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*18%,\s*#\{\$c-bg-low\}\);/);
+    assert.match(forkScss, /move\s*\{[\s\S]*?background:\s*\$fork-bg;[\s\S]*?color:\s*\$c-font;/);
+    assert.match(forkScss, /&\.wrong\s*\{[\s\S]*?background:\s*\$fork-wrong-bg;/);
+    assert.match(
+      forkScss,
+      /move:hover,[\s\S]*?move\.selected\s*\{[\s\S]*?background:\s*\$fork-active-bg;[\s\S]*?color:\s*color-mix\(in srgb,\s*#\{\$c-fork\}\s*78%,\s*#\{\$c-font\}\);/,
+    );
   });
 
   test('keeps site entry surfaces in the dark study-room palette', () => {
