@@ -192,10 +192,11 @@ object only when the producer proves the reviewed-move ownership on the
 after-board and, when persistence matters, the played-first checked PV keeps the
 object and pressure/resource relation alive. Transient, pre-existing, or
 unpressured shapes stay support-only or diagnostic.
-Frontend MoveReview support panels follow the main prose. Move chips consume
-`refSans`/resolved refs for displayed SAN; decision strips use their supplied
-`refSans` before becoming interactive, and authoring row labels are not move
-identity authority.
+Frontend MoveReview coach surface consumes only typed player-surface fields.
+Section labels may improve player hierarchy, but row label/text/diagnostics do
+not create chess families. Move chips consume `refSans`/resolved refs for
+displayed SAN while preserving order and repeated SAN tokens; authoring row
+labels are not move identity authority.
 Opening-goal outpost context does not create a separate player-facing opening
 outpost family; if the durable outpost proof succeeds, it reuses the `Knight
 outpost` row and typed target.

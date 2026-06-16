@@ -244,10 +244,11 @@ mechanisms. After claim-authority admission they must resolve to the strongest
 existing producer that supports the family/source pair. The renderer may consume
 only admitted anchors and checked-line bindings; row labels, diagnostic refs,
 basic prose, and practical-row text are not causal authority.
-Frontend MoveReview support panels follow the main prose. Move chips render from
-`refSans`/resolved refs; decision strips use their supplied `refSans` before
-becoming interactive, and authoring row labels are display text only, not SAN
-identity authority.
+Frontend MoveReview coach surface consumes only typed player-surface fields.
+Section labels may improve player hierarchy, but row label/text/diagnostics do
+not create chess families. Move chips render from `refSans`/resolved refs while
+preserving order and repeated SAN tokens; authoring row labels are display text
+only, not SAN identity authority.
 
 Durable structural claims require producer-owned board/PV proof. File entry,
 outpost occupation, target fixation, IQP inducement, color-complex pressure,
