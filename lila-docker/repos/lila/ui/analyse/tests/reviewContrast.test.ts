@@ -167,6 +167,17 @@ describe('review shell contrast palette', () => {
     );
   });
 
+  test('keeps the active coach lesson step visually anchored in the flow', () => {
+    assert.match(
+      sideScss,
+      /&\.is-active\s*\{[\s\S]*?background:\s*linear-gradient\([\s\S]*?color-mix\(in srgb,\s*#\{\$c-primary\}\s*16%,\s*#\{\$c-bg-low\}\)[\s\S]*?box-shadow:[\s\S]*?rgba\(0,\s*0,\s*0,\s*0\.14\);/,
+    );
+    assert.match(
+      sideScss,
+      /&\.is-active \.move-review-player__timeline-kicker\s*\{[\s\S]*?color:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*74%,\s*#\{\$c-font\}\);/,
+    );
+  });
+
   test('keeps the player board context rail compact and sticky with the board', () => {
     assert.match(sideScss, /\.move-review-player__board-anchor\s*\{/);
     assert.match(sideScss, /\.move-review-player__board-anchor-label\s*\{[\s\S]*?color:\s*\$c-primary;/);

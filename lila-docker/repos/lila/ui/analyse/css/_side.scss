@@ -350,13 +350,23 @@
 
       &.is-active {
         color: $c-font;
-        background: color-mix(in srgb, #{$c-primary} 12%, transparent);
-        box-shadow: inset 0 0 0 1px color-mix(in srgb, #{$c-primary} 24%, transparent);
+        background: linear-gradient(
+          180deg,
+          color-mix(in srgb, #{$c-primary} 16%, #{$c-bg-low}),
+          color-mix(in srgb, #{$c-primary} 8%, transparent)
+        );
+        box-shadow:
+          inset 0 0 0 1px color-mix(in srgb, #{$c-primary} 28%, transparent),
+          0 0.28rem 0.75rem rgba(0, 0, 0, 0.14);
       }
 
       &.is-active .move-review-player__timeline-index {
         background: $c-primary;
         box-shadow: none;
+      }
+
+      &.is-active .move-review-player__timeline-kicker {
+        color: color-mix(in srgb, #{$c-primary} 74%, #{$c-font});
       }
     }
 
