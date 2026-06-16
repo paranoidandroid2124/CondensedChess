@@ -645,9 +645,18 @@
       font-size: 0.68rem;
       line-height: 1.15;
 
+      span {
+        color: color-mix(in srgb, #{$c-primary} 70%, #{$c-font-dim});
+        font-size: 0.58rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
       strong {
         min-width: 0;
         color: $c-font;
+        font-family: 'Roboto Mono', monospace;
         font-size: 0.72rem;
         overflow-wrap: anywhere;
       }
@@ -655,6 +664,15 @@
 
     .move-review-player__board-cue-item--square strong {
       color: $c-primary;
+    }
+
+    .move-review-player__board-cue-item--line {
+      border-color: color-mix(in srgb, #{$c-primary} 22%, transparent);
+      background: color-mix(in srgb, #{$c-primary} 10%, transparent);
+
+      strong {
+        color: color-mix(in srgb, #{$c-font} 82%, #{$c-primary});
+      }
     }
 
     .move-review-player__board-cue-item--move {
