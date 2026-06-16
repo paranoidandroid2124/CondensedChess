@@ -93,6 +93,7 @@ describe('moveReview coach surface', () => {
     assert.match(html, /move-review-player__board-title/);
     assert.match(html, /move-review-player__scene-line/);
     assert.match(html, /data-scene-line="Nf3 d5"/);
+    assert.match(html, /Chapter 1\/5/);
     assert.match(html, /move-review-player__detail-layer/);
     assert.match(html, /Coach notes/);
     assert.match(html, /data-scene-square="d5"/);

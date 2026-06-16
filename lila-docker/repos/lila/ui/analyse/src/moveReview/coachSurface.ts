@@ -444,7 +444,7 @@ function renderSceneControls(sceneCount: number): string {
   return `
     <footer class="move-review-player__controls">
       <button type="button" class="move-review-player__control" data-move-review-scene-step="-1" disabled>Back</button>
-      <span class="move-review-player__scene-count" aria-live="polite">1/${sceneCount}</span>
+      <span class="move-review-player__scene-count" aria-live="polite">Chapter 1/${sceneCount}</span>
       <button type="button" class="move-review-player__control move-review-player__control--primary" data-move-review-scene-step="1"${
         sceneCount <= 1 ? ' disabled' : ''
       }>Next chapter</button>

@@ -94,6 +94,17 @@ function setPlayerBoardMeta(player: HTMLElement, title: string | null | undefine
   if (subtitleEl) subtitleEl.textContent = subtitle || '';
 }
 
+function revealMoveReviewScene(player: HTMLElement, panel: HTMLElement): void {
+  const scroller = player.closest('.analyse__move-review-text') as HTMLElement | null;
+  if (!scroller) return;
+  const timeline = player.querySelector<HTMLElement>('.move-review-player__timeline');
+  const scrollerRect = scroller.getBoundingClientRect();
+  const panelRect = panel.getBoundingClientRect();
+  const stickyOffset = (timeline?.offsetHeight || 0) + 8;
+  const top = scroller.scrollTop + panelRect.top - scrollerRect.top - stickyOffset;
+  scroller.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+}
+
 function moveLabelFromElement(el: HTMLElement): string | null {
   return el.dataset.san || el.textContent?.trim() || null;
 }
@@ -152,7 +163,7 @@ function syncMoveReviewSceneBoard(player: HTMLElement, panel: HTMLElement): void
   setSceneSquare(square);
 }
 
-function activateMoveReviewScene(player: HTMLElement, targetIndex: number, syncBoard = true): void {
+function activateMoveReviewScene(player: HTMLElement, targetIndex: number, syncBoard = true, reveal = false): void {
   const panels = moveReviewScenePanels(player);
   if (!panels.length) return;
   const nextIndex = Math.max(0, Math.min(panels.length - 1, targetIndex));
@@ -178,8 +189,9 @@ function activateMoveReviewScene(player: HTMLElement, targetIndex: number, syncB
   });
 
   const counter = player.querySelector<HTMLElement>('.move-review-player__scene-count');
-  if (counter) counter.textContent = `${nextIndex + 1}/${panels.length}`;
+  if (counter) counter.textContent = `Chapter ${nextIndex + 1}/${panels.length}`;
   if (syncBoard) syncMoveReviewSceneBoard(player, panels[nextIndex]);
+  if (reveal) revealMoveReviewScene(player, panels[nextIndex]);
 }
 
 function hydrateMoveReviewPlayers(root: HTMLElement): void {
@@ -266,13 +278,13 @@ export function initMoveReviewHandlers(ctrl: AnalyseCtrl | undefined, onEvalTogg
       e.preventDefault();
       const player = this.closest('[data-move-review-player]') as HTMLElement | null;
       if (!player) return;
-      activateMoveReviewScene(player, Number(this.dataset.moveReviewScene), true);
+      activateMoveReviewScene(player, Number(this.dataset.moveReviewScene), true, true);
     })
     .on('click.moveReview', '.analyse__move-review-text [data-move-review-scene-step]', function (this: HTMLButtonElement, e) {
       e.preventDefault();
       const player = this.closest('[data-move-review-player]') as HTMLElement | null;
       if (!player) return;
-      activateMoveReviewScene(player, moveReviewSceneIndex(player) + Number(this.dataset.moveReviewSceneStep), true);
+      activateMoveReviewScene(player, moveReviewSceneIndex(player) + Number(this.dataset.moveReviewSceneStep), true, true);
     })
     .on('touchstart.moveReview', '.analyse__move-review-text [data-ref-id], .analyse__move-review-text [data-board]', function (this: HTMLElement) {
       if (!('ontouchstart' in window)) return;
@@ -334,7 +346,7 @@ export function initMoveReviewHandlers(ctrl: AnalyseCtrl | undefined, onEvalTogg
       const dx = t.clientX - swipeStartX;
       const dy = t.clientY - swipeStartY;
       if (Math.abs(dx) >= 42 && Math.abs(dx) > Math.abs(dy)) {
-        activateMoveReviewScene(player, moveReviewSceneIndex(player) + (dx < 0 ? 1 : -1), true);
+        activateMoveReviewScene(player, moveReviewSceneIndex(player) + (dx < 0 ? 1 : -1), true, true);
       }
     })
     .on('click.moveReview', '.analyse__move-review-text .move-review-score-toggle', e => {

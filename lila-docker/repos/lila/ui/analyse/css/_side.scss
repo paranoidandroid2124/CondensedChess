@@ -508,6 +508,7 @@
       display: grid;
       gap: 0.72rem;
       min-width: 0;
+      scroll-margin-top: 4.5rem;
       align-content: start;
       animation: move-review-scene-in 160ms ease-out;
 
@@ -619,6 +620,8 @@
       color: $c-font-dim;
       font-size: 0.78rem;
       font-weight: 700;
+      min-width: 4.8rem;
+      text-align: center;
       white-space: nowrap;
     }
 
