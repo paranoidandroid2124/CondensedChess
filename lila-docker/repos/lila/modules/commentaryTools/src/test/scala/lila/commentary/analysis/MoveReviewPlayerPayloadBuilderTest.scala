@@ -6227,7 +6227,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
           )
       )
     assertEquals(exactRouteAmbiguousSquareSurface.advancedRows.map(_.label), List("Practical outpost"))
-    assertEquals(exactRouteAmbiguousSquareSurface.advancedRows.head.text, "The minor-piece route points toward a practical outpost cue.")
+    assertEquals(exactRouteAmbiguousSquareSurface.advancedRows.head.text, "The minor-piece route points toward a practical outpost cue around d5, e5.")
     assertEquals(exactRouteAmbiguousSquareSurface.advancedRows.head.authority.flatMap(_.target), None)
 
     val directionalOutpostSurface =
@@ -6279,7 +6279,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assertEquals(directionalOutpostAmbiguousSquareSurface.advancedRows.map(_.label), List("Practical outpost"))
     assertEquals(
       directionalOutpostAmbiguousSquareSurface.advancedRows.head.text,
-      "The minor piece is aimed at a practical outpost cue."
+      "The minor piece is aimed at a practical outpost cue around d5, e5."
     )
     assertEquals(directionalOutpostAmbiguousSquareSurface.advancedRows.head.authority.flatMap(_.target), None)
 
@@ -6464,6 +6464,38 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
           )
     )
     assert(!exactOutpostSurface.advancedRows.exists(_.label == "Practical outpost"), clue(exactOutpostSurface.advancedRows))
+
+    val partialExactOutpostSurface =
+      build(
+        supportedLocalRows =
+          List(
+            MoveReviewPlayerSurfaceRow(
+              label = "Knight outpost",
+              text = "The checked line puts the knight on the d5 outpost.",
+              authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("d5")))
+            )
+          ),
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              strategicIdeas =
+                List(
+                  idea.copy(
+                    ideaId = "idea_exact_route_outpost_partial_duplicate",
+                    focusSquares = List("d5", "e5"),
+                    confidence = 0.66,
+                    evidenceRefs = List("source:route_outpost_access", "route_outpost_access_shape", "route_surface_exact")
+                  )
+                )
+            )
+          )
+      )
+    assertEquals(partialExactOutpostSurface.advancedRows.map(_.label), List("Practical outpost"))
+    assertEquals(
+      partialExactOutpostSurface.advancedRows.head.text,
+      "The minor-piece route points toward a practical outpost cue around e5."
+    )
 
   }
 

@@ -780,12 +780,15 @@ object MoveReviewPlayerPayloadBuilder:
             .flatMap { idea =>
               val refs = idea.evidenceRefs.map(_.trim.toLowerCase)
               val focusSquares = idea.focusSquares.flatMap(validSquare).distinct
-              val routeOutpostNamedSquare =
-                focusSquares match
-                  case square :: Nil => Some(square)
+              val publicOutpostSquares =
+                focusSquares.filterNot(exactOutpostSquaresAlreadyVisible.contains)
+              val routeOutpostSquareText =
+                publicOutpostSquares match
+                  case square :: Nil => Some(s"around $square")
+                  case squares if squares.nonEmpty => Some(s"around ${squares.mkString(", ")}")
                   case _             => None
               val routeOutpostHasUnsuppressedSquare =
-                focusSquares.exists(square => !exactOutpostSquaresAlreadyVisible.contains(square))
+                publicOutpostSquares.nonEmpty
               val exactRouteOutpost =
                   refs.contains("source:route_outpost_access") &&
                   refs.contains("route_outpost_access_shape") &&
@@ -813,13 +816,11 @@ object MoveReviewPlayerPayloadBuilder:
                   idea.confidence >= 0.64
               val outpostText =
                 if exactRouteOutpost then
-                  routeOutpostNamedSquare
-                    .map(square => s"The minor-piece route points toward a practical outpost cue around $square.")
-                    .orElse(Some("The minor-piece route points toward a practical outpost cue."))
+                  routeOutpostSquareText
+                    .map(squareText => s"The minor-piece route points toward a practical outpost cue $squareText.")
                 else if directionalOutpost then
-                  routeOutpostNamedSquare
-                    .map(square => s"The minor piece is aimed at a practical outpost cue around $square.")
-                    .orElse(Some("The minor piece is aimed at a practical outpost cue."))
+                  routeOutpostSquareText
+                    .map(squareText => s"The minor piece is aimed at a practical outpost cue $squareText.")
                 else None
               outpostText.flatMap(text =>
                 row("Practical outpost", text, tone = Some("practical")).map(_.copy(authority = PracticalPlanAuthority))
