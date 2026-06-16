@@ -125,6 +125,21 @@ describe('review shell contrast palette', () => {
       /@include mq-is-col1[\s\S]*\.move-review-player__board-shell\s*\{[\s\S]*top:\s*0\.2rem;/,
     );
   });
+
+  test('keeps opened review detail layers bounded inside the current scene', () => {
+    assert.match(
+      sideScss,
+      /\.move-review-coach__details\s*\{[\s\S]*?summary\s*\{[\s\S]*?position:\s*sticky;[\s\S]*?top:\s*0;/,
+    );
+    assert.match(
+      sideScss,
+      /&\[open\]\s*\{[\s\S]*?max-height:\s*min\(42vh,\s*21rem\);[\s\S]*?overflow-y:\s*auto;[\s\S]*?overscroll-behavior:\s*contain;/,
+    );
+    assert.match(
+      sideScss,
+      /@include mq-is-col1[\s\S]*\.move-review-coach__details\[open\]\s*\{[\s\S]*?max-height:\s*min\(36vh,\s*17rem\);/,
+    );
+  });
 });
 
 describe('standalone narrative contrast', () => {

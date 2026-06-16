@@ -1114,6 +1114,12 @@
       background: color-mix(in srgb, #{$c-bg-low} 70%, transparent);
 
       summary {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        display: block;
+        padding-bottom: 0.1rem;
+        background: inherit;
         cursor: pointer;
         color: $c-font-dim;
         font-size: 0.82rem;
@@ -1121,7 +1127,23 @@
       }
 
       &[open] {
+        max-height: min(42vh, 21rem);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable;
         background: color-mix(in srgb, #{$c-bg-box} 88%, transparent);
+
+        summary {
+          margin-bottom: 0.42rem;
+          padding-bottom: 0.42rem;
+          border-bottom: 1px solid color-mix(in srgb, #{$c-border} 52%, transparent);
+        }
+      }
+    }
+
+    @include mq-is-col1 {
+      .move-review-coach__details[open] {
+        max-height: min(36vh, 17rem);
       }
     }
 
