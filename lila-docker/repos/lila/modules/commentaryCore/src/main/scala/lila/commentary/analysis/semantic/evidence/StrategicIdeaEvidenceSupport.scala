@@ -638,16 +638,17 @@ private[evidence] object StrategicIdeaEvidenceSupport:
     pack.pieceRoutes.exists(route => routeAttackLaneEndpoint(side, route, semantic).nonEmpty) ||
       pack.directionalTargets.exists(target => directionalAttackLaneEndpoint(side, target, semantic).nonEmpty)
 
-  def hasDiagonalBatteryCompensation(
+  def diagonalBatteryCompensationSquares(
       side: String,
       semantic: StrategicIdeaSemanticContext
-  ): Boolean =
-    semantic.motifs.exists {
-      case Motif.Battery(_, _, axis, color, _, _, _, _)
-          if matchesSide(color, side) && axis == Motif.BatteryAxis.Diagonal =>
-        true
-      case _ => false
-    }
+  ): Option[List[String]] =
+    val matching =
+      semantic.motifs.collect {
+        case Motif.Battery(_, _, axis, color, _, _, frontSq, backSq)
+            if matchesSide(color, side) && axis == Motif.BatteryAxis.Diagonal =>
+          (frontSq.toList ++ backSq.toList).distinct.map(_.key).take(2)
+      }
+    matching.find(_.nonEmpty).orElse(matching.headOption)
 
   def chebyshev(a: Square, b: Square): Int =
     math.max((a.file.value - b.file.value).abs, (a.rank.value - b.rank.value).abs)

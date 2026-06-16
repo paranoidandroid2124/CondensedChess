@@ -274,6 +274,9 @@ The MoveReview strategic ledger also keeps compensation and conversion stages
 separate: invested-material or compensation summaries can select a compensation
 motif, but `Convert` needs a conversion trigger or conversion-family
 plan-fruition signal.
+Compensation diagonal-battery support preserves the producer's current battery
+squares and axis; player-surface `Compensation pressure` does not open from a
+material-deficit or development-lead shell alone.
 Route and directional target endpoints are not king-attack lanes by proximity
 alone. `KingAttackEvidenceProducer` may emit `source:route_attack_lane` or
 `source:directional_attack_lane` only when `StrategicIdeaEvidenceSupport` proves

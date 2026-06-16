@@ -371,7 +371,9 @@ private[commentary] object StrategicIdeaSelector:
             refs.filter(ref =>
               ref == "compensation_diagonal_battery" ||
                 ref == "material_deficit_compensation" ||
-                ref == "bishop_pair_compensation"
+                ref == "bishop_pair_compensation" ||
+                ref == "battery_axis_diagonal" ||
+                ref.startsWith("compensation_battery_square_")
             )
         }
         .toList

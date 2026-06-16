@@ -1128,20 +1128,16 @@ object MoveReviewPlayerPayloadBuilder:
                     refs.contains("source:compensation_diagonal_battery") &&
                     refs.contains("compensation_diagonal_battery") &&
                     refs.contains("material_deficit_compensation") &&
+                    refs.contains("battery_axis_diagonal") &&
                     idea.beneficiaryPieces.exists(_.trim.equalsIgnoreCase("B")) &&
                     idea.beneficiaryPieces.exists(_.trim.equalsIgnoreCase("Q")) &&
                     focusZone.exists(zone => zone == "kingside" || zone == "center" || zone.contains("king")) &&
                     strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
                     idea.confidence >= 0.74
-                val compensationDevelopmentLead =
-                  !exactAttackAlreadyVisible &&
-                    refs.contains("source:compensation_development_lead") &&
-                    refs.contains("development_lead_compensation") &&
-                    refs.contains("material_deficit_compensation") &&
-                    focusZone.exists(zone => zone == "kingside" || zone == "center" || zone.contains("king")) &&
-                    idea.readiness == StrategicIdeaReadiness.Build &&
-                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
-                    idea.confidence >= 0.76
+                val compensationBatterySquares =
+                  focusSquares.filter(square => refs.contains(s"compensation_battery_square_$square"))
+                val exactCompensationDiagonalBattery =
+                  compensationDiagonalBattery && compensationBatterySquares.size == 2
                 val routeAttackLaneCandidate =
                   !exactAttackAlreadyVisible &&
                     refs.contains("source:route_attack_lane") &&
@@ -1241,10 +1237,11 @@ object MoveReviewPlayerPayloadBuilder:
                         Some("Practical attack" -> s"The flank-pawn advances give a practical $zone attacking cue.")
                       case _ =>
                         Some("Practical attack" -> "The flank-pawn advances give a practical attacking cue.")
-                  else if compensationDiagonalBattery then
-                    Some("Compensation pressure" -> "The material-compensation structure gives practical diagonal-battery pressure.")
-                  else if compensationDevelopmentLead then
-                    Some("Compensation pressure" -> "The material-compensation structure gives practical development-led pressure.")
+                  else if exactCompensationDiagonalBattery then
+                    Some(
+                      "Compensation pressure" ->
+                        s"The ${compensationBatterySquares.mkString(" and ")} diagonal battery gives the material compensation a concrete pressure hook."
+                    )
                   else if exactRouteAttackLane then
                     singleFocusSquare
                       .map(square => "Practical attack" -> s"The $square route gives a practical attacking lane.")

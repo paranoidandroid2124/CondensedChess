@@ -210,11 +210,13 @@ The surface renderer may say:
   same-destination `neutralize_key_break` support cannot relabel it as a public
   defensive-resource claim unless an explicit break-prevention rival survives in
   the runtime anchors.
-  Material-deficit compensation batteries or development leads may surface only
-  as compensation pressure unless a separate concrete attack lane, check,
-  threat, or tactical owner proves a public attack claim. Generic initiative
-  motifs are practical context, not `KingAttackBuildUp` authority or public
-  `Practical attack` rows without a separate attack mechanism. Public
+  Material-deficit compensation batteries may surface only as compensation
+  pressure, and only when the producer carries the diagonal axis plus the two
+  current battery squares. Development-lead-only compensation remains support
+  evidence unless a separate concrete attack lane, check, threat, strict
+  compensation subtype, or tactical owner proves a public claim. Generic
+  initiative motifs are practical context, not `KingAttackBuildUp` authority or
+  public `Practical attack` rows without a separate attack mechanism. Public
   compensation rows require invested-material evidence, a strict resolved
   compensation subtype, and durable pressure anchors carried by a typed route,
   move ref, directional target, or typed strategic idea; raw compensation

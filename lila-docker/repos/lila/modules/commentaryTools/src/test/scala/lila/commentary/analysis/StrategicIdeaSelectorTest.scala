@@ -1288,8 +1288,10 @@ class StrategicIdeaSelectorTest extends FunSuite:
     assertEquals(ideas.headOption.map(_.kind), Some(StrategicIdeaKind.KingAttackBuildUp))
     assert(ideas.headOption.exists(_.evidenceRefs.contains("source:compensation_development_lead")))
     assert(ideas.headOption.exists(_.evidenceRefs.contains("source:compensation_diagonal_battery")), clues(ideas.headOption.map(_.evidenceRefs)))
-    assert(ideas.headOption.exists(_.evidenceRefs.contains("source:route_attack_lane")), clues(ideas.headOption.map(_.evidenceRefs)))
     assert(ideas.headOption.exists(_.evidenceRefs.contains("material_deficit_compensation")), clues(ideas.headOption.map(_.evidenceRefs)))
+    assert(ideas.headOption.exists(_.evidenceRefs.contains("battery_axis_diagonal")), clues(ideas.headOption.map(_.evidenceRefs)))
+    assert(ideas.headOption.exists(_.evidenceRefs.contains("compensation_battery_square_d3")), clues(ideas.headOption.map(_.evidenceRefs)))
+    assert(ideas.headOption.exists(_.evidenceRefs.contains("compensation_battery_square_f3")), clues(ideas.headOption.map(_.evidenceRefs)))
   }
 
   test("exact route attack lane keeps typed endpoint witness for support surface") {

@@ -338,32 +338,35 @@ private[commentary] object KingAttackEvidenceProducer extends StrategicIdeaEvide
     val compensationDiagonalBattery =
       semantic.positionFeatures
         .flatMap { features =>
-          Option.when(
-            hasCompensationMaterialDeficitFor(side, features) &&
-              isCompensationEligiblePhase(semantic) &&
-              hasDiagonalBatteryCompensation(side, semantic) &&
-              (
-                developmentLeadFor(side, features) >= 1 ||
-                  hasCompensationAttackPlanSupport(side, semantic)
-              ) &&
-              (
-                enemyKingCastledSideFor(side, features) == "none" ||
-                  enemyKingExposedFilesFor(side, features) > 0 ||
-                  enemyKingRingAttackedFor(side, features) >= 1
+          diagonalBatteryCompensationSquares(side, semantic).flatMap { batterySquares =>
+            Option.when(
+              hasCompensationMaterialDeficitFor(side, features) &&
+                isCompensationEligiblePhase(semantic) &&
+                (
+                  developmentLeadFor(side, features) >= 1 ||
+                    hasCompensationAttackPlanSupport(side, semantic)
+                ) &&
+                (
+                  enemyKingCastledSideFor(side, features) == "none" ||
+                    enemyKingExposedFilesFor(side, features) > 0 ||
+                    enemyKingRingAttackedFor(side, features) >= 1
+                )
+            ) {
+              evidence(
+                ownerSide = side,
+                kind = StrategicIdeaKind.KingAttackBuildUp,
+                readiness = StrategicIdeaReadiness.Build,
+                source = EvidenceSourceId.CompensationDiagonalBattery,
+                confidence = 0.74 + Option.when(bishopPairFor(side, features))(0.04).getOrElse(0.0),
+                focusSquares = batterySquares,
+                focusZone = enemyKingZone.orElse(zoneFromSquareKeys(batterySquares)),
+                beneficiaryPieces = List("B", "Q"),
+                factIds =
+                  List("compensation_diagonal_battery", "material_deficit_compensation", "battery_axis_diagonal") ++
+                    batterySquares.map(square => s"compensation_battery_square_$square") ++
+                    Option.when(bishopPairFor(side, features))("bishop_pair_compensation").toList
               )
-          ) {
-            evidence(
-              ownerSide = side,
-              kind = StrategicIdeaKind.KingAttackBuildUp,
-              readiness = StrategicIdeaReadiness.Build,
-              source = EvidenceSourceId.CompensationDiagonalBattery,
-              confidence = 0.74 + Option.when(bishopPairFor(side, features))(0.04).getOrElse(0.0),
-              focusZone = enemyKingZone,
-              beneficiaryPieces = List("B", "Q"),
-              factIds =
-                List("compensation_diagonal_battery", "material_deficit_compensation") ++
-                  Option.when(bishopPairFor(side, features))("bishop_pair_compensation").toList
-            )
+            }
           }
         }
         .toList

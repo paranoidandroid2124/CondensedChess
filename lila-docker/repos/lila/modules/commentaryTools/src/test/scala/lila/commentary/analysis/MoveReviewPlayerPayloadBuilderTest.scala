@@ -8971,13 +8971,17 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
                   fianchettoIdea.copy(
                     ideaId = "idea_compensation_diagonal_battery",
                     confidence = 0.74,
+                    focusSquares = List("d3", "f3"),
                     focusZone = Some("kingside"),
                     beneficiaryPieces = List("B", "Q"),
                     evidenceRefs =
                       List(
                         "source:compensation_diagonal_battery",
                         "compensation_diagonal_battery",
-                        "material_deficit_compensation"
+                        "material_deficit_compensation",
+                        "battery_axis_diagonal",
+                        "compensation_battery_square_d3",
+                        "compensation_battery_square_f3"
                       )
                   )
                 )
@@ -8987,12 +8991,39 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assertEquals(compensationBatterySurface.advancedRows.map(_.label), List("Compensation pressure"), clue(compensationBatterySurface.advancedRows))
     assertEquals(
       compensationBatterySurface.advancedRows.head.text,
-      "The material-compensation structure gives practical diagonal-battery pressure."
+      "The d3 and f3 diagonal battery gives the material compensation a concrete pressure hook."
     )
     assertEquals(
       compensationBatterySurface.advancedRows.head.authority,
       Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))
     )
+
+    val compensationBatteryShellSurface =
+      build(
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              strategicIdeas =
+                List(
+                  fianchettoIdea.copy(
+                    ideaId = "idea_compensation_diagonal_battery_shell",
+                    confidence = 0.90,
+                    focusZone = Some("kingside"),
+                    beneficiaryPieces = List("B", "Q"),
+                    evidenceRefs =
+                      List(
+                        "source:compensation_diagonal_battery",
+                        "compensation_diagonal_battery",
+                        "material_deficit_compensation",
+                        "battery_axis_diagonal"
+                      )
+                  )
+                )
+            )
+          )
+      )
+    assert(!compensationBatteryShellSurface.advancedRows.exists(_.label == "Compensation pressure"), clue(compensationBatteryShellSurface.advancedRows))
 
     val compensationSourceOnlySurface =
       build(
@@ -9059,16 +9090,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(compensationDevelopmentLeadSurface.advancedRows.map(_.label), List("Compensation pressure"), clue(compensationDevelopmentLeadSurface.advancedRows))
-    assertEquals(
-      compensationDevelopmentLeadSurface.advancedRows.head.text,
-      "The material-compensation structure gives practical development-led pressure."
-    )
-    assertEquals(
-      compensationDevelopmentLeadSurface.advancedRows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))
-    )
-    assertEquals(compensationDevelopmentLeadSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assert(!compensationDevelopmentLeadSurface.advancedRows.exists(_.label == "Compensation pressure"), clue(compensationDevelopmentLeadSurface.advancedRows))
 
     val compensationDevelopmentSourceOnlySurface =
       build(
