@@ -87,9 +87,21 @@ function currentScenePanel(player: HTMLElement): HTMLElement | null {
   return moveReviewScenePanels(player)[moveReviewSceneIndex(player)] || null;
 }
 
-function setPlayerBoardMeta(player: HTMLElement, title: string | null | undefined, subtitle: string | null | undefined): void {
+function sceneBoardKicker(panel: HTMLElement | null | undefined): string | null {
+  const kicker = panel?.dataset.sceneBoardKicker;
+  return kicker ? `Board follows · ${kicker}` : null;
+}
+
+function setPlayerBoardMeta(
+  player: HTMLElement,
+  title: string | null | undefined,
+  subtitle: string | null | undefined,
+  kicker: string | null | undefined,
+): void {
+  const kickerEl = player.querySelector<HTMLElement>('.move-review-player__board-kicker');
   const titleEl = player.querySelector<HTMLElement>('.move-review-player__board-title');
   const subtitleEl = player.querySelector<HTMLElement>('.move-review-player__board-subtitle');
+  if (kickerEl) kickerEl.textContent = kicker || 'Board follows this scene';
   if (titleEl && title) titleEl.textContent = title;
   if (subtitleEl) subtitleEl.textContent = subtitle || '';
 }
@@ -136,7 +148,12 @@ function syncMoveReviewElementBoard(el: HTMLElement, markActive = false): void {
 
   const panel = currentScenePanel(player);
   if (markActive && el.classList.contains('move-review-coach__move-chip')) setActiveCoachMove(player, el);
-  setPlayerBoardMeta(player, panel?.dataset.sceneBoardTitle || null, moveLabelFromElement(el) || panel?.dataset.sceneBoardSubtitle || null);
+  setPlayerBoardMeta(
+    player,
+    panel?.dataset.sceneBoardTitle || null,
+    moveLabelFromElement(el) || panel?.dataset.sceneBoardSubtitle || null,
+    sceneBoardKicker(panel),
+  );
 }
 
 function syncMoveReviewSceneBoard(player: HTMLElement, panel: HTMLElement): void {
@@ -152,10 +169,11 @@ function syncMoveReviewSceneBoard(player: HTMLElement, panel: HTMLElement): void
       player,
       panel.dataset.sceneBoardTitle || null,
       (activeMove ? moveLabelFromElement(activeMove) : null) || panel.dataset.sceneBoardSubtitle || null,
+      sceneBoardKicker(panel),
     );
   } else {
     setActiveCoachMove(player, null);
-    setPlayerBoardMeta(player, panel.dataset.sceneBoardTitle || null, panel.dataset.sceneBoardSubtitle || null);
+    setPlayerBoardMeta(player, panel.dataset.sceneBoardTitle || null, panel.dataset.sceneBoardSubtitle || null, sceneBoardKicker(panel));
     hideMoveReviewPreview({ force: true });
   }
 
@@ -168,6 +186,7 @@ function activateMoveReviewScene(player: HTMLElement, targetIndex: number, syncB
   if (!panels.length) return;
   const nextIndex = Math.max(0, Math.min(panels.length - 1, targetIndex));
   player.dataset.sceneIndex = String(nextIndex);
+  player.style.setProperty('--move-review-scene-progress', `${((nextIndex + 1) / panels.length) * 100}%`);
 
   panels.forEach((panel, idx) => {
     const active = idx === nextIndex;
@@ -189,7 +208,7 @@ function activateMoveReviewScene(player: HTMLElement, targetIndex: number, syncB
   });
 
   const counter = player.querySelector<HTMLElement>('.move-review-player__scene-count');
-  if (counter) counter.textContent = `Chapter ${nextIndex + 1}/${panels.length}`;
+  if (counter) counter.textContent = `Scene ${nextIndex + 1}/${panels.length}`;
   if (syncBoard) syncMoveReviewSceneBoard(player, panels[nextIndex]);
   if (reveal) revealMoveReviewScene(player, panels[nextIndex]);
 }
@@ -279,6 +298,21 @@ export function initMoveReviewHandlers(ctrl: AnalyseCtrl | undefined, onEvalTogg
       const player = this.closest('[data-move-review-player]') as HTMLElement | null;
       if (!player) return;
       activateMoveReviewScene(player, Number(this.dataset.moveReviewScene), true, true);
+    })
+    .on('keydown.moveReview', '.analyse__move-review-text [data-move-review-scene]', function (this: HTMLButtonElement, e) {
+      const key = e.key;
+      if (key !== 'ArrowRight' && key !== 'ArrowLeft' && key !== 'Home' && key !== 'End') return;
+      e.preventDefault();
+      const player = this.closest('[data-move-review-player]') as HTMLElement | null;
+      if (!player) return;
+      const panels = moveReviewScenePanels(player);
+      if (!panels.length) return;
+      const current = moveReviewSceneIndex(player);
+      const next =
+        key === 'Home' ? 0 : key === 'End' ? panels.length - 1 : current + (key === 'ArrowRight' ? 1 : -1);
+      const bounded = Math.max(0, Math.min(panels.length - 1, next));
+      activateMoveReviewScene(player, bounded, true, true);
+      player.querySelector<HTMLButtonElement>(`[data-move-review-scene="${bounded}"]`)?.focus();
     })
     .on('click.moveReview', '.analyse__move-review-text [data-move-review-scene-step]', function (this: HTMLButtonElement, e) {
       e.preventDefault();

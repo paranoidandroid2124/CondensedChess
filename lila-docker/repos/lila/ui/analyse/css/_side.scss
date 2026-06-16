@@ -264,6 +264,7 @@
 
     .move-review-player {
       gap: 0.8rem;
+      --move-review-scene-progress: 0%;
     }
 
     .move-review-player__timeline {
@@ -283,6 +284,22 @@
 
       &::before {
         display: none;
+      }
+
+      &::after {
+        content: '';
+        position: absolute;
+        bottom: 0.18rem;
+        left: 0.36rem;
+        z-index: 0;
+        width: var(--move-review-scene-progress);
+        max-width: calc(100% - 0.72rem);
+        height: 2px;
+        border-radius: 999px;
+        background: color-mix(in srgb, #{$c-primary} 72%, #{$m-accent_bg--mix-30});
+        opacity: 0.72;
+        pointer-events: none;
+        transition: width 180ms ease;
       }
     }
 

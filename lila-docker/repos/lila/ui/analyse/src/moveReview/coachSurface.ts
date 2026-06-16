@@ -381,7 +381,7 @@ function primaryTryLine(playerSurface: MoveReviewPlayerSurfaceV1): string[] {
 
 function renderSceneNav(scenes: MoveReviewScene[]): string {
   return `
-    <nav class="move-review-player__timeline" aria-label="Review chapters">
+    <nav class="move-review-player__timeline" aria-label="Review scenes">
       ${scenes
         .map(
           (scene, idx) => `
@@ -407,6 +407,7 @@ function renderSceneNav(scenes: MoveReviewScene[]): string {
 
 function renderScenePanel(scene: MoveReviewScene, idx: number, refIndex: MoveReviewRefIndex, sceneCount: number): string {
   const board = scene.board ? ` data-scene-board="${escapeHtml(scene.board)}"` : '';
+  const boardKicker = ` data-scene-board-kicker="${escapeHtml(scene.kicker)}"`;
   const boardTitle = ` data-scene-board-title="${escapeHtml(scene.boardTitle)}"`;
   const boardSubtitle = scene.boardSubtitle ? ` data-scene-board-subtitle="${escapeHtml(scene.boardSubtitle)}"` : '';
   const square = scene.square ? ` data-scene-square="${escapeHtml(scene.square)}"` : '';
@@ -420,7 +421,7 @@ function renderScenePanel(scene: MoveReviewScene, idx: number, refIndex: MoveRev
       data-scene-key="${scene.key}"
       role="tabpanel"
       aria-labelledby="move-review-scene-tab-${scene.key}"
-      ${board}${boardTitle}${boardSubtitle}${square}${hidden}
+      ${board}${boardKicker}${boardTitle}${boardSubtitle}${square}${hidden}
     >
       <header class="move-review-player__scene-head">
         <span class="move-review-player__scene-kicker">${escapeHtml(scene.kicker)} · ${idx + 1}/${sceneCount}</span>
@@ -436,10 +437,10 @@ function renderSceneControls(sceneCount: number): string {
   return `
     <footer class="move-review-player__controls">
       <button type="button" class="move-review-player__control" data-move-review-scene-step="-1" disabled>Back</button>
-      <span class="move-review-player__scene-count" aria-live="polite">Chapter 1/${sceneCount}</span>
+      <span class="move-review-player__scene-count" aria-live="polite">Scene 1/${sceneCount}</span>
       <button type="button" class="move-review-player__control move-review-player__control--primary" data-move-review-scene-step="1"${
         sceneCount <= 1 ? ' disabled' : ''
-      }>Next chapter</button>
+      }>Next scene</button>
     </footer>
   `;
 }
@@ -610,7 +611,7 @@ export function decorateMoveReviewHtml(
       <div class="move-review-player__stage">
         <aside class="move-review-player__board-shell" aria-label="Current coaching board">
           <div class="move-review-player__board-meta">
-            <span class="move-review-player__board-kicker">Position in view</span>
+            <span class="move-review-player__board-kicker">Board follows · ${escapeHtml(scenes[0]?.kicker || 'Scene')}</span>
             <strong class="move-review-player__board-title">${escapeHtml(scenes[0]?.boardTitle || 'Coaching board')}</strong>
             <span class="move-review-player__board-subtitle">${escapeHtml(scenes[0]?.boardSubtitle || scenes[0]?.label || '')}</span>
           </div>
