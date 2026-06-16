@@ -1,4 +1,3 @@
- 
 import { type VNode, type Attrs, type LooseVNodes } from './snabbdom';
 export interface Dialog {
     readonly view: HTMLElement;
@@ -8,7 +7,7 @@ export interface Dialog {
     updateActions(actions?: Action | Action[]): void;
     close(returnValue?: string): void;
 }
-export interface DialogOpts {
+interface DialogOpts {
     class?: string;
     css?: ({
         url: string;
@@ -35,16 +34,16 @@ export interface DialogOpts {
     noScrollable?: boolean;
     modal?: boolean;
 }
-export interface DomDialogOpts extends DialogOpts {
+interface DomDialogOpts extends DialogOpts {
     parent?: Element;
     show?: boolean;
 }
-export interface SnabDialogOpts extends DialogOpts {
+interface SnabDialogOpts extends DialogOpts {
     vnodes?: LooseVNodes;
     onInsert?: (dialog: Dialog) => void;
 }
-export type ActionListener = (e: Event, dialog: Dialog, action: Action) => void;
-export type Action = {
+type ActionListener = (e: Event, dialog: Dialog, action: Action) => void;
+type Action = {
     selector?: string;
     event?: string | string[];
     listener: ActionListener;

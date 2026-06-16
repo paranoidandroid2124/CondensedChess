@@ -36,8 +36,6 @@ object page:
     import ctx.pref
     val allModules: EsmList = p.modules ++
       p.pageModule.fold(Nil)(module => esmPage(module.name))
-    val zenable = p.flags(PageFlags.zen)
-    val playing = p.flags(PageFlags.playing)
     val cookieConsent = CookieConsent.fromRequest(ctx.req)
     val pageFrag = frag(
       doctype,
@@ -99,11 +97,8 @@ object page:
               "blind-mode" -> ctx.blind,
               "kid" -> ctx.kid.yes,
               "mobile" -> lila.common.HTTPRequest.isMobileBrowser(ctx.req),
-              "playing fixed-scroll" -> playing,
               "no-rating" -> !pref.showRatings,
-              "zen" -> (pref.isZen || (playing && pref.isZenAuto)),
-              "zenable" -> zenable,
-              "zen-auto" -> (zenable && pref.isZenAuto)
+              "zen" -> pref.isZen
             )
           },
           dataUser := ctx.userId,
@@ -128,16 +123,11 @@ object page:
           attr("data-brand-v3-shell") := "1",
           attr("data-brand-v3-analysis-surface") := "1",
           attr("data-brand-explorer-proxy") := "1",
-          attr("data-brand-legacy-alias") := "0",
           style := boardStyle(p.flags(PageFlags.zoom))
         )(
-          zenable.option(div()),
           Option.unless(p.flags(PageFlags.noHeader)):
             ui.siteHeader(
-              zenable = zenable,
               isAppealUser = ctx.isAppealUser,
-              challenges = 0,
-              notifications = ctx.nbNotifications,
               error = ctx.data.error,
               topnav = topnav(using ctx)
             )
@@ -150,7 +140,7 @@ object page:
               "is3d" -> pref.is3d
             )
           )(p.transform(p.body)),
-          Option.when(!p.flags(PageFlags.noHeader) && !p.flags(PageFlags.fullScreen) && !playing)(ui.siteFooter),
+          Option.when(!p.flags(PageFlags.noHeader) && !p.flags(PageFlags.fullScreen))(ui.siteFooter),
           bottomHtml,
           ctx.nonce.map(inlineJs(_, allModules)),
           modulesInit(allModules, ctx.nonce),

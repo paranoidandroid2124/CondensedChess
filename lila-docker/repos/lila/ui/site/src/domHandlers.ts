@@ -8,7 +8,6 @@ import {
 } from 'lib/cookieConsent';
 import { writeTextClipboard, text as xhrText } from 'lib/xhr';
 import topBar from './topBar';
-import { userComplete } from 'lib/view/userComplete';
 import { confirm } from 'lib/view';
 import { initMiniBoards } from 'lib/view';
 
@@ -71,21 +70,6 @@ export function addDomHandlers() {
     return false;
   });
 
-  $('body').on('click', '.relation-button', function (this: HTMLAnchorElement) {
-    const $a = $(this).addClass('processing').css('opacity', 0.3);
-    const dropdownOverflowParent = this.closest<HTMLElement>('.dropdown-overflow');
-    if (dropdownOverflowParent) {
-      dropdownOverflowParent.dispatchEvent(new CustomEvent('reload', { detail: this.href }));
-    } else {
-      xhrText(this.href, { method: 'post' }).then(html => {
-        if ($a.hasClass('aclose')) $a.hide();
-        else if (html.includes('relation-actions')) $a.parent().replaceWith(html);
-        else $a.replaceWith(html);
-      });
-    }
-    return false;
-  });
-
   $('body').on('click', '.js-theme-choice', function (this: HTMLElement, e: Event) {
     e.preventDefault();
     const choice = this.getAttribute('data-theme-choice');
@@ -136,20 +120,6 @@ export function addDomHandlers() {
     return false;
   });
 
-  $('.user-autocomplete').each(function (this: HTMLInputElement) {
-    const focus = !!this.autofocus;
-    const start = () =>
-      userComplete({
-        input: this,
-        friend: !!this.dataset.friend,
-        tag: this.dataset.tag as any,
-        focus,
-      });
-
-    if (focus) start();
-    else $(this).one('focus', start);
-  });
-
   $('#main-wrap').on(
     'click',
     '.yes-no-confirm, .ok-cancel-confirm',
@@ -164,13 +134,6 @@ export function addDomHandlers() {
     },
   );
 
-  $('#main-wrap').on('click', 'a.bookmark', function (this: HTMLAnchorElement) {
-    const t = $(this).toggleClass('bookmarked');
-    xhrText(this.href, { method: 'post' });
-    const count = (parseInt(t.text(), 10) || 0) + (t.hasClass('bookmarked') ? 1 : -1);
-    t.find('span').html('' + (count > 0 ? count : ''));
-    return false;
-  });
 }
 
 type AccountIntelState = {
@@ -240,6 +203,9 @@ type AccountIntelHistoryEntry = {
 
 type AccountIntelSupportTab = 'study' | 'compare' | 'history' | 'notes';
 
+const myPatternsKind = 'my_account_intelligence_lite';
+const opponentPrepKind = 'opponent_prep';
+
 const accountIntelStageLabel = (stage: string) => {
   switch (stage) {
     case 'queued':
@@ -295,7 +261,7 @@ function initAccountIntelProduct() {
       .replaceAll("'", '&#39;');
 
   const kindLabel = (kind: string) =>
-    kind === 'my_account_intelligence_lite' ? 'My Patterns' : kind === 'opponent_prep' ? 'Prep for Opponent' : kind;
+    kind === myPatternsKind ? 'My Patterns' : kind === opponentPrepKind ? 'Prep for Opponent' : kind;
   const activeJobLabel = (status: string) => (status === 'running' ? 'Building pattern report' : 'Queued for analysis');
   const humanDate = (raw?: string | null) => {
     if (!raw) return '';
@@ -392,7 +358,7 @@ function initAccountIntelProduct() {
       : '';
 
   const boardOrientation = (side?: string | null) =>
-    side === 'white' || side === 'black' ? side : state?.kind === 'opponent_prep' ? 'black' : 'white';
+    side === 'white' || side === 'black' ? side : state?.kind === opponentPrepKind ? 'black' : 'white';
 
   const displaySideLabel = (side?: string | null) =>
     side === 'white' ? 'White games' : side === 'black' ? 'Black games' : 'Mixed sample';
@@ -521,9 +487,9 @@ function initAccountIntelProduct() {
 
   const renderLeadPattern = () => {
     const pattern = visiblePatterns()[0];
-    const title = state?.kind === 'opponent_prep' ? 'Typical position' : 'Main pattern to fix';
+    const title = state?.kind === opponentPrepKind ? 'Typical position' : 'Main pattern to fix';
     const copy =
-      state?.kind === 'opponent_prep'
+      state?.kind === opponentPrepKind
         ? 'Use this position as the board-first reference point for the game plan.'
         : 'Start here. This is the clearest recurring issue in the current sample.';
     return `
@@ -607,9 +573,9 @@ function initAccountIntelProduct() {
       return `
         <div class="importer-panel importer-panel--results">
           <div class="importer-panel__head">
-            <strong class="importer-panel__title">${escapeHtml(state?.kind === 'opponent_prep' ? 'More patterns to watch' : 'Additional patterns')}</strong>
+            <strong class="importer-panel__title">${escapeHtml(state?.kind === opponentPrepKind ? 'More patterns to watch' : 'Additional patterns')}</strong>
             <p class="importer-panel__copy">${escapeHtml(
-              state?.kind === 'opponent_prep'
+              state?.kind === opponentPrepKind
                 ? 'Keep the game plan first. Open these extra patterns only when you want more context.'
                 : 'Keep the lead pattern first. Open the other recurring issues only after the first fix is clear.',
             )}</p>
@@ -625,9 +591,9 @@ function initAccountIntelProduct() {
     return `
       <div class="importer-panel importer-panel--results">
         <div class="importer-panel__head">
-          <strong class="importer-panel__title">${escapeHtml(state?.kind === 'opponent_prep' ? 'More patterns to watch' : 'Additional patterns')}</strong>
+          <strong class="importer-panel__title">${escapeHtml(state?.kind === opponentPrepKind ? 'More patterns to watch' : 'Additional patterns')}</strong>
           <p class="importer-panel__copy">${escapeHtml(
-            state?.kind === 'opponent_prep'
+            state?.kind === opponentPrepKind
               ? 'Keep the game plan first. Open these extra patterns only when you want more context.'
               : 'Keep the lead pattern first. Open the other recurring issues only after the first fix is clear.',
           )}</p>
@@ -659,13 +625,13 @@ function initAccountIntelProduct() {
     const primaryAction = actions[0];
     const extraActions = actions.slice(1);
     const notebookUrl = currentNotebookUrl();
-    const title = state?.kind === 'opponent_prep' ? 'Game plan' : 'What to look for next';
+    const title = state?.kind === opponentPrepKind ? 'Game plan' : 'What to look for next';
     const copy =
-      state?.kind === 'opponent_prep'
+      state?.kind === opponentPrepKind
         ? 'Keep the prep short enough to carry into the next game.'
         : 'Use the actions below as the shortest route from the diagnosis to the board.';
-    const primaryHref = state?.kind === 'opponent_prep' ? notebookUrl : strategicPuzzleUrl;
-    const primaryLabel = state?.kind === 'opponent_prep' ? 'Open study notebook' : 'Try the idea on the board';
+    const primaryHref = state?.kind === opponentPrepKind ? notebookUrl : strategicPuzzleUrl;
+    const primaryLabel = state?.kind === opponentPrepKind ? 'Open study notebook' : 'Try the idea on the board';
     return `
       <div class="importer-panel importer-panel--guide">
         <div class="importer-panel__head">
@@ -676,7 +642,7 @@ function initAccountIntelProduct() {
         ${
           extraActions.length || checklist
             ? `<details class="account-product-action-details">
-                <summary>${escapeHtml(state?.kind === 'opponent_prep' ? 'See the full prep plan' : 'See the full plan')}</summary>
+                <summary>${escapeHtml(state?.kind === opponentPrepKind ? 'See the full prep plan' : 'See the full plan')}</summary>
                 <div class="account-product-action-stack">
                   ${extraActions.map(renderActionCard).join('')}
                   ${checklist ? renderChecklist(checklist) : ''}
@@ -686,8 +652,8 @@ function initAccountIntelProduct() {
         }
         <div class="account-product-action-cta-row">
           ${primaryHref ? `<a href="${escapeHtml(primaryHref)}" class="account-product-primary-link">${escapeHtml(primaryLabel)}</a>` : ''}
-          ${state?.kind === 'my_account_intelligence_lite' && notebookUrl ? `<a href="${escapeHtml(notebookUrl)}" class="account-product-secondary-link">Open study notebook</a>` : ''}
-          ${state?.kind === 'opponent_prep' ? `<a href="${escapeHtml(strategicPuzzleUrl)}" class="account-product-secondary-link">Try the idea on the board</a>` : ''}
+          ${state?.kind === myPatternsKind && notebookUrl ? `<a href="${escapeHtml(notebookUrl)}" class="account-product-secondary-link">Open study notebook</a>` : ''}
+          ${state?.kind === opponentPrepKind ? `<a href="${escapeHtml(strategicPuzzleUrl)}" class="account-product-secondary-link">Try the idea on the board</a>` : ''}
         </div>
       </div>
     `;
@@ -722,7 +688,7 @@ function initAccountIntelProduct() {
     const exemplars = `<div class="js-ai-exemplars">${renderExemplars()}</div>`;
     const support = `<div class="js-ai-support">${renderSupport()}</div>`;
     const secondary =
-      state?.kind === 'opponent_prep'
+      state?.kind === opponentPrepKind
         ? `${openings}${patterns}${exemplars}${support}`
         : `${patterns}${openings}${exemplars}${support}`;
     return `

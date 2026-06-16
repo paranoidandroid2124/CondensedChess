@@ -26,16 +26,13 @@ final class Env(
     lila.core.config.RateLimit
 ):
 
-  // Local type aliases for removed socket types
-  private case class SocketVersion(value: Int)
-
   private lazy val studyDb = mongo.asyncDb("study", appConfig.get[String]("study.mongodb.uri"))
 
   def version(@unused studyId: StudyId): Fu[Int] =
-    fuccess(0) // Socket removed - simplified
+    fuccess(0)
 
   def isConnected(@unused studyId: StudyId, @unused userId: UserId): Fu[Boolean] =
-    fuccess(false) // Socket removed - simplified
+    fuccess(false)
 
   val studyRepo = StudyRepo(studyDb(CollName("study")))
 
@@ -74,7 +71,7 @@ final class Env(
   def findConnectedUsersIn(@unused studyId: StudyId)(
       @unused filter: Iterable[UserId] => Fu[List[UserId]]
   ): Fu[List[UserId]] =
-    fuccess(Nil) // Socket removed - simplified
+    fuccess(Nil)
 
   lila.common.Cli.handle:
     case "study" :: "rank" :: "reset" :: Nil =>

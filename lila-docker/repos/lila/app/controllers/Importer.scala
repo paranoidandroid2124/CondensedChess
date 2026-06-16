@@ -34,7 +34,6 @@ final class Importer(
   import Importer.GameCard
 
   private val logger = lila.log("importer")
-  private val providerValues = Set("lichess", "chesscom")
   private val usernamePattern = "^[A-Za-z0-9][A-Za-z0-9_-]{1,29}$".r
   private val requestTimeout = 12.seconds
   private val recentGameTarget = 40
@@ -61,7 +60,8 @@ final class Importer(
   def importGame = Open:
     def queryParam(name: String): Option[String] =
       req.queryString.get(name).flatMap(_.headOption).map(_.trim).filter(_.nonEmpty)
-    val provider = queryParam("provider").map(_.toLowerCase).filter(providerValues).getOrElse("lichess")
+    val provider =
+      queryParam("provider").map(_.toLowerCase).filter(ImportHistory.providers).getOrElse(ImportHistory.providerLichess)
     val username = queryParam("username").getOrElse("")
     Ok.async(importIndexPage(provider = provider, username = username))
 
@@ -81,8 +81,10 @@ final class Importer(
         val provider = first("provider").map(_.toLowerCase)
         val username = first("username")
         (provider, username) match
-          case (Some("lichess"), Some(user)) => Redirect(routes.Importer.importFromLichess(user)).toFuccess
-          case (Some("chesscom"), Some(user)) => Redirect(routes.Importer.importFromChessCom(user)).toFuccess
+          case (Some(ImportHistory.providerLichess), Some(user)) =>
+            Redirect(routes.Importer.importFromLichess(user)).toFuccess
+          case (Some(ImportHistory.providerChessCom), Some(user)) =>
+            Redirect(routes.Importer.importFromChessCom(user)).toFuccess
           case _ =>
             BadRequest.async(importIndexPage(error = Some("Please choose provider and enter a valid username.")))
 
@@ -163,7 +165,7 @@ final class Importer(
 
   private def importIndexPage(
       error: Option[String] = None,
-      provider: String = "lichess",
+      provider: String = ImportHistory.providerLichess,
       username: String = ""
   )(using ctx: Context): Fu[lila.ui.Page] =
     importPageSummary.map: summary =>
@@ -240,7 +242,7 @@ final class Importer(
         val speed = (js \ "speed").asOpt[String].orElse((js \ "perf").asOpt[String]).getOrElse("-")
         val sourceUrl = Some(s"$lichessWebBase/$gameId")
         GameCard(
-          provider = "lichess",
+          provider = ImportHistory.providerLichess,
           gameId = gameId,
           playedAt = playedAt,
           white = white,
@@ -323,7 +325,7 @@ final class Importer(
       val speed = (game \ "time_class").asOpt[String].getOrElse("-")
       val playedAt = formatEpochMs((game \ "end_time").asOpt[Long].map(_ * 1000L))
       GameCard(
-        provider = "chesscom",
+        provider = ImportHistory.providerChessCom,
         gameId = gameId,
         playedAt = playedAt,
         white = white,

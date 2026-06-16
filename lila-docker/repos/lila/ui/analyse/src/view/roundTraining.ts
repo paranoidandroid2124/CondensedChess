@@ -3,7 +3,6 @@ import type AnalyseCtrl from '../ctrl';
 
 import { getPlayer } from 'lib/game';
 import * as licon from 'lib/licon';
-import { ratingDiff } from 'lib/view/userLink';
 
 type AdviceKind = 'inaccuracy' | 'mistake' | 'blunder';
 
@@ -13,14 +12,18 @@ interface Advice {
   symbol: string;
 }
 
+const ratingDiff = (diff?: number): VNode | undefined => {
+  if (!diff && diff !== 0) return undefined;
+  if (diff === 0) return h('span', '\u00b10');
+  return diff > 0 ? h('good', '+' + diff) : h('bad', '\u2212' + -diff);
+};
+
 const renderPlayer = (ctrl: AnalyseCtrl, color: Color): VNode => {
   const p = getPlayer(ctrl.data, color);
-  if (p.user)
-    return h('a.user-link.ulpt', { attrs: { href: '/@/' + p.user.username } }, [
-      p.user.username,
-      ' ',
-      ratingDiff(p),
-    ]);
+  if (p.user) {
+    const diff = ratingDiff(p.ratingDiff);
+    return h('span', diff ? [p.user.username, ' ', diff] : p.user.username);
+  }
   return h(
     'span',
     p.name ||
@@ -97,29 +100,9 @@ const doRender = (ctrl: AnalyseCtrl): VNode => {
   );
 };
 
-export function puzzleLink(ctrl: AnalyseCtrl): VNode | undefined {
-  const puzzle = ctrl.data.puzzle;
-  return (
-    puzzle &&
-    h(
-      'div.analyse__puzzle',
-      h(
-        'a.button-link.text',
-        {
-          attrs: {
-            'data-icon': licon.ArcheryTarget,
-            href: `/training/${puzzle.key}/${ctrl.bottomColor()}`,
-          },
-        },
-        ['Recommended puzzle training', h('br'), puzzle.name],
-      ),
-    )
-  );
-}
-
-export function render(ctrl: AnalyseCtrl): VNode | undefined {
+export function render(ctrl: AnalyseCtrl): VNode {
   if (!ctrl.data.analysis)
-    return h('div.analyse__round-training', puzzleLink(ctrl));
+    return h('div.analyse__round-training');
 
   // don't cache until the analysis is complete!
   const buster = ctrl.data.analysis.partial ? Math.random() : '';
@@ -127,6 +110,5 @@ export function render(ctrl: AnalyseCtrl): VNode | undefined {
 
   return h('div.analyse__round-training', [
     h('div.analyse__acpl', thunk('div.advice-summary', doRender, [ctrl, cacheKey])),
-    puzzleLink(ctrl),
   ]);
 }

@@ -1,15 +1,9 @@
 import { domDialog, alert } from 'lib/view';
 import { escapeHtml } from 'lib';
-import { userComplete } from 'lib/view/userComplete';
 import { text as xhrText } from 'lib/xhr';
 
 export function initModule({ input }: { input: HTMLInputElement }) {
-  userComplete({
-    input,
-    friend: true,
-    focus: true,
-    onSelect: r => execute(r.name),
-  });
+  input.autocomplete = 'off';
   $(input).on('keydown', (e: KeyboardEvent) => {
     if (e.key === 'Enter') {
       execute(input.value);
@@ -19,29 +13,23 @@ export function initModule({ input }: { input: HTMLInputElement }) {
 }
 
 function execute(q: string) {
-  if (!q) return;
-  if (q[0] === '/') return command(q.replace(/\//g, ''));
-  // 5kr1/p1p2p2/2b2Q2/3q2r1/2p4p/2P4P/P2P1PP1/1R1K3R b - - 1 23
-  if (q.match(/^([1-8pnbrqk]+\/){7}.*/i))
-    return (location.href = '/analysis/standard/' + q.replace(/ /g, '_'));
-  if (q.match(/^[a-zA-Z0-9_-]{2,30}$/)) location.href = '/@/' + q;
-  else location.href = '/player/search/' + q;
+  const text = q.trim();
+  if (!text) return;
+  if (text[0] === '/') return command(text.slice(1));
+  if (text.match(/^([1-8pnbrqk]+\/){7}.*/i))
+    return (location.href = '/analysis/standard/' + text.replace(/ /g, '_'));
+  alert('Paste a FEN or type /help.');
 }
 
 function command(q: string) {
-  const parts = q.split(' '),
-    exec = parts[0];
+  const exec = q.trim().split(/\s+/, 1)[0] ?? '';
 
   const is = function (commands: string) {
     return commands.split(' ').includes(exec);
   };
 
-  if (is('tv follow') && parts[1]) location.href = '/@/' + parts[1] + '/tv';
-  else if (is('tv')) location.href = '/tv';
-  else if (is('play challenge match') && parts[1]) location.href = '/?user=' + parts[1] + '#friend';
-  else if (is('light dark transp system'))
+  if (is('light dark transp system'))
     xhrText(`/pref/bg?v=${encodeURIComponent(exec)}`, { method: 'post' }).then(() => location.reload());
-  else if (is('stream') && parts[1]) location.href = '/streamer/' + parts[1];
   else if (is('help')) help();
   else alert(`Unknown command: "${q}". Type /help for the list of commands`);
 }
@@ -65,14 +53,9 @@ function help() {
     show: true,
     htmlText:
       '<div><h3>Commands</h3>' +
-      commandHelp('/tv /follow', ' <user>', 'Watch someone play') +
-      commandHelp('/play /challenge /match', ' <user>', 'Challenge someone to play') +
       commandHelp('/light /dark /transp /system', '', 'Change the background theme') +
-      commandHelp('/stream', '<user>', 'Watch someone stream') +
       '<h3>Global hotkeys</h3>' +
-      commandHelp('s', '', 'Search for a user') +
       commandHelp('/', '', 'Type a command') +
-      commandHelp('c', '', 'Focus the chat input') +
       commandHelp('esc', '', 'Close modals like this one') +
       '</div>',
   });

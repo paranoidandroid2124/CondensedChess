@@ -17,6 +17,7 @@ object MoveReviewEvidenceCoverageAudit:
   private val ExactFactualFallback = "exact_factual_fallback"
   private val CoverageInsufficient = "coverage_insufficient"
   private val CoverageComplete = "complete"
+  private val EvalGapWithoutConcreteDescriptor = "eval_gap_without_concrete_descriptor"
 
   final case class RankedCandidate(label: String, count: Int, sampleIds: List[String])
   object RankedCandidate:
@@ -41,6 +42,7 @@ object MoveReviewEvidenceCoverageAudit:
       centralBreakNamedTokenRowCount: Int,
       centralBreakGenericFallbackCount: Int,
       centralBreakDiagonalCaptureVisibleCount: Int,
+      evalOnlyDescriptorGapSampleIds: List[String],
       basicExpansionCandidateSampleIds: List[String],
       supportedLocalRuntimeCandidateSampleIds: List[String],
       supportedLocalEvidenceGapSampleIds: List[String],
@@ -71,6 +73,8 @@ object MoveReviewEvidenceCoverageAudit:
       coveredEntries.filter(_.moveReviewSourceKind.contains(ExactFactualFallback))
     val basicCandidates =
       exactRows.filter(basicRuntimeExpansionCandidate).sortBy(_.sampleId)
+    val evalOnlyDescriptorGaps =
+      exactRows.filter(evalOnlyDescriptorGap).sortBy(_.sampleId)
     val basicCandidateIds = basicCandidates.map(_.sampleId)
     val basicCandidateSet = basicCandidateIds.toSet
     val supportedRuntimeCandidates =
@@ -144,6 +148,7 @@ object MoveReviewEvidenceCoverageAudit:
         centralBreakNamedTokenRowCount = centralBreakNamedTokenRows.size,
         centralBreakGenericFallbackCount = centralBreakGenericFallbacks.size,
         centralBreakDiagonalCaptureVisibleCount = centralBreakDiagonalCaptures.size,
+        evalOnlyDescriptorGapSampleIds = evalOnlyDescriptorGaps.map(_.sampleId),
         basicExpansionCandidateSampleIds = basicCandidateIds,
         supportedLocalRuntimeCandidateSampleIds = supportedRuntimeCandidates.map(_.sampleId),
         supportedLocalEvidenceGapSampleIds = supportedEvidenceGaps.map(_.sampleId),
@@ -192,6 +197,7 @@ object MoveReviewEvidenceCoverageAudit:
 
   private def basicRuntimeExpansionCandidate(entry: MoveReviewOutputEntry): Boolean =
     entry.basicEvidenceStatus.contains("blocked") &&
+      !evalOnlyDescriptorGap(entry) &&
       (
         entry.basicEvidenceRejectReasons.contains("after_pv_projection_would_admit_basic") ||
           entry.basicEvidenceRejectReasons.contains("before_pv_not_seeded_by_played_move") ||
@@ -206,6 +212,9 @@ object MoveReviewEvidenceCoverageAudit:
       reason == "missing_coupled_pv_line" ||
       reason == "after_pv_projection_replay_failed" ||
       reason == "coupled_pv_replay_failed"
+
+  private def evalOnlyDescriptorGap(entry: MoveReviewOutputEntry): Boolean =
+    entry.basicEvidenceRejectReasons.contains(EvalGapWithoutConcreteDescriptor)
 
   private def countValues(values: Iterable[String]): Map[String, Int] =
     values
@@ -329,6 +338,7 @@ object MoveReviewEvidenceCoverageAudit:
        |- Central break named-token rows: ${s.centralBreakNamedTokenRowCount}
        |- Central break generic fallback rows: ${s.centralBreakGenericFallbackCount}
        |- Central break diagonal-capture visible rows: ${s.centralBreakDiagonalCaptureVisibleCount}
+       |- eval-only fail-closed rows: ${renderIds(s.evalOnlyDescriptorGapSampleIds)}
        |- basic expansion candidates: ${renderIds(s.basicExpansionCandidateSampleIds)}
        |- SupportedLocal runtime candidates: ${renderIds(s.supportedLocalRuntimeCandidateSampleIds)}
        |- SupportedLocal evidence gaps: ${renderIds(s.supportedLocalEvidenceGapSampleIds)}

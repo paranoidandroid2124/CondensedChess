@@ -90,7 +90,6 @@ final class LilaComponents(
     lila.web.HttpFilter(
       env.net,
       env.web.settings.sitewideCoepCredentiallessHeader.get
-      // lila.security.Mobile.LichessMobileUa.parse  // Removed - not in constructor
     )
   )
 

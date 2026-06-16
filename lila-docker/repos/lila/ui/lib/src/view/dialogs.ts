@@ -1,6 +1,6 @@
 /* eslint no-restricted-syntax:"error" */ // no side effects allowed due to re-export by index.ts
 
-import { type Dialog, domDialog } from './dialog';
+import { domDialog } from './dialog';
 import { escapeHtml } from '../index';
 
 // non-blocking window.alert-alike
@@ -15,19 +15,6 @@ export async function alert(msg: string): Promise<void> {
     show: true,
     actions: { selector: 'button', result: 'ok' },
   });
-}
-
-export async function alerts(msgs: string[]): Promise<void> {
-  for (const msg of msgs) await alert(msg);
-}
-
-export async function info(msg: string, autoDismiss?: Millis): Promise<Dialog> {
-  const dlg = await domDialog({
-    htmlText: escapeHtmlAddBreaks(msg),
-    noCloseButton: true,
-  });
-  if (!!autoDismiss) setTimeout(() => dlg.close(), autoDismiss);
-  return dlg.show();
 }
 
 // non-blocking window.confirm-alike
@@ -106,97 +93,6 @@ export async function prompt(
   });
   return res.returnValue === 'ok' ? res.view.querySelector('input')!.value : null;
 }
-
-export async function choose(
-  msg: string,
-  options: string[],
-  initial?: string,
-  mustChoose = false,
-): Promise<string | undefined> {
-  const res = await domDialog({
-    htmlText:
-      $html`
-      <div>${escapeHtmlAddBreaks(msg)}</div>
-      <select ${initial ? 'value="' + initial + '"' : ''}>` +
-      options.map(
-        option => $html`
-          <option value="${escapeHtml(option)}"${option === initial ? ' selected' : ''}>
-            ${escapeHtml(option)}
-          </option>`,
-      ) +
-      $html`
-      </select>
-      <span>` +
-      (mustChoose
-        ? ''
-        : $html`
-        <button class="button button-empty cancel">Cancel</button>`) +
-      $html`
-        <button class="button ok">OK</button>
-      </span>`,
-    class: 'alert',
-    noCloseButton: mustChoose,
-    noClickAway: true,
-    modal: true,
-    show: true,
-    actions: [
-      {
-        selector: '.ok',
-        listener: (_, dlg) => dlg.close(dlg.view.querySelector<HTMLSelectElement>('select')?.value),
-      },
-      { selector: '.cancel', result: 'cancel' },
-    ],
-  });
-  return res.returnValue === 'cancel' ? undefined : res.returnValue;
-}
-
-export const makeLinkPopups = (dom: HTMLElement | Cash, selector = 'a[href^="http"]'): void => {
-  const $el = $(dom);
-  if (!$el.hasClass('link-popup-ready'))
-    $el.addClass('link-popup-ready').on('click', selector, function (this: HTMLLinkElement) {
-      return onClick(this);
-    });
-};
-
-const onClick = (a: HTMLLinkElement): boolean => {
-  const url = new URL(a.href);
-  if (isPassList(url)) return true;
-
-  domDialog({
-    class: 'link-popup',
-    css: [{ hashed: 'bits.linkPopup' }],
-    htmlText: $html`
-      <div class="link-popup__content">
-        <div class="link-popup__content__title">
-          <h2>You are leaving Chesstory</h2>
-          <p class="link-popup__content__advice">Never type your password on another site.</p>
-        </div>
-      </div>
-      <div class="link-popup__actions">
-        <button class="cancel button-link" type="button">Cancel</button>
-        <a href="${a.href}" target="_blank" class="button button-red button-no-upper">
-          Continue to ${url.host}
-        </a>
-      </div>`,
-    modal: true,
-  }).then(dlg => {
-    $('.cancel', dlg.view).on('click', dlg.close);
-    $('a', dlg.view).on('click', () => setTimeout(dlg.close, 1000));
-    dlg.show();
-  });
-  return false;
-};
-
-const isPassList = (url: URL) => passList().find(h => h === url.host || url.host.endsWith('.' + h));
-
-const passList = () =>
-  `${location.host}
-github.com discord.com discord.gg mastodon.online
-bsky.app facebook.com twitch.tv
-wikipedia.org wikimedia.org
-chess24.com chess.com chessable.com
-lc0.org lczero.org stockfishchess.org
-`.split(/[ \n]/);
 
 function escapeHtmlAddBreaks(s: string) {
   return escapeHtml(s).replace(/\n/g, '<br>');

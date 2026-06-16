@@ -2,6 +2,7 @@ package views
 
 import controllers.AccountIntel.ProductState
 import lila.analyse.ImportHistory
+import lila.accountintel.AccountIntel.ProductKind
 import lila.app.UiEnv.*
 import play.api.libs.json.{ JsObject, Json }
 
@@ -84,8 +85,14 @@ object accountIntel:
                         div(cls := "form-group")(
                           label(`for` := "account-provider")("Provider"),
                           st.select(id := "account-provider", name := "provider")(
-                            option(value := "chesscom", if provider == "chesscom" then selected := true else emptyFrag)("Chess.com"),
-                            option(value := "lichess", if provider == "lichess" then selected := true else emptyFrag)("Lichess")
+                            option(
+                              value := ImportHistory.providerChessCom,
+                              if provider == ImportHistory.providerChessCom then selected := true else emptyFrag
+                            )("Chess.com"),
+                            option(
+                              value := ImportHistory.providerLichess,
+                              if provider == ImportHistory.providerLichess then selected := true else emptyFrag
+                            )("Lichess")
                           )
                         ),
                         div(cls := "form-group")(
@@ -104,13 +111,13 @@ object accountIntel:
                           div(cls := "account-product-mode-choice-grid")(
                             landingModeChoice(
                               selectedKindKey = selectedKindKey,
-                              kindKey = "my_account_intelligence_lite",
+                              kindKey = ProductKind.MyAccountIntelligenceLite.key,
                               title = "My Patterns",
                               body = "Review your recurring mistakes, typical positions, and what to look for next."
                             ),
                             landingModeChoice(
                               selectedKindKey = selectedKindKey,
-                              kindKey = "opponent_prep",
+                              kindKey = ProductKind.OpponentPrep.key,
                               title = "Prep for Opponent",
                               body = "Build a short game plan, typical position, and prep checklist for the matchup."
                             )
@@ -358,8 +365,8 @@ object accountIntel:
         div(cls := "js-ai-active-job")(activeJob.map(renderActiveJobCallout)),
         div(cls := "account-product-hero-actions")(
           div(cls := "account-product-mode-switch js-ai-mode-switch")(
-            modeLink(state, lila.accountintel.AccountIntel.ProductKind.MyAccountIntelligenceLite, "My Patterns"),
-            modeLink(state, lila.accountintel.AccountIntel.ProductKind.OpponentPrep, "Prep for Opponent")
+            modeLink(state, ProductKind.MyAccountIntelligenceLite, "My Patterns"),
+            modeLink(state, ProductKind.OpponentPrep, "Prep for Opponent")
           ),
           div(cls := "account-product-action-row")(
             form(method := "post", action := routes.AccountIntel.submit.url, cls := "js-ai-rerun-form")(
@@ -408,7 +415,7 @@ object accountIntel:
       notebookUrl: Option[String]
   ): Frag =
     val secondarySections =
-      if state.kind == lila.accountintel.AccountIntel.ProductKind.OpponentPrep then
+      if state.kind == ProductKind.OpponentPrep then
         frag(
           div(cls := "js-ai-openings")(renderOpeningIdentity(openingCards)),
           hasAdditionalPatterns.option(
@@ -463,8 +470,8 @@ object accountIntel:
           span("Choose My Patterns or Prep for Opponent. The finished review will live here, while the study notebook stays secondary.")
         ),
         div(cls := "account-product-mode-switch")(
-          modeLink(state, lila.accountintel.AccountIntel.ProductKind.MyAccountIntelligenceLite, "My Patterns"),
-          modeLink(state, lila.accountintel.AccountIntel.ProductKind.OpponentPrep, "Prep for Opponent")
+          modeLink(state, ProductKind.MyAccountIntelligenceLite, "My Patterns"),
+          modeLink(state, ProductKind.OpponentPrep, "Prep for Opponent")
         ),
         form(method := "post", action := routes.AccountIntel.submit.url)(
           input(tpe := "hidden", name := "provider", value := state.provider),
@@ -550,17 +557,17 @@ object accountIntel:
     )
 
   private def renderLeadPattern(
-      kind: lila.accountintel.AccountIntel.ProductKind,
+      kind: ProductKind,
       pattern: Option[JsObject]
   ): Frag =
     div(cls := "importer-panel importer-panel--results")(
       div(cls := "importer-panel__head")(
         strong(cls := "importer-panel__title")(
-          if kind == lila.accountintel.AccountIntel.ProductKind.MyAccountIntelligenceLite then "Main pattern to fix"
+          if kind == ProductKind.MyAccountIntelligenceLite then "Main pattern to fix"
           else "Typical position"
         ),
         p(cls := "importer-panel__copy")(
-          if kind == lila.accountintel.AccountIntel.ProductKind.MyAccountIntelligenceLite then
+          if kind == ProductKind.MyAccountIntelligenceLite then
             "Start here. This is the clearest recurring issue in the current sample."
           else
             "Use this position as the board-first reference point for the game plan."
@@ -587,11 +594,11 @@ object accountIntel:
     div(cls := "importer-panel importer-panel--results")(
       div(cls := "importer-panel__head")(
         strong(cls := "importer-panel__title")(
-          if state.kind == lila.accountintel.AccountIntel.ProductKind.MyAccountIntelligenceLite then "Additional patterns"
+          if state.kind == ProductKind.MyAccountIntelligenceLite then "Additional patterns"
           else "More patterns to watch"
         ),
         p(cls := "importer-panel__copy")(
-          if state.kind == lila.accountintel.AccountIntel.ProductKind.MyAccountIntelligenceLite then
+          if state.kind == ProductKind.MyAccountIntelligenceLite then
             "Keep the lead pattern first. Open the other recurring issues only after the first fix is clear."
           else
             "Keep the game plan first. Open these extra patterns only when you want more context."
@@ -622,7 +629,7 @@ object accountIntel:
     )
 
   private def renderLeadPatternCard(
-      kind: lila.accountintel.AccountIntel.ProductKind,
+      kind: ProductKind,
       pattern: JsObject
   ): Frag =
     val anchor = (pattern \ "anchor").asOpt[JsObject]
@@ -651,7 +658,7 @@ object accountIntel:
     )
 
   private def renderPatternCard(
-      kind: lila.accountintel.AccountIntel.ProductKind,
+      kind: ProductKind,
       pattern: JsObject,
       featured: Boolean = false
   ): Frag =
@@ -692,7 +699,7 @@ object accountIntel:
     )
 
   private def renderAnchorCard(
-      kind: lila.accountintel.AccountIntel.ProductKind,
+      kind: ProductKind,
       side: Option[String],
       pattern: JsObject,
       anchor: JsObject,
@@ -744,7 +751,7 @@ object accountIntel:
     url.fold(inner)(gameUrl => a(lila.app.UiEnv.href := gameUrl, target := "_blank", rel := "noopener")(inner))
 
   private def renderActionPanel(
-      kind: lila.accountintel.AccountIntel.ProductKind,
+      kind: ProductKind,
       actionCards: List[JsObject],
       checklist: Option[JsObject],
       notebookUrl: Option[String]
@@ -752,16 +759,16 @@ object accountIntel:
     val primaryAction = actionCards.headOption
     val extraActions = actionCards.drop(1)
     val primaryHref =
-      if kind == lila.accountintel.AccountIntel.ProductKind.OpponentPrep then notebookUrl
+      if kind == ProductKind.OpponentPrep then notebookUrl
       else Some(routes.StrategicPuzzle.home.url)
     val primaryLabel =
-      if kind == lila.accountintel.AccountIntel.ProductKind.OpponentPrep then "Open study notebook"
+      if kind == ProductKind.OpponentPrep then "Open study notebook"
       else "Try the idea on the board"
     div(cls := "importer-panel importer-panel--guide")(
       div(cls := "importer-panel__head")(
-        strong(cls := "importer-panel__title")(if kind == lila.accountintel.AccountIntel.ProductKind.MyAccountIntelligenceLite then "What to look for next" else "Game plan"),
+        strong(cls := "importer-panel__title")(if kind == ProductKind.MyAccountIntelligenceLite then "What to look for next" else "Game plan"),
         p(cls := "importer-panel__copy")(
-          if kind == lila.accountintel.AccountIntel.ProductKind.MyAccountIntelligenceLite then
+          if kind == ProductKind.MyAccountIntelligenceLite then
             "Use the actions below as the shortest route from the diagnosis to the board."
           else
             "Keep the prep short enough to carry into the next game."
@@ -771,7 +778,7 @@ object accountIntel:
       Option.when(extraActions.nonEmpty || checklist.nonEmpty)(
         details(cls := "account-product-action-details")(
           summary(
-            if kind == lila.accountintel.AccountIntel.ProductKind.MyAccountIntelligenceLite then "See the full plan"
+            if kind == ProductKind.MyAccountIntelligenceLite then "See the full plan"
             else "See the full prep plan"
           ),
           div(cls := "account-product-action-stack")(
@@ -783,9 +790,9 @@ object accountIntel:
       div(cls := "account-product-action-cta-row")(
         primaryHref.map(url => a(href := url, cls := "account-product-primary-link")(primaryLabel)),
         notebookUrl
-          .filter(_ => kind == lila.accountintel.AccountIntel.ProductKind.MyAccountIntelligenceLite)
+          .filter(_ => kind == ProductKind.MyAccountIntelligenceLite)
           .map(url => a(href := url, cls := "account-product-secondary-link")("Open study notebook")),
-        Option.when(kind == lila.accountintel.AccountIntel.ProductKind.OpponentPrep)(
+        Option.when(kind == ProductKind.OpponentPrep)(
           a(href := routes.StrategicPuzzle.home.url, cls := "account-product-secondary-link")("Try the idea on the board")
         )
       )
@@ -882,7 +889,7 @@ object accountIntel:
 
   private def modeLink(
       state: ProductState,
-      kind: lila.accountintel.AccountIntel.ProductKind,
+      kind: ProductKind,
       label: String
   ): Frag =
     a(
@@ -1013,7 +1020,7 @@ object accountIntel:
 
   private def renderRecentAccountCard(account: ImportHistory.Account): Frag =
     a(
-      href := routes.AccountIntel.product(account.provider, account.username, lila.accountintel.AccountIntel.ProductKind.MyAccountIntelligenceLite.key, "").url,
+      href := routes.AccountIntel.product(account.provider, account.username, ProductKind.MyAccountIntelligenceLite.key, "").url,
       cls := "account-product-recent-card"
     )(
       strong(s"@${account.username}"),
@@ -1047,11 +1054,11 @@ object accountIntel:
     else "Low confidence"
 
   private def boardOrientationFor(
-      kind: lila.accountintel.AccountIntel.ProductKind,
+      kind: ProductKind,
       side: Option[String]
   ): String =
     side.map(_.trim.toLowerCase).filter(Set("white", "black")).getOrElse:
-      if kind == lila.accountintel.AccountIntel.ProductKind.OpponentPrep then "black" else "white"
+      if kind == ProductKind.OpponentPrep then "black" else "white"
 
   private def displaySideLabel(raw: String): String =
     raw.trim.toLowerCase match
@@ -1165,14 +1172,14 @@ object accountIntel:
 
   private def providerLabel(provider: String): String =
     provider.trim.toLowerCase match
-      case "chesscom" => "Chess.com"
-      case _          => "Lichess"
+      case ImportHistory.providerChessCom => "Chess.com"
+      case _                              => "Lichess"
 
   private def kindLabel(kind: String): String =
     kind match
-      case "my_account_intelligence_lite" => "My Patterns"
-      case "opponent_prep"                => "Prep for Opponent"
-      case other                          => other.replace('_', ' ')
+      case ProductKind.MyAccountIntelligenceLite.key => "My Patterns"
+      case ProductKind.OpponentPrep.key              => "Prep for Opponent"
+      case other                                     => other.replace('_', ' ')
 
   private case class ProgressStep(index: Int, key: String, label: String, description: String)
 

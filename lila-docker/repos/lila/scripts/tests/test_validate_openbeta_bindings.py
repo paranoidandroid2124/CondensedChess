@@ -5,6 +5,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -50,6 +51,15 @@ def secret(name: str, secret_name: str) -> dict[str, object]:
     }
 
 
+def required_envs(manifest: dict[str, Any], *, cloud_run_only: bool = False) -> dict[str, bool]:
+    return {
+        spec["env"]: True
+        for spec in manifest["bindings"]
+        if spec["requiredMode"] == "always"
+        if not cloud_run_only or spec.get("cloudRunManaged", True)
+    }
+
+
 class ValidateOpenBetaBindingsTest(unittest.TestCase):
     maxDiff = None
 
@@ -58,51 +68,31 @@ class ValidateOpenBetaBindingsTest(unittest.TestCase):
         cls.manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
 
     def test_all_required_always_bindings_pass(self) -> None:
-        envs = {
-            spec["env"]: True
-            for spec in self.manifest["bindings"]
-            if spec["requiredMode"] == "always"
-        }
+        envs = required_envs(self.manifest)
         errors, warnings = module.evaluate_manifest(self.manifest, envs)
         self.assertEqual(errors, [])
         self.assertEqual(warnings, [])
 
     def test_missing_required_binding_fails(self) -> None:
-        envs = {
-            spec["env"]: True
-            for spec in self.manifest["bindings"]
-            if spec["requiredMode"] == "always"
-        }
+        envs = required_envs(self.manifest)
         envs["EXTERNAL_ENGINE_ENDPOINT"] = False
         errors, _warnings = module.evaluate_manifest(self.manifest, envs)
         self.assertTrue(any("EXTERNAL_ENGINE_ENDPOINT" in err for err in errors))
 
     def test_dispatch_disabled_does_not_require_dispatch_bindings(self) -> None:
-        envs = {
-            spec["env"]: True
-            for spec in self.manifest["bindings"]
-            if spec["requiredMode"] == "always"
-        }
+        envs = required_envs(self.manifest)
         errors, warnings = module.evaluate_manifest(self.manifest, envs)
         self.assertEqual(errors, [])
         self.assertEqual(warnings, [])
 
     def test_hardcoded_runtime_bindings_do_not_require_cloud_run_env(self) -> None:
-        envs = {
-            spec["env"]: True
-            for spec in self.manifest["bindings"]
-            if spec["requiredMode"] == "always" and spec.get("cloudRunManaged", True)
-        }
+        envs = required_envs(self.manifest, cloud_run_only=True)
         errors, warnings = module.evaluate_manifest(self.manifest, envs)
         self.assertEqual(errors, [])
         self.assertEqual(warnings, [])
 
     def test_dispatch_enabled_without_token_fails(self) -> None:
-        envs = {
-            spec["env"]: True
-            for spec in self.manifest["bindings"]
-            if spec["requiredMode"] == "always"
-        }
+        envs = required_envs(self.manifest)
         envs["ACCOUNT_INTEL_DISPATCH_BASE_URL"] = True
         envs["ACCOUNT_INTEL_DISPATCH_BEARER_TOKEN"] = False
         envs["ACCOUNT_INTEL_WORKER_TOKEN"] = False
@@ -111,11 +101,7 @@ class ValidateOpenBetaBindingsTest(unittest.TestCase):
         self.assertTrue(any("ACCOUNT_INTEL_WORKER_TOKEN" in err for err in errors))
 
     def test_removed_binding_only_warns(self) -> None:
-        envs = {
-            spec["env"]: True
-            for spec in self.manifest["bindings"]
-            if spec["requiredMode"] == "always"
-        }
+        envs = required_envs(self.manifest)
         envs["PUSH_WEB_URL"] = True
         errors, warnings = module.evaluate_manifest(self.manifest, envs)
         self.assertEqual(errors, [])

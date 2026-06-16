@@ -1,18 +1,7 @@
 import { memoize } from './index';
-import { bind, type Hooks } from './view';
-import * as licon from './licon';
-
-export const hookMobileMousedown = (f: (e: Event) => any): Hooks =>
-  bind('ontouchstart' in window ? 'click' : 'mousedown', f);
 
 export const prefersLightThemeQuery = (): MediaQueryList =>
   window.matchMedia('(prefers-color-scheme: light)');
-
-export const currentTheme = (): 'light' | 'dark' => {
-  const dataTheme = document.body.dataset.theme!;
-  if (dataTheme === 'system') return prefersLightThemeQuery().matches ? 'light' : 'dark';
-  return dataTheme === 'light' ? 'light' : 'dark';
-};
 
 let colCache: number | undefined;
 window.addEventListener('resize', () => (colCache = undefined));
@@ -35,25 +24,16 @@ export const isIos: () => boolean = memoize(() => /iphone|ipod/.test(lowerAgent)
 
 export const isIPad = (): boolean => navigator?.maxTouchPoints > 2 && /ipad|macintosh/.test(lowerAgent);
 
-export type VersionConstraint = { atLeast?: string; below?: string }; // '11', '14.1.x', '127_2_7'
+type VersionConstraint = { atLeast?: string; below?: string }; // '11', '14.1.x', '127_2_7'
 
 export const isChrome = (constraint?: VersionConstraint): boolean =>
   isVersionCompatible(lowerAgent.match(/chrome\/(.*)/)?.[1], constraint);
-
-export const isFirefox = (constraint?: VersionConstraint): boolean =>
-  isVersionCompatible(lowerAgent.match(/firefox\/(.*)/)?.[1], constraint);
 
 export const isSafari = (constraint?: VersionConstraint): boolean =>
   lowerAgent.includes('version/') && isWebkit(constraint);
 
 export const isWebkit = (constraint?: VersionConstraint): boolean =>
   isVersionCompatible(webkitVersion(), constraint);
-
-export const isApple: () => boolean = memoize<boolean>(() => /macintosh|iphone|ipad|ipod/.test(lowerAgent));
-
-export const isMac: () => boolean = memoize<boolean>(
-  () => lowerAgent.includes('macintosh') && !('ontouchstart' in window),
-);
 
 const webkitVersion = memoize<string | false>(
   () =>
@@ -65,8 +45,6 @@ const webkitVersion = memoize<string | false>(
     false,
 );
 
-export const shareIcon: () => string = () => (isApple() ? licon.ShareIos : licon.ShareAndroid);
-
 export type Feature =
   | 'wasm'
   | 'sharedMem'
@@ -74,8 +52,6 @@ export type Feature =
   | 'dynamicImportFromWorker'
   | 'bigint'
   | 'structuredClone';
-
-export const hasFeature = (feat: Feature): boolean => features().includes(feat);
 
 export const features: () => readonly Feature[] = memoize<readonly Feature[]>(() => {
   const features: Feature[] = [];
@@ -109,10 +85,6 @@ export const features: () => readonly Feature[] = memoize<readonly Feature[]>(()
 
 const hasMouse = memoize<boolean>(() => window.matchMedia('(hover: hover) and (pointer: fine)').matches);
 
-export const reducedMotion: () => boolean = memoize<boolean>(
-  () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-);
-
 function sharedMemoryTest(): boolean {
   if (typeof Atomics !== 'object' || typeof SharedArrayBuffer !== 'function') return false;
 
@@ -127,7 +99,7 @@ function sharedMemoryTest(): boolean {
   }
 }
 
-export function isVersionCompatible(version: string | undefined | false, vc?: VersionConstraint): boolean {
+function isVersionCompatible(version: string | undefined | false, vc?: VersionConstraint): boolean {
   if (!version) return false;
   if (!vc) return true;
 

@@ -1,5 +1,4 @@
-import type { Player, Status, Source, Clock } from 'lib/game';
-
+import type { Player, Status } from 'lib/game';
 
 import type { ExplorerOpts } from './explorer/interfaces';
 
@@ -7,44 +6,23 @@ import type { AnalyseSocketSend } from './socket';
 import type { ExternalEngineInfo } from 'lib/ceval';
 import type { Coords, MoveEvent } from 'lib/prefs';
 
-
-
-
-export interface AnalyseApi {
-  socketReceive(type: string, data: any): boolean;
-  path(): Tree.Path;
-  setChapter(id: string): void;
-}
-
-export interface OpeningPuzzle {
-  key: string;
-  name: string;
-  count: number;
-}
-
 // similar, but not identical, to game/GameData
 export interface AnalyseData {
   game: Game;
   player: Player;
   opponent: Player;
   orientation: Color;
-  spectator?: boolean; // for compat with GameData, for game functions
-  takebackable: boolean;
-  moretimeable: boolean;
   analysis?: Analysis;
   userAnalysis: boolean;
   sidelines?: Tree.Node[][];
   treeParts: Tree.NodeOptionalChildren[];
-  clock?: Clock;
   pref: AnalysePref;
-  puzzle?: OpeningPuzzle;
   externalEngines?: ExternalEngineInfo[];
 }
 
 export interface AnalysePref {
   coords: Coords;
   is3d?: boolean;
-  showDests?: boolean;
   rookCastle?: boolean;
   destination?: boolean;
   highlight?: boolean;
@@ -75,8 +53,6 @@ export interface ImportHistoryAnalysis {
   result?: string;
   speed?: string;
   playedAtLabel?: string;
-  white?: string;
-  black?: string;
   variant?: string;
   opening?: string;
 }
@@ -89,7 +65,6 @@ export interface ImportHistoryView {
 
 export interface StudyChapterSummary {
   id: string;
-  name: string;
   url?: string;
 }
 
@@ -109,7 +84,6 @@ export interface ServerEvalData {
   ch: string;
   analysis?: Analysis;
   tree: Tree.Node;
-  division?: Division;
 }
 
 export interface EvalHit {
@@ -120,45 +94,25 @@ export interface EvalHit {
   path: string;
 }
 
-export interface EvalHitMulti extends EvalScore {
-  fen: FEN;
-}
-
-export interface EvalHitMultiArray {
-  multi: EvalHitMulti[];
-}
-
 // similar, but not identical, to game/Game
 export interface Game {
   id: string;
   status: Status;
-  player: Color;
   turns: number;
   fen: FEN;
   startedAtTurn?: number;
-  source: Source;
-  speed: Speed;
+  source?: string;
   variant: Variant;
   winner?: Color;
   moveCentis?: number[];
   initialFen?: string;
-  importedBy?: string;
-  division?: Division;
   opening?: Opening;
-  perf: string;
-  rated?: boolean;
   threefold?: boolean;
 }
 
 export interface Opening {
   name: string;
   eco: string;
-  ply: number;
-}
-
-export interface Division {
-  middle?: number;
-  end?: number;
 }
 
 export interface Analysis {

@@ -7,7 +7,6 @@ import scala.annotation.unused
 
 import lila.tree.{ Branches, Root }
 
-// Chesstory: Removed chatApi dependency - analysis system doesn't need chat notifications
 final private class ChapterMaker(
     lightUser: lila.core.user.LightUserApi
 )(using Executor):
@@ -24,7 +23,6 @@ final private class ChapterMaker(
       case None => fuccess(fromFenOrBlank(study, data, order, userId))
 
   private def fromPgn(study: Study, pgn: PgnStr, data: Data, order: Int, userId: UserId): Fu[Chapter] =
-    // Simplified: removed asyncMany call - just use sync for contributors
     val contributors = study.members.contributorIds.toList.flatMap(id => lightUser.sync(id))
     StudyPgnImport.result(pgn, contributors).toFuture.recoverWith { case e: Exception =>
       fufail(ValidationException(e.getMessage))
@@ -104,8 +102,6 @@ final private class ChapterMaker(
       gamebook = data.isGamebook,
       conceal = data.isConceal.option(root.ply)
     )
-
-  // Removed game-id import path: chapter creation is now FEN/PGN only.
 
 private[study] object ChapterMaker:
 

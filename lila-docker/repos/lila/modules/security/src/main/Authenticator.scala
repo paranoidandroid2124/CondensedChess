@@ -25,7 +25,6 @@ case class LoginCandidate(user: User, check: CredentialCheck, isBlanked: Boolean
             if tp.verify(token) then Result.Success(user) else Result.InvalidTotpToken
       else if isBlanked then Result.BlankedPassword
       else Result.InvalidUsernameOrPassword
-    // lila.mon.user.auth.count(res.success).increment()
     res
   def option(p: PasswordAndToken): Option[User] = apply(p).toOption
 
@@ -94,6 +93,6 @@ final class Authenticator(
       yield LoginCandidate(
         user = user,
         check = authWithBenefits(auth),
-        isBlanked = false // Simplified
+        isBlanked = false
       )
     }

@@ -5,7 +5,6 @@ import com.softwaremill.macwire.*
 import play.api.Mode
 import scala.annotation.unused
 
-/* Chesstory: Simplified API Env for analysis-only system */
 @Module
 final class Env(
     net: lila.core.config.NetConfig,

@@ -1,14 +1,8 @@
-import { promiseTimeout } from 'lib/async';
 import { wsDestroy } from 'lib/socket';
 
-let redirectInProgress: false | string = false;
+let redirectInProgress = false;
 
-export const redirect = async (opts: RedirectTo, beep?: boolean) => {
-  try {
-    if (beep) await promiseTimeout(site.sound.play('genericNotify'), 1000);
-  } catch (e) {
-    console.warn(e);
-  }
+export const redirect = (opts: RedirectTo) => {
   let url: string;
   if (typeof opts === 'string') url = opts;
   else {
@@ -24,7 +18,7 @@ export const redirect = async (opts: RedirectTo, beep?: boolean) => {
     }
   }
   const href = '//' + location.host + '/' + url.replace(/^\//, '');
-  redirectInProgress = href;
+  redirectInProgress = true;
   location.href = href;
 };
 

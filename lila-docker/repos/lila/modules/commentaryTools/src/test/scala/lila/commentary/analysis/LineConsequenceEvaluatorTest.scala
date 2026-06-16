@@ -130,6 +130,357 @@ final class LineConsequenceEvaluatorTest extends FunSuite:
     assertEquals(reviewed.triggerSan, Some("exf6"))
   }
 
+  test("moveReviewCandidate can use a concrete reviewed capture line behind a one-ply preview") {
+    val fen = "rnbqk2r/pppp1ppp/5n2/2b1N3/2B1P3/8/PPPP1PPP/RNBQK2R b KQkq - 0 4"
+    val previewUcis = List("f6e4")
+    val proofUcis = List("f6e4", "c4f7", "e8f8", "d2d4", "e4f2", "d1h5", "f2h1", "c1g5")
+    val preview = refs(fen, "preview", previewUcis, List("Nxe4")).variations.head
+    val proof =
+      refs(fen, "proof", proofUcis, List("Nxe4", "Bxf7+", "Kf8", "d4", "Nxf2", "Qh5", "Nxh1", "Bg5"))
+        .variations
+        .head
+    val combined =
+      MoveReviewRefs(
+        startFen = fen,
+        startPly = NarrativeUtils.plyFromFen(fen).getOrElse(1),
+        variations = List(preview, proof)
+      )
+    val ctx = context(fen, "f6e4", "Nxe4", List(VariationLine(proofUcis, scoreCp = 239, depth = 10)))
+    val reviewed =
+      LineConsequenceEvaluator
+        .reviewedMoveSurfaceCandidate(ctx, Some(combined))
+        .getOrElse(fail("missing reviewed capture line consequence"))
+
+    assertEquals(reviewed.lineId, Some("proof"))
+    assertEquals(reviewed.kind, LineConsequenceKind.ExchangeSequence)
+    assertEquals(reviewed.uciMoves.headOption, Some("f6e4"))
+    assertEquals(reviewed.triggerSan, Some("Nxe4"))
+
+    val evidence =
+      LineConsequenceEvaluator
+        .moveReviewCandidate(ctx, Some(combined), truthContract = None)
+        .getOrElse(fail("missing reviewed capture line consequence"))
+
+    assertEquals(evidence.lineId, Some("proof"))
+    assertEquals(evidence.kind, LineConsequenceKind.ExchangeSequence)
+    assertEquals(evidence.uciMoves.headOption, Some("f6e4"))
+    assertEquals(evidence.triggerSan, Some("Nxe4"))
+  }
+
+  test("moveReviewCandidate can prefer a played-first delayed pawn capture behind an unowned surface line") {
+    val fen = "rnbqkb1r/pp2pppp/2p2n2/8/P1pP4/2N2N2/1P2PPPP/R1BQKB1R b KQkq - 0 5"
+    val unownedUcis = List("e7e6", "e2e3", "c6c5", "f1c4", "c5d4", "e3d4", "f8b4", "e1g1", "e8g8")
+    val playedUcis = List("c8f5", "e2e3", "e7e6", "f1c4", "f8d6", "d1e2", "e8g8", "e1g1")
+    val unowned =
+      refs(fen, "line_01", unownedUcis, List("e6", "e3", "c5", "Bxc4", "cxd4", "exd4", "Bb4", "O-O", "O-O"))
+        .variations
+        .head
+    val played =
+      refs(fen, "line_02", playedUcis, List("Bf5", "e3", "e6", "Bxc4", "Bd6", "Qe2", "O-O", "O-O"))
+        .variations
+        .head
+    val combined =
+      MoveReviewRefs(
+        startFen = fen,
+        startPly = NarrativeUtils.plyFromFen(fen).getOrElse(1),
+        variations = List(unowned, played)
+      )
+    val ctx = context(fen, "c8f5", "Bf5", List(VariationLine(playedUcis, scoreCp = 35, depth = 10)))
+    val tacticalTruth =
+      DecisiveTruthContract(
+        playedMove = Some("c8f5"),
+        verifiedBestMove = Some("e7e6"),
+        truthClass = DecisiveTruthClass.Acceptable,
+        cpLoss = 21,
+        swingSeverity = 0,
+        reasonFamily = DecisiveReasonKind.TacticalRefutation,
+        allowConcreteBenchmark = false,
+        chosenMatchesBest = false,
+        compensationAllowed = false,
+        truthPhase = None,
+        ownershipRole = TruthOwnershipRole.NoneRole,
+        visibilityRole = TruthVisibilityRole.PrimaryVisible,
+        surfaceMode = TruthSurfaceMode.Neutral,
+        exemplarRole = TruthExemplarRole.NonExemplar,
+        surfacedMoveOwnsTruth = false,
+        verifiedPayoffAnchor = None,
+        compensationProseAllowed = false,
+        benchmarkProseAllowed = false,
+        investmentTruthChainKey = None,
+        maintenanceExemplarCandidate = false,
+        benchmarkCriticalMove = false,
+        failureMode = FailureInterpretationMode.NoClearPlan,
+        failureIntentConfidence = 0.0,
+        failureIntentAnchor = None,
+        failureInterpretationAllowed = false
+      )
+
+    val reviewed =
+      LineConsequenceEvaluator
+        .reviewedMoveSurfaceCandidate(ctx, Some(combined))
+        .getOrElse(fail("missing reviewed delayed capture line consequence"))
+
+    assertEquals(reviewed.lineId, Some("line_02"))
+    assertEquals(reviewed.kind, LineConsequenceKind.DelayedPawnCapture)
+    assertEquals(reviewed.uciMoves.headOption, Some("c8f5"))
+    assertEquals(reviewed.triggerSan, Some("Bxc4"))
+    assert(reviewed.playerSentence.contains("delayed pawn capture"), clue(reviewed))
+
+    val evidence =
+      LineConsequenceEvaluator
+        .moveReviewCandidate(ctx, Some(combined), truthContract = Some(tacticalTruth))
+        .getOrElse(fail("missing move-review delayed capture line consequence"))
+
+    assertEquals(evidence.lineId, Some("line_02"))
+    assertEquals(evidence.kind, LineConsequenceKind.DelayedPawnCapture)
+    assert(VariationNarrativeBuilder.build(ctx, evidence).exists(_.contains("pawn capture arrives after the first move")), clue(evidence))
+  }
+
+  test("classifies an immediate opponent pawn capture after a quiet reviewed move") {
+    val fen = "3q1rk1/2p2ppp/1p1p1n2/B3p3/4P3/5N2/2P2PPP/1R3QK1 w - - 0 18"
+    val ucis = List("a5e1", "f6e4", "f1c4", "e4c5")
+    val refsValue = refs(fen, "line_04", ucis, List("Be1", "Nxe4", "Qc4", "Nc5"))
+    val ctx = context(fen, "a5e1", "Be1", List(VariationLine(ucis, scoreCp = 107, depth = 18)))
+
+    val reviewed =
+      LineConsequenceEvaluator
+        .reviewedMoveSurfaceCandidate(ctx, Some(refsValue))
+        .getOrElse(fail("missing reviewed immediate pawn capture"))
+
+    assertEquals(reviewed.kind, LineConsequenceKind.ImmediateOpponentPawnCapture)
+    assertEquals(reviewed.triggerSan, Some("Nxe4"))
+    assert(reviewed.playerSentence.contains("immediate pawn capture"), clue(reviewed))
+    assert(VariationNarrativeBuilder.build(ctx, reviewed).exists(_.contains("Black answers with Nxe4")), clue(reviewed))
+  }
+
+  test("classifies immediate opponent king-zone target pressure after a quiet reviewed move") {
+    val fen = "r1bq1rk1/ppp2ppp/1bnp1n2/4p3/4P3/2NP2P1/PPP1NPBP/R1BQ1RK1 w - - 2 8"
+    val ucis = List("g1h1", "f6g4", "d1e1", "c6b4")
+    val refsValue = refs(fen, "line_04", ucis, List("Kh1", "Ng4", "Qe1", "Nb4"))
+    val ctx = context(fen, "g1h1", "Kh1", List(VariationLine(ucis, scoreCp = -42, depth = 10)))
+
+    val reviewed =
+      LineConsequenceEvaluator
+        .reviewedMoveSurfaceCandidate(ctx, Some(refsValue))
+        .getOrElse(fail("missing reviewed immediate target pressure"))
+
+    assertEquals(reviewed.kind, LineConsequenceKind.ImmediateOpponentTargetPressure)
+    assertEquals(reviewed.triggerSan, Some("Ng4"))
+    assertEquals(reviewed.targetDetails.map(_.square).sorted, List("f2", "h2"))
+    assert(reviewed.playerSentence.contains("immediate target pressure"), clue(reviewed))
+    assert(VariationNarrativeBuilder.build(ctx, reviewed).exists(_.contains("Black answers with Ng4")), clue(reviewed))
+
+    assertEquals(LineConsequenceEvaluator.surfaceCandidate(ctx, Some(refsValue)), None)
+    assertEquals(LineConsequenceEvaluator.fromRefsForRoleComparison(ctx, Some(refsValue)), Nil)
+    assertEquals(LineConsequenceEvaluator.moveReviewCandidate(ctx, Some(refsValue), truthContract = None), None)
+
+    val tacticalTruth =
+      DecisiveTruthContract(
+        playedMove = Some("g1h1"),
+        verifiedBestMove = Some("c3a4"),
+        truthClass = DecisiveTruthClass.Inaccuracy,
+        cpLoss = 88,
+        swingSeverity = 1,
+        reasonFamily = DecisiveReasonKind.TacticalRefutation,
+        allowConcreteBenchmark = false,
+        chosenMatchesBest = false,
+        compensationAllowed = false,
+        truthPhase = None,
+        ownershipRole = TruthOwnershipRole.NoneRole,
+        visibilityRole = TruthVisibilityRole.PrimaryVisible,
+        surfaceMode = TruthSurfaceMode.Neutral,
+        exemplarRole = TruthExemplarRole.NonExemplar,
+        surfacedMoveOwnsTruth = false,
+        verifiedPayoffAnchor = None,
+        compensationProseAllowed = false,
+        benchmarkProseAllowed = false,
+        investmentTruthChainKey = None,
+        maintenanceExemplarCandidate = false,
+        benchmarkCriticalMove = false,
+        failureMode = FailureInterpretationMode.TacticalRefutation,
+        failureIntentConfidence = 0.0,
+        failureIntentAnchor = None,
+        failureInterpretationAllowed = false
+      )
+    val evidence =
+      LineConsequenceEvaluator
+        .moveReviewCandidate(ctx, Some(refsValue), truthContract = Some(tacticalTruth))
+        .getOrElse(fail("missing gated immediate target pressure"))
+
+    assertEquals(evidence.kind, LineConsequenceKind.ImmediateOpponentTargetPressure)
+    assertEquals(evidence.lineId, Some("line_04"))
+  }
+
+  test("classifies played-move advanced pawn target pressure only for move-review admission") {
+    val fen = "2r3k1/p4p1p/1qp3p1/2R5/3pr3/1PQ3P1/P4P1P/5BK1 w - - 0 23"
+    val ucis = List("c3c4", "b6d8", "c4a6", "c8c7", "a6a5")
+    val refsValue = refs(fen, "line_04", ucis, List("Qc4", "Qd8", "Qa6", "Rc7", "Qa5"))
+    val ctx = context(fen, "c3c4", "Qc4", List(VariationLine(ucis, scoreCp = 4, depth = 10)))
+
+    val reviewed =
+      LineConsequenceEvaluator
+        .reviewedMoveSurfaceCandidate(ctx, Some(refsValue))
+        .getOrElse(fail("missing reviewed played-move target pressure"))
+
+    assertEquals(reviewed.kind, LineConsequenceKind.PlayedMoveTargetPressure)
+    assertEquals(reviewed.triggerSan, Some("Qc4"))
+    assertEquals(reviewed.targetDetails.map(_.square), List("d4"))
+    assert(reviewed.targetDetails.exists(detail =>
+      detail.kind == "advanced_pawn_target_pressure" &&
+        detail.role == "pawn" &&
+        detail.attacker.contains("c4") &&
+        detail.side.contains("black")
+    ), clue(reviewed.targetDetails))
+    assert(VariationNarrativeBuilder.build(ctx, reviewed).exists(_.contains("Qc4 puts pressure on the pawn on d4")), clue(reviewed))
+    assert(VariationNarrativeBuilder.build(ctx, reviewed).exists(_.contains("same queen stays active with Qa6")), clue(reviewed))
+    assertEquals(VariationNarrativeBuilder.build(ctx, reviewed.copy(targetDetails = Nil)), None)
+    assertEquals(VariationNarrativeBuilder.build(ctx, reviewed.copy(uciMoves = reviewed.uciMoves.take(2), sanMoves = reviewed.sanMoves.take(2))), None)
+
+    assertEquals(LineConsequenceEvaluator.surfaceCandidate(ctx, Some(refsValue)), None)
+    assertEquals(LineConsequenceEvaluator.fromRefsForRoleComparison(ctx, Some(refsValue)), Nil)
+    assertEquals(LineConsequenceEvaluator.moveReviewCandidate(ctx, Some(refsValue), truthContract = None), None)
+    assertEquals(
+      LineConsequenceEvaluator.moveReviewCandidate(ctx, Some(refsValue), truthContract = None, reviewedMoveOwnerCertified = true),
+      None
+    )
+
+    val quietTruth =
+      DecisiveTruthContract(
+        playedMove = Some("c3c4"),
+        verifiedBestMove = Some("c3c4"),
+        truthClass = DecisiveTruthClass.Acceptable,
+        cpLoss = 4,
+        swingSeverity = 0,
+        reasonFamily = DecisiveReasonKind.InvestmentSacrifice,
+        allowConcreteBenchmark = false,
+        chosenMatchesBest = false,
+        compensationAllowed = false,
+        truthPhase = None,
+        ownershipRole = TruthOwnershipRole.NoneRole,
+        visibilityRole = TruthVisibilityRole.PrimaryVisible,
+        surfaceMode = TruthSurfaceMode.Neutral,
+        exemplarRole = TruthExemplarRole.NonExemplar,
+        surfacedMoveOwnsTruth = false,
+        verifiedPayoffAnchor = None,
+        compensationProseAllowed = false,
+        benchmarkProseAllowed = false,
+        investmentTruthChainKey = None,
+        maintenanceExemplarCandidate = false,
+        benchmarkCriticalMove = false,
+        failureMode = FailureInterpretationMode.NoClearPlan,
+        failureIntentConfidence = 0.0,
+        failureIntentAnchor = None,
+        failureInterpretationAllowed = false
+      )
+    val evidence =
+      LineConsequenceEvaluator
+        .moveReviewCandidate(ctx, Some(refsValue), truthContract = Some(quietTruth))
+        .getOrElse(fail("missing gated played-move target pressure"))
+
+    assertEquals(evidence.kind, LineConsequenceKind.PlayedMoveTargetPressure)
+    assertEquals(evidence.lineId, Some("line_04"))
+  }
+
+  test("classifies origin-square clearance when the checked line reuses the played move's origin") {
+    val fen = "2r2rk1/pp3ppp/3qpn2/n2p1b2/3P4/2P2N1P/PP1NBPP1/R2QR1K1 w - - 6 13"
+    val ucis = List("d2f1", "d6b6", "d1c1", "a5c6", "c1d2")
+    val refsValue = refs(fen, "line_04", ucis, List("Nf1", "Qb6", "Qc1", "Nc6", "Qd2"))
+    val ctx = context(fen, "d2f1", "Nf1", List(VariationLine(ucis, scoreCp = 28, depth = 10)))
+
+    val reviewed =
+      LineConsequenceEvaluator
+        .reviewedMoveSurfaceCandidate(ctx, Some(refsValue))
+        .getOrElse(fail("missing reviewed origin-square clearance"))
+
+    assertEquals(reviewed.kind, LineConsequenceKind.OriginSquareClearance)
+    assertEquals(reviewed.triggerSan, Some("Qd2"))
+    assert(reviewed.playerSentence.contains("square cleared by Nf1"), clue(reviewed))
+    assert(VariationNarrativeBuilder.build(ctx, reviewed).exists(_.contains("Nf1 clears d2")), clue(reviewed))
+    assert(VariationNarrativeBuilder.build(ctx, reviewed).exists(_.contains("Qd2 later uses that square")), clue(reviewed))
+
+    val evidence =
+      LineConsequenceEvaluator
+        .moveReviewCandidate(ctx, Some(refsValue), truthContract = None)
+        .getOrElse(fail("missing move-review origin-square clearance"))
+
+    assertEquals(evidence.kind, LineConsequenceKind.OriginSquareClearance)
+    assertEquals(evidence.lineId, Some("line_04"))
+  }
+
+  test("does not classify a same-piece return as origin-square clearance") {
+    val fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+    val ucis = List("g1f3", "g8f6", "f3g1")
+    val refsValue = refs(fen, "return", ucis, List("Nf3", "Nf6", "Ng1"))
+    val ctx = context(fen, "g1f3", "Nf3", List(VariationLine(ucis, scoreCp = 0, depth = 10)))
+    val evidence =
+      LineConsequenceEvaluator
+        .fromRefs(ctx, Some(refsValue))
+        .headOption
+        .getOrElse(fail("missing replayed line"))
+
+    assertEquals(evidence.kind, LineConsequenceKind.PreviewOnly)
+  }
+
+  test("moveReviewCandidate can use a played-first exchange branch for a quiet best move behind a preview") {
+    val fen = "r3k2r/pp1bbpp1/1qn1p2p/2ppPn2/5B2/3P1N1P/PPPNBPP1/R1Q1K2R b KQkq - 0 11"
+    val previewUcis = List("a8c8")
+    val proofUcis =
+      List("a8c8", "c2c3", "g7g5", "f4h2", "h6h5", "g2g4", "h5g4", "h3g4", "f5h4", "f3h4", "g5h4")
+    val preview = refs(fen, "line_01", previewUcis, List("Rc8")).variations.head
+    val proof =
+      refs(
+        fen,
+        "line_04",
+        proofUcis,
+        List("Rc8", "c3", "g5", "Bh2", "h5", "g4", "hxg4", "hxg4", "Nh4", "Nxh4", "gxh4")
+      ).variations.head
+    val combined =
+      MoveReviewRefs(
+        startFen = fen,
+        startPly = NarrativeUtils.plyFromFen(fen).getOrElse(1),
+        variations = List(preview, proof)
+      )
+    val ctx = context(fen, "a8c8", "Rc8", List(VariationLine(previewUcis, scoreCp = -244, depth = 10)))
+    val quietBestTruth =
+      DecisiveTruthContract(
+        playedMove = Some("a8c8"),
+        verifiedBestMove = Some("a8c8"),
+        truthClass = DecisiveTruthClass.Best,
+        cpLoss = 0,
+        swingSeverity = 0,
+        reasonFamily = DecisiveReasonKind.QuietTechnicalMove,
+        allowConcreteBenchmark = false,
+        chosenMatchesBest = true,
+        compensationAllowed = false,
+        truthPhase = None,
+        ownershipRole = TruthOwnershipRole.NoneRole,
+        visibilityRole = TruthVisibilityRole.PrimaryVisible,
+        surfaceMode = TruthSurfaceMode.Neutral,
+        exemplarRole = TruthExemplarRole.NonExemplar,
+        surfacedMoveOwnsTruth = false,
+        verifiedPayoffAnchor = None,
+        compensationProseAllowed = false,
+        benchmarkProseAllowed = false,
+        investmentTruthChainKey = None,
+        maintenanceExemplarCandidate = false,
+        benchmarkCriticalMove = false,
+        failureMode = FailureInterpretationMode.NoClearPlan,
+        failureIntentConfidence = 0.0,
+        failureIntentAnchor = None,
+        failureInterpretationAllowed = false
+      )
+
+    val evidence =
+      LineConsequenceEvaluator
+        .moveReviewCandidate(ctx, Some(combined), truthContract = Some(quietBestTruth))
+        .getOrElse(fail("missing quiet-best branch consequence"))
+
+    assertEquals(evidence.lineId, Some("line_04"))
+    assertEquals(evidence.kind, LineConsequenceKind.ExchangeSequence)
+    assertEquals(evidence.uciMoves.headOption, Some("a8c8"))
+    assertEquals(evidence.triggerSan, Some("hxg4"))
+  }
+
   test("surfaceCandidate prefers a concrete consequence triggered by the reviewed move") {
     val fen = "7k/8/4pn2/3p4/4P3/8/8/4K3 w - - 0 1"
     val previewUcis = List("e4d5", "h8g8")

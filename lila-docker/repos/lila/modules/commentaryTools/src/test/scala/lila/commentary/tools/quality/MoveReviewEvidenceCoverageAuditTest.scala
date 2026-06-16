@@ -109,6 +109,28 @@ final class MoveReviewEvidenceCoverageAuditTest extends FunSuite:
     assertEquals(report.summary.evidenceGapCandidates, Nil)
   }
 
+  test("keeps eval-only descriptor gaps out of runtime expansion candidates") {
+    val report =
+      MoveReviewEvidenceCoverageAudit.build(
+        List(
+          entry(
+            "eval_only",
+            Some("exact_factual_fallback"),
+            basicReasons = List(
+              "no_descriptor_rule_matched",
+              "tactical_not_current_move_owned",
+              "eval_gap_without_concrete_descriptor"
+            )
+          )
+        )
+      )
+
+    assertEquals(report.summary.basicExpansionCandidateSampleIds, Nil)
+    assertEquals(report.summary.evalOnlyDescriptorGapSampleIds, List("eval_only"))
+    assertEquals(report.summary.runtimeExpansionCandidates, Nil)
+    assertEquals(report.summary.basicEvidenceRejectReasonCounts.get("eval_gap_without_concrete_descriptor"), Some(1))
+  }
+
   test("buckets neutralize surface gate rejects as surface rejects") {
     val report =
       MoveReviewEvidenceCoverageAudit.build(

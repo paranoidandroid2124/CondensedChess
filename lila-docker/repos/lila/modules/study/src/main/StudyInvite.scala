@@ -3,7 +3,6 @@ package lila.study
 import lila.core.perm.Granter
 import lila.db.dsl.{ *, given }
 
-// Chesstory: Removed notify, relation, and prefApi - analysis-only system
 final private class StudyInvite(
     studyRepo: StudyRepo,
     userApi: lila.core.user.UserApi

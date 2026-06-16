@@ -165,7 +165,8 @@ object MoveReviewStrategicLedgerBuilder:
       refs: Option[MoveReviewRefs],
       probeResults: List[ProbeResult],
       planStateToken: Option[PlanStateTracker],
-      endgameStateToken: Option[EndgamePatternState]
+      endgameStateToken: Option[EndgamePatternState],
+      lineConsequence: Option[LineConsequenceEvidence] = None
   ): Option[MoveReviewStrategicLedger] =
     val digest = strategyPack.flatMap(_.signalDigest).orElse(NarrativeSignalDigestBuilder.build(ctx))
     val decision = DecisionComparisonBuilder.digest(ctx, refs)
@@ -188,7 +189,7 @@ object MoveReviewStrategicLedgerBuilder:
         prophylaxisSignal,
         openingSignal
       )
-    val primaryLine = choosePrimaryLine(ctx, decision, motif.map(_.motif.key), refs, probeResults)
+    val primaryLine = choosePrimaryLine(ctx, decision, motif.map(_.motif.key), refs, probeResults, lineConsequence)
     val resourceLine = chooseResourceLine(ctx, refs, probeResults)
     val stage = classifyStage(
       ctx = ctx,
@@ -574,9 +575,10 @@ object MoveReviewStrategicLedgerBuilder:
       decision: Option[DecisionComparisonDigest],
       motifKey: Option[String],
       refs: Option[MoveReviewRefs],
-      probeResults: List[ProbeResult]
+      probeResults: List[ProbeResult],
+      precomputedLineConsequence: Option[LineConsequenceEvidence]
   ): Option[LineCandidate] =
-    val lineConsequence = LineConsequenceEvaluator.narrativeCandidate(ctx, refs)
+    val lineConsequence = precomputedLineConsequence.orElse(LineConsequenceEvaluator.narrativeCandidate(ctx, refs))
     val supportiveProbe =
       probeResults.flatMap(result => supportiveProbeCandidate(ctx, result, motifKey))
         .sortBy(candidate => (-candidate.weight, candidate.title))
@@ -659,10 +661,12 @@ object MoveReviewStrategicLedgerBuilder:
       lineConsequence: Option[LineConsequenceEvidence]
   ): Option[LineCandidate] =
     decision.flatMap { digest =>
-      Option.when(digest.engineBestPv.nonEmpty) {
+      val consequenceLine = lineConsequence.flatMap(surfaceLineConsequenceSanMoves)
+      val sanMoves = consequenceLine.getOrElse(digest.engineBestPv.take(4))
+      Option.when(sanMoves.nonEmpty) {
         LineCandidate(
           title = "Engine path",
-          sanMoves = digest.engineBestPv.take(4),
+          sanMoves = sanMoves,
           scoreCp = digest.engineBestScoreCp,
           mate = None,
           note =
@@ -676,6 +680,10 @@ object MoveReviewStrategicLedgerBuilder:
         )
       }
     }.flatMap(candidate => candidate.toWire.map(_ => candidate))
+
+  private def surfaceLineConsequenceSanMoves(evidence: LineConsequenceEvidence): Option[List[String]] =
+    val moves = evidence.sanMoves.map(_.trim).filter(_.nonEmpty).take(4)
+    Option.when(evidence.surfaceReady && evidence.kind != LineConsequenceKind.PreviewOnly && moves.nonEmpty)(moves)
 
   private def refVariationCandidate(
       refs: Option[MoveReviewRefs],

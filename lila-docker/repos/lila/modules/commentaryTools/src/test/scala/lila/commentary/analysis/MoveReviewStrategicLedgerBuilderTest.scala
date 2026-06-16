@@ -15,7 +15,8 @@ class MoveReviewStrategicLedgerBuilderTest extends FunSuite:
       strategyPack: Option[StrategyPack] = None,
       refs: Option[MoveReviewRefs] = None,
       probeResults: List[ProbeResult] = Nil,
-      planStateToken: Option[PlanStateTracker] = None
+      planStateToken: Option[PlanStateTracker] = None,
+      lineConsequence: Option[LineConsequenceEvidence] = None
   ) =
     MoveReviewStrategicLedgerBuilder.build(
       ctx = ctx,
@@ -23,7 +24,8 @@ class MoveReviewStrategicLedgerBuilderTest extends FunSuite:
       refs = refs,
       probeResults = probeResults,
       planStateToken = planStateToken,
-      endgameStateToken = None
+      endgameStateToken = None,
+      lineConsequence = lineConsequence
     )
 
   private def build(
@@ -31,14 +33,16 @@ class MoveReviewStrategicLedgerBuilderTest extends FunSuite:
       strategyPack: Option[StrategyPack] = None,
       refs: Option[MoveReviewRefs] = None,
       probeResults: List[ProbeResult] = Nil,
-      planStateToken: Option[PlanStateTracker] = None
+      planStateToken: Option[PlanStateTracker] = None,
+      lineConsequence: Option[LineConsequenceEvidence] = None
   ) =
     maybeBuild(
       ctx = ctx,
       strategyPack = strategyPack,
       refs = refs,
       probeResults = probeResults,
-      planStateToken = planStateToken
+      planStateToken = planStateToken,
+      lineConsequence = lineConsequence
     ).getOrElse(fail("missing ledger"))
 
   test("maps rook-pawn themes onto the rook_pawn_march motif") {
@@ -201,6 +205,56 @@ class MoveReviewStrategicLedgerBuilderTest extends FunSuite:
     assertEquals(primary.source, "decision_compare")
     assert(primary.note.exists(_.toLowerCase.contains("exchange sequence")), clue(primary))
     assert(!primary.note.exists(_.contains("line_consequence:")), clue(primary))
+  }
+
+  test("decision-compare ledger line uses precomputed surface line consequence before a shallow engine path") {
+    val fen = "r1bqkbnr/ppp1p1pp/2n5/3pP3/3P4/8/PPP3PP/RNBQKBNR b KQkq - 0 5"
+    val shallowUcis = List("e7e6", "g1f3")
+    val consequenceUcis = List("e7e6", "g1f3", "g8h6", "f1d3", "c6b4", "c1h6", "b4d3", "d1d3")
+    val consequenceSans = List("e6", "Nf3", "Nh6", "Bd3", "Nb4", "Bxh6", "Nxd3+", "Qxd3")
+    val refs =
+      MoveReviewRefs(
+        startFen = fen,
+        startPly = NarrativeUtils.plyFromFen(fen).map(_ + 1).getOrElse(1),
+        variations =
+          replayedRefs(fen, "line_01", shallowUcis, List("e6", "Nf3")).variations ++
+            replayedRefs(fen, "line_04", consequenceUcis, consequenceSans).variations
+      )
+    val consequence =
+      LineConsequenceEvidence(
+        lineId = Some("line_04"),
+        sanMoves = consequenceSans,
+        uciMoves = consequenceUcis,
+        scoreCp = Some(180),
+        mate = None,
+        depth = Some(10),
+        windowPly = 8,
+        kind = LineConsequenceKind.ExchangeSequence,
+        triggerSan = Some("Bxh6"),
+        consequence = "this exchange sequence trades the bishop for the knight on h6",
+        whyItMatters = Some("leaving Black with a backward pawn target on e6"),
+        release = LineConsequenceRelease.SurfaceCandidate,
+        rejectReasons = Nil
+      )
+    val ctx =
+      MoveReviewProseGoldenFixtures.exchangeSacrifice.ctx.copy(
+        fen = fen,
+        playedMove = Some("e7e6"),
+        playedSan = Some("e6"),
+        engineEvidence = Some(
+          EngineEvidence(
+            depth = 10,
+            variations = List(VariationLine(shallowUcis, scoreCp = 80, depth = 10))
+          )
+        )
+      )
+
+    val ledger = build(ctx, refs = Some(refs), lineConsequence = Some(consequence))
+    val primary = ledger.primaryLine.getOrElse(fail("missing decision line"))
+
+    assertEquals(primary.source, "decision_compare")
+    assertEquals(primary.sanMoves, consequenceSans.take(4))
+    assert(primary.note.exists(_.contains("backward pawn target on e6")), clue(primary))
   }
 
   test("decision-compare ledger note can use replay-backed engine consequence without refs") {

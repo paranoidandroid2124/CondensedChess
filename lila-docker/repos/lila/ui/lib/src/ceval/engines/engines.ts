@@ -87,48 +87,6 @@ export class Engines {
         },
         make: (e: BrowserEngineInfo) => new ThreadedEngine(e, this.status),
       },
-      // ...variants.map(makeVariant),
-      /*
-      {
-        info: {
-          id: '__fsfhce',
-          name: 'Fairy Stockfish 14+ HCE',
-          short: 'FSF 14+',
-          tech: 'HCE',
-          requires: ['sharedMem', 'simd', 'dynamicImportFromWorker'],
-          variants: variants.map(v => v[0]),
-          assets: {
-            root: 'npm/stockfish-web',
-            js: 'fsf14.js',
-          },
-        },
-        make: (e: BrowserEngineInfo) =>
-          new StockfishWebEngine(e, this.status, v => (v === 'threeCheck' ? '3check' : v.toLowerCase())),
-      },
-      */
-      /*
-      {
-        info: {
-          id: '__sf11mv',
-          name: 'Stockfish 11 Multi-Variant',
-          short: 'SF 11 MV',
-          tech: 'HCE',
-          requires: ['sharedMem'],
-          minThreads: 1,
-          variants: variants.map(v => v[0]),
-          assets: {
-            version: 'a022fa',
-            root: 'npm/stockfish-mv.wasm',
-            js: 'stockfish.js',
-            wasm: 'stockfish.wasm',
-          },
-        },
-        make: (e: BrowserEngineInfo) =>
-          new ThreadedEngine(e, undefined, (v: VariantKey) =>
-            v === 'antichess' ? 'giveaway' : lichessRules(v),
-          ),
-      },
-      */
       {
         info: {
           id: '__sf11hce',
@@ -271,12 +229,9 @@ function maxHashMB() {
 }
 const maxHash = maxHashMB();
 
-function externalEngineSupports(e: EngineInfo, v: VariantKey) {
-  const names = [v.toLowerCase()];
-  if (v === 'standard' || v === 'fromPosition' || v === 'chess960') names.push('chess');
-  if (v === 'threeCheck') names.push('3check');
-  if (v === 'antichess') names.push('giveaway');
-  return (e.variants ?? []).filter(v => names.includes(v.toLowerCase())).length;
+function externalEngineSupports(e: ExternalEngineInfo, variant: VariantKey) {
+  const names = [variant.toLowerCase(), 'chess'];
+  return e.variants.some(name => names.includes(name.toLowerCase()));
 }
 
 const withDefaults = (engine: BrowserEngineInfo): BrowserEngineInfo => ({

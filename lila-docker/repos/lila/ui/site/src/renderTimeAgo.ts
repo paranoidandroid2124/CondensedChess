@@ -1,31 +1,32 @@
 import { commonDateFormat, toDate, formatAgo } from 'lib/format';
 
-interface ElementWithDate extends Element {
-  lichessDate: Date;
+interface TimeagoElement extends Element {
+  timeagoDate: Date;
 }
 
 export const renderTimeAgo = (parent?: HTMLElement): number =>
   requestAnimationFrame(() => {
     const now = Date.now();
-    [].slice
-      .call((parent || document).getElementsByClassName('timeago'), 0, 99)
-      .forEach((node: ElementWithDate) => {
+    Array.from((parent ?? document).getElementsByClassName('timeago'))
+      .slice(0, 99)
+      .forEach(node => {
+        const timeago = node as TimeagoElement;
         const cl = node.classList,
           abs = cl.contains('abs'),
           set = cl.contains('set');
-        node.lichessDate = node.lichessDate || toDate(node.getAttribute('datetime')!);
+        timeago.timeagoDate = timeago.timeagoDate || toDate(node.getAttribute('datetime')!);
         if (!set) {
-          const str = commonDateFormat(node.lichessDate);
+          const str = commonDateFormat(timeago.timeagoDate);
           if (abs) node.textContent = str;
           else node.setAttribute('title', str);
           cl.add('set');
           if (abs || cl.contains('once')) cl.remove('timeago');
         }
         if (cl.contains('remaining')) {
-          const diff = (node.lichessDate.getTime() - now) / 1000;
+          const diff = (timeago.timeagoDate.getTime() - now) / 1000;
           node.textContent = formatRemaining(diff);
         } else if (!abs) {
-          const diff = (now - node.lichessDate.getTime()) / 1000;
+          const diff = (now - timeago.timeagoDate.getTime()) / 1000;
           node.textContent = formatAgo(diff);
           if (Math.abs(diff) > 9999) cl.remove('timeago'); // ~3h
         }
@@ -41,7 +42,6 @@ export const updateTimeAgo = (interval: number): void => {
   setTimeout(() => updateTimeAgo(interval * 1.1), interval);
 };
 
-// format the diff second to *** time remaining
 const formatRemaining = (seconds: number): string =>
   seconds < 1
     ? 'Completed'

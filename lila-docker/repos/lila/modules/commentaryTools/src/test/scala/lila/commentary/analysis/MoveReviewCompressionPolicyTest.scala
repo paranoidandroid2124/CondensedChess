@@ -7,7 +7,7 @@ import lila.commentary.analysis.semantic.RelationSurfaceRowKind
 import lila.commentary.analysis.semantic.StrategicObservationIds.{ ProofFamilyId, ProofSourceId }
 import lila.commentary.model.*
 import lila.commentary.model.authoring.{ AuthorQuestion, AuthorQuestionKind, PlanHypothesis, PlanViability }
-import lila.commentary.model.strategic.{ CounterfactualMatch, VariationLine }
+import lila.commentary.model.strategic.{ CounterfactualMatch, EngineEvidence, VariationLine }
 import munit.FunSuite
 
 final class MoveReviewCompressionPolicyTest extends FunSuite:
@@ -1054,6 +1054,104 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     assert(causalTrace.exists(_.relationKinds.contains("played_move_consequence")), clues(causalTrace))
   }
 
+  test("line-bound local fact evidence hook uses its checked line id before planner branch text") {
+    val localFact =
+      MoveReviewLocalFact.admitted(
+        MoveReviewLocalFact.Candidate(
+          family = MoveReviewLocalFact.Family.LineConsequence,
+          source = MoveReviewLocalFact.Source.PvCoupledLine,
+          producer = MoveReviewLocalFact.Producer.LineConsequence,
+          subject = MoveReviewLocalFact.Subject.PlayedMove,
+          strictFallbackCandidate = true,
+          lineBinding = MoveReviewLocalFact.LineBinding.PvCoupled,
+          evidenceRefs = List("line_consequence_line_id:line_04"),
+          guardrails = List("line_consequence_surface", "played_move_first")
+        )
+      )
+    val result =
+      MoveReviewExplanationBuilder.Result(
+        explanation =
+          MoveReviewExplanation(
+            title = "Nf3 has a checked exchange sequence",
+            prose = "Nf3 is tied to the checked exchange sequence.",
+            source = "line_consequence"
+          ),
+        localFact = localFact
+      )
+    val primary =
+      QuestionPlan(
+        questionId = "q_line_fact_checked_line_id",
+        questionKind = AuthorQuestionKind.WhyThis,
+        priority = 100,
+        claim = result.explanation.prose,
+        evidence =
+          Some(
+            QuestionPlanEvidence(
+              text = "a) Qxb2 hxg4 Qxa1+",
+              purposes = List("author_evidence"),
+              sourceKinds = List("author_evidence"),
+              branchScoped = true
+            )
+          ),
+        contrast = None,
+        consequence = None,
+        fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
+        strengthTier = QuestionPlanStrengthTier.Moderate,
+        sourceKinds = List("typed_local_fact", "line_consequence"),
+        admissibilityReasons = List("move_attributed_change"),
+        plannerOwnerKind = PlannerOwnerKind.LineConsequence,
+        plannerSource = "line_consequence"
+      )
+    val inputs =
+      QuestionPlannerInputs(
+        mainBundle = None,
+        quietIntent = None,
+        decisionFrame = CertifiedDecisionFrame(),
+        decisionComparison = None,
+        alternativeNarrative = None,
+        truthMode = PlayerFacingTruthMode.Strategic,
+        preventedPlansNow = Nil,
+        pvDelta = Some(PVDelta(Nil, Nil, Nil, Nil)),
+        counterfactual = None,
+        practicalAssessment = None,
+        opponentThreats = Nil,
+        forcingThreats = Nil,
+        evidenceByQuestionId = Map.empty,
+        candidateEvidenceLines = Nil,
+        evidenceBackedPlans = Nil,
+        opponentPlan = None,
+        factualFallback = None,
+        localFactResult = Some(result)
+      )
+    val checkedLine =
+      refsForLine(
+        exchangeLineFen,
+        List("g1f3", "b8c6", "f1b5", "a7a6", "b5c6"),
+        List("Nf3", "Nc6", "Bb5", "a6", "Bxc6")
+      ).variations.head.copy(lineId = "line_04")
+    val refs =
+      MoveReviewRefs(
+        startFen = exchangeLineFen,
+        startPly = NarrativeUtils.plyFromFen(exchangeLineFen).map(_ + 1).getOrElse(1),
+        variations = List(checkedLine)
+      )
+    val ranked = RankedQuestionPlans(primary = Some(primary), secondary = None, rejected = Nil)
+    val slots =
+      MoveReviewCompressionPolicy.buildSlotsOrFallbackFromPlannerRuntime(
+        exchangeLineCtx,
+        inputs,
+        ranked,
+        strategyPack = None,
+        truthContract = None,
+        refs = Some(refs)
+      )
+
+    assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.Planner, clues(slots))
+    assertEquals(slots.evidenceHook, Some("Short line: Nf3 Nc6 Bb5 a6 Bxc6."))
+    assert(!slots.evidenceHook.exists(_.contains("Qxb2")), clues(slots))
+    assert(slots.factGuardrails.exists(_.contains("local_fact=line_consequence/pv_coupled_line")), clues(slots.factGuardrails))
+  }
+
   test("opening relation WhyThis needs admissible contrast before renderer release") {
     val primary =
       QuestionPlan(
@@ -1586,6 +1684,77 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     assert(slots.factGuardrails.exists(_.contains("evidence=certified_consequence")), clues(slots.factGuardrails))
     assert(slots.factGuardrails.exists(_.contains("relations=played_move_consequence")), clues(slots.factGuardrails))
     assert(slots.factGuardrails.exists(_.contains("support_embedded=true")), clues(slots.factGuardrails))
+  }
+
+  test("line-consequence surface evidence hook uses its checked line id before planner branch text") {
+    val rawTemplateClaim = "Nf3 keeps the structure under control in the checked line."
+    val checkedLine =
+      refsForLine(
+        exchangeLineFen,
+        List("g1f3", "b8c6", "f1b5", "a7a6", "b5c6", "d7c6"),
+        List("Nf3", "Nc6", "Bb5", "a6", "Bxc6", "dxc6")
+      ).variations.head.copy(lineId = "line_04")
+    val refs =
+      MoveReviewRefs(
+        startFen = exchangeLineFen,
+        startPly = NarrativeUtils.plyFromFen(exchangeLineFen).map(_ + 1).getOrElse(1),
+        variations = List(checkedLine)
+      )
+    val primary =
+      QuestionPlan(
+        questionId = "q_line_consequence_why_this_wrong_branch",
+        questionKind = AuthorQuestionKind.WhyThis,
+        priority = 100,
+        claim = rawTemplateClaim,
+        evidence =
+          Some(
+            QuestionPlanEvidence(
+              text = "a) Qxb2 hxg4 Qxa1+",
+              purposes = List("author_evidence"),
+              sourceKinds = List("author_evidence"),
+              branchScoped = true
+            )
+          ),
+        contrast = None,
+        consequence = None,
+        fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
+        strengthTier = QuestionPlanStrengthTier.Moderate,
+        sourceKinds = List("move_delta"),
+        admissibilityReasons = List("move_owner"),
+        plannerOwnerKind = PlannerOwnerKind.LineConsequence,
+        plannerSource = "line_consequence"
+      )
+    val slots =
+      MoveReviewCompressionPolicy.buildSlotsOrFallbackFromPlannerRuntime(
+        exchangeLineCtx,
+        QuestionPlannerInputs(
+          mainBundle = None,
+          quietIntent = None,
+          decisionFrame = CertifiedDecisionFrame(),
+          decisionComparison = None,
+          alternativeNarrative = None,
+          truthMode = PlayerFacingTruthMode.Strategic,
+          preventedPlansNow = Nil,
+          pvDelta = None,
+          counterfactual = None,
+          practicalAssessment = None,
+          opponentThreats = Nil,
+          forcingThreats = Nil,
+          evidenceByQuestionId = Map.empty,
+          candidateEvidenceLines = Nil,
+          evidenceBackedPlans = Nil,
+          opponentPlan = None,
+          factualFallback = None
+        ),
+        RankedQuestionPlans(primary = Some(primary), secondary = None, rejected = Nil),
+        strategyPack = None,
+        truthContract = None,
+        refs = Some(refs)
+      )
+
+    assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.Planner)
+    assertEquals(slots.evidenceHook, Some("a) Nf3 Nc6 Bb5 a6 Bxc6."))
+    assert(!slots.evidenceHook.exists(_.contains("Qxb2")), clues(slots))
   }
 
   test("surface plan-support wording cannot mint a local fact family") {
@@ -2257,7 +2426,7 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     assert(slots.factGuardrails.exists(_.contains("local_fact_producer=line_consequence")), clues(slots.factGuardrails))
   }
 
-  test("basic lane carries the same move review explanation used for visible slots") {
+  test("opening-goal basic local fact is surfaced through CausalFrame before direct basic rendering") {
     val ctx = italianCtx
     val slots =
       MoveReviewPolishSlotsBuilder.buildOrFallback(
@@ -2268,13 +2437,12 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
         truthContract = None
       )
 
-    assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.BasicMoveExplanation, clues(slots))
+    assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.Planner, clues(slots))
     assert(slots.moveReviewExplanation.exists(_.source == "opening_goal"), clues(slots))
     assert(slots.moveReviewExplanation.exists(_.reasonTags.contains("review_intent:normal_development")), clues(slots))
-    assert(slots.factGuardrails.exists(_ == "MoveReview review intent: normal_development"), clues(slots.factGuardrails))
-    assert(slots.factGuardrails.exists(_ == "MoveReview character band: neutral"), clues(slots.factGuardrails))
-    assert(slots.factGuardrails.exists(_ == "MoveReview line proof: opening_goal"), clues(slots.factGuardrails))
-    assert(slots.factGuardrails.exists(_ == "MoveReview PV subject: f1c4"), clues(slots.factGuardrails))
+    assert(slots.factGuardrails.exists(_.contains("local_fact=opening_goal/opening_goal_evidence")), clues(slots.factGuardrails))
+    assert(slots.factGuardrails.exists(_.contains("local_fact_producer=opening_goal")), clues(slots.factGuardrails))
+    assert(slots.factGuardrails.exists(_.contains("surface_checked_line=true")), clues(slots.factGuardrails))
     assert(slots.moveReviewExplanation.exists(explanation => slots.claim.contains(explanation.prose.take(24).trim)), clues(slots))
   }
 
@@ -2316,6 +2484,100 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     assert(slots.evidenceHook.exists(_.startsWith("Short line: Bc4")), clues(slots))
   }
 
+  test("central-break timing basic local fact is surfaced as WhyNow CausalFrame timing") {
+    val fen = "rnbqkbnr/pp1ppppp/2p5/8/3PP3/8/PPP2PPP/RNBQKBNR b KQkq - 0 2"
+    val bestUcis = List("d7d6", "f2f4", "e7e5", "d4e5", "d6e5")
+    val playedUcis = List("d7d5", "e4e5", "e7e6", "f1d3", "c6c5")
+    def variation(lineId: String, ucis: List[String], sans: List[String], cp: Int): MoveReviewVariationRef =
+      val fens = ucis.indices.toList.map(idx => NarrativeUtils.uciListToFen(fen, ucis.take(idx + 1)))
+      MoveReviewVariationRef(
+        lineId = lineId,
+        scoreCp = cp,
+        mate = None,
+        depth = 8,
+        moves =
+          ucis.zip(sans).zipWithIndex.map { case ((uci, san), idx) =>
+            val ply = NarrativeUtils.plyFromFen(fen).map(_ + 1 + idx).getOrElse(idx + 1)
+            MoveReviewMoveRef(
+              refId = s"${lineId}_m${idx + 1}",
+              san = san,
+              uci = uci,
+              fenAfter = fens(idx),
+              ply = ply,
+              moveNo = (ply + 1) / 2,
+              marker = None
+            )
+          }
+      )
+    val ctx =
+      quietH3Ctx.copy(
+        fen = fen,
+        ply = 4,
+        playedMove = Some("d7d5"),
+        playedSan = Some("d5"),
+        phase = PhaseContext("Opening", "central break timing"),
+        summary = NarrativeSummary("central break timing", None, "NarrowChoice", "Maintain", "0.00"),
+        engineEvidence =
+          Some(
+            EngineEvidence(
+              depth = 8,
+              variations =
+                List(
+                  VariationLine(bestUcis, scoreCp = 76, depth = 8),
+                  VariationLine(playedUcis, scoreCp = 85, depth = 8)
+                )
+            )
+          )
+      )
+    val refs =
+      MoveReviewRefs(
+        startFen = fen,
+        startPly = NarrativeUtils.plyFromFen(fen).map(_ + 1).getOrElse(1),
+        variations =
+          List(
+            variation("line_best", bestUcis, List("d6", "f4", "e5", "dxe5", "dxe5"), 76),
+            variation("line_played", playedUcis, List("d5", "e5", "e6", "Bd3", "c5"), 85)
+          )
+      )
+    val truth =
+      DecisiveTruth.derive(
+        ctx = ctx,
+        comparisonOverride =
+          Some(
+            DecisionComparison(
+              chosenMove = Some("d5"),
+              engineBestMove = Some("d6"),
+              engineBestScoreCp = Some(76),
+              engineBestPv = List("d6", "f4", "e5", "dxe5"),
+              cpLossVsChosen = Some(9),
+              deferredMove = None,
+              deferredReason = None,
+              deferredSource = None,
+              evidence = None,
+              practicalAlternative = false,
+              chosenMatchesBest = false
+            )
+          )
+      )
+    val slots =
+      MoveReviewPolishSlotsBuilder.buildOrFallback(
+        ctx,
+        BookStyleRenderer.validatedOutline(ctx, truthContract = Some(truth)),
+        refs = Some(refs),
+        strategyPack = None,
+        truthContract = Some(truth)
+      )
+
+    assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.Planner, clues(slots))
+    assert(slots.moveReviewExplanation.exists(_.source == "certified_strategy_support"), clues(slots))
+    assertEquals(slots.localFact.map(_.family), Some(MoveReviewLocalFact.Family.Timing), clues(slots))
+    assertEquals(slots.localFact.map(_.producer), Some(MoveReviewLocalFact.Producer.CertifiedStrategyDelta), clues(slots))
+    assert(slots.factGuardrails.exists(_.contains("question=WhyNow")), clues(slots.factGuardrails))
+    assert(slots.factGuardrails.exists(_.contains("relations=played_move_consequence,timing_constraint")), clues(slots.factGuardrails))
+    assert(slots.factGuardrails.exists(_.contains("surface_timing=true")), clues(slots.factGuardrails))
+    assert(slots.factGuardrails.exists(_.contains("local_fact=timing/certified_strategy")), clues(slots.factGuardrails))
+  }
+
   test("basic opening explanation is blocked when truth contract blocks strategic support") {
     val ctx = italianCtx
     val slots =
@@ -2331,7 +2593,7 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     assertEquals(slots.moveReviewExplanation, None, clues(slots))
     assertEquals(
       MoveReviewProseContract.stripMoveHeader(slots.claim),
-      "This puts the bishop on c4.",
+      "This moves the bishop from f1 to c4.",
       clues(slots)
     )
   }

@@ -2,7 +2,6 @@ package lila.commentary.analysis
 
 import chess.*
 import munit.FunSuite
-import lila.commentary.analysis.practical.ContrastiveSupportAdmissibility
 import lila.commentary.analysis.render.QuietStrategicSupportComposer
 import lila.commentary.*
 import lila.commentary.model.*
@@ -1108,7 +1107,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     assert(!rendered.contains("e5"), clues(rendered, slots))
   }
 
-  test("moveReview keeps defensive primary when threat-stop contrast is scoped") {
+  test("moveReview does not keep defensive primary from scoped threat text without typed proof") {
     val ctx =
       MoveReviewProseGoldenFixtures.openFileFight.ctx.copy(
         threats = ThreatTable(toUs = List(threat("Material threat", 220, Some("Qd8"))), toThem = Nil),
@@ -1141,26 +1140,19 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     val inputs = QuestionPlannerInputsBuilder.build(ctx, strategyPack = None, truthContract = contract)
     val rankedPlans = QuestionFirstCommentaryPlanner.plan(ctx, inputs, contract)
     val renderSelection =
-      MoveReviewCompressionPolicy
-        .renderSelection(inputs, rankedPlans, contract)
-        .getOrElse(fail("expected moveReview render selection"))
+      MoveReviewCompressionPolicy.renderSelection(inputs, rankedPlans, contract)
     val slots =
-      MoveReviewCompressionPolicy
-        .buildSlots(ctx, outline, refs = None, strategyPack = None, truthContract = contract)
-        .getOrElse(fail("expected moveReview slots"))
+      MoveReviewPolishSlotsBuilder.buildOrFallback(
+        ctx,
+        outline,
+        refs = None,
+        strategyPack = None,
+        truthContract = contract
+      )
 
-    assertEquals(rankedPlans.primary.map(_.questionKind), Some(AuthorQuestionKind.WhatMustBeStopped), clues(rankedPlans))
-    assertEquals(rankedPlans.secondary.map(_.questionKind), Some(AuthorQuestionKind.WhyNow), clues(rankedPlans))
-    assertEquals(renderSelection.primary.questionKind, AuthorQuestionKind.WhatMustBeStopped, clues(renderSelection))
-    assertEquals(
-      renderSelection.contrastTrace.contrast_source_kind,
-      Some(ContrastiveSupportAdmissibility.SourceKind.ExplicitReplyLoss),
-      clues(renderSelection.contrastTrace)
-    )
-    val claim = MoveReviewProseContract.stripMoveHeader(slots.claim).toLowerCase
-    assert(claim.contains("has to stop"), clues(claim, slots))
-    assert(!claim.contains("threat threat"), clues(claim, slots))
-    assert(slots.supportPrimary.exists(_.contains("Qd8")), clues(slots.supportPrimary, slots))
+    assertEquals(rankedPlans.primary, None, clues(rankedPlans))
+    assertEquals(renderSelection, None, clues(renderSelection))
+    assertExactFactualFallback(slots, "This puts the rook on c3.")
   }
 
   test("neutral truth contract drops raw compensation prose and falls back to exact move semantics") {
@@ -1292,11 +1284,13 @@ class MoveReviewPolishSlotsTest extends FunSuite:
       MoveReviewPolishSlotsBuilder.buildOrFallback(ctx, outline, refs = Some(corrupted), strategyPack = None)
 
     val supportedClaim = MoveReviewProseContract.stripMoveHeader(supported.claim)
-    assertEquals(supported.sourceKind, MoveReviewPolishSlots.Source.BasicMoveExplanation)
+    assertEquals(supported.sourceKind, MoveReviewPolishSlots.Source.Planner)
+    assertEquals(supported.localFact.map(_.family), Some(MoveReviewLocalFact.Family.LineConsequence), clues(supported.localFact))
     assert(supportedClaim.contains("Qxc6 is tied to a checked material transition"), clues(supportedClaim, supported))
     assert(supportedClaim.contains("Kg8") && supportedClaim.contains("Qd6"), clues(supportedClaim, supported))
-    assertEquals(supported.supportPrimary, Some("Short line: Qxc6 Kg8 Qd6."))
-    assertEquals(supported.paragraphPlan, List("p1=claim", "p2=support_chain"))
+    assertEquals(supported.supportPrimary, None)
+    assertEquals(supported.evidenceHook, Some("Short line: Qxc6 Kg8 Qd6."))
+    assertEquals(supported.paragraphPlan, List("p1=claim", "p2=cited_line"))
     assertEquals(unsupported.supportPrimary, Some("The local material change is a captured knight."))
     assertEquals(unsupported.paragraphPlan, List("p1=claim", "p2=support_chain"))
   }
@@ -1336,10 +1330,12 @@ class MoveReviewPolishSlotsTest extends FunSuite:
         .toLowerCase
 
     val claim = MoveReviewProseContract.stripMoveHeader(slots.claim)
-    assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.BasicMoveExplanation)
+    assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.Planner)
+    assertEquals(slots.localFact.map(_.family), Some(MoveReviewLocalFact.Family.LineConsequence), clues(slots.localFact))
     assert(claim.contains("Qxc6 is tied to a checked material transition"), clues(claim, slots))
     assert(claim.contains("Kg8") && claim.contains("Qd6"), clues(claim, slots))
-    assertEquals(slots.supportPrimary, Some("Short line: Qxc6 Kg8 Qd6."))
+    assertEquals(slots.supportPrimary, None)
+    assertEquals(slots.evidenceHook, Some("Short line: Qxc6 Kg8 Qd6."))
     assert(!renderedFallback.contains("compensation"), clue(renderedFallback))
     assert(!renderedFallback.contains("pressure"), clue(renderedFallback))
     assert(!renderedFallback.contains("route"), clue(renderedFallback))
@@ -1406,9 +1402,9 @@ class MoveReviewPolishSlotsTest extends FunSuite:
         strategyPack = None
       )
 
-    assertEquals(MoveReviewProseContract.stripMoveHeader(checkSlots.claim), "This puts the rook on e7.")
+    assertEquals(MoveReviewProseContract.stripMoveHeader(checkSlots.claim), "This moves the rook from e2 to e7.")
     assertEquals(checkSlots.supportPrimary, Some("It also gives check."))
-    assertEquals(MoveReviewProseContract.stripMoveHeader(mateSlots.claim), "This puts the queen on g7.")
+    assertEquals(MoveReviewProseContract.stripMoveHeader(mateSlots.claim), "This moves the queen from g6 to g7.")
     assertEquals(mateSlots.supportPrimary, Some("It also gives checkmate."))
   }
 
@@ -1448,7 +1444,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     val quiet =
       MoveReviewPolishSlotsBuilder.buildOrFallback(baseCtx.copy(candidates = List(quietMotifCandidate)), outline, refs = None, strategyPack = None)
 
-    assertEquals(MoveReviewProseContract.stripMoveHeader(owned.claim), "This puts the knight on f5.")
+    assertEquals(MoveReviewProseContract.stripMoveHeader(owned.claim), "This moves the knight from d4 to f5.")
     assertEquals(owned.supportPrimary, None)
     assertEquals(plyLater.supportPrimary, None)
     assertEquals(quiet.supportPrimary, None)

@@ -60,6 +60,7 @@ object MoveReviewPlayerPayloadBuilder:
       refs: Option[MoveReviewRefs]
   ): Option[MoveReviewPlayerDecisionComparison] =
     roleAwareDecisionComparisonSurface(inputs.decisionComparison, localFact)
+      .orElse(pieceRelocationDecisionComparisonSurface(inputs.decisionComparison, localFact))
       .orElse(decisionComparisonSurface(ctx, refs))
 
   private[analysis] def roleAwareDecisionComparisonSurface(
@@ -120,6 +121,31 @@ object MoveReviewPlayerPayloadBuilder:
           fact.lineBinding == MoveReviewLocalFact.LineBinding.PvCoupled
       )
 
+  private[analysis] def pieceRelocationDecisionComparisonSurface(
+      comparison: Option[DecisionComparison],
+      localFact: Option[MoveReviewLocalFact.Admission]
+  ): Option[MoveReviewPlayerDecisionComparison] =
+    for
+      enriched <- comparison
+      if pieceRelocationDecisionSurfaceAdmitted(enriched, localFact)
+      secondary <- cleanOpt(enriched.comparativeConsequence)
+    yield MoveReviewPlayerDecisionComparison(
+      kicker = "Decision point",
+      gapLabel = enriched.cpLossVsChosen.map(decisionGapLabel),
+      chosenSan = cleanMove(enriched.chosenMove),
+      engineSan = cleanMove(enriched.engineBestMove),
+      comparedSan = cleanMove(enriched.comparedMove),
+      secondaryText = Some(secondary),
+      chosenMatchesBest = enriched.chosenMatchesBest,
+      refSans = cleanList((enriched.engineBestPv.take(4) ++ enriched.chosenMove.toList).distinct)
+    )
+
+  private def pieceRelocationDecisionSurfaceAdmitted(
+      comparison: DecisionComparison,
+      localFact: Option[MoveReviewLocalFact.Admission]
+  ): Boolean =
+    false
+
   def build(
       ctx: NarrativeContext,
       moveReviewExplanation: Option[MoveReviewExplanation],
@@ -130,7 +156,8 @@ object MoveReviewPlayerPayloadBuilder:
       supportedLocalRows: List[MoveReviewPlayerSurfaceRow] = Nil,
       decisionComparisonSurface: Option[MoveReviewPlayerDecisionComparison] = None,
       strategyPack: Option[StrategyPack] = None,
-      truthContract: Option[DecisiveTruthContract] = None
+      truthContract: Option[DecisiveTruthContract] = None,
+      lineConsequence: Option[LineConsequenceEvidence] = None
   ): MoveReviewPlayerSurface =
     val knownSans = refs.toList.flatMap(_.variations.flatMap(_.moves.map(_.san))).map(normalizeSan).toSet
     val supportBlocked = MoveReviewSurfaceTruthVeto.truthContractSurfaceVeto(truthContract)
@@ -741,29 +768,12 @@ object MoveReviewPlayerPayloadBuilder:
             .flatMap { idea =>
               val refs = idea.evidenceRefs.map(_.trim.toLowerCase)
               val focusSquares = idea.focusSquares.flatMap(validSquare).distinct
-              val outpostSquare = focusSquares.find(square => refs.contains(s"outpost_$square"))
-              val strongKnightOutpostSquare = focusSquares.find(square => refs.contains(s"strong_knight_$square"))
               val routeOutpostNamedSquare =
                 focusSquares match
                   case square :: Nil => Some(square)
                   case _             => None
               val routeOutpostHasUnsuppressedSquare =
                 focusSquares.exists(square => !exactOutpostSquaresAlreadyVisible.contains(square))
-              val typedOutpostTag =
-                refs.contains("source:outpost_tag") &&
-                  outpostSquare.nonEmpty &&
-                  !outpostSquare.exists(exactOutpostSquaresAlreadyVisible.contains) &&
-                  idea.readiness == StrategicIdeaReadiness.Ready &&
-                  strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
-                  idea.confidence >= 0.84
-              val strongKnightOutpost =
-                refs.contains("source:strong_knight") &&
-                  strongKnightOutpostSquare.nonEmpty &&
-                  !strongKnightOutpostSquare.exists(exactOutpostSquaresAlreadyVisible.contains) &&
-                  idea.beneficiaryPieces.exists(_.trim.equalsIgnoreCase("N")) &&
-                  idea.readiness == StrategicIdeaReadiness.Ready &&
-                  strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
-                  idea.confidence >= 0.76
               val exactRouteOutpost =
                   refs.contains("source:route_outpost_access") &&
                   refs.contains("route_outpost_access_shape") &&
@@ -790,10 +800,7 @@ object MoveReviewPlayerPayloadBuilder:
                   strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
                   idea.confidence >= 0.64
               val outpostText =
-                if typedOutpostTag then Some(s"The current structure gives a practical outpost cue around ${outpostSquare.get}.")
-                else if strongKnightOutpost then
-                  Some(s"The strong knight gives a practical outpost cue around ${strongKnightOutpostSquare.get}.")
-                else if exactRouteOutpost then
+                if exactRouteOutpost then
                   routeOutpostNamedSquare
                     .map(square => s"The minor-piece route points toward a practical outpost cue around $square.")
                     .orElse(Some("The minor-piece route points toward a practical outpost cue."))
@@ -1102,7 +1109,7 @@ object MoveReviewPlayerPayloadBuilder:
             .filter(_.kind == StrategicIdeaKind.KingAttackBuildUp)
             .flatMap { idea =>
                 val refs = idea.evidenceRefs.map(_.trim.toLowerCase)
-                val focusSquares = idea.focusSquares.map(_.trim.toLowerCase).filter(_.nonEmpty)
+                val focusSquares = idea.focusSquares.flatMap(validSquare).distinct
                 val focusFiles = idea.focusFiles.map(_.trim.toLowerCase).filter(_.nonEmpty)
                 val singleFocusFile =
                   focusFiles match
@@ -1128,14 +1135,6 @@ object MoveReviewPlayerPayloadBuilder:
                     idea.readiness == StrategicIdeaReadiness.Build &&
                     strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
                     idea.confidence >= 0.90
-                val kingRingPressure =
-                  !exactAttackAlreadyVisible &&
-                    refs.contains("source:king_ring_pressure") &&
-                    refs.contains("king_ring_pressure_shape") &&
-                    focusZone.nonEmpty &&
-                    idea.readiness == StrategicIdeaReadiness.Build &&
-                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
-                    idea.confidence >= 0.78
                 val enemyKingStuckCenter =
                   !exactAttackAlreadyVisible &&
                     refs.contains("source:enemy_king_stuck_center") &&
@@ -1144,14 +1143,6 @@ object MoveReviewPlayerPayloadBuilder:
                     idea.readiness == StrategicIdeaReadiness.Build &&
                     strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
                     idea.confidence >= 0.80
-                val enemyWeakBackRank =
-                  !exactAttackAlreadyVisible &&
-                    refs.contains("source:enemy_weak_back_rank") &&
-                    refs.contains("enemy_weak_back_rank_shape") &&
-                    focusZone.nonEmpty &&
-                    idea.readiness == StrategicIdeaReadiness.Build &&
-                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
-                    idea.confidence >= 0.74
                 val flankHookPressure =
                   !exactFlankAttackAlreadyVisible &&
                     refs.contains("source:flank_pawn_pressure") &&
@@ -1207,16 +1198,7 @@ object MoveReviewPlayerPayloadBuilder:
                     idea.readiness == StrategicIdeaReadiness.Build &&
                     strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
                     idea.confidence >= 0.76
-                val compensationKingWindow =
-                  !exactAttackAlreadyVisible &&
-                    refs.contains("source:compensation_king_window") &&
-                    refs.contains("uncastled_or_unsettled_king_window") &&
-                    refs.contains("material_deficit_compensation") &&
-                    focusZone.exists(zone => zone == "kingside" || zone == "center" || zone.contains("king")) &&
-                    idea.readiness == StrategicIdeaReadiness.Build &&
-                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
-                    idea.confidence >= 0.74
-                val exactRouteAttackLane =
+                val routeAttackLaneCandidate =
                   !exactAttackAlreadyVisible &&
                     refs.contains("source:route_attack_lane") &&
                     refs.contains("route_attack_lane_shape") &&
@@ -1226,7 +1208,9 @@ object MoveReviewPlayerPayloadBuilder:
                     idea.readiness == StrategicIdeaReadiness.Ready &&
                     strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
                     idea.confidence >= 0.74
-                val directionalAttackLane =
+                val exactRouteAttackLane =
+                  routeAttackLaneCandidate && singleFocusSquare.nonEmpty
+                val directionalAttackLaneCandidate =
                   !exactAttackAlreadyVisible &&
                     refs.contains("source:directional_attack_lane") &&
                     refs.contains("directional_attack_lane_shape") &&
@@ -1236,6 +1220,10 @@ object MoveReviewPlayerPayloadBuilder:
                     idea.readiness == StrategicIdeaReadiness.Build &&
                     strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
                     idea.confidence >= 0.72
+                val directionalAttackLane =
+                  directionalAttackLaneCandidate && singleFocusSquare.nonEmpty
+                val ambiguousAttackLane =
+                  (routeAttackLaneCandidate || directionalAttackLaneCandidate) && singleFocusSquare.isEmpty
                 val motifBatteryAxes =
                   List(
                     Option.when(refs.contains("battery_axis_diagonal"))("diagonal"),
@@ -1303,13 +1291,10 @@ object MoveReviewPlayerPayloadBuilder:
                     strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
                     idea.confidence >= 0.70
                 val attackText =
-                  if fianchettoAssault then Some("The fianchetto-shell structure gives a practical opposite-side attack cue.")
-                  else if kingRingPressure then
-                    Some("The current king-safety map gives a practical cue around the enemy king.")
+                  if ambiguousAttackLane then None
+                  else if fianchettoAssault then Some("The fianchetto-shell structure gives a practical opposite-side attack cue.")
                   else if enemyKingStuckCenter then
                     Some("The enemy king's central exposure gives a practical attacking cue.")
-                  else if enemyWeakBackRank then
-                    Some("The back-rank shape gives a practical attacking cue.")
                   else if flankHookPressure then
                     Some("The current flank-pawn map gives a practical hook-creation cue.")
                   else if flankPawnAdvance then
@@ -1324,16 +1309,12 @@ object MoveReviewPlayerPayloadBuilder:
                     Some("The material-compensation structure gives a practical diagonal-battery attack cue.")
                   else if compensationDevelopmentLead then
                     Some("The material-compensation structure gives a practical development-led attacking cue.")
-                  else if compensationKingWindow then
-                    Some("The material-compensation structure gives a practical cue against the unsettled king.")
                   else if exactRouteAttackLane then
                     singleFocusSquare
                       .map(square => s"The $square route gives a practical attacking lane.")
-                      .orElse(Some("The route gives a practical attacking lane."))
                   else if directionalAttackLane then
                     singleFocusSquare
                       .map(square => s"The $square target gives a practical attacking lane.")
-                      .orElse(Some("The current target map gives a practical attacking lane."))
                   else if motifBattery then
                     singleMotifBatteryAxis
                       .map(axis => s"The current $axis battery gives a practical attacking cue.")
@@ -1368,7 +1349,7 @@ object MoveReviewPlayerPayloadBuilder:
         (pressureRows ++ spaceRows ++ breakRows ++ restraintRows ++ lineRows ++ outpostRows ++ transformationRows ++ minorRows ++ prophylaxisRows ++ attackRows)
           .distinctBy(_.text)
     val explanationRows = moveReviewExplanation.toList.flatMap(explanationSupportRows(_, knownSans))
-    val referenceRows = if explanationRows.isEmpty then referenceLineRows(ctx, refs, knownSans) else Nil
+    val referenceRows = if explanationRows.isEmpty then referenceLineRows(ctx, refs, knownSans, lineConsequence) else Nil
     val summaryRows =
       distinctVisibleRows(
         (
@@ -1638,7 +1619,7 @@ object MoveReviewPlayerPayloadBuilder:
     }
 
   private def exactOpeningOutpostRowSquare(row: MoveReviewPlayerSurfaceRow): Option[String] =
-    val OpeningOutpostText = """The checked opening structure has put a knight on the ([a-h][1-8]) outpost[.]""".r
+    val OpeningOutpostText = """The checked opening structure puts a knight on the pawn-supported ([a-h][1-8]) outpost square[.]""".r
     if row.label != "Opening outpost" then None
     else
       row.authority
@@ -2248,7 +2229,7 @@ object MoveReviewPlayerPayloadBuilder:
       explanation: MoveReviewExplanation,
       knownSans: Set[String]
   ): List[MoveReviewPlayerSurfaceRow] =
-    val sanMoves = cleanList(explanation.shortLine.toList.flatMap(_.san))
+    val sanMoves = cleanLineList(explanation.shortLine.toList.flatMap(_.san))
     val learningPoint =
       explanation.pvInterpretation
         .flatMap(interpretation => cleanOpt(Some(interpretation.learningPoint)))
@@ -2267,12 +2248,13 @@ object MoveReviewPlayerPayloadBuilder:
   private def referenceLineRows(
       ctx: NarrativeContext,
       refs: Option[MoveReviewRefs],
-      knownSans: Set[String]
+      knownSans: Set[String],
+      lineConsequence: Option[LineConsequenceEvidence]
   ): List[MoveReviewPlayerSurfaceRow] =
     refs.toList
-      .flatMap(ref => preferredVariation(ctx, ref).toList)
+      .flatMap(ref => preferredVariation(ctx, ref, lineConsequence).toList)
       .flatMap { variation =>
-        val sanMoves = cleanList(variation.moves.map(_.san)).take(5)
+        val sanMoves = cleanLineList(variation.moves.map(_.san)).take(5)
         if sanMoves.nonEmpty then
           row(
             label = "Checked line",
@@ -2285,11 +2267,27 @@ object MoveReviewPlayerPayloadBuilder:
 
   private def preferredVariation(
       ctx: NarrativeContext,
-      refs: MoveReviewRefs
+      refs: MoveReviewRefs,
+      lineConsequence: Option[LineConsequenceEvidence] = None
   ): Option[MoveReviewVariationRef] =
-    refs.variations
-      .find(startsWithReviewedMove(ctx, _))
+    preferredLineConsequenceVariation(ctx, refs, lineConsequence)
+      .orElse(refs.variations.find(startsWithReviewedMove(ctx, _)))
       .orElse(refs.variations.headOption)
+
+  private def preferredLineConsequenceVariation(
+      ctx: NarrativeContext,
+      refs: MoveReviewRefs,
+      lineConsequence: Option[LineConsequenceEvidence]
+  ): Option[MoveReviewVariationRef] =
+    for
+      evidence <- lineConsequence
+      if evidence.surfaceReady && evidence.kind != LineConsequenceKind.PreviewOnly
+      lineId <- evidence.lineId
+      playedUci <- ctx.playedMove.map(NarrativeUtils.normalizeUciMove).filter(_.nonEmpty)
+      if evidence.uciMoves.headOption.exists(uci => NarrativeUtils.normalizeUciMove(uci) == playedUci)
+      variation <- refs.variations.find(_.lineId == lineId)
+      if MoveReviewPvLine.validatedLine(ctx.fen, variation, playedUci).nonEmpty
+    yield variation
 
   private def startsWithReviewedMove(
       ctx: NarrativeContext,
@@ -2313,7 +2311,7 @@ object MoveReviewPlayerPayloadBuilder:
     moveReviewLedger.toList.flatMap { ledger =>
       (ledger.primaryLine.toList ++ ledger.resourceLine.toList).flatMap { line =>
         val source = clean(line.source)
-        val sanMoves = cleanList(line.sanMoves)
+        val sanMoves = cleanLineList(line.sanMoves)
         if MoveReviewLedgerLineSources.contains(source) && sanMoves.nonEmpty then
           val text =
             cleanOpt(line.note)
@@ -2397,7 +2395,7 @@ object MoveReviewPlayerPayloadBuilder:
       text = cleanText,
       tone = tone.flatMap(value => cleanOpt(Some(value))),
       source = None,
-      refSans = cleanList(refSans)
+      refSans = cleanLineList(refSans)
     )
 
   private[analysis] def distinctVisibleRows(rows: List[MoveReviewPlayerSurfaceRow]): List[MoveReviewPlayerSurfaceRow] =
@@ -2491,7 +2489,7 @@ object MoveReviewPlayerPayloadBuilder:
     raw.replaceAll("""[+#?!]+$""", "").toLowerCase
 
   private def refSans(sans: List[String], knownSans: Set[String]): List[String] =
-    val cleaned = cleanList(sans)
+    val cleaned = cleanLineList(sans)
     if knownSans.isEmpty then cleaned
     else cleaned.filter(san => knownSans.contains(normalizeSan(san)))
 
@@ -2503,6 +2501,9 @@ object MoveReviewPlayerPayloadBuilder:
 
   private def cleanList(values: List[String]): List[String] =
     values.flatMap(value => cleanOpt(Some(value))).distinct
+
+  private[analysis] def cleanLineList(values: List[String]): List[String] =
+    values.flatMap(value => cleanOpt(Some(value)))
 
   private def rawOpt(value: String): Option[String] =
     Option(value).map(_.trim).filter(_.nonEmpty)
@@ -2658,8 +2659,6 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
   private val KingSafetyLabel = "King safety"
   private val KingActivationLabel = "King activation"
   private val TechnicalConversionLabel = "Technical conversion"
-  private val RookPawnMarchLabel = "Rook-pawn march"
-  private val HookCreationLabel = "Hook creation"
   private val RookLiftLabel = "Rook lift"
   private val SeventhRankEntryLabel = "Seventh-rank entry"
   private val RookBehindPasserLabel = "Rook behind passer"
@@ -2770,6 +2769,7 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       ProofSourceId.TargetFocusedCoordinationProbe.wireKey,
       ProofSourceId.ColorComplexSqueezeProbe.wireKey
     )
+
   private[commentary] def relationKindsForRows(rows: List[MoveReviewPlayerSurfaceRow]): Set[String] =
     rows
       .flatMap { row =>
@@ -2893,7 +2893,7 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
         openingOutpostSquare(goal, replayCache).flatMap { square =>
           row(
             OpeningOutpostLabel,
-            s"The checked opening structure has put a knight on the $square outpost.",
+            s"The checked opening structure puts a knight on the pawn-supported $square outpost square.",
             authority = PracticalPlanAuthority
           )
         }
@@ -2929,10 +2929,14 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
     then
       goal.supportedEvidence.collectFirst {
         case OpeningOutpostEvidence(square)
-            if replayCache.playedMove.exists { case (_, position, move) =>
+            if replayCache.playedMoveAfter.exists { case (_, position, move, after) =>
               move.piece.role == _root_.chess.Knight &&
                 move.piece.color == position.color &&
-                move.dest.key == square.toLowerCase
+                move.dest.key == square.toLowerCase &&
+                advancedOutpostSquare(move.dest, move.piece.color) &&
+                after.board.pieceAt(move.dest).exists(piece => piece.color == move.piece.color && piece.role == _root_.chess.Knight) &&
+                outpostSquare(after.board, move.dest, move.piece.color) &&
+                topPvKeepsPracticalKnightOutpost(replayCache, move.dest, move.piece.color)
             } =>
           square.toLowerCase
       }
@@ -3052,9 +3056,10 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       if knightOutpostMove(position, move)
       if after.board.pieceAt(move.dest).exists(piece => piece.color == move.piece.color && piece.role == _root_.chess.Knight)
       if outpostSquare(after.board, move.dest, move.piece.color)
+      if topPvKeepsPracticalKnightOutpost(replayCache, move.dest, move.piece.color)
       row <- row(
         KnightOutpostLabel,
-        s"The checked line puts the knight on the ${move.dest.key} outpost.",
+        s"The checked line puts the knight on the pawn-supported ${move.dest.key} outpost square.",
         authority = PracticalPlanAuthority
       )
     yield row
@@ -3070,7 +3075,30 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       board.attackers(square, color).intersects(board.byPiece(color, _root_.chess.Pawn))
     val attackedByEnemyPawn =
       board.attackers(square, !color).intersects(board.byPiece(!color, _root_.chess.Pawn))
-    supportedByPawn && !attackedByEnemyPawn
+    val attackedByEnemyMinor =
+      board.attackers(square, !color).intersects(
+        board.byPiece(!color, _root_.chess.Knight) | board.byPiece(!color, _root_.chess.Bishop)
+      )
+    supportedByPawn && !attackedByEnemyPawn && !attackedByEnemyMinor
+
+  private def topPvKeepsPracticalKnightOutpost(
+      replayCache: PlayedTopPvReplayCache,
+      square: chess.Square,
+      color: chess.Color
+  ): Boolean =
+    replayCache.replay(maxPlies = 3).exists { replay =>
+      replay.size >= 2 &&
+        replay.headOption.exists(step =>
+          step.move.dest == square &&
+            step.move.piece.color == color &&
+            step.move.piece.role == _root_.chess.Knight
+        ) &&
+        replay.drop(1).take(2).forall(step =>
+          step.after.board
+            .pieceAt(square)
+            .exists(piece => piece.color == color && piece.role == _root_.chess.Knight)
+        )
+    }
 
   private def advancedOutpostSquare(square: chess.Square, color: chess.Color): Boolean =
     if color.white then square.rank.value >= _root_.chess.Rank.Fourth.value
@@ -3170,23 +3198,9 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       before: StrategicStateFeatures,
       after: StrategicStateFeatures
   ): Option[MoveReviewPlayerSurfaceRow] =
-    val white = move.piece.color.white
-    val hookBefore = if white then before.whiteHookCreationChance else before.blackHookCreationChance
-    val hookAfter = if white then after.whiteHookCreationChance else after.blackHookCreationChance
-    val marchAfter = if white then after.whiteRookPawnMarchReady else after.blackRookPawnMarchReady
-    if !hookBefore && hookAfter then
-      row(
-        HookCreationLabel,
-        s"The checked rook-pawn move creates a flank hook on ${move.dest.key}.",
-        authority = PracticalPlanAuthority
-      )
-    else if marchAfter then
-      row(
-        RookPawnMarchLabel,
-        s"The checked line advances the rook pawn to ${move.dest.key} for flank space.",
-        authority = PracticalPlanAuthority
-      )
-    else None
+    CommentaryIdeaSurface
+      .flankPawnPracticalFact(move.piece.color, move.dest, before, after)
+      .flatMap(fact => row(fact.label, fact.text, authority = PracticalPlanAuthority))
 
   private def rookPawnAdvance(move: chess.Move): Boolean =
     !move.captures &&
@@ -3957,7 +3971,7 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
         supportedLocalMoveDeltaRow(ctx, inputs, truthContract, packet)(outpostOccupationRow)
       else if iqpInducementPacket(packet)
       then
-        supportedLocalMoveDeltaRow(ctx, inputs, truthContract, packet)(iqpInducementRow)
+        supportedLocalMoveDeltaRow(ctx, inputs, truthContract, packet)(packet => iqpInducementRow(Some(ctx), packet))
       else if simplificationWindowPacket(packet)
       then
         supportedLocalMoveDeltaRow(ctx, inputs, truthContract, packet)(simplificationWindowRow)
@@ -4025,19 +4039,31 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
         inputs = inputs,
         truthContract = truthContract,
         packet = packet
+    )
+    if decision.admitted && decision.vetoReasons.isEmpty then
+      positionProbeRow(
+        packet,
+        afterPosition = positionAfterPlayedMove(ctx),
+        ctx = Some(ctx)
       )
-    if decision.admitted && decision.vetoReasons.isEmpty then positionProbeRow(packet)
     else None
 
   private def positionProbeRow(
-      packet: PlayerFacingClaimPacket
+      packet: PlayerFacingClaimPacket,
+      afterPosition: Option[_root_.chess.Position],
+      ctx: Option[NarrativeContext] = None,
+      lineFactsValidatedColorComplex: Boolean = false
   ): Option[MoveReviewPlayerSurfaceRow] =
     matchedExactSliceProof(packet) {
       case PlayerFacingExactSliceProof.ExactTargetFixation(targetSquare) =>
         val target = targetSquare.toLowerCase
+        val targetText =
+          pawnDefenderOfTarget(afterPosition, target)
+            .map(defender => s"The checked line keeps $target fixed as a pawn target, with the $defender pawn still defending it.")
+            .getOrElse(s"The checked line keeps $target fixed as the target.")
         row(
           "Fixed target",
-          s"The checked line keeps $target fixed as the target.",
+          targetText,
           authority =
             Some(
               MoveReviewSurfaceAuthority(
@@ -4073,7 +4099,7 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
               )
             )
         )
-      case PlayerFacingExactSliceProof.ColorComplexSqueeze(
+      case proof @ PlayerFacingExactSliceProof.ColorComplexSqueeze(
             targetSquare,
             squareColor,
             minorPieceRole,
@@ -4083,23 +4109,60 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
         val complex = squareColor.toLowerCase
         val role = minorPieceRole.toLowerCase
         val from = minorPieceSquare.toLowerCase
-        row(
-          ColorComplexLabel,
-          s"The checked line keeps the $role on $from attacking $target in the $complex-square complex.",
-          authority =
-            Some(
-              MoveReviewSurfaceAuthority(
-                kind = MoveReviewSurfaceAuthority.PracticalPlan,
-                target = Some(target)
+        if lineFactsValidatedColorComplex || ColorComplexRuntimeProof.playedMoveOwnsAndPersists(ctx, proof)
+        then
+          row(
+            ColorComplexLabel,
+            s"The checked line keeps the $role on $from attacking $target in the $complex-square complex.",
+            authority =
+              Some(
+                MoveReviewSurfaceAuthority(
+                  kind = MoveReviewSurfaceAuthority.PracticalPlan,
+                  target = Some(target)
+                )
               )
-            )
-        )
+          )
+        else None
     }
 
   private[analysis] def positionProbeExactSliceRow(
-      packet: PlayerFacingClaimPacket
+      packet: PlayerFacingClaimPacket,
+      afterPosition: Option[_root_.chess.Position] = None,
+      lineFactsValidatedColorComplex: Boolean = false
   ): Option[MoveReviewPlayerSurfaceRow] =
-    positionProbeRow(packet)
+    positionProbeRow(
+      packet,
+      afterPosition = afterPosition,
+      lineFactsValidatedColorComplex = lineFactsValidatedColorComplex
+    )
+
+  private def pawnDefenderOfTarget(
+      position: Option[_root_.chess.Position],
+      target: String
+  ): Option[String] =
+    for
+      boardPosition <- position
+      square <- MoveReviewExchangeAnalyzer.squareFromKey(target)
+      targetPiece <- boardPosition.board.pieceAt(square)
+      if targetPiece.role == _root_.chess.Pawn
+      defender <- boardPosition.board
+        .attackers(square, targetPiece.color)
+        .squares
+        .toList
+        .sortBy(_.key)
+        .find(defenderSquare =>
+          boardPosition.board
+            .pieceAt(defenderSquare)
+            .exists(piece => piece.color == targetPiece.color && piece.role == _root_.chess.Pawn)
+        )
+    yield defender.key
+
+  private def positionAfterPlayedMove(ctx: NarrativeContext): Option[_root_.chess.Position] =
+    for
+      played <- ctx.playedMove
+      afterFen <- MoveReviewPvLine.legalFenAfter(ctx.fen, played)
+      position <- Fen.read(Standard, Fen.Full(afterFen))
+    yield position
 
   private[analysis] def moveLocalExactSliceRow(
       packet: PlayerFacingClaimPacket
@@ -4109,7 +4172,7 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
         packet.proofFamily == ProofFamilyId.HalfOpenFilePressure.wireKey
     then localFileEntryRow(packet)
     else if outpostOccupationPacket(packet) then outpostOccupationRow(packet)
-    else if iqpInducementPacket(packet) then iqpInducementRow(packet)
+    else if iqpInducementPacket(packet) then iqpInducementRow(None, packet)
     else if simplificationWindowPacket(packet) then simplificationWindowRow(packet)
     else if exchangeOwnershipPacket(packet) then exchangeOwnershipRow(packet)
     else None
@@ -4147,14 +4210,23 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       case other                  => other.replace('_', ' ')
 
   private def iqpInducementRow(
+      ctx: Option[NarrativeContext],
       packet: PlayerFacingClaimPacket
   ): Option[MoveReviewPlayerSurfaceRow] =
     matchedExactSliceProof(packet) {
-      case PlayerFacingExactSliceProof.IqpInducement(targetSquare, _) =>
+      case PlayerFacingExactSliceProof.IqpInducement(targetSquare, lineMoves) =>
         val target = targetSquare.toLowerCase
+        val refSans =
+          ctx.toList.flatMap(context =>
+            LineConsequenceEvaluator
+              .replaySteps(context.fen, lineMoves, preferredSan = Nil)
+              .map(_.san)
+              .take(6)
+          )
         row(
           IqpTargetLabel,
           s"The checked line leaves $target as an isolated pawn target.",
+          refSans = refSans,
           authority =
             Some(
               MoveReviewSurfaceAuthority(
@@ -4314,7 +4386,7 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       text = cleanText,
       tone = None,
       source = None,
-      refSans = refSans.flatMap(value => MoveReviewPlayerPayloadBuilder.cleanOpt(Some(value))).distinct,
+      refSans = MoveReviewPlayerPayloadBuilder.cleanLineList(refSans),
       authority = authority
     )
 

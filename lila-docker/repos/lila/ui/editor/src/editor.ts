@@ -1,14 +1,14 @@
 import EditorCtrl from './ctrl';
-import type { LichessEditor, Config } from './interfaces';
+import type { EditorApi, Config } from './interfaces';
 import menuHover from 'lib/menuHover';
 import view from './view';
 import { init, attributesModule, eventListenersModule, classModule, propsModule } from 'snabbdom';
 
 const patch = init([classModule, attributesModule, propsModule, eventListenersModule]);
 
-export type { LichessEditor } from './interfaces';
+export type { EditorApi } from './interfaces';
 
-export function initModule(config: Config): LichessEditor {
+export function initModule(config: Config): EditorApi {
   const ctrl = new EditorCtrl(config, redraw);
 
   const el = config.el || document.getElementById('board-editor')!;
@@ -29,6 +29,5 @@ export function initModule(config: Config): LichessEditor {
     getFen: ctrl.getFen.bind(ctrl),
     setFen: fen => ctrl.setFen(fen),
     setOrientation: ctrl.setOrientation.bind(ctrl),
-    setRules: ctrl.setRules.bind(ctrl),
   };
 }

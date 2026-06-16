@@ -66,7 +66,7 @@ html.pro {
         padding: 1rem !important;
     }
 
-    // Reduce "lichess green strip" feel in evaluation/engine UI.
+    // Keep evaluation/engine UI aligned with the Chesstory palette.
     .ceval,
     .analyse__tools .ceval {
         --c-good: #{$c-secondary};

@@ -5,7 +5,6 @@ import reactivemongo.api.bson.*
 import lila.db.BSON
 import lila.db.dsl.{ *, given }
 
-// Simplified PrefHandlers for analysis-only system
 private object PrefHandlers:
 
   given BSONDocumentHandler[Pref.BoardPref] = Macros.handler

@@ -3,22 +3,28 @@ import { domDialog } from 'lib/view';
 import { escapeHtml } from 'lib';
 
 function terseHref(): string {
-  return window.location.href.replace(/^(https:\/\/)?(?:lichess|lichess1)\.org\//, '/');
+  const { pathname, search, hash } = window.location;
+  return `${pathname}${search}${hash}` || '/';
+}
+
+function debugDialog(message: string): void {
+  if (site.debug)
+    void domDialog({
+      htmlText: escapeHtml(message),
+      class: 'debug',
+      show: true,
+    });
 }
 
 export function addExceptionListeners() {
-  window.addEventListener('error', async e => {
+  window.addEventListener('error', e => {
     const loc = e.filename ? ` - (${e.filename}:${e.lineno}:${e.colno})` : '';
-    log(`${terseHref()} - ${e.message}${loc}\n${e.error?.stack ?? ''}`.trim());
-    if (site.debug)
-      domDialog({
-        htmlText: escapeHtml(`${e.message}${loc}\n${e.error?.stack ?? ''}`),
-        class: 'debug',
-        show: true,
-      });
+    const message = `${e.message}${loc}\n${e.error?.stack ?? ''}`;
+    log(`${terseHref()} - ${message}`.trim());
+    debugDialog(message);
   });
 
-  window.addEventListener('unhandledrejection', async e => {
+  window.addEventListener('unhandledrejection', e => {
     let reason = e.reason;
     if (typeof reason !== 'string')
       try {
@@ -27,11 +33,6 @@ export function addExceptionListeners() {
         reason = 'unhandled rejection, reason not a string';
       }
     log(`${terseHref()} - ${reason}`);
-    if (site.debug)
-      domDialog({
-        htmlText: escapeHtml(reason),
-        class: 'debug',
-        show: true,
-      });
+    debugDialog(reason);
   });
 }

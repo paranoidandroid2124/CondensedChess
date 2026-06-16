@@ -279,7 +279,10 @@ private[commentary] object ContrastiveSupportAdmissibility:
       allowTiming: Boolean
   ): ContrastSupportTrace =
     clean(comparison.deferredSource) match
-      case Some(source) if sameText(source, "close_candidate") && exactComparativeConsequence(comparison).isEmpty =>
+      case Some(source)
+          if sameText(source, "close_candidate") &&
+            exactComparativeConsequence(comparison).isEmpty &&
+            roleAwareComparativeConsequence(comparison).isEmpty =>
         inputs.alternativeNarrative match
           case Some(alt) if enrichedCloseCandidateSentence(alt.sentence) =>
             allow(

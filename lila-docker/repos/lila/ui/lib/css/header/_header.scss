@@ -70,35 +70,9 @@ body.zen {
   }
 }
 
-#cs-nav .community-patron {
-  @extend %flex-center;
-  &::after {
-    @extend %data-icon;
-    content: $story-icon-Wings;
-    font-size: 1.3em;
-    color: $c-brag;
-    @include margin-direction(0, 0, 0.08ch, 0.3ch);
-    transform: scaleX(-1);
-    @include if-rtl {
-      transform: none;
-    }
-  }
-}
-
 .cs-brandbar {
   display: flex;
   justify-content: flex-start;
-
-  &__donate {
-    @extend %flex-center;
-    color: $c-brag;
-    margin: 0 1rem;
-    text-transform: uppercase;
-    line-height: $site-header-height;
-    @media (max-width: at-most($xx-small)) {
-      display: none;
-    }
-  }
 }
 
 .site-footer {

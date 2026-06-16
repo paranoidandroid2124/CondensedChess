@@ -8,8 +8,7 @@ import lila.core.config.BaseUrl
 final class AutomaticEmail(
     userApi: lila.core.user.UserApi,
     mailer: Mailer,
-    baseUrl: BaseUrl,
-    @unused lightUser: lila.core.user.LightUserApi
+    baseUrl: BaseUrl
 )(using Executor):
 
   import Mailer.html.*
@@ -112,8 +111,6 @@ The Chesstory team"""
           text = Mailer.txt.addServiceNote(body),
           htmlBody = standardEmail(body).some
         )
-
-  // Social/Game/Patron emails removed for Analysis-Only version
 
   def delete(user: User): Funit =
     val body =

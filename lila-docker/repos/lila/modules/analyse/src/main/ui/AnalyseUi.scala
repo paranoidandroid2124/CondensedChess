@@ -36,7 +36,6 @@ final class AnalyseUi(helpers: Helpers)(endpoints: AnalyseEndpoints):
     Page("Analysis")
       .css("analyse.free")
       .css("commentary.widget")
-      .css((pov.game.variant == Crazyhouse).option("analyse.zh"))
       .css(withForecast.option("analyse.forecast"))
       .csp(bits.cspExternalEngine.compose(_.withExternalAnalysisApis))
       .js:
@@ -67,17 +66,16 @@ final class AnalyseUi(helpers: Helpers)(endpoints: AnalyseEndpoints):
             st.aside(cls := "analyse__side")(
               lila.ui.bits.mselect(
                 "analyse-variant",
-                span(cls := "text", dataIcon := iconByVariant(pov.game.variant))(
-                  pov.game.variant.variantTrans()
+                span(cls := "text", dataIcon := Icon.CrownElite)(
+                  pov.game.variant.name
                 ),
-                Variant.list.all
-                  .filter(FromPosition != _)
+                List(Standard, Chess960)
                   .map: v =>
                     a(
-                      dataIcon := iconByVariant(v),
+                      dataIcon := Icon.CrownElite,
                       cls := (pov.game.variant == v).option("current"),
                       href := routes.UserAnalysis.parseArg(v.key.value)
-                    )(v.variantTrans())
+                    )(v.name)
               ),
               pov.game.variant.chess960.option(chess960selector(chess960PositionNum)),
               (pov.game.variant.standard || pov.game.variant.chess960).option(
@@ -117,9 +115,6 @@ final class AnalyseUi(helpers: Helpers)(endpoints: AnalyseEndpoints):
         form3.submit("Load position", icon = none)
       )
     )
-
-  private def iconByVariant(variant: Variant): Icon =
-    PerfKey.byVariant(variant).fold(Icon.CrownElite)(_.perfIcon)
 
   def titleOf(pov: Pov) =
     s"${playerText(pov.game.whitePlayer)} vs ${playerText(pov.game.blackPlayer)}"

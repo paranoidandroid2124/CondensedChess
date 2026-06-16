@@ -16,16 +16,13 @@ import {
 import { sanIrreversible, showEngineError, fewerCores } from './util';
 import { setupPosition } from 'chessops/variant';
 import { parseFen } from 'chessops/fen';
-import { lichessRules } from 'chessops/compat';
 import { povChances } from './winningChances';
 import { prop, type Prop, type Toggle, toggle } from '../index';
 import { clamp } from '../algo';
 import { storedIntProp, storage } from '../storage';
-import type { Rules } from 'chessops';
 
 export default class CevalCtrl {
   opts: CevalOpts;
-  rules: Rules;
   analysable: boolean;
   engines: Engines;
   storedPv: Prop<number> = storedIntProp('ceval.multipv', 1);
@@ -58,10 +55,9 @@ export default class CevalCtrl {
 
   init(opts: CevalOpts): void {
     this.opts = opts;
-    this.rules = lichessRules(this.opts.variant.key);
     this.analysable =
       !this.opts.initialFen ||
-      parseFen(this.opts.initialFen).chain(setup => setupPosition(this.rules, setup)).isOk;
+      parseFen(this.opts.initialFen).chain(setup => setupPosition('chess', setup)).isOk;
     if (this.worker?.getInfo().id !== this.engines?.activate()?.id) {
       this.worker?.destroy();
       this.worker = undefined;
@@ -134,7 +130,7 @@ export default class CevalCtrl {
       // send fen after latest castling move and the following moves
       for (let i = 1; i < steps.length; i++) {
         const s = steps[i];
-        if (sanIrreversible(this.opts.variant.key, s.san!)) {
+        if (sanIrreversible(s.san!)) {
           work.moves = [];
           work.initialFen = s.fen;
         } else work.moves.push(s.uci!);

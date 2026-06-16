@@ -14,16 +14,10 @@ const commonDateFormatter = new Intl.DateTimeFormat(displayLocale, {
 
 export const commonDateFormat: (d?: Date | number) => string = commonDateFormatter.format;
 
-export const timeago: (d: DateLike) => string = (date: DateLike) =>
-  formatAgo((Date.now() - toDate(date).getTime()) / 1000);
-
 // format Date / string / timestamp to Date instance.
 export const toDate = (input: DateLike): Date =>
   input instanceof Date ? input : new Date(isNaN(input as any) ? input : parseInt(input as any));
 
-export const use24h = (): boolean => !commonDateFormatter.resolvedOptions().hour12;
-
-// Chesstory: Local English timeago strings (i18n removed)
 const timeagoStrings = {
   rightNow: 'now',
   justNow: 'now',
@@ -79,38 +73,4 @@ const getNumberFormatter = (): Intl.NumberFormat | null => {
 export const numberFormat = (n: number): string => {
   const nf = getNumberFormatter();
   return nf ? nf.format(n) : '' + n;
-};
-
-export const currencyFormat = (n: number, currency: string, options?: Intl.NumberFormatOptions): string => {
-  const nf = getNumberFormatter();
-  if (!nf) return currency + ' ' + n;
-  return new Intl.NumberFormat(displayLocale, { style: 'currency', currency, ...options }).format(n);
-};
-
-export const percentFormat = (n: number, precision: number): string =>
-  getNumberFormatter()
-    ? new Intl.NumberFormat(displayLocale, { style: 'percent', minimumFractionDigits: precision }).format(n)
-    : n.toFixed(precision) + '%';
-
-export const numberSpread = (el: HTMLElement, nbSteps: number, duration: number, previous: number) => {
-  let displayed: string;
-  const display = (prev: number, cur: number, it: number) => {
-    const val = numberFormat(Math.round((prev * (nbSteps - 1 - it) + cur * (it + 1)) / nbSteps));
-    if (val !== displayed) {
-      el.textContent = val;
-      displayed = val;
-    }
-  };
-  let timeouts: Timeout[] = [];
-  return (nb: number, overrideNbSteps?: number): void => {
-    if (!el || (!nb && nb !== 0)) return;
-    if (overrideNbSteps) nbSteps = Math.abs(overrideNbSteps);
-    timeouts.forEach(clearTimeout);
-    timeouts = [];
-    const prev = previous === 0 ? 0 : previous || nb;
-    previous = nb;
-    const interv = Math.abs(duration / nbSteps);
-    for (let i = 0; i < nbSteps; i++)
-      timeouts.push(setTimeout(display.bind(null, prev, nb, i), Math.round(i * interv)));
-  };
 };

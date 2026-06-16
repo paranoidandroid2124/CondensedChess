@@ -190,7 +190,7 @@ private[commentary] object PlayerFacingExactSliceProofFacts:
       case PlayerFacingExactSliceProof.IqpInducement(targetSquare, lineMoves) =>
         squareKey(targetSquare) &&
           lineMoves.nonEmpty &&
-          lineMoves.size <= 4 &&
+          lineMoves.size <= 6 &&
           lineMoves.forall(uciMove)
 
   def targetSquare(proof: PlayerFacingExactSliceProof): Option[String] =
@@ -289,6 +289,7 @@ private[commentary] object PlayerFacingExactSliceProofFacts:
           moves.nonEmpty &&
           terms.contains(s"after_isolated:$target") &&
           terms.contains(s"isolated_pawn:$target") &&
+          terms.contains(s"target_pressure:$target") &&
           terms.contains("central_isolated_pawn") &&
           moves.forall(move => terms.contains(move) || terms.contains(s"pv:$move"))
 

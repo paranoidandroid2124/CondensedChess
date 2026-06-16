@@ -4,9 +4,6 @@ import play.api.http.HeaderNames
 import play.api.mvc.RequestHeader
 import play.api.routing.Router
 
-import scala.util.matching.Regex
-
-import lila.common.Form.trueish
 import lila.core.net.*
 
 object HTTPRequest:
@@ -20,9 +17,6 @@ object HTTPRequest:
   def isUnsafe(req: RequestHeader) = !isSafe(req)
 
   def isRedirectable(req: RequestHeader) = isSynchronousHttp(req) && isSafe(req) && !isLichessMobile(req)
-
-  def isXhrFromEmbed(req: RequestHeader) =
-    isXhr(req) && referer(req).exists(_.contains(s"${req.host}/embed/"))
 
   private val appOrigins = List(
     "capacitor://localhost", // ios
@@ -51,21 +45,6 @@ object HTTPRequest:
   val isMobileBrowser = UaMatcher("""(?i)iphone|ipad|ipod|android.+mobile""")
   def isLichessMobile(ua: UserAgent): Boolean = ua.value.startsWith("Lichess Mobile/")
   def isLichessMobile(req: RequestHeader): Boolean = isLichessMobile(userAgent(req))
-  def isLichobile(req: RequestHeader) = userAgent(req).value.contains("Lichobile/")
-  def isLichobileDev(req: RequestHeader) = // lichobile in a browser can't set its user-agent
-    isLichobile(req) || (appOrigin(req).isDefined && !isLichessMobile(req))
-  def isAndroid = UaMatcher("Android")
-  def isLitools(req: RequestHeader) = userAgent(req) == UserAgent("litools")
-  def lichessMobileVersion(ua: UserAgent): Option[LichessMobileVersion] =
-    isLichessMobile(ua).so:
-      for
-        uaRest <- ua.value.split("/", 2).lift(1)
-        versionStr = uaRest.takeWhile(' ' != _)
-        version <- versionStr.split('.') match
-          case Array(major, minor, _) =>
-            (major.toIntOption, minor.toIntOption).mapN(LichessMobileVersion(_, _))
-          case _ => none
-      yield version
 
   def origin(req: RequestHeader): Option[String] = req.headers.get(HeaderNames.ORIGIN)
   def referer(req: RequestHeader): Option[String] = req.headers.get(HeaderNames.REFERER)
@@ -87,16 +66,9 @@ object HTTPRequest:
       // http libs
       """|HeadlessChrome|okhttp|axios|undici|wget|curl|python-requests|aiohttp|commons-httpclient|python-urllib|python-httpx|Nessus|imroc/req"""
 
-  def isImagePreviewCrawler(req: RequestHeader) = Crawler(imagePreviewCrawlerMatcher(req))
-
-  private val imagePreviewCrawlerMatcher = UaMatcher:
-    """BingPreview|Discordbot|WhatsApp"""
-
   final class UaMatcher(rStr: String):
     private val pattern = rStr.r.pattern
     def apply(req: RequestHeader): Boolean = pattern.matcher(userAgent(req).value).find
-
-  def uaMatches(req: RequestHeader, regex: Regex): Boolean = regex.find(userAgent(req).value)
 
   def isFishnet(req: RequestHeader) = req.path.startsWith("/fishnet/")
 
@@ -113,34 +85,25 @@ object HTTPRequest:
   def printClient(req: RequestHeader) =
     s"${ipAddress(req)} origin:${~origin(req)} referer:${~referer(req)} ua:${userAgent(req).value}"
 
-  def bearer(req: RequestHeader): Option[Bearer] = for
-    authorization <- req.headers.get(HeaderNames.AUTHORIZATION)
-    prefix = "Bearer "
-    if authorization.startsWith(prefix)
-  yield Bearer(authorization.stripPrefix(prefix))
-
-  def hasBearerAuth(req: RequestHeader) = bearer(req).isDefined
-
   private val webXhrAccepts = Set("application/web.chesstory+json", "application/web.lichess+json")
-  def startsWithLichobileAccepts(a: String) = a.startsWith("application/vnd.lichess.v")
+  private def startsWithVersionedApiAccept(a: String) = a.startsWith("application/vnd.lichess.v")
   def accepts(req: RequestHeader): Option[String] = req.headers.get(HeaderNames.ACCEPT)
   def acceptsNdJson(req: RequestHeader) = accepts(req) contains "application/x-ndjson"
   def acceptsJson(req: RequestHeader) = accepts(req).exists: a =>
-    webXhrAccepts.contains(a) || a.startsWith("application/json") || startsWithLichobileAccepts(a)
-  def acceptsCsv(req: RequestHeader) = accepts(req) contains "text/csv"
+    webXhrAccepts.contains(a) || a.startsWith("application/json") || startsWithVersionedApiAccept(a)
   def isEventSource(req: RequestHeader): Boolean = accepts(req) contains "text/event-stream"
   def isProgrammatic(req: RequestHeader) =
     !isSynchronousHttp(req) || isFishnet(req) || isApi(req) || isPrometheus(req) ||
-      accepts(req).exists(startsWithLichobileAccepts)
+      accepts(req).exists(startsWithVersionedApiAccept)
 
   def actionName(req: RequestHeader): String =
     req.attrs.get(Router.Attrs.ActionName).getOrElse("NoHandler")
 
-  private val LichobileVersionHeaderPattern = """application/vnd\.lichess\.v(\d++)\+json""".r
+  private val VersionedApiAcceptPattern = """application/vnd\.lichess\.v(\d++)\+json""".r
 
   def apiVersion(req: RequestHeader): Option[ApiVersion] =
     accepts(req).flatMap:
-      case LichobileVersionHeaderPattern(v) => ApiVersion.from(v.toIntOption)
+      case VersionedApiAcceptPattern(v) => ApiVersion.from(v.toIntOption)
       case _ => none
 
   private def isAppeal(req: RequestHeader) = req.path.startsWith("/appeal")
@@ -154,7 +117,6 @@ object HTTPRequest:
     isAppeal(req) || isNotebookExport(req) || isGameExport(req) || isAccount(req)
 
   def clientName(req: RequestHeader) =
-    // lichobile sends XHR headers
     if isXhr(req) then apiVersion(req).fold("xhr")(v => s"lichobile/$v")
     else if isLichessMobile(req) then "mobile"
     else if isCrawler(req).yes then "crawler"
@@ -163,13 +125,6 @@ object HTTPRequest:
   def queryStringGet(req: RequestHeader, name: String): Option[String] =
     req.queryString.get(name).flatMap(_.headOption).filter(_.nonEmpty)
 
-  def looksLikeLichessBot(req: RequestHeader) =
-    val ua = userAgent(req).value
-    ua.startsWith("lichess-bot/") || ua.startsWith("maia-bot/")
-
   // this header is set by our nginx config, based on the nginx whitelist file.
   def nginxWhitelist(req: RequestHeader) =
     req.headers.get("X-Ip-Tier").flatMap(_.toIntOption).exists(_ > 1)
-
-  def isKid(req: RequestHeader) =
-    req.headers.get("X-Lichess-KidMode").exists(trueish)

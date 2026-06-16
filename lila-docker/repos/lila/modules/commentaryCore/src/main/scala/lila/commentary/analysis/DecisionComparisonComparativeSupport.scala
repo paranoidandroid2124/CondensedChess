@@ -51,7 +51,8 @@ private[analysis] object DecisionComparisonComparativeSupport:
 
   def preservableComparativeSource(source: String): Boolean =
     val normalized = Option(source).getOrElse("").trim
-    normalized == ExactTargetFixationSource || normalized == RoleAwareLineConsequenceSource
+    normalized == ExactTargetFixationSource ||
+      normalized == RoleAwareLineConsequenceSource
 
   def roleAwareLineConsequenceText(text: String): Boolean =
     val raw = Option(text).getOrElse("").trim
@@ -62,12 +63,15 @@ private[analysis] object DecisionComparisonComparativeSupport:
       LineScopedCitation.hasConcreteSanLine(raw) &&
       (
         normalized.contains("exchange sequence") ||
-          normalized.contains("forcing check sequence") ||
+        normalized.contains("forcing check sequence") ||
           normalized.contains("material transition") ||
+          normalized.contains("immediate reply pressure") ||
         normalized.contains("central pawn advance") ||
           normalized.contains("central break") ||
           normalized.contains("passed pawn") ||
-          normalized.contains("promotion race")
+          normalized.contains("promotion race") ||
+          normalized.contains("minor-piece reroute") ||
+          normalized.contains("minor piece reroute")
       )
 
   def roleAwareLineConsequenceAllowed(
@@ -81,6 +85,13 @@ private[analysis] object DecisionComparisonComparativeSupport:
             contract.verifiedBestMove.exists(_.trim.nonEmpty)
         )
     )
+
+  def roleAwareLineConsequenceAccepted(
+      comparison: DecisionComparison,
+      truthContract: Option[DecisiveTruthContract]
+  ): Boolean =
+    roleAwareLineConsequenceAllowed(truthContract) ||
+      acceptableTacticalBranchComparison(comparison, truthContract)
 
   private final case class ComparativeLane(
       comparedMove: String,
@@ -112,43 +123,83 @@ private[analysis] object DecisionComparisonComparativeSupport:
       refs: Option[MoveReviewRefs],
       truthContract: Option[DecisiveTruthContract]
   ): Option[ComparativeLane] =
-    Option.when(roleAwareLineConsequenceAllowed(truthContract))(())
-      .flatMap { _ =>
-        for
-          bestMove <- verifiedBestMove(comparison, truthContract)
-          playedMove <- DecisionComparisonBuilder.cleanMoveText(comparison.chosenMove)
-          if !sameMove(ctx, bestMove, playedMove)
-          evidences = LineConsequenceEvaluator.fromRefsForRoleComparison(ctx, refs)
-          bestEvidence <- evidences.find(lineLeadMatches(ctx, _, bestMove))
-          playedEvidence <- evidences.find(lineLeadMatches(ctx, _, playedMove))
-          if bestEvidence.narrativeReady && playedEvidence.narrativeReady
-          if bestEvidence.kind != LineConsequenceKind.PreviewOnly
-          if playedBranchComparable(bestEvidence, playedEvidence)
-          if !lineContainsMove(ctx, playedEvidence, bestMove)
-          consequence <- roleAwareConsequence(ctx, bestMove, playedMove, bestEvidence, playedEvidence, comparison)
-        yield ComparativeLane(
-          comparedMove = playedMove,
-          consequence = consequence,
-          source = RoleAwareLineConsequenceSource,
-          roleAwareBranchEvidence =
-            Some(
-              RoleAwareLineConsequenceEvidence(
-                engineBest = bestEvidence,
-                played = playedEvidence
-              )
-            )
+    for
+      bestMove <- verifiedBestMove(comparison, truthContract)
+      playedMove <- DecisionComparisonBuilder.cleanMoveText(comparison.chosenMove)
+      if !sameMove(ctx, bestMove, playedMove)
+      evidences = LineConsequenceEvaluator.fromRefsForRoleComparison(ctx, refs)
+      bestEvidence <- evidences.find(lineLeadMatches(ctx, _, bestMove))
+      playedEvidence <- evidences.find(lineLeadMatches(ctx, _, playedMove))
+      if bestEvidence.narrativeReady && playedEvidence.narrativeReady
+      if bestEvidence.kind != LineConsequenceKind.PreviewOnly
+      if playedBranchComparable(comparison, bestEvidence, playedEvidence)
+      if roleAwareLineConsequenceAllowed(truthContract) ||
+        acceptableTacticalBranchComparison(ctx, comparison, truthContract, bestEvidence, playedEvidence)
+      if !lineContainsMove(ctx, playedEvidence, bestMove)
+      consequence <- roleAwareConsequence(ctx, bestMove, playedMove, bestEvidence, playedEvidence, comparison)
+    yield ComparativeLane(
+      comparedMove = playedMove,
+      consequence = consequence,
+      source = RoleAwareLineConsequenceSource,
+      roleAwareBranchEvidence =
+        Some(
+          RoleAwareLineConsequenceEvidence(
+            engineBest = bestEvidence,
+            played = playedEvidence
+          )
         )
-      }
+    )
 
-  private def playedBranchComparable(
+
+  private def acceptableTacticalBranchComparison(
+      ctx: NarrativeContext,
+      comparison: DecisionComparison,
+      truthContract: Option[DecisiveTruthContract],
       bestEvidence: LineConsequenceEvidence,
       playedEvidence: LineConsequenceEvidence
   ): Boolean =
-    playedEvidence.kind == LineConsequenceKind.PreviewOnly ||
-      (
-        consequenceLabel(playedEvidence.kind).nonEmpty &&
-          checkedEvidenceGapCp(Some(bestEvidence), Some(playedEvidence)).exists(_ >= AlternativeThresholdCp)
+    Option(ctx.header.choiceType).exists(choice =>
+      choice.equalsIgnoreCase("StyleChoice") || choice.equalsIgnoreCase("NarrowChoice")
+    ) &&
+      acceptableTacticalTruth(truthContract) &&
+      playedEvidence.kind == LineConsequenceKind.PreviewOnly &&
+      comparisonGapCp(comparison, Some(bestEvidence), Some(playedEvidence)).exists(_ >= AlternativeThresholdCp)
+
+  private def acceptableTacticalBranchComparison(
+      comparison: DecisionComparison,
+      truthContract: Option[DecisiveTruthContract]
+  ): Boolean =
+    acceptableTacticalTruth(truthContract) &&
+      comparison.roleAwareBranchEvidence.exists(evidence =>
+        evidence.played.kind == LineConsequenceKind.PreviewOnly &&
+          comparisonGapCp(comparison, Some(evidence.engineBest), Some(evidence.played)).exists(_ >= AlternativeThresholdCp)
       )
+
+  private def acceptableTacticalTruth(
+      truthContract: Option[DecisiveTruthContract]
+  ): Boolean =
+    truthContract.exists(contract =>
+      contract.truthClass == DecisiveTruthClass.Acceptable &&
+        contract.reasonFamily == DecisiveReasonKind.TacticalRefutation &&
+        contract.failureMode == FailureInterpretationMode.NoClearPlan &&
+        !contract.chosenMatchesBest &&
+        contract.verifiedBestMove.exists(_.trim.nonEmpty)
+    )
+
+  private def playedBranchComparable(
+      comparison: DecisionComparison,
+      bestEvidence: LineConsequenceEvidence,
+      playedEvidence: LineConsequenceEvidence
+  ): Boolean =
+    if bestEvidence.kind == LineConsequenceKind.MinorPieceReroute then
+      playedEvidence.kind == LineConsequenceKind.PreviewOnly &&
+        comparisonGapCp(comparison, Some(bestEvidence), Some(playedEvidence)).exists(_ >= AlternativeThresholdCp)
+    else
+      playedEvidence.kind == LineConsequenceKind.PreviewOnly ||
+        (
+          consequenceLabel(playedEvidence.kind).nonEmpty &&
+            checkedEvidenceGapCp(Some(bestEvidence), Some(playedEvidence)).exists(_ >= AlternativeThresholdCp)
+        )
 
   private def verifiedBestMove(
       comparison: DecisionComparison,
@@ -224,8 +275,14 @@ private[analysis] object DecisionComparisonComparativeSupport:
       case LineConsequenceKind.CentralBreakTiming   => Some("central break")
       case LineConsequenceKind.CentralPawnAdvance   => Some("central pawn advance")
       case LineConsequenceKind.MaterialTransition   => Some("material transition")
+      case LineConsequenceKind.ImmediateOpponentPawnCapture => Some("immediate pawn capture")
+      case LineConsequenceKind.ImmediateOpponentTargetPressure => Some("immediate reply pressure")
+      case LineConsequenceKind.PlayedMoveTargetPressure => Some("target pressure")
+      case LineConsequenceKind.DelayedPawnCapture   => Some("delayed pawn capture")
       case LineConsequenceKind.PassedPawnCreation   => Some("passed pawn")
       case LineConsequenceKind.PromotionRace        => Some("promotion race")
+      case LineConsequenceKind.OriginSquareClearance => Some("origin-square clearance")
+      case LineConsequenceKind.MinorPieceReroute    => Some("minor-piece reroute")
       case LineConsequenceKind.PreviewOnly          => None
 
   private def withArticle(label: String): String =
@@ -234,7 +291,18 @@ private[analysis] object DecisionComparisonComparativeSupport:
 
   private def formattedLine(ctx: NarrativeContext, evidence: LineConsequenceEvidence): Option[String] =
     val startPly = NarrativeUtils.plyFromFen(ctx.fen).map(_ + 1).getOrElse(ctx.ply.max(1))
-    val san = evidence.sanMoves.take(4).map(_.trim).filter(_.nonEmpty)
+    val cleanSans = evidence.sanMoves.map(_.trim).filter(_.nonEmpty)
+    val triggerIndex =
+      evidence.triggerSan.flatMap { trigger =>
+        cleanSans.indexWhere(san => normalizedSanToken(san) == normalizedSanToken(trigger)) match
+          case idx if idx >= 0 => Some(idx)
+          case _               => None
+      }
+    val displayCount =
+      triggerIndex.map(idx => (idx + 1).max(4)).getOrElse(4)
+        .min(cleanSans.size)
+        .min(evidence.windowPly.max(1))
+    val san = cleanSans.take(displayCount)
     Option.when(san.nonEmpty)(NarrativeUtils.formatSanWithMoveNumbers(startPly, san))
 
   private def lineLeadMatches(
@@ -252,11 +320,9 @@ private[analysis] object DecisionComparisonComparativeSupport:
   ): Boolean =
     val targetSan = normalizedSanToken(move)
     val targetUci = NarrativeUtils.sanToUci(ctx.fen, move).getOrElse(NarrativeUtils.normalizeUciMove(move))
-    evidence.sanMoves.exists(san => normalizedSanToken(san) == targetSan) ||
-      (
-        targetUci.nonEmpty &&
-          evidence.uciMoves.exists(uci => NarrativeUtils.uciEquivalent(NarrativeUtils.normalizeUciMove(uci), targetUci))
-      )
+    if targetUci.nonEmpty && evidence.uciMoves.nonEmpty then
+      evidence.uciMoves.exists(uci => NarrativeUtils.uciEquivalent(NarrativeUtils.normalizeUciMove(uci), targetUci))
+    else evidence.sanMoves.exists(san => normalizedSanToken(san) == targetSan)
 
   private def normalizedSanToken(move: String): String =
     DecisionComparisonBuilder

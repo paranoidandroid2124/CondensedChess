@@ -1,9 +1,8 @@
 import type { VNode } from 'snabbdom';
 import * as licon from 'lib/licon';
 import { displayLocale, numberFormat } from 'lib/format';
-import perfIcons from 'lib/game/perfIcons';
 import { bind, dataIcon, type MaybeVNode, type LooseVNodes, hl } from 'lib/view';
-import { moveArrowAttributes, ucfirst } from './explorerUtil';
+import { moveArrowAttributes } from './explorerUtil';
 import type AnalyseCtrl from '../ctrl';
 import {
   isOpening,
@@ -11,10 +10,8 @@ import {
   type TablebaseCategory,
   type OpeningData,
   type OpeningMoveStats,
-  type OpeningGame,
-  type ExplorerDb,
 } from './interfaces';
-import ExplorerCtrl, { MAX_DEPTH } from './explorerCtrl';
+import { MAX_DEPTH } from './explorerCtrl';
 import { showTablebase } from './tablebaseView';
 
 type ExplorerViewOpts = {
@@ -85,59 +82,12 @@ const bigNumberFormatter =
 
 function moveStatsTooltip(ctrl: AnalyseCtrl, move: OpeningMoveStats): string {
   if (!move.uci) return 'Total';
-  if (move.game) {
-    const g = move.game;
-    const result = g.winner === 'white' ? '1-0' : g.winner === 'black' ? '0-1' : '½-½';
-    return ctrl.explorer.opts.showRatings
-      ? `${g.white.name} (${g.white.rating}) ${result} ${g.black.name} (${g.black.rating})`
-      : `${g.white.name} ${result} ${g.black.name}`;
-  }
   if (ctrl.explorer.opts.showRatings) {
     if (move.averageRating) return `Average rating: ${move.averageRating}`;
     if (move.averageOpponentRating)
       return `Performance rating: ${move.performance}, average opponent: ${move.averageOpponentRating}`;
   }
   return '';
-}
-
-const showResult = (winner?: Color): VNode =>
-  winner === 'white'
-    ? hl('result.white', '1-0')
-    : winner === 'black'
-      ? hl('result.black', '0-1')
-      : hl('result.draws', '½-½');
-
-function showGameTable(ctrl: AnalyseCtrl, fen: FEN, title: string, games: OpeningGame[]): VNode | null {
-  if (!ctrl.explorer.withGames || !games.length) return null;
-  const isMasters = ctrl.explorer.db() === 'masters';
-  return hl('table.games', [
-    hl('thead', [hl('tr', [hl('th.title', { attrs: { colspan: isMasters ? 4 : 5 } }, title)])]),
-    hl(
-      'tbody',
-      moveArrowAttributes(ctrl, { fen, onClick: (_, uci) => uci && ctrl.explorerMove(uci) }),
-      games.map(game => {
-        return hl('tr', { key: game.id, attrs: { 'data-id': game.id, 'data-uci': game.uci || '' } }, [
-          ctrl.explorer.opts.showRatings &&
-            hl(
-              'td',
-              [game.white, game.black].map(p => hl('span', '' + p.rating)),
-            ),
-          hl(
-            'td',
-            [game.white, game.black].map(p => hl('span', p.name)),
-          ),
-          hl('td', showResult(game.winner)),
-          hl('td', game.month || game.year),
-          !isMasters &&
-            hl(
-              'td',
-              game.speed &&
-                hl('i', { attrs: { title: ucfirst(game.speed), ...dataIcon(perfIcons[game.speed]!) } }),
-            ),
-        ]);
-      }),
-    ),
-  ]);
 }
 
 const closeButton = (ctrl: AnalyseCtrl): VNode =>
@@ -150,20 +100,18 @@ const closeButton = (ctrl: AnalyseCtrl): VNode =>
 const showEmpty = (ctrl: AnalyseCtrl, data: OpeningData | undefined, opts: ExplorerViewOpts): VNode => {
   const isTooDeep = ctrl.explorer.root.node.ply >= MAX_DEPTH;
   return hl('div.data.empty', [
-    explorerTitle(ctrl.explorer, ctrl, opts),
+    explorerTitle(ctrl, opts),
     openingTitle(ctrl, data),
     hl('div.message', [
-      hl('strong', isTooDeep ? 'Max depth reached' : 'No game found'),
-      !!data?.queuePosition
-        ? hl('p.explanation', `Indexing ${data.queuePosition} other players first ...`)
-        : hl('p.explanation', 'Try another line or switch database'),
+      hl('strong', isTooDeep ? 'Max depth reached' : 'No line found'),
+      hl('p.explanation', 'Try another line'),
     ]),
   ]);
 };
 
 const showGameEnd = (ctrl: AnalyseCtrl, title: string, opts: ExplorerViewOpts): VNode =>
   hl('div.data.empty', [
-    explorerTitle(ctrl.explorer, ctrl, opts),
+    explorerTitle(ctrl, opts),
     hl('div.title', 'Game over'),
     hl('div.message', [hl('i', { attrs: dataIcon(licon.InfoCircle) }), hl('h3', title)]),
   ]);
@@ -188,16 +136,12 @@ export const clearLastShow = () => {
 function show(ctrl: AnalyseCtrl, opts: ExplorerViewOpts): MaybeVNode {
   const data = ctrl.explorer.current();
   if (data && isOpening(data)) {
-    const moveTable = showMoveTable(ctrl, data),
-      recentTable = showGameTable(ctrl, data.fen, 'Recent games', data.recentGames || []),
-      topTable = showGameTable(ctrl, data.fen, 'Top games', data.topGames || []);
-    if (moveTable || recentTable || topTable)
+    const moveTable = showMoveTable(ctrl, data);
+    if (moveTable)
       lastShow = hl('div.data', [
-        explorerTitle(ctrl.explorer, ctrl, opts),
+        explorerTitle(ctrl, opts),
         data?.opening && openingTitle(ctrl, data),
         moveTable,
-        topTable,
-        recentTable,
       ]);
     else lastShow = showEmpty(ctrl, data, opts);
   } else if (data && isTablebase(data)) {
@@ -224,43 +168,23 @@ function show(ctrl: AnalyseCtrl, opts: ExplorerViewOpts): MaybeVNode {
       ]);
     else if (data.checkmate) lastShow = showGameEnd(ctrl, 'Checkmate', opts);
     else if (data.stalemate) lastShow = showGameEnd(ctrl, 'Stalemate', opts);
-    else if (data.variant_win || data.variant_loss) lastShow = showGameEnd(ctrl, 'Variant ending', opts);
     else lastShow = showEmpty(ctrl, undefined, opts);
   }
   return lastShow;
 }
 
-const explorerTitle = (explorer: ExplorerCtrl, ctrl: AnalyseCtrl, opts: ExplorerViewOpts) => {
-  const db = explorer.db();
-  const otherLink = (dbKey: ExplorerDb, label: string, title: string) =>
-    hl(
-      'button.button-link',
-      {
-        key: dbKey,
-        attrs: { title },
-        hook: bind('click', () => explorer.config.data.db(dbKey), explorer.reload),
-      },
-      label,
-    );
+const explorerTitle = (ctrl: AnalyseCtrl, opts: ExplorerViewOpts) => {
   const active = (nodes: LooseVNodes, title: string) =>
     hl(
-      'span.active.text.' + db,
+      'span.active.text.masters',
       {
         attrs: { title, ...dataIcon(licon.Book) },
       },
       nodes,
     );
-  const masterDbExplanation = '2 million games from top rated FIDE players from 1952 to 2024-08',
-    onlineDbExplanation = 'Large community database';
+  const masterDbExplanation = '2 million games from top rated FIDE players from 1952 to 2024-08';
   return hl('div.explorer-title', [
-    hl('div.explorer-title__dbs', [
-      db === 'masters'
-        ? active([hl('strong', 'Masters'), ' database'], masterDbExplanation)
-        : explorer.config.allDbs.includes('masters') && otherLink('masters', 'Masters', masterDbExplanation),
-      db === 'lichess'
-        ? active([hl('strong', 'Online'), ' database'], onlineDbExplanation)
-        : otherLink('lichess', 'Online', onlineDbExplanation),
-    ]),
+    hl('div.explorer-title__dbs', [active([hl('strong', 'Masters'), ' database'], masterDbExplanation)]),
     opts.closable === false ? null : closeButton(ctrl),
   ]);
 };
@@ -272,7 +196,7 @@ function showTitle(variant: Variant) {
 
 function showFailing(ctrl: AnalyseCtrl, opts: ExplorerViewOpts) {
   return hl('div.data.empty', [
-    explorerTitle(ctrl.explorer, ctrl, opts),
+    explorerTitle(ctrl, opts),
     hl('div.title', showTitle(ctrl.data.game.variant)),
     hl('div.failing.message', [
       hl('h3', 'Oops, sorry!'),

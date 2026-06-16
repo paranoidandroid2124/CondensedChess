@@ -16,17 +16,19 @@ export function storedProp<V>(
   fromStr: (str: string) => V,
   toStr: (v: V) => string,
 ): StoredProp<V> {
-  const compatKey = 'analyse.' + key;
+  const compatKey = key.startsWith('analyse.') ? null : `analyse.${key}`;
   let cached: V;
   return function (replacement?: V) {
     if (defined(replacement) && replacement != cached) {
       cached = replacement;
       storage.set(key, toStr(replacement));
     } else if (!defined(cached)) {
-      const compatValue = storage.get(compatKey);
-      if (notNull(compatValue)) {
-        storage.set(key, compatValue);
-        storage.remove(compatKey);
+      if (compatKey) {
+        const compatValue = storage.get(compatKey);
+        if (notNull(compatValue)) {
+          storage.set(key, compatValue);
+          storage.remove(compatKey);
+        }
       }
       const str = storage.get(key);
       cached = str === null ? defaultValue : fromStr(str);
@@ -51,12 +53,6 @@ export const storedBooleanProp = (k: string, defaultValue: boolean): StoredProp<
     v => v.toString(),
   );
 
-export const storedStringPropWithEffect = (
-  k: string,
-  defaultValue: string,
-  effect: (v: string) => void,
-): Prop<string> => withEffect(storedStringProp(k, defaultValue), effect);
-
 export const storedBooleanPropWithEffect = (
   k: string,
   defaultValue: boolean,
@@ -70,79 +66,6 @@ export const storedIntProp = (k: string, defaultValue: number): StoredProp<numbe
     str => Number(str),
     v => v + '',
   );
-
-export const storedIntPropWithEffect = (
-  k: string,
-  defaultValue: number,
-  effect: (v: number) => void,
-): Prop<number> => withEffect(storedIntProp(k, defaultValue), effect);
-
-export const storedJsonProp =
-  <V>(key: string, defaultValue: () => V): Prop<V> =>
-  (v?: V) => {
-    if (defined(v)) {
-      storage.set(key, JSON.stringify(v));
-      return v;
-    }
-    const raw = storage.get(key);
-    if (raw === null) return defaultValue();
-    const ret = JSON.parse(raw);
-    return ret !== null ? ret : defaultValue();
-  };
-
-export interface StoredMap<V> {
-  (key: string): V;
-  (key: string, value: V): void;
-}
-
-export const storedMap = <V>(propKey: string, maxSize: number, defaultValue: () => V): StoredMap<V> => {
-  const prop = storedJsonProp<[string, V][]>(propKey, () => []);
-  const map = new Map<string, V>(prop());
-  return (key: string, v?: V) => {
-    if (defined(v)) {
-      map.delete(key); // update insertion order as old entries are culled
-      map.set(key, v);
-      prop(Array.from(map.entries()).slice(-maxSize));
-    }
-    const ret = map.get(key);
-    return defined(ret) ? ret : defaultValue();
-  };
-};
-
-export const asProp =
-  <V>(map: StoredMap<V>, key: string): Prop<V> =>
-  (v?: V) => {
-    if (defined(v)) {
-      map(key, v);
-      return v;
-    }
-    return map(key);
-  };
-
-export const storedMapAsProp = <V>(
-  propKey: string,
-  key: string,
-  maxSize: number,
-  defaultValue: () => V,
-): Prop<V> => asProp(storedMap(propKey, maxSize, defaultValue), key);
-
-export interface StoredSet<V> {
-  (): Set<V>;
-  (value: V): Set<V>;
-}
-
-export const storedSet = <V>(propKey: string, maxSize: number): StoredSet<V> => {
-  const prop = storedJsonProp<V[]>(propKey, () => []);
-  let set = new Set<V>(prop());
-  return (v?: V) => {
-    if (defined(v)) {
-      set.add(v);
-      set = new Set([...set].slice(-maxSize)); // sets maintain insertion order
-      prop([...set]);
-    }
-    return set;
-  };
-};
 
 export function once(key: string, every?: { seconds?: number; hours?: number; days?: number }): boolean {
   const now = Date.now();
@@ -162,14 +85,14 @@ export interface ChesstoryStorage {
   fire(v?: string): void;
 }
 
-export interface ChesstoryBooleanStorage {
+interface ChesstoryBooleanStorage {
   get(): boolean;
   getOrDefault(defaultValue: boolean): boolean;
   set(v: boolean): void;
   toggle(): void;
 }
 
-export interface ChesstoryStorageHelper {
+interface ChesstoryStorageHelper {
   make(k: string, ttl?: number): ChesstoryStorage;
   boolean(k: string): ChesstoryBooleanStorage;
   get(k: string): string | null;

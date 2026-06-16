@@ -266,7 +266,7 @@ private[commentary] object MoveReviewCausalClaim:
         lineConsequenceSurfaceText(candidate.evidences)
       )
     val roles = causalRoles(candidate.plan, candidate.evidences)
-    CausalFrame(
+    val frame = CausalFrame(
       plan = candidate.plan,
       intent = CausalIntent.fromQuestionKind(candidate.plan.questionKind),
       renderedClaim = candidate.renderedClaim,
@@ -276,6 +276,11 @@ private[commentary] object MoveReviewCausalClaim:
       roles = roles,
       surfaceContract = surfaceContract(relationKinds, candidate.evidences)
     )
+    if candidate.plan.plannerOwnerKind == PlannerOwnerKind.ConcreteTactical &&
+        !hasConcreteTacticalSurfaceAnchor(frame.surfaceText) &&
+        hasConcreteTacticalTypedFactAnchor(frame)
+    then concreteTacticalTypedFactSurface(frame.evidences).fold(frame)(text => frame.copy(surfaceText = text))
+    else frame
 
   private def admitFrame(frame: CausalFrame): Decision =
     val plan = frame.plan
@@ -319,6 +324,7 @@ private[commentary] object MoveReviewCausalClaim:
           supportRequired &&
             plan.plannerOwnerKind == PlannerOwnerKind.ConcreteTactical &&
             !hasConcreteTacticalSurfaceAnchor(frame.surfaceText) &&
+            !hasConcreteTacticalTypedFactAnchor(frame) &&
             !hasEvidence(frame.evidences, EvidenceSource.RelationWitness) &&
             !hasEvidence(frame.evidences, EvidenceSource.ForcedLineTruth)
         )("concrete_tactical_surface_anchor_missing"),
@@ -503,6 +509,46 @@ private[commentary] object MoveReviewCausalClaim:
   private def hasConcreteTacticalSurfaceAnchor(text: String): Boolean =
     LineScopedCitation.hasConcreteSanLine(text) ||
       LiveNarrativeCompressionCore.hasConcreteAnchor(text)
+
+  private def hasConcreteTacticalTypedFactAnchor(frame: CausalFrame): Boolean =
+    concreteTacticalBranchLineAnchored(frame.evidences) &&
+      concreteTacticalTypedFactEvidence(frame.evidences).nonEmpty
+
+  private def concreteTacticalTypedFactSurface(evidences: List[TypedEvidence]): Option[String] =
+    concreteTacticalTypedFactEvidence(evidences).flatMap(_.text.map(_.trim).filter(_.nonEmpty))
+
+  private def concreteTacticalBranchLineAnchored(evidences: List[TypedEvidence]): Boolean =
+    evidences.exists(evidence =>
+      evidence.source == EvidenceSource.BranchLine &&
+        (
+          evidence.anchors.nonEmpty ||
+            evidence.evidenceRefs.exists(_.startsWith("branch_line_first_san:")) ||
+            evidence.text.exists(LineScopedCitation.hasConcreteSanLine)
+        )
+    )
+
+  private def concreteTacticalTypedFactEvidence(evidences: List[TypedEvidence]): Option[TypedEvidence] =
+    evidences.find { evidence =>
+      val guardrails =
+        (evidence.guardrails ++ evidence.localFactCandidate.toList.flatMap(_.guardrails))
+          .map(_.trim.toLowerCase)
+      val refs =
+        (evidence.evidenceRefs ++ evidence.localFactCandidate.toList.flatMap(_.evidenceRefs))
+          .map(_.trim.toLowerCase)
+      evidence.source == EvidenceSource.TypedLocalFact &&
+        evidence.lineBinding == MoveReviewLocalFact.LineBinding.PvCoupled &&
+        evidence.localFactCandidate.exists(_.strictFallbackCandidate) &&
+        evidence.localFactFamily.exists(family =>
+          family == MoveReviewLocalFact.Family.Attack ||
+            family == MoveReviewLocalFact.Family.Threat ||
+            family == MoveReviewLocalFact.Family.Pressure
+        ) &&
+        guardrails.exists(guardrail =>
+          guardrail == "target_fact_attacked_by_played_move" ||
+            guardrail == "target_fact_defended_by_played_move"
+        ) &&
+        refs.exists(_.startsWith("fact_square:"))
+    }
 
   private def dominantLineBinding(evidences: List[TypedEvidence]): MoveReviewLocalFact.LineBinding =
     val bindings = evidences.map(_.lineBinding).filter(_ != MoveReviewLocalFact.LineBinding.None)
@@ -756,8 +802,8 @@ private[commentary] object MoveReviewCausalClaim:
       contrastGuardrails: List[String]
   ): Option[MoveReviewLocalFact.Candidate] =
     contrastSourceKind match
-      case Some(ContrastiveSupportAdmissibility.SourceKind.RoleAwareLineConsequence) =>
-        val source = ContrastiveSupportAdmissibility.SourceKind.RoleAwareLineConsequence
+      case Some(source)
+          if source == ContrastiveSupportAdmissibility.SourceKind.RoleAwareLineConsequence =>
         Some(
           MoveReviewLocalFact.Candidate(
             family = MoveReviewLocalFact.Family.LineConsequence,
@@ -874,7 +920,7 @@ private[commentary] object MoveReviewCausalClaim:
       (
         frame.relationKinds.contains(RelationKind.ChangeConsequence) &&
           frame.evidences.exists(evidence =>
-          evidence.source == EvidenceSource.TopEngineMoveWithConcreteConsequence ||
+            evidence.source == EvidenceSource.TopEngineMoveWithConcreteConsequence ||
               evidence.source == EvidenceSource.RoleAwareLineConsequence ||
               evidence.source == EvidenceSource.ExplicitAlternativeCollapse
           )
@@ -1105,6 +1151,11 @@ private[commentary] object MoveReviewCausalClaim:
       hasEvidence(evidences, EvidenceSource.DelayedOnlyMove) ||
       evidences.exists(evidence =>
         evidence.kind == EvidenceKind.TimingWitness &&
+          evidence.source == EvidenceSource.TypedLocalFact &&
+          evidence.localFactFamily.contains(MoveReviewLocalFact.Family.Timing)
+      ) ||
+      evidences.exists(evidence =>
+        evidence.kind == EvidenceKind.TimingWitness &&
           evidence.source == EvidenceSource.RelationWitness &&
           evidence.localFactFamily.contains(MoveReviewLocalFact.Family.Timing) &&
           evidence.relationSurface.contains(RelationSurfaceRowKind.MoveOrder)
@@ -1168,7 +1219,12 @@ private[commentary] object MoveReviewCausalClaim:
   private def playedMoveCausalOwner(plan: QuestionPlan): Boolean =
     plan.plannerOwnerKind == PlannerOwnerKind.MoveDelta ||
       plan.plannerOwnerKind == PlannerOwnerKind.ConcreteTactical ||
-      plan.plannerOwnerKind == PlannerOwnerKind.LineConsequence
+      plan.plannerOwnerKind == PlannerOwnerKind.LineConsequence ||
+      (
+        plan.questionKind == AuthorQuestionKind.WhyThis &&
+          plan.plannerOwnerKind == PlannerOwnerKind.ForcingDefense &&
+          plan.sourceKinds.contains(MoveReviewLocalFact.Producer.ForkEntryDefense.key)
+      )
 
   private def openingRelationWhyThis(plan: QuestionPlan): Boolean =
     plan.questionKind == AuthorQuestionKind.WhyThis &&

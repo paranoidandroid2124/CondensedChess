@@ -70,6 +70,8 @@ private[commentary] object MoveReviewLocalFact:
     case TacticalMotif
     case ForcedLineTruth
     case TargetPressure
+    case TargetDefense
+    case ForkEntryDefense
     case RelationWitness
     case DefensiveTruth
     case CaptureSequence
@@ -88,6 +90,8 @@ private[commentary] object MoveReviewLocalFact:
         case TacticalMotif          => "tactical_motif"
         case ForcedLineTruth        => "forced_line_truth"
         case TargetPressure         => "target_pressure"
+        case TargetDefense          => "target_defense"
+        case ForkEntryDefense       => "fork_entry_defense"
         case RelationWitness        => "relation_witness"
         case DefensiveTruth         => "defensive_truth"
         case CaptureSequence        => "capture_sequence"
@@ -105,10 +109,13 @@ private[commentary] object MoveReviewLocalFact:
       this match
         case OpeningGoal            => Set(Family.OpeningGoal)
         case CastlingSafety         => Set(Family.KingSafety)
-        case CertifiedStrategyDelta => Set(Family.Defense, Family.LineConsequence, Family.PlanSupport, Family.Pressure)
+        case CertifiedStrategyDelta =>
+          Set(Family.Defense, Family.LineConsequence, Family.PlanSupport, Family.Pressure, Family.Timing)
         case TacticalMotif          => Set(Family.Threat)
         case ForcedLineTruth        => Set(Family.Attack, Family.Threat, Family.Defense)
         case TargetPressure         => Set(Family.Pressure)
+        case TargetDefense          => Set(Family.Defense)
+        case ForkEntryDefense       => Set(Family.Defense)
         case RelationWitness        => Set(Family.Attack, Family.Threat, Family.Pressure, Family.Defense, Family.Timing)
         case DefensiveTruth         => Set(Family.Defense)
         case CaptureSequence        => Set(Family.Capture)
@@ -147,6 +154,8 @@ private[commentary] object MoveReviewLocalFact:
         case TacticalMotif          => Set(Source.CanonicalFact)
         case ForcedLineTruth        => Set(Source.PvCoupledLine)
         case TargetPressure         => Set(Source.CanonicalFact)
+        case TargetDefense          => Set(Source.CanonicalFact)
+        case ForkEntryDefense       => Set(Source.CanonicalFact)
         case RelationWitness        => Set(Source.PvCoupledLine)
         case DefensiveTruth         => Set(Source.OnlyMoveDefense)
         case CaptureSequence        => Set(Source.PvCoupledLine)
@@ -292,6 +301,7 @@ private[commentary] object MoveReviewLocalFact:
       delta: PlayerFacingMoveDeltaEvidence,
       anchors: List[Anchor],
       guardrails: List[String],
+      evidenceRefs: List[String] = Nil,
       strictFallbackCandidate: Boolean = false
   ): Candidate =
     Candidate(
@@ -306,7 +316,7 @@ private[commentary] object MoveReviewLocalFact:
         List(
           Option(delta.packet.proofFamily).map(_.trim).filter(_.nonEmpty).map(value => s"proof_family:$value"),
           Option(delta.packet.proofSource).map(_.trim).filter(_.nonEmpty).map(value => s"proof_source:$value")
-        ).flatten,
+        ).flatten ++ evidenceRefs.map(_.trim).filter(_.nonEmpty),
       guardrails = guardrails
     )
 
@@ -338,7 +348,9 @@ private[commentary] object MoveReviewLocalFact:
         evidence.scoreCp.map(cp => s"line_consequence_score_cp:$cp") ++
         evidence.mate.map(mate => s"line_consequence_mate:$mate") ++
         evidence.depth.map(depth => s"line_consequence_depth:$depth") ++
-        evidence.uciMoves.take(6).map(uci => s"line_consequence_uci:${MoveReviewPvLine.normalizeUci(uci)}")
+        evidence.uciMoves.take(6).map(uci => s"line_consequence_uci:${MoveReviewPvLine.normalizeUci(uci)}") ++
+        evidence.structureDetails.take(3).flatMap(_.evidenceRefs) ++
+        evidence.targetDetails.take(3).flatMap(_.evidenceRefs)
     ).map(_.trim).filter(_.nonEmpty).distinct
 
   def lineConsequenceAnchors(evidence: LineConsequenceEvidence): List[Anchor] =

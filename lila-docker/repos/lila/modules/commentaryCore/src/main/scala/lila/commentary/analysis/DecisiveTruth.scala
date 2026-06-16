@@ -448,13 +448,26 @@ private[commentary] object DecisiveTruth:
     val rawCpLoss = comparison.flatMap(_.cpLossVsChosen).getOrElse(0)
     val cpLoss = if chosenMatchesBest then 0 else rawCpLoss.max(0)
     val swingSeverity = math.abs(cpAfter.getOrElse(0) - cpBefore.getOrElse(cpAfter.getOrElse(0)))
-    val beforePerspective = cpBefore.map(score => moverPerspectiveCp(ctx.fen, score)).getOrElse(0)
     val afterPerspective =
       cpAfter
         .orElse(comparison.flatMap(_.engineBestScoreCp))
         .map(score => moverPerspectiveCp(ctx.fen, score))
         .getOrElse(0)
-    val moveQuality = deriveMoveQualityFact(chosenMatchesBest, cpLoss, swingSeverity, beforePerspective, afterPerspective, momentType)
+    val (qualityBeforePerspective, qualityAfterPerspective) =
+      (cpBefore, cpAfter) match
+        case (Some(before), Some(after)) =>
+          (moverPerspectiveCp(ctx.fen, before), moverPerspectiveCp(ctx.fen, after))
+        case _ =>
+          (cpLoss, 0)
+    val moveQuality =
+      deriveMoveQualityFact(
+        chosenMatchesBest,
+        cpLoss,
+        swingSeverity,
+        qualityBeforePerspective,
+        qualityAfterPerspective,
+        momentType
+      )
     val transition = normalized(transitionType.getOrElse("")).map(_.toLowerCase)
     val transitionSignalsConversion =
       transition.exists(text =>

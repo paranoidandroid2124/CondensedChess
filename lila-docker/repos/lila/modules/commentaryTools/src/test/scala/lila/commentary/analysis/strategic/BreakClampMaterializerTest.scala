@@ -172,6 +172,19 @@ class BreakClampMaterializerTest extends FunSuite:
     assertEquals(plans, Nil)
   }
 
+  test("does not materialize a pawn capture that only attacks the moved piece on its origin square") {
+    val fen = "4k3/8/5n2/4P3/8/8/8/4K3 b - - 0 1"
+    val plans =
+      BreakClampMaterializer.materialize(
+        fen = fen,
+        board = Fen.read(Standard, Fen.Full(fen)).map(_.board).getOrElse(fail(s"bad FEN: $fen")),
+        color = Color.Black,
+        mainLine = VariationLine(moves = List("f6d7", "e1e2", "e8e7", "e2e3"), scoreCp = 0, depth = 16)
+      )
+
+    assert(!plans.exists(_.breakNeutralized.contains("f6")), clues(plans))
+  }
+
   test("prophylaxis analyzer appends materialized clamp plans without changing its public contract") {
     val fen = "4k3/8/8/1p6/8/2P5/1P6/4K3 w - - 0 1"
     val plans =

@@ -1,10 +1,4 @@
-type InfiniteScrollModule = {
-  initModule?: (selector?: string) => void;
-};
-
-export default async function initModule(_opts?: unknown) {
+export default async function initModule() {
   if (!document.querySelector('.infinite-scroll')) return;
-
-  const infiniteScroll = await site.asset.loadEsm<InfiniteScrollModule>('bits.infiniteScroll');
-  infiniteScroll.initModule?.('.infinite-scroll');
+  await site.asset.loadEsm('bits.infiniteScroll', { init: '.infinite-scroll' });
 }

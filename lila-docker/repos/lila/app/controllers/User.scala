@@ -3,7 +3,6 @@ package controllers
 import play.api.mvc.*
 import lila.app.*
 
-// Chesstory: Bare minimum User controller - most features deleted with modules
 final class User(
     override val env: Env
 ) extends LilaController(env):

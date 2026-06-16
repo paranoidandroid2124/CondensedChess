@@ -2,6 +2,7 @@ package views
 
 import controllers.Importer.GameCard
 import lila.analyse.ImportHistory
+import lila.accountintel.AccountIntel.ProductKind
 import lila.app.UiEnv.*
 import lila.ui.Page
 
@@ -9,7 +10,7 @@ object importer:
 
   def index(
       error: Option[String] = None,
-      provider: String = "lichess",
+      provider: String = ImportHistory.providerLichess,
       username: String = "",
       recentAccounts: List[ImportHistory.Account] = Nil,
       recentAnalyses: List[ImportHistory.Analysis] = Nil
@@ -47,12 +48,12 @@ object importer:
                           label(`for` := "import-provider")("Provider"),
                           st.select(id := "import-provider", name := "provider")(
                             option(
-                              value := "lichess",
-                              if provider == "lichess" then selected := true else emptyFrag
+                              value := ImportHistory.providerLichess,
+                              if provider == ImportHistory.providerLichess then selected := true else emptyFrag
                             )("Lichess"),
                             option(
-                              value := "chesscom",
-                              if provider == "chesscom" then selected := true else emptyFrag
+                              value := ImportHistory.providerChessCom,
+                              if provider == ImportHistory.providerChessCom then selected := true else emptyFrag
                             )("Chess.com")
                           )
                         ),
@@ -159,7 +160,7 @@ object importer:
                             renderNotebookMode(
                               provider = provider,
                               username = username,
-                              kind = "my_account_intelligence_lite",
+                              kind = ProductKind.MyAccountIntelligenceLite.key,
                               title = "My Account Notebook",
                               body =
                                 "Use the sample to spot the decisions you keep repeating and the structure worth fixing first.",
@@ -168,7 +169,7 @@ object importer:
                             renderNotebookMode(
                               provider = provider,
                               username = username,
-                              kind = "opponent_prep",
+                              kind = ProductKind.OpponentPrep.key,
                               title = "Opponent Prep",
                               body =
                                 "Use the same sample as prep: which structures are worth steering toward and where the first quiet decision tends to bend.",
@@ -400,7 +401,7 @@ object importer:
 
   private def providerShortLabel(provider: String): String =
     provider.trim.toLowerCase match
-      case "chesscom" => "Chess.com"
+      case ImportHistory.providerChessCom => "Chess.com"
       case _ => "Lichess"
 
   private def providerBadge(provider: String): Frag =
@@ -410,8 +411,8 @@ object importer:
 
   private def providerTone(provider: String): String =
     provider.trim.toLowerCase match
-      case "chesscom" => "chesscom"
-      case _ => "lichess"
+      case ImportHistory.providerChessCom => ImportHistory.providerChessCom
+      case _ => ImportHistory.providerLichess
 
   private def sourceTypeLabel(sourceType: String): String =
     sourceType match

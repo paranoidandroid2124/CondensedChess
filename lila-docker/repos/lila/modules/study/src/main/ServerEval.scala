@@ -9,7 +9,6 @@ import lila.db.dsl.bsonWriteOpt
 import lila.tree.Node.Comment
 import lila.tree.{ Advice, Analysis, Branch, Info, Node, Root }
 
-// Chesstory: Removed socket and relay dependencies - simplified for analysis-only system
 object ServerEval:
 
   final class Requester(
@@ -47,7 +46,6 @@ object ServerEval:
             )
           )
 
-  // Chesstory: Simplified Merger - removed socket dependency
   final class Merger(
       sequencer: StudySequencer,
       chapterRepo: ChapterRepo,
@@ -149,7 +147,6 @@ object ServerEval:
         forceVariation = false
       )
 
-    // Simplified: no socket push, just log progress
     private def sendProgress(
         studyId: StudyId,
         chapterId: StudyChapterId,

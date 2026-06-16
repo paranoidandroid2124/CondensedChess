@@ -3,7 +3,6 @@ package lila.study
 import chess.{ ByColor, PlayerName, PlayerTitle, FideId, Centis, IntRating }
 import chess.format.pgn.Tags
 
-// Chesstory: removed Federation - analysis system doesn't need it
 type Players = ByColor[StudyPlayer]
 
 case class StudyPlayer(
@@ -54,4 +53,3 @@ object ChapterPlayer:
       .map:
         _.zip(clocks).map: (player, clock) =>
           ChapterPlayer(player, clock)
-

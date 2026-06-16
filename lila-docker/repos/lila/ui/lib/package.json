@@ -4,12 +4,8 @@
   "type": "module",
   "dependencies": {
     "@lichess-org/stockfish-web": "^0.2.3",
-    "@lichess-org/zerofish": "^0.0.40",
-    "@types/debounce-promise": "^3.1.9",
     "chessops": "^0.15",
-    "debounce-promise": "^3.1.2",
     "idb-keyval": "^6.2.1",
-    "stockfish-mv.wasm": "^0.6.1",
     "stockfish-nnue.wasm": "1.0.0-1946a675.smolnet",
     "stockfish.js": "^10.0.2",
     "stockfish.wasm": "^0.10.0"
@@ -18,7 +14,6 @@
     "sync": {
       "node_modules/stockfish*/*.{js,wasm}": "/public/npm",
       "node_modules/@lichess-org/stockfish-web/*.{js,wasm}": "/public/npm/stockfish-web",
-      "node_modules/@lichess-org/zerofish/dist/zerofishEngine*.{js,wasm}": "/public/npm",
       "/node_modules/@lichess-org/chessground/dist/chessground.min.js": "/public/npm"
     },
     "hash": [

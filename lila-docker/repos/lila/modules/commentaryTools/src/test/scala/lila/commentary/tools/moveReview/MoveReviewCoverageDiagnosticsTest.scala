@@ -153,7 +153,7 @@ final class MoveReviewCoverageDiagnosticsTest extends FunSuite:
         .getOrElse(fail(s"central packet missing: ${inputs.mainBundle}"))
     (centralCtx, inputs, packet)
 
-  test("records basic source kind when basic move explanation wins") {
+  test("records opening-goal local fact when CausalFrame basic bridge wins") {
     val refs = refsForLine(italianBeforeBc4, List("f1c4", "g8f6", "d2d3"), List("Bc4", "Nf6", "d3"))
     val outline = BookStyleRenderer.validatedOutline(italianCtx)
     val slots =
@@ -162,8 +162,8 @@ final class MoveReviewCoverageDiagnosticsTest extends FunSuite:
     val diagnostics =
       MoveReviewCoverageDiagnostics.build(italianCtx, Some(refs), None, None, slots, plannerInputs(italianCtx))
 
-    assertEquals(diagnostics.moveReviewSourceKind, Some("basic_move_explanation"))
-    assertEquals(diagnostics.basicEvidenceStatus, Some("emitted"))
+    assertEquals(diagnostics.moveReviewSourceKind, Some("planner"))
+    assertEquals(diagnostics.basicEvidenceStatus, Some("planner_preempted"))
     assertEquals(diagnostics.basicEvidenceRejectReasons, Nil)
     assertEquals(diagnostics.moveReviewLocalFactStatus, Some("emitted"))
     assertEquals(diagnostics.moveReviewLocalFactFamilies, List("opening_goal"))
@@ -190,6 +190,66 @@ final class MoveReviewCoverageDiagnosticsTest extends FunSuite:
     assertEquals(diagnostics.moveReviewSourceKind, Some("exact_factual_fallback"))
     assertEquals(diagnostics.basicEvidenceStatus, Some("blocked"))
     assert(diagnostics.basicEvidenceRejectReasons.contains("missing_coupled_pv_line"), clue(diagnostics))
+  }
+
+  test("records truth gate when positive basic evidence is blocked by tactical truth") {
+    val truth =
+      DecisiveTruthContract(
+        playedMove = Some("f1c4"),
+        verifiedBestMove = Some("d2d4"),
+        truthClass = DecisiveTruthClass.Inaccuracy,
+        cpLoss = 90,
+        swingSeverity = 90,
+        reasonFamily = DecisiveReasonKind.TacticalRefutation,
+        allowConcreteBenchmark = false,
+        chosenMatchesBest = false,
+        compensationAllowed = false,
+        truthPhase = None,
+        ownershipRole = TruthOwnershipRole.BlunderOwner,
+        visibilityRole = TruthVisibilityRole.PrimaryVisible,
+        surfaceMode = TruthSurfaceMode.FailureExplain,
+        exemplarRole = TruthExemplarRole.NonExemplar,
+        surfacedMoveOwnsTruth = true,
+        verifiedPayoffAnchor = None,
+        compensationProseAllowed = false,
+        benchmarkProseAllowed = false,
+        investmentTruthChainKey = None,
+        maintenanceExemplarCandidate = false,
+        benchmarkCriticalMove = false,
+        failureMode = FailureInterpretationMode.TacticalRefutation,
+        failureIntentConfidence = 0.9,
+        failureIntentAnchor = None,
+        failureInterpretationAllowed = true
+      )
+    val refs = refsForLine(italianBeforeBc4, List("f1c4", "g8f6", "d2d3"), List("Bc4", "Nf6", "d3"))
+    val outline = BookStyleRenderer.validatedOutline(italianCtx, truthContract = Some(truth))
+    val slots =
+      MoveReviewPolishSlotsBuilder.buildOrFallback(
+        italianCtx,
+        outline,
+        refs = Some(refs),
+        strategyPack = None,
+        truthContract = Some(truth)
+      )
+    val inputs = QuestionPlannerInputsBuilder.build(italianCtx, None, truthContract = Some(truth), candidateEvidenceLines = Nil)
+
+    val diagnostics =
+      MoveReviewCoverageDiagnostics.build(
+        italianCtx,
+        refs = Some(refs),
+        strategyPack = None,
+        truthContract = Some(truth),
+        slots = slots,
+        plannerInputs = inputs
+      )
+
+    assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.ExactFactualFallback, clues(slots))
+    assertEquals(slots.moveReviewExplanation, None, clues(slots))
+    assertEquals(diagnostics.basicEvidenceStatus, Some("blocked"))
+    assert(diagnostics.basicEvidenceRejectReasons.contains("positive_basic_blocked_by_truth_contract"), clue(diagnostics))
+    assert(!diagnostics.basicEvidenceRejectReasons.contains("basic_builder_not_emitted"), clue(diagnostics))
+    assertEquals(diagnostics.moveReviewLocalFactStatus, Some("candidate"))
+    assertEquals(diagnostics.moveReviewLocalFactFamilies, List("opening_goal"))
   }
 
   test("records replay failure when refs contain only a one-ply played move") {

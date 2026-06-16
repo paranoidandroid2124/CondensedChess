@@ -4,7 +4,7 @@ package lila.commentary.analysis
 import lila.commentary.analysis.claim.*
 import lila.commentary.analysis.semantic.StrategicObservationIds.{ EvidenceRef, EvidenceSourceId, ProofFamilyId, ProofSourceId }
 import lila.commentary.analysis.structure.{ CarlsbadTarget, PawnStructureTargets, WeaknessTargetProfile }
-import _root_.chess.{ Bishop, Knight, Pawn, Square }
+import _root_.chess.{ Bishop, Color, Knight, Pawn, Queen, Role, Rook, Square }
 import _root_.chess.format.Fen
 import _root_.chess.variant.Standard
 
@@ -30,6 +30,119 @@ private[commentary] enum PlayerFacingMoveDeltaClass:
   case CounterplayReduction
   case ResourceRemoval
   case PlanAdvance
+
+private[commentary] object ColorComplexRuntimeProof:
+
+  private val PersistenceMaxPlies = 4
+
+  def playedMoveMinorAttackerThroughTopLine(
+      ctx: NarrativeContext,
+      sideToMove: Color,
+      targetSquare: Square
+  ): Option[(Square, String)] =
+    for
+      played <- reviewedPlayedMove(ctx)
+      replay <- topLineReplay(ctx)
+      if replay.size >= 2
+      first <- replay.headOption.filter(_.uci == played)
+      to = first.move.dest
+      piece <- first.after.board.pieceAt(to)
+      roleName <- minorRoleName(piece.role)
+      if piece.color == sideToMove
+      if attacksFromSquareThroughout(replay, piece.color, piece.role, to, targetSquare)
+    yield to -> roleName
+
+  def playedMoveOwnsAndPersists(
+      ctx: Option[NarrativeContext],
+      proof: PlayerFacingExactSliceProof.ColorComplexSqueeze
+  ): Boolean =
+    ctx.exists { narrative =>
+      val played = reviewedPlayedMove(narrative)
+      val replay = topLineReplay(narrative)
+      (
+        played,
+        replay,
+        MoveReviewExchangeAnalyzer.squareFromKey(proof.minorPieceSquare),
+        MoveReviewExchangeAnalyzer.squareFromKey(proof.targetSquare),
+        minorRole(proof.minorPieceRole)
+      ) match
+        case (Some(move), Some(line), Some(from), Some(target), Some(role)) =>
+          line.size >= 2 &&
+            line.headOption.exists(step => step.uci == move && step.move.dest == from) &&
+            line.headOption.flatMap(_.after.board.pieceAt(from)).exists { piece =>
+              piece.role == role &&
+                attacksFromSquareThroughout(line, piece.color, role, from, target)
+            }
+        case _ => false
+    }
+
+  def playedMoveOwnsAndPersistsOnLine(
+      playedUci: String,
+      playedTo: Square,
+      playedColor: Color,
+      playedRole: Role,
+      lineFacts: MoveReviewPvLine.LineFacts,
+      proof: PlayerFacingExactSliceProof.ColorComplexSqueeze
+  ): Boolean =
+    val lineMoves =
+      lineFacts.first :: (lineFacts.reply.toList ++ lineFacts.continuation.toList ++ lineFacts.continuationTail)
+    (
+      MoveReviewExchangeAnalyzer.squareFromKey(proof.minorPieceSquare),
+      MoveReviewExchangeAnalyzer.squareFromKey(proof.targetSquare),
+      minorRole(proof.minorPieceRole)
+    ) match
+      case (Some(from), Some(target), Some(role)) =>
+        lineMoves.size >= 2 &&
+          NarrativeUtils.normalizeUciMove(lineFacts.first.uci) == NarrativeUtils.normalizeUciMove(playedUci) &&
+          playedTo == from &&
+          playedRole == role &&
+          minorRoleName(playedRole).nonEmpty &&
+          lineMoves.forall(move =>
+            Fen.read(Standard, Fen.Full(move.fenAfter)).exists { position =>
+              position.board.pieceAt(from).exists(piece => piece.color == playedColor && piece.role == role) &&
+                position.board.attackers(target, playedColor).squares.exists(_ == from)
+            }
+          )
+      case _ => false
+
+  private def topLineReplay(
+      ctx: NarrativeContext
+  ): Option[List[MoveReviewExchangeAnalyzer.BoundedReplayStep]] =
+    MoveReviewExchangeAnalyzer.boundedTopReplay(
+      ctx.fen,
+      ctx.engineEvidence.toList.flatMap(_.variations),
+      PersistenceMaxPlies
+    )
+
+  private def attacksFromSquareThroughout(
+      replay: List[MoveReviewExchangeAnalyzer.BoundedReplayStep],
+      color: Color,
+      role: Role,
+      from: Square,
+      target: Square
+  ): Boolean =
+    replay.nonEmpty &&
+      replay.forall(step =>
+        step.after.board.pieceAt(from).exists(piece => piece.color == color && piece.role == role) &&
+          step.after.board.attackers(target, color).squares.exists(_ == from)
+      )
+
+  private def reviewedPlayedMove(ctx: NarrativeContext): Option[String] =
+    ctx.playedMove
+      .map(NarrativeUtils.normalizeUciMove)
+      .filter(MoveReviewExchangeAnalyzer.isUciMove)
+
+  private def minorRoleName(role: Role): Option[String] =
+    role match
+      case Bishop => Some("bishop")
+      case Knight => Some("knight")
+      case _      => None
+
+  private def minorRole(raw: String): Option[Role] =
+    Option(raw).map(_.trim.toLowerCase).getOrElse("") match
+      case "bishop" => Some(Bishop)
+      case "knight" => Some(Knight)
+      case _        => None
 
 private[commentary] final case class PlayerFacingMoveDeltaEvidence(
     deltaClass: PlayerFacingMoveDeltaClass,
@@ -111,6 +224,23 @@ private[commentary] object PlayerFacingTruthModePolicy:
   ): Boolean =
     val surface = StrategyPackSurface.from(strategyPack)
     val deltaEvidence = mainPathMoveDeltaEvidence(ctx, surface, truthContract)
+    allowsStrategicClaimTextWithEvidence(
+      text = text,
+      ctx = ctx,
+      surface = surface,
+      truthContract = truthContract,
+      deltaEvidence = deltaEvidence,
+      classifiedMode = classify(ctx, strategyPack, truthContract)
+    )
+
+  private[commentary] def allowsStrategicClaimTextWithEvidence(
+      text: String,
+      ctx: NarrativeContext,
+      surface: StrategyPackSurface.Snapshot,
+      truthContract: Option[DecisiveTruthContract],
+      deltaEvidence: Option[PlayerFacingMoveDeltaEvidence],
+      classifiedMode: PlayerFacingTruthMode
+  ): Boolean =
     val queenTradeShieldClaim = queenTradeShieldClaimText(ctx, text)
     val exactIqpInducementClaim = exactIqpInducementClaimText(ctx, text)
     val defenderTradeClaim = defenderTradeClaimText(ctx, text)
@@ -121,7 +251,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
     val exactColorComplexSqueezeClaim = exactColorComplexSqueezeClaimText(ctx, surface, text)
     val exactPacketStrategicMode =
       deltaEvidence.exists(_.packet.admitsStrategicTruthMode)
-    (classify(ctx, strategyPack, truthContract) == PlayerFacingTruthMode.Strategic ||
+    (classifiedMode == PlayerFacingTruthMode.Strategic ||
       exactPacketStrategicMode) &&
       deltaEvidence.exists(delta =>
         (delta.allowsWeakMainClaim || delta.check_qualifying) &&
@@ -158,7 +288,24 @@ private[commentary] object PlayerFacingTruthModePolicy:
       truthContract: Option[DecisiveTruthContract]
   ): Boolean =
     val surface = StrategyPackSurface.from(strategyPack)
-    mainPathMoveDeltaEvidence(ctx, surface, truthContract).exists { delta =>
+    allowsStrategicSupportTextWithEvidence(
+      text = text,
+      claim = claim,
+      ctx = ctx,
+      surface = surface,
+      truthContract = truthContract,
+      deltaEvidence = mainPathMoveDeltaEvidence(ctx, surface, truthContract)
+    )
+
+  private[commentary] def allowsStrategicSupportTextWithEvidence(
+      text: String,
+      claim: String,
+      ctx: NarrativeContext,
+      surface: StrategyPackSurface.Snapshot,
+      truthContract: Option[DecisiveTruthContract],
+      deltaEvidence: Option[PlayerFacingMoveDeltaEvidence]
+  ): Boolean =
+    deltaEvidence.exists { delta =>
       delta.allowsLineEvidenceHook &&
         !NarrativeDedupCore.sameSemanticSentence(text, claim) &&
         !overpromotedStrategicFormula(text) &&
@@ -226,6 +373,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
     val mainPathOwnerProof = hasMainPathOwnerProof(ctx, surface)
     val centralBreakTimingWitness = centralBreakTimingReleaseWitness(ctx)
     val localFileEntryAnchors = localFileEntryAnchorTerms(ctx)
+    val breakPreventionWitness = BreakPreventionWitness.exact(ctx, surface, preventedNow)
+    val colorComplexSeed = colorComplexSqueezeOwnerSeed(ctx, surface)
     val anchors =
       (
         moveLinkedAnchorTerms(surface, truthContract) ++
@@ -250,30 +399,48 @@ private[commentary] object PlayerFacingTruthModePolicy:
       val squareAnchors = extractSquareAnchors(anchors)
       val decisionDelta = ctx.decision.map(_.delta)
       val bestLine = ctx.engineEvidence.toList.flatMap(_.variations).headOption
-      def result(kind: PlayerFacingMoveDeltaClass): PlayerFacingMoveDeltaEvidence =
+      def result(
+          kind: PlayerFacingMoveDeltaClass,
+          ownerSeedOverride: Option[ClaimOwnerSeed]
+      ): PlayerFacingMoveDeltaEvidence =
           certifyMainPathDelta(
             ctx = ctx,
             surface = surface,
             deltaClass = kind,
             anchors = anchors,
-            preventedNow = preventedNow
+            preventedNow = preventedNow,
+            ownerSeedOverride = ownerSeedOverride
           )
 
       List(
-        Option.when(BreakPreventionWitness.exact(ctx, surface, preventedNow).nonEmpty)(PlayerFacingMoveDeltaClass.CounterplayReduction),
-        Option.when(badPieceLiquidationWitness(ctx).nonEmpty)(PlayerFacingMoveDeltaClass.ExchangeForcing),
-        Option.when(hasMainPathExchangeForcing(ctx, surface, bestLine, squareAnchors))(PlayerFacingMoveDeltaClass.ExchangeForcing),
-        Option.when(centralBreakTimingWitness.nonEmpty)(PlayerFacingMoveDeltaClass.PlanAdvance),
-        Option.when(exactPressureIncreaseWitness(ctx, surface).nonEmpty)(PlayerFacingMoveDeltaClass.PressureIncrease),
-        Option.when(colorComplexSqueezeWitness(ctx, surface).nonEmpty)(PlayerFacingMoveDeltaClass.CounterplayReduction),
-        Option.when(hasMainPathSpecificResourceRemoval(ctx, preventedNow, bestLine))(PlayerFacingMoveDeltaClass.ResourceRemoval),
-        Option.when(hasMainPathCounterplayReduction(preventedNow))(PlayerFacingMoveDeltaClass.CounterplayReduction),
-        Option.when(outpostOccupationWitness(ctx).nonEmpty)(PlayerFacingMoveDeltaClass.NewAccess),
-        Option.when(hasMainPathNewAccess(ctx, surface, decisionDelta))(PlayerFacingMoveDeltaClass.NewAccess),
-        Option.when(hasMainPathPressureIncrease(ctx, surface, decisionDelta))(PlayerFacingMoveDeltaClass.PressureIncrease),
-        Option.when(hasMainPathPlanAdvance(surface, decisionDelta))(PlayerFacingMoveDeltaClass.PlanAdvance)
+        breakPreventionWitness.map(witness =>
+          PlayerFacingMoveDeltaClass.CounterplayReduction -> Some(breakPreventionOwnerSeed(witness))
+        ),
+        Option.when(badPieceLiquidationWitness(ctx).nonEmpty)(PlayerFacingMoveDeltaClass.ExchangeForcing -> None),
+        Option.when(hasMainPathExchangeForcing(ctx, surface, bestLine, squareAnchors))(
+          PlayerFacingMoveDeltaClass.ExchangeForcing -> None
+        ),
+        centralBreakTimingWitness.map(witness =>
+          PlayerFacingMoveDeltaClass.PlanAdvance -> Some(centralBreakTimingOwnerSeed(witness))
+        ),
+        exactPressureIncreaseOwnerSeed(ctx, surface).map(seed =>
+          PlayerFacingMoveDeltaClass.PressureIncrease -> Some(seed)
+        ),
+        colorComplexSeed.map(seed => PlayerFacingMoveDeltaClass.CounterplayReduction -> Some(seed)),
+        Option.when(hasMainPathSpecificResourceRemoval(ctx, preventedNow, bestLine))(
+          PlayerFacingMoveDeltaClass.ResourceRemoval -> None
+        ),
+        Option.when(hasMainPathCounterplayReduction(preventedNow))(
+          PlayerFacingMoveDeltaClass.CounterplayReduction -> None
+        ),
+        outpostOccupationOwnerSeed(ctx).map(seed => PlayerFacingMoveDeltaClass.NewAccess -> Some(seed)),
+        Option.when(hasMainPathNewAccess(ctx, surface, decisionDelta))(PlayerFacingMoveDeltaClass.NewAccess -> None),
+        Option.when(hasMainPathPressureIncrease(ctx, surface, decisionDelta))(
+          PlayerFacingMoveDeltaClass.PressureIncrease -> None
+        ),
+        Option.when(hasMainPathPlanAdvance(surface, decisionDelta))(PlayerFacingMoveDeltaClass.PlanAdvance -> None)
       ).flatten
-        .map(result)
+        .map { case (kind, ownerSeedOverride) => result(kind, ownerSeedOverride) }
         .distinctBy(delta => (delta.deltaClass, delta.packet.proofSource, delta.packet.proofFamily))
 
   def mainPathAnchorTerms(
@@ -861,7 +1028,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
       surface: StrategyPackSurface.Snapshot,
       deltaClass: PlayerFacingMoveDeltaClass,
       anchors: List[String],
-      preventedNow: List[PreventedPlanInfo]
+      preventedNow: List[PreventedPlanInfo],
+      ownerSeedOverride: Option[ClaimOwnerSeed]
   ): PlayerFacingMoveDeltaEvidence =
     val ontologyFamily = ontologyFamilyForDelta(deltaClass, ctx, preventedNow)
     val exactBreakPrevention = BreakPreventionWitness.exact(ctx, surface, preventedNow).nonEmpty
@@ -916,7 +1084,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
         deltaClass = deltaClass,
         anchors = anchors,
         preventedNow = preventedNow,
-        claimGate = claimGate
+        claimGate = claimGate,
+        ownerSeedOverride = ownerSeedOverride
       )
     PlayerFacingMoveDeltaEvidence(
       deltaClass = deltaClass,
@@ -1232,9 +1401,10 @@ private[commentary] object PlayerFacingTruthModePolicy:
       deltaClass: PlayerFacingMoveDeltaClass,
       anchors: List[String],
       preventedNow: List[PreventedPlanInfo],
-      claimGate: PlanEvidenceEvaluator.ClaimCertification
+      claimGate: PlanEvidenceEvaluator.ClaimCertification,
+      ownerSeedOverride: Option[ClaimOwnerSeed]
   ): PlayerFacingClaimPacket =
-    val ownerSeed = ownerSeedForMainPath(ctx, surface, deltaClass, preventedNow)
+    val ownerSeed = ownerSeedOverride.getOrElse(ownerSeedForMainPath(ctx, surface, deltaClass, preventedNow))
     val anchorTerms = packetAnchorTerms(anchors, surface)
     val topReplay2 = boundedTopReplay(ctx, maxPlies = 2)
     val bestDefenseBranchKey =
@@ -2838,7 +3008,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
             "iqp_inducement_branch",
             s"isolated_pawn:${witness.targetSquare}",
             witness.targetSquare
-          ) ++ witness.lineMoves.take(4)
+          ) ++ witness.lineMoves.take(6)
         ).distinct
       }
     }.getOrElse(Nil)
@@ -3056,25 +3226,42 @@ private[commentary] object PlayerFacingTruthModePolicy:
                 .flatMap(_.lastOption.map(_.after))
                 .map(after => prefix -> after)
             }
-          val induced =
+          val inducedCandidates =
             evaluated.flatMap { case (prefix, after) =>
               isolatedCentralPawnSquares(after.board, opponent)
                 .filterNot(square => beforeOpponentTargets.contains(square.key))
                 .headOption
                 .map(square => prefix -> square)
-            }.headOption
+            }
+          val persistentCandidates =
+            inducedCandidates.flatMap { case (prefix, square) =>
+              iqpTargetHorizon(ctx.fen, topMoves, playedMove).flatMap { case (horizonMoves, horizonBoard) =>
+                Option.when(
+                  isolatedCentralPawnSquares(horizonBoard, opponent)
+                    .exists(horizonSquare => horizonSquare.key == square.key)
+                )((prefix, square, horizonMoves, horizonBoard))
+              }
+            }
+          val induced =
+            persistentCandidates.find { case (_, square, _, horizonBoard) =>
+              Square.fromKey(square.key).exists(target =>
+                horizonBoard.pieceAt(target).exists(piece => piece.color == opponent && piece.role == Pawn) &&
+                  horizonBoard.attackers(target, movingSide).nonEmpty
+              )
+            }
           induced match
-            case Some((prefix, square)) =>
+            case Some((_, square, lineMoves, _)) =>
               val target = square.key
               (
                 Some(
                   IqpInducementWitness(
                     targetSquare = target,
-                    lineMoves = prefix,
+                    lineMoves = lineMoves,
                     ownerSeedTerms =
                       List(
                         target,
                         s"isolated_pawn:$target",
+                        s"target_pressure:$target",
                         "iqp_inducement",
                         PlanTaxonomy.PlanKind.IQPInducement.id
                       ).distinct,
@@ -3083,8 +3270,9 @@ private[commentary] object PlayerFacingTruthModePolicy:
                         List(
                           s"before_not_isolated:$target",
                           s"after_isolated:$target",
+                          s"target_pressure:$target",
                           "central_isolated_pawn"
-                        ) ++ prefix.map(move => s"pv:$move")
+                        ) ++ lineMoves.map(move => s"pv:$move")
                       ).distinct
                   )
                 ),
@@ -3097,11 +3285,26 @@ private[commentary] object PlayerFacingTruthModePolicy:
                     .exists(square => !beforeOwnTargets.contains(square.key))
                 }
               val code =
-                if ownIqp then "iqp:owner_side_mismatch"
+                if persistentCandidates.nonEmpty then "iqp:not_targeted"
+                else if inducedCandidates.nonEmpty then "iqp:not_persistent"
+                else if ownIqp then "iqp:owner_side_mismatch"
                 else "iqp:not_induced"
               (None, List(code))
         case _ =>
           (None, List("iqp:pv_missing"))
+
+  private def iqpTargetHorizon(
+      fen: String,
+      topMoves: List[String],
+      playedMove: String
+  ): Option[(List[String], _root_.chess.Board)] =
+    val horizon = topMoves.take(6)
+    Option.when(horizon.headOption.contains(playedMove))(horizon).flatMap { moves =>
+      MoveReviewExchangeAnalyzer
+        .boundedReplay(fen, moves, maxPlies = moves.length)
+        .flatMap(_.lastOption.map(_.after.board))
+        .map(board => moves -> board)
+    }
 
   private def isolatedCentralPawnSquares(
       board: _root_.chess.Board,
@@ -3177,8 +3380,22 @@ private[commentary] object PlayerFacingTruthModePolicy:
       if step.move.piece.role == Knight
       if step.move.piece.color == step.before.color
       square = step.move.dest.key
+      board = step.after.board
+      enemy = !step.move.piece.color
+      enemyMinorAttackers =
+        board.attackers(step.move.dest, enemy) & (board.byPiece(enemy, Knight) | board.byPiece(enemy, Bishop))
+      boardProvesOutpost =
+        board.pieceAt(step.move.dest).exists(piece => piece.color == step.move.piece.color && piece.role == Knight) &&
+          board.attackers(step.move.dest, step.move.piece.color).intersects(board.byPiece(step.move.piece.color, Pawn)) &&
+          !board.attackers(step.move.dest, !step.move.piece.color).intersects(board.byPiece(!step.move.piece.color, Pawn)) &&
+          !enemyMinorAttackers.nonEmpty &&
+          topPvKeepsKnightOnSquare(ctx, step.move.dest, step.move.piece.color) &&
+          (
+            if step.move.piece.color.white then step.move.dest.rank.value >= _root_.chess.Rank.Fourth.value
+            else step.move.dest.rank.value <= _root_.chess.Rank.Fifth.value
+          )
       if playedMoveStartsTopPv(ctx, played)
-      if outpostOccupationSurfaceWitness(ctx, square)
+      if boardProvesOutpost
     yield
       ExactSliceWitness(
         descriptor = OutpostOccupationDescriptor,
@@ -3206,12 +3423,23 @@ private[commentary] object PlayerFacingTruthModePolicy:
     boundedTopReplay(ctx, maxPlies = 1)
       .exists(_.headOption.exists(step => normalize(step.uci) == normalize(playedMove)))
 
-  private def outpostOccupationSurfaceWitness(ctx: NarrativeContext, square: String): Boolean =
-    val target = normalize(square)
-    (ctx.facts ++ ctx.mainPvFacts).exists {
-      case Fact.Outpost(outpostSquare, Knight, FactScope.Now) =>
-        normalize(outpostSquare.key) == target
-      case _ => false
+  private def topPvKeepsKnightOnSquare(
+      ctx: NarrativeContext,
+      square: Square,
+      color: Color
+  ): Boolean =
+    boundedTopReplay(ctx, maxPlies = 3).exists { replay =>
+      replay.size >= 2 &&
+        replay.headOption.exists(step =>
+          step.move.dest == square &&
+            step.move.piece.color == color &&
+            step.move.piece.role == Knight
+        ) &&
+        replay.drop(1).take(2).forall(step =>
+          step.after.board
+            .pieceAt(square)
+            .exists(piece => piece.color == color && piece.role == Knight)
+        )
     }
 
   private def carlsbadFixedTargetProbeWitness(
@@ -3313,13 +3541,12 @@ private[commentary] object PlayerFacingTruthModePolicy:
   ): Option[ExactSliceWitness] =
     if bestDefenseBranchKeyFromContext(ctx).isEmpty then None
     else
-      exactTargetFixationPosition(ctx).flatMap { case (board, sideToMove) =>
+      exactTargetFixationPosition(ctx).flatMap { case (_, sideToMove) =>
         colorComplexWeakSquareCandidates(ctx, sideToMove).flatMap { case (targetKey, squareColor) =>
           MoveReviewExchangeAnalyzer.squareFromKey(targetKey).flatMap { targetSquare =>
-            minorPieceAttackingSquare(board, sideToMove, targetSquare).filter { case (pieceSquare, _) =>
-              board.attackers(targetSquare, sideToMove).exists(_ == pieceSquare) &&
-                colorComplexSurfaceEvidenceMatches(ctx, surface, targetKey)
-            }.map { case (pieceSquare, roleName) =>
+            val attacker =
+              ColorComplexRuntimeProof.playedMoveMinorAttackerThroughTopLine(ctx, sideToMove, targetSquare)
+            attacker.filter(_ => colorComplexSurfaceEvidenceMatches(ctx, surface, targetKey)).map { case (pieceSquare, roleName) =>
               val from = pieceSquare.key
               val target = targetSquare.key
               ExactSliceWitness(
@@ -3409,24 +3636,6 @@ private[commentary] object PlayerFacingTruthModePolicy:
         ) ||
           tag.square.exists(square => weakness.squares.exists(_.equalsIgnoreCase(square)))
       )
-
-  private def minorPieceAttackingSquare(
-      board: _root_.chess.Board,
-      sideToMove: _root_.chess.Color,
-      targetSquare: Square
-  ): Option[(Square, String)] =
-    val attackers = board.attackers(targetSquare, sideToMove)
-    Square.all.find { square =>
-      attackers.exists(_ == square) &&
-        board.pieceAt(square).exists(piece =>
-          piece.color == sideToMove &&
-            (piece.role == Bishop || piece.role == _root_.chess.Knight)
-        )
-    }.flatMap(square =>
-      board.pieceAt(square).map(piece =>
-        square -> (if piece.role == Bishop then "bishop" else "knight")
-      )
-    )
 
   private def colorComplexSurfaceEvidenceMatches(
       ctx: NarrativeContext,
@@ -3601,9 +3810,16 @@ private[commentary] object PlayerFacingTruthModePolicy:
             ) &&
             !ideaHasSource(idea, EvidenceSourceId.CarlsbadFixationProfile)
         }
-      val backwardPawnTarget =
+      val routeWitness = findRouteWitness(ctx, surface)
+      val playedStructuralTarget =
+        playedMoveAttackedStructuralPawnTarget(
+          ctx,
+          targetFixIdea,
+          allowCarlsbadTarget = routeWitness.nonEmpty
+        )
+      val exactPawnTarget =
         targetFixIdea.flatMap { idea =>
-          exactTargetFixationPosition(ctx).flatMap { case (board, sideToMove) =>
+          val backwardPawnTarget = exactTargetFixationPosition(ctx).flatMap { case (board, sideToMove) =>
             val focusSquares =
               idea.focusSquares.map(normalize).filter(_.matches("[a-h][1-8]")).distinct
             val dynamicTargets =
@@ -3620,13 +3836,18 @@ private[commentary] object PlayerFacingTruthModePolicy:
               pawnTargets.size == 1 &&
                 targetFixIdeaSupportsTarget(idea, pawnTargets.head) &&
                 bestDefenseBranchKeyFromContext(ctx).nonEmpty
-            )(pawnTargets.head)
+            )(pawnTargets.head -> "backward_pawn_target")
           }
+          backwardPawnTarget.orElse(
+            playedStructuralTarget.map(_ -> "structural_pawn_target")
+          )
         }
       val surfaceWitness = for
         idea <- targetFixIdea
-        targetSquare <- backwardPawnTarget
-        if idea.focusSquares.isEmpty || idea.focusSquares.map(normalize).contains(targetSquare)
+        (targetSquare, targetKind) <- exactPawnTarget
+        if targetKind == "structural_pawn_target" ||
+          idea.focusSquares.isEmpty ||
+          idea.focusSquares.map(normalize).contains(targetSquare)
       yield ExactSliceWitness(
         descriptor = ExactTargetFixationDescriptor,
         targetSquare = targetSquare,
@@ -3634,17 +3855,51 @@ private[commentary] object PlayerFacingTruthModePolicy:
           List(
             targetSquare,
             s"fixed_target:$targetSquare",
-            "backward_pawn_target"
+            targetKind
           ).distinct,
         structureTransitionTerms =
-          List(
-            s"weak_complex:$targetSquare",
-            "backward_pawn_target"
+          (
+            List(
+              s"weak_complex:$targetSquare",
+              targetKind
+            ) ++
+              Option
+                .when(targetKind == "structural_pawn_target")(
+                  List(
+                    s"target_persistent_after_line:$targetSquare",
+                    s"target_attacked_after_line:$targetSquare"
+                  )
+                )
+                .getOrElse(Nil)
           ).distinct,
         exactSliceProof = PlayerFacingExactSliceProof.ExactTargetFixation(targetSquare)
       )
+      val playedStructuralWitness =
+        Option.when(surfaceWitness.isEmpty) {
+          playedStructuralTarget.map(targetSquare =>
+            ExactSliceWitness(
+              descriptor = ExactTargetFixationDescriptor,
+              targetSquare = targetSquare,
+              ownerSeedTerms =
+                List(
+                  targetSquare,
+                  s"fixed_target:$targetSquare",
+                  "structural_pawn_target"
+                ).distinct,
+              structureTransitionTerms =
+                List(
+                  s"weak_complex:$targetSquare",
+                  "structural_pawn_target",
+                  s"target_persistent_after_line:$targetSquare",
+                  s"target_attacked_after_line:$targetSquare"
+                ).distinct,
+              exactSliceProof = PlayerFacingExactSliceProof.ExactTargetFixation(targetSquare)
+            )
+          )
+        }.flatten
       surfaceWitness
-        .orElse(findRouteWitness(ctx, surface))
+        .orElse(playedStructuralWitness)
+        .orElse(routeWitness)
 
   private def targetFixIdeaSupportsTarget(
       idea: StrategyIdeaSignal,
@@ -3655,6 +3910,82 @@ private[commentary] object PlayerFacingTruthModePolicy:
     val exactTargetHints = WeaknessTargetProfile.targetHintSquares(idea.evidenceRefs).toSet
     focusSquares.size == 1 ||
       exactTargetHints.contains(target)
+
+  private def playedMoveAttackedStructuralPawnTarget(
+      ctx: NarrativeContext,
+      idea: Option[StrategyIdeaSignal],
+      allowCarlsbadTarget: Boolean
+  ): Option[String] =
+    for
+      played <- reviewedPlayedMove(ctx)
+      replay <- MoveReviewExchangeAnalyzer.boundedReplay(ctx.fen, List(played), maxPlies = 1)
+      step <- replay.headOption
+      if normalize(step.uci) == normalize(played)
+      target <- structuralPawnTargetAfterPlayedMove(step, idea, allowCarlsbadTarget)
+      if playedLineKeepsStructuralPawnTarget(ctx, played, step.move.piece.color, target)
+    yield target
+
+  private def structuralPawnTargetAfterPlayedMove(
+      step: MoveReviewExchangeAnalyzer.BoundedReplayStep,
+      idea: Option[StrategyIdeaSignal],
+      allowCarlsbadTarget: Boolean
+  ): Option[String] =
+    val board = step.after.board
+    val pressureSide = step.move.piece.color
+    val carlsbadTargets =
+      PawnStructureTargets.carlsbadTargetForBoard(board, pressureSide).map(_.targetSquare).toSet
+    val structuralTargets =
+      (
+        carlsbadTargets.toList ++
+          WeaknessTargetProfile.targetsForPressure(board, pressureSide).map(_.targetSquare) ++
+          PawnStructureTargets.weakPawnTargetsForPressure(board, pressureSide).toList
+      ).map(normalize).filter(_.matches("[a-h][1-8]")).distinct
+    val focusSquares = idea.toList.flatMap(_.focusSquares).map(normalize).filter(_.matches("[a-h][1-8]")).toSet
+    val exactTargetHints = idea.toList.flatMap(idea => WeaknessTargetProfile.targetHintSquares(idea.evidenceRefs)).toSet
+    structuralTargets.find { target =>
+      val ideaAllowsTarget =
+        idea.exists(_ => focusSquares.isEmpty) ||
+          focusSquares.contains(target) ||
+          exactTargetHints.contains(target) ||
+          (allowCarlsbadTarget && carlsbadTargets.map(normalize).contains(target))
+      ideaAllowsTarget &&
+        Square.fromKey(target).exists { targetSquare =>
+          board.pieceAt(step.move.dest).exists(piece =>
+            piece.color == pressureSide &&
+              Set(Knight, Bishop, Rook, Queen).contains(piece.role)
+          ) &&
+            board.pieceAt(targetSquare).exists(piece => piece.color != pressureSide && piece.role == Pawn) &&
+            board.attackers(targetSquare, pressureSide).contains(step.move.dest) &&
+            !step.before.board.attackers(targetSquare, pressureSide).contains(step.move.orig) &&
+            targetSquare != step.move.dest
+        }
+    }
+
+  private def playedLineKeepsStructuralPawnTarget(
+      ctx: NarrativeContext,
+      playedMove: String,
+      pressureSide: Color,
+      targetSquare: String
+  ): Boolean =
+    val lineMoves =
+      ctx.engineEvidence.toList
+        .flatMap(_.variations)
+        .map(MoveReviewExchangeAnalyzer.normalizedLineMoves)
+        .find(_.headOption.exists(move => normalize(move) == normalize(playedMove)))
+        .getOrElse(Nil)
+        .take(6)
+    lineMoves.size >= 2 &&
+      lineMoves.headOption.exists(move => normalize(move) == normalize(playedMove)) &&
+      MoveReviewExchangeAnalyzer
+        .boundedReplay(ctx.fen, lineMoves, maxPlies = lineMoves.length)
+        .flatMap(_.lastOption.map(_.after.board))
+        .exists { board =>
+          Square.fromKey(targetSquare).exists { square =>
+            board.pieceAt(square).exists(piece => piece.color != pressureSide && piece.role == Pawn) &&
+              PawnStructureTargets.weakPawnTargetsForPressure(board, pressureSide).contains(targetSquare) &&
+              board.attackers(square, pressureSide).nonEmpty
+          }
+        }
 
   private def exactTargetFixationRelabelBlocked(ctx: NarrativeContext): Boolean =
     val mainPlanTokens =

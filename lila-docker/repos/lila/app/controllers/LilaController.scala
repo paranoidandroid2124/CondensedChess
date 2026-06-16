@@ -161,21 +161,6 @@ abstract private[controllers] class LilaController(val env: Env)
     if req.method == "HEAD" then NoContent.withDateHeaders(lastModified(updatedAt))
     else f
 
-  def pageHit(using req: RequestHeader): Unit = ()
-
-
-
-  def meOrFetch[U: UserIdOf](id: U)(using ctx: Context): Fu[Option[lila.user.User]] =
-    if id.is(UserId("me")) then fuccess(ctx.user)
-    else ctx.user.filter(_.is(id)).fold(env.user.repo.byId(id))(u => fuccess(u.some))
-
-  def meOrFetch[U: UserIdOf](id: Option[U])(using ctx: Context): Fu[Option[lila.user.User]] =
-    id.fold(fuccess(ctx.user))(meOrFetch)
-
-  // given (using req: RequestHeader): lila.chat.AllMessages = lila.chat.AllMessages(HTTPRequest.isLitools(req))
-
-  // Captcha removed - not used in Chesstory
-
   def bindForm[T, R](form: Form[T])(error: Form[T] => R, success: T => R)(using Request[?], FormBinding): R =
     val bound =
       if getBool("patch")

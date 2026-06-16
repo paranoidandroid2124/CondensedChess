@@ -3,13 +3,18 @@ import { pubsub } from 'lib/pubsub';
 
 let timeout: Timeout | undefined;
 
+interface Announcement {
+  msg?: string;
+  date?: string;
+}
+
 const kill = () => {
   if (timeout) clearTimeout(timeout);
   timeout = undefined;
   $('#announce').remove();
 };
 
-export const display = (d: LichessAnnouncement) => {
+const display = (d: Announcement) => {
   kill();
   if (d.msg) {
     $('body')
@@ -29,7 +34,7 @@ export const display = (d: LichessAnnouncement) => {
   }
 };
 
-export const fromPage = (): LichessAnnouncement | undefined => {
+const fromPage = (): Announcement | undefined => {
   const pageAnnounce = document.body.getAttribute('data-announce');
   return pageAnnounce && JSON.parse(pageAnnounce);
 };

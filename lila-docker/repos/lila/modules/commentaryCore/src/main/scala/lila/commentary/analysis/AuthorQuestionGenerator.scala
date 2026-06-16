@@ -264,8 +264,8 @@ object AuthorQuestionGenerator:
     val playedSignal =
       playedCandidate.exists(candidate =>
         candidate.tacticalAlert.exists(_.trim.nonEmpty) ||
-          candidate.downstreamTactic.exists(_.trim.nonEmpty) ||
           candidate.whyNot.exists(_.trim.nonEmpty) ||
+          candidate.facts.nonEmpty ||
           candidate.lineSanMoves.nonEmpty
       )
 
@@ -275,13 +275,8 @@ object AuthorQuestionGenerator:
           case Some(other) => s"Why choose $playedSan here instead of $other?"
           case None        => s"Why is $playedSan the move that fits the position here?"
       val why =
-        playedCandidate.flatMap(_.downstreamTactic).filter(_.trim.nonEmpty)
-          .map(tactic => s"The move appears to be tied to the immediate idea of $tactic.")
-          .orElse {
-            alternative.map(other =>
-              s"The decision is not automatic here because $other also looks natural at first glance."
-            )
-          }
+        alternative
+          .map(other => s"The decision is not automatic here because $other also looks natural at first glance.")
 
       AuthorQuestion(
         id = s"compare_${Integer.toHexString((fen + playedUci).hashCode)}",
@@ -391,8 +386,7 @@ object AuthorQuestionGenerator:
         data.preventedPlans.nonEmpty ||
         data.endgameTransition.nonEmpty ||
         playedCandidate.exists(candidate =>
-          candidate.downstreamTactic.exists(_.trim.nonEmpty) ||
-            candidate.lineSanMoves.nonEmpty ||
+          candidate.lineSanMoves.nonEmpty ||
             candidate.facts.nonEmpty
         )
 
@@ -408,10 +402,6 @@ object AuthorQuestionGenerator:
             Option.when(data.endgameTransition.nonEmpty)(
               "The move appears to change which endgame task now defines the position."
             )
-          )
-          .orElse(
-            playedCandidate.flatMap(_.downstreamTactic).filter(_.trim.nonEmpty)
-              .map(tactic => s"The move seems to reshape the position around $tactic.")
           )
 
       AuthorQuestion(

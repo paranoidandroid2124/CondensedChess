@@ -105,7 +105,8 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       supportedLocalRows: List[MoveReviewPlayerSurfaceRow] = Nil,
       decisionComparisonSurface: Option[MoveReviewPlayerDecisionComparison] = None,
       strategyPack: Option[StrategyPack] = None,
-      truthContract: Option[DecisiveTruthContract] = None
+      truthContract: Option[DecisiveTruthContract] = None,
+      lineConsequence: Option[LineConsequenceEvidence] = None
   ): MoveReviewPlayerSurface =
     MoveReviewPlayerPayloadBuilder.build(
       ctx = ctx,
@@ -117,7 +118,8 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       supportedLocalRows = supportedLocalRows,
       decisionComparisonSurface = decisionComparisonSurface,
       strategyPack = strategyPack,
-      truthContract = truthContract
+      truthContract = truthContract,
+      lineConsequence = lineConsequence
     )
 
   private def plan(
@@ -350,6 +352,69 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assertEquals(surface.summaryRows.head.text, "Short line: e4 e5 Nf3.")
     assertEquals(surface.summaryRows.head.refSans, List("e4", "e5", "Nf3"))
     assertEquals(surface.summaryRows.head.authority, None)
+  }
+
+  test("uses certified line-consequence ref as player support before a shallow reviewed ref") {
+    val fen = "r1bqkbnr/ppp1p1pp/2n5/3pP3/3P4/8/PPP3PP/RNBQKBNR b KQkq - 0 5"
+
+    def variation(lineId: String, ucis: List[String], sans: List[String]): MoveReviewVariationRef =
+      val fens = ucis.indices.toList.map(idx => NarrativeUtils.uciListToFen(fen, ucis.take(idx + 1)))
+      MoveReviewVariationRef(
+        lineId = lineId,
+        scoreCp = 16,
+        mate = None,
+        depth = 10,
+        moves =
+          ucis.zip(sans).zipWithIndex.map { case ((uci, san), idx) =>
+            val ply = NarrativeUtils.plyFromFen(fen).map(_ + 1 + idx).getOrElse(idx + 1)
+            MoveReviewMoveRef(
+              refId = s"${lineId}_m${idx + 1}",
+              san = san,
+              uci = uci,
+              fenAfter = fens(idx),
+              ply = ply,
+              moveNo = (ply + 1) / 2,
+              marker = Some(if ply % 2 == 1 then s"${(ply + 1) / 2}." else s"${(ply + 1) / 2}...")
+            )
+          }
+      )
+
+    val shallowLine = variation("line_01", List("e7e6", "g1f3"), List("e6", "Nf3"))
+    val consequenceUcis = List("e7e6", "g1f3", "g8h6", "f1d3", "c6b4", "c1h6", "b4d3", "d1d3")
+    val consequenceSans = List("e6", "Nf3", "Nh6", "Bd3", "Nb4", "Bxh6", "Nxd3+", "Qxd3")
+    val refs =
+      MoveReviewRefs(
+        startFen = fen,
+        startPly = NarrativeUtils.plyFromFen(fen).map(_ + 1).getOrElse(1),
+        variations = List(shallowLine, variation("line_04", consequenceUcis, consequenceSans))
+      )
+    val consequence =
+      LineConsequenceEvidence(
+        lineId = Some("line_04"),
+        sanMoves = consequenceSans,
+        uciMoves = consequenceUcis,
+        scoreCp = Some(180),
+        mate = None,
+        depth = Some(10),
+        windowPly = 8,
+        kind = LineConsequenceKind.ExchangeSequence,
+        triggerSan = Some("Bxh6"),
+        consequence = "this exchange sequence trades the bishop for the knight on h6",
+        whyItMatters = Some("leaving Black with a backward pawn target on e6"),
+        release = LineConsequenceRelease.SurfaceCandidate,
+        rejectReasons = Nil
+      )
+
+    val surface =
+      build(
+        ctx = relationOnlyContext(fen, "e7e6"),
+        refs = Some(refs),
+        lineConsequence = Some(consequence)
+      )
+
+    assertEquals(surface.summaryRows.map(_.label), List("Checked line"))
+    assertEquals(surface.summaryRows.head.text, "Short line: e6 Nf3 Nh6 Bd3 Nb4.")
+    assertEquals(surface.summaryRows.head.refSans, List("e6", "Nf3", "Nh6", "Bd3", "Nb4"))
   }
 
   test("uses only certified decision comparison surface input for the player strip") {
@@ -6029,10 +6094,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
           )
       )
 
-    assertEquals(surface.advancedRows.map(_.label), List("Practical outpost"))
-    assertEquals(surface.advancedRows.head.text, "The current structure gives a practical outpost cue around d5.")
-    assertEquals(surface.advancedRows.head.authority, Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)))
-    assertEquals(surface.advancedRows.head.authority.flatMap(_.target), None)
+    assert(!surface.advancedRows.exists(_.label == "Practical outpost"), clue(surface.advancedRows))
 
     val routeOnlySurface =
       build(
@@ -6273,9 +6335,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(strongKnightSurface.advancedRows.map(_.label), List("Practical outpost"))
-    assertEquals(strongKnightSurface.advancedRows.head.text, "The strong knight gives a practical outpost cue around d5.")
-    assertEquals(strongKnightSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assert(!strongKnightSurface.advancedRows.exists(_.label == "Practical outpost"), clue(strongKnightSurface.advancedRows))
 
     val unoccupiedStrongKnightSurface =
       build(
@@ -6339,7 +6399,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
           List(
             MoveReviewPlayerSurfaceRow(
               label = "Opening outpost",
-              text = "The checked opening structure has put a knight on the d5 outpost.",
+              text = "The checked opening structure puts a knight on the pawn-supported d5 outpost square.",
               authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))
             )
           ),
@@ -6354,7 +6414,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assert(!exactOpeningOutpostSurface.advancedRows.exists(_.label == "Practical outpost"), clue(exactOpeningOutpostSurface.advancedRows))
   }
 
-  test("exact outpost on another square does not suppress lower-authority outpost context") {
+  test("tag-only outpost context stays hidden beside exact outpost rows") {
     val idea =
       StrategyIdeaSignal(
         ideaId = "idea_outpost_tag",
@@ -6386,11 +6446,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
           )
       )
 
-    assert(surface.advancedRows.exists(_.label == "Practical outpost"), clue(surface.advancedRows))
-    assertEquals(
-      surface.advancedRows.find(_.label == "Practical outpost").map(_.text),
-      Some("The current structure gives a practical outpost cue around d5.")
-    )
+    assert(!surface.advancedRows.exists(_.label == "Practical outpost"), clue(surface.advancedRows))
 
     val openingSurface =
       build(
@@ -6411,11 +6467,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
           )
       )
 
-    assert(openingSurface.advancedRows.exists(_.label == "Practical outpost"), clue(openingSurface.advancedRows))
-    assertEquals(
-      openingSurface.advancedRows.find(_.label == "Practical outpost").map(_.text),
-      Some("The current structure gives a practical outpost cue around d5.")
-    )
+    assert(!openingSurface.advancedRows.exists(_.label == "Practical outpost"), clue(openingSurface.advancedRows))
 
     val malformedPieceSurface =
       build(
@@ -6436,14 +6488,10 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
           )
       )
 
-    assert(malformedPieceSurface.advancedRows.exists(_.label == "Practical outpost"), clue(malformedPieceSurface.advancedRows))
-    assertEquals(
-      malformedPieceSurface.advancedRows.find(_.label == "Practical outpost").map(_.text),
-      Some("The current structure gives a practical outpost cue around d5.")
-    )
+    assert(!malformedPieceSurface.advancedRows.exists(_.label == "Practical outpost"), clue(malformedPieceSurface.advancedRows))
   }
 
-  test("stale exact-looking outpost labels do not suppress lower-authority outpost context") {
+  test("stale exact-looking outpost labels do not revive tag-only outpost context") {
     val idea =
       StrategyIdeaSignal(
         ideaId = "idea_outpost_tag",
@@ -6475,11 +6523,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
           )
       )
 
-    assert(surface.advancedRows.exists(_.label == "Practical outpost"), clue(surface.advancedRows))
-    assertEquals(
-      surface.advancedRows.find(_.label == "Practical outpost").map(_.text),
-      Some("The current structure gives a practical outpost cue around d5.")
-    )
+    assert(!surface.advancedRows.exists(_.label == "Practical outpost"), clue(surface.advancedRows))
 
     val openingLabelSurface =
       build(
@@ -6500,11 +6544,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
           )
       )
 
-    assert(openingLabelSurface.advancedRows.exists(_.label == "Practical outpost"), clue(openingLabelSurface.advancedRows))
-    assertEquals(
-      openingLabelSurface.advancedRows.find(_.label == "Practical outpost").map(_.text),
-      Some("The current structure gives a practical outpost cue around d5.")
-    )
+    assert(!openingLabelSurface.advancedRows.exists(_.label == "Practical outpost"), clue(openingLabelSurface.advancedRows))
   }
 
   test("IQP trade-down strategic ideas create bounded practical trade rows") {
@@ -8310,12 +8350,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(kingRingPressureSurface.advancedRows.map(_.label), List("Practical attack"), clue(kingRingPressureSurface.advancedRows))
-    assertEquals(
-      kingRingPressureSurface.advancedRows.head.text,
-      "The current king-safety map gives a practical cue around the enemy king."
-    )
-    assertEquals(kingRingPressureSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assert(!kingRingPressureSurface.advancedRows.exists(_.label == "Practical attack"), clue(kingRingPressureSurface.advancedRows))
 
     val enemyKingStuckSurface =
       build(
@@ -8380,12 +8415,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(weakBackRankSurface.advancedRows.map(_.label), List("Practical attack"), clue(weakBackRankSurface.advancedRows))
-    assertEquals(
-      weakBackRankSurface.advancedRows.head.text,
-      "The back-rank shape gives a practical attacking cue."
-    )
-    assertEquals(weakBackRankSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assert(!weakBackRankSurface.advancedRows.exists(_.label == "Practical attack"), clue(weakBackRankSurface.advancedRows))
 
     val initiativeMotifSurface =
       build(
@@ -8492,15 +8522,20 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
                     focusSquares = List("h7", "g7"),
                     focusZone = Some("kingside"),
                     beneficiaryPieces = List("Q"),
-                    evidenceRefs = List("source:route_attack_lane", "route_attack_lane_shape", "route_surface_exact")
+                    evidenceRefs =
+                      List(
+                        "source:route_attack_lane",
+                        "route_attack_lane_shape",
+                        "route_surface_exact",
+                        "source:motif_check_pressure",
+                        "check_type_normal"
+                      )
                   )
                 )
             )
           )
       )
-    assertEquals(routeAttackAmbiguousSquareSurface.advancedRows.map(_.label), List("Practical attack"), clue(routeAttackAmbiguousSquareSurface.advancedRows))
-    assertEquals(routeAttackAmbiguousSquareSurface.advancedRows.head.text, "The route gives a practical attacking lane.")
-    assertEquals(routeAttackAmbiguousSquareSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assert(!routeAttackAmbiguousSquareSurface.advancedRows.exists(_.label == "Practical attack"), clue(routeAttackAmbiguousSquareSurface.advancedRows))
 
     val routeAttackTowardSurface =
       build(
@@ -8588,15 +8623,20 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
                     focusSquares = List("h7", "g7"),
                     focusZone = Some("kingside"),
                     beneficiaryPieces = List("Q"),
-                    evidenceRefs = List("source:directional_attack_lane", "directional_attack_lane_shape")
+                    evidenceRefs =
+                      List(
+                        "source:directional_attack_lane",
+                        "directional_attack_lane_shape",
+                        "source:initiative_motif",
+                        "initiative_motif_shape",
+                        "initiative_score_12"
+                      )
                   )
                 )
             )
           )
       )
-    assertEquals(directionalAttackAmbiguousSquareSurface.advancedRows.map(_.label), List("Practical attack"), clue(directionalAttackAmbiguousSquareSurface.advancedRows))
-    assertEquals(directionalAttackAmbiguousSquareSurface.advancedRows.head.text, "The current target map gives a practical attacking lane.")
-    assertEquals(directionalAttackAmbiguousSquareSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assert(!directionalAttackAmbiguousSquareSurface.advancedRows.exists(_.label == "Practical attack"), clue(directionalAttackAmbiguousSquareSurface.advancedRows))
 
     val directionalAttackSourceOnlySurface =
       build(
@@ -8744,7 +8784,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assert(staleBackRankMateSurface.advancedRows.exists(_.label == "Practical attack"), clue(staleBackRankMateSurface.advancedRows))
+    assert(!staleBackRankMateSurface.advancedRows.exists(_.label == "Practical attack"), clue(staleBackRankMateSurface.advancedRows))
 
     val kingRingSourceOnlySurface =
       build(
@@ -9092,12 +9132,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(compensationKingWindowSurface.advancedRows.map(_.label), List("Practical attack"), clue(compensationKingWindowSurface.advancedRows))
-    assertEquals(
-      compensationKingWindowSurface.advancedRows.head.text,
-      "The material-compensation structure gives a practical cue against the unsettled king."
-    )
-    assertEquals(compensationKingWindowSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assert(!compensationKingWindowSurface.advancedRows.exists(_.label == "Practical attack"), clue(compensationKingWindowSurface.advancedRows))
 
     val compensationKingWindowSourceOnlySurface =
       build(

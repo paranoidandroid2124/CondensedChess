@@ -5,7 +5,7 @@ import { Chessground as makeChessground } from '@lichess-org/chessground';
 import { uciToMove } from '@lichess-org/chessground/util';
 import type { DrawShape } from '@lichess-org/chessground/draw';
 
-export type BoardPreview = { fen: FEN; uci?: Uci; shapes?: DrawShape[] };
+type BoardPreview = { fen: FEN; uci?: Uci; shapes?: DrawShape[] };
 
 export function renderBoardPreview(preview: BoardPreview, orientation: Color, sel = 'div.pv-board'): VNode {
   const cgConfig = {

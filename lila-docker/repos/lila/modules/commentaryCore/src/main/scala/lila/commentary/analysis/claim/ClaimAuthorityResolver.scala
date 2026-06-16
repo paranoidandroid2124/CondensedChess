@@ -7,6 +7,8 @@ import lila.commentary.model.authoring.AuthorQuestionKind
 
 private[commentary] object ClaimAuthorityResolver:
 
+  private[commentary] val ColorComplexNotMoveOwned = "surface:color_complex_not_move_owned"
+
   final case class SupportedLocalNeutralizeKeyBreakAdmission(
       packet: PlayerFacingClaimPacket,
       decision: ClaimAuthorityDecision
@@ -159,8 +161,11 @@ private[commentary] object ClaimAuthorityResolver:
       packet: PlayerFacingClaimPacket
   ): ClaimAuthorityDecision =
     val tacticalReasons = tacticalVetoReasons(ctx, inputs, truthContract)
+    val colorComplexOwnershipFailure = colorComplexPositionProbeOwnershipFailure(ctx, packet)
     if tacticalReasons.nonEmpty && isSupportedPositionProbeFamily(packet.proofFamily) then
       ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, tacticalReasons)
+    else if colorComplexOwnershipFailure.nonEmpty then
+      ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, colorComplexOwnershipFailure.toList)
     else if PlayerFacingTruthModePolicy.certifiedPositionProbePacket(packet) &&
         ProofContractRules.certifiedOwnerAdmissible(packet)
     then
@@ -353,6 +358,24 @@ private[commentary] object ClaimAuthorityResolver:
 
   private def supportsLocalPositionProbe(packet: PlayerFacingClaimPacket): Boolean =
     supportsLocalPacket(packet, PlayerFacingPacketScope.PositionLocal)
+
+  private[commentary] def colorComplexPositionProbeOwnershipFailure(
+      ctx: Option[NarrativeContext],
+      packet: PlayerFacingClaimPacket
+  ): Option[String] =
+    Option.when(isColorComplexPositionProbePacket(packet)) {
+      packet.proofPathWitness.exactSliceProof.collect {
+        case proof: PlayerFacingExactSliceProof.ColorComplexSqueeze
+            if PlayerFacingExactSliceProofFacts.matchesPacket(packet, proof) =>
+          proof
+      }.filterNot(proof => ColorComplexRuntimeProof.playedMoveOwnsAndPersists(ctx, proof))
+        .map(_ => ColorComplexNotMoveOwned)
+    }.flatten
+
+  private def isColorComplexPositionProbePacket(packet: PlayerFacingClaimPacket): Boolean =
+    packet.proofSource == ProofSourceId.ColorComplexSqueezeProbe.wireKey &&
+      packet.proofFamily == ProofFamilyId.ColorComplexSqueeze.wireKey &&
+      packet.scope == PlayerFacingPacketScope.PositionLocal
 
   private def decideSupportedMoveDelta(
       ctx: Option[NarrativeContext],

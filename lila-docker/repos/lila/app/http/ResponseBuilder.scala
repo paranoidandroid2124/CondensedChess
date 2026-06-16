@@ -107,13 +107,3 @@ trait ResponseBuilder(using Executor)
       InternalServerError.page(views.site.message.serverError(msg)),
       InternalServerError(jsonError(msg))
     )
-
-  def notForBotAccounts(using Context): Fu[Result] = negotiate(
-    Forbidden.page(views.site.message.noBot),
-    forbiddenJson("This API endpoint is not for Bot accounts.")
-  )
-
-  def notForLameAccounts(using Context): Fu[Result] = negotiate(
-    Forbidden.page(views.site.message.noLame),
-    forbiddenJson("The access to this resource is restricted.")
-  )

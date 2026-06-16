@@ -190,12 +190,6 @@ export default class Mousetrap {
     return this;
   };
 
-  unbind = (key: string): void => {
-    this.bindings[key]?.forEach((b, i) => {
-      if (b.modifiers.length === 0) this.bindings[key].splice(i, 1);
-    });
-  };
-
   private handleKeyEvent = (e: KeyboardEvent) => {
     if (typeof e.which !== 'number') (e as any).which = e.keyCode; // normalize
 

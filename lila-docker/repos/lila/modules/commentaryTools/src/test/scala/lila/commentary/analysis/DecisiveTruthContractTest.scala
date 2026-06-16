@@ -114,6 +114,39 @@ class DecisiveTruthContractTest extends FunSuite:
     assertEquals(sanitized.chosenMatchesBest, true)
   }
 
+  test("small cp loss without paired scores does not inherit a tactical veto from absolute best score") {
+    val raw =
+      comparison(
+        chosenMove = "d5",
+        engineBestMove = Some("d6"),
+        cpLoss = 5
+      ).copy(
+        engineBestScoreCp = Some(69),
+        engineBestPv = List("d6", "Nf3", "Nf6", "Bd3")
+      )
+
+    val frame = DecisiveTruth.deriveFrame(
+      ctx =
+        ctx(
+          playedMove = "d7d5",
+          playedSan = "d5",
+          fen = "rnbqkbnr/pp1ppppp/2p5/8/3PP3/8/PPP2PPP/RNBQKBNR b KQkq - 0 2",
+          engineVariations =
+            List(
+              VariationLine(List("d7d6", "g1f3", "g8f6", "f1d3"), scoreCp = 69, depth = 8),
+              VariationLine(List("d7d5", "e4e5", "c6c5", "c2c3"), scoreCp = 74, depth = 8)
+            )
+        ),
+      comparisonOverride = Some(raw)
+    )
+
+    assertEquals(frame.moveQuality.verdict, MoveQualityVerdict.Acceptable)
+    assert(frame.moveQuality.winPercentLoss < Thresholds.INACCURACY_WP, clue(frame.moveQuality))
+    assertEquals(frame.truthClass, DecisiveTruthClass.Acceptable)
+    assertEquals(frame.failureInterpretation.failureMode, FailureInterpretationMode.NoClearPlan)
+    assertEquals(frame.toContract.blocksStrategicSupport, false)
+  }
+
   test("exact comparative consequence survives sanitization only with a verified best move") {
     val raw =
       comparison(
@@ -168,6 +201,39 @@ class DecisiveTruthContractTest extends FunSuite:
     assertEquals(sanitized.comparedMove, Some("Nge7"))
     assertEquals(sanitized.comparativeConsequence, Some(consequence))
     assertEquals(sanitized.comparativeSource, Some(DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource))
+  }
+
+  test("piece-relocation comparative consequence is not preserved as branch authority") {
+    val consequence =
+      "Nc4 places the knight from e5 on c4 in the engine-best branch 11. Nc4 a5 12. Ne3; Nf3 places the same knight on f3 in the played branch 11. Nf3 a5 12. h4, and the checked comparison favors Nc4 by about 62cp."
+    val raw =
+      comparison(
+        chosenMove = "Nf3",
+        engineBestMove = Some("Nc4"),
+        cpLoss = 62,
+        deferredMove = Some("Nc4"),
+        chosenMatchesBest = false
+      ).copy(
+        comparedMove = Some("Nf3"),
+        comparativeConsequence = Some(consequence),
+        comparativeSource = Some("piece_relocation_comparison")
+      )
+
+    val contract = DecisiveTruth.derive(
+      ctx =
+        ctx(
+          playedMove = "e5f3",
+          playedSan = "Nf3",
+          fen = "r1bqk2r/ppp2ppp/3p1n2/4N1B1/4P3/3P4/P1P1KPPP/Q6R w kq - 0 11"
+        ),
+      comparisonOverride = Some(raw)
+    )
+    val sanitized = DecisiveTruth.sanitizeDecisionComparison(Some(raw), contract).getOrElse(fail("missing comparison"))
+
+    assertEquals(sanitized.engineBestMove, Some("Nc4"))
+    assertEquals(sanitized.comparedMove, None)
+    assertEquals(sanitized.comparativeConsequence, None)
+    assertEquals(sanitized.comparativeSource, None)
   }
 
   test("verified blunder strips compensation framing from context and signal digests") {

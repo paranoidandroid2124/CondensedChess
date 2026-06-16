@@ -1,42 +1,47 @@
 import { storage } from 'lib/storage';
-import { isIos } from 'lib/device';
 import { throttle } from 'lib/async';
-import { defined } from 'lib';
 import { speakable } from 'lib/game/sanWriter';
 
-type Name = string;
-type Path = string;
+type MoveSoundOpts = {
+  name?: string;
+  san?: string;
+  volume?: number;
+  filter?: 'music' | 'game';
+};
+type MoveSound = (opts?: MoveSoundOpts) => void;
+type AudioWindow = Window & { readonly webkitAudioContext?: typeof AudioContext };
 
-export default new (class implements SoundI {
+const primerEvents = ['touchend', 'pointerup', 'pointerdown', 'mousedown', 'keydown'];
+
+export default new (class {
   ctx = makeAudioContext();
-  listeners = new Set<SoundListener>();
-  sounds = new Map<Path, Sound>(); // All loaded sounds and their instances
-  paths = new Map<Name, Path>(); // sound names to paths
+  sounds = new Map<string, Sound>();
+  paths = new Map<string, string>();
   theme = document.body.dataset.soundSet!;
   speechStorage = storage.boolean('speech.enabled');
   voiceStorage = storage.make('speech.voice');
   volumeStorage = storage.make('sound-volume');
-  music?: SoundMove;
-  primerEvents = ['touchend', 'pointerup', 'pointerdown', 'mousedown', 'keydown'];
+  music?: MoveSound;
   primer = () => {
     this.ctx?.resume().then(() => {
       setTimeout(() => $('#warn-no-autoplay').removeClass('shown'), 500);
     });
-    for (const e of this.primerEvents) window.removeEventListener(e, this.primer, { capture: true });
+    for (const e of primerEvents) window.removeEventListener(e, this.primer, { capture: true });
   };
 
   constructor() {
-    this.primerEvents.forEach(e => window.addEventListener(e, this.primer, { capture: true }));
+    primerEvents.forEach(e => window.addEventListener(e, this.primer, { capture: true }));
     window.speechSynthesis?.getVoices(); // preload
   }
 
-  async load(name: Name, path?: Path): Promise<Sound | undefined> {
+  async load(name: string, path?: string): Promise<Sound | undefined> {
     try {
       if (!this.ctx) return;
       if (path) this.paths.set(name, path);
       else path = this.paths.get(name) ?? this.resolvePath(name);
       if (!path) return;
-      if (this.sounds.has(path)) return this.sounds.get(path);
+      const cachedSound = this.sounds.get(path);
+      if (cachedSound) return cachedSound;
 
       const result = await fetch(path);
       if (!result.ok) throw new Error(`${path} failed ${result.status}`);
@@ -56,29 +61,29 @@ export default new (class implements SoundI {
     }
   }
 
-  resolvePath(name: Name): string | undefined {
-    if (!this.enabled()) return;
+  resolvePath(name: string): string | undefined {
+    if (this.theme === 'silent') return;
     let dir = this.theme;
-    if (this.theme === 'music' || this.speech()) {
+    if (this.theme === 'music' || this.speechStorage.get()) {
       if (['move', 'capture', 'check', 'checkmate'].includes(name)) return;
       dir = 'standard';
     }
     return this.url(`${dir}/${name[0].toUpperCase() + name.slice(1)}.mp3`);
   }
 
-  url(name: Name): string {
-    return site.asset.url(`sound/${name}`); //, { pathVersion: '_____1' });
+  url(name: string): string {
+    return site.asset.url(`sound/${name}`);
   }
 
-  async play(name: Name, volume = 1): Promise<void> {
-    if (!this.enabled()) return;
+  async play(name: string, volume = 1): Promise<void> {
+    if (this.theme === 'silent') return;
     const sound = await this.load(name);
     if (sound && (await this.resumeWithTest())) await sound.play(this.getVolume() * volume);
   }
 
-  throttled = throttle(100, (name: Name, volume: number) => this.play(name, volume));
+  throttled = throttle(100, (name: string, volume: number) => this.play(name, volume));
 
-  async move(o?: SoundMoveOpts) {
+  async move(o?: MoveSoundOpts) {
     const volume = o?.volume ?? 1;
     if (o?.filter !== 'music' && this.theme !== 'music') {
       if (o?.name) this.throttled(o.name, volume);
@@ -93,124 +98,60 @@ export default new (class implements SoundI {
       }
     }
     if (o?.filter === 'game' || this.theme !== 'music') return;
-    this.music ??= await site.asset.loadEsm<SoundMove>('bits.soundMove');
+    this.music ??= await site.asset.loadEsm<MoveSound>('bits.soundMove');
     this.music(o);
   }
 
-  async playAndDelayMateResultIfNecessary(name: Name): Promise<void> {
-    if (this.theme === 'standard') this.play(name);
-    else setTimeout(() => this.play(name), 600);
-  }
-
-  async countdown(count: number, interval = 500): Promise<void> {
-    if (!this.enabled()) return;
-    try {
-      while (count > 0) {
-        const promises = [new Promise(r => setTimeout(r, interval)), this.play(`countDown${count}`)];
-
-        if (--count > 0) promises.push(this.load(`countDown${count}`));
-        await Promise.all(promises);
-      }
-      await this.play('genericNotify');
-    } catch (e) {
-      console.error(e);
-    }
-  }
-
-  playOnce(name: string): void {
-    // increase chances that the first tab can put a local storage lock
-    const doIt = () => {
-      const store = storage.make('just-played');
-      if (Date.now() - parseInt(store.get()!, 10) < 2000) return;
-      store.set('' + Date.now());
-      this.play(name);
-    };
-    if (document.hasFocus()) doIt();
-    else setTimeout(doIt, 10 + Math.random() * 500);
-  }
-
-  setVolume = this.volumeStorage.set;
-
-  getVolume = () => {
+  getVolume() {
     // garbage has been stored here by accident (e972d5612d)
     const v = parseFloat(this.volumeStorage.get() || '');
     return v >= 0 ? v : 0.7;
-  };
+  }
 
-  getVoice = (): SpeechSynthesisVoice | undefined => {
-    let o: { name: string; lang: string } = { name: '', lang: document.documentElement.lang.split('-')[0] };
-    try {
-      o = JSON.parse(this.voiceStorage.get() ?? JSON.stringify(o));
-    } catch {}
-    const voiceMap = this.getVoiceMap();
-    const voice = voiceMap.get(o.name) ?? [...voiceMap.values()].find(v => v.lang.startsWith(o.lang));
-    return voice;
-  };
-
-  getVoiceMap = (): Map<string, SpeechSynthesisVoice> => {
+  getVoice(): SpeechSynthesisVoice | undefined {
+    let voicePreference = { name: '', lang: document.documentElement.lang.split('-')[0] };
+    const storedVoice = this.voiceStorage.get();
+    if (storedVoice) {
+      try {
+        voicePreference = JSON.parse(storedVoice);
+      } catch {}
+    }
     const voices = speechSynthesis.getVoices();
     const voiceMap = new Map<string, SpeechSynthesisVoice>();
-
     for (const code of ['en', document.documentElement.lang.split('-')[0], document.documentElement.lang]) {
       voices
         .filter(v => v.lang.startsWith(code))
         .sort((a, b) => a.lang.localeCompare(b.lang))
         .forEach(v => voiceMap.set(v.name, v));
-      // populate map with preferred regional language pronunciations taking precedence. if not matched
-      // exactly by documentElement.lang, the chosen region will be the last one lexicographically
     }
-    return voiceMap;
-  };
+    return (
+      voiceMap.get(voicePreference.name) ??
+      [...voiceMap.values()].find(v => v.lang.startsWith(voicePreference.lang))
+    );
+  }
 
-  setVoice = (o?: { name: string; lang: string }) => {
-    if (!o) this.voiceStorage.remove();
-    else this.voiceStorage.set(JSON.stringify({ name: o.name, lang: o.lang }));
-  };
-
-  enabled = () => this.theme !== 'silent';
-
-  speech = (v?: boolean): boolean => {
-    if (defined(v)) this.speechStorage.set(v);
-    return this.speechStorage.get();
-  };
-
-  say = (text: string, cut = false, force = false, translated = false) =>
-    this.sayLazy(() => text, cut, force, translated);
-
-  sayLazy = (text: () => string, cut = false, force = false, translated = false) => {
+  sayLazy(text: () => string, cut = false, force = false) {
     if (typeof window.speechSynthesis === 'undefined') return false;
     try {
       if (cut) speechSynthesis.cancel();
-      if (!this.speech() && !force) return false;
+      if (!this.speechStorage.get() && !force) return false;
       const msg = new SpeechSynthesisUtterance(text());
       const selectedVoice = this.getVoice();
       if (selectedVoice) {
         msg.voice = selectedVoice;
       } else {
-        msg.lang = translated ? document.documentElement.lang : 'en-GB';
+        msg.lang = 'en-GB';
       }
       msg.volume = this.getVolume();
-      if (!isIos()) {
-        // speech events are unreliable on iOS, but iphones do their own cancellation
-        msg.onstart = () => this.listeners.forEach(l => l('start', text()));
-        msg.onend = msg.onerror = () => this.listeners.forEach(l => l('stop'));
-      }
       window.speechSynthesis.speak(msg);
       return true;
     } catch (err) {
       console.error(err);
       return false;
     }
-  };
+  }
 
   saySan = (san?: San, cut?: boolean, force?: boolean) => this.sayLazy(() => speakable(san), cut, force);
-
-  sayOrPlay = (name: string, text: string) => this.say(text) || this.play(name);
-
-  changeSet = (s: string) => {
-    if (isIos()) this.ctx?.resume();
-    this.theme = s;
-  };
 
   preloadBoardSounds() {
     for (const name of ['move', 'capture', 'check', 'checkmate', 'genericNotify']) void this.load(name);
@@ -277,9 +218,8 @@ class Sound {
 }
 
 function makeAudioContext(): AudioContext | undefined {
-  return window.webkitAudioContext
-    ? new window.webkitAudioContext({ latencyHint: 'interactive' })
-    : typeof AudioContext !== 'undefined'
-      ? new AudioContext({ latencyHint: 'interactive' })
-      : undefined;
+  const win = window as AudioWindow;
+  const AudioContextClass =
+    win.webkitAudioContext ?? (typeof AudioContext !== 'undefined' ? AudioContext : undefined);
+  return AudioContextClass ? new AudioContextClass({ latencyHint: 'interactive' }) : undefined;
 }

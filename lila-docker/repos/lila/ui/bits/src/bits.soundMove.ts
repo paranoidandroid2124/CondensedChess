@@ -1,4 +1,11 @@
-export async function initModule(): Promise<SoundMove> {
+type MoveSoundOpts = {
+  san?: string;
+  uci?: string;
+  volume?: number;
+  filter?: 'music' | 'game';
+};
+
+export async function initModule(): Promise<(opts?: MoveSoundOpts) => void> {
   let currentNotes = 0;
 
   const volumes: { [instrument: string]: number } = {

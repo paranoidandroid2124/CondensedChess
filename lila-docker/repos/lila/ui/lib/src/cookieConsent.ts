@@ -1,4 +1,4 @@
-export type CookieConsentChoice = 'essential' | 'preferences';
+type CookieConsentChoice = 'essential' | 'preferences';
 
 const consentCookieName = 'chesstory_cookie_consent';
 const consentVersion = 'v1';
@@ -152,7 +152,7 @@ function clearMatching(storage: Storage | undefined, matcher: (key: string) => b
   }
 }
 
-export function cookieConsentDecided(): boolean {
+function cookieConsentDecided(): boolean {
   return body()?.dataset.cookieConsentDecided === '1';
 }
 
@@ -178,7 +178,7 @@ export function preferenceSessionStorage(): Storage | null {
   }
 }
 
-export function clearPreferenceStorage(): void {
+function clearPreferenceStorage(): void {
   clearMatching(
     windowLocalStorage(),
     key => preferenceExactKeys.includes(key) || preferenceKeyPrefixes.some(prefix => key.startsWith(prefix)),

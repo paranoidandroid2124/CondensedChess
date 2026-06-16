@@ -326,6 +326,284 @@ class DecisionComparisonBuilderTest extends FunSuite:
     assert(branchEvidence.guardrails.exists(_.contains("played:line_consequence_kind:preview_only")), clue(branchEvidence))
   }
 
+  test("role-aware line consequence can compare engine-best minor-piece reroute against played preview branch") {
+    val fen = "r1bqk2r/ppp2ppp/3p1n2/4N1B1/4P3/3P4/P1P1KPPP/Q6R w kq - 0 11"
+    val bestLine = List("e5c4", "a7a5", "c4e3")
+    val playedLine = List("e5f3", "a7a5", "h2h4", "e8g8", "h4h5", "a8a6")
+    val ctx =
+      baseContext.copy(
+        fen = fen,
+        ply = 21,
+        playedMove = Some("e5f3"),
+        playedSan = Some("Nf3"),
+        engineEvidence =
+          Some(
+            EngineEvidence(
+              depth = 10,
+              variations =
+                List(
+                  VariationLine(bestLine, scoreCp = -442, depth = 10),
+                  VariationLine(playedLine, scoreCp = -504, depth = 10)
+                )
+            )
+          ),
+        counterfactual =
+          Some(
+            CounterfactualMatch(
+              userMove = "Nf3",
+              bestMove = "Nc4",
+              cpLoss = 62,
+              missedMotifs = Nil,
+              userMoveMotifs = Nil,
+              severity = "Inaccuracy",
+              userLine = VariationLine(playedLine, scoreCp = -504, depth = 10)
+            )
+          )
+      )
+    val raw = DecisionComparisonBuilder.build(ctx).getOrElse(fail("missing comparison"))
+    val contract =
+      tacticalRefutationContract(
+        playedMove = Some("Nf3"),
+        verifiedBestMove = Some("Nc4"),
+        cpLoss = 62
+      )
+    val sanitized = DecisiveTruth.sanitizeDecisionComparison(Some(raw), contract).getOrElse(fail("missing sanitized comparison"))
+    val refs =
+      replayedRefs(
+        fen,
+        List(
+          ("best", bestLine, List("Nc4", "a5", "Ne3"), -442),
+          ("played", playedLine, List("Nf3", "a5", "h4", "O-O", "h5", "Ra6"), -504)
+        )
+      )
+
+    val comparison =
+      DecisionComparisonComparativeSupport
+        .enrich(
+          comparison = Some(sanitized),
+          ctx = ctx,
+          refs = Some(refs),
+          strategyPack = None,
+          truthContract = Some(contract)
+        )
+        .getOrElse(fail("missing comparison"))
+
+    assertEquals(comparison.comparedMove, Some("Nf3"))
+    assertEquals(comparison.comparativeSource, Some(DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource))
+    assert(comparison.comparativeConsequence.exists(_.contains("Nc4 reaches a minor-piece reroute")), clue(comparison))
+    assert(comparison.comparativeConsequence.exists(_.contains("Nf3 stays on the played branch")), clue(comparison))
+    assert(comparison.comparativeConsequence.exists(_.contains("without that concrete minor-piece reroute")), clue(comparison))
+    assert(comparison.comparativeConsequence.exists(DecisionComparisonComparativeSupport.roleAwareLineConsequenceText), clue(comparison))
+    assert(DecisionComparisonComparativeSupport.roleAwareLineConsequenceAccepted(comparison, Some(contract)), clue(comparison))
+    val branchEvidence = comparison.roleAwareBranchEvidence.getOrElse(fail("missing branch evidence"))
+    assert(branchEvidence.evidenceRefs.contains("engine_best:line_consequence_line_id:best"), clue(branchEvidence))
+    assert(branchEvidence.evidenceRefs.contains("played:line_consequence_line_id:played"), clue(branchEvidence))
+    assert(branchEvidence.guardrails.exists(_.contains("engine_best:line_consequence_kind:minor_piece_reroute")), clue(branchEvidence))
+    assert(branchEvidence.guardrails.exists(_.contains("played:line_consequence_kind:preview_only")), clue(branchEvidence))
+  }
+
+  test("role-aware minor-piece reroute comparison stays closed below the checked eval gap") {
+    val fen = "r1bqk2r/ppp2ppp/3p1n2/4N1B1/4P3/3P4/P1P1KPPP/Q6R w kq - 0 11"
+    val bestLine = List("e5c4", "a7a5", "c4e3")
+    val playedLine = List("e5f3", "a7a5", "h2h4", "e8g8", "h4h5", "a8a6")
+    val ctx =
+      baseContext.copy(
+        fen = fen,
+        ply = 21,
+        playedMove = Some("e5f3"),
+        playedSan = Some("Nf3"),
+        engineEvidence =
+          Some(
+            EngineEvidence(
+              depth = 10,
+              variations =
+                List(
+                  VariationLine(bestLine, scoreCp = -442, depth = 10),
+                  VariationLine(playedLine, scoreCp = -452, depth = 10)
+                )
+            )
+          ),
+        counterfactual =
+          Some(
+            CounterfactualMatch(
+              userMove = "Nf3",
+              bestMove = "Nc4",
+              cpLoss = 10,
+              missedMotifs = Nil,
+              userMoveMotifs = Nil,
+              severity = "Inaccuracy",
+              userLine = VariationLine(playedLine, scoreCp = -452, depth = 10)
+            )
+          )
+      )
+    val raw = DecisionComparisonBuilder.build(ctx).getOrElse(fail("missing comparison"))
+    val contract =
+      tacticalRefutationContract(
+        playedMove = Some("Nf3"),
+        verifiedBestMove = Some("Nc4"),
+        cpLoss = 10
+      )
+    val sanitized = DecisiveTruth.sanitizeDecisionComparison(Some(raw), contract).getOrElse(fail("missing sanitized comparison"))
+    val refs =
+      replayedRefs(
+        fen,
+        List(
+          ("best", bestLine, List("Nc4", "a5", "Ne3"), -442),
+          ("played", playedLine, List("Nf3", "a5", "h4", "O-O", "h5", "Ra6"), -452)
+        )
+      )
+
+    val comparison =
+      DecisionComparisonComparativeSupport.enrich(
+        comparison = Some(sanitized),
+        ctx = ctx,
+        refs = Some(refs),
+        strategyPack = None,
+        truthContract = Some(contract)
+      )
+
+    assertEquals(comparison.flatMap(_.comparativeSource), None)
+    assertEquals(comparison.flatMap(_.roleAwareBranchEvidence), None)
+    assert(!comparison.flatMap(_.comparativeConsequence).exists(_.contains("minor-piece reroute")))
+  }
+
+  test("role-aware line consequence can compare acceptable tactical style-choice branches with replayed proof") {
+    val fen = "7r/pppr3p/2n1kp2/3Np3/4P3/P4P2/1PP3PP/2R1K2R w K - 0 18"
+    val bestLine = List("d5e3", "h8d8", "h1f1", "h7h5", "f1f2", "h5h4", "c1d1", "d7d1")
+    val playedLine = List("c2c3", "c6a5", "e1e2", "a5c4", "c1c2")
+    val ctx =
+      baseContext.copy(
+        fen = fen,
+        header = ContextHeader("Endgame", "Normal", "StyleChoice", "Medium", "ExplainPlan"),
+        ply = 35,
+        playedMove = Some("c2c3"),
+        playedSan = Some("c3"),
+        engineEvidence =
+          Some(
+            EngineEvidence(
+              depth = 10,
+              variations =
+                List(
+                  VariationLine(bestLine, scoreCp = 144, depth = 10),
+                  VariationLine(playedLine, scoreCp = 54, depth = 10)
+                )
+            )
+          ),
+        counterfactual =
+          Some(
+            CounterfactualMatch(
+              userMove = "c3",
+              bestMove = "Ne3",
+              cpLoss = 55,
+              missedMotifs = Nil,
+              userMoveMotifs = Nil,
+              severity = "Acceptable",
+              userLine = VariationLine(playedLine, scoreCp = 54, depth = 10)
+            )
+          )
+      )
+    val raw = DecisionComparisonBuilder.build(ctx).getOrElse(fail("missing comparison"))
+    val contract =
+      acceptableTacticalStyleContract(
+        playedMove = Some("c3"),
+        verifiedBestMove = Some("Ne3"),
+        cpLoss = 55
+      )
+    val refs =
+      replayedRefs(
+        fen,
+        List(
+          ("line_01", bestLine, List("Ne3", "Rhd8", "Rf1", "h5", "Rf2", "h4", "Rd1", "Rxd1+"), 144),
+          ("line_04", playedLine, List("c3", "Na5", "Ke2", "Nc4", "Rc2"), 54)
+        )
+      )
+
+    val comparison =
+      DecisionComparisonComparativeSupport
+        .enrich(
+          comparison = Some(raw),
+          ctx = ctx,
+          refs = Some(refs),
+          strategyPack = None,
+          truthContract = Some(contract)
+        )
+        .getOrElse(fail("missing comparison"))
+
+    assertEquals(comparison.comparedMove, Some("c3"))
+    assertEquals(comparison.comparativeSource, Some(DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource))
+    assert(DecisionComparisonComparativeSupport.roleAwareLineConsequenceAccepted(comparison, Some(contract)), clue(comparison))
+    assert(comparison.comparativeConsequence.exists(_.contains("Ne3 reaches a material transition")), clue(comparison))
+    assert(comparison.comparativeConsequence.exists(_.contains("Rxd1+")), clue(comparison))
+    assert(comparison.comparativeConsequence.exists(_.contains("c3 stays on the played branch")), clue(comparison))
+    val branchEvidence = comparison.roleAwareBranchEvidence.getOrElse(fail("missing branch evidence"))
+    assert(branchEvidence.evidenceRefs.contains("engine_best:line_consequence_line_id:line_01"), clue(branchEvidence))
+    assert(branchEvidence.evidenceRefs.contains("played:line_consequence_line_id:line_04"), clue(branchEvidence))
+    assert(branchEvidence.guardrails.exists(_.contains("engine_best:line_consequence_kind:material_transition")), clue(branchEvidence))
+    assert(branchEvidence.guardrails.exists(_.contains("played:line_consequence_kind:preview_only")), clue(branchEvidence))
+  }
+
+  test("role-aware line consequence can compare acceptable tactical narrow-choice branches with UCI proof") {
+    val fen = "r2qk1nr/3nppbp/2pp2p1/pp6/3P1B2/2PBPP2/PPQN1P1P/R3K2R w KQkq - 0 10"
+    val bestLine = List("a2a4", "a8b8", "a4b5", "c6b5", "c2b3")
+    val playedLine = List("e1e2", "a5a4", "f4g3", "g8f6", "f3f4")
+    val ctx =
+      baseContext.copy(
+        fen = fen,
+        header = ContextHeader("Opening", "Normal", "NarrowChoice", "Medium", "ExplainPlan"),
+        ply = 19,
+        playedMove = Some("e1e2"),
+        playedSan = Some("Ke2"),
+        engineEvidence =
+          Some(
+            EngineEvidence(
+              depth = 10,
+              variations =
+                List(
+                  VariationLine(bestLine, scoreCp = 93, depth = 10),
+                  VariationLine(playedLine, scoreCp = 8, depth = 10)
+                )
+            )
+          )
+      )
+    val raw = DecisionComparisonBuilder.build(ctx).getOrElse(fail("missing comparison"))
+    val contract =
+      acceptableTacticalStyleContract(
+        playedMove = Some("Ke2"),
+        verifiedBestMove = Some("a4"),
+        cpLoss = 85
+      )
+    val refs =
+      replayedRefs(
+        fen,
+        List(
+          ("line_01", bestLine, List("a4", "Rb8", "axb5", "cxb5", "Qb3"), 93),
+          ("line_04", playedLine, List("Ke2", "a4", "Bg3", "Ngf6", "f4"), 8)
+        )
+      )
+
+    val comparison =
+      DecisionComparisonComparativeSupport
+        .enrich(
+          comparison = Some(raw),
+          ctx = ctx,
+          refs = Some(refs),
+          strategyPack = None,
+          truthContract = Some(contract)
+        )
+        .getOrElse(fail("missing comparison"))
+
+    assertEquals(comparison.comparedMove, Some("Ke2"))
+    assertEquals(comparison.comparativeSource, Some(DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource))
+    assert(DecisionComparisonComparativeSupport.roleAwareLineConsequenceAccepted(comparison, Some(contract)), clue(comparison))
+    assert(comparison.comparativeConsequence.exists(_.contains("a4 reaches an exchange sequence")), clue(comparison))
+    assert(comparison.comparativeConsequence.exists(_.contains("Ke2 stays on the played branch")), clue(comparison))
+    val branchEvidence = comparison.roleAwareBranchEvidence.getOrElse(fail("missing branch evidence"))
+    assert(branchEvidence.evidenceRefs.contains("engine_best:line_consequence_line_id:line_01"), clue(branchEvidence))
+    assert(branchEvidence.evidenceRefs.contains("played:line_consequence_line_id:line_04"), clue(branchEvidence))
+    assert(branchEvidence.guardrails.exists(_.contains("engine_best:line_consequence_kind:exchange_sequence")), clue(branchEvidence))
+    assert(branchEvidence.guardrails.exists(_.contains("played:line_consequence_kind:preview_only")), clue(branchEvidence))
+  }
+
   test("role-aware line consequence does not claim absence when the best move appears later in the played branch") {
     val fen = "rnbqkbnr/pp1ppppp/2p5/8/3PP3/8/PPP2PPP/RNBQKBNR b KQkq - 0 2"
     val bestLine = List("d7d6", "g1f3", "g8f6", "f1d3")
@@ -551,6 +829,39 @@ class DecisionComparisonBuilderTest extends FunSuite:
       failureIntentConfidence = 1.0,
       failureIntentAnchor = verifiedBestMove,
       failureInterpretationAllowed = true
+    )
+
+  private def acceptableTacticalStyleContract(
+      playedMove: Option[String],
+      verifiedBestMove: Option[String],
+      cpLoss: Int
+  ): DecisiveTruthContract =
+    DecisiveTruthContract(
+      playedMove = playedMove,
+      verifiedBestMove = verifiedBestMove,
+      truthClass = DecisiveTruthClass.Acceptable,
+      cpLoss = cpLoss,
+      swingSeverity = cpLoss,
+      reasonFamily = DecisiveReasonKind.TacticalRefutation,
+      allowConcreteBenchmark = false,
+      chosenMatchesBest = false,
+      compensationAllowed = false,
+      truthPhase = None,
+      ownershipRole = TruthOwnershipRole.NoneRole,
+      visibilityRole = TruthVisibilityRole.PrimaryVisible,
+      surfaceMode = TruthSurfaceMode.Neutral,
+      exemplarRole = TruthExemplarRole.NonExemplar,
+      surfacedMoveOwnsTruth = false,
+      verifiedPayoffAnchor = None,
+      compensationProseAllowed = false,
+      benchmarkProseAllowed = false,
+      investmentTruthChainKey = None,
+      maintenanceExemplarCandidate = false,
+      benchmarkCriticalMove = false,
+      failureMode = FailureInterpretationMode.NoClearPlan,
+      failureIntentConfidence = 0.0,
+      failureIntentAnchor = None,
+      failureInterpretationAllowed = false
     )
 
   private def missedOnlyMoveContract(

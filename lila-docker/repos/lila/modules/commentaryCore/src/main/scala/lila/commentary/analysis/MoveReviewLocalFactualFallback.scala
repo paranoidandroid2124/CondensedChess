@@ -40,6 +40,7 @@ private[commentary] object MoveReviewLocalFactualFallback:
               Some("MoveReview local factual source: legal_current_move"),
               Some(s"MoveReview local factual UCI: ${played.uci}"),
               Some(s"MoveReview local factual role: ${roleLabel(played.role)}"),
+              Some(s"MoveReview local factual origin: ${played.from.key}"),
               Some(s"MoveReview local factual target: ${played.toKey}"),
               facts.capturedRole.map(role => s"MoveReview local factual captured role: ${roleLabel(role)}"),
               facts.promotedRole.map(role => s"MoveReview local factual promotion role: ${roleLabel(role)}"),
@@ -68,7 +69,7 @@ private[commentary] object MoveReviewLocalFactualFallback:
       facts.capturedRole.map(role => s"This captures the ${roleLabel(role)} on ${played.toKey}.")
         .orElse(Some("This captures."))
     else if played.role == Pawn then Some(s"This moves the pawn to ${played.toKey}.")
-    else Some(s"This puts the ${roleLabel(played.role)} on ${played.toKey}.")
+    else Some(s"This moves the ${roleLabel(played.role)} from ${played.from.key} to ${played.toKey}.")
 
   private def localFacts(
       ctx: NarrativeContext,

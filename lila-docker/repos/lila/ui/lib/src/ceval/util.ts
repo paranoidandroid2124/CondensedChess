@@ -13,12 +13,11 @@ export function renderEval(e: number): string {
   return (e > 0 ? '+' : '') + e.toFixed(1);
 }
 
-export function sanIrreversible(variant: VariantKey, san: string): boolean {
+export function sanIrreversible(san: string): boolean {
   if (san.startsWith('O-O')) return true;
-  if (variant === 'crazyhouse') return false;
   if (san.includes('x')) return true; // capture
   if (san[0].toLowerCase() === san[0]) return true; // pawn move
-  return variant === 'threeCheck' && san.includes('+');
+  return false;
 }
 
 export const fewerCores: () => boolean = memoize<boolean>(

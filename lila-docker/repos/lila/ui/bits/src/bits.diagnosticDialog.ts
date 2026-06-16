@@ -4,6 +4,7 @@ import * as licon from 'lib/licon';
 import { escapeHtml, myUserId } from 'lib';
 import { storage } from 'lib/storage';
 import { log } from 'lib/permalog';
+import { displayLocale } from 'lib/format';
 
 interface DiagnosticOpts {
   text: string;
@@ -21,8 +22,7 @@ export async function initModule(opts?: DiagnosticOpts): Promise<void> {
       `Cores: ${navigator.hardwareConcurrency}, ` +
       `Touch: ${isTouchDevice()} ${navigator.maxTouchPoints}, ` +
       `Screen: ${window.screen.width}x${window.screen.height}, ` +
-      ('lichessTools' in window ? 'Extension: Chess Tools, ' : '') +
-      `Page lang: ${site.displayLocale}, ` +
+      `Page lang: ${displayLocale}, ` +
       `Browser lang: ${navigator.language}, ` +
       `Engine: ${storage.get('ceval.engine')}, ` +
       `Threads: ${storage.get('ceval.threads')}, ` +

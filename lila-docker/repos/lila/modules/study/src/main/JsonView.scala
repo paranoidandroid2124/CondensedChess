@@ -10,7 +10,6 @@ import lila.tree.Node.Shape
 import lila.core.pref.Pref
 import lila.core.LightUser
 
-// Chesstory: Removed i18n.Translate and socket.Sri dependencies - hardcoded English
 final class JsonView(
     studyRepo: StudyRepo,
     lightUserApi: lila.core.user.LightUserApi
@@ -145,7 +144,6 @@ object JsonView:
     "updatedAt" -> study.updatedAt
   )
 
-  // Chesstory: Hardcoded English glyphs - no i18n
   def glyphs: JsObject =
     import chess.format.pgn.Glyph
     import Glyph.MoveAssessment.*
@@ -226,6 +224,5 @@ object JsonView:
 
   private[study] given Writes[Chapter.ServerEval] = Json.writes
 
-  // Who no longer has sri field - simplified for analysis system
   private[study] given OWrites[Who] = OWrites: w =>
     Json.obj("u" -> w.u)

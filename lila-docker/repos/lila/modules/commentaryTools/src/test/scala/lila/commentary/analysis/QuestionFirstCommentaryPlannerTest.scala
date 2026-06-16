@@ -1088,7 +1088,19 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
 
   test("WhatMattersHere admits certified color-complex squeeze position probe") {
     val q = question("q_probe_color_complex", AuthorQuestionKind.WhatMattersHere)
-    val ctx = baseCtx(List(q))
+    val ctx =
+      baseCtx(List(q)).copy(
+        fen = "4k3/8/8/4p3/8/8/1N6/4K3 w - - 0 1",
+        playedMove = Some("b2c4"),
+        playedSan = Some("Nc4"),
+        engineEvidence =
+          Some(
+            EngineEvidence(
+              depth = 12,
+              variations = List(VariationLine(List("b2c4", "e8f8", "e1e2", "f8e8"), scoreCp = 20, depth = 12))
+            )
+          )
+      )
     val packet =
       certifiedPositionProbePacket(
         proofSource = PlayerFacingTruthModePolicy.ColorComplexSqueezeProbeProofSource,
@@ -1103,10 +1115,10 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
             "attacks:e5",
             "minor_piece_attack:c4-e5"
           ),
-        continuationTerms = List("color_complex_squeeze_probe", "weak_square:e5", "best_branch:c4e5|e8f8"),
+        continuationTerms = List("color_complex_squeeze_probe", "weak_square:e5", "best_branch:b2c4|e8f8"),
         structureTransitionTerms = List("color_complex_squeeze_probe", "weak_square:e5", "minor_piece_attack:c4-e5"),
         bestDefenseMove = "e8f8",
-        bestDefenseBranchKey = "c4e5|e8f8"
+        bestDefenseBranchKey = "b2c4|e8f8"
       )
     val plans =
       QuestionFirstCommentaryPlanner.plan(
@@ -1979,6 +1991,136 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     assert(primary.claim.contains("gxf5 reaches a different material transition"), clues(primary.claim))
   }
 
+  test("check-only tactical local fact stays support under certified alternative comparison") {
+    val q = question("q_check_only_alt_comparison", AuthorQuestionKind.WhyThis)
+    val consequence =
+      "Rg7 reaches an exchange sequence on the engine-best branch 39... Rg7 40. Bxg5 hxg5 41. Rh1; Rb2+ stays on the played branch 39... Rb2+ 40. Ke3 Rb8 41. Rg4 without that concrete exchange sequence."
+    val checkFact =
+      MoveReviewLocalFact.admitted(
+        MoveReviewLocalFact.Candidate(
+          family = MoveReviewLocalFact.Family.Threat,
+          source = MoveReviewLocalFact.Source.CanonicalFact,
+          producer = MoveReviewLocalFact.Producer.TacticalMotif,
+          subject = MoveReviewLocalFact.Subject.Target,
+          strictFallbackCandidate = true,
+          anchors = List(
+            MoveReviewLocalFact.Anchor("tactical_kind", "check"),
+            MoveReviewLocalFact.Anchor("king_square", "f2")
+          ),
+          lineBinding = MoveReviewLocalFact.LineBinding.PvCoupled,
+          evidenceRefs = List("check_type:normal", "motif_square:f2"),
+          guardrails = List("tactical_kind:check", "current_move_motif_owned", "pv_confirms_tactic")
+        )
+      )
+    val checkResult =
+      MoveReviewExplanationBuilder.Result(
+        explanation =
+          MoveReviewExplanation(
+            title = "Rb2+ gives check",
+            prose = "Rb2+ gives check to the f2 king, tied to the verified reply in the checked line.",
+            source = "canonical_fact"
+          ),
+        localFact = checkFact
+      )
+    val ctx =
+      baseCtx(List(q)).copy(
+        fen = "1r4k1/2r5/p3q2p/2p1P1p1/5B2/3P1P2/P4K2/3R2R1 b - - 0 39",
+        ply = 78,
+        playedMove = Some("b8b2"),
+        playedSan = Some("Rb2+")
+      )
+    val contract =
+      truthContract(truthClass = DecisiveTruthClass.Acceptable, verifiedBestMove = Some("Rg7"))
+        .copy(playedMove = Some("b8b2"))
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        ctx,
+        inputs(
+          localFactResult = Some(checkResult),
+          decisionComparison =
+            Some(
+              DecisionComparison(
+                chosenMove = Some("Rb2+"),
+                engineBestMove = Some("Rg7"),
+                engineBestScoreCp = Some(-659),
+                engineBestPv = List("Rg7", "Bxg5", "hxg5", "Rh1"),
+                cpLossVsChosen = Some(84),
+                deferredMove = Some("Rg7"),
+                deferredReason = None,
+                deferredSource = Some("verified_best"),
+                evidence = Some("Rg7 Bxg5 hxg5 Rh1"),
+                practicalAlternative = false,
+                chosenMatchesBest = false,
+                comparedMove = Some("Rb2+"),
+                comparativeConsequence = Some(consequence),
+                comparativeSource = Some(DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource)
+              )
+            )
+        ),
+        Some(contract)
+      )
+
+    val primary = plans.primary.getOrElse(fail(s"missing alternative comparison plan: ${plans.ownerTrace.ownerCandidateLabels} / ${plans.rejected.map(_.reasons)}"))
+    assertEquals(plans.ownerTrace.sceneType, SceneType.AlternativeComparison)
+    assertEquals(primary.plannerOwnerKind, PlannerOwnerKind.AlternativeComparison)
+    assertEquals(primary.plannerSource, "decision_comparison")
+    assert(primary.claim.contains("Rg7 reaches an exchange sequence"), clues(primary.claim))
+    assert(plans.ownerTrace.ownerCandidateLabels.exists(label =>
+      label.contains("ConcreteTactical") &&
+        label.contains("materiality=support_material") &&
+        label.contains("check_only_support_under_alternative_comparison")
+    ), clues(plans.ownerTrace.ownerCandidateLabels))
+  }
+
+  test("same-piece relocation comparison does not own WhyThis through move-review slots") {
+    val q = question("q_piece_relocation_comparison", AuthorQuestionKind.WhyThis)
+    val bestLine = VariationLine(List("e5c4", "a7a5", "c4e3"), scoreCp = -442, depth = 10)
+    val playedLine = VariationLine(List("e5f3", "a7a5", "h2h4", "e8g8"), scoreCp = -504, depth = 10)
+    val ctx =
+      baseCtx(List(q)).copy(
+        fen = "r1bqk2r/ppp2ppp/3p1n2/4N1B1/4P3/3P4/P1P1KPPP/Q6R w kq - 0 11",
+        ply = 21,
+        playedMove = Some("e5f3"),
+        playedSan = Some("Nf3"),
+        engineEvidence = Some(EngineEvidence(depth = 10, variations = List(bestLine, playedLine))),
+        counterfactual =
+          Some(
+            CounterfactualMatch(
+              userMove = "Nf3",
+              bestMove = "Nc4",
+              cpLoss = 62,
+              missedMotifs = Nil,
+              userMoveMotifs = Nil,
+              severity = "inaccuracy",
+              userLine = playedLine,
+              bestLine = bestLine
+            )
+          )
+      )
+    val plannerInputs = QuestionPlannerInputsBuilder.build(ctx, strategyPack = None, truthContract = None)
+    val plans = QuestionFirstCommentaryPlanner.plan(ctx, plannerInputs, truthContract = None)
+
+    val comparison = plannerInputs.decisionComparison.getOrElse(fail("missing decision comparison"))
+    assertEquals(comparison.comparativeSource, None)
+    assertEquals(comparison.comparativeConsequence, None)
+    plans.primary.foreach { primary =>
+      assert(!primary.admissibilityReasons.contains("piece_relocation_comparison"), clues(primary))
+      assert(primary.plannerOwnerKind != PlannerOwnerKind.AlternativeComparison, clues(primary))
+    }
+
+    val slots =
+      MoveReviewCompressionPolicy.buildSlotsOrFallbackFromPlannerRuntime(
+        ctx = ctx,
+        inputs = plannerInputs,
+        rankedPlans = plans,
+        strategyPack = None,
+        truthContract = None
+    )
+    val prose = LiveNarrativeCompressionCore.deterministicProse(slots)
+    assert(!prose.contains("Nc4 places the knight from e5 on c4"), clues(prose, slots))
+    assert(!prose.contains("Nf3 places the same knight on f3"), clues(prose, slots))
+  }
+
   test("PlanRace is demoted out of the owner pool when concrete tactical authority owns the scene") {
     val q = question("q_race_tactical", AuthorQuestionKind.WhosePlanIsFaster)
     val opponent =
@@ -2758,7 +2900,67 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
 
     val primary = plans.primary.getOrElse(fail("missing primary"))
     assertEquals(primary.questionKind, AuthorQuestionKind.WhatMustBeStopped)
-    assert(primary.claim.toLowerCase.contains("stop"), clues(primary.claim))
+    assert(primary.claim.toLowerCase.contains("addresses"), clues(primary.claim))
+    assert(!primary.claim.toLowerCase.contains("has to stop"), clues(primary.claim))
+    assertEquals(primary.strengthTier, QuestionPlanStrengthTier.Moderate)
+  }
+
+  test("WhatMustBeStopped does not turn threat motif strings into tactical labels") {
+    val q = question("q_stop_motif", AuthorQuestionKind.WhatMustBeStopped)
+    val ctx = baseCtx(List(q))
+    val broadMotifs =
+      List("fork", "pin", "skewer", "discovered attack", "deflection", "decoy", "overload", "interference", "zwischenzug")
+
+    broadMotifs.foreach { motif =>
+      val plans =
+        QuestionFirstCommentaryPlanner.plan(
+          ctx,
+          inputs(
+            opponentThreats =
+              List(
+                threat("Material", 320, Some("Qd8")).copy(
+                  targetPieces = List("queen"),
+                  motifs = List(motif)
+                )
+              )
+          ),
+          None
+        )
+
+      val primary = plans.primary.getOrElse(fail(s"missing primary for $motif"))
+      assertEquals(primary.questionKind, AuthorQuestionKind.WhatMustBeStopped)
+      assert(primary.claim.toLowerCase.contains("material threat against the queen"), clues(motif, primary.claim))
+      assert(!primary.claim.toLowerCase.contains("tactic"), clues(motif, primary.claim))
+      assert(!primary.claim.toLowerCase.contains("fork"), clues(motif, primary.claim))
+      assert(!primary.claim.toLowerCase.contains("pin"), clues(motif, primary.claim))
+      assert(!primary.claim.toLowerCase.contains("skewer"), clues(motif, primary.claim))
+      assert(!primary.claim.toLowerCase.contains("decoy"), clues(motif, primary.claim))
+      assert(!primary.claim.toLowerCase.contains("deflection"), clues(motif, primary.claim))
+    }
+  }
+
+  test("WhatMustBeStopped avoids material-threat wording for king targets") {
+    val q = question("q_stop_king", AuthorQuestionKind.WhatMustBeStopped)
+    val ctx = baseCtx(List(q))
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        ctx,
+        inputs(
+          opponentThreats =
+            List(
+              threat("Material", 320, Some("Qd8")).copy(
+                targetPieces = List("king"),
+                motifs = List("decoy")
+              )
+            )
+        ),
+        None
+      )
+
+    val primary = plans.primary.getOrElse(fail("missing primary"))
+    assert(primary.claim.toLowerCase.contains("forcing threat against the king"), clues(primary.claim))
+    assert(!primary.claim.toLowerCase.contains("material threat against the king"), clues(primary.claim))
+    assert(!primary.claim.toLowerCase.contains("decoy"), clues(primary.claim))
   }
 
   test("WhatMustBeStopped does not owner-promote a generic opponent plan") {

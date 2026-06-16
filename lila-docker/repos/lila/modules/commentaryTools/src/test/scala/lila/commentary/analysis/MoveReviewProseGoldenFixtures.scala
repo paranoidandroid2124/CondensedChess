@@ -923,7 +923,7 @@ object MoveReviewProseGoldenFixtures:
             )
         ),
         expectedPrimaryKind = Some(AuthorQuestionKind.WhyThis),
-        expectedFallbackClaim = Some("This puts the rook on h3.")
+        expectedFallbackClaim = Some("This moves the rook from h1 to h3.")
       ),
       PlannerRuntimeFixture(
         id = "why_this_negative",
@@ -1067,7 +1067,7 @@ object MoveReviewProseGoldenFixtures:
             )
           ),
         expectedPrimaryKind = Some(AuthorQuestionKind.WhyThis),
-        expectedFallbackClaim = Some("This puts the bishop on f3.")
+        expectedFallbackClaim = Some("This moves the bishop from g2 to f3.")
       ),
       PlannerRuntimeFixture(
         id = "restricted_defense_conversion_fragile",
@@ -1121,7 +1121,7 @@ object MoveReviewProseGoldenFixtures:
             )
           ),
         expectedPrimaryKind = None,
-        expectedFallbackClaim = Some("This puts the bishop on f3.")
+        expectedFallbackClaim = Some("This moves the bishop from g2 to f3.")
       ),
       PlannerRuntimeFixture(
         id = "what_changed_positive",

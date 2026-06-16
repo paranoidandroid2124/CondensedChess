@@ -68,7 +68,7 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper):
   )
 
   def clinput(using ctx: Context) =
-    val label = "Search"
+    val label = "Command"
     div(id := "clinput")(
       a(
         cls := "link",
@@ -81,16 +81,10 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper):
         spellcheck := "false",
         autocomplete := ctx.blind.toString,
         aria.label := label,
-        placeholder := label,
-        enterkeyhint := "search"
+        placeholder := "FEN or /help",
+        enterkeyhint := "go"
       )
     )
-
-  def botImage = img(
-    src := staticAssetUrl("images/icons/bot.png"),
-    title := "Robot chess",
-    style := "display:inline;width:34px;height:34px;vertical-align:top;margin-right:5px;vertical-align:text-top"
-  )
 
   val manifests = raw:
     """<link rel="manifest" href="/manifest.json">"""
@@ -180,13 +174,11 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper):
       .filter(100 >=)
   } | 80
 
-  val dataVapid = attr("data-vapid")
   def dataSocketDomains = attr("data-socket-domains") := netConfig.socketDomains.mkString(",")
   val dataNonce = attr("data-nonce")
   val dataAnnounce = attr("data-announce")
   val dataSoundSet = attr("data-sound-set")
   val dataTheme = attr("data-theme")
-  val dataDirection = attr("data-direction")
   val dataBoard = attr("data-board")
   val dataPieceSet = attr("data-piece-set")
   val dataBoard3d = attr("data-board3d")
@@ -311,10 +303,7 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper):
     private val siteNameFrag: Frag = frag(siteName)
 
     def apply(
-        zenable: Boolean,
         isAppealUser: Boolean,
-        challenges: Int,
-        notifications: Int,
         error: Boolean,
         topnav: Frag
     )(using ctx: PageContext) =
@@ -322,7 +311,6 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper):
         div(cls := brandBarClass)(
           (!isAppealUser).option(topnavToggle),
           a(cls := brandClass, href := siteHomeUrl, aria.label := s"$siteName home", title := "Go to home")(
-            ctx.isBot.option(botImage),
             div(cls := markClass)(
               img(
                 cls := s"${markClass}__img",

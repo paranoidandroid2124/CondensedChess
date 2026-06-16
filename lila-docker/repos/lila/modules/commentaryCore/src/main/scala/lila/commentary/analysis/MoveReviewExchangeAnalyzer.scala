@@ -2469,7 +2469,7 @@ private[commentary] object MoveReviewExchangeAnalyzer:
   private def isLongRangeRole(role: Role): Boolean =
     role == Bishop || role == Rook || role == Queen
 
-  private def roleAttacks(role: Role, square: Square, color: Color, occupied: Bitboard): Bitboard =
+  private[commentary] def roleAttacks(role: Role, square: Square, color: Color, occupied: Bitboard): Bitboard =
     role match
       case Pawn   => square.pawnAttacks(color)
       case Knight => square.knightAttacks

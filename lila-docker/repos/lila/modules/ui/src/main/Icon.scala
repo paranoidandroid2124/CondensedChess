@@ -26,13 +26,10 @@ object Icon:
   val ShareAndroid: Icon = "" // e004
   val Gear: Icon = "" // e005
   val DieSix: Icon = "" // e006
-  val FlagKingHill: Icon = "" // e007
   val FlameBlitz: Icon = "" // e008
   val Feather: Icon = "" // e009
   val Turtle: Icon = "" // e00a
   val FlagChessboard: Icon = "" // e00b
-  val ArcheryTarget: Icon = "" // e00c
-  val ThreeCheckStack: Icon = "" // e00d
   val UploadCloud: Icon = "" // e00e
   val ExternalArrow: Icon = "" // e00f
   val AnalogTv: Icon = "" // e010
@@ -47,9 +44,7 @@ object Icon:
   val PaperAirplane: Icon = "" // e019
   val ZoomIn: Icon = "" // e01a
   val Expand: Icon = "" // e01b
-  val Atom: Icon = "" // e01c
   val List: Icon = "" // e01d
-  val Antichess: Icon = "" // e01e
   val Microscope: Icon = "" // e01f
   val ChasingArrows: Icon = "" // e020
   val CrownElite: Icon = "" // e021
@@ -120,8 +115,6 @@ object Icon:
   val PhoneMobile: Icon = "" // e062
   val Multiboard: Icon = "" // e063
   val HeartOutline: Icon = "" // e064
-  val FlagRacingKings: Icon = "" // e065
-  val Crazyhouse: Icon = "" // e066
   val Tshirt: Icon = "" // e067
   val Heart: Icon = "" // e068
   val RadioTower: Icon = "" // e069

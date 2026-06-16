@@ -14,7 +14,6 @@ final class ExplorerProxy(
 ) extends LilaController(env):
 
   private val logger = lila.log("explorer.proxy")
-  private val allowedDbs = Set("masters", "lichess", "player")
   private def configured(path: String): Option[String] =
     env.config.getOptional[String](path).map(_.trim).filter(_.nonEmpty)
   private val explorerBase =
@@ -33,11 +32,9 @@ final class ExplorerProxy(
 
   def opening(db: String) = Open:
     val normalizedDb = Option(db).map(_.trim.toLowerCase).getOrElse("")
-    if !allowedDbs(normalizedDb) then NotFound(Json.obj("error" -> "invalid_db")).toFuccess
+    if normalizedDb != "masters" then NotFound(Json.obj("error" -> "invalid_db")).toFuccess
     else
-      val acceptHeader =
-        req.headers.get("Accept").getOrElse(if normalizedDb == "player" then "application/x-ndjson" else "application/json")
-
+      val acceptHeader = req.headers.get("Accept").getOrElse("application/json")
       val withQueryParams = req.queryString.foldLeft(ws.url(s"$explorerBase/$normalizedDb").withRequestTimeout(requestTimeout)) {
         case (request, (_, Nil)) => request
         case (request, (key, values)) =>
@@ -61,8 +58,7 @@ final class ExplorerProxy(
             ).as(JSON)
           else
             val contentType = Option(upstream.contentType).filter(_.nonEmpty).getOrElse:
-              if normalizedDb == "player" then "application/x-ndjson; charset=utf-8"
-              else "application/json; charset=utf-8"
+              "application/json; charset=utf-8"
             Status(upstream.status)(upstream.body[Array[Byte]]).as(contentType)
         .recover { case NonFatal(e) =>
           logger.warn(s"Explorer proxy failed db=$normalizedDb err=${e.getMessage}")

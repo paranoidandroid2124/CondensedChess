@@ -9,9 +9,6 @@ import lila.core.config.CollName
 import lila.db.dsl.*
 import lila.web.{ StaticContent, WebForms }
 
-/* Chesstory: Analysis-only main controller
- * Removed: round, puzzle, challenge dependencies
- */
 final class Main(
     env: Env,
     assetsC: ExternalAssets

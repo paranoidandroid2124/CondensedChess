@@ -126,7 +126,7 @@ When that module is requested by a browser, the server injects those inline stat
 
 ```json
     "bundle": [
-      "src/site.*Embed.ts",
+      "src/strategicPuzzle.ts",
       {
         "module": "src/site.ts",
         "inline": "src/site.inline.ts"
@@ -146,7 +146,7 @@ One usage for sync is to copy npm package assets from node_modules to the /publi
     },
 ```
 
-Sync watch is helpful when you must link a local version of an npm package during workspace development. Issues involving chessground, pgn-viewer, or third party dependencies often require this.
+Sync watch is helpful when you must link a local version of an npm package during workspace development. Issues involving chessground or other third party dependencies often require this.
 
 ## "hash" property
 

@@ -7,7 +7,6 @@ import lila.study.Study.WithChaptersAndLiked
 import lila.ui.*
 import ScalatagsTemplate.{ *, given }
 
-// Chesstory: Aggressively simplified Study list UI
 final class ListUi(helpers: Helpers, bits: StudyBits):
   import helpers.*
 

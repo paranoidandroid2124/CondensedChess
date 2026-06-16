@@ -4,7 +4,7 @@ import type { EvalHit, EvalGetData, EvalPutData } from './interfaces';
 import type { AnalyseSocketSend } from './socket';
 import { pubsub } from 'lib/pubsub';
 
-export interface EvalCacheOpts {
+interface EvalCacheOpts {
   variant: VariantKey;
   receive(ev: Tree.ClientEval, path: Tree.Path): void;
   send: AnalyseSocketSend;
@@ -62,15 +62,11 @@ function toCeval(e: Tree.ServerEval): Tree.ClientEval {
   };
   if (defined(res.pvs[0].cp)) res.cp = res.pvs[0].cp;
   else res.mate = res.pvs[0].mate;
-  res.cloud = true;
   return res;
 }
 
-type AwaitingEval = null;
-const awaitingEval: AwaitingEval = null;
-
 export default class EvalCache {
-  private fetchedByFen: Map<FEN, EvalHit | AwaitingEval> = new Map();
+  private fetchedByFen: Map<FEN, EvalHit | null> = new Map();
   upgradable = prop(false);
 
   constructor(readonly opts: EvalCacheOpts) {
@@ -85,7 +81,7 @@ export default class EvalCache {
     if (
       ev &&
       !ev.cloud &&
-      this.fetchedByFen.has(node.fen) &&
+      fetched !== undefined &&
       (!fetched || fetched.depth < ev.depth) &&
       qualityCheck(ev) &&
       this.opts.canPut()
@@ -100,7 +96,7 @@ export default class EvalCache {
     if ((node.ceval && node.ceval.cloud) || !this.opts.canGet()) return;
     const fetched = this.fetchedByFen.get(node.fen);
     if (fetched) return this.opts.receive(toCeval(fetched), path);
-    else if (fetched === awaitingEval) return;
+    if (fetched === null) return;
     const obj: EvalGetData = {
       fen: node.fen,
       path,
@@ -119,7 +115,7 @@ export default class EvalCache {
   clear = () => this.fetchedByFen.clear();
 
   private fetchThrottled = throttle(700, (obj: EvalGetData) => {
-    this.fetchedByFen.set(obj.fen, awaitingEval); // waiting for response
+    this.fetchedByFen.set(obj.fen, null); // waiting for response
     this.opts.send('evalGet', obj);
   });
 }

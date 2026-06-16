@@ -28,7 +28,6 @@ interface Stockfish {
 declare global {
   interface Window {
     Stockfish?: WasmModule;
-    StockfishMv?: WasmModule;
   }
 }
 
@@ -40,7 +39,6 @@ export class ThreadedEngine implements CevalEngine {
   constructor(
     readonly info: BrowserEngineInfo,
     readonly status?: EngineNotifier | undefined,
-    readonly variantMap?: (v: string) => string,
   ) {}
 
   onError = (err: Error): void => {
@@ -109,7 +107,7 @@ export class ThreadedEngine implements CevalEngine {
 
     // Load Emscripten module.
     await site.asset.loadIife(`${root}/${js}`, { pathVersion });
-    const sf = await window[this.info.id === '__sf11mv' ? 'StockfishMv' : 'Stockfish']!({
+    const sf = await window.Stockfish!({
       wasmBinary,
       printErr: (msg: string) => this.onError(new Error(msg)),
       onError: this.onError,
@@ -125,7 +123,7 @@ export class ThreadedEngine implements CevalEngine {
 
   async start(work: Work): Promise<void> {
     if (!this.protocol) {
-      this.protocol = new Protocol(this.variantMap);
+      this.protocol = new Protocol();
       this.boot().catch(this.onError);
     }
     this.protocol.compute(work);

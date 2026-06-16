@@ -79,7 +79,6 @@ trait UserTrustApi:
 trait Hcaptcha:
   def verify(response: String, ip: Option[lila.core.net.IpAddress]): Fu[Boolean]
 
-// Simplified HcaptchaForm for forms that may require captcha
 trait HcaptchaForm[A]:
   def form: play.api.data.Form[A]
   def enabled: Boolean = false

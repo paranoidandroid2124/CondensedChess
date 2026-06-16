@@ -1,11 +1,10 @@
-// Chesstory: Horizontal eval gauge (chess.com-style)
-// White fills from left, black from right.
+// Eval gauge.
 .eval-gauge {
   position: relative;
   overflow: hidden;
   border-radius: 4px;
 
-  // ── vertical (legacy, col3 side gauge) ──
+  // Vertical side gauge.
   width: $block-gap;
   background: #3a3a4a;
 
@@ -70,7 +69,7 @@
     transition: height 0.8s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
-  // ── horizontal mode (above the board) ──
+  // Horizontal board gauge.
   &--horizontal {
     width: 100%;
     height: 26px;

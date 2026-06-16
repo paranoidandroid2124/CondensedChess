@@ -195,14 +195,20 @@ export type NotebookDossierV1 = {
 
 export const NOTEBOOK_DOSSIER_SCHEMA_V1 = 'chesstory.notebook.dossier.v1';
 
+const myAccountProductKind: NotebookDossierProductKind = 'my_account_intelligence_lite';
+const opponentPrepProductKind: NotebookDossierProductKind = 'opponent_prep';
+const chessComProvider: NotebookDossierV1['subject']['provider'] = 'chesscom';
+const lichessProvider: NotebookDossierV1['subject']['provider'] = 'lichess';
+const internalProvider: GameEvidenceRefV1['provider'] = 'internal';
+
 const overviewKindOrder: Record<NotebookDossierProductKind, OverviewCardKind[]> = {
-  my_account_intelligence_lite: ['opening_identity', 'recurring_leak', 'repair_priority'],
-  opponent_prep: ['opening_identity', 'pressure_point', 'steering_target'],
+  [myAccountProductKind]: ['opening_identity', 'recurring_leak', 'repair_priority'],
+  [opponentPrepProductKind]: ['opening_identity', 'pressure_point', 'steering_target'],
 };
 
 const subjectRoleByProduct: Record<NotebookDossierProductKind, NotebookDossierV1['subject']['role']> = {
-  my_account_intelligence_lite: 'self',
-  opponent_prep: 'opponent',
+  [myAccountProductKind]: 'self',
+  [opponentPrepProductKind]: 'opponent',
 };
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -234,11 +240,11 @@ function isPriority(value: unknown): value is 'low' | 'medium' | 'high' {
 }
 
 function isProvider(value: unknown): value is GameEvidenceRefV1['provider'] {
-  return value === 'chesscom' || value === 'lichess' || value === 'internal';
+  return value === chessComProvider || value === lichessProvider || value === internalProvider;
 }
 
 function isSubjectProvider(value: unknown): value is NotebookDossierV1['subject']['provider'] {
-  return value === 'chesscom' || value === 'lichess';
+  return value === chessComProvider || value === lichessProvider;
 }
 
 function isOverviewCardKind(value: unknown): value is OverviewCardKind {
@@ -493,7 +499,7 @@ function validateSectionComposition(
   for (const card of cards) {
     if (card.cardKind === 'anchor_position') {
       anchorIds.add(card.id);
-      const expectedLens = dossier.productKind === 'my_account_intelligence_lite' ? 'self_repair' : 'opponent_pressure';
+      const expectedLens = dossier.productKind === myAccountProductKind ? 'self_repair' : 'opponent_pressure';
       if (card.lens !== expectedLens)
         errors.push(`Anchor card ${card.id} has lens ${card.lens}, expected ${expectedLens}.`);
     }
@@ -519,7 +525,7 @@ function validateProductDefaults(dossier: NotebookDossierV1, errors: string[]): 
         : 'Opponent Prep dossiers must use subject.role=opponent.',
     );
 
-  if (dossier.productKind === 'my_account_intelligence_lite') {
+  if (dossier.productKind === myAccountProductKind) {
     if (exemplarCount !== 1) errors.push('My Account dossiers must contain exactly one exemplar_games section.');
     if (actionCount !== 1) errors.push('My Account dossiers must contain exactly one action_page section.');
     if (steeringCount !== 0) errors.push('My Account dossiers cannot contain steering_plan sections.');
@@ -537,7 +543,7 @@ export function validateNotebookDossier(raw: unknown): string[] {
   if (!isObject(raw)) return ['Notebook dossier must be an object.'];
   if (raw.schema !== NOTEBOOK_DOSSIER_SCHEMA_V1) errors.push(`schema must equal ${NOTEBOOK_DOSSIER_SCHEMA_V1}.`);
   if (!isString(raw.dossierId)) errors.push('dossierId must be a string.');
-  if (raw.productKind !== 'my_account_intelligence_lite' && raw.productKind !== 'opponent_prep')
+  if (raw.productKind !== myAccountProductKind && raw.productKind !== opponentPrepProductKind)
     errors.push('productKind must be my_account_intelligence_lite or opponent_prep.');
   if (!isObject(raw.subject)) errors.push('subject must be an object.');
   if (!isObject(raw.source)) errors.push('source must be an object.');
@@ -719,7 +725,7 @@ export function parseNotebookDossier(raw: unknown): NotebookDossierV1 | null {
 }
 
 export function notebookDossierProductLabel(kind: NotebookDossierProductKind): string {
-  return kind === 'my_account_intelligence_lite' ? 'My Account Intelligence Lite' : 'Opponent Prep';
+  return kind === myAccountProductKind ? 'My Account Intelligence Lite' : 'Opponent Prep';
 }
 
 export function notebookDossierOverviewKindLabel(kind: OverviewCardKind): string {

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { enhance, EnhanceOpts, movePattern, userPattern } from '../src/richText';
 import { each } from '../../.test/helpers.mts';
 
-describe('test regex patterns', () => {
+describe('rich text patterns', () => {
   test('username mentions', () => {
     assert.deepStrictEqual('@foo'.match(userPattern), ['@foo']);
     assert.deepStrictEqual('@foo-'.match(userPattern), ['@foo-']);

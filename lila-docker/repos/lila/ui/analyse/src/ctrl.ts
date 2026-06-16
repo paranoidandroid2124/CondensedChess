@@ -1,4 +1,4 @@
-import { playable, playedTurns, fenToEpd, readDests, readDrops, writeDests, validUci } from 'lib/game';
+import { playable, playedTurns, fenToEpd, readDests, writeDests, validUci } from 'lib/game';
 import * as keyboard from './keyboard';
 import { treeReconstruct, plyColor } from './util';
 import { plural } from './view/util';
@@ -16,7 +16,7 @@ import { defined, prop, toggle, throttle, requestIdleCallback, propWithEffect, m
 import { preferenceLocalStorage } from 'lib/cookieConsent';
 import { pubsub } from 'lib/pubsub';
 import type { DrawShape } from '@lichess-org/chessground/draw';
-import { lichessRules, scalachessCharPair } from 'chessops/compat';
+import { scalachessCharPair } from 'chessops/compat';
 import EvalCache from './evalCache';
 import { ForkCtrl } from './fork';
 import type { Socket } from './socket';
@@ -24,8 +24,6 @@ import { nextGlyphSymbol, add3or5FoldGlyphs } from './nodeFinder';
 import { opposite, parseUci, makeSquare, roleToChar } from 'chessops/util';
 import { type Outcome, isNormal } from 'chessops/types';
 import { makeFen, parseFen } from 'chessops/fen';
-import type { Position, PositionError } from 'chessops/chess';
-import type { Result } from '@badrap/result';
 import { setupPosition } from 'chessops/variant';
 import { makeSanAndPlay } from 'chessops/san';
 import { makeUci } from 'chessops';
@@ -136,7 +134,6 @@ export default class AnalyseCtrl implements CevalHandler {
 
   // state flags
   justPlayed?: string; // pos
-  justDropped?: string; // role
   justCaptured?: JustCaptured;
   redirecting = false;
   onMainline = true;
@@ -229,7 +226,6 @@ export default class AnalyseCtrl implements CevalHandler {
     this.variationArrowOpacity = this.makeVariationOpacityProp();
     this.resetAutoShapes();
     this.explorer.setNode();
-    this.explorer.setNode();
 
     if (location.hash === '#menu') requestIdleCallback(this.actionMenu.toggle, 500);
     this.startCeval();
@@ -258,10 +254,6 @@ export default class AnalyseCtrl implements CevalHandler {
     pubsub.on('ply.trigger', () =>
       pubsub.emit('ply', this.node.ply, this.tree.lastMainlineNode(this.path).ply === this.node.ply),
     );
-    pubsub.on('analysis.chart.click', index => {
-      this.jumpToIndex(index);
-      this.redraw();
-    });
     pubsub.on('board.change', (is3d: boolean) => {
       if (this.chessground) {
         this.chessground.state.addPieceZIndex = is3d;
@@ -554,7 +546,6 @@ export default class AnalyseCtrl implements CevalHandler {
     this.chessground?.set({
       orientation: this.bottomColor(),
     });
-    this.explorer.onFlip();
     this.onChange();
     this.redraw();
   };
@@ -564,7 +555,6 @@ export default class AnalyseCtrl implements CevalHandler {
   }
 
   bottomColor(): Color {
-    if (this.data.game.variant.key === 'racingKings') return this.flipped ? 'black' : 'white';
     return this.flipped ? opposite(this.data.orientation) : this.data.orientation;
   }
 
@@ -608,11 +598,6 @@ export default class AnalyseCtrl implements CevalHandler {
         }
         this.addDests(writeDests(dests), path);
 
-        const dropSet = pos.dropDests();
-        if (dropSet.nonEmpty())
-          this.tree.updateAt(path, n => {
-            n.drops = Array.from(dropSet, makeSquare).join('');
-          });
       },
       _ => this.addDests('', path),
     );
@@ -624,11 +609,7 @@ export default class AnalyseCtrl implements CevalHandler {
     const node = this.node,
       color = this.turnColor(),
       dests = readDests(this.node.dests),
-      drops = readDrops(this.node.drops),
-      movableColor =
-        (dests && dests.size > 0) || drops === null || drops.length
-          ? color
-          : undefined,
+      movableColor = !dests || dests.size > 0 ? color : undefined,
       config: ChessgroundConfig = {
         fen: node.fen,
         turnColor: color,
@@ -731,7 +712,7 @@ export default class AnalyseCtrl implements CevalHandler {
       this.startCeval();
       site.sound.saySan(this.node.san, true);
     }
-    this.justPlayed = this.justDropped = this.justCaptured = undefined;
+    this.justPlayed = this.justCaptured = undefined;
     this.explorer.setNode();
     this.syncHref(historyMode);
     this.promotion.cancel();
@@ -839,22 +820,8 @@ export default class AnalyseCtrl implements CevalHandler {
       encodeURIComponent(fen).replace(/%20/g, '_').replace(/%2F/g, '/');
   }
 
-  crazyValid = (_role: Role, _key: Key): boolean => false;
-
-  getCrazyhousePockets = () => undefined;
-
-  sendNewPiece = (role: Role, key: Key): void => {
-    const color = this.chessground.state.movable.color;
-    if (color === 'white' || color === 'black') this.userNewPiece({ color, role }, key);
-  };
-
-  userNewPiece = (_piece: Piece, _pos: Key): void => {
-    this.jump(this.path);
-  };
-
   userMove = (orig: Key, dest: Key, capture?: JustCaptured): void => {
     this.justPlayed = orig;
-    this.justDropped = undefined;
     if (
       !this.promotion.start(orig, dest, {
         submit: (orig, dest, prom) => this.sendMove(orig, dest, capture, prom),
@@ -945,9 +912,9 @@ export default class AnalyseCtrl implements CevalHandler {
     );
   }
 
-  position(node: Tree.Node): Result<Position, PositionError> {
+  position(node: Tree.Node): ReturnType<typeof setupPosition> {
     const setup = parseFen(node.fen).unwrap();
-    return setupPosition(lichessRules(this.data.game.variant.key), setup);
+    return setupPosition('chess', setup);
   }
 
   private makeLocalSocket(): Socket {
@@ -1168,7 +1135,6 @@ export default class AnalyseCtrl implements CevalHandler {
     this.chessground?.set({
       orientation: this.bottomColor(),
     });
-    this.explorer.onFlip();
     this.onChange();
     this.redraw();
   };
@@ -1200,12 +1166,6 @@ export default class AnalyseCtrl implements CevalHandler {
   selectedReviewCollapseId = (): string | null => this.reviewState().selectedCollapseId;
 
   reviewAnalysisDetailsOpen = (): boolean => this.reviewState().analysisDetailsOpen;
-
-  accountPatternsHref = (): string | null => {
-    const username = myUsername();
-    if (!username) return null;
-    return `/account-intel/lichess/${encodeURIComponent(username)}?kind=my_account_intelligence_lite`;
-  };
 
   private initWorkspacePrefs() {
     const defaultBoardLabelMode = boardLabelModeFromCoords(this.data.pref.coords);
@@ -1585,8 +1545,6 @@ export default class AnalyseCtrl implements CevalHandler {
     this.data.analysis = data.analysis;
     if (data.analysis)
       data.analysis.partial = !!treeOps.findInMainline(data.tree, this.partialAnalysisCallback);
-    if (data.division) this.data.game.division = data.division;
-    pubsub.emit('analysis.server.progress', this.data);
     this.redraw();
   }
 
@@ -1603,7 +1561,7 @@ export default class AnalyseCtrl implements CevalHandler {
       const node = this.nodeList[i];
       const epd = fenToEpd(node.fen);
       if (fens.has(epd)) return false;
-      if (node.san && sanIrreversible(this.data.game.variant.key, node.san)) return true;
+      if (node.san && sanIrreversible(node.san)) return true;
       fens.add(epd);
     }
     return true;
@@ -1630,24 +1588,16 @@ export default class AnalyseCtrl implements CevalHandler {
   playUci = (uci: Uci, uciQueue?: Uci[]) => {
     this.pvUciQueue = uciQueue ?? [];
     const move = parseUci(uci)!;
+    if (!isNormal(move)) return;
     const to = makeSquare(move.to);
-    if (isNormal(move)) {
-      const piece = this.chessground.state.pieces.get(makeSquare(move.from));
-      const capture = this.chessground.state.pieces.get(to);
-      this.sendMove(
-        makeSquare(move.from),
-        to,
-        capture && piece && capture.color !== piece.color ? capture : undefined,
-        move.promotion,
-      );
-    } else
-      this.chessground.newPiece(
-        {
-          color: this.chessground.state.movable.color as Color,
-          role: move.role,
-        },
-        to,
-      );
+    const piece = this.chessground.state.pieces.get(makeSquare(move.from));
+    const capture = this.chessground.state.pieces.get(to);
+    this.sendMove(
+      makeSquare(move.from),
+      to,
+      capture && piece && capture.color !== piece.color ? capture : undefined,
+      move.promotion,
+    );
   };
 
   playUciList(uciList: Uci[]): void {

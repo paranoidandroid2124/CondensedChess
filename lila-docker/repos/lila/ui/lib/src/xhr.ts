@@ -20,20 +20,11 @@ export const ensureOk = (res: Response): Response => {
   throw new Error(`Error ${res.status}`);
 };
 
-/* fetch a static JSON asset without headers that trigger CORS preflight */
-export const jsonSimple = (url: string, init: RequestInit = {}): Promise<any> =>
-  fetch(url, {
-    headers: {
-      ...jsonHeader,
-    },
-    ...init,
-  }).then(res => ensureOk(res).json());
-
 /* fetch a JSON value */
 export const json = (url: string, init: RequestInit = {}): Promise<any> =>
   jsonAnyResponse(url, init).then(res => ensureOk(res).json());
 
-export const jsonAnyResponse = (url: string, init: RequestInit = {}): Promise<any> =>
+const jsonAnyResponse = (url: string, init: RequestInit = {}): Promise<any> =>
   fetch(url, {
     ...defaultInit,
     headers: {
@@ -47,7 +38,7 @@ export const jsonAnyResponse = (url: string, init: RequestInit = {}): Promise<an
 export const text = (url: string, init: RequestInit = {}): Promise<string> =>
   textRaw(url, init).then(res => ensureOk(res).text());
 
-export const textRaw = (url: string, init: RequestInit = {}): Promise<Response> =>
+const textRaw = (url: string, init: RequestInit = {}): Promise<Response> =>
   fetch(url, {
     ...defaultInit,
     headers: { ...xhrHeader },
@@ -66,13 +57,6 @@ export const script = (src: string): Promise<void> =>
     document.head.append(el);
   });
 
-/* produce HTTP form data from a JS object */
-export const form = (data: any): FormData => {
-  const formData = new FormData();
-  for (const k of Object.keys(data)) if (defined(data[k])) formData.append(k, data[k]);
-  return formData;
-};
-
 /* constructs a url with escaped parameters */
 export const url = (path: string, params: { [k: string]: string | number | boolean | undefined }): string => {
   const searchParams = new URLSearchParams();
@@ -81,20 +65,7 @@ export const url = (path: string, params: { [k: string]: string | number | boole
   return query ? `${path}?${query}` : path;
 };
 
-/* submit a form with XHR */
-export const formToXhr = (el: HTMLFormElement, submitter?: HTMLButtonElement): Promise<string> => {
-  const action = el.getAttribute('action');
-  const body = new FormData(el);
-  if (submitter?.name && submitter?.value) body.set(submitter.name, submitter.value);
-  return action
-    ? text(action, {
-        method: el.method,
-        body,
-      })
-    : Promise.reject(`Form has no action: ${el}`);
-};
-
-export type ProcessLine<T> = (line: T) => void;
+type ProcessLine<T> = (line: T) => void;
 
 /*
  * `response` is the result of a `fetch` request.

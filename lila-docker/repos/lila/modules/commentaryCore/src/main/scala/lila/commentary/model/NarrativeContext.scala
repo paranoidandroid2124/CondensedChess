@@ -153,7 +153,9 @@ case class ThreatRow(
   defenseCount: Int,
   insufficientData: Boolean,
   confidence: ConfidenceLevel = ConfidenceLevel.Engine,
-  isTopCandidateDefense: Boolean = false
+  isTopCandidateDefense: Boolean = false,
+  targetPieces: List[String] = Nil,
+  motifs: List[String] = Nil
 ) {
   def urgencyLabel: String = 
     if (lossIfIgnoredCp >= 800 || kind == "Mate") "URGENT"
@@ -162,7 +164,9 @@ case class ThreatRow(
     
   def toNarrative: String = {
     val defenseNote = bestDefense.map(d => s" - Defend: $d").getOrElse("")
-    s"$kind${square.map(s => s"/$s").getOrElse("")}/${lossIfIgnoredCp}cp/${turnsToImpact}moves$defenseNote"
+    val motifNote = Option.when(motifs.nonEmpty)(s" motifs=${motifs.take(2).mkString("/")}")
+    val targetNote = Option.when(targetPieces.nonEmpty)(s" targets=${targetPieces.take(2).mkString("/")}")
+    s"$kind${square.map(s => s"/$s").getOrElse("")}/${lossIfIgnoredCp}cp/${turnsToImpact}moves$defenseNote${motifNote.getOrElse("")}${targetNote.getOrElse("")}"
   }
 }
 

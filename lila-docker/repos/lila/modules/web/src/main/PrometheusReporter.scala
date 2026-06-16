@@ -9,7 +9,6 @@ import kamon.prometheus.*
 import kamon.Kamon
 
 // copy paste with some minor changes/scalafmtAll from https://github.com/kamon-io/Kamon/blob/master/reporters/kamon-prometheus/src/main/scala/kamon/prometheus/PrometheusReporter.scala
-// unused http server has been removed
 class PrometheusReporter(configPath: String = DefaultConfigPath, initialConfig: Config = Kamon.config())
     extends MetricReporter
     with ScrapeSource:

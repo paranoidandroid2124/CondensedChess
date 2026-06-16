@@ -1,7 +1,7 @@
 import { objectStorage, deleteObjectStorage, type ObjectStorage, type DbInfo } from './objectStorage';
 import { preferenceLocalStorage, preferenceStorageAllowed } from './cookieConsent';
 
-export interface PermaLog {
+interface PermaLog {
   (...args: any[]): Promise<number | void>;
   clear(): Promise<void>;
   get(): Promise<string>;
@@ -17,7 +17,7 @@ export const log: PermaLog = makeLog(
   parseInt(preferenceLocalStorage()?.getItem('log.window') || '100', 10),
 );
 
-export function makeLog(dbInfo: DbInfo, windowSize: number): PermaLog {
+function makeLog(dbInfo: DbInfo, windowSize: number): PermaLog {
   let store: ObjectStorage<string, number>;
   let resolveReady!: () => void;
   let lastKey = 0;

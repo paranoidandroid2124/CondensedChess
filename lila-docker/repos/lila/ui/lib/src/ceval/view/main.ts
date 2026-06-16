@@ -6,7 +6,6 @@ import { stepwiseScroll, type VNode, type LooseVNodes, onInsert, bind, hl } from
 import { defined, notNull, requestIdleCallback } from '@/index';
 import { type CevalHandler, type NodeEvals, CevalState } from '../types';
 import type { Position } from 'chessops/chess';
-import { lichessRules } from 'chessops/compat';
 import { makeSanAndPlay } from 'chessops/san';
 import { opposite, parseUci } from 'chessops/util';
 import { parseFen, makeBoardFen } from 'chessops/fen';
@@ -149,7 +148,7 @@ export function renderGauge(ctrl: CevalHandler, isHorizontal = false): VNode | u
     );
   }
 
-  // Vertical mode (legacy)
+  // Vertical gauge
   gaugeTicks ??= [...Array(8).keys()].map(i =>
     hl(i === 3 ? 'tick.zero' : 'tick', { attrs: { style: `height: ${(i + 1) * 12.5}%` } }),
   );
@@ -360,7 +359,7 @@ export function renderPvs(ctrl: CevalHandler): VNode | undefined {
     setup.turn = opposite(setup.turn);
     if (setup.turn === 'white') setup.fullmoves += 1;
   }
-  const pos = setupPosition(lichessRules(ceval.opts.variant.key), setup);
+  const pos = setupPosition('chess', setup);
 
   return hl(
     'div.pv_box',

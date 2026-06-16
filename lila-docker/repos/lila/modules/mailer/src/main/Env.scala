@@ -5,15 +5,12 @@ import com.softwaremill.macwire.*
 import com.softwaremill.tagging.*
 import play.api.Configuration
 
-import lila.common.Bus
-
 @Module
 final class Env(
     appConfig: Configuration,
     net: lila.core.config.NetConfig,
     userApi: lila.core.user.UserApi,
-    settingStore: lila.memo.SettingStore.Builder,
-    lightUser: lila.core.user.LightUserApi
+    settingStore: lila.memo.SettingStore.Builder
 )(using Executor, ActorSystem, Scheduler):
   private val baseUrl = net.baseUrl
   import Mailer.given
@@ -39,9 +36,5 @@ final class Env(
   )
 
   lazy val automaticEmail = wire[AutomaticEmail]
-
-  // Event subscriptions removed for Analysis-Only version
-
-  // User deletion email disabled for now
 
 trait CanSendEmails

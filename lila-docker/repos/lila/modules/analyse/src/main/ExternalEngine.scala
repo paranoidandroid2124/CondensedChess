@@ -1,6 +1,6 @@
 package lila.analyse
 
-import chess.variant.Variant
+import chess.variant.{ Chess960, Variant }
 import com.roundeights.hasher.Algo
 import play.api.data.*
 import play.api.data.Forms.*
@@ -61,7 +61,7 @@ object ExternalEngine:
       "name" -> cleanNonEmptyText(1, 200),
       "maxThreads" -> number(1, 65_536),
       "maxHash" -> number(1, 1_048_576),
-      "variants" -> optional(list(typeIn(Variant.list.all.map(_.uciKey).toSet))),
+      "variants" -> optional(list(typeIn(Set(Variant.default.uciKey, Chess960.uciKey)))),
       "officialStockfish" -> optional(boolean),
       "providerSecret" -> nonEmptyText(16, 1024),
       "providerData" -> optional(text(maxLength = 8192)),

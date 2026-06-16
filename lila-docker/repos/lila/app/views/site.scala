@@ -33,15 +33,3 @@ object message:
 
   def authFailed =
     errorPage("403", "Access Denied", "You don't have permission to access this page.", "🔐")
-
-  def temporarilyDisabled = Page("Disabled").wrap(_ =>
-    div(cls := "box-pad")("Temporarily Disabled"))
-
-  def apply(title: String)(content: scalatags.Text.all.Frag) =
-    Page(title).wrap(_ => div(content))
-
-  def noBot = Page("No Bot").wrap(_ =>
-    div(cls := "box-pad")("Bot accounts not allowed"))
-
-  def noLame = Page("Restricted").wrap(_ =>
-    div(cls := "box-pad")("Account restricted"))

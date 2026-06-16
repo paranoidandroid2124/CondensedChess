@@ -13,7 +13,7 @@ html.pro {
 
   // App chrome
   body {
-    // Softer background than legacy gradient
+    // Softer page background
     background: $c-bg-page;
     ---cs-content-max-width: 1320px;
     ---cs-workspace-max-width: 1520px;
@@ -30,7 +30,7 @@ html.pro {
     ---main-max-width: var(---cs-workspace-max-width);
   }
 
-  // Header: simplify the "lichess" chrome into a product header
+  // Header: product chrome
   body > header {
     height: 64px;
     max-width: none;

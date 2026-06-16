@@ -4,7 +4,7 @@ import scala.concurrent.Future
 import scala.annotation.unused
 import java.util.concurrent.atomic.AtomicLong
 import java.time.Instant
-import lila.commentary.analysis.{ AuthoringEvidenceSummaryBuilder, MoveReviewCompressionPolicy, MoveReviewPlayerPayloadBuilder, MoveReviewPolishSlots, MoveReviewProseContract, MoveReviewPvLine, MoveReviewSoftRepair, MoveReviewStrategicLedgerBuilder, MoveReviewSupportedLocalSurfaceRows, BookStyleRenderer, CommentaryEngine, CommentaryOpsBoard, CommentaryOpsSignals, CommentaryPayloadNormalizer, DecisiveTruth, EarlyOpeningNarrationPolicy, FullGameDraftNormalizer, LiveNarrativeCompressionCore, NarrativeContextBuilder, NarrativeDedupCore, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, ProbePurposeClassifier, StrategyPackBuilder, PlayerProseBoundary, UserFacingSignalSanitizer }
+import lila.commentary.analysis.{ AuthoringEvidenceSummaryBuilder, MoveReviewCompressionPolicy, MoveReviewLocalFact, MoveReviewPlayerPayloadBuilder, MoveReviewPolishSlots, MoveReviewProseContract, MoveReviewPvLine, MoveReviewSoftRepair, MoveReviewStrategicLedgerBuilder, MoveReviewSupportedLocalSurfaceRows, BookStyleRenderer, CommentaryEngine, CommentaryOpsBoard, CommentaryOpsSignals, CommentaryPayloadNormalizer, DecisiveTruth, EarlyOpeningNarrationPolicy, FullGameDraftNormalizer, LiveNarrativeCompressionCore, NarrativeContextBuilder, NarrativeDedupCore, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, ProbePurposeClassifier, StrategyPackBuilder, PlayerProseBoundary, UserFacingSignalSanitizer }
 import lila.commentary.model.OpeningReference
 import lila.commentary.model.structure.StructureId
 import lila.commentary.model.strategic.{ VariationLine, TheoreticalOutcomeHint }
@@ -2080,6 +2080,47 @@ final class CommentaryApi(
       lang: String = "en",
       planTier: String = PlanTier.Basic
   ): Future[Option[MoveReviewResult]] =
+    moveReviewPositionWithRuntimeDiagnostics(
+      fen = fen,
+      lastMove = lastMove,
+      eval = eval,
+      variations = variations,
+      probeResults = probeResults,
+      openingData = openingData,
+      afterFen = afterFen,
+      afterEval = afterEval,
+      afterVariations = afterVariations,
+      opening = opening,
+      phase = phase,
+      ply = ply,
+      variant = variant,
+      prevStateToken = prevStateToken,
+      prevEndgameStateToken = prevEndgameStateToken,
+      allowAiPolish = allowAiPolish,
+      lang = lang,
+      planTier = planTier
+    ).map(_.map(_.result))
+
+  private[commentary] def moveReviewPositionWithRuntimeDiagnostics(
+      fen: String,
+      lastMove: Option[String],
+      eval: Option[EvalData],
+      variations: Option[List[VariationLine]],
+      probeResults: Option[List[lila.commentary.model.ProbeResult]] = None,
+      openingData: Option[OpeningReference] = None,
+      afterFen: Option[String] = None,
+      afterEval: Option[EvalData] = None,
+      afterVariations: Option[List[VariationLine]] = None,
+      opening: Option[String],
+      phase: String,
+      ply: Int,
+      variant: Option[String] = None,
+      prevStateToken: Option[lila.commentary.analysis.PlanStateTracker] = None,
+      prevEndgameStateToken: Option[lila.commentary.model.strategic.EndgamePatternState] = None,
+      allowAiPolish: Boolean = false,
+      lang: String = "en",
+      planTier: String = PlanTier.Basic
+  ): Future[Option[CommentaryApi.MoveReviewResultWithRuntime]] =
     val requestStartNs = System.nanoTime()
     val normalizedPlanTier = normalizePlanTier(planTier)
     val effectiveLevel = CommentaryMode.Polish
@@ -2127,7 +2168,14 @@ final class CommentaryApi(
           )
           recordLatencyMetrics(totalLatencyMs = elapsedMs(requestStartNs), structureEvalLatencyMs = None)
           maybeLogMoveReviewMetrics()
-          Future.successful(Some(MoveReviewResult(response = sanitizedCached, cacheHit = true)))
+          Future.successful(
+            Some(
+              CommentaryApi.MoveReviewResultWithRuntime(
+                result = MoveReviewResult(response = sanitizedCached, cacheHit = true),
+                runtime = None
+              )
+            )
+          )
         case None =>
           stateAwareCacheMissCount.incrementAndGet()
           computeMoveReviewResponse(
@@ -2139,7 +2187,6 @@ final class CommentaryApi(
             maybeLogMoveReviewMetrics()
             responseOpt
     }
-        
 
 
   private def computeMoveReviewResponse(
@@ -2162,10 +2209,17 @@ final class CommentaryApi(
       lang: String,
       cacheKey: CommentaryCache.Key,
       planTier: String
-  ): Future[(Option[MoveReviewResult], Option[Long])] =
+  ): Future[(Option[CommentaryApi.MoveReviewResultWithRuntime], Option[Long])] =
     val commentaryMode = CommentaryMode.Polish
     val effectivePly = NarrativeUtils.resolveAnnotationPly(fen, lastMove, ply)
     val normalizedVariant = EarlyOpeningNarrationPolicy.normalizeVariantKey(variant)
+    val stageTimings = scala.collection.mutable.LinkedHashMap.empty[String, Long]
+    def timeStage[A](stage: String)(body: => A): A =
+      val started = System.nanoTime()
+      try body
+      finally
+        val elapsed = ((System.nanoTime() - started) / 1000000L).max(0L)
+        stageTimings.update(stage, stageTimings.getOrElse(stage, 0L) + elapsed)
 
     val varsFromEval =
       eval.flatMap(_.pv).filter(_.nonEmpty).map { pv =>
@@ -2200,18 +2254,21 @@ final class CommentaryApi(
         val movingColor = if (isWhiteTurn) _root_.chess.Color.White else _root_.chess.Color.Black
         val tracker = prevStateToken.getOrElse(lila.commentary.analysis.PlanStateTracker.empty)
 
-        val dataOpt = CommentaryEngine.assessExtended(
-          fen = fen,
-          variations = vars,
-          playedMove = lastMove,
-          opening = opening,
-          phase = Some(phase),
-          ply = effectivePly,
-          prevMove = lastMove,
-          prevPlanContinuity = tracker.getContinuity(movingColor),
-          prevEndgameState = prevEndgameStateToken,
-          probeResults = probeResults.getOrElse(Nil)
-        )
+        val dataOpt =
+          timeStage("assess_before") {
+            CommentaryEngine.assessExtended(
+              fen = fen,
+              variations = vars,
+              playedMove = lastMove,
+              opening = opening,
+              phase = Some(phase),
+              ply = effectivePly,
+              prevMove = lastMove,
+              prevPlanContinuity = tracker.getContinuity(movingColor),
+              prevEndgameState = prevEndgameStateToken,
+              probeResults = probeResults.getOrElse(Nil)
+            )
+          }
 
         dataOpt match
           case None => Future.successful(None -> None)
@@ -2240,31 +2297,35 @@ final class CommentaryApi(
             recordEndgameMetrics(dataWithContinuity)
 
             val afterDataOpt =
-              afterFen
-                .filter(_.nonEmpty)
-                .filter(_ => afterVars.nonEmpty)
-                .flatMap { f =>
-                  CommentaryEngine.assessExtended(
-                    fen = f,
-                    variations = afterVars,
-                    playedMove = None,
-                    opening = opening,
-                    phase = Some(phase),
-                    ply = effectivePly,
-                    prevMove = None
-                  )
-                }
+              timeStage("assess_after") {
+                afterFen
+                  .filter(_.nonEmpty)
+                  .filter(_ => afterVars.nonEmpty)
+                  .flatMap { f =>
+                    CommentaryEngine.assessExtended(
+                      fen = f,
+                      variations = afterVars,
+                      playedMove = None,
+                      opening = opening,
+                      phase = Some(phase),
+                      ply = effectivePly,
+                      prevMove = None
+                    )
+                  }
+              }
 
             val contextBuild =
-              NarrativeContextBuilder.buildWithDiagnostics(
-                data = dataWithContinuity,
-                ctx = dataWithContinuity.toContext,
-                probeResults = probeResults.getOrElse(Nil),
-                openingRef = openingRef,
-                afterAnalysis = afterDataOpt,
-                renderMode = lila.commentary.model.NarrativeRenderMode.MoveReview,
-                variantKey = normalizedVariant
-              )
+              timeStage("context_build") {
+                NarrativeContextBuilder.buildWithDiagnostics(
+                  data = dataWithContinuity,
+                  ctx = dataWithContinuity.toContext,
+                  probeResults = probeResults.getOrElse(Nil),
+                  openingRef = openingRef,
+                  afterAnalysis = afterDataOpt,
+                  renderMode = lila.commentary.model.NarrativeRenderMode.MoveReview,
+                  variantKey = normalizedVariant
+                )
+              }
             val rawCtx = contextBuild.context
             recordStrategicMetrics(
               data = dataWithContinuity,
@@ -2272,19 +2333,24 @@ final class CommentaryApi(
               probeResults = probeResults.getOrElse(Nil),
               diagnosticPlanSidecar = contextBuild.diagnosticPlanSidecar
             )
-            val rawStrategyPack = StrategyPackBuilder.build(dataWithContinuity, rawCtx)
-            val truthContract =
-              DecisiveTruth.derive(
-                ctx = rawCtx,
-                transitionType = dataWithContinuity.planSequence.map(_.transitionType.toString),
-                strategyPack = rawStrategyPack
-              )
-            val ctx = DecisiveTruth.sanitizeContext(rawCtx, truthContract)
-            val strategyPack =
-              DecisiveTruth.sanitizeStrategyPack(
-                rawStrategyPack,
-                truthContract
-              )
+            val rawStrategyPack =
+              timeStage("strategy_pack") {
+                StrategyPackBuilder.build(dataWithContinuity, rawCtx)
+              }
+            val (truthContract, ctx, strategyPack) =
+              timeStage("truth_sanitize") {
+                val contract =
+                  DecisiveTruth.derive(
+                    ctx = rawCtx,
+                    transitionType = dataWithContinuity.planSequence.map(_.transitionType.toString),
+                    strategyPack = rawStrategyPack
+                  )
+                (
+                  contract,
+                  DecisiveTruth.sanitizeContext(rawCtx, contract),
+                  DecisiveTruth.sanitizeStrategyPack(rawStrategyPack, contract)
+                )
+              }
             val moveReviewRefVariations =
               CommentaryApi.appendMoveReviewAfterPvProofVariation(
                 fenBefore = fen,
@@ -2296,58 +2362,86 @@ final class CommentaryApi(
             val refs = buildMoveReviewRefs(fen, moveReviewRefVariations)
             val outline = BookStyleRenderer.validatedOutline(ctx, Some(truthContract), strategyPack)
             val moveReviewRuntime =
-              MoveReviewCompressionPolicy.buildSlotsOrFallbackWithRuntime(ctx, outline, refs, strategyPack, Some(truthContract))
+              timeStage("move_review_runtime") {
+                MoveReviewCompressionPolicy.buildSlotsOrFallbackWithRuntime(ctx, outline, refs, strategyPack, Some(truthContract))
+              }
             val moveReviewSlots = moveReviewRuntime.slots
             val moveReviewExplanation = moveReviewSlots.moveReviewExplanation
             val proseRaw = LiveNarrativeCompressionCore.deterministicProse(moveReviewSlots)
             val prose = CommentaryApi.sanitizeMoveReviewProse(proseRaw)
             val compactProse = EarlyOpeningNarrationPolicy.clampNarrative(ctx, prose, Some(truthContract))
             val baseConcepts = ctx.semantic.map(_.conceptSummary).getOrElse(Nil)
+            val moveReviewPlayerLineConsequence =
+              moveReviewRuntime.inputs.lineConsequence.filter { evidence =>
+                evidence.lineId.exists { lineId =>
+                  moveReviewSlots.localFact.exists(fact =>
+                    fact.family == MoveReviewLocalFact.Family.LineConsequence &&
+                      fact.evidenceRefs.contains(s"line_consequence_line_id:$lineId")
+                  )
+                }
+              }
             val allowedSans =
-              moveReviewRefVariations.flatMap(v => NarrativeUtils.uciListToSan(fen, v.moves))
-            val moveReviewLedger = MoveReviewStrategicLedgerBuilder.build(
-              ctx = ctx,
-              strategyPack = strategyPack,
-              refs = refs,
-              probeResults = probeResults.getOrElse(Nil),
-              planStateToken = prevStateToken,
-              endgameStateToken = prevEndgameStateToken
-            )
-            val authoringSurface = AuthoringEvidenceSummaryBuilder.build(ctx)
+              timeStage("allowed_sans") {
+                moveReviewRefVariations.flatMap(v => NarrativeUtils.uciListToSan(fen, v.moves))
+              }
+            val moveReviewLedger =
+              timeStage("ledger") {
+                MoveReviewStrategicLedgerBuilder.build(
+                  ctx = ctx,
+                  strategyPack = strategyPack,
+                  refs = refs,
+                  probeResults = probeResults.getOrElse(Nil),
+                  planStateToken = prevStateToken,
+                  endgameStateToken = prevEndgameStateToken,
+                  lineConsequence = moveReviewPlayerLineConsequence
+                )
+              }
+            val authoringSurface =
+              timeStage("authoring_surface") {
+                AuthoringEvidenceSummaryBuilder.build(ctx)
+              }
             val outboundProbeRequests = if probeResults.exists(_.nonEmpty) then Nil else ctx.probeRequests
             val supportedLocalRows =
-              MoveReviewSupportedLocalSurfaceRows.build(
-                ctx = ctx,
-                inputs = moveReviewRuntime.inputs,
-                rankedPlans = moveReviewRuntime.rankedPlans,
-                truthContract = Some(truthContract)
-              )
+              timeStage("supported_local_rows") {
+                MoveReviewSupportedLocalSurfaceRows.build(
+                  ctx = ctx,
+                  inputs = moveReviewRuntime.inputs,
+                  rankedPlans = moveReviewRuntime.rankedPlans,
+                  truthContract = Some(truthContract)
+                )
+              }
             val decisionComparisonSurface =
-              MoveReviewPlayerPayloadBuilder.decisionComparisonSurface(
-                inputs = moveReviewRuntime.inputs,
-                localFact = moveReviewSlots.localFact,
-                ctx = ctx,
-                refs = refs
-              )
+              timeStage("decision_comparison") {
+                MoveReviewPlayerPayloadBuilder.decisionComparisonSurface(
+                  inputs = moveReviewRuntime.inputs,
+                  localFact = moveReviewSlots.localFact,
+                  ctx = ctx,
+                  refs = refs
+                )
+              }
             val playerSurfaceEvaluatedPlans =
               if ctx.strategicPlanEvidence.evaluatedPlans.nonEmpty then ctx.strategicPlanEvidence.evaluatedPlans
               else contextBuild.selectedMainEvaluatedPlans
             val moveReviewPlayerSurface =
-              MoveReviewPlayerPayloadBuilder.build(
-                ctx = ctx,
-                moveReviewExplanation = moveReviewExplanation,
-                moveReviewLedger = moveReviewLedger,
-                refs = refs,
-                evaluatedPlans = playerSurfaceEvaluatedPlans,
-                authoringSurface = authoringSurface,
-                supportedLocalRows = supportedLocalRows,
-                decisionComparisonSurface = decisionComparisonSurface,
-                strategyPack = strategyPack,
-                truthContract = Some(truthContract)
-              )
+              timeStage("player_payload") {
+                MoveReviewPlayerPayloadBuilder.build(
+                  ctx = ctx,
+                  moveReviewExplanation = moveReviewExplanation,
+                  moveReviewLedger = moveReviewLedger,
+                  refs = refs,
+                  evaluatedPlans = playerSurfaceEvaluatedPlans,
+                  authoringSurface = authoringSurface,
+                  supportedLocalRows = supportedLocalRows,
+                  decisionComparisonSurface = decisionComparisonSurface,
+                  strategyPack = strategyPack,
+                  truthContract = Some(truthContract),
+                  lineConsequence = moveReviewPlayerLineConsequence
+                )
+              }
             val strategyPromptHints = strategyHints(strategyPack)
             val validationSeed = Option(moveReviewSlots.validationSeedText).filter(_.nonEmpty).getOrElse(compactProse)
 
+            val polishStarted = System.nanoTime()
             maybePolishCommentary(
               prose = compactProse,
               validationSeed = validationSeed,
@@ -2368,6 +2462,10 @@ final class CommentaryApi(
               commentaryMode = commentaryMode,
               moveReviewSlots = Some(moveReviewSlots)
             ).map { decision =>
+              stageTimings.update(
+                "polish",
+                stageTimings.getOrElse("polish", 0L) + ((System.nanoTime() - polishStarted) / 1000000L).max(0L)
+              )
               val response =
                 dedupeMoveReviewResponse(
                   UserFacingPayloadSanitizer.sanitize(
@@ -2421,17 +2519,48 @@ final class CommentaryApi(
               )
               if response.planStateToken.isDefined then tokenEmitCount.incrementAndGet()
               commentaryCache.put(cacheKey, response)
+              val runtimeDiagnostics =
+                CommentaryApi.MoveReviewRuntimeDiagnostics(
+                  rawCtx = rawCtx,
+                  ctx = ctx,
+                  strategyPack = strategyPack,
+                  truthContract = Some(truthContract),
+                  refs = refs,
+                  runtime = moveReviewRuntime,
+                  stageTimingsMs =
+                    stageTimings.toMap ++
+                      moveReviewRuntime.stageTimingsMs.map { case (stage, ms) => s"runtime.$stage" -> ms }
+                )
               Some(
-                MoveReviewResult(
-                  response = response,
-                  cacheHit = decision.cacheHit,
-                  diagnosticPlanSidecar = Some(contextBuild.diagnosticPlanSidecar)
+                CommentaryApi.MoveReviewResultWithRuntime(
+                  result =
+                    MoveReviewResult(
+                      response = response,
+                      cacheHit = decision.cacheHit,
+                      diagnosticPlanSidecar = Some(contextBuild.diagnosticPlanSidecar)
+                    ),
+                  runtime = Some(runtimeDiagnostics)
                 )
               ) -> dataWithContinuity.structureEvalLatencyMs
             }
 
 
 private[commentary] object CommentaryApi:
+
+  private[commentary] final case class MoveReviewRuntimeDiagnostics(
+      rawCtx: lila.commentary.model.NarrativeContext,
+      ctx: lila.commentary.model.NarrativeContext,
+      strategyPack: Option[StrategyPack],
+      truthContract: Option[lila.commentary.analysis.DecisiveTruthContract],
+      refs: Option[MoveReviewRefs],
+      runtime: MoveReviewCompressionPolicy.RuntimeResult,
+      stageTimingsMs: Map[String, Long] = Map.empty
+  )
+
+  private[commentary] final case class MoveReviewResultWithRuntime(
+      result: MoveReviewResult,
+      runtime: Option[MoveReviewRuntimeDiagnostics]
+  )
 
   private def collapseRepeatedDots(input: String): String =
     @annotation.tailrec

@@ -1,16 +1,13 @@
 import { h, type VNode } from 'snabbdom';
 import type AnalyseCtrl from '../ctrl';
 import { defined, notNull } from 'lib';
-import * as licon from 'lib/licon';
-import { iconTag, type MaybeVNode, type MaybeVNodes } from 'lib/view';
+import { type MaybeVNode, type MaybeVNodes } from 'lib/view';
 
 
 interface ClockOpts {
   centis: number | undefined;
   active: boolean;
   cls: string;
-  showTenths: boolean;
-  pause: boolean;
 }
 
 export default function renderClocks(ctrl: AnalyseCtrl, path: Tree.Path): [VNode, VNode] | undefined {
@@ -32,23 +29,16 @@ export default function renderClocks(ctrl: AnalyseCtrl, path: Tree.Path): [VNode
     if (centis[i]) centis[i] = Math.max(0, centis[i]! - spent);
   }
 
-  const showTenths = true;
-  const pause = false;
-
   return [
     renderClock({
       centis: centis[0],
       active: isWhiteTurn,
       cls: whitePov ? 'bottom' : 'top',
-      showTenths,
-      pause,
     }),
     renderClock({
       centis: centis[1],
       active: !isWhiteTurn,
       cls: whitePov ? 'top' : 'bottom',
-      showTenths,
-      pause,
     }),
   ];
 }
@@ -66,14 +56,11 @@ function clockContent(opts: ClockOpts): MaybeVNodes {
     millis = date.getUTCMilliseconds(),
     sep = ':',
     baseStr = pad2(date.getUTCMinutes()) + sep + pad2(date.getUTCSeconds());
-  const timeNodes =
-    !opts.showTenths || opts.centis >= 360000
-      ? [Math.floor(opts.centis / 360000) + sep + baseStr]
-      : opts.centis >= 6000
-        ? [baseStr]
-        : [baseStr, h('tenths', '.' + Math.floor(millis / 100).toString())];
-  const pauseNodes = opts.pause ? [iconTag(licon.Pause)] : [];
-  return [...pauseNodes, ...timeNodes];
+  return opts.centis >= 360000
+    ? [Math.floor(opts.centis / 360000) + sep + baseStr]
+    : opts.centis >= 6000
+      ? [baseStr]
+      : [baseStr, h('tenths', '.' + Math.floor(millis / 100).toString())];
 }
 
 function clockContentNvui(opts: ClockOpts): MaybeVNode {

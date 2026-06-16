@@ -28,7 +28,6 @@ export function annotationShapes(node: Tree.Node): DrawShape[] {
             brush: prerendered ? '' : undefined,
             customSvg: prerendered ? { html: prerendered } : undefined,
             label: prerendered ? undefined : { text: symbol, fill: 'purple' },
-            // keep some purple just to keep feedback forum on their toes
           };
         })
         // needed so that the right-most (and first) glyph is at the top of the stack
@@ -68,7 +67,7 @@ const blackIsWinning = composeGlyph(
   '<path fill="none" stroke="#fff" stroke-width="8" d="M71 27v46m23-23H48m-8 0H4"/>',
 );
 
-const glyphToSvg: Dictionary<(stackedNumber: number) => string> = {
+const glyphToSvg: Partial<Record<string, (stackedNumber: number) => string>> = {
   // Inaccuracy
   '?!': composeGlyph(
     '#56b4e9',

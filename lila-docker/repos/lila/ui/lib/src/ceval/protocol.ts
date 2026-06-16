@@ -14,8 +14,6 @@ export class Protocol {
   private send: ((cmd: string) => void) | undefined;
   private options: Map<string, string | number> = new Map<string, string>();
 
-  constructor(readonly variantMap?: (v: VariantKey) => string) {}
-
   connected(send: (cmd: string) => void): void {
     this.send = send;
 
@@ -53,8 +51,7 @@ export class Protocol {
       this.setOption('UCI_AnalyseMode', 'true');
       this.setOption('Analysis Contempt', 'Off');
 
-      // Affects notation only. Life would be easier if everyone would always
-      // unconditionally use this mode.
+      // Affects notation only and keeps castling compatible with Chess960.
       this.setOption('UCI_Chess960', 'true');
 
       this.send?.('ucinewgame');
@@ -118,8 +115,7 @@ export class Protocol {
       const pivot = this.work.threatMode ? 0 : 1;
       const ev = this.work.ply % 2 === pivot ? -povEv : povEv;
 
-      // For now, ignore most upperbound/lowerbound messages.
-      // However non-primary pvs may only have an upperbound.
+      // Ignore primary upperbound/lowerbound messages; non-primary pvs may only have an upperbound.
       if (evalType && multiPv === 1) return;
 
       const pvData = {
@@ -176,7 +172,7 @@ export class Protocol {
       this.currentEval = undefined;
       this.expectedPvs = 1;
 
-      this.setOption('UCI_Variant', this.variantMap?.(this.work.variant) ?? this.work.variant);
+      this.setOption('UCI_Variant', this.work.variant);
       this.setOption('Threads', this.work.threads);
       this.setOption('Hash', this.work.hashSize || 16);
       this.setOption('MultiPV', Math.max(1, this.work.multiPv));

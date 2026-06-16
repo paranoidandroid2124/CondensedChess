@@ -1,12 +1,11 @@
 import { repeater, myUserId } from 'lib';
 import * as licon from 'lib/licon';
 import { preferenceLocalStorage } from 'lib/cookieConsent';
-import { type VNode, onInsert, hl, icon } from 'lib/view';
+import { type VNode, onInsert, hl, icon, domDialog } from 'lib/view';
 import { displayColumns, isTouchDevice } from 'lib/device';
 import { addPointerListeners } from 'lib/pointer';
 import * as control from '../control';
 import type AnalyseCtrl from '../ctrl';
-import { domDialog } from 'lib/view';
 
 type Action =
   | 'first'
@@ -20,8 +19,12 @@ type Action =
 
 export function renderControls(ctrl: AnalyseCtrl) {
   const canJumpPrev = ctrl.path !== '',
-    canJumpNext = !!ctrl.node.children[0];
-  const reviewShell = ctrl.isReviewShell();
+    canJumpNext = !!ctrl.node.children[0],
+    columns = displayColumns(),
+    touchDevice = isTouchDevice(),
+    mobileUi = columns === 1 && touchDevice,
+    reviewShell = ctrl.isReviewShell(),
+    activeTool = ctrl.activeControlBarTool();
 
   return hl(
     'div.analyse__controls.analyse-controls',
@@ -29,21 +32,21 @@ export function renderControls(ctrl: AnalyseCtrl) {
       hook: onInsert(el =>
         addPointerListeners(el, {
           click: e => clickControl(ctrl, e),
-          hscrub: isTouchDevice() ? dx => scrubControl(ctrl, dx) : undefined,
+          hscrub: touchDevice ? dx => scrubControl(ctrl, dx) : undefined,
           hold: e => holdControl(ctrl, e),
         }),
       ),
     },
     [
-      ctrl.isCevalAllowed() && (!reviewShell || displayColumns() === 1) && renderAnalysisToggle(ctrl),
+      ctrl.isCevalAllowed() && (!reviewShell || columns === 1) && renderAnalysisToggle(ctrl, activeTool, columns > 1),
       hl('div.jumps', [
-        !isMobileUi() && jumpButton(licon.JumpFirst, 'first', canJumpPrev),
+        !mobileUi && jumpButton(licon.JumpFirst, 'first', canJumpPrev),
         jumpButton(licon.LessThan, 'prev', canJumpPrev),
-        isMobileUi() &&
+        mobileUi &&
           !scrubHelpAcknowledged() &&
           hl('i.scrub-help', { attrs: { 'data-act': 'scrub-help' } }, [icon(licon.InfoCircle as any)]),
         jumpButton(licon.GreaterThan, 'next', canJumpNext),
-        !isMobileUi() &&
+        !mobileUi &&
           jumpButton(licon.JumpLast, 'last', ctrl.node !== ctrl.mainline[ctrl.mainline.length - 1]),
       ]),
       hl(
@@ -55,7 +58,7 @@ export function renderControls(ctrl: AnalyseCtrl) {
           },
           class: {
             hidden: !ctrl.explorer.allowed(),
-            active: ctrl.activeControlBarTool() === 'opening-explorer',
+            active: activeTool === 'opening-explorer',
           },
         },
         [icon(licon.Book as any)],
@@ -63,7 +66,7 @@ export function renderControls(ctrl: AnalyseCtrl) {
       hl(
         'button.fbt',
         {
-          class: { active: ctrl.activeControlBarTool() === 'action-menu' },
+          class: { active: activeTool === 'action-menu' },
           attrs: { title: reviewShell ? 'Board view and settings' : 'Menu', 'data-act': 'menu' },
         },
         [icon(licon.Hamburger as any)],
@@ -72,10 +75,9 @@ export function renderControls(ctrl: AnalyseCtrl) {
   );
 }
 
-function renderAnalysisToggle(ctrl: AnalyseCtrl): VNode {
+function renderAnalysisToggle(ctrl: AnalyseCtrl, activeTool: string | false, showLabel: boolean): VNode {
   const active = ctrl.isReviewShell() ? ctrl.showEnginePanel() : ctrl.showCeval(),
-    latent = active && !!ctrl.activeControlBarTool(),
-    showLabel = displayColumns() > 1;
+    latent = active && !!activeTool;
   return hl(
     'button.fbt.fbt--engine-toggle',
     {
@@ -142,10 +144,6 @@ function scrubControl(ctrl: AnalyseCtrl, dx: number | 'pointerup') {
 
 const jumpButton = (iconName: string, effect: string, enabled: boolean): VNode =>
   hl('button.fbt.move', { class: { disabled: !enabled }, attrs: { 'data-act': effect } }, [icon(iconName as any)]);
-
-function isMobileUi() {
-  return displayColumns() === 1 && isTouchDevice();
-}
 
 function scrubHelp(ctrl: AnalyseCtrl) {
   domDialog({

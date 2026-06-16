@@ -52,7 +52,7 @@ private[analysis] object AlternativeNarrativeSupport:
 
     (moveA, moveB) match
       case (Some(ma), Some(mb)) =>
-        val engineEvidences = LineConsequenceEvaluator.fromEngine(ctx)
+        val engineEvidences = LineConsequenceEvaluator.fromEngine(ctx).filter(LineConsequenceEvaluator.genericSurfaceCandidateAllowed)
         val evidenceA = engineEvidences.find(e =>
           e.sanMoves.headOption.exists(equalMoveToken(ctx.fen)(_, ma)) ||
           e.uciMoves.headOption.exists(equalMoveToken(ctx.fen)(_, ma))
@@ -145,8 +145,13 @@ private[analysis] object AlternativeNarrativeSupport:
       case LineConsequenceKind.ExchangeSequence     => s"trades via $line"
       case LineConsequenceKind.ForcingCheckSequence => s"starts a forcing check sequence with $line"
       case LineConsequenceKind.MaterialTransition   => s"changes the material balance with $line"
+      case LineConsequenceKind.ImmediateOpponentPawnCapture => s"allows an immediate pawn capture via $line"
+      case LineConsequenceKind.ImmediateOpponentTargetPressure => s"allows immediate reply pressure via $line"
+      case LineConsequenceKind.PlayedMoveTargetPressure => s"keeps target pressure via $line"
+      case LineConsequenceKind.DelayedPawnCapture   => s"reaches a delayed pawn capture via $line"
       case LineConsequenceKind.PassedPawnCreation   => s"creates a passed pawn via $line"
       case LineConsequenceKind.PromotionRace        => s"pushes a passed pawn toward promotion via $line"
+      case LineConsequenceKind.MinorPieceReroute    => s"reroutes a minor piece via $line"
       case _                                        => s"follows $line"
 
   private def variationLeadSan(fen: String, line: VariationLine): Option[String] =

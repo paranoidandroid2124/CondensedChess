@@ -5,7 +5,6 @@ import lila.core.study.StudyOrder
 import lila.ui.*
 import ScalatagsTemplate.{ *, given }
 
-// Chesstory: Aggressively simplified Study bits UI
 final class StudyBits(helpers: Helpers):
   import helpers.*
 

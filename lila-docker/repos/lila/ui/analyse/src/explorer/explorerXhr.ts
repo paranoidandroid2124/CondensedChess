@@ -1,15 +1,13 @@
-import type { ExplorerDb, OpeningData, TablebaseData } from './interfaces';
+import type { OpeningData, TablebaseData } from './interfaces';
 import * as xhr from 'lib/xhr';
 import { readNdJson } from 'lib/xhr';
 
 interface OpeningXhrOpts {
   endpoint: string;
-  db: ExplorerDb;
   rootFen: FEN;
   play: string[];
   fen: FEN;
   variant?: VariantKey;
-  withGames?: boolean;
 }
 
 export async function opening(
@@ -19,15 +17,13 @@ export async function opening(
 ): Promise<void> {
   if (!opts.endpoint) throw new Error('Missing explorer endpoint');
   const endpoint = opts.endpoint.endsWith('/') ? opts.endpoint : `${opts.endpoint}/`;
-  const url = new URL(opts.db, endpoint);
+  const url = new URL('masters', endpoint);
   const params = url.searchParams;
   params.set('variant', opts.variant || 'standard');
   params.set('fen', opts.rootFen);
   params.set('play', opts.play.join(','));
-  if (!opts.withGames) {
-    params.set('topGames', '0');
-    params.set('recentGames', '0');
-  }
+  params.set('topGames', '0');
+  params.set('recentGames', '0');
   params.set('source', 'analysis');
 
   const res = await fetch(url.href, {
@@ -46,12 +42,10 @@ export async function opening(
 
 export async function tablebase(
   endpoint: string,
-  variant: VariantKey,
   fen: FEN,
   signal?: AbortSignal,
 ): Promise<TablebaseData> {
-  const effectiveVariant = variant === 'fromPosition' || variant === 'chess960' ? 'standard' : variant;
-  const data = await xhr.json(xhr.url(`${endpoint}/${effectiveVariant}`, { fen }), {
+  const data = await xhr.json(xhr.url(`${endpoint}/standard`, { fen }), {
     cache: 'default',
     headers: {}, // avoid default headers for cors
     credentials: 'omit',

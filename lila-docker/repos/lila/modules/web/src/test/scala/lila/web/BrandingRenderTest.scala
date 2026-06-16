@@ -133,15 +133,11 @@ class BrandingRenderTest extends FunSuite {
        def pref = mockPref
        def ip = lila.core.net.IpV4Address("127.0.0.1")
        def blind = false
-       def troll = false
-       def isBot = false
     }
 
     implicit val pageCtx: PageContext = new PageContext {
        override val me = None 
        val impersonatedBy = None
-       def teamNbRequests = 0
-       def hasInquiry = false
        def nonce = None
        def error = false
        
@@ -153,8 +149,6 @@ class BrandingRenderTest extends FunSuite {
        def pref = mockCtx.pref
        def ip = mockCtx.ip
        def blind = mockCtx.blind
-       def troll = mockCtx.troll
-       def isBot = mockCtx.isBot
     }
 
     // 3. Instantiate Layout
@@ -163,10 +157,7 @@ class BrandingRenderTest extends FunSuite {
 
     // 4. Render
     val headerHtml = layout.siteHeader(
-      zenable = false,
       isAppealUser = false,
-      challenges = 0,
-      notifications = 0,
       error = false,
       topnav = renderedTopNav
     ).toString

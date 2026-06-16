@@ -17,7 +17,7 @@ const pieceDrop = (key: Key, role: Role, color: Color): DrawShape => ({
   brush: 'green',
 });
 
-export function makeShapesFromUci(
+function makeShapesFromUci(
   color: Color,
   uci: Uci,
   brush: string,

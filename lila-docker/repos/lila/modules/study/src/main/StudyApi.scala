@@ -14,8 +14,6 @@ import lila.tree.Clock
 import lila.tree.Node.{ Comment, Gamebook, Shapes }
 import cats.mtl.Handle.*
 
-// Chesstory: Removed socket.Sri, timeline, chat, flairApi - analysis-only system
-
 final class StudyApi(
     studyRepo: StudyRepo,
     chapterRepo: ChapterRepo,
@@ -160,7 +158,6 @@ final class StudyApi(
     _ <- chapterRepo.insert(sc.chapter)
   yield sc.some
 
-  // Chesstory: removed chat system message - analysis system doesn't need chat
   def cloneWithChat(me: User, prev: Study, update: Study => Study = identity): Fu[Option[Study]] =
     justCloneNoChecks(me, prev, update).map(_.some)
 
@@ -205,7 +202,6 @@ final class StudyApi(
               logger.warn(s"Couldn't reset study ${study.id}, no first chapter id found?!")
               fuccess(defaultResult)
 
-  // Chesstory: removed chat - analysis system doesn't need chat
   def talk(userId: UserId, studyId: StudyId, text: String): Unit = ()
 
   def setPath(studyId: StudyId, position: Position.Ref)(who: Who): Funit =
@@ -796,7 +792,6 @@ final class StudyApi(
   def deleteById(id: StudyId) =
     studyRepo.byId(id).flatMap(_.so(delete))
 
-  // Chesstory: simplified like - removed socket notification and timeline propagation
   def like(studyId: StudyId, v: Boolean)(who: Who): Funit =
     studyRepo.like(studyId, who.u, v).void
 
@@ -831,14 +826,13 @@ final class StudyApi(
       for _ <- inviter.becomeAdmin(me)(study)
       yield Bus.pub(StudyMembers.OnChange(study))
 
-  // Chesstory: removed socket - analysis system doesn't need real-time updates
   private def reloadSriBecauseOf(
       study: Study,
       chapterId: StudyChapterId,
       reason: Option["overweight"] = none
-  ): Unit = () // No-op
+  ): Unit = ()
 
-  def reloadChapters(study: Study): Unit = () // No-op
+  def reloadChapters(study: Study): Unit = ()
 
   private def canActAsOwner(study: Study, userId: UserId): Fu[Boolean] =
     fuccess(study.isOwner(userId)) >>| studyRepo.isAdminMember(study, userId) >>|
@@ -847,5 +841,4 @@ final class StudyApi(
   private def Contribute[A: Zero](userId: UserId, study: Study)(f: => A): A =
     study.canContribute(userId).so(f)
 
-  // Chesstory: removed socket registration - sendTo is now no-op
-  private def sendTo(studyId: StudyId)(f: Any): Unit = () // No-op
+  private def sendTo(studyId: StudyId)(f: Any): Unit = ()

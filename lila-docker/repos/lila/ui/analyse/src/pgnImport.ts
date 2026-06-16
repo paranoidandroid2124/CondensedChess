@@ -1,9 +1,8 @@
-import type { AnalyseData, Game } from './interfaces';
+import type { AnalyseData } from './interfaces';
 import { makeFen } from 'chessops/fen';
 import { makeSanAndPlay, parseSan } from 'chessops/san';
-import { makeUci, type Rules } from 'chessops';
+import { makeUci } from 'chessops';
 import {
-  makeVariant,
   parsePgn,
   parseVariant,
   startingPosition,
@@ -11,9 +10,16 @@ import {
   type PgnNodeData,
 } from 'chessops/pgn';
 import { IllegalSetup, type Position } from 'chessops/chess';
-import type { Player } from 'lib/game';
 import { scalachessCharPair } from 'chessops/compat';
 import { makeSquare } from 'chessops/util';
+
+const pgnErrorMessages: Partial<Record<string, string>> = {
+  [IllegalSetup.Empty]: 'empty board',
+  [IllegalSetup.OppositeCheck]: 'king in check',
+  [IllegalSetup.PawnsOnBackrank]: 'pawns on back rank',
+  [IllegalSetup.Kings]: 'king(s) missing',
+  [IllegalSetup.Variant]: 'invalid Variant header',
+};
 
 const readNode = (
   node: ChildNode<PgnNodeData>,
@@ -37,6 +43,20 @@ const readNode = (
 export default function (pgn: string): Partial<AnalyseData> {
   const game = parsePgn(pgn)[0];
   const headers = new Map(Array.from(game.headers, ([key, value]) => [key.toLowerCase(), value]));
+  const variantHeader = headers.get('variant')?.trim() ?? '';
+  const rules = parseVariant(headers.get('variant'));
+  if (rules && rules !== 'chess') throw new Error(IllegalSetup.Variant);
+  const variant: Variant = /^(?:chess\s*960|fischer\s*random)$/i.test(variantHeader)
+    ? {
+        key: 'chess960',
+        name: 'Chess960',
+        short: '960',
+      }
+    : {
+        key: 'standard',
+        name: 'standard',
+        short: 'standard',
+      };
   const start = startingPosition(game.headers).unwrap();
   const fen = makeFen(start.toSetup());
   const initialPly = (start.toSetup().fullmoves - 1) * 2 + (start.turn === 'white' ? 0 : 1);
@@ -60,12 +80,8 @@ export default function (pgn: string): Partial<AnalyseData> {
     tree = mainline;
     index += 1;
   }
-  const rules: Rules = parseVariant(headers.get('variant')) || 'chess';
-  const variantKey: VariantKey = rulesToVariantKey[rules] || rules;
-  const variantName = makeVariant(rules) || variantKey;
   const openingName = headers.get('opening');
   const eco = headers.get('eco');
-  // TODO Improve types so that analysis data != game data
   return {
     game: {
       fen,
@@ -74,38 +90,18 @@ export default function (pgn: string): Partial<AnalyseData> {
       opening: openingName ? {
         name: openingName,
         eco: eco || '?',
-        ply: 0,
       } : undefined,
-      player: start.turn,
       status: { id: 20, name: 'started' },
       turns: treeParts.length,
-      variant: {
-        key: variantKey,
-        name: variantName,
-        short: variantName,
-      },
-    } as Game,
-    player: { color: 'white' } as Player,
-    opponent: { color: 'black' } as Player,
+      variant,
+    },
+    player: { color: 'white' },
+    opponent: { color: 'black' },
     treeParts,
     sidelines,
     userAnalysis: true,
   };
 }
 
-const rulesToVariantKey: { [key: string]: VariantKey } = {
-  chess: 'standard',
-  kingofthehill: 'kingOfTheHill',
-  '3check': 'threeCheck',
-  racingkings: 'racingKings',
-};
-
 export const renderPgnError = (error: string = '') =>
-  `PGN error: ${{
-    [IllegalSetup.Empty]: 'empty board',
-    [IllegalSetup.OppositeCheck]: 'king in check',
-    [IllegalSetup.PawnsOnBackrank]: 'pawns on back rank',
-    [IllegalSetup.Kings]: 'king(s) missing',
-    [IllegalSetup.Variant]: 'invalid Variant header',
-  }[error] ?? error
-  }`;
+  `PGN error: ${pgnErrorMessages[error] ?? error}`;

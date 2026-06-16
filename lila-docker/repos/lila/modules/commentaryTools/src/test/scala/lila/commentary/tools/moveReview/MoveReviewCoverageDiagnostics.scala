@@ -2,7 +2,7 @@ package lila.commentary.tools.moveReview
 
 import lila.commentary.{ MoveReviewMoveRef, MoveReviewRefs, StrategyPack }
 import lila.commentary.analysis.*
-import lila.commentary.analysis.claim.ProofContractRules
+import lila.commentary.analysis.claim.{ ClaimAuthorityResolver, ProofContractRules }
 import lila.commentary.analysis.semantic.StrategicObservationIds.ProofFamilyId
 import lila.commentary.model.*
 
@@ -59,7 +59,7 @@ object MoveReviewCoverageDiagnostics:
       plannerInputs: QuestionPlannerInputs,
       causalTrace: Option[MoveReviewCompressionPolicy.CausalClaimTrace] = None
   ): Result =
-    val basic = basicEvidence(ctx, refs, strategyPack, truthContract, slots.sourceKind)
+    val basic = basicEvidence(ctx, refs, strategyPack, truthContract, plannerInputs, slots.sourceKind)
     val supportedLocal =
       supportedLocalFromInputs(
         ctx,
@@ -89,6 +89,7 @@ object MoveReviewCoverageDiagnostics:
       refs: Option[MoveReviewRefs],
       strategyPack: Option[StrategyPack],
       truthContract: Option[DecisiveTruthContract],
+      plannerInputs: QuestionPlannerInputs,
       sourceKind: String
   ): BasicEvidenceDiagnostic =
     sourceKind match
@@ -104,7 +105,9 @@ object MoveReviewCoverageDiagnostics:
         if played.isEmpty then blockerReasons += "missing_current_move"
         if played.nonEmpty && lineFacts.isEmpty then blockerReasons += coupledPvMissingReason(played.get, refs)
         if played.nonEmpty && lineFacts.nonEmpty && explanation.isEmpty then blockerReasons += "no_descriptor_rule_matched"
-        val detailReasons = played.toList.flatMap(move => basicDetailReasons(ctx, move, lineFacts, explanation))
+        if explanation.exists(expl => MoveReviewCompressionPolicy.positiveBasicExplanationBlockedByTruth(expl.source, truthContract))
+        then blockerReasons += "positive_basic_blocked_by_truth_contract"
+        val detailReasons = played.toList.flatMap(move => basicDetailReasons(ctx, plannerInputs, move, lineFacts, explanation))
         val reasons =
           (blockerReasons.result() ++ detailReasons).distinct match
             case Nil => List("basic_builder_not_emitted")
@@ -183,6 +186,7 @@ object MoveReviewCoverageDiagnostics:
 
   private def basicDetailReasons(
       ctx: NarrativeContext,
+      plannerInputs: QuestionPlannerInputs,
       played: CommentaryIdeaSurface.PlayedMove,
       lineFacts: Option[MoveReviewPvLine.LineFacts],
       explanation: Option[lila.commentary.MoveReviewExplanation]
@@ -206,7 +210,33 @@ object MoveReviewCoverageDiagnostics:
       motifs.exists(_.isInstanceOf[Motif.Capture]) &&
       !isImmediateRecapture(played.toKey, lineFacts.flatMap(_.reply))
     then reasons += "capture_not_immediate_recapture"
+    if evalGapWithoutConcreteDescriptor(plannerInputs, lineFacts, explanation) then
+      reasons += "eval_gap_without_concrete_descriptor"
     reasons.result()
+
+  private def evalGapWithoutConcreteDescriptor(
+      inputs: QuestionPlannerInputs,
+      lineFacts: Option[MoveReviewPvLine.LineFacts],
+      explanation: Option[lila.commentary.MoveReviewExplanation]
+  ): Boolean =
+    explanation.isEmpty &&
+      lineFacts.nonEmpty &&
+      inputs.decisionComparison.exists(comparison =>
+        !comparison.chosenMatchesBest &&
+          comparison.cpLossVsChosen.exists(loss => math.abs(loss) >= 60)
+      ) &&
+      inputs.localFactResult.isEmpty &&
+      inputs.lineConsequence.forall(evidence =>
+        evidence.kind == LineConsequenceKind.PreviewOnly || !evidence.surfaceReady
+      ) &&
+      inputs.pvDelta.forall(pvDeltaEmpty) &&
+      inputs.pvCoupledPlanSupport.forall(!_.anchorMatched)
+
+  private def pvDeltaEmpty(delta: PVDelta): Boolean =
+    delta.resolvedThreats.isEmpty &&
+      delta.newOpportunities.isEmpty &&
+      delta.planAdvancements.isEmpty &&
+      delta.concessions.isEmpty
 
   private def supportedLocalFromInputs(
       ctx: NarrativeContext,
@@ -293,6 +323,8 @@ object MoveReviewCoverageDiagnostics:
       NeutralizeKeyBreakSurfaceGate.decideForPacket(packet, ctx).admitted
     else if packet.proofFamily == CentralBreakTimingWitness.ProofFamily then
       ctx.flatMap(CentralBreakTimingWitness.exact).exists(CentralBreakTimingSurfaceGate.decide(_).admitted)
+    else if packet.proofFamily == ProofFamilyId.ColorComplexSqueeze.wireKey then
+      ClaimAuthorityResolver.colorComplexPositionProbeOwnershipFailure(ctx, packet).isEmpty
     else true
 
   private def surfaceFailureCodes(
@@ -306,6 +338,8 @@ object MoveReviewCoverageDiagnostics:
         .flatMap(CentralBreakTimingWitness.exact)
         .map(CentralBreakTimingSurfaceGate.decide(_).rejectReason.toList)
         .getOrElse(List(CentralBreakTimingSurfaceGate.MissingExactWitness))
+    else if packet.proofFamily == ProofFamilyId.ColorComplexSqueeze.wireKey then
+      ClaimAuthorityResolver.colorComplexPositionProbeOwnershipFailure(ctx, packet).toList
     else Nil
 
   private def tacticalVetoReasons(

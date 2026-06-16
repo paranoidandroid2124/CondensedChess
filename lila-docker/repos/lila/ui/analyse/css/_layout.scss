@@ -76,22 +76,8 @@ body {
     grid-area: puzzle;
   }
 
-  .chat__members {
-    grid-area: uchat;
-  }
-
   .keyboard-move {
     display: none;
-  }
-
-  ---chat-height: fit-content(0);
-
-  &--wiki {
-    ---chat-height: 0;
-  }
-
-  .mchat {
-    margin: $analyse-block-gap 0 0 0;
   }
 
   grid-template-rows: auto auto auto minmax(20em, 40vh);
@@ -101,9 +87,7 @@ body {
   'tools'
   'side'
   'round-training'
-  'under'
-  'chat'
-  'uchat';
+  'under';
 
   &.analyse--review-shell {
     box-sizing: border-box;
@@ -118,12 +102,11 @@ body {
     ---board-scale: calc(((var(---zoom, 80) / 100) * 0.75 + 0.25) * 0.75);
 
     grid-template-columns: 50px min(var(---col2-uniboard-width), 560px) $analyse-block-gap 450px;
-    grid-template-rows: auto auto auto auto $chat-height;
+    grid-template-rows: auto auto auto;
     grid-template-areas:
       'sidebar board        . tools'
       'sidebar controls     . tools'
-      'sidebar under        . tools'
-      'sidebar chat         . uchat';
+      'sidebar under        . tools';
 
     grid-row-gap: $analyse-block-gap;
     padding: $analyse-block-gap $analyse-shell-gutter-x;
@@ -174,13 +157,12 @@ body {
     }
 
     &--moveReview {
-      grid-template-rows: auto auto auto auto minmax(22rem, 45vh) auto $chat-height;
+      grid-template-rows: auto auto auto minmax(22rem, 45vh);
       grid-template-areas:
         'sidebar board        . tools'
         'sidebar controls     . tools'
         'sidebar under        . tools'
-        'sidebar side         side side'
-        'sidebar chat         . uchat';
+        'sidebar side         side side';
     }
   }
 
@@ -193,14 +175,13 @@ body {
     ---board-scale: calc(((var(---zoom, 80) / 100) * 0.75 + 0.25) * 0.72);
 
     grid-template-columns: min(var(---col3-uniboard-width), 560px) $analyse-block-gap 450px;
-    grid-template-rows: auto auto auto auto auto $chat-height;
+    grid-template-rows: auto auto auto auto auto;
     grid-template-areas:
       'board        . tools'
       'controls     . tools'
       'kb-move      . tools'
       'under        . tools'
-      'round-training round-training round-training'
-      'chat         . uchat';
+      'round-training round-training round-training';
 
     grid-row-gap: $analyse-block-gap;
 
@@ -217,25 +198,17 @@ body {
         450px
         $analyse-block-gap
         minmax(360px, 1fr);
-      grid-template-rows: auto auto auto auto auto $chat-height;
+      grid-template-rows: auto auto auto auto auto;
       grid-template-areas:
         'board        . tools . side'
         'controls     . tools . side'
         'kb-move      . tools . side'
         'under        . tools . side'
-        'round-training round-training round-training round-training round-training'
-        'chat         . uchat . .';
+        'round-training round-training round-training round-training round-training';
     }
 
     grid-row-gap: $analyse-block-gap;
     padding: $analyse-block-gap $analyse-shell-gutter-x;
-
-    .mchat {
-      margin-top: 0;
-      min-height: 10em;
-    }
-
-    @include crosstable-large;
   }
 }
 

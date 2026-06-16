@@ -7,7 +7,6 @@ import {
   type LooseVNode,
   type LooseVNodes,
   bind,
-  bindNonPassive,
   onInsert,
   icon,
   hl,
@@ -29,7 +28,7 @@ import * as pgnExport from '../pgnExport';
 import { spinnerVdom as spinner, stepwiseScroll } from 'lib/view';
 import * as Prefs from 'lib/prefs';
 import statusView from 'lib/game/view/status';
-import { fixCrazySan, plyToTurn } from 'lib/game/chess';
+import { plyToTurn } from 'lib/game/chess';
 import { dispatchChessgroundResize } from 'lib/chessgroundResize';
 import pgnImport, { renderPgnError } from '../pgnImport';
 import { normalizeInlinePgn } from '../pgnPipeline';
@@ -42,7 +41,7 @@ import {
   type SectionCardV1,
 } from '../notebookDossier';
 
-export interface ViewContext {
+interface ViewContext {
   ctrl: AnalyseCtrl;
   allowVideo?: boolean;
   concealOf?: ConcealOf;
@@ -361,7 +360,7 @@ export function renderBoard({ ctrl, playerBars, playerStrips, gaugeOn }: ViewCon
         hook:
           'ontouchstart' in window || !storage.boolean('scrollMoves').getOrDefault(true)
             ? undefined
-            : bindNonPassive(
+            : bind(
                 'wheel',
                 stepwiseScroll((e: WheelEvent, scroll: boolean) => {
                   const target = e.target as HTMLElement;
@@ -378,6 +377,8 @@ export function renderBoard({ ctrl, playerBars, playerStrips, gaugeOn }: ViewCon
                     ctrl.redraw();
                   }
                 }),
+                undefined,
+                false,
               ),
       },
       [
@@ -385,7 +386,7 @@ export function renderBoard({ ctrl, playerBars, playerStrips, gaugeOn }: ViewCon
         !skipInfo && playerBars?.[ctrl.bottomIsWhite() ? 1 : 0],
         chessground.render(ctrl),
         !skipInfo && playerBars?.[ctrl.bottomIsWhite() ? 0 : 1],
-        ctrl.promotion.view(ctrl.data.game.variant.key === 'antichess'),
+        ctrl.promotion.view(),
       ],
     ),
   ]);
@@ -399,7 +400,7 @@ export function renderUnderboard({ ctrl }: ViewContext) {
   );
 }
 
-export function renderInputs(ctrl: AnalyseCtrl): VNode | undefined {
+function renderInputs(ctrl: AnalyseCtrl): VNode | undefined {
   if (ctrl.ongoing || !ctrl.data.userAnalysis) return;
   if (ctrl.redirecting) return spinner();
   const currentPgn = pgnExport.renderFullTxt(ctrl);
@@ -1034,7 +1035,7 @@ function renderServerImportHistory(history: ImportHistoryView): VNode | undefine
       hl('div.copyables__recent', [
         hl('div.copyables__recent-head', [
           hl('strong', 'Recent accounts'),
-          hl('span', 'Jump back into Lichess or Chess.com imports without retyping usernames.'),
+          hl('span', 'Jump back into saved account imports without retyping usernames.'),
         ]),
         hl(
           'div.copyables__recent-list',
@@ -1071,7 +1072,7 @@ function renderSavedAnalysisEntry(entry: ImportHistoryAnalysis, current: boolean
     [
       hl('div.copyables__recent-kicker', [
         entry.providerLabel
-          ? renderHistoryBadge(entry.providerLabel, 'copyables__badge--provider', `copyables__badge--${providerTone(entry.provider)}`)
+          ? renderHistoryBadge(entry.providerLabel, 'copyables__badge--provider', providerToneClass(entry.provider))
           : null,
         renderHistoryBadge(
           sourceTypeLabel(entry.sourceType),
@@ -1106,7 +1107,7 @@ function renderSavedAccountEntry(entry: ImportHistoryAccount, priority: boolean)
     },
     [
       hl('div.copyables__recent-kicker', [
-        renderHistoryBadge(entry.providerLabel, 'copyables__badge--provider', `copyables__badge--${providerTone(entry.provider)}`),
+        renderHistoryBadge(entry.providerLabel, 'copyables__badge--provider', providerToneClass(entry.provider)),
         priority ? renderHistoryBadge('Latest', 'copyables__badge--priority') : null,
         entry.lastAnalysedAt ? renderHistoryBadge('Analysed', 'copyables__badge--activity') : null,
       ]),
@@ -1162,8 +1163,10 @@ function renderHistoryBadge(label: string, ...classes: string[]): VNode {
   return hl(`span.copyables__badge${suffix}`, label);
 }
 
-function providerTone(provider: string | undefined): string {
-  return provider === 'chesscom' ? 'chesscom' : 'lichess';
+function providerToneClass(provider: string | undefined): string {
+  if (provider === 'chesscom') return 'copyables__badge--chesscom';
+  if (provider === 'lichess') return 'copyables__badge--lichess';
+  return '';
 }
 
 function sourceTypeLabel(sourceType: string): string {
@@ -1174,7 +1177,7 @@ function sourceTypeTone(sourceType: string): string {
   return sourceType === 'manual' ? 'manual' : 'imported';
 }
 
-export function renderResult(ctrl: AnalyseCtrl): VNode[] {
+function renderResult(ctrl: AnalyseCtrl): VNode[] {
   const render = (result: string, status: string) => [hl('div.result', result), hl('div.status', status)];
   if (ctrl.data.game.status.id >= 30) {
     const winner = ctrl.data.game.winner;
@@ -1205,7 +1208,7 @@ export function renderMoveNodes(
         ? `#${ev.mate}`
         : '';
   return [
-    hl('san', fixCrazySan(node.san!)),
+    hl('san', node.san!),
     withGlyphs && node.glyphs?.map(g => hl('glyph', { attrs: { title: g.name } }, g.symbol)),
     withEval && !!node.shapes?.length && hl('shapes'),
     withEval && evalText && hl('eval', evalText.replace('-', '−')),
@@ -1217,7 +1220,7 @@ const renderMoveList = (ctrl: AnalyseCtrl, concealOf?: ConcealOf): VNode =>
     hl('div', [ctrl.treeView.render(concealOf), renderResult(ctrl)]),
   ]);
 
-export const renderMaterialDiffs = (ctrl: AnalyseCtrl): [VNode, VNode] =>
+const renderMaterialDiffs = (ctrl: AnalyseCtrl): [VNode, VNode] =>
   materialView.renderMaterialDiffs(
     ctrl.showCapturedMaterial(),
     ctrl.bottomColor(),

@@ -1,7 +1,6 @@
 package controllers
 
 import chess.format.Fen
-import chess.variant.Variant
 import play.api.libs.json.*
 
 import lila.app.{ *, given }
@@ -37,9 +36,3 @@ final class Editor(env: Env) extends LilaController(env):
 
   def data = Open:
     JsonOk(positionsJson ++ endgamePositionsJson)
-
-  private[controllers] def editorUrl(fen: Fen.Full, variant: Variant): String =
-    if fen == Fen.initial && variant.standard then routes.Editor.index.url
-    else
-      val params = variant.exotic.so(s"?variant=${variant.key}")
-      routes.Editor.load(lila.ui.ChessHelper.underscoreFen(fen)).url + params

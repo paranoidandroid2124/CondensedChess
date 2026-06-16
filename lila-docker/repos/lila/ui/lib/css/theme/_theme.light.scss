@@ -30,8 +30,6 @@ $c-border: hsl(0, 0%, 85%);
 $c-dimmer: #fff;
 $c-clearer: #000;
 
-$patron-colors: $patron-colors-light;
-
 html.light {
   @include shared-color-defs;
 
@@ -54,12 +52,9 @@ html.light {
 
   --c-primary-dim: #{_dim($c-primary)};
   --c-link-hover: #{_clear(saturate($c-primary, 100%), 35%)};
-  --c-chat-host-bg: rgba(125, 170, 73, 0.4);
-  --c-chat-mention-bg: rgba(161, 194, 124, 0.4);
   --c-fancy: hsl(294, 61%, 62%);
 
   --c-border-page: hsl(0, 0%, 80%);
-  --c-border-tour: #{mix(hsl(0, 0%, 80%), $c-bg-page, 50)};
   --c-border-light: hsl(0, 0%, 80%);
 
   @include light-mix;

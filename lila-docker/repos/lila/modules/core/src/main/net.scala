@@ -52,20 +52,9 @@ object net:
   opaque type Crawler = Boolean
   object Crawler extends YesNo[Crawler]
 
-  case class LichessMobileVersion(major: Int, minor: Int):
-    def gte(maj: Int, min: Int) =
-      import scala.math.Ordered.orderingToOrdered
-      this >= LichessMobileVersion(maj, min)
-  object LichessMobileVersion:
-    val zero = LichessMobileVersion(0, 0)
-    given Ordering[LichessMobileVersion] with
-      def compare(x: LichessMobileVersion, y: LichessMobileVersion): Int =
-        (x.major, x.minor).compare((y.major, y.minor))
-
   opaque type ApiVersion = Int
   object ApiVersion extends RichOpaqueInt[ApiVersion]:
     def puzzleV2(v: ApiVersion) = v >= 6
-    val lichobile: ApiVersion = 6
     val mobile: ApiVersion = 10 // i.e. github.com/lichess-org/mobile
 
   opaque type AssetVersion = String

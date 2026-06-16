@@ -51,7 +51,6 @@ declare namespace Tree {
     comments?: Comment[];
     gamebook?: Gamebook;
     dests?: string;
-    drops?: string | null;
     check?: Key;
     threat?: LocalEval;
     ceval?: ClientEval;
@@ -67,7 +66,6 @@ declare namespace Tree {
     threefold?: boolean;
     fail?: boolean;
     puzzle?: 'win' | 'fail' | 'good' | 'retry';
-    crazy?: NodeCrazy;
     collapsed?: boolean;
   }
 
@@ -78,12 +76,6 @@ declare namespace Tree {
   export interface Node extends NodeBase {
     children: Node[];
   }
-
-  export interface NodeCrazy {
-    pockets: [CrazyPocket, CrazyPocket];
-  }
-
-  export type CrazyPocket = { [role in Exclude<Role, 'king'>]?: number };
 
   export interface Comment {
     id: string;

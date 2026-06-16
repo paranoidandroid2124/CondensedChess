@@ -7,16 +7,12 @@ import scala.annotation.unused
 
 import lila.db.dsl.{ *, given }
 
-// Simplified PrefApi for analysis-only system
-// Removed: getMessage, getInsightShare, getChallenge, getStudyInvite, followable, mentionable, isolate, setBot, agree
 final class PrefApi(
     val coll: Coll,
     cacheApi: lila.memo.CacheApi
 )(using Executor):
 
   import PrefHandlers.given
-
-  // UserDelete event subscription removed (not needed for analysis-only)
 
   private def fetchPref(id: UserId): Fu[Option[Pref]] = coll.find($id(id)).one[Pref]
 

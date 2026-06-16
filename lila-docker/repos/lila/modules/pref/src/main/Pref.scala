@@ -2,8 +2,6 @@ package lila.pref
 
 import reactivemongo.api.bson.Macros.Annotations.Key
 
-// Simplified Pref for analysis-only system
-// Removed: message, studyInvite, insightShare, blogFilter, follow, challenge, etc.
 case class Pref(
     @Key("_id") id: UserId,
     bg: Int,
@@ -65,7 +63,6 @@ case class Pref(
   def pieceNotationIsLetter: Boolean = pieceNotation == PieceNotation.LETTER
 
   def isZen = zen == Zen.YES
-  def isZenAuto = zen == Zen.GAME_AUTO
 
   def is2d = !is3d
 
@@ -222,11 +219,9 @@ object Pref:
   object Zen:
     val NO = 0
     val YES = 1
-    val GAME_AUTO = 2
     val choices = Seq(
       NO -> "No",
-      YES -> "Yes",
-      GAME_AUTO -> "In-game only"
+      YES -> "Yes"
     )
 
   private def intIn(value: String, allowed: Set[Int]): Option[Int] =
@@ -259,7 +254,7 @@ object Pref:
       case "destination" => boolFrom01(value).map(v => _.copy(destination = v))
       case "coords" => intIn(value, Set(0, 1, 2, 3)).map(v => _.copy(coords = v))
       case "keyboardMove" => intIn(value, Set(0, 1)).map(v => _.copy(keyboardMove = v))
-      case "zen" => intIn(value, Set(0, 1, 2)).map(v => _.copy(zen = v))
+      case "zen" => intIn(value, Set(0, 1)).map(v => _.copy(zen = v))
       case "rookCastle" => intIn(value, Set(0, 1)).map(v => _.copy(rookCastle = v))
       case "moveEvent" => intIn(value, Set(0, 1, 2)).map(v => _.copy(moveEvent = v))
       case "pieceNotation" => intIn(value, Set(0, 1)).map(v => _.copy(pieceNotation = v))

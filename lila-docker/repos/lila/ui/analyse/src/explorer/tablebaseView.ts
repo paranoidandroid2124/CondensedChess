@@ -62,8 +62,6 @@ function showDtc(fen: FEN, move: TablebaseMoveStats) {
 
 function showDtz(fen: FEN, move: TablebaseMoveStats): VNode | undefined {
   if (move.checkmate) return h('result.' + winnerOf(fen, move), 'Checkmate');
-  if (move.variant_win) return h('result.' + winnerOf(fen, move), 'Variant loss');
-  if (move.variant_loss) return h('result.' + winnerOf(fen, move), 'Variant win');
   if (move.stalemate) return h('result.draws', 'Stalemate');
   if (move.insufficient_material) return h('result.draws', 'Insufficient material');
   if (move.dtz === 0 || move.dtc === 0) return h('result.draws', 'Draw');

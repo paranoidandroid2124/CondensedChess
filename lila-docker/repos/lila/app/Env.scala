@@ -8,10 +8,6 @@ import play.api.{ Configuration, Environment, Mode }
 import lila.core.config.*
 import lila.common.config.GetRelativeFile
 
-/* Chesstory: Analysis-only Env
- * Removed: socket, relation, title, chat, playban, shutup, bookmark, round,
- *          search, gameSearch, perfStat, timeline, setup, tv, push, studySearch, plan, opening
- */
 final class Env(
     val config: Configuration,
     val controllerComponents: ControllerComponents,
@@ -34,8 +30,6 @@ final class Env(
   val getFile: GetRelativeFile = GetRelativeFile(environment.getFile(_))
   val openBetaBindings = wire[OpenBetaBindings]
 
-  // Chesstory: Analysis-focused modules only
-  // val i18n remove
   val mongo: lila.db.Env = wire[lila.db.Env]
   val memo: lila.memo.Env = wire[lila.memo.Env]
   val user: lila.user.Env = new lila.user.Env(

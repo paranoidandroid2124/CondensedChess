@@ -13,7 +13,6 @@
   },
   "dependencies": {
     "@lichess-org/chessground": "9.9.0",
-    "@lichess-org/pgn-viewer": "^2.5.5",
     "@types/lichess": "workspace:*",
     "@types/node": "^24.10.0",
     "@typescript-eslint/eslint-plugin": "^8.46.3",

@@ -4,19 +4,17 @@ import {
   type VNode,
   type VNodeData,
   type VNodeChildElement,
-  type VNodeChildren,
   type Hooks,
   type Attrs,
   type Classes,
   h as snabH,
-  thunk,
 } from 'snabbdom';
 import { toDataIcon } from '../licon';
+import { icons } from '../icons';
 
-export type { Attrs, Hooks, Classes, VNode, VNodeData, VNodeChildElement, VNodeChildren };
+export type { Attrs, Hooks, Classes, VNode, VNodeData, VNodeChildElement };
 export type MaybeVNode = VNode | string | null | undefined;
 export type MaybeVNodes = MaybeVNode[];
-export { thunk };
 
 export function onInsert<A extends HTMLElement>(f: (element: A) => void): Hooks {
   return {
@@ -44,16 +42,6 @@ export function bind<K extends keyof GlobalEventHandlersEventMap>(
   );
 }
 
-export const bindNonPassive = <K extends keyof GlobalEventHandlersEventMap>(
-  eventName: K,
-  f: (ev: GlobalEventHandlersEventMap[K]) => any,
-  redraw?: Redraw,
-): Hooks => bind(eventName, f, redraw, false);
-
-export function bindSubmit(f: (e: SubmitEvent) => unknown, redraw?: () => void): Hooks {
-  return bind('submit', e => (e.preventDefault(), f(e)), redraw, false);
-}
-
 export const dataIcon = (icon: string): Attrs => ({
   'data-icon': toDataIcon(icon),
 });
@@ -68,12 +56,6 @@ const normalizeDataIconAttr = (data?: VNodeData): VNodeData | null => {
   return normalized === icon ? data : { ...data, attrs: { ...attrs, 'data-icon': normalized } };
 };
 
-export const iconTag = (name: string): VNode => {
-  if (icons[name as keyof typeof icons]) return icon(name as any);
-  return snabH('i', { attrs: dataIcon(name) });
-};
-
-import { icons } from '../icons';
 export function icon(name: keyof typeof icons, className?: string): VNode {
   const klass: Classes = { [`story-icon`]: true, [`story-icon-${name}`]: true };
   if (className) klass[className] = true;
@@ -125,5 +107,3 @@ const flattenKids = (maybeArray: LooseVNodes, out: LooseVNode[]) => {
   if (Array.isArray(maybeArray)) for (const el of maybeArray) flattenKids(el, out);
   else out.push(maybeArray);
 };
-
-export const noTrans: (s: string) => VNode = s => snabH('span', { attrs: { lang: 'en' } }, s);

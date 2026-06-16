@@ -5,6 +5,17 @@ export const baseUrl = memoize(() => document.body.getAttribute('data-asset-url'
 
 const assetVersion = memoize(() => document.body.getAttribute('data-asset-version'));
 
+interface AssetUrlOpts {
+  documentOrigin?: boolean;
+  pathOnly?: boolean;
+  pathVersion?: true | string;
+}
+
+interface EsmModuleOpts extends AssetUrlOpts {
+  init?: any;
+  npm?: boolean;
+}
+
 export const url = (path: string, opts: AssetUrlOpts = {}) => {
   const base = opts.documentOrigin ? window.location.origin : opts.pathOnly ? '' : baseUrl();
   const pathVersion = !opts.pathVersion
@@ -21,13 +32,6 @@ function asHashed(path: string, hash: string) {
   const extPos = name.lastIndexOf('.');
   return `hashed/${extPos < 0 ? `${name}.${hash}` : `${name.slice(0, extPos)}.${hash}${name.slice(extPos)}`}`;
 }
-
-// bump flairs version if a flair is changed only (not added or removed)
-export const flairSrc = (flair: Flair) => url(`flair/img/${flair}.webp`, { pathVersion: '_____4' });
-
-// bump fide fed version if a fide fed is changed only (not added or removed)
-export const fideFedSrc = (fideFed: FideFed) =>
-  url(`fide/fed-webp/${fideFed}.webp`, { pathVersion: '_____2' });
 
 export const loadCss = (href: string, key?: string): Promise<void> => {
   return new Promise(resolve => {
@@ -52,7 +56,7 @@ export const removeCss = (href: string) => $(`head > link[href="${href}"]`).remo
 
 export const removeCssPath = (key: string) => $(`head > link[data-css-key="${key}"]`).remove();
 
-export const jsModule = (name: string, prefix: string = 'compiled/') => {
+const jsModule = (name: string, prefix: string = 'compiled/') => {
   if (name.endsWith('.js')) name = name.slice(0, -3);
   const hash = site.manifest.js[name];
   return `${prefix}${name}${hash ? `.${hash}` : ''}.js`;
@@ -74,16 +78,11 @@ export async function loadEsm<T>(name: string, opts: EsmModuleOpts = {}): Promis
 export const loadEsmPage = async (name: string) => {
   const modulePromise = import(url(jsModule(name)));
   const dataScript = document.getElementById('page-init-data');
-  const opts = dataScript && JSON.parse(dataScript.innerHTML);
+  const opts = dataScript ? JSON.parse(dataScript.innerHTML) : undefined;
   dataScript?.remove();
   const module = await modulePromise;
   module.initModule ? module.initModule(opts) : module.default(opts);
 };
-
-
-export function embedChessground() {
-  return import(url('npm/chessground.min.js'));
-}
 
 export const loadPieces = new Promise<void>((resolve, reject) => {
   if (document.getElementById('main-wrap')?.classList.contains('is3d')) return resolve();

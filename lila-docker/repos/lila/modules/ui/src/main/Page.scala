@@ -17,7 +17,7 @@ case class OpenGraph(
 )
 
 enum PageFlags:
-  case noRobots, playing, zoom, zen, fullScreen, noHeader
+  case noRobots, zoom, fullScreen, noHeader
 
 case class Page(
     title: String,
@@ -61,8 +61,6 @@ case class Page(
   def wrap(f: Update[Frag]): Page = transform(f)
   def prepend(prelude: Frag): Page = transform(body => frag(prelude, body))
   def append(postlude: Frag): Page = transform(body => frag(body, postlude))
-
-  def markdownTextarea = css("bits.markdownTextarea").js(Esm("bits.markdownTextarea"))
 
 
 final class RenderedPage(val html: String)

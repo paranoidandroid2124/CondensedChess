@@ -5,8 +5,6 @@ import lila.db.dsl.{ *, given }
 import lila.core.user.{ User, Me, Note }
 import scalalib.model.Max
 
-// Simplified NoteApi for Analysis Only mode
-// Bus subscriptions and complex mod features removed
 final class NoteApi(coll: Coll)(using Executor) extends lila.core.user.NoteApi:
 
   case class NoteImpl(
@@ -22,7 +20,7 @@ final class NoteApi(coll: Coll)(using Executor) extends lila.core.user.NoteApi:
   private given BSONDocumentHandler[NoteImpl] = Macros.handler[NoteImpl]
 
   def getForMyPermissions(user: User, max: Max = Max(30))(using me: Me): Fu[List[Note]] =
-    fuccess(Nil) // Simplified
+    fuccess(Nil)
 
   def toUserForMod(id: UserId, max: Max = Max(50)): Fu[List[Note]] =
     fuccess(Nil)
@@ -34,7 +32,7 @@ final class NoteApi(coll: Coll)(using Executor) extends lila.core.user.NoteApi:
     fuccess(Nil)
 
   def write(to: UserId, text: String, modOnly: Boolean, dox: Boolean)(using me: MyId): Funit =
-    fuccess(()) // Disabled
+    fuccess(())
 
   def lichessWrite(to: User, text: String): Funit =
     fuccess(())

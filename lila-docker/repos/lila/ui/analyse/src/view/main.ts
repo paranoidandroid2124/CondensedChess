@@ -1,7 +1,6 @@
 import * as licon from 'lib/licon';
 import { type VNode, hl } from 'lib/view';
 import { playable } from 'lib/game';
-import * as router from 'lib/game/router';
 import { render as trainingView } from './roundTraining';
 import type AnalyseCtrl from '../ctrl';
 import { view as keyboardView } from '../keyboard';
@@ -53,7 +52,7 @@ function analyseView(ctrl: AnalyseCtrl): VNode {
         'a.button.button-empty.text',
         {
           attrs: {
-            href: router.game(ctrl.data, ctrl.data.player.color),
+            href: `/${ctrl.data.game.id}/${ctrl.data.player.color}`,
             'data-icon': licon.Back,
           },
         },

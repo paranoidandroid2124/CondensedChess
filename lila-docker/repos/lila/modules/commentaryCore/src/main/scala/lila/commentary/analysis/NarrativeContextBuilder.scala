@@ -1303,7 +1303,9 @@ object NarrativeContextBuilder:
         bestDefense = t.bestDefense, // Valid: how we defend against this threat
         defenseCount = t.defenseCount,
         insufficientData = ta.insufficientData,
-        isTopCandidateDefense = isTopDefense
+        isTopCandidateDefense = isTopDefense,
+        targetPieces = t.targetPieces.map(_.trim).filter(_.nonEmpty).distinct.take(3),
+        motifs = t.motifs.flatMap(publicThreatMotifLabel).distinct.take(3)
       )
     }
   }
@@ -1324,7 +1326,9 @@ object NarrativeContextBuilder:
         turnsToImpact = t.turnsToImpact,
         bestDefense = None, // Semantic fix: we don't know their defensive options
         defenseCount = 0,   // Unknown
-        insufficientData = ta.insufficientData
+        insufficientData = ta.insufficientData,
+        targetPieces = t.targetPieces.map(_.trim).filter(_.nonEmpty).distinct.take(3),
+        motifs = t.motifs.flatMap(publicThreatMotifLabel).distinct.take(3)
       )
     }
   }

@@ -2,6 +2,7 @@ package lila.commentary.analysis
 
 import lila.commentary.model._
 import lila.commentary.analysis.claim.OpeningFamilyClaimResolver.OpeningFamilyId
+import lila.commentary.model.strategic.VariationLine
 import _root_.chess.format.Fen
 import _root_.chess.{ Color, Role, Square, Position }
 import _root_.chess.variant.Standard
@@ -67,8 +68,19 @@ object OpeningGoals:
   private def movedPiece(sit: Option[Position], uci: String): Option[_root_.chess.Piece] =
     toSquare(uci).flatMap(sq => sit.flatMap(_.board.pieceAt(sq)))
 
-  private def movedColor(sit: Option[Position], uci: String): Option[Color] =
-    movedPiece(sit, uci).map(_.color)
+  private def movedColor(sit: Option[Position], uci: String, role: Role): Option[Color] =
+    movedPiece(sit, uci).filter(_.role == role).map(_.color)
+
+  private def movedPieceForRoleMap(
+      sit: Option[Position],
+      uci: String,
+      expectedRoles: Map[String, Role]
+  ): Option[_root_.chess.Piece] =
+    for
+      piece <- movedPiece(sit, uci)
+      role <- expectedRoles.get(uci)
+      if piece.role == role
+    yield piece
 
   private def developedMinorCount(sit: Option[Position], color: Color): Int =
     val homeSquares =
@@ -108,6 +120,90 @@ object OpeningGoals:
       hasPiece(sit, Square.G2, color, _root_.chess.Bishop) || hasPiece(sit, Square.B2, color, _root_.chess.Bishop)
     else
       hasPiece(sit, Square.G7, color, _root_.chess.Bishop) || hasPiece(sit, Square.B7, color, _root_.chess.Bishop)
+
+  private def fianchettoCenterScaffold(sit: Option[Position], color: Color): Boolean =
+    centerFootprint(sit, color) >= 1 ||
+      (
+        if color == Color.White then
+          List(Square.C3, Square.D3, Square.E3).exists(hasPawn(sit, _, color))
+        else
+          List(Square.C6, Square.D6, Square.E6).exists(hasPawn(sit, _, color))
+      )
+
+  private final case class PlayedFirstEngineLine(
+      afterFen: String,
+      line: VariationLine,
+      continuations: List[String]
+  )
+
+  private def playedFirstEngineLines(ctx: NarrativeContext, sit: Option[Position]): List[PlayedFirstEngineLine] =
+    val afterFen = sit.map(Fen.write(_).value)
+    val played = ctx.playedMove.map(MoveReviewPvLine.normalizeUci)
+    for
+      fen <- afterFen.toList
+      playedUci <- played.toList
+      engine <- ctx.engineEvidence.toList
+      line <- engine.variations
+      moves = line.moves.map(MoveReviewPvLine.normalizeUci).filter(_.nonEmpty)
+      if moves.headOption.contains(playedUci)
+    yield PlayedFirstEngineLine(fen, line, moves.drop(1))
+
+  private def fianchettoActivationInPlayedPv(ctx: NarrativeContext, sit: Option[Position], color: Color): Boolean =
+    playedFirstEngineLines(ctx, sit).exists { playedFirst =>
+      legalLineContainsFianchettoActivation(playedFirst.afterFen, playedFirst.continuations, color)
+    }
+
+  private def playedFirstEngineLineWithinBest(
+      ctx: NarrativeContext,
+      sit: Option[Position],
+      color: Color,
+      toleranceCp: Int
+  ): Boolean =
+    ctx.engineEvidence.exists { engine =>
+      engine.best.exists { best =>
+        playedFirstEngineLines(ctx, sit).exists { playedFirst =>
+          withinMoverScoreWindow(playedFirst.line, best, color, toleranceCp) &&
+            legalContinuation(playedFirst.afterFen, playedFirst.continuations, maxPlies = 4)
+        }
+      }
+    }
+
+  private def withinMoverScoreWindow(
+      line: VariationLine,
+      best: VariationLine,
+      color: Color,
+      toleranceCp: Int
+  ): Boolean =
+    val bestScore = moverScore(best.effectiveScore, color)
+    val lineScore = moverScore(line.effectiveScore, color)
+    bestScore - lineScore <= toleranceCp
+
+  private def moverScore(whiteScore: Int, color: Color): Int =
+    if color == Color.White then whiteScore else -whiteScore
+
+  private def legalContinuation(startFen: String, moves: List[String], maxPlies: Int): Boolean =
+    moves.nonEmpty &&
+      moves.take(maxPlies).foldLeft(Option(startFen)) { case (fenOpt, uci) =>
+        fenOpt.flatMap(fen => MoveReviewPvLine.legalFenAfter(fen, uci))
+      }.nonEmpty
+
+  private def legalLineContainsFianchettoActivation(
+      startFen: String,
+      moves: List[String],
+      color: Color
+  ): Boolean =
+    moves.take(8).foldLeft(Option(startFen) -> false) { case ((fenOpt, found), uci) =>
+      if found then fenOpt -> found
+      else
+        fenOpt.flatMap(fen => MoveReviewPvLine.legalFenAfter(fen, uci)) match
+          case Some(nextFen) => Some(nextFen) -> fianchettoBishopMove(color, uci)
+          case None          => None -> false
+    }._2
+
+  private def fianchettoBishopMove(color: Color, uci: String): Boolean =
+    val move = MoveReviewPvLine.normalizeUci(uci)
+    if color == Color.White then move == "f1g2" || move == "c1b2"
+    else move == "f8g7" || move == "c8b7"
 
   private def hasNonPawnPiece(sit: Option[Position], sq: Square, color: Color): Boolean =
     sit.exists(_.board.pieceAt(sq).exists(piece => piece.color == color && piece.role != _root_.chess.Pawn))
@@ -538,23 +634,57 @@ object OpeningGoals:
   object DevelopmentLogic extends GoalDefinition:
     val id = "development_logic"
     val name = "Development Logic"
-    private val developmentMoves = Set(
-      "g1f3", "b1c3", "b1d2", "g8f6", "b8c6", "b8d7",
-      "f1c4", "f1b5", "c1g5", "c1f4", "f8c5", "f8b4", "c8g4", "c8f5"
+    private val developmentMoveRoles: Map[String, Role] = Map(
+      "g1f3" -> _root_.chess.Knight,
+      "b1c3" -> _root_.chess.Knight,
+      "b1d2" -> _root_.chess.Knight,
+      "g8f6" -> _root_.chess.Knight,
+      "b8c6" -> _root_.chess.Knight,
+      "b8d7" -> _root_.chess.Knight,
+      "f1c4" -> _root_.chess.Bishop,
+      "f1b5" -> _root_.chess.Bishop,
+      "c1g5" -> _root_.chess.Bishop,
+      "c1f4" -> _root_.chess.Bishop,
+      "f8c5" -> _root_.chess.Bishop,
+      "f8b4" -> _root_.chess.Bishop,
+      "c8g4" -> _root_.chess.Bishop,
+      "c8f5" -> _root_.chess.Bishop
     )
-    def triggers(uci: String) = developmentMoves.contains(uci)
+
+    private def developmentMoveEvidence(uci: String): String =
+      MoveReviewPvLine.normalizeUci(uci) match
+        case "g1f3" | "g8f6" => "the knight develops toward the center"
+        case "b1c3" | "b8c6" => "the knight develops to support central squares"
+        case "b1d2" | "b8d7" => "the knight develops as central support"
+        case "f1c4" | "f8c5" => "the bishop develops on an active diagonal"
+        case "f1b5" | "f8b4" => "the bishop develops with queenside pressure"
+        case "c1g5" | "c8g4" => "the bishop develops outside the pawn chain"
+        case "c1f4" | "c8f5" => "the bishop develops outside the pawn chain"
+        case _                 => "the development move is grounded"
+
+    def triggers(uci: String) = developmentMoveRoles.contains(uci)
     def evaluate(ctx: NarrativeContext, sit: Option[Position]): Evaluation =
       ctx.playedMove
-        .flatMap(uci => movedColor(sit, uci).map(_ -> uci))
-        .map { case (color, _) =>
+        .flatMap(uci => movedPieceForRoleMap(sit, uci, developmentMoveRoles).map(_.color -> uci))
+        .map { case (color, uci) =>
           val center = centerFootprint(sit, color)
           val minors = developedMinorCount(sit, color)
           val queenHome = queenAtHome(sit, color)
           val sound = checkCp(ctx, color, -40)
+          val playedFirstComparable = playedFirstEngineLineWithinBest(ctx, sit, color, toleranceCp = 40)
+          val moveEvidence = developmentMoveEvidence(uci)
           if center >= 1 && minors >= 2 && queenHome && sound then
-            Evaluation(name, Status.Achieved, List("Center foothold", "Minor pieces developed"), Nil, 0.9)
+            Evaluation(name, Status.Achieved, List(moveEvidence, "Center foothold", "Minor pieces developed"), Nil, 0.9)
           else if center >= 1 && minors >= 1 && sound then
-            Evaluation(name, Status.Partial, List("Development underway"), List("More piece coordination"), 0.78)
+            Evaluation(name, Status.Partial, List(moveEvidence, "Development underway"), List("More piece coordination"), 0.78)
+          else if center >= 1 && minors >= 1 && playedFirstComparable then
+            Evaluation(
+              name,
+              Status.Partial,
+              List(moveEvidence, "Development underway", "Checked line keeps the development move in range"),
+              List("Soundness"),
+              0.72
+            )
           else
             Evaluation(name, Status.Premature, List("Classical setup started"), List("Center or coordination not settled"), 0.62)
         }
@@ -629,21 +759,56 @@ object OpeningGoals:
   object FlankFianchettoSupport extends GoalDefinition:
     val id = "flank_fianchetto_support"
     val name = "Flank Fianchetto Support"
-    private val triggerMoves = Set("g2g3", "b2b3", "g7g6", "b7b6", "f1g2", "c1b2", "f8g7", "c8b7")
-    def triggers(uci: String) = triggerMoves.contains(uci)
+    private val triggerMoveRoles: Map[String, Role] = Map(
+      "g2g3" -> _root_.chess.Pawn,
+      "b2b3" -> _root_.chess.Pawn,
+      "g7g6" -> _root_.chess.Pawn,
+      "b7b6" -> _root_.chess.Pawn,
+      "f1g2" -> _root_.chess.Bishop,
+      "c1b2" -> _root_.chess.Bishop,
+      "f8g7" -> _root_.chess.Bishop,
+      "c8b7" -> _root_.chess.Bishop
+    )
+
+    private def fianchettoMoveEvidence(uci: String): String =
+      MoveReviewPvLine.normalizeUci(uci) match
+        case "g2g3" | "g7g6" => "the g-pawn builds the fianchetto shell"
+        case "b2b3" | "b7b6" => "the b-pawn builds the fianchetto shell"
+        case "f1g2" | "f8g7" => "the bishop reaches the long diagonal"
+        case "c1b2" | "c8b7" => "the bishop reaches the long diagonal"
+        case _                 => "the fianchetto structure is grounded"
+
+    def triggers(uci: String) = triggerMoveRoles.contains(uci)
     def evaluate(ctx: NarrativeContext, sit: Option[Position]): Evaluation =
       ctx.playedMove
-        .flatMap(uci => movedColor(sit, uci).map(_ -> uci))
-        .map { case (color, _) =>
+        .flatMap(uci => movedPieceForRoleMap(sit, uci, triggerMoveRoles).map(_.color -> uci))
+        .map { case (color, uci) =>
           val center = centerFootprint(sit, color)
           val ready = fianchettoReady(sit, color)
           val established = fianchettoEstablished(sit, color)
+          val centerScaffold = fianchettoCenterScaffold(sit, color)
+          val pvActivation = fianchettoActivationInPlayedPv(ctx, sit, color)
           val minors = developedMinorCount(sit, color)
           val sound = checkCp(ctx, color, -45)
+          val moveEvidence = fianchettoMoveEvidence(uci)
           if established && center >= 1 && minors >= 1 && sound then
-            Evaluation(name, Status.Achieved, List("Long diagonal active", "Center supported"), Nil, 0.92)
+            Evaluation(name, Status.Achieved, List(moveEvidence, "Long diagonal active", "Center supported"), Nil, 0.92)
           else if (ready || established) && center >= 1 then
-            Evaluation(name, Status.Partial, List("Fianchetto shell built"), List("Diagonal activation or coordination"), 0.8)
+            Evaluation(
+              name,
+              Status.Partial,
+              List(moveEvidence, "Fianchetto shell built") ++ Option.when(pvActivation)("PV activates the long diagonal"),
+              List("Diagonal activation or coordination").filter(_ => !pvActivation),
+              0.8
+            )
+          else if ready && centerScaffold && pvActivation then
+            Evaluation(
+              name,
+              Status.Partial,
+              List(moveEvidence, "Fianchetto shell built", "PV activates the long diagonal"),
+              List("Diagonal activation or coordination").filter(_ => !pvActivation),
+              0.8
+            )
           else
             Evaluation(name, Status.Mismatch, Nil, List("Fianchetto support missing"), 0.0)
         }
@@ -655,21 +820,28 @@ object OpeningGoals:
     val name = "Early Queen Exposure"
     def triggers(uci: String) =
       Option(uci).exists(raw => raw.startsWith("d1") || raw.startsWith("d8"))
+
+    private def queenExposureEvidence(uci: String): String =
+      toSquare(MoveReviewPvLine.normalizeUci(uci)) match
+        case Some(Square.D4 | Square.D5 | Square.E4 | Square.E5) => "the queen reaches a central square early"
+        case _                                                   => "the queen leaves home early"
+
     def evaluate(ctx: NarrativeContext, sit: Option[Position]): Evaluation =
       ctx.playedMove
-        .flatMap(uci => movedColor(sit, uci).map(_ -> uci))
+        .flatMap(uci => movedColor(sit, uci, _root_.chess.Queen).map(_ -> uci))
         .map { case (color, uci) =>
           val queenAdvanced = !queenAtHome(sit, color)
           val centralSquare =
             toSquare(uci).exists(sq => Set(Square.D4, Square.D5, Square.E4, Square.E5).contains(sq))
           val minors = developedMinorCount(sit, color)
           val sound = checkCp(ctx, color, -35)
+          val moveEvidence = queenExposureEvidence(uci)
           if ctx.ply > 16 || !queenAdvanced then
             Evaluation(name, Status.Mismatch, Nil, List("Not an early queen deployment"), 0.0)
           else if (centralSquare || minors >= 2) && sound then
-            Evaluation(name, Status.Achieved, List("Queen is active early", "Development cost contained"), Nil, 0.86)
+            Evaluation(name, Status.Achieved, List(moveEvidence, "Development cost contained"), Nil, 0.86)
           else if sound then
-            Evaluation(name, Status.Partial, List("Queen developed"), List("Minor pieces still lag"), 0.72)
+            Evaluation(name, Status.Partial, List(moveEvidence), List("Minor pieces still lag"), 0.72)
           else
             Evaluation(name, Status.Premature, List("Queen left home"), List("Development lag or shaky evaluation"), 0.58)
         }
@@ -682,7 +854,7 @@ object OpeningGoals:
     def triggers(uci: String) = Set("e1g1", "e1c1", "e8g8", "e8c8").contains(uci)
     def evaluate(ctx: NarrativeContext, sit: Option[Position]): Evaluation =
       ctx.playedMove
-        .flatMap(uci => movedColor(sit, uci).map(_ -> uci))
+        .flatMap(uci => movedColor(sit, uci, _root_.chess.King).map(_ -> uci))
         .map { case (color, _) =>
           val raceGeometry =
             oppositeSideCastled(sit) || rookPawnAdvanced(sit, color) || rookPawnAdvanced(sit, !color)
@@ -700,24 +872,44 @@ object OpeningGoals:
   object ThematicBreakPreparation extends GoalDefinition:
     val id = "thematic_break_preparation"
     val name = "Thematic Break Preparation"
-    private val prepMoves = Set(
-      "c2c3", "d2d3", "f2f3", "a2a3", "h2h3", "d1c2", "d1e2", "f1e2", "c1e3", "a1e1", "h1e1",
-      "c7c6", "d7d6", "f7f6", "a7a6", "h7h6", "d8c7", "d8e7", "f8e7", "c8e6", "a8e8", "h8e8"
+    private val prepMoveRoles: Map[String, Role] = Map(
+      "c2c3" -> _root_.chess.Pawn,
+      "d2d3" -> _root_.chess.Pawn,
+      "f2f3" -> _root_.chess.Pawn,
+      "c7c6" -> _root_.chess.Pawn,
+      "d7d6" -> _root_.chess.Pawn,
+      "f7f6" -> _root_.chess.Pawn
     )
-    def triggers(uci: String) = prepMoves.contains(uci)
+
+    private def breakPreparationEvidence(uci: String): String =
+      MoveReviewPvLine.normalizeUci(uci) match
+        case "d2d3" | "d7d6" => "the d-pawn keeps the central-break scaffold connected"
+        case "c2c3" | "c7c6" => "the c-pawn supports the central-break scaffold"
+        case "f2f3" | "f7f6" => "the f-pawn supports the central-break scaffold"
+        case _                 => "the break preparation is grounded"
+
+    def triggers(uci: String) = prepMoveRoles.contains(uci)
     def evaluate(ctx: NarrativeContext, sit: Option[Position]): Evaluation =
       ctx.playedMove
-        .flatMap(uci => movedColor(sit, uci).map(_ -> uci))
-        .map { case (color, _) =>
-          val center = centerFootprint(sit, color)
-          val minors = developedMinorCount(sit, color)
-          val sound = checkCp(ctx, color, -40)
-          if center >= 1 && minors >= 2 && sound then
-            Evaluation(name, Status.Achieved, List("Break support pieces in place", "Center contact preserved"), Nil, 0.88)
-          else if center >= 1 && minors >= 1 then
-            Evaluation(name, Status.Partial, List("Break scaffold appears"), List("Need one more coordinator"), 0.74)
-          else
-            Evaluation(name, Status.Mismatch, Nil, List("Break preparation not yet grounded"), 0.0)
+        .flatMap(uci => movedPiece(sit, uci).map(_ -> uci))
+        .map { case (piece, uci) =>
+          prepMoveRoles.get(uci) match
+            case Some(expectedRole) if piece.role != expectedRole =>
+              Evaluation(name, Status.Mismatch, Nil, List("Break preparation piece mismatch"), 0.0)
+            case Some(_) =>
+              val color = piece.color
+              val center = centerFootprint(sit, color)
+              val minors = developedMinorCount(sit, color)
+              val sound = checkCp(ctx, color, -40)
+              val moveEvidence = breakPreparationEvidence(uci)
+              if center >= 1 && minors >= 2 && sound then
+                Evaluation(name, Status.Achieved, List(moveEvidence, "Break support pieces in place", "Center contact preserved"), Nil, 0.88)
+              else if center >= 1 && minors >= 1 then
+                Evaluation(name, Status.Partial, List(moveEvidence, "Break scaffold appears"), List("Need one more coordinator"), 0.74)
+              else
+                Evaluation(name, Status.Mismatch, Nil, List("Break preparation not yet grounded"), 0.0)
+            case None =>
+              Evaluation(name, Status.Mismatch, Nil, List("Break preparation not yet grounded"), 0.0)
         }
         .getOrElse(Evaluation(name, Status.Mismatch, Nil, List("Break preparation not yet grounded"), 0.0))
 

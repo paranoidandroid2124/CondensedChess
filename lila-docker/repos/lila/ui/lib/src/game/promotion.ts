@@ -1,15 +1,17 @@
 import { h } from 'snabbdom';
 import { AutoQueen } from '../prefs';
 import { type MaybeVNode, bind, onInsert } from '@/view';
+import type { Api as CgApi } from '@lichess-org/chessground/api';
 import type { DrawShape } from '@lichess-org/chessground/draw';
 import { opposite, key2pos } from '@lichess-org/chessground/util';
 import type { MoveMetadata } from '@lichess-org/chessground/types';
-import type { WithGround } from './ground';
 
-export type Hooks = {
+type Hooks = {
   submit: (orig: Key, dest: Key, role: Role) => void;
   show?: (ctrl: PromotionCtrl, roles: Role[] | false) => void;
 };
+
+type WithGround = <A>(f: (g: CgApi) => A) => A | undefined;
 
 interface Promoting {
   orig: Key;
@@ -20,7 +22,7 @@ interface Promoting {
 
 const PROMOTABLE_ROLES: Role[] = ['queen', 'knight', 'rook', 'bishop'];
 
-export function promote(g: CgApi, key: Key, role: Role): void {
+function promote(g: CgApi, key: Key, role: Role): void {
   const piece = g.state.pieces.get(key);
   if (piece && piece.role === 'pawn')
     g.setPieces(new Map([[key, { color: piece.color, role, promoted: true }]]));
@@ -86,16 +88,16 @@ export class PromotionCtrl {
     }
   };
 
-  view = (antichess?: boolean): MaybeVNode => {
+  view = (): MaybeVNode => {
     const promoting = this.promoting;
     if (!promoting) return;
-    promoting.hooks.show?.(this, antichess ? [...PROMOTABLE_ROLES, 'king'] : PROMOTABLE_ROLES);
+    promoting.hooks.show?.(this, PROMOTABLE_ROLES);
 
     return (
       this.withGround(g =>
         this.renderPromotion(
           promoting.dest,
-          antichess ? PROMOTABLE_ROLES.concat('king') : PROMOTABLE_ROLES,
+          PROMOTABLE_ROLES,
           opposite(g.state.turnColor),
           g.state.orientation,
         ),

@@ -9,55 +9,48 @@ import * as licon from '@/licon';
 import { pubsub } from '@/pubsub';
 
 export interface Dialog {
-  readonly view: HTMLElement; // your content div
-  readonly dialog: HTMLDialogElement; // the dialog element
-  readonly returnValue?: 'ok' | 'cancel' | string; // how did we close?
+  readonly view: HTMLElement;
+  readonly dialog: HTMLDialogElement;
+  readonly returnValue?: 'ok' | 'cancel' | string;
 
-  show(): Promise<Dialog>; // promise resolves on close
-  updateActions(actions?: Action | Action[]): void; // set new actions or reattach existing if no args
+  show(): Promise<Dialog>;
+  updateActions(actions?: Action | Action[]): void;
   close(returnValue?: string): void;
 }
 
-export interface DialogOpts {
-  class?: string; // classes for your view div
-  css?: ({ url: string } | { hashed: string })[]; // hashed or full url css
-  htmlText?: string; // content, htmlText is inserted as fragment into DOM
-  cash?: Cash; // content, precedence over htmlText, cash will be cloned and any 'none' class removed
-  htmlUrl?: string; // content, precedence over htmlText and cash, url will be xhr'd
-  append?: { node: HTMLElement; where?: string; how?: 'after' | 'before' | 'child' }[]; // default is 'child'
-  attrs?: { dialog?: Attrs; view?: Attrs }; // optional attrs for dialog and view div
-  focus?: string; // query selector for focus on show
-  actions?: Action | Action[]; // add listeners to controls, call updateActions() to reattach
-  onClose?: (dialog: Dialog) => void; // always called when dialog closes
-  noCloseButton?: boolean; // if true, no upper right corner close button
-  noClickAway?: boolean; // if true, no click-away-to-close
-  noScrollable?: boolean; // if true, no scrollable div container. Fixes dialogs containing an auto-completer
-  modal?: boolean; // if true, show as modal (darken everything else)
+interface DialogOpts {
+  class?: string;
+  css?: ({ url: string } | { hashed: string })[];
+  htmlText?: string;
+  cash?: Cash;
+  htmlUrl?: string;
+  append?: { node: HTMLElement; where?: string; how?: 'after' | 'before' | 'child' }[];
+  attrs?: { dialog?: Attrs; view?: Attrs };
+  focus?: string;
+  actions?: Action | Action[];
+  onClose?: (dialog: Dialog) => void;
+  noCloseButton?: boolean;
+  noClickAway?: boolean;
+  noScrollable?: boolean;
+  modal?: boolean;
 }
 
-// show is an explicit property for domDialog.
-export interface DomDialogOpts extends DialogOpts {
-  parent?: Element; // for centering and dom placement, otherwise fixed on document.body
-  show?: boolean; // show dialog immediately after construction
+interface DomDialogOpts extends DialogOpts {
+  parent?: Element;
+  show?: boolean;
 }
 
-// for snabDialog, show is inferred from !onInsert
-export interface SnabDialogOpts extends DialogOpts {
-  vnodes?: LooseVNodes; // content, overrides all other content properties
-  onInsert?: (dialog: Dialog) => void; // if provided you must call show
+interface SnabDialogOpts extends DialogOpts {
+  vnodes?: LooseVNodes;
+  onInsert?: (dialog: Dialog) => void;
 }
 
-export type ActionListener = (e: Event, dialog: Dialog, action: Action) => void;
+type ActionListener = (e: Event, dialog: Dialog, action: Action) => void;
 
-// Actions are listeners / results for controls
-// if no event is specified, then 'click' is assumed
-// if no selector is given, the handler is attached to the dialog-content view div
-export type Action =
+type Action =
   | { selector?: string; event?: string | string[]; listener: ActionListener }
   | { selector?: string; event?: string | string[]; result: string };
 
-// when opts contains 'show', domDialog function's result promise resolves on dialog closure.
-// otherwise, the promise resolves once assets are loaded and it is safe to call show
 export async function domDialog(o: DomDialogOpts): Promise<Dialog> {
   const [html] = await loadAssets(o);
 
@@ -200,10 +193,6 @@ class DialogWrapper implements Dialog {
     }
     this.updateActions();
     this.dialogEvents.addListener(this.dialog, 'keydown', this.onKeydown);
-  }
-
-  get open(): boolean {
-    return this.dialog.open;
   }
 
   get returnValue(): string {

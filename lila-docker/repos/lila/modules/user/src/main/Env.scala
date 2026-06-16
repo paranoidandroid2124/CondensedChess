@@ -1,10 +1,8 @@
 package lila.user
 
 import com.softwaremill.macwire.*
-import com.softwaremill.tagging.*
 
 import lila.core.config.*
-import lila.common.Bus
 
 @Module
 final class Env(
@@ -30,10 +28,7 @@ final class Env(
   
   lazy val flairApi = new FlairApi(lila.common.config.GetRelativeFile((_: String) => new java.io.File("")))
 
-  // Mock isOnline as always false since socket is gone
   private val isOnlineFunc: UserId => Boolean = _ => false
   lazy val jsonView = new JsonView(isOnlineFunc)
 
   lazy val cached: Cached = wire[Cached]
-
-  // Moderation/Cheater markings removed

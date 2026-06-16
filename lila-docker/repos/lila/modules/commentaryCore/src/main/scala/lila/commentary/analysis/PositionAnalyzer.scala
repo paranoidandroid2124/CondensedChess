@@ -174,6 +174,42 @@ object StrategicStateFeatures:
 object PositionAnalyzer:
 
   def extractStrategicState(fen: String): Option[StrategicStateFeatures] =
+    cached(strategicStateCache, fen) {
+      computeStrategicState(fen)
+    }
+
+  def extractFeatures(fen: String, plyCount: Int): Option[PositionFeatures] =
+    cached(positionFeaturesCache, fen -> plyCount) {
+      computeFeatures(fen, plyCount)
+    }
+
+  private val CacheMaxEntries = 4096
+  private val strategicStateCache =
+    boundedCache[String, Option[StrategicStateFeatures]]
+  private val positionFeaturesCache =
+    boundedCache[(String, Int), Option[PositionFeatures]]
+
+  private def boundedCache[K, V]: java.util.LinkedHashMap[K, V] =
+    new java.util.LinkedHashMap[K, V](CacheMaxEntries, 0.75f, true):
+      override def removeEldestEntry(eldest: java.util.Map.Entry[K, V]): Boolean =
+        size() > CacheMaxEntries
+
+  private def cached[K, V](cache: java.util.LinkedHashMap[K, V], key: K)(compute: => V): V =
+    val existing =
+      cache.synchronized {
+        Option.when(cache.containsKey(key))(cache.get(key))
+      }
+    existing.getOrElse {
+      val value = compute
+      cache.synchronized {
+        if cache.containsKey(key) then cache.get(key)
+        else
+          cache.put(key, value)
+          value
+      }
+    }
+
+  private def computeStrategicState(fen: String): Option[StrategicStateFeatures] =
     Fen.read(chess.variant.Standard, Fen.Full(fen)).map { pos =>
       val board = pos.board
       StrategicStateFeatures(
@@ -188,7 +224,7 @@ object PositionAnalyzer:
       )
     }
 
-  def extractFeatures(fen: String, plyCount: Int): Option[PositionFeatures] =
+  private def computeFeatures(fen: String, plyCount: Int): Option[PositionFeatures] =
     Fen.read(chess.variant.Standard, Fen.Full(fen)).map { position =>
       val board = position.board
       val material = fen.takeWhile(_ != ' ')

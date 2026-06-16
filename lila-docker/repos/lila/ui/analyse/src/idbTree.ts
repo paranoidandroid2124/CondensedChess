@@ -23,20 +23,6 @@ export class IdbTree {
     );
   }
 
-  // getCollapseTarget(path: Tree.Path): Tree.Path | undefined {
-  //   if (this.ctrl.legacyVariationsProp()) return undefined;
-  //   const { tree } = this.ctrl;
-  //   const depth = (n: Tree.Node) => n.ply - tree.root.ply;
-
-  //   for (const node of tree
-  //     .getNodeList(path)
-  //     .slice(depth(tree.lastMainlineNode(path)))
-  //     .reverse()) {
-  //     if (!node.collapsed && this.isCollapsible(node)) return path.slice(0, depth(node) * 2);
-  //   }
-  //   return undefined;
-  // }
-
   stepLine(fromPath: Tree.Path = this.ctrl.path, which: 'prev' | 'next' = 'next'): Tree.Path {
     let [path, kids] = this.familyOf(fromPath);
     while (path && kids.length < 2 && !this.ctrl.tree.pathIsMainline(path)) {

@@ -47,7 +47,14 @@ private[commentary] object OpeningRouteTargetEvidence:
         s"route_target:${route.targetSquare}",
         s"${route.role}_route:${route.path.mkString("-")}",
         s"played:${evidence.playedMove}"
-      ) ++ evidence.pvMoves.take(route.maxReplayPlies)
+      ) ++ List(
+        Option.when(route.targetMode == OpeningRouteCatalog.AttackWeakPawn)(
+          s"target_persistent_after_line:${route.targetSquare}"
+        ),
+        Option.when(route.targetMode == OpeningRouteCatalog.AttackWeakPawn)(
+          s"target_attacked_after_line:${route.targetSquare}"
+        )
+      ).flatten ++ evidence.pvMoves.take(route.maxReplayPlies)
     ).filter(_.nonEmpty).distinct
 
   private def pieceAttacksTarget(

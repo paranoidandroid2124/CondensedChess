@@ -52,20 +52,9 @@ trait ResponseBuilder(using Executor)
         case Left(r) => fuccess(r)
         case Right(a) => handler(using Request(rh, a))
 
-  def redirectWithQueryString(path: String)(using req: RequestHeader) =
-    Redirect:
-      if req.target.uriString.contains("?")
-      then s"$path?${req.target.queryString}"
-      else path
-
   private val movedMap: Map[String, String] = Map(
     "yt" -> "https://youtube.com/@chesstory",
     "dmca" -> "https://docs.google.com/forms/d/e/1FAIpQLSdRVaJ6Wk2KHcrLcY0BxM7lTwYSQHDsY2DsGwbYoLUBo3ngfQ/viewform",
-    "fishnet" -> "https://github.com/lichess-org/fishnet",
-    "qa" -> "/faq",
-    "help" -> "/contact",
-    "support" -> "/contact",
-    "donate" -> "/patron",
-    "how-to-cheat" -> "/page/how-to-cheat"
+    "help" -> "/contact"
   )
   def staticRedirect(key: String): Option[Fu[Result]] = movedMap.get(key).map { MovedPermanently(_) }

@@ -211,6 +211,7 @@ object BreakClampMaterializer:
       Option.when(
         move.piece.role == Pawn &&
           !move.promotion.isDefined &&
+          move.dest != playedMove.orig &&
           isContactBreak(move.dest, activePawnSquares, playedSquares)
       ) {
         val kind = if move.captures then BreakRouteKind.CaptureBreak else BreakRouteKind.QuietPush

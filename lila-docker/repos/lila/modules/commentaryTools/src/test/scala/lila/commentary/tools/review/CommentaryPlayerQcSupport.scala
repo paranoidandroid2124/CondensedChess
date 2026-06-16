@@ -11,7 +11,7 @@ import scala.jdk.CollectionConverters.*
 import scala.util.control.NonFatal
 
 import lila.commentary.*
-import lila.commentary.analysis.{ BookStyleRenderer, MoveReviewCompressionPolicy, MoveReviewPolishSlotsBuilder, CommentaryEngine, DecisiveTruth, EarlyOpeningNarrationPolicy, LineScopedCitation, LiveNarrativeCompressionCore, NarrativeContextBuilder, NarrativeSignalDigestBuilder, NarrativeUtils, OpeningFamilyCatalog, QuestionFirstCommentaryPlanner, QuestionPlannerInputsBuilder, QuietMoveIntentBuilder, StrategyPackBuilder, UserFacingSignalSanitizer }
+import lila.commentary.analysis.{ BookStyleRenderer, MoveReviewCompressionPolicy, CommentaryEngine, DecisiveTruth, EarlyOpeningNarrationPolicy, LineScopedCitation, LiveNarrativeCompressionCore, NarrativeContextBuilder, NarrativeSignalDigestBuilder, NarrativeUtils, OpeningFamilyCatalog, QuestionFirstCommentaryPlanner, QuestionPlannerInputsBuilder, QuietMoveIntentBuilder, StrategyPackBuilder, UserFacingSignalSanitizer }
 import lila.commentary.analysis.practical.ContrastiveSupportAdmissibility
 import lila.commentary.analysis.render.QuietStrategicSupportComposer
 import lila.commentary.analysis.semantic.RelationObservationCatalog
@@ -1071,6 +1071,14 @@ object CommentaryPlayerQcSupport:
       openingIndex: Map[String, List[CatalogEntry]],
       maxSampleGames: Int
   ): Option[lila.commentary.model.OpeningReference] =
+    corpusBackedOpeningReference(entry, openingIndex, maxSampleGames, catalogEntryToExplorerGame)
+
+  def corpusBackedOpeningReference(
+      entry: CatalogEntry,
+      openingIndex: Map[String, List[CatalogEntry]],
+      maxSampleGames: Int,
+      explorerGame: CatalogEntry => Option[lila.commentary.model.ExplorerGame]
+  ): Option[lila.commentary.model.OpeningReference] =
     val peers =
       openingLookupKeys(entry)
         .flatMap(key => openingIndex.getOrElse(key, Nil))
@@ -1084,7 +1092,7 @@ object CommentaryPlayerQcSupport:
       else List(entry)
 
     val sampleGames =
-      sampleEntries.flatMap(catalogEntryToExplorerGame)
+      sampleEntries.flatMap(explorerGame)
 
     Option.when(sampleGames.nonEmpty) {
       lila.commentary.model.OpeningReference(
@@ -1104,7 +1112,7 @@ object CommentaryPlayerQcSupport:
       .filter(key => key.nonEmpty && key != "other" && key != "unknown")
       .distinct
 
-  private def catalogEntryToExplorerGame(entry: CatalogEntry): Option[lila.commentary.model.ExplorerGame] =
+  private[tools] def catalogEntryToExplorerGame(entry: CatalogEntry): Option[lila.commentary.model.ExplorerGame] =
     val pgn =
       try Some(Files.readString(Paths.get(entry.pgnPath)))
       catch case NonFatal(_) => None
@@ -1922,7 +1930,6 @@ object CommentaryPlayerQcSupport:
       .flatMap(sanitizeSurfaceText)
       .map(_.trim)
       .filter(value => value.nonEmpty && value.length <= 16 && uciLeakRegex.findFirstIn(value).isEmpty)
-      .distinct
       .take(6)
 
   private def openingBookSentence(metadata: MoveReviewOpeningBookMetadata): Option[String] =
@@ -2130,61 +2137,54 @@ object CommentaryPlayerQcSupport:
       case _ =>
         false
 
-  def moveReviewPlannerRuntime(snapshot: SliceSnapshot): MoveReviewRuntimeTrace =
-    val rawCtx = snapshot.rawCtx.getOrElse(snapshot.ctx)
-    val outline =
-      BookStyleRenderer.validatedOutline(
-        snapshot.ctx,
-        truthContract = snapshot.truthContract,
-        strategyPack = snapshot.strategyPack
-      )
-    val candidateEvidence =
-      MoveReviewCompressionPolicy.candidateEvidenceLines(snapshot.refs, snapshot.ctx)
-    val plannerInputs =
-      QuestionPlannerInputsBuilder.build(
-        snapshot.ctx,
-        snapshot.strategyPack,
-        truthContract = snapshot.truthContract,
-        candidateEvidenceLines = candidateEvidence,
-        refs = snapshot.refs
-      )
-    val rankedPlans =
-      QuestionFirstCommentaryPlanner.plan(snapshot.ctx, plannerInputs, truthContract = snapshot.truthContract)
+  def moveReviewPlannerRuntime(
+      snapshot: SliceSnapshot,
+      runtimeDiagnostics: Option[lila.commentary.CommentaryApi.MoveReviewRuntimeDiagnostics] = None
+  ): MoveReviewRuntimeTrace =
+    val rawCtx = runtimeDiagnostics.map(_.rawCtx).getOrElse(snapshot.rawCtx.getOrElse(snapshot.ctx))
+    val ctx = runtimeDiagnostics.map(_.ctx).getOrElse(snapshot.ctx)
+    val strategyPack = runtimeDiagnostics.map(_.strategyPack).getOrElse(snapshot.strategyPack)
+    val truthContract = runtimeDiagnostics.map(_.truthContract).getOrElse(snapshot.truthContract)
+    val refs = runtimeDiagnostics.map(_.refs).getOrElse(snapshot.refs)
+    val runtime =
+      runtimeDiagnostics.map(_.runtime).getOrElse {
+        val outline =
+          BookStyleRenderer.validatedOutline(
+            ctx,
+            truthContract = truthContract,
+            strategyPack = strategyPack
+          )
+        MoveReviewCompressionPolicy.buildSlotsOrFallbackWithRuntime(
+          ctx = ctx,
+          outline = outline,
+          refs = refs,
+          strategyPack = strategyPack,
+          truthContract = truthContract
+        )
+      }
+    val plannerInputs = runtime.inputs
+    val rankedPlans = runtime.rankedPlans
     val renderSelection =
       MoveReviewCompressionPolicy.renderSelection(
         plannerInputs,
         rankedPlans,
-        truthContract = snapshot.truthContract
+        truthContract = truthContract
       )
     val quietSupportGateTrace =
       QuietStrategicSupportComposer.diagnose(
-        snapshot.ctx,
+        ctx,
         plannerInputs,
         rankedPlans,
-        snapshot.strategyPack
+        strategyPack
       )
     val contrastTrace =
       renderSelection
         .map(_.contrastTrace)
         .getOrElse(ContrastiveSupportAdmissibility.ContrastSupportTrace())
-    val causalTrace =
-      MoveReviewCompressionPolicy.causalClaimTrace(
-        snapshot.ctx,
-        plannerInputs,
-        rankedPlans,
-        snapshot.truthContract,
-        snapshot.refs
-      )
-    val plannerOwnedSlots =
-      MoveReviewCompressionPolicy.buildSlots(
-        ctx = snapshot.ctx,
-        outline = outline,
-        refs = snapshot.refs,
-        strategyPack = snapshot.strategyPack,
-        truthContract = snapshot.truthContract
-      )
+    val slots = runtime.slots
+    val plannerOwned = runtime.plannerOwned
     val quietSupportTrace =
-      if plannerOwnedSlots.nonEmpty then
+      if plannerOwned then
         MoveReviewQuietSupportTrace(
           rejectReasons = List("planner_owned_row"),
           runtimeGatePassed = Some(quietSupportGateTrace.gatePassed),
@@ -2198,11 +2198,13 @@ object CommentaryPlayerQcSupport:
         )
       else
         val trace =
-          MoveReviewCompressionPolicy.exactFactualQuietSupportTrace(
-            ctx = snapshot.ctx,
-            refs = snapshot.refs,
-            strategyPack = snapshot.strategyPack,
-            truthContract = snapshot.truthContract
+          MoveReviewCompressionPolicy.exactFactualQuietSupportTraceFromPlanner(
+            ctx = ctx,
+            refs = refs,
+            strategyPack = strategyPack,
+            inputs = plannerInputs,
+            rankedPlans = rankedPlans,
+            composerTrace = quietSupportGateTrace
           )
         MoveReviewQuietSupportTrace(
           liftApplied = trace.liftApplied,
@@ -2221,30 +2223,21 @@ object CommentaryPlayerQcSupport:
           candidateText = trace.composerTrace.line.map(_.text),
           factualSentence = trace.factualSentence
         )
-    val slots =
-      plannerOwnedSlots.getOrElse(
-        MoveReviewPolishSlotsBuilder.buildOrFallback(
-          ctx = snapshot.ctx,
-          outline = outline,
-          refs = snapshot.refs,
-          strategyPack = snapshot.strategyPack,
-          truthContract = snapshot.truthContract
-        )
-      )
+    val finalCausalTrace = runtime.causalTrace
     val coverageTrace =
       MoveReviewCoverageDiagnostics.build(
-        ctx = snapshot.ctx,
-        refs = snapshot.refs,
-        strategyPack = snapshot.strategyPack,
-        truthContract = snapshot.truthContract,
+        ctx = ctx,
+        refs = refs,
+        strategyPack = strategyPack,
+        truthContract = truthContract,
         slots = slots,
         plannerInputs = plannerInputs,
-        causalTrace = causalTrace
+        causalTrace = finalCausalTrace
       )
     val deterministicProse =
       Option(LiveNarrativeCompressionCore.deterministicProse(slots)).map(_.trim).getOrElse("")
     val rawPvDelta = rawCtx.decision.map(_.delta)
-    val sanitizedPvDelta = snapshot.ctx.decision.map(_.delta)
+    val sanitizedPvDelta = ctx.decision.map(_.delta)
     val concreteTacticalSources = plannerCandidateSources(rankedPlans, "ConcreteTactical")
     val lineConsequenceSources = plannerCandidateSources(rankedPlans, "LineConsequence")
     val alternativeComparisonSources = plannerCandidateSources(rankedPlans, "AlternativeComparison")
@@ -2252,12 +2245,12 @@ object CommentaryPlayerQcSupport:
     val moveDeltaSources = plannerCandidateSources(rankedPlans, "MoveDelta")
     val prose =
       EarlyOpeningNarrationPolicy.clampNarrative(
-        snapshot.ctx,
+        ctx,
         lila.commentary.CommentaryApi.sanitizeMoveReviewProse(
           if deterministicProse.nonEmpty then deterministicProse
           else exactFactualReviewProse(snapshot)
         ),
-        snapshot.truthContract
+        truthContract
       )
     MoveReviewRuntimeTrace(
       planner =
@@ -2268,8 +2261,8 @@ object CommentaryPlayerQcSupport:
               .orElse(rankedPlans.rejected.headOption.map(_.fallbackMode.toString)),
           secondaryKind = rankedPlans.secondary.map(_.questionKind.toString),
           secondarySurfaced =
-            rankedPlans.secondary.nonEmpty && plannerOwnedSlots.exists(_.supportSecondary.nonEmpty),
-          moveReviewFallbackMode = if plannerOwnedSlots.nonEmpty then "planner_owned" else "exact_factual",
+            rankedPlans.secondary.nonEmpty && plannerOwned && slots.supportSecondary.nonEmpty,
+          moveReviewFallbackMode = if plannerOwned then "planner_owned" else "exact_factual",
           sceneType = Some(rankedPlans.ownerTrace.sceneType.wireName),
           sceneReasons = rankedPlans.ownerTrace.sceneReasons,
           ownerCandidates = rankedPlans.ownerTrace.ownerCandidateLabels,
@@ -2280,7 +2273,7 @@ object CommentaryPlayerQcSupport:
           demotionReasons = rankedPlans.ownerTrace.demotionReasons,
           candidateEvidenceLines = plannerInputs.candidateEvidenceLines,
           pvCoupledPlanNames =
-            snapshot.ctx.strategicPlanEvidence.pvCoupledPlans.flatMap(plan =>
+            ctx.strategicPlanEvidence.pvCoupledPlans.flatMap(plan =>
               Option(plan.hypothesis.planName).map(_.trim).filter(_.nonEmpty)
             ),
           pvCoupledPlanSupport = plannerInputs.pvCoupledPlanSupport.map(_.claim),
@@ -2296,23 +2289,23 @@ object CommentaryPlayerQcSupport:
           rawPvDeltaNewOpportunitiesPresent = Some(rawPvDelta.exists(_.newOpportunities.nonEmpty)),
           rawPvDeltaPlanAdvancementsPresent = Some(rawPvDelta.exists(_.planAdvancements.nonEmpty)),
           rawPvDeltaConcessionsPresent = Some(rawPvDelta.exists(_.concessions.nonEmpty)),
-          sanitizedDecisionPresent = Some(snapshot.ctx.decision.nonEmpty),
-          sanitizedDecisionIngressReason = Some(decisionIngressReason(snapshot.ctx)),
+          sanitizedDecisionPresent = Some(ctx.decision.nonEmpty),
+          sanitizedDecisionIngressReason = Some(decisionIngressReason(ctx)),
           sanitizedPvDeltaAvailable = Some(sanitizedPvDelta.nonEmpty),
-          sanitizedPvDeltaIngressReason = Some(pvDeltaIngressReason(snapshot.ctx)),
-          truthClass = snapshot.truthContract.map(_.truthClass.toString),
-          truthReasonFamily = snapshot.truthContract.map(_.reasonFamily.toString),
-          truthFailureMode = snapshot.truthContract.map(_.failureMode.toString),
-          truthChosenMatchesBest = snapshot.truthContract.map(_.chosenMatchesBest),
-          truthOnlyMoveDefense = snapshot.truthContract.map(_.reasonFamily.toString == "OnlyMoveDefense"),
-          truthBenchmarkCriticalMove = snapshot.truthContract.map(_.benchmarkCriticalMove),
+          sanitizedPvDeltaIngressReason = Some(pvDeltaIngressReason(ctx)),
+          truthClass = truthContract.map(_.truthClass.toString),
+          truthReasonFamily = truthContract.map(_.reasonFamily.toString),
+          truthFailureMode = truthContract.map(_.failureMode.toString),
+          truthChosenMatchesBest = truthContract.map(_.chosenMatchesBest),
+          truthOnlyMoveDefense = truthContract.map(_.reasonFamily.toString == "OnlyMoveDefense"),
+          truthBenchmarkCriticalMove = truthContract.map(_.benchmarkCriticalMove),
           concreteTacticalSources = concreteTacticalSources,
           lineConsequenceSources = lineConsequenceSources,
           alternativeComparisonSources = alternativeComparisonSources,
           forcingDefenseSources = forcingDefenseSources,
           moveDeltaSources = moveDeltaSources,
           surfaceReplayOutcome =
-            Some(if plannerOwnedSlots.nonEmpty then "move_review_planner_owned" else "move_review_exact_factual"),
+            Some(if plannerOwned then "move_review_planner_owned" else "move_review_exact_factual"),
           contrastSourceKind = contrastTrace.contrast_source_kind,
           contrastAnchor = contrastTrace.contrast_anchor,
           contrastConsequence = contrastTrace.contrast_consequence,
@@ -2325,27 +2318,27 @@ object CommentaryPlayerQcSupport:
                   !sentence.equalsIgnoreCase(existing.trim)
                 )
               ),
-          causalClaimStatus = causalTrace.map(_.status),
-          causalClaimQuestion = causalTrace.map(_.questionKind),
-          causalClaimSubject = causalTrace.flatMap(_.subjectRole),
-          causalClaimEvidence = causalTrace.map(_.evidenceKinds).getOrElse(Nil),
-          causalClaimEvidenceSources = causalTrace.map(_.evidenceSources).getOrElse(Nil),
-          causalClaimEvidenceSubjects = causalTrace.map(_.evidenceSubjects).getOrElse(Nil),
-          causalClaimLineBindings = causalTrace.map(_.evidenceLineBindings).getOrElse(Nil),
-          causalClaimRelations = causalTrace.map(_.relationKinds).getOrElse(Nil),
-          causalFrameIntent = causalTrace.flatMap(_.frameIntent),
-          causalFrameRoles = causalTrace.map(_.frameRoles).getOrElse(Nil),
-          causalFrameSurfaceContract = causalTrace.map(_.frameSurfaceContract).getOrElse(Nil),
-          causalClaimRejectReasons = causalTrace.map(_.rejectReasons).getOrElse(Nil),
-          causalClaimSupportEmbedded = causalTrace.flatMap(_.supportRenderedInClaim),
-          causalClaimGuardrail = causalTrace.flatMap(_.guardrail),
-          causalClaimLocalFactFamily = causalTrace.flatMap(_.localFactFamily),
-          causalClaimLocalFactAuthority = causalTrace.flatMap(_.localFactAuthority),
-          causalClaimLocalFactProducer = causalTrace.flatMap(_.localFactProducer),
-          causalClaimLocalFactEvidenceRefs = causalTrace.map(_.localFactEvidenceRefs).getOrElse(Nil),
-          causalClaimLocalFactStrictFallbackEligible = causalTrace.flatMap(_.localFactStrictFallbackEligible),
-          causalClaimLocalFactGuardrails = causalTrace.map(_.localFactGuardrails).getOrElse(Nil),
-          causalClaimLocalFactRejectReasons = causalTrace.map(_.localFactRejectReasons).getOrElse(Nil)
+          causalClaimStatus = finalCausalTrace.map(_.status),
+          causalClaimQuestion = finalCausalTrace.map(_.questionKind),
+          causalClaimSubject = finalCausalTrace.flatMap(_.subjectRole),
+          causalClaimEvidence = finalCausalTrace.map(_.evidenceKinds).getOrElse(Nil),
+          causalClaimEvidenceSources = finalCausalTrace.map(_.evidenceSources).getOrElse(Nil),
+          causalClaimEvidenceSubjects = finalCausalTrace.map(_.evidenceSubjects).getOrElse(Nil),
+          causalClaimLineBindings = finalCausalTrace.map(_.evidenceLineBindings).getOrElse(Nil),
+          causalClaimRelations = finalCausalTrace.map(_.relationKinds).getOrElse(Nil),
+          causalFrameIntent = finalCausalTrace.flatMap(_.frameIntent),
+          causalFrameRoles = finalCausalTrace.map(_.frameRoles).getOrElse(Nil),
+          causalFrameSurfaceContract = finalCausalTrace.map(_.frameSurfaceContract).getOrElse(Nil),
+          causalClaimRejectReasons = finalCausalTrace.map(_.rejectReasons).getOrElse(Nil),
+          causalClaimSupportEmbedded = finalCausalTrace.flatMap(_.supportRenderedInClaim),
+          causalClaimGuardrail = finalCausalTrace.flatMap(_.guardrail),
+          causalClaimLocalFactFamily = finalCausalTrace.flatMap(_.localFactFamily),
+          causalClaimLocalFactAuthority = finalCausalTrace.flatMap(_.localFactAuthority),
+          causalClaimLocalFactProducer = finalCausalTrace.flatMap(_.localFactProducer),
+          causalClaimLocalFactEvidenceRefs = finalCausalTrace.map(_.localFactEvidenceRefs).getOrElse(Nil),
+          causalClaimLocalFactStrictFallbackEligible = finalCausalTrace.flatMap(_.localFactStrictFallbackEligible),
+          causalClaimLocalFactGuardrails = finalCausalTrace.map(_.localFactGuardrails).getOrElse(Nil),
+          causalClaimLocalFactRejectReasons = finalCausalTrace.map(_.localFactRejectReasons).getOrElse(Nil)
       ),
       prose = prose,
       quietSupport = quietSupportTrace,

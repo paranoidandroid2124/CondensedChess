@@ -168,7 +168,6 @@ class WsSocket {
         this.pingNow();
         this.resendWhenOpen.forEach(([t, d, o]) => this.send(t, d, o));
         this.resendWhenOpen = [];
-        pubsub.emit('socket.open');
         this.ackable.resend();
       };
       ws.onmessage = e => {
@@ -268,7 +267,6 @@ class WsSocket {
     const mix = this.pongCount > 4 ? 0.1 : 1 / this.pongCount;
     this.averageLag += mix * (currentLag - this.averageLag);
 
-    pubsub.emit('socket.lag', this.averageLag);
   };
 
   private handle = (m: MsgIn, retries: number = 10): void => {
@@ -338,8 +336,6 @@ class WsSocket {
   };
 
   private onClose = (e: CloseEvent): void => {
-    pubsub.emit('socket.close');
-
     if (this.heartbeat.wasSuspended) return this.onSuspended();
 
     if (this.ws) {

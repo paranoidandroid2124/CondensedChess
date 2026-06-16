@@ -1,11 +1,5 @@
 export const plyColor = (ply: number): Color => (ply % 2 === 0 ? 'white' : 'black');
 
-export function readOnlyProp<A>(value: A): () => A {
-  return function (): A {
-    return value;
-  };
-}
-
 const ensureChildren = (node: Tree.NodeOptionalChildren): Tree.Node => {
   node.children ||= [];
   return node as Tree.Node;

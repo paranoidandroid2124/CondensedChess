@@ -7,7 +7,6 @@ export function idleTimer(delay: number, onIdle: () => void, onWakeUp: () => voi
 
   const onActivity = () => {
     if (!active) {
-      // console.log('Wake up');
       onWakeUp();
     }
     active = true;
@@ -31,7 +30,6 @@ export function idleTimer(delay: number, onIdle: () => void, onWakeUp: () => voi
 
   setInterval(() => {
     if (active && performance.now() - lastSeenActive > delay) {
-      // console.log('Idle mode');
       onIdle();
       active = false;
     }
@@ -79,9 +77,6 @@ export class Janitor {
   ): void {
     target.addEventListener(type, listener, options);
     this.cleanupTasks.push(() => target.removeEventListener(type, listener, options));
-  }
-  addCleanupTask(task: () => void): void {
-    this.cleanupTasks.push(task);
   }
   cleanup(): void {
     for (const task of this.cleanupTasks) task();

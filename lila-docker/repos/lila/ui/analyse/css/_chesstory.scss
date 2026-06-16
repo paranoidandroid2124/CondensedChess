@@ -439,8 +439,6 @@
     z-index: 1;
   }
 
-  ---chat-height: fit-content(0);
-
   @include mq-is-col1 {
     grid-row-gap: var(---atlas-shell-block-gap);
     padding: var(---atlas-shell-block-gap) var(---atlas-shell-gutter-x);
@@ -451,14 +449,13 @@
     ---atlas-shell-gutter-x: var(---cs-shell-gutter-x, clamp(0.8rem, 1.7vw, 1.4rem));
     ---board-scale: calc(((var(---zoom, 80) / 100) * 0.74 + 0.26) * 0.78);
     grid-template-columns: minmax(20rem, 1fr) minmax(17rem, 24rem);
-    grid-template-rows: auto auto auto auto auto $chat-height;
+    grid-template-rows: auto auto auto auto auto;
     grid-template-areas:
       'sidebar sidebar'
         'board tools'
         'controls tools'
         'under tools'
-        'round-training round-training'
-        'chat uchat';
+        'round-training round-training';
     grid-column-gap: var(---atlas-shell-block-gap);
     grid-row-gap: var(---atlas-shell-block-gap);
     padding: var(---atlas-shell-block-gap) var(---atlas-shell-gutter-x);
@@ -470,22 +467,20 @@
         'side board tools'
         'side controls tools'
         'side under tools'
-        'round-training round-training round-training'
-        'chat chat uchat';
+        'round-training round-training round-training';
     }
   }
 
   @include mq-at-least-col3 {
     ---board-scale: calc(((var(---zoom, 80) / 100) * 0.74 + 0.26) * 0.8);
     grid-template-columns: minmax(28rem, 1fr) minmax(20rem, 27rem);
-    grid-template-rows: auto auto auto auto auto $chat-height;
+    grid-template-rows: auto auto auto auto auto;
     grid-template-areas:
       'sidebar sidebar'
       'board tools'
       'controls tools'
       'under tools'
-      'round-training round-training'
-      'chat uchat';
+      'round-training round-training';
 
     &--moveReview {
       grid-template-columns: minmax(16rem, 21rem) minmax(28rem, 1fr) minmax(20rem, 27rem);
@@ -494,8 +489,7 @@
         'side board tools'
         'side controls tools'
         'side under tools'
-        'round-training round-training round-training'
-        'chat chat uchat';
+        'round-training round-training round-training';
     }
   }
 
@@ -1576,10 +1570,6 @@
         color: var(--atlas-accent);
       }
     }
-  }
-
-  .mchat {
-    margin-top: 0;
   }
 
   // Keep readable contrast in dark overlays inside tools.

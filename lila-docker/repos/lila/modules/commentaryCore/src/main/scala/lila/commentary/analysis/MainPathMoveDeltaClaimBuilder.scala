@@ -58,20 +58,36 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
       ctx: NarrativeContext,
       strategyPack: Option[StrategyPack],
       truthContract: Option[DecisiveTruthContract],
-      candidateEvidenceLines: List[String] = Nil
+      candidateEvidenceLines: List[String] = Nil,
+      classifiedModeOverride: Option[PlayerFacingTruthMode] = None
   ): Option[MainPathClaimBundle] =
     val surface = StrategyPackSurface.from(strategyPack)
-    val classifiedMode = PlayerFacingTruthModePolicy.classify(ctx, strategyPack, truthContract)
+    val classifiedMode =
+      classifiedModeOverride.getOrElse(PlayerFacingTruthModePolicy.classify(ctx, strategyPack, truthContract))
+    lazy val deltaEvidence =
+      PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidence(ctx, surface, truthContract)
     classifiedMode match
       case PlayerFacingTruthMode.Tactical =>
         buildTacticalBundle(ctx, truthContract, candidateEvidenceLines)
       case PlayerFacingTruthMode.Strategic =>
-        buildStrategicBundle(ctx, strategyPack, surface, truthContract, candidateEvidenceLines)
+        buildStrategicBundle(
+          ctx,
+          surface,
+          truthContract,
+          candidateEvidenceLines,
+          deltaEvidence,
+          classifiedMode
+        )
       case PlayerFacingTruthMode.Minimal
-          if PlayerFacingTruthModePolicy
-            .mainPathMoveDeltaEvidence(ctx, surface, truthContract)
-            .exists(_.packet.admitsStrategicTruthMode) =>
-        buildStrategicBundle(ctx, strategyPack, surface, truthContract, candidateEvidenceLines)
+          if deltaEvidence.exists(_.packet.admitsStrategicTruthMode) =>
+        buildStrategicBundle(
+          ctx,
+          surface,
+          truthContract,
+          candidateEvidenceLines,
+          deltaEvidence,
+          classifiedMode
+        )
       case PlayerFacingTruthMode.Minimal =>
         buildTacticalLineOnly(ctx, truthContract, candidateEvidenceLines)
 
@@ -117,13 +133,13 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
 
   private def buildStrategicBundle(
       ctx: NarrativeContext,
-      strategyPack: Option[StrategyPack],
       surface: StrategyPackSurface.Snapshot,
       truthContract: Option[DecisiveTruthContract],
-      candidateEvidenceLines: List[String]
+      candidateEvidenceLines: List[String],
+      deltaEvidence: Option[PlayerFacingMoveDeltaEvidence],
+      classifiedMode: PlayerFacingTruthMode
   ): Option[MainPathClaimBundle] =
-    PlayerFacingTruthModePolicy
-      .mainPathMoveDeltaEvidence(ctx, surface, truthContract)
+    deltaEvidence
       .flatMap { delta =>
         val anchorTerms =
           (
@@ -137,7 +153,7 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
             strategicEvidenceLines(
               delta = delta,
               ctx = ctx,
-              strategyPack = strategyPack,
+              surface = surface,
               truthContract = truthContract,
               candidateEvidenceLines = candidateEvidenceLines
             )
@@ -147,11 +163,13 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
             .flatMap(clean)
             .filter(_ => delta.allowsWeakMainClaim || delta.check_qualifying)
             .filter(text =>
-              PlayerFacingTruthModePolicy.allowsStrategicClaimText(
+              PlayerFacingTruthModePolicy.allowsStrategicClaimTextWithEvidence(
                 text,
                 ctx,
-                strategyPack,
-                truthContract
+                surface,
+                truthContract,
+                Some(delta),
+                classifiedMode
               )
             )
             .map { text =>
@@ -240,7 +258,7 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
   private def strategicEvidenceLines(
       delta: PlayerFacingMoveDeltaEvidence,
       ctx: NarrativeContext,
-      strategyPack: Option[StrategyPack],
+      surface: StrategyPackSurface.Snapshot,
       truthContract: Option[DecisiveTruthContract],
       candidateEvidenceLines: List[String]
   ): List[String] =
@@ -248,12 +266,13 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
       candidateEvidenceLines
         .flatMap(clean)
         .filter(line =>
-          PlayerFacingTruthModePolicy.allowsStrategicSupportText(
+          PlayerFacingTruthModePolicy.allowsStrategicSupportTextWithEvidence(
             line,
             "line-scoped",
             ctx,
-            strategyPack,
-            truthContract
+            surface,
+            truthContract,
+            Some(delta)
           ) && PlayerFacingTruthModePolicy.lineShowsMainPathDelta(line, delta)
         )
         .take(1)

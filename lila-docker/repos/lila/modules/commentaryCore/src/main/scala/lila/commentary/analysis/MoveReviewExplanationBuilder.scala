@@ -28,16 +28,41 @@ private[commentary] object MoveReviewExplanationBuilder:
       refs: Option[MoveReviewRefs],
       truthContract: Option[DecisiveTruthContract] = None,
       strategyPack: Option[StrategyPack] = None,
-      strictLocalFacts: Boolean = false
+      strictLocalFacts: Boolean = false,
+      precomputedLineConsequence: Option[LineConsequenceEvidence] = None
   ): Option[Result] =
     for
       played <- current(ctx)
       standardLineFacts = MoveReviewPvLine.firstCoupled(ctx.fen, played.uci, refs)
-      evidence = moveReviewEvidence(ctx, played, refs, strategyPack, truthContract, strictLocalFacts)
-      lineFacts = standardLineFacts.orElse(drawResourceLineFacts(ctx.fen, played, refs, evidence))
-      descriptor <- CommentaryIdeaSurface.describe(played, evidence, lineFacts, truthContract, strictLocalFacts)
+      evidence = moveReviewEvidence(
+        ctx,
+        played,
+        refs,
+        strategyPack,
+        truthContract,
+        strictLocalFacts,
+        precomputedLineConsequence
+      )
+      baseLineFacts = standardLineFacts.orElse(drawResourceLineFacts(ctx.fen, played, refs, evidence))
+      initialDescriptor <- CommentaryIdeaSurface.describe(played, evidence, baseLineFacts, truthContract, strictLocalFacts)
+      preferredLineFacts =
+        if initialDescriptor.source == "line_consequence" then
+          lineFactsForConsequence(ctx.fen, played.uci, refs, evidence.lineConsequence).orElse(baseLineFacts)
+        else baseLineFacts
+      refreshedDescriptor =
+        Option
+          .when(initialDescriptor.source == "line_consequence" && preferredLineFacts != baseLineFacts)(
+            CommentaryIdeaSurface
+              .describe(played, evidence, preferredLineFacts, truthContract, strictLocalFacts)
+              .filter(_.source == "line_consequence")
+          )
+          .flatten
+      descriptor = refreshedDescriptor.getOrElse(initialDescriptor)
+      lineFacts =
+        if refreshedDescriptor.nonEmpty || preferredLineFacts == baseLineFacts then preferredLineFacts
+        else baseLineFacts
       pvInterpretation = descriptor.pvInterpretation(lineFacts)
-      shortLine = MoveReviewPvLine.shortLine(refs, pvInterpretation.flatMap(_.supportedByLineId))
+      shortLine = MoveReviewPvLine.shortLine(refs, pvInterpretation.flatMap(_.supportedByLineId).orElse(lineFacts.map(_.line.lineId)))
     yield
       Result(
         explanation =
@@ -82,7 +107,8 @@ private[commentary] object MoveReviewExplanationBuilder:
       refs: Option[MoveReviewRefs],
       strategyPack: Option[StrategyPack],
       truthContract: Option[DecisiveTruthContract],
-      strictLocalFacts: Boolean
+      strictLocalFacts: Boolean,
+      precomputedLineConsequence: Option[LineConsequenceEvidence]
   ): CommentaryIdeaSurface.MoveReviewEvidence =
     val playedCandidate =
       ctx.candidates.find(candidate =>
@@ -98,7 +124,7 @@ private[commentary] object MoveReviewExplanationBuilder:
       ctx.openingGoalEvaluation
         .filter(goal => goal.status == OpeningGoals.Status.Achieved || goal.status == OpeningGoals.Status.Partial)
     val lineConsequence =
-      lineConsequenceCandidate(ctx, refs, truthContract)
+      precomputedLineConsequence.orElse(lineConsequenceCandidate(ctx, refs, truthContract))
         .filter(_.kind != LineConsequenceKind.PreviewOnly)
         .filter(_.uciMoves.headOption.exists(uci => MoveReviewPvLine.normalizeUci(uci) == played.uci))
     val forcedLineTheme =
@@ -111,7 +137,9 @@ private[commentary] object MoveReviewExplanationBuilder:
     val surface = StrategyPackSurface.from(strategyPack)
     val practicalPositionFacts =
       if truthContract.exists(_.blocksStrategicSupport) then Nil
-      else CommentaryIdeaSurface.practicalPositionFacts(played, surface)
+      else
+        CommentaryIdeaSurface.practicalPositionFacts(played, surface) ++
+          CommentaryIdeaSurface.flankPawnPracticalFacts(ctx.fen, played)
     CommentaryIdeaSurface.MoveReviewEvidence(
       facts = facts,
       motifs = motifs,
@@ -119,13 +147,16 @@ private[commentary] object MoveReviewExplanationBuilder:
       openingName = ctx.openingData.flatMap(_.name).orElse(openingNameFromEvent(ctx)),
       lineConsequence = lineConsequence,
       postMoveTargetFacts = postMoveTargetFacts(played),
+      postMoveDefendedTargetFacts = postMoveDefendedTargetFacts(ctx.fen, played),
+      forkEntryDefenseFacts = postMoveForkEntryDefenseFacts(ctx.fen, played),
       relationWitnesses = relationWitnesses(ctx, played, facts, motifs, refs),
       strategicDeltas = PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidences(ctx, surface, truthContract),
       phase = Option(ctx.phase.current).filter(_.trim.nonEmpty).getOrElse(ctx.header.phase),
       ply = ctx.ply,
       strictLocalFacts = strictLocalFacts,
       forcedLineTheme = forcedLineTheme,
-      practicalPositionFacts = practicalPositionFacts
+      practicalPositionFacts = practicalPositionFacts,
+      centralPractical = CentralBreakTimingWitness.practical(ctx)
     )
 
   private def qualityLabel(truthContract: Option[DecisiveTruthContract]): Option[String] =
@@ -153,6 +184,28 @@ private[commentary] object MoveReviewExplanationBuilder:
     ) &&
       witness.lineMoves.headOption.exists(uci => MoveReviewPvLine.normalizeUci(uci) == played.uci)
 
+  private def lineFactsForConsequence(
+      startFen: String,
+      playedUci: String,
+      refs: Option[MoveReviewRefs],
+      consequence: Option[LineConsequenceEvidence]
+  ): Option[MoveReviewPvLine.LineFacts] =
+    for
+      evidence <- consequence
+      lineId <- evidence.lineId
+      refsValue <- refs.filter(_.startFen.trim == startFen.trim)
+      variation <- refsValue.variations.find(_.lineId == lineId)
+      validated <- MoveReviewPvLine.validatedLine(startFen, variation, playedUci)
+      first <- validated.first
+    yield
+      MoveReviewPvLine.LineFacts(
+        validated.line,
+        first,
+        validated.reply,
+        validated.continuation,
+        validated.moves.drop(3).take(3)
+      )
+
   private def openingNameFromEvent(ctx: NarrativeContext): Option[String] =
     ctx.openingEvent.collect { case event: OpeningEvent.Intro => event.name }
 
@@ -161,10 +214,7 @@ private[commentary] object MoveReviewExplanationBuilder:
       refs: Option[MoveReviewRefs],
       truthContract: Option[DecisiveTruthContract]
   ): Option[LineConsequenceEvidence] =
-    if truthContract.exists(_.blocksStrategicSupport) then
-      LineConsequenceEvaluator.reviewedMoveSurfaceCandidate(ctx, refs)
-        .orElse(LineConsequenceEvaluator.surfaceCandidate(ctx, refs))
-    else LineConsequenceEvaluator.surfaceCandidate(ctx, refs)
+    LineConsequenceEvaluator.moveReviewCandidate(ctx, refs, truthContract)
 
   private def forcedLineTruthVariations(ctx: NarrativeContext, refs: Option[MoveReviewRefs]): List[VariationLine] =
     (
@@ -188,6 +238,118 @@ private[commentary] object MoveReviewExplanationBuilder:
         case fact: Fact.HangingPiece if fact.attackers.contains(played.to) => fact
       }
       .distinct
+
+  private def postMoveDefendedTargetFacts(
+      beforeFen: String,
+      played: CommentaryIdeaSurface.PlayedMove
+  ): List[Fact] =
+    if played.isCapture || played.role == chess.King || played.role == chess.Pawn then Nil
+    else
+      val positions =
+        for
+          before <- Fen.read(Standard, Fen.Full(beforeFen))
+          after <- Fen.read(Standard, Fen.Full(played.afterFen))
+        yield before -> after
+      positions
+        .map { case (before, after) =>
+          after.board.byColor(played.color).squares.toList.flatMap { square =>
+            for
+              afterPiece <- after.board.pieceAt(square)
+              beforePiece <- before.board.pieceAt(square)
+              if afterPiece == beforePiece
+              if afterPiece.role != chess.King
+              attackersBefore = before.board.attackers(square, !played.color).squares
+              attackersAfter = after.board.attackers(square, !played.color).squares
+              defendersBefore = before.board.attackers(square, played.color).squares
+              defendersAfter = after.board.attackers(square, played.color).squares
+              if attackersBefore.nonEmpty && attackersAfter.nonEmpty
+              if !defendersBefore.contains(played.from) && defendersAfter.contains(played.to)
+              if targetDefenseMeaningful(before.board, afterPiece.role, attackersBefore)
+            yield Fact.TargetPiece(square, afterPiece.role, attackersAfter, defendersAfter, FactScope.Now)
+          }
+        }
+        .getOrElse(Nil)
+        .distinct
+
+  private def targetDefenseMeaningful(
+      board: chess.Board,
+      role: chess.Role,
+      attackers: List[Square]
+  ): Boolean =
+    role != chess.Pawn ||
+      attackers.exists(attacker =>
+        board.roleAt(attacker).exists(attackerRole =>
+          attackerRole == chess.Queen ||
+            attackerRole == chess.Rook ||
+            attackerRole == chess.Bishop ||
+            attackerRole == chess.Knight
+        )
+      )
+
+  private def postMoveForkEntryDefenseFacts(
+      beforeFen: String,
+      played: CommentaryIdeaSurface.PlayedMove
+  ): List[CommentaryIdeaSurface.ForkEntryDefenseFact] =
+    if played.isCapture || played.role == chess.King || played.role == chess.Pawn then Nil
+    else
+      val positions =
+        for
+          before <- Fen.read(Standard, Fen.Full(beforeFen))
+          after <- Fen.read(Standard, Fen.Full(played.afterFen))
+        yield before -> after
+      positions
+        .map { case (before, after) =>
+          Square.all.toList.flatMap { entry =>
+            val emptyEntry = before.board.pieceAt(entry).isEmpty && after.board.pieceAt(entry).isEmpty
+            val defendersBefore = before.board.attackers(entry, played.color).squares.toList
+            val defendersAfter = after.board.attackers(entry, played.color).squares.toList
+            val targets =
+              MoveReviewExchangeAnalyzer
+                .roleAttacks(chess.Knight, entry, !played.color, after.board.occupied)
+                .squares
+                .toList
+                .flatMap(target =>
+                  after.board.pieceAt(target)
+                    .filter(piece =>
+                      piece.color == played.color &&
+                        (piece.role == chess.King || piece.role == chess.Queen || piece.role == chess.Rook)
+                    )
+                    .map(piece => target -> piece.role)
+                )
+                .sortBy { case (square, role) =>
+                  val priority =
+                    if role == chess.King then 0
+                    else if role == chess.Queen then 1
+                    else 2
+                  priority -> square.key
+                }
+            val hitsKingAndMajor =
+              targets.exists(_._2 == chess.King) &&
+                targets.exists { case (_, role) => role == chess.Queen || role == chess.Rook }
+            val knightAttackers =
+              before.board.attackers(entry, !played.color).squares.toList.filter(attacker =>
+                before.board.pieceAt(attacker).exists(piece => piece.color != played.color && piece.role == chess.Knight) &&
+                  after.board.pieceAt(attacker).exists(piece => piece.color != played.color && piece.role == chess.Knight)
+              )
+            if
+              emptyEntry &&
+                defendersBefore.isEmpty &&
+                defendersAfter.contains(played.to) &&
+                hitsKingAndMajor
+            then
+              knightAttackers.map(attacker =>
+                CommentaryIdeaSurface.ForkEntryDefenseFact(
+                  entrySquare = entry,
+                  attackerSquare = attacker,
+                  targets = targets,
+                  defenderSquare = played.to
+                )
+              )
+            else Nil
+          }
+        }
+        .getOrElse(Nil)
+        .distinct
 
   private def relationWitnesses(
       ctx: NarrativeContext,

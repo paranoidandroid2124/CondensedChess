@@ -47,9 +47,11 @@ def has_secret_ref(node: Any) -> bool:
 
 def env_is_configured(entry: dict[str, Any]) -> bool:
     value = entry.get("value")
-    if isinstance(value, str) and value.strip():
-        return True
-    return has_secret_ref(entry.get("valueFrom")) or has_secret_ref(entry.get("valueSource"))
+    return (
+        (isinstance(value, str) and bool(value.strip()))
+        or has_secret_ref(entry.get("valueFrom"))
+        or has_secret_ref(entry.get("valueSource"))
+    )
 
 
 def extract_service_envs(service: dict[str, Any]) -> dict[str, bool]:
@@ -77,26 +79,26 @@ def cloud_run_managed(spec: dict[str, Any]) -> bool:
 
 
 def evaluate_manifest(manifest: dict[str, Any], envs: dict[str, bool]) -> tuple[list[str], list[str]]:
-    errors: list[str] = []
-    warnings: list[str] = []
     specs = manifest["bindings"]
     known_envs = {spec["env"] for spec in specs}
     removed_envs = set(manifest.get("removedBindings", []))
 
-    for spec in specs:
-        env_name = spec["env"]
-        if cloud_run_managed(spec) and is_required(spec, envs) and not envs.get(env_name, False):
-            errors.append(
-                f"Missing required binding {env_name} ({spec['configPath'] or 'env-only'})"
-            )
-
-    for env_name in sorted(removed_envs):
-        if envs.get(env_name, False):
-            warnings.append(f"Removed binding still configured: {env_name}")
+    errors = [
+        f"Missing required binding {spec['env']} ({spec['configPath'] or 'env-only'})"
+        for spec in specs
+        if cloud_run_managed(spec) and is_required(spec, envs) and not envs.get(spec["env"], False)
+    ]
 
     unknown = sorted(name for name, configured in envs.items() if configured and name not in known_envs and name not in removed_envs)
-    for env_name in unknown:
-        warnings.append(f"Configured env is not tracked by openbeta manifest: {env_name}")
+    warnings = [
+        f"Removed binding still configured: {env_name}"
+        for env_name in sorted(removed_envs)
+        if envs.get(env_name, False)
+    ]
+    warnings.extend(
+        f"Configured env is not tracked by openbeta manifest: {env_name}"
+        for env_name in unknown
+    )
 
     return errors, warnings
 

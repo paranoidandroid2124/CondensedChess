@@ -20,7 +20,6 @@ trait RequestContext(using Executor):
     pref <- env.pref.api.get(Me.raw(userCtx.me), req)
   yield BodyContext(req, userCtx, pref)
 
-
   private def pageDataBuilder(using ctx: Context): Fu[PageData] =
     if HTTPRequest.isSynchronousHttp(ctx.req)
     then
@@ -28,11 +27,7 @@ trait RequestContext(using Executor):
       if env.mode.isDev then env.web.manifest.update()
       ctx.me.foldUse(fuccess(PageData.anon(nonce))): me ?=>
         env.user.lightUserApi.preloadUser(me)
-        fuccess(PageData(
-          teamNbRequests = 0,
-          nbNotifications = 0,
-          nonce = nonce
-        ))
+        fuccess(PageData.anon(nonce))
     else fuccess(PageData.anon(none))
 
   def pageContext(using ctx: Context): Fu[PageContext] =

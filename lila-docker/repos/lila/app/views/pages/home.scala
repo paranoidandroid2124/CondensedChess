@@ -1,6 +1,8 @@
 package views.pages
 
 import controllers.Main
+import lila.analyse.ImportHistory
+import lila.accountintel.AccountIntel.ProductKind
 import lila.app.UiEnv.{ *, given }
 import lila.ui.Page
 import play.api.libs.json.{ JsObject, Json }
@@ -153,7 +155,7 @@ object home:
       span(cls := "home-action-card__cta")("Open")
     )
 
-  private def renderRecentAnalysis(entry: lila.analyse.ImportHistory.Analysis): Frag =
+  private def renderRecentAnalysis(entry: ImportHistory.Analysis): Frag =
     val supportLine =
       List(entry.opening, entry.variant.filterNot(v => entry.opening.contains(v))).flatten.mkString(" • ")
     a(href := importedAnalysisUrl(entry._id, "review"), cls := "home-card home-card--analysis")(
@@ -194,12 +196,12 @@ object home:
       span(cls := "home-card__cta")("Open")
     )
 
-  private def renderAccountLookup(account: lila.analyse.ImportHistory.Account): Frag =
+  private def renderAccountLookup(account: ImportHistory.Account): Frag =
     a(
       href := routes.AccountIntel.product(
         account.provider,
         account.username,
-        lila.accountintel.AccountIntel.ProductKind.MyAccountIntelligenceLite.key,
+        ProductKind.MyAccountIntelligenceLite.key,
         ""
       ).url,
       cls := "home-strip-card"
@@ -233,7 +235,7 @@ object home:
       .flatMap(raw => Try(Json.parse(raw).as[JsObject]).toOption)
       .flatMap(js => (js \ "headline").asOpt[String])
 
-  private def recentAnalysisMeta(entry: lila.analyse.ImportHistory.Analysis): String =
+  private def recentAnalysisMeta(entry: ImportHistory.Analysis): String =
     val line = List(
       entry.username.map("@" + _),
       entry.playedAtLabel.filterNot(_ == "-"),
@@ -247,26 +249,26 @@ object home:
 
   private def providerTone(provider: String): String =
     provider.trim.toLowerCase match
-      case "chesscom" => "chesscom"
-      case _          => "lichess"
+      case ImportHistory.providerChessCom => ImportHistory.providerChessCom
+      case _                              => ImportHistory.providerLichess
 
   private def providerLabel(provider: String): String =
     provider.trim.toLowerCase match
-      case "chesscom" => "Chess.com"
-      case _          => "Lichess"
+      case ImportHistory.providerChessCom => "Chess.com"
+      case _                              => "Lichess"
 
   private def kindLabel(kind: String): String =
     kind match
-      case "my_account_intelligence_lite" => "My Patterns"
-      case "opponent_prep"                => "Prep for Opponent"
-      case other                          => other.replace('_', ' ')
+      case ProductKind.MyAccountIntelligenceLite.key => "My Patterns"
+      case ProductKind.OpponentPrep.key              => "Prep for Opponent"
+      case other                                     => other.replace('_', ' ')
 
   private def sourceTypeLabel(sourceType: String): String =
     sourceType match
-      case lila.analyse.ImportHistory.sourceManual => "Manual PGN"
-      case _                                       => "Imported game"
+      case ImportHistory.sourceManual => "Manual PGN"
+      case _                          => "Imported game"
 
   private def sourceBadgeTone(sourceType: String): String =
     sourceType match
-      case lila.analyse.ImportHistory.sourceManual => "manual"
-      case _                                       => "imported"
+      case ImportHistory.sourceManual => "manual"
+      case _                          => "imported"

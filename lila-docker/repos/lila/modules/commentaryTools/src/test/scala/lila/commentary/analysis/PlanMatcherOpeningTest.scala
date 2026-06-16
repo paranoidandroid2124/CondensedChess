@@ -20,6 +20,7 @@ import lila.commentary.model.{
   ThreatTable,
   Motif
 }
+import lila.commentary.model.strategic.{ EngineEvidence, VariationLine }
 import munit.FunSuite
 
 class PlanMatcherOpeningTest extends FunSuite:
@@ -206,6 +207,73 @@ class PlanMatcherOpeningTest extends FunSuite:
     val evaluation = OpeningGoals.analyze(ctx).getOrElse(fail("expected opening goal"))
     assertEquals(evaluation.goalName, "Flank Fianchetto Support")
     assert(Set(OpeningGoals.Status.Achieved, OpeningGoals.Status.Partial).contains(evaluation.status), clue(evaluation))
+  }
+
+  test("flank fianchetto support can use a played-first legal PV activation witness") {
+    val ctx =
+      openingNarrativeContext(
+        fen = "rnbqkbnr/pp1ppp1p/2p3p1/8/3PP3/8/PPP2PPP/RNBQKBNR w KQkq - 0 3",
+        playedMove = "g7g6",
+        playedSan = "g6"
+      ).copy(
+        ply = 4,
+        engineEvidence = Some(EngineEvidence(
+          depth = 10,
+          variations = List(VariationLine(List("g7g6", "f1d3", "d7d6", "g1f3", "f8g7"), scoreCp = 74, depth = 10))
+        ))
+      )
+
+    val evaluation = OpeningGoals.analyze(ctx).getOrElse(fail("expected PV-backed fianchetto opening goal"))
+
+    assertEquals(evaluation.goalName, "Flank Fianchetto Support")
+    assertEquals(evaluation.status, OpeningGoals.Status.Partial, clue(evaluation))
+    assert(evaluation.supportedEvidence.contains("PV activates the long diagonal"), clue(evaluation.supportedEvidence))
+  }
+
+  test("development logic can use a played-first comparable PV witness") {
+    val ctx =
+      openingNarrativeContext(
+        fen = "r6r/ppp3pp/2n1kn2/2b1p3/4P3/2N2P2/PPP3PP/R1B1K1NR w KQ - 2 11",
+        playedMove = "b8c6",
+        playedSan = "Nc6"
+      ).copy(
+        ply = 20,
+        engineEvidence = Some(EngineEvidence(
+          depth = 10,
+          variations = List(
+            VariationLine(List("a7a6", "g1e2", "b8c6"), scoreCp = 163, depth = 10),
+            VariationLine(List("b8c6", "c1d2", "b7b6", "e1c1"), scoreCp = 163, depth = 10)
+          )
+        ))
+      )
+
+    val evaluation = OpeningGoals.analyze(ctx).getOrElse(fail("expected PV-backed development goal"))
+
+    assertEquals(evaluation.goalName, "Development Logic")
+    assertEquals(evaluation.status, OpeningGoals.Status.Partial, clue(evaluation))
+    assert(evaluation.supportedEvidence.contains("Checked line keeps the development move in range"), clue(evaluation.supportedEvidence))
+  }
+
+  test("opening concept does not infer queen or break preparation from a king move") {
+    val ctx =
+      openingNarrativeContext(
+        fen = "rnb4r/ppp1kBpp/5n2/2b1p3/4P3/5P2/PPP3PP/RNB1K1NR w KQ - 1 8",
+        playedMove = "d8e7",
+        playedSan = "Ke7"
+      ).copy(ply = 14)
+
+    assertEquals(OpeningGoals.analyze(ctx), None)
+  }
+
+  test("opening concept does not infer pawn-break preparation from a quiet piece move") {
+    val ctx =
+      openingNarrativeContext(
+        fen = "r3kbnr/ppp2ppp/4b3/3pp3/3PP3/8/PPP2PPP/RNBQKBNR w KQkq - 0 4",
+        playedMove = "c8e6",
+        playedSan = "Be6"
+      ).copy(ply = 8)
+
+    assertEquals(OpeningGoals.analyze(ctx), None)
   }
 
   test("opening concept recognizes Catalan d-pawn tension release as prose-only goal") {

@@ -916,9 +916,9 @@ class ProofContractRulesTest extends FunSuite:
       fallbackMode = PlayerFacingClaimFallbackMode.WeakMain,
       proofPathWitness =
         PlayerFacingProofPathWitness(
-          ownerSeedTerms = List("iqp", "d5", "isolated_pawn:d5"),
+          ownerSeedTerms = List("iqp", "d5", "isolated_pawn:d5", "target_pressure:d5"),
           continuationTerms = List("d5", "c4d5", "e6d5"),
-          structureTransitionTerms = List("isolated_d_pawn", "after_isolated:d5", "central_isolated_pawn"),
+          structureTransitionTerms = List("isolated_d_pawn", "after_isolated:d5", "target_pressure:d5", "central_isolated_pawn"),
           exactSliceProof = Some(PlayerFacingExactSliceProof.IqpInducement("d5", List("c4d5", "e6d5")))
         )
     )

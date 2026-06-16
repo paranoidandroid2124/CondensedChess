@@ -1,14 +1,14 @@
 import makeCtrl from './ctrl';
 import menuHover from 'lib/menuHover';
 import makeView from './view/main';
-import type { AnalyseApi, AnalyseOpts } from './interfaces';
+import type { AnalyseOpts } from './interfaces';
 import type { VNode } from 'snabbdom';
 
 
 export default function (
   patch: (oldVnode: VNode | Element | DocumentFragment, vnode: VNode) => VNode,
 ) {
-  return function (opts: AnalyseOpts): AnalyseApi {
+  return function (opts: AnalyseOpts): void {
     opts.element = document.querySelector('main.analyse') as HTMLElement;
 
     const view = makeView();
@@ -30,10 +30,5 @@ export default function (
 
     menuHover();
 
-    return {
-      socketReceive: ctrl.socket.receive,
-      path: () => ctrl.path,
-      setChapter(_id: string) { },
-    };
   };
 }

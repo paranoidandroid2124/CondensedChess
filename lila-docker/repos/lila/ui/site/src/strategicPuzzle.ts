@@ -1,6 +1,5 @@
 import { Chessground as makeChessground } from '@lichess-org/chessground';
 import type { Api as ChessgroundApi } from '@lichess-org/chessground/api';
-import { myUsername } from 'lib';
 
 type Credit = 'full' | 'partial';
 type Outcome = 'full' | 'partial' | 'wrong' | 'giveup';
@@ -287,7 +286,7 @@ class StrategicPuzzleApp {
     const boardCallouts = this.app.querySelector<HTMLElement>('[data-region="board-callouts"]');
     if (boardCallouts) boardCallouts.innerHTML = this.renderBoardCallouts();
     const statePane = this.app.querySelector<HTMLElement>('[data-region="state-pane"]');
-    if (statePane) statePane.innerHTML = this.renderStatePane(this.accountPatternsUrl());
+    if (statePane) statePane.innerHTML = this.renderStatePane();
     this.bindBoard();
     this.bindButtons();
     this.replaceHistoryState();
@@ -381,12 +380,6 @@ class StrategicPuzzleApp {
       console.warn('strategic puzzle bootstrap fetch failed', err);
       return null;
     }
-  }
-
-  private accountPatternsUrl(): string | null {
-    const username = myUsername();
-    if (!username || !this.payload.progress.authenticated) return null;
-    return `/account-intel/lichess/${encodeURIComponent(username)}?kind=my_account_intelligence_lite`;
   }
 
   private onPopState = (event: PopStateEvent) => {
@@ -523,7 +516,7 @@ class StrategicPuzzleApp {
     return 'Bounded task';
   }
 
-  private renderStatePane(accountPatternsUrl: string | null): string {
+  private renderStatePane(): string {
     const reveal = this.reveal;
     const plan = this.selectedPlan;
     const panelLabel = this.stage === 'reveal' ? 'Reveal' : this.stage === 'move' ? 'Start' : 'Plan';
@@ -595,7 +588,7 @@ class StrategicPuzzleApp {
           </div>
           ${this.stage === 'plan' ? this.renderPlanGrid() : this.stage === 'move' ? this.renderStartGrid() : reveal ? this.renderRevealStack(reveal) : ''}
         </div>
-        ${this.renderPaneFooter(accountPatternsUrl)}
+        ${this.renderPaneFooter()}
       </section>
     `;
   }
@@ -764,13 +757,13 @@ class StrategicPuzzleApp {
     `;
   }
 
-  private renderPaneFooter(accountPatternsUrl: string | null): string {
+  private renderPaneFooter(): string {
     const footerCopy =
       this.stage === 'reveal'
         ? this.nextAvailable
           ? 'Another plan-first puzzle is ready when you want the next position.'
           : this.payload.progress.authenticated
-            ? 'This account has cleared the current public puzzle pool. Replay the review or jump to your games.'
+            ? 'This account has cleared the current public puzzle pool. Replay the review from the start.'
             : 'Replay the plan shell from the start, or keep sampling anonymously.'
         : this.stage === 'move'
           ? 'Changing the task resets the move stage. Giving up opens the featured review from a stored start.'
@@ -782,7 +775,7 @@ class StrategicPuzzleApp {
           <span>${escapeHtml(footerCopy)}</span>
         </div>
         <div class="sp-runtime-pane__footer-actions sp-runtime-actions">
-          ${this.stage === 'reveal' ? this.renderRevealFooterActions(accountPatternsUrl) : this.renderSolveFooterActions()}
+          ${this.stage === 'reveal' ? this.renderRevealFooterActions() : this.renderSolveFooterActions()}
         </div>
       </div>
     `;
@@ -796,11 +789,10 @@ class StrategicPuzzleApp {
     `;
   }
 
-  private renderRevealFooterActions(accountPatternsUrl: string | null): string {
+  private renderRevealFooterActions(): string {
     return `
       ${this.nextAvailable ? `<button type="button" class="sp-demo-link is-strong" data-action="next">Next puzzle</button>` : ''}
       <button type="button" class="sp-demo-link" data-action="reset">Replay puzzle</button>
-      ${accountPatternsUrl ? `<a href="${accountPatternsUrl}" class="sp-demo-link">See this in my games</a>` : ''}
     `;
   }
 

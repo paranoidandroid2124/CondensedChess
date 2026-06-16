@@ -21,7 +21,11 @@ final class UserAnalysis(
       case -1 => (arg, None)
       case i  => (arg.take(i), Some(arg.drop(i + 1)))
 
-    chess.variant.Variant(chess.variant.Variant.LilaKey(key)).fold(
+    val variantOpt =
+      chess.variant.Variant(chess.variant.Variant.LilaKey(key)).filter: variant =>
+        variant.standard || variant.chess960
+
+    variantOpt.fold(
       Redirect(routes.UserAnalysis.index).toFuccess
     ): variant =>
       val rawFen: Option[chess.format.Fen.Full] = fenStr
@@ -100,8 +104,6 @@ final class UserAnalysis(
             "result" -> entry.result,
             "speed" -> entry.speed,
             "playedAtLabel" -> entry.playedAtLabel,
-            "white" -> entry.white,
-            "black" -> entry.black,
             "variant" -> entry.variant,
             "opening" -> entry.opening
           )

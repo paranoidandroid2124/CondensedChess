@@ -16,13 +16,6 @@ export const AutoQueen = {
 };
 export type AutoQueen = (typeof AutoQueen)[keyof typeof AutoQueen];
 
-export const ShowClockTenths = {
-  Never: 0,
-  Below10Secs: 1,
-  Always: 2,
-};
-export type ShowClockTenths = (typeof ShowClockTenths)[keyof typeof ShowClockTenths];
-
 export const ShowResizeHandle = {
   Never: 0,
   OnlyAtStart: 1,
@@ -36,10 +29,3 @@ export const MoveEvent = {
   ClickOrDrag: 2,
 };
 export type MoveEvent = (typeof MoveEvent)[keyof typeof MoveEvent];
-
-export const Replay = {
-  Never: 0,
-  OnlySlowGames: 1,
-  Always: 2,
-};
-export type Replay = (typeof Replay)[keyof typeof Replay];

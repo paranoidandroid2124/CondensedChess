@@ -1,4 +1,4 @@
-export type ShellSelectors = {
+type ShellSelectors = {
   headerId: string;
   navId: string;
   navToggleId: string;

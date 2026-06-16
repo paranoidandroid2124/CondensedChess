@@ -4,7 +4,6 @@ import { copyMeInput, dataIcon } from 'lib/view';
 import type { MouchEvent, NumberPair } from '@lichess-org/chessground/types';
 import { dragNewPiece } from '@lichess-org/chessground/drag';
 import { eventPosition, opposite } from '@lichess-org/chessground/util';
-import type { Rules } from 'chessops/types';
 import { parseFen } from 'chessops/fen';
 import { parseSquare, makeSquare } from 'chessops/util';
 import type EditorCtrl from './ctrl';
@@ -28,25 +27,6 @@ function castleCheckBox(ctrl: EditorCtrl, id: CastlingToggle, label: string, rev
 function optgroup(name: string, opts: VNode[]): VNode {
   return h('optgroup', { attrs: { label: name } }, opts);
 }
-
-function variant2option(key: Rules, name: string, ctrl: EditorCtrl): VNode {
-  return h(
-    'option',
-    { attrs: { value: key, selected: key === ctrl.rules } },
-    `Variant | ${name}`,
-  );
-}
-
-const allVariants: Array<[Rules, string]> = [
-  ['chess', 'Standard'],
-  ['antichess', 'Antichess'],
-  ['atomic', 'Atomic'],
-  ['crazyhouse', 'Crazyhouse'],
-  ['horde', 'Horde'],
-  ['kingofthehill', 'King of the Hill'],
-  ['racingkings', 'Racing Kings'],
-  ['3check', 'Three-check'],
-];
 
 function controls(ctrl: EditorCtrl, state: EditorState): VNode {
   const endgamePosition2option = function (pos: EndgamePosition): VNode {
@@ -174,20 +154,6 @@ function controls(ctrl: EditorCtrl, state: EditorState): VNode {
     ...(ctrl.cfg.embed
       ? [h('div.actions', [buttonStart(), buttonClear()])]
       : [
-        h('div', [
-          h(
-            'select',
-            {
-              attrs: { id: 'variants' },
-              on: {
-                change(e) {
-                  ctrl.setRules((e.target as HTMLSelectElement).value as Rules);
-                },
-              },
-            },
-            allVariants.map(x => variant2option(x[0], x[1], ctrl)),
-          ),
-        ]),
         h('div.actions', [
           buttonStart(licon.Reload),
           buttonClear(licon.Trash),

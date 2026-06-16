@@ -1,6 +1,5 @@
 package lila.api
 
-
 import play.api.mvc.{ Request, RequestHeader }
 import lila.common.HTTPRequest
 import lila.core.net.IpAddress
@@ -16,11 +15,8 @@ final class LoginContext(
   def user: Option[User] = Me.raw(me)
   def userId: Option[UserId] = user.map(_.id)
   def username: Option[UserName] = user.map(_.username)
-  def isBot = false // Simplified: bots not supported in analysis-only system
-  def troll = false // Simplified: no moderation marks
   def isAppealUser = me.exists(_.enabled.no)
   def kid = lila.core.user.KidMode(false)
-  def isWebAuth = isAuth
   def isTokenAuth = false
 
 object LoginContext:
@@ -34,9 +30,8 @@ class Context(
 ) extends lila.ui.Context:
   export loginContext.*
   def ip: IpAddress = HTTPRequest.ipAddress(req)
-  lazy val mobileApiVersion: Option[lila.core.net.ApiVersion] = None // Simplified
+  lazy val mobileApiVersion: Option[lila.core.net.ApiVersion] = None
   lazy val blind = req.cookies.get(lila.web.WebConfig.blindCookie.name).exists(_.value.nonEmpty)
-  def isMobileApi = mobileApiVersion.isDefined
   def updatePref(f: Update[Pref]) = new Context(req, loginContext, f(pref))
 
 object Context:
@@ -58,22 +53,19 @@ final class BodyContext[A](
     pref: Pref
 ) extends Context(body, userContext, pref)
 
-/* data necessary to render the lichess website layout */
+/* Data necessary to render the site shell */
 case class PageData(
-    teamNbRequests: Int,
-    nbNotifications: Int,
     nonce: Option[Nonce],
     error: Boolean = false
 )
 
 object PageData:
-  def anon(nonce: Option[Nonce]) = PageData(0, 0, nonce)
+  def anon(nonce: Option[Nonce]) = PageData(nonce)
   def error(nonce: Option[Nonce]) = anon(nonce).copy(error = true)
 
 final class PageContext(val ctx: Context, val data: PageData) extends lila.ui.PageContext:
   export ctx.*
   export data.*
-  def hasInquiry = false
 
 final class EmbedContext(val ctx: Context, val bg: String, val nonce: Nonce):
   export ctx.*

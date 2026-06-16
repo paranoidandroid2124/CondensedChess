@@ -4,24 +4,12 @@ import { debounce } from './async';
 import { ShowResizeHandle } from './prefs';
 import { pubsub } from './pubsub';
 
-type MouchEvent = Event & Partial<MouseEvent & TouchEvent>;
+type ResizePointerEvent = Event & Partial<MouseEvent & TouchEvent>;
 
 type Visible = (ply: Ply) => boolean;
 
-let boundChessgroundResize = false;
-
-export const bindChessgroundResizeOnce = (f: () => void): void => {
-  if (!boundChessgroundResize) {
-    boundChessgroundResize = true;
-    bindChessgroundResize(f);
-  }
-};
-
 export const dispatchChessgroundResize = (): boolean =>
   document.body.dispatchEvent(new Event('chessground.resize'));
-
-export const bindChessgroundResize = (f: () => void): void =>
-  document.body.addEventListener('chessground.resize', f);
 
 export default function resizeHandle(
   els: Elements,
@@ -34,7 +22,7 @@ export default function resizeHandle(
   const el = document.createElement('cg-resize');
   els.container.appendChild(el);
 
-  const startResize = (start: MouchEvent) => {
+  const startResize = (start: ResizePointerEvent) => {
     start.preventDefault();
 
     const mousemoveEvent = start.type === 'touchstart' ? 'touchmove' : 'mousemove',
@@ -45,7 +33,7 @@ export default function resizeHandle(
 
     const saveZoom = debounce(() => xhr.text(`/pref/zoom?v=${zoom}`, { method: 'post' }), 700);
 
-    const resize = (move: MouchEvent) => {
+    const resize = (move: ResizePointerEvent) => {
       const pos = eventPosition(move)!,
         delta = pos[0] - startPos[0] + pos[1] - startPos[1];
 
@@ -81,7 +69,7 @@ export default function resizeHandle(
   }
 }
 
-function eventPosition(e: MouchEvent): [number, number] | undefined {
+function eventPosition(e: ResizePointerEvent): [number, number] | undefined {
   if (e.clientX || e.clientX === 0) return [e.clientX, e.clientY!];
   if (e.targetTouches?.[0]) return [e.targetTouches[0].clientX, e.targetTouches[0].clientY];
   return;

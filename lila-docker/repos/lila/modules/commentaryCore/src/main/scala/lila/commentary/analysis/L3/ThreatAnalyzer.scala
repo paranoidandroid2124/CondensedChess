@@ -210,6 +210,8 @@ object ThreatAnalyzer:
       case m: Motif.Pin => List(m.pinnedPiece.name, m.targetBehind.name)
       case m: Motif.Skewer => List(m.frontPiece.name, m.backPiece.name)
       case m: Motif.DiscoveredAttack => List(m.target.name)
+      case m: Motif.Deflection => List(m.piece.name)
+      case m: Motif.Decoy => List(m.piece.name)
       case _: Motif.Check => List("King")
       case m: Motif.Capture => List(m.captured.name)
       case m: Motif.TrappedPiece => List(m.trappedRole.name)

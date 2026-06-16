@@ -9,9 +9,6 @@ final class Cached(
     cacheApi: lila.memo.CacheApi
 )(using Executor, Scheduler):
 
-  // Removed onlineBotIdsCache to drop socket dependency
-  // Removed onlineUserIds dependency
-
   def getBotIds: Fu[Set[UserId]] = fuccess(Set.empty)
 
   private def userIdsLikeFetch(text: UserSearch) =
@@ -21,4 +18,4 @@ final class Cached(
     userIdsLikeFetch(text)
 
   def getTop50Online: Fu[List[lila.core.user.User]] =
-    fuccess(Nil) // Feature removed
+    fuccess(Nil)

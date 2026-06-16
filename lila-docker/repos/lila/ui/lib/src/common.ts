@@ -4,15 +4,10 @@ export const defined = <T>(value: T | undefined): value is T => value !== undefi
 
 export const notNull = <T>(value: T | null | undefined): value is T => value !== null && value !== undefined;
 
-export const isEmpty = <T>(a: T[] | undefined): boolean => !a || a.length === 0;
-
-export const notEmpty = <T>(a: T[] | undefined): boolean => !isEmpty(a);
-
 export interface Prop<T> {
   (): T;
   (v: T): T;
 }
-export interface PropWithEffect<T> extends Prop<T> {}
 
 // like mithril prop but with type safety
 export const prop = <A>(initialValue: A): Prop<A> => {
@@ -23,7 +18,7 @@ export const prop = <A>(initialValue: A): Prop<A> => {
   };
 };
 
-export const propWithEffect = <A>(initialValue: A, effect: (value: A) => void): PropWithEffect<A> => {
+export const propWithEffect = <A>(initialValue: A, effect: (value: A) => void): Prop<A> => {
   let value = initialValue;
   return (v?: A) => {
     if (defined(v)) {
@@ -35,7 +30,7 @@ export const propWithEffect = <A>(initialValue: A, effect: (value: A) => void): 
 };
 
 export const withEffect =
-  <T>(prop: Prop<T>, effect: (v: T) => void): PropWithEffect<T> =>
+  <T>(prop: Prop<T>, effect: (v: T) => void): Prop<T> =>
   (v?: T) => {
     let returnValue;
     if (defined(v)) {
@@ -45,25 +40,14 @@ export const withEffect =
     return returnValue;
   };
 
-export interface Toggle extends PropWithEffect<boolean> {
+export interface Toggle extends Prop<boolean> {
   toggle(): void;
-  effect(value: boolean): void;
 }
 
 export const toggle = (initialValue: boolean, effect: (value: boolean) => void = () => {}): Toggle => {
   const prop = propWithEffect<boolean>(initialValue, effect) as Toggle;
   prop.toggle = () => prop(!prop());
   return prop;
-};
-
-export const toggleWithConstraint = (value: boolean, constraint: () => boolean): Toggle => {
-  return Object.assign(
-    (v?: boolean): boolean => {
-      if (defined(v)) value = v && constraint();
-      return value;
-    },
-    { toggle: () => (value = !value && constraint()), effect: () => {} },
-  );
 };
 
 // Only computes a value once. The computed value must not be undefined.
@@ -82,7 +66,7 @@ export const scrollToInnerSelector = (
   behavior: ScrollBehavior = 'instant',
 ): void => scrollTo(el, el.querySelector(selector), horiz, behavior);
 
-export const scrollTo = (
+const scrollTo = (
   el: HTMLElement,
   target: HTMLElement | null,
   horiz: boolean = false,
@@ -108,10 +92,6 @@ export const onClickAway =
     setTimeout(listen, 300);
   };
 
-export function hyphenToCamel(str: string): string {
-  return str.replace(/-([a-z])/g, g => g[1].toUpperCase());
-}
-
 export const requestIdleCallback = (f: () => void, timeout?: number): void => {
   if (window.requestIdleCallback) window.requestIdleCallback(f, timeout ? { timeout } : undefined);
   else requestAnimationFrame(f);
@@ -132,10 +112,6 @@ export function escapeHtml(str: string): string {
 export function frag<T extends Node = Node>(html: string): T {
   const fragment = document.createRange().createContextualFragment(html);
   return (fragment.childElementCount === 1 ? fragment.firstElementChild : fragment) as unknown as T;
-}
-
-export function scopedQuery(scope: Element): <T extends Element = HTMLElement>(sel: string) => T | null {
-  return <T extends Element = HTMLElement>(sel: string) => scope.querySelector<T>(sel);
 }
 
 // The username with all characters lowercase

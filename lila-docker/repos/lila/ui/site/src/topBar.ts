@@ -7,12 +7,11 @@ import { isTouchDevice } from 'lib/device';
 
 export default function () {
   if (!isBrandV3ShellEnabled()) return;
-  const { headerId: shellHeaderId, navId: shellNavId, navToggleId: shellNavToggleId } =
-    readShellSelectors();
-  const top = document.getElementById(shellHeaderId);
+  const { headerId, navId, navToggleId } = readShellSelectors();
+  const top = document.getElementById(headerId);
   if (!top) return;
-  const navToggle = document.getElementById(shellNavToggleId) as HTMLInputElement | null;
-  const nav = document.getElementById(shellNavId);
+  const navToggle = document.getElementById(navToggleId) as HTMLInputElement | null;
+  const nav = document.getElementById(navId);
   const navButton = top.querySelector<HTMLButtonElement>('.js-topnav-toggle');
   let lastNavFocus: HTMLElement | null = null;
 
@@ -66,19 +65,17 @@ export default function () {
   syncNavButton(false);
   document.addEventListener('keydown', handleNavKeydown);
 
-
-
   // On touchscreens, clicking the top menu element expands it. There's no top link.
   // Only for mq-topnav-visible in ui/lib/css/abstract/_media-queries.scss
   if ('ontouchstart' in window && window.matchMedia('(min-width: 1020px)').matches)
-    $(`#${shellNavId} section > a`).removeAttr('href');
+    $(`#${navId} section > a`).removeAttr('href');
 
   const blockBodyScroll = (e: Event) => {
     // on iOS, overflow: hidden isn't sufficient
-    if (!document.getElementById(shellNavId)?.contains(e.target as HTMLElement)) e.preventDefault();
+    if (!nav?.contains(e.target as HTMLElement)) e.preventDefault();
   };
 
-  $(`#${shellNavToggleId}`).on('change', e => {
+  $(`#${navToggleId}`).on('change', e => {
     const menuOpen = (e.target as HTMLInputElement).checked;
     syncNavButton(menuOpen);
     if (menuOpen) {
@@ -119,8 +116,6 @@ export default function () {
     return false;
   });
 
-
-
   {
     // cli
     const $wrap = $('#clinput');
@@ -154,16 +149,11 @@ export default function () {
     $wrap.on('mouseleave', () => {
       if (!$input.val()) $input[0]!.blur();
     });
-    site.mousetrap
-      .bind('/', () => {
-        $input.val('/');
-        $input[0]!.focus();
-        top.classList.remove('hide');
-      })
-      .bind('s', () => {
-        $input[0]!.focus();
-        top.classList.remove('hide');
-      });
+    site.mousetrap.bind('/', () => {
+      $input.val('/');
+      $input[0]!.focus();
+      top.classList.remove('hide');
+    });
   }
 
   {

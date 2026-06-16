@@ -2,8 +2,6 @@
 
 import { h, type Hooks, type VNode, type Attrs } from 'snabbdom';
 import { bind } from './snabbdom';
-import { toggle as baseToggle, type Toggle } from '@/index';
-import * as xhr from '@/xhr';
 import * as licon from '@/licon';
 
 export interface ToggleSettings {
@@ -59,12 +57,6 @@ export function rangeConfig(read: () => number, write: (value: number) => void):
   };
 }
 
-export const boolPrefXhrToggle = (prefKey: string, val: boolean, effect: () => void = site.reload): Toggle =>
-  baseToggle(val, async v => {
-    await xhr.text(`/pref/${prefKey}?v=${v ? '1' : '0'}`, { method: 'post' });
-    effect();
-  });
-
 export function stepwiseScroll(inner: (e: WheelEvent, scroll: boolean) => void): (e: WheelEvent) => void {
   return (e: WheelEvent) => inner(e, !e.ctrlKey); // if touchpad zooming, e.ctrlKey is true
 }
@@ -79,20 +71,6 @@ export function copyMeInput(content: string, inputAttrs: Attrs = {}): VNode {
     }),
   ]);
 }
-
-export const addPasswordVisibilityToggleListener = (): void => {
-  $('.password-wrapper').each(function (this: HTMLElement) {
-    const $wrapper = $(this);
-    const $button = $wrapper.find('.password-reveal');
-    $button.on('click', function (e: Event) {
-      e.preventDefault();
-      const $input = $wrapper.find('input');
-      const type = $input.attr('type') === 'password' ? 'text' : 'password';
-      $input.attr('type', type);
-      $button.toggleClass('revealed', type === 'text');
-    });
-  });
-};
 
 const pathAttrs = [
   {

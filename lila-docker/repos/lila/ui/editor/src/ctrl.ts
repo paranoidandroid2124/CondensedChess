@@ -9,13 +9,12 @@ import {
   CASTLING_TOGGLES,
 } from './interfaces';
 import type { Api as CgApi } from '@lichess-org/chessground/api';
-import type { Rules, Square } from 'chessops/types';
+import type { Square } from 'chessops/types';
 import type { SquareSet } from 'chessops/squareSet';
 import { Board } from 'chessops/board';
-import { type Setup, Material, RemainingChecks, defaultSetup } from 'chessops/setup';
+import { type Setup, defaultSetup } from 'chessops/setup';
 import { Castles, defaultPosition, setupPosition } from 'chessops/variant';
 import { makeFen, parseFen, parseCastlingFen, INITIAL_FEN, EMPTY_FEN } from 'chessops/fen';
-import { lichessVariant, lichessRules } from 'chessops/compat';
 import { defined, prop, type Prop } from 'lib';
 import { prompt } from 'lib/view';
 import { opposite } from '@lichess-org/chessground/util';
@@ -28,13 +27,10 @@ export default class EditorCtrl {
   selected: Prop<Selected>;
 
   initialFen: string;
-  pockets: Material | undefined;
   turn: Color;
   castlingRights: SquareSet | undefined;
   castlingToggles: CastlingToggles<boolean>;
   epSquare: Square | undefined;
-  remainingChecks: RemainingChecks | undefined;
-  rules: Rules;
   halfmoves: number;
   fullmoves: number;
   guessCastlingToggles: boolean;
@@ -63,7 +59,6 @@ export default class EditorCtrl {
 
     this.castlingToggles = { K: false, Q: false, k: false, q: false };
     const params = new URLSearchParams(location.search);
-    this.rules = this.cfg.embed ? 'chess' : lichessRules((params.get('variant') || 'standard') as VariantKey);
     this.initialFen = (cfg.fen || params.get('fen') || INITIAL_FEN).replace(/_/g, ' ');
     this.guessCastlingToggles = false;
 
@@ -140,11 +135,11 @@ export default class EditorCtrl {
     );
     return {
       board,
-      pockets: this.pockets,
+      pockets: undefined,
       turn: this.turn,
       castlingRights: this.castlingRights || parseCastlingFen(board, this.castlingToggleFen()).unwrap(),
       epSquare: this.epSquare,
-      remainingChecks: this.remainingChecks,
+      remainingChecks: undefined,
       halfmoves: this.halfmoves,
       fullmoves: this.fullmoves,
     };
@@ -155,14 +150,14 @@ export default class EditorCtrl {
   }
 
   private getLegalFen(): string | undefined {
-    return setupPosition(this.rules, this.getSetup()).unwrap(
+    return setupPosition('chess', this.getSetup()).unwrap(
       pos => makeFen(pos.toSetup()),
       _ => undefined,
     );
   }
 
   private isPlayable(): boolean {
-    return setupPosition(this.rules, this.getSetup()).unwrap(
+    return setupPosition('chess', this.getSetup()).unwrap(
       pos => !pos.isEnd(),
       _ => false,
     );
@@ -202,23 +197,18 @@ export default class EditorCtrl {
     return {
       fen: this.getFen(),
       legalFen: legalFen,
-      playable: this.rules === 'chess' && this.isPlayable(),
+      playable: this.isPlayable(),
       enPassantOptions: legalFen ? this.getEnPassantOptions(legalFen) : [],
     };
   }
 
   makeAnalysisUrl(legalFen: string, orientation: Color = 'white'): string {
-    // Our analysis routing expects `/analysis/:variant/:fen` (even for standard),
-    // so always include the variant segment.
-    const variant = lichessVariant(this.rules);
-    return `/analysis/${variant}/${urlFen(legalFen)}?color=${orientation}`;
+    return `/analysis/standard/${urlFen(legalFen)}?color=${orientation}`;
   }
 
   makeEditorUrl(fen: string, orientation: Color = 'white'): string {
-    if (fen === INITIAL_FEN && this.rules === 'chess' && orientation === 'white') return this.cfg.baseUrl;
-    const variant = this.rules === 'chess' ? '' : '?variant=' + lichessVariant(this.rules);
-    const orientationParam = variant ? `&color=${orientation}` : `?color=${orientation}`;
-    return `${this.cfg.baseUrl}/${urlFen(fen)}${variant}${orientationParam}`;
+    if (fen === INITIAL_FEN && orientation === 'white') return this.cfg.baseUrl;
+    return `${this.cfg.baseUrl}/${urlFen(fen)}?color=${orientation}`;
   }
 
   makeImageUrl = (fen: string): string =>
@@ -245,10 +235,10 @@ export default class EditorCtrl {
     this.onChange();
   }
 
-  startPosition = (): boolean => this.setFen(makeFen(defaultPosition(this.rules).toSetup()));
+  startPosition = (): boolean => this.setFen(makeFen(defaultPosition('chess').toSetup()));
 
   clearBoard = (): boolean => {
-    this.guessCastlingToggles = this.rules !== 'antichess';
+    this.guessCastlingToggles = true;
     const parts = EMPTY_FEN.split(' ');
     parts[1] = this.turn[0];
     return this.setFen(parts.join(' '));
@@ -260,11 +250,9 @@ export default class EditorCtrl {
   }
 
   private setSetup = (setup: Setup): void => {
-    this.pockets = setup.pockets;
     this.turn = setup.turn;
     this.castlingRights = setup.castlingRights;
     this.epSquare = setup.epSquare;
-    this.remainingChecks = setup.remainingChecks;
     this.halfmoves = setup.halfmoves;
     this.fullmoves = setup.fullmoves;
 
@@ -285,15 +273,6 @@ export default class EditorCtrl {
       },
       _ => false,
     );
-
-  setRules(rules: Rules): void {
-    this.rules = rules;
-    if (rules !== 'crazyhouse') this.pockets = undefined;
-    else if (!this.pockets) this.pockets = Material.empty();
-    if (rules !== '3check') this.remainingChecks = undefined;
-    else if (!this.remainingChecks) this.remainingChecks = RemainingChecks.default();
-    this.onChange();
-  }
 
   setOrientation(o: Color): void {
     this.options.orientation = o;

@@ -14,13 +14,7 @@ export const render = (ctrl: AnalyseCtrl): VNode =>
     },
   });
 
-export function promote(ground: CgApi, key: Key, role: Role) {
-  const piece = ground.state.pieces.get(key);
-  if (piece && piece.role === 'pawn')
-    ground.setPieces(new Map([[key, { color: piece.color, role, promoted: true }]]));
-}
-
-export function makeConfig(ctrl: AnalyseCtrl): CgConfig {
+function makeConfig(ctrl: AnalyseCtrl): CgConfig {
   const d = ctrl.data,
     pref = d.pref,
     labelConfig = boardCoordsToViewConfig(ctrl.boardCoords()),
@@ -46,7 +40,6 @@ export function makeConfig(ctrl: AnalyseCtrl): CgConfig {
     },
     events: {
       move: ctrl.userMove,
-      dropNewPiece: ctrl.userNewPiece,
       insert(elements: Elements) {
         resizeHandle(elements, Prefs.ShowResizeHandle.Always, ctrl.node.ply);
       },
