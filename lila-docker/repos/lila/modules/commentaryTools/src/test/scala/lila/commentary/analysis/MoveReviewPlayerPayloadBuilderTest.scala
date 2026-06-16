@@ -8299,7 +8299,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assert(!promotedProphylaxisSurface.advancedRows.exists(_.label == "Practical prophylaxis"), clue(promotedProphylaxisSurface.advancedRows))
   }
 
-  test("fianchetto assault strategic ideas create bounded practical attack rows") {
+  test("fianchetto assault strategic ideas stay support-only without concrete attack rows") {
     val fianchettoIdea =
       StrategyIdeaSignal(
         ideaId = "idea_fianchetto_assault",
@@ -8327,10 +8327,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
           )
       )
 
-    assertEquals(surface.advancedRows.map(_.label), List("Practical attack"))
-    assertEquals(surface.advancedRows.head.text, "The fianchetto-shell structure gives a practical opposite-side attack cue.")
-    assertEquals(surface.advancedRows.head.authority, Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)))
-    assertEquals(surface.advancedRows.head.authority.flatMap(_.target), None)
+    assert(!surface.advancedRows.exists(_.label == "Practical attack"), clue(surface.advancedRows))
 
     val stormOnlySurface =
       build(
@@ -10130,7 +10127,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assert(staleMateSurface.advancedRows.exists(_.label == "Practical attack"), clue(staleMateSurface.advancedRows))
+    assert(!staleMateSurface.advancedRows.exists(_.label == "Practical attack"), clue(staleMateSurface.advancedRows))
   }
 
   test("resolved compensation surface reaches bounded advanced rows") {

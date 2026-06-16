@@ -1081,15 +1081,6 @@ object MoveReviewPlayerPayloadBuilder:
                   refs.contains("source:king_ring_pressure") ||
                     refs.contains("source:enemy_weak_back_rank") ||
                     refs.contains("source:compensation_king_window")
-                val fianchettoAssault =
-                  !exactAttackAlreadyVisible &&
-                    refs.contains("source:fianchetto_assault_profile") &&
-                    refs.contains("source:opposite_side_storm") &&
-                    refs.contains("structure_fianchetto_shell") &&
-                    focusZone.contains("kingside") &&
-                    idea.readiness == StrategicIdeaReadiness.Build &&
-                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
-                    idea.confidence >= 0.90
                 val enemyKingStuckCenter =
                   !exactAttackAlreadyVisible &&
                     refs.contains("source:enemy_king_stuck_center") &&
@@ -1227,7 +1218,6 @@ object MoveReviewPlayerPayloadBuilder:
                     idea.confidence >= 0.70
                 val attackSurface =
                   if ambiguousAttackLane || broadAttackShell then None
-                  else if fianchettoAssault then Some("Practical attack" -> "The fianchetto-shell structure gives a practical opposite-side attack cue.")
                   else if enemyKingStuckCenter then
                     Some("Practical attack" -> "The enemy king's central exposure gives a practical attacking cue.")
                   else if flankPawnAdvance then
