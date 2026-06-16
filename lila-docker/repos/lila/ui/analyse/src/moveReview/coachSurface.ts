@@ -690,7 +690,7 @@ function buildMoveReviewScenes(
       kicker: 'Replay',
       body: '',
       board: boardPayloadForRef(tryStartRef),
-      boardTitle: 'Line position',
+      boardTitle: 'Position after each move',
       boardSubtitle: primaryLine[0] || null,
       boardNote: 'Play the line one move at a time; the board follows each click.',
       square: planSquare || summarySquare,
