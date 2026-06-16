@@ -13,12 +13,17 @@ const treeContextMenuSource = readFileSync(fileURLToPath(new URL('../src/treeVie
 const pgnImportSource = readFileSync(fileURLToPath(new URL('../src/pgnImport.ts', import.meta.url)), 'utf8');
 const pgnPipelineSource = readFileSync(fileURLToPath(new URL('../src/pgnPipeline.ts', import.meta.url)), 'utf8');
 const moveReviewSource = readFileSync(fileURLToPath(new URL('../src/moveReview.ts', import.meta.url)), 'utf8');
+const moveReviewRenderingSource = readFileSync(fileURLToPath(new URL('../src/moveReview/rendering.ts', import.meta.url)), 'utf8');
 const analyseViewSource = readFileSync(fileURLToPath(new URL('../../../app/views/analyse.scala', import.meta.url)), 'utf8');
 const homeSource = readFileSync(fileURLToPath(new URL('../../../app/views/pages/home.scala', import.meta.url)), 'utf8');
 const importerSource = readFileSync(fileURLToPath(new URL('../../../app/views/importer.scala', import.meta.url)), 'utf8');
 const accountIntelSource = readFileSync(fileURLToPath(new URL('../../../app/views/accountIntel.scala', import.meta.url)), 'utf8');
 const journalSource = readFileSync(fileURLToPath(new URL('../../../app/views/pages/journal.scala', import.meta.url)), 'utf8');
 const landingSource = readFileSync(fileURLToPath(new URL('../../../app/views/pages/landing.scala', import.meta.url)), 'utf8');
+const moveReviewRendererSource = readFileSync(
+  fileURLToPath(new URL('../../../modules/analyse/src/main/ui/MoveReviewRenderer.scala', import.meta.url)),
+  'utf8',
+);
 
 describe('review player copy', () => {
   test('keeps review shell tabs and panels player-facing', () => {
@@ -56,6 +61,16 @@ describe('review player copy', () => {
   test('keeps saved move review fallback framed as replay', () => {
     assert.match(moveReviewSource, /Saved line to replay/);
     assert.doesNotMatch(moveReviewSource, /Saved Lines/);
+  });
+
+  test('keeps move review number visibility framed without engine jargon', () => {
+    [moveReviewRenderingSource, moveReviewRendererSource].forEach(source => {
+      assert.match(source, /Numbers shown/);
+      assert.doesNotMatch(source, /Scores shown/);
+      assert.doesNotMatch(source, /Scores hidden/);
+      assert.doesNotMatch(source, /Eval: On/);
+    });
+    assert.match(moveReviewRenderingSource, /Numbers hidden/);
   });
 
   test('keeps loading copy framed as a review, not a technical job', () => {

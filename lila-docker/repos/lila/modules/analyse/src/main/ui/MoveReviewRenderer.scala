@@ -103,7 +103,7 @@ object MoveReviewRenderer:
           cls := "move-review-score-toggle",
           attr("type") := "button",
           attr("aria-pressed") := "true"
-        )("Eval: On")
+        )("Numbers shown")
       ),
       // Hover preview board (mounted by client; stays hidden until hover).
       div(cls := "move-review-pv-preview"),
