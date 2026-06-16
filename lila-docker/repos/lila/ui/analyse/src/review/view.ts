@@ -15,7 +15,7 @@ export type ReviewViewNodes = {
 };
 
 const tabs: [ReviewPrimaryTab, string, string][] = [
-  ['explain', 'Coach', 'Review scene'],
+  ['explain', 'Coach', 'Coach lesson'],
   ['engine', 'Candidates', 'Compare lines'],
   ['explorer', 'Opening', 'Book context'],
   ['moves', 'Moves', 'Score sheet'],

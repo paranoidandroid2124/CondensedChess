@@ -26,7 +26,7 @@ describe('review player copy', () => {
       'Score sheet',
       'Load a game',
       'Board setup',
-      'Review scene',
+      'Coach lesson',
       'Compare lines',
       'Book context',
       'Bring in a game',
@@ -34,7 +34,7 @@ describe('review player copy', () => {
       'Nothing to show for this position yet.',
     ].forEach(copy => assert.match(reviewViewSource, new RegExp(escapeRegExp(copy)), `missing copy: ${copy}`));
 
-    ['Suggested lines', 'Board position', 'Paste PGN', 'Load PGN', 'Game moves', 'No review content yet.'].forEach(copy =>
+    ['Suggested lines', 'Board position', 'Paste PGN', 'Load PGN', 'Game moves', 'No review content yet.', 'Review scene'].forEach(copy =>
       assert.doesNotMatch(reviewViewSource, new RegExp(escapeRegExp(copy)), `stale tool copy: ${copy}`),
     );
   });

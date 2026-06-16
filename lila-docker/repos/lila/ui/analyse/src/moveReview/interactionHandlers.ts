@@ -111,17 +111,17 @@ function setPlayerBoardMeta(
   const titleEl = player.querySelector<HTMLElement>('.move-review-player__board-title');
   const subtitleEl = player.querySelector<HTMLElement>('.move-review-player__board-subtitle');
   const noteEl = player.querySelector<HTMLElement>('.move-review-player__board-note');
-  const anchorSceneText = anchorScene || kicker?.replace(/^Board shows ·\s*/, '') || 'Scene';
+  const anchorSceneText = anchorScene || kicker?.replace(/^Board shows ·\s*/, '') || 'Lesson';
   const anchorMoveText = anchorMove || subtitle || '';
   if (anchorSceneEl) anchorSceneEl.textContent = anchorSceneText;
   if (anchorMoveEl) {
     anchorMoveEl.textContent = anchorMoveText;
     anchorMoveEl.hidden = !anchorMoveText;
   }
-  if (kickerEl) kickerEl.textContent = kicker || 'Board shows this scene';
+  if (kickerEl) kickerEl.textContent = kicker || 'Board shows this lesson step';
   if (titleEl && title) titleEl.textContent = title;
   if (subtitleEl) subtitleEl.textContent = subtitle || '';
-  if (noteEl) noteEl.textContent = note || 'Keep the board tied to this coaching scene.';
+  if (noteEl) noteEl.textContent = note || 'Keep the board tied to this lesson step.';
 }
 
 function setCueItem(player: HTMLElement, selector: string, value: string | null | undefined): void {
@@ -293,7 +293,7 @@ function syncMoveReviewSceneBoard(player: HTMLElement, panel: HTMLElement): void
 }
 
 function sceneControlLabel(panel: HTMLElement | null | undefined): string {
-  return panel?.dataset.sceneControlLabel || panel?.dataset.sceneShortLabel || panel?.dataset.sceneLabel || 'scene';
+  return panel?.dataset.sceneControlLabel || panel?.dataset.sceneShortLabel || panel?.dataset.sceneLabel || 'lesson step';
 }
 
 function updateMoveReviewSceneControls(player: HTMLElement, panels: HTMLElement[], index: number): void {
@@ -313,7 +313,7 @@ function updateMoveReviewSceneControls(player: HTMLElement, panels: HTMLElement[
   });
 
   const counter = player.querySelector<HTMLElement>('.move-review-player__scene-count');
-  if (counter) counter.textContent = `${panels[index]?.dataset.sceneLabel || 'Scene'} · ${index + 1}/${panels.length}`;
+  if (counter) counter.textContent = `${panels[index]?.dataset.sceneLabel || 'Lesson'} · ${index + 1}/${panels.length}`;
 }
 
 function activateMoveReviewScene(player: HTMLElement, targetIndex: number, syncBoard = true, reveal = false): void {

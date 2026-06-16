@@ -426,7 +426,7 @@ function renderSceneLine(scene: MoveReviewScene, refIndex: MoveReviewRefIndex): 
           <button type="button" class="move-review-player__line-step" data-move-review-line-step="-1" disabled>Prev move</button>
           <span class="move-review-player__line-count" aria-live="polite">Move 1/${boardMoveCount}</span>
           <button type="button" class="move-review-player__line-step" data-move-review-line-step="1">Next move</button>
-          <button type="button" class="move-review-player__line-step move-review-player__line-step--scene" data-move-review-board-reset>Scene board</button>
+          <button type="button" class="move-review-player__line-step move-review-player__line-step--scene" data-move-review-board-reset>Lesson board</button>
         </span>`
       : '';
   return `
@@ -474,7 +474,7 @@ function primaryTryLine(playerSurface: MoveReviewPlayerSurfaceV1): string[] {
 
 function renderSceneNav(scenes: MoveReviewScene[]): string {
   return `
-    <nav class="move-review-player__timeline" aria-label="Review flow" role="tablist">
+    <nav class="move-review-player__timeline" aria-label="Coach lesson flow" role="tablist">
       ${scenes
         .map(
           (scene, idx) => `
@@ -544,11 +544,11 @@ function renderScenePanel(scene: MoveReviewScene, idx: number, refIndex: MoveRev
 
 function renderSceneControls(scenes: MoveReviewScene[]): string {
   const sceneCount = scenes.length;
-  const nextLabel = sceneCount > 1 ? scenes[1]?.controlLabel || scenes[1]?.shortLabel || 'scene' : null;
+  const nextLabel = sceneCount > 1 ? scenes[1]?.controlLabel || scenes[1]?.shortLabel || 'lesson step' : null;
   return `
     <footer class="move-review-player__controls">
       <button type="button" class="move-review-player__control" data-move-review-scene-step="-1" disabled>Back</button>
-      <span class="move-review-player__scene-count" aria-live="polite">${escapeHtml(scenes[0]?.label || 'Scene')} · 1/${sceneCount}</span>
+      <span class="move-review-player__scene-count" aria-live="polite">${escapeHtml(scenes[0]?.label || 'Lesson')} · 1/${sceneCount}</span>
       <button type="button" class="move-review-player__control move-review-player__control--primary" data-move-review-scene-step="1"${
         sceneCount <= 1 ? ' disabled' : ''
       }>${nextLabel ? `Next: ${escapeHtml(nextLabel)}` : 'Next'}</button>
@@ -628,7 +628,7 @@ function buildMoveReviewScenes(
       kicker: 'Decision',
       body:
         decision ||
-        '<p class="move-review-player__empty">Start from the current position, then move through the coach scenes.</p>',
+        '<p class="move-review-player__empty">Start from the current position, then move through the coach lesson.</p>',
       board: boardPayloadForRef(decisionRef),
       boardTitle: 'Position tied to the choice',
       boardSubtitle: playerSurface.decisionComparison?.chosenSan || playerSurface.decisionComparison?.engineSan || null,
@@ -776,14 +776,14 @@ export function decorateMoveReviewHtml(
         <aside class="move-review-player__board-shell" aria-label="Current coaching board">
           <div class="move-review-player__board-anchor" aria-live="polite">
             <span class="move-review-player__board-anchor-label">Board first</span>
-            <strong class="move-review-player__board-anchor-scene">${escapeHtml(scenes[0]?.label || 'Scene')}</strong>
+            <strong class="move-review-player__board-anchor-scene">${escapeHtml(scenes[0]?.label || 'Lesson')}</strong>
             <span class="move-review-player__board-anchor-move"${scenes[0]?.boardSubtitle ? '' : ' hidden'}>${escapeHtml(scenes[0]?.boardSubtitle || '')}</span>
           </div>
           <div class="move-review-player__board-meta">
-            <span class="move-review-player__board-kicker">Board shows · ${escapeHtml(scenes[0]?.kicker || 'Scene')}</span>
+            <span class="move-review-player__board-kicker">Board shows · ${escapeHtml(scenes[0]?.kicker || 'Lesson')}</span>
             <strong class="move-review-player__board-title">${escapeHtml(scenes[0]?.boardTitle || 'Coaching board')}</strong>
             <span class="move-review-player__board-subtitle">${escapeHtml(scenes[0]?.boardSubtitle || scenes[0]?.label || '')}</span>
-            <span class="move-review-player__board-note">${escapeHtml(scenes[0]?.boardNote || 'Keep the board tied to this coaching scene.')}</span>
+            <span class="move-review-player__board-note">${escapeHtml(scenes[0]?.boardNote || 'Keep the board tied to this lesson step.')}</span>
           </div>
           ${renderBoardCue(scenes[0])}
           <div class="move-review-pv-preview move-review-player__board-preview"></div>

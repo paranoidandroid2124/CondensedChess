@@ -96,7 +96,7 @@ describe('moveReview coach surface', () => {
     assert.match(html, /Remember this/);
     assert.match(html, /data-move-review-scene="0"/);
     assert.match(html, /data-move-review-scene-panel/);
-    assert.match(html, /aria-label="Review flow" role="tablist"/);
+    assert.match(html, /aria-label="Coach lesson flow" role="tablist"/);
     assert.match(html, /data-scene-flow-key="verdict"/);
     assert.match(html, /move-review-player__timeline-label--long">Verdict/);
     assert.match(html, /move-review-player__timeline-label--short">Recall/);
@@ -127,7 +127,8 @@ describe('moveReview coach surface', () => {
     assert.match(html, /Prev move/);
     assert.match(html, /Next move/);
     assert.match(html, /data-move-review-board-reset/);
-    assert.match(html, /Scene board/);
+    assert.match(html, /Lesson board/);
+    assert.doesNotMatch(html, /Scene board/);
     assert.match(html, /data-scene-square="d5"/);
     assert.match(html, /move-review-player__board-cue-item--move/);
     assert.match(html, /data-scene-board-title="Position tied to the choice"/);
@@ -229,7 +230,7 @@ describe('moveReview coach surface', () => {
         summaryRows: [
           { label: 'First reason', text: 'Keep the file visible.', refSans: ['Nf3'] },
           { label: 'Second reason', text: 'Hold pressure on d5.', refSans: ['d5'] },
-          { label: 'Third reason', text: 'Do not turn the scene into a scroll note.', refSans: ['Nf3', 'd5'] },
+          { label: 'Third reason', text: 'Do not turn the lesson into a scroll note.', refSans: ['Nf3', 'd5'] },
         ],
         advancedRows: [
           { label: 'First plan', text: 'Improve the rook.', refSans: ['Nf3'] },
