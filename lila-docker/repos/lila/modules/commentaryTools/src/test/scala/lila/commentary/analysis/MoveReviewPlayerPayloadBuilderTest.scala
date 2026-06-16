@@ -9257,9 +9257,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(motifBatteryMultiAxisSurface.advancedRows.map(_.label), List("Practical attack"), clue(motifBatteryMultiAxisSurface.advancedRows))
-    assertEquals(motifBatteryMultiAxisSurface.advancedRows.head.text, "The current battery gives a practical attacking cue.")
-    assertEquals(motifBatteryMultiAxisSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assert(!motifBatteryMultiAxisSurface.advancedRows.exists(_.label == "Practical attack"), clue(motifBatteryMultiAxisSurface.advancedRows))
 
     val motifBatterySourceOnlySurface =
       build(
@@ -9378,9 +9376,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(motifRookLiftMultiFileSurface.advancedRows.map(_.label), List("Practical attack"), clue(motifRookLiftMultiFileSurface.advancedRows))
-    assertEquals(motifRookLiftMultiFileSurface.advancedRows.head.text, "The rook lift gives a practical attacking cue.")
-    assertEquals(motifRookLiftMultiFileSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assert(!motifRookLiftMultiFileSurface.advancedRows.exists(_.label == "Practical attack"), clue(motifRookLiftMultiFileSurface.advancedRows))
 
     val motifRookLiftNoFileSurface =
       build(
@@ -9496,6 +9492,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
                   fianchettoIdea.copy(
                     ideaId = "idea_motif_piece_lift",
                     confidence = 0.72,
+                    focusSquares = List("f5"),
                     focusZone = Some("kingside"),
                     beneficiaryPieces = List("N"),
                     evidenceRefs = List("source:motif_piece_lift", "motif_piece_lift_shape")
@@ -9505,7 +9502,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
           )
       )
     assertEquals(motifPieceLiftSurface.advancedRows.map(_.label), List("Practical attack"), clue(motifPieceLiftSurface.advancedRows))
-    assertEquals(motifPieceLiftSurface.advancedRows.head.text, "The N lift gives a practical attacking cue.")
+    assertEquals(motifPieceLiftSurface.advancedRows.head.text, "The N lift to f5 gives a practical attacking cue.")
     assertEquals(motifPieceLiftSurface.advancedRows.head.authority.flatMap(_.target), None)
 
     val motifPieceLiftMultiPieceSurface =
@@ -9519,6 +9516,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
                   fianchettoIdea.copy(
                     ideaId = "idea_motif_piece_lift_multi_piece",
                     confidence = 0.76,
+                    focusSquares = List("f5"),
                     focusZone = Some("kingside"),
                     beneficiaryPieces = List("N", "B"),
                     evidenceRefs = List("source:motif_piece_lift", "motif_piece_lift_shape")
@@ -9527,9 +9525,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(motifPieceLiftMultiPieceSurface.advancedRows.map(_.label), List("Practical attack"), clue(motifPieceLiftMultiPieceSurface.advancedRows))
-    assertEquals(motifPieceLiftMultiPieceSurface.advancedRows.head.text, "The piece lift gives a practical attacking cue.")
-    assertEquals(motifPieceLiftMultiPieceSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assert(!motifPieceLiftMultiPieceSurface.advancedRows.exists(_.label == "Practical attack"), clue(motifPieceLiftMultiPieceSurface.advancedRows))
 
     val motifPieceLiftSourceOnlySurface =
       build(

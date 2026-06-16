@@ -1247,7 +1247,7 @@ object MoveReviewPlayerPayloadBuilder:
                 val motifBattery =
                   !exactBatteryPressureAlreadyVisible &&
                     refs.contains("source:motif_battery") &&
-                    motifBatteryAxes.nonEmpty &&
+                    singleMotifBatteryAxis.nonEmpty &&
                     focusSquares.size >= 2 &&
                     focusZone.nonEmpty &&
                     idea.beneficiaryPieces.count(_.trim.nonEmpty) >= 2 &&
@@ -1257,7 +1257,7 @@ object MoveReviewPlayerPayloadBuilder:
                 val motifRookLift =
                   !exactRookLiftAlreadyVisible &&
                     refs.contains("source:motif_rook_lift") &&
-                    focusFiles.nonEmpty &&
+                    singleFocusFile.nonEmpty &&
                     focusZone.nonEmpty &&
                     idea.beneficiaryPieces.exists(_.trim.equalsIgnoreCase("R")) &&
                     idea.readiness == StrategicIdeaReadiness.Build &&
@@ -1267,8 +1267,9 @@ object MoveReviewPlayerPayloadBuilder:
                   !exactAttackAlreadyVisible &&
                     refs.contains("source:motif_piece_lift") &&
                     refs.contains("motif_piece_lift_shape") &&
+                    singleFocusSquare.nonEmpty &&
                     focusZone.nonEmpty &&
-                    idea.beneficiaryPieces.exists(_.trim.nonEmpty) &&
+                    singleBeneficiaryPiece.nonEmpty &&
                     idea.readiness == StrategicIdeaReadiness.Build &&
                     strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
                     idea.confidence >= 0.72
@@ -1320,15 +1321,14 @@ object MoveReviewPlayerPayloadBuilder:
                   else if motifBattery then
                     singleMotifBatteryAxis
                       .map(axis => "Practical attack" -> s"The current $axis battery gives a practical attacking cue.")
-                      .orElse(Some("Practical attack" -> "The current battery gives a practical attacking cue."))
                   else if motifRookLift then
                     singleFocusFile
                       .map(file => "Practical attack" -> s"The rook lift on the $file-file gives a practical attacking cue.")
-                      .orElse(Some("Practical attack" -> "The rook lift gives a practical attacking cue."))
                   else if motifPieceLift then
-                    singleBeneficiaryPiece
-                      .map(piece => "Practical attack" -> s"The ${piece.toUpperCase} lift gives a practical attacking cue.")
-                      .orElse(Some("Practical attack" -> "The piece lift gives a practical attacking cue."))
+                    (singleBeneficiaryPiece, singleFocusSquare) match
+                      case (Some(piece), Some(square)) =>
+                        Some("Practical attack" -> s"The ${piece.toUpperCase} lift to $square gives a practical attacking cue.")
+                      case _ => None
                   else if motifCheckPressure then
                     (singleBeneficiaryPiece, singleFocusSquare) match
                       case (Some(piece), Some(square)) =>

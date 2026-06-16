@@ -15,6 +15,8 @@ import lila.commentary.model.structure.{ StructureId }
 
 private[evidence] object StrategicIdeaEvidenceSupport:
 
+  private val SanDestinationSquarePattern = """(?i)([a-h][1-8])""".r
+
   private def isPlayableExperiment(experiment: StrategicPlanExperiment): Boolean =
     experiment.evidenceTier != "refuted"
 
@@ -535,6 +537,13 @@ private[evidence] object StrategicIdeaEvidenceSupport:
 
   def squareFromKey(key: String): Option[Square] =
     Square.all.find(_.key == Option(key).map(_.trim.toLowerCase).getOrElse(""))
+
+  def destinationSquareFromSan(raw: String): Option[Square] =
+    SanDestinationSquarePattern
+      .findAllMatchIn(Option(raw).getOrElse(""))
+      .toList
+      .lastOption
+      .flatMap(m => squareFromKey(m.group(1)))
 
   def sideColor(side: String): Color =
     if side == "white" then Color.White else Color.Black

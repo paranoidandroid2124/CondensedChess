@@ -170,7 +170,8 @@ private[commentary] object KingAttackEvidenceProducer extends StrategicIdeaEvide
               factIds = List("motif_battery", s"battery_axis_${axis.toString.toLowerCase}")
             )
           )
-        case Motif.PieceLift(piece, _, _, color, _, _) if matchesSide(color, side) =>
+        case Motif.PieceLift(piece, _, _, color, _, move) if matchesSide(color, side) =>
+          val focusSquares = move.flatMap(destinationSquareFromSan).map(_.key).toList
           Some(
             evidence(
               ownerSide = side,
@@ -178,9 +179,11 @@ private[commentary] object KingAttackEvidenceProducer extends StrategicIdeaEvide
               readiness = StrategicIdeaReadiness.Build,
               source = EvidenceSourceId.MotifPieceLift,
               confidence = 0.72,
+              focusSquares = focusSquares,
               focusZone = enemyKingZone,
               beneficiaryPieces = List(roleToken(piece)),
-              factIds = List("motif_piece_lift", "motif_piece_lift_shape")
+              factIds = List("motif_piece_lift", "motif_piece_lift_shape") ++
+                focusSquares.map(square => s"piece_lift_square_$square")
             )
           )
         case Motif.Check(piece, targetSquare, checkType, color, _, _) if matchesSide(color, side) =>

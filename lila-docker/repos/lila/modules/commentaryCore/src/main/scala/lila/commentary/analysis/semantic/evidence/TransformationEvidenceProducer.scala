@@ -13,8 +13,6 @@ private[commentary] object TransformationEvidenceProducer extends StrategicIdeaE
 
   import StrategicIdeaEvidenceSupport.*
 
-  private val SanDestinationSquarePattern = """([a-h][1-8])""".r
-
   def collect(
       pack: StrategyPack,
       semantic: StrategicIdeaSemanticContext
@@ -85,9 +83,7 @@ private[commentary] object TransformationEvidenceProducer extends StrategicIdeaE
           )
         case Motif.KingStep(Motif.KingStepType.Activation, color, _, move) if matchesSide(color, side) && semantic.phase.equalsIgnoreCase("endgame") =>
           val focusSquares =
-            move.toList.flatMap(san =>
-              SanDestinationSquarePattern.findAllMatchIn(san).map(_.group(1).toLowerCase).toList.takeRight(1)
-            )
+            move.flatMap(destinationSquareFromSan).map(_.key).toList
           evidence(
             ownerSide = side,
             kind = StrategicIdeaKind.FavorableTradeOrTransformation,

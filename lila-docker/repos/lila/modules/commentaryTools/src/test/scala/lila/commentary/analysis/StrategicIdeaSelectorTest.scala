@@ -1145,8 +1145,10 @@ class StrategicIdeaSelectorTest extends FunSuite:
       ideas.find(_.evidenceRefs.contains("source:motif_piece_lift")).getOrElse(fail(clue(ideas).toString))
 
     assertEquals(attackIdea.kind, StrategicIdeaKind.KingAttackBuildUp)
+    assertEquals(attackIdea.focusSquares, List("f5"), clue(attackIdea))
     assert(attackIdea.beneficiaryPieces.contains("N"), clue(attackIdea))
     assert(attackIdea.evidenceRefs.contains("motif_piece_lift_shape"), clue(attackIdea.evidenceRefs))
+    assert(attackIdea.evidenceRefs.contains("piece_lift_square_f5"), clue(attackIdea.evidenceRefs))
     assertEquals(attackIdea.focusZone, Some("kingside"))
   }
 
