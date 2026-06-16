@@ -105,7 +105,7 @@ describe('moveReview coach surface', () => {
     assert.match(html, /move-review-player__timeline-action">Replay the line/);
     assert.match(html, /move-review-player__board-shell/);
     assert.match(html, /move-review-player__board-anchor/);
-    assert.match(html, /move-review-player__board-anchor-label">Position \+ eval/);
+    assert.match(html, /move-review-player__board-anchor-label">Position evaluation/);
     assert.match(html, /move-review-player__board-anchor-scene">Verdict/);
     assert.match(html, /move-review-player__board-anchor-move">Nf3/);
     assert.match(html, /move-review-player__board-anchor-eval">Eval \+0\.4/);
@@ -145,8 +145,8 @@ describe('moveReview coach surface', () => {
     assert.match(html, /move-review-player__board-cue-item--eval/);
     assert.match(html, /<span>Eval<\/span>\s*<strong>\+0\.4<\/strong>/);
     assert.match(html, /data-scene-board-title="Position tied to the choice"/);
-    assert.match(html, /data-scene-board-note="Compare the move on the board before reading the verdict\."/);
-    assert.match(html, /<p>Compare the move on the board before reading the verdict\.<\/p>/);
+    assert.match(html, /data-scene-board-note="Check the board and eval before reading the verdict\."/);
+    assert.match(html, /<p>Check the board and eval before reading the verdict\.<\/p>/);
     assert.match(html, /data-scene-board-note="Keep this square in view; the reason lives on the board\."/);
     assert.match(html, /data-scene-board-note="Use this position to decide what the next move should improve\."/);
     assert.match(html, /data-scene-board-title="Position after each move"/);

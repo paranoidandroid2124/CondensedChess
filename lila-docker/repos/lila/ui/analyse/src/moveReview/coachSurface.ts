@@ -691,7 +691,7 @@ function buildMoveReviewScenes(
       board: boardPayloadForRef(decisionRef),
       boardTitle: 'Position tied to the choice',
       boardSubtitle: playerSurface.decisionComparison?.chosenSan || playerSurface.decisionComparison?.engineSan || null,
-      boardNote: 'Compare the move on the board before reading the verdict.',
+      boardNote: 'Check the board and eval before reading the verdict.',
       square: summarySquare,
       lineSans: primaryLine,
       lineLabel: 'Line behind the choice',
@@ -839,7 +839,7 @@ export function decorateMoveReviewHtml(
       <div class="move-review-player__stage">
         <aside class="move-review-player__board-shell" aria-label="Current review position">
           <div class="move-review-player__board-anchor" aria-live="polite">
-            <span class="move-review-player__board-anchor-label">Position + eval</span>
+            <span class="move-review-player__board-anchor-label">Position evaluation</span>
             <strong class="move-review-player__board-anchor-scene">${escapeHtml(scenes[0]?.label || 'Review')}</strong>
             <span class="move-review-player__board-anchor-move"${scenes[0]?.boardSubtitle ? '' : ' hidden'}>${escapeHtml(scenes[0]?.boardSubtitle || '')}</span>
             <span class="move-review-player__board-anchor-eval"${scenes[0]?.lineEval ? '' : ' hidden'}>Eval ${escapeHtml(scenes[0]?.lineEval || '')}</span>
@@ -848,7 +848,7 @@ export function decorateMoveReviewHtml(
             <span class="move-review-player__board-kicker">On the board · ${escapeHtml(scenes[0]?.kicker || 'Review')}</span>
             <strong class="move-review-player__board-title">${escapeHtml(scenes[0]?.boardTitle || 'Review position')}</strong>
             <span class="move-review-player__board-subtitle">${escapeHtml(scenes[0]?.boardSubtitle || scenes[0]?.label || '')}</span>
-            <span class="move-review-player__board-note">${escapeHtml(scenes[0]?.boardNote || 'Keep this position tied to the review step.')}</span>
+            <span class="move-review-player__board-note">${escapeHtml(scenes[0]?.boardNote || 'Keep this position and eval tied to the review step.')}</span>
           </div>
           ${renderBoardCue(scenes[0])}
           <div class="move-review-pv-preview move-review-player__board-preview"></div>

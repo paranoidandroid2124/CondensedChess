@@ -128,7 +128,7 @@ function setPlayerBoardMeta(
   if (kickerEl) kickerEl.textContent = kicker || 'On the board · Review';
   if (titleEl && title) titleEl.textContent = title;
   if (subtitleEl) subtitleEl.textContent = subtitle || '';
-  if (noteEl) noteEl.textContent = note || 'Keep this position tied to the review step.';
+  if (noteEl) noteEl.textContent = note || 'Keep this position and eval tied to the review step.';
 }
 
 function setCueItem(player: HTMLElement, selector: string, value: string | null | undefined): void {
