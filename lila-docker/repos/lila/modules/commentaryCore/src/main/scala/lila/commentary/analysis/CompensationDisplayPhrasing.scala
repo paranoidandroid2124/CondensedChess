@@ -12,14 +12,14 @@ private[analysis] object CompensationDisplayPhrasing:
   private val PiecePattern = """\b(the )?(queen|rook|bishop|knight|king|pawn)s?\b""".r
 
   private val MaterialWaitPattern = """^the material can wait while\s+""".r
-  private val WinningMaterialPattern = """^winning the material back can wait because\s+""".r
+  private val MaterialRecoveryPattern = """^(?:winning the material back|trying to recover the material) can wait because\s+""".r
   private val KeepPointPattern = """^the point is to keep\s+""".r
   private val WorksOnlyPattern = """^this works only while\s+""".r
-  private val UsePressurePattern = """^use that pressure(?: on [^.]+?)? first(?:, then think about winning the material back)?\.?$""".r
+  private val UsePressurePattern = """^use that pressure(?: on [^.]+?)? first(?:, then (?:think about winning the material back|try to recover the material|think about recovering the material))?\.?$""".r
   private val HeadForPattern = """^the [a-z]+ can head for\s+""".r
   private val BringingToPattern = """^a likely follow up is bringing the [a-z]+ to\s+""".r
   private val LikelyFollowUpPattern = """^a likely follow up is\s+""".r
-  private val BeforeWinningPattern = """\s+before winning the material back\.?$""".r
+  private val BeforeRecoveryPattern = """\s+before (?:winning the material back|trying to recover the material|recovering the material|material recovery)\.?$""".r
   private val StillTherePattern = """\s+is still there\.?$""".r
   private val StaysAvailablePattern = """\s+stays available\.?$""".r
   private val StaysInViewPattern = """\s+stays in view\.?$""".r
@@ -91,14 +91,14 @@ private[analysis] object CompensationDisplayPhrasing:
   private def compensationIdeaSignature(text: String): String =
     val step1 = StrategyPackSurface.normalizeText(text).toLowerCase
     val step2 = MaterialWaitPattern.replaceAllIn(step1, "")
-    val step3 = WinningMaterialPattern.replaceAllIn(step2, "")
+    val step3 = MaterialRecoveryPattern.replaceAllIn(step2, "")
     val step4 = KeepPointPattern.replaceAllIn(step3, "")
     val step5 = WorksOnlyPattern.replaceAllIn(step4, "")
     val step6 = UsePressurePattern.replaceAllIn(step5, "use that pressure")
     val step7 = HeadForPattern.replaceAllIn(step6, "")
     val step8 = BringingToPattern.replaceAllIn(step7, "")
     val step9 = LikelyFollowUpPattern.replaceAllIn(step8, "")
-    val step10 = BeforeWinningPattern.replaceAllIn(step9, "")
+    val step10 = BeforeRecoveryPattern.replaceAllIn(step9, "")
     val step11 = StillTherePattern.replaceAllIn(step10, "")
     val step12 = StaysAvailablePattern.replaceAllIn(step11, "")
     val step13 = StaysInViewPattern.replaceAllIn(step12, "")
@@ -156,9 +156,13 @@ private[analysis] object CompensationDisplayPhrasing:
           compensationObjectiveText(surface),
           compensationPersistenceText(surface),
           surface.objectiveText,
-          compensationSupportText(surface).find(text =>
-            text.toLowerCase.contains("winning the material back") || text.toLowerCase.contains("this works only while")
-          )
+          compensationSupportText(surface).find { text =>
+            val lower = text.toLowerCase
+            lower.contains("winning the material back") ||
+              lower.contains("trying to recover the material") ||
+              lower.contains("material recovery") ||
+              lower.contains("this works only while")
+          }
         ).flatten.exists(hasStrongCompensationAnchor)
       List(concreteGiven, concreteGained, concreteRecovery).count(identity) >= 2 && (concreteGained || concreteRecovery)
 
@@ -213,7 +217,7 @@ private[analysis] object CompensationDisplayPhrasing:
       case CompensationSubtype(_, "defender_tied_down", _, _) =>
         "tying the defenders to a passive shell"
       case CompensationSubtype(_, "conversion_window", _, _) =>
-        "favorable exchanges before the extra material can be recovered"
+        "favorable exchanges while the material is still invested"
       case CompensationSubtype(theater, _, _, _) =>
         s"${StrategyPackSurface.theaterDisplay(theater)} pressure for the material".trim
     }
@@ -320,7 +324,7 @@ private[analysis] object CompensationDisplayPhrasing:
       case CompensationSubtype("kingside", "defender_tied_down", _, _) =>
         Some("The move gives up material to keep the defenders tied to the king.")
       case CompensationSubtype(_, "conversion_window", _, _) =>
-        Some("The point is to force the favorable exchanges before winning the material back.")
+        Some("The point is to force the favorable exchanges before trying to recover the material.")
       case _ =>
         anchoredCompensationWindow(surface).map(compensationClaimFromWindow)
     }
@@ -344,7 +348,7 @@ private[analysis] object CompensationDisplayPhrasing:
       case CompensationSubtype("kingside", "break_preparation", _, _) =>
         Some("This works only while the break still has to be respected.")
       case CompensationSubtype(_, "conversion_window", _, _) =>
-        Some("The point is to force the favorable exchanges before winning the material back.")
+        Some("The point is to force the favorable exchanges before trying to recover the material.")
       case _ =>
           concreteCompensationWindow(surface).orElse(anchoredCompensationWindow(surface))
             .map(compensationConditionFromWindow)
@@ -383,7 +387,7 @@ private[analysis] object CompensationDisplayPhrasing:
         )
       case CompensationSubtype(_, "conversion_window", _, _) =>
         List(
-          "The compensation has to lead to favorable trades before the material comes back."
+          "The compensation has to lead to favorable trades while the material is still invested."
         )
       case CompensationSubtype(_, "defender_tied_down", _, _) =>
         List(
@@ -443,21 +447,21 @@ private[analysis] object CompensationDisplayPhrasing:
   private def normalizedObjectiveText(subtype: CompensationSubtype): Option[String] =
     subtype match
       case CompensationSubtype("queenside", "target_fixing", _, _) =>
-        Some("queenside targets tied down before winning the material back")
+        Some("queenside targets tied down before trying to recover the material")
       case CompensationSubtype("queenside", "line_occupation", _, _) =>
-        Some("queenside file pressure before winning the material back")
+        Some("queenside file pressure before trying to recover the material")
       case CompensationSubtype("center", "target_fixing", _, _) =>
-        Some("central targets tied down before winning the material back")
+        Some("central targets tied down before trying to recover the material")
       case CompensationSubtype("center", "line_occupation", _, _) =>
-        Some("central file pressure before winning the material back")
+        Some("central file pressure before trying to recover the material")
       case CompensationSubtype(_, "counterplay_denial", _, _) =>
-        Some("stopping counterplay before winning the material back")
+        Some("stopping counterplay before trying to recover the material")
       case CompensationSubtype(_, "defender_tied_down", _, _) =>
         Some("keeping the defenders tied down while the material can wait")
       case CompensationSubtype(_, "line_occupation", _, _) =>
-        Some("pressure along the files before winning the material back")
+        Some("pressure along the files before trying to recover the material")
       case CompensationSubtype(_, "target_fixing", _, _) =>
-        Some("fixed targets under pressure before winning the material back")
+        Some("fixed targets under pressure before trying to recover the material")
       case _ =>
         None
 

@@ -5524,7 +5524,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assertEquals(delayedRecoveryLineSurface.advancedRows.map(_.label), List("Practical line"))
     assertEquals(
       delayedRecoveryLineSurface.advancedRows.head.text,
-      "The c-file pressure gives practical line-play before winning the material back."
+      "The c-file pressure gives practical line-play before trying to recover the material."
     )
     assertEquals(delayedRecoveryLineSurface.advancedRows.head.authority.flatMap(_.target), None)
 

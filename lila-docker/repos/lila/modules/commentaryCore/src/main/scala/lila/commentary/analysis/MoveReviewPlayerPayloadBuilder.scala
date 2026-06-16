@@ -755,8 +755,8 @@ object MoveReviewPlayerPayloadBuilder:
                     .orElse(Some("The compensation gives practical line-play."))
                 else if delayedRecoveryLine && !exactFileEntryAlreadyVisible then
                   singleLineFactFile
-                    .map(file => s"The $file-file pressure gives practical line-play before winning the material back.")
-                    .orElse(Some("The line pressure gives practical play before winning the material back."))
+                    .map(file => s"The $file-file pressure gives practical line-play before trying to recover the material.")
+                    .orElse(Some("The line pressure gives practical play before trying to recover the material."))
                 else None
                 lineText.flatMap(text =>
                   row("Practical line", text, tone = Some("practical")).map(_.copy(authority = PracticalPlanAuthority))

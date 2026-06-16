@@ -260,7 +260,7 @@ private[commentary] object LiveNarrativeCompressionCore:
       )
       .replaceAll(
         """(?i)keep counterplay tied down before recovering the material""",
-        "keep the extra pawn from getting active before winning the material back"
+        "keep the extra pawn from getting active before trying to recover the material"
       )
       .replaceAll(
         """(?i)it also gives ([^.]+?) more time to take hold\.""",

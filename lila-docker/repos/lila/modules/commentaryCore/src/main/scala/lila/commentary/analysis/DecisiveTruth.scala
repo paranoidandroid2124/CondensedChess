@@ -1537,6 +1537,8 @@ private[commentary] object DecisiveTruth:
         normalizedText.contains("recovering material later") ||
         normalizedText.contains("before recovering the material") ||
         normalizedText.contains("keep the material invested") ||
+        normalizedText.contains("before trying to recover the material") ||
+        normalizedText.contains("trying to recover the material") ||
         normalizedText.contains("before winning the material back") ||
         normalizedText.contains("winning the material back") ||
         normalizedText.contains("the material can wait") ||
@@ -1559,6 +1561,7 @@ private[commentary] object DecisiveTruth:
       supportingTexts.exists(text =>
         text.contains("before winning the material back") ||
           text.contains("before recovering the material") ||
+          text.contains("before trying to recover the material") ||
           text.contains("keep the material invested") ||
           text.contains("targets tied down") ||
           text.contains("fixed targets under pressure")
@@ -1641,6 +1644,7 @@ private[commentary] object DecisiveTruth:
         lower == "long term compensation" ||
         lower == "return vector" ||
         lower.contains("material can wait") ||
+        lower.contains("trying to recover the material") ||
         lower.contains("winning the material back") ||
         lower.contains("recovering the material") ||
         lower.contains("recover material") ||

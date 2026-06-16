@@ -315,17 +315,17 @@ class CompensationDisplaySubtypeResolverTest extends FunSuite:
       )
     )
 
-  test("resolver prefers payoff subtype for fixed-target compensation shell") {
+  test("resolver uses typed path source for fixed-target compensation shell") {
     val surface = StrategyPackSurface.from(Some(benkoLikeCompensationPack))
     val rawSubtype = surface.compensationSubtype.getOrElse(fail("missing raw subtype"))
 
     val resolution = StrategyPackSurface.CompensationDisplaySubtypeResolver.resolve(surface, rawSubtype)
 
-    assertEquals(resolution.displaySubtypeSource, "payoff")
+    assertEquals(resolution.displaySubtypeSource, "path")
     assertEquals(resolution.selectedDisplaySubtype.map(_.pressureTheater), Some("queenside"))
     assertEquals(resolution.selectedDisplaySubtype.map(_.pressureMode), Some("target_fixing"))
     assert(resolution.normalizationActive, clue(resolution))
-    assert(resolution.payoffConfidence >= resolution.pathConfidence, clue(resolution))
+    assert(resolution.pathConfidence >= resolution.payoffConfidence, clue(resolution))
   }
 
   test("resolver keeps raw fallback for attack-led shell") {
@@ -334,9 +334,9 @@ class CompensationDisplaySubtypeResolverTest extends FunSuite:
 
     val resolution = StrategyPackSurface.CompensationDisplaySubtypeResolver.resolve(surface, rawSubtype)
 
-    assertEquals(resolution.displaySubtypeSource, "path")
-    assertEquals(resolution.selectedDisplaySubtype.map(_.pressureTheater), Some("kingside"))
-    assertEquals(resolution.selectedDisplaySubtype.map(_.pressureMode), Some("line_occupation"))
+    assertEquals(resolution.displaySubtypeSource, "raw_fallback")
+    assertEquals(resolution.selectedDisplaySubtype, None)
+    assert(!resolution.normalizationActive, clue(resolution))
   }
 
   test("resolver keeps the central target path when durable target anchors outweigh payoff drift") {

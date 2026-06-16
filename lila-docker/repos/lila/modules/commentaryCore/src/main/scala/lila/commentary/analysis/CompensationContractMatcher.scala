@@ -11,6 +11,8 @@ private[commentary] object CompensationContractMatcher:
       "material can wait",
       "recover the material",
       "recover material",
+      "trying to recover the material",
+      "material recovery",
       "winning the material back",
       "win the material back",
       "return vector"
@@ -79,10 +81,12 @@ private[commentary] object CompensationContractMatcher:
                 "winning the material back",
                 "recover the material",
                 "recover material",
+                "trying to recover the material",
                 "before taking the material",
                 "delayed recovery",
                 "delay recovery",
-                "delay material recovery"
+                "delay material recovery",
+                "material recovery"
               )
             )
           case _ => false

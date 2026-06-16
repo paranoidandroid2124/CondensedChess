@@ -205,7 +205,10 @@ The surface renderer may say:
   summaries or vectors are not enough. Raw semantic compensation text also
   cannot open strategic-sacrifice, concrete-strategy, or pressure-increase
   gates unless `CompensationInterpretation` accepts it or a separate exact
-  pressure witness exists. Internal full-game probe prioritization follows the
+  pressure witness exists.
+  Material-recovery wording stays at delayed/attempted-recovery strength unless
+  a separate board/PV/probe-backed material recovery or conversion proof exists.
+  Internal full-game probe prioritization follows the
   same gate; raw compensation summaries or invested-material shells do not move
   a moment into the compensation tier unless the shared compensation
   interpretation accepts the evidence. The MoveReview strategic ledger may use
@@ -281,6 +284,12 @@ player may split that surface into Verdict/Why/Plan/Try/Remember scenes, but the
 scene index, chapter labels, target-square highlight, and board-preview payload
 remain UI synchronization state. They do not widen or certify any claim beyond
 the typed surface row and resolved ref that supplied them.
+Until native backend review scenes exist, the frontend derives this scene model
+from the typed player surface. A future backend scene payload may provide stable
+scene key/order, title/kicker/body, optional detail groups, active ref or line
+refs, resolved board payload, focus square/target anchors, and fallback binding
+status. Those fields are display routing only and must not source chess prose or
+upgrade row labels, diagnostics, or sample-line text into authority.
 
 Durable structural claims require producer-owned board/PV proof. File entry,
 outpost occupation, target fixation, IQP inducement, color-complex pressure,

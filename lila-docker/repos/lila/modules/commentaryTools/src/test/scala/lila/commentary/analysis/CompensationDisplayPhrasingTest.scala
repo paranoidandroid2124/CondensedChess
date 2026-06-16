@@ -81,7 +81,7 @@ class CompensationDisplayPhrasingTest extends FunSuite:
       )
     )
 
-  test("phrasing builder keeps normalized payoff wording together") {
+  test("phrasing builder keeps normalized typed-path wording together") {
     val surface = StrategyPackSurface.from(Some(benkoLikeCompensationPack))
     val rawSubtype = surface.compensationSubtype.getOrElse(fail("missing raw subtype"))
     val resolution = StrategyPackSurface.CompensationDisplaySubtypeResolver.resolve(surface, rawSubtype)
@@ -89,7 +89,7 @@ class CompensationDisplayPhrasingTest extends FunSuite:
     val normalization =
       CompensationDisplayPhrasing.buildDisplayNormalization(surface, rawSubtype, resolution)
 
-    assertEquals(normalization.displaySubtypeSource, "payoff")
+    assertEquals(normalization.displaySubtypeSource, "path")
     assertEquals(normalization.normalizedDominantIdeaText, Some("fixed queenside targets"))
     assert(normalization.normalizedExecutionText.exists(_.contains("fixed queenside targets")), clue(normalization))
     assert(
