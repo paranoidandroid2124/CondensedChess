@@ -194,7 +194,7 @@ class AuthorQuestionGeneratorTest extends FunSuite:
       AuthorQuestionGenerator.generate(
         data =
           minimalData(ctx).copy(
-            endgameTransition = Some("Lucena(Win) → PhilidorDefense(Draw)")
+            endgameTransition = Some("Lucena(Unclear) → PhilidorDefense(Unclear)")
           ),
         ctx = ctx,
         candidates = List(playedCandidate()),

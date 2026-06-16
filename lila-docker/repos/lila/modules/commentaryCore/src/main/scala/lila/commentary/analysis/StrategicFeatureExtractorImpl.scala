@@ -417,12 +417,6 @@ class StrategicFeatureExtractorImpl(
         case lila.commentary.model.strategic.RookEndgamePattern.KingCutOff => concepts += "King cut-off"
         case _ => ()
       }
-      // Outcome hint always emitted regardless of age
-      eg.theoreticalOutcomeHint match {
-        case lila.commentary.model.strategic.TheoreticalOutcomeHint.Win => concepts += "Theoretical win"
-        case lila.commentary.model.strategic.TheoreticalOutcomeHint.Draw => concepts += "Theoretical draw"
-        case _ => ()
-      }
     }
 
     if strategicState.whiteEntrenchedPieces > 0 || strategicState.blackEntrenchedPieces > 0 then
@@ -444,18 +438,15 @@ class StrategicFeatureExtractorImpl(
   ): Option[String] =
     val prevP = prev.flatMap(_.activePattern)
     val currP = current.flatMap(_.primaryPattern)
-    val prevHint = prev.map(_.outcomeHint).getOrElse(lila.commentary.model.strategic.TheoreticalOutcomeHint.Unclear)
-    val currHint = current.map(_.theoreticalOutcomeHint).getOrElse(lila.commentary.model.strategic.TheoreticalOutcomeHint.Unclear)
+    val publicHint = lila.commentary.model.strategic.TheoreticalOutcomeHint.Unclear
     (prevP, currP) match
       case (Some(from), Some(to)) if from != to =>
-        Some(s"$from($prevHint) → $to($currHint)")
+        Some(s"$from($publicHint) → $to($publicHint)")
       case (Some(from), None) =>
-        Some(s"$from($prevHint) → none($currHint)")
+        Some(s"$from($publicHint) → none($publicHint)")
       case (None, Some(to)) if prev.exists(_.patternAge > 0) =>
         // Only label gain if there was a tracked previous state
-        Some(s"none($prevHint) → $to($currHint)")
-      case _ if prevHint != currHint && prevP.isDefined =>
-        Some(s"${prevP.getOrElse("?")}($prevHint) → ${currP.getOrElse("?")}($currHint)")
+        Some(s"none($publicHint) → $to($publicHint)")
       case _ => None
   private def deriveDualIntent(
     move: String,

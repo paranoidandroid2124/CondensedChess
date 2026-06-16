@@ -5,7 +5,7 @@ import lila.commentary.analysis.{ PlanTaxonomy, StrategicIdeaSemanticContext }
 import lila.commentary.analysis.semantic.{ StrategicIdeaEvidence, StrategicIdeaEvidenceProducer }
 import lila.commentary.analysis.semantic.StrategicObservationIds.EvidenceSourceId
 import lila.commentary.model.{ Motif, PlanId }
-import lila.commentary.model.strategic.{ PositionalTag, TheoreticalOutcomeHint }
+import lila.commentary.model.strategic.PositionalTag
 import lila.commentary.model.structure.{ StructureId }
 
 
@@ -31,26 +31,6 @@ private[commentary] object TransformationEvidenceProducer extends StrategicIdeaE
             factIds = List("capture_or_exchange", s"removing_defender_tag_support_${target.name.toLowerCase}")
           )
       }
-
-    val winningEndgameTransition =
-      semantic.endgameFeatures
-        .filter(_.theoreticalOutcomeHint == TheoreticalOutcomeHint.Win)
-        .flatMap { feature =>
-          semantic.positionFeatures.flatMap { features =>
-            Option.when(materialEdgeFor(side, features) >= 100 || semantic.phase == "endgame") {
-              evidence(
-                ownerSide = side,
-                kind = StrategicIdeaKind.FavorableTradeOrTransformation,
-                readiness = StrategicIdeaReadiness.Ready,
-                source = EvidenceSourceId.WinningEndgameTransition,
-                confidence = 0.80,
-                focusSquares = feature.keySquaresControlled.map(_.key).take(3),
-                factIds = List("winning_endgame_transition_shape")
-              )
-            }
-          }
-        }
-        .toList
 
     val rookEndgamePattern =
       semantic.motifs.collect {
@@ -223,13 +203,11 @@ private[commentary] object TransformationEvidenceProducer extends StrategicIdeaE
       pack.pieceMoveRefs
         .filter(ref => ref.ownerSide == side && ref.tacticalTheme.contains("capture_or_exchange"))
         .flatMap { ref =>
-          Option.when(favorableTradeContext(side, ref, semantic, winningEndgameTransition.nonEmpty)) {
+          Option.when(favorableTradeContext(side, ref, semantic, hasStructuredTradeSignal = false)) {
             evidence(
               ownerSide = side,
               kind = StrategicIdeaKind.FavorableTradeOrTransformation,
-              readiness =
-                if winningEndgameTransition.nonEmpty then StrategicIdeaReadiness.Ready
-                else StrategicIdeaReadiness.Build,
+              readiness = StrategicIdeaReadiness.Build,
               source = EvidenceSourceId.CaptureExchangeTransformation,
               confidence = 0.62 + moveRefSupportBonus(side, ref, semantic),
               focusSquares = List(ref.target),
@@ -262,7 +240,6 @@ private[commentary] object TransformationEvidenceProducer extends StrategicIdeaE
             ) &&
               (
                 defenderTagExchangeSupport.nonEmpty ||
-                  winningEndgameTransition.nonEmpty ||
                   classificationWindow.nonEmpty ||
                   exchangeAvailabilityBridge.nonEmpty ||
                   softPlanSupport ||
@@ -326,4 +303,4 @@ private[commentary] object TransformationEvidenceProducer extends StrategicIdeaE
         }
       }
 
-    defenderTagExchangeSupport ++ winningEndgameTransition ++ rookEndgamePattern ++ endgameTechniqueMotif ++ passedPawnConversionMotif ++ classificationWindow ++ exchangeAvailabilityBridge ++ moveRefEvidence ++ planBridge ++ iqpSimplification
+    defenderTagExchangeSupport ++ rookEndgamePattern ++ endgameTechniqueMotif ++ passedPawnConversionMotif ++ classificationWindow ++ exchangeAvailabilityBridge ++ moveRefEvidence ++ planBridge ++ iqpSimplification

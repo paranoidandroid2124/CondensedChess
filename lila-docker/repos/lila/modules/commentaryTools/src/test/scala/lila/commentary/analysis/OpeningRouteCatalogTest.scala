@@ -194,18 +194,24 @@ class OpeningRouteCatalogTest extends FunSuite:
   }
 
   test("route descriptors carry target modes for board-level interpretation") {
+    val benoniRoute = OpeningRouteCatalog.default.route("benoni_d6_knight_route").getOrElse(fail("missing Benoni route"))
+    val kingsIndianRoute =
+      OpeningRouteCatalog.default.route("kings_indian_c5_knight_route").getOrElse(fail("missing King's Indian route"))
+
     assertEquals(
-      OpeningRouteCatalog.default.route("benoni_d6_knight_route").map(_.targetMode),
-      Some("attack_weak_pawn")
+      benoniRoute.targetMode,
+      "attack_weak_pawn"
     )
     assertEquals(
       OpeningRouteCatalog.default.route("reversed_benoni_d3_knight_route_f6").map(_.targetMode),
       Some("attack_weak_pawn")
     )
     assertEquals(
-      OpeningRouteCatalog.default.route("kings_indian_c5_knight_route").map(_.targetMode),
-      Some("occupy_target")
+      kingsIndianRoute.targetMode,
+      "occupy_target"
     )
+    assert(OpeningRouteTargetEvidence.ownerSeedTerms(benoniRoute).contains("fixed_target:d6"))
+    assert(!OpeningRouteTargetEvidence.ownerSeedTerms(kingsIndianRoute).exists(_.startsWith("fixed_target:")))
   }
 
   test("default TSV exposes a starter pack of major opening knight routes") {
@@ -307,7 +313,7 @@ class OpeningRouteCatalogTest extends FunSuite:
     assertEquals(PlayerFacingTruthModePolicy.openingRouteFamilyAdmissible(unlabeledCtx, dutchRoute), true)
   }
 
-  test("main path exact route witness keeps the admitted opening family in proof terms") {
+  test("occupy-target opening route does not become exact target fixation proof") {
     val ctx =
       baseContext(
         fen = BlackKnightF6Fen,
@@ -368,17 +374,11 @@ class OpeningRouteCatalogTest extends FunSuite:
     val delta =
       PlayerFacingTruthModePolicy
         .mainPathMoveDeltaEvidence(ctx, StrategyPackSurface.from(Some(pack)), truthContract = None)
-        .getOrElse(fail("expected route-backed exact target fixation delta"))
-    val transitionTerms = delta.packet.proofPathWitness.structureTransitionTerms
 
-    assertEquals(delta.deltaClass, PlayerFacingMoveDeltaClass.PressureIncrease)
-    assertEquals(delta.packet.proofSource, PlayerFacingTruthModePolicy.ExactTargetFixationProofSource)
-    assert(transitionTerms.contains("opening_family:queens_indian"), clue(transitionTerms))
-    assert(!transitionTerms.exists(_.contains("opening_family:bogo_indian")), clue(transitionTerms))
-    assert(!transitionTerms.exists(_.contains("opening_family:dutch")), clue(transitionTerms))
+    assert(!delta.exists(_.packet.proofSource == PlayerFacingTruthModePolicy.ExactTargetFixationProofSource), clue(delta))
   }
 
-  test("main path exact route witness accepts certified bishop fianchetto routes") {
+  test("bishop fianchetto occupy-target route stays route evidence only") {
     val ctx =
       baseContext(
         fen = WhiteBishopF1Fen,
@@ -439,14 +439,8 @@ class OpeningRouteCatalogTest extends FunSuite:
     val delta =
       PlayerFacingTruthModePolicy
         .mainPathMoveDeltaEvidence(ctx, StrategyPackSurface.from(Some(pack)), truthContract = None)
-        .getOrElse(fail("expected bishop route-backed exact target fixation delta"))
-    val transitionTerms = delta.packet.proofPathWitness.structureTransitionTerms
 
-    assertEquals(delta.deltaClass, PlayerFacingMoveDeltaClass.PressureIncrease)
-    assertEquals(delta.packet.proofSource, PlayerFacingTruthModePolicy.ExactTargetFixationProofSource)
-    assert(transitionTerms.contains("opening_family:catalan"), clue(transitionTerms))
-    assert(transitionTerms.contains("bishop_route:f1-g2"), clue(transitionTerms))
-    assert(!transitionTerms.exists(_.contains("opening_family:english")), clue(transitionTerms))
+    assert(!delta.exists(_.packet.proofSource == PlayerFacingTruthModePolicy.ExactTargetFixationProofSource), clue(delta))
   }
 
   test("piece route evidence supports bishop fianchetto and rook-lift descriptors") {

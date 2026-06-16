@@ -1309,6 +1309,7 @@ class StrategicIdeaSelectorTest extends FunSuite:
     assertEquals(ideas.headOption.map(_.kind), Some(StrategicIdeaKind.KingAttackBuildUp))
     assert(ideas.headOption.exists(_.evidenceRefs.contains("source:route_attack_lane")), clues(ideas.headOption.map(_.evidenceRefs)))
     assert(ideas.headOption.exists(_.evidenceRefs.contains("route_attack_lane_shape")), clues(ideas.headOption.map(_.evidenceRefs)))
+    assert(ideas.headOption.exists(_.evidenceRefs.contains("attack_lane_board_attack")), clues(ideas.headOption.map(_.evidenceRefs)))
     assert(ideas.headOption.exists(_.focusSquares.contains("h7")), clue(ideas.headOption))
     assertEquals(ideas.headOption.flatMap(_.focusZone), Some("kingside"))
   }
@@ -1342,8 +1343,54 @@ class StrategicIdeaSelectorTest extends FunSuite:
     assertEquals(ideas.headOption.map(_.kind), Some(StrategicIdeaKind.KingAttackBuildUp))
     assert(ideas.headOption.exists(_.evidenceRefs.contains("source:directional_attack_lane")), clues(ideas.headOption.map(_.evidenceRefs)))
     assert(ideas.headOption.exists(_.evidenceRefs.contains("directional_attack_lane_shape")), clues(ideas.headOption.map(_.evidenceRefs)))
+    assert(ideas.headOption.exists(_.evidenceRefs.contains("attack_lane_board_attack")), clues(ideas.headOption.map(_.evidenceRefs)))
     assert(ideas.headOption.exists(_.focusSquares.contains("h7")), clue(ideas.headOption))
     assertEquals(ideas.headOption.flatMap(_.focusZone), Some("kingside"))
+  }
+
+  test("route and directional target near an uncastled king require a board-proved attack lane") {
+    val fen = "4k3/8/8/8/4n3/8/8/4K3 b - - 0 1"
+    val semantic =
+      StrategicIdeaSemanticContext(
+        sideToMove = "black",
+        board = Some(boardFromFen(fen)),
+        phase = "middlegame"
+      )
+    val pack =
+      StrategyPack(
+        sideToMove = "black",
+        pieceRoutes = List(
+          StrategyPieceRoute(
+            ownerSide = "black",
+            piece = "N",
+            from = "e4",
+            route = List("c3"),
+            purpose = "centralization route",
+            strategicFit = 0.80,
+            tacticalSafety = 0.80,
+            surfaceConfidence = 0.82,
+            surfaceMode = RouteSurfaceMode.Exact
+          )
+        ),
+        directionalTargets = List(
+          StrategyDirectionalTarget(
+            targetId = "black_knight_c3_target",
+            ownerSide = "black",
+            piece = "N",
+            from = "e4",
+            targetSquare = "c3",
+            readiness = DirectionalTargetReadiness.Build,
+            strategicReasons = List("central foothold")
+          )
+        )
+      )
+
+    val ideas = StrategicIdeaSelector.select(pack, semantic)
+    val refs = ideas.flatMap(_.evidenceRefs)
+
+    assert(!refs.contains("source:route_attack_lane"), clues(ideas))
+    assert(!refs.contains("source:directional_attack_lane"), clues(ideas))
+    assert(!refs.contains("attack_lane_board_attack"), clues(ideas))
   }
 
   test("pawn analysis break ready keeps typed file witness for support surface") {
@@ -1430,6 +1477,32 @@ class StrategicIdeaSelectorTest extends FunSuite:
     assert(breakIdea.evidenceRefs.contains("source:central_break_tension"), clue(breakIdea.evidenceRefs))
     assert(breakIdea.evidenceRefs.contains("locked_center"), clue(breakIdea.evidenceRefs))
     assert(breakIdea.focusFiles.contains("d"), clue(breakIdea))
+  }
+
+  test("direct central break collision does not produce counterplay-suppression evidence") {
+    val fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1"
+    val semantic =
+      StrategicIdeaSemanticContext(
+        sideToMove = "black",
+        fen = fen,
+        playedMove = Some("e7e5"),
+        board = Some(boardFromFen(fen)),
+        preventedPlans = List(
+          PreventedPlan(
+            planId = "SameDestinationE5",
+            deniedSquares = List(Square.E5),
+            breakNeutralized = Some("e4-e5"),
+            mobilityDelta = -2,
+            counterplayScoreDrop = 140,
+            deniedResourceClass = Some("break")
+          )
+        )
+      )
+
+    val ideas = StrategicIdeaSelector.select(StrategyPack(sideToMove = "black"), semantic)
+
+    assert(!ideas.exists(_.kind == StrategicIdeaKind.CounterplaySuppression), clue(ideas))
+    assert(!ideas.exists(_.evidenceRefs.contains("source:counterplay_suppression")), clue(ideas))
   }
 
   test("blockade motif keeps passer-restraint witnesses for support surface") {

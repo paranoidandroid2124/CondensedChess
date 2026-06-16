@@ -3859,18 +3859,16 @@ object NarrativeOutlineBuilder:
 
   private def buildEndgameContinuitySentence(info: EndgameInfo): Option[String] =
     info.transition.flatMap {
-      case EndgameTransitionPattern(fromRaw, fromHintRaw, toRaw, toHintRaw) =>
+      case EndgameTransitionPattern(fromRaw, _, toRaw, _) =>
         val fromLabel = humanizeEndgamePattern(fromRaw)
         val toLabel = humanizeEndgamePattern(toRaw)
-        val fromTask = endgameTaskPhrase(fromHintRaw)
-        val toTask = endgameTaskPhrase(toHintRaw)
         Some(
           if fromRaw.equalsIgnoreCase("none") then
-            s"A new $toLabel pattern has emerged, giving the position a clearer $toTask."
+            s"A new $toLabel structure is visible, so the endgame context has changed."
           else if toRaw.equalsIgnoreCase("none") then
-            s"The $fromLabel pattern has dissolved, so the earlier $fromTask no longer holds automatically."
+            s"The $fromLabel structure has dissolved, so that earlier endgame pattern is no longer stable by itself."
           else
-            s"The endgame geometry has shifted from $fromLabel to $toLabel, turning the position from a $fromTask into a $toTask."
+            s"The endgame geometry has shifted from $fromLabel to $toLabel."
         )
       case _ => None
     }.orElse {
@@ -3881,8 +3879,7 @@ object NarrativeOutlineBuilder:
             else if info.patternAge >= 4 then "for multiple plies"
             else s"for ${info.patternAge} plies"
           val label = humanizeEndgamePattern(pattern)
-          val task = endgameTaskPhrase(info.theoreticalOutcomeHint)
-          s"The $label structure has held $duration, so the same $task remains in force."
+          s"The $label structure has held $duration, keeping that endgame pattern in view."
         }
       }
     }
@@ -3895,14 +3892,6 @@ object NarrativeOutlineBuilder:
       normalized
         .replaceAll("([a-z0-9])([A-Z])", "$1 $2")
         .replace('_', ' ')
-
-  private def endgameTaskPhrase(rawHint: String): String =
-    Option(rawHint).getOrElse("").trim.toLowerCase match
-      case "win"     => "winning method"
-      case "draw"    => "drawing setup"
-      case "unclear" => "technical plan"
-      case other if other.nonEmpty => s"${other} technical task"
-      case _ => "technical plan"
 
   private def buildEndgameCausalitySentence(ctx: NarrativeContext, info: EndgameInfo): Option[String] =
     parseBoard(ctx.fen).flatMap { board =>
@@ -4248,7 +4237,7 @@ object NarrativeOutlineBuilder:
     // Priority: promotion race > forced draw resource > king activity.
     if info.ruleOfSquare.equalsIgnoreCase("Fails") || info.rookEndgamePattern.equalsIgnoreCase("RookBehindPassedPawn") then
       motifs += "promotion_race"
-    if info.isZugzwang || info.zugzwangLikelihood >= 0.65 || info.theoreticalOutcomeHint.equalsIgnoreCase("Draw") then
+    if info.isZugzwang || info.zugzwangLikelihood >= 0.65 then
       motifs += "forced_draw_resource"
     if info.hasOpposition || !info.oppositionType.equalsIgnoreCase("None") then
       motifs += "opposition"

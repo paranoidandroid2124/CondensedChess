@@ -1932,23 +1932,23 @@ object NarrativeLexicon {
     else
       val templates =
         if pattern.contains("lucena") then Some(List(
-          "Lucena geometry is present: building a bridge is the core winning method.",
-          "This is a Lucena-type setup where bridge construction decides conversion.",
+          "Lucena geometry is present: bridge-building is the key technique.",
+          "This is a Lucena-type setup where bridge construction shapes the rook checks.",
           "The position matches Lucena ideas, so shielding checks with a bridge is critical."
         ))
         else if pattern.contains("philidor") then Some(List(
           "Philidor defense geometry is active: the third-rank barrier is the key hold.",
-          "This resembles Philidor defense, where rook activity from the third rank secures the draw.",
+          "This resembles Philidor defense, where rook activity from the third rank keeps checking resources available.",
           "Philidor structure is on the board; maintaining the defensive rank is the central task."
         ))
         else if pattern.contains("vancura") then Some(List(
-          "Vancura-style defense appears: lateral rook checks are the drawing backbone.",
-          "This is a Vancura-type setup where active rook checking keeps the position holdable.",
+          "Vancura-style defense appears: lateral rook checks are the main resource.",
+          "This is a Vancura-type setup where active rook checking keeps defensive options available.",
           "The defensive idea is Vancura geometry, with rook activity neutralizing the passer."
         ))
         else if pattern.contains("wrongrookpawnwrongbishopfortress") || pattern.contains("wrong_bishop_fortress") then Some(List(
-          "Wrong-bishop rook-pawn fortress logic is in play, so conversion is often blocked.",
-          "This is the wrong-bishop fortress pattern: the corner setup can hold the draw.",
+          "Wrong-bishop rook-pawn fortress logic is in play, so the promotion corner matters.",
+          "This is the wrong-bishop fortress pattern: the corner setup is the key defensive resource.",
           "The rook-pawn and wrong-bishop mismatch creates a classic fortress resource."
         ))
         else if pattern.contains("triangulationzugzwang") || pattern.contains("triangulation") then Some(List(
@@ -1962,9 +1962,9 @@ object NarrativeLexicon {
           "The technical plan uses an outside passer to create a distant king diversion."
         ))
         else if pattern.contains("connectedpassers") || pattern.contains("connected_passers") then Some(List(
-          "Connected passed pawns are the main conversion engine here.",
+          "Connected passed pawns are the main technical asset here.",
           "The critical endgame asset is the connected passer pair advancing together.",
-          "Connected passers define the position: coordinated pawn advance can overwhelm defense."
+          "Connected passers define the position: coordinated pawn advance tests the defense."
         ))
         else None
 

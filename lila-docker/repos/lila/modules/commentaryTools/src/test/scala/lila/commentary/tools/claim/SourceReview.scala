@@ -772,6 +772,8 @@ private[commentary] object SourceReview:
           surface.contractFailures
             .filterNot(failure => failure == "-" || failure == "none")
             .map(badPieceLiquidationFailureCode)
+      case Some(descriptor) if descriptor.contractMismatch(surface) =>
+        List(s"proof:${blockerCode(descriptor.reviewGroupNeedle)}_contract_mismatch")
       case _ if reviewGroup.contains("iqp") && surface.contractId.isEmpty =>
         surface.ownerFailureCodes
       case _ =>
@@ -782,7 +784,9 @@ private[commentary] object SourceReview:
       ownerDiagnosis: String,
       ownerFailureCodes: List[String]
   ): List[String] =
-    ownerDiagnosis match
+    val proofFailures = ownerFailureCodes.filter(_.startsWith("proof:"))
+    if proofFailures.nonEmpty then proofFailures
+    else ownerDiagnosis match
       case Diagnosis.RootVocabularyOrExtractionGap =>
         val reviewGroup = source.reviewGroup.toLowerCase
         if reviewGroup.contains("iqp") && ownerFailureCodes.nonEmpty then

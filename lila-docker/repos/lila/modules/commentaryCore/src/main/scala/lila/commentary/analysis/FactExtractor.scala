@@ -203,7 +203,7 @@ object FactExtractor {
       }
     }
 
-    if (endgame.theoreticalOutcomeHint != TheoreticalOutcomeHint.Unclear || endgame.confidence > 0.0) {
+    if (endgame.theoreticalOutcomeHint == TheoreticalOutcomeHint.Unclear && endgame.confidence > 0.0) {
       facts += Fact.EndgameOutcome(
         outcome = endgame.theoreticalOutcomeHint.toString,
         confidence = endgame.confidence,

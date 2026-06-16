@@ -64,11 +64,14 @@ object BreakPreventionWitness:
         val (plan, token) = breakPlans.maxBy { case (plan, _) =>
           math.max(plan.counterplayScoreDrop, -plan.mobilityDelta)
         }
+        val routeMatch = matchingRoute(token, routeEvidence)
+        val baseTerms = (List(token) ++ plan.deniedSquares.flatMap(clean)).distinct
+        val mechanismTerms = routeMatch.toList.flatMap(_.mechanismTerms).distinct
         val witness = Witness(
           planId = plan.planId,
           breakToken = token,
-          ownerSeedTerms = (List(token) ++ plan.deniedSquares.flatMap(clean)).distinct,
-          structureTransitionTerms = (List(token) ++ plan.deniedSquares.flatMap(clean)).distinct
+          ownerSeedTerms = (baseTerms ++ mechanismTerms).distinct,
+          structureTransitionTerms = (baseTerms ++ mechanismTerms).distinct
         )
         val routeFailureOpt = routeFailureFor(token, routeEvidence, ctx)
         val routeStable = routePersistenceStable(token, routeEvidence)
@@ -173,10 +176,15 @@ object BreakPreventionWitness:
       evidence: List[BreakClampMaterializer.BreakRouteEvidence],
       ctx: NarrativeContext
   ): Option[String] =
-    evidence
-      .find(route => normalize(route.token) == normalize(token) || normalize(route.destinationToken) == normalize(token))
+    matchingRoute(token, evidence)
       .flatMap(routeFailure)
       .orElse(routeRecheckFailure(token, ctx))
+
+  private def matchingRoute(
+      token: String,
+      evidence: List[BreakClampMaterializer.BreakRouteEvidence]
+  ): Option[BreakClampMaterializer.BreakRouteEvidence] =
+    evidence.find(route => normalize(route.token) == normalize(token) || normalize(route.destinationToken) == normalize(token))
 
   private def routeFailure(evidence: BreakClampMaterializer.BreakRouteEvidence): Option[String] =
     evidence.transformRisk match

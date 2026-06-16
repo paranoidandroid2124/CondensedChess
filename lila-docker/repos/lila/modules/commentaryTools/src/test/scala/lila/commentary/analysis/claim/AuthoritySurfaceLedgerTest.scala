@@ -67,8 +67,8 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
       "source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation" -> "Suppressed"
     ) ++
       sourceQueenTradeBoundaryIds.map(_ -> "SupportedLocal") ++
-      sourceIqpInducementIds.map(_ -> "SupportedLocal") ++
-      sourceFlankClampIds.map(_ -> "CertifiedOwner") ++
+      sourceIqpInducementIds.map(_ -> "Suppressed") ++
+      sourceFlankClampIds.map(_ -> "Suppressed") ++
       suppressedSourceBreakPreventionIds.map(_ -> "Suppressed")
 
   test("B/C authority surface ledger covers natural rows, soft rows, and tactical-veto parity") {
@@ -170,24 +170,19 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
 
     sourceIqpInducementIds.foreach { id =>
       val naturalIqp = byId(id)
-      assertEquals(naturalIqp.release, "SupportedLocal")
-      assertEquals(naturalIqp.primary, "This sequence leaves an isolated pawn as the local target.")
-      assert(naturalIqp.moveReview.contains(naturalIqp.primary), clues(naturalIqp))
-      assert(naturalIqp.plannerOwner.contains(s"WhyThis:MoveDelta:${PlayerFacingTruthModePolicy.IQPInducementProbeProofSource}"), clues(naturalIqp))
-      assertEquals(naturalIqp.contractStatus, "Releasable")
-      assert(naturalIqp.contractId.contains(PlanTaxonomy.PlanKind.IQPInducement.id), clues(naturalIqp))
+      assertEquals(naturalIqp.release, "Suppressed", clues(naturalIqp))
+      assertEquals(naturalIqp.primary, "-", clues(naturalIqp))
+      assertEquals(naturalIqp.moveReview, "-", clues(naturalIqp))
+      assertEquals(naturalIqp.plannerOwner, "-", clues(naturalIqp))
       assertEquals(naturalIqp.taxonomy, "source_iqp_inducement")
-      assert(!naturalIqp.moveReview.contains("So the task is"), clues(naturalIqp))
     }
 
     sourceFlankClampIds.foreach { id =>
       val flankClamp = byId(id)
-      assertEquals(flankClamp.release, "CertifiedOwner", clues(flankClamp))
-      assert(flankClamp.primary.startsWith("A minor piece keeps the color-complex pressure on "), clues(flankClamp))
-      assert(flankClamp.plannerOwner.contains("WhatMattersHere:PositionProbe:color_complex_squeeze_probe"), clues(flankClamp))
-      assertEquals(flankClamp.contractStatus, "Releasable")
-      assertEquals(flankClamp.contractId, "runtime:color_complex_squeeze")
-      assertEquals(flankClamp.contractFailures, "none")
+      assertEquals(flankClamp.release, "Suppressed", clues(flankClamp))
+      assertEquals(flankClamp.primary, "-", clues(flankClamp))
+      assertEquals(flankClamp.moveReview, "-", clues(flankClamp))
+      assertEquals(flankClamp.plannerOwner, "-", clues(flankClamp))
       assertEquals(flankClamp.taxonomy, "source_flank_clamp")
     }
 
@@ -351,7 +346,6 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
       supportedSourceRows
         .map(_.sample.id),
       sourceQueenTradeBoundaryIds ++
-      sourceIqpInducementIds ++
       List(
         sourceBadPieceLiquidationId,
         "source-bad-piece-liquidation-pilot",
@@ -363,7 +357,7 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
       observations
         .filter(obs => obs.sample.id.startsWith("source-") && obs.release == "CertifiedOwner")
         .map(_.sample.id),
-      sourceFlankClampIds
+      Nil
     )
     assertEquals(
       observations
@@ -433,7 +427,7 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     assert(review.contains("## TacticalVeto"), clues(review))
     assert(
       review.contains(
-        "Surface SupportedLocal fixtures: 15 rows (certified_owner_path=2, same_job_or_conversion_relabel_blocked=1, source_bad_piece_liquidation=2, source_central_break_timing=1, source_iqp_inducement=6, source_queen_trade_boundary=2, source_simplification_window=1)"
+        "Surface SupportedLocal fixtures: 9 rows (certified_owner_path=2, same_job_or_conversion_relabel_blocked=1, source_bad_piece_liquidation=2, source_central_break_timing=1, source_queen_trade_boundary=2, source_simplification_window=1)"
       ),
       clues(review)
     )

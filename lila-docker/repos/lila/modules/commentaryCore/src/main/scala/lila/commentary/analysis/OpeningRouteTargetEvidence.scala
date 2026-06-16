@@ -28,11 +28,15 @@ private[commentary] object OpeningRouteTargetEvidence:
     yield checkRouteBoard(board, piece.color, evidence.route)).getOrElse(false)
 
   def ownerSeedTerms(route: OpeningRouteCatalog.Route): List[String] =
-    List(
-      route.targetSquare,
-      s"fixed_target:${route.targetSquare}",
-      s"route_target:${route.routeId}",
-      route.targetMode
+    (
+      List(route.targetSquare) ++
+        Option
+          .when(route.targetMode == OpeningRouteCatalog.AttackWeakPawn)(s"fixed_target:${route.targetSquare}")
+          .toList ++
+        List(
+          s"route_target:${route.routeId}",
+          route.targetMode
+        )
     ).distinct
 
   def structureTransitionTerms(

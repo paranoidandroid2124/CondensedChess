@@ -839,13 +839,6 @@ object MoveReviewPlayerPayloadBuilder:
                     idea.readiness == StrategicIdeaReadiness.Build &&
                     strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
                     idea.confidence >= 0.64
-                val winningEndgameConversion =
-                  refs.contains("source:winning_endgame_transition") &&
-                    refs.contains("winning_endgame_transition_shape") &&
-                    idea.readiness == StrategicIdeaReadiness.Ready &&
-                    strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
-                    idea.confidence >= 0.80 &&
-                    !exactConversionAlreadyVisible
                 val rookEndgamePatternFacts =
                   List(
                     Option.when(refs.contains("rook_behind_passed_pawn"))("rook-behind-passer structure"),
@@ -902,12 +895,6 @@ object MoveReviewPlayerPayloadBuilder:
                   }, tone = Some("practical"))
                   else if exchangeAvailableIqp then
                     row("Practical trade", "The IQP structure gives White a practical exchange-availability cue.", tone = Some("practical"))
-                  else if winningEndgameConversion then
-                    val text =
-                      singleFocusSquare
-                        .map(square => s"The winning endgame structure gives a practical conversion cue around $square.")
-                        .getOrElse("The winning endgame structure gives a practical conversion cue.")
-                    row("Practical conversion", text, tone = Some("practical"))
                   else if rookEndgamePattern then
                     val text =
                       singleRookEndgamePatternFact
@@ -1126,6 +1113,10 @@ object MoveReviewPlayerPayloadBuilder:
                     case piece :: Nil => Some(piece)
                     case _            => None
                 val focusZone = cleanOpt(idea.focusZone).map(_.toLowerCase)
+                val broadAttackShell =
+                  refs.contains("source:king_ring_pressure") ||
+                    refs.contains("source:enemy_weak_back_rank") ||
+                    refs.contains("source:compensation_king_window")
                 val fianchettoAssault =
                   !exactAttackAlreadyVisible &&
                     refs.contains("source:fianchetto_assault_profile") &&
@@ -1283,6 +1274,7 @@ object MoveReviewPlayerPayloadBuilder:
                     idea.confidence >= 0.70
                 val initiativeMotif =
                   !exactAttackAlreadyVisible &&
+                    !broadAttackShell &&
                     refs.contains("source:initiative_motif") &&
                     refs.contains("initiative_motif_shape") &&
                     refs.exists(ref => ref.stripPrefix("initiative_score_").toIntOption.exists(_ >= 10)) &&
@@ -1291,7 +1283,7 @@ object MoveReviewPlayerPayloadBuilder:
                     strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
                     idea.confidence >= 0.70
                 val attackText =
-                  if ambiguousAttackLane then None
+                  if ambiguousAttackLane || broadAttackShell then None
                   else if fianchettoAssault then Some("The fianchetto-shell structure gives a practical opposite-side attack cue.")
                   else if enemyKingStuckCenter then
                     Some("The enemy king's central exposure gives a practical attacking cue.")
@@ -1655,7 +1647,9 @@ object MoveReviewPlayerPayloadBuilder:
     row.label == "Counterplay break" &&
       row.authority.exists(authority =>
         authority.kind == MoveReviewSurfaceAuthority.CounterplayBreak &&
-          authority.token.exists(token => row.text == NeutralizeKeyBreakSurfaceGate.surfaceText(token))
+          authority.token.exists(token =>
+            NeutralizeKeyBreakSurfaceGate.matchesSurfaceText(token, row.text, authority.target)
+          )
       )
 
   private def exactAttackRow(row: MoveReviewPlayerSurfaceRow): Boolean =
@@ -1807,24 +1801,11 @@ object MoveReviewPlayerPayloadBuilder:
           MoveReviewSurfaceAuthority(
             kind = MoveReviewSurfaceAuthority.OpeningFamily,
             openingFamily = Some(family.wireKey),
-            target = openingRouteTarget(ctx, family.wireKey),
+            target = None,
             openingBook = ctx.openingData.flatMap(MoveReviewOpeningBookMetadata.fromReference)
           )
         )
     )
-
-  private def openingRouteTarget(ctx: NarrativeContext, familyKey: String): Option[String] =
-    OpeningRouteCatalog.default.routes.iterator
-      .filter(route => route.family == familyKey)
-      .filter(route => OpeningFamilyCatalog.default.targetAllowed(familyKey, route.targetSquare))
-      .flatMap(route =>
-        PieceRouteEvidence
-          .fromContext(ctx, route)
-          .filter(OpeningRouteTargetEvidence.checkRouteEvidence)
-          .map(_ => route.targetSquare)
-      )
-      .toList
-      .headOption
 
   private def openingName(ctx: NarrativeContext): Option[String] =
     cleanOpt(ctx.openingData.flatMap(_.name))
@@ -2594,19 +2575,66 @@ private[commentary] object NeutralizeKeyBreakSurfaceGate:
   def surfaceText(token: String): String =
     s"This stops the $token break before it appears."
 
+  def surfaceText(token: String, packet: PlayerFacingClaimPacket): String =
+    pinnedBreakPawn(token, packet)
+      .map(pawn => pinnedBreakPawnSurfaceText(token, pawn))
+      .getOrElse(surfaceText(token))
+
+  def surfaceAuthority(token: String, packet: PlayerFacingClaimPacket): MoveReviewSurfaceAuthority =
+    MoveReviewSurfaceAuthority(
+      kind = MoveReviewSurfaceAuthority.CounterplayBreak,
+      token = Some(token),
+      target = pinnedBreakPawn(token, packet)
+    )
+
+  def matchesSurfaceText(token: String, text: String, target: Option[String]): Boolean =
+    text == surfaceText(token) ||
+      target.exists(pawn => text == pinnedBreakPawnSurfaceText(token, pawn))
+
   private def packetBreakToken(packet: PlayerFacingClaimPacket): Option[String] =
     packet.proofPathWitness.exactSliceProof.collect {
       case PlayerFacingExactSliceProof.CounterplayAxisSuppression(breakToken) => breakToken
     }.flatMap(BreakSurfaceToken.canonical)
 
+  private def pinnedBreakPawn(token: String, packet: PlayerFacingClaimPacket): Option[String] =
+    val packetToken = packetBreakToken(packet)
+    val expectedToken = BreakSurfaceToken.canonical(token)
+    val terms =
+      (
+        packet.proofPathWitness.ownerSeedTerms ++
+          packet.proofPathWitness.structureTransitionTerms
+      ).map(normalize).filter(_.nonEmpty)
+    Option
+      .when(
+        packetToken == expectedToken &&
+          terms.contains("break_clamp_mechanism:pinned_pawn")
+      ) {
+        terms
+          .collectFirst {
+            case term if term.startsWith("pinned_break_pawn:") =>
+              term.stripPrefix("pinned_break_pawn:")
+          }
+          .filter(MoveReviewPlayerPayloadBuilder.ChessSquarePattern.matches)
+      }
+      .flatten
+
+  private def pinnedBreakPawnSurfaceText(token: String, pinnedPawn: String): String =
+    s"This pins the $pinnedPawn pawn, so the $token break is not available."
+
+  private def normalize(raw: String): String =
+    Option(raw).map(_.trim.toLowerCase).getOrElse("")
+
   private def decideToken(token: String, ctx: Option[NarrativeContext]): Decision =
-    BreakSurfaceToken.singleSquare(token) match
+    BreakSurfaceToken.singleSquare(token).orElse(BreakSurfaceToken.canonicalRoute(token).flatMap(routeDestination)) match
       case Some(square) =>
         ctx.flatMap(legalPlayedTargetSquare) match
           case Some(target) if target == square => Decision(None, Some(PlayedMoveCollision))
           case Some(_)                         => Decision(Some(token), None)
           case None                            => Decision(None, Some(PlayedMoveUnverified))
       case None => Decision(Some(token), None)
+
+  private def routeDestination(route: String): Option[String] =
+    route.stripPrefix("...").split("-").lastOption.filter(MoveReviewPlayerPayloadBuilder.ChessSquarePattern.matches)
 
   private def legalPlayedTargetSquare(ctx: NarrativeContext): Option[String] =
     for
@@ -3890,15 +3918,18 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
     admission
       .filter(_.decision.supportedLocalWithoutTacticalVeto)
       .flatMap { admission =>
-        NeutralizeKeyBreakSurfaceGate.decideForPlanPacket(plan, admission.packet, ctx).token
+        NeutralizeKeyBreakSurfaceGate
+          .decideForPlanPacket(plan, admission.packet, ctx)
+          .token
+          .map(_ -> admission.packet)
       }
-      .flatMap(token =>
+      .flatMap { case (token, packet) =>
         row(
           CounterplayBreakLabel,
-          NeutralizeKeyBreakSurfaceGate.surfaceText(token),
-          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CounterplayBreak, token = Some(token)))
+          NeutralizeKeyBreakSurfaceGate.surfaceText(token, packet),
+          authority = Some(NeutralizeKeyBreakSurfaceGate.surfaceAuthority(token, packet))
         )
-      )
+      }
 
   private def rowForClaim(
       ctx: NarrativeContext,
@@ -3924,8 +3955,8 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
             .flatMap { token =>
               row(
                 CounterplayBreakLabel,
-                NeutralizeKeyBreakSurfaceGate.surfaceText(token),
-                authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CounterplayBreak, token = Some(token)))
+                NeutralizeKeyBreakSurfaceGate.surfaceText(token, packet),
+                authority = Some(NeutralizeKeyBreakSurfaceGate.surfaceAuthority(token, packet))
               )
             }
         else None

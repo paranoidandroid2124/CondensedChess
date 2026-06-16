@@ -4,7 +4,9 @@ import lila.commentary.*
 import lila.commentary.analysis.{ BreakFileToken, PlanTaxonomy, PositionFeatures, StrategicIdeaSemanticContext, StrategicStateFeatures }
 import lila.commentary.analysis.semantic.{ StrategicIdeaEvidence, StrategicIdeaEvidenceTier }
 import lila.commentary.analysis.semantic.StrategicObservationIds.EvidenceSourceId
-import _root_.chess.{ Bishop, Board, Color, File, Knight, Pawn, Queen, Rank, Role, Rook, Square }
+import _root_.chess.{ Bishop, Board, Color, File, Knight, Move, Pawn, Position, Queen, Rank, Role, Rook, Square }
+import _root_.chess.format.{ Fen, Uci }
+import _root_.chess.variant.Standard
 import lila.commentary.analysis.L3.{ PawnPlayAnalysis, ThreatAnalysis, ThreatKind }
 import lila.commentary.model.{ Motif, PlanId, PlanMatch, StrategicPlanExperiment }
 import lila.commentary.model.strategic.{ PositionalTag, PreventedPlan }
@@ -269,6 +271,60 @@ private[evidence] object StrategicIdeaEvidenceSupport:
   ): Boolean =
     semantic.board.flatMap(_.kingPosOf(sideColor(opponentSide(side)))).exists(enemyKing => chebyshev(square, enemyKing) <= 2)
 
+  def routeAttackLaneEndpoint(
+      side: String,
+      route: StrategyPieceRoute,
+      semantic: StrategicIdeaSemanticContext
+  ): Option[Square] =
+    Option
+      .when(route.ownerSide == side && route.surfaceMode != RouteSurfaceMode.Hidden)(route)
+      .flatMap(_.route.lastOption)
+      .flatMap(squareFromKey)
+      .filterNot(endpoint => endpoint.key == route.from.trim.toLowerCase)
+      .filter(endpoint => isBoardProvedAttackLaneToEnemyKing(side, route.piece, endpoint, semantic))
+
+  def directionalAttackLaneEndpoint(
+      side: String,
+      target: StrategyDirectionalTarget,
+      semantic: StrategicIdeaSemanticContext
+  ): Option[Square] =
+    Option
+      .when(target.ownerSide == side)(target)
+      .flatMap(target => squareFromKey(target.targetSquare))
+      .filter(endpoint => isBoardProvedAttackLaneToEnemyKing(side, target.piece, endpoint, semantic))
+
+  def isBoardProvedAttackLaneToEnemyKing(
+      side: String,
+      piece: String,
+      endpoint: Square,
+      semantic: StrategicIdeaSemanticContext
+  ): Boolean =
+    semantic.board.exists { board =>
+      board
+        .kingPosOf(sideColor(opponentSide(side)))
+        .exists(enemyKing =>
+          isNearEnemyKing(side, endpoint, semantic) &&
+            endpoint != enemyKing &&
+            pieceAttacksSquareFrom(piece, side, endpoint, enemyKing, board)
+        )
+    }
+
+  private def pieceAttacksSquareFrom(
+      piece: String,
+      side: String,
+      from: Square,
+      target: Square,
+      board: Board
+  ): Boolean =
+    piece.trim.toUpperCase match
+      case "N" => from.knightAttacks.contains(target)
+      case "B" => from.bishopAttacks(board.occupied).contains(target)
+      case "R" => from.rookAttacks(board.occupied).contains(target)
+      case "Q" => from.queenAttacks(board.occupied).contains(target)
+      case "P" => from.pawnAttacks(sideColor(side)).contains(target)
+      case "K" => from.kingAttacks.contains(target)
+      case _   => false
+
   def hasAlignmentReason(semantic: StrategicIdeaSemanticContext, code: String): Boolean =
     semantic.planAlignmentReasonCodes.contains(code)
 
@@ -355,6 +411,66 @@ private[evidence] object StrategicIdeaEvidenceSupport:
           prevented.breakNeutralizationStrength.exists(_ >= 60) ||
           prevented.counterplayScoreDrop >= 100
       )
+
+  def directCentralBreakOwnsPreventedBreak(
+      prevented: PreventedPlan,
+      semantic: StrategicIdeaSemanticContext
+  ): Boolean =
+    prevented.breakNeutralized
+      .flatMap(breakDestination)
+      .exists(destination => playedDirectCentralBreakDestination(semantic).contains(destination))
+
+  private def playedDirectCentralBreakDestination(semantic: StrategicIdeaSemanticContext): Option[String] =
+    for
+      position <- Fen.read(Standard, Fen.Full(semantic.fen))
+      uci <- semantic.playedMove.map(normalizeUci).filter(isUci)
+      move <- legalMove(position, uci)
+      if isDirectCentralBreak(move, position.color)
+    yield move.dest.key
+
+  private def breakDestination(token: String): Option[String] =
+    val normalized = normalizeToken(token).stripPrefix("...")
+    normalized
+      .split("-")
+      .lastOption
+      .flatMap(squareFromKey)
+      .map(_.key)
+
+  private def isDirectCentralBreak(move: Move, side: Color): Boolean =
+    move.piece.role == Pawn &&
+      move.piece.color == side &&
+      isForward(move, side) &&
+      move.orig.file == move.dest.file &&
+      isCoreCentralSquare(move.dest) &&
+      !move.captures &&
+      adjacentEnemyPawn(move.after.board, side, move.dest)
+
+  private def isForward(move: Move, side: Color): Boolean =
+    if side.white then move.dest.rank.value > move.orig.rank.value
+    else move.dest.rank.value < move.orig.rank.value
+
+  private def isCoreCentralSquare(square: Square): Boolean =
+    Set("d4", "e4", "d5", "e5").contains(square.key)
+
+  private def adjacentEnemyPawn(board: Board, side: Color, square: Square): Boolean =
+    Square.all.exists(candidate =>
+      candidate != square &&
+        (candidate.file.value - square.file.value).abs <= 1 &&
+        (candidate.rank.value - square.rank.value).abs <= 1 &&
+        board.pieceAt(candidate).exists(piece => piece.color != side && piece.role == Pawn)
+    )
+
+  private def legalMove(position: Position, uci: String): Option[Move] =
+    Uci(uci).collect { case move: Uci.Move => move }.flatMap(position.move(_).toOption)
+
+  private def normalizeUci(raw: String): String =
+    normalizeToken(raw)
+
+  private def normalizeToken(raw: String): String =
+    Option(raw).getOrElse("").trim.toLowerCase
+
+  private def isUci(raw: String): Boolean =
+    raw.matches("""[a-h][1-8][a-h][1-8][qrbn]?""")
 
   def isKingAttackThreatProfile(
       threats: ThreatAnalysis,
@@ -510,15 +626,8 @@ private[evidence] object StrategicIdeaEvidenceSupport:
       pack: StrategyPack,
       semantic: StrategicIdeaSemanticContext
   ): Boolean =
-    pack.pieceRoutes.exists(route =>
-      route.ownerSide == side &&
-        route.surfaceMode != RouteSurfaceMode.Hidden &&
-        route.route.lastOption.flatMap(squareFromKey).exists(isNearEnemyKing(side, _, semantic))
-    ) ||
-      pack.directionalTargets.exists(target =>
-        target.ownerSide == side &&
-          squareFromKey(target.targetSquare).exists(isNearEnemyKing(side, _, semantic))
-      )
+    pack.pieceRoutes.exists(route => routeAttackLaneEndpoint(side, route, semantic).nonEmpty) ||
+      pack.directionalTargets.exists(target => directionalAttackLaneEndpoint(side, target, semantic).nonEmpty)
 
   def hasDiagonalBatteryCompensation(
       side: String,

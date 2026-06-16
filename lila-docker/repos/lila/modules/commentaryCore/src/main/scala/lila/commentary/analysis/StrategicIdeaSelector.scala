@@ -322,14 +322,6 @@ private[commentary] object StrategicIdeaSelector:
         }
         .toList
         .flatten
-    val winningEndgamePriority =
-      Option
-        .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.WinningEndgameTransition).wireKey)) {
-          EvidenceRef.Source(EvidenceSourceId.WinningEndgameTransition).wireKey ::
-            refs.filter(_ == "winning_endgame_transition_shape")
-        }
-        .toList
-        .flatten
     val rookEndgamePatternPriority =
       Option
         .when(refs.contains(EvidenceRef.Source(EvidenceSourceId.RookEndgamePattern).wireKey)) {
@@ -883,7 +875,6 @@ private[commentary] object StrategicIdeaSelector:
         pawnBreakReadyPriority ++
         pawnBreakMotifPriority ++
         centralBreakTensionPriority ++
-        winningEndgamePriority ++
         rookEndgamePatternPriority ++
         endgameTechniqueMotifPriority ++
         passedPawnConversionPriority ++
@@ -2127,7 +2118,6 @@ private[commentary] object StrategicIdeaSelector:
                 ideaRefs.contains(sourceWire(EvidenceSourceId.PlanMatchTransformation)) ||
                 ideaRefs.contains("exchange_availability_bridge") ||
                 ideaRefs.contains("iqp_simplification_profile") ||
-                ideaRefs.contains("winning_endgame_transition_shape") ||
                 ideaRefs.contains("capture_or_exchange")
             )
         val establishedPressureCarrier =
@@ -2755,7 +2745,6 @@ private[commentary] object StrategicIdeaSelector:
       candidate,
       Set(
         EvidenceSourceId.RemovingTheDefender,
-        EvidenceSourceId.WinningEndgameTransition,
         EvidenceSourceId.ExchangeAvailabilityBridge,
         EvidenceSourceId.IqpSimplificationProfile
       )
@@ -2766,7 +2755,6 @@ private[commentary] object StrategicIdeaSelector:
             candidate,
             Set(
               EvidenceSourceId.RemovingTheDefender,
-              EvidenceSourceId.WinningEndgameTransition,
               EvidenceSourceId.ExchangeAvailabilityBridge,
               EvidenceSourceId.IqpSimplificationProfile
             )
@@ -2778,7 +2766,6 @@ private[commentary] object StrategicIdeaSelector:
             candidate,
             Set(
               EvidenceSourceId.RemovingTheDefender,
-              EvidenceSourceId.WinningEndgameTransition,
               EvidenceSourceId.ExchangeAvailabilityBridge,
               EvidenceSourceId.IqpSimplificationProfile
             )
@@ -2790,7 +2777,6 @@ private[commentary] object StrategicIdeaSelector:
             candidate,
             Set(
               EvidenceSourceId.RemovingTheDefender,
-              EvidenceSourceId.WinningEndgameTransition,
               EvidenceSourceId.ExchangeAvailabilityBridge,
               EvidenceSourceId.IqpSimplificationProfile
             )
@@ -2807,7 +2793,6 @@ private[commentary] object StrategicIdeaSelector:
             candidate,
             Set(
               EvidenceSourceId.RemovingTheDefender,
-              EvidenceSourceId.WinningEndgameTransition,
               EvidenceSourceId.ExchangeAvailabilityBridge,
               EvidenceSourceId.IqpSimplificationProfile,
               EvidenceSourceId.PlanMatchTransformation

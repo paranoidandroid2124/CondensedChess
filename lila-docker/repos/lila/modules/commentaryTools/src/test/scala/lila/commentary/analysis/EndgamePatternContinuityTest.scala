@@ -112,7 +112,7 @@ class EndgamePatternContinuityTest extends FunSuite:
     assertEquals(m48.endgamePatternAge, 0)
     assertEquals(m48.endgameFeatures.flatMap(_.primaryPattern), Some("PhilidorDefense"))
     assertEquals(m48.endgameFeatures.map(_.theoreticalOutcomeHint.toString), Some("Draw"))
-    assertEquals(m48.endgameTransition, Some("Lucena(Win) → PhilidorDefense(Draw)"))
+    assertEquals(m48.endgameTransition, Some("Lucena(Unclear) → PhilidorDefense(Unclear)"))
   }
 
   test("Book prose surfaces sustained endgame patterns and transitions") {
@@ -138,14 +138,14 @@ class EndgamePatternContinuityTest extends FunSuite:
       s"expected sustained Lucena continuity text, got: $sustainedText"
     )
     assert(
-      sustainedText.contains("winning method remains in force"),
-      s"expected sustained winning-task text, got: $sustainedText"
+      sustainedText.contains("keeping that endgame pattern in view"),
+      s"expected sustained pattern-context text, got: $sustainedText"
     )
 
     val transitionCtx = NarrativeContextBuilder.build(m48, m48.toContext, Some(m44))
     val transitionEndgame = transitionCtx.semantic.flatMap(_.endgameFeatures).getOrElse(fail("missing transition endgame semantic"))
     assertEquals(transitionEndgame.primaryPattern, Some("PhilidorDefense"))
-    assertEquals(transitionEndgame.transition, Some("Lucena(Win) → PhilidorDefense(Draw)"))
+    assertEquals(transitionEndgame.transition, Some("Lucena(Unclear) → PhilidorDefense(Unclear)"))
     val (transitionOutline, _) = NarrativeOutlineBuilder.build(transitionCtx, new TraceRecorder())
     val transitionOutlineText = transitionOutline.beats.map(_.text).mkString("\n")
     assert(
@@ -158,8 +158,8 @@ class EndgamePatternContinuityTest extends FunSuite:
       s"expected Lucena -> Philidor transition text, got: $transitionText"
     )
     assert(
-      transitionText.contains("winning method into a drawing setup"),
-      s"expected transition task text, got: $transitionText"
+      transitionText.contains("endgame geometry has shifted from Lucena to Philidor Defense"),
+      s"expected transition geometry text, got: $transitionText"
     )
     assert(
       transitionText.contains("Lucena has broken down because the stronger king is no longer beside the promotion square"),
@@ -175,7 +175,7 @@ class EndgamePatternContinuityTest extends FunSuite:
     val (philidorStable, philidorState) = analyzeAt(philidorFen, 60, None)
     assertEquals(philidorStable.endgameFeatures.flatMap(_.primaryPattern), Some("PhilidorDefense"))
     val (philidorBroken, _) = analyzeAt(philidorBrokenFen, 62, philidorState)
-    assert(philidorBroken.endgameTransition.exists(_.startsWith("PhilidorDefense(Draw) → none(")))
+    assert(philidorBroken.endgameTransition.exists(_.startsWith("PhilidorDefense(Unclear) → none(")))
 
     val philidorCtx = NarrativeContextBuilder.build(philidorBroken, philidorBroken.toContext, Some(philidorStable))
     val philidorText = BookStyleRenderer.render(philidorCtx)

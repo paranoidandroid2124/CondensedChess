@@ -3,6 +3,8 @@ package lila.commentary.analysis
 import lila.commentary.model.*
 import lila.commentary.model.authoring.{ AuthorQuestion, AuthorQuestionKind, PlanHypothesis, PlanViability }
 import lila.commentary.model.strategic.VariationLine
+import lila.commentary.analysis.claim.{ ClaimAuthorityResolver, ClaimAuthorityTier }
+import lila.commentary.analysis.semantic.StrategicObservationIds.{ ProofFamilyId, ProofSourceId }
 import munit.FunSuite
 
 class CentralBreakTimingPolicyTest extends FunSuite:
@@ -80,6 +82,58 @@ class CentralBreakTimingPolicyTest extends FunSuite:
     assertEquals(packet.proofFamily, PlanTaxonomy.PlanKind.CentralBreakTiming.id)
     assert(packet.proofPathWitness.ownerSeedTerms.exists(_.contains("d5")), clues(packet))
     assert(packet.proofPathWitness.structureTransitionTerms.nonEmpty, clues(packet))
+  }
+
+  test("direct central challenge owns the main path ahead of break-prevention overlap") {
+    val scene =
+      snapshot(
+        fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
+        ply = 2,
+        playedMove = "e7e5",
+        lines =
+          List(
+            VariationLine(List("e7e5", "g1f3", "g8f6", "b1c3", "b8c6"), scoreCp = 28, depth = 18),
+            VariationLine(List("c7c5", "g1f3", "b8c6", "b1c3"), scoreCp = -18, depth = 18)
+          ),
+        mutate = _.copy(
+          authorQuestions =
+            defaultQuestions :+ AuthorQuestion(
+              "what_must_be_stopped",
+              AuthorQuestionKind.WhatMustBeStopped,
+              70,
+              "What must be stopped?"
+            )
+        )
+      )
+    val packet = centralPacket(scene)
+
+    assertEquals(packet.proofSource, PlanTaxonomy.PlanKind.CentralBreakTiming.id)
+    assertEquals(packet.proofFamily, PlanTaxonomy.PlanKind.CentralBreakTiming.id)
+    assert(packet.proofPathWitness.ownerSeedTerms.exists(_.contains("...e7-e5")), clues(packet))
+    val deltas =
+      PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidences(scene.ctx, StrategyPackSurface.from(Some(scene.pack)), None)
+    assert(deltas.exists(_.packet.proofFamily == PlanTaxonomy.PlanKind.CentralBreakTiming.id), clues(deltas))
+    assert(!deltas.exists(_.packet.proofFamily == ProofFamilyId.NeutralizeKeyBreak.wireKey), clues(deltas))
+    assert(
+      scene.inputs.mainBundle.flatMap(_.mainClaim).flatMap(_.packet).forall(_.proofFamily != ProofFamilyId.NeutralizeKeyBreak.wireKey),
+      clues(scene.inputs.mainBundle)
+    )
+    assert(
+      !scene.ranked.primary.exists(plan =>
+        plan.plannerOwnerKind == PlannerOwnerKind.ForcingDefense &&
+          plan.plannerSource == "prevented_plan"
+      ),
+      clues(scene.ranked)
+    )
+    val neutralizeDecision =
+      ClaimAuthorityResolver.supportedLocalNeutralizeKeyBreakPacketDecision(
+        ctx = Some(scene.ctx),
+        inputs = scene.inputs,
+        truthContract = None,
+        packet = neutralizePacket("e4-e5")
+      )
+    assertEquals(neutralizeDecision.tier, ClaimAuthorityTier.Suppressed)
+    assert(neutralizeDecision.failureCodes.contains("neutralize_key_break:central_break_same_destination"))
   }
 
   test("exact row and board support overlap keeps one canonical packet and no duplicate player prose") {
@@ -393,6 +447,17 @@ class CentralBreakTimingPolicyTest extends FunSuite:
       .flatMap(_.packet)
       .filter(_.proofFamily == PlanTaxonomy.PlanKind.CentralBreakTiming.id)
       .getOrElse(fail(s"missing central-break packet: ${scene.inputs.mainBundle}; witness=${CentralBreakTimingWitness.diagnose(scene.ctx)}"))
+
+  private def neutralizePacket(token: String): PlayerFacingClaimPacket =
+    PlayerFacingClaimPacket(
+      proofSource = ProofSourceId.CounterplayAxisSuppression.wireKey,
+      proofFamily = ProofFamilyId.NeutralizeKeyBreak.wireKey,
+      proofPathWitness =
+        PlayerFacingProofPathWitness(
+          ownerSeedTerms = List(token),
+          exactSliceProof = Some(PlayerFacingExactSliceProof.CounterplayAxisSuppression(token))
+        )
+    )
 
   private def assertNoCentralRelease(scene: Snapshot): Unit =
     assert(

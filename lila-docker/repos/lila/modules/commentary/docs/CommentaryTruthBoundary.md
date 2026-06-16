@@ -202,7 +202,9 @@ Endgame fallback prose may name `KingActivity` or `Opposition` fields already
 present in canonical fact evidence; those typed fields remain fallback truth
 projection unless a separate causal owner admits them. Scoped checked-line
 takeaways may use the admitted local-fact anchors for the same fields, not row
-text or guardrail strings.
+text or guardrail strings. Oracle-only theoretical endgame outcome hints are
+not public win/draw truth; absent tablebase/eval/PV result evidence, public
+context and transition prose must expose the result side as `Unclear`.
 Castling fallback prose follows the same rule: it may name the after-FEN
 castling side, king square, rook square, and king-safety feature refs, but it
 does not create opening-plan or tactical truth. Scoped checked-line takeaways
@@ -244,6 +246,9 @@ target present and still attacked by the pressure side at the played-first
 checked PV horizon. Move-local exact target facts carry
 `target_persistent_after_line:<square>` and
 `target_attacked_after_line:<square>` refs when that replay proof exists.
+Without a typed target-fixing idea, moveRef, or route hint, board-only exact
+target fixation is limited to the Carlsbad c-pawn target profile; generic weak
+pawn pressure stays closed until producer evidence names the target.
 If public wording names a pawn defender of that fixed target, the defender must
 be a same-color pawn proved from the after-board.
 For IQP inducement, truth authority requires the newly isolated central pawn

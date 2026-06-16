@@ -41,7 +41,8 @@ object BreakClampMaterializer:
       transformRoutes: List[String],
       transformAssessments: List[BreakTransformAssessment] = Nil,
       mobilityDelta: Int,
-      sourceLine: Option[VariationLine]
+      sourceLine: Option[VariationLine],
+      mechanismTerms: List[String] = Nil
   )
 
   private final case class BreakCandidate(
@@ -137,7 +138,8 @@ object BreakClampMaterializer:
           transformRoutes = transformRoutes,
           transformAssessments = transformAssessments,
           mobilityDelta = -1,
-          sourceLine = Some(mainLine.copy(moves = mainLine.moves.take(4)))
+          sourceLine = Some(mainLine.copy(moves = mainLine.moves.take(4))),
+          mechanismTerms = mechanismTerms(candidate, snapshot)
         )
       }
     }
@@ -302,6 +304,75 @@ object BreakClampMaterializer:
       immediateRecapture = recaptures.headOption.map(moveId),
       releaseRoutesAfterRecapture = releaseRoutesAfterRecapture
     )
+
+  private def mechanismTerms(candidate: BreakCandidate, snapshot: RouteSnapshot): List[String] =
+    val destinationOccupancy =
+      Option.when(candidate.destination == snapshot.playedMove.dest)(
+        List(
+          "break_clamp_mechanism:occupied_destination",
+          s"occupied_break_square:${candidate.destination.key}"
+        )
+      ).getOrElse(Nil)
+    (destinationOccupancy ++ pinnedPawnTerms(candidate, snapshot)).distinct
+
+  private def pinnedPawnTerms(candidate: BreakCandidate, snapshot: RouteSnapshot): List[String] =
+    val board = snapshot.afterPosition.board
+    val attackerSquare = snapshot.playedMove.dest
+    val pinnedSquare = candidate.origin
+    val breakColor = candidate.move.piece.color
+    val pieceAtPinnedSquare =
+      board.pieceAt(pinnedSquare).filter(piece => piece.color == breakColor && piece.role == Pawn)
+    val pin =
+      for
+        attacker <- board.pieceAt(attackerSquare)
+        if attacker.color == snapshot.playedMove.piece.color
+        if slidingRole(attacker.role)
+        _ <- pieceAtPinnedSquare
+        king <- board.kingPosOf(breakColor)
+        ray <- rayBetween(attackerSquare, king)
+        if ray.squares.contains(pinnedSquare)
+        if !ray.squares.contains(candidate.destination)
+        occupied = ray.squares.filter(square => board.pieceAt(square).nonEmpty)
+        if occupied == List(pinnedSquare)
+        if roleCanPinAlong(attacker.role, ray)
+      yield List(
+        "break_clamp_mechanism:pinned_pawn",
+        s"pinned_break_pawn:${pinnedSquare.key}",
+        s"pin_attacker:${attackerSquare.key}",
+        s"pin_king:${king.key}",
+        s"break_route:${candidate.token}",
+        s"break_destination:${candidate.destination.key}"
+      )
+    pin.getOrElse(Nil)
+
+  private final case class Ray(squares: List[Square], diagonal: Boolean, orthogonal: Boolean)
+
+  private def rayBetween(from: Square, to: Square): Option[Ray] =
+    val fileDelta = to.file.value - from.file.value
+    val rankDelta = to.rank.value - from.rank.value
+    val diagonal = fileDelta.abs == rankDelta.abs && fileDelta != 0
+    val orthogonal = (fileDelta == 0 && rankDelta != 0) || (rankDelta == 0 && fileDelta != 0)
+    Option.when(diagonal || orthogonal) {
+      val fileStep = if fileDelta == 0 then 0 else fileDelta / fileDelta.abs
+      val rankStep = if rankDelta == 0 then 0 else rankDelta / rankDelta.abs
+      val distance = math.max(fileDelta.abs, rankDelta.abs)
+      val squares =
+        (1 until distance).toList.flatMap { step =>
+          squareAt(from.file.value + fileStep * step, from.rank.value + rankStep * step)
+        }
+      Option.when(squares.size == distance - 1)(Ray(squares, diagonal = diagonal, orthogonal = orthogonal))
+    }.flatten
+
+  private def squareAt(file: Int, rank: Int): Option[Square] =
+    Square.all.find(square => square.file.value == file && square.rank.value == rank)
+
+  private def slidingRole(role: Role): Boolean =
+    role == Bishop || role == Rook || role == Queen
+
+  private def roleCanPinAlong(role: Role, ray: Ray): Boolean =
+    role == Queen ||
+      (role == Bishop && ray.diagonal) ||
+      (role == Rook && ray.orthogonal)
 
   private def transformShape(transform: BreakCandidate): BreakTransformShape =
     if transform.move.captures then BreakTransformShape.SameDestinationCapture

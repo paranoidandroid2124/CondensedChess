@@ -1,100 +1,10 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import {
   decodeMoveReviewResponse,
   type MoveReviewPlayerSurfaceV1,
   moveReviewNeedsRetry,
 } from '../src/moveReview/responsePayload';
-
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
-
-const quotedStrings = (source: string): string[] => [...source.matchAll(/'([^']+)'/g)].map(match => match[1] ?? '');
-
-const backendRelationTokenByName = (): Map<string, string> => {
-  const analyzerSource = readFileSync(
-    resolve(repoRoot, 'modules/commentaryCore/src/main/scala/lila/commentary/analysis/MoveReviewExchangeAnalyzer.scala'),
-    'utf8',
-  );
-  const relationKindBlock = analyzerSource.match(/object RelationKind:([\s\S]*?)val All:/)?.[1] ?? '';
-  return new Map(
-    [...relationKindBlock.matchAll(/\bval\s+([A-Za-z0-9]+)\s*=\s*"([^"]+)"/g)].map(match => [
-      match[1] ?? '',
-      match[2] ?? '',
-    ]),
-  );
-};
-
-const backendRelationCatalogBlock = (pattern: RegExp): string => {
-  const catalogSource = readFileSync(
-    resolve(repoRoot, 'modules/commentaryCore/src/main/scala/lila/commentary/analysis/semantic/StrategicSemanticObservation.scala'),
-    'utf8',
-  );
-  return catalogSource.match(pattern)?.[1] ?? '';
-};
-
-const backendRelationNames = (block: string): string[] => [
-  ...block.matchAll(/relationKind\s*=\s*MoveReviewExchangeAnalyzer\.RelationKind\.([A-Za-z0-9]+)/g),
-].map(match => match[1] ?? '');
-
-const backendRelationTokens = (names: string[], missingLabel: string): string[] => {
-  const valuesByName = backendRelationTokenByName();
-  return names.map(name => {
-    const token = valuesByName.get(name);
-    assert.ok(token, `Missing backend ${missingLabel} relation token for ${name}`);
-    return token;
-  });
-};
-
-const backendCatalogRelationTokens = (): string[] => {
-  const implementedBlock =
-    backendRelationCatalogBlock(/val Implemented: List\[RelationObservationDescriptor\]\s*=\s*List\(([\s\S]*?)\)\s*val DeferredRelationKinds/);
-  return backendRelationTokens(backendRelationNames(implementedBlock), 'catalog');
-};
-
-const frontendRelationTokens = (): string[] => {
-  const source = readFileSync(resolve(repoRoot, 'ui/analyse/src/moveReview/responsePayload.ts'), 'utf8');
-  const tokenBlock = source.match(/const strategicRelationAuthorityTokens = new Set\(\[([\s\S]*?)\]\);/)?.[1] ?? '';
-
-  return quotedStrings(tokenBlock);
-};
-
-const backendOpeningFamilyTargets = (): Map<string, string[]> => {
-  const source = readFileSync(
-    resolve(repoRoot, 'modules/commentaryCore/src/main/resources/lila/commentary/openings/opening_families.tsv'),
-    'utf8',
-  );
-  return new Map(
-    source
-      .trim()
-      .split(/\r?\n/)
-      .slice(1)
-      .filter(line => line.trim())
-      .map(line => {
-        const [wireKey, , , , targetSquares = ''] = line.split('\t');
-        return [wireKey ?? '', targetSquares.split('|').filter(Boolean)] as const;
-      }),
-  );
-};
-
-const frontendOpeningFamilyTargets = (): Map<string, string[]> => {
-  const source = readFileSync(resolve(repoRoot, 'ui/analyse/src/moveReview/responsePayload.ts'), 'utf8');
-  const targetBlock = source.match(/const openingFamilyAuthorityTargets = new Map<string, Set<string>>\(\[([\s\S]*?)\]\);/)?.[1] ?? '';
-  return new Map(
-    [...targetBlock.matchAll(/\['([^']+)',\s*new Set\(\[([^\]]*)\]\)\]/g)].map(match => [
-      match[1] ?? '',
-      quotedStrings(match[2] ?? ''),
-    ]),
-  );
-};
-
-const backendDeferredRelationTokens = (): string[] => {
-  const deferredBlock =
-    backendRelationCatalogBlock(/val Deferred: List\[DeferredRelationDescriptor\]\s*=\s*List\(([\s\S]*?)\)\s*val Implemented/);
-  return backendRelationTokens(backendRelationNames(deferredBlock), 'deferred');
-};
 
 const playerSurface = (overrides: Partial<MoveReviewPlayerSurfaceV1> = {}): MoveReviewPlayerSurfaceV1 => ({
   schema: 'chesstory.move_review.player_surface.v2',
@@ -406,14 +316,14 @@ describe('moveReview response payload', () => {
     assert.equal(decoded.moveReviewPlayerSurface?.decisionComparison?.targetComparison, null);
   });
 
-  test('decodeMoveReviewResponse preserves valid surface authority target metadata', () => {
+  test('decodeMoveReviewResponse preserves valid surface authority metadata without opening targets', () => {
     const decoded = decodeMoveReviewResponse({
       moveReviewPlayerSurface: playerSurface({
         schema: 'chesstory . move_review . player_surface . v2' as MoveReviewPlayerSurfaceV1['schema'],
         summaryRows: [
           {
             label: 'Opening',
-            text: 'The opening structure points at d5.',
+            text: 'The opening structure supplies family context.',
             authority: {
               kind: 'opening_family',
               openingFamily: 'queens_gambit',
@@ -429,22 +339,22 @@ describe('moveReview response payload', () => {
       kind: 'opening_family',
       token: null,
       openingFamily: 'queens_gambit',
-      target: 'd5',
+      target: null,
       openingBook: null,
     });
   });
 
-  test('decodeMoveReviewResponse downgrades opening-family targets outside the backend catalog', () => {
+  test('decodeMoveReviewResponse treats opening-family targets as context-only metadata', () => {
     const decoded = decodeMoveReviewResponse({
       moveReviewPlayerSurface: playerSurface({
         summaryRows: [
           {
             label: 'Opening',
-            text: 'The opening family remains visible without a trusted target.',
+            text: 'The opening family remains visible without a public target chip.',
             authority: {
               kind: 'opening_family',
               openingFamily: 'queens_gambit',
-              target: 'h4',
+              target: 'd5',
             },
           },
         ],
@@ -460,7 +370,7 @@ describe('moveReview response payload', () => {
     });
   });
 
-  test('decodeMoveReviewResponse preserves only exact practical-plan target rows', () => {
+  test('decodeMoveReviewResponse preserves typed practical-plan targets without frontend prose parsing', () => {
     const decoded = decodeMoveReviewResponse({
       moveReviewPlayerSurface: playerSurface({
         summaryRows: [
@@ -554,7 +464,7 @@ describe('moveReview response payload', () => {
           },
           {
             label: 'Simplification window',
-            text: 'Approximate labels do not carry target authority.',
+            text: 'Approximate labels are backend responsibility, not a frontend parser gate.',
             authority: {
               kind: 'practical_plan',
               target: 'e6',
@@ -562,7 +472,7 @@ describe('moveReview response payload', () => {
           },
           {
             label: 'Knight outpost plan',
-            text: 'Approximate outpost labels do not carry target authority.',
+            text: 'Approximate outpost labels are backend responsibility, not a frontend parser gate.',
             authority: {
               kind: 'practical_plan',
               target: 'e5',
@@ -570,7 +480,7 @@ describe('moveReview response payload', () => {
           },
           {
             label: 'File entry plan',
-            text: 'Approximate file-entry labels do not carry target authority.',
+            text: 'Approximate file-entry labels are backend responsibility, not a frontend parser gate.',
             authority: {
               kind: 'practical_plan',
               target: 'c6',
@@ -578,7 +488,7 @@ describe('moveReview response payload', () => {
           },
           {
             label: 'Target coordination plan',
-            text: 'Approximate coordination labels do not carry target authority.',
+            text: 'Approximate coordination labels are backend responsibility, not a frontend parser gate.',
             authority: {
               kind: 'practical_plan',
               target: 'c6',
@@ -586,7 +496,7 @@ describe('moveReview response payload', () => {
           },
           {
             label: 'Color complex plan',
-            text: 'Approximate color-complex labels do not carry target authority.',
+            text: 'Approximate color-complex labels are backend responsibility, not a frontend parser gate.',
             authority: {
               kind: 'practical_plan',
               target: 'e5',
@@ -594,7 +504,7 @@ describe('moveReview response payload', () => {
           },
           {
             label: 'Practical plan',
-            text: 'Generic practical-plan rows stay untargeted.',
+            text: 'Generic practical-plan rows carry only typed payload metadata.',
             authority: {
               kind: 'practical_plan',
               target: 'd5',
@@ -604,90 +514,31 @@ describe('moveReview response payload', () => {
       }),
     });
 
-    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[0]?.authority, {
-      kind: 'practical_plan',
-      token: null,
-      openingFamily: null,
-      target: 'd6',
-      openingBook: null,
-    });
-    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[1]?.authority, {
-      kind: 'practical_plan',
-      token: null,
-      openingFamily: null,
-      target: 'c6',
-      openingBook: null,
-    });
-    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[2]?.authority, {
-      kind: 'practical_plan',
-      token: null,
-      openingFamily: null,
-      target: 'd5',
-      openingBook: null,
-    });
-    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[3]?.authority, {
-      kind: 'practical_plan',
-      token: null,
-      openingFamily: null,
-      target: 'e6',
-      openingBook: null,
-    });
-    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[4]?.authority, {
-      kind: 'practical_plan',
-      token: null,
-      openingFamily: null,
-      target: 'e5',
-      openingBook: null,
-    });
-    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[5]?.authority, {
-      kind: 'practical_plan',
-      token: null,
-      openingFamily: null,
-      target: 'c6',
-      openingBook: null,
-    });
-    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[6]?.authority, {
-      kind: 'practical_plan',
-      token: null,
-      openingFamily: null,
-      target: 'c6',
-      openingBook: null,
-    });
-    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[7]?.authority, {
-      kind: 'practical_plan',
-      token: null,
-      openingFamily: null,
-      target: 'e5',
-      openingBook: null,
-    });
-    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[8]?.authority, {
-      kind: 'practical_plan',
-      token: null,
-      openingFamily: null,
-      target: null,
-      openingBook: null,
-    });
-    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[9]?.authority, {
-      kind: 'practical_plan',
-      token: null,
-      openingFamily: null,
-      target: null,
-      openingBook: null,
-    });
-    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[10]?.authority, {
-      kind: 'practical_plan',
-      token: null,
-      openingFamily: null,
-      target: null,
-      openingBook: null,
-    });
-    assert.equal(decoded.moveReviewPlayerSurface?.summaryRows[11]?.authority, null);
-    assert.equal(decoded.moveReviewPlayerSurface?.summaryRows[12]?.authority, null);
-    assert.equal(decoded.moveReviewPlayerSurface?.summaryRows[13]?.authority, null);
-    assert.equal(decoded.moveReviewPlayerSurface?.summaryRows[14]?.authority, null);
+    assert.deepEqual(
+      decoded.moveReviewPlayerSurface?.summaryRows.map(row => row.authority?.target),
+      [
+        'd6',
+        'c6',
+        'd5',
+        'e6',
+        'e5',
+        'c6',
+        'c6',
+        'e5',
+        'e5',
+        'e5',
+        'e5',
+        'e6',
+        'e5',
+        'c6',
+        'c6',
+        'e5',
+        'd5',
+      ],
+    );
   });
 
-  test('decodeMoveReviewResponse strips stale practical-plan target metadata from exact labels', () => {
+  test('decodeMoveReviewResponse does not use stale practical-plan prose as a frontend target gate', () => {
     const decoded = decodeMoveReviewResponse({
       moveReviewPlayerSurface: playerSurface({
         summaryRows: [
@@ -743,48 +594,10 @@ describe('moveReview response payload', () => {
       }),
     });
 
-    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[0]?.authority, {
-      kind: 'practical_plan',
-      token: null,
-      openingFamily: null,
-      target: null,
-      openingBook: null,
-    });
-    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[1]?.authority, {
-      kind: 'practical_plan',
-      token: null,
-      openingFamily: null,
-      target: null,
-      openingBook: null,
-    });
-    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[2]?.authority, {
-      kind: 'practical_plan',
-      token: null,
-      openingFamily: null,
-      target: 'c6',
-      openingBook: null,
-    });
-    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[3]?.authority, {
-      kind: 'practical_plan',
-      token: null,
-      openingFamily: null,
-      target: null,
-      openingBook: null,
-    });
-    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[4]?.authority, {
-      kind: 'practical_plan',
-      token: null,
-      openingFamily: null,
-      target: null,
-      openingBook: null,
-    });
-    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[5]?.authority, {
-      kind: 'practical_plan',
-      token: null,
-      openingFamily: null,
-      target: null,
-      openingBook: null,
-    });
+    assert.deepEqual(
+      decoded.moveReviewPlayerSurface?.summaryRows.map(row => row.authority?.target),
+      ['c6', 'c6', 'c6', 'e6', 'c6', 'e5'],
+    );
   });
 
   test('decodeMoveReviewResponse preserves bounded opening book metadata', () => {
@@ -893,14 +706,14 @@ describe('moveReview response payload', () => {
     assert.equal(decoded.moveReviewPlayerSurface?.summaryRows[2]?.authority, null);
   });
 
-  test('decodeMoveReviewResponse preserves bounded strategic relation authority', () => {
-    const relationTokens = backendCatalogRelationTokens();
+  test('decodeMoveReviewResponse preserves strategic relation authority by typed shape', () => {
+    const relationTokens = ['defender_trade', 'unsupported_relation'];
     const decoded = decodeMoveReviewResponse({
       moveReviewPlayerSurface: playerSurface({
         summaryRows: [
           {
             label: 'Line relation',
-            text: 'A stale summary relation row should not carry relation authority.',
+            text: 'Summary placement is producer-owned, not a frontend label gate.',
             authority: {
               kind: 'strategic_relation',
               token: relationTokens[0],
@@ -920,7 +733,7 @@ describe('moveReview response payload', () => {
         advancedRows: [
           ...relationTokens.map(token => ({
             label: 'Line relation',
-            text: `The checked line gives ${token} evidence around e4, f5, g6.`,
+            text: `The checked line carries typed relation metadata around e4, f5, g6.`,
             authority: {
               kind: 'strategic_relation',
               token,
@@ -946,7 +759,7 @@ describe('moveReview response payload', () => {
           },
           {
             label: 'Line relation',
-            text: 'Uncataloged relation ids are not public authority.',
+            text: 'Catalog membership is enforced by the backend sanitizer, not by a frontend mirror.',
             authority: {
               kind: 'strategic_relation',
               token: 'unsupported_relation',
@@ -957,7 +770,13 @@ describe('moveReview response payload', () => {
       }),
     });
 
-    assert.equal(decoded.moveReviewPlayerSurface?.summaryRows[0]?.authority, null);
+    assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[0]?.authority, {
+      kind: 'strategic_relation',
+      token: 'defender_trade',
+      openingFamily: null,
+      target: 'g6',
+      openingBook: null,
+    });
     assert.deepEqual(decoded.moveReviewPlayerSurface?.summaryRows[1]?.authority, {
       kind: 'strategic_relation',
       token: 'defender_trade',
@@ -976,42 +795,19 @@ describe('moveReview response payload', () => {
       target: 'g6',
       openingBook: null,
     });
+    assert.deepEqual(decoded.moveReviewPlayerSurface?.advancedRows[1]?.authority, {
+      kind: 'strategic_relation',
+      token: 'unsupported_relation',
+      openingFamily: null,
+      target: 'g6',
+      openingBook: null,
+    });
     assert.equal(decoded.moveReviewPlayerSurface?.advancedRows[relationTokens.length]?.authority, null);
     assert.equal(decoded.moveReviewPlayerSurface?.advancedRows[relationTokens.length + 1]?.authority, null);
-    assert.equal(decoded.moveReviewPlayerSurface?.advancedRows[relationTokens.length + 2]?.authority, null);
-  });
-
-  test('frontend strategic relation authority tokens stay aligned with backend relation catalog', () => {
-    assert.deepEqual(frontendRelationTokens(), backendCatalogRelationTokens());
-  });
-
-  test('frontend strategic relation authority tokens exclude backend deferred relation inventory', () => {
-    const deferredTokens = backendDeferredRelationTokens();
-    const frontendTokens = new Set(frontendRelationTokens());
-    assert.deepEqual(
-      deferredTokens.filter(token => frontendTokens.has(token)),
-      [],
+    assert.equal(
+      decoded.moveReviewPlayerSurface?.advancedRows[relationTokens.length + 2]?.authority?.token,
+      'unsupported_relation',
     );
-
-    const decoded = decodeMoveReviewResponse({
-      moveReviewPlayerSurface: playerSurface({
-        advancedRows: deferredTokens.map(token => ({
-          label: 'Line relation',
-          text: `Deferred relation ${token} is not public authority.`,
-          authority: {
-            kind: 'strategic_relation',
-            token,
-            target: 'g6',
-          },
-        })),
-      }),
-    });
-
-    assert.deepEqual(decoded.moveReviewPlayerSurface?.advancedRows.map(row => row.authority), deferredTokens.map(() => null));
-  });
-
-  test('frontend opening-family target authority stays aligned with backend catalog', () => {
-    assert.deepEqual(frontendOpeningFamilyTargets(), backendOpeningFamilyTargets());
   });
 
   test('retry gating ignores malformed or absent diagnostics', () => {

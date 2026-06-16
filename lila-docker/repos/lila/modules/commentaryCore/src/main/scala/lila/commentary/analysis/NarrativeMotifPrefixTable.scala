@@ -69,19 +69,19 @@ private[analysis] object NarrativeMotifPrefixTable:
       "The key endgame issue is zugzwang: improving moves are scarce."
     )),
     MotifPrefixRule(List("lucena"), List(
-      "Lucena conversion technique is central: bridge construction is the key method.",
-      "This has a Lucena character where precise rook shelter decides the result.",
+      "Lucena technique is central: bridge construction is the key method.",
+      "This has a Lucena character where precise rook shelter shapes the checking plan.",
       "Lucena geometry is in focus, so building the bridge becomes the technical priority."
     )),
     MotifPrefixRule(List("philidor"), List(
       "Philidor defensive structure is relevant: third-rank control is critical.",
       "This resembles Philidor defense, where rook activity from the defensive rank matters most.",
-      "The technical drawing method here is Philidor-style rook placement."
+      "The technical defensive method here is Philidor-style rook placement."
     )),
     MotifPrefixRule(List("vancura"), List(
       "Vancura defensive ideas are available through active lateral rook checks.",
       "This has Vancura flavor: rook activity can neutralize the advanced pawn.",
-      "The drawing resource resembles Vancura geometry with checking distance."
+      "The defensive resource resembles Vancura geometry with checking distance."
     )),
     MotifPrefixRule(List("triangulation"), List(
       "Triangulation routes are becoming important for tempo control.",
@@ -95,18 +95,18 @@ private[analysis] object NarrativeMotifPrefixTable:
     )),
     MotifPrefixRule(List("outside_passer"), List(
       "An outside passer can decoy the king and create play on the other wing.",
-      "Outside-passer strategy is now the practical conversion lever.",
+      "Outside-passer strategy is now the practical technical lever.",
       "The outside passer is a distraction tool that can reshape king placement."
     )),
     MotifPrefixRule(List("wrong_bishop_fortress"), List(
-      "Wrong-bishop fortress logic gives the defender durable drawing chances.",
-      "This rook-pawn plus wrong-bishop setup often leads to a fortress hold.",
+      "Wrong-bishop fortress logic gives the defender durable resources.",
+      "This rook-pawn plus wrong-bishop setup keeps the promotion corner central.",
       "The key endgame resource is the wrong-bishop corner fortress."
     )),
     MotifPrefixRule(List("short_side_defense"), List(
       "Short-side defensive geometry is relevant in this rook ending.",
       "The defender is aiming for short-side checking distance and king shelter.",
-      "Short-side defense is the technical drawing setup to watch."
+      "Short-side defense is the technical checking setup to watch."
     )),
     MotifPrefixRule(List("promotion_race"), List(
       "A promotion race is the key practical axis, so tempo matters immediately.",
@@ -114,9 +114,9 @@ private[analysis] object NarrativeMotifPrefixTable:
       "This ending is about promotion race arithmetic and accurate tempo handling."
     )),
     MotifPrefixRule(List("forced_draw_resource"), List(
-      "Forced drawing resources are active despite apparent pressure.",
-      "The defender has concrete draw mechanics if move order stays precise.",
-      "This phase contains technical drawing resources that can hold the balance."
+      "Concrete defensive resources are active despite apparent pressure.",
+      "The defender has practical resources if move order stays precise.",
+      "This phase contains technical defensive resources that can keep balance."
     )),
     MotifPrefixRule(List("opposition"), List(
       "King opposition is a defining feature of this ending.",

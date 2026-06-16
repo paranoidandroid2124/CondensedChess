@@ -137,6 +137,10 @@ object AuthoritySurfaceLedger:
         "Review-only source break-prevention fixture retained for deferred blocker visibility; current source-window review does not admit public authority."
       else if taxonomy == "source_carlsbad_fixed_target" then
         "Review-only Carlsbad fixed-target fixture retained for deferred blocker visibility; current source-window review reports missing Carlsbad owner proof."
+      else if taxonomy == "source_iqp_inducement" then
+        "Review-only IQP source fixture retained for deferred blocker visibility; current source review requires horizon target persistence before public authority."
+      else if taxonomy == "source_flank_clamp" then
+        "Review-only color-complex source fixture retained for deferred blocker visibility; current source review requires matching color-complex proof before public authority."
       else "Fixed source surface fixture copied from prior SourceReview evidence; surface-contract replay only."
     Sample(
       id,
@@ -420,7 +424,9 @@ object AuthoritySurfaceLedger:
     val rejectedCurrentSourceFixture =
       sample.reviewGroup.startsWith("source:") &&
         (sample.taxonomy == "source_break_prevention" ||
-          sample.taxonomy == "source_carlsbad_fixed_target")
+          sample.taxonomy == "source_carlsbad_fixed_target" ||
+          sample.taxonomy == "source_iqp_inducement" ||
+          sample.taxonomy == "source_flank_clamp")
     val softenedHighRiskTacticalGate =
       sample.highRiskTacticalGate && sample.softenOwnerPath
     val sourceOwnerMismatch =
@@ -1038,7 +1044,7 @@ object AuthoritySurfaceLedger:
       ),
       SceneFixture(
         id = "source-capablanca-golombek-1939-iqp-inducement",
-        label = "Capablanca-Golombek 1939 exact IQP inducement source row",
+        label = "Capablanca-Golombek 1939 IQP-inducement source candidate row",
         fen = "r3r1k1/pp3pn1/2pq2pp/3p4/NP1P4/3QP2P/P4PP1/1RR3K1 w - - 0 23",
         phase = "middlegame",
         ply = 45,
@@ -1062,12 +1068,12 @@ object AuthoritySurfaceLedger:
             "d3f4"
           ),
         expectedTags = List("source", "iqp_inducement"),
-        note = "Copied from Stockfish-backed source window probe after exact top-PV IQP inducement admission.",
+        note = "Retained as a source IQP candidate; current authority requires the induced target to persist and remain attacked at the checked PV horizon.",
         playedUci = Some("b4b5")
       ),
       SceneFixture(
         id = "source-evans-opsahl-1950-iqp-inducement",
-        label = "Evans-Opsahl 1950 exact IQP inducement source row",
+        label = "Evans-Opsahl 1950 IQP-inducement source candidate row",
         fen = "r3rnk1/1p3ppp/p1p5/3p2q1/PP1P2b1/2QBP3/3N1PPP/1R3RK1 w - - 3 17",
         phase = "middlegame",
         ply = 33,
@@ -1092,12 +1098,12 @@ object AuthoritySurfaceLedger:
             "f3f5"
           ),
         expectedTags = List("source", "iqp_inducement"),
-        note = "Copied from Stockfish-backed source window probe after exact top-PV IQP inducement admission.",
+        note = "Retained as a source IQP candidate; current authority requires the induced target to persist and remain attacked at the checked PV horizon.",
         playedUci = Some("f1c1")
       ),
       SceneFixture(
         id = "source-alekhine-bogoljubow-1936-iqp-inducement",
-        label = "Alekhine-Bogoljubow 1936 exact IQP inducement source row",
+        label = "Alekhine-Bogoljubow 1936 IQP-inducement source candidate row",
         fen = "rnb1k2r/pp3ppp/4p3/2pqP3/PbpPn3/2N2N2/1PQ1BPPP/R1B2RK1 b kq - 1 10",
         phase = "middlegame",
         ply = 20,
@@ -1125,12 +1131,12 @@ object AuthoritySurfaceLedger:
             "b7d5"
           ),
         expectedTags = List("source", "iqp_inducement"),
-        note = "Copied from Stockfish-backed source window probe after exact top-PV IQP inducement admission.",
+        note = "Retained as a source IQP candidate; current authority requires the induced target to persist and remain attacked at the checked PV horizon.",
         playedUci = Some("e4c3")
       ),
       SceneFixture(
         id = "source-karpov-andersson-1975-iqp-inducement",
-        label = "Karpov-Andersson 1975 exact IQP inducement source row",
+        label = "Karpov-Andersson 1975 IQP-inducement source candidate row",
         fen = "bq1rrbk1/3n1pp1/pp2pn1p/3p4/2P1P3/P1N1BP2/1P1NBQPP/2RR3K w - - 0 25",
         phase = "middlegame",
         ply = 49,
@@ -1159,12 +1165,12 @@ object AuthoritySurfaceLedger:
             "d8d3"
           ),
         expectedTags = List("source", "iqp_inducement"),
-        note = "Copied from Stockfish-backed source window probe after exact top-PV IQP inducement admission.",
+        note = "Retained as a source IQP candidate; current authority requires the induced target to persist and remain attacked at the checked PV horizon.",
         playedUci = Some("c4d5")
       ),
       SceneFixture(
         id = "source-najdorf-sergeant-1939-iqp-inducement",
-        label = "Najdorf-Sergeant 1939 exact IQP inducement source row",
+        label = "Najdorf-Sergeant 1939 IQP-inducement source candidate row",
         fen = "r1b2rk1/pp2qppp/4p3/2nn4/3N4/2N1P3/PPQ2PPP/3RKB1R w K - 0 12",
         phase = "middlegame",
         ply = 23,
@@ -1186,12 +1192,12 @@ object AuthoritySurfaceLedger:
             "c2d2"
           ),
         expectedTags = List("source", "iqp_inducement"),
-        note = "Copied from Stockfish-backed source window probe after exact top-PV IQP inducement admission.",
+        note = "Retained as a source IQP candidate; current authority requires the induced target to persist and remain attacked at the checked PV horizon.",
         playedUci = Some("c3d5")
       ),
       SceneFixture(
         id = "source-botvinnik-vidmar-1936-iqp-opening-inducement",
-        label = "Botvinnik-Vidmar 1936 exact opening IQP inducement source row",
+        label = "Botvinnik-Vidmar 1936 opening IQP-inducement source candidate row",
         fen = "r1bq1rk1/pp1nbppp/4pn2/2pp2B1/2PP4/2NBPN2/PP3PPP/R2Q1RK1 b - - 1 8",
         phase = "opening",
         ply = 16,
@@ -1217,7 +1223,7 @@ object AuthoritySurfaceLedger:
             "f4d5"
           ),
         expectedTags = List("source", "iqp_inducement"),
-        note = "Copied from Stockfish-backed source window probe after near-top MultiPV IQP inducement admission.",
+        note = "Retained as a source IQP candidate; current authority requires the induced target to persist and remain attacked at the checked PV horizon.",
         playedUci = Some("c5d4"),
         extraVariations =
           List(

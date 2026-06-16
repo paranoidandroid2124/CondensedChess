@@ -49,7 +49,7 @@ case class ExtendedAnalysisData(
 
     // Endgame pattern continuity
     endgamePatternAge: Int = 0,                  // consecutive plies the same pattern has been active
-    endgameTransition: Option[String] = None,     // e.g. "Lucena(Win) → Draw" when pattern shifts
+    endgameTransition: Option[String] = None,     // e.g. "Lucena(Unclear) → PhilidorDefense(Unclear)" when pattern shifts
     
     // Full IntegratedContext (preserves classification, threats, pawnAnalysis, features)
     integratedContext: Option[lila.commentary.analysis.IntegratedContext] = None

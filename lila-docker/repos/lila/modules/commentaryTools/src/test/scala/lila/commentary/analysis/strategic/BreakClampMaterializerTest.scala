@@ -41,6 +41,32 @@ class BreakClampMaterializerTest extends FunSuite:
     assert(!plans.exists(_.breakNeutralized.contains("e5")), clues(plans))
   }
 
+  test("marks a route clamp as a pinned break pawn when Bf4 pins the d6 pawn") {
+    val fen = "1k1rr3/pp3ppp/3p1b2/1qp2Q2/4P3/2P1BP2/PP4PP/2KR3R w - - 3 17"
+    val evidence =
+      routeEvidence(fen = fen, line = List("e3f4"))
+        .find(_.routeId == "black:d6-d5:quiet_push")
+        .getOrElse(fail("missing d6-d5 route evidence"))
+
+    assert(evidence.mechanismTerms.contains("break_clamp_mechanism:pinned_pawn"), clues(evidence))
+    assert(evidence.mechanismTerms.contains("pinned_break_pawn:d6"), clues(evidence))
+    assert(evidence.mechanismTerms.contains("pin_attacker:f4"), clues(evidence))
+    assert(evidence.mechanismTerms.contains("pin_king:b8"), clues(evidence))
+  }
+
+  test("marks a route clamp as a pinned break pawn when Qa4 pins the c6 pawn") {
+    val fen = "rn1qk2r/pp3ppp/2p1pn2/P4b2/1bpP4/2N1PN2/1P3PPP/R1BQKB1R w KQkq - 1 8"
+    val evidence =
+      routeEvidence(fen = fen, line = List("d1a4"))
+        .find(_.routeId == "black:c6-c5:quiet_push")
+        .getOrElse(fail("missing c6-c5 route evidence"))
+
+    assert(evidence.mechanismTerms.contains("break_clamp_mechanism:pinned_pawn"), clues(evidence))
+    assert(evidence.mechanismTerms.contains("pinned_break_pawn:c6"), clues(evidence))
+    assert(evidence.mechanismTerms.contains("pin_attacker:a4"), clues(evidence))
+    assert(evidence.mechanismTerms.contains("pin_king:e8"), clues(evidence))
+  }
+
   test("classifies a same-destination capture as a transform risk rather than route restoration") {
     val fen = "4k3/8/8/1pp5/8/2P5/1P6/4K3 w - - 0 1"
     val line = List("b2b4", "e8e7", "e1e2", "e7e6")

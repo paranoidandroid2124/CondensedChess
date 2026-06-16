@@ -1381,15 +1381,15 @@ class NarrativeContextBuilderTest extends FunSuite {
     assertEquals(e.get.ruleOfSquare, "Holds")
     assertEquals(e.get.triangulationAvailable, true)
     assertEquals(e.get.rookEndgamePattern, "KingCutOff")
-    assertEquals(e.get.theoreticalOutcomeHint, "Draw")
+    assertEquals(e.get.theoreticalOutcomeHint, "Unclear")
     assertEquals(e.get.patternAge, 4)
-    assertEquals(e.get.transition, Some("Lucena(Win) → PhilidorDefense(Draw)"))
+    assertEquals(e.get.transition, Some("Lucena(Unclear) → PhilidorDefense(Unclear)"))
     assert(
-      narrativeCtx.facts.exists {
-        case Fact.EndgameOutcome(outcome, conf, _) => outcome == "Draw" && conf == 0.78
+      !narrativeCtx.facts.exists {
+        case _: Fact.EndgameOutcome => true
         case _                                     => false
       },
-      "endgame facts should be sourced from oracle output when endgameFeatures is present"
+      "endgame result facts should not be sourced from oracle-only outcome hints"
     )
   }
 

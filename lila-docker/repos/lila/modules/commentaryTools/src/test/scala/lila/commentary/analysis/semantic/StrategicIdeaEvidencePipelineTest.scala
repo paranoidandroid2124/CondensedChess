@@ -104,7 +104,7 @@ class StrategicIdeaEvidencePipelineTest extends FunSuite:
     assert(observations.flatMap(_.factIds).forall(fact => !fact.wireKey.startsWith("source:")))
   }
 
-  test("winning endgame transition keeps shape fact for support surface") {
+  test("endgame win hint alone does not create winning transition evidence") {
     val semantic =
       StrategicIdeaSemanticContext
         .empty("white")
@@ -126,9 +126,8 @@ class StrategicIdeaEvidencePipelineTest extends FunSuite:
     val winningEndgame =
       observations.find(_.source == StrategicObservationIds.EvidenceSourceId.WinningEndgameTransition)
 
-    assert(winningEndgame.nonEmpty, clues(observations))
-    assert(winningEndgame.exists(_.factIds.exists(_.wireKey == "winning_endgame_transition_shape")), clues(observations))
-    assert(winningEndgame.exists(_.factIds.forall(fact => !fact.wireKey.startsWith("source:"))), clues(winningEndgame))
+    assert(winningEndgame.isEmpty, clues(observations))
+    assert(observations.flatMap(_.factIds).forall(fact => !fact.wireKey.startsWith("source:")), clues(observations))
   }
 
   test("counterplay suppression evidence stays on current-board prevented plans") {

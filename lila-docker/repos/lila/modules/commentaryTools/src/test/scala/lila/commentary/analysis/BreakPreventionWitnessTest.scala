@@ -44,7 +44,46 @@ class BreakPreventionWitnessTest extends FunSuite:
     assertEquals(diagnosis.failureCodes, Nil)
     assert(diagnosis.witness.exists(_.breakToken == "...b5-b4"), clues(diagnosis))
     assert(diagnosis.exactReady, clues(diagnosis))
-    assertEquals(diagnosis.witness.map(_.ownerSeedTerms), Some(List("...b5-b4", "b4")))
+    assertEquals(
+      diagnosis.witness.map(_.ownerSeedTerms),
+      Some(
+        List(
+          "...b5-b4",
+          "b4",
+          "break_clamp_mechanism:occupied_destination",
+          "occupied_break_square:b4"
+        )
+      )
+    )
+  }
+
+  test("materialized pin clamp terms flow into the named-break witness") {
+    val fen = "1k1rr3/pp3ppp/3p1b2/1qp2Q2/4P3/2P1BP2/PP4PP/2KR3R w - - 3 17"
+    val line = List("e3f4", "e8e6")
+    val materialized =
+      materializedBreakInfo(
+        fen = fen,
+        line = line,
+        expectedBreak = "...d5"
+      )
+    val diagnosis = BreakPreventionWitness.diagnose(
+      ctx = breakCtx(
+        fen = fen,
+        playedMove = "e3f4",
+        engineMoves = line
+      ),
+      surface = StrategyPackSurface.from(Some(breakPack())),
+      preventedNow = List(materialized)
+    )
+
+    val terms = diagnosis.witness.map(_.ownerSeedTerms).getOrElse(Nil)
+    assertEquals(diagnosis.failureCodes, Nil)
+    assert(diagnosis.exactReady, clues(diagnosis))
+    assert(diagnosis.witness.exists(_.breakToken == "...d5"), clues(diagnosis))
+    assert(terms.contains("break_clamp_mechanism:pinned_pawn"), clues(terms))
+    assert(terms.contains("pinned_break_pawn:d6"), clues(terms))
+    assert(terms.contains("pin_attacker:f4"), clues(terms))
+    assert(terms.contains("pin_king:b8"), clues(terms))
   }
 
   test("clean route evidence can prove persistence without a separate probe experiment") {

@@ -3376,11 +3376,11 @@ object NarrativeContextBuilder:
       triangulationAvailable = ef.triangulationAvailable,
       kingActivityDelta = ef.kingActivityDelta,
       rookEndgamePattern = ef.rookEndgamePattern.toString,
-      theoreticalOutcomeHint = ef.theoreticalOutcomeHint.toString,
+      theoreticalOutcomeHint = "Unclear",
       confidence = ef.confidence,
       primaryPattern = ef.primaryPattern,
       patternAge = data.endgamePatternAge,
-      transition = data.endgameTransition
+      transition = data.endgameTransition.map(_.replaceAll("""\((?i:win|draw)\)""", "(Unclear)"))
     )
   }
 

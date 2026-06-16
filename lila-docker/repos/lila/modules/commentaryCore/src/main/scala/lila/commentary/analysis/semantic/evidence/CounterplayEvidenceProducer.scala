@@ -18,8 +18,10 @@ private[commentary] object CounterplayEvidenceProducer extends StrategicIdeaEvid
       semantic: StrategicIdeaSemanticContext
   ): List[StrategicIdeaEvidence] =
     val side = pack.sideToMove
+    val preventedPlans =
+      semantic.preventedPlans.filterNot(plan => directCentralBreakOwnsPreventedBreak(plan, semantic))
     val preventedEvidence =
-      semantic.preventedPlans.flatMap { prevented =>
+      preventedPlans.flatMap { prevented =>
         Option.when(isCounterplaySuppression(prevented) && prevented.sourceScope == FactScope.Now) {
           val concreteBreakDenial =
             prevented.breakNeutralized.isDefined && prevented.deniedResourceClass.contains("break")
@@ -62,14 +64,14 @@ private[commentary] object CounterplayEvidenceProducer extends StrategicIdeaEvid
     val counterBreakBridge =
       semantic.opponentPawnAnalysis.toList.flatMap { analysis =>
         val file = analysis.breakFile.flatMap(normalizeFileToken)
-        Option.when(analysis.counterBreak && semantic.preventedPlans.exists(preventsCounterBreak(_, analysis))) {
+        Option.when(analysis.counterBreak && preventedPlans.exists(preventsCounterBreak(_, analysis))) {
           evidence(
             ownerSide = side,
             kind = StrategicIdeaKind.CounterplaySuppression,
             readiness = StrategicIdeaReadiness.Ready,
             source = EvidenceSourceId.OpponentCounterbreakDenial,
             confidence = 0.80 + Option.when(analysis.pawnBreakReady)(0.04).getOrElse(0.0),
-            focusSquares = semantic.preventedPlans.flatMap(_.deniedSquares.map(_.key)).distinct.take(3),
+            focusSquares = preventedPlans.flatMap(_.deniedSquares.map(_.key)).distinct.take(3),
             focusFiles = file.toList,
             focusZone = file.flatMap(zoneFromFileToken),
             factIds = List("opponent_counterbreak_denial", "opponent_counter_break")
@@ -79,7 +81,7 @@ private[commentary] object CounterplayEvidenceProducer extends StrategicIdeaEvid
 
     val threatBridge =
       semantic.threatsToUs.toList.flatMap { threats =>
-        Option.when(isThreatDrivenCounterplaySuppression(threats, semantic.opponentPawnAnalysis, semantic.preventedPlans)) {
+        Option.when(isThreatDrivenCounterplaySuppression(threats, semantic.opponentPawnAnalysis, preventedPlans)) {
           evidence(
             ownerSide = side,
             kind = StrategicIdeaKind.CounterplaySuppression,
@@ -188,14 +190,14 @@ private[commentary] object CounterplayEvidenceProducer extends StrategicIdeaEvid
     val compensationCounterplayDenial =
       semantic.positionFeatures
         .flatMap { features =>
-          val neutralizedBreak = semantic.preventedPlans.flatMap(_.breakNeutralized.toList).flatMap(normalizeFileToken).distinct
-          val deniedSquares = semantic.preventedPlans.flatMap(_.deniedSquares.map(_.key)).distinct.take(3)
+          val neutralizedBreak = preventedPlans.flatMap(_.breakNeutralized.toList).flatMap(normalizeFileToken).distinct
+          val deniedSquares = preventedPlans.flatMap(_.deniedSquares.map(_.key)).distinct.take(3)
           val passiveDefender =
-            semantic.preventedPlans.exists(plan =>
+            preventedPlans.exists(plan =>
               isCounterplaySuppression(plan) || isPreventiveWithoutCounterplaySuppression(plan)
             ) ||
               semantic.opponentPawnAnalysis.exists(analysis =>
-                analysis.counterBreak && semantic.preventedPlans.exists(preventsCounterBreak(_, analysis))
+                analysis.counterBreak && preventedPlans.exists(preventsCounterBreak(_, analysis))
               )
           Option.when(
             hasCompensationMaterialDeficitFor(side, features) &&

@@ -174,6 +174,14 @@ The surface renderer may say:
   weak-back-rank, and compensation king-window shells are diagnostic support;
   without a concrete route, battery, check, threat, central exposure, or other
   named attacking mechanism they do not publish public `Practical attack` rows.
+  Route and directional endpoints become `source:route_attack_lane` or
+  `source:directional_attack_lane` only when the producer proves that the
+  endpoint piece attacks the enemy king on the board and carries
+  `attack_lane_board_attack`; king proximity of a target candidate is not
+  trusted input. When a reviewed move is itself a board-backed central break,
+  same-destination `neutralize_key_break` support cannot relabel it as a public
+  defensive-resource claim unless an explicit break-prevention rival survives in
+  the runtime anchors.
   Played-first rook-pawn hook/march facts may enter here only from board state
   before/after the reviewed move, not from practical-row text;
 - practical central challenge: only when `CentralBreakTimingWitness.practical`
@@ -192,158 +200,61 @@ The surface renderer may say:
 
 ## Local Fact Families
 
-Typed local fact families are the trusted renderer input:
-
-- `threat`
-- `defense`
-- `line_consequence`
-- `timing`
-- `pressure`
-- `plan_support`
-- `opening_goal`
-- `endgame`
-- exact factual fallback
-
-A family may only be emitted by an authority that supports that family. For
-example, a line consequence packet cannot certify a fork or pin unless a
-separate tactical motif authority exists.
+Typed local fact families are the trusted renderer input: `threat`, `defense`,
+`line_consequence`, `timing`, `pressure`, `plan_support`, `opening_goal`,
+`endgame`, and exact factual fallback. A family may only be emitted by an
+authority that supports that family. For example, a line-consequence packet
+cannot certify a fork, pin, or plan unless a separate tactical or plan authority
+exists.
 
 Filtered local-fact results from the basic idea surface may enter CausalFrame
-only for admitted local-fact families such as threat, attack, pressure, plan
-support, defense, timing, strict `opening_goal`, and the source-specific
-practical central-challenge `line_consequence` fact. Castling, capture, and
-endgame basic descriptors remain fallback render surfaces unless another typed
-owner admits them.
-Endgame fallback can trust only typed canonical fact fields it carries, such as
-`KingActivity` square/mobility or `Opposition` king squares/type; generic
-endgame labels still cannot invent a conversion or technique claim. Scoped
-checked-line wording may consume the admitted local-fact anchors for those
-fields.
-Castling fallback can trust only after-FEN board facts carried on the
-`castling_safety` local fact, such as side, king square, rook square, pawn
-shield, exposed files, and king-ring pressure. Scoped checked-line wording may
-consume those admitted anchors, not fallback prose.
-An `opening_goal` fact may be backed by post-move board state plus played-first
-legal PV witnesses for activation or comparable development. Role-specific
-opening triggers must match the actual moved piece on the post-move board. The
-fact does not bypass tactical truth gates or become a causal plan/pressure
-owner by itself.
-When planner selection leaves such a causal local fact unrended, the fallback
-lane must try CausalFrame admission before direct basic rendering. That bridge
-does not create a new chess reason; it carries the existing local fact family,
-producer, anchors, evidence refs, and line binding into the same authority
-model used by planner-owned claims. Admitted central-break timing facts use the
-same bridge as `WhyNow` timing evidence, not as generic plan prose.
+only for admitted families and only with their producer, anchors, evidence refs,
+guardrails, and line binding intact. Castling, capture, endgame, and opening
+descriptors remain bounded fallback surfaces unless their typed facts provide
+the canonical board fields they need. The fallback lane may bridge an unrended
+causal local fact into CausalFrame, but it does not create a new chess reason.
+Oracle-only endgame outcome hints are diagnostic/support material, not public
+win/draw or conversion authority; public context, rows, and transition prose
+must stay result-neutral without tablebase/eval/PV result evidence.
 
-Supported-local packets are not a separate chess mechanism by themselves. After
-claim-authority admission, they must resolve to the strongest existing producer
-that supports their family/source pair, such as `certified_strategy_delta` for
-stable move-local defense, pressure, plan-support, and line-consequence facts.
-Strategy-pack practical ideas follow the same rule: only the typed local fact,
-anchors, guardrails, evidence refs, and checked-line binding are trusted. The
-renderer must not reuse raw practical-row text as causal authority. Practical
-line-occupation wording may consume only admitted `line_file`,
-`line_file_status`, and `line_target` anchors, not "Practical line" row text.
-Practical pawn-break wording may consume only an admitted `pawn_break_file`
-anchor, not "Practical break" row text.
-Relation-witness local facts also carry their cataloged relation surface as
-typed data. Planner ownership may consume that field; diagnostic
-`relation_surface:*` guardrails are not authority.
-Tactical relation witnesses may also carry kind-specific anchors, such as
-discovered-attack attacker/target squares or overload defender/duty squares, for
-base prose and scoped checked-line wording.
-The typed surface can narrow the family: mobility restriction stays pressure,
-move order stays timing, and an in-between check does not become attack prose
-unless a separate attack/threat authority is admitted.
-Draw-resource relation surfaces stay defense facts. Stalemate/perpetual wording
-requires a typed `relation_witness` local fact with `relationSurface=DrawResource`,
-played-first PV/replay binding, and the analyzer's draw-stable resource proof;
-renderer text and generic forcing-check line consequence cannot infer that
-defensive resource on their own. When this typed draw-resource fact is present,
-it may preempt the generic forcing-check consequence surface for the same line.
-A move-order relation can own `WhyNow` only as a typed timing packet:
-`family=timing`, `producer=relation_witness`, `relationSurface=MoveOrder`, and
-played-first PV/replay binding must all survive into CausalFrame. If that typed
-fact is rendered as the claim itself, the renderer may mark support as embedded;
-raw planner text or diagnostic guardrails still cannot create timing authority.
-Checked-line support remains separately gated: the reviewed-move short line may
-be attached to embedded typed-fact claims only for played-move causal owners
-that already allow checked-line surface. It does not widen timing-only `WhyNow`
-claims.
-Displayed SAN refs preserve legal line order, including repeated SAN tokens;
-deduplicating a repeated capture, recapture, or castling token would change the
+Supported-local and exact-slice packets are proof gates, not independent chess
+mechanisms. After claim-authority admission they must resolve to the strongest
+existing producer that supports the family/source pair. The renderer may consume
+only admitted anchors and checked-line bindings; row labels, diagnostic refs,
+basic prose, and practical-row text are not causal authority.
+
+Durable structural claims require producer-owned board/PV proof. File entry,
+outpost occupation, target fixation, IQP inducement, color-complex pressure,
+central-break timing, counterplay clamps, and bad-piece liquidation may name an
+object only when the typed proof shows reviewed-move ownership on the after-board
+and, where persistence matters, the played-first checked PV keeps the object and
+pressure/resource relation alive. Transient, pre-existing, or unpressured shapes
+remain support-only or diagnostic.
+For target fixation, a board-only witness without typed target focus is trusted
+only for the Carlsbad c-pawn target profile; generic weak-pawn pressure needs a
+typed idea, moveRef, or route hint before it can become a public claim.
+
+Strategy-pack practical ideas follow the same rule. Only projected typed local
+facts from `CommentaryIdeaSurface.practicalPositionFacts` are trusted, and only
+their admitted anchors may appear in public wording. Broad idea labels, attack
+shells, practical rows, and renderer text do not authorize line occupation,
+pawn-break, space-gain, target-fixing, attack-lane, or central-challenge claims.
+
+Relation witnesses carry their cataloged surface as typed data. That surface may
+narrow the family: mobility restriction stays pressure, move order stays timing,
+draw resource stays defense, and an in-between check does not become attack
+prose unless separate attack/threat authority exists. Checked-line support is
+still separately gated and does not widen a timing-only or support-only fact.
+
+Displayed SAN refs preserve legal line order, including repeated SAN tokens.
+Deduplicating a repeated capture, recapture, or castling token would change the
 evidence line rather than merely cleaning prose.
-Alternative comparison has the same preservation requirement: role-aware branch
-comparisons must carry the engine-best and played `LineConsequenceEvidence`
-packets. Shallow branch labels and comparative prose are not enough to certify
-local-fact evidence refs or guardrails.
-The player decision strip follows that boundary. It may render role-aware
-comparison text from the enriched runtime carrier only after the visible
-MoveReview result has admitted an `alternative_comparison` local fact over a
-PV-coupled `line_consequence`; otherwise it uses the older bounded digest plus
-surface-line path and does not infer role-aware authority.
-Move-local exact-slice packets may be strict fallback candidates only when the
-existing supported-local row builder can project the same packet through its
-typed exact proof. This reuses row authority/target/proof metadata without
-making player-facing row prose a causal source.
-Local file-entry pressure follows the same rule: the trusted input is the
-`LocalFileEntryBind` exact proof carried by a `HalfOpenFilePressure` packet,
-not the "File entry" support row or prevented-plan wording. Exact proof family
-classification wins over coarse move-delta labels during CausalFrame
-promotion.
-Outpost-occupation pressure follows the same exact-slice rule: the trusted input
-for MoveReview exact outpost wording is replayed board/PV proof that the
-reviewed knight lands on a pawn-supported square, is not attacked by enemy pawns
-or enemy minor pieces, and remains there through the immediate checked top-PV
-window. Existing outpost facts and practical-row outpost prose are not
-sufficient. Visible wording may name the outpost only from admitted
-`outpost_square` and `outpost_piece_role` local-fact anchors derived from that
-exact proof.
-The practical `Knight outpost` player row follows the same board/PV durability
-gate; it cannot rely on pawn support alone when an enemy minor attacks the
-square or the checked top PV immediately removes the knight.
-Opening-outpost player rows follow that same durability gate. Tag-only
-`source:outpost_tag` and `source:strong_knight` strategic ideas are not trusted
-inputs for public `Practical outpost` advanced rows; only explicit
-route/directional outpost-access cues may surface, and those remain
-non-durable support rather than occupation truth.
-Exact target-fixation wording may name only a board-proved enemy pawn target
-attacked by the moved piece after the reviewed move. Proof labels, diagnostic
-target refs, and player-row prose are not trusted inputs for "fixes" or target
-pressure wording. Structural pawn-target naming must come from the existing
-`WeaknessTargetProfile`/`PawnStructureTargets` profile and remain present at
-the played-first checked PV horizon with pressure-side attack still present
-before it can override a broader route or open-file label. The trusted
-move-local payload exposes this as `target_persistent_after_line:<square>` and
-`target_attacked_after_line:<square>`, not as prose or row-label evidence.
-When the row explains that the target pawn is defended by another pawn, that
-defender square must come from after-board pawn-defense proof.
-IQP-inducement wording is trusted only when the induced isolated central pawn
-target remains at the checked PV horizon and the pressure side attacks it there.
-The exact proof must include a matching `target_pressure:<square>` term;
-the proof line must carry the replayed horizon continuation that made the pawn
-both persistent and pressured.
-transient IQPs or unpressured isolated pawns remain support/diagnostic, not
-exact-slice authority.
-Color-complex position probes are trusted as MoveReview local pressure only
-when the played move owns the proof geometry: the reviewed move must place the
-proof bishop/knight on the proof square, and the after-FEN board must confirm
-that piece attacks the proof target. The checked played-first PV window must
-keep the same minor on that square attacking the target; immediate exchanges,
-captures, or proof-piece reroutes are fail-closed. The producer prefers that
-post-move destination proof over any pre-move attacker. If the complex is
-carried only by an unmoved minor piece, it remains backend diagnostic context;
-it is not projected as a player support row and cannot become a played-move
-local fact.
-Neutralize-key-break trust is structural, not tactical-escape trust. A
-break-clamp route whose pawn move only captured the piece from the reviewed
-move's origin square is excluded before `neutralize_key_break` packet or
-`Counterplay break` row admission; otherwise moving a piece out of attack could
-be mislabeled as stopping a pawn break.
-Central-break timing follows the same supported-local gate. The trusted input
-is a `CentralBreakTimingWitness` exact proof packet admitted while the current
-plan source is `central_break_timing`; generic plan-advance labels or surface
-phrases cannot create timing authority.
+
+Alternative comparison and the player decision strip follow the same
+preservation requirement: role-aware comparison text needs admitted
+engine-best/played `LineConsequenceEvidence` packets. Shallow branch labels,
+comparative prose, and enriched carrier text do not certify local-fact evidence
+refs or guardrails.
 
 ## Alternative Comparison
 

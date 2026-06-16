@@ -2360,6 +2360,19 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assert(surface.summaryRows.exists(_.text.contains("stops the d5 break")), clue(surface.summaryRows))
   }
 
+  test("neutralize-key-break surface gate rejects route tokens ending on the played destination") {
+    val ctx =
+      MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
+        fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
+        playedMove = Some("e7e5")
+      )
+
+    assertEquals(
+      NeutralizeKeyBreakSurfaceGate.decideForPacket(neutralizePacket("e4-e5"), ctx).rejectReason,
+      Some(NeutralizeKeyBreakSurfaceGate.PlayedMoveCollision)
+    )
+  }
+
   test("target-pressure strategic ideas create bounded practical pressure rows") {
     val idea =
       StrategyIdeaSignal(
@@ -3877,7 +3890,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
         strategyPack = Some(densePack)
       )
 
-    assertEquals(surface.advancedRows.size, 11, clue(surface.advancedRows))
+    assertEquals(surface.advancedRows.size, 10, clue(surface.advancedRows))
     assertEquals(
       surface.advancedRows.filter(_.authority.exists(_.kind == MoveReviewSurfaceAuthority.StrategicRelation)).size,
       4,
@@ -3886,7 +3899,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assertEquals(surface.advancedRows.count(_.label.startsWith("Compensation")), 2, clue(surface.advancedRows))
     assertEquals(
       surface.advancedRows.filter(_.label.startsWith("Practical")).map(_.label),
-      List("Practical pressure", "Practical line", "Practical conversion"),
+      List("Practical pressure", "Practical line"),
       clue(surface.advancedRows)
     )
     assert(surface.advancedRows.filter(_.label.startsWith("Practical")).forall(_.authority.flatMap(_.target).isEmpty), clue(surface.advancedRows))
@@ -6814,7 +6827,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     )
   }
 
-  test("winning endgame strategic ideas create bounded practical conversion rows") {
+  test("endgame conversion rows require typed motifs, not win hints") {
     val idea =
       StrategyIdeaSignal(
         ideaId = "idea_winning_endgame_conversion",
@@ -6841,10 +6854,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
           )
       )
 
-    assertEquals(surface.advancedRows.map(_.label), List("Practical conversion"))
-    assertEquals(surface.advancedRows.head.text, "The winning endgame structure gives a practical conversion cue around e6.")
-    assertEquals(surface.advancedRows.head.authority, Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)))
-    assertEquals(surface.advancedRows.head.authority.flatMap(_.target), None)
+    assert(!surface.advancedRows.exists(_.label == "Practical conversion"), clue(surface.advancedRows))
 
     val multiSquareSurface =
       build(
@@ -6862,9 +6872,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(multiSquareSurface.advancedRows.map(_.label), List("Practical conversion"))
-    assertEquals(multiSquareSurface.advancedRows.head.text, "The winning endgame structure gives a practical conversion cue.")
-    assertEquals(multiSquareSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assert(!multiSquareSurface.advancedRows.exists(_.label == "Practical conversion"), clue(multiSquareSurface.advancedRows))
 
     val rookEndgameSurface =
       build(
@@ -8344,7 +8352,14 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
                     ideaId = "idea_king_ring_pressure",
                     confidence = 0.78,
                     focusZone = Some("kingside"),
-                    evidenceRefs = List("source:king_ring_pressure", "king_ring_pressure_shape")
+                    evidenceRefs =
+                      List(
+                        "source:king_ring_pressure",
+                        "king_ring_pressure_shape",
+                        "source:initiative_motif",
+                        "initiative_motif_shape",
+                        "initiative_score_12"
+                      )
                   )
                 )
             )
@@ -8409,7 +8424,16 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
                     ideaId = "idea_enemy_weak_back_rank",
                     confidence = 0.74,
                     focusZone = Some("kingside"),
-                    evidenceRefs = List("source:enemy_weak_back_rank", "enemy_weak_back_rank_shape")
+                    evidenceRefs =
+                      List(
+                        "source:enemy_weak_back_rank",
+                        "enemy_weak_back_rank_shape",
+                        "source:directional_attack_lane",
+                        "directional_attack_lane_shape",
+                        "source:initiative_motif",
+                        "initiative_motif_shape",
+                        "initiative_score_12"
+                      )
                   )
                 )
             )
@@ -9125,7 +9149,10 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
                       List(
                         "source:compensation_king_window",
                         "uncastled_or_unsettled_king_window",
-                        "material_deficit_compensation"
+                        "material_deficit_compensation",
+                        "source:initiative_motif",
+                        "initiative_motif_shape",
+                        "initiative_score_12"
                       )
                   )
                 )
@@ -11165,4 +11192,13 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       producer = MoveReviewLocalFact.Producer.AlternativeComparison,
       strictFallbackEligible = true,
       lineBinding = MoveReviewLocalFact.LineBinding.PvCoupled
+    )
+
+  private def neutralizePacket(token: String): PlayerFacingClaimPacket =
+    PlayerFacingClaimPacket(
+      proofPathWitness =
+        PlayerFacingProofPathWitness(
+          ownerSeedTerms = List(token),
+          exactSliceProof = Some(PlayerFacingExactSliceProof.CounterplayAxisSuppression(token))
+        )
     )

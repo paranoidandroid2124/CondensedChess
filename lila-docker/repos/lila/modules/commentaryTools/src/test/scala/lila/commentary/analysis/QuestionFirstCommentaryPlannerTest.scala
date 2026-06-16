@@ -1514,7 +1514,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
                     confidence = 0.88,
                     primaryPattern = Some("PhilidorDefense"),
                     patternAge = 3,
-                    transition = Some("Lucena(Win) → PhilidorDefense(Draw)")
+                    transition = Some("Lucena(Unclear) → PhilidorDefense(Unclear)")
                   )
                 ),
               practicalAssessment = None,
@@ -1707,7 +1707,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
                     confidence = 0.88,
                     primaryPattern = Some("PhilidorDefense"),
                     patternAge = 3,
-                    transition = Some("Lucena(Win) → PhilidorDefense(Draw)")
+                    transition = Some("Lucena(Unclear) → PhilidorDefense(Unclear)")
                   )
                 ),
               practicalAssessment = None,
@@ -1828,7 +1828,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
                     confidence = 0.88,
                     primaryPattern = Some("PhilidorDefense"),
                     patternAge = 3,
-                    transition = Some("Lucena(Win) → PhilidorDefense(Draw)")
+                    transition = Some("Lucena(Unclear) → PhilidorDefense(Unclear)")
                   )
                 ),
               practicalAssessment = None,
@@ -2198,7 +2198,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
                     confidence = 0.88,
                     primaryPattern = Some("PhilidorDefense"),
                     patternAge = 3,
-                    transition = Some("Lucena(Win) → PhilidorDefense(Draw)")
+                    transition = Some("Lucena(Unclear) → PhilidorDefense(Unclear)")
                   )
                 ),
               practicalAssessment = None,

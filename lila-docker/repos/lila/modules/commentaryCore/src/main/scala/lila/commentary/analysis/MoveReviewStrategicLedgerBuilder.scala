@@ -308,7 +308,7 @@ object MoveReviewStrategicLedgerBuilder:
               List(profile.primary, profile.centerState) ++ profile.evidenceCodes
             ) ++
             semantic.endgameFeatures.toList.flatMap(endgame =>
-              List(endgame.primaryPattern, endgame.transition, Option(endgame.theoreticalOutcomeHint))
+              List(endgame.primaryPattern, endgame.transition)
                 .flatten
             ) ++
             semantic.planAlignment.toList.flatMap(alignment =>

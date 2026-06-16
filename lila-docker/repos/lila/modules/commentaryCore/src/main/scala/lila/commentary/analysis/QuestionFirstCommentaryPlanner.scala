@@ -1540,6 +1540,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       plan: PreventedPlanInfo
   ): Boolean =
     plan.breakNeutralized.exists(_.trim.nonEmpty) &&
+      !centralBreakOwnsPreventedBreak(ctx, plan) &&
       neutralizeKeyBreakPreventedPlanTimingWitness(plan).exists { witness =>
         val admissionPlan =
           QuestionPlan(
@@ -1562,6 +1563,32 @@ private[commentary] object QuestionFirstCommentaryPlanner:
           .supportedLocalNeutralizeKeyBreakTimingAdmission(ctx, inputs, truthContract, admissionPlan)
           .exists(_.decision.tier == ClaimAuthorityTier.SupportedLocal)
       }
+
+  private def centralBreakOwnsPreventedBreak(
+      ctx: Option[NarrativeContext],
+      plan: PreventedPlanInfo
+  ): Boolean =
+    ctx.exists { context =>
+      CentralBreakTimingWitness.exact(context).exists { witness =>
+        witness.sourceTags.exists(_ == "board:played_break") &&
+          plan.breakNeutralized.flatMap(preventedBreakDestination).contains(normalizePlannerToken(witness.breakSquare)) &&
+          !explicitBreakPreventionPlan(context)
+      }
+    }
+
+  private def explicitBreakPreventionPlan(ctx: NarrativeContext): Boolean =
+    val breakPrevention = PlanTaxonomy.PlanKind.BreakPrevention.id
+    ctx.mainStrategicPlans.exists(_.subplanId.exists(id => normalizePlannerToken(id) == breakPrevention)) ||
+      ctx.strategicPlanExperiments.exists(experiment =>
+        experiment.subplanId.exists(id => normalizePlannerToken(id) == breakPrevention) &&
+          experiment.counterBreakNeutralized
+      )
+
+  private def preventedBreakDestination(token: String): Option[String] =
+    normalizePlannerToken(token).stripPrefix("...").split("-").lastOption.filter(_.nonEmpty)
+
+  private def normalizePlannerToken(raw: String): String =
+    Option(raw).getOrElse("").trim.toLowerCase
 
   private def localFileEntryChangeConsequence(
       pair: LocalFileEntryProof.SurfacePair
@@ -4191,33 +4218,29 @@ private[commentary] object QuestionFirstCommentaryPlanner:
     ).flatten
 
   private def rawEndgameHint(info: EndgameInfo): Option[String] =
-    cleanLine(info.theoreticalOutcomeHint)
-      .filterNot(_.equalsIgnoreCase("unclear"))
-      .orElse(info.primaryPattern.flatMap(cleanLine))
+    info.primaryPattern
+      .flatMap(cleanLine)
       .orElse(info.transition.flatMap(cleanLine))
 
   private[commentary] def endgameTransitionSentence(info: EndgameInfo): Option[String] =
     info.transition.flatMap {
-      case EndgameTransitionPattern(fromRaw, fromHintRaw, toRaw, toHintRaw) =>
+      case EndgameTransitionPattern(fromRaw, _, toRaw, _) =>
         val fromLabel = humanizeEndgamePattern(fromRaw)
         val toLabel = humanizeEndgamePattern(toRaw)
-        val fromTask = endgameTaskPhrase(fromHintRaw)
-        val toTask = endgameTaskPhrase(toHintRaw)
         Some(
           if fromRaw.equalsIgnoreCase("none") then
-            s"A new $toLabel pattern has emerged, giving the position a clearer $toTask."
+            s"A new $toLabel structure is visible, so the endgame context has changed."
           else if toRaw.equalsIgnoreCase("none") then
-            s"The $fromLabel pattern has dissolved, so the earlier $fromTask no longer holds automatically."
+            s"The $fromLabel structure has dissolved, so that earlier endgame pattern is no longer stable by itself."
           else
-            s"The endgame geometry has shifted from $fromLabel to $toLabel, turning the position from a $fromTask into a $toTask."
+            s"The endgame geometry has shifted from $fromLabel to $toLabel."
         )
       case _ => None
     }.orElse {
       info.primaryPattern.flatMap { pattern =>
         Option.when(info.patternAge >= 2) {
           val label = humanizeEndgamePattern(pattern)
-          val task = endgameTaskPhrase(info.theoreticalOutcomeHint)
-          s"The $label structure has held, so the same $task remains in force."
+          s"The $label structure has held, keeping that endgame pattern in view."
         }
       }
     }
@@ -4230,14 +4253,6 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       normalized
         .replaceAll("([a-z0-9])([A-Z])", "$1 $2")
         .replace('_', ' ')
-
-  private def endgameTaskPhrase(rawHint: String): String =
-    Option(rawHint).getOrElse("").trim.toLowerCase match
-      case "win"     => "winning method"
-      case "draw"    => "drawing setup"
-      case "unclear" => "technical plan"
-      case other if other.nonEmpty => s"${other} technical task"
-      case _ => "technical plan"
 
   private def hasPlanRaceCandidate(inputs: QuestionPlannerInputs): Boolean =
     val opponentRaceAvailable =

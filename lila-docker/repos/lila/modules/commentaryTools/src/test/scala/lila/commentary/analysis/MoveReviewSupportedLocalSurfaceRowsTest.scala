@@ -1646,31 +1646,16 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
         line = List("f6e4", "e1g1", "d8b6", "d1e2", "e8g8", "c1e3"),
         scoreCp = -25
       )
-    val idea =
-      StrategyIdeaSignal(
-        ideaId = "played-ne4-c3-target",
-        ownerSide = "black",
-        kind = StrategicIdeaKind.TargetFixing,
-        group = StrategicIdeaGroup.PieceAndLineManagement,
-        readiness = StrategicIdeaReadiness.Ready,
-        focusSquares = List("e4"),
-        confidence = 0.86,
-        evidenceRefs = List(
-          "source:plan_match_target_fixing",
-          "source:weak_complex_fixation",
-          "source:exact_target_fixation"
-        )
-      )
     val surface =
       StrategyPackSurface.Snapshot(
         sideToMove = Some("black"),
-        dominantIdea = Some(idea),
+        dominantIdea = None,
         secondaryIdea = None,
         campaignOwner = Some("black"),
         ownerMismatch = false,
         allRoutes = Nil,
         topRoute = None,
-        allMoveRefs = List(StrategyPieceMoveRef("black", "N", "f6", "c3", "target_fixing")),
+        allMoveRefs = Nil,
         topMoveRef = None,
         allDirectionalTargets = Nil,
         topDirectionalTarget = None,
@@ -1680,7 +1665,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
         compensationVectors = Nil,
         investedMaterial = None,
         compensationSubtype = None,
-        allIdeas = List(idea)
+        allIdeas = Nil
       )
     val delta =
       PlayerFacingTruthModePolicy
@@ -1730,6 +1715,86 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
     assertEquals(
       rows.head.text,
       "The checked line keeps c3 fixed as a pawn target, with the b2 pawn still defending it."
+    )
+  }
+
+  test("does not certify incidental capture pressure as board-only target fixation") {
+    val captureCtx =
+      topPvPracticalContext(
+        fen = "r2qkb1r/pp1n1p1p/2p1p1p1/2P5/3Pn3/5Q1P/PP3PP1/R1B1KB1R w KQkq - 0 11",
+        playedMove = "f3e4",
+        playedSan = "Qxe4",
+        line = List("f3e4", "a7a6", "f1c4"),
+        scoreCp = 24
+      )
+    val surface =
+      StrategyPackSurface.Snapshot(
+        sideToMove = Some("white"),
+        dominantIdea = None,
+        secondaryIdea = None,
+        campaignOwner = Some("white"),
+        ownerMismatch = false,
+        allRoutes = Nil,
+        topRoute = None,
+        allMoveRefs = Nil,
+        topMoveRef = None,
+        allDirectionalTargets = Nil,
+        topDirectionalTarget = None,
+        longTermFocus = None,
+        evidenceHints = Nil,
+        compensationSummary = None,
+        compensationVectors = Nil,
+        investedMaterial = None,
+        compensationSubtype = None,
+        allIdeas = Nil
+      )
+    val delta =
+      PlayerFacingTruthModePolicy
+        .mainPathMoveDeltaEvidence(captureCtx, surface, Some(safeTruthContract("f3e4")))
+
+    assert(
+      delta.forall(_.packet.proofSource != PlayerFacingTruthModePolicy.ExactTargetFixationProofSource),
+      clue(delta)
+    )
+  }
+
+  test("does not certify generic weak-pawn pressure as board-only target fixation without typed focus") {
+    val quietCtx =
+      topPvPracticalContext(
+        fen = "r4rk1/pp3ppp/3q1n2/2p5/2P3b1/3PBPN1/PP2Q1PP/R4RK1 b - - 0 15",
+        playedMove = "g4e6",
+        playedSan = "Be6",
+        line = List("g4e6", "b2b3", "f8e8", "e2f2", "b7b6"),
+        scoreCp = -30
+      )
+    val surface =
+      StrategyPackSurface.Snapshot(
+        sideToMove = Some("black"),
+        dominantIdea = None,
+        secondaryIdea = None,
+        campaignOwner = Some("black"),
+        ownerMismatch = false,
+        allRoutes = Nil,
+        topRoute = None,
+        allMoveRefs = Nil,
+        topMoveRef = None,
+        allDirectionalTargets = Nil,
+        topDirectionalTarget = None,
+        longTermFocus = None,
+        evidenceHints = Nil,
+        compensationSummary = None,
+        compensationVectors = Nil,
+        investedMaterial = None,
+        compensationSubtype = None,
+        allIdeas = Nil
+      )
+    val delta =
+      PlayerFacingTruthModePolicy
+        .mainPathMoveDeltaEvidence(quietCtx, surface, Some(safeTruthContract("g4e6")))
+
+    assert(
+      delta.forall(_.packet.proofSource != PlayerFacingTruthModePolicy.ExactTargetFixationProofSource),
+      clue(delta)
     )
   }
 
@@ -5645,6 +5710,60 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
     assertEquals(rows.head.source, None)
   }
 
+  test("verbalizes typed pinned-pawn mechanism for neutralize_key_break packet claims") {
+    val pinCtx =
+      ctx.copy(
+        fen = "1k1rr3/pp3ppp/3p1b2/1qp2Q2/4P3/2P1BP2/PP4PP/2KR3R w - - 3 17",
+        playedMove = Some("e3f4"),
+        playedSan = Some("Bf4")
+      )
+    val pinPacket =
+      supportedNeutralizePacket(
+        anchorTerms = List("...d5", "d5"),
+        ownerSeedTerms =
+          List(
+            "neutralize_key_break",
+            "...d5",
+            "d5",
+            "break_clamp_mechanism:pinned_pawn",
+            "pinned_break_pawn:d6",
+            "pin_attacker:f4",
+            "pin_king:b8",
+            "break_route:...d6-d5"
+          ),
+        structureTransitionTerms =
+          List(
+            "...d5",
+            "d5",
+            "break_clamp_mechanism:pinned_pawn",
+            "pinned_break_pawn:d6",
+            "pin_attacker:f4",
+            "pin_king:b8",
+            "break_route:...d6-d5"
+          ),
+        bestDefenseMove = Some("Re6"),
+        exactSliceProof = Some(PlayerFacingExactSliceProof.CounterplayAxisSuppression("...d5"))
+      )
+    val rows =
+      noRankedSupportedLocalRows(localCtx = pinCtx, localInputs = inputs(packet = pinPacket), playedMove = "e3f4")
+
+    assertEquals(rows.map(_.label), List("Counterplay break"))
+    assertEquals(
+      rows.head.text,
+      "This pins the d6 pawn, so the ...d5 break is not available."
+    )
+    assertEquals(
+      rows.head.authority,
+      Some(
+        MoveReviewSurfaceAuthority(
+          kind = MoveReviewSurfaceAuthority.CounterplayBreak,
+          token = Some("...d5"),
+          target = Some("d6")
+        )
+      )
+    )
+  }
+
   test("does not project tokenless neutralize_key_break packets") {
     val tokenless =
       supportedNeutralizePacket(
@@ -5744,7 +5863,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
     assertEquals(rows, Nil)
   }
 
-  test("projects route-shaped break tokens even when the played move occupies the destination square") {
+  test("does not project route-shaped break tokens when the played move occupies the destination square") {
     val routePacket =
       supportedNeutralizePacket(
         anchorTerms = List("e4-e5"),
@@ -5757,15 +5876,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
     val rows =
       noRankedSupportedLocalRows(localCtx = playedDestinationRouteCtx, localInputs = inputs(packet = routePacket))
 
-    assertEquals(rows.map(_.label), List("Counterplay break"))
-    assertEquals(
-      rows.head.text,
-      "This stops the e4-e5 break before it appears."
-    )
-    assertEquals(
-      rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CounterplayBreak, token = Some("e4-e5")))
-    )
+    assertEquals(rows, Nil)
   }
 
   test("does not project plan plus packet neutralize rows when typed proof token differs from plan witness") {

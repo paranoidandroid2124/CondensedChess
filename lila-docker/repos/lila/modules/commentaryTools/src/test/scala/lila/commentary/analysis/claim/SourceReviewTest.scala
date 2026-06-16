@@ -572,9 +572,16 @@ class SourceReviewTest extends FunSuite:
       assertEquals(row.release, "-", clues(row))
     }
     val pfleger = byId("source-pfleger-maalouf-1961-a6-a5-break-prevention")
-    assertEquals(pfleger.verdict, SourceReview.Verdict.RejectOwnerMissing, clues(pfleger))
-    assertEquals(pfleger.admissionBlockers, "proof:break_prevention_contract_mismatch", clues(pfleger))
-    assertEquals(pfleger.mainProofSource, "color_complex_squeeze_probe", clues(pfleger))
+    assertEquals(pfleger.verdict, SourceReview.Verdict.AdmitAuthorityRow, clues(pfleger))
+    assertEquals(pfleger.diagnosis, SourceReview.Diagnosis.AdmitReady, clues(pfleger))
+    assertEquals(pfleger.admissionBlockers, "none", clues(pfleger))
+    assertEquals(pfleger.mainProofSource, "counterplay_axis_suppression", clues(pfleger))
+    assertEquals(pfleger.mainClaimScope, "MoveLocal", clues(pfleger))
+    assert(pfleger.packetSummary.contains("proof_family=neutralize_key_break"), clues(pfleger))
+    assert(pfleger.packetSummary.contains("break_clamp_mechanism:occupied_destination"), clues(pfleger))
+    assertEquals(pfleger.contractId, "runtime:neutralize_key_break", clues(pfleger))
+    assertEquals(pfleger.contractStatus, "Releasable", clues(pfleger))
+    assertEquals(pfleger.release, "SupportedLocal", clues(pfleger))
   }
 
   test("central-break timing review exposes one exact Maderna row and one plan-only prep row") {
@@ -638,7 +645,7 @@ class SourceReviewTest extends FunSuite:
     assertEquals(prep.admissionBlockers, "owner:central_break_timing_witness_missing")
   }
 
-  test("natural SupportedLocal source rows admit with top or near-top engine authority") {
+  test("natural source rows require current owner proof before SupportedLocal authority") {
     val evansFen = "r1b1rnk1/pp2qppp/2p5/3p4/3Pn3/2NBPN2/PPQ2PPP/1R3RK1 w - - 0 13"
     val evansIqpFen = "r3rnk1/1p3ppp/p1p5/3p2q1/PP1P2b1/2QBP3/3N1PPP/1R3RK1 w - - 3 17"
     val karpovAnderssonIqpFen = "bq1rrbk1/3n1pp1/pp2pn1p/3p4/2P1P3/P1N1BP2/1P1NBQPP/2RR3K w - - 0 25"
@@ -989,16 +996,26 @@ class SourceReviewTest extends FunSuite:
       )
     val byId = observations.map(obs => obs.source.id -> obs).toMap
 
-    val capablanca = byId("source-capablanca-golombek-1939-iqp-inducement")
-    assertEquals(capablanca.verdict, SourceReview.Verdict.AdmitAuthorityRow)
-    assertEquals(capablanca.diagnosis, SourceReview.Diagnosis.AdmitReady)
-    assertEquals(capablanca.admissionBlockers, "none")
-    assertEquals(capablanca.engineAgreement, "top_pv_matches_played")
-    assertEquals(capablanca.mainProofSource, PlayerFacingTruthModePolicy.IQPInducementProbeProofSource)
-    assertEquals(capablanca.mainClaimScope, "MoveLocal")
-    assertEquals(capablanca.contractId, s"subplan:${PlanTaxonomy.PlanKind.IQPInducement.id}")
-    assertEquals(capablanca.release, "SupportedLocal")
-    assertEquals(capablanca.primary, "This sequence leaves an isolated pawn as the local target.")
+    List(
+      "source-capablanca-golombek-1939-iqp-inducement",
+      "source-evans-opsahl-1950-iqp-inducement",
+      "source-karpov-andersson-1975-iqp-inducement",
+      "source-alekhine-bogoljubow-1936-iqp-inducement",
+      "source-najdorf-sergeant-1939-iqp-inducement"
+    ).foreach { id =>
+      val row = byId(id)
+      assertEquals(row.verdict, SourceReview.Verdict.RejectOwnerMissing, clues(row))
+      assertEquals(row.diagnosis, SourceReview.Diagnosis.RootVocabularyOrExtractionGap, clues(row))
+      assertEquals(row.admissionBlockers, "owner:iqp_not_induced_or_side_mismatch", clues(row))
+      assertEquals(row.engineAgreement, "top_pv_matches_played", clues(row))
+      assertEquals(row.mainProofSource, "-", clues(row))
+      assertEquals(row.mainClaimScope, "-", clues(row))
+      assertEquals(row.contractId, "-", clues(row))
+      assertEquals(row.contractStatus, "-", clues(row))
+      assertEquals(row.release, "-", clues(row))
+      assertEquals(row.primary, "-", clues(row))
+      assertEquals(row.taxonomy, "source_iqp_inducement", clues(row))
+    }
     val capablancaBadPiece = byId("source-capablanca-golombek-1939-bad-piece-liquidation")
     assertEquals(capablancaBadPiece.verdict, SourceReview.Verdict.AdmitAuthorityRow, clues(capablancaBadPiece))
     assertEquals(capablancaBadPiece.diagnosis, SourceReview.Diagnosis.AdmitReady, clues(capablancaBadPiece))
@@ -1012,24 +1029,6 @@ class SourceReviewTest extends FunSuite:
     assertEquals(capablancaBadPiece.release, "SupportedLocal")
     assertEquals(capablancaBadPiece.taxonomy, "source_bad_piece_liquidation")
     assertEquals(capablancaBadPiece.primary, "This trade clears the bad piece from the local branch.")
-
-    List(
-      "source-evans-opsahl-1950-iqp-inducement",
-      "source-karpov-andersson-1975-iqp-inducement",
-      "source-alekhine-bogoljubow-1936-iqp-inducement",
-      "source-najdorf-sergeant-1939-iqp-inducement"
-    ).foreach { id =>
-      val row = byId(id)
-      assertEquals(row.verdict, SourceReview.Verdict.AdmitAuthorityRow)
-      assertEquals(row.diagnosis, SourceReview.Diagnosis.AdmitReady)
-      assertEquals(row.admissionBlockers, "none")
-      assertEquals(row.engineAgreement, "top_pv_matches_played")
-      assertEquals(row.mainProofSource, PlayerFacingTruthModePolicy.IQPInducementProbeProofSource)
-      assertEquals(row.mainClaimScope, "MoveLocal")
-      assertEquals(row.contractId, s"subplan:${PlanTaxonomy.PlanKind.IQPInducement.id}")
-      assertEquals(row.release, "SupportedLocal")
-      assertEquals(row.primary, "This sequence leaves an isolated pawn as the local target.")
-    }
 
     val kramnikOpening = byId("source-kramnik-anand-2001-iqp-opening-inducement")
     assertEquals(kramnikOpening.verdict, SourceReview.Verdict.RejectOwnerMissing, clues(kramnikOpening))
@@ -1048,8 +1047,8 @@ class SourceReviewTest extends FunSuite:
     assertEquals(botvinnikScreen.verdict, SourceReview.Verdict.RejectOwnerMissing)
     assertEquals(botvinnikScreen.diagnosis, SourceReview.Diagnosis.RootVocabularyOrExtractionGap)
     assertEquals(botvinnikScreen.engineAgreement, "near_top_multipv_contains_played_top=b3a4_gap=8cp")
-    assertEquals(botvinnikScreen.admissionBlockers, "owner:iqp_not_induced_or_side_mismatch")
-    assertEquals(botvinnikScreen.ownerFailureCodes, "-")
+    assertEquals(botvinnikScreen.admissionBlockers, "proof:iqp_inducement_contract_mismatch")
+    assertEquals(botvinnikScreen.ownerFailureCodes, "proof:iqp_inducement_contract_mismatch")
     assertEquals(botvinnikScreen.release, "SupportedLocal")
 
     val botvinnikSimplification = byId("source-botvinnik-vidmar-1936-simplification-window")
@@ -1071,36 +1070,35 @@ class SourceReviewTest extends FunSuite:
     assert(originalBotvinnik.admissionBlockers.contains("owner:iqp_not_induced"), clues(originalBotvinnik))
 
     val botvinnikE4ColorComplex = byId("source-botvinnik-vidmar-1936-e4-color-complex-squeeze")
-    assertEquals(botvinnikE4ColorComplex.verdict, SourceReview.Verdict.AdmitAuthorityRow, clues(botvinnikE4ColorComplex))
-    assertEquals(botvinnikE4ColorComplex.diagnosis, SourceReview.Diagnosis.AdmitReady, clues(botvinnikE4ColorComplex))
-    assertEquals(botvinnikE4ColorComplex.admissionBlockers, "none")
+    assertEquals(botvinnikE4ColorComplex.verdict, SourceReview.Verdict.RejectOwnerMissing, clues(botvinnikE4ColorComplex))
+    assertEquals(botvinnikE4ColorComplex.diagnosis, SourceReview.Diagnosis.RootVocabularyOrExtractionGap, clues(botvinnikE4ColorComplex))
+    assertEquals(botvinnikE4ColorComplex.admissionBlockers, "owner:root_vocabulary_or_extraction_gap")
     assertEquals(botvinnikE4ColorComplex.engineAgreement, "top_pv_matches_played")
-    assertEquals(botvinnikE4ColorComplex.mainProofSource, PlayerFacingTruthModePolicy.ColorComplexSqueezeProbeProofSource)
-    assertEquals(botvinnikE4ColorComplex.mainClaimScope, "PositionLocal")
-    assertEquals(botvinnikE4ColorComplex.contractId, "runtime:color_complex_squeeze")
-    assertEquals(botvinnikE4ColorComplex.contractStatus, "Releasable")
-    assertEquals(botvinnikE4ColorComplex.contractFailures, "-")
-    assertEquals(botvinnikE4ColorComplex.release, "CertifiedOwner")
+    assertEquals(botvinnikE4ColorComplex.mainProofSource, "-")
+    assertEquals(botvinnikE4ColorComplex.mainClaimScope, "-")
+    assertEquals(botvinnikE4ColorComplex.contractId, "-")
+    assertEquals(botvinnikE4ColorComplex.contractStatus, "-")
+    assertEquals(botvinnikE4ColorComplex.release, "-")
     assertEquals(botvinnikE4ColorComplex.taxonomy, "source_boundary")
-    assertEquals(botvinnikE4ColorComplex.primary, "A minor piece keeps the color-complex pressure on e4.")
+    assertEquals(botvinnikE4ColorComplex.primary, "-")
 
-    List(
-      "source-camara-bazan-1960-d5-color-complex-squeeze",
-      "source-pfleger-maalouf-1961-d5-color-complex-squeeze"
-    ).foreach { id =>
+    Map(
+      "source-camara-bazan-1960-d5-color-complex-squeeze" -> "-",
+      "source-pfleger-maalouf-1961-d5-color-complex-squeeze" -> "SupportedLocal"
+    ).foreach { case (id, diagnosticRelease) =>
       val row = byId(id)
-      assertEquals(row.verdict, SourceReview.Verdict.AdmitAuthorityRow, clues(row))
-      assertEquals(row.diagnosis, SourceReview.Diagnosis.AdmitReady, clues(row))
-      assertEquals(row.admissionBlockers, "none")
+      assertEquals(row.verdict, SourceReview.Verdict.RejectOwnerMissing, clues(row))
+      assertEquals(row.diagnosis, SourceReview.Diagnosis.RootVocabularyOrExtractionGap, clues(row))
+      assertEquals(row.admissionBlockers, "proof:flank_clamp_contract_mismatch", clues(row))
       assertEquals(row.engineAgreement, "top_pv_matches_played")
-      assertEquals(row.mainProofSource, PlayerFacingTruthModePolicy.ColorComplexSqueezeProbeProofSource)
-      assertEquals(row.mainClaimScope, "PositionLocal")
-      assertEquals(row.contractId, "runtime:color_complex_squeeze")
+      assertEquals(row.mainProofSource, "counterplay_axis_suppression")
+      assertEquals(row.mainClaimScope, "MoveLocal")
+      assertEquals(row.contractId, "runtime:neutralize_key_break")
       assertEquals(row.contractStatus, "Releasable")
       assertEquals(row.contractFailures, "-")
-      assertEquals(row.release, "CertifiedOwner")
+      assertEquals(row.release, diagnosticRelease, clues(row))
       assertEquals(row.taxonomy, "source_boundary")
-      assertEquals(row.primary, "A minor piece keeps the color-complex pressure on d5.")
+      assertEquals(row.primary, "-")
     }
 
     val evansCarlsbad = byId("source-evans-opsahl-1950")
@@ -1231,7 +1229,7 @@ class SourceReviewTest extends FunSuite:
     assertEquals(row.admissionBlockers, "proof:break_prevention_contract_mismatch")
   }
 
-  test("broad IQP-simplification window scan does not admit incidental color-complex rows") {
+  test("broad IQP-simplification window scan does not admit incidental non-IQP rows") {
     val botvinnikColorComplexFen =
       "r2q1rk1/pp1bbppp/4pn2/3n2B1/3P4/1BNQ1N2/PP3PPP/R4RK1 w - - 5 13"
     val engine =
@@ -1258,8 +1256,8 @@ class SourceReviewTest extends FunSuite:
         .getOrElse(fail(s"missing Botvinnik color-complex ply 25: ${windows.map(obs => obs.ply -> obs.engineAgreement)}"))
 
     assertEquals(row.engineAgreement, "top_pv_matches_played")
-    assertEquals(row.release, "CertifiedOwner")
-    assertEquals(row.mainProofSource, PlayerFacingTruthModePolicy.ColorComplexSqueezeProbeProofSource)
+    assertEquals(row.release, "SupportedLocal")
+    assert(row.mainProofSource != PlayerFacingTruthModePolicy.IQPInducementProbeProofSource, clues(row))
     assertEquals(row.verdict, SourceReview.Verdict.RejectOwnerMissing)
     assertEquals(row.diagnosis, SourceReview.Diagnosis.RootVocabularyOrExtractionGap)
     assertEquals(row.admissionBlockers, "owner:iqp_not_induced_or_side_mismatch")

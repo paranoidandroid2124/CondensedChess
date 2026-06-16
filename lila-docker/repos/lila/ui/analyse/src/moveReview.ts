@@ -312,12 +312,14 @@ type MoveReviewMoveRef = {
 type MoveReviewRefIndex = {
     firstBySan: Map<string, MoveReviewMoveRef>;
     anyBySan: Map<string, MoveReviewMoveRef>;
+    refsBySan: Map<string, MoveReviewMoveRef[]>;
 };
 
 function buildMoveReviewRefIndex(refs: MoveReviewRefsV1 | null): MoveReviewRefIndex {
     const firstBySan = new Map<string, MoveReviewMoveRef>();
     const anyBySan = new Map<string, MoveReviewMoveRef>();
-    if (!refs) return { firstBySan, anyBySan };
+    const refsBySan = new Map<string, MoveReviewMoveRef[]>();
+    if (!refs) return { firstBySan, anyBySan, refsBySan };
 
     refs.variations.forEach(variation => {
         variation.moves.forEach((move, idx) => {
@@ -331,10 +333,13 @@ function buildMoveReviewRefIndex(refs: MoveReviewRefsV1 | null): MoveReviewRefIn
             };
             if (idx === 0 && !firstBySan.has(normalized)) firstBySan.set(normalized, ref);
             if (!anyBySan.has(normalized)) anyBySan.set(normalized, ref);
+            const refsForSan = refsBySan.get(normalized);
+            if (refsForSan) refsForSan.push(ref);
+            else refsBySan.set(normalized, [ref]);
         });
     });
 
-    return { firstBySan, anyBySan };
+    return { firstBySan, anyBySan, refsBySan };
 }
 
 function renderMoveReviewMoveChip(
@@ -404,18 +409,20 @@ function renderDecisionCompareStrip(
 function surfaceRowClasses(row: MoveReviewPlayerSurfaceRowV1): string {
     const classes = ['move-review-strategic-summary__row'];
     const tone = (row.tone || '').trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '_');
-    const authority = (row.authority?.kind || '').trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '_');
     if (tone) classes.push(`move-review-strategic-summary__row--tone-${tone}`);
-    if (authority) classes.push(`move-review-strategic-summary__row--authority-${authority}`);
     return classes.join(' ');
 }
 
 function renderSurfaceRow(row: MoveReviewPlayerSurfaceRowV1, refIndex: MoveReviewRefIndex): string {
+    const sanOccurrences = new Map<string, number>();
     const chips = (row.refSans || [])
         .map(san => {
             const normalized = normalizeSanToken(san);
             if (!normalized) return '';
-            const ref = refIndex.anyBySan.get(normalized) || null;
+            const refsForSan = refIndex.refsBySan.get(normalized) || [];
+            const occurrence = sanOccurrences.get(normalized) || 0;
+            sanOccurrences.set(normalized, occurrence + 1);
+            const ref = refsForSan[occurrence] || refsForSan[0] || null;
             return renderInteractiveSanChip(san, ref, {
                 interactiveClasses: 'move-review-strategic-summary__move-chip move-chip move-chip--interactive',
                 fallbackTag: 'code',
@@ -428,30 +435,16 @@ function renderSurfaceRow(row: MoveReviewPlayerSurfaceRowV1, refIndex: MoveRevie
     const targetChip = target
         ? `<span class="move-review-strategic-summary__target-chip" data-move-review-square="${escapeHtml(target)}" tabindex="0">${escapeHtml(target)}</span>`
         : '';
-    const relationToken = row.authority?.kind === 'strategic_relation' ? row.authority.token : null;
-    const relationChip = relationToken
-        ? `<span class="move-review-strategic-summary__relation-chip">${escapeHtml(formatSurfaceAuthorityLabel(relationToken))}</span>`
-        : '';
     const openingBook = row.authority?.kind === 'opening_family' ? row.authority.openingBook : null;
     const openingBookMarkup = openingBook ? renderOpeningBookMetadata(openingBook) : '';
     return `
       <div class="${surfaceRowClasses(row)}">
         <strong>${escapeHtml(row.label)}:</strong> ${escapeHtml(row.text)}
-        ${relationChip}
         ${targetChip}
         ${openingBookMarkup}
         ${chips ? `<span class="move-review-strategic-summary__refs">${chips}</span>` : ''}
       </div>
     `;
-}
-
-function formatSurfaceAuthorityLabel(value: string): string {
-    return value
-        .replace(/[_-]+/g, ' ')
-        .split(/\s+/)
-        .filter(Boolean)
-        .map(part => `${part.charAt(0).toUpperCase()}${part.slice(1).toLowerCase()}`)
-        .join(' ');
 }
 
 function renderOpeningBookMetadata(openingBook: NonNullable<MoveReviewPlayerSurfaceRowV1['authority']>['openingBook']): string {

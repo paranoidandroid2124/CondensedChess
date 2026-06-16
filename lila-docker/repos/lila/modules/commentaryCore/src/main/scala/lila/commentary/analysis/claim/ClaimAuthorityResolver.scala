@@ -8,6 +8,7 @@ import lila.commentary.model.authoring.AuthorQuestionKind
 private[commentary] object ClaimAuthorityResolver:
 
   private[commentary] val ColorComplexNotMoveOwned = "surface:color_complex_not_move_owned"
+  private val NeutralizeCentralBreakSameDestination = "neutralize_key_break:central_break_same_destination"
 
   final case class SupportedLocalNeutralizeKeyBreakAdmission(
       packet: PlayerFacingClaimPacket,
@@ -205,8 +206,11 @@ private[commentary] object ClaimAuthorityResolver:
     else
       matchingNeutralizeKeyBreakTimingPacket(inputs, plan).map { packet =>
         val tacticalReasons = tacticalVetoReasons(ctx, inputs, truthContract)
+        val centralBreakReasons = neutralizeCentralBreakCollisionReasons(ctx, packet)
         val decision =
-          if tacticalReasons.nonEmpty then
+          if centralBreakReasons.nonEmpty then
+            ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, centralBreakReasons)
+          else if tacticalReasons.nonEmpty then
             ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, tacticalReasons)
           else ClaimAuthorityDecision(ClaimAuthorityTier.SupportedLocal)
         SupportedLocalNeutralizeKeyBreakAdmission(packet, decision)
@@ -222,8 +226,10 @@ private[commentary] object ClaimAuthorityResolver:
         packet.proofFamily != ProofFamilyId.NeutralizeKeyBreak.wireKey
     then ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, authorityFailureCodes(packet))
     else
+      val centralBreakReasons = neutralizeCentralBreakCollisionReasons(ctx, packet)
       val tacticalReasons = tacticalVetoReasons(ctx, inputs, truthContract)
-      if tacticalReasons.nonEmpty then ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, tacticalReasons)
+      if centralBreakReasons.nonEmpty then ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, centralBreakReasons)
+      else if tacticalReasons.nonEmpty then ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, tacticalReasons)
       else if supportsLocalMoveDelta(packet) && hasExactOwnerPath(packet) then
         ClaimAuthorityDecision(ClaimAuthorityTier.SupportedLocal)
       else ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, authorityFailureCodes(packet))
@@ -695,6 +701,35 @@ private[commentary] object ClaimAuthorityResolver:
     packet.proofPathWitness.exactSliceProof.collect {
       case PlayerFacingExactSliceProof.CounterplayAxisSuppression(breakToken) => breakToken
     }.flatMap(BreakSurfaceToken.canonical)
+
+  private def neutralizeCentralBreakCollisionReasons(
+      ctx: Option[NarrativeContext],
+      packet: PlayerFacingClaimPacket
+  ): List[String] =
+    val collision =
+      for
+        context <- ctx
+        witness <- CentralBreakTimingWitness.exact(context)
+        token <- counterplayAxisSuppressionToken(packet)
+        destination <- breakTokenDestination(token)
+      yield
+        witness.sourceTags.exists(_ == "board:played_break") &&
+          normalize(destination) == normalize(witness.breakSquare) &&
+          !explicitBreakPreventionPlan(context)
+    Option.when(collision.contains(true))(NeutralizeCentralBreakSameDestination).toList
+
+  private def explicitBreakPreventionPlan(ctx: NarrativeContext): Boolean =
+    val breakPrevention = PlanTaxonomy.PlanKind.BreakPrevention.id
+    ctx.mainStrategicPlans.exists(_.subplanId.exists(id => normalize(id) == normalize(breakPrevention))) ||
+      ctx.strategicPlanExperiments.exists(experiment =>
+        experiment.subplanId.exists(id => normalize(id) == normalize(breakPrevention)) &&
+          experiment.counterBreakNeutralized
+      )
+
+  private def breakTokenDestination(token: String): Option[String] =
+    BreakSurfaceToken
+      .canonicalRoute(token)
+      .flatMap(route => route.stripPrefix("...").split("-").lastOption.filter(_.nonEmpty))
 
   private def authorityFailureCodes(packet: PlayerFacingClaimPacket): List[String] =
     val taxonomy =

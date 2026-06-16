@@ -108,32 +108,6 @@ export type MoveReviewOpeningBookMetadataV2 = {
   topMoves: string[];
 };
 
-const openingFamilyAuthorityTargets = new Map<string, Set<string>>([
-  ['open_games', new Set(['e4', 'e5', 'd4', 'd5', 'f5'])],
-  ['sicilian', new Set(['e4', 'c5', 'd6', 'd5', 'd4'])],
-  ['french', new Set(['e4', 'e5', 'd4', 'd5', 'f4', 'f5'])],
-  ['caro_kann', new Set(['d4', 'd5', 'e4', 'c6', 'f5'])],
-  ['scandinavian', new Set(['e4', 'd5', 'b6'])],
-  ['nimzo_indian', new Set(['c3', 'e4', 'e5'])],
-  ['kings_indian', new Set(['d4', 'd6', 'e5', 'f5', 'c5', 'g7'])],
-  ['benoni', new Set(['d5', 'd6', 'c5', 'd3'])],
-  ['catalan', new Set(['d4', 'c4', 'e4', 'e5', 'g2'])],
-  ['queens_gambit', new Set(['d5', 'e5'])],
-  ['london', new Set(['d4', 'e4', 'f4', 'e5'])],
-  ['english', new Set(['c4', 'd5', 'e5', 'g2'])],
-  ['austrian', new Set(['e4', 'd4', 'd6', 'f4', 'b6'])],
-  ['gruenfeld', new Set(['d4', 'c4', 'd5', 'c3', 'e4'])],
-  ['alekhine', new Set(['e4', 'd4', 'f6', 'd5', 'b6'])],
-  ['nimzowitsch', new Set(['e4', 'd4', 'c6', 'e5', 'g6'])],
-  ['reti', new Set(['c4', 'd4', 'e4', 'f3', 'b5'])],
-  ['bird', new Set(['f4', 'e5', 'g4', 'f3'])],
-  ['dutch', new Set(['d4', 'f5', 'e4', 'e5', 'g6'])],
-  ['slav', new Set(['d4', 'c4', 'd5', 'c6', 'e6', 'e4', 'e5'])],
-  ['queens_indian', new Set(['d4', 'c4', 'e4', 'b6', 'e6', 'b7'])],
-  ['bogo_indian', new Set(['d4', 'c4', 'e4', 'b4', 'e7'])],
-  ['kings_gambit', new Set(['e4', 'e5', 'f4', 'f5'])],
-]);
-
 export type MoveReviewPlayerSurfaceRowV1 = {
   label: string;
   text: string;
@@ -178,32 +152,6 @@ export type MoveReviewPlayerSurfaceV1 = {
   probeRows: MoveReviewPlayerSurfaceRowV1[];
   authorRows: MoveReviewPlayerAuthorRowV1[];
 };
-
-const strategicRelationAuthorityTokens = new Set([
-  'defender_trade',
-  'bad_piece_liquidation',
-  'overload',
-  'deflection',
-  'discovered_attack',
-  'double_check',
-  'back_rank_mate',
-  'mate_net',
-  'greek_gift',
-  'stalemate_trap',
-  'perpetual_check',
-  'fork',
-  'hanging_piece',
-  'trapped_piece',
-  'domination',
-  'zwischenzug',
-  'xray',
-  'clearance',
-  'battery',
-  'pin',
-  'skewer',
-  'interference',
-  'decoy',
-]);
 
 export type DecodedMoveReviewResponse = {
   html: string;
@@ -333,7 +281,7 @@ function surfaceRowFromUnknown(
   if (!refSans) return null;
   const authority =
     allowAuthority && raw.authority != null
-      ? surfaceAuthorityFromUnknown(raw.authority, allowStrategicRelation, raw.label, raw.text)
+      ? surfaceAuthorityFromUnknown(raw.authority, allowStrategicRelation)
       : null;
   return {
     label: raw.label,
@@ -347,8 +295,6 @@ function surfaceRowFromUnknown(
 function surfaceAuthorityFromUnknown(
   raw: unknown,
   allowStrategicRelation: boolean,
-  rowLabel: string,
-  rowText: string,
 ): MoveReviewSurfaceAuthorityV2 | null {
   if (!isRecord(raw) || typeof raw.kind !== 'string') return null;
   if (!isAuthorityKey(raw.kind)) return null;
@@ -366,26 +312,15 @@ function surfaceAuthorityFromUnknown(
     kind: raw.kind,
     token,
     openingFamily,
-    target:
-      raw.kind === 'opening_family' && target !== null
-        ? openingFamilyTargetAllowed(openingFamily, target)
-          ? target
-          : null
-        : raw.kind === 'practical_plan' && target !== null
-          ? practicalPlanTargetAllowed(rowLabel, rowText, target)
-            ? target
-            : null
-        : target,
+    target: raw.kind === 'opening_family' ? null : target,
     openingBook: raw.kind === 'opening_family' ? openingBookFromUnknown(raw.openingBook) : null,
   };
-  if (raw.kind === 'practical_plan' && target !== null && !isExactPracticalTargetLabel(rowLabel)) return null;
-  return isSurfaceAuthorityShape(authority, allowStrategicRelation, rowLabel) ? authority : null;
+  return isSurfaceAuthorityShape(authority, allowStrategicRelation) ? authority : null;
 }
 
 function isSurfaceAuthorityShape(
   authority: MoveReviewSurfaceAuthorityV2,
   allowStrategicRelation: boolean,
-  rowLabel: string,
 ): boolean {
   switch (authority.kind) {
     case 'counterplay_break':
@@ -404,15 +339,7 @@ function isSurfaceAuthorityShape(
       return (
         !authority.token &&
         !authority.openingFamily &&
-        (!authority.target ||
-          rowLabel === 'Fixed target' ||
-          rowLabel === 'Minority attack' ||
-          rowLabel === 'IQP target' ||
-          rowLabel === 'Simplification' ||
-          rowLabel === 'Knight outpost' ||
-          rowLabel === 'File entry' ||
-          rowLabel === 'Target coordination' ||
-          rowLabel === 'Color complex') &&
+        (!authority.target || isChessSquare(authority.target)) &&
         !authority.openingBook
       );
     case 'opening_family':
@@ -421,7 +348,7 @@ function isSurfaceAuthorityShape(
       return (
         allowStrategicRelation &&
         !!authority.token &&
-        isStrategicRelationAuthorityToken(authority.token) &&
+        isAuthorityKey(authority.token) &&
         !!authority.target &&
         !authority.openingFamily &&
         !authority.openingBook
@@ -458,91 +385,12 @@ function isOpeningBookMove(value: string): boolean {
   return /^(?:[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?|O-O(?:-O)?[+#]?)$/.test(value);
 }
 
-function openingFamilyTargetAllowed(openingFamily: string | null, target: string): boolean {
-  return openingFamily !== null && (openingFamilyAuthorityTargets.get(openingFamily)?.has(target) ?? false);
-}
-
-function practicalPlanTargetAllowed(rowLabel: string, rowText: string, target: string): boolean {
-  switch (rowLabel) {
-    case 'Fixed target':
-      return rowText === `The checked line keeps ${target} fixed as the target.`;
-    case 'Minority attack':
-      return rowText === `The checked line keeps ${target} as the minority-attack fixed target.`;
-    case 'IQP target':
-      return rowText === `The checked line leaves ${target} as an isolated pawn target.`;
-    case 'Simplification':
-      return rowText === `The checked line keeps the same local edge after the exchange on ${target}.`;
-    case 'Knight outpost':
-      return rowText === `The checked line puts the knight on the ${target} outpost.`;
-    case 'File entry':
-      return rowText === `The checked line keeps pressure on ${target} through the ${target[0]}-file.`;
-    case 'Target coordination': {
-      const match = new RegExp(
-        `^The checked line coordinates pressure on ${target} from ([a-h][1-8]) and ([a-h][1-8])\\.$`,
-      ).exec(rowText);
-      return !!match && match[1] !== match[2];
-    }
-    case 'Color complex': {
-      const match = new RegExp(
-        `^The checked line keeps the (bishop|knight) on ([a-h][1-8]) attacking ${target} in the (dark|light)-square complex\\.$`,
-      ).exec(rowText);
-      return (
-        !!match &&
-        squareColorOf(target) === match[3] &&
-        roleCanAttackSquare(match[1], match[2], target)
-      );
-    }
-    default:
-      return false;
-  }
-}
-
-function squareCoords(square: string): [number, number] | null {
-  return isChessSquare(square) ? [square.charCodeAt(0) - 'a'.charCodeAt(0) + 1, Number(square[1])] : null;
-}
-
-function squareColorOf(square: string): 'dark' | 'light' | null {
-  const coords = squareCoords(square);
-  if (!coords) return null;
-  return (coords[0] + coords[1]) % 2 === 0 ? 'dark' : 'light';
-}
-
-function roleCanAttackSquare(role: string, from: string, target: string): boolean {
-  const fromCoords = squareCoords(from);
-  const targetCoords = squareCoords(target);
-  if (!fromCoords || !targetCoords) return false;
-  const fileDelta = Math.abs(fromCoords[0] - targetCoords[0]);
-  const rankDelta = Math.abs(fromCoords[1] - targetCoords[1]);
-  return role === 'bishop'
-    ? fileDelta === rankDelta && fileDelta > 0
-    : role === 'knight'
-      ? (fileDelta === 1 && rankDelta === 2) || (fileDelta === 2 && rankDelta === 1)
-      : false;
-}
-
-function isExactPracticalTargetLabel(rowLabel: string): boolean {
-  return (
-    rowLabel === 'Fixed target' ||
-    rowLabel === 'Minority attack' ||
-    rowLabel === 'IQP target' ||
-    rowLabel === 'Simplification' ||
-    rowLabel === 'Knight outpost' ||
-    rowLabel === 'File entry' ||
-    rowLabel === 'Target coordination' ||
-    rowLabel === 'Color complex'
-  );
-}
-
 function isSurfaceAuthorityToken(value: string): boolean {
   return /^(?:\.\.\.)?[a-h][1-8](?:-[a-h][1-8])?$/.test(value);
 }
 
 function isSurfaceAuthorityTokenForKind(kind: string, value: string): boolean {
-  return kind === 'strategic_relation' ? isStrategicRelationAuthorityToken(value) : isSurfaceAuthorityToken(value);
-}
-
-function isStrategicRelationAuthorityToken(value: string): boolean {
-  return isAuthorityKey(value) && strategicRelationAuthorityTokens.has(value);
+  return kind === 'strategic_relation' ? isAuthorityKey(value) : isSurfaceAuthorityToken(value);
 }
 
 function isSurfaceAuthorityRouteToken(value: string): boolean {
@@ -558,25 +406,6 @@ function surfaceRowsFromUnknown(
   if (!Array.isArray(raw)) return null;
   const rows = raw.map(row => surfaceRowFromUnknown(row, allowStrategicRelation, allowAuthority));
   return rows.every((row): row is MoveReviewPlayerSurfaceRowV1 => row !== null) ? rows : null;
-}
-
-function summarySurfaceRowsFromUnknown(raw: unknown, allowAuthority = true): MoveReviewPlayerSurfaceRowV1[] | null {
-  if (raw == null) return [];
-  if (!Array.isArray(raw)) return null;
-  const rows = raw.map(row => surfaceRowFromUnknown(row, summaryRowAllowsStrategicRelation(row), allowAuthority));
-  return rows.every((row): row is MoveReviewPlayerSurfaceRowV1 => row !== null) ? rows : null;
-}
-
-function summaryRowAllowsStrategicRelation(raw: unknown): boolean {
-  if (!isRecord(raw) || typeof raw.label !== 'string' || !isRecord(raw.authority)) return false;
-  const authority = raw.authority;
-  if (authority.kind !== 'strategic_relation' || typeof authority.token !== 'string' || typeof authority.target !== 'string')
-    return false;
-  if (!isChessSquare(authority.target)) return false;
-  return (
-    (raw.label === 'Defender trade' && authority.token === 'defender_trade') ||
-    (raw.label === 'Bad piece trade' && authority.token === 'bad_piece_liquidation')
-  );
 }
 
 function playerDecisionComparisonFromUnknown(raw: unknown): MoveReviewPlayerDecisionComparisonV1 | null {
@@ -657,7 +486,7 @@ export function moveReviewPlayerSurfaceFromResponse(data: MaybeResponse): MoveRe
   if (schema !== 'chesstory.move_review.player_surface.v1' && schema !== 'chesstory.move_review.player_surface.v2')
     return null;
   const allowAuthority = schema === 'chesstory.move_review.player_surface.v2';
-  const summaryRows = summarySurfaceRowsFromUnknown(raw.summaryRows, allowAuthority);
+  const summaryRows = surfaceRowsFromUnknown(raw.summaryRows, true, allowAuthority);
   const advancedRows = surfaceRowsFromUnknown(raw.advancedRows, true, allowAuthority);
   const probeRows = surfaceRowsFromUnknown(raw.probeRows, false, allowAuthority);
   const authorRows = playerAuthorRowsFromUnknown(raw.authorRows, allowAuthority);

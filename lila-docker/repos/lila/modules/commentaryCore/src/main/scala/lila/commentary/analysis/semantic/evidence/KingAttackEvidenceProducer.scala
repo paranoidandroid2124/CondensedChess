@@ -248,9 +248,8 @@ private[commentary] object KingAttackEvidenceProducer extends StrategicIdeaEvide
 
     val routePressure =
       pack.pieceRoutes
-        .filter(route => route.ownerSide == side && route.surfaceMode != RouteSurfaceMode.Hidden)
         .flatMap { route =>
-          route.route.lastOption.flatMap(squareFromKey).filter(isNearEnemyKing(side, _, semantic)).map { endpoint =>
+          routeAttackLaneEndpoint(side, route, semantic).map { endpoint =>
             evidence(
               ownerSide = side,
               kind = StrategicIdeaKind.KingAttackBuildUp,
@@ -260,16 +259,15 @@ private[commentary] object KingAttackEvidenceProducer extends StrategicIdeaEvide
               focusSquares = List(endpoint.key),
               focusZone = enemyKingZone,
               beneficiaryPieces = List(route.piece),
-              factIds = List("route_attack_lane_shape", s"route_surface_${route.surfaceMode.toLowerCase}")
+              factIds = List("route_attack_lane_shape", "attack_lane_board_attack", s"route_surface_${route.surfaceMode.toLowerCase}")
             )
           }
         }
 
     val directionalPressure =
       pack.directionalTargets
-        .filter(_.ownerSide == side)
         .flatMap { target =>
-          squareFromKey(target.targetSquare).filter(isNearEnemyKing(side, _, semantic)).map { endpoint =>
+          directionalAttackLaneEndpoint(side, target, semantic).map { endpoint =>
             evidence(
               ownerSide = side,
               kind = StrategicIdeaKind.KingAttackBuildUp,
@@ -279,7 +277,7 @@ private[commentary] object KingAttackEvidenceProducer extends StrategicIdeaEvide
               focusSquares = List(endpoint.key),
               focusZone = enemyKingZone,
               beneficiaryPieces = List(target.piece),
-              factIds = List("directional_attack_lane_shape")
+              factIds = List("directional_attack_lane_shape", "attack_lane_board_attack")
             )
           }
         }

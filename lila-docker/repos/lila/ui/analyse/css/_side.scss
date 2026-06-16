@@ -424,20 +424,6 @@
       }
     }
 
-    .move-review-strategic-summary__relation-chip {
-      display: inline-flex;
-      align-items: center;
-      padding: 0.04rem 0.32rem;
-      border-radius: 4px;
-      background: rgba($c-primary, 0.1);
-      color: $c-primary;
-      font-size: 0.74rem;
-      font-weight: 700;
-      line-height: 1.25;
-      margin-inline-start: 4px;
-      vertical-align: middle;
-    }
-
     .move-review-strategic-summary__opening-book {
       display: inline-flex;
       flex-wrap: wrap;
@@ -455,57 +441,6 @@
       color: $c-font-dim;
       font-size: 0.74rem;
       line-height: 1.25;
-    }
-
-    .move-review-strategic-summary__row--authority-practical_plan,
-    .move-review-strategic-summary__row--authority-central_liquidation,
-    .move-review-strategic-summary__row--authority-central_challenge,
-    .move-review-strategic-summary__row--authority-opening_family,
-    .move-review-strategic-summary__row--authority-strategic_relation {
-      padding-left: 0.45rem;
-    }
-
-    .move-review-strategic-summary__row--authority-practical_plan {
-      color: $c-font-dim;
-      border-left: 2px solid rgba($c-font-dim, 0.25);
-
-      strong {
-        color: $c-font-dim;
-      }
-
-      .move-review-strategic-summary__target-chip {
-        background: rgba($c-font-dim, 0.08);
-        color: $c-font-dim;
-
-        &:hover, &:focus-visible {
-          background: $c-font-dim;
-          color: $c-bg-box;
-        }
-      }
-    }
-
-    .move-review-strategic-summary__row--authority-central_liquidation,
-    .move-review-strategic-summary__row--authority-central_challenge {
-      border-left: 2px solid rgba($c-primary, 0.45);
-    }
-
-    .move-review-strategic-summary__row--authority-opening_family {
-      border-left: 2px solid rgba($c-primary, 0.12);
-
-      .move-review-strategic-summary__target-chip {
-        background: rgba($c-font-dim, 0.06);
-        color: $c-font-dim;
-        font-weight: normal;
-
-        &:hover, &:focus-visible {
-          background: $c-font-dim;
-          color: $c-bg-box;
-        }
-      }
-    }
-
-    .move-review-strategic-summary__row--authority-strategic_relation {
-      border-left: 2px solid rgba($c-primary, 0.32);
     }
 
     .move-review-probe-summary {
