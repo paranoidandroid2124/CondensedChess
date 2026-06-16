@@ -996,10 +996,15 @@
       align-items: center;
       justify-content: space-between;
       margin: 0.5rem 0 0.75rem;
-      padding: 0.75rem 0.9rem;
-      border: 1px solid $c-border;
+      padding: 0.82rem 0.95rem;
+      border: 1px solid color-mix(in srgb, #{$c-primary} 18%, #{$c-border});
       border-radius: 8px;
-      background: $c-bg-zebra;
+      background: linear-gradient(
+        145deg,
+        color-mix(in srgb, #{$c-primary} 7%, #{$c-bg-low}),
+        color-mix(in srgb, #{$c-bg-box} 94%, transparent)
+      );
+      box-shadow: 0 0.5rem 1.2rem rgba(0, 0, 0, 0.1);
     }
 
     .move-review-state__body {
@@ -1010,6 +1015,7 @@
       margin: 0 0 0.2rem;
       font-size: 0.98rem;
       font-weight: 700;
+      color: $c-font;
     }
 
     .move-review-state__message {
@@ -1029,18 +1035,17 @@
     }
 
     .move-review-state--credits {
-      border-color: $m-bad_bg--mix-50;
-      background: $m-bad_bg--mix-20;
+      border-color: color-mix(in srgb, #{$c-bad} 30%, #{$c-border});
+      background: color-mix(in srgb, #{$c-bad} 10%, #{$c-bg-box});
     }
 
     .move-review-state--auth {
-      border-color: $m-primary_bg--mix-50;
-      background: $m-primary_bg--mix-20;
+      border-color: color-mix(in srgb, #{$c-primary} 28%, #{$c-border});
     }
 
     .move-review-state--quota {
-      border-color: $m-brag_bg--mix-50;
-      background: $m-brag_bg--mix-20;
+      border-color: color-mix(in srgb, #{$c-brag} 30%, #{$c-border});
+      background: color-mix(in srgb, #{$c-brag} 10%, #{$c-bg-box});
     }
 
     .commentary {

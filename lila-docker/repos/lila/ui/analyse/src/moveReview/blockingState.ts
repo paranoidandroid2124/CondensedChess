@@ -22,27 +22,27 @@ function renderMoveReviewStateCard(
 export function moveReviewIdleHtml(): string {
   return renderMoveReviewStateCard(
     'idle',
-    'Review This Move',
-    'Open a focused review when you want to understand this moment without leaving the board.',
-    '<button type="button" class="button button-metal" data-move-review-request="1">Review this move</button>',
+    'Review this position',
+    'Turn this moment into a board-first coach review without leaving the game.',
+    '<button type="button" class="button button-metal" data-move-review-request="1">Start review</button>',
   );
 }
 
 export function moveReviewTooEarlyHtml(minPly: number): string {
   return renderMoveReviewStateCard(
     'idle',
-    'Need a few more moves first',
-    `Move reviews open from move ${moveNumberFromPly(minPly)}. Continue a little further so the position has enough context to review well.`,
+    'Play a little further first',
+    `Reviews open from move ${moveNumberFromPly(minPly)} so there is enough position history for a useful lesson.`,
     '',
   );
 }
 
-export function moveReviewRetryHtml(message = 'The review took too long or failed. Try again when the position is settled.'): string {
+export function moveReviewRetryHtml(message = 'The review lost its line. Try again from this position.'): string {
   return renderMoveReviewStateCard(
     'error',
-    'Review unavailable',
+    'Review not ready',
     message,
-    '<button type="button" class="button button-metal" data-move-review-request="1" data-move-review-force="1">Retry review</button>',
+    '<button type="button" class="button button-metal" data-move-review-request="1" data-move-review-force="1">Try again</button>',
   );
 }
 
@@ -53,8 +53,8 @@ export async function blockedHtmlFromErrorResponse(res: Response, loginHref: str
       if (data?.error === 'moveReview_too_early') {
         return renderMoveReviewStateCard(
           'idle',
-          'Need a few more moves first',
-          data?.msg || `Move reviews open from move ${moveNumberFromPly(5)}. Continue a few moves first before opening the review.`,
+          'Play a little further first',
+          data?.msg || `Reviews open from move ${moveNumberFromPly(5)} so the position has enough history for a useful lesson.`,
           '',
         );
       }
@@ -68,15 +68,15 @@ export async function blockedHtmlFromErrorResponse(res: Response, loginHref: str
       const resetAt = resetAtFromResponse(data);
       return renderMoveReviewStateCard(
         'quota',
-        'Move review blocked',
-        `This review request hit the current usage policy. Review the limits and retry after ${resetAt.slice(0, 10)}.`,
+        'Review paused for now',
+        `This account has reached the current review limit. Try again after ${resetAt.slice(0, 10)}.`,
         '<a href="/support" class="button primary">Support Chesstory</a>',
       );
     } catch {
       return renderMoveReviewStateCard(
         'quota',
-        'Move review blocked',
-        'This review request hit the current usage policy. Please retry later.',
+        'Review paused for now',
+        'This account has reached the current review limit. Please try again later.',
         '<a href="/support" class="button primary">Support Chesstory</a>',
       );
     }
@@ -85,8 +85,8 @@ export async function blockedHtmlFromErrorResponse(res: Response, loginHref: str
   if (res.status === 401) {
     return renderMoveReviewStateCard(
       'auth',
-      'Sign in required',
-      'Sign in to continue using move reviews.',
+      'Sign in to keep reviewing',
+      'Sign in so Chesstory can keep the coach review attached to this game.',
       `<a class="button" href="${loginHref}">Sign in</a>`,
     );
   }
@@ -97,11 +97,11 @@ export async function blockedHtmlFromErrorResponse(res: Response, loginHref: str
       const seconds = ratelimitSecondsFromResponse(data);
       const message =
         typeof seconds === 'number'
-          ? `Move review quota reached. Try again in ${seconds}s.`
-          : 'Move review quota reached. Please retry shortly.';
-      return renderMoveReviewStateCard('quota', 'Review limit reached', message, '');
+          ? `Reviews need a short pause. Try again in ${seconds}s.`
+          : 'Reviews need a short pause. Please try again shortly.';
+      return renderMoveReviewStateCard('quota', 'Review paused for now', message, '');
     } catch {
-      return renderMoveReviewStateCard('quota', 'Review limit reached', 'Move review quota reached. Please retry shortly.', '');
+      return renderMoveReviewStateCard('quota', 'Review paused for now', 'Reviews need a short pause. Please try again shortly.', '');
     }
   }
 
