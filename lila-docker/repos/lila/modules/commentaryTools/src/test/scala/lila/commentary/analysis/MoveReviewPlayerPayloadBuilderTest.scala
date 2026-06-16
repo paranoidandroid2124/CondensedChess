@@ -4116,12 +4116,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(centralBreakTensionMultiCentralFileSurface.advancedRows.map(_.label), List("Practical break"))
-    assertEquals(
-      centralBreakTensionMultiCentralFileSurface.advancedRows.head.text,
-      "The central tension gives a practical central-break cue."
-    )
-    assertEquals(centralBreakTensionMultiCentralFileSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assert(!centralBreakTensionMultiCentralFileSurface.advancedRows.exists(_.label == "Practical break"), clue(centralBreakTensionMultiCentralFileSurface.advancedRows))
 
     val pawnBreakMotifSurface =
       build(

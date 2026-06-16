@@ -490,7 +490,6 @@ object MoveReviewPlayerPayloadBuilder:
               else if centralBreakTension then
                 centralBreakTensionFile
                   .map(file => "Practical break" -> s"The central tension gives a practical $file-file break cue.")
-                  .orElse(Some("Practical break" -> "The central tension gives a practical central-break cue."))
               else if pawnBreakMotif then Some("Practical cue" -> s"The current file contact marks a practical ${pawnBreakMotifFile.get}-file break candidate.")
               else None
             breakSurface.flatMap { case (label, text) =>

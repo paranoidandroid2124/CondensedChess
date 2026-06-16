@@ -250,7 +250,9 @@ specific typed proof packets, not labels. Quiet support pressure uses
 `MoveDelta.pv_delta` target anchors, not `NarrativeSignalDigest.practicalVerdict`
 text. Locked-center support stays context until a typed breakthrough, reroute,
 counterplay-denial, or measurable restriction anchor admits a public space or
-plan claim. Minor-piece ideas follow the same split: broad bishop-pair,
+plan claim. Central-break tension needs a single file anchor before it can
+publish a public break row. Minor-piece ideas follow the same split: broad
+bishop-pair,
 opposite-color, good-bishop, bad-bishop, or knight-vs-bishop labels may remain
 support evidence, but public `Practical minor` rows need an exact replay-backed
 family or a producer-carried current square such as a centralized piece, bad
