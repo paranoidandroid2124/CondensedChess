@@ -844,6 +844,10 @@ object MoveReviewPlayerPayloadBuilder:
                     Option.when(refs.contains("rook_behind_passed_pawn"))("rook-behind-passer structure"),
                     Option.when(refs.contains("king_cut_off"))("king cut-off")
                   ).flatten
+                val singleFocusFile =
+                  idea.focusFiles.map(_.trim.toLowerCase).filter(file => file.length == 1 && file.head >= 'a' && file.head <= 'h').distinct match
+                    case file :: Nil => Some(file)
+                    case _           => None
                 val singleRookEndgamePatternFact =
                   rookEndgamePatternFacts match
                     case fact :: Nil => Some(fact)
@@ -856,13 +860,16 @@ object MoveReviewPlayerPayloadBuilder:
                     strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
                     idea.confidence >= 0.72 &&
                     !exactConversionAlreadyVisible
+                val anchoredOpposition =
+                  refs.exists(ref => ref.startsWith("opposition_")) && focusSquares.size >= 2
+                val anchoredKingActivity =
+                  refs.contains("king_activity_shape") && singleFocusSquare.nonEmpty
                 val endgameTechniqueFacts =
                   List(
-                    Option.when(refs.contains("opposition_direct"))("direct opposition"),
-                    Option.when(refs.contains("opposition_distant"))("distant opposition"),
-                    Option.when(refs.contains("opposition_diagonal"))("diagonal opposition"),
-                    Option.when(refs.contains("zugzwang_shape"))("zugzwang shape"),
-                    Option.when(refs.contains("king_activity_shape"))("active king")
+                    Option.when(refs.contains("opposition_direct") && anchoredOpposition)("direct-opposition cue"),
+                    Option.when(refs.contains("opposition_distant") && anchoredOpposition)("distant-opposition cue"),
+                    Option.when(refs.contains("opposition_diagonal") && anchoredOpposition)("diagonal-opposition cue"),
+                    Option.when(anchoredKingActivity)("active-king cue")
                   ).flatten
                 val singleEndgameTechniqueFact =
                   endgameTechniqueFacts match
@@ -898,25 +905,35 @@ object MoveReviewPlayerPayloadBuilder:
                   else if rookEndgamePattern then
                     val text =
                       singleRookEndgamePatternFact
-                        .map(fact => s"The $fact is the relevant endgame cue.")
-                        .getOrElse("The rook endgame map stays as endgame structure.")
+                        .map(fact =>
+                          singleFocusFile
+                            .map(file => s"The $fact cue is anchored on the $file-file.")
+                            .getOrElse(s"The $fact cue is present as endgame support.")
+                        )
+                        .getOrElse("The rook endgame support stays result-neutral.")
                     row("Endgame cue", text, tone = Some("practical"))
                   else if endgameTechniqueMotif then
                     val text =
-                      singleEndgameTechniqueFact
-                        .map(fact => s"The $fact is the relevant endgame technique cue.")
-                        .getOrElse("The endgame technique map stays result-neutral.")
+                      if anchoredOpposition then
+                        singleEndgameTechniqueFact
+                          .map(fact => s"The $fact is anchored by the kings on ${focusSquares.take(2).mkString(" and ")}.")
+                          .getOrElse("The opposition support stays result-neutral.")
+                      else if anchoredKingActivity then
+                        singleFocusSquare
+                          .map(square => s"The active-king cue is anchored on $square.")
+                          .getOrElse("The active-king support stays result-neutral.")
+                      else "The endgame support stays result-neutral."
                     row("Endgame cue", text, tone = Some("practical"))
                   else if passedPawnConversionMotif then
                     val text =
                       if refs.contains("pawn_promotion") then
                         passedPawnConversionSquare
-                          .map(square => s"The promotion motif is the relevant endgame cue on $square.")
-                          .getOrElse("The promotion motif is the relevant endgame cue.")
+                          .map(square => s"The promotion cue is anchored on $square.")
+                          .getOrElse("The promotion cue is present as endgame support.")
                       else
                         passedPawnConversionSquare
-                          .map(square => s"The passed-pawn structure is the relevant endgame cue around $square.")
-                          .getOrElse("The passed-pawn structure is the relevant endgame cue.")
+                          .map(square => s"The passed-pawn cue is anchored on $square.")
+                          .getOrElse("The passed-pawn cue is present as endgame support.")
                     row("Endgame cue", text, tone = Some("practical"))
                   else None
                 transformationRow.map { row =>

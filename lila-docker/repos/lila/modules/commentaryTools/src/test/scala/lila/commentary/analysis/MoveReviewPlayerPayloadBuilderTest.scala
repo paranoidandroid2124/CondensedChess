@@ -6842,7 +6842,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
           )
     )
     assertEquals(rookEndgameSurface.advancedRows.map(_.label), List("Endgame cue"))
-    assertEquals(rookEndgameSurface.advancedRows.head.text, "The rook-behind-passer structure is the relevant endgame cue.")
+    assertEquals(rookEndgameSurface.advancedRows.head.text, "The rook-behind-passer structure cue is anchored on the e-file.")
     assertEquals(rookEndgameSurface.advancedRows.head.authority, None)
     assertEquals(rookEndgameSurface.advancedRows.head.authority.flatMap(_.target), None)
 
@@ -6871,9 +6871,9 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
                 )
             )
           )
-      )
+    )
     assertEquals(multiRookEndgameSurface.advancedRows.map(_.label), List("Endgame cue"))
-    assertEquals(multiRookEndgameSurface.advancedRows.head.text, "The rook endgame map stays as endgame structure.")
+    assertEquals(multiRookEndgameSurface.advancedRows.head.text, "The rook endgame support stays result-neutral.")
     assertEquals(multiRookEndgameSurface.advancedRows.head.authority.flatMap(_.target), None)
 
     val oppositionSurface =
@@ -6901,9 +6901,9 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
                 )
             )
           )
-      )
+    )
     assertEquals(oppositionSurface.advancedRows.map(_.label), List("Endgame cue"))
-    assertEquals(oppositionSurface.advancedRows.head.text, "The direct opposition is the relevant endgame technique cue.")
+    assertEquals(oppositionSurface.advancedRows.head.text, "The direct-opposition cue is anchored by the kings on e4 and e6.")
     assertEquals(oppositionSurface.advancedRows.head.authority.flatMap(_.target), None)
 
     val zugzwangSurface =
@@ -6932,9 +6932,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(zugzwangSurface.advancedRows.map(_.label), List("Endgame cue"))
-    assertEquals(zugzwangSurface.advancedRows.head.text, "The zugzwang shape is the relevant endgame technique cue.")
-    assertEquals(zugzwangSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assert(!zugzwangSurface.advancedRows.exists(_.label == "Endgame cue"), clue(zugzwangSurface.advancedRows))
 
     val activeKingSurface =
       build(
@@ -6946,6 +6944,36 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
                 List(
                   idea.copy(
                     ideaId = "idea_endgame_king_activity_motif",
+                    readiness = StrategicIdeaReadiness.Build,
+                    focusSquares = List("e4"),
+                    focusFiles = Nil,
+                    focusZone = Some("endgame"),
+                    confidence = 0.72,
+                    evidenceRefs =
+                      List(
+                        "source:endgame_technique_motif",
+                        "endgame_technique_shape",
+                        "king_activity_shape"
+                      )
+                  )
+                )
+            )
+          )
+      )
+    assertEquals(activeKingSurface.advancedRows.map(_.label), List("Endgame cue"))
+    assertEquals(activeKingSurface.advancedRows.head.text, "The active-king cue is anchored on e4.")
+    assertEquals(activeKingSurface.advancedRows.head.authority.flatMap(_.target), None)
+
+    val activeKingNoSquareSurface =
+      build(
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "white",
+              strategicIdeas =
+                List(
+                  idea.copy(
+                    ideaId = "idea_endgame_king_activity_no_square",
                     readiness = StrategicIdeaReadiness.Build,
                     focusSquares = Nil,
                     focusFiles = Nil,
@@ -6962,9 +6990,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(activeKingSurface.advancedRows.map(_.label), List("Endgame cue"))
-    assertEquals(activeKingSurface.advancedRows.head.text, "The active king is the relevant endgame technique cue.")
-    assertEquals(activeKingSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assert(!activeKingNoSquareSurface.advancedRows.exists(_.label == "Endgame cue"), clue(activeKingNoSquareSurface.advancedRows))
 
     val multiTechniqueSurface =
       build(
@@ -6993,9 +7019,9 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
                 )
             )
           )
-      )
+    )
     assertEquals(multiTechniqueSurface.advancedRows.map(_.label), List("Endgame cue"))
-    assertEquals(multiTechniqueSurface.advancedRows.head.text, "The endgame technique map stays result-neutral.")
+    assertEquals(multiTechniqueSurface.advancedRows.head.text, "The direct-opposition cue is anchored by the kings on e4 and e6.")
     assertEquals(multiTechniqueSurface.advancedRows.head.authority.flatMap(_.target), None)
 
     val passedPawnSurface =
@@ -7023,9 +7049,9 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
                 )
             )
           )
-      )
+    )
     assertEquals(passedPawnSurface.advancedRows.map(_.label), List("Endgame cue"))
-    assertEquals(passedPawnSurface.advancedRows.head.text, "The passed-pawn structure is the relevant endgame cue around e6.")
+    assertEquals(passedPawnSurface.advancedRows.head.text, "The passed-pawn cue is anchored on e6.")
     assertEquals(passedPawnSurface.advancedRows.head.authority.flatMap(_.target), None)
 
     val matchedPassedPawnSurface =
@@ -7052,9 +7078,9 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
                 )
             )
           )
-      )
+    )
     assertEquals(matchedPassedPawnSurface.advancedRows.map(_.label), List("Endgame cue"))
-    assertEquals(matchedPassedPawnSurface.advancedRows.head.text, "The passed-pawn structure is the relevant endgame cue around e6.")
+    assertEquals(matchedPassedPawnSurface.advancedRows.head.text, "The passed-pawn cue is anchored on e6.")
     assertEquals(matchedPassedPawnSurface.advancedRows.head.authority.flatMap(_.target), Option.empty[String])
 
     val promotionSurface =
@@ -7083,9 +7109,9 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
                 )
             )
           )
-      )
+    )
     assertEquals(promotionSurface.advancedRows.map(_.label), List("Endgame cue"))
-    assertEquals(promotionSurface.advancedRows.head.text, "The promotion motif is the relevant endgame cue on a8.")
+    assertEquals(promotionSurface.advancedRows.head.text, "The promotion cue is anchored on a8.")
     assertEquals(promotionSurface.advancedRows.head.authority.flatMap(_.target), None)
 
     val rookEndgameSourceOnlySurface =

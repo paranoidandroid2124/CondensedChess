@@ -613,9 +613,11 @@ class StrategicIdeaSelectorTest extends FunSuite:
       ideas.find(_.evidenceRefs.contains("source:endgame_technique_motif")).getOrElse(fail(clue(ideas).toString))
 
     assertEquals(conversionIdea.kind, StrategicIdeaKind.FavorableTradeOrTransformation)
+    assert(conversionIdea.focusSquares.contains("e4"), clue(conversionIdea))
     assertEquals(conversionIdea.focusZone, Some("endgame"))
     assert(conversionIdea.evidenceRefs.contains("endgame_technique_shape"), clue(conversionIdea.evidenceRefs))
     assert(conversionIdea.evidenceRefs.contains("king_activity_shape"), clue(conversionIdea.evidenceRefs))
+    assert(conversionIdea.evidenceRefs.contains("king_activity_square_e4"), clue(conversionIdea.evidenceRefs))
     assertEquals(StrategicIdeaSelector.playerFacingIdeaText(conversionIdea), "king-activity cue")
   }
 
