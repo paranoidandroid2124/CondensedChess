@@ -15,9 +15,15 @@ type MoveReviewMoveRef = {
   fenAfter: string;
 };
 
+type MoveReviewRefLine = {
+  refs: MoveReviewMoveRef[];
+  scoreCp: number;
+  mate?: number | null;
+};
+
 type MoveReviewRefIndex = {
   refsBySan: Map<string, MoveReviewMoveRef[]>;
-  lines: MoveReviewMoveRef[][];
+  lines: MoveReviewRefLine[];
 };
 
 type MoveReviewSceneKey = 'verdict' | 'why' | 'plan' | 'try' | 'remember';
@@ -38,11 +44,12 @@ type MoveReviewScene = {
   square?: string | null;
   lineSans?: string[];
   lineLabel?: string;
+  lineEval?: string | null;
 };
 
 function buildMoveReviewRefIndex(refs: MoveReviewRefsV1 | null): MoveReviewRefIndex {
   const refsBySan = new Map<string, MoveReviewMoveRef[]>();
-  const lines: MoveReviewMoveRef[][] = [];
+  const lines: MoveReviewRefLine[] = [];
   if (!refs) return { refsBySan, lines };
 
   refs.variations.forEach(variation => {
@@ -61,7 +68,7 @@ function buildMoveReviewRefIndex(refs: MoveReviewRefsV1 | null): MoveReviewRefIn
       if (refsForSan) refsForSan.push(ref);
       else refsBySan.set(normalized, [ref]);
     });
-    if (line.length) lines.push(line);
+    if (line.length) lines.push({ refs: line, scoreCp: variation.scoreCp, mate: variation.mate });
   });
 
   return { refsBySan, lines };
@@ -97,8 +104,8 @@ function resolveSanSequenceRefs(rawSans: string[], refIndex: MoveReviewRefIndex)
 
   const matches: MoveReviewMoveRef[][] = [];
   for (const line of refIndex.lines) {
-    for (let start = 0; start <= line.length - normalizedSans.length; start++) {
-      const candidate = line.slice(start, start + normalizedSans.length);
+    for (let start = 0; start <= line.refs.length - normalizedSans.length; start++) {
+      const candidate = line.refs.slice(start, start + normalizedSans.length);
       if (candidate.every((ref, idx) => normalizeSanToken(ref.san) === normalizedSans[idx])) matches.push(candidate);
     }
   }
@@ -120,6 +127,34 @@ function firstResolvedSanRef(rawSans: string[], refIndex: MoveReviewRefIndex): M
 function lastResolvedSanRef(rawSans: string[], refIndex: MoveReviewRefIndex): MoveReviewMoveRef | null {
   const refs = resolveSanSequenceRefs(rawSans, refIndex).filter((ref): ref is MoveReviewMoveRef => !!ref);
   return refs[refs.length - 1] || null;
+}
+
+function lineEvalForSans(rawSans: string[], refIndex: MoveReviewRefIndex): string | null {
+  const cleanSans = rawSans.filter(san => normalizeSanToken(san));
+  if (!cleanSans.length) return null;
+  return lineEvalForResolvedRefs(resolveSanSequenceRefs(cleanSans, refIndex), refIndex);
+}
+
+function lineEvalForResolvedRefs(refs: (MoveReviewMoveRef | null)[], refIndex: MoveReviewRefIndex): string | null {
+  const concreteRefs = refs.filter((ref): ref is MoveReviewMoveRef => !!ref);
+  if (!concreteRefs.length || concreteRefs.length !== refs.length) return null;
+  const matches = refIndex.lines.filter(line => containsMoveRefSequence(line.refs, concreteRefs));
+  if (!matches.length) return null;
+  const first = matches[0];
+  if (!matches.every(line => line.scoreCp === first.scoreCp && (line.mate ?? null) === (first.mate ?? null))) return null;
+  return formatLineEvalValue(first);
+}
+
+function containsMoveRefSequence(line: MoveReviewMoveRef[], refs: MoveReviewMoveRef[]): boolean {
+  for (let start = 0; start <= line.length - refs.length; start++) {
+    if (sameMoveRefSequence(line.slice(start, start + refs.length), refs)) return true;
+  }
+  return false;
+}
+
+function formatLineEvalValue(line: MoveReviewRefLine): string {
+  if (typeof line.mate === 'number') return `M${line.mate > 0 ? '+' : ''}${line.mate}`;
+  return formatPawnEval(line.scoreCp / 100);
 }
 
 function firstSurfaceRowRef(rows: MoveReviewPlayerSurfaceRowV1[], refIndex: MoveReviewRefIndex): MoveReviewMoveRef | null {
@@ -389,13 +424,16 @@ function renderAuthorRow(row: MoveReviewPlayerAuthorRowV1, refIndex: MoveReviewR
 type ResolvedTryLine = {
   cleanSans: string[];
   refs: (MoveReviewMoveRef | null)[];
+  evalValue: string | null;
 };
 
 function resolveTryLine(lineSans: string[], refIndex: MoveReviewRefIndex): ResolvedTryLine {
   const cleanSans = lineSans.filter(san => normalizeSanToken(san));
+  const refs = cleanSans.length ? resolveSanSequenceRefs(cleanSans, refIndex) : [];
   return {
     cleanSans,
-    refs: cleanSans.length ? resolveSanSequenceRefs(cleanSans, refIndex) : [],
+    refs,
+    evalValue: lineEvalForResolvedRefs(refs, refIndex),
   };
 }
 
@@ -426,6 +464,8 @@ function renderSceneLine(scene: MoveReviewScene, refIndex: MoveReviewRefIndex): 
   const boardMoveCount = resolvedLine.refs.filter(Boolean).length;
   const chips = renderResolvedTryLineChips(resolvedLine);
   if (!chips) return '';
+  const lineEval = scene.lineEval || resolvedLine.evalValue || '';
+  const evalAttr = lineEval ? ` data-scene-line-eval="${escapeHtml(lineEval)}"` : '';
   const controls =
     boardMoveCount > 1
       ? `<span class="move-review-player__line-controls" aria-label="Line replay controls">
@@ -440,9 +480,13 @@ function renderSceneLine(scene: MoveReviewScene, refIndex: MoveReviewRefIndex): 
       class="move-review-player__scene-line"
       data-scene-line="${escapeHtml(lineSans.join(' '))}"
       data-scene-line-cue="${escapeHtml(boardCueLine(lineSans))}"
+      ${evalAttr}
     >
       <span class="move-review-player__scene-line-head">
-        <span class="move-review-player__scene-line-label">${escapeHtml(scene.lineLabel || 'Line to replay')}</span>
+        <span class="move-review-player__scene-line-title">
+          <span class="move-review-player__scene-line-label">${escapeHtml(scene.lineLabel || 'Line to replay')}</span>
+          ${lineEval ? `<span class="move-review-player__scene-line-eval">Eval ${escapeHtml(lineEval)}</span>` : ''}
+        </span>
         ${controls}
       </span>
       <span class="move-review-player__scene-line-chips">${chips}</span>
@@ -453,7 +497,8 @@ function renderSceneLine(scene: MoveReviewScene, refIndex: MoveReviewRefIndex): 
 function renderBoardCue(scene: MoveReviewScene | undefined): string {
   const focusSquare = scene?.square || '';
   const line = boardCueLine(scene?.lineSans || []);
-  const hidden = !focusSquare && !line ? ' hidden' : '';
+  const lineEval = scene?.lineEval || '';
+  const hidden = !focusSquare && !line && !lineEval ? ' hidden' : '';
   return `
     <div class="move-review-player__board-cue"${hidden}>
       <span class="move-review-player__board-cue-item move-review-player__board-cue-item--square"${focusSquare ? '' : ' hidden'}>
@@ -463,6 +508,10 @@ function renderBoardCue(scene: MoveReviewScene | undefined): string {
       <span class="move-review-player__board-cue-item move-review-player__board-cue-item--line"${line ? '' : ' hidden'}>
         <span>Line</span>
         <strong>${escapeHtml(line)}</strong>
+      </span>
+      <span class="move-review-player__board-cue-item move-review-player__board-cue-item--eval"${lineEval ? '' : ' hidden'}>
+        <span>Eval</span>
+        <strong>${escapeHtml(lineEval)}</strong>
       </span>
       <span class="move-review-player__board-cue-item move-review-player__board-cue-item--move" hidden>
         <span>Now</span>
@@ -605,10 +654,13 @@ function buildMoveReviewScenes(
   const hasTryLine = !!renderTryLineChips(primaryLine, refIndex);
   const advancedBody = renderSceneReasonBody(playerSurface.advancedRows, refIndex, 'More plan notes');
   const planBody = advancedBody || summaryBody;
+  const planSourceRows = playerSurface.advancedRows.length ? playerSurface.advancedRows : playerSurface.summaryRows;
+  const summaryLine = playerSurface.summaryRows.find(row => row.refSans.length)?.refSans || primaryLine;
+  const planLine = planSourceRows.find(row => row.refSans.length)?.refSans || primaryLine;
+  const primaryLineEval = lineEvalForSans(primaryLine, refIndex);
 
   const decisionRef = primaryDecisionRef(playerSurface.decisionComparison, refIndex) || firstResolvedSanRef(primaryLine, refIndex);
   const summaryRef = firstSurfaceRowRef(playerSurface.summaryRows, refIndex) || decisionRef;
-  const planSourceRows = playerSurface.advancedRows.length ? playerSurface.advancedRows : playerSurface.summaryRows;
   const planRef = firstSurfaceRowRef(planSourceRows, refIndex) || summaryRef;
   const tryStartRef = firstResolvedSanRef(primaryLine, refIndex) || planRef;
   const tryEndRef = lastResolvedSanRef(primaryLine, refIndex) || planRef;
@@ -642,6 +694,7 @@ function buildMoveReviewScenes(
       square: summarySquare,
       lineSans: primaryLine,
       lineLabel: 'Line behind the choice',
+      lineEval: primaryLineEval,
     },
   ];
 
@@ -660,8 +713,9 @@ function buildMoveReviewScenes(
       boardSubtitle: playerSurface.summaryRows[0]?.label || null,
       boardNote: 'Keep this square in view; the reason lives on the board.',
       square: summarySquare,
-      lineSans: playerSurface.summaryRows.find(row => row.refSans.length)?.refSans || primaryLine,
+      lineSans: summaryLine,
       lineLabel: 'Moves behind the reason',
+      lineEval: lineEvalForSans(summaryLine, refIndex),
     });
   }
 
@@ -680,8 +734,9 @@ function buildMoveReviewScenes(
       boardSubtitle: planSourceRows[0]?.label || null,
       boardNote: 'Use this position to decide what the next move should improve.',
       square: planSquare,
-      lineSans: planSourceRows.find(row => row.refSans.length)?.refSans || primaryLine,
+      lineSans: planLine,
       lineLabel: 'Plan in moves',
+      lineEval: lineEvalForSans(planLine, refIndex),
     });
   }
 
@@ -702,6 +757,7 @@ function buildMoveReviewScenes(
       square: planSquare || summarySquare,
       lineSans: primaryLine,
       lineLabel: 'Replay on the board',
+      lineEval: primaryLineEval,
     });
   }
 
@@ -723,6 +779,7 @@ function buildMoveReviewScenes(
       square: planSquare || summarySquare,
       lineSans: primaryLine,
       lineLabel: 'Pattern in moves',
+      lineEval: primaryLineEval,
     });
   }
 

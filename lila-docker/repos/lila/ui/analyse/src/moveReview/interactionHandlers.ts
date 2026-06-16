@@ -148,8 +148,10 @@ function setPlayerBoardCue(player: HTMLElement, panel: HTMLElement): void {
   const square = sceneSquareFromPanel(panel);
   const lineEl = panel.querySelector<HTMLElement>('[data-scene-line]');
   const line = lineEl?.dataset.sceneLineCue || lineEl?.dataset.sceneLine || '';
+  const lineEval = lineEl?.dataset.sceneLineEval || '';
   setCueItem(player, '.move-review-player__board-cue-item--square', square);
   setCueItem(player, '.move-review-player__board-cue-item--line', line);
+  setCueItem(player, '.move-review-player__board-cue-item--eval', lineEval);
   updateBoardCueVisibility(player);
 }
 

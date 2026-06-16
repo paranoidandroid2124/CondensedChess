@@ -117,6 +117,8 @@ describe('moveReview coach surface', () => {
     assert.match(html, /move-review-player__scene-line/);
     assert.match(html, /data-scene-line="Nf3 d5"/);
     assert.match(html, /data-scene-line-cue="Nf3 d5"/);
+    assert.match(html, /data-scene-line-eval="\+0\.4"/);
+    assert.match(html, /move-review-player__scene-line-eval">Eval \+0\.4/);
     assert.match(html, /Decision · 1\/5/);
     assert.match(html, /move-review-player__timeline-copy/);
     assert.match(html, /move-review-player__timeline-kicker">Decision/);
@@ -133,6 +135,8 @@ describe('moveReview coach surface', () => {
     assert.doesNotMatch(html, /Replay line controls/);
     assert.match(html, /data-scene-square="d5"/);
     assert.match(html, /move-review-player__board-cue-item--move/);
+    assert.match(html, /move-review-player__board-cue-item--eval/);
+    assert.match(html, /<span>Eval<\/span>\s*<strong>\+0\.4<\/strong>/);
     assert.match(html, /data-scene-board-title="Position tied to the choice"/);
     assert.match(html, /data-scene-board-note="Compare the move on the board before reading the verdict\."/);
     assert.match(html, /<p>Compare the move on the board before reading the verdict\.<\/p>/);
@@ -244,6 +248,8 @@ describe('moveReview coach surface', () => {
     assert.match(interactionHandlersSource, /move-review-player__board-anchor-move/);
     assert.match(interactionHandlersSource, /panel\.dataset\.sceneLabel/);
     assert.match(interactionHandlersSource, /moveLabelFromElement\(activeMove\)/);
+    assert.match(interactionHandlersSource, /dataset\.sceneLineEval/);
+    assert.match(interactionHandlersSource, /move-review-player__board-cue-item--eval/);
     assert.match(interactionHandlersSource, /data-move-review-board-reset/);
     assert.match(interactionHandlersSource, /restoreMoveReviewPlayerBoard\(this\)/);
   });

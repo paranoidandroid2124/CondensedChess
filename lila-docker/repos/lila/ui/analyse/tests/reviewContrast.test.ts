@@ -192,6 +192,10 @@ describe('review shell contrast palette', () => {
       sideScss,
       /\.move-review-coach__gap\s*\{[\s\S]*?border:\s*1px solid color-mix\(in srgb,\s*#\{\$c-primary\}\s*24%,\s*transparent\);[\s\S]*?background:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*11%,\s*#\{\$c-bg-low\}\);[\s\S]*?font-family:\s*'Roboto Mono', monospace;/,
     );
+    assert.match(
+      sideScss,
+      /\.move-review-player__scene-line-eval\s*\{[\s\S]*?border:\s*1px solid color-mix\(in srgb,\s*#\{\$c-primary\}\s*24%,\s*transparent\);[\s\S]*?background:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*11%,\s*#\{\$c-bg-low\}\);[\s\S]*?font-family:\s*'Roboto Mono', monospace;/,
+    );
   });
 
   test('keeps the player board context rail compact and sticky with the board', () => {
@@ -209,6 +213,10 @@ describe('review shell contrast palette', () => {
     assert.match(sideScss, /\.move-review-player__board-cue-item\s*\{[\s\S]*?span\s*\{[\s\S]*?text-transform:\s*uppercase;/);
     assert.match(sideScss, /\.move-review-player__board-cue-item\s*\{[\s\S]*?strong\s*\{[\s\S]*?font-family:\s*'Roboto Mono', monospace;/);
     assert.match(sideScss, /\.move-review-player__board-cue-item--line\s*\{[\s\S]*?background:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*10%,\s*transparent\);/);
+    assert.match(
+      sideScss,
+      /\.move-review-player__board-cue-item--eval\s*\{[\s\S]*?background:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*11%,\s*#\{\$c-bg-low\}\);/,
+    );
     assert.match(
       sideScss,
       /@include mq-is-col1[\s\S]*\.move-review-player__board-anchor\s*\{[\s\S]*?grid-column:\s*1 \/ -1;[\s\S]*?grid-row:\s*1;/,

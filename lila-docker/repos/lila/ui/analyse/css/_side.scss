@@ -695,6 +695,15 @@
       }
     }
 
+    .move-review-player__board-cue-item--eval {
+      border-color: color-mix(in srgb, #{$c-primary} 24%, transparent);
+      background: color-mix(in srgb, #{$c-primary} 11%, #{$c-bg-low});
+
+      strong {
+        color: color-mix(in srgb, #{$c-primary} 82%, #{$c-font});
+      }
+    }
+
     .move-review-player__board-cue-item--move {
       border-color: color-mix(in srgb, #{$c-primary} 24%, transparent);
       background: color-mix(in srgb, #{$c-primary} 12%, transparent);
@@ -918,11 +927,36 @@
       min-width: 0;
     }
 
+    .move-review-player__scene-line-title {
+      display: inline-flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.32rem;
+      min-width: 0;
+      margin-inline-end: auto;
+    }
+
     .move-review-player__scene-line-label {
       color: $c-font-dim;
       font-size: 0.72rem;
       font-weight: 700;
       line-height: 1.15;
+    }
+
+    .move-review-player__scene-line-eval {
+      display: inline-flex;
+      align-items: center;
+      min-height: 1.28rem;
+      padding: 0.12rem 0.42rem;
+      border: 1px solid color-mix(in srgb, #{$c-primary} 24%, transparent);
+      border-radius: 999px;
+      background: color-mix(in srgb, #{$c-primary} 11%, #{$c-bg-low});
+      color: color-mix(in srgb, #{$c-primary} 82%, #{$c-font});
+      font-family: 'Roboto Mono', monospace;
+      font-size: 0.68rem;
+      font-weight: 700;
+      line-height: 1;
+      white-space: nowrap;
     }
 
     .move-review-player__line-controls {
