@@ -102,7 +102,7 @@ object landing:
                           )
                         ),
                         st.article(cls := "hero-surface hero-artifact-card hero-artifact-card--analysis")(
-                          p(cls := "hero-surface-kicker")("Analysis Board"),
+                          p(cls := "hero-surface-kicker")("Full Board"),
                           h3(cls := "hero-surface-title")("Continue on the board"),
                           p(cls := "hero-surface-copy")(
                             "Open the move list and variations when the lesson needs more board work."
@@ -220,13 +220,13 @@ object landing:
                         a(href := strategicPuzzleUrl, cls := "story-card__link")("Open position exercise")
                       ),
                       st.article(cls := "timeline-card story-card")(
-                        p(cls := "story-card__label")("Analysis Board"),
-                        h3("Analysis Board stays available when you need more lines"),
+                        p(cls := "story-card__label")("Full Board"),
+                        h3("The full board stays available when you need more lines"),
                         p(cls := "story-card__copy")(
                           "When the guided explanation is not enough, continue on the same board with the move list, variations, and current-move explanation."
                         ),
                         p(cls := "story-card__proof")("You keep the board, the line, and the direct move explanation together."),
-                        a(href := analysisUrl, cls := "story-card__link")("Open analysis board")
+                        a(href := analysisUrl, cls := "story-card__link")("Open full board")
                       )
                     )
                   )
@@ -274,15 +274,15 @@ object landing:
                     st.article(cls := "feature-card entry-card")(
                       p(cls := "feature-kicker")("Start 03"),
                       h3("Current board"),
-                      p("Open the analysis board when you already have the position and want to explore lines directly."),
+                      p("Open the full board when you already have the position and want to explore lines directly."),
                       p(cls := "entry-card__proof")("Best when the board itself is the starting point."),
                       div(cls := "entry-card__chips sample-chip-row")(
-                        span("Analysis Board"),
+                        span("Full Board"),
                         span("Explain This Move"),
                         span("Board-first")
                       ),
                       div(cls := "entry-card__actions")(
-                        a(href := analysisUrl, cls := "btn-secondary")("Open analysis board")
+                        a(href := analysisUrl, cls := "btn-secondary")("Open full board")
                       )
                     )
                   )
@@ -317,18 +317,18 @@ object landing:
                         strong("Live position, revealed line, next exercise")
                       ),
                       div(cls := "truth-row")(
-                        span("Analysis Board"),
+                        span("Full Board"),
                         strong("Board, move list, variations, import")
                       ),
                       div(cls := "truth-row")(
-                        span("Study notebook"),
+                        span("Saved study"),
                         strong("Saved history, reopen flow, study reuse")
                       )
                     ),
                     div(cls := "truth-boundaries")(
                       p("Explain This Move appears only when you ask."),
                       p("Move Review starts from the game you provide."),
-                      p("The analysis board stays available when you want the board directly.")
+                      p("The full board stays available when you want to explore directly.")
                     ),
                     div(cls := "quality-pills")(
                       span("Board stays visible"),
@@ -337,7 +337,7 @@ object landing:
                     ),
                     div(cls := "quality-actions truth-actions")(
                       a(href := sampleAnalysisUrl, cls := "btn-primary final-cta")("Open Move Review"),
-                      a(href := analysisUrl, cls := "btn-secondary final-cta")("Open analysis board")
+                      a(href := analysisUrl, cls := "btn-secondary final-cta")("Open full board")
                     )
                   )
                 )

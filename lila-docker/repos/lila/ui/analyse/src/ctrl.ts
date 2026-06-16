@@ -388,11 +388,11 @@ export default class AnalyseCtrl implements CevalHandler {
   hasNarrativeStudyBrief = (): boolean => false;
 
   studyStatusText = (): string => {
-    if (this.studyWriteError) return `Notebook sync paused: ${this.studyWriteError}`;
+    if (this.studyWriteError) return `Study sync paused: ${this.studyWriteError}`;
     if (this.isStudyWriting()) return 'Saving notes and move explanations to this chapter...';
     return this.canWriteStudy()
       ? 'Notes and move explanations auto-save to this chapter.'
-      : 'This notebook chapter is read-only. You can still share the current chapter link.';
+      : 'This study section is read-only. You can still share the current section link.';
   };
 
   private setStudyActionMessage(message: string | null, tone: 'info' | 'success' | 'error' = 'info'): void {
@@ -416,10 +416,10 @@ export default class AnalyseCtrl implements CevalHandler {
     if (!url) return;
     try {
       await navigator.clipboard.writeText(new URL(url, location.origin).toString());
-      this.setStudyActionMessage('Notebook link copied.', 'success');
+      this.setStudyActionMessage('Study link copied.', 'success');
     } catch (e) {
       console.warn('Study link copy failed', e);
-      this.setStudyActionMessage('Copy failed. Open the notebook link directly instead.', 'error');
+      this.setStudyActionMessage('Copy failed. Open the study link directly instead.', 'error');
     }
   };
 
@@ -476,8 +476,8 @@ export default class AnalyseCtrl implements CevalHandler {
           location.assign(this.studyLoginHref());
           return;
         }
-        this.studyCreateError = e.message || 'Notebook creation failed.';
-      } else this.studyCreateError = e instanceof Error ? e.message : 'Notebook creation failed.';
+        this.studyCreateError = e.message || 'Study creation failed.';
+      } else this.studyCreateError = e instanceof Error ? e.message : 'Study creation failed.';
     } finally {
       this.studyCreateLoading = false;
       this.studyTransferCount = 0;

@@ -547,7 +547,7 @@ function renderNotebookPanelCover(title: string, subtitle: string, detail: strin
     ]),
     hl('div.copyables__study-cover-face', [
       hl('div.copyables__study-cover-seal', [renderNotebookGlyph('notebook', 'copyables__study-cover-glyph')]),
-      hl('span.copyables__study-cover-eyebrow', 'Chess notebook'),
+      hl('span.copyables__study-cover-eyebrow', 'Saved study'),
       hl('strong.copyables__study-cover-title', title),
       hl('span.copyables__study-cover-subtitle', subtitle),
       hl('span.copyables__study-cover-detail', detail),
@@ -652,7 +652,7 @@ function renderDossierSection(section: NotebookSectionV1): VNode {
   return hl(`section.copyables__study-section.copyables__study-section--${section.kind}`, [
     hl('div.copyables__study-section-head', [
       hl('div', [hl('strong', section.title), hl('span', section.summary)]),
-      hl('span.copyables__study-dossier-meta', `Notebook chapter • ${notebookStatusLabel(section.status)}`),
+      hl('span.copyables__study-dossier-meta', `Study section • ${notebookStatusLabel(section.status)}`),
     ]),
     section.evidence ? renderDossierEvidenceLine(section.evidence) : null,
     hl('div.copyables__study-section-cards', section.cards.map(renderDossierCard)),
@@ -673,7 +673,7 @@ function renderNotebookDossierSurface(raw: unknown): VNode | null {
       hl('div.analyse-review__summary-grid.copyables__study-dossier-summary', [
         compactSummaryCard(`${dossier.source.sampledGameCount}`, 'games read'),
         compactSummaryCard(`${dossier.sections.length}`, 'chapters'),
-        compactSummaryCard(notebookStatusLabel(dossier.status), 'notebook state'),
+        compactSummaryCard(notebookStatusLabel(dossier.status), 'study state'),
       ]),
     ]),
     hl(
@@ -719,7 +719,7 @@ function renderStudyWorkspacePanel(ctrl: AnalyseCtrl): VNode | null {
         `${study.chapters.length} ${study.chapters.length === 1 ? 'chapter' : 'chapters'}`,
       ),
       hl('div.copyables__study-copy', [
-        hl('span.copyables__study-eyebrow', 'Notebook'),
+        hl('span.copyables__study-eyebrow', 'Saved study'),
         hl('strong', study.name),
         hl(
           'span.copyables__study-subline',
@@ -731,7 +731,7 @@ function renderStudyWorkspacePanel(ctrl: AnalyseCtrl): VNode | null {
           ? hl(
               'a.button.button-thin.copyables__study-button',
               { attrs: { href: notebookUrl } },
-              [renderNotebookGlyph('page', 'copyables__study-button-glyph'), ' Open notebook'],
+              [renderNotebookGlyph('page', 'copyables__study-button-glyph'), ' Open study'],
             )
           : null,
         hl(
@@ -742,7 +742,7 @@ function renderStudyWorkspacePanel(ctrl: AnalyseCtrl): VNode | null {
               void ctrl.copyStudyShareLink();
             }),
           },
-          [renderNotebookGlyph('bookmark', 'copyables__study-button-glyph'), ' Copy notebook link'],
+          [renderNotebookGlyph('bookmark', 'copyables__study-button-glyph'), ' Copy study link'],
         ),
       ]),
     ]),
@@ -771,12 +771,12 @@ function renderStudyLaunchPanel(ctrl: AnalyseCtrl): VNode {
   return hl('section.copyables__study.copyables__study--launch', [
     hl('div.copyables__study-head', [
       renderNotebookPanelCover(
-        'Untitled notebook',
+        'Untitled study',
         'First chapter',
         'Add explanations as you go',
       ),
       hl('div.copyables__study-copy', [
-        hl('span.copyables__study-eyebrow', 'Study notebook'),
+        hl('span.copyables__study-eyebrow', 'Saved study'),
         hl('strong', 'Turn this game into a study'),
         hl(
           'span.copyables__study-subline',
@@ -802,7 +802,7 @@ function renderStudyLaunchPanel(ctrl: AnalyseCtrl): VNode {
               },
               [
                 renderNotebookGlyph('notebook', 'copyables__study-button-glyph'),
-                busy ? ' Creating notebook...' : ' Create notebook',
+                busy ? ' Creating study...' : ' Create study',
               ],
             ),
       ]),
@@ -815,9 +815,9 @@ function renderStudyLaunchPanel(ctrl: AnalyseCtrl): VNode {
     renderStudyStatusCard(
       busy
         ? transferCount > 0
-          ? `Creating the new notebook and carrying over ${transferCount} saved review${transferCount === 1 ? '' : 's'}.`
-          : 'Creating the new notebook from the current PGN.'
-        : 'Saved move reviews already on this board will be carried into the new notebook when possible.',
+          ? `Creating the new study and carrying over ${transferCount} saved review${transferCount === 1 ? '' : 's'}.`
+          : 'Creating the new study from the current PGN.'
+        : 'Saved move reviews already on this board will be carried into the new study when possible.',
       busy ? 'info' : 'success',
     ),
     error ? renderStudyStatusCard(error, 'error') : null,
@@ -952,7 +952,7 @@ function renderStudyStatusCard(
   tone: 'info' | 'success' | 'error',
 ): VNode {
   return hl(`div.copyables__study-status.copyables__study-status--${tone}`, [
-    hl('strong', tone === 'error' ? 'Notebook issue' : tone === 'info' ? 'Notebook in progress' : 'Notebook ready'),
+    hl('strong', tone === 'error' ? 'Study issue' : tone === 'info' ? 'Study in progress' : 'Study ready'),
     hl('span', message),
   ]);
 }
