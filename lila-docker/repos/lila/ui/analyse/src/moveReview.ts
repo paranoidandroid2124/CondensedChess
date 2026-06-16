@@ -361,12 +361,6 @@ function equivalentSingleSanRef(normalizedSan: string, refIndex: MoveReviewRefIn
     return equivalentMoveRef(refs);
 }
 
-function equivalentFirstSanRef(rawSan: string, refIndex: MoveReviewRefIndex): MoveReviewMoveRef | null {
-    const normalizedSan = normalizeSanToken(rawSan);
-    if (!normalizedSan) return null;
-    return equivalentMoveRef(refIndex.firstRefsBySan.get(normalizedSan) || []);
-}
-
 function equivalentMoveRef(refs: MoveReviewMoveRef[]): MoveReviewMoveRef | null {
     if (!refs.length) return null;
     const first = refs[0];
@@ -397,16 +391,41 @@ function resolveSanSequenceRefs(rawSans: string[], refIndex: MoveReviewRefIndex)
     return normalizedSans.map(() => null);
 }
 
+function resolveTrustedDecisionSanRef(
+    rawSan: string | null | undefined,
+    trustedSans: string[],
+    refIndex: MoveReviewRefIndex,
+): MoveReviewMoveRef | null {
+    const normalizedSan = normalizeSanToken(rawSan);
+    if (!normalizedSan || !trustedSans.length) return null;
+    const normalizedTrustedSans = trustedSans.map(normalizeSanToken);
+    const candidates: MoveReviewMoveRef[] = [];
+
+    normalizedTrustedSans.forEach((san, idx) => {
+        if (san !== normalizedSan) return;
+        const maxWindow = Math.min(5, trustedSans.length - idx);
+        for (let length = maxWindow; length >= 1; length--) {
+            const refs = resolveSanSequenceRefs(trustedSans.slice(idx, idx + length), refIndex);
+            const ref = refs[0] || null;
+            if (ref && normalizeSanToken(ref.san) === normalizedSan) {
+                candidates.push(ref);
+                break;
+            }
+        }
+    });
+
+    return equivalentMoveRef(candidates);
+}
+
 function renderMoveReviewMoveChip(
     label: string,
     move: string | null | undefined,
-    refIndex: MoveReviewRefIndex,
+    ref: MoveReviewMoveRef | null,
     tone: 'chosen' | 'engine' | 'deferred',
 ): string | null {
     const normalized = normalizeSanToken(move);
     const raw = move?.trim() || normalized;
     if (!normalized || !raw) return null;
-    const ref = equivalentFirstSanRef(raw, refIndex);
     const chip = renderInteractiveSanChip(raw, ref || null, {
         interactiveClasses: 'move-review-decision-compare__move-chip move-chip move-chip--interactive',
         fallbackTag: 'span',
@@ -431,11 +450,31 @@ function renderDecisionCompareStrip(
     const compared = comparison.comparedSan?.trim() || '';
     const secondary = comparison.secondaryText?.trim() || '';
     const targetComparison = formatDecisionTargetComparison(comparison.targetComparison);
+    const trustedSans = comparison.refSans || [];
 
     const moveBits = [
-        renderMoveReviewMoveChip('Chosen', chosen, refIndex, 'chosen'),
-        !comparison.chosenMatchesBest ? renderMoveReviewMoveChip('Engine', best, refIndex, 'engine') : null,
-        compared ? renderMoveReviewMoveChip('Compared', compared, refIndex, 'deferred') : null,
+        renderMoveReviewMoveChip(
+            'Chosen',
+            chosen,
+            resolveTrustedDecisionSanRef(chosen, trustedSans, refIndex),
+            'chosen',
+        ),
+        !comparison.chosenMatchesBest
+            ? renderMoveReviewMoveChip(
+                  'Engine',
+                  best,
+                  resolveTrustedDecisionSanRef(best, trustedSans, refIndex),
+                  'engine',
+              )
+            : null,
+        compared
+            ? renderMoveReviewMoveChip(
+                  'Compared',
+                  compared,
+                  resolveTrustedDecisionSanRef(compared, trustedSans, refIndex),
+                  'deferred',
+              )
+            : null,
     ].filter(Boolean);
 
     if (!moveBits.length && !secondary) return null;
