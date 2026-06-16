@@ -468,11 +468,11 @@ function renderSceneLine(scene: MoveReviewScene, refIndex: MoveReviewRefIndex): 
   const evalAttr = lineEval ? ` data-scene-line-eval="${escapeHtml(lineEval)}"` : '';
   const controls =
     boardMoveCount > 1
-      ? `<span class="move-review-player__line-controls" aria-label="Line replay controls">
+      ? `<span class="move-review-player__line-controls" aria-label="Replay this line">
           <button type="button" class="move-review-player__line-step" data-move-review-line-step="-1" disabled>Prev move</button>
           <span class="move-review-player__line-count" aria-live="polite">Move 1/${boardMoveCount}</span>
           <button type="button" class="move-review-player__line-step" data-move-review-line-step="1">Next move</button>
-          <button type="button" class="move-review-player__line-step move-review-player__line-step--scene" data-move-review-board-reset>Back to lesson board</button>
+          <button type="button" class="move-review-player__line-step move-review-player__line-step--scene" data-move-review-board-reset>Back to position</button>
         </span>`
       : '';
   return `
@@ -529,7 +529,7 @@ function primaryTryLine(playerSurface: MoveReviewPlayerSurfaceV1): string[] {
 
 function renderSceneNav(scenes: MoveReviewScene[]): string {
   return `
-    <nav class="move-review-player__timeline" aria-label="Coach lesson flow" role="tablist">
+    <nav class="move-review-player__timeline" aria-label="Review chapters" role="tablist">
       ${scenes
         .map(
           (scene, idx) => `
@@ -587,7 +587,7 @@ function renderScenePanel(scene: MoveReviewScene, idx: number, refIndex: MoveRev
         <h4>${escapeHtml(scene.title)}</h4>
       </header>
       <aside class="move-review-player__scene-focus">
-        <span class="move-review-player__scene-focus-label">Board focus</span>
+        <span class="move-review-player__scene-focus-label">Position cue</span>
         <p>${escapeHtml(scene.boardNote)}</p>
         ${focusSquare}
       </aside>
@@ -599,11 +599,11 @@ function renderScenePanel(scene: MoveReviewScene, idx: number, refIndex: MoveRev
 
 function renderSceneControls(scenes: MoveReviewScene[]): string {
   const sceneCount = scenes.length;
-  const nextLabel = sceneCount > 1 ? scenes[1]?.controlLabel || scenes[1]?.shortLabel || 'lesson step' : null;
+  const nextLabel = sceneCount > 1 ? scenes[1]?.controlLabel || scenes[1]?.shortLabel || 'review step' : null;
   return `
     <footer class="move-review-player__controls">
       <button type="button" class="move-review-player__control" data-move-review-scene-step="-1" disabled>Back</button>
-      <span class="move-review-player__scene-count" aria-live="polite">${escapeHtml(scenes[0]?.label || 'Lesson')} · 1/${sceneCount}</span>
+      <span class="move-review-player__scene-count" aria-live="polite">${escapeHtml(scenes[0]?.label || 'Review')} · 1/${sceneCount}</span>
       <button type="button" class="move-review-player__control move-review-player__control--primary" data-move-review-scene-step="1"${
         sceneCount <= 1 ? ' disabled' : ''
       }>${nextLabel ? `Next: ${escapeHtml(nextLabel)}` : 'Next'}</button>
@@ -686,7 +686,7 @@ function buildMoveReviewScenes(
       kicker: 'Decision',
       body:
         decision ||
-        '<p class="move-review-player__empty">Start from the current position, then move through the coach lesson.</p>',
+        '<p class="move-review-player__empty">Start from the current position, then move through the review.</p>',
       board: boardPayloadForRef(decisionRef),
       boardTitle: 'Position tied to the choice',
       boardSubtitle: playerSurface.decisionComparison?.chosenSan || playerSurface.decisionComparison?.engineSan || null,
@@ -836,17 +836,17 @@ export function decorateMoveReviewHtml(
       </header>
       ${renderSceneNav(scenes)}
       <div class="move-review-player__stage">
-        <aside class="move-review-player__board-shell" aria-label="Current coaching board">
+        <aside class="move-review-player__board-shell" aria-label="Current review position">
           <div class="move-review-player__board-anchor" aria-live="polite">
-            <span class="move-review-player__board-anchor-label">Board first</span>
-            <strong class="move-review-player__board-anchor-scene">${escapeHtml(scenes[0]?.label || 'Lesson')}</strong>
+            <span class="move-review-player__board-anchor-label">Position first</span>
+            <strong class="move-review-player__board-anchor-scene">${escapeHtml(scenes[0]?.label || 'Review')}</strong>
             <span class="move-review-player__board-anchor-move"${scenes[0]?.boardSubtitle ? '' : ' hidden'}>${escapeHtml(scenes[0]?.boardSubtitle || '')}</span>
           </div>
           <div class="move-review-player__board-meta">
-            <span class="move-review-player__board-kicker">Board shows · ${escapeHtml(scenes[0]?.kicker || 'Lesson')}</span>
-            <strong class="move-review-player__board-title">${escapeHtml(scenes[0]?.boardTitle || 'Coaching board')}</strong>
+            <span class="move-review-player__board-kicker">On the board · ${escapeHtml(scenes[0]?.kicker || 'Review')}</span>
+            <strong class="move-review-player__board-title">${escapeHtml(scenes[0]?.boardTitle || 'Review position')}</strong>
             <span class="move-review-player__board-subtitle">${escapeHtml(scenes[0]?.boardSubtitle || scenes[0]?.label || '')}</span>
-            <span class="move-review-player__board-note">${escapeHtml(scenes[0]?.boardNote || 'Keep the board tied to this lesson step.')}</span>
+            <span class="move-review-player__board-note">${escapeHtml(scenes[0]?.boardNote || 'Keep this position tied to the review step.')}</span>
           </div>
           ${renderBoardCue(scenes[0])}
           <div class="move-review-pv-preview move-review-player__board-preview"></div>
