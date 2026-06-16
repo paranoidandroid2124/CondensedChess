@@ -214,9 +214,9 @@ const accountIntelStageLabel = (stage: string) => {
     case 'extracting_primitives':
       return 'Finding recurring structures and decision points.';
     case 'publishing_surface':
-      return 'Preparing the pattern study.';
+      return 'Preparing the position study.';
     case 'completed':
-      return 'Pattern study is ready.';
+      return 'Position study is ready.';
     case 'failed':
       return 'The study ended with an error.';
     default:
@@ -262,7 +262,7 @@ function initAccountIntelProduct() {
   const kindLabel = (kind: string) =>
     kind === myPatternsKind ? 'My Patterns' : kind === opponentPrepKind ? 'Prep for Opponent' : kind;
   const activeJobLabel = (status: string) =>
-    status === 'running' ? 'Preparing pattern study' : 'Queued for study';
+    status === 'running' ? 'Preparing position study' : 'Queued for study';
   const studyRunLabel = (status: string) =>
     status === 'succeeded'
       ? 'Ready to review'
@@ -697,7 +697,7 @@ function initAccountIntelProduct() {
           <strong class="importer-panel__title">Games that show the pattern</strong>
           <p class="importer-panel__copy">Start with one real game, then open the rest only if you want more context.</p>
         </div>
-        ${lead ? renderExemplarCard(lead) : '<div class="status-callout"><strong>No anchor game yet</strong><span>The current pattern study does not have a clear game to start from yet.</span></div>'}
+        ${lead ? renderExemplarCard(lead) : '<div class="status-callout"><strong>No anchor game yet</strong><span>The current position study does not have a clear game to start from yet.</span></div>'}
         ${
           rest.length
             ? `<details class="account-product-opening-details"><summary>See ${rest.length} more games</summary><div class="account-product-exemplar-list">${rest
@@ -806,7 +806,7 @@ function initAccountIntelProduct() {
       <div class="importer-panel importer-panel--guide">
         <div class="importer-panel__head">
           <strong class="importer-panel__title">History</strong>
-          <p class="importer-panel__copy">Keep the latest pattern study in front, but make older studies easy to reopen and compare.</p>
+          <p class="importer-panel__copy">Keep the latest position study in front, but make older studies easy to reopen and compare.</p>
         </div>
         <div class="account-product-history">
           ${history
@@ -839,7 +839,7 @@ function initAccountIntelProduct() {
         <div class="importer-panel importer-panel--guide account-product-compare">
           <div class="importer-panel__head">
             <strong class="importer-panel__title">Compare studies</strong>
-            <p class="importer-panel__copy">Pick an older pattern study from history to see how the headline, confidence, and main patterns moved.</p>
+            <p class="importer-panel__copy">Pick an older position study from history to see how the headline, confidence, and main patterns moved.</p>
           </div>
           <div class="status-callout">
             <strong>No comparison selected</strong>

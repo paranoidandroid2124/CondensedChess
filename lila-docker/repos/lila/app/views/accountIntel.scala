@@ -49,7 +49,7 @@ object accountIntel:
       recentRuns: List[lila.accountintel.AccountIntel.AccountIntelJob]
   )(using ctx: Context): Page =
     val pageError = ctx.flash("error")
-    Page("Pattern Study - Chesstory")
+    Page("Position Study - Chesstory")
       .css("auth")
       .wrap: _ =>
         main(cls := "auth-page auth-page--importer")(
@@ -61,7 +61,7 @@ object accountIntel:
               div(cls := "auth-card auth-card--importer auth-card--account-product")(
                 div(cls := "account-product-shell")(
                   div(cls := "importer-hero importer-hero--account-product")(
-                    div(cls := "importer-hero__eyebrow")("Pattern study"),
+                    div(cls := "importer-hero__eyebrow")("Position study"),
                     h1(cls := "auth-title importer-hero__title")("Choose the games you want to understand."),
                     p(cls := "auth-subtitle importer-hero__subtitle")(
                       "Pick My Patterns to see your recurring mistakes and typical positions, or Prep for Opponent to carry a practical plan into the next game. Your latest study opens first."
@@ -129,7 +129,7 @@ object accountIntel:
                           span("Notebook is optional")
                         ),
                         button(cls := "auth-submit importer-submit", tpe := "submit")(
-                          "Open pattern study",
+                          "Open position study",
                           span(cls := "arrow")(" ->")
                         )
                       )
@@ -189,7 +189,7 @@ object accountIntel:
     val safeSide = normalizeSide(side, state.displayedJob.flatMap(surfaceOf))
     val surface = state.displayedJob.flatMap(surfaceOf)
     val active = state.activeJob
-    Page(s"@${state.username} • Pattern Study")
+    Page(s"@${state.username} • Position Study")
       .css("auth")
       .wrap: _ =>
         main(cls := "auth-page auth-page--importer")(
@@ -210,7 +210,7 @@ object accountIntel:
 
   def status(job: lila.accountintel.AccountIntel.AccountIntelJob)(using ctx: Context): Page =
     val resultHref = productUrl(job.provider, job.username, job.kind.key, "", Some(job.id))
-    Page("Preparing Pattern Study - Chesstory")
+    Page("Preparing Position Study - Chesstory")
       .css("auth")
       .wrap: _ =>
         main(cls := "auth-page auth-page--importer")(
@@ -226,7 +226,7 @@ object accountIntel:
               )(
                 div(cls := "status-shell")(
                   div(cls := "importer-hero importer-hero--status")(
-                    div(cls := "importer-hero__eyebrow")("Pattern study"),
+                    div(cls := "importer-hero__eyebrow")("Position study"),
                     h1(cls := "auth-title importer-hero__title")(statusTitle(job)),
                     p(cls := "auth-subtitle importer-hero__subtitle")(
                       "Your games are being read in the background. The study opens automatically when the review is ready."
@@ -242,7 +242,7 @@ object accountIntel:
                       div(cls := "importer-panel__head")(
                         strong(cls := "importer-panel__title")("Study progress"),
                         p(cls := "importer-panel__copy")(
-                          "You should be able to tell at a glance whether the game sample is waiting, being read, or ready."
+                          "You should be able to tell at a glance whether the games are waiting, being read, or ready."
                         )
                       ),
                       div(cls := "status-progress")(
@@ -277,7 +277,7 @@ object accountIntel:
                           if job.status == lila.accountintel.AccountIntel.JobStatus.Failed then
                             "The review stopped before the study was ready."
                           else if job.status == lila.accountintel.AccountIntel.JobStatus.Succeeded then
-                            "The pattern study is ready to open."
+                            "The position study is ready to open."
                           else "The games are still being reviewed."
                         )
                       ),
@@ -300,19 +300,19 @@ object accountIntel:
                       div(cls := "auth-links status-links")(
                         (job.status match
                           case lila.accountintel.AccountIntel.JobStatus.Succeeded =>
-                            a(href := resultHref, cls := "status-links__primary js-ai-status-result")("Open pattern study")
+                            a(href := resultHref, cls := "status-links__primary js-ai-status-result")("Open position study")
                           case lila.accountintel.AccountIntel.JobStatus.Failed =>
                             statusPrimaryAction(job, resultHref)
                           case _ =>
                             a(href := resultHref, cls := "status-links__primary js-ai-status-result", hidden := "hidden")(
-                              "Open pattern study"
+                              "Open position study"
                             )),
                         job.notebookUrl
                           .map(url => a(href := url, cls := "js-ai-status-notebook")("Open notebook"))
                           .getOrElse(
                             a(href := "#", cls := "js-ai-status-notebook", hidden := "hidden")("Open notebook")
                           ),
-                        a(href := routes.AccountIntel.landing("", "").url)("Back to pattern study")
+                        a(href := routes.AccountIntel.landing("", "").url)("Back to position study")
                       )
                     )
                   )
@@ -357,7 +357,7 @@ object accountIntel:
           h1(cls := "auth-title importer-hero__title")(s"@${state.username}"),
           p(cls := "auth-subtitle importer-hero__subtitle js-ai-headline")(headline),
           div(cls := "importer-summary-strip js-ai-summary-strip")(
-            summaryChip(sampled.toString, "Sampled games"),
+            summaryChip(sampled.toString, "Games read"),
             summaryChip(confidence.capitalize, "Confidence"),
             summaryChip(kindLabel(state.kind.key), s"Generated $generatedAt")
           )
@@ -460,7 +460,7 @@ object accountIntel:
         div(cls := "importer-hero__eyebrow")(providerLabel(state.provider)),
         h1(cls := "auth-title importer-hero__title")(s"@${state.username}"),
         p(cls := "auth-subtitle importer-hero__subtitle")(
-          "No finished pattern study is ready yet. Choose what you want to study, start the review, then come back here for the result."
+          "No finished position study is ready yet. Choose what you want to study, start the review, then come back here for the result."
         )
       ),
       activeJob.map(renderActiveJobCallout),
@@ -484,7 +484,7 @@ object accountIntel:
         ),
         div(cls := "auth-links")(
           a(href := routes.UserAnalysis.index.url)("Review one game"),
-          a(href := routes.AccountIntel.landing("", "").url)("Back to pattern study")
+          a(href := routes.AccountIntel.landing("", "").url)("Back to position study")
         )
       )
     )
@@ -538,7 +538,7 @@ object accountIntel:
       }.getOrElse(
         div(cls := "status-callout")(
           strong("No opening map yet"),
-          span("The current sample is still too thin to summarize the openings honestly.")
+          span("The games read so far are still too thin to summarize the openings honestly.")
         )
       )
     )
@@ -568,7 +568,7 @@ object accountIntel:
         ),
         p(cls := "importer-panel__copy")(
           if kind == ProductKind.MyAccountIntelligenceLite then
-            "Start here. This is the clearest recurring issue in the current sample."
+            "Start here. This is the clearest recurring issue in the games read so far."
           else
             "Use this position as the board-first reference point for the game plan."
         )
@@ -576,7 +576,7 @@ object accountIntel:
       pattern.map(renderLeadPatternCard(kind, _)).getOrElse(
         div(cls := "status-callout")(
           strong("No lead pattern yet"),
-          span("This sample still needs more evidence before it can anchor the page on one typical position.")
+          span("These games still need more evidence before they can anchor the page on one typical position.")
         )
       )
     )
@@ -612,7 +612,7 @@ object accountIntel:
       ).getOrElse(
         div(cls := "status-callout")(
           strong("No side-specific pattern yet"),
-          span("This side of the sample is still too thin, so the page is leaning on the opposite color or broader overview cards.")
+          span("These games are still too thin for this side, so the page is leaning on the opposite color or broader overview cards.")
         )
       ),
       remaining.nonEmpty.option(
@@ -819,7 +819,7 @@ object accountIntel:
       div(cls := "importer-panel__head")(
         strong(cls := "importer-panel__title")("Games that show the pattern"),
         p(cls := "importer-panel__copy")(
-          "Use one game first as proof that the pattern is real, then open the rest only if you need more evidence."
+          "Use one game first as evidence that the pattern is real, then open the rest only if you need more context."
         )
       ),
       games.headOption.map(renderExemplarGame),
@@ -859,7 +859,7 @@ object accountIntel:
               strong(if idx == 0 then s"${job.status.key} • latest" else job.status.key),
               span(job.requestedAt.toString),
               span(surface.flatMap(s => (s \ "confidence" \ "label").asOpt[String]).getOrElse("pending")),
-              span(surface.flatMap(s => (s \ "source" \ "sampledGameCount").asOpt[Int]).map(n => s"$n games").getOrElse("no sample"))
+              span(surface.flatMap(s => (s \ "source" \ "sampledGameCount").asOpt[Int]).map(n => s"$n games").getOrElse("no games read"))
             ),
             div(cls := "account-product-history-actions")(
               a(href := productUrl(job.provider, job.username, job.kind.key, "", Some(job.id)))(
@@ -1045,7 +1045,7 @@ object accountIntel:
   private def playerFacingEvidenceLine(evidence: JsObject): String =
     val support = (evidence \ "supportingGames").asOpt[Int].getOrElse(0)
     val total = (evidence \ "totalSampledGames").asOpt[Int].getOrElse(0)
-    if total > 0 then s"Seen in $support of $total games" else "Still reading the game sample"
+    if total > 0 then s"Seen in $support of $total games" else "Still reading games"
 
   private def surfaceConfidenceLabel(pattern: JsObject): String =
     val snapshot = (pattern \ "snapshotConfidenceMean").asOpt[Double].getOrElse(0d)
@@ -1064,7 +1064,7 @@ object accountIntel:
     raw.trim.toLowerCase match
       case "white" => "White games"
       case "black" => "Black games"
-      case _        => "Mixed sample"
+      case _        => "Both colors"
 
   private def playerFacingStructureLabel(pattern: JsObject): String =
     (pattern \ "structureFamily").asOpt[String].filter(_.trim.nonEmpty).getOrElse("recurring middlegame shape")
@@ -1126,8 +1126,8 @@ object accountIntel:
     job.status match
       case lila.accountintel.AccountIntel.JobStatus.Queued => "Waiting to start"
       case lila.accountintel.AccountIntel.JobStatus.Running => "Reading the games"
-      case lila.accountintel.AccountIntel.JobStatus.Succeeded => "Pattern study ready"
-      case lila.accountintel.AccountIntel.JobStatus.Failed => "Pattern study paused"
+      case lila.accountintel.AccountIntel.JobStatus.Succeeded => "Position study ready"
+      case lila.accountintel.AccountIntel.JobStatus.Failed => "Position study paused"
 
   private def statusChipLabel(job: lila.accountintel.AccountIntel.AccountIntelJob): String =
     job.status match
@@ -1139,7 +1139,7 @@ object accountIntel:
   private def statusActionCopy(job: lila.accountintel.AccountIntel.AccountIntelJob): String =
     job.status match
       case lila.accountintel.AccountIntel.JobStatus.Succeeded =>
-        "The pattern study is ready. Open it now and use the notebook only if you want a move-tree version."
+        "The position study is ready. Open it now and use the notebook only if you want a move-tree version."
       case lila.accountintel.AccountIntel.JobStatus.Failed =>
         "The review stopped before the study was ready. Try again or switch players."
       case _ =>
@@ -1148,7 +1148,7 @@ object accountIntel:
   private def statusPrimaryAction(job: lila.accountintel.AccountIntel.AccountIntelJob, resultHref: String): Frag =
     job.status match
       case lila.accountintel.AccountIntel.JobStatus.Succeeded =>
-        a(href := resultHref, cls := "status-links__primary")("Open pattern study")
+        a(href := resultHref, cls := "status-links__primary")("Open position study")
       case lila.accountintel.AccountIntel.JobStatus.Failed =>
         postForm(cls := "status-links__form", action := routes.AccountIntel.submit.url)(
           input(tpe := "hidden", name := "provider", value := job.provider),
@@ -1166,7 +1166,7 @@ object accountIntel:
       case "fetching_games" => "Fetching recent public games."
       case "extracting_primitives" => "Finding recurring structures and decision points."
       case "publishing_surface" => "Writing the study you will read."
-      case "completed" => "Pattern study created successfully."
+      case "completed" => "Position study created successfully."
       case "failed" => "The review ended with an error."
       case other => other.replace('_', ' ')
 
@@ -1192,7 +1192,7 @@ object accountIntel:
         4,
         "publishing_surface",
         "Write study",
-        "The pattern study is being prepared for this player."
+        "The position study is being prepared for this player."
       )
     )
 
