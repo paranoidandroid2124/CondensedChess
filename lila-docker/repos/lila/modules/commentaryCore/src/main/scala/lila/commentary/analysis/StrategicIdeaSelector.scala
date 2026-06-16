@@ -186,7 +186,7 @@ private[commentary] object StrategicIdeaSelector:
       case StrategicIdeaKind.TargetFixing =>
         targetFixingText(signal.focusSquares, signal.focusZone)
       case StrategicIdeaKind.OutpostCreationOrOccupation =>
-        outpostText(signal.focusSquares, signal.focusZone)
+        outpostText(signal)
       case StrategicIdeaKind.SpaceGainOrRestriction =>
         spaceText(signal.focusSquares, signal.focusZone)
       case StrategicIdeaKind.CounterplaySuppression =>
@@ -2243,9 +2243,12 @@ private[commentary] object StrategicIdeaSelector:
       ideas: List[StrategyIdeaSignal],
       targets: List[StrategyDirectionalTarget]
   ): List[String] =
-    val ideaEvidence = ideas.map(idea => s"idea:${idea.kind}:${focusSummary(idea)}")
+    val ideaEvidence = ideas.map(playerFacingIdeaText)
     val targetEvidence =
-      targets.map(target => s"directional_target:${target.ownerSide}:${target.piece}:${target.targetSquare}:${target.readiness}")
+      targets.flatMap { target =>
+        val square = target.targetSquare.trim.toLowerCase
+        Option.when(ChessSquarePattern.matches(square))(s"objective: ${pieceName(target.piece)} toward $square")
+      }
     (current ++ ideaEvidence ++ targetEvidence).map(_.trim).filter(_.nonEmpty).distinct.take(12)
 
   private def evidence(
@@ -3008,10 +3011,19 @@ private[commentary] object StrategicIdeaSelector:
     if focusSquares.nonEmpty then s"fixed targets on ${joinLowerTerms(focusSquares.take(3))}"
     else focusZone.flatMap(zoneFocusText).map(zone => s"fixed targets in $zone").getOrElse("fixed targets")
 
-  private def outpostText(focusSquares: List[String], focusZone: Option[String]): String =
-    focusSquares.headOption.map(square => s"an outpost on $square")
-      .orElse(focusZone.flatMap(zoneFocusText).map(zone => s"an outpost in $zone"))
-      .getOrElse("an outpost")
+  private def outpostText(signal: StrategyIdeaSignal): String =
+    val refs = signal.evidenceRefs.map(_.trim.toLowerCase).toSet
+    val focusSquares = signal.focusSquares.map(_.trim.toLowerCase).filter(ChessSquarePattern.matches)
+    if refs.contains(sourceWire(EvidenceSourceId.RouteOutpostAccess)) then
+      focusSquares.headOption.map(square => s"minor-piece outpost access around $square")
+        .getOrElse("minor-piece outpost access")
+    else if refs.contains(sourceWire(EvidenceSourceId.DirectionalOutpostAccess)) then
+      focusSquares.headOption.map(square => s"minor-piece outpost cue around $square")
+        .getOrElse("minor-piece outpost cue")
+    else
+      focusSquares.headOption.map(square => s"an outpost on $square")
+        .orElse(signal.focusZone.flatMap(zoneFocusText).map(zone => s"an outpost in $zone"))
+        .getOrElse("an outpost")
 
   private def spaceText(focusSquares: List[String], focusZone: Option[String]): String =
     focusZone.flatMap(zoneFocusText).map(zone => s"space in $zone")

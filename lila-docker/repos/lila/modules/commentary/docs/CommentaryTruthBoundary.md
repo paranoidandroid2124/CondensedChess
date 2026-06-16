@@ -243,7 +243,11 @@ name only the checked played pawn route, not the catalog goal label.
 `source:outpost_tag` and `source:strong_knight` strategic-idea signals are not
 truth authority and no longer publish `Practical outpost` advanced rows by
 themselves; only explicit minor-piece route/directional access cues may surface
-as non-durable plan-recognition support.
+as non-durable plan-recognition support. The same source split applies to raw
+strategic-idea display/evidence text: route/directional access may name only
+an outpost-access cue, not current outpost occupation or raw diagnostic text.
+Directional target evidence enrichment follows the same rule by publishing only
+weak objective text instead of raw side/piece/square/readiness tuples.
 For exact target fixation, truth authority can name only a board-proved enemy
 pawn target attacked by the moved piece after the reviewed move. Proof labels,
 diagnostic target refs, and row prose cannot turn a square into a fixed target.

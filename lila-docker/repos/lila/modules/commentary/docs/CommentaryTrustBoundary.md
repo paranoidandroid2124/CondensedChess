@@ -288,7 +288,11 @@ remain support-only or diagnostic.
 Opening-goal outpost labels are not public outpost authority; durable board/PV
 proof now surfaces through the existing `Knight outpost` family. The opening
 goal itself is `Achieved` only after the post-move board proves the
-pawn-supported e4 outpost square.
+pawn-supported e4 outpost square. Strategic-idea display text follows the same
+boundary: route/directional outpost sources stay access/cue wording and do not
+state current outpost occupation or expose raw diagnostic text as public
+evidence. Directional target enrichment likewise publishes weak objective text,
+not the raw side/piece/square/readiness tuple.
 Opening-goal break names are context only; when an opening pawn move is admitted,
 the player row names the checked played pawn route rather than the
 catalog/opening-goal label.

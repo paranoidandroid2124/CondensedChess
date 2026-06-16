@@ -947,6 +947,7 @@ class StrategicIdeaSelectorTest extends FunSuite:
     assert(outpostIdea.focusSquares.contains("d5"), clue(outpostIdea))
     assert(outpostIdea.beneficiaryPieces.contains("N"), clue(outpostIdea))
     assert(outpostIdea.evidenceRefs.contains("outpost_d5"), clue(outpostIdea.evidenceRefs))
+    assertEquals(StrategicIdeaSelector.playerFacingIdeaText(outpostIdea), "an outpost on d5")
   }
 
   test("directional outpost access keeps typed square witness for support surface") {
@@ -979,6 +980,7 @@ class StrategicIdeaSelectorTest extends FunSuite:
     assert(outpostIdea.beneficiaryPieces.contains("N"), clue(outpostIdea))
     assert(outpostIdea.evidenceRefs.contains("source:directional_outpost_access"), clue(outpostIdea.evidenceRefs))
     assert(outpostIdea.evidenceRefs.contains("directional_outpost_access_shape"), clue(outpostIdea.evidenceRefs))
+    assertEquals(StrategicIdeaSelector.playerFacingIdeaText(outpostIdea), "minor-piece outpost cue around d5")
   }
 
   test("exact route outpost access keeps typed square witness for support surface") {
@@ -1016,6 +1018,7 @@ class StrategicIdeaSelectorTest extends FunSuite:
     assert(outpostIdea.evidenceRefs.contains("source:route_outpost_access"), clue(outpostIdea.evidenceRefs))
     assert(outpostIdea.evidenceRefs.contains("route_outpost_access_shape"), clue(outpostIdea.evidenceRefs))
     assert(outpostIdea.evidenceRefs.contains("route_surface_exact"), clue(outpostIdea.evidenceRefs))
+    assertEquals(StrategicIdeaSelector.playerFacingIdeaText(outpostIdea), "minor-piece outpost access around d5")
   }
 
   test("minority-attack semantic support carries queenside target squares without release-family source") {
