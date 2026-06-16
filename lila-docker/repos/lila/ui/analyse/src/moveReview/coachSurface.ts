@@ -231,7 +231,7 @@ function renderCoachVerdict(
   return `
     <section class="${classes}">
       <div class="move-review-coach__decision-topline">
-        <span class="move-review-coach__decision-kicker">Coach view</span>
+        <span class="move-review-coach__decision-kicker">Coach verdict</span>
         ${comparison.gapLabel ? `<span class="move-review-coach__gap">${escapeHtml(comparison.gapLabel)}</span>` : ''}
       </div>
       ${moveBits.length ? `<div class="move-review-coach__decision-moves">${moveBits.join('')}</div>` : ''}
@@ -413,7 +413,7 @@ function renderSceneNav(scenes: MoveReviewScene[]): string {
   `;
 }
 
-function renderScenePanel(scene: MoveReviewScene, idx: number, refIndex: MoveReviewRefIndex): string {
+function renderScenePanel(scene: MoveReviewScene, idx: number, refIndex: MoveReviewRefIndex, sceneCount: number): string {
   const board = scene.board ? ` data-scene-board="${escapeHtml(scene.board)}"` : '';
   const boardTitle = ` data-scene-board-title="${escapeHtml(scene.boardTitle)}"`;
   const boardSubtitle = scene.boardSubtitle ? ` data-scene-board-subtitle="${escapeHtml(scene.boardSubtitle)}"` : '';
@@ -431,7 +431,7 @@ function renderScenePanel(scene: MoveReviewScene, idx: number, refIndex: MoveRev
       ${board}${boardTitle}${boardSubtitle}${square}${hidden}
     >
       <header class="move-review-player__scene-head">
-        <span class="move-review-player__scene-kicker">${escapeHtml(scene.kicker)} / ${idx + 1}</span>
+        <span class="move-review-player__scene-kicker">${escapeHtml(scene.kicker)} ${idx + 1} of ${sceneCount}</span>
         <h4>${escapeHtml(scene.title)}</h4>
       </header>
       ${renderSceneLine(scene, refIndex)}
@@ -447,7 +447,7 @@ function renderSceneControls(sceneCount: number): string {
       <span class="move-review-player__scene-count" aria-live="polite">1/${sceneCount}</span>
       <button type="button" class="move-review-player__control move-review-player__control--primary" data-move-review-scene-step="1"${
         sceneCount <= 1 ? ' disabled' : ''
-      }>Next</button>
+      }>Next scene</button>
     </footer>
   `;
 }
@@ -475,7 +475,7 @@ function renderRememberSceneBody(
   refIndex: MoveReviewRefIndex,
 ): string {
   const practice = hasCoachSurface
-    ? '<section class="move-review-coach__practice"><strong>Remember this</strong><span>Replay the line, then try to name the idea before checking the note.</span></section>'
+    ? '<section class="move-review-coach__practice"><strong>Remember this</strong><span>Replay the line and keep the idea attached to the board position.</span></section>'
     : '';
   const coachNotes = html
     ? `<details class="move-review-coach__details move-review-player__detail-layer"><summary>Coach notes</summary><div class="move-review-coach__body">${html}</div></details>`
@@ -618,13 +618,13 @@ export function decorateMoveReviewHtml(
       <div class="move-review-player__stage">
         <aside class="move-review-player__board-shell" aria-label="Current coaching board">
           <div class="move-review-player__board-meta">
-            <span class="move-review-player__board-kicker">Board now</span>
+            <span class="move-review-player__board-kicker">Current board</span>
             <strong class="move-review-player__board-title">${escapeHtml(scenes[0]?.boardTitle || 'Coaching board')}</strong>
             <span class="move-review-player__board-subtitle">${escapeHtml(scenes[0]?.boardSubtitle || scenes[0]?.label || '')}</span>
           </div>
           <div class="move-review-pv-preview move-review-player__board-preview"></div>
         </aside>
-        <div class="move-review-player__scene-stack">${scenes.map((scene, idx) => renderScenePanel(scene, idx, refIndex)).join('')}</div>
+        <div class="move-review-player__scene-stack">${scenes.map((scene, idx) => renderScenePanel(scene, idx, refIndex, sceneCount)).join('')}</div>
       </div>
       ${renderSceneControls(sceneCount)}
     </div>

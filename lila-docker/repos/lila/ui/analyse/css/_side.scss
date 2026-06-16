@@ -260,27 +260,41 @@
     }
 
     .move-review-player__timeline {
+      position: relative;
       display: flex;
       gap: 0.34rem;
       min-width: 0;
-      padding: 0.22rem;
+      padding: 0.36rem;
       border: 1px solid color-mix(in srgb, #{$c-border} 72%, transparent);
       border-radius: 8px;
       background: color-mix(in srgb, #{$c-bg-low} 72%, transparent);
       overflow: hidden;
+
+      &::before {
+        content: '';
+        position: absolute;
+        inset-inline: 1rem;
+        top: 1.05rem;
+        height: 1px;
+        background: color-mix(in srgb, #{$c-primary} 22%, #{$c-border});
+        pointer-events: none;
+      }
     }
 
     .move-review-player__timeline-step {
       @extend %button-none;
 
+      position: relative;
+      z-index: 1;
       display: flex;
-      align-items: center;
+      flex-direction: column;
+      align-items: flex-start;
       justify-content: flex-start;
-      gap: 0.34rem;
+      gap: 0.26rem;
       flex: 1 1 0;
       min-width: 0;
-      min-height: 2.12rem;
-      padding: 0.24rem 0.4rem;
+      min-height: 2.9rem;
+      padding: 0.36rem 0.45rem 0.42rem;
       border-radius: 6px;
       color: $c-font-dim;
       text-align: left;
@@ -304,19 +318,24 @@
         background: color-mix(in srgb, #{$c-primary} 12%, transparent);
         box-shadow: inset 0 0 0 1px color-mix(in srgb, #{$c-primary} 24%, transparent);
       }
+
+      &.is-active .move-review-player__timeline-index {
+        background: $c-primary;
+        box-shadow: 0 0 0 3px color-mix(in srgb, #{$c-primary} 18%, #{$c-bg-box});
+      }
     }
 
     .move-review-player__timeline-index {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 1.28rem;
-      height: 1.28rem;
+      width: 0.82rem;
+      height: 0.82rem;
       border-radius: 50%;
-      background: color-mix(in srgb, #{$c-font-dim} 10%, transparent);
-      color: currentColor;
-      font-size: 0.68rem;
-      font-weight: 700;
+      background: color-mix(in srgb, #{$c-font-dim} 18%, #{$c-bg-box});
+      color: transparent;
+      font-size: 0;
+      box-shadow: 0 0 0 3px $c-bg-box;
       line-height: 1;
     }
 
@@ -330,24 +349,24 @@
 
     @include mq-is-col1 {
       .move-review-player__timeline {
-        gap: 0.2rem;
+        gap: 0.22rem;
+        padding: 0.32rem;
       }
 
       .move-review-player__timeline-step {
-        justify-content: center;
-        gap: 0.2rem;
-        padding: 0.18rem 0.2rem;
+        justify-content: flex-start;
+        gap: 0.22rem;
+        min-height: 2.3rem;
+        padding: 0.3rem 0.26rem;
       }
 
       .move-review-player__timeline-step.is-active {
         flex-grow: 2;
-        justify-content: flex-start;
       }
 
       .move-review-player__timeline-index {
-        width: 1.2rem;
-        height: 1.2rem;
-        font-size: 0.68rem;
+        width: 0.78rem;
+        height: 0.78rem;
       }
 
       .move-review-player__timeline-label {
@@ -363,6 +382,14 @@
       display: grid;
       gap: 0.72rem;
       min-width: 0;
+      padding: 0.62rem;
+      border: 1px solid color-mix(in srgb, #{$c-primary} 16%, #{$c-border});
+      border-radius: 8px;
+      background: linear-gradient(
+        145deg,
+        color-mix(in srgb, #{$c-bg-low} 84%, transparent),
+        color-mix(in srgb, #{$c-bg-box} 88%, transparent)
+      );
 
       @include mq-at-least-col3 {
         grid-template-columns: minmax(9.5rem, 0.8fr) minmax(0, 1.2fr);
@@ -380,7 +407,11 @@
       padding: 0.5rem;
       border: 1px solid color-mix(in srgb, #{$c-primary} 20%, #{$c-border});
       border-radius: 8px;
-      background: linear-gradient(145deg, $c-bg-low, $c-bg-box);
+      background: linear-gradient(
+        145deg,
+        color-mix(in srgb, #{$c-primary} 8%, #{$c-bg-low}),
+        color-mix(in srgb, #{$c-bg-box} 96%, transparent)
+      );
       box-shadow: 0 0.4rem 1.2rem rgba(0, 0, 0, 0.12);
     }
 
@@ -448,6 +479,7 @@
       display: grid;
       gap: 0.72rem;
       min-width: 0;
+      align-content: start;
       animation: move-review-scene-in 160ms ease-out;
 
       &[hidden] {

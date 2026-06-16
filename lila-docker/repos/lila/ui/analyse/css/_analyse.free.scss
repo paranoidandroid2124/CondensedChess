@@ -194,64 +194,64 @@ $label-width: 5ch;
 }
 
 .analyse-review {
-  --review-bg: #f7efe2;
-  --review-surface: #fffcf6;
-  --review-surface-soft: #fbf4ea;
-  --review-surface-raised: #fff8ef;
-  --review-border: #c8b39d;
-  --review-border-strong: #af8d71;
-  --review-text: #1f2930;
-  --review-text-muted: #56636e;
-  --review-text-subtle: #66727c;
-  --review-accent: #8f431c;
-  --review-accent-soft: #f1ddcf;
-  --review-neutral-chip-bg: #ece1d4;
-  --review-neutral-chip-border: #ccb7a1;
-  --review-neutral-chip-text: #32414d;
-  --review-info-text: #244b70;
-  --review-info-bg: #dbe8f6;
-  --review-info-border: #9db8d1;
-  --review-warning-text: #6c4a05;
-  --review-warning-bg: #f4e4c1;
-  --review-warning-border: #d0b37b;
-  --review-success-text: #2f5b1f;
-  --review-success-bg: #deead5;
-  --review-success-border: #9fbe87;
-  --review-danger-text: #8c2031;
-  --review-danger-bg: #f4d8dd;
-  --review-danger-border: #cf8f9a;
-  --review-panel-border: #d7c4ae;
-  --review-summary-surface: #f3e4d8;
-  --review-summary-border: #d6b69f;
-  --review-disabled-border: #ddd1c5;
-  --review-disabled-surface: #fbf6ee;
-  --review-disabled-icon: #eee3d8;
-  --review-disabled-icon-text: #7a8894;
-  --review-review-bg: #f4e6d8;
-  --review-track-bg: #eadfce;
-  --review-low-bg: #edf0f2;
-  --review-low-border: #cbd2d9;
-  --review-success-surface: #edf4e6;
-  --review-success-surface-border: #aec692;
-  --review-info-surface: #eef4fb;
-  --review-info-surface-border: #b7cadf;
-  --review-warning-surface: #faf2df;
-  --review-warning-surface-border: #d9c089;
-  --review-dossier-surface: #fff8ef;
-  --review-compare-surface: #f5f1ea;
-  --review-compare-surface-open: #fbf7f1;
-  --review-compare-border: #c4d4e3;
-  --review-collapse-surface: #fbebe9;
-  --review-collapse-border: #dfb2aa;
-  --review-stat-border: #d6b69f;
-  --review-table-head-bg: #f6ede1;
-  --review-table-head-border: #d7c4ae;
-  --review-table-row-border: #e2d4c4;
-  --review-table-row-hover: #f4e6d8;
-  --review-provider-lichess-bg: #dce8ff;
-  --review-provider-lichess-text: #1a428e;
-  --review-provider-chesscom-bg: #deedcf;
-  --review-provider-chesscom-text: #2f5d1a;
+  --review-bg: #171816;
+  --review-surface: #22241f;
+  --review-surface-soft: #1c1e1a;
+  --review-surface-raised: #262921;
+  --review-border: #3a3d34;
+  --review-border-strong: #8bc071;
+  --review-text: #efeee8;
+  --review-text-muted: #a9ad9e;
+  --review-text-subtle: #8f9687;
+  --review-accent: #8bc071;
+  --review-accent-soft: rgba(139, 192, 113, 0.14);
+  --review-neutral-chip-bg: #2b2e27;
+  --review-neutral-chip-border: #4a4f43;
+  --review-neutral-chip-text: #efeee8;
+  --review-info-text: #b9d4cb;
+  --review-info-bg: #223331;
+  --review-info-border: #49675f;
+  --review-warning-text: #e3b15b;
+  --review-warning-bg: #3a3020;
+  --review-warning-border: #7a6436;
+  --review-success-text: #b8d9a1;
+  --review-success-bg: #263728;
+  --review-success-border: #5b7a50;
+  --review-danger-text: #e3a096;
+  --review-danger-bg: #3b2523;
+  --review-danger-border: #80514d;
+  --review-panel-border: #3a3d34;
+  --review-summary-surface: #262921;
+  --review-summary-border: #4a4f43;
+  --review-disabled-border: #3a3d34;
+  --review-disabled-surface: #1c1e1a;
+  --review-disabled-icon: #2f332b;
+  --review-disabled-icon-text: #8f9687;
+  --review-review-bg: #22241f;
+  --review-track-bg: #2b2e27;
+  --review-low-bg: #1c1e1a;
+  --review-low-border: #4a4f43;
+  --review-success-surface: #243329;
+  --review-success-surface-border: #526b49;
+  --review-info-surface: #223331;
+  --review-info-surface-border: #49675f;
+  --review-warning-surface: #342d20;
+  --review-warning-surface-border: #735f37;
+  --review-dossier-surface: #20231e;
+  --review-compare-surface: #1f221d;
+  --review-compare-surface-open: #272b23;
+  --review-compare-border: #53664a;
+  --review-collapse-surface: #2d2820;
+  --review-collapse-border: #735f37;
+  --review-stat-border: #53664a;
+  --review-table-head-bg: #293025;
+  --review-table-head-border: #4a4f43;
+  --review-table-row-border: #3a3d34;
+  --review-table-row-hover: #2b3027;
+  --review-provider-lichess-bg: #263728;
+  --review-provider-lichess-text: #d8e8cf;
+  --review-provider-chesscom-bg: #345820;
+  --review-provider-chesscom-text: #edf7e5;
 
   display: flex;
   flex-direction: column;
@@ -262,7 +262,7 @@ $label-width: 5ch;
   background: linear-gradient(180deg, var(--review-surface-raised), var(--review-bg));
   border: 1px solid var(--review-border);
   border-radius: $box-radius-size;
-  box-shadow: 0 18px 36px rgba(67, 44, 21, 0.12);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.28);
 
   &__tabs,
   &__subtabs,
@@ -380,7 +380,11 @@ $label-width: 5ch;
     top: 0;
     z-index: 5;
     padding: 0.2rem 0 0.35rem;
-    background: linear-gradient(180deg, var(--review-surface-raised), rgba(255, 252, 246, 0.94));
+    background: linear-gradient(
+      180deg,
+      var(--review-surface-raised),
+      color-mix(in srgb, var(--review-surface) 94%, transparent)
+    );
   }
 
   &__subtabs {
@@ -1701,7 +1705,7 @@ $label-width: 5ch;
     &.active {
       border-color: var(--review-border-strong);
       background: var(--review-surface-raised);
-      box-shadow: 0 0 0 1px rgba(143, 67, 28, 0.14);
+      box-shadow: 0 0 0 1px rgba(139, 192, 113, 0.16);
     }
 
     &.disabled {
@@ -1888,16 +1892,16 @@ html.dark .analyse-review {
   --review-dossier-surface: #20231e;
   --review-compare-surface: #1f221d;
   --review-compare-surface-open: #272b23;
-  --review-compare-border: #4a6174;
-  --review-collapse-surface: #402730;
-  --review-collapse-border: #8a5563;
-  --review-stat-border: #556c7b;
-  --review-table-head-bg: #2a3945;
-  --review-table-head-border: #4c6070;
-  --review-table-row-border: #435564;
-  --review-table-row-hover: #324350;
-  --review-provider-lichess-bg: #294e97;
-  --review-provider-lichess-text: #eff5ff;
+  --review-compare-border: #53664a;
+  --review-collapse-surface: #2d2820;
+  --review-collapse-border: #735f37;
+  --review-stat-border: #53664a;
+  --review-table-head-bg: #293025;
+  --review-table-head-border: #4a4f43;
+  --review-table-row-border: #3a3d34;
+  --review-table-row-hover: #2b3027;
+  --review-provider-lichess-bg: #263728;
+  --review-provider-lichess-text: #d8e8cf;
   --review-provider-chesscom-bg: #345820;
   --review-provider-chesscom-text: #edf7e5;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.28);
@@ -1943,10 +1947,10 @@ html.dark .analyse-review {
     z-index: 7;
     padding: 0.85rem;
     margin: 0.85rem 0 0;
-    border: 1px solid rgba(143, 67, 28, 0.12);
+    border: 1px solid rgba(139, 192, 113, 0.22);
     border-radius: $box-radius-size;
-    background: rgba(255, 252, 246, 0.96);
-    box-shadow: 0 12px 24px rgba(67, 44, 21, 0.14);
+    background: rgba(34, 36, 31, 0.96);
+    box-shadow: 0 14px 28px rgba(0, 0, 0, 0.28);
   }
 
   .analyse-review__mobile-board-copy {
@@ -1984,7 +1988,7 @@ html.dark .analyse-review {
     top: calc(var(--review-mobile-sticky-top) + var(--review-mobile-rail-height) + 0.4rem);
     z-index: 6;
     padding-top: 0.1rem;
-    background: linear-gradient(180deg, rgba(255, 252, 246, 0.98), rgba(255, 252, 246, 0.92));
+    background: linear-gradient(180deg, rgba(34, 36, 31, 0.98), rgba(34, 36, 31, 0.92));
     flex-wrap: nowrap;
     overflow-x: auto;
     overscroll-behavior-x: contain;
@@ -1992,13 +1996,13 @@ html.dark .analyse-review {
   }
 
   html.dark .analyse-review__mobile-board-rail {
-    background: rgba(27, 42, 53, 0.96);
-    border-color: rgba(226, 154, 96, 0.18);
+    background: rgba(34, 36, 31, 0.96);
+    border-color: rgba(139, 192, 113, 0.22);
     box-shadow: 0 14px 28px rgba(0, 0, 0, 0.28);
   }
 
   html.dark .analyse-review__raw-toolbar,
   html.dark .analyse-review__tool-tabs {
-    background: linear-gradient(180deg, rgba(27, 42, 53, 0.98), rgba(27, 42, 53, 0.92));
+    background: linear-gradient(180deg, rgba(34, 36, 31, 0.98), rgba(34, 36, 31, 0.92));
   }
 }

@@ -233,7 +233,7 @@ function workspaceTools(ctrl: AnalyseCtrl): WorkspaceTool[] {
 
   tools.push({
     id: 'action-menu',
-    label: 'Workbench',
+    label: 'Board tools',
     summary: 'Board, notation, and display controls',
     icon: licon.Hamburger,
     active: ctrl.activeControlBarTool() === 'action-menu',
@@ -280,7 +280,7 @@ function renderWorkspaceDock(ctrl: AnalyseCtrl): VNode {
               hl('strong', tool.label),
               hl('span', tool.summary),
             ]),
-            tool.busy ? hl('span.analyse__workspace-card-state', 'Running') : null,
+            tool.busy ? hl('span.analyse__workspace-card-state', 'Working') : null,
           ],
         ),
       ),
@@ -307,7 +307,7 @@ export function renderTools({ ctrl, concealOf, allowVideo }: ViewContext, embedd
         },
         [
         hl('div.analyse-review__mobile-board-copy', [
-          hl('strong', 'Board in view'),
+          hl('strong', 'Current board'),
           hl(
             'span',
             ctrl.node.ply > 0
@@ -1145,7 +1145,7 @@ function analysisSupportLine(entry: ImportHistoryAnalysis): string | undefined {
   const line = [
     entry.opening,
     entry.variant && entry.variant !== entry.opening ? entry.variant : undefined,
-    entry.sourceType === 'manual' ? 'Manual PGN import' : 'Imported game snapshot',
+    entry.sourceType === 'manual' ? 'Pasted PGN' : 'Imported game snapshot',
   ]
     .filter(Boolean)
     .join(' • ');

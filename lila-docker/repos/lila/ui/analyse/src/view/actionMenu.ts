@@ -116,8 +116,8 @@ function boardWorkspaceView(ctrl: AnalyseCtrl, closeMenu: () => void): VNode[] {
     ]),
     workspaceSection('Guides', 'Tune how much reference help stays on screen while you review.', [
       workspaceSwitchCard(
-        'Reference lines',
-        engineUnavailable ? 'Reference lines are unavailable in this position.' : 'Show suggested lines beside the move tree.',
+        'Engine lines',
+        engineUnavailable ? 'Engine lines are unavailable in this position.' : 'Show suggested lines beside the move tree.',
         ctrl.showEnginePanel(),
         next => {
           ctrl.setShowEnginePanel(next);
