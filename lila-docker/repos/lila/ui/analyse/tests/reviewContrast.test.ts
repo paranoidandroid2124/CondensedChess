@@ -127,6 +127,18 @@ describe('review shell contrast palette', () => {
     );
   });
 
+  test('keeps review scene flow labels visible without crowding mobile', () => {
+    assert.match(sideScss, /\.move-review-player__timeline-action\s*\{/);
+    assert.match(
+      sideScss,
+      /\.move-review-player__timeline-step\.is-active \.move-review-player__timeline-action\s*\{[\s\S]*?color:\s*\$c-primary;/,
+    );
+    assert.match(
+      sideScss,
+      /@include mq-is-col1[\s\S]*\.move-review-player__timeline-action\s*\{[\s\S]*?display:\s*none;/,
+    );
+  });
+
   test('keeps opened review detail layers bounded inside the current scene', () => {
     assert.match(
       sideScss,

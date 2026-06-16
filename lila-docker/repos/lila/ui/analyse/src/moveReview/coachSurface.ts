@@ -26,6 +26,8 @@ type MoveReviewScene = {
   key: MoveReviewSceneKey;
   label: string;
   shortLabel: string;
+  actionLabel: string;
+  controlLabel: string;
   title: string;
   kicker: string;
   body: string;
@@ -456,7 +458,7 @@ function primaryTryLine(playerSurface: MoveReviewPlayerSurfaceV1): string[] {
 
 function renderSceneNav(scenes: MoveReviewScene[]): string {
   return `
-    <nav class="move-review-player__timeline" aria-label="Review scenes">
+    <nav class="move-review-player__timeline" aria-label="Review flow" role="tablist">
       ${scenes
         .map(
           (scene, idx) => `
@@ -465,15 +467,17 @@ function renderSceneNav(scenes: MoveReviewScene[]): string {
           type="button"
           class="move-review-player__timeline-step${idx === 0 ? ' is-active' : ''}"
           data-move-review-scene="${idx}"
+          data-scene-flow-key="${escapeHtml(scene.key)}"
           role="tab"
           aria-selected="${idx === 0 ? 'true' : 'false'}"
           aria-controls="move-review-scene-${scene.key}"
           tabindex="${idx === 0 ? '0' : '-1'}"
         >
-          <span class="move-review-player__timeline-index">${idx + 1}</span>
+          <span class="move-review-player__timeline-index" aria-hidden="true"></span>
           <span class="move-review-player__timeline-copy">
             <span class="move-review-player__timeline-label move-review-player__timeline-label--long">${escapeHtml(scene.label)}</span>
             <span class="move-review-player__timeline-label move-review-player__timeline-label--short">${escapeHtml(scene.shortLabel)}</span>
+            <span class="move-review-player__timeline-action">${escapeHtml(scene.actionLabel)}</span>
             <span class="move-review-player__timeline-kicker">${escapeHtml(scene.kicker)}</span>
           </span>
         </button>
@@ -491,7 +495,7 @@ function renderScenePanel(scene: MoveReviewScene, idx: number, refIndex: MoveRev
   const boardSubtitle = scene.boardSubtitle ? ` data-scene-board-subtitle="${escapeHtml(scene.boardSubtitle)}"` : '';
   const boardNote = ` data-scene-board-note="${escapeHtml(scene.boardNote)}"`;
   const square = scene.square ? ` data-scene-square="${escapeHtml(scene.square)}"` : '';
-  const label = ` data-scene-label="${escapeHtml(scene.label)}" data-scene-short-label="${escapeHtml(scene.shortLabel)}"`;
+  const label = ` data-scene-label="${escapeHtml(scene.label)}" data-scene-short-label="${escapeHtml(scene.shortLabel)}" data-scene-control-label="${escapeHtml(scene.controlLabel)}"`;
   const hidden = idx === 0 ? '' : ' hidden aria-hidden="true"';
   return `
     <section
@@ -516,7 +520,7 @@ function renderScenePanel(scene: MoveReviewScene, idx: number, refIndex: MoveRev
 
 function renderSceneControls(scenes: MoveReviewScene[]): string {
   const sceneCount = scenes.length;
-  const nextLabel = sceneCount > 1 ? scenes[1]?.shortLabel || 'scene' : null;
+  const nextLabel = sceneCount > 1 ? scenes[1]?.controlLabel || scenes[1]?.shortLabel || 'scene' : null;
   return `
     <footer class="move-review-player__controls">
       <button type="button" class="move-review-player__control" data-move-review-scene-step="-1" disabled>Back</button>
@@ -594,6 +598,8 @@ function buildMoveReviewScenes(
       key: 'verdict',
       label: 'Verdict',
       shortLabel: 'Verdict',
+      actionLabel: 'Judge the move',
+      controlLabel: 'Verdict',
       title: titleText,
       kicker: 'Decision',
       body:
@@ -614,6 +620,8 @@ function buildMoveReviewScenes(
       key: 'why',
       label: 'Why',
       shortLabel: 'Why',
+      actionLabel: 'Find the reason',
+      controlLabel: 'See why',
       title: 'Why it mattered',
       kicker: 'Reason',
       body: summaryBody,
@@ -632,6 +640,8 @@ function buildMoveReviewScenes(
       key: 'plan',
       label: 'Plan',
       shortLabel: 'Plan',
+      actionLabel: 'Choose the plan',
+      controlLabel: 'Make plan',
       title: 'What to watch next',
       kicker: 'Plan',
       body: planBody,
@@ -650,6 +660,8 @@ function buildMoveReviewScenes(
       key: 'try',
       label: 'Try line',
       shortLabel: 'Line',
+      actionLabel: 'Replay the line',
+      controlLabel: 'Replay line',
       title: 'Try the line',
       kicker: 'Replay',
       body: '',
@@ -669,6 +681,8 @@ function buildMoveReviewScenes(
       key: 'remember',
       label: 'Remember',
       shortLabel: 'Recall',
+      actionLabel: 'Keep the pattern',
+      controlLabel: 'Remember',
       title: 'Remember this',
       kicker: 'Memory',
       body: rememberBody,

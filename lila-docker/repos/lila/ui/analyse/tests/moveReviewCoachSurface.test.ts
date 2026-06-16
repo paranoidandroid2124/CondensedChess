@@ -87,8 +87,13 @@ describe('moveReview coach surface', () => {
     assert.match(html, /Remember this/);
     assert.match(html, /data-move-review-scene="0"/);
     assert.match(html, /data-move-review-scene-panel/);
+    assert.match(html, /aria-label="Review flow" role="tablist"/);
+    assert.match(html, /data-scene-flow-key="verdict"/);
     assert.match(html, /move-review-player__timeline-label--long">Verdict/);
     assert.match(html, /move-review-player__timeline-label--short">Recall/);
+    assert.match(html, /move-review-player__timeline-action">Judge the move/);
+    assert.match(html, /move-review-player__timeline-action">Find the reason/);
+    assert.match(html, /move-review-player__timeline-action">Replay the line/);
     assert.match(html, /move-review-player__board-shell/);
     assert.match(html, /move-review-player__board-preview/);
     assert.match(html, /move-review-player__board-title/);
@@ -114,7 +119,9 @@ describe('moveReview coach surface', () => {
     assert.match(html, /data-scene-board-note="Play the line one move at a time; the board follows each click\."/);
     assert.match(html, /data-scene-board-note="Save this pattern as the cue to recognize in your next game\."/);
     assert.match(html, /data-scene-label="Verdict"/);
+    assert.match(html, /data-scene-control-label="See why"/);
     assert.match(html, /data-scene-board="8\/8\/8\/8\/8\/5N2\/8\/8 b - - 1 1\|g1f3"/);
+    assert.match(html, /Next: See why/);
     assert.doesNotMatch(html, /authority/i);
     assert.doesNotMatch(html, /diagnostics/i);
     assert.doesNotMatch(html, /Evidence Probes/);

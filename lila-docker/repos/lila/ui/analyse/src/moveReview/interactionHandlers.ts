@@ -276,7 +276,7 @@ function syncMoveReviewSceneBoard(player: HTMLElement, panel: HTMLElement): void
 }
 
 function sceneControlLabel(panel: HTMLElement | null | undefined): string {
-  return panel?.dataset.sceneShortLabel || panel?.dataset.sceneLabel || 'scene';
+  return panel?.dataset.sceneControlLabel || panel?.dataset.sceneShortLabel || panel?.dataset.sceneLabel || 'scene';
 }
 
 function updateMoveReviewSceneControls(player: HTMLElement, panels: HTMLElement[], index: number): void {
