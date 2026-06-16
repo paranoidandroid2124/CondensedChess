@@ -234,7 +234,7 @@ object account:
         p("Closing your account disables sign-in and hides your profile."),
         div(cls := "warning-box")(
           strong("Warning: "),
-          "You can reopen the account later by requesting a new email login link from the same address. This page does not erase your stored analysis data."
+          "You can reopen the account later by requesting a new email login link from the same address. This page does not erase your saved game reviews."
         ),
         postForm(action := routes.Account.closeConfirm, cls := "mt-2")(
           button(tpe := "submit", cls := "btn-danger")("I understand, close my account")
@@ -249,7 +249,7 @@ object account:
     settingsPage("Data Deletion Request", "delete"):
       frag(
         h2(cls := "danger")("Permanent Data Deletion Request"),
-        p("Permanent erasure is processed manually in the current production rollout. Submitting this form will immediately close your account and queue a deletion request for operator review."),
+        p("Permanent erasure is reviewed before it is completed. Submitting this form will immediately close your account and record your deletion request."),
         pendingRequest.map: request =>
           div(cls := "warning-box")(
             strong("Request already pending: "),
