@@ -285,13 +285,19 @@ $label-width: 5ch;
   }
 
   &__surface-toggle {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0.12rem;
     flex: 0 0 auto;
-    min-height: 2.75rem;
-    padding: 0.7rem 1rem;
+    min-height: 3.05rem;
+    padding: 0.62rem 0.95rem;
     border: 1px solid var(--review-border);
-    border-radius: 999px;
+    border-radius: 0.75rem;
     background: var(--review-surface-raised);
     color: var(--review-text-muted);
+    text-align: left;
     font-weight: 700;
     transition: 150ms ease;
 
@@ -301,6 +307,29 @@ $label-width: 5ch;
       background: var(--review-accent-soft);
       color: var(--review-accent);
     }
+  }
+
+  &__surface-toggle-label,
+  &__surface-toggle-detail {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  &__surface-toggle-label {
+    color: inherit;
+    font-size: 0.86rem;
+    line-height: 1.05;
+  }
+
+  &__surface-toggle-detail {
+    color: var(--review-text-subtle);
+    font-size: 0.68rem;
+    line-height: 1.12;
+  }
+
+  &__surface-toggle:hover &__surface-toggle-detail,
+  &__surface-toggle.active &__surface-toggle-detail {
+    color: var(--review-accent);
   }
 
   &__tabs-head {
@@ -1832,6 +1861,21 @@ $label-width: 5ch;
 
   @include mq-is-col1 {
     padding: 0.85rem;
+
+    &__surface-switch {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      scrollbar-width: thin;
+    }
+
+    &__surface-toggle {
+      min-height: 2.4rem;
+      border-radius: 999px;
+    }
+
+    &__surface-toggle-detail {
+      display: none;
+    }
 
     &__tab,
     &__subtab,

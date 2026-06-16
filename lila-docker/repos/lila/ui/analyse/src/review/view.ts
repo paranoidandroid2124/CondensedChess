@@ -14,19 +14,19 @@ export type ReviewViewNodes = {
   importNode?: VNode;
 };
 
-const tabs: [ReviewPrimaryTab, string][] = [
-  ['explain', 'Coach'],
-  ['engine', 'Candidates'],
-  ['explorer', 'Opening'],
-  ['moves', 'Moves'],
-  ['import', 'PGN'],
-  ['board', 'Setup'],
+const tabs: [ReviewPrimaryTab, string, string][] = [
+  ['explain', 'Coach', 'Review scene'],
+  ['engine', 'Candidates', 'Compare lines'],
+  ['explorer', 'Opening', 'Book context'],
+  ['moves', 'Moves', 'Score sheet'],
+  ['import', 'PGN', 'Load game'],
+  ['board', 'Setup', 'Board setup'],
 ];
 
 export function reviewView(ctrl: AnalyseCtrl, nodes: ReviewViewNodes): VNode {
   const active = normalizeTab(ctrl.reviewPrimaryTab());
   return hl('section.analyse-review.analyse-review--move-review-only', [
-    hl('div.analyse-review__surface-switch', tabs.map(([tab, label]) => tabButton(ctrl, active, tab, label))),
+    hl('div.analyse-review__surface-switch', tabs.map(([tab, label, detail]) => tabButton(ctrl, active, tab, label, detail))),
     hl('div.analyse-review__body', [renderTab(ctrl, nodes, active)]),
   ]);
 }
@@ -35,7 +35,7 @@ function normalizeTab(tab: ReviewPrimaryTab): ReviewPrimaryTab {
   return tabs.some(([candidate]) => candidate === tab) ? tab : 'explain';
 }
 
-function tabButton(ctrl: AnalyseCtrl, active: ReviewPrimaryTab, tab: ReviewPrimaryTab, label: string): VNode {
+function tabButton(ctrl: AnalyseCtrl, active: ReviewPrimaryTab, tab: ReviewPrimaryTab, label: string, detail: string): VNode {
   return hl(
     `button.analyse-review__surface-toggle${active === tab ? '.active' : ''}`,
     {
@@ -45,7 +45,10 @@ function tabButton(ctrl: AnalyseCtrl, active: ReviewPrimaryTab, tab: ReviewPrima
       },
       hook: bind('click', () => ctrl.setReviewPrimaryTab(tab)),
     },
-    label,
+    [
+      hl('strong.analyse-review__surface-toggle-label', label),
+      hl('span.analyse-review__surface-toggle-detail', detail),
+    ],
   );
 }
 

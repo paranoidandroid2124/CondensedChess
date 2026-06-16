@@ -23,6 +23,10 @@ describe('review player copy', () => {
       'Score sheet',
       'Load PGN',
       'Board setup',
+      'Review scene',
+      'Compare lines',
+      'Book context',
+      'Load game',
       'Review board',
       'Nothing to show for this position yet.',
     ].forEach(copy => assert.match(reviewViewSource, new RegExp(escapeRegExp(copy)), `missing copy: ${copy}`));

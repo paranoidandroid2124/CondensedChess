@@ -72,6 +72,20 @@ describe('review shell contrast palette', () => {
     );
   });
 
+  test('keeps review shell tool tabs as compact player work choices', () => {
+    assert.match(analyseFreeScss, /&__surface-toggle\s*\{[\s\S]*?flex-direction:\s*column;/);
+    assert.match(analyseFreeScss, /&__surface-toggle-label,\s*[\s\S]*?&__surface-toggle-detail\s*\{[\s\S]*?overflow-wrap:\s*anywhere;/);
+    assert.match(analyseFreeScss, /&__surface-toggle-detail\s*\{[\s\S]*?color:\s*var\(--review-text-subtle\);/);
+    assert.match(
+      analyseFreeScss,
+      /@include mq-is-col1[\s\S]*&__surface-switch\s*\{[\s\S]*?overflow-x:\s*auto;/,
+    );
+    assert.match(
+      analyseFreeScss,
+      /@include mq-is-col1[\s\S]*&__surface-toggle-detail\s*\{[\s\S]*?display:\s*none;/,
+    );
+  });
+
   test('keeps import-history provider badges above AA in both themes', () => {
     const lightVars = extractCustomProperties(analyseFreeScss, '.analyse-review');
     const darkVars = extractCustomProperties(analyseFreeScss, 'html.dark .analyse-review');
