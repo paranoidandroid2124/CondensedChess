@@ -7,6 +7,7 @@ const analyseFreeScss = readFileSync(fileURLToPath(new URL('../css/_analyse.free
 const chesstoryScss = readFileSync(fileURLToPath(new URL('../css/_chesstory.scss', import.meta.url)), 'utf8');
 const narrativeScss = readFileSync(fileURLToPath(new URL('../css/_narrative.scss', import.meta.url)), 'utf8');
 const sideScss = readFileSync(fileURLToPath(new URL('../css/_side.scss', import.meta.url)), 'utf8');
+const evalGaugeScss = readFileSync(fileURLToPath(new URL('../../lib/css/ceval/_eval-gauge.scss', import.meta.url)), 'utf8');
 const commentaryWidgetScss = readFileSync(fileURLToPath(new URL('../css/_commentary.widget.scss', import.meta.url)), 'utf8');
 const explorerScss = readFileSync(fileURLToPath(new URL('../css/explorer/_explorer.scss', import.meta.url)), 'utf8');
 const forkScss = readFileSync(fileURLToPath(new URL('../css/_fork.scss', import.meta.url)), 'utf8');
@@ -227,6 +228,12 @@ describe('review shell contrast palette', () => {
       sideScss,
       /\.move-review-player__scene-line-eval\s*\{[\s\S]*?border:\s*1px solid color-mix\(in srgb,\s*#\{\$c-primary\}\s*24%,\s*transparent\);[\s\S]*?background:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*11%,\s*#\{\$c-bg-low\}\);[\s\S]*?font-family:\s*'Roboto Mono', monospace;/,
     );
+    [...evalGaugeScss.matchAll(/letter-spacing:\s*([^;]+);/g)].forEach(match =>
+      assert.equal(match[1]!.trim(), '0', `eval gauge letter-spacing must be 0, got ${match[1]}`),
+    );
+    assert.match(evalGaugeScss, /tick\.zero\s*\{[\s\S]*?border-bottom:\s*4px solid \$c-primary !important;/);
+    assert.match(evalGaugeScss, /\.eval-gauge\s*\{[\s\S]*?background:\s*#3a3d34;/);
+    assert.match(evalGaugeScss, /\.black\s*\{[\s\S]*?background:\s*#1c1e1a;/);
   });
 
   test('keeps the player board context rail compact and sticky with the board', () => {
