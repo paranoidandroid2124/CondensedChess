@@ -202,7 +202,10 @@ The surface renderer may say:
   summaries or vectors are not enough. Raw semantic compensation text also
   cannot open strategic-sacrifice, concrete-strategy, or pressure-increase
   gates unless `CompensationInterpretation` accepts it or a separate exact
-  pressure witness exists. Centipawn loss from a counterfactual or
+  pressure witness exists. Internal full-game probe prioritization follows the
+  same gate; raw compensation summaries or invested-material shells do not move
+  a moment into the compensation tier unless the shared compensation
+  interpretation accepts the evidence. Centipawn loss from a counterfactual or
   decision comparison is engine-margin evidence, not practical-difficulty
   authority, unless a separate typed practical witness is present.
   Played-first rook-pawn hook/march facts may enter here only from board state

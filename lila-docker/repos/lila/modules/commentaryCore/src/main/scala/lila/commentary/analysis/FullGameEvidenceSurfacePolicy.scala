@@ -99,15 +99,16 @@ private[analysis] object FullGameEvidenceSurfacePolicy:
     else
       val hasDeferredAlternative = deferredAlternative(ctx)
       val surface = StrategyPackSurface.from(strategyPack)
+      val acceptedCompensation =
+        CompensationInterpretation.effectiveSemanticDecision(ctx).nonEmpty ||
+          CompensationInterpretation.surfaceDecision(ctx, surface).exists(_.accepted)
       Some(
         InternalProbeCandidate(
           ply = ctx.ply,
           selectionKind = selectionKind,
           strategicSalienceHigh = strategicSalienceHigh,
           ownerMismatch = surface.ownerMismatch,
-          compensation =
-            surface.compensationPosition ||
-              strategyPack.flatMap(_.signalDigest).flatMap(_.compensation).exists(_.trim.nonEmpty),
+          compensation = acceptedCompensation,
           hasDeferredAlternative = hasDeferredAlternative,
           hasOpeningBranch = openingBranch(ctx),
           hasStructureDeferred = structureDeferred(ctx, hasDeferredAlternative),

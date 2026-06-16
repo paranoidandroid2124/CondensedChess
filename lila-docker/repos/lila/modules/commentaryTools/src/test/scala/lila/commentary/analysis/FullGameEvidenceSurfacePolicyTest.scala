@@ -1,7 +1,7 @@
 package lila.commentary.analysis
 
 import munit.FunSuite
-import lila.commentary.{ AuthorEvidenceSummary, AuthorQuestionSummary }
+import lila.commentary.{ AuthorEvidenceSummary, AuthorQuestionSummary, NarrativeSignalDigest, StrategyPack }
 import lila.commentary.model.*
 import lila.commentary.model.authoring.*
 
@@ -212,6 +212,43 @@ class FullGameEvidenceSurfacePolicyTest extends FunSuite:
     assertEquals(payload.authorQuestions.map(_.id), List("q1", "q3"))
     assertEquals(payload.authorEvidence.map(_.questionKind), List("WhyThis", "WhyNow"))
     assertEquals(payload.authorEvidence.map(_.questionId), List("q1", "q3"))
+  }
+
+  test("internal probe candidate ignores raw compensation text without accepted evidence") {
+    val ctx = baseContext
+    val outline = NarrativeOutline(
+      List(
+        OutlineBeat(
+          OutlineBeatKind.DecisionPoint,
+          "The practical compensation needs checking.",
+          questionIds = List("q1"),
+          questionKinds = List(AuthorQuestionKind.WhyThis),
+          focusPriority = 96,
+          fullGameEssential = true
+        )
+      )
+    )
+    val rawCompensationOnly =
+      StrategyPack(
+        sideToMove = "white",
+        signalDigest = Some(
+          NarrativeSignalDigest(
+            compensation = Some("compensation for material")
+          )
+        )
+      )
+
+    val candidate =
+      FullGameEvidenceSurfacePolicy.internalCandidate(
+        momentType = "SustainedPressure",
+        selectionKind = "thread_bridge",
+        strategicSalienceHigh = false,
+        ctx = ctx,
+        outline = outline,
+        strategyPack = Some(rawCompensationOnly)
+      ).getOrElse(fail("expected internal probe candidate"))
+
+    assert(!candidate.compensation, clue(candidate))
   }
 
   test("internal probe planner prioritizes high-salience and compensation moments before generic opening branches") {

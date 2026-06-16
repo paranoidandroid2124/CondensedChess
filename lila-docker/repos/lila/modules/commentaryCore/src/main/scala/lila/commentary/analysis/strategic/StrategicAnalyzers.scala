@@ -643,7 +643,7 @@ class StructureAnalyzerImpl extends StructureAnalyzer {
         val zone = kSq.kingAttacks
         val enemyDefenders = (board.byColor(!color) & zone).count
         val ourAttackers = board.attackers(kSq, color).count
-        if (ourAttackers > enemyDefenders) vectors += ("Attack on King" -> (ourAttackers - enemyDefenders) * 0.5)
+        if (ourAttackers > enemyDefenders) vectors += ("King Pressure" -> (ourAttackers - enemyDefenders) * 0.5)
         
         val enemyIsWhite = !color.white
         val frontRank = kSq.rank.value + (if (enemyIsWhite) 1 else -1)
@@ -657,7 +657,7 @@ class StructureAnalyzerImpl extends StructureAnalyzer {
         investedMaterial = deficiency,
         returnVector = vectors.toMap,
         expiryPly = None,
-        conversionPlan = if (vectors.contains("Attack on King")) "Mating Attack" else "Positional Compensation"
+        conversionPlan = if (vectors.contains("King Pressure")) "king pressure" else "Positional Compensation"
       )) else None
     } else None
   }
