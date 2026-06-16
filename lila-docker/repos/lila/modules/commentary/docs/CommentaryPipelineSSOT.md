@@ -228,6 +228,8 @@ claims, and the MoveReview strategic ledger does not use those pattern or
 transition strings as structured motif tokens or carry-over emitters. Lexicon
 endgame-pattern prefix templates and positional-tag motif promotion for
 rook-behind-passer / king-cut-off labels are not public authority paths.
+Endgame continuity/transition prose renders board-structure anchors rather than
+the raw theorem or oracle pattern id.
 Route and directional target endpoints are not king-attack lanes by proximity
 alone. `KingAttackEvidenceProducer` may emit `source:route_attack_lane` or
 `source:directional_attack_lane` only when `StrategicIdeaEvidenceSupport` proves

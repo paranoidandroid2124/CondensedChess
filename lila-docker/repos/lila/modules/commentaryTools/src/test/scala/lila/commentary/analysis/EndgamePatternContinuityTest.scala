@@ -8,7 +8,7 @@ class EndgamePatternContinuityTest extends FunSuite:
 
   // From goldset Lucena positive.
   private val lucenaFen = "2K5/2P1k3/8/8/8/8/7r/R7 w - - 0 1"
-  // From goldset Philidor positive: represents a drawn defensive setup after Lucena is lost.
+  // From goldset Philidor positive: represents a barrier-rank rook setup after Lucena is lost.
   private val lucenaBrokenFen = "8/4k3/r7/4PK2/8/8/8/R7 b - - 0 1"
   private val philidorFen = "8/4k3/r7/4PK2/8/8/8/R7 b - - 0 1"
   private val philidorBrokenFen = "8/4k3/8/4PK2/8/8/8/R3r3 b - - 0 1"
@@ -130,17 +130,17 @@ class EndgamePatternContinuityTest extends FunSuite:
     val (sustainedOutline, _) = NarrativeOutlineBuilder.build(sustainedCtx, new TraceRecorder())
     val sustainedOutlineText = sustainedOutline.beats.map(_.text).mkString("\n")
     assert(
-      sustainedOutlineText.contains("Lucena structure has held for 2 plies"),
-      s"expected sustained Lucena continuity outline text, got: $sustainedOutlineText"
+      sustainedOutlineText.contains("bridge-building rook-pawn shape has stayed visible for 2 plies"),
+      s"expected sustained rook-pawn continuity outline text, got: $sustainedOutlineText"
     )
     val sustainedText = BookStyleRenderer.render(sustainedCtx)
     assert(
-      sustainedText.contains("Lucena structure has held for 2 plies"),
-      s"expected sustained Lucena continuity text, got: $sustainedText"
+      sustainedText.contains("bridge-building rook-pawn shape has stayed visible for 2 plies"),
+      s"expected sustained rook-pawn continuity text, got: $sustainedText"
     )
     assert(
-      sustainedText.contains("keeping that endgame pattern in view"),
-      s"expected sustained pattern-context text, got: $sustainedText"
+      sustainedText.contains("keeping that endgame context in view"),
+      s"expected sustained endgame-context text, got: $sustainedText"
     )
 
     val transitionCtx = NarrativeContextBuilder.build(m48, m48.toContext, Some(m44))
@@ -150,29 +150,29 @@ class EndgamePatternContinuityTest extends FunSuite:
     val (transitionOutline, _) = NarrativeOutlineBuilder.build(transitionCtx, new TraceRecorder())
     val transitionOutlineText = transitionOutline.beats.map(_.text).mkString("\n")
     assert(
-      transitionOutlineText.contains("shifted from Lucena to Philidor Defense"),
-      s"expected Lucena -> Philidor outline transition text, got: $transitionOutlineText"
+      transitionOutlineText.contains("shifted from bridge-building rook-pawn shape to barrier-rank rook defense"),
+      s"expected rook-pawn -> barrier-rank outline transition text, got: $transitionOutlineText"
     )
     val transitionText = BookStyleRenderer.render(transitionCtx)
     assert(
-      transitionText.contains("shifted from Lucena to Philidor Defense"),
-      s"expected Lucena -> Philidor transition text, got: $transitionText"
+      transitionText.contains("shifted from bridge-building rook-pawn shape to barrier-rank rook defense"),
+      s"expected rook-pawn -> barrier-rank transition text, got: $transitionText"
     )
     assert(
-      transitionText.contains("endgame geometry has shifted from Lucena to Philidor Defense"),
-      s"expected transition geometry text, got: $transitionText"
+      transitionText.contains("endgame structure has shifted from bridge-building rook-pawn shape to barrier-rank rook defense"),
+      s"expected transition structure text, got: $transitionText"
     )
     assert(
-      transitionText.contains("Lucena geometry has loosened because the stronger king is no longer beside the promotion square"),
-      s"expected Lucena causal loss text, got: $transitionText"
+      transitionText.contains("bridge-building rook-pawn geometry has loosened because the stronger king is no longer beside the promotion square"),
+      s"expected rook-pawn causal loss text, got: $transitionText"
     )
     assert(
-      transitionText.contains("Philidor now holds because the rook still guards the barrier rank"),
-      s"expected Philidor causal hold text, got: $transitionText"
+      transitionText.contains("barrier-rank rook defense is now visible because the rook still guards the barrier rank"),
+      s"expected barrier-rank causal hold text, got: $transitionText"
     )
   }
 
-  test("Book prose surfaces Philidor and Vancura breakdown causes") {
+  test("Book prose surfaces rook-endgame breakdown causes without theorem labels") {
     val (philidorStable, philidorState) = analyzeAt(philidorFen, 60, None)
     assertEquals(philidorStable.endgameFeatures.flatMap(_.primaryPattern), Some("PhilidorDefense"))
     val (philidorBroken, _) = analyzeAt(philidorBrokenFen, 62, philidorState)
@@ -181,8 +181,8 @@ class EndgamePatternContinuityTest extends FunSuite:
     val philidorCtx = NarrativeContextBuilder.build(philidorBroken, philidorBroken.toContext, Some(philidorStable))
     val philidorText = BookStyleRenderer.render(philidorCtx)
     assert(
-      philidorText.contains("Philidor no longer holds because the defending rook has left the barrier rank"),
-      s"expected Philidor loss-cause text, got: $philidorText"
+      philidorText.contains("barrier-rank rook defense has loosened because the defending rook has left the barrier rank"),
+      s"expected barrier-rank loss-cause text, got: $philidorText"
     )
 
     val (vancuraStable, vancuraState) = analyzeAt(vancuraFen, 70, None)
@@ -193,9 +193,9 @@ class EndgamePatternContinuityTest extends FunSuite:
     val vancuraCtx = NarrativeContextBuilder.build(vancuraBroken, vancuraBroken.toContext, Some(vancuraStable))
     val vancuraText = BookStyleRenderer.render(vancuraCtx)
     assert(
-      vancuraText.contains("Vancura no longer holds because") &&
+      vancuraText.contains("side-checking rook defense has loosened because") &&
         (vancuraText.contains("pawn's rank") || vancuraText.contains("side-checking formation")),
-      s"expected Vancura loss-cause text, got: $vancuraText"
+      s"expected side-checking loss-cause text, got: $vancuraText"
     )
   }
 
@@ -217,7 +217,7 @@ class EndgamePatternContinuityTest extends FunSuite:
       "ConnectedPassers" -> "advance together",
       "KeySquaresOppositionBreakthrough" -> "critical entry squares",
       "TriangulationZugzwang" -> "spare king tempo",
-      "BreakthroughSacrifice" -> "forced passer",
+      "BreakthroughSacrifice" -> "points at a passer",
       "Shouldering" -> "shoved off the pawn's route",
       "RetiManeuver" -> "chase the passer",
       "ShortSideDefense" -> "checking room on the short side",
@@ -237,7 +237,7 @@ class EndgamePatternContinuityTest extends FunSuite:
       "ConnectedPassers" -> "advancing together",
       "KeySquaresOppositionBreakthrough" -> "entry squares",
       "TriangulationZugzwang" -> "triangulation tempo",
-      "BreakthroughSacrifice" -> "force open a passer",
+      "BreakthroughSacrifice" -> "opens a passer",
       "Shouldering" -> "pushed off the pawn's path",
       "RetiManeuver" -> "combine pursuit of the passer",
       "ShortSideDefense" -> "checking distance",

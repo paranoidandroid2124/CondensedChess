@@ -275,7 +275,8 @@ into standalone canonical motif claims. MoveReview strategic-ledger token
 collection does not use those pattern or transition strings as structured motif
 authority or carry-over emitters, and lexicon endgame-pattern prefix templates
 plus positional-tag motif promotion for rook-behind-passer / king-cut-off labels
-are not public authority paths.
+are not public authority paths. Endgame continuity prose names the board
+structure anchors, not theorem or oracle pattern ids.
 
 Relation witnesses carry their cataloged surface as typed data. That surface may
 narrow the family: mobility restriction stays pressure, move order stays timing,

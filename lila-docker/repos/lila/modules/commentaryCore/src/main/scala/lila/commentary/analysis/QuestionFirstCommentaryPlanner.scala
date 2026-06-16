@@ -4229,35 +4229,48 @@ private[commentary] object QuestionFirstCommentaryPlanner:
         val toLabel = humanizeEndgamePattern(toRaw)
         Some(
           if fromRaw.equalsIgnoreCase("none") then
-            s"A new $toLabel pattern is visible, so the endgame context has changed."
+            s"A new endgame structure is visible around $toLabel, so the context has changed."
           else if toRaw.equalsIgnoreCase("none") then
-            s"The $fromLabel pattern has dissolved, so that earlier endgame pattern is no longer stable by itself."
+            s"The earlier endgame structure around $fromLabel has dissolved, so that context is no longer stable by itself."
           else
-            s"The endgame geometry has shifted from $fromLabel to $toLabel."
+            s"The endgame structure has shifted from $fromLabel to $toLabel."
         )
       case _ => None
     }.orElse {
       info.primaryPattern.flatMap { pattern =>
         Option.when(info.patternAge >= 2) {
           val label = humanizeEndgamePattern(pattern)
-          s"The $label pattern has stayed visible, keeping that endgame context in view."
+          s"The $label has stayed visible, keeping that endgame context in view."
         }
       }
     }
 
   private def humanizeEndgamePattern(raw: String): String =
     val normalized = Option(raw).getOrElse("").trim
-    if normalized.isEmpty then "endgame pattern"
-    else if normalized.equalsIgnoreCase("none") then "no stable endgame pattern"
-    else if normalized.equalsIgnoreCase("WrongRookPawnWrongBishopFortress") then "wrong-bishop rook-pawn corner setup"
+    if normalized.isEmpty then "endgame shape"
+    else if normalized.equalsIgnoreCase("none") then "no stable endgame shape"
+    else if normalized.equalsIgnoreCase("Lucena") then "bridge-building rook-pawn shape"
+    else if normalized.equalsIgnoreCase("PhilidorDefense") then "barrier-rank rook defense"
+    else if normalized.equalsIgnoreCase("VancuraDefense") then "side-checking rook defense"
+    else if normalized.equalsIgnoreCase("WrongRookPawnWrongBishopFortress") then "wrong-corner rook-pawn setup"
+    else if normalized.equalsIgnoreCase("OutsidePasserDecoy") then "outside-passer decoy shape"
+    else if normalized.equalsIgnoreCase("ConnectedPassers") then "connected-passer shape"
+    else if normalized.equalsIgnoreCase("KeySquaresOppositionBreakthrough") then "king-and-key-square breakthrough shape"
+    else if normalized.equalsIgnoreCase("TriangulationZugzwang") then "triangulation-tempo shape"
+    else if normalized.equalsIgnoreCase("BreakthroughSacrifice") then "pawn-breakthrough shape"
+    else if normalized.equalsIgnoreCase("Shouldering") then "king-shouldering shape"
+    else if normalized.equalsIgnoreCase("RetiManeuver") then "king-race pursuit shape"
+    else if normalized.equalsIgnoreCase("ShortSideDefense") then "short-side rook defense"
     else if normalized.equalsIgnoreCase("OppositeColoredBishopsDraw") then "opposite-colored bishops blockade"
-    else if normalized.equalsIgnoreCase("GoodBishopRookPawnConversion") then "good-bishop rook-pawn setup"
+    else if normalized.equalsIgnoreCase("GoodBishopRookPawnConversion") then "bishop-and-rook-pawn setup"
     else if normalized.equalsIgnoreCase("KnightBlockadeRookPawnDraw") then "knight rook-pawn blockade"
-    else if normalized.equalsIgnoreCase("RookAndBishopVsRookDraw") then "rook-and-bishop versus rook defensive setup"
+    else if normalized.equalsIgnoreCase("QueenVsAdvancedPawn") then "queen-versus-advanced-pawn checking setup"
+    else if normalized.equalsIgnoreCase("TarraschDefenseActive") then "active rook-behind-pawn setup"
+    else if normalized.equalsIgnoreCase("PassiveRookDefense") then "passive rook-behind-pawn setup"
+    else if normalized.equalsIgnoreCase("RookAndBishopVsRookDraw") then "rook-and-bishop versus rook defensive geometry"
+    else if normalized.equalsIgnoreCase("SameColoredBishopsBlockade") then "same-colored bishops blockade"
     else
-      normalized
-        .replaceAll("([a-z0-9])([A-Z])", "$1 $2")
-        .replace('_', ' ')
+      "endgame shape"
 
   private def hasPlanRaceCandidate(inputs: QuestionPlannerInputs): Boolean =
     val opponentRaceAvailable =
