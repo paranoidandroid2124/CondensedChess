@@ -6844,14 +6844,15 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
                   idea.copy(
                     ideaId = "idea_rook_endgame_pattern",
                     readiness = StrategicIdeaReadiness.Build,
-                    focusSquares = Nil,
+                    focusSquares = List("e6"),
                     focusFiles = List("e"),
                     confidence = 0.72,
                     evidenceRefs =
                       List(
                         "source:rook_endgame_pattern",
                         "rook_endgame_pattern_shape",
-                        "rook_behind_passed_pawn"
+                        "rook_behind_passed_pawn",
+                        "rook_behind_passer_square_e6"
                       )
                   )
                 )
@@ -6859,7 +6860,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
           )
     )
     assertEquals(rookEndgameSurface.advancedRows.map(_.label), List("Endgame cue"))
-    assertEquals(rookEndgameSurface.advancedRows.head.text, "The rook-behind-passer structure cue is anchored on the e-file.")
+    assertEquals(rookEndgameSurface.advancedRows.head.text, "The rook-behind-passer cue is anchored by the passed pawn on e6.")
     assertEquals(rookEndgameSurface.advancedRows.head.authority, None)
     assertEquals(rookEndgameSurface.advancedRows.head.authority.flatMap(_.target), None)
 
@@ -6889,9 +6890,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
     )
-    assertEquals(multiRookEndgameSurface.advancedRows.map(_.label), List("Endgame cue"))
-    assertEquals(multiRookEndgameSurface.advancedRows.head.text, "The rook endgame support stays result-neutral.")
-    assertEquals(multiRookEndgameSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assert(!multiRookEndgameSurface.advancedRows.exists(_.label == "Endgame cue"), clue(multiRookEndgameSurface.advancedRows))
 
     val oppositionSurface =
       build(

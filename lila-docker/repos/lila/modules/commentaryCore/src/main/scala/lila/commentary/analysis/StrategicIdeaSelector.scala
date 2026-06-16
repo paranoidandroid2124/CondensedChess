@@ -329,7 +329,8 @@ private[commentary] object StrategicIdeaSelector:
             refs.filter(ref =>
               ref == "rook_endgame_pattern_shape" ||
                 ref == "rook_behind_passed_pawn" ||
-                ref == "king_cut_off"
+                ref == "king_cut_off" ||
+                ref.startsWith("rook_behind_passer_square_")
             )
         }
         .toList
@@ -2984,9 +2985,11 @@ private[commentary] object StrategicIdeaSelector:
         passedPawnSquare.map(square => s"promotion cue on $square").getOrElse("promotion cue")
       else passedPawnSquare.map(square => s"passed-pawn cue around $square").getOrElse("passed-pawn cue")
     else if refs.contains("source:rook_endgame_pattern") && refs.contains("rook_endgame_pattern_shape") then
+      val rookBehindPasserSquare =
+        focusSquares.find(square => refs.contains(s"rook_behind_passer_square_$square"))
       val facts =
         List(
-          Option.when(refs.contains("rook_behind_passed_pawn"))("rook-behind-passer cue"),
+          rookBehindPasserSquare.map(square => s"rook-behind-passer cue around $square"),
           Option.when(refs.contains("king_cut_off"))("king cut-off cue")
         ).flatten
       facts match

@@ -533,9 +533,10 @@ class StrategicIdeaSelectorTest extends FunSuite:
     val semantic =
       StrategicIdeaSemanticContext(
         sideToMove = "white",
+        board = Some(boardFromFen("4k3/8/4P3/8/8/4R3/8/4K3 w - - 0 1")),
         motifs =
           List(
-            Motif.RookBehindPassedPawn(File.E, Color.White, plyIndex = 0, move = None),
+            Motif.RookBehindPassedPawn(File.E, Color.White, plyIndex = 0, move = Some("Re3")),
             Motif.KingCutOff("Rank", 6, Color.White, plyIndex = 0, move = None)
           )
       )
@@ -545,9 +546,11 @@ class StrategicIdeaSelectorTest extends FunSuite:
       ideas.find(_.evidenceRefs.contains("source:rook_endgame_pattern")).getOrElse(fail(clue(ideas).toString))
 
     assertEquals(conversionIdea.kind, StrategicIdeaKind.FavorableTradeOrTransformation)
+    assert(conversionIdea.focusSquares.contains("e6"), clue(conversionIdea))
     assert(conversionIdea.focusFiles.contains("e"), clue(conversionIdea))
     assert(conversionIdea.evidenceRefs.contains("rook_endgame_pattern_shape"), clue(conversionIdea.evidenceRefs))
     assert(conversionIdea.evidenceRefs.contains("rook_behind_passed_pawn"), clue(conversionIdea.evidenceRefs))
+    assert(conversionIdea.evidenceRefs.contains("rook_behind_passer_square_e6"), clue(conversionIdea.evidenceRefs))
     assert(conversionIdea.evidenceRefs.contains("king_cut_off"), clue(conversionIdea.evidenceRefs))
     assertEquals(StrategicIdeaSelector.playerFacingIdeaText(conversionIdea), "rook-endgame cue")
   }

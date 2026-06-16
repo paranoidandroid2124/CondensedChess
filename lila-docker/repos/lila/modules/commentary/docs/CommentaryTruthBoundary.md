@@ -206,9 +206,11 @@ projection unless a separate causal owner admits them. Scoped checked-line
 takeaways may use the admitted local-fact anchors for the same fields, not row
 text or guardrail strings. `RookEndgamePattern` fallback truth additionally
 requires replay-derived rook-square and passed-pawn anchors because the raw fact
-has no square participants. Oracle-only theoretical endgame outcome hints are
-not public win/draw truth; absent tablebase/eval/PV result evidence, public
-context and transition prose must expose the result side as `Unclear`.
+has no square participants. Player-surface rook-behind-passer support follows
+the same rule and requires a producer-carried passed-pawn square witness.
+Oracle-only theoretical endgame outcome hints are not public win/draw truth;
+absent tablebase/eval/PV result evidence, public context and transition prose
+must expose the result side as `Unclear`.
 Castling fallback prose follows the same rule: it may name the after-FEN
 castling side, king square, rook square, and king-safety feature refs, but it
 does not create opening-plan or tactical truth. Scoped checked-line takeaways

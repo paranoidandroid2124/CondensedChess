@@ -21,8 +21,9 @@ has been achieved.
 Endgame fallback descriptors require the played move to own the typed square
 anchor; role-only king or pawn movement does not admit opposition or
 rule-of-square claims. `RookEndgamePattern` facts have no square participants,
-so BasicExplanation admits them only when the checked line's after-board also
-anchors the played rook behind the passed pawn.
+so BasicExplanation and player-surface rook-behind-passer cues admit them only
+when board/replay evidence also anchors the played rook behind a typed passed
+pawn square.
 
 ## Risk Gates
 
@@ -340,7 +341,8 @@ plus positional-tag motif promotion for rook-behind-passer / king-cut-off labels
 are not public authority paths. Endgame continuity prose names the board
 structure anchors, not theorem or oracle pattern ids. Player-surface
 `Endgame cue` rows remain support-only and do not carry `practical_plan`
-authority.
+authority; rook-endgame rows require a `rook_behind_passer_square_*` witness,
+so file-only or king-cut-off-only shells stay out of the player surface.
 
 Relation witnesses carry their cataloged surface as typed data. That surface may
 narrow the family: mobility restriction stays pressure, move order stays timing,

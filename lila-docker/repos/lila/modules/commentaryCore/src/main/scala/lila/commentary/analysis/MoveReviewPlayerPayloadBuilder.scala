@@ -839,23 +839,13 @@ object MoveReviewPlayerPayloadBuilder:
                     idea.readiness == StrategicIdeaReadiness.Build &&
                     strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
                     idea.confidence >= 0.64
-                val rookEndgamePatternFacts =
-                  List(
-                    Option.when(refs.contains("rook_behind_passed_pawn"))("rook-behind-passer structure"),
-                    Option.when(refs.contains("king_cut_off"))("king cut-off")
-                  ).flatten
-                val singleFocusFile =
-                  idea.focusFiles.map(_.trim.toLowerCase).filter(file => file.length == 1 && file.head >= 'a' && file.head <= 'h').distinct match
-                    case file :: Nil => Some(file)
-                    case _           => None
-                val singleRookEndgamePatternFact =
-                  rookEndgamePatternFacts match
-                    case fact :: Nil => Some(fact)
-                    case _           => None
+                val rookBehindPasserSquare =
+                  focusSquares.find(square => refs.contains(s"rook_behind_passer_square_$square"))
                 val rookEndgamePattern =
                   refs.contains("source:rook_endgame_pattern") &&
                     refs.contains("rook_endgame_pattern_shape") &&
-                    rookEndgamePatternFacts.nonEmpty &&
+                    refs.contains("rook_behind_passed_pawn") &&
+                    rookBehindPasserSquare.nonEmpty &&
                     idea.readiness == StrategicIdeaReadiness.Build &&
                     strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
                     idea.confidence >= 0.72 &&
@@ -904,12 +894,8 @@ object MoveReviewPlayerPayloadBuilder:
                     row("Practical trade", "The IQP structure gives White a practical exchange-availability cue.", tone = Some("practical"))
                   else if rookEndgamePattern then
                     val text =
-                      singleRookEndgamePatternFact
-                        .map(fact =>
-                          singleFocusFile
-                            .map(file => s"The $fact cue is anchored on the $file-file.")
-                            .getOrElse(s"The $fact cue is present as endgame support.")
-                        )
+                      rookBehindPasserSquare
+                        .map(square => s"The rook-behind-passer cue is anchored by the passed pawn on $square.")
                         .getOrElse("The rook endgame support stays result-neutral.")
                     row("Endgame cue", text, tone = Some("practical"))
                   else if endgameTechniqueMotif then

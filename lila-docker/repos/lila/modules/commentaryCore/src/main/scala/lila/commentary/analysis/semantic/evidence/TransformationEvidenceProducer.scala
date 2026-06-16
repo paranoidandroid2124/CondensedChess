@@ -1,7 +1,7 @@
 package lila.commentary.analysis.semantic.evidence
 
 import lila.commentary.*
-import lila.commentary.analysis.{ PlanTaxonomy, StrategicIdeaSemanticContext }
+import lila.commentary.analysis.{ PlanTaxonomy, PositionAnalyzer, StrategicIdeaSemanticContext }
 import lila.commentary.analysis.semantic.{ StrategicIdeaEvidence, StrategicIdeaEvidenceProducer }
 import lila.commentary.analysis.semantic.StrategicObservationIds.EvidenceSourceId
 import lila.commentary.model.{ Motif, PlanId }
@@ -34,16 +34,36 @@ private[commentary] object TransformationEvidenceProducer extends StrategicIdeaE
 
     val rookEndgamePattern =
       semantic.motifs.collect {
-        case Motif.RookBehindPassedPawn(file, color, _, _) if matchesSide(color, side) =>
+        case Motif.RookBehindPassedPawn(file, color, _, move) if matchesSide(color, side) =>
+          val rookSquare = move.flatMap(destinationSquareFromSan)
+          val passerSquares =
+            semantic.board.toList.flatMap { board =>
+              val passers =
+                PositionAnalyzer
+                  .passedPawns(color, board.pawns & board.byColor(color), board.pawns & board.byColor(!color))
+                  .filter(_.file == file)
+              val behindRook =
+                rookSquare.fold(passers)(rook =>
+                  passers.filter(pawn =>
+                    if color.white then rook.rank.value < pawn.rank.value
+                    else rook.rank.value > pawn.rank.value
+                  )
+                )
+              behindRook match
+                case pawn :: Nil => List(pawn.key)
+                case _           => Nil
+            }.distinct
           evidence(
             ownerSide = side,
             kind = StrategicIdeaKind.FavorableTradeOrTransformation,
             readiness = StrategicIdeaReadiness.Build,
             source = EvidenceSourceId.RookEndgamePattern,
             confidence = 0.72,
+            focusSquares = passerSquares,
             focusFiles = List(fileToken(file)),
             focusZone = Some("endgame"),
-            factIds = List("rook_endgame_pattern_shape", "rook_behind_passed_pawn")
+            factIds = List("rook_endgame_pattern_shape", "rook_behind_passed_pawn") ++
+              passerSquares.map(square => s"rook_behind_passer_square_$square")
           )
         case Motif.KingCutOff(_, _, color, _, _) if matchesSide(color, side) =>
           evidence(
@@ -53,7 +73,7 @@ private[commentary] object TransformationEvidenceProducer extends StrategicIdeaE
             source = EvidenceSourceId.RookEndgamePattern,
             confidence = 0.72,
             focusZone = Some("endgame"),
-              factIds = List("rook_endgame_pattern_shape", "king_cut_off")
+            factIds = List("rook_endgame_pattern_shape", "king_cut_off")
           )
       }
 
