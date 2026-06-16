@@ -39,7 +39,7 @@ $home-shadow-dark: $home-shadow-light;
   margin: 0 0 0.8rem;
   color: $home-primary;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
   font-size: 0.78rem;
   font-weight: 800;
 }
@@ -122,7 +122,7 @@ $home-shadow-dark: $home-shadow-light;
     font-size: 0.76rem;
     font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 0;
     color: $home-accent;
   }
 
@@ -209,7 +209,7 @@ $home-shadow-dark: $home-shadow-light;
   &__label {
     font-size: 0.72rem;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 0;
     font-weight: 800;
     color: $home-primary;
   }
@@ -309,7 +309,7 @@ $home-shadow-dark: $home-shadow-light;
   border-radius: 999px;
   font-size: 0.72rem;
   font-weight: 700;
-  letter-spacing: 0.03em;
+  letter-spacing: 0;
   background: rgba($home-primary, 0.1);
   color: $home-primary;
 
