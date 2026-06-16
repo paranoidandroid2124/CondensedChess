@@ -73,6 +73,11 @@ describe('review player copy', () => {
     assert.match(moveReviewRenderingSource, /Numbers hidden/);
   });
 
+  test('keeps move review alternatives framed as playable lines', () => {
+    assert.match(moveReviewRendererSource, /Other lines to try/);
+    assert.doesNotMatch(moveReviewRendererSource, /Alternative Options/);
+  });
+
   test('keeps loading copy framed as a review, not a technical job', () => {
     ['Position', 'Candidate lines', 'Coach lesson', 'Board replay'].forEach(copy =>
       assert.match(moveReviewSource, new RegExp(escapeRegExp(copy)), `missing loading copy: ${copy}`),

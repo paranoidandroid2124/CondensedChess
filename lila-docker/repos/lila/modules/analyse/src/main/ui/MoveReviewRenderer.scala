@@ -112,7 +112,7 @@ object MoveReviewRenderer:
       ),
       variations.nonEmpty.option:
         div(cls := "alternatives")(
-          h3("Alternative Options"),
+          h3("Other lines to try"),
           renderVariations(variations, fenBefore, refs)
         )
     )
