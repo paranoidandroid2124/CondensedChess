@@ -937,8 +937,8 @@
       }
 
       &.highlighted {
-        background: linear-gradient(145deg, var(--atlas-accent), #a14f20);
-        color: #fff;
+        background: linear-gradient(145deg, var(--atlas-accent), #e3b15b);
+        color: #11130f;
       }
     }
   }
@@ -956,8 +956,8 @@
       padding: 0;
 
       legend {
-        border: 1px solid rgba(166, 85, 39, 0.34);
-        background: rgba(166, 85, 39, 0.1);
+        border: 1px solid rgba(139, 192, 113, 0.28);
+        background: rgba(139, 192, 113, 0.1);
         color: var(--atlas-accent-strong);
         border-radius: 999px;
         letter-spacing: 0.05em;
@@ -1007,14 +1007,14 @@
     }
 
     .button {
-      border: 1px solid rgba(166, 85, 39, 0.35);
+      border: 1px solid rgba(139, 192, 113, 0.3);
       border-radius: 999px;
-      background: rgba(166, 85, 39, 0.1);
+      background: rgba(139, 192, 113, 0.1);
       color: var(--atlas-accent-strong);
       font-weight: 700;
 
       &:hover {
-        background: rgba(166, 85, 39, 0.18);
+        background: rgba(139, 192, 113, 0.16);
       }
     }
 
@@ -1108,9 +1108,9 @@
       align-items: center;
       justify-content: center;
       border-radius: 999px;
-      background: rgba(251, 191, 36, 0.14);
-      color: #f8c573;
-      border: 1px solid rgba(251, 191, 36, 0.2);
+      background: rgba(139, 192, 113, 0.16);
+      color: #b4d99a;
+      border: 1px solid rgba(139, 192, 113, 0.28);
     }
 
     &__study-cover-glyph {
@@ -1122,7 +1122,7 @@
       font-size: 0.58rem;
       text-transform: uppercase;
       letter-spacing: 0.16em;
-      color: rgba(248, 216, 170, 0.86);
+      color: #b4d99a;
     }
 
     &__study-cover-title {
@@ -1528,7 +1528,7 @@
       min-width: 3.7rem;
       padding: 0.22rem 0.45rem;
       border-radius: 999px;
-      background: rgba(166, 85, 39, 0.12);
+      background: rgba(227, 177, 91, 0.12);
       color: var(--atlas-accent-strong);
       font-size: 0.7rem;
       font-weight: 800;
