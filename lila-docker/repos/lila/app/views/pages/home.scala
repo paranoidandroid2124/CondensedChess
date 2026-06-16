@@ -21,27 +21,27 @@ object home:
           div(cls := "home-shell")(
             st.section(cls := "home-hero")(
               div(cls := "home-hero__copy")(
-                p(cls := "home-eyebrow")("Chesstory Home"),
-                h1("Continue where you left off."),
+                p(cls := "home-eyebrow")("Study room"),
+                h1("Return to the board first."),
                 p(cls := "home-hero__summary")(
-                  "Return to the game, pattern, or notebook you were studying. Start a new board only when a new question is ready."
+                  "Continue the review, pattern, or notebook you were studying without losing the position that made it matter."
                 ),
                 renderContinueCard(data.continueCard)
               ),
               div(cls := "home-quickstart")(
                 div(cls := "home-section-head")(
-                  strong("Quick start"),
-                  span("Start from the kind of chess work you want to do now")
+                  strong("Choose the next board"),
+                  span("Start from the kind of chess work you want to do now.")
                 ),
                 div(cls := "home-quickstart__grid")(
                   data.quickActions.map(renderQuickAction)*
                 )
               )
             ),
-            st.section(cls := "home-section")(
+            st.section(cls := "home-section home-section--reviews")(
               div(cls := "home-section-head")(
-                strong("Recent games"),
-                span("Resume a recent game as a guided review, or open the same board when you want to explore the full line.")
+                strong("Recent guided reviews"),
+                span("Reopen the game as a coach-led review, or use the same board when you want to explore the full line.")
               ),
               if data.recentAnalyses.nonEmpty then
                 div(cls := "home-card-grid home-card-grid--analysis")(
@@ -52,14 +52,14 @@ object home:
             div(cls := "home-secondary-grid")(
               st.section(cls := "home-section")(
                 div(cls := "home-section-head")(
-                strong("Recent patterns"),
+                  strong("Recurring positions"),
                   span("Return to recurring positions from your games or an opponent's public games.")
                 ),
                 if data.recentPatternReports.nonEmpty then
                   div(cls := "home-card-grid home-card-grid--reports")(
                     data.recentPatternReports.map(renderPatternReport)*
                   )
-                else renderEmptyStrip("No recent patterns yet", "Look up a public account when you want the positions that keep coming back.")
+                else renderEmptyStrip("No recurring positions yet", "Look up a public account when you want the positions that keep coming back.")
               ),
               st.section(cls := "home-section")(
                 div(cls := "home-section-head")(
@@ -70,12 +70,12 @@ object home:
                   div(cls := "home-card-grid home-card-grid--notebooks")(
                     data.recentNotebooks.map(renderNotebook)*
                   )
-                else renderEmptyStrip("No recent notebooks yet", "Create or save one from analysis or account patterns when the position is worth keeping.")
+                else renderEmptyStrip("No recent notebooks yet", "Create or save one from analysis or recurring positions when the board is worth keeping.")
               )
             ),
             st.section(cls := "home-section home-section--accounts")(
               div(cls := "home-section-head")(
-                strong("Recent public accounts"),
+                strong("Players you study"),
                 span("Open a player again when you want to study the positions that appear in their games.")
               ),
               if data.recentAccounts.nonEmpty then
@@ -97,12 +97,12 @@ object home:
         val supportLine =
           List(entry.opening, entry.variant.filterNot(v => entry.opening.contains(v))).flatten.mkString(" • ")
         st.article(cls := "home-continue-card")(
-          p(cls := "home-continue-card__eyebrow")("Continue Guided Review"),
+          p(cls := "home-continue-card__eyebrow")("Move Review"),
           h2(cls := "home-continue-card__title")(entry.title),
           p(cls := "home-continue-card__summary")(recentAnalysisMeta(entry)),
           supportLine.nonEmpty.option(p(cls := "home-continue-card__support")(supportLine)),
           div(cls := "home-continue-card__actions")(
-            a(href := importedAnalysisUrl(entry._id, "review"), cls := "button button-fat")("Continue Guided Review"),
+            a(href := importedAnalysisUrl(entry._id, "review"), cls := "button button-fat")("Continue Move Review"),
             a(href := importedAnalysisUrl(entry._id, "raw"), cls := "button button-metal")("Open analysis board")
           )
         )
@@ -114,17 +114,17 @@ object home:
           p(cls := "home-continue-card__summary")(headline),
           p(cls := "home-continue-card__support")(s"${providerLabel(job.provider)} • ${kindLabel(job.kind.key)}"),
           div(cls := "home-continue-card__actions")(
-            a(href := reportUrl(job), cls := "button button-fat")(s"Open ${kindLabel(job.kind.key)}"),
-            a(href := routes.AccountIntel.landing("", "").url, cls := "button button-metal")("See account patterns")
+            a(href := reportUrl(job), cls := "button button-fat")(s"Study ${kindLabel(job.kind.key)}"),
+            a(href := routes.AccountIntel.landing("", "").url, cls := "button button-metal")("Study another player")
           )
         )
       case Main.HomeContinueCard.Notebook(entry) =>
-        val sectionCount = entry.chapters.size
+        val chapterCount = entry.chapters.size
         st.article(cls := "home-continue-card")(
           p(cls := "home-continue-card__eyebrow")("Study notebook"),
           h2(cls := "home-continue-card__title")(entry.study.name.value),
           p(cls := "home-continue-card__summary")(
-            s"${if entry.study.isPublic then "Public notebook" else "Private notebook"} • $sectionCount ${if sectionCount == 1 then "section" else "sections"}"
+            s"${if entry.study.isPublic then "Public notebook" else "Private notebook"} • $chapterCount ${if chapterCount == 1 then "chapter" else "chapters"}"
           ),
           p(cls := "home-continue-card__support")(
             "Reopen the saved study when the board, notes, and chapter flow already exist."
@@ -139,7 +139,7 @@ object home:
           p(cls := "home-continue-card__eyebrow")("Start fresh"),
           h2(cls := "home-continue-card__title")("No recent work yet"),
           p(cls := "home-continue-card__summary")(
-            "Start from a PGN, open a board, look up recurring patterns, or try the current strategic position."
+            "Start from a PGN, open a board, look up recurring positions, or try the current strategic position."
           ),
           div(cls := "home-continue-card__actions")(
             a(href := routes.Importer.importGame.url, cls := "button button-fat")("Start from PGN"),
@@ -152,7 +152,7 @@ object home:
       span(cls := "home-action-card__label")(action.label),
       strong(cls := "home-action-card__title")(action.title),
       p(cls := "home-action-card__copy")(action.copy),
-      span(cls := "home-action-card__cta")("Open")
+      span(cls := "home-action-card__cta")("Start")
     )
 
   private def renderRecentAnalysis(entry: ImportHistory.Analysis): Frag =
@@ -166,7 +166,7 @@ object home:
       strong(cls := "home-card__title")(entry.title),
       p(cls := "home-card__summary")(recentAnalysisMeta(entry)),
       supportLine.nonEmpty.option(p(cls := "home-card__meta")(supportLine)),
-      span(cls := "home-card__cta")("Resume")
+      span(cls := "home-card__cta")("Open review")
     )
 
   private def renderPatternReport(job: lila.accountintel.AccountIntel.AccountIntelJob): Frag =
@@ -176,14 +176,14 @@ object home:
         span(cls := "home-pill home-pill--pattern")(kindLabel(job.kind.key))
       ),
       strong(cls := "home-card__title")(s"@${job.username}"),
-      p(cls := "home-card__summary")(reportHeadline(job).getOrElse("The latest pattern set is ready to study again.")),
+      p(cls := "home-card__summary")(reportHeadline(job).getOrElse("The latest recurring position study is ready to open again.")),
       p(cls := "home-card__meta")(s"${providerLabel(job.provider)} • ${kindLabel(job.kind.key)}"),
-      span(cls := "home-card__cta")("Open")
+      span(cls := "home-card__cta")("Open patterns")
     )
 
   private def renderNotebook(entry: lila.study.Study.WithChaptersAndLiked): Frag =
-    val sectionCount = entry.chapters.size
-    val sectionPreview =
+    val chapterCount = entry.chapters.size
+    val chapterPreview =
       entry.chapters.take(2).map(_.value).mkString(" • ")
     a(href := routes.Study.show(entry.study.id).url, cls := "home-card home-card--notebook")(
       div(cls := "home-card__badges")(
@@ -191,9 +191,9 @@ object home:
         entry.liked.option(span(cls := "home-pill home-pill--liked")("Liked"))
       ),
       strong(cls := "home-card__title")(entry.study.name.value),
-      p(cls := "home-card__summary")(s"$sectionCount ${if sectionCount == 1 then "section" else "sections"}"),
-      sectionPreview.nonEmpty.option(p(cls := "home-card__meta")(sectionPreview)),
-      span(cls := "home-card__cta")("Open")
+      p(cls := "home-card__summary")(s"$chapterCount ${if chapterCount == 1 then "chapter" else "chapters"}"),
+      chapterPreview.nonEmpty.option(p(cls := "home-card__meta")(chapterPreview)),
+      span(cls := "home-card__cta")("Open chapter")
     )
 
   private def renderAccountLookup(account: ImportHistory.Account): Frag =
@@ -210,8 +210,8 @@ object home:
         strong(s"@${account.username}"),
         providerBadge(account.provider)
       ),
-      p(s"${account.analysisCount} saved games • ${account.searchCount} pattern checks"),
-      span(cls := "home-card__cta")("Open My Patterns")
+      p(s"${account.analysisCount} saved games • ${account.searchCount} position studies"),
+      span(cls := "home-card__cta")("Study player")
     )
 
   private def renderEmptyStrip(title: String, copy: String): Frag =
@@ -242,7 +242,7 @@ object home:
       entry.result,
       entry.speed.filterNot(_ == "-")
     ).flatten.mkString(" • ")
-    if line.nonEmpty then line else "Saved PGN ready to resume"
+    if line.nonEmpty then line else "Saved PGN ready for review"
 
   private def providerBadge(provider: String): Frag =
     span(cls := s"home-pill home-pill--provider home-pill--${providerTone(provider)}")(providerLabel(provider))
@@ -266,7 +266,7 @@ object home:
   private def sourceTypeLabel(sourceType: String): String =
     sourceType match
       case ImportHistory.sourceManual => "Manual PGN"
-      case _                          => "Imported game"
+      case _                          => "Player game"
 
   private def sourceBadgeTone(sourceType: String): String =
     sourceType match

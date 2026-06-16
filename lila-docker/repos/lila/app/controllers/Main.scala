@@ -48,27 +48,27 @@ final class Main(
         continueCard = continueCard,
         quickActions = List(
           Main.HomeQuickAction(
-            label = "Start",
-            title = "Start from PGN",
-            copy = "Paste a game and continue into Move Review without rebuilding your entry flow.",
+            label = "Move Review",
+            title = "Review one game",
+            copy = "Paste a PGN and turn one game into a board-led review.",
             href = routes.Importer.importGame.url
           ),
           Main.HomeQuickAction(
             label = "Board",
-            title = "Open full analysis",
-            copy = "Go straight to the board, tree, engine, and explorer.",
+            title = "Explore a position",
+            copy = "Use the board, move tree, engine, and explorer when you want to test lines yourself.",
             href = s"${routes.UserAnalysis.index.url}?mode=raw"
           ),
           Main.HomeQuickAction(
             label = "Patterns",
-            title = "See account patterns",
+            title = "Study recurring positions",
             copy = "Open My Patterns or Prep for Opponent from a public account.",
             href = routes.AccountIntel.landing("", "").url
           ),
           Main.HomeQuickAction(
-            label = "Puzzle",
-            title = "Open Strategic Puzzle",
-            copy = "Open the current live strategic puzzle without promising saved progress.",
+            label = "Practice",
+            title = "Open position exercise",
+            copy = "Work through the current strategic position with the board first.",
             href = routes.StrategicPuzzle.home.url
           )
         ),

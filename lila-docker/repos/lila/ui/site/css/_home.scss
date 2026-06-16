@@ -63,13 +63,36 @@ $home-shadow-dark: $home-shadow-light;
 
 .home-hero__copy {
   padding: clamp(1.2rem, 3vw, 2rem);
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: auto clamp(1rem, 3vw, 2rem) clamp(1rem, 3vw, 2rem) auto;
+    width: clamp(7rem, 17vw, 13rem);
+    aspect-ratio: 1;
+    border: 1px solid rgba($home-primary, 0.2);
+    border-radius: 8px;
+    background:
+      linear-gradient(45deg, rgba($home-primary, 0.13) 25%, transparent 25% 75%, rgba($home-primary, 0.13) 75%) 0 0 / 2rem 2rem,
+      linear-gradient(45deg, transparent 25%, rgba($home-primary, 0.08) 25% 75%, transparent 75%) 1rem 1rem / 2rem 2rem,
+      rgba($home-surface-strong-light, 0.68);
+    box-shadow: inset 0 0 0 1px rgba($home-ink-light, 0.04);
+    opacity: 0.48;
+    pointer-events: none;
+  }
+
+  > * {
+    position: relative;
+  }
 
   h1 {
     margin: 0;
     font-family: 'Merriweather', 'Georgia', serif;
-    font-size: clamp(2.2rem, 5vw, 3.8rem);
+    font-size: 3.4rem;
     line-height: 1.02;
-    letter-spacing: -0.02em;
+    letter-spacing: 0;
     max-width: 10ch;
   }
 }
@@ -89,6 +112,10 @@ $home-shadow-dark: $home-shadow-light;
   border: 1px solid rgba($home-primary, 0.16);
   display: grid;
   gap: 0.7rem;
+  border-color: rgba($home-primary, 0.22);
+  background:
+    linear-gradient(135deg, rgba($home-primary, 0.08), transparent 40%),
+    $home-surface-strong-light;
 
   &__eyebrow {
     margin: 0;
@@ -101,7 +128,7 @@ $home-shadow-dark: $home-shadow-light;
 
   &__title {
     margin: 0;
-    font-size: clamp(1.35rem, 2vw, 1.9rem);
+    font-size: 1.7rem;
     line-height: 1.1;
   }
 
@@ -118,6 +145,13 @@ $home-shadow-dark: $home-shadow-light;
     gap: 0.75rem;
     padding-top: 0.25rem;
   }
+}
+
+.home-section--reviews {
+  border-color: rgba($home-primary, 0.24);
+  background:
+    linear-gradient(180deg, rgba($home-primary, 0.06), transparent 62%),
+    $home-surface-light;
 }
 
 .home-quickstart {
@@ -259,6 +293,10 @@ $home-shadow-dark: $home-shadow-light;
   }
 }
 
+.home-card--analysis {
+  border-color: rgba($home-primary, 0.22);
+}
+
 .home-pill {
   display: inline-flex;
   align-items: center;
@@ -393,6 +431,19 @@ $home-shadow-dark: $home-shadow-light;
 
   .home-continue-card__actions {
     display: grid;
+  }
+
+  .home-hero__copy::before {
+    width: 6rem;
+    opacity: 0.22;
+  }
+
+  .home-hero__copy h1 {
+    font-size: 2.3rem;
+  }
+
+  .home-continue-card__title {
+    font-size: 1.35rem;
   }
 }
 
