@@ -16,7 +16,7 @@ export type ReviewViewNodes = {
 
 const tabs: [ReviewPrimaryTab, string, string][] = [
   ['explain', 'Coach', 'Coach lesson'],
-  ['engine', 'Candidates', 'Compare lines'],
+  ['engine', 'Candidates', 'Eval and lines'],
   ['explorer', 'Opening', 'Book context'],
   ['moves', 'Moves', 'Score sheet'],
   ['import', 'Load', 'Bring in a game'],
@@ -55,7 +55,7 @@ function tabButton(ctrl: AnalyseCtrl, active: ReviewPrimaryTab, tab: ReviewPrima
 function renderTab(ctrl: AnalyseCtrl, nodes: ReviewViewNodes, tab: ReviewPrimaryTab): VNode {
   switch (tab) {
     case 'engine':
-      return panel('Candidate lines', [nodes.cevalNode, nodes.pvsNode].filter(Boolean));
+      return panel('Eval and candidate lines', [nodes.cevalNode, nodes.pvsNode].filter(Boolean));
     case 'explorer':
       return panel('Opening context', [nodes.explorerNode]);
     case 'moves':

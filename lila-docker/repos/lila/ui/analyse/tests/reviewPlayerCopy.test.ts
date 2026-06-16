@@ -28,32 +28,39 @@ const moveReviewRendererSource = readFileSync(
 describe('review player copy', () => {
   test('keeps review shell tabs and panels player-facing', () => {
     [
-      'Candidate lines',
+      'Eval and candidate lines',
       'Opening context',
       'Score sheet',
       'Load a game',
       'Board setup',
       'Coach lesson',
-      'Compare lines',
+      'Eval and lines',
       'Book context',
       'Bring in a game',
       'Review board',
       'Nothing to show for this position yet.',
     ].forEach(copy => assert.match(reviewViewSource, new RegExp(escapeRegExp(copy)), `missing copy: ${copy}`));
 
-    ['Suggested lines', 'Board position', 'Paste PGN', 'Load PGN', 'Game moves', 'No review content yet.', 'Review scene'].forEach(copy =>
-      assert.doesNotMatch(reviewViewSource, new RegExp(escapeRegExp(copy)), `stale tool copy: ${copy}`),
-    );
+    [
+      'Suggested lines',
+      'Board position',
+      'Paste PGN',
+      'Load PGN',
+      'Game moves',
+      'No review content yet.',
+      'Review scene',
+      'Compare lines',
+    ].forEach(copy => assert.doesNotMatch(reviewViewSource, new RegExp(escapeRegExp(copy)), `stale tool copy: ${copy}`));
   });
 
   test('keeps review controls aligned with the review player labels', () => {
     ['Opening context', 'Board setup', 'Toggle candidate lines'].forEach(copy =>
       assert.match(controlsSource, new RegExp(escapeRegExp(copy)), `missing control copy: ${copy}`),
     );
-    ['Candidate lines', 'candidate lines are on', 'Position gauge', 'move list', 'Variation handles'].forEach(copy =>
+    ['Candidate lines', 'candidate lines are on', 'Eval gauge', 'eval gauge visible', 'move list', 'Variation handles'].forEach(copy =>
       assert.match(actionMenuSource, new RegExp(escapeRegExp(copy)), `missing board setup copy: ${copy}`),
     );
-    ['Reference lines', 'reference lines are on', 'evaluation gauge', 'move tree', 'Disclosure buttons'].forEach(copy =>
+    ['Reference lines', 'reference lines are on', 'Position gauge', 'evaluation gauge', 'move tree', 'Disclosure buttons'].forEach(copy =>
       assert.doesNotMatch(actionMenuSource, new RegExp(escapeRegExp(copy)), `stale board setup copy: ${copy}`),
     );
   });

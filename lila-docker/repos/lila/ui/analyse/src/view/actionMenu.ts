@@ -126,8 +126,8 @@ function boardWorkspaceView(ctrl: AnalyseCtrl, closeMenu: () => void): VNode[] {
         engineUnavailable,
       ),
       workspaceSwitchCard(
-        'Position gauge',
-        'Keep the position gauge visible when candidate lines are on and space allows.',
+        'Eval gauge',
+        'Keep the eval gauge visible when candidate lines are on and space allows.',
         ctrl.showGauge(),
         next => {
           ctrl.setShowEvalGauge(next);
