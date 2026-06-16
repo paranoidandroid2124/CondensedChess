@@ -2,24 +2,26 @@
 // Magic link login, confirmation, and error pages
 // Uses same layout principles as landing page
 
-// Color variables (matching theme.pro)
-$c-bg-page: #0d1016;
-$c-bg: #161A25;
-$c-bg-low: #1c212e;
-$c-border: #2a3449;
-$c-font: #E2E8F0;
-$c-shade: #94A3B8;
-$c-primary: #3B82F6;
-$c-good: #06B6D4;
-$c-bad: #EF4444;
-$c-accent: #F59E0B;
+// Color variables (Chesstory study room)
+$c-bg-page: #11130f;
+$c-bg: #171816;
+$c-bg-low: #22241f;
+$c-bg-input: #1c1e1a;
+$c-border: #3a3d34;
+$c-font: #efeee8;
+$c-shade: #a9ad9e;
+$c-primary: #8bc071;
+$c-primary-strong: #b4d99a;
+$c-good: #77b673;
+$c-bad: #d96f66;
+$c-accent: #e3b15b;
 
 .auth-page {
     min-height: 100vh;
     min-height: 100dvh;
     display: flex;
     flex-direction: column;
-    background-color: #F8F9FA;
+    background-color: $c-bg-page;
     font-family: 'Roboto', 'Noto Sans', 'Segoe UI', sans-serif;
 }
 
@@ -54,11 +56,11 @@ html.pro .auth-page {
 
 .auth-card {
     width: 100%;
-    background: #fff;
-    border: 1px solid #E2E8F0;
-    border-radius: 16px;
+    background: $c-bg-low;
+    border: 1px solid $c-border;
+    border-radius: 8px;
     padding: 3rem;
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.24);
 }
 
 body.dark .auth-card,
@@ -79,7 +81,7 @@ html.pro .auth-card {
     font-size: 2rem;
     font-weight: 700;
     margin: 0 0 0.5rem 0;
-    color: #161A25;
+    color: $c-font;
 }
 
 body.dark .auth-title,
@@ -91,7 +93,7 @@ html.pro .auth-title {
 
 .auth-subtitle {
     font-size: 1rem;
-    color: #64748B;
+    color: $c-shade;
     margin: 0 0 2rem 0;
     line-height: 1.5;
 }
@@ -105,7 +107,7 @@ html.pro .auth-subtitle {
 
 .auth-message {
     font-size: 1.1rem;
-    color: #64748B;
+    color: $c-shade;
     margin: 1rem 0 2rem 0;
     line-height: 1.6;
 }
@@ -127,10 +129,10 @@ html.pro .auth-message {
 .auth-form select {
     width: 100%;
     padding: 1rem 1.25rem;
-    border: 1px solid #E2E8F0;
+    border: 1px solid $c-border;
     border-radius: 10px;
-    background: #F8F9FA;
-    color: #161A25;
+    background: $c-bg-input;
+    color: $c-font;
     font-size: 1rem;
     font-family: inherit;
     transition: border-color 0.2s, box-shadow 0.2s;
@@ -149,7 +151,7 @@ html.pro .auth-message {
 .auth-form select:focus {
     outline: none;
     border-color: $c-primary;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    box-shadow: 0 0 0 3px rgba(139, 192, 113, 0.18);
 }
 
 body.dark .auth-form input[type="email"],
@@ -168,7 +170,7 @@ html.pro .auth-form input[type="email"],
 html.pro .auth-form input[type="text"],
 html.pro .auth-form input[type="password"],
 html.pro .auth-form select {
-    background: $c-bg;
+    background: $c-bg-input;
     border-color: $c-border;
     color: $c-font;
 }
@@ -185,7 +187,7 @@ html.dark .auth-form input[type="password"]::placeholder,
 html.pro .auth-form input[type="email"]::placeholder,
 html.pro .auth-form input[type="text"]::placeholder,
 html.pro .auth-form input[type="password"]::placeholder {
-    color: #64748B;
+    color: $c-shade;
 }
 
 body.dark .auth-form input[type="email"]:focus,
@@ -205,7 +207,7 @@ html.pro .auth-form input[type="text"]:focus,
 html.pro .auth-form input[type="password"]:focus,
 html.pro .auth-form select:focus {
     border-color: $c-primary;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+    box-shadow: 0 0 0 3px rgba(139, 192, 113, 0.25);
 }
 
 .auth-submit {
@@ -215,8 +217,8 @@ html.pro .auth-form select:focus {
     gap: 8px;
     width: 100%;
     padding: 1rem 1.5rem;
-    background: #161A25;
-    color: #fff;
+    background: $c-primary;
+    color: $c-bg-page;
     border: none;
     border-radius: 10px;
     font-size: 1rem;
@@ -232,7 +234,7 @@ html.pro .auth-form select:focus {
 }
 
 .auth-submit:hover {
-    background: $c-primary;
+    background: $c-primary-strong;
     transform: translateY(-2px);
 }
 
@@ -244,16 +246,16 @@ body.dark .auth-submit,
 body.pro .auth-submit,
 html.dark .auth-submit,
 html.pro .auth-submit {
-    background: $c-font;
-    color: #161A25;
+    background: $c-primary;
+    color: $c-bg-page;
 }
 
 body.dark .auth-submit:hover,
 body.pro .auth-submit:hover,
 html.dark .auth-submit:hover,
 html.pro .auth-submit:hover {
-    background: $c-primary;
-    color: #fff;
+    background: $c-primary-strong;
+    color: $c-bg-page;
 }
 
 .auth-note {
@@ -272,8 +274,8 @@ html.pro .auth-submit:hover {
 }
 
 .auth-error {
-    background: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.3);
+    background: rgba($c-bad, 0.12);
+    border: 1px solid rgba($c-bad, 0.32);
     color: $c-bad;
     padding: 1rem;
     border-radius: 8px;
@@ -282,8 +284,8 @@ html.pro .auth-submit:hover {
 }
 
 .auth-success {
-    background: rgba(6, 182, 212, 0.1);
-    border: 1px solid rgba(6, 182, 212, 0.35);
+    background: rgba($c-good, 0.12);
+    border: 1px solid rgba($c-good, 0.34);
     color: $c-good;
     padding: 1rem;
     border-radius: 8px;
@@ -320,7 +322,7 @@ html.pro .auth-submit:hover {
     gap: 8px;
     margin-bottom: 1rem;
     font-size: 0.9rem;
-    color: #475569;
+    color: $c-shade;
 }
 
 .auth-remember input[type="checkbox"] {
@@ -349,7 +351,7 @@ html.pro .auth-remember {
 
 .auth-success-icon {
     color: $c-good;
-    background: rgba(6, 182, 212, 0.1);
+    background: rgba($c-good, 0.12);
     width: 80px;
     height: 80px;
     border-radius: 50%;
@@ -361,7 +363,7 @@ html.pro .auth-remember {
 
 .auth-error-icon {
     color: $c-bad;
-    background: rgba(239, 68, 68, 0.1);
+    background: rgba($c-bad, 0.12);
     width: 80px;
     height: 80px;
     border-radius: 50%;
@@ -373,7 +375,7 @@ html.pro .auth-remember {
 
 .auth-dev-icon {
     color: $c-accent;
-    background: rgba(245, 158, 11, 0.1);
+    background: rgba($c-accent, 0.12);
     width: 80px;
     height: 80px;
     border-radius: 50%;
@@ -457,15 +459,15 @@ html.pro .auth-url code {
     gap: 0.25rem;
     padding: 0.25rem;
     border-radius: 999px;
-    border: 1px solid #E2E8F0;
-    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid $c-border;
+    background: rgba(28, 30, 26, 0.86);
 }
 
 .auth-theme-switch__button {
     appearance: none;
     border: none;
     background: transparent;
-    color: #64748B;
+    color: $c-shade;
     min-height: 2rem;
     min-width: 3.2rem;
     padding: 0 0.75rem;
@@ -478,26 +480,26 @@ html.pro .auth-url code {
 }
 
 .auth-theme-switch__button:hover {
-    color: #161A25;
+    color: $c-font;
 }
 
 .auth-theme-switch__button:focus-visible {
     outline: none;
     box-shadow:
-        0 0 0 2px rgba(59, 130, 246, 0.22),
-        0 0 0 4px rgba(59, 130, 246, 0.1);
-    color: #161A25;
+        0 0 0 2px rgba(139, 192, 113, 0.26),
+        0 0 0 4px rgba(139, 192, 113, 0.12);
+    color: $c-font;
 }
 
 .auth-theme-switch__button[aria-pressed='true'] {
-    color: #161A25;
-    background: rgba(59, 130, 246, 0.14);
+    color: $c-bg-page;
+    background: $c-primary;
 }
 
 .auth-theme-switch__button[aria-busy='true'] {
     cursor: progress;
-    color: #161A25;
-    background: rgba(59, 130, 246, 0.14);
+    color: $c-bg-page;
+    background: $c-primary;
 }
 
 .auth-theme-switch__button[aria-busy='true']::after {
@@ -518,7 +520,7 @@ html.pro .auth-url code {
     padding: 2rem;
     font-size: 0.875rem;
     color: $c-shade;
-    border-top: 1px solid #E2E8F0;
+    border-top: 1px solid $c-border;
 }
 
 body.dark .auth-page .landing-footer,
@@ -533,7 +535,7 @@ body.pro .auth-theme-switch,
 html.dark .auth-theme-switch,
 html.pro .auth-theme-switch {
     border-color: $c-border;
-    background: rgba(15, 23, 34, 0.72);
+    background: rgba(28, 30, 26, 0.86);
 }
 
 body.dark .auth-theme-switch__button,
@@ -555,8 +557,8 @@ body.pro .auth-theme-switch__button:focus-visible,
 html.dark .auth-theme-switch__button:focus-visible,
 html.pro .auth-theme-switch__button:focus-visible {
     box-shadow:
-        0 0 0 2px rgba(96, 165, 250, 0.28),
-        0 0 0 4px rgba(96, 165, 250, 0.12);
+        0 0 0 2px rgba(139, 192, 113, 0.28),
+        0 0 0 4px rgba(139, 192, 113, 0.12);
     color: $c-font;
 }
 
@@ -564,16 +566,16 @@ body.dark .auth-theme-switch__button[aria-pressed='true'],
 body.pro .auth-theme-switch__button[aria-pressed='true'],
 html.dark .auth-theme-switch__button[aria-pressed='true'],
 html.pro .auth-theme-switch__button[aria-pressed='true'] {
-    color: $c-font;
-    background: rgba(59, 130, 246, 0.24);
+    color: $c-bg-page;
+    background: $c-primary;
 }
 
 body.dark .auth-theme-switch__button[aria-busy='true'],
 body.pro .auth-theme-switch__button[aria-busy='true'],
 html.dark .auth-theme-switch__button[aria-busy='true'],
 html.pro .auth-theme-switch__button[aria-busy='true'] {
-    color: $c-font;
-    background: rgba(59, 130, 246, 0.24);
+    color: $c-bg-page;
+    background: $c-primary;
 }
 
 .auth-page .btn-text {
@@ -600,10 +602,10 @@ html.pro .auth-theme-switch__button[aria-busy='true'] {
 }
 
 .auth-history--empty {
-    border: 1px dashed rgba(59, 130, 246, 0.32);
-    border-radius: 14px;
+    border: 1px dashed rgba($c-primary, 0.34);
+    border-radius: 8px;
     padding: 1rem;
-    background: rgba(59, 130, 246, 0.04);
+    background: rgba($c-primary, 0.08);
 }
 
 .auth-empty-state {
@@ -615,14 +617,14 @@ html.pro .auth-theme-switch__button[aria-busy='true'] {
 
 .auth-empty-state strong {
     font-size: 1rem;
-    color: #161A25;
+    color: $c-font;
 }
 
 .auth-empty-state p {
     margin: 0;
     font-size: 0.92rem;
     line-height: 1.55;
-    color: #64748B;
+    color: $c-shade;
 }
 
 .auth-empty-state__eyebrow {
@@ -648,13 +650,13 @@ html.pro .auth-theme-switch__button[aria-busy='true'] {
 
 .auth-history__section-head strong {
     font-size: 1rem;
-    color: #161A25;
+    color: $c-font;
 }
 
 .auth-history__section-head span {
     font-size: 0.9rem;
     line-height: 1.5;
-    color: #64748B;
+    color: $c-shade;
 }
 
 .auth-history__list {
@@ -664,10 +666,10 @@ html.pro .auth-theme-switch__button[aria-busy='true'] {
 
 .auth-history__card,
 .auth-import-card {
-    border: 1px solid #E2E8F0;
-    border-radius: 14px;
-    background: #F8F9FA;
-    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+    border: 1px solid $c-border;
+    border-radius: 8px;
+    background: $c-bg-input;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
 }
 
 .auth-history__card {
@@ -681,16 +683,16 @@ html.pro .auth-theme-switch__button[aria-busy='true'] {
 }
 
 .auth-history__card:hover {
-    border-color: rgba(59, 130, 246, 0.45);
-    box-shadow: 0 10px 28px rgba(59, 130, 246, 0.12);
+    border-color: rgba($c-primary, 0.5);
+    box-shadow: 0 12px 30px rgba(139, 192, 113, 0.12);
     transform: translateY(-1px);
 }
 
 .auth-history__card--priority {
-    border-color: rgba(59, 130, 246, 0.24);
+    border-color: rgba($c-primary, 0.34);
     background:
-        linear-gradient(145deg, rgba(59, 130, 246, 0.08), rgba(248, 249, 250, 0.96) 60%),
-        #F8F9FA;
+        linear-gradient(145deg, rgba(139, 192, 113, 0.12), rgba(34, 36, 31, 0.96) 60%),
+        $c-bg-input;
 }
 
 .auth-history__badges {
@@ -710,28 +712,28 @@ html.pro .auth-theme-switch__button[aria-busy='true'] {
     font-weight: 700;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: #0F172A;
-    background: rgba(148, 163, 184, 0.18);
+    color: $c-font;
+    background: rgba(169, 173, 158, 0.14);
 }
 
 .auth-badge--priority {
     color: $c-primary;
-    background: rgba(59, 130, 246, 0.12);
+    background: rgba($c-primary, 0.14);
 }
 
 .auth-badge--activity {
-    color: #B45309;
-    background: rgba(245, 158, 11, 0.18);
+    color: $c-accent;
+    background: rgba($c-accent, 0.16);
 }
 
 .auth-badge--manual {
-    color: #334155;
-    background: rgba(148, 163, 184, 0.18);
+    color: $c-shade;
+    background: rgba(169, 173, 158, 0.14);
 }
 
 .auth-badge--imported {
-    color: #0F766E;
-    background: rgba(6, 182, 212, 0.14);
+    color: $c-good;
+    background: rgba($c-good, 0.14);
 }
 
 .auth-badge--lichess {
@@ -758,7 +760,7 @@ html.pro .auth-theme-switch__button[aria-busy='true'] {
 
 .auth-history__title {
     font-size: 1rem;
-    color: #161A25;
+    color: $c-font;
     line-height: 1.35;
 }
 
@@ -773,13 +775,13 @@ html.pro .auth-theme-switch__button[aria-busy='true'] {
 
 .auth-history__summary {
     font-size: 0.92rem;
-    color: #334155;
+    color: $c-font;
 }
 
 .auth-history__meta {
     font-size: 0.84rem;
     line-height: 1.45;
-    color: #64748B;
+    color: $c-shade;
 }
 
 .auth-import-card {
@@ -799,7 +801,7 @@ html.pro .auth-theme-switch__button[aria-busy='true'] {
 
 .auth-import-card__title {
     font-size: 1.04rem;
-    color: #161A25;
+    color: $c-font;
     line-height: 1.35;
 }
 
@@ -809,7 +811,7 @@ html.pro .auth-theme-switch__button[aria-busy='true'] {
     align-items: center;
     gap: 0.35rem;
     font-size: 0.88rem;
-    color: #64748B;
+    color: $c-shade;
 }
 
 .auth-import-card__dot {
@@ -831,8 +833,8 @@ html.pro .auth-theme-switch__button[aria-busy='true'] {
     padding: 0 1rem;
     border: none;
     border-radius: 10px;
-    background: #161A25;
-    color: #fff;
+    background: $c-primary;
+    color: $c-bg-page;
     font-size: 0.92rem;
     font-weight: 600;
     cursor: pointer;
@@ -840,7 +842,7 @@ html.pro .auth-theme-switch__button[aria-busy='true'] {
 }
 
 .auth-import-card__action:hover {
-    background: $c-primary;
+    background: $c-primary-strong;
     transform: translateY(-1px);
 }
 
@@ -859,8 +861,8 @@ body.dark .auth-history--empty,
 body.pro .auth-history--empty,
 html.dark .auth-history--empty,
 html.pro .auth-history--empty {
-    border-color: rgba(59, 130, 246, 0.34);
-    background: rgba(59, 130, 246, 0.08);
+    border-color: rgba($c-primary, 0.38);
+    background: rgba($c-primary, 0.1);
 }
 
 body.dark .auth-empty-state strong,
@@ -926,31 +928,29 @@ body.pro .auth-history__card--priority,
 html.dark .auth-history__card--priority,
 html.pro .auth-history__card--priority {
     background:
-        linear-gradient(150deg, rgba(59, 130, 246, 0.12), rgba(28, 33, 46, 0.98) 62%),
-        rgba(28, 33, 46, 0.98);
+        linear-gradient(150deg, rgba(139, 192, 113, 0.14), rgba(34, 36, 31, 0.98) 62%),
+        rgba(34, 36, 31, 0.98);
 }
 
 body.dark .auth-import-card__action,
 body.pro .auth-import-card__action,
 html.dark .auth-import-card__action,
 html.pro .auth-import-card__action {
-    background: $c-font;
-    color: #161A25;
+    background: $c-primary;
+    color: $c-bg-page;
 }
 
 body.dark .auth-import-card__action:hover,
 body.pro .auth-import-card__action:hover,
 html.dark .auth-import-card__action:hover,
 html.pro .auth-import-card__action:hover {
-    background: $c-primary;
-    color: #fff;
+    background: $c-primary-strong;
+    color: $c-bg-page;
 }
 
 .auth-page--importer {
     background:
-        radial-gradient(circle at top left, rgba(245, 158, 11, 0.14), transparent 26rem),
-        radial-gradient(circle at bottom right, rgba(59, 130, 246, 0.14), transparent 30rem),
-        #F5F4EF;
+        linear-gradient(180deg, #171816, #11130f);
 }
 
 body.dark .auth-page--importer,
@@ -958,9 +958,7 @@ body.pro .auth-page--importer,
 html.dark .auth-page--importer,
 html.pro .auth-page--importer {
     background:
-        radial-gradient(circle at top left, rgba(245, 158, 11, 0.12), transparent 24rem),
-        radial-gradient(circle at bottom right, rgba(59, 130, 246, 0.14), transparent 28rem),
-        linear-gradient(180deg, #121722, #0d1016);
+        linear-gradient(180deg, #171816, #11130f);
 }
 
 .auth-container--wide {
@@ -984,20 +982,16 @@ html.pro .auth-page--importer {
 .auth-card--importer {
     width: 100%;
     padding: 2rem;
-    border-radius: 28px;
-    background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.98)),
-        #fff;
-    box-shadow: 0 18px 60px rgba(15, 23, 42, 0.1);
+    border-radius: 8px;
+    background: $c-bg-low;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.24);
 }
 
 body.dark .auth-card--importer,
 body.pro .auth-card--importer,
 html.dark .auth-card--importer,
 html.pro .auth-card--importer {
-    background:
-        linear-gradient(180deg, rgba(28, 33, 46, 0.96), rgba(18, 23, 34, 0.98)),
-        $c-bg-low;
+    background: $c-bg-low;
 }
 
 .importer-shell,
@@ -1010,11 +1004,11 @@ html.pro .auth-card--importer {
 .importer-hero {
     overflow: hidden;
     padding: 1.4rem 1.5rem;
-    border-radius: 22px;
-    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 8px;
+    border: 1px solid rgba(139, 192, 113, 0.24);
     background:
-        linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(255, 255, 255, 0.94) 45%, rgba(59, 130, 246, 0.08)),
-        #fff;
+        linear-gradient(135deg, rgba(139, 192, 113, 0.12), rgba(34, 36, 31, 0.94) 52%, rgba(227, 177, 91, 0.08)),
+        $c-bg-input;
 }
 
 .importer-hero__eyebrow {
@@ -1022,7 +1016,7 @@ html.pro .auth-card--importer {
     font-weight: 800;
     letter-spacing: 0.12em;
     text-transform: uppercase;
-    color: #B45309;
+    color: $c-accent;
     margin-bottom: 0.65rem;
 }
 
@@ -1048,22 +1042,22 @@ html.pro .auth-card--importer {
     flex-direction: column;
     gap: 0.18rem;
     padding: 0.85rem 0.95rem;
-    border-radius: 16px;
-    background: rgba(255, 255, 255, 0.72);
-    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 8px;
+    background: rgba(28, 30, 26, 0.84);
+    border: 1px solid $c-border;
 }
 
 .importer-summary-chip strong,
 .status-meta-card strong {
     font-size: 0.98rem;
-    color: #161A25;
+    color: $c-font;
 }
 
 .importer-summary-chip span,
 .status-meta-card span {
     font-size: 0.82rem;
     line-height: 1.45;
-    color: #64748B;
+    color: $c-shade;
 }
 
 .importer-grid,
@@ -1093,9 +1087,9 @@ html.pro .auth-card--importer {
     flex-direction: column;
     gap: 1rem;
     padding: 1.2rem;
-    border-radius: 20px;
-    border: 1px solid #E2E8F0;
-    background: rgba(248, 249, 250, 0.92);
+    border-radius: 8px;
+    border: 1px solid $c-border;
+    background: rgba(28, 30, 26, 0.92);
     text-align: left;
 }
 
@@ -1111,14 +1105,14 @@ html.pro .auth-card--importer {
 
 .importer-panel__title {
     font-size: 1.02rem;
-    color: #161A25;
+    color: $c-font;
 }
 
 .importer-panel__copy {
     margin: 0;
     font-size: 0.92rem;
     line-height: 1.6;
-    color: #64748B;
+    color: $c-shade;
 }
 
 .importer-panel__hint {
@@ -1133,8 +1127,8 @@ html.pro .auth-card--importer {
     min-height: 1.75rem;
     padding: 0 0.7rem;
     border-radius: 999px;
-    background: rgba(15, 23, 42, 0.06);
-    color: #334155;
+    background: rgba(139, 192, 113, 0.1);
+    color: $c-primary;
     font-size: 0.76rem;
     font-weight: 700;
 }
@@ -1154,11 +1148,11 @@ html.pro .auth-card--importer {
 }
 
 .importer-submit--secondary {
-    background: rgba(15, 23, 42, 0.92);
+    background: $c-bg-input;
 }
 
 .importer-mode-card__body {
-    color: #64748B;
+    color: $c-shade;
     font-size: 0.88rem;
     line-height: 1.55;
 }
@@ -1175,13 +1169,13 @@ html.pro .auth-card--importer {
     flex-direction: column;
     gap: 0.45rem;
     padding: 1rem;
-    border-radius: 16px;
-    border: 1px solid rgba(15, 23, 42, 0.08);
-    background: rgba(255, 255, 255, 0.78);
+    border-radius: 8px;
+    border: 1px solid $c-border;
+    background: rgba(28, 30, 26, 0.84);
 }
 
 .importer-mode-card__title {
-    color: #161A25;
+    color: $c-font;
     font-size: 0.96rem;
 }
 
@@ -1211,8 +1205,8 @@ html.pro .auth-card--importer {
 }
 
 .auth-import-card:hover {
-    border-color: rgba(59, 130, 246, 0.42);
-    box-shadow: 0 14px 30px rgba(59, 130, 246, 0.12);
+    border-color: rgba($c-primary, 0.5);
+    box-shadow: 0 14px 30px rgba(139, 192, 113, 0.12);
     transform: translateY(-2px);
 }
 
@@ -1227,9 +1221,9 @@ html.pro .auth-card--importer {
     gap: 0.8rem;
     align-items: start;
     padding: 0.9rem 1rem;
-    border-radius: 16px;
-    border: 1px solid #E2E8F0;
-    background: rgba(255, 255, 255, 0.76);
+    border-radius: 8px;
+    border: 1px solid $c-border;
+    background: rgba(28, 30, 26, 0.84);
 }
 
 .status-progress__index {
@@ -1239,8 +1233,8 @@ html.pro .auth-card--importer {
     width: 2.3rem;
     height: 2.3rem;
     border-radius: 999px;
-    background: rgba(15, 23, 42, 0.08);
-    color: #334155;
+    background: rgba($c-primary, 0.1);
+    color: $c-primary;
     font-size: 0.86rem;
     font-weight: 800;
 }
@@ -1252,43 +1246,43 @@ html.pro .auth-card--importer {
 }
 
 .status-progress__copy strong {
-    color: #161A25;
+    color: $c-font;
     font-size: 0.92rem;
 }
 
 .status-progress__copy span {
-    color: #64748B;
+    color: $c-shade;
     font-size: 0.86rem;
     line-height: 1.5;
 }
 
 .status-progress__step--done {
-    border-color: rgba(6, 182, 212, 0.24);
-    background: rgba(6, 182, 212, 0.08);
+    border-color: rgba($c-good, 0.28);
+    background: rgba($c-good, 0.1);
 }
 
 .status-progress__step--done .status-progress__index {
-    background: rgba(6, 182, 212, 0.18);
-    color: #0F766E;
+    background: rgba($c-good, 0.18);
+    color: $c-good;
 }
 
 .status-progress__step--active {
-    border-color: rgba(59, 130, 246, 0.28);
-    background: rgba(59, 130, 246, 0.08);
+    border-color: rgba($c-primary, 0.32);
+    background: rgba($c-primary, 0.1);
 }
 
 .status-progress__step--active .status-progress__index {
-    background: rgba(59, 130, 246, 0.18);
+    background: rgba($c-primary, 0.18);
     color: $c-primary;
 }
 
 .status-progress__step--failed {
-    border-color: rgba(239, 68, 68, 0.3);
-    background: rgba(239, 68, 68, 0.08);
+    border-color: rgba($c-bad, 0.32);
+    background: rgba($c-bad, 0.1);
 }
 
 .status-progress__step--failed .status-progress__index {
-    background: rgba(239, 68, 68, 0.18);
+    background: rgba($c-bad, 0.18);
     color: $c-bad;
 }
 
@@ -1297,35 +1291,35 @@ html.pro .auth-card--importer {
     flex-direction: column;
     gap: 0.28rem;
     padding: 1rem;
-    border-radius: 16px;
-    border: 1px solid rgba(15, 23, 42, 0.08);
-    background: rgba(255, 255, 255, 0.76);
+    border-radius: 8px;
+    border: 1px solid $c-border;
+    background: rgba(28, 30, 26, 0.84);
 }
 
 .status-callout strong {
-    color: #161A25;
+    color: $c-font;
     font-size: 0.92rem;
 }
 
 .status-callout span {
-    color: #64748B;
+    color: $c-shade;
     font-size: 0.88rem;
     line-height: 1.55;
 }
 
 .status-callout--primary {
-    background: rgba(59, 130, 246, 0.08);
-    border-color: rgba(59, 130, 246, 0.22);
+    background: rgba($c-primary, 0.1);
+    border-color: rgba($c-primary, 0.28);
 }
 
 .status-callout--warning {
-    background: rgba(245, 158, 11, 0.08);
-    border-color: rgba(245, 158, 11, 0.26);
+    background: rgba($c-accent, 0.1);
+    border-color: rgba($c-accent, 0.28);
 }
 
 .status-callout--error {
-    background: rgba(239, 68, 68, 0.08);
-    border-color: rgba(239, 68, 68, 0.28);
+    background: rgba($c-bad, 0.1);
+    border-color: rgba($c-bad, 0.32);
 }
 
 .status-links {
@@ -1343,20 +1337,20 @@ html.pro .auth-card--importer {
     min-height: 2.5rem;
     padding: 0 1rem;
     border-radius: 10px;
-    background: #161A25;
-    color: #fff !important;
+    background: $c-primary;
+    color: $c-bg-page !important;
     text-decoration: none;
 }
 
 .status-links__primary.is-disabled {
-    background: rgba(15, 23, 42, 0.12);
-    color: #64748B !important;
+    background: rgba(169, 173, 158, 0.12);
+    color: $c-shade !important;
     cursor: default;
     pointer-events: none;
 }
 
 .status-links__primary:hover {
-    background: $c-primary;
+    background: $c-primary-strong;
     text-decoration: none !important;
 }
 
@@ -1666,37 +1660,37 @@ html.pro .status-links__primary.is-disabled {
     gap: 0.35rem;
     min-height: 100%;
     padding: 1rem;
-    border-radius: 16px;
-    border: 1px solid rgba(15, 23, 42, 0.1);
-    background: rgba(255, 255, 255, 0.82);
+    border-radius: 8px;
+    border: 1px solid $c-border;
+    background: rgba(28, 30, 26, 0.84);
     transition: border-color 0.18s, box-shadow 0.18s;
 }
 
 .account-product-mode-choice__copy strong {
-    color: #161A25;
+    color: $c-font;
     font-size: 0.95rem;
 }
 
 .account-product-mode-choice__copy span {
-    color: #64748B;
+    color: $c-shade;
     font-size: 0.88rem;
     line-height: 1.55;
 }
 
 .account-product-mode-choice:hover .account-product-mode-choice__copy {
-    border-color: rgba(59, 130, 246, 0.22);
-    box-shadow: 0 12px 24px rgba(59, 130, 246, 0.08);
+    border-color: rgba($c-primary, 0.32);
+    box-shadow: 0 12px 24px rgba(139, 192, 113, 0.08);
 }
 
 .account-product-mode-choice__input:checked + .account-product-mode-choice__copy {
-    border-color: rgba(59, 130, 246, 0.42);
-    background: rgba(59, 130, 246, 0.08);
-    box-shadow: 0 14px 28px rgba(59, 130, 246, 0.12);
+    border-color: rgba($c-primary, 0.46);
+    background: rgba($c-primary, 0.1);
+    box-shadow: 0 14px 28px rgba(139, 192, 113, 0.12);
 }
 
 .account-product-mode-choice__input:focus-visible + .account-product-mode-choice__copy {
-    border-color: rgba(59, 130, 246, 0.42);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.16);
+    border-color: rgba($c-primary, 0.46);
+    box-shadow: 0 0 0 3px rgba(139, 192, 113, 0.16);
 }
 
 .account-product-mode-link,
@@ -1709,9 +1703,9 @@ html.pro .status-links__primary.is-disabled {
     min-height: 2.75rem;
     padding: 0 1rem;
     border-radius: 999px;
-    border: 1px solid rgba(15, 23, 42, 0.12);
-    background: rgba(255, 255, 255, 0.78);
-    color: #334155;
+    border: 1px solid $c-border;
+    background: rgba(28, 30, 26, 0.84);
+    color: $c-shade;
     text-decoration: none;
     font-size: 0.9rem;
     font-weight: 600;
@@ -1719,15 +1713,15 @@ html.pro .status-links__primary.is-disabled {
 
 .account-product-mode-link.is-active,
 .account-product-side-link.is-active {
-    background: #161A25;
-    border-color: #161A25;
-    color: #fff;
+    background: $c-primary;
+    border-color: $c-primary;
+    color: $c-bg-page;
 }
 
 .account-product-primary-link {
-    background: #161A25;
-    border-color: #161A25;
-    color: #fff;
+    background: $c-primary;
+    border-color: $c-primary;
+    color: $c-bg-page;
 }
 
 .account-product-cta {
@@ -1757,9 +1751,9 @@ html.pro .status-links__primary.is-disabled {
     flex-direction: column;
     gap: 1rem;
     padding: 1rem;
-    border-radius: 18px;
-    border: 1px solid rgba(15, 23, 42, 0.08);
-    background: rgba(255, 255, 255, 0.72);
+    border-radius: 8px;
+    border: 1px solid $c-border;
+    background: rgba(28, 30, 26, 0.84);
 }
 
 .account-product-support-tablist {
@@ -1775,18 +1769,18 @@ html.pro .status-links__primary.is-disabled {
     min-height: 2.5rem;
     padding: 0 0.95rem;
     border-radius: 999px;
-    border: 1px solid rgba(15, 23, 42, 0.12);
-    background: rgba(255, 255, 255, 0.78);
-    color: #334155;
+    border: 1px solid $c-border;
+    background: rgba(28, 30, 26, 0.84);
+    color: $c-shade;
     font-size: 0.88rem;
     font-weight: 700;
     cursor: pointer;
 }
 
 .account-product-support-tab.is-active {
-    background: #161A25;
-    border-color: #161A25;
-    color: #fff;
+    background: $c-primary;
+    border-color: $c-primary;
+    color: $c-bg-page;
 }
 
 .account-product-support-panels {
@@ -1813,9 +1807,9 @@ html.pro .status-links__primary.is-disabled {
     flex-direction: column;
     gap: 0.38rem;
     padding: 1rem;
-    border-radius: 16px;
-    border: 1px solid rgba(15, 23, 42, 0.08);
-    background: rgba(255, 255, 255, 0.8);
+    border-radius: 8px;
+    border: 1px solid $c-border;
+    background: rgba(28, 30, 26, 0.84);
 }
 
 .account-product-recent-card {
@@ -1834,21 +1828,21 @@ html.pro .status-links__primary.is-disabled {
 
 .account-product-opening-family,
 .account-product-pattern-structure {
-    color: #0F172A;
+    color: $c-font;
     font-size: 0.94rem;
     font-weight: 700;
 }
 
 .account-product-pattern {
-    border: 1px solid rgba(15, 23, 42, 0.08);
-    border-radius: 18px;
-    background: rgba(255, 255, 255, 0.76);
+    border: 1px solid $c-border;
+    border-radius: 8px;
+    background: rgba(28, 30, 26, 0.84);
     padding: 0.9rem 1rem 1rem;
 }
 
 .account-product-pattern.is-featured {
-    border-color: rgba(59, 130, 246, 0.18);
-    box-shadow: 0 12px 28px rgba(59, 130, 246, 0.08);
+    border-color: rgba($c-primary, 0.32);
+    box-shadow: 0 12px 28px rgba(139, 192, 113, 0.08);
 }
 
 .account-product-pattern summary {
@@ -1886,13 +1880,13 @@ html.pro .status-links__primary.is-disabled {
     display: flex;
     flex-wrap: wrap;
     gap: 0.6rem;
-    color: #64748B;
+    color: $c-shade;
     font-size: 0.86rem;
 }
 
 .account-product-pattern-confidence {
     font-weight: 700;
-    color: #0F172A;
+    color: $c-font;
 }
 
 .account-product-pattern-summary,
@@ -1902,7 +1896,7 @@ html.pro .status-links__primary.is-disabled {
 .account-product-overview-card p,
 .account-product-exemplar-card p {
     margin: 0;
-    color: #64748B;
+    color: $c-shade;
     line-height: 1.55;
 }
 
@@ -1925,12 +1919,12 @@ html.pro .status-links__primary.is-disabled {
 
 .account-product-opening-summary {
     margin: 0;
-    color: #64748B;
+    color: $c-shade;
     line-height: 1.55;
 }
 
 .account-product-evidence-line {
-    color: #64748B;
+    color: $c-shade;
     font-size: 0.85rem;
 }
 
@@ -1943,20 +1937,20 @@ html.pro .status-links__primary.is-disabled {
 
 .account-product-anchor.is-lead {
     padding: 1.15rem;
-    border-color: rgba(59, 130, 246, 0.24);
-    background: linear-gradient(180deg, rgba(239, 246, 255, 0.92), rgba(255, 255, 255, 0.9));
-    box-shadow: 0 18px 38px rgba(59, 130, 246, 0.12);
+    border-color: rgba($c-primary, 0.36);
+    background: linear-gradient(180deg, rgba(139, 192, 113, 0.12), rgba(34, 36, 31, 0.92));
+    box-shadow: 0 18px 38px rgba(139, 192, 113, 0.12);
 }
 
 .account-product-anchor-board {
     width: 100%;
     aspect-ratio: 1;
-    border-radius: 18px;
+    border-radius: 8px;
     overflow: hidden;
-    background: rgba(15, 23, 42, 0.04);
+    background: rgba(17, 19, 15, 0.72);
     box-shadow:
-        inset 0 0 0 1px rgba(15, 23, 42, 0.08),
-        0 12px 24px rgba(15, 23, 42, 0.08);
+        inset 0 0 0 1px $c-border,
+        0 12px 24px rgba(0, 0, 0, 0.18);
 }
 
 .account-product-anchor-copy {
@@ -1995,9 +1989,9 @@ html.pro .status-links__primary.is-disabled {
 .account-product-action-details,
 .account-product-tools,
 .account-product-evidence-block {
-    border: 1px solid rgba(15, 23, 42, 0.08);
-    border-radius: 18px;
-    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid $c-border;
+    border-radius: 8px;
+    background: rgba(28, 30, 26, 0.84);
     padding: 0.9rem 1rem 1rem;
 }
 
@@ -2013,7 +2007,7 @@ html.pro .status-links__primary.is-disabled {
     justify-content: space-between;
     gap: 0.75rem;
     font-weight: 700;
-    color: #161A25;
+    color: $c-font;
 }
 
 .account-product-more-patterns summary::-webkit-details-marker,
@@ -2026,7 +2020,7 @@ html.pro .status-links__primary.is-disabled {
 
 .account-product-more-patterns__count,
 .account-product-tools__hint {
-    color: #64748B;
+    color: $c-shade;
     font-size: 0.84rem;
     font-weight: 600;
 }
@@ -2082,10 +2076,10 @@ html.pro .status-links__primary.is-disabled {
 }
 
 .account-product-history-compare {
-    border: 1px solid rgba(15, 23, 42, 0.1);
+    border: 1px solid $c-border;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.86);
-    color: #161A25;
+    background: rgba(28, 30, 26, 0.84);
+    color: $c-font;
     min-height: 2.1rem;
     padding: 0 0.9rem;
     font-size: 0.84rem;
@@ -2095,8 +2089,8 @@ html.pro .status-links__primary.is-disabled {
 
 .account-product-history-item.is-compared,
 .account-product-compare-card--now {
-    border-color: rgba(59, 130, 246, 0.28);
-    box-shadow: 0 12px 28px rgba(59, 130, 246, 0.08);
+    border-color: rgba($c-primary, 0.34);
+    box-shadow: 0 12px 28px rgba(139, 192, 113, 0.08);
 }
 
 .account-product-utility-links {
@@ -2107,10 +2101,10 @@ html.pro .status-links__primary.is-disabled {
     width: 100%;
     min-height: 2.4rem;
     padding: 0 0.8rem;
-    border-radius: 12px;
-    border: 1px solid rgba(15, 23, 42, 0.08);
-    background: rgba(255, 255, 255, 0.88);
-    color: #334155;
+    border-radius: 8px;
+    border: 1px solid $c-border;
+    background: rgba(28, 30, 26, 0.84);
+    color: $c-shade;
     font-size: 0.86rem;
 }
 
@@ -2126,9 +2120,9 @@ html.pro .status-links__primary.is-disabled {
 
 .account-product-compare-card {
     padding: 1rem;
-    border-radius: 16px;
-    border: 1px solid rgba(15, 23, 42, 0.08);
-    background: rgba(255, 255, 255, 0.72);
+    border-radius: 8px;
+    border: 1px solid $c-border;
+    background: rgba(28, 30, 26, 0.84);
 }
 
 .account-product-compare-kicker {
@@ -2142,7 +2136,7 @@ html.pro .status-links__primary.is-disabled {
 .account-product-compare-list {
     margin: 0;
     padding-left: 1rem;
-    color: #64748B;
+    color: $c-shade;
 }
 
 .account-product-compare-list li {
@@ -2152,7 +2146,7 @@ html.pro .status-links__primary.is-disabled {
 }
 
 .account-product-compare-list strong {
-    color: #161A25;
+    color: $c-font;
 }
 
 .js-account-intel-product.is-loading {
@@ -2358,17 +2352,17 @@ body.dark .account-product-mode-choice__input:checked + .account-product-mode-ch
 body.pro .account-product-mode-choice__input:checked + .account-product-mode-choice__copy,
 html.dark .account-product-mode-choice__input:checked + .account-product-mode-choice__copy,
 html.pro .account-product-mode-choice__input:checked + .account-product-mode-choice__copy {
-    border-color: rgba(59, 130, 246, 0.42);
-    background: rgba(59, 130, 246, 0.14);
+    border-color: rgba($c-primary, 0.46);
+    background: rgba($c-primary, 0.14);
 }
 
 body.dark .account-product-support-tab.is-active,
 body.pro .account-product-support-tab.is-active,
 html.dark .account-product-support-tab.is-active,
 html.pro .account-product-support-tab.is-active {
-    background: #161A25;
-    border-color: #161A25;
-    color: #fff;
+    background: $c-primary;
+    border-color: $c-primary;
+    color: $c-bg-page;
 }
 
 body.dark .account-product-overview-card strong,
@@ -2431,8 +2425,8 @@ body.dark .account-product-anchor.is-lead,
 body.pro .account-product-anchor.is-lead,
 html.dark .account-product-anchor.is-lead,
 html.pro .account-product-anchor.is-lead {
-    border-color: rgba(59, 130, 246, 0.38);
-    background: linear-gradient(180deg, rgba(24, 39, 63, 0.96), rgba(22, 26, 37, 0.9));
+    border-color: rgba($c-primary, 0.42);
+    background: linear-gradient(180deg, rgba(37, 49, 31, 0.96), rgba(34, 36, 31, 0.9));
 }
 
 @media (max-width: 960px) {

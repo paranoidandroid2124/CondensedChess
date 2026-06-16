@@ -1,20 +1,23 @@
 // Chesstory Account Settings (Profile, Close, Delete)
 // Professional settings layout
 
-// Color variables (matching theme.pro)
-$c-bg-page: #0d1016;
-$c-bg: #161A25;
-$c-bg-low: #1c212e;
-$c-border: #2a3449;
-$c-font: #E2E8F0;
-$c-shade: #94A3B8;
-$c-primary: #3B82F6;
-$c-bad: #EF4444;
+// Color variables (Chesstory study room)
+$c-bg-page: #11130f;
+$c-bg: #171816;
+$c-bg-low: #22241f;
+$c-bg-input: #1c1e1a;
+$c-border: #3a3d34;
+$c-font: #efeee8;
+$c-shade: #a9ad9e;
+$c-primary: #8bc071;
+$c-primary-strong: #b4d99a;
+$c-warm: #e3b15b;
+$c-bad: #d96f66;
 
 .account-page {
     min-height: 100vh;
     padding: 4rem 0;
-    background-color: #F8F9FA;
+    background-color: $c-bg-page;
 
     body.dark &,
     body.pro &,
@@ -39,7 +42,7 @@ $c-bad: #EF4444;
         font-size: 1.5rem;
         font-weight: 700;
         margin-bottom: 2rem;
-        color: #161A25;
+        color: $c-font;
 
         body.dark &,
         body.pro &,
@@ -59,18 +62,18 @@ $c-bad: #EF4444;
         padding: 0.75rem 1rem;
         border-radius: 8px;
         text-decoration: none;
-        color: #64748B;
+        color: $c-shade;
         font-weight: 500;
         transition: all 0.2s;
 
         &:hover {
-            background: rgba(0, 0, 0, 0.05);
-            color: #161A25;
+            background: rgba($c-primary, 0.1);
+            color: $c-font;
         }
 
         &.active {
-            background: #161A25;
-            color: #fff;
+            background: $c-primary;
+            color: $c-bg-page;
         }
 
         body.dark &,
@@ -80,24 +83,24 @@ $c-bad: #EF4444;
             color: $c-shade;
 
             &:hover {
-                background: rgba(255, 255, 255, 0.05);
-                color: #E2E8F0;
+                background: rgba($c-primary, 0.1);
+                color: $c-font;
             }
 
             &.active {
-                background: $c-font;
-                color: #161A25;
+                background: $c-primary;
+                color: $c-bg-page;
             }
         }
     }
 }
 
 .account-card {
-    background: #fff;
-    border: 1px solid #E2E8F0;
-    border-radius: 16px;
+    background: $c-bg-low;
+    border: 1px solid $c-border;
+    border-radius: 8px;
     padding: 2.5rem;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.24);
 
     body.dark &,
     body.pro &,
@@ -105,14 +108,14 @@ $c-bad: #EF4444;
     html.pro & {
         background: $c-bg-low;
         border-color: $c-border;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        box-shadow: 0 18px 48px rgba(0, 0, 0, 0.24);
     }
 
     h2 {
         font-family: 'Georgia', serif;
         font-size: 1.75rem;
         margin: 0 0 0.5rem 0;
-        color: #161A25;
+        color: $c-font;
 
         &.danger {
             color: $c-bad;
@@ -127,7 +130,7 @@ $c-bad: #EF4444;
     }
 
     p.desc {
-        color: #64748B;
+        color: $c-shade;
         margin-bottom: 1.5rem;
         font-size: 0.95rem;
 
@@ -135,13 +138,13 @@ $c-bad: #EF4444;
         body.pro &,
         html.dark &,
         html.pro & {
-            color: #B9C5D3;
+            color: $c-shade;
         }
     }
 
     hr {
         border: 0;
-        border-top: 1px solid #E2E8F0;
+        border-top: 1px solid $c-border;
         margin: 1.5rem 0;
 
         body.dark &,
@@ -161,28 +164,30 @@ $c-bad: #EF4444;
             display: block;
             font-weight: 600;
             margin-bottom: 0.5rem;
-            color: #374151;
+            color: $c-font;
 
             body.dark &,
             body.pro &,
             html.dark &,
             html.pro & {
-                color: #CBD5E1;
+                color: $c-font;
             }
         }
 
         input {
             width: 100%;
             padding: 0.75rem 1rem;
-            border: 1px solid #E2E8F0;
+            border: 1px solid $c-border;
             border-radius: 8px;
             font-size: 1rem;
+            background: $c-bg-input;
+            color: $c-font;
 
             body.dark &,
             body.pro &,
             html.dark &,
             html.pro & {
-                background: $c-bg;
+                background: $c-bg-input;
                 border-color: $c-border;
                 color: $c-font;
             }
@@ -210,8 +215,8 @@ $c-bad: #EF4444;
 }
 
 .form-error {
-    background: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.3);
+    background: rgba($c-bad, 0.12);
+    border: 1px solid rgba($c-bad, 0.32);
     color: $c-bad;
     padding: 0.75rem 1rem;
     border-radius: 8px;
@@ -220,8 +225,8 @@ $c-bad: #EF4444;
 }
 
 .btn-primary {
-    background: #161A25;
-    color: #fff;
+    background: $c-primary;
+    color: $c-bg-page;
     border: none;
     padding: 0.75rem 1.5rem;
     border-radius: 8px;
@@ -232,7 +237,7 @@ $c-bad: #EF4444;
     font-size: 1rem;
 
     &:hover {
-        background: $c-primary;
+        background: $c-primary-strong;
         transform: translateY(-2px);
     }
 
@@ -240,12 +245,12 @@ $c-bad: #EF4444;
     body.pro &,
     html.dark &,
     html.pro & {
-        background: $c-font;
-        color: #161A25;
+        background: $c-primary;
+        color: $c-bg-page;
 
         &:hover {
-            background: $c-primary;
-            color: #fff;
+            background: $c-primary-strong;
+            color: $c-bg-page;
         }
     }
 }
@@ -278,32 +283,32 @@ $c-bad: #EF4444;
 }
 
 .warning-box {
-    background: rgba(245, 158, 11, 0.05);
-    border: 1px solid rgba(245, 158, 11, 0.2);
-    color: #B45309;
+    background: rgba($c-warm, 0.08);
+    border: 1px solid rgba($c-warm, 0.26);
+    color: $c-warm;
 
     body.dark &,
     body.pro &,
     html.dark &,
     html.pro & {
-        background: rgba(245, 158, 11, 0.14);
-        border-color: rgba(245, 158, 11, 0.32);
-        color: #FCD34D;
+        background: rgba($c-warm, 0.14);
+        border-color: rgba($c-warm, 0.34);
+        color: $c-warm;
     }
 }
 
 .danger-box {
-    background: rgba(239, 68, 68, 0.05);
-    border: 1px solid rgba(239, 68, 68, 0.2);
-    color: #B91C1C;
+    background: rgba($c-bad, 0.08);
+    border: 1px solid rgba($c-bad, 0.24);
+    color: $c-bad;
 
     body.dark &,
     body.pro &,
     html.dark &,
     html.pro & {
-        background: rgba(239, 68, 68, 0.14);
-        border-color: rgba(248, 113, 113, 0.3);
-        color: #FCA5A5;
+        background: rgba($c-bad, 0.14);
+        border-color: rgba($c-bad, 0.34);
+        color: $c-bad;
     }
 }
 

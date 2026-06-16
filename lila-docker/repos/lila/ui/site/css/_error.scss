@@ -1,20 +1,21 @@
 // Chesstory Error Pages (404, 500, Rate Limited, etc.)
 // Uses same layout principles as landing and auth pages
 
-// Color variables (matching theme.pro)
-$c-bg-page: #0d1016;
-$c-bg: #161A25;
-$c-bg-low: #1c212e;
-$c-border: #2a3449;
-$c-font: #E2E8F0;
-$c-shade: #94A3B8;
-$c-primary: #3B82F6;
+// Color variables (Chesstory study room)
+$c-bg-page: #11130f;
+$c-bg: #171816;
+$c-bg-low: #22241f;
+$c-border: #3a3d34;
+$c-font: #efeee8;
+$c-shade: #a9ad9e;
+$c-primary: #8bc071;
+$c-primary-strong: #b4d99a;
 
 .error-page {
     min-height: 100vh;
     display: flex;
     flex-direction: column;
-    background-color: #F8F9FA;
+    background-color: $c-bg-page;
     font-family: 'Roboto', 'Noto Sans', 'Segoe UI', sans-serif;
 }
 
@@ -39,12 +40,12 @@ html.pro .error-page {
     font-weight: 900;
     line-height: 1;
     margin: 0;
-    color: #161A25;
+    color: $c-font;
     opacity: 0.1;
 
     body.dark &,
     body.pro & {
-        color: #E2E8F0;
+        color: $c-font;
     }
 }
 
@@ -53,23 +54,23 @@ html.pro .error-page {
     font-size: 2.5rem;
     font-weight: 700;
     margin: -2rem 0 1.5rem 0;
-    color: #161A25;
+    color: $c-font;
 
     body.dark &,
     body.pro & {
-        color: #E2E8F0;
+        color: $c-font;
     }
 }
 
 .error-message {
     font-size: 1.2rem;
-    color: #64748B;
+    color: $c-shade;
     margin-bottom: 3rem;
     line-height: 1.6;
 
     body.dark &,
     body.pro & {
-        color: #94A3B8;
+        color: $c-shade;
     }
 }
 
@@ -84,26 +85,26 @@ html.pro .error-page {
     align-items: center;
     gap: 10px;
     padding: 1rem 2rem;
-    background: #161A25;
-    color: #fff;
-    border-radius: 12px;
+    background: $c-primary;
+    color: $c-bg-page;
+    border-radius: 8px;
     text-decoration: none;
     font-weight: 600;
     transition: transform 0.2s, background 0.2s;
 
     &:hover {
         transform: translateY(-2px);
-        background: #3B82F6;
+        background: $c-primary-strong;
     }
 
     body.dark &,
     body.pro & {
-        background: #E2E8F0;
-        color: #161A25;
+        background: $c-primary;
+        color: $c-bg-page;
 
         &:hover {
-            background: #3B82F6;
-            color: #fff;
+            background: $c-primary-strong;
+            color: $c-bg-page;
         }
     }
 }
@@ -113,26 +114,26 @@ html.pro .error-page {
     align-items: center;
     padding: 1rem 2rem;
     background: transparent;
-    color: #64748B;
-    border: 1px solid #E2E8F0;
-    border-radius: 12px;
+    color: $c-shade;
+    border: 1px solid $c-border;
+    border-radius: 8px;
     text-decoration: none;
     font-weight: 500;
     transition: all 0.2s;
 
     &:hover {
-        background: rgba(0, 0, 0, 0.05);
-        color: #161A25;
+        background: rgba($c-primary, 0.1);
+        color: $c-font;
     }
 
     body.dark &,
     body.pro & {
-        border-color: #2a3449;
-        color: #94A3B8;
+        border-color: $c-border;
+        color: $c-shade;
 
         &:hover {
-            background: rgba(255, 255, 255, 0.05);
-            color: #E2E8F0;
+            background: rgba($c-primary, 0.1);
+            color: $c-font;
         }
     }
 }
