@@ -21,8 +21,8 @@
     gap: 0.2rem;
     padding: 0.25rem;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba($c-primary, 0.08);
+    border: 1px solid rgba($c-primary, 0.14);
 
     &__button {
       @extend %button-none;
@@ -53,13 +53,13 @@
 
       &[aria-pressed='true'] {
         color: $c-font-clearer;
-        background: rgba(255, 255, 255, 0.12);
-        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+        background: rgba($c-primary, 0.16);
+        box-shadow: inset 0 0 0 1px rgba($c-primary, 0.18);
       }
 
       &[aria-busy='true'] {
         cursor: progress;
-        background: rgba(255, 255, 255, 0.12);
+        background: rgba($c-primary, 0.16);
         color: $c-font-clearer;
 
         &::after {

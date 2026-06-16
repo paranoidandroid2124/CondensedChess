@@ -18,6 +18,19 @@ const journalScss = readFileSync(fileURLToPath(new URL('../../site/css/_journal.
 const strategicPuzzleScss = readFileSync(fileURLToPath(new URL('../../site/css/_strategicPuzzle.scss', import.meta.url)), 'utf8');
 const studyIndexScss = readFileSync(fileURLToPath(new URL('../css/study/_index.scss', import.meta.url)), 'utf8');
 const studyListWidgetScss = readFileSync(fileURLToPath(new URL('../css/study/_list-widget.scss', import.meta.url)), 'utf8');
+const chesstoryOverridesScss = readFileSync(
+  fileURLToPath(new URL('../../lib/css/page/_chesstory-overrides.scss', import.meta.url)),
+  'utf8',
+);
+const headerButtonsScss = readFileSync(fileURLToPath(new URL('../../lib/css/header/_buttons.scss', import.meta.url)), 'utf8');
+const topnavVisibleScss = readFileSync(
+  fileURLToPath(new URL('../../lib/css/header/_topnav-visible.scss', import.meta.url)),
+  'utf8',
+);
+const topnavHiddenScss = readFileSync(
+  fileURLToPath(new URL('../../lib/css/header/_topnav-hidden.scss', import.meta.url)),
+  'utf8',
+);
 
 describe('review shell contrast palette', () => {
   test('keeps the review-shell palette above AA thresholds', () => {
@@ -536,6 +549,22 @@ describe('review shell contrast palette', () => {
     );
     assert.match(accountScss, /\.btn-danger\s*\{[\s\S]*?background:\s*\$c-bad;[\s\S]*?color:\s*\$c-bg-page;/);
     assert.match(homeScss, /box-shadow:\s*[\s\S]*?rgba\(0,\s*0,\s*0,\s*0\.18\)[\s\S]*?rgba\(\$home-primary,\s*0\.08\);/);
+  });
+
+  test('keeps Chesstory page chrome aligned with the study-room palette', () => {
+    const chromeScss = [chesstoryOverridesScss, headerButtonsScss, topnavVisibleScss, topnavHiddenScss].join('\n');
+
+    [...chromeScss.matchAll(/letter-spacing:\s*([^;]+);/g)].forEach(match =>
+      assert.equal(match[1]!.trim(), '0', `Chesstory chrome letter-spacing must be 0, got ${match[1]}`),
+    );
+
+    assert.doesNotMatch(headerButtonsScss, /rgba\(255,\s*255,\s*255/i, 'header theme switch should not use bright glass');
+    assert.match(chesstoryOverridesScss, /\.cs-wordmark\s*\{[\s\S]*?letter-spacing:\s*0;/);
+    assert.match(headerButtonsScss, /\.site-theme-switch\s*\{[\s\S]*?background:\s*rgba\(\$c-primary,\s*0\.08\);/);
+    assert.match(
+      headerButtonsScss,
+      /&\[aria-pressed='true'\]\s*\{[\s\S]*?background:\s*rgba\(\$c-primary,\s*0\.16\);[\s\S]*?box-shadow:\s*inset 0 0 0 1px rgba\(\$c-primary,\s*0\.18\);/,
+    );
   });
 });
 
