@@ -2,7 +2,7 @@ package lila.commentary.analysis
 
 import chess.{ Board, Square, Role, Color }
 import lila.commentary.model._
-import lila.commentary.model.strategic.{ EndgameFeature, RuleOfSquareStatus, EndgameOppositionType, TheoreticalOutcomeHint, RookEndgamePattern as OracleRookPattern }
+import lila.commentary.model.strategic.{ EndgameFeature, RuleOfSquareStatus, EndgameOppositionType, RookEndgamePattern as OracleRookPattern }
 
 /**
  * FactExtractor
@@ -201,14 +201,6 @@ object FactExtractor {
             scope = scope
           )
       }
-    }
-
-    if (endgame.theoreticalOutcomeHint == TheoreticalOutcomeHint.Unclear && endgame.confidence > 0.0) {
-      facts += Fact.EndgameOutcome(
-        outcome = endgame.theoreticalOutcomeHint.toString,
-        confidence = endgame.confidence,
-        scope = scope
-      )
     }
 
     facts.toList.distinct

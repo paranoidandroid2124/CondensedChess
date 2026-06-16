@@ -204,8 +204,9 @@ displayed SAN while preserving order and repeated SAN tokens. A chip may carry
 the exact preview board payload only when it is derived from the same resolved
 ref; authoring row labels are not move identity authority.
 Opening-goal outpost context does not create a separate player-facing opening
-outpost family; if the durable outpost proof succeeds, it reuses the `Knight
-outpost` row and typed target.
+outpost family. Its `Achieved` status requires post-move board proof of the
+pawn-supported e4 outpost square; if the durable outpost proof succeeds, it
+reuses the `Knight outpost` row and typed target.
 Opening-goal break context likewise renders through the checked played pawn
 route, not the catalog/opening-goal label.
 Opening precedent and relation text is reference-game context; branch labels and

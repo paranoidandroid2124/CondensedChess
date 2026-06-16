@@ -265,7 +265,9 @@ and, where persistence matters, the played-first checked PV keeps the object and
 pressure/resource relation alive. Transient, pre-existing, or unpressured shapes
 remain support-only or diagnostic.
 Opening-goal outpost labels are not public outpost authority; durable board/PV
-proof now surfaces through the existing `Knight outpost` family.
+proof now surfaces through the existing `Knight outpost` family. The opening
+goal itself is `Achieved` only after the post-move board proves the
+pawn-supported e4 outpost square.
 Opening-goal break names are context only; when an opening pawn move is admitted,
 the player row names the checked played pawn route rather than the
 catalog/opening-goal label.

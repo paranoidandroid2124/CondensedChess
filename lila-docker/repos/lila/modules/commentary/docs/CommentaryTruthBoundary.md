@@ -234,6 +234,8 @@ The practical `Knight outpost` player row uses the same durability gate, so a
 transient knight landing that can be attacked by an enemy minor or immediately
 removed in the checked PV stays outpost-silent.
 Opening-goal names such as Dutch or Queen's Indian outpost are context only;
+their `Achieved` status also requires the post-move board to show a
+friendly-pawn-supported e4 knight that enemy pawns cannot attack.
 when the same board/PV durability proof succeeds, the public row remains the
 typed `Knight outpost` family rather than an opening-label claim.
 Opening-goal break names are also context only; the MoveReview player row may

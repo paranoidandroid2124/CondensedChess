@@ -48,8 +48,19 @@ object OpeningGoals:
   private def hasPiece(sit: Option[Position], sq: Square, color: Color, role: Role): Boolean =
     sit.exists(_.board.pieceAt(sq).contains(_root_.chess.Piece(color, role)))
 
+  private def isOutpostSquare(sit: Option[Position], sq: Square, color: Color): Boolean =
+    sit.exists { pos =>
+      val board = pos.board
+      val supportedByPawn =
+        board.attackers(sq, color).intersects(board.byPiece(color, _root_.chess.Pawn))
+      val attackedByEnemyPawn =
+        board.attackers(sq, !color).intersects(board.byPiece(!color, _root_.chess.Pawn))
+      supportedByPawn && !attackedByEnemyPawn
+    }
+
   private def blackE4OutpostEvaluation(
       ctx: NarrativeContext,
+      sit: Option[Position],
       name: String,
       structureMatches: Boolean,
       mismatchReason: String,
@@ -57,8 +68,10 @@ object OpeningGoals:
   ): Evaluation =
     if !structureMatches then
       Evaluation(name, Status.Mismatch, Nil, List(mismatchReason), 0.0)
+    else if !isOutpostSquare(sit, Square.E4, Color.Black) then
+      Evaluation(name, Status.Premature, List("e4 knight installed"), List("Outpost stability"), 0.62)
     else if checkCp(ctx, Color.Black, -50) then
-      Evaluation(name, Status.Achieved, List("e4 outpost occupied"), Nil, achievedConfidence)
+      Evaluation(name, Status.Achieved, List("pawn-supported e4 outpost occupied"), Nil, achievedConfidence)
     else
       Evaluation(name, Status.Premature, List("Outpost occupied"), List("Soundness"), 0.62)
 
@@ -705,6 +718,7 @@ object OpeningGoals:
 
       blackE4OutpostEvaluation(
         ctx,
+        sit,
         name,
         structureMatches = dutchShell && whiteQueenPawnCenter,
         mismatchReason = "Structure mismatch (needs Dutch f5/d5 with a knight on e4)",
@@ -727,6 +741,7 @@ object OpeningGoals:
 
       blackE4OutpostEvaluation(
         ctx,
+        sit,
         name,
         structureMatches = queensIndianShell && whiteQueenPawnCenter,
         mismatchReason = "Structure mismatch (needs Queen's Indian b6/e6 with a knight on e4)",
@@ -749,6 +764,7 @@ object OpeningGoals:
 
       blackE4OutpostEvaluation(
         ctx,
+        sit,
         name,
         structureMatches = bogoShell && whiteQueenPawnCenter,
         mismatchReason = "Structure mismatch (needs Bogo-Indian Bb4 with a knight on e4)",
