@@ -557,14 +557,14 @@ object OpeningGoals:
       else
         val cp = ctx.engineEvidence.flatMap(_.best).map(_.scoreCp).getOrElse(0)
         val sideScore = -cp // Black goal
-        if sideScore >= -60 then Evaluation(name, Status.Achieved, List("Center opened"), Nil, 0.95)
-        else if sideScore >= -100 then Evaluation(name, Status.Partial, List("Center opened"), List("Stability"), 0.8)
+        if sideScore >= -60 then Evaluation(name, Status.Achieved, List("d-pawn strike contests e4"), Nil, 0.95)
+        else if sideScore >= -100 then Evaluation(name, Status.Partial, List("d-pawn strike contests e4"), List("Stability"), 0.8)
         else Evaluation(name, Status.Premature, List("Early strike"), List("Black stability"), 0.7)
 
-  // 12. Open Center d4 Break (White)
+  // 12. d4 Center Challenge (White)
   object OpenCenterBreak extends GoalDefinition:
     val id = "open_center_break"
-    val name = "Open Center d4 Break"
+    val name = "d4 Center Challenge"
     def triggers(uci: String) = uci == "d2d4"
     def evaluate(ctx: NarrativeContext, sit: Option[Position]): Evaluation =
       val structure = hasPawn(sit, Square.E4, Color.White) && hasPawn(sit, Square.E5, Color.Black)
@@ -576,8 +576,8 @@ object OpeningGoals:
         Evaluation(name, Status.Mismatch, Nil, List("Structure mismatch (needs e4, e5 and development)"), 0.0)
       else
         val sound = checkCp(ctx, Color.White, -30)
-        if sound then Evaluation(name, Status.Achieved, List("Central breakthrough"), Nil, 0.9)
-        else Evaluation(name, Status.Premature, List("Dynamic intent"), List("Preparation"), 0.6)
+        if sound then Evaluation(name, Status.Achieved, List("d-pawn break contests e5"), Nil, 0.9)
+        else Evaluation(name, Status.Premature, List("d-pawn break intent"), List("Preparation"), 0.6)
 
   // 13. d5 Equalizer (...d5 in e5-structures)
   object E5Equalizer extends GoalDefinition:
@@ -591,8 +591,8 @@ object OpeningGoals:
       else
         val safe = isKingSafe(ctx)
         val sound = checkCp(ctx, Color.Black, -40)
-        if safe && sound then Evaluation(name, Status.Achieved, List("Center neutralized", "King safe"), Nil, 0.9)
-        else if sound then Evaluation(name, Status.Partial, List("Sound strike"), List("King safety"), 0.7)
+        if safe && sound then Evaluation(name, Status.Achieved, List("d-pawn strike contests e4", "King safe"), Nil, 0.9)
+        else if sound then Evaluation(name, Status.Partial, List("d-pawn strike contests e4"), List("King safety"), 0.7)
         else Evaluation(name, Status.Premature, List("Structural ambition"), List("Soundness"), 0.6)
 
   // 14. English Squeeze (1.c4 White flank control)
