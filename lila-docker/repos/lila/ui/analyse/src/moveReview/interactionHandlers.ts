@@ -455,6 +455,10 @@ export function initMoveReviewHandlers(ctrl: AnalyseCtrl | undefined, onEvalTogg
       e.preventDefault();
       stepSceneLine(this);
     })
+    .on('click.moveReview', '.analyse__move-review-text [data-move-review-board-reset]', function (this: HTMLButtonElement, e) {
+      e.preventDefault();
+      restoreMoveReviewPlayerBoard(this);
+    })
     .on('touchstart.moveReview', '.analyse__move-review-text [data-ref-id], .analyse__move-review-text [data-board]', function (this: HTMLElement) {
       if (!('ontouchstart' in window)) return;
       const board = boardPayloadFromElement(this);

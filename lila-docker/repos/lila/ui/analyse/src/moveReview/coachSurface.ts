@@ -411,6 +411,7 @@ function renderSceneLine(scene: MoveReviewScene, refIndex: MoveReviewRefIndex): 
           <button type="button" class="move-review-player__line-step" data-move-review-line-step="-1" disabled>Prev move</button>
           <span class="move-review-player__line-count" aria-live="polite">Move 1/${boardMoveCount}</span>
           <button type="button" class="move-review-player__line-step" data-move-review-line-step="1">Next move</button>
+          <button type="button" class="move-review-player__line-step move-review-player__line-step--scene" data-move-review-board-reset>Scene board</button>
         </span>`
       : '';
   return `

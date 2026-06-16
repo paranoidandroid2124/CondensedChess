@@ -164,6 +164,17 @@ describe('review shell contrast palette', () => {
     );
   });
 
+  test('keeps line replay controls wrapped with a scene-board return', () => {
+    const lineControlsBlock = extractBlock(sideScss, '.move-review-player__line-controls');
+    assert.match(lineControlsBlock, /flex-wrap:\s*wrap;/);
+    assert.doesNotMatch(lineControlsBlock, /white-space:\s*nowrap;/);
+    assert.match(sideScss, /\.move-review-player__line-step--scene\s*\{[\s\S]*?color:\s*\$c-primary;/);
+    assert.match(
+      sideScss,
+      /@include mq-is-col1[\s\S]*\.move-review-player__line-controls\s*\{[\s\S]*?flex-wrap:\s*wrap;/,
+    );
+  });
+
   test('keeps opened review detail layers bounded inside the current scene', () => {
     assert.match(
       sideScss,

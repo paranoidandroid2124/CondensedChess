@@ -124,6 +124,8 @@ describe('moveReview coach surface', () => {
     assert.match(html, /Move 1\/2/);
     assert.match(html, /Prev move/);
     assert.match(html, /Next move/);
+    assert.match(html, /data-move-review-board-reset/);
+    assert.match(html, /Scene board/);
     assert.match(html, /data-scene-square="d5"/);
     assert.match(html, /move-review-player__board-cue-item--move/);
     assert.match(html, /data-scene-board-title="Position tied to the choice"/);
@@ -213,6 +215,8 @@ describe('moveReview coach surface', () => {
     assert.match(interactionHandlersSource, /move-review-player__board-anchor-move/);
     assert.match(interactionHandlersSource, /panel\.dataset\.sceneLabel/);
     assert.match(interactionHandlersSource, /moveLabelFromElement\(activeMove\)/);
+    assert.match(interactionHandlersSource, /data-move-review-board-reset/);
+    assert.match(interactionHandlersSource, /restoreMoveReviewPlayerBoard\(this\)/);
   });
 
   test('moves extra reasons into scene detail layers', () => {
