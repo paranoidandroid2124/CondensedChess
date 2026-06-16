@@ -109,6 +109,9 @@ describe('moveReview coach surface', () => {
     assert.match(html, /move-review-player__board-preview/);
     assert.match(html, /move-review-player__board-title/);
     assert.match(html, /move-review-player__board-note/);
+    assert.match(html, /move-review-player__scene-focus/);
+    assert.match(html, /move-review-player__scene-focus-label">Board focus/);
+    assert.match(html, /move-review-player__scene-focus-square" data-move-review-square="d5"/);
     assert.match(html, /move-review-player__scene-line/);
     assert.match(html, /data-scene-line="Nf3 d5"/);
     assert.match(html, /data-scene-line-cue="Nf3 d5"/);
@@ -125,6 +128,7 @@ describe('moveReview coach surface', () => {
     assert.match(html, /move-review-player__board-cue-item--move/);
     assert.match(html, /data-scene-board-title="Position tied to the choice"/);
     assert.match(html, /data-scene-board-note="Compare the move on the board before reading the verdict\."/);
+    assert.match(html, /<p>Compare the move on the board before reading the verdict\.<\/p>/);
     assert.match(html, /data-scene-board-note="Keep this square in view; the reason lives on the board\."/);
     assert.match(html, /data-scene-board-note="Use this position to decide what the next move should improve\."/);
     assert.match(html, /data-scene-board-note="Play the line one move at a time; the board follows each click\."/);

@@ -496,6 +496,9 @@ function renderScenePanel(scene: MoveReviewScene, idx: number, refIndex: MoveRev
   const boardNote = ` data-scene-board-note="${escapeHtml(scene.boardNote)}"`;
   const square = scene.square ? ` data-scene-square="${escapeHtml(scene.square)}"` : '';
   const label = ` data-scene-label="${escapeHtml(scene.label)}" data-scene-short-label="${escapeHtml(scene.shortLabel)}" data-scene-control-label="${escapeHtml(scene.controlLabel)}"`;
+  const focusSquare = scene.square
+    ? `<span class="move-review-player__scene-focus-square" data-move-review-square="${escapeHtml(scene.square)}" tabindex="0">${escapeHtml(scene.square)}</span>`
+    : '';
   const hidden = idx === 0 ? '' : ' hidden aria-hidden="true"';
   return `
     <section
@@ -512,6 +515,11 @@ function renderScenePanel(scene: MoveReviewScene, idx: number, refIndex: MoveRev
         <span class="move-review-player__scene-kicker">${escapeHtml(scene.kicker)} · ${idx + 1}/${sceneCount}</span>
         <h4>${escapeHtml(scene.title)}</h4>
       </header>
+      <aside class="move-review-player__scene-focus">
+        <span class="move-review-player__scene-focus-label">Board focus</span>
+        <p>${escapeHtml(scene.boardNote)}</p>
+        ${focusSquare}
+      </aside>
       ${renderSceneLine(scene, refIndex)}
       <div class="move-review-player__scene-body">${scene.body}</div>
     </section>

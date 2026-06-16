@@ -477,6 +477,16 @@
       .move-review-player__line-step {
         min-width: 3rem;
       }
+
+      .move-review-player__scene-focus {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0.22rem;
+        padding: 0.46rem 0.52rem;
+      }
+
+      .move-review-player__scene-focus-square {
+        justify-self: start;
+      }
     }
 
     .move-review-player__stage {
@@ -745,6 +755,59 @@
       color: $c-primary;
       font-size: 0.72rem;
       font-weight: 700;
+    }
+
+    .move-review-player__scene-focus {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 0.18rem 0.5rem;
+      align-items: center;
+      min-width: 0;
+      padding: 0.5rem 0.62rem;
+      border: 1px solid color-mix(in srgb, #{$c-primary} 16%, #{$c-border});
+      border-left: 3px solid color-mix(in srgb, #{$c-primary} 82%, transparent);
+      border-radius: 8px;
+      background: color-mix(in srgb, #{$c-primary} 7%, #{$c-bg-low});
+    }
+
+    .move-review-player__scene-focus-label {
+      grid-column: 1 / -1;
+      color: $c-primary;
+      font-size: 0.68rem;
+      font-weight: 700;
+      line-height: 1.12;
+    }
+
+    .move-review-player__scene-focus p {
+      min-width: 0;
+      color: $c-font;
+      font-size: 0.84rem;
+      line-height: 1.38;
+      overflow-wrap: anywhere;
+    }
+
+    .move-review-player__scene-focus-square {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 2.2rem;
+      min-height: 1.55rem;
+      padding: 0.08rem 0.42rem;
+      border-radius: 4px;
+      background: color-mix(in srgb, #{$c-primary} 12%, transparent);
+      color: $c-primary;
+      font-family: 'Roboto Mono', monospace;
+      font-size: 0.78rem;
+      font-weight: 700;
+      line-height: 1;
+      cursor: pointer;
+
+      &:hover,
+      &:focus-visible {
+        background: $c-primary;
+        color: $c-bg-box;
+        outline: none;
+      }
     }
 
     .move-review-player__scene-body {

@@ -153,6 +153,17 @@ describe('review shell contrast palette', () => {
     );
   });
 
+  test('keeps scene board focus readable inside one coaching scene', () => {
+    assert.match(sideScss, /\.move-review-player__scene-focus\s*\{/);
+    assert.match(sideScss, /\.move-review-player__scene-focus-label\s*\{[\s\S]*?color:\s*\$c-primary;/);
+    assert.match(sideScss, /\.move-review-player__scene-focus p\s*\{[\s\S]*?overflow-wrap:\s*anywhere;/);
+    assert.match(sideScss, /\.move-review-player__scene-focus-square\s*\{[\s\S]*?font-family:\s*'Roboto Mono', monospace;/);
+    assert.match(
+      sideScss,
+      /@include mq-is-col1[\s\S]*\.move-review-player__scene-focus\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0,\s*1fr\);/,
+    );
+  });
+
   test('keeps opened review detail layers bounded inside the current scene', () => {
     assert.match(
       sideScss,
