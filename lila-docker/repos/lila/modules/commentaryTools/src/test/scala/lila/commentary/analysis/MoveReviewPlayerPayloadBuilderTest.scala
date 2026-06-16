@@ -4143,8 +4143,8 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(pawnBreakMotifSurface.advancedRows.map(_.label), List("Practical break"))
-    assertEquals(pawnBreakMotifSurface.advancedRows.head.text, "The pawn break motif gives a practical d-file break cue.")
+    assertEquals(pawnBreakMotifSurface.advancedRows.map(_.label), List("Practical cue"))
+    assertEquals(pawnBreakMotifSurface.advancedRows.head.text, "The current file contact marks a practical d-file break candidate.")
     assertEquals(pawnBreakMotifSurface.advancedRows.head.authority.flatMap(_.target), None)
 
     val pawnBreakMotifMatchedFactSurface =
@@ -4172,8 +4172,8 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(pawnBreakMotifMatchedFactSurface.advancedRows.map(_.label), List("Practical break"))
-    assertEquals(pawnBreakMotifMatchedFactSurface.advancedRows.head.text, "The pawn break motif gives a practical d-file break cue.")
+    assertEquals(pawnBreakMotifMatchedFactSurface.advancedRows.map(_.label), List("Practical cue"))
+    assertEquals(pawnBreakMotifMatchedFactSurface.advancedRows.head.text, "The current file contact marks a practical d-file break candidate.")
     assertEquals(pawnBreakMotifMatchedFactSurface.advancedRows.head.authority.flatMap(_.target), None)
 
     val pawnBreakMotifSourceOnlySurface =

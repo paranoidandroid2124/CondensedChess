@@ -165,7 +165,9 @@ The surface renderer may say:
   target square only from an admitted `line_target` anchor produced from the
   strategy focus fields. `PawnBreak` facts may name a file only from an admitted
   `pawn_break_file` anchor produced from a played-pawn advance, break-ready
-  evidence, and matching `break_file_*` proof. `SpaceGainOrRestriction` facts
+  evidence, and matching `break_file_*` proof; a raw `pawn_break_motif` source is
+  only a file-contact cue until a break-ready producer admits it.
+  `SpaceGainOrRestriction` facts
   may name a flank space gain only from admitted `space_gain_file`,
   `space_gain_side`, and `space_gain_pawn` anchors produced from pawn-chain-space
   evidence, a reviewed rook-pawn advance on a strategy focus file, and

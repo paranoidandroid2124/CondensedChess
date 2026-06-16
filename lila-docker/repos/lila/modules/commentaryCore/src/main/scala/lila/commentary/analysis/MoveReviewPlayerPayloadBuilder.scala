@@ -488,24 +488,24 @@ object MoveReviewPlayerPayloadBuilder:
                 idea.readiness == StrategicIdeaReadiness.Build &&
                 strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
                 idea.confidence >= 0.76
-            val breakText =
+            val breakSurface =
               if typedBreakReady &&
                 refs.exists(ref => ref == "pawn_analysis_break_ready_shape" || ref == "pawn_play_break_ready_shape") &&
                 idea.readiness == StrategicIdeaReadiness.Ready &&
                 idea.confidence >= 0.92 &&
                 typedBreakReadyFile.nonEmpty
-              then Some(s"The current pawn structure gives a practical ${typedBreakReadyFile.get}-file break cue.")
-              else if fileOpeningConsequence then Some(s"The current pawn tension gives a practical ${fileOpeningConsequenceFile.get}-file opening cue.")
-              else if frenchF6Seed then Some("The French Advance chain gives Black a practical ...f6 break cue.")
+              then Some("Practical break" -> s"The current pawn structure gives a practical ${typedBreakReadyFile.get}-file break cue.")
+              else if fileOpeningConsequence then Some("Practical break" -> s"The current pawn tension gives a practical ${fileOpeningConsequenceFile.get}-file opening cue.")
+              else if frenchF6Seed then Some("Practical break" -> "The French Advance chain gives Black a practical ...f6 break cue.")
               else if centralBreakTension then
                 centralBreakTensionFile
-                  .map(file => s"The central tension gives a practical $file-file break cue.")
-                  .orElse(Some("The central tension gives a practical central-break cue."))
-              else if pawnBreakMotif then Some(s"The pawn break motif gives a practical ${pawnBreakMotifFile.get}-file break cue.")
+                  .map(file => "Practical break" -> s"The central tension gives a practical $file-file break cue.")
+                  .orElse(Some("Practical break" -> "The central tension gives a practical central-break cue."))
+              else if pawnBreakMotif then Some("Practical cue" -> s"The current file contact marks a practical ${pawnBreakMotifFile.get}-file break candidate.")
               else None
-            breakText.flatMap(text =>
-              row("Practical break", text, tone = Some("practical")).map(_.copy(authority = PracticalPlanAuthority))
-            )
+            breakSurface.flatMap { case (label, text) =>
+              row(label, text, tone = Some("practical")).map(_.copy(authority = PracticalPlanAuthority))
+            }
           }
         val restraintRows =
           structuralIdeas

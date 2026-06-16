@@ -2963,8 +2963,7 @@ private[commentary] object CommentaryIdeaSurface:
   private def pawnBreakReady(evidenceRefs: List[String]): Boolean =
     val refs = evidenceRefs.map(_.trim.toLowerCase)
     refs.contains("source:pawn_analysis_break_ready") ||
-      refs.contains("source:pawn_play_break_ready") ||
-      refs.contains("source:pawn_break_motif")
+      refs.contains("source:pawn_play_break_ready")
 
   private def lineOccupationSurface(
       played: PlayedMove,
