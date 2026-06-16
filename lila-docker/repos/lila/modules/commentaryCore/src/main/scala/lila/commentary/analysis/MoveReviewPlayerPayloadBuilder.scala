@@ -3151,12 +3151,6 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
               if quietCastleMove(move) then "The checked move castles to improve king safety."
               else s"The checked move brings the king to $square for safety."
             row(KingSafetyLabel, text, authority = PracticalPlanAuthority)
-          case QuietMoveIntentClass.TechnicalConversionStep =>
-            row(
-              PieceImprovementLabel,
-              s"The checked move improves the $piece on $square for endgame handling.",
-              authority = PracticalPlanAuthority
-            )
           case QuietMoveIntentClass.CounterplayRestraint => None
       }
 
@@ -3727,8 +3721,6 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
         anchorOk &&
           quietNonCapturePiece &&
           move.piece.role != _root_.chess.King
-      case QuietMoveIntentClass.TechnicalConversionStep =>
-        anchorOk && quietNonCapturePiece
       case QuietMoveIntentClass.KingSafety =>
         anchorOk &&
           move.piece.role == _root_.chess.King &&

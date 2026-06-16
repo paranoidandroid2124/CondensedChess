@@ -97,3 +97,18 @@ class QuietMoveIntentBuilderTest extends FunSuite:
     assertEquals(claim.stabilityGrade, PlayerFacingClaimStabilityGrade.Stable)
     assertEquals(claim.certificateStatus, PlayerFacingCertificateStatus.Valid)
   }
+
+  test("endgame quiet piece improvement does not become technical conversion") {
+    val ctx =
+      baseCtx().copy(
+        phase = PhaseContext("Endgame", "Technical ending"),
+        mainStrategicPlans = List(plan),
+        strategicPlanEvidence = typedProbeBackedEvidence(plan)
+      )
+
+    val claim = QuietMoveIntentBuilder.build(ctx).getOrElse(fail("missing quiet claim"))
+    assertEquals(claim.intentClass, QuietMoveIntentClass.PieceImprovement)
+    assertEquals(claim.packet.proofFamily, QuietMoveIntentClass.PieceImprovement.proofFamily)
+    assert(!claim.claimText.toLowerCase.contains("technical"), clue(claim.claimText))
+    assert(!claim.claimText.toLowerCase.contains("endgame"), clue(claim.claimText))
+  }

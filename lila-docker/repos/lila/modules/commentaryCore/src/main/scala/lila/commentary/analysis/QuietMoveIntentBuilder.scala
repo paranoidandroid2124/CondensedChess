@@ -9,20 +9,17 @@ private[commentary] enum QuietMoveIntentClass:
   case PieceImprovement
   case KingSafety
   case CounterplayRestraint
-  case TechnicalConversionStep
 
   def ontologyFamily: PlayerFacingClaimOntologyKind =
     this match
       case CounterplayRestraint    => PlayerFacingClaimOntologyKind.LongTermRestraint
       case KingSafety              => PlayerFacingClaimOntologyKind.KingSafety
-      case TechnicalConversionStep => PlayerFacingClaimOntologyKind.TechnicalConversion
       case PieceImprovement        => PlayerFacingClaimOntologyKind.PieceImprovement
 
   def proofFamily: String =
     this match
       case CounterplayRestraint    => ProofFamilyId.NeutralizeKeyBreak.wireKey
       case KingSafety              => ProofFamilyId.KingSafety.wireKey
-      case TechnicalConversionStep => ProofFamilyId.TechnicalConversion.wireKey
       case PieceImprovement        => ProofFamilyId.PieceImprovement.wireKey
 
 private[commentary] final case class QuietMoveIntentClaim(
@@ -43,7 +40,6 @@ private[commentary] final case class QuietMoveIntentClaim(
   def lens: StrategicLens =
     intentClass match
       case QuietMoveIntentClass.CounterplayRestraint => StrategicLens.Prophylaxis
-      case QuietMoveIntentClass.TechnicalConversionStep => StrategicLens.Practical
       case _ => StrategicLens.Structure
 
   def allowsUserFacing: Boolean =
@@ -68,7 +64,6 @@ private[commentary] object QuietMoveIntentBuilder:
     val shape = moveShape(ctx)
     counterplayRestraint(ctx, candidateEvidenceLines)
       .orElse(kingSafety(ctx, shape, candidateEvidenceLines))
-      .orElse(technicalConversionStep(ctx, shape, candidateEvidenceLines))
       .orElse(pieceImprovement(ctx, shape, candidateEvidenceLines))
       .filter(_.allowsUserFacing)
 
@@ -201,50 +196,6 @@ private[commentary] object QuietMoveIntentBuilder:
         }
       else None
     }
-
-  private def technicalConversionStep(
-      ctx: NarrativeContext,
-      shape: Option[MoveShape],
-      candidateEvidenceLines: List[String]
-  ): Option[QuietMoveIntentClaim] =
-    val endgameish =
-      ctx.phase.current.equalsIgnoreCase("Endgame") ||
-        ctx.semantic.exists(_.endgameFeatures.isDefined)
-    Option.when(endgameish) {
-      shape.flatMap { move =>
-        move.targetSquare.flatMap { square =>
-          if move.piece == "king" then
-            Some(
-              certifyQuietClaim(
-                ctx = ctx,
-                anchorSquare = Some(square),
-                claim =
-                  QuietMoveIntentClaim(
-                    intentClass = QuietMoveIntentClass.TechnicalConversionStep,
-                    claimText = s"This improves the king for endgame handling by bringing it to $square.",
-                    evidenceLine = quietEvidenceLine(candidateEvidenceLines, Some(square)),
-                    sourceKind = "technical_king"
-                  )
-              )
-            )
-          else if !move.isCapture && move.piece != "pawn" then
-            Some(
-              certifyQuietClaim(
-                ctx = ctx,
-                anchorSquare = Some(square),
-                claim =
-                  QuietMoveIntentClaim(
-                    intentClass = QuietMoveIntentClass.TechnicalConversionStep,
-                    claimText = s"This improves the ${move.piece} on $square for endgame handling.",
-                    evidenceLine = quietEvidenceLine(candidateEvidenceLines, Some(square)),
-                    sourceKind = "technical_piece"
-                  )
-              )
-            )
-          else None
-        }
-      }
-    }.flatten
 
   private def pieceImprovement(
       ctx: NarrativeContext,
@@ -413,8 +364,6 @@ private[commentary] object QuietMoveIntentBuilder:
             List("prevent", "deny", "counterplay", "keep out")
           case QuietMoveIntentClass.KingSafety =>
             List("castle", "king", "safe")
-          case QuietMoveIntentClass.TechnicalConversionStep =>
-            List("technical", "endgame", "improve")
           case QuietMoveIntentClass.PieceImprovement =>
             List("improve", "activate", "centralize")
       val shared = siblings.exists { candidate =>
@@ -449,7 +398,7 @@ private[commentary] object QuietMoveIntentBuilder:
       case QuietMoveIntentClass.KingSafety =>
         if quantifier == PlayerFacingClaimQuantifier.Existential then PlayerFacingClaimModalityTier.Available
         else PlayerFacingClaimModalityTier.Supports
-      case QuietMoveIntentClass.TechnicalConversionStep | QuietMoveIntentClass.PieceImprovement =>
+      case QuietMoveIntentClass.PieceImprovement =>
         if quantifier == PlayerFacingClaimQuantifier.Existential then PlayerFacingClaimModalityTier.Available
         else PlayerFacingClaimModalityTier.Supports
 

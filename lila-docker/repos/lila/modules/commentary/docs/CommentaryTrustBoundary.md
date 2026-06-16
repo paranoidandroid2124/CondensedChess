@@ -389,6 +389,9 @@ For a best quiet-technical move, that reviewed proof may own only exchange or
 material-transition consequence packets, and only when the truth contract says
 the played move matches best with no clear-plan failure. Truth still does not
 invent the consequence without the replayed packet.
+Generic quiet move intent does not create `technical_conversion` authority from
+an endgame phase label alone; non-capture piece moves fall back to
+`piece_improvement` unless a certified conversion proof owns the row.
 Capture-started exchange consequence requires a replayed played-first line with
 multiple captures; incidental central-pawn movement must not take ownership from
 the played capture.

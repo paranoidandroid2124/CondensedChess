@@ -3893,7 +3893,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
     assertEquals(rows.head.text, "The checked line puts the knight on the pawn-supported e5 outpost square.")
     assertEquals(
       rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("e5"))),
       clue(rows)
     )
   }
@@ -5585,27 +5585,20 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
     )
   }
 
-  test("projects quiet endgame technical intent as piece improvement, not conversion") {
+  test("projects quiet endgame piece intent as plain piece improvement") {
     val rows =
       noRankedSupportedLocalRows(
         localCtx = quietKnightCtx.copy(phase = PhaseContext("Endgame", "Technical ending")),
         localInputs =
           inputs().copy(
             mainBundle = None,
-            quietIntent =
-              Some(
-                supportedQuietIntent(
-                  intentClass = QuietMoveIntentClass.TechnicalConversionStep,
-                  sourceKind = "technical_piece",
-                  claimText = "This improves the knight on f3 for endgame handling."
-                )
-              )
+            quietIntent = Some(supportedQuietIntent())
           ),
         playedMove = "g1f3"
       )
 
     assertEquals(rows.map(_.label), List("Piece improvement"), clue(rows))
-    assertEquals(rows.head.text, "The checked move improves the knight on f3 for endgame handling.")
+    assertEquals(rows.head.text, "The checked move improves the knight by placing it on f3.")
   }
 
   test("projects legal castling quiet intent as king-safety practical support") {
