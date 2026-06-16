@@ -31,7 +31,7 @@ object importer:
                     div(cls := "importer-hero__eyebrow")("Recent games"),
                     h1(cls := "auth-title importer-hero__title")("Choose a game to review"),
                     p(cls := "auth-subtitle importer-hero__subtitle")(
-                      "Pull recent public games from Lichess or Chess.com, then open one on the review board or keep the position study for later."
+                      "Choose recent public games from Lichess or Chess.com, then open one on the review board or keep the position study for later."
                     )
                   ),
                   pageError.map(msg => div(cls := "auth-error")(msg)),
@@ -45,7 +45,7 @@ object importer:
                       ),
                       form(cls := "auth-form importer-form", method := "post", action := routes.Importer.sendGame.url)(
                         div(cls := "form-group")(
-                          label(`for` := "import-provider")("Provider"),
+                          label(`for` := "import-provider")("Game site"),
                           st.select(id := "import-provider", name := "provider")(
                             option(
                               value := ImportHistory.providerLichess,
@@ -74,7 +74,7 @@ object importer:
                           span("Saved study stays optional")
                         ),
                         button(cls := "auth-submit importer-submit", tpe := "submit")(
-                          "Load recent games",
+                          "Show recent games",
                           span(cls := "arrow")(" ->")
                         )
                       )
@@ -99,7 +99,7 @@ object importer:
       recentAnalyses: List[ImportHistory.Analysis] = Nil
   )(using ctx: Context): Page =
     val pageError = ctx.flash("error")
-    Page("Imported Games - Chesstory")
+    Page("Recent Games - Chesstory")
       .css("auth")
       .wrap: _ =>
         main(cls := "auth-page auth-page--importer")(

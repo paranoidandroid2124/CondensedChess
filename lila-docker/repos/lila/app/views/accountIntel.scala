@@ -83,7 +83,7 @@ object accountIntel:
                       ),
                       form(cls := "auth-form importer-form", method := "get", action := routes.AccountIntel.landing("", "").url)(
                         div(cls := "form-group")(
-                          label(`for` := "account-provider")("Provider"),
+                          label(`for` := "account-provider")("Game site"),
                           st.select(id := "account-provider", name := "provider")(
                             option(
                               value := ImportHistory.providerChessCom,

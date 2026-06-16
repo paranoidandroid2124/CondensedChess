@@ -153,6 +153,8 @@ describe('review player copy', () => {
       'Start from game text',
       'Saved game ready for review',
       'Pasted game',
+      'bring in a public game once',
+      'bring in a public account game once',
     ].forEach(copy => assert.match(homeSource, new RegExp(escapeRegExp(copy)), `missing home copy: ${copy}`));
     [
       'Start from game text',
@@ -192,9 +194,12 @@ describe('review player copy', () => {
     assert.match(importerSource, /No saved games yet/);
     assert.match(importerSource, /saved games/);
     [
+      'Recent Games - Chesstory',
       "Find a player's games",
       'Find another player',
       'Game site',
+      'Choose recent public games',
+      'Show recent games',
       'Original game',
       'Cross-device games',
       'Sign in to keep recent games',
@@ -204,16 +209,25 @@ describe('review player copy', () => {
     ].forEach(copy => assert.match(importerSource, new RegExp(escapeRegExp(copy)), `missing importer copy: ${copy}`));
     assert.doesNotMatch(importerSource, /No saved analyses yet/);
     assert.doesNotMatch(importerSource, /saved game reads/);
-    ['Manual PGN', 'Saved PGN ready for review', 'Source provider', 'Load a player', 'Load another username', 'import history'].forEach(
-      copy => assert.doesNotMatch(importerSource, new RegExp(escapeRegExp(copy)), `stale importer copy: ${copy}`),
-    );
+    [
+      'Manual PGN',
+      'Saved PGN ready for review',
+      'Source provider',
+      'Load a player',
+      'Load another username',
+      'import history',
+      'Imported Games - Chesstory',
+      'Pull recent public games',
+      'Load recent games',
+      '"Provider"',
+    ].forEach(copy => assert.doesNotMatch(importerSource, new RegExp(escapeRegExp(copy)), `stale importer copy: ${copy}`));
   });
 
   test('keeps account study entry points framed as games, not PGN jobs', () => {
-    ['Review one game', 'Open a pasted game', 'Study reference', 'Chesstory is still reading the games.', 'saved games'].forEach(
+    ['Review one game', 'Open a pasted game', 'Study reference', 'Chesstory is still reading the games.', 'saved games', 'Game site'].forEach(
       copy => assert.match(accountIntelSource, new RegExp(escapeRegExp(copy)), `missing account study copy: ${copy}`),
     );
-    ['Import a PGN', 'Study ID', 'The games are still being reviewed.', 'reviewed ${account.analysisCount}'].forEach(copy =>
+    ['Import a PGN', 'Study ID', 'The games are still being reviewed.', 'reviewed ${account.analysisCount}', '"Provider"'].forEach(copy =>
       assert.doesNotMatch(accountIntelSource, new RegExp(escapeRegExp(copy)), `stale account study copy: ${copy}`),
     );
   });

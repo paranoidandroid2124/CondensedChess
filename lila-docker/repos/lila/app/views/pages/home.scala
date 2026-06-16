@@ -47,7 +47,7 @@ object home:
                 div(cls := "home-card-grid home-card-grid--analysis")(
                   data.recentAnalyses.map(renderRecentAnalysis)*
                 )
-                else renderEmptyStrip("No recent games yet", "Start from a pasted game or import a public game once and it will show up here.")
+                else renderEmptyStrip("No recent games yet", "Start from a pasted game or bring in a public game once and it will show up here.")
             ),
             div(cls := "home-secondary-grid")(
               st.section(cls := "home-section")(
@@ -85,7 +85,7 @@ object home:
               else
                 renderEmptyStrip(
                   "No recent public accounts yet",
-                  "Search a public Chess.com or Lichess username, or import a public account game once and it will show up here."
+                  "Search a public Chess.com or Lichess username, or bring in a public account game once and it will show up here."
                 )
             )
           )
