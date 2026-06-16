@@ -309,9 +309,11 @@ class StrategicIdeaSelectorTest extends FunSuite:
       ideas.find(_.evidenceRefs.contains("source:piece_maneuver_motif")).getOrElse(fail(clue(ideas).toString))
 
     assertEquals(minorIdea.kind, StrategicIdeaKind.MinorPieceImbalanceExploitation)
+    assertEquals(minorIdea.focusSquares, List("d2"), clue(minorIdea))
     assert(minorIdea.beneficiaryPieces.contains("N"), clue(minorIdea))
     assert(minorIdea.evidenceRefs.contains("piece_maneuver_shape"), clue(minorIdea.evidenceRefs))
     assert(minorIdea.evidenceRefs.contains("piece_maneuver_rerouting"), clue(minorIdea.evidenceRefs))
+    assert(minorIdea.evidenceRefs.contains("piece_maneuver_square_d2"), clue(minorIdea.evidenceRefs))
   }
 
   test("knight-vs-bishop motif keeps minor-piece witnesses for support surface") {

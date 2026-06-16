@@ -99,16 +99,20 @@ private[commentary] object MinorPieceImbalanceEvidenceProducer extends Strategic
 
     val maneuverMotif =
       semantic.motifs.collect {
-        case Motif.Maneuver(piece, purpose, color, _, _) if matchesSide(color, side) && (piece == Knight || piece == Bishop) =>
+        case Motif.Maneuver(piece, purpose, color, _, move) if matchesSide(color, side) && (piece == Knight || piece == Bishop) =>
           val purposeKey = purpose.trim.toLowerCase.replaceAll("[^a-z0-9]+", "_").stripPrefix("_").stripSuffix("_")
+          val focusSquares = move.flatMap(destinationSquareFromSan).map(_.key).toList
           evidence(
             ownerSide = side,
             kind = StrategicIdeaKind.MinorPieceImbalanceExploitation,
             readiness = StrategicIdeaReadiness.Build,
             source = EvidenceSourceId.PieceManeuverMotif,
             confidence = 0.70,
+            focusSquares = focusSquares,
             beneficiaryPieces = List(roleToken(piece)),
-            factIds = List("piece_maneuver_shape") ++ Option.when(purposeKey.nonEmpty)(s"piece_maneuver_$purposeKey").toList
+            factIds = List("piece_maneuver_shape") ++
+              Option.when(purposeKey.nonEmpty)(s"piece_maneuver_$purposeKey").toList ++
+              focusSquares.map(square => s"piece_maneuver_square_$square")
           )
       }
 

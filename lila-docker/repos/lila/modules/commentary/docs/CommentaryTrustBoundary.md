@@ -198,6 +198,10 @@ The surface renderer may say:
   and compensation king-window shells are diagnostic support;
   without a concrete route, battery, check, threat, central exposure, or other
   named attacking mechanism they do not publish public `Practical attack` rows.
+  Minor-piece public rows follow the same rule: broad bishop-pair,
+  opposite-color-bishops, good-bishop, enemy-bad-bishop, and knight-vs-bishop
+  shells are support evidence unless an exact replay-backed family or a
+  producer-carried current square anchors the public `Practical minor` claim.
   Route and directional endpoints become `source:route_attack_lane` or
   `source:directional_attack_lane` only when the producer proves that the
   endpoint piece attacks the enemy king on the board and carries

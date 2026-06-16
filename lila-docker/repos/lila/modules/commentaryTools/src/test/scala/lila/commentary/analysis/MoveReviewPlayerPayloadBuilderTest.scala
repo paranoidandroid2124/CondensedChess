@@ -7455,9 +7455,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(bishopPairSurface.advancedRows.map(_.label), List("Practical minor"))
-    assertEquals(bishopPairSurface.advancedRows.head.text, "The current minor-piece map gives a practical bishop-pair cue.")
-    assertEquals(bishopPairSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assert(!bishopPairSurface.advancedRows.exists(_.label == "Practical minor"), clue(bishopPairSurface.advancedRows))
 
     val bishopPairSourceOnlySurface =
       build(
@@ -7540,7 +7538,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(staleBishopPairLabelSurface.advancedRows.map(_.label), List("Practical minor"))
+    assert(!staleBishopPairLabelSurface.advancedRows.exists(_.label == "Practical minor"), clue(staleBishopPairLabelSurface.advancedRows))
 
     val badBishopOnlySurface =
       build(
@@ -7558,12 +7556,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(badBishopOnlySurface.advancedRows.map(_.label), List("Practical minor"))
-    assertEquals(
-      badBishopOnlySurface.advancedRows.head.text,
-      "The current minor-piece map gives a practical cue against the opponent's bad bishop."
-    )
-    assertEquals(badBishopOnlySurface.advancedRows.head.authority.flatMap(_.target), None)
+    assert(!badBishopOnlySurface.advancedRows.exists(_.label == "Practical minor"), clue(badBishopOnlySurface.advancedRows))
 
     val badBishopSourceOnlySurface =
       build(
@@ -7608,9 +7601,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(goodBishopCountSurface.advancedRows.map(_.label), List("Practical minor"))
-    assertEquals(goodBishopCountSurface.advancedRows.head.text, "The current minor-piece map gives a practical good-bishop cue.")
-    assertEquals(goodBishopCountSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assert(!goodBishopCountSurface.advancedRows.exists(_.label == "Practical minor"), clue(goodBishopCountSurface.advancedRows))
 
     val goodBishopOnlySurface =
       build(
@@ -7713,12 +7704,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(multiPieceCentralizationSurface.advancedRows.map(_.label), List("Practical minor"))
-    assertEquals(
-      multiPieceCentralizationSurface.advancedRows.head.text,
-      "The centralized minor pieces give a practical minor-piece cue."
-    )
-    assertEquals(multiPieceCentralizationSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assert(!multiPieceCentralizationSurface.advancedRows.exists(_.label == "Practical minor"), clue(multiPieceCentralizationSurface.advancedRows))
 
     val maneuverSurface =
       build(
@@ -7730,14 +7716,15 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
                 List(
                   idea.copy(
                     ideaId = "idea_piece_maneuver",
-                    focusSquares = Nil,
+                    focusSquares = List("d2"),
                     beneficiaryPieces = List("N"),
                     confidence = 0.70,
                     evidenceRefs =
                       List(
                         "source:piece_maneuver_motif",
                         "piece_maneuver_shape",
-                        "piece_maneuver_rerouting"
+                        "piece_maneuver_rerouting",
+                        "piece_maneuver_square_d2"
                       )
                   )
                 )
@@ -7747,7 +7734,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assertEquals(maneuverSurface.advancedRows.map(_.label), List("Practical minor"))
     assertEquals(
       maneuverSurface.advancedRows.head.text,
-      "The N maneuver gives a practical minor-piece cue."
+      "The N maneuver to d2 gives a practical minor-piece cue."
     )
     assertEquals(maneuverSurface.advancedRows.head.authority.flatMap(_.target), None)
 
@@ -7918,12 +7905,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(knightVsBishopMotifSurface.advancedRows.map(_.label), List("Practical minor"))
-    assertEquals(
-      knightVsBishopMotifSurface.advancedRows.head.text,
-      "The current minor-piece map gives a practical knight-vs-bishop cue."
-    )
-    assertEquals(knightVsBishopMotifSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assert(!knightVsBishopMotifSurface.advancedRows.exists(_.label == "Practical minor"), clue(knightVsBishopMotifSurface.advancedRows))
 
     val knightVsBishopMotifSourceOnlySurface =
       build(
@@ -8017,12 +7999,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(oppositeColorBishopsSurface.advancedRows.map(_.label), List("Practical minor"))
-    assertEquals(
-      oppositeColorBishopsSurface.advancedRows.head.text,
-      "The current minor-piece map gives a practical opposite-colored-bishops cue."
-    )
-    assertEquals(oppositeColorBishopsSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assert(!oppositeColorBishopsSurface.advancedRows.exists(_.label == "Practical minor"), clue(oppositeColorBishopsSurface.advancedRows))
 
     val oppositeColorBishopsSourceOnlySurface =
       build(
@@ -8105,7 +8082,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             )
           )
       )
-    assertEquals(staleOppositeColorBishopsLabelSurface.advancedRows.map(_.label), List("Practical minor"))
+    assert(!staleOppositeColorBishopsLabelSurface.advancedRows.exists(_.label == "Practical minor"), clue(staleOppositeColorBishopsLabelSurface.advancedRows))
 
     val mirroredSurface =
       build(

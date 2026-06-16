@@ -198,10 +198,6 @@ object MoveReviewPlayerPayloadBuilder:
           visibleRows.exists(exactConnectedRooksRow)
         val exactDoubledRooksFilesAlreadyVisible =
           visibleRows.flatMap(exactDoubledRooksRowFile).toSet
-        val exactBishopPairAlreadyVisible =
-          visibleRows.exists(exactBishopPairRow)
-        val exactOppositeColorBishopsAlreadyVisible =
-          visibleRows.exists(exactOppositeColorBishopsRow)
         val exactCounterplayAlreadyVisible =
           (practicalRows ++ localRows).exists(exactCounterplayRow)
         val prophylaxisAlreadyVisible =
@@ -943,21 +939,10 @@ object MoveReviewPlayerPayloadBuilder:
             val knightBeneficiary = idea.beneficiaryPieces.exists(_.trim.equalsIgnoreCase("N"))
             val minorBeneficiaries =
               idea.beneficiaryPieces.filter(piece => piece.trim.equalsIgnoreCase("N") || piece.trim.equalsIgnoreCase("B")).distinct
-            val minorBeneficiary = idea.beneficiaryPieces.find(piece =>
-              piece.trim.equalsIgnoreCase("N") || piece.trim.equalsIgnoreCase("B")
-            )
-            val singleCentralizedMinorBeneficiary =
+            val singleMinorBeneficiary =
               minorBeneficiaries match
                 case piece :: Nil => Some(piece)
                 case _            => None
-            val bishopPair =
-              !exactBishopPairAlreadyVisible &&
-                refs.contains("source:bishop_pair_advantage") &&
-                refs.contains("bishop_pair_advantage_shape") &&
-                idea.beneficiaryPieces.exists(_.trim.equalsIgnoreCase("B")) &&
-                idea.readiness == StrategicIdeaReadiness.Ready &&
-                ownerMatchesPack &&
-                idea.confidence >= 0.82
             val frenchMinorProfile =
               refs.contains("source:french_minor_piece_profile") &&
                 refs.contains("structure_french_advance_chain") &&
@@ -982,14 +967,6 @@ object MoveReviewPlayerPayloadBuilder:
                 idea.readiness == StrategicIdeaReadiness.Ready &&
                 ownerMatchesPack &&
                 idea.confidence >= 0.78
-            val knightVsBishopMotif =
-              refs.contains("source:knight_vs_bishop_motif") &&
-                refs.contains("knight_vs_bishop_motif_shape") &&
-                refs.contains("knight_preferred_over_bishop") &&
-                knightBeneficiary &&
-                idea.readiness == StrategicIdeaReadiness.Build &&
-                ownerMatchesPack &&
-                idea.confidence >= 0.70
             val badBishopActivity =
               !frenchMinorProfile &&
                 refs.contains("source:piece_activity_bad_bishop") &&
@@ -998,45 +975,23 @@ object MoveReviewPlayerPayloadBuilder:
                 idea.beneficiaryPieces.exists(_.trim.equalsIgnoreCase("B")) &&
                 ownerMatchesPack &&
                 idea.confidence >= 0.74
-            val goodBishopCountEdge =
-              !exactBishopPairAlreadyVisible &&
-                refs.contains("source:good_bishop") &&
-                refs.contains("good_bishop_shape") &&
-                refs.contains("source:minor_piece_count_imbalance") &&
-                refs.contains("minor_piece_count_imbalance_shape") &&
-                refs.contains("good_bishop_count_edge") &&
-                idea.beneficiaryPieces.exists(_.trim.equalsIgnoreCase("B")) &&
-                ownerMatchesPack &&
-                idea.confidence >= 0.74
-            val oppositeColorBishops =
-              !exactOppositeColorBishopsAlreadyVisible &&
-                refs.contains("source:opposite_color_bishops") &&
-                refs.contains("opposite_color_bishops_shape") &&
-                idea.beneficiaryPieces.exists(_.trim.equalsIgnoreCase("B")) &&
-                ownerMatchesPack &&
-                idea.confidence >= 0.68
             val pieceCentralization =
               refs.contains("source:piece_centralization_motif") &&
                 refs.contains("piece_centralization_shape") &&
-                centralizedPieceSquares.nonEmpty &&
-                minorBeneficiary.nonEmpty &&
+                singleCentralizedPieceSquare.nonEmpty &&
+                singleMinorBeneficiary.nonEmpty &&
                 idea.readiness == StrategicIdeaReadiness.Build &&
                 ownerMatchesPack &&
                 idea.confidence >= 0.70
+            val maneuverSquare = focusSquares.find(square => refs.contains(s"piece_maneuver_square_$square"))
             val pieceManeuver =
-              refs.contains("source:piece_maneuver_motif") &&
+                refs.contains("source:piece_maneuver_motif") &&
                 refs.contains("piece_maneuver_shape") &&
-                minorBeneficiary.nonEmpty &&
+                maneuverSquare.nonEmpty &&
+                singleMinorBeneficiary.nonEmpty &&
                 idea.readiness == StrategicIdeaReadiness.Build &&
                 ownerMatchesPack &&
                 idea.confidence >= 0.70
-            val enemyBadBishop =
-              refs.contains("source:enemy_bad_bishop") &&
-                refs.contains("enemy_bad_bishop_shape") &&
-                knightBeneficiary &&
-                idea.beneficiaryPieces.exists(_.trim.equalsIgnoreCase("B")) &&
-                ownerMatchesPack &&
-                idea.confidence >= 0.80
             val minorText =
               if frenchKnightVsBishop then Some(
                 s"The French pawn chain gives White a practical knight-vs-bishop cue around ${strongKnightSquare.get}."
@@ -1045,26 +1000,18 @@ object MoveReviewPlayerPayloadBuilder:
                 Some(s"The French pawn chain gives White a practical minor-piece cue against the bad bishop on ${badBishopSquare.get}.")
               else if strongKnightVsBishop then
                 Some(s"The current minor-piece map gives a practical knight-vs-bishop cue around ${strongKnightSquare.get}.")
-              else if knightVsBishopMotif then
-                Some("The current minor-piece map gives a practical knight-vs-bishop cue.")
               else if badBishopActivity then
                 Some(s"The current minor-piece map gives a practical cue against the bad bishop on ${badBishopSquare.get}.")
-              else if bishopPair then
-                Some("The current minor-piece map gives a practical bishop-pair cue.")
-              else if goodBishopCountEdge then
-                Some("The current minor-piece map gives a practical good-bishop cue.")
-              else if oppositeColorBishops then
-                Some("The current minor-piece map gives a practical opposite-colored-bishops cue.")
               else if pieceCentralization then
-                (singleCentralizedMinorBeneficiary, singleCentralizedPieceSquare) match
+                (singleMinorBeneficiary, singleCentralizedPieceSquare) match
                   case (Some(piece), Some(square)) =>
                     Some(s"The centralized ${piece.trim.toUpperCase} on $square gives a practical minor-piece cue.")
-                  case _ =>
-                    Some("The centralized minor pieces give a practical minor-piece cue.")
+                  case _ => None
               else if pieceManeuver then
-                Some(s"The ${minorBeneficiary.get.trim.toUpperCase} maneuver gives a practical minor-piece cue.")
-              else if enemyBadBishop then
-                Some("The current minor-piece map gives a practical cue against the opponent's bad bishop.")
+                (singleMinorBeneficiary, maneuverSquare) match
+                  case (Some(piece), Some(square)) =>
+                    Some(s"The ${piece.trim.toUpperCase} maneuver to $square gives a practical minor-piece cue.")
+                  case _ => None
               else None
             minorText.flatMap(text =>
               row("Practical minor", text, tone = Some("practical")).map(_.copy(authority = PracticalPlanAuthority))
@@ -1570,16 +1517,6 @@ object MoveReviewPlayerPayloadBuilder:
         .filter(_.kind == MoveReviewSurfaceAuthority.PracticalPlan)
         .flatMap(_ => DoubledRooksText.findFirstMatchIn(row.text))
         .map(_.group(1))
-
-  private def exactBishopPairRow(row: MoveReviewPlayerSurfaceRow): Boolean =
-    exactPracticalPlanRow(row, "Bishop pair") {
-      _ == "The checked capture keeps the bishop pair on the board."
-    }
-
-  private def exactOppositeColorBishopsRow(row: MoveReviewPlayerSurfaceRow): Boolean =
-    exactPracticalPlanRow(row, "Opposite-color bishops") {
-      _ == "The checked capture leaves opposite-colored bishops on the board."
-    }
 
   private def exactTargetRowSquare(row: MoveReviewPlayerSurfaceRow): Option[String] =
     exactPracticalTargetRowTarget(row, "Fixed target") { target =>

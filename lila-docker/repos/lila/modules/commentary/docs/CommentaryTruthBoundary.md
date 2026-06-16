@@ -253,6 +253,10 @@ themselves; only explicit minor-piece route/directional access cues may surface
 as non-durable plan-recognition support. The same source split applies to raw
 strategic-idea display/evidence text: route/directional access may name only
 an outpost-access cue, not current outpost occupation or raw diagnostic text.
+Minor-piece imbalance names follow that same authority split: bishop-pair,
+opposite-color, good-bishop, bad-bishop, or knight-vs-bishop labels do not become
+public truth unless a typed exact proof or producer-carried current square
+anchors the public claim.
 Directional target evidence enrichment follows the same rule by publishing only
 weak objective text instead of raw side/piece/square/readiness tuples.
 For exact target fixation, truth authority can name only a board-proved enemy
