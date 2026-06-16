@@ -529,10 +529,21 @@ function renderAuthorRow(row: MoveReviewPlayerAuthorRowV1, refIndex: MoveReviewR
     const statusKey = (row.status || 'question_only').trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '_');
     const branchMarkup = (row.branches || [])
         .map(branch => {
-            const moveRef = branch.refSans?.length ? resolveSanSequenceRefs(branch.refSans, refIndex)[0] || null : null;
-            const branchMove = moveRef
-                ? `<span class="move-review-authoring-summary__branch-move move-chip move-chip--interactive" data-ref-id="${escapeHtml(moveRef.refId)}" data-uci="${escapeHtml(moveRef.uci)}" data-san="${escapeHtml(moveRef.san)}" tabindex="0">${escapeHtml(branch.label)}</span>`
-                : `<code>${escapeHtml(branch.label)}</code>`;
+            const branchRefSans = branch.refSans || [];
+            const branchRefs = resolveSanSequenceRefs(branchRefSans, refIndex);
+            const branchMove =
+                branchRefSans
+                    .map((san, idx) => {
+                        if (!normalizeSanToken(san)) return '';
+                        return renderInteractiveSanChip(san, branchRefs[idx] || null, {
+                            interactiveClasses:
+                                'move-review-authoring-summary__branch-move move-chip move-chip--interactive',
+                            fallbackTag: 'code',
+                            fallbackClasses: 'move-review-authoring-summary__branch-move',
+                        });
+                    })
+                    .filter(Boolean)
+                    .join(' ') || `<code>${escapeHtml(branch.label)}</code>`;
             return `
               <div class="move-review-authoring-summary__branch">
                 ${branchMove}
@@ -583,6 +594,7 @@ function decorateMoveReviewHtml(
 
     return `
       ${moveReviewTitle}
+      ${html}
       <div class="move-review-strategic-summary">
         <div class="move-review-strategic-summary__title">Support</div>
         ${rows.join('')}
@@ -617,7 +629,6 @@ function decorateMoveReviewHtml(
                 : ''
         }
       </div>
-      ${html}
     `;
 }
 

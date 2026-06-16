@@ -190,6 +190,9 @@ object only when the producer proves the reviewed-move ownership on the
 after-board and, when persistence matters, the played-first checked PV keeps the
 object and pressure/resource relation alive. Transient, pre-existing, or
 unpressured shapes stay support-only or diagnostic.
+Frontend MoveReview support panels follow the main prose. Move chips consume
+`refSans`/resolved refs for displayed SAN; authoring row labels are not move
+identity authority.
 Opening-goal outpost context does not create a separate player-facing opening
 outpost family; if the durable outpost proof succeeds, it reuses the `Knight
 outpost` row and typed target.
@@ -211,6 +214,15 @@ anchors such as line file, pawn-break file, space-gain file, target-fixing
 square, or attack-lane square; broad strategy shells and row text are not
 authority. Central practical challenge and bad-piece liquidation use their
 specific typed proof packets, not labels.
+Strategic feature extraction does not copy endgame oracle pattern or technique
+labels into `conceptSummary` or candidate immediate-intent text; those labels
+remain `EndgameInfo` context until a typed endgame local fact or replay-backed
+transition claim admits them. Outline motif collection likewise does not convert
+primary pattern names or raw `EndgameInfo` flags into standalone canonical motif
+claims, and the MoveReview strategic ledger does not use those pattern or
+transition strings as structured motif tokens or carry-over emitters. Lexicon
+endgame-pattern prefix templates and positional-tag motif promotion for
+rook-behind-passer / king-cut-off labels are not public authority paths.
 Route and directional target endpoints are not king-attack lanes by proximity
 alone. `KingAttackEvidenceProducer` may emit `source:route_attack_lane` or
 `source:directional_attack_lane` only when `StrategicIdeaEvidenceSupport` proves

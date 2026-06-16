@@ -1871,37 +1871,25 @@ object NarrativeLexicon {
     "interference",
     "iqp",
     "isolated_pawn",
-    "king_cut_off",
     "king_hunt",
     "knight_domination",
     "knight_vs_bishop",
     "liquidate",
     "liquidation",
-    "lucena",
     "maneuver",
     "minority_attack",
     "novelty",
     "open_file",
-    "opposition",
     "opposite_bishops",
     "passed_pawn",
     "pawn_break",
     "pawn_storm",
-    "philidor",
     "pin",
     "pin_queen",
-    "promotion_race",
     "prophylactic",
     "prophylaxis",
-    "forced_draw_resource",
-    "outside_passer",
-    "connected_passers",
-    "wrong_bishop_fortress",
-    "short_side_defense",
-    "triangulation",
     "repeat",
     "repetition",
-    "rook_behind_passed_pawn",
     "rook_lift",
     "rook_on_seventh",
     "semi_open_file_control",
@@ -1913,10 +1901,8 @@ object NarrativeLexicon {
     "stalemate",
     "stalemate_trick",
     "underpromotion",
-    "vancura",
     "xray",
-    "xray_queen",
-    "zugzwang"
+    "xray_queen"
   )
 
   def isMotifPrefixSignal(rawMotif: String): Boolean =
@@ -1925,50 +1911,6 @@ object NarrativeLexicon {
       !RelationObservationCatalog.relationWitnessOnlyMotifTag(normalized) &&
       RelationObservationCatalog.deferredFallbackForMotifTag(normalized).isEmpty &&
       motifPrefixSignals.exists(sig => motifMatches(normalized, sig))
-
-  def getEndgamePatternPrefix(bead: Int, rawPattern: String): Option[String] =
-    val pattern = normalizeMotifTag(rawPattern)
-    if pattern.isEmpty then None
-    else
-      val templates =
-        if pattern.contains("lucena") then Some(List(
-          "Lucena geometry is present, with bridge-building as the relevant technique.",
-          "This is a Lucena-type setup where bridge construction shapes the rook checks.",
-          "The position matches Lucena geometry, so shielding checks with a bridge is the main theme."
-        ))
-        else if pattern.contains("philidor") then Some(List(
-          "Philidor defense geometry is active around the third-rank barrier.",
-          "This resembles Philidor defense, where rook activity from the third rank keeps checking resources available.",
-          "Philidor structure is on the board; maintaining the defensive rank is the central task."
-        ))
-        else if pattern.contains("vancura") then Some(List(
-          "Vancura-style defense appears: lateral rook checks are the main resource.",
-          "This is a Vancura-type setup where active rook checking keeps defensive options available.",
-          "The defensive idea is Vancura geometry, with rook activity aimed at checking the passer from the side."
-        ))
-        else if pattern.contains("wrongrookpawnwrongbishopfortress") || pattern.contains("wrong_bishop_fortress") then Some(List(
-          "Wrong-bishop rook-pawn corner geometry is in play, so the promotion corner matters.",
-          "This is a wrong-bishop rook-pawn setup: the corner square is the key defensive resource.",
-          "The rook-pawn and bishop-color mismatch makes the promotion corner the main anchor."
-        ))
-        else if pattern.contains("triangulationzugzwang") || pattern.contains("triangulation") then Some(List(
-          "Triangulation and zugzwang mechanics dominate: tempo control is the key.",
-          "This is a triangulation-style ending where losing a move can force concessions.",
-          "Zugzwang pressure is tied to triangulation routes in this king-and-pawn structure."
-        ))
-        else if pattern.contains("outsidepasserdecoy") || pattern.contains("outside_passer") then Some(List(
-          "An outside passer is acting as a decoy to pull the enemy king away.",
-          "Outside-passer decoy play is central: one flank pawn distracts while the other side advances.",
-          "The technical plan uses an outside passer to create a distant king diversion."
-        ))
-        else if pattern.contains("connectedpassers") || pattern.contains("connected_passers") then Some(List(
-          "Connected passed pawns are the main technical asset here.",
-          "The critical endgame asset is the connected passer pair advancing together.",
-          "Connected passers define the position: coordinated pawn advance tests the defense."
-        ))
-        else None
-
-      templates.map(ts => punctuate(pick(bead ^ 0x2a9f47c1, ts)))
 
   def getMotifPrefix(bead: Int, motifs: List[String], ply: Int = 0): Option[String] = {
     val templates = NarrativeMotifPrefixTable.templatesFor(motifs, ply)

@@ -97,6 +97,7 @@ class EndgamePatternContinuityTest extends FunSuite:
     assertEquals(m38.endgameFeatures.flatMap(_.primaryPattern), Some("Lucena"))
     assertEquals(m38.endgameFeatures.map(_.theoreticalOutcomeHint.toString), Some("Win"))
     assertEquals(m38.endgameTransition, None)
+    assert(!m38.conceptSummary.exists(_.toLowerCase.contains("lucena")), clue(m38.conceptSummary))
 
     val (m40, s40) = analyzeAt(lucenaFen, 40, s38)
     assertEquals(m40.endgamePatternAge, 2)

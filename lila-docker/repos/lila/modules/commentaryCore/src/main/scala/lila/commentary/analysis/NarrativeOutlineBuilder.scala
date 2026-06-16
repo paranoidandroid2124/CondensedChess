@@ -644,14 +644,9 @@ object NarrativeOutlineBuilder:
   ): Option[BoardAnchor] =
     val boardAnchor = buildBoardAnchor(ctx, keyFact, bead)
     val endgameFeatures = ctx.semantic.flatMap(_.endgameFeatures)
-    val endgamePatternPrefix =
-      endgameFeatures
-        .flatMap(_.primaryPattern)
-        .flatMap(p => NarrativeLexicon.getEndgamePatternPrefix(bead ^ motifFrame.motifHash ^ 0x6f2b3d17, p))
     val motifPrefix = NarrativeLexicon.getMotifPrefix(bead ^ motifFrame.motifHash, motifFrame.motifPrefixCandidates, ply = ctx.ply)
 
     boardAnchor.foreach(a => parts += supportFragment(a.text, sceneGrounded = true))
-    appendSupportText(parts, endgamePatternPrefix)
     appendSupportText(parts, endgameFeatures.flatMap(buildEndgameContinuitySentence))
     appendSupportText(parts, endgameFeatures.flatMap(info => buildEndgameCausalitySentence(ctx, info)))
     appendSupportText(parts, motifPrefix)
@@ -4215,57 +4210,45 @@ object NarrativeOutlineBuilder:
     val semantic = ctx.semantic.toList
     val positional = semantic.flatMap(_.positionalFeatures.flatMap(positionalTagMotifs))
     val weaknesses = semantic.flatMap(_.structuralWeaknesses.flatMap(weakComplexMotifs))
-    val endgame = semantic.flatMap(_.endgameFeatures.toList.flatMap(endgameMotifs))
     val evidence = ctx.candidates.flatMap(_.tacticEvidence.flatMap(tacticEvidenceMotifs))
     val conceptMotifs = semantic.flatMap(_.conceptSummary).flatMap(conceptToMotif)
-    (positional ++ weaknesses ++ endgame ++ evidence ++ conceptMotifs)
+    (positional ++ weaknesses ++ evidence ++ conceptMotifs)
       .map(_.trim)
       .filter(_.nonEmpty)
       .distinct
 
   /** Maps conceptSummary labels to motif IDs that canonicalTermForMotif can resolve. */
   private def conceptToMotif(concept: String): Option[String] =
-    val low = concept.trim.toLowerCase.replaceAll("[\\s_-]+", "_")
-    if
-      RelationObservationCatalog.relationWitnessOnlyMotifTag(concept) ||
-        RelationObservationCatalog.pvDrawResourceOnlyMotifTag(concept)
-    then None
-    else if low.contains("stalemate") then Some("stalemate_trick")
-    else if low.contains("repetition") || low.contains("repeat") then Some("repetition_threat")
-    else if low.contains("perpetual") then Some("perpetual_check")
-    else if low.contains("fortress") then Some("fortress")
-    else if low.contains("zugzwang") then Some("zugzwang")
-    else None
+    if endgameContextOnlyConcept(concept) then None
+    else
+      val low = concept.trim.toLowerCase.replaceAll("[\\s_-]+", "_")
+      if
+        RelationObservationCatalog.relationWitnessOnlyMotifTag(concept) ||
+          RelationObservationCatalog.pvDrawResourceOnlyMotifTag(concept)
+      then None
+      else if low.contains("stalemate") then Some("stalemate_trick")
+      else if low.contains("repetition") || low.contains("repeat") then Some("repetition_threat")
+      else if low.contains("perpetual") then Some("perpetual_check")
+      else if low.contains("fortress") then Some("fortress")
+      else if low.contains("zugzwang") then Some("zugzwang")
+      else None
 
-  private def endgameMotifs(info: EndgameInfo): List[String] =
-    val motifs = scala.collection.mutable.ListBuffer[String]()
-    // Priority: promotion race > zugzwang > king activity.
-    if info.ruleOfSquare.equalsIgnoreCase("Fails") || info.rookEndgamePattern.equalsIgnoreCase("RookBehindPassedPawn") then
-      motifs += "promotion_race"
-    if info.isZugzwang || info.zugzwangLikelihood >= 0.65 then
-      motifs += "zugzwang"
-    if info.hasOpposition || !info.oppositionType.equalsIgnoreCase("None") then
-      motifs += "opposition"
-    if info.rookEndgamePattern.equalsIgnoreCase("KingCutOff") then motifs += "king_cut_off"
-    if info.kingActivityDelta > 0 then motifs += "king_activity"
-    info.primaryPattern.foreach { p =>
-      val low = p.toLowerCase
-      if low.contains("lucena") then motifs += "lucena"
-      else if low.contains("philidor") then motifs += "philidor"
-      else if low.contains("vancura") then motifs += "vancura"
-      else if low.contains("triangulation") then motifs += "triangulation"
-      else if low.contains("outsidepasser") then motifs += "outside_passer"
-      else if low.contains("connectedpassers") then motifs += "connected_passers"
-      else if low.contains("oppositecoloredbishops") then motifs += "opposite_bishops"
-      else if low.contains("wrongrookpawnwrongbishopfortress") then motifs += "wrong_bishop_fortress"
-      else if low.contains("shortsidedefense") then motifs += "short_side_defense"
-      else if low.contains("breakthroughsacrifice") then motifs += "breakthrough_sacrifice"
-      else if low.contains("shouldering") then motifs += "shouldering"
-      else if low.contains("retimaneuver") then motifs += "reti_maneuver"
-      else if low.contains("goodbishoprookpawnconversion") then motifs += "good_bishop_rook_pawn"
-      else if low.contains("knightblockaderookpawndraw") then motifs += "knight_blockade_rook_pawn"
-    }
-    motifs.distinct.toList
+  private def endgameContextOnlyConcept(raw: String): Boolean =
+    val low = raw.trim.toLowerCase.replaceAll("[\\s_-]+", "_")
+    low == "zugzwang_pressure" ||
+      low == "key_square_control" ||
+      low == "king_advancing" ||
+      low == "king_retreating" ||
+      low == "rule_of_the_square_holds" ||
+      low == "rule_of_the_square_fails" ||
+      low == "rook_behind_passed_pawn" ||
+      low == "king_cut_off" ||
+      low.endsWith("_opposition") ||
+      low.startsWith("endgame_pattern") ||
+      low.startsWith("endgame_developing") ||
+      low.startsWith("endgame_continuation") ||
+      low.startsWith("endgame_sustained") ||
+      low.startsWith("pattern_shift")
 
   private def positionalTagMotifs(tag: PositionalTagInfo): List[String] =
     val key = normalizeMotifKey(tag.tagType)
@@ -4291,10 +4274,6 @@ object NarrativeOutlineBuilder:
       List(s"semi_open_file_control${if fileHint.nonEmpty then s"_$fileHint" else ""}")
     else if key.contains("rook_on_seventh") || key.contains("rookonseventh") || key.contains("seventh_rank_invasion") then
       List("rook_on_seventh")
-    else if key.contains("rook_behind_passed_pawn") || key.contains("rookbehindpassedpawn") then
-      List("rook_behind_passed_pawn")
-    else if key.contains("king_cut_off") || key.contains("kingcutoff") then
-      List("king_cut_off")
     else if key.contains("doubled_rooks") || key.contains("doubledrooks") then
       List("doubled_rooks")
     else if key.contains("connected_rooks") || key.contains("connectedrooks") then

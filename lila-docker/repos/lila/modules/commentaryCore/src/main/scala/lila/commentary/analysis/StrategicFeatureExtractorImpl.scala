@@ -280,10 +280,8 @@ class StrategicFeatureExtractorImpl(
         move = moveStr,
         candMotifs = candMotifs,
         topPlan = baseData.plans.headOption,
-        endgameFeatures = endgameFeatures,
         candPrevented = candPrevented,
-        activeColor = color,
-        board = board // Pass board for predicate validation
+        activeColor = color
       )
       // futureContext kept for backward compatibility
       val futureContext = moveIntent.immediate
@@ -299,6 +297,8 @@ class StrategicFeatureExtractorImpl(
         line = candidateVar
       )
     }
+
+    val evolvedEndgameState = EndgamePatternState.evolve(prevEndgameState, endgameFeatures, metadata.ply)
 
     // Assemble Data
     ExtendedAnalysisData(
@@ -317,10 +317,7 @@ class StrategicFeatureExtractorImpl(
       candidates = candidates,
       counterfactual = counterfactual,
       
-      // Calculate current endgame logic including ply gap
-      // DEBT 4: Populate concept summary from detected features
-
-      conceptSummary = deriveConceptSummary(baseData.nature, baseData.plans, allPositionalFeatures, endgameFeatures, strategicState, prevEndgameState, EndgamePatternState.evolve(prevEndgameState, endgameFeatures, metadata.ply).map(_.patternAge).getOrElse(0)),
+      conceptSummary = deriveConceptSummary(baseData.nature, baseData.plans, allPositionalFeatures, strategicState),
       prevMove = metadata.prevMove,
       ply = metadata.ply,
       evalCp = if (color.white) bestScoreNorm else -bestScoreNorm, // Use normalized score from variations
@@ -328,20 +325,16 @@ class StrategicFeatureExtractorImpl(
       phase = baseData.nature.natureType.toString.toLowerCase,
       planContinuity = baseData.planContinuity,
       planSequence = baseData.planSequence,
-      endgamePatternAge = EndgamePatternState.evolve(prevEndgameState, endgameFeatures, metadata.ply).map(_.patternAge).getOrElse(0),
+      endgamePatternAge = evolvedEndgameState.map(_.patternAge).getOrElse(0),
       endgameTransition = deriveTransitionLabel(prevEndgameState, endgameFeatures)
     )
   }
   
-  // DEBT 4: Derive high-level strategic concepts from features
   private def deriveConceptSummary(
       nature: PositionNature,
       plans: List[lila.commentary.model.PlanMatch],
       positionalFeatures: List[PositionalTag],
-      endgameFeatures: Option[EndgameFeature],
-      strategicState: StrategicStateFeatures,
-      prevEndgameState: Option[EndgamePatternState],
-      currentPatternAge: Int
+      strategicState: StrategicStateFeatures
   ): List[String] = {
     val concepts = scala.collection.mutable.ListBuffer[String]()
     
@@ -378,47 +371,6 @@ class StrategicFeatureExtractorImpl(
       case _ => ()
     }
     
-    // From Endgame – pattern-state-aware concept generation
-    endgameFeatures.foreach { eg =>
-      if (eg.isZugzwang || eg.zugzwangLikelihood >= 0.65) concepts += "Zugzwang pressure"
-      if (eg.hasOpposition) concepts += s"${eg.oppositionType.toString} opposition"
-      if (eg.keySquaresControlled.nonEmpty) concepts += "Key square control"
-
-      val currentPattern = eg.primaryPattern
-      val prevPattern = prevEndgameState.flatMap(_.activePattern)
-      val samePattern = currentPattern.isDefined && currentPattern == prevPattern
-
-      if samePattern then
-        // Same pattern continuing: vary the concept label by age (measured in plies)
-        val ageLabel = currentPatternAge match
-          case a if a >= 8 => "sustained"
-          case a if a >= 4 => "continuation"
-          case _           => "developing"
-        currentPattern.foreach(p => concepts += s"Endgame $ageLabel: $p")
-        // Progress delta: compare king activity between plies
-        val prevKAD = prevEndgameState.map(_.prevKingActivityDelta).getOrElse(0)
-        val kadDelta = eg.kingActivityDelta - prevKAD
-        if kadDelta > 0 then concepts += "King advancing"
-        else if kadDelta < -1 then concepts += "King retreating"
-      else
-        // New pattern introduction or transition
-        currentPattern.foreach(p => concepts += s"Endgame pattern: $p")
-        if prevPattern.isDefined && currentPattern != prevPattern then
-          val from = prevPattern.getOrElse("unknown")
-          concepts += s"Pattern shift: $from dissolved"
-
-      eg.ruleOfSquare match {
-        case lila.commentary.model.strategic.RuleOfSquareStatus.Holds => concepts += "Rule of the square holds"
-        case lila.commentary.model.strategic.RuleOfSquareStatus.Fails => concepts += "Rule of the square fails"
-        case _ => ()
-      }
-      eg.rookEndgamePattern match {
-        case lila.commentary.model.strategic.RookEndgamePattern.RookBehindPassedPawn => concepts += "Rook behind passed pawn"
-        case lila.commentary.model.strategic.RookEndgamePattern.KingCutOff => concepts += "King cut-off"
-        case _ => ()
-      }
-    }
-
     if strategicState.whiteEntrenchedPieces > 0 || strategicState.blackEntrenchedPieces > 0 then
       concepts += "Entrenched piece potential"
     if strategicState.whiteRookPawnMarchReady || strategicState.blackRookPawnMarchReady then
@@ -452,10 +404,8 @@ class StrategicFeatureExtractorImpl(
     move: String,
     candMotifs: List[Motif],
     topPlan: Option[lila.commentary.model.PlanMatch],
-    endgameFeatures: Option[EndgameFeature],
     candPrevented: List[PreventedPlan],
-    activeColor: chess.Color,
-    board: chess.Board
+    activeColor: chess.Color
   ): lila.commentary.model.strategic.MoveIntent = {
     
     // Split motifs by ply index
@@ -463,7 +413,7 @@ class StrategicFeatureExtractorImpl(
     val downstreamMotifs = candMotifs.filter(_.plyIndex > 0)  // Later moves in PV
     
     // Derive immediate intent (what the move itself does)
-    val immediate = deriveImmediateIntent(move, immediateMotifs, topPlan, endgameFeatures, candPrevented, board)
+    val immediate = deriveImmediateIntent(move, immediateMotifs, topPlan, candPrevented)
     
     // Derive downstream consequence (tactics that emerge later)
     val downstream = deriveDownstreamTactic(downstreamMotifs, activeColor)
@@ -475,9 +425,7 @@ class StrategicFeatureExtractorImpl(
     move: String,
     motifs: List[Motif],
     topPlan: Option[lila.commentary.model.PlanMatch],
-    endgameFeatures: Option[EndgameFeature],
-    candPrevented: List[PreventedPlan],
-    board: chess.Board
+    candPrevented: List[PreventedPlan]
   ): String = {
     import lila.commentary.model.Plan
     
@@ -526,24 +474,12 @@ class StrategicFeatureExtractorImpl(
     // 6. Capture
     if (move.contains("x")) return "Forcing exchanges"
     
-    // 7. Endgame-specific
-    endgameFeatures match {
-      case Some(eg) if eg.rookEndgamePattern == lila.commentary.model.strategic.RookEndgamePattern.RookBehindPassedPawn =>
-        return "Rook behind passed pawn"
-      case Some(eg) if eg.rookEndgamePattern == lila.commentary.model.strategic.RookEndgamePattern.KingCutOff =>
-        return "King cut-off technique"
-      case Some(eg) if eg.hasOpposition => return s"${eg.oppositionType.toString} opposition"
-      case Some(eg) if eg.ruleOfSquare == lila.commentary.model.strategic.RuleOfSquareStatus.Fails => return "Promotion race urgency"
-      case Some(eg) if eg.keySquaresControlled.nonEmpty => return "Key square control"
-      case _ => ()
-    }
-    
-    // 8. Development fallback (bishop/knight moving from back rank)  
+    // 7. Development fallback (bishop/knight moving from back rank)
     val isMinorPieceDev = move.headOption.exists(c => c == 'B' || c == 'N') && 
                           !move.contains("x") && !move.contains("+")
     if (isMinorPieceDev) return "Development"
     
-    // 9. Final fallback
+    // 8. Final fallback
     "Positional maneuvering"
   }
   

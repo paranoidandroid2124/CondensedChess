@@ -63,66 +63,6 @@ private[analysis] object NarrativeMotifPrefixTable:
       "The geometry of a smothered mate is starting to appear.",
       "Knight-and-queen coordination points toward smothered mate ideas."
     )),
-    MotifPrefixRule(List("zugzwang"), List(
-      "Zugzwang ideas are central: useful moves are running out.",
-      "This has a zugzwang flavor where every move concedes something.",
-      "The key endgame issue is zugzwang: improving moves are scarce."
-    )),
-    MotifPrefixRule(List("lucena"), List(
-      "Lucena technique is central: bridge construction is the key method.",
-      "This has a Lucena character where precise rook shelter shapes the checking plan.",
-      "Lucena geometry is in focus, so building the bridge becomes the technical priority."
-    )),
-    MotifPrefixRule(List("philidor"), List(
-      "Philidor defensive structure is relevant: third-rank control is critical.",
-      "This resembles Philidor defense, where rook activity from the defensive rank matters most.",
-      "The technical defensive method here is Philidor-style rook placement."
-    )),
-    MotifPrefixRule(List("vancura"), List(
-      "Vancura defensive ideas are available through active lateral rook checks.",
-      "This has Vancura flavor: rook activity can neutralize the advanced pawn.",
-      "The defensive resource resembles Vancura geometry with checking distance."
-    )),
-    MotifPrefixRule(List("triangulation"), List(
-      "Triangulation routes are becoming important for tempo control.",
-      "This king-and-pawn ending hinges on triangulation and move-order precision.",
-      "A triangulation idea can force a favorable tempo shift."
-    )),
-    MotifPrefixRule(List("connected_passers"), List(
-      "Connected passers are the dominant technical asset here.",
-      "The conversion plan revolves around advancing connected passed pawns in tandem.",
-      "Connected passer coordination is the central winning mechanism."
-    )),
-    MotifPrefixRule(List("outside_passer"), List(
-      "An outside passer can decoy the king and create play on the other wing.",
-      "Outside-passer strategy is now the practical technical lever.",
-      "The outside passer is a distraction tool that can reshape king placement."
-    )),
-    MotifPrefixRule(List("wrong_bishop_fortress"), List(
-      "Wrong-bishop fortress logic gives the defender durable resources.",
-      "This rook-pawn plus wrong-bishop setup keeps the promotion corner central.",
-      "The key endgame resource is the wrong-bishop corner fortress."
-    )),
-    MotifPrefixRule(List("short_side_defense"), List(
-      "Short-side defensive geometry is relevant in this rook ending.",
-      "The defender is aiming for short-side checking distance and king shelter.",
-      "Short-side defense is the technical checking setup to watch."
-    )),
-    MotifPrefixRule(List("promotion_race"), List(
-      "A promotion race is the key practical axis, so tempo matters immediately.",
-      "Promotion timing is now central: each king move changes the race outcome.",
-      "This ending is about promotion race arithmetic and accurate tempo handling."
-    )),
-    MotifPrefixRule(List("forced_draw_resource"), List(
-      "Concrete defensive resources are active despite apparent pressure.",
-      "The defender has practical resources if move order stays precise.",
-      "This phase contains technical defensive resources that can keep balance."
-    )),
-    MotifPrefixRule(List("opposition"), List(
-      "King opposition is a defining feature of this ending.",
-      "Opposition geometry is shaping which side can make progress.",
-      "The battle revolves around timing opposition and king squares."
-    )),
     MotifPrefixRule(List("isolated_pawn", "iqp"), List(
       "The isolated-queen-pawn structure is shaping the plans.",
       "The IQP defines the strategic battle here.",
@@ -242,16 +182,6 @@ private[analysis] object NarrativeMotifPrefixTable:
       "Rook activity on the seventh rank is becoming practical.",
       "Seventh-rank invasion ideas are now central.",
       "A rook on the seventh rank could decide the technical battle."
-    )),
-    MotifPrefixRule(List("rook_behind_passed_pawn"), List(
-      "Rook placement behind the passed pawn is the technical priority.",
-      "The key endgame principle is keeping the rook behind the passed pawn.",
-      "Behind-the-passed-pawn rook geometry is becoming decisive."
-    )),
-    MotifPrefixRule(List("king_cut_off"), List(
-      "Cutting off the enemy king is the key endgame method.",
-      "King cut-off geometry is becoming the core technical idea.",
-      "The conversion plan revolves around restricting the enemy king."
     )),
     MotifPrefixRule(List("doubled_rooks"), List(
       "Doubled rooks can generate immediate file pressure.",

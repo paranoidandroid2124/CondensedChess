@@ -5,6 +5,7 @@ import lila.commentary.analysis.PlanTaxonomy.{ PlanKind, PlanTheme, ThemeResolve
 import lila.commentary.model.{ FactScope, NarrativeContext, ProbeResult }
 import lila.commentary.model.authoring.QuestionEvidence
 import lila.commentary.model.strategic.{ EndgamePatternState, PlanLifecyclePhase }
+import scala.annotation.unused
 
 object MoveReviewStrategicLedgerBuilder:
 
@@ -165,13 +166,13 @@ object MoveReviewStrategicLedgerBuilder:
       refs: Option[MoveReviewRefs],
       probeResults: List[ProbeResult],
       planStateToken: Option[PlanStateTracker],
-      endgameStateToken: Option[EndgamePatternState],
+      @unused endgameStateToken: Option[EndgamePatternState],
       lineConsequence: Option[LineConsequenceEvidence] = None
   ): Option[MoveReviewStrategicLedger] =
     val digest = strategyPack.flatMap(_.signalDigest).orElse(NarrativeSignalDigestBuilder.build(ctx))
     val decision = DecisionComparisonBuilder.digest(ctx, refs)
     val routeSignal = hasRouteSignal(ctx, strategyPack, digest)
-    val carryOver = hasCarryOver(ctx, planStateToken, endgameStateToken)
+    val carryOver = hasCarryOver(ctx, planStateToken)
     val planProfile = collectPlanProfile(ctx)
     val prerequisites = collectPrerequisites(ctx).take(2)
     val conversionTrigger = collectConversionTrigger(ctx)
@@ -183,7 +184,6 @@ object MoveReviewStrategicLedgerBuilder:
         ctx,
         digest,
         planProfile,
-        endgameStateToken,
         conversionTrigger,
         compensationSignal,
         prophylaxisSignal,
@@ -196,7 +196,6 @@ object MoveReviewStrategicLedgerBuilder:
       digest = digest,
       decision = decision,
       planStateToken = planStateToken,
-      endgameStateToken = endgameStateToken,
       carryOver = carryOver,
       prerequisites = prerequisites,
       conversionTrigger = conversionTrigger,
@@ -244,19 +243,17 @@ object MoveReviewStrategicLedgerBuilder:
       ctx: NarrativeContext,
       digest: Option[NarrativeSignalDigest],
       planProfile: PlanProfile,
-      endgameStateToken: Option[EndgamePatternState],
       conversionTrigger: Option[String],
       compensationSignal: Boolean,
       prophylaxisSignal: Boolean,
       openingSignal: Boolean
   ): Option[MotifChoice] =
-    val endgamePattern = currentEndgamePattern(ctx, endgameStateToken)
     val conversionReady =
       conversionTrigger.nonEmpty ||
         ctx.planContinuity.exists(_.phase == PlanLifecyclePhase.Fruition)
     val oppositePlanReady =
       hasOppositeBishopsConversionPlan(planProfile) && conversionReady
-    val tokens = collectStructuredTokens(ctx, digest, endgamePattern)
+    val tokens = collectStructuredTokens(ctx, digest)
     val scores = scala.collection.mutable.Map.empty[String, Double].withDefaultValue(0.0)
 
     Motifs.foreach { motif =>
@@ -294,8 +291,7 @@ object MoveReviewStrategicLedgerBuilder:
 
   private def collectStructuredTokens(
       ctx: NarrativeContext,
-      digest: Option[NarrativeSignalDigest],
-      endgamePattern: Option[String]
+      digest: Option[NarrativeSignalDigest]
   ): Set[String] =
     (
       ctx.mainStrategicPlans.flatMap(plan => List(plan.planId, plan.themeL1)) ++
@@ -306,15 +302,10 @@ object MoveReviewStrategicLedgerBuilder:
             semantic.structureProfile.toList.flatMap(profile =>
               List(profile.primary, profile.centerState) ++ profile.evidenceCodes
             ) ++
-            semantic.endgameFeatures.toList.flatMap(endgame =>
-              List(endgame.primaryPattern, endgame.transition)
-                .flatten
-            ) ++
             semantic.planAlignment.toList.flatMap(alignment =>
               alignment.matchedPlanIds ++ alignment.missingPlanIds ++ alignment.reasonCodes
             )
         } ++
-        endgamePattern.toList ++
         digest.toList.flatMap(d =>
           List(
             d.structureProfile,
@@ -382,13 +373,6 @@ object MoveReviewStrategicLedgerBuilder:
           )
       )
 
-  private def currentEndgamePattern(
-      ctx: NarrativeContext,
-      endgameStateToken: Option[EndgamePatternState]
-  ): Option[String] =
-    endgameStateToken.flatMap(_.activePattern).filter(_.trim.nonEmpty)
-      .orElse(ctx.semantic.flatMap(_.endgameFeatures).flatMap(_.primaryPattern).filter(_.trim.nonEmpty))
-
   private def hasCompensationSignal(
       ctx: NarrativeContext,
       digest: Option[NarrativeSignalDigest]
@@ -411,7 +395,6 @@ object MoveReviewStrategicLedgerBuilder:
       digest: Option[NarrativeSignalDigest],
       decision: Option[DecisionComparisonDigest],
       planStateToken: Option[PlanStateTracker],
-      endgameStateToken: Option[EndgamePatternState],
       carryOver: Boolean,
       prerequisites: List[String],
       conversionTrigger: Option[String],
@@ -529,12 +512,10 @@ object MoveReviewStrategicLedgerBuilder:
 
   private def hasCarryOver(
       ctx: NarrativeContext,
-      planStateToken: Option[PlanStateTracker],
-      endgameStateToken: Option[EndgamePatternState]
+      planStateToken: Option[PlanStateTracker]
   ): Boolean =
     ctx.planContinuity.exists(_.consecutivePlies >= 2) ||
-      planStateToken.exists(token => activeTokenPlan(token).isDefined) ||
-      endgameStateToken.exists(_.patternAge > 0)
+      planStateToken.exists(token => activeTokenPlan(token).isDefined)
 
   private def activeTokenPlan(token: PlanStateTracker): Option[String] =
     token.history.values.toList

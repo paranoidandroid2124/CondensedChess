@@ -238,6 +238,9 @@ mechanisms. After claim-authority admission they must resolve to the strongest
 existing producer that supports the family/source pair. The renderer may consume
 only admitted anchors and checked-line bindings; row labels, diagnostic refs,
 basic prose, and practical-row text are not causal authority.
+Frontend MoveReview support panels follow the main prose. Move chips render from
+`refSans`/resolved refs; authoring row labels are display text only, not SAN
+identity authority.
 
 Durable structural claims require producer-owned board/PV proof. File entry,
 outpost occupation, target fixation, IQP inducement, color-complex pressure,
@@ -260,6 +263,15 @@ facts from `CommentaryIdeaSurface.practicalPositionFacts` are trusted, and only
 their admitted anchors may appear in public wording. Broad idea labels, attack
 shells, practical rows, and renderer text do not authorize line occupation,
 pawn-break, space-gain, target-fixing, attack-lane, or central-challenge claims.
+Endgame oracle pattern and technique labels stay out of `conceptSummary` and
+candidate immediate-intent text. They remain context until typed endgame local
+facts or replay-backed transition claims admit a public surface. Outline motif
+collection does not convert primary pattern names or raw `EndgameInfo` flags
+into standalone canonical motif claims. MoveReview strategic-ledger token
+collection does not use those pattern or transition strings as structured motif
+authority or carry-over emitters, and lexicon endgame-pattern prefix templates
+plus positional-tag motif promotion for rook-behind-passer / king-cut-off labels
+are not public authority paths.
 
 Relation witnesses carry their cataloged surface as typed data. That surface may
 narrow the family: mobility restriction stays pressure, move order stays timing,
