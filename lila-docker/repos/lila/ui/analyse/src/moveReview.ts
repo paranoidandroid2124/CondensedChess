@@ -61,32 +61,32 @@ const loadingStageOrder: Record<LoadingStage, number> = {
 };
 
 const loadingStageTitle: Record<LoadingStage, string> = {
-    position: 'Position analysis',
-    lines: 'Line analysis',
-    compose: 'Draft generation',
-    polish: 'Language polish',
+    position: 'Read the position',
+    lines: 'Check the lines',
+    compose: 'Write the lesson',
+    polish: 'Finish the review',
 };
 
 const loadingStageMessages: Record<LoadingStage, string[]> = {
     position: [
         'Reading the position...',
         'Checking king safety and piece activity...',
-        'Dusting off the board for a clean read...',
+        'Finding the move that changed the game...',
     ],
     lines: [
-        'Calculating principal variations...',
+        'Checking the main continuations...',
         'Comparing tactical and positional routes...',
         'Following forcing lines one by one...',
     ],
     compose: [
-        'Building a concise explanation...',
+        'Building the coach explanation...',
         'Aligning plans with the current structure...',
-        'Turning engine signals into human guidance...',
+        'Turning the line into a lesson you can replay...',
     ],
     polish: [
-        'Polishing the final commentary...',
+        'Preparing the final review...',
         'Ensuring move order and notation stay exact...',
-        'Preparing a clean final render...',
+        'Getting the board and notes ready together...',
     ],
 };
 
@@ -209,7 +209,7 @@ function renderSavedStudyFallbackHtml(commentary: string, refs: MoveReviewRefsV1
         refs && refs.variations.length
             ? `
       <div class="alternatives">
-        <h3>Saved Alternatives</h3>
+        <h3>Saved Lines</h3>
         ${refs.variations
             .map(variation => {
                 const moves = variation.moves
@@ -242,7 +242,7 @@ function renderSavedStudyFallbackHtml(commentary: string, refs: MoveReviewRefsV1
     return `
       <div class="move-review-content move-review-content--saved">
         <div class="move-review-toolbar">
-          <span class="move-review-saved-pill">Saved in study</span>
+          <span class="move-review-saved-pill">Saved review</span>
         </div>
         <div class="move-review-pv-preview"></div>
         <div class="commentary">${paragraphs}</div>
@@ -262,7 +262,7 @@ function studyNodeLabel(ctrl: AnalyseCtrl | undefined, path: string): string {
 
 function summarizeCommentary(text: string | null | undefined): string {
     const normalized = (text || '').replace(/\s+/g, ' ').trim();
-    if (!normalized) return 'Saved commentary';
+    if (!normalized) return 'Saved review';
     if (normalized.length <= 140) return normalized;
     return `${normalized.slice(0, 137).trimEnd()}...`;
 }
@@ -292,7 +292,7 @@ function renderStudyReadingSurface(ctrl: AnalyseCtrl | undefined, ref: StudyMove
 
     return `
       <div class="move-review-study-reading">
-        <div class="move-review-study-reading__title">Saved study commentary</div>
+        <div class="move-review-study-reading__title">Saved study review</div>
         <div class="move-review-study-reading__list">${items}</div>
       </div>
     `;
@@ -623,7 +623,7 @@ export default function moveReviewNarrative(ctrl?: AnalyseCtrl): MoveReviewNarra
             if (!isCurrentSession()) return;
             const take = Math.max(1, Math.floor((words.length * step) / steps));
             const preview = words.slice(0, take).join(' ');
-            show(renderLoadingHud('polish', 'Streaming final commentary...', preview), false);
+            show(renderLoadingHud('polish', 'Opening the review...', preview), false);
             await new Promise<void>(resolve => window.setTimeout(resolve, stepMs));
         }
     };
@@ -817,7 +817,7 @@ export default function moveReviewNarrative(ctrl?: AnalyseCtrl): MoveReviewNarra
             const commentary = decoded.commentary;
             if (moveReviewNeedsRetry(decoded)) {
                 activeRequestKey = null;
-                return showRetry('Commentary timed out before polish completed. Retry for a clean explanation.');
+                return showRetry('The review took too long to finish. Retry for a clean explanation.');
             }
             const decoratedHtml = decorateDecodedMoveReviewHtml(decoded);
             const shouldStream = decoded.sourceMode === 'ai_polished' && commentary.length > 0;

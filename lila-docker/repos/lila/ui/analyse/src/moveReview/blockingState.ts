@@ -22,9 +22,9 @@ function renderMoveReviewStateCard(
 export function moveReviewIdleHtml(): string {
   return renderMoveReviewStateCard(
     'idle',
-    'Explain This Move',
-    'Ask for a move-level explanation only when you want it. This keeps requests focused, lowers cost, and avoids queue pileups.',
-    '<button type="button" class="button button-metal" data-move-review-request="1">Explain this move</button>',
+    'Review This Move',
+    'Open a focused review when you want to understand this moment without leaving the board.',
+    '<button type="button" class="button button-metal" data-move-review-request="1">Review this move</button>',
   );
 }
 
@@ -32,17 +32,17 @@ export function moveReviewTooEarlyHtml(minPly: number): string {
   return renderMoveReviewStateCard(
     'idle',
     'Need a few more moves first',
-    `Move explanations open from move ${moveNumberFromPly(minPly)}. Continue a little further so the commentary has enough position and branch context to say something useful.`,
+    `Move reviews open from move ${moveNumberFromPly(minPly)}. Continue a little further so the position has enough context to review well.`,
     '',
   );
 }
 
-export function moveReviewRetryHtml(message = 'Commentary generation took too long or failed. Try again when the position is settled.'): string {
+export function moveReviewRetryHtml(message = 'The review took too long or failed. Try again when the position is settled.'): string {
   return renderMoveReviewStateCard(
     'error',
-    'Commentary unavailable',
+    'Review unavailable',
     message,
-    '<button type="button" class="button button-metal" data-move-review-request="1" data-move-review-force="1">Retry explanation</button>',
+    '<button type="button" class="button button-metal" data-move-review-request="1" data-move-review-force="1">Retry review</button>',
   );
 }
 
@@ -54,7 +54,7 @@ export async function blockedHtmlFromErrorResponse(res: Response, loginHref: str
         return renderMoveReviewStateCard(
           'idle',
           'Need a few more moves first',
-          data?.msg || `Move explanations open from move ${moveNumberFromPly(5)}. Continue a few moves first before asking for commentary.`,
+          data?.msg || `Move reviews open from move ${moveNumberFromPly(5)}. Continue a few moves first before opening the review.`,
           '',
         );
       }
@@ -68,15 +68,15 @@ export async function blockedHtmlFromErrorResponse(res: Response, loginHref: str
       const resetAt = resetAtFromResponse(data);
       return renderMoveReviewStateCard(
         'quota',
-        'Move explanation blocked',
-        `This move request hit the current usage policy. Review the limits and retry after ${resetAt.slice(0, 10)}.`,
+        'Move review blocked',
+        `This review request hit the current usage policy. Review the limits and retry after ${resetAt.slice(0, 10)}.`,
         '<a href="/support" class="button primary">Support Chesstory</a>',
       );
     } catch {
       return renderMoveReviewStateCard(
         'quota',
-        'Move explanation blocked',
-        'This move request hit the current usage policy. Please retry later.',
+        'Move review blocked',
+        'This review request hit the current usage policy. Please retry later.',
         '<a href="/support" class="button primary">Support Chesstory</a>',
       );
     }
@@ -85,8 +85,8 @@ export async function blockedHtmlFromErrorResponse(res: Response, loginHref: str
   if (res.status === 401) {
     return renderMoveReviewStateCard(
       'auth',
-      'Sign In Required',
-      'Sign in to continue using move explanations.',
+      'Sign in required',
+      'Sign in to continue using move reviews.',
       `<a class="button" href="${loginHref}">Sign in</a>`,
     );
   }
@@ -97,11 +97,11 @@ export async function blockedHtmlFromErrorResponse(res: Response, loginHref: str
       const seconds = ratelimitSecondsFromResponse(data);
       const message =
         typeof seconds === 'number'
-          ? `Move explanation quota reached. Try again in ${seconds}s.`
-          : 'Move explanation quota reached. Please retry shortly.';
-      return renderMoveReviewStateCard('quota', 'Rate Limit Reached', message, '');
+          ? `Move review quota reached. Try again in ${seconds}s.`
+          : 'Move review quota reached. Please retry shortly.';
+      return renderMoveReviewStateCard('quota', 'Review limit reached', message, '');
     } catch {
-      return renderMoveReviewStateCard('quota', 'Rate Limit Reached', 'Move explanation quota reached. Please retry shortly.', '');
+      return renderMoveReviewStateCard('quota', 'Review limit reached', 'Move review quota reached. Please retry shortly.', '');
     }
   }
 

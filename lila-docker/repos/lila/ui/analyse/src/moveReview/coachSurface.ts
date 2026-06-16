@@ -209,12 +209,12 @@ function renderCoachVerdict(
   const trustedSans = comparison.refSans || [];
 
   const moveBits = [
-    renderCoachMoveChip('Chosen', chosen, resolveTrustedDecisionSanRef(chosen, trustedSans, refIndex), 'chosen'),
+    renderCoachMoveChip('You played', chosen, resolveTrustedDecisionSanRef(chosen, trustedSans, refIndex), 'chosen'),
     !comparison.chosenMatchesBest
-      ? renderCoachMoveChip('Suggested', best, resolveTrustedDecisionSanRef(best, trustedSans, refIndex), 'engine')
+      ? renderCoachMoveChip('Coach move', best, resolveTrustedDecisionSanRef(best, trustedSans, refIndex), 'engine')
       : null,
     compared
-      ? renderCoachMoveChip('Compared', compared, resolveTrustedDecisionSanRef(compared, trustedSans, refIndex), 'deferred')
+      ? renderCoachMoveChip('Other idea', compared, resolveTrustedDecisionSanRef(compared, trustedSans, refIndex), 'deferred')
       : null,
   ].filter(Boolean);
 
@@ -231,7 +231,7 @@ function renderCoachVerdict(
   return `
     <section class="${classes}">
       <div class="move-review-coach__decision-topline">
-        <span class="move-review-coach__decision-kicker">Coach verdict</span>
+        <span class="move-review-coach__decision-kicker">What changed</span>
         ${comparison.gapLabel ? `<span class="move-review-coach__gap">${escapeHtml(comparison.gapLabel)}</span>` : ''}
       </div>
       ${moveBits.length ? `<div class="move-review-coach__decision-moves">${moveBits.join('')}</div>` : ''}
@@ -375,7 +375,7 @@ function renderSceneLine(scene: MoveReviewScene, refIndex: MoveReviewRefIndex): 
   if (!chips) return '';
   return `
     <div class="move-review-player__scene-line" data-scene-line="${escapeHtml(lineSans.join(' '))}">
-      <span class="move-review-player__scene-line-label">${escapeHtml(scene.lineLabel || 'Focus line')}</span>
+      <span class="move-review-player__scene-line-label">${escapeHtml(scene.lineLabel || 'Line to replay')}</span>
       <span class="move-review-player__scene-line-chips">${chips}</span>
     </div>
   `;
@@ -389,7 +389,7 @@ function primaryTryLine(playerSurface: MoveReviewPlayerSurfaceV1): string[] {
 
 function renderSceneNav(scenes: MoveReviewScene[]): string {
   return `
-    <nav class="move-review-player__timeline" aria-label="Coach scenes">
+    <nav class="move-review-player__timeline" aria-label="Review flow">
       ${scenes
         .map(
           (scene, idx) => `
@@ -431,7 +431,7 @@ function renderScenePanel(scene: MoveReviewScene, idx: number, refIndex: MoveRev
       ${board}${boardTitle}${boardSubtitle}${square}${hidden}
     >
       <header class="move-review-player__scene-head">
-        <span class="move-review-player__scene-kicker">${escapeHtml(scene.kicker)} ${idx + 1} of ${sceneCount}</span>
+        <span class="move-review-player__scene-kicker">${escapeHtml(scene.kicker)} · ${idx + 1}/${sceneCount}</span>
         <h4>${escapeHtml(scene.title)}</h4>
       </header>
       ${renderSceneLine(scene, refIndex)}
@@ -443,11 +443,11 @@ function renderScenePanel(scene: MoveReviewScene, idx: number, refIndex: MoveRev
 function renderSceneControls(sceneCount: number): string {
   return `
     <footer class="move-review-player__controls">
-      <button type="button" class="move-review-player__control" data-move-review-scene-step="-1" disabled>Back</button>
+      <button type="button" class="move-review-player__control" data-move-review-scene-step="-1" disabled>Previous</button>
       <span class="move-review-player__scene-count" aria-live="polite">1/${sceneCount}</span>
       <button type="button" class="move-review-player__control move-review-player__control--primary" data-move-review-scene-step="1"${
         sceneCount <= 1 ? ' disabled' : ''
-      }>Next scene</button>
+      }>Next</button>
     </footer>
   `;
 }
@@ -475,7 +475,7 @@ function renderRememberSceneBody(
   refIndex: MoveReviewRefIndex,
 ): string {
   const practice = hasCoachSurface
-    ? '<section class="move-review-coach__practice"><strong>Remember this</strong><span>Replay the line and keep the idea attached to the board position.</span></section>'
+    ? '<section class="move-review-coach__practice"><strong>Remember this</strong><span>Keep the idea attached to this board position, not just to the move name.</span></section>'
     : '';
   const coachNotes = html
     ? `<details class="move-review-coach__details move-review-player__detail-layer"><summary>Coach notes</summary><div class="move-review-coach__body">${html}</div></details>`
@@ -511,12 +511,12 @@ function buildMoveReviewScenes(
       label: 'Verdict',
       shortLabel: 'Verdict',
       title: titleText,
-      kicker: 'Key moment',
+      kicker: 'Decision',
       body:
         decision ||
         '<p class="move-review-player__empty">Start from the current position, then move through the coach scenes.</p>',
       board: boardPayloadForRef(decisionRef),
-      boardTitle: 'Position to judge',
+      boardTitle: 'Decision board',
       boardSubtitle: playerSurface.decisionComparison?.chosenSan || playerSurface.decisionComparison?.engineSan || null,
       square: summarySquare,
       lineSans: primaryLine,
@@ -530,10 +530,10 @@ function buildMoveReviewScenes(
       label: 'Why',
       shortLabel: 'Why',
       title: 'Why it mattered',
-      kicker: 'Human reason',
+      kicker: 'Reason',
       body: `<div class="move-review-coach__reasons">${summaryRows}</div>`,
       board: boardPayloadForRef(summaryRef),
-      boardTitle: 'Position for why',
+      boardTitle: 'Reason board',
       boardSubtitle: playerSurface.summaryRows[0]?.label || null,
       square: summarySquare,
       lineSans: playerSurface.summaryRows.find(row => row.refSans.length)?.refSans || primaryLine,
@@ -547,10 +547,10 @@ function buildMoveReviewScenes(
       label: 'Plan',
       shortLabel: 'Plan',
       title: 'What to watch next',
-      kicker: 'Next idea',
+      kicker: 'Plan',
       body: `<div class="move-review-coach__reasons">${planRows}</div>`,
       board: boardPayloadForRef(planRef),
-      boardTitle: 'Plan position',
+      boardTitle: 'Plan board',
       boardSubtitle: planSourceRows[0]?.label || null,
       square: planSquare,
       lineSans: planSourceRows.find(row => row.refSans.length)?.refSans || primaryLine,
@@ -564,10 +564,10 @@ function buildMoveReviewScenes(
       label: 'Try line',
       shortLabel: 'Line',
       title: 'Try the line',
-      kicker: 'Play it through',
+      kicker: 'Replay',
       body: '',
       board: boardPayloadForRef(tryRef),
-      boardTitle: 'Replay position',
+      boardTitle: 'Replay board',
       boardSubtitle: primaryLine[primaryLine.length - 1] || null,
       square: planSquare || summarySquare,
       lineSans: primaryLine,
@@ -582,10 +582,10 @@ function buildMoveReviewScenes(
       label: 'Remember',
       shortLabel: 'Recall',
       title: 'Remember this',
-      kicker: 'Pattern memory',
+      kicker: 'Memory',
       body: rememberBody,
       board: boardPayloadForRef(tryRef || summaryRef || decisionRef),
-      boardTitle: 'Memory position',
+      boardTitle: 'Memory board',
       boardSubtitle: primaryLine[primaryLine.length - 1] || planSourceRows[0]?.label || null,
       square: planSquare || summarySquare,
       lineSans: primaryLine,
@@ -611,14 +611,14 @@ export function decorateMoveReviewHtml(
   return `
     <div class="move-review-coach move-review-player" data-move-review-player data-scene-index="0">
       <header class="move-review-coach__header">
-        <span class="move-review-coach__eyebrow">Key moment</span>
+        <span class="move-review-coach__eyebrow">Move review</span>
         <h3>${escapeHtml(titleText)}</h3>
       </header>
       ${renderSceneNav(scenes)}
       <div class="move-review-player__stage">
         <aside class="move-review-player__board-shell" aria-label="Current coaching board">
           <div class="move-review-player__board-meta">
-            <span class="move-review-player__board-kicker">Current board</span>
+            <span class="move-review-player__board-kicker">Board for this scene</span>
             <strong class="move-review-player__board-title">${escapeHtml(scenes[0]?.boardTitle || 'Coaching board')}</strong>
             <span class="move-review-player__board-subtitle">${escapeHtml(scenes[0]?.boardSubtitle || scenes[0]?.label || '')}</span>
           </div>
