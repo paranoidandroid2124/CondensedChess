@@ -31,6 +31,7 @@ const topnavHiddenScss = readFileSync(
   fileURLToPath(new URL('../../lib/css/header/_topnav-hidden.scss', import.meta.url)),
   'utf8',
 );
+const cookieConsentScss = readFileSync(fileURLToPath(new URL('../../lib/css/page/_cookie-consent.scss', import.meta.url)), 'utf8');
 
 describe('review shell contrast palette', () => {
   test('keeps the review-shell palette above AA thresholds', () => {
@@ -552,7 +553,9 @@ describe('review shell contrast palette', () => {
   });
 
   test('keeps Chesstory page chrome aligned with the study-room palette', () => {
-    const chromeScss = [chesstoryOverridesScss, headerButtonsScss, topnavVisibleScss, topnavHiddenScss].join('\n');
+    const chromeScss = [chesstoryOverridesScss, headerButtonsScss, topnavVisibleScss, topnavHiddenScss, cookieConsentScss].join(
+      '\n',
+    );
 
     [...chromeScss.matchAll(/letter-spacing:\s*([^;]+);/g)].forEach(match =>
       assert.equal(match[1]!.trim(), '0', `Chesstory chrome letter-spacing must be 0, got ${match[1]}`),
@@ -565,6 +568,8 @@ describe('review shell contrast palette', () => {
       headerButtonsScss,
       /&\[aria-pressed='true'\]\s*\{[\s\S]*?background:\s*rgba\(\$c-primary,\s*0\.16\);[\s\S]*?box-shadow:\s*inset 0 0 0 1px rgba\(\$c-primary,\s*0\.18\);/,
     );
+    assert.match(cookieConsentScss, /background:\s*color-mix\(in srgb,\s*var\(--c-bg-box\)\s*92%,\s*#11130f\);/);
+    assert.match(cookieConsentScss, /color-mix\(in srgb,\s*var\(--c-bg-box\)\s*96%,\s*#11130f\);/);
   });
 });
 

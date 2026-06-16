@@ -19,10 +19,10 @@
   border: 1px solid color-mix(in srgb, var(--c-border) 72%, transparent);
   border-radius: 999px;
   padding: 0.65rem 1rem;
-  background: color-mix(in srgb, var(--c-bg-box) 92%, #05070c);
+  background: color-mix(in srgb, var(--c-bg-box) 92%, #11130f);
   color: var(--c-font-clear);
   font-weight: 600;
-  letter-spacing: 0.01em;
+  letter-spacing: 0;
   box-shadow: 0 16px 34px rgba(0, 0, 0, 0.28);
   transition:
     transform 180ms ease,
@@ -45,7 +45,7 @@
   padding: 1.15rem;
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--c-primary) 10%, transparent), transparent 28%),
-    color-mix(in srgb, var(--c-bg-box) 96%, #05070c);
+    color-mix(in srgb, var(--c-bg-box) 96%, #11130f);
   color: var(--c-font);
   box-shadow: 0 28px 56px rgba(0, 0, 0, 0.34);
   opacity: 0;
@@ -76,7 +76,7 @@
   color: var(--c-primary-clear);
   font-size: 0.75rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 
