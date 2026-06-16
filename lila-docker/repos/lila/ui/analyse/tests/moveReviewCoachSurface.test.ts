@@ -180,6 +180,29 @@ describe('moveReview coach surface', () => {
     assert.doesNotMatch(html, /data-scene-line-cue="[^"]*Bb5/);
   });
 
+  test('moves extra reasons into scene detail layers', () => {
+    const html = decorateMoveReviewHtml(
+      '<p>Main note.</p>',
+      refs,
+      playerSurface({
+        summaryRows: [
+          { label: 'First reason', text: 'Keep the file visible.', refSans: ['Nf3'] },
+          { label: 'Second reason', text: 'Hold pressure on d5.', refSans: ['d5'] },
+          { label: 'Third reason', text: 'Do not turn the scene into a scroll note.', refSans: ['Nf3', 'd5'] },
+        ],
+        advancedRows: [
+          { label: 'First plan', text: 'Improve the rook.', refSans: ['Nf3'] },
+          { label: 'Second plan', text: 'Watch the pin.', refSans: ['d5'] },
+          { label: 'Third plan', text: 'Keep the deeper note in the drawer.', refSans: ['Nf3', 'd5'] },
+        ],
+      }),
+    );
+
+    assert.match(html, /<summary>More reasons<\/summary>[\s\S]*Third reason/);
+    assert.match(html, /<summary>More plan notes<\/summary>[\s\S]*Third plan/);
+    assert.match(html, /move-review-player__detail-layer/);
+  });
+
   test('keeps trusted SAN chips interactive and ambiguous SAN display-only', () => {
     const html = decorateMoveReviewHtml(
       '<div class="commentary"><p>Main note.</p></div>',

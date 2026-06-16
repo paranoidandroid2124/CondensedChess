@@ -285,6 +285,22 @@ function renderCoachSurfaceRow(row: MoveReviewPlayerSurfaceRowV1, refIndex: Move
   `;
 }
 
+function renderSceneReasonBody(
+  rows: MoveReviewPlayerSurfaceRowV1[],
+  refIndex: MoveReviewRefIndex,
+  moreLabel: string,
+): string {
+  if (!rows.length) return '';
+  const visibleRows = rows.slice(0, 2).map(row => renderCoachSurfaceRow(row, refIndex)).join('');
+  const hiddenRows = rows.slice(2).map(row => renderCoachSurfaceRow(row, refIndex)).join('');
+  const visible = visibleRows ? `<div class="move-review-coach__reasons">${visibleRows}</div>` : '';
+  const safeMoreLabel = escapeHtml(moreLabel);
+  const hidden = hiddenRows
+    ? `<details class="move-review-coach__details move-review-player__detail-layer"><summary>${safeMoreLabel}</summary><div class="move-review-coach__reasons">${hiddenRows}</div></details>`
+    : '';
+  return `${visible}${hidden}`;
+}
+
 function renderOpeningBookMetadata(openingBook: NonNullable<MoveReviewPlayerSurfaceRowV1['authority']>['openingBook']): string {
   if (!openingBook) return '';
   const bits: string[] = [];
@@ -548,11 +564,11 @@ function buildMoveReviewScenes(
 ): MoveReviewScene[] {
   const titleText = playerSurface.title?.trim() || 'Coach review';
   const decision = renderCoachVerdict(playerSurface.decisionComparison, refIndex);
-  const summaryRows = playerSurface.summaryRows.map(row => renderCoachSurfaceRow(row, refIndex)).join('');
+  const summaryBody = renderSceneReasonBody(playerSurface.summaryRows, refIndex, 'More reasons');
   const primaryLine = primaryTryLine(playerSurface);
   const hasTryLine = !!renderTryLineChips(primaryLine, refIndex);
-  const advancedRows = playerSurface.advancedRows.map(row => renderCoachSurfaceRow(row, refIndex)).join('');
-  const planRows = advancedRows || summaryRows;
+  const advancedBody = renderSceneReasonBody(playerSurface.advancedRows, refIndex, 'More plan notes');
+  const planBody = advancedBody || summaryBody;
 
   const decisionRef = primaryDecisionRef(playerSurface.decisionComparison, refIndex) || firstResolvedSanRef(primaryLine, refIndex);
   const summaryRef = firstSurfaceRowRef(playerSurface.summaryRows, refIndex) || decisionRef;
@@ -562,7 +578,14 @@ function buildMoveReviewScenes(
   const tryEndRef = lastResolvedSanRef(primaryLine, refIndex) || planRef;
   const summarySquare = firstSurfaceSquare(playerSurface.summaryRows);
   const planSquare = firstSurfaceSquare(planSourceRows) || summarySquare;
-  const hasCoachSurface = !!(decision || summaryRows || hasTryLine || planRows || playerSurface.probeRows.length || playerSurface.authorRows.length);
+  const hasCoachSurface = !!(
+    decision ||
+    summaryBody ||
+    hasTryLine ||
+    planBody ||
+    playerSurface.probeRows.length ||
+    playerSurface.authorRows.length
+  );
 
   const scenes: MoveReviewScene[] = [
     {
@@ -583,14 +606,14 @@ function buildMoveReviewScenes(
     },
   ];
 
-  if (summaryRows) {
+  if (summaryBody) {
     scenes.push({
       key: 'why',
       label: 'Why',
       shortLabel: 'Why',
       title: 'Why it mattered',
       kicker: 'Reason',
-      body: `<div class="move-review-coach__reasons">${summaryRows}</div>`,
+      body: summaryBody,
       board: boardPayloadForRef(summaryRef),
       boardTitle: 'Reason position',
       boardSubtitle: playerSurface.summaryRows[0]?.label || null,
@@ -600,14 +623,14 @@ function buildMoveReviewScenes(
     });
   }
 
-  if (planRows) {
+  if (planBody) {
     scenes.push({
       key: 'plan',
       label: 'Plan',
       shortLabel: 'Plan',
       title: 'What to watch next',
       kicker: 'Plan',
-      body: `<div class="move-review-coach__reasons">${planRows}</div>`,
+      body: planBody,
       board: boardPayloadForRef(planRef),
       boardTitle: 'Plan position',
       boardSubtitle: planSourceRows[0]?.label || null,
