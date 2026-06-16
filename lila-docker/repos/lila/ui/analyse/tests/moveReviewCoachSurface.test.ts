@@ -105,9 +105,10 @@ describe('moveReview coach surface', () => {
     assert.match(html, /move-review-player__timeline-action">Replay the line/);
     assert.match(html, /move-review-player__board-shell/);
     assert.match(html, /move-review-player__board-anchor/);
-    assert.match(html, /move-review-player__board-anchor-label">Position first/);
+    assert.match(html, /move-review-player__board-anchor-label">Position \+ eval/);
     assert.match(html, /move-review-player__board-anchor-scene">Verdict/);
     assert.match(html, /move-review-player__board-anchor-move">Nf3/);
+    assert.match(html, /move-review-player__board-anchor-eval">Eval \+0\.4/);
     assert.match(html, /move-review-player__board-preview/);
     assert.match(html, /move-review-player__board-title/);
     assert.match(html, /move-review-player__board-note/);
@@ -118,6 +119,7 @@ describe('moveReview coach surface', () => {
     assert.match(html, /data-scene-line="Nf3 d5"/);
     assert.match(html, /data-scene-line-cue="Nf3 d5"/);
     assert.match(html, /data-scene-line-eval="\+0\.4"/);
+    assert.match(html, /data-scene-board-eval="\+0\.4"/);
     assert.match(html, /move-review-player__scene-line-eval">Eval \+0\.4/);
     assert.match(html, /Decision · 1\/5/);
     assert.match(html, /move-review-player__timeline-copy/);
@@ -132,6 +134,7 @@ describe('moveReview coach surface', () => {
     assert.match(html, /data-move-review-board-reset/);
     assert.match(html, /Back to position/);
     assert.doesNotMatch(html, /Board first/);
+    assert.doesNotMatch(html, /Position first/);
     assert.doesNotMatch(html, /Board focus/);
     assert.doesNotMatch(html, /Board shows/);
     assert.doesNotMatch(html, /Scene board/);
@@ -250,7 +253,9 @@ describe('moveReview coach surface', () => {
   test('keeps board context rail synced with scene and move state', () => {
     assert.match(interactionHandlersSource, /move-review-player__board-anchor-scene/);
     assert.match(interactionHandlersSource, /move-review-player__board-anchor-move/);
+    assert.match(interactionHandlersSource, /move-review-player__board-anchor-eval/);
     assert.match(interactionHandlersSource, /panel\.dataset\.sceneLabel/);
+    assert.match(interactionHandlersSource, /sceneBoardEval/);
     assert.match(interactionHandlersSource, /moveLabelFromElement\(activeMove\)/);
     assert.match(interactionHandlersSource, /dataset\.sceneLineEval/);
     assert.match(interactionHandlersSource, /move-review-player__board-cue-item--eval/);

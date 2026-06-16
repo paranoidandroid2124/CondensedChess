@@ -205,6 +205,10 @@ describe('review shell contrast palette', () => {
     assert.match(sideScss, /\.move-review-player__board-anchor-move\s*\{[\s\S]*?font-family:\s*'Roboto Mono', monospace;/);
     assert.match(
       sideScss,
+      /\.move-review-player__board-anchor-eval\s*\{[\s\S]*?border:\s*1px solid color-mix\(in srgb,\s*#\{\$c-primary\}\s*24%,\s*transparent\);[\s\S]*?background:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*14%,\s*#\{\$c-bg-low\}\);[\s\S]*?color:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*86%,\s*#\{\$c-font\}\);/,
+    );
+    assert.match(
+      sideScss,
       /\.move-review-player__board-shell\s*\{[\s\S]*?border-left:\s*3px solid color-mix\(in srgb,\s*#\{\$c-primary\}\s*48%,\s*#\{\$c-border\}\);[\s\S]*?box-shadow:[\s\S]*?inset 0 0 0 1px color-mix\(in srgb,\s*#\{\$c-primary\}\s*8%,\s*transparent\),/,
     );
     assert.match(

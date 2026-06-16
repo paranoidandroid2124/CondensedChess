@@ -102,21 +102,28 @@ function setPlayerBoardMeta(
   subtitle: string | null | undefined,
   kicker: string | null | undefined,
   note: string | null | undefined,
+  boardEval: string | null | undefined,
   anchorScene?: string | null | undefined,
   anchorMove?: string | null | undefined,
 ): void {
   const anchorSceneEl = player.querySelector<HTMLElement>('.move-review-player__board-anchor-scene');
   const anchorMoveEl = player.querySelector<HTMLElement>('.move-review-player__board-anchor-move');
+  const anchorEvalEl = player.querySelector<HTMLElement>('.move-review-player__board-anchor-eval');
   const kickerEl = player.querySelector<HTMLElement>('.move-review-player__board-kicker');
   const titleEl = player.querySelector<HTMLElement>('.move-review-player__board-title');
   const subtitleEl = player.querySelector<HTMLElement>('.move-review-player__board-subtitle');
   const noteEl = player.querySelector<HTMLElement>('.move-review-player__board-note');
   const anchorSceneText = anchorScene || kicker?.replace(/^On the board ·\s*/, '') || 'Review';
   const anchorMoveText = anchorMove || subtitle || '';
+  const anchorEvalText = boardEval ? `Eval ${boardEval}` : '';
   if (anchorSceneEl) anchorSceneEl.textContent = anchorSceneText;
   if (anchorMoveEl) {
     anchorMoveEl.textContent = anchorMoveText;
     anchorMoveEl.hidden = !anchorMoveText;
+  }
+  if (anchorEvalEl) {
+    anchorEvalEl.textContent = anchorEvalText;
+    anchorEvalEl.hidden = !anchorEvalText;
   }
   if (kickerEl) kickerEl.textContent = kicker || 'On the board · Review';
   if (titleEl && title) titleEl.textContent = title;
@@ -248,6 +255,7 @@ function syncMoveReviewElementBoard(el: HTMLElement, markActive = false): void {
     moveLabelFromElement(el) || panel?.dataset.sceneBoardSubtitle || null,
     sceneBoardKicker(panel),
     panel?.dataset.sceneBoardNote || null,
+    panel?.dataset.sceneBoardEval || null,
     panel?.dataset.sceneLabel || null,
     moveLabelFromElement(el) || panel?.dataset.sceneBoardSubtitle || null,
   );
@@ -271,6 +279,7 @@ function syncMoveReviewSceneBoard(player: HTMLElement, panel: HTMLElement): void
       (activeMove ? moveLabelFromElement(activeMove) : null) || panel.dataset.sceneBoardSubtitle || null,
       sceneBoardKicker(panel),
       panel.dataset.sceneBoardNote || null,
+      panel.dataset.sceneBoardEval || null,
       panel.dataset.sceneLabel || null,
       (activeMove ? moveLabelFromElement(activeMove) : null) || panel.dataset.sceneBoardSubtitle || null,
     );
@@ -284,6 +293,7 @@ function syncMoveReviewSceneBoard(player: HTMLElement, panel: HTMLElement): void
       panel.dataset.sceneBoardSubtitle || null,
       sceneBoardKicker(panel),
       panel.dataset.sceneBoardNote || null,
+      panel.dataset.sceneBoardEval || null,
       panel.dataset.sceneLabel || null,
       panel.dataset.sceneBoardSubtitle || null,
     );

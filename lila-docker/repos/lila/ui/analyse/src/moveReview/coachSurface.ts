@@ -565,6 +565,7 @@ function renderScenePanel(scene: MoveReviewScene, idx: number, refIndex: MoveRev
   const boardTitle = ` data-scene-board-title="${escapeHtml(scene.boardTitle)}"`;
   const boardSubtitle = scene.boardSubtitle ? ` data-scene-board-subtitle="${escapeHtml(scene.boardSubtitle)}"` : '';
   const boardNote = ` data-scene-board-note="${escapeHtml(scene.boardNote)}"`;
+  const boardEval = scene.lineEval ? ` data-scene-board-eval="${escapeHtml(scene.lineEval)}"` : '';
   const square = scene.square ? ` data-scene-square="${escapeHtml(scene.square)}"` : '';
   const label = ` data-scene-label="${escapeHtml(scene.label)}" data-scene-short-label="${escapeHtml(scene.shortLabel)}" data-scene-control-label="${escapeHtml(scene.controlLabel)}"`;
   const focusSquare = scene.square
@@ -580,7 +581,7 @@ function renderScenePanel(scene: MoveReviewScene, idx: number, refIndex: MoveRev
       data-scene-key="${scene.key}"
       role="tabpanel"
       aria-labelledby="move-review-scene-tab-${scene.key}"
-      ${board}${boardKicker}${boardTitle}${boardSubtitle}${boardNote}${square}${label}${hidden}
+      ${board}${boardKicker}${boardTitle}${boardSubtitle}${boardNote}${boardEval}${square}${label}${hidden}
     >
       <header class="move-review-player__scene-head">
         <span class="move-review-player__scene-kicker">${escapeHtml(scene.kicker)} · ${idx + 1}/${sceneCount}</span>
@@ -838,9 +839,10 @@ export function decorateMoveReviewHtml(
       <div class="move-review-player__stage">
         <aside class="move-review-player__board-shell" aria-label="Current review position">
           <div class="move-review-player__board-anchor" aria-live="polite">
-            <span class="move-review-player__board-anchor-label">Position first</span>
+            <span class="move-review-player__board-anchor-label">Position + eval</span>
             <strong class="move-review-player__board-anchor-scene">${escapeHtml(scenes[0]?.label || 'Review')}</strong>
             <span class="move-review-player__board-anchor-move"${scenes[0]?.boardSubtitle ? '' : ' hidden'}>${escapeHtml(scenes[0]?.boardSubtitle || '')}</span>
+            <span class="move-review-player__board-anchor-eval"${scenes[0]?.lineEval ? '' : ' hidden'}>Eval ${escapeHtml(scenes[0]?.lineEval || '')}</span>
           </div>
           <div class="move-review-player__board-meta">
             <span class="move-review-player__board-kicker">On the board · ${escapeHtml(scenes[0]?.kicker || 'Review')}</span>
