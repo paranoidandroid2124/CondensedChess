@@ -646,16 +646,46 @@ function buildMoveReviewScenes(
   return scenes;
 }
 
+function fallbackPlayerSurfaceFromRefs(refs: MoveReviewRefsV1 | null): MoveReviewPlayerSurfaceV1 | null {
+  const primaryLine =
+    refs?.variations
+      .find(variation => variation.moves.length)
+      ?.moves.map(move => move.san)
+      .filter(san => normalizeSanToken(san)) || [];
+  if (!primaryLine.length) return null;
+
+  return {
+    schema: 'chesstory.move_review.player_surface.v1',
+    title: 'Coach review',
+    summaryRows: [],
+    advancedRows: [],
+    decisionComparison: {
+      kicker: 'Replay',
+      chosenSan: null,
+      engineSan: null,
+      comparedSan: null,
+      secondaryText: null,
+      gapLabel: null,
+      chosenMatchesBest: true,
+      targetComparison: null,
+      refSans: primaryLine,
+    },
+    probeRows: [],
+    authorRows: [],
+  };
+}
+
 export function decorateMoveReviewHtml(
   html: string,
   refs: MoveReviewRefsV1 | null,
   playerSurface: MoveReviewPlayerSurfaceV1 | null,
 ): string {
-  if (!playerSurface) return html;
+  const surface = playerSurface || fallbackPlayerSurfaceFromRefs(refs);
+  if (!surface) return html;
 
   const refIndex = buildMoveReviewRefIndex(refs);
-  const titleText = playerSurface.title?.trim() || 'Coach review';
-  const scenes = buildMoveReviewScenes(html, playerSurface, refIndex);
+  const titleText = surface.title?.trim() || 'Coach review';
+  const scenes = buildMoveReviewScenes(html, surface, refIndex);
   const sceneCount = scenes.length;
 
   return `
