@@ -305,6 +305,10 @@ function formatOpeningGameCount(value: number): string {
 }
 
 function surfaceStatusLabel(status: string): string {
+  const key = status.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '_');
+  if (key === 'resolved') return 'Backed by line';
+  if (key === 'pending') return 'Still to check';
+  if (key === 'question_only') return 'Question to keep';
   return status
     .replace(/[_-]+/g, ' ')
     .split(/\s+/)
@@ -355,18 +359,6 @@ function renderTryLineChips(lineSans: string[], refIndex: MoveReviewRefIndex): s
       }),
     )
     .join(' ');
-}
-
-function renderTryLine(lineSans: string[], refIndex: MoveReviewRefIndex): string {
-  const chips = renderTryLineChips(lineSans, refIndex);
-  if (!chips) return '';
-
-  return `
-    <section class="move-review-coach__section move-review-coach__section--line">
-      <h4>Try the line</h4>
-      <div class="move-review-coach__line">${chips}</div>
-    </section>
-  `;
 }
 
 function renderSceneLine(scene: MoveReviewScene, refIndex: MoveReviewRefIndex): string {
@@ -460,10 +452,10 @@ function renderMoreToCheck(
   const probeMarkup = probeRows.map(row => renderCoachSurfaceRow(row, refIndex)).join('');
   const authorMarkup = authorRows.map(row => renderAuthorRow(row, refIndex)).join('');
   if (!probeMarkup && !authorMarkup) return '';
-  return `<details class="move-review-coach__details move-review-player__detail-layer"><summary>Look deeper</summary>${
-    probeMarkup ? `<div class="move-review-coach__subsection"><h5>Lines to check</h5>${probeMarkup}</div>` : ''
+  return `<details class="move-review-coach__details move-review-player__detail-layer"><summary>Study the follow-up</summary>${
+    probeMarkup ? `<div class="move-review-coach__subsection"><h5>If this line appears</h5>${probeMarkup}</div>` : ''
   }${
-    authorMarkup ? `<div class="move-review-coach__subsection"><h5>Questions for this position</h5>${authorMarkup}</div>` : ''
+    authorMarkup ? `<div class="move-review-coach__subsection"><h5>What to ask at the board</h5>${authorMarkup}</div>` : ''
   }</details>`;
 }
 
@@ -475,7 +467,7 @@ function renderRememberSceneBody(
   refIndex: MoveReviewRefIndex,
 ): string {
   const practice = hasCoachSurface
-    ? '<section class="move-review-coach__practice"><strong>Remember this</strong><span>Keep the idea attached to this board position, not just to the move name.</span></section>'
+    ? '<section class="move-review-coach__practice"><strong>Remember this</strong><span>When this structure appears again, find the board cue before naming the move.</span></section>'
     : '';
   const coachNotes = html
     ? `<details class="move-review-coach__details move-review-player__detail-layer"><summary>Coach notes</summary><div class="move-review-coach__body">${html}</div></details>`
@@ -492,7 +484,7 @@ function buildMoveReviewScenes(
   const decision = renderCoachVerdict(playerSurface.decisionComparison, refIndex);
   const summaryRows = playerSurface.summaryRows.map(row => renderCoachSurfaceRow(row, refIndex)).join('');
   const primaryLine = primaryTryLine(playerSurface);
-  const tryLine = renderTryLine(primaryLine, refIndex);
+  const hasTryLine = !!renderTryLineChips(primaryLine, refIndex);
   const advancedRows = playerSurface.advancedRows.map(row => renderCoachSurfaceRow(row, refIndex)).join('');
   const planRows = advancedRows || summaryRows;
 
@@ -503,7 +495,7 @@ function buildMoveReviewScenes(
   const tryRef = lastResolvedSanRef(primaryLine, refIndex) || planRef;
   const summarySquare = firstSurfaceSquare(playerSurface.summaryRows);
   const planSquare = firstSurfaceSquare(planSourceRows) || summarySquare;
-  const hasCoachSurface = !!(decision || summaryRows || tryLine || planRows || playerSurface.probeRows.length || playerSurface.authorRows.length);
+  const hasCoachSurface = !!(decision || summaryRows || hasTryLine || planRows || playerSurface.probeRows.length || playerSurface.authorRows.length);
 
   const scenes: MoveReviewScene[] = [
     {
@@ -516,11 +508,11 @@ function buildMoveReviewScenes(
         decision ||
         '<p class="move-review-player__empty">Start from the current position, then move through the coach scenes.</p>',
       board: boardPayloadForRef(decisionRef),
-      boardTitle: 'Your move position',
+      boardTitle: 'Position tied to the choice',
       boardSubtitle: playerSurface.decisionComparison?.chosenSan || playerSurface.decisionComparison?.engineSan || null,
       square: summarySquare,
       lineSans: primaryLine,
-      lineLabel: 'Line to check',
+      lineLabel: 'Line behind the choice',
     },
   ];
 
@@ -537,7 +529,7 @@ function buildMoveReviewScenes(
       boardSubtitle: playerSurface.summaryRows[0]?.label || null,
       square: summarySquare,
       lineSans: playerSurface.summaryRows.find(row => row.refSans.length)?.refSans || primaryLine,
-      lineLabel: 'Reason line',
+      lineLabel: 'Moves behind the reason',
     });
   }
 
@@ -554,11 +546,11 @@ function buildMoveReviewScenes(
       boardSubtitle: planSourceRows[0]?.label || null,
       square: planSquare,
       lineSans: planSourceRows.find(row => row.refSans.length)?.refSans || primaryLine,
-      lineLabel: 'Plan line',
+      lineLabel: 'Plan in moves',
     });
   }
 
-  if (tryLine) {
+  if (hasTryLine) {
     scenes.push({
       key: 'try',
       label: 'Try line',
@@ -571,7 +563,7 @@ function buildMoveReviewScenes(
       boardSubtitle: primaryLine[primaryLine.length - 1] || null,
       square: planSquare || summarySquare,
       lineSans: primaryLine,
-      lineLabel: 'Play through',
+      lineLabel: 'Replay on the board',
     });
   }
 
@@ -589,7 +581,7 @@ function buildMoveReviewScenes(
       boardSubtitle: primaryLine[primaryLine.length - 1] || planSourceRows[0]?.label || null,
       square: planSquare || summarySquare,
       lineSans: primaryLine,
-      lineLabel: 'Pattern line',
+      lineLabel: 'Pattern in moves',
     });
   }
 
