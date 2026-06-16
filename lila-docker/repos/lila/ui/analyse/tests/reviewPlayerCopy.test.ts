@@ -78,6 +78,13 @@ describe('review player copy', () => {
     assert.doesNotMatch(moveReviewRendererSource, /Alternative Options/);
   });
 
+  test('keeps move chips tied to the board in player-facing labels', () => {
+    assert.match(moveReviewRendererSource, /Show \$\{item\.san\} on the board/);
+    assert.match(moveReviewRendererSource, /Show \$\{escapeHtml\(shown\)\} on the board/);
+    assert.doesNotMatch(moveReviewRendererSource, /Preview move/);
+    assert.doesNotMatch(moveReviewRendererSource, /Play move/);
+  });
+
   test('keeps loading copy framed as a review, not a technical job', () => {
     ['Position', 'Candidate lines', 'Coach lesson', 'Board replay'].forEach(copy =>
       assert.match(moveReviewSource, new RegExp(escapeRegExp(copy)), `missing loading copy: ${copy}`),

@@ -66,7 +66,7 @@ object MoveReviewRenderer:
         attr("data-board") := s"$fenAfter|$uci",
         attr("tabindex") := "0",
         attr("role") := "button",
-        attr("aria-label") := s"Preview move ${item.san}"
+        attr("aria-label") := s"Show ${item.san} on the board"
       ) ++ refId.map(id => attr("data-ref-id") := id)
       val moveFrag: Frag =
         span(attrs*)(item.san)
@@ -191,7 +191,7 @@ object MoveReviewRenderer:
         val attrs = ref.map { r =>
           val board = s"${r.fenAfter}|${r.uci}"
           val refAttr = r.refId.map(id => s" data-ref-id=\"${escapeHtml(id)}\"").getOrElse("")
-          s" data-uci=\"${escapeHtml(r.uci)}\" data-board=\"${escapeHtml(board)}\"$refAttr tabindex=\"0\" role=\"button\" aria-label=\"Play move ${escapeHtml(shown)}\""
+          s" data-uci=\"${escapeHtml(r.uci)}\" data-board=\"${escapeHtml(board)}\"$refAttr tabindex=\"0\" role=\"button\" aria-label=\"Show ${escapeHtml(shown)} on the board\""
         }.getOrElse("")
         val klass = if (ref.isDefined) "move-chip move-chip--interactive" else "move-chip"
         s"""<span class="$klass" data-san="${escapeHtml(san)}"$attrs>$shown</span>"""
