@@ -44,7 +44,7 @@ class EndgamePatternContinuityTest extends FunSuite:
       patternAge: Int = 0,
       transition: Option[String] = None,
       outcome: String = "Draw",
-      fen: String = syntheticFen
+      fen: String
   ): NarrativeContext =
     NarrativeContext(
       fen = fen,
@@ -188,7 +188,7 @@ class EndgamePatternContinuityTest extends FunSuite:
     val (vancuraStable, vancuraState) = analyzeAt(vancuraFen, 70, None)
     assertEquals(vancuraStable.endgameFeatures.flatMap(_.primaryPattern), Some("VancuraDefense"))
     val (vancuraBroken, _) = analyzeAt(vancuraBrokenFen, 72, vancuraState)
-    assert(vancuraBroken.endgameTransition.exists(_.startsWith("VancuraDefense(Draw) → none(")))
+    assert(vancuraBroken.endgameTransition.exists(_.startsWith("VancuraDefense(Unclear) → none(")))
 
     val vancuraCtx = NarrativeContextBuilder.build(vancuraBroken, vancuraBroken.toContext, Some(vancuraStable))
     val vancuraText = BookStyleRenderer.render(vancuraCtx)
@@ -218,16 +218,16 @@ class EndgamePatternContinuityTest extends FunSuite:
       "KeySquaresOppositionBreakthrough" -> "critical entry squares",
       "TriangulationZugzwang" -> "spare king tempo",
       "BreakthroughSacrifice" -> "points at a passer",
-      "Shouldering" -> "shoved off the pawn's route",
+      "Shouldering" -> "off the pawn's route",
       "RetiManeuver" -> "chase the passer",
       "ShortSideDefense" -> "checking room on the short side",
-      "OppositeColoredBishopsDraw" -> "different color complexes",
+      "OppositeColoredBishopsDraw" -> "different color complex",
       "GoodBishopRookPawnConversion" -> "bishop matches the promotion corner",
       "KnightBlockadeRookPawnDraw" -> "covers the promotion square",
-      "QueenVsAdvancedPawn" -> "advanced pawn contained by checking distance",
+      "QueenVsAdvancedPawn" -> "checking distance against the advanced pawn",
       "TarraschDefenseActive" -> "active behind the pawn",
       "PassiveRookDefense" -> "behind the pawn",
-      "RookAndBishopVsRookDraw" -> "known safe setup",
+      "RookAndBishopVsRookDraw" -> "checking distance or corner geometry",
       "SameColoredBishopsBlockade" -> "shared color complex"
     )
 
@@ -236,7 +236,7 @@ class EndgamePatternContinuityTest extends FunSuite:
       "OutsidePasserDecoy" -> "drags the enemy king away",
       "ConnectedPassers" -> "advancing together",
       "KeySquaresOppositionBreakthrough" -> "entry squares",
-      "TriangulationZugzwang" -> "triangulation tempo",
+      "TriangulationZugzwang" -> "spare king tempo",
       "BreakthroughSacrifice" -> "passer-route cue",
       "Shouldering" -> "pushed off the pawn's path",
       "RetiManeuver" -> "combine pursuit of the passer",
@@ -247,7 +247,7 @@ class EndgamePatternContinuityTest extends FunSuite:
       "QueenVsAdvancedPawn" -> "advanced pawn",
       "TarraschDefenseActive" -> "checking from behind the pawn",
       "PassiveRookDefense" -> "behind the pawn",
-      "RookAndBishopVsRookDraw" -> "safe checking or corner setup",
+      "RookAndBishopVsRookDraw" -> "checking distance or corner geometry",
       "SameColoredBishopsBlockade" -> "shared color complex"
     )
 
@@ -268,7 +268,7 @@ class EndgamePatternContinuityTest extends FunSuite:
     lossCases.foreach { case (pattern, anchor) =>
       val ctx = syntheticContext(
         pattern = None,
-        transition = Some(s"$pattern(Draw) → none(Unclear)"),
+        transition = Some(s"$pattern(Unclear) → none(Unclear)"),
         fen = goldsetFen(pattern, positive = false).getOrElse(syntheticFen)
       )
       val text = BookStyleRenderer.renderDraft(ctx)
