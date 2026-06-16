@@ -1748,8 +1748,8 @@ body.dark .landing-pro::before,
 html.pro .landing-pro::before,
 body.pro .landing-pro::before {
   background-image:
-    linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    linear-gradient(to right, rgba($landing-primary-dark, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba($landing-primary-dark, 0.03) 1px, transparent 1px);
 }
 
 html.dark .landing-header,

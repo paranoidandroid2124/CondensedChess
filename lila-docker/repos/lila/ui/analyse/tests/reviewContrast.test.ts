@@ -314,6 +314,7 @@ describe('review shell contrast palette', () => {
     [
       '#fff9f1',
       '#fff',
+      'rgba(255',
       'rgba(237, 223, 201, 0.82)',
       'rgba(253, 186, 116, 0.86)',
       '#0f1a24',

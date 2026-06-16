@@ -25,7 +25,7 @@ export function syncMoveReviewEvalDisplay(showEval: boolean): void {
   $scope
     .find('.move-review-score-toggle')
     .attr('aria-pressed', showEval ? 'true' : 'false')
-    .text(showEval ? 'Eval shown' : 'Eval hidden');
+    .text(showEval ? 'Line eval shown' : 'Line eval hidden');
 }
 
 export function renderMoveReviewPanel(html: string, orientation: Color, showEval: boolean): void {

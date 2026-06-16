@@ -73,14 +73,16 @@ describe('review player copy', () => {
   test('keeps move review eval visible as core evidence', () => {
     assert.doesNotMatch(moveReviewRendererSource, /move-review-content move-review-hide-eval/);
     assert.match(moveReviewRendererSource, /attr\("aria-pressed"\) := "true"/);
-    assert.match(moveReviewRendererSource, /Eval shown/);
+    assert.match(moveReviewRendererSource, /Line eval shown/);
     assert.match(moveReviewRendererSource, /s"Eval \$\{normalizedScore\(v\.scoreCp\)\}"/);
     assert.doesNotMatch(moveReviewRendererSource, /s" \(\$\{normalizedScore\(v\.scoreCp\)\}\)"/);
     assert.doesNotMatch(moveReviewRendererSource, /Eval: On/);
     assert.match(moveReviewSource, /storedBooleanPropWithEffect\('analyse\.move_review\.showEval', true/);
-    assert.match(moveReviewRenderingSource, /Eval shown/);
-    assert.match(moveReviewRenderingSource, /Eval hidden/);
+    assert.match(moveReviewRenderingSource, /Line eval shown/);
+    assert.match(moveReviewRenderingSource, /Line eval hidden/);
     [moveReviewRenderingSource, moveReviewRendererSource].forEach(source => {
+      assert.doesNotMatch(source, /[^A-Za-z]Eval shown/);
+      assert.doesNotMatch(source, /[^A-Za-z]Eval hidden/);
       assert.doesNotMatch(source, /Scores shown/);
       assert.doesNotMatch(source, /Scores hidden/);
       assert.doesNotMatch(source, /Numbers shown/);
