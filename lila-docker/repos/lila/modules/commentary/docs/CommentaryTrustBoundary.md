@@ -199,7 +199,10 @@ The surface renderer may say:
   compensation rows require invested-material evidence, a strict resolved
   compensation subtype, and durable pressure anchors carried by a typed route,
   move ref, directional target, or typed strategic idea; raw compensation
-  summaries or vectors are not enough. Centipawn loss from a counterfactual or
+  summaries or vectors are not enough. Raw semantic compensation text also
+  cannot open strategic-sacrifice, concrete-strategy, or pressure-increase
+  gates unless `CompensationInterpretation` accepts it or a separate exact
+  pressure witness exists. Centipawn loss from a counterfactual or
   decision comparison is engine-margin evidence, not practical-difficulty
   authority, unless a separate typed practical witness is present.
   Played-first rook-pawn hook/march facts may enter here only from board state

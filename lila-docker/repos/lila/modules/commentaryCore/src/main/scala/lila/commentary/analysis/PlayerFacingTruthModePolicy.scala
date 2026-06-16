@@ -588,11 +588,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
   ): Boolean =
     val moveLinkedCompensation = hasMoveLinkedCompensationEvidence(surface)
     val semanticCompensation =
-      ctx.semantic.exists(semantic =>
-        semantic.compensation.exists(comp =>
-          comp.returnVector.nonEmpty || Option(comp.conversionPlan).exists(_.trim.nonEmpty)
-        )
-      )
+      CompensationInterpretation.effectiveSemanticDecision(ctx).nonEmpty
     val verifiedCompensation =
       truthContract.exists(contract =>
         verifiedAnchorMatchesSurface(surface, contract.verifiedPayoffAnchor) &&
@@ -726,11 +722,9 @@ private[commentary] object PlayerFacingTruthModePolicy:
       ctx.semantic.exists { semantic =>
         semantic.preventedPlans.exists(_.sourceScope == FactScope.Now) ||
           semantic.structuralWeaknesses.nonEmpty ||
-          semantic.positionalFeatures.nonEmpty ||
-          semantic.compensation.exists(comp =>
-            comp.returnVector.nonEmpty || Option(comp.conversionPlan).exists(_.trim.nonEmpty)
-          )
-      }
+          semantic.positionalFeatures.nonEmpty
+      } ||
+      CompensationInterpretation.effectiveSemanticDecision(ctx).nonEmpty
 
   private def currentPreventedPlans(ctx: NarrativeContext): List[PreventedPlanInfo] =
     ctx.semantic.toList.flatMap(_.preventedPlans).filter(_.sourceScope == FactScope.Now)
@@ -1006,14 +1000,9 @@ private[commentary] object PlayerFacingTruthModePolicy:
           target.evidence.nonEmpty &&
           target.strategicReasons.exists(reason => containsAny(normalize(reason), List("pressure", "target", "attack")))
       )
-    val compensationSignal =
-      ctx.semantic.exists(_.compensation.exists(comp =>
-        comp.returnVector.keys.exists(key => containsAny(normalize(key), List("attack", "initiative", "king")))
-      )) &&
-        anchoredTarget
     val exactPressureIncreaseSignal =
       exactPressureIncreaseWitness(ctx, surface).nonEmpty
-    (deltaSignals && anchoredTarget) || compensationSignal || exactPressureIncreaseSignal
+    (deltaSignals && anchoredTarget) || exactPressureIncreaseSignal
 
   private def hasMainPathPlanAdvance(
       surface: StrategyPackSurface.Snapshot,
