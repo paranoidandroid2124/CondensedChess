@@ -237,7 +237,7 @@ class EndgamePatternContinuityTest extends FunSuite:
       "ConnectedPassers" -> "advancing together",
       "KeySquaresOppositionBreakthrough" -> "entry squares",
       "TriangulationZugzwang" -> "triangulation tempo",
-      "BreakthroughSacrifice" -> "opens a passer",
+      "BreakthroughSacrifice" -> "passer-route cue",
       "Shouldering" -> "pushed off the pawn's path",
       "RetiManeuver" -> "combine pursuit of the passer",
       "ShortSideDefense" -> "checking distance",

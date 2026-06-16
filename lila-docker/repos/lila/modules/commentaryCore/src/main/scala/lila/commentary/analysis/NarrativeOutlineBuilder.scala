@@ -3889,9 +3889,9 @@ object NarrativeOutlineBuilder:
     else if normalized.equalsIgnoreCase("WrongRookPawnWrongBishopFortress") then "wrong-corner rook-pawn setup"
     else if normalized.equalsIgnoreCase("OutsidePasserDecoy") then "outside-passer decoy shape"
     else if normalized.equalsIgnoreCase("ConnectedPassers") then "connected-passer shape"
-    else if normalized.equalsIgnoreCase("KeySquaresOppositionBreakthrough") then "king-and-key-square breakthrough shape"
+    else if normalized.equalsIgnoreCase("KeySquaresOppositionBreakthrough") then "king-and-key-square entry shape"
     else if normalized.equalsIgnoreCase("TriangulationZugzwang") then "triangulation-tempo shape"
-    else if normalized.equalsIgnoreCase("BreakthroughSacrifice") then "pawn-breakthrough shape"
+    else if normalized.equalsIgnoreCase("BreakthroughSacrifice") then "pawn-wedge passer-route shape"
     else if normalized.equalsIgnoreCase("Shouldering") then "king-shouldering shape"
     else if normalized.equalsIgnoreCase("RetiManeuver") then "king-race pursuit shape"
     else if normalized.equalsIgnoreCase("ShortSideDefense") then "short-side rook defense"
@@ -3934,9 +3934,9 @@ object NarrativeOutlineBuilder:
       case pattern if pattern.equalsIgnoreCase("WrongRookPawnWrongBishopFortress") => Some("The wrong-corner rook-pawn setup has loosened because the defender can no longer sit on the promotion corner against the wrong-colored bishop.")
       case pattern if pattern.equalsIgnoreCase("OutsidePasserDecoy") => Some("The outside passer decoy is no longer visible because the remote passer no longer drags the enemy king away from the main pawn mass.")
       case pattern if pattern.equalsIgnoreCase("ConnectedPassers") => Some("The connected passers shape has loosened because the pawns are no longer advancing together with king support.")
-      case pattern if pattern.equalsIgnoreCase("KeySquaresOppositionBreakthrough") => Some("The key-squares breakthrough shape has loosened because the king no longer controls the entry squares needed to escort the pawn through.")
+      case pattern if pattern.equalsIgnoreCase("KeySquaresOppositionBreakthrough") => Some("The key-squares entry shape has loosened because the king no longer controls the entry squares needed to support the pawn route.")
       case pattern if pattern.equalsIgnoreCase("TriangulationZugzwang") => Some("The triangulation-tempo shape has loosened because the spare king tempo is gone, so the move-order squeeze is no longer visible.")
-      case pattern if pattern.equalsIgnoreCase("BreakthroughSacrifice") => Some("The pawn-breakthrough shape is no longer visible because the pawn wedge no longer opens a passer at the right moment.")
+      case pattern if pattern.equalsIgnoreCase("BreakthroughSacrifice") => Some("The pawn-wedge passer-route shape is no longer visible because the pawn wedge no longer gives a clear passer-route cue.")
       case pattern if pattern.equalsIgnoreCase("Shouldering") => Some("The shouldering shape has loosened because the stronger king no longer keeps the enemy king pushed off the pawn's path.")
       case pattern if pattern.equalsIgnoreCase("RetiManeuver") => Some("The king-race pursuit shape has loosened because the king can no longer combine pursuit of the passer with support for its own pawn.")
       case pattern if pattern.equalsIgnoreCase("ShortSideDefense") => Some("The short-side defense setup has loosened because the defender has lost the checking distance and side-room needed to harass the king.")
@@ -3963,11 +3963,11 @@ object NarrativeOutlineBuilder:
       case pattern if pattern.equalsIgnoreCase("ConnectedPassers") =>
         Some(s"${if transitioned then "The connected passers are now visible because" else "The connected passers remain visible because"} the pawns advance together and the king still supports their front.")
       case pattern if pattern.equalsIgnoreCase("KeySquaresOppositionBreakthrough") =>
-        Some(s"${if transitioned then "The key-squares breakthrough pattern is now visible because" else "The key-squares breakthrough pattern remains visible because"} the king still controls the critical entry squares in front of the pawn.")
+        Some(s"${if transitioned then "The key-squares entry shape is now visible because" else "The key-squares entry shape remains visible because"} the king still controls the critical entry squares in front of the pawn.")
       case pattern if pattern.equalsIgnoreCase("TriangulationZugzwang") =>
         Some(s"${if transitioned then "The triangulation-tempo shape is now visible because" else "The triangulation-tempo shape remains visible because"} one side still keeps a spare king tempo to shape the move order.")
       case pattern if pattern.equalsIgnoreCase("BreakthroughSacrifice") =>
-        Some(s"${if transitioned then "The pawn-breakthrough shape is now visible because" else "The pawn-breakthrough shape remains visible because"} the pawn wedge still points at a passer once the center opens.")
+        Some(s"${if transitioned then "The pawn-wedge passer-route shape is now visible because" else "The pawn-wedge passer-route shape remains visible because"} the pawn wedge still points at a passer route.")
       case pattern if pattern.equalsIgnoreCase("Shouldering") =>
         Some(s"${if transitioned then "The shouldering pattern is now visible because" else "The shouldering pattern remains visible because"} the king still keeps the opposing king off the pawn's route.")
       case pattern if pattern.equalsIgnoreCase("RetiManeuver") =>
