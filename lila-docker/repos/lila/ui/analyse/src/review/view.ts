@@ -77,7 +77,7 @@ function renderTab(ctrl: AnalyseCtrl, nodes: ReviewViewNodes, tab: ReviewPrimary
 
 function panel(title: string, content: LooseVNodes[]): VNode {
   return hl('div.analyse-review__workspace', [
-    hl('header.analyse-review__workspace-head', [hl('span.analyse-review__eyebrow', 'Review board'), hl('h2', title)]),
+    hl('header.analyse-review__workspace-head', [hl('span.analyse-review__eyebrow', 'Move Review: board and eval'), hl('h2', title)]),
     hl(
       'div.analyse-review__workspace-body',
       content.length ? content : [hl('div.analyse-review__empty', 'Nothing to show for this position yet.')],

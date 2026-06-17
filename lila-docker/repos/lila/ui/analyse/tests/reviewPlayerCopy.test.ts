@@ -47,7 +47,7 @@ describe('review player copy', () => {
       'Eval and lines',
       'Book context',
       'Bring in a game',
-      'Review board',
+      'Move Review: board and eval',
       'Nothing to show for this position yet.',
     ].forEach(copy => assert.match(reviewViewSource, new RegExp(escapeRegExp(copy)), `missing copy: ${copy}`));
 
@@ -62,6 +62,7 @@ describe('review player copy', () => {
       'Compare lines',
       'Coach review',
       'Coach lesson',
+      'Review board',
     ].forEach(copy => assert.doesNotMatch(reviewViewSource, new RegExp(escapeRegExp(copy)), `stale tool copy: ${copy}`));
   });
 
@@ -166,13 +167,14 @@ describe('review player copy', () => {
     });
     assert.match(homeSource, /Open board/);
     assert.match(landingSource, /Board View/);
-    assert.match(analyseViewSource, /Review board/);
+    assert.match(analyseViewSource, /Move Review: board and eval/);
     assert.match(analyseViewSource, /Toggle candidate lines/);
     assert.match(analyseViewSource, /Toggle line arrows/);
     assert.match(analyseViewSource, /Toggle notes/);
     assert.match(analyseViewSource, /Toggle notation layout/);
     assert.match(analyseViewSource, /review board/);
     assert.doesNotMatch(analyseViewSource, /Analysis board/);
+    assert.doesNotMatch(analyseViewSource, /title = "Review board"/);
     assert.doesNotMatch(analyseViewSource, /engine analysis/);
     assert.doesNotMatch(analyseViewSource, /analysis surface/);
     assert.doesNotMatch(analyseViewSource, /Toggle variation arrows/);

@@ -836,7 +836,7 @@ export function decorateMoveReviewHtml(
   return `
     <div class="move-review-coach move-review-player" data-move-review-player data-scene-index="0">
       <header class="move-review-coach__header">
-        <span class="move-review-coach__eyebrow">Move Review Player</span>
+        <span class="move-review-coach__eyebrow">Move Review</span>
         <h3>${escapeHtml(titleText)}</h3>
       </header>
       ${renderSceneNav(scenes)}

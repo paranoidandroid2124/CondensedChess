@@ -86,7 +86,8 @@ describe('moveReview coach surface', () => {
     assert.match(html, /move-review-coach/);
     assert.match(html, /move-review-player/);
     assert.match(html, /data-move-review-player/);
-    assert.match(html, /Move Review Player/);
+    assert.match(html, /<span class="move-review-coach__eyebrow">Move Review<\/span>/);
+    assert.doesNotMatch(html, /Move Review Player/);
     assert.match(html, /Move Review: Nf3/);
     assert.doesNotMatch(html, /Move review: Nf3/);
     assert.match(html, /Your choice/);
