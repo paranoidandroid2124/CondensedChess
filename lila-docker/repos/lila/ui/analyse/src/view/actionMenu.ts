@@ -67,8 +67,8 @@ export function boardSettingsView(ctrl: AnalyseCtrl, opts: BoardSettingsOpts = {
     ),
     ctrlToggle(
       {
-        name: 'Variation handles',
-        title: 'Show handles to expand or hide branches',
+        name: 'Line branches',
+        title: 'Show controls to expand or hide side lines',
         id: 'disclosure',
         checked: ctrl.disclosureMode(),
         change: v => setVariationControls(ctrl, closeMenu, v),
@@ -82,7 +82,7 @@ export function boardSettingsView(ctrl: AnalyseCtrl, opts: BoardSettingsOpts = {
 function boardWorkspaceView(ctrl: AnalyseCtrl, closeMenu: () => void): VNode[] {
   const engineUnavailable = !ctrl.isCevalAllowed();
   return [
-    workspaceSection('View', 'Set how the board and move list read at a glance.', [
+    workspaceSection('View', 'Set how the board and moves read at a glance.', [
       workspaceChoiceCard(
         'Board labels',
         'Choose how coordinates appear around the board.',
@@ -108,16 +108,16 @@ function boardWorkspaceView(ctrl: AnalyseCtrl, closeMenu: () => void): VNode[] {
         },
       ),
       workspaceSwitchCard(
-        'Inline move list',
+        'Inline moves',
         'Read the move history as one flowing line.',
         ctrl.treeView.modePreference() === 'inline',
         next => setInlineMoveList(ctrl, closeMenu, next),
       ),
     ]),
-    workspaceSection('Guides', 'Choose what help stays on the board during review.', [
+    workspaceSection('Analysis', 'Keep eval, candidate lines, and board cues visible as the position changes.', [
       workspaceSwitchCard(
         'Candidate lines',
-        engineUnavailable ? 'Candidate lines are unavailable in this position.' : 'Show candidate lines beside the move list.',
+        engineUnavailable ? 'Candidate lines are unavailable in this position.' : 'Compare candidate lines beside the moves.',
         ctrl.showEnginePanel(),
         next => {
           ctrl.setShowEnginePanel(next);
@@ -126,8 +126,8 @@ function boardWorkspaceView(ctrl: AnalyseCtrl, closeMenu: () => void): VNode[] {
         engineUnavailable,
       ),
       workspaceSwitchCard(
-        'Eval gauge',
-        'Keep the eval gauge visible when candidate lines are on and space allows.',
+        'Eval bar',
+        'Keep the eval bar anchored while you compare the position and candidate lines.',
         ctrl.showGauge(),
         next => {
           ctrl.setShowEvalGauge(next);
@@ -144,8 +144,8 @@ function boardWorkspaceView(ctrl: AnalyseCtrl, closeMenu: () => void): VNode[] {
         },
       ),
       workspaceSwitchCard(
-        'Variation controls',
-        'Show expand and collapse handles inside the move list.',
+        'Line branches',
+        'Show controls to expand or hide side lines.',
         ctrl.disclosureMode(),
         next => setVariationControls(ctrl, closeMenu, next),
       ),

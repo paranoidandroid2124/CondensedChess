@@ -66,10 +66,31 @@ describe('review player copy', () => {
     ['Opening context', 'Board setup', 'Toggle candidate lines'].forEach(copy =>
       assert.match(controlsSource, new RegExp(escapeRegExp(copy)), `missing control copy: ${copy}`),
     );
-    ['Candidate lines', 'candidate lines are on', 'Eval gauge', 'eval gauge visible', 'move list', 'Variation handles'].forEach(copy =>
+    [
+      'Analysis',
+      'Keep eval, candidate lines, and board cues visible',
+      'Candidate lines',
+      'Compare candidate lines beside the moves.',
+      'Eval bar',
+      'eval bar anchored',
+      'moves',
+      'Line branches',
+    ].forEach(copy =>
       assert.match(actionMenuSource, new RegExp(escapeRegExp(copy)), `missing board setup copy: ${copy}`),
     );
-    ['Reference lines', 'reference lines are on', 'Position gauge', 'evaluation gauge', 'move tree', 'Disclosure buttons'].forEach(copy =>
+    [
+      'Reference lines',
+      'reference lines are on',
+      'Position gauge',
+      'evaluation gauge',
+      'Eval gauge',
+      'eval gauge visible',
+      'help stays on the board',
+      'move tree',
+      'move list',
+      'Variation handles',
+      'Disclosure buttons',
+    ].forEach(copy =>
       assert.doesNotMatch(actionMenuSource, new RegExp(escapeRegExp(copy)), `stale board setup copy: ${copy}`),
     );
   });
