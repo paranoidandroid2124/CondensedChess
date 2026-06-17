@@ -71,9 +71,13 @@ describe('review player copy', () => {
     ['Opening context', 'Board view', 'Toggle candidate lines'].forEach(copy =>
       assert.match(controlsSource, new RegExp(escapeRegExp(copy)), `missing control copy: ${copy}`),
     );
-    ['Board view', 'Move between openings, Move Review, and board view without losing the current move.'].forEach(copy =>
-      assert.match(componentsSource, new RegExp(escapeRegExp(copy)), `missing dock copy: ${copy}`),
-    );
+    [
+      'Board view',
+      'Choose what to study',
+      'Keep the board in sight',
+      'Move between openings, Move Review, and board view without losing the current move.',
+      'Open a study view while the board and moves stay anchored.',
+    ].forEach(copy => assert.match(componentsSource, new RegExp(escapeRegExp(copy)), `missing dock copy: ${copy}`));
     [
       'Analysis',
       'Keep eval, candidate lines, and board cues visible',
@@ -104,7 +108,7 @@ describe('review player copy', () => {
     ].forEach(copy =>
       assert.doesNotMatch(actionMenuSource, new RegExp(escapeRegExp(copy)), `stale board view copy: ${copy}`),
     );
-    ['Board setup', 'coach review'].forEach(copy =>
+    ['Board setup', 'coach review', 'Choose what to inspect', 'Keep the board beside you', 'Open what you need'].forEach(copy =>
       assert.doesNotMatch(componentsSource, new RegExp(escapeRegExp(copy)), `stale dock copy: ${copy}`),
     );
   });
