@@ -1200,7 +1200,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assertEquals(surface.advancedRows.map(_.label), List("Practical route", "Practical move", "Practical support"))
     assertEquals(
       surface.advancedRows(2).text,
-      "Practically, the route is easier to handle because the pieces have more room."
+      "The practical support is that the pieces have more available squares."
     )
     assertEquals(surface.advancedRows(2).authority.flatMap(_.target), None)
 
@@ -7348,8 +7348,8 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
         supportedLocalRows =
           List(
             MoveReviewPlayerSurfaceRow(
-              label = "Technical conversion",
-              text = "The checked line keeps the best defense narrow and the conversion route intact.",
+              label = "Restricted defense",
+              text = "The checked line keeps the defender's replies narrow.",
               authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))
             )
           ),
@@ -10143,6 +10143,21 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       ),
       clue(compensationRows)
     )
+  }
+
+  test("resolved compensation surface does not need raw compensation summary") {
+    val typedCarrierPack =
+      anchoredCompensationPack.copy(
+        signalDigest = anchoredCompensationPack.signalDigest.map(_.copy(compensation = None))
+      )
+    val surface =
+      build(strategyPack = Some(typedCarrierPack))
+    val compensationRows =
+      surface.advancedRows.filter(_.label.startsWith("Compensation"))
+
+    assertEquals(compensationRows.map(_.label), List("Compensation", "Compensation condition"), clue(surface.advancedRows))
+    assert(compensationRows.exists(_.text.toLowerCase.contains("queenside targets")), clue(compensationRows))
+    assert(!compensationRows.exists(_.text.toLowerCase.contains("return vector")), clue(compensationRows))
   }
 
   test("truth contract compensation prose veto suppresses resolved compensation rows") {

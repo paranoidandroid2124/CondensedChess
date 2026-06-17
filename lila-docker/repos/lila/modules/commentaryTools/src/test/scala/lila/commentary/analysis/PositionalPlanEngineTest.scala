@@ -9,6 +9,7 @@ class PositionalPlanEngineTest extends FunSuite:
 
   private val initialFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
   private val knightOnA1Fen = "8/8/8/8/8/1P6/2P5/N1K5 w - - 0 1" // White knight on a1, blocked by pawns
+  private val blackHoleFen = "4k3/8/8/pppp4/8/8/PPPP4/4K3 w - - 0 1"
 
   private def dummyHypothesis: PlanHypothesis =
     PlanHypothesis(
@@ -42,8 +43,8 @@ class PositionalPlanEngineTest extends FunSuite:
 
     assert(enriched.executionSteps.size == 3)
     assert(enriched.executionSteps.head.contains("In this static position"))
-    assert(enriched.executionSteps(1).contains("Maintain a solid pawn skeleton"))
-    assert(enriched.executionSteps(2).contains("weakness on d5"))
+    assert(enriched.executionSteps(1).contains("pawn structure stable"))
+    assert(enriched.executionSteps(2).contains("no specific weak square is certified yet"))
   }
 
   test("PositionalPlanEngine maps ExplainPlan + Dynamic/Chaos to DynamicBreak template") {
@@ -54,11 +55,11 @@ class PositionalPlanEngineTest extends FunSuite:
 
     assert(enriched.executionSteps.size == 3)
     assert(enriched.executionSteps.head.contains("open-board activity"))
-    assert(enriched.executionSteps(1).contains("Force pawn tension resolution"))
-    assert(enriched.executionSteps(2).contains("vulnerable target on d5"))
+    assert(enriched.executionSteps(1).contains("concrete central tension break"))
+    assert(enriched.executionSteps(2).contains("concrete target"))
   }
 
-  test("PositionalPlanEngine maps ExplainConvert to EndgameConversion template") {
+  test("PositionalPlanEngine maps ExplainConvert without inventing passed-pawn or winning-ending claims") {
     val classification = makeClassification(TaskModeType.ExplainConvert, NatureType.Static)
     val hypothesis = dummyHypothesis
 
@@ -66,8 +67,47 @@ class PositionalPlanEngineTest extends FunSuite:
 
     assert(enriched.executionSteps.size == 3)
     assert(enriched.executionSteps.head.contains("Activate your king"))
-    assert(enriched.executionSteps(1).contains("Advance your primary passed pawn"))
-    assert(enriched.executionSteps(2).contains("weak pawn on d5"))
+    assert(enriched.executionSteps(1).contains("Improve king activity"))
+    assert(enriched.executionSteps(2).contains("verify the next pawn or exchange target"))
+    assert(!enriched.executionSteps.exists(_.toLowerCase.contains("winning ending")), clue(enriched.executionSteps))
+    assert(!enriched.executionSteps.exists(_.toLowerCase.contains("primary passed pawn")), clue(enriched.executionSteps))
+  }
+
+  test("PositionalPlanEngine uses passed-pawn wording only from pawn analysis") {
+    val classification = makeClassification(TaskModeType.ExplainConvert, NatureType.Static)
+    val hypothesis = dummyHypothesis
+    val pawnAnalysis = PawnPlayAnalysis(
+      pawnBreakReady = false,
+      breakFile = None,
+      breakImpact = 0,
+      advanceOrCapture = false,
+      passedPawnUrgency = PassedPawnUrgency.Critical,
+      passerBlockade = false,
+      blockadeSquare = None,
+      blockadeRole = None,
+      pusherSupport = true,
+      minorityAttack = false,
+      counterBreak = false,
+      tensionPolicy = TensionPolicy.Maintain,
+      tensionSquares = Nil,
+      primaryDriver = "passed_pawn",
+      notes = ""
+    )
+
+    val enriched = PositionalPlanEngine.enrich(initialFen, classification, Some(pawnAnalysis), hypothesis)
+
+    assert(enriched.executionSteps.exists(_.contains("passed-pawn task")), clue(enriched.executionSteps))
+    assert(enriched.executionSteps.exists(_.contains("current support intact")), clue(enriched.executionSteps))
+  }
+
+  test("PositionalPlanEngine does not relabel weak-complex squares as weak pawns") {
+    val classification = makeClassification(TaskModeType.ExplainConvert, NatureType.Static)
+    val hypothesis = dummyHypothesis
+
+    val enriched = PositionalPlanEngine.enrich(blackHoleFen, classification, None, hypothesis)
+
+    assert(enriched.executionSteps.exists(_.contains("structural target")), clue(enriched.executionSteps))
+    assert(!enriched.executionSteps.exists(_.toLowerCase.contains("weak pawn")), clue(enriched.executionSteps))
   }
 
   test("PositionalPlanEngine maps ExplainTactics/ExplainDefense to TacticalRestraint template") {
@@ -78,8 +118,10 @@ class PositionalPlanEngineTest extends FunSuite:
 
     assert(enriched.executionSteps.size == 3)
     assert(enriched.executionSteps.head.contains("Secure piece safety"))
-    assert(enriched.executionSteps(1).contains("Maintain a closed pawn center"))
+    assert(enriched.executionSteps(1).contains("pawn structure stable"))
     assert(enriched.executionSteps(2).contains("Guard against tactical threats"))
+    assert(!enriched.executionSteps.exists(_.contains("None")), clue(enriched.executionSteps))
+    assert(!enriched.executionSteps.exists(_.toLowerCase.contains("outpost")), clue(enriched.executionSteps))
   }
 
   test("PositionalPlanEngine extracts actual low-mobility pieces from the board state") {

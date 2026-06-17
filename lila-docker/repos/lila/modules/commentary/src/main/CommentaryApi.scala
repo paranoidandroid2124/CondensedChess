@@ -2370,7 +2370,7 @@ final class CommentaryApi(
             val proseRaw = LiveNarrativeCompressionCore.deterministicProse(moveReviewSlots)
             val prose = CommentaryApi.sanitizeMoveReviewProse(proseRaw)
             val compactProse = EarlyOpeningNarrationPolicy.clampNarrative(ctx, prose, Some(truthContract))
-            val baseConcepts = ctx.semantic.map(_.conceptSummary).getOrElse(Nil)
+            val moveReviewConcepts: List[String] = Nil
             val moveReviewPlayerLineConsequence =
               moveReviewRuntime.inputs.lineConsequence.filter { evidence =>
                 evidence.lineId.exists { lineId =>
@@ -2447,7 +2447,7 @@ final class CommentaryApi(
               validationSeed = validationSeed,
               phase = phase,
               evalDelta = None,
-              concepts = baseConcepts,
+              concepts = moveReviewConcepts,
               strategyHints = strategyPromptHints,
               strategyPack = strategyPack,
               fen = fen,
@@ -2471,7 +2471,7 @@ final class CommentaryApi(
                   UserFacingPayloadSanitizer.sanitize(
                     CommentResponse(
                       commentary = EarlyOpeningNarrationPolicy.clampNarrative(ctx, decision.commentary, Some(truthContract)),
-                      concepts = baseConcepts,
+                      concepts = moveReviewConcepts,
                       variations = dataWithContinuity.alternatives,
                       probeRequests = outboundProbeRequests,
                       authorQuestions = authoringSurface.questions,

@@ -114,8 +114,9 @@ class StructurePlanArcBuilderTest extends FunSuite:
     val arc = StructurePlanArcBuilder.build(ctx).getOrElse(fail("missing structure arc"))
     assertEquals(
       arc.moveContribution,
-      "This move supports that route by making minority attack easier to organize."
+      "The structure-plan evidence keeps that route tied to minority attack."
     )
+    assert(!arc.moveContribution.toLowerCase.contains("easier"), clue(arc.moveContribution))
   }
 
   test("iqp activation selects piece activation before the break") {

@@ -1598,7 +1598,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
           "break contained",
           "break prevention",
           "counterbreak neutralized",
-          "counterplay_axis_suppression"
+          ProofSourceId.CounterplayAxisSuppression.wireKey
         )
       )
     )
@@ -2093,7 +2093,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
       tradeOwnerTerms.nonEmpty &&
       (typedBoundedSupport || softerExchangeSequence) &&
       !boundedSimplificationTradeKeyDefenderRelabel(ctx, surface) &&
-      !boundedSimplificationBetterEndgameInflation(ctx, surface) &&
+      !boundedSimplificationBetterEndgameInflation(surface) &&
       (targetComplexTerms.nonEmpty || tradeOwnerTerms.exists(_.matches(".*[a-h][1-8].*")))
 
   private def namedPreventedResourceTerms(
@@ -2722,7 +2722,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
         reasons += PlayerFacingClaimSuppressionReason.TradeKeyDefenderRelabel
       if boundedSimplificationRouteBindRelabel(rivalAssessment) then
         reasons += PlayerFacingClaimSuppressionReason.RouteBindRelabel
-      if boundedSimplificationBetterEndgameInflation(ctx, surface) then
+      if boundedSimplificationBetterEndgameInflation(surface) then
         reasons += PlayerFacingClaimSuppressionReason.BetterEndgameInflation
       if boundedSimplificationB7Drift(ctx, surface) then
         reasons += PlayerFacingClaimSuppressionReason.B7Drift
@@ -3003,13 +3003,9 @@ private[commentary] object PlayerFacingTruthModePolicy:
       rivalAssessment.rivalKind.contains(HalfOpenFilePressureFamily)
 
   private def boundedSimplificationBetterEndgameInflation(
-      ctx: NarrativeContext,
       surface: StrategyPackSurface.Snapshot
   ): Boolean =
-    ctx.semantic.exists(_.endgameFeatures.exists(feature =>
-      normalize(feature.theoreticalOutcomeHint) == "win"
-    )) ||
-      surface.dominantIdea.exists(ideaHasSource(_, EvidenceSourceId.WinningEndgameTransition)) ||
+    surface.dominantIdea.exists(ideaHasSource(_, EvidenceSourceId.WinningEndgameTransition)) ||
       surface.secondaryIdea.exists(ideaHasSource(_, EvidenceSourceId.WinningEndgameTransition))
 
   private def boundedSimplificationB7Drift(

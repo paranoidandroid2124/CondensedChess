@@ -236,7 +236,6 @@ private[analysis] object StandardCommentaryClaimPolicy:
       decision.delta.planAdvancements.nonEmpty ||
       decision.delta.concessions.nonEmpty
     } ||
-      ctx.opponentPlan.isDefined ||
       ctx.semantic.exists { semantic =>
         semantic.compensation.isDefined ||
           semantic.practicalAssessment.exists(pa => pa.verdict.trim.nonEmpty || pa.biasFactors.nonEmpty) ||
@@ -265,7 +264,6 @@ private[analysis] object StandardCommentaryClaimPolicy:
       hasEvidenceBackedMainPlan(ctx),
       ctx.threats.toUs.exists(_.lossIfIgnoredCp >= AmberThreatCp),
       ctx.semantic.exists(s => s.structuralWeaknesses.nonEmpty || s.positionalFeatures.nonEmpty || s.compensation.isDefined),
-      ctx.opponentPlan.isDefined,
       ctx.decision.isDefined,
       ctx.pawnPlay.breakReady || ctx.pawnPlay.counterBreak,
       ctx.counterfactual.exists(_.cpLoss >= Thresholds.INACCURACY_CP)

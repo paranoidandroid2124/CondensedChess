@@ -428,9 +428,10 @@ private[commentary] final case class WhosePlanRaceState(
     owner: String,
     intent: Option[CertifiedDecisionSupport],
     battlefront: Option[CertifiedDecisionSupport],
-    opponentPlan: Option[PlanRow],
     opponentRace: Option[String],
     raceAnchor: Option[String],
+    opponentSourceKind: Option[String],
+    opponentEvidenceLine: Option[String],
     opponentPressureAvailable: Boolean,
     ownPlanAvailable: Boolean,
     intentReason: String
@@ -441,6 +442,7 @@ private[commentary] final case class WhosePlanRaceState(
       readyBattlefront <- battlefront
       readyOpponentRace <- opponentRace
       readyRaceAnchor <- raceAnchor
+      readyOpponentSourceKind <- opponentSourceKind
     yield
       WhosePlanRaceMaterial(
         owner = owner,
@@ -448,7 +450,8 @@ private[commentary] final case class WhosePlanRaceState(
         battlefront = readyBattlefront,
         opponentRace = readyOpponentRace,
         raceAnchor = readyRaceAnchor,
-        opponentSourceKind = if opponentPlan.nonEmpty then "opponent_plan" else "opponent_threat",
+        opponentSourceKind = readyOpponentSourceKind,
+        opponentEvidenceLine = opponentEvidenceLine,
         intentReason = intentReason
       )
 
@@ -462,6 +465,7 @@ private[commentary] final case class WhosePlanRaceMaterial(
     opponentRace: String,
     raceAnchor: String,
     opponentSourceKind: String,
+    opponentEvidenceLine: Option[String],
     intentReason: String
 ):
   def claim: String =
@@ -471,10 +475,17 @@ private[commentary] final case class WhosePlanRaceMaterial(
     s"${owner}'s plan is racing $opponentRace, and the battlefront is ${battlefront.sentence}"
 
   def consequenceText: String =
-    s"That preserves ${owner.toLowerCase}'s plan window before $opponentRace catches up."
+    s"That preserves ${owner.toLowerCase}'s plan window before $opponentRace becomes active."
 
   def sourceKinds: List[String] =
     List(intent.sourceKind, battlefront.sourceKind, opponentSourceKind)
+
+private[commentary] final case class PlanRaceOpponentPressure(
+    label: String,
+    sourceKind: String,
+    raceAnchor: String,
+    evidenceLine: Option[String]
+)
 
 private[commentary] final case class WhatChangedPlannerMaterial(
     moveOwner: Option[MainPathScopedClaim],
@@ -2981,10 +2992,11 @@ private[commentary] object QuestionFirstCommentaryPlanner:
 
   private def specificThreatMotif(threat: ThreatRow): Option[String] =
     val targetBacked = threatTargetPhrase(threat.targetPieces).nonEmpty
+    val squareBacked = threatSquare(threat).nonEmpty
     threat.motifs.iterator.map(normalizeText).collectFirst {
       case text if text.contains("backrank") => "back-rank mating threat"
-      case text if text.contains("mate") => "mating threat"
-      case text if text.contains("passedpawn") || text.contains("promotion") => "passed-pawn threat"
+      case text if !text.contains("stalemate") && (text == "mate" || text.contains("matenet") || text.contains("checkmate") || text.contains("smotheredmate")) => "mating threat"
+      case text if (text.contains("passedpawn") || text.contains("promotion")) && squareBacked => "passed-pawn pressure"
       case text if text.contains("capture") && targetBacked => "capture threat"
     }
 
@@ -3099,36 +3111,73 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       inputs: QuestionPlannerInputs,
       allowedPreventedPlans: List[PreventedPlanInfo]
   ): WhosePlanRaceState =
-    val urgentThreat = bestImmediateThreat(inputs.opponentThreats)
-    val preventedBreak =
-      allowedPreventedPlans.collectFirst {
-        case plan if plan.breakNeutralized.exists(_.trim.nonEmpty) => plan.breakNeutralized.get
-      }
     val intent = inputs.decisionFrame.intent.orElse(evidenceBackedRaceIntent(owner, inputs))
-    val opponentPlan = inputs.opponentPlan.filter(plan => cleanLine(plan.name).nonEmpty)
-    val opponentRace =
-      opponentPlan.map(_.name)
-        .orElse(urgentThreat.map(threat => s"the ${threat.kind.toLowerCase} threat"))
-        .orElse(preventedBreak.map(file => s"the $file-break"))
+    val opponentPressure = planRaceOpponentPressure(inputs, allowedPreventedPlans)
     val urgencyRaceAnchor =
-      opponentRace.flatMap(race => concreteRaceUrgency(inputs).map(anchor => s"$anchor before $race gets fully rolling"))
+      opponentPressure.flatMap(pressure => concreteRaceUrgency(inputs).map(anchor => s"$anchor before ${pressure.label} gets fully rolling"))
     WhosePlanRaceState(
       owner = owner,
       intent = intent,
       battlefront = inputs.decisionFrame.battlefront,
-      opponentPlan = opponentPlan,
-      opponentRace = opponentRace,
+      opponentRace = opponentPressure.map(_.label),
       raceAnchor =
-        urgentThreat
-          .map(threat => s"the reply window is short against the ${threat.kind.toLowerCase} threat")
-          .orElse(preventedBreak.map(file => s"the $file-break is the timing window"))
+        opponentPressure.map(_.raceAnchor)
           .orElse(urgencyRaceAnchor),
-      opponentPressureAvailable = urgentThreat.nonEmpty || allowedPreventedPlans.nonEmpty,
+      opponentSourceKind = opponentPressure.map(_.sourceKind),
+      opponentEvidenceLine = opponentPressure.flatMap(_.evidenceLine),
+      opponentPressureAvailable = opponentPressure.nonEmpty,
       ownPlanAvailable = intent.nonEmpty || inputs.decisionFrame.battlefront.nonEmpty || inputs.evidenceBackedPlans.nonEmpty,
       intentReason =
         if inputs.decisionFrame.intent.nonEmpty then "certified_intent"
         else "probe_backed_plan_intent"
     )
+
+  private def planRaceOpponentPressure(
+      inputs: QuestionPlannerInputs,
+      allowedPreventedPlans: List[PreventedPlanInfo]
+  ): Option[PlanRaceOpponentPressure] =
+    bestImmediateThreat(inputs.opponentThreats)
+      .flatMap(planRaceThreatPressure)
+      .orElse(planRacePreventedPressure(allowedPreventedPlans))
+
+  private def planRaceThreatPressure(threat: ThreatRow): Option[PlanRaceOpponentPressure] =
+    cleanLine(threat.kind).map { kind =>
+      val label = s"the ${kind.toLowerCase} threat"
+      PlanRaceOpponentPressure(
+        label = label,
+        sourceKind = "threat",
+        raceAnchor = s"the reply window is short against $label",
+        evidenceLine = threat.bestDefense.flatMap(cleanLine).filter(concreteDefenseLabel)
+      )
+    }
+
+  private def planRacePreventedPressure(
+      allowedPreventedPlans: List[PreventedPlanInfo]
+  ): Option[PlanRaceOpponentPressure] =
+    allowedPreventedPlans
+      .sortBy(plan => (-plan.counterplayScoreDrop, if plan.breakNeutralized.exists(_.trim.nonEmpty) then 0 else 1))
+      .collectFirst(Function.unlift { plan =>
+        preventedPlanRaceLabel(plan).map { label =>
+          PlanRaceOpponentPressure(
+            label = label,
+            sourceKind = "prevented_plan",
+            raceAnchor = preventedPlanRaceAnchor(plan, label),
+            evidenceLine = plan.citationLine.flatMap(cleanLine)
+          )
+        }
+      })
+
+  private def preventedPlanRaceLabel(plan: PreventedPlanInfo): Option[String] =
+    plan.breakNeutralized.flatMap(cleanLine).map(file => s"the $file-break")
+      .orElse(plan.preventedThreatType.flatMap(cleanLine).map(kind => s"the opponent's ${kind.toLowerCase}"))
+      .orElse(Option.when(plan.counterplayScoreDrop > 0)("the opponent's counterplay"))
+
+  private def preventedPlanRaceAnchor(plan: PreventedPlanInfo, label: String): String =
+    plan.breakNeutralized.flatMap(cleanLine) match
+      case Some(file) => s"the $file-break is the timing window"
+      case None if plan.counterplayScoreDrop > 0 =>
+        s"the counterplay window is worth about ${plan.counterplayScoreDrop}cp"
+      case None => s"$label is the timing window"
 
   private def buildMissingWhosePlanRaceFallback(
       ctx: Option[NarrativeContext],
@@ -3170,8 +3219,8 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       evidence =
         evidenceForQuestion(
           question = question,
-          fallbackLine = Some(material.battlefront.sentence),
-          sourceKinds = List(material.intent.sourceKind, material.battlefront.sourceKind)
+          fallbackLine = material.opponentEvidenceLine.orElse(Some(material.battlefront.sentence)),
+          sourceKinds = material.sourceKinds
         ),
       contrast = Some(material.contrast),
       consequence = Some(wrapUpConsequence(material.consequenceText)),
@@ -3182,8 +3231,6 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       plannerOwnerKind = PlannerOwnerKind.PlanRace,
       plannerSource = material.intent.sourceKind
     )
-
-  private val EndgameTransitionPattern = raw"(.+)\((.+)\)\s*→\s*(.+)\((.+)\)".r
 
   private def ownerCandidate(
       plannerOwnerKind: PlannerOwnerKind,
@@ -3637,7 +3684,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
         positionProbeOwnerCandidates(ctx, inputs, truthContract),
         moveDeltaOwnerCandidates(inputs, truthContract),
         decisionTimingOwnerCandidates(inputs, truthContract),
-        planRaceOwnerCandidates(inputs),
+        planRaceOwnerCandidates(inputs, allowedPreventedPlans),
         shadowDomainSignals(ctx, inputs)
       )
     mergeOwnerCandidates(rawGroups.flatten)
@@ -3769,12 +3816,15 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       Option.when(decision.tier == ClaimAuthorityTier.CertifiedOwner)("certified_position_probe").toList ++
       Option.when(decision.tier == ClaimAuthorityTier.SupportedLocal)("strategic_claim_supported_local").toList
 
-  private def planRaceOwnerCandidates(inputs: QuestionPlannerInputs): List[OwnerCandidateTrace] =
-    Option.when(hasPlanRaceCandidate(inputs)) {
+  private def planRaceOwnerCandidates(
+      inputs: QuestionPlannerInputs,
+      allowedPreventedPlans: List[PreventedPlanInfo]
+  ): List[OwnerCandidateTrace] =
+    Option.when(hasPlanRaceCandidate(inputs, allowedPreventedPlans)) {
       ownerCandidate(
         plannerOwnerKind = PlannerOwnerKind.PlanRace,
         source = planRaceOwnerSource(inputs),
-        sourceKinds = planRaceOwnerSourceKinds(inputs),
+        sourceKinds = planRaceOwnerSourceKinds(inputs, allowedPreventedPlans),
         questionKinds = List(AuthorQuestionKind.WhosePlanIsFaster),
         moveLinked = true,
         proposedOwnerMapping = "PlanRace/move_linked",
@@ -3788,11 +3838,14 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       .orElse(inputs.decisionFrame.battlefront.map(_.sourceKind))
       .getOrElse("plan_race")
 
-  private def planRaceOwnerSourceKinds(inputs: QuestionPlannerInputs): List[String] =
+  private def planRaceOwnerSourceKinds(
+      inputs: QuestionPlannerInputs,
+      allowedPreventedPlans: List[PreventedPlanInfo]
+  ): List[String] =
     List(
       inputs.decisionFrame.intent.map(_.sourceKind),
       inputs.decisionFrame.battlefront.map(_.sourceKind),
-      Option.when(inputs.opponentPlan.nonEmpty)("opponent_plan")
+      planRaceOpponentPressure(inputs, allowedPreventedPlans).map(_.sourceKind)
     ).flatten.distinct
 
   private def mergeOwnerCandidates(candidates: List[OwnerCandidateTrace]): List[OwnerCandidateTrace] =
@@ -4198,9 +4251,10 @@ private[commentary] object QuestionFirstCommentaryPlanner:
           source = "endgame_transition_translator",
           sourceKinds = List("endgame_transition_translator"),
           questionKinds = List(AuthorQuestionKind.WhyThis, AuthorQuestionKind.WhatChanged),
-          moveLinked = true,
-          proposedOwnerMapping = "EndgameTransition/move_linked",
-          reasons = List("endgame_transition_translated")
+          moveLinked = false,
+          materiality = OwnerCandidateMateriality.SupportMaterial,
+          proposedOwnerMapping = "EndgameTransition/support_only",
+          reasons = List("endgame_transition_translated_support_only")
         )
       },
       ctx.flatMap(_.semantic.flatMap(_.endgameFeatures)).flatMap(rawEndgameHint).map { _ =>
@@ -4224,9 +4278,9 @@ private[commentary] object QuestionFirstCommentaryPlanner:
 
   private[commentary] def endgameTransitionSentence(info: EndgameInfo): Option[String] =
     info.transition.flatMap {
-      case EndgameTransitionPattern(fromRaw, _, toRaw, _) =>
-        val fromLabel = humanizeEndgamePattern(fromRaw)
-        val toLabel = humanizeEndgamePattern(toRaw)
+      case NarrativeOutlineBuilder.EndgameTransitionPattern(fromRaw, _, toRaw, _) =>
+        val fromLabel = NarrativeOutlineBuilder.humanizeEndgamePattern(fromRaw)
+        val toLabel = NarrativeOutlineBuilder.humanizeEndgamePattern(toRaw)
         Some(
           if fromRaw.equalsIgnoreCase("none") then
             s"A new endgame structure is visible around $toLabel, so the context has changed."
@@ -4239,47 +4293,25 @@ private[commentary] object QuestionFirstCommentaryPlanner:
     }.orElse {
       info.primaryPattern.flatMap { pattern =>
         Option.when(info.patternAge >= 2) {
-          val label = humanizeEndgamePattern(pattern)
+          val label = NarrativeOutlineBuilder.humanizeEndgamePattern(pattern)
           s"The $label has stayed visible, keeping that endgame context in view."
         }
       }
     }
 
-  private def humanizeEndgamePattern(raw: String): String =
-    val normalized = Option(raw).getOrElse("").trim
-    if normalized.isEmpty then "endgame shape"
-    else if normalized.equalsIgnoreCase("none") then "no stable endgame shape"
-    else if normalized.equalsIgnoreCase("Lucena") then "bridge-building rook-pawn shape"
-    else if normalized.equalsIgnoreCase("PhilidorDefense") then "barrier-rank rook defense"
-    else if normalized.equalsIgnoreCase("VancuraDefense") then "side-checking rook defense"
-    else if normalized.equalsIgnoreCase("WrongRookPawnWrongBishopFortress") then "wrong-corner rook-pawn setup"
-    else if normalized.equalsIgnoreCase("OutsidePasserDecoy") then "outside-passer decoy shape"
-    else if normalized.equalsIgnoreCase("ConnectedPassers") then "connected-passer shape"
-    else if normalized.equalsIgnoreCase("KeySquaresOppositionBreakthrough") then "king-and-key-square entry shape"
-    else if normalized.equalsIgnoreCase("TriangulationZugzwang") then "triangulation-tempo shape"
-    else if normalized.equalsIgnoreCase("BreakthroughSacrifice") then "pawn-wedge passer-route shape"
-    else if normalized.equalsIgnoreCase("Shouldering") then "king-shouldering shape"
-    else if normalized.equalsIgnoreCase("RetiManeuver") then "king-race pursuit shape"
-    else if normalized.equalsIgnoreCase("ShortSideDefense") then "short-side rook defense"
-    else if normalized.equalsIgnoreCase("OppositeColoredBishopsDraw") then "opposite-colored bishops blockade"
-    else if normalized.equalsIgnoreCase("GoodBishopRookPawnConversion") then "bishop-and-rook-pawn setup"
-    else if normalized.equalsIgnoreCase("KnightBlockadeRookPawnDraw") then "knight rook-pawn blockade"
-    else if normalized.equalsIgnoreCase("QueenVsAdvancedPawn") then "queen-versus-advanced-pawn checking setup"
-    else if normalized.equalsIgnoreCase("TarraschDefenseActive") then "active rook-behind-pawn setup"
-    else if normalized.equalsIgnoreCase("PassiveRookDefense") then "passive rook-behind-pawn setup"
-    else if normalized.equalsIgnoreCase("RookAndBishopVsRookDraw") then "rook-and-bishop versus rook defensive geometry"
-    else if normalized.equalsIgnoreCase("SameColoredBishopsBlockade") then "same-colored bishops blockade"
-    else
-      "endgame shape"
-
-  private def hasPlanRaceCandidate(inputs: QuestionPlannerInputs): Boolean =
+  private def hasPlanRaceCandidate(
+      inputs: QuestionPlannerInputs,
+      allowedPreventedPlans: List[PreventedPlanInfo]
+  ): Boolean =
     val opponentRaceAvailable =
-      inputs.opponentPlan.exists(plan => cleanLine(plan.name).nonEmpty) ||
-        bestImmediateThreat(inputs.opponentThreats).nonEmpty
+      planRaceOpponentPressure(inputs, allowedPreventedPlans).nonEmpty
     val ownRaceAvailable =
       inputs.decisionFrame.intent.nonEmpty ||
         (inputs.decisionFrame.battlefront.nonEmpty && inputs.evidenceBackedPlans.nonEmpty)
-    val timingAnchorAvailable = concreteRaceUrgency(inputs).nonEmpty || bestImmediateThreat(inputs.opponentThreats).nonEmpty
+    val timingAnchorAvailable =
+      concreteRaceUrgency(inputs).nonEmpty ||
+        bestImmediateThreat(inputs.opponentThreats).nonEmpty ||
+        allowedPreventedPlans.exists(_.breakNeutralized.exists(_.trim.nonEmpty))
     ownRaceAvailable && opponentRaceAvailable && timingAnchorAvailable
 
   private def hasDomainTransitionOverlap(

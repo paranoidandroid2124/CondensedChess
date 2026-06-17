@@ -558,7 +558,8 @@ class NarrativeContextBuilderTest extends FunSuite {
       motifs =
         List(
           Motif.Domination(chess.Knight, chess.Queen, chess.Square.E5, Color.White, 0, Some("Ne5")),
-          Motif.TrappedPiece(chess.Queen, chess.Square.H4, Color.Black, 0, Some("Qh4"))
+          Motif.TrappedPiece(chess.Queen, chess.Square.H4, Color.Black, 0, Some("Qh4")),
+          Motif.Capture(chess.Rook, chess.Queen, chess.Square.B5, Motif.CaptureType.Winning, Color.White, 0, Some("Rxb5"))
         ),
       prophylaxisResults = Nil,
       futureContext = "Central control",
@@ -585,6 +586,8 @@ class NarrativeContextBuilderTest extends FunSuite {
     val tacticEvidence = narrativeCtx.candidates.head.tacticEvidence.mkString(" ")
     assert(tacticEvidence.contains("Key-square restriction"), clue(tacticEvidence))
     assert(tacticEvidence.contains("Piece mobility"), clue(tacticEvidence))
+    assert(tacticEvidence.contains("Material-gain capture"), clue(tacticEvidence))
+    assert(!tacticEvidence.toLowerCase.contains("winning capture"), clue(tacticEvidence))
     assert(!tacticEvidence.toLowerCase.contains("domination"), clue(tacticEvidence))
     assert(!tacticEvidence.toLowerCase.contains("trapped"), clue(tacticEvidence))
   }
@@ -713,8 +716,29 @@ class NarrativeContextBuilderTest extends FunSuite {
 
     val narrativeCtx = NarrativeContextBuilder.build(data, ctx, None)
     val flow = narrativeCtx.strategicFlow.getOrElse(fail("strategicFlow should be generated"))
-    assert(flow.contains("continuing"), s"Expected continuation wording, got: $flow")
+    assert(flow.contains("continues with"), s"Expected continuation wording, got: $flow")
     assert(flow.contains("Central Control"), s"Expected plan anchor, got: $flow")
+  }
+
+  test("strategicFlow bounds pivot wording to pressure presence") {
+    val plans = List(PlanMatch(Plan.Prophylaxis(Color.White, "counterplay"), 0.76, Nil))
+    val data = minimalData().copy(
+      plans = plans,
+      planSequence = Some(
+        PlanSequenceSummary(
+          transitionType = TransitionType.ForcedPivot,
+          momentum = 0.3,
+          primaryPlanId = Some("Prophylaxis"),
+          primaryPlanName = Some("Prophylaxis")
+        )
+      )
+    )
+    val ctx = IntegratedContext(evalCp = 20, isWhiteToMove = true)
+
+    val narrativeCtx = NarrativeContextBuilder.build(data, ctx, None)
+    val flow = narrativeCtx.strategicFlow.getOrElse(fail("strategicFlow should be generated"))
+    assert(flow.contains("tactical pressure is present"), s"Expected bounded pressure wording, got: $flow")
+    assert(!flow.toLowerCase.contains("forced"), s"Strategic flow should not claim a forced pivot: $flow")
   }
 
   // ============================================================

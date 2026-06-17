@@ -284,10 +284,10 @@ private[commentary] object StrategicIdeaFenFixtures:
       id = "K15",
       label = "Grunfeld Exchange space clamp",
       fen = "r1bq1rk1/pp2ppbp/2np1np1/2p5/2PPP3/2N1BP2/PP2N1PP/R2QKB1R w KQ - 0 9",
-      expectedDominant = StrategicIdeaKind.SpaceGainOrRestriction,
+      expectedDominant = StrategicIdeaKind.PawnBreak,
       producerChecks = List(
         ProducerCheck.StructureProfileIs(StructureId.FluidCenter),
-        ProducerCheck.SpaceRestriction
+        ProducerCheck.BreakCandidate
       )
     ),
     Fixture(
@@ -880,7 +880,8 @@ private[commentary] object StrategicIdeaFenFixtures:
       fen = "r1bq1rk1/pp3pbp/2nppnp1/2p5/2PPP3/2N1BP2/PP1QN1PP/R3KB1R w KQ - 0 1",
       stockfishScoreCp = 71
     ).copy(
-      producerChecks = List(ProducerCheck.SpaceRestriction)
+      expectedDominant = StrategicIdeaKind.PawnBreak,
+      producerChecks = List(ProducerCheck.BreakCandidate)
     ),
     followUp(
       id = "B21A",

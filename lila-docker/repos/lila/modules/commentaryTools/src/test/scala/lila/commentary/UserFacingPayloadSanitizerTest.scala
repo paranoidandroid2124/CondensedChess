@@ -46,13 +46,15 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
   test("user-facing signal sanitizer routes witness-only helpers and suppresses PV-only draw-resource helpers") {
     val text =
       UserFacingSignalSanitizer.sanitize(
-        "Domination(Knight,e5) TrappedPiece(Queen,h4) Zwischenzug(Nf7) StalemateTrap(g8) PerpetualCheck(h5) SmotheredMate(f7)."
+        "Domination(Knight,e5) TrappedPiece(Queen,h4) Zwischenzug(Nf7) WinningCapture(Rook,b5) StalemateTrap(g8) PerpetualCheck(h5) SmotheredMate(f7)."
       )
     val lower = text.toLowerCase
 
     assert(lower.contains("key-square restriction"), clue(text))
     assert(lower.contains("piece mobility"), clue(text))
     assert(lower.contains("move-order caution"), clue(text))
+    assert(lower.contains("capture threat"), clue(text))
+    assert(!lower.contains("winning"), clue(text))
     assert(!lower.contains("domination"), clue(text))
     assert(!lower.contains("trapped piece"), clue(text))
     assert(!lower.contains("zwischenzug"), clue(text))
@@ -446,6 +448,7 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
     val json = Json.toJson(sanitized).as[JsObject]
 
     assertNoLeaks(rendered)
+    assertEquals(sanitized.concepts, Nil)
     val ledgerPrerequisites = sanitized.moveReviewLedger.toList.flatMap(_.prerequisites)
     assertNoRelationSupportLeaks(ledgerPrerequisites)
     assertEquals(sanitized.moveReviewExplanation.flatMap(_.factFragments), None, clue(sanitized.moveReviewExplanation))
@@ -475,6 +478,18 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
     assertEquals(sanitized.mainStrategicPlans.size, 1, clue(sanitized.mainStrategicPlans))
     assertEquals(sanitized.strategicPlanExperiments.size, 1, clue(sanitized.strategicPlanExperiments))
     assert(rendered.toLowerCase.contains("pays off") || rendered.toLowerCase.contains("engine-backed"), clue(rendered))
+  }
+
+  test("sanitize drops response concepts because concept labels are not public authority") {
+    val sanitized =
+      UserFacingPayloadSanitizer.sanitize(
+        CommentResponse(
+          commentary = "The move is quiet.",
+          concepts = List("mating attack", "outpost", "winning endgame")
+        )
+      )
+
+    assertEquals(sanitized.concepts, Nil)
   }
 
   test("does not admit strategic plans from probe-backed marker alone") {
@@ -1726,7 +1741,9 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
         signalDigest = Some(
           NarrativeSignalDigest(
             latentPlan = Some("Preparing d-break Break"),
-            latentReason = Some("Simplification into Endgame")
+            latentReason = Some("Simplification into Endgame"),
+            openingRelationClaim = Some("This stays within the known opening relation."),
+            endgameTransitionClaim = Some("The endgame structure has shifted.")
           )
         )
       )
@@ -1760,6 +1777,8 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
     )
     assertEquals(sanitized.signalDigest.flatMap(_.latentPlan), None, clue(sanitized))
     assertEquals(sanitized.signalDigest.flatMap(_.latentReason), None, clue(sanitized))
+    assertEquals(sanitized.signalDigest.flatMap(_.openingRelationClaim), None, clue(sanitized))
+    assertEquals(sanitized.signalDigest.flatMap(_.endgameTransitionClaim), None, clue(sanitized))
   }
 
   test("sanitizes stored strategic puzzle runtime shell on read") {

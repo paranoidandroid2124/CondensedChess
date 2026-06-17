@@ -41,8 +41,7 @@ private[analysis] final case class StructurePlanArc(
     secondaryDeployment: Option[PieceDeploymentCue],
     moveContribution: String,
     prophylaxisSupport: Option[String],
-    practicalCoda: Option[String],
-    compensationCoda: Option[String]
+    practicalCoda: Option[String]
 )
 
 private[analysis] object StructurePlanArcBuilder:
@@ -83,8 +82,7 @@ private[analysis] object StructurePlanArcBuilder:
         secondaryDeployment = deployments.drop(1).find(_.surfaceConfidence >= SecondaryConfidenceCutoff),
         moveContribution = moveContribution(ctx, primary, plan),
         prophylaxisSupport = prophylaxisSupport(ctx),
-        practicalCoda = practicalCoda(ctx),
-        compensationCoda = compensationCoda(ctx)
+        practicalCoda = practicalCoda(ctx)
       )
 
   def proseEligible(arc: StructurePlanArc): Boolean =
@@ -252,7 +250,7 @@ private[analysis] object StructurePlanArcBuilder:
       cue: PieceDeploymentCue,
       planLabel: String
   ): String =
-    playedMoveSquares(ctx).fold(s"This move supports that route by making ${planLabel.toLowerCase} easier to organize.") {
+    playedMoveSquares(ctx).fold(structureRouteContext(planLabel)) {
       case (from, to) if from == cue.from && cue.route.headOption.contains(to) =>
         "This move starts that route immediately."
       case (from, to) if from == cue.from && cue.destination == to =>
@@ -266,8 +264,11 @@ private[analysis] object StructurePlanArcBuilder:
       case _ if isPawnMove(ctx.playedSan) =>
         "This move fixes the structure so that route can become relevant."
       case _ =>
-        s"This move supports that route by making ${planLabel.toLowerCase} easier to organize."
+        structureRouteContext(planLabel)
     }
+
+  private def structureRouteContext(planLabel: String): String =
+    s"The structure-plan evidence keeps that route tied to ${planLabel.toLowerCase}."
 
   private def prophylaxisSupport(ctx: NarrativeContext): Option[String] =
     ctx.semantic.flatMap(_.preventedPlans.headOption).flatMap { prevented =>
@@ -295,14 +296,7 @@ private[analysis] object StructurePlanArcBuilder:
           .distinct
           .take(2)
       Option.when(factors.nonEmpty) {
-        s"Practically, the route is easier to handle because ${factors.mkString(" and ")}."
-      }
-    }
-
-  private def compensationCoda(ctx: NarrativeContext): Option[String] =
-    CompensationInterpretation.effectiveSemanticDecision(ctx).flatMap { accepted =>
-      accepted.decision.signal.summary.flatMap(normalized).map { plan =>
-        s"The long-term pay-off still depends on converting the position into ${plan.toLowerCase}."
+        s"The practical support is that ${factors.mkString(" and ")}."
       }
     }
 

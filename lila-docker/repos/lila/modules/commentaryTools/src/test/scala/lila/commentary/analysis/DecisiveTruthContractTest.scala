@@ -1378,6 +1378,45 @@ class DecisiveTruthContractTest extends FunSuite:
     assertEquals(contract.verifiedPayoffAnchor, Some("a promotion race"))
   }
 
+  test("semantic compensation payoff anchor follows the accepted carrier family, not broad summary prose") {
+    val raw =
+      comparison(
+        chosenMove = "Rb8",
+        engineBestMove = Some("Rb8"),
+        cpLoss = 0,
+        chosenMatchesBest = true
+      )
+
+    val contract = DecisiveTruth.derive(
+      ctx =
+        ctx(
+          playedMove = "a8b8",
+          playedSan = "Rb8",
+          fen = "4k3/8/8/8/8/8/8/R3K3 w - - 0 1",
+          semantic =
+            Some(
+              semanticSection(
+                compensation =
+                  Some(
+                    compensationInfo(
+                      investedMaterial = 100,
+                      conversionPlan = "initiative against the king",
+                      returnVector = Map("Line Pressure" -> 0.7, "Delayed Recovery" -> 0.6)
+                    )
+                  )
+              )
+            )
+        ),
+      cpBefore = Some(30),
+      cpAfter = Some(80),
+      comparisonOverride = Some(raw)
+    )
+
+    assertEquals(contract.verifiedPayoffAnchor, Some("continuing pressure"))
+    assert(!contract.verifiedPayoffAnchor.exists(_.contains("initiative")), clue(contract))
+    assert(!contract.verifiedPayoffAnchor.exists(_.contains("king")), clue(contract))
+  }
+
   test("inherited compensation shell without fresh payoff anchor is not a commitment") {
     val raw =
       comparison(

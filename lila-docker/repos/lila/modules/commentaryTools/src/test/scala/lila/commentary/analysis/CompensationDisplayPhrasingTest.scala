@@ -189,6 +189,7 @@ class CompensationDisplayPhrasingTest extends FunSuite:
     assertEquals(CompensationDisplayPhrasing.compensationWhyNowText(surface), None)
     assertEquals(CompensationDisplayPhrasing.compensationObjectiveText(surface), None)
     assertEquals(CompensationDisplayPhrasing.compensationPersistenceText(surface), None)
+    assertEquals(CompensationDisplayPhrasing.compensationSupportText(surface), Nil)
   }
 
   test("compensation narration requires invested material even with typed carriers") {
@@ -202,6 +203,7 @@ class CompensationDisplayPhrasingTest extends FunSuite:
     assertEquals(CompensationDisplayPhrasing.compensationWhyNowText(surface), None)
     assertEquals(CompensationDisplayPhrasing.compensationObjectiveText(surface), None)
     assertEquals(CompensationDisplayPhrasing.compensationPersistenceText(surface), None)
+    assertEquals(CompensationDisplayPhrasing.compensationSupportText(surface), Nil)
   }
 
   test("compensation follow-up keeps piece-head-for language concrete without generic shell phrasing") {

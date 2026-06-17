@@ -209,7 +209,7 @@ object AuthorQuestionGenerator:
           kind = AuthorQuestionKind.WhyThis,
           priority = 1,
           question = s"Why choose $playedSan here instead of keeping the tension$alt?",
-          why = Some("This choice often decides whether the other side can simplify into a comfortable structure."),
+          why = Some("This choice asks whether the tension release gives a concrete simplification route or leaves current-line questions open."),
           anchors = List("central tension"),
           evidencePurposes = List("keep_tension_branches", "reply_multipv")
         )

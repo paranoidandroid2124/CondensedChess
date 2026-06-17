@@ -74,4 +74,8 @@ object EndgamePatternState:
     }
 
   given Reads[EndgamePatternState] = Json.reads[EndgamePatternState]
-  given Writes[EndgamePatternState] = Json.writes[EndgamePatternState]
+
+  private val rawWrites: OWrites[EndgamePatternState] = Json.writes[EndgamePatternState]
+  given Writes[EndgamePatternState] = Writes { state =>
+    rawWrites.writes(state.copy(outcomeHint = TheoreticalOutcomeHint.Unclear))
+  }

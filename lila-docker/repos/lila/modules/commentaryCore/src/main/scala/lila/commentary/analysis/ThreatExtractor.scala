@@ -13,7 +13,7 @@ object ThreatExtractor {
   case class CausalThreat(
       concept: String,       // e.g., "Mating Attack", "Material Loss", "Positional Collapse"
       severity: Int,         // Severity score to pick the most critical threat
-      narrative: String,     // e.g., "allows White to execute a deadly fork on c7"
+      narrative: String,     // e.g., "allows White to execute a concrete fork on c7"
       motifs: List[Motif]    // The underlying motifs that prove the threat
   )
 
@@ -63,7 +63,7 @@ object ThreatExtractor {
       // Fallback: Check if there's a huge evaluation drop without clear tactical motifs
       val evalDrop = PerspectiveMath.cpLossForMover(playerColor, bestLine.effectiveScore, userLine.effectiveScore)
       if (evalDrop > 200) {
-        Some(CausalThreat("Positional Collapse", 1, "concedes a devastating positional advantage", Nil))
+        Some(CausalThreat("Positional Collapse", 1, "concedes a positional advantage", Nil))
       } else {
         None
       }
@@ -115,62 +115,62 @@ object ThreatExtractor {
       case _: Motif.MateNet => 
         Some(("Mating Attack", 100, s"allows $oppColorStr to weave a mating net"))
       case m: Motif.Check if m.checkType == Motif.CheckType.Mate || m.checkType == Motif.CheckType.Smothered =>
-        Some(("Checkmate", 100, s"allows a forced checkmate"))
+        Some(("Checkmate", 100, s"allows checkmate"))
       case _: Motif.SmotheredMate =>
-        Some(("Checkmate", 100, s"allows a forced smothered mate"))
+        Some(("Checkmate", 100, s"allows a smothered mate"))
       case _: Motif.BackRankMate =>
         Some(("Checkmate", 100, s"allows a back-rank mate"))
       case _: Motif.PawnPromotion =>
         Some(("Promotion", 95, s"allows the opponent to promote a pawn"))
       case m: Motif.Fork =>
-        Some(("Material Loss", 85, s"allows a devastating fork on ${m.targets.mkString(" and ")}"))
+        Some(("Material Loss", 85, s"allows a fork on ${m.targets.mkString(" and ")}"))
       case m: Motif.TrappedPiece if m.isValuableTrap =>
         Some(("Material Loss", 85, s"allows the ${m.trappedRole} to be trapped"))
       case m: Motif.Skewer =>
-        Some(("Tactical Exploitation", 80, s"allows a fatal skewer against the ${m.frontPiece}"))
+        Some(("Tactical Exploitation", 80, s"allows a skewer against the ${m.frontPiece}"))
       case _: Motif.DoubleCheck =>
-        Some(("Mating Attack", 80, s"walks into a lethal double check"))
+        Some(("Mating Attack", 80, s"walks into a double check"))
       case m: Motif.DiscoveredAttack =>
-        Some(("Tactical Discovery", 75, s"walks into a dangerous discovered attack by the ${m.attackingPiece}"))
+        Some(("Tactical Discovery", 75, s"walks into a discovered attack by the ${m.attackingPiece}"))
       case m: Motif.Pin if m.isAbsolutePin =>
-        Some(("Tactical Binding", 75, s"allows a crippling absolute pin against the ${m.pinnedPiece}"))
+        Some(("Tactical Binding", 75, s"allows an absolute pin against the ${m.pinnedPiece}"))
       case m: Motif.Pin =>
-        Some(("Tactical Binding", 70, s"allows an uncomfortable pin against the ${m.pinnedPiece}"))
+        Some(("Tactical Binding", 70, s"allows a pin against the ${m.pinnedPiece}"))
       case m: Motif.RemovingTheDefender =>
-        Some(("Defensive Collapse", 70, s"allows the removal of the critical ${m.victim} defending the ${m.protectedTarget}"))
+        Some(("Defensive Collapse", 70, s"allows the removal of the ${m.victim} defending the ${m.protectedTarget}"))
       case m: Motif.Deflection =>
-        Some(("Defensive Collapse", 70, s"forces the ${m.piece} away from its defensive duties"))
+        Some(("Defensive Collapse", 70, s"deflects the ${m.piece} from its defensive duties"))
       case m: Motif.Decoy =>
         Some(("Tactical Exploitation", 65, s"allows a decoy sequence targeting the ${m.piece}"))
       case m: Motif.Overloading =>
-        Some(("Defensive Collapse", 65, s"overloads the ${m.overloadedPiece}, causing defenses to crumble"))
+        Some(("Defensive Collapse", 65, s"overloads the ${m.overloadedPiece} in the defense"))
       case _: Motif.Interference =>
         Some(("Tactical Exploitation", 65, s"allows interference against the coordinated defense"))
       case _: Motif.PassedPawnPush =>
-        Some(("Promotion Threat", 70, s"allows the opponent's passed pawn to advance dangerously"))
+        Some(("Promotion Threat", 70, s"allows the opponent's passed pawn to advance"))
       
       // -- Positional and Structural Dominance --
       case m: Motif.Outpost =>
-        Some(("Positional Dominance", 60, s"allows the ${m.piece} to establish a dominating outpost on ${m.square}"))
+        Some(("Positional Pressure", 60, s"allows the ${m.piece} to establish an outpost on ${m.square}"))
       case m: Motif.PassedPawn if m.color == oppColor =>
-        Some(("Structural Threat", 60, s"allows the creation of a dangerous passed pawn on the ${m.file} file"))
+        Some(("Structural Threat", 60, s"allows a passed pawn on the ${m.file} file"))
       case m: Motif.DoubledPawns if m.color == playerColor =>
-        Some(("Structural Ruin", 55, s"ruins the pawn structure by creating doubled pawns on the ${m.file} file"))
+        Some(("Structural Damage", 55, s"creates doubled pawns on the ${m.file} file"))
       case m: Motif.IsolatedPawn if m.color == playerColor =>
-        Some(("Structural Ruin", 55, s"accepts a permanent weakness with an isolated pawn on the ${m.file} file"))
+        Some(("Structural Weakness", 55, s"leaves an isolated pawn on the ${m.file} file"))
       case m: Motif.OpenFileControl =>
-        Some(("Positional Dominance", 55, s"concedes total control of the ${m.file} file"))
+        Some(("File Pressure", 55, s"concedes control of the ${m.file} file"))
       case _: Motif.SeventhRankInvasion =>
-        Some(("Positional Dominance", 65, s"allows a devastating invasion on the 7th rank"))
+        Some(("Rank Invasion", 65, s"allows an invasion on the 7th rank"))
       case m: Motif.SpaceAdvantage if m.pawnDelta >= 2 =>
-        Some(("Positional Dominance", 50, s"concedes a massive space advantage in the center"))
+        Some(("Space Advantage", 50, s"concedes extra central space"))
       case m: Motif.KingCutOff =>
-        Some(("King Safety Compromised", 65, s"allows the king to be dangerously cut off along the ${if (m.axis == "Rank") s"${m.coordinate}th rank" else s"${m.coordinate} file"}"))
+        Some(("King Safety Compromised", 65, s"allows the king to be cut off along the ${if (m.axis == "Rank") s"${m.coordinate}th rank" else s"${m.coordinate} file"}"))
       case _: Motif.WeakBackRank =>
-        Some(("King Safety Compromised", 60, s"leaves the back rank critically weak"))
+        Some(("King Safety Compromised", 60, s"leaves the back rank weak"))
         
       case m: Motif.Capture if m.captureType == Motif.CaptureType.Winning =>
-        Some(("Material Loss", 85, s"blunders the ${m.captured}"))
+        Some(("Material Loss", 85, s"loses the ${m.captured}"))
       case m: Motif.XRay =>
         Some(("Tactical Exploitation", 65, s"allows an X-Ray attack through the ${m.piece}"))
       // Add more specific tactical/positional mappings here to ensure diverse detection

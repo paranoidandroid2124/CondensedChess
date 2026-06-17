@@ -200,6 +200,7 @@ object ThreatAnalyzer:
       case m: Motif.Skewer => m.frontSq.map(_.key).toList
       case m: Motif.DiscoveredAttack => m.targetSq.map(_.key).toList
       case m: Motif.TrappedPiece => List(m.trappedSquare.key)
+      case m: Motif.PawnPromotion => List(s"${m.file.char.toString.toLowerCase}${if m.color.white then 8 else 1}")
       case m: Motif.PassedPawnPush => List(s"${m.file.char.toString.toLowerCase}${m.toRank}")
       case m: Motif.PassedPawn => List(s"${m.file.char.toString.toLowerCase}${m.rank}")
       case _ => Nil

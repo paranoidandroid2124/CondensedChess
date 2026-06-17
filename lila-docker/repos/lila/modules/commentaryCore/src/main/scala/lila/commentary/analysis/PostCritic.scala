@@ -57,7 +57,7 @@ object PostCritic:
           else "The middlegame is taking shape."
         case "endgame" =>
           if (ctx.authorQuestions.nonEmpty || ctx.counterfactual.isDefined) "The endgame has reached a critical moment."
-          else "Endgame technique will be key."
+          else "Endgame details matter here."
         case _ => "The position calls for accuracy."
 
     text
@@ -115,19 +115,19 @@ object PostCritic:
         "defensive cover tied to piece harmony"
       ),
       "remains the benchmark continuation, with only a modest practical edge" -> Vector(
-        "stays the reference continuation, with a slim practical margin",
-        "remains the practical benchmark, with a narrow edge",
-        "is still the reference move, with only a thin practical edge"
+        "stays the reference continuation, with only a small engine margin",
+        "remains the reference move, with a narrow evaluated edge",
+        "is still the reference move, with only a thin objective margin"
       ),
       "with only a modest practical edge" -> Vector(
-        "with a slim practical margin",
-        "with only a narrow practical edge",
-        "with a small practical plus"
+        "with a slim engine margin",
+        "with only a narrow evaluated edge",
+        "with a small objective plus"
       ),
       "changes which plan family is easier to execute" -> Vector(
-        "shifts which plan branch is simplest to execute",
-        "changes which strategic branch is easiest to handle",
-        "alters which plan route is most practical"
+        "shifts which plan branch has the cleaner current-line support",
+        "changes which strategic branch has the clearer evidence path",
+        "alters which plan route is better supported by the current line"
       ),
       "as the central roadmap, limiting early strategic drift" -> Vector(
         "as the strategic anchor, reducing early drift",
@@ -140,14 +140,14 @@ object PostCritic:
         "principal divergence between"
       ),
       "the struggle has shifted into technical endgame play" -> Vector(
-        "the game has moved into a technical endgame phase",
-        "play has transitioned into technical endgame handling",
-        "the position now demands technical endgame play"
+        "the game has moved into an endgame phase",
+        "play has transitioned into a simplified position",
+        "the position now depends on endgame details"
       ),
       "this phase is now about endgame technique" -> Vector(
-        "this phase now turns on endgame technique",
-        "technical handling now defines this phase",
-        "the phase is now decided by endgame precision"
+        "this phase now turns on concrete endgame details",
+        "current-board details define this phase",
+        "the phase now needs line-checked endgame decisions"
       )
     )
 

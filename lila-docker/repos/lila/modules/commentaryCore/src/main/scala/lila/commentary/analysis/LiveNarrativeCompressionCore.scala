@@ -42,7 +42,7 @@ private[commentary] object LiveNarrativeCompressionCore:
     "plan still revolves around" -> """(?i)\bthe plan still revolves around\b""".r,
     "useful route" -> """(?i)\ba useful route is\b""".r,
     "useful target" -> """(?i)\bthe next useful target is\b""".r,
-    "easy to handle" -> """(?i)\bkeeps the position easy to handle\b""".r,
+    "easy handling" -> """(?i)\b(?:keeps? the position easy to handle|easy to handle|easier to handle|easier because)\b""".r,
     "keep bringing" -> """(?i)\bthe next step is to keep bringing the\b""".r
   )
 
@@ -103,18 +103,16 @@ private[commentary] object LiveNarrativeCompressionCore:
     val factor = Option(factorRaw).getOrElse("").trim.toLowerCase
     val description = Option(descriptionRaw).getOrElse("").trim.toLowerCase
     Option.when(factor.nonEmpty || description.nonEmpty) {
-      if factor.contains("mobility") then "the pieces have more room"
+      if factor.contains("mobility") then "the pieces have more available squares"
       else if factor.contains("forgiveness") && SafeMovesPattern.findFirstMatchIn(description).nonEmpty then
         val count = SafeMovesPattern.findFirstMatchIn(description).map(_.group(1)).getOrElse("more")
         s"there are $count safe follow-up moves"
       else if factor.contains("forgiveness") then "there are more safe follow-up moves"
       else if factor.contains("king") then "the king has fewer checks to answer"
-      else if factor.contains("coordination") then "the pieces work together more easily"
-      else if factor.contains("simplification") || factor.contains("trade") then "the exchanges are easier to judge"
+      else if factor.contains("coordination") then "the pieces stay coordinated"
+      else if factor.contains("simplification") || factor.contains("trade") then "the exchange choices are more defined"
       else if factor.contains("space") then "the side with the move has more room"
-      else if factor.contains("time") || factor.contains("tempo") then "the move keeps the initiative without losing time"
-      else if hasConcreteAnchor(description) then description
-      else if hasConcreteAnchor(factor) then factor
+      else if factor.contains("time") || factor.contains("tempo") then "the move preserves tempo"
       else ""
     }.filter(_.nonEmpty)
 
@@ -136,7 +134,7 @@ private[commentary] object LiveNarrativeCompressionCore:
       .replaceAll("""(?i)\bimmediate tactical gain Counterplay\b""", "tactical counterplay")
       .replaceAll("""(?i)\bin the foreground via\b""", "with")
       .replaceAll("""(?i)\bso the plan cannot drift\b""", "so the idea stays clear")
-      .replaceAll("""(?i)\beasier to organize\b""", "easier to carry out")
+      .replaceAll("""(?i)\beasier to organize\b""", "more concrete to organize")
       .replaceAll("""(?i)\bmore confirmation is still needed\b""", "")
       .replaceAll("""(?i)\bfocus on ([a-h][1-8](?:,\s*[a-h][1-8])*)\b""", "pressure on $1")
       .replaceAll("""(?i)^the plan still revolves around ([^.]+)\.$""", "The play still runs through $1.")
@@ -219,20 +217,20 @@ private[commentary] object LiveNarrativeCompressionCore:
         "$1 is investing material for $2 rather than grabbing it back at once."
       )
       .replaceAll(
-        """(?i)more important than the nominal evaluation is that the move creates an easier practical task through""",
-        "The move is easier to handle because"
+        """(?i)^more important than the nominal evaluation is that the move creates an easier practical task through ([^.]+)\.$""",
+        "The supporting detail is $1."
       )
       .replaceAll(
-        """(?i)more important than the nominal evaluation is that the move creates a ([^.]+?) practical task\.""",
-        "The move is easier to handle over the board."
+        """(?i)^more important than the nominal evaluation is that the move creates a ([^.]+?) practical task\.$""",
+        "The position still needs concrete follow-up."
       )
       .replaceAll(
-        """(?i)the resulting task is ([^.]+?)\.""",
-        "That version is easier to handle."
+        """(?i)^the resulting task is ([^.]+?)\.$""",
+        "The position still needs concrete follow-up."
       )
       .replaceAll(
         """(?i)that matters because""",
-        "That is easier because"
+        "That matters because"
       )
       .replaceAll(
         """(?i)the compensation depends on""",
@@ -326,12 +324,14 @@ private[commentary] object LiveNarrativeCompressionCore:
       low == "the next step is to finish development without giving up the center." ||
       low == "the move improves the piece placement without changing the basic structure." ||
       low == "the move improves the piece placement around the current structure." ||
+      low == "the position still needs concrete follow-up." ||
       low == "the idea still needs concrete support." ||
       low == "still needs more concrete support." ||
       low.matches("""the move keeps the game in [^.]+\.""") ||
       low.matches("""the move keeps the game in [^.]+, with [^.]+ as the main theme\.""") ||
       low.matches("""the follow-up is to stay inside [^.]+ themes without losing the position's balance\.""") ||
       low.contains("keeps the position easy to handle") ||
+      low.contains("easier to handle") ||
       low.contains("the square that keeps") && low.contains("grounded") ||
       low.contains("still looks playable in the engine line") ||
       low.contains("needs stronger support beyond that line") ||

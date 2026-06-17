@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 const reviewViewSource = readFileSync(fileURLToPath(new URL('../src/review/view.ts', import.meta.url)), 'utf8');
 const controlsSource = readFileSync(fileURLToPath(new URL('../src/view/controls.ts', import.meta.url)), 'utf8');
 const actionMenuSource = readFileSync(fileURLToPath(new URL('../src/view/actionMenu.ts', import.meta.url)), 'utf8');
+const explorerViewSource = readFileSync(fileURLToPath(new URL('../src/explorer/explorerView.ts', import.meta.url)), 'utf8');
 const mainViewSource = readFileSync(fileURLToPath(new URL('../src/view/main.ts', import.meta.url)), 'utf8');
 const componentsSource = readFileSync(fileURLToPath(new URL('../src/view/components.ts', import.meta.url)), 'utf8');
 const roundTrainingSource = readFileSync(fileURLToPath(new URL('../src/view/roundTraining.ts', import.meta.url)), 'utf8');
@@ -68,16 +69,20 @@ describe('review player copy', () => {
   });
 
   test('keeps review controls aligned with the review player labels', () => {
-    ['Opening context', 'Board view', 'Toggle candidate lines'].forEach(copy =>
+    ['Opening context', 'Opening book and tablebase', 'Board view', 'Toggle candidate lines'].forEach(copy =>
       assert.match(controlsSource, new RegExp(escapeRegExp(copy)), `missing control copy: ${copy}`),
     );
     [
+      'Opening book',
+      'Opening games and tablebase positions',
       'Board view',
       'Choose what to study',
       'Keep the board in sight',
       'Move between openings, Move Review, and board view without losing the current move.',
       'Open a study view while the board and moves stay anchored.',
     ].forEach(copy => assert.match(componentsSource, new RegExp(escapeRegExp(copy)), `missing dock copy: ${copy}`));
+    assert.match(explorerViewSource, /return 'Opening book'/);
+    assert.match(explorerViewSource, /return `\$\{variant\.name\} opening book`/);
     [
       'Analysis',
       'Keep eval, candidate lines, and board cues visible',
@@ -108,8 +113,24 @@ describe('review player copy', () => {
     ].forEach(copy =>
       assert.doesNotMatch(actionMenuSource, new RegExp(escapeRegExp(copy)), `stale board view copy: ${copy}`),
     );
-    ['Board setup', 'coach review', 'Choose what to inspect', 'Keep the board beside you', 'Open what you need'].forEach(copy =>
+    [
+      "label: 'Explorer'",
+      'Openings and tablebase positions',
+      'Opening explorer',
+      'opening explorer',
+      'Board setup',
+      'coach review',
+      'Choose what to inspect',
+      'Keep the board beside you',
+      'Open what you need',
+    ].forEach(copy =>
       assert.doesNotMatch(componentsSource, new RegExp(escapeRegExp(copy)), `stale dock copy: ${copy}`),
+    );
+    ['Opening explorer and Tablebase', 'Opening explorer'].forEach(copy =>
+      assert.doesNotMatch(controlsSource, new RegExp(escapeRegExp(copy)), `stale opening control copy: ${copy}`),
+    );
+    ['Opening explorer', 'opening explorer'].forEach(copy =>
+      assert.doesNotMatch(explorerViewSource, new RegExp(escapeRegExp(copy)), `stale opening copy: ${copy}`),
     );
   });
 

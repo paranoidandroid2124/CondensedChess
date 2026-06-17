@@ -229,6 +229,24 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     }
   }
 
+  test("live narrative rewrite does not turn source practical prose into easy-handling authority") {
+    val anchored =
+      LiveNarrativeCompressionCore.rewritePlayerLanguage(
+        "More important than the nominal evaluation is that the move creates an easier practical task through rook activity."
+      )
+    val generic =
+      LiveNarrativeCompressionCore.rewritePlayerLanguage(
+        "More important than the nominal evaluation is that the move creates a comfortable practical task."
+      )
+
+    assertEquals(anchored, "The supporting detail is rook activity.")
+    assert(!anchored.toLowerCase.contains("easier"), clues(anchored))
+    assert(!anchored.toLowerCase.contains("nominal evaluation"), clues(anchored))
+    assertEquals(generic, "The position still needs concrete follow-up.")
+    assert(LiveNarrativeCompressionCore.isLowValueNarrativeSentence(generic), clues(generic))
+    assert(LiveNarrativeCompressionCore.playerLanguageHits("The move is easier to handle because the pieces have more room.").nonEmpty)
+  }
+
   test("MoveReviewLocalFact admits planner timing only from typed timing evidence") {
     val timedPlan =
       QuestionPlan(
@@ -1574,7 +1592,7 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
                   ThreatExtractor.CausalThreat(
                     concept = "Material Loss",
                     severity = 85,
-                    narrative = "allows a devastating fork on the rook and queen",
+                    narrative = "allows a fork on the rook and queen",
                     motifs = List(fork)
                   )
                 )
@@ -1610,7 +1628,7 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.Planner)
     assertEquals(
       MoveReviewProseContract.stripMoveHeader(slots.claim),
-      "The move Bd7 stays best because missing it allows a devastating fork on the rook and queen."
+      "The move Bd7 stays best because missing it allows a fork on the rook and queen."
     )
     assert(slots.factGuardrails.exists(_.contains("local_fact=threat/certified_strategy")), clues(slots.factGuardrails))
     assert(slots.factGuardrails.exists(_.contains("local_fact_producer=planner_causal_claim")), clues(slots.factGuardrails))

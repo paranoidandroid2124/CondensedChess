@@ -34,7 +34,6 @@ private[commentary] object OpeningRouteTargetEvidence:
           .when(route.targetMode == OpeningRouteCatalog.AttackWeakPawn)(s"fixed_target:${route.targetSquare}")
           .toList ++
         List(
-          s"route_target:${route.routeId}",
           route.targetMode
         )
     ).distinct
@@ -45,8 +44,6 @@ private[commentary] object OpeningRouteTargetEvidence:
   ): List[String] =
     (
       List(
-        s"opening_route:${route.routeId}",
-        s"opening_family:${route.family}",
         s"target_mode:${route.targetMode}",
         s"route_target:${route.targetSquare}",
         s"${route.role}_route:${route.path.mkString("-")}",

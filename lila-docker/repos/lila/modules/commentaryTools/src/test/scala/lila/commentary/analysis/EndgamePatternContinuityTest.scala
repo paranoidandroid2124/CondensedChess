@@ -210,48 +210,48 @@ class EndgamePatternContinuityTest extends FunSuite:
     assertEquals(m71.endgameTransition, None)
   }
 
-  test("Remaining DB patterns emit draft hold and loss causality prose") {
-    val holdCases = List(
-      "WrongRookPawnWrongBishopFortress" -> "promotion corner",
-      "OutsidePasserDecoy" -> "remote passer",
-      "ConnectedPassers" -> "advance together",
-      "KeySquaresOppositionBreakthrough" -> "critical entry squares",
-      "TriangulationZugzwang" -> "spare king tempo",
-      "BreakthroughSacrifice" -> "points at a passer",
-      "Shouldering" -> "off the pawn's route",
-      "RetiManeuver" -> "chase the passer",
-      "ShortSideDefense" -> "checking room on the short side",
-      "OppositeColoredBishopsDraw" -> "different color complex",
-      "GoodBishopRookPawnConversion" -> "bishop matches the promotion corner",
-      "KnightBlockadeRookPawnDraw" -> "covers the promotion square",
-      "QueenVsAdvancedPawn" -> "checking distance against the advanced pawn",
-      "TarraschDefenseActive" -> "active behind the pawn",
-      "PassiveRookDefense" -> "behind the pawn",
-      "RookAndBishopVsRookDraw" -> "checking distance or corner geometry",
-      "SameColoredBishopsBlockade" -> "shared color complex"
+  test("unframed DB patterns keep continuity prose without synthetic causality") {
+    val patterns = List(
+      "WrongRookPawnWrongBishopFortress",
+      "OutsidePasserDecoy",
+      "ConnectedPassers",
+      "KeySquaresOppositionBreakthrough",
+      "TriangulationZugzwang",
+      "BreakthroughSacrifice",
+      "Shouldering",
+      "RetiManeuver",
+      "ShortSideDefense",
+      "OppositeColoredBishopsDraw",
+      "GoodBishopRookPawnConversion",
+      "KnightBlockadeRookPawnDraw",
+      "QueenVsAdvancedPawn",
+      "TarraschDefenseActive",
+      "PassiveRookDefense",
+      "RookAndBishopVsRookDraw",
+      "SameColoredBishopsBlockade"
     )
 
-    val lossCases = List(
-      "WrongRookPawnWrongBishopFortress" -> "promotion corner",
-      "OutsidePasserDecoy" -> "drags the enemy king away",
-      "ConnectedPassers" -> "advancing together",
-      "KeySquaresOppositionBreakthrough" -> "entry squares",
-      "TriangulationZugzwang" -> "spare king tempo",
-      "BreakthroughSacrifice" -> "passer-route cue",
-      "Shouldering" -> "pushed off the pawn's path",
-      "RetiManeuver" -> "combine pursuit of the passer",
-      "ShortSideDefense" -> "checking distance",
-      "OppositeColoredBishopsDraw" -> "bishop's color complex",
-      "GoodBishopRookPawnConversion" -> "promotion corner",
-      "KnightBlockadeRookPawnDraw" -> "promotion square",
-      "QueenVsAdvancedPawn" -> "advanced pawn",
-      "TarraschDefenseActive" -> "checking from behind the pawn",
-      "PassiveRookDefense" -> "behind the pawn",
-      "RookAndBishopVsRookDraw" -> "checking distance or corner geometry",
-      "SameColoredBishopsBlockade" -> "shared color complex"
+    val syntheticCausalityTerms = List(
+      "promotion corner",
+      "remote passer",
+      "advance together",
+      "critical entry squares",
+      "spare king tempo",
+      "passer-route cue",
+      "off the pawn's route",
+      "chase the passer",
+      "checking room",
+      "different color complex",
+      "bishop matches",
+      "covers the promotion square",
+      "checking distance",
+      "active behind the pawn",
+      "behind the pawn",
+      "mating nets",
+      "shared color complex"
     )
 
-    holdCases.foreach { case (pattern, anchor) =>
+    patterns.foreach { pattern =>
       val ctx =
         syntheticContext(
           pattern = Some(pattern),
@@ -259,22 +259,25 @@ class EndgamePatternContinuityTest extends FunSuite:
           fen = goldsetFen(pattern, positive = true).getOrElse(syntheticFen)
         )
       val text = BookStyleRenderer.renderDraft(ctx)
-      assert(
-        text.contains("because") && text.toLowerCase.contains(anchor.toLowerCase),
-        s"expected hold causality for $pattern, got: $text"
+      assert(text.contains("has stayed visible"), s"expected continuity context for $pattern, got: $text")
+      assert(text.contains("endgame context"), s"expected endgame context for $pattern, got: $text")
+      assert(!text.contains("because"), s"unexpected synthetic causality for $pattern, got: $text")
+      syntheticCausalityTerms.foreach(term =>
+        assert(!text.toLowerCase.contains(term.toLowerCase), s"unexpected '$term' in $pattern text: $text")
       )
     }
 
-    lossCases.foreach { case (pattern, anchor) =>
+    patterns.foreach { pattern =>
       val ctx = syntheticContext(
         pattern = None,
         transition = Some(s"$pattern(Unclear) → none(Unclear)"),
         fen = goldsetFen(pattern, positive = false).getOrElse(syntheticFen)
       )
       val text = BookStyleRenderer.renderDraft(ctx)
-      assert(
-        text.contains("because") && text.toLowerCase.contains(anchor.toLowerCase),
-        s"expected loss causality for $pattern, got: $text"
+      assert(text.contains("has dissolved"), s"expected transition context for $pattern, got: $text")
+      assert(!text.contains("because"), s"unexpected synthetic loss causality for $pattern, got: $text")
+      syntheticCausalityTerms.foreach(term =>
+        assert(!text.toLowerCase.contains(term.toLowerCase), s"unexpected '$term' in $pattern text: $text")
       )
     }
   }

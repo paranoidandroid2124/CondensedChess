@@ -64,6 +64,9 @@ private[analysis] object CompensationDisplayPhrasing:
         subtype.durablePressure && hasTypedCompensationCarrier(surface, subtype)
       )
 
+  private def publicCompensationSubtype(surface: Snapshot): Option[CompensationSubtype] =
+    Option.when(publicCompensationContract(surface))(surface.strictCompensationSubtype).flatten
+
   private def hasTypedCompensationCarrier(surface: Snapshot, subtype: CompensationSubtype): Boolean =
     StrategyPackSurface.alignedRoute(surface, subtype).nonEmpty ||
       StrategyPackSurface.alignedMoveRef(surface, subtype).nonEmpty ||
@@ -223,31 +226,31 @@ private[analysis] object CompensationDisplayPhrasing:
     }
 
   def compensationPersistenceText(surface: Snapshot): Option[String] =
-    surface.strictCompensationSubtype.map {
+    publicCompensationSubtype(surface).flatMap {
       case CompensationSubtype("queenside", "target_fixing", _, _) =>
-        "the fixed queenside targets stay under pressure"
+        Some("the fixed queenside targets stay under pressure")
       case CompensationSubtype("queenside", "line_occupation", _, "durable_pressure") =>
-        "the queenside files stay under pressure"
+        Some("the queenside files stay under pressure")
       case CompensationSubtype("center", "line_occupation", _, "durable_pressure") =>
-        "the central files stay under pressure"
+        Some("the central files stay under pressure")
       case CompensationSubtype(_, "line_occupation", _, "durable_pressure") =>
-        "pressure along the open lines keeps building"
+        Some("pressure along the open lines keeps building")
       case CompensationSubtype(_, "target_fixing", _, _) =>
-        "the fixed targets stay under pressure"
+        Some("the fixed targets stay under pressure")
       case CompensationSubtype(_, "counterplay_denial", _, _) =>
-        "the extra pawn never gets to become active"
+        Some("the extra pawn never gets to become active")
       case CompensationSubtype("kingside", "break_preparation", _, _) =>
-        "the break threats still have to land with force"
+        Some("the break threats still have to land with force")
       case CompensationSubtype("kingside", "defender_tied_down", _, _) =>
-        "the defenders keep getting dragged back to the king"
+        Some("the defenders keep getting dragged back to the king")
       case CompensationSubtype(_, "defender_tied_down", _, _) =>
-        "the defender stays tied to passive defense"
+        Some("the defender stays tied to passive defense")
       case CompensationSubtype(_, "conversion_window", _, _) =>
-        "the favorable exchanges are still there"
+        Some("the favorable exchanges are still there")
       case CompensationSubtype(_, _, "intentionally_deferred", _) =>
-        "the material can wait while the pressure is still there"
+        Some("the material can wait while the pressure is still there")
       case _ =>
-        "the compensation remains durable"
+        None
     }
 
   private def anchoredCompensationWindow(surface: Snapshot): Option[String] =
@@ -296,7 +299,7 @@ private[analysis] object CompensationDisplayPhrasing:
     s"That only works while $window."
 
   def compensationWhyNowText(surface: Snapshot): Option[String] =
-    Option.when(publicCompensationContract(surface))(surface.strictCompensationSubtype).flatten.flatMap {
+    publicCompensationSubtype(surface).flatMap {
       case CompensationSubtype("queenside", "target_fixing", _, _) =>
             concreteCompensationWindow(surface)
               .map(compensationClaimFromWindow)
@@ -330,7 +333,7 @@ private[analysis] object CompensationDisplayPhrasing:
     }
 
   def compensationObjectiveText(surface: Snapshot): Option[String] =
-    Option.when(publicCompensationContract(surface))(surface.strictCompensationSubtype).flatten.flatMap {
+    publicCompensationSubtype(surface).flatMap {
       case CompensationSubtype("queenside", "target_fixing", _, _) =>
           concreteCompensationWindow(surface)
             .map(compensationConditionFromWindow)
@@ -358,7 +361,7 @@ private[analysis] object CompensationDisplayPhrasing:
     compensationExecutionCue(surface).flatMap(StrategicSentenceRenderer.renderCompensationFollowUpFromExecution)
 
   def compensationSupportText(surface: Snapshot): List[String] =
-    surface.strictCompensationSubtype.toList.flatMap {
+    publicCompensationSubtype(surface).toList.flatMap {
       case CompensationSubtype("queenside", "target_fixing", "intentionally_deferred", _) =>
         List(
           "Keep the queenside targets tied down before thinking about the material."

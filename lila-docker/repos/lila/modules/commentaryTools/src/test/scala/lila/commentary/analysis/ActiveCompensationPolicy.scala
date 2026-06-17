@@ -5,8 +5,9 @@ import lila.commentary.StrategyPack
 private[commentary] object ActiveCompensationPolicy:
 
   def noteExpected(surface: StrategyPackSurface.Snapshot): Boolean =
-    CompensationContractMatcher
-      .canonicalSubtype(surface)
+    surface.strictCompensationSubtype
+      .orElse(surface.displayCompensationSubtype)
+      .orElse(surface.effectiveCompensationSubtype)
       .exists(subtype => surface.compensationPosition && !subtype.transitionOnly)
 
   def noteExpected(strategyPack: Option[StrategyPack]): Boolean =

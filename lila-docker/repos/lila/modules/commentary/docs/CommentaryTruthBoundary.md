@@ -224,6 +224,10 @@ Raw strategy-pack or practical-row wording follows the same rule: it is not
 truth authority unless the typed local fact projection supplies the family,
 producer, anchors, line binding, and guardrails. Player-surface `Endgame cue`
 rows are support context, not `practical_plan` authority.
+Strategy-pack plan text is truth-relevant only after main-admitted
+`PlanEvidenceEvaluator` evidence, and plan-race opponent pressure needs a
+concrete threat or exact prevented-resource packet rather than an opponent-plan
+row label.
 Move-local exact-slice packets can strengthen strict fallback eligibility only
 through the existing supported-local row proof gate. The exact proof and
 authority metadata may be reused; the row text itself remains renderer output.

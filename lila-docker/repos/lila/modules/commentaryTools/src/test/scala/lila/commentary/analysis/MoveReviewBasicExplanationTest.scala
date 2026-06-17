@@ -141,7 +141,8 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
     assert(explanation.title.contains("develops the bishop toward opening coordination"), clue(explanation.title))
     assert(!explanation.title.contains("Development Logic"), clue(explanation.title))
     assert(!explanation.prose.contains("Development Logic"), clue(explanation.prose))
-    assert(explanation.prose.contains("Italian Game"), clue(explanation.prose))
+    assert(explanation.prose.contains("opening context"), clue(explanation.prose))
+    assert(!explanation.prose.contains("Italian Game"), clue(explanation.prose))
     assert(!explanation.prose.contains("supports the explanation"), clue(explanation.prose))
     assert(!explanation.prose.contains("admit it by itself"), clue(explanation.prose))
     assert(explanation.reasonTags.contains("opening_goal"), clue(explanation.reasonTags))
@@ -296,10 +297,15 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
         .build(ctx, Some(refsForLine(italianBeforeBc4, List("f1c4", "g8f6", "d2d3"), List("Bc4", "Nf6", "d3"))))
         .getOrElse(fail("expected opening explanation"))
 
-    assert(headerText.contains("Injected Opening Goal"), clue(headerText))
+    assert(headerText.contains("opening"), clue(headerText))
+    assert(!headerText.contains("Injected Opening Goal"), clue(headerText))
+    assert(!headerText.contains("shared carrier"), clue(headerText))
     assert(explanation.factFragments.toList.flatten.collectFirst {
       case fragment: FactFragment.OpeningGoalFragment => fragment.goalName
     }.contains("Injected Opening Goal"), clue(explanation.factFragments))
+    assert(explanation.factFragments.toList.flatten.collectFirst {
+      case fragment: FactFragment.OpeningGoalFragment => fragment.supportedEvidence
+    }.forall(!_.contains("shared carrier")), clue(explanation.factFragments))
     assert(!explanation.title.contains("Injected Opening Goal"), clue(explanation.title))
     assert(!explanation.prose.contains("Injected Opening Goal"), clue(explanation.prose))
   }
@@ -1597,7 +1603,8 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
     )
 
     assertEquals(slots.sourceKind, "planner", clue(slots))
-    assert(slots.claim.contains("Italian Game"), clue(slots.claim))
+    assert(slots.claim.contains("opening context"), clue(slots.claim))
+    assert(!slots.claim.contains("Italian Game"), clue(slots.claim))
     assertEquals(slots.localFact.map(_.family), Some(MoveReviewLocalFact.Family.OpeningGoal), clue(slots.localFact))
     assert(slots.factGuardrails.exists(_.contains("local_fact=opening_goal/opening_goal_evidence")), clue(slots.factGuardrails))
     assertNotEquals(

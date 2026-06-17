@@ -3,6 +3,7 @@ package lila.commentary.analysis
 import java.nio.file.{ Files, Paths }
 
 import lila.commentary.analysis.claim.OpeningFamilyClaimResolver.OpeningFamilyId
+import lila.commentary.model.{ CandidateTag, HypothesisAxis, HypothesisHorizon, PhaseContext }
 import munit.FunSuite
 
 class NarrativeLexiconTest extends FunSuite:
@@ -125,7 +126,7 @@ class NarrativeLexiconTest extends FunSuite:
         payoff = None
       )
 
-    assert(conclusion.startsWith("The game stayed balanced and neither side forced a decisive breakthrough."), clue(conclusion))
+    assert(conclusion.startsWith("The game stayed balanced while the main plans stayed in tension."), clue(conclusion))
     assert(conclusion.contains("White was mainly playing for queenside targets"), clue(conclusion))
     assert(!conclusion.contains("around Queenside pressure"), clue(conclusion))
   }
@@ -145,6 +146,314 @@ class NarrativeLexiconTest extends FunSuite:
     assert(text.contains("cleanest defense") || text.contains("resilient route") || text.contains("hold things together"), clue(text))
   }
 
+  test("annotation clauses do not infer practical ease initiative or conversion from cp loss alone") {
+    val samples =
+      (0 until 24).flatMap { bead =>
+        List(
+          NarrativeLexicon.getAnnotationPositive(bead, "Qe2"),
+          NarrativeLexicon.getAnnotationInvestment(bead, "Qe2"),
+          NarrativeLexicon.getAnnotationNegative(bead, "Qe2", "Qd3", 320),
+          NarrativeLexicon.getAnnotationNegative(bead, "Qe2", "Qd3", 140),
+          NarrativeLexicon.getAnnotationNegative(bead, "Qe2", "Qd3", 45),
+          NarrativeLexicon.getAnnotationNegativeWithoutBenchmark(bead, "Qe2", 320),
+          NarrativeLexicon.getAnnotationNegativeWithoutBenchmark(bead, "Qe2", 140),
+          NarrativeLexicon.getAnnotationNegativeWithoutBenchmark(bead, "Qe2", 45)
+        ) ++
+          List(2, 3).flatMap(rank =>
+            List(20, 90).flatMap(cpLoss =>
+              NarrativeLexicon.getEngineRankContext(bead, Some(rank), "Qd3", cpLoss).toList
+            )
+          ) ++
+          List(20, 90).flatMap(cpLoss =>
+            NarrativeLexicon.getEngineRankContext(bead, None, "Qd3", cpLoss).toList
+          )
+      }
+
+    val forbidden =
+      List(
+        "decisive",
+        "practical initiative",
+        "practical ease",
+        "practical control",
+        "practical gap",
+        "practical difference",
+        "practical benchmark",
+        "best practical",
+        "simpler to convert",
+        "easier to manage",
+        "easier to handle",
+        "easier play",
+        "initiative handling",
+        "control of initiative",
+        "easy target",
+        "straightforward over the board"
+      )
+
+    samples.foreach { text =>
+      val lower = text.toLowerCase
+      assert(!forbidden.exists(lower.contains), clue(text))
+    }
+  }
+
+  test("eval outcome clauses stay objective and do not imply conversion or practical ease") {
+    val samples =
+      for
+        cp <- List(620, 360, 140, 45, 0, -45, -140, -360, -620)
+        bead <- 0 until 16
+      yield NarrativeLexicon.evalOutcomeClauseFromCp(bead, cp, ply = bead % 5)
+
+    val forbidden =
+      List(
+        "winning",
+        "decisive",
+        "completely on top",
+        "convert",
+        "comfortable",
+        "two results",
+        "easier side",
+        "practical initiative",
+        "better game",
+        "pleasant position"
+      )
+
+    samples.foreach { text =>
+      val lower = text.toLowerCase
+      assert(!forbidden.exists(lower.contains), clue(text))
+    }
+    assert(samples.exists(_.toLowerCase.contains("evaluation")), clue(samples))
+  }
+
+  test("endgame phase and long-horizon lexicon stay context-only without technique or conversion authority") {
+    val samples =
+      (0 until 32).flatMap { bead =>
+        List(
+          NarrativeLexicon.getOpening(bead, "Endgame", "The evaluation is near equal", tactical = false, ply = bead),
+          NarrativeLexicon.getHypothesisPracticalClause(
+            bead,
+            HypothesisHorizon.Long,
+            HypothesisAxis.Conversion,
+            "Qe2"
+          ),
+          NarrativeLexicon.getHypothesisPracticalClause(
+            bead,
+            HypothesisHorizon.Long,
+            HypothesisAxis.EndgameTrajectory,
+            "Qe2"
+          ),
+          NarrativeLexicon.getLongHorizonBridgeClause(bead, "Qe2", HypothesisAxis.Conversion),
+          NarrativeLexicon.getLongHorizonBridgeClause(bead, "Qe2", HypothesisAxis.EndgameTrajectory),
+          NarrativeLexicon.getAnnotationDifficultyHint(bead, "clean", "Qe2", "Endgame").getOrElse(""),
+          NarrativeLexicon.getAnnotationDifficultyHint(bead, "clean", "Qe2", "Middlegame").getOrElse("")
+        ) ++
+          NarrativeLexicon.getAlternativeHypothesisDifferenceVariants(
+            bead = bead,
+            alternativeMove = "Qe2",
+            mainMove = "Qd3",
+            mainAxis = Some(HypothesisAxis.Conversion),
+            alternativeAxis = Some(HypothesisAxis.EndgameTrajectory),
+            alternativeClaim = None,
+            confidence = 0.62,
+            horizon = HypothesisHorizon.Long
+          )
+      }
+
+    val forbidden =
+      List(
+        "technical endgame",
+        "endgame technique",
+        "technical handling",
+        "technical outcome",
+        "technical route",
+        "technical phase",
+        "conversion phase",
+        "conversion window",
+        "converted",
+        "must be converted",
+        "practical result",
+        "decisive split",
+        "decides the game",
+        "resulting advantage"
+      )
+
+    samples.foreach { text =>
+      val lower = text.toLowerCase
+      assert(!forbidden.exists(lower.contains), clue(text))
+    }
+  }
+
+  test("raw intent labels stay cue-level without line consequence or endgame technique authority") {
+    val samples =
+      (0 until 16).flatMap { bead =>
+        List(
+          NarrativeLexicon.getIntent(bead, "zugzwang", None, ply = 52),
+          NarrativeLexicon.getIntent(bead, "zugzwang", Some("opposition cue"), ply = 52),
+          NarrativeLexicon.getIntent(bead, "passed pawn", None, ply = 52),
+          NarrativeLexicon.getIntent(bead, "pawn_race", None, ply = 52),
+          NarrativeLexicon.getIntent(bead, "opposition", None, ply = 52),
+          NarrativeLexicon.getIntent(bead, "simplification", None, ply = 52),
+          NarrativeLexicon.getIntent(bead, "outpost", None, ply = 28),
+          NarrativeLexicon.getIntent(bead, "exchange", None, ply = 28)
+        )
+      }
+
+    val forbidden =
+      List(
+        "forces zugzwang",
+        "in zugzwang",
+        "endgame-technique",
+        "fatal concession",
+        "creates promotion threats",
+        "promotion races",
+        "races for promotion",
+        "pushes for promotion",
+        "takes the opposition",
+        "gains the opposition",
+        "favorable endgame",
+        "easier position",
+        "unassailable",
+        "durable outpost",
+        "forces a favorable exchange",
+        "forces an exchange"
+      )
+
+    samples.foreach { text =>
+      val lower = text.toLowerCase
+      assert(!forbidden.exists(lower.contains), clue(text))
+    }
+  }
+
+  test("main-flow wrappers keep sampled replies neutral") {
+    val samples =
+      (0 until 16).flatMap { bead =>
+        List(
+          NarrativeLexicon.getMainFlow(
+            bead = bead,
+            move = "Qe2",
+            annotation = "",
+            intent = "keeps a candidate cue in view",
+            replySan = Some("Nf6"),
+            sampleRest = Some("Nc3 Bb4"),
+            evalTerm = "The engine comparison stays near equal."
+          ),
+          NarrativeLexicon.getMainFlow(
+            bead = bead,
+            move = "Qe2",
+            annotation = "",
+            intent = "keeps a candidate cue in view",
+            replySan = Some("Nf6"),
+            sampleRest = None,
+            evalTerm = "The engine comparison stays near equal."
+          ),
+          NarrativeLexicon.getMainFlow(
+            bead = bead,
+            move = "Qe2",
+            annotation = "",
+            intent = "keeps a candidate cue in view",
+            replySan = None,
+            sampleRest = None,
+            evalTerm = "The engine comparison stays near equal."
+          )
+        )
+      }
+
+    val forbidden =
+      List(
+        "forcing ",
+        "clear outcome",
+        "causing problems",
+        "precise choice"
+      )
+
+    samples.foreach { text =>
+      val lower = text.toLowerCase
+      assert(!forbidden.exists(lower.contains), clue(text))
+    }
+  }
+
+  test("post critic endgame filler repair does not mint technique authority") {
+    val ctx = MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
+      phase = PhaseContext("Endgame", "Material reduced")
+    )
+    val prose = PostCritic.revise(
+      ctx,
+      "The game begins. The struggle has shifted into technical endgame play. This phase is now about endgame technique."
+    ).toLowerCase
+
+    assert(prose.contains("endgame details"), clue(prose))
+    assert(!prose.contains("technical endgame"), clue(prose))
+    assert(!prose.contains("endgame technique"), clue(prose))
+    assert(!prose.contains("technical handling"), clue(prose))
+  }
+
+  test("post critic boilerplate repair does not mint practical ease or edge authority") {
+    val ctx = MoveReviewProseGoldenFixtures.rookPawnMarch.ctx
+    val prose = PostCritic.revise(
+      ctx,
+      "The move remains the benchmark continuation, with only a modest practical edge. It changes which plan family is easier to execute."
+    ).toLowerCase
+    val forbidden =
+      List(
+        "practical edge",
+        "practical benchmark",
+        "practical margin",
+        "small practical plus",
+        "easier to execute",
+        "easiest to handle",
+        "most practical",
+        "comfortable"
+      )
+
+    forbidden.foreach(term => assert(!prose.contains(term), clue(prose)))
+  }
+
+  test("tag-only conversion and motif prefixes stay context-only without result authority") {
+    val runtimeSamples =
+      (0 until 12).flatMap { bead =>
+        List(
+          NarrativeLexicon.getAnnotationTagOnlyHint(bead, CandidateTag.Converting, "Qe2").getOrElse(""),
+          NarrativeLexicon.getAlternative(bead, "Qe2", None),
+          NarrativeLexicon.getPrecedentDecisionDriverLine(bead, "the dark squares"),
+          NarrativeLexicon.getEngineRankContext(bead, Some(3), "Qe2", cpLoss = 20).getOrElse(""),
+          NarrativeLexicon.getEngineRankContext(bead, Some(3), "Qe2", cpLoss = 120).getOrElse(""),
+          NarrativeLexicon.getMotifPrefix(bead, List("stalemate_trick"), ply = bead).getOrElse(""),
+          NarrativeLexicon.getMotifPrefix(bead, List("rook_on_seventh"), ply = bead).getOrElse(""),
+          NarrativeLexicon.getMotifPrefix(bead, List("blockade"), ply = bead).getOrElse("")
+        )
+      }
+    val tableSource =
+      Files.readString(Paths.get("modules/commentaryCore/src/main/scala/lila/commentary/analysis/NarrativeMotifPrefixTable.scala"))
+    val forbidden =
+      List(
+        "cleaner conversion",
+        "simpler win",
+        "technical converting",
+        "systematic conversion",
+        "technical means",
+        "conversion quality",
+        "decisive practical driver",
+        "results hinged",
+        "key match result",
+        "straightforward conversion",
+        "technical battle",
+        "conversion plan",
+        "clearer technical path",
+        "stable technical reference",
+        "conversion relies",
+        "more accurately",
+        "separated the sampled routes",
+        "practical turning factor",
+        "game turned on",
+        "practical edge",
+        "easier to execute"
+      )
+
+    runtimeSamples.foreach { text =>
+      val lower = text.toLowerCase
+      assert(!forbidden.exists(lower.contains), clue(text))
+    }
+    forbidden.foreach(term => assert(!tableSource.toLowerCase.contains(term), clue(term)))
+  }
+
   test("generic negative annotations without a verified benchmark stay vague and truthful") {
     val text = NarrativeLexicon.getAnnotationNegativeWithoutBenchmark(
       bead = 0,
@@ -160,8 +469,8 @@ class NarrativeLexiconTest extends FunSuite:
       text.contains("loses control") ||
         text.contains("concedes") ||
         text.contains("lets the position drift") ||
-        text.contains("hands over the initiative") ||
-        text.contains("inaccurate in practical terms"),
+        text.contains("coordination control") ||
+        text.contains("move-order terms"),
       clue(text)
     )
   }
@@ -182,7 +491,63 @@ class NarrativeLexiconTest extends FunSuite:
       )
 
     assert(text.contains("Sicilian structure"), clue(text))
+    assert(!text.contains("Sicilian Liberator"), clue(text))
     assert(!text.contains("c5 pawn or traded c-pawn"), clue(text))
+  }
+
+  test("opening goal status prose does not expose raw goal or evidence strings") {
+    val evals =
+      List(
+        OpeningGoals.Evaluation(
+          goalName = "Dutch E4 Outpost",
+          status = OpeningGoals.Status.Achieved,
+          supportedEvidence = List("Sound", "King safe", "e4 outpost occupied"),
+          missingEvidence = Nil,
+          confidence = 0.9
+        ),
+        OpeningGoals.Evaluation(
+          goalName = "Flank Fianchetto Support",
+          status = OpeningGoals.Status.Partial,
+          supportedEvidence = List("PV activates the long diagonal"),
+          missingEvidence = List("lack of d5 restraint/space allows opponent to equalize easily"),
+          confidence = 0.6
+        ),
+        OpeningGoals.Evaluation(
+          goalName = "Kingside Storm",
+          status = OpeningGoals.Status.Premature,
+          supportedEvidence = Nil,
+          missingEvidence = List("pawn storm not yet supported"),
+          confidence = 0.3
+        ),
+        OpeningGoals.Evaluation(
+          goalName = "French Base Chipper",
+          status = OpeningGoals.Status.Failed,
+          supportedEvidence = Nil,
+          missingEvidence = List("d-pawn strike does not contest e4"),
+          confidence = 0.2
+        )
+      )
+
+    val leakedTerms =
+      List(
+        "Dutch E4 Outpost",
+        "Flank Fianchetto Support",
+        "Kingside Storm",
+        "French Base Chipper",
+        "Sound",
+        "King safe",
+        "outpost occupied",
+        "long diagonal",
+        "equalize easily",
+        "pawn storm",
+        "contest e4"
+      )
+
+    evals.foreach { evaluation =>
+      val text = NarrativeLexicon.getGoalStatusDescription(bead = 0, evaluation = evaluation)
+      assert(text.toLowerCase.contains("opening"), clue(text))
+      leakedTerms.foreach(term => assert(!text.contains(term), clue(text)))
+    }
   }
 
   test("motif prefix selection is table-driven rather than an else-if chain") {
@@ -256,6 +621,82 @@ class NarrativeLexiconTest extends FunSuite:
     assert(!tensionBody.contains("zwischenzug"), clue(tensionBody))
     assert(source.contains("private def tacticalTensionMotif"), clue(source))
     assert(source.contains("RelationObservationCatalog.deferredFallbackForMotifTag(motif).isEmpty"), clue(source))
+  }
+
+  test("outline context motifs use typed facts instead of tactic evidence prose parsing") {
+    val source =
+      Files.readString(Paths.get("modules/commentaryCore/src/main/scala/lila/commentary/analysis/NarrativeOutlineBuilder.scala"))
+    val body =
+      source.substring(source.indexOf("private def collectDerivedContextMotifs"), source.indexOf("private def conceptToMotif"))
+
+    assert(body.contains("CommentaryIdeaSurface.factTags"), clue(body))
+    assert(!body.contains("tacticEvidence"), clue(body))
+    assert(!source.contains("private def tacticEvidenceMotifs"), clue(source))
+  }
+
+  test("outline context motifs keep raw draw and endgame concepts out of public theme authority") {
+    val source =
+      Files.readString(Paths.get("modules/commentaryCore/src/main/scala/lila/commentary/analysis/NarrativeOutlineBuilder.scala"))
+    val sourcesBody =
+      source.substring(source.indexOf("private def contextMotifSources"), source.indexOf("private def contextConceptLeadMotifs"))
+    val contextOnlyBody =
+      source.substring(source.indexOf("private def endgameContextOnlyConcept"), source.indexOf("private def positionalTagMotifs"))
+
+    assert(sourcesBody.contains(".filterNot(endgameContextOnlyConcept)"), clue(sourcesBody))
+    List("stalemate", "perpetual", "fortress", "zugzwang", "forced_draw", "draw_resource").foreach { term =>
+      assert(contextOnlyBody.contains(term), clue(term))
+    }
+  }
+
+  test("outline cp-loss severity fallbacks stay objective instead of practical or result claims") {
+    val source =
+      Files.readString(Paths.get("modules/commentaryCore/src/main/scala/lila/commentary/analysis/NarrativeOutlineBuilder.scala"))
+    val severityBody =
+      source.substring(source.indexOf("private def severityIssueConsequence"), source.indexOf("private def isForcingReplySan"))
+    val tailBody =
+      source.substring(source.indexOf("private def buildSeverityTail"), source.indexOf("private def containsBenchmarkNegativeLexicon"))
+    val defaultIssueBody =
+      source.substring(source.indexOf("private def defaultIssueBySeverity"), source.indexOf("private def motifName"))
+    val alternativeContrastBody =
+      source.substring(source.indexOf("private def rankTwoContrastTemplates"), source.indexOf("private def appendStrategicImplication"))
+    val strategicImplicationBody =
+      source.substring(source.indexOf("private def strategicImplicationTemplates"), source.indexOf("private def strategicImplicationSeed"))
+    val alternativeBaseBody =
+      source.substring(source.indexOf("private def alternativeBaseTemplates"), source.indexOf("private def alternativeDiversifiedMaterial"))
+    val combined =
+      List(severityBody, tailBody, defaultIssueBody, alternativeContrastBody, strategicImplicationBody, alternativeBaseBody)
+        .mkString("\n")
+        .toLowerCase
+    val forbidden =
+      List(
+        "conversion becomes straightforward",
+        "king safety and coordination collapse",
+        "forcing control shifts",
+        "direct technical route",
+        "concedes initiative",
+        "defensive workload",
+        "practical control",
+        "practical gap",
+        "practical margin",
+        "practical deficit",
+        "practical tier",
+        "practical handling",
+        "technical ease",
+        "easier to handle",
+        "easier plan",
+        "comfortable piece play",
+        "practical initiative",
+        "smoother sequence",
+        "simpler choices",
+        "defensive duties",
+        "lightens defensive duties",
+        "technically manageable",
+        "technical endgame"
+      )
+
+    forbidden.foreach(term => assert(!combined.contains(term), clue(term)))
+    assert(combined.contains("objective gap"), clue(combined))
+    assert(combined.contains("engine comparison"), clue(combined))
   }
 
   test("motif delta prose keeps witness-only relation labels silent") {

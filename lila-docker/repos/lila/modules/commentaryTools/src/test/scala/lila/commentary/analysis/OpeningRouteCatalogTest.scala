@@ -211,7 +211,26 @@ class OpeningRouteCatalogTest extends FunSuite:
       "occupy_target"
     )
     assert(OpeningRouteTargetEvidence.ownerSeedTerms(benoniRoute).contains("fixed_target:d6"))
+    assert(!OpeningRouteTargetEvidence.ownerSeedTerms(benoniRoute).exists(_.contains("benoni_d6_knight_route")))
     assert(!OpeningRouteTargetEvidence.ownerSeedTerms(kingsIndianRoute).exists(_.startsWith("fixed_target:")))
+  }
+
+  test("route witness terms keep board and PV anchors, not opening-family authority") {
+    val route = OpeningRouteCatalog.default.route("benoni_d6_knight_route").getOrElse(fail("missing Benoni route"))
+    val evidence =
+      KnightRouteEvidence
+        .evaluate(BenoniFen, Some("f3d2"), List("f3d2", "e8e7", "d2c4"), route)
+        .getOrElse(fail("route should replay"))
+    val terms = OpeningRouteTargetEvidence.structureTransitionTerms(route, evidence)
+
+    assert(terms.contains("target_mode:attack_weak_pawn"), clue(terms))
+    assert(terms.contains("route_target:d6"), clue(terms))
+    assert(terms.contains("knight_route:f3-d2-c4"), clue(terms))
+    assert(terms.contains("target_persistent_after_line:d6"), clue(terms))
+    assert(terms.contains("target_attacked_after_line:d6"), clue(terms))
+    assert(!terms.exists(_.startsWith("opening_family:")), clue(terms))
+    assert(!terms.exists(_.startsWith("opening_route:")), clue(terms))
+    assert(!terms.exists(_.contains("benoni_d6_knight_route")), clue(terms))
   }
 
   test("default TSV exposes a starter pack of major opening knight routes") {

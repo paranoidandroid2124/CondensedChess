@@ -311,19 +311,13 @@ private[commentary] object MoveReviewScopedTakeaway:
   ): Option[String] =
     anchorValue(localFact, "relation_kind").flatMap {
       case "discovered_attack" =>
-        for
-          attacker <- anchorValue(localFact, "attacker_square")
-          target <- anchorValue(localFact, "target_square")
-        yield
-          s"The PV keeps the discovered attack from $attacker toward $target local to ${played.san}: $checkedReply, and the line does not authorize a broader evaluation claim."
+        Some(
+          s"The PV keeps the discovered attack relation local to ${played.san}: $checkedReply, and the line does not authorize a broader evaluation claim."
+        )
       case "overload" =>
-        for defender <- anchorValue(localFact, "defender_square")
-        yield
-          val duties = anchorValues(localFact, "duty_square")
-          val dutyText =
-            if duties.nonEmpty then s" across ${joinLabels(duties)}"
-            else ""
-          s"The PV keeps the overload on the $defender defender$dutyText local to ${played.san}: $checkedReply, and the line does not authorize a broader evaluation claim."
+        Some(
+          s"The PV keeps the overload relation local to ${played.san}: $checkedReply, and the line does not authorize a broader evaluation claim."
+        )
       case _ => None
     }
 
@@ -439,11 +433,6 @@ private[commentary] object MoveReviewScopedTakeaway:
     localFact.anchors.collectFirst {
       case anchor if anchor.key == key && anchor.value.trim.nonEmpty => anchor.value.trim
     }
-
-  private def anchorValues(localFact: LocalFactAdmission, key: String): List[String] =
-    localFact.anchors.collect {
-      case anchor if anchor.key == key && anchor.value.trim.nonEmpty => anchor.value.trim
-    }.distinct
 
   private def admitsPurpose(
       purpose: String,

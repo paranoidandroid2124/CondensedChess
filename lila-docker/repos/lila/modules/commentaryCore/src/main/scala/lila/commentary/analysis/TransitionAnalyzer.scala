@@ -178,24 +178,24 @@ object TransitionAnalyzer:
     val phaseStr = phase.getOrElse(ctx.phase)
     
     (prev.category, curr.category) match {
-      // Attack → Defense: forced retreat
+      // Attack -> Defense: pressure-aware pivot
       case (PlanCategory.Attack, PlanCategory.Defensive) if threatToUs =>
-        s"Facing a direct threat, $side is forced to pivot from the attack to defensive consolidation."
+        s"Facing a direct threat, $side pivots from the attack to defensive consolidation."
         
-      // Attack → Transition: converting advantage
+      // Attack -> Transition: evaluation-backed simplification window
       case (PlanCategory.Attack, PlanCategory.Transition) if eval > 200 =>
-        s"With a decisive advantage in the $phaseStr, $side shifts from attacking to simplifying the position."
+        s"With a clear evaluation edge in the $phaseStr, $side shifts from attacking to simplifying the position."
         
       // Defense → Attack: counterattack
       case (PlanCategory.Defensive, PlanCategory.Attack) if threatToThem =>
-        s"$side seizes the opportunity in the $phaseStr to launch a sharp counterattack."
+        s"$side shifts in the $phaseStr toward counterattacking play."
         
       // Phase-specific transitions
       case (p, PlanCategory.Endgame) if p != PlanCategory.Endgame =>
         s"As the game transitions into the endgame, $side realigns their strategy toward ${curr.name}."
 
       case (PlanCategory.Structural, PlanCategory.Attack) =>
-        s"Having solidified the pawn structure, $side now channels that stability into a kingside offensive."
+        s"With the pawn structure stabilized, $side redirects the plan toward kingside activity."
 
       // Same category: evolution
       case _ if prev.category == curr.category =>

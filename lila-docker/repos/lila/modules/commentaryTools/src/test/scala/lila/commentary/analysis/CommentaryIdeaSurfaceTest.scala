@@ -169,6 +169,28 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
     assert(CommentaryIdeaSurface.issueConsequence(weak).exists(_.startsWith("Consequence:")), clue(weak))
   }
 
+  test("fact surface wording does not promote weak-square or endgame anchors into stronger families") {
+    val weak = Fact.WeakSquare(Square.D5, Color.Black, "no pawn defense", FactScope.Now)
+    val outpost = Fact.Outpost(Square.D5, Knight, FactScope.Now)
+    val opposition = Fact.Opposition(Square.D4, Square.D6, distance = 2, isDirect = true, "Direct", FactScope.Now)
+    val kingActivity = Fact.KingActivity(Square.D4, mobility = 5, proximityToCenter = 1, FactScope.Now)
+    val zugzwang = Fact.Zugzwang(Color.Black, FactScope.Now)
+    val ctx = forcingCtx(List(weak, outpost, opposition, kingActivity))
+
+    val weakTexts = (0 to 2).flatMap(bead => CommentaryIdeaSurface.statement(bead, weak, ctx)).map(_.toLowerCase)
+    val outpostTexts = (0 to 2).flatMap(bead => CommentaryIdeaSurface.statement(bead, outpost, ctx)).map(_.toLowerCase)
+    val oppositionTexts = (0 to 2).flatMap(bead => CommentaryIdeaSurface.statement(bead, opposition, ctx)).map(_.toLowerCase)
+    val kingActivityTexts = (0 to 2).flatMap(bead => CommentaryIdeaSurface.statement(bead, kingActivity, ctx)).map(_.toLowerCase)
+
+    assert(weakTexts.nonEmpty, clue(weakTexts))
+    assert(!weakTexts.exists(_.contains("outpost")), clue(weakTexts))
+    assert(outpostTexts.forall(_.contains("outpost")), clue(outpostTexts))
+    assert(!oppositionTexts.exists(text => text.contains("important") || text.contains("key factor")), clue(oppositionTexts))
+    assert(!kingActivityTexts.exists(text => text.contains("well-placed") || text.contains("safe steps")), clue(kingActivityTexts))
+    assertEquals(CommentaryIdeaSurface.tags(zugzwang), Nil)
+    assertEquals(CommentaryIdeaSurface.canonicalFactId(zugzwang), None)
+  }
+
   test("hanging and target facts keep quiet suppression and forcing tags in the shared surface") {
     val hanging = Fact.HangingPiece(Square.E5, Pawn, List(Square.E4), Nil, FactScope.Now)
     val target = Fact.TargetPiece(Square.E5, Pawn, List(Square.H5), Nil, FactScope.Now)
@@ -255,14 +277,16 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
     assertEquals(descriptor.source, "opening_goal", clue(descriptor))
     assertEquals(descriptor.reviewIntent, "normal_development", clue(descriptor))
     assertEquals(descriptor.moveCharacterBand, CommentaryIdeaSurface.MoveCharacterBand.Neutral, clue(descriptor))
-    assert(descriptor.movePurpose.contains("Italian Game"), clue(descriptor.movePurpose))
+    assert(descriptor.movePurpose.contains("opening context"), clue(descriptor.movePurpose))
+    assert(!descriptor.movePurpose.contains("Italian Game"), clue(descriptor.movePurpose))
     assertEquals(descriptor.requiresPvForAdmission, true, clue(descriptor))
     assert(descriptor.reasonTags.contains("opening_goal"), clue(descriptor.reasonTags))
     assert(descriptor.reasonTags.contains("review_intent:normal_development"), clue(descriptor.reasonTags))
     assert(descriptor.reasonTags.contains("character_band:neutral"), clue(descriptor.reasonTags))
     assert(descriptor.reasonTags.contains("line_proof:opening_goal"), clue(descriptor.reasonTags))
     assert(descriptor.reasonTags.contains("line_subject:f1c4"), clue(descriptor.reasonTags))
-    assert(descriptor.baseProse.contains("Italian Game"), clue(descriptor.baseProse))
+    assert(descriptor.baseProse.contains("opening context"), clue(descriptor.baseProse))
+    assert(!descriptor.baseProse.contains("Italian Game"), clue(descriptor.baseProse))
     assert(descriptor.title.contains("develops the bishop toward opening coordination"), clue(descriptor.title))
     assert(!descriptor.title.contains("Development Logic"), clue(descriptor.title))
     assert(!descriptor.baseProse.contains("Development Logic"), clue(descriptor.baseProse))
@@ -327,6 +351,43 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
     assert(!italian.baseProse.contains("Development Logic"), clue(italian.baseProse))
     assert(!qg.title.contains("Center Challenge"), clue(qg.title))
     assert(!qg.baseProse.contains("Center Challenge"), clue(qg.baseProse))
+    assert(!italian.baseProse.contains("Italian Game"), clue(italian.baseProse))
+    assert(!ruy.baseProse.contains("Ruy Lopez"), clue(ruy.baseProse))
+    assert(!qg.baseProse.contains("Queen's Gambit"), clue(qg.baseProse))
+    assert(!italian.baseProse.contains("minor-piece development"), clue(italian.baseProse))
+    assert(!qg.baseProse.contains("queen-pawn tension"), clue(qg.baseProse))
+  }
+
+  test("opening goal surface drops raw unsupported evidence strings") {
+    val descriptor =
+      CommentaryIdeaSurface
+        .describe(
+          played("f1c4", "Bc4", Square.F1, Square.C4, Piece(Color.White, Bishop)),
+          evidence(
+            openingGoal = Some(
+              OpeningGoals.Evaluation(
+                goalName = "Development Logic",
+                status = OpeningGoals.Status.Achieved,
+                supportedEvidence = List("shared carrier", "Minor piece developed"),
+                missingEvidence = Nil,
+                confidence = 0.86
+              )
+            ),
+            openingName = Some("Italian Game")
+          ),
+          Some(exactLineFacts(
+            "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3",
+            "f1c4",
+            List("f1c4", "g8f6", "d2d3"),
+            List("Bc4", "Nf6", "d3"),
+            "italian"
+          ))
+        )
+        .getOrElse(fail("expected PV-proved opening descriptor"))
+
+    assert(descriptor.baseProse.contains("the minor piece develops"), clue(descriptor.baseProse))
+    assert(!descriptor.baseProse.contains("shared carrier"), clue(descriptor.baseProse))
+    assert(!descriptor.baseProse.contains("Italian Game"), clue(descriptor.baseProse))
   }
 
   test("descriptor rule order keeps grounded opening before tactical fallback") {
@@ -1208,6 +1269,8 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
       "The checked line keeps the bishop on g6 attacking e4 in the light-square complex.",
       clue(descriptor.baseProse)
     )
+    assertEquals(descriptor.title, "Bg6 has checked positional support", clue(descriptor.title))
+    assert(!descriptor.title.toLowerCase.contains("color complex"), clue(descriptor.title))
     assertEquals(descriptor.localFact.authority, MoveReviewLocalFact.Authority.CertifiedStrategy)
     assert(descriptor.localFact.evidenceRefs.contains("proof_family:color_complex_squeeze"), clue(descriptor.localFact.evidenceRefs))
     assert(descriptor.localFact.evidenceRefs.contains("target:e4"), clue(descriptor.localFact.evidenceRefs))
@@ -1286,6 +1349,8 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
     assert(fact.evidenceRefs.contains("line_occupation_file:c"), clue(fact.evidenceRefs))
     assert(fact.evidenceRefs.contains("line_occupation_status:semi_open"), clue(fact.evidenceRefs))
     assert(fact.evidenceRefs.contains("line_occupation_target:c4"), clue(fact.evidenceRefs))
+    assertEquals(descriptor.title, "Rc8 has checked positional support", clue(descriptor.title))
+    assert(!descriptor.title.toLowerCase.contains("line occupation"), clue(descriptor.title))
     assert(descriptor.baseProse.contains("semi-open c-file toward c4"), clue(descriptor.baseProse))
     assert(descriptor.localFact.anchors.exists(anchor => anchor.key == "line_file" && anchor.value == "c"), clue(descriptor.localFact.anchors))
     assert(descriptor.localFact.anchors.exists(anchor => anchor.key == "line_file_status" && anchor.value == "semi_open"), clue(descriptor.localFact.anchors))

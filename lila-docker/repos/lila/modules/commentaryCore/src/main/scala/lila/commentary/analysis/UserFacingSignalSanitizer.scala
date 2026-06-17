@@ -89,7 +89,7 @@ private[commentary] object UserFacingSignalSanitizer:
     """(?i)\s+\((?:contested|build)\)""".r -> "",
     """(?i)\bstill looks playable in the engine line, but it needs stronger support beyond that line\b""".r -> "",
     """(?i)\bis not promoted yet because the idea still looks playable, but the supporting evidence is still thin\b""".r -> "",
-    """(?i)\beasier to organize\b""".r -> "easier to carry out"
+    """(?i)\beasier to organize\b""".r -> "more concrete to organize"
   )
   def sanitize(raw: String): String =
     cleanup(
@@ -131,7 +131,7 @@ private[commentary] object UserFacingSignalSanitizer:
     Option(text)
       .getOrElse("")
       .replaceAll("""(?i)\bPin\([^)]*\)""", "pin pressure")
-      .replaceAll("""(?i)\bWinningCapture\([^)]*\)""", "a winning capture")
+      .replaceAll("""(?i)\bWinningCapture\([^)]*\)""", "a capture threat")
       .replaceAll("""(?i)\bDiscoveredAttack\([^)]*\)""", "a discovered attack")
       .replaceAll("""(?i)\bOpenFileControl\([^)]*\)""", "pressure on the open file")
       .replaceAll("""(?i)\bCentralization\([^)]*\)""", "piece improvement")

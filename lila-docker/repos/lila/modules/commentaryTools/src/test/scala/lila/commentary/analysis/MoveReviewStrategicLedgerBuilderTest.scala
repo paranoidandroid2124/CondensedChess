@@ -2,7 +2,7 @@ package lila.commentary.analysis
 
 import munit.FunSuite
 import lila.commentary.{ DecisionComparisonDigest, MoveReviewMoveRef, MoveReviewRefs, MoveReviewVariationRef, NarrativeSignalDigest, StrategyPack, StrategyPieceRoute }
-import lila.commentary.model.NarrativeContext
+import lila.commentary.model.{ CompensationInfo, NarrativeContext }
 import lila.commentary.model.ProbeResult
 import lila.commentary.model.authoring.{ EvidenceBranch, QuestionEvidence }
 import lila.commentary.model.strategic.{ EngineEvidence, PlanContinuity, PlanLifecyclePhase, VariationLine }
@@ -71,11 +71,11 @@ class MoveReviewStrategicLedgerBuilderTest extends FunSuite:
     assert(ledger.stageReason.exists(_.toLowerCase.contains("counterplay")))
   }
 
-  test("classifies compensation fixtures with typed conversion trigger as convert") {
+  test("raw semantic compensation fixture does not become a conversion stage") {
     val ledger = build(MoveReviewProseGoldenFixtures.exchangeSacrifice.ctx)
-    assertEquals(ledger.stageKey, "convert")
-    assertEquals(ledger.motifKey, "compensation_attack")
-    assertEquals(ledger.conversionTrigger, Some("Mating Attack"))
+    assert(ledger.motifKey != "compensation_attack", clue(ledger))
+    assert(ledger.stageKey != "convert", clue(ledger))
+    assertEquals(ledger.conversionTrigger, None)
   }
 
   test("compensation signal alone stays execution when only a probe line supports it") {
@@ -115,6 +115,47 @@ class MoveReviewStrategicLedgerBuilderTest extends FunSuite:
     assertEquals(ledger.conversionTrigger, None)
   }
 
+  test("accepted compensation pressure does not become a conversion stage") {
+    val legalFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+    val ctx =
+      MoveReviewProseGoldenFixtures.practicalChoice.ctx.copy(
+        fen = legalFen,
+        playedMove = Some("e2e4"),
+        playedSan = Some("e4"),
+        semantic =
+          MoveReviewProseGoldenFixtures.practicalChoice.ctx.semantic.map(
+            _.copy(
+              compensation =
+                Some(
+                  CompensationInfo(
+                    investedMaterial = 120,
+                    returnVector = Map("Line Pressure" -> 0.8, "Delayed Recovery" -> 0.7),
+                    expiryPly = None,
+                    conversionPlan = "return vector through line pressure and delayed recovery"
+                  )
+                )
+            )
+          )
+      )
+    val probe =
+      ProbeResult(
+        id = "probe-accepted-compensation-execute",
+        fen = Some(legalFen),
+        evalCp = 34,
+        bestReplyPv = List("e7e5", "g1f3"),
+        deltaVsBaseline = 12,
+        keyMotifs = Nil,
+        probedMove = Some("e2e4"),
+        depth = Some(18)
+      )
+
+    val ledger = build(ctx, probeResults = List(probe))
+    assertEquals(ledger.motifKey, "compensation_attack")
+    assertEquals(ledger.stageKey, "execute")
+    assertEquals(ledger.conversionTrigger, None)
+    assert(!ledger.stageReason.exists(_.toLowerCase.contains("converting")), clue(ledger.stageReason))
+  }
+
   test("compensation ledger stays aligned with surfaced execution and objective") {
     val fixture = MoveReviewProseGoldenFixtures.exchangeSacrifice
     val ledger = build(fixture.ctx, strategyPack = fixture.strategyPack)
@@ -128,7 +169,11 @@ class MoveReviewStrategicLedgerBuilderTest extends FunSuite:
     val ledger = build(MoveReviewProseGoldenFixtures.oppositeBishopsConversion.ctx)
     assertEquals(ledger.motifKey, "opposite_bishops_conversion")
     assertEquals(ledger.stageKey, "convert")
-    assertEquals(ledger.stageReason, Some("The conversion plan has reached its payoff stage"))
+    assertEquals(
+      ledger.stageReason,
+      Some("Plan continuity marks the conversion plan as in fruition, without naming a concrete trigger.")
+    )
+    assert(!ledger.stageReason.exists(_.toLowerCase.contains("payoff")), clue(ledger.stageReason))
   }
 
   test("non-conversion plan fruition does not become a conversion stage") {
@@ -158,8 +203,58 @@ class MoveReviewStrategicLedgerBuilderTest extends FunSuite:
         mainStrategicPlans = Nil,
         planContinuity = None
       )
-    val ledger = build(ctx, refs = Some(sampleRefs(ctx.fen)))
-    assertEquals(ledger.motifKey, "color_complex")
+    assertEquals(maybeBuild(ctx, refs = Some(sampleRefs(ctx.fen))), None)
+  }
+
+  test("raw Carlsbad or minority labels do not choose a public minority motif") {
+    val ctx =
+      MoveReviewProseGoldenFixtures.practicalChoice.ctx.copy(
+        mainStrategicPlans = Nil,
+        planContinuity = None,
+        semantic =
+          MoveReviewProseGoldenFixtures.practicalChoice.ctx.semantic.map(
+            _.copy(
+              practicalAssessment = None,
+              conceptSummary = List("Carlsbad", "minority attack")
+            )
+          )
+      )
+
+    assertEquals(maybeBuild(ctx), None)
+  }
+
+  test("raw concept summary labels do not choose a ledger motif even with an engine line") {
+    val legalFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+    val ctx =
+      MoveReviewProseGoldenFixtures.practicalChoice.ctx.copy(
+        fen = legalFen,
+        playedMove = Some("e2e4"),
+        playedSan = Some("e4"),
+        mainStrategicPlans = Nil,
+        planContinuity = None,
+        semantic =
+          MoveReviewProseGoldenFixtures.practicalChoice.ctx.semantic.map(
+            _.copy(
+              practicalAssessment = None,
+              conceptSummary = List("rook pawn march", "h pawn lever")
+            )
+          ),
+        engineEvidence =
+          Some(
+            EngineEvidence(
+              depth = 18,
+              variations = List(
+                VariationLine(
+                  moves = List("e2e4", "e7e5", "g1f3"),
+                  scoreCp = 24,
+                  depth = 18
+                )
+              )
+            )
+          )
+      )
+
+    assertEquals(maybeBuild(ctx), None)
   }
 
   test("prefers probe-backed primary lines and caps them at four SAN moves") {

@@ -86,28 +86,19 @@ object MoveReviewStrategicLedgerBuilder:
       key = "minority_attack",
       label = "Minority attack",
       markers = List("minority attack", "carlsbad"),
-      allowedThemes = Set(PlanTheme.WeaknessFixation),
-      preferredSubplans = Set(PlanKind.MinorityAttackFixation)
+      preferredSubplans = Set(PlanKind.BackwardPawnTargeting)
     ),
     MotifDef(
       key = "outpost_reinforcement",
       label = "Outpost reinforcement",
       markers = List("outpost reinforcement", "outpost", "strong square", "anchor square"),
-      allowedThemes = Set(PlanTheme.PieceRedeployment),
       preferredSubplans = Set(PlanKind.OutpostEntrenchment)
     ),
     MotifDef(
       key = "color_complex",
       label = "Color complex",
       markers = List("color complex", "colour complex", "color complex weakness"),
-      allowedThemes = Set(
-        PlanTheme.SpaceClamp,
-        PlanTheme.WeaknessFixation
-      ),
-      preferredSubplans = Set(
-        PlanKind.FlankClamp,
-        PlanKind.StaticWeaknessFixation
-      )
+      preferredSubplans = Set(PlanKind.FlankClamp)
     ),
     MotifDef(
       key = "opposite_bishops_conversion",
@@ -260,7 +251,9 @@ object MoveReviewStrategicLedgerBuilder:
     val scores = scala.collection.mutable.Map.empty[String, Double].withDefaultValue(0.0)
 
     Motifs.foreach { motif =>
-      if motifEligible(motif, ctx, oppositePlanReady) then
+      val compensationMotifAllowed = motif.key != "compensation_attack" || compensationSignal
+      val markerAllowed = motifMarkerScoreAllowed(motif, planProfile)
+      if compensationMotifAllowed && markerAllowed && motifEligible(motif, ctx, oppositePlanReady) then
         motif.markers.foreach { marker =>
           val normalizedMarker = normalize(marker)
           if tokens.exists(token => token.contains(normalizedMarker)) then
@@ -300,8 +293,7 @@ object MoveReviewStrategicLedgerBuilder:
       ctx.mainStrategicPlans.flatMap(plan => List(plan.planId, plan.themeL1)) ++
         ctx.planContinuity.toList.flatMap(_.planId) ++
         ctx.semantic.toList.flatMap { semantic =>
-          semantic.conceptSummary ++
-            semantic.positionalFeatures.map(_.tagType) ++
+          semantic.positionalFeatures.map(_.tagType) ++
             semantic.structureProfile.toList.flatMap(profile =>
               List(profile.primary, profile.centerState) ++ profile.evidenceCodes
             ) ++
@@ -323,8 +315,9 @@ object MoveReviewStrategicLedgerBuilder:
     val themes =
       (
         ctx.mainStrategicPlans.flatMap { hypothesis =>
-          val theme = ThemeResolver.fromHypothesis(hypothesis)
-          Option.when(theme != PlanTheme.Unknown)(theme)
+          val inferredTheme = ThemeResolver.fromHypothesis(hypothesis)
+          ThemeResolver.subplanFromPlanId(hypothesis.planId).map(_.theme).toList ++
+            Option.when(inferredTheme != PlanTheme.Unknown)(inferredTheme)
         } ++
           ctx.planContinuity.toList.flatMap(_.planId).flatMap { raw =>
             val theme = ThemeResolver.fromPlanId(raw)
@@ -334,7 +327,10 @@ object MoveReviewStrategicLedgerBuilder:
 
     val subplans =
       (
-        ctx.mainStrategicPlans.flatMap(ThemeResolver.subplanFromHypothesis) ++
+        ctx.mainStrategicPlans.flatMap { hypothesis =>
+          ThemeResolver.subplanFromPlanId(hypothesis.planId).toList ++
+            ThemeResolver.subplanFromHypothesis(hypothesis).toList
+        } ++
           ctx.planContinuity.toList.flatMap(_.planId).flatMap(ThemeResolver.subplanFromPlanId)
       ).toSet
 
@@ -359,6 +355,15 @@ object MoveReviewStrategicLedgerBuilder:
     val themeBonus =
       Option.when(motif.allowedThemes.intersect(planProfile.themes).nonEmpty)(1.1)
     subplanBonus.orElse(themeBonus)
+
+  private def motifMarkerScoreAllowed(
+      motif: MotifDef,
+      planProfile: PlanProfile
+  ): Boolean =
+    motif.key match
+      case "minority_attack" | "outpost_reinforcement" | "color_complex" =>
+        planAlignmentScore(motif, planProfile).nonEmpty
+      case _ => true
 
   private def hasOppositeBishopsSignal(ctx: NarrativeContext): Boolean =
     ctx.semantic.exists(_.positionalFeatures.exists(_.tagType == "OppositeColorBishops"))
@@ -441,7 +446,7 @@ object MoveReviewStrategicLedgerBuilder:
         val conversionText =
           conversionTrigger
             .map(trigger => s"the edge is now built around converting through $trigger")
-            .orElse(Some("The conversion plan has reached its payoff stage"))
+            .orElse(Some("Plan continuity marks the conversion plan as in fruition, without naming a concrete trigger."))
         StageChoice(
           key = "convert",
           label = "Convert",
@@ -537,11 +542,7 @@ object MoveReviewStrategicLedgerBuilder:
       .distinct
 
   private def collectConversionTrigger(ctx: NarrativeContext): Option[String] =
-    CompensationInterpretation.effectiveSemanticDecision(ctx)
-      .flatMap(_.decision.signal.summary)
-      .map(_.trim)
-      .filter(_.nonEmpty)
-      .orElse(ctx.decision.toList.flatMap(_.delta.planAdvancements).headOption.map(trimSentence).filter(_.nonEmpty))
+    ctx.decision.toList.flatMap(_.delta.planAdvancements).headOption.map(trimSentence).filter(_.nonEmpty)
 
   private def choosePrimaryLine(
       ctx: NarrativeContext,

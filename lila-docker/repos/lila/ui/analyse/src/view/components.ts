@@ -223,8 +223,8 @@ function workspaceTools(ctrl: AnalyseCtrl): WorkspaceTool[] {
   const tools: WorkspaceTool[] = [
     {
       id: 'opening-explorer',
-      label: 'Explorer',
-      summary: 'Openings and tablebase positions',
+      label: 'Opening book',
+      summary: 'Opening games and tablebase positions',
       icon: licon.Book,
       active: ctrl.activeControlBarTool() === 'opening-explorer',
       open: ctrl.toggleExplorer,

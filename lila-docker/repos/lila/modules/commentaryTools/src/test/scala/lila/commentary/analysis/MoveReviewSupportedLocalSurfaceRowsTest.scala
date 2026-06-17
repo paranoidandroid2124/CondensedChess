@@ -1950,7 +1950,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
     assertEquals(tactical, Nil)
   }
 
-  test("projects certified restricted-defense conversion into a bounded technical row") {
+  test("projects certified restricted-defense conversion into a bounded defense row") {
     val rows =
       noRankedSupportedLocalRows(
         localCtx = neutralizeCtx,
@@ -1958,8 +1958,8 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
         playedMove = "e2e3"
       )
 
-    assertEquals(rows.map(_.label), List("Technical conversion"))
-    assertEquals(rows.head.text, "The checked line keeps the conversion route intact after Ke7.")
+    assertEquals(rows.map(_.label), List("Restricted defense"))
+    assertEquals(rows.head.text, "The checked line keeps the defender's replies narrow after Ke7.")
     assertEquals(
       rows.head.authority,
       Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))
@@ -1985,7 +1985,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
         playedMove = "e2e3"
       )
 
-    assertEquals(rows.map(_.label), List("Route denial", "Break and entry", "Technical conversion"))
+    assertEquals(rows.map(_.label), List("Route denial", "Break and entry", "Restricted defense"))
     assert(rows.forall(_.authority.contains(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))), clue(rows))
   }
 
@@ -2010,7 +2010,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       )
 
     assertEquals(rows.map(_.label), List("Counterplay break", "Route denial", "Break and entry"))
-    assert(!rows.exists(_.label == "Technical conversion"), clue(rows))
+    assert(!rows.exists(_.label == "Restricted defense"), clue(rows))
   }
 
   test("does not project uncertified or stale restricted-defense conversion") {
@@ -2044,11 +2044,11 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
         playedMove = "e2e3"
       )
 
-    assert(!uncertified.exists(_.label == "Technical conversion"), clue(uncertified))
-    assert(!stale.exists(_.label == "Technical conversion"), clue(stale))
+    assert(!uncertified.exists(_.label == "Restricted defense"), clue(uncertified))
+    assert(!stale.exists(_.label == "Restricted defense"), clue(stale))
   }
 
-  test("suppresses restricted-defense conversion row under tactical truth mode") {
+  test("suppresses restricted-defense row under tactical truth mode") {
     val rows =
       noRankedSupportedLocalRows(
         localCtx = neutralizeCtx,
@@ -3588,7 +3588,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
           3,
           "f2f4",
           List(VariationLine(List("f2f4", "e5f4"), scoreCp = 0, depth = 18)),
-          "The checked line plays the f2-f4 pawn break, but king safety still needs care."
+          "The checked line plays the f2-f4 pawn break, but the follow-up still needs care."
         )
       )
 

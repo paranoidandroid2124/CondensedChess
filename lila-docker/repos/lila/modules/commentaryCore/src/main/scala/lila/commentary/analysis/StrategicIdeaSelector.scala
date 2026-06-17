@@ -2044,7 +2044,7 @@ private[commentary] object StrategicIdeaSelector:
     val dominant = ideas.headOption
     val secondary = ideas.drop(1).headOption
     val compensationCarrier =
-      if hasCompensationDigest(base) then None else deriveCompensationCarrier(pack, ideas, semantic)
+      if base.compensation.exists(_.trim.nonEmpty) then None else deriveCompensationCarrier(pack, ideas, semantic)
     Option.when(dominant.isDefined || digest.isDefined || compensationCarrier.exists(_.hasSignal))(
       base.copy(
         compensation = base.compensation.orElse(compensationCarrier.flatMap(_.summary)),
@@ -3013,7 +3013,7 @@ private[commentary] object StrategicIdeaSelector:
         ).flatten
       facts match
         case fact :: Nil => fact
-        case _           => "endgame technique cue"
+        case _           => "endgame-pattern cue"
     else if focusSquares.nonEmpty then s"exchanges on ${joinLowerTerms(focusSquares.take(3))}"
     else focusZone.flatMap(zoneFocusText).map(zone => s"favorable exchanges in $zone").getOrElse("favorable exchanges")
 
@@ -3096,11 +3096,6 @@ private[commentary] object StrategicIdeaSelector:
       low.contains("line access") ||
       low.contains("file") ||
       low.contains("clamp")
-
-  private def hasCompensationDigest(digest: NarrativeSignalDigest): Boolean =
-    digest.compensation.exists(_.trim.nonEmpty) ||
-      digest.compensationVectors.exists(_.trim.nonEmpty) ||
-      digest.investedMaterial.exists(_ > 0)
 
   private def targetCarriesLinePressure(target: StrategyDirectionalTarget): Boolean =
     target.strategicReasons.exists { reason =>

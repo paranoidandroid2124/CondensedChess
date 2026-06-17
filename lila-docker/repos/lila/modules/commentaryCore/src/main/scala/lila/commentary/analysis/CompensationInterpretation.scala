@@ -191,12 +191,12 @@ private[commentary] object CompensationInterpretation:
   ): Decision =
     val text = (signal.summary.toList ++ signal.vectors).map(normalizeLexicalText).mkString(" ")
     val invested = signal.investedMaterial.getOrElse(0)
-    val hasInitiative = containsAny(text, List("initiative", "initiative alive", "initiative against"))
-    val hasAttackCarrier =
+    val hasAttackText =
       containsAny(
         text,
         List("attack on king", "attack", "mating attack", "king attack", "mating net", "king pressure")
       )
+    val hasAttackCarrier = hasAttackText && kingPressureBoardEvidence(fenBefore)
     val hasTimeCarrier =
       containsAny(text, List("time", "development lead", "lead in development", "tempo"))
     val hasLinePressure =
@@ -267,7 +267,6 @@ private[commentary] object CompensationInterpretation:
       phase != "opening" &&
         hasReturnVector &&
         !hasTransitionWindow &&
-        !hasInitiative &&
         !hasAttackCarrier &&
         !hasTimeCarrier &&
         !durableStructuralPressure
@@ -275,13 +274,13 @@ private[commentary] object CompensationInterpretation:
       phase == "endgame" &&
         invested >= 500 &&
         !durableStructuralPressure &&
-        (!hasInitiative && !hasAttackCarrier && !hasTimeCarrier || hasTransitionWindow)
+        (!hasAttackCarrier && !hasTimeCarrier || hasTransitionWindow)
     val persistenceClass =
       if durableStructuralPressure then "durable_pressure"
-      else if hasInitiative || hasAttackCarrier || hasTimeCarrier then "non_immediate_transition"
+      else if hasAttackCarrier || hasTimeCarrier then "non_immediate_transition"
       else if hasTransitionWindow || hasReturnVector then "transition_only"
       else "tactical_window"
-    val hasAcceptedCarrier = hasInitiative || hasAttackCarrier || hasTimeCarrier || durableStructuralPressure
+    val hasAcceptedCarrier = hasAttackCarrier || hasTimeCarrier || durableStructuralPressure
     val rejectionReason =
       if recaptureNeutralized then Some("recapture_neutralized")
       else if thinReturnVectorOnly then Some("thin_return_vector_only")
@@ -347,6 +346,18 @@ private[commentary] object CompensationInterpretation:
           explicitlyMentionedWeakTarget ||
           namedSingleWeakPawn
       )
+    }.getOrElse(false)
+
+  private def kingPressureBoardEvidence(fenBefore: String): Boolean =
+    Fen.read(Standard, Fen.Full(fenBefore)).flatMap { sit =>
+      val board = sit.board
+      val color = sit.color
+      board.kingPosOf(!color).map { enemyKing =>
+        val enemyKingZone = enemyKing.kingAttacks
+        val enemyDefenders = (board.byColor(!color) & enemyKingZone).count
+        val ourAttackers = board.attackers(enemyKing, color).count
+        ourAttackers > enemyDefenders
+      }
     }.getOrElse(false)
 
   private val SquareMentionPattern = """\b[a-h][1-8]\b""".r

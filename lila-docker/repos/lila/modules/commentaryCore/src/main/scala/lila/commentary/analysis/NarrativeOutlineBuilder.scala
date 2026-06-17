@@ -116,16 +116,13 @@ object NarrativeOutlineBuilder:
     )
   private val StableContextThemeMotifs =
     List(
-      "minority_attack",
       "bad_bishop",
       "bishop_pair",
       "opposite_bishops",
       "isolated_pawn",
       "hanging_pawns",
-      "outpost",
       "open_file",
-      "semi_open_file",
-      "color_complex"
+      "semi_open_file"
     )
   private case class BoardAnchor(text: String, consumedThreat: Boolean = false, consumedFact: Boolean = false)
   private case class ContextMotifFrame(
@@ -135,7 +132,7 @@ object NarrativeOutlineBuilder:
     deltaMotifs: List[String],
     motifHash: Int,
     highTension: Boolean,
-    trustedConceptThemeSignals: List[String],
+    trustedThemeMotifs: List[String],
     motifPrefixCandidates: List[String]
   )
   private case class ContextMotifSources(
@@ -548,7 +545,7 @@ object NarrativeOutlineBuilder:
       deltaMotifs = sources.deltaMotifs,
       motifHash = contextMotifHash(sources.motifSignals),
       highTension = contextHighTension(ctx, sources.motifSignals),
-      trustedConceptThemeSignals = trustedContextThemeSignalsFromSources(ctx, keyFact, phase, sources),
+      trustedThemeMotifs = trustedContextThemeSignalsFromSources(ctx, keyFact, phase, sources),
       motifPrefixCandidates = contextMotifPrefixCandidatesFromSources(ctx, keyFact, phase, sources)
     )
 
@@ -559,7 +556,7 @@ object NarrativeOutlineBuilder:
     sources: ContextMotifSources
   ): List[String] =
     trustedContextThemeSignals(
-      conceptSummaryMotifs = sources.conceptSummaryMotifs,
+      motifs = (sources.conceptSummaryMotifs ++ sources.derivedContextMotifs ++ sources.deltaMotifs).distinct,
       derivedContextSignals = sources.derivedContextSignals,
       deltaMotifSignals = sources.deltaMotifSignals,
       keyFact = keyFact,
@@ -586,7 +583,13 @@ object NarrativeOutlineBuilder:
     )
 
   private def contextMotifSources(ctx: NarrativeContext): ContextMotifSources =
-    val conceptSummaryMotifs = ctx.semantic.toList.flatMap(_.conceptSummary).map(_.trim).filter(_.nonEmpty).distinct
+    val conceptSummaryMotifs =
+      ctx.semantic.toList
+        .flatMap(_.conceptSummary)
+        .map(_.trim)
+        .filter(_.nonEmpty)
+        .filterNot(endgameContextOnlyConcept)
+        .distinct
     val derivedContextMotifs = collectDerivedContextMotifs(ctx)
     val conceptMotifs = (conceptSummaryMotifs ++ derivedContextMotifs).distinct
     val deltaMotifs = ctx.delta.map(_.newMotifs).getOrElse(Nil)
@@ -625,7 +628,7 @@ object NarrativeOutlineBuilder:
     val wPlan = strategicNames.headOption
     val bPlan = strategicNames.lift(1)
     val isBalanced = evalOpt.exists(cp => cp >= -80 && cp <= 80)
-    val imbalanceOpt = if (isBalanced) buildImbalanceContrast(ctx) else None
+    val imbalanceOpt = if (isBalanced) buildImbalanceContrast(ctx, motifFrame.trustedThemeMotifs) else None
     val evalText = imbalanceOpt match
       case Some((whiteAdv, blackAdv)) =>
         NarrativeLexicon.getEvaluativeImbalanceStatement(bead ^ 0x1b873593, evalOpt.getOrElse(0), whiteAdv, blackAdv, ply = ctx.ply)
@@ -663,14 +666,14 @@ object NarrativeOutlineBuilder:
       bead: Int
   ): Unit =
     buildThemeKeywordSentence(
-      motifs = (motifFrame.derivedContextMotifs ++ motifFrame.deltaMotifs ++ motifFrame.trustedConceptThemeSignals).distinct,
+      motifs = motifFrame.trustedThemeMotifs,
       existingText = rawFragmentText(parts.toList),
       bead = bead ^ 0x6d2b79f5,
       ply = ctx.ply,
       phase = motifFrame.phase
     ).foreach(text => parts += supportFragment(text, sceneGrounded = true, generalized = true))
     buildCanonicalMotifTermSentence(
-      motifs = (motifFrame.conceptSummaryMotifs ++ motifFrame.derivedContextMotifs ++ motifFrame.deltaMotifs).distinct,
+      motifs = motifFrame.trustedThemeMotifs,
       existingText = rawFragmentText(parts.toList),
       bead = bead ^ 0x31af9d42,
       ply = ctx.ply,
@@ -689,7 +692,6 @@ object NarrativeOutlineBuilder:
         (() => buildStrategicStackContextSentence(ctx, rawFragmentText(parts.toList)), "mainStrategicPlans", "Context strategic stack", "strategic_stack"),
         (() => buildStructuralContextSentence(ctx, rawFragmentText(parts.toList)), "semantic.planAlignment", "Context structure", "structural_context"),
         (() => buildStrategicFlowContextSentence(ctx, rawFragmentText(parts.toList)), "strategicFlow", "Context flow", "strategic_flow"),
-        (() => buildOpponentPlanContextSentence(ctx, rawFragmentText(parts.toList)), "opponentPlan", "Context opponent", "opponent_plan"),
         (() => buildMetaContextSentence(ctx, rawFragmentText(parts.toList)), "meta.choiceType", "Context meta", "decision_context")
       )
     recordedContexts.foreach { case (sentence, source, label, concept) =>
@@ -697,14 +699,14 @@ object NarrativeOutlineBuilder:
     }
 
   private def trustedContextThemeSignals(
-      conceptSummaryMotifs: List[String],
+      motifs: List[String],
       derivedContextSignals: List[String],
       deltaMotifSignals: List[String],
       keyFact: Option[Fact],
       ctx: NarrativeContext,
       phase: String
   ): List[String] =
-    conceptSummaryMotifs
+    motifs
       .map(_.trim)
       .filter(_.nonEmpty)
       .filter(raw =>
@@ -739,12 +741,17 @@ object NarrativeOutlineBuilder:
     keyFact: Option[Fact],
     ctx: NarrativeContext
   ): Boolean =
-    derivedContextSignals.exists(sig => motifSignalMatches(sig, motif)) ||
-      deltaMotifSignals.exists(sig => motifSignalMatches(sig, motif)) ||
+    val fromDelta = deltaMotifSignals.exists(sig => motifSignalMatches(sig, motif))
+    val boardCorroborated =
       keyFact.exists(f => CommentaryIdeaSurface.motifCorroboratedByFact(motif, f)) ||
       motifCorroboratedByThreat(motif, ctx.threats.toUs) ||
-      motifCorroboratedByPawnPlay(motif, ctx.pawnPlay) ||
-      motifMatchesAny(motif, StableContextThemeMotifs)
+      motifCorroboratedByPawnPlay(motif, ctx.pawnPlay)
+    if motifRequiresBoardCorroboration(motif) then fromDelta || boardCorroborated
+    else
+      derivedContextSignals.exists(sig => motifSignalMatches(sig, motif)) ||
+        fromDelta ||
+        boardCorroborated ||
+        motifMatchesAny(motif, StableContextThemeMotifs)
 
   private def contextMotifPrefixCandidates(
       conceptLeadMotifs: List[String],
@@ -1116,23 +1123,6 @@ object NarrativeOutlineBuilder:
                 case None    => s"the opponent's counterplay through $t would come alive"
             LineScopedCitation.afterClause(citation, body)
           }
-    }
-
-  private def buildOpponentPlanContextSentence(
-    ctx: NarrativeContext,
-    existingText: String
-  ): Option[String] =
-    ctx.opponentPlan.flatMap { plan =>
-      val evidenceClause =
-        plan.evidence.headOption
-          .map(_.trim)
-          .filter(text => text.nonEmpty && text.length <= 72)
-          .map(ev => s", backed by $ev")
-          .getOrElse("")
-      val base =
-        if plan.isEstablished then s"The opponent already has ${plan.name} in motion$evidenceClause."
-        else s"The opponent's main counterplan is ${plan.name}$evidenceClause."
-      Option.when(sentenceIsNovel(base, existingText))(base)
     }
 
   private def buildMetaContextSentence(
@@ -2174,9 +2164,9 @@ object NarrativeOutlineBuilder:
           )
         case OpeningBranchMechanism.StructuralTransformation =>
           List(
-            "pawn-structure transformation that redirected long-term plans",
-            "structural pawn shifts that changed long-plan priorities",
-            "pawn-skeleton changes that rerouted strategic plans"
+            "pawn-structure changes in the reference route",
+            "structural pawn shifts in the sampled line",
+            "pawn-skeleton changes as opening context"
           )
         case OpeningBranchMechanism.InitiativeSwing =>
           List(
@@ -2199,7 +2189,7 @@ object NarrativeOutlineBuilder:
       case OpeningBranchMechanism.PromotionRace =>
         "promotion threats and tempo races"
       case OpeningBranchMechanism.StructuralTransformation =>
-        "pawn-structure transformation and plan rerouting"
+        "pawn-structure changes in the reference routes"
       case OpeningBranchMechanism.InitiativeSwing =>
         "initiative swings from piece activity"
 
@@ -2261,19 +2251,19 @@ object NarrativeOutlineBuilder:
     PrecedentComparisonSummaryFamilies(
       ordinary = List(
         supportFragment(
-          text = s"Across these branches, results changed by which side better handled $dominantLabel.",
+          text = s"Across these reference branches, the recurring context is $dominantLabel.",
           evidenceBacked = true,
           generalized = true
         ),
         supportFragment(
-          text = s"Common pattern: the side that managed $dominantLabel more accurately got the practical edge.",
+          text = s"Common reference pattern: $dominantLabel appears in the compared sample lines.",
           evidenceBacked = true,
           generalized = true
         )
       ),
       sharedLesson = List(
         AuthorityTaggedFragment(
-          text = s"Shared lesson: this split is decided less by result labels and more by control of $dominantLabel.",
+          text = s"Shared context: $dominantLabel is only a reference-route hint until current-line evidence supports it.",
           authority = FragmentAuthority.unsafe_as_lesson,
           evidenceBacked = true,
           generalized = true
@@ -2285,17 +2275,17 @@ object NarrativeOutlineBuilder:
     PrecedentComparisonSummaryFamilies(
       ordinary = List(
         supportFragment(
-          text = s"All cited branches revolve around $dominantLabel.",
+          text = s"All cited branches keep $dominantLabel in the reference context.",
           evidenceBacked = true,
           generalized = true
         ),
         supportFragment(
-          text = s"The recurring practical theme across these games is $dominantLabel.",
+          text = s"The recurring reference theme across these games is $dominantLabel.",
           evidenceBacked = true,
           generalized = true
         ),
         supportFragment(
-          text = s"These precedent lines point to one key driver: $dominantLabel.",
+          text = s"These precedent lines point to one comparison label: $dominantLabel.",
           evidenceBacked = true,
           generalized = true
         )
@@ -2703,15 +2693,11 @@ object NarrativeOutlineBuilder:
     rankedPlans: RankedQuestionPlans,
     bead: Int
   ): WrapUpFragments =
-    val cpWhite = wrapUpEvalCpWhite(ctx)
     WrapUpFragments(
       planner = plannerWrapUpFragments(rankedPlans),
-      practical = practicalWrapUpFragment(ctx, bead, cpWhite),
+      practical = practicalWrapUpFragment(ctx),
       compensation = compensationWrapUpFragment(ctx, bead)
     )
-
-  private def wrapUpEvalCpWhite(ctx: NarrativeContext): Int =
-    rankedEngineVariations(ctx).headOption.map(_.scoreCp).orElse(ctx.engineEvidence.flatMap(_.best).map(_.scoreCp)).getOrElse(0)
 
   private def plannerWrapUpFragments(rankedPlans: RankedQuestionPlans): List[AuthorityTaggedFragment] =
     rankedPlans.primary
@@ -2721,14 +2707,10 @@ object NarrativeOutlineBuilder:
       .map(_.text)
       .map(text => supportFragment(text, plannerOwned = true, generalized = true))
 
-  private def practicalWrapUpFragment(
-    ctx: NarrativeContext,
-    bead: Int,
-    cpWhite: Int
-  ): Option[AuthorityTaggedFragment] =
+  private def practicalWrapUpFragment(ctx: NarrativeContext): Option[AuthorityTaggedFragment] =
     ctx.semantic
       .flatMap(_.practicalAssessment)
-      .map(pa => supportFragment(buildPracticalWrapUpSentence(pa, bead, cpWhite, ctx.ply), sceneGrounded = true, generalized = true))
+      .flatMap(pa => buildPracticalWrapUpSentence(pa).map(sentence => supportFragment(sentence, sceneGrounded = true, generalized = true)))
 
   private def compensationWrapUpFragment(
     ctx: NarrativeContext,
@@ -2759,22 +2741,11 @@ object NarrativeOutlineBuilder:
       .filter(sentenceIsNovel(_, existingText))
 
   private def practicalMainMoveSentence(pa: PracticalInfo): Option[String] =
-    val verdict = pa.verdict.trim.toLowerCase
     val drivers = summarizePracticalDrivers(pa.biasFactors, limit = 2)
-    if verdict.isEmpty && drivers.isEmpty then None
-    else if verdict.contains("conversion") then Some("The practical task is less about a new tactic than keeping the technical route clean.")
-    else if verdict.contains("defen") then Some("Practically, the move also keeps the defensive task manageable.")
-    else if verdict.contains("counter") then Some("Practically, the move matters because it limits the opponent's easiest counterplay.")
-    else Some(generalPracticalMainMoveSentence(verdict, drivers))
+    Option.when(drivers.nonEmpty)(generalPracticalMainMoveSentence(drivers))
 
-  private def generalPracticalMainMoveSentence(verdict: String, drivers: List[String]): String =
-    val verdictText =
-      if verdict.nonEmpty then s"Practically, the key task is ${verdict.stripSuffix(".")}"
-      else "Practically, the task is defined by the easiest plans to handle"
-    val driverText =
-      Option.when(drivers.nonEmpty)(s", with the workload driven by ${drivers.mkString(" and ")}")
-        .getOrElse("")
-    s"$verdictText$driverText."
+  private def generalPracticalMainMoveSentence(drivers: List[String]): String =
+    s"The practical support is that ${drivers.mkString(" and ")}."
 
   private def compensationMainMoveSentence(ctx: NarrativeContext): Option[String] =
     effectiveCompensationSignal(ctx).flatMap { signal =>
@@ -2834,19 +2805,11 @@ object NarrativeOutlineBuilder:
       LineScopedCitation.afterClause(citation, body)
     }
 
-  private def buildPracticalWrapUpSentence(
-    pa: PracticalInfo,
-    bead: Int,
-    cpWhite: Int,
-    ply: Int
-  ): String =
+  private def buildPracticalWrapUpSentence(pa: PracticalInfo): Option[String] =
     val drivers = summarizePracticalDrivers(pa.biasFactors, limit = 2)
-    val lowerVerdict = pa.verdict.trim.toLowerCase
-    if lowerVerdict.nonEmpty && drivers.nonEmpty then
-      s"Practically, the position is ${lowerVerdict.stripSuffix(".")} because ${drivers.mkString(" and ")}."
-    else
-      val seed = bead ^ Math.abs(pa.verdict.hashCode) ^ (cpWhite << 1)
-      NarrativeLexicon.getPracticalVerdict(seed, pa.verdict, cpWhite, ply = ply)
+    Option.when(drivers.nonEmpty)(
+      s"The practical support is that ${drivers.mkString(" and ")}."
+    )
 
   private def buildCompensationWrapUpSentence(
     signal: CompensationInterpretation.Signal,
@@ -2869,15 +2832,7 @@ object NarrativeOutlineBuilder:
     biasFactors
       .sortBy(bf => -Math.abs(bf.weight))
       .take(limit)
-      .flatMap { bf =>
-        val factor = Option(bf.factor).map(_.trim).filter(_.nonEmpty)
-        val description = Option(bf.description).map(_.trim).filter(_.nonEmpty)
-        factor.map { f =>
-          description match
-            case Some(d) if !d.equalsIgnoreCase(f) => s"${f.toLowerCase} ($d)"
-            case _                                 => f.toLowerCase
-        }
-      }
+      .flatMap(bf => LiveNarrativeCompressionCore.renderPracticalBiasPlayer(bf.factor, bf.description))
 
   private def summarizeCompensationVectorLabels(
     vectors: List[String],
@@ -3822,27 +3777,37 @@ object NarrativeOutlineBuilder:
     else if motif.contains("repetition") || motif.contains("repeat") then Some("repeat")
     else None
 
-  private def buildImbalanceContrast(ctx: NarrativeContext): Option[(String, String)] =
+  private def buildImbalanceContrast(ctx: NarrativeContext, trustedMotifs: List[String]): Option[(String, String)] =
     ctx.semantic.flatMap { semantic =>
+      val trustedSignals = trustedMotifs.map(normalizeMotifKey).filter(_.nonEmpty)
+      def trustedMotifContains(term: String): Boolean =
+        trustedSignals.exists(_.contains(term))
+
       def formatTag(tag: PositionalTagInfo): Option[String] = tag.tagType match {
-        case "BishopPairAdvantage" => Some("the Bishop pair") // Was 'BishopPair' - brittle string
-        case "OpenFile" => tag.file.map(f => s"control of the $f-file")
-        case "Outpost" => tag.square.map(s => s"a strong outpost on $s")
-        case "PassedPawn" => tag.square.map(s => s"a passed pawn on $s")
-        case "SpaceAdvantage" => Some("a space advantage")
-        // Other tags that are valid positional advantages
+        case "BishopPairAdvantage" => Some("the bishop pair")
+        case "OpenFile" => tag.file.map(f => s"heavy-piece access to the $f-file")
+        case "Outpost" if trustedMotifContains("outpost") => tag.square.map(s => s"a verified outpost on $s")
+        case "SpaceAdvantage" => Some("central space")
         case "ConnectedRooks" => Some("connected rooks")
         case _ => None
       }
+
+      def weakComplexImbalance(owner: String): Option[String] =
+        Option.when(trustedMotifContains("color_complex")) {
+          semantic.structuralWeaknesses
+            .filter(_.owner == owner)
+            .headOption
+            .map(w => s"${owner}'s ${w.squareColor}-square weaknesses")
+        }.flatten
 
       val whiteTags = semantic.positionalFeatures.filter(_.color == "White")
       val blackTags = semantic.positionalFeatures.filter(_.color == "Black")
 
       val whiteAdv = whiteTags.flatMap(formatTag).headOption
-        .orElse(semantic.structuralWeaknesses.filter(_.owner == "Black").headOption.map(w => s"pressure on Black's ${w.squareColor} squares"))
+        .orElse(weakComplexImbalance("Black"))
 
       val blackAdv = blackTags.flatMap(formatTag).headOption
-        .orElse(semantic.structuralWeaknesses.filter(_.owner == "White").headOption.map(w => s"pressure on White's ${w.squareColor} squares"))
+        .orElse(weakComplexImbalance("White"))
 
       (whiteAdv, blackAdv) match {
         case (Some(w), Some(b)) if w != b => Some((w, b)) // Only return if both exist and are distinct
@@ -3850,7 +3815,7 @@ object NarrativeOutlineBuilder:
       }
     }
 
-  private val EndgameTransitionPattern = raw"(.+)\((.+)\)\s*→\s*(.+)\((.+)\)".r
+  private[analysis] val EndgameTransitionPattern = raw"(.+)\((.+)\)\s*→\s*(.+)\((.+)\)".r
 
   private def buildEndgameContinuitySentence(info: EndgameInfo): Option[String] =
     info.transition.flatMap {
@@ -3879,7 +3844,7 @@ object NarrativeOutlineBuilder:
       }
     }
 
-  private def humanizeEndgamePattern(raw: String): String =
+  private[analysis] def humanizeEndgamePattern(raw: String): String =
     val normalized = Option(raw).getOrElse("").trim
     if normalized.isEmpty then "endgame shape"
     else if normalized.equalsIgnoreCase("none") then "no stable endgame shape"
@@ -3931,23 +3896,6 @@ object NarrativeOutlineBuilder:
       case pattern if pattern.equalsIgnoreCase("Lucena")          => lucenaLossClause(board)
       case pattern if pattern.equalsIgnoreCase("PhilidorDefense") => philidorLossClause(board)
       case pattern if pattern.equalsIgnoreCase("VancuraDefense")  => vancuraLossClause(board)
-      case pattern if pattern.equalsIgnoreCase("WrongRookPawnWrongBishopFortress") => Some("The wrong-corner rook-pawn setup has loosened because the defender can no longer sit on the promotion corner against the wrong-colored bishop.")
-      case pattern if pattern.equalsIgnoreCase("OutsidePasserDecoy") => Some("The outside passer decoy is no longer visible because the remote passer no longer drags the enemy king away from the main pawn mass.")
-      case pattern if pattern.equalsIgnoreCase("ConnectedPassers") => Some("The connected passers shape has loosened because the pawns are no longer advancing together with king support.")
-      case pattern if pattern.equalsIgnoreCase("KeySquaresOppositionBreakthrough") => Some("The key-squares entry shape has loosened because the king no longer controls the entry squares needed to support the pawn route.")
-      case pattern if pattern.equalsIgnoreCase("TriangulationZugzwang") => Some("The triangulation-tempo shape has loosened because the spare king tempo is gone, so the move-order squeeze is no longer visible.")
-      case pattern if pattern.equalsIgnoreCase("BreakthroughSacrifice") => Some("The pawn-wedge passer-route shape is no longer visible because the pawn wedge no longer gives a clear passer-route cue.")
-      case pattern if pattern.equalsIgnoreCase("Shouldering") => Some("The shouldering shape has loosened because the stronger king no longer keeps the enemy king pushed off the pawn's path.")
-      case pattern if pattern.equalsIgnoreCase("RetiManeuver") => Some("The king-race pursuit shape has loosened because the king can no longer combine pursuit of the passer with support for its own pawn.")
-      case pattern if pattern.equalsIgnoreCase("ShortSideDefense") => Some("The short-side defense setup has loosened because the defender has lost the checking distance and side-room needed to harass the king.")
-      case pattern if pattern.equalsIgnoreCase("OppositeColoredBishopsDraw") => Some("The opposite-colored bishops blockade has loosened because the defender can no longer control the bishop's color complex.")
-      case pattern if pattern.equalsIgnoreCase("GoodBishopRookPawnConversion") => Some("The bishop-and-rook-pawn setup has loosened because the bishop and king no longer control the promotion corner together.")
-      case pattern if pattern.equalsIgnoreCase("KnightBlockadeRookPawnDraw") => Some("The knight rook-pawn blockade has loosened because the knight no longer controls the promotion square and blockade ring.")
-      case pattern if pattern.equalsIgnoreCase("QueenVsAdvancedPawn") => Some("The queen-versus-pawn checking setup has loosened because the defender no longer keeps checking distance against the advanced pawn.")
-      case pattern if pattern.equalsIgnoreCase("TarraschDefenseActive") => Some("The active rook-behind-pawn setup has loosened because the rook is no longer actively checking from behind the pawn.")
-      case pattern if pattern.equalsIgnoreCase("PassiveRookDefense") => Some("The passive rook setup has loosened because the rook can no longer sit behind the pawn and block the file.")
-      case pattern if pattern.equalsIgnoreCase("RookAndBishopVsRookDraw") => Some("The rook-and-bishop-versus-rook defensive geometry has loosened because the defender has lost checking distance or corner geometry.")
-      case pattern if pattern.equalsIgnoreCase("SameColoredBishopsBlockade") => Some("The same-colored bishops blockade has loosened because the defender can no longer lock the pawn chain on the shared color complex.")
       case _ => None
     }
 
@@ -3956,40 +3904,6 @@ object NarrativeOutlineBuilder:
       case pattern if pattern.equalsIgnoreCase("Lucena")          => lucenaHoldClause(board, transitioned)
       case pattern if pattern.equalsIgnoreCase("PhilidorDefense") => philidorHoldClause(board, transitioned)
       case pattern if pattern.equalsIgnoreCase("VancuraDefense")  => vancuraHoldClause(board, transitioned)
-      case pattern if pattern.equalsIgnoreCase("WrongRookPawnWrongBishopFortress") =>
-        Some(s"${if transitioned then "The wrong-corner rook-pawn setup is now visible because" else "The wrong-corner rook-pawn setup remains visible because"} the defender remains on the promotion corner and the bishop does not control the entry color.")
-      case pattern if pattern.equalsIgnoreCase("OutsidePasserDecoy") =>
-        Some(s"${if transitioned then "The outside passer decoy is now visible because" else "The outside passer decoy remains visible because"} the remote passer keeps the enemy king away from the main pawn mass.")
-      case pattern if pattern.equalsIgnoreCase("ConnectedPassers") =>
-        Some(s"${if transitioned then "The connected passers are now visible because" else "The connected passers remain visible because"} the pawns advance together and the king still supports their front.")
-      case pattern if pattern.equalsIgnoreCase("KeySquaresOppositionBreakthrough") =>
-        Some(s"${if transitioned then "The key-squares entry shape is now visible because" else "The key-squares entry shape remains visible because"} the king still controls the critical entry squares in front of the pawn.")
-      case pattern if pattern.equalsIgnoreCase("TriangulationZugzwang") =>
-        Some(s"${if transitioned then "The triangulation-tempo shape is now visible because" else "The triangulation-tempo shape remains visible because"} one side still keeps a spare king tempo to shape the move order.")
-      case pattern if pattern.equalsIgnoreCase("BreakthroughSacrifice") =>
-        Some(s"${if transitioned then "The pawn-wedge passer-route shape is now visible because" else "The pawn-wedge passer-route shape remains visible because"} the pawn wedge still points at a passer route.")
-      case pattern if pattern.equalsIgnoreCase("Shouldering") =>
-        Some(s"${if transitioned then "The shouldering pattern is now visible because" else "The shouldering pattern remains visible because"} the king still keeps the opposing king off the pawn's route.")
-      case pattern if pattern.equalsIgnoreCase("RetiManeuver") =>
-        Some(s"${if transitioned then "The king-race pursuit shape is now visible because" else "The king-race pursuit shape remains visible because"} the king can chase the passer while staying near its own support route.")
-      case pattern if pattern.equalsIgnoreCase("ShortSideDefense") =>
-        Some(s"${if transitioned then "The short-side defense setup is now visible because" else "The short-side defense setup remains visible because"} the defender still has checking room on the short side and lateral space for the rook.")
-      case pattern if pattern.equalsIgnoreCase("OppositeColoredBishopsDraw") =>
-        Some(s"${if transitioned then "The opposite-colored bishops blockade is now visible because" else "The opposite-colored bishops blockade remains visible because"} each bishop controls a different color complex, limiting direct penetration.")
-      case pattern if pattern.equalsIgnoreCase("GoodBishopRookPawnConversion") =>
-        Some(s"${if transitioned then "The bishop-and-rook-pawn setup is now visible because" else "The bishop-and-rook-pawn setup remains visible because"} the bishop matches the promotion corner and the king still escorts the pawn.")
-      case pattern if pattern.equalsIgnoreCase("KnightBlockadeRookPawnDraw") =>
-        Some(s"${if transitioned then "The knight rook-pawn blockade is now visible because" else "The knight rook-pawn blockade remains visible because"} the knight still covers the promotion square and keeps the rook pawn fixed.")
-      case pattern if pattern.equalsIgnoreCase("QueenVsAdvancedPawn") =>
-        Some(s"${if transitioned then "The queen-versus-pawn checking setup is now visible because" else "The queen-versus-pawn checking setup remains visible because"} the queen side still keeps checking distance against the advanced pawn.")
-      case pattern if pattern.equalsIgnoreCase("TarraschDefenseActive") =>
-        Some(s"${if transitioned then "The active rook-behind-pawn setup is now visible because" else "The active rook-behind-pawn setup remains visible because"} the rook remains active behind the pawn with checking play available.")
-      case pattern if pattern.equalsIgnoreCase("PassiveRookDefense") =>
-        Some(s"${if transitioned then "The passive rook setup is now visible because" else "The passive rook setup remains visible because"} the rook still stays behind the pawn and keeps the file blocked.")
-      case pattern if pattern.equalsIgnoreCase("RookAndBishopVsRookDraw") =>
-        Some(s"${if transitioned then "The rook-and-bishop-versus-rook defensive geometry is now visible because" else "The rook-and-bishop-versus-rook defensive geometry remains visible because"} the defender still has checking distance or corner geometry against mating nets.")
-      case pattern if pattern.equalsIgnoreCase("SameColoredBishopsBlockade") =>
-        Some(s"${if transitioned then "The same-colored bishops blockade is now visible because" else "The same-colored bishops blockade remains visible because"} the defender still locks the pawns on the bishop's shared color complex.")
       case _ => None
     }
 
@@ -4229,9 +4143,9 @@ object NarrativeOutlineBuilder:
     val semantic = ctx.semantic.toList
     val positional = semantic.flatMap(_.positionalFeatures.flatMap(positionalTagMotifs))
     val weaknesses = semantic.flatMap(_.structuralWeaknesses.flatMap(weakComplexMotifs))
-    val evidence = ctx.candidates.flatMap(_.tacticEvidence.flatMap(tacticEvidenceMotifs))
+    val candidateFacts = ctx.candidates.flatMap(c => CommentaryIdeaSurface.factTags(c.facts))
     val conceptMotifs = semantic.flatMap(_.conceptSummary).flatMap(conceptToMotif)
-    (positional ++ weaknesses ++ evidence ++ conceptMotifs)
+    (positional ++ weaknesses ++ candidateFacts ++ conceptMotifs)
       .map(_.trim)
       .filter(_.nonEmpty)
       .distinct
@@ -4254,7 +4168,15 @@ object NarrativeOutlineBuilder:
 
   private def endgameContextOnlyConcept(raw: String): Boolean =
     val low = raw.trim.toLowerCase.replaceAll("[\\s_-]+", "_")
-    low == "zugzwang_pressure" ||
+    low == "zugzwang" ||
+      low == "zugzwang_pressure" ||
+      low == "stalemate" ||
+      low == "stalemate_trick" ||
+      low == "perpetual" ||
+      low == "perpetual_check" ||
+      low == "fortress" ||
+      low == "repetition" ||
+      low == "repeat" ||
       low == "key_square_control" ||
       low == "king_advancing" ||
       low == "king_retreating" ||
@@ -4263,6 +4185,12 @@ object NarrativeOutlineBuilder:
       low == "rook_behind_passed_pawn" ||
       low == "king_cut_off" ||
       low.endsWith("_opposition") ||
+      low.contains("stalemate") ||
+      low.contains("perpetual") ||
+      low.contains("fortress") ||
+      low.contains("zugzwang") ||
+      low.contains("forced_draw") ||
+      low.contains("draw_resource") ||
       low.startsWith("endgame_pattern") ||
       low.startsWith("endgame_developing") ||
       low.startsWith("endgame_continuation") ||
@@ -4308,37 +4236,9 @@ object NarrativeOutlineBuilder:
     if cause.contains("hanging_pawns") then List("hanging_pawns")
     else Nil
 
-  private def tacticEvidenceMotifs(raw: String): List[String] =
-    val normalized = normalizeMotifKey(raw)
-    val low = Option(raw).getOrElse("").toLowerCase
-    if normalized.startsWith("maneuver") then List("maneuver")
-    else if normalized.startsWith("domination") then List("domination")
-    else if normalized.startsWith("trapped_piece") || normalized.startsWith("trappedpiece") then
-      val pieceHint =
-        if low.contains("queen") then List("trapped_piece_queen")
-        else if low.contains("rook") then List("trapped_piece_rook")
-        else Nil
-      "trapped_piece" :: pieceHint
-    else if normalized.startsWith("knight_vs_bishop") || normalized.startsWith("knightvsbishop") then List("knight_vs_bishop")
-    else if normalized.startsWith("blockade") then List("blockade")
-    else if normalized.startsWith("smothered_mate") || normalized.startsWith("smotheredmate") then List("smothered_mate")
-    else if normalized.startsWith("pin") then
-      if low.contains("queen") then List("pin_queen", "pin")
-      else List("pin")
-    else if normalized.startsWith("skewer") then
-      if low.contains("queen") then List("skewer_queen", "skewer")
-      else List("skewer")
-    else if normalized.startsWith("xray") || normalized.startsWith("x_ray") then
-      if low.contains("queen") then List("xray_queen", "xray")
-      else List("xray")
-    else if normalized.startsWith("battery") then List("battery")
-    else if normalized.contains("exchange_sacrifice") || normalized.contains("exchangesacrifice") || normalized.contains("sacrifice_roi") then
-      List("exchange_sacrifice")
-    else Nil
-
   private def isTrustedMotifPrefixCandidate(
-    rawMotif: String,
-    deltaSignals: List[String],
+      rawMotif: String,
+      deltaSignals: List[String],
     conceptSummarySignals: List[String],
     derivedSignals: List[String],
     keyFact: Option[Fact],
@@ -4357,7 +4257,11 @@ object NarrativeOutlineBuilder:
           motifCorroboratedByThreat(motif, threatsToUs) ||
           motifCorroboratedByPawnPlay(motif, pawnPlay)
 
-      fromDelta || fromDerived || (fromConceptSummary && corroboratedByBoard)
+      val requiresBoard = motifRequiresBoardCorroboration(motif)
+      fromDelta || ((fromDerived || fromConceptSummary) && (!requiresBoard || corroboratedByBoard))
+
+  private def motifRequiresBoardCorroboration(motif: String): Boolean =
+    List("minority_attack", "outpost", "color_complex").exists(motif.contains)
 
   private def motifPhaseCompatible(rawMotif: String, phase: String): Boolean =
     val motif = normalizeMotifKey(rawMotif)
@@ -4617,21 +4521,21 @@ object NarrativeOutlineBuilder:
       Thresholds.classifySeverity(cpLoss) match
         case "blunder" =>
           NarrativeLexicon.pick(bead ^ 0x7f4a7c15, List(
-            "Consequence: tactical control flips immediately and conversion becomes straightforward.",
-            "Consequence: king safety and coordination collapse at once.",
-            "Consequence: the opponent gets a forcing route with little counterplay."
+            "Consequence: the objective gap from the benchmark line becomes large.",
+            "Consequence: the sampled score marks a serious concession.",
+            "Consequence: this cannot be treated as a small engine detour."
           ))
         case "mistake" =>
           NarrativeLexicon.pick(bead ^ 0x7f4a7c15, List(
-            "Consequence: the opponent improves with forcing moves while your position stays passive.",
-            "Consequence: structure or king safety is compromised without compensation.",
-            "Consequence: practical control shifts and defense becomes uncomfortable."
+            "Consequence: the benchmark line keeps a clearer objective margin.",
+            "Consequence: the sampled evaluation worsens enough to mark a real concession.",
+            "Consequence: this loses objective ground compared with the engine reference."
           ))
         case "inaccuracy" =>
           NarrativeLexicon.pick(bead ^ 0x7f4a7c15, List(
-            "Consequence: the opponent gets the easier plan and more comfortable piece play.",
-            "Consequence: piece coordination loosens and counterplay appears.",
-            "Consequence: you lose structural clarity and give up practical initiative."
+            "Consequence: the sampled evaluation slips from the benchmark line.",
+            "Consequence: this is a smaller objective concession, not a proved tactical change.",
+            "Consequence: the move is less precise by engine comparison."
           ))
         case _ => ""
     }.filter(_.nonEmpty)
@@ -4810,36 +4714,36 @@ object NarrativeOutlineBuilder:
       Thresholds.classifySeverity(cpLoss) match
         case "blunder" =>
           List(
-            "This is a blunder, so forcing control shifts to the opponent.",
-            "Because this blunder loosens coordination, the opponent gets a direct technical route.",
-            "This blunder loses tactical control; as a result, recovery becomes difficult.",
-            "This blunder concedes initiative, therefore the defensive workload spikes immediately.",
-            "This blunder gives the opponent a forcing path, while your counterplay resources shrink.",
-            "A decisive blunder that collapses defensive stability and permits forcing progress.",
-            "This severe blunder hands over practical control in a single sequence.",
-            "Tactical stability is lost after this blunder, making the subsequent task significantly harder."
+            "This is a blunder; the sampled evaluation drops sharply.",
+            "Because this blunder loses substantial engine value, the position needs concrete checking.",
+            "This blunder creates a large objective gap from the benchmark continuation.",
+            "This blunder marks a severe evaluation concession.",
+            "The engine reference is substantially stronger than the played line after this blunder.",
+            "A severe blunder by engine comparison, with the benchmark line now clearly ahead.",
+            "This blunder leaves the played line far from the sampled best continuation.",
+            "The objective score moves sharply against the player after this blunder."
           )
         case "mistake" =>
           List(
-            "This is a clear mistake, so practical control swings away quickly.",
-            "This mistake yields an easier technical plan, because your coordination is slower.",
-            "This mistake concedes initiative, and as a result your defensive options narrow.",
-            "This mistake gives the opponent the cleaner continuation, while your plan becomes reactive.",
-            "This mistake leaves you defending without counterplay, therefore every tempo matters.",
-            "A noticeable mistake that complicates the defensive task unnecessarily.",
-            "This mistake allows the opponent to stabilize an advantage with less effort.",
-            "Coordination is disrupted by this mistake, leading to a harder practical fight."
+            "This is a clear mistake; the sampled evaluation moves against the player.",
+            "This mistake leaves a meaningful gap from the engine benchmark.",
+            "This mistake gives up objective value compared with the reference line.",
+            "This mistake makes the engine comparison noticeably worse.",
+            "This mistake is large enough to need a concrete line check.",
+            "A noticeable mistake by engine comparison, not just a stylistic detour.",
+            "This mistake moves the played line below the benchmark continuation.",
+            "The sampled score marks this mistake as a real objective concession."
           )
         case _ =>
           List(
-            "This is an inaccuracy, so the opponent's play becomes easier to handle.",
-            "This inaccuracy gives up practical initiative, because the move-order becomes less precise.",
-            "This inaccuracy drifts from the best plan; as a result, defensive workload increases.",
-            "This inaccuracy leaves the opponent with a smoother sequence, while your structure is harder to coordinate.",
-            "This inaccuracy hands over simpler choices, therefore practical pressure rises.",
-            "A slight inaccuracy from the best route eases the opponent's defensive duties.",
-            "This inaccuracy mildly softens the pressure compared to the strongest line.",
-            "The resulting position from this inaccuracy is slightly less challenging to handle for the opponent."
+            "This is an inaccuracy; the sampled evaluation slips from the benchmark.",
+            "This inaccuracy is a small objective concession by engine comparison.",
+            "This inaccuracy drifts from the sampled best line.",
+            "This inaccuracy leaves a modest gap from the engine reference.",
+            "This inaccuracy is less precise than the benchmark continuation.",
+            "A slight inaccuracy by engine comparison, without a separate tactical claim.",
+            "This inaccuracy mildly reduces the objective score compared with the strongest line.",
+            "The resulting position is a little worse by sampled engine comparison."
           )
     selectNonRepeatingTemplate(
       templates = templates,
@@ -4925,21 +4829,21 @@ object NarrativeOutlineBuilder:
     Thresholds.classifySeverity(cpLoss) match
       case "blunder" =>
         NarrativeLexicon.pick(bead, List(
-          "this allows a forcing tactical sequence against your king or material",
-          "this collapses coordination and gives the opponent a direct technical route",
-          "this fails to meet the immediate tactical threat and the position unravels"
+          "this creates a large objective gap from the engine benchmark",
+          "this loses substantial engine value compared with the reference line",
+          "this is a severe concession by sampled engine comparison"
         ))
       case "mistake" =>
         NarrativeLexicon.pick(bead, List(
-          "this hands over the initiative and creates long-term defensive burdens",
-          "this concedes either structure or king safety without enough return",
-          "this lets the opponent improve with simple, forcing moves"
+          "this leaves a meaningful gap from the engine benchmark",
+          "this gives up objective value compared with the reference line",
+          "this is a real concession by sampled engine comparison"
         ))
       case "inaccuracy" =>
         NarrativeLexicon.pick(bead, List(
-          "this gives the opponent the easier plan to execute",
-          "this loosens piece coordination and invites counterplay",
-          "this drifts from the cleanest structure-preserving continuation"
+          "this is less precise than the sampled benchmark continuation",
+          "this leaves a modest objective gap from the reference line",
+          "this is a small concession by engine comparison"
         ))
       case _ => ""
 
@@ -5150,40 +5054,40 @@ object NarrativeOutlineBuilder:
       case Some(loss) if loss <= 20 =>
         if preferPracticalWording then
           List(
-            s"$bestRef still holds the cleaner route, but the practical gap is narrow.",
-            s"This remains playable over the board, with $bestRef keeping only a small edge.",
-            s"Compared with $bestRef, the difference is modest in practical play."
+            s"$bestRef still holds the engine benchmark, but the sampled gap is narrow.",
+            s"This remains close in the sampled lines, with $bestRef keeping only a small edge.",
+            s"Compared with $bestRef, the engine difference is modest."
           )
         else
           List(
-            s"Engine order keeps $bestRef first, though this remains close in practical terms.",
+            s"Engine order keeps $bestRef first, though this remains close by sampled evaluation.",
             s"$bestRef still tops the engine list, but the gap here is narrow.",
-            s"The engine shows a slight preference for $bestRef, while this stays near-equivalent over the board.",
-            s"$bestRef stays the main reference move, and the practical margin is slim.",
-            s"The reference line still starts with $bestRef, but practical margins are thin.",
-            s"$bestRef keeps a narrow technical lead while this option stays playable."
+            s"The engine shows a slight preference for $bestRef, while this stays near-equivalent in the sample.",
+            s"$bestRef stays the main reference move, and the engine margin is slim.",
+            s"The reference line still starts with $bestRef, but the sampled margin is thin.",
+            s"$bestRef keeps a narrow engine lead while this option stays close."
           )
       case Some(loss) =>
         val gap = formatCpGap(loss)
         if preferPracticalWording then
           List(
-            s"Compared with $bestRef, this concedes about $gap in practical terms.",
-            s"The practical cost versus $bestRef is roughly $gap.",
+            s"Compared with $bestRef, this concedes about $gap by engine evaluation.",
+            s"The sampled cost versus $bestRef is roughly $gap.",
             s"Against $bestRef, the score gap is about $gap."
           )
         else
           List(
             s"The engine still points to $bestRef as cleaner, by about $gap.",
             s"In engine terms, $bestRef holds roughly a $gap edge.",
-            s"The practical gap to $bestRef is around $gap.",
-            s"Engine preference remains with $bestRef, with roughly a $gap edge in practical terms.",
+            s"The sampled gap to $bestRef is around $gap.",
+            s"Engine preference remains with $bestRef, with roughly a $gap edge.",
             s"Compared with $bestRef, engine evaluation drops by roughly $gap."
           )
       case None =>
         if preferPracticalWording then
           List(
             s"$bestRef remains the cleaner benchmark continuation in this structure.",
-            s"Practical handling is usually easier from $bestRef.",
+            s"$bestRef remains the sampled benchmark line for comparison.",
             s"$bestRef is still the stable benchmark line."
           )
         else
@@ -5206,9 +5110,9 @@ object NarrativeOutlineBuilder:
         val gap = formatCpGap(loss)
         if preferPracticalWording then
           List(
-            s"As a $rankLabel practical-tier choice, this trails $bestRef by about $gap.",
+            s"As a $rankLabel engine choice, this trails $bestRef by about $gap.",
             s"As a $rankLabel option, this line trails $bestRef by around $gap.",
-            s"The $rankLabel choice is workable, but $bestRef still leads by roughly $gap."
+            s"The $rankLabel choice stays close, but $bestRef still leads by roughly $gap."
           )
         else
           List(
@@ -5222,7 +5126,7 @@ object NarrativeOutlineBuilder:
           List(
             s"As a lower-tier option (around $rankLabel), this trails $bestRef by roughly $gap.",
             s"The score gap to $bestRef is substantial here (about $gap).",
-            s"This $rankLabel line leaves a large practical deficit versus $bestRef (about $gap)."
+            s"This $rankLabel line leaves a large engine gap versus $bestRef (about $gap)."
           )
         else
           List(
@@ -5234,9 +5138,9 @@ object NarrativeOutlineBuilder:
       case None =>
         if preferPracticalWording then
           List(
-            s"This sits in a lower practical tier (around $rankLabel), while $bestRef remains the benchmark.",
+            s"This sits in a lower sampled tier (around $rankLabel), while $bestRef remains the benchmark.",
             s"$bestRef stays the stable reference line, with this branch in a lower tier.",
-            s"As a $rankLabel option, this is less reliable than $bestRef."
+            s"As a $rankLabel option, this is below $bestRef in engine order."
           )
         else
           List(
@@ -5275,18 +5179,18 @@ object NarrativeOutlineBuilder:
     val practicalHint = informativeAlternativeDifficulty(diffLabel).map(p => s" The practical burden is $p.").getOrElse("")
     if role.equalsIgnoreCase("engine_primary") then
       List(
-        s"With **$move**, the technical route can stay smoother$planHint, but initiative around **$move** can swing when **$move** hands away a tempo.",
-        s"Handled precisely, **$move** keeps piece harmony and king cover aligned$planHint through the next phase.",
-        s"From a practical handling view, **$move** stays reliable$planHint when defensive timing and coverage stay coordinated.",
-        s"**$move** keeps practical burden manageable$planHint by preserving coordination before exchanges."
+        s"With **$move**, the sampled line stays structurally coherent$planHint, but the follow-up still needs checking.",
+        s"Handled precisely, **$move** keeps piece placement and timing aligned$planHint through the next phase.",
+        s"By engine order, **$move** stays reliable$planHint when the next moves preserve coordination.",
+        s"**$move** keeps the sampled route coherent$planHint by preserving coordination before exchanges."
       )
     else
       List(
-        s"In practical terms, **$move** is judged by technical ease$planHint, because defensive coordination can diverge quickly.$practicalHint",
-        s"After **$move**, king safety and tempo stay linked, so one inaccurate sequence can hand over initiative$planHint.$practicalHint",
-        s"With **$move**, a move-order slip can expose coordination gaps$planHint, and recovery windows are short.$practicalHint",
+        s"In engine terms, **$move** is judged by follow-up accuracy$planHint because coordination can diverge quickly.$practicalHint",
+        s"After **$move**, king-safety and tempo questions still need concrete line checking$planHint.$practicalHint",
+        s"With **$move**, a move-order slip can leave the sampled line below the benchmark$planHint.$practicalHint",
         s"After **$move**, sequence accuracy matters because coordination and activity can separate quickly$planHint.$practicalHint",
-        s"Strategically, **$move** needs connected follow-up through the next phase$planHint, or initiative control leaks away.$practicalHint"
+        s"Strategically, **$move** needs connected follow-up through the next phase$planHint to stay aligned with the benchmark.$practicalHint"
       )
 
   private def strategicImplicationSeed(move: String, signal: AlternativeEngineSignal, bead: Int): Int =
@@ -5369,12 +5273,12 @@ object NarrativeOutlineBuilder:
         )
       case "technical" =>
         List(
-          s"**$move** is the cleaner technical route, aiming for a stable structure.",
+          s"**$move** aims for a stable structure.",
           s"**$move** heads for a controlled position with fewer tactical swings.",
-          s"**$move** favors structural clarity and methodical handling over complications.",
-          s"**$move** is a clean technical route that lightens defensive duties.",
-          s"**$move** aims for a technically manageable position with clear follow-up paths.",
-          s"**$move** keeps the game in a technical channel where precise handling is rewarded."
+          s"**$move** favors structural clarity over complications.",
+          s"**$move** keeps the line in a quieter structural channel.",
+          s"**$move** aims for a position where the follow-up is defined by structure.",
+          s"**$move** keeps the game in a technical channel where the next phase still needs verification."
         )
       case "strategic" =>
         val planHint = alternativePlanLabel(plan).map(p => s" around $p").getOrElse("")
@@ -5563,8 +5467,8 @@ object NarrativeOutlineBuilder:
           NarrativeLexicon.pick(bead ^ 0x4b4b4b4b, List(
             "keeps the continuation strategically clean and practical.",
             "preserves structural clarity while keeping options flexible.",
-            "stays on a stable plan that is easier to execute.",
-            "maintains practical control without forcing complications."
+            "stays on a stable plan with clearer checkpoints.",
+            "maintains a bounded strategic route without forcing complications."
           ))
         )
       val fixedLead =

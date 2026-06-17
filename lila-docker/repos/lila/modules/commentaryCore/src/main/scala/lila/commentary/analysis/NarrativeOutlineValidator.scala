@@ -17,10 +17,15 @@ object NarrativeOutlineValidator:
     """(?i)\b(?:white|black)\s+(?:plan|execution):\s*|risk trigger:\s*|hypothesis:\s*|follow-up:\s*|continuity:\s*|structure deployment:\s*|move contribution:\s*|plan alignment:\s*|alignment intent:\s*""".r
   private val UngroundedGeneralizationPatterns: List[Regex] = List(
     """(?i)^across these branches,.*""".r,
+    """(?i)^across these reference branches,.*""".r,
     """(?i)^common pattern:.*""".r,
+    """(?i)^common reference pattern:.*""".r,
     """(?i)^all cited branches revolve around.*""".r,
+    """(?i)^all cited branches keep.*""".r,
     """(?i)^the recurring practical theme across these games is.*""".r,
+    """(?i)^the recurring reference theme across these games is.*""".r,
     """(?i)^these precedent lines point to one key driver:.*""".r,
+    """(?i)^these precedent lines point to one comparison label:.*""".r,
     """(?i)^at this branch, practical handling matters more than memorized reference games\.?$""".r,
     """(?i)^this node is best treated as a live practical decision rather than a model-game recall test\.?$""".r,
     """(?i)^from here, over-the-board plan execution matters more than historical comparison\.?$""".r,

@@ -923,7 +923,7 @@ object MoveReviewProseGoldenFixtures:
             )
         ),
         expectedPrimaryKind = Some(AuthorQuestionKind.WhyThis),
-        expectedFallbackClaim = Some("This moves the rook from h1 to h3.")
+        expectedFallbackClaim = Some("This puts the rook on h3.")
       ),
       PlannerRuntimeFixture(
         id = "why_this_negative",
@@ -1067,7 +1067,7 @@ object MoveReviewProseGoldenFixtures:
             )
           ),
         expectedPrimaryKind = Some(AuthorQuestionKind.WhyThis),
-        expectedFallbackClaim = Some("This moves the bishop from g2 to f3.")
+        expectedFallbackClaim = Some("This puts the bishop on f3.")
       ),
       PlannerRuntimeFixture(
         id = "restricted_defense_conversion_fragile",
@@ -1121,7 +1121,7 @@ object MoveReviewProseGoldenFixtures:
             )
           ),
         expectedPrimaryKind = None,
-        expectedFallbackClaim = Some("This moves the bishop from g2 to f3.")
+        expectedFallbackClaim = Some("This puts the bishop on f3.")
       ),
       PlannerRuntimeFixture(
         id = "what_changed_positive",
@@ -1168,8 +1168,8 @@ object MoveReviewProseGoldenFixtures:
       ),
       PlannerRuntimeFixture(
         id = "what_must_be_stopped_positive",
-        title = "WhatMustBeStopped surfaces defensive necessity",
-        expectation = PlannerFixtureExpectation.Positive,
+        title = "WhatMustBeStopped falls closed when prevention evidence is support-only",
+        expectation = PlannerFixtureExpectation.Fallback,
           questionKind = AuthorQuestionKind.WhatMustBeStopped,
           ctx =
             withNeutralizeKeyBreakProof(prophylacticCut.ctx, "named_break_stop_parity").copy(
@@ -1180,9 +1180,8 @@ object MoveReviewProseGoldenFixtures:
               threats = ThreatTable(toUs = List(threat("Material", 320, Some("c1c8"))), toThem = Nil)
             ),
           strategyPack = Some(neutralizeKeyBreakPack),
-          expectedPrimaryKind = Some(AuthorQuestionKind.WhatMustBeStopped),
-          expectedClaimFragment = Some("stop"),
-          expectExpandedProse = true
+          expectedPrimaryKind = None,
+          expectedFallbackClaim = Some("This moves the pawn to a3.")
         ),
       PlannerRuntimeFixture(
         id = "what_must_be_stopped_negative",
@@ -1226,8 +1225,8 @@ object MoveReviewProseGoldenFixtures:
       ),
       PlannerRuntimeFixture(
         id = "whose_plan_is_faster_negative",
-        title = "WhosePlanIsFaster demotes to stopping counterplay when only pressure survives",
-          expectation = PlannerFixtureExpectation.Negative,
+        title = "WhosePlanIsFaster falls closed when only support-only prevention survives",
+          expectation = PlannerFixtureExpectation.Fallback,
           questionKind = AuthorQuestionKind.WhosePlanIsFaster,
           ctx =
             withNeutralizeKeyBreakProof(prophylacticCut.ctx, "named_break_race_demote_parity").copy(
@@ -1239,9 +1238,8 @@ object MoveReviewProseGoldenFixtures:
               threats = ThreatTable(toUs = List(threat("Material", 320, Some("c1c8"))), toThem = Nil)
             ),
           strategyPack = Some(neutralizeKeyBreakPack),
-          expectedPrimaryKind = Some(AuthorQuestionKind.WhatMustBeStopped),
-          expectedClaimFragment = Some("stop"),
-          expectExpandedProse = true
+          expectedPrimaryKind = None,
+          expectedFallbackClaim = Some("This moves the pawn to a3.")
         ),
       PlannerRuntimeFixture(
         id = "whose_plan_is_faster_fallback",

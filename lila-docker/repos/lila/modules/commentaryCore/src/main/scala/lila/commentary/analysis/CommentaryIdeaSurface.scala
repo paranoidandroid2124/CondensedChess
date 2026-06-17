@@ -238,7 +238,7 @@ private[commentary] object CommentaryIdeaSurface:
           san = played.san,
           openingName = evidence.openingName,
           goalName = goal.goalName,
-          supportedEvidence = goal.supportedEvidence.map(_.trim).filter(_.nonEmpty)
+          supportedEvidence = goal.supportedEvidence.map(openingGoalEvidenceClause).filter(_.nonEmpty)
         ))
       )
 
@@ -369,7 +369,7 @@ private[commentary] object CommentaryIdeaSurface:
         reviewIntent = "quiet_improvement",
         moveCharacterBand = characterBand,
         source = "supported_local_position_probe",
-        title = s"${played.san} has checked ${row.label.toLowerCase} support",
+        title = s"${played.san} has checked positional support",
         baseProse = row.text,
         reasonTags = List(
           "supported_local_position_probe",
@@ -425,7 +425,7 @@ private[commentary] object CommentaryIdeaSurface:
         reviewIntent = practicalPositionIntent(fact),
         moveCharacterBand = characterBand,
         source = "practical_position_support",
-        title = s"${played.san} has checked ${fact.label.toLowerCase} support",
+        title = s"${played.san} has checked positional support",
         baseProse = fact.text,
         reasonTags =
           List(
@@ -1471,7 +1471,7 @@ private[commentary] object CommentaryIdeaSurface:
                 List(
                   "fact_source:post_move_static_defense",
                   s"defended_target:${target.key}",
-                  s"defender_square:${played.to.key}"
+                  s"target_defender_square:${played.to.key}"
                 )
             ).distinct,
           guardrails = List(
@@ -1526,7 +1526,7 @@ private[commentary] object CommentaryIdeaSurface:
               List(
                 LocalFactAnchor("fork_entry", fact.entrySquare.key),
                 LocalFactAnchor("fork_attacker", fact.attackerSquare.key),
-                LocalFactAnchor("defender_square", fact.defenderSquare.key)
+                LocalFactAnchor("fork_defender_square", fact.defenderSquare.key)
               ) ++
                 fact.targets.map { case (square, role) => LocalFactAnchor(s"fork_target_${roleLabel(role)}", square.key) }
             ).distinct,
@@ -1537,7 +1537,7 @@ private[commentary] object CommentaryIdeaSurface:
                 "fact_source:post_move_fork_entry_defense",
                 s"fork_entry_square:${fact.entrySquare.key}",
                 s"fork_attacker:${fact.attackerSquare.key}",
-                s"defender_square:${fact.defenderSquare.key}"
+                s"fork_defender_square:${fact.defenderSquare.key}"
               ) ++
                 fact.targets.map { case (square, role) => s"fork_target:${square.key}:${roleLabel(role)}" }
             ).distinct,
@@ -2017,13 +2017,7 @@ private[commentary] object CommentaryIdeaSurface:
       played: PlayedMove,
       evidence: RelationWitnessEvidence
   ): String =
-    evidence.witness.details match
-      case details: MoveReviewExchangeAnalyzer.RelationDetails.DiscoveredAttack =>
-        s"${played.san} reveals a ${details.attackerRole} attack from ${details.attackerSquare} toward ${details.targetSquare} after clearing ${details.clearedSquare}."
-      case details: MoveReviewExchangeAnalyzer.RelationDetails.Overload if details.targetSquares.nonEmpty =>
-        s"${played.san} overloads the defender on ${details.defenderSquare} across ${joinSquareLabels(details.targetSquares)}."
-      case _ =>
-        s"${played.san} is tied to a checked ${evidence.descriptor.publicLabel} relation in the PV."
+    s"${played.san} is tied to a checked ${evidence.descriptor.publicLabel} relation in the PV."
 
   private def relationWitnessEvidence(
       played: PlayedMove,
@@ -2059,12 +2053,10 @@ private[commentary] object CommentaryIdeaSurface:
       drawResource ||
       (
         relationWitnessTacticalSurface(witness) &&
-          MoveReviewExchangeAnalyzer.typedDetailsFromWitness(witness).exists {
-            case details: MoveReviewExchangeAnalyzer.RelationDetails.DiscoveredAttack =>
-              witness.kind == MoveReviewExchangeAnalyzer.RelationKind.DiscoveredAttack &&
-                details.clearedSquare == played.from.key
-            case _ => false
-          }
+          witness.kind == MoveReviewExchangeAnalyzer.RelationKind.DiscoveredAttack &&
+          MoveReviewExchangeAnalyzer
+            .relationProjectionFromWitness(witness)
+            .exists(_.factTerms.contains(s"cleared_square:${played.from.key}"))
       )
 
   private def relationWitnessSurfaceEligible(
@@ -2182,31 +2174,8 @@ private[commentary] object CommentaryIdeaSurface:
       List(LocalFactAnchor("relation_kind", evidence.projection.kind)) ++
         evidence.projection.targetSquare.toList.map(square => LocalFactAnchor("relation_target", square)) ++
         evidence.projection.focusSquares.map(square => LocalFactAnchor("relation_square", square)) ++
-        relationDetailsAnchors(evidence.witness.details)
+        evidence.projection.factTerms.map(term => LocalFactAnchor("relation_fact", term))
     ).distinct
-
-  private def relationDetailsAnchors(details: MoveReviewExchangeAnalyzer.RelationDetails): List[LocalFactAnchor] =
-    details match
-      case discovered: MoveReviewExchangeAnalyzer.RelationDetails.DiscoveredAttack =>
-        List(
-          LocalFactAnchor("attacker_square", discovered.attackerSquare),
-          LocalFactAnchor("attacker_role", discovered.attackerRole),
-          LocalFactAnchor("cleared_square", discovered.clearedSquare),
-          LocalFactAnchor("target_square", discovered.targetSquare)
-        )
-      case overload: MoveReviewExchangeAnalyzer.RelationDetails.Overload =>
-        List(
-          LocalFactAnchor("defender_square", overload.defenderSquare),
-          LocalFactAnchor("attacker_square", overload.attackerSquare)
-        ) ++ overload.targetSquares.map(square => LocalFactAnchor("duty_square", square))
-      case _ => Nil
-
-  private def joinSquareLabels(squares: List[String]): String =
-    squares.map(_.trim).filter(_.nonEmpty).distinct match
-      case Nil                    => "the defended squares"
-      case one :: Nil             => one
-      case first :: second :: Nil => s"$first and $second"
-      case many                   => s"${many.dropRight(1).mkString(", ")}, and ${many.last}"
 
   private def relationGuardrails(evidence: RelationWitnessEvidence): List[String] =
     List(
@@ -3586,8 +3555,8 @@ private[commentary] object CommentaryIdeaSurface:
         Some(
           NarrativeLexicon.pick(bead, List(
             s"${square.key} is a weak square for $owner$detail.",
-            s"The square ${square.key} looks vulnerable$detail.",
-            s"A potential outpost on ${square.key} appears$detail."
+            s"The local structure leaves ${square.key} weak for $owner$detail.",
+            s"${square.key} is marked as a weak-square point for $owner$detail."
           ))
         )
 
@@ -3595,8 +3564,8 @@ private[commentary] object CommentaryIdeaSurface:
         Some(
           NarrativeLexicon.pick(bead, List(
             s"${square.key} can serve as an outpost for a ${roleLabel(role)}.",
-            s"An outpost on ${square.key} could be valuable for a ${roleLabel(role)}.",
-            s"Keep ${square.key} in mind as an outpost square."
+            s"${square.key} carries an outpost cue for a ${roleLabel(role)}.",
+            s"The ${roleLabel(role)} outpost cue is on ${square.key}."
           ))
         )
 
@@ -3608,8 +3577,8 @@ private[commentary] object CommentaryIdeaSurface:
         Some(
           NarrativeLexicon.pick(bead, List(
             s"The kings are in $kind.",
-            s"$kind is an important endgame detail.",
-            s"King opposition becomes a key factor."
+            s"$kind is visible between the kings.",
+            s"The king placement shows $kind."
           ))
         )
 
@@ -3617,8 +3586,8 @@ private[commentary] object CommentaryIdeaSurface:
         Some(
           NarrativeLexicon.pick(bead, List(
             s"The king on ${square.key} is active (mobility: $mobility).",
-            s"King activity matters: ${square.key} has $mobility safe steps.",
-            s"The king on ${square.key} is well-placed for the endgame."
+            s"The king on ${square.key} has $mobility available king moves.",
+            s"King activity is visible from ${square.key} with mobility $mobility."
           ))
         )
 
@@ -3678,7 +3647,6 @@ private[commentary] object CommentaryIdeaSurface:
       case _: Fact.RookEndgamePattern       => List("rook_endgame_pattern")
       case _: Fact.PawnPromotion            => List("pawn_promotion")
       case _: Fact.TriangulationOpportunity => List("triangulation")
-      case _: Fact.Zugzwang                 => List("zugzwang")
       case _: Fact.WeakSquare               => List("weak_square")
       case _: Fact.Outpost                  => List("outpost")
       case _                                => Nil
@@ -3743,7 +3711,6 @@ private[commentary] object CommentaryIdeaSurface:
       case _: Fact.PawnPromotion   => Some("promotion_race")
       case _: Fact.StalemateThreat => Some("stalemate_resource")
       case _: Fact.DoubleCheck     => Some("double_check")
-      case _: Fact.Zugzwang        => Some("zugzwang")
       case _: Fact.Opposition      => Some("opposition")
       case _                       => None
 
@@ -3834,7 +3801,7 @@ private[commentary] object CommentaryIdeaSurface:
       openingName: Option[String],
       goal: OpeningGoals.Evaluation
   ): OpeningGoalSurface =
-    val openingPart = openingName.map(name => s" in the $name").getOrElse("")
+    val openingPart = openingName.map(_ => " in this opening context").getOrElse("")
     val key = slug(goal.goalName)
     val supportText = openingGoalSupportText(goal.supportedEvidence)
     val (title, lead) =
@@ -3864,11 +3831,12 @@ private[commentary] object CommentaryIdeaSurface:
   private def openingGoalSupportText(evidence: List[String]): String =
     val clauses = evidence.map(openingGoalEvidenceClause).filter(_.nonEmpty).distinct
     if clauses.isEmpty then ""
-    else s" The local evidence is: ${clauses.mkString(", ")}."
+    else s" The local board/PV cue is: ${clauses.mkString(", ")}."
 
   private def openingGoalEvidenceClause(value: String): String =
     Option(value).getOrElse("").trim match
       case "" => ""
+      case "Minor piece developed" => "the minor piece develops"
       case "Center foothold" => "a center foothold"
       case "Minor pieces developed" => "minor pieces are developed"
       case "Development underway" => "development is underway"
@@ -3881,7 +3849,7 @@ private[commentary] object CommentaryIdeaSurface:
       case "Center contact preserved" => "center contact is preserved"
       case "Break scaffold appears" => "the break scaffold appears"
       case "Development cost contained" => "the development cost is contained"
-      case other => other.head.toLower.toString + other.tail
+      case _ => ""
 
   private def openingGoalPhrase(goalName: String): String =
     val key = slug(goalName)

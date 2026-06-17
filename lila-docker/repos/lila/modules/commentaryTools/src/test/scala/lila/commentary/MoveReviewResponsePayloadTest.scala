@@ -5,6 +5,7 @@ import play.api.libs.json.{ JsObject }
 
 import lila.commentary.model.{ ProbeRequest, StrategicPlanExperiment }
 import lila.commentary.model.authoring.{ PlanHypothesis, PlanViability }
+import lila.commentary.model.strategic.{ EndgamePatternState, TheoreticalOutcomeHint }
 
 class MoveReviewResponsePayloadTest extends FunSuite:
 
@@ -99,6 +100,17 @@ class MoveReviewResponsePayloadTest extends FunSuite:
             experimentConfidence = 0.8
           )
         ),
+        endgameStateToken =
+          Some(
+            EndgamePatternState(
+              activePattern = Some("lucena_position"),
+              patternAge = 2,
+              outcomeHint = TheoreticalOutcomeHint.Draw,
+              prevKingActivityDelta = 1,
+              prevConfidence = 0.82,
+              lastPly = 58
+            )
+          ),
         sourceMode = "fallback_rule_invalid",
         model = Some("gpt-test"),
         polishMeta = Some(polishMeta),
@@ -177,6 +189,7 @@ class MoveReviewResponsePayloadTest extends FunSuite:
     assertEquals((payload \ "moveReviewPlayerSurface" \ "decisionComparison" \ "kicker").as[String], "Decision point", clue(payload))
     assertEquals((payload \ "probeRequests").as[List[JsObject]], Nil, clue(payload))
     assertEquals((payload \ "mainStrategicPlanCount").as[Int], 1, clue(payload))
+    assertEquals((payload \ "endgameStateToken" \ "outcomeHint").as[String], "Unclear", clue(payload))
     assertEquals((payload \ "diagnostics" \ "status").as[String], "fallback_available", clue(payload))
     assertEquals((payload \ "diagnostics" \ "sourceModeReason").as[String], "contract_violation", clue(payload))
 

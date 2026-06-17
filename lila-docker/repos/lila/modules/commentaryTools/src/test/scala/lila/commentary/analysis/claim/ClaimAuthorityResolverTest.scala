@@ -149,7 +149,7 @@ final class ClaimAuthorityResolverTest extends FunSuite:
     assertEquals(admissions.map(_.source), List(MoveReviewLocalFact.Source.PvCoupledLine), clue(admissions))
     assertEquals(
       admissions.map(_.localFactCandidate.producer),
-      List(MoveReviewLocalFact.Producer.ClaimAuthorityPromotion),
+      List(MoveReviewLocalFact.Producer.CertifiedStrategyDelta),
       clue(admissions)
     )
     assert(admissions.exists(_.evidenceRefs.contains(s"proof_source:${CentralBreakTimingWitness.ProofSource}")), clue(admissions))

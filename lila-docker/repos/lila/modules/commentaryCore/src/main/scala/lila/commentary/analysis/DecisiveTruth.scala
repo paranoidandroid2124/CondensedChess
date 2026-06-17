@@ -1019,9 +1019,7 @@ private[commentary] object DecisiveTruth:
       strategySurface: StrategyPackSurface.Snapshot
   ): List[String] =
     val semanticSignals =
-      currentSemanticDecision.toList.flatMap(decision =>
-        decision.signal.summary.toList ++ decision.signal.vectors
-      )
+      currentSemanticDecision.toList.flatMap(compensationCarrierAlignedSignals)
     val packSignals =
       strategyPack.toList.flatMap { pack =>
         val digest = pack.signalDigest
@@ -1048,9 +1046,64 @@ private[commentary] object DecisiveTruth:
       currentSemanticDecision: Option[CompensationInterpretation.Decision]
   ): List[String] =
     currentSemanticDecision.toList
-      .flatMap(decision => decision.signal.summary.toList ++ decision.signal.vectors)
+      .flatMap(compensationCarrierAlignedSignals)
       .flatMap(normalized)
       .distinct
+
+  private def compensationCarrierAlignedSignals(decision: CompensationInterpretation.Decision): List[String] =
+    (decision.signal.vectors ++ decision.signal.summary.toList)
+      .filter(signal => compensationCarrierAlignedSignal(decision, signal))
+      .distinct
+
+  private def compensationCarrierAlignedSignal(
+      decision: CompensationInterpretation.Decision,
+      raw: String
+  ): Boolean =
+    val text = Option(raw).map(_.trim.toLowerCase.replace('_', ' ')).getOrElse("")
+    val structuralCarrier =
+      compensationSignalContains(
+        text,
+        List(
+          "line pressure",
+          "open line",
+          "open lines",
+          "open file",
+          "open files",
+          "file pressure",
+          "line occupation",
+          "target fixing",
+          "target fixation",
+          "fixed targets",
+          "fixed target",
+          "fixed weakness",
+          "target pressure",
+          "queenside targets",
+          "counterplay denial",
+          "deny counterplay",
+          "counterplay tied down"
+        )
+      )
+    val transitionCarrier =
+      compensationSignalContains(
+        text,
+        List(
+          "time",
+          "development lead",
+          "lead in development",
+          "tempo",
+          "attack on king",
+          "king attack",
+          "king pressure",
+          "mating attack",
+          "mating net"
+        )
+      )
+    if decision.durableStructuralPressure then structuralCarrier
+    else if decision.persistenceClass == "non_immediate_transition" then transitionCarrier
+    else false
+
+  private def compensationSignalContains(text: String, phrases: List[String]): Boolean =
+    phrases.exists(text.contains)
 
   private def strictCurrentCarrierSignals(strategyPack: Option[StrategyPack]): List[String] =
     strategyPack.toList
@@ -1594,9 +1647,10 @@ private[commentary] object DecisiveTruth:
       afterSemanticDecision: Option[CompensationInterpretation.Decision]
   ): Option[String] =
     val afterSignals =
-      afterSemanticDecision.toList.flatMap { decision =>
-        decision.signal.summary.toList ++ decision.signal.vectors
-      }.flatMap(normalizeVerifiedPayoffAnchor).headOption
+      afterSemanticDecision.toList
+        .flatMap(compensationCarrierAlignedSignals)
+        .flatMap(normalizeVerifiedPayoffAnchor)
+        .headOption
     moveLocalPayoffAnchor.orElse(afterSignals)
 
   private def normalizeVerifiedPayoffAnchor(raw: String): Option[String] =

@@ -25,7 +25,7 @@ object MoveReviewPlayerPayloadBuilder:
   private[analysis] val LabelSquareListPattern = """^\.{0,3}[a-h][1-8](?:,[a-h][1-8])*$""".r
   private[analysis] val LabelSquareRangePattern = """^\.{0,3}[a-h][1-8]-[a-h][1-8]$""".r
   private val ConnectedRooksPattern = """The checked line connects the rooks on the (?:first|second|third|fourth|fifth|sixth|seventh|eighth) rank[.]""".r
-  private val TechnicalConversionPattern = """The checked line keeps the conversion route intact after .+[.]""".r
+  private val RestrictedDefensePattern = """The checked line keeps the defender's replies narrow after .+[.]""".r
   private val RestrainedPattern = """The checked line keeps .+ restrained[.]""".r
   private val UnavailablePattern = """The checked line keeps .+ unavailable as a counterplay resource[.]""".r
   private val BreakShutPattern = """The checked line keeps the \.{0,3}[a-h][1-8](?:-[a-h][1-8]|(?:,[a-h][1-8])*) break shut while keeping \.{0,3}[a-h][1-8](?:-[a-h][1-8]|(?:,[a-h][1-8])*) unavailable[.]""".r
@@ -187,8 +187,8 @@ object MoveReviewPlayerPayloadBuilder:
           visibleRows.flatMap(exactOutpostRowSquare).toSet
         val exactSimplificationAlreadyVisible =
           visibleRows.exists(exactSimplificationRow)
-        val exactConversionAlreadyVisible =
-          visibleRows.exists(exactTechnicalConversionRow)
+        val exactRestrictedDefenseAlreadyVisible =
+          visibleRows.exists(exactRestrictedDefenseRow)
         val exactFileEntryFilesAlreadyVisible =
           visibleRows.flatMap(exactFileEntryRowFile).toSet
         val exactSeventhRankEntryRolesAlreadyVisible =
@@ -852,7 +852,7 @@ object MoveReviewPlayerPayloadBuilder:
                     idea.readiness == StrategicIdeaReadiness.Build &&
                     strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
                     idea.confidence >= 0.72 &&
-                    !exactConversionAlreadyVisible
+                    !exactRestrictedDefenseAlreadyVisible
                 val anchoredOpposition =
                   refs.exists(ref => ref.startsWith("opposition_")) && focusSquares.size >= 2
                 val anchoredKingActivity =
@@ -876,7 +876,7 @@ object MoveReviewPlayerPayloadBuilder:
                     idea.readiness == StrategicIdeaReadiness.Build &&
                     strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
                     idea.confidence >= 0.72 &&
-                    !exactConversionAlreadyVisible
+                    !exactRestrictedDefenseAlreadyVisible
                 val passedPawnConversionMotif =
                   refs.contains("source:passed_pawn_conversion_motif") &&
                     refs.contains("passed_pawn_conversion_shape") &&
@@ -884,7 +884,7 @@ object MoveReviewPlayerPayloadBuilder:
                     idea.readiness == StrategicIdeaReadiness.Build &&
                     strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
                     idea.confidence >= 0.72 &&
-                    !exactConversionAlreadyVisible
+                    !exactRestrictedDefenseAlreadyVisible
                 val passedPawnConversionSquare =
                   focusSquares.find(square => refs.contains(s"passed_pawn_$square"))
                 val transformationRow =
@@ -1483,10 +1483,10 @@ object MoveReviewPlayerPayloadBuilder:
       row.text == s"The checked line keeps the same local edge after the exchange on $target."
     }
 
-  private def exactTechnicalConversionRow(row: MoveReviewPlayerSurfaceRow): Boolean =
-    exactPracticalPlanRow(row, "Technical conversion") { text =>
-      text == "The checked line keeps the best defense narrow and the conversion route intact." ||
-        TechnicalConversionPattern.matches(text)
+  private def exactRestrictedDefenseRow(row: MoveReviewPlayerSurfaceRow): Boolean =
+    exactPracticalPlanRow(row, "Restricted defense") { text =>
+      text == "The checked line keeps the defender's replies narrow." ||
+        RestrictedDefensePattern.matches(text)
     }
 
   private def exactCounterplayRow(row: MoveReviewPlayerSurfaceRow): Boolean =
@@ -2517,7 +2517,7 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
   private val PieceImprovementLabel = "Piece improvement"
   private val KingSafetyLabel = "King safety"
   private val KingActivationLabel = "King activation"
-  private val TechnicalConversionLabel = "Technical conversion"
+  private val RestrictedDefenseLabel = "Restricted defense"
   private val RookLiftLabel = "Rook lift"
   private val SeventhRankEntryLabel = "Seventh-rank entry"
   private val RookBehindPasserLabel = "Rook behind passer"
@@ -2796,15 +2796,9 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       case OpeningGoals.Status.Achieved =>
         s"The checked line plays the $route pawn break."
       case OpeningGoals.Status.Partial =>
-        s"The checked line plays the $route pawn break, but ${openingBreakCaution(goal.missingEvidence)} still needs care."
+        s"The checked line plays the $route pawn break, but the follow-up still needs care."
       case _ =>
         s"The $route pawn move remains only an opening cue."
-
-  private def openingBreakCaution(missingEvidence: List[String]): String =
-    missingEvidence
-      .map(_.trim.toLowerCase)
-      .find(_.nonEmpty)
-      .getOrElse("the follow-up")
 
   private def openingBreakGoalName(name: String): Boolean =
     val lower = Option(name).getOrElse("").trim.toLowerCase
@@ -3698,9 +3692,9 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       yield cleanSan
     val text =
       replySan
-        .map(san => s"The checked line keeps the conversion route intact after $san.")
-        .getOrElse("The checked line keeps the best defense narrow and the conversion route intact.")
-    row(TechnicalConversionLabel, text, authority = PracticalPlanAuthority)
+        .map(san => s"The checked line keeps the defender's replies narrow after $san.")
+        .getOrElse("The checked line keeps the defender's replies narrow.")
+    row(RestrictedDefenseLabel, text, authority = PracticalPlanAuthority)
 
   private def rowForPlan(
       ctx: NarrativeContext,

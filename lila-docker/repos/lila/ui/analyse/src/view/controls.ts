@@ -53,7 +53,7 @@ export function renderControls(ctrl: AnalyseCtrl) {
         'button.fbt',
         {
           attrs: {
-            title: reviewShell ? 'Opening context' : 'Opening explorer and Tablebase',
+            title: reviewShell ? 'Opening context' : 'Opening book and tablebase',
             'data-act': 'opening-explorer',
           },
           class: {

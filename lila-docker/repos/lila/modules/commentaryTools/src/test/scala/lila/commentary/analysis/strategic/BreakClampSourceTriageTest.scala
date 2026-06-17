@@ -139,10 +139,13 @@ final class BreakClampSourceTriageTest extends munit.FunSuite:
       )
       .head
 
-    assertEquals(observation.verdict, SourceReview.Verdict.RejectOwnerMissing)
-    assertEquals(observation.admissionBlockers, "proof:break_prevention_contract_mismatch")
-    assertEquals(observation.mainProofSource, "color_complex_squeeze_probe")
-    assertEquals(observation.primary, "-")
+    assertEquals(observation.verdict, SourceReview.Verdict.AdmitAuthorityRow, clues(observation))
+    assertEquals(observation.diagnosis, SourceReview.Diagnosis.AdmitReady, clues(observation))
+    assertEquals(observation.admissionBlockers, "none", clues(observation))
+    assertEquals(observation.mainProofSource, "counterplay_axis_suppression", clues(observation))
+    assert(observation.packetSummary.contains("proof_family=neutralize_key_break"), clues(observation))
+    assertEquals(observation.release, "SupportedLocal", clues(observation))
+    assert(!observation.primary.toLowerCase.contains("counterplay"), clues(observation))
   }
 
   test("reports non-admitted triage rows with their exact SourceReview blockers") {

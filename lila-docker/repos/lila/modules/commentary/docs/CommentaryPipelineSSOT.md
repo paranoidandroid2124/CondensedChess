@@ -119,7 +119,9 @@ The planner owner families are mechanism labels, not prose templates:
 - `AlternativeComparison`: a branch-scoped comparison between played move and
   alternative/best move.
 - `DecisionTiming`: typed timing witness or admissible timing contrast.
-- `PlanRace`: certified own plan, opponent pressure, and timing anchor.
+- `PlanRace`: certified own plan, concrete threat or supported-local prevented
+  resource as opponent pressure, and timing anchor. Opponent-plan row labels are
+  not race participants.
 - `MoveDelta`: move-owned state or plan-support change.
 - `PositionProbe`, `OpeningRelation`, `EndgameTransition`: domain-specific
   owners with their own support gates.
@@ -242,7 +244,9 @@ If a reviewed central pawn move is itself a board-backed
 candidate also appears, the central-break packet owns the move unless an
 explicit break-prevention rival is carried by the runtime anchors.
 
-`StrategyPack` practical ideas may enter MoveReview prose only through
+`StrategyPack` plan carriers come from `PlanEvidenceEvaluator` main-admitted
+plan evidence; plan-table rows and opponent-plan rows stay out of prompt plan
+authority. `StrategyPack` practical ideas may enter MoveReview prose only through
 `CommentaryIdeaSurface.practicalPositionFacts`. That projection creates typed
 `practical_position_support` facts with `certified_strategy_delta` evidence for
 defense, pressure, or plan-support families. The idea must be owned by the

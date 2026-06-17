@@ -230,11 +230,11 @@ class OpeningPrecedentBranchingTest extends FunSuite:
     val (outline, _) = NarrativeOutlineBuilder.build(ctx, new TraceRecorder())
     val released = outline.beats.map(_.text).mkString(" ")
     val summaryMarkers = List(
-      "Across these branches,",
-      "Common pattern:",
-      "All cited branches revolve around",
-      "The recurring practical theme across these games is",
-      "These precedent lines point to one key driver:"
+      "Across these reference branches,",
+      "Common reference pattern:",
+      "All cited branches keep",
+      "The recurring reference theme across these games is",
+      "These precedent lines point to one comparison label:"
     )
 
     assertEquals(summaryMarkers.count(released.contains), 1, clue(released))

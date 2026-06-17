@@ -1451,15 +1451,15 @@ object NarrativeContextBuilder:
       val alignmentClause = data.planAlignment.flatMap(flowHintFromAlignment).map(h => s" $h").getOrElse("")
       val base = seq.transitionType match {
         case TransitionType.Continuation =>
-          s"$side is clearly continuing with $planLabel."
+          s"$side continues with $planLabel."
         case TransitionType.NaturalShift =>
-          s"$side makes a natural strategic shift toward $planLabel."
+          s"$side's plan context shifts toward $planLabel."
         case TransitionType.ForcedPivot =>
-          s"$side is forced to pivot into $planLabel under tactical pressure."
+          s"$side pivots into $planLabel while tactical pressure is present."
         case TransitionType.Opportunistic =>
-          s"$side switches opportunistically to $planLabel after a concrete chance appeared."
+          s"$side switches to $planLabel with a new chance in the position."
         case TransitionType.Opening =>
-          s"$side starts a fresh strategic thread with $planLabel."
+          s"$side starts with $planLabel."
       }
       s"$base$alignmentClause$continuitySnippet".trim
     }.orElse {
@@ -1617,7 +1617,7 @@ object NarrativeContextBuilder:
       case _: Motif.Check => s"allows $replySan check"
       case _: Motif.Fork => s"allows $replySan fork"
       case m: Motif.Capture if m.captureType == Motif.CaptureType.Winning =>
-        s"allows $replySan winning capture"
+        s"allows $replySan to gain material"
       case _: Motif.DiscoveredAttack => "reveals discovered attack"
     }
 
@@ -1629,7 +1629,7 @@ object NarrativeContextBuilder:
         val pinnedSquare = p.pinnedSq.map(_.key).getOrElse("?")
         Some(s"Pin pressure on $pinnedSquare against the ${roleLabel(p.targetBehind)}.")
       case c: Motif.Capture if c.captureType == Motif.CaptureType.Winning =>
-        Some(s"Winning capture by ${roleLabel(c.piece)} on ${c.square}.")
+        Some(s"Material-gain capture by ${roleLabel(c.piece)} on ${c.square}.")
       case d: Motif.DiscoveredAttack =>
         val targetSquare = d.targetSq.map(_.key).getOrElse("?")
         Some(s"Discovered attack against the ${roleLabel(d.target)} on $targetSquare.")
@@ -2390,7 +2390,7 @@ object NarrativeContextBuilder:
               s"${h.move} concedes some initiative for stability, so the practical test is whether counterplay can be contained.",
               s"${h.move} trades immediate initiative for structure, and the key question is if counterplay arrives in time.",
               s"${h.move} prioritizes stability over momentum, making initiative handoff the central practical risk.",
-              s"${h.move} slows the initiative race deliberately, betting that the resulting position is easier to control."
+              s"${h.move} slows the initiative race deliberately, so the follow-up must show that counterplay stays contained."
             ))
         }
     HypothesisDraft(
@@ -2415,16 +2415,16 @@ object NarrativeContextBuilder:
       axis = HypothesisAxis.Conversion,
       claim =
         if h.conversionWindow then
-          s"${h.move} frames conversion as a timing problem: simplifying too early or too late can change the practical result."
+          s"${h.move} frames simplification as a timing problem: exchanging too early or too late can change the sampled line."
         else
-          s"${h.move} keeps conversion deferred, prioritizing coordination before simplification.",
+          s"${h.move} keeps simplification deferred, prioritizing coordination before exchanges.",
       supportSignals = signals(
-        Option.when(h.conversionWindow)("evaluation indicates a conversion window"),
+        Option.when(h.conversionWindow)("evaluation marks a possible simplification checkpoint"),
         Option.when(h.candidate.tags.contains(CandidateTag.Converting))("candidate tagged as converting")
       ),
       conflictSignals = signals(
-        Option.when(h.practicalLow == "complex")("line remains tactically demanding to convert"),
-        Option.when(h.cpGap.exists(_ >= 110))("technical route loses too much objective value")
+        Option.when(h.practicalLow == "complex")("line remains tactically demanding after simplification"),
+        Option.when(h.cpGap.exists(_ >= 110))("simplification route loses too much objective value")
       ),
       baseConfidence = if h.conversionWindow then 0.53 else 0.42,
       horizon = HypothesisHorizon.Medium
@@ -2520,17 +2520,17 @@ object NarrativeContextBuilder:
     val claim =
       if h.data.phase == "endgame" || h.candidate.tags.contains(CandidateTag.Converting) then
         NarrativeLexicon.pick(h.localSeed ^ 0x2f6e2b1, List(
-          s"${h.move} influences the endgame trajectory by prioritizing activity over static structure.",
-          s"${h.move} points the game toward a technical ending where active piece routes matter more than static shape.",
-          s"${h.move} tilts the future ending toward dynamic conversion, with activity carrying more weight than fixed structure.",
-          s"${h.move} frames the late phase as a technique problem, emphasizing active coordination over static anchors."
+          s"${h.move} influences the late-game direction by prioritizing activity over static structure.",
+          s"${h.move} points the game toward a simplified position where active piece routes still need checking.",
+          s"${h.move} tilts the future ending toward activity, with fixed structure still unresolved.",
+          s"${h.move} frames the late phase as a coordination problem, emphasizing activity over static anchors."
         ))
       else
         NarrativeLexicon.pick(h.localSeed ^ 0x19f8b4ad, List(
-          s"${h.move} keeps the endgame trajectory open, with the long-term outcome hinging on later simplification choices.",
+          s"${h.move} keeps the endgame trajectory open, with the long-term direction depending on later simplification choices.",
           s"${h.move} defers the final trajectory choice, so the endgame direction depends on which simplification arrives first.",
-          s"${h.move} preserves multiple late-game paths, and the practical result depends on future simplification timing.",
-          s"${h.move} leaves the ending map unresolved for now, with long-term value decided by subsequent exchanges."
+          s"${h.move} preserves multiple late-game paths, and the practical difference depends on future simplification timing.",
+          s"${h.move} leaves the ending map unresolved for now, with long-term value still tied to subsequent exchanges."
         ))
     HypothesisDraft(
       axis = HypothesisAxis.EndgameTrajectory,
@@ -2542,7 +2542,7 @@ object NarrativeContextBuilder:
       ),
       conflictSignals = signals(
         Option.when(h.cpGap.exists(_ >= 120))("long-term trajectory is objectively inferior"),
-        Option.when(h.practicalLow == "complex" && h.data.phase == "endgame")("technical handling remains unstable")
+        Option.when(h.practicalLow == "complex" && h.data.phase == "endgame")("late-game handling remains line-dependent")
       ),
       baseConfidence = if h.data.endgameFeatures.isDefined then 0.52 else 0.4,
       horizon = HypothesisHorizon.Long
@@ -2609,9 +2609,9 @@ object NarrativeContextBuilder:
         ))
       case "conversion-cost" =>
         NarrativeLexicon.pick(seed ^ 0x6c6c6c6c, List(
-          s"The consequence is higher technical cost, so $focus gains are harder to realize cleanly.",
-          s"This route raises the technical burden, and $focus edges are harder to stabilize.",
-          s"Technical handling gets heavier, making $focus execution less efficient."
+          s"The consequence is higher follow-up cost, so $focus gains are harder to realize cleanly.",
+          s"This route raises the coordination burden, and $focus edges are harder to stabilize.",
+          s"Follow-up handling gets heavier, making $focus execution less efficient."
         ))
       case _ =>
         NarrativeLexicon.pick(seed ^ 0x2f6e2b1, List(
@@ -2631,7 +2631,7 @@ object NarrativeContextBuilder:
       case "simplification-transition" =>
         NarrativeLexicon.pick(seed ^ 0x7f4a7c15, List(
           "The turning point arrives at the next simplification transition.",
-          "Once exchanges begin, conversion timing determines whether the plan remains sound.",
+          "Once exchanges begin, move-order timing determines whether the plan remains sound.",
           "Simplification choices are the key checkpoint for this route."
         ))
       case _ =>

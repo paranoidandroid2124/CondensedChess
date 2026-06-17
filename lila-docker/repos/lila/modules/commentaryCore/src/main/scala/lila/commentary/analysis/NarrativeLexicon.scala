@@ -166,11 +166,11 @@ object NarrativeLexicon {
               case Some(theme) => s"The game never fully settled because both sides left practical chances around $theme."
               case None        => "The game never fully settled because both sides left practical chances on the board."
         case None =>
-          if hasContestLead then "The game stayed balanced and neither side forced a decisive breakthrough."
+          if hasContestLead then "The game stayed balanced while the main plans stayed in tension."
           else
             leadTheme match
-              case Some(theme) => s"The game stayed balanced around $theme and neither side forced a decisive breakthrough."
-              case None        => "The game stayed balanced and neither side forced a decisive breakthrough."
+              case Some(theme) => s"The game stayed balanced around $theme."
+              case None        => "The game stayed balanced."
       }
 
     val detailTail =
@@ -203,7 +203,7 @@ object NarrativeLexicon {
       )
       else if (m.contains("blunder") || m.contains("missedwin") || m.contains("swing")) List(
         s"The $phaseLabel around $moveRef is a genuine turning point in the game.",
-        s"Around $moveRef, this $phaseLabel creates a decisive shift in practical control."
+        s"Around $moveRef, this $phaseLabel changes the practical control balance."
       )
       else if (m.contains("pressure") || m.contains("tension")) List(
         s"This $phaseLabel near $moveRef is defined by cumulative pressure and move-order accuracy.",
@@ -453,23 +453,23 @@ object NarrativeLexicon {
         (
           List(
             "The position has simplified into an endgame",
-            "This is a technical endgame phase",
-            "Endgame details now dominate the game",
+            "The game is now in an endgame phase",
+            "The remaining material makes local details more visible",
             "We are firmly in endgame territory",
-            "The game has entered a technical endgame",
-            "The struggle has shifted into technical endgame play",
-            "This phase is now about endgame technique",
-            "Endgame precision now outweighs broad strategic plans"
+            "The board has reached a late-game structure",
+            "The position has moved into a simplified phase",
+            "Endgame details now need concrete checking",
+            "The remaining pieces and pawns define the immediate context"
           ),
           List(
-            "king activity and tempi become decisive",
-            "piece activity outweighs broad strategic plans",
+            "king and pawn placement matter more than before",
+            "piece activity still needs to be checked on the board",
             "pawn-structure details carry extra weight",
-            "precision matters more than ambition here",
-            "one tempo can decide the technical outcome",
-            "minor king-route details can decide the evaluation",
-            "the evaluation now depends on accurate technical handling",
-            "practical endgame technique matters more than broad plans"
+            "move order matters in the simplified position",
+            "one tempo can change the sampled line",
+            "minor king-route details need board-level support",
+            "the evaluation still needs concrete line support",
+            "broad strategic plans give way to current-board details"
           )
         )
       case _ =>
@@ -495,45 +495,37 @@ object NarrativeLexicon {
   }
 
   def getGoalStatusDescription(bead: Int, evaluation: OpeningGoals.Evaluation): String = {
-    val name = evaluation.goalName
-    val supported = evaluation.supportedEvidence
-    val missing = evaluation.missingEvidence
-    
     evaluation.status match {
       case OpeningGoals.Status.Achieved =>
-        val evidenceText = if (supported.nonEmpty) s": ${supported.mkString(", ")}" else ""
         pick(bead, List(
-          s"The opening context shows the $name cue$evidenceText.",
-          s"$name is present as opening context$evidenceText.",
-          s"The position carries a $name opening cue$evidenceText."
+          "The current position supports a bounded opening-context cue.",
+          "The move fits the opening context, but only at this local level.",
+          "The position carries a bounded opening cue."
         ))
       
       case OpeningGoals.Status.Partial =>
-        val missingText = if (missing.nonEmpty) s"; still missing ${missing.mkString(", ")}" else ""
         pick(bead, List(
-          s"$name is only a partial opening cue$missingText.",
-          s"$name is visible as opening context$missingText."
+          "The opening cue is visible only as partial context here.",
+          "The current position gives partial opening context rather than a full plan."
         ))
 
       case OpeningGoals.Status.Premature =>
-        val missingText = if (missing.nonEmpty) s"; missing ${missing.mkString(" and ")}" else ""
         pick(bead, List(
-          s"$name is not yet supported by this position$missingText.",
-          s"$name remains only a candidate opening idea$missingText."
+          "The opening cue remains only a candidate in this position.",
+          "This is still background opening context until the current position supports it."
         ))
 
       case OpeningGoals.Status.Failed =>
-        val missingText = if (missing.nonEmpty) s"; the position lacks ${missing.mkString(" and ")}" else ""
         pick(bead, List(
-          s"$name is not supported here$missingText.",
-          s"$name remains only a background opening idea$missingText."
+          "The current position does not support that opening cue.",
+          "The opening cue stays background context here."
         ))
         
       case OpeningGoals.Status.Mismatch => 
         evaluation.requiredFamily.map(family =>
           pick(bead, List(
-            s"While $name is a common theme, this position needs the ${family.structureLabel} structure here.",
-            s"This looks like an attempt at $name, but the current position is not the ${family.structureLabel} structure at this moment."
+            s"This opening cue needs the ${family.structureLabel} structure here.",
+            s"The current position is not the ${family.structureLabel} structure for that opening cue."
           ))
         ).getOrElse("")
     }
@@ -637,68 +629,68 @@ object NarrativeLexicon {
           "improves central coordination"
         ))
       case s if s.contains("outpost") =>
-        if (hasEv && !ev.toLowerCase.contains("outpost")) s"establishes an outpost by $ev"
-        else if (hasEv) s"improves the position by $ev"
+        if (hasEv && !ev.toLowerCase.contains("outpost")) s"keeps an outpost cue tied to $ev"
+        else if (hasEv) s"keeps the candidate-line outpost cue in view through $ev"
         else choose(List(
-          "establishes a strong outpost",
-          "places the piece on an unassailable square",
-          "anchors a piece on a durable outpost"
+          "keeps an outpost cue in view",
+          "points toward an outpost idea that still needs board support",
+          "keeps outpost access as a theme to verify"
         ))
       case s if s.contains("simplification") =>
-        if (hasEv) s"simplifies the position by $ev"
+        if (hasEv) s"keeps the simplification cue tied to $ev"
         else choose(List(
-          "simplifies into a favorable endgame",
-          "trades down to an easier position",
-          "heads for the endgame",
-          "reduces complexity in a favorable way"
+          "keeps simplification as a line to check",
+          "uses exchanges as the detail to verify",
+          "points toward a simplified structure that still needs line checking",
+          "reduces the question to exchange order"
         ))
       case s if s.contains("file control") =>
-        if (hasEv) s"seizes the open file by $ev"
+        if (hasEv) s"keeps the file-control cue tied to $ev"
         else choose(List(
-          "seizes the open file",
-          "controls the key file",
-          "takes command of the file",
-          "improves major-piece control on the file"
+          "keeps file control as the feature to check",
+          "points toward open-file play",
+          "uses the file as the positional reference",
+          "keeps major-piece file activity in view"
         ))
       case s if s.contains("passed pawn") =>
-        if (hasEv) s"advances the passed pawn by $ev"
+        if (hasEv) s"keeps the passed-pawn cue tied to $ev"
         else choose(List(
-          "pushes the passed pawn",
-          "advances the trumping pawn",
-          "creates promotion threats",
-          "forces attention to promotion races"
+          "keeps the passed-pawn cue in view",
+          "plays around the passer",
+          "points to passed-pawn handling",
+          "keeps the passer as the line detail to verify"
         ))
       case s if s.contains("opposition") =>
-        if (hasEv) s"takes the opposition by $ev"
+        if (hasEv) s"keeps the opposition cue tied to $ev"
         else choose(List(
-          "takes the opposition",
-          "gains the opposition",
-          "seizes the key squares",
-          "improves king geometry in the ending"
+          "keeps king-distance geometry in view",
+          "plays around the king-placement cue",
+          "keeps opposition as an endgame cue to verify",
+          "uses king geometry as the detail to check"
         ))
       case s if s.contains("zugzwang") =>
-        if (hasEv) s"forces zugzwang by $ev"
+        if (hasEv && !ev.toLowerCase.contains("zugzwang")) s"keeps useful-move pressure tied to $ev"
         else choose(List(
-          "places the opponent in zugzwang",
-          "forces a fatal concession",
-          "squeezes the opponent",
-          "limits useful moves until concessions appear"
+          "keeps useful-move pressure as a line to verify",
+          "treats move availability as the endgame detail to check",
+          "keeps the move-availability cue support-only",
+          "points to move-availability pressure without claiming the result"
         ))
       case s if s.contains("pawn run") || s.contains("pawn_race") =>
-         if (hasEv) s"pushes for promotion by $ev"
+         if (hasEv) s"keeps the pawn-race cue tied to $ev"
          else choose(List(
-           "races for promotion",
-           "pushes the pawn",
-           "accelerates the pawn",
-           "starts a direct promotion race"
+           "keeps a pawn-race cue in view",
+           "checks the passer's tempo count",
+           "keeps pawn-race timing as the detail to verify",
+           "points to the pawn advance without claiming promotion"
          ))
       case s if s.contains("shouldering") =>
-         if (hasEv) s"shoulders the enemy king by $ev"
+         if (hasEv) s"keeps the king-placement cue tied to $ev"
          else choose(List(
-           "uses the king to shoulder the opponent",
-           "keeps the enemy king out",
-           "dominates with the king",
-           "improves king placement to restrict counterplay"
+           "keeps king-placement geometry in view",
+           "checks the kings' route geometry",
+           "uses king placement as the detail to verify",
+           "points to king-route restriction without claiming a lockout"
          ))
       case s if s.contains("castling") =>
         if (hasEv) s"castles by $ev"
@@ -716,12 +708,12 @@ object NarrativeLexicon {
           "activates the bishop on a long diagonal"
         ))
       case s if s.contains("exchange") =>
-        if (hasEv) s"forces an exchange by $ev"
+        if (hasEv) s"keeps the exchange cue tied to $ev"
         else choose(List(
-          "forces a favorable exchange",
-          "trades pieces",
-          "simplifies the material",
-          "steers the game toward a cleaner structure"
+          "keeps exchanges as the line detail to verify",
+          "uses the exchange order as the positional reference",
+          "points toward material simplification without claiming the result",
+          "keeps the resulting structure as the detail to check"
         ))
       
       // Development & central control
@@ -776,20 +768,20 @@ object NarrativeLexicon {
     val templates = (replySan, sampleRest) match {
       case (Some(_), Some(_)) => List(
         s"$fullMove $intent; after $rep, play might continue $sample. $evalTerm$cons.",
-        s"$fullMove $intent, inviting $rep, where the sequence $sample follows. $evalTerm$cons.",
-        s"With $fullMove, White $intent; after $rep $sample follows. $evalTerm$cons.",
-        s"$fullMove $intent — if Black defends with $rep, then $sample results in a clear outcome. $evalTerm$cons.",
-        s"$fullMove $intent, causing problems after $rep $sample. $evalTerm$cons."
+        s"$fullMove $intent, with $rep as the sampled reply and $sample as the checked continuation. $evalTerm$cons.",
+        s"After $fullMove, the sampled line continues $rep $sample. $evalTerm$cons.",
+        s"$fullMove $intent; if the line uses $rep, then $sample is the checked continuation. $evalTerm$cons.",
+        s"$fullMove $intent, and the sampled continuation after $rep is $sample. $evalTerm$cons."
       )
       case (Some(_), None) => List(
-        s"$fullMove $intent, and after $rep. $evalTerm$cons.",
-        s"By playing $fullMove, White $intent, forcing $rep. $evalTerm$cons.",
-        s"Black responds to $fullMove $intent with $rep. $evalTerm$cons."
+        s"$fullMove $intent; the sampled reply is $rep. $evalTerm$cons.",
+        s"After $fullMove, $rep is the checked reply in the sample. $evalTerm$cons.",
+        s"$fullMove $intent, with $rep as the sampled reply. $evalTerm$cons."
       )
       case _ => List(
         s"$fullMove $intent. $evalTerm$cons.",
-        s"With $fullMove, White $intent. $evalTerm$cons.",
-        s"$fullMove $intent. It remains a precise choice. $evalTerm$cons."
+        s"With $fullMove, the line $intent. $evalTerm$cons.",
+        s"$fullMove $intent. It remains the sampled reference move. $evalTerm$cons."
       )
     }
     pick(bead, templates)
@@ -922,37 +914,37 @@ object NarrativeLexicon {
         s"$route$pivot created the key turning point, after which promotion threats dictated priorities.",
         s"$route$pivot marked the turning point because promotion timing outweighed slower strategic plans.",
         s"With $route$pivot, the transformation toward a promotion-based engine began.",
-        s"The tactical fork at $route$pivot was the decisive shift toward promotion themes."
+        s"The tactical fork at $route$pivot shifted the route toward promotion themes."
       )
       else if key.contains("exchange") then List(
         s"$route$pivot marked the exchange turning point, with exchange timing starting to define the evaluation.",
-        s"From $route$pivot, the decisive shift was the exchange sequence and resulting simplification.",
+        s"From $route$pivot, the main shift was the exchange sequence and resulting simplification.",
         s"$route$pivot became the turning point once exchanges reshaped piece activity and defensive resources.",
         s"The critical turning point was $route$pivot, where exchange decisions shaped the resulting balance.",
         s"Structural clarity was reached at $route$pivot through a series of forcing exchanges.",
-        s"The game transformed at $route$pivot as the exchange sequence reduced the tactical Fog of War."
+        s"The game transformed at $route$pivot as the exchange sequence reduced tactical noise."
       )
       else if key.contains("tactical") then List(
         s"$route$pivot marked the tactical turning point, once forcing tactical pressure became hard to defuse.",
-        s"From $route$pivot, the decisive shift was king safety and concrete tactical accuracy.",
+        s"From $route$pivot, the main shift was king safety and concrete tactical accuracy.",
         s"$route$pivot marked the turning point because tactical threats began to override long-term plans.",
         s"The critical turning point was $route$pivot, where tactical forcing lines dictated move order.",
         s"Calculation intensity at $route$pivot defined the turning point of the struggle.",
-        s"The tactical landscape shifted irreversibly at $route$pivot through a forcing sequence."
+        s"The tactical landscape shifted at $route$pivot through a forcing sequence."
       )
       else if key.contains("structural") then List(
-        s"$route$pivot marked the structural turning point, when structural features began to dominate planning.",
-        s"From $route$pivot, the decisive shift was structural transformation and piece rerouting.",
-        s"$route$pivot became the turning point once structure and square control outweighed short tactics.",
-        s"The key turning point was $route$pivot, where structural shifts fixed the strategic roadmap.",
-        s"Strategic weight settled on $route$pivot as the structural imbalances hardened.",
-        s"Plan choice was fixed at $route$pivot through a defining structural transformation."
+        s"$route$pivot marked the reference route's structural shift.",
+        s"From $route$pivot, the sample route changed through pawn-structure details.",
+        s"$route$pivot is the structural comparison point in the sampled route.",
+        s"The reference route turns on structural details around $route$pivot.",
+        s"The sample game puts structural context on $route$pivot.",
+        s"The comparison stays structural at $route$pivot, with current-line evidence still deciding the plan."
       )
       else List(
         s"$route$pivot marked the initiative turning point, as initiative control shifted to one side.",
-        s"From $route$pivot, the decisive shift was initiative management rather than static factors.",
-        s"$route$pivot marked the turning point because tempo and initiative started to decide the play.",
-        s"The critical turning point was $route$pivot, where initiative swings determined the practical outcome."
+        s"From $route$pivot, the main shift was initiative management rather than static factors.",
+        s"$route$pivot marked the turning point because tempo and initiative started to shape the play.",
+        s"The critical turning point was $route$pivot, where initiative swings changed the practical balance."
       )
 
     pick(bead ^ 0x5f356495, templates)
@@ -986,10 +978,10 @@ object NarrativeLexicon {
   ): String = {
     val m = mechanism.trim
     val templates = List(
-      s"Strategically, the game turned on $m.",
-      s"The position's strategic transition was driven by $m.",
-      s"That branch shifts plans through $m.",
-      s"The practical turning factor was $m."
+      s"The precedent sample tags this route with $m.",
+      s"In the reference route, $m is the comparison handle.",
+      s"That branch is mainly useful as $m context.",
+      s"Treat $m as opening-context support, not a current-line verdict."
     )
     pick(bead ^ 0x284f2d5b, templates)
   }
@@ -1000,10 +992,10 @@ object NarrativeLexicon {
   ): String = {
     val m = mechanism.trim
     val templates = List(
-      s"The decisive practical driver was control of $m.",
-      s"Results hinged on who managed $m more accurately.",
-      s"The key match result factor was handling $m under pressure.",
-      s"Conversion quality around $m separated the outcomes."
+      s"The precedent comparison records $m as route context.",
+      s"The route sample highlights $m as a reference motif.",
+      s"Use $m as a comparison label while current-line evidence decides relevance.",
+      s"The sampled routes keep $m in view without proving it for the current position."
     )
     pick(bead ^ 0x3124bcf5, templates)
   }
@@ -1013,7 +1005,7 @@ object NarrativeLexicon {
       case Some(reason) if reason.nonEmpty =>
         pick(bead, List(
           s"**$move** is another candidate, but $reason, so practical timing becomes critical.",
-          s"A practical sideline is **$move**; however, $reason, which changes the technical route.",
+          s"A practical sideline is **$move**; however, $reason, which changes the structural route.",
           s"**$move** keeps options open, yet $reason, and coordination can drift if move order slips.",
           s"**$move** is playable over the board, although $reason, so initiative management becomes harder."
         ))
@@ -1022,7 +1014,7 @@ object NarrativeLexicon {
           s"**$move** remains a live candidate, and it steers the game toward a different strategic route.",
           s"One practical detour is **$move**, where coordination matters more than immediate tactics.",
           s"**$move** points to a different strategic route, so tempo handling becomes the key test.",
-          s"**$move** is still feasible in practice, while conversion relies on cleaner sequencing."
+          s"**$move** is still feasible in practice, while the follow-up relies on cleaner sequencing."
         ))
     }
   }
@@ -1176,26 +1168,26 @@ object NarrativeLexicon {
         case HypothesisHorizon.Short =>
           List(
             s"In practical terms, the split should appear in the next few moves, especially around $axisText handling.",
-            s"Practical short-horizon test: the next move-order around $axisText will determine whether **$move** holds up.",
+            s"Practical short-horizon test: the next move-order around $axisText will test whether **$move** holds up.",
             s"Immediate practical impact is expected: $axisText in the next sequence is critical.",
-            s"Practical short-term handling is decisive here, because $axisText errors are punished quickly.",
+            s"Practical short-term handling matters here, because $axisText errors are punished quickly.",
             s"The practical immediate future revolves around $axisText accuracy.",
-            s"Within a few moves, practical $axisText choices will separate the outcomes."
+            s"Within a few moves, practical $axisText choices should separate the sampled lines."
           )
         case HypothesisHorizon.Medium =>
           List(
             s"Practically, this should influence middlegame choices where $axisText commitments are tested.",
             s"The practical medium-horizon task is keeping $axisText synchronized before the position simplifies.",
-            s"After development, practical $axisText decisions are likely to determine whether **$move** remains robust.",
+            s"After development, practical $axisText decisions are likely to test whether **$move** remains robust.",
             s"The practical burden appears in the middlegame phase, once $axisText tradeoffs become concrete.",
             s"Practical middlegame stability is tied to how $axisText is handled in the next regrouping.",
             s"Practical strategic balance depends on $axisText management as the game transitions."
           )
         case HypothesisHorizon.Long =>
           List(
-            s"In practical terms, the divergence is long-horizon: $axisText choices now can decide the later technical path.",
+            s"In practical terms, the divergence is long-horizon: $axisText choices now may shape the later simplified position.",
             s"The practical implication is long-term; $axisText tradeoffs here are likely to resurface in the ending.",
-            s"Practically this points to a late-phase split, where $axisText decisions today shape the endgame trajectory."
+            s"Practically this points to a late-phase split, where $axisText decisions today shape the later direction."
           )
     pick(bead ^ 0x4f6cdd1d, templates)
   }
@@ -1207,12 +1199,12 @@ object NarrativeLexicon {
   ): String = {
     val axisText = axisLabel(axis, bead ^ 0x2a2a2a2a)
     val templates = List(
-      s"Because **$move** stabilizes $axisText now, the decisive split is expected when later simplification choices begin.",
-      s"The immediate gain from **$move** is cleaner $axisText coordination now, and that usually decides the game later once the position simplifies.",
-      s"By locking in $axisText with **$move** now, the practical payoff tends to appear later when the endgame plan must be converted.",
-      s"With **$move**, the short-term position stays controlled around $axisText now, but the real test arrives later in the conversion phase.",
-      s"**$move** secures today's $axisText tradeoff now, and that shifts the balance later when late-phase technique becomes the main battleground.",
-      s"After **$move** fixes the current $axisText framework now, the resulting advantage normally appears later at the next major transition."
+      s"Because **$move** stabilizes $axisText now, the important comparison may appear when later simplification choices begin.",
+      s"The immediate point of **$move** is cleaner $axisText coordination now, while the later simplified position still needs checking.",
+      s"By locking in $axisText with **$move** now, the long-horizon test is whether that detail survives later exchanges.",
+      s"With **$move**, the short-term position stays controlled around $axisText now, but the later simplified line still needs verification.",
+      s"**$move** secures today's $axisText tradeoff now, and that shifts what must be checked at the next major transition.",
+      s"After **$move** fixes the current $axisText framework now, the later branch comparison remains line-dependent."
     )
     pick(bead ^ 0x7f4a7c15, templates)
   }
@@ -1271,29 +1263,29 @@ object NarrativeLexicon {
             "Timing discipline still sets the practical limit.",
             "Timing accuracy remains the practical priority.",
             "Move-order timing is still the central strategic issue.",
-            "Strategic outcomes still hinge on tempo management.",
+            "Strategic comparison still hinges on tempo management.",
             "The plan remains tempo-sensitive at every turn.",
             "Timing control continues to define the position.",
             "Precise sequencing remains the strategic anchor.",
             "Tempo handling still governs practical stability.",
             "Strategic pressure remains tied to accurate timing.",
             "The position still rewards strict move-order precision.",
-            "Timing remains the decisive strategic resource."
+            "Timing remains a key strategic resource."
           )
         case "coordination" =>
           List(
             "The position still turns on coordination quality.",
             "Piece coordination remains the strategic baseline.",
-            "The practical edge still comes from cleaner coordination.",
+            "The comparison still comes from cleaner coordination.",
             "Strategic clarity still depends on piece harmony.",
             "Coordination quality remains the key strategic metric.",
             "The plan continues to revolve around coordinated piece play.",
-            "Piece harmony remains the practical conversion driver.",
+            "Piece harmony remains the practical coordination driver.",
             "Strategic control still rests on coordinated deployment.",
             "Coordination remains the central positional requirement.",
             "The position still favors superior piece coordination.",
             "Strategic stability remains tied to coordination discipline.",
-            "Coordination quality still shapes the practical outcome."
+            "Coordination quality still shapes the next practical choices."
           )
         case _ =>
           List(
@@ -1303,9 +1295,9 @@ object NarrativeLexicon {
             "Strategic direction still matters more than short-term noise.",
             "The position remains governed by long-horizon planning.",
             "Long-term route selection is still the strategic anchor.",
-            "Overall trajectory still decides the strategic direction.",
+            "Overall trajectory still shapes the strategic direction.",
             "The game still turns on long-range strategic direction.",
-            "Long-horizon structure remains the decisive strategic layer.",
+            "Long-horizon structure remains a key strategic layer.",
             "The position still rewards coherent long-term planning.",
             "Strategic balance remains defined by trajectory management.",
             "Long-term strategic steering remains essential here."
@@ -1337,11 +1329,11 @@ object NarrativeLexicon {
           )
         case HypothesisHorizon.Long =>
           List(
-            s"The divergence after **$alternativeMove** is expected to surface later in the endgame trajectory.",
-            s"With **$alternativeMove**, this split should reappear in long-term conversion phases.",
-            s"For **$alternativeMove**, the practical difference is likely delayed until late-phase technique.",
+            s"The divergence after **$alternativeMove** is expected to surface later in the simplified position.",
+            s"With **$alternativeMove**, this split should reappear when later exchanges clarify the structure.",
+            s"For **$alternativeMove**, the practical difference is likely delayed until late-phase details are checked.",
             s"Long-range consequences of **$alternativeMove** often surface only after structural simplification.",
-            s"The full strategic weight of **$alternativeMove** is felt during the final technical phase."
+            s"The full strategic weight of **$alternativeMove** is tested when the final structure becomes clearer."
           )
     val wrappers = List(
       "Compared with",
@@ -1406,15 +1398,15 @@ object NarrativeLexicon {
       if mainHorizon == altHorizon then s"a shared ${horizonLabel(mainHorizon)} horizon"
       else s"${horizonLabel(mainHorizon)} vs ${horizonLabel(altHorizon)} horizon"
     List(
-      s"Decisive split: **$mainMove** versus **$altMove** on $axisContrast with $horizonBlend.",
+      s"Main split: **$mainMove** versus **$altMove** on $axisContrast with $horizonBlend.",
       s"Core contrast: **$mainMove** and **$altMove** diverge by $axisContrast across $horizonBlend.",
-      s"Decisively, **$mainMove** and **$altMove** diverge through $axisContrast, with $horizonBlend.",
+      s"By comparison, **$mainMove** and **$altMove** diverge through $axisContrast, with $horizonBlend.",
       s"Practical split: **$mainMove** against **$altMove** is $axisContrast under $horizonBlend.",
-      s"At the decisive split, **$mainMove** and **$altMove** divide along $axisContrast with $horizonBlend.",
-      s"Final decisive split: **$mainMove** vs **$altMove**, defined by $axisContrast and $horizonBlend.",
+      s"At the main split, **$mainMove** and **$altMove** divide along $axisContrast with $horizonBlend.",
+      s"Final comparison: **$mainMove** vs **$altMove**, defined by $axisContrast and $horizonBlend.",
       s"From a practical contrast angle, **$mainMove** and **$altMove** separate through $axisContrast under $horizonBlend.",
       s"Key difference at the main fork: **$mainMove** vs **$altMove** hinges on $axisContrast within $horizonBlend.",
-      s"Decisively, **$mainMove** and **$altMove** are distinguished by $axisContrast during $horizonBlend.",
+      s"Comparatively, **$mainMove** and **$altMove** are distinguished by $axisContrast during $horizonBlend.",
       s"The principal fork is **$mainMove** versus **$altMove**: $axisContrast under $horizonBlend."
     )
       .map(_.replaceAll("""\s+""", " ").trim)
@@ -1456,7 +1448,7 @@ object NarrativeLexicon {
       case HypothesisAxis.Initiative =>
         pick(seed, List("initiative control", "momentum balance", "initiative timing", "tempo initiative", "initiative management", "momentum control", "dynamic balance", "initiative pulse"))
       case HypothesisAxis.Conversion =>
-        pick(seed, List("technical timing", "endgame technique", "simplification timing", "technical handling", "technical roadmap", "technique precision", "simplification logic", "technical pathing"))
+        pick(seed, List("simplification timing", "exchange timing", "late-phase coordination", "simplification route", "simplification logic", "exchange-order precision", "late-phase structure", "simplification pathing"))
       case HypothesisAxis.KingSafety =>
         pick(seed, List("king-safety timing", "king security management", "defensive king timing", "king-cover stability", "king-safety assessment", "defensive synchronization", "protective coordination", "king-security profile"))
       case HypothesisAxis.PieceCoordination =>
@@ -1464,7 +1456,7 @@ object NarrativeLexicon {
       case HypothesisAxis.PawnBreakTiming =>
         pick(seed, List("pawn-break timing", "pawn-lever timing", "central break timing", "pawn tension timing", "break-order precision", "pawn-break execution", "tension resolution timing", "lever-activation timing"))
       case HypothesisAxis.EndgameTrajectory =>
-        pick(seed, List("endgame trajectory", "long-phase technical path", "late-phase trajectory", "endgame direction", "technical trajectory", "endgame roadmap", "late-game trajectory", "technical-phase direction"))
+        pick(seed, List("endgame trajectory", "late-phase path", "late-phase trajectory", "endgame direction", "simplified-position trajectory", "endgame roadmap", "late-game trajectory", "late-phase direction"))
 
   private def horizonLabel(horizon: HypothesisHorizon): String =
     horizon match
@@ -1495,127 +1487,15 @@ object NarrativeLexicon {
         ))
   }
 
-  def getPracticalVerdict(bead: Int, verdict: String): String =
-    getPracticalVerdict(bead, verdict, cpWhite = 0)
-
-  def getPracticalVerdict(bead: Int, verdict: String, cpWhite: Int, ply: Int = 0): String = {
-    val advantageSide =
-      if cpWhite >= 80 then Some("White")
-      else if cpWhite <= -80 then Some("Black")
-      else None
-    val cycle = Math.floorMod(ply, 3)
-    val localSeed = bead ^ (ply * 0x7f4a7c15)
-
-    verdict match {
-      case "Comfortable" =>
-        advantageSide match
-          case Some(side) =>
-            val families = cycle match
-              case 0 => List(
-                s"From a practical standpoint, $side has the cleaner roadmap.",
-                s"$side can follow the more straightforward practical plan.",
-                s"$side has the more comfortable practical route here.",
-                s"$side's practical choices are easier to execute with fewer risks."
-              )
-              case 1 => List(
-                s"$side can press with a comparatively straightforward conversion scheme.",
-                s"$side's strategic plan is easier to execute without tactical risk.",
-                s"$side can improve with lower practical risk move by move.",
-                s"$side can keep improving without forcing tactical concessions."
-              )
-              case _ => List(
-                s"$side can play on intuition here.",
-                s"$side can improve naturally without forcing complications.",
-                s"$side can maintain pressure without overextending.",
-                s"$side can progress with measured moves and minimal tactical exposure."
-              )
-            pick(localSeed, families)
-          case None =>
-            val families = cycle match
-              case 0 => List(
-                "In practical terms, handling this position is straightforward.",
-                "The position is easier to navigate than it first appears.",
-                "Practical handling is relatively direct for both sides.",
-                "Both sides can follow understandable plans without immediate tactical chaos."
-              )
-              case 1 => List(
-                "Plans are relatively clear for both players.",
-                "There are no immediate tactical emergencies for either side.",
-                "The position allows measured play without urgent tactical firefighting.",
-                "Both sides can prioritize structure and coordination over tactics."
-              )
-              case _ => List(
-                "This is a manageable position from a practical perspective.",
-                "The position allows methodical play without forcing tactics.",
-                "Practical decision-making is stable if move order stays accurate.",
-                "Long-term plans matter more than tactical fireworks right now."
-              )
-            pick(localSeed, families)
-      case "Under Pressure" =>
-        val defenseSide = advantageSide.map(side => if side == "White" then "Black" else "White")
-        defenseSide match
-          case Some(side) =>
-            val families = cycle match
-              case 0 => List(
-                s"$side has to defend accurately to stay afloat.",
-                s"$side is under practical pressure and must be precise."
-              )
-              case 1 => List(
-                s"The defensive burden falls on $side.",
-                s"$side has less margin for passive play here."
-              )
-              case _ => List(
-                s"$side needs concrete accuracy to avoid drifting worse.",
-                s"$side must find precise moves to prevent a structural collapse."
-              )
-            pick(localSeed, families)
-          case None =>
-            val families = cycle match
-              case 0 => List(
-                "Precise defensive choices are needed to keep equality.",
-                "The defensive burden is noticeable."
-              )
-              case 1 => List(
-                "One tempo can change the evaluation quickly.",
-                "It is easy to misstep if you relax.",
-                "A small timing error can hand over practical control.",
-                "A single inexact move can create immediate defensive burdens."
-              )
-              case _ => List(
-                "A single tempo can swing the position.",
-                "Defensive technique matters more than raw activity here.",
-                "Defensive precision is more important than active-looking moves.",
-                "Defensive accuracy is the main practical requirement in this phase."
-              )
-            pick(localSeed, families)
-      case _ =>
-        val families = List(
-          "The position remains dynamically balanced.",
-          "Counterplay exists for both sides.",
-          "The practical chances are still shared between both players.",
-          "Neither side has turned small edges into a stable advantage.",
-          "The game remains close, with chances only separating on move-order precision.",
-          "Strategic tension persists, and both sides have viable practical tasks.",
-          "The balance is delicate and requires constant tactical vigilance.",
-          "Fine margins mean technical accuracy still determines practical outcomes.",
-          "The game remains balanced, and precision will decide the result.",
-          "A single inaccurate sequence could tip this balanced position.",
-          "Practical handling remains the key test in this level game.",
-          "The margin is narrow enough that practical accuracy remains decisive."
-        )
-        pick(localSeed, families)
-    }
-  }
-
   def getAnnotationPositive(bead: Int, playedSan: String): String = {
     pick(bead, List(
       s"**$playedSan** keeps the pieces coordinated and does not create a new weakness.",
       s"**$playedSan** is a solid move that keeps the plan clear.",
-      s"**$playedSan** improves the position without giving the opponent an easy target.",
-      s"With **$playedSan**, the next moves stay straightforward over the board.",
+      s"**$playedSan** improves the position without giving the opponent a new target.",
+      s"With **$playedSan**, the next plan stays legible over the board.",
       s"**$playedSan** keeps development on track and avoids unnecessary complications.",
       s"**$playedSan** is a reliable move that keeps the structure under control.",
-      s"**$playedSan** keeps the position easy to handle while preserving the main ideas.",
+      s"**$playedSan** keeps the position coherent while preserving the main ideas.",
       s"**$playedSan** holds the position together and keeps the useful options open."
     ))
   }
@@ -1625,7 +1505,7 @@ object NarrativeLexicon {
       s"**$playedSan** is a real investment that keeps the main pressure alive.",
       s"**$playedSan** commits material to preserve the active plan.",
       s"With **$playedSan**, the game turns on whether the invested material keeps enough pressure.",
-      s"**$playedSan** is an investment move that keeps the practical initiative in play.",
+      s"**$playedSan** is an investment move that keeps the active plan in play.",
       s"**$playedSan** leans into a material investment to keep the strategic payoff available."
     ))
   }
@@ -1640,34 +1520,34 @@ object NarrativeLexicon {
         case "blunder" =>
           pick(bead, List(
             s"$markedMove is a blunder; it opens immediate tactical problems, so your position loses control quickly. **$bestSan** was the cleanest defense.",
-            s"$markedMove is a decisive error, and as a result coordination collapses quickly. The critical move was **$bestSan**.",
+            s"$markedMove is a serious error, and as a result coordination collapses quickly. The critical move was **$bestSan**.",
             s"$markedMove is a blunder that hands over game flow, while **$bestSan** was the more resilient route.",
-            s"$markedMove is a blunder because it disconnects defense from counterplay; **$bestSan** was the best practical way to hold things together.",
-            s"$markedMove is a major error, so king safety and initiative both deteriorate; **$bestSan** held the balance."
+            s"$markedMove is a blunder because it disconnects defense from counterplay; **$bestSan** was the most resilient way to hold things together.",
+            s"$markedMove is a major error, so king safety and coordination both deteriorate; **$bestSan** held the balance."
           ))
         case "mistake" =>
           pick(bead, List(
-            s"$markedMove is a clear mistake; it gives the opponent initiative, so practical defense becomes harder. Stronger is **$bestSan**.",
-            s"$markedMove is a mistake that worsens coordination, while **$bestSan** keeps the structure easier to manage.",
-            s"$markedMove is a serious mistake that shifts practical control, and **$bestSan** was the preferable route.",
+            s"$markedMove is a clear mistake; it gives the opponent a cleaner route, so defense becomes more demanding. Stronger is **$bestSan**.",
+            s"$markedMove is a mistake that worsens coordination, while **$bestSan** keeps the structure more coherent.",
+            s"$markedMove is a serious mistake that shifts coordination control, and **$bestSan** was the preferable route.",
             s"$markedMove is a mistake because it loosens tempo order; **$bestSan** keeps the position connected.",
-            s"$markedMove is inaccurate in practical terms, so **$bestSan** was the cleaner way to preserve initiative."
+            s"$markedMove is inaccurate in move-order terms, so **$bestSan** was the cleaner way to preserve coordination."
           ))
         case "inaccuracy" =>
           pick(bead, List(
             s"$markedMove is an inaccuracy, and **$bestSan** keeps cleaner control of coordination.",
-            s"$markedMove concedes practical ease, so **$bestSan** is the tighter continuation.",
-            s"$markedMove drifts from the best plan, while **$bestSan** keeps initiative better anchored.",
-            s"$markedMove is slightly loose in timing, and **$bestSan** keeps the structure easier to handle.",
-            s"$markedMove gives up some practical control; therefore **$bestSan** is the cleaner route."
+            s"$markedMove concedes coordination clarity, so **$bestSan** is the tighter continuation.",
+            s"$markedMove drifts from the best plan, while **$bestSan** keeps coordination better anchored.",
+            s"$markedMove is slightly loose in timing, and **$bestSan** keeps the structure more coherent.",
+            s"$markedMove gives up some coordination control; therefore **$bestSan** is the cleaner route."
           ))
         case _ =>
           pick(bead, List(
-            s"$markedMove is slightly imprecise, while **$bestSan** is cleaner in practical terms.",
-            s"$markedMove is playable but second-best, and **$bestSan** keeps the position simpler to convert.",
+            s"$markedMove is slightly imprecise, while **$bestSan** is cleaner in move-order terms.",
+            s"$markedMove is playable but second-best, and **$bestSan** keeps the sampled route clearer.",
             s"$markedMove is not the top choice here, so **$bestSan** remains the reference move.",
             s"$markedMove can be played, but **$bestSan** keeps better structure and coordination.",
-            s"$markedMove is acceptable yet less direct, whereas **$bestSan** keeps initiative more stable."
+            s"$markedMove is acceptable yet less direct, whereas **$bestSan** keeps coordination more stable."
           ))
       }
   }
@@ -1680,23 +1560,23 @@ object NarrativeLexicon {
       case "blunder" =>
         pick(bead, List(
           s"$markedMove is a blunder; it opens immediate tactical problems and loses control quickly.",
-          s"$markedMove is a decisive error, so coordination collapses and the position turns difficult fast.",
+          s"$markedMove is a serious error, so coordination collapses and the position turns difficult fast.",
           s"$markedMove is a blunder that hands over game flow and leaves too much to defend.",
-          s"$markedMove is a major error because defense disconnects from counterplay and the initiative slips away."
+          s"$markedMove is a major error because defense disconnects from counterplay and coordination slips away."
         ))
       case "mistake" =>
         pick(bead, List(
-          s"$markedMove is a clear mistake; it gives the opponent initiative and makes defense harder.",
-          s"$markedMove is a serious mistake that shifts practical control away from your side.",
+          s"$markedMove is a clear mistake; it gives the opponent a cleaner route and makes defense more demanding.",
+          s"$markedMove is a serious mistake that shifts coordination control away from your side.",
           s"$markedMove is a mistake because it loosens coordination and leaves the position harder to manage.",
-          s"$markedMove is inaccurate in practical terms, so the game becomes much easier for the opponent to steer."
+          s"$markedMove is inaccurate in move-order terms, so the opponent gets a cleaner route to steer."
         ))
       case "inaccuracy" =>
         pick(bead, List(
-          s"$markedMove is an inaccuracy that gives up some practical ease.",
+          s"$markedMove is an inaccuracy that gives up some coordination clarity.",
           s"$markedMove drifts from the cleanest plan and leaves coordination a bit looser.",
-          s"$markedMove is slightly loose in timing, so the opponent gets easier play.",
-          s"$markedMove gives up some practical control and leaves the initiative less secure."
+          s"$markedMove is slightly loose in timing, so the opponent gets cleaner play.",
+          s"$markedMove gives up some coordination control and leaves the position less secure."
         ))
       case _ =>
         pick(bead, List(
@@ -1712,39 +1592,39 @@ object NarrativeLexicon {
     rank match {
       case Some(2) if cpLoss <= 35 =>
         Some(pick(bead, List(
-          s"Engine preference still leans to **$bestSan**, but the practical gap is modest and coordination themes stay similar.",
+          s"Engine preference still leans to **$bestSan**, but the score gap is modest and coordination themes stay similar.",
           s"The engine line order is close here; **$bestSan** is still cleaner, while structure remains comparable.",
-          s"By score order, **$bestSan** remains first, although the practical difference stays small."
+          s"By score order, **$bestSan** remains first, although the evaluation difference stays small."
         )))
       case Some(2) =>
         Some(pick(bead, List(
-          s"Engine preference still leans to **$bestSan** as the cleaner move-order, so initiative handling is easier.",
+          s"Engine preference still leans to **$bestSan** as the cleaner move-order, so coordination demands are lower.",
           s"In engine ordering, **$bestSan** remains first, while this line requires tighter coordination.",
           s"The top engine continuation starts with **$bestSan**, because it keeps the structure more resilient."
         )))
       case Some(r) if r >= 3 && cpLoss <= 35 =>
         Some(pick(bead, List(
           s"Engine ordering is still close; **$bestSan** remains the cleanest reference line, while this stays playable.",
-          s"This line is playable, but **$bestSan** keeps a cleaner move-order and easier technical path.",
-          s"Score ordering still prefers **$bestSan**, though the practical gap stays small and strategic plans overlap."
+          s"This line is playable, but **$bestSan** keeps a cleaner move-order and clearer checked path.",
+          s"Score ordering still prefers **$bestSan**, though the evaluation gap stays small and strategic plans overlap."
         )))
       case Some(r) if r >= 3 =>
         Some(pick(bead, List(
           s"This sits below the principal engine candidates, so **$bestSan** gives the more reliable setup.",
-          s"Engine ranking puts this in a lower tier, while **$bestSan** keeps tighter control of initiative.",
-          s"This is outside the top engine choices, and **$bestSan** remains the stable technical reference."
+          s"Engine ranking puts this in a lower tier, while **$bestSan** keeps tighter control of coordination.",
+          s"This is outside the top engine choices, and **$bestSan** remains the stable engine reference."
         )))
       case None if cpLoss <= 35 =>
         Some(pick(bead, List(
           s"This move was not in the sampled MultiPV set, so **$bestSan** remains the engine reference.",
-          s"The sampled principal lines still favor **$bestSan**, with only a modest practical difference in coordination.",
+          s"The sampled principal lines still favor **$bestSan**, with only a modest evaluation difference in coordination.",
           s"From sampled engine lines, **$bestSan** remains the cleaner benchmark for strategic stability."
         )))
       case None =>
         Some(pick(bead, List(
-          s"This move is outside sampled principal lines, and **$bestSan** is the engine reference for safer handling.",
-          s"The move is not in the main MultiPV set, so **$bestSan** is the robust practical alternative.",
-          s"Sampled principal lines do not prioritize this, while **$bestSan** remains the practical benchmark."
+          s"This move is outside sampled principal lines, and **$bestSan** is the engine reference for a more stable setup.",
+          s"The move is not in the main MultiPV set, so **$bestSan** is the more robust engine alternative.",
+          s"Sampled principal lines do not prioritize this, while **$bestSan** remains the engine benchmark."
         )))
       case _ => None
     }
@@ -2020,10 +1900,10 @@ object NarrativeLexicon {
         )))
       case CandidateTag.Converting =>
         Some(pick(bead ^ 0x4f4f4f, List(
-          "It nudges the game toward a cleaner conversion.",
-          "A practical converting approach, aiming for a simpler win.",
-          "This is a technical converting choice to stabilize the advantage.",
-          "Focus shifts to systematic conversion using technical means."
+          "It nudges the game toward simplification.",
+          "A practical exchange-oriented approach, aiming for a clearer route.",
+          "This is a simplification choice that still needs verification.",
+          "Focus shifts to exchange order and follow-up accuracy."
         )))
       case CandidateTag.Solid =>
         Some(pick(bead ^ 0x5f5f5f, List(
@@ -2054,29 +1934,29 @@ object NarrativeLexicon {
     else if diff.contains("clean") then
       if p == "endgame" then
         Some(pick(bead ^ 0x8f8f8f, List(
-          s"The line after **$moveHint** is clean and technical, where subtle king routes and tempi matter.",
-          s"**$moveHint** guides play into a precise conversion phase.",
-          s"After **$moveHint**, technical details matter more than tactical tricks.",
-          s"**$moveHint** keeps the structure stable and highlights endgame technique.",
+          s"The line after **$moveHint** is quieter, with king routes and tempi still needing line support.",
+          s"**$moveHint** guides play into a simplified position that still needs checking.",
+          s"After **$moveHint**, local endgame details matter more than broad labels.",
+          s"**$moveHint** keeps the structure stable and highlights current-board details.",
           s"With **$moveHint**, progress is mostly about methodical coordination.",
-          s"Endgame technique after **$moveHint** centers on systematic structure exploitation."
+          s"After **$moveHint**, the simplified structure remains the main reference point."
         )))
       else
         Some(pick(bead ^ 0x9f9f9f, List(
-          s"The line after **$moveHint** is relatively clean and technical, with less tactical turbulence.",
+          s"The line after **$moveHint** is relatively quiet, with less tactical turbulence.",
           s"After **$moveHint**, strategy tightens; tactics recede.",
           s"With **$moveHint**, planning depth tends to matter more than short tactics.",
           s"With **$moveHint**, the structure stays stable and plan choices become clearer.",
-          s"Technical considerations come to the fore after **$moveHint**, as tactical smog clears.",
-          s"The technical route after **$moveHint** remains strategically transparent and manageable.",
+          s"Structural considerations come to the fore after **$moveHint**, as tactical noise clears.",
+          s"The route after **$moveHint** remains strategically transparent but still needs checking.",
           s"With **$moveHint**, tactical complications settle into a clear strategic direction.",
-          s"The practical burden after **$moveHint** is technical rather than tactical.",
-          s"Follow-up after **$moveHint** guides the game into a technically stable phase.",
-          s"Sequencing after **$moveHint** shifts the priority toward structural technique.",
+          s"The practical burden after **$moveHint** is structural rather than tactical.",
+          s"Follow-up after **$moveHint** guides the game into a quieter structural phase.",
+          s"Sequencing after **$moveHint** shifts the priority toward structural details.",
           s"Strategic clarity increases after **$moveHint** as forcing lines resolve.",
-          s"The game enters a phase of technical consolidation after **$moveHint**.",
-          s"**$moveHint** leads to a structure that rewards accurate technical handling.",
-          s"Tactical dust settles after **$moveHint**, leaving a technical endgame-like fight."
+          s"The game enters a phase of structural consolidation after **$moveHint**.",
+          s"**$moveHint** leads to a structure that rewards accurate follow-up.",
+          s"Tactical dust settles after **$moveHint**, leaving a quieter strategic fight."
         )))
     else None
 
@@ -2177,72 +2057,67 @@ object NarrativeLexicon {
         case _ => base
 
     if (cp >= 500) choose(List(
-      withApprox("White is winning"),
-      withApprox("White has a decisive advantage"),
-      withApprox("White is completely on top"),
-      withApprox("White should convert with correct play"),
-      withApprox("White is close to a winning position")
+      withApprox("White has a very large evaluation edge"),
+      withApprox("The engine evaluation is heavily in White's favor"),
+      withApprox("White is far ahead on the evaluation"),
+      withApprox("White holds a major objective edge"),
+      withApprox("The position evaluates strongly for White")
     ))
     else if (cp >= 300) choose(List(
-      withApprox("White holds a clear advantage"),
-      withApprox("White is clearly better"),
-      withApprox("White is pressing with a stable edge"),
-      withApprox("White has the initiative and the better game"),
-      withApprox("White has a comfortable plus")
+      withApprox("White holds a clear evaluation edge"),
+      withApprox("The engine prefers White by a clear margin"),
+      withApprox("White is ahead on the objective evaluation"),
+      withApprox("White has a sizeable evaluation plus"),
+      withApprox("The position evaluates clearly for White")
     ))
     else if (cp >= 100) choose(List(
-      withApprox("White has a slight advantage"),
-      withApprox("White is a bit better"),
-      withApprox("White has the more pleasant position"),
-      withApprox("White can play for two results"),
-      withApprox("White is slightly ahead in the evaluation")
+      withApprox("White has a modest evaluation edge"),
+      withApprox("The engine prefers White"),
+      withApprox("White is ahead in the evaluation"),
+      withApprox("White has a small-to-moderate engine edge"),
+      withApprox("The position evaluates a bit better for White")
     ))
     else if (cp >= 30) choose(List(
-      withApprox("White has a small pull"),
-      withApprox("White is just a touch better"),
-      withApprox("White has a modest edge"),
-      withApprox("White can keep up mild pressure"),
-      withApprox("White has the easier side to press with"),
-      withApprox("White holds a practical initiative"),
-      withApprox("White maintains a slight structural pull")
+      withApprox("White has a small evaluation pull"),
+      withApprox("The engine gives White a small edge"),
+      withApprox("White is a touch ahead on the evaluation"),
+      withApprox("The eval is slightly in White's favor"),
+      withApprox("White has a modest objective edge")
     ))
     else if (cp <= -500) choose(List(
-      withApprox("Black is winning"),
-      withApprox("Black has a decisive advantage"),
-      withApprox("Black is completely on top"),
-      withApprox("Black should convert with correct play"),
-      withApprox("Black is close to a winning position")
+      withApprox("Black has a very large evaluation edge"),
+      withApprox("The engine evaluation is heavily in Black's favor"),
+      withApprox("Black is far ahead on the evaluation"),
+      withApprox("Black holds a major objective edge"),
+      withApprox("The position evaluates strongly for Black")
     ))
     else if (cp <= -300) choose(List(
-      withApprox("Black holds a clear advantage"),
-      withApprox("Black is clearly better"),
-      withApprox("Black is pressing with a stable edge"),
-      withApprox("Black has the initiative and the better game"),
-      withApprox("Black has a comfortable plus")
+      withApprox("Black holds a clear evaluation edge"),
+      withApprox("The engine prefers Black by a clear margin"),
+      withApprox("Black is ahead on the objective evaluation"),
+      withApprox("Black has a sizeable evaluation plus"),
+      withApprox("The position evaluates clearly for Black")
     ))
     else if (cp <= -100) choose(List(
-      withApprox("Black has a slight advantage"),
-      withApprox("Black is a bit better"),
-      withApprox("Black has the more pleasant position"),
-      withApprox("Black can play for two results"),
-      withApprox("Black is slightly ahead in the evaluation")
+      withApprox("Black has a modest evaluation edge"),
+      withApprox("The engine prefers Black"),
+      withApprox("Black is ahead in the evaluation"),
+      withApprox("Black has a small-to-moderate engine edge"),
+      withApprox("The position evaluates a bit better for Black")
     ))
     else if (cp <= -30) choose(List(
-      withApprox("Black has a small pull"),
-      withApprox("Black is just a touch better"),
-      withApprox("Black has a modest edge"),
-      withApprox("Black can keep up mild pressure"),
-      withApprox("Black has the easier side to press with"),
-      withApprox("Black holds a practical initiative"),
-      withApprox("Black maintains a slight structural pull")
+      withApprox("Black has a small evaluation pull"),
+      withApprox("The engine gives Black a small edge"),
+      withApprox("Black is a touch ahead on the evaluation"),
+      withApprox("The eval is slightly in Black's favor"),
+      withApprox("Black has a modest objective edge")
     ))
     else choose(List(
-      "The position is finely balanced",
-      "The position is about level",
-      "Neither side has established a clear advantage",
-      "The evaluation is essentially balanced",
-      "It's close to equal, with play for both sides",
-      "The position is practically balanced with chances for both sides"
+      "The position is close to level",
+      "The evaluation is near equal",
+      "Neither side has a clear evaluation edge",
+      "The engine assessment is essentially balanced",
+      "The position remains objectively close"
     ))
   }
 

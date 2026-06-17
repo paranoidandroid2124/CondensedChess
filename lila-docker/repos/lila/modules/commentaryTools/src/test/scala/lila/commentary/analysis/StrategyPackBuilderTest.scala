@@ -24,6 +24,24 @@ class StrategyPackBuilderTest extends FunSuite:
       viability = PlanViability(score = score, label = "high", risk = "counterplay")
     )
 
+  def admittedEvidence(
+      plans: List[PlanHypothesis]
+  ): PlanEvidenceEvaluator.StrategicPlanEvidenceView =
+    val evaluated =
+      plans.map { plan =>
+        PlanEvidenceEvaluator.EvaluatedPlan(
+          hypothesis = plan,
+          status = PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableEvidenceBacked,
+          userFacingEligibility = PlanEvidenceEvaluator.UserFacingPlanEligibility.ProbeBacked,
+          reason = "test probe-backed plan",
+          supportProbeIds = List(s"probe_${plan.planId}")
+        )
+      }
+    PlanEvidenceEvaluator.StrategicPlanEvidenceView(
+      selectedPlans = evaluated,
+      evaluatedPlans = evaluated
+    )
+
   def ctx(
       mainPlans: List[PlanHypothesis] = Nil,
       planRows: List[PlanRow] = Nil,
@@ -33,10 +51,13 @@ class StrategyPackBuilderTest extends FunSuite:
       semantic: Option[SemanticSection] = None,
       probeRequests: List[ProbeRequest] = Nil,
       authorQuestions: List[AuthorQuestion] = Nil,
-      authorEvidence: List[QuestionEvidence] = Nil
+      authorEvidence: List[QuestionEvidence] = Nil,
+      strategicPlanEvidence: PlanEvidenceEvaluator.StrategicPlanEvidenceView =
+        PlanEvidenceEvaluator.StrategicPlanEvidenceView.empty,
+      fen: String = testFen
   ): NarrativeContext =
     NarrativeContext(
-      fen = testFen,
+      fen = fen,
       header = ContextHeader("Middlegame", "Normal", "StyleChoice", "Medium", "ExplainPlan"),
       ply = 21,
       summary = NarrativeSummary("Test plan", None, "StyleChoice", "Maintain", "+0.3"),
@@ -48,6 +69,7 @@ class StrategyPackBuilderTest extends FunSuite:
       phase = PhaseContext("Middlegame", "test"),
       candidates = Nil,
       mainStrategicPlans = mainPlans,
+      strategicPlanEvidence = strategicPlanEvidence,
       probeRequests = probeRequests,
       semantic = semantic.orElse(
         Option.when(conceptSummary.nonEmpty)(
@@ -113,7 +135,7 @@ class StrategyPackBuilderTest extends FunSuite:
     val ctx = NarrativeContextBuilder.build(data, data.toContext, None)
     StrategyPackBuilder.build(data, ctx).getOrElse(fail(s"strategy pack missing for $fen"))
 
-  test("build expands mover plans beyond single-plan cap while keeping opponent plan") {
+  test("build keeps only main-admitted mover plans out of row and opponent plan carriers") {
     val mainPlans = List(
       hypothesis("Kingside Expansion", 0.86, 1),
       hypothesis("Central Restriction", 0.79, 2)
@@ -125,14 +147,17 @@ class StrategyPackBuilderTest extends FunSuite:
     )
     val opponent = Some(PlanRow(1, "Queenside Counterplay", 0.61, Nil))
 
-    val pack = StrategyPackBuilder.build(data(), ctx(mainPlans, planRows, opponent)).getOrElse(fail("pack missing"))
+    val pack =
+      StrategyPackBuilder
+        .build(data(), ctx(mainPlans, planRows, opponent, strategicPlanEvidence = admittedEvidence(mainPlans)))
+        .getOrElse(fail("pack missing"))
     val planNames = pack.plans.map(p => s"${p.side}:${p.planName}").toSet
 
-    assertEquals(pack.plans.size, 4)
+    assertEquals(pack.plans.size, 2)
     assert(planNames.contains("white:Kingside Expansion"))
     assert(planNames.contains("white:Central Restriction"))
-    assert(planNames.contains("white:File Control"))
-    assert(planNames.contains("black:Queenside Counterplay"))
+    assert(!planNames.contains("white:File Control"))
+    assert(!planNames.contains("black:Queenside Counterplay"))
   }
 
   test("build route purpose uses outpost signal and emits coordination evidence") {
@@ -226,6 +251,20 @@ class StrategyPackBuilderTest extends FunSuite:
     assert(pack.longTermFocus.exists(_.startsWith("continuity:")), clue(pack.longTermFocus))
     assert(pack.longTermFocus.exists(_.contains("route")), clue(pack.longTermFocus))
     assert(pack.evidence.exists(_.startsWith("route:")), clue(pack.evidence))
+  }
+
+  test("build does not create a strategy pack from concept summary labels alone") {
+    val quietFen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1"
+    val pack =
+      StrategyPackBuilder.build(
+        data(fen = quietFen),
+        ctx(
+          fen = quietFen,
+          conceptSummary = List("mating attack", "outpost", "space advantage")
+        )
+      )
+
+    assertEquals(pack, None)
   }
 
   test("build reclassifies enemy-occupied bishop target into move-ref instead of route") {
@@ -542,18 +581,33 @@ class StrategyPackBuilderTest extends FunSuite:
     assertEquals(digest.deploymentPiece, Some("R"))
     assert(digest.deploymentRoute.nonEmpty, clue(digest))
     assertEquals(digest.deploymentPurpose, Some("queenside pressure"))
-    assert(digest.deploymentContribution.exists(_.contains("This move")), clue(digest))
+    assertEquals(
+      digest.deploymentContribution,
+      Some("The structure-plan evidence keeps that route tied to minority attack.")
+    )
+    assert(!digest.deploymentContribution.exists(_.toLowerCase.contains("easier")), clue(digest))
     assertEquals(digest.prophylaxisPlan, Some("Queenside Counterplay"))
     assertEquals(digest.prophylaxisThreat, Some("counterplay"))
     assertEquals(digest.counterplayScoreDrop, Some(140))
     assertEquals(digest.practicalVerdict, Some("Comfortable"))
-    assert(digest.practicalFactors.exists(_.contains("pieces have more room")), clue(digest.practicalFactors))
-    assertEquals(digest.compensation, Some("Mating Attack"))
-    assertEquals(digest.investedMaterial, Some(100))
-    assert(digest.compensationVectors.exists(_.contains("Attack on King")), clue(digest.compensationVectors))
+    assert(digest.practicalFactors.exists(_.contains("pieces have more available squares")), clue(digest.practicalFactors))
+    assertEquals(digest.compensation, None)
+    assertEquals(digest.investedMaterial, None)
+    assert(!digest.compensationVectors.exists(_.contains("Attack on King")), clue(digest.compensationVectors))
   }
 
-  test("build carries authoring evidence into digest prompt hints and pack evidence") {
+  test("practical bias rendering does not pass raw anchored descriptions through") {
+    assertEquals(
+      LiveNarrativeCompressionCore.renderPracticalBiasPlayer("Mobility", "Diff: 1.8"),
+      Some("the pieces have more available squares")
+    )
+    assertEquals(
+      LiveNarrativeCompressionCore.renderPracticalBiasPlayer("custom pressure", "pressure on e5"),
+      None
+    )
+  }
+
+  test("build keeps authoring evidence in digest but not prompt hints") {
     val question = AuthorQuestion(
       id = "why_this_1",
       kind = AuthorQuestionKind.WhyThis,
@@ -589,14 +643,16 @@ class StrategyPackBuilderTest extends FunSuite:
       )
     )
 
+    val plan = hypothesis("Kingside Expansion", 0.84, 1)
     val pack = StrategyPackBuilder
       .build(
         data(),
         ctx(
-          mainPlans = List(hypothesis("Kingside Expansion", 0.84, 1)),
+          mainPlans = List(plan),
           probeRequests = List(request),
           authorQuestions = List(question),
-          authorEvidence = List(evidence)
+          authorEvidence = List(evidence),
+          strategicPlanEvidence = admittedEvidence(List(plan))
         )
       )
       .getOrElse(fail("pack missing"))
@@ -608,7 +664,40 @@ class StrategyPackBuilderTest extends FunSuite:
       clue(digest)
     )
     val hints = StrategyPackBuilder.promptHints(pack)
-    assert(hints.exists(_.contains("author evidence: 1 resolved, 0 pending")), clue(hints))
+    assert(!hints.exists(_.contains("author evidence: 1 resolved, 0 pending")), clue(hints))
+    assert(hints.exists(_.contains("white long plan: Kingside Expansion")), clue(hints))
+  }
+
+  test("prompt hints ignore signal digest sidecar context") {
+    val pack =
+      StrategyPack(
+        sideToMove = "white",
+        plans = List(StrategySidePlan("white", "medium", "Board-backed plan", Nil, Nil)),
+        signalDigest =
+          Some(
+            NarrativeSignalDigest(
+              opening = Some("Open Game"),
+              practicalVerdict = Some("Comfortable"),
+              practicalFactors = List("the pieces have more available squares"),
+              decision = Some("Castle before starting the kingside pressure."),
+              opponentPlan = Some("Queenside counterplay"),
+              openingRelationClaim = Some("This stays within the known opening relation."),
+              endgameTransitionClaim = Some("The endgame structure has shifted.")
+            )
+          )
+      )
+
+    val hints = StrategyPackBuilder.promptHints(pack)
+    val rendered = hints.mkString(" | ")
+
+    assert(hints.exists(_.contains("white long plan: Board-backed plan")), clue(hints))
+    assert(!rendered.contains("Open Game"), clue(hints))
+    assert(!rendered.contains("Comfortable"), clue(hints))
+    assert(!rendered.contains("available squares"), clue(hints))
+    assert(!rendered.contains("Castle before"), clue(hints))
+    assert(!rendered.contains("Queenside counterplay"), clue(hints))
+    assert(!rendered.contains("known opening relation"), clue(hints))
+    assert(!rendered.contains("endgame structure"), clue(hints))
   }
 
   test("build uses structure arc to enrich long term focus and deployment evidence") {
@@ -713,7 +802,7 @@ class StrategyPackBuilderTest extends FunSuite:
     assert(!pack.evidence.exists(_.startsWith("dominant_thesis:")), clue(pack.evidence))
   }
 
-  test("build carries decision comparison into digest focus and evidence") {
+  test("build keeps decision comparison in digest but not prompt hints") {
     val best =
       VariationLine(
         moves = List("g2g4", "a7a6", "h4h5"),
@@ -764,7 +853,7 @@ class StrategyPackBuilderTest extends FunSuite:
     assertEquals(comparison.engineBestMove, Some("g4"))
     assertEquals(comparison.deferredMove, Some("g4"))
     val hints = StrategyPackBuilder.promptHints(pack)
-    assert(hints.exists(_.contains("engine best: g4")), clue(hints))
+    assert(!hints.exists(_.contains("engine best: g4")), clue(hints))
     assert(!hints.exists(text => text.contains("deferred") && text.contains("g4")), clue(hints))
   }
 

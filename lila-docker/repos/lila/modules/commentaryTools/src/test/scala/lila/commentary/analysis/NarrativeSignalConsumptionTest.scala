@@ -3,6 +3,7 @@ package lila.commentary.analysis
 import munit.FunSuite
 import lila.commentary.model.*
 import lila.commentary.model.authoring.*
+import lila.commentary.model.strategic.{ EngineEvidence, VariationLine }
 
 class NarrativeSignalConsumptionTest extends FunSuite:
 
@@ -32,10 +33,10 @@ class NarrativeSignalConsumptionTest extends FunSuite:
       renderMode = NarrativeRenderMode.FullGame
     )
 
-  test("context beat carries strategic flow, opponent plan, and meta choice signals into prose") {
+  test("context beat keeps support-only flow/meta while final prose drops opponent row authority") {
     val ctx = baseContext.copy(
       strategicFlow = Some(
-        "White makes a natural strategic shift toward kingside expansion. The continuation remains structurally coherent. This idea has held for 3 plies."
+        "White's plan context shifts toward kingside expansion. The continuation remains structurally coherent. This idea has held for 3 plies."
       ),
       opponentPlan = Some(
         PlanRow(
@@ -63,13 +64,11 @@ class NarrativeSignalConsumptionTest extends FunSuite:
     val contextBeat = outline.beats.find(_.kind == OutlineBeatKind.Context).getOrElse(fail("missing context beat"))
 
     assert(
-      contextBeat.text.contains("natural strategic shift toward kingside expansion"),
+      contextBeat.text.contains("plan context shifts toward kingside expansion"),
       s"expected strategic flow text in context beat, got: ${contextBeat.text}"
     )
-    assert(
-      contextBeat.text.contains("opponent's main counterplan is Queenside counterplay"),
-      s"expected opponent plan text in context beat, got: ${contextBeat.text}"
-    )
+    assert(!contextBeat.text.contains("opponent's main counterplan"), clue(contextBeat.text))
+    assert(!contextBeat.text.contains("Queenside counterplay"), clue(contextBeat.text))
     assert(
       contextBeat.text.contains("The margins are narrow, so move order matters."),
       s"expected meta choice text in context beat, got: ${contextBeat.text}"
@@ -80,14 +79,13 @@ class NarrativeSignalConsumptionTest extends FunSuite:
     )
 
     val prose = BookStyleRenderer.render(ctx)
+    assert(!prose.contains("opponent's main counterplan"), clue(prose))
+    assert(!prose.contains("Queenside counterplay"), clue(prose))
     assert(
-      prose.contains("opponent's main counterplan is Queenside counterplay"),
-      s"expected opponent plan to reach final prose, got: $prose"
+      prose.contains("not much to claim"),
+      s"expected quiet standard fallback without row/meta authority, got: $prose"
     )
-    assert(
-      prose.contains("The margins are narrow, so move order matters."),
-      s"expected meta choice to reach final prose, got: $prose"
-    )
+    assert(!prose.contains("The margins are narrow, so move order matters."), clue(prose))
   }
 
   test("context beat carries transposition-aligned main plans without probe-only support") {
@@ -162,6 +160,85 @@ class NarrativeSignalConsumptionTest extends FunSuite:
 
     assert(!lower.contains("stalemate"), clue(contextBeat.text))
     assert(!lower.contains("perpetual"), clue(contextBeat.text))
+  }
+
+  test("raw structural motif labels do not become context motif prose") {
+    val ctx =
+      baseContext.copy(
+        semantic = Some(
+          SemanticSection(
+            structuralWeaknesses = Nil,
+            pieceActivity = Nil,
+            positionalFeatures = List(
+              PositionalTagInfo("ColorComplexWeakness", None, None, "Black", Some("dark squares")),
+              PositionalTagInfo("Outpost", Some("d5"), None, "White")
+            ),
+            compensation = None,
+            endgameFeatures = None,
+            practicalAssessment = None,
+            preventedPlans = Nil,
+            conceptSummary = List("color complex", "minority attack", "outpost")
+          )
+        )
+      )
+
+    val (outline, _) = NarrativeOutlineBuilder.build(ctx, new TraceRecorder())
+    val contextBeat = outline.beats.find(_.kind == OutlineBeatKind.Context).getOrElse(fail("missing context beat"))
+    val lower = contextBeat.text.toLowerCase
+
+    assert(!lower.contains("color complex"), clue(contextBeat.text))
+    assert(!lower.contains("minority attack"), clue(contextBeat.text))
+    assert(!lower.contains("outpost"), clue(contextBeat.text))
+  }
+
+  test("raw positional imbalance tags do not become opening-context conclusions") {
+    val ctx =
+      baseContext.copy(
+        engineEvidence = Some(EngineEvidence(depth = 18, variations = List(VariationLine(Nil, scoreCp = 0, depth = 18)))),
+        semantic = Some(
+          SemanticSection(
+            structuralWeaknesses =
+              List(WeakComplexInfo(owner = "White", squareColor = "dark", squares = List("f3", "g2"), isOutpost = false, cause = "holes")),
+            pieceActivity = Nil,
+            positionalFeatures = List(
+              PositionalTagInfo("Outpost", Some("d5"), None, "White"),
+              PositionalTagInfo("SpaceAdvantage", None, None, "White")
+            ),
+            compensation = None,
+            endgameFeatures = None,
+            practicalAssessment = None,
+            preventedPlans = Nil,
+            conceptSummary = Nil
+          )
+        )
+      )
+
+    val (outline, _) = NarrativeOutlineBuilder.build(ctx, new TraceRecorder())
+    val contextBeat = outline.beats.find(_.kind == OutlineBeatKind.Context).getOrElse(fail("missing context beat"))
+    val lower = contextBeat.text.toLowerCase
+
+    assert(!lower.contains("outpost"), clue(contextBeat.text))
+    assert(!lower.contains("pressure on white"), clue(contextBeat.text))
+    assert(!lower.contains("dark-square weaknesses"), clue(contextBeat.text))
+  }
+
+  test("signal digest uses opening names but not opening event diagnostic strings") {
+    val introCtx =
+      baseContext.copy(
+        openingEvent = Some(OpeningEvent.Intro("C20", "Open Game", "central development", List("e4", "e5")))
+      )
+    val noveltyCtx =
+      baseContext.copy(
+        openingEvent = Some(OpeningEvent.Novelty("h3", 12, "novelty marker", 16))
+      )
+    val branchCtx =
+      baseContext.copy(
+        openingEvent = Some(OpeningEvent.BranchPoint(List("Qc2", "b3"), "Main line shifts", None))
+      )
+
+    assertEquals(NarrativeSignalDigestBuilder.build(introCtx).flatMap(_.opening), Some("Open Game"))
+    assertEquals(NarrativeSignalDigestBuilder.build(noveltyCtx).flatMap(_.opening), None)
+    assertEquals(NarrativeSignalDigestBuilder.build(branchCtx).flatMap(_.opening), None)
   }
 
   test("decision rationale without author questions stays out of planner-owned decision beats") {
@@ -277,6 +354,40 @@ class NarrativeSignalConsumptionTest extends FunSuite:
     assert(prose.contains("Carlsbad"), s"expected structure profile in prose, got: $prose")
     assert(prose.toLowerCase.contains("locked center"), s"expected center-state clue in prose, got: $prose")
     assert(prose.contains("cuts out counterplay"), s"expected prophylaxis detail in prose, got: $prose")
-    assert(prose.toLowerCase.contains("mobility"), s"expected practical drivers in prose, got: $prose")
-    assert(prose.contains("Mating Attack"), s"expected compensation plan in prose, got: $prose")
+    assert(prose.contains("pieces have more available squares"), s"expected rendered practical driver in prose, got: $prose")
+    assert(!prose.contains("position is comfortable"), s"raw practical verdict should not become public prose: $prose")
+    assert(!prose.contains("Mating Attack"), s"raw compensation plan should not become public prose: $prose")
+    assert(!prose.contains("Attack on King"), s"raw compensation vector should not become public prose: $prose")
+  }
+
+  test("signal digest keeps semantic compensation conversion plan out of public summary") {
+    val ctx = baseContext.copy(
+      semantic = Some(
+        SemanticSection(
+          structuralWeaknesses = Nil,
+          pieceActivity = Nil,
+          positionalFeatures = Nil,
+          compensation = Some(
+            CompensationInfo(
+              investedMaterial = 100,
+              returnVector = Map("Line Pressure" -> 0.7, "Delayed Recovery" -> 0.6),
+              expiryPly = None,
+              conversionPlan = "Mating Attack"
+            )
+          ),
+          endgameFeatures = None,
+          practicalAssessment = None,
+          preventedPlans = Nil,
+          conceptSummary = Nil,
+          structureProfile = None,
+          planAlignment = None
+        )
+      )
+    )
+
+    val digest = NarrativeSignalDigestBuilder.build(ctx).getOrElse(fail("missing signal digest"))
+    assertEquals(digest.compensation, None)
+    assertEquals(digest.investedMaterial, Some(100))
+    assert(digest.compensationVectors.exists(_.startsWith("Line Pressure")), clue(digest.compensationVectors))
+    assert(digest.preservedSignals.contains("practical"), clue(digest.preservedSignals))
   }

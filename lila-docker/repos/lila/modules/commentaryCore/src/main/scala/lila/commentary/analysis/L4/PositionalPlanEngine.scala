@@ -4,7 +4,7 @@ import chess.*
 import chess.format.Fen
 import chess.variant.Standard
 import lila.commentary.model.authoring.PlanHypothesis
-import lila.commentary.analysis.L3.{ PositionClassification, NatureType, TaskModeType, PawnPlayAnalysis }
+import lila.commentary.analysis.L3.{ PassedPawnUrgency, PawnPlayAnalysis, PositionClassification, NatureType, TaskModeType }
 import lila.commentary.analysis.strategic.{ ActivityAnalyzerImpl, StructureAnalyzerImpl }
 
 private[analysis] object PositionalPlanEngine:
@@ -39,9 +39,7 @@ private[analysis] object PositionalPlanEngine:
     }
 
     val leastActiveOpt = ourPiecesActivity.sortBy(_.mobilityScore).headOption
-    val destSquare = leastActiveOpt.flatMap(_.keyRoutes.headOption).map(_.key).getOrElse {
-      if isWhite then "d4" else "d5"
-    }
+    val routeSquareOpt = leastActiveOpt.flatMap(_.keyRoutes.headOption).map(_.key)
 
     // 2. Pawn Break Selection
     val breakFileOpt = pawnAnalysis.flatMap(_.breakFile)
@@ -54,9 +52,13 @@ private[analysis] object PositionalPlanEngine:
     val opponentWeaknesses = structuralWeaknesses.filter { info =>
       info.color == (if isWhite then chess.Color.Black else chess.Color.White)
     }
-    val targetSquare = opponentWeaknesses.flatMap(_.squares.headOption).headOption.map(_.key).getOrElse {
-      if isWhite then "d5" else "d4"
-    }
+    val targetSquare = opponentWeaknesses.flatMap(_.squares.headOption).headOption.map(_.key)
+    val actionablePasser =
+      pawnAnalysis.exists(pa =>
+        pa.primaryDriver == "passed_pawn" ||
+          pa.passedPawnUrgency == PassedPawnUrgency.Critical ||
+          (pa.passedPawnUrgency == PassedPawnUrgency.Important && pa.pusherSupport && !pa.passerBlockade)
+      )
 
     // Template Selection
     val template = (classification.taskMode.taskMode, classification.nature.natureType) match
@@ -69,53 +71,88 @@ private[analysis] object PositionalPlanEngine:
       case "StaticClamp" =>
         List(
           leastActiveOpt match
-            case Some(info) => s"In this static position, regroup the ${info.piece.name.toLowerCase} on ${info.square.key} to $destSquare to optimize piece placement."
-            case None => "Regroup your worst-placed piece to a more stable outpost."
+            case Some(info) =>
+              routeSquareOpt match
+                case Some(square) =>
+                  s"In this static position, regroup the ${info.piece.name.toLowerCase} on ${info.square.key} to $square to optimize piece placement."
+                case None =>
+                  s"In this static position, improve the ${info.piece.name.toLowerCase} on ${info.square.key} before assigning it a concrete route."
+            case None => "Improve your worst-placed piece before naming a concrete redeployment square."
           ,
           breakFileOpt match
             case Some(file) => s"Restrain opponent counterplay and slowly prepare the pawn push on the $file-file."
-            case None => "Maintain a solid pawn skeleton and slowly build central space pressure."
+            case None => "Keep the pawn structure stable while looking for a concrete central lever."
           ,
-          s"Exploit the static weakness on $targetSquare by placing pieces on dominant outpost squares."
+          targetSquare
+            .map(square => s"Use piece pressure against the static weakness on $square without loosening the structure.")
+            .getOrElse("Improve piece placement first; no specific weak square is certified yet.")
         )
       case "DynamicBreak" =>
         List(
           leastActiveOpt match
-            case Some(info) => s"Regroup the ${info.piece.name.toLowerCase} on ${info.square.key} to $destSquare to prepare for open-board activity."
+            case Some(info) =>
+              routeSquareOpt match
+                case Some(square) =>
+                  s"Regroup the ${info.piece.name.toLowerCase} on ${info.square.key} to $square to prepare for open-board activity."
+                case None =>
+                  s"Improve the ${info.piece.name.toLowerCase} on ${info.square.key} before forcing open-board activity."
             case None => "Coordinate your minor pieces to prepare for central exchanges."
           ,
           breakFileOpt match
-            case Some(file) => s"Exert maximum pressure with the pawn break on the $file-file to open lines."
-            case None => "Force pawn tension resolution in the center to open lines for heavy pieces."
+            case Some(file) => s"Use the pawn break on the $file-file only when the opened lines are tactically supported."
+            case None => "Look for a concrete central tension break before opening lines for heavy pieces."
           ,
-          s"Attack the vulnerable target on $targetSquare to create tactical opportunities."
+          targetSquare
+            .map(square => s"Increase pressure on the vulnerable target on $square only if the tactics support it.")
+            .getOrElse("Look for a concrete target before turning the dynamic play into a direct attack.")
         )
       case "EndgameConversion" =>
         List(
-          leastActiveOpt match
-            case Some(info) => s"Activate your king and regroup the ${info.piece.name.toLowerCase} on ${info.square.key} to $destSquare to support the passed pawn."
-            case None => "Regroup your remaining active forces to support the pawn promotion."
+          (leastActiveOpt, routeSquareOpt) match
+            case (Some(info), Some(square)) if actionablePasser =>
+              s"Activate your king and regroup the ${info.piece.name.toLowerCase} on ${info.square.key} to $square to support the passed-pawn task."
+            case (Some(info), Some(square)) =>
+              s"Activate your king and regroup the ${info.piece.name.toLowerCase} on ${info.square.key} to $square to improve the conversion setup."
+            case (Some(info), None) if actionablePasser =>
+              s"Activate your king and improve the ${info.piece.name.toLowerCase} on ${info.square.key} before tying it to the passed-pawn task."
+            case (Some(info), None) =>
+              s"Activate your king and improve the ${info.piece.name.toLowerCase} on ${info.square.key} before claiming a conversion route."
+            case (None, _) if actionablePasser => "Coordinate the king and remaining pieces around the passed-pawn task."
+            case (None, _) => "Coordinate the king and remaining pieces before trying to convert."
           ,
-          breakFileOpt match
-            case Some(file) => s"Push the passed pawn on the $file-file toward promotion."
-            case None => "Advance your primary passed pawn toward the promotion rank."
+          pawnAnalysis match
+            case Some(pa) if actionablePasser && pa.passerBlockade =>
+              "First improve support around the blockaded passer rather than assuming it can run."
+            case Some(_) if actionablePasser =>
+              "Advance the passer only with the current support intact."
+            case Some(pa) if pa.pawnBreakReady =>
+              pa.breakFile match
+                case Some(file) => s"Use the pawn break on the $file-file only if it keeps the conversion path stable."
+                case None => "Use the available pawn break only if it keeps the conversion path stable."
+            case _ => "Improve king activity and pawn structure before forcing pawn advances."
           ,
-          s"Target the weak pawn on $targetSquare to simplify the game into a winning ending."
+          targetSquare
+            .map(square => s"Use $square as a structural target only when the line keeps counterplay under control.")
+            .getOrElse("Keep the plan technical and verify the next pawn or exchange target before claiming progress.")
         )
       case _ =>
         List(
-          leastActiveOpt match
-            case Some(info) => s"Secure piece safety by regrouping the ${info.piece.name.toLowerCase} on ${info.square.key} to $destSquare."
-            case None => "Regroup your pieces to defensive blockading squares."
+          (leastActiveOpt, routeSquareOpt) match
+            case (Some(info), Some(square)) =>
+              s"Secure piece safety by regrouping the ${info.piece.name.toLowerCase} on ${info.square.key} to $square."
+            case (Some(info), None) =>
+              s"Secure piece safety and improve the ${info.piece.name.toLowerCase} on ${info.square.key} before naming a route."
+            case (None, _) => "Regroup your pieces to stable defensive squares."
           ,
           breakFileOpt match
             case Some(file) => s"Avoid premature pawn breaks on the $file-file and maintain a solid defensive structure."
-            case None => "Maintain a closed pawn center and avoid opening lines for opponent pieces."
+            case None => "Keep the pawn structure stable and avoid opening lines for opponent pieces."
           ,
-          s"Guard against tactical threats and neutralize the opponent's outpost on $targetSquare."
+          targetSquare
+            .map(square => s"Guard against tactical threats and use $square as a target only if the line confirms it.")
+            .getOrElse("Guard against tactical threats before naming a concrete target.")
         )
 
     hypothesis.copy(
       executionSteps = executionSteps
     )
-

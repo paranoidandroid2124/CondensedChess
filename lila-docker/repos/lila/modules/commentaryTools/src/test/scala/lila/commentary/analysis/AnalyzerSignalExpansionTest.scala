@@ -1,6 +1,6 @@
 package lila.commentary.analysis
 
-import chess.{ Color, File, Knight, Queen, Rook, Square }
+import chess.{ Bishop, Color, File, King, Knight, Queen, Rook, Square }
 import lila.commentary.analysis.L3.*
 import lila.commentary.analysis.PlanMatcher.ActivePlans
 import lila.commentary.model.{ Motif, NatureType as ModelNatureType, Plan, PlanMatch, PositionNature, TransitionType }
@@ -131,6 +131,43 @@ class AnalyzerSignalExpansionTest extends FunSuite:
     assert(analysis.prophylaxisNeeded)
     assertEquals(analysis.threats.head.kind, ThreatKind.Positional)
     assert(analysis.threats.head.turnsToImpact >= 3)
+  }
+
+  test("ThreatAnalyzer anchors pawn-promotion threats on the promotion square") {
+    val analysis = ThreatAnalyzer.analyze(
+      fen = "6k1/8/8/8/8/8/1p6/6K1 w - - 0 1",
+      motifs = List(Motif.PawnPromotion(File.B, Queen, Color.Black, plyIndex = 1, move = Some("b1=Q"))),
+      multiPv = Nil,
+      phase1 = classification(phase = GamePhaseType.Endgame),
+      sideToMove = "white"
+    )
+
+    assertEquals(analysis.threats.headOption.map(_.attackSquares), Some(List("b1")))
+    assertEquals(analysis.threats.headOption.map(_.kind), Some(ThreatKind.Material))
+  }
+
+  test("ThreatExtractor keeps motif-backed causal threat wording bounded") {
+    val narratives =
+      List(
+        Motif.Fork(Knight, List(Rook, Queen), Square.F5, List(Square.E7, Square.H4), Color.White, 1, Some("Nf5")),
+        Motif.Pin(Bishop, Knight, King, Color.White, 1, Some("Bg5")),
+        Motif.PassedPawnPush(File.B, 7, Color.White, 1, Some("b7")),
+        Motif.Outpost(Knight, Square.D5, Color.White, 1, Some("Nd5")),
+        Motif.OpenFileControl(File.D, Color.White, 1),
+        Motif.SpaceAdvantage(Color.White, pawnDelta = 2, plyIndex = 1),
+        Motif.Capture(Knight, Queen, Square.D4, Motif.CaptureType.Winning, Color.White, 1, Some("Nxd4"))
+      ).flatMap(motif => ThreatExtractor.classifyMotif(motif, Color.Black).map(_._3))
+
+    val normalizedNarratives = narratives.map(_.toLowerCase)
+    assert(normalizedNarratives.contains("allows a fork on rook and queen"), clues(narratives))
+    assert(normalizedNarratives.contains("allows an absolute pin against the knight"), clues(narratives))
+    assert(normalizedNarratives.exists(text => text.startsWith("concedes control of the ") && text.endsWith(" file")), clues(narratives))
+
+    val overclaimTerms =
+      List("devastating", "fatal", "lethal", "dangerous", "crippling", "uncomfortable", "dominating", "massive", "total control", "critically", "blunders")
+    normalizedNarratives.foreach { narrative =>
+      assert(!overclaimTerms.exists(narrative.contains), clues(narrative))
+    }
   }
 
   test("ThreatAnalyzer uses side-to-move-normalized MultiPV deltas for black") {

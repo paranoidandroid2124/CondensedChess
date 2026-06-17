@@ -99,6 +99,56 @@ class CompensationInterpretationTest extends FunSuite:
     assertEquals(decision.rejectionReason, Some("thin_return_vector_only"))
   }
 
+  test("raw attack labels are rejected without current king-pressure board evidence") {
+    val quietFen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1"
+    val ctx =
+      baseContext(playedMove = None, playedSan = None).copy(
+        fen = quietFen,
+        semantic = Some(
+          SemanticSection(
+            structuralWeaknesses = Nil,
+            pieceActivity = Nil,
+            positionalFeatures = Nil,
+            compensation =
+              Some(compensationInfo(100, Map("Attack on King" -> 0.8), "Mating Attack")),
+            endgameFeatures = None,
+            practicalAssessment = None,
+            preventedPlans = Nil,
+            conceptSummary = Nil
+          )
+        )
+      )
+
+    val decision = CompensationInterpretation.currentSemanticDecision(ctx).getOrElse(fail("missing decision")).decision
+    assert(!decision.accepted)
+    assertEquals(decision.rejectionReason, Some("missing_structural_carrier"))
+  }
+
+  test("king-pressure compensation remains accepted when the board proves the pressure") {
+    val pressureFen = "6k1/8/6Q1/8/8/8/8/4K3 w - - 0 1"
+    val ctx =
+      baseContext(playedMove = None, playedSan = None).copy(
+        fen = pressureFen,
+        semantic = Some(
+          SemanticSection(
+            structuralWeaknesses = Nil,
+            pieceActivity = Nil,
+            positionalFeatures = Nil,
+            compensation =
+              Some(compensationInfo(100, Map("King Pressure" -> 0.8), "king pressure")),
+            endgameFeatures = None,
+            practicalAssessment = None,
+            preventedPlans = Nil,
+            conceptSummary = Nil
+          )
+        )
+      )
+
+    val decision = CompensationInterpretation.currentSemanticDecision(ctx).getOrElse(fail("missing decision")).decision
+    assert(decision.accepted)
+    assertEquals(decision.persistenceClass, "non_immediate_transition")
+  }
+
   test("late technical conversion tail is rejected when no durable carrier survives") {
     val ctx =
       baseContext(phase = "Endgame", playedMove = None, playedSan = None).copy(

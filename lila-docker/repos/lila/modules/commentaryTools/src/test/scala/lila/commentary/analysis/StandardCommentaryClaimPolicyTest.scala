@@ -101,6 +101,30 @@ class StandardCommentaryClaimPolicyTest extends FunSuite:
     )
   }
 
+  test("opponent plan row alone does not prevent quiet standard no-event note") {
+    val ctx =
+      quietOpeningCtx().copy(
+        header = ContextHeader("Middlegame", "Normal", "StyleChoice", "Low", "ExplainPlan"),
+        phase = PhaseContext("Middlegame", "Quiet position"),
+        openingEvent = None,
+        opponentPlan =
+          Some(
+            PlanRow(
+              rank = 1,
+              name = "Queenside counterplay",
+              score = 0.72,
+              evidence = List("pressure on the c-file"),
+              confidence = ConfidenceLevel.Heuristic
+            )
+          )
+      )
+
+    val note = StandardCommentaryClaimPolicy.noEventNote(ctx)
+
+    assert(note.exists(_.contains("not much to claim")), clue(note))
+    assert(!StandardCommentaryClaimPolicy.allowsAmberTier(ctx), clue(note))
+  }
+
   test("quiet chess960 opening does not auto-collapse to the standard no-event note") {
     val ctx = quietOpeningCtx(variantKey = EarlyOpeningNarrationPolicy.Chess960Variant)
     val prose = BookStyleRenderer.render(ctx)

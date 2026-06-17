@@ -67,7 +67,7 @@ object UserFacingPayloadSanitizer:
     val allowedPlanNames = sanitizedPlans.map(_.planName.trim.toLowerCase).toSet
     response.copy(
       commentary = clean(response.commentary),
-      concepts = cleanList(response.concepts),
+      concepts = Nil,
       probeRequests = Nil,
       authorQuestions = Nil,
       authorEvidence = Nil,
@@ -203,8 +203,8 @@ object UserFacingPayloadSanitizer:
       strategicFlow = None,
       opponentPlan = None,
       preservedSignals = Nil,
-      openingRelationClaim = cleanOpt(digest.openingRelationClaim),
-      endgameTransitionClaim = cleanOpt(digest.endgameTransitionClaim)
+      openingRelationClaim = None,
+      endgameTransitionClaim = None
     )
 
   private def sanitizeDecisionComparison(digest: DecisionComparisonDigest): DecisionComparisonDigest =

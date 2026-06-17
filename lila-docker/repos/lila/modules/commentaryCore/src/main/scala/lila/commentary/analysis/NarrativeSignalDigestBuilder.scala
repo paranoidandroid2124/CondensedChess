@@ -1,7 +1,7 @@
 package lila.commentary.analysis
 
 import lila.commentary.NarrativeSignalDigest
-import lila.commentary.model.{ FactScope, NarrativeContext, PlanAlignmentInfo, PracticalBiasInfo, StructureProfileInfo }
+import lila.commentary.model.{ FactScope, NarrativeContext, OpeningEvent, PlanAlignmentInfo, PracticalBiasInfo, StructureProfileInfo }
 import lila.commentary.model.authoring.{ NarrativeOutline, OutlineBeatKind }
 
 object NarrativeSignalDigestBuilder:
@@ -32,7 +32,7 @@ object NarrativeSignalDigestBuilder:
   ): Option[NarrativeSignalDigest] =
     val opening =
       ctx.openingData.flatMap(_.name).flatMap(normalized)
-        .orElse(ctx.openingEvent.map(_.toString.replace('_', ' ')).flatMap(normalized))
+        .orElse(ctx.openingEvent.collect { case OpeningEvent.Intro(_, name, _, _) => name }.flatMap(normalized))
     val strategicStack =
       ctx.mainStrategicPlans.take(3).map(plan => f"${plan.rank}. ${plan.planName} (${plan.score}%.2f)")
     val decisionComparison = decisionComparisonOverride.orElse(DecisionComparisonBuilder.digest(ctx))
@@ -54,7 +54,6 @@ object NarrativeSignalDigestBuilder:
         .take(2)
         .flatMap(formatPracticalBias)
 
-    val compensation = compensationInfo.flatMap(comp => normalized(comp.conversionPlan))
     val compensationVectors =
       compensationInfo.toList
         .flatMap(_.returnVector.toList)
@@ -97,7 +96,7 @@ object NarrativeSignalDigestBuilder:
           Option.when(endgameTransitionClaim.isDefined)("endgame_transition"),
           Option.when(strategicStack.nonEmpty)("strategic_stack"),
           Option.when(authoringEvidence.isDefined)("authoring_evidence"),
-          Option.when(practicalVerdict.isDefined || compensation.isDefined)("practical"),
+          Option.when(practicalVerdict.isDefined || compensationVectors.nonEmpty || investedMaterial.isDefined)("practical"),
           Option.when(structuralCue.isDefined || prophylaxisPlan.isDefined)("structure"),
           Option.when(decision.isDefined)("decision"),
           Option.when(strategicFlow.isDefined)("strategic_flow"),
@@ -121,7 +120,7 @@ object NarrativeSignalDigestBuilder:
         authoringEvidence = authoringEvidence,
         practicalVerdict = practicalVerdict,
         practicalFactors = practicalFactors,
-        compensation = compensation,
+        compensation = None,
         compensationVectors = compensationVectors,
         investedMaterial = investedMaterial,
         structuralCue = structuralCue,

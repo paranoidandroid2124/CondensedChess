@@ -190,8 +190,8 @@ const explorerTitle = (ctrl: AnalyseCtrl, opts: ExplorerViewOpts) => {
 };
 
 function showTitle(variant: Variant) {
-  if (variant.key === 'standard' || variant.key === 'fromPosition') return 'Opening explorer';
-  return `${variant.name} opening explorer`;
+  if (variant.key === 'standard' || variant.key === 'fromPosition') return 'Opening book';
+  return `${variant.name} opening book`;
 }
 
 function showFailing(ctrl: AnalyseCtrl, opts: ExplorerViewOpts) {

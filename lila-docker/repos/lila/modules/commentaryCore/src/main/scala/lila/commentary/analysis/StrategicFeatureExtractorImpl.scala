@@ -493,7 +493,7 @@ class StrategicFeatureExtractorImpl(
     else if (activeMotifs.exists(_.isInstanceOf[Motif.DiscoveredAttack])) Some("discovered attack")
     else if (activeMotifs.exists(_.isInstanceOf[Motif.Skewer])) Some("skewer threat")
     else if (activeMotifs.exists(m => m.isInstanceOf[Motif.Capture] && 
-             m.asInstanceOf[Motif.Capture].captureType == Motif.CaptureType.Winning)) Some("winning capture")
+             m.asInstanceOf[Motif.Capture].captureType == Motif.CaptureType.Winning)) Some("material-gain capture")
     else None
   }
 }

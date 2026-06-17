@@ -392,7 +392,7 @@ class ContrastiveSupportAdmissibilityTest extends FunSuite:
             ThreatExtractor.CausalThreat(
               concept = "Material Loss",
               severity = 85,
-              narrative = "allows a devastating fork on the rook and queen",
+              narrative = "allows a fork on the rook and queen",
               motifs =
                 List(
                   Motif.Fork(
@@ -422,10 +422,10 @@ class ContrastiveSupportAdmissibilityTest extends FunSuite:
       Some(ContrastiveSupportAdmissibility.SourceKind.CounterfactualCausalThreat)
     )
     assertEquals(trace.contrast_anchor, Some("Bd7"))
-    assertEquals(trace.contrast_consequence, Some("Missing it allows a devastating fork on the rook and queen."))
+    assertEquals(trace.contrast_consequence, Some("Missing it allows a fork on the rook and queen."))
     assertEquals(
       trace.effectiveSupport(None),
-      Some("The move Bd7 stays best because missing it allows a devastating fork on the rook and queen.")
+      Some("The move Bd7 stays best because missing it allows a fork on the rook and queen.")
     )
   }
 
@@ -458,7 +458,7 @@ class ContrastiveSupportAdmissibilityTest extends FunSuite:
             ThreatExtractor.CausalThreat(
               concept = "Positional Collapse",
               severity = 1,
-              narrative = "concedes a devastating positional advantage",
+              narrative = "concedes a positional advantage",
               motifs = Nil
             )
           )

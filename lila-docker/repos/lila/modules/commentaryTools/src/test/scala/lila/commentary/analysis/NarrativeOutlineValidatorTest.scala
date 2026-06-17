@@ -47,11 +47,11 @@ class NarrativeOutlineValidatorTest extends FunSuite:
       List(
         OutlineBeat(
           kind = OutlineBeatKind.OpeningTheory,
-          text = "Across these branches, results changed by which side better handled central control."
+          text = "Across these reference branches, the recurring context is central control."
         ),
         OutlineBeat(
           kind = OutlineBeatKind.Context,
-          text = "Across these branches, results changed by which side better handled central control."
+          text = "Across these reference branches, the recurring context is central control."
         )
       )
     )
@@ -59,6 +59,6 @@ class NarrativeOutlineValidatorTest extends FunSuite:
     val validated = NarrativeOutlineValidator.validate(outline, new TraceRecorder())
     val opening = validated.beats.find(_.kind == OutlineBeatKind.OpeningTheory).getOrElse(fail("missing opening beat"))
 
-    assertEquals(opening.text, "Across these branches, results changed by which side better handled central control.")
+    assertEquals(opening.text, "Across these reference branches, the recurring context is central control.")
     assert(!validated.beats.exists(_.kind == OutlineBeatKind.Context), clue(validated.beats))
   }

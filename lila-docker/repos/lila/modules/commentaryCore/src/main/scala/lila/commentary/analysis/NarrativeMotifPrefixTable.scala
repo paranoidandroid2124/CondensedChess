@@ -90,7 +90,7 @@ private[analysis] object NarrativeMotifPrefixTable:
     )),
     MotifPrefixRule(List("stalemate", "stalemate_trick"), List(
       "A stalemate trick is part of the defensive resources.",
-      "Stalemate motifs complicate straightforward conversion.",
+      "Stalemate motifs complicate the direct route.",
       "The defender has potential stalemate-based counterplay."
     )),
     MotifPrefixRule(List("prophylaxis", "prophylactic"), List(
@@ -144,9 +144,9 @@ private[analysis] object NarrativeMotifPrefixTable:
       "The battery motif is shaping immediate threats."
     )),
     MotifPrefixRule(List("simplification", "simplify"), List(
-      "Simplification choices now define the practical result.",
-      "Trade decisions and simplification are steering the game toward a technical phase.",
-      "The position is entering a conversion-through-simplification stage."
+      "Simplification choices now shape the next structure.",
+      "Trade decisions and simplification are steering the game toward a quieter phase.",
+      "The position is entering a simplification-heavy stage."
     )),
     MotifPrefixRule(List("liquidate", "liquidation", "pawn_break"), List(
       "Central liquidation is changing the position's character.",
@@ -181,7 +181,7 @@ private[analysis] object NarrativeMotifPrefixTable:
     MotifPrefixRule(List("rook_on_seventh"), List(
       "Rook activity on the seventh rank is becoming practical.",
       "Seventh-rank invasion ideas are now central.",
-      "A rook on the seventh rank could decide the technical battle."
+      "A rook on the seventh rank can change the activity balance."
     )),
     MotifPrefixRule(List("doubled_rooks"), List(
       "Doubled rooks can generate immediate file pressure.",
@@ -191,7 +191,7 @@ private[analysis] object NarrativeMotifPrefixTable:
     MotifPrefixRule(List("connected_rooks"), List(
       "Connected rooks improve coordination for both attack and defense.",
       "Connecting rooks is now a key positional milestone.",
-      "Linking connected rooks makes file-control plans easier to execute."
+      "Linked rooks give file-control plans a clearer coordination cue."
     )),
     MotifPrefixRule(List("maneuver"), List(
       "A rerouting maneuver is now the practical plan.",
@@ -204,7 +204,7 @@ private[analysis] object NarrativeMotifPrefixTable:
       "Closed/open square dynamics will decide whether the knight or bishop thrives."
     )),
     MotifPrefixRule(List("blockade"), List(
-      "Blockade technique is central to the conversion plan.",
+      "Blockade structure is central to containing counterplay.",
       "Stopping the passed pawn with a blockade is the key task.",
       "A stable blockade can neutralize the opponent's main counterplay."
     )),

@@ -75,29 +75,7 @@ object StrategyPackBuilder:
     }
     val moveRefHints = pack.pieceMoveRefs.take(2).map(m => s"${m.ownerSide} ${m.piece} move-ref ${m.target} (${m.idea})")
     val focusHints = pack.longTermFocus.take(2).map(v => s"long-term focus: $v")
-    val digestHints =
-      pack.signalDigest.toList.flatMap { digest =>
-        List(
-          digest.opening.map(v => s"opening: $v"),
-          digest.authoringEvidence.map(v => s"authoring evidence: $v"),
-          digest.practicalVerdict.map(v => s"practical: $v"),
-          Option.when(digest.practicalFactors.nonEmpty)(s"practical factors: ${digest.practicalFactors.mkString("; ")}"),
-          digest.structureProfile.map(v => s"structural profile: $v"),
-          digest.alignmentBand.map(v => s"plan fit: $v"),
-          digest.deploymentPiece.map { piece =>
-            val route =
-              if digest.deploymentRoute.nonEmpty then digest.deploymentRoute.mkString("-")
-              else "n/a"
-            s"deployment: $piece $route"
-          },
-          digest.deploymentPurpose.map(v => s"deployment purpose: $v"),
-          digest.prophylaxisPlan.map(v => s"prophylaxis: $v"),
-          digest.decision.map(v => s"decision: $v"),
-          digest.decisionComparison.flatMap(_.engineBestMove).map(v => s"engine best: $v"),
-          digest.opponentPlan.map(v => s"opponent plan: $v")
-        ).flatten
-      }
-    (planHints ++ ideaHints ++ directionalHints ++ routeHints ++ moveRefHints ++ focusHints ++ digestHints)
+    (planHints ++ ideaHints ++ directionalHints ++ routeHints ++ moveRefHints ++ focusHints)
       .map(_.trim)
       .filter(_.nonEmpty)
       .distinct
@@ -108,29 +86,15 @@ object StrategyPackBuilder:
       sideToMoveColor: Color
   ): List[StrategySidePlan] =
     val mover = sideName(sideToMoveColor)
-    val opponent = sideName(!sideToMoveColor)
 
     val moverFromHypothesis =
-      ctx.mainStrategicPlans
+      ctx.strategicPlanEvidence.mainAdmittedPlanHypotheses
         .sortBy(h => (-h.score, h.rank))
         .map(h => fromHypothesis(mover, h))
 
-    val moverFromPlanTable =
-      ctx.plans.top5
-        .sortBy(r => (r.rank, -r.score))
-        .map(p => fromPlanRow(mover, p.name, p.supports ++ p.evidence, p.blockers ++ p.missingPrereqs))
-
-    val moverPlans =
-      (moverFromHypothesis ++ moverFromPlanTable)
-        .distinctBy(_.planName.trim.toLowerCase)
-        .take(3)
-
-    val opponentPlan =
-      ctx.opponentPlan.map { p =>
-        fromPlanRow(opponent, p.name, p.supports ++ p.evidence, p.blockers ++ p.missingPrereqs)
-      }
-
-    (moverPlans ++ opponentPlan.toList).distinctBy(p => s"${p.side}|${p.planName.trim.toLowerCase}").take(MaxPlans)
+    moverFromHypothesis
+      .distinctBy(_.planName.trim.toLowerCase)
+      .take(MaxPlans)
 
   private def buildRoutes(
       data: ExtendedAnalysisData,
@@ -315,20 +279,6 @@ object StrategyPackBuilder:
       riskTriggers = h.failureModes.take(3)
     )
 
-  private def fromPlanRow(
-      side: String,
-      name: String,
-      priorities: List[String],
-      risks: List[String]
-  ): StrategySidePlan =
-    StrategySidePlan(
-      side = side,
-      horizon = "medium",
-      planName = name,
-      priorities = priorities.take(3),
-      riskTriggers = risks.take(3)
-    )
-
   private def buildLongTermFocus(
       ctx: NarrativeContext,
       plans: List[StrategySidePlan],
@@ -420,9 +370,6 @@ object StrategyPackBuilder:
     }
 
     ctx.semantic.foreach { semantic =>
-      semantic.conceptSummary.take(4).zipWithIndex.foreach { case (concept, idx) =>
-        push(concept, 1.10 - (idx * 0.05))
-      }
       semantic.planAlignment.foreach { alignment =>
         push(s"plan alignment: ${alignment.band}", 1.25 + (alignment.score.toDouble / 100.0))
         alignment.narrativeIntent.foreach(intent => push(s"alignment intent: $intent", 1.20))
