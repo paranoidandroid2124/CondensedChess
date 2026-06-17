@@ -379,6 +379,10 @@ function formatOpeningGameCount(value: number): string {
   return `${count}`;
 }
 
+function playerTitle(surface: MoveReviewPlayerSurfaceV1): string {
+  return (surface.title?.trim() || 'Move Review').replace(/^Move review\b/, 'Move Review');
+}
+
 function surfaceStatusLabel(status: string): string {
   const key = status.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '_');
   if (key === 'resolved') return 'Backed by line';
@@ -529,7 +533,7 @@ function primaryTryLine(playerSurface: MoveReviewPlayerSurfaceV1): string[] {
 
 function renderSceneNav(scenes: MoveReviewScene[]): string {
   return `
-    <nav class="move-review-player__timeline" aria-label="Review chapters" role="tablist">
+    <nav class="move-review-player__timeline" aria-label="Move Review chapters" role="tablist">
       ${scenes
         .map(
           (scene, idx) => `
@@ -648,7 +652,7 @@ function buildMoveReviewScenes(
   playerSurface: MoveReviewPlayerSurfaceV1,
   refIndex: MoveReviewRefIndex,
 ): MoveReviewScene[] {
-  const titleText = playerSurface.title?.trim() || 'Coach review';
+  const titleText = playerTitle(playerSurface);
   const decision = renderCoachVerdict(playerSurface.decisionComparison, refIndex);
   const summaryBody = renderSceneReasonBody(playerSurface.summaryRows, refIndex, 'More reasons');
   const primaryLine = primaryTryLine(playerSurface);
@@ -797,7 +801,7 @@ function fallbackPlayerSurfaceFromRefs(refs: MoveReviewRefsV1 | null): MoveRevie
 
   return {
     schema: 'chesstory.move_review.player_surface.v1',
-    title: 'Coach review',
+    title: 'Move Review',
     summaryRows: [],
     advancedRows: [],
     decisionComparison: {
@@ -825,19 +829,19 @@ export function decorateMoveReviewHtml(
   if (!surface) return html;
 
   const refIndex = buildMoveReviewRefIndex(refs);
-  const titleText = surface.title?.trim() || 'Coach review';
+  const titleText = playerTitle(surface);
   const scenes = buildMoveReviewScenes(html, surface, refIndex);
   const sceneCount = scenes.length;
 
   return `
     <div class="move-review-coach move-review-player" data-move-review-player data-scene-index="0">
       <header class="move-review-coach__header">
-        <span class="move-review-coach__eyebrow">Move review</span>
+        <span class="move-review-coach__eyebrow">Move Review Player</span>
         <h3>${escapeHtml(titleText)}</h3>
       </header>
       ${renderSceneNav(scenes)}
       <div class="move-review-player__stage">
-        <aside class="move-review-player__board-shell" aria-label="Current review position">
+        <aside class="move-review-player__board-shell" aria-label="Current Move Review position">
           <div class="move-review-player__board-anchor" aria-live="polite">
             <span class="move-review-player__board-anchor-label">Eval</span>
             <span class="move-review-player__board-anchor-eval"${scenes[0]?.lineEval ? '' : ' hidden'}>${escapeHtml(scenes[0]?.lineEval || '')}</span>

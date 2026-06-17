@@ -86,7 +86,9 @@ describe('moveReview coach surface', () => {
     assert.match(html, /move-review-coach/);
     assert.match(html, /move-review-player/);
     assert.match(html, /data-move-review-player/);
-    assert.match(html, /Move review/);
+    assert.match(html, /Move Review Player/);
+    assert.match(html, /Move Review: Nf3/);
+    assert.doesNotMatch(html, /Move review: Nf3/);
     assert.match(html, /Your choice/);
     assert.match(html, /Close choice/);
     assert.match(html, /move-review-coach__gap">Eval \+0\.4 · Close choice/);
@@ -96,7 +98,7 @@ describe('moveReview coach surface', () => {
     assert.match(html, /Remember this/);
     assert.match(html, /data-move-review-scene="0"/);
     assert.match(html, /data-move-review-scene-panel/);
-    assert.match(html, /aria-label="Review chapters" role="tablist"/);
+    assert.match(html, /aria-label="Move Review chapters" role="tablist"/);
     assert.match(html, /data-scene-flow-key="verdict"/);
     assert.match(html, /move-review-player__timeline-label--long">Verdict/);
     assert.match(html, /move-review-player__timeline-label--short">Recall/);
@@ -104,6 +106,7 @@ describe('moveReview coach surface', () => {
     assert.match(html, /move-review-player__timeline-action">Find the reason/);
     assert.match(html, /move-review-player__timeline-action">Replay the line/);
     assert.match(html, /move-review-player__board-shell/);
+    assert.match(html, /aria-label="Current Move Review position"/);
     assert.match(html, /move-review-player__board-anchor/);
     assert.match(html, /move-review-player__board-anchor-label">Eval/);
     assert.match(
@@ -379,7 +382,7 @@ describe('moveReview coach surface', () => {
     const html = decorateMoveReviewHtml('<p>Only commentary.</p>', refs, null);
 
     assert.match(html, /data-move-review-player/);
-    assert.match(html, /Coach review/);
+    assert.match(html, /Move Review/);
     assert.match(html, /data-scene-line="Nf3 d5"/);
     assert.match(html, /Try the line/);
     assert.match(html, /Remember this/);
