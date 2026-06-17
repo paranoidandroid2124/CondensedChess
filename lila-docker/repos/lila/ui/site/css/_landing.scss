@@ -10,6 +10,8 @@ $landing-primary: #8bc071;
 $landing-primary-strong: #b4d99a;
 $landing-secondary: #e3b15b;
 $landing-focus: #8bc071;
+$landing-board-light: #53664a;
+$landing-board-dark: #263728;
 
 $landing-bg-dark: $landing-bg-light;
 $landing-surface-dark: $landing-surface-light;
@@ -487,8 +489,8 @@ html {
   aspect-ratio: 1;
   border: 1px solid rgba($landing-border-light, 0.8);
   background:
-    linear-gradient(45deg, rgba(#22241f, 0.7), rgba(#1c1e1a, 0.78)),
-    conic-gradient(from 45deg, #bfc9a7 0 25%, #6f7c5f 0 50%, #bfc9a7 0 75%, #6f7c5f 0 100%);
+    linear-gradient(45deg, rgba($landing-surface-light, 0.38), rgba(#1c1e1a, 0.48)),
+    conic-gradient(from 45deg, $landing-board-light 0 25%, $landing-board-dark 0 50%, $landing-board-light 0 75%, $landing-board-dark 0 100%);
   background-size: auto, calc(100% / 8) calc(100% / 8);
   box-shadow: inset 0 1px 0 rgba($landing-font-light, 0.12);
 }
@@ -2188,8 +2190,8 @@ html.pro .hero-board,
 body.pro .hero-board {
   border-color: rgba($landing-border-dark, 0.85);
   background:
-    linear-gradient(45deg, rgba(#22241f, 0.7), rgba(#1c1e1a, 0.78)),
-    conic-gradient(from 45deg, #bfc9a7 0 25%, #6f7c5f 0 50%, #bfc9a7 0 75%, #6f7c5f 0 100%);
+    linear-gradient(45deg, rgba($landing-surface-dark, 0.38), rgba(#1c1e1a, 0.48)),
+    conic-gradient(from 45deg, $landing-board-light 0 25%, $landing-board-dark 0 50%, $landing-board-light 0 75%, $landing-board-dark 0 100%);
   background-size: auto, calc(100% / 8) calc(100% / 8);
 }
 

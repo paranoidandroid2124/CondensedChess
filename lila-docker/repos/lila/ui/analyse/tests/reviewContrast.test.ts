@@ -531,11 +531,16 @@ describe('review shell contrast palette', () => {
       '#d7c59c',
       '#76945f',
       '#f3ede3',
+      '#bfc9a7',
+      '#6f7c5f',
     ].forEach(color => assert.doesNotMatch(siteScss, new RegExp(escapeRegExp(color), 'i'), `off-palette site color: ${color}`));
 
     assert.match(homeScss, /\$home-bg-light:\s*#171816;/);
     assert.match(homeScss, /\$home-primary:\s*#8bc071;/);
     assert.match(homeScss, /\$home-accent:\s*#e3b15b;/);
+    assert.match(landingScss, /\$landing-board-light:\s*#53664a;/);
+    assert.match(landingScss, /\$landing-board-dark:\s*#263728;/);
+    assert.match(landingScss, /conic-gradient\(from 45deg,\s*\$landing-board-light 0 25%,\s*\$landing-board-dark 0 50%,\s*\$landing-board-light 0 75%,\s*\$landing-board-dark 0 100%\);/);
     [...homeScss.matchAll(/letter-spacing:\s*([^;]+);/g)].forEach(match =>
       assert.equal(match[1]!.trim(), '0', `home letter-spacing must be 0, got ${match[1]}`),
     );
