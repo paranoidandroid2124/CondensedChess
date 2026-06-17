@@ -46,10 +46,10 @@ object analyse:
             shortcutRow(kbd("F"), "Flip the board"),
             shortcutRow(kbd("L"), "Toggle candidate lines"),
             shortcutRow(kbd("E"), "Toggle explorer"),
-            shortcutRow(kbd("V"), "Toggle variation arrows"),
+            shortcutRow(kbd("V"), "Toggle line arrows"),
             shortcutRow(kbd("X"), "Toggle threat mode"),
-            shortcutRow(frag(kbd("Shift"), " + ", kbd("C")), "Toggle comments"),
-            shortcutRow(frag(kbd("Shift"), " + ", kbd("I")), "Toggle move tree mode"),
+            shortcutRow(frag(kbd("Shift"), " + ", kbd("C")), "Toggle notes"),
+            shortcutRow(frag(kbd("Shift"), " + ", kbd("I")), "Toggle notation layout"),
             shortcutRow(kbd("?"), "Open this help dialog")
           )
         )

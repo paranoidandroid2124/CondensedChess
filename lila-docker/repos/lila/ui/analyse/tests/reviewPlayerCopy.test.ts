@@ -75,6 +75,7 @@ describe('review player copy', () => {
       'eval bar anchored',
       'moves',
       'Line branches',
+      'Line emphasis',
     ].forEach(copy =>
       assert.match(actionMenuSource, new RegExp(escapeRegExp(copy)), `missing board setup copy: ${copy}`),
     );
@@ -89,6 +90,7 @@ describe('review player copy', () => {
       'move tree',
       'move list',
       'Variation handles',
+      'Variation opacity',
       'Disclosure buttons',
     ].forEach(copy =>
       assert.doesNotMatch(actionMenuSource, new RegExp(escapeRegExp(copy)), `stale board setup copy: ${copy}`),
@@ -162,10 +164,16 @@ describe('review player copy', () => {
     assert.match(landingSource, /Board View/);
     assert.match(analyseViewSource, /Review board/);
     assert.match(analyseViewSource, /Toggle candidate lines/);
+    assert.match(analyseViewSource, /Toggle line arrows/);
+    assert.match(analyseViewSource, /Toggle notes/);
+    assert.match(analyseViewSource, /Toggle notation layout/);
     assert.match(analyseViewSource, /review board/);
     assert.doesNotMatch(analyseViewSource, /Analysis board/);
     assert.doesNotMatch(analyseViewSource, /engine analysis/);
     assert.doesNotMatch(analyseViewSource, /analysis surface/);
+    assert.doesNotMatch(analyseViewSource, /Toggle variation arrows/);
+    assert.doesNotMatch(analyseViewSource, /Toggle comments/);
+    assert.doesNotMatch(analyseViewSource, /Toggle move tree mode/);
   });
 
   test('keeps home and landing entry points framed as games, not PGN tooling', () => {
@@ -184,7 +192,7 @@ describe('review player copy', () => {
       'Game text',
       'Bring in a game',
       'Choose a Lichess or Chess.com username',
-      'Board, move list, variations, game text',
+      'Board, moves, side lines, game text',
     ].forEach(copy => assert.match(landingSource, new RegExp(escapeRegExp(copy)), `missing landing copy: ${copy}`));
 
     [
@@ -196,6 +204,7 @@ describe('review player copy', () => {
       'Import a game',
       'Import a Lichess or Chess.com username',
       'Board, move list, variations, import',
+      'Board, move list, variations, game text',
     ].forEach(copy => {
       assert.doesNotMatch(homeSource, new RegExp(escapeRegExp(copy)), `stale home copy: ${copy}`);
       assert.doesNotMatch(landingSource, new RegExp(escapeRegExp(copy)), `stale landing copy: ${copy}`);
@@ -245,10 +254,16 @@ describe('review player copy', () => {
   });
 
   test('keeps account study entry points framed as games, not PGN jobs', () => {
-    ['Review one game', 'Open a pasted game', 'Study reference', 'Chesstory is still reading the games.', 'saved games', 'Game site'].forEach(
-      copy => assert.match(accountIntelSource, new RegExp(escapeRegExp(copy)), `missing account study copy: ${copy}`),
-    );
-    ['Import a PGN', 'Study ID', 'The games are still being reviewed.', 'reviewed ${account.analysisCount}', '"Provider"'].forEach(copy =>
+    [
+      'Review one game',
+      'Open a pasted game',
+      'Study reference',
+      'Chesstory is still reading the games.',
+      'saved games',
+      'Game site',
+      'moves, lines, and notes on a shareable board',
+    ].forEach(copy => assert.match(accountIntelSource, new RegExp(escapeRegExp(copy)), `missing account study copy: ${copy}`));
+    ['Import a PGN', 'Study ID', 'The games are still being reviewed.', 'reviewed ${account.analysisCount}', '"Provider"', 'move tree'].forEach(copy =>
       assert.doesNotMatch(accountIntelSource, new RegExp(escapeRegExp(copy)), `stale account study copy: ${copy}`),
     );
   });
@@ -305,7 +320,7 @@ describe('review player copy', () => {
       'On the board',
       'Ready to load',
       'played move',
-      'score sheet line',
+      'game text line',
       'Pasted game',
       'paste a game below',
       'Position setup',
@@ -314,6 +329,9 @@ describe('review player copy', () => {
       'Creating the new study from the current game.',
       'Game text needs fixes',
       'Saved game ready to reopen.',
+      'Coordinates, moves, and review cues',
+      'board and moves stay anchored',
+      'current board and moves',
     ].forEach(copy => assert.match(componentsSource, new RegExp(escapeRegExp(copy)), `missing load-game copy: ${copy}`));
 
     [
@@ -331,6 +349,10 @@ describe('review player copy', () => {
       'current PGN',
       'Saved PGN ready to reopen.',
       'Load a PGN',
+      'score sheet line',
+      'Coordinates, move list, and review cues',
+      'tool you need',
+      'current board and move list',
     ].forEach(copy =>
       assert.doesNotMatch(componentsSource, new RegExp(escapeRegExp(copy)), `stale file-stat copy: ${copy}`),
     );

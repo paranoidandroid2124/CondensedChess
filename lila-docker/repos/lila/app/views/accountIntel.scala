@@ -920,7 +920,7 @@ object accountIntel:
       div(cls := "importer-panel__head")(
         strong(cls := "importer-panel__title")("Saved study"),
         p(cls := "importer-panel__copy")(
-          "Stay on this page for the answer. Create a saved study only when you want the move tree, section flow, and a shareable page."
+          "Stay on this page for the answer. Create a saved study only when you want the moves, lines, and notes on a shareable board."
         )
       ),
       div(cls := "account-product-utility-links")(

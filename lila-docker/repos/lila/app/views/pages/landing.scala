@@ -105,7 +105,7 @@ object landing:
                           p(cls := "hero-surface-kicker")("Board View"),
                           h3(cls := "hero-surface-title")("Continue on the board"),
                           p(cls := "hero-surface-copy")(
-                            "Open the move list and variations when the lesson needs more board work."
+                            "Open the moves and side lines when the lesson needs more board work."
                           ),
                           p(cls := "hero-artifact-proof")(
                             "Stay with the same position and keep exploring."
@@ -223,7 +223,7 @@ object landing:
                         p(cls := "story-card__label")("Board View"),
                         h3("The board stays available when you need more lines"),
                         p(cls := "story-card__copy")(
-                          "When the guided explanation is not enough, continue on the same board with the move list, variations, and current-move explanation."
+                          "When the guided explanation is not enough, continue on the same board with the moves, side lines, and current-move explanation."
                         ),
                         p(cls := "story-card__proof")("You keep the board, the line, and the direct move explanation together."),
                         a(href := analysisUrl, cls := "story-card__link")("Open board")
@@ -318,7 +318,7 @@ object landing:
                       ),
                       div(cls := "truth-row")(
                         span("Board View"),
-                        strong("Board, move list, variations, game text")
+                        strong("Board, moves, side lines, game text")
                       ),
                       div(cls := "truth-row")(
                         span("Saved study"),

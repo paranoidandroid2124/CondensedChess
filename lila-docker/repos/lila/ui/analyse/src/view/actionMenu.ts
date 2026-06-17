@@ -179,7 +179,7 @@ function boardWorkspaceView(ctrl: AnalyseCtrl, closeMenu: () => void): VNode[] {
 }
 
 function renderVariationOpacitySlider(ctrl: AnalyseCtrl): VNode {
-  return renderVariationOpacityRange(ctrl, 'Variation opacity');
+  return renderVariationOpacityRange(ctrl, 'Line emphasis');
 }
 
 function renderVariationOpacityRange(ctrl: AnalyseCtrl, label: string): VNode {

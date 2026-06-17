@@ -234,7 +234,7 @@ function workspaceTools(ctrl: AnalyseCtrl): WorkspaceTool[] {
   tools.push({
     id: 'action-menu',
     label: 'Board setup',
-    summary: 'Coordinates, move list, and review cues',
+    summary: 'Coordinates, moves, and review cues',
     icon: licon.Hamburger,
     active: ctrl.activeControlBarTool() === 'action-menu',
     open: ctrl.toggleActionMenu,
@@ -253,7 +253,7 @@ function renderWorkspaceDock(ctrl: AnalyseCtrl): VNode {
         'span',
         activeTool
           ? 'Move between openings, coach review, and board setup without losing the current move.'
-          : 'Open the tool you need while the board and move list stay anchored.',
+          : 'Open what you need while the board and moves stay anchored.',
       ),
     ]),
     hl(
@@ -912,7 +912,7 @@ function inspectPgnDraft(draft: string, currentPgn: string): PgnDraftInspection 
           : {
               status: 'ready',
               headline: 'Ready to load',
-              message: 'Loading this game will replace the current board and move list.',
+              message: 'Loading this game will replace the current board and moves.',
               chars,
               lines,
               normalized,
@@ -946,7 +946,7 @@ function compactSummaryCard(value: string, label: string): VNode {
 }
 
 function pgnDraftReplaySize(inspection: PgnDraftInspection): string {
-  return inspection.preview ? playedMoveLabel(inspection.preview.plies) : scoreTextLineLabel(inspection.lines);
+  return inspection.preview ? playedMoveLabel(inspection.preview.plies) : gameTextLineLabel(inspection.lines);
 }
 
 function pgnDraftPlayerDetail(inspection: PgnDraftInspection): string {
@@ -955,7 +955,7 @@ function pgnDraftPlayerDetail(inspection: PgnDraftInspection): string {
       .filter(Boolean)
       .join(' • ');
   }
-  if (inspection.chars > 0) return `${scoreTextLineLabel(inspection.lines)} pasted`;
+  if (inspection.chars > 0) return `${gameTextLineLabel(inspection.lines)} pasted`;
   return 'Paste a game to begin.';
 }
 
@@ -964,9 +964,9 @@ function playedMoveLabel(plies: number): string {
   return `${count} played move${count === 1 ? '' : 's'}`;
 }
 
-function scoreTextLineLabel(lines: number): string {
+function gameTextLineLabel(lines: number): string {
   const count = Math.max(1, lines);
-  return `${count} score sheet line${count === 1 ? '' : 's'}`;
+  return `${count} game text line${count === 1 ? '' : 's'}`;
 }
 
 function renderStudyStatusCard(
