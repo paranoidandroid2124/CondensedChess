@@ -61,7 +61,7 @@ object AuthoringEvidenceSummaryBuilder:
             .distinct
             .take(MaxLinkedPlans)
         val status =
-          if branches.nonEmpty then "resolved"
+          if branches.nonEmpty then "line_checked"
           else if requests.nonEmpty then "pending"
           else "question_only"
 
@@ -110,10 +110,10 @@ object AuthoringEvidenceSummaryBuilder:
     build(ctx).headline
 
   private def headlineFromEvidence(summaries: List[AuthorEvidenceSummary]): Option[String] =
-    val resolved = summaries.count(_.status == "resolved")
+    val lineChecked = summaries.count(_.status == "line_checked")
     val pending = summaries.count(_.status == "pending")
-    Option.when(resolved > 0 || pending > 0)(
-      s"author evidence: $resolved resolved, $pending pending"
+    Option.when(lineChecked > 0 || pending > 0)(
+      s"author evidence: $lineChecked line checked, $pending pending"
     )
 
   private def summarizeQuestion(q: AuthorQuestion): AuthorQuestionSummary =

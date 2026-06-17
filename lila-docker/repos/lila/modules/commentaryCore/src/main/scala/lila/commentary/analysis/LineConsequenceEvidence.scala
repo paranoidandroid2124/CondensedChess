@@ -10,8 +10,8 @@ import lila.commentary.model.strategic.VariationLine
 
 enum LineConsequenceKind:
   case PreviewOnly, ExchangeSequence, ForcingCheckSequence, CentralBreakTiming, CentralPawnAdvance, MaterialTransition,
-    ImmediateOpponentPawnCapture, ImmediateOpponentTargetPressure, PlayedMoveTargetPressure, DelayedPawnCapture,
-    PassedPawnCreation, PromotionRace, OriginSquareClearance, MinorPieceReroute
+    CaptureStructureTransition, ImmediateOpponentPawnCapture, ImmediateOpponentTargetPressure, PlayedMoveTargetPressure,
+    DelayedPawnCapture, PassedPawnCreation, PromotionRace, OriginSquareClearance, MinorPieceReroute
 
 enum LineConsequenceRelease:
   case SurfaceCandidate, ReplayBackedInternal, DiagnosticOnly
@@ -247,7 +247,8 @@ private[commentary] object LineConsequenceEvaluator:
           contract.failureMode == FailureInterpretationMode.NoClearPlan &&
           Set(
             LineConsequenceKind.ExchangeSequence,
-            LineConsequenceKind.MaterialTransition
+            LineConsequenceKind.MaterialTransition,
+            LineConsequenceKind.CaptureStructureTransition
           ).contains(evidence.kind)
       )
     val immediateOpponentPawnCaptureAllowed =
@@ -430,6 +431,8 @@ private[commentary] object LineConsequenceEvaluator:
       else if centralPawnAdvance.nonEmpty then LineConsequenceKind.CentralPawnAdvance
       else if captureSteps.size >= 2 then LineConsequenceKind.ExchangeSequence
       else if checkSteps.size >= 2 || mate.exists(_ != 0) then LineConsequenceKind.ForcingCheckSequence
+      else if captureSteps.exists(step => step.capturedRole.exists(_ != Pawn)) && structureDetails.nonEmpty then
+        LineConsequenceKind.CaptureStructureTransition
       else if captureSteps.exists(step => step.capturedRole.exists(_ != Pawn)) then LineConsequenceKind.MaterialTransition
       else if immediateOpponentPawnCapture.nonEmpty then LineConsequenceKind.ImmediateOpponentPawnCapture
       else if delayedPawnCapture.nonEmpty then LineConsequenceKind.DelayedPawnCapture
@@ -447,6 +450,7 @@ private[commentary] object LineConsequenceEvaluator:
         case LineConsequenceKind.ExchangeSequence   => captureSteps.headOption.map(_.san)
         case LineConsequenceKind.ForcingCheckSequence => checkSteps.headOption.map(_.san)
         case LineConsequenceKind.MaterialTransition => captureSteps.headOption.map(_.san)
+        case LineConsequenceKind.CaptureStructureTransition => captureSteps.headOption.map(_.san)
         case LineConsequenceKind.ImmediateOpponentPawnCapture => immediateOpponentPawnCapture.map(_.san)
         case LineConsequenceKind.ImmediateOpponentTargetPressure => immediateOpponentTargetPressure.map(_._1.san)
         case LineConsequenceKind.PlayedMoveTargetPressure => playedMoveTargetPressure.map(_._1.san)
@@ -511,6 +515,11 @@ private[commentary] object LineConsequenceEvaluator:
       case LineConsequenceKind.MaterialTransition =>
         s"The checked line changes material$triggerText." ->
           Some("The point is the resulting material balance, not just the first move.")
+      case LineConsequenceKind.CaptureStructureTransition =>
+        s"The checked line changes the capture structure$triggerText." ->
+          structureDetailSummary(structureDetails)
+            .map(detail => s"The local result is $detail.")
+            .orElse(Some("The local result is a different pawn structure after the capture."))
       case LineConsequenceKind.ImmediateOpponentPawnCapture =>
         s"The checked line meets the move with an immediate pawn capture$triggerText." ->
           Some("The local result is a pawn being taken right after the reviewed move.")
@@ -875,7 +884,19 @@ private[commentary] object LineConsequenceEvaluator:
     PositionAnalyzer.passedPawns(color, board.pawns & board.byColor(color), board.pawns & board.byColor(!color))
 
   private[analysis] def primaryStructureDetailSurface(details: List[LineStructureDetail]): Option[String] =
-    details.sortBy(structureDetailPriority).flatMap(structureDetailSurface).headOption
+    structureDetailSurfaces(details).headOption
+
+  private[analysis] def structureDetailSurfaces(details: List[LineStructureDetail]): List[String] =
+    details.sortBy(structureDetailPriority).flatMap(structureDetailSurface).distinct
+
+  private[analysis] def structureDetailSummary(details: List[LineStructureDetail]): Option[String] =
+    structureDetailSurfaces(details).take(2) match
+      case Nil =>
+        None
+      case single :: Nil =>
+        Some(single.stripPrefix("leaving "))
+      case first :: second :: _ =>
+        Some(s"${first.stripPrefix("leaving ")} and ${second.stripPrefix("leaving ")}")
 
   private[analysis] def structureDetailSurface(detail: LineStructureDetail): Option[String] =
     detail.kind match

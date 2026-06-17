@@ -660,11 +660,11 @@ class StrategyPackBuilderTest extends FunSuite:
     val digest = pack.signalDigest.getOrElse(fail("missing digest"))
     assertEquals(
       digest.authoringEvidence,
-      Some("author evidence: 1 resolved, 0 pending"),
+      Some("author evidence: 1 line checked, 0 pending"),
       clue(digest)
     )
     val hints = StrategyPackBuilder.promptHints(pack)
-    assert(!hints.exists(_.contains("author evidence: 1 resolved, 0 pending")), clue(hints))
+    assert(!hints.exists(_.contains("author evidence:")), clue(hints))
     assert(hints.exists(_.contains("white long plan: Kingside Expansion")), clue(hints))
   }
 

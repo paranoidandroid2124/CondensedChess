@@ -149,6 +149,34 @@ class CompensationInterpretationTest extends FunSuite:
     assertEquals(decision.persistenceClass, "non_immediate_transition")
   }
 
+  test("development-lead-only compensation stays support-only without a pressure carrier") {
+    val smithMorraFen = "r1bqkb1r/1p3ppp/p1nppn2/8/2B1P3/2N2N2/PP2QPPP/R1B2RK1 w kq - 0 9"
+    val ctx =
+      baseContext(phase = "Opening", playedMove = None, playedSan = None).copy(
+        fen = smithMorraFen,
+        semantic = Some(
+          SemanticSection(
+            structuralWeaknesses = Nil,
+            pieceActivity = Nil,
+            positionalFeatures = Nil,
+            compensation =
+              Some(compensationInfo(100, Map("Development Lead" -> 0.8), "development lead")),
+            endgameFeatures = None,
+            practicalAssessment = None,
+            preventedPlans = Nil,
+            conceptSummary = Nil
+          )
+        )
+      )
+
+    val semanticDecision = CompensationInterpretation.currentSemanticDecision(ctx).getOrElse(fail("missing decision"))
+    val decision = semanticDecision.decision
+    assert(!decision.accepted)
+    assert(decision.rejectionReason.nonEmpty, clue(decision))
+    assertEquals(decision.persistenceClass, "transition_only")
+    assertEquals(CompensationInterpretation.effectiveSemanticDecision(ctx), None)
+  }
+
   test("late technical conversion tail is rejected when no durable carrier survives") {
     val ctx =
       baseContext(phase = "Endgame", playedMove = None, playedSan = None).copy(

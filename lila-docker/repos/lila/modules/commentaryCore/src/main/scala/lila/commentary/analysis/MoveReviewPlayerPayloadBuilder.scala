@@ -160,21 +160,26 @@ object MoveReviewPlayerPayloadBuilder:
   ): MoveReviewPlayerSurface =
     val knownSans = refs.toList.flatMap(_.variations.flatMap(_.moves.map(_.san))).map(normalizeSan).toSet
     val supportBlocked = MoveReviewSurfaceTruthVeto.truthContractSurfaceVeto(truthContract)
+    val broadSurfaceBlocked =
+      supportBlocked || moveReviewExplanation.exists(_.pvInterpretation.exists(interpretation =>
+        interpretation.tension.trim.equalsIgnoreCase("scoped_local") &&
+          interpretation.confidence.trim.equalsIgnoreCase("bounded_local")
+      ))
     val compensationBlocked = truthContract.exists(contract => !contract.compensationProseAllowed)
     val promotedPlans =
-      if supportBlocked then Nil
+      if broadSurfaceBlocked then Nil
       else evaluatedPlans.filter(PlanEvidenceEvaluator.isMainAdmittedPlan).sortBy(_.hypothesis.rank)
     val practicalStructureArc =
-      if supportBlocked then None else StructurePlanArcBuilder.build(ctx).filter(StructurePlanArcBuilder.proseEligible)
-    val practicalRows = if supportBlocked then Nil else practicalPlanRows(ctx, evaluatedPlans, practicalStructureArc)
-    val openingRows = if supportBlocked then Nil else openingFamilyRow(ctx).toList
-    val compensationRows = if supportBlocked || compensationBlocked then Nil else compensationAdvancedRows(strategyPack)
+      if broadSurfaceBlocked then None else StructurePlanArcBuilder.build(ctx).filter(StructurePlanArcBuilder.proseEligible)
+    val practicalRows = if broadSurfaceBlocked then Nil else practicalPlanRows(ctx, evaluatedPlans, practicalStructureArc)
+    val openingRows = if broadSurfaceBlocked then Nil else openingFamilyRow(ctx).toList
+    val compensationRows = if broadSurfaceBlocked || compensationBlocked then Nil else compensationAdvancedRows(strategyPack)
     val localRows = if supportBlocked then Nil else sanitizeRows(supportedLocalRows, knownSans)
     val relationRows =
-      if supportBlocked then Nil
+      if broadSurfaceBlocked then Nil
       else strategicRelationRows(strategyPack, MoveReviewSupportedLocalSurfaceRows.relationKindsForRows(localRows))
     val structuralIdeaRows =
-      if supportBlocked then Nil
+      if broadSurfaceBlocked then Nil
       else
         val structuralIdeas = strategyPack.toList.flatMap(_.strategicIdeas)
         val strategySide = strategyPack.map(_.sideToMove.trim.toLowerCase).filter(_.nonEmpty)
@@ -566,6 +571,15 @@ object MoveReviewPlayerPayloadBuilder:
                 idea.readiness == StrategicIdeaReadiness.Ready &&
                 strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
                 idea.confidence >= 0.76
+            val restraintAuthority =
+              if passerBlockade then
+                blockadedPawnSquare.map(square =>
+                  MoveReviewSurfaceAuthority(
+                    kind = MoveReviewSurfaceAuthority.PracticalPlan,
+                    target = Some(square)
+                  )
+                )
+              else PracticalPlanAuthority
             val counterplayBreakDenied =
               !exactCounterplayAlreadyVisible &&
                 refs.contains("source:counterplay_suppression") &&
@@ -606,7 +620,7 @@ object MoveReviewPlayerPayloadBuilder:
                   .orElse(Some("The compensation structure gives a practical brake on the opponent's breaks."))
               else None
             restraintText.flatMap(text =>
-              row("Practical restraint", text, tone = Some("practical")).map(_.copy(authority = PracticalPlanAuthority))
+              row("Practical restraint", text, tone = Some("practical"), authority = restraintAuthority)
             )
             }
         val lineRows =
@@ -786,6 +800,16 @@ object MoveReviewPlayerPayloadBuilder:
                   case _             => None
               val routeOutpostHasUnsuppressedSquare =
                 publicOutpostSquares.nonEmpty
+              val outpostAuthority =
+                publicOutpostSquares match
+                  case square :: Nil =>
+                    Some(
+                      MoveReviewSurfaceAuthority(
+                        kind = MoveReviewSurfaceAuthority.PracticalPlan,
+                        target = Some(square)
+                      )
+                    )
+                  case _ => PracticalPlanAuthority
               val exactRouteOutpost =
                   refs.contains("source:route_outpost_access") &&
                   refs.contains("route_outpost_access_shape") &&
@@ -820,7 +844,7 @@ object MoveReviewPlayerPayloadBuilder:
                     .map(squareText => s"The minor piece is aimed at a practical outpost cue $squareText.")
                 else None
               outpostText.flatMap(text =>
-                row("Practical outpost", text, tone = Some("practical")).map(_.copy(authority = PracticalPlanAuthority))
+                row("Practical outpost", text, tone = Some("practical"), authority = outpostAuthority)
               )
             }
         val transformationRows =
@@ -889,20 +913,44 @@ object MoveReviewPlayerPayloadBuilder:
                   focusSquares.find(square => refs.contains(s"passed_pawn_$square"))
                 val transformationRow =
                   if iqpTradeDown && focusSquares.nonEmpty then
+                    val authority =
+                      focusSquares match
+                        case square :: Nil =>
+                          Some(
+                            MoveReviewSurfaceAuthority(
+                              kind = MoveReviewSurfaceAuthority.PracticalPlan,
+                              target = Some(square)
+                            )
+                          )
+                        case _ => PracticalPlanAuthority
                     val text =
                       focusSquares match
                         case square :: Nil =>
                           s"The IQP trade-down cue is anchored by the exchange target on $square."
                         case squares =>
                           s"The IQP trade-down cue is anchored by exchange targets on ${squares.mkString(", ")}."
-                    row("Practical trade", text, tone = Some("practical"))
+                    row("Practical trade", text, tone = Some("practical"), authority = authority)
                   else if rookEndgamePattern then
+                    val authority =
+                      rookBehindPasserSquare.map(square =>
+                        MoveReviewSurfaceAuthority(
+                          kind = MoveReviewSurfaceAuthority.PracticalPlan,
+                          target = Some(square)
+                        )
+                      )
                     val text =
                       rookBehindPasserSquare
                         .map(square => s"The rook-behind-passer cue is anchored by the passed pawn on $square.")
                         .getOrElse("The rook endgame support stays result-neutral.")
-                    row("Endgame cue", text, tone = Some("practical"))
+                    row("Endgame cue", text, tone = Some("practical"), authority = authority)
                   else if endgameTechniqueMotif then
+                    val authority =
+                      Option.when(anchoredKingActivity)(singleFocusSquare).flatten.map(square =>
+                        MoveReviewSurfaceAuthority(
+                          kind = MoveReviewSurfaceAuthority.PracticalPlan,
+                          target = Some(square)
+                        )
+                      )
                     val text =
                       if anchoredOpposition then
                         singleEndgameTechniqueFact
@@ -913,8 +961,15 @@ object MoveReviewPlayerPayloadBuilder:
                           .map(square => s"The active-king cue is anchored on $square.")
                           .getOrElse("The active-king support stays result-neutral.")
                       else "The endgame support stays result-neutral."
-                    row("Endgame cue", text, tone = Some("practical"))
+                    row("Endgame cue", text, tone = Some("practical"), authority = authority)
                   else if passedPawnConversionMotif then
+                    val authority =
+                      passedPawnConversionSquare.map(square =>
+                        MoveReviewSurfaceAuthority(
+                          kind = MoveReviewSurfaceAuthority.PracticalPlan,
+                          target = Some(square)
+                        )
+                      )
                     val text =
                       if refs.contains("pawn_promotion") then
                         passedPawnConversionSquare
@@ -924,11 +979,11 @@ object MoveReviewPlayerPayloadBuilder:
                         passedPawnConversionSquare
                           .map(square => s"The passed-pawn cue is anchored on $square.")
                           .getOrElse("The passed-pawn cue is present as endgame support.")
-                    row("Endgame cue", text, tone = Some("practical"))
+                    row("Endgame cue", text, tone = Some("practical"), authority = authority)
                   else None
                 transformationRow.map { row =>
                   if row.label == "Endgame cue" then row
-                  else row.copy(authority = PracticalPlanAuthority)
+                  else row.copy(authority = row.authority.orElse(PracticalPlanAuthority))
                 }
               }
         val minorRows = structuralIdeas
@@ -1242,7 +1297,7 @@ object MoveReviewPlayerPayloadBuilder:
       advancedRows =
         (
           relationRows ++ compensationRows ++ structuralIdeaRows ++
-            (if supportBlocked then Nil else advancedRows(ctx, promotedPlans, evaluatedPlans, practicalStructureArc))
+            (if broadSurfaceBlocked then Nil else advancedRows(ctx, promotedPlans, evaluatedPlans, practicalStructureArc))
         )
           .distinctBy(row => (row.label, row.text, row.authority.flatMap(_.token))),
       decisionComparison = decisionComparisonSurface.map(comparison =>
@@ -1836,7 +1891,7 @@ object MoveReviewPlayerPayloadBuilder:
         structureRestraintRow.toList ++
         structureFitRow.toList ++
         structureTaskRow.toList
-    ).map(_.copy(authority = PracticalPlanAuthority))
+    ).map(row => row.copy(authority = row.authority.orElse(PracticalPlanAuthority)))
 
   private def structureArcForPlan(
       planName: String,
@@ -1893,9 +1948,11 @@ object MoveReviewPlayerPayloadBuilder:
               .carlsbadTargetForBoard(position.board, position.color)
               .map(target => position.color -> target)
               .filter { case (_, target) => carlsbadPlan || fixedTargetHints.contains(target.targetSquare) }
-          }.map { case (pressureSide, target) =>
-            practicalTargetRowFor(
-              s"The Carlsbad-type pawn shape makes ${target.targetSquare} a natural queenside target for ${sideLabel(pressureSide)}'s minority-attack ideas."
+          }.flatMap { case (pressureSide, target) =>
+            row(
+              "Practical pressure",
+              s"The Carlsbad-type pawn shape points queenside pressure toward ${target.targetSquare} for ${sideLabel(pressureSide)}'s minority-attack ideas.",
+              tone = Some("practical")
             )
           }
         else None
@@ -1915,14 +1972,16 @@ object MoveReviewPlayerPayloadBuilder:
                 )
                 .getOrElse("The current structure gives")
             practicalTargetRowFor(
-              s"$currentStructurePrefix ${sideLabel(target.weakSide)} a weak ${targetKindLabel(target.kind)} on ${target.targetSquare} to pressure."
+              s"$currentStructurePrefix ${sideLabel(target.weakSide)} a weak ${targetKindLabel(target.kind)} on ${target.targetSquare} to pressure.",
+              targetSquare = Some(target.targetSquare)
             )
           }
         )
         .orElse(
           practicalEndpointTarget(ctx, targetHints).map(target =>
             practicalTargetRowFor(
-              s"The checked line leaves ${sideLabel(target.weakSide)} a weak ${targetKindLabel(target.kind)} on ${target.targetSquare} to pressure."
+              s"The checked line leaves ${sideLabel(target.weakSide)} a weak ${targetKindLabel(target.kind)} on ${target.targetSquare} to pressure.",
+              targetSquare = Some(target.targetSquare)
             )
           )
         )
@@ -1955,10 +2014,18 @@ object MoveReviewPlayerPayloadBuilder:
       )
 
   private def practicalTargetRowFor(
-      text: String
+      text: String,
+      targetSquare: Option[String]
   ): MoveReviewPlayerSurfaceRow =
-    row("Practical target", text, tone = Some("practical"))
-      .getOrElse(MoveReviewPlayerSurfaceRow(label = "Practical target", text = text, tone = Some("practical")))
+    val authority =
+      Some(
+        MoveReviewSurfaceAuthority(
+          kind = MoveReviewSurfaceAuthority.PracticalPlan,
+          target = targetSquare.map(_.trim.toLowerCase).filter(ChessSquarePattern.matches)
+        )
+      )
+    row("Practical target", text, tone = Some("practical"), authority = authority)
+      .getOrElse(MoveReviewPlayerSurfaceRow(label = "Practical target", text = text, tone = Some("practical"), authority = authority))
 
   private def practicalTargetHints(plan: EvaluatedPlan): Set[String] =
     WeaknessTargetProfile.targetHintSquares(plan.hypothesis.evidenceSources).toSet
@@ -2164,10 +2231,17 @@ object MoveReviewPlayerPayloadBuilder:
         meta = Nil,
         branches =
           summary.branches.take(2).flatMap { branch =>
+            val lineSans =
+              LineScopedCitation
+                .concreteSanTokens(branch.line)
+                .take(5)
+            val branchSans =
+              if lineSans.nonEmpty then lineSans
+              else LineScopedCitation.concreteSanTokens(branch.keyMove).take(1)
             row(
               label = branch.keyMove,
               text = branch.line,
-              refSans = refSans(List(branch.keyMove), knownSans)
+              refSans = refSans(branchSans, knownSans)
             )
           }
       )
@@ -2201,7 +2275,8 @@ object MoveReviewPlayerPayloadBuilder:
       label: String,
       text: String,
       refSans: List[String] = Nil,
-      tone: Option[String] = None
+      tone: Option[String] = None,
+      authority: Option[MoveReviewSurfaceAuthority] = None
   ): Option[MoveReviewPlayerSurfaceRow] =
     for
       cleanLabel <- cleanOpt(Some(label))
@@ -2211,7 +2286,8 @@ object MoveReviewPlayerPayloadBuilder:
       text = cleanText,
       tone = tone.flatMap(value => cleanOpt(Some(value))),
       source = None,
-      refSans = cleanLineList(refSans)
+      refSans = cleanLineList(refSans),
+      authority = authority
     )
 
   private[analysis] def distinctVisibleRows(rows: List[MoveReviewPlayerSurfaceRow]): List[MoveReviewPlayerSurfaceRow] =
@@ -2874,6 +2950,25 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       )
     yield row
 
+  private def practicalPlanRow(
+      label: String,
+      text: String,
+      refSans: List[String],
+      target: Option[String] = None
+  ): Option[MoveReviewPlayerSurfaceRow] =
+    row(
+      label,
+      text,
+      refSans = refSans,
+      authority =
+        Some(
+          MoveReviewSurfaceAuthority(
+            kind = MoveReviewSurfaceAuthority.PracticalPlan,
+            target = target.map(_.trim.toLowerCase).filter(MoveReviewPlayerPayloadBuilder.ChessSquarePattern.matches)
+          )
+        )
+    )
+
   private def knightOutpostPracticalRow(replayCache: PlayedTopPvReplayCache): Option[MoveReviewPlayerSurfaceRow] =
     for
       (_, position, move, after) <- replayCache.playedMoveAfter
@@ -2881,16 +2976,11 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       if after.board.pieceAt(move.dest).exists(piece => piece.color == move.piece.color && piece.role == _root_.chess.Knight)
       if outpostSquare(after.board, move.dest, move.piece.color)
       if topPvKeepsPracticalKnightOutpost(replayCache, move.dest, move.piece.color)
-      row <- row(
+      row <- practicalPlanRow(
         KnightOutpostLabel,
         s"The checked line puts the knight on the pawn-supported ${move.dest.key} outpost square.",
-        authority =
-          Some(
-            MoveReviewSurfaceAuthority(
-              kind = MoveReviewSurfaceAuthority.PracticalPlan,
-              target = Some(move.dest.key)
-            )
-          )
+        refSans = replayCache.sanMoves(1),
+        target = Some(move.dest.key)
       )
     yield row
 
@@ -2940,10 +3030,10 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       if bishopPairCaptureMove(position, move)
       if after.board.pieceAt(move.dest).exists(piece => piece.color == move.piece.color && piece.role == _root_.chess.Bishop)
       if bishopPairFor(after.board, move.piece.color) && !bishopPairFor(after.board, !move.piece.color)
-      row <- row(
+      row <- practicalPlanRow(
         BishopPairLabel,
         "The checked capture keeps the bishop pair on the board.",
-        authority = PracticalPlanAuthority
+        refSans = replayCache.sanMoves(1)
       )
     yield row
 
@@ -2960,10 +3050,10 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       (_, position, move, after) <- replayCache.playedMoveAfter
       if materialClarifyingCapture(position, move)
       if oppositeColorBishopsOnly(after.board)
-      row <- row(
+      row <- practicalPlanRow(
         OppositeColorBishopsLabel,
         "The checked capture leaves opposite-colored bishops on the board.",
-        authority = PracticalPlanAuthority
+        refSans = replayCache.sanMoves(1)
       )
     yield row
 
@@ -3014,17 +3104,30 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       if rookPawnAdvance(move)
       before <- PositionAnalyzer.extractStrategicState(ctx.fen)
       after <- PositionAnalyzer.extractStrategicState(Fen.write(afterPosition).value)
-      row <- flankPawnRowFor(move, before, after)
+      row <- flankPawnRowFor(move, before, after, replayCache.sanMoves(1))
     yield row
 
   private def flankPawnRowFor(
       move: chess.Move,
       before: StrategicStateFeatures,
-      after: StrategicStateFeatures
+      after: StrategicStateFeatures,
+      refSans: List[String]
   ): Option[MoveReviewPlayerSurfaceRow] =
     CommentaryIdeaSurface
       .flankPawnPracticalFact(move.piece.color, move.dest, before, after)
-      .flatMap(fact => row(fact.label, fact.text, authority = PracticalPlanAuthority))
+      .flatMap { fact =>
+        val target =
+          fact.anchors
+            .find(_.key == "target")
+            .map(_.value.trim.toLowerCase)
+            .filter(MoveReviewPlayerPayloadBuilder.ChessSquarePattern.matches)
+        practicalPlanRow(
+          fact.label,
+          fact.text,
+          refSans = refSans,
+          target = target
+        )
+      }
 
   private def rookPawnAdvance(move: chess.Move): Boolean =
     !move.captures &&
@@ -3036,10 +3139,11 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
     for
       (_, position, move) <- replayCache.playedMove
       if rookLiftMove(position, move)
-      row <- row(
+      row <- practicalPlanRow(
         RookLiftLabel,
         s"The checked line lifts the rook to ${move.dest.key} as attacking infrastructure.",
-        authority = PracticalPlanAuthority
+        refSans = replayCache.sanMoves(1),
+        target = Some(move.dest.key)
       )
     yield row
 
@@ -3057,10 +3161,11 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       (_, position, move, after) <- replayCache.playedMoveAfter
       if seventhRankEntryMove(position, move)
       if after.board.pieceAt(move.dest).exists(piece => piece.color == move.piece.color && piece.role == _root_.chess.Rook)
-      row <- row(
+      row <- practicalPlanRow(
         SeventhRankEntryLabel,
         seventhRankEntryText(move),
-        authority = PracticalPlanAuthority
+        refSans = replayCache.sanMoves(1),
+        target = Some(move.dest.key)
       )
     yield row
 
@@ -3081,10 +3186,11 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       (_, position, move, after) <- replayCache.playedMoveAfter
       if rookBehindPasserMove(position, move)
       pawn <- rookBehindPassedPawn(after, move)
-      row <- row(
+      row <- practicalPlanRow(
         RookBehindPasserLabel,
         s"The checked line places the rook behind the passed pawn on ${pawn.key}.",
-        authority = PracticalPlanAuthority
+        refSans = replayCache.sanMoves(1),
+        target = Some(pawn.key)
       )
     yield row
 
@@ -3110,10 +3216,11 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       (_, position, move, after) <- replayCache.playedMoveAfter
       if passerBlockadeMove(position, move)
       pawn <- blockadedPassedPawn(after, move)
-      row <- row(
+      row <- practicalPlanRow(
         PasserBlockadeLabel,
         s"The checked line blockades the passed pawn on ${pawn.key} with the knight.",
-        authority = PracticalPlanAuthority
+        refSans = replayCache.sanMoves(1),
+        target = Some(pawn.key)
       )
     yield row
 
@@ -3144,11 +3251,10 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       if majorFileEntryMove(position, move)
       if after.board.pieceAt(move.dest).exists(piece => piece.color == move.piece.color && piece.role == move.piece.role)
       fileKind <- fileEntryKind(after.board, move)
-      row <- row(
+      row <- practicalPlanRow(
         FileEntryLabel,
         s"The checked line places the ${quietRoleLabel(move.piece.role)} on the $fileKind ${move.dest.file.char.toString.toLowerCase}-file.",
-        refSans = replayCache.sanMoves(1),
-        authority = PracticalPlanAuthority
+        refSans = replayCache.sanMoves(1)
       )
     yield row
 
@@ -3343,10 +3449,10 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       (_, position, move, after) <- replayCache.playedMoveAfter
       if rookCoordinationMove(position, move)
       rank <- connectedRooksRank(after.board, move.piece.color)
-      row <- row(
+      row <- practicalPlanRow(
         ConnectedRooksLabel,
         s"The checked line connects the rooks on the ${rankLabel(rank)} rank.",
-        authority = PracticalPlanAuthority
+        refSans = replayCache.sanMoves(1)
       )
     yield row
 
@@ -3355,10 +3461,10 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       (_, position, move, after) <- replayCache.playedMoveAfter
       if rookCoordinationMove(position, move)
       file <- doubledRooksFile(after.board, move.piece.color)
-      row <- row(
+      row <- practicalPlanRow(
         DoubledRooksLabel,
         s"The checked line doubles the rooks on the ${file.char.toString.toLowerCase}-file.",
-        authority = PracticalPlanAuthority
+        refSans = replayCache.sanMoves(1)
       )
     yield row
 
@@ -3409,10 +3515,10 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       (_, position, move, after) <- replayCache.playedMoveAfter
       if endgamePawnAdvanceMove(position, move)
       pair <- connectedPassedPair(after, move.piece.color)
-      row <- row(
+      row <- practicalPlanRow(
         ConnectedPassersLabel,
         s"The checked line leaves connected passers on ${pair._1.key} and ${pair._2.key}.",
-        authority = PracticalPlanAuthority
+        refSans = replayCache.sanMoves(1)
       )
     yield row
 
@@ -3442,10 +3548,11 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       (_, position, move, after) <- replayCache.playedMoveAfter
       if endgamePawnAdvanceMove(position, move)
       passer <- outsidePassedPawn(after, move.piece.color)
-      row <- row(
+      row <- practicalPlanRow(
         OutsidePasserLabel,
         s"The checked line leaves an outside passer on ${passer.key}.",
-        authority = PracticalPlanAuthority
+        refSans = replayCache.sanMoves(1),
+        target = Some(passer.key)
       )
     yield row
 
@@ -3491,10 +3598,11 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       (_, position, move, after) <- replayCache.playedMoveAfter
       if endgamePawnAdvanceMove(position, move)
       if afterMovePassedPawn(after, move)
-      row <- row(
+      row <- practicalPlanRow(
         PassedPawnAdvanceLabel,
         s"The checked line advances the passed pawn to ${move.dest.key}.",
-        authority = PracticalPlanAuthority
+        refSans = replayCache.sanMoves(1),
+        target = Some(move.dest.key)
       )
     yield row
 
@@ -3510,10 +3618,11 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       if kingActivationMove(position, move)
       if after.board.pieceAt(move.dest).exists(piece => piece.color == move.piece.color && piece.role == _root_.chess.King)
       if kingActivityImproves(position.board, after.board, move.piece.color, move.orig, move.dest)
-      row <- row(
+      row <- practicalPlanRow(
         KingActivationLabel,
         s"The checked line activates the king on ${move.dest.key} for the endgame.",
-        authority = PracticalPlanAuthority
+        refSans = replayCache.sanMoves(1),
+        target = Some(move.dest.key)
       )
     yield row
 

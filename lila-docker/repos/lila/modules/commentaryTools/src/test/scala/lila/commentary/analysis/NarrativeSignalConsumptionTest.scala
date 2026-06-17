@@ -391,3 +391,37 @@ class NarrativeSignalConsumptionTest extends FunSuite:
     assert(digest.compensationVectors.exists(_.startsWith("Line Pressure")), clue(digest.compensationVectors))
     assert(digest.preservedSignals.contains("practical"), clue(digest.preservedSignals))
   }
+
+  test("signal digest keeps development-lead compensation support-only without pressure carrier") {
+    val ctx = baseContext.copy(
+      fen = "r1bqkb1r/1p3ppp/p1nppn2/8/2B1P3/2N2N2/PP2QPPP/R1B2RK1 w kq - 0 9",
+      ply = 17,
+      phase = PhaseContext("Opening", "Development lead"),
+      semantic = Some(
+        SemanticSection(
+          structuralWeaknesses = Nil,
+          pieceActivity = Nil,
+          positionalFeatures = Nil,
+          compensation = Some(
+            CompensationInfo(
+              investedMaterial = 100,
+              returnVector = Map("Development Lead" -> 0.8),
+              expiryPly = None,
+              conversionPlan = "development lead"
+            )
+          ),
+          endgameFeatures = None,
+          practicalAssessment = None,
+          preventedPlans = Nil,
+          conceptSummary = Nil,
+          structureProfile = None,
+          planAlignment = None
+        )
+      )
+    )
+
+    val digest = NarrativeSignalDigestBuilder.build(ctx)
+    assertEquals(digest.flatMap(_.investedMaterial), None)
+    assertEquals(digest.map(_.compensationVectors).getOrElse(Nil), Nil)
+    assert(!digest.exists(_.preservedSignals.contains("practical")), clue(digest))
+  }

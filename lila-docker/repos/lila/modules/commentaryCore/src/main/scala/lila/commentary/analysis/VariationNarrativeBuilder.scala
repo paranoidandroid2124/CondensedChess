@@ -56,6 +56,19 @@ private[analysis] object VariationNarrativeBuilder:
                 "this trade transitions the material balance"
           Some(s"On the checked line $formattedLine, $description.")
 
+        case LineConsequenceKind.CaptureStructureTransition =>
+          val firstCapture = steps.find(_.captures)
+          val structureDetail = LineConsequenceEvaluator.structureDetailSummary(evidence.structureDetails)
+          val description =
+            (firstCapture, structureDetail) match
+              case (Some(step), Some(detail)) if step.capturedRole.exists(_ != Pawn) =>
+                s"${step.san} captures the ${pieceName(step.capturedRole)} on ${step.dest.key}, leaving ${detail}"
+              case (Some(step), _) =>
+                s"${step.san} changes the pawn structure after the capture on ${step.dest.key}"
+              case _ =>
+                "this capture changes the pawn structure"
+          Some(s"On the checked line $formattedLine, $description.")
+
         case LineConsequenceKind.ImmediateOpponentPawnCapture =>
           val capture = steps.lift(1).filter(step => step.captures && step.capturedRole.contains(Pawn))
           val description =

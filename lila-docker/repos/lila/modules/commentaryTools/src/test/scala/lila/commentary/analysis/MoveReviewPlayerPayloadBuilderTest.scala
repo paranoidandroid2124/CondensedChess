@@ -751,37 +751,30 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assert(!surface.authorRows.exists(row => row.title == "Whoseplanisfaster" || row.title == "Whythis"), clue(surface.authorRows))
   }
 
-  test("authoring branch source ids are not exposed as player surface row sources") {
-    val rawSourceId = "probe_result_raw_id"
+  test("authoring branch evidence stays line-checked support without exposing source ids") {
+    val base = MoveReviewProseGoldenFixtures.openFileFight.ctx
+    val question =
+      AuthorQuestion(
+        id = "q-open-file",
+        kind = AuthorQuestionKind.WhyThis,
+        priority = 1,
+        question = "Why does the rook lift keep pressure on g7?",
+        why = Some("Check the reply line before treating it as a main reason."),
+        confidence = ConfidenceLevel.Probe,
+        evidencePurposes = List("reply_multipv")
+      )
+    val ctx = base.copy(authorQuestions = List(question))
     val surface =
       build(
-        authoringSurface =
-          AuthoringEvidenceSurface(
-            questions = Nil,
-            evidence =
-              List(
-                AuthorEvidenceSummary(
-                  questionId = "why_this_1",
-                  questionKind = "WhyThis",
-                  question = "Why does this branch matter?",
-                  status = "resolved",
-                  branchCount = 1,
-                  branches =
-                    List(
-                      EvidenceBranchSummary(
-                        keyMove = "Nf3",
-                        line = "Nf3 Nc6",
-                        sourceId = Some(rawSourceId)
-                      )
-                    )
-                )
-              ),
-            headline = None
-          )
+        ctx = ctx,
+        authoringSurface = AuthoringEvidenceSummaryBuilder.build(ctx)
       )
-    val sources = surface.authorRows.flatMap(_.branches.flatMap(_.source))
+    val authorRow = surface.authorRows.headOption.getOrElse(fail("missing author row"))
+    val sources = authorRow.branches.flatMap(_.source)
 
-    assert(!sources.contains(rawSourceId), clue(sources))
+    assertEquals(authorRow.status, "line_checked")
+    assertEquals(authorRow.branches.map(_.label), List("...Rc8"))
+    assertEquals(authorRow.branches.flatMap(_.refSans), List("Rc8", "Rc3", "Rg6"))
     assertEquals(sources, Nil)
   }
 
@@ -1556,7 +1549,10 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
 
     assertEquals(surface.advancedRows.map(_.label), List("Practical target"))
     assert(surface.advancedRows.exists(_.text.contains("weak isolated queen pawn on d5")), clue(surface.advancedRows))
-    assert(surface.advancedRows.forall(_.authority.contains(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))))
+    assertEquals(
+      surface.advancedRows.head.authority,
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("d5")))
+    )
   }
 
   test("weakness practical target row honors typed target hints over the first board target") {
@@ -1583,6 +1579,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assertEquals(surface.advancedRows.map(_.label), List("Practical target"))
     assert(surface.advancedRows.exists(_.text.contains("on f5")), clue(surface.advancedRows))
     assert(!surface.advancedRows.exists(_.text.contains("on d5")), clue(surface.advancedRows))
+    assertEquals(surface.advancedRows.head.authority.flatMap(_.target), Some("f5"))
   }
 
   test("typed weakness target hints can publish practical target rows for non-weakness plans") {
@@ -1607,6 +1604,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
 
     assertEquals(surface.advancedRows.map(_.label), List("Practical target"))
     assert(surface.advancedRows.exists(_.text.contains("on e5")), clue(surface.advancedRows))
+    assertEquals(surface.advancedRows.head.authority.flatMap(_.target), Some("e5"))
   }
 
   test("typed weakness target hints can publish practical target rows from legal best-line endpoints") {
@@ -1647,6 +1645,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       surface.advancedRows.exists(_.text.contains("checked line leaves Black a weak isolated pawn on e5")),
       clue(surface.advancedRows)
     )
+    assertEquals(surface.advancedRows.head.authority.flatMap(_.target), Some("e5"))
   }
 
   test("new best-line endpoint target rows require a durable endpoint witness") {
@@ -1711,10 +1710,10 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       surface.advancedRows.exists(_.text.contains("current structure gives Black a weak isolated pawn on e5")),
       clue(surface.advancedRows)
     )
-    assertEquals(surface.advancedRows.head.authority.flatMap(_.target), None)
+    assertEquals(surface.advancedRows.head.authority.flatMap(_.target), Some("e5"))
   }
 
-  test("current-board weakness practical target context can publish without exact square hints") {
+  test("current-board weakness practical target context can publish board-derived target authority without exact square hints") {
     val surface =
       build(
         ctx = MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
@@ -1739,7 +1738,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       surface.advancedRows.exists(_.text.contains("current structure gives Black a weak isolated pawn on e5")),
       clue(surface.advancedRows)
     )
-    assertEquals(surface.advancedRows.head.authority.flatMap(_.target), None)
+    assertEquals(surface.advancedRows.head.authority.flatMap(_.target), Some("e5"))
   }
 
   test("current-board weakness practical target context can survive an empty best-line continuation") {
@@ -1782,10 +1781,10 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       surface.advancedRows.exists(_.text.contains("current structure gives Black a weak isolated pawn on e5")),
       clue(surface.advancedRows)
     )
-    assertEquals(surface.advancedRows.head.authority.flatMap(_.target), None)
+    assertEquals(surface.advancedRows.head.authority.flatMap(_.target), Some("e5"))
   }
 
-  test("fixed target hints can surface Carlsbad board context without exact target authority") {
+  test("fixed target hints can surface Carlsbad board context as support-only pressure") {
     val surface =
       build(
         ctx = MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
@@ -1806,10 +1805,10 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
           )
       )
 
-    assertEquals(surface.advancedRows.map(_.label), List("Practical target"))
+    assertEquals(surface.advancedRows.map(_.label), List("Practical pressure"))
     assert(
       surface.advancedRows.exists(
-        _.text.contains("Carlsbad-type pawn shape makes c6 a natural queenside target")
+        _.text.contains("Carlsbad-type pawn shape points queenside pressure toward c6")
       ),
       clue(surface.advancedRows)
     )
@@ -1921,6 +1920,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       surface.advancedRows.exists(_.text.contains("current structure gives Black a weak isolated pawn on e5")),
       clue(surface.advancedRows)
     )
+    assertEquals(surface.advancedRows.head.authority.flatMap(_.target), Some("e5"))
   }
 
   test("decision comparison carries best-vs-chosen target contrast metadata") {
@@ -2025,7 +2025,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assertEquals(surface.advancedRows, Nil)
   }
 
-  test("structural-only Carlsbad plans can publish board context without exact target authority") {
+  test("structural-only Carlsbad plans publish board context as support-only pressure") {
     val surface =
       build(
         ctx = MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
@@ -2045,10 +2045,10 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
           )
       )
 
-    assertEquals(surface.advancedRows.map(_.label), List("Practical target"))
+    assertEquals(surface.advancedRows.map(_.label), List("Practical pressure"))
     assertEquals(
       surface.advancedRows.head.text,
-      "The Carlsbad-type pawn shape makes c6 a natural queenside target for White's minority-attack ideas."
+      "The Carlsbad-type pawn shape points queenside pressure toward c6 for White's minority-attack ideas."
     )
     assertEquals(
       surface.advancedRows.head.authority,
@@ -2057,7 +2057,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assertEquals(surface.advancedRows.head.authority.flatMap(_.target), None)
   }
 
-  test("structural-only backward-pawn targeting can publish Carlsbad board context without exact target authority") {
+  test("structural-only backward-pawn targeting can publish Carlsbad support-only pressure") {
     val surface =
       build(
         ctx = MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
@@ -2077,10 +2077,10 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
           )
       )
 
-    assertEquals(surface.advancedRows.map(_.label), List("Practical target"))
+    assertEquals(surface.advancedRows.map(_.label), List("Practical pressure"))
     assertEquals(
       surface.advancedRows.head.text,
-      "The Carlsbad-type pawn shape makes c6 a natural queenside target for White's minority-attack ideas."
+      "The Carlsbad-type pawn shape points queenside pressure toward c6 for White's minority-attack ideas."
     )
     assertEquals(
       surface.advancedRows.head.authority,
@@ -2109,10 +2109,10 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
           )
       )
 
-    assertEquals(surface.advancedRows.map(_.label), List("Practical target"))
+    assertEquals(surface.advancedRows.map(_.label), List("Practical pressure"))
     assertEquals(
       surface.advancedRows.head.text,
-      "The Carlsbad-type pawn shape makes c3 a natural queenside target for Black's minority-attack ideas."
+      "The Carlsbad-type pawn shape points queenside pressure toward c3 for Black's minority-attack ideas."
     )
     assertEquals(surface.advancedRows.head.authority.flatMap(_.target), None)
   }
@@ -2143,6 +2143,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       surface.advancedRows.exists(_.text.contains("current IQP structure gives Black a weak isolated queen pawn on d5")),
       clue(surface.advancedRows)
     )
+    assertEquals(surface.advancedRows.head.authority.flatMap(_.target), Some("d5"))
   }
 
   test("current-board weakness target context can name a concrete typed structure") {
@@ -2170,7 +2171,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       surface.advancedRows.exists(_.text.contains("current French Advance Chain structure gives Black")),
       clue(surface.advancedRows)
     )
-    assertEquals(surface.advancedRows.head.authority.flatMap(_.target), None)
+    assertEquals(surface.advancedRows.head.authority.flatMap(_.target), Some("e6"))
   }
 
   test("probe-backed plans do not duplicate as practical plan rows") {
@@ -3869,7 +3870,8 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assertEquals(surface.advancedRows(1).text, "The current weak-square map gives a practical pressure cue around d5.")
     assertEquals(surface.advancedRows(2).text, "The rook route gives a practical c-file line cue.")
     assertEquals(surface.advancedRows(3).text, "The IQP trade-down cue is anchored by the exchange target on d5.")
-    assert(surface.advancedRows.forall(_.authority.flatMap(_.target).isEmpty), clue(surface.advancedRows))
+    assertEquals(surface.advancedRows.take(3).flatMap(_.authority.flatMap(_.target)), Nil)
+    assertEquals(surface.advancedRows(3).authority.flatMap(_.target), Some("d5"))
   }
 
   test("outer advanced cap preserves relation compensation and three structural families") {
@@ -4394,6 +4396,88 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assert(!mirroredFrenchSurface.advancedRows.exists(_.label == "Practical break"), clue(mirroredFrenchSurface.advancedRows))
   }
 
+  test("scoped local PV explanation keeps actual dxe5 replay practical themes out of advanced plan tier") {
+    val actualDxe5Ctx =
+      MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
+        fen = "rnbqkbnr/ppp2ppp/3p4/4P3/4P3/8/PPP2PPP/RNBQKBNR b KQkq - 0 3",
+        ply = 6,
+        playedMove = Some("d6e5"),
+        playedSan = Some("dxe5")
+      )
+    val broadPracticalPack =
+      StrategyPack(
+        sideToMove = "black",
+        strategicIdeas =
+          List(
+            StrategyIdeaSignal(
+              ideaId = "actual_dxe5_d_file_break",
+              ownerSide = "black",
+              kind = StrategicIdeaKind.PawnBreak,
+              group = StrategicIdeaGroup.StructuralChange,
+              readiness = StrategicIdeaReadiness.Ready,
+              focusFiles = List("d"),
+              focusZone = Some("center"),
+              confidence = 0.92,
+              evidenceRefs = List("source:pawn_analysis_break_ready", "pawn_analysis_break_ready_shape", "break_file_d")
+            ),
+            StrategyIdeaSignal(
+              ideaId = "actual_dxe5_route_attack_lane",
+              ownerSide = "black",
+              kind = StrategicIdeaKind.KingAttackBuildUp,
+              group = StrategicIdeaGroup.InteractionAndTransformation,
+              readiness = StrategicIdeaReadiness.Ready,
+              focusSquares = List("e1"),
+              focusZone = Some("center"),
+              beneficiaryPieces = List("B"),
+              confidence = 0.80,
+              evidenceRefs = List("source:route_attack_lane", "route_attack_lane_shape", "route_surface_exact")
+            )
+          )
+      )
+    val scopedLocalExplanation =
+      MoveReviewExplanation(
+        title = "dxe5 has a local target fact",
+        prose = "dxe5 is tied to a concrete local target.",
+        qualityLabel = Some("Best"),
+        shortLine =
+          Some(
+            MoveReviewShortLine(
+              san = List("dxe5", "Qxd8+", "Kxd8", "Be3", "f6"),
+              uci = List("d6e5", "d1d8", "e8d8", "c1e3", "f7f6"),
+              lineId = Some("line_01"),
+              scoreCp = Some(42),
+              depth = Some(10)
+            )
+          ),
+        pvInterpretation =
+          Some(
+            MoveReviewPvInterpretation(
+              linePurpose = "create_tactical_threat",
+              confirms = List("tactical_threat", "local_fact_family: pressure"),
+              tension = "scoped_local",
+              learningPoint = "The PV keeps the local tactical detail bounded.",
+              supportedByLineId = Some("line_01"),
+              confidence = "bounded_local"
+            )
+          ),
+        source = "canonical_fact"
+      )
+
+    val unscopedSurface = build(ctx = actualDxe5Ctx, strategyPack = Some(broadPracticalPack))
+    assertEquals(unscopedSurface.advancedRows.map(_.label), List("Practical break", "Practical attack"))
+
+    val scopedSurface =
+      build(
+        ctx = actualDxe5Ctx,
+        moveReviewExplanation = Some(scopedLocalExplanation),
+        strategyPack = Some(broadPracticalPack)
+      )
+
+    assertEquals(scopedSurface.summaryRows.map(_.label), List("Checked line"))
+    assertEquals(scopedSurface.summaryRows.head.refSans, List("dxe5", "Qxd8+", "Kxd8", "Be3", "f6"))
+    assert(!scopedSurface.advancedRows.exists(_.authority.exists(_.kind == MoveReviewSurfaceAuthority.PracticalPlan)), clue(scopedSurface.advancedRows))
+  }
+
   test("counterplay geometry strategic ideas create bounded practical restraint rows") {
     val idea =
       StrategyIdeaSignal(
@@ -4677,7 +4761,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       passerBlockadeSurface.advancedRows.head.text,
       "The blockade gives a practical brake on the passed pawn on d4."
     )
-    assertEquals(passerBlockadeSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assertEquals(passerBlockadeSurface.advancedRows.head.authority.flatMap(_.target), Some("d4"))
 
     val passerBlockadeWithRouteDenialSurface =
       build(
@@ -4701,6 +4785,10 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assertEquals(
       passerBlockadeWithRouteDenialSurface.advancedRows.find(_.label == "Practical restraint").map(_.text),
       Some("The blockade gives a practical brake on the passed pawn on d4.")
+    )
+    assertEquals(
+      passerBlockadeWithRouteDenialSurface.advancedRows.find(_.label == "Practical restraint").flatMap(_.authority.flatMap(_.target)),
+      Some("d4")
     )
 
     val passerBlockadeSourceOnlySurface =
@@ -6206,7 +6294,10 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       )
     assertEquals(exactRouteSurface.advancedRows.map(_.label), List("Practical outpost"))
     assertEquals(exactRouteSurface.advancedRows.head.text, "The minor-piece route points toward a practical outpost cue around d5.")
-    assertEquals(exactRouteSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assertEquals(
+      exactRouteSurface.advancedRows.head.authority,
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("d5")))
+    )
 
     val exactRouteAmbiguousSquareSurface =
       build(
@@ -6254,7 +6345,10 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       directionalOutpostSurface.advancedRows.head.text,
       "The minor piece is aimed at a practical outpost cue around d5."
     )
-    assertEquals(directionalOutpostSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assertEquals(
+      directionalOutpostSurface.advancedRows.head.authority,
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("d5")))
+    )
 
     val directionalOutpostAmbiguousSquareSurface =
       build(
@@ -6496,6 +6590,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       partialExactOutpostSurface.advancedRows.head.text,
       "The minor-piece route points toward a practical outpost cue around e5."
     )
+    assertEquals(partialExactOutpostSurface.advancedRows.head.authority.flatMap(_.target), Some("e5"))
 
   }
 
@@ -6621,8 +6716,10 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
 
     assertEquals(surface.advancedRows.map(_.label), List("Practical trade"))
     assertEquals(surface.advancedRows.head.text, "The IQP trade-down cue is anchored by the exchange target on d5.")
-    assertEquals(surface.advancedRows.head.authority, Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)))
-    assertEquals(surface.advancedRows.head.authority.flatMap(_.target), None)
+    assertEquals(
+      surface.advancedRows.head.authority,
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("d5")))
+    )
 
     val multiTargetSurface =
       build(
@@ -6929,8 +7026,10 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     )
     assertEquals(rookEndgameSurface.advancedRows.map(_.label), List("Endgame cue"))
     assertEquals(rookEndgameSurface.advancedRows.head.text, "The rook-behind-passer cue is anchored by the passed pawn on e6.")
-    assertEquals(rookEndgameSurface.advancedRows.head.authority, None)
-    assertEquals(rookEndgameSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assertEquals(
+      rookEndgameSurface.advancedRows.head.authority,
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("e6")))
+    )
 
     val multiRookEndgameSurface =
       build(
@@ -7043,10 +7142,10 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
                 )
             )
           )
-      )
+    )
     assertEquals(activeKingSurface.advancedRows.map(_.label), List("Endgame cue"))
     assertEquals(activeKingSurface.advancedRows.head.text, "The active-king cue is anchored on e4.")
-    assertEquals(activeKingSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assertEquals(activeKingSurface.advancedRows.head.authority.flatMap(_.target), Some("e4"))
 
     val activeKingNoSquareSurface =
       build(
@@ -7136,7 +7235,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     )
     assertEquals(passedPawnSurface.advancedRows.map(_.label), List("Endgame cue"))
     assertEquals(passedPawnSurface.advancedRows.head.text, "The passed-pawn cue is anchored on e6.")
-    assertEquals(passedPawnSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assertEquals(passedPawnSurface.advancedRows.head.authority.flatMap(_.target), Some("e6"))
 
     val matchedPassedPawnSurface =
       build(
@@ -7165,7 +7264,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     )
     assertEquals(matchedPassedPawnSurface.advancedRows.map(_.label), List("Endgame cue"))
     assertEquals(matchedPassedPawnSurface.advancedRows.head.text, "The passed-pawn cue is anchored on e6.")
-    assertEquals(matchedPassedPawnSurface.advancedRows.head.authority.flatMap(_.target), Option.empty[String])
+    assertEquals(matchedPassedPawnSurface.advancedRows.head.authority.flatMap(_.target), Some("e6"))
 
     val promotionSurface =
       build(
@@ -7196,7 +7295,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     )
     assertEquals(promotionSurface.advancedRows.map(_.label), List("Endgame cue"))
     assertEquals(promotionSurface.advancedRows.head.text, "The promotion cue is anchored on a8.")
-    assertEquals(promotionSurface.advancedRows.head.authority.flatMap(_.target), None)
+    assertEquals(promotionSurface.advancedRows.head.authority.flatMap(_.target), Some("a8"))
 
     val rookEndgameSourceOnlySurface =
       build(
@@ -11185,13 +11284,13 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       deferredMove = Some("exf5"),
       deferredReason = Some("role-aware line consequence"),
       deferredSource = Some("verified_best"),
-      evidence = Some("exf5 reaches a material transition; gxf5 stays on the played branch."),
+      evidence = Some("exf5 reaches a capture leaving a semi-open e-file; gxf5 stays on the played branch."),
       practicalAlternative = false,
       chosenMatchesBest = false,
       comparedMove = Some("gxf5"),
       comparativeConsequence =
         Some(
-          "exf5 reaches a material transition on the engine-best branch; gxf5 reaches a different material transition on the played branch."
+          "exf5 reaches a capture leaving a semi-open e-file for White on the engine-best branch; gxf5 reaches a capture leaving an isolated pawn on h4 on the played branch."
         ),
       comparativeSource = Some(DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource),
       roleAwareBranchEvidence =
@@ -11204,9 +11303,11 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
                 uciMoves = List("e4f5", "f8d8", "d2e4", "f7d5"),
                 scoreCp = Some(-44),
                 triggerSan = Some("exf5"),
-                kind = LineConsequenceKind.MaterialTransition,
-                consequence = "The engine-best branch reaches a material transition after exf5.",
-                whyItMatters = Some("The engine-best branch keeps the cleaner material transition.")
+                kind = LineConsequenceKind.CaptureStructureTransition,
+                consequence = "The engine-best branch changes the capture structure after exf5.",
+                whyItMatters = Some("The engine-best branch leaves the e-file semi-open for White."),
+                structureDetails =
+                  List(LineStructureDetail(kind = "semi_open_file", file = Some("e"), side = Some("white")))
               ),
             played =
               surfaceLineEvidence().copy(
@@ -11215,9 +11316,11 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
                 uciMoves = List("g4f5", "a5a4", "h3h4", "f7h5"),
                 scoreCp = Some(-140),
                 triggerSan = Some("gxf5"),
-                kind = LineConsequenceKind.MaterialTransition,
-                consequence = "The played branch reaches a different material transition after gxf5.",
-                whyItMatters = Some("The played branch is the checked alternative branch.")
+                kind = LineConsequenceKind.CaptureStructureTransition,
+                consequence = "The played branch changes the capture structure after gxf5.",
+                whyItMatters = Some("The played branch leaves an isolated pawn on h4."),
+                structureDetails =
+                  List(LineStructureDetail(kind = "isolated_pawn", square = Some("h4"), side = Some("white")))
               )
           )
         )

@@ -55,13 +55,25 @@ private[analysis] object DecisionComparisonComparativeSupport:
       normalized == RoleAwareLineConsequenceSource
 
   def roleAwareLineConsequenceText(text: String): Boolean =
+    roleAwareLineConsequenceText(text, None)
+
+  def roleAwareLineConsequenceText(comparison: DecisionComparison): Boolean =
+    comparison.comparativeConsequence.exists(text =>
+      roleAwareLineConsequenceText(text, comparison.roleAwareBranchEvidence)
+    )
+
+  def roleAwareLineConsequenceText(
+      text: String,
+      branchEvidence: Option[RoleAwareLineConsequenceEvidence]
+  ): Boolean =
     val raw = Option(text).getOrElse("").trim
     val normalized = raw.toLowerCase
-    normalized.contains("engine-best branch") &&
+    val hasRoleAwareFrame =
+      normalized.contains("engine-best branch") &&
       normalized.contains("played branch") &&
       normalized.contains(" reaches ") &&
-      LineScopedCitation.hasConcreteSanLine(raw) &&
-      (
+      LineScopedCitation.hasConcreteSanLine(raw)
+    val legacyConsequence =
         normalized.contains("exchange sequence") ||
         normalized.contains("forcing check sequence") ||
           normalized.contains("material transition") ||
@@ -73,7 +85,16 @@ private[analysis] object DecisionComparisonComparativeSupport:
           normalized.contains("promotion race") ||
           normalized.contains("minor-piece reroute") ||
           normalized.contains("minor piece reroute")
-      )
+    val captureStructureConsequence =
+      (
+        normalized.contains("capture leaving") ||
+          normalized.contains("capture that changes the pawn structure")
+      ) &&
+        branchEvidence.exists(evidence =>
+          evidence.engineBest.kind == LineConsequenceKind.CaptureStructureTransition ||
+            evidence.played.kind == LineConsequenceKind.CaptureStructureTransition
+        )
+    hasRoleAwareFrame && (legacyConsequence || captureStructureConsequence)
 
   def roleAwareLineConsequenceAllowed(
       truthContract: Option[DecisiveTruthContract]
@@ -198,7 +219,7 @@ private[analysis] object DecisionComparisonComparativeSupport:
     else
       playedEvidence.kind == LineConsequenceKind.PreviewOnly ||
         (
-          consequenceLabel(playedEvidence.kind).nonEmpty &&
+          consequenceLabel(playedEvidence).nonEmpty &&
             checkedEvidenceGapCp(Some(bestEvidence), Some(playedEvidence)).exists(_ >= AlternativeThresholdCp)
         )
 
@@ -223,14 +244,14 @@ private[analysis] object DecisionComparisonComparativeSupport:
       playedEvidence: LineConsequenceEvidence,
       comparison: DecisionComparison
   ): Option[String] =
-    val bestLabel = consequenceLabel(bestEvidence.kind)
+    val bestLabel = consequenceLabel(bestEvidence)
     val bestMoveLabel = displayMove(ctx, bestMove)
     val playedMoveLabel = displayMove(ctx, playedMove)
     for
       label <- bestLabel
       bestLine <- formattedLine(ctx, bestEvidence)
       playedLine <- formattedLine(ctx, playedEvidence)
-    yield consequenceLabel(playedEvidence.kind) match
+    yield consequenceLabel(playedEvidence) match
       case None =>
         s"$bestMoveLabel reaches ${withArticle(label)} on the engine-best branch $bestLine; $playedMoveLabel stays on the played branch $playedLine without that concrete $label."
       case Some(playedLabel) =>
@@ -269,13 +290,15 @@ private[analysis] object DecisionComparisonComparativeSupport:
       if gap > 0
     yield gap
 
-  private def consequenceLabel(kind: LineConsequenceKind): Option[String] =
-    kind match
+  private def consequenceLabel(evidence: LineConsequenceEvidence): Option[String] =
+    evidence.kind match
       case LineConsequenceKind.ExchangeSequence     => Some("exchange sequence")
       case LineConsequenceKind.ForcingCheckSequence => Some("forcing check sequence")
       case LineConsequenceKind.CentralBreakTiming   => Some("central break")
       case LineConsequenceKind.CentralPawnAdvance   => Some("central pawn advance")
       case LineConsequenceKind.MaterialTransition   => Some("material transition")
+      case LineConsequenceKind.CaptureStructureTransition =>
+        Some(captureStructureLabel(evidence))
       case LineConsequenceKind.ImmediateOpponentPawnCapture => Some("immediate pawn capture")
       case LineConsequenceKind.ImmediateOpponentTargetPressure => Some("immediate reply pressure")
       case LineConsequenceKind.PlayedMoveTargetPressure => Some("target pressure")
@@ -285,6 +308,17 @@ private[analysis] object DecisionComparisonComparativeSupport:
       case LineConsequenceKind.OriginSquareClearance => Some("origin-square clearance")
       case LineConsequenceKind.MinorPieceReroute    => Some("minor-piece reroute")
       case LineConsequenceKind.PreviewOnly          => None
+
+  private def captureStructureLabel(evidence: LineConsequenceEvidence): String =
+    LineConsequenceEvaluator
+      .structureDetailSurfaces(evidence.structureDetails)
+      .take(2) match
+      case Nil =>
+        "capture that changes the pawn structure"
+      case single :: Nil =>
+        s"capture $single"
+      case first :: second :: _ =>
+        s"capture $first and ${second.stripPrefix("leaving ")}"
 
   private def withArticle(label: String): String =
     if label.headOption.exists(ch => "aeiou".contains(ch.toLower)) then s"an $label"

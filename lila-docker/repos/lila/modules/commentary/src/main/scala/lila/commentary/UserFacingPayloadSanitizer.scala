@@ -470,10 +470,36 @@ object UserFacingPayloadSanitizer:
           text == s"The checked line keeps $square as the minority-attack fixed target."
         case "IQP target" =>
           text == s"The checked line leaves $square as an isolated pawn target."
+        case "Hook creation" =>
+          text == s"The checked rook-pawn move creates a flank hook on $square."
+        case "Rook-pawn march" =>
+          text == s"The checked line advances the rook pawn to $square for flank space."
+        case "Rook lift" =>
+          text == s"The checked line lifts the rook to $square as attacking infrastructure."
+        case "Seventh-rank entry" =>
+          text.matches(s"The checked line puts the rook on the (?:seventh|second) rank at $square[.]")
+        case "Rook behind passer" =>
+          text == s"The checked line places the rook behind the passed pawn on $square."
+        case "Passer blockade" =>
+          text == s"The checked line blockades the passed pawn on $square with the knight."
+        case "Outside passer" =>
+          text == s"The checked line leaves an outside passer on $square."
+        case "Passed pawn advance" =>
+          text == s"The checked line advances the passed pawn to $square."
+        case "King activation" =>
+          text == s"The checked line activates the king on $square for the endgame."
+        case "Practical target" =>
+          text.matches(
+            s"The current (?:[A-Za-z -]+ )?structure gives (?:White|Black) a weak (?:backward pawn|isolated pawn|isolated queen pawn|doubled pawn|fixed pawn|pawn) on $square to pressure[.]"
+          ) ||
+            text.matches(
+              s"The checked line leaves (?:White|Black) a weak (?:backward pawn|isolated pawn|isolated queen pawn|doubled pawn|fixed pawn|pawn) on $square to pressure[.]"
+            )
         case "Simplification" =>
           text == s"The checked line keeps the same local edge after the exchange on $square."
         case "Knight outpost" =>
-          text == s"The checked line puts the knight on the $square outpost."
+          text == s"The checked line puts the knight on the $square outpost." ||
+            text == s"The checked line puts the knight on the pawn-supported $square outpost square."
         case "File entry" =>
           text == s"The checked line keeps pressure on $square through the ${square.take(1)}-file."
         case "Target coordination" =>
@@ -512,7 +538,11 @@ object UserFacingPayloadSanitizer:
 
   private def exactPracticalTargetLabel(label: String): Boolean =
     label == "Fixed target" || label == "Minority attack" || label == "IQP target" ||
-      label == "Simplification" || label == "Knight outpost" || label == "File entry" ||
+      label == "Hook creation" || label == "Rook-pawn march" ||
+      label == "Rook lift" || label == "Seventh-rank entry" || label == "Rook behind passer" ||
+      label == "Passer blockade" || label == "Outside passer" || label == "Passed pawn advance" ||
+      label == "King activation" ||
+      label == "Practical target" || label == "Simplification" || label == "Knight outpost" || label == "File entry" ||
       label == "Target coordination" || label == "Color complex"
 
   private def sanitizeMoveReviewPlayerDecisionComparison(

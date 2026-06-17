@@ -1853,6 +1853,7 @@ private[commentary] object CommentaryIdeaSurface:
             LineConsequenceKind.ExchangeSequence,
             LineConsequenceKind.ForcingCheckSequence,
             LineConsequenceKind.MaterialTransition,
+            LineConsequenceKind.CaptureStructureTransition,
             LineConsequenceKind.ImmediateOpponentPawnCapture,
             LineConsequenceKind.ImmediateOpponentTargetPressure,
             LineConsequenceKind.PlayedMoveTargetPressure,
@@ -1871,7 +1872,8 @@ private[commentary] object CommentaryIdeaSurface:
 
   private def lineConsequencePurpose(evidence: LineConsequenceEvidence): Option[String] =
     evidence.kind match
-      case LineConsequenceKind.ExchangeSequence | LineConsequenceKind.MaterialTransition =>
+      case LineConsequenceKind.ExchangeSequence | LineConsequenceKind.MaterialTransition |
+          LineConsequenceKind.CaptureStructureTransition =>
         Some("clarify_exchange")
       case LineConsequenceKind.ImmediateOpponentPawnCapture =>
         Some("show_immediate_pawn_capture")
@@ -1900,7 +1902,8 @@ private[commentary] object CommentaryIdeaSurface:
 
   private def lineConsequenceIntent(evidence: LineConsequenceEvidence): String =
     evidence.kind match
-      case LineConsequenceKind.ExchangeSequence | LineConsequenceKind.MaterialTransition =>
+      case LineConsequenceKind.ExchangeSequence | LineConsequenceKind.MaterialTransition |
+          LineConsequenceKind.CaptureStructureTransition =>
         "clarifies_exchange"
       case LineConsequenceKind.ImmediateOpponentPawnCapture =>
         "shows_immediate_pawn_capture"
@@ -1937,6 +1940,8 @@ private[commentary] object CommentaryIdeaSurface:
         "central pawn advance"
       case LineConsequenceKind.MaterialTransition =>
         "material transition"
+      case LineConsequenceKind.CaptureStructureTransition =>
+        "capture-structure transition"
       case LineConsequenceKind.ImmediateOpponentPawnCapture =>
         "immediate pawn capture"
       case LineConsequenceKind.ImmediateOpponentTargetPressure =>

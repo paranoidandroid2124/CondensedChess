@@ -390,7 +390,7 @@ private[commentary] object ContrastiveSupportAdmissibility:
     clean(comparison.comparativeSource)
       .filter(source => sameText(source, DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource))
       .flatMap(_ => clean(comparison.comparativeConsequence))
-      .filter(DecisionComparisonComparativeSupport.roleAwareLineConsequenceText)
+      .filter(_ => DecisionComparisonComparativeSupport.roleAwareLineConsequenceText(comparison))
       .filter(hasConcreteAnchorOrAction)
 
   private def comparativeAnchor(comparison: DecisionComparison): Option[String] =

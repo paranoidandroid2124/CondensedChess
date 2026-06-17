@@ -1,588 +1,99 @@
 # Commentary Trust Boundary
 
-This document defines what user-facing MoveReview prose may trust. It is kept
-short so cleanup and refactoring work are not blocked by outdated rollout
+This document defines what user-facing MoveReview prose and UI may trust. It is
+kept short so cleanup and producer refactoring are not blocked by stale rollout
 details.
 
 ## Core Rule
 
-Renderer prose may only express claims that have typed evidence authority.
-Planner scene names, source strings, and truth-contract risk labels are
-diagnostics unless a CausalFrame/local fact contract admits them.
-Validated outline beats must already carry released text; an empty
-`OutlineBeat` is silent and the renderer must not synthesize context, opening,
-main-move, alternative, or practical verdict prose from `NarrativeContext`.
-Author-question rows may seed a question slot from candidate/PV signals, but
-candidate `downstreamTactic` strings and motif-derived labels are not authority
-for tactical names, line consequences, timing, or positional change prose.
-Conversion author-question seeds are reply-line checks; classification and eval
-advantage do not by themselves assert that conversion, draw, or simplification
-has been achieved.
-IQP simplification rows likewise need a typed `IqpSimplificationProfile`
-exchange target square from `capture_or_exchange`; `ExchangeAvailabilityBridge`
-and plan labels remain support-only without that anchor.
-Central-space and mobility-bind rows need numeric typed witnesses such as
-`space_pawn_delta_*`, `central_space_diff_*`, or `mobility_restriction_gap_*`;
-shape/source labels alone remain support-only.
-Endgame fallback descriptors require the played move to own the typed square
-anchor; role-only king or pawn movement does not admit opposition or
-rule-of-square claims. `RookEndgamePattern` facts have no square participants,
-so BasicExplanation and player-surface rook-behind-passer cues admit them only
-when board/replay evidence also anchors the played rook behind a typed passed
-pawn square.
+User-facing chess meaning may only come from typed evidence admitted by the
+producer/planner/local-fact path. Presentation layers may format, arrange, and
+hide content, but they do not create claim authority.
+
+Untrusted as public chess authority:
+
+- renderer prose;
+- source prose;
+- row labels;
+- opening or endgame names;
+- diagnostic strings;
+- planner scene names;
+- frontend CSS classes or tags;
+- author-question labels without supporting evidence;
+- cached commentary text.
+
+Trusted only when typed and current-position-backed:
+
+- board geometry and legal move state;
+- checked SAN/UCIs and replay refs;
+- PV/eval/probe/tablebase results;
+- analyzer packets;
+- admitted local facts and CausalFrame evidence.
 
 ## Risk Gates
 
-`DecisiveTruthContract.blocksStrategicSupport` and related tactical-risk signals
-are negative gates. They may suppress opening, strategic, practical, or broad
-positive prose. They do not authorize:
+Risk gates may suppress, demote, or defer a surface. They do not authorize
+tactical, plan, timing, forced, alternative, opening, endgame, compensation, or
+result claims by themselves.
 
-- tactical motif claims,
-- forced-reply claims,
-- timing claims,
-- alternative comparison claims,
-- line-consequence claims,
-- or strategic concession claims.
+When a risk gate closes a claim, the preferred follow-up is producer/evidence
+repair. Sanitizer or renderer closure is a safety stop, not completion.
 
-The trusted path is risk gate plus typed mechanism evidence, not risk gate alone.
+## Renderer And Frontend
 
-## Surface Permissions
+Renderer and frontend code may:
 
-The surface renderer may say:
+- render admitted text;
+- show scene structure;
+- display board/eval/replay cues from typed refs;
+- keep support and diagnostic details out of the main conclusion;
+- fail closed when a payload is malformed.
 
-- tactical: only with `ConcreteTactical`, motif/current-move evidence, and a
-  concrete causal anchor in the rendered claim itself. Fork, pin, skewer,
-  discovered-attack, and trapped-piece prose require concrete square anchors
-  plus checked-PV ownership. Skewer prose additionally requires replayed
-  post-move geometry, a PV reply that moves the front piece away without
-  capturing the attacker, and a checked-PV capture of the back target by that
-  attacker; pawn-back or direct-capture-outweighed skewers are not trusted
-  tactical ownership. Fork prose additionally requires replayed post-move
-  attack geometry and either a non-pawn material target in the fork set or a
-  checked-PV capture of a non-king fork target by the attacker; king-plus-pawn
-  check/fork shapes are not trusted fork ownership without that follow-up.
-  Trapped-piece prose also needs replayed board
-  confirmation that the played piece attacks the trapped target. Admitted
-  `tactical_motif` facts may expose motif-specific square/role anchors to base
-  prose and scoped checked-line takeaways; renderer code must not recover those
-  targets from prose or generic evidence refs. Raw `WinningCapture` helper
-  labels are capture-threat/material-gain cues, not win/result authority.
-  Counterfactual causal-threat prose may name the motif and typed anchors, but
-  it must not add decisive-strength adjectives unless that strength is proved by
-  separate mate, conversion, tablebase, eval, or checked-PV evidence. A typed
-  relation witness can own tactical prose before strict fallback only when its
-  typed projection is valid, the typed local-fact relation surface from the
-  relation catalog is `TacticalRelation`, and the replayed line is played-first.
-  Downstream local-fact, scoped-takeaway, and surface consumers use the analyzer
-  projection/fact terms rather than raw `RelationDetails` branches or internal
-  relation detail keys.
-  For capture moves, this remains closed except for a typed `DiscoveredAttack`
-  witness whose cleared square is the reviewed move's origin.
-  A typed `forced_line_truth` producer
-  can own tactical prose when `ForcedLineTruth.detect` validates the reviewed
-  move and the result is carried as a `pv_coupled_line` local fact. Non-tactical
-  relation witnesses remain strict-fallback or support-only. Line-geometry
-  pressure from relation witnesses may support pressure wording, but it cannot
-  create `ConcreteTactical` ownership unless it separately targets the king as an
-  attack. `MobilityRestriction` relation witnesses are bounded pressure facts,
-  and `MoveOrder` relation witnesses are bounded timing facts; either may
-  suppress a generic same-target offensive post-move pressure descriptor so the
-  renderer does not flatten domination or zwischenzug evidence into a plain
-  target fact. They do not suppress defensive only-move target truth. A strict
-  PV-coupled attack/threat/pressure local fact may replace an unanchored broad
-  tactical planner claim with its own typed target surface, but it does not make
-  the broad label true;
-- target pressure: post-move static targets are authority only for a reviewed
-  knight move attacking an undefended pawn target, or a reviewed pawn move
-  directly attacking a non-pawn piece target, or a reviewed bishop move directly
-  attacking a knight target, and only when no played-move line-consequence
-  surface already owns the explanation. Surface prose may name the target only
-  after the post-move board confirms that the square still holds an enemy piece
-  of the fact role. Scoped checked-line takeaways may consume admitted
-  `target_square`/`target_role` anchors, not generic square refs. Bishop-knight
-  pressure does not preempt certified practical-position support;
-- current-move check: a non-capturing `Motif.Check` may be a bounded
-  `tactical_motif` threat fact only with played-first PV coupling, and only
-  when line consequence, relation witness, target pressure, or target defense
-  does not already provide the stronger typed surface. If a certified
-  role-aware alternative comparison is available, a check-only tactical local
-  fact is support-only and cannot classify the scene as `ConcreteTactical`;
-- forced/only move: only with `ForcingDefense` and defensive witness; certified
-  only-move truth must enter as `only_move_defense`, not raw `truth_contract`;
-  missed benchmark-only moves cannot own a timing claim for the played move.
-  An only-move timing sentence may reuse an admitted supported-local move-local
-  packet, a board-checked certified position probe, or an admitted
-  `CertifiedStrategyDelta` local fact as its local reason, but the only-move
-  authority still comes from `only_move_defense`.
-  Explicit reply-loss and delayed-only-move evidence must enter through
-  `forced_reply` local fact authority. A unique reply can authorize forced
-  wording; UCI anchors without board-derived SAN may only be described by their
-  destination, and square-only or non-unique replies stay bounded as
-  timing/defense evidence. Threat detail may use only `ThreatRow` fields
-  produced by the analyzer and preserved through the board-verified threat gate:
-  target pieces and verified attack squares. `ThreatRow.motifs` may help choose
-  bounded threat class wording such as capture or passed-pawn pressure, but
-  they do not authorize public fork, pin, skewer, discovered-attack,
-  deflection, decoy, overload, interference, or zwischenzug labels without a
-  separate typed tactical relation/local fact. In MoveReview, urgent-threat
-  ownership additionally requires the analyzer `bestDefense` to match the
-  reviewed move;
-- target defense: only a post-move static board fact where the reviewed
-  non-pawn move becomes the defender of an already attacked own target may enter
-  as `target_defense`; `fork_entry_defense` is limited to a board-proved newly
-  defended enemy knight-entry square that would fork the king and a rook or
-  queen. Row labels or generic defensive prose are not authority;
-- timing/now: only with typed timing witness or admissible timing contrast;
-- alternative/better: only with `AlternativeComparison` and branch role proof;
-- checked line/result: only with `LineConsequence` or line-backed
-  `AlternativeComparison`. A reviewed-move `LineConsequenceEvidence` packet can
-  become planner authority whenever it is surface-ready, non-preview, and
-  played-move-owned; this admission is packet-based, not a side effect of a
-  broad risk gate. Exchange-sequence pawn-structure prose may name only
-  persistent `LineStructureDetail` produced from replayed local pawn moves or
-  pawn captures; if no such detail exists, the renderer may describe only the
-  bounded exchange/material settlement. Generic isolated-pawn structure details
-  are structure evidence, not target-pressure evidence; "target" wording needs
-  a separate pressure or exact IQP proof. Immediate opponent target pressure is
-  admitted only as reviewed-move line consequence under bad non-best truth: the
-  replayed opponent reply must add a new non-king static target/hanging attack
-  near the reviewed side's king. It is excluded from generic surface candidates
-  and role-aware comparison so weaker pressure evidence cannot overwrite
-  existing delayed-capture or comparison surfaces. Strict PV-coupled
-  `line_consequence` local facts may be preserved through the CausalFrame bridge
-  before direct basic rendering. Branch evidence hooks for admitted
-  line-consequence claims must use the replay-validated packet `lineId` before
-  planner/author branch text. Player payload checked-line rows and
-  strategic-ledger engine-path rows may use that same packet `lineId` only when
-  the packet is surface-ready and the ref variation replays from the current FEN
-  with the reviewed move first; otherwise they fall back to the existing
-  reviewed-ref or engine path. Bad-piece liquidation wording is trusted only
-  from a move-local exact-slice proof that names the bad piece and exchange
-  square, not from a practical label alone. A certified
-  `RestrictedDefenseConversionProof` may surface the narrow-defense property of
-  the checked line, but it does not by itself publish conversion success,
-  winning-endgame, or result wording;
-- plan viability: only when the plan-support packet survives the truth/risk
-  gate and is emitted as a `plan_support` local fact by
-  `certified_strategy_delta` over a played-first `pv_coupled_line` with a
-  meaningful checked continuation and at least one matched plan-anchor SAN
-  token; one-ply refs that only repeat the reviewed move, and checked lines that
-  do not hit the plan anchor, remain fallback or diagnostic-only. High-risk rows
-  must not say the bad move keeps a plan viable. Player-surface structural-only
-  rows may expose only weak `Structure support` or typed target/route/support
-  anchors; raw hypothesis preconditions or execution steps do not create
-  practical objective/step authority. L4 execution-step templates may name
-  route, target, pawn-break, or passed-pawn work only from the typed analyzer
-  fields they consume; otherwise they stay generic and result-neutral rather
-  than inventing destinations, outposts, promotion paths, or winning endings.
-  Structure route arcs may say the current structure keeps a route tied to a
-  plan when the reviewed move is not a proved route step; they may not convert
-  that fallback into practical-ease wording.
-  `PlanAlignment.narrativeIntent` is prose
-  context only; structural route/support matching uses typed matched plan ids or
-  probe-backed plan names. `PvCoupledOnly` evaluated plans alone are diagnostic,
-  not public plan authority;
-- practical position support: only when a `StrategyPack` idea is projected as a
-  `practical_position_support` local fact by `certified_strategy_delta`. The
-  projected fact must match the played side, carry evidence refs, pass
-  readiness/confidence gating, touch the reviewed move through a target square,
-  focus file, route, or move ref, and be rendered with a played-first checked
-  PV. This can authorize bounded pressure, counterplay-restraint, or
-  plan-support wording; it does not authorize raw practical-row prose or broad
-  plan causality. `PracticalInfo.verdict` text is not pressure or counterplay
-  authority; player-surface practical support may expose only normalized typed
-  bias factors unless a separate board/PV-backed family is admitted.
-  `LineOccupation` facts may name an open or semi-open file
-  only from admitted `line_file`/`line_file_status` anchors, and may name a
-  target square only from an admitted `line_target` anchor produced from the
-  strategy focus fields. `PawnBreak` facts may name a file only from an admitted
-  `pawn_break_file` anchor produced from a played-pawn advance, break-ready
-  evidence, and matching `break_file_*` proof; central-break tension rows also
-  need a single central file, so multi-file tension remains support-only. A raw
-  `pawn_break_motif` source is only a file-contact cue until a break-ready
-  producer admits it.
-  `SpaceGainOrRestriction` facts
-  may name a flank space gain only from admitted `space_gain_file`,
-  `space_gain_side`, and `space_gain_pawn` anchors produced from pawn-chain-space
-  evidence, a reviewed rook-pawn advance on a strategy focus file, and
-  after-FEN board proof of the moved pawn. `TargetFixing` facts may name a
-  weak or target square only from admitted `target_fixing_square` and
-  `target_fixing_target_kind` anchors, and those anchors require after-FEN board
-  proof that the reviewed bishop, rook, or queen move attacks that strategy
-  target square. A locked-center structure is support context only; it cannot
-  publish `Practical space` without a separate typed breakthrough, reroute,
-  counterplay-denial, or measurable restriction anchor. `KingAttackBuildUp`
-  facts may name an attack lane only from admitted `attack_lane_square` and `attack_lane_axis` anchors, and those
-  anchors require directional-attack-lane evidence plus after-FEN board proof
-  that the reviewed bishop, rook, or queen move attacks a non-origin strategy
-  lane square. Public practical attack-lane advanced rows likewise require a
-  single valid focus square; an ambiguous route/target-map idea stays hidden
-  instead of falling back to broader attack cues. Public check-pressure
-  practical attack rows also require a single valid focus square. Motif battery
-  rows require a single typed axis plus current battery squares. Motif
-  rook-lift and piece-lift shells are support context unless an exact local
-  row, route, directional lane, check, or other typed attack mechanism carries
-  the public claim. Generic king-ring, ambiguous check-motif focus lists, weak-back-rank,
-  and compensation king-window shells are diagnostic support;
-  without a concrete route, battery, check, threat, central exposure, or other
-  named attacking mechanism they do not publish public `Practical attack` rows.
-  `FianchettoMotif`, `FianchettoAssaultProfile`, and
-  fianchetto-shell/opposite-side-storm profile evidence are likewise support
-  context unless an independent typed mechanism carries the public row.
-  `FlankPawnPressure` hook-creation chance is support-only unless an exact
-  hook square/local fact or a typed flank-pawn advance file/rank witness owns
-  the public wording.
-  Minor-piece public rows follow the same rule: broad bishop-pair,
-  opposite-color-bishops, good-bishop, enemy-bad-bishop, and knight-vs-bishop
-  shells are support evidence unless an exact replay-backed family or a
-  producer-carried current square anchors the public `Practical minor` claim.
-  Route and directional endpoints become `source:route_attack_lane` or
-  `source:directional_attack_lane` only when the producer proves that the
-  endpoint piece attacks the enemy king on the board and carries
-  `attack_lane_board_attack`; king proximity of a target candidate is not
-  trusted input. When a reviewed move is itself a board-backed central break,
-  same-destination `neutralize_key_break` support cannot relabel it as a public
-  defensive-resource claim unless an explicit break-prevention rival survives in
-  the runtime anchors.
-  Material-deficit compensation batteries may surface only as compensation
-  pressure, and only when the producer carries the diagonal axis plus the two
-  current battery squares. Development-lead-only compensation remains support
-  evidence unless a separate concrete attack lane, check, threat, strict
-  compensation subtype, or tactical owner proves a public claim. Generic
-  initiative motifs are practical context, not `KingAttackBuildUp` authority or
-  public `Practical attack` rows without a separate attack mechanism. Public
-  compensation rows require invested-material evidence, a strict resolved
-  compensation subtype, and durable pressure anchors carried by a typed route,
-  move ref, directional target, or typed strategic idea; raw compensation
-  summaries or vectors are not enough. `NarrativeSignalDigest` may preserve
-  accepted compensation vectors and invested-material support, but semantic
-  `conversionPlan` text is not a public compensation summary; a summary can
-  reappear only through typed carrier enrichment. Raw semantic compensation text also
-  cannot open strategic-sacrifice, concrete-strategy, or pressure-increase
-  gates unless `CompensationInterpretation` accepts it or a separate exact
-  pressure witness exists. Even after acceptance, payoff-anchor projection uses
-  only the accepted carrier family; a broad summary such as initiative or attack
-  cannot replace a line-pressure, target-fixing, counterplay-denial, time, or
-  board-proved king-pressure carrier. `CompensationInterpretation` does not
-  accept raw attack, mating-attack, or initiative labels as compensation
-  carriers; king pressure requires current-board attacker/defender evidence
-  around the enemy king.
-  Material-recovery wording stays at delayed/attempted-recovery strength unless
-  a separate board/PV/probe-backed material recovery or conversion proof exists.
-  Strategy-pack polish hints use typed pack carriers only; plan carriers come
-  from `PlanEvidenceEvaluator` main-admitted evidence, while plan-table rows,
-  opponent-plan rows, and signal-digest sidecar strings such as opening
-  relation, endgame transition, practical verdict, and decision prose are not
-  prompt authority or sanitized public claim fields. Plan-race opponent pressure
-  may be public only from a concrete threat or a supported-local
-  neutralize-key-break/prevented-resource path with exact break tokens and
-  source typing; opponent-plan row labels cannot create race prose,
-  context-beat prose, or standard-position claim strength gates.
-  Internal full-game probe prioritization follows the
-  same gate; raw compensation summaries or invested-material shells do not move
-  a moment into the compensation tier unless the shared compensation
-  interpretation accepts the evidence. The MoveReview strategic ledger may use
-  compensation as a pressure motif only after that accepted compensation signal;
-  raw compensation markers such as long-term compensation or mating attack do
-  not choose the motif. It does not label the stage `Convert` unless a separate
-  conversion trigger or conversion-family plan-fruition signal exists; accepted
-  compensation pressure can support `Execute`, but is not itself a conversion
-  trigger. If only plan-fruition exists, the stage reason stays continuity
-  metadata and must not say the conversion has paid off or succeeded.
-  Centipawn loss from a counterfactual or decision comparison is
-  engine-margin evidence, not practical-difficulty authority, unless a separate
-  typed practical witness is present. Eval-only lexicon clauses may name the
-  objective evaluation band, but they do not imply win/draw outcome,
-  conversion, practical ease, or practical initiative without separate
-  tablebase, PV, probe, result, or typed practical evidence. Annotation and
-  engine-rank clauses follow the same rule: `cpLoss`, rank, and sampled best-move
-  context may explain objective score/order differences, not practical ease,
-  initiative handling, or conversion difficulty by themselves.
-  Outline severity fallbacks and alternative engine-order contrasts follow this
-  same boundary: without separate typed tactical/practical/result evidence they
-  may name only sampled engine rank, benchmark, and objective gap.
-  Live narrative cleanup may normalize source prose, but it must not turn
-  nominal-eval or raw practical-task phrasing into ease/handling authority.
-  Played-first rook-pawn hook/march facts may enter here only from board state
-  before/after the reviewed move, not from practical-row text;
-- practical central challenge: only when `CentralBreakTimingWitness.practical`
-  verifies the reviewed move as a central prep/challenge pawn move and a
-  played-first checked PV exists. It may carry a `line_consequence` local fact
-  for bounded central-challenge wording, but it is not central-break timing
-  authority and must not preempt stronger certified strategy, relation, or
-  replayed line-consequence evidence;
-- factual-only: when no causal authority survives.
-- bounded capture fallback: when no stronger causal owner survives, a
-  PV-coupled `capture_sequence` local fact may render only the reviewed
-  capture's carried square/role anchors, checked-line scope, and a replayed
-  `followup_queen_trade_square` anchor when adjacent checked-line plies
-  legally capture and recapture queens on that square. It must not be promoted
-  into pressure, plan, or broad tactical authority.
+Renderer and frontend code must not:
 
-## Local Fact Families
+- parse row text or labels to infer chess meaning;
+- promote `probeRows` or `authorRows` to main conclusions;
+- turn opening/endgame labels into plan or technique truth;
+- create "best", "forced", "attack", "conversion", "draw", or "win" claims;
+- choose a new claim family from diagnostics or source strings;
+- alter checked line order or repeated SAN meaning.
 
-Typed local fact families are the trusted renderer input: `threat`, `defense`,
-`line_consequence`, `timing`, `pressure`, `plan_support`, `opening_goal`,
-`endgame`, and exact factual fallback. A family may only be emitted by an
-authority that supports that family. For example, a line-consequence packet
-cannot certify a fork, pin, or plan unless a separate tactical or plan authority
-exists.
+`MoveReviewPlayerSurface` field choice is part of trust:
 
-Filtered local-fact results from the basic idea surface may enter CausalFrame
-only for admitted families and only with their producer, anchors, evidence refs,
-guardrails, and line binding intact. Castling, capture, endgame, and opening
-descriptors remain bounded fallback surfaces unless their typed facts provide
-the canonical board fields they need. The fallback lane may bridge an unrended
-causal local fact into CausalFrame, but it does not create a new chess reason.
-Canonical fact projection preserves the fact family: weak-square facts do not
-become outpost prose, and endgame activity/opposition facts may name only their
-typed king-square or opposition anchors unless a separate line/result proof
-raises the claim.
-Oracle-only endgame outcome hints are diagnostic/support material, not public
-win/draw or conversion authority; public context, rows, and transition prose
-must stay result-neutral without tablebase/eval/PV result evidence.
-Question-planner endgame transition translator outputs follow the same boundary:
-they remain support material and cannot by themselves classify the scene or own
-a public question plan.
-MoveReview response state tokens likewise serialize endgame outcome hints as
-`Unclear`; raw oracle `Win`/`Draw` values may remain internal continuity/cache
-inputs but are not part of the public claim surface.
-Unanchored `Fact.Zugzwang` support may remain internal evidence, but it must not
-become a public reason tag or canonical fact id without a separate typed
-move-local proof.
-Endgame pattern ids that contain `Draw` or `Conversion` are rendered as neutral
-shape labels unless a separate result or conversion proof is present.
-Strategy idea labels and compensation subtype selection likewise treat
-rook-endgame, endgame-technique, and passed-pawn motif sources as cues, not
-conversion authority, until an exchange/transformation proof source is present.
-Compensation summary, vector, and long-term-focus prose can describe the display
-context, but subtype family, recovery, and stability anchors come from typed
-ideas, routes, move refs, or directional targets.
-MoveReview strategic-ledger motifs follow the same boundary: structural labels
-such as Carlsbad/minority attack, outpost, or color complex are not marker-only
-motif authority. Those public motif families require the matching typed plan
-kind/proof-family alignment rather than concept-summary, structure, or
-positional-tag text alone.
-Pattern ids that contain `Breakthrough` are likewise rendered as entry or
-passer-route shapes unless current board/PV/tablebase evidence proves the
-breakthrough result.
-Opening-family rows are book context. Their catalog target squares do not become
-public target chips or plan/occupation claims without separate current-position
-route, board, or PV evidence.
-Opening precedent and relation prose is reference-game context only; branch
-names and inferred sample-line mechanisms do not authorize current-position
-plan, compensation, or pressure claims.
-Released precedent summaries must therefore name recurring reference-route
-context only, not lessons, key drivers, practical edges, or result-handling
-claims for the current position.
-Signal-digest opening hints may carry an opening reference or intro name as
-context, but not `OpeningEvent` diagnostic strings such as novelty, out-of-book,
-branch-point, or theory-end case-class text.
+- `summaryRows` read as main reasons.
+- `advancedRows` read as plan/follow-up direction.
+- `probeRows` and `authorRows` read as support or questions.
 
-Supported-local and exact-slice packets are proof gates, not independent chess
-mechanisms. After claim-authority admission they must resolve to the strongest
-existing producer that supports the family/source pair. The renderer may consume
-only admitted anchors and checked-line bindings; row labels, diagnostic refs,
-basic prose, and practical-row text are not causal authority.
-Frontend MoveReview coach surface consumes only typed player-surface fields.
-Section labels may improve player hierarchy, but row label/text/diagnostics do
-not create chess families. Move chips render from `refSans`/resolved refs while
-preserving order and repeated SAN tokens. A chip may carry the exact preview
-board payload only when it is derived from the same resolved ref; authoring row
-labels are display text only, not SAN identity authority. The interactive review
-player may split that surface into Verdict/Why/Plan/Try/Remember scenes, but the
-scene index, chapter labels, target-square highlight, and board-preview payload
-remain UI synchronization state. They do not widen or certify any claim beyond
-the typed surface row and resolved ref that supplied them.
-Until native backend review scenes exist, the frontend derives this scene model
-from the typed player surface. A future backend scene payload may provide stable
-scene key/order, title/kicker/body, optional detail groups, active ref or line
-refs, resolved board payload, focus square/target anchors, and fallback binding
-status. Those fields are display routing only and must not source chess prose or
-upgrade row labels, diagnostics, or sample-line text into authority.
+If a backend claim appears in the wrong field, fix the backend surface mapping
+rather than compensating in frontend copy.
 
-Durable structural claims require producer-owned board/PV proof. File entry,
-outpost occupation, target fixation, IQP inducement, color-complex pressure,
-central-break timing, counterplay clamps, and bad-piece liquidation may name an
-object only when the typed proof shows reviewed-move ownership on the after-board
-and, where persistence matters, the played-first checked PV keeps the object and
-pressure/resource relation alive. Transient, pre-existing, or unpressured shapes
-remain support-only or diagnostic.
-Opening-goal outpost labels are not public outpost authority; durable board/PV
-proof now surfaces through the existing `Knight outpost` family. The opening
-goal itself is `Achieved` only after the post-move board proves the
-pawn-supported e4 outpost square. Strategic-idea display text follows the same
-boundary: route/directional outpost sources stay access/cue wording and do not
-state current outpost occupation or expose raw diagnostic text as public
-evidence; when such a row is public, it must preserve the typed destination
-squares that remain after exact-outpost duplicate suppression. Directional
-target enrichment likewise publishes weak objective text, not the raw
-side/piece/square/readiness tuple.
-Opening-goal break names are context only; when an opening pawn move is admitted,
-the player row names the checked played pawn route rather than the
-catalog/opening-goal label.
-Move-header and opening-goal descriptor prose likewise render only bounded
-opening context and whitelisted board/PV cues, not raw opening names, goal
-names, or supported/missing evidence strings.
-For target fixation, a board-only witness without typed target focus is trusted
-only for the Carlsbad c-pawn target profile; generic weak-pawn pressure needs a
-typed idea, moveRef, or route hint before it can become a public claim.
-Route-hint proof witnesses carry the current board/PV target, persistence, and
-piece-route anchors, not opening-family names or route-id labels.
-Endgame continuity may name an oracle pattern as context, but renderer
-causality prose stays limited to patterns with a current board frame check.
-Position-probe and practical-position descriptor titles use generic positional
-support wording; typed family detail stays in the certified local fact, row
-authority, evidence refs, and body prose rather than row/fact labels.
-Outline context motif prefixes follow the same structural boundary:
-concept-summary text and raw positional tags for minority attacks, outposts, or
-color-complex play remain support-only unless board/PV/threat/pawn-play proof
-corroborates the current claim family.
-Opening-context imbalance prose also consumes only bounded placement facts or
-trusted structural motifs; raw outpost tags, color-complex weaknesses, and
-structural diagnostic strings do not become current-position conclusions.
-Outline context motif collection may recover candidate cues from typed
-`CandidateInfo.facts` only; `tacticEvidence` prose is not parsed back into motif
-authority. Raw `conceptSummary` draw/endgame labels such as stalemate,
-perpetual-check, fortress, and zugzwang remain context-only unless a typed
-relation witness, local fact, or checked-line resource admits the public family.
+## Claim Strength
 
-Strategy-pack practical ideas follow the same rule. Only projected typed local
-facts from `CommentaryIdeaSurface.practicalPositionFacts` are trusted, and only
-their admitted anchors may appear in public wording. Broad idea labels, attack
-shells, practical rows, and renderer text do not authorize line occupation,
-pawn-break, space-gain, target-fixing, attack-lane, or central-challenge claims.
-`StrategyPack.longTermFocus` likewise comes from typed plans, routes, move refs,
-structure arcs, and plan-alignment fields, not raw `conceptSummary` labels.
-MoveReview polish prompts and sanitized responses do not carry
-`conceptSummary` as `concepts`; typed slots, strategy hints, facts, refs, and
-player-surface rows provide the public support path.
-Practical-bias summaries render only known factor families; raw factor or
-description strings with square anchors are not player-facing claim text.
-Practical verdict labels are retained as diagnostic context only; MoveReview
-prose may expose rendered practical-bias factors as support, not as a standalone
-claim that the position is easy to handle.
-Endgame oracle pattern and technique labels stay out of `conceptSummary` and
-candidate immediate-intent text. They remain context until typed endgame local
-facts or replay-backed transition claims admit a public surface. Outline motif
-collection does not convert primary pattern names or raw `EndgameInfo` flags
-into standalone canonical motif claims. MoveReview strategic-ledger token
-collection does not use those pattern or transition strings as structured motif
-authority or carry-over emitters. It also does not score public ledger motifs
-from raw `conceptSummary`; motif tokens come from typed plan ids/themes,
-positional tags, structure/profile evidence codes, plan-alignment ids/reasons,
-and accepted signal-digest fields. Lexicon endgame-pattern prefix templates plus
-positional-tag motif promotion for rook-behind-passer / king-cut-off labels are
-not public authority paths. Endgame continuity prose names the board
-structure anchors, not theorem or oracle pattern ids. Player-surface
-`Endgame cue` rows remain support-only and do not carry `practical_plan`
-authority; rook-endgame rows require a `rook_behind_passer_square_*` witness,
-so file-only or king-cut-off-only shells stay out of the player surface.
-Immediate-intent lexicon templates render raw outpost, opposition, zugzwang,
-passed-pawn, simplification, file-control, and exchange labels only as cue/check
-wording; forcing, promotion, favorable-endgame, or result/conversion wording
-must come from a typed local fact or checked line consequence.
+Use the weakest public strength that matches the evidence:
 
-Relation witnesses carry their cataloged surface as typed data. That surface may
-narrow the family: mobility restriction stays pressure, move order stays timing,
-draw resource stays defense, and an in-between check does not become attack
-prose unless separate attack/threat authority exists. Checked-line support is
-still separately gated and does not widen a timing-only or support-only fact.
+- public conclusion: current-position evidence fully supports the claim family;
+- weak claim: evidence supports the idea but not decisive language;
+- support-only fact: useful context but not a conclusion;
+- diagnostic: developer trace only;
+- silence: malformed, stale, or unsupported.
 
-Displayed SAN refs preserve legal line order, including repeated SAN tokens.
-Deduplicating a repeated capture, recapture, or castling token would change the
-evidence line rather than merely cleaning prose.
-Frontend SAN chips may become board/PV links only when they resolve to the same
-ordered ref variation. Stored preview payloads must be derived from that same
-resolved ref, and ambiguous same-SAN matches stay display-only.
-
-Alternative comparison and the player decision strip follow the same
-preservation requirement: role-aware comparison text needs admitted
-engine-best/played `LineConsequenceEvidence` packets. Shallow branch labels,
-comparative prose, and enriched carrier text do not certify local-fact evidence
-refs or guardrails.
-
-## Alternative Comparison
-
-Role-aware comparison can compare the played move and engine-best/alternative
-branch only when the branch roles are explicit. The trusted surface is the
-comparison itself, carried as a `line_consequence` family fact with
-`alternative_comparison` authority/producer and engine-best/played branch
-guardrails. It must include a concrete SAN branch line. It does not become
-tactical authority unless a concrete tactical packet also exists.
-
-Missed benchmark-only rows may use this path only as a verified-best versus
-played-branch comparison with role-scoped line evidence. They may not be
-rendered as played-move timing, forced-reply, or generic better-move prose.
-Acceptable style-choice or narrow-choice tactical rows may also use this path
-only when typed branch evidence shows a concrete verified-best consequence
-against a preview-only played branch with a real checked gap. UCI branch moves,
-when present, define move identity before SAN. This remains alternative
-comparison authority, not tactical motif ownership.
-Minor-piece reroute comparison is limited to this role-aware path: the
-engine-best branch must be replayed as `MinorPieceReroute` from a non-capturing
-knight or bishop whose same piece continues soon in the checked branch, the
-played branch must remain preview-only, and the checked gap must be material.
-It does not create generic line-consequence, plan, timing, or tactical
-authority.
-
-## Line Consequence
-
-Line consequence surface requires FEN/replay validation and a played-move or
-branch-role binding. A played-move line consequence that owns the visible claim
-must be emitted by the `line_consequence` producer over `pv_coupled_line`
-authority. Preview-only, engine-only, or raw branch prose stays
-support/diagnostic.
-If the first reviewed ref is preview-only, a later replay-validated
-reviewed-move proof line may supply that packet only through
-`LineConsequenceEvaluator`; broad source labels or engine-only tails still
-cannot create the surface.
-For a best quiet-technical move, that reviewed proof may own only exchange or
-material-transition consequence packets, and only when the truth contract says
-the played move matches best with no clear-plan failure. Truth still does not
-invent the consequence without the replayed packet.
-Generic quiet move intent does not create `technical_conversion` authority from
-an endgame phase label alone; non-capture piece moves fall back to
-`piece_improvement` unless a certified conversion proof owns the row.
-Capture-started exchange consequence requires a replayed played-first line with
-multiple captures; incidental central-pawn movement must not take ownership from
-the played capture.
-Delayed pawn-capture consequence is limited to a replayed played-first
-non-capturing bishop move with a later opponent pawn capture; broader later
-pawn captures stay preview/support unless another typed producer owns them.
-Immediate opponent pawn-capture consequence is limited to a replayed
-played-first non-capture where the opponent's next reply captures a pawn, and
-it may own MoveReview prose only for bad non-best reviewed moves.
-Played-move target-pressure consequence is limited to a replayed played-first
-non-capture by a queen or rook that directly attacks an advanced enemy pawn,
-with the same moved piece continuing later in the checked PV. It may own
-MoveReview prose only under non-bad truth that does not block strategic
-support, and it is excluded from generic surface candidates and role-aware
-comparison.
-Origin-square clearance consequence is limited to a replayed played-first
-non-capture by a non-pawn, non-king piece, followed in the checked PV by the
-first non-capturing use of that origin square by a different same-side
-non-pawn, non-king piece. Same-piece returns, captures, and exchange lines stay
-out of this clearance authority.
-
-Line consequence can own WhatChanged when surface-ready typed evidence exists;
-unmatched plan-support candidates must not suppress that producer or promote an
-opening/generic shell.
-
-## Fallback
-
-Fallback renderers may state exact move facts and short checked-line previews.
-They must not infer tactics, plans, timing, or alternatives from missing typed
-evidence.
+Do not treat fail-closed behavior as the end of the work when a true weaker
+claim can be recovered from existing producer/analyzer/probe/model assets.
 
 ## Disallowed Legacy Flow
 
-The following flows are not trusted:
+These flows stay outside the trust boundary:
 
-- `truth_contract -> tactical owner`
-- `truth_contract -> only-move prose`
-- `blocksStrategicSupport -> tactical scene`
-- `line_consequence -> tactical owner`
-- `role_aware_line_consequence -> tactical owner`
-- broad source-string checks as threat authority
-- raw template composition as causal authority
+- prose -> claim;
+- diagnostic string -> claim;
+- opening/endgame label -> current-position truth;
+- row label -> authority;
+- frontend tag/class -> chess meaning;
+- risk gate -> positive explanation;
+- source name -> evidence;
+- cached sentence -> evidence.
+
+If such a flow is found, classify the issue first: no evidence, wrong family,
+incomplete evidence, renderer/frontend overreach, missing producer skill,
+move-order dependency, objective/practical mismatch, overgeneralized theme, or
+wrong surface tier. Then repair or demote the claim at the typed evidence path.

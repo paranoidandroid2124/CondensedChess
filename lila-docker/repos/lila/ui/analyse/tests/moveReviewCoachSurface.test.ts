@@ -12,7 +12,7 @@ const interactionHandlersSource = readFileSync(
 
 const refs: MoveReviewRefsV1 = {
   schema: 'chesstory.refs.v1',
-  startFen: '8/8/8/8/8/8/8/8 w - - 0 1',
+  startFen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
   startPly: 1,
   variations: [
     {
@@ -25,7 +25,7 @@ const refs: MoveReviewRefsV1 = {
           refId: 'main-1',
           san: 'Nf3',
           uci: 'g1f3',
-          fenAfter: '8/8/8/8/8/5N2/8/8 b - - 1 1',
+          fenAfter: 'rnbqkbnr/pppppppp/8/8/8/5N2/PPPPPPPP/RNBQKB1R b KQkq - 1 1',
           ply: 1,
           moveNo: 1,
           marker: '1.',
@@ -34,7 +34,7 @@ const refs: MoveReviewRefsV1 = {
           refId: 'main-2',
           san: 'd5',
           uci: 'd7d5',
-          fenAfter: '8/8/8/3p4/8/5N2/8/8 w - - 0 2',
+          fenAfter: 'rnbqkbnr/ppp1pppp/8/3p4/8/5N2/PPPPPPPP/RNBQKB1R w KQkq - 0 2',
           ply: 2,
           moveNo: 1,
           marker: '1...',
@@ -49,7 +49,7 @@ const playerSurface = (overrides: Partial<MoveReviewPlayerSurfaceV1> = {}): Move
   title: 'Move review: Nf3',
   summaryRows: [
     {
-      label: 'Plan clue',
+      label: 'Reason clue',
       text: 'The checked line keeps pressure on d5.',
       tone: 'practical',
       refSans: ['Nf3', 'd5'],
@@ -94,13 +94,14 @@ describe('moveReview coach surface', () => {
     assert.match(html, /Close choice/);
     assert.match(html, /move-review-coach__gap">Eval \+0\.4 · Close choice/);
     assert.match(html, /Why it mattered/);
-    assert.match(html, /What to watch next/);
+    assert.doesNotMatch(html, /What to watch next/);
     assert.match(html, /Try the line/);
     assert.match(html, /Remember this/);
     assert.match(html, /data-move-review-scene="0"/);
     assert.match(html, /data-move-review-scene-panel/);
     assert.match(html, /aria-label="Move Review chapters" role="tablist"/);
     assert.match(html, /data-scene-flow-key="verdict"/);
+    assert.doesNotMatch(html, /data-scene-flow-key="plan"/);
     assert.match(html, /move-review-player__timeline-label--long">Verdict/);
     assert.match(html, /move-review-player__timeline-label--short">Recall/);
     assert.match(html, /move-review-player__timeline-action">Judge the move/);
@@ -131,7 +132,7 @@ describe('moveReview coach surface', () => {
     assert.match(html, /data-scene-line-eval="\+0\.4"/);
     assert.match(html, /data-scene-board-eval="\+0\.4"/);
     assert.match(html, /move-review-player__scene-line-eval">Eval \+0\.4/);
-    assert.match(html, /Decision · 1\/5/);
+    assert.match(html, /Decision · 1\/4/);
     assert.match(html, /move-review-player__timeline-copy/);
     assert.match(html, /move-review-player__timeline-kicker">Decision/);
     assert.match(html, /move-review-player__detail-layer/);
@@ -162,13 +163,16 @@ describe('moveReview coach surface', () => {
     assert.match(html, /data-scene-board-note="Check the board and eval before reading the verdict\."/);
     assert.match(html, /<p>Check the board and eval before reading the verdict\.<\/p>/);
     assert.match(html, /data-scene-board-note="Keep this square and eval in view; the reason lives on the board\."/);
-    assert.match(html, /data-scene-board-note="Use the position and eval to decide what the next move should improve\."/);
+    assert.doesNotMatch(html, /data-scene-board-note="Use the position and eval to decide what the next move should improve\."/);
     assert.match(html, /data-scene-board-title="Position after each move"/);
     assert.match(html, /data-scene-board-note="Play the line one move at a time; keep the eval beside the board\."/);
     assert.match(html, /data-scene-board-note="Save this pattern, board cue, and eval for your next game\."/);
     assert.match(html, /data-scene-label="Verdict"/);
     assert.match(html, /data-scene-control-label="See why"/);
-    assert.match(html, /data-scene-board="8\/8\/8\/8\/8\/5N2\/8\/8 b - - 1 1\|g1f3"/);
+    assert.match(
+      html,
+      /data-scene-board="rnbqkbnr\/pppppppp\/8\/8\/8\/5N2\/PPPPPPPP\/RNBQKB1R b KQkq - 1 1\|g1f3"/,
+    );
     assert.match(html, /Next: See why/);
     assert.doesNotMatch(html, /authority/i);
     assert.doesNotMatch(html, /diagnostics/i);
@@ -190,7 +194,7 @@ describe('moveReview coach surface', () => {
               refId: 'main-3',
               san: 'e4',
               uci: 'e2e4',
-              fenAfter: '8/8/8/3p4/4P3/5N2/8/8 b - - 0 2',
+              fenAfter: 'rnbqkbnr/ppp1pppp/8/3p4/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 0 2',
               ply: 3,
               moveNo: 2,
               marker: '2.',
@@ -199,7 +203,7 @@ describe('moveReview coach surface', () => {
               refId: 'main-4',
               san: 'e5',
               uci: 'e7e5',
-              fenAfter: '8/8/8/3pp3/4P3/5N2/8/8 w - - 0 3',
+              fenAfter: 'rnbqkbnr/ppp2ppp/8/3pp3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 0 3',
               ply: 4,
               moveNo: 2,
               marker: '2...',
@@ -208,7 +212,7 @@ describe('moveReview coach surface', () => {
               refId: 'main-5',
               san: 'Bb5',
               uci: 'f1b5',
-              fenAfter: '8/8/8/1B1pp3/4P3/5N2/8/8 b - - 1 3',
+              fenAfter: 'rnbqkbnr/ppp2ppp/8/1B1pp3/4P3/5N2/PPPP1PPP/RNBQK2R b KQkq - 1 3',
               ply: 5,
               moveNo: 3,
               marker: '3.',
@@ -300,6 +304,9 @@ describe('moveReview coach surface', () => {
 
     assert.match(html, /<summary>More reasons<\/summary>[\s\S]*Third reason/);
     assert.match(html, /<summary>More plan notes<\/summary>[\s\S]*Third plan/);
+    assert.match(html, /What to watch next/);
+    assert.match(html, /data-scene-flow-key="plan"/);
+    assert.match(html, /data-scene-board-note="Use the position and eval to decide what the next move should improve\."/);
     assert.match(html, /move-review-player__detail-layer/);
   });
 
@@ -325,7 +332,10 @@ describe('moveReview coach surface', () => {
 
     assert.match(html, /data-ref-id="main-1"/);
     assert.match(html, /data-uci="g1f3"/);
-    assert.match(html, /data-board="8\/8\/8\/8\/8\/5N2\/8\/8 b - - 1 1\|g1f3"/);
+    assert.match(
+      html,
+      /data-board="rnbqkbnr\/pppppppp\/8\/8\/8\/5N2\/PPPPPPPP\/RNBQKB1R b KQkq - 1 1\|g1f3"/,
+    );
     assert.match(html, /<code class="move-review-coach__move-chip">Qh5<\/code>/);
   });
 
@@ -343,19 +353,46 @@ describe('moveReview coach surface', () => {
               refId: 'repeat-1',
               san: 'Nf3',
               uci: 'g1f3',
-              fenAfter: '8/8/8/8/8/5N2/8/8 b - - 1 1',
+              fenAfter: 'rnbqkbnr/pppppppp/8/8/8/5N2/PPPPPPPP/RNBQKB1R b KQkq - 1 1',
               ply: 1,
               moveNo: 1,
               marker: '1.',
             },
             {
               refId: 'repeat-2',
-              san: 'Nf3',
+              san: 'Nf6',
               uci: 'g8f6',
-              fenAfter: '8/8/5n2/8/8/5N2/8/8 w - - 2 2',
+              fenAfter: 'rnbqkb1r/pppppppp/5n2/8/8/5N2/PPPPPPPP/RNBQKB1R w KQkq - 2 2',
               ply: 2,
               moveNo: 1,
               marker: '1...',
+            },
+            {
+              refId: 'repeat-3',
+              san: 'Ng1',
+              uci: 'f3g1',
+              fenAfter: 'rnbqkb1r/pppppppp/5n2/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 3 2',
+              ply: 3,
+              moveNo: 2,
+              marker: '2.',
+            },
+            {
+              refId: 'repeat-4',
+              san: 'Ng8',
+              uci: 'f6g8',
+              fenAfter: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 4 3',
+              ply: 4,
+              moveNo: 2,
+              marker: '2...',
+            },
+            {
+              refId: 'repeat-5',
+              san: 'Nf3',
+              uci: 'g1f3',
+              fenAfter: 'rnbqkbnr/pppppppp/8/8/8/5N2/PPPPPPPP/RNBQKB1R b KQkq - 5 3',
+              ply: 5,
+              moveNo: 3,
+              marker: '3.',
             },
           ],
         },
@@ -370,14 +407,14 @@ describe('moveReview coach surface', () => {
           {
             label: 'Line clue',
             text: 'The checked line repeats the same SAN token in order.',
-            refSans: ['Nf3', 'Nf3'],
+            refSans: ['Nf3', 'Nf6', 'Ng1', 'Ng8', 'Nf3'],
           },
         ],
         decisionComparison: null,
       }),
     );
 
-    assert.match(html, /data-ref-id="repeat-1"[\s\S]*data-ref-id="repeat-2"/);
+    assert.match(html, /data-ref-id="repeat-1"[\s\S]*data-ref-id="repeat-5"/);
   });
 
   test('builds a board-synced player fallback from refs', () => {
@@ -389,7 +426,10 @@ describe('moveReview coach surface', () => {
     assert.match(html, /Try the line/);
     assert.match(html, /Remember this/);
     assert.match(html, /Coach notes/);
-    assert.match(html, /data-scene-board="8\/8\/8\/8\/8\/5N2\/8\/8 b - - 1 1\|g1f3"/);
+    assert.match(
+      html,
+      /data-scene-board="rnbqkbnr\/pppppppp\/8\/8\/8\/5N2\/PPPPPPPP\/RNBQKB1R b KQkq - 1 1\|g1f3"/,
+    );
   });
 
   test('falls back to raw commentary when no player surface or refs exist', () => {

@@ -1,40 +1,50 @@
 # Commentary Program Map
 
 This is the short onboarding map for the current Chesstory commentary worktree.
-Use it to find the live authority documents, not to freeze the current
-implementation shape.
+Use it to find the live boundaries and the runtime path. Do not use it to
+preserve every current implementation shape.
 
-## Current State
+## Operating Goal
 
-MoveReview commentary now uses a single authority path:
+MoveReview quality work should improve producer skill and evidence paths, not
+only hide bad sentences. When a chess claim is wrong or too strong, trace the
+claim family and evidence path first, then either rebuild the claim from typed
+board/PV/eval/probe/tablebase/analyzer evidence or demote it to support-only or
+diagnostic output.
 
-1. producers emit typed evidence, exact facts, truth/risk gates, line
-   consequences, timing witnesses, or supported local packets;
-2. `QuestionFirstCommentaryPlanner` ranks question candidates and records
-   mechanism-specific owner traces;
-3. `MoveReviewCausalClaim` builds the CausalFrame and checks typed support,
-   causal role, surface permission, and local fact admission;
-4. `MoveReviewLocalFact` owns the typed fact-family vocabulary;
-5. the renderer realizes admitted facts as prose and falls back to exact local
-   facts when no causal authority survives.
+Renderer, template, fallback, and frontend code are presentation layers. They
+may arrange typed payloads, but they do not create new chess meaning from prose,
+row labels, diagnostic strings, source strings, or tags.
 
-The active mechanism families are `ConcreteTactical`, `ForcingDefense`,
-`LineConsequence`, `AlternativeComparison`, `DecisionTiming`, `PlanRace`,
-`MoveDelta`, `PositionProbe`, `OpeningRelation`, and `EndgameTransition`.
-Broad tactical buckets are not part of the live authority model.
-
-## Document Roles
+## Live Documents
 
 Read the documents in this order:
 
-1. `CommentaryProgramMap.md` - navigation and current state.
-2. `CommentaryPipelineSSOT.md` - runtime path, ownership, diagnostics fields.
-3. `CommentaryTruthBoundary.md` - chess-truth signoff and truth/risk limits.
-4. `CommentaryTrustBoundary.md` - trust risks, renderer permissions, disallowed
-   legacy flows.
+1. `CommentaryProgramMap.md` - navigation and operating goal.
+2. `CommentaryPipelineSSOT.md` - runtime path and MoveReview surface contract.
+3. `CommentaryTruthBoundary.md` - what can become public chess truth.
+4. `CommentaryTrustBoundary.md` - what user-facing prose and UI may trust.
 
 Do not use branch-external or branch-removed documents as authority for this
 worktree.
+
+## Runtime Shape
+
+The intended single path is:
+
+`producer -> typed local fact / CausalFrame / source payload -> planner /
+carrier -> MoveReviewPlayerSurface -> renderer / frontend`
+
+The main current surface contract is:
+
+- `decisionComparison`: verdict.
+- `summaryRows`: main "why" explanation.
+- `advancedRows`: next plan or follow-up direction.
+- `refSans` plus `refs`: replay line and board sync.
+- `probeRows` and `authorRows`: follow-up checks or unresolved questions.
+
+If a resolved `WhyThis` answer is supposed to be the main player-facing reason,
+it belongs in `summaryRows` or `advancedRows`, not only in `authorRows`.
 
 ## Cleanup Policy
 
@@ -42,42 +52,22 @@ The docs are boundaries, not preservation orders. If live code shows duplicated
 wrappers, stale rollout names, or parallel helper paths, prefer deletion,
 in-place simplification, or reuse of an existing boundary.
 
-Before adding a new module/helper/abstraction:
+Before adding a new module, helper, abstraction, or file:
 
-- search the relevant source, types, constants, tests, and call sites;
+- search related source, types, constants, tests, and call sites;
 - reuse or consolidate existing assets when possible;
 - keep runtime helpers under active `src/main` paths and corpus/report tooling
   under active `src/test` paths;
-- update the authority docs only when runtime truth, trust, path, package, or
-  diagnostic contracts change.
+- update these docs only when the runtime path, truth boundary, trust boundary,
+  surface contract, package ownership, or diagnostic contract changes.
 
-## Current Refactor Boundary
+## Expansion Direction
 
-The current MoveReview refactor is considered structurally aligned when:
+Prefer work that strengthens existing producers and analyzers. Important areas
+include tactical ownership, positional mistake decomposition, line consequence,
+opening-to-middlegame plans, material compensation, closed-position
+breakthroughs, and endgame conversion/draw boundaries.
 
-- `truth_contract` and high-risk gates can close unsafe surfaces but cannot
-  invent tactical, plan, timing, or alternative prose;
-- certified only-move defense may surface as `only_move_defense`, but raw
-  `truth_contract` remains a negative gate, not a prose source;
-- `pv_coupled_plan_support` cannot render positive plan viability under a
-  truth/risk gate that blocks strategic support;
-- `ConcreteTactical` surface prose requires concrete current-move tactical
-  evidence and a concrete anchor in the rendered claim;
-- line consequence and alternative comparison remain separate owner/fact
-  families instead of flowing through a broad tactical owner;
-- replay/QC output exposes mechanism-specific diagnostics such as
-  `plannerConcreteTacticalSources`, `plannerLineConsequenceSources`, and
-  `plannerAlternativeComparisonSources`.
-
-## Next Expansion Direction
-
-The remaining work is producer quality, not another authority split:
-
-- strengthen tactical motif producers so pins, forks, discovered attacks,
-  trapped pieces, and forced replies carry board-backed evidence;
-- strengthen defensive/timing producers so forcing-defense prose names the
-  concrete threat, reply, or lost resource rather than generic risk;
-- strengthen plan-support producers so opening/quiet rows do not collapse into
-  repeated checked-line template wording;
-- improve line-consequence rendering so replayed material/structure changes are
-  concise and role-aware.
+Do not add a new authority split just because a sentence is bad. First decide
+whether the idea is true, which claim family it belongs to, and what typed
+evidence is missing.

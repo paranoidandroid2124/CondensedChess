@@ -1717,7 +1717,11 @@ private[commentary] object QuestionFirstCommentaryPlanner:
   ): Option[String] =
     comparison.comparativeSource
       .filter(source => source.trim == DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource)
-      .flatMap(_ => comparison.comparativeConsequence.map(_.trim).filter(DecisionComparisonComparativeSupport.roleAwareLineConsequenceText))
+      .flatMap(_ =>
+        comparison.comparativeConsequence
+          .map(_.trim)
+          .filter(_ => DecisionComparisonComparativeSupport.roleAwareLineConsequenceText(comparison))
+      )
 
   private def certifiedAlternativeComparisonConsequence(
       comparison: DecisionComparison

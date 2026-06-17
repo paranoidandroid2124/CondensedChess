@@ -203,6 +203,84 @@ class DecisiveTruthContractTest extends FunSuite:
     assertEquals(sanitized.comparativeSource, Some(DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource))
   }
 
+  test("capture-structure comparative consequence needs branch structure evidence to survive sanitization") {
+    val fen = "r4rk1/p4bpp/5p2/p3pn2/4P1P1/7P/PP1N1P2/1K1R3R w - - 0 21"
+    val consequence =
+      "exf5 reaches a capture leaving White with doubled pawns on the f-file and a semi-open e-file for White on the engine-best branch 21. exf5 Rfd8 22. Ne4 Bd5; gxf5 reaches a capture leaving White with doubled pawns on the f-file and White with an isolated pawn on h4 on the played branch 21. gxf5 a4 22. h4 Bh5, and the checked comparison favors the engine-best branch by about 96cp."
+    val branchEvidence =
+      RoleAwareLineConsequenceEvidence(
+        engineBest =
+          LineConsequenceEvidence(
+            lineId = Some("best"),
+            sanMoves = List("exf5", "Rfd8", "Ne4", "Bd5"),
+            uciMoves = List("e4f5", "f8d8", "d2e4", "f7d5"),
+            scoreCp = Some(-44),
+            mate = None,
+            depth = Some(20),
+            windowPly = 4,
+            kind = LineConsequenceKind.CaptureStructureTransition,
+            triggerSan = Some("exf5"),
+            consequence = "The checked line changes the capture structure after exf5.",
+            whyItMatters = Some("The local result is White with doubled pawns on the f-file and a semi-open e-file for White."),
+            release = LineConsequenceRelease.ReplayBackedInternal,
+            rejectReasons = Nil,
+            structureDetails =
+              List(
+                LineStructureDetail(kind = "doubled_pawn", file = Some("f"), side = Some("white")),
+                LineStructureDetail(kind = "semi_open_file", file = Some("e"), side = Some("white"))
+              )
+          ),
+        played =
+          LineConsequenceEvidence(
+            lineId = Some("played"),
+            sanMoves = List("gxf5", "a4", "h4", "Bh5"),
+            uciMoves = List("g4f5", "a5a4", "h3h4", "f7h5"),
+            scoreCp = Some(-140),
+            mate = None,
+            depth = Some(20),
+            windowPly = 4,
+            kind = LineConsequenceKind.CaptureStructureTransition,
+            triggerSan = Some("gxf5"),
+            consequence = "The checked line changes the capture structure after gxf5.",
+            whyItMatters = Some("The local result is White with doubled pawns on the f-file and White with an isolated pawn on h4."),
+            release = LineConsequenceRelease.ReplayBackedInternal,
+            rejectReasons = Nil,
+            structureDetails =
+              List(
+                LineStructureDetail(kind = "doubled_pawn", file = Some("f"), side = Some("white")),
+                LineStructureDetail(kind = "isolated_pawn", square = Some("h4"), side = Some("white"))
+              )
+          )
+      )
+    val raw =
+      comparison(
+        chosenMove = "gxf5",
+        engineBestMove = Some("exf5"),
+        cpLoss = 96,
+        deferredMove = Some("exf5"),
+        chosenMatchesBest = false
+      ).copy(
+        comparedMove = Some("gxf5"),
+        comparativeConsequence = Some(consequence),
+        comparativeSource = Some(DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource)
+      )
+
+    val contract = DecisiveTruth.derive(
+      ctx = ctx("g4f5", "gxf5", fen = fen),
+      comparisonOverride = Some(raw)
+    )
+    val withoutBranch = DecisiveTruth.sanitizeDecisionComparison(Some(raw), contract).getOrElse(fail("missing comparison"))
+    val withBranch =
+      DecisiveTruth
+        .sanitizeDecisionComparison(Some(raw.copy(roleAwareBranchEvidence = Some(branchEvidence))), contract)
+        .getOrElse(fail("missing branch-backed comparison"))
+
+    assertEquals(withoutBranch.comparativeConsequence, None)
+    assertEquals(withoutBranch.comparativeSource, None)
+    assertEquals(withBranch.comparativeConsequence, Some(consequence))
+    assertEquals(withBranch.comparativeSource, Some(DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource))
+  }
+
   test("piece-relocation comparative consequence is not preserved as branch authority") {
     val consequence =
       "Nc4 places the knight from e5 on c4 in the engine-best branch 11. Nc4 a5 12. Ne3; Nf3 places the same knight on f3 in the played branch 11. Nf3 a5 12. h4, and the checked comparison favors Nc4 by about 62cp."

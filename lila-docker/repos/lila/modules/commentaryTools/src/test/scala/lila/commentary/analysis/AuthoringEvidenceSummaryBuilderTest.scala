@@ -1,6 +1,5 @@
 package lila.commentary.analysis
 
-import lila.commentary.{ AuthorEvidenceSummary, AuthorQuestionSummary }
 import lila.commentary.model.*
 import lila.commentary.model.authoring.{ AuthorQuestion, AuthorQuestionKind }
 import munit.FunSuite
@@ -28,29 +27,6 @@ class AuthoringEvidenceSummaryBuilderTest extends FunSuite:
       probeRequests = probeRequests,
       authorQuestions = authorQuestions,
       authorEvidence = authorEvidence
-    )
-
-  private def analysisData: ExtendedAnalysisData =
-    ExtendedAnalysisData(
-      fen = testFen,
-      nature = PositionNature(NatureType.Static, 0.1, 0.8, "quiet"),
-      motifs = Nil,
-      plans = Nil,
-      preventedPlans = Nil,
-      pieceActivity = Nil,
-      structuralWeaknesses = Nil,
-      positionalFeatures = Nil,
-      compensation = None,
-      endgameFeatures = None,
-      practicalAssessment = None,
-      alternatives = Nil,
-      candidates = Nil,
-      counterfactual = None,
-      conceptSummary = Nil,
-      prevMove = None,
-      ply = 24,
-      evalCp = 0,
-      isWhiteToMove = true
     )
 
   test("summarizeEvidence reports pending probe-backed author questions") {
@@ -85,5 +61,30 @@ class AuthoringEvidenceSummaryBuilderTest extends FunSuite:
     assertEquals(summary.pendingProbeCount, 1)
     assertEquals(summary.linkedPlans, List("Kingside Bind", "kingside_bind"))
     assertEquals(surface.questions.map(_.id), List("why_this_1"))
-    assertEquals(surface.headline, Some("author evidence: 0 resolved, 1 pending"))
+    assertEquals(surface.headline, Some("author evidence: 0 line checked, 1 pending"))
+  }
+
+  test("summarizeEvidence treats probe lines on a real position as line-checked support") {
+    val base = MoveReviewProseGoldenFixtures.openFileFight.ctx
+    assertEquals(base.fen, "2r2rk1/pp3pp1/2pq1n1p/3p4/3P4/1QP1PNRP/P4PP1/2R3K1 w - - 0 22")
+    val question = AuthorQuestion(
+      id = "q-open-file",
+      kind = AuthorQuestionKind.WhyThis,
+      priority = 1,
+      question = "Why does the rook lift keep pressure on g7?",
+      why = Some("The branch should stay a checked follow-up line, not a resolved main reason."),
+      confidence = ConfidenceLevel.Probe,
+      evidencePurposes = List("reply_multipv")
+    )
+    val ctx = base.copy(authorQuestions = List(question))
+    val surface = AuthoringEvidenceSummaryBuilder.build(ctx)
+    val summary = surface.evidence.headOption.getOrElse(fail("missing author evidence summary"))
+
+    assertEquals(summary.status, "line_checked")
+    assertEquals(summary.branchCount, 1)
+    assertEquals(summary.branches.map(_.keyMove), List("...Rc8"))
+    assertEquals(summary.branches.flatMap(_.evalCp), List(42))
+    assertEquals(summary.branches.flatMap(_.depth), List(23))
+    assertEquals(summary.branches.flatMap(_.sourceId), List("probe-open-file"))
+    assertEquals(surface.headline, Some("author evidence: 1 line checked, 0 pending"))
   }

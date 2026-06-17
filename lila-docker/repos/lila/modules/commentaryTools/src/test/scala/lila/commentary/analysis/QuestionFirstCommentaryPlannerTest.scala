@@ -2006,7 +2006,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
   test("missed benchmark role-aware branch comparison can own WhyThis") {
     val q = question("q_missed_benchmark_role_aware_why_this", AuthorQuestionKind.WhyThis)
     val consequence =
-      "exf5 reaches a material transition on the engine-best branch 21. exf5 Rfd8 22. Ne4 Bd5; gxf5 reaches a different material transition on the played branch 21. gxf5 a4 22. h4 Bh5, and the checked comparison favors the engine-best branch by about 96cp."
+      "exf5 reaches a capture leaving White with doubled pawns on the f-file and a semi-open e-file for White on the engine-best branch 21. exf5 Rfd8 22. Ne4 Bd5; gxf5 reaches a capture leaving White with doubled pawns on the f-file and White with an isolated pawn on h4 on the played branch 21. gxf5 a4 22. h4 Bh5, and the checked comparison favors the engine-best branch by about 96cp."
     val plans =
       QuestionFirstCommentaryPlanner.plan(
         baseCtx(List(q)),
@@ -2027,7 +2027,54 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
                 chosenMatchesBest = false,
                 comparedMove = Some("gxf5"),
                 comparativeConsequence = Some(consequence),
-                comparativeSource = Some(DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource)
+                comparativeSource = Some(DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource),
+                roleAwareBranchEvidence =
+                  Some(
+                    RoleAwareLineConsequenceEvidence(
+                      engineBest =
+                        LineConsequenceEvidence(
+                          lineId = Some("best"),
+                          sanMoves = List("exf5", "Rfd8", "Ne4", "Bd5"),
+                          uciMoves = List("e4f5", "f8d8", "d2e4", "f7d5"),
+                          scoreCp = Some(-44),
+                          mate = None,
+                          depth = Some(20),
+                          windowPly = 4,
+                          kind = LineConsequenceKind.CaptureStructureTransition,
+                          triggerSan = Some("exf5"),
+                          consequence = "The checked line changes the capture structure after exf5.",
+                          whyItMatters = Some("The local result is White with doubled pawns on the f-file and a semi-open e-file for White."),
+                          release = LineConsequenceRelease.ReplayBackedInternal,
+                          rejectReasons = Nil,
+                          structureDetails =
+                            List(
+                              LineStructureDetail(kind = "doubled_pawn", file = Some("f"), side = Some("white")),
+                              LineStructureDetail(kind = "semi_open_file", file = Some("e"), side = Some("white"))
+                            )
+                        ),
+                      played =
+                        LineConsequenceEvidence(
+                          lineId = Some("played"),
+                          sanMoves = List("gxf5", "a4", "h4", "Bh5"),
+                          uciMoves = List("g4f5", "a5a4", "h3h4", "f7h5"),
+                          scoreCp = Some(-140),
+                          mate = None,
+                          depth = Some(20),
+                          windowPly = 4,
+                          kind = LineConsequenceKind.CaptureStructureTransition,
+                          triggerSan = Some("gxf5"),
+                          consequence = "The checked line changes the capture structure after gxf5.",
+                          whyItMatters = Some("The local result is White with doubled pawns on the f-file and White with an isolated pawn on h4."),
+                          release = LineConsequenceRelease.ReplayBackedInternal,
+                          rejectReasons = Nil,
+                          structureDetails =
+                            List(
+                              LineStructureDetail(kind = "doubled_pawn", file = Some("f"), side = Some("white")),
+                              LineStructureDetail(kind = "isolated_pawn", square = Some("h4"), side = Some("white"))
+                            )
+                        )
+                    )
+                  )
               )
             )
         ),
@@ -2039,8 +2086,10 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     assertEquals(primary.plannerOwnerKind, PlannerOwnerKind.AlternativeComparison)
     assertEquals(primary.plannerSource, "decision_comparison")
     assert(primary.admissibilityReasons.contains("missed_benchmark_alternative"), clues(primary))
-    assert(primary.claim.contains("exf5 reaches a material transition"), clues(primary.claim))
-    assert(primary.claim.contains("gxf5 reaches a different material transition"), clues(primary.claim))
+    assert(primary.claim.contains("exf5 reaches a capture leaving White with doubled pawns on the f-file"), clues(primary.claim))
+    assert(primary.claim.contains("gxf5 reaches a capture leaving White with doubled pawns on the f-file"), clues(primary.claim))
+    assert(primary.claim.contains("semi-open e-file"), clues(primary.claim))
+    assert(primary.claim.contains("isolated pawn on h4"), clues(primary.claim))
   }
 
   test("check-only tactical local fact stays support under certified alternative comparison") {

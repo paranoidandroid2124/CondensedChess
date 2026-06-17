@@ -277,15 +277,17 @@ private[commentary] object CompensationInterpretation:
         (!hasAttackCarrier && !hasTimeCarrier || hasTransitionWindow)
     val persistenceClass =
       if durableStructuralPressure then "durable_pressure"
-      else if hasAttackCarrier || hasTimeCarrier then "non_immediate_transition"
+      else if hasAttackCarrier then "non_immediate_transition"
+      else if hasTimeCarrier then "transition_only"
       else if hasTransitionWindow || hasReturnVector then "transition_only"
       else "tactical_window"
-    val hasAcceptedCarrier = hasAttackCarrier || hasTimeCarrier || durableStructuralPressure
+    val hasAcceptedCarrier = hasAttackCarrier || durableStructuralPressure
     val rejectionReason =
       if recaptureNeutralized then Some("recapture_neutralized")
       else if thinReturnVectorOnly then Some("thin_return_vector_only")
       else if lateTechnicalConversionTail then Some("late_technical_conversion_tail")
       else if invested <= 0 then Some("missing_material_investment")
+      else if hasTimeCarrier && !hasAcceptedCarrier then Some("development_lead_support_only")
       else if !hasAcceptedCarrier then Some("missing_structural_carrier")
       else None
 

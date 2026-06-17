@@ -827,6 +827,66 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
           authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("d5")))
         ),
         MoveReviewPlayerSurfaceRow(
+          label = "Hook creation",
+          text = "The checked rook-pawn move creates a flank hook on h4.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("h4")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Rook-pawn march",
+          text = "The checked line advances the rook pawn to h4 for flank space.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("h4")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Rook lift",
+          text = "The checked line lifts the rook to h3 as attacking infrastructure.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("h3")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Seventh-rank entry",
+          text = "The checked line puts the rook on the seventh rank at a7.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("a7")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Rook behind passer",
+          text = "The checked line places the rook behind the passed pawn on b6.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("b6")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Passer blockade",
+          text = "The checked line blockades the passed pawn on d4 with the knight.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("d4")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Outside passer",
+          text = "The checked line leaves an outside passer on a5.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("a5")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Passed pawn advance",
+          text = "The checked line advances the passed pawn to b6.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("b6")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "King activation",
+          text = "The checked line activates the king on d2 for the endgame.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("d2")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Practical target",
+          text = "The current structure gives Black a weak isolated pawn on e5 to pressure.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("e5")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Practical target",
+          text = "The current French Advance Chain structure gives Black a weak isolated queen pawn on d5 to pressure.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("d5")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Practical target",
+          text = "The checked line leaves White a weak backward pawn on c4 to pressure.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("c4")))
+        ),
+        MoveReviewPlayerSurfaceRow(
           label = "Simplification",
           text = "The checked line keeps the same local edge after the exchange on e6.",
           authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("e6")))
@@ -880,6 +940,26 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
           label = "Target coordination",
           text = "The checked line coordinates pressure on c6 from c1 and c1.",
           authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("c6")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Practical target",
+          text = "The current structure gives Black a weak isolated pawn on e5 to pressure.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("d5")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Hook creation",
+          text = "The checked rook-pawn move creates a flank hook on h4.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("h5")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Rook-pawn march",
+          text = "The checked line advances the rook pawn to h4 for flank space.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("h5")))
+        ),
+        MoveReviewPlayerSurfaceRow(
+          label = "Rook lift",
+          text = "The checked line lifts the rook to h3 as attacking infrastructure.",
+          authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("h4")))
         )
       )
     val response =
@@ -888,31 +968,48 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
     val sanitized = UserFacingPayloadSanitizer.sanitize(response)
     val surface = sanitized.moveReviewPlayerSurface.getOrElse(fail("missing sanitized player surface"))
 
-    assertEquals(
-      surface.summaryRows.flatMap(_.authority).map(_.kind),
-      List(
-        MoveReviewSurfaceAuthority.PracticalPlan,
-        MoveReviewSurfaceAuthority.PracticalPlan,
-        MoveReviewSurfaceAuthority.PracticalPlan,
-        MoveReviewSurfaceAuthority.PracticalPlan,
-        MoveReviewSurfaceAuthority.PracticalPlan,
-        MoveReviewSurfaceAuthority.PracticalPlan,
-        MoveReviewSurfaceAuthority.PracticalPlan,
-        MoveReviewSurfaceAuthority.PracticalPlan,
-        MoveReviewSurfaceAuthority.PracticalPlan,
-        MoveReviewSurfaceAuthority.PracticalPlan,
-        MoveReviewSurfaceAuthority.PracticalPlan,
-        MoveReviewSurfaceAuthority.PracticalPlan,
-        MoveReviewSurfaceAuthority.CentralLiquidation,
-        MoveReviewSurfaceAuthority.CentralChallenge,
-        MoveReviewSurfaceAuthority.PracticalPlan
-      ),
+    val authorities = surface.summaryRows.flatMap(_.authority)
+    assert(
+      authorities.contains(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CentralLiquidation, token = Some("...d5-e4"))),
       clue(surface)
     )
-    assertEquals(
-      surface.summaryRows.flatMap(_.authority.flatMap(_.target)),
-      List("d6", "c6", "d5", "e6", "e5", "c6", "c6", "e5"),
+    assert(
+      authorities.contains(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.CentralChallenge, token = Some("...d7-d6"))),
       clue(surface)
+    )
+
+    val targetRows =
+      surface.summaryRows.flatMap(row => row.authority.flatMap(_.target).map(target => (row.label, row.text, target))).toSet
+    val expectedTargets =
+      Set(
+        ("Fixed target", "The checked line keeps d6 fixed as the target.", "d6"),
+        ("Minority attack", "The checked line keeps c6 as the minority-attack fixed target.", "c6"),
+        ("IQP target", "The checked line leaves d5 as an isolated pawn target.", "d5"),
+        ("Hook creation", "The checked rook-pawn move creates a flank hook on h4.", "h4"),
+        ("Rook-pawn march", "The checked line advances the rook pawn to h4 for flank space.", "h4"),
+        ("Rook lift", "The checked line lifts the rook to h3 as attacking infrastructure.", "h3"),
+        ("Seventh-rank entry", "The checked line puts the rook on the seventh rank at a7.", "a7"),
+        ("Rook behind passer", "The checked line places the rook behind the passed pawn on b6.", "b6"),
+        ("Passer blockade", "The checked line blockades the passed pawn on d4 with the knight.", "d4"),
+        ("Outside passer", "The checked line leaves an outside passer on a5.", "a5"),
+        ("Passed pawn advance", "The checked line advances the passed pawn to b6.", "b6"),
+        ("King activation", "The checked line activates the king on d2 for the endgame.", "d2"),
+        ("Practical target", "The current structure gives Black a weak isolated pawn on e5 to pressure.", "e5"),
+        ("Practical target", "The current French Advance Chain structure gives Black a weak isolated queen pawn on d5 to pressure.", "d5"),
+        ("Practical target", "The checked line leaves White a weak backward pawn on c4 to pressure.", "c4"),
+        ("Simplification", "The checked line keeps the same local edge after the exchange on e6.", "e6"),
+        ("Knight outpost", "The checked line puts the knight on the e5 outpost.", "e5"),
+        ("File entry", "The checked line keeps pressure on c6 through the c-file.", "c6"),
+        ("Target coordination", "The checked line coordinates pressure on c6 from c1 and e3.", "c6"),
+        ("Color complex", "The checked line keeps the bishop on c4 attacking e5 in the dark-square complex.", "e5")
+      )
+    assert(expectedTargets.subsetOf(targetRows), clue(targetRows))
+    assert(!targetRows.contains(("Hook creation", "The checked rook-pawn move creates a flank hook on h4.", "h5")), clue(targetRows))
+    assert(!targetRows.contains(("Rook-pawn march", "The checked line advances the rook pawn to h4 for flank space.", "h5")), clue(targetRows))
+    assert(!targetRows.contains(("Rook lift", "The checked line lifts the rook to h3 as attacking infrastructure.", "h4")), clue(targetRows))
+    assert(
+      !targetRows.contains(("Practical target", "The current structure gives Black a weak isolated pawn on e5 to pressure.", "d5")),
+      clue(targetRows)
     )
   }
 

@@ -672,6 +672,7 @@ private[commentary] object DecisiveTruth:
           comparedMove = existing.comparedMove,
           consequence = existing.comparativeConsequence,
           source = existing.comparativeSource,
+          roleAwareBranchEvidence = existing.roleAwareBranchEvidence,
           verifiedBestMove = verifiedBestMove
         )
       existing.copy(
@@ -706,6 +707,7 @@ private[commentary] object DecisiveTruth:
               comparedMove = comparison.comparedMove,
               consequence = comparison.comparativeConsequence,
               source = comparison.comparativeSource,
+              roleAwareBranchEvidence = None,
               verifiedBestMove = verifiedBestMove
             )
           comparison.copy(
@@ -734,6 +736,7 @@ private[commentary] object DecisiveTruth:
       comparedMove: Option[String],
       consequence: Option[String],
       source: Option[String],
+      roleAwareBranchEvidence: Option[RoleAwareLineConsequenceEvidence],
       verifiedBestMove: Option[String]
   ): (Option[String], Option[String], Option[String]) =
     val preservedSource =
@@ -743,7 +746,7 @@ private[commentary] object DecisiveTruth:
         consequence.flatMap(normalized)
           .filter(text =>
             preservedSource.contains(DecisionComparisonComparativeSupport.ExactTargetFixationSource) ||
-              DecisionComparisonComparativeSupport.roleAwareLineConsequenceText(text)
+              DecisionComparisonComparativeSupport.roleAwareLineConsequenceText(text, roleAwareBranchEvidence)
           )
           .map(UserFacingSignalSanitizer.sanitize)
       }.flatten

@@ -3783,9 +3783,10 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("Hook creation"), clue(rows))
     assertEquals(rows.head.text, "The checked rook-pawn move creates a flank hook on h4.")
+    assertEquals(rows.head.refSans, List("h4"))
     assertEquals(
       rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("h4"))),
       clue(rows)
     )
   }
@@ -3804,9 +3805,10 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("Rook-pawn march"), clue(rows))
     assertEquals(rows.head.text, "The checked line advances the rook pawn to h4 for flank space.")
+    assertEquals(rows.head.refSans, List("h4"))
     assertEquals(
       rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("h4"))),
       clue(rows)
     )
   }
@@ -3840,9 +3842,10 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("Rook lift"), clue(rows))
     assertEquals(rows.head.text, "The checked line lifts the rook to h3 as attacking infrastructure.")
+    assertEquals(rows.head.refSans, List("Rh3"))
     assertEquals(
       rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("h3"))),
       clue(rows)
     )
   }
@@ -3891,6 +3894,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("Knight outpost"), clue(rows))
     assertEquals(rows.head.text, "The checked line puts the knight on the pawn-supported e5 outpost square.")
+    assertEquals(rows.head.refSans, List("Ne5"))
     assertEquals(
       rows.head.authority,
       Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("e5"))),
@@ -3972,6 +3976,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("Bishop pair"), clue(rows))
     assertEquals(rows.head.text, "The checked capture keeps the bishop pair on the board.")
+    assertEquals(rows.head.refSans, List("Bxf7+"))
     assertEquals(
       rows.head.authority,
       Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
@@ -4038,6 +4043,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("Opposite-color bishops"), clue(rows))
     assertEquals(rows.head.text, "The checked capture leaves opposite-colored bishops on the board.")
+    assertEquals(rows.head.refSans, List("Bxf7+"))
     assertEquals(
       rows.head.authority,
       Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
@@ -4104,9 +4110,10 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("Seventh-rank entry"), clue(rows))
     assertEquals(rows.head.text, "The checked line puts the rook on the seventh rank at a7.")
+    assertEquals(rows.head.refSans, List("Ra7"))
     assertEquals(
       rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("a7"))),
       clue(rows)
     )
   }
@@ -4155,9 +4162,10 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("Rook behind passer"), clue(rows))
     assertEquals(rows.head.text, "The checked line places the rook behind the passed pawn on b6.")
+    assertEquals(rows.head.refSans, List("Rb3"))
     assertEquals(
       rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("b6"))),
       clue(rows)
     )
   }
@@ -4206,9 +4214,10 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("Passer blockade"), clue(rows))
     assertEquals(rows.head.text, "The checked line blockades the passed pawn on d4 with the knight.")
+    assertEquals(rows.head.refSans, List("Nd3"))
     assertEquals(
       rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("d4"))),
       clue(rows)
     )
   }
@@ -4272,6 +4281,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("File entry"), clue(rows))
     assertEquals(rows.head.text, "The checked line places the rook on the open e-file.")
+    assertEquals(rows.head.refSans, List("Re3"))
     assertEquals(
       rows.head.authority,
       Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
@@ -4293,6 +4303,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("File entry"), clue(rows))
     assertEquals(rows.head.text, "The checked line places the rook on the semi-open e-file.")
+    assertEquals(rows.head.refSans, List("Re3"))
   }
 
   test("does not project file-entry prose without a top-PV played-move witness") {
@@ -5220,6 +5231,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("Connected rooks"), clue(rows))
     assertEquals(rows.head.text, "The checked line connects the rooks on the first rank.")
+    assertEquals(rows.head.refSans, List("Rd1"))
     assertEquals(
       rows.head.authority,
       Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
@@ -5271,6 +5283,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("Doubled rooks"), clue(rows))
     assertEquals(rows.head.text, "The checked line doubles the rooks on the a-file.")
+    assertEquals(rows.head.refSans, List("Ra2"))
     assertEquals(
       rows.head.authority,
       Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
@@ -5322,6 +5335,8 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("Connected passers"), clue(rows))
     assertEquals(rows.head.text, "The checked line leaves connected passers on d5 and e5.")
+    assertEquals(rows.head.refSans, List("e5"))
+    assertEquals(rows.head.authority.flatMap(_.target), None)
     assertEquals(
       rows.head.authority,
       Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
@@ -5388,9 +5403,10 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("Outside passer"), clue(rows))
     assertEquals(rows.head.text, "The checked line leaves an outside passer on a5.")
+    assertEquals(rows.head.refSans, List("a5"))
     assertEquals(
       rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("a5"))),
       clue(rows)
     )
   }
@@ -5454,9 +5470,10 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("Passed pawn advance"), clue(rows))
     assertEquals(rows.head.text, "The checked line advances the passed pawn to b6.")
+    assertEquals(rows.head.refSans, List("b6"))
     assertEquals(
       rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("b6"))),
       clue(rows)
     )
   }
@@ -5505,9 +5522,10 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("King activation"), clue(rows))
     assertEquals(rows.head.text, "The checked line activates the king on d2 for the endgame.")
+    assertEquals(rows.head.refSans, List("Kd2"))
     assertEquals(
       rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
+      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan, target = Some("d2"))),
       clue(rows)
     )
   }

@@ -385,7 +385,8 @@ function playerTitle(surface: MoveReviewPlayerSurfaceV1): string {
 
 function surfaceStatusLabel(status: string): string {
   const key = status.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '_');
-  if (key === 'resolved') return 'Backed by line';
+  if (key === 'line_checked') return 'Line checked';
+  if (key === 'resolved') return 'Resolved';
   if (key === 'pending') return 'Still to check';
   if (key === 'question_only') return 'Question to keep';
   return status
@@ -658,24 +659,23 @@ function buildMoveReviewScenes(
   const primaryLine = primaryTryLine(playerSurface);
   const hasTryLine = !!renderTryLineChips(primaryLine, refIndex);
   const advancedBody = renderSceneReasonBody(playerSurface.advancedRows, refIndex, 'More plan notes');
-  const planBody = advancedBody || summaryBody;
-  const planSourceRows = playerSurface.advancedRows.length ? playerSurface.advancedRows : playerSurface.summaryRows;
+  const planSourceRows = playerSurface.advancedRows;
   const summaryLine = playerSurface.summaryRows.find(row => row.refSans.length)?.refSans || primaryLine;
-  const planLine = planSourceRows.find(row => row.refSans.length)?.refSans || primaryLine;
+  const planLine = planSourceRows.find(row => row.refSans.length)?.refSans || [];
   const primaryLineEval = lineEvalForSans(primaryLine, refIndex);
 
   const decisionRef = primaryDecisionRef(playerSurface.decisionComparison, refIndex) || firstResolvedSanRef(primaryLine, refIndex);
   const summaryRef = firstSurfaceRowRef(playerSurface.summaryRows, refIndex) || decisionRef;
-  const planRef = firstSurfaceRowRef(planSourceRows, refIndex) || summaryRef;
+  const planRef = firstSurfaceRowRef(planSourceRows, refIndex) || decisionRef;
   const tryStartRef = firstResolvedSanRef(primaryLine, refIndex) || planRef;
   const tryEndRef = lastResolvedSanRef(primaryLine, refIndex) || planRef;
   const summarySquare = firstSurfaceSquare(playerSurface.summaryRows);
-  const planSquare = firstSurfaceSquare(planSourceRows) || summarySquare;
+  const planSquare = firstSurfaceSquare(planSourceRows);
   const hasCoachSurface = !!(
     decision ||
     summaryBody ||
     hasTryLine ||
-    planBody ||
+    advancedBody ||
     playerSurface.probeRows.length ||
     playerSurface.authorRows.length
   );
@@ -724,7 +724,7 @@ function buildMoveReviewScenes(
     });
   }
 
-  if (planBody) {
+  if (advancedBody) {
     scenes.push({
       key: 'plan',
       label: 'Plan',
@@ -733,7 +733,7 @@ function buildMoveReviewScenes(
       controlLabel: 'Make plan',
       title: 'What to watch next',
       kicker: 'Plan',
-      body: planBody,
+      body: advancedBody,
       board: boardPayloadForRef(planRef),
       boardTitle: 'Plan position',
       boardSubtitle: planSourceRows[0]?.label || null,

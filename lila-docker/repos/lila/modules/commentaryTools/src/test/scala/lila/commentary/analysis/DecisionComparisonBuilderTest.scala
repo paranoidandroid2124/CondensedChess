@@ -532,13 +532,15 @@ class DecisionComparisonBuilderTest extends FunSuite:
     assertEquals(comparison.comparedMove, Some("c3"))
     assertEquals(comparison.comparativeSource, Some(DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource))
     assert(DecisionComparisonComparativeSupport.roleAwareLineConsequenceAccepted(comparison, Some(contract)), clue(comparison))
-    assert(comparison.comparativeConsequence.exists(_.contains("Ne3 reaches a material transition")), clue(comparison))
+    assert(comparison.comparativeConsequence.exists(_.contains("Ne3 reaches a capture leaving Black with an isolated pawn on h4")), clue(comparison))
     assert(comparison.comparativeConsequence.exists(_.contains("Rxd1+")), clue(comparison))
     assert(comparison.comparativeConsequence.exists(_.contains("c3 stays on the played branch")), clue(comparison))
     val branchEvidence = comparison.roleAwareBranchEvidence.getOrElse(fail("missing branch evidence"))
+    assertEquals(branchEvidence.engineBest.kind, LineConsequenceKind.CaptureStructureTransition)
+    assert(branchEvidence.engineBest.structureDetails.exists(detail => detail.kind == "isolated_pawn" && detail.square.contains("h4")), clue(branchEvidence))
     assert(branchEvidence.evidenceRefs.contains("engine_best:line_consequence_line_id:line_01"), clue(branchEvidence))
     assert(branchEvidence.evidenceRefs.contains("played:line_consequence_line_id:line_04"), clue(branchEvidence))
-    assert(branchEvidence.guardrails.exists(_.contains("engine_best:line_consequence_kind:material_transition")), clue(branchEvidence))
+    assert(branchEvidence.guardrails.exists(_.contains("engine_best:line_consequence_kind:capture_structure_transition")), clue(branchEvidence))
     assert(branchEvidence.guardrails.exists(_.contains("played:line_consequence_kind:preview_only")), clue(branchEvidence))
   }
 
@@ -709,11 +711,16 @@ class DecisionComparisonBuilderTest extends FunSuite:
 
     assertEquals(comparison.comparedMove, Some("gxf5"))
     assertEquals(comparison.comparativeSource, Some(DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource))
-    assert(comparison.comparativeConsequence.exists(_.contains("exf5 reaches a material transition")), clue(comparison))
-    assert(comparison.comparativeConsequence.exists(_.contains("gxf5 reaches a different material transition")), clue(comparison))
+    assert(comparison.comparativeConsequence.exists(_.contains("exf5 reaches a capture leaving White with doubled pawns on the f-file and a semi-open e-file for White")), clue(comparison))
+    assert(comparison.comparativeConsequence.exists(_.contains("gxf5 reaches a capture leaving White with doubled pawns on the f-file and White with an isolated pawn on h4")), clue(comparison))
     assert(comparison.comparativeConsequence.exists(_.contains("about 96cp")), clue(comparison))
-    assert(comparison.roleAwareBranchEvidence.exists(_.evidenceRefs.contains("engine_best:line_consequence_line_id:best")), clue(comparison))
-    assert(comparison.roleAwareBranchEvidence.exists(_.evidenceRefs.contains("played:line_consequence_line_id:played")), clue(comparison))
+    val branchEvidence = comparison.roleAwareBranchEvidence.getOrElse(fail("missing branch evidence"))
+    assertEquals(branchEvidence.engineBest.kind, LineConsequenceKind.CaptureStructureTransition)
+    assertEquals(branchEvidence.played.kind, LineConsequenceKind.CaptureStructureTransition)
+    assert(branchEvidence.engineBest.structureDetails.exists(detail => detail.kind == "semi_open_file" && detail.file.contains("e")), clue(branchEvidence))
+    assert(branchEvidence.played.structureDetails.exists(detail => detail.kind == "isolated_pawn" && detail.square.contains("h4")), clue(branchEvidence))
+    assert(branchEvidence.evidenceRefs.contains("engine_best:line_consequence_line_id:best"), clue(comparison))
+    assert(branchEvidence.evidenceRefs.contains("played:line_consequence_line_id:played"), clue(comparison))
   }
 
   test("cp-gap-only comparison does not invent a comparative consequence") {
