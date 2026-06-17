@@ -227,7 +227,7 @@ describe('review shell contrast palette', () => {
     );
     assert.match(
       sideScss,
-      /\.move-review-player__scene-line-eval\s*\{[\s\S]*?border:\s*1px solid color-mix\(in srgb,\s*#\{\$c-primary\}\s*24%,\s*transparent\);[\s\S]*?background:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*11%,\s*#\{\$c-bg-low\}\);[\s\S]*?font-family:\s*'Roboto Mono', monospace;/,
+      /\.move-review-player__scene-line-eval\s*\{[\s\S]*?border:\s*1px solid color-mix\(in srgb,\s*#\{\$c-primary\}\s*30%,\s*transparent\);[\s\S]*?background:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*15%,\s*#\{\$c-bg-low\}\);[\s\S]*?font-family:\s*'Roboto Mono', monospace;[\s\S]*?font-weight:\s*800;/,
     );
     [...evalGaugeScss.matchAll(/letter-spacing:\s*([^;]+);/g)].forEach(match =>
       assert.equal(match[1]!.trim(), '0', `eval gauge letter-spacing must be 0, got ${match[1]}`),
@@ -243,10 +243,14 @@ describe('review shell contrast palette', () => {
       sideScss,
       /\.move-review-player__board-anchor-label\s*\{[\s\S]*?font-family:\s*'Roboto Mono', monospace;[\s\S]*?font-weight:\s*800;[\s\S]*?color:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*84%,\s*#\{\$c-font\}\);[\s\S]*?text-transform:\s*uppercase;/,
     );
+    assert.match(
+      sideScss,
+      /\.move-review-player__board-anchor-eval-group\s*\{[\s\S]*?flex:\s*1 0 100%;[\s\S]*?border:\s*1px solid color-mix\(in srgb,\s*#\{\$c-primary\}\s*30%,\s*transparent\);[\s\S]*?background:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*14%,\s*#\{\$c-bg-low\}\);/,
+    );
     assert.match(sideScss, /\.move-review-player__board-anchor-move\s*\{[\s\S]*?font-family:\s*'Roboto Mono', monospace;/);
     assert.match(
       sideScss,
-      /\.move-review-player__board-anchor-eval\s*\{[\s\S]*?border:\s*1px solid color-mix\(in srgb,\s*#\{\$c-primary\}\s*24%,\s*transparent\);[\s\S]*?background:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*18%,\s*#\{\$c-bg-low\}\);[\s\S]*?color:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*86%,\s*#\{\$c-font\}\);[\s\S]*?font-size:\s*0\.94rem;[\s\S]*?font-weight:\s*900;/,
+      /\.move-review-player__board-anchor-eval\s*\{[\s\S]*?border:\s*1px solid color-mix\(in srgb,\s*#\{\$c-primary\}\s*34%,\s*transparent\);[\s\S]*?background:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*22%,\s*#\{\$c-bg-low\}\);[\s\S]*?color:\s*color-mix\(in srgb,\s*#\{\$c-primary\}\s*90%,\s*#\{\$c-font\}\);[\s\S]*?font-size:\s*1\.02rem;[\s\S]*?font-weight:\s*900;/,
     );
     assert.match(
       sideScss,

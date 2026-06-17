@@ -108,10 +108,11 @@ describe('moveReview coach surface', () => {
     assert.match(html, /move-review-player__board-shell/);
     assert.match(html, /aria-label="Current Move Review position"/);
     assert.match(html, /move-review-player__board-anchor/);
+    assert.match(html, /class="move-review-player__board-anchor-eval-group" aria-label="Current eval"/);
     assert.match(html, /move-review-player__board-anchor-label">Eval/);
     assert.match(
       html,
-      /move-review-player__board-anchor-label">Eval<\/span>\s*<span class="move-review-player__board-anchor-eval">\+0\.4<\/span>\s*<strong class="move-review-player__board-anchor-scene">Verdict/,
+      /move-review-player__board-anchor-eval-group" aria-label="Current eval">\s*<span class="move-review-player__board-anchor-label">Eval<\/span>\s*<span class="move-review-player__board-anchor-eval">\+0\.4<\/span>\s*<\/span>\s*<strong class="move-review-player__board-anchor-scene">Verdict/,
     );
     assert.match(html, /move-review-player__board-anchor-scene">Verdict/);
     assert.match(html, /move-review-player__board-anchor-move">Nf3/);

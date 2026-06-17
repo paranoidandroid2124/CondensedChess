@@ -843,8 +843,10 @@ export function decorateMoveReviewHtml(
       <div class="move-review-player__stage">
         <aside class="move-review-player__board-shell" aria-label="Current Move Review position">
           <div class="move-review-player__board-anchor" aria-live="polite">
-            <span class="move-review-player__board-anchor-label">Eval</span>
-            <span class="move-review-player__board-anchor-eval"${scenes[0]?.lineEval ? '' : ' hidden'}>${escapeHtml(scenes[0]?.lineEval || '')}</span>
+            <span class="move-review-player__board-anchor-eval-group" aria-label="Current eval">
+              <span class="move-review-player__board-anchor-label">Eval</span>
+              <span class="move-review-player__board-anchor-eval"${scenes[0]?.lineEval ? '' : ' hidden'}>${escapeHtml(scenes[0]?.lineEval || '')}</span>
+            </span>
             <strong class="move-review-player__board-anchor-scene">${escapeHtml(scenes[0]?.label || 'Review')}</strong>
             <span class="move-review-player__board-anchor-move"${scenes[0]?.boardSubtitle ? '' : ' hidden'}>${escapeHtml(scenes[0]?.boardSubtitle || '')}</span>
           </div>
