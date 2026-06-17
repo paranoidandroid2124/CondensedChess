@@ -50,13 +50,13 @@ final class Main(
           Main.HomeQuickAction(
             label = "Move Review",
             title = "Review one game",
-            copy = "Paste a PGN and turn one game into a board-led review.",
+            copy = "Paste a game and turn it into a board-led Move Review.",
             href = routes.Importer.importGame.url
           ),
           Main.HomeQuickAction(
             label = "Board",
             title = "Explore a position",
-            copy = "Use the board, move tree, engine, and explorer when you want to test lines yourself.",
+            copy = "Use the board, notation, eval, and explorer when you want to test lines yourself.",
             href = s"${routes.UserAnalysis.index.url}?mode=raw"
           ),
           Main.HomeQuickAction(

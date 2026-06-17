@@ -21,10 +21,10 @@ object home:
           div(cls := "home-shell")(
             st.section(cls := "home-hero")(
               div(cls := "home-hero__copy")(
-                p(cls := "home-eyebrow")("Study room"),
-                h1("Return to the board first."),
+                p(cls := "home-eyebrow")("Move Review room"),
+                h1("Review the game with the board first."),
                 p(cls := "home-hero__summary")(
-                  "Continue the game, recurring position, or saved study without losing the board that made it matter."
+                  "Open Move Review, recurring positions, or saved studies without losing the board that made the move matter."
                 ),
                 renderContinueCard(data.continueCard)
               ),
@@ -40,8 +40,8 @@ object home:
             ),
             st.section(cls := "home-section home-section--reviews")(
               div(cls := "home-section-head")(
-                strong("Recent guided reviews"),
-                span("Reopen the game as a coach-led review, or return to the board when you want to explore the line.")
+                strong("Recent Move Reviews"),
+                span("Reopen a saved game as Move Review, or return to the board when you want to explore the line.")
               ),
               if data.recentAnalyses.nonEmpty then
                 div(cls := "home-card-grid home-card-grid--analysis")(
@@ -136,8 +136,8 @@ object home:
         )
       case Main.HomeContinueCard.Starter =>
         st.article(cls := "home-continue-card")(
-          p(cls := "home-continue-card__eyebrow")("Start fresh"),
-          h2(cls := "home-continue-card__title")("No recent work yet"),
+          p(cls := "home-continue-card__eyebrow")("Start Move Review"),
+          h2(cls := "home-continue-card__title")("No recent game yet"),
           p(cls := "home-continue-card__summary")(
             "Start from a pasted game, open a board, look up recurring positions, or try the current strategic position."
           ),

@@ -14,6 +14,7 @@ const pgnImportSource = readFileSync(fileURLToPath(new URL('../src/pgnImport.ts'
 const pgnPipelineSource = readFileSync(fileURLToPath(new URL('../src/pgnPipeline.ts', import.meta.url)), 'utf8');
 const moveReviewSource = readFileSync(fileURLToPath(new URL('../src/moveReview.ts', import.meta.url)), 'utf8');
 const moveReviewRenderingSource = readFileSync(fileURLToPath(new URL('../src/moveReview/rendering.ts', import.meta.url)), 'utf8');
+const mainControllerSource = readFileSync(fileURLToPath(new URL('../../../app/controllers/Main.scala', import.meta.url)), 'utf8');
 const analyseViewSource = readFileSync(fileURLToPath(new URL('../../../app/views/analyse.scala', import.meta.url)), 'utf8');
 const basePageSource = readFileSync(fileURLToPath(new URL('../../../app/views/base/page.scala', import.meta.url)), 'utf8');
 const homeSource = readFileSync(fileURLToPath(new URL('../../../app/views/pages/home.scala', import.meta.url)), 'utf8');
@@ -178,6 +179,13 @@ describe('review player copy', () => {
 
   test('keeps home and landing entry points framed as games, not PGN tooling', () => {
     [
+      'Move Review room',
+      'Review the game with the board first.',
+      'Open Move Review, recurring positions, or saved studies',
+      'Recent Move Reviews',
+      'Reopen a saved game as Move Review',
+      'Start Move Review',
+      'No recent game yet',
       'Start from a pasted game',
       'Start from game text',
       'Saved game ready for review',
@@ -185,6 +193,9 @@ describe('review player copy', () => {
       'bring in a public game once',
       'bring in a public account game once',
     ].forEach(copy => assert.match(homeSource, new RegExp(escapeRegExp(copy)), `missing home copy: ${copy}`));
+    ['Paste a game and turn it into a board-led Move Review.', 'board, notation, eval, and explorer'].forEach(copy =>
+      assert.match(mainControllerSource, new RegExp(escapeRegExp(copy)), `missing home action copy: ${copy}`),
+    );
     [
       'Start from game text',
       'public account, a pasted game, or a board',
@@ -201,12 +212,20 @@ describe('review player copy', () => {
       'Saved PGN ready for review',
       'Manual PGN',
       'PGN import',
+      'Paste a PGN and turn one game into a board-led review.',
+      'move tree, engine',
+      'Recent guided reviews',
+      'Return to the board first.',
+      'Continue the game, recurring position, or saved study',
+      'Start fresh',
+      'No recent work yet',
       'Import a game',
       'Import a Lichess or Chess.com username',
       'Board, move list, variations, import',
       'Board, move list, variations, game text',
     ].forEach(copy => {
       assert.doesNotMatch(homeSource, new RegExp(escapeRegExp(copy)), `stale home copy: ${copy}`);
+      assert.doesNotMatch(mainControllerSource, new RegExp(escapeRegExp(copy)), `stale home action copy: ${copy}`);
       assert.doesNotMatch(landingSource, new RegExp(escapeRegExp(copy)), `stale landing copy: ${copy}`);
     });
   });
