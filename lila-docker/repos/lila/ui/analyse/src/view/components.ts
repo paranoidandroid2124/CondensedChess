@@ -233,7 +233,7 @@ function workspaceTools(ctrl: AnalyseCtrl): WorkspaceTool[] {
 
   tools.push({
     id: 'action-menu',
-    label: 'Board setup',
+    label: 'Board view',
     summary: 'Coordinates, moves, and review cues',
     icon: licon.Hamburger,
     active: ctrl.activeControlBarTool() === 'action-menu',
@@ -252,7 +252,7 @@ function renderWorkspaceDock(ctrl: AnalyseCtrl): VNode {
       hl(
         'span',
         activeTool
-          ? 'Move between openings, coach review, and board setup without losing the current move.'
+          ? 'Move between openings, Move Review, and board view without losing the current move.'
           : 'Open what you need while the board and moves stay anchored.',
       ),
     ]),

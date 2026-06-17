@@ -67,7 +67,7 @@ export function renderControls(ctrl: AnalyseCtrl) {
         'button.fbt',
         {
           class: { active: activeTool === 'action-menu' },
-          attrs: { title: reviewShell ? 'Board setup' : 'Menu', 'data-act': 'menu' },
+          attrs: { title: reviewShell ? 'Board view' : 'Menu', 'data-act': 'menu' },
         },
         [icon(licon.Hamburger as any)],
       ),

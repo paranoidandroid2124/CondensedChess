@@ -42,7 +42,7 @@ describe('review player copy', () => {
       'Opening context',
       'Score sheet',
       'Load a game',
-      'Board setup',
+      'Board view',
       'Move Review',
       'Eval and lines',
       'Book context',
@@ -63,12 +63,16 @@ describe('review player copy', () => {
       'Coach review',
       'Coach lesson',
       'Review board',
+      'Board setup',
     ].forEach(copy => assert.doesNotMatch(reviewViewSource, new RegExp(escapeRegExp(copy)), `stale tool copy: ${copy}`));
   });
 
   test('keeps review controls aligned with the review player labels', () => {
-    ['Opening context', 'Board setup', 'Toggle candidate lines'].forEach(copy =>
+    ['Opening context', 'Board view', 'Toggle candidate lines'].forEach(copy =>
       assert.match(controlsSource, new RegExp(escapeRegExp(copy)), `missing control copy: ${copy}`),
+    );
+    ['Board view', 'Move between openings, Move Review, and board view without losing the current move.'].forEach(copy =>
+      assert.match(componentsSource, new RegExp(escapeRegExp(copy)), `missing dock copy: ${copy}`),
     );
     [
       'Analysis',
@@ -81,7 +85,7 @@ describe('review player copy', () => {
       'Line branches',
       'Line emphasis',
     ].forEach(copy =>
-      assert.match(actionMenuSource, new RegExp(escapeRegExp(copy)), `missing board setup copy: ${copy}`),
+      assert.match(actionMenuSource, new RegExp(escapeRegExp(copy)), `missing board view copy: ${copy}`),
     );
     [
       'Reference lines',
@@ -96,8 +100,12 @@ describe('review player copy', () => {
       'Variation handles',
       'Variation opacity',
       'Disclosure buttons',
+      'Board setup',
     ].forEach(copy =>
-      assert.doesNotMatch(actionMenuSource, new RegExp(escapeRegExp(copy)), `stale board setup copy: ${copy}`),
+      assert.doesNotMatch(actionMenuSource, new RegExp(escapeRegExp(copy)), `stale board view copy: ${copy}`),
+    );
+    ['Board setup', 'coach review'].forEach(copy =>
+      assert.doesNotMatch(componentsSource, new RegExp(escapeRegExp(copy)), `stale dock copy: ${copy}`),
     );
   });
 

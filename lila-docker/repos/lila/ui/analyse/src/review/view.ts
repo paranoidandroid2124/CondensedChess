@@ -20,7 +20,7 @@ const tabs: [ReviewPrimaryTab, string, string][] = [
   ['explorer', 'Opening', 'Book context'],
   ['moves', 'Moves', 'Score sheet'],
   ['import', 'Load', 'Bring in a game'],
-  ['board', 'Setup', 'Board setup'],
+  ['board', 'Board', 'Board view'],
 ];
 
 export function reviewView(ctrl: AnalyseCtrl, nodes: ReviewViewNodes): VNode {
@@ -63,7 +63,7 @@ function renderTab(ctrl: AnalyseCtrl, nodes: ReviewViewNodes, tab: ReviewPrimary
     case 'import':
       return panel('Load a game', [nodes.importNode]);
     case 'board':
-      return panel('Board setup', nodes.boardSettingsNodes);
+      return panel('Board view', nodes.boardSettingsNodes);
     default:
       return panel('Move Review', [
         hl('div.analyse-review__explain-card', [
