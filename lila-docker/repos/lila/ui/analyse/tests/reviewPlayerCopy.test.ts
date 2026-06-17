@@ -43,7 +43,7 @@ describe('review player copy', () => {
       'Score sheet',
       'Load a game',
       'Board setup',
-      'Coach lesson',
+      'Move Review',
       'Eval and lines',
       'Book context',
       'Bring in a game',
@@ -60,6 +60,8 @@ describe('review player copy', () => {
       'No review content yet.',
       'Review scene',
       'Compare lines',
+      'Coach review',
+      'Coach lesson',
     ].forEach(copy => assert.doesNotMatch(reviewViewSource, new RegExp(escapeRegExp(copy)), `stale tool copy: ${copy}`));
   });
 
@@ -136,13 +138,14 @@ describe('review player copy', () => {
   });
 
   test('keeps loading copy framed as a review, not a technical job', () => {
-    ['Position', 'Candidate lines', 'Coach lesson', 'Board replay'].forEach(copy =>
+    ['Position', 'Candidate lines', 'Move Review', 'Board replay'].forEach(copy =>
       assert.match(moveReviewSource, new RegExp(escapeRegExp(copy)), `missing loading copy: ${copy}`),
     );
     assert.match(moveReviewSource, /Review \$\{step\}\/4/);
     assert.match(moveReviewSource, /Preparing the board replay/);
     assert.doesNotMatch(moveReviewSource, /Step \$\{step\}\/4/);
     assert.doesNotMatch(moveReviewSource, /Preparing the final review/);
+    assert.doesNotMatch(moveReviewSource, /Coach lesson/);
   });
 
   test('keeps current-move help framed as a player question', () => {
@@ -288,6 +291,10 @@ describe('review player copy', () => {
   });
 
   test('keeps recent board history framed as study, not analysis work', () => {
+    assert.match(componentsSource, /Board and eval in view/);
+    assert.match(componentsSource, /Keep this board and eval visible as the review changes\./);
+    assert.doesNotMatch(componentsSource, /Board in view/);
+    assert.doesNotMatch(componentsSource, /Keep this board visible as the review changes\./);
     assert.match(componentsSource, /Studied/);
     assert.match(componentsSource, /saved games/);
     assert.doesNotMatch(componentsSource, /['"`]Analysed['"`]/);

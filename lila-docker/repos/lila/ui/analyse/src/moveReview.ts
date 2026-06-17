@@ -63,7 +63,7 @@ const loadingStageOrder: Record<LoadingStage, number> = {
 const loadingStageTitle: Record<LoadingStage, string> = {
     position: 'Position',
     lines: 'Candidate lines',
-    compose: 'Coach lesson',
+    compose: 'Move Review',
     polish: 'Board replay',
 };
 

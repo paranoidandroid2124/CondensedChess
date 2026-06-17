@@ -15,7 +15,7 @@ export type ReviewViewNodes = {
 };
 
 const tabs: [ReviewPrimaryTab, string, string][] = [
-  ['explain', 'Coach', 'Coach lesson'],
+  ['explain', 'Review', 'Move Review'],
   ['engine', 'Candidates', 'Eval and lines'],
   ['explorer', 'Opening', 'Book context'],
   ['moves', 'Moves', 'Score sheet'],
@@ -65,7 +65,7 @@ function renderTab(ctrl: AnalyseCtrl, nodes: ReviewViewNodes, tab: ReviewPrimary
     case 'board':
       return panel('Board setup', nodes.boardSettingsNodes);
     default:
-      return panel('Coach review', [
+      return panel('Move Review', [
         hl('div.analyse-review__explain-card', [
           moveReviewToggleBox(ctrl),
           nodes.cevalNode,

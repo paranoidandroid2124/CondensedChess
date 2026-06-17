@@ -307,12 +307,12 @@ export function renderTools({ ctrl, concealOf, allowVideo }: ViewContext, embedd
         },
         [
           hl('div.analyse-review__mobile-board-copy', [
-            hl('strong', 'Board in view'),
+            hl('strong', 'Board and eval in view'),
             hl(
               'span',
               ctrl.node.ply > 0
-                ? `Move ${plyToTurn(ctrl.node.ply)} position. Keep this board visible as the review changes.`
-                : 'Start position. Keep this board visible as the review changes.',
+                ? `Move ${plyToTurn(ctrl.node.ply)} position. Keep this board and eval visible as the review changes.`
+                : 'Start position. Keep this board and eval visible as the review changes.',
             ),
           ]),
           boardPreview,
