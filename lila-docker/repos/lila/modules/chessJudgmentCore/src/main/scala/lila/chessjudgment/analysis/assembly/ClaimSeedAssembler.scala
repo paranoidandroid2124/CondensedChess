@@ -16,7 +16,7 @@ object ClaimSeedAssembler:
   def enrich(assembly: ChessIdeaAssembly): ClaimSeedAssembly =
     val allocator = JudgmentProvenanceAllocator.forInput(assembly.input)
     val context = assembly.context
-    val claims =
+    val claimCandidates =
       context.ideas.map { idea =>
         ClaimComposer.fromIdea(
           id = allocator.evidenceId(s"claim:${allocator.key(idea.ref.family)}:${allocator.key(idea.ref.id)}"),
@@ -27,6 +27,8 @@ object ClaimSeedAssembler:
           confidence = idea.confidence
         )
       }
+    val claimGraph = ClaimCandidateGraphAssembler.fromClaims(claimCandidates, context.evidenceGraph)
+    val claims = ClaimArbitrator.rank(claimGraph, context.relativeAssessments)
     val claimRecords = claims.map(claim => ClaimComposer.evidenceRecord(s"${claim.id}:evidence", claim))
     val withEvidence = context.withEvidence(claimRecords)
     val withClaims = claims.foldLeft(withEvidence)((ctx, claim) => ctx.withClaim(claim))
