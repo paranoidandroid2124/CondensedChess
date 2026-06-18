@@ -2,8 +2,8 @@ package lila.chessjudgment.analysis.strategic
 
 import chess._
 import chess.Bitboard
-import lila.chessjudgment.analysis.BreakFileToken
-import lila.chessjudgment.analysis.TacticalRelationEvidence
+import lila.chessjudgment.analysis.evaluation.PerspectiveMath
+import lila.chessjudgment.analysis.tactical.TacticalRelationEvidence
 import lila.chessjudgment.analysis.structure.WeaknessTargetProfile
 import lila.chessjudgment.model._
 import lila.chessjudgment.model.strategic._
@@ -52,7 +52,7 @@ trait PracticalityScorer {
 class ProphylaxisAnalyzerImpl extends ProphylaxisAnalyzer {
   def analyze(fen: String, board: Board, color: Color, mainLine: VariationLine, threatLine: Option[VariationLine], explicitPlanId: Option[String] = None): List[PreventedPlan] = {
     val threatPlans = threatLine.flatMap { threat =>
-       val scoreDiff = lila.chessjudgment.analysis.PerspectiveMath.improvementForMover(
+       val scoreDiff = PerspectiveMath.improvementForMover(
          color,
          mainLine.effectiveScore,
          threat.effectiveScore

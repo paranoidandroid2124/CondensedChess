@@ -4,7 +4,7 @@ import _root_.chess.{ Board, Color, File, Pawn, Square }
 import _root_.chess.format.{ Fen, Uci }
 import _root_.chess.variant.Standard
 
-import lila.chessjudgment.analysis.PositionAnalyzer
+import lila.chessjudgment.analysis.position.PositionAnalyzer
 
 private[chessjudgment] final case class WeaknessTargetProfile(
     targetSquare: String,

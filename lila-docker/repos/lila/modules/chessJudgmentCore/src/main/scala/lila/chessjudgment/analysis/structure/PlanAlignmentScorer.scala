@@ -1,7 +1,7 @@
 package lila.chessjudgment.analysis.structure
 
 import chess.Color
-import lila.chessjudgment.analysis.positionAssessment.PawnPlayAnalysis
+import lila.chessjudgment.analysis.singlePosition.PawnPlayAnalysis
 import lila.chessjudgment.model.{ Motif, PlanMatch }
 import lila.chessjudgment.model.structure.{ AlignmentBand, CenterState, PlanAlignment, StructureId, StructureProfile, StructuralPlaybookEntry }
 

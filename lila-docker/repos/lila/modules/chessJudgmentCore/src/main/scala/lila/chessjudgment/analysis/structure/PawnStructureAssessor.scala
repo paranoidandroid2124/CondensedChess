@@ -1,7 +1,7 @@
 package lila.chessjudgment.analysis.structure
 
 import chess.*
-import lila.chessjudgment.analysis.PositionFeatures
+import lila.chessjudgment.analysis.position.PositionFeatures
 import lila.chessjudgment.model.structure.{ CenterState, StructureId, StructureProfile }
 
 /**

@@ -2,7 +2,7 @@ package lila.chessjudgment.analysis.structure
 
 import _root_.chess.{ Board, Color, Pawn, Square }
 
-import lila.chessjudgment.analysis.{ PositionAnalyzer, PositionFeatures }
+import lila.chessjudgment.analysis.position.{ PositionAnalyzer, PositionFeatures }
 
 private[chessjudgment] final case class StructuralDelta(
     openedFiles: List[String] = Nil,

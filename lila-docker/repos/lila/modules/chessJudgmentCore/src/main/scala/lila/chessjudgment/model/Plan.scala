@@ -26,6 +26,14 @@ case class PlanMatch(
     missingSignalIds: List[String] = Nil
 )
 
+case class ActivePlans(
+    primary: PlanMatch,
+    secondary: Option[PlanMatch],
+    suppressed: List[PlanMatch],
+    allPlans: List[PlanMatch],
+    compatibilityEvents: List[CompatibilityEvent] = Nil
+)
+
 case class EvidenceAtom(
     motif: Motif,
     weight: Double

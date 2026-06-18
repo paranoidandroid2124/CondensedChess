@@ -1,7 +1,5 @@
 package lila.chessjudgment.model
 
-import lila.chessjudgment.analysis.PlanMatcher.ActivePlans
-
 /**
  * Tracks plan evolution across moves.
  * 
