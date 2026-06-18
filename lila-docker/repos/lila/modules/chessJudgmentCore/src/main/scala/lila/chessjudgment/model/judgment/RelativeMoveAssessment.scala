@@ -3,13 +3,21 @@ package lila.chessjudgment.model.judgment
 import chess.Color
 import lila.chessjudgment.model.CollapseAnalysis
 
+case class CandidateSetComparison(
+    secondLine: Option[LineNodeRef],
+    bestToSecondGapForMover: Option[Int],
+    candidateCount: Int,
+    onlyMove: Boolean
+)
+
 case class EvalComparison(
     mover: Color,
     referenceLine: LineNodeRef,
     candidateLine: LineNodeRef,
     candidateDeltaForMover: Int,
     cpLossForMover: Int,
-    verdict: MoveChoiceVerdict
+    verdict: MoveChoiceVerdict,
+    candidateSet: Option[CandidateSetComparison] = None
 )
 
 case class RelativeMoveAssessment(

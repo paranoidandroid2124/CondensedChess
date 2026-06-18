@@ -10,6 +10,8 @@ object JudgmentThresholds:
   val BLUNDER_CP = 300
   
   val MISTAKE_CP = 100
+
+  val ONLY_MOVE_GAP_CP = 100
   
   val INACCURACY_CP = 50
   

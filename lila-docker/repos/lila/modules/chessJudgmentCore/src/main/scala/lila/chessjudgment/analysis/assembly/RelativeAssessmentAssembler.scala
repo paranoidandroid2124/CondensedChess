@@ -1,7 +1,7 @@
 package lila.chessjudgment.analysis.assembly
 
 import chess.Color
-import lila.chessjudgment.analysis.evaluation.{ PerspectiveMath, VerdictThresholdPolicy }
+import lila.chessjudgment.analysis.evaluation.{ JudgmentThresholds, PerspectiveMath, VerdictThresholdPolicy }
 import lila.chessjudgment.analysis.transition.TransitionFactNormalizer
 import lila.chessjudgment.model.judgment.*
 
@@ -26,7 +26,7 @@ object RelativeAssessmentAssembler:
     yield
       val allocator = JudgmentProvenanceAllocator.forInput(input)
       val mover = root.sideToMove.getOrElse(input.sideToMove.getOrElse(Color.White))
-      val comparison = compare(mover, reference, candidate)
+      val comparison = compare(mover, reference, candidate, candidateSetComparison(mover, context.lines, reference))
       val counterfactual =
         TransitionFactNormalizer.fromCounterfactual(
           id = allocator.evidenceId(s"counterfactual:played-vs-reference:${candidate.ref.rootMove}"),
@@ -70,7 +70,8 @@ object RelativeAssessmentAssembler:
   private def compare(
       mover: Color,
       reference: CandidateLineNode,
-      candidate: CandidateLineNode
+      candidate: CandidateLineNode,
+      candidateSet: Option[CandidateSetComparison]
   ): EvalComparison =
     val referenceEffective = effectiveWhiteCp(reference)
     val candidateEffective = effectiveWhiteCp(candidate)
@@ -92,7 +93,32 @@ object RelativeAssessmentAssembler:
       candidateLine = candidate.ref,
       candidateDeltaForMover = delta,
       cpLossForMover = loss,
-      verdict = VerdictThresholdPolicy.verdictFromDelta(delta, loss)
+      verdict = VerdictThresholdPolicy.verdictFromDelta(delta, loss),
+      candidateSet = candidateSet
+    )
+
+  private def candidateSetComparison(
+      mover: Color,
+      lines: List[CandidateLineNode],
+      reference: CandidateLineNode
+  ): Option[CandidateSetComparison] =
+    val ordered = lines.sortBy(_.ref.rank)
+    val second = ordered.find(_.ref != reference.ref)
+    val gap =
+      second.map(line =>
+        PerspectiveMath.cpLossForMover(
+          mover = mover,
+          bestWhiteCp = effectiveWhiteCp(reference),
+          playedWhiteCp = effectiveWhiteCp(line)
+        )
+      )
+    Option.when(ordered.nonEmpty)(
+      CandidateSetComparison(
+        secondLine = second.map(_.ref),
+        bestToSecondGapForMover = gap,
+        candidateCount = ordered.size,
+        onlyMove = gap.exists(_ >= JudgmentThresholds.ONLY_MOVE_GAP_CP)
+      )
     )
 
   private def effectiveWhiteCp(line: CandidateLineNode): Int =

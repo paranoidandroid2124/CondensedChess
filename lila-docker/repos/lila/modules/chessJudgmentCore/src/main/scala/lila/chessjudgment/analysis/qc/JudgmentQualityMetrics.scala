@@ -93,7 +93,9 @@ final case class SemanticCoverageMetrics(
     conversionIdeas: Int,
     claimFamilies: Set[ClaimFamily],
     hasRelativeAssessment: Boolean,
-    hasVerdict: Boolean
+    hasVerdict: Boolean,
+    hasCandidateSetComparison: Boolean,
+    hasOnlyMoveSignal: Boolean
 )
 
 object SemanticCoverageMetrics:
@@ -107,7 +109,9 @@ object SemanticCoverageMetrics:
       conversionIdeas = countIdeas(packet, ChessIdeaFamily.Conversion),
       claimFamilies = packet.claims.map(_.family).toSet,
       hasRelativeAssessment = packet.relativeAssessments.nonEmpty,
-      hasVerdict = packet.ideaVerdict.flatMap(_.verdict).nonEmpty
+      hasVerdict = packet.ideaVerdict.flatMap(_.verdict).nonEmpty,
+      hasCandidateSetComparison = packet.relativeAssessments.exists(_.comparison.candidateSet.nonEmpty),
+      hasOnlyMoveSignal = packet.relativeAssessments.exists(_.comparison.candidateSet.exists(_.onlyMove))
     )
 
   private def countIdeas(packet: EvidenceBackedJudgmentPacket, family: ChessIdeaFamily): Int =
