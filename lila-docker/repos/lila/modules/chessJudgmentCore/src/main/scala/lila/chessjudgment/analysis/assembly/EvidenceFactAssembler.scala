@@ -11,7 +11,7 @@ import lila.chessjudgment.analysis.singlePosition.{ PawnPlayAssessor, ThreatPres
 import lila.chessjudgment.analysis.strategic.StrategicFactNormalizer
 import lila.chessjudgment.analysis.structure.{ PawnStructureAssessor, StructuralDeltaAnalyzer }
 import lila.chessjudgment.analysis.tactical.{ RelationFactNormalizer, TacticalRelationEvidence }
-import lila.chessjudgment.analysis.transition.TransitionFactNormalizer
+import lila.chessjudgment.analysis.transition.{ TransitionAnalyzer, TransitionFactNormalizer }
 import lila.chessjudgment.model.{ Fact, Motif }
 import lila.chessjudgment.model.judgment.*
 
@@ -299,7 +299,7 @@ object EvidenceFactAssembler:
       allocator: JudgmentProvenanceAllocator
   ): List[EvidenceRecord] =
     context.position(PositionNodeRole.Before).toList.flatMap { node =>
-      for
+      val records = for
         features <- node.features
         assessment <- node.assessment
         side = node.ref.sideToMove.getOrElse(input.sideToMove.getOrElse(Color.White))
@@ -323,7 +323,8 @@ object EvidenceFactAssembler:
           )
         val scoring = PlanMatcher.matchPlans(motifs, planContext, side)
         val activePlans = PlanMatcher.toActivePlans(scoring.topPlans, scoring.compatibilityEvents)
-        StrategicFactNormalizer.fromPlanPressure(
+        val planPressure =
+          StrategicFactNormalizer.fromPlanPressure(
           id = allocator.evidenceId("plan-pressure:before"),
           scoring = scoring,
           activePlans = activePlans,
@@ -336,6 +337,17 @@ object EvidenceFactAssembler:
             evidenceRefs(context, EvidenceLayer.ThreatPressure, Some(node.ref), None) ++
             context.line(LineNodeRole.BestReference).toList.flatMap(lineParents(context, _))
         )
+        val planTransition =
+          TransitionFactNormalizer.fromPlanTransition(
+            id = allocator.evidenceId("plan-transition:before"),
+            transition = TransitionAnalyzer.analyze(activePlans, None, planContext),
+            position = node.ref,
+            line = context.line(LineNodeRole.BestReference).map(_.ref),
+            scope = EvidenceScope.BeforePosition,
+            parents = planPressure.ref :: planPressure.parents
+          )
+        List(planPressure, planTransition)
+      records.getOrElse(Nil)
     }
 
   private def motifsForPrimaryLine(input: NormalizedMoveReviewInput): List[Motif] =
