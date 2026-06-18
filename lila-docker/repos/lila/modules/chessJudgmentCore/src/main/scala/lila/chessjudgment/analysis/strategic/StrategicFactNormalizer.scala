@@ -15,7 +15,8 @@ object StrategicFactNormalizer:
       confidence: Double,
       position: PositionNodeRef,
       line: Option[LineNodeRef],
-      scope: EvidenceScope
+      scope: EvidenceScope,
+      parents: List[EvidenceRef] = Nil
   ): EvidenceRecord =
     val ref =
       EvidenceRef(
@@ -34,7 +35,8 @@ object StrategicFactNormalizer:
         facts = facts,
         relatedPlans = relatedPlans,
         confidence = confidence
-      )
+      ),
+      parents = parents
     )
 
   def fromPawnStructure(
@@ -43,7 +45,8 @@ object StrategicFactNormalizer:
       alignment: Option[PlanAlignment],
       pawnPlay: Option[PawnPlayAnalysis],
       position: PositionNodeRef,
-      scope: EvidenceScope
+      scope: EvidenceScope,
+      parents: List[EvidenceRef] = Nil
   ): EvidenceRecord =
     val ref =
       EvidenceRef(
@@ -57,7 +60,8 @@ object StrategicFactNormalizer:
       )
     EvidenceRecord(
       ref = ref,
-      payload = PawnStructureFactEvidence(profile, alignment, pawnPlay)
+      payload = PawnStructureFactEvidence(profile, alignment, pawnPlay),
+      parents = parents
     )
 
   def fromThreatPressure(
@@ -65,7 +69,8 @@ object StrategicFactNormalizer:
       threats: ThreatAnalysis,
       position: PositionNodeRef,
       line: Option[LineNodeRef],
-      scope: EvidenceScope
+      scope: EvidenceScope,
+      parents: List[EvidenceRef] = Nil
   ): EvidenceRecord =
     val ref =
       EvidenceRef(
@@ -77,7 +82,7 @@ object StrategicFactNormalizer:
         scope = scope,
         confidence = if threats.insufficientData then EvidenceConfidence.Mixed else EvidenceConfidence.EngineBacked
       )
-    EvidenceRecord(ref = ref, payload = ThreatPressureEvidence(threats))
+    EvidenceRecord(ref = ref, payload = ThreatPressureEvidence(threats), parents = parents)
 
   def fromPlanPressure(
       id: String,
@@ -85,7 +90,8 @@ object StrategicFactNormalizer:
       activePlans: ActivePlans,
       position: PositionNodeRef,
       line: Option[LineNodeRef],
-      scope: EvidenceScope
+      scope: EvidenceScope,
+      parents: List[EvidenceRef] = Nil
   ): EvidenceRecord =
     val ref =
       EvidenceRef(
@@ -97,4 +103,4 @@ object StrategicFactNormalizer:
         scope = scope,
         confidence = if scoring.confidence >= 0.75 then EvidenceConfidence.Mixed else EvidenceConfidence.Heuristic
       )
-    EvidenceRecord(ref = ref, payload = PlanPressureEvidence(scoring, activePlans))
+    EvidenceRecord(ref = ref, payload = PlanPressureEvidence(scoring, activePlans), parents = parents)

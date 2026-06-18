@@ -2,10 +2,10 @@ package lila.chessjudgment.analysis.assembly
 
 import chess.format.Fen
 import chess.variant.Standard
-import lila.chessjudgment.analysis.evaluation.EvalFactNormalizer
+import lila.chessjudgment.analysis.evaluation.{ EvalFactNormalizer, EvaluationPerspectivePolicy }
 import lila.chessjudgment.analysis.line.{ LineFactNormalizer, PrincipalVariationEvidence }
 import lila.chessjudgment.analysis.position.{ FactExtractor, PositionAnalyzer, PositionFactNormalizer }
-import lila.chessjudgment.analysis.singlePosition.{ PvLine, SinglePositionAssessor, SinglePositionFactNormalizer }
+import lila.chessjudgment.analysis.singlePosition.{ SinglePositionAssessor, SinglePositionFactNormalizer }
 import lila.chessjudgment.analysis.transition.TransitionFactNormalizer
 import lila.chessjudgment.model.Fact
 import lila.chessjudgment.model.judgment.*
@@ -61,7 +61,10 @@ object PositionNodeAssembler:
             val assessment =
               SinglePositionAssessor.classify(
                 features = positionFeatures,
-                multiPv = input.lines.map(line => PvLine(line.line.moves, line.line.scoreCp, line.line.mate, line.line.depth)),
+                multiPv = EvaluationPerspectivePolicy.sideToMovePvLines(
+                  sideToMove = ref.sideToMove.getOrElse(position.color),
+                  lines = input.lines.map(_.line)
+                ),
                 currentEval = input.currentEvalCp
               )
             SinglePositionFactNormalizer.fromAssessment(
