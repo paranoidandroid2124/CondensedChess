@@ -33,7 +33,8 @@ final case class SemanticCoverageAggregate(
     conversionIdeaSamples: Int,
     relativeAssessmentSamples: Int,
     candidateSetComparisonSamples: Int,
-    onlyMoveSignalSamples: Int
+    onlyMoveSignalSamples: Int,
+    forcedLineThemeSamples: Int
 )
 
 final case class ClaimPromotionAggregate(
@@ -111,7 +112,8 @@ object MoveReviewCorpusQualityAggregate:
       conversionIdeaSamples = coverage.count(_.conversionIdeas > 0),
       relativeAssessmentSamples = coverage.count(_.hasRelativeAssessment),
       candidateSetComparisonSamples = coverage.count(_.hasCandidateSetComparison),
-      onlyMoveSignalSamples = coverage.count(_.hasOnlyMoveSignal)
+      onlyMoveSignalSamples = coverage.count(_.hasOnlyMoveSignal),
+      forcedLineThemeSamples = coverage.count(_.hasForcedLineTheme)
     )
 
   private def aggregateClaimPromotion(results: List[MoveReviewJudgmentResult]): ClaimPromotionAggregate =

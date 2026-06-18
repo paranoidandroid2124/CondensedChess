@@ -96,7 +96,8 @@ final case class SemanticCoverageMetrics(
     hasRelativeAssessment: Boolean,
     hasVerdict: Boolean,
     hasCandidateSetComparison: Boolean,
-    hasOnlyMoveSignal: Boolean
+    hasOnlyMoveSignal: Boolean,
+    hasForcedLineTheme: Boolean
 )
 
 object SemanticCoverageMetrics:
@@ -113,7 +114,11 @@ object SemanticCoverageMetrics:
       hasRelativeAssessment = packet.relativeAssessments.nonEmpty,
       hasVerdict = packet.ideaVerdict.flatMap(_.verdict).nonEmpty,
       hasCandidateSetComparison = packet.relativeAssessments.exists(_.comparison.candidateSet.nonEmpty),
-      hasOnlyMoveSignal = packet.relativeAssessments.exists(_.comparison.candidateSet.exists(_.onlyMove))
+      hasOnlyMoveSignal = packet.relativeAssessments.exists(_.comparison.candidateSet.exists(_.onlyMove)),
+      hasForcedLineTheme = packet.evidenceGraph.records.exists {
+        case EvidenceRecord(_, LineFactEvidence(_, _, _, _, Some(_)), _) => true
+        case _                                                           => false
+      }
     )
 
   private def countIdeas(packet: EvidenceBackedJudgmentPacket, family: ChessIdeaFamily): Int =

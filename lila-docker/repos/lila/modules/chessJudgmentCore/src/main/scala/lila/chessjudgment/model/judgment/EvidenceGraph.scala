@@ -140,11 +140,17 @@ final case class ThreatPressureEvidence(
 ) extends EvidencePayload:
   val layer: EvidenceLayer = EvidenceLayer.ThreatPressure
 
+final case class ForcedLineThemeEvidence(
+    id: String,
+    lineMoves: List[String]
+)
+
 final case class LineFactEvidence(
     line: LineNodeRef,
     firstMove: Option[String],
     replyMove: Option[String],
-    continuationMoves: List[String]
+    continuationMoves: List[String],
+    forcedTheme: Option[ForcedLineThemeEvidence] = None
 ) extends EvidencePayload:
   val layer: EvidenceLayer = EvidenceLayer.Line
 

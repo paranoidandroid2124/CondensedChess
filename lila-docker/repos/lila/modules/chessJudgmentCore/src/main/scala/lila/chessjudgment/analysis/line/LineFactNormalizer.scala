@@ -9,6 +9,7 @@ object LineFactNormalizer:
       line: CandidateLineNode,
       position: PositionNodeRef,
       scope: EvidenceScope,
+      forcedTheme: Option[ForcedLineThemeEvidence] = None,
       parents: List[EvidenceRef] = Nil
   ): EvidenceRecord =
     val ref =
@@ -27,7 +28,8 @@ object LineFactNormalizer:
         line = line.ref,
         firstMove = line.line.moves.headOption,
         replyMove = line.line.moves.lift(1),
-        continuationMoves = line.line.moves.drop(2)
+        continuationMoves = line.line.moves.drop(2),
+        forcedTheme = forcedTheme
       ),
       parents = parents
     )
@@ -38,6 +40,7 @@ object LineFactNormalizer:
       facts: PrincipalVariationEvidence.LineFacts,
       position: PositionNodeRef,
       scope: EvidenceScope,
+      forcedTheme: Option[ForcedLineThemeEvidence] = None,
       parents: List[EvidenceRef] = Nil
   ): EvidenceRecord =
     val ref =
@@ -56,7 +59,14 @@ object LineFactNormalizer:
         line = lineRef,
         firstMove = Some(facts.first.uci),
         replyMove = facts.reply.map(_.uci),
-        continuationMoves = facts.continuation.toList.map(_.uci) ++ facts.continuationTail.map(_.uci)
+        continuationMoves = facts.continuation.toList.map(_.uci) ++ facts.continuationTail.map(_.uci),
+        forcedTheme = forcedTheme
       ),
       parents = parents
+    )
+
+  def fromForcedTheme(theme: ForcedLineTruth.VerifiedTheme): ForcedLineThemeEvidence =
+    ForcedLineThemeEvidence(
+      id = theme.id,
+      lineMoves = theme.lineMoves
     )

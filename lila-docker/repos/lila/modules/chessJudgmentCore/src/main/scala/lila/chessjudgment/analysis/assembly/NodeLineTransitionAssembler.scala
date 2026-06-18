@@ -3,7 +3,7 @@ package lila.chessjudgment.analysis.assembly
 import chess.format.Fen
 import chess.variant.Standard
 import lila.chessjudgment.analysis.evaluation.{ EvalFactNormalizer, EvaluationPerspectivePolicy }
-import lila.chessjudgment.analysis.line.{ LineFactNormalizer, PrincipalVariationEvidence }
+import lila.chessjudgment.analysis.line.{ ForcedLineTruth, LineFactNormalizer, PrincipalVariationEvidence }
 import lila.chessjudgment.analysis.position.{ FactExtractor, PositionAnalyzer, PositionFactNormalizer }
 import lila.chessjudgment.analysis.singlePosition.{ SinglePositionAssessor, SinglePositionFactNormalizer }
 import lila.chessjudgment.analysis.transition.TransitionFactNormalizer
@@ -143,6 +143,10 @@ object CandidateLineAssembler:
     val scope = scopeFor(line.role)
     val ref = allocator.lineRef(line)
     val validatedFacts = replayFacts(line, root)
+    val forcedTheme =
+      ForcedLineTruth
+        .detect(root.fen, ref.rootMove, List(line.line))
+        .map(LineFactNormalizer.fromForcedTheme)
     val lineEvidence =
       allocator.evidenceRef(
         suffix = s"line:${allocator.key(line.role)}:${line.rank}",
@@ -171,7 +175,8 @@ object CandidateLineAssembler:
             lineRef = ref,
             facts = facts,
             position = root,
-            scope = scope
+            scope = scope,
+            forcedTheme = forcedTheme
           )
         }
         .getOrElse {
@@ -179,7 +184,8 @@ object CandidateLineAssembler:
             id = lineEvidence.id,
             line = node,
             position = root,
-            scope = scope
+            scope = scope,
+            forcedTheme = forcedTheme
           )
         }
     val evalRecord =
