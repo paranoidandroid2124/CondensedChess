@@ -1,13 +1,16 @@
 package lila.chessjudgment.analysis.assembly
 
+import lila.chessjudgment.analysis.qc.JudgmentQualityReport
 import lila.chessjudgment.model.judgment.*
 
 final case class MoveReviewJudgmentResult(
     context: JudgmentAssemblyContext,
     packet: EvidenceBackedJudgmentPacket,
-    validation: JudgmentPacketValidationResult
+    validation: JudgmentPacketValidationResult,
+    quality: JudgmentQualityReport
 ):
   def isValid: Boolean = validation.isValid
+  def isQualityClean: Boolean = quality.audit.isClean
 
 object MoveReviewJudgmentOrchestrator:
 
@@ -20,10 +23,12 @@ object MoveReviewJudgmentOrchestrator:
   def build(raw: RawMoveReviewInput): Option[MoveReviewJudgmentResult] =
     assemble(raw).flatMap { context =>
       JudgmentPacketBuilder.fromAssembly(context).map { packet =>
+        val validation = JudgmentPacketValidator.validate(packet)
         MoveReviewJudgmentResult(
           context = context,
           packet = packet,
-          validation = JudgmentPacketValidator.validate(packet)
+          validation = validation,
+          quality = JudgmentQualityReport.fromPacket(packet, validation)
         )
       }
     }
