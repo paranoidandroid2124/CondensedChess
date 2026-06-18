@@ -113,6 +113,339 @@ object SemanticCoverageMetrics:
   private def countIdeas(packet: EvidenceBackedJudgmentPacket, family: ChessIdeaFamily): Int =
     packet.ideas.count(_.ref.family == family)
 
+enum JudgmentGraphLayer:
+  case InputGraph
+  case PositionEvidence
+  case LineEvaluationEvidence
+  case TacticalTransitionEvidence
+  case StrategicPlanOpeningEvidence
+  case RelativeChoiceAssessment
+  case IdeaSynthesis
+  case ClaimSynthesis
+  case PacketBoundary
+
+enum JudgmentGraphSlot:
+  case BeforePositionNode
+  case AfterPlayedPositionNode
+  case AfterReferencePositionNode
+  case AfterAlternativePositionNode
+  case PlayedLineNode
+  case BestReferenceLineNode
+  case AlternativeLineNode
+  case PlayedTransitionEdge
+  case ReferenceTransitionEdge
+  case AlternativeTransitionEdge
+  case BoardFact
+  case SinglePositionFact
+  case PawnStructureFact
+  case ThreatPressureFact
+  case LineFact
+  case EvalFact
+  case LegalReplayLineFact
+  case MoveMotifFact
+  case MoveTransitionFact
+  case RelationFact
+  case StructuralDeltaFact
+  case StrategicFact
+  case OpeningRouteFact
+  case PlanPressureFact
+  case PlanTransitionFact
+  case RelativeAssessmentFact
+  case CounterfactualFact
+  case TacticalIdea
+  case StrategicIdea
+  case PawnStructureIdea
+  case OpeningIdea
+  case DefensiveIdea
+  case ConversionIdea
+  case EvaluationIdea
+  case TacticalClaim
+  case StrategicClaim
+  case PawnStructureClaim
+  case OpeningClaim
+  case PlanClaim
+  case DefensiveClaim
+  case ConversionClaim
+  case EvaluationClaim
+  case IdeaVerdictSplit
+  case EvidenceLossDiagnostics
+
+enum JudgmentGraphOwner:
+  case NodeLineTransitionAssembler
+  case PositionFactNormalizer
+  case SinglePositionFactNormalizer
+  case LineFactNormalizer
+  case EvalFactNormalizer
+  case MoveMotifNormalizer
+  case MoveTransitionNormalizer
+  case RelationFactNormalizer
+  case StrategicFactNormalizer
+  case OpeningRouteFactNormalizer
+  case TransitionFactNormalizer
+  case RelativeAssessmentAssembler
+  case ChessIdeaAssembler
+  case ClaimSeedAssembler
+  case JudgmentPacketBuilder
+  case EvidenceLossDiagnostics
+
+final case class JudgmentGraphSlotStatus(
+    slot: JudgmentGraphSlot,
+    owner: JudgmentGraphOwner,
+    present: Boolean
+)
+
+final case class JudgmentLayerGapMetric(
+    layer: JudgmentGraphLayer,
+    slots: List[JudgmentGraphSlotStatus]
+):
+  def totalSlots: Int = slots.size
+  def presentSlots: Int = slots.count(_.present)
+  def missingSlots: List[JudgmentGraphSlotStatus] = slots.filterNot(_.present)
+  def gapPercent: Double =
+    if totalSlots == 0 then 0d
+    else missingSlots.size.toDouble / totalSlots.toDouble * 100d
+
+final case class JudgmentLayerGapProfile(
+    layers: List[JudgmentLayerGapMetric]
+):
+  def totalSlots: Int = layers.map(_.totalSlots).sum
+  def presentSlots: Int = layers.map(_.presentSlots).sum
+  def missingSlots: List[JudgmentGraphSlotStatus] = layers.flatMap(_.missingSlots)
+  def overallGapPercent: Double =
+    if totalSlots == 0 then 0d
+    else missingSlots.size.toDouble / totalSlots.toDouble * 100d
+
+object JudgmentLayerGapProfile:
+  def fromPacket(packet: EvidenceBackedJudgmentPacket): JudgmentLayerGapProfile =
+    JudgmentLayerGapProfile(
+      layers = List(
+        layer(
+          JudgmentGraphLayer.InputGraph,
+          slot(
+            JudgmentGraphSlot.BeforePositionNode,
+            JudgmentGraphOwner.NodeLineTransitionAssembler,
+            packet.positions.exists(_.role == PositionNodeRole.Before)
+          ),
+          slot(
+            JudgmentGraphSlot.AfterPlayedPositionNode,
+            JudgmentGraphOwner.NodeLineTransitionAssembler,
+            packet.positions.exists(_.role == PositionNodeRole.AfterPlayed)
+          ),
+          slot(
+            JudgmentGraphSlot.AfterReferencePositionNode,
+            JudgmentGraphOwner.NodeLineTransitionAssembler,
+            packet.positions.exists(_.role == PositionNodeRole.AfterReference)
+          ),
+          slot(
+            JudgmentGraphSlot.AfterAlternativePositionNode,
+            JudgmentGraphOwner.NodeLineTransitionAssembler,
+            packet.positions.exists(_.role == PositionNodeRole.AfterAlternative)
+          ),
+          slot(
+            JudgmentGraphSlot.PlayedLineNode,
+            JudgmentGraphOwner.NodeLineTransitionAssembler,
+            packet.candidateLines.exists(_.role == LineNodeRole.Played)
+          ),
+          slot(
+            JudgmentGraphSlot.BestReferenceLineNode,
+            JudgmentGraphOwner.NodeLineTransitionAssembler,
+            packet.candidateLines.exists(_.role == LineNodeRole.BestReference)
+          ),
+          slot(
+            JudgmentGraphSlot.AlternativeLineNode,
+            JudgmentGraphOwner.NodeLineTransitionAssembler,
+            packet.candidateLines.exists(_.role == LineNodeRole.Alternative)
+          ),
+          slot(
+            JudgmentGraphSlot.PlayedTransitionEdge,
+            JudgmentGraphOwner.NodeLineTransitionAssembler,
+            packet.transitions.exists(_.role == TransitionEdgeRole.Played)
+          ),
+          slot(
+            JudgmentGraphSlot.ReferenceTransitionEdge,
+            JudgmentGraphOwner.NodeLineTransitionAssembler,
+            packet.transitions.exists(_.role == TransitionEdgeRole.Reference)
+          ),
+          slot(
+            JudgmentGraphSlot.AlternativeTransitionEdge,
+            JudgmentGraphOwner.NodeLineTransitionAssembler,
+            packet.transitions.exists(_.role == TransitionEdgeRole.Alternative)
+          )
+        ),
+        layer(
+          JudgmentGraphLayer.PositionEvidence,
+          evidenceSlot(packet, JudgmentGraphSlot.BoardFact, JudgmentGraphOwner.PositionFactNormalizer, EvidenceLayer.Board),
+          evidenceSlot(
+            packet,
+            JudgmentGraphSlot.SinglePositionFact,
+            JudgmentGraphOwner.SinglePositionFactNormalizer,
+            EvidenceLayer.SinglePosition
+          ),
+          evidenceSlot(
+            packet,
+            JudgmentGraphSlot.PawnStructureFact,
+            JudgmentGraphOwner.StrategicFactNormalizer,
+            EvidenceLayer.PawnStructure
+          ),
+          evidenceSlot(
+            packet,
+            JudgmentGraphSlot.ThreatPressureFact,
+            JudgmentGraphOwner.StrategicFactNormalizer,
+            EvidenceLayer.ThreatPressure
+          )
+        ),
+        layer(
+          JudgmentGraphLayer.LineEvaluationEvidence,
+          evidenceSlot(packet, JudgmentGraphSlot.LineFact, JudgmentGraphOwner.LineFactNormalizer, EvidenceLayer.Line),
+          evidenceSlot(packet, JudgmentGraphSlot.EvalFact, JudgmentGraphOwner.EvalFactNormalizer, EvidenceLayer.Eval),
+          slot(
+            JudgmentGraphSlot.LegalReplayLineFact,
+            JudgmentGraphOwner.LineFactNormalizer,
+            packet.evidenceGraph.records.exists(record =>
+              record.ref.layer == EvidenceLayer.Line &&
+                record.ref.confidence == EvidenceConfidence.LegalReplayVerified
+            )
+          )
+        ),
+        layer(
+          JudgmentGraphLayer.TacticalTransitionEvidence,
+          evidenceSlot(
+            packet,
+            JudgmentGraphSlot.MoveMotifFact,
+            JudgmentGraphOwner.MoveMotifNormalizer,
+            EvidenceLayer.MoveMotif
+          ),
+          evidenceSlot(
+            packet,
+            JudgmentGraphSlot.MoveTransitionFact,
+            JudgmentGraphOwner.MoveTransitionNormalizer,
+            EvidenceLayer.MoveTransition
+          ),
+          evidenceSlot(packet, JudgmentGraphSlot.RelationFact, JudgmentGraphOwner.RelationFactNormalizer, EvidenceLayer.Relation),
+          evidenceSlot(
+            packet,
+            JudgmentGraphSlot.StructuralDeltaFact,
+            JudgmentGraphOwner.TransitionFactNormalizer,
+            EvidenceLayer.StructuralDelta
+          )
+        ),
+        layer(
+          JudgmentGraphLayer.StrategicPlanOpeningEvidence,
+          evidenceSlot(packet, JudgmentGraphSlot.StrategicFact, JudgmentGraphOwner.StrategicFactNormalizer, EvidenceLayer.Strategic),
+          evidenceSlot(
+            packet,
+            JudgmentGraphSlot.OpeningRouteFact,
+            JudgmentGraphOwner.OpeningRouteFactNormalizer,
+            EvidenceLayer.OpeningRoute
+          ),
+          evidenceSlot(
+            packet,
+            JudgmentGraphSlot.PlanPressureFact,
+            JudgmentGraphOwner.StrategicFactNormalizer,
+            EvidenceLayer.PlanPressure
+          ),
+          evidenceSlot(
+            packet,
+            JudgmentGraphSlot.PlanTransitionFact,
+            JudgmentGraphOwner.TransitionFactNormalizer,
+            EvidenceLayer.PlanTransition
+          )
+        ),
+        layer(
+          JudgmentGraphLayer.RelativeChoiceAssessment,
+          evidenceSlot(
+            packet,
+            JudgmentGraphSlot.RelativeAssessmentFact,
+            JudgmentGraphOwner.RelativeAssessmentAssembler,
+            EvidenceLayer.RelativeAssessment
+          ),
+          evidenceSlot(
+            packet,
+            JudgmentGraphSlot.CounterfactualFact,
+            JudgmentGraphOwner.RelativeAssessmentAssembler,
+            EvidenceLayer.Counterfactual
+          )
+        ),
+        layer(
+          JudgmentGraphLayer.IdeaSynthesis,
+          ideaSlot(packet, JudgmentGraphSlot.TacticalIdea, ChessIdeaFamily.Tactical),
+          ideaSlot(packet, JudgmentGraphSlot.StrategicIdea, ChessIdeaFamily.Strategic),
+          ideaSlot(packet, JudgmentGraphSlot.PawnStructureIdea, ChessIdeaFamily.PawnStructure),
+          ideaSlot(packet, JudgmentGraphSlot.OpeningIdea, ChessIdeaFamily.Opening),
+          ideaSlot(packet, JudgmentGraphSlot.DefensiveIdea, ChessIdeaFamily.Defensive),
+          ideaSlot(packet, JudgmentGraphSlot.ConversionIdea, ChessIdeaFamily.Conversion),
+          ideaSlot(packet, JudgmentGraphSlot.EvaluationIdea, ChessIdeaFamily.Evaluation)
+        ),
+        layer(
+          JudgmentGraphLayer.ClaimSynthesis,
+          claimSlot(packet, JudgmentGraphSlot.TacticalClaim, ClaimFamily.Tactical),
+          claimSlot(packet, JudgmentGraphSlot.StrategicClaim, ClaimFamily.Strategic),
+          claimSlot(packet, JudgmentGraphSlot.PawnStructureClaim, ClaimFamily.PawnStructure),
+          claimSlot(packet, JudgmentGraphSlot.OpeningClaim, ClaimFamily.Opening),
+          claimSlot(packet, JudgmentGraphSlot.PlanClaim, ClaimFamily.Plan),
+          claimSlot(packet, JudgmentGraphSlot.DefensiveClaim, ClaimFamily.Defensive),
+          claimSlot(packet, JudgmentGraphSlot.ConversionClaim, ClaimFamily.Conversion),
+          claimSlot(packet, JudgmentGraphSlot.EvaluationClaim, ClaimFamily.Evaluation)
+        ),
+        layer(
+          JudgmentGraphLayer.PacketBoundary,
+          slot(
+            JudgmentGraphSlot.IdeaVerdictSplit,
+            JudgmentGraphOwner.JudgmentPacketBuilder,
+            packet.ideaVerdict.nonEmpty
+          ),
+          slot(
+            JudgmentGraphSlot.EvidenceLossDiagnostics,
+            JudgmentGraphOwner.EvidenceLossDiagnostics,
+            packet.diagnostics.coverage.nonEmpty || packet.evidenceGraph.records.nonEmpty
+          )
+        )
+      )
+    )
+
+  private def layer(
+      graphLayer: JudgmentGraphLayer,
+      slots: JudgmentGraphSlotStatus*
+  ): JudgmentLayerGapMetric =
+    JudgmentLayerGapMetric(graphLayer, slots.toList)
+
+  private def slot(
+      graphSlot: JudgmentGraphSlot,
+      owner: JudgmentGraphOwner,
+      present: Boolean
+  ): JudgmentGraphSlotStatus =
+    JudgmentGraphSlotStatus(graphSlot, owner, present)
+
+  private def evidenceSlot(
+      packet: EvidenceBackedJudgmentPacket,
+      graphSlot: JudgmentGraphSlot,
+      owner: JudgmentGraphOwner,
+      evidenceLayer: EvidenceLayer
+  ): JudgmentGraphSlotStatus =
+    slot(graphSlot, owner, packet.evidenceGraph.records.exists(_.ref.layer == evidenceLayer))
+
+  private def ideaSlot(
+      packet: EvidenceBackedJudgmentPacket,
+      graphSlot: JudgmentGraphSlot,
+      family: ChessIdeaFamily
+  ): JudgmentGraphSlotStatus =
+    slot(
+      graphSlot,
+      JudgmentGraphOwner.ChessIdeaAssembler,
+      packet.ideas.exists(_.ref.family == family)
+    )
+
+  private def claimSlot(
+      packet: EvidenceBackedJudgmentPacket,
+      graphSlot: JudgmentGraphSlot,
+      family: ClaimFamily
+  ): JudgmentGraphSlotStatus =
+    slot(
+      graphSlot,
+      JudgmentGraphOwner.ClaimSeedAssembler,
+      packet.claims.exists(_.family == family)
+    )
+
 enum ChessQualityIssueKind:
   case PacketValidationFailed
   case MissingRelativeAssessment
@@ -220,6 +553,7 @@ final case class JudgmentQualityReport(
     graphLoss: GraphLossMetrics,
     claimPromotion: ClaimPromotionMetrics,
     semanticCoverage: SemanticCoverageMetrics,
+    layerGaps: JudgmentLayerGapProfile,
     audit: ChessQualityAudit,
     evidenceLoss: List[EvidenceLossClassification]
 )
@@ -236,6 +570,7 @@ object JudgmentQualityReport:
     val graphLoss = GraphLossMetrics.from(packet.diagnostics, evidenceLoss)
     val claimPromotion = ClaimPromotionMetrics.from(packet)
     val semanticCoverage = SemanticCoverageMetrics.from(packet)
+    val layerGaps = JudgmentLayerGapProfile.fromPacket(packet)
     val audit =
       ChessQualityAudit.from(
         packet = packet,
@@ -248,6 +583,7 @@ object JudgmentQualityReport:
       graphLoss = graphLoss,
       claimPromotion = claimPromotion,
       semanticCoverage = semanticCoverage,
+      layerGaps = layerGaps,
       audit = audit,
       evidenceLoss = evidenceLoss
     )
