@@ -6,6 +6,16 @@ import lila.chessjudgment.model.judgment.*
 
 object TransitionFactNormalizer:
 
+  def fromMoveTransition(edge: MoveTransitionEdge): EvidenceRecord =
+    EvidenceRecord(
+      ref = edge.evidence,
+      payload = MoveTransitionEvidence(
+        moveUci = edge.moveUci,
+        from = edge.from,
+        to = edge.to
+      )
+    )
+
   def fromStructuralDelta(
       id: String,
       delta: StructuralDelta,

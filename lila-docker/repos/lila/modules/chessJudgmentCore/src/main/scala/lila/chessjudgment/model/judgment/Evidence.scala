@@ -21,6 +21,7 @@ enum EvidenceProducer:
   case OpeningRouteProducer
   case ThreatPressureProducer
   case MoveMotifProducer
+  case MoveTransitionProducer
   case StructuralDeltaProducer
   case PlanPressureProducer
   case PlanTransitionProducer

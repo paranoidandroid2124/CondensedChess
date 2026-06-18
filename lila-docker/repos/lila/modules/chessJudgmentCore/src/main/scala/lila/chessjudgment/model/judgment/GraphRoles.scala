@@ -29,6 +29,7 @@ enum EvidenceLayer:
   case Line
   case Eval
   case MoveMotif
+  case MoveTransition
   case Relation
   case StructuralDelta
   case PlanPressure

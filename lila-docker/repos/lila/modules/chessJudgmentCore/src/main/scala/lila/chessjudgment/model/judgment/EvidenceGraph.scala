@@ -162,6 +162,13 @@ final case class MoveMotifEvidence(
 ) extends EvidencePayload:
   val layer: EvidenceLayer = EvidenceLayer.MoveMotif
 
+final case class MoveTransitionEvidence(
+    moveUci: String,
+    from: PositionNodeRef,
+    to: PositionNodeRef
+) extends EvidencePayload:
+  val layer: EvidenceLayer = EvidenceLayer.MoveTransition
+
 final case class RelationFactEvidence(
     kind: RelationFactKind,
     focusSquares: List[EvidenceSquare],
