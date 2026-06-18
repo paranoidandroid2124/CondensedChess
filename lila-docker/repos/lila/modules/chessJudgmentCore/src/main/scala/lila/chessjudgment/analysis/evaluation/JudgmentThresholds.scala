@@ -5,15 +5,9 @@ package lila.chessjudgment.analysis.evaluation
  */
 object JudgmentThresholds:
 
-  val PLAYABLE_LOSS_CP = 25
+  val PLAYABLE_LOSS_WP = 2.5
   
-  val BLUNDER_CP = 300
-  
-  val MISTAKE_CP = 100
-
-  val ONLY_MOVE_GAP_CP = 100
-  
-  val INACCURACY_CP = 50
+  val ONLY_MOVE_GAP_WP = 10.0
   
   val DOUBLE_QUESTION_CP = 200
   
@@ -32,6 +26,4 @@ object JudgmentThresholds:
 
   /** WinPercent difference thresholds */
   val BLUNDER_WP = 20.0
-  val MISTAKE_WP = 10.0
   val INACCURACY_WP = 5.0
-  val CATASTROPHIC_WP = 25.0

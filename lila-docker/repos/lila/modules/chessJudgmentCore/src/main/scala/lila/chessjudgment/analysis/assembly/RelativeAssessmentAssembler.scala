@@ -81,8 +81,20 @@ object RelativeAssessmentAssembler:
         defendedWhiteCp = candidateEffective,
         threatWhiteCp = referenceEffective
       )
+    val winPercentDelta =
+      PerspectiveMath.winPercentImprovementForMover(
+        mover = mover,
+        defendedWhiteCp = candidateEffective,
+        threatWhiteCp = referenceEffective
+      )
     val loss =
       PerspectiveMath.cpLossForMover(
+        mover = mover,
+        bestWhiteCp = referenceEffective,
+        playedWhiteCp = candidateEffective
+      )
+    val winPercentLoss =
+      PerspectiveMath.winPercentLossForMover(
         mover = mover,
         bestWhiteCp = referenceEffective,
         playedWhiteCp = candidateEffective
@@ -92,8 +104,10 @@ object RelativeAssessmentAssembler:
       referenceLine = reference.ref,
       candidateLine = candidate.ref,
       candidateDeltaForMover = delta,
+      candidateWinPercentDeltaForMover = winPercentDelta,
       cpLossForMover = loss,
-      verdict = VerdictThresholdPolicy.verdictFromDelta(delta, loss),
+      winPercentLossForMover = winPercentLoss,
+      verdict = VerdictThresholdPolicy.verdictFromWinPercent(winPercentDelta, winPercentLoss),
       candidateSet = candidateSet
     )
 
@@ -112,12 +126,21 @@ object RelativeAssessmentAssembler:
           playedWhiteCp = effectiveWhiteCp(line)
         )
       )
+    val winPercentGap =
+      second.map(line =>
+        PerspectiveMath.winPercentLossForMover(
+          mover = mover,
+          bestWhiteCp = effectiveWhiteCp(reference),
+          playedWhiteCp = effectiveWhiteCp(line)
+        )
+      )
     Option.when(ordered.nonEmpty)(
       CandidateSetComparison(
         secondLine = second.map(_.ref),
         bestToSecondGapForMover = gap,
+        bestToSecondWinPercentGapForMover = winPercentGap,
         candidateCount = ordered.size,
-        onlyMove = gap.exists(_ >= JudgmentThresholds.ONLY_MOVE_GAP_CP)
+        onlyMove = winPercentGap.exists(_ >= JudgmentThresholds.ONLY_MOVE_GAP_WP)
       )
     )
 

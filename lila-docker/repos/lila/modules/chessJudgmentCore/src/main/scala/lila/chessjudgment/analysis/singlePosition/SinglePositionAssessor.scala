@@ -1,5 +1,6 @@
 package lila.chessjudgment.analysis.singlePosition
 
+import lila.chessjudgment.analysis.evaluation.PerspectiveMath
 import lila.chessjudgment.analysis.position.PositionFeatures
 
 /**
@@ -114,9 +115,9 @@ object SinglePositionAssessor:
     val secondLineEvalCp = multiPv(1).score
     val thirdLineEvalCp = multiPv.lift(2).map(_.score)
 
-    val bestLineWinPercent = winPercentFromCp(bestLineEvalCp)
-    val secondLineWinPercent = winPercentFromCp(secondLineEvalCp)
-    val thirdLineWinPercent = thirdLineEvalCp.map(winPercentFromCp)
+    val bestLineWinPercent = PerspectiveMath.winPercentFromWhiteCp(bestLineEvalCp)
+    val secondLineWinPercent = PerspectiveMath.winPercentFromWhiteCp(secondLineEvalCp)
+    val thirdLineWinPercent = thirdLineEvalCp.map(PerspectiveMath.winPercentFromWhiteCp)
 
     val gapBestToSecondWp = (bestLineWinPercent - secondLineWinPercent).abs
     val spreadTop3Wp = thirdLineWinPercent.map(third => (bestLineWinPercent - third).abs).getOrElse(gapBestToSecondWp)
@@ -155,9 +156,6 @@ object SinglePositionAssessor:
     else if secondCandidateWinPercent < 32.0 then CandidateFailureMode.PositionCollapses
     else CandidateFailureMode.SignificantDisadvantage
 
-  private def winPercentFromCp(cp: Int): Double =
-    val slope = 0.00368208
-    50.0 + 50.0 * (2.0 / (1.0 + math.exp(-slope * cp.toDouble)) - 1.0)
   // 4. GAME PHASE CLASSIFICATION
 
   private def classifyGamePhase(features: PositionFeatures): GamePhaseResult =

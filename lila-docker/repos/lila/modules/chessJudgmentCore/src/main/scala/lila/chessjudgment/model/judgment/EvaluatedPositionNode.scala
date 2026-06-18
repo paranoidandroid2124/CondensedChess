@@ -2,6 +2,7 @@ package lila.chessjudgment.model.judgment
 
 import chess.Color
 import play.api.libs.json._
+import lila.chessjudgment.analysis.evaluation.{ PerspectiveMath, VerdictThresholdPolicy }
 import lila.chessjudgment.model.strategic.VariationLine
 
 case class EvaluatedPositionNode(
@@ -37,7 +38,9 @@ case class MoveChoiceAssessment(
     reference: EvaluatedPositionNode,
     candidate: EvaluatedPositionNode,
     candidateDeltaForMover: Int,
+    candidateWinPercentDeltaForMover: Double,
     cpLossForMover: Int,
+    winPercentLossForMover: Double,
     verdict: MoveChoiceVerdict
 )
 
@@ -51,19 +54,25 @@ object MoveChoiceAssessment:
       if mover.white then candidate.effectiveCp - reference.effectiveCp
       else reference.effectiveCp - candidate.effectiveCp
     val loss = (-candidateDeltaForMover).max(0)
+    val winPercentDelta =
+      PerspectiveMath.winPercentImprovementForMover(
+        mover = mover,
+        defendedWhiteCp = candidate.effectiveCp,
+        threatWhiteCp = reference.effectiveCp
+      )
+    val winPercentLoss =
+      PerspectiveMath.winPercentLossForMover(
+        mover = mover,
+        bestWhiteCp = reference.effectiveCp,
+        playedWhiteCp = candidate.effectiveCp
+      )
     MoveChoiceAssessment(
       mover = mover,
       reference = reference,
       candidate = candidate,
       candidateDeltaForMover = candidateDeltaForMover,
+      candidateWinPercentDeltaForMover = winPercentDelta,
       cpLossForMover = loss,
-      verdict = verdictFromDelta(candidateDeltaForMover, loss)
+      winPercentLossForMover = winPercentLoss,
+      verdict = VerdictThresholdPolicy.verdictFromWinPercent(winPercentDelta, winPercentLoss)
     )
-
-  private def verdictFromDelta(candidateDeltaForMover: Int, cpLossForMover: Int): MoveChoiceVerdict =
-    if candidateDeltaForMover > 0 then MoveChoiceVerdict.ImprovesOnReference
-    else if cpLossForMover == 0 then MoveChoiceVerdict.MatchesReference
-    else if cpLossForMover <= 25 then MoveChoiceVerdict.PlayableLoss
-    else if cpLossForMover <= 80 then MoveChoiceVerdict.Inaccuracy
-    else if cpLossForMover <= 180 then MoveChoiceVerdict.Mistake
-    else MoveChoiceVerdict.Blunder
