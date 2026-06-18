@@ -175,6 +175,110 @@ final class MoveReviewScopedTakeawayTest extends FunSuite:
     assert(!takeaway.text.contains("target evidence"), clue(takeaway.text))
   }
 
+  test("target-pressure takeaway names the immediate target move when the reply leaves the target square") {
+    val first = moveRef("m1", "c4", "b5c4", "fen-after-c4", 26)
+    val reply = moveRef("m2", "Bc2", "d3c2", "fen-after-bc2", 27)
+    val continuation = moveRef("m3", "Bc5", "f8c5", "fen-after-bc5", 28)
+    val line =
+      MoveReviewPvLine.LineFacts(
+        line = MoveReviewVariationRef(
+          lineId = "target_pressure_reply",
+          scoreCp = 31,
+          mate = None,
+          depth = 14,
+          moves = List(first, reply, continuation)
+        ),
+        first = first,
+        reply = Some(reply),
+        continuation = Some(continuation)
+      )
+    val localFact =
+      MoveReviewLocalFact.admitted(MoveReviewLocalFact.Candidate(
+        family = MoveReviewLocalFact.Family.Pressure,
+        source = MoveReviewLocalFact.Source.CanonicalFact,
+        producer = MoveReviewLocalFact.Producer.TargetPressure,
+        subject = MoveReviewLocalFact.Subject.Target,
+        strictFallbackCandidate = true,
+        anchors = List(
+          MoveReviewLocalFact.Anchor("target_square", "d3"),
+          MoveReviewLocalFact.Anchor("target_role", "bishop")
+        ),
+        lineBinding = MoveReviewLocalFact.LineBinding.PvCoupled,
+        guardrails = List("target_fact_attacked_by_played_move", "pv_coupled")
+      ))
+
+    val takeaway =
+      MoveReviewScopedTakeaway
+        .build(
+          purpose = "create_tactical_threat",
+          played = played("b5c4", "c4", Square.B5, Square.C4),
+          evidence = evidence(openingGoal = None),
+          lineFacts = Some(line),
+          localFact = localFact
+        )
+        .getOrElse(fail("expected target-pressure takeaway"))
+
+    assertEquals(
+      takeaway.text,
+      "The PV keeps the pressure on the d3 bishop local to c4: Bc2 moves that bishop from d3."
+    )
+  }
+
+  test("actual Qd5 file-entry takeaway does not expose internal authority wording") {
+    val first = moveRef("m1", "Qd5", "c5d5", "fen-after-qd5", 50)
+    val reply = moveRef("m2", "Qe7", "e4e7", "fen-after-qe7", 51)
+    val continuation = moveRef("m3", "Qd4", "d5d4", "fen-after-qd4", 52)
+    val qd5Line =
+      MoveReviewPvLine.LineFacts(
+        line = MoveReviewVariationRef(
+          lineId = "actual_qd5_file_entry",
+          scoreCp = 70,
+          mate = None,
+          depth = 10,
+          moves = List(first, reply, continuation)
+        ),
+        first = first,
+        reply = Some(reply),
+        continuation = Some(continuation)
+      )
+    val localFact =
+      MoveReviewLocalFact.admitted(MoveReviewLocalFact.Candidate(
+        family = MoveReviewLocalFact.Family.Pressure,
+        source = MoveReviewLocalFact.Source.CertifiedStrategy,
+        producer = MoveReviewLocalFact.Producer.CertifiedStrategyDelta,
+        subject = MoveReviewLocalFact.Subject.PlayedMove,
+        strictFallbackCandidate = true,
+        anchors = List(
+          MoveReviewLocalFact.Anchor("strategic_idea_kind", "line_occupation"),
+          MoveReviewLocalFact.Anchor("line_file", "d"),
+          MoveReviewLocalFact.Anchor("line_file_status", "open")
+        ),
+        lineBinding = MoveReviewLocalFact.LineBinding.PvCoupled,
+        evidenceRefs = List(
+          "strategic_idea_kind:line_occupation",
+          "line_occupation_file:d",
+          "line_occupation_status:open"
+        ),
+        guardrails = List("actual_qd5_file_entry")
+      ))
+
+    val takeaway =
+      MoveReviewScopedTakeaway
+        .build(
+          purpose = "quiet_improvement",
+          played = played("c5d5", "Qd5", Square.C5, Square.D5),
+          evidence = evidence(openingGoal = None),
+          lineFacts = Some(qd5Line),
+          localFact = localFact
+        )
+        .getOrElse(fail("expected Qd5 file-entry scoped takeaway"))
+
+    assertEquals(
+      takeaway.text,
+      "The PV keeps the open d-file occupation local to Qd5: the checked continuation begins with Qe7."
+    )
+  }
+
   test("does not render tactical or defensive scoped prose from line-only admission") {
     val current = played("f1c4", "Bc4", Square.F1, Square.C4)
     val line = Some(lineFacts("line_only"))

@@ -4,7 +4,7 @@ import _root_.chess.{ Color, File, Rook, Square }
 
 import lila.commentary.{ StrategicIdeaKind, StrategicIdeaReadiness, StrategyPack }
 import lila.commentary.analysis.{ PositionFeatures, StrategicIdeaSemanticContext, StrategicStateFeatures }
-import lila.commentary.model.FactScope
+import lila.commentary.model.{ FactScope, Motif }
 import lila.commentary.model.strategic.{ EndgameFeature, PositionalTag, PreventedPlan, TheoreticalOutcomeHint }
 import munit.FunSuite
 
@@ -102,6 +102,50 @@ class StrategicIdeaEvidencePipelineTest extends FunSuite:
     assert(counterplaySuppression.exists(_.factIds.exists(_.wireKey == "counterplay_suppression_shape")), clues(observations))
     assert(counterplaySuppression.exists(_.factIds.exists(_.wireKey == "counterplay_break_denial")), clues(observations))
     assert(observations.flatMap(_.factIds).forall(fact => !fact.wireKey.startsWith("source:")))
+  }
+
+  test("back-rank passer in real forcing-defense row does not emit conversion evidence") {
+    val semantic =
+      StrategicIdeaSemanticContext
+        .empty("white")
+        .copy(
+          fen = "r3k2r/p4p1p/p2Bp3/5p2/3Rb3/8/PPP2P1P/2K3R1 w kq - 0 18",
+          phase = "middlegame",
+          motifs =
+            List(
+              Motif.PassedPawn(File.C, 2, Color.White, isProtected = false, plyIndex = 35, move = None)
+            )
+        )
+
+    val observations =
+      StrategicIdeaEvidencePipeline.collect(StrategyPack(sideToMove = "white"), semantic)
+
+    assert(
+      !observations.exists(_.source == StrategicObservationIds.EvidenceSourceId.PassedPawnConversionMotif),
+      clues(observations)
+    )
+  }
+
+  test("central passer in real file-pressure row does not emit conversion evidence") {
+    val semantic =
+      StrategicIdeaSemanticContext
+        .empty("black")
+        .copy(
+          fen = "rn2rbk1/3q1pp1/3p3p/1p1P1b1n/p2N4/P4P1P/BP1N1BP1/2RQ1RK1 b - - 4 21",
+          phase = "middlegame",
+          motifs =
+            List(
+              Motif.PassedPawn(File.D, 4, Color.Black, isProtected = false, plyIndex = 42, move = None)
+            )
+        )
+
+    val observations =
+      StrategicIdeaEvidencePipeline.collect(StrategyPack(sideToMove = "black"), semantic)
+
+    assert(
+      !observations.exists(_.source == StrategicObservationIds.EvidenceSourceId.PassedPawnConversionMotif),
+      clues(observations)
+    )
   }
 
   test("endgame win hint alone does not create winning transition evidence") {

@@ -677,7 +677,7 @@ object CommentarySceneCoverageCollectionMaterializer:
       .sortBy { row =>
         (
           statusOrder.getOrElse(row.status, Int.MaxValue),
-          row.moveReviewFallbackMode.contains("planner_owned"),
+          row.moveReviewFallbackMode.exists(MoveReviewFallbackMode.isPlannerOwned),
           row.directSources.isEmpty,
           !row.quietnessVerified.getOrElse(false),
           row.quietnessSpreadCp.getOrElse(Int.MaxValue),
@@ -748,7 +748,7 @@ object CommentarySceneCoverageCollectionMaterializer:
     }
 
   private def prophylaxisFailureMode(quietRow: QuietRichRow): String =
-    if quietRow.moveReviewFallbackMode.contains("planner_owned") then "owner_starvation"
+    if quietRow.moveReviewFallbackMode.exists(MoveReviewFallbackMode.isPlannerOwned) then "owner_starvation"
     else if quietRow.directSources.isEmpty then "support_only_overuse"
     else "scene_misclassification"
 

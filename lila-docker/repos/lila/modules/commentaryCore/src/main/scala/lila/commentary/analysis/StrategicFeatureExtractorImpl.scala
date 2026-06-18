@@ -70,7 +70,9 @@ class StrategicFeatureExtractorImpl(
         // Prefer probe-backed played line so counterfactual causality can use >=2 ply.
         val probeLine = buildProbeCounterfactualLine(move).filter(_.moves.size >= 2)
         // Fallback: synthetic one-ply line when no probe evidence is available.
-        val worstScore = vars.map(_.effectiveScore).minOption.getOrElse(0) - 50
+        val worstScore =
+          if color.white then vars.map(_.effectiveScore).minOption.getOrElse(0) - 50
+          else vars.map(_.effectiveScore).maxOption.getOrElse(0) + 50
         val playedLine = probeLine.getOrElse(
           VariationLine(
             moves = List(move),

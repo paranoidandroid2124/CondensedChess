@@ -12,6 +12,7 @@ private[commentary] object ContrastiveSupportAdmissibility:
     val DelayedOnlyMove = "delayed_only_move"
     val ExplicitReplyLoss = "explicit_reply_loss"
     val TopEngineMoveWithConcreteConsequence = "top_engine_move_with_concrete_consequence"
+    val PlayedMoveWithCertifiedLocalConsequence = "played_move_with_certified_local_consequence"
     val RoleAwareLineConsequence = "role_aware_line_consequence"
     val CounterfactualCausalThreat = "counterfactual_causal_threat"
 
@@ -49,7 +50,7 @@ private[commentary] object ContrastiveSupportAdmissibility:
     primary.questionKind match
       case AuthorQuestionKind.WhyThis => decideWhyThis(primary, inputs, truthContract)
       case AuthorQuestionKind.WhyNow  => decideWhyNow(primary, inputs, truthContract)
-      case AuthorQuestionKind.WhatChanged => decideWhatChanged(primary, inputs)
+      case AuthorQuestionKind.WhatChanged => decideWhatChanged(primary, inputs, truthContract)
       case AuthorQuestionKind.WhatMustBeStopped => decideWhatMustBeStopped(primary, inputs)
       case _                          => reject(RejectReason.QuestionOutsideScope)
 
@@ -59,7 +60,7 @@ private[commentary] object ContrastiveSupportAdmissibility:
       truthContract: Option[DecisiveTruthContract]
   ): ContrastSupportTrace =
     inputs.decisionComparison
-      .map(decideDecisionComparison(primary, inputs, _, allowTiming = false))
+      .map(decideDecisionComparison(primary, inputs, _, allowTiming = false, truthContract))
       .getOrElse {
         truthContract
           .filter(contract =>
@@ -69,6 +70,7 @@ private[commentary] object ContrastiveSupportAdmissibility:
           .map { case (anchor, consequence, sentence) =>
             allow(SourceKind.DelayedOnlyMove, anchor, consequence, sentence)
           }
+          .orElse(localFactWhyThisSupport(primary, inputs, comparison = None, allowTiming = false, truthContract))
           .getOrElse(reject(RejectReason.MissingContrastCandidate))
       }
 
@@ -99,11 +101,12 @@ private[commentary] object ContrastiveSupportAdmissibility:
 
   private def decideWhatChanged(
       primary: QuestionPlan,
-      inputs: QuestionPlannerInputs
+      inputs: QuestionPlannerInputs,
+      truthContract: Option[DecisiveTruthContract]
   ): ContrastSupportTrace =
     if primary.plannerSource == "decision_comparison" || primary.sourceKinds.exists(sameText(_, "decision_comparison")) then
       inputs.decisionComparison
-        .map(decideDecisionComparison(primary, inputs, _, allowTiming = false))
+        .map(decideDecisionComparison(primary, inputs, _, allowTiming = false, truthContract))
         .getOrElse(reject(RejectReason.MissingContrastCandidate))
     else reject(RejectReason.QuestionOutsideScope)
 
@@ -132,17 +135,22 @@ private[commentary] object ContrastiveSupportAdmissibility:
               )
           )
       case "decision_comparison" =>
-        inputs.decisionComparison.map(decideDecisionComparison(primary, inputs, _, allowTiming = true))
+        inputs.decisionComparison.map(decideDecisionComparison(primary, inputs, _, allowTiming = true, truthContract))
       case _ =>
         bestImmediateThreat(inputs.opponentThreats)
           .flatMap(threatContrast)
           .orElse(inputs.preventedPlansNow.iterator.map(preventedResourceContrast).collectFirst(Function.unlift(identity)))
-          .orElse(inputs.decisionComparison.map(decideDecisionComparison(primary, inputs, _, allowTiming = true)))
+          .orElse(inputs.decisionComparison.map(decideDecisionComparison(primary, inputs, _, allowTiming = true, truthContract)))
 
   private def threatContrast(threat: ThreatRow): Option[ContrastSupportTrace] =
     clean(threat.bestDefense)
       .map { rawDefense =>
         val defense = displayDefense(rawDefense)
+        val threatSquare = threat.square.map(_.trim.toLowerCase).filter(MoveReviewPlayerPayloadBuilder.ChessSquarePattern.matches)
+        val threatKind = clean(threat.kind).map(_.toLowerCase)
+        val distinctThreatTarget = threatSquare.filter(_ != defense.trim.toLowerCase)
+        val threatTargetText =
+          distinctThreatTarget.map(square => s"the ${threatKind.getOrElse("concrete")} threat on $square")
         val forcedReply = threat.defenseCount <= 1 && !coordinateOnly(rawDefense)
         val guardrails =
           (
@@ -152,7 +160,7 @@ private[commentary] object ContrastiveSupportAdmissibility:
               s"reply_defense_count:${threat.defenseCount.max(0)}",
               s"reply_anchor_kind:${replyAnchorKind(rawDefense)}"
             ) ++
-              clean(threat.kind).map(kind => s"threat_kind:${normalize(kind)}") ++
+              threatKind.map(kind => s"threat_kind:${normalize(kind)}") ++
               threat.square.map(square => s"threat_square:${square.trim.toLowerCase}")
           ).distinct
         val evidenceRefs =
@@ -164,11 +172,11 @@ private[commentary] object ContrastiveSupportAdmissibility:
               Some(s"loss_if_ignored_cp:${threat.lossIfIgnoredCp}"),
               Some(s"turns_to_impact:${threat.turnsToImpact}")
             ).flatten ++
-              clean(threat.kind).map(kind => s"threat_kind:${normalize(kind)}") ++
+              threatKind.map(kind => s"threat_kind:${normalize(kind)}") ++
               threat.square.map(square => s"threat_square:${square.trim.toLowerCase}")
           ).distinct
         val consequence =
-          clean(threat.kind).map(kind => s"the opponent's ${kind.toLowerCase} threat lands")
+          threatKind.map(kind => s"the opponent's $kind threat lands")
             .getOrElse("the reply becomes forced")
         allow(
           sourceKind = SourceKind.ExplicitReplyLoss,
@@ -177,6 +185,8 @@ private[commentary] object ContrastiveSupportAdmissibility:
           sentence =
             if coordinateOnly(rawDefense) then s"If delayed, the reply has to address $defense."
             else if threat.defenseCount <= 1 && isUciMove(rawDefense) then s"If delayed, the forced reply goes to $defense."
+            else if threat.defenseCount > 1 && isUciMove(rawDefense) && threatTargetText.nonEmpty then
+              s"If delayed, one defensive reply has to answer ${threatTargetText.get}."
             else if threat.defenseCount > 1 && isUciMove(rawDefense) then s"If delayed, one defensive reply has to address $defense."
             else if threat.defenseCount > 1 then s"If delayed, $defense is one defensive reply."
             else if defense == "the defensive reply" then "If delayed, the reply becomes forced."
@@ -242,14 +252,18 @@ private[commentary] object ContrastiveSupportAdmissibility:
         .orElse(clean(contract.verifiedBestMove))
         .orElse(clean(contract.playedMove))
     anchor
+      .filter(_ => onlyMoveLossMagnitude(contract) >= Thresholds.MISTAKE_CP)
       .map { move =>
         val label = benchmark.getOrElse("the played move")
         (
           move,
           "it is the only move that still holds the position together",
-          s"Only $label still keeps the position together if the move is delayed."
+          s"Only $label still keeps the position together now."
         )
       }
+
+  private def onlyMoveLossMagnitude(contract: DecisiveTruthContract): Int =
+    math.max(contract.cpLoss, contract.swingSeverity)
 
   private def onlyMoveTimingContrast(
       primary: QuestionPlan,
@@ -276,8 +290,11 @@ private[commentary] object ContrastiveSupportAdmissibility:
       primary: QuestionPlan,
       inputs: QuestionPlannerInputs,
       comparison: DecisionComparison,
-      allowTiming: Boolean
+      allowTiming: Boolean,
+      truthContract: Option[DecisiveTruthContract]
   ): ContrastSupportTrace =
+    val directConsequence = decisionComparisonConsequence(comparison)
+    val consequence = resolvedConsequence(primary, inputs, comparison, truthContract)
     clean(comparison.deferredSource) match
       case Some(source)
           if sameText(source, "close_candidate") &&
@@ -293,9 +310,9 @@ private[commentary] object ContrastiveSupportAdmissibility:
             )
           case _ =>
             reject(RejectReason.RawCloseCandidate)
-      case Some(source) if isEngineGapLike(source) && decisionComparisonConsequence(comparison).isEmpty =>
+      case Some(source) if isEngineGapLike(source) && directConsequence.isEmpty && consequence.isEmpty =>
         reject(RejectReason.VagueEnginePreference)
-      case _ if decisionComparisonConsequence(comparison).isEmpty && comparison.cpLossVsChosen.exists(math.abs(_) >= 60) =>
+      case _ if directConsequence.isEmpty && consequence.isEmpty && comparison.cpLossVsChosen.exists(math.abs(_) >= 60) =>
         reject(RejectReason.ExplanationFreeEvalGap)
       case _ =>
         val anchor =
@@ -303,7 +320,6 @@ private[commentary] object ContrastiveSupportAdmissibility:
             .orElse(clean(comparison.deferredMove))
             .orElse(clean(comparison.engineBestMove))
             .orElse(clean(comparison.chosenMove))
-        val consequence = resolvedConsequence(primary, inputs, comparison)
         (anchor, consequence) match
           case (Some(move), Some(value)) if roleAwareComparativeConsequence(comparison).nonEmpty =>
             allow(
@@ -322,6 +338,10 @@ private[commentary] object ContrastiveSupportAdmissibility:
               consequence = value,
               sentence = renderCounterfactualCausalThreatSentence(move, value, allowTiming)
             )
+          case (_, Some(value))
+              if !comparison.chosenMatchesBest && localFactConsequence(primary, inputs, truthContract).exists(local => sameText(local.consequence, value)) =>
+            localFactWhyThisSupport(primary, inputs, Some(comparison), allowTiming, truthContract)
+              .getOrElse(reject(RejectReason.MissingConcreteConsequence))
           case (Some(move), Some(value))
               if clean(comparison.deferredSource).exists(isVerifiedOrTopEngineSource) ||
                 comparison.chosenMatchesBest ||
@@ -358,9 +378,10 @@ private[commentary] object ContrastiveSupportAdmissibility:
   private def resolvedConsequence(
       primary: QuestionPlan,
       inputs: QuestionPlannerInputs,
-      comparison: DecisionComparison
+      comparison: DecisionComparison,
+      truthContract: Option[DecisiveTruthContract] = None
   ): Option[String] =
-    decisionComparisonConsequence(comparison).orElse(fallbackPlannerConsequence(primary, inputs, comparison))
+    decisionComparisonConsequence(comparison).orElse(fallbackPlannerConsequence(primary, inputs, comparison, truthContract))
 
   private def decisionComparisonConsequence(comparison: DecisionComparison): Option[String] =
     exactComparativeConsequence(comparison)
@@ -427,20 +448,356 @@ private[commentary] object ContrastiveSupportAdmissibility:
   private def fallbackPlannerConsequence(
       primary: QuestionPlan,
       inputs: QuestionPlannerInputs,
-      comparison: DecisionComparison
+      comparison: DecisionComparison,
+      truthContract: Option[DecisiveTruthContract]
   ): Option[String] =
-    Option.when(comparison.chosenMatchesBest) {
+    val localConsequence = localFactConsequence(primary, inputs, truthContract).map(_.consequence)
+    Option.when(comparison.chosenMatchesBest || localConsequence.nonEmpty) {
       val certifiedPlannerConsequence =
         primary.consequence
         .filter(_.certified)
         .flatMap(consequence => clean(consequence.text))
-      counterfactualCausalThreatConsequence(inputs)
+      val counterfactualConsequence = counterfactualCausalThreatConsequence(inputs)
         .filter(_ => certifiedPlannerConsequence.exists(looksLikeGenericCounterfactualConsequence))
-        .orElse(certifiedPlannerConsequence)
-        .orElse(derivedInputConsequence(inputs))
-        .filterNot(looksLikeGeneralizedBranch)
-        .filter(looksLikeCertifiedPlannerConsequence)
+      List(
+        counterfactualConsequence,
+        certifiedPlannerConsequence,
+        localConsequence,
+        primaryClaimConsequence(primary, truthContract),
+        derivedInputConsequence(inputs)
+      ).flatten.find(admissibleCertifiedPlannerConsequence)
     }.flatten
+
+  private def primaryClaimConsequence(
+      primary: QuestionPlan,
+      truthContract: Option[DecisiveTruthContract]
+  ): Option[String] =
+    Option.when(localFactConsequenceAllowed(truthContract)) {
+      val sourceKeys = (primary.plannerSource :: primary.sourceKinds).map(_.trim.toLowerCase).toSet
+      if sourceKeys.contains("relation_witness") && primary.admissibilityReasons.exists(sameText(_, "typed_local_fact")) &&
+          primary.admissibilityReasons.exists(reason => sameText(reason, "local_fact_producer:relation_witness"))
+      then relationProseConsequenceText(primary.claim)
+      else if sourceKeys.contains("iqp_inducement_probe") && normalize(primary.claim).contains("isolated pawn") then
+        Some("That leaves an isolated pawn as a local target.")
+      else None
+    }.flatten
+
+  private final case class LocalFactConsequence(
+      detailAnchor: String,
+      consequence: String,
+      evidenceRefs: List[String],
+      guardrails: List[String]
+  )
+
+  private def localFactWhyThisSupport(
+      primary: QuestionPlan,
+      inputs: QuestionPlannerInputs,
+      comparison: Option[DecisionComparison],
+      allowTiming: Boolean,
+      truthContract: Option[DecisiveTruthContract]
+  ): Option[ContrastSupportTrace] =
+    localFactConsequence(primary, inputs, truthContract).flatMap { local =>
+      val moveAnchor =
+        comparison
+          .flatMap(value => clean(value.chosenMove).map(displayDefense))
+          .orElse(playedMoveFromClaim(primary.claim))
+          .orElse(Some(local.detailAnchor))
+      moveAnchor.map { move =>
+        allow(
+          sourceKind = SourceKind.PlayedMoveWithCertifiedLocalConsequence,
+          anchor = move,
+          consequence = local.consequence,
+          sentence = renderPlayedMoveLocalConsequenceSentence(move, local.consequence, allowTiming),
+          evidenceRefs = local.evidenceRefs,
+          guardrails = local.guardrails
+        )
+      }
+    }
+
+  private def localFactConsequence(
+      primary: QuestionPlan,
+      inputs: QuestionPlannerInputs,
+      truthContract: Option[DecisiveTruthContract]
+  ): Option[LocalFactConsequence] =
+    Option.when(primary.questionKind == AuthorQuestionKind.WhyThis && localFactConsequenceAllowed(truthContract)) {
+      inputs.localFactResult
+        .filter(QuestionFirstCommentaryPlanner.localFactResultWhyThisEligible)
+        .filter(result => localFactMatchesPrimary(primary, result))
+        .flatMap(result => localFactConsequence(result))
+    }.flatten
+
+  private def localFactConsequenceAllowed(truthContract: Option[DecisiveTruthContract]): Boolean =
+    truthContract.forall(contract => !contract.isBad)
+
+  private def localFactMatchesPrimary(
+      primary: QuestionPlan,
+      result: MoveReviewExplanationBuilder.Result
+  ): Boolean =
+    sameText(primary.claim, result.explanation.prose) ||
+      primary.plannerSource == result.explanation.source ||
+      primary.sourceKinds.exists(kind => sameText(kind, result.explanation.source) || sameText(kind, "typed_local_fact")) ||
+      localFactCarriesPlannerSource(primary, result.localFact)
+
+  private def localFactCarriesPlannerSource(
+      primary: QuestionPlan,
+      fact: MoveReviewLocalFact.Admission
+  ): Boolean =
+    val selectedSources =
+      (primary.plannerSource :: primary.sourceKinds)
+        .flatMap(clean)
+        .map(_.trim.toLowerCase)
+        .filterNot(source => source == "typed_local_fact" || source == "planner")
+        .toSet
+    selectedSources.nonEmpty && selectedSources.exists(localFactSourceKeys(fact).contains)
+
+  private def localFactSourceKeys(fact: MoveReviewLocalFact.Admission): Set[String] =
+    val prefixes = List("proof_source:", "claim_source:", "typed_local_fact_source:", "evidence_source:", "source:")
+    localFactEvidenceTokens(fact).flatMap { token =>
+      prefixes.collectFirst {
+        case prefix if token.startsWith(prefix) => token.drop(prefix.length).trim
+      }
+    }.filter(_.nonEmpty).toSet
+
+  private def localFactConsequence(result: MoveReviewExplanationBuilder.Result): Option[LocalFactConsequence] =
+    val fact = result.localFact
+    for
+      anchor <- localFactAnchor(fact).orElse(relationWitnessAnchor(fact))
+      consequence <-
+        if fact.producer == MoveReviewLocalFact.Producer.RelationWitness then
+          relationWitnessConsequenceText(fact).orElse(relationWitnessProseConsequenceText(result.explanation.prose, fact))
+        else localFactConsequenceText(fact, anchor)
+    yield
+      val evidenceRefs =
+        (
+          List(
+            s"typed_local_fact_source:${result.explanation.source}",
+            s"typed_local_fact_family:${fact.family.key}",
+            s"typed_local_fact_producer:${fact.producer.key}",
+            s"local_fact_anchor:$anchor"
+          ) ++ fact.evidenceRefs
+        ).distinct
+      val guardrails =
+        (
+          List(
+            SourceKind.PlayedMoveWithCertifiedLocalConsequence,
+            "certified_local_fact_consequence",
+            s"local_fact_authority:${fact.authority.key}",
+            s"local_fact_line_binding:${fact.lineBinding.key}"
+          ) ++ fact.guardrails
+        ).distinct
+      LocalFactConsequence(anchor, consequence, evidenceRefs, guardrails)
+
+  private def localFactAnchor(fact: MoveReviewLocalFact.Admission): Option[String] =
+    val preferredKeys =
+      List("target", "played_san", "space_gain_pawn", "plan_anchor_matched_token", "anchor", "focus_square", "focus_file")
+    preferredKeys.iterator
+      .flatMap(key => fact.anchors.find(anchor => sameText(anchor.key, key)).flatMap(anchor => clean(anchor.value)))
+      .toSeq
+      .headOption
+      .orElse(fact.anchors.iterator.flatMap(anchor => clean(anchor.value)).toSeq.headOption)
+
+  private def localFactConsequenceText(
+      fact: MoveReviewLocalFact.Admission,
+      anchor: String
+  ): Option[String] =
+    val markers =
+      normalize(
+        (
+          fact.guardrails ++
+            fact.evidenceRefs ++
+            fact.anchors.map(anchor => s"${anchor.key}:${anchor.value}")
+        ).mkString(" ")
+    )
+    tacticalLocalFactConsequence(fact).orElse {
+      fact.family match
+        case MoveReviewLocalFact.Family.Pressure
+            if markers.contains("iqp inducement") || isolatedPawnTarget(fact).nonEmpty =>
+          isolatedPawnTarget(fact)
+            .map(target => s"That leaves $target as an isolated pawn target.")
+            .orElse(Some(s"That keeps the isolated-pawn target fixed around $anchor."))
+        case MoveReviewLocalFact.Family.Defense if markers.contains("counterplay") =>
+          Some(s"That keeps counterplay restrained around $anchor.")
+        case MoveReviewLocalFact.Family.Defense =>
+          Some(s"That keeps the defensive detail tied to $anchor.")
+        case MoveReviewLocalFact.Family.PlanSupport =>
+          Some(s"That keeps the plan support connected around $anchor.")
+        case MoveReviewLocalFact.Family.Pressure if markers.contains("space") =>
+          Some(s"That keeps space pressure anchored around $anchor.")
+        case MoveReviewLocalFact.Family.Pressure if markers.contains("outpost") =>
+          Some(s"That keeps outpost pressure connected around $anchor.")
+        case MoveReviewLocalFact.Family.Pressure if markers.contains("target fixing") || markers.contains("target pressure") =>
+          Some(s"That keeps target pressure fixed around $anchor.")
+        case MoveReviewLocalFact.Family.Pressure =>
+          Some(s"That keeps positional pressure anchored around $anchor.")
+        case MoveReviewLocalFact.Family.Threat =>
+          Some(s"That keeps the local tactical threat concrete around $anchor.")
+        case MoveReviewLocalFact.Family.Attack =>
+          Some(s"That keeps the attacking idea connected around $anchor.")
+        case MoveReviewLocalFact.Family.LineConsequence =>
+          Some(s"That keeps the checked line consequence tied to $anchor.")
+        case MoveReviewLocalFact.Family.Timing =>
+          Some(s"That keeps the move-order point tied to $anchor.")
+        case _ =>
+          None
+    }
+
+  private def tacticalLocalFactConsequence(fact: MoveReviewLocalFact.Admission): Option[String] =
+    Option.when(
+      fact.family == MoveReviewLocalFact.Family.Threat &&
+        fact.producer == MoveReviewLocalFact.Producer.TacticalMotif
+    ) {
+      anchorValue(fact, "tactical_kind").flatMap {
+        case "pin" =>
+          for
+            pinned <- pieceAnchorLabel(fact, "pinned_square", "pinned_role")
+            behind <- pieceAnchorLabel(fact, "behind_square", "behind_role")
+          yield s"That keeps the $pinned pinned to the $behind."
+        case "skewer" =>
+          for
+            front <- pieceAnchorLabel(fact, "front_square", "front_role")
+            back <- pieceAnchorLabel(fact, "back_square", "back_role")
+          yield s"That keeps the skewer through the $front toward the $back."
+        case "fork" =>
+          val targets = fact.anchors
+            .filter(anchor => anchor.key.startsWith("target_"))
+            .sortBy(_.key)
+            .map(_.value.trim)
+            .filter(_.nonEmpty)
+            .distinct
+          Option.when(targets.nonEmpty)(s"That keeps the fork targets ${targets.take(3).mkString(" and ")} concrete.")
+        case "check" =>
+          pieceAnchorLabel(fact, "king_square", "king_role").map(king => s"That keeps the check on the $king concrete.")
+        case "discovered_attack" =>
+          for
+            revealed <- pieceAnchorLabel(fact, "revealed_square", "revealed_role")
+            target <- pieceAnchorLabel(fact, "target_square", "target_role")
+          yield s"That keeps the discovered attack from the $revealed toward the $target concrete."
+        case "trapped_piece" =>
+          pieceAnchorLabel(fact, "trapped_square", "trapped_role").map(trapped => s"That keeps the trap on the $trapped concrete.")
+        case _ => None
+      }
+    }.flatten
+
+  private def relationWitnessConsequenceText(fact: MoveReviewLocalFact.Admission): Option[String] =
+    Option.when(relationWitnessConsequenceAllowed(fact)) {
+      relationKind(fact).flatMap {
+        case "pin" =>
+          for
+            pinned <- relationPieceLabel(fact, "pinned")
+            behind <- relationPieceLabel(fact, "behind")
+          yield s"That keeps the $pinned pinned to the $behind."
+        case "overload" =>
+          for
+            defender <- relationFactValue(fact, "defender")
+            duties = relationFactValues(fact, "duties")
+            if duties.size >= 2
+          yield s"That keeps the defender on $defender overloaded across ${duties.take(3).mkString(" and ")}."
+        case _ => None
+      }
+    }.flatten
+
+  private def relationWitnessProseConsequenceText(
+      prose: String,
+      fact: MoveReviewLocalFact.Admission
+  ): Option[String] =
+    Option.when(relationWitnessConsequenceAllowed(fact))(relationProseConsequenceText(prose)).flatten
+
+  private def relationProseConsequenceText(prose: String): Option[String] =
+    prose.trim match
+      case RelationOverloadProse(defender, duties) =>
+        val targets = duties.split("""\s+and\s+""").toList.map(_.trim).filter(_.nonEmpty)
+        Option.when(targets.size >= 2)(
+          s"That keeps the defender on ${defender.toLowerCase} overloaded across ${targets.take(3).mkString(" and ")}."
+        )
+      case RelationPinProse(pinnedRole, pinnedSquare, behindRole, behindSquare) =>
+        Some(
+          s"That keeps the ${pinnedRole.toLowerCase} on ${pinnedSquare.toLowerCase} pinned to the ${behindRole.toLowerCase} on ${behindSquare.toLowerCase}."
+        )
+      case _ => None
+
+  private val RelationOverloadProse =
+    """(?i).*overloads?\s+the\s+defender\s+on\s+([a-h][1-8])\s+across\s+([a-h][1-8](?:\s+and\s+[a-h][1-8]){1,2}).*""".r
+
+  private val RelationPinProse =
+    """(?i).*pins?\s+the\s+([a-z]+)\s+on\s+([a-h][1-8])\s+to\s+the\s+([a-z]+)\s+on\s+([a-h][1-8]).*""".r
+
+  private def relationWitnessConsequenceAllowed(fact: MoveReviewLocalFact.Admission): Boolean =
+    val guardrails = fact.normalizedGuardrails
+    val tokens = localFactEvidenceTokens(fact)
+    fact.producer == MoveReviewLocalFact.Producer.RelationWitness &&
+      fact.lineBinding == MoveReviewLocalFact.LineBinding.PvCoupled &&
+      tokens.exists(token => token == "typed_local_fact_source:relation_witness" || token == "evidence_source:relation_witness") &&
+      guardrails.exists(guardrail =>
+        guardrail == "relation_witness_typed_details" ||
+          guardrail == "local_fact_guardrail:relation_witness_typed_details"
+      )
+
+  private def relationKind(fact: MoveReviewLocalFact.Admission): Option[String] =
+    relationFactValue(fact, "relation_kind")
+
+  private def relationWitnessAnchor(fact: MoveReviewLocalFact.Admission): Option[String] =
+    relationFactValue(fact, "target")
+      .orElse(relationFactValue(fact, "defender"))
+      .orElse(relationFactValue(fact, "pinned"))
+      .orElse(relationFactValue(fact, "behind"))
+
+  private def relationPieceLabel(fact: MoveReviewLocalFact.Admission, key: String): Option[String] =
+    relationFactValue(fact, key).map { square =>
+      relationFactValue(fact, s"${key}_role")
+        .map(role => s"$role on $square")
+        .getOrElse(s"piece on $square")
+    }
+
+  private def isolatedPawnTarget(fact: MoveReviewLocalFact.Admission): Option[String] =
+    localFactEvidenceTokens(fact).collectFirst {
+      case token if token.contains(":isolated_pawn:") =>
+        token.split(':').lastOption.getOrElse("").trim
+    }.filter(_.nonEmpty)
+
+  private def relationFactValue(fact: MoveReviewLocalFact.Admission, key: String): Option[String] =
+    relationFactValues(fact, key).headOption
+
+  private def relationFactValues(fact: MoveReviewLocalFact.Admission, key: String): List[String] =
+    val normalizedKey = key.trim.toLowerCase
+    val prefixes = List(s"$normalizedKey:", s"relation_fact:$normalizedKey:", s"anchor:$normalizedKey:")
+    val tokenValues =
+      localFactEvidenceTokens(fact).flatMap { token =>
+        prefixes.collectFirst {
+          case prefix if token.startsWith(prefix) => token.drop(prefix.length).trim
+        }
+      }
+    val anchorValues =
+      fact.anchors
+        .filter(anchor => anchor.key.trim.equalsIgnoreCase(normalizedKey))
+        .map(_.value.trim.toLowerCase)
+    (tokenValues ++ anchorValues)
+      .flatMap(_.split("\\|").toList)
+      .map(_.trim)
+      .filter(_.nonEmpty)
+      .distinct
+
+  private def localFactEvidenceTokens(fact: MoveReviewLocalFact.Admission): List[String] =
+    (
+      fact.normalizedEvidenceRefs ++
+        fact.normalizedGuardrails ++
+        fact.anchors.map(anchor => s"anchor:${anchor.key.trim.toLowerCase}:${anchor.value.trim.toLowerCase}")
+    ).filter(_.nonEmpty).distinct
+
+  private def anchorValue(fact: MoveReviewLocalFact.Admission, key: String): Option[String] =
+    fact.anchors.find(anchor => anchor.key == key).flatMap(anchor => clean(anchor.value))
+
+  private def pieceAnchorLabel(
+      fact: MoveReviewLocalFact.Admission,
+      squareKey: String,
+      roleKey: String
+  ): Option[String] =
+    for
+      square <- anchorValue(fact, squareKey)
+      role <- anchorValue(fact, roleKey)
+    yield s"$square $role"
+
+  private def playedMoveFromClaim(claim: String): Option[String] =
+    clean(claim).flatMap(_.split("""\s+""").headOption).flatMap(clean).map(_.stripSuffix(":"))
 
   private def derivedInputConsequence(inputs: QuestionPlannerInputs): Option[String] =
     immediateThreatConsequence(inputs)
@@ -525,12 +882,18 @@ private[commentary] object ContrastiveSupportAdmissibility:
     if allowTiming then s"If delayed, $clause"
     else s"The move $move stays best because $clause"
 
+  private def renderPlayedMoveLocalConsequenceSentence(move: String, consequence: String, allowTiming: Boolean): String =
+    val clause = becauseClause(consequence)
+    if allowTiming then s"If delayed, $move is still the move with the checked local point because it $clause"
+    else s"The move $move has a checked local point because it $clause"
+
   private def consequenceVerbPhrase(consequence: String): Option[String] =
     val clause = becauseClause(consequence)
     val normalized = normalize(clause)
     Option.when(
       normalized.startsWith("preserves ") ||
         normalized.startsWith("keeps ") ||
+        normalized.startsWith("leaves ") ||
         normalized.startsWith("shuts down ") ||
         normalized.startsWith("changes ") ||
         normalized.startsWith("creates ") ||
@@ -548,7 +911,27 @@ private[commentary] object ContrastiveSupportAdmissibility:
 
   private def looksLikeCertifiedPlannerConsequence(text: String): Boolean =
     val normalized = normalize(text)
-    normalized.startsWith("that keeps the immediate ") ||
+      normalized.startsWith("that keeps the immediate ") ||
+      (normalized.startsWith("that keeps the ") && normalized.contains(" pinned to the ")) ||
+      (normalized.startsWith("that keeps the defender on ") && normalized.contains(" overloaded across ")) ||
+      (normalized.startsWith("that leaves ") && normalized.contains(" isolated pawn target")) ||
+      (normalized.startsWith("that leaves ") && normalized.contains(" isolated pawn as a local target")) ||
+      normalized.startsWith("that keeps the skewer through ") ||
+      normalized.startsWith("that keeps the fork targets ") ||
+      normalized.startsWith("that keeps the check on ") ||
+      normalized.startsWith("that keeps the discovered attack from ") ||
+      normalized.startsWith("that keeps the trap on ") ||
+      normalized.startsWith("that keeps counterplay restrained around ") ||
+      normalized.startsWith("that keeps the defensive detail tied to ") ||
+      normalized.startsWith("that keeps the plan support connected around ") ||
+      normalized.startsWith("that keeps target pressure fixed around ") ||
+      normalized.startsWith("that keeps space pressure anchored around ") ||
+      normalized.startsWith("that keeps outpost pressure connected around ") ||
+      normalized.startsWith("that keeps positional pressure anchored around ") ||
+      normalized.startsWith("that keeps the local tactical threat concrete around ") ||
+      normalized.startsWith("that keeps the attacking idea connected around ") ||
+      normalized.startsWith("that keeps the checked line consequence tied to ") ||
+      normalized.startsWith("that keeps the move order point tied to ") ||
       normalized.startsWith("that keeps roughly ") ||
       normalized.startsWith("that shuts down roughly ") ||
       normalized.startsWith("that preserves roughly ") ||
@@ -559,6 +942,9 @@ private[commentary] object ContrastiveSupportAdmissibility:
       normalized.startsWith("missing it ") ||
       normalized.startsWith("if the move is missed, ") ||
       normalized.startsWith("if the move is missed ")
+
+  private def admissibleCertifiedPlannerConsequence(text: String): Boolean =
+    looksLikeCertifiedPlannerConsequence(text)
 
   private def looksLikeGenericCounterfactualConsequence(text: String): Boolean =
     val normalized = normalize(text)

@@ -113,7 +113,7 @@ private[analysis] object DecisionComparisonComparativeSupport:
       truthContract: Option[DecisiveTruthContract]
   ): Boolean =
     roleAwareLineConsequenceAllowed(truthContract) ||
-      acceptableTacticalBranchComparison(comparison, truthContract)
+      styleChoiceBranchComparison(comparison, truthContract)
 
   private final case class ComparativeLane(
       comparedMove: String,
@@ -156,7 +156,7 @@ private[analysis] object DecisionComparisonComparativeSupport:
       if bestEvidence.kind != LineConsequenceKind.PreviewOnly
       if playedBranchComparable(comparison, bestEvidence, playedEvidence)
       if roleAwareLineConsequenceAllowed(truthContract) ||
-        acceptableTacticalBranchComparison(ctx, comparison, truthContract, bestEvidence, playedEvidence)
+        styleChoiceBranchComparison(ctx, comparison, truthContract, bestEvidence, playedEvidence)
       if !lineContainsMove(ctx, playedEvidence, bestMove)
       consequence <- roleAwareConsequence(ctx, bestMove, playedMove, bestEvidence, playedEvidence, comparison)
     yield ComparativeLane(
@@ -173,7 +173,7 @@ private[analysis] object DecisionComparisonComparativeSupport:
     )
 
 
-  private def acceptableTacticalBranchComparison(
+  private def styleChoiceBranchComparison(
       ctx: NarrativeContext,
       comparison: DecisionComparison,
       truthContract: Option[DecisiveTruthContract],
@@ -183,29 +183,38 @@ private[analysis] object DecisionComparisonComparativeSupport:
     Option(ctx.header.choiceType).exists(choice =>
       choice.equalsIgnoreCase("StyleChoice") || choice.equalsIgnoreCase("NarrowChoice")
     ) &&
-      acceptableTacticalTruth(truthContract) &&
+      styleChoiceBranchComparisonTruth(truthContract) &&
       playedEvidence.kind == LineConsequenceKind.PreviewOnly &&
       comparisonGapCp(comparison, Some(bestEvidence), Some(playedEvidence)).exists(_ >= AlternativeThresholdCp)
 
-  private def acceptableTacticalBranchComparison(
+  private def styleChoiceBranchComparison(
       comparison: DecisionComparison,
       truthContract: Option[DecisiveTruthContract]
   ): Boolean =
-    acceptableTacticalTruth(truthContract) &&
+    styleChoiceBranchComparisonTruth(truthContract) &&
       comparison.roleAwareBranchEvidence.exists(evidence =>
         evidence.played.kind == LineConsequenceKind.PreviewOnly &&
           comparisonGapCp(comparison, Some(evidence.engineBest), Some(evidence.played)).exists(_ >= AlternativeThresholdCp)
       )
 
-  private def acceptableTacticalTruth(
+  private def styleChoiceBranchComparisonTruth(
       truthContract: Option[DecisiveTruthContract]
   ): Boolean =
     truthContract.exists(contract =>
-      contract.truthClass == DecisiveTruthClass.Acceptable &&
-        contract.reasonFamily == DecisiveReasonKind.TacticalRefutation &&
-        contract.failureMode == FailureInterpretationMode.NoClearPlan &&
-        !contract.chosenMatchesBest &&
-        contract.verifiedBestMove.exists(_.trim.nonEmpty)
+      !contract.chosenMatchesBest &&
+        contract.verifiedBestMove.exists(_.trim.nonEmpty) &&
+        (
+          (
+            contract.truthClass == DecisiveTruthClass.Acceptable &&
+              contract.reasonFamily == DecisiveReasonKind.TacticalRefutation &&
+              contract.failureMode == FailureInterpretationMode.NoClearPlan
+          ) ||
+            (
+              contract.truthClass == DecisiveTruthClass.Inaccuracy &&
+                contract.reasonFamily == DecisiveReasonKind.QuietTechnicalMove &&
+                contract.failureMode == FailureInterpretationMode.QuietPositionalCollapse
+            )
+        )
     )
 
   private def playedBranchComparable(

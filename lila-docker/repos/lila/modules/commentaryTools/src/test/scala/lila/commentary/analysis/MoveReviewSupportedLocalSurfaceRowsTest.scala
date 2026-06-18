@@ -1,6 +1,6 @@
 package lila.commentary.analysis
 
-import lila.commentary.{ DirectionalTargetReadiness, MoveReviewSurfaceAuthority, StrategicIdeaGroup, StrategicIdeaKind, StrategicIdeaReadiness, StrategyDirectionalTarget, StrategyIdeaSignal, StrategyPack, StrategyPieceMoveRef, StrategyPieceRoute }
+import lila.commentary.{ DirectionalTargetReadiness, MoveReviewMoveRef, MoveReviewRefs, MoveReviewSurfaceAuthority, MoveReviewVariationRef, StrategicIdeaGroup, StrategicIdeaKind, StrategicIdeaReadiness, StrategyDirectionalTarget, StrategyIdeaSignal, StrategyPack, StrategyPieceMoveRef, StrategyPieceRoute }
 import lila.commentary.analysis.semantic.RelationObservationCatalog
 import lila.commentary.analysis.semantic.StrategicObservationIds.{ EvidenceRef, EvidenceSourceId, ProofFamilyId, ProofSourceId }
 import lila.commentary.model.{ ConfidenceLevel, DecisionRationale, FactScope, NarrativeContext, NarrativeRenderMode, PhaseContext, PieceActivityInfo, PreventedPlanInfo, PVDelta, TargetSquare, WeakComplexInfo }
@@ -3542,7 +3542,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("Overloaded defender"), clue(rows))
     assert(!rows.exists(_.label == "Central liquidation"), clue(rows))
-    assertEquals(rows.head.authority, Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)))
+    assertEquals(rows.head.authority, None, clue(rows))
   }
 
   test("projects prep or challenge pawn moves as central challenge rows, not central break") {
@@ -4043,7 +4043,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("Opposite-color bishops"), clue(rows))
     assertEquals(rows.head.text, "The checked capture leaves opposite-colored bishops on the board.")
-    assertEquals(rows.head.refSans, List("Bxf7+"))
+    assertEquals(rows.head.refSans, List("Bxf7"))
     assertEquals(
       rows.head.authority,
       Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
@@ -4267,7 +4267,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
     assertEquals(rows, Nil)
   }
 
-  test("projects top-PV open-file major-piece entries as a bounded practical row") {
+  test("projects top-PV open-file major-piece entries as support-only line occupation") {
     val fileCtx =
       topPvPracticalContext(
         fen = "6k1/8/8/8/8/R7/8/6K1 w - - 0 1",
@@ -4282,14 +4282,28 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
     assertEquals(rows.map(_.label), List("File entry"), clue(rows))
     assertEquals(rows.head.text, "The checked line places the rook on the open e-file.")
     assertEquals(rows.head.refSans, List("Re3"))
-    assertEquals(
-      rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
-      clue(rows)
-    )
+    assertEquals(rows.head.authority, None, clue(rows))
   }
 
-  test("projects top-PV semi-open-file major-piece entries as a bounded practical row") {
+  test("keeps actual Qd5 top-PV file entry as support-only line occupation") {
+    val fileCtx =
+      topPvPracticalContext(
+        fen = "2r3k1/p4p1p/2p3p1/2q5/4Q3/1P4P1/P4P1P/5BK1 b - - 0 25",
+        playedMove = "c5d5",
+        playedSan = "Qd5",
+        line = List("c5d5", "e4e7", "d5d4", "e7b7", "c8e8"),
+        scoreCp = -409
+      )
+
+    val rows = topPvPracticalRows(fileCtx, "c5d5")
+
+    assertEquals(rows.map(_.label), List("File entry"), clue(rows))
+    assertEquals(rows.head.text, "The checked line places the queen on the open d-file.")
+    assertEquals(rows.head.refSans, List("Qd5"))
+    assertEquals(rows.head.authority, None, clue(rows))
+  }
+
+  test("projects top-PV semi-open-file major-piece entries as support-only line occupation") {
     val fileCtx =
       topPvPracticalContext(
         fen = "6k1/4p3/8/8/8/R7/8/6K1 w - - 0 1",
@@ -4304,6 +4318,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
     assertEquals(rows.map(_.label), List("File entry"), clue(rows))
     assertEquals(rows.head.text, "The checked line places the rook on the semi-open e-file.")
     assertEquals(rows.head.refSans, List("Re3"))
+    assertEquals(rows.head.authority, None, clue(rows))
   }
 
   test("does not project file-entry prose without a top-PV played-move witness") {
@@ -4350,11 +4365,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("X-ray pressure"), clue(rows))
     assertEquals(rows.head.text, "The checked line sets x-ray pressure from the bishop on e4 through f5 toward g6.")
-    assertEquals(
-      rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
-      clue(rows)
-    )
+    assertEquals(rows.head.authority, None, clue(rows))
   }
 
   test("does not project x-ray prose without a target beyond the blocker") {
@@ -4386,11 +4397,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("Back-rank mate"), clue(rows))
     assertEquals(rows.head.text, "The checked line ends in back-rank mate on g8 after e1e8.")
-    assertEquals(
-      rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
-      clue(rows)
-    )
+    assertEquals(rows.head.authority, None, clue(rows))
   }
 
   test("does not project back-rank mate prose without a top-PV played-move witness") {
@@ -4422,11 +4429,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("Smothered mate"), clue(rows))
     assertEquals(rows.head.text, "The checked line ends in smothered mate on h8 after h6f7.")
-    assertEquals(
-      rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
-      clue(rows)
-    )
+    assertEquals(rows.head.authority, None, clue(rows))
   }
 
   test("does not project mate-net prose without a top-PV played-move witness") {
@@ -4458,11 +4461,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("Greek gift"), clue(rows))
     assertEquals(rows.head.text, "The checked line starts a Greek gift sacrifice with the bishop on h7.")
-    assertEquals(
-      rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
-      clue(rows)
-    )
+    assertEquals(rows.head.authority, None, clue(rows))
   }
 
   test("does not project Greek gift prose without top-PV continuation support") {
@@ -4573,11 +4572,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("Double check"), clue(rows))
     assertEquals(rows.head.text, "The checked line gives double check on e8 from e1 and f6.")
-    assertEquals(
-      rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
-      clue(rows)
-    )
+    assertEquals(rows.head.authority, None, clue(rows))
   }
 
   test("does not project double-check prose without a top-PV played-move witness") {
@@ -4615,11 +4610,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       rows.head.text,
       "The checked line trades on a3 to remove the defender from f8, loosening c5."
     )
-    assertEquals(
-      rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
-      clue(rows)
-    )
+    assertEquals(rows.head.authority, None, clue(rows))
   }
 
   test("does not project defender-trade prose without a declared or structural target") {
@@ -4651,11 +4642,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("Bad piece trade"), clue(rows))
     assertEquals(rows.head.text, "The checked line trades on a3 to clear the bad piece from c1.")
-    assertEquals(
-      rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
-      clue(rows)
-    )
+    assertEquals(rows.head.authority, None, clue(rows))
   }
 
   test("does not project bad-piece liquidation prose for open bishop exchanges") {
@@ -4738,11 +4725,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("Fork"), clue(rows))
     assertEquals(rows.head.text, "The checked line puts the knight on f5 attacking the queen on h4 and the rook on e7.")
-    assertEquals(
-      rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
-      clue(rows)
-    )
+    assertEquals(rows.head.authority, None, clue(rows))
   }
 
   test("does not project fork prose without a top-PV played-move witness") {
@@ -4774,11 +4757,22 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("Overloaded defender"), clue(rows))
     assertEquals(rows.head.text, "The checked line overloads the defender on f6 across d5 and h7.")
-    assertEquals(
-      rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
-      clue(rows)
-    )
+    assertEquals(rows.head.authority, None, clue(rows))
+  }
+
+  test("does not project actual Ng4 king adjacency as an overloaded defender") {
+    val actualNg4Ctx =
+      topPvPracticalContext(
+        fen = "r2q1r2/pp4k1/2p1bppp/3nN3/3Pp3/2P5/PPB2PPP/R2Q1RK1 w - - 0 19",
+        playedMove = "e5g4",
+        playedSan = "Ng4",
+        line = List("e5g4", "h6h5", "g4e3", "f6f5", "e3d5", "e6d5", "d1d2", "d8f6"),
+        scoreCp = -85
+      )
+
+    val rows = topPvPracticalRows(actualNg4Ctx, "e5g4")
+
+    assert(!rows.exists(_.label == "Overloaded defender"), clue(rows))
   }
 
   test("does not project overload prose without a top-PV played-move witness") {
@@ -4813,11 +4807,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       rows.head.text,
       "The checked line offers the knight on d3 to lure the queen from d5, then recaptures on d3."
     )
-    assertEquals(
-      rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
-      clue(rows)
-    )
+    assertEquals(rows.head.authority, None, clue(rows))
   }
 
   test("does not project decoy prose without the full top-PV lure branch") {
@@ -4852,11 +4842,27 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       rows.head.text,
       "The checked line attacks the defender on f8 from a3; after it moves, g7 loses that defense."
     )
+    assertEquals(rows.head.authority, None, clue(rows))
+  }
+
+  test("does not mark actual d6 top-PV deflection as practical-plan authority") {
+    val deflectionCtx =
+      topPvPracticalContext(
+        fen = "r1bqk2r/pppp1ppp/5n2/4N1B1/4P3/3P4/P1P1KPPP/Q6R b kq - 0 10",
+        playedMove = "d7d6",
+        playedSan = "d6",
+        line = List("d7d6", "e5c4"),
+        scoreCp = -528
+      )
+
+    val rows = topPvPracticalRows(deflectionCtx, "d7d6")
+
+    assertEquals(rows.map(_.label), List("Deflection"), clue(rows))
     assertEquals(
-      rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
-      clue(rows)
+      rows.head.text,
+      "The checked line attacks the defender on e5 from d6; after it moves, d3 loses that defense."
     )
+    assertEquals(rows.head.authority, None, clue(rows))
   }
 
   test("does not project deflection prose without the top-PV defender move") {
@@ -4888,11 +4894,22 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("Discovered attack"), clue(rows))
     assertEquals(rows.head.text, "The checked line clears d3, revealing a bishop attack from b1 on h7.")
-    assertEquals(
-      rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
-      clue(rows)
-    )
+    assertEquals(rows.head.authority, None, clue(rows))
+  }
+
+  test("does not project actual Bd7 bishop relocation as discovered attack") {
+    val actualBd7Ctx =
+      topPvPracticalContext(
+        fen = "4rrk1/ppp2ppp/1b1p4/1q1P4/6b1/2PP3P/PP1B2B1/R6K b - - 0 19",
+        playedMove = "g4d7",
+        playedSan = "Bd7",
+        line = List("g4d7", "g2e4", "e8e4", "d3e4", "f7f6"),
+        scoreCp = -825
+      )
+
+    val rows = topPvPracticalRows(actualBd7Ctx, "g4d7")
+
+    assert(!rows.exists(_.label == "Discovered attack"), clue(rows))
   }
 
   test("does not project discovered-attack prose without a top-PV played-move witness") {
@@ -4924,11 +4941,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("Hanging piece"), clue(rows))
     assertEquals(rows.head.text, "The checked line attacks the undefended rook on f5 with the bishop on d3.")
-    assertEquals(
-      rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
-      clue(rows)
-    )
+    assertEquals(rows.head.authority, None, clue(rows))
   }
 
   test("does not project hanging-piece prose without a top-PV played-move witness") {
@@ -4963,11 +4976,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("Trapped piece"), clue(rows))
     assertEquals(rows.head.text, "The checked line traps the rook on h8 with the bishop on g7.")
-    assertEquals(
-      rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
-      clue(rows)
-    )
+    assertEquals(rows.head.authority, None, clue(rows))
   }
 
   test("does not project trapped-piece prose without an exact focal target") {
@@ -5005,11 +5014,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       rows.head.text,
       "The checked line dominates the knight on a8; the bishop on b7 controls b6 and c7."
     )
-    assertEquals(
-      rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
-      clue(rows)
-    )
+    assertEquals(rows.head.authority, None, clue(rows))
   }
 
   test("projects target-bound zwischenzug as a bounded practical row") {
@@ -5029,11 +5034,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("Zwischenzug"), clue(rows))
     assertEquals(rows.head.text, "The checked line inserts d1a4 as a check on e8 before the recapture on d4.")
-    assertEquals(
-      rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
-      clue(rows)
-    )
+    assertEquals(rows.head.authority, None, clue(rows))
   }
 
   test("projects top-PV skewers as bounded practical rows") {
@@ -5053,11 +5054,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       rows.head.text,
       "The checked line lines up the rook on a1 against the queen on e1, with the rook on h1 behind it."
     )
-    assertEquals(
-      rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
-      clue(rows)
-    )
+    assertEquals(rows.head.authority, None, clue(rows))
   }
 
   test("does not project skewer prose without a top-PV played-move witness") {
@@ -5092,11 +5089,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
       rows.head.text,
       "The checked line puts the knight on d6 between the rook on d8 and the queen on d5."
     )
-    assertEquals(
-      rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
-      clue(rows)
-    )
+    assertEquals(rows.head.authority, None, clue(rows))
   }
 
   test("does not project interference prose without a top-PV played-move witness") {
@@ -5128,11 +5121,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("Battery pressure"), clue(rows))
     assertEquals(rows.head.text, "The checked line forms a queen-bishop battery on the diagonal toward h7.")
-    assertEquals(
-      rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
-      clue(rows)
-    )
+    assertEquals(rows.head.authority, None, clue(rows))
   }
 
   test("does not project battery prose without a top-PV played-move witness") {
@@ -5179,11 +5168,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("Pin pressure"), clue(rows))
     assertEquals(rows.head.text, "The checked line pins the knight on c3 to the king on e1.")
-    assertEquals(
-      rows.head.authority,
-      Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
-      clue(rows)
-    )
+    assertEquals(rows.head.authority, None, clue(rows))
   }
 
   test("does not project pin prose without a top-PV played-move witness") {
@@ -5231,7 +5216,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("Connected rooks"), clue(rows))
     assertEquals(rows.head.text, "The checked line connects the rooks on the first rank.")
-    assertEquals(rows.head.refSans, List("Rd1"))
+    assertEquals(rows.head.refSans, List("Rhd1"))
     assertEquals(
       rows.head.authority,
       Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
@@ -5283,7 +5268,7 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
 
     assertEquals(rows.map(_.label), List("Doubled rooks"), clue(rows))
     assertEquals(rows.head.text, "The checked line doubles the rooks on the a-file.")
-    assertEquals(rows.head.refSans, List("Ra2"))
+    assertEquals(rows.head.refSans, List("R1a2"))
     assertEquals(
       rows.head.authority,
       Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan)),
@@ -5981,6 +5966,144 @@ final class MoveReviewSupportedLocalSurfaceRowsTest extends FunSuite:
     assert(!rows.exists(_.text.contains("neutralize_key_break")), clue(rows))
     assert(!rows.exists(_.text.contains("counterplay_axis_suppression")), clue(rows))
     assert(!rows.exists(_.text.contains("e4d5|c6d5")), clue(rows))
+  }
+
+  test("does not add relative x-ray support when runtime primary already owns a canonical pin") {
+    val bg4Fen = "rnbqk1nr/pp2ppbp/2pp2p1/8/3P1B2/2P1PN2/PP3PPP/RN1QKB1R b KQkq - 0 5"
+    val ucis = List("c8g4", "f1e2", "g4f3", "e2f3", "g8f6")
+    val sans = List("Bg4", "Be2", "Bxf3", "Bxf3", "Nf6")
+    val bg4Ctx =
+      topPvPracticalContext(
+        fen = bg4Fen,
+        playedMove = "c8g4",
+        playedSan = "Bg4",
+        line = ucis,
+        scoreCp = 42
+      )
+    val startPly = NarrativeUtils.plyFromFen(bg4Fen).map(_ + 1).getOrElse(10)
+    val refs =
+      MoveReviewRefs(
+        startFen = bg4Fen,
+        startPly = startPly,
+        variations = List(
+          MoveReviewVariationRef(
+            lineId = "line_01",
+            scoreCp = 42,
+            mate = None,
+            depth = 18,
+            moves =
+              ucis.zip(sans).zipWithIndex.map { case ((uci, san), idx) =>
+                val ply = startPly + idx
+                MoveReviewMoveRef(
+                  refId = s"line_01_m${idx + 1}",
+                  san = san,
+                  uci = uci,
+                  fenAfter = NarrativeUtils.uciListToFen(bg4Fen, ucis.take(idx + 1)),
+                  ply = ply,
+                  moveNo = (ply + 1) / 2,
+                  marker = Some(if ply % 2 == 1 then s"${(ply + 1) / 2}." else s"${(ply + 1) / 2}...")
+                )
+              }
+          )
+        )
+      )
+    val truth = safeTruthContract("c8g4")
+    val runtimeInputs =
+      QuestionPlannerInputsBuilder.build(bg4Ctx, strategyPack = None, truthContract = Some(truth), refs = Some(refs))
+    val rankedPlans = QuestionFirstCommentaryPlanner.plan(bg4Ctx, runtimeInputs, Some(truth))
+    val primaryLocalFact =
+      MoveReviewLocalFact.Admission(
+        family = MoveReviewLocalFact.Family.Threat,
+        authority = MoveReviewLocalFact.Authority.CanonicalFact,
+        producer = MoveReviewLocalFact.Producer.TacticalMotif,
+        strictFallbackEligible = true,
+        lineBinding = MoveReviewLocalFact.LineBinding.PvCoupled,
+        evidenceRefs = List(
+          "evidence_source:typed_local_fact",
+          "evidence_subject:line_or_reply",
+          "evidence_line_binding:pv_coupled",
+          "typed_local_fact_source:canonical_fact",
+          "typed_local_fact_family:threat",
+          "typed_local_fact_producer:tactical_motif",
+          "tactical_kind:pin",
+          "motif_owner:current_move",
+          "fact_kind:pin",
+          "fact_scope:candidate_pv",
+          "fact_square:g4",
+          "fact_square:f3",
+          "fact_square:d1",
+          "attacker_role:bishop",
+          "pinned_role:knight",
+          "behind_role:queen",
+          "motif_square:g4",
+          "motif_square:f3",
+          "motif_square:d1"
+        )
+      )
+    val rows =
+      MoveReviewSupportedLocalSurfaceRows.build(
+        ctx = bg4Ctx,
+        inputs = runtimeInputs,
+        rankedPlans = rankedPlans,
+        truthContract = Some(truth),
+        primaryLocalFact = Some(primaryLocalFact)
+      )
+
+    assert(!rows.exists(_.label == "X-ray pressure"), clue(rows))
+    assert(!rows.exists(_.label == "Pin pressure"), clue(rows))
+  }
+
+  test("actual Qa5+ overload local fact suppresses weaker practical line-geometry support") {
+    val qa5Fen = "rnbqk1nr/pp2ppbp/6p1/1N1P4/5B2/5N2/PP3PPP/R2QKB1R b KQkq - 4 10"
+    val qa5Ctx =
+      topPvPracticalContext(
+        fen = qa5Fen,
+        playedMove = "d8a5",
+        playedSan = "Qa5+",
+        line = List("d8a5", "f4d2", "a5d8", "d1a4", "c8d7"),
+        scoreCp = 181
+      )
+    val truth = safeTruthContract("d8a5")
+    val runtimeInputs =
+      QuestionPlannerInputsBuilder.build(qa5Ctx, strategyPack = None, truthContract = Some(truth), refs = None)
+    val rankedPlans = QuestionFirstCommentaryPlanner.plan(qa5Ctx, runtimeInputs, Some(truth))
+    val primaryLocalFact =
+      MoveReviewLocalFact.Admission(
+        family = MoveReviewLocalFact.Family.Threat,
+        authority = MoveReviewLocalFact.Authority.PvCoupledLine,
+        producer = MoveReviewLocalFact.Producer.RelationWitness,
+        strictFallbackEligible = true,
+        lineBinding = MoveReviewLocalFact.LineBinding.PvCoupled,
+        evidenceRefs =
+          List(
+            "evidence_source:relation_witness",
+            "evidence_subject:line_or_reply",
+            "evidence_line_binding:pv_coupled",
+            "typed_local_fact_source:relation_witness",
+            "typed_local_fact_family:threat",
+            "typed_local_fact_producer:relation_witness",
+            "relation_kind:overload",
+            "relation_source:overload_relation",
+            "relation_observation:overload_semantic",
+            "overload_relation_witness",
+            "relation_fact:defender:f3",
+            "relation_fact:duties:d2|e1",
+            "relation_fact:attacker:a5",
+            "line_move:d8a5"
+          )
+      )
+
+    val rows =
+      MoveReviewSupportedLocalSurfaceRows.build(
+        ctx = qa5Ctx,
+        inputs = runtimeInputs,
+        rankedPlans = rankedPlans,
+        truthContract = Some(truth),
+        primaryLocalFact = Some(primaryLocalFact)
+      )
+
+    assert(!rows.exists(_.label == "X-ray pressure"), clue(rows))
+    assert(!rows.exists(_.label == "Pin pressure"), clue(rows))
   }
 
   test("keeps bounded supported-local rows on the full player payload surface") {

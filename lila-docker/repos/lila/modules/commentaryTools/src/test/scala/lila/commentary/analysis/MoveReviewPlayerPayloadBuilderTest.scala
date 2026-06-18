@@ -106,6 +106,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       decisionComparisonSurface: Option[MoveReviewPlayerDecisionComparison] = None,
       strategyPack: Option[StrategyPack] = None,
       truthContract: Option[DecisiveTruthContract] = None,
+      primaryLocalFact: Option[MoveReviewLocalFact.Admission] = None,
       lineConsequence: Option[LineConsequenceEvidence] = None
   ): MoveReviewPlayerSurface =
     MoveReviewPlayerPayloadBuilder.build(
@@ -119,6 +120,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       decisionComparisonSurface = decisionComparisonSurface,
       strategyPack = strategyPack,
       truthContract = truthContract,
+      primaryLocalFact = primaryLocalFact,
       lineConsequence = lineConsequence
     )
 
@@ -267,6 +269,103 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       relationFocusSquares = relationFocusSquares.getOrElse(focusSquares)
     )
 
+  private def actualMoveContext(fen: String, playedMove: String, playedSan: String): NarrativeContext =
+    MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
+      fen = fen,
+      playedMove = Some(playedMove),
+      playedSan = Some(playedSan)
+    )
+
+  private def strategyPack(sideToMove: String, ideas: StrategyIdeaSignal*): StrategyPack =
+    StrategyPack(sideToMove = sideToMove, strategicIdeas = ideas.toList)
+
+  private def lineOccupationIdea(
+      ideaId: String,
+      side: String,
+      piece: String,
+      focusSquares: List[String],
+      focusFiles: List[String],
+      refs: List[String],
+      confidence: Double = 0.81
+  ): StrategyIdeaSignal =
+    StrategyIdeaSignal(
+      ideaId = ideaId,
+      ownerSide = side,
+      kind = StrategicIdeaKind.LineOccupation,
+      group = StrategicIdeaGroup.PieceAndLineManagement,
+      readiness = StrategicIdeaReadiness.Ready,
+      focusSquares = focusSquares,
+      focusFiles = focusFiles,
+      beneficiaryPieces = List(piece),
+      confidence = confidence,
+      evidenceRefs = refs
+    )
+
+  private def counterplaySuppressionIdea(
+      ideaId: String,
+      side: String,
+      focusFiles: List[String],
+      refs: List[String]
+  ): StrategyIdeaSignal =
+    StrategyIdeaSignal(
+      ideaId = ideaId,
+      ownerSide = side,
+      kind = StrategicIdeaKind.CounterplaySuppression,
+      group = "counterplay",
+      readiness = StrategicIdeaReadiness.Ready,
+      focusFiles = focusFiles,
+      confidence = 0.82,
+      evidenceRefs = refs
+    )
+
+  private def pawnBreakIdea(
+      ideaId: String,
+      side: String,
+      focusFiles: List[String],
+      refs: List[String],
+      focusSquares: List[String] = Nil,
+      focusZone: Option[String] = None,
+      group: String = StrategicIdeaGroup.StructuralChange,
+      readiness: String = StrategicIdeaReadiness.Ready,
+      confidence: Double = 0.93
+  ): StrategyIdeaSignal =
+    StrategyIdeaSignal(
+      ideaId = ideaId,
+      ownerSide = side,
+      kind = StrategicIdeaKind.PawnBreak,
+      group = group,
+      readiness = readiness,
+      focusFiles = focusFiles,
+      focusSquares = focusSquares,
+      focusZone = focusZone,
+      confidence = confidence,
+      evidenceRefs = refs
+    )
+
+  private def localFactAdmission(
+      family: MoveReviewLocalFact.Family,
+      authority: MoveReviewLocalFact.Authority,
+      producer: MoveReviewLocalFact.Producer,
+      evidenceRefs: List[String],
+      strictFallbackEligible: Boolean = false,
+      guardrails: List[String] = Nil,
+      anchors: List[MoveReviewLocalFact.Anchor] = Nil,
+      lineBinding: MoveReviewLocalFact.LineBinding = MoveReviewLocalFact.LineBinding.PvCoupled
+  ): MoveReviewLocalFact.Admission =
+    MoveReviewLocalFact.Admission(
+      family = family,
+      authority = authority,
+      producer = producer,
+      strictFallbackEligible = strictFallbackEligible,
+      guardrails = guardrails,
+      anchors = anchors,
+      lineBinding = lineBinding,
+      evidenceRefs = evidenceRefs
+    )
+
+  private def assertNoAdvancedRow(surface: MoveReviewPlayerSurface, label: String): Unit =
+    assert(!surface.advancedRows.exists(_.label == label), clue(surface.advancedRows))
+
   test("does not build player decision comparison without certified surface input") {
     val surface =
       build(
@@ -352,6 +451,55 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assertEquals(surface.summaryRows.head.text, "Short line: e4 e5 Nf3.")
     assertEquals(surface.summaryRows.head.refSans, List("e4", "e5", "Nf3"))
     assertEquals(surface.summaryRows.head.authority, None)
+  }
+
+  test("uses complete reviewed proof line before one-ply preview from actual Nf6 row") {
+    val fen = "rn2rbk1/3q1pp1/3p3p/1p1P1b1n/p2N4/P4P1P/BP1N1BP1/2RQ1RK1 b - - 4 21"
+
+    def variation(lineId: String, ucis: List[String], sans: List[String], scoreCp: Int, depth: Int): MoveReviewVariationRef =
+      val fens = ucis.indices.toList.map(idx => NarrativeUtils.uciListToFen(fen, ucis.take(idx + 1)))
+      MoveReviewVariationRef(
+        lineId = lineId,
+        scoreCp = scoreCp,
+        mate = None,
+        depth = depth,
+        moves =
+          ucis.zip(sans).zipWithIndex.map { case ((uci, san), idx) =>
+            val ply = NarrativeUtils.plyFromFen(fen).map(_ + 1 + idx).getOrElse(idx + 1)
+            MoveReviewMoveRef(
+              refId = s"${lineId}_m${idx + 1}",
+              san = san,
+              uci = uci,
+              fenAfter = fens(idx),
+              ply = ply,
+              moveNo = (ply + 1) / 2,
+              marker = Some(if ply % 2 == 1 then s"${(ply + 1) / 2}." else s"${(ply + 1) / 2}...")
+            )
+          }
+      )
+
+    val fullLineSans = List("Nf6", "Bh4", "g5", "Bf2", "Bg6", "f4", "Na6", "f5", "Bxf5")
+    val fullLineUcis = List("h5f6", "f2h4", "g7g5", "h4f2", "f5g6", "f3f4", "b8a6", "f4f5", "g6f5")
+    val refs =
+      MoveReviewRefs(
+        startFen = fen,
+        startPly = NarrativeUtils.plyFromFen(fen).map(_ + 1).getOrElse(1),
+        variations =
+          List(
+            variation("line_01", List("h5f6"), List("Nf6"), scoreCp = -14, depth = 0),
+            variation("line_04", fullLineUcis, fullLineSans, scoreCp = 126, depth = 10)
+          )
+      )
+
+    val surface =
+      build(
+        ctx = relationOnlyContext(fen, "h5f6").copy(playedSan = Some("Nf6"), ply = 42),
+        refs = Some(refs)
+      )
+
+    assertEquals(surface.summaryRows.map(_.label), List("Checked line"))
+    assertEquals(surface.summaryRows.head.text, "Short line: Nf6 Bh4 g5 Bf2 Bg6.")
+    assertEquals(surface.summaryRows.head.refSans, List("Nf6", "Bh4", "g5", "Bf2", "Bg6"))
   }
 
   test("uses certified line-consequence ref as player support before a shallow reviewed ref") {
@@ -457,6 +605,69 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assertEquals(surface.engineSan, Some("g4"))
     assert(surface.secondaryText.exists(_.contains("exchange sequence")), clue(surface))
     assertEquals(surface.refSans, List("Nf3", "Nc6", "Bb5", "a6", "Bxc6"))
+  }
+
+  test("player decision strip uses precomputed line consequence from planner inputs") {
+    val actualBe7Ctx =
+      MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
+        fen = "rnbqkb1r/1pp2ppp/p3pn2/3p4/2PP4/2N1P3/PP1B1PPP/R2QKBNR b KQkq - 2 5",
+        playedMove = Some("f8e7"),
+        playedSan = Some("Be7")
+      )
+    val preferredEvidence =
+      surfaceLineEvidence().copy(
+        lineId = Some("line_03"),
+        sanMoves = List("Be7", "Qc2", "dxc4", "Bxc4", "c5"),
+        uciMoves = List("f8e7", "d1c2", "d5c4", "f1c4", "c7c5"),
+        triggerSan = Some("dxc4"),
+        consequence = "The checked line reaches an exchange sequence after dxc4.",
+        whyItMatters = Some("The decision is about the resulting structure: opening the c-file."),
+        structureDetails = List(LineStructureDetail(kind = "open_file", file = Some("c")))
+      )
+    val comparison =
+      DecisionComparison(
+        chosenMove = Some("Be7"),
+        engineBestMove = Some("dxc4"),
+        engineBestScoreCp = Some(-176),
+        engineBestPv = List("dxc4", "Bxc4", "c5", "f3"),
+        cpLossVsChosen = Some(172),
+        deferredMove = None,
+        deferredReason = None,
+        deferredSource = None,
+        evidence = Some(preferredEvidence.playerSentence),
+        practicalAlternative = false,
+        chosenMatchesBest = false
+      )
+    val inputs =
+      QuestionPlannerInputs(
+        mainBundle = None,
+        quietIntent = None,
+        decisionFrame = CertifiedDecisionFrame(),
+        decisionComparison = Some(comparison),
+        alternativeNarrative = None,
+        truthMode = PlayerFacingTruthMode.Strategic,
+        preventedPlansNow = Nil,
+        pvDelta = None,
+        counterfactual = None,
+        practicalAssessment = None,
+        opponentThreats = Nil,
+        forcingThreats = Nil,
+        evidenceByQuestionId = Map.empty,
+        candidateEvidenceLines = Nil,
+        evidenceBackedPlans = Nil,
+        opponentPlan = None,
+        factualFallback = None,
+        lineConsequence = Some(preferredEvidence)
+      )
+
+    val surface =
+      MoveReviewPlayerPayloadBuilder
+        .decisionComparisonSurface(inputs, localFact = None, actualBe7Ctx, refs = None)
+        .getOrElse(fail("missing decision surface from precomputed line consequence"))
+
+    assert(surface.secondaryText.exists(_.contains("opening the c-file")), clue(surface))
+    assert(!surface.secondaryText.exists(_.contains("opening the d-file")), clue(surface))
+    assertEquals(surface.refSans, List("Be7", "Qc2", "dxc4", "Bxc4", "c5"))
   }
 
   test("does not surface diagnostic-only line consequence") {
@@ -749,6 +960,164 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
 
     assertEquals(surface.authorRows.map(_.title), List("Whose Plan Is Faster", "Why This"))
     assert(!surface.authorRows.exists(row => row.title == "Whoseplanisfaster" || row.title == "Whythis"), clue(surface.authorRows))
+  }
+
+  test("generic question-only author prompts stay out of player surface") {
+    val surface =
+      build(
+        authoringSurface =
+          AuthoringEvidenceSurface(
+            questions =
+              List(
+                AuthorQuestionSummary(
+                  id = "compare_nb6",
+                  kind = "WhyThis",
+                  priority = 2,
+                  question = "Why choose Nb6 here instead of Rhd1?",
+                  why = Some("The decision is not automatic here because Rhd1 also looks natural at first glance."),
+                  anchors = List("decision compare"),
+                  confidence = "Medium"
+                ),
+                AuthorQuestionSummary(
+                  id = "change_nb6",
+                  kind = "WhatChanged",
+                  priority = 3,
+                  question = "What changed in the position after Nb6?",
+                  why = Some("The move appears to change the engine margin compared with the missed alternative."),
+                  anchors = List("move change"),
+                  confidence = "Medium"
+                )
+              ),
+            evidence = Nil,
+            headline = None
+          )
+      )
+
+    assertEquals(surface.authorRows, Nil)
+  }
+
+  test("unresolved conversion checkpoint author prompt from real forcing-defense row stays out of player surface") {
+    val surface =
+      build(
+        authoringSurface =
+          AuthoringEvidenceSurface(
+            questions =
+              List(
+                AuthorQuestionSummary(
+                  id = "convert_be5",
+                  kind = "WhyNow",
+                  priority = 2,
+                  question = "What line would show whether Be5 is a candidate conversion checkpoint for White?",
+                  why = Some("The position has simplification signals, but the reply line still has to show whether counterplay is really reduced."),
+                  anchors = List("conversion", "simplify"),
+                  confidence = "Medium"
+                )
+              ),
+            evidence = Nil,
+            headline = None
+          )
+      )
+
+    assertEquals(surface.authorRows, Nil)
+  }
+
+  test("generic unresolved race author prompts stay out of player surface") {
+    val surface =
+      build(
+        authoringSurface =
+          AuthoringEvidenceSurface(
+            questions =
+              List(
+                AuthorQuestionSummary(
+                  id = "race_dxe5",
+                  kind = "WhosePlanIsFaster",
+                  priority = 3,
+                  question = "After dxe5, whose plan is faster: Black's or White's?",
+                  why = Some("Both sides have active ideas, so the race is likely to be decided by timing."),
+                  anchors = List("race", "timing"),
+                  confidence = "Medium"
+                )
+              ),
+            evidence = Nil,
+            headline = None
+          )
+      )
+
+    assertEquals(surface.authorRows, Nil)
+  }
+
+  test("generic unresolved author evidence prompts stay out of player surface") {
+    val surface =
+      build(
+        authoringSurface =
+          AuthoringEvidenceSurface(
+            questions = Nil,
+            evidence =
+              List(
+                AuthorEvidenceSummary(
+                  questionId = "compare_nb6",
+                  questionKind = "WhyThis",
+                  question = "Why choose Nb6 here instead of Rhd1?",
+                  why = Some("The decision is not automatic here because Rhd1 also looks natural at first glance."),
+                  status = "pending",
+                  purposes = Nil,
+                  branchCount = 0,
+                  branches = Nil,
+                  pendingProbeIds = List("probe_compare_nb6"),
+                  pendingProbeCount = 1
+                ),
+                AuthorEvidenceSummary(
+                  questionId = "change_nb6",
+                  questionKind = "WhatChanged",
+                  question = "What changed in the position after Nb6?",
+                  why = Some("The move appears to change the engine margin compared with the missed alternative."),
+                  status = "question_only",
+                  purposes = Nil,
+                  branchCount = 0,
+                  branches = Nil
+                ),
+                AuthorEvidenceSummary(
+                  questionId = "convert_be5",
+                  questionKind = "WhyNow",
+                  question = "What line would show whether Be5 is a candidate conversion checkpoint for White?",
+                  why = Some("The position has simplification signals, but the reply line still has to show whether counterplay is really reduced."),
+                  status = "question_only",
+                  purposes = Nil,
+                  branchCount = 0,
+                  branches = Nil
+                )
+              ),
+            headline = None
+          )
+      )
+
+    assertEquals(surface.authorRows, Nil)
+  }
+
+  test("unresolved conversion checkpoint author evidence from real forcing-defense row stays out of player surface") {
+    val surface =
+      build(
+        authoringSurface =
+          AuthoringEvidenceSurface(
+            questions = Nil,
+            evidence =
+              List(
+                AuthorEvidenceSummary(
+                  questionId = "convert_be5",
+                  questionKind = "WhyNow",
+                  question = "What line would show whether Be5 is a candidate conversion checkpoint for White?",
+                  why = Some("The position has simplification signals, but the reply line still has to show whether counterplay is really reduced."),
+                  status = "question_only",
+                  purposes = Nil,
+                  branchCount = 0,
+                  branches = Nil
+                )
+              ),
+            headline = None
+          )
+      )
+
+    assertEquals(surface.authorRows, Nil)
   }
 
   test("authoring branch evidence stays line-checked support without exposing source ids") {
@@ -4021,6 +4390,98 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assertEquals(breakReadyMatchedFactSurface.advancedRows.head.text, "The current pawn structure gives a practical d-file break cue.")
     assertEquals(breakReadyMatchedFactSurface.advancedRows.head.authority.flatMap(_.target), None)
 
+    val actualE5Ctx =
+      MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
+        fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
+        playedMove = Some("e7e5"),
+        playedSan = Some("e5")
+      )
+    val exactCentralBreakRow =
+      MoveReviewPlayerSurfaceRow(
+        label = "Central break",
+        text = "On the checked line, this also plays the ...e7-e5 break at this moment.",
+        authority = Some(
+          MoveReviewSurfaceAuthority(
+            kind = MoveReviewSurfaceAuthority.CentralBreak,
+            token = Some("...e7-e5")
+          )
+        )
+      )
+    val exactCentralBreakSurface =
+      build(
+        ctx = actualE5Ctx,
+        supportedLocalRows = List(exactCentralBreakRow),
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "black",
+              strategicIdeas =
+                List(
+                  idea.copy(
+                    ideaId = "idea_e_file_break_from_actual_e5_row",
+                    ownerSide = "black",
+                    focusFiles = List("e"),
+                    confidence = 0.92,
+                    evidenceRefs =
+                      List(
+                        "source:pawn_analysis_break_ready",
+                        "pawn_analysis_break_ready_shape",
+                        "break_file_e"
+                      )
+                  )
+                )
+            )
+          )
+      )
+    assertEquals(exactCentralBreakSurface.summaryRows.map(_.label), List("Central break"))
+    assert(!exactCentralBreakSurface.advancedRows.exists(_.label == "Practical break"), clue(exactCentralBreakSurface.advancedRows))
+
+    val exactCentralBreakOtherFileSurface =
+      build(
+        ctx =
+          MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
+            fen = "rnbqkb1r/pppppppp/5n2/8/3P4/4P3/PPP2PPP/RNBQKBNR b KQkq - 0 2",
+            playedMove = Some("d7d5"),
+            playedSan = Some("d5")
+          ),
+        supportedLocalRows =
+          List(
+            exactCentralBreakRow.copy(
+              text = "On the checked line, this also plays the ...d7-d5 break at this moment.",
+              authority =
+                Some(
+                  MoveReviewSurfaceAuthority(
+                    kind = MoveReviewSurfaceAuthority.CentralBreak,
+                    token = Some("...d7-d5")
+                  )
+                )
+            )
+          ),
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "black",
+              strategicIdeas =
+                List(
+                  idea.copy(
+                    ideaId = "idea_e_file_break_beside_actual_d5_row",
+                    ownerSide = "black",
+                    focusFiles = List("e"),
+                    confidence = 0.92,
+                    evidenceRefs =
+                      List(
+                        "source:pawn_analysis_break_ready",
+                        "pawn_analysis_break_ready_shape",
+                        "break_file_e"
+                      )
+                  )
+                )
+            )
+          )
+      )
+    assertEquals(exactCentralBreakOtherFileSurface.summaryRows.map(_.label), List("Central break"))
+    assert(!exactCentralBreakOtherFileSurface.advancedRows.exists(_.label == "Practical break"), clue(exactCentralBreakOtherFileSurface.advancedRows))
+
     val genericBreak =
       idea.copy(
         ideaId = "idea_generic_break",
@@ -4466,6 +4927,68 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     val unscopedSurface = build(ctx = actualDxe5Ctx, strategyPack = Some(broadPracticalPack))
     assertEquals(unscopedSurface.advancedRows.map(_.label), List("Practical break", "Practical attack"))
 
+    def checkedVariation(lineId: String, ucis: List[String], sans: List[String]): MoveReviewVariationRef =
+      val fens = ucis.indices.toList.map(idx => NarrativeUtils.uciListToFen(actualDxe5Ctx.fen, ucis.take(idx + 1)))
+      MoveReviewVariationRef(
+        lineId = lineId,
+        scoreCp = 42,
+        mate = None,
+        depth = 10,
+        moves =
+          ucis.zip(sans).zipWithIndex.map { case ((uci, san), idx) =>
+            val ply = NarrativeUtils.plyFromFen(actualDxe5Ctx.fen).map(_ + 1 + idx).getOrElse(idx + 1)
+            MoveReviewMoveRef(
+              refId = s"${lineId}_m${idx + 1}",
+              san = san,
+              uci = uci,
+              fenAfter = fens(idx),
+              ply = ply,
+              moveNo = (ply + 1) / 2,
+              marker = Some(if ply % 2 == 1 then s"${(ply + 1) / 2}." else s"${(ply + 1) / 2}...")
+            )
+          }
+      )
+
+    val checkedLineSurface =
+      build(
+        ctx = actualDxe5Ctx,
+        refs = Some(
+          MoveReviewRefs(
+            startFen = actualDxe5Ctx.fen,
+            startPly = NarrativeUtils.plyFromFen(actualDxe5Ctx.fen).map(_ + 1).getOrElse(1),
+            variations =
+              List(
+                checkedVariation(
+                  "line_01",
+                  List("d6e5", "d1d8", "e8d8", "c1e3", "f7f6"),
+                  List("dxe5", "Qxd8+", "Kxd8", "Be3", "f6")
+                )
+              )
+          )
+        ),
+        strategyPack = Some(broadPracticalPack),
+        lineConsequence =
+          Some(
+            LineConsequenceEvidence(
+              lineId = Some("line_01"),
+              sanMoves = List("dxe5", "Qxd8+", "Kxd8", "Be3", "f6"),
+              uciMoves = List("d6e5", "d1d8", "e8d8", "c1e3", "f7f6"),
+              scoreCp = Some(42),
+              mate = None,
+              depth = Some(10),
+              windowPly = 8,
+              kind = LineConsequenceKind.ExchangeSequence,
+              triggerSan = Some("Qxd8+"),
+              consequence = "the checked line reaches an exchange sequence after Qxd8+",
+              whyItMatters = Some("keeping the capture local to the checked line"),
+              release = LineConsequenceRelease.SurfaceCandidate,
+              rejectReasons = Nil
+            )
+          )
+      )
+    assertEquals(checkedLineSurface.summaryRows.map(_.label), List("Checked line"), clue(checkedLineSurface.summaryRows))
+    assert(!checkedLineSurface.advancedRows.exists(_.authority.exists(_.kind == MoveReviewSurfaceAuthority.PracticalPlan)), clue(checkedLineSurface.advancedRows))
+
     val scopedSurface =
       build(
         ctx = actualDxe5Ctx,
@@ -4732,6 +5255,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     val passerBlockadeIdea =
       idea.copy(
         ideaId = "idea_passer_blockade_restraint",
+        ownerSide = "black",
         readiness = StrategicIdeaReadiness.Ready,
         focusSquares = List("d5", "d4"),
         focusFiles = List("d"),
@@ -4746,12 +5270,19 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
             "blockaded_pawn_d4"
           )
       )
+    val passerBlockadeCtx =
+      MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
+        fen = "7k/8/8/3n4/3P4/8/8/4K3 b - - 0 1",
+        playedMove = None,
+        playedSan = None
+      )
     val passerBlockadeSurface =
       build(
+        ctx = passerBlockadeCtx,
         strategyPack =
           Some(
             StrategyPack(
-              sideToMove = "white",
+              sideToMove = "black",
               strategicIdeas = List(passerBlockadeIdea)
             )
           )
@@ -4765,6 +5296,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
 
     val passerBlockadeWithRouteDenialSurface =
       build(
+        ctx = passerBlockadeCtx,
         supportedLocalRows =
           List(
             MoveReviewPlayerSurfaceRow(
@@ -4776,7 +5308,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
         strategyPack =
           Some(
             StrategyPack(
-              sideToMove = "white",
+              sideToMove = "black",
               strategicIdeas = List(passerBlockadeIdea.copy(ideaId = "idea_passer_blockade_with_route_denial"))
             )
           )
@@ -4791,12 +5323,46 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       Some("d4")
     )
 
+    val stalePasserBlockadeSurface =
+      build(
+        ctx =
+          MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
+            fen = "3r1rk1/1bq1b1pp/1p2p1n1/p2pPp1P/2p2P2/2P1PNB1/PPB1Q1P1/R4RK1 b - - 0 17",
+            playedMove = Some("g6h8"),
+            playedSan = Some("Nh8")
+          ),
+        strategyPack =
+          Some(
+            StrategyPack(
+              sideToMove = "black",
+              strategicIdeas =
+                List(
+                  passerBlockadeIdea.copy(
+                    ideaId = "idea_stale_passer_blockade_restraint",
+                    ownerSide = "black",
+                    focusSquares = List("h8", "g5"),
+                    focusFiles = List("g"),
+                    focusZone = Some("kingside"),
+                    evidenceRefs =
+                      List(
+                        "source:passer_blockade_motif",
+                        "passer_blockade_shape",
+                        "blockade_square_h8",
+                        "blockaded_pawn_g5"
+                      )
+                  )
+                )
+            )
+          )
+      )
+    assert(!stalePasserBlockadeSurface.advancedRows.exists(_.label == "Practical restraint"), clue(stalePasserBlockadeSurface.advancedRows))
+
     val passerBlockadeSourceOnlySurface =
       build(
         strategyPack =
           Some(
             StrategyPack(
-              sideToMove = "white",
+              sideToMove = "black",
               strategicIdeas =
                 List(
                   passerBlockadeIdea.copy(
@@ -4814,7 +5380,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
         strategyPack =
           Some(
             StrategyPack(
-              sideToMove = "white",
+              sideToMove = "black",
               strategicIdeas =
                 List(
                   passerBlockadeIdea.copy(
@@ -4832,7 +5398,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
         strategyPack =
           Some(
             StrategyPack(
-              sideToMove = "white",
+              sideToMove = "black",
               strategicIdeas =
                 List(
                   passerBlockadeIdea.copy(
@@ -11209,6 +11775,851 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
 
     assertEquals(surface.summaryRows, Nil)
     assertEquals(surface.advancedRows, Nil)
+  }
+
+  test("bad only-move failure truth contract suppresses player practical support rows") {
+    val actualBe7Ctx =
+      actualMoveContext(
+        fen = "rnbqkb1r/1pp2ppp/p3pn2/3p4/2PP4/2N1P3/PP1B1PPP/R2QKBNR b KQkq - 2 5",
+        playedMove = "f8e7",
+        playedSan = "Be7"
+      )
+    val practicalPack =
+      strategyPack(
+        "black",
+        pawnBreakIdea(
+          ideaId = "idea_d_file_break",
+          side = "black",
+          focusFiles = List("d"),
+          focusZone = Some("center"),
+          group = "pawn_break",
+          refs = List("source:pawn_analysis_break_ready", "pawn_analysis_break_ready_shape", "break_file_d")
+        ),
+        counterplaySuppressionIdea(
+          ideaId = "idea_e_file_restraint",
+          side = "black",
+          focusFiles = List("e"),
+          refs = List("source:opponent_counterbreak_denial", "opponent_counter_break")
+        )
+      )
+    val onlyMoveFailureContract =
+      tacticalTruthContract().copy(
+        playedMove = Some("f8e7"),
+        verifiedBestMove = Some("d5c4"),
+        truthClass = DecisiveTruthClass.Mistake,
+        cpLoss = 172,
+        swingSeverity = 172,
+        reasonFamily = DecisiveReasonKind.OnlyMoveDefense,
+        chosenMatchesBest = false,
+        visibilityRole = TruthVisibilityRole.PrimaryVisible,
+        surfaceMode = TruthSurfaceMode.FailureExplain,
+        failureMode = FailureInterpretationMode.OnlyMoveFailure
+      )
+
+    val surface =
+      build(
+        ctx = actualBe7Ctx,
+        strategyPack = Some(practicalPack),
+        truthContract = Some(onlyMoveFailureContract)
+      )
+
+    assertEquals(surface.advancedRows, Nil)
+  }
+
+  test("successful only-move defense truth owner suppresses broad practical line from real gxf6 row") {
+    val actualGxf6Ctx =
+      actualMoveContext(
+        fen = "6k1/1p4p1/p3pN2/3q2p1/2pP1p2/2P2P2/PP2QKP1/R7 b - - 0 30",
+        playedMove = "g7f6",
+        playedSan = "gxf6"
+      )
+    val practicalLinePack =
+      strategyPack(
+        "black",
+        lineOccupationIdea(
+          ideaId = "idea_gxf6_qd5_open_d_file",
+          side = "black",
+          piece = "Q",
+          focusSquares = List("d5"),
+          focusFiles = List("d"),
+          refs = List("source:occupied_line_control", "occupied_q_d5", "open_file_d")
+        )
+      )
+    val onlyMoveBestContract =
+      tacticalTruthContract().copy(
+        playedMove = Some("g7f6"),
+        verifiedBestMove = Some("g7f6"),
+        truthClass = DecisiveTruthClass.Best,
+        cpLoss = 0,
+        swingSeverity = 0,
+        reasonFamily = DecisiveReasonKind.OnlyMoveDefense,
+        chosenMatchesBest = true,
+        visibilityRole = TruthVisibilityRole.PrimaryVisible,
+        surfaceMode = TruthSurfaceMode.Neutral,
+        surfacedMoveOwnsTruth = true,
+        benchmarkCriticalMove = true,
+        failureMode = FailureInterpretationMode.NoClearPlan
+      )
+
+    val surface =
+      build(
+        ctx = actualGxf6Ctx,
+        strategyPack = Some(practicalLinePack),
+        truthContract = Some(onlyMoveBestContract)
+      )
+
+    assertNoAdvancedRow(surface, "Practical line")
+  }
+
+  test("exact relation-witness local fact with raw guardrail suppresses broad practical rows") {
+    val actualBe7Ctx =
+      actualMoveContext(
+        fen = "rnbqkb1r/1pp2ppp/p3pn2/3p4/2PP4/2N1P3/PP1B1PPP/R2QKBNR b KQkq - 2 5",
+        playedMove = "f8e7",
+        playedSan = "Be7"
+      )
+    val relationFact =
+      localFactAdmission(
+        family = MoveReviewLocalFact.Family.Threat,
+        authority = MoveReviewLocalFact.Authority.PvCoupledLine,
+        producer = MoveReviewLocalFact.Producer.RelationWitness,
+        strictFallbackEligible = true,
+        guardrails = List("relation_witness_typed_details", "fen_validated_line_replayed", "played_move_first"),
+        evidenceRefs =
+          List(
+            "evidence_source:relation_witness",
+            "typed_local_fact_source:relation_witness",
+            "typed_local_fact_family:threat",
+            "typed_local_fact_producer:relation_witness",
+            "relation_kind:bad_piece_liquidation",
+            "bad_piece_liquidation_branch"
+          )
+      )
+    val practicalPack =
+      strategyPack(
+        "black",
+        pawnBreakIdea(
+          ideaId = "idea_d_file_break",
+          side = "black",
+          focusFiles = List("d"),
+          refs = List("source:pawn_analysis_break_ready", "pawn_analysis_break_ready_shape", "break_file_d")
+        ),
+        counterplaySuppressionIdea(
+          ideaId = "idea_e_file_restraint",
+          side = "black",
+          focusFiles = List("e"),
+          refs = List("source:opponent_counterbreak_denial", "opponent_counter_break")
+        )
+      )
+
+    val surface =
+      build(
+        ctx = actualBe7Ctx,
+        strategyPack = Some(practicalPack),
+        primaryLocalFact = Some(relationFact)
+      )
+
+    assert(!surface.advancedRows.exists(_.label.startsWith("Practical")), clue(surface.advancedRows))
+  }
+
+  test("exact tactical local fact suppresses broad practical advanced rows from actual Bg4 pin row") {
+    val actualBg4Ctx =
+      actualMoveContext(
+        fen = "rnbqk1nr/pp2ppbp/2pp2p1/8/3P1B2/2P1PN2/PP3PPP/RN1QKB1R b KQkq - 0 5",
+        playedMove = "c8g4",
+        playedSan = "Bg4"
+      )
+    val pinLocalFact =
+      localFactAdmission(
+        family = MoveReviewLocalFact.Family.Threat,
+        authority = MoveReviewLocalFact.Authority.CanonicalFact,
+        producer = MoveReviewLocalFact.Producer.TacticalMotif,
+        strictFallbackEligible = true,
+        guardrails = List("tactical_kind:pin", "current_move_motif_owned", "pv_confirms_tactic"),
+        anchors =
+          List(
+            MoveReviewLocalFact.Anchor("tactical_kind", "pin"),
+            MoveReviewLocalFact.Anchor("behind_role", "queen")
+          ),
+        evidenceRefs =
+          List(
+            "tactical_kind:pin",
+            "motif_owner:current_move",
+            "behind_role:queen"
+          )
+      )
+    val broadRestraintPack =
+      strategyPack(
+        "black",
+        counterplaySuppressionIdea(
+          ideaId = "idea_bg4_g_file_restraint",
+          side = "black",
+          focusFiles = List("g"),
+          refs =
+            List(
+              "source:counterplay_suppression",
+              "counterplay_suppression_shape",
+              "counterplay_break_denial",
+              "break_neutralized",
+              "denied_break_resource"
+            )
+        )
+      )
+
+    val surface =
+      build(
+        ctx = actualBg4Ctx,
+        strategyPack = Some(broadRestraintPack),
+        primaryLocalFact = Some(pinLocalFact)
+      )
+
+    assertEquals(surface.title, Some("Move review: Bg4"))
+    assertNoAdvancedRow(surface, "Practical restraint")
+  }
+
+  test("exact target-pressure local fact suppresses broad practical advanced rows from actual c4 row") {
+    val actualC4Ctx =
+      actualMoveContext(
+        fen = "r2q1rk1/1b2bppp/1p2p1n1/p1ppP3/5P2/2PBP1B1/PP1NQ1PP/R4RK1 b - - 0 13",
+        playedMove = "c5c4",
+        playedSan = "c4"
+      )
+    val targetPressureLocalFact =
+      localFactAdmission(
+        family = MoveReviewLocalFact.Family.Pressure,
+        authority = MoveReviewLocalFact.Authority.CanonicalFact,
+        producer = MoveReviewLocalFact.Producer.TargetPressure,
+        strictFallbackEligible = true,
+        guardrails = List("target_fact_attacked_by_played_move", "pv_coupled", "post_move_static_target"),
+        anchors =
+          List(
+            MoveReviewLocalFact.Anchor("target_square", "d3"),
+            MoveReviewLocalFact.Anchor("target_role", "bishop"),
+            MoveReviewLocalFact.Anchor("attacker_square", "c4")
+          ),
+        evidenceRefs =
+          List(
+            "fact_kind:target_piece",
+            "fact_scope:now",
+            "fact_square:d3",
+            "fact_square:c4",
+            "fact_role:bishop",
+            "fact_source:post_move_static"
+          )
+      )
+    val broadPracticalPack =
+      strategyPack(
+        "black",
+        pawnBreakIdea(
+          ideaId = "idea_c4_french_f6_seed",
+          side = "black",
+          focusFiles = List("f"),
+          focusSquares = List("e5", "f6"),
+          readiness = StrategicIdeaReadiness.Build,
+          confidence = 0.92,
+          refs =
+            List(
+              "source:french_f6_break_seed",
+              "french_f6_break_seed_shape",
+              "white_e5_chain",
+              "black_f7_break_pawn"
+            )
+        ),
+        counterplaySuppressionIdea(
+          ideaId = "idea_c4_a_file_restraint",
+          side = "black",
+          focusFiles = List("a"),
+          refs =
+            List(
+              "source:counterplay_suppression",
+              "counterplay_suppression_shape",
+              "counterplay_break_denial",
+              "break_neutralized",
+              "denied_break_resource"
+            )
+        )
+      )
+
+    val surface =
+      build(
+        ctx = actualC4Ctx,
+        strategyPack = Some(broadPracticalPack),
+        primaryLocalFact = Some(targetPressureLocalFact)
+      )
+
+    assertEquals(surface.title, Some("Move review: c4"))
+    assert(!surface.advancedRows.exists(_.label.startsWith("Practical")), clue(surface.advancedRows))
+  }
+
+  test("successful tactical truth owner keeps exact deflection surface and suppresses broad practical break") {
+    val actualD6Ctx =
+      actualMoveContext(
+        fen = "r1bqk2r/pppp1ppp/5n2/4N1B1/4P3/3P4/P1P1KPPP/Q6R b kq - 0 10",
+        playedMove = "d7d6",
+        playedSan = "d6"
+      )
+    val exactDeflectionRow =
+      MoveReviewPlayerSurfaceRow(
+        label = "Deflection",
+        text = "The checked line attacks the defender on e5 from d6; after it moves, d3 loses that defense.",
+        refSans = List("d6", "Nc4"),
+        authority = Some(MoveReviewSurfaceAuthority(kind = MoveReviewSurfaceAuthority.PracticalPlan))
+      )
+    val broadBreakPack =
+      strategyPack(
+        "black",
+        pawnBreakIdea(
+          ideaId = "idea_d6_g_file_break",
+          side = "black",
+          focusFiles = List("g"),
+          focusZone = Some("kingside"),
+          refs = List("source:pawn_analysis_break_ready", "pawn_analysis_break_ready_shape", "break_file_g")
+        )
+      )
+    val tacticalBestContract =
+      tacticalTruthContract().copy(
+        playedMove = Some("d7d6"),
+        verifiedBestMove = Some("d7d6"),
+        truthClass = DecisiveTruthClass.Best,
+        cpLoss = 0,
+        swingSeverity = 0,
+        reasonFamily = DecisiveReasonKind.TacticalRefutation,
+        chosenMatchesBest = true,
+        visibilityRole = TruthVisibilityRole.PrimaryVisible,
+        surfaceMode = TruthSurfaceMode.Neutral,
+        surfacedMoveOwnsTruth = true,
+        failureMode = FailureInterpretationMode.NoClearPlan
+      )
+
+    val surface =
+      build(
+        ctx = actualD6Ctx,
+        supportedLocalRows = List(exactDeflectionRow),
+        strategyPack = Some(broadBreakPack),
+        truthContract = Some(tacticalBestContract)
+      )
+
+    assertEquals(surface.summaryRows.map(_.label), List("Deflection"), clue(surface.summaryRows))
+    assertNoAdvancedRow(surface, "Practical break")
+  }
+
+  test("successful tactical truth owner keeps exact local row and suppresses unsupported strategic relation") {
+    val actualQd5Ctx =
+      actualMoveContext(
+        fen = "2r3k1/p4p1p/2p3p1/2q5/4Q3/1P4P1/P4P1P/5BK1 b - - 0 25",
+        playedMove = "c5d5",
+        playedSan = "Qd5"
+      )
+    val relationIdea =
+      relationIdeaSignal(
+        kind = MoveReviewExchangeAnalyzer.RelationKind.Overload,
+        ideaId = "idea_qd5_overload",
+        focusSquares = List("e4", "d3", "d4")
+      ).copy(ownerSide = "black")
+    val practicalLineIdea =
+      lineOccupationIdea(
+        ideaId = "idea_qd5_open_d_file",
+        side = "black",
+        piece = "Q",
+        focusSquares = List("d5"),
+        focusFiles = List("d"),
+        refs = List("source:open_file_control", "open_file_d")
+      )
+    val tacticalBestContract =
+      tacticalTruthContract().copy(
+        playedMove = Some("c5d5"),
+        verifiedBestMove = Some("c5d5"),
+        truthClass = DecisiveTruthClass.Best,
+        cpLoss = 0,
+        swingSeverity = 0,
+        reasonFamily = DecisiveReasonKind.TacticalRefutation,
+        chosenMatchesBest = true,
+        visibilityRole = TruthVisibilityRole.PrimaryVisible,
+        surfaceMode = TruthSurfaceMode.Neutral,
+        surfacedMoveOwnsTruth = true,
+        failureMode = FailureInterpretationMode.NoClearPlan
+      )
+
+    val surface =
+      build(
+        ctx = actualQd5Ctx,
+        supportedLocalRows =
+          List(
+            MoveReviewPlayerSurfaceRow(
+              label = "File entry",
+              text = "The checked line places the queen on the open d-file.",
+                refSans = List("Qd5")
+            )
+          ),
+        strategyPack = Some(strategyPack("black", relationIdea, practicalLineIdea)),
+        truthContract = Some(tacticalBestContract)
+      )
+
+    assertEquals(surface.summaryRows.map(_.label), List("File entry"), clue(surface.summaryRows))
+    assertNoAdvancedRow(surface, "Tactical relation")
+    assertNoAdvancedRow(surface, "Practical line")
+  }
+
+  test("actual Na6 fork-entry defense local fact suppresses unrelated practical line rows") {
+    val actualNa6Ctx =
+      actualMoveContext(
+        fen = "rnb1kb1r/pp3p1p/4pp2/1N6/8/8/PPP2PPP/R1B1KB1R b KQkq - 1 9",
+        playedMove = "b8a6",
+        playedSan = "Na6"
+      )
+    val practicalLineIdea =
+      lineOccupationIdea(
+        ideaId = "idea_na6_semi_open_g_file",
+        side = "black",
+        piece = "R",
+        focusSquares = Nil,
+        focusFiles = List("g"),
+        refs = List("source:semi_open_file_control", "semi_open_file_g"),
+        confidence = 0.78
+      )
+    val primaryLocalFact =
+      localFactAdmission(
+        family = MoveReviewLocalFact.Family.Defense,
+        authority = MoveReviewLocalFact.Authority.CanonicalFact,
+        producer = MoveReviewLocalFact.Producer.ForkEntryDefense,
+        strictFallbackEligible = true,
+        guardrails =
+          List(
+            "fork_entry_square_defended_by_played_move",
+            "post_move_static_fork_entry_defense",
+            "hypothetical_knight_fork_targets_king_and_major",
+            "pv_coupled"
+          ),
+        evidenceRefs =
+          List(
+            "evidence_source:typed_local_fact",
+            "evidence_subject:line_or_reply",
+            "evidence_line_binding:pv_coupled",
+            "typed_local_fact_source:canonical_fact",
+            "typed_local_fact_family:defense",
+            "typed_local_fact_producer:fork_entry_defense",
+            "fact_source:post_move_fork_entry_defense",
+            "fork_entry_square:c7",
+            "fork_attacker:b5",
+            "fork_defender_square:a6",
+            "fork_target:e8:king",
+            "fork_target:a8:rook"
+          )
+      )
+    val quietInaccuracyContract =
+      tacticalTruthContract().copy(
+        playedMove = Some("b8a6"),
+        verifiedBestMove = Some("d8b6"),
+        truthClass = DecisiveTruthClass.Inaccuracy,
+        cpLoss = 72,
+        swingSeverity = 1,
+        reasonFamily = DecisiveReasonKind.QuietTechnicalMove,
+        chosenMatchesBest = false,
+        visibilityRole = TruthVisibilityRole.SupportingVisible,
+        surfaceMode = TruthSurfaceMode.Neutral,
+        surfacedMoveOwnsTruth = false,
+        failureMode = FailureInterpretationMode.NoClearPlan
+      )
+
+    val surface =
+      build(
+        ctx = actualNa6Ctx,
+        strategyPack = Some(strategyPack("black", practicalLineIdea)),
+        truthContract = Some(quietInaccuracyContract),
+        primaryLocalFact = Some(primaryLocalFact)
+      )
+
+    assertNoAdvancedRow(surface, "Practical line")
+  }
+
+  test("actual Be1 line-consequence local fact suppresses unrelated practical line rows without line-consequence argument") {
+    val actualBe1Ctx =
+      actualMoveContext(
+        fen = "3q1rk1/2p2ppp/1p1p1n2/B3p3/4P3/5N2/2P2PPP/1R3QK1 w - - 0 18",
+        playedMove = "a5e1",
+        playedSan = "Be1"
+      )
+    val practicalLineIdea =
+      lineOccupationIdea(
+        ideaId = "idea_be1_a_file_post",
+        side = "white",
+        piece = "R",
+        focusSquares = List("a1"),
+        focusFiles = List("a"),
+        refs = List("source:occupied_line_control", "occupied_r_a1", "open_file_a")
+      )
+    val primaryLocalFact =
+      localFactAdmission(
+        family = MoveReviewLocalFact.Family.LineConsequence,
+        authority = MoveReviewLocalFact.Authority.PvCoupledLine,
+        producer = MoveReviewLocalFact.Producer.LineConsequence,
+        evidenceRefs =
+          List(
+            "evidence_source:line_consequence_surface",
+            "evidence_subject:played_move",
+            "evidence_line_binding:pv_coupled",
+            "line_consequence_kind:immediate_opponent_pawn_capture",
+            "line_consequence_release:surface_candidate",
+            "line_consequence_line_id:line_02",
+            "line_consequence_trigger_san:Nxe4"
+          )
+      )
+
+    val surface =
+      build(
+        ctx = actualBe1Ctx,
+        strategyPack = Some(strategyPack("white", practicalLineIdea)),
+        primaryLocalFact = Some(primaryLocalFact)
+      )
+
+    assertNoAdvancedRow(surface, "Practical line")
+  }
+
+  test("actual c3 alternative-comparison local fact suppresses unrelated practical space rows") {
+    val actualC3Ctx =
+      actualMoveContext(
+        fen = "7r/pppr3p/2n1kp2/3Np3/4P3/P4P2/1PP3PP/2R1K2R w K - 0 18",
+        playedMove = "c2c3",
+        playedSan = "c3"
+      )
+    val practicalSpaceIdea =
+      StrategyIdeaSignal(
+        ideaId = "idea_c3_flank_pawn_chain_space",
+        ownerSide = "white",
+        kind = StrategicIdeaKind.SpaceGainOrRestriction,
+        group = StrategicIdeaGroup.StructuralChange,
+        readiness = StrategicIdeaReadiness.Build,
+        focusFiles = List("a", "b", "g", "h"),
+        focusZone = Some("kingside"),
+        confidence = 0.74,
+        evidenceRefs =
+          List(
+            "source:pawn_chain_space_motif",
+            "pawn_chain_space_shape",
+            "pawn_chain_a_b",
+            "pawn_chain_g_h"
+          )
+      )
+    val primaryLocalFact =
+      roleAwareAlternativeLocalFact.copy(
+        evidenceRefs =
+          List(
+            "evidence_source:role_aware_line_consequence",
+            "evidence_subject:played_move",
+            "evidence_line_binding:pv_coupled",
+            "comparison_source:role_aware_line_consequence",
+            "branch_role:engine_best",
+            "branch_role:played",
+            "engine_best_move:Ne3",
+            "played_move:c3",
+            "compared_move:c3",
+            "cp_loss:55",
+            "engine_best:line_consequence_kind:capture_structure_transition",
+            "engine_best:line_consequence_release:replay_backed_internal",
+            "played:line_consequence_kind:preview_only",
+            "played:line_consequence_release:replay_backed_internal"
+          )
+      )
+
+    val surface =
+      build(
+        ctx = actualC3Ctx,
+        strategyPack = Some(strategyPack("white", practicalSpaceIdea)),
+        primaryLocalFact = Some(primaryLocalFact)
+      )
+
+    assertNoAdvancedRow(surface, "Practical space")
+  }
+
+  test("actual Be6 pv-coupled plan-support local fact suppresses unrelated practical line rows") {
+    val actualBe6Ctx =
+      actualMoveContext(
+        fen = "r4rk1/pp3ppp/3q1n2/2p5/2P3b1/3PBPN1/PP2Q1PP/R4RK1 b - - 0 15",
+        playedMove = "g4e6",
+        playedSan = "Be6"
+      )
+    val practicalLineIdea =
+      lineOccupationIdea(
+        ideaId = "idea_be6_queen_e_file_post",
+        side = "black",
+        piece = "Q",
+        focusSquares = List("e6"),
+        focusFiles = List("e"),
+        refs = List("source:occupied_line_control", "occupied_q_e6", "open_file_e")
+      )
+    val primaryLocalFact =
+      localFactAdmission(
+        family = MoveReviewLocalFact.Family.PlanSupport,
+        authority = MoveReviewLocalFact.Authority.PvCoupledLine,
+        producer = MoveReviewLocalFact.Producer.CertifiedStrategyDelta,
+        evidenceRefs =
+          List(
+            "evidence_source:pv_coupled_plan_support",
+            "evidence_subject:played_move",
+            "evidence_line_binding:pv_coupled",
+            "plan_name:Prophylaxis against counterplay",
+            "played_san:Be6",
+            "branch_line_meaningful:true",
+            "plan_anchor_matched:true",
+            "branch_line_first_san:Be6",
+            "plan_anchor_line:Further probe work still targets Prophylaxis against counterplay through Rae8 an",
+            "plan_anchor_token:Rae8",
+            "plan_anchor_token:Rfe8",
+            "plan_anchor_matched_token:Rfe8"
+          )
+      )
+
+    val surface =
+      build(
+        ctx = actualBe6Ctx,
+        strategyPack = Some(strategyPack("black", practicalLineIdea)),
+        primaryLocalFact = Some(primaryLocalFact)
+      )
+
+    assertNoAdvancedRow(surface, "Practical line")
+  }
+
+  test("actual e6 bounded non-unique reply-loss local fact suppresses unrelated practical restraint rows") {
+    val actualE6Ctx =
+      actualMoveContext(
+        fen = "rn1qkb1r/pp2pppp/2p2n2/3p4/2PP2b1/2N1PN2/PP3PPP/R1BQKB1R b KQkq - 0 5",
+        playedMove = "e7e6",
+        playedSan = "e6"
+      )
+    val practicalRestraintIdea =
+      counterplaySuppressionIdea(
+        ideaId = "idea_e6_c_file_counterbreak_denial",
+        side = "black",
+        focusFiles = List("c"),
+        refs = List("source:opponent_counterbreak_denial", "opponent_counter_break")
+      )
+    val primaryLocalFact =
+      localFactAdmission(
+        family = MoveReviewLocalFact.Family.Defense,
+        authority = MoveReviewLocalFact.Authority.ForcedReply,
+        producer = MoveReviewLocalFact.Producer.ForcedReply,
+        strictFallbackEligible = true,
+        guardrails =
+          List(
+            "explicit_reply_loss",
+            "forced_reply_non_unique",
+            "reply_defense_count:3",
+            "surface_forced=false",
+            "surface_line=replayed"
+          ),
+        lineBinding = MoveReviewLocalFact.LineBinding.None,
+        evidenceRefs =
+          List(
+            "evidence_source:explicit_reply_loss",
+            "evidence_subject:line_or_reply",
+            "contrast_anchor:e6",
+            "reply_anchor:e6",
+            "reply_uci:e7e6",
+            "reply_defense_count:3",
+            "loss_if_ignored_cp:144",
+            "turns_to_impact:1",
+            "threat_kind:material",
+            "threat_square:d5"
+          )
+      )
+
+    val surface =
+      build(
+        ctx = actualE6Ctx,
+        strategyPack = Some(strategyPack("black", practicalRestraintIdea)),
+        primaryLocalFact = Some(primaryLocalFact)
+      )
+
+    assertNoAdvancedRow(surface, "Practical restraint")
+  }
+
+  test("actual Qd5 line-occupation local fact keeps file entry surface without weaker relation or practical-line rows") {
+    val actualQd5Ctx =
+      actualMoveContext(
+        fen = "2r3k1/p4p1p/2p3p1/2q5/4Q3/1P4P1/P4P1P/5BK1 b - - 0 25",
+        playedMove = "c5d5",
+        playedSan = "Qd5"
+      )
+    val relationIdea =
+      relationIdeaSignal(
+        kind = MoveReviewExchangeAnalyzer.RelationKind.Overload,
+        ideaId = "idea_qd5_overload",
+        focusSquares = List("e4", "d3", "d4"),
+        targetSquare = Some("d3")
+      ).copy(ownerSide = "black")
+    val practicalLineIdea =
+      lineOccupationIdea(
+        ideaId = "idea_qd5_open_d_file",
+        side = "black",
+        piece = "Q",
+        focusSquares = List("d5"),
+        focusFiles = List("d"),
+        confidence = 0.98,
+        refs =
+          List(
+            "source:route_line_access",
+            "open_file_d",
+            "source:open_file_control",
+            "source:directional_line_access",
+            "directional_line_access_shape",
+            "source:line_control_features",
+            "line_control_shape"
+          )
+      )
+    val primaryLocalFact =
+      localFactAdmission(
+        family = MoveReviewLocalFact.Family.Pressure,
+        authority = MoveReviewLocalFact.Authority.CertifiedStrategy,
+        producer = MoveReviewLocalFact.Producer.CertifiedStrategyDelta,
+        evidenceRefs =
+          List(
+            "evidence_source:typed_local_fact",
+            "evidence_subject:played_move",
+            "evidence_line_binding:pv_coupled",
+            "typed_local_fact_source:practical_position_support",
+            "typed_local_fact_family:pressure",
+            "typed_local_fact_producer:certified_strategy_delta",
+            "strategic_idea_kind:line_occupation",
+            "strategic_readiness:ready",
+            "anchor:d5",
+            "strategy_ref:source:route_line_access",
+            "strategy_ref:open_file_d",
+            "strategy_ref:source:open_file_control",
+            "strategy_ref:source:directional_line_access",
+            "strategy_ref:directional_line_access_shape",
+            "strategy_ref:source:line_control_features",
+            "strategy_ref:line_control_shape",
+            "focus_square:d5",
+            "focus_file:d",
+            "line_occupation_file:d",
+            "line_occupation_status:open"
+          )
+      )
+    val quietBestContract =
+      tacticalTruthContract().copy(
+        playedMove = Some("c5d5"),
+        verifiedBestMove = Some("c5d5"),
+        truthClass = DecisiveTruthClass.Best,
+        cpLoss = 0,
+        swingSeverity = 0,
+        reasonFamily = DecisiveReasonKind.QuietTechnicalMove,
+        chosenMatchesBest = true,
+        visibilityRole = TruthVisibilityRole.SupportingVisible,
+        surfaceMode = TruthSurfaceMode.Neutral,
+        surfacedMoveOwnsTruth = false,
+        failureMode = FailureInterpretationMode.NoClearPlan
+      )
+
+    val surface =
+      build(
+        ctx = actualQd5Ctx,
+        supportedLocalRows =
+          List(
+            MoveReviewPlayerSurfaceRow(
+              label = "File entry",
+              text = "The checked line places the queen on the open d-file.",
+                refSans = List("Qd5")
+            )
+          ),
+        strategyPack = Some(strategyPack("black", relationIdea, practicalLineIdea)),
+        truthContract = Some(quietBestContract),
+        primaryLocalFact = Some(primaryLocalFact)
+      )
+
+    assertEquals(surface.summaryRows.map(_.label), List("File entry"), clue(surface.summaryRows))
+    assert(!surface.advancedRows.exists(_.label == "Tactical relation"), clue(surface.advancedRows))
+    assert(!surface.advancedRows.exists(_.label == "Practical line"), clue(surface.advancedRows))
+  }
+
+  test("actual Qa5+ relation-witness overload suppresses weaker strategic relation, practical line, and unresolved defense prompts") {
+    val actualQa5Ctx =
+      actualMoveContext(
+        fen = "rnbqk1nr/pp2ppbp/6p1/1N1P4/5B2/5N2/PP3PPP/R2QKB1R b KQkq - 4 10",
+        playedMove = "d8a5",
+        playedSan = "Qa5+"
+      )
+    val pinRelationIdea =
+      relationIdeaSignal(
+        kind = MoveReviewExchangeAnalyzer.RelationKind.Pin,
+        ideaId = "idea_qa5_pin_geometry",
+        focusSquares = List("a5", "a2", "a1"),
+        targetSquare = Some("a2")
+      ).copy(ownerSide = "black")
+    val practicalLineIdea =
+      lineOccupationIdea(
+        ideaId = "idea_qa5_c_file_post",
+        side = "black",
+        piece = "Q",
+        focusSquares = List("a5"),
+        focusFiles = List("c"),
+        refs = List("source:open_file_control", "open_file_c")
+      )
+    val primaryLocalFact =
+      localFactAdmission(
+        family = MoveReviewLocalFact.Family.Threat,
+        authority = MoveReviewLocalFact.Authority.PvCoupledLine,
+        producer = MoveReviewLocalFact.Producer.RelationWitness,
+        strictFallbackEligible = true,
+        evidenceRefs =
+          List(
+            "evidence_source:relation_witness",
+            "typed_local_fact_source:relation_witness",
+            "typed_local_fact_family:threat",
+            "typed_local_fact_producer:relation_witness",
+            "relation_kind:overload",
+            "relation_source:overload_relation",
+            "overload_relation_witness",
+            "relation_fact:defender:f3",
+            "relation_fact:duties:d2|e1",
+            "relation_fact:attacker:a5"
+          )
+      )
+    val quietBestContract =
+      tacticalTruthContract().copy(
+        playedMove = Some("d8a5"),
+        verifiedBestMove = Some("d8a5"),
+        truthClass = DecisiveTruthClass.Best,
+        cpLoss = 0,
+        swingSeverity = 0,
+        reasonFamily = DecisiveReasonKind.QuietTechnicalMove,
+        chosenMatchesBest = true,
+        visibilityRole = TruthVisibilityRole.SupportingVisible,
+        surfaceMode = TruthSurfaceMode.Neutral,
+        surfacedMoveOwnsTruth = false,
+        failureMode = FailureInterpretationMode.NoClearPlan
+      )
+
+    val surface =
+      build(
+        ctx = actualQa5Ctx,
+        authoringSurface =
+          AuthoringEvidenceSurface(
+            questions = Nil,
+            evidence =
+              List(
+                AuthorEvidenceSummary(
+                  questionId = "defense_qa5",
+                  questionKind = "WhatMustBeStopped",
+                  question = "What is the defensive task here — can Black meet the threat with Qa5+?",
+                  why = Some("There is immediate pressure: if ignored, king safety can become critical on the next move."),
+                  status = "pending",
+                  purposes = List("defense_reply_multipv"),
+                  branchCount = 0,
+                  branches = Nil,
+                  pendingProbeIds = List("probe_defense_qa5"),
+                  pendingProbeCount = 1
+                )
+              ),
+            headline = None
+          ),
+        strategyPack = Some(strategyPack("black", pinRelationIdea, practicalLineIdea)),
+        truthContract = Some(quietBestContract),
+        primaryLocalFact = Some(primaryLocalFact)
+      )
+
+    assertNoAdvancedRow(surface, "Line relation")
+    assertNoAdvancedRow(surface, "Practical line")
+    assertEquals(surface.authorRows, Nil)
   }
 
   test("probe-backed plans only release rows from the promoted plan") {

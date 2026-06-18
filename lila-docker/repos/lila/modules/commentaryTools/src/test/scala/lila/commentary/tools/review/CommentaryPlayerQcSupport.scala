@@ -59,6 +59,28 @@ object CommentaryPlayerQcSupport:
     val Correspondence = "correspondence"
     val Unknown = "unknown"
 
+  object MoveReviewFallbackMode:
+    val ExactFactual = "exact_factual"
+    val PlannerOwned = "planner_owned"
+    val ReplayExactFactual = "move_review_exact_factual"
+    val ReplayPlannerOwned = "move_review_planner_owned"
+    val FactualFallback = "factual_fallback"
+
+    def fromPlannerOwned(plannerOwned: Boolean): String =
+      if plannerOwned then PlannerOwned else ExactFactual
+
+    def isPlannerOwned(mode: String): Boolean =
+      mode == PlannerOwned
+
+    def isExactFactual(mode: String): Boolean =
+      mode == ExactFactual
+
+    def replayOutcome(plannerOwned: Boolean): String =
+      if plannerOwned then ReplayPlannerOwned else ReplayExactFactual
+
+    def replayOutcome(mode: String): String =
+      replayOutcome(isPlannerOwned(mode))
+
   object SliceKind:
     val OpeningTransition = "opening_transition"
     val StrategicChoice = "strategic_choice"
@@ -1241,6 +1263,8 @@ object CommentaryPlayerQcSupport:
             DecisiveTruth.derive(
               ctx = rawCtx,
               transitionType = data.planSequence.map(_.transitionType.toString),
+              cpBefore = Some(beforeCp),
+              cpAfter = afterEval.map(_.cp),
               strategyPack = rawStrategyPack
             )
           )
@@ -2259,7 +2283,7 @@ object CommentaryPlayerQcSupport:
           secondaryKind = rankedPlans.secondary.map(_.questionKind.toString),
           secondarySurfaced =
             rankedPlans.secondary.nonEmpty && plannerOwned && slots.supportSecondary.nonEmpty,
-          moveReviewFallbackMode = if plannerOwned then "planner_owned" else "exact_factual",
+          moveReviewFallbackMode = MoveReviewFallbackMode.fromPlannerOwned(plannerOwned),
           sceneType = Some(rankedPlans.ownerTrace.sceneType.wireName),
           sceneReasons = rankedPlans.ownerTrace.sceneReasons,
           ownerCandidates = rankedPlans.ownerTrace.ownerCandidateLabels,
@@ -2302,7 +2326,7 @@ object CommentaryPlayerQcSupport:
           forcingDefenseSources = forcingDefenseSources,
           moveDeltaSources = moveDeltaSources,
           surfaceReplayOutcome =
-            Some(if plannerOwned then "move_review_planner_owned" else "move_review_exact_factual"),
+            Some(MoveReviewFallbackMode.replayOutcome(plannerOwned)),
           contrastSourceKind = contrastTrace.contrast_source_kind,
           contrastAnchor = contrastTrace.contrast_anchor,
           contrastConsequence = contrastTrace.contrast_consequence,

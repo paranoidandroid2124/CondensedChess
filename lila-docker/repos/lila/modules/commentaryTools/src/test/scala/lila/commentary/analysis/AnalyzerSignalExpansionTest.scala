@@ -4,7 +4,7 @@ import chess.{ Bishop, Color, File, King, Knight, Queen, Rook, Square }
 import lila.commentary.analysis.L3.*
 import lila.commentary.analysis.PlanMatcher.ActivePlans
 import lila.commentary.model.{ Motif, NatureType as ModelNatureType, Plan, PlanMatch, PositionNature, TransitionType }
-import lila.commentary.model.strategic.PlanContinuity
+import lila.commentary.model.strategic.{ PlanContinuity, VariationLine }
 import munit.FunSuite
 
 class AnalyzerSignalExpansionTest extends FunSuite:
@@ -300,4 +300,32 @@ class AnalyzerSignalExpansionTest extends FunSuite:
 
     assert(data.conceptSummary.contains("Exchange pressure"), clue(data.conceptSummary))
     assert(!data.conceptSummary.contains("Removing defenders"), clue(data.conceptSummary))
+  }
+
+  test("StrategicFeatureExtractor synthetic played line is bad for black when absent from MultiPV") {
+    val extractor =
+      new StrategicFeatureExtractorImpl(
+        new strategic.ProphylaxisAnalyzerImpl,
+        new strategic.ActivityAnalyzerImpl,
+        new strategic.StructureAnalyzerImpl,
+        new strategic.EndgameAnalyzerImpl,
+        new strategic.PracticalityScorerImpl
+      )
+    val data =
+      extractor.extract(
+        fen = "4k3/8/8/8/8/8/8/4K3 b - - 0 1",
+        metadata = AnalysisMetadata(Color.Black, ply = 12, prevMove = None),
+        baseData = BaseAnalysisData(
+          nature = PositionNature(ModelNatureType.Dynamic, tension = 0.4, stability = 0.6, description = "test"),
+          motifs = Nil,
+          plans = Nil
+        ),
+        vars = List(VariationLine(List("e8d7"), scoreCp = -100, depth = 8)),
+        playedMove = Some("e8f7")
+      )
+
+    val counterfactual = data.counterfactual.getOrElse(fail("missing counterfactual for non-best black move"))
+    assertEquals(counterfactual.bestMove, "e8d7")
+    assertEquals(counterfactual.userMove, "e8f7")
+    assertEquals(counterfactual.cpLoss, 50)
   }

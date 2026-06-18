@@ -193,9 +193,9 @@ object MoveReviewProseContract:
 object MoveReviewSoftRepair:
 
   private val CosmeticActions = Set("claim_restore")
-  private val EvidenceHookLine1Pattern = """(?i)^one concrete line that keeps the idea in play is\s+[a-z]\)\s+(?:the|on)\s+checked\s+line\b.*""".r
+  private val EvidenceHookLine1Pattern = """(?i)^one concrete line that keeps the idea in play is\s+[a-z]\)\s+(?:the|on(?:\s+the)?)\s+checked\s+line\b.*""".r
   private val EvidenceHookLine1ReplacePattern = """(?i)^one concrete line that keeps the idea in play is\s+[a-z]\)\s+""".r
-  private val EvidenceHookLine2Pattern = """(?i)^[a-z]\)\s+(?:the|on)\s+checked\s+line\b.*""".r
+  private val EvidenceHookLine2Pattern = """(?i)^[a-z]\)\s+(?:the|on(?:\s+the)?)\s+checked\s+line\b.*""".r
   private val EvidenceHookLine2ReplacePattern = """^[a-z]\)\s+""".r
   private val EvidenceHookLine3Pattern = """^[a-z]\)\s+.*""".r
   private val EvidenceHookLine4ReplacePattern = """(?i)^a concrete line is""".r
@@ -318,12 +318,13 @@ object MoveReviewSoftRepair:
     val trimmed = text.trim
     if EvidenceHookLine1Pattern.matches(trimmed) then
       EvidenceHookLine1ReplacePattern.replaceFirstIn(trimmed, "")
-    else if trimmed.toLowerCase.startsWith("one concrete line that keeps the idea in play is") then trimmed
+    else if trimmed.toLowerCase.startsWith("one concrete line that keeps the idea in play is") then
+      trimmed.replaceFirst("(?i)^one concrete line that keeps the idea in play is", "One checked line is")
     else if trimmed.toLowerCase.startsWith("a concrete line is") then
-      EvidenceHookLine4ReplacePattern.replaceFirstIn(trimmed, "One concrete line that keeps the idea in play is")
+      EvidenceHookLine4ReplacePattern.replaceFirstIn(trimmed, "One checked line is")
     else if EvidenceHookLine2Pattern.matches(trimmed) then
       EvidenceHookLine2ReplacePattern.replaceFirstIn(trimmed, "")
-    else if EvidenceHookLine3Pattern.matches(trimmed) then s"One concrete line that keeps the idea in play is $trimmed"
+    else if EvidenceHookLine3Pattern.matches(trimmed) then s"One checked line is $trimmed"
     else trimmed
 
   private def ensureSentence(text: String): String =

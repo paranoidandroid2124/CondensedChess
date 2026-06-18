@@ -53,6 +53,32 @@ final class VariationNarrativeBuilderTest extends FunSuite:
     assert(!narrative.contains("trades the pawn for the pawn"), clue(narrative))
   }
 
+  test("exchange sequence narrative does not call a surviving queen capture a trade") {
+    val fen = "r4rk1/p2p1p1p/bp3np1/8/5P1P/P1q1P1N1/6P1/R1B1KB1R w - - 0 22"
+    val ucis = List("c1d2", "c3a1", "e1f2", "f6g4", "f2f3", "a1d1", "f1e2", "a6e2")
+    val ctx = context(fen, "c1d2", "Bd2", List(VariationLine(ucis, scoreCp = -908, depth = 10)))
+    val consequence =
+      LineConsequenceEvidence(
+        lineId = Some("line_03"),
+        sanMoves = Nil,
+        uciMoves = ucis,
+        scoreCp = Some(-908),
+        mate = None,
+        depth = Some(10),
+        windowPly = 8,
+        kind = LineConsequenceKind.ExchangeSequence,
+        triggerSan = Some("Qxa1+"),
+        consequence = "",
+        whyItMatters = None,
+        release = LineConsequenceRelease.SurfaceCandidate,
+        rejectReasons = Nil
+      )
+    val narrative = VariationNarrativeBuilder.build(ctx, consequence).getOrElse(fail("failed to build narrative"))
+
+    assert(narrative.contains("Qxa1+ captures the rook on a1"), clue(narrative))
+    assert(!narrative.contains("trades the queen for the rook"), clue(narrative))
+  }
+
   test("generates forcing check sequence narrative") {
     val fen = "rnbqkb1r/pppp1ppp/5n2/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3"
     val ucis = List("f3e5", "b8c6", "e5c6", "d7c6", "d2d3", "f8c5", "f1e2", "f6g4", "e2g4", "d8h4")
@@ -74,8 +100,10 @@ final class VariationNarrativeBuilderTest extends FunSuite:
       rejectReasons = Nil
     )
     val narrative = VariationNarrativeBuilder.build(ctx, consequence).getOrElse(fail("failed to build narrative"))
-    assert(narrative.contains("forcing"), clue(narrative))
-    assert(narrative.contains("checks the king"), clue(narrative))
+    assert(narrative.contains("checked line"), clue(narrative))
+    assert(narrative.contains("replies before the position can settle"), clue(narrative))
+    assert(!narrative.toLowerCase.contains("forcing"), clue(narrative))
+    assert(!narrative.toLowerCase.contains("forced"), clue(narrative))
   }
 
   test("preview-only narrative uses SAN preview without move-number-only fragments") {

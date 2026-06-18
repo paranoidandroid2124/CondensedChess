@@ -13,6 +13,11 @@ object MoveReviewCoverageDiagnostics:
     val PlannerPreempted = "planner_preempted"
     val Blocked = "blocked"
 
+  object LocalFactStatus:
+    val Emitted = "emitted"
+    val Blocked = "blocked"
+    val Candidate = "candidate"
+
   final case class BasicEvidenceDiagnostic(status: String, rejectReasons: List[String])
 
   final case class SupportedLocalDiagnostic(
@@ -129,7 +134,7 @@ object MoveReviewCoverageDiagnostics:
           .flatMap(trace =>
             trace.localFactFamily.map { family =>
               LocalFactDiagnostic(
-                status = Some("emitted"),
+                status = Some(LocalFactStatus.Emitted),
                 families = List(family),
                 authorities = trace.localFactAuthority.toList,
                 producers = trace.localFactProducer.toList,
@@ -156,9 +161,9 @@ object MoveReviewCoverageDiagnostics:
       val evidenceRefs = localFact.map(_.evidenceRefs).getOrElse(Nil)
       val strictEligible = localFact.map(_.strictFallbackEligible)
       val status =
-        if emitted.nonEmpty && localFact.nonEmpty then Some("emitted")
-        else if candidate.nonEmpty && strictCandidate.isEmpty then Some("blocked")
-        else if candidate.nonEmpty && localFact.nonEmpty then Some("candidate")
+        if emitted.nonEmpty && localFact.nonEmpty then Some(LocalFactStatus.Emitted)
+        else if candidate.nonEmpty && strictCandidate.isEmpty then Some(LocalFactStatus.Blocked)
+        else if candidate.nonEmpty && localFact.nonEmpty then Some(LocalFactStatus.Candidate)
         else None
       val rejectReasons =
         if candidate.nonEmpty && strictCandidate.isEmpty then

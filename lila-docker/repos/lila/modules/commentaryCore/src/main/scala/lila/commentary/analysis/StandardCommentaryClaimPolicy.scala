@@ -9,9 +9,7 @@ private[analysis] object StandardCommentaryClaimPolicy:
   private val EarlyOpeningPlyCutoff = 10
   private val GuardedOpeningPlyCutoff = 16
   private val AmberThreatCp = 50
-  private val StrongThreatCp = 80
   private val UrgentThreatCp = 200
-  private val SevereCounterfactualCp = 150
   private val CentralOpeningPawnSquares =
     Set("c4", "c5", "d4", "d5", "e4", "e5", "f4", "f5")
 
@@ -97,7 +95,7 @@ private[analysis] object StandardCommentaryClaimPolicy:
       ctx: NarrativeContext,
       truthContract: Option[DecisiveTruthContract] = None
   ): Boolean =
-    !isStandard(ctx) || (!quietOpeningNoEvent(ctx, truthContract) && signalSupportCount(ctx) >= 2)
+    !isStandard(ctx) || (!quietOpeningNoEvent(ctx, truthContract) && signalSupportCount(ctx, truthContract) >= 2)
 
   def quietStandardPosition(
       ctx: NarrativeContext,
@@ -257,7 +255,7 @@ private[analysis] object StandardCommentaryClaimPolicy:
         case _ => false
       }
 
-  private def signalSupportCount(ctx: NarrativeContext): Int =
+  private def signalSupportCount(ctx: NarrativeContext, truthContract: Option[DecisiveTruthContract]): Int =
     List(
       hasMeaningfulOpeningEvent(ctx),
       hasDurableStructuralCommitment(ctx),
@@ -266,7 +264,9 @@ private[analysis] object StandardCommentaryClaimPolicy:
       ctx.semantic.exists(s => s.structuralWeaknesses.nonEmpty || s.positionalFeatures.nonEmpty || s.compensation.isDefined),
       ctx.decision.isDefined,
       ctx.pawnPlay.breakReady || ctx.pawnPlay.counterBreak,
-      ctx.counterfactual.exists(_.cpLoss >= Thresholds.INACCURACY_CP)
+      truthContract
+        .map(_.surfaceCpLoss >= Thresholds.INACCURACY_CP)
+        .getOrElse(ctx.counterfactual.exists(_.cpLoss >= Thresholds.INACCURACY_CP))
     ).count(identity)
 
   private def openingNoEventSentence(ctx: NarrativeContext): String =

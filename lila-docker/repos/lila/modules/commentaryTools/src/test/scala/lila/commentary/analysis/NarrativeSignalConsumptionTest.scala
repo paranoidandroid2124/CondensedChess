@@ -3,7 +3,7 @@ package lila.commentary.analysis
 import munit.FunSuite
 import lila.commentary.model.*
 import lila.commentary.model.authoring.*
-import lila.commentary.model.strategic.{ EngineEvidence, VariationLine }
+import lila.commentary.model.strategic.{ CounterfactualMatch, EngineEvidence, VariationLine }
 
 class NarrativeSignalConsumptionTest extends FunSuite:
 
@@ -31,6 +31,39 @@ class NarrativeSignalConsumptionTest extends FunSuite:
       phase = PhaseContext("Middlegame", "Balanced middlegame"),
       candidates = Nil,
       renderMode = NarrativeRenderMode.FullGame
+    )
+
+  private def contract(
+      truthClass: DecisiveTruthClass,
+      cpLoss: Int,
+      reasonFamily: DecisiveReasonKind = DecisiveReasonKind.QuietTechnicalMove,
+      allowConcreteBenchmark: Boolean = true
+  ): DecisiveTruthContract =
+    DecisiveTruthContract(
+      playedMove = Some("Qb5+"),
+      verifiedBestMove = Some("Nc3"),
+      truthClass = truthClass,
+      cpLoss = cpLoss,
+      swingSeverity = cpLoss,
+      reasonFamily = reasonFamily,
+      allowConcreteBenchmark = allowConcreteBenchmark,
+      chosenMatchesBest = false,
+      compensationAllowed = false,
+      truthPhase = None,
+      ownershipRole = TruthOwnershipRole.NoneRole,
+      visibilityRole = TruthVisibilityRole.Hidden,
+      surfaceMode = TruthSurfaceMode.Neutral,
+      exemplarRole = TruthExemplarRole.NonExemplar,
+      surfacedMoveOwnsTruth = false,
+      verifiedPayoffAnchor = None,
+      compensationProseAllowed = false,
+      benchmarkProseAllowed = allowConcreteBenchmark,
+      investmentTruthChainKey = None,
+      maintenanceExemplarCandidate = false,
+      failureMode = FailureInterpretationMode.NoClearPlan,
+      failureIntentConfidence = 0.0,
+      failureIntentAnchor = None,
+      failureInterpretationAllowed = false
     )
 
   test("context beat keeps support-only flow/meta while final prose drops opponent row authority") {
@@ -86,6 +119,80 @@ class NarrativeSignalConsumptionTest extends FunSuite:
       s"expected quiet standard fallback without row/meta authority, got: $prose"
     )
     assert(!prose.contains("The margins are narrow, so move order matters."), clue(prose))
+  }
+
+  test("annotation prose does not turn acceptable high-eval cp gaps into mistakes") {
+    val ctx = baseContext.copy(
+      playedMove = Some("b8b5"),
+      playedSan = Some("Qb5+"),
+      candidates = List(
+        CandidateInfo(
+          move = "Qb5+",
+          uci = Some("b8b5"),
+          annotation = "",
+          planAlignment = "keeps checking chances",
+          tacticalAlert = None,
+          practicalDifficulty = "clean",
+          whyNot = None
+        ),
+        CandidateInfo(
+          move = "Nc3",
+          uci = Some("b1c3"),
+          annotation = "",
+          planAlignment = "keeps the cleanest route",
+          tacticalAlert = None,
+          practicalDifficulty = "clean",
+          whyNot = None
+        )
+      ),
+      engineEvidence = Some(
+        EngineEvidence(
+          depth = 10,
+          variations = List(
+            VariationLine(List("b1c3"), scoreCp = 960, depth = 10),
+            VariationLine(List("b8b5"), scoreCp = 760, depth = 10)
+          )
+        )
+      )
+    )
+
+    val (outline, _) =
+      NarrativeOutlineBuilder.build(
+        ctx,
+        new TraceRecorder(),
+        Some(contract(DecisiveTruthClass.Acceptable, cpLoss = 200))
+      )
+    val mainMove = outline.beats.find(_.kind == OutlineBeatKind.MainMove).getOrElse(fail("missing main move beat"))
+    val lower = mainMove.text.toLowerCase
+
+    assert(!lower.contains("mistake"), clue(mainMove.text))
+    assert(!lower.contains("blunder"), clue(mainMove.text))
+    assert(!mainMove.text.contains("??"), clue(mainMove.text))
+  }
+
+  test("truth contract blocks legacy counterfactual severity from reopening tactical tension") {
+    val ctx = baseContext.copy(
+      counterfactual = Some(
+        CounterfactualMatch(
+          userMove = "Qb5+",
+          bestMove = "Nc3",
+          cpLoss = 200,
+          missedMotifs = Nil,
+          userMoveMotifs = Nil,
+          severity = "mistake",
+          userLine = VariationLine(List("b8b5"), scoreCp = 760, depth = 10),
+          bestLine = VariationLine(List("b1c3"), scoreCp = 960, depth = 10)
+        )
+      )
+    )
+
+    val evaluation =
+      TacticalTensionPolicy.evaluate(
+        ctx,
+        Some(contract(DecisiveTruthClass.Acceptable, cpLoss = 200))
+      )
+
+    assertEquals(evaluation.severeCounterfactual, false)
   }
 
   test("context beat carries transposition-aligned main plans without probe-only support") {

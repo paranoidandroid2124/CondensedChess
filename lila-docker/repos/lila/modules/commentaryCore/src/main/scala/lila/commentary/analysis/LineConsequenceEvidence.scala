@@ -98,6 +98,12 @@ private[commentary] object LineConsequenceEvaluator:
   val EngineReplayFailed = LineConsequenceRejectReason.EngineReplayFailed
   private val SurfaceMaxPly = 6
   private val InternalMaxPly = 8
+  private val QuietTechnicalLineConsequenceKinds =
+    Set(
+      LineConsequenceKind.ExchangeSequence,
+      LineConsequenceKind.MaterialTransition,
+      LineConsequenceKind.CaptureStructureTransition
+    )
 
   private[analysis] final case class LineStep(
       san: String,
@@ -241,15 +247,25 @@ private[commentary] object LineConsequenceEvaluator:
   ): Boolean =
     val quietBestBranchConsequence =
       truthContract.exists(contract =>
-        contract.truthClass == DecisiveTruthClass.Best &&
+          contract.truthClass == DecisiveTruthClass.Best &&
           contract.chosenMatchesBest &&
           contract.reasonFamily == DecisiveReasonKind.QuietTechnicalMove &&
           contract.failureMode == FailureInterpretationMode.NoClearPlan &&
-          Set(
-            LineConsequenceKind.ExchangeSequence,
-            LineConsequenceKind.MaterialTransition,
-            LineConsequenceKind.CaptureStructureTransition
-          ).contains(evidence.kind)
+          QuietTechnicalLineConsequenceKinds.contains(evidence.kind)
+      )
+    val quietInaccuracyPlayedLineConsequence =
+      truthContract.exists(contract =>
+        contract.truthClass == DecisiveTruthClass.Inaccuracy &&
+          contract.reasonFamily == DecisiveReasonKind.QuietTechnicalMove &&
+          contract.failureMode == FailureInterpretationMode.QuietPositionalCollapse &&
+          QuietTechnicalLineConsequenceKinds.contains(evidence.kind)
+      )
+    val acceptableQuietDelayedPawnCapture =
+      truthContract.exists(contract =>
+        contract.truthClass == DecisiveTruthClass.Acceptable &&
+          contract.reasonFamily == DecisiveReasonKind.QuietTechnicalMove &&
+          contract.failureMode == FailureInterpretationMode.NoClearPlan &&
+          evidence.kind == LineConsequenceKind.DelayedPawnCapture
       )
     val immediateOpponentPawnCaptureAllowed =
       evidence.kind != LineConsequenceKind.ImmediateOpponentPawnCapture ||
@@ -271,7 +287,7 @@ private[commentary] object LineConsequenceEvaluator:
           contract.reasonFamily == DecisiveReasonKind.TacticalRefutation ||
           contract.failureMode == FailureInterpretationMode.TacticalRefutation ||
           evidence.kind == LineConsequenceKind.PlayedMoveTargetPressure
-      ) || quietBestBranchConsequence)
+      ) || quietBestBranchConsequence || quietInaccuracyPlayedLineConsequence || acceptableQuietDelayedPawnCapture)
 
   private[analysis] def playedMoveTargetPressureEvidenceReady(evidence: LineConsequenceEvidence): Boolean =
     evidence.kind != LineConsequenceKind.PlayedMoveTargetPressure ||
@@ -304,7 +320,8 @@ private[commentary] object LineConsequenceEvaluator:
 
   def fromEngine(ctx: NarrativeContext, maxPly: Int = SurfaceMaxPly): List[LineConsequenceEvidence] =
     ctx.engineEvidence.toList.flatMap(_.variations).map { line =>
-      val uciMoves = normalizedLineMoves(line).take(maxPly)
+      val normalizedMoves = normalizedLineMoves(line)
+      val uciMoves = normalizedMoves.take(maxPly)
       val steps = replayStepsPrefix(ctx.fen, uciMoves, Nil)
       val fullReplay = uciMoves.nonEmpty && steps.size == uciMoves.size
       val replayed = fullReplay || enginePrefixHasConcreteConsequence(ctx, line, steps)
@@ -321,7 +338,8 @@ private[commentary] object LineConsequenceEvaluator:
           steps = steps,
           release = if replayed then LineConsequenceRelease.ReplayBackedInternal else LineConsequenceRelease.DiagnosticOnly,
           rejectReasons = (List(EngineOnly) ++ Option.when(!replayed)(EngineReplayFailed)).distinct,
-          maxPly = maxPly
+          maxPly = maxPly,
+          lineTruncated = normalizedMoves.size > maxPly
         )
       if !fullReplay && evidence.kind == LineConsequenceKind.PreviewOnly then
         evidence.copy(release = LineConsequenceRelease.DiagnosticOnly)
@@ -336,7 +354,8 @@ private[commentary] object LineConsequenceEvaluator:
     val played = ctx.playedMove.map(MoveReviewPvLine.normalizeUci).filter(_.nonEmpty)
     val validated =
       played.flatMap(uci => MoveReviewPvLine.validatedLine(ctx.fen, variation, uci))
-    val refMoves = validated.map(_.moves).getOrElse(variation.moves).take(maxPly)
+    val allRefMoves = validated.map(_.moves).getOrElse(variation.moves)
+    val refMoves = allRefMoves.take(maxPly)
     val uciMoves = refMoves.map(move => MoveReviewPvLine.normalizeUci(move.uci)).filter(_.nonEmpty)
     val sanMoves = refMoves.map(_.san.trim).filter(_.nonEmpty)
     val steps =
@@ -356,7 +375,8 @@ private[commentary] object LineConsequenceEvaluator:
       steps = steps,
       release = if replayed then LineConsequenceRelease.SurfaceCandidate else LineConsequenceRelease.DiagnosticOnly,
       rejectReasons = if replayed then Nil else List(RefReplayFailed),
-      maxPly = maxPly
+      maxPly = maxPly,
+      lineTruncated = allRefMoves.size > maxPly
     )
 
   private def refEvidenceFromStart(
@@ -366,7 +386,8 @@ private[commentary] object LineConsequenceEvaluator:
       includeMinorPieceReroute: Boolean
   ): LineConsequenceEvidence =
     val validated = MoveReviewPvLine.validatedLineFromStart(ctx.fen, variation)
-    val refMoves = validated.map(_.moves).getOrElse(variation.moves).take(maxPly)
+    val allRefMoves = validated.map(_.moves).getOrElse(variation.moves)
+    val refMoves = allRefMoves.take(maxPly)
     val uciMoves = refMoves.map(move => MoveReviewPvLine.normalizeUci(move.uci)).filter(_.nonEmpty)
     val sanMoves = refMoves.map(_.san.trim).filter(_.nonEmpty)
     val steps =
@@ -387,7 +408,8 @@ private[commentary] object LineConsequenceEvaluator:
       release = if replayed then LineConsequenceRelease.ReplayBackedInternal else LineConsequenceRelease.DiagnosticOnly,
       rejectReasons = if replayed then Nil else List(RefReplayFailed),
       maxPly = maxPly,
-      includeMinorPieceReroute = includeMinorPieceReroute
+      includeMinorPieceReroute = includeMinorPieceReroute,
+      lineTruncated = allRefMoves.size > maxPly
     )
 
   private def buildEvidence(
@@ -402,13 +424,14 @@ private[commentary] object LineConsequenceEvaluator:
       release: LineConsequenceRelease,
       rejectReasons: List[String],
       maxPly: Int,
-      includeMinorPieceReroute: Boolean = false
+      includeMinorPieceReroute: Boolean = false,
+      lineTruncated: Boolean = false
   ): LineConsequenceEvidence =
     val captureSteps = steps.filter(_.captures)
     val checkSteps = steps.filter(step => step.givesCheck || step.san.contains("+") || step.san.contains("#"))
     val centralPawnAdvance = centralPawnAdvanceStep(steps)
     val promotionRace = steps.find(step => step.promotes || advancedPassedPawn(step))
-    val passedPawnCreation = steps.find(_.createsPassedPawn)
+    val passedPawnCreation = passedPawnCreationStep(steps, lineTruncated)
     val immediateOpponentPawnCapture = immediateOpponentPawnCaptureStep(ctx, steps)
     val immediateOpponentTargetPressure = immediateOpponentTargetPressureStep(ctx, steps)
     val playedMoveTargetPressure = playedMoveTargetPressureStep(ctx, steps)
@@ -510,7 +533,7 @@ private[commentary] object LineConsequenceEvaluator:
             .map(detail => s"The decision is about the resulting structure: ${detail.stripPrefix("leaving ")}.")
             .orElse(Some("The decision is about which pieces and pawns remain."))
       case LineConsequenceKind.ForcingCheckSequence =>
-        s"The checked line becomes forcing$triggerText." ->
+        s"The checked line gives check$triggerText." ->
           Some("Checks narrow the replies before the position can settle.")
       case LineConsequenceKind.MaterialTransition =>
         s"The checked line changes material$triggerText." ->
@@ -651,6 +674,18 @@ private[commentary] object LineConsequenceEvaluator:
         Set(Square.D4, Square.E4, Square.D5, Square.E5).contains(step.dest)
     }
 
+  private[analysis] def passedPawnCreationStep(
+      steps: List[LineStep],
+      lineTruncated: Boolean = false
+  ): Option[LineStep] =
+    steps.zipWithIndex.collectFirst {
+      case (step, idx)
+          if step.createsPassedPawn &&
+            (!lineTruncated || idx < steps.size - 1) &&
+            !steps.drop(idx + 1).exists(later => later.color != step.color && later.captures && later.dest == step.dest) =>
+        step
+    }
+
   private def minorPieceRerouteStep(steps: List[LineStep]): Option[LineStep] =
     steps.headOption
       .filter(step => Set(Knight, Bishop).contains(step.role))
@@ -677,24 +712,27 @@ private[commentary] object LineConsequenceEvaluator:
       .filter(step => !step.captures && playedUci.exists(_ == MoveReviewPvLine.normalizeUci(step.uci)))
       .filter(step => Set(Knight, Bishop, Rook, Queen).contains(step.role))
       .flatMap { lead =>
-        steps.drop(1).zipWithIndex.collectFirst {
-          case (step, idx)
-              if idx <= 5 &&
-                step.color == lead.color &&
-                step.dest == lead.orig &&
-                !step.captures &&
-                step.role != Pawn &&
-                step.role != King &&
-                step.role != lead.role &&
-                steps.drop(1).take(idx).forall(previous => previous.dest != lead.orig) =>
-            step
-        }
+        steps
+          .drop(1)
+          .zipWithIndex
+          .find { case (step, idx) =>
+            val slidingThroughOrigin = slidingMovePassesThrough(step, lead.orig)
+            idx <= 5 &&
+              step.color == lead.color &&
+              (step.dest == lead.orig || slidingThroughOrigin) &&
+              !step.captures &&
+              step.role != Pawn &&
+              step.role != King &&
+              step.role != lead.role &&
+              steps.drop(1).take(idx).forall(previous => previous.dest != lead.orig)
+          }
+          .map(_._1)
       }
 
   private def delayedPawnCaptureStep(ctx: NarrativeContext, steps: List[LineStep]): Option[LineStep] =
     val playedUci = ctx.playedMove.map(MoveReviewPvLine.normalizeUci).filter(_.nonEmpty)
     val lead = steps.headOption
-    Option
+    val opponentCaptureAfterPlayedBishop = Option
       .when(
         lead.exists(step =>
           !step.captures &&
@@ -712,6 +750,41 @@ private[commentary] object LineConsequenceEvaluator:
         }
       }
       .flatten
+    val ownCaptureAfterPawnClearance =
+      lead
+        .filter(step =>
+          !step.captures &&
+            step.role == Pawn &&
+            playedUci.exists(_ == MoveReviewPvLine.normalizeUci(step.uci))
+        )
+        .flatMap { leadStep =>
+          steps.zipWithIndex.collectFirst {
+            case (step, idx)
+                if idx >= 2 &&
+                  step.color == leadStep.color &&
+                  step.captures &&
+                  step.capturedRole.contains(Pawn) &&
+                  slidingMovePassesThrough(step, leadStep.orig) &&
+                  steps.drop(1).take(idx).forall(previous => previous.dest != leadStep.orig) =>
+              step
+          }
+        }
+    opponentCaptureAfterPlayedBishop.orElse(ownCaptureAfterPawnClearance)
+
+  private def slidingMovePassesThrough(step: LineStep, square: Square): Boolean =
+    val fileDiff = step.dest.file.value - step.orig.file.value
+    val rankDiff = step.dest.rank.value - step.orig.rank.value
+    val aligned = fileDiff == 0 || rankDiff == 0 || fileDiff.abs == rankDiff.abs
+    Set(Bishop, Rook, Queen).contains(step.role) &&
+      aligned &&
+      Iterator
+        .iterate((step.orig.file.value + Integer.signum(fileDiff), step.orig.rank.value + Integer.signum(rankDiff))) {
+          case (file, rank) => (file + Integer.signum(fileDiff), rank + Integer.signum(rankDiff))
+        }
+        .takeWhile { case (file, rank) => file != step.dest.file.value || rank != step.dest.rank.value }
+        .exists { case (file, rank) =>
+          Square.at(file, rank).contains(square)
+        }
 
   private def immediateOpponentPawnCaptureStep(ctx: NarrativeContext, steps: List[LineStep]): Option[LineStep] =
     val playedUci = ctx.playedMove.map(MoveReviewPvLine.normalizeUci).filter(_.nonEmpty)

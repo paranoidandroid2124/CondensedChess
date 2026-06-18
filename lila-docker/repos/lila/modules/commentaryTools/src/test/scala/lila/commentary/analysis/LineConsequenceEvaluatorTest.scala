@@ -81,6 +81,22 @@ final class LineConsequenceEvaluatorTest extends FunSuite:
     assertEquals(evidence.rejectReasons, Nil)
   }
 
+  test("checked line wording does not upgrade a check into a forced claim") {
+    val fen = "1Qb1k3/2r2r1p/7p/8/8/3P2P1/PPP3P1/RN5K w - - 0 24"
+    val ucis = List("b8b5", "e8d8", "b5d5", "d8e7", "b1c3", "f7f1", "a1f1")
+    val ctx = context(fen, "b8b5", "Qb5+", List(VariationLine(ucis, scoreCp = 646, depth = 10)))
+    val evidence =
+      LineConsequenceEvaluator
+        .fromEngine(ctx)
+        .headOption
+        .getOrElse(fail("missing line consequence"))
+
+    assertEquals(evidence.kind, LineConsequenceKind.ForcingCheckSequence)
+    assert(evidence.consequence.contains("gives check"), clue(evidence.consequence))
+    assert(!evidence.consequence.toLowerCase.contains("forcing"), clue(evidence.consequence))
+    assert(!evidence.consequence.toLowerCase.contains("forced"), clue(evidence.consequence))
+  }
+
   test("surfaceCandidate does not prefer a later consequence owned by another move") {
     val previewUcis = List("g1f3", "b8c6")
     val exchangeUcis = List("g1f3", "b8c6", "f1b5", "a7a6", "b5c6", "d7c6")
@@ -234,6 +250,77 @@ final class LineConsequenceEvaluatorTest extends FunSuite:
     assertEquals(evidence.lineId, Some("line_02"))
     assertEquals(evidence.kind, LineConsequenceKind.DelayedPawnCapture)
     assert(VariationNarrativeBuilder.build(ctx, evidence).exists(_.contains("pawn capture arrives after the first move")), clue(evidence))
+  }
+
+  test("actual e3 can bind the later Bxc4 pawn recovery as a reviewed line consequence") {
+    val fen = "rn1qkb1r/pp2pppp/2p2n2/5b2/P1pP4/2N2N2/1P2PPPP/R1BQKB1R w KQkq - 1 6"
+    val bestUcis = List("f3h4", "d8d7", "h4f5", "d7f5", "e2e3", "e7e5", "f1c4")
+    val alternateUcis =
+      List("f3e5", "b8d7", "e5c4", "d7b6", "c4e5", "b6d7", "e5d7", "d8d7", "f2f3", "e7e5", "d4e5", "d7d1", "e1d1")
+    val playedUcis = List("e2e3", "e7e6", "f1c4", "f8b4", "e1g1", "e8g8", "d1b3")
+    val combined =
+      MoveReviewRefs(
+        startFen = fen,
+        startPly = NarrativeUtils.plyFromFen(fen).getOrElse(1),
+        variations =
+          List(
+            refs(fen, "line_01", bestUcis, List("Nh4", "Qd7", "Nxf5", "Qxf5", "e3", "e5", "Bxc4")).variations.head,
+            refs(
+              fen,
+              "line_02",
+              alternateUcis,
+              List("Ne5", "Nbd7", "Nxc4", "Nb6", "Ne5", "Nbd7", "Nxd7", "Qxd7", "f3", "e5", "dxe5", "Qxd1+", "Kxd1")
+            ).variations.head,
+            refs(fen, "line_03", playedUcis, List("e3", "e6", "Bxc4", "Bb4", "O-O", "O-O", "Qb3")).variations.head
+          )
+      )
+    val quietTruth =
+      DecisiveTruthContract(
+        playedMove = Some("e2e3"),
+        verifiedBestMove = Some("f3h4"),
+        truthClass = DecisiveTruthClass.Acceptable,
+        cpLoss = 14,
+        swingSeverity = 0,
+        reasonFamily = DecisiveReasonKind.QuietTechnicalMove,
+        allowConcreteBenchmark = false,
+        chosenMatchesBest = false,
+        compensationAllowed = false,
+        truthPhase = None,
+        ownershipRole = TruthOwnershipRole.NoneRole,
+        visibilityRole = TruthVisibilityRole.PrimaryVisible,
+        surfaceMode = TruthSurfaceMode.Neutral,
+        exemplarRole = TruthExemplarRole.NonExemplar,
+        surfacedMoveOwnsTruth = false,
+        verifiedPayoffAnchor = None,
+        compensationProseAllowed = false,
+        benchmarkProseAllowed = false,
+        investmentTruthChainKey = None,
+        maintenanceExemplarCandidate = false,
+        benchmarkCriticalMove = false,
+        failureMode = FailureInterpretationMode.NoClearPlan,
+        failureIntentConfidence = 0.0,
+        failureIntentAnchor = None,
+        failureInterpretationAllowed = false
+      )
+    val ctx = context(fen, "e2e3", "e3", List(VariationLine(playedUcis, scoreCp = 27, depth = 10)))
+
+    val reviewed =
+      LineConsequenceEvaluator
+        .reviewedMoveSurfaceCandidate(ctx, Some(combined))
+        .getOrElse(fail("missing actual e3 reviewed line consequence"))
+
+    assertEquals(reviewed.lineId, Some("line_03"))
+    assertEquals(reviewed.kind, LineConsequenceKind.DelayedPawnCapture)
+    assertEquals(reviewed.triggerSan, Some("Bxc4"))
+
+    val evidence =
+      LineConsequenceEvaluator
+        .moveReviewCandidate(ctx, Some(combined), truthContract = Some(quietTruth))
+        .getOrElse(fail("missing actual e3 delayed pawn capture candidate"))
+
+    assertEquals(evidence.lineId, Some("line_03"))
+    assertEquals(evidence.kind, LineConsequenceKind.DelayedPawnCapture)
+    assertEquals(evidence.triggerSan, Some("Bxc4"))
   }
 
   test("classifies an immediate opponent pawn capture after a quiet reviewed move") {
@@ -407,6 +494,23 @@ final class LineConsequenceEvaluatorTest extends FunSuite:
     assertEquals(evidence.lineId, Some("line_04"))
   }
 
+  test("classifies sliding path through the played move origin as origin-square clearance") {
+    val fen = "r2q1rk1/ppp2ppp/1bnp1n2/8/4PBb1/2NP2P1/PPP1N1BP/R2Q1R1K b - - 0 10"
+    val ucis = List("d8d7", "d1d2", "a8e8", "a2a4", "f6h5")
+    val refsValue = refs(fen, "line_01", ucis, List("Qd7", "Qd2", "Rae8", "a4", "Nh5"))
+    val ctx = context(fen, "d8d7", "Qd7", List(VariationLine(ucis, scoreCp = 0, depth = 10)))
+
+    val evidence =
+      LineConsequenceEvaluator
+        .reviewedMoveSurfaceCandidate(ctx, Some(refsValue))
+        .getOrElse(fail("missing sliding-path origin-square clearance"))
+
+    assertEquals(evidence.kind, LineConsequenceKind.OriginSquareClearance)
+    assertEquals(evidence.triggerSan, Some("Rae8"))
+    assert(VariationNarrativeBuilder.build(ctx, evidence).exists(_.contains("Qd7 clears d8")), clue(evidence))
+    assert(VariationNarrativeBuilder.build(ctx, evidence).exists(_.contains("Rae8 later uses that square")), clue(evidence))
+  }
+
   test("does not classify a same-piece return as origin-square clearance") {
     val fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
     val ucis = List("g1f3", "g8f6", "f3g1")
@@ -565,6 +669,22 @@ final class LineConsequenceEvaluatorTest extends FunSuite:
     assertEquals(evidence.triggerSan, Some("cxb6"))
     assert(evidence.playerSentence.contains("passed pawn"), clue(evidence))
     assert(VariationNarrativeBuilder.build(ctx, evidence).exists(_.contains("passed pawn")), clue(evidence))
+  }
+
+  test("does not classify the actual Nb5 branch as passer creation when the ref tail immediately removes it") {
+    val fen = "rnbqk1nr/pp2ppbp/6p1/3P4/5B2/2N2N2/PP3PPP/R2QKB1R w KQkq - 3 10"
+    val ucis = List("c3b5", "b8a6", "f1c4", "g8f6", "d5d6", "e8g8", "e1g1", "e7d6", "f4d6")
+    val sans = List("Nb5", "Na6", "Bc4", "Nf6", "d6", "O-O", "O-O", "exd6", "Bxd6")
+    val ctx = context(fen, "c3b5", "Nb5", List(VariationLine(ucis, scoreCp = 169, depth = 10)))
+    val evidence =
+      LineConsequenceEvaluator
+        .fromRefs(ctx, Some(refs(fen, "actual-nb5", ucis, sans)), maxPly = 8)
+        .headOption
+        .getOrElse(fail("missing Nb5 line consequence"))
+
+    assertEquals(evidence.kind, LineConsequenceKind.PreviewOnly)
+    assert(!evidence.playerSentence.toLowerCase.contains("passed pawn"), clue(evidence))
+    assert(VariationNarrativeBuilder.build(ctx, evidence).forall(!_.toLowerCase.contains("passed pawn")), clue(evidence))
   }
 
   test("classifies an advanced passed-pawn push as a bounded promotion cue") {

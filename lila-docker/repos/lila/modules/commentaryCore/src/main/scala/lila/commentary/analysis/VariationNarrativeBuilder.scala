@@ -29,7 +29,12 @@ private[analysis] object VariationNarrativeBuilder:
                 val first = exchanges.head
                 val target = first.dest.key
                 val result = structureDetail.getOrElse("settling which pieces and pawns remain")
-                s"this exchange sequence trades the ${pieceName(first.role)} for the ${pieceName(first.capturedRole)} on $target, $result"
+                val firstCaptureRecaptured =
+                  exchanges.drop(1).exists(step => step.dest == first.dest && step.capturedRole.contains(first.role))
+                if firstCaptureRecaptured then
+                  s"this exchange sequence trades the ${pieceName(first.role)} for the ${pieceName(first.capturedRole)} on $target, $result"
+                else
+                  s"this exchange sequence starts when ${first.san} captures the ${pieceName(first.capturedRole)} on $target, $result"
               case None =>
                 structureDetail
                   .map(detail => s"this exchange sequence resolves the tension, $detail")
@@ -40,9 +45,9 @@ private[analysis] object VariationNarrativeBuilder:
           val checks = steps.filter(step => step.givesCheck || step.san.contains("+") || step.san.contains("#"))
           val description =
             if (checks.nonEmpty) {
-              s"the forcing sequence beginning with ${checks.head.san} delivers check, narrowing the defender's replies before the position settles"
+              s"${checks.head.san} gives check, narrowing the defender's replies before the position settles"
             } else {
-              "this forcing line checks the king and narrows the replies before the position can settle"
+              "this checked line narrows the replies before the position can settle"
             }
           Some(s"On the checked line $formattedLine, $description.")
 
@@ -132,7 +137,7 @@ private[analysis] object VariationNarrativeBuilder:
           Some(s"On the checked line $formattedLine, $description.")
 
         case LineConsequenceKind.PassedPawnCreation =>
-          val passer = steps.find(_.createsPassedPawn)
+          val passer = LineConsequenceEvaluator.passedPawnCreationStep(steps)
           val description =
             passer match
               case Some(step) =>

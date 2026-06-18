@@ -2,6 +2,7 @@ package lila.commentary.analysis
 
 import chess.{ Color, Knight, Queen, Rook, Square }
 import munit.FunSuite
+import lila.commentary.MoveReviewExplanation
 import lila.commentary.analysis.practical.ContrastiveSupportAdmissibility
 import lila.commentary.model.{ Motif, PreventedPlanInfo, ThreatRow }
 import lila.commentary.model.authoring.AuthorQuestionKind
@@ -36,7 +37,8 @@ class ContrastiveSupportAdmissibilityTest extends FunSuite:
       decisionComparison: Option[DecisionComparison] = None,
       opponentThreats: List[ThreatRow] = Nil,
       preventedPlansNow: List[PreventedPlanInfo] = Nil,
-      counterfactual: Option[CounterfactualMatch] = None
+      counterfactual: Option[CounterfactualMatch] = None,
+      localFactResult: Option[MoveReviewExplanationBuilder.Result] = None
   ): QuestionPlannerInputs =
     QuestionPlannerInputs(
       mainBundle = None,
@@ -55,7 +57,40 @@ class ContrastiveSupportAdmissibilityTest extends FunSuite:
       candidateEvidenceLines = Nil,
       evidenceBackedPlans = Nil,
       opponentPlan = None,
-      factualFallback = None
+      factualFallback = None,
+      localFactResult = localFactResult
+    )
+
+  private def localFactResult(
+      family: MoveReviewLocalFact.Family,
+      prose: String,
+      anchor: String,
+      evidenceRefs: List[String]
+  ): MoveReviewExplanationBuilder.Result =
+    val localFact =
+      MoveReviewLocalFact.admitted(
+        MoveReviewLocalFact.Candidate(
+          family = family,
+          source = MoveReviewLocalFact.Source.CertifiedStrategy,
+          producer = MoveReviewLocalFact.Producer.CertifiedStrategyDelta,
+          subject =
+            if family == MoveReviewLocalFact.Family.Pressure then MoveReviewLocalFact.Subject.Target
+            else MoveReviewLocalFact.Subject.PlanResource,
+          strictFallbackCandidate = false,
+          anchors = List(MoveReviewLocalFact.Anchor("target", anchor)),
+          lineBinding = MoveReviewLocalFact.LineBinding.PvCoupled,
+          evidenceRefs = evidenceRefs,
+          guardrails = List("practical_position_support", "move_touches_strategy_anchor", "pv_coupled")
+        )
+      )
+    MoveReviewExplanationBuilder.Result(
+      explanation =
+        MoveReviewExplanation(
+          title = "checked local fact",
+          prose = prose,
+          source = "practical_position_support"
+        ),
+      localFact = localFact
     )
 
   test("rejects raw close candidate for WhyThis contrast support") {
@@ -102,6 +137,427 @@ class ContrastiveSupportAdmissibilityTest extends FunSuite:
     assertEquals(trace.contrast_admissible, false)
     assertEquals(trace.contrast_reject_reason, Some(ContrastiveSupportAdmissibility.RejectReason.VagueEnginePreference))
     assertEquals(trace.contrast_source_kind, None)
+  }
+
+  test("admits certified local consequence for acceptable non-best WhyThis without calling it best") {
+    val result =
+      localFactResult(
+        family = MoveReviewLocalFact.Family.Defense,
+        prose = "b4 is tied to checked counterplay restraint around b4.",
+        anchor = "b4",
+        evidenceRefs = List("strategic_idea_kind:counterplay_suppression", "strategy_ref:counterplay_break_denial")
+      )
+    val comparison =
+      DecisionComparison(
+        chosenMove = Some("b4"),
+        engineBestMove = Some("Ra4"),
+        engineBestScoreCp = Some(42),
+        engineBestPv = List("Ra4", "a3"),
+        cpLossVsChosen = Some(42),
+        deferredMove = Some("Ra4"),
+        deferredReason = Some("it trails the engine line by about 42 cp"),
+        deferredSource = Some("top_engine_move"),
+        evidence = None,
+        practicalAlternative = false,
+        chosenMatchesBest = false
+      )
+
+    val trace =
+      ContrastiveSupportAdmissibility.decide(
+        plan(
+          AuthorQuestionKind.WhyThis,
+          sourceKinds = List("typed_local_fact", "practical_position_support"),
+          plannerOwnerKind = PlannerOwnerKind.MoveDelta,
+          plannerSource = "practical_position_support"
+        ).copy(claim = result.explanation.prose),
+        inputs(decisionComparison = Some(comparison), localFactResult = Some(result)),
+        None
+      )
+    val localOnlyTrace =
+      ContrastiveSupportAdmissibility.decide(
+        plan(
+          AuthorQuestionKind.WhyThis,
+          sourceKinds = List("typed_local_fact", "relation_witness"),
+          plannerOwnerKind = PlannerOwnerKind.ConcreteTactical,
+          plannerSource = "relation_witness"
+        ).copy(claim = result.explanation.prose),
+        inputs(localFactResult = Some(result)),
+        None
+      )
+
+    assert(QuestionFirstCommentaryPlanner.localFactResultWhyThisEligible(result), clues(result.localFact))
+    assertEquals(localOnlyTrace.contrast_admissible, true, clues(localOnlyTrace))
+    assertEquals(trace.contrast_admissible, true, clues(trace))
+    assertEquals(trace.contrast_source_kind, Some(ContrastiveSupportAdmissibility.SourceKind.PlayedMoveWithCertifiedLocalConsequence))
+    assertEquals(trace.contrast_anchor, Some("b4"))
+    assertEquals(trace.contrast_consequence, Some("That keeps counterplay restrained around b4."))
+    assert(trace.contrast_sentence.exists(_.contains("has a checked local point")), clues(trace))
+    assert(trace.contrast_sentence.forall(!_.contains("stays best")), clues(trace))
+  }
+
+  test("rejects certified local consequence for bad truth instead of making the move sound useful") {
+    val result =
+      localFactResult(
+        family = MoveReviewLocalFact.Family.Defense,
+        prose = "b4 is tied to checked counterplay restraint around b4.",
+        anchor = "b4",
+        evidenceRefs = List("strategic_idea_kind:counterplay_suppression", "strategy_ref:counterplay_break_denial")
+      )
+    val comparison =
+      DecisionComparison(
+        chosenMove = Some("b4"),
+        engineBestMove = Some("Ra4"),
+        engineBestScoreCp = Some(42),
+        engineBestPv = List("Ra4", "a3"),
+        cpLossVsChosen = Some(80),
+        deferredMove = Some("Ra4"),
+        deferredReason = Some("it trails the engine line by about 80 cp"),
+        deferredSource = Some("top_engine_move"),
+        evidence = None,
+        practicalAlternative = false,
+        chosenMatchesBest = false
+      )
+    val truthContract =
+      DecisiveTruthContract(
+        playedMove = Some("b4"),
+        verifiedBestMove = Some("Ra4"),
+        truthClass = DecisiveTruthClass.Inaccuracy,
+        cpLoss = 80,
+        swingSeverity = 80,
+        reasonFamily = DecisiveReasonKind.QuietTechnicalMove,
+        allowConcreteBenchmark = false,
+        chosenMatchesBest = false,
+        compensationAllowed = false,
+        truthPhase = None,
+        ownershipRole = TruthOwnershipRole.NoneRole,
+        visibilityRole = TruthVisibilityRole.PrimaryVisible,
+        surfaceMode = TruthSurfaceMode.Neutral,
+        exemplarRole = TruthExemplarRole.NonExemplar,
+        surfacedMoveOwnsTruth = false,
+        verifiedPayoffAnchor = None,
+        compensationProseAllowed = false,
+        benchmarkProseAllowed = false,
+        investmentTruthChainKey = None,
+        maintenanceExemplarCandidate = false,
+        benchmarkCriticalMove = false,
+        failureMode = FailureInterpretationMode.NoClearPlan,
+        failureIntentConfidence = 0.0,
+        failureIntentAnchor = None,
+        failureInterpretationAllowed = false
+      )
+
+    val trace =
+      ContrastiveSupportAdmissibility.decide(
+        plan(
+          AuthorQuestionKind.WhyThis,
+          sourceKinds = List("typed_local_fact", "practical_position_support"),
+          plannerOwnerKind = PlannerOwnerKind.MoveDelta,
+          plannerSource = "practical_position_support"
+        ).copy(claim = result.explanation.prose),
+        inputs(decisionComparison = Some(comparison), localFactResult = Some(result)),
+        Some(truthContract)
+      )
+
+    assertEquals(trace.contrast_admissible, false)
+    assertEquals(trace.contrast_reject_reason, Some(ContrastiveSupportAdmissibility.RejectReason.VagueEnginePreference))
+    assertEquals(trace.contrast_source_kind, None)
+  }
+
+  test("does not promote incomplete relation witness local fact as standalone played-move consequence") {
+    val localFact =
+      MoveReviewLocalFact.admitted(
+        MoveReviewLocalFact.Candidate(
+          family = MoveReviewLocalFact.Family.Threat,
+          source = MoveReviewLocalFact.Source.PvCoupledLine,
+          producer = MoveReviewLocalFact.Producer.RelationWitness,
+          subject = MoveReviewLocalFact.Subject.LineOrReply,
+          strictFallbackCandidate = true,
+          anchors = List(MoveReviewLocalFact.Anchor("relation_kind", "overload")),
+          lineBinding = MoveReviewLocalFact.LineBinding.PvCoupled,
+          evidenceRefs = List("relation_kind:overload", "overload_relation_witness", "evidence_line_binding:pv_coupled"),
+          guardrails = List("relation_witness_typed_details", "pv_coupled")
+        )
+      )
+    val result =
+      MoveReviewExplanationBuilder.Result(
+        explanation =
+          MoveReviewExplanation(
+            title = "checked relation witness",
+            prose = "Qd6+ overloads the defender on d4 across d5 and f4.",
+            source = "relation_witness"
+          ),
+        localFact = localFact
+      )
+    val comparison =
+      DecisionComparison(
+        chosenMove = Some("Qd6+"),
+        engineBestMove = Some("Qd6+"),
+        engineBestScoreCp = Some(15),
+        engineBestPv = List("Qd6+", "Ke4"),
+        cpLossVsChosen = Some(0),
+        deferredMove = Some("Qd6+"),
+        deferredReason = Some("it trails the engine line by about 0 cp"),
+        deferredSource = Some("top_engine_move"),
+        evidence = None,
+        practicalAlternative = false,
+        chosenMatchesBest = true
+      )
+
+    val trace =
+      ContrastiveSupportAdmissibility.decide(
+        plan(
+          AuthorQuestionKind.WhyThis,
+          sourceKinds = List("typed_local_fact", "relation_witness"),
+          plannerOwnerKind = PlannerOwnerKind.ConcreteTactical,
+          plannerSource = "relation_witness"
+        ).copy(claim = result.explanation.prose),
+        inputs(decisionComparison = Some(comparison), localFactResult = Some(result)),
+        None
+    )
+
+    assertEquals(trace.contrast_admissible, false)
+    assertEquals(trace.contrast_reject_reason, Some(ContrastiveSupportAdmissibility.RejectReason.VagueEnginePreference))
+    assertEquals(trace.contrast_source_kind, None)
+  }
+
+  test("promotes typed relation witness local fact when tactical consequence details are present") {
+    val localFact =
+      MoveReviewLocalFact.admitted(
+        MoveReviewLocalFact.Candidate(
+          family = MoveReviewLocalFact.Family.Threat,
+          source = MoveReviewLocalFact.Source.PvCoupledLine,
+          producer = MoveReviewLocalFact.Producer.RelationWitness,
+          subject = MoveReviewLocalFact.Subject.LineOrReply,
+          strictFallbackCandidate = true,
+          anchors = List(MoveReviewLocalFact.Anchor("relation_kind", "overload")),
+          lineBinding = MoveReviewLocalFact.LineBinding.PvCoupled,
+          evidenceRefs =
+            List(
+              "evidence_source:relation_witness",
+              "typed_local_fact_source:relation_witness",
+              "relation_kind:overload",
+              "relation_fact:defender:d4",
+              "relation_fact:duties:d5|f4",
+              "overload_relation_witness",
+              "evidence_line_binding:pv_coupled"
+            ),
+          guardrails = List("relation_witness_typed_details", "pv_coupled")
+        )
+      )
+    val result =
+      MoveReviewExplanationBuilder.Result(
+        explanation =
+          MoveReviewExplanation(
+            title = "checked relation witness",
+            prose = "Qd6+ overloads the defender on d4 across d5 and f4.",
+            source = "relation_witness"
+          ),
+        localFact = localFact
+      )
+    val comparison =
+      DecisionComparison(
+        chosenMove = Some("Qd6+"),
+        engineBestMove = Some("Qd6+"),
+        engineBestScoreCp = Some(15),
+        engineBestPv = List("Qd6+", "Ke4"),
+        cpLossVsChosen = Some(0),
+        deferredMove = Some("Qd6+"),
+        deferredReason = Some("it trails the engine line by about 0 cp"),
+        deferredSource = Some("top_engine_move"),
+        evidence = None,
+        practicalAlternative = false,
+        chosenMatchesBest = true
+      )
+
+    val trace =
+      ContrastiveSupportAdmissibility.decide(
+        plan(
+          AuthorQuestionKind.WhyThis,
+          sourceKinds = List("typed_local_fact", "relation_witness"),
+          plannerOwnerKind = PlannerOwnerKind.ConcreteTactical,
+          plannerSource = "relation_witness"
+        ).copy(claim = result.explanation.prose),
+        inputs(decisionComparison = Some(comparison), localFactResult = Some(result)),
+        None
+      )
+
+    assertEquals(trace.contrast_admissible, true, clues(trace))
+    assertEquals(trace.contrast_source_kind, Some(ContrastiveSupportAdmissibility.SourceKind.TopEngineMoveWithConcreteConsequence))
+    assertEquals(trace.contrast_consequence, Some("That keeps the defender on d4 overloaded across d5 and f4."))
+    assertEquals(
+      trace.effectiveSupport(None),
+      Some("The move Qd6+ stays best because it keeps the defender on d4 overloaded across d5 and f4.")
+    )
+  }
+
+  test("matches supported-local proof source when planner selected source differs from explanation source") {
+    val localFact =
+      MoveReviewLocalFact.admitted(
+        MoveReviewLocalFact.Candidate(
+          family = MoveReviewLocalFact.Family.Pressure,
+          source = MoveReviewLocalFact.Source.PvCoupledLine,
+          producer = MoveReviewLocalFact.Producer.CertifiedStrategyDelta,
+          subject = MoveReviewLocalFact.Subject.Target,
+          strictFallbackCandidate = false,
+          anchors = List(MoveReviewLocalFact.Anchor("target", "e3")),
+          lineBinding = MoveReviewLocalFact.LineBinding.PvCoupled,
+          evidenceRefs =
+            List(
+              "proof_source:iqp_inducement_probe",
+              "claim_source:iqp_inducement_probe",
+              "owner_seed:isolated_pawn:d5",
+              "continuation:isolated_pawn:d5",
+              "anchor:target_pressure:d5"
+            ),
+          guardrails = List("promoted_authority_tier:SupportedLocal", "packet_scope:MoveLocal")
+        )
+      )
+    val result =
+      MoveReviewExplanationBuilder.Result(
+        explanation =
+          MoveReviewExplanation(
+            title = "checked supported local fact",
+            prose = "This sequence leaves an isolated pawn as the local target.",
+            source = "certified_strategy_support"
+          ),
+        localFact = localFact
+      )
+    val comparison =
+      DecisionComparison(
+        chosenMove = Some("Qxc6"),
+        engineBestMove = Some("Qxc6"),
+        engineBestScoreCp = Some(35),
+        engineBestPv = List("Qxc6", "g4", "Nd2"),
+        cpLossVsChosen = Some(0),
+        deferredMove = Some("Qxc6"),
+        deferredReason = Some("it trails the engine line by about 0 cp"),
+        deferredSource = Some("top_engine_move"),
+        evidence = None,
+        practicalAlternative = false,
+        chosenMatchesBest = true
+      )
+
+    val trace =
+      ContrastiveSupportAdmissibility.decide(
+        plan(
+          AuthorQuestionKind.WhyThis,
+          sourceKinds = List("certified_strategy_delta", "iqp_inducement_probe", "typed_local_fact"),
+          plannerOwnerKind = PlannerOwnerKind.MoveDelta,
+          plannerSource = "iqp_inducement_probe"
+        ).copy(claim = "A key idea is that this sequence leaves an isolated pawn as the local target."),
+        inputs(decisionComparison = Some(comparison), localFactResult = Some(result)),
+        None
+      )
+
+    assertEquals(trace.contrast_admissible, true)
+    assertEquals(trace.contrast_consequence, Some("That leaves d5 as an isolated pawn target."))
+    assertEquals(trace.effectiveSupport(None), Some("The move Qxc6 stays best because it leaves d5 as an isolated pawn target."))
+  }
+
+  test("uses certified local consequence to make chosen best WhyThis concrete") {
+    val result =
+      localFactResult(
+        family = MoveReviewLocalFact.Family.Pressure,
+        prose = "Re8 is tied to checked space around e-file.",
+        anchor = "e-file",
+        evidenceRefs = List("strategic_idea_kind:space_gain_or_restriction", "strategy_ref:plan_spaceadvantage")
+      )
+    val comparison =
+      DecisionComparison(
+        chosenMove = Some("Re8"),
+        engineBestMove = Some("Re8"),
+        engineBestScoreCp = Some(20),
+        engineBestPv = List("Re8", "h3", "Rc8"),
+        cpLossVsChosen = Some(0),
+        deferredMove = Some("Re8"),
+        deferredReason = Some("it trails the engine line by about 0 cp"),
+        deferredSource = Some("top_engine_move"),
+        evidence = None,
+        practicalAlternative = false,
+        chosenMatchesBest = true
+      )
+
+    val trace =
+      ContrastiveSupportAdmissibility.decide(
+        plan(
+          AuthorQuestionKind.WhyThis,
+          sourceKinds = List("typed_local_fact", "practical_position_support"),
+          plannerOwnerKind = PlannerOwnerKind.MoveDelta,
+          plannerSource = "practical_position_support"
+        ).copy(claim = result.explanation.prose),
+        inputs(decisionComparison = Some(comparison), localFactResult = Some(result)),
+        None
+      )
+
+    assertEquals(trace.contrast_admissible, true)
+    assertEquals(trace.contrast_source_kind, Some(ContrastiveSupportAdmissibility.SourceKind.TopEngineMoveWithConcreteConsequence))
+    assertEquals(trace.contrast_anchor, Some("Re8"))
+    assertEquals(trace.contrast_consequence, Some("That keeps space pressure anchored around e-file."))
+    assertEquals(trace.effectiveSupport(None), Some("The move Re8 stays best because it keeps space pressure anchored around e-file."))
+  }
+
+  test("renders canonical pin consequence from typed tactical anchors") {
+    val localFact =
+      MoveReviewLocalFact.admitted(
+        MoveReviewLocalFact.Candidate(
+          family = MoveReviewLocalFact.Family.Threat,
+          source = MoveReviewLocalFact.Source.CanonicalFact,
+          producer = MoveReviewLocalFact.Producer.TacticalMotif,
+          subject = MoveReviewLocalFact.Subject.LineOrReply,
+          strictFallbackCandidate = true,
+          anchors =
+            List(
+              MoveReviewLocalFact.Anchor("tactical_kind", "pin"),
+              MoveReviewLocalFact.Anchor("pinned_square", "a2"),
+              MoveReviewLocalFact.Anchor("pinned_role", "pawn"),
+              MoveReviewLocalFact.Anchor("behind_square", "a1"),
+              MoveReviewLocalFact.Anchor("behind_role", "rook")
+            ),
+          lineBinding = MoveReviewLocalFact.LineBinding.PvCoupled,
+          evidenceRefs = List("tactical_kind:pin", "pinned_role:pawn", "behind_role:rook"),
+          guardrails = List("tactical_kind:pin", "current_move_motif_owned", "pv_confirms_tactic")
+        )
+      )
+    val result =
+      MoveReviewExplanationBuilder.Result(
+        explanation =
+          MoveReviewExplanation(
+            title = "Qa5+ pins a pawn",
+            prose = "Qa5+ pins the a2 pawn to the a1 rook.",
+            source = "canonical_fact"
+          ),
+        localFact = localFact
+      )
+    val comparison =
+      DecisionComparison(
+        chosenMove = Some("Qa5+"),
+        engineBestMove = Some("Qa5+"),
+        engineBestScoreCp = Some(35),
+        engineBestPv = List("Qa5+", "Qd2"),
+        cpLossVsChosen = Some(0),
+        deferredMove = Some("Qa5+"),
+        deferredReason = Some("it trails the engine line by about 0 cp"),
+        deferredSource = Some("top_engine_move"),
+        evidence = None,
+        practicalAlternative = false,
+        chosenMatchesBest = true
+      )
+
+    val trace =
+      ContrastiveSupportAdmissibility.decide(
+        plan(
+          AuthorQuestionKind.WhyThis,
+          sourceKinds = List("typed_local_fact", "canonical_fact"),
+          plannerOwnerKind = PlannerOwnerKind.ConcreteTactical,
+          plannerSource = "canonical_fact"
+        ).copy(claim = result.explanation.prose),
+        inputs(decisionComparison = Some(comparison), localFactResult = Some(result)),
+        None
+      )
+
+    assertEquals(trace.contrast_admissible, true)
+    assertEquals(trace.contrast_consequence, Some("That keeps the a2 pawn pinned to the a1 rook."))
+    assertEquals(trace.effectiveSupport(None), Some("The move Qa5+ stays best because it keeps the a2 pawn pinned to the a1 rook."))
   }
 
   test("admits explicit reply loss for WhyNow threat support") {
@@ -220,6 +676,111 @@ class ContrastiveSupportAdmissibilityTest extends FunSuite:
     assertEquals(trace.contrast_forced_reply, false)
     assert(trace.contrast_guardrails.contains("reply_anchor_kind:uci"), clues(trace))
     assertEquals(trace.effectiveSupport(None), Some("If delayed, one defensive reply has to address d6."))
+  }
+
+  test("non-unique UCI reply support names the threat square, not the reply destination") {
+    val threat =
+      ThreatRow(
+        kind = "material",
+        side = "them",
+        square = Some("f6"),
+        lossIfIgnoredCp = 176,
+        turnsToImpact = 1,
+        bestDefense = Some("d7d6"),
+        defenseCount = 2,
+        insufficientData = false
+      )
+
+    val trace = ContrastiveSupportAdmissibility.decide(plan(AuthorQuestionKind.WhatMustBeStopped, plannerSource = "threat"), inputs(opponentThreats = List(threat)), None)
+
+    assertEquals(trace.contrast_admissible, true)
+    assertEquals(trace.contrast_anchor, Some("d6"))
+    assert(trace.contrast_evidence_refs.contains("threat_square:f6"), clues(trace))
+    assertEquals(trace.effectiveSupport(None), Some("If delayed, one defensive reply has to answer the material threat on f6."))
+  }
+
+  test("renders actual gxf6 only-move fallback as immediate necessity, not delayed availability") {
+    val trace =
+      ContrastiveSupportAdmissibility.decide(
+        plan(AuthorQuestionKind.WhyNow, plannerSource = "only_move_defense"),
+        inputs(),
+        Some(
+          DecisiveTruthContract(
+            playedMove = Some("gxf6"),
+            verifiedBestMove = Some("gxf6"),
+            truthClass = DecisiveTruthClass.Best,
+            cpLoss = 342,
+            swingSeverity = 342,
+            reasonFamily = DecisiveReasonKind.OnlyMoveDefense,
+            allowConcreteBenchmark = false,
+            chosenMatchesBest = true,
+            compensationAllowed = false,
+            truthPhase = None,
+            ownershipRole = TruthOwnershipRole.NoneRole,
+            visibilityRole = TruthVisibilityRole.PrimaryVisible,
+            surfaceMode = TruthSurfaceMode.Neutral,
+            exemplarRole = TruthExemplarRole.VerifiedExemplar,
+            surfacedMoveOwnsTruth = true,
+            verifiedPayoffAnchor = None,
+            compensationProseAllowed = false,
+            benchmarkProseAllowed = false,
+            investmentTruthChainKey = None,
+            maintenanceExemplarCandidate = false,
+            benchmarkCriticalMove = true,
+            failureMode = FailureInterpretationMode.NoClearPlan,
+            failureIntentConfidence = 0.0,
+            failureIntentAnchor = None,
+            failureInterpretationAllowed = false
+          )
+        )
+      )
+
+    assertEquals(trace.contrast_admissible, true)
+    assertEquals(trace.contrast_source_kind, Some(ContrastiveSupportAdmissibility.SourceKind.DelayedOnlyMove))
+    assertEquals(trace.contrast_anchor, Some("gxf6"))
+    assertEquals(trace.contrast_consequence, Some("it is the only move that still holds the position together"))
+    assertEquals(trace.effectiveSupport(None), Some("Only the played move still keeps the position together now."))
+  }
+
+  test("rejects generic only-move fallback without concrete loss magnitude") {
+    val trace =
+      ContrastiveSupportAdmissibility.decide(
+        plan(AuthorQuestionKind.WhyNow, plannerSource = "only_move_defense"),
+        inputs(),
+        Some(
+          DecisiveTruthContract(
+            playedMove = Some("d6"),
+            verifiedBestMove = Some("d6"),
+            truthClass = DecisiveTruthClass.Best,
+            cpLoss = 0,
+            swingSeverity = 50,
+            reasonFamily = DecisiveReasonKind.OnlyMoveDefense,
+            allowConcreteBenchmark = false,
+            chosenMatchesBest = true,
+            compensationAllowed = false,
+            truthPhase = None,
+            ownershipRole = TruthOwnershipRole.NoneRole,
+            visibilityRole = TruthVisibilityRole.PrimaryVisible,
+            surfaceMode = TruthSurfaceMode.Neutral,
+            exemplarRole = TruthExemplarRole.VerifiedExemplar,
+            surfacedMoveOwnsTruth = true,
+            verifiedPayoffAnchor = None,
+            compensationProseAllowed = false,
+            benchmarkProseAllowed = false,
+            investmentTruthChainKey = None,
+            maintenanceExemplarCandidate = false,
+            benchmarkCriticalMove = true,
+            failureMode = FailureInterpretationMode.NoClearPlan,
+            failureIntentConfidence = 0.0,
+            failureIntentAnchor = None,
+            failureInterpretationAllowed = false
+          )
+        )
+      )
+
+    assertEquals(trace.contrast_admissible, false)
+    assertEquals(trace.contrast_reject_reason, Some(ContrastiveSupportAdmissibility.RejectReason.MissingContrastCandidate))
+    assertEquals(trace.effectiveSupport(None), None)
   }
 
   test("admits chosen-best contrast from certified planner consequence when deferred reason is missing") {

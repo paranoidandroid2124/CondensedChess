@@ -168,12 +168,13 @@ private[commentary] object MoveReviewCompressionPolicy:
           }
         )
         .getOrElse(omittedSlots)
+    val truthAlignedSlots = withCriticalTruthSurface(slots, truthContract)
     val finalCausalTrace =
       timeStage("final_causal_trace") {
-        finalRenderedBasicCausalTrace(ctx, refs, slots).orElse(causalTrace)
+        finalRenderedBasicCausalTrace(ctx, refs, truthAlignedSlots).orElse(causalTrace)
       }
     RuntimeResult(
-      slots = slots,
+      slots = truthAlignedSlots,
       inputs = plannerRuntime.inputs,
       rankedPlans = plannerRuntime.rankedPlans,
       causalTrace = finalCausalTrace,
@@ -189,9 +190,11 @@ private[commentary] object MoveReviewCompressionPolicy:
       truthContract: Option[DecisiveTruthContract] = None,
       refs: Option[MoveReviewRefs] = None
   ): MoveReviewPolishSlots =
-    slotsFromPlanner(ctx, inputs, rankedPlans, truthContract, refs)
+    val slots =
+      slotsFromPlanner(ctx, inputs, rankedPlans, truthContract, refs)
       .orElse(exactFactualFallbackSlots(ctx, refs))
       .getOrElse(omittedSlots)
+    withCriticalTruthSurface(slots, truthContract)
 
   private[analysis] def cleanNarrativeSentence(raw: String, ctx: NarrativeContext): Option[String] =
     cleanSentence(raw, ctx)
@@ -735,11 +738,19 @@ private[commentary] object MoveReviewCompressionPolicy:
     }.flatten
 
   private def playedMoveLineConsequenceSurfaceAllowed(primary: QuestionPlan): Boolean =
-    (primary.questionKind == AuthorQuestionKind.WhyThis || primary.questionKind == AuthorQuestionKind.WhatChanged) &&
+    (
+      (primary.questionKind == AuthorQuestionKind.WhyThis || primary.questionKind == AuthorQuestionKind.WhatChanged) &&
+        (
+          primary.plannerOwnerKind == PlannerOwnerKind.MoveDelta ||
+            primary.plannerOwnerKind == PlannerOwnerKind.LineConsequence ||
+            primary.plannerOwnerKind == PlannerOwnerKind.AlternativeComparison
+        )
+    ) ||
       (
-        primary.plannerOwnerKind == PlannerOwnerKind.MoveDelta ||
-          primary.plannerOwnerKind == PlannerOwnerKind.LineConsequence ||
-          primary.plannerOwnerKind == PlannerOwnerKind.AlternativeComparison
+        primary.questionKind == AuthorQuestionKind.WhyNow &&
+          primary.plannerOwnerKind == PlannerOwnerKind.ForcingDefense &&
+          primary.plannerSource == "only_move_defense" &&
+          primary.sourceKinds.exists(_.trim == "line_consequence")
       )
 
   private def plannerTimingTension(
@@ -1136,6 +1147,76 @@ private[commentary] object MoveReviewCompressionPolicy:
           )
         }
       }
+
+  private def withCriticalTruthSurface(
+      slots: MoveReviewPolishSlots,
+      truthContract: Option[DecisiveTruthContract]
+  ): MoveReviewPolishSlots =
+    truthContract
+      .filter(_.isBad)
+      .flatMap(contract => criticalTruthCue(slots, contract))
+      .map(cue => appendCriticalTruthCue(slots, cue))
+      .getOrElse(slots)
+
+  private def criticalTruthCue(
+      slots: MoveReviewPolishSlots,
+      contract: DecisiveTruthContract
+  ): Option[String] =
+    val existingText =
+      List(
+        slots.claim,
+        slots.supportPrimary.getOrElse(""),
+        slots.supportSecondary.getOrElse(""),
+        slots.tension.getOrElse(""),
+        slots.evidenceHook.getOrElse(""),
+        slots.coda.getOrElse("")
+      ).mkString(" ").toLowerCase
+    Option
+      .when(slots.claim.trim.nonEmpty && !criticalTruthCueAlreadyPresent(existingText)) {
+        val label = criticalTruthLabel(contract)
+        val article = if label.startsWith("i") then "an" else "a"
+        val bestMove =
+          contract.verifiedBestMove
+            .filterNot(best => contract.playedMove.exists(played => DecisiveTruth.sameMoveToken(played, best)))
+            .orElse(contract.benchmarkMove)
+        val lossText =
+          contract.surfaceCpLossOption.map(cp => s"this gives up about ${cp}cp")
+        val detail =
+          (bestMove, lossText) match
+            case (Some(best), Some(loss)) => s"the cleaner move was $best, and $loss"
+            case (Some(best), None)       => s"the cleaner move was $best"
+            case (None, Some(loss))       => loss
+            case (None, None)             => "the checked evaluation is worse"
+        s"The engine marks this as $article $label: $detail."
+      }
+
+  private def criticalTruthLabel(contract: DecisiveTruthContract): String =
+    contract.truthClass match
+      case DecisiveTruthClass.Inaccuracy => "inaccuracy"
+      case DecisiveTruthClass.Mistake    => "mistake"
+      case DecisiveTruthClass.Blunder    => "blunder"
+      case DecisiveTruthClass.MissedWin  => "missed win"
+      case _                             => contract.truthClassKey.replace("_", " ")
+
+  private def criticalTruthCueAlreadyPresent(text: String): Boolean =
+    List("blunder", "mistake", "inaccuracy", "missed win", "misses a win").exists(text.contains) ||
+      List("loses", "drops", "allows", "gives up", "concession", "refutation", "punish", "worse").exists(text.contains)
+
+  private def appendCriticalTruthCue(
+      slots: MoveReviewPolishSlots,
+      cue: String
+  ): MoveReviewPolishSlots =
+    val updated =
+      if slots.supportPrimary.isEmpty then slots.copy(supportPrimary = Some(cue))
+      else if slots.supportSecondary.isEmpty && !sameSentence(slots.supportPrimary.getOrElse(""), cue) then
+        slots.copy(supportSecondary = Some(cue))
+      else if slots.coda.isEmpty then slots.copy(coda = Some(cue))
+      else slots
+    val supportLines = List(updated.supportPrimary, updated.supportSecondary).flatten
+    updated.copy(
+      factGuardrails = (updated.factGuardrails :+ cue).distinct,
+      paragraphPlan = plannerParagraphPlan(supportLines, updated.tension, updated.evidenceHook, updated.coda)
+    )
 
   private def omittedSlots: MoveReviewPolishSlots =
     MoveReviewPolishSlots(

@@ -10,6 +10,10 @@ import munit.FunSuite
 
 final class MoveReviewCoverageDiagnosticsTest extends FunSuite:
 
+  private val Source = MoveReviewPolishSlots.Source
+  private val BasicEvidenceStatus = MoveReviewCoverageDiagnostics.BasicEvidenceStatus
+  private val LocalFactStatus = MoveReviewCoverageDiagnostics.LocalFactStatus
+
   private val italianBeforeBc4 =
     "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3"
 
@@ -162,10 +166,10 @@ final class MoveReviewCoverageDiagnosticsTest extends FunSuite:
     val diagnostics =
       MoveReviewCoverageDiagnostics.build(italianCtx, Some(refs), None, None, slots, plannerInputs(italianCtx))
 
-    assertEquals(diagnostics.moveReviewSourceKind, Some("planner"))
-    assertEquals(diagnostics.basicEvidenceStatus, Some("planner_preempted"))
+    assertEquals(diagnostics.moveReviewSourceKind, Some(Source.Planner))
+    assertEquals(diagnostics.basicEvidenceStatus, Some(BasicEvidenceStatus.PlannerPreempted))
     assertEquals(diagnostics.basicEvidenceRejectReasons, Nil)
-    assertEquals(diagnostics.moveReviewLocalFactStatus, Some("emitted"))
+    assertEquals(diagnostics.moveReviewLocalFactStatus, Some(LocalFactStatus.Emitted))
     assertEquals(diagnostics.moveReviewLocalFactFamilies, List("opening_goal"))
     assertEquals(diagnostics.moveReviewLocalFactAuthorities, List("opening_goal_evidence"))
     assertEquals(diagnostics.moveReviewLocalFactStrictFallbackEligible, Some(true))
@@ -174,7 +178,7 @@ final class MoveReviewCoverageDiagnosticsTest extends FunSuite:
       slots.copy(moveReviewExplanation = slots.moveReviewExplanation.map(_.copy(reasonTags = Nil)))
     val scrubbedDiagnostics =
       MoveReviewCoverageDiagnostics.build(italianCtx, Some(refs), None, None, scrubbedSlots, plannerInputs(italianCtx))
-    assertEquals(scrubbedDiagnostics.moveReviewLocalFactStatus, Some("emitted"))
+    assertEquals(scrubbedDiagnostics.moveReviewLocalFactStatus, Some(LocalFactStatus.Emitted))
     assertEquals(scrubbedDiagnostics.moveReviewLocalFactFamilies, List("opening_goal"))
     assertEquals(scrubbedDiagnostics.moveReviewLocalFactAuthorities, List("opening_goal_evidence"))
   }
@@ -187,8 +191,8 @@ final class MoveReviewCoverageDiagnosticsTest extends FunSuite:
     val diagnostics =
       MoveReviewCoverageDiagnostics.build(italianCtx, None, None, None, slots, plannerInputs(italianCtx))
 
-    assertEquals(diagnostics.moveReviewSourceKind, Some("exact_factual_fallback"))
-    assertEquals(diagnostics.basicEvidenceStatus, Some("blocked"))
+    assertEquals(diagnostics.moveReviewSourceKind, Some(Source.ExactFactualFallback))
+    assertEquals(diagnostics.basicEvidenceStatus, Some(BasicEvidenceStatus.Blocked))
     assert(diagnostics.basicEvidenceRejectReasons.contains("missing_coupled_pv_line"), clue(diagnostics))
   }
 
@@ -245,10 +249,10 @@ final class MoveReviewCoverageDiagnosticsTest extends FunSuite:
 
     assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.ExactFactualFallback, clues(slots))
     assertEquals(slots.moveReviewExplanation, None, clues(slots))
-    assertEquals(diagnostics.basicEvidenceStatus, Some("blocked"))
+    assertEquals(diagnostics.basicEvidenceStatus, Some(BasicEvidenceStatus.Blocked))
     assert(diagnostics.basicEvidenceRejectReasons.contains("positive_basic_blocked_by_truth_contract"), clue(diagnostics))
     assert(!diagnostics.basicEvidenceRejectReasons.contains("basic_builder_not_emitted"), clue(diagnostics))
-    assertEquals(diagnostics.moveReviewLocalFactStatus, Some("candidate"))
+    assertEquals(diagnostics.moveReviewLocalFactStatus, Some(LocalFactStatus.Candidate))
     assertEquals(diagnostics.moveReviewLocalFactFamilies, List("opening_goal"))
   }
 
@@ -332,8 +336,8 @@ final class MoveReviewCoverageDiagnosticsTest extends FunSuite:
         causalTrace = causalTrace
       )
 
-    assertEquals(diagnostics.basicEvidenceStatus, Some("planner_preempted"))
-    assertEquals(diagnostics.moveReviewLocalFactStatus, Some("emitted"))
+    assertEquals(diagnostics.basicEvidenceStatus, Some(BasicEvidenceStatus.PlannerPreempted))
+    assertEquals(diagnostics.moveReviewLocalFactStatus, Some(LocalFactStatus.Emitted))
     assertEquals(diagnostics.moveReviewLocalFactFamilies, List("timing"))
     assertEquals(diagnostics.moveReviewLocalFactAuthorities, List("only_move_defense"))
     assertEquals(diagnostics.moveReviewLocalFactStrictFallbackEligible, Some(true))

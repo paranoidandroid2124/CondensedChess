@@ -10,8 +10,6 @@ object MoveReviewLocalFactualFallbackCorpusAudit:
 
   import CommentaryPlayerQcSupport.*
 
-  private val ExactFactualMode = "exact_factual"
-  private val PlannerOwnedMode = "planner_owned"
   private val ForbiddenTerms =
     List("compensation", "pressure", "route", "plan", "simplifying", "exchange benefit", "advantage", "winning", "wins")
 
@@ -74,7 +72,7 @@ object MoveReviewLocalFactualFallbackCorpusAudit:
         .sorted
     val forbidden =
       after
-        .filter(_.moveReviewFallbackMode == ExactFactualMode)
+        .filter(entry => MoveReviewFallbackMode.isExactFactual(entry.moveReviewFallbackMode))
         .filter(isLocalFactualFallbackLike)
         .flatMap(forbiddenHits)
         .sortBy(hit => hit.sampleId -> hit.term)
@@ -152,10 +150,10 @@ object MoveReviewLocalFactualFallbackCorpusAudit:
 
   private object Counts:
     def from(entries: List[MoveReviewOutputEntry]): Counts =
-      val exactRows = entries.filter(_.moveReviewFallbackMode == ExactFactualMode)
+      val exactRows = entries.filter(entry => MoveReviewFallbackMode.isExactFactual(entry.moveReviewFallbackMode))
       Counts(
         exactFactualRows = exactRows.size,
-        plannerOwnedRows = entries.count(_.moveReviewFallbackMode == PlannerOwnedMode),
+        plannerOwnedRows = entries.count(entry => MoveReviewFallbackMode.isPlannerOwned(entry.moveReviewFallbackMode)),
         literalCaptureFloorCount = exactRows.count(isLiteralCaptureFloor),
         roleAnchoredCaptureCount = exactRows.count(isRoleAnchoredCapture),
         enPassantCount = exactRows.count(entry => contains(entry, "en passant")),

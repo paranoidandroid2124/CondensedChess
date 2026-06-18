@@ -2,6 +2,7 @@ package lila.commentary.analysis
 
 import _root_.chess.{ Bishop, Color, Knight, Pawn, Piece, Queen, Rook, Square }
 import lila.commentary.*
+import lila.commentary.analysis.semantic.RelationSurfaceRowKind
 import lila.commentary.analysis.semantic.StrategicObservationIds.{ ProofFamilyId, ProofSourceId }
 import lila.commentary.model.*
 import munit.FunSuite
@@ -62,7 +63,8 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
       openingGoal: Option[OpeningGoals.Evaluation] = None,
       openingName: Option[String] = None,
       strategicDeltas: List[PlayerFacingMoveDeltaEvidence] = Nil,
-      practicalPositionFacts: List[CommentaryIdeaSurface.PracticalPositionFact] = Nil
+      practicalPositionFacts: List[CommentaryIdeaSurface.PracticalPositionFact] = Nil,
+      relationWitnesses: List[MoveReviewExchangeAnalyzer.RelationWitness] = Nil
   ): CommentaryIdeaSurface.MoveReviewEvidence =
     CommentaryIdeaSurface.MoveReviewEvidence(
       facts = facts,
@@ -70,7 +72,8 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
       openingGoal = openingGoal,
       openingName = openingName,
       strategicDeltas = strategicDeltas,
-      practicalPositionFacts = practicalPositionFacts
+      practicalPositionFacts = practicalPositionFacts,
+      relationWitnesses = relationWitnesses
     )
 
   private def moveRef(refId: String, san: String, uci: String, ply: Int): MoveReviewMoveRef =
@@ -1755,7 +1758,7 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
     )
   }
 
-  test("practical king-attack fact stays generic when the only lane anchor is the origin square") {
+  test("practical king-attack fact is not admitted when the only lane anchor is the origin square") {
     val startFen =
       "r1b1kb1r/pp2nppp/1qn1p3/2ppP3/5B2/3P1N2/PPPN1PPP/R1Q1KB1R b KQkq - 6 7"
     val afterFen = NarrativeUtils.uciListToFen(startFen, List("c8d7"))
@@ -1799,12 +1802,118 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
     val descriptor =
       CommentaryIdeaSurface
         .describe(current, evidence(practicalPositionFacts = facts), line)
-        .getOrElse(fail("expected generic practical king-attack descriptor"))
 
-    assert(facts.nonEmpty, clue(facts))
-    assert(!facts.exists(_.evidenceRefs.contains("attack_lane_board_attack")), clue(facts))
-    assert(!descriptor.baseProse.contains("attack lane"), clue(descriptor.baseProse))
-    assert(!descriptor.scopedTakeaway.exists(_.text.contains("attack lane")), clue(descriptor.scopedTakeaway.map(_.text)))
+    assert(facts.isEmpty, clue(facts))
+    assertEquals(descriptor, None, clue(descriptor))
+  }
+
+  test("replay Bb4 does not admit generic king pressure without concrete attack-lane evidence") {
+    val startFen =
+      "rnbr3k/ppppbQpp/8/8/2B5/1P6/P1PP1PPP/RNB1K2R b KQ - 0 10"
+    val afterFen = NarrativeUtils.uciListToFen(startFen, List("e7b4"))
+    val current =
+      played("e7b4", "Bb4", Square.E7, Square.B4, Piece(Color.Black, Bishop), afterFen = afterFen)
+    val line =
+      Some(exactLineFacts(startFen, "e7b4", List("e7b4", "f7h5", "b8c6", "a2a3", "d7d5"), List("Bb4", "Qh5", "Nc6", "a3", "d5"), "line_04"))
+    val idea =
+      StrategyIdeaSignal(
+        ideaId = "idea_1",
+        ownerSide = "black",
+        kind = StrategicIdeaKind.KingAttackBuildUp,
+        group = StrategicIdeaGroup.PieceAndLineManagement,
+        readiness = StrategicIdeaReadiness.Build,
+        focusFiles = List("g", "h"),
+        confidence = 0.98,
+        evidenceRefs =
+          List(
+            "source:king_ring_pressure",
+            "king_ring_pressure_shape",
+            "king_exposed_files",
+            "source:enemy_weak_back_rank",
+            "enemy_weak_back_rank_shape",
+            "source:flank_pawn_pressure",
+            "rook_pawn_march_ready",
+            "source:plan_match_king_attack"
+          )
+      )
+    val surface =
+      StrategyPackSurface.Snapshot(
+        sideToMove = Some("black"),
+        dominantIdea = Some(idea),
+        secondaryIdea = None,
+        campaignOwner = Some("black"),
+        ownerMismatch = false,
+        allRoutes = Nil,
+        topRoute = None,
+        allMoveRefs = List(StrategyPieceMoveRef("black", "B", "e7", "b4", "king_attack_build_up")),
+        topMoveRef = None,
+        allDirectionalTargets = Nil,
+        topDirectionalTarget = None,
+        longTermFocus = None,
+        evidenceHints = Nil,
+        compensationSummary = None,
+        compensationVectors = Nil,
+        investedMaterial = None,
+        compensationSubtype = None,
+        allIdeas = List(idea)
+      )
+    val facts = CommentaryIdeaSurface.practicalPositionFacts(current, surface)
+    val descriptor =
+      CommentaryIdeaSurface.describe(current, evidence(practicalPositionFacts = facts), line)
+
+    assert(facts.isEmpty, clue(facts))
+    assert(!descriptor.exists(_.source == "practical_position_support"), clue(descriptor))
+    assert(!descriptor.exists(_.baseProse.contains("king pressure around e7")), clue(descriptor))
+  }
+
+  test("replay Bb4 absolute pin relation admits precise relation surface") {
+    val startFen =
+      "rnbr3k/ppppbQpp/8/8/2B5/1P6/P1PP1PPP/RNB1K2R b KQ - 0 10"
+    val afterFen = NarrativeUtils.uciListToFen(startFen, List("e7b4"))
+    val current =
+      played("e7b4", "Bb4", Square.E7, Square.B4, Piece(Color.Black, Bishop), afterFen = afterFen)
+    val line =
+      Some(exactLineFacts(startFen, "e7b4", List("e7b4", "f7h5", "b8c6", "a2a3", "d7d5"), List("Bb4", "Qh5", "Nc6", "a3", "d5"), "line_04"))
+    val witness =
+      MoveReviewExchangeAnalyzer.RelationWitness(
+        kind = MoveReviewExchangeAnalyzer.RelationKind.Pin,
+        focusSquares = List("b4", "d2", "e1"),
+        facts =
+          List(
+            "pin_relation_witness",
+            "attacker:b4",
+            "pinned:d2",
+            "behind:e1",
+            "attacker_role:bishop",
+            "pinned_role:pawn",
+            "behind_role:king",
+            "absolute_pin"
+          ),
+        lineMoves = List("e7b4", "f7h5", "b8c6", "a2a3", "d7d5"),
+        targetSquare = Some("e1"),
+        details = MoveReviewExchangeAnalyzer.RelationDetails.Pin(
+          attackerSquare = "b4",
+          pinnedSquare = "d2",
+          behindSquare = "e1",
+          targetSquare = "e1",
+          attackerRole = "bishop",
+          pinnedRole = "pawn",
+          behindRole = "king",
+          absolute = true
+        )
+      )
+    val descriptor =
+      CommentaryIdeaSurface
+        .describe(current, evidence(relationWitnesses = List(witness)), line)
+        .getOrElse(fail("expected absolute pin relation witness descriptor"))
+
+    assertEquals(descriptor.source, "relation_witness", clue(descriptor))
+    assert(descriptor.baseProse.contains("pins the pawn on d2 to the king on e1"), clue(descriptor.baseProse))
+    assertEquals(descriptor.localFact.family, MoveReviewLocalFact.Family.Attack, clue(descriptor.localFact))
+    assertEquals(descriptor.localFact.producer, MoveReviewLocalFact.Producer.RelationWitness, clue(descriptor.localFact))
+    assertEquals(descriptor.localFact.relationSurface, Some(RelationSurfaceRowKind.LineGeometry), clue(descriptor.localFact))
+    assert(descriptor.reasonTags.contains("relation_kind:pin"), clue(descriptor.reasonTags))
+    assert(!descriptor.baseProse.contains("king pressure around e7"), clue(descriptor.baseProse))
   }
 
   test("MoveReviewLocalFact centralizes strategic move-delta family admission") {

@@ -47,20 +47,20 @@ private[analysis] object TacticalTensionPolicy:
             contract.failureMode == FailureInterpretationMode.TacticalRefutation ||
             (
               contract.failureInterpretationAllowed &&
-                contract.cpLoss >= SevereCounterfactualCp &&
+                contract.surfaceCpLoss >= SevereCounterfactualCp &&
                 (contract.truthClass == DecisiveTruthClass.Blunder || contract.truthClass == DecisiveTruthClass.MissedWin)
             )
         val truthSevere =
           contract.truthClass == DecisiveTruthClass.MissedWin ||
             (
               contract.failureInterpretationAllowed &&
-                contract.cpLoss >= SevereCounterfactualCp &&
+                contract.surfaceCpLoss >= SevereCounterfactualCp &&
                 (contract.truthClass == DecisiveTruthClass.Blunder || contract.truthClass == DecisiveTruthClass.MissedWin)
             )
         Evaluation(
           forcedOrCritical = truthForced || benchmarkForced,
           strongTacticalPressure = truthPressure || benchmarkPressure,
-          severeCounterfactual = truthSevere || benchmarkSevere
+          severeCounterfactual = truthSevere
         )
       case None =>
         Evaluation(

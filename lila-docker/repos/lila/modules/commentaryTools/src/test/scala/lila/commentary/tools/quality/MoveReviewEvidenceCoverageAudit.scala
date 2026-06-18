@@ -8,13 +8,14 @@ import scala.jdk.CollectionConverters.*
 
 import _root_.chess.format.{ Fen, Uci }
 import _root_.chess.variant.Standard
+import lila.commentary.analysis.MoveReviewPolishSlots
 import lila.commentary.tools.review.CommentaryPlayerQcSupport
 
 object MoveReviewEvidenceCoverageAudit:
 
   import CommentaryPlayerQcSupport.*
 
-  private val ExactFactualFallback = "exact_factual_fallback"
+  private val ExactFactualFallback = MoveReviewPolishSlots.Source.ExactFactualFallback
   private val CoverageInsufficient = "coverage_insufficient"
   private val CoverageComplete = "complete"
   private val EvalGapWithoutConcreteDescriptor = "eval_gap_without_concrete_descriptor"

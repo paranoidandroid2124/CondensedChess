@@ -703,8 +703,15 @@ private[commentary] object MoveReviewCausalClaim:
       (
         plan.plannerOwnerKind == PlannerOwnerKind.LineConsequence ||
           plan.questionKind == AuthorQuestionKind.WhatChanged ||
-          plan.questionKind == AuthorQuestionKind.WhyThis
+          plan.questionKind == AuthorQuestionKind.WhyThis ||
+          onlyMoveLineConsequenceTiming(plan)
       )
+
+  private def onlyMoveLineConsequenceTiming(plan: QuestionPlan): Boolean =
+    plan.questionKind == AuthorQuestionKind.WhyNow &&
+      plan.plannerOwnerKind == PlannerOwnerKind.ForcingDefense &&
+      plan.plannerSource == "only_move_defense" &&
+      plan.sourceKinds.exists(_.trim == "line_consequence")
 
   private def pvCoupledPlanSupportAdmissible(plan: QuestionPlan, support: PvCoupledPlanSupport): Boolean =
     plan.plannerOwnerKind == PlannerOwnerKind.MoveDelta &&
@@ -946,7 +953,18 @@ private[commentary] object MoveReviewCausalClaim:
     evidences.flatMap(_.guardrails).map(_.trim).filter(_.nonEmpty).distinct
 
   private def promotedLocalFactDecision(frame: CausalFrame): Option[MoveReviewLocalFact.Decision] =
-    frame.evidences.find(_.localFactCandidate.nonEmpty).flatMap { evidence =>
+    val evidences = frame.evidences.filter(_.localFactCandidate.nonEmpty)
+    val preferred =
+      if onlyMoveLineConsequenceTiming(frame.plan) then
+        evidences
+          .find(evidence =>
+            evidence.source == EvidenceSource.LineConsequenceSurface &&
+              evidence.localFactFamily.contains(MoveReviewLocalFact.Family.LineConsequence)
+          )
+          .orElse(evidences.find(_.source != EvidenceSource.DelayedOnlyMove))
+          .orElse(evidences.headOption)
+      else evidences.headOption
+    preferred.flatMap { evidence =>
       val candidate = evidence.localFactCandidate.get
       val decision =
         MoveReviewLocalFact.admit(
@@ -1001,10 +1019,16 @@ private[commentary] object MoveReviewCausalClaim:
         (hasEvidence(evidences, EvidenceKind.BranchLine) || hasEvidence(evidences, EvidenceKind.CertifiedConsequence) ||
           promotedPlayedMoveEffect)
     val alternativeContrast = hasAlternativeContrast(evidences)
+    val onlyMoveLineConsequenceTimingSupport =
+      onlyMoveLineConsequenceTiming(plan) &&
+        hasEvidence(evidences, EvidenceSource.LineConsequenceSurface)
     List(
       Option.when(alternativeContrast)(RelationKind.AlternativeContrast),
       Option.when(playedMoveConsequence)(RelationKind.PlayedMoveConsequence),
-      Option.when(plan.questionKind == AuthorQuestionKind.WhyNow && hasTypedTimingSupport(evidences))(RelationKind.TimingConstraint),
+      Option.when(
+        plan.questionKind == AuthorQuestionKind.WhyNow &&
+          (hasTypedTimingSupport(evidences) || onlyMoveLineConsequenceTimingSupport)
+      )(RelationKind.TimingConstraint),
       Option.when(
         plan.questionKind == AuthorQuestionKind.WhatMustBeStopped &&
           plan.plannerOwnerKind == PlannerOwnerKind.ForcingDefense &&
@@ -1067,12 +1091,37 @@ private[commentary] object MoveReviewCausalClaim:
   private def surfacePacket(frame: CausalFrame): SurfacePacket =
     val contract = frame.surfaceContract
     val claim = frame.surfaceText
+    val normalizedClaim = normalizeSurfaceText(claim)
+    val lineConsequenceRenderedAsClaim =
+      frame.evidences.exists { evidence =>
+        val ownedOnlyMoveLineConsequenceAnchor =
+          onlyMoveLineConsequenceTiming(frame.plan) &&
+            evidence.localFactFamily.contains(MoveReviewLocalFact.Family.LineConsequence) &&
+            evidence.anchors.exists(anchor =>
+              val normalizedAnchor = normalizeSurfaceText(anchor.value)
+              normalizedAnchor.nonEmpty && normalizedClaim.contains(normalizedAnchor)
+            )
+        evidence.source == EvidenceSource.LineConsequenceSurface &&
+          (evidence.text.exists(redundantSurfaceText(_, claim)) || ownedOnlyMoveLineConsequenceAnchor)
+      }
+    val promotableEvidences =
+      if lineConsequenceRenderedAsClaim && frame.plan.plannerOwnerKind == PlannerOwnerKind.LineConsequence then
+        frame.evidences.filterNot(evidence =>
+          evidence.source == EvidenceSource.TypedLocalFact &&
+            evidence.localFactFamily.contains(MoveReviewLocalFact.Family.Threat) &&
+            evidence.localFactCandidate.exists(candidate =>
+              candidate.source == MoveReviewLocalFact.Source.CanonicalFact &&
+                candidate.producer == MoveReviewLocalFact.Producer.TacticalMotif
+            ) &&
+            evidence.evidenceRefs.exists(_ == "tactical_kind:discovered_attack")
+        )
+      else frame.evidences
     val promotedSupport =
-      promotedEvidenceText(frame.evidences).filterNot(sameText(_, claim))
+      promotedEvidenceText(promotableEvidences).filterNot(sameText(_, claim))
     val typedEvidenceRenderedAsClaim =
       frame.evidences.exists(evidence =>
         evidence.localFactFamily.nonEmpty &&
-          evidence.text.exists(sameText(_, claim)) &&
+          evidence.text.exists(text => sameText(text, claim) || redundantSurfaceText(text, claim)) &&
           (
             evidence.source == EvidenceSource.CertifiedOwnerPacket ||
               evidence.source == EvidenceSource.SupportedLocalPacket ||
@@ -1086,7 +1135,11 @@ private[commentary] object MoveReviewCausalClaim:
     val contrast =
       Option
         .when(contract.mayCompareAlternative || contract.mayUseForced || mayUseDefensiveSupport || contract.mayUseTimingClaim)(
-          evidenceText(frame.evidences, EvidenceKind.Contrast).filterNot(sameText(_, claim))
+          frame.evidences
+            .find(_.kind == EvidenceKind.Contrast)
+            .filterNot(evidence => lineConsequenceRenderedAsClaim && evidence.source == EvidenceSource.DelayedOnlyMove)
+            .flatMap(_.text.map(_.trim).filter(_.nonEmpty))
+            .filterNot(sameText(_, claim))
         )
         .flatten
     val secondary =
@@ -1120,7 +1173,7 @@ private[commentary] object MoveReviewCausalClaim:
       tension = tension,
       evidenceHook = evidenceHook,
       coda = coda,
-      supportRenderedInClaim = !sameText(frame.surfaceText, frame.renderedClaim) || typedEvidenceRenderedAsClaim,
+      supportRenderedInClaim = !sameText(frame.surfaceText, frame.renderedClaim) || typedEvidenceRenderedAsClaim || lineConsequenceRenderedAsClaim,
       guardrails = contract.guardrails
     )
 

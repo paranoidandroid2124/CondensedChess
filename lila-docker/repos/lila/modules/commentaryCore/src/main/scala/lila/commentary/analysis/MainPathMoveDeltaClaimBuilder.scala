@@ -540,8 +540,6 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
         case DecisiveTruthClass.MissedWin => Some("missed_win")
         case DecisiveTruthClass.Best if contract.reasonFamily == DecisiveReasonKind.OnlyMoveDefense =>
           Some("only_move_defense")
-        case DecisiveTruthClass.Best if contract.reasonFamily == DecisiveReasonKind.TacticalRefutation =>
-          Some("tactical_refutation")
         case _ => None
     }.orElse(Option.when(looksLikeTacticalSacrifice(ctx, truthContract))("tactical_sacrifice"))
 

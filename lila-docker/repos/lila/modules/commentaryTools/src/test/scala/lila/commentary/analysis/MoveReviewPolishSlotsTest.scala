@@ -596,7 +596,33 @@ class MoveReviewPolishSlotsTest extends FunSuite:
       )
     val paragraphs = MoveReviewSoftRepair.deterministicParagraphs(slots)
     assertEquals(paragraphs.size, 3)
-    assert(paragraphs(2).contains("One concrete line that keeps the idea in play is a) ...c5 Nf3 Nc6 (+0.2)"))
+    assert(paragraphs(2).contains("One checked line is a) ...c5 Nf3 Nc6 (+0.2)"))
+  }
+
+  test("deterministic third paragraph does not wrap actual Nb5 prose line as a bare variation") {
+    val slots =
+      MoveReviewPolishSlots(
+        lens = StrategicLens.Decision,
+        claim = "10. Nb5: The checked line from Nb5 keeps Development and central control connected to d6 as a practical plan.",
+        supportPrimary = None,
+        supportSecondary = None,
+        tension = None,
+        evidenceHook = Some(
+          "a) On the checked line 10. Nb5 Na6 11. Bc4 Nf6 12. d6 O-O 13. O-O exd6, the pawn reaches d6 as a passed pawn, giving the line a concrete passer cue."
+        ),
+        coda = None,
+        factGuardrails = Nil,
+        paragraphPlan = List("p1=claim", "p3=tension_or_evidence")
+      )
+
+    val paragraphs = MoveReviewSoftRepair.deterministicParagraphs(slots)
+
+    assertEquals(paragraphs.size, 2)
+    assert(!paragraphs(1).contains("One checked line is a) On the checked line"), clues(paragraphs))
+    assertEquals(
+      paragraphs(1),
+      "On the checked line 10. Nb5 Na6 11. Bc4 Nf6 12. d6 O-O 13. O-O exd6, the pawn reaches d6 as a passed pawn, giving the line a concrete passer cue."
+    )
   }
 
   test("sanitizer preserves chess ellipsis markers in prose") {
@@ -606,6 +632,14 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     assertEquals(
       sanitized,
       "Probe evidence starts with ...Rc8: Rc8 Rc3 Rg6 (+0.42). The alternative is 12...Qh5, and fixing lines with ...h5 makes ...Rh6-g6 realistic."
+    )
+  }
+
+  test("sanitizer neutralizes idea-preserving line hook strength") {
+    val raw = "One concrete line that keeps the idea in play is a) Be7 Qc2 dxc4 Bxc4 c5."
+    assertEquals(
+      UserFacingSignalSanitizer.sanitize(raw),
+      "One checked line is a) Be7 Qc2 dxc4 Bxc4 c5."
     )
   }
 

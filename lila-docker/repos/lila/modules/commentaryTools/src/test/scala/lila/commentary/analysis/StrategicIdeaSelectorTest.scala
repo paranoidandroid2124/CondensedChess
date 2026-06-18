@@ -25,7 +25,7 @@ import lila.commentary.analysis.L3.{
   TensionPolicy
 }
 import lila.commentary.model.{ Motif, PawnPlayTable, Plan, PlanMatch, StrategicPlanExperiment }
-import lila.commentary.model.strategic.{ PositionalTag, PreventedPlan, WeakComplex }
+import lila.commentary.model.strategic.{ EndgameFeature, EndgameOppositionType, PositionalTag, PreventedPlan, WeakComplex }
 import lila.commentary.model.structure.{ CenterState, StructureId, StructureProfile }
 import munit.FunSuite
 
@@ -565,6 +565,8 @@ class StrategicIdeaSelectorTest extends FunSuite:
     val semantic =
       StrategicIdeaSemanticContext(
         sideToMove = "white",
+        phase = "endgame",
+        board = Some(boardFromFen("8/8/4k3/8/4K3/8/8/8 w - - 0 1")),
         motifs =
           List(
             Motif.Opposition(
@@ -591,10 +593,80 @@ class StrategicIdeaSelectorTest extends FunSuite:
     assertEquals(StrategicIdeaSelector.playerFacingIdeaText(conversionIdea), "direct-opposition cue")
   }
 
+  test("opposition geometry in a real middlegame position does not become endgame technique") {
+    val fen = "r1bqk2r/pppp1ppp/5n2/4N1B1/4P3/3P4/P1P1KPPP/Q6R b kq - 0 10"
+    val semantic =
+      StrategicIdeaSemanticContext(
+        sideToMove = "black",
+        fen = fen,
+        phase = "middlegame",
+        board = Some(boardFromFen(fen)),
+        motifs =
+          List(
+            Motif.Opposition(
+              opponentKingSquare = Square.E2,
+              ownKingSquare = Square.E8,
+              oppType = Motif.OppositionType.Distant,
+              color = Color.Black,
+              plyIndex = 20,
+              move = None
+            )
+          )
+      )
+
+    val ideas = StrategicIdeaSelector.select(StrategyPack(sideToMove = "black"), semantic)
+
+    assert(
+      !ideas.exists(_.evidenceRefs.contains("source:endgame_technique_motif")),
+      clue(ideas)
+    )
+  }
+
+  test("endgame phase label without endgame material does not make opposition geometry authoritative") {
+    val fen = "2r3k1/p4p1p/2p3p1/2q5/4Q3/1P4P1/P4P1P/5BK1 b - - 0 25"
+    val semantic =
+      StrategicIdeaSemanticContext(
+        sideToMove = "black",
+        fen = fen,
+        phase = "endgame",
+        board = Some(boardFromFen(fen)),
+        endgameFeatures =
+          Some(
+            EndgameFeature(
+              hasOpposition = true,
+              isZugzwang = false,
+              keySquaresControlled = Nil,
+              oppositionType = EndgameOppositionType.Distant,
+              confidence = 0.30
+            )
+          ),
+        motifs =
+          List(
+            Motif.Opposition(
+              opponentKingSquare = Square.G1,
+              ownKingSquare = Square.G7,
+              oppType = Motif.OppositionType.Distant,
+              color = Color.Black,
+              plyIndex = 50,
+              move = None
+            )
+          )
+      )
+
+    val ideas = StrategicIdeaSelector.select(StrategyPack(sideToMove = "black"), semantic)
+
+    assert(
+      !ideas.exists(_.evidenceRefs.contains("source:endgame_technique_motif")),
+      clue(ideas)
+    )
+  }
+
   test("zugzwang motif keeps endgame-technique witnesses for support surface") {
     val semantic =
       StrategicIdeaSemanticContext(
         sideToMove = "white",
+        phase = "endgame",
+        board = Some(boardFromFen("6k1/8/8/8/8/8/8/4K3 w - - 0 1")),
         motifs = List(Motif.Zugzwang(Color.Black, plyIndex = 0, move = None))
       )
 
@@ -614,6 +686,7 @@ class StrategicIdeaSelectorTest extends FunSuite:
       StrategicIdeaSemanticContext(
         sideToMove = "white",
         phase = "endgame",
+        board = Some(boardFromFen("6k1/8/8/8/8/8/8/4K3 w - - 0 1")),
         motifs = List(Motif.KingStep(Motif.KingStepType.Activation, Color.White, plyIndex = 0, move = Some("Ke4")))
       )
 
@@ -651,6 +724,50 @@ class StrategicIdeaSelectorTest extends FunSuite:
     assert(conversionIdea.evidenceRefs.contains("passed_pawn_e6"), clue(conversionIdea.evidenceRefs))
     assert(conversionIdea.evidenceRefs.contains("protected_passed_pawn"), clue(conversionIdea.evidenceRefs))
     assertEquals(StrategicIdeaSelector.playerFacingIdeaText(conversionIdea), "passed-pawn cue around e6")
+  }
+
+  test("back-rank passer in real forcing-defense row does not become conversion motif") {
+    val fen = "r3k2r/p4p1p/p2Bp3/5p2/3Rb3/8/PPP2P1P/2K3R1 w kq - 0 18"
+    val semantic =
+      StrategicIdeaSemanticContext(
+        sideToMove = "white",
+        fen = fen,
+        phase = "middlegame",
+        board = Some(boardFromFen(fen)),
+        motifs =
+          List(
+            Motif.PassedPawn(File.C, 2, Color.White, isProtected = false, plyIndex = 35, move = None)
+          )
+      )
+
+    val ideas = StrategicIdeaSelector.select(StrategyPack(sideToMove = "white"), semantic)
+
+    assert(
+      !ideas.exists(_.evidenceRefs.contains("source:passed_pawn_conversion_motif")),
+      clue(ideas)
+    )
+  }
+
+  test("central passer in real file-pressure row does not become conversion motif") {
+    val fen = "rn2rbk1/3q1pp1/3p3p/1p1P1b1n/p2N4/P4P1P/BP1N1BP1/2RQ1RK1 b - - 4 21"
+    val semantic =
+      StrategicIdeaSemanticContext(
+        sideToMove = "black",
+        fen = fen,
+        phase = "middlegame",
+        board = Some(boardFromFen(fen)),
+        motifs =
+          List(
+            Motif.PassedPawn(File.D, 4, Color.Black, isProtected = false, plyIndex = 42, move = None)
+          )
+      )
+
+    val ideas = StrategicIdeaSelector.select(StrategyPack(sideToMove = "black"), semantic)
+
+    assert(
+      !ideas.exists(_.evidenceRefs.contains("source:passed_pawn_conversion_motif")),
+      clue(ideas)
+    )
   }
 
   test("passed-pawn push motif keeps conversion witnesses for support surface") {

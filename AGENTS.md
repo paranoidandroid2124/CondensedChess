@@ -1,19 +1,19 @@
 # Agent Instructions
 
-## Commentary Authority
+## Commentary Reference
 
 For Chesstory commentary-analysis work on this branch, use the current worktree
-authority docs under `lila-docker/repos/lila/modules/commentary/docs`:
+reference docs under `lila-docker/repos/lila/modules/commentary/docs`:
 
 - `CommentaryProgramMap.md` - onboarding, current status, active CQF map
-- `CommentaryPipelineSSOT.md` - canonical runtime audit
-- `CommentaryTruthBoundary.md` - canonical signoff and truth boundary
+- `CommentaryPipelineSSOT.md` - compact runtime path and surface map
+- `CommentaryTruthBoundary.md` - public truth standards
 - `CommentaryTrustBoundary.md` - trust-risk map, CTH audit baseline, defer
   rationale, and trust-hardening priorities
 
-Do not cite branch-external or branch-removed documentation as live authority.
+Do not cite branch-external or branch-removed documentation as live reference.
 Do not redo the full `producer -> carrier/model -> builder -> outline ->
-renderer -> API -> frontend` trace when these master docs already answer the
+renderer -> API -> frontend` trace when these reference docs already answer the
 request.
 
 Treat these documents as a current-state map and safety boundary, not as a
@@ -28,29 +28,57 @@ Relevant scope includes commentary helper modules and consumption paths across
 strategic, semantic, endgame, opening, probe, plan, pawn, structure, threat,
 practicality, counterfactual, authoring, outline, renderer, API, and frontend.
 
-Re-audit the master commentary docs only when:
+Re-audit the commentary reference docs only when:
 
 - the user explicitly asks for a fresh audit,
 - relevant code changed after the documented snapshot in
   `lila-docker/repos/lila/modules/commentary/src/main`,
   `lila-docker/repos/lila/app/controllers`, or
   `lila-docker/repos/lila/ui/analyse/src`,
-- or the task introduces a runtime path not covered by the master SSoT.
+- or the task introduces a runtime path not covered by the reference map.
 
-## Required Doc Sync
+## Minimal Doc Sync
 
-- Audited pipeline changes must update `CommentaryPipelineSSOT.md`.
-- Trust-relevant behavior changes must update `CommentaryTrustBoundary.md`.
+- Update docs only when leaving them unchanged would mislead future work about a
+  durable runtime, trust, truth, or ownership boundary.
+- Pipeline reference changes belong in `CommentaryPipelineSSOT.md`.
+- Trust-relevant reference changes belong in `CommentaryTrustBoundary.md`.
   This includes fallback truth projection or rewrite behavior, cross-surface
   contract consumption, support-only carrier exposure that can alter
-  user-facing implication, lexicon/template authority boundaries, and
+  user-facing implication, lexicon/template claim boundaries, and
   lesson-readiness guards or defer rationale.
-- Truth/signoff behavior changes must update `CommentaryTruthBoundary.md`.
-- Canonical helper names, audited runtime package paths, or directory ownership
-  changes must update the relevant master docs in the same change.
+- Truth/signoff reference changes belong in `CommentaryTruthBoundary.md`.
+- Durable helper names, audited runtime package paths, or directory ownership
+  changes can update the relevant reference docs in the same change.
 - Documentation wording changes that only clarify agent workflow do not require
   broad runtime doc rewrites. Keep them narrow and avoid turning cleanup notes
-  into new authority rules.
+  into new doc rules.
+
+## Documentation Hygiene
+
+The commentary reference docs are boundary maps, not a work log. Do not add
+slice-by-slice implementation history, post-hoc success reports, replay output
+dumps, row-by-row fixture notes, test transcripts, TODO journals, or agent
+process commentary to these docs.
+
+Only update a reference doc when a durable runtime contract, trust boundary,
+truth/signoff rule, package ownership boundary, or durable helper name changed
+and the existing doc would otherwise mislead the next change. In that case:
+
+- describe the stable contract, not the patch that introduced it;
+- merge the new rule into the existing section instead of appending another
+  dated or narrative block;
+- replace or delete stale wording rather than preserving every previous note;
+- keep examples short and representative, not a corpus ledger;
+- avoid temporary labels such as `Phase`, `Step`, `V2`, `temporary`,
+  `follow-up`, `slice`, `audit`, or `gate run` unless they are durable product
+  terms already present in live code;
+- do not update docs only to justify a code change, a fixture row, a QC run, or
+  a cleanup pass.
+
+If a change is tooling-only, test-only, or cleanup-only and does not alter a
+documented runtime/trust/truth contract, report it in the final answer rather
+than adding it to the reference docs.
 
 ## Hard Guardrails
 
@@ -61,7 +89,7 @@ Re-audit the master commentary docs only when:
   the claim `deferred`, support-only, or negative-first.
 - Centralize exact-slice policy: owner source, witness extraction,
   continuation/persistence/release rules, and scope overrides should live in a
-  canonical runtime boundary first. Downstream planner and renderer code should
+  shared runtime boundary first. Downstream planner and renderer code should
   consume the certified result instead of repeating ad hoc string checks.
 - Do not admit planner ownership from broad scope alone. For example,
   `PositionLocal` by itself must not admit `WhatMattersHere`; use a certified

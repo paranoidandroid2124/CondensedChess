@@ -9,7 +9,7 @@ import lila.commentary.tools.review.CommentaryPlayerQcSupport
 
 object CommentaryQualityQuietSupport:
 
-  import CommentaryPlayerQcSupport.{ MoveReviewOutputEntry, SliceKind }
+  import CommentaryPlayerQcSupport.{ MoveReviewFallbackMode, MoveReviewOutputEntry, SliceKind }
   import CommentaryQualitySupport.{ EvalRubric, EvaluationRubricScores, evaluateSelection }
 
   object Schema:
@@ -1172,7 +1172,7 @@ object CommentaryQualityQuietSupport:
         val selectedReasons =
           List(
             Option.when(row.status == Status.Eligible)("baseline_eligible"),
-            Option.when(row.moveReviewFallbackMode == "exact_factual")("before_exact_factual"),
+            Option.when(MoveReviewFallbackMode.isExactFactual(row.moveReviewFallbackMode))("before_exact_factual"),
             Option.when(row.directSources.contains("MoveDelta.pv_delta"))("move_delta_pv_delta"),
             Option.when(row.supportSources.exists(EligibilityProfile.AllowedSupportSources.contains))("digest_support_whitelisted"),
             Option.when(beforeQuietSceneEligible(row.plannerSceneType))("before_quiet_scene")
@@ -1823,12 +1823,12 @@ object CommentaryQualityQuietSupport:
     val beforeMoveDeltaCandidate =
       beforeEntry.plannerOwnerCandidates.exists(_.contains("MoveDelta:source_kind=pv_delta"))
     val beforeConcreteTacticalScene = beforeEntry.plannerSceneType.contains("concrete_tactical")
-    val afterPlannerOwned = afterEntry.exists(_.moveReviewFallbackMode == "planner_owned")
+    val afterPlannerOwned = afterEntry.exists(entry => MoveReviewFallbackMode.isPlannerOwned(entry.moveReviewFallbackMode))
     val blockedFallbackSpike =
       selector.lane == Lane.Blocked &&
         fallbackIncrease &&
-        beforeEntry.moveReviewFallbackMode == "planner_owned" &&
-        afterEntry.exists(_.moveReviewFallbackMode == "exact_factual")
+        MoveReviewFallbackMode.isPlannerOwned(beforeEntry.moveReviewFallbackMode) &&
+        afterEntry.exists(entry => MoveReviewFallbackMode.isExactFactual(entry.moveReviewFallbackMode))
     if blockedFallbackSpike then IsolationCategory.BlockedFallbackSpike
     else if selector.lane == Lane.Eligible && selector.selected && !ownerQuestionUnchanged && afterPlannerOwned then
         IsolationCategory.NonTargetDrift
@@ -1987,8 +1987,8 @@ object CommentaryQualityQuietSupport:
     val stableExactFactualWindow =
       selector.selected &&
         ownerQuestionUnchanged &&
-        beforeEntry.moveReviewFallbackMode == "exact_factual" &&
-        afterEntry.exists(_.moveReviewFallbackMode == "exact_factual")
+        MoveReviewFallbackMode.isExactFactual(beforeEntry.moveReviewFallbackMode) &&
+        afterEntry.exists(entry => MoveReviewFallbackMode.isExactFactual(entry.moveReviewFallbackMode))
     stableExactFactualWindow &&
       afterEntry
         .map(quietSupportTraceView)
@@ -2064,9 +2064,9 @@ object CommentaryQualityQuietSupport:
       mode: String
   ): Int =
     Option(mode).map(_.trim.toLowerCase).getOrElse("") match
-      case "planner_owned"               => 0
-      case "exact_factual"               => 1
-      case "move_review_exact_factual"     => 1
+      case MoveReviewFallbackMode.PlannerOwned      => 0
+      case MoveReviewFallbackMode.ExactFactual      => 1
+      case MoveReviewFallbackMode.ReplayExactFactual => 1
       case "missing_after"               => 3
       case value if value.startsWith("omitted") => 3
       case _                             => 2

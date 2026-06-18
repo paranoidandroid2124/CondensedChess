@@ -86,6 +86,7 @@ private[commentary] object UserFacingSignalSanitizer:
     """(?i)\b([a-h][1-8]-[a-h][1-8])-break\b""".r -> "$1 break",
     """(?i)\b([a-h])-break\b(?!\s+Break\b)""".r -> "$1-pawn break",
     """(?i)\bOne concrete line that keeps the idea in play is\s+[a-z]\)\s+(?=(?:On\s+the|The)\s+checked\s+line\b)""".r -> "",
+    """(?i)\bOne concrete line that keeps the idea in play is\b""".r -> "One checked line is",
     """(?i)\s+\((?:contested|build)\)""".r -> "",
     """(?i)\bstill looks playable in the engine line, but it needs stronger support beyond that line\b""".r -> "",
     """(?i)\bis not promoted yet because the idea still looks playable, but the supporting evidence is still thin\b""".r -> "",

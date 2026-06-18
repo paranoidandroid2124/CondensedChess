@@ -77,9 +77,11 @@ private[commentary] object TransformationEvidenceProducer extends StrategicIdeaE
           )
       }
 
+    val endgameTechniqueContext = hasEndgameTechniqueContext(semantic)
     val endgameTechniqueMotif =
       semantic.motifs.collect {
-        case Motif.Opposition(opponentKingSquare, ownKingSquare, oppType, color, _, _) if matchesSide(color, side) =>
+        case Motif.Opposition(opponentKingSquare, ownKingSquare, oppType, color, _, _)
+            if endgameTechniqueContext && matchesSide(color, side) =>
           val oppositionKey = oppType.toString.toLowerCase
           evidence(
             ownerSide = side,
@@ -91,7 +93,7 @@ private[commentary] object TransformationEvidenceProducer extends StrategicIdeaE
             focusZone = Some("endgame"),
             factIds = List("endgame_technique_shape", s"opposition_$oppositionKey")
           )
-        case Motif.Zugzwang(color, _, _) if !matchesSide(color, side) =>
+        case Motif.Zugzwang(color, _, _) if endgameTechniqueContext && !matchesSide(color, side) =>
           evidence(
             ownerSide = side,
             kind = StrategicIdeaKind.FavorableTradeOrTransformation,
@@ -101,7 +103,8 @@ private[commentary] object TransformationEvidenceProducer extends StrategicIdeaE
             focusZone = Some("endgame"),
             factIds = List("endgame_technique_shape", "zugzwang_shape")
           )
-        case Motif.KingStep(Motif.KingStepType.Activation, color, _, move) if matchesSide(color, side) && semantic.phase.equalsIgnoreCase("endgame") =>
+        case Motif.KingStep(Motif.KingStepType.Activation, color, _, move)
+            if endgameTechniqueContext && matchesSide(color, side) =>
           val focusSquares =
             move.flatMap(destinationSquareFromSan).map(_.key).toList
           evidence(
@@ -120,7 +123,7 @@ private[commentary] object TransformationEvidenceProducer extends StrategicIdeaE
     val passedPawnConversionMotif =
       semantic.motifs.collect {
         case Motif.PassedPawn(file, rank, color, isProtected, _, _)
-            if matchesSide(color, side) && rank >= 1 && rank <= 8 =>
+            if matchesSide(color, side) && advancedPasserRank(rank, color) =>
           val square = s"${fileToken(file)}$rank"
           val relativeRank = Motif.relativeRank(rank, color)
           evidence(
@@ -140,7 +143,7 @@ private[commentary] object TransformationEvidenceProducer extends StrategicIdeaE
                 Option.when(isProtected)("protected_passed_pawn").toList ++
                 Option.when(relativeRank >= 6)("advanced_passed_pawn").toList
           )
-        case Motif.PassedPawnPush(file, toRank, color, _, _) if matchesSide(color, side) && toRank >= 1 && toRank <= 8 =>
+        case Motif.PassedPawnPush(file, toRank, color, _, _) if matchesSide(color, side) && advancedPasserRank(toRank, color) =>
           val square = s"${fileToken(file)}$toRank"
           val relativeRank = Motif.relativeRank(toRank, color)
           evidence(
@@ -328,3 +331,12 @@ private[commentary] object TransformationEvidenceProducer extends StrategicIdeaE
       }
 
     defenderTagExchangeSupport ++ rookEndgamePattern ++ endgameTechniqueMotif ++ passedPawnConversionMotif ++ classificationWindow ++ exchangeAvailabilityBridge ++ moveRefEvidence ++ planBridge ++ iqpSimplification
+
+  private def hasEndgameTechniqueContext(semantic: StrategicIdeaSemanticContext): Boolean =
+    semantic.board.exists { board =>
+      val majorPieces = board.queens | board.rooks
+      majorPieces.count <= 2 || board.occupied.count <= 15
+    }
+
+  private def advancedPasserRank(rank: Int, color: _root_.chess.Color): Boolean =
+    rank >= 1 && rank <= 8 && Motif.relativeRank(rank, color) >= 6

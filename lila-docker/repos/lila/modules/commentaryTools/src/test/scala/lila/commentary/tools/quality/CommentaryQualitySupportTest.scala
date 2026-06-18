@@ -19,7 +19,7 @@ class CommentaryQualitySupportTest extends FunSuite:
       question: Option[String] = Some("WhyNow"),
       proofFamily: Option[String] = Some("ForcingDefense"),
       proofSource: Option[String] = Some("threat"),
-      replayOutcome: Option[String] = Some("planner_owned")
+      replayOutcome: Option[String] = Some(CommentaryPlayerQcSupport.MoveReviewFallbackMode.PlannerOwned)
   ): SurfaceParitySnapshot =
     SurfaceParitySnapshot(
       sampleId = s"$gameKey:$sliceKind:$targetPly:$surface",
@@ -54,7 +54,7 @@ class CommentaryQualitySupportTest extends FunSuite:
             "g2",
             20,
             SurfaceName.MoveReview,
-            replayOutcome = Some("move_review_exact_factual")
+            replayOutcome = Some(CommentaryPlayerQcSupport.MoveReviewFallbackMode.ReplayExactFactual)
           )
         )
       )

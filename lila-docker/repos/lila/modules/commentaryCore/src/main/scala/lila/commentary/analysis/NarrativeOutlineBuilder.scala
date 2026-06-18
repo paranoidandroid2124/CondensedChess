@@ -454,7 +454,8 @@ object NarrativeOutlineBuilder:
     val collapsedEarlyOpening = EarlyOpeningNarrationPolicy.collapsedEarlyOpening(ctx, truthContract)
     val moveLevelPrecedent =
       if collapsedEarlyOpening then None else buildContextPrecedentSentence(ctx, bead)
-    val mainMoveBeat = annotateBeat(buildMainMoveBeat(ctx, rec, isAnnotation, bead, moveLevelPrecedent, crossBeatState))
+    val mainMoveBeat =
+      annotateBeat(buildMainMoveBeat(ctx, rec, isAnnotation, bead, moveLevelPrecedent, truthContract, crossBeatState))
     if mainMoveBeat.text.nonEmpty then beats += mainMoveBeat
     LogicReconstructor.analyze(ctx).foreach { recon =>
       beats += annotateBeat(OutlineBeat(
@@ -1296,10 +1297,11 @@ object NarrativeOutlineBuilder:
     isAnnotation: Boolean,
     bead: Int,
     precedentTextOpt: Option[String],
+    truthContract: Option[DecisiveTruthContract],
     crossBeatState: CrossBeatRepetitionState
   ): OutlineBeat =
     if isAnnotation then
-      buildAnnotationMainMoveBeat(ctx, rec, bead, precedentTextOpt, crossBeatState)
+      buildAnnotationMainMoveBeat(ctx, rec, bead, precedentTextOpt, truthContract, crossBeatState)
     else
       buildCandidateMainMoveBeat(ctx, rec, bead, precedentTextOpt, crossBeatState)
 
@@ -1308,9 +1310,10 @@ object NarrativeOutlineBuilder:
     rec: TraceRecorder,
     bead: Int,
     precedentTextOpt: Option[String],
+    truthContract: Option[DecisiveTruthContract],
     crossBeatState: CrossBeatRepetitionState
   ): OutlineBeat =
-    val material = buildAnnotationMainMoveMaterial(ctx)
+    val material = buildAnnotationMainMoveMaterial(ctx, truthContract)
     val text = annotationMainMoveText(ctx, rec, material, bead, precedentTextOpt, crossBeatState)
     trackAnnotationMainMoveText(text, crossBeatState)
 
@@ -1372,10 +1375,13 @@ object NarrativeOutlineBuilder:
   private def trackAnnotationMainMoveText(text: String, crossBeatState: CrossBeatRepetitionState): Unit =
     if text.trim.nonEmpty then trackTemplateUsage(text, crossBeatState.usedStems, crossBeatState.prefixCounts)
 
-  private def buildAnnotationMainMoveMaterial(ctx: NarrativeContext): AnnotationMainMoveMaterial =
+  private def buildAnnotationMainMoveMaterial(
+      ctx: NarrativeContext,
+      truthContractOverride: Option[DecisiveTruthContract]
+  ): AnnotationMainMoveMaterial =
     val playedSan = ctx.playedSan.getOrElse("")
     val playedUci = normalizeMoveUci(ctx.playedMove)
-    val truthContract = annotationTruthContract(ctx)
+    val truthContract = truthContractOverride.getOrElse(annotationTruthContract(ctx))
     val best = annotationBestProjection(ctx, truthContract)
     val playedRank = annotationPlayedRank(ctx, truthContract, playedUci, playedSan)
     AnnotationMainMoveMaterial(
@@ -1385,7 +1391,7 @@ object NarrativeOutlineBuilder:
       bestSan = best.san,
       bestUci = best.uci,
       playedRank = playedRank,
-      cpLoss = resolveCpLoss(ctx, playedUci, playedSan, playedRank),
+      cpLoss = truthContract.surfaceCpLoss,
       playedCand = playedUci.flatMap(uci => candidateMatchingUci(ctx, uci)),
       bestCand = best.candidate,
       isBest = truthContract.chosenMatchesBest,
@@ -1443,9 +1449,9 @@ object NarrativeOutlineBuilder:
     if material.isInvestment then NarrativeLexicon.getAnnotationInvestment(bead, material.playedSan)
     else if material.isBest then NarrativeLexicon.getAnnotationPositive(bead, material.playedSan)
     else if material.truthContract.allowConcreteBenchmark then
-      NarrativeLexicon.getAnnotationNegative(bead, material.playedSan, material.bestSan, material.truthContract.cpLoss)
+      NarrativeLexicon.getAnnotationNegative(bead, material.playedSan, material.bestSan, material.cpLoss)
     else
-      NarrativeLexicon.getAnnotationNegativeWithoutBenchmark(bead, material.playedSan, material.truthContract.cpLoss)
+      NarrativeLexicon.getAnnotationNegativeWithoutBenchmark(bead, material.playedSan, material.cpLoss)
 
   private def annotationDetailText(
     ctx: NarrativeContext,
@@ -1554,7 +1560,7 @@ object NarrativeOutlineBuilder:
   ): Option[String] =
     val b = bead ^ Math.abs(material.playedSan.hashCode)
     val combined = composeCausalAnnotation(
-      rankContext = negativeAnnotationRankContext(material.truthContract, material.playedRank, material.bestSan, b),
+      rankContext = negativeAnnotationRankContext(material.truthContract, material.playedRank, material.bestSan, material.cpLoss, b),
       reason = negativeAnnotationIssue(ctx, material, b),
       bestIntent = negativeAnnotationBestIntent(ctx, material.truthContract, material.bestCand, material.bestSan, b),
       bead = b ^ 0x3f84d5b5,
@@ -1587,6 +1593,7 @@ object NarrativeOutlineBuilder:
       truthContract: DecisiveTruthContract,
       playedRank: Option[Int],
       bestSan: String,
+      cpLoss: Int,
       bead: Int
   ): Option[String] =
     Option.when(truthContract.allowConcreteBenchmark) {
@@ -1594,7 +1601,7 @@ object NarrativeOutlineBuilder:
         bead = bead ^ 0x27d4eb2f,
         rank = playedRank,
         bestSan = bestSan,
-        cpLoss = truthContract.cpLoss
+        cpLoss = cpLoss
       )
     }.flatten
 
@@ -1611,7 +1618,7 @@ object NarrativeOutlineBuilder:
         playedUci = material.playedUci,
         bestSan = material.bestSan,
         bestUci = material.bestUci,
-        cpLoss = material.truthContract.cpLoss,
+        cpLoss = material.cpLoss,
         playedRank = material.playedRank,
         missedMotif = None,
         whyNot = material.playedCand.flatMap(candidateWhyNotObservation),
@@ -4337,44 +4344,6 @@ object NarrativeOutlineBuilder:
     hasPawnSignal &&
       List("pawn_break", "liquidate", "liquidation", "minority_attack", "passed_pawn", "hanging_pawns", "open_file")
         .exists(motif.contains)
-
-  private def resolveCpLoss(
-    ctx: NarrativeContext,
-    playedUci: Option[String],
-    playedSan: String,
-    playedRank: Option[Int]
-  ): Int =
-    val fromCounterfactual = ctx.counterfactual.map(_.cpLoss).getOrElse(0)
-    val fromEngine = estimateCpLossFromEngine(ctx, playedUci, playedSan)
-    fromEngine
-      .orElse {
-        Option.when(fromCounterfactual > 0)(fromCounterfactual)
-      }
-      .orElse {
-        playedRank match
-          case Some(r) if r >= 3 => Some(30)
-          case Some(2)           => Some(20)
-          case _                 => None
-      }
-      .getOrElse(0)
-
-  private def estimateCpLossFromEngine(
-    ctx: NarrativeContext,
-    playedUci: Option[String],
-    playedSan: String
-  ): Option[Int] =
-    val ranked = rankedEngineVariations(ctx)
-    for
-      best <- ranked.headOption
-      playedScore <- {
-        val playedNormUci = normalizeMoveUci(playedUci)
-        val playedNormSan = normalizeMoveToken(playedSan)
-        ranked.collectFirst {
-          case v if variationMatchesMove(v, playedNormUci, playedNormSan) =>
-            v.effectiveScore
-        }
-      }
-    yield cpLossForSideToMove(ctx.fen, best.effectiveScore, playedScore)
 
   private def playedMoveRank(
     ctx: NarrativeContext,

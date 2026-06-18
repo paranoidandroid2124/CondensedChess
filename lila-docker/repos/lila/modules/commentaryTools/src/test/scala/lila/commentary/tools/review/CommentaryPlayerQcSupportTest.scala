@@ -7,15 +7,18 @@ import munit.FunSuite
 import play.api.libs.json.Json
 
 import lila.commentary.*
-import lila.commentary.analysis.MoveReviewPvLine
+import lila.commentary.analysis.{ MoveReviewPvLine, QuestionPlanFallbackMode }
 import lila.commentary.model.StrategicPlanExperiment
 import lila.commentary.model.authoring.*
+import lila.commentary.tools.moveReview.MoveReviewCoverageDiagnostics
 import lila.commentary.model.strategic.VariationLine
 import lila.commentary.tools.review.CommentarySceneCoverageCollectionMaterializer.{ QuietRichRow, retargetManifestEntries, selectQuietRichRowsForCollection }
 
 class CommentaryPlayerQcSupportTest extends FunSuite:
 
   import CommentaryPlayerQcSupport.*
+
+  private val LocalFactStatus = MoveReviewCoverageDiagnostics.LocalFactStatus
 
   private val questionFen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1"
 
@@ -179,6 +182,85 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
     assertEquals(ratingBucketOf(headers), RatingBucket.Elite)
     assertEquals(timeControlBucketOf(headers), TimeControlBucket.Classical)
     assertEquals(inferMixBucket(Paths.get("C:\\tmp\\masters\\game.pgn"), headers), MixBucket.MasterClassical)
+  }
+
+  test("corpus catalog builder can keep all non-bullet games above a minimum Elo") {
+    val root = Files.createTempDirectory("commentary-catalog-min-elo")
+    val rawDir = root.resolve("raw")
+    val catalogPath = root.resolve("catalog.jsonl")
+    val gamesDir = root.resolve("games")
+    Files.createDirectories(rawDir)
+    val rawPgn = rawDir.resolve("sample.pgn")
+    Files.writeString(
+      rawPgn,
+      """[Event "High Blitz"]
+        |[Site "https://lichess.org/a"]
+        |[Date "2026.03.01"]
+        |[Round "-"]
+        |[White "HighA"]
+        |[Black "HighB"]
+        |[Result "1-0"]
+        |[WhiteElo "1810"]
+        |[BlackElo "1902"]
+        |[TimeControl "300+0"]
+        |[ECO "C20"]
+        |[Opening "King's Pawn Game"]
+        |[Variant "Standard"]
+        |
+        |1. e4 e5 2. Nf3 Nc6 1-0
+        |
+        |[Event "Low Rapid"]
+        |[Site "https://lichess.org/b"]
+        |[Date "2026.03.01"]
+        |[Round "-"]
+        |[White "LowA"]
+        |[Black "HighC"]
+        |[Result "0-1"]
+        |[WhiteElo "1799"]
+        |[BlackElo "2100"]
+        |[TimeControl "600+0"]
+        |[ECO "B20"]
+        |[Opening "Sicilian Defense"]
+        |[Variant "Standard"]
+        |
+        |1. e4 c5 2. Nf3 d6 0-1
+        |
+        |[Event "High Bullet"]
+        |[Site "https://lichess.org/c"]
+        |[Date "2026.03.01"]
+        |[Round "-"]
+        |[White "FastA"]
+        |[Black "FastB"]
+        |[Result "1/2-1/2"]
+        |[WhiteElo "2100"]
+        |[BlackElo "2200"]
+        |[TimeControl "60+0"]
+        |[ECO "D00"]
+        |[Opening "Queen's Pawn Game"]
+        |[Variant "Standard"]
+        |
+        |1. d4 d5 2. c4 e6 1/2-1/2
+        |""".stripMargin
+    )
+
+    CommentaryPlayerCorpusCatalogBuilder.main(
+      Array(
+        rawDir.toString,
+        catalogPath.toString,
+        gamesDir.toString,
+        "--min-elo",
+        "1800",
+        "--exclude-time-bucket",
+        TimeControlBucket.Bullet,
+        "--selection",
+        "all"
+      )
+    )
+
+    val catalog = readJsonLines[CatalogEntry](catalogPath).getOrElse(fail("expected catalog"))
+    assertEquals(catalog.map(_.gameKey), List("2026_03_01_higha_highb_sample_1"))
+    assert(catalog.forall(entry => List(entry.whiteElo, entry.blackElo).flatten.forall(_ >= 1800)))
+    assertEquals(catalog.map(_.timeControlBucket).distinct, List(TimeControlBucket.Blitz))
   }
 
   test("analyzePly seeds move-review refs from after-PV when root only has the played move") {
@@ -639,7 +721,7 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
         |
         |The real fight is on the kingside.
         |
-        |One concrete line that keeps the idea in play is a) 23... Rc8 24. Rg3 Rc7 25. Qxg7+ (0.40)""".stripMargin
+        |One checked line is a) 23... Rc8 24. Rg3 Rc7 25. Qxg7+ (0.40)""".stripMargin
 
     assertEquals(sentenceCount(prose), 3)
   }
@@ -667,10 +749,10 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
         variationCount = 3,
         cacheHit = false,
         plannerPrimaryKind = Some("WhosePlanIsFaster"),
-        plannerPrimaryFallbackMode = Some("PlannerOwned"),
+        plannerPrimaryFallbackMode = Some(QuestionPlanFallbackMode.PlannerOwned.toString),
           plannerSecondaryKind = Some("WhyNow"),
           plannerSecondarySurfaced = true,
-          moveReviewFallbackMode = "planner_owned",
+          moveReviewFallbackMode = MoveReviewFallbackMode.PlannerOwned,
           plannerSceneType = Some("plan_clash"),
           plannerSceneReasons = List("proof_family=PlanRace"),
           plannerOwnerCandidates = List("PlanRace:evidence_backed_plan:move_linked"),
@@ -686,8 +768,8 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
           rawPvDeltaIngressReason = Some("pv_delta_present_with_content"),
           sanitizedDecisionIngressReason = Some("decision_present"),
           sanitizedPvDeltaIngressReason = Some("pv_delta_present_with_content"),
-          surfaceReplayOutcome = Some("move_review_planner_owned"),
-          moveReviewLocalFactStatus = Some("emitted"),
+          surfaceReplayOutcome = Some(MoveReviewFallbackMode.ReplayPlannerOwned),
+          moveReviewLocalFactStatus = Some(LocalFactStatus.Emitted),
           moveReviewLocalFactFamilies = List("pressure"),
           moveReviewLocalFactAuthorities = List("canonical_fact"),
           moveReviewLocalFactStrictFallbackEligible = Some(true),
@@ -726,7 +808,7 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
     assertEquals(parsed.openingReferenceTotalGames, Some(2))
     assertEquals(parsed.openingReferenceSampleGameIds, List("game_2", "game_3"))
     assertEquals(parsed.openingReferencePeerSampleIds, List("game_2"))
-    assertEquals(parsed.moveReviewFallbackMode, "planner_owned")
+    assertEquals(parsed.moveReviewFallbackMode, MoveReviewFallbackMode.PlannerOwned)
     assertEquals(parsed.plannerSceneType, Some("plan_clash"))
     assertEquals(parsed.plannerSceneReasons, List("proof_family=PlanRace"))
     assertEquals(parsed.plannerSelectedOwnerKind, Some("PlanRace"))
@@ -742,7 +824,7 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
     assertEquals(parsed.moveReviewCausalClaimLineBindings, List("none"))
     assertEquals(parsed.moveReviewCausalClaimRelations, List("alternative_contrast"))
     assertEquals(parsed.moveReviewCausalClaimSupportEmbedded, Some(true))
-    assertEquals(parsed.moveReviewLocalFactStatus, Some("emitted"))
+    assertEquals(parsed.moveReviewLocalFactStatus, Some(LocalFactStatus.Emitted))
     assertEquals(parsed.moveReviewLocalFactFamilies, List("pressure"))
     assertEquals(parsed.moveReviewLocalFactAuthorities, List("canonical_fact"))
     assertEquals(parsed.moveReviewLocalFactStrictFallbackEligible, Some(true))
@@ -1061,7 +1143,7 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
         lane = "upstream-blocked / non-eligible rows",
         statusReasons = Nil,
         plannerSceneType = Some("forcing_defense"),
-        moveReviewFallbackMode = Some("planner_owned"),
+        moveReviewFallbackMode = Some(MoveReviewFallbackMode.PlannerOwned),
         quietnessVerified = Some(true),
         quietnessSpreadCp = Some(8),
         quietnessNotes = Nil,
@@ -1073,7 +1155,7 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
         sampleId = "game-1:transition_heavy_endgames:55:moveReview",
         sliceKind = SliceKind.TransitionHeavyEndgames,
         plannerSceneType = Some("quiet_improvement"),
-        moveReviewFallbackMode = Some("exact_factual"),
+        moveReviewFallbackMode = Some(MoveReviewFallbackMode.ExactFactual),
         quietnessSpreadCp = Some(4),
         directSources = List("MoveDelta.pv_delta")
       )
@@ -1083,7 +1165,7 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
         gameKey = "game-2",
         targetPly = 58,
         playedSan = "Rc8",
-        moveReviewFallbackMode = Some("exact_factual"),
+        moveReviewFallbackMode = Some(MoveReviewFallbackMode.ExactFactual),
         quietnessSpreadCp = Some(5),
         directSources = List("MoveDelta.pv_delta")
       )

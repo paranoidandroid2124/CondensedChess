@@ -234,6 +234,24 @@ private[commentary] object MoveReviewLocalFact:
         s"local_fact_strict:${strictFallbackEligible.toString}"
       ) ++ guardrails.map(guardrail => s"local_fact_guardrail:$guardrail")).distinct
 
+    def normalizedEvidenceRefs: List[String] =
+      normalized(evidenceRefs)
+
+    def normalizedGuardrails: List[String] =
+      normalized(guardrails)
+
+    def isPvCoupled(expectedFamily: Family, expectedAuthority: Authority, expectedProducer: Producer): Boolean =
+      family == expectedFamily &&
+        authority == expectedAuthority &&
+        producer == expectedProducer &&
+        lineBinding == LineBinding.PvCoupled
+
+    def isCanonicalPvCoupled(expectedFamily: Family, expectedProducer: Producer): Boolean =
+      isPvCoupled(expectedFamily, Authority.CanonicalFact, expectedProducer)
+
+    private def normalized(values: List[String]): List[String] =
+      values.map(_.trim.toLowerCase)
+
   def admit(candidate: Candidate): Decision =
     if !Producer.registry.contains(candidate.producer) then
       Decision(

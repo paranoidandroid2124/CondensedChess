@@ -1,5 +1,7 @@
 package lila.commentary.analysis
 
+import lila.commentary.MoveReviewMoveRef
+
 private[commentary] object MoveReviewScopedTakeaway:
   import MoveReviewLocalFact.{
     Admission as LocalFactAdmission,
@@ -94,44 +96,44 @@ private[commentary] object MoveReviewScopedTakeaway:
     Option.when(admitsPurpose(purpose, localFact))(
       (localFact.producer, localFact.family) match
         case (LocalFactProducer.CertifiedStrategyDelta, LocalFactFamily.Defense) =>
-          s"The PV keeps the counterplay-restraint detail bounded: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader defensive claim."
+          s"The PV keeps the counterplay-restraint detail bounded: ${played.san} is the move under review, $checkedReply."
         case (LocalFactProducer.CertifiedStrategyDelta, LocalFactFamily.PlanSupport) =>
           certifiedStrategyPlanSupportTakeaway(played, localFact, checkedReply)
             .getOrElse(
-              s"The PV keeps the plan-support detail bounded: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader plan claim."
+              s"The PV keeps the plan-support detail bounded: ${played.san} is the move under review, $checkedReply."
             )
         case (LocalFactProducer.CertifiedStrategyDelta, LocalFactFamily.Pressure) =>
           certifiedStrategyPressureTakeaway(played, localFact, checkedReply)
             .getOrElse(
-              s"The PV keeps the positional pressure detail bounded: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader plan claim."
+              s"The PV keeps the positional pressure detail bounded: ${played.san} is the move under review, $checkedReply."
             )
         case (LocalFactProducer.CertifiedStrategyDelta, LocalFactFamily.LineConsequence) =>
-          s"The PV keeps the strategic consequence bounded: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader plan claim."
+          s"The PV keeps the strategic consequence bounded: ${played.san} is the move under review, $checkedReply."
         case (_, LocalFactFamily.Attack) =>
-          s"The PV keeps the local attacking detail bounded: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader evaluation claim."
+          s"The PV keeps the local attacking detail bounded: ${played.san} is the move under review, $checkedReply."
         case (_, LocalFactFamily.Pressure) if purpose == "restrict_piece_mobility" =>
-          s"The PV keeps the mobility restriction local: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader evaluation claim."
+          s"The PV keeps the mobility restriction local: ${played.san} is the move under review, $checkedReply."
         case (_, LocalFactFamily.Timing) if purpose == "move_order_timing" =>
-          s"The PV keeps the move-order detail local: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader timing claim."
+          s"The PV keeps the move-order detail local: ${played.san} is the move under review, $checkedReply."
         case (LocalFactProducer.TargetPressure, LocalFactFamily.Pressure) =>
-          targetPressureTakeaway(played, localFact, checkedReply)
+          targetPressureTakeaway(played, localFact, line.reply, checkedReply)
             .getOrElse(
-              s"The PV keeps the local tactical detail bounded: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader evaluation claim."
+              s"The PV keeps the local tactical detail bounded: ${played.san} is the move under review, $checkedReply."
             )
         case (LocalFactProducer.TacticalMotif, LocalFactFamily.Threat) =>
           tacticalMotifTakeaway(played, localFact, checkedReply)
             .getOrElse(
-              s"The PV keeps the local tactical detail bounded: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader evaluation claim."
+              s"The PV keeps the local tactical detail bounded: ${played.san} is the move under review, $checkedReply."
             )
         case (LocalFactProducer.RelationWitness, LocalFactFamily.Threat) =>
           relationWitnessTakeaway(played, localFact, checkedReply)
             .getOrElse(
-              s"The PV keeps the local tactical detail bounded: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader evaluation claim."
+              s"The PV keeps the local tactical detail bounded: ${played.san} is the move under review, $checkedReply."
             )
         case (_, LocalFactFamily.Threat | LocalFactFamily.Pressure) =>
-          s"The PV keeps the local tactical detail bounded: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader evaluation claim."
+          s"The PV keeps the local tactical detail bounded: ${played.san} is the move under review, $checkedReply."
         case (_, LocalFactFamily.Defense) =>
-          s"The PV keeps the defensive detail bounded: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader threat claim."
+          s"The PV keeps the defensive detail bounded: ${played.san} is the move under review, $checkedReply."
         case (_, LocalFactFamily.Endgame) =>
           endgameTakeaway(played, localFact, checkedSequence)
             .getOrElse(s"The line keeps the concrete endgame detail local to ${played.san}: $checkedSequence.")
@@ -167,6 +169,8 @@ private[commentary] object MoveReviewScopedTakeaway:
               s"The checked line keeps the immediate reply pressure local to ${played.san}: $checkedSequence."
             case "show_played_target_pressure" =>
               s"The checked line keeps the target-pressure detail local to ${played.san}: $checkedSequence."
+            case "show_origin_square_clearance" =>
+              s"The checked line keeps the clearance local to ${played.san}: ${played.san} clears ${played.from.key}, and $continuationSan uses that square on the checked branch."
             case "center_break_setup" | "challenge_center" =>
               s"The checked line keeps the central consequence local to ${played.san}: $checkedSequence."
             case "force_sequence" =>
@@ -186,15 +190,15 @@ private[commentary] object MoveReviewScopedTakeaway:
             case "king_safety_first" =>
               s"The line keeps the king-safety sequence bounded: ${played.san} is the move under review, and $continuationSan continues the line."
             case "create_tactical_threat" if openingGoalName.nonEmpty =>
-              s"The PV keeps the opening goal bounded: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader evaluation claim."
+              s"The PV keeps the opening goal bounded: ${played.san} is the move under review, $checkedReply."
             case "create_tactical_threat" =>
-              s"The PV keeps the local tactical detail bounded: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader evaluation claim."
+              s"The PV keeps the local tactical detail bounded: ${played.san} is the move under review, $checkedReply."
             case "answer_direct_threat" =>
-              s"The PV keeps the defensive detail bounded: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader threat claim."
+              s"The PV keeps the defensive detail bounded: ${played.san} is the move under review, $checkedReply."
             case "restrict_piece_mobility" =>
-              s"The PV keeps the mobility restriction local: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader evaluation claim."
+              s"The PV keeps the mobility restriction local: ${played.san} is the move under review, $checkedReply."
             case "move_order_timing" =>
-              s"The PV keeps the move-order detail local: ${played.san} is the move under review, $checkedReply, and the line does not authorize a broader timing claim."
+              s"The PV keeps the move-order detail local: ${played.san} is the move under review, $checkedReply."
             case "resolve_capture_tension" =>
               s"The PV shows the capture tension clearly: ${played.san} can be answered by $replySan, so the point is what remains after the recapture rather than the capture alone."
             case "clarify_exchange" =>
@@ -228,13 +232,25 @@ private[commentary] object MoveReviewScopedTakeaway:
   private def targetPressureTakeaway(
       played: CommentaryIdeaSurface.PlayedMove,
       localFact: LocalFactAdmission,
+      reply: Option[MoveReviewMoveRef],
       checkedReply: String
   ): Option[String] =
     for
       target <- anchorValue(localFact, "target_square")
       role <- anchorValue(localFact, "target_role")
     yield
-      s"The PV keeps the pressure on the ${targetPressureLabel(target, role)} local to ${played.san}: $checkedReply, and the line does not authorize a broader evaluation claim."
+      val targetKey = target.trim.toLowerCase
+      val replyDetail =
+        reply
+          .flatMap { move =>
+            val san = move.san.trim
+            val uci = MoveReviewPvLine.normalizeUci(move.uci)
+            Option.when(san.nonEmpty && uci.take(2) == targetKey)(
+              s"$san moves that ${role.trim} from $target"
+            )
+          }
+          .getOrElse(checkedReply)
+      s"The PV keeps the pressure on the ${targetPressureLabel(target, role)} local to ${played.san}: $replyDetail."
 
   private def targetPressureLabel(target: String, role: String): String =
     val cleanRole = role.trim
@@ -254,31 +270,31 @@ private[commentary] object MoveReviewScopedTakeaway:
           pinned <- pieceAnchorLabel(localFact, "pinned_square", "pinned_role")
           behind <- pieceAnchorLabel(localFact, "behind_square", "behind_role")
         yield
-          s"The PV keeps the pin of the $pinned to the $behind local to ${played.san}: $checkedReply, and the line does not authorize a broader evaluation claim."
+          s"The PV keeps the pin of the $pinned to the $behind local to ${played.san}: $checkedReply."
       case "skewer" =>
         for
           front <- pieceAnchorLabel(localFact, "front_square", "front_role")
           back <- pieceAnchorLabel(localFact, "back_square", "back_role")
         yield
-          s"The PV keeps the skewer through the $front toward the $back local to ${played.san}: $checkedReply, and the line does not authorize a broader evaluation claim."
+          s"The PV keeps the skewer through the $front toward the $back local to ${played.san}: $checkedReply."
       case "fork" =>
         val targets = indexedTargetLabels(localFact)
         Option.when(targets.nonEmpty)(
-          s"The PV keeps the fork targets ${joinLabels(targets)} local to ${played.san}: $checkedReply, and the line does not authorize a broader evaluation claim."
+          s"The PV keeps the fork targets ${joinLabels(targets)} local to ${played.san}: $checkedReply."
         )
       case "discovered_attack" =>
         for
           revealed <- pieceAnchorLabel(localFact, "revealed_square", "revealed_role")
           target <- pieceAnchorLabel(localFact, "target_square", "target_role")
         yield
-          s"The PV keeps the discovered attack from the $revealed toward the $target local to ${played.san}: $checkedReply, and the line does not authorize a broader evaluation claim."
+          s"The PV keeps the discovered attack from the $revealed toward the $target local to ${played.san}: $checkedReply."
       case "trapped_piece" =>
         pieceAnchorLabel(localFact, "trapped_square", "trapped_role").map { trapped =>
-          s"The PV keeps the trap on the $trapped local to ${played.san}: $checkedReply, and the line does not authorize a broader evaluation claim."
+          s"The PV keeps the trap on the $trapped local to ${played.san}: $checkedReply."
         }
       case "check" =>
         pieceAnchorLabel(localFact, "king_square", "king_role").map { king =>
-          s"The PV keeps the check on the $king local to ${played.san}: $checkedReply, and the line does not authorize a broader evaluation claim."
+          s"The PV keeps the check on the $king local to ${played.san}: $checkedReply."
         }
       case _ => None
     }
@@ -300,7 +316,7 @@ private[commentary] object MoveReviewScopedTakeaway:
           recaptureSan <- anchorValue(localFact, "followup_queen_trade_recapture_san")
         yield s"The checked line keeps the capture of the $captured local to ${played.san}: after that capture, $captureSan and $recaptureSan trade queens on $tradeSquare."
       queenTrade.getOrElse(
-        s"The checked line keeps the capture of the $captured local to ${played.san}: $checkedReply, and the line does not authorize a broader evaluation claim."
+        s"The checked line keeps the capture of the $captured local to ${played.san}: $checkedReply."
       )
     }
 
@@ -312,11 +328,11 @@ private[commentary] object MoveReviewScopedTakeaway:
     anchorValue(localFact, "relation_kind").flatMap {
       case "discovered_attack" =>
         Some(
-          s"The PV keeps the discovered attack relation local to ${played.san}: $checkedReply, and the line does not authorize a broader evaluation claim."
+          s"The PV keeps the discovered attack relation local to ${played.san}: $checkedReply."
         )
       case "overload" =>
         Some(
-          s"The PV keeps the overload relation local to ${played.san}: $checkedReply, and the line does not authorize a broader evaluation claim."
+          s"The PV keeps the overload relation local to ${played.san}: $checkedReply."
         )
       case _ => None
     }
@@ -335,7 +351,7 @@ private[commentary] object MoveReviewScopedTakeaway:
           status <- anchorValue(localFact, "line_file_status")
         yield
           val targetText = anchorValue(localFact, "line_target").map(square => s" toward $square").getOrElse("")
-          s"The PV keeps the ${lineFileStatusLabel(status)} $file-file occupation$targetText local to ${played.san}: $checkedReply, and the line does not authorize a broader plan claim."
+          s"The PV keeps the ${lineFileStatusLabel(status)} $file-file occupation$targetText local to ${played.san}: $checkedReply."
       case "target_fixing" =>
         for target <- anchorValue(localFact, "target_fixing_square")
         yield
@@ -343,17 +359,17 @@ private[commentary] object MoveReviewScopedTakeaway:
             anchorValue(localFact, "target_fixing_target_kind") match
               case Some("weak_square") => s"the weak $target square"
               case _                   => s"the $target target square"
-          s"The PV keeps the pressure on $targetText local to ${played.san}: $checkedReply, and the line does not authorize a broader plan claim."
+          s"The PV keeps the pressure on $targetText local to ${played.san}: $checkedReply."
       case "king_attack_build_up" =>
         for target <- anchorValue(localFact, "attack_lane_square")
         yield
           val axis = anchorValue(localFact, "attack_lane_axis").map(lineFileStatusLabel).getOrElse("line")
-          s"The PV keeps the $axis attack lane toward $target local to ${played.san}: $checkedReply, and the line does not authorize a broader plan claim."
+          s"The PV keeps the $axis attack lane toward $target local to ${played.san}: $checkedReply."
       case "space_gain_or_restriction" =>
         for file <- anchorValue(localFact, "space_gain_file")
         yield
           val side = anchorValue(localFact, "space_gain_side").map(side => s" on the $side").getOrElse("")
-          s"The PV keeps the $file-pawn space gain$side local to ${played.san}: $checkedReply, and the line does not authorize a broader plan claim."
+          s"The PV keeps the $file-pawn space gain$side local to ${played.san}: $checkedReply."
       case _ => None
     })
 
@@ -366,7 +382,7 @@ private[commentary] object MoveReviewScopedTakeaway:
       square <- anchorValue(localFact, "outpost_square")
       role <- anchorValue(localFact, "outpost_piece_role")
     yield
-      s"The PV keeps the $role outpost on $square local to ${played.san}: $checkedReply, and the line does not authorize a broader plan claim."
+      s"The PV keeps the $role outpost on $square local to ${played.san}: $checkedReply."
 
   private def exactTargetFixationTakeaway(
       played: CommentaryIdeaSurface.PlayedMove,
@@ -375,7 +391,7 @@ private[commentary] object MoveReviewScopedTakeaway:
   ): Option[String] =
     for target <- anchorValue(localFact, "exact_target_square")
     yield
-      s"The PV keeps pressure on the $target pawn target local to ${played.san}: $checkedReply, and the line does not authorize a broader plan claim."
+      s"The PV keeps pressure on the $target pawn target local to ${played.san}: $checkedReply."
 
   private def certifiedStrategyPlanSupportTakeaway(
       played: CommentaryIdeaSurface.PlayedMove,
@@ -385,7 +401,7 @@ private[commentary] object MoveReviewScopedTakeaway:
     anchorValue(localFact, "strategic_idea_kind").flatMap {
       case "pawn_break" =>
         anchorValue(localFact, "pawn_break_file").map { file =>
-          s"The PV keeps the $file-pawn break local to ${played.san}: $checkedReply, and the line does not authorize a broader plan claim."
+          s"The PV keeps the $file-pawn break local to ${played.san}: $checkedReply."
         }
       case _ => None
     }
@@ -467,6 +483,8 @@ private[commentary] object MoveReviewScopedTakeaway:
       case "show_immediate_reply_pressure" =>
         Set(LocalFactFamily.LineConsequence)
       case "show_played_target_pressure" =>
+        Set(LocalFactFamily.LineConsequence)
+      case "show_origin_square_clearance" =>
         Set(LocalFactFamily.LineConsequence)
       case "force_sequence" =>
         Set(LocalFactFamily.LineConsequence)

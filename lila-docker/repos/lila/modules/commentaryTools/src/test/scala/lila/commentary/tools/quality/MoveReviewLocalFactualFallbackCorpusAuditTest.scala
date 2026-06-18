@@ -10,7 +10,7 @@ class MoveReviewLocalFactualFallbackCorpusAuditTest extends FunSuite:
   private def entry(
       sampleId: String,
       commentary: String,
-      fallbackMode: String = "exact_factual"
+      fallbackMode: String = MoveReviewFallbackMode.ExactFactual
   ): MoveReviewOutputEntry =
     MoveReviewOutputEntry(
       sampleId = sampleId,
@@ -37,7 +37,7 @@ class MoveReviewLocalFactualFallbackCorpusAuditTest extends FunSuite:
       List(
         entry("literal", "20. Qxc6: This captures."),
         entry("role", "20. Qxc6: This captures the knight on c6."),
-        entry("planner", "20. Rc3: This keeps the route available.", fallbackMode = "planner_owned")
+        entry("planner", "20. Rc3: This keeps the route available.", fallbackMode = MoveReviewFallbackMode.PlannerOwned)
       )
     val after =
       List(
@@ -49,7 +49,7 @@ class MoveReviewLocalFactualFallbackCorpusAuditTest extends FunSuite:
           "role",
           "20. exd6: This captures the pawn en passant and lands on d6.\n\nThe local material change is a captured pawn."
         ),
-        entry("planner", "20. Rc3: This keeps the route available.", fallbackMode = "planner_owned")
+        entry("planner", "20. Rc3: This keeps the route available.", fallbackMode = MoveReviewFallbackMode.PlannerOwned)
       )
 
     val report = MoveReviewLocalFactualFallbackCorpusAudit.build(before, after)
@@ -77,8 +77,8 @@ class MoveReviewLocalFactualFallbackCorpusAuditTest extends FunSuite:
       )
     val after =
       List(
-        entry("mode_drift", "20. Qxc6: This captures the knight on c6.", fallbackMode = "planner_owned"),
-        entry("forbidden", "20. Qxc6: This wins material and keeps pressure.", fallbackMode = "exact_factual")
+        entry("mode_drift", "20. Qxc6: This captures the knight on c6.", fallbackMode = MoveReviewFallbackMode.PlannerOwned),
+        entry("forbidden", "20. Qxc6: This wins material and keeps pressure.", fallbackMode = MoveReviewFallbackMode.ExactFactual)
       )
 
     val report = MoveReviewLocalFactualFallbackCorpusAudit.build(before, after)

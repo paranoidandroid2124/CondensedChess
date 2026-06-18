@@ -437,10 +437,10 @@ private[commentary] object MoveReviewExchangeAnalyzer:
       zwischenzug,
       fork,
       loosePiecePressure,
+      pinWitness(replay, playedMove, explicitTargets),
       xrayWitness(replay, playedMove, explicitTargets),
       clearanceWitness(replay, playedMove, explicitTargets),
       batteryWitness(replay, playedMove, explicitTargets),
-      pinWitness(replay, playedMove, explicitTargets),
       skewerWitness(replay, playedMove, explicitTargets),
       interferenceWitness(replay, playedMove, explicitTargets),
       decoyWitness(replay, playedMove, explicitTargets)
@@ -1099,7 +1099,7 @@ private[commentary] object MoveReviewExchangeAnalyzer:
       first <- replay.headOption.filter(_.uci == normalizedPlayed)
       movingSide = first.move.piece.color
       targetSet = relationTargetSquares(first.after.board, movingSide, explicitTargets).toSet
-      witness <- discoveredAttackAfterMove(first.before.board, first.after.board, movingSide, first.move.orig, targetSet)
+      witness <- discoveredAttackAfterMove(first.before.board, first.after.board, movingSide, first.move.orig, first.move.dest, targetSet)
     yield witness.copy(lineMoves = replayUcis(replay, 0, 1))
 
   def xrayWitness(
@@ -1852,7 +1852,13 @@ private[commentary] object MoveReviewExchangeAnalyzer:
               after.attackers(target, movingSide).exists(_ == movedTo)
           val targetIsPressed =
             pressureWasCreated || after.attackers(target, movingSide).count > before.attackers(target, movingSide).count
-          if targetIsPressed then after.attackers(target, defenderColor).squares.map(_ -> target) else Nil
+          if targetIsPressed then
+            after
+              .attackers(target, defenderColor)
+              .squares
+              .filterNot(square => after.roleAt(square).contains(King))
+              .map(_ -> target)
+          else Nil
         }
         .groupMap(_._1)(_._2)
 
@@ -1883,6 +1889,7 @@ private[commentary] object MoveReviewExchangeAnalyzer:
       after: Board,
       movingSide: Color,
       clearedSquare: Square,
+      movedTo: Square,
       targetSet: Set[Square]
   ): Option[RelationWitness] =
     after.byColor(!movingSide).squares.toList
@@ -1892,6 +1899,8 @@ private[commentary] object MoveReviewExchangeAnalyzer:
         val beforeAttackers = before.attackers(target, movingSide)
         val afterAttackers = after.attackers(target, movingSide)
         (afterAttackers & ~beforeAttackers).squares.toList.flatMap { attacker =>
+          if attacker == movedTo then Nil
+          else
           after.roleAt(attacker).filter(isLongRangeRole).flatMap { role =>
             Option.when(Bitboard.between(attacker, target).contains(clearedSquare)) {
               RelationWitness(

@@ -143,7 +143,7 @@ object AuthorQuestionGenerator:
       else "in a short sequence"
     kind.toLowerCase match
       case "mate" =>
-        s"if ignored, king safety collapses $horizon."
+        s"if ignored, king safety can become critical $horizon."
       case "material" =>
         s"if ignored, material can be lost $horizon."
       case "positional" =>

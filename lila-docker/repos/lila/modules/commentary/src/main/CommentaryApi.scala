@@ -2343,6 +2343,8 @@ final class CommentaryApi(
                   DecisiveTruth.derive(
                     ctx = rawCtx,
                     transitionType = dataWithContinuity.planSequence.map(_.transitionType.toString),
+                    cpBefore = eval.map(_.cp),
+                    cpAfter = afterEval.map(_.cp),
                     strategyPack = rawStrategyPack
                   )
                 (
@@ -2407,7 +2409,8 @@ final class CommentaryApi(
                   ctx = ctx,
                   inputs = moveReviewRuntime.inputs,
                   rankedPlans = moveReviewRuntime.rankedPlans,
-                  truthContract = Some(truthContract)
+                  truthContract = Some(truthContract),
+                  primaryLocalFact = moveReviewSlots.localFact
                 )
               }
             val decisionComparisonSurface =
@@ -2435,6 +2438,7 @@ final class CommentaryApi(
                   decisionComparisonSurface = decisionComparisonSurface,
                   strategyPack = strategyPack,
                   truthContract = Some(truthContract),
+                  primaryLocalFact = moveReviewSlots.localFact,
                   lineConsequence = moveReviewPlayerLineConsequence
                 )
               }

@@ -58,9 +58,11 @@ object MoveReviewPlayerPayloadBuilder:
       ctx: NarrativeContext,
       refs: Option[MoveReviewRefs]
   ): Option[MoveReviewPlayerDecisionComparison] =
+    val lineEvidence = inputs.lineConsequence.orElse(LineConsequenceEvaluator.surfaceCandidate(ctx, refs))
+    val comparisonDigest = inputs.decisionComparison.map(_.toDigest).orElse(DecisionComparisonBuilder.digest(ctx, refs))
     roleAwareDecisionComparisonSurface(inputs.decisionComparison, localFact)
       .orElse(pieceRelocationDecisionComparisonSurface(inputs.decisionComparison, localFact))
-      .orElse(decisionComparisonSurface(ctx, refs))
+      .orElse(decisionComparisonSurface(comparisonDigest, lineEvidence))
 
   private[analysis] def roleAwareDecisionComparisonSurface(
       comparison: Option[DecisionComparison],
@@ -114,10 +116,11 @@ object MoveReviewPlayerPayloadBuilder:
     comparison.comparativeSource.exists(_.trim == DecisionComparisonComparativeSupport.RoleAwareLineConsequenceSource) &&
       comparison.roleAwareBranchEvidence.nonEmpty &&
       localFact.exists(fact =>
-        fact.family == MoveReviewLocalFact.Family.LineConsequence &&
-          fact.authority == MoveReviewLocalFact.Authority.AlternativeComparison &&
-          fact.producer == MoveReviewLocalFact.Producer.AlternativeComparison &&
-          fact.lineBinding == MoveReviewLocalFact.LineBinding.PvCoupled
+        fact.isPvCoupled(
+          MoveReviewLocalFact.Family.LineConsequence,
+          MoveReviewLocalFact.Authority.AlternativeComparison,
+          MoveReviewLocalFact.Producer.AlternativeComparison
+        )
       )
 
   private[analysis] def pieceRelocationDecisionComparisonSurface(
@@ -145,6 +148,24 @@ object MoveReviewPlayerPayloadBuilder:
   ): Boolean =
     false
 
+  private[analysis] def exactRelationWitnessLocalFact(fact: MoveReviewLocalFact.Admission): Boolean =
+    val refs = fact.normalizedEvidenceRefs
+    val guardrails = fact.normalizedGuardrails
+    fact.isPvCoupled(
+      MoveReviewLocalFact.Family.Threat,
+      MoveReviewLocalFact.Authority.PvCoupledLine,
+      MoveReviewLocalFact.Producer.RelationWitness
+    ) &&
+      refs.exists(ref => ref == "typed_local_fact_source:relation_witness" || ref == "evidence_source:relation_witness") &&
+      refs.exists(_.startsWith("relation_kind:")) &&
+      (
+        refs.exists(_.endsWith("_relation_witness")) ||
+          guardrails.exists(guardrail =>
+            guardrail == "relation_witness_typed_details" ||
+              guardrail == "local_fact_guardrail:relation_witness_typed_details"
+          )
+      )
+
   def build(
       ctx: NarrativeContext,
       moveReviewExplanation: Option[MoveReviewExplanation],
@@ -156,6 +177,7 @@ object MoveReviewPlayerPayloadBuilder:
       decisionComparisonSurface: Option[MoveReviewPlayerDecisionComparison] = None,
       strategyPack: Option[StrategyPack] = None,
       truthContract: Option[DecisiveTruthContract] = None,
+      primaryLocalFact: Option[MoveReviewLocalFact.Admission] = None,
       lineConsequence: Option[LineConsequenceEvidence] = None
   ): MoveReviewPlayerSurface =
     val knownSans = refs.toList.flatMap(_.variations.flatMap(_.moves.map(_.san))).map(normalizeSan).toSet
@@ -165,21 +187,132 @@ object MoveReviewPlayerPayloadBuilder:
         interpretation.tension.trim.equalsIgnoreCase("scoped_local") &&
           interpretation.confidence.trim.equalsIgnoreCase("bounded_local")
       ))
+    val currentTruthOwnerRequiresExactSurface =
+      truthContract.exists(contract =>
+        contract.chosenMatchesBest &&
+          contract.truthClass == DecisiveTruthClass.Best &&
+          (
+            contract.reasonFamily == DecisiveReasonKind.OnlyMoveDefense ||
+              contract.reasonFamily == DecisiveReasonKind.TacticalRefutation
+          )
+      )
+    val currentLocalFactRequiresExactSurface =
+      primaryLocalFact.exists { fact =>
+        val refs = fact.normalizedEvidenceRefs
+        val guardrails = fact.normalizedGuardrails
+        exactRelationWitnessLocalFact(fact) ||
+          (
+            fact.isCanonicalPvCoupled(MoveReviewLocalFact.Family.Threat, MoveReviewLocalFact.Producer.TacticalMotif) &&
+              (
+                fact.evidenceRefs.exists(_.startsWith("tactical_kind:")) ||
+                  fact.guardrails.exists(_.startsWith("tactical_kind:")) ||
+                  fact.anchors.exists(_.key == "tactical_kind")
+              )
+          ) ||
+          (
+            fact.isCanonicalPvCoupled(MoveReviewLocalFact.Family.Pressure, MoveReviewLocalFact.Producer.TargetPressure) &&
+              fact.guardrails.contains("target_fact_attacked_by_played_move") &&
+              fact.evidenceRefs.exists(_.startsWith("fact_square:")) &&
+              fact.evidenceRefs.exists(ref => ref == "fact_kind:target_piece" || ref == "fact_kind:hanging_piece")
+          ) ||
+          (
+            fact.isCanonicalPvCoupled(MoveReviewLocalFact.Family.Defense, MoveReviewLocalFact.Producer.ForkEntryDefense) &&
+              fact.guardrails.contains("fork_entry_square_defended_by_played_move") &&
+              fact.evidenceRefs.exists(_.startsWith("fork_entry_square:")) &&
+              fact.evidenceRefs.exists(_.startsWith("fork_attacker:")) &&
+              fact.evidenceRefs.exists(_.startsWith("fork_defender_square:")) &&
+              fact.evidenceRefs.exists(_.startsWith("fork_target:"))
+          ) ||
+          (
+            fact.isPvCoupled(
+              MoveReviewLocalFact.Family.Pressure,
+              MoveReviewLocalFact.Authority.CertifiedStrategy,
+              MoveReviewLocalFact.Producer.CertifiedStrategyDelta
+            ) &&
+              fact.evidenceRefs.exists(_ == "typed_local_fact_source:practical_position_support") &&
+              fact.evidenceRefs.exists(_ == "strategic_idea_kind:line_occupation") &&
+              fact.evidenceRefs.exists(_.startsWith("anchor:")) &&
+              fact.evidenceRefs.exists(_.startsWith("line_occupation_file:")) &&
+              fact.evidenceRefs.exists(ref => ref == "line_occupation_status:open" || ref == "line_occupation_status:semi_open")
+          ) ||
+          (
+            fact.isPvCoupled(
+              MoveReviewLocalFact.Family.LineConsequence,
+              MoveReviewLocalFact.Authority.PvCoupledLine,
+              MoveReviewLocalFact.Producer.LineConsequence
+            ) &&
+              refs.exists(_ == "evidence_source:line_consequence_surface") &&
+              refs.exists(_ == "evidence_line_binding:pv_coupled") &&
+              refs.exists(_ == "line_consequence_release:surface_candidate") &&
+              refs.exists(_.startsWith("line_consequence_kind:")) &&
+              !refs.exists(_ == "line_consequence_kind:preview_only")
+          ) ||
+          (
+            fact.isPvCoupled(
+              MoveReviewLocalFact.Family.LineConsequence,
+              MoveReviewLocalFact.Authority.AlternativeComparison,
+              MoveReviewLocalFact.Producer.AlternativeComparison
+            ) &&
+              refs.exists(_ == "evidence_source:role_aware_line_consequence") &&
+              refs.exists(_ == "comparison_source:role_aware_line_consequence") &&
+              refs.exists(_ == "branch_role:engine_best") &&
+              refs.exists(_ == "branch_role:played") &&
+              refs.exists(_.startsWith("engine_best:line_consequence_kind:")) &&
+              refs.exists(_.startsWith("played:line_consequence_kind:"))
+          ) ||
+          (
+            fact.isPvCoupled(
+              MoveReviewLocalFact.Family.PlanSupport,
+              MoveReviewLocalFact.Authority.PvCoupledLine,
+              MoveReviewLocalFact.Producer.CertifiedStrategyDelta
+            ) &&
+              refs.exists(_ == "evidence_source:pv_coupled_plan_support") &&
+              refs.exists(_ == "evidence_line_binding:pv_coupled") &&
+              refs.exists(_.startsWith("plan_name:")) &&
+              refs.exists(_ == "branch_line_meaningful:true") &&
+              refs.exists(_ == "plan_anchor_matched:true") &&
+              refs.exists(_.startsWith("branch_line_first_san:")) &&
+              refs.exists(_.startsWith("plan_anchor_matched_token:"))
+          ) ||
+          (
+            fact.family == MoveReviewLocalFact.Family.Defense &&
+              fact.authority == MoveReviewLocalFact.Authority.ForcedReply &&
+              fact.producer == MoveReviewLocalFact.Producer.ForcedReply &&
+              refs.exists(_ == "evidence_source:explicit_reply_loss") &&
+              refs.exists(ref =>
+                ref
+                  .stripPrefix("reply_defense_count:")
+                  .toIntOption
+                  .exists(_ > 1)
+              ) &&
+              refs.exists(_.startsWith("loss_if_ignored_cp:")) &&
+              refs.exists(_.startsWith("threat_kind:")) &&
+              refs.exists(_.startsWith("threat_square:")) &&
+              guardrails.exists(_ == "forced_reply_non_unique") &&
+              guardrails.exists(_ == "surface_forced=false")
+          )
+      }
+    val broadPracticalSurfaceBlocked =
+      broadSurfaceBlocked || currentTruthOwnerRequiresExactSurface || currentLocalFactRequiresExactSurface || lineConsequence.exists(evidence =>
+        evidence.surfaceReady &&
+          evidence.release == LineConsequenceRelease.SurfaceCandidate &&
+          evidence.kind != LineConsequenceKind.PreviewOnly
+      )
     val compensationBlocked = truthContract.exists(contract => !contract.compensationProseAllowed)
     val promotedPlans =
-      if broadSurfaceBlocked then Nil
+      if broadPracticalSurfaceBlocked then Nil
       else evaluatedPlans.filter(PlanEvidenceEvaluator.isMainAdmittedPlan).sortBy(_.hypothesis.rank)
     val practicalStructureArc =
-      if broadSurfaceBlocked then None else StructurePlanArcBuilder.build(ctx).filter(StructurePlanArcBuilder.proseEligible)
-    val practicalRows = if broadSurfaceBlocked then Nil else practicalPlanRows(ctx, evaluatedPlans, practicalStructureArc)
+      if broadPracticalSurfaceBlocked then None else StructurePlanArcBuilder.build(ctx).filter(StructurePlanArcBuilder.proseEligible)
+    val practicalRows = if broadPracticalSurfaceBlocked then Nil else practicalPlanRows(ctx, evaluatedPlans, practicalStructureArc)
     val openingRows = if broadSurfaceBlocked then Nil else openingFamilyRow(ctx).toList
-    val compensationRows = if broadSurfaceBlocked || compensationBlocked then Nil else compensationAdvancedRows(strategyPack)
+    val compensationRows = if broadPracticalSurfaceBlocked || compensationBlocked then Nil else compensationAdvancedRows(strategyPack)
     val localRows = if supportBlocked then Nil else sanitizeRows(supportedLocalRows, knownSans)
     val relationRows =
-      if broadSurfaceBlocked then Nil
+      if broadSurfaceBlocked || currentTruthOwnerRequiresExactSurface || currentLocalFactRequiresExactSurface then Nil
       else strategicRelationRows(strategyPack, MoveReviewSupportedLocalSurfaceRows.relationKindsForRows(localRows))
     val structuralIdeaRows =
-      if broadSurfaceBlocked then Nil
+      if broadPracticalSurfaceBlocked then Nil
       else
         val structuralIdeas = strategyPack.toList.flatMap(_.strategicIdeas)
         val strategySide = strategyPack.map(_.sideToMove.trim.toLowerCase).filter(_.nonEmpty)
@@ -204,6 +337,8 @@ object MoveReviewPlayerPayloadBuilder:
           visibleRows.flatMap(exactDoubledRooksRowFile).toSet
         val exactCounterplayAlreadyVisible =
           (practicalRows ++ localRows).exists(exactCounterplayRow)
+        val exactCentralBreakAlreadyVisible =
+          localRows.exists(exactCentralBreakRow)
         val prophylaxisAlreadyVisible =
           promotedPlans.exists(isProphylaxisPlan)
         val exactAttackAlreadyVisible =
@@ -504,15 +639,18 @@ object MoveReviewPlayerPayloadBuilder:
                 strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
                 idea.confidence >= 0.76
             val breakSurface =
-              if typedBreakReady &&
+              if !exactCentralBreakAlreadyVisible &&
+                typedBreakReady &&
                 refs.exists(ref => ref == "pawn_analysis_break_ready_shape" || ref == "pawn_play_break_ready_shape") &&
                 idea.readiness == StrategicIdeaReadiness.Ready &&
                 idea.confidence >= 0.92 &&
                 typedBreakReadyFile.nonEmpty
               then Some("Practical break" -> s"The current pawn structure gives a practical ${typedBreakReadyFile.get}-file break cue.")
-              else if fileOpeningConsequence then Some("Practical break" -> s"The current pawn tension gives a practical ${fileOpeningConsequenceFile.get}-file opening cue.")
-              else if frenchF6Seed then Some("Practical break" -> "The French Advance chain gives Black a practical ...f6 break cue.")
-              else if centralBreakTension then
+              else if !exactCentralBreakAlreadyVisible && fileOpeningConsequence
+              then Some("Practical break" -> s"The current pawn tension gives a practical ${fileOpeningConsequenceFile.get}-file opening cue.")
+              else if !exactCentralBreakAlreadyVisible && frenchF6Seed then
+                Some("Practical break" -> "The French Advance chain gives Black a practical ...f6 break cue.")
+              else if !exactCentralBreakAlreadyVisible && centralBreakTension then
                 centralBreakTensionFile
                   .map(file => "Practical break" -> s"The central tension gives a practical $file-file break cue.")
               else if pawnBreakMotif then Some("Practical cue" -> s"The current file contact marks a practical ${pawnBreakMotifFile.get}-file break candidate.")
@@ -563,7 +701,7 @@ object MoveReviewPlayerPayloadBuilder:
                 idea.readiness == StrategicIdeaReadiness.Ready &&
                 strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
                 idea.confidence >= 0.80
-            val passerBlockade =
+            val passerBlockadeCandidate =
               refs.contains("source:passer_blockade_motif") &&
                 refs.contains("passer_blockade_shape") &&
                 blockadeSquare.nonEmpty &&
@@ -571,6 +709,13 @@ object MoveReviewPlayerPayloadBuilder:
                 idea.readiness == StrategicIdeaReadiness.Ready &&
                 strategySide.forall(side => idea.ownerSide.equalsIgnoreCase(side)) &&
                 idea.confidence >= 0.76
+            val passerBlockade =
+              passerBlockadeCandidate &&
+                blockadeSquare.exists(blockade =>
+                  blockadedPawnSquare.exists(pawn =>
+                    boardBackedPasserBlockade(ctx, idea.ownerSide, blockade, pawn)
+                  )
+                )
             val restraintAuthority =
               if passerBlockade then
                 blockadedPawnSquare.map(square =>
@@ -1297,14 +1442,14 @@ object MoveReviewPlayerPayloadBuilder:
       advancedRows =
         (
           relationRows ++ compensationRows ++ structuralIdeaRows ++
-            (if broadSurfaceBlocked then Nil else advancedRows(ctx, promotedPlans, evaluatedPlans, practicalStructureArc))
+            (if broadPracticalSurfaceBlocked then Nil else advancedRows(ctx, promotedPlans, evaluatedPlans, practicalStructureArc))
         )
           .distinctBy(row => (row.label, row.text, row.authority.flatMap(_.token))),
       decisionComparison = decisionComparisonSurface.map(comparison =>
         sanitizeDecisionComparison(enrichDecisionTargetComparison(ctx, comparison))
       ),
       probeRows = ledgerRows(moveReviewLedger, knownSans),
-      authorRows = authorRows(authoringSurface, knownSans)
+      authorRows = authorRows(authoringSurface, knownSans, primaryLocalFact)
     )
 
   private def strategicRelationRows(
@@ -1475,6 +1620,43 @@ object MoveReviewPlayerPayloadBuilder:
       if (file + rank) % 2 == 0 then "dark" else "light"
     }
 
+  private def boardBackedPasserBlockade(
+      ctx: NarrativeContext,
+      ownerSide: String,
+      blockadeSquareKey: String,
+      pawnSquareKey: String
+  ): Boolean =
+    val ownerColor =
+      clean(ownerSide).toLowerCase match
+        case "white" => Some(_root_.chess.Color.White)
+        case "black" => Some(_root_.chess.Color.Black)
+        case _       => None
+    val validationFen =
+      ctx.playedMove
+        .map(move => NarrativeUtils.uciListToFen(ctx.fen, List(move)))
+        .filter(_.trim.nonEmpty)
+        .getOrElse(ctx.fen)
+    (for
+      owner <- ownerColor
+      blockadeSquare <- _root_.chess.Square.fromKey(blockadeSquareKey)
+      pawnSquare <- _root_.chess.Square.fromKey(pawnSquareKey)
+      position <- Fen.read(Standard, Fen.Full(validationFen))
+      pawnColor = !owner
+      passers = PositionAnalyzer.passedPawns(
+        pawnColor,
+        position.board.pawns & position.board.byColor(pawnColor),
+        position.board.pawns & position.board.byColor(owner)
+      )
+      pawnAdvanced =
+        if pawnColor.white then pawnSquare.rank.value >= _root_.chess.Rank.Fourth.value
+        else pawnSquare.rank.value <= _root_.chess.Rank.Fifth.value
+      stopSquare = _root_.chess.Square.at(pawnSquare.file.value, pawnSquare.rank.value + (if pawnColor.white then 1 else -1))
+      if passers.contains(pawnSquare)
+      if pawnAdvanced
+      if stopSquare.contains(blockadeSquare)
+      blocker <- position.board.pieceAt(blockadeSquare)
+    yield blocker.color == owner).contains(true)
+
   private def roleCanAttackSquare(role: String, from: String, target: String): Boolean =
     (squareCoords(from), squareCoords(target)) match
       case (Some((fromFile, fromRank)), Some((targetFile, targetRank))) =>
@@ -1514,6 +1696,19 @@ object MoveReviewPlayerPayloadBuilder:
         .filter(_.kind == MoveReviewSurfaceAuthority.PracticalPlan)
         .flatMap(_ => DoubledRooksText.findFirstMatchIn(row.text))
         .map(_.group(1))
+
+  private def exactCentralBreakRow(row: MoveReviewPlayerSurfaceRow): Boolean =
+    val centralBreakAuthorities =
+      Set(
+        MoveReviewSurfaceAuthority.CentralBreak,
+        MoveReviewSurfaceAuthority.CentralChallenge,
+        MoveReviewSurfaceAuthority.CentralLiquidation
+      )
+    row.authority
+      .filter(authority => centralBreakAuthorities.contains(authority.kind))
+      .flatMap(_.token)
+      .flatMap(BreakSurfaceToken.canonicalRoute)
+      .nonEmpty
 
   private def exactTargetRowSquare(row: MoveReviewPlayerSurfaceRow): Option[String] =
     exactPracticalTargetRowTarget(row, "Fixed target") { target =>
@@ -2153,8 +2348,16 @@ object MoveReviewPlayerPayloadBuilder:
       refs: MoveReviewRefs,
       lineConsequence: Option[LineConsequenceEvidence]
   ): Option[MoveReviewVariationRef] =
+    val reviewedVariations = refs.variations.filter(startsWithReviewedMove(ctx, _))
+    val playedUci = ctx.playedMove.map(NarrativeUtils.normalizeUciMove).filter(_.nonEmpty)
+    val completeReviewedVariation =
+      reviewedVariations.find(variation =>
+        variation.moves.size >= 2 &&
+          playedUci.forall(uci => MoveReviewPvLine.validatedLine(ctx.fen, variation, uci).nonEmpty)
+      )
     preferredLineConsequenceVariation(ctx, refs, lineConsequence)
-      .orElse(refs.variations.find(startsWithReviewedMove(ctx, _)))
+      .orElse(completeReviewedVariation)
+      .orElse(reviewedVariations.headOption)
       .orElse(refs.variations.headOption)
 
   private def preferredLineConsequenceVariation(
@@ -2210,19 +2413,23 @@ object MoveReviewPlayerPayloadBuilder:
 
   private def authorRows(
       authoringSurface: AuthoringEvidenceSurface,
-      knownSans: Set[String]
+      knownSans: Set[String],
+      primaryLocalFact: Option[MoveReviewLocalFact.Admission]
   ): List[MoveReviewPlayerAuthorRow] =
+    val exactRelationWitnessPrimary = primaryLocalFact.exists(exactRelationWitnessLocalFact)
     val evidenceRows =
-      authoringSurface.evidence.take(2).flatMap(summary => authorEvidenceRow(summary, knownSans))
+      authoringSurface.evidence.take(2).flatMap(summary => authorEvidenceRow(summary, knownSans, exactRelationWitnessPrimary))
     if evidenceRows.nonEmpty then evidenceRows
-    else authoringSurface.questions.take(2).flatMap(authorQuestionRow)
+    else authoringSurface.questions.take(2).flatMap(summary => authorQuestionRow(summary, exactRelationWitnessPrimary))
 
   private def authorEvidenceRow(
       summary: AuthorEvidenceSummary,
-      knownSans: Set[String]
+      knownSans: Set[String],
+      exactRelationWitnessPrimary: Boolean
   ): Option[MoveReviewPlayerAuthorRow] =
     val question = cleanOpt(Some(summary.question))
-    question.map { q =>
+    if unresolvedGenericAuthorEvidence(summary, exactRelationWitnessPrimary) then None
+    else question.map { q =>
       MoveReviewPlayerAuthorRow(
         title = humanizeToken(summary.questionKind),
         status = clean(summary.status),
@@ -2247,8 +2454,12 @@ object MoveReviewPlayerPayloadBuilder:
       )
     }
 
-  private def authorQuestionRow(summary: AuthorQuestionSummary): Option[MoveReviewPlayerAuthorRow] =
-    cleanOpt(Some(summary.question)).map { question =>
+  private def authorQuestionRow(
+      summary: AuthorQuestionSummary,
+      exactRelationWitnessPrimary: Boolean
+  ): Option[MoveReviewPlayerAuthorRow] =
+    if genericQuestionOnlyAuthorPrompt(summary, exactRelationWitnessPrimary) then None
+    else cleanOpt(Some(summary.question)).map { question =>
       MoveReviewPlayerAuthorRow(
         title = humanizeToken(summary.kind),
         status = "question_only",
@@ -2257,6 +2468,69 @@ object MoveReviewPlayerPayloadBuilder:
         meta = Nil
       )
     }
+
+  private val GenericQuestionOnlyAuthorAnchors = Set("decision compare", "move change", "race", "timing", "conversion", "simplify")
+  private val UnresolvedAuthorEvidenceStatuses = Set("pending", "question_only")
+
+  private def genericQuestionOnlyAuthorPrompt(
+      summary: AuthorQuestionSummary,
+      exactRelationWitnessPrimary: Boolean
+  ): Boolean =
+    val anchors =
+      summary.anchors
+        .map(anchor => clean(anchor).trim.toLowerCase)
+        .filter(_.nonEmpty)
+    val unresolvedDefensePromptBesideExactRelation =
+      exactRelationWitnessPrimary &&
+        clean(summary.kind).trim.equalsIgnoreCase("WhatMustBeStopped") &&
+        anchors.contains("defense") &&
+        anchors.contains("threat")
+    (anchors.nonEmpty && anchors.forall(GenericQuestionOnlyAuthorAnchors)) ||
+      unresolvedDefensePromptBesideExactRelation
+
+  private def unresolvedGenericAuthorEvidence(
+      summary: AuthorEvidenceSummary,
+      exactRelationWitnessPrimary: Boolean
+  ): Boolean =
+    val status = clean(summary.status).trim.toLowerCase
+    val unresolvedNoBranch =
+      summary.branchCount <= 0 &&
+      summary.branches.isEmpty &&
+        UnresolvedAuthorEvidenceStatuses.contains(status)
+    val questionText = clean(summary.question).trim.toLowerCase
+    val questionKind = clean(summary.questionKind).trim.toLowerCase
+    val purposes = summary.purposes.map(purpose => clean(purpose).trim.toLowerCase)
+    val unresolvedDefensePromptBesideExactRelation =
+      exactRelationWitnessPrimary &&
+        questionKind == "whatmustbestopped" &&
+        purposes.contains("defense_reply_multipv") &&
+        questionText.contains("defensive task") &&
+        questionText.contains("meet the threat")
+    unresolvedNoBranch &&
+      (genericAuthorPrompt(summary.question, summary.why) || unresolvedDefensePromptBesideExactRelation)
+
+  private def genericAuthorPrompt(question: String, why: Option[String]): Boolean =
+    val questionText = clean(question).trim.toLowerCase
+    val whyText = cleanOpt(why).fold("")(_.toLowerCase)
+    val decisionCompare =
+      questionText.startsWith("why choose ") &&
+        whyText.contains("also looks natural at first glance")
+    val moveChange =
+      questionText.startsWith("what changed in the position after ") &&
+        (
+          whyText.contains("engine margin compared with the missed alternative") ||
+            whyText.contains("what the opponent can do next") ||
+            whyText.contains("which endgame task now defines the position")
+        )
+    val raceWindow =
+      questionText.startsWith("after ") &&
+        questionText.contains("whose plan is faster") &&
+        whyText.contains("race is likely to be decided by timing")
+    val conversionCheckpoint =
+      questionText.contains("candidate conversion checkpoint") &&
+        whyText.contains("reply line") &&
+        whyText.contains("counterplay")
+    decisionCompare || moveChange || raceWindow || conversionCheckpoint
 
   private def isProphylaxisPlan(plan: EvaluatedPlan): Boolean =
     plan.themeL1 == PlanTheme.RestrictionProphylaxis.id ||
@@ -2570,7 +2844,10 @@ private[commentary] object CentralBreakTimingSurfaceGate:
         Decision(None, Some(MissingExactWitness))
 
   def surfaceText(witness: CentralBreakTimingWitness.Witness, token: String): String =
-    if witness.sourceTags.contains("board:played_break") then
+    surfaceText(witness.sourceTags, token)
+
+  def surfaceText(sourceTags: Iterable[String], token: String): String =
+    if sourceTags.exists(_ == "board:played_break") then
       s"On the checked line, this also plays the $token break at this moment."
     else s"On the checked line, this also leaves the $token break available on this branch."
 
@@ -2711,11 +2988,9 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
         row.authority.flatMap {
           case authority if authority.kind == MoveReviewSurfaceAuthority.StrategicRelation =>
             authority.token
-          case authority if authority.kind == MoveReviewSurfaceAuthority.PracticalPlan =>
-            PracticalRelationKindByLabel.get(row.label)
           case _ =>
             None
-        }
+        }.orElse(PracticalRelationKindByLabel.get(row.label))
       }
       .toSet
 
@@ -2723,7 +2998,8 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       ctx: NarrativeContext,
       inputs: QuestionPlannerInputs,
       rankedPlans: RankedQuestionPlans,
-      truthContract: Option[DecisiveTruthContract]
+      truthContract: Option[DecisiveTruthContract],
+      primaryLocalFact: Option[MoveReviewLocalFact.Admission] = None
   ): List[MoveReviewPlayerSurfaceRow] =
     val planRows =
       (rankedPlans.primary.toList ++ rankedPlans.secondary.toList)
@@ -2751,6 +3027,21 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
     if exactRows.nonEmpty then exactRows
     else if tacticalPracticalVeto(inputs, truthContract) then Nil
     else
+      val suppressRelativePinXray =
+        primaryLocalFact.exists(fact =>
+          fact.family == MoveReviewLocalFact.Family.Threat &&
+            fact.authority == MoveReviewLocalFact.Authority.CanonicalFact &&
+            fact.producer == MoveReviewLocalFact.Producer.TacticalMotif &&
+            fact.evidenceRefs.contains("tactical_kind:pin") &&
+            fact.evidenceRefs.exists(_.startsWith("behind_role:")) &&
+            !fact.evidenceRefs.contains("behind_role:king")
+        )
+      val suppressWeakerRelationGeometry =
+        primaryLocalFact.exists(MoveReviewPlayerPayloadBuilder.exactRelationWitnessLocalFact)
+      def weakerRelationRow(row: => Option[MoveReviewPlayerSurfaceRow]): Option[MoveReviewPlayerSurfaceRow] =
+        if suppressWeakerRelationGeometry then None else row
+      def relativePinXrayRow(row: => Option[MoveReviewPlayerSurfaceRow]): Option[MoveReviewPlayerSurfaceRow] =
+        if suppressWeakerRelationGeometry || suppressRelativePinXray then None else row
       lazy val topPvReplayCache = PlayedTopPvReplayCache(ctx)
       backRankMatePracticalRow(topPvReplayCache)
         .orElse(mateNetPracticalRow(topPvReplayCache))
@@ -2764,16 +3055,16 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
         .orElse(trappedPiecePracticalRow(ctx, topPvReplayCache))
         .orElse(dominationPracticalRow(ctx, topPvReplayCache))
         .orElse(forkPracticalRow(topPvReplayCache))
-        .orElse(overloadPracticalRow(topPvReplayCache))
-        .orElse(decoyPracticalRow(topPvReplayCache))
-        .orElse(deflectionPracticalRow(topPvReplayCache))
-        .orElse(discoveredAttackPracticalRow(topPvReplayCache))
-        .orElse(hangingPiecePracticalRow(topPvReplayCache))
-        .orElse(skewerPracticalRow(topPvReplayCache))
-        .orElse(xrayPracticalRow(topPvReplayCache))
-        .orElse(interferencePracticalRow(topPvReplayCache))
-        .orElse(batteryPracticalRow(topPvReplayCache))
-        .orElse(pinPracticalRow(topPvReplayCache))
+        .orElse(weakerRelationRow(overloadPracticalRow(topPvReplayCache)))
+        .orElse(weakerRelationRow(decoyPracticalRow(topPvReplayCache)))
+        .orElse(weakerRelationRow(deflectionPracticalRow(topPvReplayCache)))
+        .orElse(weakerRelationRow(discoveredAttackPracticalRow(topPvReplayCache)))
+        .orElse(weakerRelationRow(hangingPiecePracticalRow(topPvReplayCache)))
+        .orElse(weakerRelationRow(skewerPracticalRow(topPvReplayCache)))
+        .orElse(relativePinXrayRow(xrayPracticalRow(topPvReplayCache)))
+        .orElse(weakerRelationRow(interferencePracticalRow(topPvReplayCache)))
+        .orElse(weakerRelationRow(batteryPracticalRow(topPvReplayCache)))
+        .orElse(weakerRelationRow(pinPracticalRow(topPvReplayCache)))
         .orElse(practicalCentralRow(ctx))
         .orElse(openingPracticalGoalRow(ctx, topPvReplayCache))
         .orElse(knightOutpostPracticalRow(topPvReplayCache))
@@ -2946,7 +3237,7 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
         labelFromSurface(surface).getOrElse(label),
         surface.text,
         refSans = refs,
-        authority = PracticalPlanAuthority
+        authority = None
       )
     yield row
 
@@ -3251,10 +3542,11 @@ private[commentary] object MoveReviewSupportedLocalSurfaceRows:
       if majorFileEntryMove(position, move)
       if after.board.pieceAt(move.dest).exists(piece => piece.color == move.piece.color && piece.role == move.piece.role)
       fileKind <- fileEntryKind(after.board, move)
-      row <- practicalPlanRow(
+      row <- row(
         FileEntryLabel,
         s"The checked line places the ${quietRoleLabel(move.piece.role)} on the $fileKind ${move.dest.file.char.toString.toLowerCase}-file.",
-        refSans = replayCache.sanMoves(1)
+        refSans = replayCache.sanMoves(1),
+        authority = None
       )
     yield row
 

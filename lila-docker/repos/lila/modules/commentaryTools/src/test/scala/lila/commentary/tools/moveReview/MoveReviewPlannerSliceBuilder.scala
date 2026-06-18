@@ -3,7 +3,7 @@ package lila.commentary.tools.moveReview
 import java.nio.file.{ Files, Path, Paths }
 
 import lila.commentary.{ MoveEval, PgnAnalysisHelper }
-import lila.commentary.analysis.NarrativeUtils
+import lila.commentary.analysis.{ NarrativeUtils, QuestionPlanFallbackMode }
 import lila.commentary.tools.review.CommentaryPlayerQcSupport
 
 import scala.util.control.NonFatal
@@ -134,11 +134,12 @@ object MoveReviewPlannerSliceBuilder:
     )
 
   private def categoryOf(trace: MoveReviewPlannerTrace): Option[String] =
-    val plannerOwned = trace.moveReviewFallbackMode == "planner_owned"
+    val plannerOwned = MoveReviewFallbackMode.isPlannerOwned(trace.moveReviewFallbackMode)
     trace.primaryKind match
       case Some(kind) if plannerOwned && coreKinds.contains(kind) => Some(kind)
-      case _ if trace.moveReviewFallbackMode == "exact_factual" ||
-          trace.primaryFallbackMode.exists(_ != "PlannerOwned")   => Some("negative")
+      case _ if MoveReviewFallbackMode.isExactFactual(trace.moveReviewFallbackMode) ||
+          trace.primaryFallbackMode.exists(_ != QuestionPlanFallbackMode.PlannerOwned.toString) =>
+        Some("negative")
       case _                                                     => None
 
   private val coreKinds =

@@ -371,7 +371,11 @@ private[commentary] object MoveReviewExplanationBuilder:
     val explicitTargets = explicitTargetSquares(ctx)
     val tacticalTargets = tacticalRelationTargetSquares(played, facts, motifs)
     val targetSets =
-      (List(explicitTargets) ++ Option.when(tacticalTargets.nonEmpty)(tacticalTargets).toList)
+      (
+        List(explicitTargets) ++
+          Option.when(tacticalTargets.nonEmpty)(tacticalTargets).toList ++
+          Option.when(explicitTargets.nonEmpty && tacticalTargets.isEmpty)(Nil).toList
+      )
         .map(_.distinct)
         .distinct
     def witnessesFrom(

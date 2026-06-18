@@ -1,14 +1,19 @@
 package lila.commentary.tools.quality
 
+import lila.commentary.analysis.MoveReviewPolishSlots
+import lila.commentary.tools.moveReview.MoveReviewCoverageDiagnostics
 import lila.commentary.tools.review.CommentaryPlayerQcSupport.*
 import munit.FunSuite
 
 final class MoveReviewEvidenceCoverageAuditTest extends FunSuite:
 
+  private val Source = MoveReviewPolishSlots.Source
+  private val BasicEvidenceStatus = MoveReviewCoverageDiagnostics.BasicEvidenceStatus
+
   private def entry(
       sampleId: String,
       sourceKind: Option[String],
-      basicStatus: Option[String] = Some("blocked"),
+      basicStatus: Option[String] = Some(BasicEvidenceStatus.Blocked),
       basicReasons: List[String] = Nil,
       supportedCandidates: List[String] = Nil,
       supportedAdmitted: List[String] = Nil,
@@ -46,25 +51,25 @@ final class MoveReviewEvidenceCoverageAuditTest extends FunSuite:
     val report =
       MoveReviewEvidenceCoverageAudit.build(
         List(
-          entry("planner", Some("planner"), basicStatus = Some("planner_preempted")),
-          entry("basic", Some("basic_move_explanation"), basicStatus = Some("emitted")),
+          entry("planner", Some(Source.Planner), basicStatus = Some(BasicEvidenceStatus.PlannerPreempted)),
+          entry("basic", Some(Source.BasicMoveExplanation), basicStatus = Some(BasicEvidenceStatus.Emitted)),
           entry(
             "exact_basic_first",
-            Some("exact_factual_fallback"),
+            Some(Source.ExactFactualFallback),
             basicReasons = List("no_descriptor_rule_matched"),
             supportedCandidates = List("neutralize_key_break"),
             supportedAdmitted = List("neutralize_key_break")
           ),
           entry(
             "supported_runtime",
-            Some("exact_factual_fallback"),
+            Some(Source.ExactFactualFallback),
             basicReasons = List("missing_coupled_pv_line"),
             supportedCandidates = List("neutralize_key_break"),
             supportedAdmitted = List("neutralize_key_break")
           ),
           entry(
             "supported_gap",
-            Some("exact_factual_fallback"),
+            Some(Source.ExactFactualFallback),
             basicReasons = List("missing_coupled_pv_line"),
             supportedCandidates = List("neutralize_key_break"),
             supportedRejectReasons = List("neutralize_key_break:witness:branch_not_proven")
@@ -72,9 +77,9 @@ final class MoveReviewEvidenceCoverageAuditTest extends FunSuite:
         )
       )
 
-    assertEquals(report.summary.sourceKindCounts("planner"), 1)
-    assertEquals(report.summary.sourceKindCounts("basic_move_explanation"), 1)
-    assertEquals(report.summary.sourceKindCounts("exact_factual_fallback"), 3)
+    assertEquals(report.summary.sourceKindCounts(Source.Planner), 1)
+    assertEquals(report.summary.sourceKindCounts(Source.BasicMoveExplanation), 1)
+    assertEquals(report.summary.sourceKindCounts(Source.ExactFactualFallback), 3)
     assertEquals(report.summary.basicExpansionCandidateSampleIds, List("exact_basic_first"))
     assertEquals(report.summary.supportedLocalRuntimeCandidateSampleIds, List("supported_runtime"))
     assertEquals(report.summary.supportedLocalEvidenceGapSampleIds, List("supported_gap"))
@@ -86,7 +91,7 @@ final class MoveReviewEvidenceCoverageAuditTest extends FunSuite:
       MoveReviewEvidenceCoverageAudit.build(
         List(
           entry("old", None, basicStatus = None),
-          entry("new", Some("basic_move_explanation"), basicStatus = Some("emitted"))
+          entry("new", Some(Source.BasicMoveExplanation), basicStatus = Some(BasicEvidenceStatus.Emitted))
         )
       )
 
@@ -99,7 +104,7 @@ final class MoveReviewEvidenceCoverageAuditTest extends FunSuite:
         List(
           entry(
             "projection",
-            Some("exact_factual_fallback"),
+            Some(Source.ExactFactualFallback),
             basicReasons = List("coupled_pv_replay_failed", "after_pv_projection_would_admit_basic")
           )
         )
@@ -115,7 +120,7 @@ final class MoveReviewEvidenceCoverageAuditTest extends FunSuite:
         List(
           entry(
             "eval_only",
-            Some("exact_factual_fallback"),
+            Some(Source.ExactFactualFallback),
             basicReasons = List(
               "no_descriptor_rule_matched",
               "tactical_not_current_move_owned",
@@ -137,7 +142,7 @@ final class MoveReviewEvidenceCoverageAuditTest extends FunSuite:
         List(
           entry(
             "surface_reject",
-            Some("exact_factual_fallback"),
+            Some(Source.ExactFactualFallback),
             supportedCandidates = List("neutralize_key_break"),
             supportedRejectReasons = List("neutralize_key_break:surface:played_move_collision")
           )
@@ -153,8 +158,8 @@ final class MoveReviewEvidenceCoverageAuditTest extends FunSuite:
         List(
           entry(
             "named",
-            Some("planner"),
-            basicStatus = Some("planner_preempted"),
+            Some(Source.Planner),
+            basicStatus = Some(BasicEvidenceStatus.PlannerPreempted),
             supportRows = List(
               SupportRow(
                 "Counterplay break",
@@ -164,16 +169,16 @@ final class MoveReviewEvidenceCoverageAuditTest extends FunSuite:
           ),
           entry(
             "generic",
-            Some("planner"),
-            basicStatus = Some("planner_preempted"),
+            Some(Source.Planner),
+            basicStatus = Some(BasicEvidenceStatus.PlannerPreempted),
             supportRows = List(
               SupportRow("Counterplay break", "A key idea is that this keeps c5 from coming right away.")
             )
           ),
           entry(
             "collision",
-            Some("planner"),
-            basicStatus = Some("planner_preempted"),
+            Some(Source.Planner),
+            basicStatus = Some(BasicEvidenceStatus.PlannerPreempted),
             playedSan = "Bg4",
             playedUci = "c8g4",
             supportRows = List(
@@ -198,8 +203,8 @@ final class MoveReviewEvidenceCoverageAuditTest extends FunSuite:
         List(
           entry(
             "named",
-            Some("planner"),
-            basicStatus = Some("planner_preempted"),
+            Some(Source.Planner),
+            basicStatus = Some(BasicEvidenceStatus.PlannerPreempted),
             supportRows = List(
               SupportRow(
                 "Central break",
@@ -209,16 +214,16 @@ final class MoveReviewEvidenceCoverageAuditTest extends FunSuite:
           ),
           entry(
             "generic",
-            Some("planner"),
-            basicStatus = Some("planner_preempted"),
+            Some(Source.Planner),
+            basicStatus = Some(BasicEvidenceStatus.PlannerPreempted),
             supportRows = List(
               SupportRow("Central break", "A key idea is that this improves the central_break_timing branch.")
             )
           ),
           entry(
             "diagonal",
-            Some("planner"),
-            basicStatus = Some("planner_preempted"),
+            Some(Source.Planner),
+            basicStatus = Some(BasicEvidenceStatus.PlannerPreempted),
             supportRows = List(
               SupportRow(
                 "Central break",

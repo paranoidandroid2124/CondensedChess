@@ -12,7 +12,11 @@ object CommentaryPlayerCorpusCatalogBuilder:
   final case class Config(
       rawPgnDir: Path = DefaultRawPgnDir,
       catalogPath: Path = DefaultCatalogDir.resolve("catalog.jsonl"),
-      normalizedGamesDir: Path = DefaultCatalogDir.resolve("games")
+      normalizedGamesDir: Path = DefaultCatalogDir.resolve("games"),
+      minElo: Option[Int] = None,
+      excludedTimeBuckets: Set[String] = Set.empty,
+      selection: String = "balanced",
+      limit: Option[Int] = None
   )
 
   def main(args: Array[String]): Unit =
@@ -33,6 +37,8 @@ object CommentaryPlayerCorpusCatalogBuilder:
           val supportedVariant = variant.isEmpty || variant == "standard" || variant == "chess960"
           if !supportedVariant then Nil
           else if !headerResultMatchesPgn(headers, pgn) then Nil
+          else if !matchesRatingFloor(headers, config.minElo) then Nil
+          else if config.excludedTimeBuckets.contains(timeControlBucketOf(headers)) then Nil
           else
             PgnAnalysisHelper.extractPlyDataStrict(pgn).toOption.toList.flatMap { plyData =>
               val sourceId = slug(file.getFileName.toString.stripSuffix(".pgn"))
@@ -72,7 +78,15 @@ object CommentaryPlayerCorpusCatalogBuilder:
         }
       }
 
-    val selected = selectCorpus(candidates)
+    val selected =
+      val base =
+        config.selection match
+          case "all"      => candidates
+          case "balanced" => selectCorpus(candidates)
+          case other =>
+            System.err.println(s"[player-qc-catalog] unknown selection mode `$other`; use `balanced` or `all`.")
+            sys.exit(1)
+      config.limit.fold(base)(base.take)
     if selected.isEmpty then
       System.err.println("[player-qc-catalog] no games survived validation and selection")
       sys.exit(1)
@@ -83,14 +97,43 @@ object CommentaryPlayerCorpusCatalogBuilder:
       s"[player-qc-catalog] wrote `${config.catalogPath}` (selected=${selected.size}, candidates=${candidates.size})"
     )
 
+  private def matchesRatingFloor(headers: Map[String, String], minElo: Option[Int]): Boolean =
+    minElo.forall { floor =>
+      List(parseIntHeader(headers, "WhiteElo"), parseIntHeader(headers, "BlackElo")) match
+        case Some(white) :: Some(black) :: Nil => white >= floor && black >= floor
+        case _                                => false
+    }
+
   private def parseConfig(args: List[String]): Config =
     val positional = positionalArgs(args)
     Config(
       rawPgnDir = positional.headOption.map(Paths.get(_)).getOrElse(DefaultRawPgnDir),
       catalogPath = positional.lift(1).map(Paths.get(_)).getOrElse(DefaultCatalogDir.resolve("catalog.jsonl")),
       normalizedGamesDir =
-        positional.lift(2).map(Paths.get(_)).getOrElse(DefaultCatalogDir.resolve("games"))
+        positional.lift(2).map(Paths.get(_)).getOrElse(DefaultCatalogDir.resolve("games")),
+      minElo = optionInt(args, "--min-elo").filter(_ > 0),
+      excludedTimeBuckets = optionStrings(args, "--exclude-time-bucket").map(_.trim).filter(_.nonEmpty).toSet,
+      selection = optionString(args, "--selection").map(_.trim.toLowerCase).filter(_.nonEmpty).getOrElse("balanced"),
+      limit = optionInt(args, "--limit").filter(_ > 0)
     )
 
   private def positionalArgs(args: List[String]): List[String] =
-    args.filterNot(_.startsWith("--"))
+    val optionsWithValue = Set("--min-elo", "--exclude-time-bucket", "--selection", "--limit")
+    val out = scala.collection.mutable.ListBuffer.empty[String]
+    var idx = 0
+    while idx < args.length do
+      val current = args(idx)
+      if current.startsWith("--") then idx += (if optionsWithValue.contains(current) then 2 else 1)
+      else
+        out += current
+        idx += 1
+    out.toList
+
+  private def optionString(args: List[String], name: String): Option[String] =
+    optionStrings(args, name).headOption
+
+  private def optionStrings(args: List[String], name: String): List[String] =
+    args.sliding(2).collect { case List(flag, value) if flag == name => value.trim }.filter(_.nonEmpty).toList
+
+  private def optionInt(args: List[String], name: String): Option[Int] =
+    optionString(args, name).flatMap(_.toIntOption)

@@ -130,6 +130,45 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
   private def variationForLine(startFen: String, ucis: List[String], sans: List[String], lineId: String): MoveReviewVariationRef =
     refsForLine(startFen, ucis, sans, lineId).variations.head
 
+  private def truthContract(
+      playedMove: String,
+      verifiedBestMove: String,
+      truthClass: DecisiveTruthClass,
+      cpLoss: Int,
+      reasonFamily: DecisiveReasonKind,
+      chosenMatchesBest: Boolean = false,
+      swingSeverity: Int = 0,
+      benchmarkCriticalMove: Boolean = false,
+      failureMode: FailureInterpretationMode = FailureInterpretationMode.NoClearPlan
+  ): DecisiveTruthContract =
+    DecisiveTruthContract(
+      playedMove = Some(playedMove),
+      verifiedBestMove = Some(verifiedBestMove),
+      truthClass = truthClass,
+      cpLoss = cpLoss,
+      swingSeverity = swingSeverity,
+      reasonFamily = reasonFamily,
+      allowConcreteBenchmark = false,
+      chosenMatchesBest = chosenMatchesBest,
+      compensationAllowed = false,
+      truthPhase = None,
+      ownershipRole = TruthOwnershipRole.NoneRole,
+      visibilityRole = TruthVisibilityRole.PrimaryVisible,
+      surfaceMode = TruthSurfaceMode.Neutral,
+      exemplarRole = TruthExemplarRole.NonExemplar,
+      surfacedMoveOwnsTruth = false,
+      verifiedPayoffAnchor = None,
+      compensationProseAllowed = false,
+      benchmarkProseAllowed = false,
+      investmentTruthChainKey = None,
+      maintenanceExemplarCandidate = false,
+      benchmarkCriticalMove = benchmarkCriticalMove,
+      failureMode = failureMode,
+      failureIntentConfidence = 0.0,
+      failureIntentAnchor = None,
+      failureInterpretationAllowed = false
+    )
+
   test("grounded opening explanation requires validated PV proof") {
     assertEquals(MoveReviewExplanationBuilder.build(italianCtx, None), None)
     val explanation =
@@ -493,6 +532,11 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
     assertEquals(result.localFact.family, MoveReviewLocalFact.Family.Timing, clue(result.localFact))
     assertEquals(result.explanation.shortLine.flatMap(_.lineId), Some("line_played"), clue(result.explanation.shortLine))
     assertEquals(result.explanation.shortLine.map(_.san), Some(List("d5", "e5", "e6", "Bd3", "c5")), clue(result.explanation.shortLine))
+    assert(
+      result.explanation.prose.contains("On the checked line, this also plays the ...d7-d5 break at this moment."),
+      clue(result.explanation.prose)
+    )
+    assert(!result.explanation.prose.contains("timing detail"), clue(result.explanation.prose))
   }
 
   test("delayed pawn capture line admits a PV-coupled line-consequence local fact") {
@@ -515,33 +559,7 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
           )
       )
     val tacticalTruth =
-      DecisiveTruthContract(
-        playedMove = Some("c8f5"),
-        verifiedBestMove = Some("e7e6"),
-        truthClass = DecisiveTruthClass.Acceptable,
-        cpLoss = 21,
-        swingSeverity = 0,
-        reasonFamily = DecisiveReasonKind.TacticalRefutation,
-        allowConcreteBenchmark = false,
-        chosenMatchesBest = false,
-        compensationAllowed = false,
-        truthPhase = None,
-        ownershipRole = TruthOwnershipRole.NoneRole,
-        visibilityRole = TruthVisibilityRole.PrimaryVisible,
-        surfaceMode = TruthSurfaceMode.Neutral,
-        exemplarRole = TruthExemplarRole.NonExemplar,
-        surfacedMoveOwnsTruth = false,
-        verifiedPayoffAnchor = None,
-        compensationProseAllowed = false,
-        benchmarkProseAllowed = false,
-        investmentTruthChainKey = None,
-        maintenanceExemplarCandidate = false,
-        benchmarkCriticalMove = false,
-        failureMode = FailureInterpretationMode.NoClearPlan,
-        failureIntentConfidence = 0.0,
-        failureIntentAnchor = None,
-        failureInterpretationAllowed = false
-      )
+      truthContract("c8f5", "e7e6", DecisiveTruthClass.Acceptable, 21, DecisiveReasonKind.TacticalRefutation)
 
     val result =
       MoveReviewExplanationBuilder
@@ -569,6 +587,101 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
     assertEquals(result.explanation.pvInterpretation.map(_.linePurpose), Some("clarify_delayed_capture"), clue(result.explanation))
     assertEquals(result.explanation.shortLine.flatMap(_.lineId), Some("line_02"), clue(result.explanation.shortLine))
     assertEquals(result.explanation.pvInterpretation.flatMap(_.supportedByLineId), Some("line_02"), clue(result.explanation))
+  }
+
+  test("actual acceptable Bf5 can surface delayed pawn capture only as line consequence") {
+    val fen = "rnbqkb1r/pp2pppp/2p2n2/8/P1pP4/2N2N2/1P2PPPP/R1BQKB1R b KQkq - 0 5"
+    val unownedUcis = List("e7e6", "e2e3", "c6c5", "f1c4", "c5d4", "e3d4", "f8b4", "e1g1", "e8g8")
+    val playedUcis = List("c8f5", "e2e3", "e7e6", "f1c4", "f8d6", "d1e2", "e8g8", "e1g1")
+    val combined =
+      MoveReviewRefs(
+        startFen = fen,
+        startPly = NarrativeUtils.plyFromFen(fen).map(_ + 1).getOrElse(1),
+        variations =
+          List(
+            variationForLine(
+              fen,
+              unownedUcis,
+              List("e6", "e3", "c5", "Bxc4", "cxd4", "exd4", "Bb4", "O-O", "O-O"),
+              "line_01"
+            ),
+            variationForLine(fen, playedUcis, List("Bf5", "e3", "e6", "Bxc4", "Bd6", "Qe2", "O-O", "O-O"), "line_02")
+          )
+      )
+    val quietTruth =
+      truthContract("c8f5", "e7e6", DecisiveTruthClass.Acceptable, 3, DecisiveReasonKind.QuietTechnicalMove)
+
+    val result =
+      MoveReviewExplanationBuilder
+        .buildWithLocalFact(
+          ctx(
+            fen = fen,
+            playedMove = "c8f5",
+            playedSan = "Bf5",
+            phase = "Opening",
+            ply = 10,
+            phaseReason = "actual Bf5 delayed capture line"
+          ),
+          Some(combined),
+          Some(quietTruth),
+          strictLocalFacts = true
+        )
+        .getOrElse(fail("expected acceptable Bf5 delayed capture line consequence"))
+
+    assertEquals(result.explanation.source, "line_consequence", clue(result.explanation))
+    assertEquals(result.localFact.family, MoveReviewLocalFact.Family.LineConsequence, clue(result.localFact))
+    assertEquals(result.localFact.producer, MoveReviewLocalFact.Producer.LineConsequence, clue(result.localFact))
+    assert(result.localFact.evidenceRefs.contains("line_consequence_kind:delayed_pawn_capture"), clue(result.localFact.evidenceRefs))
+    assert(!result.explanation.reasonTags.exists(_.contains("tactical")), clue(result.explanation.reasonTags))
+    assert(!result.explanation.reasonTags.exists(_.contains("defense")), clue(result.explanation.reasonTags))
+    assertEquals(result.explanation.shortLine.flatMap(_.lineId), Some("line_02"), clue(result.explanation.shortLine))
+  }
+
+  test("actual Qd7 can surface rook-path clearance only as line consequence") {
+    val fen = "r2q1rk1/ppp2ppp/1bnp1n2/8/4PBb1/2NP2P1/PPP1N1BP/R2Q1R1K b - - 0 10"
+    val playedUcis = List("d8d7", "d1d2", "a8e8", "a2a4", "f6h5", "a1e1")
+    val alternativeUcis = List("f6h5", "d1d2", "d8d7", "f4e3", "b6e3", "d2e3")
+    val combined =
+      MoveReviewRefs(
+        startFen = fen,
+        startPly = NarrativeUtils.plyFromFen(fen).map(_ + 1).getOrElse(1),
+        variations =
+          List(
+            variationForLine(fen, playedUcis, List("Qd7", "Qd2", "Rae8", "a4", "Nh5", "Rae1"), "line_01"),
+            variationForLine(fen, alternativeUcis, List("Nh5", "Qd2", "Qd7", "Be3", "Bxe3", "Qxe3"), "line_02")
+          )
+      )
+    val quietTruth =
+      truthContract("d8d7", "d8d7", DecisiveTruthClass.Best, 0, DecisiveReasonKind.QuietTechnicalMove, chosenMatchesBest = true)
+
+    val result =
+      MoveReviewExplanationBuilder
+        .buildWithLocalFact(
+          ctx(
+            fen = fen,
+            playedMove = "d8d7",
+            playedSan = "Qd7",
+            phase = "Middlegame",
+            ply = 20,
+            phaseReason = "actual Qd7 rook-path clearance"
+          ),
+          Some(combined),
+          Some(quietTruth),
+          strictLocalFacts = true
+        )
+        .getOrElse(fail("expected actual Qd7 origin-square clearance line consequence"))
+
+    assertEquals(result.explanation.source, "line_consequence", clue(result.explanation))
+    assertEquals(result.localFact.family, MoveReviewLocalFact.Family.LineConsequence, clue(result.localFact))
+    assertEquals(result.localFact.authority, MoveReviewLocalFact.Authority.PvCoupledLine, clue(result.localFact))
+    assert(result.localFact.evidenceRefs.contains("line_consequence_kind:origin_square_clearance"), clue(result.localFact.evidenceRefs))
+    assert(result.localFact.evidenceRefs.contains("line_consequence_line_id:line_01"), clue(result.localFact.evidenceRefs))
+    assert(result.localFact.evidenceRefs.contains("line_consequence_trigger_san:Rae8"), clue(result.localFact.evidenceRefs))
+    assertEquals(result.explanation.pvInterpretation.map(_.linePurpose), Some("show_origin_square_clearance"), clue(result.explanation))
+    assert(result.explanation.pvInterpretation.exists(_.learningPoint.contains("Qd7 clears d8")), clue(result.explanation))
+    assertEquals(result.explanation.shortLine.flatMap(_.lineId), Some("line_01"), clue(result.explanation.shortLine))
+    assert(!result.explanation.reasonTags.exists(_.contains("tactical")), clue(result.explanation.reasonTags))
+    assert(!result.explanation.reasonTags.exists(_.contains("defense")), clue(result.explanation.reasonTags))
   }
 
   test("line consequence support uses the certified consequence line id over the first shallow ref") {
@@ -626,35 +739,108 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
     assertEquals(result.explanation.pvInterpretation.flatMap(_.supportedByLineId), Some("line_04"), clue(result.explanation))
   }
 
+  test("actual quiet inaccuracy can surface a played-first exchange line consequence") {
+    val fen = "r1bq1rk1/ppp2ppp/1bnp1n2/4p3/4P3/2NP2P1/PPP1NPBP/R1BQ1RK1 w - - 2 8"
+    val line =
+      List(
+        "g1h1",
+        "f6g4",
+        "h1g1",
+        "f7f5",
+        "c3d5",
+        "g4f2",
+        "f1f2",
+        "b6f2",
+        "g1f2",
+        "f5f4",
+        "g3f4",
+        "e5f4",
+        "e2f4",
+        "g7g5",
+        "f2g1",
+        "g5f4",
+        "c1f4",
+        "c8e6",
+        "d1h5",
+        "e6d5",
+        "e4d5",
+        "c6d4"
+      )
+    val sans =
+      List(
+        "Kh1",
+        "Ng4",
+        "Kg1",
+        "f5",
+        "Nd5",
+        "Nxf2",
+        "Rxf2",
+        "Bxf2+",
+        "Kxf2",
+        "f4",
+        "gxf4",
+        "exf4",
+        "Nexf4",
+        "g5",
+        "Kg1",
+        "gxf4",
+        "Bxf4",
+        "Be6",
+        "Qh5",
+        "Bxd5",
+        "exd5",
+        "Nd4"
+      )
+    val quietInaccuracyTruth =
+      truthContract(
+        "g1h1",
+        "h2h3",
+        DecisiveTruthClass.Inaccuracy,
+        58,
+        DecisiveReasonKind.QuietTechnicalMove,
+        failureMode = FailureInterpretationMode.QuietPositionalCollapse
+      )
+
+    val result =
+      MoveReviewExplanationBuilder
+        .buildWithLocalFact(
+          ctx(
+            fen = fen,
+            playedMove = "g1h1",
+            playedSan = "Kh1",
+            phase = "Opening",
+            ply = 15,
+            phaseReason = "actual Kh1 exchange sequence"
+          ),
+          Some(refsForLine(fen, line, sans, "line_04")),
+          Some(quietInaccuracyTruth),
+          strictLocalFacts = true
+        )
+        .getOrElse(fail("expected actual Kh1 exchange line consequence"))
+
+    assertEquals(result.explanation.source, "line_consequence", clue(result.explanation))
+    assertEquals(result.localFact.family, MoveReviewLocalFact.Family.LineConsequence, clue(result.localFact))
+    assertEquals(result.localFact.producer, MoveReviewLocalFact.Producer.LineConsequence, clue(result.localFact))
+    assertEquals(result.localFact.lineBinding, MoveReviewLocalFact.LineBinding.PvCoupled, clue(result.localFact))
+    assert(result.localFact.evidenceRefs.contains("line_consequence_kind:exchange_sequence"), clue(result.localFact.evidenceRefs))
+    assert(!result.localFact.guardrails.exists(_.contains("forced")), clue(result.localFact.guardrails))
+    assert(!result.explanation.reasonTags.exists(_.contains("tactical")), clue(result.explanation.reasonTags))
+    assert(!result.explanation.reasonTags.exists(_.contains("defense")), clue(result.explanation.reasonTags))
+    assert(result.explanation.prose.contains("checked exchange sequence"), clue(result.explanation.prose))
+    assertEquals(result.explanation.shortLine.flatMap(_.lineId), Some("line_04"), clue(result.explanation.shortLine))
+  }
+
   test("immediate opponent pawn capture is admitted as a line-consequence local fact") {
     val fen = "3q1rk1/2p2ppp/1p1p1n2/B3p3/4P3/5N2/2P2PPP/1R3QK1 w - - 0 18"
     val tacticalTruth =
-      DecisiveTruthContract(
-        playedMove = Some("a5e1"),
-        verifiedBestMove = Some("a5b4"),
-        truthClass = DecisiveTruthClass.Inaccuracy,
-        cpLoss = 92,
+      truthContract(
+        "a5e1",
+        "a5b4",
+        DecisiveTruthClass.Inaccuracy,
+        92,
+        DecisiveReasonKind.TacticalRefutation,
         swingSeverity = 1,
-        reasonFamily = DecisiveReasonKind.TacticalRefutation,
-        allowConcreteBenchmark = false,
-        chosenMatchesBest = false,
-        compensationAllowed = false,
-        truthPhase = None,
-        ownershipRole = TruthOwnershipRole.NoneRole,
-        visibilityRole = TruthVisibilityRole.PrimaryVisible,
-        surfaceMode = TruthSurfaceMode.Neutral,
-        exemplarRole = TruthExemplarRole.NonExemplar,
-        surfacedMoveOwnsTruth = false,
-        verifiedPayoffAnchor = None,
-        compensationProseAllowed = false,
-        benchmarkProseAllowed = false,
-        investmentTruthChainKey = None,
-        maintenanceExemplarCandidate = false,
-        benchmarkCriticalMove = false,
-        failureMode = FailureInterpretationMode.TacticalRefutation,
-        failureIntentConfidence = 0.0,
-        failureIntentAnchor = None,
-        failureInterpretationAllowed = false
+        failureMode = FailureInterpretationMode.TacticalRefutation
       )
     val result =
       MoveReviewExplanationBuilder
@@ -685,32 +871,14 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
   test("immediate opponent king-zone pressure is admitted as a line-consequence local fact") {
     val fen = "r1bq1rk1/ppp2ppp/1bnp1n2/4p3/4P3/2NP2P1/PPP1NPBP/R1BQ1RK1 w - - 2 8"
     val tacticalTruth =
-      DecisiveTruthContract(
-        playedMove = Some("g1h1"),
-        verifiedBestMove = Some("c3a4"),
-        truthClass = DecisiveTruthClass.Inaccuracy,
-        cpLoss = 88,
+      truthContract(
+        "g1h1",
+        "c3a4",
+        DecisiveTruthClass.Inaccuracy,
+        88,
+        DecisiveReasonKind.TacticalRefutation,
         swingSeverity = 1,
-        reasonFamily = DecisiveReasonKind.TacticalRefutation,
-        allowConcreteBenchmark = false,
-        chosenMatchesBest = false,
-        compensationAllowed = false,
-        truthPhase = None,
-        ownershipRole = TruthOwnershipRole.NoneRole,
-        visibilityRole = TruthVisibilityRole.PrimaryVisible,
-        surfaceMode = TruthSurfaceMode.Neutral,
-        exemplarRole = TruthExemplarRole.NonExemplar,
-        surfacedMoveOwnsTruth = false,
-        verifiedPayoffAnchor = None,
-        compensationProseAllowed = false,
-        benchmarkProseAllowed = false,
-        investmentTruthChainKey = None,
-        maintenanceExemplarCandidate = false,
-        benchmarkCriticalMove = false,
-        failureMode = FailureInterpretationMode.TacticalRefutation,
-        failureIntentConfidence = 0.0,
-        failureIntentAnchor = None,
-        failureInterpretationAllowed = false
+        failureMode = FailureInterpretationMode.TacticalRefutation
       )
     val result =
       MoveReviewExplanationBuilder
@@ -743,33 +911,7 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
   test("played-move target pressure is admitted as a PV-coupled line-consequence local fact") {
     val fen = "2r3k1/p4p1p/1qp3p1/2R5/3pr3/1PQ3P1/P4P1P/5BK1 w - - 0 23"
     val quietTruth =
-      DecisiveTruthContract(
-        playedMove = Some("c3c4"),
-        verifiedBestMove = Some("c3c4"),
-        truthClass = DecisiveTruthClass.Acceptable,
-        cpLoss = 4,
-        swingSeverity = 0,
-        reasonFamily = DecisiveReasonKind.InvestmentSacrifice,
-        allowConcreteBenchmark = false,
-        chosenMatchesBest = false,
-        compensationAllowed = false,
-        truthPhase = None,
-        ownershipRole = TruthOwnershipRole.NoneRole,
-        visibilityRole = TruthVisibilityRole.PrimaryVisible,
-        surfaceMode = TruthSurfaceMode.Neutral,
-        exemplarRole = TruthExemplarRole.NonExemplar,
-        surfacedMoveOwnsTruth = false,
-        verifiedPayoffAnchor = None,
-        compensationProseAllowed = false,
-        benchmarkProseAllowed = false,
-        investmentTruthChainKey = None,
-        maintenanceExemplarCandidate = false,
-        benchmarkCriticalMove = false,
-        failureMode = FailureInterpretationMode.NoClearPlan,
-        failureIntentConfidence = 0.0,
-        failureIntentAnchor = None,
-        failureInterpretationAllowed = false
-      )
+      truthContract("c3c4", "c3c4", DecisiveTruthClass.Acceptable, 4, DecisiveReasonKind.InvestmentSacrifice)
     val result =
       MoveReviewExplanationBuilder
         .buildWithLocalFact(
@@ -831,7 +973,7 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
     assert(result.explanation.reasonTags.contains("relation_kind:fork"), clue(result.explanation.reasonTags))
   }
 
-  test("capture that clears a discovered attack admits a typed relation witness") {
+  test("queen capture that does not clear a legal ray does not admit a discovered-attack relation witness") {
     val fen = "2r1kr2/p1Qbbp1p/7p/8/2B5/3P2P1/PPP3P1/RN3R1K w - - 1 17"
     val line = List("c7a7", "h6h5", "b1d2", "f8g8")
     val result =
@@ -846,14 +988,46 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
           ),
           Some(refsForLine(fen, line, List("Qxa7", "h5", "Nd2", "Rg8")))
         )
-        .getOrElse(fail("expected discovered-attack relation witness"))
+
+    assertEquals(result, None)
+  }
+
+  test("actual Nfd7 discovered attack relation survives an unrelated planner focal target") {
+    val fen = "rn1qk2r/pp2ppbp/2p2np1/4P3/2P2P2/2N2Q2/PP4PP/R1B1KB1R b KQkq - 0 9"
+    val line = List("f6d7", "c1e3", "b8a6", "f1e2", "d8a5", "e1g1", "e8c8", "g1h1", "f7f6")
+    val context =
+      ctx(
+        fen = fen,
+        playedMove = "f6d7",
+        playedSan = "Nfd7",
+        ply = 18,
+        phaseReason = "actual Nfd7 discovered attack",
+        engineEvidence = Some(EngineEvidence(depth = 10, variations = List(VariationLine(moves = line, scoreCp = 185, depth = 10))))
+      ).copy(
+        decision = Some(
+          DecisionRationale(
+            focalPoint = Some(TargetSquare("d1")),
+            logicSummary = "Probe counterplay elsewhere.",
+            delta = PVDelta(Nil, Nil, Nil, Nil),
+            confidence = ConfidenceLevel.Engine
+          )
+        )
+      )
+
+    val result =
+      MoveReviewExplanationBuilder
+        .buildWithLocalFact(
+          context,
+          Some(refsForLine(fen, line, List("Nfd7", "Be3", "Na6", "Be2", "Qa5", "O-O", "O-O-O", "Kh1", "f6")))
+        )
+        .getOrElse(fail("expected Nfd7 discovered-attack relation witness despite unrelated planner target"))
 
     assertEquals(result.explanation.source, "relation_witness", clue(result.explanation))
     assertEquals(result.localFact.family, MoveReviewLocalFact.Family.Threat, clue(result.localFact))
     assertEquals(result.localFact.producer, MoveReviewLocalFact.Producer.RelationWitness, clue(result.localFact))
     assertEquals(result.localFact.relationSurface, Some(RelationSurfaceRowKind.TacticalRelation), clue(result.localFact))
     assert(result.explanation.reasonTags.contains("relation_kind:discovered_attack"), clue(result.explanation.reasonTags))
-    assert(result.explanation.reasonTags.contains("relation_fact:cleared_square:c7"), clue(result.explanation.reasonTags))
+    assert(result.explanation.reasonTags.contains("relation_fact:cleared_square:f6"), clue(result.explanation.reasonTags))
     assert(result.localFact.guardrails.contains("fen_validated_line_replayed"), clue(result.localFact.guardrails))
   }
 
@@ -1035,6 +1209,79 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
     assert(result.explanation.prose.contains("rook pawn to h4 for flank space"), clue(result.explanation.prose))
   }
 
+  test("line-occupation strategy does not admit actual Nf6 knight move as practical position pressure") {
+    val fen = "rn2rbk1/3q1pp1/3p3p/1p1P1b1n/p2N4/P4P1P/BP1N1BP1/2RQ1RK1 b - - 4 21"
+    val strategyPack =
+      StrategyPack(
+        sideToMove = "black",
+        strategicIdeas =
+          List(
+            StrategyIdeaSignal(
+              ideaId = "idea_actual_nf6_line_occupation",
+              ownerSide = "black",
+              kind = StrategicIdeaKind.LineOccupation,
+              group = StrategicIdeaGroup.PieceAndLineManagement,
+              readiness = StrategicIdeaReadiness.Ready,
+              focusSquares = List("e8", "c6", "e3"),
+              focusFiles = List("e", "c"),
+              confidence = 0.98,
+              evidenceRefs =
+                List(
+                  "source:route_line_access",
+                  "open_file_e",
+                  "open_file_c",
+                  "source:occupied_line_control",
+                  "occupied_r_e8",
+                  "source:open_file_control",
+                  "source:directional_line_access",
+                  "directional_line_access_shape"
+                ),
+              targetSquare = Some("f6")
+            )
+          )
+      )
+    val result =
+      MoveReviewExplanationBuilder.buildWithLocalFact(
+        ctx(
+          fen = fen,
+          playedMove = "h5f6",
+          playedSan = "Nf6",
+          phase = "Middlegame",
+          ply = 42,
+          phaseReason = "actual tactical-turn Nf6 row"
+        ),
+        Some(refsForLine(fen, List("h5f6", "f2h4", "g7g5", "h4f2", "f5g6"), List("Nf6", "Bh4", "g5", "Bf2", "Bg6"))),
+        strategyPack = Some(strategyPack)
+      )
+
+    assert(!result.exists(_.explanation.source == "practical_position_support"), clue(result))
+  }
+
+  test("actual Nf6 admits board-backed pressure on the advanced d5 pawn") {
+    val fen = "rn2rbk1/3q1pp1/3p3p/1p1P1b1n/p2N4/P4P1P/BP1N1BP1/2RQ1RK1 b - - 4 21"
+    val result =
+      MoveReviewExplanationBuilder
+        .buildWithLocalFact(
+          ctx(
+            fen = fen,
+            playedMove = "h5f6",
+            playedSan = "Nf6",
+            phase = "Middlegame",
+            ply = 42,
+            phaseReason = "actual tactical-turn Nf6 row"
+          ),
+          Some(refsForLine(fen, List("h5f6", "f2h4", "g7g5", "h4f2", "f5g6"), List("Nf6", "Bh4", "g5", "Bf2", "Bg6")))
+        )
+        .getOrElse(fail("expected board-backed Nf6 target pressure"))
+
+    assertEquals(result.localFact.family, MoveReviewLocalFact.Family.Pressure, clue(result.localFact))
+    assertEquals(result.localFact.producer, MoveReviewLocalFact.Producer.TargetPressure, clue(result.localFact))
+    assert(result.localFact.evidenceRefs.contains("fact_square:d5"), clue(result.localFact.evidenceRefs))
+    assert(result.localFact.evidenceRefs.contains("fact_role:pawn"), clue(result.localFact.evidenceRefs))
+    assert(result.localFact.guardrails.contains("post_move_static_target"), clue(result.localFact.guardrails))
+    assert(result.explanation.prose.contains("attacks the pawn on d5"), clue(result.explanation.prose))
+  }
+
   test("strict local fact mode keeps only played-move-owned target pressure") {
     val fen = "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2"
     val ownedTarget =
@@ -1064,32 +1311,14 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
     val targetFact =
       Fact.TargetPiece(Square.E4, Pawn, List(Square.F3), Nil, FactScope.ThreatLine)
     val defenseContract =
-      DecisiveTruthContract(
-        playedMove = Some("d2d3"),
-        verifiedBestMove = Some("d2d3"),
-        truthClass = DecisiveTruthClass.Best,
-        cpLoss = 0,
-        swingSeverity = 0,
-        reasonFamily = DecisiveReasonKind.OnlyMoveDefense,
-        allowConcreteBenchmark = false,
+      truthContract(
+        "d2d3",
+        "d2d3",
+        DecisiveTruthClass.Best,
+        0,
+        DecisiveReasonKind.OnlyMoveDefense,
         chosenMatchesBest = true,
-        compensationAllowed = false,
-        truthPhase = None,
-        ownershipRole = TruthOwnershipRole.NoneRole,
-        visibilityRole = TruthVisibilityRole.PrimaryVisible,
-        surfaceMode = TruthSurfaceMode.Neutral,
-        exemplarRole = TruthExemplarRole.NonExemplar,
-        surfacedMoveOwnsTruth = false,
-        verifiedPayoffAnchor = None,
-        compensationProseAllowed = false,
-        benchmarkProseAllowed = false,
-        investmentTruthChainKey = None,
-        maintenanceExemplarCandidate = false,
-        benchmarkCriticalMove = true,
-        failureMode = FailureInterpretationMode.NoClearPlan,
-        failureIntentConfidence = 0.0,
-        failureIntentAnchor = None,
-        failureInterpretationAllowed = false
+        benchmarkCriticalMove = true
       )
     val noPv =
       MoveReviewExplanationBuilder.build(
@@ -1119,32 +1348,14 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
     val targetFact =
       Fact.TargetPiece(Square.A8, Knight, List(Square.B7), Nil, FactScope.ThreatLine)
     val defenseContract =
-      DecisiveTruthContract(
-        playedMove = Some("a6b7"),
-        verifiedBestMove = Some("a6b7"),
-        truthClass = DecisiveTruthClass.Best,
-        cpLoss = 0,
-        swingSeverity = 0,
-        reasonFamily = DecisiveReasonKind.OnlyMoveDefense,
-        allowConcreteBenchmark = false,
+      truthContract(
+        "a6b7",
+        "a6b7",
+        DecisiveTruthClass.Best,
+        0,
+        DecisiveReasonKind.OnlyMoveDefense,
         chosenMatchesBest = true,
-        compensationAllowed = false,
-        truthPhase = None,
-        ownershipRole = TruthOwnershipRole.NoneRole,
-        visibilityRole = TruthVisibilityRole.PrimaryVisible,
-        surfaceMode = TruthSurfaceMode.Neutral,
-        exemplarRole = TruthExemplarRole.NonExemplar,
-        surfacedMoveOwnsTruth = false,
-        verifiedPayoffAnchor = None,
-        compensationProseAllowed = false,
-        benchmarkProseAllowed = false,
-        investmentTruthChainKey = None,
-        maintenanceExemplarCandidate = false,
-        benchmarkCriticalMove = true,
-        failureMode = FailureInterpretationMode.NoClearPlan,
-        failureIntentConfidence = 0.0,
-        failureIntentAnchor = None,
-        failureInterpretationAllowed = false
+        benchmarkCriticalMove = true
       )
     val context =
       ctx(

@@ -675,6 +675,12 @@ object CommentaryQualitySupport:
       entry: CommentaryPlayerQcSupport.MoveReviewOutputEntry
   ): SurfaceThresholdRow =
     val candidateText = normalizeText(entry.commentary)
+    val surfaceOutcome = entry.surfaceReplayOutcome.getOrElse(entry.moveReviewFallbackMode)
+    val blankLike = blankLikeText(candidateText)
+    val exactFactualSurface =
+      CommentaryPlayerQcSupport.MoveReviewFallbackMode.isExactFactual(entry.moveReviewFallbackMode)
+    val plannerOwnedSurface =
+      CommentaryPlayerQcSupport.MoveReviewFallbackMode.isPlannerOwned(entry.moveReviewFallbackMode)
     val upstreamAllowanceTag = None
     val questionAligned = alignedOption(entry.plannerSelectedQuestion, entry.plannerSelectedQuestion)
     val ownerAligned =
@@ -683,15 +689,15 @@ object CommentaryQualitySupport:
     val rubric =
       thresholdRubric(
         candidateText = candidateText,
-        blankLike = blankLikeText(candidateText),
+        blankLike = blankLike,
         plannerQuestion = entry.plannerSelectedQuestion,
         plannerProofFamily = entry.plannerSelectedOwnerKind,
         plannerProofSource = entry.plannerSelectedSource,
         surfaceQuestion = entry.plannerSelectedQuestion,
         surfaceProofFamily = entry.plannerSelectedOwnerKind,
         surfaceProofSource = entry.plannerSelectedSource,
-        surfaceOutcome = entry.surfaceReplayOutcome.getOrElse(entry.moveReviewFallbackMode),
-        exactFactual = entry.moveReviewFallbackMode == "exact_factual"
+        surfaceOutcome = surfaceOutcome,
+        exactFactual = exactFactualSurface
       )
     SurfaceThresholdRow(
       sampleId = entry.sampleId,
@@ -701,7 +707,7 @@ object CommentaryQualitySupport:
       targetPly = entry.targetPly,
       playedSan = entry.playedSan,
       candidateText = candidateText,
-      surfaceOutcome = entry.surfaceReplayOutcome.getOrElse(entry.moveReviewFallbackMode),
+      surfaceOutcome = surfaceOutcome,
       plannerQuestion = entry.plannerSelectedQuestion,
       plannerProofFamily = entry.plannerSelectedOwnerKind,
       plannerProofSource = entry.plannerSelectedSource,
@@ -715,18 +721,18 @@ object CommentaryQualitySupport:
       plannerOwnerAligned = ownerAligned,
       crossSurfaceQuestionDisagreement = false,
       crossSurfaceOwnerDisagreement = false,
-      blankLike = blankLikeText(candidateText),
+      blankLike = blankLike,
       rubric = rubric,
       selection = evaluateSelection(rubric),
       evidenceNotes =
         List(
-          Option.when(entry.moveReviewFallbackMode == "exact_factual")("exact_factual_surface"),
-          Option.when(entry.moveReviewFallbackMode == "planner_owned")("planner_owned_surface")
+          Option.when(exactFactualSurface)("exact_factual_surface"),
+          Option.when(plannerOwnedSurface)("planner_owned_surface")
         ).flatten,
       flags =
         List(
-          Option.when(entry.moveReviewFallbackMode == "exact_factual")("fallback_like"),
-          Option.when(blankLikeText(candidateText))("blank_like")
+          Option.when(exactFactualSurface)("fallback_like"),
+          Option.when(blankLike)("blank_like")
         ).flatten
     )
 
@@ -842,7 +848,11 @@ object CommentaryQualitySupport:
     ).exists(normalized.contains)
 
   private def isFallbackLike(surfaceOutcome: String): Boolean =
-    Set("factual_fallback", "exact_factual", "move_review_exact_factual")
+    Set(
+      CommentaryPlayerQcSupport.MoveReviewFallbackMode.FactualFallback,
+      CommentaryPlayerQcSupport.MoveReviewFallbackMode.ExactFactual,
+      CommentaryPlayerQcSupport.MoveReviewFallbackMode.ReplayExactFactual
+    )
       .contains(surfaceOutcome)
 
   private def normalizeText(raw: String): String =
@@ -1182,8 +1192,10 @@ object CommentaryQualitySupport:
       outcome: Option[String]
   ): Option[String] =
     outcome.map {
-      case "move_review_planner_owned" => "planner_owned"
-      case "move_review_exact_factual" => "factual_fallback"
+      case CommentaryPlayerQcSupport.MoveReviewFallbackMode.ReplayPlannerOwned =>
+        CommentaryPlayerQcSupport.MoveReviewFallbackMode.PlannerOwned
+      case CommentaryPlayerQcSupport.MoveReviewFallbackMode.ReplayExactFactual =>
+        CommentaryPlayerQcSupport.MoveReviewFallbackMode.FactualFallback
       case other                     => other
     }
 

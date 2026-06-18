@@ -164,32 +164,66 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
       playedMove: String = "h2h3",
       bestMove: String = "e2e4"
   ): DecisiveTruthContract =
-    DecisiveTruthContract(
+    truthContract(
       playedMove = Some(playedMove),
       verifiedBestMove = Some(bestMove),
       truthClass = DecisiveTruthClass.Blunder,
       cpLoss = 300,
       swingSeverity = 300,
       reasonFamily = DecisiveReasonKind.TacticalRefutation,
-      allowConcreteBenchmark = false,
-      chosenMatchesBest = false,
+      ownershipRole = TruthOwnershipRole.BlunderOwner,
+      surfaceMode = TruthSurfaceMode.FailureExplain,
+      surfacedMoveOwnsTruth = true,
+      failureMode = FailureInterpretationMode.TacticalRefutation,
+      failureIntentConfidence = 0.9,
+      failureInterpretationAllowed = true
+    )
+
+  private def truthContract(
+      playedMove: Option[String],
+      verifiedBestMove: Option[String],
+      truthClass: DecisiveTruthClass,
+      cpLoss: Int,
+      reasonFamily: DecisiveReasonKind,
+      swingSeverity: Int = 0,
+      allowConcreteBenchmark: Boolean = false,
+      chosenMatchesBest: Boolean = false,
+      ownershipRole: TruthOwnershipRole = TruthOwnershipRole.NoneRole,
+      visibilityRole: TruthVisibilityRole = TruthVisibilityRole.PrimaryVisible,
+      surfaceMode: TruthSurfaceMode = TruthSurfaceMode.Neutral,
+      exemplarRole: TruthExemplarRole = TruthExemplarRole.NonExemplar,
+      surfacedMoveOwnsTruth: Boolean = false,
+      benchmarkCriticalMove: Boolean = false,
+      failureMode: FailureInterpretationMode = FailureInterpretationMode.NoClearPlan,
+      failureIntentConfidence: Double = 0.0,
+      failureInterpretationAllowed: Boolean = false
+  ): DecisiveTruthContract =
+    DecisiveTruthContract(
+      playedMove = playedMove,
+      verifiedBestMove = verifiedBestMove,
+      truthClass = truthClass,
+      cpLoss = cpLoss,
+      swingSeverity = swingSeverity,
+      reasonFamily = reasonFamily,
+      allowConcreteBenchmark = allowConcreteBenchmark,
+      chosenMatchesBest = chosenMatchesBest,
       compensationAllowed = false,
       truthPhase = None,
-      ownershipRole = TruthOwnershipRole.BlunderOwner,
-      visibilityRole = TruthVisibilityRole.PrimaryVisible,
-      surfaceMode = TruthSurfaceMode.FailureExplain,
-      exemplarRole = TruthExemplarRole.NonExemplar,
-      surfacedMoveOwnsTruth = true,
+      ownershipRole = ownershipRole,
+      visibilityRole = visibilityRole,
+      surfaceMode = surfaceMode,
+      exemplarRole = exemplarRole,
+      surfacedMoveOwnsTruth = surfacedMoveOwnsTruth,
       verifiedPayoffAnchor = None,
       compensationProseAllowed = false,
       benchmarkProseAllowed = false,
       investmentTruthChainKey = None,
       maintenanceExemplarCandidate = false,
-      benchmarkCriticalMove = false,
-      failureMode = FailureInterpretationMode.TacticalRefutation,
-      failureIntentConfidence = 0.9,
+      benchmarkCriticalMove = benchmarkCriticalMove,
+      failureMode = failureMode,
+      failureIntentConfidence = failureIntentConfidence,
       failureIntentAnchor = None,
-      failureInterpretationAllowed = true
+      failureInterpretationAllowed = failureInterpretationAllowed
     )
 
   test("basic lane stays closed when no primitive is safe and exact factual fallback remains") {
@@ -979,6 +1013,118 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     assertEquals(causalTrace.flatMap(_.localFactAuthority), Some("pv_coupled_line"))
     assertEquals(causalTrace.flatMap(_.localFactProducer), Some("relation_witness"))
     assert(causalTrace.exists(_.evidenceSources.contains("relation_witness")), clues(causalTrace))
+  }
+
+  test("actual Bg6 only-move line consequence does not re-add generic only-move support") {
+    val fen = "1r1q1rk1/ppp2ppp/2n1pb2/3p1b2/3P2P1/1QP1PN1P/PP1N1P2/R3KB1R b KQ - 0 11"
+    val ctx =
+      quietH3Ctx.copy(
+        fen = fen,
+        header = ContextHeader("Middlegame", "Normal", "OnlyMove", "High", "MoveReview"),
+        ply = 22,
+        playedMove = Some("f5g6"),
+        playedSan = Some("Bg6"),
+        summary = NarrativeSummary("actual Bg6 only move", None, "OnlyMove", "Maintain", "0.00"),
+        phase = PhaseContext("Middlegame", "actual Bg6 only move")
+      )
+    val refs =
+      refsForLine(
+        fen,
+        List("f5g6", "h3h4", "h7h5", "g4h5", "g6h5", "b3c2", "g7g6"),
+        List("Bg6", "h4", "h5", "gxh5", "Bxh5", "Qc2", "g6")
+      )
+    val claim =
+      "The timing matters now because the checked line reaches an exchange sequence after gxh5. " +
+        "The decision is about the resulting structure: White with an isolated pawn on h4."
+    val primary =
+      QuestionPlan(
+        questionId = "q_bg6_only_move_line_context_surface",
+        questionKind = AuthorQuestionKind.WhyNow,
+        priority = 100,
+        claim = claim,
+        evidence = None,
+        contrast = None,
+        consequence = None,
+        fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
+        strengthTier = QuestionPlanStrengthTier.Strong,
+        sourceKinds = List("only_move_defense", "line_consequence", "line_consequence_kind:ExchangeSequence"),
+        admissibilityReasons = List("only_move_supported_local_context", "only_move_line_consequence_context"),
+        plannerOwnerKind = PlannerOwnerKind.ForcingDefense,
+        plannerSource = "only_move_defense"
+      )
+    val inputs =
+      QuestionPlannerInputs(
+        mainBundle = None,
+        quietIntent = None,
+        decisionFrame = CertifiedDecisionFrame(),
+        decisionComparison =
+          Some(
+            DecisionComparison(
+              chosenMove = Some("Bg6"),
+              engineBestMove = Some("Bg6"),
+              engineBestScoreCp = Some(-35),
+              engineBestPv = List("Bg6", "h4", "h5", "gxh5"),
+              cpLossVsChosen = None,
+              deferredMove = None,
+              deferredReason = None,
+              deferredSource = None,
+              evidence = None,
+              practicalAlternative = false,
+              chosenMatchesBest = true
+            )
+          ),
+        alternativeNarrative = None,
+        truthMode = PlayerFacingTruthMode.Strategic,
+        preventedPlansNow = Nil,
+        pvDelta = None,
+        counterfactual = None,
+        practicalAssessment = None,
+        opponentThreats = Nil,
+        forcingThreats = Nil,
+        evidenceByQuestionId = Map.empty,
+        candidateEvidenceLines = Nil,
+        evidenceBackedPlans = Nil,
+        opponentPlan = None,
+        factualFallback = None
+      )
+    val contract =
+      truthContract(
+        playedMove = Some("f5g6"),
+        verifiedBestMove = Some("f5g6"),
+        truthClass = DecisiveTruthClass.Best,
+        cpLoss = 0,
+        reasonFamily = DecisiveReasonKind.OnlyMoveDefense,
+        allowConcreteBenchmark = true,
+        chosenMatchesBest = true,
+        exemplarRole = TruthExemplarRole.VerifiedExemplar,
+        surfacedMoveOwnsTruth = true,
+        benchmarkCriticalMove = true
+      )
+    val ranked = RankedQuestionPlans(primary = Some(primary), secondary = None, rejected = Nil)
+    val slots =
+      MoveReviewCompressionPolicy.buildSlotsOrFallbackFromPlannerRuntime(
+        ctx,
+        inputs,
+        ranked,
+        strategyPack = None,
+        truthContract = Some(contract),
+        refs = Some(refs)
+      )
+    val causalTrace =
+      MoveReviewCompressionPolicy.causalClaimTrace(
+        ctx,
+        inputs,
+        ranked,
+        truthContract = Some(contract),
+        refs = Some(refs)
+      )
+
+    val rendered = List(Some(slots.claim), slots.supportPrimary, slots.supportSecondary, slots.tension, slots.evidenceHook, slots.coda).flatten
+    assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.Planner)
+    assert(rendered.exists(_.contains("gxh5")), clues(slots))
+    assert(rendered.exists(_.contains("isolated pawn on h4")), clues(slots))
+    assert(rendered.forall(!_.contains("Only the played move still keeps the position together now")), clues(rendered))
+    assert(causalTrace.exists(_.evidenceSources.contains("line_consequence_surface")), clues(causalTrace))
   }
 
   test("planner-owned typed local fact preserves reviewed-move short-line support") {
@@ -2100,6 +2246,29 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     assert(causalTrace.exists(_.localFactEvidenceRefs.contains("plan_anchor_matched_token:a6")), clues(causalTrace))
   }
 
+  test("planner builder can match pv-coupled plan anchors on a later played-first evidence line") {
+    val ctx =
+      quietH3Ctx.copy(
+        playedSan = Some("Nb5"),
+        playedMove = Some("c3b5"),
+        authorQuestions = List(whatChangedQuestion()),
+        decision = Some(DecisionRationale(None, "checked line", PVDelta(Nil, Nil, Nil, Nil), ConfidenceLevel.Engine)),
+        strategicPlanEvidence = pvCoupledPlanEvidence("Opening Development and Center Control")
+      )
+    val candidateEvidence =
+      List(
+        "The checked line continues Nb5 Na6 Bc4 Nf6.",
+        "Short line: Nb5 Na6 Bc4 Nf6 d6.",
+        "Further probe work still targets Opening Development and Center Control through d6 and Nb1."
+      )
+    val inputs = QuestionPlannerInputsBuilder.build(ctx, strategyPack = None, truthContract = None, candidateEvidence)
+    val support = inputs.pvCoupledPlanSupport.getOrElse(fail("missing pv-coupled support"))
+
+    assertEquals(support.anchorMatched, true, clues(support))
+    assertEquals(support.evidenceLine, "Short line: Nb5 Na6 Bc4 Nf6 d6.", clues(support))
+    assertEquals(support.matchedAnchorTokens, List("d6"), clues(support))
+  }
+
   test("admitted claim packet promotes into CausalFrame evidence before local fact admission") {
     val packet = supportedNeutralizePacketForPromotion
     val primary =
@@ -2444,6 +2613,124 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     assert(slots.factGuardrails.exists(_.contains("local_fact_producer=line_consequence")), clues(slots.factGuardrails))
   }
 
+  test("line-consequence primary does not promote broad discovered-attack local fact as support prose") {
+    val fen = "rn1qkb1r/pp2pppp/2p2n2/5b2/P1pP4/2N2N2/1P2PPPP/R1BQKB1R w KQkq - 1 6"
+    val ctx =
+      quietH3Ctx.copy(
+        fen = fen,
+        ply = 11,
+        playedMove = Some("e2e3"),
+        playedSan = Some("e3"),
+        phase = PhaseContext("Opening", "Slav Defense")
+      )
+    val consequence =
+      LineConsequenceEvidence(
+        lineId = Some("line_03"),
+        sanMoves = List("e3", "e6", "Bxc4", "Bb4", "O-O"),
+        uciMoves = List("e2e3", "e7e6", "f1c4", "f8b4", "e1g1"),
+        scoreCp = Some(27),
+        mate = None,
+        depth = Some(10),
+        windowPly = 5,
+        kind = LineConsequenceKind.DelayedPawnCapture,
+        triggerSan = Some("Bxc4"),
+        consequence = "The checked line reaches a delayed pawn capture after Bxc4.",
+        whyItMatters = Some("The point is the later pawn capture, not just the first move."),
+        release = LineConsequenceRelease.SurfaceCandidate,
+        rejectReasons = Nil
+      )
+    val tacticalLocalFact =
+      MoveReviewLocalFact.admitted(
+        MoveReviewLocalFact.Candidate(
+          family = MoveReviewLocalFact.Family.Threat,
+          source = MoveReviewLocalFact.Source.CanonicalFact,
+          producer = MoveReviewLocalFact.Producer.TacticalMotif,
+          subject = MoveReviewLocalFact.Subject.LineOrReply,
+          strictFallbackCandidate = true,
+          anchors = List(MoveReviewLocalFact.Anchor("tactical_kind", "discovered_attack")),
+          lineBinding = MoveReviewLocalFact.LineBinding.PvCoupled,
+          evidenceRefs = List(
+            "typed_local_fact_source:canonical_fact",
+            "typed_local_fact_family:threat",
+            "typed_local_fact_producer:tactical_motif",
+            "tactical_kind:discovered_attack"
+          ),
+          guardrails = List("tactical_kind:discovered_attack", "current_move_motif_owned", "pv_confirms_tactic")
+        )
+      )
+    val tacticalResult =
+      MoveReviewExplanationBuilder.Result(
+        explanation =
+          MoveReviewExplanation(
+            title = "e3 opens a discovered attack",
+            prose = "e3 opens a discovered attack from the f1 bishop toward the c4 pawn.",
+            source = "canonical_fact"
+          ),
+        localFact = tacticalLocalFact
+      )
+    val primary =
+      QuestionPlan(
+        questionId = "q_e3_delayed_capture",
+        questionKind = AuthorQuestionKind.WhatChanged,
+        priority = 100,
+        claim = "The move is connected to a line consequence.",
+        evidence =
+          Some(
+            QuestionPlanEvidence(
+              text = "Short line: e3 e6 Bxc4 Bb4 O-O.",
+              purposes = List("reply_multipv"),
+              sourceKinds = List("line_consequence"),
+              branchScoped = true
+            )
+          ),
+        contrast = None,
+        consequence = None,
+        fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
+        strengthTier = QuestionPlanStrengthTier.Exact,
+        sourceKinds = List("line_consequence"),
+        admissibilityReasons = List("pv_line_consequence", "move_attributed_change"),
+        plannerOwnerKind = PlannerOwnerKind.LineConsequence,
+        plannerSource = "line_consequence"
+      )
+    val inputs =
+      QuestionPlannerInputs(
+        mainBundle = None,
+        quietIntent = None,
+        decisionFrame = CertifiedDecisionFrame(),
+        decisionComparison = None,
+        alternativeNarrative = None,
+        truthMode = PlayerFacingTruthMode.Strategic,
+        preventedPlansNow = Nil,
+        pvDelta = None,
+        counterfactual = None,
+        practicalAssessment = None,
+        opponentThreats = Nil,
+        forcingThreats = Nil,
+        evidenceByQuestionId = Map.empty,
+        candidateEvidenceLines = Nil,
+        evidenceBackedPlans = Nil,
+        opponentPlan = None,
+        factualFallback = None,
+        lineConsequence = Some(consequence),
+        localFactResult = Some(tacticalResult)
+      )
+    val slots =
+      MoveReviewCompressionPolicy.buildSlotsOrFallbackFromPlannerRuntime(
+        ctx,
+        inputs,
+        RankedQuestionPlans(primary = Some(primary), secondary = None, rejected = Nil),
+        strategyPack = None,
+        truthContract = None,
+        refs = Some(refsForLine(fen, consequence.uciMoves, consequence.sanMoves))
+      )
+
+    val claim = MoveReviewProseContract.stripMoveHeader(slots.claim)
+    assert(claim.startsWith("On the checked line"), clues(claim, slots))
+    assertEquals(slots.supportPrimary, None, clues(slots))
+    assert(!slots.factGuardrails.exists(_.contains("opens a discovered attack")), clues(slots.factGuardrails))
+    assert(slots.factGuardrails.exists(_.contains("local_fact=line_consequence/pv_coupled_line")), clues(slots.factGuardrails))
+  }
+
   test("opening-goal basic local fact is surfaced through CausalFrame before direct basic rendering") {
     val ctx = italianCtx
     val slots =
@@ -2713,6 +3000,8 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
       MoveReviewProseContract.stripMoveHeader(slots.claim),
       "This moves the pawn to h3."
     )
+    assert(slots.supportPrimary.exists(_.toLowerCase.contains("blunder")), clues(slots))
+    assert(slots.supportPrimary.exists(_.toLowerCase.contains("gives up")), clues(slots))
 
     val missedWinContract =
       blunderContract.copy(
@@ -2739,6 +3028,8 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
       MoveReviewProseContract.stripMoveHeader(missedWinSlots.claim),
       "This moves the pawn to h3."
     )
+    assert(missedWinSlots.supportPrimary.exists(_.toLowerCase.contains("missed win")), clues(missedWinSlots))
+    assert(missedWinSlots.supportPrimary.exists(_.toLowerCase.contains("gives up")), clues(missedWinSlots))
   }
 
   test("removed thematic fallback leaves exact factual fallback when planner inputs carry tactical ownership") {
@@ -2834,33 +3125,16 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
       )
     )
     val outline = BookStyleRenderer.validatedOutline(ctx)
-    val inaccuracyContract = DecisiveTruthContract(
-      playedMove = None,
-      verifiedBestMove = Some("e2e4"),
-      truthClass = DecisiveTruthClass.Inaccuracy,
-      cpLoss = 45,
-      swingSeverity = 45,
-      reasonFamily = DecisiveReasonKind.QuietTechnicalMove,
-      allowConcreteBenchmark = false,
-      chosenMatchesBest = false,
-      compensationAllowed = false,
-      truthPhase = None,
-      ownershipRole = TruthOwnershipRole.NoneRole,
-      visibilityRole = TruthVisibilityRole.SupportingVisible,
-      surfaceMode = TruthSurfaceMode.Neutral,
-      exemplarRole = TruthExemplarRole.NonExemplar,
-      surfacedMoveOwnsTruth = false,
-      verifiedPayoffAnchor = None,
-      compensationProseAllowed = false,
-      benchmarkProseAllowed = false,
-      investmentTruthChainKey = None,
-      maintenanceExemplarCandidate = false,
-      benchmarkCriticalMove = false,
-      failureMode = FailureInterpretationMode.NoClearPlan,
-      failureIntentConfidence = 0.0,
-      failureIntentAnchor = None,
-      failureInterpretationAllowed = false
-    )
+    val inaccuracyContract =
+      truthContract(
+        playedMove = None,
+        verifiedBestMove = Some("e2e4"),
+        truthClass = DecisiveTruthClass.Inaccuracy,
+        cpLoss = 45,
+        swingSeverity = 45,
+        reasonFamily = DecisiveReasonKind.QuietTechnicalMove,
+        visibilityRole = TruthVisibilityRole.SupportingVisible
+      )
 
     val slots =
       MoveReviewPolishSlotsBuilder.buildOrFallback(

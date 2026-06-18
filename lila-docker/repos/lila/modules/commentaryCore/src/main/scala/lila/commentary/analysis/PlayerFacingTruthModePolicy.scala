@@ -559,10 +559,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
 
   private def contractClaimsForcingTacticalTruth(contract: DecisiveTruthContract): Boolean =
     (contract.truthClass == DecisiveTruthClass.Best &&
-      (
-        contract.reasonFamily == DecisiveReasonKind.OnlyMoveDefense ||
-          contract.reasonFamily == DecisiveReasonKind.TacticalRefutation
-      )) ||
+      contract.reasonFamily == DecisiveReasonKind.OnlyMoveDefense) ||
       contract.failureMode == FailureInterpretationMode.TacticalRefutation
 
   private def tacticalLeadFromContract(
@@ -576,8 +573,6 @@ private[commentary] object PlayerFacingTruthModePolicy:
         Some("This misses a win, and the immediate tactical chance matters most.")
       case DecisiveTruthClass.Best if contract.reasonFamily == DecisiveReasonKind.OnlyMoveDefense && forcingProof =>
         Some("This is the only move that keeps the position together.")
-      case DecisiveTruthClass.Best if contract.reasonFamily == DecisiveReasonKind.TacticalRefutation && forcingProof =>
-        Some("This is the clean tactical refutation.")
       case _ =>
         None
 
@@ -1550,20 +1545,22 @@ private[commentary] object PlayerFacingTruthModePolicy:
 
   private def centralBreakTimingFamilyAligned(ctx: NarrativeContext): Boolean =
     val evidencePlans = ctx.strategicPlanEvidence.probeBackedMainPlans
+    val centralBreakTiming = normalize(PlanTaxonomy.PlanKind.CentralBreakTiming.id)
     val rivalSubplans =
       Set(
         PlanTaxonomy.PlanKind.BreakPrevention.id,
         PlanTaxonomy.PlanKind.WingBreakTiming.id
-      )
+      ).map(normalize)
+    val explicitRivalPlan = explicitBreakPreventionPlan(ctx)
     val centralPlan =
       evidencePlans.exists(plan =>
-        plan.subplanId.exists(id => normalize(id) == PlanTaxonomy.PlanKind.CentralBreakTiming.id)
+        plan.subplanId.exists(id => normalize(id) == centralBreakTiming)
       )
     val rivalPlan =
       evidencePlans.exists(plan =>
         plan.subplanId.exists(id => rivalSubplans.contains(normalize(id)))
-      ) || explicitBreakPreventionPlan(ctx)
-    centralPlan || !rivalPlan
+      ) || explicitRivalPlan
+    !explicitRivalPlan && (centralPlan || !rivalPlan)
 
   private def centralBreakTakesPrecedenceOverBreakPrevention(
       ctx: NarrativeContext,
@@ -1578,7 +1575,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
     }
 
   private def explicitBreakPreventionPlan(ctx: NarrativeContext): Boolean =
-    val breakPrevention = PlanTaxonomy.PlanKind.BreakPrevention.id
+    val breakPrevention = normalize(PlanTaxonomy.PlanKind.BreakPrevention.id)
     ctx.mainStrategicPlans.exists(_.subplanId.exists(id => normalize(id) == breakPrevention)) ||
       ctx.strategicPlanExperiments.exists(experiment =>
         experiment.subplanId.exists(id => normalize(id) == breakPrevention) &&

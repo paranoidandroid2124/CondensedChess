@@ -1567,7 +1567,11 @@ private[commentary] object CommentaryIdeaSurface:
           relation.projection.targetSquare.contains(target) &&
             (
               relation.descriptor.surfaceRowKind == RelationSurfaceRowKind.MobilityRestriction ||
-                relation.descriptor.surfaceRowKind == RelationSurfaceRowKind.MoveOrder
+                relation.descriptor.surfaceRowKind == RelationSurfaceRowKind.MoveOrder ||
+                (
+                  relation.descriptor.surfaceRowKind == RelationSurfaceRowKind.TacticalRelation &&
+                    relation.projection.kind == MoveReviewExchangeAnalyzer.RelationKind.DiscoveredAttack
+                )
             )
         )
     }
@@ -1661,10 +1665,23 @@ private[commentary] object CommentaryIdeaSurface:
 
   private def exactKnightPawnPressure(played: PlayedMove, fact: Fact): Boolean =
     fact match
-      case Fact.TargetPiece(_, chess.Pawn, attackers, defenders, _) =>
+      case Fact.TargetPiece(square, chess.Pawn, attackers, defenders, _) =>
+        val defendedAdvancedPawnTarget =
+          defenders.nonEmpty &&
+            defenders.size <= attackers.size &&
+            Fen
+              .read(Standard, Fen.Full(played.afterFen))
+              .exists(position =>
+                position.board.pieceAt(square).exists(piece =>
+                  val rank = square.key.lift(1).map(_.asDigit).getOrElse(0)
+                  piece.color != played.color &&
+                    piece.role == chess.Pawn &&
+                    (if piece.color.white then rank >= 5 else rank <= 4)
+                )
+              )
         played.role == chess.Knight &&
           attackers.contains(played.to) &&
-          defenders.isEmpty
+          (defenders.isEmpty || defendedAdvancedPawnTarget)
       case _ => false
 
   private def exactPawnPiecePressure(played: PlayedMove, fact: Fact): Boolean =
@@ -2022,7 +2039,10 @@ private[commentary] object CommentaryIdeaSurface:
       played: PlayedMove,
       evidence: RelationWitnessEvidence
   ): String =
-    s"${played.san} is tied to a checked ${evidence.descriptor.publicLabel} relation in the PV."
+    MoveReviewExchangeAnalyzer
+      .relationPracticalSurfaceFromWitness(evidence.witness)
+      .map(_.text)
+      .getOrElse(s"${played.san} is tied to a checked ${evidence.descriptor.publicLabel} relation in the PV.")
 
   private def relationWitnessEvidence(
       played: PlayedMove,
@@ -2068,7 +2088,13 @@ private[commentary] object CommentaryIdeaSurface:
       evidence: MoveReviewEvidence,
       witness: MoveReviewExchangeAnalyzer.RelationWitness
   ): Boolean =
-    evidence.strictLocalFacts || relationWitnessTacticalSurface(witness) || relationWitnessDrawResource(witness)
+    val lineGeometry =
+      MoveReviewExchangeAnalyzer
+        .relationProjectionFromWitness(witness)
+        .flatMap(projection => RelationObservationCatalog.descriptorForKind(projection.kind))
+        .exists(_.surfaceRowKind == RelationSurfaceRowKind.LineGeometry)
+    evidence.strictLocalFacts || relationWitnessTacticalSurface(witness) || relationWitnessDrawResource(witness) ||
+      (lineGeometry && relationTargetsKing(witness))
 
   private def relationWitnessTacticalSurface(witness: MoveReviewExchangeAnalyzer.RelationWitness): Boolean =
     MoveReviewExchangeAnalyzer
@@ -2544,9 +2570,10 @@ private[commentary] object CommentaryIdeaSurface:
       if idea.confidence >= confidenceFloor
       if idea.evidenceRefs.nonEmpty
       family <- practicalPositionFamily(idea)
+      surface = practicalPositionSurface(played, idea, anchorValue)
+      if (idea.kind != StrategicIdeaKind.LineOccupation && idea.kind != StrategicIdeaKind.KingAttackBuildUp) || surface.nonEmpty
     yield
       val label = practicalPositionLabel(idea)
-      val surface = practicalPositionSurface(played, idea, anchorValue)
       val evidenceRefs = practicalPositionEvidenceRefs(idea, anchorValue) ++ surface.toList.flatMap(_._3)
       PracticalPositionFact(
         family = family,
@@ -3247,7 +3274,8 @@ private[commentary] object CommentaryIdeaSurface:
       case _                      => s"${played.san} improves the local setup"
 
   private def strategicPurpose(played: PlayedMove, delta: PlayerFacingMoveDeltaEvidence): String =
-    if centralBreakTimingDelta(delta) then s"${played.san} is tied to a checked central-break timing detail."
+    if centralBreakTimingDelta(delta) then
+      centralBreakTimingSurfaceProse(delta).getOrElse(s"${played.san} is tied to a checked central-break timing detail.")
     else if outpostOccupationExactProof(delta).nonEmpty then
       outpostOccupationExactProof(delta)
         .map { case (pieceRole, square) => s"${played.san} puts the $pieceRole on the $square outpost." }
@@ -3273,6 +3301,25 @@ private[commentary] object CommentaryIdeaSurface:
   private def centralBreakTimingDelta(delta: PlayerFacingMoveDeltaEvidence): Boolean =
     delta.packet.proofFamily == CentralBreakTimingWitness.ProofFamily &&
       delta.packet.proofSource == CentralBreakTimingWitness.ProofSource
+
+  private def centralBreakTimingSurfaceProse(delta: PlayerFacingMoveDeltaEvidence): Option[String] =
+    for
+      breakToken <- delta.packet.proofPathWitness.exactSliceProof.collect {
+        case proof @ PlayerFacingExactSliceProof.CentralBreakTiming(_, _, token)
+            if PlayerFacingExactSliceProofFacts.matchesPacket(delta.packet, proof) =>
+          token
+      }
+      token <- BreakSurfaceToken.canonicalRoute(breakToken)
+    yield CentralBreakTimingSurfaceGate.surfaceText(centralBreakTimingSourceTags(delta), token)
+
+  private def centralBreakTimingSourceTags(delta: PlayerFacingMoveDeltaEvidence): List[String] =
+    (
+      delta.packet.proofPathWitness.ownerSeedTerms ++
+        delta.packet.proofPathWitness.continuationTerms ++
+        delta.packet.proofPathWitness.structureTransitionTerms ++
+        delta.packet.anchorTerms ++
+        delta.anchorTerms
+    ).map(_.trim).filter(_.nonEmpty).distinct
 
   private def strategicExactProofAnchors(
       played: PlayedMove,

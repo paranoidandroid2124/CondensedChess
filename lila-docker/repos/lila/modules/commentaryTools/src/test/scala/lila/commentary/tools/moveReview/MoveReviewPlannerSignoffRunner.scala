@@ -5,6 +5,7 @@ import java.nio.file.{ Files, Path, Paths }
 import play.api.libs.json.{ Json, Writes }
 
 import lila.commentary.{ MoveEval, PgnAnalysisHelper }
+import lila.commentary.analysis.QuestionPlanFallbackMode
 import lila.commentary.tools.review.CommentaryPlayerQcSupport
 import scala.util.control.NonFatal
 
@@ -148,11 +149,12 @@ object MoveReviewPlannerSignoffRunner:
     }
 
   private def categoryOf(entry: SignoffEntry): Option[String] =
-    val plannerOwned = entry.moveReviewFallbackMode == "planner_owned"
+    val plannerOwned = MoveReviewFallbackMode.isPlannerOwned(entry.moveReviewFallbackMode)
     entry.plannerPrimaryKind match
       case Some(kind) if plannerOwned && Set("WhyThis", "WhyNow", "WhatChanged", "WhatMustBeStopped", "WhosePlanIsFaster").contains(kind) =>
         Some(kind)
-      case _ if entry.moveReviewFallbackMode == "exact_factual" || entry.plannerPrimaryFallbackMode.exists(_ != "PlannerOwned") =>
+      case _ if MoveReviewFallbackMode.isExactFactual(entry.moveReviewFallbackMode) ||
+          entry.plannerPrimaryFallbackMode.exists(_ != QuestionPlanFallbackMode.PlannerOwned.toString) =>
         Some("negative")
       case _ => None
 

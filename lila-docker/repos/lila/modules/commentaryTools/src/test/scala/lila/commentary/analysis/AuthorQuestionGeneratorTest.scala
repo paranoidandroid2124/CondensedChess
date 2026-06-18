@@ -162,6 +162,56 @@ class AuthorQuestionGeneratorTest extends FunSuite:
     assert(questions.exists(_.kind == AuthorQuestionKind.WhyNow), clues(questions))
   }
 
+  test("defensive task seed does not assert king-safety collapse before truth ownership") {
+    val fen = "rnbqkb1r/pp2pppp/5n2/2pP4/2P5/8/PP1P1PPP/RNBQKBNR w KQkq c6 0 4"
+    val threat =
+      Threat(
+        kind = ThreatKind.Mate,
+        lossIfIgnoredCp = 900,
+        turnsToImpact = 1,
+        motifs = List("mate"),
+        attackSquares = List("a4"),
+        targetPieces = List("king"),
+        bestDefense = Some("Qa4+"),
+        defenseCount = 1
+      )
+    val threatAnalysis =
+      ThreatAnalysis(
+        threats = List(threat),
+        defense = DefenseAssessment(ThreatSeverity.Urgent, Some("Qa4+"), List("Qa4+"), false, false, 90, "Test"),
+        threatSeverity = ThreatSeverity.Urgent,
+        immediateThreat = true,
+        strategicThreat = false,
+        threatIgnorable = false,
+        defenseRequired = true,
+        counterThreatBetter = false,
+        prophylaxisNeeded = false,
+        resourceAvailable = true,
+        maxLossIfIgnored = 900,
+        primaryDriver = "mate_threat",
+        insufficientData = false
+      )
+    val ctx = IntegratedContext(evalCp = 40, isWhiteToMove = true, threatsToUs = Some(threatAnalysis))
+    val questions =
+      AuthorQuestionGenerator.generate(
+        data =
+          minimalData(ctx).copy(
+            fen = fen,
+            prevMove = Some("g1e2"),
+            ply = 7
+          ),
+        ctx = ctx,
+        candidates = Nil,
+        playedSan = Some("Ne2")
+      )
+
+    val defensiveQuestion =
+      questions.find(_.kind == AuthorQuestionKind.WhatMustBeStopped).getOrElse(fail(s"missing defensive question: $questions"))
+    val why = defensiveQuestion.why.getOrElse(fail("missing defensive why"))
+    assert(!why.contains("king safety collapses"), clue(why))
+    assert(why.contains("king safety"), clue(why))
+  }
+
   test("generate frames conversion seeds as reply-line checks, not conversion conclusions") {
     val ctx =
       IntegratedContext(

@@ -322,6 +322,21 @@ private[commentary] final case class DecisiveTruthContract(
       case DecisiveTruthClass.WinningInvestment     => "winning_investment"
       case DecisiveTruthClass.CompensatedInvestment => "compensated_investment"
 
+  def surfaceCpLoss: Int =
+    truthClass match
+      case DecisiveTruthClass.Best | DecisiveTruthClass.Acceptable | DecisiveTruthClass.WinningInvestment |
+          DecisiveTruthClass.CompensatedInvestment =>
+        0
+      case DecisiveTruthClass.Inaccuracy =>
+        cpLoss.max(Thresholds.INACCURACY_CP)
+      case DecisiveTruthClass.Mistake =>
+        cpLoss.max(Thresholds.MISTAKE_CP)
+      case DecisiveTruthClass.Blunder | DecisiveTruthClass.MissedWin =>
+        cpLoss.max(Thresholds.BLUNDER_CP)
+
+  def surfaceCpLossOption: Option[Int] =
+    Option.when(surfaceCpLoss > 0)(surfaceCpLoss)
+
   def isBad: Boolean =
     truthClass match
       case DecisiveTruthClass.Inaccuracy | DecisiveTruthClass.Mistake | DecisiveTruthClass.Blunder |
@@ -333,7 +348,8 @@ private[commentary] final case class DecisiveTruthContract(
     truthClass == DecisiveTruthClass.Blunder ||
       truthClass == DecisiveTruthClass.MissedWin ||
       (reasonFamily == DecisiveReasonKind.TacticalRefutation && isBad) ||
-      failureMode == FailureInterpretationMode.TacticalRefutation
+      failureMode == FailureInterpretationMode.TacticalRefutation ||
+      (failureMode == FailureInterpretationMode.OnlyMoveFailure && isBad)
 
   def prefersDecisivePromotion: Boolean =
     isExemplarCandidate || hasVisibleTruth || (
@@ -543,7 +559,7 @@ private[commentary] object DecisiveTruth:
         momentType = momentType,
         transition = transition,
         comparison = comparison,
-        cpLoss = cpLoss,
+        moveQuality = moveQuality,
         swingSeverity = swingSeverity
       )
     val reasonFamily =
@@ -680,7 +696,7 @@ private[commentary] object DecisiveTruth:
         comparedMove = preservedComparedMove,
         comparativeConsequence = preservedComparativeConsequence,
         comparativeSource = preservedComparativeSource,
-        cpLossVsChosen = Option.when(contract.cpLoss > 0)(contract.cpLoss),
+        cpLossVsChosen = contract.surfaceCpLossOption,
         deferredMove = benchmark,
         deferredReason = preservedReason,
         deferredSource = benchmark.map(_ => "verified_best"),
@@ -715,7 +731,7 @@ private[commentary] object DecisiveTruth:
             comparedMove = preservedComparedMove,
             comparativeConsequence = preservedComparativeConsequence,
             comparativeSource = preservedComparativeSource,
-            cpLossVsChosen = Option.when(contract.cpLoss > 0)(contract.cpLoss),
+            cpLossVsChosen = contract.surfaceCpLossOption,
             deferredMove = benchmark,
             deferredReason = preservedReason,
             deferredSource = benchmark.map(_ => "verified_best"),
@@ -837,20 +853,26 @@ private[commentary] object DecisiveTruth:
       comparison.flatMap(_.engineBestScoreCp).map(score => moverPerspectiveCp(ctx.fen, score))
     val alternativeScores =
       ctx.engineEvidence.toList.flatMap(_.variations.drop(1)).map(line => moverPerspectiveCp(ctx.fen, line.scoreCp))
-    val alternativeCount =
+    val hasAlternativeEvidence =
+      alternativeScores.nonEmpty || comparison.exists(_.practicalAlternative)
+    val practicalAlternativeCount =
+      if comparison.exists(_.practicalAlternative) then 1 else 0
+    val scoredAlternativeCount =
       moverBestScore.map { bestScore =>
         val bestWp = winPercentFromCp(bestScore)
         alternativeScores.count { score =>
           val scoreWp = winPercentFromCp(score)
           (bestWp - scoreWp).abs <= 5.0
         }
-      }.orElse(Option.when(comparison.exists(_.practicalAlternative))(1)).getOrElse(0)
+      }.orElse(Option.when(practicalAlternativeCount > 0)(practicalAlternativeCount)).getOrElse(0)
+    val alternativeCount =
+      scoredAlternativeCount.max(practicalAlternativeCount)
     val onlyMove =
       ctx.header.choiceType.equalsIgnoreCase("OnlyMove") ||
         (!chosenMatchesBest && moveQuality.winPercentLoss >= Thresholds.BLUNDER_WP && alternativeCount == 0)
     val uniqueGoodMove =
       verifiedBestMove.nonEmpty &&
-        (alternativeCount == 0 || onlyMove) &&
+        (onlyMove || (hasAlternativeEvidence && alternativeCount == 0)) &&
         !momentType.exists(_.equalsIgnoreCase("MissedWin"))
     val verificationTier =
       if onlyMove || uniqueGoodMove || moveQuality.isBad then "deep_candidate" else "baseline"
@@ -869,7 +891,7 @@ private[commentary] object DecisiveTruth:
       momentType: Option[String],
       transition: Option[String],
       comparison: Option[DecisionComparison],
-      cpLoss: Int,
+      moveQuality: MoveQualityFact,
       swingSeverity: Int
   ): TacticalFact =
     val motifs =
@@ -887,10 +909,9 @@ private[commentary] object DecisiveTruth:
       forcedMate ||
         ctx.header.criticality.equalsIgnoreCase("Forced") ||
         motifs.exists(Set("hanging_piece", "fork", "pin", "skewer", "promotion_race", "double_check"))
-    val winPercentLoss = winPercentFromCp(cpLoss) - 50.0
     val swingSeverityWp = winPercentFromCp(swingSeverity) - 50.0
     val immediateRefutation =
-      winPercentLoss >= Thresholds.MISTAKE_WP &&
+      moveQuality.winPercentLoss >= Thresholds.MISTAKE_WP &&
         (forcingLine || swingSeverityWp >= Thresholds.MISTAKE_WP || momentType.exists(_.equalsIgnoreCase("AdvantageSwing")))
     val tacticalMotifs =
       (motifs ++ transition.toList.flatMap(text => if text.contains("promotion") then List("promotion_race") else Nil)).distinct
@@ -1166,12 +1187,15 @@ private[commentary] object DecisiveTruth:
       tactical: TacticalFact
   ): DecisiveReasonKind =
     val nonTrivialProofLine = tactical.proofLine.lengthCompare(2) >= 0
-    val proofBackedBestHold =
+    val tacticalRefutationEvidence =
       tactical.immediateRefutation ||
-        tactical.forcingLine ||
         tactical.forcedMate ||
         tactical.forcedDrawResource ||
-        nonTrivialProofLine
+        (tactical.forcingLine && benchmark.chosenMatchesBest && tactical.motifs.nonEmpty)
+    val explicitForcedOnlyMoveHold =
+      benchmark.onlyMove && tactical.forcingLine && benchmark.chosenMatchesBest
+    val proofBackedBestHold =
+      tacticalRefutationEvidence || explicitForcedOnlyMoveHold || nonTrivialProofLine
     if momentType.exists(_.equalsIgnoreCase("MissedWin")) then DecisiveReasonKind.MissedWin
     else if (benchmark.onlyMove || benchmark.uniqueGoodMove) && proofBackedBestHold
     then
@@ -1182,7 +1206,8 @@ private[commentary] object DecisiveTruth:
     then DecisiveReasonKind.Conversion
     else if investmentCp.nonEmpty || verifiedInvestmentPayoff || freshCommitmentEvidence.seedEligible then
       DecisiveReasonKind.InvestmentSacrifice
-    else if proofBackedBestHold then DecisiveReasonKind.TacticalRefutation
+    else if tacticalRefutationEvidence && (!benchmark.chosenMatchesBest || tactical.forcedMate || tactical.forcedDrawResource) then
+      DecisiveReasonKind.TacticalRefutation
     else DecisiveReasonKind.QuietTechnicalMove
 
   private def deriveStrategicOwnershipFact(
@@ -1306,11 +1331,13 @@ private[commentary] object DecisiveTruth:
     val semanticIntentAnchor =
       if strategicOwnership.currentSemanticAnchorMatch then strategicOwnership.verifiedPayoffAnchor else None
     val intentAnchor = routeTargetAnchor.orElse(semanticIntentAnchor)
-    val proofBackedCriticalHold =
+    val tacticalFailureEvidence =
       tactical.immediateRefutation ||
-        tactical.forcingLine ||
         tactical.forcedMate ||
-        tactical.forcedDrawResource ||
+        tactical.forcedDrawResource
+    val proofBackedCriticalHold =
+      tacticalFailureEvidence ||
+        tactical.forcingLine ||
         tactical.proofLine.lengthCompare(2) >= 0
     val failureMode =
       if !moveQuality.isBad then FailureInterpretationMode.NoClearPlan
@@ -1324,9 +1351,7 @@ private[commentary] object DecisiveTruth:
         (strategicOwnership.benchmarkCriticalMove && proofBackedCriticalHold)
       then
         FailureInterpretationMode.OnlyMoveFailure
-      else if tactical.immediateRefutation ||
-        tactical.forcingLine ||
-        tactical.proofLine.lengthCompare(2) >= 0 ||
+      else if tacticalFailureEvidence ||
         strategicOwnership.reasonFamily == DecisiveReasonKind.TacticalRefutation
       then FailureInterpretationMode.TacticalRefutation
       else if strategicOwnership.verifiedPayoffAnchor.nonEmpty then FailureInterpretationMode.QuietPositionalCollapse

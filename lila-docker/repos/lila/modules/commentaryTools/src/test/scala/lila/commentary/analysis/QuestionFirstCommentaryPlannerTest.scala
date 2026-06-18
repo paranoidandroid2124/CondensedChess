@@ -442,6 +442,72 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
       failureInterpretationAllowed = true
     )
 
+  private def lineConsequence(
+      lineId: String,
+      sanMoves: List[String],
+      uciMoves: List[String],
+      scoreCp: Int,
+      windowPly: Int,
+      kind: LineConsequenceKind,
+      triggerSan: String,
+      consequence: String,
+      whyItMatters: String,
+      depth: Int = 10,
+      release: LineConsequenceRelease = LineConsequenceRelease.SurfaceCandidate,
+      structureDetails: List[LineStructureDetail] = Nil
+  ): LineConsequenceEvidence =
+    LineConsequenceEvidence(
+      lineId = Some(lineId),
+      sanMoves = sanMoves,
+      uciMoves = uciMoves,
+      scoreCp = Some(scoreCp),
+      mate = None,
+      depth = Some(depth),
+      windowPly = windowPly,
+      kind = kind,
+      triggerSan = Some(triggerSan),
+      consequence = consequence,
+      whyItMatters = Some(whyItMatters),
+      release = release,
+      rejectReasons = Nil,
+      structureDetails = structureDetails
+    )
+
+  private def localFactFixtureResult(
+      family: MoveReviewLocalFact.Family,
+      source: MoveReviewLocalFact.Source,
+      producer: MoveReviewLocalFact.Producer,
+      subject: MoveReviewLocalFact.Subject,
+      title: String,
+      prose: String,
+      explanationSource: String,
+      evidenceRefs: List[String],
+      guardrails: List[String],
+      anchors: List[MoveReviewLocalFact.Anchor] = Nil,
+      strictFallbackCandidate: Boolean = true,
+      lineBinding: MoveReviewLocalFact.LineBinding = MoveReviewLocalFact.LineBinding.PvCoupled,
+      relationSurface: Option[RelationSurfaceRowKind] = None
+  ): MoveReviewExplanationBuilder.Result =
+    val localFact =
+      MoveReviewLocalFact.admitted(
+        MoveReviewLocalFact.Candidate(
+          family = family,
+          source = source,
+          producer = producer,
+          subject = subject,
+          strictFallbackCandidate = strictFallbackCandidate,
+          anchors = anchors,
+          lineBinding = lineBinding,
+          evidenceRefs = evidenceRefs,
+          guardrails = guardrails,
+          relationSurface = relationSurface
+        )
+      )
+    MoveReviewExplanationBuilder.Result(
+      explanation = MoveReviewExplanation(title = title, prose = prose, source = explanationSource),
+      localFact = localFact
+    )
+
   test("WhyThis admits a move-owned claim with contrast and author evidence") {
     val q = question("q1", AuthorQuestionKind.WhyThis, evidencePurposes = List("reply_multipv"))
     val ctx = baseCtx(List(q), evidence = List(evidence("q1", "reply_multipv", List("14...Rc8 15.Re1 Qc7", "14...Rc8 15.a4 Qc7"))))
@@ -539,35 +605,19 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
   test("line-geometry relation local fact does not classify the scene as tactical") {
     val q = question("q_line_geometry", AuthorQuestionKind.WhyThis)
     val ctx = baseCtx(List(q))
-    val localFact =
-      MoveReviewLocalFact.admitted(
-        MoveReviewLocalFact.Candidate(
-          family = MoveReviewLocalFact.Family.Pressure,
-          source = MoveReviewLocalFact.Source.PvCoupledLine,
-          producer = MoveReviewLocalFact.Producer.RelationWitness,
-          subject = MoveReviewLocalFact.Subject.Target,
-          strictFallbackCandidate = true,
-          anchors = List(MoveReviewLocalFact.Anchor("relation_target", "g6")),
-          lineBinding = MoveReviewLocalFact.LineBinding.PvCoupled,
-          evidenceRefs = List("relation_kind:xray", "relation_fact:xray_relation_witness"),
-          guardrails = List(
-            "relation_witness_typed_details",
-            "fen_validated_line_replayed",
-            "played_move_first",
-            "relation_kind:xray"
-          ),
-          relationSurface = Some(RelationSurfaceRowKind.LineGeometry)
-        )
-      )
     val relationResult =
-      MoveReviewExplanationBuilder.Result(
-        explanation =
-          MoveReviewExplanation(
-            title = "Be4 has checked line geometry",
-            prose = "Be4 is tied to a checked x-ray relation in the PV.",
-            source = "relation_witness"
-          ),
-        localFact = localFact
+      localFactFixtureResult(
+        family = MoveReviewLocalFact.Family.Pressure,
+        source = MoveReviewLocalFact.Source.PvCoupledLine,
+        producer = MoveReviewLocalFact.Producer.RelationWitness,
+        subject = MoveReviewLocalFact.Subject.Target,
+        title = "Be4 has checked line geometry",
+        prose = "Be4 is tied to a checked x-ray relation in the PV.",
+        explanationSource = "relation_witness",
+        anchors = List(MoveReviewLocalFact.Anchor("relation_target", "g6")),
+        evidenceRefs = List("relation_kind:xray", "relation_fact:xray_relation_witness"),
+        guardrails = List("relation_witness_typed_details", "fen_validated_line_replayed", "played_move_first", "relation_kind:xray"),
+        relationSurface = Some(RelationSurfaceRowKind.LineGeometry)
       )
     val plans =
       QuestionFirstCommentaryPlanner.plan(
@@ -591,32 +641,17 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
   test("relation surface guardrail string is not planner authority") {
     val q = question("q_relation_guardrail_not_authority", AuthorQuestionKind.WhyThis)
     val ctx = baseCtx(List(q))
-    val localFact =
-      MoveReviewLocalFact.admitted(
-        MoveReviewLocalFact.Candidate(
-          family = MoveReviewLocalFact.Family.Pressure,
-          source = MoveReviewLocalFact.Source.PvCoupledLine,
-          producer = MoveReviewLocalFact.Producer.RelationWitness,
-          subject = MoveReviewLocalFact.Subject.Target,
-          strictFallbackCandidate = true,
-          lineBinding = MoveReviewLocalFact.LineBinding.PvCoupled,
-          evidenceRefs = List("relation_kind:xray", "relation_fact:xray_relation_witness"),
-          guardrails = List(
-            "relation_witness_typed_details",
-            "relation_kind:xray",
-            "relation_surface:tactical_relation"
-          )
-        )
-      )
     val relationResult =
-      MoveReviewExplanationBuilder.Result(
-        explanation =
-          MoveReviewExplanation(
-            title = "Be4 has checked line geometry",
-            prose = "Be4 is tied to a checked x-ray relation in the PV.",
-            source = "relation_witness"
-          ),
-        localFact = localFact
+      localFactFixtureResult(
+        family = MoveReviewLocalFact.Family.Pressure,
+        source = MoveReviewLocalFact.Source.PvCoupledLine,
+        producer = MoveReviewLocalFact.Producer.RelationWitness,
+        subject = MoveReviewLocalFact.Subject.Target,
+        title = "Be4 has checked line geometry",
+        prose = "Be4 is tied to a checked x-ray relation in the PV.",
+        explanationSource = "relation_witness",
+        evidenceRefs = List("relation_kind:xray", "relation_fact:xray_relation_witness"),
+        guardrails = List("relation_witness_typed_details", "relation_kind:xray", "relation_surface:tactical_relation")
       )
     val plans =
       QuestionFirstCommentaryPlanner.plan(
@@ -637,35 +672,19 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
   test("typed tactical relation surface can own tactical planning without guardrail string") {
     val q = question("q_relation_typed_surface", AuthorQuestionKind.WhyThis)
     val ctx = baseCtx(List(q))
-    val localFact =
-      MoveReviewLocalFact.admitted(
-        MoveReviewLocalFact.Candidate(
-          family = MoveReviewLocalFact.Family.Pressure,
-          source = MoveReviewLocalFact.Source.PvCoupledLine,
-          producer = MoveReviewLocalFact.Producer.RelationWitness,
-          subject = MoveReviewLocalFact.Subject.Target,
-          strictFallbackCandidate = true,
-          anchors = List(MoveReviewLocalFact.Anchor("relation_target", "g6")),
-          lineBinding = MoveReviewLocalFact.LineBinding.PvCoupled,
-          evidenceRefs = List("relation_kind:overload", "relation_fact:overload_relation_witness"),
-          guardrails = List(
-            "relation_witness_typed_details",
-            "fen_validated_line_replayed",
-            "played_move_first",
-            "relation_kind:overload"
-          ),
-          relationSurface = Some(RelationSurfaceRowKind.TacticalRelation)
-        )
-      )
     val relationResult =
-      MoveReviewExplanationBuilder.Result(
-        explanation =
-          MoveReviewExplanation(
-            title = "Be4 has checked overload pressure",
-            prose = "Be4 is tied to a checked overload relation in the PV.",
-            source = "relation_witness"
-          ),
-        localFact = localFact
+      localFactFixtureResult(
+        family = MoveReviewLocalFact.Family.Pressure,
+        source = MoveReviewLocalFact.Source.PvCoupledLine,
+        producer = MoveReviewLocalFact.Producer.RelationWitness,
+        subject = MoveReviewLocalFact.Subject.Target,
+        title = "Be4 has checked overload pressure",
+        prose = "Be4 is tied to a checked overload relation in the PV.",
+        explanationSource = "relation_witness",
+        anchors = List(MoveReviewLocalFact.Anchor("relation_target", "g6")),
+        evidenceRefs = List("relation_kind:overload", "relation_fact:overload_relation_witness"),
+        guardrails = List("relation_witness_typed_details", "fen_validated_line_replayed", "played_move_first", "relation_kind:overload"),
+        relationSurface = Some(RelationSurfaceRowKind.TacticalRelation)
       )
     val plans =
       QuestionFirstCommentaryPlanner.plan(
@@ -685,35 +704,19 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
   test("typed move-order relation surface can own WhyNow timing without decision comparison") {
     val q = question("q_relation_move_order_timing", AuthorQuestionKind.WhyNow)
     val ctx = baseCtx(List(q))
-    val localFact =
-      MoveReviewLocalFact.admitted(
-        MoveReviewLocalFact.Candidate(
-          family = MoveReviewLocalFact.Family.Timing,
-          source = MoveReviewLocalFact.Source.PvCoupledLine,
-          producer = MoveReviewLocalFact.Producer.RelationWitness,
-          subject = MoveReviewLocalFact.Subject.Target,
-          strictFallbackCandidate = true,
-          anchors = List(MoveReviewLocalFact.Anchor("relation_target", "d4")),
-          lineBinding = MoveReviewLocalFact.LineBinding.PvCoupled,
-          evidenceRefs = List("relation_kind:zwischenzug", "relation_fact:zwischenzug_relation_witness"),
-          guardrails = List(
-            "relation_witness_typed_details",
-            "fen_validated_line_replayed",
-            "played_move_first",
-            "relation_kind:zwischenzug"
-          ),
-          relationSurface = Some(RelationSurfaceRowKind.MoveOrder)
-        )
-      )
     val relationResult =
-      MoveReviewExplanationBuilder.Result(
-        explanation =
-          MoveReviewExplanation(
-            title = "Qa4+ has checked move order",
-            prose = "Qa4+ is tied to a checked zwischenzug relation in the PV.",
-            source = "relation_witness"
-          ),
-        localFact = localFact
+      localFactFixtureResult(
+        family = MoveReviewLocalFact.Family.Timing,
+        source = MoveReviewLocalFact.Source.PvCoupledLine,
+        producer = MoveReviewLocalFact.Producer.RelationWitness,
+        subject = MoveReviewLocalFact.Subject.Target,
+        title = "Qa4+ has checked move order",
+        prose = "Qa4+ is tied to a checked zwischenzug relation in the PV.",
+        explanationSource = "relation_witness",
+        anchors = List(MoveReviewLocalFact.Anchor("relation_target", "d4")),
+        evidenceRefs = List("relation_kind:zwischenzug", "relation_fact:zwischenzug_relation_witness"),
+        guardrails = List("relation_witness_typed_details", "fen_validated_line_replayed", "played_move_first", "relation_kind:zwischenzug"),
+        relationSurface = Some(RelationSurfaceRowKind.MoveOrder)
       )
     val plans =
       QuestionFirstCommentaryPlanner.plan(
@@ -950,6 +953,51 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
           label.contains("certified_position_probe_non_tactical_forcing_scene")
       ),
       clues(plans.ownerTrace.ownerCandidateLabels)
+    )
+  }
+
+  test("WhatMustBeStopped threat target role is board verified for actual d6 row") {
+    val q = question("q_d6_threat", AuthorQuestionKind.WhatMustBeStopped)
+    val actualFen = "r1bqk2r/pppp1ppp/5n2/4N1B1/4P3/3P4/P1P1KPPP/Q6R b kq - 0 10"
+    val ctx =
+      baseCtx(List(q)).copy(
+        fen = actualFen,
+        playedMove = Some("d7d6"),
+        playedSan = Some("d6"),
+        ply = 20
+      )
+    val staleThreat =
+      ThreatRow(
+        kind = "Material",
+        side = "US",
+        square = Some("f6"),
+        lossIfIgnoredCp = 176,
+        turnsToImpact = 1,
+        bestDefense = Some("d7d6"),
+        defenseCount = 2,
+        insufficientData = false,
+        isTopCandidateDefense = true,
+        targetPieces = List("Bishop"),
+        motifs = List("Capture")
+      )
+
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        ctx,
+        inputs(opponentThreats = List(staleThreat)),
+        Some(
+          truthContract(
+            reasonFamily = DecisiveReasonKind.TacticalRefutation,
+            benchmarkCriticalMove = false,
+            verifiedBestMove = Some("d7d6")
+          )
+        )
+      )
+
+    val primary = plans.primary.getOrElse(fail("missing forcing-defense primary"))
+    assertEquals(
+      primary.claim,
+      "This addresses the opponent's capture threat against the knight on f6 on the checked line."
     )
   }
 
@@ -1990,6 +2038,130 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     assert(primary.timingWitness.exists(_.witnessTokens.contains("e4")), clues(primary.timingWitness))
   }
 
+  test("weak only-move scene yields to move-linked typed local fact") {
+    val localFactResult =
+      localFactFixtureResult(
+        family = MoveReviewLocalFact.Family.PlanSupport,
+        source = MoveReviewLocalFact.Source.CertifiedStrategy,
+        producer = MoveReviewLocalFact.Producer.CertifiedStrategyDelta,
+        subject = MoveReviewLocalFact.Subject.PlanResource,
+        title = "d6 has checked plan support",
+        prose = "d6 is tied to checked plan support around d-file.",
+        explanationSource = "practical_position_support",
+        anchors = List(MoveReviewLocalFact.Anchor("anchor", "d-file")),
+        strictFallbackCandidate = false,
+        evidenceRefs = List("strategy_ref:source:pawn_break_motif"),
+        guardrails = List("practical_position_support", "move_touches_strategy_anchor", "pv_coupled")
+      )
+    val qNow = question("q_weak_only_move_now", AuthorQuestionKind.WhyNow)
+    val qChanged = question("q_weak_only_move_changed", AuthorQuestionKind.WhatChanged)
+    val ctx =
+      baseCtx(List(qNow, qChanged)).copy(
+        playedMove = Some("d7d6"),
+        playedSan = Some("d6")
+      )
+    val contract =
+      truthContract(verifiedBestMove = Some("d7d6")).copy(
+        playedMove = Some("d7d6"),
+        chosenMatchesBest = true
+      )
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        ctx,
+        inputs(
+          pvDelta = Some(PVDelta(Nil, Nil, List("Nc6 support becomes available"), Nil)),
+          candidateEvidenceLines = List("d6 Qxf7+ Kd7 d4 Nc6"),
+          pvCoupledPlanSupport =
+            Some(
+              PvCoupledPlanSupport(
+                planName = "Piece Activation",
+                playedSan = "d6",
+                evidenceLine = "d6 Qxf7+ Kd7 d4 Nc6",
+                planAnchorLine = Some("Further probe work still targets Piece Activation through Nc6."),
+                anchorTokens = List("Nc6"),
+                matchedAnchorTokens = List("Nc6")
+              )
+            ),
+          localFactResult = Some(localFactResult)
+        ),
+        Some(contract)
+      )
+
+    val primary = plans.primary.getOrElse(fail(clues(plans.rejected, plans.ownerTrace.ownerCandidateLabels).toString))
+    assertEquals(primary.questionKind, AuthorQuestionKind.WhatChanged)
+    assertEquals(primary.plannerOwnerKind, PlannerOwnerKind.MoveDelta)
+    assertEquals(primary.plannerSource, "practical_position_support")
+    assert(primary.claim.contains("d-file"), clue(primary.claim))
+    assert(!plans.ownerTrace.sceneReasons.contains("truth_reason=OnlyMoveDefense"), clues(plans.ownerTrace.sceneReasons))
+    assertEquals(plans.ownerTrace.selectedPlannerOwnerKind, Some(PlannerOwnerKind.MoveDelta))
+    assertEquals(plans.ownerTrace.selectedPlannerSource, Some("practical_position_support"))
+  }
+
+  test("actual Bg6 only-move timing uses bounded line consequence instead of generic slip-away prose") {
+    val q = question("q_bg6_only_move_line_context", AuthorQuestionKind.WhyNow)
+    val ctx =
+      baseCtx(List(q)).copy(
+        fen = "1r1q1rk1/ppp2ppp/2n1pb2/3p1b2/3P2P1/1QP1PN1P/PP1N1P2/R3KB1R b KQ - 0 11",
+        ply = 22,
+        playedMove = Some("f5g6"),
+        playedSan = Some("Bg6"),
+        header = ContextHeader("Middlegame", "Normal", "OnlyMove", "High", "MoveReview")
+      )
+    val consequence =
+      lineConsequence(
+        lineId = "line_01",
+        sanMoves = List("Bg6", "h4", "h5", "gxh5", "Bxh5", "Qc2", "g6"),
+        uciMoves = List("f5g6", "h3h4", "h7h5", "g4h5", "g6h5", "b3c2", "g7g6"),
+        scoreCp = -35,
+        windowPly = 4,
+        kind = LineConsequenceKind.ExchangeSequence,
+        triggerSan = "gxh5",
+        consequence = "The checked line reaches an exchange sequence after gxh5.",
+        whyItMatters = "The decision is about the resulting structure: White with an isolated pawn on h4."
+      )
+    val contract =
+      truthContract(verifiedBestMove = Some("f5g6")).copy(
+        playedMove = Some("f5g6"),
+        chosenMatchesBest = true,
+        reasonFamily = DecisiveReasonKind.OnlyMoveDefense,
+        benchmarkCriticalMove = true,
+        failureMode = FailureInterpretationMode.NoClearPlan
+      )
+
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        ctx,
+        inputs(
+          decisionComparison =
+            Some(
+              DecisionComparison(
+                chosenMove = Some("Bg6"),
+                engineBestMove = Some("Bg6"),
+                engineBestScoreCp = Some(-35),
+                engineBestPv = List("Bg6", "h4", "h5", "gxh5"),
+                cpLossVsChosen = None,
+                deferredMove = None,
+                deferredReason = None,
+                deferredSource = None,
+                evidence = None,
+                practicalAlternative = false,
+                chosenMatchesBest = true
+              )
+            ),
+          lineConsequence = Some(consequence)
+        ),
+        Some(contract)
+      )
+
+    val primary = plans.primary.getOrElse(fail("missing Bg6 only-move WhyNow plan"))
+    assertEquals(primary.questionKind, AuthorQuestionKind.WhyNow)
+    assertEquals(primary.plannerSource, "only_move_defense")
+    assert(primary.claim.contains("gxh5"), clue(primary.claim))
+    assert(primary.claim.contains("isolated pawn on h4"), clue(primary.claim))
+    assert(!primary.claim.contains("other moves allow the position to slip away"), clue(primary.claim))
+    assert(primary.sourceKinds.contains("line_consequence"), clue(primary.sourceKinds))
+  }
+
   test("missed benchmark only move cannot own a WhyNow claim for the played move") {
     val q = question("q_missed_only_move_no_played_timing_owner", AuthorQuestionKind.WhyNow)
     val plans =
@@ -2032,20 +2204,18 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
                   Some(
                     RoleAwareLineConsequenceEvidence(
                       engineBest =
-                        LineConsequenceEvidence(
-                          lineId = Some("best"),
+                        lineConsequence(
+                          lineId = "best",
                           sanMoves = List("exf5", "Rfd8", "Ne4", "Bd5"),
                           uciMoves = List("e4f5", "f8d8", "d2e4", "f7d5"),
-                          scoreCp = Some(-44),
-                          mate = None,
-                          depth = Some(20),
+                          scoreCp = -44,
                           windowPly = 4,
                           kind = LineConsequenceKind.CaptureStructureTransition,
-                          triggerSan = Some("exf5"),
+                          triggerSan = "exf5",
                           consequence = "The checked line changes the capture structure after exf5.",
-                          whyItMatters = Some("The local result is White with doubled pawns on the f-file and a semi-open e-file for White."),
+                          whyItMatters = "The local result is White with doubled pawns on the f-file and a semi-open e-file for White.",
+                          depth = 20,
                           release = LineConsequenceRelease.ReplayBackedInternal,
-                          rejectReasons = Nil,
                           structureDetails =
                             List(
                               LineStructureDetail(kind = "doubled_pawn", file = Some("f"), side = Some("white")),
@@ -2053,20 +2223,18 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
                             )
                         ),
                       played =
-                        LineConsequenceEvidence(
-                          lineId = Some("played"),
+                        lineConsequence(
+                          lineId = "played",
                           sanMoves = List("gxf5", "a4", "h4", "Bh5"),
                           uciMoves = List("g4f5", "a5a4", "h3h4", "f7h5"),
-                          scoreCp = Some(-140),
-                          mate = None,
-                          depth = Some(20),
+                          scoreCp = -140,
                           windowPly = 4,
                           kind = LineConsequenceKind.CaptureStructureTransition,
-                          triggerSan = Some("gxf5"),
+                          triggerSan = "gxf5",
                           consequence = "The checked line changes the capture structure after gxf5.",
-                          whyItMatters = Some("The local result is White with doubled pawns on the f-file and White with an isolated pawn on h4."),
+                          whyItMatters = "The local result is White with doubled pawns on the f-file and White with an isolated pawn on h4.",
+                          depth = 20,
                           release = LineConsequenceRelease.ReplayBackedInternal,
-                          rejectReasons = Nil,
                           structureDetails =
                             List(
                               LineStructureDetail(kind = "doubled_pawn", file = Some("f"), side = Some("white")),
@@ -2096,32 +2264,18 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     val q = question("q_check_only_alt_comparison", AuthorQuestionKind.WhyThis)
     val consequence =
       "Rg7 reaches an exchange sequence on the engine-best branch 39... Rg7 40. Bxg5 hxg5 41. Rh1; Rb2+ stays on the played branch 39... Rb2+ 40. Ke3 Rb8 41. Rg4 without that concrete exchange sequence."
-    val checkFact =
-      MoveReviewLocalFact.admitted(
-        MoveReviewLocalFact.Candidate(
-          family = MoveReviewLocalFact.Family.Threat,
-          source = MoveReviewLocalFact.Source.CanonicalFact,
-          producer = MoveReviewLocalFact.Producer.TacticalMotif,
-          subject = MoveReviewLocalFact.Subject.Target,
-          strictFallbackCandidate = true,
-          anchors = List(
-            MoveReviewLocalFact.Anchor("tactical_kind", "check"),
-            MoveReviewLocalFact.Anchor("king_square", "f2")
-          ),
-          lineBinding = MoveReviewLocalFact.LineBinding.PvCoupled,
-          evidenceRefs = List("check_type:normal", "motif_square:f2"),
-          guardrails = List("tactical_kind:check", "current_move_motif_owned", "pv_confirms_tactic")
-        )
-      )
     val checkResult =
-      MoveReviewExplanationBuilder.Result(
-        explanation =
-          MoveReviewExplanation(
-            title = "Rb2+ gives check",
-            prose = "Rb2+ gives check to the f2 king, tied to the verified reply in the checked line.",
-            source = "canonical_fact"
-          ),
-        localFact = checkFact
+      localFactFixtureResult(
+        family = MoveReviewLocalFact.Family.Threat,
+        source = MoveReviewLocalFact.Source.CanonicalFact,
+        producer = MoveReviewLocalFact.Producer.TacticalMotif,
+        subject = MoveReviewLocalFact.Subject.Target,
+        title = "Rb2+ gives check",
+        prose = "Rb2+ gives check to the f2 king, tied to the verified reply in the checked line.",
+        explanationSource = "canonical_fact",
+        anchors = List(MoveReviewLocalFact.Anchor("tactical_kind", "check"), MoveReviewLocalFact.Anchor("king_square", "f2")),
+        evidenceRefs = List("check_type:normal", "motif_square:f2"),
+        guardrails = List("tactical_kind:check", "current_move_motif_owned", "pv_confirms_tactic")
       )
     val ctx =
       baseCtx(List(q)).copy(
@@ -2401,20 +2555,17 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     val q = question("q_tactical_line_consequence", AuthorQuestionKind.WhatChanged)
     val ctx = baseCtx(List(q))
     val consequence =
-      LineConsequenceEvidence(
-        lineId = Some("line_01"),
+      lineConsequence(
+        lineId = "line_01",
         sanMoves = List("exd5", "Nxd5"),
         uciMoves = List("e4d5", "f6d5"),
-        scoreCp = Some(42),
-        mate = None,
-        depth = Some(12),
+        scoreCp = 42,
         windowPly = 2,
         kind = LineConsequenceKind.ExchangeSequence,
-        triggerSan = Some("exd5"),
+        triggerSan = "exd5",
         consequence = "The checked line reaches an exchange sequence after exd5.",
-        whyItMatters = Some("That matters because the material balance is resolved on the checked line."),
-        release = LineConsequenceRelease.SurfaceCandidate,
-        rejectReasons = Nil
+        whyItMatters = "That matters because the material balance is resolved on the checked line.",
+        depth = 12
       )
     val contract =
       truthContract(
@@ -2442,6 +2593,185 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
           label.contains("pv_line_consequence")
       ),
       clues(plans.ownerTrace.admittedPlannerOwnerLabels)
+    )
+  }
+
+  test("actual e3 delayed pawn capture owns the scene over a broad discovered-attack local fact") {
+    val q = question("q_e3_delayed_capture", AuthorQuestionKind.WhatChanged)
+    val fen = "rn1qkb1r/pp2pppp/2p2n2/5b2/P1pP4/2N2N2/1P2PPPP/R1BQKB1R w KQkq - 1 6"
+    val ctx =
+      baseCtx(List(q)).copy(
+        fen = fen,
+        ply = 11,
+        playedMove = Some("e2e3"),
+        playedSan = Some("e3"),
+        phase = PhaseContext("Opening", "Slav Defense")
+      )
+    val consequence =
+      lineConsequence(
+        lineId = "line_03",
+        sanMoves = List("e3", "e6", "Bxc4", "Bb4", "O-O"),
+        uciMoves = List("e2e3", "e7e6", "f1c4", "f8b4", "e1g1"),
+        scoreCp = 27,
+        windowPly = 5,
+        kind = LineConsequenceKind.DelayedPawnCapture,
+        triggerSan = "Bxc4",
+        consequence = "The checked line reaches a delayed pawn capture after Bxc4.",
+        whyItMatters = "The point is the later pawn capture, not just the first move."
+      )
+    val tacticalResult =
+      localFactFixtureResult(
+        family = MoveReviewLocalFact.Family.Threat,
+        source = MoveReviewLocalFact.Source.CanonicalFact,
+        producer = MoveReviewLocalFact.Producer.TacticalMotif,
+        subject = MoveReviewLocalFact.Subject.LineOrReply,
+        title = "e3 opens a discovered attack",
+        prose = "e3 opens a discovered attack from the f1 bishop toward the c4 pawn.",
+        explanationSource = "canonical_fact",
+        anchors = List(
+          MoveReviewLocalFact.Anchor("motif_square", "e3"),
+          MoveReviewLocalFact.Anchor("motif_square", "f1"),
+          MoveReviewLocalFact.Anchor("motif_square", "c4")
+        ),
+        evidenceRefs = List(
+          "typed_local_fact_source:canonical_fact",
+          "typed_local_fact_family:threat",
+          "typed_local_fact_producer:tactical_motif",
+          "tactical_kind:discovered_attack",
+          "motif_owner:current_move",
+          "motif_square:e3",
+          "motif_square:f1",
+          "motif_square:c4"
+        ),
+        guardrails = List("tactical_kind:discovered_attack", "current_move_motif_owned", "pv_confirms_tactic")
+      )
+    val contract =
+      truthContract(
+        truthClass = DecisiveTruthClass.Acceptable,
+        reasonFamily = DecisiveReasonKind.QuietTechnicalMove,
+        verifiedBestMove = Some("f3h4"),
+        benchmarkCriticalMove = false
+      ).copy(
+        playedMove = Some("e2e3"),
+        cpLoss = 14,
+        allowConcreteBenchmark = false,
+        chosenMatchesBest = false,
+        surfacedMoveOwnsTruth = false,
+        benchmarkProseAllowed = false,
+        failureMode = FailureInterpretationMode.NoClearPlan,
+        failureIntentConfidence = 0.0,
+        failureIntentAnchor = None,
+        failureInterpretationAllowed = false
+      )
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        ctx,
+        inputs(
+          lineConsequence = Some(consequence),
+          localFactResult = Some(tacticalResult)
+        ),
+        Some(contract)
+      )
+
+    assertEquals(plans.ownerTrace.sceneType, SceneType.LineConsequence)
+    assertEquals(plans.primary.map(_.plannerOwnerKind), Some(PlannerOwnerKind.LineConsequence))
+    assertEquals(plans.primary.map(_.plannerSource), Some("line_consequence"))
+    assert(
+      plans.ownerTrace.droppedPlannerOwnerLabels.exists(label =>
+        label.contains("ConcreteTactical") &&
+          label.contains("line_consequence_preempts_broad_tactical_motif") &&
+          label.contains("support_material_not_owner_legal")
+      ),
+      clues(plans.ownerTrace)
+    )
+  }
+
+  test("actual d5 central break line consequence owns the scene over opening-goal and target cues") {
+    val q = question("q_d5_line_consequence", AuthorQuestionKind.WhatChanged)
+    val fen = "rnbq1rk1/pp1pppbp/2p2np1/8/2PP4/2N2NP1/PP2PPBP/R1BQK2R b KQ - 1 6"
+    val ctx =
+      baseCtx(List(q)).copy(
+        fen = fen,
+        ply = 12,
+        playedMove = Some("d7d5"),
+        playedSan = Some("d5")
+      )
+    val consequence =
+      lineConsequence(
+        lineId = "line_01",
+        sanMoves = List("d5", "cxd5", "cxd5", "O-O", "Ne4"),
+        uciMoves = List("d7d5", "c4d5", "c6d5", "e1g1", "f6e4"),
+        scoreCp = 21,
+        windowPly = 12,
+        kind = LineConsequenceKind.CentralBreakTiming,
+        triggerSan = "d5",
+        consequence =
+          "The checked line keeps the center sequence bounded: d5 is the move under review, and cxd5 continues the line.",
+        whyItMatters = "That matters because the central break changes the pawn structure before counterplay settles."
+      )
+    val openingResult =
+      localFactFixtureResult(
+        family = MoveReviewLocalFact.Family.OpeningGoal,
+        source = MoveReviewLocalFact.Source.OpeningGoalEvidence,
+        producer = MoveReviewLocalFact.Producer.OpeningGoal,
+        subject = MoveReviewLocalFact.Subject.OpeningGoal,
+        title = "d5 matches a checked center cue",
+        prose =
+          "d5 in this opening context matches a checked center cue. The checked line keeps the center sequence bounded: d5 is the move under review, and cxd5 continues the line.",
+        explanationSource = "opening_goal",
+        anchors = List(MoveReviewLocalFact.Anchor("opening_goal", "gruenfeld_center_challenge")),
+        evidenceRefs =
+          List("typed_local_fact_source:opening_goal", "typed_local_fact_family:opening_goal", "typed_local_fact_producer:opening_goal"),
+        guardrails = List("opening_goal_status_achieved_or_partial", "pv_coupled")
+      )
+    val contract =
+      truthContract(
+        reasonFamily = DecisiveReasonKind.QuietTechnicalMove,
+        verifiedBestMove = Some("d5"),
+        benchmarkCriticalMove = false
+      ).copy(
+        playedMove = Some("d7d5"),
+        chosenMatchesBest = true,
+        failureMode = FailureInterpretationMode.NoClearPlan
+      )
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        ctx,
+        inputs(
+          mainBundle =
+            Some(
+              MainPathClaimBundle(
+                Some(mainClaim("d5 in this opening context matches a checked center cue.", sourceKind = "target")),
+                None
+              )
+            ),
+          pvDelta = Some(PVDelta(Nil, Nil, Nil, Nil)),
+          pvCoupledPlanSupport =
+            Some(
+              PvCoupledPlanSupport(
+                planName = "Piece Activation",
+                playedSan = "d5",
+                evidenceLine = "Short line: d5 cxd5 cxd5 O-O Ne4.",
+                matchedAnchorTokens = List("Ne4")
+              )
+            ),
+          lineConsequence = Some(consequence),
+          localFactResult = Some(openingResult)
+        ),
+        Some(contract)
+      )
+
+    assertEquals(plans.ownerTrace.sceneType, SceneType.LineConsequence)
+    assertEquals(plans.primary.map(_.questionKind), Some(AuthorQuestionKind.WhatChanged))
+    assertEquals(plans.primary.map(_.plannerOwnerKind), Some(PlannerOwnerKind.LineConsequence))
+    assertEquals(plans.primary.map(_.plannerSource), Some("line_consequence"))
+    assert(
+      plans.ownerTrace.admittedPlannerOwnerLabels.exists(label =>
+        label.contains("LineConsequence") &&
+          label.contains("source_kind=line_consequence") &&
+          label.contains("pv_line_consequence")
+      ),
+      clues(plans.ownerTrace)
     )
   }
 
@@ -2484,6 +2814,68 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     assertNotEquals(plans.ownerTrace.sceneType, SceneType.ConcreteTactical)
     assertEquals(plans.primary.map(_.questionKind), Some(AuthorQuestionKind.WhatChanged))
     assertEquals(plans.ownerTrace.selectedPlannerOwnerKind, Some(PlannerOwnerKind.MoveDelta))
+  }
+
+  test("best tactical refutation contract does not owner-promote actual capture PV") {
+    val q = question("q_actual_dxe5_capture", AuthorQuestionKind.WhyThis)
+    val ctx =
+      baseCtx(List(q)).copy(
+        fen = "rnbqkbnr/ppp2ppp/3p4/4P3/4P3/8/PPP2PPP/RNBQKBNR b KQkq - 0 3",
+        ply = 6,
+        playedMove = Some("d6e5"),
+        playedSan = Some("dxe5"),
+        engineEvidence =
+          Some(
+            EngineEvidence(
+              depth = 10,
+              variations =
+                List(VariationLine(List("d6e5", "d1d8", "e8d8", "c1e3", "f7f6"), scoreCp = 42, depth = 10))
+            )
+          )
+      )
+    val contract =
+      truthContract(
+        truthClass = DecisiveTruthClass.Best,
+        reasonFamily = DecisiveReasonKind.TacticalRefutation,
+        verifiedBestMove = Some("d6e5"),
+        benchmarkCriticalMove = false
+      ).copy(
+        playedMove = Some("d6e5"),
+        chosenMatchesBest = true,
+        failureMode = FailureInterpretationMode.NoClearPlan,
+        failureIntentAnchor = None,
+        failureInterpretationAllowed = false
+      )
+    val mainBundle =
+      MainPathMoveDeltaClaimBuilder.build(
+        ctx,
+        strategyPack = None,
+        truthContract = Some(contract)
+      )
+    val primaryClaim = mainBundle.flatMap(_.primaryClaim)
+
+    assert(!primaryClaim.exists(_.tacticalOwnership.contains("tactical_refutation")), clues(primaryClaim))
+    assert(
+      !primaryClaim.exists(claim =>
+        claim.sourceKind == "forcing_contract" && claim.mode == PlayerFacingTruthMode.Tactical
+      ),
+      clues(primaryClaim)
+    )
+
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        ctx,
+        inputs(mainBundle = mainBundle),
+        Some(contract)
+      )
+
+    assertNotEquals(plans.ownerTrace.sceneType, SceneType.ConcreteTactical)
+    assert(
+      plans.ownerTrace.ownerCandidateLabels.forall(label =>
+        !(label.contains("ConcreteTactical") && label.contains("source_kind=forcing_contract"))
+      ),
+      clues(plans.ownerTrace.ownerCandidateLabels)
+    )
   }
 
   test("WhatChanged requires move-attributed change rather than state summary") {
@@ -2595,6 +2987,67 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
         label.contains("MoveDelta") &&
           label.contains("source_kind=pv_delta") &&
           label.contains("admission_decision=SupportOnly")
+      ),
+      clues(plans.ownerTrace.ownerCandidateLabels)
+    )
+  }
+
+  test("checked exchange sequence from real Be5 row outranks delayed positional threat ownership") {
+    val q = question("q_be5_exchange", AuthorQuestionKind.WhatChanged)
+    val ctx =
+      baseCtx(List(q)).copy(
+        fen = "r3k2r/p4p1p/p2Bp3/5p2/3Rb3/8/PPP2P1P/2K3R1 w kq - 0 18",
+        playedMove = Some("d6e5"),
+        playedSan = Some("Be5"),
+        ply = 35
+      )
+    val consequence =
+      lineConsequence(
+        lineId = "line_01",
+        sanMoves = List("Be5", "Ke7", "Bxh8", "Rxh8", "Rc4"),
+        uciMoves = List("d6e5", "e8e7", "e5h8", "a8h8", "d4c4"),
+        scoreCp = 256,
+        windowPly = 35,
+        kind = LineConsequenceKind.ExchangeSequence,
+        triggerSan = "Bxh8",
+        consequence = "The checked line reaches an exchange sequence after Bxh8.",
+        whyItMatters = "The decision is about the resulting structure after the bishop trades for the rook on h8."
+      )
+    val contract =
+      truthContract(
+        truthClass = DecisiveTruthClass.Best,
+        reasonFamily = DecisiveReasonKind.InvestmentSacrifice,
+        verifiedBestMove = Some("d6e5"),
+        benchmarkCriticalMove = true
+      ).copy(
+        playedMove = Some("d6e5"),
+        chosenMatchesBest = true,
+        failureMode = FailureInterpretationMode.NoClearPlan
+      )
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        ctx,
+        inputs(
+          pvDelta = Some(PVDelta(Nil, Nil, Nil, Nil)),
+          lineConsequence = Some(consequence),
+          opponentThreats =
+            List(
+              threat("Positional", 112, Some("d6e5"), turnsToImpact = 4).copy(
+                square = Some("c2"),
+                motifs = List("PassedPawn")
+              )
+            )
+        ),
+        Some(contract)
+      )
+
+    assertEquals(plans.ownerTrace.sceneType, SceneType.LineConsequence)
+    assertEquals(plans.primary.map(_.questionKind), Some(AuthorQuestionKind.WhatChanged))
+    assertEquals(plans.primary.map(_.plannerOwnerKind), Some(PlannerOwnerKind.LineConsequence))
+    assertEquals(plans.primary.map(_.plannerSource), Some("line_consequence"))
+    assert(
+      !plans.ownerTrace.ownerCandidateLabels.exists(label =>
+        label.contains("ForcingDefense") && label.contains("source_kind=threat")
       ),
       clues(plans.ownerTrace.ownerCandidateLabels)
     )

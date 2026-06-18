@@ -1,32 +1,32 @@
 # Commentary Trust Boundary
 
-This document defines what user-facing MoveReview prose and UI may trust. It is
-kept short so cleanup and producer refactoring are not blocked by stale rollout
-details.
+This is a trust-risk reference for user-facing MoveReview prose and UI. It is
+not a complete rulebook. Live code, typed payloads, replay evidence, and corpus
+behavior are stronger working evidence.
 
 ## Core Rule
 
-User-facing chess meaning may only come from typed evidence admitted by the
-producer/planner/local-fact path. Presentation layers may format, arrange, and
-hide content, but they do not create claim authority.
+User-facing chess meaning should come from typed evidence admitted by the
+producer, planner, local-fact, or CausalFrame path. Presentation layers may
+format, arrange, and hide content; they should not create claim families or
+claim strength.
 
-Untrusted as public chess authority:
+Untrusted as public chess evidence:
 
-- renderer prose;
+- renderer or cached prose;
 - source prose;
 - row labels;
-- opening or endgame names;
+- opening or endgame names by themselves;
 - diagnostic strings;
 - planner scene names;
 - frontend CSS classes or tags;
-- author-question labels without supporting evidence;
-- cached commentary text.
+- author-question labels without resolved evidence.
 
-Trusted only when typed and current-position-backed:
+Trusted only when current-position-backed:
 
 - board geometry and legal move state;
 - checked SAN/UCIs and replay refs;
-- PV/eval/probe/tablebase results;
+- PV/eval/probe/tablebase data;
 - analyzer packets;
 - admitted local facts and CausalFrame evidence.
 
@@ -36,64 +36,73 @@ Risk gates may suppress, demote, or defer a surface. They do not authorize
 tactical, plan, timing, forced, alternative, opening, endgame, compensation, or
 result claims by themselves.
 
-When a risk gate closes a claim, the preferred follow-up is producer/evidence
-repair. Sanitizer or renderer closure is a safety stop, not completion.
+When a risk gate closes a claim, repair the producer or evidence path if a true
+weaker explanation should exist. Fail-closed behavior is a safety stop, not a
+quality win.
 
-## Renderer And Frontend
+## Surface Strength
 
-Renderer and frontend code may:
+Use the weakest public strength supported by the payload:
 
-- render admitted text;
-- show scene structure;
-- display board/eval/replay cues from typed refs;
-- keep support and diagnostic details out of the main conclusion;
-- fail closed when a payload is malformed.
-
-Renderer and frontend code must not:
-
-- parse row text or labels to infer chess meaning;
-- promote `probeRows` or `authorRows` to main conclusions;
-- turn opening/endgame labels into plan or technique truth;
-- create "best", "forced", "attack", "conversion", "draw", or "win" claims;
-- choose a new claim family from diagnostics or source strings;
-- alter checked line order or repeated SAN meaning.
-
-`MoveReviewPlayerSurface` field choice is part of trust:
-
-- `summaryRows` read as main reasons.
-- `advancedRows` read as plan/follow-up direction.
-- `probeRows` and `authorRows` read as support or questions.
-
-If a backend claim appears in the wrong field, fix the backend surface mapping
-rather than compensating in frontend copy.
-
-## Claim Strength
-
-Use the weakest public strength that matches the evidence:
-
-- public conclusion: current-position evidence fully supports the claim family;
-- weak claim: evidence supports the idea but not decisive language;
+- public conclusion: current-position evidence supports the family and strength;
+- weak claim: evidence supports the idea but not decisive wording;
 - support-only fact: useful context but not a conclusion;
 - diagnostic: developer trace only;
 - silence: malformed, stale, or unsupported.
 
-Do not treat fail-closed behavior as the end of the work when a true weaker
-claim can be recovered from existing producer/analyzer/probe/model assets.
+Field placement matters:
 
-## Disallowed Legacy Flow
+- `summaryRows` read as main reasons.
+- `advancedRows` read as plans or follow-up direction.
+- `probeRows` and `authorRows` read as support, checks, or unresolved questions.
+
+If a backend claim appears in the wrong field, fix the backend surface mapping
+rather than compensating in frontend copy.
+
+## Common Trust Risks
+
+Treat these as diagnostic prompts, not as a complete checklist:
+
+- no evidence;
+- wrong claim family;
+- incomplete evidence;
+- renderer or frontend overreach;
+- missing producer skill;
+- move-order dependency;
+- objective/practical mismatch;
+- overgeneralized theme;
+- wrong surface tier.
+
+Recurring examples include forcedness without alternative proof, tactical labels
+without current-move geometry, line-consequence claims without replay binding,
+plan claims from broad context only, and opening/endgame labels promoted to
+current-position technique.
+
+## Renderer And Frontend
+
+Renderer and frontend code may render admitted text, show typed replay/board
+cues, keep diagnostics out of conclusions, and fail closed on malformed payloads.
+
+They should not:
+
+- parse row text or labels to infer chess meaning;
+- promote `probeRows` or `authorRows` to main conclusions;
+- turn opening/endgame labels into plan or technique truth;
+- create best, forced, attack, conversion, draw, or win claims;
+- choose a new claim family from diagnostics or source strings;
+- alter checked-line order or repeated SAN meaning.
+
+## Legacy Flows To Avoid
 
 These flows stay outside the trust boundary:
 
 - prose -> claim;
 - diagnostic string -> claim;
 - opening/endgame label -> current-position truth;
-- row label -> authority;
+- row label -> evidence;
 - frontend tag/class -> chess meaning;
 - risk gate -> positive explanation;
 - source name -> evidence;
 - cached sentence -> evidence.
 
-If such a flow is found, classify the issue first: no evidence, wrong family,
-incomplete evidence, renderer/frontend overreach, missing producer skill,
-move-order dependency, objective/practical mismatch, overgeneralized theme, or
-wrong surface tier. Then repair or demote the claim at the typed evidence path.
+Fix these at the typed evidence path, or lower the surface strength.

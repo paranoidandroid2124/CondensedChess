@@ -467,7 +467,7 @@ class DecisionComparisonBuilderTest extends FunSuite:
     assert(!comparison.flatMap(_.comparativeConsequence).exists(_.contains("minor-piece reroute")))
   }
 
-  test("role-aware line consequence can compare acceptable tactical style-choice branches with replayed proof") {
+  test("role-aware line consequence compares quiet positional-collapse style-choice branches with replayed proof") {
     val fen = "7r/pppr3p/2n1kp2/3Np3/4P3/P4P2/1PP3PP/2R1K2R w K - 0 18"
     val bestLine = List("d5e3", "h8d8", "h1f1", "h7h5", "f1f2", "h5h4", "c1d1", "d7d1")
     val playedLine = List("c2c3", "c6a5", "e1e2", "a5c4", "c1c2")
@@ -497,17 +497,39 @@ class DecisionComparisonBuilderTest extends FunSuite:
               cpLoss = 55,
               missedMotifs = Nil,
               userMoveMotifs = Nil,
-              severity = "Acceptable",
+              severity = "Inaccuracy",
               userLine = VariationLine(playedLine, scoreCp = 54, depth = 10)
             )
           )
       )
     val raw = DecisionComparisonBuilder.build(ctx).getOrElse(fail("missing comparison"))
     val contract =
-      acceptableTacticalStyleContract(
+      DecisiveTruthContract(
         playedMove = Some("c3"),
         verifiedBestMove = Some("Ne3"),
-        cpLoss = 55
+        truthClass = DecisiveTruthClass.Inaccuracy,
+        cpLoss = 55,
+        swingSeverity = 55,
+        reasonFamily = DecisiveReasonKind.QuietTechnicalMove,
+        allowConcreteBenchmark = false,
+        chosenMatchesBest = false,
+        compensationAllowed = false,
+        truthPhase = None,
+        ownershipRole = TruthOwnershipRole.NoneRole,
+        visibilityRole = TruthVisibilityRole.PrimaryVisible,
+        surfaceMode = TruthSurfaceMode.Neutral,
+        exemplarRole = TruthExemplarRole.NonExemplar,
+        surfacedMoveOwnsTruth = false,
+        verifiedPayoffAnchor = None,
+        compensationProseAllowed = false,
+        benchmarkProseAllowed = false,
+        investmentTruthChainKey = None,
+        maintenanceExemplarCandidate = false,
+        benchmarkCriticalMove = false,
+        failureMode = FailureInterpretationMode.QuietPositionalCollapse,
+        failureIntentConfidence = 0.0,
+        failureIntentAnchor = None,
+        failureInterpretationAllowed = false
       )
     val refs =
       replayedRefs(

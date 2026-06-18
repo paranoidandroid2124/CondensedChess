@@ -147,6 +147,200 @@ class DecisiveTruthContractTest extends FunSuite:
     assertEquals(frame.toContract.blocksStrategicSupport, false)
   }
 
+  test("ordinary proof line on a slight inaccuracy does not become a tactical refutation") {
+    val raw =
+      comparison(
+        chosenMove = "Qb5+",
+        engineBestMove = Some("Nc3"),
+        cpLoss = 58
+      ).copy(
+        engineBestScoreCp = Some(704),
+        engineBestPv = List("Nc3", "Kd8", "Ne4", "Rxc2")
+      )
+
+    val frame = DecisiveTruth.deriveFrame(
+      ctx =
+        ctx(
+          playedMove = "b8b5",
+          playedSan = "Qb5+",
+          fen = "1Qb1k3/2r2r1p/7p/8/8/3P2P1/PPP3P1/RN5K w - - 0 24",
+          criticality = "Forced",
+          engineVariations =
+            List(
+              VariationLine(List("b1c3", "e8d8", "c3e4", "c7c2", "b8d6", "c8d7"), scoreCp = 704, depth = 10),
+              VariationLine(List("b8b5", "e8d8", "b5d5", "d8e7", "b1c3", "f7f1", "a1f1"), scoreCp = 646, depth = 10),
+              VariationLine(List("b1d2", "e8d8", "d2c4", "c8g4"), scoreCp = 616, depth = 10)
+            )
+        ),
+      comparisonOverride = Some(raw)
+    )
+
+    assertEquals(frame.moveQuality.verdict, MoveQualityVerdict.Inaccuracy)
+    assertEquals(frame.truthClass, DecisiveTruthClass.Inaccuracy)
+    assertEquals(frame.strategicOwnership.reasonFamily, DecisiveReasonKind.QuietTechnicalMove)
+    assertEquals(frame.failureInterpretation.failureMode, FailureInterpretationMode.NoClearPlan)
+    assertEquals(frame.toContract.blocksStrategicSupport, false)
+  }
+
+  test("large cp drop in a won position stays bounded by win probability loss") {
+    val raw =
+      comparison(
+        chosenMove = "Qb5+",
+        engineBestMove = Some("Nc3"),
+        cpLoss = 200
+      ).copy(
+        engineBestScoreCp = Some(960),
+        engineBestPv = List("Nc3")
+      )
+
+    val frame = DecisiveTruth.deriveFrame(
+      ctx =
+        ctx(
+          playedMove = "b8b5",
+          playedSan = "Qb5+",
+          fen = "1Qb1k3/2r2r1p/7p/8/8/3P2P1/PPP3P1/RN5K w - - 0 24",
+          criticality = "Forced",
+          engineVariations =
+            List(
+              VariationLine(List("b1c3"), scoreCp = 960, depth = 10),
+              VariationLine(List("b8b5"), scoreCp = 760, depth = 10)
+            )
+        ),
+      cpBefore = Some(960),
+      cpAfter = Some(760),
+      comparisonOverride = Some(raw)
+    )
+
+    assertEquals(frame.moveQuality.verdict, MoveQualityVerdict.Acceptable)
+    assert(frame.moveQuality.winPercentLoss < Thresholds.INACCURACY_WP, clue(frame.moveQuality))
+    assertEquals(frame.strategicOwnership.reasonFamily, DecisiveReasonKind.QuietTechnicalMove)
+    assertEquals(frame.truthClass, DecisiveTruthClass.Acceptable)
+    assertEquals(frame.failureInterpretation.failureMode, FailureInterpretationMode.NoClearPlan)
+  }
+
+  test("acceptable high-eval cp gaps do not re-enter planner comparison severity") {
+    val raw =
+      comparison(
+        chosenMove = "Qb5+",
+        engineBestMove = Some("Nc3"),
+        cpLoss = 200
+      ).copy(
+        engineBestScoreCp = Some(960),
+        engineBestPv = List("Nc3")
+      )
+
+    val contract =
+      DecisiveTruth.derive(
+        ctx =
+          ctx(
+            playedMove = "b8b5",
+            playedSan = "Qb5+",
+            fen = "1Qb1k3/2r2r1p/7p/8/8/3P2P1/PPP3P1/RN5K w - - 0 24"
+          ),
+        cpBefore = Some(960),
+        cpAfter = Some(760),
+        comparisonOverride = Some(raw)
+      )
+    val sanitized = DecisiveTruth.sanitizeDecisionComparison(Some(raw), contract).getOrElse(fail("missing comparison"))
+
+    assertEquals(contract.truthClass, DecisiveTruthClass.Acceptable)
+    assertEquals(sanitized.cpLossVsChosen, None)
+  }
+
+  test("actual narrow opening central break is not promoted to only-move defense without alternative proof") {
+    val raw =
+      comparison(
+        chosenMove = "d4",
+        engineBestMove = Some("d4"),
+        cpLoss = 0,
+        chosenMatchesBest = true
+      ).copy(
+        engineBestScoreCp = Some(71),
+        engineBestPv = List("d4", "Bf5", "Nf3", "e6"),
+        practicalAlternative = false
+      )
+
+    val frame = DecisiveTruth.deriveFrame(
+      ctx =
+        ctx(
+          playedMove = "d2d4",
+          playedSan = "d4",
+          fen = "r1bqkbnr/ppp1pppp/2n5/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq - 1 3",
+          criticality = "Normal",
+          choiceType = "NarrowChoice"
+        ),
+      comparisonOverride = Some(raw)
+    )
+
+    assertEquals(frame.benchmark.uniqueGoodMove, false)
+    assertEquals(frame.toContract.benchmarkCriticalMove, false)
+    assertEquals(frame.strategicOwnership.reasonFamily, DecisiveReasonKind.QuietTechnicalMove)
+    assertEquals(frame.toContract.reasonFamily, DecisiveReasonKind.QuietTechnicalMove)
+    assertEquals(frame.toContract.truthClass, DecisiveTruthClass.Best)
+  }
+
+  test("actual opening central break practical alternative flag prevents unique-good promotion") {
+    val raw =
+      comparison(
+        chosenMove = "d4",
+        engineBestMove = Some("d4"),
+        cpLoss = 0,
+        chosenMatchesBest = true
+      ).copy(
+        engineBestScoreCp = Some(71),
+        engineBestPv = List("d4", "Bf5", "Nf3", "e6"),
+        practicalAlternative = true
+      )
+
+    val frame = DecisiveTruth.deriveFrame(
+      ctx =
+        ctx(
+          playedMove = "d2d4",
+          playedSan = "d4",
+          fen = "r1bqkbnr/ppp1pppp/2n5/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq - 1 3",
+          criticality = "Normal",
+          choiceType = "NarrowChoice"
+        ),
+      comparisonOverride = Some(raw)
+    )
+
+    assertEquals(frame.benchmark.alternativeCount, 1)
+    assertEquals(frame.benchmark.uniqueGoodMove, false)
+    assertEquals(frame.toContract.reasonFamily, DecisiveReasonKind.QuietTechnicalMove)
+    assertEquals(frame.toContract.benchmarkCriticalMove, false)
+  }
+
+  test("actual opening central break forced header alone is not tactical refutation") {
+    val raw =
+      comparison(
+        chosenMove = "d4",
+        engineBestMove = Some("d4"),
+        cpLoss = 0,
+        chosenMatchesBest = true
+      ).copy(
+        engineBestScoreCp = Some(71),
+        engineBestPv = List("d4", "Bf5", "Nf3", "e6"),
+        practicalAlternative = true
+      )
+
+    val frame = DecisiveTruth.deriveFrame(
+      ctx =
+        ctx(
+          playedMove = "d2d4",
+          playedSan = "d4",
+          fen = "r1bqkbnr/ppp1pppp/2n5/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq - 1 3",
+          criticality = "Forced",
+          choiceType = "NarrowChoice"
+        ),
+      comparisonOverride = Some(raw)
+    )
+
+    assertEquals(frame.benchmark.uniqueGoodMove, false)
+    assertEquals(frame.tactical.motifs, Nil)
+    assertEquals(frame.strategicOwnership.reasonFamily, DecisiveReasonKind.QuietTechnicalMove)
+    assertEquals(frame.toContract.reasonFamily, DecisiveReasonKind.QuietTechnicalMove)
+  }
+
   test("exact comparative consequence survives sanitization only with a verified best move") {
     val raw =
       comparison(

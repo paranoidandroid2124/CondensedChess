@@ -1330,6 +1330,25 @@ class MoveReviewExchangeAnalyzerTest extends FunSuite:
     assertEquals(MoveReviewExchangeAnalyzer.pinWitness(replay, "f8e7"), None)
   }
 
+  test("relation witnesses prefer absolute pin over x-ray on the same king ray") {
+    val fen = "rnbr3k/ppppbQpp/8/8/2B5/1P6/P1PP1PPP/RNB1K2R b KQ - 0 10"
+    val replay =
+      MoveReviewExchangeAnalyzer
+        .boundedTopReplay(fen, List(VariationLine(moves = List("e7b4", "f7h5"), scoreCp = 779)), maxPlies = 2)
+        .getOrElse(fail("actual Bb4 line should replay legally"))
+
+    val witnesses =
+      MoveReviewExchangeAnalyzer.relationWitnesses(replay, "e7b4", explicitTargets = List("e1"))
+
+    assert(witnesses.exists(_.kind == MoveReviewExchangeAnalyzer.RelationKind.XRay), clues(witnesses))
+    assertEquals(witnesses.headOption.map(_.kind), Some(MoveReviewExchangeAnalyzer.RelationKind.Pin), clues(witnesses))
+    val pin =
+      witnesses.collectFirst { case witness if witness.kind == MoveReviewExchangeAnalyzer.RelationKind.Pin => witness }
+        .getOrElse(fail("expected absolute pin witness"))
+    assertEquals(pin.focusSquares, List("b4", "d2", "e1"))
+    assert(pin.facts.contains("absolute_pin"), clues(pin))
+  }
+
   test("relation witnesses expose skewer only after a replayed long-range move lines up front and back targets") {
     val fen = "r6k/8/8/8/8/8/7K/4Q2R b - - 0 1"
     val replay =
