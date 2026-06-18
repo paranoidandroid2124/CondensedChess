@@ -240,45 +240,6 @@ class ProductionConfigValidatorTest extends munit.FunSuite:
     assert(err.getMessage.contains("push.web.url"))
     assert(err.getMessage.contains("push.web.vapid_public_key"))
 
-  test("production validation rejects dispatch without auth and localhost selective eval"):
-    val badDispatch = Configuration(
-      ConfigFactory.parseString("""
-        net.domain = "chesstory.com"
-        net.base_url = "https://chesstory.com"
-        net.email = "contact@chesstory.com"
-        play.http.secret.key = "play-http-secret"
-        user.password.bpass.secret = "bpass-secret"
-        security.email_confirm.enabled = true
-        security.password_reset.secret = "reset-secret"
-        security.email_confirm.secret = "confirm-secret"
-        security.email_change.secret = "change-secret"
-        security.login_token.secret = "token-secret"
-        auth.magicLink.autoCreate = false
-        mailer.primary.mock = false
-        mailer.primary.host = "smtp.postmarkapp.com"
-        mailer.primary.port = 587
-        mailer.primary.tls = true
-        mailer.primary.user = "smtp-user"
-        mailer.primary.password = "smtp-pass"
-        mailer.primary.sender = "Chesstory <noreply@chesstory.com>"
-        security.hcaptcha.enabled = true
-        security.hcaptcha.secret = "captcha-secret"
-        security.hcaptcha.public.sitekey = "captcha-sitekey"
-        kamon.prometheus.lilaKey = "prom-key"
-        accountIntel.dispatch.baseUrl = "https://worker.chesstory.com"
-        accountIntel.dispatch.bearerToken = ""
-        accountIntel.dispatch.authHeaderValue = ""
-        accountIntel.worker.authHeaderValue = ""
-        accountIntel.selectiveEval.endpoint = "http://localhost:9666"
-      """)
-    )
-
-    val err = intercept[IllegalStateException]:
-      ProductionConfigValidator.validate(badDispatch, Mode.Prod)
-
-    assert(err.getMessage.contains("accountIntel.dispatch.baseUrl"))
-    assert(err.getMessage.contains("accountIntel.selectiveEval.endpoint"))
-
   private val validProdConfig = Configuration(
     ConfigFactory.parseString("""
       net.domain = "chesstory.com"

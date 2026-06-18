@@ -118,9 +118,9 @@ function boardWorkspaceView(ctrl: AnalyseCtrl, closeMenu: () => void): VNode[] {
       workspaceSwitchCard(
         'Candidate lines',
         engineUnavailable ? 'Candidate lines are unavailable in this position.' : 'Compare candidate lines beside the moves.',
-        ctrl.showEnginePanel(),
+        ctrl.showCeval(),
         next => {
-          ctrl.setShowEnginePanel(next);
+          ctrl.showCeval(next);
           closeMenu();
         },
         engineUnavailable,

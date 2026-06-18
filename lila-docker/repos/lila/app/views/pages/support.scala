@@ -82,7 +82,7 @@ object support:
                 p("Support helps sustain the service, but access still follows Chesstory's current login, quota, and fair-use controls."),
                 ul(
                   li("Anonymous full-game review is currently limited to 1 Game Chronicle request per day per IP."),
-                  li("Signed-in free access is currently limited to 1 full-game review per day and 100 MoveReview move requests per day."),
+                  li("Signed-in free access is currently limited by current beta quota controls."),
                   li("Additional burst or fair-use controls may apply on higher-access beta tiers."),
                   li("Support does not bypass safety, abuse-prevention, or quota controls.")
                 )

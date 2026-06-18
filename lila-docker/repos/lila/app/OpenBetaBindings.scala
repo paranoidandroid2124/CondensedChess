@@ -85,15 +85,6 @@ final class OpenBetaBindings(
     val text = Files.readString(path, StandardCharsets.UTF_8)
     Json.parse(text).as[OpenBetaBindingsManifest]
 
-  private def dispatchEnabled =
-    configuredString("accountIntel.dispatch.baseUrl").isDefined
-
-  private def workerEnabled =
-    config.getOptional[Boolean]("accountIntel.worker.enabled").getOrElse(true)
-
-  private def selectiveEvalEnabled =
-    configuredString("accountIntel.selectiveEval.endpoint").isDefined
-
   private def statusOf(spec: OpenBetaBindingSpec): Fu[OpenBetaBindingStatus] =
     val required = isRequired(spec)
     bindingValue(spec) match
@@ -143,14 +134,10 @@ final class OpenBetaBindings(
   private def isRequired(spec: OpenBetaBindingSpec) =
     spec.requiredMode match
       case "always"              => true
-      case "dispatch_only"       => dispatchEnabled
-      case "selective_eval_only" => selectiveEvalEnabled
       case _                     => false
 
   private def missingDetail(spec: OpenBetaBindingSpec) =
     spec.requiredMode match
-      case "dispatch_only" if !dispatchEnabled       => if workerEnabled then "local_worker" else "dispatch_disabled"
-      case "selective_eval_only" if !selectiveEvalEnabled => "selective_eval_disabled"
       case "soft_optional"                           => "optional_missing"
       case _                                         => "missing"
 

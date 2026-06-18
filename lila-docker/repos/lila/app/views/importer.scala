@@ -2,7 +2,6 @@ package views
 
 import controllers.Importer.GameCard
 import lila.analyse.ImportHistory
-import lila.accountintel.AccountIntel.ProductKind
 import lila.app.UiEnv.*
 import lila.ui.Page
 
@@ -148,36 +147,6 @@ object importer:
                       )
                     ),
                     div(cls := "importer-side")(
-                      games.nonEmpty.option(
-                        div(cls := "importer-panel importer-panel--notebook")(
-                          div(cls := "importer-panel__head")(
-                            strong(cls := "importer-panel__title")("Save these games as a study"),
-                            p(cls := "importer-panel__copy")(
-                              "Do this only when the games are worth keeping as a longer-lived repair sheet or prep file."
-                            )
-                          ),
-                          div(cls := "importer-mode-grid")(
-                            renderNotebookMode(
-                              provider = provider,
-                              username = username,
-                              kind = ProductKind.MyAccountIntelligenceLite.key,
-                              title = "My Patterns study",
-                              body =
-                                "Use these games to spot the decisions you keep repeating and the structure worth fixing first.",
-                              eyebrow = "Repair"
-                            ),
-                            renderNotebookMode(
-                              provider = provider,
-                              username = username,
-                              kind = ProductKind.OpponentPrep.key,
-                              title = "Opponent Prep",
-                              body =
-                                "Use these games as prep: which structures are worth steering toward and where the first quiet decision tends to bend.",
-                              eyebrow = "Steer"
-                            )
-                          )
-                        )
-                      ),
                       div(cls := "importer-panel importer-panel--compact")(
                         div(cls := "importer-panel__head")(
                           strong(cls := "importer-panel__title")("Find another player"),
@@ -257,31 +226,6 @@ object importer:
       )
     )
 
-  private def renderNotebookMode(
-      provider: String,
-      username: String,
-      kind: String,
-      title: String,
-      body: String,
-      eyebrow: String
-  ): Frag =
-    form(
-      cls := "importer-mode-card",
-      method := "post",
-      action := routes.AccountIntel.submit.url
-    )(
-      input(tpe := "hidden", name := "provider", value := provider),
-      input(tpe := "hidden", name := "username", value := username),
-      input(tpe := "hidden", name := "kind", value := kind),
-      div(cls := "importer-mode-card__eyebrow")(eyebrow),
-      strong(cls := "importer-mode-card__title")(title),
-      p(cls := "importer-mode-card__body")(body),
-      button(cls := "auth-submit importer-submit importer-submit--secondary", tpe := "submit")(
-        "Create study",
-        span(cls := "arrow")(" ->")
-      )
-    )
-
   private def renderRecentSections(
       recentAccounts: List[ImportHistory.Account],
       recentAnalyses: List[ImportHistory.Analysis]
@@ -308,7 +252,7 @@ object importer:
             div(cls := "auth-history__section-head")(
               strong("Recent games"),
               span(
-                "Reopen saved games, then continue with Move Review or the board."
+                "Reopen saved games, then continue on the analysis board."
               )
             ),
             div(cls := "auth-history__list")(

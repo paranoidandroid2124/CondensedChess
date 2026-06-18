@@ -4,7 +4,7 @@ const consentCookieName = 'chesstory_cookie_consent';
 const consentVersion = 'v1';
 const consentMaxAgeSeconds = 60 * 60 * 24 * 180;
 
-const preferenceKeyPrefixes = ['analyse.', 'moveReview.', 'chesstory.move_review.', 'engine.'];
+const preferenceKeyPrefixes = ['analyse.', 'engine.'];
 const preferenceExactKeys = ['analysis.panel', 'chesstory.evalChart', 'markdown.rtfm', 'log.window'];
 const preferenceCookies = ['bg', 'zoom'];
 const preferenceIndexedDbNames = ['analyse-collapse', 'big-file', 'ceval-wasm-cache--db', 'lichess', 'log--db'];

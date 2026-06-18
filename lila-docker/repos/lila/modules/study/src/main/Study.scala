@@ -20,7 +20,6 @@ case class Study(
     likes: Study.Likes,
     description: Option[String] = None,
     topics: Option[StudyTopics] = None,
-    notebookDossier: Option[String] = None,
     createdAt: Instant,
     updatedAt: Instant
 ) extends hub.Study:
@@ -75,7 +74,6 @@ case class Study(
       visibility = Visibility.`private`,
       from = Study.From.Study(id),
       likes = Likes(1),
-      notebookDossier = None,
       createdAt = nowInstant,
       updatedAt = nowInstant
     )
@@ -176,7 +174,6 @@ object Study:
       settings = settings | Settings.init,
       from = from,
       likes = Likes(1),
-      notebookDossier = None,
       createdAt = nowInstant,
       updatedAt = nowInstant
     )

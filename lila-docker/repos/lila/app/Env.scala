@@ -59,36 +59,11 @@ final class Env(
     cacheApi = memo.cacheApi
   )
 
-  val accountintel: lila.accountintel.Env = new lila.accountintel.Env(
-    appConfig = config,
-    ws = summon[StandaloneWSClient],
-    mongo = mongo,
-    cacheApi = memo.cacheApi,
-    evalCacheApi = evalCache.api,
-    studyApi = study.api,
-    userApi = user.api
-  )
-  val strategicPuzzle: lila.strategicPuzzle.Env = new lila.strategicPuzzle.Env(
-    mongo = mongo,
-    mongoCache = memo.mongoCache
-  )
   val beta: lila.beta.Env = new lila.beta.Env(
     mongo = mongo,
     userApi = user.api
   )
 
-  val commentary: lila.commentary.Env = new lila.commentary.Env(
-    db = mongo.mainDb,
-    appConfig = config,
-    ws = summon[StandaloneWSClient]
-  )
-  val ops: lila.ops.Env = new lila.ops.Env(
-    db = mongo.mainDb,
-    userEnv = user,
-    securityEnv = security,
-    mailerEnv = mailer,
-    baseUrl = baseUrl
-  )
   val web: lila.web.Env = wire[lila.web.Env]
   val api: lila.api.Env = wire[lila.api.Env]
   lazy val apiC: lila.api.Api = wire[lila.api.Api]

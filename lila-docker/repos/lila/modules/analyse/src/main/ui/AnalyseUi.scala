@@ -30,12 +30,10 @@ final class AnalyseUi(helpers: Helpers)(endpoints: AnalyseEndpoints):
       chess960PositionNum: Option[Int] = None,
       withForecast: Boolean = false,
       inlinePgn: Option[String] = None,
-      importHistory: Option[JsObject] = None,
-      narrative: Option[Frag] = None
+      importHistory: Option[JsObject] = None
   )(using ctx: Context): Page =
     Page("Analysis")
       .css("analyse.free")
-      .css("commentary.widget")
       .css(withForecast.option("analyse.forecast"))
       .csp(bits.cspExternalEngine.compose(_.withExternalAnalysisApis))
       .js:
@@ -43,8 +41,7 @@ final class AnalyseUi(helpers: Helpers)(endpoints: AnalyseEndpoints):
           "userAnalysis",
           Json
             .obj(
-              "data" -> data,
-              "moveReview" -> (pov.game.variant.standard || pov.game.variant.chess960)
+              "data" -> data
             )
             .add("inlinePgn", inlinePgn)
             .add("importHistory", importHistory) ++
@@ -58,8 +55,7 @@ final class AnalyseUi(helpers: Helpers)(endpoints: AnalyseEndpoints):
       .flag(_.zoom):
         main(
           cls := List(
-            "analyse" -> true,
-            "analyse--moveReview" -> (pov.game.variant.standard || pov.game.variant.chess960)
+            "analyse" -> true
           )
         )(
           pov.game.synthetic.option(
@@ -77,17 +73,7 @@ final class AnalyseUi(helpers: Helpers)(endpoints: AnalyseEndpoints):
                       href := routes.UserAnalysis.parseArg(v.key.value)
                     )(v.name)
               ),
-              pov.game.variant.chess960.option(chess960selector(chess960PositionNum)),
-              (pov.game.variant.standard || pov.game.variant.chess960).option(
-                fieldset(
-                  cls := "analyse__move-review toggle-box toggle-box--toggle",
-                  id := "move-review-field",
-                  attr("data-move-review") := "true"
-                )(
-                  legend(tabindex := 0)("MoveReview"),
-                  div(cls := "analyse__move-review-text")(narrative)
-                )
-              )
+              pov.game.variant.chess960.option(chess960selector(chess960PositionNum))
             )
           ),
           div(cls := "analyse__board main-board")(chessgroundBoard),

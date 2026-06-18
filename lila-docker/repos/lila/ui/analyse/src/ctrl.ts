@@ -29,7 +29,6 @@ import { makeSanAndPlay } from 'chessops/san';
 import { makeUci } from 'chessops';
 import { storedBooleanProp, storedProp, tempStorage } from 'lib/storage';
 import { PromotionCtrl } from 'lib/game/promotion';
-import moveReviewNarrative, { moveReviewClear, type MoveReviewNarrative } from './moveReview';
 import ExplorerCtrl from './explorer/explorerCtrl';
 import { uciToMove } from '@lichess-org/chessground/util';
 import { IdbTree } from './idbTree';
@@ -37,7 +36,6 @@ import pgnImport from './pgnImport';
 import * as pgnExport from './pgnExport';
 import { emptyPgnError, normalizeInlinePgn, submitPgnToImportPipeline } from './pgnPipeline';
 import * as studyApi from './studyApi';
-import { listSessionMoveReviewSnapshots, type StudyMoveReviewSnapshot } from './moveReview/studyPersistence';
 
 import type { PgnError } from 'chessops/pgn';
 
@@ -52,35 +50,8 @@ import {
   boardLabelModeToCoords,
   type BoardLabelMode,
 } from './boardWorkspace';
-import {
-  initialReviewState,
-  reduceReviewState,
-  type NarrativeMomentFilter,
-  type ReviewPrimaryTab,
-  type ReviewSurfaceMode,
-  type ReviewUtilityPanel,
-  type ReviewUIAction,
-  type ReviewUIState,
-} from './review/state';
 
-const legacyReviewStateStorageKey = 'analyse.review-shell.v1';
-const reviewStateStorageKey = 'analyse.review-shell.v2';
 const recentImportStorageKey = 'analyse.import-recents.v1';
-const reviewPrimaryTabs = new Set<ReviewPrimaryTab>([
-  'overview',
-  'moments',
-  'repair',
-  'patterns',
-  'moves',
-  'import',
-  'explain',
-  'engine',
-  'explorer',
-  'board',
-]);
-const reviewSurfaceModes = new Set<ReviewSurfaceMode>(['review', 'raw']);
-const reviewUtilityPanels = new Set<ReviewUtilityPanel>(['explorer', 'board']);
-const reviewMomentFilters = new Set<NarrativeMomentFilter>(['all', 'critical', 'collapses']);
 const boardLabelModes = new Set<BoardLabelMode>(['off', 'inside', 'rim', 'full']);
 
 interface AnalyseHistoryState {
@@ -89,21 +60,6 @@ interface AnalyseHistoryState {
 
 function magicLinkHref(): string {
   return `/auth/magic-link?referrer=${encodeURIComponent(location.pathname + location.search)}`;
-}
-
-function snapshotVariationsForStudy(snapshot: StudyMoveReviewSnapshot): any[] {
-  return (snapshot.entry.refs?.variations || [])
-    .map(variation => {
-      const moves = variation.moves.map(move => move.uci).filter(Boolean);
-      if (!moves.length) return null;
-      return {
-        moves,
-        scoreCp: Number.isFinite(variation.scoreCp) ? variation.scoreCp : 0,
-        mate: typeof variation.mate === 'number' ? variation.mate : undefined,
-        depth: Number.isFinite(variation.depth) ? variation.depth : 0,
-      };
-    })
-    .filter(Boolean);
 }
 
 export default class AnalyseCtrl implements CevalHandler {
@@ -130,8 +86,6 @@ export default class AnalyseCtrl implements CevalHandler {
   fork: ForkCtrl;
   promotion: PromotionCtrl;
 
-  moveReview?: MoveReviewNarrative;
-
   // state flags
   justPlayed?: string; // pos
   justCaptured?: JustCaptured;
@@ -153,7 +107,6 @@ export default class AnalyseCtrl implements CevalHandler {
   keyboardHelp: boolean = location.hash === '#keyboard';
   threatMode: Prop<boolean> = prop(false);
   disclosureMode = storedBooleanProp('analyse.disclosure.enabled', false);
-  reviewState: Prop<ReviewUIState>;
 
   treeView: TreeView;
   cgVersion = {
@@ -205,8 +158,6 @@ export default class AnalyseCtrl implements CevalHandler {
       this.redraw,
     );
 
-    if (this.opts.moveReview) this.moveReview = moveReviewNarrative(this);
-
     this.instanciateEvalCache();
 
     if (opts.inlinePgn) this.data = this.changePgn(opts.inlinePgn, false) || this.data;
@@ -217,7 +168,6 @@ export default class AnalyseCtrl implements CevalHandler {
     this.initCeval();
     this.pendingCopyPath = propWithEffect(null, this.redraw);
     this.pendingDeletionPath = propWithEffect(null, this.redraw);
-    this.reviewState = propWithEffect(this.loadStoredReviewState(), this.redraw);
     this.initialPath = this.makeInitialPath();
     this.setPath(this.initialPath);
 
@@ -264,7 +214,6 @@ export default class AnalyseCtrl implements CevalHandler {
     this.mergeIdbThenShowTreeView();
     const analysisApi = api(this);
     const globals = window as any;
-    if (globals.chesstory) globals.chesstory.analysis = analysisApi;
   }
 
   private studyRef(): studyApi.StudyRef | null {
@@ -360,10 +309,6 @@ export default class AnalyseCtrl implements CevalHandler {
     });
   }
 
-  syncMoveReview(payload: studyApi.MoveReviewSyncPayload): void {
-    this.enqueueStudyWrite(ref => studyApi.moveReviewSync(ref, payload));
-  }
-
   studyLoginHref = (): string => magicLinkHref();
 
   studyNeedsAuth = (): boolean => !myUserId();
@@ -385,13 +330,11 @@ export default class AnalyseCtrl implements CevalHandler {
 
   studyActionToneValue = (): 'info' | 'success' | 'error' => this.studyActionTone;
 
-  hasNarrativeStudyBrief = (): boolean => false;
-
   studyStatusText = (): string => {
     if (this.studyWriteError) return `Study sync paused: ${this.studyWriteError}`;
-    if (this.isStudyWriting()) return 'Saving notes and move explanations to this section...';
+    if (this.isStudyWriting()) return 'Saving notes to this section...';
     return this.canWriteStudy()
-      ? 'Notes and move explanations auto-save to this section.'
+      ? 'Notes auto-save to this section.'
       : 'This study section is read-only. You can still share the current section link.';
   };
 
@@ -436,37 +379,12 @@ export default class AnalyseCtrl implements CevalHandler {
     this.redraw();
 
     const currentPgn = pgnExport.renderFullTxt(this);
-    const sessionScope = `${location.pathname}${location.search}`;
-    const snapshots = listSessionMoveReviewSnapshots(sessionScope).filter(snapshot => !!snapshot.commentary?.trim());
 
     try {
       const created = await studyApi.createStudyFromAnalysis({
         pgn: currentPgn,
         orientation: this.getOrientation(),
       });
-
-      const ref: studyApi.StudyRef = { id: created.id, chapterId: created.chapterId };
-
-      if (snapshots.length) {
-        this.studyTransferCount = snapshots.length;
-        this.redraw();
-      }
-
-      for (const snapshot of snapshots) {
-        const commentary = snapshot.commentary?.trim();
-        if (!commentary) continue;
-        const originPath = snapshot.originPath || snapshot.entry.tokenContext?.originPath || treePath.init(snapshot.commentPath);
-        try {
-          await studyApi.moveReviewSync(ref, {
-            commentPath: snapshot.commentPath,
-            originPath,
-            commentary,
-            variations: snapshotVariationsForStudy(snapshot),
-          });
-        } catch (e) {
-          console.warn('Study moveReview transfer failed', snapshot.commentPath, e);
-        }
-      }
 
       location.assign(created.url);
       return;
@@ -522,12 +440,6 @@ export default class AnalyseCtrl implements CevalHandler {
     } else return treePath.root;
   };
 
-  enableMoveReview = (v: boolean) => {
-    this.moveReview = v ? moveReviewNarrative(this) : undefined;
-    if (this.moveReview) this.moveReview(this.nodeList);
-    else moveReviewClear();
-  };
-
   private setPath = (path: Tree.Path): void => {
     this.path = path;
     this.nodeList = this.tree.getNodeList(path);
@@ -536,7 +448,6 @@ export default class AnalyseCtrl implements CevalHandler {
     this.onMainline = this.tree.pathIsMainline(path);
     this.fenInput = undefined;
     this.pgnInput = undefined;
-    if (this.moveReview) this.moveReview(this.nodeList);
     this.idbTree.saveMoves();
     this.idbTree.revealNode();
   };
@@ -653,13 +564,6 @@ export default class AnalyseCtrl implements CevalHandler {
 
   private hrefForPly(ply: Ply): string {
     const url = new URL(window.location.href);
-    if (this.isReviewShell()) {
-      const state = this.reviewState();
-      if (state.surfaceMode === 'raw') url.searchParams.set('mode', 'raw');
-      else url.searchParams.set('mode', 'review');
-      if (state.surfaceMode === 'review' && state.selectedMomentPly) url.searchParams.set('moment', String(state.selectedMomentPly));
-      else url.searchParams.delete('moment');
-    }
     const search = url.searchParams.toString();
     const base = `${url.pathname}${search ? `?${search}` : ''}`;
     return ply > this.tree.root.ply ? `${base}#${ply}` : base;
@@ -682,7 +586,6 @@ export default class AnalyseCtrl implements CevalHandler {
     if (this.opts.study) return;
     const state = event.state as AnalyseHistoryState | null;
     const ply = typeof state?.analysePly === 'number' ? state.analysePly : parseInt(window.location.hash.slice(1), 10);
-    this.syncReviewStateFromUrl();
     const targetPath = this.mainlinePlyToPath(Number.isFinite(ply) && ply >= 0 ? ply : this.tree.root.ply);
     if (targetPath === this.path) return;
     this.restoringHistory = true;
@@ -719,7 +622,6 @@ export default class AnalyseCtrl implements CevalHandler {
     pubsub.emit('ply', this.node.ply, this.tree.lastMainlineNode(this.path).ply === this.node.ply);
     this.showGround();
     this.pluginUpdate(this.node.fen);
-    this.syncReviewSelectionFromNode();
   }
 
   userJump = (path: Tree.Path): void => {
@@ -1120,15 +1022,6 @@ export default class AnalyseCtrl implements CevalHandler {
     this.redraw();
   };
 
-  showEnginePanel = (): boolean => (this.isReviewShell() ? this.showCevalProp() : this.showCeval());
-
-  setShowEnginePanel = (show: boolean): void => {
-    this.ceval.showEnginePrefs(false);
-    this.showCevalProp(show);
-    if (show) this.cevalEnabled(true);
-    this.redraw();
-  };
-
   resetOrientation = (): void => {
     if (!this.flipped) return;
     this.flipped = false;
@@ -1150,22 +1043,6 @@ export default class AnalyseCtrl implements CevalHandler {
 
   activeControlMode = () =>
     this.showCevalProp() ? 'ceval' : false;
-
-  isReviewShell = (): boolean => !!this.data.userAnalysis && !this.opts.study;
-
-  reviewSurfaceMode = (): ReviewSurfaceMode => this.reviewState().surfaceMode;
-
-  reviewPrimaryTab = (): ReviewPrimaryTab => this.reviewState().primaryTab;
-
-  reviewUtilityPanel = (): ReviewUtilityPanel | null => this.reviewState().utilityPanel;
-
-  reviewMomentFilter = (): NarrativeMomentFilter => this.reviewState().momentFilter;
-
-  selectedReviewMomentPly = (): Ply | null => this.reviewState().selectedMomentPly;
-
-  selectedReviewCollapseId = (): string | null => this.reviewState().selectedCollapseId;
-
-  reviewAnalysisDetailsOpen = (): boolean => this.reviewState().analysisDetailsOpen;
 
   private initWorkspacePrefs() {
     const defaultBoardLabelMode = boardLabelModeFromCoords(this.data.pref.coords);
@@ -1192,248 +1069,7 @@ export default class AnalyseCtrl implements CevalHandler {
     tempStorage.set(recentImportStorageKey, JSON.stringify(next));
   }
 
-  private parseStoredReviewState(raw: string, fallback: ReviewUIState): ReviewUIState | null {
-    try {
-      const parsed = JSON.parse(raw) as Partial<ReviewUIState>;
-      const primaryTab = reviewPrimaryTabs.has(parsed.primaryTab as ReviewPrimaryTab) ? parsed.primaryTab! : fallback.primaryTab;
-      const utilityPanel = reviewUtilityPanels.has(parsed.utilityPanel as ReviewUtilityPanel)
-        ? parsed.utilityPanel!
-        : primaryTab === 'explorer' || primaryTab === 'board'
-          ? (primaryTab as ReviewUtilityPanel)
-          : fallback.utilityPanel;
-      return {
-        surfaceMode: reviewSurfaceModes.has(parsed.surfaceMode as ReviewSurfaceMode)
-          ? parsed.surfaceMode!
-          : fallback.surfaceMode,
-        primaryTab,
-        utilityPanel,
-        momentFilter: reviewMomentFilters.has(parsed.momentFilter as NarrativeMomentFilter)
-          ? parsed.momentFilter!
-          : fallback.momentFilter,
-        selectedMomentPly:
-          typeof parsed.selectedMomentPly === 'number' && parsed.selectedMomentPly > 0
-            ? Math.trunc(parsed.selectedMomentPly)
-            : fallback.selectedMomentPly,
-        selectedCollapseId:
-          typeof parsed.selectedCollapseId === 'string' && parsed.selectedCollapseId.length
-            ? parsed.selectedCollapseId
-            : fallback.selectedCollapseId,
-        analysisDetailsOpen: typeof parsed.analysisDetailsOpen === 'boolean' ? parsed.analysisDetailsOpen : fallback.analysisDetailsOpen,
-      };
-    } catch (_) {
-      return null;
-    }
-  }
-
-  private migrateLegacyReviewState(raw: string, fallback: ReviewUIState): ReviewUIState | null {
-    try {
-      const parsed = JSON.parse(raw) as {
-        primaryTab?: string;
-        referenceTab?: string;
-        momentFilter?: NarrativeMomentFilter;
-        selectedMomentPly?: number;
-        selectedCollapseId?: string;
-      };
-      const storedPrimaryTab = typeof parsed.primaryTab === 'string' ? parsed.primaryTab : undefined;
-      const storedReferenceTab = typeof parsed.referenceTab === 'string' ? parsed.referenceTab : undefined;
-      const primaryTab =
-        storedPrimaryTab === 'reference'
-          ? storedReferenceTab === 'import'
-            ? 'import'
-            : 'moves'
-          : reviewPrimaryTabs.has(storedPrimaryTab as ReviewPrimaryTab)
-            ? (storedPrimaryTab as ReviewPrimaryTab)
-            : fallback.primaryTab;
-      const utilityPanel =
-        storedPrimaryTab === 'reference' && (storedReferenceTab === 'explorer' || storedReferenceTab === 'board')
-          ? (storedReferenceTab as ReviewUtilityPanel)
-          : fallback.utilityPanel;
-      return {
-        surfaceMode: fallback.surfaceMode,
-        primaryTab,
-        utilityPanel,
-        momentFilter: reviewMomentFilters.has(parsed.momentFilter as NarrativeMomentFilter)
-          ? parsed.momentFilter!
-          : fallback.momentFilter,
-        selectedMomentPly:
-          typeof parsed.selectedMomentPly === 'number' && parsed.selectedMomentPly > 0
-            ? Math.trunc(parsed.selectedMomentPly)
-            : fallback.selectedMomentPly,
-        selectedCollapseId:
-          typeof parsed.selectedCollapseId === 'string' && parsed.selectedCollapseId.length
-            ? parsed.selectedCollapseId
-            : fallback.selectedCollapseId,
-        analysisDetailsOpen: fallback.analysisDetailsOpen,
-      };
-    } catch (_) {
-      return null;
-    }
-  }
-
-  private loadStoredReviewState(): ReviewUIState {
-    const fallback = initialReviewState();
-    const current = tempStorage.get(reviewStateStorageKey);
-    if (current) {
-      const parsed = this.parseStoredReviewState(current, fallback);
-      if (parsed) return this.applyReviewUrlState(parsed);
-      tempStorage.remove(reviewStateStorageKey);
-    }
-
-    const legacy = tempStorage.get(legacyReviewStateStorageKey);
-    if (!legacy) return this.applyReviewUrlState(fallback);
-    const migrated = this.migrateLegacyReviewState(legacy, fallback);
-    tempStorage.remove(legacyReviewStateStorageKey);
-    if (!migrated) return this.applyReviewUrlState(fallback);
-    const next = this.applyReviewUrlState(migrated);
-    tempStorage.set(reviewStateStorageKey, JSON.stringify(next));
-    return next;
-  }
-
-  private applyReviewUrlState(state: ReviewUIState): ReviewUIState {
-    if (!this.isReviewShell()) return state;
-    const url = new URL(window.location.href);
-    const mode = url.searchParams.get('mode');
-    const moment = parseInt(url.searchParams.get('moment') || '', 10);
-    return this.ensureReviewSelections({
-      ...state,
-      surfaceMode: reviewSurfaceModes.has(mode as ReviewSurfaceMode) ? (mode as ReviewSurfaceMode) : state.surfaceMode,
-      selectedMomentPly: Number.isFinite(moment) && moment > 0 ? moment : state.selectedMomentPly,
-    });
-  }
-
-  private persistReviewState(state: ReviewUIState): void {
-    if (!this.isReviewShell()) return;
-    tempStorage.remove(legacyReviewStateStorageKey);
-    tempStorage.set(reviewStateStorageKey, JSON.stringify(state));
-  }
-
-  private syncReviewStateFromUrl(): void {
-    if (!this.isReviewShell()) return;
-    const next = this.applyReviewUrlState(this.reviewState());
-    this.reviewState(next);
-    this.persistReviewState(next);
-    this.syncReviewShellState(next);
-  }
-
-  setReviewSurfaceMode = (mode: ReviewSurfaceMode): void => {
-    if (!this.isReviewShell()) return;
-    const rawPrimaryTab =
-      this.reviewPrimaryTab() === 'moves' ||
-      this.reviewPrimaryTab() === 'patterns' ||
-      this.reviewPrimaryTab() === 'import' ||
-      this.reviewPrimaryTab() === 'explain' ||
-      this.reviewPrimaryTab() === 'engine' ||
-      this.reviewPrimaryTab() === 'explorer' ||
-      this.reviewPrimaryTab() === 'board'
-        ? this.reviewPrimaryTab()
-        : 'moves';
-    this.setReviewState({
-      ...this.reviewState(),
-      surfaceMode: mode,
-      primaryTab: mode === 'raw' ? rawPrimaryTab : this.reviewPrimaryTab(),
-      utilityPanel: mode === 'review' ? null : this.reviewUtilityPanel(),
-    });
-  };
-
-  setReviewPrimaryTab = (tab: ReviewPrimaryTab): void => {
-    if (!this.isReviewShell()) return;
-    this.dispatchReviewState({ type: 'primary-tab', tab });
-  };
-
-  setReviewUtilityPanel = (panel: ReviewUtilityPanel | null): void => {
-    if (!this.isReviewShell()) return;
-    this.dispatchReviewState({ type: 'utility-panel', panel });
-  };
-
-  setReviewMomentFilter = (filter: NarrativeMomentFilter): void => {
-    if (!this.isReviewShell()) return;
-    this.dispatchReviewState({ type: 'moment-filter', filter });
-  };
-
-  setReviewAnalysisDetailsOpen = (open: boolean): void => {
-    if (!this.isReviewShell()) return;
-    this.dispatchReviewState({ type: 'analysis-details', open });
-  };
-
-  setReviewSelectedMoment = (ply: Ply | null): void => {
-    if (!this.isReviewShell()) return;
-    this.setReviewState({
-      ...this.reviewState(),
-      selectedMomentPly: ply,
-      selectedCollapseId: null,
-    });
-  };
-
-  selectReviewMoment = (ply: Ply | null): void => {
-    if (!this.isReviewShell()) return;
-    this.setReviewState({
-      ...this.reviewState(),
-      primaryTab: 'explain',
-      selectedMomentPly: ply,
-      selectedCollapseId: null,
-    });
-  };
-
-  selectReviewCollapse = (collapseId: string | null): void => {
-    if (!this.isReviewShell()) return;
-    this.setReviewState({
-      ...this.reviewState(),
-      primaryTab: 'explain',
-      selectedCollapseId: collapseId,
-      selectedMomentPly: null,
-    });
-  };
-
-  private dispatchReviewState(action: ReviewUIAction): void {
-    this.setReviewState(reduceReviewState(this.reviewState(), action));
-  }
-
-  private setReviewState(next: ReviewUIState): void {
-    const ensured = this.ensureReviewSelections(next);
-    this.reviewState(ensured);
-    this.persistReviewState(ensured);
-    this.syncReviewShellState(ensured);
-    this.syncHref('replace');
-  }
-
-  refreshReviewShellState = (): void => {
-    if (!this.isReviewShell()) return;
-    this.setReviewState(this.reviewState());
-  };
-
-  private syncReviewShellState(state: ReviewUIState): void {
-    if (!this.isReviewShell()) return;
-    const explorerOpen = state.primaryTab === 'explorer' && this.explorer.allowed();
-    if (explorerOpen) {
-      if (!this.explorer.enabled()) this.explorer.toggle();
-      this.explorer.setNode();
-    } else this.explorer.disable();
-    this.actionMenu(state.primaryTab === 'board');
-  }
-
-  private ensureReviewSelections(state: ReviewUIState): ReviewUIState {
-    const allowedTabs = new Set<ReviewPrimaryTab>(['explain', 'engine', 'explorer', 'moves', 'import', 'board']);
-    const primaryTab = allowedTabs.has(state.primaryTab) ? state.primaryTab : 'explain';
-    const utilityPanel =
-      primaryTab === 'explorer' || primaryTab === 'board' ? primaryTab : null;
-    return {
-      ...state,
-      surfaceMode: 'review',
-      primaryTab,
-      utilityPanel,
-      selectedMomentPly: null,
-      selectedCollapseId: null,
-    };
-  }
-
-  private syncReviewSelectionFromNode(): void {}
-
   activeControlBarTool() {
-    if (this.isReviewShell()) {
-      if (this.reviewSurfaceMode() === 'raw' && this.reviewPrimaryTab() === 'explorer') return 'opening-explorer';
-      if (this.reviewSurfaceMode() === 'raw' && this.reviewPrimaryTab() === 'board') return 'action-menu';
-      return false;
-    }
     return this.actionMenu()
       ? 'action-menu'
       : this.explorer.enabled()
@@ -1484,12 +1120,6 @@ export default class AnalyseCtrl implements CevalHandler {
     this.pgnInput = draft;
     this.pgnError = '';
     this.redirecting = false;
-    this.setReviewState({
-      ...this.reviewState(),
-      surfaceMode: 'raw',
-      primaryTab: 'import',
-      utilityPanel: null,
-    });
     this.redraw();
   };
 
@@ -1502,14 +1132,6 @@ export default class AnalyseCtrl implements CevalHandler {
   };
 
   toggleActionMenu = () => {
-    if (this.isReviewShell()) {
-      if (this.reviewSurfaceMode() === 'raw' && this.reviewPrimaryTab() === 'board') this.setReviewUtilityPanel(null);
-      else {
-        this.setReviewPrimaryTab('board');
-        this.setReviewSurfaceMode('raw');
-      }
-      return;
-    }
     if (!this.actionMenu()) {
       if (this.explorer.enabled()) this.explorer.toggle();
     }
@@ -1517,15 +1139,6 @@ export default class AnalyseCtrl implements CevalHandler {
   };
 
   toggleExplorer = (): void => {
-    if (this.isReviewShell()) {
-      if (!this.explorer.allowed()) return;
-      if (this.reviewSurfaceMode() === 'raw' && this.reviewPrimaryTab() === 'explorer') this.setReviewUtilityPanel(null);
-      else {
-        this.setReviewPrimaryTab('explorer');
-        this.setReviewSurfaceMode('raw');
-      }
-      return;
-    }
     if (!this.explorer.allowed()) return;
     if (!this.explorer.enabled()) {
       this.actionMenu(false);

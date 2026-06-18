@@ -39,26 +39,6 @@ POST  /auth/password-reset/:token      controllers.Auth.passwordResetTokenApply(
 GET   /auth/token/:token               controllers.Auth.loginWithToken(token)
 POST  /auth/token/:token               controllers.Auth.loginWithTokenPost(token)
 
-# Member Ops
-GET   /ops                             controllers.Ops.landing
-GET   /ops/members                     controllers.Ops.members
-GET   /ops/metrics                     controllers.Ops.metrics
-GET   /ops/commentary                  controllers.Ops.commentary(limit: Int ?= 20)
-GET   /ops/members/:id                 controllers.Ops.member(id: UserStr, advanced: Boolean ?= false)
-GET   /ops/members/:id/audit           controllers.Ops.audit(id: UserStr, page: Int ?= 1)
-GET   /ops/members/:id/plan-ledger     controllers.Ops.planLedger(id: UserStr)
-POST  /ops/members/:id/status          controllers.Ops.updateStatus(id: UserStr)
-POST  /ops/members/:id/email           controllers.Ops.updateEmail(id: UserStr)
-POST  /ops/members/:id/password-reset  controllers.Ops.sendPasswordReset(id: UserStr)
-POST  /ops/members/:id/sessions/revoke controllers.Ops.revokeAllSessions(id: UserStr)
-POST  /ops/members/:id/sessions/:sid/revoke controllers.Ops.revokeSession(id: UserStr, sid: String)
-POST  /ops/members/:id/two-factor/clear controllers.Ops.clearTwoFactor(id: UserStr)
-POST  /ops/members/:id/plan            controllers.Ops.updatePlan(id: UserStr)
-POST  /ops/members/:id/roles           controllers.Ops.updateRoles(id: UserStr)
-POST  /ops/members/:id/permissions     controllers.Ops.updatePermissions(id: UserStr)
-GET   /ops/api/members/search          controllers.Ops.apiSearch
-GET   /ops/api/members/:id/audit       controllers.Ops.apiAudit(id: UserStr, page: Int ?= 1)
-
 # Analysis and Notebook
 GET   /analysis                        controllers.UserAnalysis.index
 # Notebook
@@ -72,19 +52,6 @@ POST  /notebook                       controllers.Study.create
 GET   /notebook/create                controllers.Study.createAs
 GET   /notebook/:id                   controllers.Study.show(id: StudyId)
 
-# Account Intel
-GET   /account-intel                  controllers.AccountIntel.landing(provider: String ?= "", username: String ?= "")
-POST  /account-intel/notebooks        controllers.AccountIntel.submit
-POST  /api/account-intel/notebooks    controllers.AccountIntel.submit
-GET   /api/account-intel/jobs/:jobId  controllers.AccountIntel.jobStatusApi(jobId)
-GET   /account-intel/jobs/:jobId      controllers.AccountIntel.jobStatusPage(jobId)
-POST  /api/account-intel/jobs/:jobId/publish controllers.AccountIntel.publish(jobId)
-GET   /api/account-intel/:provider/:username/history controllers.AccountIntel.historyApi(provider: String, username: String, kind: String ?= "my_account_intelligence_lite")
-GET   /api/account-intel/:provider/:username controllers.AccountIntel.surfaceApi(provider: String, username: String, kind: String ?= "my_account_intelligence_lite")
-GET   /account-intel/:provider/:username controllers.AccountIntel.product(provider: String, username: String, kind: String ?= "my_account_intelligence_lite", side: String ?= "")
-POST  /internal/account-intel/jobs/:jobId/run controllers.AccountIntel.runJobInternal(jobId)
-POST  /internal/account-intel/maintenance controllers.AccountIntel.runMaintenanceInternal
-
 # Notebook API (legacy /api/study paths kept internal)
 POST  /api/study/$id<\w{8}>/$chapterId<\w{8}>/ana-move controllers.Study.anaMove(id: StudyId, chapterId: StudyChapterId)
 POST  /api/study/$id<\w{8}>/$chapterId<\w{8}>/ana-drop controllers.Study.anaDrop(id: StudyId, chapterId: StudyChapterId)
@@ -92,8 +59,6 @@ POST  /api/study/$id<\w{8}>/$chapterId<\w{8}>/delete-node controllers.Study.dele
 POST  /api/study/$id<\w{8}>/$chapterId<\w{8}>/promote controllers.Study.promoteNode(id: StudyId, chapterId: StudyChapterId)
 POST  /api/study/$id<\w{8}>/$chapterId<\w{8}>/force-variation controllers.Study.forceVariationNode(id: StudyId, chapterId: StudyChapterId)
 POST  /api/study/$id<\w{8}>/$chapterId<\w{8}>/comment controllers.Study.setNodeComment(id: StudyId, chapterId: StudyChapterId)
-POST  /api/study/$id<\w{8}>/$chapterId<\w{8}>/move-review-sync controllers.Study.moveReviewSync(id: StudyId, chapterId: StudyChapterId)
-POST  /api/study/$id<\w{8}>/notebook-dossier controllers.Study.setNotebookDossier(id: StudyId)
 
 # User Analysis
 GET   /analysis/help                   controllers.UserAnalysis.help
@@ -107,9 +72,6 @@ GET   /embed/analysis                  controllers.UserAnalysis.embed
 GET   /api/explorer/:db                controllers.ExplorerProxy.opening(db: String)
 
 # AI Analysis
-POST  /api/commentary/move-review-position      controllers.CommentaryController.moveReviewPosition
-GET   /api/commentary/opening/masters          controllers.CommentaryController.openingMasters(fen: String)
-GET   /api/commentary/opening/master-pgn/:id   controllers.CommentaryController.openingMasterPgn(id)
 GET   /support                         controllers.Main.support
 GET   /plan                            controllers.Main.plan
 GET   /beta-feedback                   controllers.BetaFeedback.formPage(surface: String ?= "general", feature: String ?= "", entrypoint: String ?= "", returnTo: String ?= "", notify: Boolean ?= false)
@@ -117,12 +79,6 @@ POST  /beta-feedback                   controllers.BetaFeedback.submitForm
 POST  /api/beta-feedback               controllers.BetaFeedback.submitApi
 GET   /journal                         controllers.Main.journal
 GET   /journal/:slug                   controllers.Main.journalPost(slug)
-GET   /strategic-puzzle                controllers.StrategicPuzzle.home
-GET   /strategic-puzzle/demo           controllers.Main.strategicPuzzleDemo
-GET   /strategic-puzzle/:id            controllers.StrategicPuzzle.show(id)
-GET   /api/strategic-puzzle/next       controllers.StrategicPuzzle.next
-GET   /api/strategic-puzzle/:id        controllers.StrategicPuzzle.showJson(id)
-POST  /api/strategic-puzzle/:id/complete controllers.StrategicPuzzle.complete(id)
 
 # User
 # GET   /@/:username/all                 controllers.User.gamesAll(username: UserStr, page: Int ?= 1)
@@ -158,7 +114,6 @@ GET   /robots.txt                      controllers.Main.robots
 GET   /healthz                         controllers.Main.healthz
 GET   /livez                           controllers.Main.livez
 GET   /prometheus-metrics/:key         controllers.Main.prometheusMetrics(key)
-GET   /internal/commentary-ops/:key    controllers.Main.commentaryOps(key, limit: Int ?= 20)
 
 GET   /contact                         controllers.Main.contact
 GET   /privacy                         controllers.Main.privacy

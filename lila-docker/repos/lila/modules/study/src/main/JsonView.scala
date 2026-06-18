@@ -3,8 +3,6 @@ package lila.study
 import chess.Square
 import play.api.libs.json.*
 
-import scala.util.Try
-
 import lila.common.Json.{ *, given }
 import lila.tree.Node.Shape
 import lila.core.pref.Pref
@@ -16,10 +14,6 @@ final class JsonView(
 )(using Executor):
 
   import JsonView.given
-
-  private def notebookDossierJson(study: Study): Option[JsObject] =
-    study.notebookDossier.flatMap: raw =>
-      Try(Json.parse(raw).as[JsObject]).toOption
 
   def full(
       study: Study,
@@ -127,7 +121,6 @@ final class JsonView(
         "from" -> (s.from: Study.From),
         "likes" -> s.likes
       )
-      .add("notebookDossier", notebookDossierJson(s))
       .add("isNew" -> s.isNew)
 
 

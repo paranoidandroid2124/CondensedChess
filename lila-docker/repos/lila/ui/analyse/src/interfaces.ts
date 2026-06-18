@@ -77,7 +77,6 @@ export interface StudyView {
   chapters: StudyChapterSummary[];
   url?: string;
   visibility?: string;
-  notebookDossier?: unknown;
 }
 
 export interface ServerEvalData {
@@ -138,7 +137,6 @@ export interface AnalyseOpts {
   explorer: ExplorerOpts;
   socketSend: AnalyseSocketSend;
   study?: StudyView;
-  moveReview?: boolean;
   inlinePgn?: string;
   importHistory?: ImportHistoryView;
   externalEngineEndpoint: string;

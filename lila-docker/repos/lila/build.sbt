@@ -55,37 +55,18 @@ libraryDependencies ++= akka.bundle ++ playWs.bundle ++ macwire.bundle ++ scalal
   scaffeine, caffeine, uaparser, nettyTransport, reactivemongo.shaded, catsMtl
 ) ++ tests.bundle
 
-// ============================================================
-// CHESSTORY: Analysis-only lightweight configuration
-// ============================================================
 lazy val modules = Seq(
-  // Infrastructure (Level 1-3)
   core,
   ui, common, tree,
   db,
-  
-  // Core (Level 4)
   memo,
-  
-  // User & Security (Level 5)
   user, pref, mailer,
-  
-  // Analysis Core (Level 5-6)
   analyse,
   study,
-  accountintel,
-  strategicPuzzle,
   beta,
-  
-  // Analysis Pipeline (Level 7)
   security,
-  commentaryCore,
-  commentaryAi,
-  commentary,
-  commentaryTools,
+  chessJudgmentCore,
   evalCache,
-  
-  // Web
   web
 )
 
@@ -164,7 +145,7 @@ lazy val security = module("security",
 // ============================================================
 
 lazy val analyse = module("analyse",
-  Seq(tree, memo, ui, commentary),
+  Seq(tree, memo, ui),
   tests.bundle
 )
 
@@ -173,45 +154,18 @@ lazy val study = module("study",
   tests.bundle ++ Seq(scalacheck, munitCheck, chess.testKit)
 ).dependsOn(common % "test->test")
 
-lazy val accountintel = module("accountintel",
-  Seq(study, commentary, memo, db, evalCache),
-  playWs.bundle ++ tests.bundle ++ Seq(chess.testKit)
-).dependsOn(common % "test->test")
-
-lazy val strategicPuzzle = module("strategicPuzzle",
-  Seq(db, memo),
-  tests.bundle
-)
-
 lazy val beta = module("beta",
   Seq(db, user),
   tests.bundle
 )
 
 // ============================================================
-// Commentary Pipeline Modules
+// Chess Judgment Core Module
 // ============================================================
 
-lazy val commentaryCore = module("commentaryCore",
-  Seq(strategicPuzzle),
+lazy val chessJudgmentCore = module("chessJudgmentCore",
+  Seq(common),
   playWs.bundle ++ tests.bundle
-)
-
-lazy val commentaryAi = module("commentaryAi",
-  Seq(commentaryCore),
-  playWs.bundle ++ tests.bundle
-)
-
-lazy val commentary = module("commentary",
-  Seq(db, memo, strategicPuzzle, commentaryCore, commentaryAi),
-  playWs.bundle ++ tests.bundle
-)
-
-lazy val commentaryTools = module("commentaryTools",
-  Seq(commentary, commentaryCore, commentaryAi, db, memo, strategicPuzzle),
-  playWs.bundle ++ tests.bundle ++ Seq(chess.testKit)
-).settings(
-  Test / parallelExecution := false
 )
 
 lazy val evalCache = module("evalCache",

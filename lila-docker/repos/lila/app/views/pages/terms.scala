@@ -94,13 +94,13 @@ object terms:
               st.section(cls := "legal-section")(
                 h2("6. Analysis, AI Output, and Third-Party Data"),
                 p(
-                  "Chesstory uses software and, in some cases, AI-assisted systems to generate analysis, commentary, and recommendations. ",
+                  "Chesstory uses software and, in some cases, AI-assisted systems to generate analysis and recommendations. ",
                   "Those outputs are provided for educational and informational purposes only."
                 ),
                 ul(
                   li("Analysis may be incomplete, inaccurate, or unavailable"),
-                  li("You are responsible for how you use any chess recommendations or commentary"),
-                  li("Some analysis or commentary features may require sign-in and may be subject to rate limits, daily quotas, fair-use controls, or plan/tier limits"),
+                  li("You are responsible for how you use any chess recommendations"),
+                  li("Some analysis features may require sign-in and may be subject to rate limits, daily quotas, fair-use controls, or plan/tier limits"),
                   li("Some features may fetch public chess data from third-party platforms at your request"),
                   li("Chesstory is not affiliated with or endorsed by Lichess, Chess.com, or other third-party platforms unless explicitly stated")
                 )

@@ -23,7 +23,6 @@ export function renderControls(ctrl: AnalyseCtrl) {
     columns = displayColumns(),
     touchDevice = isTouchDevice(),
     mobileUi = columns === 1 && touchDevice,
-    reviewShell = ctrl.isReviewShell(),
     activeTool = ctrl.activeControlBarTool();
 
   return hl(
@@ -38,7 +37,7 @@ export function renderControls(ctrl: AnalyseCtrl) {
       ),
     },
     [
-      ctrl.isCevalAllowed() && (!reviewShell || columns === 1) && renderAnalysisToggle(ctrl, activeTool, columns > 1),
+      ctrl.isCevalAllowed() && renderAnalysisToggle(ctrl, activeTool, columns > 1),
       hl('div.jumps', [
         !mobileUi && jumpButton(licon.JumpFirst, 'first', canJumpPrev),
         jumpButton(licon.LessThan, 'prev', canJumpPrev),
@@ -53,7 +52,7 @@ export function renderControls(ctrl: AnalyseCtrl) {
         'button.fbt',
         {
           attrs: {
-            title: reviewShell ? 'Opening context' : 'Opening book and tablebase',
+            title: 'Opening book and tablebase',
             'data-act': 'opening-explorer',
           },
           class: {
@@ -67,7 +66,7 @@ export function renderControls(ctrl: AnalyseCtrl) {
         'button.fbt',
         {
           class: { active: activeTool === 'action-menu' },
-          attrs: { title: reviewShell ? 'Board view' : 'Menu', 'data-act': 'menu' },
+          attrs: { title: 'Menu', 'data-act': 'menu' },
         },
         [icon(licon.Hamburger as any)],
       ),
@@ -76,13 +75,13 @@ export function renderControls(ctrl: AnalyseCtrl) {
 }
 
 function renderAnalysisToggle(ctrl: AnalyseCtrl, activeTool: string | false, showLabel: boolean): VNode {
-  const active = ctrl.isReviewShell() ? ctrl.showEnginePanel() : ctrl.showCeval(),
+  const active = ctrl.showCeval(),
     latent = active && !!activeTool;
   return hl(
     'button.fbt.fbt--engine-toggle',
     {
       attrs: {
-        title: ctrl.isReviewShell() ? 'Toggle candidate lines' : 'Toggle reference lines',
+        title: 'Toggle reference lines',
         'data-act': 'analysis',
         'aria-pressed': active ? 'true' : 'false',
       },
@@ -118,10 +117,8 @@ function clickControl(ctrl: AnalyseCtrl, e: PointerEvent) {
     if (ctrl.activeControlBarTool()) {
       ctrl.explorer.disable();
       ctrl.actionMenu(false);
-      if (ctrl.isReviewShell()) ctrl.setReviewUtilityPanel(null);
     }
-    if (ctrl.isReviewShell()) ctrl.setShowEnginePanel(!ctrl.showEnginePanel());
-    else ctrl.showCeval(!ctrl.showCeval());
+    ctrl.showCeval(!ctrl.showCeval());
   }
   ctrl.redraw();
 }

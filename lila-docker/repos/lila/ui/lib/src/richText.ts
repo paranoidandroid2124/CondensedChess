@@ -44,7 +44,6 @@ export const innerHTML = <A>(a: A, toHtml: (a: A) => string): Hooks => ({
 
 export function enrichText(text: string, allowNewlines = true): string {
   let html = autolink(escapeHtml(text), toLink);
-  // Support Markdown-style emphasis used by the MoveReview prompt (**...**).
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   if (allowNewlines) html = html.replace(newLineRegex, '<br>');
   return html;

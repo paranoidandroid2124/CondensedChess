@@ -10,7 +10,6 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "validate_openbeta_bindings.py"
-DOC = ROOT.parents[2] / "OPENBETA_GCP.md"
 MANIFEST = ROOT / "conf" / "openbeta-bindings.json"
 
 spec = importlib.util.spec_from_file_location("validate_openbeta_bindings", SCRIPT)
@@ -91,15 +90,6 @@ class ValidateOpenBetaBindingsTest(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual(warnings, [])
 
-    def test_dispatch_enabled_without_token_fails(self) -> None:
-        envs = required_envs(self.manifest)
-        envs["ACCOUNT_INTEL_DISPATCH_BASE_URL"] = True
-        envs["ACCOUNT_INTEL_DISPATCH_BEARER_TOKEN"] = False
-        envs["ACCOUNT_INTEL_WORKER_TOKEN"] = False
-        errors, _warnings = module.evaluate_manifest(self.manifest, envs)
-        self.assertTrue(any("ACCOUNT_INTEL_DISPATCH_BEARER_TOKEN" in err for err in errors))
-        self.assertTrue(any("ACCOUNT_INTEL_WORKER_TOKEN" in err for err in errors))
-
     def test_removed_binding_only_warns(self) -> None:
         envs = required_envs(self.manifest)
         envs["PUSH_WEB_URL"] = True
@@ -117,11 +107,6 @@ class ValidateOpenBetaBindingsTest(unittest.TestCase):
         self.assertTrue(envs["LILA_DOMAIN"])
         self.assertTrue(envs["PLAY_HTTP_SECRET_KEY"])
         self.assertFalse(envs["PUSH_WEB_URL"])
-
-    def test_doc_matches_manifest(self) -> None:
-        errors, warnings = module.compare_doc(self.manifest, DOC.read_text(encoding="utf-8"))
-        self.assertEqual(errors, [])
-        self.assertEqual(warnings, [])
 
     def test_main_cli_returns_failure_when_required_binding_missing(self) -> None:
         service = service_json(plain("LILA_DOMAIN", "beta.chesstory.com"))

@@ -104,7 +104,7 @@ const showEmpty = (ctrl: AnalyseCtrl, data: OpeningData | undefined, opts: Explo
     openingTitle(ctrl, data),
     hl('div.message', [
       hl('strong', isTooDeep ? 'Max depth reached' : 'No line found'),
-      hl('p.explanation', 'Try another line'),
+      hl('p.notice', 'Try another line'),
     ]),
   ]);
 };
@@ -182,9 +182,9 @@ const explorerTitle = (ctrl: AnalyseCtrl, opts: ExplorerViewOpts) => {
       },
       nodes,
     );
-  const masterDbExplanation = '2 million games from top rated FIDE players from 1952 to 2024-08';
+  const masterDbInfo = '2 million games from top rated FIDE players from 1952 to 2024-08';
   return hl('div.explorer-title', [
-    hl('div.explorer-title__dbs', [active([hl('strong', 'Masters'), ' database'], masterDbExplanation)]),
+    hl('div.explorer-title__dbs', [active([hl('strong', 'Masters'), ' database'], masterDbInfo)]),
     opts.closable === false ? null : closeButton(ctrl),
   ]);
 };
@@ -200,7 +200,7 @@ function showFailing(ctrl: AnalyseCtrl, opts: ExplorerViewOpts) {
     hl('div.title', showTitle(ctrl.data.game.variant)),
     hl('div.failing.message', [
       hl('h3', 'Oops, sorry!'),
-      hl('p.explanation', ctrl.explorer.failing()?.toString()),
+      hl('p.notice', ctrl.explorer.failing()?.toString()),
     ]),
   ]);
 }

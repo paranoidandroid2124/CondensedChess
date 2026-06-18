@@ -67,10 +67,6 @@ def is_required(spec: dict[str, Any], envs: dict[str, bool]) -> bool:
     mode = spec["requiredMode"]
     if mode == "always":
         return True
-    if mode == "dispatch_only":
-        return envs.get("ACCOUNT_INTEL_DISPATCH_BASE_URL", False)
-    if mode == "selective_eval_only":
-        return envs.get("ACCOUNT_INTEL_SELECTIVE_EVAL_ENDPOINT", False)
     return False
 
 

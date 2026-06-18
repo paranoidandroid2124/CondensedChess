@@ -26,31 +26,25 @@ final class Main(
     Option(env.net.email.value).map(_.trim).filter(_.nonEmpty)
 
   def landing = Open:
-    if ctx.isAuth then Redirect(routes.Main.home).toFuccess
-    else
-      Ok.page(views.pages.landing(journalContent.latestPost)
-        .flag(_.noHeader)
-        .flag(_.fullScreen))
+    Redirect(if ctx.isAuth then routes.Main.home else routes.Auth.login).toFuccess
 
   def home = Auth { ctx ?=> me ?=>
     for
       summary <- env.analyse.importHistory.recentSummary(me.userId)
-      recentPatternReports <- env.accountintel.api.recentSuccessful(me.userId, limit = 3)
       notebookPager <- env.study.pager.mine(StudyOrder.updated, page = 1)(using me)
       recentNotebooks = notebookPager.currentPageResults.take(3).toList
       continueCard =
         summary.analyses.headOption
           .map(Main.HomeContinueCard.Analysis.apply)
-          .orElse(recentPatternReports.headOption.map(Main.HomeContinueCard.PatternReport.apply))
           .orElse(recentNotebooks.headOption.map(Main.HomeContinueCard.Notebook.apply))
           .getOrElse(Main.HomeContinueCard.Starter)
       data = Main.HomePageData(
         continueCard = continueCard,
         quickActions = List(
           Main.HomeQuickAction(
-            label = "Move Review",
+            label = "Game analysis",
             title = "Review one game",
-            copy = "Paste a game and turn it into a board-led Move Review.",
+            copy = "Paste a game and inspect it on the board.",
             href = routes.Importer.importGame.url
           ),
           Main.HomeQuickAction(
@@ -58,22 +52,9 @@ final class Main(
             title = "Explore a position",
             copy = "Use the board, notation, eval, and explorer when you want to test lines yourself.",
             href = s"${routes.UserAnalysis.index.url}?mode=raw"
-          ),
-          Main.HomeQuickAction(
-            label = "Patterns",
-            title = "Study recurring positions",
-            copy = "Open My Patterns or Prep for Opponent from a public account.",
-            href = routes.AccountIntel.landing("", "").url
-          ),
-          Main.HomeQuickAction(
-            label = "Practice",
-            title = "Open position exercise",
-            copy = "Work through the current strategic position with the board first.",
-            href = routes.StrategicPuzzle.home.url
           )
         ),
         recentAnalyses = summary.analyses.take(4),
-        recentPatternReports = recentPatternReports,
         recentAccounts = summary.accounts.take(4),
         recentNotebooks = recentNotebooks
       )
@@ -109,9 +90,6 @@ final class Main(
     journalContent.bySlug(slug) match
       case Some(post) => Ok.page(views.pages.journal(journalContent.all, Some(post)))
       case None       => NotFound.page(views.site.message.notFound(Some("Journal post not found.")))
-
-  def strategicPuzzleDemo = Open:
-    Ok.page(views.pages.strategicPuzzleDemo.apply)
 
   def toggleBlindMode = OpenBody:
     bindForm(WebForms.blind)(
@@ -159,12 +137,6 @@ final class Main(
           Ok(data)
     else NotFound("Invalid prometheus key")
 
-  def commentaryOps(key: String, limit: Int) = Anon:
-    if key == env.web.config.prometheusKey
-    then Ok(Json.toJson(env.commentary.api.commentaryOpsSnapshot(limit.max(1).min(50))))
-    else NotFound("Invalid commentary ops key")
-
-
   def devAsset(@scala.annotation.unused v: String, path: String, file: String) = assetsC.at(path, file)
 
   private def healthChecks =
@@ -181,11 +153,6 @@ final class Main(
           detail = if mongoReady then "query_ok" else "query_failed"
         ),
         Main.mailerCheck(env.config, env.mailer.mailer.canSend, required = requiredInProd),
-        Main.commentaryCheck(
-          openAiEnabled = env.commentary.openAiClient.isEnabled,
-          geminiEnabled = env.commentary.geminiClient.isEnabled,
-          required = requiredInProd
-        )
       ) ++ bindingStatuses.flatMap(Main.bindingHealthCheck(_, requiredInProd))
 
   private def mongoHealth =
@@ -201,7 +168,6 @@ object Main:
   sealed trait HomeContinueCard
   object HomeContinueCard:
     final case class Analysis(entry: lila.analyse.ImportHistory.Analysis) extends HomeContinueCard
-    final case class PatternReport(job: lila.accountintel.AccountIntel.AccountIntelJob) extends HomeContinueCard
     final case class Notebook(entry: lila.study.Study.WithChaptersAndLiked) extends HomeContinueCard
     case object Starter extends HomeContinueCard
 
@@ -216,7 +182,6 @@ object Main:
       continueCard: HomeContinueCard,
       quickActions: List[HomeQuickAction],
       recentAnalyses: List[lila.analyse.ImportHistory.Analysis],
-      recentPatternReports: List[lila.accountintel.AccountIntel.AccountIntelJob],
       recentAccounts: List[lila.analyse.ImportHistory.Account],
       recentNotebooks: List[lila.study.Study.WithChaptersAndLiked]
   )
@@ -256,15 +221,6 @@ object Main:
       else "configured"
     HealthCheck("mailer", ok = ok, required = required, detail = detail)
 
-  def commentaryCheck(openAiEnabled: Boolean, geminiEnabled: Boolean, required: Boolean): HealthCheck =
-    val ok = openAiEnabled || geminiEnabled
-    val detail =
-      if openAiEnabled && geminiEnabled then "openai+gemini"
-      else if openAiEnabled then "openai"
-      else if geminiEnabled then "gemini"
-      else "disabled"
-    HealthCheck("commentary", ok = ok, required = required, detail = detail)
-
   def bindingHealthCheck(
       status: OpenBetaBindingStatus,
       requiredInProd: Boolean
@@ -287,7 +243,5 @@ object Main:
       case "LICHESS_WEB_BASE" => "lichess_web"
       case "CHESSCOM_API_BASE" => "chesscom_api"
       case "EXTERNAL_ENGINE_ENDPOINT" => "external_engine"
-      case "ACCOUNT_INTEL_DISPATCH_BASE_URL" => "accountintel_dispatch"
-      case "ACCOUNT_INTEL_SELECTIVE_EVAL_ENDPOINT" => "accountintel_selective_eval"
       case "GIF_EXPORT_URL" => "gif_export"
       case other => other.toLowerCase

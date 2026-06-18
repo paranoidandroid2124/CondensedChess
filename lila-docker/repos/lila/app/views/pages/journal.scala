@@ -47,7 +47,7 @@ object journal:
                   ul(cls := "journal-rail-list")(
                     li("Why Chesstory exists"),
                     li("Product updates and shipped changes"),
-                    li("Working notes on strategy, plans, and explanation design")
+                    li("Working notes on strategy and plans")
                   )
                 ),
                 st.nav(cls := "journal-archive", aria.label := "Journal archive")(

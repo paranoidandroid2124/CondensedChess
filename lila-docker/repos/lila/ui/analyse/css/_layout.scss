@@ -156,14 +156,6 @@ body {
       max-width: none;
     }
 
-    &--moveReview {
-      grid-template-rows: auto auto auto minmax(22rem, 45vh);
-      grid-template-areas:
-        'sidebar board        . tools'
-        'sidebar controls     . tools'
-        'sidebar under        . tools'
-        'sidebar side         side side';
-    }
   }
 
   @include mq-is-col2-squeeze {
@@ -189,22 +181,6 @@ body {
     &__tools {
       min-width: 0;
       max-width: none;
-    }
-
-    &--moveReview {
-      grid-template-columns:
-        min(var(---col3-uniboard-width), 560px)
-        $analyse-block-gap
-        450px
-        $analyse-block-gap
-        minmax(360px, 1fr);
-      grid-template-rows: auto auto auto auto auto;
-      grid-template-areas:
-        'board        . tools . side'
-        'controls     . tools . side'
-        'kb-move      . tools . side'
-        'under        . tools . side'
-        'round-training round-training round-training round-training round-training';
     }
 
     grid-row-gap: $analyse-block-gap;

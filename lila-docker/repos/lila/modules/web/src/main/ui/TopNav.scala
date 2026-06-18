@@ -33,9 +33,7 @@ case class TopNav(helpers: Helpers):
       ul(cls := navMainClass)(
         item("/", "Home", ctx.req.path == "/", mobileOnly = true),
         item("/analysis", "Analysis", isOn("/analysis")),
-        item("/strategic-puzzle", "Strategic Puzzles", isOn("/strategic-puzzle")),
         item("/notebook", "Notebook", isOn("/notebook")),
-        item("/import", "Import Games", isOn("/import"), Some("Import recent public games")),
-        item("/account-intel", "Account Reports", isOn("/account-intel"), Some("Open account reports"))
+        item("/import", "Import Games", isOn("/import"), Some("Import recent public games"))
       )
     )

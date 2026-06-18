@@ -53,13 +53,13 @@ class OperationalReadinessTest extends munit.FunSuite:
   test("binding health check fails required configured endpoint when unreachable"):
     val requiredBinding = OpenBetaBindingStatus(
       spec = OpenBetaBindingSpec(
-        env = "ACCOUNT_INTEL_DISPATCH_BASE_URL",
-        configPath = "accountIntel.dispatch.baseUrl",
+        env = "EXTERNAL_ENGINE_ENDPOINT",
+        configPath = "externalEngine.endpoint",
         kind = "plain",
         requiredMode = "dispatch_only",
         readinessClass = "core",
         probe = "http",
-        notes = "dispatch endpoint"
+        notes = "external engine endpoint"
       ),
       required = true,
       configured = true,

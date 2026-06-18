@@ -47,7 +47,7 @@ final class ListUi(helpers: Helpers, bits: StudyBits):
           "Your research shelf",
           "Create a blank notebook or reopen the ones you already use for lines, notes, and reusable sections.",
           "Analysis carry-over",
-          "Carry over PGN trees, MoveReview notes, and Chronicle summaries from analysis."
+          "Carry over PGN trees and reusable analysis sections."
         )
       else
         (
@@ -105,7 +105,7 @@ final class ListUi(helpers: Helpers, bits: StudyBits):
         strong(if active == "mine" then "No notebooks yet" else "No public notebooks yet"),
         p(
           if active == "mine" then
-            "Create one from analysis to keep sections, notes, and commentary together."
+            "Create one from analysis to keep sections and notes together."
           else "Public notebooks will appear here once authors choose to share them."
         ),
         bits.newForm("Create your first notebook")

@@ -4,7 +4,6 @@ import { playable } from 'lib/game';
 import { render as trainingView } from './roundTraining';
 import type AnalyseCtrl from '../ctrl';
 import { view as keyboardView } from '../keyboard';
-import { moveReviewToggleBox } from '../moveReview';
 
 import { viewContext, renderBoard, renderMain, renderTools, renderUnderboard } from './components';
 import { boardRectSig } from './boardRect';
@@ -42,9 +41,8 @@ function analyseView(ctrl: AnalyseCtrl): VNode {
     renderTools(ctx),
     renderControls(ctrl),
     renderUnderboard(ctx),
-    !ctrl.isReviewShell() && trainingView(ctrl),
+    trainingView(ctrl),
     !ctrl.synthetic &&
-    !ctrl.isReviewShell() &&
     playable(ctrl.data) &&
     hl(
       'div.back-to-game',
@@ -63,23 +61,7 @@ function analyseView(ctrl: AnalyseCtrl): VNode {
 }
 
 function renderSide(ctrl: AnalyseCtrl): VNode | undefined {
-  if (!ctrl.opts.moveReview) return;
-  if (ctrl.isReviewShell()) return;
-
-  return hl('aside.analyse__side', {
-    hook: {
-      insert: () => moveReviewToggleBox(ctrl),
-      update: () => moveReviewToggleBox(ctrl),
-    },
-  }, [
-    hl(
-      'fieldset.analyse__move-review.toggle-box.toggle-box--toggle.empty',
-      {
-        attrs: { id: 'move-review-field' },
-      },
-      [hl('legend', { attrs: { tabindex: '0' } }, 'Ask About This Move'), hl('div.analyse__move-review-text')],
-    ),
-  ]);
+  return undefined;
 }
 
 function resizeHandler(ctrl: AnalyseCtrl) {

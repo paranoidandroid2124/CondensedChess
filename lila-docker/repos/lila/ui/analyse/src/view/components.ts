@@ -13,12 +13,10 @@ import {
 } from 'lib/view';
 import { displayColumns, isMobile } from 'lib/device';
 import * as materialView from 'lib/game/view/material';
-import { renderBoardPreview } from 'lib/view/boardPreview';
 
 import { boardSettingsView, view as actionMenu } from './actionMenu';
 import explorerView, { renderExplorerPanel } from '../explorer/explorerView';
 import { view as forkView } from '../fork';
-import { reviewView } from '../review/view';
 import renderClocks from './clocks';
 import * as control from '../control';
 import * as chessground from '../ground';
@@ -33,13 +31,6 @@ import { dispatchChessgroundResize } from 'lib/chessgroundResize';
 import pgnImport, { renderPgnError } from '../pgnImport';
 import { normalizeInlinePgn } from '../pgnPipeline';
 import { storage } from 'lib/storage';
-import {
-  notebookDossierOverviewKindLabel,
-  notebookDossierProductLabel,
-  parseNotebookDossier,
-  type NotebookSectionV1,
-  type SectionCardV1,
-} from '../notebookDossier';
 
 interface ViewContext {
   ctrl: AnalyseCtrl;
@@ -94,8 +85,6 @@ export function renderMain(ctx: ViewContext, ...kids: LooseVNodes[]): VNode {
         'has-players': !!playerBars,
         'gamebook-play': !!gamebookPlayView,
         'analyse-hunter': ctrl.opts.hunter,
-        'analyse--moveReview': !!ctrl.opts.moveReview && !ctrl.isReviewShell(),
-        'analyse--review-shell': ctrl.isReviewShell(),
         'analyse--notebook': ctrl.isStudy(),
       },
     },
@@ -104,7 +93,6 @@ export function renderMain(ctx: ViewContext, ...kids: LooseVNodes[]): VNode {
 }
 
 function renderSidebar(ctrl: AnalyseCtrl): VNode | undefined {
-  if (ctrl.isReviewShell()) return;
   return hl(
     'div.analyse__sidebar',
     workspaceTools(ctrl).map(tool =>
@@ -252,7 +240,7 @@ function renderWorkspaceDock(ctrl: AnalyseCtrl): VNode {
       hl(
         'span',
         activeTool
-          ? 'Move between openings, Move Review, and board view without losing the current move.'
+          ? 'Move between openings, candidate lines, and board view without losing the current move.'
           : 'Open a study view while the board and moves stay anchored.',
       ),
     ]),
@@ -289,49 +277,7 @@ function renderWorkspaceDock(ctrl: AnalyseCtrl): VNode {
 }
 
 export function renderTools({ ctrl, concealOf, allowVideo }: ViewContext, embeddedVideo?: LooseVNode) {
-  const showCeval = ctrl.isCevalAllowed() && (ctrl.isReviewShell() ? ctrl.reviewPrimaryTab() === 'engine' : ctrl.showCeval());
-  if (ctrl.isReviewShell()) {
-    const boardPreview = renderBoardPreview(
-      { fen: ctrl.node.fen, uci: ctrl.node.uci },
-      ctrl.getOrientation(),
-      'div.analyse-review__mobile-board',
-    );
-    return hl('div.analyse__tools.analyse__tools--review', [
-      hl(
-        'section.analyse-review__mobile-board-rail',
-        {
-          hook: {
-            insert: vnode => syncReviewMobileRailHeight(vnode.elm as HTMLElement),
-            update: (_, vnode) => syncReviewMobileRailHeight(vnode.elm as HTMLElement),
-          },
-        },
-        [
-          hl('div.analyse-review__mobile-board-copy', [
-            hl('strong', 'Board and eval in view'),
-            hl(
-              'span',
-              ctrl.node.ply > 0
-                ? `Move ${plyToTurn(ctrl.node.ply)} position. Keep this board and eval visible as the review changes.`
-                : 'Start position. Keep this board and eval visible as the review changes.',
-            ),
-          ]),
-          boardPreview,
-        ],
-      ),
-      allowVideo && embeddedVideo,
-      hl('div.analyse-review__workspace-shell', [
-        reviewView(ctrl, {
-          cevalNode: showCeval ? cevalView.renderCeval(ctrl) : undefined,
-          pvsNode: showCeval ? cevalView.renderPvs(ctrl) : undefined,
-          moveListNode: renderMoveList(ctrl, concealOf),
-          forkNode: forkView(ctrl, concealOf),
-          explorerNode: renderExplorerPanel(ctrl, { force: true, closable: false }),
-          boardSettingsNodes: boardSettingsView(ctrl, { closeOnChange: false, mode: 'workspace' }),
-          importNode: renderInputs(ctrl),
-        }),
-      ]),
-    ]);
-  }
+  const showCeval = ctrl.isCevalAllowed() && ctrl.showCeval();
   const activeTool = explorerView(ctrl);
   return hl('div.analyse__tools', [
     allowVideo && embeddedVideo,
@@ -343,12 +289,6 @@ export function renderTools({ ctrl, concealOf, allowVideo }: ViewContext, embedd
     activeTool,
     ctrl.actionMenu() && actionMenu(ctrl),
   ]);
-}
-
-function syncReviewMobileRailHeight(elm: HTMLElement): void {
-  const shell = elm.closest('.analyse--review-shell') as HTMLElement | null;
-  if (!shell) return;
-  shell.style.setProperty('--review-mobile-rail-height', `${Math.ceil(elm.getBoundingClientRect().height)}px`);
 }
 
 export function renderBoard({ ctrl, playerBars, playerStrips, gaugeOn }: ViewContext, skipInfo = false) {
@@ -393,7 +333,6 @@ export function renderBoard({ ctrl, playerBars, playerStrips, gaugeOn }: ViewCon
 }
 
 export function renderUnderboard({ ctrl }: ViewContext) {
-  if (ctrl.isReviewShell()) return;
   return hl(
     'div.analyse__underboard',
     [renderInputs(ctrl)],
@@ -553,143 +492,6 @@ function renderNotebookPanelCover(title: string, subtitle: string, detail: strin
   ]);
 }
 
-function renderDossierEvidenceLine(
-  evidence: { strength: string; supportingGames: number; totalSampledGames: number },
-  extra?: string,
-): VNode {
-  const parts = [`${evidence.supportingGames}/${evidence.totalSampledGames} games`, evidence.strength];
-  if (extra) parts.push(extra);
-  return hl('span.copyables__study-dossier-meta', parts.join(' • '));
-}
-
-function renderDossierTag(label: string): VNode {
-  return hl('span.copyables__study-dossier-tag', label);
-}
-
-function notebookStatusLabel(status: NotebookSectionV1['status']): string {
-  return status === 'ready' ? 'ready to study' : 'needs more games';
-}
-
-function renderDossierCard(card: SectionCardV1): VNode {
-  switch (card.cardKind) {
-    case 'opening_map':
-      return hl('article.copyables__study-card.copyables__study-card--opening', [
-        hl('div.copyables__study-card-head', [hl('strong', card.title), renderDossierEvidenceLine(card.evidence)]),
-        hl('span.copyables__study-card-kicker', `${card.openingFamily} • ${card.side}`),
-        hl('p.copyables__study-card-copy', card.story),
-        hl('div.copyables__study-dossier-tags', card.structureLabels.map(renderDossierTag)),
-      ]);
-    case 'anchor_position':
-      return hl('article.copyables__study-card.copyables__study-card--anchor', [
-        hl('div.copyables__study-card-head', [hl('strong', card.title), renderDossierEvidenceLine(card.evidence, `ply ${card.moveContext.ply}`)]),
-        hl('span.copyables__study-card-kicker', card.claim),
-        hl('p.copyables__study-card-copy', card.explanation),
-        hl('div.copyables__study-card-block', [
-          hl('span.copyables__study-card-label', 'Question'),
-          hl('p', card.questionPrompt),
-        ]),
-        hl('div.copyables__study-card-block', [
-          hl('span.copyables__study-card-label', 'Recommended plan'),
-          hl('strong', card.recommendedPlan.label),
-          hl('p', card.recommendedPlan.summary),
-          card.recommendedPlan.candidateMoves?.length
-            ? hl(
-                'div.copyables__study-dossier-tags',
-                card.recommendedPlan.candidateMoves.map(move => renderDossierTag(move.san || move.uci || move.note || 'candidate')),
-              )
-            : null,
-        ]),
-        card.antiPattern
-          ? hl('div.copyables__study-card-block', [
-              hl('span.copyables__study-card-label', 'Avoid'),
-              hl('strong', card.antiPattern.label),
-              hl('p', card.antiPattern.summary),
-            ])
-          : null,
-        card.strategicTags.length ? hl('div.copyables__study-dossier-tags', card.strategicTags.map(renderDossierTag)) : null,
-      ]);
-    case 'exemplar_game':
-      return hl('article.copyables__study-card.copyables__study-card--example', [
-        hl('div.copyables__study-card-head', [
-          hl('strong', card.title),
-          hl('span.copyables__study-dossier-meta', `${card.game.white} vs ${card.game.black} • ${card.game.result}`),
-        ]),
-        hl('span.copyables__study-card-kicker', card.whyItMatters),
-        hl('p.copyables__study-card-copy', card.narrative),
-        hl('div.copyables__study-card-block', [
-          hl('span.copyables__study-card-label', 'Takeaway'),
-          hl('p', card.takeaway),
-        ]),
-      ]);
-    case 'action_item':
-      return hl('article.copyables__study-card.copyables__study-card--action', [
-        hl('div.copyables__study-card-head', [hl('strong', card.title)]),
-        hl('p.copyables__study-card-copy', card.instruction),
-        hl('div.copyables__study-card-block', [
-          hl('span.copyables__study-card-label', 'Success marker'),
-          hl('p', card.successMarker),
-        ]),
-      ]);
-    case 'checklist':
-      return hl('article.copyables__study-card.copyables__study-card--checklist', [
-        hl('div.copyables__study-card-head', [hl('strong', card.title)]),
-        hl(
-          'div.copyables__study-checklist',
-          card.items.map(item =>
-            hl('div.copyables__study-checklist-item', [
-              hl('span.copyables__study-checklist-priority', item.priority),
-              hl('div', [hl('strong', item.label), item.reason ? hl('span', item.reason) : null]),
-            ]),
-          ),
-        ),
-      ]);
-  }
-}
-
-function renderDossierSection(section: NotebookSectionV1): VNode {
-  return hl(`section.copyables__study-section.copyables__study-section--${section.kind}`, [
-    hl('div.copyables__study-section-head', [
-      hl('div', [hl('strong', section.title), hl('span', section.summary)]),
-      hl('span.copyables__study-dossier-meta', `Study section • ${notebookStatusLabel(section.status)}`),
-    ]),
-    section.evidence ? renderDossierEvidenceLine(section.evidence) : null,
-    hl('div.copyables__study-section-cards', section.cards.map(renderDossierCard)),
-  ]);
-}
-
-function renderNotebookDossierSurface(raw: unknown): VNode | null {
-  const dossier = parseNotebookDossier(raw);
-  if (!dossier) return null;
-
-  return hl('div.copyables__study-dossier', [
-    hl('div.copyables__study-dossier-head', [
-      hl('div.copyables__study-dossier-copy', [
-        hl('span.copyables__study-eyebrow', notebookDossierProductLabel(dossier.productKind)),
-        hl('strong', dossier.headline),
-        hl('span.copyables__study-subline', dossier.summary),
-      ]),
-      hl('div.analyse-review__summary-grid.copyables__study-dossier-summary', [
-        compactSummaryCard(`${dossier.source.sampledGameCount}`, 'games read'),
-        compactSummaryCard(`${dossier.sections.length}`, 'sections'),
-        compactSummaryCard(notebookStatusLabel(dossier.status), 'study state'),
-      ]),
-    ]),
-    hl(
-      'div.copyables__study-overview-grid',
-      dossier.overview.cards.map(card =>
-        hl('article.copyables__study-overview-card', [
-          hl('span.copyables__study-card-label', notebookDossierOverviewKindLabel(card.kind)),
-          hl('strong', card.headline),
-          hl('p', card.summary),
-          renderDossierEvidenceLine(card.evidence),
-          card.tags?.length ? hl('div.copyables__study-dossier-tags', card.tags.map(renderDossierTag)) : null,
-        ]),
-      ),
-    ),
-    hl('div.copyables__study-sections', dossier.sections.map(renderDossierSection)),
-  ]);
-}
-
 function renderStudyWorkspacePanel(ctrl: AnalyseCtrl): VNode | null {
   const study = ctrl.studyData();
   if (!study) return null;
@@ -756,7 +558,6 @@ function renderStudyWorkspacePanel(ctrl: AnalyseCtrl): VNode | null {
       studyFeaturePill('section', 'Use the section navigator above'),
       studyFeaturePill('bookmark', 'Share the exact section link'),
     ]),
-    renderNotebookDossierSurface(study.notebookDossier),
   ]);
 }
 
@@ -771,7 +572,7 @@ function renderStudyLaunchPanel(ctrl: AnalyseCtrl): VNode {
       renderNotebookPanelCover(
         'Untitled study',
         'First section',
-        'Add explanations as you go',
+        'Add notes as you go',
       ),
       hl('div.copyables__study-copy', [
         hl('span.copyables__study-eyebrow', 'Saved study'),
@@ -807,15 +608,15 @@ function renderStudyLaunchPanel(ctrl: AnalyseCtrl): VNode {
     ]),
     hl('div.analyse-review__summary-grid.copyables__study-summary', [
       compactSummaryCard('Game text + lines', 'base'),
-      compactSummaryCard('Saved reviews', 'saved lines'),
-      compactSummaryCard('Move Review notes', 'study notes'),
+      compactSummaryCard('Saved lines', 'analysis lines'),
+      compactSummaryCard('Board notes', 'study notes'),
     ]),
     renderStudyStatusCard(
       busy
         ? transferCount > 0
-          ? `Creating the new study and carrying over ${transferCount} saved review${transferCount === 1 ? '' : 's'}.`
+          ? `Creating the new study and carrying over ${transferCount} saved line${transferCount === 1 ? '' : 's'}.`
           : 'Creating the new study from the current game.'
-        : 'Saved move reviews already on this board will be carried into the new study when possible.',
+        : 'Saved board lines already on this board will be carried into the new study when possible.',
       busy ? 'info' : 'success',
     ),
     error ? renderStudyStatusCard(error, 'error') : null,

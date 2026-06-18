@@ -1120,7 +1120,7 @@ waifu.club
 walala.org
 walkmail.net
 walkmail.ru
-wacommentary.com
+wacomment.test
 war-im-urlaub.de
 wbb3.de
 we.qq.my

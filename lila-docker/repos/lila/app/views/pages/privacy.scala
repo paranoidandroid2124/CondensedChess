@@ -46,7 +46,7 @@ object privacy:
                 ul(
                   li("Provide, maintain, and secure the Service"),
                   li("Authenticate accounts and send account-related emails such as verification and password reset messages"),
-                  li("Generate analysis, commentary, and product features you request"),
+                  li("Generate analysis and product features you request"),
                   li("Prevent abuse, fraud, and unauthorized access"),
                   li("Respond to support, privacy, and account requests"),
                   li("Improve reliability and product quality"),
@@ -81,7 +81,7 @@ object privacy:
                 p("If you choose to allow preferences, Chesstory may store optional browser-side data such as:"),
                 ul(
                   li(strong("Appearance settings: "), "theme and zoom preferences, especially for signed-out visitors"),
-                  li(strong("On-device analysis state: "), "panel choices, study commentary drafts, and local analysis snapshots saved in your browser"),
+                  li(strong("On-device analysis state: "), "panel choices and local analysis snapshots saved in your browser"),
                   li(strong("Performance caches: "), "browser-side IndexedDB or file storage used to cache engine assets or similar performance-related files"),
                   li(strong("Troubleshooting logs: "), "browser-side diagnostic logs that help surface client-side errors")
                 ),

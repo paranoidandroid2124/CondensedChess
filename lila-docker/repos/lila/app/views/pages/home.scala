@@ -2,12 +2,9 @@ package views.pages
 
 import controllers.Main
 import lila.analyse.ImportHistory
-import lila.accountintel.AccountIntel.ProductKind
 import lila.app.UiEnv.{ *, given }
 import lila.ui.Page
-import play.api.libs.json.{ JsObject, Json }
 
-import scala.util.Try
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
@@ -21,10 +18,10 @@ object home:
           div(cls := "home-shell")(
             st.section(cls := "home-hero")(
               div(cls := "home-hero__copy")(
-                p(cls := "home-eyebrow")("Move Review room"),
+                p(cls := "home-eyebrow")("Analysis room"),
                 h1("Review the game with the board first."),
                 p(cls := "home-hero__summary")(
-                  "Open Move Review, recurring positions, or saved studies without losing the board that made the move matter."
+                  "Open saved games or studies without losing the board that made the move matter."
                 ),
                 renderContinueCard(data.continueCard)
               ),
@@ -40,8 +37,8 @@ object home:
             ),
             st.section(cls := "home-section home-section--reviews")(
               div(cls := "home-section-head")(
-                strong("Recent Move Reviews"),
-                span("Reopen a saved game as Move Review, or return to the board when you want to explore the line.")
+                strong("Recent game analyses"),
+                span("Reopen a saved game on the board, or return to the position when you want to explore the line.")
               ),
               if data.recentAnalyses.nonEmpty then
                 div(cls := "home-card-grid home-card-grid--analysis")(
@@ -49,29 +46,16 @@ object home:
                 )
                 else renderEmptyStrip("No recent games yet", "Start from a pasted game or bring in a public game once and it will show up here.")
             ),
-            div(cls := "home-secondary-grid")(
-              st.section(cls := "home-section")(
-                div(cls := "home-section-head")(
-                  strong("Recurring positions"),
-                  span("Return to recurring positions from your games or an opponent's public games.")
-                ),
-                if data.recentPatternReports.nonEmpty then
-                  div(cls := "home-card-grid home-card-grid--reports")(
-                    data.recentPatternReports.map(renderPatternReport)*
-                  )
-                else renderEmptyStrip("No recurring positions yet", "Look up a public account when you want the positions that keep coming back.")
+            st.section(cls := "home-section")(
+              div(cls := "home-section-head")(
+                strong("Saved studies"),
+                span("Reopen saved boards, notes, and sections without searching through every study.")
               ),
-              st.section(cls := "home-section")(
-                div(cls := "home-section-head")(
-                  strong("Saved studies"),
-                  span("Reopen saved boards, notes, and sections without searching through every study.")
-                ),
-                if data.recentNotebooks.nonEmpty then
-                  div(cls := "home-card-grid home-card-grid--notebooks")(
-                    data.recentNotebooks.map(renderNotebook)*
-                  )
-                else renderEmptyStrip("No saved studies yet", "Save one from a board or recurring position when the position is worth keeping.")
-              )
+              if data.recentNotebooks.nonEmpty then
+                div(cls := "home-card-grid home-card-grid--notebooks")(
+                  data.recentNotebooks.map(renderNotebook)*
+                )
+              else renderEmptyStrip("No saved studies yet", "Save one from a board when the position is worth keeping.")
             ),
             st.section(cls := "home-section home-section--accounts")(
               div(cls := "home-section-head")(
@@ -97,25 +81,13 @@ object home:
         val supportLine =
           List(entry.opening, entry.variant.filterNot(v => entry.opening.contains(v))).flatten.mkString(" • ")
         st.article(cls := "home-continue-card")(
-          p(cls := "home-continue-card__eyebrow")("Move Review"),
+          p(cls := "home-continue-card__eyebrow")("Saved game"),
           h2(cls := "home-continue-card__title")(entry.title),
           p(cls := "home-continue-card__summary")(recentAnalysisMeta(entry)),
           supportLine.nonEmpty.option(p(cls := "home-continue-card__support")(supportLine)),
           div(cls := "home-continue-card__actions")(
-            a(href := importedAnalysisUrl(entry._id, "review"), cls := "button button-fat")("Continue Move Review"),
+            a(href := importedAnalysisUrl(entry._id, "raw"), cls := "button button-fat")("Continue analysis"),
             a(href := importedAnalysisUrl(entry._id, "raw"), cls := "button button-metal")("Open board")
-          )
-        )
-      case Main.HomeContinueCard.PatternReport(job) =>
-        val headline = reportHeadline(job).getOrElse(s"@${job.username}")
-        st.article(cls := "home-continue-card")(
-          p(cls := "home-continue-card__eyebrow")(kindLabel(job.kind.key)),
-          h2(cls := "home-continue-card__title")(s"@${job.username}"),
-          p(cls := "home-continue-card__summary")(headline),
-          p(cls := "home-continue-card__support")(s"${providerLabel(job.provider)} • ${kindLabel(job.kind.key)}"),
-          div(cls := "home-continue-card__actions")(
-            a(href := reportUrl(job), cls := "button button-fat")(s"Study ${kindLabel(job.kind.key)}"),
-            a(href := routes.AccountIntel.landing("", "").url, cls := "button button-metal")("Study another player")
           )
         )
       case Main.HomeContinueCard.Notebook(entry) =>
@@ -136,10 +108,10 @@ object home:
         )
       case Main.HomeContinueCard.Starter =>
         st.article(cls := "home-continue-card")(
-          p(cls := "home-continue-card__eyebrow")("Start Move Review"),
+          p(cls := "home-continue-card__eyebrow")("Start analysis"),
           h2(cls := "home-continue-card__title")("No recent game yet"),
           p(cls := "home-continue-card__summary")(
-            "Start from a pasted game, open a board, look up recurring positions, or try the current strategic position."
+            "Start from a pasted game, open a board, or return to a saved study."
           ),
           div(cls := "home-continue-card__actions")(
             a(href := routes.Importer.importGame.url, cls := "button button-fat")("Start from game text"),
@@ -158,7 +130,7 @@ object home:
   private def renderRecentAnalysis(entry: ImportHistory.Analysis): Frag =
     val supportLine =
       List(entry.opening, entry.variant.filterNot(v => entry.opening.contains(v))).flatten.mkString(" • ")
-    a(href := importedAnalysisUrl(entry._id, "review"), cls := "home-card home-card--analysis")(
+    a(href := importedAnalysisUrl(entry._id, "raw"), cls := "home-card home-card--analysis")(
       div(cls := "home-card__badges")(
         entry.provider.map(providerBadge),
         span(cls := s"home-pill home-pill--${sourceBadgeTone(entry.sourceType)}")(sourceTypeLabel(entry.sourceType))
@@ -166,19 +138,7 @@ object home:
       strong(cls := "home-card__title")(entry.title),
       p(cls := "home-card__summary")(recentAnalysisMeta(entry)),
       supportLine.nonEmpty.option(p(cls := "home-card__meta")(supportLine)),
-      span(cls := "home-card__cta")("Open review")
-    )
-
-  private def renderPatternReport(job: lila.accountintel.AccountIntel.AccountIntelJob): Frag =
-    a(href := reportUrl(job), cls := "home-card home-card--report")(
-      div(cls := "home-card__badges")(
-        providerBadge(job.provider),
-        span(cls := "home-pill home-pill--pattern")(kindLabel(job.kind.key))
-      ),
-      strong(cls := "home-card__title")(s"@${job.username}"),
-      p(cls := "home-card__summary")(reportHeadline(job).getOrElse("The latest recurring position study is ready to open again.")),
-      p(cls := "home-card__meta")(s"${providerLabel(job.provider)} • ${kindLabel(job.kind.key)}"),
-      span(cls := "home-card__cta")("Open patterns")
+      span(cls := "home-card__cta")("Open analysis")
     )
 
   private def renderNotebook(entry: lila.study.Study.WithChaptersAndLiked): Frag =
@@ -198,20 +158,15 @@ object home:
 
   private def renderAccountLookup(account: ImportHistory.Account): Frag =
     a(
-      href := routes.AccountIntel.product(
-        account.provider,
-        account.username,
-        ProductKind.MyAccountIntelligenceLite.key,
-        ""
-      ).url,
+      href := routes.Importer.importGame.url,
       cls := "home-strip-card"
     )(
       div(cls := "home-strip-card__top")(
         strong(s"@${account.username}"),
         providerBadge(account.provider)
       ),
-      p(s"${account.analysisCount} saved games • ${account.searchCount} position studies"),
-      span(cls := "home-card__cta")("Study player")
+      p(s"${account.analysisCount} saved games"),
+      span(cls := "home-card__cta")("Load games")
     )
 
   private def renderEmptyStrip(title: String, copy: String): Frag =
@@ -220,20 +175,11 @@ object home:
       p(copy)
     )
 
-  private def reportUrl(job: lila.accountintel.AccountIntel.AccountIntelJob): String =
-    val base = routes.AccountIntel.product(job.provider, job.username, job.kind.key, "").url
-    s"$base?jobId=${URLEncoder.encode(job.id, StandardCharsets.UTF_8)}"
-
   private def analysisIndexUrl(mode: String): String =
     s"${routes.UserAnalysis.index.url}?mode=${URLEncoder.encode(mode, StandardCharsets.UTF_8)}"
 
   private def importedAnalysisUrl(id: String, mode: String): String =
     s"${routes.UserAnalysis.imported(id).url}?mode=${URLEncoder.encode(mode, StandardCharsets.UTF_8)}"
-
-  private def reportHeadline(job: lila.accountintel.AccountIntel.AccountIntelJob): Option[String] =
-    job.surfaceJson
-      .flatMap(raw => Try(Json.parse(raw).as[JsObject]).toOption)
-      .flatMap(js => (js \ "headline").asOpt[String])
 
   private def recentAnalysisMeta(entry: ImportHistory.Analysis): String =
     val line = List(
@@ -256,12 +202,6 @@ object home:
     provider.trim.toLowerCase match
       case ImportHistory.providerChessCom => "Chess.com"
       case _                              => "Lichess"
-
-  private def kindLabel(kind: String): String =
-    kind match
-      case ProductKind.MyAccountIntelligenceLite.key => "My Patterns"
-      case ProductKind.OpponentPrep.key              => "Prep for Opponent"
-      case other                                     => other.replace('_', ' ')
 
   private def sourceTypeLabel(sourceType: String): String =
     sourceType match

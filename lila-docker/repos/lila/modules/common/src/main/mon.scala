@@ -69,19 +69,6 @@ object mon:
   object picfit:
     def uploadTime(user: UserId) = future("picfit.upload.time", tags("user" -> user))
     def uploadSize(user: UserId) = histogram("picfit.upload.size").withTag("user", user)
-  object commentary:
-    object commentary:
-      def repair(path: String, scope: "any" | "material") =
-        counter("commentary.commentary.repair").withTags(tags("path" -> path, "scope" -> scope))
-      def compare(path: String, consistent: Boolean) =
-        counter("commentary.commentary.compare").withTags(tags("path" -> path, "consistent" -> consistent))
-      def thesisAgreement(path: String, agreed: Boolean) =
-        counter("commentary.commentary.thesisAgreement").withTags(tags("path" -> path, "agreed" -> agreed))
-      def sample(kind: String) =
-        counter("commentary.commentary.sample").withTag("kind", kind)
-      def metric(name: String, path: String) =
-        gauge("commentary.commentary.metric").withTags(tags("name" -> name, "path" -> path))
-
   type TimerPath = lila.mon.type => Timer
 
   private def future(name: String) = (success: Boolean) => timer(name).withTag("success", successTag(success))
