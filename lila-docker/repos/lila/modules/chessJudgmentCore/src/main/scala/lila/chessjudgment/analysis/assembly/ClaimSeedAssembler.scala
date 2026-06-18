@@ -20,7 +20,7 @@ object ClaimSeedAssembler:
       context.ideas.map { idea =>
         ClaimComposer.fromIdea(
           id = allocator.evidenceId(s"claim:${allocator.key(idea.ref.family)}:${allocator.key(idea.ref.id)}"),
-          family = claimFamily(idea.ref.family),
+          family = claimFamily(idea),
           idea = idea,
           supportingFacts = supportingFacts(context, idea.evidence),
           engineComparison = engineComparison(context, idea),
@@ -34,8 +34,9 @@ object ClaimSeedAssembler:
     val withClaims = claims.foldLeft(withEvidence)((ctx, claim) => ctx.withClaim(claim))
     ClaimSeedAssembly(assembly.input, withClaims)
 
-  private def claimFamily(family: ChessIdeaFamily): ClaimFamily =
-    family match
+  private def claimFamily(idea: ChessIdea): ClaimFamily =
+    if idea.subject == IdeaSubject.Plan then ClaimFamily.Plan
+    else idea.ref.family match
       case ChessIdeaFamily.Tactical      => ClaimFamily.Tactical
       case ChessIdeaFamily.Strategic     => ClaimFamily.Strategic
       case ChessIdeaFamily.PawnStructure => ClaimFamily.PawnStructure
