@@ -22,6 +22,7 @@ object ChessIdeaAssembler:
         .concat(
           tacticalIdeas(context, allocator),
           pawnStructureIdeas(context, allocator),
+          openingIdeas(context, allocator),
           defensiveIdeas(context, allocator),
           evaluationIdeas(context, allocator),
           conversionIdeas(context, allocator),
@@ -163,18 +164,78 @@ object ChessIdeaAssembler:
       context: JudgmentAssemblyContext,
       allocator: JudgmentProvenanceAllocator
   ): List[ChessIdea] =
+    val strategicFactIdeas =
+      context.evidenceGraph.records.collect {
+        case EvidenceRecord(ref, _: StrategicFactEvidence, _) =>
+          val evidence = (ref :: recordsForPosition(context, EvidenceLayer.Board, ref.position)).distinctBy(_.id)
+          ChessIdeaBuilder.fromEvidence(
+            id = allocator.evidenceId(s"idea:strategic-fact:${allocator.key(ref.id)}"),
+            family = ChessIdeaFamily.Strategic,
+            subject = IdeaSubject.Position,
+            primaryPosition = ref.position,
+            primaryLine = ref.line,
+            moveUci = ref.line.map(_.rootMove),
+            evidence = evidence,
+            scope = ref.scope,
+            confidence = ref.confidence
+          )
+      }
+    val planPressureIdeas =
+      context.evidenceGraph.records.collect {
+        case EvidenceRecord(ref, _: PlanPressureEvidence, _) =>
+          val evidence =
+            (ref :: ref.line.toList.flatMap(lineLayerRefs(context, _)) ++
+              recordsForPosition(context, EvidenceLayer.Strategic, ref.position) ++
+              recordsForPosition(context, EvidenceLayer.PawnStructure, ref.position) ++
+              recordsForPosition(context, EvidenceLayer.SinglePosition, ref.position)).distinctBy(_.id)
+          ChessIdeaBuilder.fromEvidence(
+            id = allocator.evidenceId(s"idea:plan-pressure:${allocator.key(ref.id)}"),
+            family = ChessIdeaFamily.Strategic,
+            subject = IdeaSubject.Plan,
+            primaryPosition = ref.position,
+            primaryLine = ref.line,
+            moveUci = ref.line.map(_.rootMove),
+            evidence = evidence,
+            scope = ref.scope,
+            confidence = ref.confidence
+          )
+      }
+    val singlePositionIdeas =
+      context.evidenceGraph.records.collect {
+        case EvidenceRecord(ref, SinglePositionEvidence(assessment), _)
+            if assessment.judgmentFocus.focus == JudgmentFocusType.Plan =>
+          val boardEvidence = recordsForPosition(context, EvidenceLayer.Board, ref.position)
+          ChessIdeaBuilder.fromEvidence(
+            id = allocator.evidenceId(s"idea:strategic:${allocator.key(ref.id)}"),
+            family = ChessIdeaFamily.Strategic,
+            subject = IdeaSubject.Position,
+            primaryPosition = ref.position,
+            primaryLine = None,
+            moveUci = None,
+            evidence = (ref :: boardEvidence).distinctBy(_.id),
+            scope = ref.scope,
+            confidence = ref.confidence
+          )
+      }
+    strategicFactIdeas ++ planPressureIdeas ++ singlePositionIdeas
+
+  private def openingIdeas(
+      context: JudgmentAssemblyContext,
+      allocator: JudgmentProvenanceAllocator
+  ): List[ChessIdea] =
     context.evidenceGraph.records.collect {
-      case EvidenceRecord(ref, SinglePositionEvidence(assessment), _)
-          if assessment.judgmentFocus.focus == JudgmentFocusType.Plan =>
-        val boardEvidence = recordsForPosition(context, EvidenceLayer.Board, ref.position)
+      case EvidenceRecord(ref, _: OpeningRouteFactEvidence, _) =>
+        val evidence =
+          (ref :: ref.line.toList.flatMap(lineLayerRefs(context, _)) ++
+            recordsForPosition(context, EvidenceLayer.Board, ref.position)).distinctBy(_.id)
         ChessIdeaBuilder.fromEvidence(
-          id = allocator.evidenceId(s"idea:strategic:${allocator.key(ref.id)}"),
-          family = ChessIdeaFamily.Strategic,
-          subject = IdeaSubject.Position,
+          id = allocator.evidenceId(s"idea:opening:${allocator.key(ref.id)}"),
+          family = ChessIdeaFamily.Opening,
+          subject = subjectForLine(ref.line),
           primaryPosition = ref.position,
-          primaryLine = None,
-          moveUci = None,
-          evidence = (ref :: boardEvidence).distinctBy(_.id),
+          primaryLine = ref.line,
+          moveUci = ref.line.map(_.rootMove),
+          evidence = evidence,
           scope = ref.scope,
           confidence = ref.confidence
         )
