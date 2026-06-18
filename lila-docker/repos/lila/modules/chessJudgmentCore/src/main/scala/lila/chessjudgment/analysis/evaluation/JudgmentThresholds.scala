@@ -4,6 +4,8 @@ package lila.chessjudgment.analysis.evaluation
  * Centralized threshold constants for analysis logic.
  */
 object JudgmentThresholds:
+
+  val PLAYABLE_LOSS_CP = 25
   
   val BLUNDER_CP = 300
   
