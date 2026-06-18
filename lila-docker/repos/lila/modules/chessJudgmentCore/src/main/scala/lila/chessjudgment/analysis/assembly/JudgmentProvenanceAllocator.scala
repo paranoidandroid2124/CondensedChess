@@ -17,7 +17,7 @@ final case class JudgmentProvenanceAllocator(prefix: String):
       fen = fen,
       ply = ply,
       sideToMove = sideToMove,
-      id = Some(s"$prefix:position:${key(role)}:$ply")
+      id = Some(s"$prefix:position:${positionKey(role, fen, ply)}")
     )
 
   def lineRef(line: NormalizedCandidateLine): LineNodeRef =
@@ -33,6 +33,9 @@ final case class JudgmentProvenanceAllocator(prefix: String):
 
   def evidenceId(suffix: String): String =
     s"$prefix:evidence:$suffix"
+
+  def positionKey(role: PositionNodeRole, fen: String, ply: Int): String =
+    s"${key(role)}:$ply:${fenKey(fen)}"
 
   def evidenceRef(
       suffix: String,
@@ -57,6 +60,9 @@ final case class JudgmentProvenanceAllocator(prefix: String):
     Option(value)
       .map(_.toString.replaceAll("([a-z])([A-Z])", "$1-$2").toLowerCase(Locale.ROOT))
       .getOrElse("none")
+
+  private def fenKey(fen: String): String =
+    Integer.toHexString(Option(fen).getOrElse("").hashCode)
 
 object JudgmentProvenanceAllocator:
 

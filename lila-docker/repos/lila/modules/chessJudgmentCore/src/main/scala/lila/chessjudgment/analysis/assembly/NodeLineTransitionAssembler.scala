@@ -8,6 +8,7 @@ import lila.chessjudgment.analysis.position.{ FactExtractor, PositionAnalyzer, P
 import lila.chessjudgment.analysis.singlePosition.{ SinglePositionAssessor, SinglePositionFactNormalizer }
 import lila.chessjudgment.analysis.transition.TransitionFactNormalizer
 import lila.chessjudgment.model.Fact
+import lila.chessjudgment.model.strategic.VariationLine
 import lila.chessjudgment.model.judgment.*
 
 final case class PositionNodeAssembly(
@@ -39,15 +40,18 @@ object PositionNodeAssembler:
       ply: Int,
       allocator: JudgmentProvenanceAllocator,
       scope: EvidenceScope,
-      includeAssessment: Boolean
+      includeAssessment: Boolean,
+      assessmentSourceLines: Option[List[VariationLine]] = None,
+      assessmentEvalCp: Option[Int] = None
   ): Option[PositionNodeAssembly] =
     Fen.read(Standard, Fen.Full(fen)).map { position =>
       val ref = allocator.positionRef(role, fen, ply, Some(position.color))
+      val nodeKey = allocator.positionKey(role, fen, ply)
       val features = PositionAnalyzer.extractFeatures(fen, ply)
       val facts = FactExtractor.extractStaticFacts(position.board, position.color)
       val boardRecord =
         PositionFactNormalizer.fromBoardFacts(
-          id = allocator.evidenceId(s"board:${allocator.key(role)}"),
+          id = allocator.evidenceId(s"board:$nodeKey"),
           facts = facts,
           features = features,
           position = ref,
@@ -58,17 +62,15 @@ object PositionNodeAssembler:
           .when(includeAssessment)(features)
           .flatten
           .map { positionFeatures =>
+            val assessmentSide = ref.sideToMove.getOrElse(position.color)
             val assessment =
               SinglePositionAssessor.classify(
                 features = positionFeatures,
-                multiPv = EvaluationPerspectivePolicy.sideToMovePvLines(
-                  sideToMove = ref.sideToMove.getOrElse(position.color),
-                  lines = input.lines.map(_.line)
-                ),
-                currentEval = input.currentEvalCp
+                multiPv = assessmentLines(input, role, assessmentSide, assessmentSourceLines),
+                currentEval = assessmentEval(input, role, assessmentEvalCp)
               )
             SinglePositionFactNormalizer.fromAssessment(
-              id = allocator.evidenceId(s"single-position:${allocator.key(role)}"),
+              id = allocator.evidenceId(s"single-position:$nodeKey"),
               assessment = assessment,
               position = ref,
               scope = scope,
@@ -86,6 +88,49 @@ object PositionNodeAssembler:
           evidence = records.map(_.ref)
         )
       PositionNodeAssembly(node, records)
+    }
+
+  private def assessmentLines(
+      input: NormalizedMoveReviewInput,
+      role: PositionNodeRole,
+      sideToMove: chess.Color,
+      sourceLines: Option[List[VariationLine]]
+  ): List[lila.chessjudgment.analysis.singlePosition.PvLine] =
+    val lines =
+      sourceLines.getOrElse {
+        role match
+          case PositionNodeRole.Before =>
+            input.lines.map(_.line)
+          case PositionNodeRole.AfterPlayed =>
+            input.playedLine.map(line => line.line.copy(moves = line.line.moves.drop(1))).toList
+          case PositionNodeRole.AfterReference =>
+            input.referenceLine.map(line => line.line.copy(moves = line.line.moves.drop(1))).toList
+          case PositionNodeRole.AfterAlternative =>
+            input.lines
+              .filter(_.role == LineNodeRole.Alternative)
+              .map(line => line.line.copy(moves = line.line.moves.drop(1)))
+          case PositionNodeRole.AfterThreat =>
+            Nil
+      }
+    EvaluationPerspectivePolicy.sideToMovePvLines(sideToMove, lines)
+
+  private def assessmentEval(
+      input: NormalizedMoveReviewInput,
+      role: PositionNodeRole,
+      overrideEval: Option[Int]
+  ): Int =
+    overrideEval.getOrElse {
+      role match
+        case PositionNodeRole.Before =>
+          input.currentEvalCp
+        case PositionNodeRole.AfterPlayed =>
+          input.playedLine.map(_.line.scoreCp).getOrElse(input.currentEvalCp)
+        case PositionNodeRole.AfterReference =>
+          input.referenceLine.map(_.line.scoreCp).getOrElse(input.currentEvalCp)
+        case PositionNodeRole.AfterAlternative =>
+          input.lines.find(_.role == LineNodeRole.Alternative).map(_.line.scoreCp).getOrElse(input.currentEvalCp)
+        case PositionNodeRole.AfterThreat =>
+          input.currentEvalCp
     }
 
 object CandidateLineAssembler:
@@ -253,7 +298,7 @@ object NodeLineTransitionAssembler:
           ply = input.beforePly + 1,
           allocator = allocator,
           scope = EvidenceScope.AfterPlayedPosition,
-          includeAssessment = false
+          includeAssessment = true
         )
       yield
         val afterReference =
@@ -265,8 +310,26 @@ object NodeLineTransitionAssembler:
               ply = input.beforePly + 1,
               allocator = allocator,
               scope = EvidenceScope.AfterReferencePosition,
-              includeAssessment = false
+              includeAssessment = true
             )
+          }
+        val afterAlternatives =
+          input.lines.filter(_.role == LineNodeRole.Alternative).flatMap { line =>
+            line.rootMove
+              .flatMap(PrincipalVariationEvidence.legalFenAfter(input.beforeFen, _))
+              .flatMap { fen =>
+                PositionNodeAssembler.fromFen(
+                  input = input,
+                  role = PositionNodeRole.AfterAlternative,
+                  fen = fen,
+                  ply = input.beforePly + 1,
+                  allocator = allocator,
+                  scope = EvidenceScope.AlternativeTransition,
+                  includeAssessment = true,
+                  assessmentSourceLines = Some(List(line.line.copy(moves = line.line.moves.drop(1)))),
+                  assessmentEvalCp = Some(line.line.scoreCp)
+                ).map(line -> _)
+              }
           }
         val lines = input.lines.map(CandidateLineAssembler.fromLine(_, before.node.ref, allocator))
         val playedTransition =
@@ -289,16 +352,29 @@ object NodeLineTransitionAssembler:
               to = referencePosition.node,
               allocator = allocator
             )
-        val context =
-          (List(before, afterPlayed) ++ afterReference.toList).foldLeft(JudgmentAssemblyContext.empty()) {
-            (ctx, assembly) => ctx.withPosition(assembly.node).withEvidence(assembly.evidence)
+        val alternativeTransitions =
+          afterAlternatives.flatMap { case (line, position) =>
+            line.rootMove.map { move =>
+              TransitionEdgeAssembler.fromMove(
+                role = TransitionEdgeRole.Alternative,
+                from = before.node,
+                moveUci = move,
+                to = position.node,
+                allocator = allocator
+              )
+            }
           }
+        val context =
+          (List(before, afterPlayed) ++ afterReference.toList ++ afterAlternatives.map(_._2))
+            .foldLeft(JudgmentAssemblyContext.empty()) { (ctx, assembly) =>
+              ctx.withPosition(assembly.node).withEvidence(assembly.evidence)
+            }
         val withLines =
           lines.foldLeft(context) { (ctx, assembly) =>
             ctx.withLine(assembly.node).withEvidence(assembly.evidence)
           }
         val withTransitions =
-          (List(playedTransition) ++ referenceTransition.toList).foldLeft(withLines) { (ctx, assembly) =>
+          (List(playedTransition) ++ referenceTransition.toList ++ alternativeTransitions).foldLeft(withLines) { (ctx, assembly) =>
             ctx.withTransition(assembly.edge).withEvidence(assembly.evidence)
           }
         NodeLineTransitionAssembly(input, withTransitions)

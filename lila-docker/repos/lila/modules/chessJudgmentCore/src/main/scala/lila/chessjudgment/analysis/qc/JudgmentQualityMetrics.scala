@@ -137,6 +137,9 @@ enum JudgmentGraphSlot:
   case AlternativeTransitionEdge
   case BoardFact
   case SinglePositionFact
+  case BeforeSinglePositionFact
+  case AfterPlayedSinglePositionFact
+  case AfterReferenceSinglePositionFact
   case PawnStructureFact
   case ThreatPressureFact
   case LineFact
@@ -281,6 +284,27 @@ object JudgmentLayerGapProfile:
             JudgmentGraphOwner.SinglePositionFactNormalizer,
             EvidenceLayer.SinglePosition
           ),
+          positionEvidenceSlot(
+            packet,
+            JudgmentGraphSlot.BeforeSinglePositionFact,
+            JudgmentGraphOwner.SinglePositionFactNormalizer,
+            EvidenceLayer.SinglePosition,
+            PositionNodeRole.Before
+          ),
+          positionEvidenceSlot(
+            packet,
+            JudgmentGraphSlot.AfterPlayedSinglePositionFact,
+            JudgmentGraphOwner.SinglePositionFactNormalizer,
+            EvidenceLayer.SinglePosition,
+            PositionNodeRole.AfterPlayed
+          ),
+          positionEvidenceSlot(
+            packet,
+            JudgmentGraphSlot.AfterReferenceSinglePositionFact,
+            JudgmentGraphOwner.SinglePositionFactNormalizer,
+            EvidenceLayer.SinglePosition,
+            PositionNodeRole.AfterReference
+          ),
           evidenceSlot(
             packet,
             JudgmentGraphSlot.PawnStructureFact,
@@ -423,6 +447,24 @@ object JudgmentLayerGapProfile:
       evidenceLayer: EvidenceLayer
   ): JudgmentGraphSlotStatus =
     slot(graphSlot, owner, packet.evidenceGraph.records.exists(_.ref.layer == evidenceLayer))
+
+  private def positionEvidenceSlot(
+      packet: EvidenceBackedJudgmentPacket,
+      graphSlot: JudgmentGraphSlot,
+      owner: JudgmentGraphOwner,
+      evidenceLayer: EvidenceLayer,
+      positionRole: PositionNodeRole
+  ): JudgmentGraphSlotStatus =
+    val positionRefs = packet.positions.collect {
+      case position if position.role == positionRole => position.ref
+    }.toSet
+    slot(
+      graphSlot,
+      owner,
+      packet.evidenceGraph.records.exists(record =>
+        record.ref.layer == evidenceLayer && positionRefs.contains(record.ref.position)
+      )
+    )
 
   private def ideaSlot(
       packet: EvidenceBackedJudgmentPacket,
