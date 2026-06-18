@@ -8,8 +8,10 @@ object OpeningRouteFactNormalizer:
       id: String,
       route: OpeningRouteCatalog.Route,
       position: PositionNodeRef,
+      line: Option[LineNodeRef] = None,
       scope: EvidenceScope,
-      confidence: EvidenceConfidence
+      confidence: EvidenceConfidence,
+      parents: List[EvidenceRef] = Nil
   ): EvidenceRecord =
     val ref =
       EvidenceRef(
@@ -17,7 +19,7 @@ object OpeningRouteFactNormalizer:
         producer = EvidenceProducer.OpeningRouteProducer,
         layer = EvidenceLayer.OpeningRoute,
         position = position,
-        line = None,
+        line = line,
         scope = scope,
         confidence = confidence
       )
@@ -30,5 +32,6 @@ object OpeningRouteFactNormalizer:
         pieceRole = EvidencePieceRole(route.role),
         path = route.path.map(EvidenceSquare(_)),
         targetMode = route.targetMode
-      )
+      ),
+      parents = parents
     )

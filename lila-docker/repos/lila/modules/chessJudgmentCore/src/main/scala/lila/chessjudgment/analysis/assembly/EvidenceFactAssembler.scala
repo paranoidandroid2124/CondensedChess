@@ -5,12 +5,14 @@ import chess.format.Fen
 import chess.variant.Standard
 import lila.chessjudgment.analysis.evaluation.EvaluationPerspectivePolicy
 import lila.chessjudgment.analysis.move.{ MoveAnalyzer, MoveMotifNormalizer }
+import lila.chessjudgment.analysis.opening.{ OpeningRouteCatalog, OpeningRouteFactNormalizer }
+import lila.chessjudgment.analysis.plan.{ PlanInteractionContext, PlanMatcher }
 import lila.chessjudgment.analysis.singlePosition.{ PawnPlayAssessor, ThreatPressureAssessor }
 import lila.chessjudgment.analysis.strategic.StrategicFactNormalizer
 import lila.chessjudgment.analysis.structure.{ PawnStructureAssessor, StructuralDeltaAnalyzer }
 import lila.chessjudgment.analysis.tactical.{ RelationFactNormalizer, TacticalRelationEvidence }
 import lila.chessjudgment.analysis.transition.TransitionFactNormalizer
-import lila.chessjudgment.model.Motif
+import lila.chessjudgment.model.{ Fact, Motif }
 import lila.chessjudgment.model.judgment.*
 
 final case class EvidenceFactAssembly(
@@ -26,7 +28,7 @@ object EvidenceFactAssembler:
   def enrich(assembly: NodeLineTransitionAssembly): EvidenceFactAssembly =
     val allocator = JudgmentProvenanceAllocator.forInput(assembly.input)
     val context = assembly.context
-    val records =
+    val baseRecords =
       List.concat(
         moveMotifRecords(assembly.input, context, allocator),
         relationRecords(assembly.input, context, allocator),
@@ -34,7 +36,14 @@ object EvidenceFactAssembler:
         threatPressureRecords(assembly.input, context, allocator),
         structuralDeltaRecords(context, allocator)
       )
-    EvidenceFactAssembly(assembly.input, context.withEvidence(records))
+    val baseContext = context.withEvidence(baseRecords)
+    val derivedRecords =
+      List.concat(
+        strategicFeatureRecords(baseContext, allocator),
+        openingRouteRecords(assembly.input, baseContext, allocator),
+        planPressureRecords(assembly.input, baseContext, allocator)
+      )
+    EvidenceFactAssembly(assembly.input, baseContext.withEvidence(derivedRecords))
 
   private def moveMotifRecords(
       input: NormalizedMoveReviewInput,
@@ -230,6 +239,105 @@ object EvidenceFactAssembler:
         )
     }
 
+  private def strategicFeatureRecords(
+      context: JudgmentAssemblyContext,
+      allocator: JudgmentProvenanceAllocator
+  ): List[EvidenceRecord] =
+    context.positions.flatMap { node =>
+      val targetFacts = node.facts.collect {
+        case fact: Fact.HangingPiece => fact
+        case fact: Fact.TargetPiece  => fact
+      }
+      Option
+        .when(targetFacts.nonEmpty) {
+          StrategicFactNormalizer.fromFacts(
+            id = allocator.evidenceId(
+              s"strategic:target-fixation:${allocator.positionKey(node.role, node.ref.fen, node.ref.ply)}"
+            ),
+            kind = StrategicFactKind.TargetFixation,
+            facts = targetFacts,
+            relatedPlans = Nil,
+            confidence = 0.78,
+            position = node.ref,
+            line = None,
+            scope = scopeFor(node.role),
+            parents = evidenceRefs(context, EvidenceLayer.Board, Some(node.ref), None)
+          )
+        }
+        .toList
+    }
+
+  private def openingRouteRecords(
+      input: NormalizedMoveReviewInput,
+      context: JudgmentAssemblyContext,
+      allocator: JudgmentProvenanceAllocator
+  ): List[EvidenceRecord] =
+    val root = context.position(PositionNodeRole.Before)
+    val openingPhase =
+      root.flatMap(_.assessment).exists(_.gamePhase.isOpening) || input.beforePly <= 20
+    if !openingPhase then Nil
+    else
+      root.toList.flatMap { rootNode =>
+        context.lines.flatMap { line =>
+          routesForMove(line.ref.rootMove, input.beforePly).zipWithIndex.map { case (route, index) =>
+            OpeningRouteFactNormalizer.fromRoute(
+              id = allocator.evidenceId(s"opening-route:${line.ref.rank}:$index:${route.routeId}"),
+              route = route,
+              position = rootNode.ref,
+              line = Some(line.ref),
+              scope = scopeFor(line.role),
+              confidence = EvidenceConfidence.Heuristic,
+              parents = lineParents(context, line) ++ evidenceRefs(context, EvidenceLayer.Board, Some(rootNode.ref), None)
+            )
+          }
+        }
+      }
+
+  private def planPressureRecords(
+      input: NormalizedMoveReviewInput,
+      context: JudgmentAssemblyContext,
+      allocator: JudgmentProvenanceAllocator
+  ): List[EvidenceRecord] =
+    context.position(PositionNodeRole.Before).toList.flatMap { node =>
+      for
+        features <- node.features
+        assessment <- node.assessment
+        side = node.ref.sideToMove.getOrElse(input.sideToMove.getOrElse(Color.White))
+        initialPosition <- Fen.read(Standard, Fen.Full(node.ref.fen))
+      yield
+        val motifs = motifsForPrimaryLine(input)
+        val pawnStructure = pawnStructureEvidence(context, node.ref)
+        val threatPressure = threatPressureEvidence(context, node.ref)
+        val planContext =
+          PlanInteractionContext(
+            evalCp = input.currentEvalCp,
+            positionAssessment = Some(assessment),
+            pawnAnalysis = pawnStructure.flatMap(_.pawnPlay),
+            threatsToUs = threatPressure.map(_.threats),
+            isWhiteToMove = side.white,
+            positionKey = Some(node.ref.fen),
+            features = Some(features),
+            initialPos = Some(initialPosition),
+            structureProfile = pawnStructure.map(_.profile),
+            planAlignment = pawnStructure.flatMap(_.alignment)
+          )
+        val scoring = PlanMatcher.matchPlans(motifs, planContext, side)
+        val activePlans = PlanMatcher.toActivePlans(scoring.topPlans, scoring.compatibilityEvents)
+        StrategicFactNormalizer.fromPlanPressure(
+          id = allocator.evidenceId("plan-pressure:before"),
+          scoring = scoring,
+          activePlans = activePlans,
+          position = node.ref,
+          line = context.line(LineNodeRole.BestReference).map(_.ref),
+          scope = EvidenceScope.BeforePosition,
+          parents = evidenceRefs(context, EvidenceLayer.Board, Some(node.ref), None) ++
+            evidenceRefs(context, EvidenceLayer.SinglePosition, Some(node.ref), None) ++
+            evidenceRefs(context, EvidenceLayer.PawnStructure, Some(node.ref), None) ++
+            evidenceRefs(context, EvidenceLayer.ThreatPressure, Some(node.ref), None) ++
+            context.line(LineNodeRole.BestReference).toList.flatMap(lineParents(context, _))
+        )
+    }
+
   private def motifsForPrimaryLine(input: NormalizedMoveReviewInput): List[Motif] =
     val moves =
       input.referenceLine
@@ -246,6 +354,32 @@ object EvidenceFactAssembler:
     val targets = Option.when(target.matches("[a-h][1-8]"))(target).toList
     val createdTensionFrom = Option.when(origin.matches("[a-h][1-8]"))(origin)
     (files, targets, createdTensionFrom)
+
+  private def routesForMove(moveUci: String, beforePly: Int): List[OpeningRouteCatalog.Route] =
+    val normalized = MoveReviewInputNormalizer.normalizeUci(moveUci)
+    val origin = normalized.take(2)
+    val target = normalized.drop(2).take(2)
+    OpeningRouteCatalog.default.routes.filter { route =>
+      beforePly <= route.maxReplayPlies &&
+      route.from == origin &&
+      (route.to == target || route.via.contains(target))
+    }
+
+  private def pawnStructureEvidence(
+      context: JudgmentAssemblyContext,
+      position: PositionNodeRef
+  ): Option[PawnStructureFactEvidence] =
+    context.evidenceGraph.records.collectFirst {
+      case EvidenceRecord(ref, payload: PawnStructureFactEvidence, _) if ref.position == position => payload
+    }
+
+  private def threatPressureEvidence(
+      context: JudgmentAssemblyContext,
+      position: PositionNodeRef
+  ): Option[ThreatPressureEvidence] =
+    context.evidenceGraph.records.collectFirst {
+      case EvidenceRecord(ref, payload: ThreatPressureEvidence, _) if ref.position == position => payload
+    }
 
   private def transitionParents(
       context: JudgmentAssemblyContext,
