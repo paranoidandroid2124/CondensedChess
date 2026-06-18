@@ -166,7 +166,7 @@ lazy val beta = module("beta",
 lazy val chessJudgmentCore = module("chessJudgmentCore",
   Seq(common),
   playWs.bundle ++ tests.bundle
-)
+).dependsOn(tree % "test->compile")
 
 lazy val evalCache = module("evalCache",
   Seq(tree, memo),

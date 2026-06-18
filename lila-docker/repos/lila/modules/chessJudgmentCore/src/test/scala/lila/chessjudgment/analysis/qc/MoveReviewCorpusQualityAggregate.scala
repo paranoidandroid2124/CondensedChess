@@ -3,8 +3,11 @@ package lila.chessjudgment.analysis.qc
 import java.nio.charset.StandardCharsets
 import java.nio.file.{ Files, Path }
 
+import chess.format.pgn.PgnStr
+import lila.core.game.Game
 import lila.chessjudgment.analysis.assembly.{ MoveReviewJudgmentOrchestrator, MoveReviewJudgmentResult, RawMoveReviewInput }
 import lila.chessjudgment.model.strategic.VariationLine
+import lila.tree.{ Branch, ExportOptions, ParseImport, Root, TreeBuilder }
 import play.api.libs.json.*
 
 final case class MoveReviewQualitySample(
@@ -175,21 +178,15 @@ object MoveReviewRawInputQualityRunner:
         )
       )
     val report = MoveReviewCorpusQualityAggregate.fromSamples(samples)
-    val output = formatReport(report)
+    val output = MoveReviewQualityReportFormatter.format(report)
     outputPath match
       case Some(path) => Files.writeString(path, output, StandardCharsets.UTF_8)
       case None       => println(output)
 
   private def parseSamples(path: Path): List[ParsedSample] =
-    val raw = Files.readString(path, StandardCharsets.UTF_8).trim
-    if raw.startsWith("[") then
-      Json.parse(raw).as[List[JsValue]].zipWithIndex.map { case (json, index) =>
-        parseSample(json, index)
-      }
-    else
-      raw.linesIterator.toList.filter(_.trim.nonEmpty).zipWithIndex.map { case (line, index) =>
-        parseSample(Json.parse(line), index)
-      }
+    MoveReviewQualityInputFiles.parseJsonDocuments(path).zipWithIndex.map { case (json, index) =>
+      parseSample(json, index)
+    }
 
   private def parseSample(json: JsValue, index: Int): ParsedSample =
     val sampleId = (json \ "sampleId").asOpt[String].getOrElse((index + 1).toString)
@@ -198,7 +195,159 @@ object MoveReviewRawInputQualityRunner:
       case JsSuccess(raw, _) => ParsedSample(sampleId, raw)
       case JsError(errors)   => throw IllegalArgumentException(s"invalid sample $sampleId: $errors")
 
-  private def formatReport(report: MoveReviewCorpusQualityReport): String =
+object MoveReviewPgnQualityRunner:
+
+  private final case class ParsedPgnSample(
+      sampleId: String,
+      pgn: String,
+      snapshots: List[PgnMoveEngineSnapshot]
+  )
+
+  private final case class PgnMoveEngineSnapshot(
+      sampleId: Option[String],
+      beforePly: Int,
+      variations: List[VariationLine],
+      currentEvalCp: Option[Int]
+  )
+
+  private final case class MainlineMove(
+      beforePly: Int,
+      beforeFen: String,
+      playedMoveUci: String
+  )
+
+  private given Reads[PgnMoveEngineSnapshot] = Reads { json =>
+    for
+      beforePly <- (json \ "beforePly").validateOpt[Int].flatMap:
+        case Some(ply) => JsSuccess(ply)
+        case None      => (json \ "ply").validate[Int]
+      variations <- (json \ "variations").validate[List[VariationLine]]
+    yield
+      PgnMoveEngineSnapshot(
+        sampleId = (json \ "sampleId").asOpt[String],
+        beforePly = beforePly,
+        variations = variations,
+        currentEvalCp = (json \ "currentEvalCp").asOpt[Int]
+      )
+  }
+
+  def main(args: Array[String]): Unit =
+    if args.isEmpty then
+      throw IllegalArgumentException("usage: MoveReviewPgnQualityRunner <input.json|jsonl> [output.tsv]")
+    val inputPath = Path.of(args(0))
+    val outputPath = args.lift(1).map(Path.of(_))
+    val samples =
+      rawSamples(inputPath).map { case (sampleId, raw) =>
+        MoveReviewQualitySample(
+          sampleId = sampleId,
+          result = MoveReviewJudgmentOrchestrator.build(raw)
+        )
+      }
+    val report = MoveReviewCorpusQualityAggregate.fromSamples(samples)
+    val output = MoveReviewQualityReportFormatter.format(report)
+    outputPath match
+      case Some(path) => Files.writeString(path, output, StandardCharsets.UTF_8)
+      case None       => println(output)
+
+  private[qc] def rawSamples(path: Path): List[(String, RawMoveReviewInput)] =
+    parseSamples(path).flatMap(expandRawSample)
+
+  private def parseSamples(path: Path): List[ParsedPgnSample] =
+    MoveReviewQualityInputFiles.parseJsonDocuments(path).zipWithIndex.map { case (json, index) =>
+      val sampleId = (json \ "sampleId").asOpt[String].getOrElse((index + 1).toString)
+      val snapshotsJson =
+        (json \ "positions").toOption
+          .orElse((json \ "moves").toOption)
+          .orElse((json \ "snapshots").toOption)
+      val snapshots = snapshotsJson match
+        case Some(value) =>
+          value.validate[List[PgnMoveEngineSnapshot]] match
+            case JsSuccess(value, _) => value
+            case JsError(errors)     => throw IllegalArgumentException(s"invalid PGN sample $sampleId snapshots: $errors")
+        case None => throw IllegalArgumentException(s"invalid PGN sample $sampleId: missing positions, moves, or snapshots")
+      val pgn = (json \ "pgn").asOpt[String].getOrElse:
+        throw IllegalArgumentException(s"invalid PGN sample $sampleId: missing pgn")
+      ParsedPgnSample(sampleId = sampleId, pgn = pgn, snapshots = snapshots)
+    }
+
+  private def expandRawSample(sample: ParsedPgnSample): List[(String, RawMoveReviewInput)] =
+    val movesByPly = parseMainline(sample)
+    sample.snapshots.map { snapshot =>
+      val move = movesByPly.getOrElse(
+        snapshot.beforePly,
+        throw IllegalArgumentException(s"PGN sample ${sample.sampleId}: no played move at beforePly ${snapshot.beforePly}")
+      )
+      val raw = RawMoveReviewInput(
+        fen = move.beforeFen,
+        playedMoveUci = move.playedMoveUci,
+        variations = snapshot.variations,
+        currentEvalCp = snapshot.currentEvalCp,
+        ply = Some(snapshot.beforePly)
+      )
+      snapshot.sampleId.getOrElse(s"${sample.sampleId}:${snapshot.beforePly}") -> raw
+    }
+
+  private def parseMainline(sample: ParsedPgnSample): Map[Int, MainlineMove] =
+    val imported =
+      ParseImport.full(PgnStr(sample.pgn)) match
+        case Right(result) => result
+        case Left(error)   => throw IllegalArgumentException(s"invalid PGN sample ${sample.sampleId}: ${error.value}")
+    imported.replayError.foreach: error =>
+      throw IllegalArgumentException(s"invalid PGN sample ${sample.sampleId} replay: ${error.value}")
+    val initialFen = imported.initialFen.getOrElse(imported.game.variant.initialFen)
+    val game = Game.make(imported.game.variant, imported.initialFen).copy(chess = imported.game)
+    val root =
+      TreeBuilder(
+        game = game,
+        analysis = None,
+        initialFen = initialFen,
+        withFlags = ExportOptions.default,
+        logChessError = error => throw IllegalArgumentException(s"invalid PGN sample ${sample.sampleId} tree: $error")
+      )
+    mainlineMoves(root).map(move => move.beforePly -> move).toMap
+
+  private def mainlineMoves(root: Root): List[MainlineMove] =
+    def loop(beforeFen: String, beforePly: Int, branches: List[Branch], acc: List[MainlineMove]): List[MainlineMove] =
+      branches match
+        case Nil => acc.reverse
+        case branch :: rest =>
+          val move =
+            MainlineMove(
+              beforePly = beforePly,
+              beforeFen = beforeFen,
+              playedMoveUci = branch.move.uci.uci
+            )
+          loop(branch.fen.value, branch.ply.value, rest, move :: acc)
+    loop(root.fen.value, root.ply.value, root.mainline, Nil)
+
+object MoveReviewPgnRawInputRunner:
+
+  private given Writes[RawMoveReviewInput] = Json.writes[RawMoveReviewInput]
+
+  def main(args: Array[String]): Unit =
+    if args.isEmpty then
+      throw IllegalArgumentException("usage: MoveReviewPgnRawInputRunner <input.json|jsonl> [output.jsonl]")
+    val inputPath = Path.of(args(0))
+    val outputPath = args.lift(1).map(Path.of(_))
+    val lines =
+      MoveReviewPgnQualityRunner.rawSamples(inputPath).map { case (sampleId, raw) =>
+        Json.stringify(Json.obj("sampleId" -> sampleId, "input" -> Json.toJson(raw)))
+      }
+    val output = lines.mkString(System.lineSeparator())
+    outputPath match
+      case Some(path) => Files.writeString(path, output, StandardCharsets.UTF_8)
+      case None       => println(output)
+
+private object MoveReviewQualityInputFiles:
+
+  def parseJsonDocuments(path: Path): List[JsValue] =
+    val raw = Files.readString(path, StandardCharsets.UTF_8).stripPrefix("\uFEFF").trim
+    if raw.startsWith("[") then Json.parse(raw).as[List[JsValue]]
+    else raw.linesIterator.toList.filter(_.trim.nonEmpty).map(line => Json.parse(line))
+
+private object MoveReviewQualityReportFormatter:
+
+  def format(report: MoveReviewCorpusQualityReport): String =
     val header =
       List(
         s"sample_count\t${report.sampleCount}",
