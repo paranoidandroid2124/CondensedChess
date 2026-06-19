@@ -27,7 +27,7 @@ flowchart LR
   SPF["SinglePositionAssessment"]
   PF["PawnStructureFact"]
   SF["StrategicFact"]
-  OF["OpeningRouteFact"]
+  OF["OpeningContextFact"]
   TH["ThreatPressure"]
   LF["LineFact"]
   EF["EvalFact"]
@@ -155,7 +155,7 @@ flowchart LR
 - `analysis.plan`: 여러 node fact, line fact, threat, structure, strategic feature를 조합해 plan pressure와 active plans를 만든다.
 - `analysis.transition`: 한 position node에서 다음 node로 넘어가는 move edge와 plan transition을 판단한다.
 - `analysis.move`: 수 중심의 기존 motif 자산을 support evidence로 제공하되, 중복 판단은 line, tactical, transition, relative assessment 쪽으로 흡수한다.
-- `analysis.opening`: 오프닝 route와 route target 사실을 제공한다.
+- `analysis.opening`: 입력 ECO/name/family, move-prefix/position-key recognition, recognition provenance, theme prior를 context로 등록한다. 중앙, 전개, 갬빗, 폰구조, 계획 압력 같은 체스 feature는 범용 `FeatureAnchor`로 관측되고, opening 여부는 `ApplicabilityAssessment`에서 context/prior와 결합해 판단한다.
 - `analysis.policy`: 특정 판단을 승격하거나 억제하는 경계 predicate를 둔다.
 - `model.judgment`: position node, line node, transition edge, relative assessment, evidence ref, LLM judgment packet을 정의한다.
 - `model.strategic`: plan taxonomy, strategic state, plan continuity 같은 전략 모델을 정의한다.
@@ -178,7 +178,7 @@ flowchart LR
 - `MoveMotifNormalizer`: `MoveAnalyzer`의 수 중심 motif를 `MoveMotifEvidence`로 등록한다.
 - `RelationFactNormalizer`: relation witness를 typed `RelationFactEvidence`로 등록한다.
 - `StrategicFactNormalizer`: structure, plan pressure, threat pressure, strategic tag를 evidence graph에 등록한다.
-- `OpeningRouteFactNormalizer`: opening route target과 piece route를 `OpeningRouteFactEvidence`로 등록한다.
+- `OpeningContextFactNormalizer`: opening identity, recognition provenance, phase signal, theme prior만 `OpeningContextEvidence`로 등록한다. 내부 관측 feature와 phase-specific binding은 `FeatureAnchorEvidence`와 `ApplicabilityAssessmentEvidence`가 맡으며, prior theme는 applicability 없이 claim 근거가 될 수 없다.
 - `TransitionFactNormalizer`: structural delta, plan transition, counterfactual, relative assessment를 edge evidence로 등록한다.
 - `PositionNodeBuilder`: board fact, position feature, single-position assessment를 `PositionNode`로 묶는다.
 - `CandidateLineNodeBuilder`: engine PV, legal replay, depth, mate, eval을 `CandidateLineNode`로 묶는다.
@@ -193,7 +193,7 @@ flowchart LR
 ## 2단계 진입 후 채울 판단
 
 - 전술 idea composer: relation fact, line fact, eval fact를 조합해 pin, overload, deflection, defender removal 같은 idea를 만든다.
-- 전략 idea composer: structure, strategic feature, plan pressure, opening route를 조합해 장기 계획 idea를 만든다.
+- 전략 idea composer: structure, strategic feature, plan pressure, opening context를 조합해 장기 계획 idea를 만든다.
 - 수비 idea composer: threat pressure, only-defense topology, relative assessment를 조합해 방어 필요성을 만든다.
 - 평가 결합 규칙: 좋은 local idea와 나쁜 move verdict가 공존할 때 `IdeaVerdictSplit`의 관계를 더 세밀하게 판정한다.
 - QC 진단 runner: `EvidenceLossDiagnostics`를 corpus 결과와 연결해 어느 layer에서 체스 판단이 손실됐는지 집계한다.

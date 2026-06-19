@@ -217,7 +217,7 @@ flowchart LR
 | `analysis.structure` | pawn structure, structural delta, target profile | structure profile, delta | `StrategicFactNormalizer`, `TransitionFactNormalizer`, `PawnStructureIdeaComposer` |
 | `analysis.strategic` | 전략 feature, endgame/oracle, practical signal | strategic facts | `StrategicFactNormalizer`, `StrategicIdeaComposer` |
 | `analysis.plan` | plan pressure, active plans, plan transition | `PlanScoringResult`, `ActivePlans`, `PlanSequenceSummary` | `StrategicFactNormalizer`, `TransitionFactNormalizer`, `StrategicIdeaComposer`, `PlanClaimComposer` |
-| `analysis.opening` | opening route와 target | `OpeningRouteCatalog.Route` | `OpeningRouteFactNormalizer`, `OpeningIdeaComposer` |
+| `analysis.opening` | opening identity/recognition/prior context and opening relevance binding over generic feature anchors | `OpeningContextEvidence`, `FeatureAnchorEvidence`, `ApplicabilityAssessmentEvidence` | `OpeningContextFactNormalizer`, `OpeningIdeaComposer` |
 | `analysis.policy` | 증거 승격/억제 경계 | predicates | `EvidenceAdmissionPolicy`, `ClaimTruthPolicy` |
 
 ## 증거 등록 상호작용
@@ -259,7 +259,7 @@ flowchart LR
 | `TacticalIdeaComposer` | `Relation`, `Line`, `Eval`, `MoveMotif`, `StructuralDelta` | `ChessIdea(Tactical)` | `RelationLineTacticSynthesizer`, `ForcedTacticVerifier`, `DefenderRelationBinder`, `TacticalEvalBinder` |
 | `StrategicIdeaComposer` | `Strategic`, `PlanPressure`, `SinglePosition`, `Line`, `Eval` | `ChessIdea(Strategic)` | `StrategicStabilityVerifier`, `PlanPressureSynthesizer`, `LongTermFeatureBinder`, `CounterplayRestraintDetector` |
 | `PawnStructureIdeaComposer` | `PawnStructure`, `StructuralDelta`, `MoveMotif`, `PlanPressure` | `ChessIdea(PawnStructure)` | `PawnBreakIdeaComposer`, `WeaknessTargetBinder`, `PassedPawnRaceBinder`, `StructureDeltaBinder` |
-| `OpeningIdeaComposer` | `OpeningRoute`, `MoveMotif`, `PositionNode`, `Line`, `Eval` | `ChessIdea(Opening)` | `OpeningRoutePlanBinder`, `OpeningTempoVerifier`, `OpeningTargetContinuityBinder` |
+| `OpeningIdeaComposer` | `ApplicabilityAssessment(OpeningRelevant)`, `FeatureAnchor`, `OpeningContext`, `Line`, `Eval` | `ChessIdea(Opening)` | `OpeningContextPlanBinder`, `OpeningTempoVerifier`, `OpeningStructureBinder` |
 | `PlanIdeaRepresentationPolicy` | `PlanPressure`, `PlanTransition`, plan continuity | representation decision | 현재 `ChessIdeaFamily.Plan`이 없으므로 `IdeaSubject.Plan` + strategic/pawn/opening/conversion idea로 표현할지, family를 확장할지 결정한다. |
 | `DefensiveIdeaComposer` | `ThreatPressure`, `SinglePosition`, `Line`, `Relation`, `RelativeAssessment` | `ChessIdea(Defensive)` | `ThreatNecessityComposer`, `OnlyDefenseDetector`, `DefensiveResourceBinder`, `CounterThreatComparator` |
 | `ConversionIdeaComposer` | `SinglePosition`, `Eval`, `Line`, `PlanTransition`, `RelativeAssessment` | `ChessIdea(Conversion)` | `SimplificationWindowComposer`, `WinningConversionBinder`, `TradeSafetyVerifier` |
@@ -274,7 +274,7 @@ idea composer는 문장을 만들지 않는다. 최소 출력은 family, subject
 | `TacticalClaimComposer` | tactical ideas, relation/line/eval evidence | `ClaimSeed(Tactical)` | relation 하나만으로 claim을 만들지 않고 line/eval witness를 요구한다. |
 | `StrategicClaimComposer` | strategic ideas, plan pressure, stability | `ClaimSeed(Strategic)` | 단기 PV에 의해 즉시 반박되는 장기 claim을 억제한다. |
 | `PawnStructureClaimComposer` | pawn ideas, structure delta | `ClaimSeed(PawnStructure)` | 폰구조 변화와 실제 plan support를 분리한다. |
-| `OpeningClaimComposer` | opening ideas, route continuity | `ClaimSeed(Opening)` | opening 이름보다 route target과 tempo evidence를 우선한다. |
+| `OpeningClaimComposer` | opening ideas, strategy/pawn/plan support | `ClaimSeed(Opening)` | opening 이름만으로 claim을 확정하지 않고 중앙, 전개, 갬빗, 폰구조, 계획 pressure 중 하나가 evidence로 결합되어야 한다. |
 | `PlanClaimComposer` | strategic/pawn/opening/conversion ideas | `ClaimSeed(Plan)` | 계획 claim은 단일 feature가 아니라 pressure 조합에서만 만든다. |
 | `DefensiveClaimComposer` | defensive ideas, threat/only-move evidence | `ClaimSeed(Defensive)` | 방어 필요성과 move quality verdict를 혼동하지 않는다. |
 | `ConversionClaimComposer` | conversion ideas, simplify/trade evidence | `ClaimSeed(Conversion)` | 좋은 교환/단순화와 drawish concession을 구별한다. |
@@ -342,4 +342,4 @@ idea composer는 문장을 만들지 않는다. 최소 출력은 family, subject
 - verdict threshold와 eval POV 경계가 분리돼 있으므로 `EvaluationPerspectivePolicy`와 `VerdictThresholdPolicy`를 먼저 세워야 한다.
 - `counterThreatBetter` 같은 방어 반격 claim은 현재 근거가 약하므로 `CounterThreatComparator`가 생기기 전에는 낮은 confidence 또는 deferred로 둔다.
 - `analysis.strategic`의 structure성 판단과 `analysis.structure`가 겹친다. 구조 사실은 `analysis.structure`를 canonical source로 두고 strategic은 소비자로 둔다.
-- `OpeningRouteCatalog`의 target square가 구조 약점과 겹칠 수 있다. opening은 route/path/theory intent를 제공하고 약점 여부는 structure evidence를 부모로 삼는다.
+- opening identity와 theme prior는 단독 판단이 아니다. ECO/name/family와 recognition provenance는 context이고, theme prior는 기대값이다. 중앙 확보, 전개 우위, 갬빗 보상, 폰구조, 계획 압력은 범용 `FeatureAnchor`로 관측된 뒤 `ApplicabilityAssessment`에서 opening/middlegame/endgame/observed-only/contraindicated로 분류된다.
