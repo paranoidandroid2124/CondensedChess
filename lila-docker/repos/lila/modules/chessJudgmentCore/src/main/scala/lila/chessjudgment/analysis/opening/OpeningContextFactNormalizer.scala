@@ -2,11 +2,14 @@ package lila.chessjudgment.analysis.opening
 
 import lila.chessjudgment.model.judgment.*
 
-object OpeningRouteFactNormalizer:
+object OpeningContextFactNormalizer:
 
-  def fromRoute(
+  def fromContext(
       id: String,
-      route: OpeningRouteCatalog.Route,
+      identity: Option[OpeningIdentity],
+      signals: List[OpeningContextSignal],
+      recognition: Option[OpeningRecognition] = None,
+      themePrior: Option[OpeningThemePrior] = None,
       position: PositionNodeRef,
       line: Option[LineNodeRef] = None,
       scope: EvidenceScope,
@@ -16,8 +19,8 @@ object OpeningRouteFactNormalizer:
     val ref =
       EvidenceRef(
         id = id,
-        producer = EvidenceProducer.OpeningRouteProducer,
-        layer = EvidenceLayer.OpeningRoute,
+        producer = EvidenceProducer.OpeningContextProducer,
+        layer = EvidenceLayer.OpeningContext,
         position = position,
         line = line,
         scope = scope,
@@ -25,13 +28,11 @@ object OpeningRouteFactNormalizer:
       )
     EvidenceRecord(
       ref = ref,
-      payload = OpeningRouteFactEvidence(
-        routeId = route.routeId,
-        family = route.family,
-        targetSquare = EvidenceSquare(route.targetSquare),
-        pieceRole = EvidencePieceRole(route.role),
-        path = route.path.map(EvidenceSquare(_)),
-        targetMode = route.targetMode
+      payload = OpeningContextEvidence(
+        identity = identity,
+        signals = signals.distinct,
+        recognition = recognition,
+        themePrior = themePrior
       ),
       parents = parents
     )

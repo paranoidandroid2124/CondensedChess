@@ -200,7 +200,7 @@ object StrategicSalience:
   ): StrategicSalience =
     import lila.chessjudgment.model.TransitionType.*
     
-    // High Entropy / Chaos fallback
+    // Low salience when no strategic theme dominates.
     if themeMaxShare < 0.35 then return StrategicSalience.Low
     
     // Tactical override: Huge eval swings should suppress Strategy to focus strictly on the blunder/tactics

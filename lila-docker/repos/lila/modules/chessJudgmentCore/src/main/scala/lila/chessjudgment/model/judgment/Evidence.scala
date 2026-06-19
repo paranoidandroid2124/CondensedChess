@@ -18,7 +18,9 @@ enum EvidenceProducer:
   case TacticalRelationProducer
   case PawnStructureProducer
   case StrategicFeatureProducer
-  case OpeningRouteProducer
+  case OpeningContextProducer
+  case FeatureAnchorProducer
+  case ApplicabilityAssessmentProducer
   case ThreatPressureProducer
   case MoveMotifProducer
   case MoveTransitionProducer

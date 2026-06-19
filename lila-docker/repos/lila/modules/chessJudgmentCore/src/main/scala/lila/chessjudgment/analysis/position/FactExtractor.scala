@@ -2,7 +2,13 @@ package lila.chessjudgment.analysis.position
 
 import chess.{ Board, Square, Role, Color }
 import lila.chessjudgment.model._
-import lila.chessjudgment.model.strategic.{ EndgameFeature, RuleOfSquareStatus, EndgameOppositionType, RookEndgamePattern as OracleRookPattern }
+import lila.chessjudgment.model.strategic.{
+  EndgameFeature,
+  EndgameOppositionType,
+  RookEndgamePattern as OracleRookPattern,
+  RuleOfSquareStatus,
+  TheoreticalOutcomeHint
+}
 
 /**
  * FactExtractor
@@ -34,7 +40,7 @@ object FactExtractor {
     val scope = FactScope.Now
 
       val hanging = ourPieces.squares.flatMap { sq =>
-        val role = board.roleAt(sq).getOrElse(chess.Pawn)
+        board.roleAt(sq).flatMap { role =>
         if (role == chess.King) None // King is never "hanging", it's in check or mate
         else {
           val attackers = board.attackers(sq, !color).squares
@@ -52,16 +58,18 @@ object FactExtractor {
           if (isHanging) Some(Fact.HangingPiece(sq, role, attackers, defenders, scope))
           else None
         }
+        }
       }
 
     val loose = ourPieces.squares.flatMap { sq =>
-      val role = board.roleAt(sq).getOrElse(chess.Pawn)
-      val attackers = board.attackers(sq, !color).squares
-      val defenders = board.attackers(sq, color).squares
-      
-      if (attackers.nonEmpty && !hanging.exists(_.participants.contains(sq))) {
-        Some(Fact.TargetPiece(sq, role, attackers, defenders, scope))
-      } else None
+      board.roleAt(sq).flatMap { role =>
+        val attackers = board.attackers(sq, !color).squares
+        val defenders = board.attackers(sq, color).squares
+
+        if (attackers.nonEmpty && !hanging.exists(_.participants.contains(sq))) {
+          Some(Fact.TargetPiece(sq, role, attackers, defenders, scope))
+        } else None
+      }
     }
 
     hanging ++ loose
@@ -202,6 +210,10 @@ object FactExtractor {
       }
     }
 
+    if (endgame.theoreticalOutcomeHint != TheoreticalOutcomeHint.Unclear) {
+      facts += Fact.EndgameOutcome(endgame.theoreticalOutcomeHint, endgame.confidence, scope)
+    }
+
     facts.toList.distinct
   }
 
@@ -287,10 +299,12 @@ object FactExtractor {
         else Some(Fact.TargetPiece(m.targetSquare, chess.King, List(m.targetSquare), Nil, scope))
 
       case m: Motif.PawnPromotion =>
-        Some(Fact.PawnPromotion(Square.at(m.file.value, if (m.color.white) 7 else 0).getOrElse(Square.A1), Some(m.promotedTo), scope))
+        Square.at(m.file.value, if (m.color.white) 7 else 0)
+          .map(Fact.PawnPromotion(_, Some(m.promotedTo), scope))
 
       case m: Motif.PassedPawnPush =>
-        Some(Fact.PawnPromotion(Square.at(m.file.value, m.toRank - 1).getOrElse(Square.A1), None, scope))
+        Square.at(m.file.value, m.toRank - 1)
+          .map(Fact.PawnPromotion(_, None, scope))
 
       /*
       case m: Motif.StalemateThreat =>
@@ -306,9 +320,9 @@ object FactExtractor {
     }
   }
 
-  private def roleForScope(board: Board, square: Square, fallback: Role, scope: FactScope): Option[Role] =
+  private def roleForScope(board: Board, square: Square, motifRole: Role, scope: FactScope): Option[Role] =
     if strictNow(scope) then board.roleAt(square)
-    else board.roleAt(square).orElse(Some(fallback))
+    else board.roleAt(square).orElse(Some(motifRole))
 
   private def pieceValue(role: Role): Int = role match {
     case chess.Pawn   => 1

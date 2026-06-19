@@ -54,6 +54,12 @@ object EndgamePatternOracle:
   def detect(board: Board, color: Color, coreFeature: EndgameFeature): Option[PatternMatch] =
     orderedDetectors.iterator.flatMap(det => det(board, color, coreFeature)).take(1).toList.headOption
 
+  def analyze(board: Board, color: Color): Option[EndgameFeature] =
+    Option.when(isEndgameCandidate(board)) {
+      val core = baseFeature(board, color)
+      detect(board, color, core).map(applyPattern(core, _)).getOrElse(core)
+    }
+
   def applyPattern(core: EndgameFeature, pattern: PatternMatch): EndgameFeature =
     val overrides = pattern.signalOverrides
     val updatedZugLikelihood = overrides.zugzwangLikelihood.getOrElse(core.zugzwangLikelihood)
@@ -75,6 +81,80 @@ object EndgamePatternOracle:
         confidence = adjustedConfidence,
         primaryPattern = Some(pattern.id)
       )
+
+  private def isEndgameCandidate(board: Board): Boolean =
+    val matWhite = material(board, Color.White)
+    val matBlack = material(board, Color.Black)
+    val majorPieces = matWhite.rooks + matWhite.queens + matBlack.rooks + matBlack.queens
+    val minorPieces = matWhite.knights + matWhite.bishops + matBlack.knights + matBlack.bishops
+    board.occupied.count <= 15 || majorPieces <= 2 && minorPieces <= 2
+
+  private def baseFeature(board: Board, color: Color): EndgameFeature =
+    val (hasOpposition, oppositionType) = opposition(board, color)
+    EndgameFeature(
+      hasOpposition = hasOpposition,
+      isZugzwang = false,
+      keySquaresControlled = Nil,
+      oppositionType = oppositionType,
+      ruleOfSquare = ruleOfSquareStatus(board, color),
+      triangulationAvailable = hasOnlyKingsAndPawns(board) && hasOpposition,
+      kingActivityDelta = kingActivity(board, color) - kingActivity(board, !color),
+      rookEndgamePattern = RookEndgamePattern.None,
+      theoreticalOutcomeHint = theoreticalOutcome(board),
+      confidence = 0.68
+    )
+
+  private def opposition(board: Board, color: Color): (Boolean, EndgameOppositionType) =
+    (board.kingPosOf(color), board.kingPosOf(!color)) match
+      case (Some(ourKing), Some(theirKing)) =>
+        val fileDiff = (ourKing.file.value - theirKing.file.value).abs
+        val rankDiff = (ourKing.rank.value - theirKing.rank.value).abs
+        val isDirect = (fileDiff == 0 && rankDiff == 2) || (fileDiff == 2 && rankDiff == 0)
+        val isDistant = (fileDiff == 0 && (rankDiff == 4 || rankDiff == 6)) || (rankDiff == 0 && (fileDiff == 4 || fileDiff == 6))
+        val isDiagonal = fileDiff == 2 && rankDiff == 2
+        if isDirect then true -> EndgameOppositionType.Direct
+        else if isDistant then true -> EndgameOppositionType.Distant
+        else if isDiagonal then true -> EndgameOppositionType.Diagonal
+        else false -> EndgameOppositionType.None
+      case _ =>
+        false -> EndgameOppositionType.None
+
+  private def ruleOfSquareStatus(board: Board, defender: Color): RuleOfSquareStatus =
+    val enemy = !defender
+    val enemyPasser =
+      passedPawns(board, enemy)
+        .sortBy(pawn => -relativeRank(pawn, enemy))
+        .headOption
+    (enemyPasser, board.kingPosOf(defender)) match
+      case (Some(pawn), Some(king)) =>
+        promotionSquare(pawn, enemy) match
+          case Some(promotion) =>
+            val pawnMovesToPromote = 8 - relativeRank(pawn, enemy)
+            val kingDistance = chebyshev(king, promotion)
+            if kingDistance <= pawnMovesToPromote then RuleOfSquareStatus.Holds else RuleOfSquareStatus.Fails
+          case None =>
+            RuleOfSquareStatus.NA
+      case _ =>
+        RuleOfSquareStatus.NA
+
+  private def kingActivity(board: Board, color: Color): Int =
+    board.kingPosOf(color).map { king =>
+      val mobility = (king.kingAttacks & ~board.byColor(color)).count
+      val centerDistance = math.min(
+        chebyshev(king, Square.D4),
+        math.min(chebyshev(king, Square.E4), math.min(chebyshev(king, Square.D5), chebyshev(king, Square.E5)))
+      )
+      mobility.toInt * 2 - centerDistance
+    }.getOrElse(0)
+
+  private def theoreticalOutcome(board: Board): TheoreticalOutcomeHint =
+    val white = material(board, Color.White)
+    val black = material(board, Color.Black)
+    val noPawns = white.pawns == 0 && black.pawns == 0
+    val noMajors = white.rooks + white.queens + black.rooks + black.queens == 0
+    val minorCount = white.knights + white.bishops + black.knights + black.bishops
+    if noPawns && noMajors && minorCount <= 1 then TheoreticalOutcomeHint.Draw
+    else TheoreticalOutcomeHint.Unclear
 
   private def detectWrongRookPawnWrongBishopFortress(
       board: Board,

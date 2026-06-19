@@ -1,6 +1,7 @@
 package lila.chessjudgment.analysis.singlePosition
 
 import chess.Color
+import lila.chessjudgment.analysis.evaluation.{ JudgmentThresholds, PerspectiveMath }
 import lila.chessjudgment.analysis.tactical.{ BoundedReplayStep, TacticalRelationEvidence }
 import lila.chessjudgment.model.Motif
 
@@ -22,12 +23,6 @@ import lila.chessjudgment.model.Motif
  * for Black before passing to this analyzer.
  */
 object ThreatPressureAssessor:
-  
-  private val MATERIAL_THREAT_THRESHOLD = 200     // cp
-  private val URGENT_THREAT_THRESHOLD = 800      // cp
-  private val IGNORABLE_THREAT_THRESHOLD = 120   // cp
-  private val ONLY_DEFENSE_TOLERANCE = 50        // cp difference for "adequate" defense
-  private val MIN_DEPTH_FOR_RELIABILITY = 16
 
   private case class ThreatProfile(
     kind: ThreatKind,
@@ -41,7 +36,7 @@ object ThreatPressureAssessor:
    * @param motifs tactical motif inputs detected in the position
    * @param multiPv MultiPV lines from engine analysis
    * @param positionAssessment position assessment for threshold adjustment
-   * @param sideToMove Which side is to move ("white" or "black")
+   * @param sideToMove side to move in the analyzed position
    * @return Complete threat analysis
    */
   def analyze(
@@ -49,9 +44,9 @@ object ThreatPressureAssessor:
     motifs: List[Motif],
     multiPv: List[PvLine],
     positionAssessment: SinglePositionAssessment,
-    sideToMove: String = "white"
+    sideToMove: Color
   ): ThreatAnalysis =
-    val isWhiteToMove = sideToMove.equalsIgnoreCase("white")
+    val isWhiteToMove = sideToMove.white
     
     val opponentThreats = extractOpponentThreats(motifs, isWhiteToMove)
     val correctedThreats = correctWithMultiPv(opponentThreats, multiPv, fen)
@@ -69,12 +64,13 @@ object ThreatPressureAssessor:
     motifs.flatMap { motif =>
       if threateningColor(motif).contains(opponentColor) then
         threatProfileFor(motif).map { profile =>
-          val motifName = motif.getClass.getSimpleName.replace("$", "")
           Threat(
             kind = profile.kind,
             lossIfIgnoredCp = profile.baseLossCp,
+            lossIfIgnoredWinPercent = None,
             turnsToImpact = profile.turnsToImpact,
-            motifs = List(motifName),
+            evidenceSource = ThreatEvidenceSource.MotifPattern,
+            motifs = List(motif),
             attackSquares = extractAttackSquares(motif),
             targetPieces = extractTargetPieces(motif),
             bestDefense = None,
@@ -83,12 +79,6 @@ object ThreatPressureAssessor:
         }
       else None
     }
-
-  /** Tactical motif names that indicate material-level threats. */
-  private def isTacticalMotifName(lower: String): Boolean =
-    List("fork", "pin", "skewer", "discovered", "deflection", "overloading",
-         "trappedpiece", "interference", "decoy", "zwischenzug", "doublecheck")
-      .exists(lower.contains)
 
   private def threatProfileFor(motif: Motif): Option[ThreatProfile] =
     motif match
@@ -139,13 +129,7 @@ object ThreatPressureAssessor:
           _: Motif.Battery | _: Motif.SpaceAdvantage | _: Motif.Initiative |
           _: Motif.Domination | _: Motif.Blockade =>
         Some(ThreatProfile(ThreatKind.Positional, 3, 100))
-      case _ =>
-        val lower = motif.getClass.getSimpleName.replace("$", "").toLowerCase
-        if lower.contains("mate") || lower.contains("checkmate") then
-          Some(ThreatProfile(ThreatKind.Mate, 1, 10000))
-        else if isTacticalMotifName(lower) then
-          Some(ThreatProfile(ThreatKind.Material, 1, 160))
-        else None
+      case _ => None
 
   /**
    * Maps motifs to the side actually posing the threat.
@@ -239,21 +223,33 @@ object ThreatPressureAssessor:
       // `PvLine.score` is already normalized to the side-to-move's perspective.
       // Positive delta means the best line preserves more value than the second line for that same side.
       val evalLoss = (bestLine.score - secondLine.score).max(0)
+      val winPercentLoss = PerspectiveMath.winPercentLossFromRelativeCp(bestLine.score, secondLine.score)
       val bestLineFirstStep = firstLegalStep(fen, bestLine)
       val secondLineFirstStep = firstLegalStep(fen, secondLine)
       val secondLineIsCapture = secondLineFirstStep.exists(_.move.captures)
       val secondLineIsMate = secondLine.mate.exists(_ < 0)  // Negative mate = opponent mates us
       
-      // Detect threat if: mate, board-verified capture, OR significant eval loss
-      val hasSignificantThreat = secondLineIsMate || secondLineIsCapture || evalLoss >= MATERIAL_THREAT_THRESHOLD
+      // Detect threat if: mate, board-verified capture, or significant win-percent loss.
+      val hasSignificantThreat =
+        secondLineIsMate ||
+          secondLineIsCapture ||
+          winPercentLoss >= JudgmentThresholds.MATERIAL_THREAT_WP
       
-      // High threshold for implied threats in quiet positions.
-      val totalPieces = chess.format.Fen.read(chess.variant.Standard, chess.format.Fen.Full(fen)).map(_.board.occupied.count).getOrElse(32)
-      val isSuppressedOpening = totalPieces >= 31 // Start position has 32 pieces
+      // Suppress only quiet implied threats in undeveloped positions.
+      val totalPieces = chess.format.Fen.read(chess.variant.Standard, chess.format.Fen.Full(fen)).map(_.board.occupied.count)
+      val isQuietOpeningImpliedThreat =
+        totalPieces.exists(_ >= 31) &&
+          !secondLineIsMate &&
+          !secondLineIsCapture &&
+          winPercentLoss < JudgmentThresholds.URGENT_THREAT_WP
       
-      if hasSignificantThreat && evalLoss >= 150 && !isSuppressedOpening then
+      if hasSignificantThreat &&
+          (secondLineIsMate || winPercentLoss >= JudgmentThresholds.SIGNIFICANT_THREAT_WP) &&
+          !isQuietOpeningImpliedThreat
+      then
         val kind = if secondLineIsMate then ThreatKind.Mate
-                   else if evalLoss >= MATERIAL_THREAT_THRESHOLD then ThreatKind.Material
+                   else if winPercentLoss >= JudgmentThresholds.MATERIAL_THREAT_WP
+                   then ThreatKind.Material
                    else ThreatKind.Positional
         
         // Extract attack square from legal replay only.
@@ -264,8 +260,10 @@ object ThreatPressureAssessor:
         val impliedThreat = Threat(
           kind = kind,
           lossIfIgnoredCp = if secondLineIsMate then 10000 else evalLoss,
+          lossIfIgnoredWinPercent = Some(if secondLineIsMate then 100.0 else winPercentLoss),
           turnsToImpact = 1,
-          motifs = List("CandidateLineValueDelta"),
+          evidenceSource = ThreatEvidenceSource.CandidateLineValueDelta,
+          motifs = Nil,
           attackSquares = attackSquaresList.distinct.take(1), // Keep only first valid square
           targetPieces = Nil,
           bestDefense = bestLineFirstStep.map(_.uci),
@@ -274,10 +272,16 @@ object ThreatPressureAssessor:
         
         // Preserve existing base threats alongside the MultiPV-implied threat.
         impliedThreat :: threats
-      else if evalLoss > 0 then
+      else if winPercentLoss > 0.0 then
         // Boost existing threats with eval evidence
         threats.map { t =>
-          t.copy(lossIfIgnoredCp = t.lossIfIgnoredCp.max(evalLoss))
+          val boosted =
+            winPercentLoss > t.lossIfIgnoredWinPercent.getOrElse(0.0)
+          t.copy(
+            lossIfIgnoredCp = t.lossIfIgnoredCp.max(evalLoss),
+            lossIfIgnoredWinPercent = Some(t.lossIfIgnoredWinPercent.getOrElse(0.0).max(winPercentLoss)),
+            evidenceSource = if boosted then ThreatEvidenceSource.MotifAndLineValueDelta else t.evidenceSource
+          )
         }
       else
         threats
@@ -291,8 +295,8 @@ object ThreatPressureAssessor:
       .flatMap(_.headOption)
 
   case class ThresholdConfig(
-    ignorableThreshold: Int,
-    immediateThreshold: Int,
+    ignorableThresholdWinPercent: Double,
+    immediateThresholdWinPercent: Double,
     overrideDefenseRequired: Boolean,
     depthReliable: Boolean
   )
@@ -301,16 +305,16 @@ object ThreatPressureAssessor:
     val avgDepth = if multiPv.isEmpty then 0 else multiPv.map(_.depth).sum / multiPv.size
     
     ThresholdConfig(
-      ignorableThreshold = 
-        if positionAssessment.simplifyBias.isSimplificationWindow then 150 
-        else IGNORABLE_THREAT_THRESHOLD,
+      ignorableThresholdWinPercent =
+        if positionAssessment.simplifyBias.isSimplificationWindow then JudgmentThresholds.IGNORABLE_THREAT_WP + 0.75
+        else JudgmentThresholds.IGNORABLE_THREAT_WP,
       
-      immediateThreshold =
-        if positionAssessment.riskProfile.isHighRisk then 80
-        else IGNORABLE_THREAT_THRESHOLD,
+      immediateThresholdWinPercent =
+        if positionAssessment.riskProfile.isHighRisk then JudgmentThresholds.IGNORABLE_THREAT_WP
+        else JudgmentThresholds.SIGNIFICANT_THREAT_WP,
       
       overrideDefenseRequired = positionAssessment.criticality.isForced,
-      depthReliable = avgDepth >= MIN_DEPTH_FOR_RELIABILITY
+      depthReliable = avgDepth >= JudgmentThresholds.THREAT_RELIABLE_DEPTH
     )
 
   private def populateDefenseEvidence(
@@ -320,22 +324,24 @@ object ThreatPressureAssessor:
     if threats.isEmpty then threats
     else if multiPv.isEmpty then threats
     else
-      // Count defenses that keep eval within ONLY_DEFENSE_TOLERANCE of best
-      val bestEval = multiPv.headOption.map(_.score).getOrElse(0)
+      // Count defenses that keep eval within the central defense tolerance.
+      val bestEval = multiPv.head.score
       val adequateDefenses = multiPv.filter { pv =>
-        (pv.score - bestEval).abs <= ONLY_DEFENSE_TOLERANCE
+        PerspectiveMath.winPercentLossFromRelativeCp(bestEval, pv.score) <= JudgmentThresholds.ONLY_DEFENSE_TOLERANCE_WP
       }
       val defenseCount = adequateDefenses.size
       
       // Damp threat loss when the average MultiPV depth is below the reliability floor.
       val avgDepth = multiPv.map(_.depth).sum.toDouble / multiPv.size.max(1)
-      val reliabilityFactor = if avgDepth >= MIN_DEPTH_FOR_RELIABILITY then 1.0 else 0.8
+      val reliabilityFactor = if avgDepth >= JudgmentThresholds.THREAT_RELIABLE_DEPTH then 1.0 else 0.8
       
       threats.map { t =>
+        val lineBacked = t.evidenceSource != ThreatEvidenceSource.MotifPattern
         t.copy(
-          defenseCount = defenseCount,
-          bestDefense = multiPv.headOption.flatMap(_.moves.headOption),
-          lossIfIgnoredCp = (t.lossIfIgnoredCp * reliabilityFactor).toInt
+          defenseCount = if lineBacked then defenseCount else t.defenseCount,
+          bestDefense = if lineBacked then multiPv.headOption.flatMap(_.moves.headOption) else t.bestDefense,
+          lossIfIgnoredCp = (t.lossIfIgnoredCp * reliabilityFactor).toInt,
+          lossIfIgnoredWinPercent = t.lossIfIgnoredWinPercent.map(_ * reliabilityFactor)
         )
       }
 
@@ -345,36 +351,44 @@ object ThreatPressureAssessor:
     positionAssessment: SinglePositionAssessment
   ): ThreatAnalysis =
     val maxLoss = threats.map(_.lossIfIgnoredCp).maxOption.getOrElse(0)
+    val maxWinPercentLoss = threats.flatMap(_.lossIfIgnoredWinPercent).maxOption
     val hasMate = threats.exists(_.kind == ThreatKind.Mate)
     val hasImmediate = threats.exists(_.isImmediate)
     val hasStrategic = threats.exists(_.isStrategic)
     val thresholds = adjustThresholds(positionAssessment, multiPv)
     val hasUrgentImmediate = threats.exists { t =>
-      t.isImmediate && t.lossIfIgnoredCp >= thresholds.immediateThreshold
+      t.isImmediate &&
+        t.lossIfIgnoredWinPercent.exists(_ >= thresholds.immediateThresholdWinPercent)
     }
     
     val severity = 
-      if hasMate || maxLoss >= URGENT_THREAT_THRESHOLD then ThreatSeverity.Urgent
-      else if maxLoss >= MATERIAL_THREAT_THRESHOLD then ThreatSeverity.Important
+      if hasMate ||
+          maxWinPercentLoss.exists(_ >= JudgmentThresholds.URGENT_THREAT_WP)
+      then ThreatSeverity.Urgent
+      else if maxWinPercentLoss.exists(_ >= JudgmentThresholds.MATERIAL_THREAT_WP)
+      then ThreatSeverity.Important
       else ThreatSeverity.Low
     
     val defenseRequired = thresholds.overrideDefenseRequired ||
                           hasMate ||
-                          maxLoss >= MATERIAL_THREAT_THRESHOLD
+                          maxWinPercentLoss.exists(_ >= JudgmentThresholds.MATERIAL_THREAT_WP)
     
     val threatIgnorable = !defenseRequired &&
-                          maxLoss < thresholds.ignorableThreshold &&
+                          maxWinPercentLoss.forall(_ < thresholds.ignorableThresholdWinPercent) &&
                           positionAssessment.riskProfile.isLowRisk
     
     val counterThreatBetter = false
     
-    val prophylaxisNeeded = !hasImmediate && hasStrategic && maxLoss >= 100
+    val prophylaxisNeeded =
+      !hasImmediate && hasStrategic &&
+        maxWinPercentLoss.exists(_ >= JudgmentThresholds.SIGNIFICANT_THREAT_WP)
     val totalDefenses = threats.map(_.defenseCount).sum
     val resourceAvailable = threats.isEmpty || totalDefenses > 0
     
     val primaryDriver =
       if hasMate then ThreatDriver.MateThreat
-      else if maxLoss >= MATERIAL_THREAT_THRESHOLD then ThreatDriver.MaterialThreat
+      else if maxWinPercentLoss.exists(_ >= JudgmentThresholds.MATERIAL_THREAT_WP)
+      then ThreatDriver.MaterialThreat
       else if threats.nonEmpty then ThreatDriver.PositionalThreat
       else ThreatDriver.NoThreat
     val alternatives = multiPv.take(3).flatMap(_.moves.headOption).distinct
@@ -400,6 +414,7 @@ object ThreatPressureAssessor:
       prophylaxisNeeded = prophylaxisNeeded,
       resourceAvailable = resourceAvailable,
       maxLossIfIgnored = maxLoss,
+      maxWinPercentLossIfIgnored = maxWinPercentLoss,
       primaryDriver = primaryDriver,
       insufficientData = multiPv.size < 2
     )
@@ -422,6 +437,7 @@ object ThreatPressureAssessor:
     prophylaxisNeeded = false,
     resourceAvailable = true,
     maxLossIfIgnored = 0,
+    maxWinPercentLossIfIgnored = None,
     primaryDriver = ThreatDriver.NoThreat,
     insufficientData = false
   )

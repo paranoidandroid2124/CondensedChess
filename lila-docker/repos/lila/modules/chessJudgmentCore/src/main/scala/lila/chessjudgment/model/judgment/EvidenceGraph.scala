@@ -1,5 +1,6 @@
 package lila.chessjudgment.model.judgment
 
+import chess.Color
 import lila.chessjudgment.analysis.position.PositionFeatures
 import lila.chessjudgment.analysis.singlePosition.{ PawnPlayAnalysis, SinglePositionAssessment, ThreatAnalysis }
 import lila.chessjudgment.analysis.structure.StructuralDelta
@@ -125,17 +126,150 @@ final case class StrategicFactEvidence(
 ) extends EvidencePayload:
   val layer: EvidenceLayer = EvidenceLayer.Strategic
 
-final case class OpeningRouteFactEvidence(
-    routeId: String,
-    family: String,
-    targetSquare: EvidenceSquare,
-    pieceRole: EvidencePieceRole,
-    path: List[EvidenceSquare],
-    targetMode: String
+enum OpeningFamily:
+  case A
+  case B
+  case C
+  case D
+  case E
+
+object OpeningFamily:
+  def fromEco(raw: String): Option[OpeningFamily] =
+    Option(raw)
+      .map(_.trim.toUpperCase)
+      .flatMap(_.headOption)
+      .flatMap(ch => fromRaw(ch.toString))
+
+  def fromRaw(raw: String): Option[OpeningFamily] =
+    Option(raw).map(_.trim.toUpperCase).collect:
+      case "A" => OpeningFamily.A
+      case "B" => OpeningFamily.B
+      case "C" => OpeningFamily.C
+      case "D" => OpeningFamily.D
+      case "E" => OpeningFamily.E
+
+enum OpeningContextSignal:
+  case InputIdentity
+  case RecognizedIdentity
+  case OpeningPhase
+  case ThemePrior
+
+enum OpeningTheme:
+  case CenterControl
+  case Development
+  case PawnStructure
+  case GambitInitiative
+  case KingSafety
+  case PlanPressure
+
+enum FeatureAnchorSignal:
+  case CenterControlObserved
+  case DevelopmentTempoObserved
+  case PawnStructureObserved
+  case CompensationObserved
+  case KingSafetyObserved
+  case PlanPressureObserved
+  case StructuralDeltaObserved
+
+final case class FeatureAnchor(
+    theme: OpeningTheme,
+    signal: FeatureAnchorSignal,
+    sourceLayer: EvidenceLayer,
+    strength: Double
+)
+
+enum FeatureApplicability:
+  case OpeningRelevant
+  case MiddlegameRelevant
+  case EndgameRelevant
+  case ObservedOnly
+  case Contraindicated
+
+enum ApplicabilityStatus:
+  case InternalOnly
+  case Supported
+  case PartiallySupported
+  case Unverified
+  case Ambiguous
+  case Contradicted
+
+final case class ApplicabilityAssessment(
+    applicability: FeatureApplicability,
+    status: ApplicabilityStatus,
+    observedThemes: List[OpeningTheme],
+    supportedThemes: List[OpeningTheme],
+    unverifiedPriorThemes: List[OpeningTheme],
+    observedOnlyThemes: List[OpeningTheme]
+)
+
+final case class OpeningIdentity(
+    eco: Option[String],
+    name: Option[String],
+    family: Option[OpeningFamily]
+)
+
+final case class OpeningCandidate(
+    identity: OpeningIdentity,
+    lineage: Option[String],
+    frequency: Int,
+    sampleCount: Int,
+    confidence: Double
+)
+
+enum OpeningRecognitionMatchKind:
+  case ExactPrefixAndPosition
+  case PositionTransposition
+
+final case class OpeningRecognition(
+    movePrefixHash: String,
+    positionKey: String,
+    matchedBy: OpeningRecognitionMatchKind,
+    candidates: List[OpeningCandidate],
+    matchedPly: Int,
+    frequency: Int,
+    sampleCount: Int,
+    confidence: Double
+):
+  def bestCandidate: Option[OpeningCandidate] =
+    candidates.headOption
+
+  def bestIdentity: Option[OpeningIdentity] =
+    bestCandidate.map(_.identity)
+
+  def lineage: Option[String] =
+    bestCandidate.flatMap(_.lineage)
+
+final case class OpeningThemePrior(
+    lineage: Option[String],
+    family: Option[OpeningFamily],
+    themes: List[OpeningTheme],
+    typicalPawnStructures: List[String],
+    centerBreaks: List[String],
+    developmentPriorities: List[String],
+    gambitCompensation: Boolean,
+    strategicPlanPriors: List[String]
+)
+
+final case class OpeningContextEvidence(
+    identity: Option[OpeningIdentity],
+    signals: List[OpeningContextSignal],
+    recognition: Option[OpeningRecognition] = None,
+    themePrior: Option[OpeningThemePrior] = None
 ) extends EvidencePayload:
-  val layer: EvidenceLayer = EvidenceLayer.OpeningRoute
+  val layer: EvidenceLayer = EvidenceLayer.OpeningContext
+
+final case class FeatureAnchorEvidence(
+    anchor: FeatureAnchor
+) extends EvidencePayload:
+  val layer: EvidenceLayer = EvidenceLayer.FeatureAnchor
+
+final case class ApplicabilityAssessmentEvidence(
+    assessment: ApplicabilityAssessment
+) extends EvidencePayload:
+  val layer: EvidenceLayer = EvidenceLayer.ApplicabilityAssessment
 
 final case class ThreatPressureEvidence(
+    sideUnderPressure: Color,
     threats: ThreatAnalysis
 ) extends EvidencePayload:
   val layer: EvidenceLayer = EvidenceLayer.ThreatPressure

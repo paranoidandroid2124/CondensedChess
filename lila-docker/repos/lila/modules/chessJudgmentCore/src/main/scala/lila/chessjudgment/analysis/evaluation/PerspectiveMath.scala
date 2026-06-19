@@ -16,6 +16,9 @@ object PerspectiveMath:
   def winPercentFromWhiteCp(whiteCp: Int): Double =
     50.0 + 50.0 * (2.0 / (1.0 + math.exp(-WinPercentSlope * whiteCp.toDouble)) - 1.0)
 
+  def winPercentFromRelativeCp(relativeCp: Int): Double =
+    winPercentFromWhiteCp(relativeCp)
+
   def winPercentForMover(mover: Color, whiteCp: Int): Double =
     val whiteWinPercent = winPercentFromWhiteCp(whiteCp)
     if mover.white then whiteWinPercent else 100.0 - whiteWinPercent
@@ -33,6 +36,9 @@ object PerspectiveMath:
 
   def winPercentLossForMover(mover: Color, bestWhiteCp: Int, playedWhiteCp: Int): Double =
     (winPercentForMover(mover, bestWhiteCp) - winPercentForMover(mover, playedWhiteCp)).max(0.0)
+
+  def winPercentLossFromRelativeCp(bestRelativeCp: Int, candidateRelativeCp: Int): Double =
+    (winPercentFromRelativeCp(bestRelativeCp) - winPercentFromRelativeCp(candidateRelativeCp)).max(0.0)
 
   /**
    * Improvement for the mover when comparing defended/main line vs threat line.

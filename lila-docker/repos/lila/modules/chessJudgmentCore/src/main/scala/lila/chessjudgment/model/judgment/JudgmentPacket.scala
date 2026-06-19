@@ -12,6 +12,36 @@ enum ClaimFamily:
   case Conversion
   case Evaluation
 
+enum ClaimSalienceDriver:
+  case TacticalRelation
+  case ForcingLine
+  case DefensiveUrgency
+  case PlanPressure
+  case PawnStructureAlignment
+  case StructuralChange
+  case StrategicFeature
+  case OpeningContext
+  case EndgamePattern
+  case EngineSwing
+  case CandidateConstraint
+  case BoardAnchor
+
+case class ClaimSalience(
+    score: Int,
+    drivers: List[ClaimSalienceDriver]
+)
+
+enum ClaimSupportStatus:
+  case Certified
+  case Deferred
+
+case class ClaimSupportCheck(
+    status: ClaimSupportStatus,
+    presentLayers: Set[EvidenceLayer],
+    missingLayerGroups: List[Set[EvidenceLayer]],
+    missingEvidence: List[EvidenceRef]
+)
+
 case class ClaimSeed(
     id: String,
     family: ClaimFamily,
@@ -24,7 +54,9 @@ case class ClaimSeed(
     supportingFacts: List[Fact],
     engineComparison: Option[EvalComparison],
     scope: EvidenceScope,
-    confidence: EvidenceConfidence
+    confidence: EvidenceConfidence,
+    supportStatus: Option[ClaimSupportCheck] = None,
+    salience: Option[ClaimSalience] = None
 )
 
 case class IdeaVerdictSplit(
@@ -46,7 +78,7 @@ object IdeaVerdictSplit:
     val verdict = assessment.map(_.comparison)
     val bindings =
       assessment.toList.flatMap { relative =>
-        ideas.map { idea =>
+        ideas.filter(ideaBindsToRelative(_, relative)).map { idea =>
           IdeaVerdictBinding(
             idea = idea.ref,
             verdict = relative.comparison,
@@ -69,8 +101,24 @@ object IdeaVerdictSplit:
       case MoveChoiceVerdict.ImprovesOnReference | MoveChoiceVerdict.MatchesReference | MoveChoiceVerdict.PlayableLoss =>
         if idea.ref.family == ChessIdeaFamily.Defensive then IdeaVerdictRelation.DefensiveNecessity
         else IdeaVerdictRelation.SupportsVerdict
+      case MoveChoiceVerdict.Blunder
+          if idea.subject == IdeaSubject.PlayedMove || idea.moveUci.nonEmpty =>
+        IdeaVerdictRelation.RefutesIdea
+      case MoveChoiceVerdict.Mistake
+          if idea.ref.family == ChessIdeaFamily.Tactical && (idea.subject == IdeaSubject.PlayedMove || idea.moveUci.nonEmpty) =>
+        IdeaVerdictRelation.RefutesIdea
       case MoveChoiceVerdict.Inaccuracy | MoveChoiceVerdict.Mistake | MoveChoiceVerdict.Blunder =>
         IdeaVerdictRelation.ExplainsIdeaDespiteBadVerdict
+
+  private def ideaBindsToRelative(idea: ChessIdea, relative: RelativeMoveAssessment): Boolean =
+    val relativeLines = Set(relative.reference.ref, relative.candidate.ref)
+    val relativeEvidence = (relative.evidence :: relative.counterfactualEvidence).map(_.id).toSet
+    idea.primaryLine.exists(relativeLines.contains) ||
+      idea.moveUci.contains(relative.played.moveUci) ||
+      idea.evidence.exists(ref =>
+        relativeEvidence.contains(ref.id) ||
+          ref.line.exists(relativeLines.contains)
+      )
 
 case class EvidenceBackedJudgmentPacket(
     root: PositionNodeRef,

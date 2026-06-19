@@ -72,7 +72,7 @@ object RelationFactNormalizer:
           checkerSquares.map(part(_, RelationParticipantRole.Attacker))
       case MatePattern(_, kingSquare, checkerSquares, matingMove, _) =>
         part(kingSquare, RelationParticipantRole.King) ::
-          part(matingMove.takeRight(2), RelationParticipantRole.Mover) ::
+          uciDestination(matingMove).map(part(_, RelationParticipantRole.Mover)).toList :::
           checkerSquares.map(part(_, RelationParticipantRole.Attacker))
       case GreekGift(bishopSquare, targetSquare, _, _) =>
         List(
@@ -98,8 +98,7 @@ object RelationFactNormalizer:
           part(targetSquare, RelationParticipantRole.Target, Some(targetRole))
         ) ++ controlledEscapeSquares.map(part(_, RelationParticipantRole.Other))
       case Zwischenzug(intermediateMove, expectedRecaptureSquare, checkingPieceSquare, checkingPieceRole, checkedKingSquare, _) =>
-        List(
-          part(intermediateMove.takeRight(2), RelationParticipantRole.Mover),
+        uciDestination(intermediateMove).map(part(_, RelationParticipantRole.Mover)).toList ++ List(
           part(expectedRecaptureSquare, RelationParticipantRole.Target),
           part(checkingPieceSquare, RelationParticipantRole.Attacker, Some(checkingPieceRole)),
           part(checkedKingSquare, RelationParticipantRole.King)
@@ -170,3 +169,8 @@ object RelationFactNormalizer:
       role = role.map(EvidencePieceRole(_)),
       participantRole = participantRole
     )
+
+  private def uciDestination(move: String): Option[String] =
+    val normalized = Option(move).getOrElse("").trim.toLowerCase
+    val dest = normalized.drop(2).take(2)
+    Option.when(dest.matches("[a-h][1-8]"))(dest)

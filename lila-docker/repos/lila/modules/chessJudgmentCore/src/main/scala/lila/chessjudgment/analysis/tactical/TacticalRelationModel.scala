@@ -26,18 +26,9 @@ final case class BadPieceLiquidationBranch(
 final case class RelationWitness(
     kind: String,
     focusSquares: List[String],
-    facts: List[String],
     lineMoves: List[String],
     targetSquare: Option[String] = None,
     details: RelationDetails = RelationDetails.Empty
-)
-
-final case class RelationProjection(
-    kind: String,
-    focusSquares: List[String],
-    targetSquare: Option[String],
-    factEvidenceCodes: List[String],
-    lineMoves: List[String]
 )
 
 enum RelationThreatType:

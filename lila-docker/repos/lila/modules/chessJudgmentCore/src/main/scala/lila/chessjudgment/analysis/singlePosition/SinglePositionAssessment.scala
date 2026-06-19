@@ -1,6 +1,8 @@
 package lila.chessjudgment.analysis.singlePosition
 
 import chess.{Square, Role}
+import lila.chessjudgment.analysis.evaluation.JudgmentThresholds
+import lila.chessjudgment.model.Motif
 
 /**
  * Node-local container for single-position assessment results.
@@ -35,12 +37,12 @@ case class NatureResult(
 // 2. Criticality (Normal/Critical/Forced)
 
 enum CriticalityType:
-  case Normal, CriticalMoment, ForcedSequence
+  case InsufficientData, Normal, CriticalMoment, ForcedSequence
 
 case class CriticalityResult(
   criticalityType: CriticalityType,
   // Evidence
-  evalDeltaCp: Int,             // Eval delta from best to played
+  evalDeltaCp: Option[Int],     // Eval delta from best to next candidate when available
   mateDistance: Option[Int],    // Mate distance if applicable
   forcingMovesInPv: Int         // Count of checks/captures in PV
 ):
@@ -62,11 +64,11 @@ enum CandidateFailureMode:
 case class CandidateSetTopology(
   candidateSetType: CandidateSetType,
   // Evidence
-  bestLineEvalCp: Int,
-  secondLineEvalCp: Int,
+  bestLineEvalCp: Option[Int],
+  secondLineEvalCp: Option[Int],
   thirdLineEvalCp: Option[Int],
-  gapBestToSecondWp: Double,
-  spreadTop3Wp: Double,
+  gapBestToSecondWp: Option[Double],
+  spreadTop3Wp: Option[Double],
   secondCandidateFailure: Option[CandidateFailureMode]
 ):
   def isOnlyMove: Boolean = candidateSetType == CandidateSetType.OnlyMove
@@ -186,14 +188,21 @@ enum ThreatDriver:
   case PositionalThreat
   case NoThreat
 
+enum ThreatEvidenceSource:
+  case MotifPattern
+  case CandidateLineValueDelta
+  case MotifAndLineValueDelta
+
 /**
  * Single threat detected in the position.
  */
 case class Threat(
   kind: ThreatKind,
   lossIfIgnoredCp: Int,         // Estimated loss if ignored (centipawns)
+  lossIfIgnoredWinPercent: Option[Double],
   turnsToImpact: Int,           // Moves until threat materializes (1 = immediate)
-  motifs: List[String],         // Related tactical motif names
+  evidenceSource: ThreatEvidenceSource,
+  motifs: List[Motif],          // Typed tactical or positional motif anchors
   attackSquares: List[String],  // Squares being attacked
   targetPieces: List[String],   // Pieces under threat
   bestDefense: Option[String],  // Defensive move UCI when available
@@ -202,8 +211,11 @@ case class Threat(
   def isImmediate: Boolean = turnsToImpact <= 2
   def isStrategic: Boolean = turnsToImpact >= 3
   def severity: ThreatSeverity =
-    if lossIfIgnoredCp >= 800 || kind == ThreatKind.Mate then ThreatSeverity.Urgent
-    else if lossIfIgnoredCp >= 300 then ThreatSeverity.Important
+    if kind == ThreatKind.Mate ||
+        lossIfIgnoredWinPercent.exists(_ >= JudgmentThresholds.URGENT_THREAT_WP)
+    then ThreatSeverity.Urgent
+    else if lossIfIgnoredWinPercent.exists(_ >= JudgmentThresholds.MATERIAL_THREAT_WP)
+    then ThreatSeverity.Important
     else ThreatSeverity.Low
 
 /**
@@ -240,6 +252,7 @@ case class ThreatAnalysis(
   resourceAvailable: Boolean,        // Adequate defensive resources
   
   maxLossIfIgnored: Int,             // Highest lossIfIgnoredCp among threats
+  maxWinPercentLossIfIgnored: Option[Double],
   primaryDriver: ThreatDriver,
   insufficientData: Boolean          // True if MultiPV was inadequate
 ):

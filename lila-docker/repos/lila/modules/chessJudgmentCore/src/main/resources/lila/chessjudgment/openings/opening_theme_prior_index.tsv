@@ -1,0 +1,8 @@
+lineage	family	themes	typical_pawn_structures	center_breaks	development_priorities	gambit_compensation	strategic_plan_priors
+open_games/italian	C	CenterControl|Development|KingSafety	open_center|e4_e5	c2_c3|d2_d4	knights_before_bishops|castle_kingside	false	central_break|kingside_pressure
+open_games/kings_gambit	C	CenterControl|Development|GambitInitiative	open_center|e4_e5	f4_f5|d2_d4	rapid_development|king_safety	true	initiative|king_attack
+sicilian	B	CenterControl|PawnStructure|PlanPressure	asymmetrical_center|open_c_file	c5xd4|d6_d5	develop_knights|king_safety	false	queenside_counterplay|central_break
+queens_gambit	D	CenterControl|PawnStructure|PlanPressure	queens_pawn_center|minority_attack	c4xd5|e2_e4	minor_piece_development|rook_c_file	false	central_space|queenside_pressure
+eco_c	C	CenterControl|Development	open_games	d2_d4|f2_f4	minor_piece_development|king_safety	false	central_play
+eco_b	B	CenterControl|PawnStructure	semi_open_games	d7_d5|e7_e5	minor_piece_development	false	counterplay
+eco_d	D	CenterControl|PawnStructure	closed_center	c4xd5|e2_e4	minor_piece_development	false	space_and_breaks

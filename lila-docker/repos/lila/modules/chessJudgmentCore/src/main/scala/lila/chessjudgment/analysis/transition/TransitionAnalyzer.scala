@@ -98,7 +98,7 @@ object TransitionAnalyzer:
       ctx.positionAssessment.exists(_.simplifyBias.shouldSimplify) &&
         ctx.evalFor(currPlan.color) >= 80
     val phaseDrivenEndgame =
-      ctx.phaseEnum == lila.chessjudgment.analysis.singlePosition.GamePhaseType.Endgame &&
+      ctx.phaseEnumOpt.contains(lila.chessjudgment.analysis.singlePosition.GamePhaseType.Endgame) &&
         (currPlan.category == PlanCategory.Endgame || currPlan.category == PlanCategory.Transition)
     val currentConversion =
       currPlan.category == PlanCategory.Transition ||

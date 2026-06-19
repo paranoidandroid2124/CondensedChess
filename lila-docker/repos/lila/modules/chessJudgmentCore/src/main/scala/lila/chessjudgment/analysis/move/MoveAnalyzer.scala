@@ -1,177 +1,35 @@
 package lila.chessjudgment.analysis.move
 
 import lila.chessjudgment.model.*
-import lila.chessjudgment.model.strategic.{ VariationFeature, VariationLine }
 import lila.chessjudgment.model.Motif.*
 import lila.chessjudgment.analysis.position.PositionAnalyzer
 
 import _root_.chess.*
 import _root_.chess.format.{ Fen, Uci }
-import java.util.concurrent.atomic.AtomicLong
 
 /**
- * Unified Move Analyzer
- * 
- * Combines:
- * - State/Trajectory motif provider: Detects tactical/structural motifs from state transitions
- * - ExperimentExecutor: Runs counterfactual experiments comparing moves
- * 
+ * Extracts typed motifs from legal move replay.
  */
 object MoveAnalyzer:
 
-  private val logger = lila.log("chessJudgment.moveAnalyzer")
-  private val ParityScale = 1000000L
-  private val paritySamples = new AtomicLong(0L)
-  private val parityExact = new AtomicLong(0L)
-  private val parityOverlapScaled = new AtomicLong(0L)
-
-  private def boolSetting(propKey: String, envKey: String, default: Boolean): Boolean =
-    sys.props
-      .get(propKey)
-      .orElse(sys.env.get(envKey))
-      .map(_.trim.toLowerCase)
-      .flatMap {
-        case "1" | "true" | "yes" | "on"  => Some(true)
-        case "0" | "false" | "no" | "off" => Some(false)
-        case _ => None
-      }
-      .getOrElse(default)
-
-  private def intSetting(propKey: String, envKey: String, default: Int, min: Int, max: Int): Int =
-    sys.props
-      .get(propKey)
-      .orElse(sys.env.get(envKey))
-      .flatMap(_.toIntOption)
-      .map(_.max(min).min(max))
-      .getOrElse(default)
-
-  // Runtime switches keep the state/trajectory provider measurable against the
-  // older PV tokenizer while preserving an operational fallback.
-  private def useStateTrajectoryProvider: Boolean =
-    boolSetting(
-      "chessJudgment.moveAnalyzer.useStateTrajectoryProvider",
-      "AI_MOVE_ANALYZER_USE_STATE_TRAJECTORY_PROVIDER",
-      default = true
-    )
-
-  private def dualRunParityEnabled: Boolean =
-    boolSetting(
-      "chessJudgment.moveAnalyzer.dualRunParity",
-      "AI_MOVE_ANALYZER_DUAL_RUN_PARITY",
-      default = true
-    )
-
-  private def parityLogEvery: Int =
-    intSetting("chessJudgment.moveAnalyzer.parityLogEvery", "AI_MOVE_ANALYZER_PARITY_LOG_EVERY", default = 200, min = 20, max = 5000)
-
-  private def motifSignature(m: Motif): String =
-    val prefix = m.getClass.getSimpleName.replace("$", "")
-    s"$prefix|${m.category}|${m.color}|${m.plyIndex}|${m.move.getOrElse("")}"
-
-  private def parityOverlapRatio(legacy: List[Motif], trajectory: List[Motif]): Double =
-    val legacyCounts = legacy.groupMapReduce(motifSignature)(_ => 1)(_ + _)
-    val trajectoryCounts = trajectory.groupMapReduce(motifSignature)(_ => 1)(_ + _)
-    val denom = legacy.size.max(trajectory.size).toDouble
-    if denom == 0.0 then 1.0
-    else
-      val overlap = legacyCounts.iterator.map { case (k, c) =>
-        math.min(c, trajectoryCounts.getOrElse(k, 0))
-      }.sum.toDouble
-      overlap / denom
-
-  private def recordParity(legacy: List[Motif], trajectory: List[Motif]): Unit =
-    val exact = legacy.map(motifSignature) == trajectory.map(motifSignature)
-    val overlap = parityOverlapRatio(legacy, trajectory)
-    val sample = paritySamples.incrementAndGet()
-    if exact then parityExact.incrementAndGet()
-    parityOverlapScaled.addAndGet(Math.round(overlap * ParityScale.toDouble))
-    if sample % parityLogEvery == 0 then
-      val exactRate = parityExact.get().toDouble / sample.toDouble
-      val overlapAvg = parityOverlapScaled.get().toDouble / sample.toDouble / ParityScale.toDouble
-      logger.info(
-        f"move_analyzer.parity samples=$sample exact_rate=$exactRate%.3f overlap_avg=$overlapAvg%.3f provider=${if useStateTrajectoryProvider then "state_trajectory" else "legacy_pv"} dual_run=${dualRunParityEnabled}"
-      )
-
-  private object StateTrajectoryMotifProvider:
-    private case class Step(before: Position, move: Move, after: Position, plyIndex: Int, previousMove: Option[Move])
-
-    def tokenize(initialFen: String, pv: List[String]): List[Motif] =
-      Fen.read(chess.variant.Standard, Fen.Full(initialFen)).map { initialPos =>
-        val (_, _, motifs) = pv.zipWithIndex.foldLeft((initialPos, Option.empty[Move], List.empty[Motif])) {
-          case ((pos, lastMv, acc), (uciStr, index)) =>
-            Uci(uciStr).collect { case m: Uci.Move => m }.flatMap(pos.move(_).toOption) match
-              case Some(mv) =>
-                val step = Step(pos, mv, mv.after, index, lastMv)
-                val moveMotifs = detectMoveMotifs(step.move, step.before, step.plyIndex, step.previousMove)
-                val stateMotifs = detectStateMotifs(step.after, step.plyIndex)
-                (step.after, Some(step.move), acc ++ moveMotifs ++ stateMotifs)
-              case None =>
-                (pos, lastMv, acc)
-        }
-        motifs
-      }.getOrElse(Nil)
-
-  private def tokenizePvLegacy(initialFen: String, pv: List[String]): List[Motif] =
-    Fen.read(chess.variant.Standard, Fen.Full(initialFen)).map { initialPos =>
-      val (_, motifs, _) = pv.zipWithIndex.foldLeft((initialPos, List.empty[Motif], Option.empty[Move])) {
-        case ((pos, acc, lastMv), (uciStr, index)) =>
-          Uci(uciStr).collect { case m: Uci.Move => m }.flatMap(pos.move(_).toOption) match
-            case Some(mv) =>
-              val moveMotifs = detectMoveMotifs(mv, pos, index, lastMv)
-              val stateMotifs = detectStateMotifs(mv.after, index)
-              (mv.after, acc ++ moveMotifs ++ stateMotifs, Some(mv))
-            case None =>
-              (pos, acc, lastMv)
-      }
-      motifs
-    }.getOrElse(Nil)
+  private def replayMotifs(initialFen: String, pv: List[String]): Option[List[Motif]] =
+    Fen.read(chess.variant.Standard, Fen.Full(initialFen)).flatMap { initialPos =>
+      pv.zipWithIndex.foldLeft(Option((initialPos, Option.empty[Move], List.empty[Motif]))) {
+        case (Some((pos, lastMv, acc)), (uciStr, index)) =>
+          Uci(uciStr).collect { case m: Uci.Move => m }.flatMap(pos.move(_).toOption).map { mv =>
+            val moveMotifs = detectMoveMotifs(mv, pos, index, lastMv)
+            val stateMotifs = detectStateMotifs(mv.after, index)
+            (mv.after, Some(mv), acc ++ moveMotifs ++ stateMotifs)
+          }
+        case (None, _) => None
+      }.map(_._3)
+    }
 
   /**
    * Translates a PV (list of UCI moves) into a list of Motifs.
    */
-  def tokenizePv(initialFen: String, pv: List[String]): List[Motif] =
-    if useStateTrajectoryProvider then
-      val trajectory = StateTrajectoryMotifProvider.tokenize(initialFen, pv)
-      if dualRunParityEnabled then
-        val legacy = tokenizePvLegacy(initialFen, pv)
-        recordParity(legacy, trajectory)
-      trajectory
-    else
-      val legacy = tokenizePvLegacy(initialFen, pv)
-      if dualRunParityEnabled then
-        val trajectory = StateTrajectoryMotifProvider.tokenize(initialFen, pv)
-        recordParity(legacy, trajectory)
-      legacy
-
-  /**
-   * Parse UCI moves into PvMove with UCI, piece, capture, check metadata.
-   * This preserves coordinate-level information.
-   */
-  def parsePv(initialFen: String, pv: List[String]): List[lila.chessjudgment.model.strategic.PvMove] =
-    Fen.read(chess.variant.Standard, Fen.Full(initialFen)).map { initialPos =>
-      val (_, pvMoves) = pv.foldLeft((initialPos, List.empty[lila.chessjudgment.model.strategic.PvMove])) {
-        case ((pos, acc), uciStr) =>
-          val uciMoveOpt = Uci(uciStr).collect { case m: Uci.Move => m }
-          uciMoveOpt.flatMap(uciMove => pos.move(uciMove).toOption) match
-            case Some(mv) =>
-              val role = mv.piece.role
-              val piece = if (role == chess.Pawn) "P" else role.toString.take(1).toUpperCase()
-              
-              val pvMove = lila.chessjudgment.model.strategic.PvMove(
-                uci = uciStr,
-                from = mv.orig.key,
-                to = mv.dest.key,
-                piece = piece,
-                isCapture = mv.captures,
-                capturedPiece = mv.capture.map(_.toString.take(1).toUpperCase()),
-                givesCheck = mv.after.check.yes
-              )
-              (mv.after, acc :+ pvMove)
-            case None => 
-              (pos, acc) // Stop or skip invalid moves
-      }
-      pvMoves
-    }.getOrElse(Nil)
+  def tokenizePv(initialFen: String, pv: List[String]): Option[List[Motif]] =
+    replayMotifs(initialFen, pv)
 
   def detectMoveMotifs(mv: Move, pos: Position, plyIndex: Int, prevMove: Option[Move] = None): List[Motif] =
     val color = pos.color
@@ -185,50 +43,6 @@ object MoveAnalyzer:
       detectTacticalMotifs(mv, pos, nextPos, color, moveUci, plyIndex, prevMove),
       detectPositionalMotifs(mv, pos, nextPos, color, moveUci, plyIndex) 
     )
-  def analyzeVariations(
-      fen: String, 
-      lines: List[VariationLine],
-      threat: Option[VariationLine] = None
-  ): List[VariationLine] =
-    lines.map { line =>
-      val motifs = tokenizePv(fen, line.moves)
-      val newFeatures = detectVariationFeatures(line, motifs, threat)
-      line.copy(lineFeatures = (line.lineFeatures ++ newFeatures).distinct)
-    }
-
-  private def detectVariationFeatures(
-      line: VariationLine, 
-      motifs: List[Motif], 
-      threat: Option[VariationLine]
-  ): List[VariationFeature] =
-    val builder = List.newBuilder[VariationFeature]
-    
-    // Check for tactical complexity
-    val tacticsCount = motifs.count {
-      case _: Motif.Check | _: Motif.Fork | _: Motif.Pin => true
-      case m: Motif.Capture if m.captureType != Motif.CaptureType.Normal => true
-      case _ => false
-    }
-
-    if tacticsCount >= 2 then builder += VariationFeature.Sharp
-    else if line.moves.length > 5 && tacticsCount == 0 then builder += VariationFeature.Solid
-
-    threat.foreach { t =>
-      if t.scoreCp < -100 && line.scoreCp > t.scoreCp + 100 then
-        builder += VariationFeature.Prophylaxis
-    }
-
-    // Simplification: Winning score (> 200) + Excanges
-    if line.scoreCp > 200 then
-      val captures = motifs.count(_.isInstanceOf[Motif.Capture])
-      val exchanges = motifs.count {
-        case m: Motif.Capture => m.captureType == Motif.CaptureType.Exchange
-        case _ => false
-      }
-      if captures > 0 || exchanges > 0 then
-        builder += VariationFeature.Simplification
-
-    builder.result()
 
   private def detectPawnMotifs(mv: Move, _pos: Position, color: Color, moveUci: String, plyIndex: Int): List[Motif] =
     if mv.piece.role != Pawn then return Nil
@@ -371,32 +185,34 @@ object MoveAnalyzer:
       else if (isDiscovered) CheckType.Discovered
       else CheckType.Normal
       
-      val kingSq = nextPos.board.kingPosOf(!color).getOrElse(mv.dest) // Fallback to dest if king not found (unlikely)
-      motifs = motifs :+ Motif.Check(mv.piece.role, kingSq, checkType, color, plyIndex, Some(moveUci))
+      nextPos.board.kingPosOf(!color).foreach { kingSq =>
+        motifs = motifs :+ Motif.Check(mv.piece.role, kingSq, checkType, color, plyIndex, Some(moveUci))
+      }
     
     // Capture (enhanced with Exchange Sacrifice detection and Recapture logic)
     if mv.captures then
-      val capturedRole = mv.capture.flatMap(pos.board.roleAt).getOrElse(pos.board.roleAt(mv.dest).getOrElse(Pawn))
-      val isRecapture = prevMove.exists(pm => pm.captures && pm.dest == mv.dest)
-      val captureType = if (isRecapture) CaptureType.Recapture else determineCaptureType(mv.piece.role, capturedRole)
-      
-      // Detect Positional Sacrifice with ROI (any meaningful material sacrifice)
-      // Cases: Rook for minor piece, Minor piece for pawn, Queen sacrifice
-      val isMaterialSacrifice = (
-        // Rook for minor piece (classic exchange sacrifice)
-        (mv.piece.role == Rook && (capturedRole == Knight || capturedRole == Bishop)) ||
-        // Minor piece for pawn (positional sacrifice)
-        ((mv.piece.role == Knight || mv.piece.role == Bishop) && capturedRole == Pawn) ||
-        // Queen sacrifice for compensation
-        (mv.piece.role == Queen && capturedRole != Queen)
-      )
-      
-      val sacrificeROI = if (isMaterialSacrifice) {
-        detectExchangeSacrificeROI(mv, nextPos, color)
-      } else None
-      
-      val finalCaptureType = if (sacrificeROI.isDefined) CaptureType.ExchangeSacrifice else captureType
-      motifs = motifs :+ Motif.Capture(mv.piece.role, capturedRole, mv.dest, finalCaptureType, color, plyIndex, Some(moveUci), sacrificeROI)
+      mv.capture.flatMap(pos.board.roleAt).orElse(pos.board.roleAt(mv.dest)).foreach { capturedRole =>
+        val isRecapture = prevMove.exists(pm => pm.captures && pm.dest == mv.dest)
+        val captureType = if (isRecapture) CaptureType.Recapture else determineCaptureType(mv.piece.role, capturedRole)
+
+        // Detect Positional Sacrifice with ROI (any meaningful material sacrifice)
+        // Cases: Rook for minor piece, Minor piece for pawn, Queen sacrifice
+        val isMaterialSacrifice = (
+          // Rook for minor piece (classic exchange sacrifice)
+          (mv.piece.role == Rook && (capturedRole == Knight || capturedRole == Bishop)) ||
+          // Minor piece for pawn (positional sacrifice)
+          ((mv.piece.role == Knight || mv.piece.role == Bishop) && capturedRole == Pawn) ||
+          // Queen sacrifice for compensation
+          (mv.piece.role == Queen && capturedRole != Queen)
+        )
+
+        val sacrificeROI = if (isMaterialSacrifice) {
+          detectExchangeSacrificeROI(mv, nextPos, color)
+        } else None
+
+        val finalCaptureType = if (sacrificeROI.isDefined) CaptureType.ExchangeSacrifice else captureType
+        motifs = motifs :+ Motif.Capture(mv.piece.role, capturedRole, mv.dest, finalCaptureType, color, plyIndex, Some(moveUci), sacrificeROI)
+      }
     
     // Fork detection
     val forkTargets = detectForkTargets(mv, nextPos, color)
@@ -521,12 +337,13 @@ object MoveAnalyzer:
     val attackedEnemies = attacks & enemyPieces
     
     attackedEnemies.squares.foreach { targetSq =>
-      val targetRole = board.roleAt(targetSq).getOrElse(Pawn)
+      board.roleAt(targetSq).foreach { targetRole =>
       if (targetRole != Pawn && targetRole != King) {
         val targetMobility = calculateMobility(board, targetSq, targetRole)
         if (targetMobility <= 1) {
           motifs = motifs :+ Motif.Domination(role, targetRole, targetSq, color, plyIndex, Some(moveUci))
         }
+      }
       }
     }
 
@@ -583,7 +400,7 @@ object MoveAnalyzer:
         motifs = motifs :+ SemiOpenFileControl(file, color, plyIndex, Some(moveUci))
       }
     }
-    detectInitiative(mv, pos, nextPos, color, 0, plyIndex, Some(moveUci)).foreach { m =>
+    detectInitiative(mv, pos, nextPos, color, plyIndex, Some(moveUci)).foreach { m =>
       motifs = motifs :+ m
     }
 
@@ -601,7 +418,7 @@ object MoveAnalyzer:
       case _ => Bitboard.empty
     }
     // Exclude friendly pieces (cannot capture own)
-    val friends = board.byColor(board.colorAt(square).getOrElse(White))
+    val friends = board.colorAt(square).map(color => board.byColor(color)).getOrElse(Bitboard.empty)
     (targets & ~friends).count
   }
 
@@ -628,7 +445,7 @@ object MoveAnalyzer:
     val targets = attacks & enemyPieces
     // A target is meaningful if it is the King, higher value than attacker, or undefended.
     targets.squares.flatMap { targetSq =>
-      val targetRole = board.roleAt(targetSq).getOrElse(Pawn)
+      board.roleAt(targetSq).flatMap { targetRole =>
       val isKing = targetRole == King
       
       // Simple value check
@@ -640,6 +457,7 @@ object MoveAnalyzer:
       val isUndefended = board.attackers(targetSq, !color).isEmpty
       
       if (isKing || isHigherValue || isUndefended) Some((targetSq, targetRole)) else None
+      }
     }
 
   private def detectLineTactics(
@@ -663,7 +481,7 @@ object MoveAnalyzer:
       case _      => Bitboard.empty
 
     targets.squares.flatMap { targetSq =>
-      val targetRole = board.roleAt(targetSq).getOrElse(Pawn)
+      board.roleAt(targetSq).flatMap { targetRole =>
       val ray = Bitboard.ray(sq, targetSq)
       val occupiedBehind = occupied & ray & ~Bitboard(targetSq) & ~Bitboard(sq)
       
@@ -696,6 +514,7 @@ object MoveAnalyzer:
             }
           }
       } else None
+      }
     }
 
   private def detectDiscoveredTactics(
@@ -710,7 +529,7 @@ object MoveAnalyzer:
     val longRangePieces = pos.board.byColor(color) & (pos.board.bishops | pos.board.rooks | pos.board.queens)
     
     longRangePieces.squares.flatMap { pieceSq =>
-      val role = pos.board.roleAt(pieceSq).getOrElse(Queen)
+      pos.board.roleAt(pieceSq).toList.flatMap { role =>
       val attacksBefore = role match
         case Bishop => pieceSq.bishopAttacks(pos.board.occupied)
         case Rook   => pieceSq.rookAttacks(pos.board.occupied)
@@ -739,6 +558,7 @@ object MoveAnalyzer:
           } else None
         }
       }
+      }
     }
 
   private def detectOverloading(
@@ -748,14 +568,16 @@ object MoveAnalyzer:
       moveUci: Option[String]
   ): List[Motif] =
     val criticalSquares = (board.byColor(color) & ~board.kings).squares.filter { sq =>
-      val targetRole = board.roleAt(sq).getOrElse(Pawn)
-      board.attackers(sq, !color).squares.exists { attackerSq =>
-        val attackerRole = board.roleAt(attackerSq).getOrElse(Pawn)
-        val isUndefended = board.attackers(sq, color).isEmpty
-        val isHigherValue = pieceValue(targetRole) > pieceValue(attackerRole)
-        val attackerIsSafe = board.attackers(attackerSq, color).isEmpty
-        
-        isHigherValue || (isUndefended && attackerIsSafe)
+      board.roleAt(sq).exists { targetRole =>
+        board.attackers(sq, !color).squares.exists { attackerSq =>
+          board.roleAt(attackerSq).exists { attackerRole =>
+            val isUndefended = board.attackers(sq, color).isEmpty
+            val isHigherValue = pieceValue(targetRole) > pieceValue(attackerRole)
+            val attackerIsSafe = board.attackers(attackerSq, color).isEmpty
+
+            isHigherValue || (isUndefended && attackerIsSafe)
+          }
+        }
       }
     }
 
@@ -769,10 +591,10 @@ object MoveAnalyzer:
       }
     }
 
-    duties.collect { 
-      case (defenderSq, tasks) if tasks.size >= 2 =>
-        val role = board.roleAt(defenderSq).getOrElse(Pawn)
-        Motif.Overloading(role, defenderSq, tasks, color, plyIndex, moveUci)
+    duties.flatMap { case (defenderSq, tasks) =>
+      if tasks.size >= 2 then
+        board.roleAt(defenderSq).map(role => Motif.Overloading(role, defenderSq, tasks, color, plyIndex, moveUci))
+      else None
     }.toList
 
   private def detectInterference(
@@ -790,25 +612,27 @@ object MoveAnalyzer:
     val blockedDefenses = List.newBuilder[Motif]
     
     oppDefenders.squares.foreach { defenderSq =>
-      val role = board.roleAt(defenderSq).getOrElse(Queen)
+      board.roleAt(defenderSq).foreach { role =>
       val opponentPieces = board.byColor(oppColor) & ~Bitboard(defenderSq)
       val attackerIsSafe = nextPos.board.attackers(blockerSq, !color).isEmpty
       
       if (attackerIsSafe) {
         opponentPieces.squares.foreach { targetSq =>
           if (Bitboard.between(defenderSq, targetSq).contains(blockerSq)) {
-            val targetRole = board.roleAt(targetSq).getOrElse(Pawn)
-            blockedDefenses += Motif.Interference(
-               interferingPiece = mv.piece.role,
-               interferingSquare = blockerSq,
-               blockedPiece1 = role,
-               blockedPiece2 = targetRole,
-               color = color,
-               plyIndex = plyIndex,
-               move = moveUci
-            )
+            board.roleAt(targetSq).foreach { targetRole =>
+              blockedDefenses += Motif.Interference(
+                 interferingPiece = mv.piece.role,
+                 interferingSquare = blockerSq,
+                 blockedPiece1 = role,
+                 blockedPiece2 = targetRole,
+                 color = color,
+                 plyIndex = plyIndex,
+                 move = moveUci
+              )
+            }
           }
         }
+      }
       }
     }
     
@@ -827,7 +651,7 @@ object MoveAnalyzer:
     val targetSquares = (enemyPieces & (board.queens | board.rooks | board.bishops | board.knights)).squares
     
     targetSquares.foreach { sq =>
-      val role = board.roleAt(sq).getOrElse(Pawn)
+      board.roleAt(sq).foreach { role =>
       // Must be attacked by us
       if (board.attackers(sq, color).nonEmpty) {
         val mobility = calculateMobility(board, sq, role)
@@ -835,6 +659,7 @@ object MoveAnalyzer:
            // Trapped!
            trapped += Motif.TrappedPiece(role, sq, !color, plyIndex, moveUci)
         }
+      }
       }
     }
     trapped.result()
@@ -866,7 +691,7 @@ object MoveAnalyzer:
 
   private def detectSmotheredMate(mv: Move, nextPos: Position, color: Color, plyIndex: Int, moveUci: Option[String]): Option[Motif] =
     // 1. Must be a Knight delivering mate
-    if (mv.piece.role == Knight) {
+    if (nextPos.checkMate && mv.piece.role == Knight) {
       val board = nextPos.board
       val enemyKing = board.kingPosOf(!color)
       
@@ -1147,67 +972,6 @@ object MoveAnalyzer:
         else Nil
       case _ => Nil
 
-  def detectThreats(fen: String, color: Color): List[Motif] =
-    Fen.read(chess.variant.Standard, Fen.Full(fen)).map { pos =>
-      val oppColor = !color
-      val oppPos = if pos.color == oppColor then pos else pos.withColor(oppColor)
-      
-      val threateningMoves = oppPos.legalMoves.flatMap { mv =>
-        val moveUci = mv.toUci.uci
-        val motifs = detectTacticalMotifs(mv, oppPos, mv.after, oppColor, moveUci, 0)
-        
-        val filteredMotifs = motifs.filter {
-          case c: Motif.Capture if c.captureType == CaptureType.Winning =>
-            val targetSquare = mv.dest
-            val defender = color
-            val isDefended = oppPos.board.attackers(targetSquare, defender).nonEmpty
-            
-            if (isDefended) {
-              val attackerValue = oppPos.board.roleAt(mv.orig).map(pieceValue).getOrElse(0)
-              val targetValue = oppPos.board.roleAt(targetSquare).map(pieceValue).getOrElse(0)
-              targetValue - attackerValue >= 2
-            } else {
-              true
-            }
-          case _ => true
-        }
-
-        if (filteredMotifs.nonEmpty) {
-          val score = scoreMoveThreat(filteredMotifs)
-          Some((filteredMotifs, score))
-        } else None
-      }
-
-      threateningMoves
-        .filter(_._2 > 0)
-        .sortBy(-_._2)
-        .take(2)
-        .flatMap(_._1)
-    }.getOrElse(Nil).distinct
-
-  private def scoreMoveThreat(motifs: List[Motif]): Int =
-    val givesCheck = motifs.exists(_.isInstanceOf[Motif.Check])
-    val forks = motifs.exists(_.isInstanceOf[Motif.Fork])
-    val skewers = motifs.exists(_.isInstanceOf[Motif.Skewer])
-    val discovered = motifs.exists(_.isInstanceOf[Motif.DiscoveredAttack])
-    val winningCapture = motifs.collectFirst { 
-      case c: Motif.Capture if c.captureType == CaptureType.Winning => true 
-    }.getOrElse(false)
-
-    var score = 0
-    
-    if (givesCheck) score += 50
-    if (forks) score += 80
-    if (skewers) score += 70
-    if (discovered) score += 60
-    if (winningCapture) score += 60
-
-    if (givesCheck && forks) score += 50
-    if (givesCheck && winningCapture) score += 40
-    if (discovered && givesCheck) score += 40
-
-    score
-
   private def isSmotheredPattern(pos: Position, color: Color): Boolean =
     pos.board.kingPosOf(!color).exists { kingSq =>
       val attackers = pos.board.attackers(kingSq, color)
@@ -1291,71 +1055,6 @@ object MoveAnalyzer:
     if totalValue >= 200 || (reasons.size >= 2 && totalValue >= 100) then 
       Some(SacrificeROI(reasons, totalValue))
     else None
-  }
-
-  /**
-   * Detect Zwischenzug (intermediate move) in a PV line.
-   * Called when analyzing consecutive moves where:
-   * 1. Previous move was a capture
-   * 2. Current move is NOT a recapture on that square
-   * 3. Current move creates a strong threat (check, fork, winning capture)
-   */
-  def detectZwischenzug(
-      prevMove: Uci.Move,
-      prevPos: Position,
-      currentMove: Uci.Move, 
-      currentPos: Position,
-      plyIndex: Int
-  ): Option[Motif.Zwischenzug] = {
-    // 1. Check if previous move was a capture
-    val prevMoveObj = prevPos.move(prevMove).toOption
-    val wasCapture = prevMoveObj.exists(_.captures)
-    
-    if (!wasCapture) return None
-    
-    // 2. Expected recapture square = destination of previous move
-    val expectedRecaptureSquare = prevMove.dest
-    
-    // 3. Is current move a recapture? If so, not a Zwischenzug
-    if (currentMove.dest == expectedRecaptureSquare) return None
-    
-    // 4. Does current move create a strong threat?
-    val color = currentPos.color
-    currentPos.move(currentMove).toOption.flatMap { mv =>
-      val afterPos = mv.after
-      
-      // Check threat types
-      val givesCheck = afterPos.check.yes
-      val forkTargets = detectForkTargets(mv, afterPos, color)
-      val hasFork = forkTargets.size >= 2
-      
-      // Winning capture threat on next move
-      val hasWinningCaptureThreat = afterPos.legalMoves.exists { nextMv =>
-        nextMv.captures && {
-          val victim = afterPos.board.roleAt(nextMv.dest)
-          val attacker = nextMv.piece.role
-          victim.exists(v => pieceValue(v) > pieceValue(attacker))
-        }
-      }
-      
-      val threatType =
-        if (givesCheck && afterPos.checkMate) Some(ZwischenzugThreat.Mate)
-        else if (givesCheck) Some(ZwischenzugThreat.Check)
-        else if (hasFork) Some(ZwischenzugThreat.Fork)
-        else if (hasWinningCaptureThreat) Some(ZwischenzugThreat.WinningCapture)
-        else None
-      
-      threatType.map { typedThreat =>
-        Some(Motif.Zwischenzug(
-          intermediateMove = currentMove.uci,
-          threatType = typedThreat,
-          expectedRecaptureSquare = expectedRecaptureSquare,
-          color = color,
-          plyIndex = plyIndex,
-          move = Some(mv.toUci.uci)
-        ))
-      }.flatten
-    }
   }
 
   /**
@@ -1448,13 +1147,12 @@ object MoveAnalyzer:
         val afterPos = afterCapture.after
         val hasExecution = afterPos.legalMoves.exists { ourResponse =>
           val givesMate = ourResponse.after.checkMate
-          val isWinningCapture = ourResponse.captures && {
-             val victim = afterPos.board.roleAt(ourResponse.dest).getOrElse(Pawn)
-             val attacker = ourResponse.piece.role
-             pieceValue(victim) > pieceValue(attacker)
-          }
+          val isWinningCapture =
+            ourResponse.captures &&
+              afterPos.board.roleAt(ourResponse.dest).exists(victim => pieceValue(victim) > pieceValue(ourResponse.piece.role))
           val forkTargets = detectForkTargets(ourResponse, ourResponse.after, color)
-          val hasRealFork = (forkTargets.contains(King) && forkTargets.size >= 2) || (forkTargets.filter(_ != Pawn).size >= 2)
+          val forkRoles = forkTargets.map(_._2)
+          val hasRealFork = (forkRoles.contains(King) && forkRoles.size >= 2) || (forkRoles.filter(_ != Pawn).size >= 2)
 
           givesMate || isWinningCapture || hasRealFork
         }
@@ -1702,7 +1400,7 @@ object MoveAnalyzer:
       ~Bitboard(destSq)
     
     friendlyLongRange.squares.flatMap { friendlySq =>
-      val friendlyRole = nextBoard.roleAt(friendlySq).getOrElse(Queen)
+      nextBoard.roleAt(friendlySq).toList.flatMap { friendlyRole =>
       
       // Check if this piece can now attack through where the moved piece was
       val attacksAfter = friendlyRole match {
@@ -1724,9 +1422,9 @@ object MoveAnalyzer:
       val ray = Bitboard.ray(friendlySq, origSq)
       val targets = newAttacks & nextBoard.byColor(!color)
       val meaningfulTarget = targets.squares.exists { sq =>
-        val targetRole = nextBoard.roleAt(sq).getOrElse(Pawn)
-        val attackerRole = friendlyRole
-        targetRole == King || pieceValue(targetRole) > pieceValue(attackerRole) || nextBoard.attackers(sq, !color).isEmpty
+        nextBoard.roleAt(sq).exists { targetRole =>
+          targetRole == King || pieceValue(targetRole) > pieceValue(friendlyRole) || nextBoard.attackers(sq, !color).isEmpty
+        }
       }
       val clearedRay = ray.nonEmpty && meaningfulTarget
       
@@ -1746,6 +1444,7 @@ object MoveAnalyzer:
           move = moveUci
         ))
       } else None
+      }
     }.headOption
   }
 
@@ -1839,34 +1538,36 @@ object MoveAnalyzer:
     val board = pos.board
     val nextBoard = nextPos.board
     val capturedSq = mv.dest
-    val capturedRole = board.roleAt(capturedSq).getOrElse(Pawn)
     val oppColor = !color
 
-    // 1. What did the captured piece defend in the BEFORE position?
-    val defenderAttacks = capturedRole match {
-      case Pawn   => capturedSq.pawnAttacks(oppColor)
-      case Knight => capturedSq.knightAttacks
-      case Bishop => capturedSq.bishopAttacks(board.occupied)
-      case Rook   => capturedSq.rookAttacks(board.occupied)
-      case Queen  => capturedSq.queenAttacks(board.occupied)
-      case King   => capturedSq.kingAttacks
-    }
-    val protectedSqs = (defenderAttacks & board.byColor(oppColor)).squares
+    board.roleAt(capturedSq).flatMap { capturedRole =>
+      // 1. What did the captured piece defend in the BEFORE position?
+      val defenderAttacks = capturedRole match {
+        case Pawn   => capturedSq.pawnAttacks(oppColor)
+        case Knight => capturedSq.knightAttacks
+        case Bishop => capturedSq.bishopAttacks(board.occupied)
+        case Rook   => capturedSq.rookAttacks(board.occupied)
+        case Queen  => capturedSq.queenAttacks(board.occupied)
+        case King   => capturedSq.kingAttacks
+      }
+      val protectedSqs = (defenderAttacks & board.byColor(oppColor)).squares
 
-    // 2. For each protected piece, was it the SOLE defender?
-    protectedSqs.flatMap { targetSq =>
-      val otherDefenders = board.attackers(targetSq, oppColor) & ~Bitboard(capturedSq)
-      if (otherDefenders.isEmpty) {
-        // It was the sole defender. Is the target now under attack by US in nextPos?
-        val currentAttackers = nextBoard.attackers(targetSq, color)
-        if (currentAttackers.nonEmpty) {
-          val targetRole = nextBoard.roleAt(targetSq).getOrElse(Pawn)
-          if (pieceValue(targetRole) > 1 || targetRole == King) { // Only interesting if not just a pawn
-             Some(Motif.RemovingTheDefender(mv.piece.role, capturedRole, targetRole, capturedSq, color, plyIndex, moveUci))
+      // 2. For each protected piece, was it the SOLE defender?
+      protectedSqs.flatMap { targetSq =>
+        val otherDefenders = board.attackers(targetSq, oppColor) & ~Bitboard(capturedSq)
+        if (otherDefenders.isEmpty) {
+          // It was the sole defender. Is the target now under attack by US in nextPos?
+          val currentAttackers = nextBoard.attackers(targetSq, color)
+          if (currentAttackers.nonEmpty) {
+            nextBoard.roleAt(targetSq).flatMap { targetRole =>
+              if (pieceValue(targetRole) > 1 || targetRole == King) { // Only interesting if not just a pawn
+                 Some(Motif.RemovingTheDefender(mv.piece.role, capturedRole, targetRole, capturedSq, color, plyIndex, moveUci))
+              } else None
+            }
           } else None
         } else None
-      } else None
-    }.headOption
+      }.headOption
+    }
   }
 
   /**
@@ -1881,8 +1582,9 @@ object MoveAnalyzer:
     val board = nextPos.board
     val oppColor = !color
     val kingSqOpt = board.kingPosOf(oppColor)
-    
-    kingSqOpt.flatMap { kingSq =>
+
+    Option.when(nextPos.checkMate)(()).flatMap { _ =>
+      kingSqOpt.flatMap { kingSq =>
       val adjacent = kingSq.kingAttacks
       val safeSquares = (adjacent & ~board.occupied).squares.filter { sq =>
         board.attackers(sq, color).isEmpty
@@ -1898,6 +1600,7 @@ object MoveAnalyzer:
           Some(Motif.MateNet(kingSq, attackers, color, plyIndex, moveUci))
         } else None
       } else None
+      }
     }
   }
 
@@ -1909,27 +1612,20 @@ object MoveAnalyzer:
       pos: Position,
       nextPos: Position,
       color: Color,
-      evalLoss: Int,
       plyIndex: Int,
       moveUci: Option[String]
   ): Option[Motif.Initiative] = {
     // Basic Initiative heuristics:
-    // 1. Move is accurate (very low eval loss)
-    // 2. Move generates a significant new threat or activity
+    // 1. Move generates a significant new threat or activity
     val board = nextPos.board
-    val isAccurate = evalLoss <= 15
-    
-    if (isAccurate) {
-      val hasNewThreat = nextPos.check.yes || detectForkTargets(mv, nextPos, color).nonEmpty
-      val mobilityBefore = calculateMobility(pos.board, mv.orig, mv.piece.role)
-      val mobilityAfter = calculateMobility(board, mv.dest, mv.piece.role)
-      val activityGain = mobilityAfter > mobilityBefore + 3
-      
-      if (hasNewThreat || activityGain) {
-        val score = (if (hasNewThreat) 10 else 0) + (if (activityGain) 10 else 0) - evalLoss
-        if (score > 0) {
-          Some(Motif.Initiative(color, score, plyIndex, moveUci))
-        } else None
-      } else None
+
+    val hasNewThreat = nextPos.check.yes || detectForkTargets(mv, nextPos, color).nonEmpty
+    val mobilityBefore = calculateMobility(pos.board, mv.orig, mv.piece.role)
+    val mobilityAfter = calculateMobility(board, mv.dest, mv.piece.role)
+    val activityGain = mobilityAfter > mobilityBefore + 3
+
+    if (hasNewThreat || activityGain) {
+      val score = (if (hasNewThreat) 10 else 0) + (if (activityGain) 10 else 0)
+      Some(Motif.Initiative(color, score, plyIndex, moveUci))
     } else None
   }

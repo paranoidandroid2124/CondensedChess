@@ -24,7 +24,9 @@ enum EvidenceLayer:
   case SinglePosition
   case PawnStructure
   case Strategic
-  case OpeningRoute
+  case OpeningContext
+  case FeatureAnchor
+  case ApplicabilityAssessment
   case ThreatPressure
   case Line
   case Eval

@@ -85,211 +85,171 @@ object PlanTaxonomy:
     def fromId(raw: String): Option[PlanKind] =
       byId.get(normalize(raw))
 
+  enum PlanSignal:
+    case KeyMotifs
+    case FutureSnapshot
+    case ReplyPvs
+    case BoardDelta
+
+  enum PlanHorizon:
+    case Short
+    case Medium
+    case Long
+
   final case class SubplanSpec(
-      requiredSignals: List[String],
-      horizon: String
+      requiredSignals: List[PlanSignal],
+      horizon: PlanHorizon
   )
 
   object SubplanCatalog:
+    import PlanHorizon.*
+    import PlanSignal.*
+
     val specs: Map[PlanKind, SubplanSpec] = Map(
       PlanKind.OpeningDevelopment -> SubplanSpec(
-        requiredSignals = List("keyMotifs", "futureSnapshot"),
-        horizon = "short"
+        requiredSignals = List(KeyMotifs, FutureSnapshot),
+        horizon = Short
       ),
       PlanKind.ProphylaxisRestraint -> SubplanSpec(
-        requiredSignals = List("replyPvs", "keyMotifs"),
-        horizon = "long"
+        requiredSignals = List(ReplyPvs, KeyMotifs),
+        horizon = Long
       ),
       PlanKind.BreakPrevention -> SubplanSpec(
-        requiredSignals = List("replyPvs", "boardDelta"),
-        horizon = "medium"
+        requiredSignals = List(ReplyPvs, BoardDelta),
+        horizon = Medium
       ),
       PlanKind.KeySquareDenial -> SubplanSpec(
-        requiredSignals = List("keyMotifs"),
-        horizon = "medium"
+        requiredSignals = List(KeyMotifs),
+        horizon = Medium
       ),
       PlanKind.OutpostEntrenchment -> SubplanSpec(
-        requiredSignals = List("replyPvs", "keyMotifs"),
-        horizon = "long"
+        requiredSignals = List(ReplyPvs, KeyMotifs),
+        horizon = Long
       ),
       PlanKind.WorstPieceImprovement -> SubplanSpec(
-        requiredSignals = List("replyPvs"),
-        horizon = "medium"
+        requiredSignals = List(ReplyPvs),
+        horizon = Medium
       ),
       PlanKind.RookFileTransfer -> SubplanSpec(
-        requiredSignals = List("replyPvs", "futureSnapshot"),
-        horizon = "medium"
+        requiredSignals = List(ReplyPvs, FutureSnapshot),
+        horizon = Medium
       ),
       PlanKind.BishopReanchor -> SubplanSpec(
-        requiredSignals = List("replyPvs", "futureSnapshot"),
-        horizon = "medium"
+        requiredSignals = List(ReplyPvs, FutureSnapshot),
+        horizon = Medium
       ),
       PlanKind.OpenFilePressure -> SubplanSpec(
-        requiredSignals = List("replyPvs", "futureSnapshot"),
-        horizon = "medium"
+        requiredSignals = List(ReplyPvs, FutureSnapshot),
+        horizon = Medium
       ),
       PlanKind.FlankClamp -> SubplanSpec(
-        requiredSignals = List("replyPvs", "futureSnapshot"),
-        horizon = "long"
+        requiredSignals = List(ReplyPvs, FutureSnapshot),
+        horizon = Long
       ),
       PlanKind.CentralSpaceBind -> SubplanSpec(
-        requiredSignals = List("replyPvs"),
-        horizon = "medium"
+        requiredSignals = List(ReplyPvs),
+        horizon = Medium
       ),
       PlanKind.MobilitySuppression -> SubplanSpec(
-        requiredSignals = List("keyMotifs"),
-        horizon = "medium"
+        requiredSignals = List(KeyMotifs),
+        horizon = Medium
       ),
       PlanKind.StaticWeaknessFixation -> SubplanSpec(
-        requiredSignals = List("replyPvs", "futureSnapshot"),
-        horizon = "long"
+        requiredSignals = List(ReplyPvs, FutureSnapshot),
+        horizon = Long
       ),
       PlanKind.MinorityAttackFixation -> SubplanSpec(
-        requiredSignals = List("replyPvs", "keyMotifs"),
-        horizon = "long"
+        requiredSignals = List(ReplyPvs, KeyMotifs),
+        horizon = Long
       ),
       PlanKind.BackwardPawnTargeting -> SubplanSpec(
-        requiredSignals = List("replyPvs"),
-        horizon = "long"
+        requiredSignals = List(ReplyPvs),
+        horizon = Long
       ),
       PlanKind.IQPInducement -> SubplanSpec(
-        requiredSignals = List("replyPvs", "boardDelta"),
-        horizon = "medium"
+        requiredSignals = List(ReplyPvs, BoardDelta),
+        horizon = Medium
       ),
       PlanKind.CentralBreakTiming -> SubplanSpec(
-        requiredSignals = List("replyPvs", "boardDelta"),
-        horizon = "medium"
+        requiredSignals = List(ReplyPvs, BoardDelta),
+        horizon = Medium
       ),
       PlanKind.WingBreakTiming -> SubplanSpec(
-        requiredSignals = List("replyPvs", "boardDelta"),
-        horizon = "medium"
+        requiredSignals = List(ReplyPvs, BoardDelta),
+        horizon = Medium
       ),
       PlanKind.TensionMaintenance -> SubplanSpec(
-        requiredSignals = List("replyPvs"),
-        horizon = "medium"
+        requiredSignals = List(ReplyPvs),
+        horizon = Medium
       ),
       PlanKind.SimplificationWindow -> SubplanSpec(
-        requiredSignals = List("replyPvs", "boardDelta"),
-        horizon = "medium"
+        requiredSignals = List(ReplyPvs, BoardDelta),
+        horizon = Medium
       ),
       PlanKind.DefenderTrade -> SubplanSpec(
-        requiredSignals = List("keyMotifs"),
-        horizon = "short"
+        requiredSignals = List(KeyMotifs),
+        horizon = Short
       ),
       PlanKind.QueenTradeShield -> SubplanSpec(
-        requiredSignals = List("replyPvs", "futureSnapshot"),
-        horizon = "short"
+        requiredSignals = List(ReplyPvs, FutureSnapshot),
+        horizon = Short
       ),
       PlanKind.BadPieceLiquidation -> SubplanSpec(
-        requiredSignals = List("replyPvs", "keyMotifs"),
-        horizon = "short"
+        requiredSignals = List(ReplyPvs, KeyMotifs),
+        horizon = Short
       ),
       PlanKind.RookPawnMarch -> SubplanSpec(
-        requiredSignals = List("replyPvs", "keyMotifs"),
-        horizon = "medium"
+        requiredSignals = List(ReplyPvs, KeyMotifs),
+        horizon = Medium
       ),
       PlanKind.HookCreation -> SubplanSpec(
-        requiredSignals = List("replyPvs", "futureSnapshot"),
-        horizon = "medium"
+        requiredSignals = List(ReplyPvs, FutureSnapshot),
+        horizon = Medium
       ),
       PlanKind.RookLiftScaffold -> SubplanSpec(
-        requiredSignals = List("replyPvs", "futureSnapshot"),
-        horizon = "medium"
+        requiredSignals = List(ReplyPvs, FutureSnapshot),
+        horizon = Medium
       ),
       PlanKind.SimplificationConversion -> SubplanSpec(
-        requiredSignals = List("replyPvs", "futureSnapshot"),
-        horizon = "medium"
+        requiredSignals = List(ReplyPvs, FutureSnapshot),
+        horizon = Medium
       ),
       PlanKind.PasserConversion -> SubplanSpec(
-        requiredSignals = List("replyPvs", "keyMotifs"),
-        horizon = "long"
+        requiredSignals = List(ReplyPvs, KeyMotifs),
+        horizon = Long
       ),
       PlanKind.PassedPawnManufacture -> SubplanSpec(
-        requiredSignals = List("replyPvs", "futureSnapshot", "boardDelta"),
-        horizon = "long"
+        requiredSignals = List(ReplyPvs, FutureSnapshot, BoardDelta),
+        horizon = Long
       ),
       PlanKind.InvasionTransition -> SubplanSpec(
-        requiredSignals = List("replyPvs", "futureSnapshot"),
-        horizon = "medium"
+        requiredSignals = List(ReplyPvs, FutureSnapshot),
+        horizon = Medium
       ),
       PlanKind.OppositeBishopsConversion -> SubplanSpec(
-        requiredSignals = List("replyPvs", "futureSnapshot", "keyMotifs"),
-        horizon = "long"
+        requiredSignals = List(ReplyPvs, FutureSnapshot, KeyMotifs),
+        horizon = Long
       ),
       PlanKind.ForcingTacticalShot -> SubplanSpec(
-        requiredSignals = List("replyPvs", "boardDelta", "keyMotifs"),
-        horizon = "short"
+        requiredSignals = List(ReplyPvs, BoardDelta, KeyMotifs),
+        horizon = Short
       ),
       PlanKind.DefenderOverload -> SubplanSpec(
-        requiredSignals = List("replyPvs", "keyMotifs"),
-        horizon = "short"
+        requiredSignals = List(ReplyPvs, KeyMotifs),
+        horizon = Short
       ),
       PlanKind.ClearanceBreak -> SubplanSpec(
-        requiredSignals = List("replyPvs", "keyMotifs"),
-        horizon = "short"
+        requiredSignals = List(ReplyPvs, KeyMotifs),
+        horizon = Short
       ),
       PlanKind.BatteryPressure -> SubplanSpec(
-        requiredSignals = List("replyPvs", "keyMotifs", "futureSnapshot"),
-        horizon = "short"
+        requiredSignals = List(ReplyPvs, KeyMotifs, FutureSnapshot),
+        horizon = Short
       )
     )
 
     def byTheme(theme: PlanTheme): List[(PlanKind, SubplanSpec)] =
       specs.toList.filter((sid, _) => sid.theme == theme).sortBy(_._1.id)
-
-  object ThemeResolver:
-    import PlanTheme.*
-
-    def sanitizeTheme(raw: String): Option[String] =
-      PlanTheme.fromId(raw).filter(_ != Unknown).map(_.id)
-
-    def fromPlanId(raw: String): PlanTheme =
-      PlanTheme.fromId(raw).getOrElse(Unknown)
-
-    def fromStructuralState(raw: String): PlanTheme =
-      PlanTheme.fromId(raw).getOrElse(Unknown)
-
-    def subplanFromStructuralState(raw: String): Option[PlanKind] =
-      PlanKind.fromId(raw)
-
-    def fromSeedId(raw: String): PlanTheme =
-      PlanTheme.fromId(raw).getOrElse(Unknown)
-
-    def fromEvidenceSource(raw: String): PlanTheme =
-      val low = normalize(raw)
-      if low.startsWith("theme:") then
-        PlanTheme.fromId(low.stripPrefix("theme:")).getOrElse(Unknown)
-      else if low.startsWith("subplan:") then
-        subplanFromId(low.stripPrefix("subplan:")).map(_.theme).getOrElse(Unknown)
-      else if low.startsWith("structural_state:") then
-        fromStructuralState(low.stripPrefix("structural_state:"))
-      else if low.startsWith("latent_seed:") then
-        fromSeedId(low.stripPrefix("latent_seed:"))
-      else if low.startsWith("seed:") then
-        fromSeedId(low.stripPrefix("seed:"))
-      else
-        fromPlanId(low)
-
-    def subplanFromId(raw: String): Option[PlanKind] =
-      PlanKind.fromId(raw)
-
-    def subplanFromPlanId(raw: String): Option[PlanKind] =
-      PlanKind.fromId(raw)
-
-    def subplanFromSeedId(raw: String): Option[PlanKind] =
-      PlanKind.fromId(raw)
-
-    def subplanFromEvidenceSource(raw: String): Option[PlanKind] =
-      val low = normalize(raw)
-      if low.startsWith("subplan:") then
-        subplanFromId(low.stripPrefix("subplan:"))
-      else if low.startsWith("structural_state:") then
-        subplanFromStructuralState(low.stripPrefix("structural_state:"))
-      else if low.startsWith("latent_seed:") then
-        subplanFromSeedId(low.stripPrefix("latent_seed:"))
-      else if low.startsWith("seed:") then
-        subplanFromSeedId(low.stripPrefix("seed:"))
-      else subplanFromPlanId(low)
 
   private def normalize(raw: String): String =
     Option(raw).getOrElse("").trim.toLowerCase

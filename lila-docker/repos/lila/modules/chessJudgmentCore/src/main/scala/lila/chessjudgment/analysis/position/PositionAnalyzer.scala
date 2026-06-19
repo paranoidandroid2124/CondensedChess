@@ -121,7 +121,7 @@ final case class CentralSpaceFeatures(
 
 final case class PositionFeatures(
     fen: String,
-    sideToMove: String,
+    sideToMove: Color,
     plyCount: Int,
     pawns: PawnStructureFeatures,
     activity: ActivityFeatures,
@@ -147,7 +147,7 @@ final case class StrategicStateFeatures(
 object PositionFeatures:
   def empty: PositionFeatures = PositionFeatures(
     fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-    sideToMove = "white",
+    sideToMove = Color.White,
     plyCount = 0,
     pawns = PawnStructureFeatures(0,0,0,0,0,0,0,0,false,false,false,false,0,0,0,0,0,0,0,0,0,0),
     activity = ActivityFeatures(0,0,0,0,0,0,0,0,0,0,0,0),
@@ -238,7 +238,7 @@ object PositionAnalyzer:
 
       PositionFeatures(
         fen = fen,
-        sideToMove = position.color.name,
+        sideToMove = position.color,
         plyCount = plyCount,
         pawns = computePawnStructure(board),
         activity = computeActivity(position),

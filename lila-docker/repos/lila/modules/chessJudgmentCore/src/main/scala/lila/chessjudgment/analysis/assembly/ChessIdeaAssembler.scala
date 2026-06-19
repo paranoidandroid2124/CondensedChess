@@ -1,6 +1,7 @@
 package lila.chessjudgment.analysis.assembly
 
-import lila.chessjudgment.analysis.singlePosition.{ JudgmentFocusType, PawnPlayDriver }
+import lila.chessjudgment.analysis.singlePosition.PawnPlayDriver
+import lila.chessjudgment.model.structure.AlignmentBand
 import lila.chessjudgment.model.structure.StructureId
 import lila.chessjudgment.model.judgment.*
 
@@ -63,8 +64,7 @@ object ChessIdeaAssembler:
     val structurePositionIdeas =
       context.evidenceGraph.records.collect {
         case EvidenceRecord(ref, payload: PawnStructureFactEvidence, _)
-            if payload.profile.primary != StructureId.Unknown ||
-              payload.pawnPlay.exists(_.primaryDriver != PawnPlayDriver.Quiet) =>
+            if pawnStructureCarriesTheme(payload) =>
           ChessIdeaBuilder.fromEvidence(
             id = allocator.evidenceId(s"idea:pawn-structure:${allocator.key(ref.id)}"),
             family = ChessIdeaFamily.PawnStructure,
@@ -72,28 +72,29 @@ object ChessIdeaAssembler:
             primaryPosition = ref.position,
             primaryLine = None,
             moveUci = None,
-            evidence = List(ref),
+            evidence = (ref :: recordsForPosition(context, EvidenceLayer.Board, ref.position)).distinctBy(_.id),
             scope = ref.scope,
             confidence = ref.confidence
           )
       }
     val structureMoveIdeas =
-      context.evidenceGraph.records.collect {
-        case EvidenceRecord(ref, _: StructuralDeltaEvidence, _)
-            if context.transition(transitionRoleFor(ref.scope)).nonEmpty =>
-          val transition = context.transition(transitionRoleFor(ref.scope)).get
-          val evidence = (ref :: transition.evidence :: recordsForPosition(context, EvidenceLayer.PawnStructure, transition.to)).distinctBy(_.id)
-          ChessIdeaBuilder.fromEvidence(
-            id = allocator.evidenceId(s"idea:pawn-structure-delta:${allocator.key(ref.id)}"),
-            family = ChessIdeaFamily.PawnStructure,
-            subject = if transition.role == TransitionEdgeRole.Played then IdeaSubject.PlayedMove else IdeaSubject.ReferenceMove,
-            primaryPosition = ref.position,
-            primaryLine = ref.line,
-            moveUci = Some(transition.moveUci),
-            evidence = evidence,
-            scope = ref.scope,
-            confidence = ref.confidence
-          )
+      context.evidenceGraph.records.flatMap {
+        case EvidenceRecord(ref, _: StructuralDeltaEvidence, _) =>
+          transitionForScope(context, ref.scope).map { transition =>
+            val evidence = (ref :: transition.evidence :: recordsForPosition(context, EvidenceLayer.PawnStructure, transition.to)).distinctBy(_.id)
+            ChessIdeaBuilder.fromEvidence(
+              id = allocator.evidenceId(s"idea:pawn-structure-delta:${allocator.key(ref.id)}"),
+              family = ChessIdeaFamily.PawnStructure,
+              subject = if transition.role == TransitionEdgeRole.Played then IdeaSubject.PlayedMove else IdeaSubject.ReferenceMove,
+              primaryPosition = ref.position,
+              primaryLine = ref.line,
+              moveUci = Some(transition.moveUci),
+              evidence = evidence,
+              scope = ref.scope,
+              confidence = ref.confidence
+            )
+          }
+        case _ => None
       }
     structurePositionIdeas ++ structureMoveIdeas
 
@@ -102,9 +103,13 @@ object ChessIdeaAssembler:
       allocator: JudgmentProvenanceAllocator
   ): List[ChessIdea] =
     context.evidenceGraph.records.collect {
-      case EvidenceRecord(ref, payload: ThreatPressureEvidence, _)
-          if payload.threats.hasThreat || payload.threats.defenseRequired || payload.threats.prophylaxisNeeded =>
-        val evidence = (ref :: ref.line.toList.flatMap(lineLayerRefs(context, _))).distinctBy(_.id)
+      case EvidenceRecord(ref, payload: ThreatPressureEvidence, parents)
+          if ref.position.sideToMove.forall(_ == payload.sideUnderPressure) &&
+            (payload.threats.hasThreat || payload.threats.defenseRequired || payload.threats.prophylaxisNeeded) =>
+        val evidence =
+          (ref :: parents ++
+            ref.line.toList.flatMap(lineLayerRefs(context, _)) ++
+            relationRefs(context, ref.position, ref.line)).distinctBy(_.id)
         ChessIdeaBuilder.fromEvidence(
           id = allocator.evidenceId(s"idea:defensive:${allocator.key(ref.id)}"),
           family = ChessIdeaFamily.Defensive,
@@ -182,11 +187,15 @@ object ChessIdeaAssembler:
       }
     val planPressureIdeas =
       context.evidenceGraph.records.collect {
-        case EvidenceRecord(ref, _: PlanPressureEvidence, _) =>
+        case EvidenceRecord(ref, _: PlanPressureEvidence, parents) =>
           val evidence =
-            (ref :: ref.line.toList.flatMap(lineLayerRefs(context, _)) ++
+            (ref :: parents ++
+              ref.line.toList.flatMap(lineLayerRefs(context, _)) ++
               recordsForPosition(context, EvidenceLayer.Strategic, ref.position) ++
               recordsForPosition(context, EvidenceLayer.PawnStructure, ref.position) ++
+              recordsForPosition(context, EvidenceLayer.ThreatPressure, ref.position) ++
+              recordsForPosition(context, EvidenceLayer.PlanTransition, ref.position) ++
+              relationRefs(context, ref.position, ref.line) ++
               recordsForPosition(context, EvidenceLayer.SinglePosition, ref.position)).distinctBy(_.id)
           ChessIdeaBuilder.fromEvidence(
             id = allocator.evidenceId(s"idea:plan-pressure:${allocator.key(ref.id)}"),
@@ -200,41 +209,28 @@ object ChessIdeaAssembler:
             confidence = ref.confidence
           )
       }
-    val singlePositionIdeas =
-      context.evidenceGraph.records.collect {
-        case EvidenceRecord(ref, SinglePositionEvidence(assessment), _)
-            if assessment.judgmentFocus.focus == JudgmentFocusType.Plan =>
-          val boardEvidence = recordsForPosition(context, EvidenceLayer.Board, ref.position)
-          ChessIdeaBuilder.fromEvidence(
-            id = allocator.evidenceId(s"idea:strategic:${allocator.key(ref.id)}"),
-            family = ChessIdeaFamily.Strategic,
-            subject = IdeaSubject.Position,
-            primaryPosition = ref.position,
-            primaryLine = None,
-            moveUci = None,
-            evidence = (ref :: boardEvidence).distinctBy(_.id),
-            scope = ref.scope,
-            confidence = ref.confidence
-          )
-      }
-    strategicFactIdeas ++ planPressureIdeas ++ singlePositionIdeas
+    strategicFactIdeas ++ planPressureIdeas
 
   private def openingIdeas(
       context: JudgmentAssemblyContext,
       allocator: JudgmentProvenanceAllocator
   ): List[ChessIdea] =
     context.evidenceGraph.records.collect {
-      case EvidenceRecord(ref, _: OpeningRouteFactEvidence, _) =>
+      case EvidenceRecord(ref, ApplicabilityAssessmentEvidence(assessment), parents)
+          if assessment.applicability == FeatureApplicability.OpeningRelevant &&
+            assessment.status != ApplicabilityStatus.Contradicted &&
+            assessment.observedThemes.nonEmpty =>
+        val primaryLine = context.line(LineNodeRole.BestReference).map(_.ref)
         val evidence =
-          (ref :: ref.line.toList.flatMap(lineLayerRefs(context, _)) ++
-            recordsForPosition(context, EvidenceLayer.Board, ref.position)).distinctBy(_.id)
+          (ref :: parents ++
+            primaryLine.toList.flatMap(lineLayerRefs(context, _))).distinctBy(_.id)
         ChessIdeaBuilder.fromEvidence(
           id = allocator.evidenceId(s"idea:opening:${allocator.key(ref.id)}"),
           family = ChessIdeaFamily.Opening,
-          subject = subjectForLine(ref.line),
+          subject = IdeaSubject.Position,
           primaryPosition = ref.position,
-          primaryLine = ref.line,
-          moveUci = ref.line.map(_.rootMove),
+          primaryLine = primaryLine,
+          moveUci = None,
           evidence = evidence,
           scope = ref.scope,
           confidence = ref.confidence
@@ -258,6 +254,28 @@ object ChessIdeaAssembler:
       case record if record.ref.layer == layer => record.ref
     }
 
+  private def relationRefs(
+      context: JudgmentAssemblyContext,
+      position: PositionNodeRef,
+      line: Option[LineNodeRef]
+  ): List[EvidenceRef] =
+    context.evidenceGraph.records.collect {
+      case record
+          if record.ref.layer == EvidenceLayer.Relation &&
+            record.ref.position == position &&
+            line.forall(record.ref.line.contains) =>
+        record.ref
+    }
+
+  private def pawnStructureCarriesTheme(payload: PawnStructureFactEvidence): Boolean =
+    payload.profile.primary != StructureId.Unknown && payload.profile.confidence >= 0.65 ||
+      payload.pawnPlay.exists(_.primaryDriver != PawnPlayDriver.Quiet) ||
+      payload.alignment.exists(alignment =>
+        alignment.band == AlignmentBand.OnBook ||
+          alignment.band == AlignmentBand.Playable ||
+          alignment.band == AlignmentBand.OffPlan
+      )
+
   private def subjectForLine(line: Option[LineNodeRef]): IdeaSubject =
     line.map(_.role) match
       case Some(LineNodeRole.Played)        => IdeaSubject.PlayedMove
@@ -266,9 +284,13 @@ object ChessIdeaAssembler:
         IdeaSubject.CandidateLine
       case None => IdeaSubject.Position
 
-  private def transitionRoleFor(scope: EvidenceScope): TransitionEdgeRole =
+  private def transitionForScope(context: JudgmentAssemblyContext, scope: EvidenceScope): Option[MoveTransitionEdge] =
+    transitionRoleFor(scope).flatMap(context.transition)
+
+  private def transitionRoleFor(scope: EvidenceScope): Option[TransitionEdgeRole] =
     scope match
-      case EvidenceScope.ReferenceTransition => TransitionEdgeRole.Reference
-      case EvidenceScope.AlternativeTransition => TransitionEdgeRole.Alternative
-      case EvidenceScope.ThreatLine => TransitionEdgeRole.Threat
-      case _ => TransitionEdgeRole.Played
+      case EvidenceScope.PlayedTransition    => Some(TransitionEdgeRole.Played)
+      case EvidenceScope.ReferenceTransition => Some(TransitionEdgeRole.Reference)
+      case EvidenceScope.AlternativeTransition => Some(TransitionEdgeRole.Alternative)
+      case EvidenceScope.ThreatLine          => Some(TransitionEdgeRole.Threat)
+      case _                                 => None

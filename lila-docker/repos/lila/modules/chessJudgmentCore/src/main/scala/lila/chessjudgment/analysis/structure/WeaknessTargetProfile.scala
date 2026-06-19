@@ -49,7 +49,7 @@ private[chessjudgment] object WeaknessTargetProfile:
       targetsForPressure(
         board = position.board,
         pressureSide = position.color,
-        structureCode = structureCode(fen, position.board, position.color)
+        structureCode = structureCode(fen, position.board)
       )
     }.getOrElse(Nil)
 
@@ -185,9 +185,9 @@ private[chessjudgment] object WeaknessTargetProfile:
       if nextFile >= 'a' && nextFile <= 'h' && nextRank >= 1 && nextRank <= 8
     yield s"$nextFile$nextRank"
 
-  private def structureCode(fen: String, board: Board, sideToMove: Color): Option[String] =
+  private def structureCode(fen: String, board: Board): Option[String] =
     PositionAnalyzer.extractFeatures(fen, 1).map { features =>
-      PawnStructureAssessor.assess(features, board, sideToMove).primary.toString
+      PawnStructureAssessor.assess(features, board).primary.toString
     }.filterNot(_ == "Unknown")
 
   private def sideLabel(side: Color): String =

@@ -1,6 +1,7 @@
 package lila.chessjudgment.model
 
 import chess.Color
+import lila.chessjudgment.model.strategic.PlanTaxonomy.{ PlanKind, PlanSignal, PlanTheme }
 
 case class PlanScoringResult(
     topPlans: List[PlanMatch],
@@ -13,17 +14,35 @@ case class CompatibilityEvent(
   originalScore: Double,
   finalScore: Double,
   delta: Double,
-  adjustmentId: String,
-  adjustmentType: String
+  adjustment: CompatibilityAdjustment,
+  adjustmentType: CompatibilityAdjustmentType
 )
+
+enum CompatibilityAdjustment:
+  case TacticalOverride
+  case DefensivePressure
+  case ConversionWindow
+  case OpenCenterFlankRisk
+  case OpeningPhase
+
+enum CompatibilityAdjustmentType:
+  case Boost
+  case Downweight
+
+sealed trait PlanSupport
+
+object PlanSupport:
+  case class Theme(theme: PlanTheme) extends PlanSupport
+  case class Subplan(kind: PlanKind) extends PlanSupport
+  case class ThemePolicyScore(score: Double) extends PlanSupport
 
 case class PlanMatch(
     plan: Plan,
     score: Double,
     evidence: List[EvidenceAtom],
-    supportIds: List[String] = Nil,
-    blockerIds: List[String] = Nil,
-    missingSignalIds: List[String] = Nil
+    support: List[PlanSupport] = Nil,
+    blockers: List[PlanSignal] = Nil,
+    missingSignals: List[PlanSignal] = Nil
 )
 
 case class ActivePlans(

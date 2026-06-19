@@ -181,57 +181,26 @@ object ProbeContractValidator:
     ProbePurpose.FreeTempoBranches
   )
 
-  private case class PurposeSignalProfile(
-      strict: Set[String],
-      relaxed: Set[String]
-  )
-
-  private val themePurposeSignals: Map[ProbePurpose, PurposeSignalProfile] = Map(
+  private val themePurposeSignals: Map[ProbePurpose, Set[String]] = Map(
     ProbePurpose.ThemePlanValidation ->
-      PurposeSignalProfile(
-        strict = Set("replyPvs", "keyMotifs", "boardDelta", "futureSnapshot"),
-        relaxed = Set("replyPvs", "keyMotifs", "futureSnapshot")
-      ),
+      Set("replyPvs", "keyMotifs", "boardDelta", "futureSnapshot"),
     ProbePurpose.RouteDenialValidation ->
-      PurposeSignalProfile(
-        strict = Set("replyPvs", "keyMotifs", "boardDelta", "futureSnapshot"),
-        relaxed = Set("replyPvs", "keyMotifs", "futureSnapshot")
-      ),
+      Set("replyPvs", "keyMotifs", "boardDelta", "futureSnapshot"),
     ProbePurpose.ColorComplexSqueezeValidation ->
-      PurposeSignalProfile(
-        strict = Set("replyPvs", "keyMotifs", "futureSnapshot"),
-        relaxed = Set("replyPvs", "keyMotifs")
-      ),
+      Set("replyPvs", "keyMotifs", "futureSnapshot"),
     ProbePurpose.LongTermRestraintValidation ->
-      PurposeSignalProfile(
-        strict = Set("replyPvs", "keyMotifs", "futureSnapshot"),
-        relaxed = Set("replyPvs", "keyMotifs")
-      )
+      Set("replyPvs", "keyMotifs", "futureSnapshot")
   )
 
-  /** Strict mode: full signal requirements for fail-closed safety. */
-  private val strictPurposeSignals: Map[ProbePurpose, Set[String]] =
-    themePurposeSignals.view.mapValues(_.strict).toMap ++ Map(
+  private val purposeSignals: Map[ProbePurpose, Set[String]] =
+    themePurposeSignals ++ Map(
     ProbePurpose.LatentPlanRefutation -> Set("replyPvs", "keyMotifs", "boardDelta", "futureSnapshot"),
     ProbePurpose.LatentPlanImmediate -> Set("replyPvs", "boardDelta"),
     ProbePurpose.FreeTempoBranches -> Set("replyPvs", "futureSnapshot")
   )
 
-  /** Relaxed mode: reduced requirements to improve probe hit rate. */
-  private val relaxedPurposeSignals: Map[ProbePurpose, Set[String]] =
-    themePurposeSignals.view.mapValues(_.relaxed).toMap ++ Map(
-    ProbePurpose.LatentPlanRefutation -> Set("replyPvs", "boardDelta"),
-    ProbePurpose.LatentPlanImmediate -> Set("replyPvs"),
-    ProbePurpose.FreeTempoBranches -> Set("replyPvs")
-  )
-
-  private val RelaxLatentSignals: Boolean =
-    sys.env.get("AI_PROBE_RELAX_LATENT_SIGNALS")
-      .map(_.trim.toLowerCase)
-      .exists(v => v == "1" || v == "true" || v == "yes" || v == "on")
-
   private def activePurposeSignals: Map[ProbePurpose, Set[String]] =
-    if RelaxLatentSignals then relaxedPurposeSignals else strictPurposeSignals
+    purposeSignals
 
   def validate(result: ProbeResult): ValidationResult =
     val required = result.purpose.fold(Set.empty[String])(purposeRequiredSignals)

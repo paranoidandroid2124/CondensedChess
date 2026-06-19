@@ -66,6 +66,7 @@ object StrategicFactNormalizer:
 
   def fromThreatPressure(
       id: String,
+      sideUnderPressure: _root_.chess.Color,
       threats: ThreatAnalysis,
       position: PositionNodeRef,
       line: Option[LineNodeRef],
@@ -82,7 +83,7 @@ object StrategicFactNormalizer:
         scope = scope,
         confidence = if threats.insufficientData then EvidenceConfidence.Mixed else EvidenceConfidence.EngineBacked
       )
-    EvidenceRecord(ref = ref, payload = ThreatPressureEvidence(threats), parents = parents)
+    EvidenceRecord(ref = ref, payload = ThreatPressureEvidence(sideUnderPressure, threats), parents = parents)
 
   def fromPlanPressure(
       id: String,

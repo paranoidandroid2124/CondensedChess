@@ -38,44 +38,44 @@ object PawnPlayAssessor:
    * @param features board feature inputs
    * @param motifs tactical motif inputs (for PawnBreak detection)
    * @param positionAssessment position assessment context
-   * @param sideToMove Which side is to move
+   * @param sideToMove side to move
    * @return Complete pawn play analysis with 10 concepts
    */
   def analyze(
     features: PositionFeatures,
     motifs: List[Motif],
     positionAssessment: SinglePositionAssessment,
-    sideToMove: String = "white"
-  ): PawnPlayAnalysis =
-    val isWhite = sideToMove.equalsIgnoreCase("white")
-    
-    // Parse board from FEN to get access to raw bitboards/piece locations
-    val board = Fen.read(Standard, Fen.Full(features.fen)).map(_.board).getOrElse(Board.empty)
-    val (breakReady, breakFile, breakImpact) = analyzeBreaks(features, motifs, board, isWhite)
-    val advanceOrCapture = checkTensionResolution(features, positionAssessment)
-    val (urgency, blockade, blockadeSq, blockadeRole, support) = analyzePassedPawns(features, board, isWhite)
-    val minorityAttack = checkMinorityAttack(board, isWhite)
-    val counterBreak = checkCounterBreak(motifs, isWhite)
-    val tensionPolicy = computeTensionPolicy(features, positionAssessment, breakReady, advanceOrCapture)
-    val tensionSquares = extractTensionSquares(board)
-    val driver = computePrimaryDriver(breakReady, urgency, advanceOrCapture, features.centralSpace.pawnTensionCount)
-    
-    PawnPlayAnalysis(
-      pawnBreakReady = breakReady,
-      breakFile = breakFile,
-      breakImpact = breakImpact,
-      advanceOrCapture = advanceOrCapture,
-      passedPawnUrgency = urgency,
-      passerBlockade = blockade,
-      blockadeSquare = blockadeSq,
-      blockadeRole = blockadeRole,
-      pusherSupport = support,
-      minorityAttack = minorityAttack,
-      counterBreak = counterBreak,
-      tensionPolicy = tensionPolicy,
-      tensionSquares = tensionSquares,
-      primaryDriver = driver
-    )
+    sideToMove: Color
+  ): Option[PawnPlayAnalysis] =
+    val isWhite = sideToMove.white
+    Fen.read(Standard, Fen.Full(features.fen)).map { position =>
+      val board = position.board
+      val (breakReady, breakFile, breakImpact) = analyzeBreaks(features, motifs, board, isWhite)
+      val advanceOrCapture = checkTensionResolution(features, positionAssessment)
+      val (urgency, blockade, blockadeSq, blockadeRole, support) = analyzePassedPawns(features, board, isWhite)
+      val minorityAttack = checkMinorityAttack(board, isWhite)
+      val counterBreak = checkCounterBreak(motifs, isWhite)
+      val tensionPolicy = computeTensionPolicy(features, positionAssessment, breakReady, advanceOrCapture)
+      val tensionSquares = extractTensionSquares(board)
+      val driver = computePrimaryDriver(breakReady, urgency, advanceOrCapture, features.centralSpace.pawnTensionCount)
+
+      PawnPlayAnalysis(
+        pawnBreakReady = breakReady,
+        breakFile = breakFile,
+        breakImpact = breakImpact,
+        advanceOrCapture = advanceOrCapture,
+        passedPawnUrgency = urgency,
+        passerBlockade = blockade,
+        blockadeSquare = blockadeSq,
+        blockadeRole = blockadeRole,
+        pusherSupport = support,
+        minorityAttack = minorityAttack,
+        counterBreak = counterBreak,
+        tensionPolicy = tensionPolicy,
+        tensionSquares = tensionSquares,
+        primaryDriver = driver
+      )
+    }
   // CONCEPT 1-3: BREAK ANALYSIS
 
   private def analyzeBreaks(
@@ -107,7 +107,7 @@ object PawnPlayAssessor:
   ): (Boolean, Option[String], Int) =
     detectBoardBreak(features, board, isWhite)
       .map(candidate => (true, Some(candidate.file), candidate.impact))
-      .getOrElse(detectCentralBreak(features, isWhite))
+      .getOrElse((false, None, 0))
 
   private def detectBoardBreak(
     features: PositionFeatures,
@@ -143,32 +143,6 @@ object PawnPlayAssessor:
       }
       .sortBy(candidate => -candidate.priority)
       .headOption
-
-  private def detectCentralBreak(
-    features: PositionFeatures,
-    isWhite: Boolean
-  ): (Boolean, Option[String], Int) =
-    val central = features.centralSpace
-
-    if central.lockedCenter then
-      (false, None, 0)
-    else if central.pawnTensionCount > 0 then
-      val hasCentralPawns =
-        if isWhite then central.whiteCentralPawns > 0
-        else central.blackCentralPawns > 0
-
-      if hasCentralPawns then
-        val whiteStronger = central.whiteCenterControl > central.blackCenterControl
-        val breakFile =
-          if isWhite then
-            if whiteStronger then "d" else "e"
-          else if !whiteStronger then "d" else "e"
-
-        (true, Some(breakFile), 100)
-      else
-        (false, None, 0)
-    else
-      (false, None, 0)
 
   private def estimateBreakImpact(features: PositionFeatures, file: String, isWhite: Boolean): Int =
     // Base impact from opening a file
@@ -351,7 +325,7 @@ object PawnPlayAssessor:
     else if positionAssessment.nature.isStatic then
       TensionPolicy.Maintain
     else
-      TensionPolicy.Maintain  // Default: keep tension
+      TensionPolicy.Maintain
 
   private def extractTensionSquares(board: Board): List[String] =
     val whitePawns = board.byPiece(Color.White, Pawn)
@@ -398,20 +372,3 @@ object PawnPlayAssessor:
     if pawnsOnFile == 0 then 25
     else if pawnsOnFile == 1 then 12
     else 0
-
-  def noPawnPlay: PawnPlayAnalysis = PawnPlayAnalysis(
-    pawnBreakReady = false,
-    breakFile = None,
-    breakImpact = 0,
-    advanceOrCapture = false,
-    passedPawnUrgency = PassedPawnUrgency.Background,
-    passerBlockade = false,
-    blockadeSquare = None,
-    blockadeRole = None,
-    pusherSupport = false,
-    minorityAttack = false,
-    counterBreak = false,
-    tensionPolicy = TensionPolicy.Ignore,
-    tensionSquares = Nil,
-    primaryDriver = PawnPlayDriver.Quiet
-  )

@@ -81,6 +81,24 @@ object AlignmentBand:
     case _ => JsError("Expected AlignmentBand string")
   }
 
+enum StructurePrecondition:
+  case TensionOrBreak
+  case MinorityReady
+  case PieceActivity
+  case LockedCenter
+  case OpenCenter
+  case SolidCenter
+  case CounterBreakWatch
+  case KingFlankFocus
+
+object StructurePrecondition:
+  given Writes[StructurePrecondition] = Writes(v => JsString(v.toString))
+  given Reads[StructurePrecondition] = Reads {
+    case JsString(raw) =>
+      StructurePrecondition.values.find(_.toString == raw).map(JsSuccess(_)).getOrElse(JsError(s"Unknown StructurePrecondition: $raw"))
+    case _ => JsError("Expected StructurePrecondition string")
+  }
+
 case class StructureProfile(
     primary: StructureId,
     confidence: Double,
@@ -97,7 +115,7 @@ case class StructuralPlaybookEntry(
     whitePlans: List[PlanId],
     blackPlans: List[PlanId],
     counterPlans: List[PlanId],
-    preconditions: List[String] = Nil
+    preconditions: List[StructurePrecondition] = Nil
 )
 
 case class PlanAlignment(

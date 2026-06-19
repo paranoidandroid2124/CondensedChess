@@ -20,12 +20,13 @@ object RelativeAssessmentAssembler:
     val context = assembly.context
     for
       played <- context.playedTransition
+      referenceTransition <- context.referenceTransition
       reference <- context.line(LineNodeRole.BestReference)
       candidate <- context.line(LineNodeRole.Played)
       root <- context.position(PositionNodeRole.Before).map(_.ref)
+      mover <- root.sideToMove.orElse(input.sideToMove)
     yield
       val allocator = JudgmentProvenanceAllocator.forInput(input)
-      val mover = root.sideToMove.getOrElse(input.sideToMove.getOrElse(Color.White))
       val comparison = compare(mover, reference, candidate, candidateSetComparison(mover, context.lines, reference))
       val counterfactual =
         TransitionFactNormalizer.fromCounterfactual(
@@ -50,7 +51,7 @@ object RelativeAssessmentAssembler:
       val assessment =
         RelativeMoveAssessmentBuilder.fromComparison(
           played = played,
-          referenceTransition = context.referenceTransition,
+          referenceTransition = Some(referenceTransition),
           reference = reference,
           candidate = candidate,
           comparison = comparison,
@@ -116,8 +117,15 @@ object RelativeAssessmentAssembler:
       lines: List[CandidateLineNode],
       reference: CandidateLineNode
   ): Option[CandidateSetComparison] =
-    val ordered = lines.sortBy(_.ref.rank)
-    val second = ordered.find(_.ref != reference.ref)
+    val ordered =
+      lines
+        .sortBy(_.ref.rank)
+        .groupBy(_.ref.rootMove)
+        .values
+        .map(_.minBy(_.ref.rank))
+        .toList
+        .sortBy(_.ref.rank)
+    val second = ordered.find(_.ref.rootMove != reference.ref.rootMove)
     val gap =
       second.map(line =>
         PerspectiveMath.cpLossForMover(
@@ -145,7 +153,7 @@ object RelativeAssessmentAssembler:
     )
 
   private def effectiveWhiteCp(line: CandidateLineNode): Int =
-    line.mate.map(mate => if mate > 0 then 10000 - mate else -10000 + mate).getOrElse(line.evalCp)
+    line.mate.map(mate => if mate > 0 then 10000 - mate else -10000 - mate).getOrElse(line.evalCp)
 
   private def parentsForLine(
       context: JudgmentAssemblyContext,

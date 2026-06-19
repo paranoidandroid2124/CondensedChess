@@ -20,7 +20,9 @@ object ExpectedEvidenceLossPolicy:
       EvidenceLayer.Line,
       EvidenceLayer.Eval,
       EvidenceLayer.MoveMotif,
-      EvidenceLayer.MoveTransition
+      EvidenceLayer.MoveTransition,
+      EvidenceLayer.ChessIdea,
+      EvidenceLayer.Claim
     )
 
   def classify(report: EvidenceLossReport): List[EvidenceLossClassification] =
@@ -36,8 +38,21 @@ object ExpectedEvidenceLossPolicy:
       case EvidenceLossReason.EvidenceAvailableWithoutIdea
           if diagnostic.layer.exists(supportOnlyLayers.contains) =>
         EvidenceLossExpectation.Expected
+      case EvidenceLossReason.EvidenceAvailableWithoutIdea
+          if isReferencePawnStructureSupport(diagnostic) =>
+        EvidenceLossExpectation.Expected
       case _ =>
         EvidenceLossExpectation.Unexpected
+
+  private def isReferencePawnStructureSupport(diagnostic: EvidenceLossDiagnostic): Boolean =
+    diagnostic.layer.contains(EvidenceLayer.PawnStructure) &&
+      diagnostic.evidence.exists(ref =>
+        ref.scope == EvidenceScope.AfterReferencePosition ||
+          ref.scope == EvidenceScope.ReferenceTransition ||
+          ref.scope == EvidenceScope.AlternativeTransition ||
+          ref.scope == EvidenceScope.BestLine ||
+          ref.scope == EvidenceScope.CandidateLine
+      )
 
 final case class GraphLossMetrics(
     totalRegistered: Int,
@@ -161,7 +176,9 @@ enum JudgmentGraphSlot:
   case RelationFact
   case StructuralDeltaFact
   case StrategicFact
-  case OpeningRouteFact
+  case OpeningContextFact
+  case FeatureAnchorFact
+  case ApplicabilityAssessmentFact
   case PlanPressureFact
   case PlanTransitionFact
   case RelativeAssessmentFact
@@ -194,7 +211,8 @@ enum JudgmentGraphOwner:
   case MoveTransitionNormalizer
   case RelationFactNormalizer
   case StrategicFactNormalizer
-  case OpeningRouteFactNormalizer
+  case OpeningContextFactNormalizer
+  case FeatureApplicabilityAssembler
   case TransitionFactNormalizer
   case RelativeAssessmentAssembler
   case ChessIdeaAssembler
@@ -369,9 +387,21 @@ object JudgmentLayerGapProfile:
           evidenceSlot(packet, JudgmentGraphSlot.StrategicFact, JudgmentGraphOwner.StrategicFactNormalizer, EvidenceLayer.Strategic),
           evidenceSlot(
             packet,
-            JudgmentGraphSlot.OpeningRouteFact,
-            JudgmentGraphOwner.OpeningRouteFactNormalizer,
-            EvidenceLayer.OpeningRoute
+            JudgmentGraphSlot.OpeningContextFact,
+            JudgmentGraphOwner.OpeningContextFactNormalizer,
+            EvidenceLayer.OpeningContext
+          ),
+          evidenceSlot(
+            packet,
+            JudgmentGraphSlot.FeatureAnchorFact,
+            JudgmentGraphOwner.FeatureApplicabilityAssembler,
+            EvidenceLayer.FeatureAnchor
+          ),
+          evidenceSlot(
+            packet,
+            JudgmentGraphSlot.ApplicabilityAssessmentFact,
+            JudgmentGraphOwner.FeatureApplicabilityAssembler,
+            EvidenceLayer.ApplicabilityAssessment
           ),
           evidenceSlot(
             packet,

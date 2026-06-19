@@ -1,5 +1,6 @@
 package lila.chessjudgment.analysis.singlePosition
 
+import chess.Color
 import lila.chessjudgment.analysis.evaluation.PerspectiveMath
 import lila.chessjudgment.analysis.position.PositionFeatures
 
@@ -19,13 +20,14 @@ object SinglePositionAssessor:
     features: PositionFeatures,
     multiPv: List[PvLine],
     currentEval: Int,
+    sideToMove: Color,
     tacticalMotifsCount: Int = 0  // Optional: from tactical motif inputs if available
   ): SinglePositionAssessment =
     val nature = classifyNature(features)
     val criticality = classifyCriticality(multiPv)
     val candidateSet = assessCandidateSet(multiPv)
     val gamePhase = classifyGamePhase(features)
-    val simplifyBias = classifySimplifyBias(features, currentEval)
+    val simplifyBias = classifySimplifyBias(features, currentEval, sideToMove)
     val drawBias = classifyDrawBias(features)
     val riskProfile = classifyRiskProfile(features, tacticalMotifsCount)
     val judgmentFocus = deriveJudgmentFocus(nature, criticality, simplifyBias, riskProfile)
@@ -78,18 +80,23 @@ object SinglePositionAssessor:
     val secondLine = multiPv.lift(1)
 
     val mateDistance = bestLine.flatMap(_.mate)
-    val evalDelta = secondLine.map(line => bestLine.map(_.score).getOrElse(0) - line.score).getOrElse(0)
+    val evalDelta = for
+      best <- bestLine
+      second <- secondLine
+    yield best.score - second.score
     // PV length alone is not a valid proxy for forcing sequences
     val hasMateInLine = mateDistance.isDefined
-    val hasLargeEvalJump = evalDelta.abs >= 200
-    val forcingMovesInPv = if hasMateInLine then 5 else if hasLargeEvalJump then 3 else 1
+    val hasLargeEvalJump = evalDelta.exists(_.abs >= 200)
+    val forcingMovesInPv = if hasMateInLine then 5 else if hasLargeEvalJump then 3 else 0
 
     // Decision logic
     val criticalityType =
       if mateDistance.exists(_.abs <= 5) then
         CriticalityType.ForcedSequence
-      else if evalDelta.abs >= 150 then
+      else if evalDelta.exists(_.abs >= 150) then
         CriticalityType.CriticalMoment
+      else if evalDelta.isEmpty then
+        CriticalityType.InsufficientData
       else
         CriticalityType.Normal
 
@@ -103,11 +110,11 @@ object SinglePositionAssessor:
     if multiPv.size < 2 then
       return CandidateSetTopology(
         candidateSetType = CandidateSetType.NarrowChoice, // Unknown, not OnlyMove
-        bestLineEvalCp = multiPv.headOption.map(_.score).getOrElse(0),
-        secondLineEvalCp = 0,
+        bestLineEvalCp = multiPv.headOption.map(_.score),
+        secondLineEvalCp = None,
         thirdLineEvalCp = None,
-        gapBestToSecondWp = 0.0,
-        spreadTop3Wp = 0.0,
+        gapBestToSecondWp = None,
+        spreadTop3Wp = None,
         secondCandidateFailure = Some(CandidateFailureMode.InsufficientData)
       )
 
@@ -142,11 +149,11 @@ object SinglePositionAssessor:
 
     CandidateSetTopology(
       candidateSetType = candidateSetType,
-      bestLineEvalCp = bestLineEvalCp,
-      secondLineEvalCp = secondLineEvalCp,
+      bestLineEvalCp = Some(bestLineEvalCp),
+      secondLineEvalCp = Some(secondLineEvalCp),
       thirdLineEvalCp = thirdLineEvalCp,
-      gapBestToSecondWp = gapBestToSecondWp,
-      spreadTop3Wp = spreadTop3Wp,
+      gapBestToSecondWp = Some(gapBestToSecondWp),
+      spreadTop3Wp = Some(spreadTop3Wp),
       secondCandidateFailure = secondCandidateFailure
     )
 
@@ -180,14 +187,12 @@ object SinglePositionAssessor:
     )
   // 5. SIMPLIFY BIAS CLASSIFICATION
 
-  private def classifySimplifyBias(features: PositionFeatures, currentEval: Int): SimplifyBiasResult =
+  private def classifySimplifyBias(features: PositionFeatures, currentEval: Int, sideToMove: Color): SimplifyBiasResult =
     val isEndgameNear = features.materialPhase.phase == "endgame" ||
                         features.materialPhase.whiteMaterial + features.materialPhase.blackMaterial <= 50
     // Positive eval = White advantage, sideToMove determines who benefits
     // For simplification window, the WINNING side should want to simplify
-    val sideToMove = features.sideToMove // "white" or "black" (lowercase from Color.name)
-    val isWhiteToMove = sideToMove.equalsIgnoreCase("white")
-    val evalFromSideToMove = if isWhiteToMove then currentEval else -currentEval
+    val evalFromSideToMove = if sideToMove.white then currentEval else -currentEval
     val isWinning = evalFromSideToMove >= 200
     val evalAdvantage = evalFromSideToMove.max(0) // Only positive advantage counts
     

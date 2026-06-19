@@ -34,7 +34,7 @@ case class VariationLine(
 ):
   /** Material + Positional evaluation unified into CP */
   def effectiveScore: Int = 
-    mate.map(m => if m > 0 then 10000 - m else -10000 + m).getOrElse(scoreCp)
+    mate.map(m => if m > 0 then 10000 - m else -10000 - m).getOrElse(scoreCp)
   
   /** Get our move (index 0) */
   def ourMove: Option[PvMove] = parsedMoves.headOption

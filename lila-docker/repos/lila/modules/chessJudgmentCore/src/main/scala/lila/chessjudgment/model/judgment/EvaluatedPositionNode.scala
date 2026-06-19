@@ -13,7 +13,7 @@ case class EvaluatedPositionNode(
   variations: List[VariationLine] = Nil
 ) {
   def effectiveCp: Int =
-    mate.map(m => if m > 0 then 10000 - m else -10000 + m).getOrElse(cp)
+    mate.map(m => if m > 0 then 10000 - m else -10000 - m).getOrElse(cp)
 
   def variationLines: List[VariationLine] =
     if (variations.nonEmpty) variations

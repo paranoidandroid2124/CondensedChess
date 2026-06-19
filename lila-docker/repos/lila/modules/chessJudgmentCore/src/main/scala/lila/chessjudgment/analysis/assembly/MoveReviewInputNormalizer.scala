@@ -1,16 +1,32 @@
 package lila.chessjudgment.analysis.assembly
 
 import chess.Color
+import lila.chessjudgment.analysis.opening.{ OpeningRecognitionIndex, OpeningThemePriorIndex }
 import lila.chessjudgment.analysis.line.PrincipalVariationEvidence
 import lila.chessjudgment.model.strategic.VariationLine
-import lila.chessjudgment.model.judgment.LineNodeRole
+import lila.chessjudgment.model.judgment.{
+  LineNodeRole,
+  OpeningContextSignal,
+  OpeningFamily,
+  OpeningIdentity,
+  OpeningRecognition,
+  OpeningThemePrior
+}
+
+final case class RawOpeningContext(
+    eco: Option[String] = None,
+    name: Option[String] = None,
+    family: Option[String] = None
+)
 
 final case class RawMoveReviewInput(
     fen: String,
     playedMoveUci: String,
     variations: List[VariationLine],
     currentEvalCp: Option[Int] = None,
-    ply: Option[Int] = None
+    ply: Option[Int] = None,
+    openingContext: Option[RawOpeningContext] = None,
+    movePrefixUci: List[String] = Nil
 )
 
 final case class NormalizedCandidateLine(
@@ -29,7 +45,12 @@ final case class NormalizedMoveReviewInput(
     afterPlayedFen: String,
     afterReferenceFen: Option[String],
     lines: List[NormalizedCandidateLine],
-    currentEvalCp: Int
+    currentEvalCp: Int,
+    opening: Option[OpeningIdentity],
+    movePrefixUci: List[String] = Nil,
+    openingRecognition: Option[OpeningRecognition] = None,
+    openingThemePrior: Option[OpeningThemePrior] = None,
+    openingSignals: List[OpeningContextSignal] = Nil
 ):
   def playedLine: Option[NormalizedCandidateLine] =
     lines.find(_.role == LineNodeRole.Played)
@@ -39,14 +60,31 @@ final case class NormalizedMoveReviewInput(
 
 object MoveReviewInputNormalizer:
 
-  def normalize(raw: RawMoveReviewInput): Option[NormalizedMoveReviewInput] =
+  def normalize(
+      raw: RawMoveReviewInput,
+      recognitionIndex: OpeningRecognitionIndex = OpeningRecognitionIndex.default,
+      themePriorIndex: OpeningThemePriorIndex = OpeningThemePriorIndex.default
+  ): Option[NormalizedMoveReviewInput] =
     val beforeFen = normalizeFen(raw.fen)
     val playedMove = normalizeUci(raw.playedMoveUci)
+    val movePrefix = raw.movePrefixUci.map(normalizeUci).filter(_.nonEmpty)
     for
       afterPlayed <- PrincipalVariationEvidence.legalFenAfter(beforeFen, playedMove)
+      currentEval <- raw.currentEvalCp
+        .orElse(raw.variations.headOption.map(_.scoreCp))
     yield
       val beforePly = raw.ply.getOrElse(plyFromFen(beforeFen))
       val side = sideToMove(beforeFen)
+      val inputOpening = normalizeOpening(raw.openingContext)
+      val recognition = recognitionIndex.recognize(movePrefix, beforeFen, beforePly)
+      val opening = inputOpening.orElse(recognition.flatMap(_.bestIdentity))
+      val themePrior = themePriorIndex.priorFor(recognition.flatMap(_.lineage), opening.flatMap(_.family))
+      val openingSignals =
+        List(
+          Option.when(inputOpening.nonEmpty)(OpeningContextSignal.InputIdentity),
+          Option.when(recognition.nonEmpty)(OpeningContextSignal.RecognizedIdentity),
+          Option.when(themePrior.nonEmpty)(OpeningContextSignal.ThemePrior)
+        ).flatten
       val ranked = raw.variations.zipWithIndex.filter(_._1.moves.nonEmpty)
       val reference = ranked.headOption.map { case (line, index) =>
         NormalizedCandidateLine(LineNodeRole.BestReference, index + 1, normalizedLine(line))
@@ -64,11 +102,6 @@ object MoveReviewInputNormalizer:
       val lines = (reference.toList ++ played.toList ++ alternatives).distinctBy(line => line.role -> line.rank)
       val afterReference =
         reference.flatMap(_.rootMove).flatMap(PrincipalVariationEvidence.legalFenAfter(beforeFen, _))
-      val currentEval =
-        raw.currentEvalCp
-          .orElse(reference.map(_.line.scoreCp))
-          .orElse(raw.variations.headOption.map(_.scoreCp))
-          .getOrElse(0)
       NormalizedMoveReviewInput(
         beforeFen = beforeFen,
         playedMoveUci = playedMove,
@@ -77,7 +110,12 @@ object MoveReviewInputNormalizer:
         afterPlayedFen = afterPlayed,
         afterReferenceFen = afterReference,
         lines = lines,
-        currentEvalCp = currentEval
+        currentEvalCp = currentEval,
+        opening = opening,
+        movePrefixUci = movePrefix,
+        openingRecognition = recognition,
+        openingThemePrior = themePrior,
+        openingSignals = openingSignals
       )
 
   def normalizeUci(uci: String): String =
@@ -88,6 +126,25 @@ object MoveReviewInputNormalizer:
 
   private def normalizeFen(fen: String): String =
     Option(fen).getOrElse("").trim.split("\\s+").filter(_.nonEmpty).mkString(" ")
+
+  private def normalizeOpening(raw: Option[RawOpeningContext]): Option[OpeningIdentity] =
+    raw.flatMap { context =>
+      val eco = cleanText(context.eco).map(_.toUpperCase)
+      val name = cleanText(context.name)
+      val family =
+        cleanText(context.family).flatMap(OpeningFamily.fromRaw)
+          .orElse(eco.flatMap(OpeningFamily.fromEco))
+      Option.when(eco.nonEmpty || name.nonEmpty || family.nonEmpty)(
+        OpeningIdentity(
+          eco = eco,
+          name = name,
+          family = family
+        )
+      )
+    }
+
+  private def cleanText(raw: Option[String]): Option[String] =
+    raw.map(_.trim).filter(_.nonEmpty)
 
   private def sideToMove(fen: String): Option[Color] =
     fen.split("\\s+").lift(1).flatMap:

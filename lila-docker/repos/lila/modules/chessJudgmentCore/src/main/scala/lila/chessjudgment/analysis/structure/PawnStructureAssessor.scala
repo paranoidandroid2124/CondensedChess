@@ -28,7 +28,6 @@ object PawnStructureAssessor:
   def assess(
       features: PositionFeatures,
       board: Board,
-      sideToMove: Color,
       minConfidence: Double = 0.72,
       minMargin: Double = 0.10
   ): StructureProfile =
@@ -47,7 +46,7 @@ object PawnStructureAssessor:
       )
 
     val topRaw = ranked.head
-    val top = resolveSymmetricOwner(topRaw, ranked.drop(1), features, sideToMove)
+    val top = resolveSymmetricOwner(topRaw, ranked.drop(1), features)
     val others = ranked.filterNot(_.id == top.id)
     val second = others.headOption
 
@@ -502,12 +501,11 @@ object PawnStructureAssessor:
   private def resolveSymmetricOwner(
       topRaw: Candidate,
       rest: List[Candidate],
-      features: PositionFeatures,
-      sideToMove: Color
+      features: PositionFeatures
   ): Candidate =
     rest.headOption match
       case Some(second) if isSymmetricPair(topRaw.id, second.id) && math.abs(topRaw.score - second.score) < 0.25 =>
-        ownerPreferred(topRaw.id, second.id, features, sideToMove).flatMap { preferred =>
+        ownerPreferred(topRaw.id, second.id, features).flatMap { preferred =>
           (topRaw :: second :: Nil).find(_.id == preferred)
         }.getOrElse(topRaw)
       case _ =>
@@ -520,17 +518,15 @@ object PawnStructureAssessor:
   private def ownerPreferred(
       a: StructureId,
       b: StructureId,
-      features: PositionFeatures,
-      sideToMove: Color
+      features: PositionFeatures
   ): Option[StructureId] =
     Set(a, b) match
       case pair if pair == Set(StructureId.IQPWhite, StructureId.IQPBlack) =>
         if features.pawns.whiteIQP && !features.pawns.blackIQP then Some(StructureId.IQPWhite)
         else if features.pawns.blackIQP && !features.pawns.whiteIQP then Some(StructureId.IQPBlack)
-        else if sideToMove == Color.White then Some(StructureId.IQPBlack) else Some(StructureId.IQPWhite)
+        else None
       case pair if pair == Set(StructureId.HangingPawnsWhite, StructureId.HangingPawnsBlack) =>
-        if sideToMove == Color.White then Some(StructureId.HangingPawnsBlack)
-        else Some(StructureId.HangingPawnsWhite)
+        None
       case _ =>
         None
 

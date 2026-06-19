@@ -4,36 +4,6 @@ import lila.chessjudgment.model.judgment.*
 
 object LineFactNormalizer:
 
-  def fromCandidateLine(
-      id: String,
-      line: CandidateLineNode,
-      position: PositionNodeRef,
-      scope: EvidenceScope,
-      forcedTheme: Option[ForcedLineThemeEvidence] = None,
-      parents: List[EvidenceRef] = Nil
-  ): EvidenceRecord =
-    val ref =
-      EvidenceRef(
-        id = id,
-        producer = EvidenceProducer.LegalLineProducer,
-        layer = EvidenceLayer.Line,
-        position = position,
-        line = Some(line.ref),
-        scope = scope,
-        confidence = EvidenceConfidence.EngineBacked
-      )
-    EvidenceRecord(
-      ref = ref,
-      payload = LineFactEvidence(
-        line = line.ref,
-        firstMove = line.line.moves.headOption,
-        replyMove = line.line.moves.lift(1),
-        continuationMoves = line.line.moves.drop(2),
-        forcedTheme = forcedTheme
-      ),
-      parents = parents
-    )
-
   def fromValidatedLine(
       id: String,
       lineRef: LineNodeRef,

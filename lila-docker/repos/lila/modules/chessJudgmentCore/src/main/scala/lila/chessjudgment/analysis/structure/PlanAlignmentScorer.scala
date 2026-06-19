@@ -3,7 +3,15 @@ package lila.chessjudgment.analysis.structure
 import chess.Color
 import lila.chessjudgment.analysis.singlePosition.PawnPlayAnalysis
 import lila.chessjudgment.model.{ Motif, PlanMatch }
-import lila.chessjudgment.model.structure.{ AlignmentBand, CenterState, PlanAlignment, StructureId, StructureProfile, StructuralPlaybookEntry }
+import lila.chessjudgment.model.structure.{
+  AlignmentBand,
+  CenterState,
+  PlanAlignment,
+  StructureId,
+  StructurePrecondition,
+  StructureProfile,
+  StructuralPlaybookEntry
+}
 
 object PlanAlignmentScorer:
 
@@ -89,30 +97,31 @@ object PlanAlignmentScorer:
     )
 
   private def isPreconditionSatisfied(
-      precondition: String,
+      precondition: StructurePrecondition,
       structureProfile: StructureProfile,
       pawnAnalysis: Option[PawnPlayAnalysis],
       motifs: List[Motif]
   ): Boolean =
+    import StructurePrecondition.*
     precondition match
-      case "tension_or_break" =>
+      case TensionOrBreak =>
         pawnAnalysis.exists(p => p.pawnBreakReady || p.advanceOrCapture || p.counterBreak)
-      case "minority_ready" =>
+      case MinorityReady =>
         pawnAnalysis.exists(_.minorityAttack)
-      case "piece_activity" =>
+      case PieceActivity =>
         motifs.exists {
           case _: Motif.Outpost | _: Motif.Centralization | _: Motif.Maneuver => true
           case _ => false
         }
-      case "locked_center" =>
+      case LockedCenter =>
         structureProfile.centerState == CenterState.Locked
-      case "open_center" =>
+      case OpenCenter =>
         structureProfile.centerState == CenterState.Open
-      case "solid_center" =>
+      case SolidCenter =>
         structureProfile.centerState == CenterState.Locked || structureProfile.centerState == CenterState.Symmetric
-      case "counter_break_watch" =>
+      case CounterBreakWatch =>
         pawnAnalysis.exists(_.counterBreak)
-      case "king_flank_focus" =>
+      case KingFlankFocus =>
         val flankPawnPush = pawnAnalysis.exists(_.breakFile.exists(f => f == "f" || f == "g" || f == "h")) ||
           motifs.exists {
             case m: Motif.PawnAdvance => Set('f', 'g', 'h').contains(m.file.char)
@@ -120,9 +129,15 @@ object PlanAlignmentScorer:
           }
         val flankPieceActivity = motifs.exists {
           case m: Motif.Outpost => Set('f', 'g', 'h').contains(m.square.file.char)
-          case m: Motif.Maneuver => m.move.exists(moveStr => moveStr.contains("f") || moveStr.contains("g") || moveStr.contains("h") || moveStr.contains("O-O"))
+          case m: Motif.Maneuver => maneuverTouchesKingFlank(m.move)
           case _ => false
         }
         flankPawnPush && flankPieceActivity
-      case _ =>
-        true
+
+  private def maneuverTouchesKingFlank(move: Option[String]): Boolean =
+    move.exists { raw =>
+      val normalized = Option(raw).getOrElse("").trim.toLowerCase
+      val originFile = normalized.lift(0)
+      val targetFile = normalized.lift(2)
+      (originFile.toList ++ targetFile.toList).exists(file => file == 'f' || file == 'g' || file == 'h')
+    }

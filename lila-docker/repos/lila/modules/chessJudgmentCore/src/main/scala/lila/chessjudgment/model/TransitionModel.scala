@@ -35,21 +35,6 @@ case class PlanSequenceSummary(
   secondaryPlanId: Option[String] = None
 )
 
-object PlanSequence {
-  val empty: PlanSequence = PlanSequence(
-    currentPlans = ActivePlans(
-      primary = PlanMatch(Plan.CentralControl(chess.Color.White), 0.0, Nil),
-      secondary = None,
-      suppressed = Nil,
-      allPlans = Nil
-    ),
-    previousPlan = None,
-    transitionType = TransitionType.Opening,
-    momentum = 0.0,
-    planHistory = Nil
-  )
-}
-
 enum TransitionType:
   case Continuation   // Same plan persists
   case NaturalShift   // Phase change → new plan
