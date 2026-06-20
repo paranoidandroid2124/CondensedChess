@@ -426,7 +426,7 @@ object ChessIdeaAssembler:
         .flatMap(parent => context.evidenceGraph.byId.get(parent.id))
         .exists {
           case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-            payload.consequenceProfile.hasConversionConsequence
+            payload.hasConversionConsequence
           case _ =>
             false
         }
@@ -629,11 +629,11 @@ object ChessIdeaAssembler:
     hasTacticalAnchor && hasLineConsequence && hasEngineOrForcingProof
 
   private def lineHasConcreteConsequence(line: LineFactEvidence): Boolean =
-    line.consequenceProfile.hasConcreteProofSignal
+    line.hasConcreteLineConsequence
 
   private def lineConsequenceDrivers(line: LineFactEvidence): List[TacticalIdeaDriver] =
     val typedDrivers =
-      line.consequenceProfile.tacticalDriverKinds.flatMap {
+      line.tacticalLineConsequenceKinds.flatMap {
           case LineConsequenceKind.MaterialGain | LineConsequenceKind.MaterialLoss =>
             List(TacticalIdeaDriver.MaterialGain)
           case LineConsequenceKind.RecaptureSequence | LineConsequenceKind.RecoveryWindow =>

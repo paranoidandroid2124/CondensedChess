@@ -719,7 +719,7 @@ object CandidateComparisonDiagnostic:
 
   private def materialSupportKinds(parentRecords: List[EvidenceRecord]): List[String] =
     parentRecords.collect { case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-      payload.consequenceProfile.proofSignalKinds.map(kind => s"LineConsequence:$kind")
+      payload.proofSignalConsequenceKinds.map(kind => s"LineConsequence:$kind")
     }.flatten
 
   private def strategicSupportKinds(parentRecords: List[EvidenceRecord]): List[String] =
@@ -814,7 +814,7 @@ object CandidateComparisonDiagnostic:
 
   private def tacticalLineSupportKinds(parentRecords: List[EvidenceRecord]): List[String] =
     parentRecords.collect { case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-      payload.consequenceProfile.proofSignalKinds.map(kind => s"LineConsequence:$kind")
+      payload.proofSignalConsequenceKinds.map(kind => s"LineConsequence:$kind")
     }.flatten
 
   private def tacticalEvalSupportKinds(parentRecords: List[EvidenceRecord]): List[String] =
@@ -1630,7 +1630,7 @@ object CandidateComparisonDiagnostic:
   private def hasConcreteLineConsequence(records: List[EvidenceRecord]): Boolean =
     records.exists {
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.consequenceProfile.hasConcreteProofSignal
+        payload.hasConcreteLineConsequence
       case EvidenceRecord(_, EvalFactEvidence(_, _, mate, _), _) =>
         mate.nonEmpty
       case EvidenceRecord(_, RelationFactEvidence(_, _, _, lineMoves, _), _) =>
@@ -2984,8 +2984,7 @@ object JudgmentLayerGapProfile:
     packet.evidenceGraph.records.exists {
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
         payload.hasForcedTheme ||
-          payload.materialOutcomeProfile.gainSignals.nonEmpty ||
-          payload.materialOutcomeProfile.lossSignals.nonEmpty
+          payload.hasMaterialOutcomeSignals
       case _ =>
         false
     }
@@ -3000,9 +2999,8 @@ object JudgmentLayerGapProfile:
     packet.evidenceGraph.records.exists {
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
         payload.hasForcedTheme ||
-          payload.consequenceProfile.hasConcreteProofSignal ||
-          payload.materialOutcomeProfile.gainSignals.nonEmpty ||
-          payload.materialOutcomeProfile.lossSignals.nonEmpty
+          payload.hasConcreteLineConsequence ||
+          payload.hasMaterialOutcomeSignals
       case _ =>
         false
     }

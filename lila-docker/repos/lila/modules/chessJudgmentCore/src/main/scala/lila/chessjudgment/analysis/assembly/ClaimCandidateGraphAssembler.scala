@@ -678,7 +678,7 @@ object ClaimArbitrator:
       case MoveVerdictCertificationEvidence(certification) =>
         ClaimSalienceDriver.EngineSwing ::
           Option.when(certification.causes.exists(cause => defensiveNecessityCause(cause.kind)))(ClaimSalienceDriver.CandidateConstraint).toList
-      case payload: LineFactEvidence if payload.consequenceProfile.hasConcreteProofSignal =>
+      case payload: LineFactEvidence if payload.hasConcreteLineConsequence =>
         List(ClaimSalienceDriver.ForcingLine)
       case MoveMotifEvidence(moveUci, motifs) if rootCastlingMotif(moveUci, motifs) =>
         List(ClaimSalienceDriver.StrategicFeature, ClaimSalienceDriver.BoardAnchor)

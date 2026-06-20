@@ -827,6 +827,20 @@ final case class LineFactEvidence(
       hasMate = kinds.contains(LineConsequenceKind.Mate),
       hasDrawResource = kinds.contains(LineConsequenceKind.DrawResource)
     )
+  def hasConcreteLineConsequence: Boolean =
+    consequenceProfile.hasConcreteProofSignal
+  def hasConversionConsequence: Boolean =
+    consequenceProfile.hasConversionConsequence
+  def hasMaterialConsequence: Boolean =
+    consequenceProfile.hasMaterialResult
+  def hasRecaptureRecoveryConsequence: Boolean =
+    consequenceProfile.hasRecaptureRecovery
+  def hasSacrificeConsequence: Boolean =
+    consequenceProfile.hasSacrifice
+  def tacticalLineConsequenceKinds: List[LineConsequenceKind] =
+    consequenceProfile.tacticalDriverKinds
+  def hasTacticalLineConsequence: Boolean =
+    tacticalLineConsequenceKinds.nonEmpty
 
   private def normalizeUci(raw: String): String =
     Option(raw).getOrElse("").trim.toLowerCase
@@ -872,6 +886,9 @@ final case class LineFactEvidence(
       gainSignals = consequenceGainSignals ++ materialGainSignals,
       lossSignals = consequenceLossSignals ++ materialLossSignals
     )
+  def hasMaterialOutcomeSignals: Boolean =
+    val profile = materialOutcomeProfile
+    profile.gainSignals.nonEmpty || profile.lossSignals.nonEmpty
 
 object LineFactEvidence:
   def apply(

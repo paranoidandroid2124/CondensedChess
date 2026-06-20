@@ -1080,7 +1080,7 @@ object RelativeAssessmentAssembler:
   private def recaptureRecoveryResourceRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
     records.filter {
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.consequenceProfile.hasRecaptureRecovery
+        payload.hasRecaptureRecoveryConsequence
       case _ =>
         false
     }
@@ -1116,7 +1116,7 @@ object RelativeAssessmentAssembler:
   private def sacrificeMaterialRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
     records.filter {
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.consequenceProfile.hasSacrifice
+        payload.hasSacrificeConsequence
       case _ =>
         false
     }
@@ -1154,8 +1154,7 @@ object RelativeAssessmentAssembler:
   private def proofSignalMaterialSummaryRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
     records.filter {
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        val profile = payload.consequenceProfile
-        profile.hasMaterialResult || profile.hasRecaptureRecovery
+        payload.hasMaterialConsequence || payload.hasRecaptureRecoveryConsequence
       case _ =>
         false
     }
@@ -1258,7 +1257,7 @@ object RelativeAssessmentAssembler:
   private def hasConcreteLineConsequence(records: List[EvidenceRecord]): Boolean =
     records.exists {
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.consequenceProfile.hasConcreteProofSignal
+        payload.hasConcreteLineConsequence
       case EvidenceRecord(_, EvalFactEvidence(_, _, mate, _), _) =>
         mate.nonEmpty
       case EvidenceRecord(_, RelationFactEvidence(_, _, _, lineMoves, _), _) =>

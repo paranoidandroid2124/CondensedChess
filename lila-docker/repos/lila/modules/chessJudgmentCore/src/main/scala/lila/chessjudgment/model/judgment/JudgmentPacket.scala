@@ -407,7 +407,7 @@ object ClaimSupportCluster:
             EvidenceSemanticAnchor.of(LineEvent, LineEventKind.Castling.toString)
           )
           .toList ++
-          payload.consequenceProfile.proofSignalKinds.map(kind =>
+          payload.proofSignalConsequenceKinds.map(kind =>
             EvidenceSemanticAnchor.of(LineConsequence, kind.toString)
           )
       case payload: BoardFactEvidence =>

@@ -472,7 +472,7 @@ object ClaimTruthPolicy:
     val hasMaterialLine =
       records.exists {
         case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-          payload.consequenceProfile.hasMaterialResult
+          payload.hasMaterialConsequence
         case _ =>
           false
       }
@@ -553,7 +553,7 @@ object ClaimTruthPolicy:
     }
 
   private def lineHasTacticalProof(payload: LineFactEvidence): Boolean =
-    payload.consequenceProfile.tacticalDriverKinds.nonEmpty
+    payload.hasTacticalLineConsequence
 
   private def defensiveRelativeCause(kind: RelativeCauseKind): Boolean =
     ClaimEventCluster.kindForCause(kind).contains(ClaimEventClusterKind.DefensiveEvent)
