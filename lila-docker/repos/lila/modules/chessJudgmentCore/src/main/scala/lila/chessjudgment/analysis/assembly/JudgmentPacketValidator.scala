@@ -532,14 +532,14 @@ object JudgmentPacketValidator:
   private def parentHasLineEvent(record: EvidenceRecord, kind: LineEventKind): Boolean =
     record match
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.lineEventKinds.contains(kind)
+        payload.hasLineEvent(kind)
       case _ =>
         false
 
   private def parentHasLineConsequence(record: EvidenceRecord, kind: LineConsequenceKind): Boolean =
     record match
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.proofSignalConsequenceKinds.contains(kind)
+        payload.hasProofSignalConsequence(kind)
       case _ =>
         false
 

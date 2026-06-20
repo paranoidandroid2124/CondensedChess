@@ -403,7 +403,7 @@ object ClaimSupportCluster:
         transition.primaryPlanId.map(plan => EvidenceSemanticAnchor.of(PlanTransition, plan)).toList
       case payload: LineFactEvidence =>
         Option
-          .when(payload.lineEventKinds.contains(LineEventKind.Castling))(
+          .when(payload.hasLineEvent(LineEventKind.Castling))(
             EvidenceSemanticAnchor.of(LineEvent, LineEventKind.Castling.toString)
           )
           .toList ++

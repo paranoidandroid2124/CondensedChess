@@ -761,7 +761,7 @@ object CandidateComparisonDiagnostic:
   private def hasCastlingLine(parentRecords: List[EvidenceRecord]): Boolean =
     parentRecords.exists {
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.lineEventKinds.contains(LineEventKind.Castling)
+        payload.hasLineEvent(LineEventKind.Castling)
       case _ =>
         false
     }

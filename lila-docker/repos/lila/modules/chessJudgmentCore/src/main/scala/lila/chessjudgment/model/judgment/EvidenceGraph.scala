@@ -797,6 +797,8 @@ final case class LineFactEvidence(
     proofSignalConsequences.nonEmpty
   def proofSignalConsequenceKinds: List[LineConsequenceKind] =
     proofSignalConsequences.map(_.kind)
+  def hasProofSignalConsequence(kind: LineConsequenceKind): Boolean =
+    proofSignalConsequenceKinds.contains(kind)
   def consequenceProfile: LineConsequenceProfile =
     val kinds = proofSignalConsequenceKinds
     LineConsequenceProfile(
