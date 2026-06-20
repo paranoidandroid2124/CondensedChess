@@ -770,12 +770,14 @@ final case class LineFactEvidence(
     replyMove
   def continuation: List[String] =
     continuationMoves
-  def mainlineMoves: List[String] =
-    firstMove.toList ++ replyMove.toList ++ continuationMoves
   def forcedThemeId: Option[String] =
     forcedTheme.map(_.id)
   def lineReplaySteps: List[LineReplayStep] =
     replay
+  def lineReplayMoves: List[String] =
+    replay.map(_.moveUci)
+  def lineReplayContinuationMoves: List[String] =
+    lineReplayMoves.drop(1)
   def lineEvents: List[LineMoveEvent] =
     events
   def lineConsequences: List[LineConsequence] =

@@ -97,7 +97,7 @@ object EvidenceFactAssembler:
               startFen = startPosition.ref.fen,
               position = startPosition.ref,
               moveUci = line.ref.rootMove,
-              moves = lineFacts.mainlineMoves,
+              moves = lineFacts.lineReplayMoves,
               line = Some(line),
               scope = line.role.scope,
               parents = lineParents(context, line)
@@ -141,7 +141,7 @@ object EvidenceFactAssembler:
       val continuationLines =
         context.lines
           .filterNot(_.role == LineNodeRole.Threat)
-          .flatMap(line => lineFactEvidence(context, line.ref).map(_.mainlineMoves))
+          .flatMap(line => lineFactEvidence(context, line.ref).map(_.lineReplayMoves))
       val relationTargetHints = relationTargetHintsFromBoardFacts(context)
       val lineBackedRecords = context.lines.filterNot(_.role == LineNodeRole.Threat).flatMap { line =>
         lineFactEvidence(context, line.ref)
@@ -317,7 +317,7 @@ object EvidenceFactAssembler:
           node <- context.positions.find(_.ref == edge.to).toList
           assessment <- node.assessment.toList
           sideUnderPressure <- node.ref.sideToMove.toList
-          suffixMoves = lineFacts.mainlineMoves.drop(1)
+          suffixMoves = lineFacts.lineReplayContinuationMoves
           if suffixMoves.nonEmpty
           continuationPv = PvLine(
             moves = suffixMoves,
@@ -465,7 +465,7 @@ object EvidenceFactAssembler:
 
   private def lineFactEvidence(context: JudgmentAssemblyContext, line: LineNodeRef): Option[LineFactEvidence] =
     context.evidenceGraph.records.collectFirst {
-      case EvidenceRecord(ref, payload: LineFactEvidence, _) if ref.line.contains(line) =>
+      case record @ EvidenceRecord(_, payload: LineFactEvidence, _) if record.carriesLinePayload(line, EvidenceLayer.Line) =>
         payload
     }
 
