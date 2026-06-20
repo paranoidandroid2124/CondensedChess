@@ -2,7 +2,7 @@ package lila.chessjudgment.analysis.assembly
 
 import chess.{ Color, File }
 import lila.chessjudgment.analysis.evaluation.{ JudgmentThresholds, PerspectiveMath, VerdictThresholdPolicy }
-import lila.chessjudgment.analysis.policy.{ BoardAnchorEvidencePolicy, ClaimTruthPolicy }
+import lila.chessjudgment.analysis.policy.ClaimTruthPolicy
 import lila.chessjudgment.analysis.singlePosition.PawnPlayDriver
 import lila.chessjudgment.analysis.tactical.TacticalMotifClassifier
 import lila.chessjudgment.analysis.transition.TransitionFactNormalizer
@@ -373,7 +373,7 @@ object RelativeAssessmentAssembler:
   private def relativeCauseProof(records: List[EvidenceRecord]): RelativeCauseProof =
     RelativeCauseProof(
       boardAnchors = records.flatMap {
-        case EvidenceRecord(_, payload: BoardFactEvidence, _) => BoardAnchorEvidencePolicy.relativeCauseAnchorKinds(payload)
+        case EvidenceRecord(_, payload: BoardFactEvidence, _) => payload.proofSignalAnchorKinds
         case _                                                => Nil
       }.distinct,
       lineEvents = records.flatMap {
