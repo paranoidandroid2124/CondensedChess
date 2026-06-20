@@ -1113,8 +1113,8 @@ object CandidateComparisonDiagnostic:
       candidateForcing = hasForcingMotif(candidateRecords),
       referenceCauseEligibleTactical = hasCauseEligibleTacticalMotif(referenceRecords),
       candidateCauseEligibleTactical = hasCauseEligibleTacticalMotif(candidateRecords),
-      referenceConcreteLine = hasConcreteLineConsequence(referenceRecords),
-      candidateConcreteLine = hasConcreteLineConsequence(candidateRecords),
+      referenceConcreteLine = EvidenceRecord.hasConcreteLineSignal(referenceRecords),
+      candidateConcreteLine = EvidenceRecord.hasConcreteLineSignal(candidateRecords),
       candidateTacticalRefutationBridge =
         candidateConcreteTacticalBridge(referenceRecords, relationKinds(referenceRecords)) ||
           candidateConcreteTacticalBridge(candidateRecords, candidateRelations),
@@ -1158,18 +1158,18 @@ object CandidateComparisonDiagnostic:
       candidateStrongStrategicConcessionEvidence = hasStrongStrategicConcessionEvidence(candidateRecords),
       candidateKingHomeStepConcession = hasKingHomeStepConcession(candidateRecords),
       materialSwingEvidence = materialSwing,
-      referenceMaterialNetCp = materialBestNet(referenceRecords),
-      candidateMaterialNetCp = materialBestNet(candidateRecords),
-      referenceMaterialMaxGainCp = materialBestGain(referenceRecords),
-      candidateMaterialMaxGainCp = materialBestGain(candidateRecords),
-      referenceMaterialPromotionGainCp = materialBestPromotionGain(referenceRecords),
-      candidateMaterialPromotionGainCp = materialBestPromotionGain(candidateRecords),
-      referenceMaterialRecapture = lineFacts(referenceRecords).exists(_.hasMaterialRecaptureChain),
-      candidateMaterialRecapture = lineFacts(candidateRecords).exists(_.hasMaterialRecaptureChain),
-      referenceMaterialRecovery = lineFacts(referenceRecords).exists(_.hasMaterialRecoveryWindow),
-      candidateMaterialRecovery = lineFacts(candidateRecords).exists(_.hasMaterialRecoveryWindow),
-      referenceMaterialComplete = lineFacts(referenceRecords).forall(_.hasCompleteMaterialWindow),
-      candidateMaterialComplete = lineFacts(candidateRecords).forall(_.hasCompleteMaterialWindow),
+      referenceMaterialNetCp = LineFactEvidence.maxMaterialNetCaptureCpForMover(referenceRecords),
+      candidateMaterialNetCp = LineFactEvidence.maxMaterialNetCaptureCpForMover(candidateRecords),
+      referenceMaterialMaxGainCp = LineFactEvidence.maxMaterialGainCpForMover(referenceRecords),
+      candidateMaterialMaxGainCp = LineFactEvidence.maxMaterialGainCpForMover(candidateRecords),
+      referenceMaterialPromotionGainCp = LineFactEvidence.maxMaterialPromotionGainCpForMover(referenceRecords),
+      candidateMaterialPromotionGainCp = LineFactEvidence.maxMaterialPromotionGainCpForMover(candidateRecords),
+      referenceMaterialRecapture = LineFactEvidence.hasMaterialRecaptureChain(referenceRecords),
+      candidateMaterialRecapture = LineFactEvidence.hasMaterialRecaptureChain(candidateRecords),
+      referenceMaterialRecovery = LineFactEvidence.hasMaterialRecoveryWindow(referenceRecords),
+      candidateMaterialRecovery = LineFactEvidence.hasMaterialRecoveryWindow(candidateRecords),
+      referenceMaterialComplete = LineFactEvidence.allHaveCompleteMaterialWindow(referenceRecords),
+      candidateMaterialComplete = LineFactEvidence.allHaveCompleteMaterialWindow(candidateRecords),
       referenceRelationKinds = relationKinds(referenceRecords),
       candidateRelationKinds = candidateRelations,
       relationKinds = relationKinds(involvedRecords),
@@ -1590,24 +1590,12 @@ object CandidateComparisonDiagnostic:
       case _ => false
     }
 
-  private def hasConcreteLineConsequence(records: List[EvidenceRecord]): Boolean =
-    records.exists {
-      case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.hasConcreteLineConsequence
-      case EvidenceRecord(_, EvalFactEvidence(_, _, mate, _), _) =>
-        mate.nonEmpty
-      case EvidenceRecord(_, RelationFactEvidence(_, _, _, lineMoves, _), _) =>
-        lineMoves.nonEmpty
-      case _ =>
-        false
-    }
-
   private def candidateConcreteTacticalBridge(
       records: List[EvidenceRecord],
       relationKinds: List[RelationFactKind]
   ): Boolean =
     hasForcingMotif(records) ||
-      (hasCauseEligibleTacticalMotif(records) && hasConcreteLineConsequence(records)) ||
+      (hasCauseEligibleTacticalMotif(records) && EvidenceRecord.hasConcreteLineSignal(records)) ||
       relationKinds.exists(TacticalMotifClassifier.isRiskRelation)
 
   private def hasOnlyDefense(records: List[EvidenceRecord]): Boolean =
@@ -1709,22 +1697,14 @@ object CandidateComparisonDiagnostic:
     val referenceMove = normalizeMove(fact.referenceLine.rootMove)
     val candidateMove = normalizeMove(fact.candidateLine.rootMove)
     sameDestinationDifferentOrigin(referenceMove, candidateMove) &&
-      hasRootCapture(referenceRecords, referenceMove) &&
-      hasRootCapture(candidateRecords, candidateMove)
+      EvidenceRecord.hasRootCaptureEvent(referenceRecords, referenceMove) &&
+      EvidenceRecord.hasRootCaptureEvent(candidateRecords, candidateMove)
 
   private def sameDestinationDifferentOrigin(left: String, right: String): Boolean =
     left.length >= 4 &&
       right.length >= 4 &&
       left.take(2) != right.take(2) &&
       left.slice(2, 4) == right.slice(2, 4)
-
-  private def hasRootCapture(records: List[EvidenceRecord], rootMove: String): Boolean =
-    records.exists {
-      case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.hasRootCaptureEvent(rootMove)
-      case _ =>
-        false
-    }
 
   private def kingHomeStep(moveUci: String, color: Color): Boolean =
     val move = normalizeMove(moveUci)
@@ -1991,23 +1971,11 @@ object CandidateComparisonDiagnostic:
     materialGainMagnitude(referenceRecords).ordinal > materialGainMagnitude(candidateRecords).ordinal ||
       materialLossMagnitude(candidateRecords).ordinal > materialLossMagnitude(referenceRecords).ordinal
 
-  private def materialBestNet(records: List[EvidenceRecord]): Int =
-    lineFacts(records).flatMap(_.materialNetCaptureCpForMover).maxOption.getOrElse(0)
-
-  private def materialBestGain(records: List[EvidenceRecord]): Int =
-    lineFacts(records).flatMap(_.materialMaxGainCpForMover).maxOption.getOrElse(0)
-
-  private def materialBestPromotionGain(records: List[EvidenceRecord]): Int =
-    lineFacts(records).flatMap(_.materialPromotionGainCpForMover).maxOption.getOrElse(0)
-
   private def materialGainMagnitude(records: List[EvidenceRecord]): LineMaterialOutcomeMagnitude =
     LineFactEvidence.materialOutcomeProfile(records).gainMagnitude
 
   private def materialLossMagnitude(records: List[EvidenceRecord]): LineMaterialOutcomeMagnitude =
     LineFactEvidence.materialOutcomeProfile(records).lossMagnitude
-
-  private def lineFacts(records: List[EvidenceRecord]): List[LineFactEvidence] =
-    records.collect { case EvidenceRecord(_, payload: LineFactEvidence, _) => payload }
 
   private def motifNames(records: List[EvidenceRecord]): List[String] =
     records.collect { case EvidenceRecord(_, MoveMotifEvidence(moveUci, motifs), _) =>

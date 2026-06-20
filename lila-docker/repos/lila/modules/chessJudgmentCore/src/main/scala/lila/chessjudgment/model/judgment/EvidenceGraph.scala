@@ -1052,10 +1052,29 @@ final case class LineFactEvidence(
     profile.gainSignals.nonEmpty || profile.lossSignals.nonEmpty
 
 object LineFactEvidence:
+  def fromRecords(records: List[EvidenceRecord]): List[LineFactEvidence] =
+    records.collect { case EvidenceRecord(_, payload: LineFactEvidence, _) => payload }
+
   def materialOutcomeProfile(records: List[EvidenceRecord]): LineMaterialOutcomeProfile =
-    records.collect { case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-      payload.materialOutcomeProfile
-    }.foldLeft(LineMaterialOutcomeProfile.empty)(_.merge(_))
+    fromRecords(records).map(_.materialOutcomeProfile).foldLeft(LineMaterialOutcomeProfile.empty)(_.merge(_))
+
+  def maxMaterialNetCaptureCpForMover(records: List[EvidenceRecord]): Int =
+    fromRecords(records).flatMap(_.materialNetCaptureCpForMover).maxOption.getOrElse(0)
+
+  def maxMaterialGainCpForMover(records: List[EvidenceRecord]): Int =
+    fromRecords(records).flatMap(_.materialMaxGainCpForMover).maxOption.getOrElse(0)
+
+  def maxMaterialPromotionGainCpForMover(records: List[EvidenceRecord]): Int =
+    fromRecords(records).flatMap(_.materialPromotionGainCpForMover).maxOption.getOrElse(0)
+
+  def hasMaterialRecaptureChain(records: List[EvidenceRecord]): Boolean =
+    fromRecords(records).exists(_.hasMaterialRecaptureChain)
+
+  def hasMaterialRecoveryWindow(records: List[EvidenceRecord]): Boolean =
+    fromRecords(records).exists(_.hasMaterialRecoveryWindow)
+
+  def allHaveCompleteMaterialWindow(records: List[EvidenceRecord]): Boolean =
+    fromRecords(records).forall(_.hasCompleteMaterialWindow)
 
   def apply(
       line: LineNodeRef,
@@ -1198,6 +1217,32 @@ final case class EvidenceRecord(
     ref.line.contains(line) || payloadLineRefs.contains(line)
   def carriesLinePayload(line: LineNodeRef, layer: EvidenceLayer): Boolean =
     ref.layer == layer && ref.line.contains(line) && payloadLineRefs.contains(line)
+  def hasConcreteLineSignal: Boolean =
+    payload match
+      case payload: LineFactEvidence =>
+        payload.hasConcreteLineConsequence
+      case EvalFactEvidence(_, _, mate, _) =>
+        mate.nonEmpty
+      case RelationFactEvidence(_, _, _, lineMoves, _) =>
+        lineMoves.nonEmpty
+      case _ =>
+        false
+  def hasRootCaptureEvent(rootMove: String): Boolean =
+    payload match
+      case payload: LineFactEvidence =>
+        payload.hasRootCaptureEvent(rootMove)
+      case _ =>
+        false
+
+object EvidenceRecord:
+  def hasConcreteLineSignal(records: List[EvidenceRecord]): Boolean =
+    records.exists(_.hasConcreteLineSignal)
+
+  def rootCaptureRecords(records: List[EvidenceRecord], rootMove: String): List[EvidenceRecord] =
+    records.filter(_.hasRootCaptureEvent(rootMove))
+
+  def hasRootCaptureEvent(records: List[EvidenceRecord], rootMove: String): Boolean =
+    rootCaptureRecords(records, rootMove).nonEmpty
 
 final case class TypedEvidenceGraph(
     records: List[EvidenceRecord]

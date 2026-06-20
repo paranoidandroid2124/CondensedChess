@@ -1163,17 +1163,12 @@ object RelativeAssessmentAssembler:
     val referenceMove = normalizeMove(fact.referenceLine.rootMove)
     val candidateMove = normalizeMove(fact.candidateLine.rootMove)
     if sameDestinationDifferentOrigin(referenceMove, candidateMove) then
-      (rootCaptureRecords(referenceRecords, referenceMove) ++ rootCaptureRecords(candidateRecords, candidateMove))
+      (
+        EvidenceRecord.rootCaptureRecords(referenceRecords, referenceMove) ++
+          EvidenceRecord.rootCaptureRecords(candidateRecords, candidateMove)
+      )
         .distinctBy(_.ref.id)
     else Nil
-
-  private def rootCaptureRecords(records: List[EvidenceRecord], rootMove: String): List[EvidenceRecord] =
-    records.filter {
-      case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.hasRootCaptureEvent(rootMove)
-      case _ =>
-        false
-    }
 
   private def kingStepResourceRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
     records.filter {
@@ -1248,18 +1243,6 @@ object RelativeAssessmentAssembler:
             TacticalMotifClassifier.isCauseEligible(motif)
         )
       case _ => false
-    }
-
-  private def hasConcreteLineConsequence(records: List[EvidenceRecord]): Boolean =
-    records.exists {
-      case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.hasConcreteLineConsequence
-      case EvidenceRecord(_, EvalFactEvidence(_, _, mate, _), _) =>
-        mate.nonEmpty
-      case EvidenceRecord(_, RelationFactEvidence(_, _, _, lineMoves, _), _) =>
-        lineMoves.nonEmpty
-      case _ =>
-        false
     }
 
   private def candidateAllowsImmediateReplyCheck(
@@ -1344,7 +1327,7 @@ object RelativeAssessmentAssembler:
 
   private def candidateConcreteTacticalBridge(records: List[EvidenceRecord]): Boolean =
     hasForcingMotif(records) ||
-      (hasCauseEligibleTacticalMotif(records) && hasConcreteLineConsequence(records)) ||
+      (hasCauseEligibleTacticalMotif(records) && EvidenceRecord.hasConcreteLineSignal(records)) ||
       records.exists {
         case EvidenceRecord(_, RelationFactEvidence(kind, _, _, lineMoves, _), _) =>
           lineMoves.nonEmpty && TacticalMotifClassifier.isRiskRelation(kind)
