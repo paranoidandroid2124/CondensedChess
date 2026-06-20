@@ -7,7 +7,6 @@ import lila.chessjudgment.analysis.evaluation.{ EvaluationPerspectivePolicy, Per
 import lila.chessjudgment.analysis.move.{ MoveAnalyzer, MoveMotifNormalizer }
 import lila.chessjudgment.analysis.opening.OpeningContextFactNormalizer
 import lila.chessjudgment.analysis.plan.{ PlanInteractionContext, PlanMatcher }
-import lila.chessjudgment.analysis.position.{ PositionAnalyzer, PositionFeatures }
 import lila.chessjudgment.analysis.singlePosition.{ PawnPlayAssessor, PawnPlayDriver, PvLine, ThreatPressureAssessor }
 import lila.chessjudgment.analysis.strategic.StrategicFactNormalizer
 import lila.chessjudgment.analysis.structure.{
@@ -453,9 +452,8 @@ object EvidenceFactAssembler:
             parents = boardParents
           )
         }.toList
-      val featureRecords = node.features.toList.flatMap { features =>
-        featureStrategicRecords(node, features, allocator, boardParents)
-      }
+      val featureRecords =
+        boardFacts.toList.flatMap(featureStrategicRecords(node, _, allocator, boardParents))
       targetFixation ++ outpost ++ endgame ++ featureRecords
     }
 
@@ -473,93 +471,65 @@ object EvidenceFactAssembler:
 
   private def featureStrategicRecords(
       node: PositionNode,
-      features: PositionFeatures,
+      boardFacts: BoardFactEvidence,
       allocator: JudgmentProvenanceAllocator,
       parents: List[EvidenceRef]
   ): List[EvidenceRecord] =
-    val side = node.ref.sideToMove.getOrElse(features.sideToMove)
     val nodeKey = allocator.positionKey(node.role, node.ref.fen, node.ref.ply)
-    val spaceEdge = sideSpaceEdge(features, side)
-    val mobilityEdge = sideMobilityEdge(features, side)
-    val opponentLowMobility = lowMobility(features, !side)
-    val strategicState = PositionAnalyzer.extractStrategicState(node.ref.fen)
     List(
-      Option.when(semiOpenFiles(features, side) > 0 || rookOnSeventh(features, side)) {
-        StrategicFactNormalizer.fromFacts(
-          id = allocator.evidenceId(s"strategic:file-control:$nodeKey"),
-          kind = StrategicFactKind.FileControl,
-          facts = Nil,
-          relatedPlans = Nil,
-          confidence = if rookOnSeventh(features, side) then 0.82 else 0.72,
-          position = node.ref,
-          line = None,
-          scope = node.role.scope,
-          parents = parents
-        )
-      },
-      Option.when(spaceEdge >= 2 || features.centralSpace.lockedCenter && spaceEdge > 0) {
-        StrategicFactNormalizer.fromFacts(
-          id = allocator.evidenceId(s"strategic:space:$nodeKey"),
-          kind = StrategicFactKind.Space,
-          facts = Nil,
-          relatedPlans = Nil,
-          confidence = if spaceEdge >= 3 then 0.80 else 0.72,
-          position = node.ref,
-          line = None,
-          scope = node.role.scope,
-          parents = parents
-        )
-      },
-      Option.when(mobilityEdge >= 5 || opponentLowMobility >= 2) {
-        StrategicFactNormalizer.fromFacts(
-          id = allocator.evidenceId(s"strategic:activity:$nodeKey"),
-          kind = StrategicFactKind.Activity,
-          facts = Nil,
-          relatedPlans = Nil,
-          confidence = if mobilityEdge >= 8 then 0.78 else 0.70,
-          position = node.ref,
-          line = None,
-          scope = node.role.scope,
-          parents = parents
-        )
-      },
-      Option.when(colorComplexClamp(strategicState, side) || opponentLowMobility >= 3 && spaceEdge >= 1) {
-        StrategicFactNormalizer.fromFacts(
-          id = allocator.evidenceId(s"strategic:counterplay-restraint:$nodeKey"),
-          kind = StrategicFactKind.CounterplayRestraint,
-          facts = Nil,
-          relatedPlans = Nil,
-          confidence = 0.76,
-          position = node.ref,
-          line = None,
-          scope = node.role.scope,
-          parents = parents
-        )
-      }
+      strategicAnchorRecord(
+        id = allocator.evidenceId(s"strategic:file-control:$nodeKey"),
+        node = node,
+        kind = StrategicFactKind.FileControl,
+        anchors = boardFacts.boardAnchors.filter(_.kind == BoardAnchorKind.FileControl),
+        parents = parents
+      ),
+      strategicAnchorRecord(
+        id = allocator.evidenceId(s"strategic:space:$nodeKey"),
+        node = node,
+        kind = StrategicFactKind.Space,
+        anchors = boardFacts.boardAnchors.filter(_.kind == BoardAnchorKind.Space),
+        parents = parents
+      ),
+      strategicAnchorRecord(
+        id = allocator.evidenceId(s"strategic:activity:$nodeKey"),
+        node = node,
+        kind = StrategicFactKind.Activity,
+        anchors = boardFacts.boardAnchors.filter(anchor =>
+          anchor.kind == BoardAnchorKind.Activity || anchor.kind == BoardAnchorKind.CounterplayRestraint
+        ),
+        parents = parents
+      ),
+      strategicAnchorRecord(
+        id = allocator.evidenceId(s"strategic:counterplay-restraint:$nodeKey"),
+        node = node,
+        kind = StrategicFactKind.CounterplayRestraint,
+        anchors = boardFacts.boardAnchors.filter(anchor =>
+          anchor.kind == BoardAnchorKind.CounterplayRestraint && anchor.magnitude >= 3
+        ),
+        parents = parents
+      )
     ).flatten
 
-  private def semiOpenFiles(features: PositionFeatures, side: Color): Int =
-    if side.white then features.lineControl.whiteSemiOpenFiles else features.lineControl.blackSemiOpenFiles
-
-  private def rookOnSeventh(features: PositionFeatures, side: Color): Boolean =
-    if side.white then features.lineControl.whiteRookOn7th else features.lineControl.blackRookOn7th
-
-  private def sideSpaceEdge(features: PositionFeatures, side: Color): Int =
-    if side.white then features.centralSpace.spaceDiff else -features.centralSpace.spaceDiff
-
-  private def sideMobilityEdge(features: PositionFeatures, side: Color): Int =
-    if side.white then features.activity.whitePseudoMobility - features.activity.blackPseudoMobility
-    else features.activity.blackPseudoMobility - features.activity.whitePseudoMobility
-
-  private def lowMobility(features: PositionFeatures, side: Color): Int =
-    if side.white then features.activity.whiteLowMobilityPieces else features.activity.blackLowMobilityPieces
-
-  private def colorComplexClamp(
-      state: Option[lila.chessjudgment.analysis.position.StrategicStateFeatures],
-      side: Color
-  ): Boolean =
-    state.exists { s =>
-      if side.white then s.whiteColorComplexClamp else s.blackColorComplexClamp
+  private def strategicAnchorRecord(
+      id: String,
+      node: PositionNode,
+      kind: StrategicFactKind,
+      anchors: List[BoardAnchor],
+      parents: List[EvidenceRef]
+  ): Option[EvidenceRecord] =
+    Option.when(anchors.nonEmpty) {
+      StrategicFactNormalizer.fromBoardAnchors(
+        id = id,
+        kind = kind,
+        anchors = anchors,
+        relatedPlans = Nil,
+        confidence = anchors.map(_.confidence).max,
+        position = node.ref,
+        line = None,
+        scope = node.role.scope,
+        parents = parents
+      )
     }
 
   private def featureApplicabilityRecords(
@@ -645,9 +615,8 @@ object EvidenceFactAssembler:
       evidenceRefs(context, EvidenceLayer.Board, Some(node.ref), None) ++
         evidenceRefs(context, EvidenceLayer.SinglePosition, Some(node.ref), None)
     val featureAnchors =
-      node.features.toList.flatMap { features =>
-        val side = node.ref.sideToMove.getOrElse(features.sideToMove)
-        boardFeatureAnchors(features, side).map(anchor => anchor -> boardParents)
+      boardFactEvidence(context, node.ref).toList.flatMap { boardFacts =>
+        boardOpeningFeatureAnchors(boardFacts).map(anchor => anchor -> boardParents)
       }
     val evidenceAnchors =
       context.evidenceGraph.records
@@ -810,49 +779,24 @@ object EvidenceFactAssembler:
           ApplicabilityStatus.Contradicted =>
         EvidenceConfidence.Heuristic
 
-  private def boardFeatureAnchors(features: PositionFeatures, side: Color): List[FeatureAnchor] =
-    List(
-      Option.when(centerControlSignal(features))(
-        FeatureAnchor(
-          OpeningTheme.CenterControl,
-          FeatureAnchorSignal.CenterControlObserved,
-          EvidenceLayer.Board,
-          0.7
-        )
-      ),
-      Option.when(developmentSignal(features, side))(
-        FeatureAnchor(
-          OpeningTheme.Development,
-          FeatureAnchorSignal.DevelopmentTempoObserved,
-          EvidenceLayer.Board,
-          0.65
-        )
-      ),
-      Option.when(pawnStructureSignal(features))(
-        FeatureAnchor(
-          OpeningTheme.PawnStructure,
-          FeatureAnchorSignal.PawnStructureObserved,
-          EvidenceLayer.Board,
-          0.6
-        )
-      ),
-      Option.when(gambitInitiativeSignal(features, side))(
-        FeatureAnchor(
-          OpeningTheme.GambitInitiative,
-          FeatureAnchorSignal.CompensationObserved,
-          EvidenceLayer.Board,
-          0.75
-        )
-      ),
-      Option.when(kingSafetySignal(features, side))(
-        FeatureAnchor(
-          OpeningTheme.KingSafety,
-          FeatureAnchorSignal.KingSafetyObserved,
-          EvidenceLayer.Board,
-          0.55
-        )
-      )
-    ).flatten
+  private def boardOpeningFeatureAnchors(boardFacts: BoardFactEvidence): List[FeatureAnchor] =
+    boardFacts.boardAnchors.flatMap(boardOpeningFeatureAnchor).distinctBy(anchor => (anchor.theme, anchor.signal, anchor.sourceLayer))
+
+  private def boardOpeningFeatureAnchor(anchor: BoardAnchor): Option[FeatureAnchor] =
+    anchor.kind match
+      case BoardAnchorKind.CenterControl | BoardAnchorKind.Space =>
+        Some(FeatureAnchor(OpeningTheme.CenterControl, FeatureAnchorSignal.CenterControlObserved, EvidenceLayer.Board, anchor.confidence.max(0.6)))
+      case BoardAnchorKind.Development | BoardAnchorKind.Activity =>
+        Some(FeatureAnchor(OpeningTheme.Development, FeatureAnchorSignal.DevelopmentTempoObserved, EvidenceLayer.Board, anchor.confidence.max(0.55)))
+      case BoardAnchorKind.PawnStructure =>
+        Some(FeatureAnchor(OpeningTheme.PawnStructure, FeatureAnchorSignal.PawnStructureObserved, EvidenceLayer.Board, anchor.confidence.max(0.55)))
+      case BoardAnchorKind.KingSafety =>
+        Some(FeatureAnchor(OpeningTheme.KingSafety, FeatureAnchorSignal.KingSafetyObserved, EvidenceLayer.Board, anchor.confidence.max(0.5)))
+      case BoardAnchorKind.FileControl | BoardAnchorKind.CounterplayRestraint | BoardAnchorKind.LooseMaterial |
+          BoardAnchorKind.PinPressure | BoardAnchorKind.SkewerPressure | BoardAnchorKind.ForkPressure |
+          BoardAnchorKind.XRayPressure | BoardAnchorKind.BatteryPressure | BoardAnchorKind.WeakSquare |
+          BoardAnchorKind.Outpost =>
+        None
 
   private def evidenceFeatureAnchors(record: EvidenceRecord): List[(FeatureAnchor, List[EvidenceRef])] =
     record.payload match
@@ -960,46 +904,6 @@ object EvidenceFactAssembler:
           )
           .toList
       case _ => Nil
-
-  private def centerControlSignal(features: PositionFeatures): Boolean =
-    features.centralSpace.whiteCentralPawns + features.centralSpace.blackCentralPawns > 0 ||
-      features.centralSpace.whiteCenterControl + features.centralSpace.blackCenterControl > 0 ||
-      features.centralSpace.pawnTensionCount > 0 ||
-      features.centralSpace.lockedCenter ||
-      features.centralSpace.openCenter
-
-  private def developmentSignal(features: PositionFeatures, side: Color): Boolean =
-    val sideLag =
-      if side.white then features.activity.whiteDevelopmentLag else features.activity.blackDevelopmentLag
-    val opponentLag =
-      if side.white then features.activity.blackDevelopmentLag else features.activity.whiteDevelopmentLag
-    sideLag != opponentLag || sideLag <= 2 || opponentLag <= 2
-
-  private def pawnStructureSignal(features: PositionFeatures): Boolean =
-    val pawns = features.pawns
-    pawns.whiteIsolatedPawns + pawns.blackIsolatedPawns > 0 ||
-      pawns.whiteDoubledPawns + pawns.blackDoubledPawns > 0 ||
-      pawns.whitePassedPawns + pawns.blackPassedPawns > 0 ||
-      pawns.whiteIQP ||
-      pawns.blackIQP ||
-      pawns.whiteHangingPawns ||
-      pawns.blackHangingPawns ||
-      features.centralSpace.pawnTensionCount > 0
-
-  private def gambitInitiativeSignal(features: PositionFeatures, side: Color): Boolean =
-    val materialForSide =
-      if side.white then features.materialPhase.materialDiff else -features.materialPhase.materialDiff
-    materialForSide <= -100 && (centerControlSignal(features) || developmentSignal(features, side))
-
-  private def kingSafetySignal(features: PositionFeatures, side: Color): Boolean =
-    if side.white then
-      features.kingSafety.whiteCastledSide != "none" ||
-        features.kingSafety.whiteCastlingRights != "none" ||
-        features.kingSafety.whiteKingExposedFiles > 0
-    else
-      features.kingSafety.blackCastledSide != "none" ||
-        features.kingSafety.blackCastlingRights != "none" ||
-        features.kingSafety.blackKingExposedFiles > 0
 
   private def planPressureRecords(
       input: NormalizedMoveReviewInput,
