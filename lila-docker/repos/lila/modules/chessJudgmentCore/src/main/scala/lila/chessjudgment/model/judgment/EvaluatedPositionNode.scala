@@ -12,9 +12,6 @@ case class EvaluatedPositionNode(
   pv: List[String] = Nil,
   variations: List[VariationLine] = Nil
 ) {
-  def effectiveCp: Int =
-    mate.map(m => if m > 0 then 10000 - m else -10000 - m).getOrElse(cp)
-
   def variationLines: List[VariationLine] =
     if (variations.nonEmpty) variations
     else if (pv.nonEmpty) List(VariationLine(moves = pv, scoreCp = cp, mate = mate))
@@ -51,20 +48,24 @@ object MoveChoiceAssessment:
       candidate: EvaluatedPositionNode
   ): MoveChoiceAssessment =
     val candidateDeltaForMover =
-      if mover.white then candidate.effectiveCp - reference.effectiveCp
-      else reference.effectiveCp - candidate.effectiveCp
+      if mover.white then candidate.cp - reference.cp
+      else reference.cp - candidate.cp
     val loss = (-candidateDeltaForMover).max(0)
     val winPercentDelta =
       PerspectiveMath.winPercentImprovementForMover(
         mover = mover,
-        defendedWhiteCp = candidate.effectiveCp,
-        threatWhiteCp = reference.effectiveCp
+        defendedWhiteCp = candidate.cp,
+        defendedMate = candidate.mate,
+        threatWhiteCp = reference.cp,
+        threatMate = reference.mate
       )
     val winPercentLoss =
       PerspectiveMath.winPercentLossForMover(
         mover = mover,
-        bestWhiteCp = reference.effectiveCp,
-        playedWhiteCp = candidate.effectiveCp
+        bestWhiteCp = reference.cp,
+        bestMate = reference.mate,
+        playedWhiteCp = candidate.cp,
+        playedMate = candidate.mate
       )
     MoveChoiceAssessment(
       mover = mover,

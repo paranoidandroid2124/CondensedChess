@@ -47,10 +47,16 @@ object EvidenceLossDiagnostics:
     val ideaEvidenceIds = ctx.ideas.flatMap(_.evidence.map(_.id)).toSet
     val claimEvidenceIds = ctx.claims.flatMap(_.evidence.map(_.id)).toSet
     val attachedRefs =
-      ctx.positions.flatMap(_.evidence) ++
+        ctx.positions.flatMap(_.evidence) ++
         ctx.lines.map(_.evidence) ++
         ctx.transitions.map(_.evidence) ++
-        ctx.relativeAssessments.flatMap(assessment => assessment.evidence :: assessment.counterfactualEvidence) ++
+        ctx.relativeAssessments.flatMap(assessment =>
+          assessment.evidence ::
+            (assessment.counterfactualEvidence ++
+              assessment.candidateComparisonEvidence ++
+              assessment.relativeCauseEvidence ++
+              assessment.verdictCertificationEvidence.toList)
+        ) ++
         ctx.ideas.flatMap(_.evidence) ++
         ctx.claims.flatMap(_.evidence)
 
@@ -83,7 +89,7 @@ object EvidenceLossDiagnostics:
 
     val ideasWithoutClaim =
       ctx.ideas
-        .filterNot(idea => ctx.claims.exists(_.idea.contains(idea.ref)))
+        .filterNot(idea => ctx.claims.exists(_.ideaRefs.contains(idea.ref)))
         .map { idea =>
           EvidenceLossDiagnostic(
             stage = EvidenceFlowStage.PromotedToIdea,
@@ -145,7 +151,8 @@ object EvidenceLossDiagnostics:
 
   private def stageFor(layer: EvidenceLayer): EvidenceFlowStage =
     layer match
-      case EvidenceLayer.RelativeAssessment | EvidenceLayer.Counterfactual =>
+      case EvidenceLayer.RelativeAssessment | EvidenceLayer.Counterfactual | EvidenceLayer.CandidateComparison |
+          EvidenceLayer.RelativeCause | EvidenceLayer.MoveVerdictCertification =>
         EvidenceFlowStage.AttachedToRelativeAssessment
       case EvidenceLayer.ChessIdea =>
         EvidenceFlowStage.PromotedToIdea

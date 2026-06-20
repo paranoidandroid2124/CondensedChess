@@ -1,5 +1,6 @@
 package lila.chessjudgment.analysis.assembly
 
+import chess.{ Bishop, Knight, Pawn, Queen, Role, Rook }
 import chess.format.Fen
 import chess.variant.Standard
 import lila.chessjudgment.analysis.evaluation.{ EvalFactNormalizer, EvaluationPerspectivePolicy }
@@ -7,6 +8,7 @@ import lila.chessjudgment.analysis.line.{ ForcedLineTruth, LineFactNormalizer, P
 import lila.chessjudgment.analysis.position.{ FactExtractor, PositionAnalyzer, PositionFactNormalizer }
 import lila.chessjudgment.analysis.singlePosition.{ SinglePositionAssessor, SinglePositionFactNormalizer }
 import lila.chessjudgment.analysis.strategic.EndgamePatternOracle
+import lila.chessjudgment.analysis.tactical.{ BoundedReplayStep, TacticalRelationEvidence }
 import lila.chessjudgment.analysis.transition.TransitionFactNormalizer
 import lila.chessjudgment.model.Fact
 import lila.chessjudgment.model.strategic.VariationLine
@@ -144,6 +146,11 @@ object PositionNodeAssembler:
 
 object CandidateLineAssembler:
 
+  private final case class ReplayedLineFacts(
+      facts: PrincipalVariationEvidence.LineFacts,
+      materialSummary: Option[LineMaterialSummary]
+  )
+
   def fromLine(
       line: NormalizedCandidateLine,
       root: PositionNodeRef,
@@ -151,8 +158,8 @@ object CandidateLineAssembler:
   ): Option[CandidateLineAssembly] =
     val scope = scopeFor(line.role)
     val ref = allocator.lineRef(line)
-    val validatedFacts = replayFacts(line, root)
-    validatedFacts.map { facts =>
+    replayFacts(line, root).map { replayed =>
+      val facts = replayed.facts
       val forcedTheme =
         ForcedLineTruth
           .detect(root.fen, ref.rootMove, List(line.line))
@@ -184,7 +191,8 @@ object CandidateLineAssembler:
           facts = facts,
           position = root,
           scope = scope,
-          forcedTheme = forcedTheme
+          forcedTheme = forcedTheme,
+          materialSummary = replayed.materialSummary
         )
       val evalRecord =
         EvalFactNormalizer.fromCandidateLine(
@@ -200,7 +208,7 @@ object CandidateLineAssembler:
   private def replayFacts(
       line: NormalizedCandidateLine,
       root: PositionNodeRef
-  ): Option[PrincipalVariationEvidence.LineFacts] =
+  ): Option[ReplayedLineFacts] =
     val refs = scala.collection.mutable.ListBuffer.empty[PrincipalVariationEvidence.LineMoveRef]
     var currentFen = root.fen
     var currentPly = root.ply
@@ -221,15 +229,90 @@ object CandidateLineAssembler:
       .flatMap(PrincipalVariationEvidence.validatedLineFromStart(root.fen, _))
       .flatMap { validated =>
         validated.first.map { first =>
-          PrincipalVariationEvidence.LineFacts(
-            line = validated.line,
-            first = first,
-            reply = validated.reply,
-            continuation = validated.continuation,
-            continuationTail = validated.moves.drop(3).take(3)
+          ReplayedLineFacts(
+            facts = PrincipalVariationEvidence.LineFacts(
+              line = validated.line,
+              first = first,
+              reply = validated.reply,
+              continuation = validated.continuation,
+              continuationTail = validated.moves.drop(3).take(3)
+            ),
+            materialSummary = lineMaterialSummary(line.line.moves, root.fen)
           )
         }
       }
+
+  private def lineMaterialSummary(
+      moves: List[String],
+      rootFen: String
+  ): Option[LineMaterialSummary] =
+    TacticalRelationEvidence.boundedReplay(rootFen, moves, maxPlies = moves.size).flatMap { replay =>
+      val sideToMove = replay.headOption.map(_.move.piece.color)
+      sideToMove.flatMap { mover =>
+        val captures = replay.zipWithIndex.flatMap { case (step, index) =>
+          step.capturedRole.map { captured =>
+            val previous = replay.lift(index - 1)
+            LineMaterialCapture(
+              moveUci = step.uci,
+              plyOffset = index,
+              side = step.move.piece.color,
+              attackerRole = EvidencePieceRole(step.move.piece.role.toString),
+              capturedRole = EvidencePieceRole(captured.toString),
+              square = EvidenceSquare(step.move.dest.key),
+              valueCp = pieceValueCp(captured),
+              recapture = previous.exists(prev =>
+                prev.capturedRole.nonEmpty &&
+                  prev.move.dest == step.move.dest &&
+                  prev.move.piece.color != step.move.piece.color
+              )
+            )
+          }
+        }
+        val promotionGain =
+          replay.map { step =>
+            val gain = promotionGainCp(step)
+            if step.move.piece.color == mover then gain else -gain
+          }.sum
+        val signedValues =
+          captures.map(capture => if capture.side == mover then capture.valueCp else -capture.valueCp) ++
+            Option.when(promotionGain != 0)(promotionGain).toList
+        val running = signedValues.scanLeft(0)(_ + _).tail
+        val net = running.lastOption.getOrElse(0)
+        Option.when(captures.nonEmpty || promotionGain != 0)(
+          LineMaterialSummary(
+            sideToMove = mover,
+            captures = captures,
+            netCaptureCpForMover = net,
+            maxGainCpForMover = (0 :: running).max,
+            maxLossCpForMover = (0 :: running).min,
+            hasRecaptureChain = captures.exists(_.recapture),
+            hasRecoveryWindow = running.exists(_ < 0) && running.exists(_ >= 0) && net >= 0,
+            promotionGainCpForMover = promotionGain,
+            materialWindowComplete = replay.size == moves.size
+          )
+        )
+      }
+    }
+
+  private def promotionGainCp(step: BoundedReplayStep): Int =
+    Option.when(step.uci.length == 5) {
+      val promotedValue = step.uci.last.toLower match
+        case 'q' => pieceValueCp(Queen)
+        case 'r' => pieceValueCp(Rook)
+        case 'b' => pieceValueCp(Bishop)
+        case 'n' => pieceValueCp(Knight)
+        case _   => pieceValueCp(Queen)
+      promotedValue - pieceValueCp(Pawn)
+    }.getOrElse(0)
+
+  private def pieceValueCp(role: Role): Int =
+    role match
+      case Pawn   => 100
+      case Knight => 300
+      case Bishop => 300
+      case Rook   => 500
+      case Queen  => 900
+      case _      => 0
 
   private def scopeFor(role: LineNodeRole): EvidenceScope =
     role match
@@ -278,8 +361,8 @@ object TransitionEdgeAssembler:
     role match
       case TransitionEdgeRole.Played    => EvidenceScope.PlayedTransition
       case TransitionEdgeRole.Reference => EvidenceScope.ReferenceTransition
-      case TransitionEdgeRole.Alternative | TransitionEdgeRole.Threat =>
-        EvidenceScope.AlternativeTransition
+      case TransitionEdgeRole.Alternative => EvidenceScope.AlternativeTransition
+      case TransitionEdgeRole.Threat      => EvidenceScope.ThreatLine
 
 object NodeLineTransitionAssembler:
 
@@ -336,7 +419,26 @@ object NodeLineTransitionAssembler:
                 ).map(line -> _)
               }
           }
-        val lines = input.lines.flatMap(CandidateLineAssembler.fromLine(_, before.node.ref, allocator))
+        val afterThreats =
+          input.threatBranches.flatMap { branch =>
+            PositionNodeAssembler.fromFen(
+              input = input,
+              role = PositionNodeRole.AfterThreat,
+              fen = branch.branchFen,
+              ply = branch.branchPly,
+              allocator = allocator,
+              scope = EvidenceScope.ThreatLine,
+              includeAssessment = true,
+              assessmentSourceLines = Some(branch.lines.map(_.line)),
+              assessmentEvalCp = branch.lines.headOption.map(_.line.scoreCp)
+            ).map(branch -> _)
+          }
+        val rootLines = input.lines.flatMap(CandidateLineAssembler.fromLine(_, before.node.ref, allocator))
+        val threatLines =
+          afterThreats.flatMap { case (branch, position) =>
+            branch.lines.flatMap(CandidateLineAssembler.fromLine(_, position.node.ref, allocator))
+          }
+        val lines = rootLines ++ threatLines
         val playedTransition =
           TransitionEdgeAssembler.fromMove(
             role = TransitionEdgeRole.Played,
@@ -370,8 +472,8 @@ object NodeLineTransitionAssembler:
             }
           }
         val context =
-          (List(before, afterPlayed) ++ afterReference.toList ++ afterAlternatives.map(_._2))
-            .foldLeft(JudgmentAssemblyContext.empty()) { (ctx, assembly) =>
+          (List(before, afterPlayed) ++ afterReference.toList ++ afterAlternatives.map(_._2) ++ afterThreats.map(_._2))
+            .foldLeft(JudgmentAssemblyContext.empty().copy(probeDiagnostics = input.probeDiagnostics)) { (ctx, assembly) =>
               ctx.withPosition(assembly.node).withEvidence(assembly.evidence)
             }
         val withLines =

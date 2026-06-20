@@ -1,8 +1,12 @@
 package lila.chessjudgment.model.judgment
 
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
+
+import lila.chessjudgment.analysis.line.PrincipalVariationEvidence
 import lila.chessjudgment.analysis.position.PositionFeatures
 import lila.chessjudgment.analysis.singlePosition.SinglePositionAssessment
-import lila.chessjudgment.model.{ CollapseAnalysis, Fact, PlanSequenceSummary }
+import lila.chessjudgment.model.{ CollapseAnalysis, Fact, PlanSequenceSummary, ProbePurpose, ProbeRequest }
 import lila.chessjudgment.model.strategic.VariationLine
 
 object PositionNodeBuilder:
@@ -75,7 +79,10 @@ object RelativeMoveAssessmentBuilder:
       collapse: Option[CollapseAnalysis],
       confidence: EvidenceConfidence,
       evidence: EvidenceRef,
-      counterfactualEvidence: List[EvidenceRef]
+      counterfactualEvidence: List[EvidenceRef],
+      candidateComparisonEvidence: List[EvidenceRef] = Nil,
+      relativeCauseEvidence: List[EvidenceRef] = Nil,
+      verdictCertificationEvidence: Option[EvidenceRef] = None
   ): RelativeMoveAssessment =
     RelativeMoveAssessment(
       played = played,
@@ -86,7 +93,10 @@ object RelativeMoveAssessmentBuilder:
       collapse = collapse,
       confidence = confidence,
       evidence = evidence,
-      counterfactualEvidence = counterfactualEvidence
+      counterfactualEvidence = counterfactualEvidence,
+      candidateComparisonEvidence = candidateComparisonEvidence,
+      relativeCauseEvidence = relativeCauseEvidence,
+      verdictCertificationEvidence = verdictCertificationEvidence
     )
 
 object ChessIdeaBuilder:
@@ -151,7 +161,8 @@ object ClaimComposer:
       supportingFacts = supportingFacts,
       engineComparison = engineComparison,
       scope = idea.scope,
-      confidence = confidence
+      confidence = confidence,
+      relatedIdeas = List(idea.ref)
     )
 
   def fromEvidence(
@@ -203,6 +214,8 @@ object JudgmentPacketBuilder:
   def fromAssembly(ctx: JudgmentAssemblyContext): Option[EvidenceBackedJudgmentPacket] =
     ctx.root.map { rootRef =>
       val diagnostics = EvidenceLossDiagnostics.fromAssembly(ctx)
+      val claimSupportClusters = ClaimSupportCluster.fromClaims(ctx.claims, ctx.evidenceGraph)
+      val probeRequests = BranchReplyProbePlanner.fromAssembly(ctx)
       EvidenceBackedJudgmentPacket(
         root = rootRef,
         positions = ctx.positions,
@@ -213,6 +226,93 @@ object JudgmentPacketBuilder:
         ideas = ctx.ideas,
         claims = ctx.claims,
         ideaVerdict = IdeaVerdictSplit.from(ctx.ideas, ctx.claims, ctx.relativeAssessments),
-        diagnostics = diagnostics
+        claimSupportClusters = claimSupportClusters,
+        claimEventClusters = ClaimEventCluster.fromClaims(ctx.claims, ctx.evidenceGraph, claimSupportClusters),
+        diagnostics = diagnostics,
+        probeRequests = probeRequests,
+        probeDiagnostics = ctx.probeDiagnostics
       )
     }
+
+object BranchReplyProbeBinding:
+  val ReplyMultiPv = 3
+  val Depth = 16
+  val DepthFloor = 12
+  val Objective = "branch_reply_multipv"
+  val RequiredSignals: List[String] = List("replyPvs", "depth", "purpose", "variationHash")
+
+  def variationHash(root: PositionNodeRef, line: CandidateLineNode): String =
+    variationHash(
+      rootFen = root.fen,
+      role = line.ref.role,
+      rootMove = line.ref.rootMove,
+      evalCp = line.evalCp,
+      mate = line.mate,
+      depth = line.depth,
+      moves = line.line.moves
+    )
+
+  def variationHash(
+      rootFen: String,
+      role: LineNodeRole,
+      rootMove: String,
+      evalCp: Int,
+      mate: Option[Int],
+      depth: Int,
+      moves: List[String]
+  ): String =
+    val raw =
+      List(
+        rootFen,
+        role.toString,
+        rootMove,
+        evalCp.toString,
+        mate.map(_.toString).getOrElse(""),
+        depth.toString,
+        moves.mkString(",")
+      ).mkString("||")
+    MessageDigest
+      .getInstance("SHA-256")
+      .digest(raw.getBytes(StandardCharsets.UTF_8))
+      .map(byte => f"${byte & 0xff}%02x")
+      .mkString
+
+object BranchReplyProbePlanner:
+  def fromAssembly(ctx: JudgmentAssemblyContext): List[ProbeRequest] =
+    ctx.root.toList.flatMap { root =>
+      val coveredBranchFens =
+        ctx.positions.filter(_.role == PositionNodeRole.AfterThreat).map(_.ref.fen).toSet
+      selectedRootLines(ctx.lines).flatMap { line =>
+        PrincipalVariationEvidence.legalFenAfter(root.fen, line.ref.rootMove).filterNot(coveredBranchFens.contains).map { branchFen =>
+          ProbeRequest(
+            id = s"${line.ref.id}:reply-multipv",
+            fen = branchFen,
+            moves = Nil,
+            depth = BranchReplyProbeBinding.Depth,
+            purpose = Some(ProbePurpose.ReplyMultipv),
+            multiPv = Some(BranchReplyProbeBinding.ReplyMultiPv),
+            baselineMove = Some(line.ref.rootMove),
+            baselineEvalCp = Some(line.evalCp),
+            baselineMate = line.mate,
+            baselineDepth = Some(line.depth).filter(_ > 0),
+            objective = Some(BranchReplyProbeBinding.Objective),
+            requiredSignals = BranchReplyProbeBinding.RequiredSignals,
+            horizon = Some("short"),
+            candidateMove = Some(line.ref.rootMove),
+            depthFloor = Some(BranchReplyProbeBinding.DepthFloor),
+            variationHash = Some(BranchReplyProbeBinding.variationHash(root, line))
+          )
+        }
+      }
+    }.distinctBy(_.id)
+
+  private def selectedRootLines(lines: List[CandidateLineNode]): List[CandidateLineNode] =
+    val rootLines = lines.filterNot(_.role == LineNodeRole.Threat)
+    val primary =
+      List(LineNodeRole.Played, LineNodeRole.BestReference).flatMap(role => rootLines.find(_.role == role))
+    val alternatives =
+      rootLines.filter(_.role == LineNodeRole.Alternative).sortBy(_.ref.rank).take(1)
+    (primary ++ alternatives)
+      .filter(line => line.line.moves.nonEmpty && line.depth > 0)
+      .distinctBy(_.ref.rootMove)
+      .take(BranchReplyProbeBinding.ReplyMultiPv)

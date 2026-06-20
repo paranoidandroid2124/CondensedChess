@@ -140,6 +140,57 @@ object OpeningFamily:
       .flatMap(_.headOption)
       .flatMap(ch => fromRaw(ch.toString))
 
+  def fromOpeningName(raw: String): Option[OpeningFamily] =
+    val name = Option(raw).map(_.trim.toLowerCase).getOrElse("")
+    Option.when(name.nonEmpty)(name).flatMap { value =>
+      if value.contains("sicilian") ||
+        value.contains("caro-kann") ||
+        value.contains("scandinavian") ||
+        value.contains("alekhine") ||
+        value.contains("pirc") ||
+        value.contains("modern defense") ||
+        value.contains("nimzowitsch") ||
+        value.contains("owen") ||
+        value.contains("english defense")
+      then Some(OpeningFamily.B)
+      else if value.contains("french") ||
+        value.contains("king's pawn") ||
+        value.contains("italian") ||
+        value.contains("ruy lopez") ||
+        value.contains("spanish") ||
+        value.contains("four knights") ||
+        value.contains("vienna") ||
+        value.contains("scotch") ||
+        value.contains("petrov") ||
+        value.contains("philidor") ||
+        value.contains("king's gambit")
+      then Some(OpeningFamily.C)
+      else if value.contains("queen's gambit") ||
+        value.contains("slav") ||
+        value.contains("semi-slav") ||
+        value.contains("tarrasch") ||
+        value.contains("queen's pawn")
+      then Some(OpeningFamily.D)
+      else if value.contains("indian") ||
+        value.contains("nimzo-indian") ||
+        value.contains("gruenfeld") ||
+        value.contains("grünfeld") ||
+        value.contains("catalan") ||
+        value.contains("bogo-indian") ||
+        value.contains("queen's indian")
+      then Some(OpeningFamily.E)
+      else if value.contains("english opening") ||
+        value.contains("reti") ||
+        value.contains("réti") ||
+        value.contains("dutch") ||
+        value.contains("benoni") ||
+        value.contains("benko") ||
+        value.contains("bird") ||
+        value.contains("polish")
+      then Some(OpeningFamily.A)
+      else None
+    }
+
   def fromRaw(raw: String): Option[OpeningFamily] =
     Option(raw).map(_.trim.toUpperCase).collect:
       case "A" => OpeningFamily.A
@@ -200,7 +251,12 @@ final case class ApplicabilityAssessment(
     supportedThemes: List[OpeningTheme],
     unverifiedPriorThemes: List[OpeningTheme],
     observedOnlyThemes: List[OpeningTheme]
-)
+):
+  def isOpeningPriorAligned: Boolean =
+    applicability == FeatureApplicability.OpeningRelevant &&
+      observedThemes.nonEmpty &&
+      supportedThemes.nonEmpty &&
+      (status == ApplicabilityStatus.Supported || status == ApplicabilityStatus.PartiallySupported)
 
 final case class OpeningIdentity(
     eco: Option[String],
@@ -279,12 +335,37 @@ final case class ForcedLineThemeEvidence(
     lineMoves: List[String]
 )
 
+final case class LineMaterialCapture(
+    moveUci: String,
+    plyOffset: Int,
+    side: Color,
+    attackerRole: EvidencePieceRole,
+    capturedRole: EvidencePieceRole,
+    square: EvidenceSquare,
+    valueCp: Int,
+    recapture: Boolean
+)
+
+final case class LineMaterialSummary(
+    sideToMove: Color,
+    captures: List[LineMaterialCapture],
+    netCaptureCpForMover: Int,
+    maxGainCpForMover: Int,
+    maxLossCpForMover: Int,
+    hasRecaptureChain: Boolean,
+    hasRecoveryWindow: Boolean,
+    promotionGainCpForMover: Int,
+    materialWindowComplete: Boolean
+):
+  def hasPromotion: Boolean = promotionGainCpForMover != 0
+
 final case class LineFactEvidence(
     line: LineNodeRef,
     firstMove: Option[String],
     replyMove: Option[String],
     continuationMoves: List[String],
-    forcedTheme: Option[ForcedLineThemeEvidence] = None
+    forcedTheme: Option[ForcedLineThemeEvidence] = None,
+    material: Option[LineMaterialSummary] = None
 ) extends EvidencePayload:
   val layer: EvidenceLayer = EvidenceLayer.Line
 
@@ -334,6 +415,11 @@ final case class PlanPressureEvidence(
 ) extends EvidencePayload:
   val layer: EvidenceLayer = EvidenceLayer.PlanPressure
 
+final case class CandidateComparisonEvidence(
+    comparison: CandidateComparisonFact
+) extends EvidencePayload:
+  val layer: EvidenceLayer = EvidenceLayer.CandidateComparison
+
 final case class CounterfactualFactEvidence(
     referenceLine: LineNodeRef,
     candidateLine: LineNodeRef,
@@ -345,6 +431,16 @@ final case class RelativeAssessmentEvidence(
     assessment: RelativeMoveAssessment
 ) extends EvidencePayload:
   val layer: EvidenceLayer = EvidenceLayer.RelativeAssessment
+
+final case class RelativeCauseFactEvidence(
+    cause: RelativeCauseFact
+) extends EvidencePayload:
+  val layer: EvidenceLayer = EvidenceLayer.RelativeCause
+
+final case class MoveVerdictCertificationEvidence(
+    certification: MoveVerdictCertification
+) extends EvidencePayload:
+  val layer: EvidenceLayer = EvidenceLayer.MoveVerdictCertification
 
 final case class ChessIdeaEvidence(
     idea: ChessIdeaRef

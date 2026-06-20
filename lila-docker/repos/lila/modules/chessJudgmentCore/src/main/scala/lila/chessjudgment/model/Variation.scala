@@ -32,10 +32,6 @@ case class VariationLine(
     lineFeatures: List[VariationFeature] = Nil,
     parsedMoves: List[PvMove] = Nil // Parsed moves with metadata
 ):
-  /** Material + Positional evaluation unified into CP */
-  def effectiveScore: Int = 
-    mate.map(m => if m > 0 then 10000 - m else -10000 - m).getOrElse(scoreCp)
-  
   /** Get our move (index 0) */
   def ourMove: Option[PvMove] = parsedMoves.headOption
   
@@ -56,13 +52,6 @@ case class EngineEvidence(
 ):
   /** Best variation (rank 1) */
   def best: Option[VariationLine] = variations.headOption
-  
-  /** Alternatives (rank 2+) that are within threshold of best */
-  def alternatives(thresholdCp: Int = 40): List[VariationLine] =
-    best match
-      case Some(b) =>
-        variations.drop(1).filter(v => Math.abs(v.scoreCp - b.scoreCp) <= thresholdCp)
-      case None => Nil
 
 object EngineEvidence:
   given Reads[EngineEvidence] = Json.reads[EngineEvidence]

@@ -160,11 +160,7 @@ case class PvLine(
   evalCp: Int,          // Centipawn evaluation
   mate: Option[Int],    // Mate distance (positive = winning)
   depth: Int            // Search depth
-):
-  def score: Int = mate match
-    case Some(m) if m > 0 => 10000 - m
-    case Some(m) if m < 0 => -10000 - m
-    case _ => evalCp
+)
 
 /**
  * Type of threat detected.
@@ -258,6 +254,17 @@ case class ThreatAnalysis(
 ):
   def hasThreat: Boolean = threats.nonEmpty
   def threatCount: Int = threats.size
+  def hasForcedMateEvidence: Boolean =
+    primaryDriver == ThreatDriver.MateThreat ||
+      threats.exists(_.kind == ThreatKind.Mate)
+  def isClaimGradeDefensivePressure: Boolean =
+    (!insufficientData || hasForcedMateEvidence) &&
+      (
+        defenseRequired ||
+          prophylaxisNeeded ||
+          threatSeverity != ThreatSeverity.Low ||
+          maxWinPercentLossIfIgnored.exists(_ >= JudgmentThresholds.SIGNIFICANT_THREAT_WP)
+      )
 
 /**
  * Tension resolution policy recommendation.

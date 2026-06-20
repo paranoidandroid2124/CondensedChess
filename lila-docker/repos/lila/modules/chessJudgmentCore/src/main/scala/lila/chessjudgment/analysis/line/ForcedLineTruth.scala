@@ -15,10 +15,15 @@ import lila.chessjudgment.model.strategic.VariationLine
  */
 object ForcedLineTruth:
 
+  val ImmediateReplyCheckId = "immediate_reply_check"
+
   case class VerifiedTheme(
     id: String,
     lineMoves: List[String] = Nil
   )
+
+  def isClaimGradeThemeId(id: String): Boolean =
+    id != ImmediateReplyCheckId
 
   enum ExpectedResult:
     case Mate
@@ -79,7 +84,7 @@ object ForcedLineTruth:
         posOpt.flatMap { pos =>
           detectPatterns(beforePosOpt, pos, playedUci, variations)
         }
-      }
+      }.orElse(detectImmediateReplyCheck(fen, playedUci, variations))
     }
   // 3. PATTERN DETECTORS (Geometric Matches)
 
@@ -141,6 +146,23 @@ object ForcedLineTruth:
         moves.take(fullLine.size) == fullLine ||
           moves.take(tail.size) == tail
       }
+
+  private def detectImmediateReplyCheck(
+      fen: String,
+      playedUci: String,
+      variations: List[VariationLine]
+  ): Option[VerifiedTheme] =
+    val played = normalizeUci(playedUci)
+    variations.view
+      .flatMap { variation =>
+        val moves = variation.moves.map(normalizeUci).filter(_.nonEmpty)
+        Option.when(moves.headOption.contains(played) && moves.size >= 2)(moves.take(2))
+      }
+      .find(replyChecksMover(fen, _))
+      .map(line => VerifiedTheme(ImmediateReplyCheckId, line))
+
+  private def replyChecksMover(fen: String, line: List[String]): Boolean =
+    applyLineStrict(fen, line).exists(_.check.yes)
 
   private def normalizeUci(raw: String): String =
     Option(raw).getOrElse("").trim.toLowerCase

@@ -17,8 +17,8 @@ import lila.chessjudgment.model.Motif
  * 3. Position assessment -> threshold adjustment
  * 
  * IMPORTANT: Eval POV Assumption
- * This code assumes that `PvLine.score` is ALREADY normalized to the
- * side-to-move's perspective (positive = good for side to move).
+ * This code assumes that `PvLine.evalCp` and `PvLine.mate` are already normalized
+ * to the side-to-move's perspective (positive = good for side to move).
  * If your engine provides eval from White's POV, you must flip the sign
  * for Black before passing to this analyzer.
  */
@@ -83,9 +83,9 @@ object ThreatPressureAssessor:
   private def threatProfileFor(motif: Motif): Option[ThreatProfile] =
     motif match
       case _: Motif.BackRankMate | _: Motif.MateNet | _: Motif.SmotheredMate =>
-        Some(ThreatProfile(ThreatKind.Mate, 1, 10000))
+        Some(ThreatProfile(ThreatKind.Mate, 1, 0))
       case m: Motif.Check if m.checkType == Motif.CheckType.Mate || m.checkType == Motif.CheckType.Smothered =>
-        Some(ThreatProfile(ThreatKind.Mate, 1, 10000))
+        Some(ThreatProfile(ThreatKind.Mate, 1, 0))
       case _: Motif.Check | _: Motif.DoubleCheck =>
         Some(ThreatProfile(ThreatKind.Material, 1, 180))
       case m: Motif.Capture =>
@@ -220,10 +220,11 @@ object ThreatPressureAssessor:
     else
       val bestLine = multiPv.head
       val secondLine = multiPv(1)
-      // `PvLine.score` is already normalized to the side-to-move's perspective.
-      // Positive delta means the best line preserves more value than the second line for that same side.
-      val evalLoss = (bestLine.score - secondLine.score).max(0)
-      val winPercentLoss = PerspectiveMath.winPercentLossFromRelativeCp(bestLine.score, secondLine.score)
+      val evalLoss =
+        if bestLine.mate.isEmpty && secondLine.mate.isEmpty then (bestLine.evalCp - secondLine.evalCp).max(0)
+        else 0
+      val winPercentLoss =
+        PerspectiveMath.winPercentLossFromRelativeEval(bestLine.evalCp, bestLine.mate, secondLine.evalCp, secondLine.mate)
       val bestLineFirstStep = firstLegalStep(fen, bestLine)
       val secondLineFirstStep = firstLegalStep(fen, secondLine)
       val secondLineIsCapture = secondLineFirstStep.exists(_.move.captures)
@@ -259,7 +260,7 @@ object ThreatPressureAssessor:
         
         val impliedThreat = Threat(
           kind = kind,
-          lossIfIgnoredCp = if secondLineIsMate then 10000 else evalLoss,
+          lossIfIgnoredCp = if secondLineIsMate then 0 else evalLoss,
           lossIfIgnoredWinPercent = Some(if secondLineIsMate then 100.0 else winPercentLoss),
           turnsToImpact = 1,
           evidenceSource = ThreatEvidenceSource.CandidateLineValueDelta,
@@ -325,9 +326,14 @@ object ThreatPressureAssessor:
     else if multiPv.isEmpty then threats
     else
       // Count defenses that keep eval within the central defense tolerance.
-      val bestEval = multiPv.head.score
+      val bestLine = multiPv.head
       val adequateDefenses = multiPv.filter { pv =>
-        PerspectiveMath.winPercentLossFromRelativeCp(bestEval, pv.score) <= JudgmentThresholds.ONLY_DEFENSE_TOLERANCE_WP
+        PerspectiveMath.winPercentLossFromRelativeEval(
+          bestLine.evalCp,
+          bestLine.mate,
+          pv.evalCp,
+          pv.mate
+        ) <= JudgmentThresholds.ONLY_DEFENSE_TOLERANCE_WP
       }
       val defenseCount = adequateDefenses.size
       

@@ -5,6 +5,8 @@ package lila.chessjudgment.analysis.evaluation
  */
 object JudgmentThresholds:
 
+  val ENGINE_BACKED_DEPTH = 8
+
   val PLAYABLE_LOSS_WP = 2.5
 
   val ONLY_MOVE_GAP_WP = 10.0
@@ -19,3 +21,7 @@ object JudgmentThresholds:
   val URGENT_THREAT_WP = 15.0
   val IGNORABLE_THREAT_WP = 2.0
   val ONLY_DEFENSE_TOLERANCE_WP = 1.25
+  val DRAW_RESOURCE_BALANCE_EDGE_WP = 7.5
+
+  def engineBackedByDepth(depth: Int, mate: Option[Int]): Boolean =
+    mate.nonEmpty || depth >= ENGINE_BACKED_DEPTH

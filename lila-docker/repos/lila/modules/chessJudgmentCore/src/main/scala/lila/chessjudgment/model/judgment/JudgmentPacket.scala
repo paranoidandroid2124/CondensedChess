@@ -1,6 +1,8 @@
 package lila.chessjudgment.model.judgment
 
 import lila.chessjudgment.model.Fact
+import lila.chessjudgment.model.{ ProbeAdmissionDiagnostic, ProbeRequest }
+import lila.chessjudgment.model.structure.StructureId
 
 enum ClaimFamily:
   case Tactical
@@ -10,6 +12,7 @@ enum ClaimFamily:
   case Plan
   case Defensive
   case Conversion
+  case Material
   case Evaluation
 
 enum ClaimSalienceDriver:
@@ -26,9 +29,27 @@ enum ClaimSalienceDriver:
   case CandidateConstraint
   case BoardAnchor
 
+enum ClaimInteractionKind:
+  case TacticalConstrainsLongTerm
+  case LongTermConstrainedByTactic
+  case TacticalRefutesStrategicPlan
+  case TacticalSupportsStrategicPlan
+  case DefensiveNecessityOverridesPlan
+  case StrategicCompensationSupportsSacrifice
+  case ConversionSecuresAdvantage
+  case BadVerdictPreservesLocalIdea
+
+case class ClaimInteraction(
+    kind: ClaimInteractionKind,
+    relatedClaimId: String,
+    strength: Int,
+    interactionEvidence: List[EvidenceRef]
+)
+
 case class ClaimSalience(
     score: Int,
-    drivers: List[ClaimSalienceDriver]
+    drivers: List[ClaimSalienceDriver],
+    interactions: List[ClaimInteraction] = Nil
 )
 
 enum ClaimSupportStatus:
@@ -41,6 +62,660 @@ case class ClaimSupportCheck(
     missingLayerGroups: List[Set[EvidenceLayer]],
     missingEvidence: List[EvidenceRef]
 )
+
+enum ClaimSupportClusterKind:
+  case LongTermSupport
+
+case class ClaimSupportClusterInteraction(
+    kind: ClaimInteractionKind,
+    sourceClaimId: String,
+    targetClaimId: String,
+    strength: Int,
+    evidence: List[EvidenceRef]
+)
+
+case class ClaimSupportCluster(
+    id: String,
+    kind: ClaimSupportClusterKind,
+    families: List[ClaimFamily],
+    subject: IdeaSubject,
+    primaryPosition: PositionNodeRef,
+    primaryLine: Option[LineNodeRef],
+    subjectMove: Option[String],
+    scope: Option[EvidenceScope],
+    anchorClaimIds: List[String],
+    supportingClaimIds: List[String],
+    constrainingClaimIds: List[String],
+    ideas: List[ChessIdeaRef],
+    evidence: List[EvidenceRef],
+    presentLayers: Set[EvidenceLayer],
+    confidence: EvidenceConfidence,
+    salienceDrivers: List[ClaimSalienceDriver],
+    interactions: List[ClaimSupportClusterInteraction]
+)
+
+object ClaimSupportCluster:
+
+  def fromClaims(claims: List[ClaimSeed]): List[ClaimSupportCluster] =
+    fromClaims(claims, TypedEvidenceGraph(Nil))
+
+  def fromClaims(claims: List[ClaimSeed], graph: TypedEvidenceGraph): List[ClaimSupportCluster] =
+    val anchors =
+      claims
+      .filter(claim => longTermSupportEligible(claim, graph))
+      .groupBy(claim => clusterKey(claim, graph))
+      .toList
+    anchors
+      .flatMap((key, groupedClaims) => clusterFor(key, groupedClaims, claims))
+      .sortBy(cluster => (cluster.primaryPosition.ply, cluster.subject.toString, cluster.id))
+
+  private final case class ClusterKey(
+      subject: IdeaSubject,
+      primaryPosition: PositionNodeRef,
+      primaryLine: Option[LineNodeRef],
+      subjectMove: Option[String],
+      scope: Option[EvidenceScope],
+      semanticAnchor: String
+  )
+
+  private val longTermFamilies: Set[ClaimFamily] =
+    Set(
+      ClaimFamily.Strategic,
+      ClaimFamily.PawnStructure,
+      ClaimFamily.Opening,
+      ClaimFamily.Plan
+    )
+
+  private val causeBoundLayers: Set[EvidenceLayer] =
+    Set(
+      EvidenceLayer.Relation,
+      EvidenceLayer.MoveMotif,
+      EvidenceLayer.RelativeCause,
+      EvidenceLayer.RelativeAssessment,
+      EvidenceLayer.CandidateComparison,
+      EvidenceLayer.Counterfactual,
+      EvidenceLayer.MoveVerdictCertification
+    )
+
+  private def longTermSupportEligible(claim: ClaimSeed, graph: TypedEvidenceGraph): Boolean =
+    longTermFamilies.contains(claim.family) &&
+      claim.engineComparison.isEmpty &&
+      claim.evidence.nonEmpty &&
+      !claim.evidence.exists(ref => causeBoundLayers.contains(ref.layer)) &&
+      semanticAnchor(claim, graph).nonEmpty
+
+  private def clusterKey(claim: ClaimSeed, graph: TypedEvidenceGraph): ClusterKey =
+    ClusterKey(
+      subject = claim.subject,
+      primaryPosition = claim.primaryPosition,
+      primaryLine = claim.primaryLine,
+      subjectMove = claim.subjectMove,
+      scope = Option.when(claim.primaryLine.nonEmpty || claim.subjectMove.nonEmpty)(claim.scope),
+      semanticAnchor = semanticAnchor(claim, graph).getOrElse(claim.id)
+    )
+
+  def semanticAnchor(claim: ClaimSeed, graph: TypedEvidenceGraph): Option[String] =
+    val anchors =
+      claim.evidence
+        .flatMap(ref => graph.byId.get(ref.id))
+        .flatMap(semanticAnchorsForRecord)
+        .distinct
+        .sorted
+    Option.when(anchors.nonEmpty)(anchors.mkString("|"))
+
+  private def semanticAnchorsForRecord(record: EvidenceRecord): List[String] =
+    record.payload match
+      case StrategicFactEvidence(kind, _, relatedPlans, _) =>
+        s"strategic:$kind" :: relatedPlans.map(plan => s"plan:$plan")
+      case PawnStructureFactEvidence(profile, alignment, pawnPlay) =>
+        List(
+          Option.when(profile.primary != StructureId.Unknown)(s"structure:${profile.primary}"),
+          alignment.map(alignment => s"structure-plan:${alignment.band}:${alignment.matchedPlanIds.sorted.mkString(",")}"),
+          pawnPlay.map(play => s"pawn-play:${play.primaryDriver}")
+        ).flatten
+      case FeatureAnchorEvidence(anchor) =>
+        List(s"opening-anchor:${anchor.theme}:${anchor.signal}")
+      case ApplicabilityAssessmentEvidence(assessment) =>
+        assessment.supportedThemes.map(theme => s"opening-supported:$theme") ++
+          assessment.observedThemes.map(theme => s"opening-observed:$theme")
+      case OpeningContextEvidence(identity, signals, _, themePrior) =>
+        identity.flatMap(_.eco).map(eco => s"opening-eco:$eco").toList ++
+          signals.map(signal => s"opening-signal:$signal") ++
+          themePrior.toList.flatMap(prior => prior.themes.map(theme => s"opening-prior:$theme"))
+      case CandidateComparisonEvidence(fact) =>
+        List(
+          Option.when(fact.kind == CandidateComparisonKind.BestVsSecond)("comparison:best-vs-second"),
+          Option.when(fact.comparison.candidateSet.exists(_.onlyMove))("comparison:only-move"),
+          fact.comparison.candidateSet
+            .flatMap(_.bestToSecondWinPercentGapForMover)
+            .map(gap => s"comparison:best-second-wp:${winPercentGapAnchor(gap)}")
+        ).flatten
+      case PlanPressureEvidence(_, activePlans) =>
+        (activePlans.primary :: activePlans.secondary.toList).map(plan => s"plan:${plan.plan.id}")
+      case PlanTransitionEvidence(transition) =>
+        transition.primaryPlanId.map(plan => s"plan-transition:$plan").toList
+      case LineFactEvidence(_, firstMove, replyMove, continuationMoves, _, _) =>
+        (firstMove.toList ++ replyMove.toList ++ continuationMoves)
+          .filter(castlingMove)
+          .map(move => s"line:castling:$move")
+      case StructuralDeltaEvidence(delta) =>
+        List(
+          Option.when(delta.createdTargetPressure.nonEmpty)("delta:created-target-pressure"),
+          Option.when(delta.releasedTargetPressure.nonEmpty)("delta:released-target-pressure"),
+          Option.when(delta.openedFiles.nonEmpty || delta.semiOpenedFiles.nonEmpty || delta.fileOccupation.nonEmpty)("delta:file"),
+          Option.when(delta.newWeakPawns.nonEmpty || delta.newWeakSquares.nonEmpty)("delta:weakness"),
+          Option.when(delta.createdTension.nonEmpty || delta.pawnTensionDelta != 0)("delta:tension"),
+          Option.when(delta.centerControlDelta != 0)("delta:center"),
+          Option.when(delta.developmentDelta != 0)("delta:development"),
+          Option.when(delta.developmentMoves.nonEmpty)("delta:development-choice"),
+          Option.when(delta.mobilityDelta != 0)("delta:mobility")
+        ).flatten
+      case _ =>
+        Nil
+
+  private def castlingMove(move: String): Boolean =
+    move == "e1g1" || move == "e1c1" || move == "e8g8" || move == "e8c8"
+
+  private def winPercentGapAnchor(gap: Double): String =
+    if gap >= 20.0 then "20+"
+    else if gap >= 10.0 then "10+"
+    else if gap >= 5.0 then "5+"
+    else "small"
+
+  private def clusterFor(
+      key: ClusterKey,
+      claims: List[ClaimSeed],
+      allClaims: List[ClaimSeed]
+  ): Option[ClaimSupportCluster] =
+    val members = claims.sortBy(_.id)
+    val anchorIds = members.map(_.id).toSet
+    val evidence = members.flatMap(_.evidence).distinctBy(_.id)
+    val interactions = clusterInteractions(anchorIds, allClaims)
+    Option.when(members.size >= 2 || interactions.nonEmpty) {
+      val supportingClaimIds = relatedClusterClaimIds(interactions, supportingInteraction, anchorIds)
+      val constrainingClaimIds = relatedClusterClaimIds(interactions, constrainingInteraction, anchorIds)
+      ClaimSupportCluster(
+        id = s"claim-support:long-term:${members.head.id}",
+        kind = ClaimSupportClusterKind.LongTermSupport,
+        families = members.map(_.family).distinct.sortBy(_.toString),
+        subject = key.subject,
+        primaryPosition = key.primaryPosition,
+        primaryLine = key.primaryLine,
+        subjectMove = key.subjectMove,
+        scope = key.scope,
+        anchorClaimIds = members.map(_.id),
+        supportingClaimIds = supportingClaimIds,
+        constrainingClaimIds = constrainingClaimIds,
+        ideas = members.flatMap(_.ideaRefs).distinctBy(_.id),
+        evidence = evidence,
+        presentLayers = evidence.map(_.layer).toSet,
+        confidence = members.map(_.confidence).maxBy(confidenceScore),
+        salienceDrivers = members.flatMap(_.salience.toList.flatMap(_.drivers)).distinct,
+        interactions = interactions
+      )
+    }
+
+  private def clusterInteractions(
+      anchorIds: Set[String],
+      claims: List[ClaimSeed]
+  ): List[ClaimSupportClusterInteraction] =
+    claims.flatMap { source =>
+      source.salience.toList.flatMap(_.interactions).flatMap { interaction =>
+        val sourceIsAnchor = anchorIds.contains(source.id)
+        val targetIsAnchor = anchorIds.contains(interaction.relatedClaimId)
+        Option.when(sourceIsAnchor != targetIsAnchor)(
+          ClaimSupportClusterInteraction(
+            kind = interaction.kind,
+            sourceClaimId = source.id,
+            targetClaimId = interaction.relatedClaimId,
+            strength = interaction.strength,
+            evidence = interaction.interactionEvidence
+          )
+        )
+      }
+    }.distinctBy(interaction => (interaction.kind, interaction.sourceClaimId, interaction.targetClaimId))
+
+  private def relatedClusterClaimIds(
+      interactions: List[ClaimSupportClusterInteraction],
+      predicate: ClaimInteractionKind => Boolean,
+      anchorIds: Set[String]
+  ): List[String] =
+    interactions
+      .filter(interaction => predicate(interaction.kind))
+      .flatMap(interaction => List(interaction.sourceClaimId, interaction.targetClaimId))
+      .filterNot(anchorIds.contains)
+      .distinct
+      .sorted
+
+  private def supportingInteraction(kind: ClaimInteractionKind): Boolean =
+    kind match
+      case ClaimInteractionKind.TacticalSupportsStrategicPlan | ClaimInteractionKind.StrategicCompensationSupportsSacrifice |
+          ClaimInteractionKind.ConversionSecuresAdvantage =>
+        true
+      case _ =>
+        false
+
+  private def constrainingInteraction(kind: ClaimInteractionKind): Boolean =
+    kind match
+      case ClaimInteractionKind.TacticalConstrainsLongTerm | ClaimInteractionKind.LongTermConstrainedByTactic |
+          ClaimInteractionKind.TacticalRefutesStrategicPlan | ClaimInteractionKind.DefensiveNecessityOverridesPlan |
+          ClaimInteractionKind.BadVerdictPreservesLocalIdea =>
+        true
+      case _ =>
+        false
+
+  private def confidenceScore(confidence: EvidenceConfidence): Int =
+    confidence match
+      case EvidenceConfidence.LegalReplayVerified => 5
+      case EvidenceConfidence.EngineBacked        => 4
+      case EvidenceConfidence.BoardDerived        => 3
+      case EvidenceConfidence.Mixed               => 2
+      case EvidenceConfidence.Heuristic           => 1
+
+enum ClaimEventClusterKind:
+  case TacticalEvent
+  case DefensiveEvent
+  case ConversionEvent
+  case MaterialEvent
+
+case class ClaimEventClusterInteraction(
+    kind: ClaimInteractionKind,
+    sourceClaimId: String,
+    targetClaimId: String,
+    strength: Int,
+    evidence: List[EvidenceRef]
+)
+
+case class ClaimEventCluster(
+    id: String,
+    kind: ClaimEventClusterKind,
+    causeKind: RelativeCauseKind,
+    comparisonKind: CandidateComparisonKind,
+    referenceLine: LineNodeRef,
+    candidateLine: LineNodeRef,
+    eventLine: LineNodeRef,
+    eventRootMove: String,
+    verdict: MoveChoiceVerdict,
+    winPercentLossForMover: Double,
+    candidateWinPercentDeltaForMover: Double,
+    families: List[ClaimFamily],
+    primaryPosition: PositionNodeRef,
+    scope: EvidenceScope,
+    memberClaimIds: List[String],
+    causeClaimIds: List[String],
+    evaluationClaimIds: List[String],
+    witnessClaimIds: List[String],
+    relatedSupportClusterIds: List[String],
+    ideas: List[ChessIdeaRef],
+    evidence: List[EvidenceRef],
+    presentLayers: Set[EvidenceLayer],
+    confidence: EvidenceConfidence,
+    salienceDrivers: List[ClaimSalienceDriver],
+    interactions: List[ClaimEventClusterInteraction]
+)
+
+object ClaimEventCluster:
+
+  def fromClaims(
+      claims: List[ClaimSeed],
+      graph: TypedEvidenceGraph,
+      supportClusters: List[ClaimSupportCluster] = Nil
+  ): List[ClaimEventCluster] =
+    val keyedBindings =
+      claims
+        .filter(eventClaimEligible)
+        .flatMap(claim => eventBindingsForClaim(claim, graph))
+    keyedBindings
+      .groupBy(_.key)
+      .toList
+      .flatMap { case (key, bindings) =>
+        clusterFor(
+          key = key,
+          bindings = bindings,
+          allClaims = claims,
+          supportClusters = supportClusters
+        )
+      }
+      .sortBy(cluster =>
+        (
+          cluster.primaryPosition.ply,
+          cluster.comparisonKind.toString,
+          cluster.causeKind.toString,
+          cluster.eventRootMove,
+          cluster.id
+        )
+      )
+
+  private final case class EventClusterKey(
+      primaryPosition: PositionNodeRef,
+      scope: EvidenceScope,
+      causeKind: RelativeCauseKind,
+      comparisonKind: CandidateComparisonKind,
+      referenceLine: LineNodeRef,
+      candidateLine: LineNodeRef,
+      eventLine: LineNodeRef,
+      verdict: MoveChoiceVerdict,
+      winPercentLossForMover: Double,
+      candidateWinPercentDeltaForMover: Double
+  ):
+    def eventRootMove: String = eventLine.rootMove
+
+  private enum EventMemberRole:
+    case CauseOwner
+    case VerdictCarrier
+    case Witness
+
+  private final case class EventMemberBinding(
+      key: EventClusterKey,
+      claim: ClaimSeed,
+      role: EventMemberRole
+  )
+
+  private val eventFamilies: Set[ClaimFamily] =
+    Set(
+      ClaimFamily.Tactical,
+      ClaimFamily.Defensive,
+      ClaimFamily.Conversion,
+      ClaimFamily.Material,
+      ClaimFamily.Evaluation
+    )
+
+  private val eventEvidenceLayers: Set[EvidenceLayer] =
+    Set(
+      EvidenceLayer.SinglePosition,
+      EvidenceLayer.Line,
+      EvidenceLayer.Eval,
+      EvidenceLayer.ThreatPressure,
+      EvidenceLayer.MoveMotif,
+      EvidenceLayer.MoveTransition,
+      EvidenceLayer.Relation,
+      EvidenceLayer.StructuralDelta,
+      EvidenceLayer.RelativeAssessment,
+      EvidenceLayer.CandidateComparison,
+      EvidenceLayer.Counterfactual,
+      EvidenceLayer.RelativeCause,
+      EvidenceLayer.MoveVerdictCertification
+    )
+
+  private def eventClaimEligible(claim: ClaimSeed): Boolean =
+    eventFamilies.contains(claim.family) && claim.evidence.nonEmpty
+
+  private val eventInteractionEvidenceLayers: Set[EvidenceLayer] =
+    Set(
+      EvidenceLayer.Line,
+      EvidenceLayer.Eval,
+      EvidenceLayer.ThreatPressure,
+      EvidenceLayer.MoveMotif,
+      EvidenceLayer.MoveTransition,
+      EvidenceLayer.Relation,
+      EvidenceLayer.RelativeAssessment,
+      EvidenceLayer.CandidateComparison,
+      EvidenceLayer.Counterfactual,
+      EvidenceLayer.RelativeCause,
+      EvidenceLayer.MoveVerdictCertification
+    )
+
+  private def eventBindingsForClaim(
+      claim: ClaimSeed,
+      graph: TypedEvidenceGraph
+  ): List[EventMemberBinding] =
+    val records = recordsFor(claim.evidence, graph)
+    val direct = records.flatMap(eventBindingsForRecord(claim, _)).distinct
+    if direct.nonEmpty then direct
+    else if indirectWitnessEligible(claim) then
+      val evidenceIds = claim.evidence.map(_.id).toSet
+      val parentRecords = recordsFor(records.flatMap(_.parents), graph)
+      val childRecords =
+        graph.records.filter(record => record.parents.exists(parent => evidenceIds.contains(parent.id)))
+      val linked = (parentRecords ++ childRecords).flatMap(eventKeysForRecord).distinct
+      lineAwareWitnessKeys(claim, linked).map(EventMemberBinding(_, claim, EventMemberRole.Witness))
+    else Nil
+
+  private def recordsFor(refs: List[EvidenceRef], graph: TypedEvidenceGraph): List[EvidenceRecord] =
+    refs.flatMap(ref => graph.byId.get(ref.id))
+
+  private def eventBindingsForRecord(claim: ClaimSeed, record: EvidenceRecord): List[EventMemberBinding] =
+    record.payload match
+      case RelativeCauseFactEvidence(cause) =>
+        eventKey(record.ref, cause).toList.map { key =>
+          val role =
+            if claim.family == ClaimFamily.Evaluation then EventMemberRole.Witness
+            else EventMemberRole.CauseOwner
+          EventMemberBinding(key, claim, role)
+        }
+      case MoveVerdictCertificationEvidence(certification) =>
+        certification.causes.flatMap(cause => eventKey(record.ref, cause)).map { key =>
+          val role =
+            if claim.family == ClaimFamily.Evaluation then EventMemberRole.VerdictCarrier
+            else EventMemberRole.Witness
+          EventMemberBinding(key, claim, role)
+        }
+      case _ =>
+        Nil
+
+  private def eventKeysForRecord(record: EvidenceRecord): List[EventClusterKey] =
+    record.payload match
+      case RelativeCauseFactEvidence(cause) =>
+        eventKey(record.ref, cause).toList
+      case MoveVerdictCertificationEvidence(certification) =>
+        certification.causes.flatMap(cause => eventKey(record.ref, cause))
+      case _ =>
+        Nil
+
+  private def eventKey(ref: EvidenceRef, cause: RelativeCauseFact): Option[EventClusterKey] =
+    Option.when(kindForCause(cause.kind).nonEmpty)(
+      EventClusterKey(
+        primaryPosition = ref.position,
+        scope = ref.scope,
+        causeKind = cause.kind,
+        comparisonKind = cause.comparisonKind,
+        referenceLine = cause.referenceLine,
+        candidateLine = cause.candidateLine,
+        eventLine = cause.eventLine,
+        verdict = cause.verdict,
+        winPercentLossForMover = cause.winPercentLossForMover,
+        candidateWinPercentDeltaForMover = cause.candidateWinPercentDeltaForMover
+      )
+    )
+
+  private def indirectWitnessEligible(claim: ClaimSeed): Boolean =
+    claim.family match
+      case ClaimFamily.Tactical | ClaimFamily.Conversion =>
+        claim.evidence.exists(ref => ref.layer == EvidenceLayer.Relation || ref.layer == EvidenceLayer.MoveMotif)
+      case ClaimFamily.Material =>
+        claim.evidence.exists(ref => ref.layer == EvidenceLayer.Line)
+      case _ =>
+        false
+
+  private def lineAwareWitnessKeys(
+      claim: ClaimSeed,
+      keys: List[EventClusterKey]
+  ): List[EventClusterKey] =
+    val unique = keys.distinct
+    val claimLines = (claim.primaryLine.toList ++ claim.evidence.flatMap(_.line)).distinct
+    val claimMoves = (claim.subjectMove.toList ++ claimLines.map(_.rootMove)).map(normalizeMove).toSet
+    val eventLineMatched =
+      unique.filter(key => claimLines.contains(key.eventLine))
+    val comparisonLineMatched =
+      unique.filter(key => claimLines.exists(line => line == key.referenceLine || line == key.candidateLine))
+    val eventMoveMatched =
+      unique.filter(key => claimMoves.contains(normalizeMove(key.eventRootMove)))
+    val comparisonMoveMatched =
+      unique.filter(key =>
+        claimMoves.contains(normalizeMove(key.referenceLine.rootMove)) ||
+          claimMoves.contains(normalizeMove(key.candidateLine.rootMove))
+      )
+    List(eventLineMatched, comparisonLineMatched, eventMoveMatched, comparisonMoveMatched)
+      .find(_.nonEmpty)
+      .getOrElse(if unique.size == 1 then unique else Nil)
+      .distinct
+
+  private def normalizeMove(raw: String): String =
+    Option(raw).getOrElse("").trim.toLowerCase
+
+  private def clusterFor(
+      key: EventClusterKey,
+      bindings: List[EventMemberBinding],
+      allClaims: List[ClaimSeed],
+      supportClusters: List[ClaimSupportCluster]
+  ): Option[ClaimEventCluster] =
+    val members = bindings.map(_.claim).distinctBy(_.id).sortBy(_.id)
+    val memberIds = members.map(_.id).toSet
+    val causeClaimIds =
+      bindings
+        .filter(_.role == EventMemberRole.CauseOwner)
+        .map(_.claim)
+        .filterNot(_.family == ClaimFamily.Evaluation)
+        .distinctBy(_.id)
+        .sortBy(_.id)
+        .map(_.id)
+    val evaluationClaimIds =
+      bindings
+        .filter(_.role == EventMemberRole.VerdictCarrier)
+        .map(_.claim)
+        .filter(_.family == ClaimFamily.Evaluation)
+        .distinctBy(_.id)
+        .sortBy(_.id)
+        .map(_.id)
+    val witnessClaimIds =
+      bindings
+        .filter(_.role == EventMemberRole.Witness)
+        .map(_.claim)
+        .filterNot(claim => causeClaimIds.contains(claim.id) || evaluationClaimIds.contains(claim.id))
+        .distinctBy(_.id)
+        .sortBy(_.id)
+        .map(_.id)
+    val evidence =
+      members.flatMap(_.evidence).filter(ref => eventEvidenceLayers.contains(ref.layer)).distinctBy(_.id)
+    val interactions = clusterInteractions(memberIds, allClaims)
+    val relatedSupportClusterIds = supportClustersRelatedTo(memberIds, interactions, supportClusters)
+    Option.when(causeClaimIds.nonEmpty && evidence.nonEmpty) {
+      ClaimEventCluster(
+        id = eventClusterId(key, members),
+        kind = clusterKind(key.causeKind),
+        causeKind = key.causeKind,
+        comparisonKind = key.comparisonKind,
+        referenceLine = key.referenceLine,
+        candidateLine = key.candidateLine,
+        eventLine = key.eventLine,
+        eventRootMove = key.eventRootMove,
+        verdict = key.verdict,
+        winPercentLossForMover = key.winPercentLossForMover,
+        candidateWinPercentDeltaForMover = key.candidateWinPercentDeltaForMover,
+        families = members.map(_.family).distinct.sortBy(_.toString),
+        primaryPosition = key.primaryPosition,
+        scope = key.scope,
+        memberClaimIds = members.map(_.id),
+        causeClaimIds = causeClaimIds,
+        evaluationClaimIds = evaluationClaimIds,
+        witnessClaimIds = witnessClaimIds,
+        relatedSupportClusterIds = relatedSupportClusterIds,
+        ideas = members.flatMap(_.ideaRefs).distinctBy(_.id),
+        evidence = evidence,
+        presentLayers = evidence.map(_.layer).toSet,
+        confidence = members.map(_.confidence).maxBy(confidenceScore),
+        salienceDrivers = members.flatMap(_.salience.toList.flatMap(_.drivers)).distinct,
+        interactions = interactions
+      )
+    }
+
+  private def eventClusterId(key: EventClusterKey, members: List[ClaimSeed]): String =
+    List(
+      "claim-event",
+      key.comparisonKind.toString,
+      key.causeKind.toString,
+      key.eventRootMove,
+      members.map(_.id).minOption.getOrElse("empty")
+    ).map(idPart).mkString(":")
+
+  private def idPart(raw: String): String =
+    raw.toLowerCase.replaceAll("[^a-z0-9]+", "-").stripPrefix("-").stripSuffix("-")
+
+  private def clusterKind(causeKind: RelativeCauseKind): ClaimEventClusterKind =
+    kindForCause(causeKind).getOrElse(ClaimEventClusterKind.TacticalEvent)
+
+  def kindForCause(kind: RelativeCauseKind): Option[ClaimEventClusterKind] =
+    kind match
+      case RelativeCauseKind.MissedTacticalResource | RelativeCauseKind.TacticalRefutationOfPlayed |
+          RelativeCauseKind.CandidateTacticalLiability |
+          RelativeCauseKind.WrongRecapturer | RelativeCauseKind.RecaptureRecoveryWindow |
+          RelativeCauseKind.WrongMoveOrder | RelativeCauseKind.TempoLoss | RelativeCauseKind.KingForcing =>
+        Some(ClaimEventClusterKind.TacticalEvent)
+      case RelativeCauseKind.OnlyMoveNecessity | RelativeCauseKind.OnlyDefenseNecessity |
+          RelativeCauseKind.DefensiveResource | RelativeCauseKind.DrawResource =>
+        Some(ClaimEventClusterKind.DefensiveEvent)
+      case RelativeCauseKind.ConversionMiss | RelativeCauseKind.ConversionSecured =>
+        Some(ClaimEventClusterKind.ConversionEvent)
+      case RelativeCauseKind.MaterialSwing | RelativeCauseKind.SacrificeCompensation =>
+        Some(ClaimEventClusterKind.MaterialEvent)
+      case _ =>
+        None
+
+  private def clusterInteractions(
+      memberIds: Set[String],
+      claims: List[ClaimSeed]
+  ): List[ClaimEventClusterInteraction] =
+    val claimsById = claims.map(claim => claim.id -> claim).toMap
+    claims.flatMap { source =>
+      source.salience.toList.flatMap(_.interactions).flatMap { interaction =>
+        val sourceIsMember = memberIds.contains(source.id)
+        val targetIsMember = memberIds.contains(interaction.relatedClaimId)
+        Option.when(sourceIsMember || targetIsMember)(
+          ClaimEventClusterInteraction(
+            kind = interaction.kind,
+            sourceClaimId = source.id,
+            targetClaimId = interaction.relatedClaimId,
+            strength = interaction.strength,
+            evidence =
+              if crossesLongTerm(source, interaction.relatedClaimId, memberIds, claimsById) then Nil
+              else interaction.interactionEvidence.filter(ref => eventInteractionEvidenceLayers.contains(ref.layer))
+          )
+        )
+      }
+    }.distinctBy(interaction => (interaction.kind, interaction.sourceClaimId, interaction.targetClaimId))
+
+  private def crossesLongTerm(
+      source: ClaimSeed,
+      targetClaimId: String,
+      memberIds: Set[String],
+      claimsById: Map[String, ClaimSeed]
+  ): Boolean =
+    val sourceExternalLongTerm = !memberIds.contains(source.id) && isLongTermClaim(source)
+    val targetExternalLongTerm = !memberIds.contains(targetClaimId) && claimsById.get(targetClaimId).exists(isLongTermClaim)
+    sourceExternalLongTerm || targetExternalLongTerm
+
+  private def isLongTermClaim(claim: ClaimSeed): Boolean =
+    claim.family match
+      case ClaimFamily.Strategic | ClaimFamily.PawnStructure | ClaimFamily.Opening | ClaimFamily.Plan => true
+      case _                                                                                         => false
+
+  private def supportClustersRelatedTo(
+      memberIds: Set[String],
+      interactions: List[ClaimEventClusterInteraction],
+      supportClusters: List[ClaimSupportCluster]
+  ): List[String] =
+    val externallyRelatedClaims =
+      interactions
+        .flatMap(interaction => List(interaction.sourceClaimId, interaction.targetClaimId))
+        .filterNot(memberIds.contains)
+        .toSet
+    supportClusters
+      .filter { cluster =>
+        val supportIds =
+          (cluster.anchorClaimIds ++ cluster.supportingClaimIds ++ cluster.constrainingClaimIds).toSet
+        supportIds.exists(memberIds.contains) || supportIds.exists(externallyRelatedClaims.contains)
+      }
+      .map(_.id)
+      .distinct
+      .sorted
+
+  private def confidenceScore(confidence: EvidenceConfidence): Int =
+    confidence match
+      case EvidenceConfidence.LegalReplayVerified => 5
+      case EvidenceConfidence.EngineBacked        => 4
+      case EvidenceConfidence.BoardDerived        => 3
+      case EvidenceConfidence.Mixed               => 2
+      case EvidenceConfidence.Heuristic           => 1
 
 case class ClaimSeed(
     id: String,
@@ -56,8 +731,11 @@ case class ClaimSeed(
     scope: EvidenceScope,
     confidence: EvidenceConfidence,
     supportStatus: Option[ClaimSupportCheck] = None,
-    salience: Option[ClaimSalience] = None
-)
+    salience: Option[ClaimSalience] = None,
+    relatedIdeas: List[ChessIdeaRef] = Nil
+):
+  def ideaRefs: List[ChessIdeaRef] =
+    (idea.toList ++ relatedIdeas).distinctBy(_.id)
 
 case class IdeaVerdictSplit(
     ideas: List[ChessIdeaRef],
@@ -73,17 +751,22 @@ object IdeaVerdictSplit:
       assessments: List[RelativeMoveAssessment]
   ): Option[IdeaVerdictSplit] =
     val ideaRefs = ideas.map(_.ref)
-    val ideaClaims = claims.filter(_.idea.exists(ideaRefs.contains))
+    val ideaClaims = claims.filter(claim => claim.ideaRefs.exists(ideaRefs.contains))
     val assessment = assessments.headOption
     val verdict = assessment.map(_.comparison)
     val bindings =
-      assessment.toList.flatMap { relative =>
+      assessments.flatMap { relative =>
         ideas.filter(ideaBindsToRelative(_, relative)).map { idea =>
           IdeaVerdictBinding(
             idea = idea.ref,
             verdict = relative.comparison,
             relation = relationFor(idea, relative.comparison),
-            evidence = (idea.evidence ++ (relative.evidence :: relative.counterfactualEvidence)).distinctBy(_.id)
+            evidence =
+              (idea.evidence ++
+                (relative.evidence ::
+                  (relative.counterfactualEvidence ++
+                    relative.candidateComparisonEvidence ++
+                    relative.verdictCertificationEvidence.toList))).distinctBy(_.id)
           )
         }
       }
@@ -111,13 +794,17 @@ object IdeaVerdictSplit:
         IdeaVerdictRelation.ExplainsIdeaDespiteBadVerdict
 
   private def ideaBindsToRelative(idea: ChessIdea, relative: RelativeMoveAssessment): Boolean =
-    val relativeLines = Set(relative.reference.ref, relative.candidate.ref)
-    val relativeEvidence = (relative.evidence :: relative.counterfactualEvidence).map(_.id).toSet
-    idea.primaryLine.exists(relativeLines.contains) ||
+    val relativeEvidence =
+      (relative.evidence ::
+        (relative.counterfactualEvidence ++
+          relative.candidateComparisonEvidence ++
+          relative.verdictCertificationEvidence.toList)).map(_.id).toSet
+    idea.ref.family == ChessIdeaFamily.Evaluation ||
+      idea.primaryLine.contains(relative.candidate.ref) ||
       idea.moveUci.contains(relative.played.moveUci) ||
       idea.evidence.exists(ref =>
         relativeEvidence.contains(ref.id) ||
-          ref.line.exists(relativeLines.contains)
+          ref.line.contains(relative.candidate.ref)
       )
 
 case class EvidenceBackedJudgmentPacket(
@@ -130,7 +817,11 @@ case class EvidenceBackedJudgmentPacket(
     ideas: List[ChessIdea],
     claims: List[ClaimSeed],
     ideaVerdict: Option[IdeaVerdictSplit],
-    diagnostics: EvidenceLossReport = EvidenceLossReport.empty
+    claimSupportClusters: List[ClaimSupportCluster] = Nil,
+    claimEventClusters: List[ClaimEventCluster] = Nil,
+    diagnostics: EvidenceLossReport = EvidenceLossReport.empty,
+    probeRequests: List[ProbeRequest] = Nil,
+    probeDiagnostics: List[ProbeAdmissionDiagnostic] = Nil
 ):
   def playedTransition: Option[MoveTransitionEdge] =
     transitions.find(_.role == TransitionEdgeRole.Played)

@@ -2,6 +2,7 @@ package lila.chessjudgment.model
 
 import _root_.chess.format.Fen
 import _root_.chess.variant.Standard
+import lila.chessjudgment.model.strategic.VariationLine
 import play.api.libs.json._
 
 enum ProbePurpose(val key: String):
@@ -75,6 +76,8 @@ case class ProbeResult(
   bestReplyPv: List[String], // UCI moves of the refutation/support line after the probed move
   // Optional: MultiPV reply lines (first element should correspond to bestReplyPv)
   replyPvs: Option[List[List[String]]] = None,
+  // Optional: scored MultiPV reply lines from the probed FEN. These are admissible as graph evidence.
+  replyLines: Option[List[VariationLine]] = None,
   deltaVsBaseline: Int,      // evalCp - baselineEvalCp (same POV). Negative = worse than baseline.
   keyMotifs: List[String],   // Legacy client motif codes; not authority for judgment
   // Optional metadata that keeps branch probes self-describing.
@@ -103,6 +106,31 @@ case class ProbeResult(
 object ProbeResult:
   given Reads[ProbeResult] = Json.reads[ProbeResult]
   given Writes[ProbeResult] = Json.writes[ProbeResult]
+
+enum ProbeAdmissionStatus:
+  case Admitted
+  case Rejected
+  case Ignored
+
+object ProbeAdmissionStatus:
+  given Writes[ProbeAdmissionStatus] = Writes(status => JsString(status.toString))
+
+case class ProbeAdmissionDiagnostic(
+  probeId: String,
+  status: ProbeAdmissionStatus,
+  reasonCodes: List[String],
+  purpose: Option[ProbePurpose] = None,
+  candidateMove: Option[String] = None,
+  fen: Option[String] = None,
+  admittedLineCount: Int = 0,
+  legalLineCount: Int = 0,
+  scoredLineCount: Int = 0,
+  depthFloor: Option[Int] = None,
+  variationHash: Option[String] = None
+)
+
+object ProbeAdmissionDiagnostic:
+  given Writes[ProbeAdmissionDiagnostic] = Json.writes[ProbeAdmissionDiagnostic]
 
 /**
  * Board positional delta after applying a candidate move.
@@ -156,6 +184,8 @@ object TargetsDelta:
  * not be used as certified evidence.
  */
 object ProbeContractValidator:
+
+  private val DefaultBranchReplyMultiPv = 3
 
   enum ProbeCertificateStatus:
     case Valid
@@ -272,6 +302,11 @@ object ProbeContractValidator:
         .filter(_ > 0)
     val depthFloorUnmet =
       depthFloor.exists(floor => result.depth.exists(_ < floor))
+    val scoredReplyLineCount =
+      result.replyLines.map(_.count(line => line.moves.nonEmpty && line.depth > 0)).getOrElse(0)
+    val replyMultiPvIncomplete =
+      request.purpose.exists(branchPurposes.contains) &&
+        request.multiPv.exists(required => scoredReplyLineCount < required)
     val hardReasonBuilder = List.newBuilder[String]
     if fenMissing then hardReasonBuilder += "FEN_UNVERIFIED"
     if requestFenInvalid then hardReasonBuilder += "REQUEST_FEN_INVALID"
@@ -285,6 +320,7 @@ object ProbeContractValidator:
     if purposeContractMissing then hardReasonBuilder += "PURPOSE_CONTRACT_MISSING"
     if depthFloor.nonEmpty && result.depth.isEmpty then hardReasonBuilder += "DEPTH_FLOOR_UNVERIFIED"
     if depthFloorUnmet then hardReasonBuilder += "DEPTH_FLOOR_UNMET"
+    if replyMultiPvIncomplete then hardReasonBuilder += "REPLY_MULTIPV_INCOMPLETE"
     val hardReasons = hardReasonBuilder.result()
 
     val softReasonBuilder = List.newBuilder[String]
@@ -348,7 +384,7 @@ object ProbeContractValidator:
   private def hasSignal(signal: String, result: ProbeResult): Boolean =
     signal match
       case "replyPvs" =>
-        result.replyPvs.exists(_.exists(_.nonEmpty)) || result.bestReplyPv.nonEmpty
+        result.replyLines.exists(_.count(line => line.moves.nonEmpty && line.depth > 0) >= DefaultBranchReplyMultiPv)
       case "keyMotifs" =>
         result.motifTags.nonEmpty && !clientGeneratedProbeSignal(signal, result)
       case "boardDelta" =>

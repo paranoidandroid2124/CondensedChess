@@ -83,7 +83,8 @@ object SinglePositionAssessor:
     val evalDelta = for
       best <- bestLine
       second <- secondLine
-    yield best.score - second.score
+      if best.mate.isEmpty && second.mate.isEmpty
+    yield best.evalCp - second.evalCp
     // PV length alone is not a valid proxy for forcing sequences
     val hasMateInLine = mateDistance.isDefined
     val hasLargeEvalJump = evalDelta.exists(_.abs >= 200)
@@ -110,7 +111,7 @@ object SinglePositionAssessor:
     if multiPv.size < 2 then
       return CandidateSetTopology(
         candidateSetType = CandidateSetType.NarrowChoice, // Unknown, not OnlyMove
-        bestLineEvalCp = multiPv.headOption.map(_.score),
+        bestLineEvalCp = multiPv.headOption.map(_.evalCp),
         secondLineEvalCp = None,
         thirdLineEvalCp = None,
         gapBestToSecondWp = None,
@@ -118,13 +119,16 @@ object SinglePositionAssessor:
         secondCandidateFailure = Some(CandidateFailureMode.InsufficientData)
       )
 
-    val bestLineEvalCp = multiPv.head.score
-    val secondLineEvalCp = multiPv(1).score
-    val thirdLineEvalCp = multiPv.lift(2).map(_.score)
+    val bestLine = multiPv.head
+    val secondLine = multiPv(1)
+    val thirdLine = multiPv.lift(2)
+    val bestLineEvalCp = bestLine.evalCp
+    val secondLineEvalCp = secondLine.evalCp
+    val thirdLineEvalCp = thirdLine.map(_.evalCp)
 
-    val bestLineWinPercent = PerspectiveMath.winPercentFromWhiteCp(bestLineEvalCp)
-    val secondLineWinPercent = PerspectiveMath.winPercentFromWhiteCp(secondLineEvalCp)
-    val thirdLineWinPercent = thirdLineEvalCp.map(PerspectiveMath.winPercentFromWhiteCp)
+    val bestLineWinPercent = PerspectiveMath.winPercentFromRelativeEval(bestLine.evalCp, bestLine.mate)
+    val secondLineWinPercent = PerspectiveMath.winPercentFromRelativeEval(secondLine.evalCp, secondLine.mate)
+    val thirdLineWinPercent = thirdLine.map(line => PerspectiveMath.winPercentFromRelativeEval(line.evalCp, line.mate))
 
     val gapBestToSecondWp = (bestLineWinPercent - secondLineWinPercent).abs
     val spreadTop3Wp = thirdLineWinPercent.map(third => (bestLineWinPercent - third).abs).getOrElse(gapBestToSecondWp)

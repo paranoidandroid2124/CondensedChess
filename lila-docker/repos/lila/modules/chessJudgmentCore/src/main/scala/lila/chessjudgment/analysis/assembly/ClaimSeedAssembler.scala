@@ -18,12 +18,13 @@ object ClaimSeedAssembler:
     val context = assembly.context
     val claimCandidates =
       context.ideas.map { idea =>
+        val family = claimFamily(idea)
         ClaimComposer.fromIdea(
           id = allocator.evidenceId(s"claim:${allocator.key(idea.ref.family)}:${allocator.key(idea.ref.id)}"),
-          family = claimFamily(idea),
+          family = family,
           idea = idea,
           supportingFacts = supportingFacts(context, idea.evidence),
-          engineComparison = engineComparison(context, idea),
+          engineComparison = engineComparison(context, idea, family),
           confidence = idea.confidence
         )
       }
@@ -43,19 +44,30 @@ object ClaimSeedAssembler:
       case ChessIdeaFamily.Opening       => ClaimFamily.Opening
       case ChessIdeaFamily.Defensive     => ClaimFamily.Defensive
       case ChessIdeaFamily.Conversion    => ClaimFamily.Conversion
+      case ChessIdeaFamily.Material      => ClaimFamily.Material
       case ChessIdeaFamily.Evaluation    => ClaimFamily.Evaluation
 
   private def engineComparison(
       context: JudgmentAssemblyContext,
+      idea: ChessIdea,
+      family: ClaimFamily
+  ): Option[EvalComparison] =
+    Option.when(family == ClaimFamily.Evaluation)(localEngineComparison(context, idea)).flatten
+
+  private def localEngineComparison(
+      context: JudgmentAssemblyContext,
       idea: ChessIdea
   ): Option[EvalComparison] =
-    context.relativeAssessments
-      .find { assessment =>
-        idea.moveUci.contains(assessment.played.moveUci) ||
-          idea.primaryLine.contains(assessment.candidate.ref) ||
-          idea.ref.family == ChessIdeaFamily.Evaluation
-      }
-      .map(_.comparison)
+    val ids = idea.evidence.map(_.id).toSet
+    val records = context.evidenceGraph.records.filter(record => ids.contains(record.ref.id))
+    records.collectFirst {
+      case EvidenceRecord(_, CandidateComparisonEvidence(fact), _) =>
+        fact.comparison
+      case EvidenceRecord(_, CounterfactualFactEvidence(_, _, comparison), _) =>
+        comparison
+      case EvidenceRecord(_, RelativeAssessmentEvidence(assessment), _) =>
+        assessment.comparison
+    }
 
   private def supportingFacts(
       context: JudgmentAssemblyContext,

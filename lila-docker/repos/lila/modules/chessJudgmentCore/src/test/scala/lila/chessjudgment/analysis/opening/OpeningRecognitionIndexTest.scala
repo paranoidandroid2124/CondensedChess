@@ -1,6 +1,11 @@
 package lila.chessjudgment.analysis.opening
 
-import lila.chessjudgment.analysis.assembly.{ MoveReviewInputNormalizer, MoveReviewJudgmentOrchestrator, RawMoveReviewInput }
+import lila.chessjudgment.analysis.assembly.{
+  MoveReviewInputNormalizer,
+  MoveReviewJudgmentOrchestrator,
+  RawMoveReviewInput,
+  RawOpeningContext
+}
 import lila.chessjudgment.model.judgment.{
   ApplicabilityAssessmentEvidence,
   FeatureAnchorEvidence,
@@ -113,6 +118,29 @@ class OpeningRecognitionIndexTest extends munit.FunSuite:
     assertEquals(normalized.openingRecognition.flatMap(_.bestIdentity.flatMap(_.eco)), Some("C50"))
     assertEquals(normalized.openingThemePrior.map(_.lineage), Some(Some("open_games/italian")))
     assert(normalized.openingSignals.contains(OpeningContextSignal.RecognizedIdentity))
+    assert(normalized.openingSignals.contains(OpeningContextSignal.ThemePrior))
+
+  test("normalizer derives ECO family theme prior from opening name when prefix metadata is absent"):
+    val themeIndex = OpeningThemePriorIndex.fromTsvLines(
+      List(
+        OpeningThemePriorIndex.TsvHeader,
+        "eco_b\tB\tCenterControl|PawnStructure\tsemi_open_games\td7_d5|e7_e5\tminor_piece_development\tfalse\tcounterplay"
+      )
+    )
+    val raw = RawMoveReviewInput(
+      fen = italianFen,
+      playedMoveUci = "g8f6",
+      variations = List(VariationLine(moves = List("g8f6"), scoreCp = 20, depth = 12)),
+      currentEvalCp = Some(20),
+      ply = Some(italianPrefix.size),
+      openingContext = Some(RawOpeningContext(name = Some("Caro-Kann Defense: Exchange Variation")))
+    )
+
+    val normalized = MoveReviewInputNormalizer.normalize(raw, OpeningRecognitionIndex.empty, themeIndex).get
+
+    assertEquals(normalized.opening.flatMap(_.family), Some(OpeningFamily.B))
+    assertEquals(normalized.openingThemePrior.flatMap(_.family), Some(OpeningFamily.B))
+    assert(normalized.openingSignals.contains(OpeningContextSignal.InputIdentity))
     assert(normalized.openingSignals.contains(OpeningContextSignal.ThemePrior))
 
   test("judgment build emits OpeningContextEvidence from the compact default index"):

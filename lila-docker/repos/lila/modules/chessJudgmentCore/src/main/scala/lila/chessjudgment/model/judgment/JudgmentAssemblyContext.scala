@@ -1,5 +1,7 @@
 package lila.chessjudgment.model.judgment
 
+import lila.chessjudgment.model.ProbeAdmissionDiagnostic
+
 final case class JudgmentAssemblyContext(
     positions: List[PositionNode],
     lines: List[CandidateLineNode],
@@ -7,7 +9,8 @@ final case class JudgmentAssemblyContext(
     relativeAssessments: List[RelativeMoveAssessment],
     evidenceGraph: TypedEvidenceGraph,
     ideas: List[ChessIdea],
-    claims: List[ClaimSeed]
+    claims: List[ClaimSeed],
+    probeDiagnostics: List[ProbeAdmissionDiagnostic] = Nil
 ):
   def position(role: PositionNodeRole): Option[PositionNode] =
     positions.find(_.role == role)
@@ -63,5 +66,6 @@ object JudgmentAssemblyContext:
       relativeAssessments = Nil,
       evidenceGraph = evidenceGraph,
       ideas = Nil,
-      claims = Nil
+      claims = Nil,
+      probeDiagnostics = Nil
     )

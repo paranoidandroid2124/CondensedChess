@@ -11,6 +11,7 @@ object LineFactNormalizer:
       position: PositionNodeRef,
       scope: EvidenceScope,
       forcedTheme: Option[ForcedLineThemeEvidence] = None,
+      materialSummary: Option[LineMaterialSummary] = None,
       parents: List[EvidenceRef] = Nil
   ): EvidenceRecord =
     val ref =
@@ -30,7 +31,8 @@ object LineFactNormalizer:
         firstMove = Some(facts.first.uci),
         replyMove = facts.reply.map(_.uci),
         continuationMoves = facts.continuation.toList.map(_.uci) ++ facts.continuationTail.map(_.uci),
-        forcedTheme = forcedTheme
+        forcedTheme = forcedTheme,
+        material = materialSummary
       ),
       parents = parents
     )

@@ -19,7 +19,9 @@ object EvalFactNormalizer:
         position = position,
         line = Some(line.ref),
         scope = scope,
-        confidence = EvidenceConfidence.EngineBacked
+        confidence =
+          if JudgmentThresholds.engineBackedByDepth(line.depth, line.mate) then EvidenceConfidence.EngineBacked
+          else EvidenceConfidence.Mixed
       )
     EvidenceRecord(
       ref = ref,

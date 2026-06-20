@@ -36,8 +36,11 @@ enum EvidenceLayer:
   case StructuralDelta
   case PlanPressure
   case PlanTransition
+  case CandidateComparison
   case Counterfactual
   case RelativeAssessment
+  case RelativeCause
+  case MoveVerdictCertification
   case ChessIdea
   case Claim
 
@@ -48,6 +51,7 @@ enum ChessIdeaFamily:
   case Opening
   case Defensive
   case Conversion
+  case Material
   case Evaluation
 
 enum IdeaSubject:

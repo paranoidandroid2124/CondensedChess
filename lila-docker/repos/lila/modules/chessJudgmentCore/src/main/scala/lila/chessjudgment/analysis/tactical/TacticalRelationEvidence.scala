@@ -5,6 +5,7 @@ import _root_.chess.format.{ Fen, Uci }
 import _root_.chess.variant.Standard
 
 import lila.chessjudgment.analysis.line.PrincipalVariationEvidence
+import lila.chessjudgment.analysis.evaluation.JudgmentThresholds
 import lila.chessjudgment.analysis.tactical.TacticalPatternDetectors
 import lila.chessjudgment.analysis.structure.WeaknessTargetProfile
 import lila.chessjudgment.model.ProbeResult
@@ -15,7 +16,6 @@ private[chessjudgment] object TacticalRelationEvidence:
   def normalizedTopUciMoves(variations: List[VariationLine]): List[String] =
     variations.headOption.toList.flatMap(normalizedLineMoves)
 
-  private val DrawResourceMaxCp = 80
   private[chessjudgment] val DrawResourceRelationReplayMaxPlies = 12
 
   def normalizedLineMoves(line: VariationLine): List[String] =
@@ -103,7 +103,7 @@ private[chessjudgment] object TacticalRelationEvidence:
   def defenderTradeBranch(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      explicitTargets: List[String] = Nil
+      targetHints: List[String] = Nil
   ): Option[DefenderTradeBranch] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
@@ -123,7 +123,7 @@ private[chessjudgment] object TacticalRelationEvidence:
         movingSide = movingSide,
         defenderSquare = defenderSquare,
         exchangeSquare = exchangeSquare,
-        explicitTargets = explicitTargets
+        targetHints = targetHints
       )
       if defenseRelationRemoved(
         before = first.before.board,
@@ -142,59 +142,57 @@ private[chessjudgment] object TacticalRelationEvidence:
   def relationWitnesses(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      explicitTargets: List[String] = Nil,
+      targetHints: List[String] = Nil,
       continuationLines: List[List[String]] = Nil,
       engineScoreCp: Option[Int] = None,
       engineMate: Option[Int] = None,
+      drawishWinPercent: Option[Double] = None,
       includeDrawResources: Boolean = true
   ): List[RelationWitness] =
-    val zwischenzug = zwischenzugWitness(replay, playedMove, explicitTargets)
+    val zwischenzug = zwischenzugWitness(replay, playedMove, targetHints)
     val drawResourceWitnesses =
       if includeDrawResources then
         List(
-          stalemateTrapWitness(replay, playedMove, engineScoreCp, engineMate),
-          perpetualCheckWitness(replay, playedMove, engineScoreCp, engineMate)
+          stalemateTrapWitness(replay, playedMove, engineScoreCp, engineMate, drawishWinPercent),
+          perpetualCheckWitness(replay, playedMove, engineScoreCp, engineMate, drawishWinPercent)
         ).flatten
       else Nil
-    val fork =
-      if zwischenzug.isEmpty then forkWitness(replay, playedMove, explicitTargets)
-      else None
+    val fork = forkWitness(replay, playedMove, targetHints)
     val loosePiecePressure =
-      if zwischenzug.isEmpty then
-        val trapped = trappedPieceWitness(replay, playedMove, explicitTargets)
-        trapped
-          .orElse(dominationWitness(replay, playedMove, explicitTargets))
-          .orElse(hangingPieceWitness(replay, playedMove, explicitTargets))
-      else None
-    List(
-      defenderTradeBranch(replay, playedMove, explicitTargets).map(defenderTradeWitness),
+      val trapped = trappedPieceWitness(replay, playedMove, targetHints)
+      trapped
+        .orElse(dominationWitness(replay, playedMove, targetHints))
+        .orElse(hangingPieceWitness(replay, playedMove, targetHints))
+    val witnesses = List(
+      defenderTradeBranch(replay, playedMove, targetHints).map(defenderTradeWitness),
       badPieceLiquidationBranch(replay, playedMove).map(badPieceLiquidationWitness),
-      overloadWitness(replay, playedMove, explicitTargets),
-      deflectionWitness(replay, playedMove, explicitTargets),
-      discoveredAttackWitness(replay, playedMove, explicitTargets),
-      doubleCheckWitness(replay, playedMove, explicitTargets),
-      backRankMateWitness(replay, playedMove, explicitTargets),
-      mateNetWitness(replay, playedMove, explicitTargets),
-      greekGiftWitness(replay, playedMove, explicitTargets, continuationLines)
+      overloadWitness(replay, playedMove, targetHints),
+      deflectionWitness(replay, playedMove, targetHints),
+      discoveredAttackWitness(replay, playedMove, targetHints),
+      doubleCheckWitness(replay, playedMove),
+      backRankMateWitness(replay, playedMove),
+      mateNetWitness(replay, playedMove),
+      greekGiftWitness(replay, playedMove, continuationLines)
     ).flatten ++ drawResourceWitnesses ++ List(
       zwischenzug,
       fork,
       loosePiecePressure,
-      pinWitness(replay, playedMove, explicitTargets),
-      xrayWitness(replay, playedMove, explicitTargets),
-      clearanceWitness(replay, playedMove, explicitTargets),
-      batteryWitness(replay, playedMove, explicitTargets),
-      skewerWitness(replay, playedMove, explicitTargets),
-      interferenceWitness(replay, playedMove, explicitTargets),
-      decoyWitness(replay, playedMove, explicitTargets)
+      pinWitness(replay, playedMove, targetHints),
+      xrayWitness(replay, playedMove, targetHints),
+      clearanceWitness(replay, playedMove, targetHints),
+      batteryWitness(replay, playedMove, targetHints),
+      skewerWitness(replay, playedMove, targetHints),
+      interferenceWitness(replay, playedMove, targetHints),
+      decoyWitness(replay, playedMove, targetHints)
     ).flatten
+    prioritizeTargetHintMatches(witnesses, targetHints)
 
   def defenderTradeRelationWitness(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      explicitTargets: List[String] = Nil
+      targetHints: List[String] = Nil
   ): Option[RelationWitness] =
-    defenderTradeBranch(replay, playedMove, explicitTargets).map(defenderTradeWitness)
+    defenderTradeBranch(replay, playedMove, targetHints).map(defenderTradeWitness)
 
   def badPieceLiquidationRelationWitness(
       replay: List[BoundedReplayStep],
@@ -281,20 +279,20 @@ private[chessjudgment] object TacticalRelationEvidence:
   def overloadWitness(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      explicitTargets: List[String] = Nil
+      targetHints: List[String] = Nil
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
       first <- replay.headOption.filter(_.uci == normalizedPlayed)
       movingSide = first.move.piece.color
-      targetSquares = relationTargetSquares(first.after.board, movingSide, explicitTargets)
+      targetSquares = relationTargetSquares(first.after.board, movingSide, targetHints)
       witness <- overloadedDefender(first.before.board, first.after.board, movingSide, first.move.dest, targetSquares)
     yield witness.copy(lineMoves = replayUcis(replay, 0, 1))
 
   def deflectionWitness(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      explicitTargets: List[String] = Nil
+      targetHints: List[String] = Nil
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
@@ -306,7 +304,7 @@ private[chessjudgment] object TacticalRelationEvidence:
       if defender.color != movingSide
       if first.after.board.attackers(defenderSquare, movingSide).exists(_ == first.move.dest)
       if reply.move.piece.color == defender.color
-      target <- relationTargetSquares(first.before.board, movingSide, explicitTargets)
+      target <- relationTargetSquares(first.before.board, movingSide, targetHints)
         .find(target =>
           first.before.board.attackers(target, defender.color).exists(_ == defenderSquare) &&
             !reply.after.board.attackers(target, defender.color).exists(_ == defenderSquare) &&
@@ -328,38 +326,36 @@ private[chessjudgment] object TacticalRelationEvidence:
   def discoveredAttackWitness(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      explicitTargets: List[String] = Nil
+      targetHints: List[String] = Nil
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
       first <- replay.headOption.filter(_.uci == normalizedPlayed)
       movingSide = first.move.piece.color
-      targetSet = relationTargetSquares(first.after.board, movingSide, explicitTargets).toSet
+      targetSet = relationTargetSquares(first.after.board, movingSide, targetHints).toSet
       witness <- discoveredAttackAfterMove(first.before.board, first.after.board, movingSide, first.move.orig, first.move.dest, targetSet)
     yield witness.copy(lineMoves = replayUcis(replay, 0, 1))
 
   def xrayWitness(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      explicitTargets: List[String] = Nil
+      targetHints: List[String] = Nil
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
       first <- replay.headOption.filter(_.uci == normalizedPlayed)
       movingSide = first.move.piece.color
-      targetSet = relationTargetSquares(first.after.board, movingSide, explicitTargets).toSet
+      targetSet = relationTargetSquares(first.after.board, movingSide, targetHints).toSet
       witness <- xrayAfterMove(first.after.board, movingSide, first.move.dest, first.move.piece.role, targetSet)
     yield witness.copy(lineMoves = replayUcis(replay, 0, 1))
 
   def doubleCheckWitness(
       replay: List[BoundedReplayStep],
-      playedMove: String,
-      explicitTargets: List[String] = Nil
+      playedMove: String
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
       first <- replay.headOption.filter(_.uci == normalizedPlayed)
-      if normalizedExplicitTargetKeys(explicitTargets).isEmpty
       movingSide = first.move.piece.color
       king <- first.after.board.kingPosOf(!movingSide)
       checkers = first.after.checkers.squares.toList.map(_.key).sorted
@@ -380,13 +376,11 @@ private[chessjudgment] object TacticalRelationEvidence:
 
   def backRankMateWitness(
       replay: List[BoundedReplayStep],
-      playedMove: String,
-      explicitTargets: List[String] = Nil
+      playedMove: String
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
       first <- replay.headOption.filter(_.uci == normalizedPlayed)
-      if normalizedExplicitTargetKeys(explicitTargets).isEmpty
       pattern <- tacticalPattern(RelationKind.BackRankMate)
       if first.after.checkMate
       if pattern.matches(Some(first.before), first.after, first.uci)
@@ -409,13 +403,11 @@ private[chessjudgment] object TacticalRelationEvidence:
 
   def mateNetWitness(
       replay: List[BoundedReplayStep],
-      playedMove: String,
-      explicitTargets: List[String] = Nil
+      playedMove: String
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
       first <- replay.headOption.filter(_.uci == normalizedPlayed)
-      if normalizedExplicitTargetKeys(explicitTargets).isEmpty
       if first.after.checkMate
       pattern <- matePatternExcept(RelationKind.BackRankMate, first)
       king <- first.after.board.kingPosOf(first.after.color)
@@ -438,13 +430,11 @@ private[chessjudgment] object TacticalRelationEvidence:
   def greekGiftWitness(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      explicitTargets: List[String] = Nil,
       continuationLines: List[List[String]] = Nil
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
       first <- replay.headOption.filter(_.uci == normalizedPlayed)
-      if normalizedExplicitTargetKeys(explicitTargets).isEmpty
       pattern <- tacticalPattern(RelationKind.GreekGift)
       movingSide = first.move.piece.color
       target <- squareFromKey(if movingSide.white then "h7" else "h2")
@@ -466,18 +456,17 @@ private[chessjudgment] object TacticalRelationEvidence:
   def zwischenzugWitness(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      explicitTargets: List[String] = Nil
+      targetHints: List[String] = Nil
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
       first <- replay.headOption.filter(_.uci == normalizedPlayed)
       movingSide = first.move.piece.color
-      explicit = normalizedExplicitTargetKeys(explicitTargets)
-      explicitTargetSquares = explicit.flatMap(squareFromKey).distinct
-      if explicit.nonEmpty && explicitTargetSquares.size == explicit.size
+      targetHintKeys = normalizedTargetHintKeys(targetHints)
+      targetHintSquares = targetHintKeys.flatMap(squareFromKey).distinct
       checkers = first.after.checkers.squares.toList
       if first.after.check.yes && checkers.exists(_ == first.move.dest)
-      recapture <- explicitTargetSquares
+      recapture <- legalRecaptureCandidates(first.before, movingSide, targetHintSquares)
         .flatMap { target =>
           first.before.legalMoves.toList.flatMap { candidate =>
             val capturedRole =
@@ -489,7 +478,7 @@ private[chessjudgment] object TacticalRelationEvidence:
               .map(role => target -> role)
           }
         }
-        .sortBy { case (target, role) => (-pieceValue(role), target.key) }
+        .sortBy { case (target, role) => (targetHintPenalty(targetHintSquares.toSet, target), -pieceValue(role), target.key) }
         .headOption
       (expectedRecaptureSquare, _) = recapture
       if first.move.dest != expectedRecaptureSquare
@@ -515,151 +504,150 @@ private[chessjudgment] object TacticalRelationEvidence:
   def forkWitness(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      explicitTargets: List[String] = Nil
+      targetHints: List[String] = Nil
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
       first <- replay.headOption.filter(_.uci == normalizedPlayed)
       movingSide = first.move.piece.color
-      targetSet = relationTargetSquares(first.after.board, movingSide, explicitTargets).toSet
-      witness <- forkAfterMove(first.after.board, movingSide, first.move.dest, first.move.piece.role, targetSet)
+      targetHintSet = normalizedTargetHintKeys(targetHints).flatMap(squareFromKey).toSet
+      targetSet = relationTargetSquares(first.after.board, movingSide, targetHints).toSet
+      witness <- forkAfterMove(first.after.board, movingSide, first.move.dest, first.move.piece.role, targetSet, targetHintSet)
     yield witness.copy(lineMoves = replayUcis(replay, 0, 1))
 
   def hangingPieceWitness(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      explicitTargets: List[String] = Nil
+      targetHints: List[String] = Nil
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
       first <- replay.headOption.filter(_.uci == normalizedPlayed)
       movingSide = first.move.piece.color
-      explicitTargetSet = normalizedExplicitTargetKeys(explicitTargets).flatMap(squareFromKey).toSet
-      targetSet = relationTargetSquares(first.after.board, movingSide, explicitTargets).toSet
+      targetHintSet = normalizedTargetHintKeys(targetHints).flatMap(squareFromKey).toSet
+      targetSet = relationTargetSquares(first.after.board, movingSide, targetHints).toSet
       witness <- hangingPieceAfterMove(
         board = first.after.board,
         movingSide = movingSide,
         attacker = first.move.dest,
         attackerRole = first.move.piece.role,
         targetSet = targetSet,
-        explicitTargetSet = explicitTargetSet
+        targetHintSet = targetHintSet
       )
     yield witness.copy(lineMoves = replayUcis(replay, 0, 1))
 
   def trappedPieceWitness(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      explicitTargets: List[String] = Nil
+      targetHints: List[String] = Nil
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
       first <- replay.headOption.filter(_.uci == normalizedPlayed)
       movingSide = first.move.piece.color
-      explicitTargetSet = normalizedExplicitTargetKeys(explicitTargets).flatMap(squareFromKey).toSet
-      if explicitTargetSet.nonEmpty
-      targetSet = relationTargetSquares(first.after.board, movingSide, explicitTargets).toSet
+      targetHintSet = normalizedTargetHintKeys(targetHints).flatMap(squareFromKey).toSet
+      targetSet = relationTargetSquares(first.after.board, movingSide, targetHints).toSet
       witness <- trappedPieceAfterMove(
         position = first.after,
         movingSide = movingSide,
         attacker = first.move.dest,
         attackerRole = first.move.piece.role,
         targetSet = targetSet,
-        explicitTargetSet = explicitTargetSet
+        targetHintSet = targetHintSet
       )
     yield witness.copy(lineMoves = replayUcis(replay, 0, 1))
 
   def dominationWitness(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      explicitTargets: List[String] = Nil
+      targetHints: List[String] = Nil
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
       first <- replay.headOption.filter(_.uci == normalizedPlayed)
       movingSide = first.move.piece.color
-      explicitTargetSet = normalizedExplicitTargetKeys(explicitTargets).flatMap(squareFromKey).toSet
-      if explicitTargetSet.nonEmpty
-      targetSet = relationTargetSquares(first.after.board, movingSide, explicitTargets).toSet
+      targetHintSet = normalizedTargetHintKeys(targetHints).flatMap(squareFromKey).toSet
+      targetSet = relationTargetSquares(first.after.board, movingSide, targetHints).toSet
       witness <- dominationAfterMove(
         position = first.after,
         movingSide = movingSide,
         attacker = first.move.dest,
         attackerRole = first.move.piece.role,
         targetSet = targetSet,
-        explicitTargetSet = explicitTargetSet
+        targetHintSet = targetHintSet
       )
     yield witness.copy(lineMoves = replayUcis(replay, 0, 1))
 
   def clearanceWitness(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      explicitTargets: List[String] = Nil
+      targetHints: List[String] = Nil
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
       first <- replay.headOption.filter(_.uci == normalizedPlayed)
       movingSide = first.move.piece.color
-      targetSet = relationTargetSquares(first.after.board, movingSide, explicitTargets).toSet
+      targetSet = relationTargetSquares(first.after.board, movingSide, targetHints).toSet
       witness <- clearanceAfterMove(first.before.board, first.after.board, movingSide, first.move.orig, first.move.dest, targetSet)
     yield witness.copy(lineMoves = replayUcis(replay, 0, 1))
 
   def batteryWitness(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      explicitTargets: List[String] = Nil
+      targetHints: List[String] = Nil
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
       first <- replay.headOption.filter(_.uci == normalizedPlayed)
       movingSide = first.move.piece.color
-      explicitTargetSet = explicitTargets.flatMap(squareFromKey).toSet
-      targetSet = relationTargetSquares(first.after.board, movingSide, explicitTargets).toSet
+      targetHintSet = normalizedTargetHintKeys(targetHints).flatMap(squareFromKey).toSet
+      targetSet = relationTargetSquares(first.after.board, movingSide, targetHints).toSet
       witness <- batteryAfterMove(
         board = first.after.board,
         movingSide = movingSide,
         movedTo = first.move.dest,
         movedRole = first.move.piece.role,
         targetSet = targetSet,
-        explicitTargetSet = explicitTargetSet
+        targetHintSet = targetHintSet
       )
     yield witness.copy(lineMoves = replayUcis(replay, 0, 1))
 
   def pinWitness(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      explicitTargets: List[String] = Nil
+      targetHints: List[String] = Nil
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
       first <- replay.headOption.filter(_.uci == normalizedPlayed)
       movingSide = first.move.piece.color
-      targetSet = relationTargetSquares(first.after.board, movingSide, explicitTargets).toSet
+      targetSet = relationTargetSquares(first.after.board, movingSide, targetHints).toSet
       witness <- pinAfterMove(first.after.board, movingSide, first.move.dest, first.move.piece.role, targetSet)
     yield witness.copy(lineMoves = replayUcis(replay, 0, 1))
 
   def skewerWitness(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      explicitTargets: List[String] = Nil
+      targetHints: List[String] = Nil
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
       first <- replay.headOption.filter(_.uci == normalizedPlayed)
       movingSide = first.move.piece.color
-      targetSet = relationTargetSquares(first.after.board, movingSide, explicitTargets).toSet
+      targetSet = relationTargetSquares(first.after.board, movingSide, targetHints).toSet
       witness <- skewerAfterMove(first.after.board, movingSide, first.move.dest, first.move.piece.role, targetSet)
     yield witness.copy(lineMoves = replayUcis(replay, 0, 1))
 
   def interferenceWitness(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      explicitTargets: List[String] = Nil
+      targetHints: List[String] = Nil
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
       first <- replay.headOption.filter(_.uci == normalizedPlayed)
       movingSide = first.move.piece.color
-      targetSet = relationTargetSquares(first.after.board, movingSide, explicitTargets).toSet
+      targetSet = relationTargetSquares(first.after.board, movingSide, targetHints).toSet
       witness <- interferenceAfterMove(
         before = first.before.board,
         after = first.after.board,
@@ -673,7 +661,7 @@ private[chessjudgment] object TacticalRelationEvidence:
   def decoyWitness(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      explicitTargets: List[String] = Nil
+      targetHints: List[String] = Nil
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
@@ -689,7 +677,7 @@ private[chessjudgment] object TacticalRelationEvidence:
       if response.move.dest == baitSquare && response.move.captures
       if response.capturedRole.contains(reply.move.piece.role)
       if pieceValue(reply.move.piece.role) > pieceValue(first.move.piece.role)
-      targetSet = relationTargetSquares(reply.after.board, movingSide, explicitTargets).toSet
+      targetSet = relationTargetSquares(reply.after.board, movingSide, targetHints).toSet
       if targetSet.contains(baitSquare) || targetSet.contains(reply.move.orig)
     yield
       RelationWitness(
@@ -712,13 +700,14 @@ private[chessjudgment] object TacticalRelationEvidence:
       replay: List[BoundedReplayStep],
       playedMove: String,
       engineScoreCp: Option[Int],
-      engineMate: Option[Int]
+      engineMate: Option[Int],
+      drawishWinPercent: Option[Double]
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
       scoreCp <- engineScoreCp
       first <- replay.headOption.filter(_.uci == normalizedPlayed)
-      if drawResourceScoreStable(Some(scoreCp), engineMate)
+      if drawResourceScoreStable(drawishWinPercent, engineMate)
       terminal <- replay.lastOption
       if terminal.after.staleMate
       king <- terminal.after.board.kingPosOf(terminal.after.color)
@@ -742,13 +731,14 @@ private[chessjudgment] object TacticalRelationEvidence:
       replay: List[BoundedReplayStep],
       playedMove: String,
       engineScoreCp: Option[Int],
-      engineMate: Option[Int]
+      engineMate: Option[Int],
+      drawishWinPercent: Option[Double]
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
       scoreCp <- engineScoreCp
       first <- replay.headOption.filter(step => step.uci == normalizedPlayed && step.after.check.yes)
-      if drawResourceScoreStable(Some(scoreCp), engineMate)
+      if drawResourceScoreStable(drawishWinPercent, engineMate)
       cycle <- repeatedCheckingCycle(replay, first.move.piece.color)
     yield
       val lineMoves = replayUcis(replay, 0, replay.length)
@@ -769,8 +759,8 @@ private[chessjudgment] object TacticalRelationEvidence:
         )
       )
 
-  private def drawResourceScoreStable(scoreCp: Option[Int], mate: Option[Int]): Boolean =
-    mate.isEmpty && scoreCp.exists(cp => math.abs(cp) <= DrawResourceMaxCp)
+  private def drawResourceScoreStable(winPercent: Option[Double], mate: Option[Int]): Boolean =
+    mate.isEmpty && winPercent.exists(wp => math.abs(wp - 50.0) <= JudgmentThresholds.DRAW_RESOURCE_BALANCE_EDGE_WP)
 
   private final case class RepeatedCheckingCycle(
       kingSquare: String,
@@ -948,17 +938,17 @@ private[chessjudgment] object TacticalRelationEvidence:
       movingSide: Color,
       defenderSquare: Square,
       exchangeSquare: Square,
-      explicitTargets: List[String]
+      targetHints: List[String]
   ): Option[String] =
-    val explicit = normalizedExplicitTargetKeys(explicitTargets)
-    val candidateTargets =
-      if explicit.nonEmpty then
-        Option.when(explicit.forall(squareFromKey(_).nonEmpty))(explicit).getOrElse(Nil)
-      else WeaknessTargetProfile.targetsForPressure(board, movingSide).map(_.targetSquare)
+    val hintSquares = normalizedTargetHintKeys(targetHints).flatMap(squareFromKey)
+    val structuralTargets =
+      WeaknessTargetProfile.targetsForPressure(board, movingSide).flatMap(target => squareFromKey(target.targetSquare))
+    val materialTargets =
+      board.byColor(!movingSide).squares.filterNot(square => board.roleAt(square).contains(King)).toList
+    val candidateTargets = (hintSquares ++ structuralTargets ++ materialTargets).distinct
     candidateTargets
-      .distinct
-      .filterNot(_ == exchangeSquare.key)
-      .flatMap(squareFromKey)
+      .filterNot(_ == exchangeSquare)
+      .sortBy(target => (targetHintPenalty(hintSquares.toSet, target), target.key))
       .find(target => board.attackers(target, !movingSide).exists(_ == defenderSquare))
       .map(_.key)
 
@@ -980,21 +970,47 @@ private[chessjudgment] object TacticalRelationEvidence:
   private def relationTargetSquares(
       board: Board,
       movingSide: Color,
-      explicitTargets: List[String]
+      targetHints: List[String]
   ): List[Square] =
-    val explicit = normalizedExplicitTargetKeys(explicitTargets)
-    if explicit.nonEmpty then
-      val parsed = explicit.flatMap(squareFromKey)
-      if parsed.size == explicit.size then parsed.distinct else Nil
-    else
-      val structural =
-        WeaknessTargetProfile.targetsForPressure(board, movingSide).flatMap(target => squareFromKey(target.targetSquare))
-      val material =
-        board.byColor(!movingSide).squares.filterNot(square => board.roleAt(square).contains(King)).toList
-      (structural ++ material).distinct
+    val hints = normalizedTargetHintKeys(targetHints).flatMap(squareFromKey)
+    val structural =
+      WeaknessTargetProfile.targetsForPressure(board, movingSide).flatMap(target => squareFromKey(target.targetSquare))
+    val material =
+      board.byColor(!movingSide).squares.filterNot(square => board.roleAt(square).contains(King)).toList
+    (hints ++ structural ++ material).distinct
 
-  private def normalizedExplicitTargetKeys(explicitTargets: List[String]): List[String] =
-    explicitTargets.map(_.trim.toLowerCase).filter(_.nonEmpty).distinct
+  private def normalizedTargetHintKeys(targetHints: List[String]): List[String] =
+    targetHints.map(_.trim.toLowerCase).filter(_.nonEmpty).distinct
+
+  private def targetHintPenalty(targetHints: Set[Square], target: Square): Int =
+    if targetHints.contains(target) then 0 else 1
+
+  private def prioritizeTargetHintMatches(
+      witnesses: List[RelationWitness],
+      targetHints: List[String]
+  ): List[RelationWitness] =
+    val hintKeys = normalizedTargetHintKeys(targetHints).toSet
+    if hintKeys.isEmpty then witnesses
+    else
+      witnesses.sortBy { witness =>
+        val matched = witnessTargetKeys(witness).exists(hintKeys.contains)
+        (if matched then 0 else 1, witness.kind, witness.targetSquare.getOrElse(""), witness.focusSquares.mkString(","))
+      }
+
+  private def witnessTargetKeys(witness: RelationWitness): List[String] =
+    (witness.targetSquare.toList ++ witness.focusSquares).map(_.trim.toLowerCase).filter(_.nonEmpty).distinct
+
+  private def legalRecaptureCandidates(
+      position: Position,
+      movingSide: Color,
+      targetHints: List[Square]
+  ): List[Square] =
+    val legalCaptureTargets =
+      position.legalMoves.toList
+        .filter(move => move.piece.color == movingSide && move.captures)
+        .map(_.dest)
+        .distinct
+    (targetHints ++ legalCaptureTargets).distinct
 
   private def overloadedDefender(
       before: Board,
@@ -1116,7 +1132,8 @@ private[chessjudgment] object TacticalRelationEvidence:
       movingSide: Color,
       attacker: Square,
       attackerRole: Role,
-      targetSet: Set[Square]
+      targetSet: Set[Square],
+      targetHintSet: Set[Square]
   ): Option[RelationWitness] =
     val targets =
       roleAttacks(attackerRole, attacker, movingSide, board.occupied).squares.toList
@@ -1129,7 +1146,7 @@ private[chessjudgment] object TacticalRelationEvidence:
             pieceValue(role) > pieceValue(attackerRole) ||
             board.attackers(target, !movingSide).isEmpty
         }
-        .sortBy { case (target, role) => (-pieceValue(role), target.key) }
+        .sortBy { case (target, role) => (targetHintPenalty(targetHintSet, target), -pieceValue(role), target.key) }
         .take(4)
     Option.when(targets.size >= 2) {
       val targetSquares = targets.map(_._1.key)
@@ -1154,7 +1171,7 @@ private[chessjudgment] object TacticalRelationEvidence:
       attacker: Square,
       attackerRole: Role,
       targetSet: Set[Square],
-      explicitTargetSet: Set[Square]
+      targetHintSet: Set[Square]
   ): Option[RelationWitness] =
     val attackedTargets =
       roleAttacks(attackerRole, attacker, movingSide, board.occupied).squares.toList
@@ -1166,10 +1183,10 @@ private[chessjudgment] object TacticalRelationEvidence:
           role != King &&
             board.attackers(target, !movingSide).isEmpty &&
             !sameColorRayPieceBehind(board, attacker, target) &&
-            (role != Pawn || explicitTargetSet.contains(target)) &&
-            (pieceValue(role) > pieceValue(attackerRole) || explicitTargetSet.contains(target))
+            (role != Pawn || targetHintSet.contains(target)) &&
+            (pieceValue(role) > pieceValue(attackerRole) || targetHintSet.contains(target))
         }
-        .sortBy { case (target, role) => (-pieceValue(role), target.key) }
+        .sortBy { case (target, role) => (targetHintPenalty(targetHintSet, target), -pieceValue(role), target.key) }
     attackedTargets.headOption.map { case (target, role) =>
       RelationWitness(
         kind = RelationKind.HangingPiece,
@@ -1191,12 +1208,12 @@ private[chessjudgment] object TacticalRelationEvidence:
       attacker: Square,
       attackerRole: Role,
       targetSet: Set[Square],
-      explicitTargetSet: Set[Square]
+      targetHintSet: Set[Square]
   ): Option[RelationWitness] =
     val board = position.board
     Option.when(position.color == !movingSide)(()).flatMap { _ =>
       roleAttacks(attackerRole, attacker, movingSide, board.occupied).squares.toList
-        .filter(target => targetSet.contains(target) && explicitTargetSet.contains(target))
+        .filter(targetSet.contains)
         .flatMap(target =>
           board.pieceAt(target).filter(_.color != movingSide).map(piece => target -> piece.role)
         )
@@ -1206,7 +1223,7 @@ private[chessjudgment] object TacticalRelationEvidence:
             pieceValue(role) > pieceValue(attackerRole) &&
             safeEscapeSquares(position, target, role, !movingSide, movingSide).isEmpty
         }
-        .sortBy { case (target, role) => (-pieceValue(role), target.key) }
+        .sortBy { case (target, role) => (targetHintPenalty(targetHintSet, target), -pieceValue(role), target.key) }
         .headOption
         .map { case (target, role) =>
           RelationWitness(
@@ -1247,12 +1264,12 @@ private[chessjudgment] object TacticalRelationEvidence:
       attacker: Square,
       attackerRole: Role,
       targetSet: Set[Square],
-      explicitTargetSet: Set[Square]
+      targetHintSet: Set[Square]
   ): Option[RelationWitness] =
     val board = position.board
     Option.when(position.color == !movingSide)(()).flatMap { _ =>
       roleAttacks(attackerRole, attacker, movingSide, board.occupied).squares.toList
-        .filter(target => targetSet.contains(target) && explicitTargetSet.contains(target))
+        .filter(targetSet.contains)
         .flatMap(target =>
           board.pieceAt(target).filter(_.color != movingSide).map(piece => target -> piece.role)
         )
@@ -1273,7 +1290,7 @@ private[chessjudgment] object TacticalRelationEvidence:
             target -> role -> controlledEscapes
           )
         }
-        .sortBy { case ((target, role), _) => (-pieceValue(role), target.key) }
+        .sortBy { case ((target, role), _) => (targetHintPenalty(targetHintSet, target), -pieceValue(role), target.key) }
         .headOption
         .map { case ((target, role), controlledEscapes) =>
           RelationWitness(
@@ -1371,7 +1388,7 @@ private[chessjudgment] object TacticalRelationEvidence:
       movedTo: Square,
       movedRole: Role,
       targetSet: Set[Square],
-      explicitTargetSet: Set[Square]
+      targetHintSet: Set[Square]
   ): Option[RelationWitness] =
     batteryPartnerRoles(movedRole).flatMap { partnerRole =>
       board.byPiece(movingSide, partnerRole).squares.toList.filterNot(_ == movedTo).flatMap { partner =>
@@ -1388,7 +1405,7 @@ private[chessjudgment] object TacticalRelationEvidence:
                 if targetSet.contains(target)
                 targetPiece <- board.pieceAt(target)
                 if targetPiece.color != movingSide
-                if targetPiece.role != Pawn || explicitTargetSet.contains(target)
+                if targetPiece.role != Pawn || targetHintSet.contains(target)
                 frontPiece <- board.pieceAt(front)
                 backPiece <- board.pieceAt(back)
                 frontRole = frontPiece.role.name

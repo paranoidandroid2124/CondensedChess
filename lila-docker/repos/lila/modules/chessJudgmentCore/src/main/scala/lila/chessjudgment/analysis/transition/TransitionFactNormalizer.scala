@@ -64,6 +64,30 @@ object TransitionFactNormalizer:
       parents = parents
     )
 
+  def fromCandidateComparison(
+      id: String,
+      comparison: CandidateComparisonFact,
+      position: PositionNodeRef,
+      scope: EvidenceScope,
+      confidence: EvidenceConfidence = EvidenceConfidence.EngineBacked,
+      parents: List[EvidenceRef] = Nil
+  ): EvidenceRecord =
+    val ref =
+      EvidenceRef(
+        id = id,
+        producer = EvidenceProducer.RelativeMoveProducer,
+        layer = EvidenceLayer.CandidateComparison,
+        position = position,
+        line = Some(comparison.candidateLine),
+        scope = scope,
+        confidence = confidence
+      )
+    EvidenceRecord(
+      ref = ref,
+      payload = CandidateComparisonEvidence(comparison),
+      parents = parents
+    )
+
   def fromCounterfactual(
       id: String,
       referenceLine: LineNodeRef,
@@ -71,6 +95,7 @@ object TransitionFactNormalizer:
       comparison: EvalComparison,
       position: PositionNodeRef,
       scope: EvidenceScope,
+      confidence: EvidenceConfidence = EvidenceConfidence.EngineBacked,
       parents: List[EvidenceRef] = Nil
   ): EvidenceRecord =
     val ref =
@@ -81,7 +106,7 @@ object TransitionFactNormalizer:
         position = position,
         line = Some(candidateLine),
         scope = scope,
-        confidence = EvidenceConfidence.EngineBacked
+        confidence = confidence
       )
     EvidenceRecord(
       ref = ref,
@@ -102,10 +127,61 @@ object TransitionFactNormalizer:
           assessment.candidate.evidence
         ) ++
           assessment.referenceTransition.toList.map(_.evidence) ++
-          assessment.counterfactualEvidence
+          assessment.counterfactualEvidence ++
+          assessment.candidateComparisonEvidence ++
+          assessment.relativeCauseEvidence ++
+          assessment.verdictCertificationEvidence.toList
       ).distinctBy(_.id)
     EvidenceRecord(
       ref = assessment.evidence,
       payload = RelativeAssessmentEvidence(assessment),
+      parents = parents
+    )
+
+  def fromRelativeCause(
+      id: String,
+      cause: RelativeCauseFact,
+      position: PositionNodeRef,
+      scope: EvidenceScope,
+      confidence: EvidenceConfidence = EvidenceConfidence.EngineBacked,
+      parents: List[EvidenceRef] = Nil
+  ): EvidenceRecord =
+    val ref =
+      EvidenceRef(
+        id = id,
+        producer = EvidenceProducer.RelativeMoveProducer,
+        layer = EvidenceLayer.RelativeCause,
+        position = position,
+        line = Some(cause.eventLine),
+        scope = scope,
+        confidence = confidence
+      )
+    EvidenceRecord(
+      ref = ref,
+      payload = RelativeCauseFactEvidence(cause),
+      parents = parents
+    )
+
+  def fromMoveVerdictCertification(
+      id: String,
+      certification: MoveVerdictCertification,
+      position: PositionNodeRef,
+      scope: EvidenceScope,
+      confidence: EvidenceConfidence = EvidenceConfidence.EngineBacked,
+      parents: List[EvidenceRef] = Nil
+  ): EvidenceRecord =
+    val ref =
+      EvidenceRef(
+        id = id,
+        producer = EvidenceProducer.RelativeMoveProducer,
+        layer = EvidenceLayer.MoveVerdictCertification,
+        position = position,
+        line = Some(certification.primaryComparison.candidateLine),
+        scope = scope,
+        confidence = confidence
+      )
+    EvidenceRecord(
+      ref = ref,
+      payload = MoveVerdictCertificationEvidence(certification),
       parents = parents
     )
