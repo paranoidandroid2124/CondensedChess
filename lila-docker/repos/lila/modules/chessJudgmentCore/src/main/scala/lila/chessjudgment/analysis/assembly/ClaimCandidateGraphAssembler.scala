@@ -634,8 +634,8 @@ object ClaimArbitrator:
         statusScore + assessment.observedThemes.size.min(4)
       case SinglePositionEvidence(_) =>
         1
-      case payload @ BoardFactEvidence(_, _) =>
-        Option.when(payload.hasProofSignalAnchor || payload.vulnerableAttackDefense.nonEmpty)(2).getOrElse(0)
+      case BoardFactEvidence(_, _) =>
+        0
       case payload: LineFactEvidence =>
         lineConsequenceProfileSalience(payload.consequenceProfile)
       case EvalFactEvidence(_, _, mate, depth) =>
@@ -694,8 +694,6 @@ object ClaimArbitrator:
                 TacticalMotifClassifier.isForcing(motif)
             ))(ClaimSalienceDriver.ForcingLine)
             .toList
-      case payload @ BoardFactEvidence(_, _) if payload.hasProofSignalAnchor =>
-        List(ClaimSalienceDriver.BoardAnchor)
       case _ =>
         Nil
 

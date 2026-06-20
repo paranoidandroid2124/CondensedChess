@@ -108,12 +108,6 @@ final case class BoardFactEvidence(
     val attackDefense: List[BoardAttackDefenseEntry] = Nil
 ) extends EvidencePayload:
   val layer: EvidenceLayer = EvidenceLayer.Board
-  def proofSignalAnchors: List[BoardAnchor] =
-    anchors.filter(_.proofSignal)
-  def hasProofSignalAnchor: Boolean =
-    proofSignalAnchors.nonEmpty
-  def proofSignalAnchorKinds: List[BoardAnchorKind] =
-    proofSignalAnchors.map(_.kind)
   def boardAnchors: List[BoardAnchor] =
     anchors
   def factCount: Int =
@@ -126,7 +120,7 @@ final case class BoardFactEvidence(
     attackDefense.filter(entry => entry.isLoose || entry.isUnderdefended)
   def targetHintSquares: List[EvidenceSquare] =
     val anchorSquares =
-      proofSignalAnchors.flatMap(anchor =>
+      anchors.flatMap(anchor =>
         anchor.detail.toList.flatMap(detail =>
           detail.targetSquare.toList ++
             detail.subjectSquare.toList ++
@@ -226,8 +220,7 @@ final case class BoardAnchor(
     signal: BoardAnchorSignal,
     magnitude: Int,
     confidence: Double,
-    detail: Option[BoardAnchorDetail] = None,
-    proofSignal: Boolean = false
+    detail: Option[BoardAnchorDetail] = None
 )
 
 final case class SinglePositionEvidence(

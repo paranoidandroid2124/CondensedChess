@@ -94,8 +94,7 @@ object PositionFactNormalizer:
                 defenderSquares = evidenceSquares(focus.defenderSquares),
                 materialLossCp = Some(value)
               )
-            ),
-            proofSignal = true
+            )
           )
         )
       case fact @ Fact.TargetPiece(owner, _, pieceRole, _, _, _) =>
@@ -118,8 +117,7 @@ object PositionFactNormalizer:
                 defenderSquares = evidenceSquares(focus.defenderSquares),
                 materialLossCp = Some(MaterialValue.materialValueCp(pieceRole))
               )
-            ),
-            proofSignal = focus.defenderSquares.isEmpty
+            )
           )
         )
       case fact @ Fact.Pin(attackerColor, attacker, attackerRole, _, pinnedRole, _, behindRole, isAbsolute, _) =>
@@ -145,8 +143,7 @@ object PositionFactNormalizer:
                 relatedSquares = evidenceSquares(focus.relatedSquares),
                 isAbsolute = Some(isAbsolute)
               )
-            ),
-            proofSignal = isAbsolute || MaterialValue.materialValueCp(behindRole) > MaterialValue.materialValueCp(pinnedRole)
+            )
           )
         )
       case fact @ Fact.Skewer(attackerColor, attacker, attackerRole, _, frontRole, _, backRole, _) =>
@@ -170,8 +167,7 @@ object PositionFactNormalizer:
                 attackerRole = Some(evidenceRole(attackerRole)),
                 relatedSquares = evidenceSquares(focus.relatedSquares)
               )
-            ),
-            proofSignal = true
+            )
           )
         )
       case fact @ Fact.Fork(attackerColor, attacker, attackerRole, targets, _) =>
@@ -193,8 +189,7 @@ object PositionFactNormalizer:
                 targetRole = targets.headOption.map { case (_, role) => evidenceRole(role) },
                 relatedSquares = evidenceSquares(focus.relatedSquares)
               )
-            ),
-            proofSignal = targets.size >= 2
+            )
           )
         )
       case fact @ Fact.XRay(attackerColor, attacker, attackerRole, blocker, blockerRole, target, targetRole, _) =>
@@ -219,8 +214,7 @@ object PositionFactNormalizer:
                 relatedSquares = evidenceSquares(focus.relatedSquares),
                 axis = rayAxis(attacker, target)
               )
-            ),
-            proofSignal = true
+            )
           )
         )
       case fact @ Fact.Battery(attackerColor, front, frontRole, back, backRole, axis, _) =>
@@ -243,8 +237,7 @@ object PositionFactNormalizer:
                 relatedSquares = evidenceSquares(focus.relatedSquares),
                 axis = Some(boardAnchorAxis(axis))
               )
-            ),
-            proofSignal = axis == Fact.RayAxis.Diagonal
+            )
           )
         )
       case Fact.FileControl(file, color, open, _) =>
@@ -261,8 +254,7 @@ object PositionFactNormalizer:
                 file = Some(evidenceFile(file)),
                 axis = Some(BoardAnchorAxis.File)
               )
-            ),
-            proofSignal = open
+            )
           )
         )
       case Fact.SpaceAdvantage(color, pawnDelta, _) =>
@@ -273,8 +265,7 @@ object PositionFactNormalizer:
             signal = BoardAnchorSignal.SpaceEdge,
             magnitude = pawnDelta,
             confidence = 0.72,
-            detail = Some(BoardAnchorDetail(subjectColor = Some(color))),
-            proofSignal = pawnDelta >= 2
+            detail = Some(BoardAnchorDetail(subjectColor = Some(color)))
           )
         )
       case fact @ Fact.WeakSquare(_, _, _, _) =>
@@ -286,8 +277,7 @@ object PositionFactNormalizer:
             signal = BoardAnchorSignal.WeakSquareHole,
             magnitude = 1,
             confidence = 0.68,
-            detail = Some(BoardAnchorDetail(subjectSquare = focus.subjectSquares.headOption.map(evidenceSquare))),
-            proofSignal = false
+            detail = Some(BoardAnchorDetail(subjectSquare = focus.subjectSquares.headOption.map(evidenceSquare)))
           )
         )
       case fact @ Fact.Outpost(_, pieceRole, _) =>
@@ -304,8 +294,7 @@ object PositionFactNormalizer:
                 subjectSquare = focus.subjectSquares.headOption.map(evidenceSquare),
                 subjectRole = Some(evidenceRole(pieceRole))
               )
-            ),
-            proofSignal = true
+            )
           )
         )
       case _ =>

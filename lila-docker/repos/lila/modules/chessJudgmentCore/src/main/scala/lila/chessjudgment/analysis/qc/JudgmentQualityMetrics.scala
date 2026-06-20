@@ -2354,7 +2354,7 @@ object SemanticCoverageMetrics:
 
   private def boardAnchorCount(packet: EvidenceBackedJudgmentPacket): Int =
     packet.evidenceGraph.records.collect { case EvidenceRecord(_, payload: BoardFactEvidence, _) =>
-      payload.proofSignalAnchors.size
+      payload.boardAnchors.size
     }.sum
 
   private def boardAttackDefenseCount(packet: EvidenceBackedJudgmentPacket): Int =
@@ -2958,7 +2958,7 @@ object JudgmentLayerGapProfile:
 
   private def hasBoardAnchor(packet: EvidenceBackedJudgmentPacket): Boolean =
     packet.evidenceGraph.records.exists {
-      case EvidenceRecord(_, payload: BoardFactEvidence, _) => payload.hasProofSignalAnchor
+      case EvidenceRecord(_, payload: BoardFactEvidence, _) => payload.boardAnchors.nonEmpty
       case _                                                => false
     }
 

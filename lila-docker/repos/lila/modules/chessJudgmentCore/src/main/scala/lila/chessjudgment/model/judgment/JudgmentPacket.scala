@@ -364,7 +364,7 @@ object ClaimSupportCluster:
         Option.when(payload.lineEventKinds.contains(LineEventKind.Castling))("line:castling").toList ++
           payload.consequenceProfile.proofSignalKinds.map(kind => s"line-consequence:$kind")
       case payload @ BoardFactEvidence(_, _) =>
-        payload.proofSignalAnchors.map(boardAnchorSemantic)
+        payload.boardAnchors.map(boardAnchorSemantic)
       case StructuralDeltaEvidence(delta) =>
         List(
           Option.when(delta.createdTargetPressure.nonEmpty)("delta:created-target-pressure"),
@@ -381,7 +381,6 @@ object ClaimSupportCluster:
         Nil
 
   private def boardAnchorSemantic(anchor: BoardAnchor): String =
-    val signal = if anchor.proofSignal then "proof" else "support"
     val side = if anchor.side.white then "white" else "black"
     val subjectColor = anchor.detail.flatMap(_.subjectColor).map(color => s":subject-${colorKey(color)}").getOrElse("")
     val attackerColor = anchor.detail.flatMap(_.attackerColor).map(color => s":attacker-${colorKey(color)}").getOrElse("")
@@ -390,7 +389,7 @@ object ClaimSupportCluster:
     val related = anchor.detail.map(_.relatedSquares.map(_.key).sorted.mkString(",")).filter(_.nonEmpty).map(squares => s":related-$squares").getOrElse("")
     val file = anchor.detail.flatMap(_.file).map(file => s":file-${file.key}").getOrElse("")
     val axis = anchor.detail.flatMap(_.axis).map(axis => s":axis-$axis").getOrElse("")
-    s"board-anchor:$signal:$side:${anchor.kind}:${anchor.signal}$subjectColor$attackerColor$subject$target$related$file$axis"
+    s"board-anchor:$side:${anchor.kind}:${anchor.signal}$subjectColor$attackerColor$subject$target$related$file$axis"
 
   private def strategicBoardAnchorKey(anchor: BoardAnchor): List[String] =
     List(boardAnchorSemantic(anchor))

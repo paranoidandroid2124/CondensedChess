@@ -2,6 +2,7 @@ package lila.chessjudgment.analysis.assembly
 
 import _root_.chess.format.Fen
 import _root_.chess.variant.Standard
+import lila.chessjudgment.analysis.policy.BoardAnchorEvidencePolicy
 import lila.chessjudgment.model.{ ProbePurpose, ProbeRequest }
 import lila.chessjudgment.model.judgment.*
 
@@ -524,7 +525,7 @@ object JudgmentPacketValidator:
   private def parentHasBoardAnchor(record: EvidenceRecord, kind: BoardAnchorKind): Boolean =
     record match
       case EvidenceRecord(_, payload: BoardFactEvidence, _) =>
-        payload.proofSignalAnchorKinds.contains(kind)
+        BoardAnchorEvidencePolicy.hasRelativeCauseAnchor(payload, kind)
       case _ =>
         false
 
