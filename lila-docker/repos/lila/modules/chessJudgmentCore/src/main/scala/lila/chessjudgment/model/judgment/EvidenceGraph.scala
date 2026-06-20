@@ -789,8 +789,22 @@ final case class LineFactEvidence(
     consequences.nonEmpty
   def hasForcedTheme: Boolean =
     forcedTheme.nonEmpty
-  def lineMaterialSummary: Option[LineMaterialSummary] =
-    material
+  def materialNetCaptureCpForMover: Option[Int] =
+    material.map(_.netCaptureCpForMover)
+  def materialMaxGainCpForMover: Option[Int] =
+    material.map(_.maxGainCpForMover)
+  def materialPromotionGainCpForMover: Option[Int] =
+    material.map(_.promotionGainCpForMover)
+  def hasMaterialRecaptureChain: Boolean =
+    material.exists(_.hasRecaptureChain)
+  def hasMaterialRecoveryWindow: Boolean =
+    material.exists(_.hasRecoveryWindow)
+  def hasCompleteMaterialWindow: Boolean =
+    material.forall(_.materialWindowComplete)
+  def hasProofSignalMaterialEvent: Boolean =
+    material.exists(_.hasProofSignalMaterialEvent)
+  def hasSacrificeMaterialEvent: Boolean =
+    material.exists(_.hasSacrificeMaterialEvent)
   def proofSignalConsequences: List[LineConsequence] =
     consequences.filter(_.proofSignal)
   def hasProofSignalConsequence: Boolean =

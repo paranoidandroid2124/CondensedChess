@@ -1621,12 +1621,15 @@ object MoveReviewPhase3AuditRunner:
           "replyMove" -> payload.reply,
           "continuationMoves" -> payload.continuation,
           "forcedTheme" -> payload.forcedThemeId,
-          "material" -> payload.lineMaterialSummary.map(material =>
-            Json.obj(
-              "netCaptureCpForMover" -> material.netCaptureCpForMover,
-              "hasProofSignalMaterialEvent" -> material.hasProofSignalMaterialEvent,
-              "hasSacrificeMaterialEvent" -> material.hasSacrificeMaterialEvent
-            )
+          "material" -> Json.obj(
+            "netCaptureCpForMover" -> payload.materialNetCaptureCpForMover,
+            "maxGainCpForMover" -> payload.materialMaxGainCpForMover,
+            "promotionGainCpForMover" -> payload.materialPromotionGainCpForMover,
+            "hasProofSignalMaterialEvent" -> payload.hasProofSignalMaterialEvent,
+            "hasSacrificeMaterialEvent" -> payload.hasSacrificeMaterialEvent,
+            "hasRecaptureChain" -> payload.hasMaterialRecaptureChain,
+            "hasRecoveryWindow" -> payload.hasMaterialRecoveryWindow,
+            "materialWindowComplete" -> payload.hasCompleteMaterialWindow
           ),
           "replay" -> payload.lineReplaySteps.map(step =>
             Json.obj(

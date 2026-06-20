@@ -1190,12 +1190,12 @@ object CandidateComparisonDiagnostic:
       candidateMaterialMaxGainCp = materialBestGain(candidateRecords),
       referenceMaterialPromotionGainCp = materialBestPromotionGain(referenceRecords),
       candidateMaterialPromotionGainCp = materialBestPromotionGain(candidateRecords),
-      referenceMaterialRecapture = materialSummaries(referenceRecords).exists(_.hasRecaptureChain),
-      candidateMaterialRecapture = materialSummaries(candidateRecords).exists(_.hasRecaptureChain),
-      referenceMaterialRecovery = materialSummaries(referenceRecords).exists(_.hasRecoveryWindow),
-      candidateMaterialRecovery = materialSummaries(candidateRecords).exists(_.hasRecoveryWindow),
-      referenceMaterialComplete = materialSummaries(referenceRecords).forall(_.materialWindowComplete),
-      candidateMaterialComplete = materialSummaries(candidateRecords).forall(_.materialWindowComplete),
+      referenceMaterialRecapture = lineFacts(referenceRecords).exists(_.hasMaterialRecaptureChain),
+      candidateMaterialRecapture = lineFacts(candidateRecords).exists(_.hasMaterialRecaptureChain),
+      referenceMaterialRecovery = lineFacts(referenceRecords).exists(_.hasMaterialRecoveryWindow),
+      candidateMaterialRecovery = lineFacts(candidateRecords).exists(_.hasMaterialRecoveryWindow),
+      referenceMaterialComplete = lineFacts(referenceRecords).forall(_.hasCompleteMaterialWindow),
+      candidateMaterialComplete = lineFacts(candidateRecords).forall(_.hasCompleteMaterialWindow),
       referenceRelationKinds = relationKinds(referenceRecords),
       candidateRelationKinds = candidateRelations,
       relationKinds = relationKinds(involvedRecords),
@@ -2032,13 +2032,13 @@ object CandidateComparisonDiagnostic:
       materialLossMagnitude(candidateRecords).ordinal > materialLossMagnitude(referenceRecords).ordinal
 
   private def materialBestNet(records: List[EvidenceRecord]): Int =
-    materialSummaries(records).map(_.netCaptureCpForMover).maxOption.getOrElse(0)
+    lineFacts(records).flatMap(_.materialNetCaptureCpForMover).maxOption.getOrElse(0)
 
   private def materialBestGain(records: List[EvidenceRecord]): Int =
-    materialSummaries(records).map(_.maxGainCpForMover).maxOption.getOrElse(0)
+    lineFacts(records).flatMap(_.materialMaxGainCpForMover).maxOption.getOrElse(0)
 
   private def materialBestPromotionGain(records: List[EvidenceRecord]): Int =
-    materialSummaries(records).map(_.promotionGainCpForMover).maxOption.getOrElse(0)
+    lineFacts(records).flatMap(_.materialPromotionGainCpForMover).maxOption.getOrElse(0)
 
   private def materialGainMagnitude(records: List[EvidenceRecord]): LineMaterialOutcomeMagnitude =
     materialOutcomeProfile(records).gainMagnitude
@@ -2056,8 +2056,8 @@ object CandidateComparisonDiagnostic:
       )
     }
 
-  private def materialSummaries(records: List[EvidenceRecord]): List[LineMaterialSummary] =
-    records.collect { case EvidenceRecord(_, payload: LineFactEvidence, _) => payload.lineMaterialSummary }.flatten
+  private def lineFacts(records: List[EvidenceRecord]): List[LineFactEvidence] =
+    records.collect { case EvidenceRecord(_, payload: LineFactEvidence, _) => payload }
 
   private def motifNames(records: List[EvidenceRecord]): List[String] =
     records.collect { case EvidenceRecord(_, MoveMotifEvidence(moveUci, motifs), _) =>
