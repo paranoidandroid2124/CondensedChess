@@ -78,7 +78,7 @@ object ClaimDeduplicator:
       primaryLine: Option[LineNodeRef],
       subjectMove: Option[String],
       scope: Option[EvidenceScope],
-      semanticAnchor: String
+      semanticAnchors: List[EvidenceSemanticAnchor]
   )
 
   private def aggregationEligible(
@@ -89,7 +89,7 @@ object ClaimDeduplicator:
       claim.engineComparison.isEmpty &&
       claim.evidence.nonEmpty &&
       !claim.evidence.exists(ref => ClaimSupportCluster.causeBoundLayer(ref.layer)) &&
-      ClaimSupportCluster.semanticAnchor(claim, graph).nonEmpty
+      ClaimSupportCluster.semanticAnchors(claim, graph).nonEmpty
 
   private def aggregationKey(
       claim: ClaimSeed,
@@ -102,7 +102,7 @@ object ClaimDeduplicator:
       primaryLine = claim.primaryLine,
       subjectMove = claim.subjectMove,
       scope = scopeAnchor(claim),
-      semanticAnchor = ClaimSupportCluster.semanticAnchor(claim, graph).getOrElse(claim.id)
+      semanticAnchors = ClaimSupportCluster.semanticAnchors(claim, graph)
     )
 
   private def scopeAnchor(claim: ClaimSeed): Option[EvidenceScope] =

@@ -265,6 +265,34 @@ case class ClaimSupportCluster(
     interactions: List[ClaimSupportClusterInteraction]
 )
 
+enum EvidenceSemanticAnchorKind:
+  case StrategicKind
+  case Plan
+  case BoardAnchor
+  case PawnStructure
+  case StructurePlan
+  case PawnPlay
+  case OpeningAnchor
+  case OpeningSupported
+  case OpeningObserved
+  case CandidateComparison
+  case PlanPressure
+  case PlanTransition
+  case LineEvent
+  case LineConsequence
+  case StructuralDelta
+
+final case class EvidenceSemanticAnchor(
+    kind: EvidenceSemanticAnchorKind,
+    values: List[String]
+):
+  def stableKey: String =
+    (kind.toString :: values).mkString(":")
+
+object EvidenceSemanticAnchor:
+  def of(kind: EvidenceSemanticAnchorKind, values: String*): EvidenceSemanticAnchor =
+    EvidenceSemanticAnchor(kind, values.toList)
+
 object ClaimSupportCluster:
 
   def fromClaims(claims: List[ClaimSeed]): List[ClaimSupportCluster] =
@@ -286,7 +314,7 @@ object ClaimSupportCluster:
       primaryLine: Option[LineNodeRef],
       subjectMove: Option[String],
       scope: Option[EvidenceScope],
-      semanticAnchor: String
+      semanticAnchors: List[EvidenceSemanticAnchor]
   )
 
   private val causeBoundLayers: Set[EvidenceLayer] =
@@ -308,7 +336,7 @@ object ClaimSupportCluster:
       claim.engineComparison.isEmpty &&
       claim.evidence.nonEmpty &&
       !claim.evidence.exists(ref => causeBoundLayer(ref.layer)) &&
-      semanticAnchor(claim, graph).nonEmpty
+      semanticAnchors(claim, graph).nonEmpty
 
   private def clusterKey(claim: ClaimSeed, graph: TypedEvidenceGraph): ClusterKey =
     ClusterKey(
@@ -317,82 +345,113 @@ object ClaimSupportCluster:
       primaryLine = claim.primaryLine,
       subjectMove = claim.subjectMove,
       scope = Option.when(claim.primaryLine.nonEmpty || claim.subjectMove.nonEmpty)(claim.scope),
-      semanticAnchor = semanticAnchor(claim, graph).getOrElse(claim.id)
+      semanticAnchors = semanticAnchors(claim, graph)
     )
 
-  def semanticAnchor(claim: ClaimSeed, graph: TypedEvidenceGraph): Option[String] =
-    val anchors =
+  def semanticAnchors(claim: ClaimSeed, graph: TypedEvidenceGraph): List[EvidenceSemanticAnchor] =
       claim.evidence
         .flatMap(ref => graph.byId.get(ref.id))
         .flatMap(semanticAnchorsForRecord)
-        .distinct
-        .sorted
-    Option.when(anchors.nonEmpty)(anchors.mkString("|"))
+        .distinctBy(_.stableKey)
+        .sortBy(_.stableKey)
 
-  private def semanticAnchorsForRecord(record: EvidenceRecord): List[String] =
+  private def semanticAnchorsForRecord(record: EvidenceRecord): List[EvidenceSemanticAnchor] =
+    import EvidenceSemanticAnchorKind.*
     record.payload match
       case payload @ StrategicFactEvidence(kind, _, relatedPlans, _) =>
-        s"strategic:$kind" ::
-          relatedPlans.map(plan => s"plan:$plan") ++
-          payload.boardAnchors.flatMap(strategicBoardAnchorKey)
+        EvidenceSemanticAnchor.of(StrategicKind, kind.toString) ::
+          relatedPlans.map(plan => EvidenceSemanticAnchor.of(Plan, plan.toString)) ++
+          payload.boardAnchors.map(boardAnchorSemantic)
       case PawnStructureFactEvidence(profile, alignment, pawnPlay) =>
         List(
-          Option.when(profile.primary != StructureId.Unknown)(s"structure:${profile.primary}"),
-          alignment.map(alignment => s"structure-plan:${alignment.band}:${alignment.matchedPlanIds.sorted.mkString(",")}"),
-          pawnPlay.map(play => s"pawn-play:${play.primaryDriver}")
+          Option.when(profile.primary != StructureId.Unknown)(
+            EvidenceSemanticAnchor.of(PawnStructure, profile.primary.toString)
+          ),
+          alignment.map(alignment =>
+            EvidenceSemanticAnchor.of(
+              StructurePlan,
+              alignment.band.toString,
+              alignment.matchedPlanIds.sorted.mkString(",")
+            )
+          ),
+          pawnPlay.map(play => EvidenceSemanticAnchor.of(PawnPlay, play.primaryDriver.toString))
         ).flatten
       case FeatureAnchorEvidence(anchor) =>
-        List(s"opening-anchor:${anchor.theme}:${anchor.signal}")
+        List(EvidenceSemanticAnchor.of(OpeningAnchor, anchor.theme.toString, anchor.signal.toString))
       case ApplicabilityAssessmentEvidence(assessment) =>
-        assessment.supportedThemes.map(theme => s"opening-supported:$theme") ++
-          assessment.observedThemes.map(theme => s"opening-observed:$theme")
+        assessment.supportedThemes.map(theme => EvidenceSemanticAnchor.of(OpeningSupported, theme.toString)) ++
+          assessment.observedThemes.map(theme => EvidenceSemanticAnchor.of(OpeningObserved, theme.toString))
       case OpeningContextEvidence(_, _, _, _) =>
         Nil
       case CandidateComparisonEvidence(fact) =>
         List(
-          Option.when(fact.kind == CandidateComparisonKind.BestVsSecond)("comparison:best-vs-second"),
-          Option.when(fact.comparison.candidateSet.exists(_.onlyMove))("comparison:only-move"),
+          Option.when(fact.kind == CandidateComparisonKind.BestVsSecond)(
+            EvidenceSemanticAnchor.of(CandidateComparison, "best-vs-second")
+          ),
+          Option.when(fact.comparison.candidateSet.exists(_.onlyMove))(
+            EvidenceSemanticAnchor.of(CandidateComparison, "only-move")
+          ),
           fact.comparison.candidateSet
             .flatMap(_.bestToSecondWinPercentGapForMover)
-            .map(gap => s"comparison:best-second-wp:${winPercentGapAnchor(gap)}")
+            .map(gap => EvidenceSemanticAnchor.of(CandidateComparison, "best-second-wp", winPercentGapAnchor(gap)))
         ).flatten
       case PlanPressureEvidence(_, activePlans) =>
-        (activePlans.primary :: activePlans.secondary.toList).map(plan => s"plan:${plan.plan.id}")
+        (activePlans.primary :: activePlans.secondary.toList).map(plan =>
+          EvidenceSemanticAnchor.of(PlanPressure, plan.plan.id.toString)
+        )
       case PlanTransitionEvidence(transition) =>
-        transition.primaryPlanId.map(plan => s"plan-transition:$plan").toList
+        transition.primaryPlanId.map(plan => EvidenceSemanticAnchor.of(PlanTransition, plan)).toList
       case payload: LineFactEvidence =>
-        Option.when(payload.lineEventKinds.contains(LineEventKind.Castling))("line:castling").toList ++
-          payload.consequenceProfile.proofSignalKinds.map(kind => s"line-consequence:$kind")
+        Option
+          .when(payload.lineEventKinds.contains(LineEventKind.Castling))(
+            EvidenceSemanticAnchor.of(LineEvent, LineEventKind.Castling.toString)
+          )
+          .toList ++
+          payload.consequenceProfile.proofSignalKinds.map(kind =>
+            EvidenceSemanticAnchor.of(LineConsequence, kind.toString)
+          )
       case payload @ BoardFactEvidence(_, _) =>
         payload.boardAnchors.map(boardAnchorSemantic)
       case StructuralDeltaEvidence(delta) =>
         List(
-          Option.when(delta.createdTargetPressure.nonEmpty)("delta:created-target-pressure"),
-          Option.when(delta.releasedTargetPressure.nonEmpty)("delta:released-target-pressure"),
-          Option.when(delta.openedFiles.nonEmpty || delta.semiOpenedFiles.nonEmpty || delta.fileOccupation.nonEmpty)("delta:file"),
-          Option.when(delta.newWeakPawns.nonEmpty || delta.newWeakSquares.nonEmpty)("delta:weakness"),
-          Option.when(delta.createdTension.nonEmpty || delta.pawnTensionDelta != 0)("delta:tension"),
-          Option.when(delta.centerControlDelta != 0)("delta:center"),
-          Option.when(delta.developmentDelta != 0)("delta:development"),
-          Option.when(delta.developmentMoves.nonEmpty)("delta:development-choice"),
-          Option.when(delta.mobilityDelta != 0)("delta:mobility")
+          Option.when(delta.createdTargetPressure.nonEmpty)(EvidenceSemanticAnchor.of(StructuralDelta, "created-target-pressure")),
+          Option.when(delta.releasedTargetPressure.nonEmpty)(EvidenceSemanticAnchor.of(StructuralDelta, "released-target-pressure")),
+          Option.when(delta.openedFiles.nonEmpty || delta.semiOpenedFiles.nonEmpty || delta.fileOccupation.nonEmpty)(
+            EvidenceSemanticAnchor.of(StructuralDelta, "file")
+          ),
+          Option.when(delta.newWeakPawns.nonEmpty || delta.newWeakSquares.nonEmpty)(
+            EvidenceSemanticAnchor.of(StructuralDelta, "weakness")
+          ),
+          Option.when(delta.createdTension.nonEmpty || delta.pawnTensionDelta != 0)(
+            EvidenceSemanticAnchor.of(StructuralDelta, "tension")
+          ),
+          Option.when(delta.centerControlDelta != 0)(EvidenceSemanticAnchor.of(StructuralDelta, "center")),
+          Option.when(delta.developmentDelta != 0)(EvidenceSemanticAnchor.of(StructuralDelta, "development")),
+          Option.when(delta.developmentMoves.nonEmpty)(EvidenceSemanticAnchor.of(StructuralDelta, "development-choice")),
+          Option.when(delta.mobilityDelta != 0)(EvidenceSemanticAnchor.of(StructuralDelta, "mobility"))
         ).flatten
       case _ =>
         Nil
 
-  private def boardAnchorSemantic(anchor: BoardAnchor): String =
+  private def boardAnchorSemantic(anchor: BoardAnchor): EvidenceSemanticAnchor =
     val side = if anchor.side.white then "white" else "black"
-    val subjectColor = anchor.detail.flatMap(_.subjectColor).map(color => s":subject-${colorKey(color)}").getOrElse("")
-    val attackerColor = anchor.detail.flatMap(_.attackerColor).map(color => s":attacker-${colorKey(color)}").getOrElse("")
-    val subject = anchor.detail.flatMap(_.subjectSquare).map(square => s":subject-${square.key}").getOrElse("")
-    val target = anchor.detail.flatMap(_.targetSquare).map(square => s":target-${square.key}").getOrElse("")
-    val related = anchor.detail.map(_.relatedSquares.map(_.key).sorted.mkString(",")).filter(_.nonEmpty).map(squares => s":related-$squares").getOrElse("")
-    val file = anchor.detail.flatMap(_.file).map(file => s":file-${file.key}").getOrElse("")
-    val axis = anchor.detail.flatMap(_.axis).map(axis => s":axis-$axis").getOrElse("")
-    s"board-anchor:$side:${anchor.kind}:${anchor.signal}$subjectColor$attackerColor$subject$target$related$file$axis"
-
-  private def strategicBoardAnchorKey(anchor: BoardAnchor): List[String] =
-    List(boardAnchorSemantic(anchor))
+    val detailValues =
+      anchor.detail.toList.flatMap(detail =>
+        List(
+          detail.subjectColor.map(color => s"subject-color:${colorKey(color)}"),
+          detail.attackerColor.map(color => s"attacker-color:${colorKey(color)}"),
+          detail.subjectSquare.map(square => s"subject-square:${square.key}"),
+          detail.targetSquare.map(square => s"target-square:${square.key}"),
+          Option
+            .when(detail.relatedSquares.nonEmpty)(s"related:${detail.relatedSquares.map(_.key).sorted.mkString(",")}"),
+          detail.file.map(file => s"file:${file.key}"),
+          detail.axis.map(axis => s"axis:$axis")
+        ).flatten
+      )
+    EvidenceSemanticAnchor.of(
+      EvidenceSemanticAnchorKind.BoardAnchor,
+      (List(side, anchor.kind.toString, anchor.signal.toString) ++ detailValues)*
+    )
 
   private def colorKey(color: Color): String =
     if color.white then "white" else "black"
