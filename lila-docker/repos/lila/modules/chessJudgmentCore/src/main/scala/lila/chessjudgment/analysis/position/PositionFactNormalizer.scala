@@ -1,6 +1,6 @@
 package lila.chessjudgment.analysis.position
 
-import chess.{ Color, Role, Square }
+import chess.{ Color, File, Role, Square }
 import lila.chessjudgment.analysis.material.MaterialValue
 import lila.chessjudgment.model.Fact
 import lila.chessjudgment.model.judgment.*
@@ -30,8 +30,45 @@ object PositionFactNormalizer:
         facts = facts,
         features = features
       )(
-        anchors = factAnchors(facts, features.map(_.sideToMove)) ++ features.toList.flatMap(featureAnchors)
+        anchors = factAnchors(facts, features.map(_.sideToMove)) ++ features.toList.flatMap(featureAnchors),
+        attackDefense = attackDefenseEntries(facts)
       )
+    )
+
+  private def attackDefenseEntries(facts: List[Fact]): List[BoardAttackDefenseEntry] =
+    facts.flatMap {
+      case Fact.HangingPiece(owner, square, role, attackers, defenders, _) =>
+        Some(attackDefenseEntry(owner, square, role, attackers, defenders, loose = true))
+      case Fact.TargetPiece(owner, square, role, attackers, defenders, _) =>
+        Some(attackDefenseEntry(owner, square, role, attackers, defenders, loose = false))
+      case _ =>
+        None
+    }.distinct
+
+  private def attackDefenseEntry(
+      owner: Color,
+      square: Square,
+      role: Role,
+      attackers: List[Square],
+      defenders: List[Square],
+      loose: Boolean
+  ): BoardAttackDefenseEntry =
+    val attackCount = attackers.distinct.size
+    val defenseCount = defenders.distinct.size
+    val materialValue = MaterialValue.materialValueCp(role)
+    BoardAttackDefenseEntry(
+      square = evidenceSquare(square),
+      occupantColor = owner,
+      occupantRole = evidenceRole(role),
+      attackerColor = !owner,
+      attackerSquares = evidenceSquares(attackers),
+      defenderSquares = evidenceSquares(defenders),
+      attackCount = attackCount,
+      defenseCount = defenseCount,
+      pressureDelta = attackCount - defenseCount,
+      materialValueCp = materialValue,
+      isLoose = loose,
+      isUnderdefended = !loose && attackCount > defenseCount
     )
 
   private def factAnchors(facts: List[Fact], perspective: Option[Color]): List[BoardAnchor] =
@@ -210,6 +247,36 @@ object PositionFactNormalizer:
             proofSignal = axis == Fact.RayAxis.Diagonal
           )
         )
+      case Fact.FileControl(file, color, open, _) =>
+        Some(
+          BoardAnchor(
+            kind = BoardAnchorKind.FileControl,
+            side = color,
+            signal = if open then BoardAnchorSignal.OpenFileAccess else BoardAnchorSignal.SemiOpenFileAccess,
+            magnitude = 1,
+            confidence = if open then 0.78 else 0.68,
+            detail = Some(
+              BoardAnchorDetail(
+                subjectColor = Some(color),
+                file = Some(evidenceFile(file)),
+                axis = Some(BoardAnchorAxis.File)
+              )
+            ),
+            proofSignal = open
+          )
+        )
+      case Fact.SpaceAdvantage(color, pawnDelta, _) =>
+        Some(
+          BoardAnchor(
+            kind = BoardAnchorKind.Space,
+            side = color,
+            signal = BoardAnchorSignal.SpaceEdge,
+            magnitude = pawnDelta,
+            confidence = 0.72,
+            detail = Some(BoardAnchorDetail(subjectColor = Some(color))),
+            proofSignal = pawnDelta >= 2
+          )
+        )
       case fact @ Fact.WeakSquare(_, _, _, _) =>
         val focus = fact.squareFocus
         Some(
@@ -317,6 +384,9 @@ object PositionFactNormalizer:
   private def evidenceSquare(square: Square): EvidenceSquare =
     EvidenceSquare(square.key)
 
+  private def evidenceFile(file: File): EvidenceFile =
+    EvidenceFile(fileKey(file))
+
   private def evidenceSquares(squares: List[Square]): List[EvidenceSquare] =
     squares.distinct.map(evidenceSquare)
 
@@ -336,3 +406,14 @@ object PositionFactNormalizer:
     else if rankDiff == 0 then Some(BoardAnchorAxis.Rank)
     else if fileDiff.abs == rankDiff.abs then Some(BoardAnchorAxis.Diagonal)
     else None
+
+  private def fileKey(file: File): String =
+    file match
+      case File.A => "a"
+      case File.B => "b"
+      case File.C => "c"
+      case File.D => "d"
+      case File.E => "e"
+      case File.F => "f"
+      case File.G => "g"
+      case File.H => "h"

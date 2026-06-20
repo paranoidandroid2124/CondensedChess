@@ -1,6 +1,6 @@
 package lila.chessjudgment.model
 
-import chess.{ Square, Role, Color }
+import chess.{ Square, Role, Color, File }
 import lila.chessjudgment.model.strategic.{
   EndgameOppositionType,
   RookEndgamePattern as RookEndgamePatternKind,
@@ -109,6 +109,8 @@ object Fact {
           relatedSquares = relationSquares,
           tacticalHintSquares = relationSquares
         )
+      case FileControl(_, _, _, _) | SpaceAdvantage(_, _, _) =>
+        SquareFocus()
       case WeakSquare(square, _, _, _) =>
         SquareFocus(
           subjectSquares = List(square),
@@ -248,6 +250,23 @@ object Fact {
       scope: FactScope
   ) extends Fact {
     def participants = List(front, back)
+  }
+
+  case class FileControl(
+      file: File,
+      color: Color,
+      open: Boolean,
+      scope: FactScope
+  ) extends Fact {
+    def participants = Nil
+  }
+
+  case class SpaceAdvantage(
+      color: Color,
+      pawnDelta: Int,
+      scope: FactScope
+  ) extends Fact {
+    def participants = Nil
   }
 
   // --- Structural / Strategic Facts ---

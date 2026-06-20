@@ -638,7 +638,7 @@ object ClaimArbitrator:
       case SinglePositionEvidence(_) =>
         1
       case payload @ BoardFactEvidence(_, _) =>
-        payload.proofSignalAnchors.size.min(3)
+        Option.when(payload.hasProofSignalAnchor || payload.vulnerableAttackDefense.nonEmpty)(2).getOrElse(0)
       case payload: LineFactEvidence =>
         val profile = payload.consequenceProfile
         if profile.hasConcreteProofSignal then

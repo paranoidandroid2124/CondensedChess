@@ -631,6 +631,7 @@ object MoveReviewPhase3AuditRunner:
       "localConcreteClaimFamilies" -> semantic.localConcreteClaimFamilies.map(_.toString).toList.sorted,
       "localConcreteClaimDetails" -> localConcreteClaimDetails(semantic.localConcreteClaimDiagnostics),
       "boardAnchorFacts" -> semantic.boardAnchorFacts,
+      "boardAttackDefenseFacts" -> semantic.boardAttackDefenseFacts,
       "lineReplayFacts" -> semantic.lineReplayFacts,
       "lineEventFacts" -> semantic.lineEventFacts,
       "lineConsequenceFacts" -> semantic.lineConsequenceFacts,

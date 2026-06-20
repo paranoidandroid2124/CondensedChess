@@ -2137,6 +2137,7 @@ final case class SemanticCoverageMetrics(
     localConcreteClaimFamilies: Set[ClaimFamily],
     localConcreteClaimDiagnostics: List[LocalConcreteClaimDiagnostic],
     boardAnchorFacts: Int,
+    boardAttackDefenseFacts: Int,
     lineReplayFacts: Int,
     lineEventFacts: Int,
     lineConsequenceFacts: Int,
@@ -2295,6 +2296,7 @@ object SemanticCoverageMetrics:
       localConcreteClaimFamilies = localConcreteClaims.map(_.family).toSet,
       localConcreteClaimDiagnostics = localConcreteClaimDiagnostics,
       boardAnchorFacts = boardAnchorCount(packet),
+      boardAttackDefenseFacts = boardAttackDefenseCount(packet),
       lineReplayFacts = lineReplayCount(packet),
       lineEventFacts = lineEventCount(packet),
       lineConsequenceFacts = lineConsequenceCount(packet),
@@ -2354,6 +2356,11 @@ object SemanticCoverageMetrics:
   private def boardAnchorCount(packet: EvidenceBackedJudgmentPacket): Int =
     packet.evidenceGraph.records.collect { case EvidenceRecord(_, payload: BoardFactEvidence, _) =>
       payload.proofSignalAnchors.size
+    }.sum
+
+  private def boardAttackDefenseCount(packet: EvidenceBackedJudgmentPacket): Int =
+    packet.evidenceGraph.records.collect { case EvidenceRecord(_, payload: BoardFactEvidence, _) =>
+      payload.attackDefense.size
     }.sum
 
   private def lineReplayCount(packet: EvidenceBackedJudgmentPacket): Int =

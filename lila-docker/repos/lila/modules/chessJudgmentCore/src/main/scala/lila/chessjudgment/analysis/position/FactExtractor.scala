@@ -280,6 +280,15 @@ object FactExtractor {
           back <- m.backSq
         yield Fact.Battery(m.color, front, m.front, back, m.back, batteryAxis(m.axis), scope)
 
+      case m: Motif.OpenFileControl =>
+        Some(Fact.FileControl(m.file, m.color, open = true, scope))
+
+      case m: Motif.SemiOpenFileControl =>
+        Some(Fact.FileControl(m.file, m.color, open = false, scope))
+
+      case m: Motif.SpaceAdvantage =>
+        Some(Fact.SpaceAdvantage(m.color, m.pawnDelta, scope))
+
       case m: Motif.Outpost =>
         Some(Fact.Outpost(m.square, m.piece, scope))
 

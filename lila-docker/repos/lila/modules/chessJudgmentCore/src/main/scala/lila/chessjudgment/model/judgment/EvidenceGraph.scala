@@ -8,6 +8,7 @@ import lila.chessjudgment.model.{ ActivePlans, Fact, Motif, PlanScoringResult, P
 import lila.chessjudgment.model.structure.{ PlanAlignment, StructureProfile }
 
 final case class EvidenceSquare(key: String)
+final case class EvidenceFile(key: String)
 final case class EvidencePieceRole(name: String)
 
 enum RelationParticipantRole:
@@ -103,7 +104,8 @@ sealed trait EvidencePayload:
 final case class BoardFactEvidence(
     facts: List[Fact],
     features: Option[PositionFeatures]
-)(val anchors: List[BoardAnchor] = Nil
+)(val anchors: List[BoardAnchor] = Nil,
+    val attackDefense: List[BoardAttackDefenseEntry] = Nil
 ) extends EvidencePayload:
   val layer: EvidenceLayer = EvidenceLayer.Board
   def proofSignalAnchors: List[BoardAnchor] =
@@ -112,10 +114,29 @@ final case class BoardFactEvidence(
     proofSignalAnchors.nonEmpty
   def proofSignalAnchorKinds: List[BoardAnchorKind] =
     proofSignalAnchors.map(_.kind)
+  def hasAttackDefenseEntries: Boolean =
+    attackDefense.nonEmpty
+  def vulnerableAttackDefense: List[BoardAttackDefenseEntry] =
+    attackDefense.filter(entry => entry.isLoose || entry.isUnderdefended)
 
 object BoardFactEvidence:
   def apply(facts: List[Fact], features: Option[PositionFeatures]): BoardFactEvidence =
     new BoardFactEvidence(facts, features)()
+
+final case class BoardAttackDefenseEntry(
+    square: EvidenceSquare,
+    occupantColor: Color,
+    occupantRole: EvidencePieceRole,
+    attackerColor: Color,
+    attackerSquares: List[EvidenceSquare],
+    defenderSquares: List[EvidenceSquare],
+    attackCount: Int,
+    defenseCount: Int,
+    pressureDelta: Int,
+    materialValueCp: Int,
+    isLoose: Boolean,
+    isUnderdefended: Boolean
+)
 
 enum BoardAnchorKind:
   case CenterControl
@@ -139,6 +160,7 @@ enum BoardAnchorSignal:
   case CenterControlEdge
   case SpaceEdge
   case DevelopmentLead
+  case OpenFileAccess
   case SemiOpenFileAccess
   case RookOnSeventh
   case MobilityEdge
@@ -174,6 +196,7 @@ final case class BoardAnchorDetail(
     attackerSquares: List[EvidenceSquare] = Nil,
     defenderSquares: List[EvidenceSquare] = Nil,
     relatedSquares: List[EvidenceSquare] = Nil,
+    file: Option[EvidenceFile] = None,
     axis: Option[BoardAnchorAxis] = None,
     isAbsolute: Option[Boolean] = None,
     materialLossCp: Option[Int] = None

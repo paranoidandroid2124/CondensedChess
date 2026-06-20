@@ -386,7 +386,8 @@ object ClaimSupportCluster:
     val attackerColor = anchor.detail.flatMap(_.attackerColor).map(color => s":attacker-${colorKey(color)}").getOrElse("")
     val subject = anchor.detail.flatMap(_.subjectSquare).map(square => s":subject-${square.key}").getOrElse("")
     val target = anchor.detail.flatMap(_.targetSquare).map(square => s":target-${square.key}").getOrElse("")
-    s"board-anchor:$signal:$side:${anchor.kind}:${anchor.signal}$subjectColor$attackerColor$subject$target"
+    val file = anchor.detail.flatMap(_.file).map(file => s":file-${file.key}").getOrElse("")
+    s"board-anchor:$signal:$side:${anchor.kind}:${anchor.signal}$subjectColor$attackerColor$subject$target$file"
 
   private def colorKey(color: Color): String =
     if color.white then "white" else "black"
