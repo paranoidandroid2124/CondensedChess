@@ -1,6 +1,5 @@
 package lila.chessjudgment.model.judgment
 
-import chess.Color
 import lila.chessjudgment.model.{ ProbeAdmissionDiagnostic, ProbeRequest }
 import lila.chessjudgment.model.structure.StructureId
 
@@ -265,34 +264,6 @@ case class ClaimSupportCluster(
     interactions: List[ClaimSupportClusterInteraction]
 )
 
-enum EvidenceSemanticAnchorKind:
-  case StrategicKind
-  case Plan
-  case BoardAnchor
-  case PawnStructure
-  case StructurePlan
-  case PawnPlay
-  case OpeningAnchor
-  case OpeningSupported
-  case OpeningObserved
-  case CandidateComparison
-  case PlanPressure
-  case PlanTransition
-  case LineEvent
-  case LineConsequence
-  case StructuralDelta
-
-final case class EvidenceSemanticAnchor(
-    kind: EvidenceSemanticAnchorKind,
-    values: List[String]
-):
-  def stableKey: String =
-    (kind.toString :: values).mkString(":")
-
-object EvidenceSemanticAnchor:
-  def of(kind: EvidenceSemanticAnchorKind, values: String*): EvidenceSemanticAnchor =
-    EvidenceSemanticAnchor(kind, values.toList)
-
 object ClaimSupportCluster:
 
   def fromClaims(claims: List[ClaimSeed]): List[ClaimSupportCluster] =
@@ -361,7 +332,7 @@ object ClaimSupportCluster:
       case payload @ StrategicFactEvidence(kind, _, relatedPlans, _) =>
         EvidenceSemanticAnchor.of(StrategicKind, kind.toString) ::
           relatedPlans.map(plan => EvidenceSemanticAnchor.of(Plan, plan.toString)) ++
-          payload.anchorsForSemanticGrouping.map(boardAnchorSemantic)
+          payload.semanticGroupingAnchors
       case PawnStructureFactEvidence(profile, alignment, pawnPlay) =>
         List(
           Option.when(profile.primary != StructureId.Unknown)(
@@ -402,16 +373,9 @@ object ClaimSupportCluster:
       case PlanTransitionEvidence(transition) =>
         transition.primaryPlanId.map(plan => EvidenceSemanticAnchor.of(PlanTransition, plan)).toList
       case payload: LineFactEvidence =>
-        Option
-          .when(payload.hasLineEvent(LineEventKind.Castling))(
-            EvidenceSemanticAnchor.of(LineEvent, LineEventKind.Castling.toString)
-          )
-          .toList ++
-          payload.proofSignalConsequenceKinds.map(kind =>
-            EvidenceSemanticAnchor.of(LineConsequence, kind.toString)
-          )
+        payload.semanticGroupingAnchors
       case payload: BoardFactEvidence =>
-        payload.anchorsForSemanticGrouping.map(boardAnchorSemantic)
+        payload.semanticGroupingAnchors
       case StructuralDeltaEvidence(delta) =>
         List(
           Option.when(delta.createdTargetPressure.nonEmpty)(EvidenceSemanticAnchor.of(StructuralDelta, "created-target-pressure")),
@@ -432,29 +396,6 @@ object ClaimSupportCluster:
         ).flatten
       case _ =>
         Nil
-
-  private def boardAnchorSemantic(anchor: BoardAnchor): EvidenceSemanticAnchor =
-    val side = if anchor.side.white then "white" else "black"
-    val detailValues =
-      anchor.detail.toList.flatMap(detail =>
-        List(
-          detail.subjectColor.map(color => s"subject-color:${colorKey(color)}"),
-          detail.attackerColor.map(color => s"attacker-color:${colorKey(color)}"),
-          detail.subjectSquare.map(square => s"subject-square:${square.key}"),
-          detail.targetSquare.map(square => s"target-square:${square.key}"),
-          Option
-            .when(detail.relatedSquares.nonEmpty)(s"related:${detail.relatedSquares.map(_.key).sorted.mkString(",")}"),
-          detail.file.map(file => s"file:${file.key}"),
-          detail.axis.map(axis => s"axis:$axis")
-        ).flatten
-      )
-    EvidenceSemanticAnchor.of(
-      EvidenceSemanticAnchorKind.BoardAnchor,
-      (List(side, anchor.kind.toString, anchor.signal.toString) ++ detailValues)*
-    )
-
-  private def colorKey(color: Color): String =
-    if color.white then "white" else "black"
 
   private def winPercentGapAnchor(gap: Double): String =
     if gap >= 20.0 then "20+"

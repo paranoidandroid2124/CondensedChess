@@ -11,6 +11,34 @@ final case class EvidenceSquare(key: String)
 final case class EvidenceFile(key: String)
 final case class EvidencePieceRole(name: String)
 
+enum EvidenceSemanticAnchorKind:
+  case StrategicKind
+  case Plan
+  case BoardAnchor
+  case PawnStructure
+  case StructurePlan
+  case PawnPlay
+  case OpeningAnchor
+  case OpeningSupported
+  case OpeningObserved
+  case CandidateComparison
+  case PlanPressure
+  case PlanTransition
+  case LineEvent
+  case LineConsequence
+  case StructuralDelta
+
+final case class EvidenceSemanticAnchor(
+    kind: EvidenceSemanticAnchorKind,
+    values: List[String]
+):
+  def stableKey: String =
+    (kind.toString :: values).mkString(":")
+
+object EvidenceSemanticAnchor:
+  def of(kind: EvidenceSemanticAnchorKind, values: String*): EvidenceSemanticAnchor =
+    EvidenceSemanticAnchor(kind, values.toList)
+
 enum RelationParticipantRole:
   case Attacker
   case Defender
@@ -121,8 +149,8 @@ final case class BoardFactEvidence(
     anchors.filter(anchor => kinds.contains(anchor.kind))
   def anchorsOfAtLeast(kind: BoardAnchorKind, minimumMagnitude: Int): List[BoardAnchor] =
     anchors.filter(anchor => anchor.kind == kind && anchor.magnitude >= minimumMagnitude)
-  def anchorsForSemanticGrouping: List[BoardAnchor] =
-    anchors
+  def semanticGroupingAnchors: List[EvidenceSemanticAnchor] =
+    anchors.map(_.semanticGroupingAnchor)
   def proofSignalAnchors: List[BoardAnchor] =
     anchors.filter(BoardFactEvidence.isProofSignalAnchor)
   def proofSignalAnchorKinds: List[BoardAnchorKind] =
@@ -370,6 +398,28 @@ final case class BoardAnchor(
     detail.toList.flatMap(_.focusSquares).distinct
   def targetHintSquares: List[EvidenceSquare] =
     detail.toList.flatMap(_.targetHintSquares).distinct
+  def semanticGroupingAnchor: EvidenceSemanticAnchor =
+    val sideKey = if side.white then "white" else "black"
+    val detailValues =
+      detail.toList.flatMap(detail =>
+        List(
+          detail.subjectColor.map(color => s"subject-color:${colorKey(color)}"),
+          detail.attackerColor.map(color => s"attacker-color:${colorKey(color)}"),
+          detail.subjectSquare.map(square => s"subject-square:${square.key}"),
+          detail.targetSquare.map(square => s"target-square:${square.key}"),
+          Option
+            .when(detail.relatedSquares.nonEmpty)(s"related:${detail.relatedSquares.map(_.key).sorted.mkString(",")}"),
+          detail.file.map(file => s"file:${file.key}"),
+          detail.axis.map(axis => s"axis:$axis")
+        ).flatten
+      )
+    EvidenceSemanticAnchor.of(
+      EvidenceSemanticAnchorKind.BoardAnchor,
+      (List(sideKey, kind.toString, signal.toString) ++ detailValues)*
+    )
+
+  private def colorKey(color: Color): String =
+    if color.white then "white" else "black"
 
 final case class SinglePositionEvidence(
     assessment: SinglePositionAssessment
@@ -393,8 +443,8 @@ final case class StrategicFactEvidence(
   val layer: EvidenceLayer = EvidenceLayer.Strategic
   def hasTypedSupport: Boolean =
     facts.nonEmpty || relatedPlans.nonEmpty || boardAnchors.nonEmpty
-  def anchorsForSemanticGrouping: List[BoardAnchor] =
-    boardAnchors
+  def semanticGroupingAnchors: List[EvidenceSemanticAnchor] =
+    boardAnchors.map(_.semanticGroupingAnchor)
 
 enum OpeningFamily:
   case A
@@ -943,6 +993,15 @@ final case class LineFactEvidence(
     consequenceProfile.tacticalDriverKinds
   def hasTacticalLineConsequence: Boolean =
     tacticalLineConsequenceKinds.nonEmpty
+  def semanticGroupingAnchors: List[EvidenceSemanticAnchor] =
+    Option
+      .when(hasLineEvent(LineEventKind.Castling))(
+        EvidenceSemanticAnchor.of(EvidenceSemanticAnchorKind.LineEvent, LineEventKind.Castling.toString)
+      )
+      .toList ++
+      proofSignalConsequenceKinds.map(kind =>
+        EvidenceSemanticAnchor.of(EvidenceSemanticAnchorKind.LineConsequence, kind.toString)
+      )
 
   private def normalizeUci(raw: String): String =
     Option(raw).getOrElse("").trim.toLowerCase
