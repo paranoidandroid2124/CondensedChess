@@ -424,8 +424,8 @@ object MoveAnalyzer:
   }
 
   private def determineCaptureType(attacker: Role, victim: Role): CaptureType =
-    val val1 = pieceValue(attacker)
-    val val2 = pieceValue(victim)
+    val val1 = MaterialValue.tacticalValueUnit(attacker)
+    val val2 = MaterialValue.tacticalValueUnit(victim)
     if val2 > val1 then CaptureType.Winning
     else if val2 == val1 then CaptureType.Exchange
     else CaptureType.Normal // Default to Normal for BxP, Sacrifice requires ROI/context
@@ -497,12 +497,12 @@ object MoveAnalyzer:
             board.roleAt(behindSq).flatMap { behindRole =>
               if (board.colorAt(behindSq).contains(!color)) {
                 // Trivial pins (pawn to knight etc) shouldn't be reported as tactical 'shots'
-                val isSignificantPin = (pieceValue(targetRole) < pieceValue(behindRole)) && {
+                val isSignificantPin = (MaterialValue.tacticalValueUnit(targetRole) < MaterialValue.tacticalValueUnit(behindRole)) && {
                   if (targetRole == Pawn) List(Rook, Queen, King).contains(behindRole)
-                  else (pieceValue(behindRole) - pieceValue(targetRole) >= 2) || behindRole == King
+                  else (MaterialValue.tacticalValueUnit(behindRole) - MaterialValue.tacticalValueUnit(targetRole) >= 2) || behindRole == King
                 }
                 
-                val isSignificantSkewer = (pieceValue(targetRole) > pieceValue(behindRole)) && {
+                val isSignificantSkewer = (MaterialValue.tacticalValueUnit(targetRole) > MaterialValue.tacticalValueUnit(behindRole)) && {
                   behindRole != Pawn // Skewering a piece to a pawn is rarely a 'skewer' worth mentioning
                 }
 
@@ -548,8 +548,8 @@ object MoveAnalyzer:
       newTargets.squares.flatMap { targetSq =>
         nextPos.board.roleAt(targetSq).flatMap { targetRole =>
           val isKing = targetRole == King
-          val attackerVal = pieceValue(role)
-          val targetVal = pieceValue(targetRole)
+          val attackerVal = MaterialValue.tacticalValueUnit(role)
+          val targetVal = MaterialValue.tacticalValueUnit(targetRole)
           val isHigherValue = targetVal > attackerVal
           val isUndefended = nextPos.board.attackers(targetSq, !color).isEmpty
           val attackerIsSafe = nextPos.board.attackers(pieceSq, !color).isEmpty
@@ -573,7 +573,7 @@ object MoveAnalyzer:
         board.attackers(sq, !color).squares.exists { attackerSq =>
           board.roleAt(attackerSq).exists { attackerRole =>
             val isUndefended = board.attackers(sq, color).isEmpty
-            val isHigherValue = pieceValue(targetRole) > pieceValue(attackerRole)
+            val isHigherValue = MaterialValue.tacticalValueUnit(targetRole) > MaterialValue.tacticalValueUnit(attackerRole)
             val attackerIsSafe = board.attackers(attackerSq, color).isEmpty
 
             isHigherValue || (isUndefended && attackerIsSafe)
@@ -982,9 +982,6 @@ object MoveAnalyzer:
       isKnightCheck && (blocked == adjacent)
     }
 
-  private def pieceValue(role: Role): Int =
-    MaterialValue.tacticalValueUnit(role)
-
   /**
    * Detect compensation for Exchange Sacrifice (Rook for minor piece).
    * Returns SacrificeROI if positional compensation exists.
@@ -1099,7 +1096,7 @@ object MoveAnalyzer:
         
         // Is it protecting something more valuable than itself?
         val protectsValuable = protectedFriendlies.exists { sq =>
-          board.roleAt(sq).exists(r => pieceValue(r) >= pieceValue(defenderRole))
+          board.roleAt(sq).exists(r => MaterialValue.tacticalValueUnit(r) >= MaterialValue.tacticalValueUnit(defenderRole))
         }
         
         if (protectsValuable) {
@@ -1145,7 +1142,9 @@ object MoveAnalyzer:
           val givesMate = ourResponse.after.checkMate
           val isWinningCapture =
             ourResponse.captures &&
-              afterPos.board.roleAt(ourResponse.dest).exists(victim => pieceValue(victim) > pieceValue(ourResponse.piece.role))
+              afterPos.board.roleAt(ourResponse.dest).exists(victim =>
+                MaterialValue.tacticalValueUnit(victim) > MaterialValue.tacticalValueUnit(ourResponse.piece.role)
+              )
           val forkTargets = detectForkTargets(ourResponse, ourResponse.after, color)
           val forkRoles = forkTargets.map(_._2)
           val hasRealFork = (forkRoles.contains(King) && forkRoles.size >= 2) || (forkRoles.filter(_ != Pawn).size >= 2)
@@ -1225,7 +1224,7 @@ object MoveAnalyzer:
       }
       
       trace(mv.dest).flatMap { case (pinnedSq, pinnedRole, behindSq, behindRole) =>
-        if (pieceValue(behindRole) > pieceValue(pinnedRole) || behindRole == King) {
+        if (MaterialValue.tacticalValueUnit(behindRole) > MaterialValue.tacticalValueUnit(pinnedRole) || behindRole == King) {
           Some(Motif.Pin(
             pinningPiece = moverRole,
             pinnedPiece = pinnedRole,
@@ -1284,7 +1283,7 @@ object MoveAnalyzer:
       trace(mv.dest).flatMap { case (frontSq, frontRole, backSq, backRole) =>
         // Skewer: Front piece is MORE valuable than Back piece (or is King)
         // And Front piece must be able to move (escape)
-        if (pieceValue(frontRole) > pieceValue(backRole) || frontRole == King) {
+        if (MaterialValue.tacticalValueUnit(frontRole) > MaterialValue.tacticalValueUnit(backRole) || frontRole == King) {
            Some(Motif.Skewer(
              attackingPiece = moverRole,
              frontPiece = frontRole,
@@ -1419,7 +1418,7 @@ object MoveAnalyzer:
       val targets = newAttacks & nextBoard.byColor(!color)
       val meaningfulTarget = targets.squares.exists { sq =>
         nextBoard.roleAt(sq).exists { targetRole =>
-          targetRole == King || pieceValue(targetRole) > pieceValue(friendlyRole) || nextBoard.attackers(sq, !color).isEmpty
+          targetRole == King || MaterialValue.tacticalValueUnit(targetRole) > MaterialValue.tacticalValueUnit(friendlyRole) || nextBoard.attackers(sq, !color).isEmpty
         }
       }
       val clearedRay = ray.nonEmpty && meaningfulTarget
@@ -1556,7 +1555,7 @@ object MoveAnalyzer:
           val currentAttackers = nextBoard.attackers(targetSq, color)
           if (currentAttackers.nonEmpty) {
             nextBoard.roleAt(targetSq).flatMap { targetRole =>
-              if (pieceValue(targetRole) > 1 || targetRole == King) { // Only interesting if not just a pawn
+              if (MaterialValue.tacticalValueUnit(targetRole) > 1 || targetRole == King) { // Only interesting if not just a pawn
                  Some(Motif.RemovingTheDefender(mv.piece.role, capturedRole, targetRole, capturedSq, color, plyIndex, moveUci))
               } else None
             }

@@ -637,12 +637,7 @@ object ClaimArbitrator:
       case payload @ BoardFactEvidence(_, _) =>
         Option.when(payload.hasProofSignalAnchor || payload.vulnerableAttackDefense.nonEmpty)(2).getOrElse(0)
       case payload: LineFactEvidence =>
-        val profile = payload.consequenceProfile
-        if profile.hasConcreteProofSignal then
-          profile.proofSignalKinds.size.min(4) +
-            Option.when(profile.hasRecaptureRecovery)(1).getOrElse(0) +
-            Option.when(profile.hasPromotionRace)(1).getOrElse(0)
-        else 0
+        lineConsequenceProfileSalience(payload.consequenceProfile)
       case EvalFactEvidence(_, _, mate, depth) =>
         mate.map(_ => 5).getOrElse(if depth >= 16 then 2 else 1)
       case MoveMotifEvidence(moveUci, motifs) =>
@@ -803,16 +798,26 @@ object ClaimArbitrator:
           3
         case RelativeCauseKind.WrongMoveOrder =>
           6
-    val proofScore =
-      cause.proof
-        .map(proof =>
-          proof.boardAnchors.size.min(2) +
-            proof.lineEvents.size.min(2) +
-            proof.lineConsequences.size.min(3) +
-            proof.relationKinds.size.min(3)
-        )
-        .getOrElse(0)
+    val proofScore = cause.proof.map(relativeCauseProofSalience).getOrElse(0)
     causeScore + proofScore + math.round(cause.winPercentLossForMover.min(20.0) / 5.0).toInt
+
+  private def lineConsequenceProfileSalience(profile: LineConsequenceProfile): Int =
+    if !profile.hasConcreteProofSignal then 0
+    else
+      1 +
+        Option.when(profile.hasMate)(4).getOrElse(0) +
+        Option.when(profile.hasDrawResource)(3).getOrElse(0) +
+        Option.when(profile.hasMaterialResult)(2).getOrElse(0) +
+        Option.when(profile.hasRecaptureRecovery)(2).getOrElse(0) +
+        Option.when(profile.hasPromotionRace)(2).getOrElse(0)
+
+  private def relativeCauseProofSalience(proof: RelativeCauseProof): Int =
+    val board = Option.when(proof.boardAnchors.nonEmpty)(2).getOrElse(0)
+    val line =
+      Option.when(proof.lineEvents.nonEmpty)(1).getOrElse(0) +
+        Option.when(proof.lineConsequences.nonEmpty)(2).getOrElse(0)
+    val relation = Option.when(proof.relationKinds.nonEmpty)(3).getOrElse(0)
+    board + line + relation
 
   private def relativeCauseDrivers(kind: RelativeCauseKind): List[ClaimSalienceDriver] =
     kind match

@@ -10,6 +10,7 @@ import lila.chessjudgment.analysis.material.MaterialValue
 import lila.chessjudgment.analysis.tactical.TacticalPatternDetectors
 import lila.chessjudgment.analysis.structure.WeaknessTargetProfile
 import lila.chessjudgment.model.ProbeResult
+import lila.chessjudgment.model.judgment.EvidenceSquare
 import lila.chessjudgment.model.strategic.VariationLine
 
 private[chessjudgment] object TacticalRelationEvidence:
@@ -104,7 +105,7 @@ private[chessjudgment] object TacticalRelationEvidence:
   def defenderTradeBranch(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      targetHints: List[String] = Nil
+      targetHints: List[EvidenceSquare] = Nil
   ): Option[DefenderTradeBranch] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
@@ -143,7 +144,7 @@ private[chessjudgment] object TacticalRelationEvidence:
   def relationWitnesses(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      targetHints: List[String] = Nil,
+      targetHints: List[EvidenceSquare] = Nil,
       continuationLines: List[List[String]] = Nil,
       engineScoreCp: Option[Int] = None,
       engineMate: Option[Int] = None,
@@ -191,7 +192,7 @@ private[chessjudgment] object TacticalRelationEvidence:
   def defenderTradeRelationWitness(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      targetHints: List[String] = Nil
+      targetHints: List[EvidenceSquare] = Nil
   ): Option[RelationWitness] =
     defenderTradeBranch(replay, playedMove, targetHints).map(defenderTradeWitness)
 
@@ -280,7 +281,7 @@ private[chessjudgment] object TacticalRelationEvidence:
   def overloadWitness(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      targetHints: List[String] = Nil
+      targetHints: List[EvidenceSquare] = Nil
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
@@ -293,7 +294,7 @@ private[chessjudgment] object TacticalRelationEvidence:
   def deflectionWitness(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      targetHints: List[String] = Nil
+      targetHints: List[EvidenceSquare] = Nil
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
@@ -327,7 +328,7 @@ private[chessjudgment] object TacticalRelationEvidence:
   def discoveredAttackWitness(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      targetHints: List[String] = Nil
+      targetHints: List[EvidenceSquare] = Nil
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
@@ -340,7 +341,7 @@ private[chessjudgment] object TacticalRelationEvidence:
   def xrayWitness(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      targetHints: List[String] = Nil
+      targetHints: List[EvidenceSquare] = Nil
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
@@ -457,14 +458,13 @@ private[chessjudgment] object TacticalRelationEvidence:
   def zwischenzugWitness(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      targetHints: List[String] = Nil
+      targetHints: List[EvidenceSquare] = Nil
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
       first <- replay.headOption.filter(_.uci == normalizedPlayed)
       movingSide = first.move.piece.color
-      targetHintKeys = normalizedTargetHintKeys(targetHints)
-      targetHintSquares = targetHintKeys.flatMap(squareFromKey).distinct
+      targetHintSquares = typedTargetHintSquares(targetHints)
       checkers = first.after.checkers.squares.toList
       if first.after.check.yes && checkers.exists(_ == first.move.dest)
       recapture <- legalRecaptureCandidates(first.before, movingSide, targetHintSquares)
@@ -479,7 +479,9 @@ private[chessjudgment] object TacticalRelationEvidence:
               .map(role => target -> role)
           }
         }
-        .sortBy { case (target, role) => (targetHintPenalty(targetHintSquares.toSet, target), -pieceValue(role), target.key) }
+        .sortBy { case (target, role) =>
+          (targetHintPenalty(targetHintSquares.toSet, target), -MaterialValue.tacticalValueCp(role), target.key)
+        }
         .headOption
       (expectedRecaptureSquare, _) = recapture
       if first.move.dest != expectedRecaptureSquare
@@ -505,13 +507,13 @@ private[chessjudgment] object TacticalRelationEvidence:
   def forkWitness(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      targetHints: List[String] = Nil
+      targetHints: List[EvidenceSquare] = Nil
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
       first <- replay.headOption.filter(_.uci == normalizedPlayed)
       movingSide = first.move.piece.color
-      targetHintSet = normalizedTargetHintKeys(targetHints).flatMap(squareFromKey).toSet
+      targetHintSet = typedTargetHintSquares(targetHints).toSet
       targetSet = relationTargetSquares(first.after.board, movingSide, targetHints).toSet
       witness <- forkAfterMove(first.after.board, movingSide, first.move.dest, first.move.piece.role, targetSet, targetHintSet)
     yield witness.copy(lineMoves = replayUcis(replay, 0, 1))
@@ -519,13 +521,13 @@ private[chessjudgment] object TacticalRelationEvidence:
   def hangingPieceWitness(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      targetHints: List[String] = Nil
+      targetHints: List[EvidenceSquare] = Nil
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
       first <- replay.headOption.filter(_.uci == normalizedPlayed)
       movingSide = first.move.piece.color
-      targetHintSet = normalizedTargetHintKeys(targetHints).flatMap(squareFromKey).toSet
+      targetHintSet = typedTargetHintSquares(targetHints).toSet
       targetSet = relationTargetSquares(first.after.board, movingSide, targetHints).toSet
       witness <- hangingPieceAfterMove(
         board = first.after.board,
@@ -540,13 +542,13 @@ private[chessjudgment] object TacticalRelationEvidence:
   def trappedPieceWitness(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      targetHints: List[String] = Nil
+      targetHints: List[EvidenceSquare] = Nil
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
       first <- replay.headOption.filter(_.uci == normalizedPlayed)
       movingSide = first.move.piece.color
-      targetHintSet = normalizedTargetHintKeys(targetHints).flatMap(squareFromKey).toSet
+      targetHintSet = typedTargetHintSquares(targetHints).toSet
       targetSet = relationTargetSquares(first.after.board, movingSide, targetHints).toSet
       witness <- trappedPieceAfterMove(
         position = first.after,
@@ -561,13 +563,13 @@ private[chessjudgment] object TacticalRelationEvidence:
   def dominationWitness(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      targetHints: List[String] = Nil
+      targetHints: List[EvidenceSquare] = Nil
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
       first <- replay.headOption.filter(_.uci == normalizedPlayed)
       movingSide = first.move.piece.color
-      targetHintSet = normalizedTargetHintKeys(targetHints).flatMap(squareFromKey).toSet
+      targetHintSet = typedTargetHintSquares(targetHints).toSet
       targetSet = relationTargetSquares(first.after.board, movingSide, targetHints).toSet
       witness <- dominationAfterMove(
         position = first.after,
@@ -582,7 +584,7 @@ private[chessjudgment] object TacticalRelationEvidence:
   def clearanceWitness(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      targetHints: List[String] = Nil
+      targetHints: List[EvidenceSquare] = Nil
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
@@ -595,13 +597,13 @@ private[chessjudgment] object TacticalRelationEvidence:
   def batteryWitness(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      targetHints: List[String] = Nil
+      targetHints: List[EvidenceSquare] = Nil
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
       first <- replay.headOption.filter(_.uci == normalizedPlayed)
       movingSide = first.move.piece.color
-      targetHintSet = normalizedTargetHintKeys(targetHints).flatMap(squareFromKey).toSet
+      targetHintSet = typedTargetHintSquares(targetHints).toSet
       targetSet = relationTargetSquares(first.after.board, movingSide, targetHints).toSet
       witness <- batteryAfterMove(
         board = first.after.board,
@@ -616,7 +618,7 @@ private[chessjudgment] object TacticalRelationEvidence:
   def pinWitness(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      targetHints: List[String] = Nil
+      targetHints: List[EvidenceSquare] = Nil
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
@@ -629,7 +631,7 @@ private[chessjudgment] object TacticalRelationEvidence:
   def skewerWitness(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      targetHints: List[String] = Nil
+      targetHints: List[EvidenceSquare] = Nil
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
@@ -642,7 +644,7 @@ private[chessjudgment] object TacticalRelationEvidence:
   def interferenceWitness(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      targetHints: List[String] = Nil
+      targetHints: List[EvidenceSquare] = Nil
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
@@ -662,7 +664,7 @@ private[chessjudgment] object TacticalRelationEvidence:
   def decoyWitness(
       replay: List[BoundedReplayStep],
       playedMove: String,
-      targetHints: List[String] = Nil
+      targetHints: List[EvidenceSquare] = Nil
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
@@ -677,7 +679,7 @@ private[chessjudgment] object TacticalRelationEvidence:
       if reply.capturedRole.contains(first.move.piece.role)
       if response.move.dest == baitSquare && response.move.captures
       if response.capturedRole.contains(reply.move.piece.role)
-      if pieceValue(reply.move.piece.role) > pieceValue(first.move.piece.role)
+      if MaterialValue.tacticalValueCp(reply.move.piece.role) > MaterialValue.tacticalValueCp(first.move.piece.role)
       targetSet = relationTargetSquares(reply.after.board, movingSide, targetHints).toSet
       if targetSet.contains(baitSquare) || targetSet.contains(reply.move.orig)
     yield
@@ -937,9 +939,9 @@ private[chessjudgment] object TacticalRelationEvidence:
       movingSide: Color,
       defenderSquare: Square,
       exchangeSquare: Square,
-      targetHints: List[String]
+      targetHints: List[EvidenceSquare]
   ): Option[String] =
-    val hintSquares = normalizedTargetHintKeys(targetHints).flatMap(squareFromKey)
+    val hintSquares = typedTargetHintSquares(targetHints)
     val structuralTargets =
       WeaknessTargetProfile.targetsForPressure(board, movingSide).flatMap(target => squareFromKey(target.targetSquare))
     val materialTargets =
@@ -969,26 +971,29 @@ private[chessjudgment] object TacticalRelationEvidence:
   private def relationTargetSquares(
       board: Board,
       movingSide: Color,
-      targetHints: List[String]
+      targetHints: List[EvidenceSquare]
   ): List[Square] =
-    val hints = normalizedTargetHintKeys(targetHints).flatMap(squareFromKey)
+    val hints = typedTargetHintSquares(targetHints)
     val structural =
       WeaknessTargetProfile.targetsForPressure(board, movingSide).flatMap(target => squareFromKey(target.targetSquare))
     val material =
       board.byColor(!movingSide).squares.filterNot(square => board.roleAt(square).contains(King)).toList
     (hints ++ structural ++ material).distinct
 
-  private def normalizedTargetHintKeys(targetHints: List[String]): List[String] =
-    targetHints.map(_.trim.toLowerCase).filter(_.nonEmpty).distinct
+  private def typedTargetHintSquares(targetHints: List[EvidenceSquare]): List[Square] =
+    targetHints.flatMap(hint => squareFromKey(hint.key)).distinct
+
+  private def typedTargetHintKeys(targetHints: List[EvidenceSquare]): Set[String] =
+    targetHints.map(_.key.trim.toLowerCase).filter(_.nonEmpty).toSet
 
   private def targetHintPenalty(targetHints: Set[Square], target: Square): Int =
     if targetHints.contains(target) then 0 else 1
 
   private def prioritizeTargetHintMatches(
       witnesses: List[RelationWitness],
-      targetHints: List[String]
+      targetHints: List[EvidenceSquare]
   ): List[RelationWitness] =
-    val hintKeys = normalizedTargetHintKeys(targetHints).toSet
+    val hintKeys = typedTargetHintKeys(targetHints)
     if hintKeys.isEmpty then witnesses
     else
       witnesses.sortBy { witness =>
@@ -1142,10 +1147,10 @@ private[chessjudgment] object TacticalRelationEvidence:
         )
         .filter { case (target, role) =>
           role == King ||
-            pieceValue(role) > pieceValue(attackerRole) ||
+            MaterialValue.tacticalValueCp(role) > MaterialValue.tacticalValueCp(attackerRole) ||
             board.attackers(target, !movingSide).isEmpty
         }
-        .sortBy { case (target, role) => (targetHintPenalty(targetHintSet, target), -pieceValue(role), target.key) }
+        .sortBy { case (target, role) => (targetHintPenalty(targetHintSet, target), -MaterialValue.tacticalValueCp(role), target.key) }
         .take(4)
     Option.when(targets.size >= 2) {
       val targetSquares = targets.map(_._1.key)
@@ -1183,9 +1188,9 @@ private[chessjudgment] object TacticalRelationEvidence:
             board.attackers(target, !movingSide).isEmpty &&
             !sameColorRayPieceBehind(board, attacker, target) &&
             (role != Pawn || targetHintSet.contains(target)) &&
-            (pieceValue(role) > pieceValue(attackerRole) || targetHintSet.contains(target))
+            (MaterialValue.tacticalValueCp(role) > MaterialValue.tacticalValueCp(attackerRole) || targetHintSet.contains(target))
         }
-        .sortBy { case (target, role) => (targetHintPenalty(targetHintSet, target), -pieceValue(role), target.key) }
+        .sortBy { case (target, role) => (targetHintPenalty(targetHintSet, target), -MaterialValue.tacticalValueCp(role), target.key) }
     attackedTargets.headOption.map { case (target, role) =>
       RelationWitness(
         kind = RelationKind.HangingPiece,
@@ -1219,10 +1224,10 @@ private[chessjudgment] object TacticalRelationEvidence:
         .filter { case (target, role) =>
           role != King &&
             role != Pawn &&
-            pieceValue(role) > pieceValue(attackerRole) &&
+            MaterialValue.tacticalValueCp(role) > MaterialValue.tacticalValueCp(attackerRole) &&
             safeEscapeSquares(position, target, role, !movingSide, movingSide).isEmpty
         }
-        .sortBy { case (target, role) => (targetHintPenalty(targetHintSet, target), -pieceValue(role), target.key) }
+        .sortBy { case (target, role) => (targetHintPenalty(targetHintSet, target), -MaterialValue.tacticalValueCp(role), target.key) }
         .headOption
         .map { case (target, role) =>
           RelationWitness(
@@ -1280,7 +1285,7 @@ private[chessjudgment] object TacticalRelationEvidence:
           Option.when(
             role != King &&
               role != Pawn &&
-              pieceValue(role) <= pieceValue(attackerRole) &&
+              MaterialValue.tacticalValueCp(role) <= MaterialValue.tacticalValueCp(attackerRole) &&
               pseudoEscapes.nonEmpty &&
               controlledEscapes.size == pseudoEscapes.size &&
               safeEscapeSquares(position, target, role, targetColor, movingSide).isEmpty &&
@@ -1289,7 +1294,9 @@ private[chessjudgment] object TacticalRelationEvidence:
             target -> role -> controlledEscapes
           )
         }
-        .sortBy { case ((target, role), _) => (targetHintPenalty(targetHintSet, target), -pieceValue(role), target.key) }
+        .sortBy { case ((target, role), _) =>
+          (targetHintPenalty(targetHintSet, target), -MaterialValue.tacticalValueCp(role), target.key)
+        }
         .headOption
         .map { case ((target, role), controlledEscapes) =>
           RelationWitness(
@@ -1494,7 +1501,7 @@ private[chessjudgment] object TacticalRelationEvidence:
           behind <- firstOccupiedOnRay(board, pinned, fileStep, rankStep)
           behindPiece <- board.pieceAt(behind)
           if behindPiece.color == pinnedPiece.color
-          if behindPiece.role == King || pieceValue(behindPiece.role) > pieceValue(pinnedPiece.role)
+          if behindPiece.role == King || MaterialValue.tacticalValueCp(behindPiece.role) > MaterialValue.tacticalValueCp(pinnedPiece.role)
           if targetSet.contains(pinned) || targetSet.contains(behind)
           target = if targetSet.contains(pinned) then pinned else behind
         yield
@@ -1533,7 +1540,7 @@ private[chessjudgment] object TacticalRelationEvidence:
           back <- firstOccupiedOnRay(board, front, fileStep, rankStep)
           backPiece <- board.pieceAt(back)
           if backPiece.color == frontPiece.color && backPiece.role != Pawn
-          if frontPiece.role == King || pieceValue(frontPiece.role) > pieceValue(backPiece.role)
+          if frontPiece.role == King || MaterialValue.tacticalValueCp(frontPiece.role) > MaterialValue.tacticalValueCp(backPiece.role)
           if targetSet.contains(front) || targetSet.contains(back)
           target = if targetSet.contains(front) then front else back
         yield
@@ -1621,9 +1628,6 @@ private[chessjudgment] object TacticalRelationEvidence:
         (left == Queen && right == Rook) ||
           (left == Rook && right == Queen) ||
           (left == Rook && right == Rook)
-
-  private def pieceValue(role: Role): Int =
-    MaterialValue.tacticalValueCp(role)
 
   private def sameBranchBadPieceLiquidation(
       replay: List[BoundedReplayStep],

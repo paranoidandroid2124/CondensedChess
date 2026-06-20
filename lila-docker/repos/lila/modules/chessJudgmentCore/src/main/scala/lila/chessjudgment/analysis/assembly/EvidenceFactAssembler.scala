@@ -205,10 +205,10 @@ object EvidenceFactAssembler:
       lineBackedRecords ++ transitionLocalRecords
     }
 
-  private def relationTargetHintsFromBoardFacts(context: JudgmentAssemblyContext): List[String] =
+  private def relationTargetHintsFromBoardFacts(context: JudgmentAssemblyContext): List[EvidenceSquare] =
     context.evidenceGraph.records.collect {
       case EvidenceRecord(_, payload: BoardFactEvidence, _) =>
-        payload.targetHintSquares.map(_.key)
+        payload.targetHintSquares
     }.flatten.distinct
 
   private def pawnStructureRecords(
