@@ -1,7 +1,6 @@
 package lila.chessjudgment.model.judgment
 
 import chess.Color
-import lila.chessjudgment.model.Fact
 import lila.chessjudgment.model.{ ProbeAdmissionDiagnostic, ProbeRequest }
 import lila.chessjudgment.model.structure.StructureId
 
@@ -332,8 +331,10 @@ object ClaimSupportCluster:
 
   private def semanticAnchorsForRecord(record: EvidenceRecord): List[String] =
     record.payload match
-      case StrategicFactEvidence(kind, _, relatedPlans, _) =>
-        s"strategic:$kind" :: relatedPlans.map(plan => s"plan:$plan")
+      case payload @ StrategicFactEvidence(kind, _, relatedPlans, _) =>
+        s"strategic:$kind" ::
+          relatedPlans.map(plan => s"plan:$plan") ++
+          payload.boardAnchors.flatMap(strategicBoardAnchorKey)
       case PawnStructureFactEvidence(profile, alignment, pawnPlay) =>
         List(
           Option.when(profile.primary != StructureId.Unknown)(s"structure:${profile.primary}"),
@@ -386,8 +387,13 @@ object ClaimSupportCluster:
     val attackerColor = anchor.detail.flatMap(_.attackerColor).map(color => s":attacker-${colorKey(color)}").getOrElse("")
     val subject = anchor.detail.flatMap(_.subjectSquare).map(square => s":subject-${square.key}").getOrElse("")
     val target = anchor.detail.flatMap(_.targetSquare).map(square => s":target-${square.key}").getOrElse("")
+    val related = anchor.detail.map(_.relatedSquares.map(_.key).sorted.mkString(",")).filter(_.nonEmpty).map(squares => s":related-$squares").getOrElse("")
     val file = anchor.detail.flatMap(_.file).map(file => s":file-${file.key}").getOrElse("")
-    s"board-anchor:$signal:$side:${anchor.kind}:${anchor.signal}$subjectColor$attackerColor$subject$target$file"
+    val axis = anchor.detail.flatMap(_.axis).map(axis => s":axis-$axis").getOrElse("")
+    s"board-anchor:$signal:$side:${anchor.kind}:${anchor.signal}$subjectColor$attackerColor$subject$target$related$file$axis"
+
+  private def strategicBoardAnchorKey(anchor: BoardAnchor): List[String] =
+    List(boardAnchorSemantic(anchor))
 
   private def colorKey(color: Color): String =
     if color.white then "white" else "black"
@@ -912,7 +918,6 @@ case class ClaimSeed(
     primaryLine: Option[LineNodeRef],
     subjectMove: Option[String],
     evidence: List[EvidenceRef],
-    supportingFacts: List[Fact],
     engineComparison: Option[EvalComparison],
     scope: EvidenceScope,
     confidence: EvidenceConfidence,

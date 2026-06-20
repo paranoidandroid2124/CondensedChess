@@ -362,8 +362,8 @@ object ClaimTruthPolicy:
 
   private def independentPlanAnchor(record: EvidenceRecord): Boolean =
     record match
-      case EvidenceRecord(_, StrategicFactEvidence(_, facts, relatedPlans, confidence), _) =>
-        confidence >= 0.35 && (facts.nonEmpty || relatedPlans.nonEmpty)
+      case EvidenceRecord(_, payload @ StrategicFactEvidence(_, _, _, confidence), _) =>
+        confidence >= 0.35 && payload.hasTypedSupport
       case EvidenceRecord(_, payload: PawnStructureFactEvidence, _) =>
         pawnStructureCanAnchorPlan(payload)
       case EvidenceRecord(_, StructuralDeltaEvidence(delta), _) =>

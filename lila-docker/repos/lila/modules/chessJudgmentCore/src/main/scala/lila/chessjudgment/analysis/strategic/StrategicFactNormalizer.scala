@@ -35,7 +35,39 @@ object StrategicFactNormalizer:
         facts = facts,
         relatedPlans = relatedPlans,
         confidence = confidence
-      ),
+      )(),
+      parents = parents
+    )
+
+  def fromBoardAnchors(
+      id: String,
+      kind: StrategicFactKind,
+      anchors: List[BoardAnchor],
+      relatedPlans: List[PlanId],
+      confidence: Double,
+      position: PositionNodeRef,
+      line: Option[LineNodeRef],
+      scope: EvidenceScope,
+      parents: List[EvidenceRef] = Nil
+  ): EvidenceRecord =
+    val ref =
+      EvidenceRef(
+        id = id,
+        producer = EvidenceProducer.StrategicFeatureProducer,
+        layer = EvidenceLayer.Strategic,
+        position = position,
+        line = line,
+        scope = scope,
+        confidence = if confidence >= 0.75 then EvidenceConfidence.BoardDerived else EvidenceConfidence.Heuristic
+      )
+    EvidenceRecord(
+      ref = ref,
+      payload = StrategicFactEvidence(
+        kind = kind,
+        facts = Nil,
+        relatedPlans = relatedPlans,
+        confidence = confidence
+      )(boardAnchors = anchors),
       parents = parents
     )
 

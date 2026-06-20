@@ -385,16 +385,18 @@ object EvidenceFactAssembler:
   ): List[EvidenceRecord] =
     context.positions.flatMap { node =>
       val boardParents = evidenceRefs(context, EvidenceLayer.Board, Some(node.ref), None)
-      val targetFacts = node.facts.filter(_.squareFocus.vulnerableMaterialSquares.nonEmpty)
+      val boardFacts = boardFactEvidence(context, node.ref)
+      val targetAnchors =
+        boardFacts.toList.flatMap(_.boardAnchors.filter(anchor => anchor.kind == BoardAnchorKind.LooseMaterial))
       val targetFixation =
         Option
-        .when(targetFacts.nonEmpty) {
-          StrategicFactNormalizer.fromFacts(
+        .when(targetAnchors.nonEmpty) {
+          StrategicFactNormalizer.fromBoardAnchors(
             id = allocator.evidenceId(
               s"strategic:target-fixation:${allocator.positionKey(node.role, node.ref.fen, node.ref.ply)}"
             ),
             kind = StrategicFactKind.TargetFixation,
-            facts = targetFacts,
+            anchors = targetAnchors,
             relatedPlans = Nil,
             confidence = 0.78,
             position = node.ref,
@@ -404,13 +406,14 @@ object EvidenceFactAssembler:
           )
         }
         .toList
-      val outpostFacts = node.facts.collect { case fact: Fact.Outpost => fact }
+      val outpostAnchors =
+        boardFacts.toList.flatMap(_.boardAnchors.filter(anchor => anchor.kind == BoardAnchorKind.Outpost))
       val outpost =
-        Option.when(outpostFacts.nonEmpty) {
-          StrategicFactNormalizer.fromFacts(
+        Option.when(outpostAnchors.nonEmpty) {
+          StrategicFactNormalizer.fromBoardAnchors(
             id = allocator.evidenceId(s"strategic:outpost:${allocator.positionKey(node.role, node.ref.fen, node.ref.ply)}"),
             kind = StrategicFactKind.Outpost,
-            facts = outpostFacts,
+            anchors = outpostAnchors,
             relatedPlans = Nil,
             confidence = 0.78,
             position = node.ref,
@@ -448,6 +451,12 @@ object EvidenceFactAssembler:
         featureStrategicRecords(node, features, allocator, boardParents)
       }
       targetFixation ++ outpost ++ endgame ++ featureRecords
+    }
+
+  private def boardFactEvidence(context: JudgmentAssemblyContext, position: PositionNodeRef): Option[BoardFactEvidence] =
+    context.evidenceGraph.records.collectFirst {
+      case EvidenceRecord(ref, payload: BoardFactEvidence, _) if ref.position == position =>
+        payload
     }
 
   private def featureStrategicRecords(
@@ -919,7 +928,7 @@ object EvidenceFactAssembler:
             )
           )
         List(center, pressure, structure, development, kingSafety).flatten.map(_ -> (record.ref :: record.parents))
-      case StrategicFactEvidence(kind, facts, _, confidence) if facts.nonEmpty =>
+      case payload @ StrategicFactEvidence(kind, _, _, confidence) if payload.hasTypedSupport =>
         val theme =
           kind match
             case StrategicFactKind.Space        => Some(OpeningTheme.CenterControl)

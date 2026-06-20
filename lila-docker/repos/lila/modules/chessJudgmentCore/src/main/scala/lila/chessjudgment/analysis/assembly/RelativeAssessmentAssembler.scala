@@ -1130,8 +1130,8 @@ object RelativeAssessmentAssembler:
 
   private def strategicCompensationRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
     records.filter {
-      case EvidenceRecord(_, StrategicFactEvidence(StrategicFactKind.Compensation, facts, relatedPlans, confidence), _) =>
-        confidence >= 0.35 && (facts.nonEmpty || relatedPlans.nonEmpty)
+      case EvidenceRecord(_, payload @ StrategicFactEvidence(StrategicFactKind.Compensation, _, _, confidence), _) =>
+        confidence >= 0.35 && payload.hasTypedSupport
       case _ =>
         false
     }

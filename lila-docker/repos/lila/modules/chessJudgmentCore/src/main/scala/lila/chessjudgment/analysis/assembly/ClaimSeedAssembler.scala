@@ -1,6 +1,5 @@
 package lila.chessjudgment.analysis.assembly
 
-import lila.chessjudgment.model.Fact
 import lila.chessjudgment.model.judgment.*
 
 final case class ClaimSeedAssembly(
@@ -23,7 +22,6 @@ object ClaimSeedAssembler:
           id = allocator.evidenceId(s"claim:${allocator.key(idea.ref.family)}:${allocator.key(idea.ref.id)}"),
           family = family,
           idea = idea,
-          supportingFacts = supportingFacts(context, idea.evidence),
           engineComparison = engineComparison(context, idea, family),
           confidence = idea.confidence
         )
@@ -68,15 +66,3 @@ object ClaimSeedAssembler:
       case EvidenceRecord(_, RelativeAssessmentEvidence(assessment), _) =>
         assessment.comparison
     }
-
-  private def supportingFacts(
-      context: JudgmentAssemblyContext,
-      evidence: List[EvidenceRef]
-  ): List[Fact] =
-    val ids = evidence.map(_.id).toSet
-    context.evidenceGraph.records.collect {
-      case record if ids.contains(record.ref.id) =>
-        record.payload match
-          case StrategicFactEvidence(_, facts, _, _)   => facts
-          case _                                       => Nil
-    }.flatten.distinct

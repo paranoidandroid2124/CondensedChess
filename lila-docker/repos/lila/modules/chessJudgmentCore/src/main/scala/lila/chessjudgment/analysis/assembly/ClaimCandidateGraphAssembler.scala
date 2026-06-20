@@ -128,7 +128,6 @@ object ClaimDeduplicator:
     else
       representative.copy(
         evidence = seeds.flatMap(_.evidence).distinctBy(_.id),
-        supportingFacts = seeds.flatMap(_.supportingFacts).distinct,
         confidence = seeds.map(_.confidence).maxBy(confidenceScore),
         relatedIdeas = seeds.flatMap(_.ideaRefs).distinctBy(_.id),
         supportStatus = None,
@@ -137,14 +136,12 @@ object ClaimDeduplicator:
 
   private def seedScore(claim: ClaimSeed): Int =
     claim.evidence.size * 10 +
-      claim.supportingFacts.size +
       claim.engineComparison.map(_ => 50).getOrElse(0) +
       confidenceScore(claim.confidence)
 
   private def score(decision: ClaimTruthDecision): Int =
     truthScore(decision.status) +
       decision.claim.evidence.size * 10 +
-      decision.claim.supportingFacts.size +
       confidenceScore(decision.claim.confidence)
 
   private def truthScore(status: ClaimTruthStatus): Int =
@@ -666,9 +663,9 @@ object ClaimArbitrator:
         Option.when(alignment.nonEmpty || pawnPlay.exists(_.primaryDriver != PawnPlayDriver.Quiet))(
           ClaimSalienceDriver.PawnStructureAlignment
         ).toList
-      case StrategicFactEvidence(StrategicFactKind.Endgame, facts, relatedPlans, _) if facts.nonEmpty || relatedPlans.nonEmpty =>
+      case payload @ StrategicFactEvidence(StrategicFactKind.Endgame, _, _, _) if payload.hasTypedSupport =>
         List(ClaimSalienceDriver.EndgamePattern)
-      case StrategicFactEvidence(_, facts, relatedPlans, _) if facts.nonEmpty || relatedPlans.nonEmpty =>
+      case payload: StrategicFactEvidence if payload.hasTypedSupport =>
         List(ClaimSalienceDriver.StrategicFeature)
       case StructuralDeltaEvidence(delta) =>
         Option.when(delta.hasConsequence)(ClaimSalienceDriver.StructuralChange).toList
@@ -758,7 +755,7 @@ object ClaimArbitrator:
         1
 
   private def strategicFactHasClaimAnchor(payload: StrategicFactEvidence): Boolean =
-    payload.facts.nonEmpty || payload.relatedPlans.nonEmpty
+    payload.hasTypedSupport
 
   private def engineComparisonSalience(comparison: Option[EvalComparison]): Int =
     comparison.map { cmp =>

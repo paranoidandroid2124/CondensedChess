@@ -392,8 +392,8 @@ object ChessIdeaAssembler:
 
   private def hasStrategicCompensationSupport(records: List[EvidenceRecord]): Boolean =
     records.exists {
-      case EvidenceRecord(_, StrategicFactEvidence(StrategicFactKind.Compensation, facts, relatedPlans, confidence), _) =>
-        confidence >= 0.35 && (facts.nonEmpty || relatedPlans.nonEmpty)
+      case EvidenceRecord(_, payload @ StrategicFactEvidence(StrategicFactKind.Compensation, _, _, confidence), _) =>
+        confidence >= 0.35 && payload.hasTypedSupport
       case EvidenceRecord(_, PlanPressureEvidence(scoring, _), _) =>
         scoring.topPlans.exists(plan => plan.evidence.nonEmpty || plan.support.nonEmpty)
       case EvidenceRecord(_, payload: PawnStructureFactEvidence, _) =>
@@ -404,8 +404,8 @@ object ChessIdeaAssembler:
 
   private def hasStrategicRelativeCauseSupport(records: List[EvidenceRecord]): Boolean =
     records.exists {
-      case EvidenceRecord(_, StrategicFactEvidence(_, facts, relatedPlans, confidence), _) =>
-        confidence >= 0.35 && (facts.nonEmpty || relatedPlans.nonEmpty)
+      case EvidenceRecord(_, payload @ StrategicFactEvidence(_, _, _, confidence), _) =>
+        confidence >= 0.35 && payload.hasTypedSupport
       case EvidenceRecord(_, payload: PawnStructureFactEvidence, _) =>
         ClaimTruthPolicy.pawnStructureCanAnchorPlan(payload)
       case EvidenceRecord(_, StructuralDeltaEvidence(delta), _) =>
@@ -552,7 +552,7 @@ object ChessIdeaAssembler:
     strategicFactIdeas ++ castlingMoveIdeas ++ structuralDeltaIdeas ++ planPressureIdeas
 
   private def canSeedStrategicIdea(payload: StrategicFactEvidence): Boolean =
-    payload.facts.nonEmpty || payload.relatedPlans.nonEmpty
+    payload.hasTypedSupport
 
   private def openingIdeas(
       context: JudgmentAssemblyContext,

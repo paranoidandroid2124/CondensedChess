@@ -119,9 +119,8 @@ object ExpectedEvidenceLossPolicy:
       diagnostic.evidence
         .flatMap(ref => packet.evidenceGraph.byId.get(ref.id))
         .exists {
-          case EvidenceRecord(_, StrategicFactEvidence(kind, facts, relatedPlans, _), _) =>
-            facts.isEmpty &&
-              relatedPlans.isEmpty &&
+          case EvidenceRecord(_, payload @ StrategicFactEvidence(kind, _, _, _), _) =>
+            !payload.hasTypedSupport &&
               genericStrategicSupportKind(kind)
           case _ =>
             false
@@ -1997,8 +1996,8 @@ object CandidateComparisonDiagnostic:
 
   private def hasStrategicCauseEvidence(records: List[EvidenceRecord]): Boolean =
     records.exists {
-      case EvidenceRecord(_, StrategicFactEvidence(_, facts, relatedPlans, _), _) =>
-        facts.nonEmpty || relatedPlans.nonEmpty
+      case EvidenceRecord(_, payload: StrategicFactEvidence, _) =>
+        payload.hasTypedSupport
       case _ =>
         false
     }

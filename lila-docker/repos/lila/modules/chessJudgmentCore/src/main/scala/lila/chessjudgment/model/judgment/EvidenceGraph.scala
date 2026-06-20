@@ -247,8 +247,11 @@ final case class StrategicFactEvidence(
     facts: List[Fact],
     relatedPlans: List[lila.chessjudgment.model.PlanId],
     confidence: Double
+)(val boardAnchors: List[BoardAnchor] = Nil
 ) extends EvidencePayload:
   val layer: EvidenceLayer = EvidenceLayer.Strategic
+  def hasTypedSupport: Boolean =
+    facts.nonEmpty || relatedPlans.nonEmpty || boardAnchors.nonEmpty
 
 enum OpeningFamily:
   case A

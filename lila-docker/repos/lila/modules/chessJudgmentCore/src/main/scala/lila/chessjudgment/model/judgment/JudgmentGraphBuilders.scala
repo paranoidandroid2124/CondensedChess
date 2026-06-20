@@ -145,7 +145,6 @@ object ClaimComposer:
       id: String,
       family: ClaimFamily,
       idea: ChessIdea,
-      supportingFacts: List[Fact],
       engineComparison: Option[EvalComparison],
       confidence: EvidenceConfidence
   ): ClaimSeed =
@@ -158,7 +157,6 @@ object ClaimComposer:
       primaryLine = idea.primaryLine,
       subjectMove = idea.moveUci,
       evidence = idea.evidence,
-      supportingFacts = supportingFacts,
       engineComparison = engineComparison,
       scope = idea.scope,
       confidence = confidence,
@@ -173,7 +171,6 @@ object ClaimComposer:
       primaryLine: Option[LineNodeRef],
       subjectMove: Option[String],
       evidence: List[EvidenceRef],
-      supportingFacts: List[Fact],
       engineComparison: Option[EvalComparison],
       scope: EvidenceScope,
       confidence: EvidenceConfidence
@@ -187,7 +184,6 @@ object ClaimComposer:
       primaryLine = primaryLine,
       subjectMove = subjectMove,
       evidence = evidence,
-      supportingFacts = supportingFacts,
       engineComparison = engineComparison,
       scope = scope,
       confidence = confidence
