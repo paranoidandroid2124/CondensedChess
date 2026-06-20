@@ -784,13 +784,13 @@ object EvidenceFactAssembler:
           anchor.theme == OpeningTheme.KingSafety ||
           anchor.theme == OpeningTheme.CenterControl
       )
-    val priorAligned = supportedThemes.nonEmpty
+    val themePriorSupportedByInternalAnchor = supportedThemes.nonEmpty
     if endgamePhase && !openingWindow then FeatureApplicability.EndgameRelevant
-    else if openingPhase && !openingWindow && priorAligned then FeatureApplicability.MiddlegameRelevant
-    else if endgamePhase && openingSensitiveTheme && !priorAligned then FeatureApplicability.Contraindicated
-    else if openingWindow && denseMaterial && openingSensitiveTheme && priorAligned then
+    else if openingPhase && !openingWindow && themePriorSupportedByInternalAnchor then FeatureApplicability.MiddlegameRelevant
+    else if endgamePhase && openingSensitiveTheme && !themePriorSupportedByInternalAnchor then FeatureApplicability.Contraindicated
+    else if openingWindow && denseMaterial && openingSensitiveTheme && themePriorSupportedByInternalAnchor then
       FeatureApplicability.OpeningRelevant
-    else if openingWindow && priorAligned then FeatureApplicability.OpeningRelevant
+    else if openingWindow && themePriorSupportedByInternalAnchor then FeatureApplicability.OpeningRelevant
     else if endgamePhase then FeatureApplicability.EndgameRelevant
     else if openingContext || middlegamePhase || anchors.exists(anchor => anchor.sourceLayer == EvidenceLayer.PlanPressure || anchor.sourceLayer == EvidenceLayer.Strategic) then
       FeatureApplicability.MiddlegameRelevant

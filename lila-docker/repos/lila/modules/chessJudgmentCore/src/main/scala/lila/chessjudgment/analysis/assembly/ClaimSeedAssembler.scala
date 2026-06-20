@@ -77,7 +77,6 @@ object ClaimSeedAssembler:
     context.evidenceGraph.records.collect {
       case record if ids.contains(record.ref.id) =>
         record.payload match
-          case BoardFactEvidence(facts, _)             => facts
           case StrategicFactEvidence(_, facts, _, _)   => facts
           case _                                       => Nil
     }.flatten.distinct

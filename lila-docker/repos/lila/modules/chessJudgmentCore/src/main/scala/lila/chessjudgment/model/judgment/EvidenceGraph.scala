@@ -103,8 +103,43 @@ sealed trait EvidencePayload:
 final case class BoardFactEvidence(
     facts: List[Fact],
     features: Option[PositionFeatures]
+)(val anchors: List[BoardAnchor] = Nil
 ) extends EvidencePayload:
   val layer: EvidenceLayer = EvidenceLayer.Board
+
+object BoardFactEvidence:
+  def apply(facts: List[Fact], features: Option[PositionFeatures]): BoardFactEvidence =
+    new BoardFactEvidence(facts, features)()
+
+enum BoardAnchorKind:
+  case CenterControl
+  case Space
+  case Development
+  case FileControl
+  case Activity
+  case CounterplayRestraint
+  case KingSafety
+  case PawnStructure
+
+enum BoardAnchorSignal:
+  case CenterControlEdge
+  case SpaceEdge
+  case DevelopmentLead
+  case SemiOpenFileAccess
+  case RookOnSeventh
+  case MobilityEdge
+  case OpponentLowMobility
+  case KingExposure
+  case KingPressure
+  case PawnStructureShape
+
+final case class BoardAnchor(
+    kind: BoardAnchorKind,
+    side: Color,
+    signal: BoardAnchorSignal,
+    magnitude: Int,
+    confidence: Double
+)
 
 final case class SinglePositionEvidence(
     assessment: SinglePositionAssessment
@@ -252,11 +287,14 @@ final case class ApplicabilityAssessment(
     unverifiedPriorThemes: List[OpeningTheme],
     observedOnlyThemes: List[OpeningTheme]
 ):
-  def isOpeningPriorAligned: Boolean =
+  def hasInternalAnchorAlignment: Boolean =
     applicability == FeatureApplicability.OpeningRelevant &&
       observedThemes.nonEmpty &&
       supportedThemes.nonEmpty &&
       (status == ApplicabilityStatus.Supported || status == ApplicabilityStatus.PartiallySupported)
+
+  def canCertifyOpeningClaim: Boolean =
+    hasInternalAnchorAlignment
 
 final case class OpeningIdentity(
     eco: Option[String],
@@ -335,6 +373,45 @@ final case class ForcedLineThemeEvidence(
     lineMoves: List[String]
 )
 
+final case class LineReplayStep(
+    ply: Int,
+    moveUci: String,
+    fenAfter: String
+)
+
+enum LineEventKind:
+  case Capture
+  case Recapture
+  case Promotion
+  case ForcedTheme
+
+final case class LineMoveEvent(
+    kind: LineEventKind,
+    moveUci: String,
+    plyOffset: Int,
+    side: Option[Color] = None,
+    pieceRole: Option[EvidencePieceRole] = None,
+    targetRole: Option[EvidencePieceRole] = None,
+    square: Option[EvidenceSquare] = None
+)
+
+enum LineConsequenceKind:
+  case ForcedTheme
+  case ImmediateReplyCheck
+  case MaterialGain
+  case MaterialLoss
+  case RecaptureSequence
+  case RecoveryWindow
+  case Sacrifice
+  case PromotionRace
+
+final case class LineConsequence(
+    kind: LineConsequenceKind,
+    lineMoves: List[String],
+    claimGrade: Boolean,
+    eventMove: Option[String] = None
+)
+
 final case class LineMaterialCapture(
     moveUci: String,
     plyOffset: Int,
@@ -359,6 +436,65 @@ final case class LineMaterialSummary(
 ):
   def hasPromotion: Boolean = promotionGainCpForMover != 0
 
+  def capturesByMover: List[LineMaterialCapture] =
+    captures.filter(_.side == sideToMove)
+
+  def capturesByOpponent: List[LineMaterialCapture] =
+    captures.filter(_.side != sideToMove)
+
+  def nonPawnCapturesByMover: List[LineMaterialCapture] =
+    capturesByMover.filter(capture => claimGradeCapturedRole(capture.capturedRole))
+
+  def nonPawnCapturesByOpponent: List[LineMaterialCapture] =
+    capturesByOpponent.filter(capture => claimGradeCapturedRole(capture.capturedRole))
+
+  def pawnCapturesByMover: List[LineMaterialCapture] =
+    capturesByMover.filter(capture => pawnCapturedRole(capture.capturedRole))
+
+  def pawnCapturesByOpponent: List[LineMaterialCapture] =
+    capturesByOpponent.filter(capture => pawnCapturedRole(capture.capturedRole))
+
+  def hasPromotionGainForMover: Boolean =
+    promotionGainCpForMover > 0
+
+  def hasPromotionLossForMover: Boolean =
+    promotionGainCpForMover < 0
+
+  def hasResolvedMaterialSequence: Boolean =
+    materialWindowComplete && (hasRecaptureChain || hasRecoveryWindow)
+
+  def hasClaimGradeMaterialGain: Boolean =
+    materialWindowComplete && (nonPawnCapturesByMover.nonEmpty || hasPromotionGainForMover || hasRecoveryWindow)
+
+  def hasClaimGradeMaterialLoss: Boolean =
+    materialWindowComplete && (nonPawnCapturesByOpponent.nonEmpty || hasPromotionLossForMover)
+
+  def hasUnrecoveredPawnGainForMover: Boolean =
+    materialWindowComplete && pawnCapturesByMover.nonEmpty && !hasRecoveryWindow
+
+  def hasUnrecoveredPawnLossForMover: Boolean =
+    materialWindowComplete && pawnCapturesByOpponent.nonEmpty && !hasRecoveryWindow
+
+  def hasClaimGradeMaterialEvent: Boolean =
+    hasClaimGradeMaterialGain ||
+      hasClaimGradeMaterialLoss ||
+      hasUnrecoveredPawnGainForMover ||
+      hasUnrecoveredPawnLossForMover ||
+      hasResolvedMaterialSequence
+
+  def hasSacrificeMaterialEvent: Boolean =
+    materialWindowComplete &&
+      capturesByOpponent.exists(capture => !capture.recapture) &&
+      !hasRecoveryWindow &&
+      !hasClaimGradeMaterialGain
+
+  private def claimGradeCapturedRole(role: EvidencePieceRole): Boolean =
+    val normalized = role.name.trim.toLowerCase
+    normalized.nonEmpty && normalized != "pawn" && normalized != "king"
+
+  private def pawnCapturedRole(role: EvidencePieceRole): Boolean =
+    role.name.trim.equalsIgnoreCase("pawn")
+
 final case class LineFactEvidence(
     line: LineNodeRef,
     firstMove: Option[String],
@@ -366,8 +502,39 @@ final case class LineFactEvidence(
     continuationMoves: List[String],
     forcedTheme: Option[ForcedLineThemeEvidence] = None,
     material: Option[LineMaterialSummary] = None
+)(val replay: List[LineReplayStep] = Nil,
+    val events: List[LineMoveEvent] = Nil,
+    val consequences: List[LineConsequence] = Nil
 ) extends EvidencePayload:
   val layer: EvidenceLayer = EvidenceLayer.Line
+
+object LineFactEvidence:
+  def apply(
+      line: LineNodeRef,
+      firstMove: Option[String],
+      replyMove: Option[String],
+      continuationMoves: List[String]
+  ): LineFactEvidence =
+    new LineFactEvidence(line, firstMove, replyMove, continuationMoves, None, None)()
+
+  def apply(
+      line: LineNodeRef,
+      firstMove: Option[String],
+      replyMove: Option[String],
+      continuationMoves: List[String],
+      forcedTheme: Option[ForcedLineThemeEvidence]
+  ): LineFactEvidence =
+    new LineFactEvidence(line, firstMove, replyMove, continuationMoves, forcedTheme, None)()
+
+  def apply(
+      line: LineNodeRef,
+      firstMove: Option[String],
+      replyMove: Option[String],
+      continuationMoves: List[String],
+      forcedTheme: Option[ForcedLineThemeEvidence],
+      material: Option[LineMaterialSummary]
+  ): LineFactEvidence =
+    new LineFactEvidence(line, firstMove, replyMove, continuationMoves, forcedTheme, material)()
 
 final case class EvalFactEvidence(
     line: LineNodeRef,

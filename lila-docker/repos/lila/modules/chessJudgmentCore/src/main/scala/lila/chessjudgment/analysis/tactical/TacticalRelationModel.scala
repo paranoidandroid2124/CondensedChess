@@ -184,7 +184,7 @@ object RelationDetails:
       resourceSquare: String,
       entryMove: String,
       terminalMove: String,
-      scoreCp: Int
+      scoreCp: Option[Int]
   ) extends RelationDetails
   final case class PerpetualCheck(
       checkedKingSquare: String,
@@ -194,7 +194,7 @@ object RelationDetails:
       cycleStartMove: String,
       cycleReturnMove: String,
       repeatedPositionKey: String,
-      scoreCp: Int
+      scoreCp: Option[Int]
   ) extends RelationDetails
 
 object RelationKind:

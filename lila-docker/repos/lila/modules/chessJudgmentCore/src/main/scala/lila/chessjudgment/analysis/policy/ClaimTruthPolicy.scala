@@ -1,7 +1,6 @@
 package lila.chessjudgment.analysis.policy
 
 import lila.chessjudgment.analysis.evaluation.JudgmentThresholds
-import lila.chessjudgment.analysis.line.ForcedLineTruth
 import lila.chessjudgment.analysis.tactical.TacticalMotifClassifier
 import lila.chessjudgment.model.{ ActivePlans, PlanMatch, PlanSupport, PlanScoringResult }
 import lila.chessjudgment.model.strategic.PlanTaxonomy.PlanTheme
@@ -288,7 +287,7 @@ object ClaimTruthPolicy:
           anchor.theme
       }.toSet
     assessments.exists(assessment =>
-      assessment.isOpeningPriorAligned &&
+      assessment.canCertifyOpeningClaim &&
         assessment.supportedThemes.exists(claimGradeThemes.contains)
     )
 
@@ -333,8 +332,8 @@ object ClaimTruthPolicy:
               materialResultCause(cause.kind) &&
                 (hasConcreteTacticalSupport(records) || hasMaterialTacticalSupport(records))
             )
-        case EvidenceRecord(_, LineFactEvidence(_, _, _, _, forcedTheme, _), _) =>
-          forcedTheme.exists(theme => ForcedLineTruth.isClaimGradeThemeId(theme.id))
+        case EvidenceRecord(_, payload: LineFactEvidence, _) =>
+          payload.consequences.exists(_.claimGrade)
         case EvidenceRecord(_, EvalFactEvidence(_, _, mate, _), _) =>
           mate.nonEmpty
         case _ =>
@@ -342,9 +341,8 @@ object ClaimTruthPolicy:
       }
     val hasConcreteLine =
       records.exists {
-        case EvidenceRecord(_, LineFactEvidence(_, _, _, _, forcedTheme, material), _) =>
-          forcedTheme.exists(theme => ForcedLineTruth.isClaimGradeThemeId(theme.id)) ||
-            material.nonEmpty
+        case EvidenceRecord(_, payload: LineFactEvidence, _) =>
+          payload.consequences.exists(_.claimGrade)
         case EvidenceRecord(_, RelationFactEvidence(_, _, _, lineMoves, _), _) =>
           lineMoves.nonEmpty
         case EvidenceRecord(_, EvalFactEvidence(_, _, mate, _), _) =>
@@ -409,13 +407,14 @@ object ClaimTruthPolicy:
       }
     val hasMaterialLine =
       records.exists {
-        case EvidenceRecord(_, LineFactEvidence(_, _, _, _, _, Some(material)), _) =>
-          material.netCaptureCpForMover != 0 ||
-            material.maxGainCpForMover != 0 ||
-            material.maxLossCpForMover != 0 ||
-            material.promotionGainCpForMover != 0 ||
-            material.hasRecaptureChain ||
-            material.hasRecoveryWindow
+        case EvidenceRecord(_, payload: LineFactEvidence, _) =>
+          payload.consequences.exists(consequence =>
+            consequence.claimGrade &&
+              (consequence.kind == LineConsequenceKind.MaterialGain ||
+                consequence.kind == LineConsequenceKind.MaterialLoss ||
+                consequence.kind == LineConsequenceKind.Sacrifice
+              )
+          )
         case _ =>
           false
       }
@@ -486,8 +485,8 @@ object ClaimTruthPolicy:
           TacticalMotifClassifier.isRootMoveMotif(moveUci, motif) &&
             TacticalMotifClassifier.isCauseEligible(motif)
         )
-      case EvidenceRecord(_, LineFactEvidence(_, _, _, _, forcedTheme, _), _) =>
-        forcedTheme.exists(theme => ForcedLineTruth.isClaimGradeThemeId(theme.id))
+      case EvidenceRecord(_, payload: LineFactEvidence, _) =>
+        payload.consequences.exists(_.claimGrade)
       case EvidenceRecord(_, EvalFactEvidence(_, _, mate, _), _) =>
         mate.nonEmpty
       case _ =>
@@ -496,19 +495,8 @@ object ClaimTruthPolicy:
 
   private def hasMaterialTacticalSupport(records: List[EvidenceRecord]): Boolean =
     records.exists {
-      case EvidenceRecord(_, LineFactEvidence(_, _, _, _, forcedTheme, Some(material)), _) =>
-        forcedTheme.exists(theme => ForcedLineTruth.isClaimGradeThemeId(theme.id)) ||
-          (
-            material.materialWindowComplete &&
-              (
-                material.hasRecaptureChain ||
-                  material.hasRecoveryWindow ||
-                  material.netCaptureCpForMover.abs >= 100 ||
-                  material.maxGainCpForMover >= 100 ||
-                  material.maxLossCpForMover >= 100 ||
-                  material.promotionGainCpForMover.abs >= 100
-              )
-          )
+      case EvidenceRecord(_, payload: LineFactEvidence, _) =>
+        payload.consequences.exists(_.claimGrade)
       case _ =>
         false
     }

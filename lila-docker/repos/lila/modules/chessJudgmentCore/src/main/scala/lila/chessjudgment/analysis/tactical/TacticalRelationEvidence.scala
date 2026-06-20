@@ -705,7 +705,6 @@ private[chessjudgment] object TacticalRelationEvidence:
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
-      scoreCp <- engineScoreCp
       first <- replay.headOption.filter(_.uci == normalizedPlayed)
       if drawResourceScoreStable(drawishWinPercent, engineMate)
       terminal <- replay.lastOption
@@ -723,7 +722,7 @@ private[chessjudgment] object TacticalRelationEvidence:
           resourceSquare = terminal.move.dest.key,
           entryMove = first.uci,
           terminalMove = terminal.uci,
-          scoreCp = scoreCp
+          scoreCp = engineScoreCp
         )
       )
 
@@ -736,7 +735,6 @@ private[chessjudgment] object TacticalRelationEvidence:
   ): Option[RelationWitness] =
     val normalizedPlayed = PrincipalVariationEvidence.normalizeUci(playedMove)
     for
-      scoreCp <- engineScoreCp
       first <- replay.headOption.filter(step => step.uci == normalizedPlayed && step.after.check.yes)
       if drawResourceScoreStable(drawishWinPercent, engineMate)
       cycle <- repeatedCheckingCycle(replay, first.move.piece.color)
@@ -755,7 +753,7 @@ private[chessjudgment] object TacticalRelationEvidence:
           cycleStartMove = cycle.startMove,
           cycleReturnMove = cycle.returnMove,
           repeatedPositionKey = cycle.positionKey,
-          scoreCp = scoreCp
+          scoreCp = engineScoreCp
         )
       )
 

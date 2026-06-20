@@ -1,7 +1,6 @@
 package lila.chessjudgment.analysis.assembly
 
 import lila.chessjudgment.analysis.evaluation.JudgmentThresholds
-import lila.chessjudgment.analysis.line.ForcedLineTruth
 import lila.chessjudgment.analysis.singlePosition.PawnPlayDriver
 import lila.chessjudgment.analysis.structure.StructuralDelta
 import lila.chessjudgment.analysis.tactical.TacticalMotifClassifier
@@ -373,19 +372,8 @@ object ChessIdeaAssembler:
         cause.candidateWinPercentDeltaForMover >= JudgmentThresholds.PLAYABLE_LOSS_WP
     engineBackedMaterialSwing &&
       records.exists {
-        case EvidenceRecord(_, LineFactEvidence(_, _, _, _, forcedTheme, Some(material)), _) =>
-          forcedTheme.exists(theme => ForcedLineTruth.isClaimGradeThemeId(theme.id)) ||
-            (
-              material.materialWindowComplete &&
-                (
-                  material.hasRecaptureChain ||
-                    material.hasRecoveryWindow ||
-                    material.netCaptureCpForMover.abs >= 100 ||
-                    material.maxGainCpForMover >= 100 ||
-                    material.maxLossCpForMover >= 100 ||
-                    material.promotionGainCpForMover.abs >= 100
-                )
-            )
+        case EvidenceRecord(_, payload: LineFactEvidence, _) =>
+          lineHasConcreteConsequence(payload)
         case _ =>
           false
       }
@@ -417,8 +405,8 @@ object ChessIdeaAssembler:
           TacticalMotifClassifier.isRootMoveMotif(moveUci, motif) &&
             TacticalMotifClassifier.isCauseEligible(motif)
         )
-      case EvidenceRecord(_, LineFactEvidence(_, _, _, _, forcedTheme, _), _) =>
-        forcedTheme.exists(theme => ForcedLineTruth.isClaimGradeThemeId(theme.id))
+      case EvidenceRecord(_, payload: LineFactEvidence, _) =>
+        lineHasConcreteConsequence(payload)
       case EvidenceRecord(_, EvalFactEvidence(_, _, mate, _), _) =>
         mate.nonEmpty
       case _ =>
@@ -433,8 +421,6 @@ object ChessIdeaAssembler:
         scoring.topPlans.exists(plan => plan.evidence.nonEmpty || plan.support.nonEmpty)
       case EvidenceRecord(_, PawnStructureFactEvidence(profile, alignment, pawnPlay), _) =>
         profile.confidence > 0.0 || alignment.nonEmpty || pawnPlay.nonEmpty
-      case EvidenceRecord(_, OpeningContextEvidence(_, signals, _, themePrior), _) =>
-        signals.nonEmpty || themePrior.exists(_.gambitCompensation)
       case _ =>
         false
     }
@@ -449,8 +435,6 @@ object ChessIdeaAssembler:
         delta.hasConsequence
       case EvidenceRecord(_, PlanPressureEvidence(scoring, activePlans), _) =>
         planPressureHasDirectEvidence(scoring, activePlans)
-      case EvidenceRecord(_, OpeningContextEvidence(_, signals, _, themePrior), _) =>
-        signals.nonEmpty || themePrior.exists(_.themes.nonEmpty)
       case _ =>
         false
     }
@@ -464,15 +448,23 @@ object ChessIdeaAssembler:
       parents
         .flatMap(parent => context.evidenceGraph.byId.get(parent.id))
         .exists {
-          case EvidenceRecord(_, LineFactEvidence(_, _, _, _, _, Some(material)), _) =>
-            material.materialWindowComplete &&
-              (material.hasRecoveryWindow ||
-                material.hasRecaptureChain ||
-                material.netCaptureCpForMover != 0 ||
-                material.maxGainCpForMover != 0)
+          case EvidenceRecord(_, payload: LineFactEvidence, _) =>
+            lineHasConversionConsequence(payload)
           case _ =>
             false
         }
+
+  private def lineHasConversionConsequence(line: LineFactEvidence): Boolean =
+    line.consequences.exists(consequence =>
+      consequence.claimGrade &&
+        (
+            consequence.kind == LineConsequenceKind.RecaptureSequence ||
+            consequence.kind == LineConsequenceKind.RecoveryWindow ||
+            consequence.kind == LineConsequenceKind.MaterialGain ||
+            consequence.kind == LineConsequenceKind.MaterialLoss ||
+            consequence.kind == LineConsequenceKind.Sacrifice
+        )
+    )
 
   private def conversionContextEvidence(
       context: JudgmentAssemblyContext,
@@ -637,7 +629,7 @@ object ChessIdeaAssembler:
   ): List[ChessIdea] =
     context.evidenceGraph.records.collect {
       case EvidenceRecord(ref, ApplicabilityAssessmentEvidence(assessment), parents)
-          if assessment.isOpeningPriorAligned =>
+          if assessment.canCertifyOpeningClaim =>
         val primaryLine = context.line(LineNodeRole.BestReference).map(_.ref)
         val evidence =
           (ref :: parents ++
@@ -664,7 +656,11 @@ object ChessIdeaAssembler:
   ): List[TacticalIdeaDriver] =
     val motifDrivers = motifs.flatMap(tacticalDriverForMotif)
     val relationDrivers =
-      Option.when(relationRecords.nonEmpty)(TacticalIdeaDriver.RelationMechanism).toList
+      relationRecords.collect {
+        case EvidenceRecord(_, RelationFactEvidence(kind, _, _, _, _), _) =>
+          tacticalDriverForRelation(kind)
+      }
+    val materialDrivers = lineFacts.flatMap(lineConsequenceDrivers)
     val lineDrivers =
       List(
         Option.when(evalFacts.exists(_.mate.nonEmpty))(TacticalIdeaDriver.KingForcing),
@@ -672,7 +668,7 @@ object ChessIdeaAssembler:
           TacticalIdeaDriver.Refutation
         )
       ).flatten
-    val drivers = (motifDrivers ++ relationDrivers ++ lineDrivers).distinct
+    val drivers = (motifDrivers ++ relationDrivers ++ materialDrivers ++ lineDrivers).distinct
     Option
       .when(tacticalCompositeHasProof(drivers, lineFacts, evalFacts, relationRecords, relativeAssessments))(
         drivers
@@ -697,12 +693,29 @@ object ChessIdeaAssembler:
         }
     val hasEngineOrForcingProof =
       evalFacts.exists(_.mate.nonEmpty) ||
-        lineFacts.exists(line => line.forcedTheme.exists(theme => ForcedLineTruth.isClaimGradeThemeId(theme.id))) ||
+        lineFacts.exists(_.consequences.exists(_.claimGrade)) ||
         relativeAssessments.exists(relativeSupportsTacticalIdea)
     hasTacticalAnchor && hasLineConsequence && hasEngineOrForcingProof
 
   private def lineHasConcreteConsequence(line: LineFactEvidence): Boolean =
-    line.forcedTheme.exists(theme => ForcedLineTruth.isClaimGradeThemeId(theme.id))
+    line.consequences.exists(_.claimGrade)
+
+  private def lineConsequenceDrivers(line: LineFactEvidence): List[TacticalIdeaDriver] =
+    val typedDrivers =
+      line.consequences.flatMap { consequence =>
+        consequence.kind match
+          case LineConsequenceKind.MaterialGain | LineConsequenceKind.MaterialLoss =>
+            List(TacticalIdeaDriver.MaterialGain)
+          case LineConsequenceKind.RecaptureSequence | LineConsequenceKind.RecoveryWindow =>
+            List(TacticalIdeaDriver.RecaptureChoice)
+          case LineConsequenceKind.ImmediateReplyCheck =>
+            List(TacticalIdeaDriver.Tempo)
+          case LineConsequenceKind.PromotionRace =>
+            List(TacticalIdeaDriver.PawnPromotion)
+          case LineConsequenceKind.ForcedTheme | LineConsequenceKind.Sacrifice =>
+            Nil
+      }
+    typedDrivers.distinct
 
   private def relativeSupportsTacticalIdea(assessment: RelativeMoveAssessment): Boolean =
     assessment.comparison.winPercentLossForMover >= JudgmentThresholds.SIGNIFICANT_THREAT_WP ||
@@ -792,6 +805,11 @@ object ChessIdeaAssembler:
         case record @ EvidenceRecord(_, RelationFactEvidence(kind, _, _, _, _), _) if tacticalDriverForRelation(kind) == driver =>
           record.ref
       }
+    val driverLineRefs =
+      lineRecords.collect {
+        case record @ EvidenceRecord(_, line: LineFactEvidence, _) if lineConsequenceDrivers(line).contains(driver) =>
+          record.ref
+      }
     val lineRefs = (lineRecords ++ evalRecords).map(_.ref)
     val engineRefs = relativeEvidenceRefs(relativeAssessments)
     val boardRefs =
@@ -803,7 +821,7 @@ object ChessIdeaAssembler:
       case TacticalIdeaDriver.Refutation =>
         driverMotifRefs ++ relationRecords.map(_.ref) ++ engineRefs
       case _ =>
-        driverMotifRefs ++ driverRelationRefs
+        driverMotifRefs ++ driverRelationRefs ++ driverLineRefs
     if driverRefs.isEmpty then Nil
     else (driverRefs ++ lineRefs ++ engineRefs ++ boardRefs.take(2)).distinctBy(_.id)
 

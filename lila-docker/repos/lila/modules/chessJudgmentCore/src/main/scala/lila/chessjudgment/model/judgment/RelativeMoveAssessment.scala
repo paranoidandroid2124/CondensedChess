@@ -74,7 +74,7 @@ case class RelativeCauseFact(
     winPercentLossForMover: Double,
     candidateWinPercentDeltaForMover: Double,
     evidenceLines: List[LineNodeRef]
-):
+)(val proof: Option[RelativeCauseProof] = None):
   def eventLine: LineNodeRef =
     if kind == RelativeCauseKind.CandidateTacticalLiability then candidateLine
     else
@@ -87,6 +87,41 @@ case class RelativeCauseFact(
           candidateLine
 
   def eventRootMove: String = eventLine.rootMove
+
+object RelativeCauseFact:
+  def apply(
+      kind: RelativeCauseKind,
+      comparisonKind: CandidateComparisonKind,
+      referenceLine: LineNodeRef,
+      candidateLine: LineNodeRef,
+      verdict: MoveChoiceVerdict,
+      winPercentLossForMover: Double,
+      candidateWinPercentDeltaForMover: Double,
+      evidenceLines: List[LineNodeRef]
+  ): RelativeCauseFact =
+    new RelativeCauseFact(
+      kind = kind,
+      comparisonKind = comparisonKind,
+      referenceLine = referenceLine,
+      candidateLine = candidateLine,
+      verdict = verdict,
+      winPercentLossForMover = winPercentLossForMover,
+      candidateWinPercentDeltaForMover = candidateWinPercentDeltaForMover,
+      evidenceLines = evidenceLines
+    )()
+
+case class RelativeCauseProof(
+    boardAnchors: List[BoardAnchorKind] = Nil,
+    lineEvents: List[LineEventKind] = Nil,
+    lineConsequences: List[LineConsequenceKind] = Nil,
+    relationKinds: List[RelationFactKind] = Nil,
+    supportLayers: List[EvidenceLayer] = Nil
+):
+  def hasTypedDepth: Boolean =
+    boardAnchors.nonEmpty ||
+      lineEvents.nonEmpty ||
+      lineConsequences.nonEmpty ||
+      relationKinds.nonEmpty
 
 case class MoveVerdictCertification(
     playedMove: String,

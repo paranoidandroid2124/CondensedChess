@@ -231,43 +231,7 @@ object ClaimArbitrator:
       graph: TypedEvidenceGraph,
       playedMoves: Set[String]
   ): Int =
-    if playedMoves.isEmpty then 0
-    else
-      val claimMoves = claimRootMoves(claim).map(normalizeMove)
-      val directMoveBinding = claimMoves.exists(playedMoves.contains)
-      val causeBinding = claimRecords(claim, graph).exists {
-        case EvidenceRecord(_, RelativeAssessmentEvidence(assessment), _) =>
-          playedMoves.contains(normalizeMove(assessment.played.moveUci))
-        case EvidenceRecord(_, CandidateComparisonEvidence(fact), _) =>
-          fact.kind == CandidateComparisonKind.PlayedVsBest &&
-            playedMoves.contains(normalizeMove(fact.candidateLine.rootMove))
-        case EvidenceRecord(_, RelativeCauseFactEvidence(cause), _) =>
-          playedEventCause(cause, playedMoves)
-        case EvidenceRecord(_, MoveVerdictCertificationEvidence(certification), _) =>
-          playedMoves.contains(normalizeMove(certification.playedMove))
-        case _ =>
-          false
-      }
-      val contextBinding = claimRecords(claim, graph).exists {
-        case EvidenceRecord(_, CandidateComparisonEvidence(fact), _) =>
-          fact.kind == CandidateComparisonKind.PlayedVsAlternative &&
-            playedMoves.contains(normalizeMove(fact.candidateLine.rootMove))
-        case EvidenceRecord(_, RelativeCauseFactEvidence(cause), _) =>
-          cause.comparisonKind == CandidateComparisonKind.PlayedVsAlternative &&
-            playedMoves.contains(normalizeMove(cause.eventRootMove))
-        case _ =>
-          false
-      }
-      if directMoveBinding && causeBinding then 3
-      else if causeBinding then 2
-      else if directMoveBinding || contextBinding then 1
-      else 0
-
-  private def playedEventCause(cause: RelativeCauseFact, playedMoves: Set[String]): Boolean =
-    playedMoves.contains(normalizeMove(cause.eventRootMove)) &&
-      (cause.comparisonKind == CandidateComparisonKind.PlayedVsBest ||
-        cause.comparisonKind == CandidateComparisonKind.PlayedVsAlternative ||
-        cause.comparisonKind == CandidateComparisonKind.BestVsSecond)
+    JudgmentSubjectBinding.bindingScore(JudgmentSubjectBinding.claimBinding(claim, graph, playedMoves))
 
   private def supportCheck(decision: ClaimTruthDecision): ClaimSupportCheck =
     ClaimSupportCheck(
@@ -302,10 +266,9 @@ object ClaimArbitrator:
         Option.when(topLevelComparisonSalience > 0)(ClaimSalienceDriver.EngineSwing) ++
         Option.when(claim.family == ClaimFamily.Evaluation)(claim.engineComparison).flatten.flatMap(_.candidateSet).toList.flatMap(cs =>
           Option.when(cs.onlyMove || cs.candidateCount <= 2)(ClaimSalienceDriver.CandidateConstraint)
-        ) ++
-        Option.when(claim.supportingFacts.nonEmpty)(ClaimSalienceDriver.BoardAnchor)).distinct
+        )).distinct
     ClaimSalience(
-      score = (evidenceScore + supportingFactSalience(claim) + topLevelComparisonSalience).min(30),
+      score = (evidenceScore + topLevelComparisonSalience).min(30),
       drivers = drivers
     )
 
@@ -691,9 +654,8 @@ object ClaimArbitrator:
         engineComparisonSalience(Some(certification.primaryComparison.comparison)) + certification.causes.size.min(4)
       case StructuralDeltaEvidence(delta) =>
         if delta.hasConsequence then 5 else 1
-      case OpeningContextEvidence(identity, signals, _, _) =>
-        identity.map(id => List(id.eco, id.name, id.family).count(_.nonEmpty)).getOrElse(0) +
-          signals.size.min(2)
+      case OpeningContextEvidence(_, _, _, _) =>
+        0
       case FeatureAnchorEvidence(anchor) =>
         math.round(anchor.strength * 6).toInt + 2
       case ApplicabilityAssessmentEvidence(assessment) =>
@@ -708,10 +670,14 @@ object ClaimArbitrator:
         statusScore + assessment.observedThemes.size.min(4)
       case SinglePositionEvidence(_) =>
         1
-      case BoardFactEvidence(facts, _) =>
-        facts.size.min(3)
-      case LineFactEvidence(_, firstMove, replyMove, continuationMoves, forcedTheme, _) =>
-        firstMove.size + replyMove.size + continuationMoves.take(2).size + forcedTheme.map(_ => 3).getOrElse(0)
+      case payload @ BoardFactEvidence(_, _) =>
+        payload.anchors.size.min(3)
+      case payload @ LineFactEvidence(_, firstMove, replyMove, continuationMoves, forcedTheme, _) =>
+        firstMove.size +
+          replyMove.size +
+          continuationMoves.take(2).size +
+          payload.consequences.count(_.claimGrade).min(4) +
+          payload.events.size.min(2)
       case EvalFactEvidence(_, _, mate, depth) =>
         mate.map(_ => 5).getOrElse(if depth >= 16 then 2 else 1)
       case MoveMotifEvidence(moveUci, motifs) =>
@@ -740,7 +706,7 @@ object ClaimArbitrator:
         Option.when(delta.hasConsequence)(ClaimSalienceDriver.StructuralChange).toList
       case FeatureAnchorEvidence(_) =>
         List(ClaimSalienceDriver.BoardAnchor)
-      case ApplicabilityAssessmentEvidence(assessment) if assessment.isOpeningPriorAligned =>
+      case ApplicabilityAssessmentEvidence(assessment) if assessment.canCertifyOpeningClaim =>
         List(ClaimSalienceDriver.OpeningContext)
       case RelativeAssessmentEvidence(_) | CounterfactualFactEvidence(_, _, _) =>
         List(ClaimSalienceDriver.EngineSwing)
@@ -752,7 +718,7 @@ object ClaimArbitrator:
       case MoveVerdictCertificationEvidence(certification) =>
         ClaimSalienceDriver.EngineSwing ::
           Option.when(certification.causes.exists(cause => defensiveNecessityCause(cause.kind)))(ClaimSalienceDriver.CandidateConstraint).toList
-      case LineFactEvidence(_, _, _, _, Some(_), _) =>
+      case payload: LineFactEvidence if payload.consequences.exists(_.claimGrade) =>
         List(ClaimSalienceDriver.ForcingLine)
       case MoveMotifEvidence(moveUci, motifs) if rootCastlingMotif(moveUci, motifs) =>
         List(ClaimSalienceDriver.StrategicFeature, ClaimSalienceDriver.BoardAnchor)
@@ -768,7 +734,7 @@ object ClaimArbitrator:
                 TacticalMotifClassifier.isForcing(motif)
             ))(ClaimSalienceDriver.ForcingLine)
             .toList
-      case BoardFactEvidence(facts, _) if facts.nonEmpty =>
+      case payload @ BoardFactEvidence(_, _) if payload.anchors.nonEmpty =>
         List(ClaimSalienceDriver.BoardAnchor)
       case _ =>
         Nil
@@ -826,9 +792,6 @@ object ClaimArbitrator:
   private def strategicFactHasClaimAnchor(payload: StrategicFactEvidence): Boolean =
     payload.facts.nonEmpty || payload.relatedPlans.nonEmpty
 
-  private def supportingFactSalience(claim: ClaimSeed): Int =
-    claim.supportingFacts.size.min(4)
-
   private def engineComparisonSalience(comparison: Option[EvalComparison]): Int =
     comparison.map { cmp =>
       val verdictScore =
@@ -875,7 +838,16 @@ object ClaimArbitrator:
           3
         case RelativeCauseKind.WrongMoveOrder =>
           6
-    causeScore + math.round(cause.winPercentLossForMover.min(20.0) / 5.0).toInt
+    val proofScore =
+      cause.proof
+        .map(proof =>
+          proof.boardAnchors.size.min(2) +
+            proof.lineEvents.size.min(2) +
+            proof.lineConsequences.size.min(3) +
+            proof.relationKinds.size.min(3)
+        )
+        .getOrElse(0)
+    causeScore + proofScore + math.round(cause.winPercentLossForMover.min(20.0) / 5.0).toInt
 
   private def relativeCauseDrivers(kind: RelativeCauseKind): List[ClaimSalienceDriver] =
     kind match

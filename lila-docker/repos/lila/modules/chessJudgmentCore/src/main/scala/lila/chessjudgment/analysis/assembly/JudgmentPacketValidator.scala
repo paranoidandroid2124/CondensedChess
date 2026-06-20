@@ -26,6 +26,17 @@ enum JudgmentPacketValidationIssueKind:
   case LongTermClaimEventClusterEvidence
   case MismatchedClaimEventClusterKind
   case MissingRelativeEvidence
+  case MismatchedLineEvidenceRef
+  case MismatchedEvalEvidenceRef
+  case MismatchedRelativeCauseEventLine
+  case UnbackedRelativeCauseProof
+  case MissingComparisonReferenceParent
+  case MissingComparisonCandidateParent
+  case MissingCounterfactualReferenceParent
+  case MissingCounterfactualCandidateParent
+  case MissingVerdictCertificationReferenceParent
+  case MissingVerdictCertificationPrimaryParent
+  case MismatchedClaimSubjectBinding
   case InvalidProbeRequest
 
 final case class JudgmentPacketValidationIssue(
@@ -71,6 +82,8 @@ object JudgmentPacketValidator:
         longTermClaimEventClusterEvidence(packet),
         mismatchedClaimEventClusterKinds(packet),
         missingRelativeEvidence(packet, graphIds),
+        graphBindingInvariants(packet),
+        claimSubjectBindingInvariants(packet),
         invalidProbeRequests(packet)
       )
     JudgmentPacketValidationResult(issues.distinct)
@@ -329,6 +342,222 @@ object JudgmentPacketValidator:
         subjectId = Option(request.id).map(_.trim).filter(_.nonEmpty).getOrElse("probe-request")
       )
     }
+
+  private def graphBindingInvariants(packet: EvidenceBackedJudgmentPacket): List[JudgmentPacketValidationIssue] =
+    packet.evidenceGraph.records.flatMap {
+      case EvidenceRecord(ref, LineFactEvidence(line, _, _, _, _, _), _) =>
+        Option
+          .when(!ref.line.contains(line))(
+            JudgmentPacketValidationIssue(
+              JudgmentPacketValidationIssueKind.MismatchedLineEvidenceRef,
+              ref.id,
+              Some(ref)
+            )
+          )
+          .toList
+      case EvidenceRecord(ref, EvalFactEvidence(line, _, _, _), _) =>
+        Option
+          .when(!ref.line.contains(line))(
+            JudgmentPacketValidationIssue(
+              JudgmentPacketValidationIssueKind.MismatchedEvalEvidenceRef,
+              ref.id,
+              Some(ref)
+            )
+          )
+          .toList
+      case record @ EvidenceRecord(ref, RelativeCauseFactEvidence(cause), _) =>
+        List(
+          Option.when(!ref.line.contains(cause.eventLine))(
+            JudgmentPacketValidationIssue(
+              JudgmentPacketValidationIssueKind.MismatchedRelativeCauseEventLine,
+              ref.id,
+              Some(ref)
+            )
+          ),
+          Option.when(cause.proof.exists(proof => proof.hasTypedDepth && !relativeCauseProofBacked(packet.evidenceGraph, record, proof)))(
+            JudgmentPacketValidationIssue(
+              JudgmentPacketValidationIssueKind.UnbackedRelativeCauseProof,
+              ref.id,
+              Some(ref)
+            )
+          )
+        ).flatten
+      case record @ EvidenceRecord(ref, CandidateComparisonEvidence(fact), _) =>
+        List(
+          Option.when(!hasParentLineAndEval(packet.evidenceGraph, record, fact.referenceLine))(
+            JudgmentPacketValidationIssue(
+              JudgmentPacketValidationIssueKind.MissingComparisonReferenceParent,
+              ref.id,
+              Some(ref)
+            )
+          ),
+          Option.when(!hasParentLineAndEval(packet.evidenceGraph, record, fact.candidateLine))(
+            JudgmentPacketValidationIssue(
+              JudgmentPacketValidationIssueKind.MissingComparisonCandidateParent,
+              ref.id,
+              Some(ref)
+            )
+          )
+        ).flatten
+      case record @ EvidenceRecord(ref, CounterfactualFactEvidence(referenceLine, candidateLine, _), _) =>
+        List(
+          Option.when(!hasParentLineAndEval(packet.evidenceGraph, record, referenceLine))(
+            JudgmentPacketValidationIssue(
+              JudgmentPacketValidationIssueKind.MissingCounterfactualReferenceParent,
+              ref.id,
+              Some(ref)
+            )
+          ),
+          Option.when(!hasParentLineAndEval(packet.evidenceGraph, record, candidateLine))(
+            JudgmentPacketValidationIssue(
+              JudgmentPacketValidationIssueKind.MissingCounterfactualCandidateParent,
+              ref.id,
+              Some(ref)
+            )
+          )
+        ).flatten
+      case record @ EvidenceRecord(ref, MoveVerdictCertificationEvidence(certification), _) =>
+        List(
+          Option.when(!hasParentLineAndEval(packet.evidenceGraph, record, certification.primaryComparison.referenceLine))(
+            JudgmentPacketValidationIssue(
+              JudgmentPacketValidationIssueKind.MissingVerdictCertificationReferenceParent,
+              ref.id,
+              Some(ref)
+            )
+          ),
+          Option.when(
+            !hasParentLineAndEval(packet.evidenceGraph, record, certification.primaryComparison.candidateLine) ||
+              !hasMatchingPrimaryComparisonParent(packet.evidenceGraph, record, certification.primaryComparison)
+          )(
+            JudgmentPacketValidationIssue(
+              JudgmentPacketValidationIssueKind.MissingVerdictCertificationPrimaryParent,
+              ref.id,
+              Some(ref)
+            )
+          )
+        ).flatten
+      case _ =>
+        Nil
+    }
+
+  private def claimSubjectBindingInvariants(packet: EvidenceBackedJudgmentPacket): List[JudgmentPacketValidationIssue] =
+    packet.claims.flatMap { claim =>
+      val binding = JudgmentSubjectBinding.claimBinding(packet, claim)
+      Option
+        .when(
+          claim.subject == IdeaSubject.PlayedMove &&
+            (binding == SubjectBindingClass.Other || binding == SubjectBindingClass.ContextPlayed)
+        )(
+          JudgmentPacketValidationIssue(
+            JudgmentPacketValidationIssueKind.MismatchedClaimSubjectBinding,
+            claim.id
+          )
+        )
+        .toList
+    }
+
+  private def hasParentLineAndEval(
+      graph: TypedEvidenceGraph,
+      record: EvidenceRecord,
+      line: LineNodeRef
+  ): Boolean =
+    hasParentPayloadLine(graph, record, line, EvidenceLayer.Line) &&
+      hasParentPayloadLine(graph, record, line, EvidenceLayer.Eval)
+
+  private def hasParentPayloadLine(
+      graph: TypedEvidenceGraph,
+      record: EvidenceRecord,
+      line: LineNodeRef,
+      layer: EvidenceLayer
+  ): Boolean =
+    parentClosure(graph, record).exists {
+      case EvidenceRecord(ref, LineFactEvidence(payloadLine, _, _, _, _, _), _) =>
+        layer == EvidenceLayer.Line && ref.line.contains(line) && payloadLine == line
+      case EvidenceRecord(ref, EvalFactEvidence(payloadLine, _, _, _), _) =>
+        layer == EvidenceLayer.Eval && ref.line.contains(line) && payloadLine == line
+      case _ =>
+        false
+    }
+
+  private def relativeCauseProofBacked(
+      graph: TypedEvidenceGraph,
+      record: EvidenceRecord,
+      proof: RelativeCauseProof
+  ): Boolean =
+    val parents = parentClosure(graph, record)
+    proof.boardAnchors.forall(kind => parents.exists(parentHasBoardAnchor(_, kind))) &&
+      proof.lineEvents.forall(kind => parents.exists(parentHasLineEvent(_, kind))) &&
+      proof.lineConsequences.forall(kind => parents.exists(parentHasLineConsequence(_, kind))) &&
+      proof.relationKinds.forall(kind => parents.exists(parentHasRelationKind(_, kind))) &&
+      proof.supportLayers.forall(layer => parents.exists(_.ref.layer == layer))
+
+  private def parentHasBoardAnchor(record: EvidenceRecord, kind: BoardAnchorKind): Boolean =
+    record match
+      case EvidenceRecord(_, payload: BoardFactEvidence, _) =>
+        payload.anchors.exists(_.kind == kind)
+      case _ =>
+        false
+
+  private def parentHasLineEvent(record: EvidenceRecord, kind: LineEventKind): Boolean =
+    record match
+      case EvidenceRecord(_, payload: LineFactEvidence, _) =>
+        payload.events.exists(_.kind == kind)
+      case _ =>
+        false
+
+  private def parentHasLineConsequence(record: EvidenceRecord, kind: LineConsequenceKind): Boolean =
+    record match
+      case EvidenceRecord(_, payload: LineFactEvidence, _) =>
+        payload.consequences.exists(_.kind == kind)
+      case _ =>
+        false
+
+  private def parentHasRelationKind(record: EvidenceRecord, kind: RelationFactKind): Boolean =
+    record match
+      case EvidenceRecord(_, RelationFactEvidence(payloadKind, _, _, _, _), _) =>
+        payloadKind == kind
+      case _ =>
+        false
+
+  private def parentClosure(graph: TypedEvidenceGraph, record: EvidenceRecord): List[EvidenceRecord] =
+    def loop(refs: List[EvidenceRef], seen: Set[String]): List[EvidenceRecord] =
+      refs.flatMap { ref =>
+        if seen.contains(ref.id) then Nil
+        else
+          graph.byId.get(ref.id).toList.flatMap { parent =>
+            parent :: loop(parent.parents, seen + ref.id)
+          }
+      }
+    loop(record.parents, Set.empty).distinctBy(_.ref.id)
+
+  private def hasMatchingPrimaryComparisonParent(
+      graph: TypedEvidenceGraph,
+      record: EvidenceRecord,
+      primary: CandidateComparisonFact
+  ): Boolean =
+    record.parents.flatMap(parent => graph.byId.get(parent.id)).exists {
+      case EvidenceRecord(_, CandidateComparisonEvidence(fact), _) =>
+        sameComparisonIdentity(fact, primary)
+      case EvidenceRecord(_, CounterfactualFactEvidence(referenceLine, candidateLine, comparison), _) =>
+        referenceLine == primary.referenceLine &&
+          candidateLine == primary.candidateLine &&
+          sameEvalComparison(comparison, primary.comparison)
+      case _ =>
+        false
+    }
+
+  private def sameComparisonIdentity(left: CandidateComparisonFact, right: CandidateComparisonFact): Boolean =
+    left.kind == right.kind &&
+      left.referenceLine == right.referenceLine &&
+      left.candidateLine == right.candidateLine &&
+      sameEvalComparison(left.comparison, right.comparison)
+
+  private def sameEvalComparison(left: EvalComparison, right: EvalComparison): Boolean =
+    left.referenceLine == right.referenceLine &&
+      left.candidateLine == right.candidateLine &&
+      left.verdict == right.verdict &&
+      left.winPercentLossForMover == right.winPercentLossForMover &&
+      left.candidateWinPercentDeltaForMover == right.candidateWinPercentDeltaForMover
 
   private def validProbeRequest(request: ProbeRequest): Boolean =
     val idValid = Option(request.id).exists(_.trim.nonEmpty)
