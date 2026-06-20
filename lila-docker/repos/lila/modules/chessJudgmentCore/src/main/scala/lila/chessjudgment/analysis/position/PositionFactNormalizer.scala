@@ -58,7 +58,7 @@ object PositionFactNormalizer:
                 materialLossCp = Some(value)
               )
             ),
-            claimGrade = true
+            proofSignal = true
           )
         )
       case fact @ Fact.TargetPiece(owner, _, pieceRole, _, _, _) =>
@@ -82,7 +82,7 @@ object PositionFactNormalizer:
                 materialLossCp = Some(MaterialValue.materialValueCp(pieceRole))
               )
             ),
-            claimGrade = focus.defenderSquares.isEmpty
+            proofSignal = focus.defenderSquares.isEmpty
           )
         )
       case fact @ Fact.Pin(attackerColor, attacker, attackerRole, _, pinnedRole, _, behindRole, isAbsolute, _) =>
@@ -109,7 +109,7 @@ object PositionFactNormalizer:
                 isAbsolute = Some(isAbsolute)
               )
             ),
-            claimGrade = isAbsolute || MaterialValue.materialValueCp(behindRole) > MaterialValue.materialValueCp(pinnedRole)
+            proofSignal = isAbsolute || MaterialValue.materialValueCp(behindRole) > MaterialValue.materialValueCp(pinnedRole)
           )
         )
       case fact @ Fact.Skewer(attackerColor, attacker, attackerRole, _, frontRole, _, backRole, _) =>
@@ -134,7 +134,7 @@ object PositionFactNormalizer:
                 relatedSquares = evidenceSquares(focus.relatedSquares)
               )
             ),
-            claimGrade = true
+            proofSignal = true
           )
         )
       case fact @ Fact.Fork(attackerColor, attacker, attackerRole, targets, _) =>
@@ -157,7 +157,7 @@ object PositionFactNormalizer:
                 relatedSquares = evidenceSquares(focus.relatedSquares)
               )
             ),
-            claimGrade = targets.size >= 2
+            proofSignal = targets.size >= 2
           )
         )
       case fact @ Fact.WeakSquare(_, _, _, _) =>
@@ -170,7 +170,7 @@ object PositionFactNormalizer:
             magnitude = 1,
             confidence = 0.68,
             detail = Some(BoardAnchorDetail(subjectSquare = focus.subjectSquares.headOption.map(evidenceSquare))),
-            claimGrade = false
+            proofSignal = false
           )
         )
       case fact @ Fact.Outpost(_, pieceRole, _) =>
@@ -188,7 +188,7 @@ object PositionFactNormalizer:
                 subjectRole = Some(evidenceRole(pieceRole))
               )
             ),
-            claimGrade = true
+            proofSignal = true
           )
         )
       case _ =>

@@ -29,6 +29,8 @@ enum JudgmentPacketValidationIssueKind:
   case MismatchedEvidenceLayer
   case MismatchedLineEvidenceRef
   case MismatchedEvalEvidenceRef
+  case MismatchedEvalWhitePov
+  case MismatchedThreatPressureSideToMove
   case MismatchedRelativeCauseEventLine
   case UnbackedRelativeCauseProof
   case MissingComparisonReferenceParent
@@ -341,6 +343,7 @@ object JudgmentPacketValidator:
     }
 
   private def graphBindingInvariants(packet: EvidenceBackedJudgmentPacket): List[JudgmentPacketValidationIssue] =
+    val candidateLinesByRef = packet.candidateLines.map(line => line.ref -> line).toMap
     packet.evidenceGraph.records.flatMap { record =>
       val layerIssue =
         Option
@@ -364,11 +367,28 @@ object JudgmentPacketValidator:
                 )
               )
               .toList
-          case EvidenceRecord(ref, EvalFactEvidence(line, _, _, _), _) =>
-            Option
-              .when(!ref.line.contains(line))(
+          case EvidenceRecord(ref, EvalFactEvidence(line, whitePovEvalCp, _, _), _) =>
+            List(
+              Option.when(!ref.line.contains(line))(
                 JudgmentPacketValidationIssue(
                   JudgmentPacketValidationIssueKind.MismatchedEvalEvidenceRef,
+                  ref.id,
+                  Some(ref)
+                )
+              ),
+              Option.when(candidateLinesByRef.get(line).exists(_.whitePovEvalCp != whitePovEvalCp))(
+                JudgmentPacketValidationIssue(
+                  JudgmentPacketValidationIssueKind.MismatchedEvalWhitePov,
+                  ref.id,
+                  Some(ref)
+                )
+              )
+            ).flatten
+          case EvidenceRecord(ref, ThreatPressureEvidence(sideUnderPressure, _), _) =>
+            Option
+              .when(ref.position.sideToMove.exists(_ != sideUnderPressure))(
+                JudgmentPacketValidationIssue(
+                  JudgmentPacketValidationIssueKind.MismatchedThreatPressureSideToMove,
                   ref.id,
                   Some(ref)
                 )
@@ -504,21 +524,21 @@ object JudgmentPacketValidator:
   private def parentHasBoardAnchor(record: EvidenceRecord, kind: BoardAnchorKind): Boolean =
     record match
       case EvidenceRecord(_, payload: BoardFactEvidence, _) =>
-        payload.claimGradeAnchorKinds.contains(kind)
+        payload.proofSignalAnchorKinds.contains(kind)
       case _ =>
         false
 
   private def parentHasLineEvent(record: EvidenceRecord, kind: LineEventKind): Boolean =
     record match
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.events.exists(_.kind == kind)
+        payload.lineEventKinds.contains(kind)
       case _ =>
         false
 
   private def parentHasLineConsequence(record: EvidenceRecord, kind: LineConsequenceKind): Boolean =
     record match
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.claimGradeConsequenceKinds.contains(kind)
+        payload.proofSignalConsequenceKinds.contains(kind)
       case _ =>
         false
 

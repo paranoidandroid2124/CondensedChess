@@ -161,29 +161,29 @@ object RelativeAssessmentAssembler:
     val delta =
       PerspectiveMath.improvementForMover(
         mover = mover,
-        defendedWhiteCp = candidate.evalCp,
-        threatWhiteCp = reference.evalCp
+        defendedWhiteCp = candidate.whitePovEvalCp,
+        threatWhiteCp = reference.whitePovEvalCp
       )
     val winPercentDelta =
       PerspectiveMath.winPercentImprovementForMover(
         mover = mover,
-        defendedWhiteCp = candidate.evalCp,
+        defendedWhiteCp = candidate.whitePovEvalCp,
         defendedMate = candidate.mate,
-        threatWhiteCp = reference.evalCp,
+        threatWhiteCp = reference.whitePovEvalCp,
         threatMate = reference.mate
       )
     val loss =
       PerspectiveMath.cpLossForMover(
         mover = mover,
-        bestWhiteCp = reference.evalCp,
-        playedWhiteCp = candidate.evalCp
+        bestWhiteCp = reference.whitePovEvalCp,
+        playedWhiteCp = candidate.whitePovEvalCp
       )
     val winPercentLoss =
       PerspectiveMath.winPercentLossForMover(
         mover = mover,
-        bestWhiteCp = reference.evalCp,
+        bestWhiteCp = reference.whitePovEvalCp,
         bestMate = reference.mate,
-        playedWhiteCp = candidate.evalCp,
+        playedWhiteCp = candidate.whitePovEvalCp,
         playedMate = candidate.mate
       )
     EvalComparison(
@@ -217,17 +217,17 @@ object RelativeAssessmentAssembler:
       second.map(line =>
         PerspectiveMath.cpLossForMover(
           mover = mover,
-          bestWhiteCp = reference.evalCp,
-          playedWhiteCp = line.evalCp
+          bestWhiteCp = reference.whitePovEvalCp,
+          playedWhiteCp = line.whitePovEvalCp
         )
       )
     val winPercentGap =
       second.map(line =>
         PerspectiveMath.winPercentLossForMover(
           mover = mover,
-          bestWhiteCp = reference.evalCp,
+          bestWhiteCp = reference.whitePovEvalCp,
           bestMate = reference.mate,
-          playedWhiteCp = line.evalCp,
+          playedWhiteCp = line.whitePovEvalCp,
           playedMate = line.mate
         )
       )
@@ -373,15 +373,15 @@ object RelativeAssessmentAssembler:
   private def relativeCauseProof(records: List[EvidenceRecord]): RelativeCauseProof =
     RelativeCauseProof(
       boardAnchors = records.flatMap {
-        case EvidenceRecord(_, payload: BoardFactEvidence, _) => payload.claimGradeAnchorKinds
+        case EvidenceRecord(_, payload: BoardFactEvidence, _) => payload.proofSignalAnchorKinds
         case _                                                => Nil
       }.distinct,
       lineEvents = records.flatMap {
-        case EvidenceRecord(_, payload: LineFactEvidence, _) => payload.events.map(_.kind)
+        case EvidenceRecord(_, payload: LineFactEvidence, _) => payload.lineEventKinds
         case _                                               => Nil
       }.distinct,
       lineConsequences = records.flatMap {
-        case EvidenceRecord(_, payload: LineFactEvidence, _) => payload.claimGradeConsequenceKinds
+        case EvidenceRecord(_, payload: LineFactEvidence, _) => payload.proofSignalConsequenceKinds
         case _                                               => Nil
       }.distinct,
       relationKinds = records.collect { case EvidenceRecord(_, RelationFactEvidence(kind, _, _, _, _), _) =>
@@ -732,7 +732,7 @@ object RelativeAssessmentAssembler:
   private def concreteLineConsequenceRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
     records.filter {
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.hasClaimGradeConsequence
+        payload.hasProofSignalConsequence
       case EvidenceRecord(_, EvalFactEvidence(_, _, mate, _), _) =>
         mate.nonEmpty
       case EvidenceRecord(_, RelationFactEvidence(_, _, _, lineMoves, _), _) =>
@@ -993,8 +993,8 @@ object RelativeAssessmentAssembler:
 
   private def lineSupportRecords(records: List[EvidenceRecord], line: LineNodeRef): List[EvidenceRecord] =
     records.filter {
-      case EvidenceRecord(_, LineFactEvidence(payloadLine, _, _, _, _, _), _) =>
-        payloadLine == line
+      case EvidenceRecord(_, payload: LineFactEvidence, _) =>
+        payload.line == line
       case EvidenceRecord(_, EvalFactEvidence(payloadLine, _, _, _), _) =>
         payloadLine == line
       case _ =>
@@ -1087,7 +1087,7 @@ object RelativeAssessmentAssembler:
   ): List[EvidenceRecord] =
     Option
       .when(typedMaterialConsequenceSwing(referenceRecords, candidateRecords))(
-        (claimGradeMaterialSummaryRecords(referenceRecords) ++ claimGradeMaterialSummaryRecords(candidateRecords)).distinctBy(_.ref.id)
+        (proofSignalMaterialSummaryRecords(referenceRecords) ++ proofSignalMaterialSummaryRecords(candidateRecords)).distinctBy(_.ref.id)
       )
       .getOrElse(Nil)
 
@@ -1097,7 +1097,7 @@ object RelativeAssessmentAssembler:
   ): List[EvidenceRecord] =
     Option
       .when(materialDeteriorates(referenceRecords, candidateRecords))(
-        claimGradeMaterialSummaryRecords(referenceRecords) ++ claimGradeMaterialSummaryRecords(candidateRecords)
+        proofSignalMaterialSummaryRecords(referenceRecords) ++ proofSignalMaterialSummaryRecords(candidateRecords)
       )
       .getOrElse(Nil)
       .distinctBy(_.ref.id)
@@ -1147,7 +1147,7 @@ object RelativeAssessmentAssembler:
         false
     }
 
-  private def claimGradeMaterialSummaryRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
+  private def proofSignalMaterialSummaryRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
     records.filter {
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
         val profile = payload.consequenceProfile
@@ -1260,7 +1260,7 @@ object RelativeAssessmentAssembler:
   private def hasConcreteLineConsequence(records: List[EvidenceRecord]): Boolean =
     records.exists {
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.consequenceProfile.hasConcreteClaimProof
+        payload.consequenceProfile.hasConcreteProofSignal
       case EvidenceRecord(_, EvalFactEvidence(_, _, mate, _), _) =>
         mate.nonEmpty
       case EvidenceRecord(_, RelationFactEvidence(_, _, _, lineMoves, _), _) =>

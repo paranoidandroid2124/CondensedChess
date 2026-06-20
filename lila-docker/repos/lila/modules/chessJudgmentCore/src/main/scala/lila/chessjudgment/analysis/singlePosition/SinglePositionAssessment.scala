@@ -42,7 +42,7 @@ enum CriticalityType:
 case class CriticalityResult(
   criticalityType: CriticalityType,
   // Evidence
-  evalDeltaCp: Option[Int],     // Eval delta from best to next candidate when available
+  sideRelativeEvalDeltaCp: Option[Int],     // Eval delta from best to next candidate when available
   evalDeltaWinPercent: Option[Double],
   mateDistance: Option[Int],    // Mate distance if applicable
   forcingMovesInPv: Int         // Count of checks/captures in PV
@@ -65,9 +65,9 @@ enum CandidateFailureMode:
 case class CandidateSetTopology(
   candidateSetType: CandidateSetType,
   // Evidence
-  bestLineEvalCp: Option[Int],
-  secondLineEvalCp: Option[Int],
-  thirdLineEvalCp: Option[Int],
+  bestLineSideRelativeEvalCp: Option[Int],
+  secondLineSideRelativeEvalCp: Option[Int],
+  thirdLineSideRelativeEvalCp: Option[Int],
   gapBestToSecondWp: Option[Double],
   spreadTop3Wp: Option[Double],
   secondCandidateFailure: Option[CandidateFailureMode]
@@ -159,7 +159,7 @@ case class JudgmentFocusResult(
  */
 case class PvLine(
   moves: List[String],  // UCI moves in the line
-  evalCp: Int,          // Centipawn evaluation
+  sideRelativeEvalCp: Int, // Centipawn evaluation, positive for the side to move
   mate: Option[Int],    // Mate distance (positive = winning)
   depth: Int            // Search depth
 )
@@ -259,7 +259,7 @@ case class ThreatAnalysis(
   def hasForcedMateEvidence: Boolean =
     primaryDriver == ThreatDriver.MateThreat ||
       threats.exists(_.kind == ThreatKind.Mate)
-  def isClaimGradeDefensivePressure: Boolean =
+  def isProofSignalDefensivePressure: Boolean =
     (!insufficientData || hasForcedMateEvidence) &&
       (
         defenseRequired ||

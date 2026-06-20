@@ -151,9 +151,9 @@ object EvidenceFactAssembler:
                   playedMove = line.ref.rootMove,
                   targetHints = relationTargetHints,
                   continuationLines = continuationLines,
-                  engineScoreCp = Some(line.evalCp),
+                  engineScoreCp = Some(line.whitePovEvalCp),
                   engineMate = line.mate,
-                  drawishWinPercent = Some(PerspectiveMath.winPercentFromWhiteEval(line.evalCp, line.mate))
+                  drawishWinPercent = Some(PerspectiveMath.winPercentFromWhiteEval(line.whitePovEvalCp, line.mate))
                 )
                 .distinctBy(witness => (witness.kind, witness.focusSquares, witness.targetSquare, witness.lineMoves))
             witnesses.zipWithIndex.flatMap { case (witness, index) =>
@@ -249,7 +249,7 @@ object EvidenceFactAssembler:
   ): List[EvidenceRecord] =
     val beforeRecords = context.position(PositionNodeRole.Before).toList.flatMap { node =>
       node.assessment.toList.flatMap { assessment =>
-        node.ref.sideToMove.orElse(input.sideToMove).toList.flatMap(side => List(side, !side)).distinct.map { sideUnderPressure =>
+        node.ref.sideToMove.orElse(input.sideToMove).toList.map { sideUnderPressure =>
           val threats =
             ThreatPressureAssessor.analyze(
               fen = input.beforeFen,
@@ -315,7 +315,7 @@ object EvidenceFactAssembler:
           if suffixMoves.nonEmpty
           continuationPv = PvLine(
             moves = suffixMoves,
-            evalCp = EvaluationPerspectivePolicy.sideToMoveScoreCp(sideUnderPressure, line.evalCp),
+            sideRelativeEvalCp = EvaluationPerspectivePolicy.sideToMoveScoreCp(sideUnderPressure, line.whitePovEvalCp),
             mate = EvaluationPerspectivePolicy.sideToMoveMate(sideUnderPressure, line.mate),
             depth = line.depth
           )
@@ -717,7 +717,7 @@ object EvidenceFactAssembler:
     Option.when(observedThemes.nonEmpty) {
       val priorThemes = input.openingThemePrior.toList.flatMap(_.themes).distinct
       val supported = priorThemes.filter(theme =>
-        anchors.exists(anchor => anchor.theme == theme && claimGradeOpeningAnchor(anchor))
+        anchors.exists(anchor => anchor.theme == theme && proofSignalOpeningAnchor(anchor))
       )
       val unverified = priorThemes.filterNot(supported.contains)
       val observedOnly = observedThemes.filterNot(priorThemes.contains)
@@ -740,7 +740,7 @@ object EvidenceFactAssembler:
       )
     }
 
-  private def claimGradeOpeningAnchor(anchor: FeatureAnchor): Boolean =
+  private def proofSignalOpeningAnchor(anchor: FeatureAnchor): Boolean =
     anchor.sourceLayer != EvidenceLayer.Board
 
   private def featureApplicability(
@@ -995,14 +995,12 @@ object EvidenceFactAssembler:
         val pawnStructureRecord = pawnStructureRecordFor(context, node.ref)
         val pawnStructure = pawnStructureRecord.map(_._2)
         val threatsToUs = threatPressureEvidence(context, node.ref, side)
-        val threatsToThem = threatPressureEvidence(context, node.ref, !side)
         val planContext =
           PlanInteractionContext(
-            evalCp = input.currentEvalCp,
+            whitePovEvalCp = input.currentWhitePovEvalCp,
             positionAssessment = Some(assessment),
             pawnAnalysis = pawnStructure.flatMap(_.pawnPlay),
             threatsToUs = threatsToUs.map(_.threats),
-            threatsToThem = threatsToThem.map(_.threats),
             isWhiteToMove = side.white,
             positionKey = Some(node.ref.fen),
             features = Some(features),

@@ -213,7 +213,7 @@ object ChessIdeaAssembler:
     context.evidenceGraph.records.collect {
       case EvidenceRecord(ref, payload: ThreatPressureEvidence, parents)
           if ref.position.sideToMove.forall(_ == payload.sideUnderPressure) &&
-            payload.threats.isClaimGradeDefensivePressure =>
+            payload.threats.isProofSignalDefensivePressure =>
         val evidence =
           (ref :: parents ++
             ref.line.toList.flatMap(lineLayerRefs(context, _))).distinctBy(_.id)
@@ -624,12 +624,12 @@ object ChessIdeaAssembler:
         }
     val hasEngineOrForcingProof =
       evalFacts.exists(_.mate.nonEmpty) ||
-        lineFacts.exists(_.hasClaimGradeConsequence) ||
+        lineFacts.exists(_.hasProofSignalConsequence) ||
         relativeAssessments.exists(relativeSupportsTacticalIdea)
     hasTacticalAnchor && hasLineConsequence && hasEngineOrForcingProof
 
   private def lineHasConcreteConsequence(line: LineFactEvidence): Boolean =
-    line.consequenceProfile.hasConcreteClaimProof
+    line.consequenceProfile.hasConcreteProofSignal
 
   private def lineConsequenceDrivers(line: LineFactEvidence): List[TacticalIdeaDriver] =
     val typedDrivers =

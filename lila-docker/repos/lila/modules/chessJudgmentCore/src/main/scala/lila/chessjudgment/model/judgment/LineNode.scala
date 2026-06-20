@@ -13,7 +13,7 @@ case class CandidateLineNode(
     role: LineNodeRole,
     ref: LineNodeRef,
     line: VariationLine,
-    evalCp: Int,
+    whitePovEvalCp: Int,
     mate: Option[Int],
     depth: Int,
     evidence: EvidenceRef

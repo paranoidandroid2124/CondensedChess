@@ -10,7 +10,7 @@ import lila.chessjudgment.model.strategic.PlanTaxonomy.{ PlanKind, PlanSignal, P
 import lila.chessjudgment.analysis.position.{ PositionAnalyzer, PositionFeatures }
 
 case class PlanInteractionContext(
-    evalCp: Int,
+    whitePovEvalCp: Int,
     positionAssessment: Option[SinglePositionAssessment] = None,
     pawnAnalysis: Option[PawnPlayAnalysis] = None,
     opponentPawnAnalysis: Option[PawnPlayAnalysis] = None,
@@ -25,7 +25,7 @@ case class PlanInteractionContext(
     planAlignment: Option[PlanAlignment] = None
 ):
   def winPercentFor(color: Color): Double =
-    PerspectiveMath.winPercentForMover(color, evalCp)
+    PerspectiveMath.winPercentForMover(color, whitePovEvalCp)
   def winPercentAdvantageFor(color: Color): Double =
     (winPercentFor(color) - 50.0).max(0.0)
   def phase: String = phaseEnumOpt match
@@ -461,7 +461,7 @@ object PlanMatcher:
     Set(
       Option.when(motifs.nonEmpty)(KeyMotifs),
       Option.when(ctx.features.nonEmpty && ctx.positionKey.flatMap(PositionAnalyzer.extractStrategicState).nonEmpty)(FutureSnapshot),
-      Option.when(ctx.positionAssessment.exists(_.candidateSet.bestLineEvalCp.nonEmpty))(ReplyPvs),
+      Option.when(ctx.positionAssessment.exists(_.candidateSet.bestLineSideRelativeEvalCp.nonEmpty))(ReplyPvs),
       Option.when(ctx.structureProfile.nonEmpty || ctx.pawnAnalysis.nonEmpty || ctx.planAlignment.nonEmpty)(BoardDelta)
     ).flatten
 

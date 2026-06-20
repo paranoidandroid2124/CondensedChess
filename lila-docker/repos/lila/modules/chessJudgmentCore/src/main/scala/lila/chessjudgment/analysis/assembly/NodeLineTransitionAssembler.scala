@@ -47,7 +47,7 @@ object PositionNodeAssembler:
       scope: EvidenceScope,
       includeAssessment: Boolean,
       assessmentSourceLines: Option[List[VariationLine]] = None,
-      assessmentEvalCp: Option[Int] = None
+      assessmentWhitePovEvalCp: Option[Int] = None
   ): Option[PositionNodeAssembly] =
     Fen.read(Standard, Fen.Full(fen)).map { position =>
       val ref = allocator.positionRef(role, fen, ply, Some(position.color))
@@ -78,12 +78,12 @@ object PositionNodeAssembler:
           .flatten
           .flatMap { positionFeatures =>
             val assessmentSide = ref.sideToMove.getOrElse(position.color)
-            assessmentEval(input, role, assessmentEvalCp).map { evalCp =>
+            assessmentWhitePovEval(input, role, assessmentWhitePovEvalCp).map { currentWhitePovEvalCp =>
               val assessment =
                 SinglePositionAssessor.classify(
                   features = positionFeatures,
                   multiPv = assessmentLines(input, role, assessmentSide, assessmentSourceLines),
-                  currentEval = evalCp,
+                  currentWhitePovEvalCp = currentWhitePovEvalCp,
                   sideToMove = assessmentSide
                 )
               SinglePositionFactNormalizer.fromAssessment(
@@ -132,15 +132,15 @@ object PositionNodeAssembler:
       }
     EvaluationPerspectivePolicy.sideToMovePvLines(sideToMove, lines)
 
-  private def assessmentEval(
+  private def assessmentWhitePovEval(
       input: NormalizedMoveReviewInput,
       role: PositionNodeRole,
-      overrideEval: Option[Int]
+      overrideWhitePovEval: Option[Int]
   ): Option[Int] =
-    overrideEval.orElse {
+    overrideWhitePovEval.orElse {
       role match
         case PositionNodeRole.Before =>
-          Some(input.currentEvalCp)
+          Some(input.currentWhitePovEvalCp)
         case PositionNodeRole.AfterPlayed =>
           input.playedLine.map(_.line.scoreCp)
         case PositionNodeRole.AfterReference =>
@@ -148,7 +148,7 @@ object PositionNodeAssembler:
         case PositionNodeRole.AfterAlternative =>
           input.lines.find(_.role == LineNodeRole.Alternative).map(_.line.scoreCp)
         case PositionNodeRole.AfterThreat =>
-          Some(input.currentEvalCp)
+          Some(input.currentWhitePovEvalCp)
     }
 
 object CandidateLineAssembler:
@@ -186,7 +186,7 @@ object CandidateLineAssembler:
           role = line.role,
           ref = ref,
           line = line.line,
-          evalCp = line.line.scoreCp,
+          whitePovEvalCp = line.line.scoreCp,
           mate = line.line.mate,
           depth = line.line.depth,
           evidence = lineEvidence
@@ -399,7 +399,7 @@ object NodeLineTransitionAssembler:
                   scope = EvidenceScope.AlternativeTransition,
                   includeAssessment = true,
                   assessmentSourceLines = Some(List(line.line.copy(moves = line.line.moves.drop(1)))),
-                  assessmentEvalCp = Some(line.line.scoreCp)
+                  assessmentWhitePovEvalCp = Some(line.line.scoreCp)
                 ).map(line -> _)
               }
           }
@@ -414,7 +414,7 @@ object NodeLineTransitionAssembler:
               scope = EvidenceScope.ThreatLine,
               includeAssessment = true,
               assessmentSourceLines = Some(branch.lines.map(_.line)),
-              assessmentEvalCp = branch.lines.headOption.map(_.line.scoreCp)
+              assessmentWhitePovEvalCp = branch.lines.headOption.map(_.line.scoreCp)
             ).map(branch -> _)
           }
         val rootLines = input.lines.flatMap(CandidateLineAssembler.fromLine(_, before.node.ref, allocator))

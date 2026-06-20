@@ -22,7 +22,7 @@ object ForcedLineTruth:
     lineMoves: List[String] = Nil
   )
 
-  def isClaimGradeThemeId(id: String): Boolean =
+  def isProofSignalThemeId(id: String): Boolean =
     id != ImmediateReplyCheckId
 
   enum ExpectedResult:

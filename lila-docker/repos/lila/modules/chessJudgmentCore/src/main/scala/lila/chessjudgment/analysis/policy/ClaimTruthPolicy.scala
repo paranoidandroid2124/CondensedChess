@@ -315,7 +315,7 @@ object ClaimTruthPolicy:
     val assessments = records.collect { case EvidenceRecord(_, ApplicabilityAssessmentEvidence(assessment), _) =>
       assessment
     }
-    val claimGradeThemes =
+    val proofSignalThemes =
       records.collect {
         case EvidenceRecord(_, FeatureAnchorEvidence(anchor), _)
             if anchor.strength > 0.0 && anchor.sourceLayer != EvidenceLayer.Board =>
@@ -323,7 +323,7 @@ object ClaimTruthPolicy:
       }.toSet
     assessments.exists(assessment =>
       assessment.canCertifyOpeningClaim &&
-        assessment.supportedThemes.exists(claimGradeThemes.contains)
+        assessment.supportedThemes.exists(proofSignalThemes.contains)
     )
 
   private[chessjudgment] def planPressureCanSeedIdea(
@@ -441,7 +441,7 @@ object ClaimTruthPolicy:
   private def defensiveProof(claim: ClaimSeed, records: List[EvidenceRecord]): Boolean =
     records.exists {
       case record @ EvidenceRecord(_, ThreatPressureEvidence(_, threats), _) =>
-        threats.isClaimGradeDefensivePressure &&
+        threats.isProofSignalDefensivePressure &&
           (!branchLocalThreatPressure(record) || claimIsBranchLocal(claim))
       case EvidenceRecord(_, RelativeCauseFactEvidence(cause), _) =>
         defensiveRelativeCause(cause.kind)

@@ -363,9 +363,9 @@ object ClaimSupportCluster:
         payload.mainlineMoves
           .filter(castlingMove)
           .map(move => s"line:castling:$move") ++
-          payload.consequenceProfile.claimGradeKinds.map(kind => s"line-consequence:$kind")
+          payload.consequenceProfile.proofSignalKinds.map(kind => s"line-consequence:$kind")
       case payload @ BoardFactEvidence(_, _) =>
-        payload.claimGradeAnchors.map(boardAnchorSemantic)
+        payload.proofSignalAnchors.map(boardAnchorSemantic)
       case StructuralDeltaEvidence(delta) =>
         List(
           Option.when(delta.createdTargetPressure.nonEmpty)("delta:created-target-pressure"),
@@ -385,13 +385,13 @@ object ClaimSupportCluster:
     move == "e1g1" || move == "e1c1" || move == "e8g8" || move == "e8c8"
 
   private def boardAnchorSemantic(anchor: BoardAnchor): String =
-    val grade = if anchor.claimGrade then "claim" else "support"
+    val signal = if anchor.proofSignal then "proof" else "support"
     val side = if anchor.side.white then "white" else "black"
     val subjectColor = anchor.detail.flatMap(_.subjectColor).map(color => s":subject-${colorKey(color)}").getOrElse("")
     val attackerColor = anchor.detail.flatMap(_.attackerColor).map(color => s":attacker-${colorKey(color)}").getOrElse("")
     val subject = anchor.detail.flatMap(_.subjectSquare).map(square => s":subject-${square.key}").getOrElse("")
     val target = anchor.detail.flatMap(_.targetSquare).map(square => s":target-${square.key}").getOrElse("")
-    s"board-anchor:$grade:$side:${anchor.kind}:${anchor.signal}$subjectColor$attackerColor$subject$target"
+    s"board-anchor:$signal:$side:${anchor.kind}:${anchor.signal}$subjectColor$attackerColor$subject$target"
 
   private def colorKey(color: Color): String =
     if color.white then "white" else "black"

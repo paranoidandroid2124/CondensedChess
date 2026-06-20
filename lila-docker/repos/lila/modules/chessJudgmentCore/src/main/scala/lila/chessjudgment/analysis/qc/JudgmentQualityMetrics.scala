@@ -64,7 +64,7 @@ object ExpectedEvidenceLossPolicy:
           if diagnostic.layer.exists(supportOnlyLayers.contains) =>
         EvidenceLossExpectation.Expected
       case EvidenceLossReason.EvidenceAvailableWithoutIdea
-          if packet.exists(packet => isNonClaimGradeThreatSupport(diagnostic, packet)) =>
+          if packet.exists(packet => isNonProofSignalThreatSupport(diagnostic, packet)) =>
         EvidenceLossExpectation.Expected
       case EvidenceLossReason.EvidenceAvailableWithoutIdea
           if isReferencePawnStructureSupport(diagnostic) =>
@@ -97,7 +97,7 @@ object ExpectedEvidenceLossPolicy:
           ref.scope == EvidenceScope.CandidateLine
       )
 
-  private def isNonClaimGradeThreatSupport(
+  private def isNonProofSignalThreatSupport(
       diagnostic: EvidenceLossDiagnostic,
       packet: EvidenceBackedJudgmentPacket
   ): Boolean =
@@ -106,7 +106,7 @@ object ExpectedEvidenceLossPolicy:
         .flatMap(ref => packet.evidenceGraph.byId.get(ref.id))
         .exists {
           case EvidenceRecord(_, ThreatPressureEvidence(_, threats), _) =>
-            !threats.isClaimGradeDefensivePressure
+            !threats.isProofSignalDefensivePressure
           case _ =>
             false
         }
@@ -360,7 +360,7 @@ final case class CandidateLineDiagnostic(
     role: LineNodeRole,
     rank: Int,
     moves: List[String],
-    evalCp: Option[Int],
+    whitePovEvalCp: Option[Int],
     mate: Option[Int],
     depth: Option[Int]
 )
@@ -662,7 +662,7 @@ object CandidateComparisonDiagnostic:
     }.flatten
     val lineKinds =
       List(
-        Option.when(parentRecords.exists { case EvidenceRecord(_, LineFactEvidence(_, _, _, _, _, _), _) => true; case _ => false })(
+        Option.when(parentRecords.exists { case EvidenceRecord(_, _: LineFactEvidence, _) => true; case _ => false })(
           "LineBacked"
         ),
         Option.when(parentRecords.exists { case EvidenceRecord(_, EvalFactEvidence(_, _, _, depth), _) => depth > 0; case _ => false })(
@@ -720,7 +720,7 @@ object CandidateComparisonDiagnostic:
 
   private def materialSupportKinds(parentRecords: List[EvidenceRecord]): List[String] =
     parentRecords.collect { case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-      payload.consequenceProfile.claimGradeKinds.map(kind => s"LineConsequence:$kind")
+      payload.consequenceProfile.proofSignalKinds.map(kind => s"LineConsequence:$kind")
     }.flatten
 
   private def strategicSupportKinds(parentRecords: List[EvidenceRecord]): List[String] =
@@ -818,7 +818,7 @@ object CandidateComparisonDiagnostic:
 
   private def tacticalLineSupportKinds(parentRecords: List[EvidenceRecord]): List[String] =
     parentRecords.collect { case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-      payload.consequenceProfile.claimGradeKinds.map(kind => s"LineConsequence:$kind")
+      payload.consequenceProfile.proofSignalKinds.map(kind => s"LineConsequence:$kind")
     }.flatten
 
   private def tacticalEvalSupportKinds(parentRecords: List[EvidenceRecord]): List[String] =
@@ -895,7 +895,7 @@ object CandidateComparisonDiagnostic:
       role = line.role,
       rank = line.rank,
       moves = node.map(_.line.moves).getOrElse(Nil),
-      evalCp = node.map(_.evalCp),
+      whitePovEvalCp = node.map(_.whitePovEvalCp),
       mate = node.flatMap(_.mate),
       depth = node.map(_.depth)
     )
@@ -919,9 +919,9 @@ object CandidateComparisonDiagnostic:
       fact.kind.toString,
       fact.referenceLine.rootMove,
       fact.candidateLine.rootMove,
-      reference.evalCp.map(_.toString).getOrElse(""),
+      reference.whitePovEvalCp.map(_.toString).getOrElse(""),
       reference.depth.map(_.toString).getOrElse(""),
-      candidate.evalCp.map(_.toString).getOrElse(""),
+      candidate.whitePovEvalCp.map(_.toString).getOrElse(""),
       candidate.depth.map(_.toString).getOrElse("")
     ).mkString("|")
 
@@ -935,9 +935,9 @@ object CandidateComparisonDiagnostic:
       packet.positions.find(_.role == PositionNodeRole.Before).map(_.ref.fen).getOrElse(""),
       fact.referenceLine.rootMove,
       fact.candidateLine.rootMove,
-      reference.evalCp.map(_.toString).getOrElse(""),
+      reference.whitePovEvalCp.map(_.toString).getOrElse(""),
       reference.depth.map(_.toString).getOrElse(""),
-      candidate.evalCp.map(_.toString).getOrElse(""),
+      candidate.whitePovEvalCp.map(_.toString).getOrElse(""),
       candidate.depth.map(_.toString).getOrElse("")
     ).mkString("|")
 
@@ -1634,7 +1634,7 @@ object CandidateComparisonDiagnostic:
   private def hasConcreteLineConsequence(records: List[EvidenceRecord]): Boolean =
     records.exists {
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.consequenceProfile.hasConcreteClaimProof
+        payload.consequenceProfile.hasConcreteProofSignal
       case EvidenceRecord(_, EvalFactEvidence(_, _, mate, _), _) =>
         mate.nonEmpty
       case EvidenceRecord(_, RelationFactEvidence(_, _, _, lineMoves, _), _) =>
@@ -2067,9 +2067,7 @@ object CandidateComparisonDiagnostic:
     }
 
   private def materialSummaries(records: List[EvidenceRecord]): List[LineMaterialSummary] =
-    records.collect { case EvidenceRecord(_, LineFactEvidence(_, _, _, _, _, Some(material)), _) =>
-      material
-    }
+    records.collect { case EvidenceRecord(_, payload: LineFactEvidence, _) => payload.lineMaterialSummary }.flatten
 
   private def motifNames(records: List[EvidenceRecord]): List[String] =
     records.collect { case EvidenceRecord(_, MoveMotifEvidence(moveUci, motifs), _) =>
@@ -2340,8 +2338,8 @@ object SemanticCoverageMetrics:
       hasCandidateSetComparison = packet.relativeAssessments.exists(_.comparison.candidateSet.nonEmpty),
       hasOnlyMoveSignal = packet.relativeAssessments.exists(_.comparison.candidateSet.exists(_.onlyMove)),
       hasForcedLineTheme = packet.evidenceGraph.records.exists {
-        case EvidenceRecord(_, LineFactEvidence(_, _, _, _, Some(_), _), _) => true
-        case _                                                           => false
+        case EvidenceRecord(_, payload: LineFactEvidence, _) => payload.hasForcedTheme
+        case _                                               => false
       }
     )
 
@@ -2358,22 +2356,22 @@ object SemanticCoverageMetrics:
 
   private def boardAnchorCount(packet: EvidenceBackedJudgmentPacket): Int =
     packet.evidenceGraph.records.collect { case EvidenceRecord(_, payload: BoardFactEvidence, _) =>
-      payload.claimGradeAnchors.size
+      payload.proofSignalAnchors.size
     }.sum
 
   private def lineReplayCount(packet: EvidenceBackedJudgmentPacket): Int =
     packet.evidenceGraph.records.collect { case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-      payload.replay.size
+      payload.lineReplayCount
     }.sum
 
   private def lineEventCount(packet: EvidenceBackedJudgmentPacket): Int =
     packet.evidenceGraph.records.collect { case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-      payload.events.size
+      payload.lineEventCount
     }.sum
 
   private def lineConsequenceCount(packet: EvidenceBackedJudgmentPacket): Int =
     packet.evidenceGraph.records.collect { case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-      payload.consequences.size
+      payload.lineConsequenceCount
     }.sum
 
   private def relativeCauseProofCount(packet: EvidenceBackedJudgmentPacket): Int =
@@ -2957,7 +2955,7 @@ object JudgmentLayerGapProfile:
 
   private def hasBoardAnchor(packet: EvidenceBackedJudgmentPacket): Boolean =
     packet.evidenceGraph.records.exists {
-      case EvidenceRecord(_, payload: BoardFactEvidence, _) => payload.hasClaimGradeAnchor
+      case EvidenceRecord(_, payload: BoardFactEvidence, _) => payload.hasProofSignalAnchor
       case _                                                => false
     }
 
@@ -2975,20 +2973,20 @@ object JudgmentLayerGapProfile:
 
   private def hasLineReplay(packet: EvidenceBackedJudgmentPacket): Boolean =
     packet.evidenceGraph.records.exists {
-      case EvidenceRecord(_, payload: LineFactEvidence, _) => payload.replay.nonEmpty
+      case EvidenceRecord(_, payload: LineFactEvidence, _) => payload.hasLineReplay
       case _                                               => false
     }
 
   private def hasLineEvent(packet: EvidenceBackedJudgmentPacket): Boolean =
     packet.evidenceGraph.records.exists {
-      case EvidenceRecord(_, payload: LineFactEvidence, _) => payload.events.nonEmpty
+      case EvidenceRecord(_, payload: LineFactEvidence, _) => payload.hasLineEvents
       case _                                               => false
     }
 
   private def lineEventApplicable(packet: EvidenceBackedJudgmentPacket): Boolean =
     packet.evidenceGraph.records.exists {
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.forcedTheme.nonEmpty ||
+        payload.hasForcedTheme ||
           payload.materialOutcomeProfile.gainSignals.nonEmpty ||
           payload.materialOutcomeProfile.lossSignals.nonEmpty
       case _ =>
@@ -2997,15 +2995,15 @@ object JudgmentLayerGapProfile:
 
   private def hasLineConsequence(packet: EvidenceBackedJudgmentPacket): Boolean =
     packet.evidenceGraph.records.exists {
-      case EvidenceRecord(_, payload: LineFactEvidence, _) => payload.consequences.nonEmpty
+      case EvidenceRecord(_, payload: LineFactEvidence, _) => payload.hasLineConsequences
       case _                                               => false
     }
 
   private def lineConsequenceApplicable(packet: EvidenceBackedJudgmentPacket): Boolean =
     packet.evidenceGraph.records.exists {
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.forcedTheme.nonEmpty ||
-          payload.consequenceProfile.hasConcreteClaimProof ||
+        payload.hasForcedTheme ||
+          payload.consequenceProfile.hasConcreteProofSignal ||
           payload.materialOutcomeProfile.gainSignals.nonEmpty ||
           payload.materialOutcomeProfile.lossSignals.nonEmpty
       case _ =>

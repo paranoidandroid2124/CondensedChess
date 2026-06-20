@@ -10,7 +10,7 @@ import lila.chessjudgment.analysis.position.PositionFeatures
  * Classifies a position into 8 fundamental categories using only:
  * - Board feature inputs (PositionFeatures)
  * - MultiPV evaluation data
- * - Current eval
+ * - Current white POV eval
  * 
  * No dependency on tactical motif inputs or downstream analysis.
  */
@@ -19,7 +19,7 @@ object SinglePositionAssessor:
   def classify(
     features: PositionFeatures,
     multiPv: List[PvLine],
-    currentEval: Int,
+    currentWhitePovEvalCp: Int,
     sideToMove: Color,
     tacticalMotifsCount: Int = 0  // Optional: from tactical motif inputs if available
   ): SinglePositionAssessment =
@@ -27,7 +27,7 @@ object SinglePositionAssessor:
     val criticality = classifyCriticality(multiPv)
     val candidateSet = assessCandidateSet(multiPv)
     val gamePhase = classifyGamePhase(features)
-    val simplifyBias = classifySimplifyBias(features, currentEval, sideToMove)
+    val simplifyBias = classifySimplifyBias(features, currentWhitePovEvalCp, sideToMove)
     val drawBias = classifyDrawBias(features)
     val riskProfile = classifyRiskProfile(features, tacticalMotifsCount)
     val judgmentFocus = deriveJudgmentFocus(nature, criticality, simplifyBias, riskProfile)
@@ -84,11 +84,11 @@ object SinglePositionAssessor:
       best <- bestLine
       second <- secondLine
       if best.mate.isEmpty && second.mate.isEmpty
-    yield best.evalCp - second.evalCp
+    yield best.sideRelativeEvalCp - second.sideRelativeEvalCp
     val evalDeltaWinPercent = for
       best <- bestLine
       second <- secondLine
-    yield PerspectiveMath.winPercentLossFromRelativeEval(best.evalCp, best.mate, second.evalCp, second.mate)
+    yield PerspectiveMath.winPercentLossFromRelativeEval(best.sideRelativeEvalCp, best.mate, second.sideRelativeEvalCp, second.mate)
     // PV length alone is not a valid proxy for forcing sequences
     val hasMateInLine = mateDistance.isDefined
     val hasLargeEvalJump = evalDeltaWinPercent.exists(_ >= JudgmentThresholds.FORCING_CANDIDATE_GAP_WP)
@@ -107,7 +107,7 @@ object SinglePositionAssessor:
 
     CriticalityResult(
       criticalityType = criticalityType,
-      evalDeltaCp = evalDelta,
+      sideRelativeEvalDeltaCp = evalDelta,
       evalDeltaWinPercent = evalDeltaWinPercent,
       mateDistance = mateDistance,
       forcingMovesInPv = forcingMovesInPv
@@ -116,9 +116,9 @@ object SinglePositionAssessor:
     if multiPv.size < 2 then
       return CandidateSetTopology(
         candidateSetType = CandidateSetType.NarrowChoice, // Unknown, not OnlyMove
-        bestLineEvalCp = multiPv.headOption.map(_.evalCp),
-        secondLineEvalCp = None,
-        thirdLineEvalCp = None,
+        bestLineSideRelativeEvalCp = multiPv.headOption.map(_.sideRelativeEvalCp),
+        secondLineSideRelativeEvalCp = None,
+        thirdLineSideRelativeEvalCp = None,
         gapBestToSecondWp = None,
         spreadTop3Wp = None,
         secondCandidateFailure = Some(CandidateFailureMode.InsufficientData)
@@ -127,13 +127,13 @@ object SinglePositionAssessor:
     val bestLine = multiPv.head
     val secondLine = multiPv(1)
     val thirdLine = multiPv.lift(2)
-    val bestLineEvalCp = bestLine.evalCp
-    val secondLineEvalCp = secondLine.evalCp
-    val thirdLineEvalCp = thirdLine.map(_.evalCp)
+    val bestLineSideRelativeEvalCp = bestLine.sideRelativeEvalCp
+    val secondLineSideRelativeEvalCp = secondLine.sideRelativeEvalCp
+    val thirdLineSideRelativeEvalCp = thirdLine.map(_.sideRelativeEvalCp)
 
-    val bestLineWinPercent = PerspectiveMath.winPercentFromRelativeEval(bestLine.evalCp, bestLine.mate)
-    val secondLineWinPercent = PerspectiveMath.winPercentFromRelativeEval(secondLine.evalCp, secondLine.mate)
-    val thirdLineWinPercent = thirdLine.map(line => PerspectiveMath.winPercentFromRelativeEval(line.evalCp, line.mate))
+    val bestLineWinPercent = PerspectiveMath.winPercentFromRelativeEval(bestLine.sideRelativeEvalCp, bestLine.mate)
+    val secondLineWinPercent = PerspectiveMath.winPercentFromRelativeEval(secondLine.sideRelativeEvalCp, secondLine.mate)
+    val thirdLineWinPercent = thirdLine.map(line => PerspectiveMath.winPercentFromRelativeEval(line.sideRelativeEvalCp, line.mate))
 
     val gapBestToSecondWp = (bestLineWinPercent - secondLineWinPercent).abs
     val spreadTop3Wp = thirdLineWinPercent.map(third => (bestLineWinPercent - third).abs).getOrElse(gapBestToSecondWp)
@@ -158,9 +158,9 @@ object SinglePositionAssessor:
 
     CandidateSetTopology(
       candidateSetType = candidateSetType,
-      bestLineEvalCp = Some(bestLineEvalCp),
-      secondLineEvalCp = Some(secondLineEvalCp),
-      thirdLineEvalCp = thirdLineEvalCp,
+      bestLineSideRelativeEvalCp = Some(bestLineSideRelativeEvalCp),
+      secondLineSideRelativeEvalCp = Some(secondLineSideRelativeEvalCp),
+      thirdLineSideRelativeEvalCp = thirdLineSideRelativeEvalCp,
       gapBestToSecondWp = Some(gapBestToSecondWp),
       spreadTop3Wp = Some(spreadTop3Wp),
       secondCandidateFailure = secondCandidateFailure
@@ -196,13 +196,13 @@ object SinglePositionAssessor:
     )
   // 5. SIMPLIFY BIAS CLASSIFICATION
 
-  private def classifySimplifyBias(features: PositionFeatures, currentEval: Int, sideToMove: Color): SimplifyBiasResult =
+  private def classifySimplifyBias(features: PositionFeatures, currentWhitePovEvalCp: Int, sideToMove: Color): SimplifyBiasResult =
     val isEndgameNear = features.materialPhase.phase == "endgame" ||
                         features.materialPhase.whiteMaterial + features.materialPhase.blackMaterial <= 50
     // Positive eval = White advantage, sideToMove determines who benefits
     // For simplification window, the WINNING side should want to simplify
-    val evalFromSideToMove = if sideToMove.white then currentEval else -currentEval
-    val evalAdvantageWinPercent = (PerspectiveMath.winPercentForMover(sideToMove, currentEval) - 50.0).max(0.0)
+    val evalFromSideToMove = if sideToMove.white then currentWhitePovEvalCp else -currentWhitePovEvalCp
+    val evalAdvantageWinPercent = (PerspectiveMath.winPercentForMover(sideToMove, currentWhitePovEvalCp) - 50.0).max(0.0)
     val isWinning = evalAdvantageWinPercent >= JudgmentThresholds.CONVERSION_EDGE_WP
     val evalAdvantage = evalFromSideToMove.max(0) // Only positive advantage counts
     

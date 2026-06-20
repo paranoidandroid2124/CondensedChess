@@ -107,38 +107,38 @@ object LineFactNormalizer:
             if theme.id == ForcedLineTruth.ImmediateReplyCheckId then LineConsequenceKind.ImmediateReplyCheck
             else LineConsequenceKind.ForcedTheme,
           lineMoves = theme.lineMoves,
-          claimGrade = ForcedLineTruth.isClaimGradeThemeId(theme.id),
+          proofSignal = ForcedLineTruth.isProofSignalThemeId(theme.id),
           eventMove = theme.lineMoves.headOption
         )
       )
     val material =
       materialSummary.toList.flatMap { summary =>
         List(
-          Option.when(summary.hasClaimGradeMaterialGain || summary.hasUnrecoveredPawnGainForMover)(
+          Option.when(summary.hasProofSignalMaterialGain || summary.hasUnrecoveredPawnGainForMover)(
             LineConsequence(
               LineConsequenceKind.MaterialGain,
               summary.captures.map(_.moveUci),
-              claimGrade = summary.hasClaimGradeMaterialGain
+              proofSignal = summary.hasProofSignalMaterialGain
             )
           ),
-          Option.when(summary.hasClaimGradeMaterialLoss || summary.hasUnrecoveredPawnLossForMover)(
+          Option.when(summary.hasProofSignalMaterialLoss || summary.hasUnrecoveredPawnLossForMover)(
             LineConsequence(
               LineConsequenceKind.MaterialLoss,
               summary.captures.map(_.moveUci),
-              claimGrade = summary.hasClaimGradeMaterialLoss
+              proofSignal = summary.hasProofSignalMaterialLoss
             )
           ),
           Option.when(summary.hasResolvedMaterialSequence)(
-            LineConsequence(LineConsequenceKind.RecaptureSequence, summary.captures.map(_.moveUci), claimGrade = true)
+            LineConsequence(LineConsequenceKind.RecaptureSequence, summary.captures.map(_.moveUci), proofSignal = true)
           ),
           Option.when(summary.hasRecoveryWindow)(
-            LineConsequence(LineConsequenceKind.RecoveryWindow, summary.captures.map(_.moveUci), claimGrade = true)
+            LineConsequence(LineConsequenceKind.RecoveryWindow, summary.captures.map(_.moveUci), proofSignal = true)
           ),
           Option.when(summary.hasSacrificeMaterialEvent)(
-            LineConsequence(LineConsequenceKind.Sacrifice, summary.captures.map(_.moveUci), claimGrade = true)
+            LineConsequence(LineConsequenceKind.Sacrifice, summary.captures.map(_.moveUci), proofSignal = true)
           ),
           Option.when(summary.hasPromotion)(
-            LineConsequence(LineConsequenceKind.PromotionRace, summary.captures.map(_.moveUci), claimGrade = true)
+            LineConsequence(LineConsequenceKind.PromotionRace, summary.captures.map(_.moveUci), proofSignal = true)
           )
         ).flatten
       }

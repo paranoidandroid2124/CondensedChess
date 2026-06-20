@@ -16,7 +16,7 @@ object EvaluationPerspectivePolicy:
     lines.map { line =>
       PvLine(
         moves = line.moves,
-        evalCp = sideToMoveScoreCp(sideToMove, line.scoreCp),
+        sideRelativeEvalCp = sideToMoveScoreCp(sideToMove, line.scoreCp),
         mate = sideToMoveMate(sideToMove, line.mate),
         depth = line.depth
       )

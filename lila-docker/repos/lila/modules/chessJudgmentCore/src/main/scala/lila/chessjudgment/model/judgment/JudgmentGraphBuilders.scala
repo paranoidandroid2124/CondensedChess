@@ -32,7 +32,7 @@ object CandidateLineNodeBuilder:
       role: LineNodeRole,
       ref: LineNodeRef,
       line: VariationLine,
-      evalCp: Int,
+      whitePovEvalCp: Int,
       mate: Option[Int],
       depth: Int,
       evidence: EvidenceRef
@@ -41,7 +41,7 @@ object CandidateLineNodeBuilder:
       role = role,
       ref = ref,
       line = line,
-      evalCp = evalCp,
+      whitePovEvalCp = whitePovEvalCp,
       mate = mate,
       depth = depth,
       evidence = evidence
@@ -246,7 +246,7 @@ object BranchReplyProbeBinding:
       rootFen = root.fen,
       role = line.ref.role,
       rootMove = line.ref.rootMove,
-      evalCp = line.evalCp,
+      whitePovEvalCp = line.whitePovEvalCp,
       mate = line.mate,
       depth = line.depth,
       moves = line.line.moves
@@ -256,7 +256,7 @@ object BranchReplyProbeBinding:
       rootFen: String,
       role: LineNodeRole,
       rootMove: String,
-      evalCp: Int,
+      whitePovEvalCp: Int,
       mate: Option[Int],
       depth: Int,
       moves: List[String]
@@ -266,7 +266,7 @@ object BranchReplyProbeBinding:
         rootFen,
         role.toString,
         rootMove,
-        evalCp.toString,
+        whitePovEvalCp.toString,
         mate.map(_.toString).getOrElse(""),
         depth.toString,
         moves.mkString(",")
@@ -292,7 +292,7 @@ object BranchReplyProbePlanner:
             purpose = Some(ProbePurpose.ReplyMultipv),
             multiPv = Some(BranchReplyProbeBinding.ReplyMultiPv),
             baselineMove = Some(line.ref.rootMove),
-            baselineEvalCp = Some(line.evalCp),
+            baselineEvalCp = Some(line.whitePovEvalCp),
             baselineMate = line.mate,
             baselineDepth = Some(line.depth).filter(_ > 0),
             objective = Some(BranchReplyProbeBinding.Objective),

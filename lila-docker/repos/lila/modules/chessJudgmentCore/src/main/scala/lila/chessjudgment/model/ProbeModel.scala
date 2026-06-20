@@ -72,7 +72,7 @@ object ProbeRequest:
 case class ProbeResult(
   id: String,
   fen: Option[String] = None, // Base FEN the probe was run from (critical when probing non-root branches)
-  evalCp: Int,               // White POV centipawns (same convention as PlanInteractionContext.evalCp)
+  evalCp: Int,               // White POV centipawns (same convention as PlanInteractionContext.whitePovEvalCp)
   bestReplyPv: List[String], // UCI moves of the refutation/support line after the probed move
   // Optional: MultiPV reply lines (first element should correspond to bestReplyPv)
   replyPvs: Option[List[List[String]]] = None,

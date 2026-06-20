@@ -638,11 +638,11 @@ object ClaimArbitrator:
       case SinglePositionEvidence(_) =>
         1
       case payload @ BoardFactEvidence(_, _) =>
-        payload.claimGradeAnchors.size.min(3)
+        payload.proofSignalAnchors.size.min(3)
       case payload: LineFactEvidence =>
         val profile = payload.consequenceProfile
-        if profile.hasConcreteClaimProof then
-          profile.claimGradeKinds.size.min(4) +
+        if profile.hasConcreteProofSignal then
+          profile.proofSignalKinds.size.min(4) +
             Option.when(profile.hasRecaptureRecovery)(1).getOrElse(0) +
             Option.when(profile.hasPromotionRace)(1).getOrElse(0)
         else 0
@@ -686,7 +686,7 @@ object ClaimArbitrator:
       case MoveVerdictCertificationEvidence(certification) =>
         ClaimSalienceDriver.EngineSwing ::
           Option.when(certification.causes.exists(cause => defensiveNecessityCause(cause.kind)))(ClaimSalienceDriver.CandidateConstraint).toList
-      case payload: LineFactEvidence if payload.consequenceProfile.hasConcreteClaimProof =>
+      case payload: LineFactEvidence if payload.consequenceProfile.hasConcreteProofSignal =>
         List(ClaimSalienceDriver.ForcingLine)
       case MoveMotifEvidence(moveUci, motifs) if rootCastlingMotif(moveUci, motifs) =>
         List(ClaimSalienceDriver.StrategicFeature, ClaimSalienceDriver.BoardAnchor)
@@ -702,7 +702,7 @@ object ClaimArbitrator:
                 TacticalMotifClassifier.isForcing(motif)
             ))(ClaimSalienceDriver.ForcingLine)
             .toList
-      case payload @ BoardFactEvidence(_, _) if payload.hasClaimGradeAnchor =>
+      case payload @ BoardFactEvidence(_, _) if payload.hasProofSignalAnchor =>
         List(ClaimSalienceDriver.BoardAnchor)
       case _ =>
         Nil

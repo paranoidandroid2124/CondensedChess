@@ -17,7 +17,7 @@ import lila.chessjudgment.model.Motif
  * 3. Position assessment -> threshold adjustment
  * 
  * IMPORTANT: Eval POV Assumption
- * This code assumes that `PvLine.evalCp` and `PvLine.mate` are already normalized
+ * This code assumes that `PvLine.sideRelativeEvalCp` and `PvLine.mate` are already normalized
  * to the side-to-move's perspective (positive = good for side to move).
  * If your engine provides eval from White's POV, you must flip the sign
  * for Black before passing to this analyzer.
@@ -221,10 +221,15 @@ object ThreatPressureAssessor:
       val bestLine = multiPv.head
       val secondLine = multiPv(1)
       val evalLoss =
-        if bestLine.mate.isEmpty && secondLine.mate.isEmpty then (bestLine.evalCp - secondLine.evalCp).max(0)
+        if bestLine.mate.isEmpty && secondLine.mate.isEmpty then (bestLine.sideRelativeEvalCp - secondLine.sideRelativeEvalCp).max(0)
         else 0
       val winPercentLoss =
-        PerspectiveMath.winPercentLossFromRelativeEval(bestLine.evalCp, bestLine.mate, secondLine.evalCp, secondLine.mate)
+        PerspectiveMath.winPercentLossFromRelativeEval(
+          bestLine.sideRelativeEvalCp,
+          bestLine.mate,
+          secondLine.sideRelativeEvalCp,
+          secondLine.mate
+        )
       val bestLineFirstStep = firstLegalStep(fen, bestLine)
       val secondLineFirstStep = firstLegalStep(fen, secondLine)
       val secondLineIsCapture = secondLineFirstStep.exists(_.move.captures)
@@ -329,9 +334,9 @@ object ThreatPressureAssessor:
       val bestLine = multiPv.head
       val adequateDefenses = multiPv.filter { pv =>
         PerspectiveMath.winPercentLossFromRelativeEval(
-          bestLine.evalCp,
+          bestLine.sideRelativeEvalCp,
           bestLine.mate,
-          pv.evalCp,
+          pv.sideRelativeEvalCp,
           pv.mate
         ) <= JudgmentThresholds.ONLY_DEFENSE_TOLERANCE_WP
       }

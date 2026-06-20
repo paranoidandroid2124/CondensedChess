@@ -27,7 +27,7 @@ object EvalFactNormalizer:
       ref = ref,
       payload = EvalFactEvidence(
         line = line.ref,
-        evalCp = line.evalCp,
+        whitePovEvalCp = line.whitePovEvalCp,
         mate = line.mate,
         depth = line.depth
       ),

@@ -106,12 +106,12 @@ final case class BoardFactEvidence(
 )(val anchors: List[BoardAnchor] = Nil
 ) extends EvidencePayload:
   val layer: EvidenceLayer = EvidenceLayer.Board
-  def claimGradeAnchors: List[BoardAnchor] =
-    anchors.filter(_.claimGrade)
-  def hasClaimGradeAnchor: Boolean =
-    claimGradeAnchors.nonEmpty
-  def claimGradeAnchorKinds: List[BoardAnchorKind] =
-    claimGradeAnchors.map(_.kind)
+  def proofSignalAnchors: List[BoardAnchor] =
+    anchors.filter(_.proofSignal)
+  def hasProofSignalAnchor: Boolean =
+    proofSignalAnchors.nonEmpty
+  def proofSignalAnchorKinds: List[BoardAnchorKind] =
+    proofSignalAnchors.map(_.kind)
 
 object BoardFactEvidence:
   def apply(facts: List[Fact], features: Option[PositionFeatures]): BoardFactEvidence =
@@ -176,7 +176,7 @@ final case class BoardAnchor(
     magnitude: Int,
     confidence: Double,
     detail: Option[BoardAnchorDetail] = None,
-    claimGrade: Boolean = false
+    proofSignal: Boolean = false
 )
 
 final case class SinglePositionEvidence(
@@ -460,13 +460,13 @@ enum LineMaterialOutcomeMagnitude:
 final case class LineConsequence(
     kind: LineConsequenceKind,
     lineMoves: List[String],
-    claimGrade: Boolean,
+    proofSignal: Boolean,
     eventMove: Option[String] = None
 )
 
 final case class LineConsequenceProfile(
-    claimGradeKinds: List[LineConsequenceKind],
-    hasConcreteClaimProof: Boolean,
+    proofSignalKinds: List[LineConsequenceKind],
+    hasConcreteProofSignal: Boolean,
     hasConversionConsequence: Boolean,
     hasMaterialResult: Boolean,
     hasRecaptureRecovery: Boolean,
@@ -474,7 +474,7 @@ final case class LineConsequenceProfile(
     hasPromotionRace: Boolean
 ):
   def tacticalDriverKinds: List[LineConsequenceKind] =
-    claimGradeKinds.filter {
+    proofSignalKinds.filter {
       case LineConsequenceKind.MaterialGain | LineConsequenceKind.MaterialLoss |
           LineConsequenceKind.RecaptureSequence | LineConsequenceKind.RecoveryWindow |
           LineConsequenceKind.ImmediateReplyCheck | LineConsequenceKind.PromotionRace =>
@@ -541,10 +541,10 @@ final case class LineMaterialSummary(
     captures.filter(_.side != sideToMove)
 
   def nonPawnCapturesByMover: List[LineMaterialCapture] =
-    capturesByMover.filter(capture => claimGradeCapturedRole(capture.capturedRole))
+    capturesByMover.filter(capture => proofSignalCapturedRole(capture.capturedRole))
 
   def nonPawnCapturesByOpponent: List[LineMaterialCapture] =
-    capturesByOpponent.filter(capture => claimGradeCapturedRole(capture.capturedRole))
+    capturesByOpponent.filter(capture => proofSignalCapturedRole(capture.capturedRole))
 
   def pawnCapturesByMover: List[LineMaterialCapture] =
     capturesByMover.filter(capture => pawnCapturedRole(capture.capturedRole))
@@ -561,10 +561,10 @@ final case class LineMaterialSummary(
   def hasResolvedMaterialSequence: Boolean =
     materialWindowComplete && (hasRecaptureChain || hasRecoveryWindow)
 
-  def hasClaimGradeMaterialGain: Boolean =
+  def hasProofSignalMaterialGain: Boolean =
     materialWindowComplete && (nonPawnCapturesByMover.nonEmpty || hasPromotionGainForMover || hasRecoveryWindow)
 
-  def hasClaimGradeMaterialLoss: Boolean =
+  def hasProofSignalMaterialLoss: Boolean =
     materialWindowComplete && (nonPawnCapturesByOpponent.nonEmpty || hasPromotionLossForMover)
 
   def hasUnrecoveredPawnGainForMover: Boolean =
@@ -573,9 +573,9 @@ final case class LineMaterialSummary(
   def hasUnrecoveredPawnLossForMover: Boolean =
     materialWindowComplete && pawnCapturesByOpponent.nonEmpty && !hasRecoveryWindow
 
-  def hasClaimGradeMaterialEvent: Boolean =
-    hasClaimGradeMaterialGain ||
-      hasClaimGradeMaterialLoss ||
+  def hasProofSignalMaterialEvent: Boolean =
+    hasProofSignalMaterialGain ||
+      hasProofSignalMaterialLoss ||
       hasUnrecoveredPawnGainForMover ||
       hasUnrecoveredPawnLossForMover ||
       hasResolvedMaterialSequence
@@ -584,9 +584,9 @@ final case class LineMaterialSummary(
     materialWindowComplete &&
       capturesByOpponent.exists(capture => !capture.recapture) &&
       !hasRecoveryWindow &&
-      !hasClaimGradeMaterialGain
+      !hasProofSignalMaterialGain
 
-  private def claimGradeCapturedRole(role: EvidencePieceRole): Boolean =
+  private def proofSignalCapturedRole(role: EvidencePieceRole): Boolean =
     val normalized = role.name.trim.toLowerCase
     normalized.nonEmpty && normalized != "pawn" && normalized != "king"
 
@@ -607,17 +607,35 @@ final case class LineFactEvidence(
   val layer: EvidenceLayer = EvidenceLayer.Line
   def mainlineMoves: List[String] =
     firstMove.toList ++ replyMove.toList ++ continuationMoves
-  def claimGradeConsequences: List[LineConsequence] =
-    consequences.filter(_.claimGrade)
-  def hasClaimGradeConsequence: Boolean =
-    claimGradeConsequences.nonEmpty
-  def claimGradeConsequenceKinds: List[LineConsequenceKind] =
-    claimGradeConsequences.map(_.kind)
+  def lineReplayCount: Int =
+    replay.size
+  def hasLineReplay: Boolean =
+    replay.nonEmpty
+  def lineEventKinds: List[LineEventKind] =
+    events.map(_.kind)
+  def lineEventCount: Int =
+    events.size
+  def hasLineEvents: Boolean =
+    events.nonEmpty
+  def lineConsequenceCount: Int =
+    consequences.size
+  def hasLineConsequences: Boolean =
+    consequences.nonEmpty
+  def hasForcedTheme: Boolean =
+    forcedTheme.nonEmpty
+  def lineMaterialSummary: Option[LineMaterialSummary] =
+    material
+  def proofSignalConsequences: List[LineConsequence] =
+    consequences.filter(_.proofSignal)
+  def hasProofSignalConsequence: Boolean =
+    proofSignalConsequences.nonEmpty
+  def proofSignalConsequenceKinds: List[LineConsequenceKind] =
+    proofSignalConsequences.map(_.kind)
   def consequenceProfile: LineConsequenceProfile =
-    val kinds = claimGradeConsequenceKinds
+    val kinds = proofSignalConsequenceKinds
     LineConsequenceProfile(
-      claimGradeKinds = kinds,
-      hasConcreteClaimProof = kinds.nonEmpty,
+      proofSignalKinds = kinds,
+      hasConcreteProofSignal = kinds.nonEmpty,
       hasConversionConsequence = kinds.exists {
         case LineConsequenceKind.RecaptureSequence | LineConsequenceKind.RecoveryWindow |
             LineConsequenceKind.MaterialGain | LineConsequenceKind.MaterialLoss |
@@ -712,7 +730,7 @@ object LineFactEvidence:
 
 final case class EvalFactEvidence(
     line: LineNodeRef,
-    evalCp: Int,
+    whitePovEvalCp: Int,
     mate: Option[Int],
     depth: Int
 ) extends EvidencePayload:

@@ -496,7 +496,7 @@ object MoveReviewPhase3AuditRunner:
           "role" -> node.role.toString,
           "rootMove" -> node.ref.rootMove,
           "rank" -> node.ref.rank,
-          "evalCp" -> node.evalCp,
+          "whitePovEvalCp" -> node.whitePovEvalCp,
           "mate" -> node.mate,
           "depth" -> node.depth,
           "moves" -> node.line.moves
@@ -513,7 +513,7 @@ object MoveReviewPhase3AuditRunner:
             Json.obj(
               "rootMove" -> node.ref.rootMove,
               "rank" -> node.ref.rank,
-              "evalCp" -> node.evalCp,
+              "whitePovEvalCp" -> node.whitePovEvalCp,
               "mate" -> node.mate,
               "depth" -> node.depth
             )
@@ -868,7 +868,7 @@ object MoveReviewPhase3AuditRunner:
       "role" -> line.role.toString,
       "rank" -> line.rank,
       "moves" -> line.moves,
-      "evalCp" -> line.evalCp,
+      "whitePovEvalCp" -> line.whitePovEvalCp,
       "mate" -> line.mate,
       "depth" -> line.depth
     )
@@ -1623,7 +1623,7 @@ object MoveReviewPhase3AuditRunner:
           "material" -> payload.material.map(material =>
             Json.obj(
               "netCaptureCpForMover" -> material.netCaptureCpForMover,
-              "hasClaimGradeMaterialEvent" -> material.hasClaimGradeMaterialEvent,
+              "hasProofSignalMaterialEvent" -> material.hasProofSignalMaterialEvent,
               "hasSacrificeMaterialEvent" -> material.hasSacrificeMaterialEvent
             )
           ),
@@ -1648,7 +1648,7 @@ object MoveReviewPhase3AuditRunner:
             Json.obj(
               "kind" -> consequence.kind.toString,
               "lineMoves" -> consequence.lineMoves,
-              "claimGrade" -> consequence.claimGrade,
+              "proofSignal" -> consequence.proofSignal,
               "eventMove" -> consequence.eventMove
             )
           )

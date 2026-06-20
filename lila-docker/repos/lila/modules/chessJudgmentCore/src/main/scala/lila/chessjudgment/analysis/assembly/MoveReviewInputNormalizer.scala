@@ -66,7 +66,7 @@ final case class NormalizedMoveReviewInput(
     afterPlayedFen: String,
     afterReferenceFen: Option[String],
     lines: List[NormalizedCandidateLine],
-    currentEvalCp: Int,
+    currentWhitePovEvalCp: Int,
     opening: Option[OpeningIdentity],
     movePrefixUci: List[String] = Nil,
     openingRecognition: Option[OpeningRecognition] = None,
@@ -100,11 +100,7 @@ object MoveReviewInputNormalizer:
     val beforeFen = normalizeFen(raw.fen)
     val playedMove = normalizeUci(raw.playedMoveUci)
     val movePrefix = raw.movePrefixUci.map(normalizeUci).filter(_.nonEmpty)
-    for
-      afterPlayed <- PrincipalVariationEvidence.legalFenAfter(beforeFen, playedMove)
-      currentEval <- raw.currentEvalCp
-        .orElse(raw.variations.headOption.map(_.scoreCp))
-    yield
+    PrincipalVariationEvidence.legalFenAfter(beforeFen, playedMove).flatMap { afterPlayed =>
       val beforePly = raw.ply.getOrElse(plyFromFen(beforeFen))
       val side = sideToMove(beforeFen)
       val inputOpening = normalizeOpening(raw.openingContext)
@@ -132,32 +128,35 @@ object MoveReviewInputNormalizer:
           }
           .map { case (line, index) => NormalizedCandidateLine(LineNodeRole.Alternative, index + 1, normalizedLine(line)) }
       val lines = (reference.toList ++ played.toList ++ alternatives).distinctBy(line => line.role -> line.rank)
-      val afterReference =
-        reference.flatMap(_.rootMove).flatMap(PrincipalVariationEvidence.legalFenAfter(beforeFen, _))
-      val threatBranchNormalization =
-        normalizeThreatBranches(
-          raw.probeResults,
+      raw.currentEvalCp.orElse(reference.map(_.line.scoreCp)).map { currentWhitePovEvalCp =>
+        val afterReference =
+          reference.flatMap(_.rootMove).flatMap(PrincipalVariationEvidence.legalFenAfter(beforeFen, _))
+        val threatBranchNormalization =
+          normalizeThreatBranches(
+            raw.probeResults,
+            beforeFen = beforeFen,
+            rootLines = lines,
+            firstThreatRank = lines.map(_.rank).maxOption.getOrElse(0) + 1
+          )
+        NormalizedMoveReviewInput(
           beforeFen = beforeFen,
-          rootLines = lines,
-          firstThreatRank = lines.map(_.rank).maxOption.getOrElse(0) + 1
+          playedMoveUci = playedMove,
+          beforePly = beforePly,
+          sideToMove = side,
+          afterPlayedFen = afterPlayed,
+          afterReferenceFen = afterReference,
+          lines = lines,
+          currentWhitePovEvalCp = currentWhitePovEvalCp,
+          opening = opening,
+          movePrefixUci = movePrefix,
+          openingRecognition = recognition,
+          openingThemePrior = themePrior,
+          openingSignals = openingSignals,
+          threatBranches = threatBranchNormalization.branches,
+          probeDiagnostics = threatBranchNormalization.diagnostics
         )
-      NormalizedMoveReviewInput(
-        beforeFen = beforeFen,
-        playedMoveUci = playedMove,
-        beforePly = beforePly,
-        sideToMove = side,
-        afterPlayedFen = afterPlayed,
-        afterReferenceFen = afterReference,
-        lines = lines,
-        currentEvalCp = currentEval,
-        opening = opening,
-        movePrefixUci = movePrefix,
-        openingRecognition = recognition,
-        openingThemePrior = themePrior,
-        openingSignals = openingSignals,
-        threatBranches = threatBranchNormalization.branches,
-        probeDiagnostics = threatBranchNormalization.diagnostics
-      )
+      }
+    }
 
   def normalizeUci(uci: String): String =
     PrincipalVariationEvidence.normalizeUci(uci)
@@ -374,7 +373,7 @@ object MoveReviewInputNormalizer:
       rootFen = beforeFen,
       role = line.role,
       rootMove = probedMove,
-      evalCp = line.line.scoreCp,
+      whitePovEvalCp = line.line.scoreCp,
       mate = line.line.mate,
       depth = line.line.depth,
       moves = line.line.moves
