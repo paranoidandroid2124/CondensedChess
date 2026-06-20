@@ -27,7 +27,7 @@ case class PlanInteractionContext(
   def winPercentFor(color: Color): Double =
     PerspectiveMath.winPercentForMover(color, whitePovEvalCp)
   def winPercentAdvantageFor(color: Color): Double =
-    (winPercentFor(color) - 50.0).max(0.0)
+    PerspectiveMath.winPercentAdvantageFor(color, whitePovEvalCp)
   def phase: String = phaseEnumOpt match
     case Some(GamePhaseType.Opening)    => "opening"
     case Some(GamePhaseType.Middlegame) => "middlegame"

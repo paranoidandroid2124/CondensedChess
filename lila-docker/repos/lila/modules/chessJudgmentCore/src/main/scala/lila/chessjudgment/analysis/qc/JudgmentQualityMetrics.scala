@@ -460,8 +460,8 @@ final case class CandidateComparisonDiagnostic(
     candidateLine: CandidateLineDiagnostic,
     verdict: MoveChoiceVerdict,
     mover: String,
-    cpLossForMover: Int,
-    candidateDeltaForMover: Int,
+    rawCpLossForDiagnostics: Int,
+    rawCandidateDeltaCpForDiagnostics: Int,
     winPercentLossForMover: Double,
     candidateWinPercentDeltaForMover: Double,
     causeKinds: List[RelativeCauseKind],
@@ -556,8 +556,8 @@ object CandidateComparisonDiagnostic:
           candidateLine = candidateLine,
           verdict = fact.comparison.verdict,
           mover = fact.comparison.mover.name,
-          cpLossForMover = fact.comparison.cpLossForMover,
-          candidateDeltaForMover = fact.comparison.candidateDeltaForMover,
+          rawCpLossForDiagnostics = fact.comparison.rawCpLossForDiagnostics,
+          rawCandidateDeltaCpForDiagnostics = fact.comparison.rawCandidateDeltaCpForDiagnostics,
           winPercentLossForMover = fact.comparison.winPercentLossForMover,
           candidateWinPercentDeltaForMover = fact.comparison.candidateWinPercentDeltaForMover,
           causeKinds = causeKinds,
@@ -652,7 +652,7 @@ object CandidateComparisonDiagnostic:
           .flatMap(_.bestToSecondWinPercentGapForMover)
           .map(gap => s"BestSecondWinPercentGap:${winPercentGapBand(gap)}"),
         fact.comparison.candidateSet
-          .flatMap(_.bestToSecondGapForMover)
+          .flatMap(_.rawBestToSecondCpGapForDiagnostics)
           .map(gap => s"BestSecondCpGap:${cpGapBand(gap)}"),
         Option.when(fact.comparison.candidateSet.exists(_.candidateCount >= 3))("MultiCandidateSet")
       ).flatten

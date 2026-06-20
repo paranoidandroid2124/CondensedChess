@@ -5,7 +5,7 @@ import lila.chessjudgment.model.CollapseAnalysis
 
 case class CandidateSetComparison(
     secondLine: Option[LineNodeRef],
-    bestToSecondGapForMover: Option[Int],
+    rawBestToSecondCpGapForDiagnostics: Option[Int],
     bestToSecondWinPercentGapForMover: Option[Double],
     candidateCount: Int,
     onlyMove: Boolean
@@ -21,9 +21,9 @@ case class EvalComparison(
     mover: Color,
     referenceLine: LineNodeRef,
     candidateLine: LineNodeRef,
-    candidateDeltaForMover: Int,
+    rawCandidateDeltaCpForDiagnostics: Int,
     candidateWinPercentDeltaForMover: Double,
-    cpLossForMover: Int,
+    rawCpLossForDiagnostics: Int,
     winPercentLossForMover: Double,
     verdict: MoveChoiceVerdict,
     candidateSet: Option[CandidateSetComparison] = None

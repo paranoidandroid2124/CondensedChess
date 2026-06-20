@@ -11,6 +11,18 @@ import chess.Color
  */
 object PerspectiveMath:
 
+  final case class EvalPoint(
+      whitePovCp: Int,
+      mate: Option[Int]
+  )
+
+  final case class EvalDeltaForMover(
+      rawCandidateDeltaCpForMover: Int,
+      rawCpLossForMover: Int,
+      candidateWinPercentDeltaForMover: Double,
+      winPercentLossForMover: Double
+  )
+
   private val WinPercentSlope = 0.00368208
 
   def winPercentFromWhiteCp(whiteCp: Int): Double =
@@ -39,16 +51,18 @@ object PerspectiveMath:
     val whiteWinPercent = winPercentFromWhiteEval(whiteCp, mate)
     if mover.white then whiteWinPercent else 100.0 - whiteWinPercent
 
-  /**
-   * Loss for the moving side if it chooses `playedWhiteCp` over `bestWhiteCp`.
-   * Returns 0 when the played line is equal or better for the mover.
-   */
-  def cpLossForMover(isWhiteMover: Boolean, bestWhiteCp: Int, playedWhiteCp: Int): Int =
+  def winPercentAdvantageFor(mover: Color, whiteCp: Int, mate: Option[Int] = None): Double =
+    (winPercentForMover(mover, whiteCp, mate) - 50.0).max(0.0)
+
+  def absoluteWhiteWinPercentEdge(whiteCp: Int, mate: Option[Int] = None): Double =
+    (winPercentFromWhiteEval(whiteCp, mate) - 50.0).abs
+
+  private def rawCpLossForMover(isWhiteMover: Boolean, bestWhiteCp: Int, playedWhiteCp: Int): Int =
     if isWhiteMover then (bestWhiteCp - playedWhiteCp).max(0)
     else (playedWhiteCp - bestWhiteCp).max(0)
 
-  def cpLossForMover(mover: Color, bestWhiteCp: Int, playedWhiteCp: Int): Int =
-    cpLossForMover(mover.white, bestWhiteCp, playedWhiteCp)
+  private def rawCpLossForMover(mover: Color, bestWhiteCp: Int, playedWhiteCp: Int): Int =
+    rawCpLossForMover(mover.white, bestWhiteCp, playedWhiteCp)
 
   def winPercentLossForMover(mover: Color, bestWhiteCp: Int, playedWhiteCp: Int): Double =
     (winPercentForMover(mover, bestWhiteCp) - winPercentForMover(mover, playedWhiteCp)).max(0.0)
@@ -96,3 +110,43 @@ object PerspectiveMath:
       threatMate: Option[Int]
   ): Double =
     winPercentForMover(mover, defendedWhiteCp, defendedMate) - winPercentForMover(mover, threatWhiteCp, threatMate)
+
+  def compareForMover(
+      mover: Color,
+      reference: EvalPoint,
+      candidate: EvalPoint
+  ): EvalDeltaForMover =
+    val candidateDelta =
+      improvementForMover(
+        mover = mover,
+        defendedWhiteCp = candidate.whitePovCp,
+        threatWhiteCp = reference.whitePovCp
+      )
+    val winPercentDelta =
+      winPercentImprovementForMover(
+        mover = mover,
+        defendedWhiteCp = candidate.whitePovCp,
+        defendedMate = candidate.mate,
+        threatWhiteCp = reference.whitePovCp,
+        threatMate = reference.mate
+      )
+    val rawLoss =
+      rawCpLossForMover(
+        mover = mover,
+        bestWhiteCp = reference.whitePovCp,
+        playedWhiteCp = candidate.whitePovCp
+      )
+    val winPercentLoss =
+      winPercentLossForMover(
+        mover = mover,
+        bestWhiteCp = reference.whitePovCp,
+        bestMate = reference.mate,
+        playedWhiteCp = candidate.whitePovCp,
+        playedMate = candidate.mate
+      )
+    EvalDeltaForMover(
+      rawCandidateDeltaCpForMover = candidateDelta,
+      rawCpLossForMover = rawLoss,
+      candidateWinPercentDeltaForMover = winPercentDelta,
+      winPercentLossForMover = winPercentLoss
+    )

@@ -1,7 +1,7 @@
 package lila.chessjudgment.analysis.singlePosition
 
 import chess.Color
-import lila.chessjudgment.analysis.evaluation.{ JudgmentThresholds, PerspectiveMath }
+import lila.chessjudgment.analysis.evaluation.JudgmentThresholds
 import lila.chessjudgment.analysis.tactical.{ BoundedReplayStep, TacticalRelationEvidence }
 import lila.chessjudgment.model.Motif
 
@@ -223,13 +223,7 @@ object ThreatPressureAssessor:
       val evalLoss =
         if bestLine.mate.isEmpty && secondLine.mate.isEmpty then (bestLine.sideRelativeEvalCp - secondLine.sideRelativeEvalCp).max(0)
         else 0
-      val winPercentLoss =
-        PerspectiveMath.winPercentLossFromRelativeEval(
-          bestLine.sideRelativeEvalCp,
-          bestLine.mate,
-          secondLine.sideRelativeEvalCp,
-          secondLine.mate
-        )
+      val winPercentLoss = bestLine.winPercentLossTo(secondLine)
       val bestLineFirstStep = firstLegalStep(fen, bestLine)
       val secondLineFirstStep = firstLegalStep(fen, secondLine)
       val secondLineIsCapture = secondLineFirstStep.exists(_.move.captures)
@@ -333,12 +327,7 @@ object ThreatPressureAssessor:
       // Count defenses that keep eval within the central defense tolerance.
       val bestLine = multiPv.head
       val adequateDefenses = multiPv.filter { pv =>
-        PerspectiveMath.winPercentLossFromRelativeEval(
-          bestLine.sideRelativeEvalCp,
-          bestLine.mate,
-          pv.sideRelativeEvalCp,
-          pv.mate
-        ) <= JudgmentThresholds.ONLY_DEFENSE_TOLERANCE_WP
+        bestLine.winPercentLossTo(pv) <= JudgmentThresholds.ONLY_DEFENSE_TOLERANCE_WP
       }
       val defenseCount = adequateDefenses.size
       

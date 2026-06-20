@@ -1,6 +1,7 @@
 package lila.chessjudgment.model.judgment
 
 import chess.Color
+import lila.chessjudgment.analysis.evaluation.PerspectiveMath
 import lila.chessjudgment.analysis.position.PositionFeatures
 import lila.chessjudgment.analysis.singlePosition.{ PawnPlayAnalysis, SinglePositionAssessment, ThreatAnalysis }
 import lila.chessjudgment.analysis.structure.StructuralDelta
@@ -1110,6 +1111,14 @@ final case class EvalFactEvidence(
     depth: Int
 ) extends EvidencePayload:
   val layer: EvidenceLayer = EvidenceLayer.Eval
+  def evalPoint: PerspectiveMath.EvalPoint =
+    PerspectiveMath.EvalPoint(whitePovEvalCp, mate)
+  def whiteWinPercent: Double =
+    PerspectiveMath.winPercentFromWhiteEval(whitePovEvalCp, mate)
+  def winPercentFor(mover: Color): Double =
+    PerspectiveMath.winPercentForMover(mover, whitePovEvalCp, mate)
+  def winPercentAdvantageFor(mover: Color): Double =
+    PerspectiveMath.winPercentAdvantageFor(mover, whitePovEvalCp, mate)
 
 final case class MoveMotifEvidence(
     moveUci: String,

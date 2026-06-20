@@ -1,7 +1,7 @@
 package lila.chessjudgment.analysis.singlePosition
 
 import chess.{Square, Role}
-import lila.chessjudgment.analysis.evaluation.JudgmentThresholds
+import lila.chessjudgment.analysis.evaluation.{ JudgmentThresholds, PerspectiveMath }
 import lila.chessjudgment.model.Motif
 
 /**
@@ -42,7 +42,7 @@ enum CriticalityType:
 case class CriticalityResult(
   criticalityType: CriticalityType,
   // Evidence
-  sideRelativeEvalDeltaCp: Option[Int],     // Eval delta from best to next candidate when available
+  rawSideRelativeEvalDeltaCpForDiagnostics: Option[Int],
   evalDeltaWinPercent: Option[Double],
   mateDistance: Option[Int],    // Mate distance if applicable
   forcingMovesInPv: Int         // Count of checks/captures in PV
@@ -95,7 +95,7 @@ case class GamePhaseResult(
 case class SimplifyBiasResult(
   isSimplificationWindow: Boolean,
   // Evidence
-  evalAdvantage: Int,           // Current eval advantage
+  rawEvalAdvantageCpForDiagnostics: Int,
   evalAdvantageWinPercent: Double,
   isEndgameNear: Boolean,       // Phase is endgame or near
   exchangeAvailable: Boolean    // Queen/Rook exchange possible
@@ -162,7 +162,16 @@ case class PvLine(
   sideRelativeEvalCp: Int, // Centipawn evaluation, positive for the side to move
   mate: Option[Int],    // Mate distance (positive = winning)
   depth: Int            // Search depth
-)
+):
+  def winPercentForSideToMove: Double =
+    PerspectiveMath.winPercentFromRelativeEval(sideRelativeEvalCp, mate)
+  def winPercentLossTo(candidate: PvLine): Double =
+    PerspectiveMath.winPercentLossFromRelativeEval(
+      sideRelativeEvalCp,
+      mate,
+      candidate.sideRelativeEvalCp,
+      candidate.mate
+    )
 
 /**
  * Type of threat detected.

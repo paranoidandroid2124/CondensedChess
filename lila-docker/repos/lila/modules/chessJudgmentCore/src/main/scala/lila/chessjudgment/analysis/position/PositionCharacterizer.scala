@@ -34,7 +34,7 @@ object PositionCharacterizer:
     
     val decisiveWinPercentEdge =
       whitePovEvalCp
-        .map(cp => (PerspectiveMath.winPercentFromWhiteCp(cp) - 50.0).abs)
+        .map(cp => PerspectiveMath.absoluteWhiteWinPercentEdge(cp))
         .getOrElse(0.0)
     val isDecided = decisiveWinPercentEdge >= JudgmentThresholds.DECISIVE_EDGE_WP
     

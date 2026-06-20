@@ -55,7 +55,6 @@ case class ProbeRequest(
   seedId: Option[String] = None,           // Latent seed identifier when relevant
   requiredSignals: List[String] = Nil,     // e.g. "replyPvs", "keyMotifs", "boardDelta", "futureSnapshot"
   horizon: Option[String] = None,          // "short" | "medium" | "long"
-  maxCpLoss: Option[Int] = None,           // optional fail-closed bound for viability probes
   candidateMove: Option[String] = None,    // explicit root move when the request is move-bound
   depthFloor: Option[Int] = None,          // minimum acceptable realized depth for certification
   variationHash: Option[String] = None,    // binds the request to a specific logical variation bundle

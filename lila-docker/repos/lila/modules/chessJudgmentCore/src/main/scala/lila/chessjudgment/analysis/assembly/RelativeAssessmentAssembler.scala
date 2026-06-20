@@ -159,42 +159,23 @@ object RelativeAssessmentAssembler:
       candidateSet: Option[CandidateSetComparison]
   ): EvalComparison =
     val delta =
-      PerspectiveMath.improvementForMover(
+      PerspectiveMath.compareForMover(
         mover = mover,
-        defendedWhiteCp = candidate.whitePovEvalCp,
-        threatWhiteCp = reference.whitePovEvalCp
-      )
-    val winPercentDelta =
-      PerspectiveMath.winPercentImprovementForMover(
-        mover = mover,
-        defendedWhiteCp = candidate.whitePovEvalCp,
-        defendedMate = candidate.mate,
-        threatWhiteCp = reference.whitePovEvalCp,
-        threatMate = reference.mate
-      )
-    val loss =
-      PerspectiveMath.cpLossForMover(
-        mover = mover,
-        bestWhiteCp = reference.whitePovEvalCp,
-        playedWhiteCp = candidate.whitePovEvalCp
-      )
-    val winPercentLoss =
-      PerspectiveMath.winPercentLossForMover(
-        mover = mover,
-        bestWhiteCp = reference.whitePovEvalCp,
-        bestMate = reference.mate,
-        playedWhiteCp = candidate.whitePovEvalCp,
-        playedMate = candidate.mate
+        reference = PerspectiveMath.EvalPoint(reference.whitePovEvalCp, reference.mate),
+        candidate = PerspectiveMath.EvalPoint(candidate.whitePovEvalCp, candidate.mate)
       )
     EvalComparison(
       mover = mover,
       referenceLine = reference.ref,
       candidateLine = candidate.ref,
-      candidateDeltaForMover = delta,
-      candidateWinPercentDeltaForMover = winPercentDelta,
-      cpLossForMover = loss,
-      winPercentLossForMover = winPercentLoss,
-      verdict = VerdictThresholdPolicy.verdictFromWinPercent(winPercentDelta, winPercentLoss),
+      rawCandidateDeltaCpForDiagnostics = delta.rawCandidateDeltaCpForMover,
+      candidateWinPercentDeltaForMover = delta.candidateWinPercentDeltaForMover,
+      rawCpLossForDiagnostics = delta.rawCpLossForMover,
+      winPercentLossForMover = delta.winPercentLossForMover,
+      verdict = VerdictThresholdPolicy.verdictFromWinPercent(
+        delta.candidateWinPercentDeltaForMover,
+        delta.winPercentLossForMover
+      ),
       candidateSet = candidateSet
     )
 
@@ -215,29 +196,19 @@ object RelativeAssessmentAssembler:
     val second = ordered.find(_.ref.rootMove != reference.ref.rootMove)
     val gap =
       second.map(line =>
-        PerspectiveMath.cpLossForMover(
+        PerspectiveMath.compareForMover(
           mover = mover,
-          bestWhiteCp = reference.whitePovEvalCp,
-          playedWhiteCp = line.whitePovEvalCp
-        )
-      )
-    val winPercentGap =
-      second.map(line =>
-        PerspectiveMath.winPercentLossForMover(
-          mover = mover,
-          bestWhiteCp = reference.whitePovEvalCp,
-          bestMate = reference.mate,
-          playedWhiteCp = line.whitePovEvalCp,
-          playedMate = line.mate
+          reference = PerspectiveMath.EvalPoint(reference.whitePovEvalCp, reference.mate),
+          candidate = PerspectiveMath.EvalPoint(line.whitePovEvalCp, line.mate)
         )
       )
     Option.when(ordered.nonEmpty)(
       CandidateSetComparison(
         secondLine = second.map(_.ref),
-        bestToSecondGapForMover = gap,
-        bestToSecondWinPercentGapForMover = winPercentGap,
+        rawBestToSecondCpGapForDiagnostics = gap.map(_.rawCpLossForMover),
+        bestToSecondWinPercentGapForMover = gap.map(_.winPercentLossForMover),
         candidateCount = ordered.size,
-        onlyMove = winPercentGap.exists(_ >= JudgmentThresholds.ONLY_MOVE_GAP_WP)
+        onlyMove = gap.exists(_.winPercentLossForMover >= JudgmentThresholds.ONLY_MOVE_GAP_WP)
       )
     )
   private def candidateComparisonRecords(
