@@ -130,8 +130,8 @@ sealed trait EvidencePayload:
   def layer: EvidenceLayer
 
 final case class BoardFactEvidence(
-    facts: List[Fact],
-    features: Option[PositionFeatures]
+    private val facts: List[Fact],
+    private val features: Option[PositionFeatures]
 )(val anchors: List[BoardAnchor] = Nil,
     val attackDefense: List[BoardAttackDefenseEntry] = Nil,
     val profile: Option[BoardPositionProfile] = None
@@ -867,9 +867,9 @@ final case class LineMaterialSummary(
 
 final case class LineFactEvidence(
     line: LineNodeRef,
-    firstMove: Option[String],
-    replyMove: Option[String],
-    continuationMoves: List[String],
+    private val firstMove: Option[String],
+    private val replyMove: Option[String],
+    private val continuationMoves: List[String],
     forcedTheme: Option[ForcedLineThemeEvidence] = None,
     material: Option[LineMaterialSummary] = None
 )(val replay: List[LineReplayStep] = Nil,
