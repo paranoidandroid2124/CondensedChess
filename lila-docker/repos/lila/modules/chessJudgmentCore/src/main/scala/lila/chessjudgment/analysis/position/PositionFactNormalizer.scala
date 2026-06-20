@@ -160,6 +160,56 @@ object PositionFactNormalizer:
             proofSignal = targets.size >= 2
           )
         )
+      case fact @ Fact.XRay(attackerColor, attacker, attackerRole, blocker, blockerRole, target, targetRole, _) =>
+        val focus = fact.squareFocus
+        Some(
+          BoardAnchor(
+            kind = BoardAnchorKind.XRayPressure,
+            side = attackerColor,
+            signal = BoardAnchorSignal.XRayLine,
+            magnitude = MaterialValue.materialValueCp(targetRole).max(1),
+            confidence = 0.72,
+            detail = Some(
+              BoardAnchorDetail(
+                subjectColor = Some(!attackerColor),
+                subjectSquare = Some(evidenceSquare(blocker)),
+                subjectRole = Some(evidenceRole(blockerRole)),
+                targetSquare = Some(evidenceSquare(target)),
+                targetRole = Some(evidenceRole(targetRole)),
+                attackerColor = Some(attackerColor),
+                attackerSquare = Some(evidenceSquare(attacker)),
+                attackerRole = Some(evidenceRole(attackerRole)),
+                relatedSquares = evidenceSquares(focus.relatedSquares),
+                axis = rayAxis(attacker, target)
+              )
+            ),
+            proofSignal = true
+          )
+        )
+      case fact @ Fact.Battery(attackerColor, front, frontRole, back, backRole, axis, _) =>
+        val focus = fact.squareFocus
+        Some(
+          BoardAnchor(
+            kind = BoardAnchorKind.BatteryPressure,
+            side = attackerColor,
+            signal = BoardAnchorSignal.BatteryLine,
+            magnitude = MaterialValue.materialValueCp(frontRole).max(MaterialValue.materialValueCp(backRole)).max(1),
+            confidence = if axis == Fact.RayAxis.Diagonal then 0.72 else 0.70,
+            detail = Some(
+              BoardAnchorDetail(
+                subjectColor = Some(attackerColor),
+                subjectSquare = Some(evidenceSquare(front)),
+                subjectRole = Some(evidenceRole(frontRole)),
+                attackerColor = Some(attackerColor),
+                attackerSquare = Some(evidenceSquare(back)),
+                attackerRole = Some(evidenceRole(backRole)),
+                relatedSquares = evidenceSquares(focus.relatedSquares),
+                axis = Some(boardAnchorAxis(axis))
+              )
+            ),
+            proofSignal = axis == Fact.RayAxis.Diagonal
+          )
+        )
       case fact @ Fact.WeakSquare(_, _, _, _) =>
         val focus = fact.squareFocus
         Some(
@@ -272,3 +322,17 @@ object PositionFactNormalizer:
 
   private def evidenceRole(role: Role): EvidencePieceRole =
     EvidencePieceRole(role.name)
+
+  private def boardAnchorAxis(axis: Fact.RayAxis): BoardAnchorAxis =
+    axis match
+      case Fact.RayAxis.File     => BoardAnchorAxis.File
+      case Fact.RayAxis.Rank     => BoardAnchorAxis.Rank
+      case Fact.RayAxis.Diagonal => BoardAnchorAxis.Diagonal
+
+  private def rayAxis(from: Square, to: Square): Option[BoardAnchorAxis] =
+    val fileDiff = to.file.value - from.file.value
+    val rankDiff = to.rank.value - from.rank.value
+    if fileDiff == 0 then Some(BoardAnchorAxis.File)
+    else if rankDiff == 0 then Some(BoardAnchorAxis.Rank)
+    else if fileDiff.abs == rankDiff.abs then Some(BoardAnchorAxis.Diagonal)
+    else None

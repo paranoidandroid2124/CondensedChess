@@ -130,6 +130,8 @@ enum BoardAnchorKind:
   case PinPressure
   case SkewerPressure
   case ForkPressure
+  case XRayPressure
+  case BatteryPressure
   case WeakSquare
   case Outpost
 
@@ -150,8 +152,15 @@ enum BoardAnchorSignal:
   case RelativePin
   case SkewerLine
   case ForkTargets
+  case XRayLine
+  case BatteryLine
   case WeakSquareHole
   case OutpostSquare
+
+enum BoardAnchorAxis:
+  case File
+  case Rank
+  case Diagonal
 
 final case class BoardAnchorDetail(
     subjectColor: Option[Color] = None,
@@ -165,6 +174,7 @@ final case class BoardAnchorDetail(
     attackerSquares: List[EvidenceSquare] = Nil,
     defenderSquares: List[EvidenceSquare] = Nil,
     relatedSquares: List[EvidenceSquare] = Nil,
+    axis: Option[BoardAnchorAxis] = None,
     isAbsolute: Option[Boolean] = None,
     materialLossCp: Option[Int] = None
 )
@@ -420,6 +430,10 @@ final case class LineReplayStep(
 enum LineEventKind:
   case Capture
   case Recapture
+  case Castling
+  case Check
+  case Mate
+  case Stalemate
   case Promotion
   case ForcedTheme
 
@@ -436,6 +450,8 @@ final case class LineMoveEvent(
 enum LineConsequenceKind:
   case ForcedTheme
   case ImmediateReplyCheck
+  case Mate
+  case DrawResource
   case MaterialGain
   case MaterialLoss
   case RecaptureSequence
@@ -471,13 +487,16 @@ final case class LineConsequenceProfile(
     hasMaterialResult: Boolean,
     hasRecaptureRecovery: Boolean,
     hasSacrifice: Boolean,
-    hasPromotionRace: Boolean
+    hasPromotionRace: Boolean,
+    hasMate: Boolean,
+    hasDrawResource: Boolean
 ):
   def tacticalDriverKinds: List[LineConsequenceKind] =
     proofSignalKinds.filter {
       case LineConsequenceKind.MaterialGain | LineConsequenceKind.MaterialLoss |
           LineConsequenceKind.RecaptureSequence | LineConsequenceKind.RecoveryWindow |
-          LineConsequenceKind.ImmediateReplyCheck | LineConsequenceKind.PromotionRace =>
+          LineConsequenceKind.ImmediateReplyCheck | LineConsequenceKind.Mate |
+          LineConsequenceKind.DrawResource | LineConsequenceKind.PromotionRace =>
         true
       case LineConsequenceKind.ForcedTheme | LineConsequenceKind.Sacrifice =>
         false
@@ -613,6 +632,14 @@ final case class LineFactEvidence(
     replay.nonEmpty
   def lineEventKinds: List[LineEventKind] =
     events.map(_.kind)
+  def lineEventsOf(kind: LineEventKind): List[LineMoveEvent] =
+    events.filter(_.kind == kind)
+  def hasLineEvent(kind: LineEventKind): Boolean =
+    lineEventsOf(kind).nonEmpty
+  def hasLineEventAt(kind: LineEventKind, plyOffset: Int): Boolean =
+    lineEventsOf(kind).exists(_.plyOffset == plyOffset)
+  def lineEventMoves(kind: LineEventKind): List[String] =
+    lineEventsOf(kind).map(_.moveUci)
   def lineEventCount: Int =
     events.size
   def hasLineEvents: Boolean =
@@ -645,8 +672,8 @@ final case class LineFactEvidence(
           false
       },
       hasMaterialResult = kinds.exists {
-        case LineConsequenceKind.MaterialGain | LineConsequenceKind.MaterialLoss | LineConsequenceKind.Sacrifice |
-            LineConsequenceKind.PromotionRace =>
+        case LineConsequenceKind.MaterialGain | LineConsequenceKind.MaterialLoss |
+            LineConsequenceKind.Sacrifice | LineConsequenceKind.PromotionRace =>
           true
         case _ =>
           false
@@ -655,7 +682,9 @@ final case class LineFactEvidence(
         kind == LineConsequenceKind.RecaptureSequence || kind == LineConsequenceKind.RecoveryWindow
       ),
       hasSacrifice = kinds.contains(LineConsequenceKind.Sacrifice),
-      hasPromotionRace = kinds.contains(LineConsequenceKind.PromotionRace)
+      hasPromotionRace = kinds.contains(LineConsequenceKind.PromotionRace),
+      hasMate = kinds.contains(LineConsequenceKind.Mate),
+      hasDrawResource = kinds.contains(LineConsequenceKind.DrawResource)
     )
   def materialOutcomeProfile: LineMaterialOutcomeProfile =
     val consequenceGainSignals =

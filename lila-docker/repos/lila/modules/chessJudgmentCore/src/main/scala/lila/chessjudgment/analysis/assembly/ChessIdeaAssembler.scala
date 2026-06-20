@@ -640,6 +640,10 @@ object ChessIdeaAssembler:
             List(TacticalIdeaDriver.RecaptureChoice)
           case LineConsequenceKind.ImmediateReplyCheck =>
             List(TacticalIdeaDriver.Tempo)
+          case LineConsequenceKind.Mate =>
+            List(TacticalIdeaDriver.KingForcing)
+          case LineConsequenceKind.DrawResource =>
+            List(TacticalIdeaDriver.DrawResource)
           case LineConsequenceKind.PromotionRace =>
             List(TacticalIdeaDriver.PawnPromotion)
           case LineConsequenceKind.ForcedTheme | LineConsequenceKind.Sacrifice =>

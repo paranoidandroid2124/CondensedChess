@@ -4,7 +4,7 @@ import chess.{ Color, File }
 import lila.chessjudgment.analysis.evaluation.{ JudgmentThresholds, PerspectiveMath, VerdictThresholdPolicy }
 import lila.chessjudgment.analysis.policy.ClaimTruthPolicy
 import lila.chessjudgment.analysis.singlePosition.PawnPlayDriver
-import lila.chessjudgment.analysis.tactical.{ TacticalMotifClassifier, TacticalRelationEvidence }
+import lila.chessjudgment.analysis.tactical.TacticalMotifClassifier
 import lila.chessjudgment.analysis.transition.TransitionFactNormalizer
 import lila.chessjudgment.model.{ Motif, TransitionType }
 import lila.chessjudgment.model.structure.AlignmentBand
@@ -969,15 +969,19 @@ object RelativeAssessmentAssembler:
       candidateRecords: List[EvidenceRecord]
   ): List[EvidenceRecord] =
     val referenceSupport = developmentChoiceRecords(referenceRecords)
-    val referenceMoves = lineMoves(referenceRecords, fact.referenceLine).map(normalizeMove)
-    val candidateMoves = lineMoves(candidateRecords, fact.candidateLine).map(normalizeMove)
     val castlingMove =
-      referenceMoves.take(6).find(move => moverCastlingMove(fact.comparison.mover, move))
+      lineEventMoves(referenceRecords, fact.referenceLine, LineEventKind.Castling)
+        .map(normalizeMove)
+        .find(move => moverCastlingMove(fact.comparison.mover, move))
     val rootMove = normalizeMove(fact.referenceLine.rootMove)
     val clearsPath =
       castlingMove.exists(move => clearsCastlingPath(fact.comparison.mover, rootMove, move))
     val candidateAlsoCastles =
-      castlingMove.exists(move => candidateMoves.take(6).contains(move))
+      castlingMove.exists(move =>
+        lineEventMoves(candidateRecords, fact.candidateLine, LineEventKind.Castling)
+          .map(normalizeMove)
+          .contains(move)
+      )
     val lineSupport = castlingMove.toList.flatMap(_ => lineSupportRecords(referenceRecords, fact.referenceLine))
     Option
       .when(
@@ -1273,36 +1277,41 @@ object RelativeAssessmentAssembler:
       neighborhood: ComparisonEvidenceNeighborhood,
       fact: CandidateComparisonFact
   ): Boolean =
-    lineAllowsImmediateReplyCheck(neighborhood, neighborhood.candidateRecords, fact.candidateLine)
+    lineAllowsImmediateReplyCheck(neighborhood.candidateRecords, fact.candidateLine)
 
   private def referenceAllowsImmediateReplyCheck(
       neighborhood: ComparisonEvidenceNeighborhood,
       fact: CandidateComparisonFact
   ): Boolean =
-    lineAllowsImmediateReplyCheck(neighborhood, neighborhood.referenceRecords, fact.referenceLine)
+    lineAllowsImmediateReplyCheck(neighborhood.referenceRecords, fact.referenceLine)
 
   private def lineAllowsImmediateReplyCheck(
-      neighborhood: ComparisonEvidenceNeighborhood,
       records: List[EvidenceRecord],
       line: LineNodeRef
   ): Boolean =
-    val moves = lineMoves(records, line)
-    rootFen(neighborhood)
-      .flatMap(fen => TacticalRelationEvidence.boundedReplay(fen, moves, maxPlies = 2))
-      .flatMap(_.lift(1))
-      .exists(_.after.check.yes)
+    lineHasEventAt(records, line, LineEventKind.Check, plyOffset = 1) ||
+      lineHasEventAt(records, line, LineEventKind.Mate, plyOffset = 1)
 
-  private def rootFen(neighborhood: ComparisonEvidenceNeighborhood): Option[String] =
-    neighborhood.rootContext
-      .headOption
-      .map(_.ref.position.fen)
-
-  private def lineMoves(records: List[EvidenceRecord], line: LineNodeRef): List[String] =
+  private def lineEventMoves(records: List[EvidenceRecord], line: LineNodeRef, kind: LineEventKind): List[String] =
     records.collectFirst {
       case EvidenceRecord(_, payload: LineFactEvidence, _)
           if payload.line == line =>
-        payload.mainlineMoves
+        payload.lineEventMoves(kind)
     }.getOrElse(Nil)
+
+  private def lineHasEventAt(
+      records: List[EvidenceRecord],
+      line: LineNodeRef,
+      kind: LineEventKind,
+      plyOffset: Int
+  ): Boolean =
+    records.exists {
+      case EvidenceRecord(_, payload: LineFactEvidence, _)
+          if payload.line == line =>
+        payload.hasLineEventAt(kind, plyOffset)
+      case _ =>
+        false
+    }
 
   private def hasMateLine(records: List[EvidenceRecord]): Boolean =
     records.exists {

@@ -15,13 +15,13 @@ object PositionCharacterizer:
    * 
    * @param pos     The raw board state.
    * @param features  Board strategic features (e.g. King Safety, Pawn Structure).
-   * @param evalCp    Engine Evaluation (centipawns) from white's perspective.
+   * @param whitePovEvalCp Engine Evaluation (centipawns) from white's perspective.
    * @param material  Material Imbalance info.
    */
   def characterize(
     pos: Position,
     features: List[lila.chessjudgment.model.strategic.PositionalTag],
-    evalCp: Option[Int],
+    whitePovEvalCp: Option[Int],
     material: String
   ): PositionNature =
     val tension = calculateTension(pos)
@@ -33,7 +33,7 @@ object PositionCharacterizer:
     val adjTension = Math.min(1.0, tension + kingSafetyPenalty)
     
     val decisiveWinPercentEdge =
-      evalCp
+      whitePovEvalCp
         .map(cp => (PerspectiveMath.winPercentFromWhiteCp(cp) - 50.0).abs)
         .getOrElse(0.0)
     val isDecided = decisiveWinPercentEdge >= JudgmentThresholds.DECISIVE_EDGE_WP

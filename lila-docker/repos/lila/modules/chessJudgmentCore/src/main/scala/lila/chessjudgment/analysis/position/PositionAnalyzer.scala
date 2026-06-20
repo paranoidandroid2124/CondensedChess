@@ -232,7 +232,7 @@ object PositionAnalyzer:
         PositionCharacterizer.characterize(
           pos = position,
           features = Nil,
-          evalCp = None,
+          whitePovEvalCp = None,
           material = material
         )
 

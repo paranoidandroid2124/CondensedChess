@@ -47,7 +47,7 @@ case class ProbeRequest(
   planScore: Option[Double] = None,
   // Optional baseline line context so the probe can be self-contained
   baselineMove: Option[String] = None,
-  baselineEvalCp: Option[Int] = None,
+  baselineEvalCp: Option[Int] = None, // External probe contract; white POV centipawns.
   baselineMate: Option[Int] = None,
   baselineDepth: Option[Int] = None,
   // Objective-driven probing contract
@@ -78,7 +78,7 @@ case class ProbeResult(
   replyPvs: Option[List[List[String]]] = None,
   // Optional: scored MultiPV reply lines from the probed FEN. These are admissible as graph evidence.
   replyLines: Option[List[VariationLine]] = None,
-  deltaVsBaseline: Int,      // evalCp - baselineEvalCp (same POV). Negative = worse than baseline.
+  deltaVsBaseline: Int,      // Probe white POV eval - baselineEvalCp. Negative = worse than baseline.
   keyMotifs: List[String],   // Legacy client motif codes; not authority for judgment
   // Optional metadata that keeps branch probes self-describing.
   purpose: Option[ProbePurpose] = None,

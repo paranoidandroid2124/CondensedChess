@@ -762,13 +762,10 @@ object CandidateComparisonDiagnostic:
   private def hasCastlingLine(parentRecords: List[EvidenceRecord]): Boolean =
     parentRecords.exists {
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.mainlineMoves.exists(castlingMove)
+        payload.lineEventKinds.contains(LineEventKind.Castling)
       case _ =>
         false
     }
-
-  private def castlingMove(move: String): Boolean =
-    move == "e1g1" || move == "e1c1" || move == "e8g8" || move == "e8c8"
 
   private def tacticalSupportKinds(
       kind: RelativeCauseKind,

@@ -1,5 +1,9 @@
 package lila.chessjudgment.analysis.line
 
+import chess.{ Color, King, Position }
+import chess.format.Fen
+import chess.variant.Standard
+
 import lila.chessjudgment.model.judgment.*
 
 object LineFactNormalizer:
@@ -35,8 +39,8 @@ object LineFactNormalizer:
         material = materialSummary
       )(
         replay = replaySteps(facts),
-        events = lineEvents(forcedTheme, materialSummary),
-        consequences = lineConsequences(forcedTheme, materialSummary)
+        events = lineEvents(facts, forcedTheme, materialSummary),
+        consequences = lineConsequences(facts, forcedTheme, materialSummary)
       ),
       parents = parents
     )
@@ -57,9 +61,50 @@ object LineFactNormalizer:
     )
 
   private def lineEvents(
+      facts: PrincipalVariationEvidence.LineFacts,
       forcedTheme: Option[ForcedLineThemeEvidence],
       materialSummary: Option[LineMaterialSummary]
   ): List[LineMoveEvent] =
+    val replayEvents =
+      facts.line.moves.zipWithIndex.flatMap { case (move, index) =>
+        val normalized = PrincipalVariationEvidence.normalizeUci(move.uci)
+        val stateEvents =
+          positionAfter(move.fenAfter).toList.flatMap { position =>
+            List(
+              Option.when(position.checkMate)(
+                LineMoveEvent(
+                  kind = LineEventKind.Mate,
+                  moveUci = normalized,
+                  plyOffset = index,
+                  side = Some(!position.color),
+                  pieceRole = Some(EvidencePieceRole(King.name)),
+                  square = position.board.kingPosOf(position.color).map(square => EvidenceSquare(square.key))
+                )
+              ),
+              Option.when(position.check.yes && !position.checkMate)(
+                LineMoveEvent(
+                  kind = LineEventKind.Check,
+                  moveUci = normalized,
+                  plyOffset = index,
+                  side = Some(!position.color),
+                  pieceRole = Some(EvidencePieceRole(King.name)),
+                  square = position.board.kingPosOf(position.color).map(square => EvidenceSquare(square.key))
+                )
+              ),
+              Option.when(position.staleMate)(
+                LineMoveEvent(
+                  kind = LineEventKind.Stalemate,
+                  moveUci = normalized,
+                  plyOffset = index,
+                  side = Some(!position.color),
+                  pieceRole = Some(EvidencePieceRole(King.name)),
+                  square = position.board.kingPosOf(position.color).map(square => EvidenceSquare(square.key))
+                )
+              )
+            ).flatten
+          }
+        castlingEvent(normalized, index).toList ++ stateEvents
+      }
     val forcedEvents =
       forcedTheme.toList.flatMap(theme =>
         theme.lineMoves.headOption.map(move =>
@@ -94,12 +139,33 @@ object LineFactNormalizer:
           ).toList
         captureEvents ++ promotionEvents
       }
-    (forcedEvents ++ materialEvents).distinct
+    (replayEvents ++ forcedEvents ++ materialEvents).distinct
 
   private def lineConsequences(
+      facts: PrincipalVariationEvidence.LineFacts,
       forcedTheme: Option[ForcedLineThemeEvidence],
       materialSummary: Option[LineMaterialSummary]
   ): List[LineConsequence] =
+    val outcome =
+      facts.line.moves.zipWithIndex.flatMap { case (move, index) =>
+        val normalized = PrincipalVariationEvidence.normalizeUci(move.uci)
+        positionAfter(move.fenAfter).toList.flatMap { position =>
+          val prefix = facts.line.moves.take(index + 1).map(_.uci)
+          List(
+            Option.when(position.checkMate)(
+              LineConsequence(LineConsequenceKind.Mate, prefix, proofSignal = true, eventMove = Some(normalized))
+            ),
+            Option.when(position.staleMate)(
+              LineConsequence(
+                LineConsequenceKind.DrawResource,
+                prefix,
+                proofSignal = true,
+                eventMove = Some(normalized)
+              )
+            )
+          ).flatten
+        }
+      }
     val forced =
       forcedTheme.toList.map(theme =>
         LineConsequence(
@@ -142,4 +208,28 @@ object LineFactNormalizer:
           )
         ).flatten
       }
-    (forced ++ material).distinct
+    (outcome ++ forced ++ material).distinct
+
+  private def castlingEvent(moveUci: String, plyOffset: Int): Option[LineMoveEvent] =
+    castlingSide(moveUci).map(side =>
+      LineMoveEvent(
+        kind = LineEventKind.Castling,
+        moveUci = moveUci,
+        plyOffset = plyOffset,
+        side = Some(side),
+        pieceRole = Some(EvidencePieceRole(King.name)),
+        square = destinationSquare(moveUci)
+      )
+    )
+
+  private def castlingSide(moveUci: String): Option[Color] =
+    moveUci match
+      case "e1g1" | "e1c1" => Some(Color.White)
+      case "e8g8" | "e8c8" => Some(Color.Black)
+      case _               => None
+
+  private def destinationSquare(moveUci: String): Option[EvidenceSquare] =
+    Option.when(moveUci.length >= 4)(EvidenceSquare(moveUci.slice(2, 4)))
+
+  private def positionAfter(fen: String): Option[Position] =
+    Fen.read(Standard, Fen.Full(fen))

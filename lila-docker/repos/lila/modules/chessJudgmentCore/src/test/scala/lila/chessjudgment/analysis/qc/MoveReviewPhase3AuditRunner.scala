@@ -1233,7 +1233,7 @@ object MoveReviewPhase3AuditRunner:
       "trustedPlayedLineInput" -> (fullyLegalPlayedLineCount > 0),
       "missingPlayedLineEval" -> (!rootMoves.contains(playedMove) || fullyLegalPlayedLineCount == 0),
       "currentEvalSource" -> raw.currentEvalCp.map(_ => "inputCurrentEvalCp").orElse(
-        raw.variations.headOption.map(_ => "firstVariationScoreCp")
+        Option.when(rootMoves.nonEmpty)("normalizedReferenceScoreCp")
       ).getOrElse("missing"),
       "fenPly" -> fenPly,
       "inputPly" -> raw.ply,

@@ -360,9 +360,7 @@ object ClaimSupportCluster:
       case PlanTransitionEvidence(transition) =>
         transition.primaryPlanId.map(plan => s"plan-transition:$plan").toList
       case payload: LineFactEvidence =>
-        payload.mainlineMoves
-          .filter(castlingMove)
-          .map(move => s"line:castling:$move") ++
+        Option.when(payload.lineEventKinds.contains(LineEventKind.Castling))("line:castling").toList ++
           payload.consequenceProfile.proofSignalKinds.map(kind => s"line-consequence:$kind")
       case payload @ BoardFactEvidence(_, _) =>
         payload.proofSignalAnchors.map(boardAnchorSemantic)
@@ -380,9 +378,6 @@ object ClaimSupportCluster:
         ).flatten
       case _ =>
         Nil
-
-  private def castlingMove(move: String): Boolean =
-    move == "e1g1" || move == "e1c1" || move == "e8g8" || move == "e8c8"
 
   private def boardAnchorSemantic(anchor: BoardAnchor): String =
     val signal = if anchor.proofSignal then "proof" else "support"

@@ -33,7 +33,7 @@ final case class RawMoveReviewInput(
     fen: String,
     playedMoveUci: String,
     variations: List[VariationLine],
-    currentEvalCp: Option[Int] = None,
+    currentEvalCp: Option[Int] = None, // External input contract; white POV centipawns.
     ply: Option[Int] = None,
     openingContext: Option[RawOpeningContext] = None,
     movePrefixUci: List[String] = Nil,
@@ -53,7 +53,6 @@ final case class NormalizedThreatBranch(
     probedMoveUci: String,
     branchFen: String,
     branchPly: Int,
-    sideToMove: Option[Color],
     purpose: ProbePurpose,
     lines: List[NormalizedCandidateLine]
 )
@@ -243,7 +242,6 @@ object MoveReviewInputNormalizer:
               probedMoveUci = seed.probedMoveUci,
               branchFen = seed.branchFen,
               branchPly = plyFromFen(seed.branchFen),
-              sideToMove = side,
               purpose = seed.purpose,
               lines = branchLines
             )

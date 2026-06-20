@@ -92,6 +92,23 @@ object Fact {
           relatedSquares = targetSquares,
           tacticalHintSquares = targetSquares
         )
+      case XRay(_, attacker, _, blocker, _, target, _, _) =>
+        val relationSquares = List(attacker, blocker, target)
+        SquareFocus(
+          subjectSquares = List(attacker),
+          targetSquares = List(target),
+          attackerSquares = List(attacker),
+          relatedSquares = relationSquares,
+          tacticalHintSquares = relationSquares
+        )
+      case Battery(_, front, _, back, _, _, _) =>
+        val relationSquares = List(front, back)
+        SquareFocus(
+          subjectSquares = relationSquares,
+          attackerSquares = relationSquares,
+          relatedSquares = relationSquares,
+          tacticalHintSquares = relationSquares
+        )
       case WeakSquare(square, _, _, _) =>
         SquareFocus(
           subjectSquares = List(square),
@@ -136,6 +153,11 @@ object Fact {
     case NoPawnDefense
     case StructuralHole
     case Unknown
+
+  enum RayAxis:
+    case File
+    case Rank
+    case Diagonal
 
   // --- Tactical Facts ---
 
@@ -201,6 +223,31 @@ object Fact {
       scope: FactScope
   ) extends Fact {
     def participants = attacker :: targets.map(_._1)
+  }
+
+  case class XRay(
+      attackerColor: Color,
+      attacker: Square,
+      attackerRole: Role,
+      blocker: Square,
+      blockerRole: Role,
+      target: Square,
+      targetRole: Role,
+      scope: FactScope
+  ) extends Fact {
+    def participants = List(attacker, blocker, target)
+  }
+
+  case class Battery(
+      attackerColor: Color,
+      front: Square,
+      frontRole: Role,
+      back: Square,
+      backRole: Role,
+      axis: RayAxis,
+      scope: FactScope
+  ) extends Fact {
+    def participants = List(front, back)
   }
 
   // --- Structural / Strategic Facts ---

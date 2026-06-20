@@ -249,7 +249,7 @@ object EvidenceFactAssembler:
   ): List[EvidenceRecord] =
     val beforeRecords = context.position(PositionNodeRole.Before).toList.flatMap { node =>
       node.assessment.toList.flatMap { assessment =>
-        node.ref.sideToMove.orElse(input.sideToMove).toList.map { sideUnderPressure =>
+        node.ref.sideToMove.toList.map { sideUnderPressure =>
           val threats =
             ThreatPressureAssessor.analyze(
               fen = input.beforeFen,
@@ -280,7 +280,7 @@ object EvidenceFactAssembler:
             position.role == PositionNodeRole.AfterThreat && position.ref.fen == branch.branchFen
           ).toList
           assessment <- node.assessment.toList
-          sideUnderPressure <- node.ref.sideToMove.orElse(branch.sideToMove).toList
+          sideUnderPressure <- node.ref.sideToMove.toList
         yield
           val threats =
             ThreatPressureAssessor.analyze(

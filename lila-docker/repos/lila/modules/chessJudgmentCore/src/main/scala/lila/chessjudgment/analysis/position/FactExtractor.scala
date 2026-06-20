@@ -269,6 +269,17 @@ object FactExtractor {
           Option.when(verifiedTargets.nonEmpty)(Fact.Fork(m.color, m.square, attackerRole, verifiedTargets, scope))
         }
 
+      case m: Motif.XRay =>
+        xrayGeometry(board, m.color, m.piece, m.target, m.square).map { case (attacker, blocker, blockerRole) =>
+          Fact.XRay(m.color, attacker, m.piece, blocker, blockerRole, m.square, m.target, scope)
+        }
+
+      case m: Motif.Battery =>
+        for
+          front <- m.frontSq
+          back <- m.backSq
+        yield Fact.Battery(m.color, front, m.front, back, m.back, batteryAxis(m.axis), scope)
+
       case m: Motif.Outpost =>
         Some(Fact.Outpost(m.square, m.piece, scope))
 
@@ -324,5 +335,44 @@ object FactExtractor {
   private def roleForScope(board: Board, square: Square, motifRole: Role, scope: FactScope): Option[Role] =
     if strictNow(scope) then board.roleAt(square)
     else board.roleAt(square).orElse(Some(motifRole))
+
+  private def xrayGeometry(
+      board: Board,
+      attackerColor: Color,
+      attackerRole: Role,
+      targetRole: Role,
+      target: Square
+  ): Option[(Square, Square, Role)] =
+    board.pieceAt(target).filter(piece => piece.color != attackerColor && piece.role == targetRole).flatMap { _ =>
+      board.byPiece(attackerColor, attackerRole).squares.toList.flatMap { attacker =>
+        rayStep(attacker, target).toList.flatMap { step =>
+          val blockers = squaresBetween(attacker, target, step).flatMap(square => board.roleAt(square).map(square -> _))
+          blockers match
+            case List((blocker, blockerRole)) => Some((attacker, blocker, blockerRole))
+            case _                            => None
+        }
+      }.headOption
+    }
+
+  private def rayStep(from: Square, to: Square): Option[(Int, Int)] =
+    val fileDiff = to.file.value - from.file.value
+    val rankDiff = to.rank.value - from.rank.value
+    Option.when(fileDiff == 0 || rankDiff == 0 || fileDiff.abs == rankDiff.abs) {
+      (Integer.signum(fileDiff), Integer.signum(rankDiff))
+    }.filter(_ != (0, 0))
+
+  private def squaresBetween(from: Square, to: Square, step: (Int, Int)): List[Square] =
+    def loop(file: Int, rank: Int, acc: List[Square]): List[Square] =
+      Square.at(file, rank) match
+        case Some(square) if square == to => acc.reverse
+        case Some(square)                 => loop(file + step._1, rank + step._2, square :: acc)
+        case None                         => acc.reverse
+    loop(from.file.value + step._1, from.rank.value + step._2, Nil)
+
+  private def batteryAxis(axis: Motif.BatteryAxis): Fact.RayAxis =
+    axis match
+      case Motif.BatteryAxis.File     => Fact.RayAxis.File
+      case Motif.BatteryAxis.Rank     => Fact.RayAxis.Rank
+      case Motif.BatteryAxis.Diagonal => Fact.RayAxis.Diagonal
 
 }
