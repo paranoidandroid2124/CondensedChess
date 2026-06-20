@@ -206,9 +206,10 @@ object EvidenceFactAssembler:
     }
 
   private def relationTargetHintsFromBoardFacts(context: JudgmentAssemblyContext): List[String] =
-    context.position(PositionNodeRole.Before).toList.flatMap { node =>
-      node.facts.flatMap(_.squareFocus.tacticalHintSquares.map(_.key))
-    }.distinct
+    context.evidenceGraph.records.collect {
+      case EvidenceRecord(_, payload: BoardFactEvidence, _) =>
+        payload.targetHintSquares.map(_.key)
+    }.flatten.distinct
 
   private def pawnStructureRecords(
       context: JudgmentAssemblyContext,

@@ -124,6 +124,18 @@ final case class BoardFactEvidence(
     attackDefense.nonEmpty
   def vulnerableAttackDefense: List[BoardAttackDefenseEntry] =
     attackDefense.filter(entry => entry.isLoose || entry.isUnderdefended)
+  def targetHintSquares: List[EvidenceSquare] =
+    val anchorSquares =
+      proofSignalAnchors.flatMap(anchor =>
+        anchor.detail.toList.flatMap(detail =>
+          detail.targetSquare.toList ++
+            detail.subjectSquare.toList ++
+            detail.relatedSquares
+        )
+      )
+    val materialSquares =
+      vulnerableAttackDefense.map(_.square)
+    (anchorSquares ++ materialSquares).distinct
 
 object BoardFactEvidence:
   def apply(facts: List[Fact], features: Option[PositionFeatures]): BoardFactEvidence =
