@@ -39,7 +39,7 @@ object LineFactNormalizer:
         material = materialSummary
       )(
         replay = replaySteps(position.fen, facts),
-        events = lineEvents(facts, forcedTheme, materialSummary),
+        events = lineEvents(lineRef, facts, forcedTheme, materialSummary),
         consequences = lineConsequences(facts, forcedTheme, materialSummary)
       ),
       parents = parents
@@ -62,6 +62,7 @@ object LineFactNormalizer:
     }._2
 
   private def lineEvents(
+      lineRef: LineNodeRef,
       facts: PrincipalVariationEvidence.LineFacts,
       forcedTheme: Option[ForcedLineThemeEvidence],
       materialSummary: Option[LineMaterialSummary]
@@ -129,6 +130,16 @@ object LineFactNormalizer:
           }
         castlingEvent(normalized, index).toList ++ stateEvents
       }
+    val roleEvents =
+      Option
+        .when(lineRef.role == LineNodeRole.Threat)(
+          LineMoveEvent(
+            kind = LineEventKind.Threat,
+            moveUci = PrincipalVariationEvidence.normalizeUci(facts.first.uci),
+            plyOffset = 0
+          )
+        )
+        .toList
     val forcedEvents =
       forcedTheme.toList.flatMap(theme =>
         theme.lineMoves.headOption.toList.flatMap(move =>
@@ -190,7 +201,7 @@ object LineFactNormalizer:
           ).toList
         captureEvents ++ promotionEvents
       }
-    (replayEvents ++ forcedEvents ++ materialEvents).distinct
+    (replayEvents ++ roleEvents ++ forcedEvents ++ materialEvents).distinct
 
   private def lineConsequences(
       facts: PrincipalVariationEvidence.LineFacts,
