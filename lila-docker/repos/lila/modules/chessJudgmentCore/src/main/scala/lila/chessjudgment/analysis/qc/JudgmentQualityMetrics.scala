@@ -2677,7 +2677,7 @@ object JudgmentLayerGapProfile:
             JudgmentGraphSlot.BoardAnchorFact,
             JudgmentGraphOwner.PositionFactNormalizer,
             hasBoardAnchor(packet),
-            boardAnchorApplicable(packet)
+            hasEvidenceLayer(packet, EvidenceLayer.Board)
           ),
           globalEvidenceLayerSlot(
             packet,
@@ -2726,19 +2726,19 @@ object JudgmentLayerGapProfile:
             JudgmentGraphSlot.LineReplayFact,
             JudgmentGraphOwner.LineFactNormalizer,
             hasLineReplay(packet),
-            lineFactApplicable(packet)
+            hasEvidenceLayer(packet, EvidenceLayer.Line)
           ),
           slot(
             JudgmentGraphSlot.LineEventFact,
             JudgmentGraphOwner.LineFactNormalizer,
             hasLineEvent(packet),
-            lineEventApplicable(packet)
+            hasEvidenceLayer(packet, EvidenceLayer.Line)
           ),
           slot(
             JudgmentGraphSlot.LineConsequenceFact,
             JudgmentGraphOwner.LineFactNormalizer,
             hasLineConsequence(packet),
-            lineConsequenceApplicable(packet)
+            hasEvidenceLayer(packet, EvidenceLayer.Line)
           ),
           globalEvidenceLayerSlot(packet, JudgmentGraphSlot.EvalFact, JudgmentGraphOwner.EvalFactNormalizer, EvidenceLayer.Eval),
           slot(
@@ -2929,22 +2929,13 @@ object JudgmentLayerGapProfile:
   ): JudgmentGraphSlotStatus =
     slot(graphSlot, owner, packet.evidenceGraph.records.exists(_.ref.layer == evidenceLayer), applicable)
 
+  private def hasEvidenceLayer(packet: EvidenceBackedJudgmentPacket, evidenceLayer: EvidenceLayer): Boolean =
+    packet.evidenceGraph.records.exists(_.ref.layer == evidenceLayer)
+
   private def hasBoardAnchor(packet: EvidenceBackedJudgmentPacket): Boolean =
     packet.evidenceGraph.records.exists {
       case EvidenceRecord(_, payload: BoardFactEvidence, _) => payload.hasBoardAnchors
       case _                                                => false
-    }
-
-  private def boardAnchorApplicable(packet: EvidenceBackedJudgmentPacket): Boolean =
-    packet.evidenceGraph.records.exists {
-      case EvidenceRecord(_, payload: BoardFactEvidence, _) => payload.hasBoardProfile
-      case _                                                => false
-    }
-
-  private def lineFactApplicable(packet: EvidenceBackedJudgmentPacket): Boolean =
-    packet.evidenceGraph.records.exists {
-      case EvidenceRecord(_, _: LineFactEvidence, _) => true
-      case _                                         => false
     }
 
   private def hasLineReplay(packet: EvidenceBackedJudgmentPacket): Boolean =
@@ -2959,29 +2950,10 @@ object JudgmentLayerGapProfile:
       case _                                               => false
     }
 
-  private def lineEventApplicable(packet: EvidenceBackedJudgmentPacket): Boolean =
-    packet.evidenceGraph.records.exists {
-      case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.hasForcedTheme ||
-          payload.hasMaterialOutcomeSignals
-      case _ =>
-        false
-    }
-
   private def hasLineConsequence(packet: EvidenceBackedJudgmentPacket): Boolean =
     packet.evidenceGraph.records.exists {
       case EvidenceRecord(_, payload: LineFactEvidence, _) => payload.hasLineConsequences
       case _                                               => false
-    }
-
-  private def lineConsequenceApplicable(packet: EvidenceBackedJudgmentPacket): Boolean =
-    packet.evidenceGraph.records.exists {
-      case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.hasForcedTheme ||
-          payload.hasConcreteLineConsequence ||
-          payload.hasMaterialOutcomeSignals
-      case _ =>
-        false
     }
 
   private def hasRelativeCauseProof(packet: EvidenceBackedJudgmentPacket): Boolean =
