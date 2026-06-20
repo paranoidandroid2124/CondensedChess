@@ -8,7 +8,16 @@ case class EvidenceRef(
     line: Option[LineNodeRef],
     scope: EvidenceScope,
     confidence: EvidenceConfidence
-)
+):
+  def lineRootMoveMatches(moveUci: String): Boolean =
+    line.exists(lineRef => EvidenceRef.sameMove(lineRef.rootMove, moveUci))
+
+object EvidenceRef:
+  def sameMove(left: String, right: String): Boolean =
+    normalizeMove(left) == normalizeMove(right)
+
+  def normalizeMove(raw: String): String =
+    Option(raw).getOrElse("").trim.toLowerCase
 
 enum EvidenceProducer:
   case BoardFactProducer

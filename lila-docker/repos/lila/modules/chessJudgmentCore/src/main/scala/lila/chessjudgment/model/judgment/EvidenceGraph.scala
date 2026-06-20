@@ -497,7 +497,13 @@ final case class FeatureAnchor(
     signal: FeatureAnchorSignal,
     sourceLayer: EvidenceLayer,
     strength: Double
-)
+):
+  def isBoardObservation: Boolean =
+    sourceLayer == EvidenceLayer.Board
+  def canCorroborateOpeningPrior: Boolean =
+    !isBoardObservation
+  def hasPositiveStrength: Boolean =
+    strength > 0.0
 
 enum FeatureApplicability:
   case OpeningRelevant

@@ -298,7 +298,7 @@ object ClaimTruthPolicy:
     val proofSignalThemes =
       records.collect {
         case EvidenceRecord(_, FeatureAnchorEvidence(anchor), _)
-            if anchor.strength > 0.0 && anchor.sourceLayer != EvidenceLayer.Board =>
+            if anchor.hasPositiveStrength && anchor.canCorroborateOpeningPrior =>
           anchor.theme
       }.toSet
     assessments.exists(assessment =>

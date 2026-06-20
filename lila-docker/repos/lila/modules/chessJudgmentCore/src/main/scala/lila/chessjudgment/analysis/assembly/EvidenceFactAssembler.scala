@@ -622,7 +622,7 @@ object EvidenceFactAssembler:
           position = node.ref,
           line = None,
           scope = EvidenceScope.BeforePosition,
-          confidence = if anchor.sourceLayer == EvidenceLayer.Board then EvidenceConfidence.BoardDerived else EvidenceConfidence.Mixed,
+          confidence = if anchor.isBoardObservation then EvidenceConfidence.BoardDerived else EvidenceConfidence.Mixed,
           parents = parents.distinctBy(_.id)
         )
       }
@@ -719,7 +719,7 @@ object EvidenceFactAssembler:
     }
 
   private def proofSignalOpeningAnchor(anchor: FeatureAnchor): Boolean =
-    anchor.sourceLayer != EvidenceLayer.Board
+    anchor.canCorroborateOpeningPrior
 
   private def featureApplicability(
       input: NormalizedMoveReviewInput,

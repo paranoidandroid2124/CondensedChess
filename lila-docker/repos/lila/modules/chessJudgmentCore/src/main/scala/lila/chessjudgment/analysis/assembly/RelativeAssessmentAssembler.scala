@@ -1142,7 +1142,7 @@ object RelativeAssessmentAssembler:
       case EvidenceRecord(_, payload: PawnStructureFactEvidence, _) =>
         ClaimTruthPolicy.pawnStructureCanAnchorPlan(payload)
       case EvidenceRecord(_, FeatureAnchorEvidence(anchor), _) =>
-        anchor.signal == FeatureAnchorSignal.CompensationObserved && anchor.strength > 0.0
+        anchor.signal == FeatureAnchorSignal.CompensationObserved && anchor.hasPositiveStrength
       case _ =>
         false
     }
@@ -1177,7 +1177,7 @@ object RelativeAssessmentAssembler:
 
   private def kingStepResourceRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
     records.filter {
-      case EvidenceRecord(ref, MoveMotifEvidence(moveUci, motifs), _) if rootMoveBound(ref, moveUci) =>
+      case EvidenceRecord(ref, MoveMotifEvidence(moveUci, motifs), _) if ref.lineRootMoveMatches(moveUci) =>
         motifs.exists {
           case Motif.KingStep(stepType, _, _, move) if motifMoveBound(move, moveUci) =>
             stepType != Motif.KingStepType.Activation
@@ -1190,7 +1190,7 @@ object RelativeAssessmentAssembler:
 
   private def castlingResourceRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
     records.filter {
-      case EvidenceRecord(ref, MoveMotifEvidence(moveUci, motifs), _) if rootMoveBound(ref, moveUci) =>
+      case EvidenceRecord(ref, MoveMotifEvidence(moveUci, motifs), _) if ref.lineRootMoveMatches(moveUci) =>
         motifs.exists {
           case Motif.Castling(_, _, _, move) if motifMoveBound(move, moveUci) => true
           case _                                                             => false
@@ -1201,7 +1201,7 @@ object RelativeAssessmentAssembler:
 
   private def preventivePawnResourceRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
     records.filter {
-      case EvidenceRecord(ref, MoveMotifEvidence(moveUci, motifs), _) if rootMoveBound(ref, moveUci) =>
+      case EvidenceRecord(ref, MoveMotifEvidence(moveUci, motifs), _) if ref.lineRootMoveMatches(moveUci) =>
         val hasFlankPawnMove = motifs.exists {
           case Motif.PawnAdvance(file, _, _, color, _, move) if motifMoveBound(move, moveUci) =>
             kingFlankPawnAdvance(records, file, color)
@@ -1219,7 +1219,7 @@ object RelativeAssessmentAssembler:
 
   private def kingHomeStepConcessionRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
     records.filter {
-      case EvidenceRecord(ref, MoveMotifEvidence(moveUci, motifs), _) if rootMoveBound(ref, moveUci) =>
+      case EvidenceRecord(ref, MoveMotifEvidence(moveUci, motifs), _) if ref.lineRootMoveMatches(moveUci) =>
         motifs.exists {
           case Motif.KingStep(_, color, _, move) if motifMoveBound(move, moveUci) =>
             kingHomeStep(moveUci, color) && hasCastlingRight(records, color)
@@ -1407,9 +1407,6 @@ object RelativeAssessmentAssembler:
   private def colorCastlingRight(rights: String, color: Color): Boolean =
     if color.white then rights.exists(ch => ch == 'K' || ch == 'Q')
     else rights.exists(ch => ch == 'k' || ch == 'q')
-
-  private def rootMoveBound(ref: EvidenceRef, moveUci: String): Boolean =
-    ref.line.exists(line => normalizeMove(line.rootMove) == normalizeMove(moveUci))
 
   private def motifMoveBound(move: Option[String], moveUci: String): Boolean =
     move.exists(value => normalizeMove(value) == normalizeMove(moveUci))
