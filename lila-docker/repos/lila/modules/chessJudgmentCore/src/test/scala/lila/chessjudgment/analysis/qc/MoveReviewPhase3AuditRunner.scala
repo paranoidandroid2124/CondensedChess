@@ -1080,12 +1080,10 @@ object MoveReviewPhase3AuditRunner:
           evidenceCandidates(result, Set(EvidenceLayer.RelativeAssessment, EvidenceLayer.CandidateComparison)) ++
             ideaCandidates(result, ChessIdeaFamily.values.toSet)
         case JudgmentGraphSlot.ClaimSupportCluster =>
-          claimCandidates(result, Set(ClaimFamily.Strategic, ClaimFamily.Plan, ClaimFamily.PawnStructure, ClaimFamily.Opening))
+          claimCandidates(result, _.family.isLongTerm)
         case JudgmentGraphSlot.ClaimEventCluster =>
-          claimCandidates(
-            result,
-            Set(ClaimFamily.Tactical, ClaimFamily.Defensive, ClaimFamily.Conversion, ClaimFamily.Material, ClaimFamily.Evaluation)
-          ) ++ evidenceCandidates(result, Set(EvidenceLayer.RelativeCause, EvidenceLayer.MoveVerdictCertification))
+          claimCandidates(result, _.family.isEvent) ++
+            evidenceCandidates(result, Set(EvidenceLayer.RelativeCause, EvidenceLayer.MoveVerdictCertification))
         case JudgmentGraphSlot.EvidenceLossDiagnostics =>
           result.quality.evidenceLoss.take(20).map(loss =>
             Json.obj(
@@ -1134,10 +1132,10 @@ object MoveReviewPhase3AuditRunner:
 
   private def claimCandidates(
       result: MoveReviewJudgmentResult,
-      families: Set[ClaimFamily]
+      keep: ClaimSeed => Boolean
   ): List[JsObject] =
     result.packet.claims
-      .filter(claim => families.contains(claim.family))
+      .filter(keep)
       .map(claim =>
         Json.obj(
           "kind" -> "Claim",
@@ -1169,15 +1167,9 @@ object MoveReviewPhase3AuditRunner:
       )
 
   private def tacticalCause(kind: RelativeCauseKind): Boolean =
-    kind match
-      case RelativeCauseKind.MissedTacticalResource | RelativeCauseKind.TacticalRefutationOfPlayed |
-          RelativeCauseKind.CandidateTacticalLiability |
-          RelativeCauseKind.WrongRecapturer | RelativeCauseKind.RecaptureRecoveryWindow |
-          RelativeCauseKind.WrongMoveOrder | RelativeCauseKind.TempoLoss | RelativeCauseKind.KingForcing |
-          RelativeCauseKind.MaterialSwing | RelativeCauseKind.SacrificeCompensation =>
-        true
-      case _ =>
-        false
+    ClaimEventCluster.kindForCause(kind).exists(eventKind =>
+      eventKind == ClaimEventClusterKind.TacticalEvent || eventKind == ClaimEventClusterKind.MaterialEvent
+    )
 
   private def inputDiagnostics(raw: RawMoveReviewInput): JsObject =
     val playedMove = MoveReviewInputNormalizer.normalizeUci(raw.playedMoveUci)

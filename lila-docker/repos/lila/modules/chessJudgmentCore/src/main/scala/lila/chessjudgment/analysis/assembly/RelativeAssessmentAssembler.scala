@@ -83,11 +83,9 @@ object RelativeAssessmentAssembler:
         comparisonRecords.flatMap(record => relativeCauseRecords(context, root, allocator, record))
       val playedMoveSet = Set(JudgmentSubjectBinding.normalizeMove(played.moveUci))
       val playedCauseRecords =
-        causeRecords.collect {
-          case record @ EvidenceRecord(_, RelativeCauseFactEvidence(cause), _)
-              if JudgmentSubjectBinding.relativeCauseBinding(cause, playedMoveSet) == SubjectBindingClass.PrimaryPlayedCause =>
-            record
-        }
+        causeRecords.filter(record =>
+          JudgmentSubjectBinding.primaryPlayed(JudgmentSubjectBinding.recordBinding(record, playedMoveSet))
+        )
       val playedVerdictCauses =
         playedCauseRecords.collect {
           case EvidenceRecord(_, RelativeCauseFactEvidence(cause), _) => cause
@@ -111,7 +109,11 @@ object RelativeAssessmentAssembler:
           position = root,
           scope = EvidenceScope.Counterfactual,
           confidence = primaryConfidence,
-          parents = (comparisonRecords.filter(record => primaryPlayedComparison(record)).map(_.ref) ++
+          parents = (comparisonRecords
+            .filter(record =>
+              JudgmentSubjectBinding.primaryPlayed(JudgmentSubjectBinding.recordBinding(record, playedMoveSet))
+            )
+            .map(_.ref) ++
             playedCauseRecords.map(_.ref) :+ counterfactual.ref).distinctBy(_.id)
         )
       val relativeEvidence =
@@ -148,13 +150,6 @@ object RelativeAssessmentAssembler:
       )
       }
     relativeAssembly.getOrElse(RelativeAssessmentAssembly(input = input, context = context))
-
-  private def primaryPlayedComparison(record: EvidenceRecord): Boolean =
-    record.payload match
-      case CandidateComparisonEvidence(fact) =>
-        fact.kind == CandidateComparisonKind.PlayedVsBest
-      case _ =>
-        false
 
   private def compare(
       mover: Color,
@@ -377,7 +372,7 @@ object RelativeAssessmentAssembler:
   private def relativeCauseProof(records: List[EvidenceRecord]): RelativeCauseProof =
     RelativeCauseProof(
       boardAnchors = records.flatMap {
-        case EvidenceRecord(_, payload: BoardFactEvidence, _) => payload.anchors.map(_.kind)
+        case EvidenceRecord(_, payload: BoardFactEvidence, _) => payload.claimGradeAnchorKinds
         case _                                                => Nil
       }.distinct,
       lineEvents = records.flatMap {
@@ -385,7 +380,7 @@ object RelativeAssessmentAssembler:
         case _                                               => Nil
       }.distinct,
       lineConsequences = records.flatMap {
-        case EvidenceRecord(_, payload: LineFactEvidence, _) => payload.consequences.map(_.kind)
+        case EvidenceRecord(_, payload: LineFactEvidence, _) => payload.claimGradeConsequenceKinds
         case _                                               => Nil
       }.distinct,
       relationKinds = records.collect { case EvidenceRecord(_, RelationFactEvidence(kind, _, _, _, _), _) =>
@@ -612,17 +607,7 @@ object RelativeAssessmentAssembler:
     }
 
   private def shortTermCause(kind: RelativeCauseKind): Boolean =
-    kind match
-      case RelativeCauseKind.MissedTacticalResource | RelativeCauseKind.TacticalRefutationOfPlayed |
-          RelativeCauseKind.CandidateTacticalLiability | RelativeCauseKind.WrongRecapturer |
-          RelativeCauseKind.RecaptureRecoveryWindow | RelativeCauseKind.WrongMoveOrder |
-          RelativeCauseKind.TempoLoss | RelativeCauseKind.KingForcing | RelativeCauseKind.MaterialSwing |
-          RelativeCauseKind.SacrificeCompensation |
-          RelativeCauseKind.OnlyMoveNecessity | RelativeCauseKind.OnlyDefenseNecessity |
-          RelativeCauseKind.DefensiveResource | RelativeCauseKind.ConversionMiss | RelativeCauseKind.ConversionSecured =>
-        true
-      case _ =>
-        false
+    kind != RelativeCauseKind.DrawResource && ClaimEventCluster.kindForCause(kind).nonEmpty
 
   private def relationCauses(
       referenceRecords: List[EvidenceRecord],
@@ -746,7 +731,7 @@ object RelativeAssessmentAssembler:
   private def concreteLineConsequenceRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
     records.filter {
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.consequences.exists(_.claimGrade)
+        payload.hasClaimGradeConsequence
       case EvidenceRecord(_, EvalFactEvidence(_, _, mate, _), _) =>
         mate.nonEmpty
       case EvidenceRecord(_, RelationFactEvidence(_, _, _, lineMoves, _), _) =>
@@ -1090,13 +1075,7 @@ object RelativeAssessmentAssembler:
   private def recaptureRecoveryResourceRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
     records.filter {
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.consequences.exists(consequence =>
-          consequence.claimGrade &&
-            (
-              consequence.kind == LineConsequenceKind.RecaptureSequence ||
-                consequence.kind == LineConsequenceKind.RecoveryWindow
-            )
-        )
+        payload.consequenceProfile.hasRecaptureRecovery
       case _ =>
         false
     }
@@ -1132,9 +1111,7 @@ object RelativeAssessmentAssembler:
   private def sacrificeMaterialRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
     records.filter {
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.consequences.exists(consequence =>
-          consequence.claimGrade && consequence.kind == LineConsequenceKind.Sacrifice
-        )
+        payload.consequenceProfile.hasSacrifice
       case _ =>
         false
     }
@@ -1174,17 +1151,8 @@ object RelativeAssessmentAssembler:
   private def claimGradeMaterialSummaryRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
     records.filter {
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.consequences.exists(consequence =>
-          consequence.claimGrade &&
-            (
-              consequence.kind == LineConsequenceKind.MaterialGain ||
-                consequence.kind == LineConsequenceKind.MaterialLoss ||
-                consequence.kind == LineConsequenceKind.RecaptureSequence ||
-                consequence.kind == LineConsequenceKind.RecoveryWindow ||
-                consequence.kind == LineConsequenceKind.Sacrifice ||
-                consequence.kind == LineConsequenceKind.PromotionRace
-            )
-        )
+        val profile = payload.consequenceProfile
+        profile.hasMaterialResult || profile.hasRecaptureRecovery
       case _ =>
         false
     }
@@ -1293,7 +1261,7 @@ object RelativeAssessmentAssembler:
   private def hasConcreteLineConsequence(records: List[EvidenceRecord]): Boolean =
     records.exists {
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.consequences.exists(_.claimGrade)
+        payload.consequenceProfile.hasConcreteClaimProof
       case EvidenceRecord(_, EvalFactEvidence(_, _, mate, _), _) =>
         mate.nonEmpty
       case EvidenceRecord(_, RelationFactEvidence(_, _, _, lineMoves, _), _) =>
@@ -1332,9 +1300,9 @@ object RelativeAssessmentAssembler:
 
   private def lineMoves(records: List[EvidenceRecord], line: LineNodeRef): List[String] =
     records.collectFirst {
-      case EvidenceRecord(_, LineFactEvidence(payloadLine, firstMove, replyMove, continuationMoves, _, _), _)
-          if payloadLine == line =>
-        firstMove.toList ++ replyMove.toList ++ continuationMoves
+      case EvidenceRecord(_, payload: LineFactEvidence, _)
+          if payload.line == line =>
+        payload.mainlineMoves
     }.getOrElse(Nil)
 
   private def hasMateLine(records: List[EvidenceRecord]): Boolean =
@@ -1506,70 +1474,21 @@ object RelativeAssessmentAssembler:
   ): Boolean =
     typedMaterialConsequenceSwing(referenceRecords, candidateRecords)
 
-  private enum MaterialEventKind:
-    case MoverCapture
-    case OpponentCapture
-    case PromotionGain
-    case PromotionLoss
-    case UnrecoveredPawnGain
-    case UnrecoveredPawnLoss
-    case RecoveryWindow
+  private def materialGainMagnitude(records: List[EvidenceRecord]): LineMaterialOutcomeMagnitude =
+    materialOutcomeProfile(records).gainMagnitude
 
-  private final case class MaterialEventKey(kind: MaterialEventKind, role: Option[EvidencePieceRole] = None)
+  private def materialLossMagnitude(records: List[EvidenceRecord]): LineMaterialOutcomeMagnitude =
+    materialOutcomeProfile(records).lossMagnitude
 
-  private enum MaterialEventMagnitude:
-    case None
-    case Pawn
-    case Piece
-
-  private def materialGainMagnitude(records: List[EvidenceRecord]): MaterialEventMagnitude =
-    val events = materialGainEvents(records)
-    if events.exists(event =>
-        event.kind == MaterialEventKind.MoverCapture ||
-          event.kind == MaterialEventKind.PromotionGain ||
-          event.kind == MaterialEventKind.RecoveryWindow
-      )
-    then MaterialEventMagnitude.Piece
-    else if events.exists(_.kind == MaterialEventKind.UnrecoveredPawnGain) then MaterialEventMagnitude.Pawn
-    else MaterialEventMagnitude.None
-
-  private def materialLossMagnitude(records: List[EvidenceRecord]): MaterialEventMagnitude =
-    val events = materialLossEvents(records)
-    if events.exists(event =>
-        event.kind == MaterialEventKind.OpponentCapture ||
-          event.kind == MaterialEventKind.PromotionLoss
-      )
-    then MaterialEventMagnitude.Piece
-    else if events.exists(_.kind == MaterialEventKind.UnrecoveredPawnLoss) then MaterialEventMagnitude.Pawn
-    else MaterialEventMagnitude.None
-
-  private def materialGainEvents(records: List[EvidenceRecord]): Set[MaterialEventKey] =
-    lineConsequenceMaterialGainEvents(records).toSet
-
-  private def materialLossEvents(records: List[EvidenceRecord]): Set[MaterialEventKey] =
-    lineConsequenceMaterialLossEvents(records).toSet
-
-  private def lineConsequenceMaterialGainEvents(records: List[EvidenceRecord]): List[MaterialEventKey] =
+  private def materialOutcomeProfile(records: List[EvidenceRecord]): LineMaterialOutcomeProfile =
     records.collect { case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-      payload.consequences.collect {
-        case LineConsequence(LineConsequenceKind.MaterialGain, _, true, _) =>
-          MaterialEventKey(MaterialEventKind.MoverCapture)
-        case LineConsequence(LineConsequenceKind.MaterialGain, _, false, _) =>
-          MaterialEventKey(MaterialEventKind.UnrecoveredPawnGain)
-        case LineConsequence(LineConsequenceKind.RecoveryWindow, _, true, _) =>
-          MaterialEventKey(MaterialEventKind.RecoveryWindow)
-      }
-    }.flatten
-
-  private def lineConsequenceMaterialLossEvents(records: List[EvidenceRecord]): List[MaterialEventKey] =
-    records.collect { case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-      payload.consequences.collect {
-        case LineConsequence(LineConsequenceKind.MaterialLoss, _, true, _) =>
-          MaterialEventKey(MaterialEventKind.OpponentCapture)
-        case LineConsequence(LineConsequenceKind.MaterialLoss, _, false, _) =>
-          MaterialEventKey(MaterialEventKind.UnrecoveredPawnLoss)
-      }
-    }.flatten
+      payload.materialOutcomeProfile
+    }.foldLeft(LineMaterialOutcomeProfile.empty) { (merged, profile) =>
+      LineMaterialOutcomeProfile(
+        gainSignals = merged.gainSignals ++ profile.gainSignals,
+        lossSignals = merged.lossSignals ++ profile.lossSignals
+      )
+    }
 
   private def parentsForLine(
       context: JudgmentAssemblyContext,
@@ -1655,15 +1574,8 @@ object RelativeAssessmentAssembler:
   ): Option[MoveTransitionEdge] =
     context.transitions.find(edge =>
       edge.moveUci == line.rootMove &&
-        line.role == lineRoleForTransition(edge.role)
+        line.role == edge.role.lineRole
     )
-
-  private def lineRoleForTransition(role: TransitionEdgeRole): LineNodeRole =
-    role match
-      case TransitionEdgeRole.Played    => LineNodeRole.Played
-      case TransitionEdgeRole.Reference => LineNodeRole.BestReference
-      case TransitionEdgeRole.Alternative => LineNodeRole.Alternative
-      case TransitionEdgeRole.Threat      => LineNodeRole.Threat
 
   private def recordMatchesTransition(record: EvidenceRecord, edge: MoveTransitionEdge): Boolean =
     record.payload match

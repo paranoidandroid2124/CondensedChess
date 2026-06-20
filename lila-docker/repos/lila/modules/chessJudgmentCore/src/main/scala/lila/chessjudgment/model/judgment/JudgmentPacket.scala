@@ -1,5 +1,6 @@
 package lila.chessjudgment.model.judgment
 
+import chess.Color
 import lila.chessjudgment.model.Fact
 import lila.chessjudgment.model.{ ProbeAdmissionDiagnostic, ProbeRequest }
 import lila.chessjudgment.model.structure.StructureId
@@ -14,6 +15,14 @@ enum ClaimFamily:
   case Conversion
   case Material
   case Evaluation
+
+  private[chessjudgment] def isLongTerm: Boolean =
+    this match
+      case Strategic | PawnStructure | Opening | Plan => true
+      case Tactical | Defensive | Conversion | Material | Evaluation => false
+
+  private[chessjudgment] def isEvent: Boolean =
+    !isLongTerm
 
 enum ClaimSalienceDriver:
   case TacticalRelation
@@ -281,14 +290,6 @@ object ClaimSupportCluster:
       semanticAnchor: String
   )
 
-  private val longTermFamilies: Set[ClaimFamily] =
-    Set(
-      ClaimFamily.Strategic,
-      ClaimFamily.PawnStructure,
-      ClaimFamily.Opening,
-      ClaimFamily.Plan
-    )
-
   private val causeBoundLayers: Set[EvidenceLayer] =
     Set(
       EvidenceLayer.Relation,
@@ -300,11 +301,14 @@ object ClaimSupportCluster:
       EvidenceLayer.MoveVerdictCertification
     )
 
+  private[chessjudgment] def causeBoundLayer(layer: EvidenceLayer): Boolean =
+    causeBoundLayers.contains(layer)
+
   private def longTermSupportEligible(claim: ClaimSeed, graph: TypedEvidenceGraph): Boolean =
-    longTermFamilies.contains(claim.family) &&
+    claim.family.isLongTerm &&
       claim.engineComparison.isEmpty &&
       claim.evidence.nonEmpty &&
-      !claim.evidence.exists(ref => causeBoundLayers.contains(ref.layer)) &&
+      !claim.evidence.exists(ref => causeBoundLayer(ref.layer)) &&
       semanticAnchor(claim, graph).nonEmpty
 
   private def clusterKey(claim: ClaimSeed, graph: TypedEvidenceGraph): ClusterKey =
@@ -355,15 +359,13 @@ object ClaimSupportCluster:
         (activePlans.primary :: activePlans.secondary.toList).map(plan => s"plan:${plan.plan.id}")
       case PlanTransitionEvidence(transition) =>
         transition.primaryPlanId.map(plan => s"plan-transition:$plan").toList
-      case payload @ LineFactEvidence(_, firstMove, replyMove, continuationMoves, _, _) =>
-        (firstMove.toList ++ replyMove.toList ++ continuationMoves)
+      case payload: LineFactEvidence =>
+        payload.mainlineMoves
           .filter(castlingMove)
           .map(move => s"line:castling:$move") ++
-          payload.consequences.collect {
-            case consequence if consequence.claimGrade => s"line-consequence:${consequence.kind}"
-          }
+          payload.consequenceProfile.claimGradeKinds.map(kind => s"line-consequence:$kind")
       case payload @ BoardFactEvidence(_, _) =>
-        payload.anchors.map(anchor => s"board-anchor:${anchor.kind}:${anchor.signal}")
+        payload.anchors.map(boardAnchorSemantic)
       case StructuralDeltaEvidence(delta) =>
         List(
           Option.when(delta.createdTargetPressure.nonEmpty)("delta:created-target-pressure"),
@@ -381,6 +383,18 @@ object ClaimSupportCluster:
 
   private def castlingMove(move: String): Boolean =
     move == "e1g1" || move == "e1c1" || move == "e8g8" || move == "e8c8"
+
+  private def boardAnchorSemantic(anchor: BoardAnchor): String =
+    val grade = if anchor.claimGrade then "claim" else "support"
+    val side = if anchor.side.white then "white" else "black"
+    val subjectColor = anchor.detail.flatMap(_.subjectColor).map(color => s":subject-${colorKey(color)}").getOrElse("")
+    val attackerColor = anchor.detail.flatMap(_.attackerColor).map(color => s":attacker-${colorKey(color)}").getOrElse("")
+    val subject = anchor.detail.flatMap(_.subjectSquare).map(square => s":subject-${square.key}").getOrElse("")
+    val target = anchor.detail.flatMap(_.targetSquare).map(square => s":target-${square.key}").getOrElse("")
+    s"board-anchor:$grade:$side:${anchor.kind}:${anchor.signal}$subjectColor$attackerColor$subject$target"
+
+  private def colorKey(color: Color): String =
+    if color.white then "white" else "black"
 
   private def winPercentGapAnchor(gap: Double): String =
     if gap >= 20.0 then "20+"
@@ -583,15 +597,6 @@ object ClaimEventCluster:
       proof: Option[RelativeCauseProof] = None
   )
 
-  private val eventFamilies: Set[ClaimFamily] =
-    Set(
-      ClaimFamily.Tactical,
-      ClaimFamily.Defensive,
-      ClaimFamily.Conversion,
-      ClaimFamily.Material,
-      ClaimFamily.Evaluation
-    )
-
   private val eventEvidenceLayers: Set[EvidenceLayer] =
     Set(
       EvidenceLayer.SinglePosition,
@@ -610,7 +615,7 @@ object ClaimEventCluster:
     )
 
   private def eventClaimEligible(claim: ClaimSeed): Boolean =
-    eventFamilies.contains(claim.family) && claim.evidence.nonEmpty
+    claim.family.isEvent && claim.evidence.nonEmpty
 
   private val eventInteractionEvidenceLayers: Set[EvidenceLayer] =
     Set(
@@ -870,14 +875,9 @@ object ClaimEventCluster:
       memberIds: Set[String],
       claimsById: Map[String, ClaimSeed]
   ): Boolean =
-    val sourceExternalLongTerm = !memberIds.contains(source.id) && isLongTermClaim(source)
-    val targetExternalLongTerm = !memberIds.contains(targetClaimId) && claimsById.get(targetClaimId).exists(isLongTermClaim)
+    val sourceExternalLongTerm = !memberIds.contains(source.id) && source.family.isLongTerm
+    val targetExternalLongTerm = !memberIds.contains(targetClaimId) && claimsById.get(targetClaimId).exists(_.family.isLongTerm)
     sourceExternalLongTerm || targetExternalLongTerm
-
-  private def isLongTermClaim(claim: ClaimSeed): Boolean =
-    claim.family match
-      case ClaimFamily.Strategic | ClaimFamily.PawnStructure | ClaimFamily.Opening | ClaimFamily.Plan => true
-      case _                                                                                         => false
 
   private def supportClustersRelatedTo(
       memberIds: Set[String],

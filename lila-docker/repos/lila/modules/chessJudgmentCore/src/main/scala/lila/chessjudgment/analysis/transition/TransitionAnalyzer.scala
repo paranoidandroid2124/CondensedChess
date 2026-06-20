@@ -1,6 +1,7 @@
 package lila.chessjudgment.analysis.transition
 
 import lila.chessjudgment.model.*
+import lila.chessjudgment.analysis.evaluation.JudgmentThresholds
 import lila.chessjudgment.analysis.plan.PlanInteractionContext
 import lila.chessjudgment.model.strategic.PlanContinuity
 
@@ -96,7 +97,7 @@ object TransitionAnalyzer:
   ): Boolean =
     val winningWindow =
       ctx.positionAssessment.exists(_.simplifyBias.shouldSimplify) &&
-        ctx.evalFor(currPlan.color) >= 80
+        ctx.winPercentAdvantageFor(currPlan.color) >= JudgmentThresholds.CONVERSION_EDGE_WP
     val phaseDrivenEndgame =
       ctx.phaseEnumOpt.contains(lila.chessjudgment.analysis.singlePosition.GamePhaseType.Endgame) &&
         (currPlan.category == PlanCategory.Endgame || currPlan.category == PlanCategory.Transition)

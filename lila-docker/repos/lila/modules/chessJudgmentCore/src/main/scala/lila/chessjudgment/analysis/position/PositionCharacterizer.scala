@@ -1,6 +1,7 @@
 package lila.chessjudgment.analysis.position
 
 import _root_.chess.*
+import lila.chessjudgment.analysis.evaluation.{ JudgmentThresholds, PerspectiveMath }
 import lila.chessjudgment.model.*
 
 /**
@@ -31,11 +32,11 @@ object PositionCharacterizer:
     // Adjusted Tension: Raw attacks + King Danger
     val adjTension = Math.min(1.0, tension + kingSafetyPenalty)
     
-    // Evaluation Logic:
-    // If one side is winning easily (>300cp), it's rarely "Chaos". It's "Technical" or "Consolidation".
-    // We map this to existing types for now (Static/Dynamic).
-    val absCp = evalCp.map(_.abs).getOrElse(0)
-    val isDecided = absCp > 400
+    val decisiveWinPercentEdge =
+      evalCp
+        .map(cp => (PerspectiveMath.winPercentFromWhiteCp(cp) - 50.0).abs)
+        .getOrElse(0.0)
+    val isDecided = decisiveWinPercentEdge >= JudgmentThresholds.DECISIVE_EDGE_WP
     
     val natureType = 
       if (isDecided) 

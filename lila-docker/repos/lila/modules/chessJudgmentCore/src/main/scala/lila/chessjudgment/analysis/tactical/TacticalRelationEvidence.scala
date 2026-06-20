@@ -6,6 +6,7 @@ import _root_.chess.variant.Standard
 
 import lila.chessjudgment.analysis.line.PrincipalVariationEvidence
 import lila.chessjudgment.analysis.evaluation.JudgmentThresholds
+import lila.chessjudgment.analysis.material.MaterialValue
 import lila.chessjudgment.analysis.tactical.TacticalPatternDetectors
 import lila.chessjudgment.analysis.structure.WeaknessTargetProfile
 import lila.chessjudgment.model.ProbeResult
@@ -1622,13 +1623,7 @@ private[chessjudgment] object TacticalRelationEvidence:
           (left == Rook && right == Rook)
 
   private def pieceValue(role: Role): Int =
-    role match
-      case Pawn   => 100
-      case Knight => 320
-      case Bishop => 330
-      case Rook   => 500
-      case Queen  => 900
-      case King   => 10000
+    MaterialValue.tacticalValueCp(role)
 
   private def sameBranchBadPieceLiquidation(
       replay: List[BoundedReplayStep],

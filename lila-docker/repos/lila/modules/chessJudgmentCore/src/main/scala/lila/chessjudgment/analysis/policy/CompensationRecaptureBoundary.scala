@@ -1,7 +1,8 @@
 package lila.chessjudgment.analysis.policy
 
-import chess.{ Bishop, Board, Color, Knight, Pawn, Queen, Rook, Role }
+import chess.{ Board, Color }
 import chess.format.{ Fen, Uci }
+import lila.chessjudgment.analysis.material.MaterialValue
 
 private[chessjudgment] object CompensationRecaptureBoundary:
 
@@ -38,7 +39,7 @@ private[chessjudgment] object CompensationRecaptureBoundary:
                     .orElse(pos.board.roleAt(move.dest))
 
                 capturedRole.exists { role =>
-                  val capturedValue = pieceValueCp(role)
+                  val capturedValue = MaterialValue.materialValueCp(role)
                   val mover = pos.color
                   val beforeDeficit = sideMaterialDeficitCp(pos.board, mover)
                   val afterDeficit = sideMaterialDeficitCp(move.after.board, mover)
@@ -53,23 +54,5 @@ private[chessjudgment] object CompensationRecaptureBoundary:
         .getOrElse(false)
 
   private def sideMaterialDeficitCp(board: Board, side: Color): Int =
-    val diff = materialDiffCp(board)
+    val diff = MaterialValue.materialBalanceCp(board)
     if side.white then math.max(0, -diff) else math.max(0, diff)
-
-  private def materialDiffCp(board: Board): Int =
-    materialCp(board, Color.White) - materialCp(board, Color.Black)
-
-  private def materialCp(board: Board, side: Color): Int =
-    board.byPiece(side, Pawn).count * 100 +
-      board.byPiece(side, Knight).count * 300 +
-      board.byPiece(side, Bishop).count * 300 +
-      board.byPiece(side, Rook).count * 500 +
-      board.byPiece(side, Queen).count * 900
-
-  private def pieceValueCp(role: Role): Int = role match
-    case Pawn   => 100
-    case Knight => 300
-    case Bishop => 300
-    case Rook   => 500
-    case Queen  => 900
-    case _      => 0

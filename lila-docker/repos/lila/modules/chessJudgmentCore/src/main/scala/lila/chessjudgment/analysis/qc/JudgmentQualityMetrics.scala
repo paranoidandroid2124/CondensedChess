@@ -742,9 +742,7 @@ object CandidateComparisonDiagnostic:
 
   private def materialSupportKinds(parentRecords: List[EvidenceRecord]): List[String] =
     parentRecords.collect { case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-      payload.consequences.collect {
-        case consequence if consequence.claimGrade => s"LineConsequence:${consequence.kind}"
-      }
+      payload.consequenceProfile.claimGradeKinds.map(kind => s"LineConsequence:$kind")
     }.flatten
 
   private def strategicSupportKinds(parentRecords: List[EvidenceRecord]): List[String] =
@@ -785,8 +783,8 @@ object CandidateComparisonDiagnostic:
 
   private def hasCastlingLine(parentRecords: List[EvidenceRecord]): Boolean =
     parentRecords.exists {
-      case EvidenceRecord(_, LineFactEvidence(_, firstMove, replyMove, continuationMoves, _, _), _) =>
-        (firstMove.toList ++ replyMove.toList ++ continuationMoves).exists(castlingMove)
+      case EvidenceRecord(_, payload: LineFactEvidence, _) =>
+        payload.mainlineMoves.exists(castlingMove)
       case _ =>
         false
     }
@@ -842,9 +840,7 @@ object CandidateComparisonDiagnostic:
 
   private def tacticalLineSupportKinds(parentRecords: List[EvidenceRecord]): List[String] =
     parentRecords.collect { case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-      payload.consequences.collect {
-        case consequence if consequence.claimGrade => s"LineConsequence:${consequence.kind}"
-      }
+      payload.consequenceProfile.claimGradeKinds.map(kind => s"LineConsequence:$kind")
     }.flatten
 
   private def tacticalEvalSupportKinds(parentRecords: List[EvidenceRecord]): List[String] =
@@ -1042,15 +1038,8 @@ object CandidateComparisonDiagnostic:
   ): Option[MoveTransitionEdge] =
     packet.transitions.find(edge =>
       edge.moveUci == line.rootMove &&
-        line.role == lineRoleForTransition(edge.role)
+        line.role == edge.role.lineRole
     )
-
-  private def lineRoleForTransition(role: TransitionEdgeRole): LineNodeRole =
-    role match
-      case TransitionEdgeRole.Played      => LineNodeRole.Played
-      case TransitionEdgeRole.Reference   => LineNodeRole.BestReference
-      case TransitionEdgeRole.Alternative => LineNodeRole.Alternative
-      case TransitionEdgeRole.Threat      => LineNodeRole.Threat
 
   private def recordMatchesTransition(record: EvidenceRecord, edge: MoveTransitionEdge): Boolean =
     record.payload match
@@ -1480,42 +1469,16 @@ object CandidateComparisonDiagnostic:
     if reasons.nonEmpty then reasons else List(CandidateComparisonFailureReason.UnknownPattern)
 
   private def tacticalCause(kind: RelativeCauseKind): Boolean =
-    kind match
-      case RelativeCauseKind.MissedTacticalResource | RelativeCauseKind.TacticalRefutationOfPlayed |
-          RelativeCauseKind.CandidateTacticalLiability |
-          RelativeCauseKind.WrongRecapturer | RelativeCauseKind.RecaptureRecoveryWindow |
-          RelativeCauseKind.WrongMoveOrder | RelativeCauseKind.TempoLoss | RelativeCauseKind.KingForcing =>
-        true
-      case _ =>
-        false
+    ClaimEventCluster.kindForCause(kind).contains(ClaimEventClusterKind.TacticalEvent)
 
   private def shortTermCause(kind: RelativeCauseKind): Boolean =
-    kind match
-      case RelativeCauseKind.MissedTacticalResource | RelativeCauseKind.TacticalRefutationOfPlayed |
-          RelativeCauseKind.CandidateTacticalLiability | RelativeCauseKind.WrongRecapturer |
-          RelativeCauseKind.RecaptureRecoveryWindow | RelativeCauseKind.WrongMoveOrder |
-          RelativeCauseKind.TempoLoss | RelativeCauseKind.KingForcing | RelativeCauseKind.MaterialSwing |
-          RelativeCauseKind.SacrificeCompensation |
-          RelativeCauseKind.OnlyMoveNecessity | RelativeCauseKind.OnlyDefenseNecessity |
-          RelativeCauseKind.DefensiveResource | RelativeCauseKind.ConversionMiss | RelativeCauseKind.ConversionSecured =>
-        true
-      case _ =>
-        false
+    kind != RelativeCauseKind.DrawResource && ClaimEventCluster.kindForCause(kind).nonEmpty
 
   private def defensiveCause(kind: RelativeCauseKind): Boolean =
-    kind match
-      case RelativeCauseKind.OnlyMoveNecessity | RelativeCauseKind.OnlyDefenseNecessity |
-          RelativeCauseKind.DefensiveResource | RelativeCauseKind.DrawResource =>
-        true
-      case _ =>
-        false
+    ClaimEventCluster.kindForCause(kind).contains(ClaimEventClusterKind.DefensiveEvent)
 
   private def conversionCause(kind: RelativeCauseKind): Boolean =
-    kind match
-      case RelativeCauseKind.ConversionMiss | RelativeCauseKind.ConversionSecured =>
-        true
-      case _ =>
-        false
+    ClaimEventCluster.kindForCause(kind).contains(ClaimEventClusterKind.ConversionEvent)
 
   private def strategicCause(kind: RelativeCauseKind): Boolean =
     kind match
@@ -1693,7 +1656,7 @@ object CandidateComparisonDiagnostic:
   private def hasConcreteLineConsequence(records: List[EvidenceRecord]): Boolean =
     records.exists {
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.consequences.exists(_.claimGrade)
+        payload.consequenceProfile.hasConcreteClaimProof
       case EvidenceRecord(_, EvalFactEvidence(_, _, mate, _), _) =>
         mate.nonEmpty
       case EvidenceRecord(_, RelationFactEvidence(_, _, _, lineMoves, _), _) =>
@@ -2109,70 +2072,21 @@ object CandidateComparisonDiagnostic:
   private def materialBestPromotionGain(records: List[EvidenceRecord]): Int =
     materialSummaries(records).map(_.promotionGainCpForMover).maxOption.getOrElse(0)
 
-  private enum MaterialEventKind:
-    case MoverCapture
-    case OpponentCapture
-    case PromotionGain
-    case PromotionLoss
-    case UnrecoveredPawnGain
-    case UnrecoveredPawnLoss
-    case RecoveryWindow
+  private def materialGainMagnitude(records: List[EvidenceRecord]): LineMaterialOutcomeMagnitude =
+    materialOutcomeProfile(records).gainMagnitude
 
-  private final case class MaterialEventKey(kind: MaterialEventKind, role: Option[EvidencePieceRole] = None)
+  private def materialLossMagnitude(records: List[EvidenceRecord]): LineMaterialOutcomeMagnitude =
+    materialOutcomeProfile(records).lossMagnitude
 
-  private enum MaterialEventMagnitude:
-    case None
-    case Pawn
-    case Piece
-
-  private def materialGainMagnitude(records: List[EvidenceRecord]): MaterialEventMagnitude =
-    val events = materialGainEvents(records)
-    if events.exists(event =>
-        event.kind == MaterialEventKind.MoverCapture ||
-          event.kind == MaterialEventKind.PromotionGain ||
-          event.kind == MaterialEventKind.RecoveryWindow
-      )
-    then MaterialEventMagnitude.Piece
-    else if events.exists(_.kind == MaterialEventKind.UnrecoveredPawnGain) then MaterialEventMagnitude.Pawn
-    else MaterialEventMagnitude.None
-
-  private def materialLossMagnitude(records: List[EvidenceRecord]): MaterialEventMagnitude =
-    val events = materialLossEvents(records)
-    if events.exists(event =>
-        event.kind == MaterialEventKind.OpponentCapture ||
-          event.kind == MaterialEventKind.PromotionLoss
-      )
-    then MaterialEventMagnitude.Piece
-    else if events.exists(_.kind == MaterialEventKind.UnrecoveredPawnLoss) then MaterialEventMagnitude.Pawn
-    else MaterialEventMagnitude.None
-
-  private def materialGainEvents(records: List[EvidenceRecord]): Set[MaterialEventKey] =
-    lineConsequenceMaterialGainEvents(records).toSet
-
-  private def materialLossEvents(records: List[EvidenceRecord]): Set[MaterialEventKey] =
-    lineConsequenceMaterialLossEvents(records).toSet
-
-  private def lineConsequenceMaterialGainEvents(records: List[EvidenceRecord]): List[MaterialEventKey] =
+  private def materialOutcomeProfile(records: List[EvidenceRecord]): LineMaterialOutcomeProfile =
     records.collect { case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-      payload.consequences.collect {
-        case LineConsequence(LineConsequenceKind.MaterialGain, _, true, _) =>
-          MaterialEventKey(MaterialEventKind.MoverCapture)
-        case LineConsequence(LineConsequenceKind.MaterialGain, _, false, _) =>
-          MaterialEventKey(MaterialEventKind.UnrecoveredPawnGain)
-        case LineConsequence(LineConsequenceKind.RecoveryWindow, _, true, _) =>
-          MaterialEventKey(MaterialEventKind.RecoveryWindow)
-      }
-    }.flatten
-
-  private def lineConsequenceMaterialLossEvents(records: List[EvidenceRecord]): List[MaterialEventKey] =
-    records.collect { case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-      payload.consequences.collect {
-        case LineConsequence(LineConsequenceKind.MaterialLoss, _, true, _) =>
-          MaterialEventKey(MaterialEventKind.OpponentCapture)
-        case LineConsequence(LineConsequenceKind.MaterialLoss, _, false, _) =>
-          MaterialEventKey(MaterialEventKind.UnrecoveredPawnLoss)
-      }
-    }.flatten
+      payload.materialOutcomeProfile
+    }.foldLeft(LineMaterialOutcomeProfile.empty) { (merged, profile) =>
+      LineMaterialOutcomeProfile(
+        gainSignals = merged.gainSignals ++ profile.gainSignals,
+        lossSignals = merged.lossSignals ++ profile.lossSignals
+      )
+    }
 
   private def materialSummaries(records: List[EvidenceRecord]): List[LineMaterialSummary] =
     records.collect { case EvidenceRecord(_, LineFactEvidence(_, _, _, _, _, Some(material)), _) =>
@@ -2300,7 +2214,7 @@ object SemanticCoverageMetrics:
     val comparisonDiagnostics = CandidateComparisonDiagnostic.fromPacket(packet)
     val clusteredEventClaimIds = packet.claimEventClusters.flatMap(_.memberClaimIds).toSet
     val unclusteredConcreteClaims =
-      packet.claims.filter(claim => eventClaimFamily(claim.family) && !clusteredEventClaimIds.contains(claim.id))
+      packet.claims.filter(claim => claim.family.isEvent && !clusteredEventClaimIds.contains(claim.id))
     val directEventUnclusteredClaims = unclusteredConcreteClaims.filter(hasDirectEventCause(_, packet.evidenceGraph))
     val unclusteredEventClaims = directEventUnclusteredClaims.filterNot(_.family == ClaimFamily.Evaluation)
     val verdictCarriersWithoutEventCauseOwner = directEventUnclusteredClaims.filter(_.family == ClaimFamily.Evaluation)
@@ -2466,7 +2380,7 @@ object SemanticCoverageMetrics:
 
   private def boardAnchorCount(packet: EvidenceBackedJudgmentPacket): Int =
     packet.evidenceGraph.records.collect { case EvidenceRecord(_, payload: BoardFactEvidence, _) =>
-      payload.anchors.size
+      payload.claimGradeAnchors.size
     }.sum
 
   private def lineReplayCount(packet: EvidenceBackedJudgmentPacket): Int =
@@ -2492,36 +2406,15 @@ object SemanticCoverageMetrics:
         false
     }
 
-  private def eventClaimFamily(family: ClaimFamily): Boolean =
-    family match
-      case ClaimFamily.Tactical | ClaimFamily.Defensive | ClaimFamily.Conversion | ClaimFamily.Material |
-          ClaimFamily.Evaluation =>
-        true
-      case _                                                                                              => false
-
   private def hasDirectEventCause(claim: ClaimSeed, graph: TypedEvidenceGraph): Boolean =
     claim.evidence.flatMap(ref => graph.byId.get(ref.id)).exists {
       case EvidenceRecord(_, RelativeCauseFactEvidence(cause), _) =>
-        eventCauseApplicable(cause.kind)
+        ClaimEventCluster.kindForCause(cause.kind).nonEmpty
       case EvidenceRecord(_, MoveVerdictCertificationEvidence(certification), _) =>
-        certification.causes.exists(cause => eventCauseApplicable(cause.kind))
+        certification.causes.exists(cause => ClaimEventCluster.kindForCause(cause.kind).nonEmpty)
       case _ =>
         false
     }
-
-  private def eventCauseApplicable(kind: RelativeCauseKind): Boolean =
-    kind match
-      case RelativeCauseKind.MissedTacticalResource | RelativeCauseKind.TacticalRefutationOfPlayed |
-          RelativeCauseKind.CandidateTacticalLiability |
-          RelativeCauseKind.WrongRecapturer | RelativeCauseKind.RecaptureRecoveryWindow |
-          RelativeCauseKind.WrongMoveOrder | RelativeCauseKind.TempoLoss | RelativeCauseKind.KingForcing |
-          RelativeCauseKind.MaterialSwing | RelativeCauseKind.SacrificeCompensation |
-          RelativeCauseKind.OnlyMoveNecessity | RelativeCauseKind.OnlyDefenseNecessity |
-          RelativeCauseKind.DefensiveResource | RelativeCauseKind.DrawResource |
-          RelativeCauseKind.ConversionMiss | RelativeCauseKind.ConversionSecured =>
-        true
-      case _ =>
-        false
 
   private def localConcreteClaimDiagnostic(
       packet: EvidenceBackedJudgmentPacket,
@@ -2635,7 +2528,7 @@ object SemanticCoverageMetrics:
     val playedMoves = JudgmentSubjectBinding.packetPlayedMoves(packet)
     packet.evidenceGraph.records.collect {
       case record @ EvidenceRecord(_, CandidateComparisonEvidence(_), _)
-          if JudgmentSubjectBinding.recordBinding(record, playedMoves) == SubjectBindingClass.PrimaryPlayedCause =>
+          if JudgmentSubjectBinding.primaryPlayed(JudgmentSubjectBinding.recordBinding(record, playedMoves)) =>
         record
     }
 
@@ -2827,47 +2720,47 @@ object JudgmentLayerGapProfile:
         ),
         layer(
           JudgmentGraphLayer.PositionEvidence,
-          evidenceSlot(packet, JudgmentGraphSlot.BoardFact, JudgmentGraphOwner.PositionFactNormalizer, EvidenceLayer.Board),
+          globalEvidenceLayerSlot(packet, JudgmentGraphSlot.BoardFact, JudgmentGraphOwner.PositionFactNormalizer, EvidenceLayer.Board),
           slot(
             JudgmentGraphSlot.BoardAnchorFact,
             JudgmentGraphOwner.PositionFactNormalizer,
             hasBoardAnchor(packet),
             boardAnchorApplicable(packet)
           ),
-          evidenceSlot(
+          globalEvidenceLayerSlot(
             packet,
             JudgmentGraphSlot.SinglePositionFact,
             JudgmentGraphOwner.SinglePositionFactNormalizer,
             EvidenceLayer.SinglePosition
           ),
-          positionEvidenceSlot(
+          globalPositionEvidenceSlot(
             packet,
             JudgmentGraphSlot.BeforeSinglePositionFact,
             JudgmentGraphOwner.SinglePositionFactNormalizer,
             EvidenceLayer.SinglePosition,
             PositionNodeRole.Before
           ),
-          positionEvidenceSlot(
+          globalPositionEvidenceSlot(
             packet,
             JudgmentGraphSlot.AfterPlayedSinglePositionFact,
             JudgmentGraphOwner.SinglePositionFactNormalizer,
             EvidenceLayer.SinglePosition,
             PositionNodeRole.AfterPlayed
           ),
-          positionEvidenceSlot(
+          globalPositionEvidenceSlot(
             packet,
             JudgmentGraphSlot.AfterReferenceSinglePositionFact,
             JudgmentGraphOwner.SinglePositionFactNormalizer,
             EvidenceLayer.SinglePosition,
             PositionNodeRole.AfterReference
           ),
-          evidenceSlot(
+          globalEvidenceLayerSlot(
             packet,
             JudgmentGraphSlot.PawnStructureFact,
             JudgmentGraphOwner.StrategicFactNormalizer,
             EvidenceLayer.PawnStructure
           ),
-          evidenceSlot(
+          globalEvidenceLayerSlot(
             packet,
             JudgmentGraphSlot.ThreatPressureFact,
             JudgmentGraphOwner.StrategicFactNormalizer,
@@ -2876,7 +2769,7 @@ object JudgmentLayerGapProfile:
         ),
         layer(
           JudgmentGraphLayer.LineEvaluationEvidence,
-          evidenceSlot(packet, JudgmentGraphSlot.LineFact, JudgmentGraphOwner.LineFactNormalizer, EvidenceLayer.Line),
+          globalEvidenceLayerSlot(packet, JudgmentGraphSlot.LineFact, JudgmentGraphOwner.LineFactNormalizer, EvidenceLayer.Line),
           slot(
             JudgmentGraphSlot.LineReplayFact,
             JudgmentGraphOwner.LineFactNormalizer,
@@ -2895,7 +2788,7 @@ object JudgmentLayerGapProfile:
             hasLineConsequence(packet),
             lineConsequenceApplicable(packet)
           ),
-          evidenceSlot(packet, JudgmentGraphSlot.EvalFact, JudgmentGraphOwner.EvalFactNormalizer, EvidenceLayer.Eval),
+          globalEvidenceLayerSlot(packet, JudgmentGraphSlot.EvalFact, JudgmentGraphOwner.EvalFactNormalizer, EvidenceLayer.Eval),
           slot(
             JudgmentGraphSlot.LegalReplayLineFact,
             JudgmentGraphOwner.LineFactNormalizer,
@@ -2907,26 +2800,26 @@ object JudgmentLayerGapProfile:
         ),
         layer(
           JudgmentGraphLayer.TacticalTransitionEvidence,
-          evidenceSlot(
+          globalEvidenceLayerSlot(
             packet,
             JudgmentGraphSlot.MoveMotifFact,
             JudgmentGraphOwner.MoveMotifNormalizer,
             EvidenceLayer.MoveMotif
           ),
-          evidenceSlot(
+          globalEvidenceLayerSlot(
             packet,
             JudgmentGraphSlot.MoveTransitionFact,
             JudgmentGraphOwner.MoveTransitionNormalizer,
             EvidenceLayer.MoveTransition
           ),
-          evidenceSlot(
+          globalEvidenceLayerSlot(
             packet,
             JudgmentGraphSlot.RelationFact,
             JudgmentGraphOwner.RelationFactNormalizer,
             EvidenceLayer.Relation,
             relationEvidenceApplicable(packet)
           ),
-          evidenceSlot(
+          globalEvidenceLayerSlot(
             packet,
             JudgmentGraphSlot.StructuralDeltaFact,
             JudgmentGraphOwner.TransitionFactNormalizer,
@@ -2935,35 +2828,35 @@ object JudgmentLayerGapProfile:
         ),
         layer(
           JudgmentGraphLayer.StrategicPlanOpeningEvidence,
-          evidenceSlot(packet, JudgmentGraphSlot.StrategicFact, JudgmentGraphOwner.StrategicFactNormalizer, EvidenceLayer.Strategic),
-          evidenceSlot(
+          globalEvidenceLayerSlot(packet, JudgmentGraphSlot.StrategicFact, JudgmentGraphOwner.StrategicFactNormalizer, EvidenceLayer.Strategic),
+          globalEvidenceLayerSlot(
             packet,
             JudgmentGraphSlot.OpeningContextFact,
             JudgmentGraphOwner.OpeningContextFactNormalizer,
             EvidenceLayer.OpeningContext,
             applicable = false
           ),
-          evidenceSlot(
+          globalEvidenceLayerSlot(
             packet,
             JudgmentGraphSlot.FeatureAnchorFact,
             JudgmentGraphOwner.FeatureApplicabilityAssembler,
             EvidenceLayer.FeatureAnchor,
             openingIdeaApplicable(packet)
           ),
-          evidenceSlot(
+          globalEvidenceLayerSlot(
             packet,
             JudgmentGraphSlot.ApplicabilityAssessmentFact,
             JudgmentGraphOwner.FeatureApplicabilityAssembler,
             EvidenceLayer.ApplicabilityAssessment,
             openingIdeaApplicable(packet)
           ),
-          evidenceSlot(
+          globalEvidenceLayerSlot(
             packet,
             JudgmentGraphSlot.PlanPressureFact,
             JudgmentGraphOwner.StrategicFactNormalizer,
             EvidenceLayer.PlanPressure
           ),
-          evidenceSlot(
+          globalEvidenceLayerSlot(
             packet,
             JudgmentGraphSlot.PlanTransitionFact,
             JudgmentGraphOwner.TransitionFactNormalizer,
@@ -2972,25 +2865,25 @@ object JudgmentLayerGapProfile:
         ),
         layer(
           JudgmentGraphLayer.RelativeChoiceAssessment,
-          evidenceSlot(
+          globalEvidenceLayerSlot(
             packet,
             JudgmentGraphSlot.CandidateComparisonFact,
             JudgmentGraphOwner.RelativeAssessmentAssembler,
             EvidenceLayer.CandidateComparison
           ),
-          evidenceSlot(
+          globalEvidenceLayerSlot(
             packet,
             JudgmentGraphSlot.RelativeAssessmentFact,
             JudgmentGraphOwner.RelativeAssessmentAssembler,
             EvidenceLayer.RelativeAssessment
           ),
-          evidenceSlot(
+          globalEvidenceLayerSlot(
             packet,
             JudgmentGraphSlot.CounterfactualFact,
             JudgmentGraphOwner.RelativeAssessmentAssembler,
             EvidenceLayer.Counterfactual
           ),
-          evidenceSlot(
+          globalEvidenceLayerSlot(
             packet,
             JudgmentGraphSlot.RelativeCauseFact,
             JudgmentGraphOwner.RelativeAssessmentAssembler,
@@ -3003,7 +2896,7 @@ object JudgmentLayerGapProfile:
             hasRelativeCauseProof(packet),
             relativeCauseApplicable(packet)
           ),
-          evidenceSlot(
+          globalEvidenceLayerSlot(
             packet,
             JudgmentGraphSlot.MoveVerdictCertificationFact,
             JudgmentGraphOwner.RelativeAssessmentAssembler,
@@ -3075,7 +2968,7 @@ object JudgmentLayerGapProfile:
   ): JudgmentGraphSlotStatus =
     JudgmentGraphSlotStatus(graphSlot, owner, present, applicable)
 
-  private def evidenceSlot(
+  private def globalEvidenceLayerSlot(
       packet: EvidenceBackedJudgmentPacket,
       graphSlot: JudgmentGraphSlot,
       owner: JudgmentGraphOwner,
@@ -3086,7 +2979,7 @@ object JudgmentLayerGapProfile:
 
   private def hasBoardAnchor(packet: EvidenceBackedJudgmentPacket): Boolean =
     packet.evidenceGraph.records.exists {
-      case EvidenceRecord(_, payload: BoardFactEvidence, _) => payload.anchors.nonEmpty
+      case EvidenceRecord(_, payload: BoardFactEvidence, _) => payload.hasClaimGradeAnchor
       case _                                                => false
     }
 
@@ -3117,7 +3010,9 @@ object JudgmentLayerGapProfile:
   private def lineEventApplicable(packet: EvidenceBackedJudgmentPacket): Boolean =
     packet.evidenceGraph.records.exists {
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.forcedTheme.nonEmpty || payload.material.exists(material => material.captures.nonEmpty || material.hasPromotion)
+        payload.forcedTheme.nonEmpty ||
+          payload.materialOutcomeProfile.gainSignals.nonEmpty ||
+          payload.materialOutcomeProfile.lossSignals.nonEmpty
       case _ =>
         false
     }
@@ -3132,7 +3027,9 @@ object JudgmentLayerGapProfile:
     packet.evidenceGraph.records.exists {
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
         payload.forcedTheme.nonEmpty ||
-          payload.material.exists(material => material.hasClaimGradeMaterialEvent || material.hasSacrificeMaterialEvent || material.hasPromotion)
+          payload.consequenceProfile.hasConcreteClaimProof ||
+          payload.materialOutcomeProfile.gainSignals.nonEmpty ||
+          payload.materialOutcomeProfile.lossSignals.nonEmpty
       case _ =>
         false
     }
@@ -3143,7 +3040,7 @@ object JudgmentLayerGapProfile:
       case _                                                      => false
     }
 
-  private def positionEvidenceSlot(
+  private def globalPositionEvidenceSlot(
       packet: EvidenceBackedJudgmentPacket,
       graphSlot: JudgmentGraphSlot,
       owner: JudgmentGraphOwner,
@@ -3243,37 +3140,18 @@ object JudgmentLayerGapProfile:
       }
 
   private def materialResultCause(kind: RelativeCauseKind): Boolean =
-    kind == RelativeCauseKind.MaterialSwing || kind == RelativeCauseKind.SacrificeCompensation
+    ClaimEventCluster.kindForCause(kind).contains(ClaimEventClusterKind.MaterialEvent)
 
   private def longTermSupportClusterApplicable(packet: EvidenceBackedJudgmentPacket): Boolean =
-    packet.claims.exists(claim =>
-      claim.family == ClaimFamily.Strategic ||
-        claim.family == ClaimFamily.PawnStructure ||
-        claim.family == ClaimFamily.Opening ||
-        claim.family == ClaimFamily.Plan
-    )
+    packet.claims.exists(_.family.isLongTerm)
 
   private def claimEventClusterApplicable(packet: EvidenceBackedJudgmentPacket): Boolean =
-    packet.claims.exists(claim =>
-      claim.family == ClaimFamily.Tactical ||
-        claim.family == ClaimFamily.Defensive ||
-        claim.family == ClaimFamily.Conversion ||
-        claim.family == ClaimFamily.Material ||
-        claim.family == ClaimFamily.Evaluation
-    ) ||
+    packet.claims.exists(_.family.isEvent) ||
       packet.evidenceGraph.records.exists {
         case EvidenceRecord(_, RelativeCauseFactEvidence(cause), _) =>
-          tacticalCauseApplicable(cause.kind) ||
-            defensiveCauseApplicable(cause.kind) ||
-            conversionCauseApplicable(cause.kind) ||
-            materialResultCause(cause.kind)
+          ClaimEventCluster.kindForCause(cause.kind).nonEmpty
         case EvidenceRecord(_, MoveVerdictCertificationEvidence(certification), _) =>
-          certification.causes.exists(cause =>
-            tacticalCauseApplicable(cause.kind) ||
-              defensiveCauseApplicable(cause.kind) ||
-              conversionCauseApplicable(cause.kind) ||
-              materialResultCause(cause.kind)
-          )
+          certification.causes.exists(cause => ClaimEventCluster.kindForCause(cause.kind).nonEmpty)
         case _ =>
           false
       }
@@ -3289,29 +3167,10 @@ object JudgmentLayerGapProfile:
       }
 
   private def tacticalCauseApplicable(kind: RelativeCauseKind): Boolean =
-    kind match
-      case RelativeCauseKind.MissedTacticalResource | RelativeCauseKind.TacticalRefutationOfPlayed |
-          RelativeCauseKind.CandidateTacticalLiability |
-          RelativeCauseKind.WrongRecapturer | RelativeCauseKind.RecaptureRecoveryWindow |
-          RelativeCauseKind.WrongMoveOrder | RelativeCauseKind.TempoLoss | RelativeCauseKind.KingForcing =>
-        true
-      case _ =>
-        false
-
-  private def defensiveCauseApplicable(kind: RelativeCauseKind): Boolean =
-    kind match
-      case RelativeCauseKind.OnlyMoveNecessity | RelativeCauseKind.OnlyDefenseNecessity |
-          RelativeCauseKind.DefensiveResource | RelativeCauseKind.DrawResource =>
-        true
-      case _ =>
-        false
+    ClaimEventCluster.kindForCause(kind).contains(ClaimEventClusterKind.TacticalEvent)
 
   private def conversionCauseApplicable(kind: RelativeCauseKind): Boolean =
-    kind match
-      case RelativeCauseKind.ConversionMiss | RelativeCauseKind.ConversionSecured =>
-        true
-      case _ =>
-        false
+    ClaimEventCluster.kindForCause(kind).contains(ClaimEventClusterKind.ConversionEvent)
 
 enum ChessQualityIssueKind:
   case PacketValidationFailed

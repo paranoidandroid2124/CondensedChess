@@ -106,6 +106,12 @@ final case class BoardFactEvidence(
 )(val anchors: List[BoardAnchor] = Nil
 ) extends EvidencePayload:
   val layer: EvidenceLayer = EvidenceLayer.Board
+  def claimGradeAnchors: List[BoardAnchor] =
+    anchors.filter(_.claimGrade)
+  def hasClaimGradeAnchor: Boolean =
+    claimGradeAnchors.nonEmpty
+  def claimGradeAnchorKinds: List[BoardAnchorKind] =
+    claimGradeAnchors.map(_.kind)
 
 object BoardFactEvidence:
   def apply(facts: List[Fact], features: Option[PositionFeatures]): BoardFactEvidence =
@@ -120,6 +126,12 @@ enum BoardAnchorKind:
   case CounterplayRestraint
   case KingSafety
   case PawnStructure
+  case LooseMaterial
+  case PinPressure
+  case SkewerPressure
+  case ForkPressure
+  case WeakSquare
+  case Outpost
 
 enum BoardAnchorSignal:
   case CenterControlEdge
@@ -132,13 +144,39 @@ enum BoardAnchorSignal:
   case KingExposure
   case KingPressure
   case PawnStructureShape
+  case HangingPiece
+  case AttackedTarget
+  case AbsolutePin
+  case RelativePin
+  case SkewerLine
+  case ForkTargets
+  case WeakSquareHole
+  case OutpostSquare
+
+final case class BoardAnchorDetail(
+    subjectColor: Option[Color] = None,
+    subjectSquare: Option[EvidenceSquare] = None,
+    subjectRole: Option[EvidencePieceRole] = None,
+    targetSquare: Option[EvidenceSquare] = None,
+    targetRole: Option[EvidencePieceRole] = None,
+    attackerColor: Option[Color] = None,
+    attackerSquare: Option[EvidenceSquare] = None,
+    attackerRole: Option[EvidencePieceRole] = None,
+    attackerSquares: List[EvidenceSquare] = Nil,
+    defenderSquares: List[EvidenceSquare] = Nil,
+    relatedSquares: List[EvidenceSquare] = Nil,
+    isAbsolute: Option[Boolean] = None,
+    materialLossCp: Option[Int] = None
+)
 
 final case class BoardAnchor(
     kind: BoardAnchorKind,
     side: Color,
     signal: BoardAnchorSignal,
     magnitude: Int,
-    confidence: Double
+    confidence: Double,
+    detail: Option[BoardAnchorDetail] = None,
+    claimGrade: Boolean = false
 )
 
 final case class SinglePositionEvidence(
@@ -405,12 +443,72 @@ enum LineConsequenceKind:
   case Sacrifice
   case PromotionRace
 
+enum LineMaterialOutcomeSignal:
+  case MoverCapture
+  case OpponentCapture
+  case PromotionGain
+  case PromotionLoss
+  case UnrecoveredPawnGain
+  case UnrecoveredPawnLoss
+  case RecoveryWindow
+
+enum LineMaterialOutcomeMagnitude:
+  case None
+  case Pawn
+  case Piece
+
 final case class LineConsequence(
     kind: LineConsequenceKind,
     lineMoves: List[String],
     claimGrade: Boolean,
     eventMove: Option[String] = None
 )
+
+final case class LineConsequenceProfile(
+    claimGradeKinds: List[LineConsequenceKind],
+    hasConcreteClaimProof: Boolean,
+    hasConversionConsequence: Boolean,
+    hasMaterialResult: Boolean,
+    hasRecaptureRecovery: Boolean,
+    hasSacrifice: Boolean,
+    hasPromotionRace: Boolean
+):
+  def tacticalDriverKinds: List[LineConsequenceKind] =
+    claimGradeKinds.filter {
+      case LineConsequenceKind.MaterialGain | LineConsequenceKind.MaterialLoss |
+          LineConsequenceKind.RecaptureSequence | LineConsequenceKind.RecoveryWindow |
+          LineConsequenceKind.ImmediateReplyCheck | LineConsequenceKind.PromotionRace =>
+        true
+      case LineConsequenceKind.ForcedTheme | LineConsequenceKind.Sacrifice =>
+        false
+    }
+
+final case class LineMaterialOutcomeProfile(
+    gainSignals: Set[LineMaterialOutcomeSignal],
+    lossSignals: Set[LineMaterialOutcomeSignal]
+):
+  def gainMagnitude: LineMaterialOutcomeMagnitude =
+    if gainSignals.exists(signal =>
+        signal == LineMaterialOutcomeSignal.MoverCapture ||
+          signal == LineMaterialOutcomeSignal.PromotionGain ||
+          signal == LineMaterialOutcomeSignal.RecoveryWindow
+      )
+    then LineMaterialOutcomeMagnitude.Piece
+    else if gainSignals.contains(LineMaterialOutcomeSignal.UnrecoveredPawnGain) then LineMaterialOutcomeMagnitude.Pawn
+    else LineMaterialOutcomeMagnitude.None
+
+  def lossMagnitude: LineMaterialOutcomeMagnitude =
+    if lossSignals.exists(signal =>
+        signal == LineMaterialOutcomeSignal.OpponentCapture ||
+          signal == LineMaterialOutcomeSignal.PromotionLoss
+      )
+    then LineMaterialOutcomeMagnitude.Piece
+    else if lossSignals.contains(LineMaterialOutcomeSignal.UnrecoveredPawnLoss) then LineMaterialOutcomeMagnitude.Pawn
+    else LineMaterialOutcomeMagnitude.None
+
+object LineMaterialOutcomeProfile:
+  val empty: LineMaterialOutcomeProfile =
+    LineMaterialOutcomeProfile(Set.empty, Set.empty)
 
 final case class LineMaterialCapture(
     moveUci: String,
@@ -507,6 +605,82 @@ final case class LineFactEvidence(
     val consequences: List[LineConsequence] = Nil
 ) extends EvidencePayload:
   val layer: EvidenceLayer = EvidenceLayer.Line
+  def mainlineMoves: List[String] =
+    firstMove.toList ++ replyMove.toList ++ continuationMoves
+  def claimGradeConsequences: List[LineConsequence] =
+    consequences.filter(_.claimGrade)
+  def hasClaimGradeConsequence: Boolean =
+    claimGradeConsequences.nonEmpty
+  def claimGradeConsequenceKinds: List[LineConsequenceKind] =
+    claimGradeConsequences.map(_.kind)
+  def consequenceProfile: LineConsequenceProfile =
+    val kinds = claimGradeConsequenceKinds
+    LineConsequenceProfile(
+      claimGradeKinds = kinds,
+      hasConcreteClaimProof = kinds.nonEmpty,
+      hasConversionConsequence = kinds.exists {
+        case LineConsequenceKind.RecaptureSequence | LineConsequenceKind.RecoveryWindow |
+            LineConsequenceKind.MaterialGain | LineConsequenceKind.MaterialLoss |
+            LineConsequenceKind.Sacrifice =>
+          true
+        case _ =>
+          false
+      },
+      hasMaterialResult = kinds.exists {
+        case LineConsequenceKind.MaterialGain | LineConsequenceKind.MaterialLoss | LineConsequenceKind.Sacrifice |
+            LineConsequenceKind.PromotionRace =>
+          true
+        case _ =>
+          false
+      },
+      hasRecaptureRecovery = kinds.exists(kind =>
+        kind == LineConsequenceKind.RecaptureSequence || kind == LineConsequenceKind.RecoveryWindow
+      ),
+      hasSacrifice = kinds.contains(LineConsequenceKind.Sacrifice),
+      hasPromotionRace = kinds.contains(LineConsequenceKind.PromotionRace)
+    )
+  def materialOutcomeProfile: LineMaterialOutcomeProfile =
+    val consequenceGainSignals =
+      consequences.collect {
+        case LineConsequence(LineConsequenceKind.MaterialGain, _, true, _) =>
+          LineMaterialOutcomeSignal.MoverCapture
+        case LineConsequence(LineConsequenceKind.MaterialGain, _, false, _) =>
+          LineMaterialOutcomeSignal.UnrecoveredPawnGain
+        case LineConsequence(LineConsequenceKind.RecoveryWindow, _, true, _) =>
+          LineMaterialOutcomeSignal.RecoveryWindow
+      }.toSet
+    val consequenceLossSignals =
+      consequences.collect {
+        case LineConsequence(LineConsequenceKind.MaterialLoss, _, true, _) =>
+          LineMaterialOutcomeSignal.OpponentCapture
+        case LineConsequence(LineConsequenceKind.MaterialLoss, _, false, _) =>
+          LineMaterialOutcomeSignal.UnrecoveredPawnLoss
+      }.toSet
+    val materialGainSignals =
+      material
+        .map(summary =>
+          Set(
+            Option.when(summary.nonPawnCapturesByMover.nonEmpty)(LineMaterialOutcomeSignal.MoverCapture),
+            Option.when(summary.hasPromotionGainForMover)(LineMaterialOutcomeSignal.PromotionGain),
+            Option.when(summary.hasUnrecoveredPawnGainForMover)(LineMaterialOutcomeSignal.UnrecoveredPawnGain),
+            Option.when(summary.hasRecoveryWindow)(LineMaterialOutcomeSignal.RecoveryWindow)
+          ).flatten
+        )
+        .getOrElse(Set.empty)
+    val materialLossSignals =
+      material
+        .map(summary =>
+          Set(
+            Option.when(summary.nonPawnCapturesByOpponent.nonEmpty)(LineMaterialOutcomeSignal.OpponentCapture),
+            Option.when(summary.hasPromotionLossForMover)(LineMaterialOutcomeSignal.PromotionLoss),
+            Option.when(summary.hasUnrecoveredPawnLossForMover)(LineMaterialOutcomeSignal.UnrecoveredPawnLoss)
+          ).flatten
+        )
+        .getOrElse(Set.empty)
+    LineMaterialOutcomeProfile(
+      gainSignals = consequenceGainSignals ++ materialGainSignals,
+      lossSignals = consequenceLossSignals ++ materialLossSignals
+    )
 
 object LineFactEvidence:
   def apply(

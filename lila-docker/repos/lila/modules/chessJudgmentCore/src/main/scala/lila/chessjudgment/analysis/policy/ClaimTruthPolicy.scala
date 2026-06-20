@@ -25,28 +25,28 @@ object ClaimTruthPolicy:
   def evaluate(claim: ClaimSeed, graph: TypedEvidenceGraph): ClaimTruthDecision =
     val graphIds = graph.byId.keySet
     val missingEvidence = claim.evidence.filterNot(ref => graphIds.contains(ref.id))
-    val boundRecords =
+    val claimBoundRecords =
       claim.evidence
         .flatMap(ref => graph.byId.get(ref.id))
         .filter(isBoundToClaim(claim, _, graph))
-    val presentLayers =
-      boundRecords
+    val claimBoundLayers =
+      claimBoundRecords
         .map(_.ref.layer)
         .toSet
     val missingGroups =
-      requiredLayerGroups(claim.family).filterNot(group => group.exists(presentLayers.contains))
+      requiredLayerGroups(claim.family).filterNot(group => group.exists(claimBoundLayers.contains))
     val hasFamilyProof =
-      familySpecificProof(claim, boundRecords)
+      familySpecificProof(claim, claimBoundRecords)
     val status =
       if claim.evidence.isEmpty || missingEvidence.nonEmpty then ClaimTruthStatus.Rejected
-      else if boundRecords.isEmpty then ClaimTruthStatus.Rejected
+      else if claimBoundRecords.isEmpty then ClaimTruthStatus.Rejected
       else if !hasFamilyProof then ClaimTruthStatus.Deferred
       else if missingGroups.isEmpty then ClaimTruthStatus.Certified
       else ClaimTruthStatus.Deferred
     ClaimTruthDecision(
       claim = claim,
       status = status,
-      presentLayers = presentLayers,
+      presentLayers = claimBoundLayers,
       missingLayerGroups = missingGroups,
       missingEvidence = missingEvidence
     )
@@ -333,7 +333,7 @@ object ClaimTruthPolicy:
                 (hasConcreteTacticalSupport(records) || hasMaterialTacticalSupport(records))
             )
         case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-          payload.consequences.exists(_.claimGrade)
+          payload.hasClaimGradeConsequence
         case EvidenceRecord(_, EvalFactEvidence(_, _, mate, _), _) =>
           mate.nonEmpty
         case _ =>
@@ -342,7 +342,7 @@ object ClaimTruthPolicy:
     val hasConcreteLine =
       records.exists {
         case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-          payload.consequences.exists(_.claimGrade)
+          payload.hasClaimGradeConsequence
         case EvidenceRecord(_, RelationFactEvidence(_, _, _, lineMoves, _), _) =>
           lineMoves.nonEmpty
         case EvidenceRecord(_, EvalFactEvidence(_, _, mate, _), _) =>
@@ -408,13 +408,7 @@ object ClaimTruthPolicy:
     val hasMaterialLine =
       records.exists {
         case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-          payload.consequences.exists(consequence =>
-            consequence.claimGrade &&
-              (consequence.kind == LineConsequenceKind.MaterialGain ||
-                consequence.kind == LineConsequenceKind.MaterialLoss ||
-                consequence.kind == LineConsequenceKind.Sacrifice
-              )
-          )
+          payload.consequenceProfile.hasMaterialResult
         case _ =>
           false
       }
@@ -464,17 +458,10 @@ object ClaimTruthPolicy:
       comparison.candidateSet.exists(_.onlyMove)
 
   private def tacticalRelativeCause(kind: RelativeCauseKind): Boolean =
-    kind match
-      case RelativeCauseKind.MissedTacticalResource | RelativeCauseKind.TacticalRefutationOfPlayed |
-          RelativeCauseKind.CandidateTacticalLiability |
-          RelativeCauseKind.WrongRecapturer | RelativeCauseKind.RecaptureRecoveryWindow |
-          RelativeCauseKind.WrongMoveOrder | RelativeCauseKind.TempoLoss | RelativeCauseKind.KingForcing =>
-        true
-      case _ =>
-        false
+    ClaimEventCluster.kindForCause(kind).contains(ClaimEventClusterKind.TacticalEvent)
 
   private def materialResultCause(kind: RelativeCauseKind): Boolean =
-    kind == RelativeCauseKind.MaterialSwing || kind == RelativeCauseKind.SacrificeCompensation
+    ClaimEventCluster.kindForCause(kind).contains(ClaimEventClusterKind.MaterialEvent)
 
   private def hasConcreteTacticalSupport(records: List[EvidenceRecord]): Boolean =
     records.exists {
@@ -486,7 +473,7 @@ object ClaimTruthPolicy:
             TacticalMotifClassifier.isCauseEligible(motif)
         )
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.consequences.exists(_.claimGrade)
+        payload.hasClaimGradeConsequence
       case EvidenceRecord(_, EvalFactEvidence(_, _, mate, _), _) =>
         mate.nonEmpty
       case _ =>
@@ -496,15 +483,10 @@ object ClaimTruthPolicy:
   private def hasMaterialTacticalSupport(records: List[EvidenceRecord]): Boolean =
     records.exists {
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.consequences.exists(_.claimGrade)
+        payload.hasClaimGradeConsequence
       case _ =>
         false
     }
 
   private def defensiveRelativeCause(kind: RelativeCauseKind): Boolean =
-    kind match
-      case RelativeCauseKind.OnlyMoveNecessity | RelativeCauseKind.OnlyDefenseNecessity |
-          RelativeCauseKind.DefensiveResource | RelativeCauseKind.DrawResource =>
-        true
-      case _ =>
-        false
+    ClaimEventCluster.kindForCause(kind).contains(ClaimEventClusterKind.DefensiveEvent)

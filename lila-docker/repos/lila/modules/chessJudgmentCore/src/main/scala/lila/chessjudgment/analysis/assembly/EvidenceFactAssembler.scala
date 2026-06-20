@@ -99,7 +99,7 @@ object EvidenceFactAssembler:
             moveUci = line.ref.rootMove,
             moves = line.line.moves,
             line = Some(line),
-            scope = scopeFor(line.role),
+            scope = line.role.scope,
             parents = lineParents(context, line)
           )
         }
@@ -162,7 +162,7 @@ object EvidenceFactAssembler:
                 witness = witness,
                 position = rootRef,
                 line = Some(line.ref),
-                scope = scopeFor(line.role),
+                scope = line.role.scope,
                 confidence = EvidenceConfidence.LegalReplayVerified
               ).map { record =>
                 record.copy(parents = lineParents(context, line))
@@ -194,7 +194,7 @@ object EvidenceFactAssembler:
                     witness = witness,
                     position = rootRef,
                     line = None,
-                    scope = scopeFor(edge.role),
+                    scope = edge.role.scope,
                     confidence = EvidenceConfidence.LegalReplayVerified
                   ).map { record =>
                     record.copy(parents = transitionParents(context, edge, None))
@@ -207,22 +207,7 @@ object EvidenceFactAssembler:
 
   private def relationTargetHintsFromBoardFacts(context: JudgmentAssemblyContext): List[String] =
     context.position(PositionNodeRole.Before).toList.flatMap { node =>
-      node.facts.flatMap {
-        case Fact.HangingPiece(square, _, _, _, _) =>
-          List(square.key)
-        case Fact.TargetPiece(square, _, _, _, _) =>
-          List(square.key)
-        case Fact.Pin(_, _, pinned, _, behind, _, _, _) =>
-          List(pinned.key, behind.key)
-        case Fact.Skewer(_, _, front, _, back, _, _) =>
-          List(front.key, back.key)
-        case Fact.Fork(_, _, targets, _) =>
-          targets.map(_._1.key)
-        case Fact.WeakSquare(square, _, _, _) =>
-          List(square.key)
-        case _ =>
-          Nil
-      }
+      node.facts.flatMap(_.squareFocus.tacticalHintSquares.map(_.key))
     }.distinct
 
   private def pawnStructureRecords(
@@ -251,7 +236,7 @@ object EvidenceFactAssembler:
           alignment = None,
           pawnPlay = pawnPlay,
           position = node.ref,
-          scope = scopeFor(node.role),
+          scope = node.role.scope,
           parents = evidenceRefs(context, EvidenceLayer.Board, Some(node.ref), None) ++
             evidenceRefs(context, EvidenceLayer.SinglePosition, Some(node.ref), None)
         )
@@ -349,7 +334,7 @@ object EvidenceFactAssembler:
             threats = threats,
             position = node.ref,
             line = Some(line.ref),
-            scope = scopeFor(line.role),
+            scope = line.role.scope,
             parents = List(edge.evidence) ++
               evidenceRefs(context, EvidenceLayer.Board, Some(node.ref), None) ++
               evidenceRefs(context, EvidenceLayer.SinglePosition, Some(node.ref), None) ++
@@ -387,7 +372,7 @@ object EvidenceFactAssembler:
           delta = delta,
           position = edge.from,
           line = lineForTransition(context, edge).map(_.ref),
-          scope = scopeFor(edge.role),
+          scope = edge.role.scope,
           parents = transitionParents(context, edge, lineForTransition(context, edge)) ++
             evidenceRefs(context, EvidenceLayer.Board, Some(edge.to), None)
         )
@@ -399,10 +384,7 @@ object EvidenceFactAssembler:
   ): List[EvidenceRecord] =
     context.positions.flatMap { node =>
       val boardParents = evidenceRefs(context, EvidenceLayer.Board, Some(node.ref), None)
-      val targetFacts = node.facts.collect {
-        case fact: Fact.HangingPiece => fact
-        case fact: Fact.TargetPiece  => fact
-      }
+      val targetFacts = node.facts.filter(_.squareFocus.vulnerableMaterialSquares.nonEmpty)
       val targetFixation =
         Option
         .when(targetFacts.nonEmpty) {
@@ -416,7 +398,7 @@ object EvidenceFactAssembler:
             confidence = 0.78,
             position = node.ref,
             line = None,
-            scope = scopeFor(node.role),
+            scope = node.role.scope,
             parents = boardParents
           )
         }
@@ -432,7 +414,7 @@ object EvidenceFactAssembler:
             confidence = 0.78,
             position = node.ref,
             line = None,
-            scope = scopeFor(node.role),
+            scope = node.role.scope,
             parents = boardParents
           )
         }.toList
@@ -457,7 +439,7 @@ object EvidenceFactAssembler:
             confidence = 0.82,
             position = node.ref,
             line = None,
-            scope = scopeFor(node.role),
+            scope = node.role.scope,
             parents = boardParents
           )
         }.toList
@@ -489,7 +471,7 @@ object EvidenceFactAssembler:
           confidence = if rookOnSeventh(features, side) then 0.82 else 0.72,
           position = node.ref,
           line = None,
-          scope = scopeFor(node.role),
+          scope = node.role.scope,
           parents = parents
         )
       },
@@ -502,7 +484,7 @@ object EvidenceFactAssembler:
           confidence = if spaceEdge >= 3 then 0.80 else 0.72,
           position = node.ref,
           line = None,
-          scope = scopeFor(node.role),
+          scope = node.role.scope,
           parents = parents
         )
       },
@@ -515,7 +497,7 @@ object EvidenceFactAssembler:
           confidence = if mobilityEdge >= 8 then 0.78 else 0.70,
           position = node.ref,
           line = None,
-          scope = scopeFor(node.role),
+          scope = node.role.scope,
           parents = parents
         )
       },
@@ -528,7 +510,7 @@ object EvidenceFactAssembler:
           confidence = 0.76,
           position = node.ref,
           line = None,
-          scope = scopeFor(node.role),
+          scope = node.role.scope,
           parents = parents
         )
       }
@@ -1190,31 +1172,4 @@ object EvidenceFactAssembler:
       context: JudgmentAssemblyContext,
       edge: MoveTransitionEdge
   ): Option[CandidateLineNode] =
-    val lineRole = edge.role match
-      case TransitionEdgeRole.Played      => LineNodeRole.Played
-      case TransitionEdgeRole.Reference   => LineNodeRole.BestReference
-      case TransitionEdgeRole.Alternative => LineNodeRole.Alternative
-      case TransitionEdgeRole.Threat      => LineNodeRole.Threat
-    context.lines.find(line => line.role == lineRole && line.ref.rootMove == edge.moveUci)
-
-  private def scopeFor(role: PositionNodeRole): EvidenceScope =
-    role match
-      case PositionNodeRole.Before           => EvidenceScope.BeforePosition
-      case PositionNodeRole.AfterPlayed      => EvidenceScope.AfterPlayedPosition
-      case PositionNodeRole.AfterReference   => EvidenceScope.AfterReferencePosition
-      case PositionNodeRole.AfterAlternative => EvidenceScope.AlternativeTransition
-      case PositionNodeRole.AfterThreat      => EvidenceScope.ThreatLine
-
-  private def scopeFor(role: LineNodeRole): EvidenceScope =
-    role match
-      case LineNodeRole.Played        => EvidenceScope.PlayedLine
-      case LineNodeRole.BestReference => EvidenceScope.BestLine
-      case LineNodeRole.Threat        => EvidenceScope.ThreatLine
-      case LineNodeRole.Alternative   => EvidenceScope.CandidateLine
-
-  private def scopeFor(role: TransitionEdgeRole): EvidenceScope =
-    role match
-      case TransitionEdgeRole.Played    => EvidenceScope.PlayedTransition
-      case TransitionEdgeRole.Reference => EvidenceScope.ReferenceTransition
-      case TransitionEdgeRole.Alternative => EvidenceScope.AlternativeTransition
-      case TransitionEdgeRole.Threat      => EvidenceScope.ThreatLine
+    context.lines.find(line => line.role == edge.role.lineRole && line.ref.rootMove == edge.moveUci)

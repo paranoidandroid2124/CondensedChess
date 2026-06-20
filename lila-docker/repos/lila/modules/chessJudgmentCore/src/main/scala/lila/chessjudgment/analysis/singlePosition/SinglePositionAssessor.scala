@@ -1,7 +1,7 @@
 package lila.chessjudgment.analysis.singlePosition
 
 import chess.Color
-import lila.chessjudgment.analysis.evaluation.PerspectiveMath
+import lila.chessjudgment.analysis.evaluation.{ JudgmentThresholds, PerspectiveMath }
 import lila.chessjudgment.analysis.position.PositionFeatures
 
 /**
@@ -85,18 +85,22 @@ object SinglePositionAssessor:
       second <- secondLine
       if best.mate.isEmpty && second.mate.isEmpty
     yield best.evalCp - second.evalCp
+    val evalDeltaWinPercent = for
+      best <- bestLine
+      second <- secondLine
+    yield PerspectiveMath.winPercentLossFromRelativeEval(best.evalCp, best.mate, second.evalCp, second.mate)
     // PV length alone is not a valid proxy for forcing sequences
     val hasMateInLine = mateDistance.isDefined
-    val hasLargeEvalJump = evalDelta.exists(_.abs >= 200)
+    val hasLargeEvalJump = evalDeltaWinPercent.exists(_ >= JudgmentThresholds.FORCING_CANDIDATE_GAP_WP)
     val forcingMovesInPv = if hasMateInLine then 5 else if hasLargeEvalJump then 3 else 0
 
     // Decision logic
     val criticalityType =
       if mateDistance.exists(_.abs <= 5) then
         CriticalityType.ForcedSequence
-      else if evalDelta.exists(_.abs >= 150) then
+      else if evalDeltaWinPercent.exists(_ >= JudgmentThresholds.CRITICAL_CANDIDATE_GAP_WP) then
         CriticalityType.CriticalMoment
-      else if evalDelta.isEmpty then
+      else if evalDeltaWinPercent.isEmpty then
         CriticalityType.InsufficientData
       else
         CriticalityType.Normal
@@ -104,6 +108,7 @@ object SinglePositionAssessor:
     CriticalityResult(
       criticalityType = criticalityType,
       evalDeltaCp = evalDelta,
+      evalDeltaWinPercent = evalDeltaWinPercent,
       mateDistance = mateDistance,
       forcingMovesInPv = forcingMovesInPv
     )
@@ -197,18 +202,21 @@ object SinglePositionAssessor:
     // Positive eval = White advantage, sideToMove determines who benefits
     // For simplification window, the WINNING side should want to simplify
     val evalFromSideToMove = if sideToMove.white then currentEval else -currentEval
-    val isWinning = evalFromSideToMove >= 200
+    val evalAdvantageWinPercent = (PerspectiveMath.winPercentForMover(sideToMove, currentEval) - 50.0).max(0.0)
+    val isWinning = evalAdvantageWinPercent >= JudgmentThresholds.CONVERSION_EDGE_WP
     val evalAdvantage = evalFromSideToMove.max(0) // Only positive advantage counts
     
     // Check if major piece exchanges are "natural" (rooks/queens on same file, etc.)
     val exchangeAvailable = features.imbalance.whiteQueens > 0 && features.imbalance.blackQueens > 0
 
     // Decision: Simplification window ONLY if side-to-move is winning AND near endgame
-    val isSimplificationWindow = isWinning && (isEndgameNear || evalAdvantage >= 400)
+    val isSimplificationWindow =
+      isWinning && (isEndgameNear || evalAdvantageWinPercent >= JudgmentThresholds.DECISIVE_EDGE_WP)
 
     SimplifyBiasResult(
       isSimplificationWindow = isSimplificationWindow,
       evalAdvantage = evalAdvantage,
+      evalAdvantageWinPercent = evalAdvantageWinPercent,
       isEndgameNear = isEndgameNear,
       exchangeAvailable = exchangeAvailable
     )

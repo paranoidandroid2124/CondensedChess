@@ -2,6 +2,7 @@ package lila.chessjudgment.analysis.move
 
 import lila.chessjudgment.model.*
 import lila.chessjudgment.model.Motif.*
+import lila.chessjudgment.analysis.material.MaterialValue
 import lila.chessjudgment.analysis.position.PositionAnalyzer
 
 import _root_.chess.*
@@ -981,13 +982,8 @@ object MoveAnalyzer:
       isKnightCheck && (blocked == adjacent)
     }
 
-  private def pieceValue(role: Role): Int = role match
-    case Pawn   => 1
-    case Knight => 3
-    case Bishop => 3
-    case Rook   => 5
-    case Queen  => 9
-    case King   => 100
+  private def pieceValue(role: Role): Int =
+    MaterialValue.tacticalValueUnit(role)
 
   /**
    * Detect compensation for Exchange Sacrifice (Rook for minor piece).

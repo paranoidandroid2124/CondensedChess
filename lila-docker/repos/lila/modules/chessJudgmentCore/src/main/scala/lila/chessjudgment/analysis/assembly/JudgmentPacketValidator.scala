@@ -26,6 +26,7 @@ enum JudgmentPacketValidationIssueKind:
   case LongTermClaimEventClusterEvidence
   case MismatchedClaimEventClusterKind
   case MissingRelativeEvidence
+  case MismatchedEvidenceLayer
   case MismatchedLineEvidenceRef
   case MismatchedEvalEvidenceRef
   case MismatchedRelativeCauseEventLine
@@ -210,10 +211,8 @@ object JudgmentPacketValidator:
       packet: EvidenceBackedJudgmentPacket,
       claimsById: Map[String, ClaimSeed]
   ): List[JudgmentPacketValidationIssue] =
-    val longTermFamilies =
-      Set(ClaimFamily.Strategic, ClaimFamily.PawnStructure, ClaimFamily.Opening, ClaimFamily.Plan)
     packet.claimSupportClusters.flatMap { cluster =>
-      cluster.anchorClaimIds.flatMap(claimsById.get).filterNot(claim => longTermFamilies.contains(claim.family)).map { claim =>
+      cluster.anchorClaimIds.flatMap(claimsById.get).filterNot(_.family.isLongTerm).map { claim =>
         JudgmentPacketValidationIssue(
           kind = JudgmentPacketValidationIssueKind.NonLongTermClaimClusterAnchor,
           subjectId = claim.id
@@ -289,10 +288,8 @@ object JudgmentPacketValidator:
       packet: EvidenceBackedJudgmentPacket,
       claimsById: Map[String, ClaimSeed]
   ): List[JudgmentPacketValidationIssue] =
-    val concreteFamilies =
-      Set(ClaimFamily.Tactical, ClaimFamily.Defensive, ClaimFamily.Conversion, ClaimFamily.Material, ClaimFamily.Evaluation)
     packet.claimEventClusters.flatMap { cluster =>
-      cluster.memberClaimIds.flatMap(claimsById.get).filterNot(claim => concreteFamilies.contains(claim.family)).map { claim =>
+      cluster.memberClaimIds.flatMap(claimsById.get).filterNot(_.family.isEvent).map { claim =>
         JudgmentPacketValidationIssue(
           kind = JudgmentPacketValidationIssueKind.NonConcreteClaimEventClusterMember,
           subjectId = claim.id
@@ -344,100 +341,113 @@ object JudgmentPacketValidator:
     }
 
   private def graphBindingInvariants(packet: EvidenceBackedJudgmentPacket): List[JudgmentPacketValidationIssue] =
-    packet.evidenceGraph.records.flatMap {
-      case EvidenceRecord(ref, LineFactEvidence(line, _, _, _, _, _), _) =>
+    packet.evidenceGraph.records.flatMap { record =>
+      val layerIssue =
         Option
-          .when(!ref.line.contains(line))(
+          .when(record.ref.layer != record.payload.layer)(
             JudgmentPacketValidationIssue(
-              JudgmentPacketValidationIssueKind.MismatchedLineEvidenceRef,
-              ref.id,
-              Some(ref)
+              JudgmentPacketValidationIssueKind.MismatchedEvidenceLayer,
+              record.ref.id,
+              Some(record.ref)
             )
           )
           .toList
-      case EvidenceRecord(ref, EvalFactEvidence(line, _, _, _), _) =>
-        Option
-          .when(!ref.line.contains(line))(
-            JudgmentPacketValidationIssue(
-              JudgmentPacketValidationIssueKind.MismatchedEvalEvidenceRef,
-              ref.id,
-              Some(ref)
-            )
-          )
-          .toList
-      case record @ EvidenceRecord(ref, RelativeCauseFactEvidence(cause), _) =>
-        List(
-          Option.when(!ref.line.contains(cause.eventLine))(
-            JudgmentPacketValidationIssue(
-              JudgmentPacketValidationIssueKind.MismatchedRelativeCauseEventLine,
-              ref.id,
-              Some(ref)
-            )
-          ),
-          Option.when(cause.proof.exists(proof => proof.hasTypedDepth && !relativeCauseProofBacked(packet.evidenceGraph, record, proof)))(
-            JudgmentPacketValidationIssue(
-              JudgmentPacketValidationIssueKind.UnbackedRelativeCauseProof,
-              ref.id,
-              Some(ref)
-            )
-          )
-        ).flatten
-      case record @ EvidenceRecord(ref, CandidateComparisonEvidence(fact), _) =>
-        List(
-          Option.when(!hasParentLineAndEval(packet.evidenceGraph, record, fact.referenceLine))(
-            JudgmentPacketValidationIssue(
-              JudgmentPacketValidationIssueKind.MissingComparisonReferenceParent,
-              ref.id,
-              Some(ref)
-            )
-          ),
-          Option.when(!hasParentLineAndEval(packet.evidenceGraph, record, fact.candidateLine))(
-            JudgmentPacketValidationIssue(
-              JudgmentPacketValidationIssueKind.MissingComparisonCandidateParent,
-              ref.id,
-              Some(ref)
-            )
-          )
-        ).flatten
-      case record @ EvidenceRecord(ref, CounterfactualFactEvidence(referenceLine, candidateLine, _), _) =>
-        List(
-          Option.when(!hasParentLineAndEval(packet.evidenceGraph, record, referenceLine))(
-            JudgmentPacketValidationIssue(
-              JudgmentPacketValidationIssueKind.MissingCounterfactualReferenceParent,
-              ref.id,
-              Some(ref)
-            )
-          ),
-          Option.when(!hasParentLineAndEval(packet.evidenceGraph, record, candidateLine))(
-            JudgmentPacketValidationIssue(
-              JudgmentPacketValidationIssueKind.MissingCounterfactualCandidateParent,
-              ref.id,
-              Some(ref)
-            )
-          )
-        ).flatten
-      case record @ EvidenceRecord(ref, MoveVerdictCertificationEvidence(certification), _) =>
-        List(
-          Option.when(!hasParentLineAndEval(packet.evidenceGraph, record, certification.primaryComparison.referenceLine))(
-            JudgmentPacketValidationIssue(
-              JudgmentPacketValidationIssueKind.MissingVerdictCertificationReferenceParent,
-              ref.id,
-              Some(ref)
-            )
-          ),
-          Option.when(
-            !hasParentLineAndEval(packet.evidenceGraph, record, certification.primaryComparison.candidateLine) ||
-              !hasMatchingPrimaryComparisonParent(packet.evidenceGraph, record, certification.primaryComparison)
-          )(
-            JudgmentPacketValidationIssue(
-              JudgmentPacketValidationIssueKind.MissingVerdictCertificationPrimaryParent,
-              ref.id,
-              Some(ref)
-            )
-          )
-        ).flatten
-      case _ =>
-        Nil
+      val bindingIssues =
+        record match
+          case EvidenceRecord(ref, LineFactEvidence(line, _, _, _, _, _), _) =>
+            Option
+              .when(!ref.line.contains(line))(
+                JudgmentPacketValidationIssue(
+                  JudgmentPacketValidationIssueKind.MismatchedLineEvidenceRef,
+                  ref.id,
+                  Some(ref)
+                )
+              )
+              .toList
+          case EvidenceRecord(ref, EvalFactEvidence(line, _, _, _), _) =>
+            Option
+              .when(!ref.line.contains(line))(
+                JudgmentPacketValidationIssue(
+                  JudgmentPacketValidationIssueKind.MismatchedEvalEvidenceRef,
+                  ref.id,
+                  Some(ref)
+                )
+              )
+              .toList
+          case record @ EvidenceRecord(ref, RelativeCauseFactEvidence(cause), _) =>
+            List(
+              Option.when(!ref.line.contains(cause.eventLine))(
+                JudgmentPacketValidationIssue(
+                  JudgmentPacketValidationIssueKind.MismatchedRelativeCauseEventLine,
+                  ref.id,
+                  Some(ref)
+                )
+              ),
+              Option.when(cause.proof.exists(proof => proof.hasTypedDepth && !relativeCauseProofBacked(packet.evidenceGraph, record, proof)))(
+                JudgmentPacketValidationIssue(
+                  JudgmentPacketValidationIssueKind.UnbackedRelativeCauseProof,
+                  ref.id,
+                  Some(ref)
+                )
+              )
+            ).flatten
+          case record @ EvidenceRecord(ref, CandidateComparisonEvidence(fact), _) =>
+            List(
+              Option.when(!hasParentLineAndEval(packet.evidenceGraph, record, fact.referenceLine))(
+                JudgmentPacketValidationIssue(
+                  JudgmentPacketValidationIssueKind.MissingComparisonReferenceParent,
+                  ref.id,
+                  Some(ref)
+                )
+              ),
+              Option.when(!hasParentLineAndEval(packet.evidenceGraph, record, fact.candidateLine))(
+                JudgmentPacketValidationIssue(
+                  JudgmentPacketValidationIssueKind.MissingComparisonCandidateParent,
+                  ref.id,
+                  Some(ref)
+                )
+              )
+            ).flatten
+          case record @ EvidenceRecord(ref, CounterfactualFactEvidence(referenceLine, candidateLine, _), _) =>
+            List(
+              Option.when(!hasParentLineAndEval(packet.evidenceGraph, record, referenceLine))(
+                JudgmentPacketValidationIssue(
+                  JudgmentPacketValidationIssueKind.MissingCounterfactualReferenceParent,
+                  ref.id,
+                  Some(ref)
+                )
+              ),
+              Option.when(!hasParentLineAndEval(packet.evidenceGraph, record, candidateLine))(
+                JudgmentPacketValidationIssue(
+                  JudgmentPacketValidationIssueKind.MissingCounterfactualCandidateParent,
+                  ref.id,
+                  Some(ref)
+                )
+              )
+            ).flatten
+          case record @ EvidenceRecord(ref, MoveVerdictCertificationEvidence(certification), _) =>
+            List(
+              Option.when(!hasParentLineAndEval(packet.evidenceGraph, record, certification.primaryComparison.referenceLine))(
+                JudgmentPacketValidationIssue(
+                  JudgmentPacketValidationIssueKind.MissingVerdictCertificationReferenceParent,
+                  ref.id,
+                  Some(ref)
+                )
+              ),
+              Option.when(
+                !hasParentLineAndEval(packet.evidenceGraph, record, certification.primaryComparison.candidateLine) ||
+                  !hasMatchingPrimaryComparisonParent(packet.evidenceGraph, record, certification.primaryComparison)
+              )(
+                JudgmentPacketValidationIssue(
+                  JudgmentPacketValidationIssueKind.MissingVerdictCertificationPrimaryParent,
+                  ref.id,
+                  Some(ref)
+                )
+              )
+            ).flatten
+          case _ =>
+            Nil
+      layerIssue ++ bindingIssues
     }
 
   private def claimSubjectBindingInvariants(packet: EvidenceBackedJudgmentPacket): List[JudgmentPacketValidationIssue] =
@@ -494,7 +504,7 @@ object JudgmentPacketValidator:
   private def parentHasBoardAnchor(record: EvidenceRecord, kind: BoardAnchorKind): Boolean =
     record match
       case EvidenceRecord(_, payload: BoardFactEvidence, _) =>
-        payload.anchors.exists(_.kind == kind)
+        payload.claimGradeAnchorKinds.contains(kind)
       case _ =>
         false
 
@@ -508,7 +518,7 @@ object JudgmentPacketValidator:
   private def parentHasLineConsequence(record: EvidenceRecord, kind: LineConsequenceKind): Boolean =
     record match
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.consequences.exists(_.kind == kind)
+        payload.claimGradeConsequenceKinds.contains(kind)
       case _ =>
         false
 

@@ -195,7 +195,6 @@ object StrategicSalience:
   def calculate(
       transitionType: lila.chessjudgment.model.TransitionType,
       consecutivePlies: Int,
-      evalDeltaCp: Int,
       themeMaxShare: Double = 1.0
   ): StrategicSalience =
     import lila.chessjudgment.model.TransitionType.*
@@ -203,9 +202,6 @@ object StrategicSalience:
     // Low salience when no strategic theme dominates.
     if themeMaxShare < 0.35 then return StrategicSalience.Low
     
-    // Tactical override: Huge eval swings should suppress Strategy to focus strictly on the blunder/tactics
-    if evalDeltaCp.abs >= 200 then return StrategicSalience.Low
-
     // Evaluate based on transition
     transitionType match
       case ForcedPivot | NaturalShift | Opportunistic => StrategicSalience.High

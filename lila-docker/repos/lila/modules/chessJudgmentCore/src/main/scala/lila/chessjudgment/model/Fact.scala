@@ -27,9 +27,110 @@ object FactScope {
 sealed trait Fact {
   def scope: FactScope
   def participants: List[Square]
+  def squareFocus: Fact.SquareFocus = Fact.squareFocus(this)
 }
 
 object Fact {
+
+  final case class SquareFocus(
+      subjectSquares: List[Square] = Nil,
+      targetSquares: List[Square] = Nil,
+      attackerSquares: List[Square] = Nil,
+      defenderSquares: List[Square] = Nil,
+      relatedSquares: List[Square] = Nil,
+      tacticalHintSquares: List[Square] = Nil,
+      vulnerableMaterialSquares: List[Square] = Nil
+  )
+
+  def squareFocus(fact: Fact): SquareFocus =
+    def unique(squares: List[Square]) = squares.distinct
+    fact match
+      case HangingPiece(_, square, _, attackers, defenders, _) =>
+        SquareFocus(
+          subjectSquares = List(square),
+          targetSquares = List(square),
+          attackerSquares = unique(attackers),
+          defenderSquares = unique(defenders),
+          relatedSquares = List(square),
+          tacticalHintSquares = List(square),
+          vulnerableMaterialSquares = List(square)
+        )
+      case TargetPiece(_, square, _, attackers, defenders, _) =>
+        SquareFocus(
+          subjectSquares = List(square),
+          targetSquares = List(square),
+          attackerSquares = unique(attackers),
+          defenderSquares = unique(defenders),
+          relatedSquares = List(square),
+          tacticalHintSquares = List(square),
+          vulnerableMaterialSquares = List(square)
+        )
+      case Pin(_, attacker, _, pinned, _, behind, _, _, _) =>
+        val relationSquares = List(pinned, behind)
+        SquareFocus(
+          subjectSquares = List(pinned),
+          targetSquares = List(behind),
+          attackerSquares = List(attacker),
+          relatedSquares = relationSquares,
+          tacticalHintSquares = relationSquares
+        )
+      case Skewer(_, attacker, _, front, _, back, _, _) =>
+        val relationSquares = List(front, back)
+        SquareFocus(
+          subjectSquares = List(front),
+          targetSquares = List(back),
+          attackerSquares = List(attacker),
+          relatedSquares = relationSquares,
+          tacticalHintSquares = relationSquares
+        )
+      case Fork(_, attacker, _, targets, _) =>
+        val targetSquares = targets.map(_._1)
+        SquareFocus(
+          subjectSquares = List(attacker),
+          targetSquares = targetSquares,
+          attackerSquares = List(attacker),
+          relatedSquares = targetSquares,
+          tacticalHintSquares = targetSquares
+        )
+      case WeakSquare(square, _, _, _) =>
+        SquareFocus(
+          subjectSquares = List(square),
+          targetSquares = List(square),
+          relatedSquares = List(square),
+          tacticalHintSquares = List(square)
+        )
+      case Outpost(square, _, _) =>
+        SquareFocus(
+          subjectSquares = List(square),
+          targetSquares = List(square),
+          relatedSquares = List(square)
+        )
+      case ActivatesPiece(_, from, to, _, _) =>
+        SquareFocus(
+          subjectSquares = List(to),
+          targetSquares = List(to),
+          relatedSquares = List(from, to)
+        )
+      case KingActivity(square, _, _, _) =>
+        SquareFocus(subjectSquares = List(square), relatedSquares = List(square))
+      case Opposition(king, enemyKing, _, _, _, _) =>
+        SquareFocus(subjectSquares = List(king), targetSquares = List(enemyKing), relatedSquares = List(king, enemyKing))
+      case RuleOfSquare(defenderKing, targetPawn, promotionSquare, _, _) =>
+        SquareFocus(
+          subjectSquares = List(defenderKing),
+          targetSquares = List(targetPawn, promotionSquare),
+          relatedSquares = List(defenderKing, targetPawn, promotionSquare)
+        )
+      case TriangulationOpportunity(king, _) =>
+        SquareFocus(subjectSquares = List(king), relatedSquares = List(king))
+      case PawnPromotion(square, _, _) =>
+        SquareFocus(subjectSquares = List(square), targetSquares = List(square), relatedSquares = List(square))
+      case StalemateThreat(king, _) =>
+        SquareFocus(subjectSquares = List(king), targetSquares = List(king), relatedSquares = List(king))
+      case DoubleCheck(checkingSquares, _) =>
+        SquareFocus(attackerSquares = unique(checkingSquares), relatedSquares = unique(checkingSquares), tacticalHintSquares = unique(checkingSquares))
+      case RookEndgamePattern(_, _) | EndgameOutcome(_, _, _) | Zugzwang(_, _) =>
+        SquareFocus()
 
   enum WeakSquareReason:
     case NoPawnDefense
@@ -40,6 +141,7 @@ object Fact {
 
   /** A piece that is attacked more than it is defended, or undefended. */
   case class HangingPiece(
+      owner: Color,
       square: Square,
       role: Role,
       attackers: List[Square],
@@ -51,6 +153,7 @@ object Fact {
 
   /** A piece on a square that is a tactical target (even if not hanging). */
   case class TargetPiece(
+      owner: Color,
       square: Square,
       role: Role,
       attackers: List[Square],
@@ -62,6 +165,7 @@ object Fact {
 
   /** A piece (pinned) that cannot move without exposing a more valuable piece (behind). */
   case class Pin(
+      attackerColor: Color,
       attacker: Square,
       attackerRole: Role,
       pinned: Square,
@@ -76,6 +180,7 @@ object Fact {
 
   /** A piece (front) that must move, exposing another piece (back) to capture. */
   case class Skewer(
+      attackerColor: Color,
       attacker: Square,
       attackerRole: Role,
       front: Square,
@@ -89,6 +194,7 @@ object Fact {
 
   /** A single piece (attacker) that attacks multiple targets simultaneously. */
   case class Fork(
+      attackerColor: Color,
       attacker: Square,
       attackerRole: Role,
       targets: List[(Square, Role)],

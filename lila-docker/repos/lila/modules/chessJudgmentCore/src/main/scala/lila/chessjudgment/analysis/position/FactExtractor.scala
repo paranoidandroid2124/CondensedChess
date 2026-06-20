@@ -1,6 +1,7 @@
 package lila.chessjudgment.analysis.position
 
 import chess.{ Board, Square, Role, Color }
+import lila.chessjudgment.analysis.material.MaterialValue
 import lila.chessjudgment.model._
 import lila.chessjudgment.model.strategic.{
   EndgameFeature,
@@ -51,11 +52,11 @@ object FactExtractor {
             attackers.nonEmpty &&
               (
                 (role != chess.Pawn && defenders.isEmpty) ||
-                  (role != chess.Pawn && pieceValue(role) > 1 && pressureGap >= 1) ||
+                  (role != chess.Pawn && MaterialValue.materialValueUnit(role) > 1 && pressureGap >= 1) ||
                   (role == chess.Pawn && defenders.isEmpty && attackers.size >= 2)
               )
 
-          if (isHanging) Some(Fact.HangingPiece(sq, role, attackers, defenders, scope))
+          if (isHanging) Some(Fact.HangingPiece(color, sq, role, attackers, defenders, scope))
           else None
         }
         }
@@ -67,7 +68,7 @@ object FactExtractor {
         val defenders = board.attackers(sq, color).squares
 
         if (attackers.nonEmpty && !hanging.exists(_.participants.contains(sq))) {
-          Some(Fact.TargetPiece(sq, role, attackers, defenders, scope))
+          Some(Fact.TargetPiece(color, sq, role, attackers, defenders, scope))
         } else None
       }
     }
@@ -243,7 +244,7 @@ object FactExtractor {
           aRole <- roleForScope(board, a, m.pinningPiece, scope)
           pRole <- roleForScope(board, p, m.pinnedPiece, scope)
           bRole <- roleForScope(board, b, m.targetBehind, scope)
-        } yield Fact.Pin(a, aRole, p, pRole, b, bRole, m.isAbsolutePin, scope)
+        } yield Fact.Pin(m.color, a, aRole, p, pRole, b, bRole, m.isAbsolutePin, scope)
 
       case m: Motif.Skewer =>
         for {
@@ -253,7 +254,7 @@ object FactExtractor {
           aRole <- roleForScope(board, a, m.attackingPiece, scope)
           fRole <- roleForScope(board, f, m.frontPiece, scope)
           bRole <- roleForScope(board, b, m.backPiece, scope)
-        } yield Fact.Skewer(a, aRole, f, fRole, b, bRole, scope)
+        } yield Fact.Skewer(m.color, a, aRole, f, fRole, b, bRole, scope)
 
       case m: Motif.Fork =>
         val attackerRoleOpt =
@@ -265,7 +266,7 @@ object FactExtractor {
           else
             m.targetSquares.zip(m.targets)
         attackerRoleOpt.flatMap { attackerRole =>
-          Option.when(verifiedTargets.nonEmpty)(Fact.Fork(m.square, attackerRole, verifiedTargets, scope))
+          Option.when(verifiedTargets.nonEmpty)(Fact.Fork(m.color, m.square, attackerRole, verifiedTargets, scope))
         }
 
       case m: Motif.Outpost =>
@@ -296,7 +297,7 @@ object FactExtractor {
 
       case m: Motif.Check =>
         if (m.checkType == Motif.CheckType.Double) Some(Fact.DoubleCheck(List(m.targetSquare), scope)) // Simplified
-        else Some(Fact.TargetPiece(m.targetSquare, chess.King, List(m.targetSquare), Nil, scope))
+        else Some(Fact.TargetPiece(!m.color, m.targetSquare, chess.King, List(m.targetSquare), Nil, scope))
 
       case m: Motif.PawnPromotion =>
         Square.at(m.file.value, if (m.color.white) 7 else 0)
@@ -324,12 +325,4 @@ object FactExtractor {
     if strictNow(scope) then board.roleAt(square)
     else board.roleAt(square).orElse(Some(motifRole))
 
-  private def pieceValue(role: Role): Int = role match {
-    case chess.Pawn   => 1
-    case chess.Knight => 3
-    case chess.Bishop => 3
-    case chess.Rook   => 5
-    case chess.Queen  => 9
-    case chess.King   => 0
-  }
 }

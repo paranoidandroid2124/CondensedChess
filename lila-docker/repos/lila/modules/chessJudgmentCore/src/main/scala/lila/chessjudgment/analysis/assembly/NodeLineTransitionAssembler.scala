@@ -1,16 +1,18 @@
 package lila.chessjudgment.analysis.assembly
 
-import chess.{ Bishop, Knight, Pawn, Queen, Role, Rook }
+import chess.{ Bishop, Knight, Pawn, Queen, Rook }
 import chess.format.Fen
 import chess.variant.Standard
 import lila.chessjudgment.analysis.evaluation.{ EvalFactNormalizer, EvaluationPerspectivePolicy }
 import lila.chessjudgment.analysis.line.{ ForcedLineTruth, LineFactNormalizer, PrincipalVariationEvidence }
+import lila.chessjudgment.analysis.material.MaterialValue
+import lila.chessjudgment.analysis.move.MoveAnalyzer
 import lila.chessjudgment.analysis.position.{ FactExtractor, PositionAnalyzer, PositionFactNormalizer }
 import lila.chessjudgment.analysis.singlePosition.{ SinglePositionAssessor, SinglePositionFactNormalizer }
 import lila.chessjudgment.analysis.strategic.EndgamePatternOracle
 import lila.chessjudgment.analysis.tactical.{ BoundedReplayStep, TacticalRelationEvidence }
 import lila.chessjudgment.analysis.transition.TransitionFactNormalizer
-import lila.chessjudgment.model.Fact
+import lila.chessjudgment.model.{ Fact, FactScope }
 import lila.chessjudgment.model.strategic.VariationLine
 import lila.chessjudgment.model.judgment.*
 
@@ -51,12 +53,17 @@ object PositionNodeAssembler:
       val ref = allocator.positionRef(role, fen, ply, Some(position.color))
       val nodeKey = allocator.positionKey(role, fen, ply)
       val features = PositionAnalyzer.extractFeatures(fen, ply)
+      val stateMotifFacts =
+        FactExtractor.fromMotifs(position.board, MoveAnalyzer.detectStateMotifs(position, ply), FactScope.Now)
       val facts =
-        List(position.color, !position.color).flatMap { side =>
-          val endgameFeature = EndgamePatternOracle.analyze(position.board, side)
-          FactExtractor.extractStaticFacts(position.board, side) ++
-            FactExtractor.extractEndgameFacts(position.board, side, endgameFeature)
-        }.distinct
+        (
+          stateMotifFacts ++
+            List(position.color, !position.color).flatMap { side =>
+              val endgameFeature = EndgamePatternOracle.analyze(position.board, side)
+              FactExtractor.extractStaticFacts(position.board, side) ++
+                FactExtractor.extractEndgameFacts(position.board, side, endgameFeature)
+            }
+        ).distinct
       val boardRecord =
         PositionFactNormalizer.fromBoardFacts(
           id = allocator.evidenceId(s"board:$nodeKey"),
@@ -156,7 +163,7 @@ object CandidateLineAssembler:
       root: PositionNodeRef,
       allocator: JudgmentProvenanceAllocator
   ): Option[CandidateLineAssembly] =
-    val scope = scopeFor(line.role)
+    val scope = line.role.scope
     val ref = allocator.lineRef(line)
     replayFacts(line, root).map { replayed =>
       val facts = replayed.facts
@@ -259,7 +266,7 @@ object CandidateLineAssembler:
               attackerRole = EvidencePieceRole(step.move.piece.role.toString),
               capturedRole = EvidencePieceRole(captured.toString),
               square = EvidenceSquare(step.move.dest.key),
-              valueCp = pieceValueCp(captured),
+              valueCp = MaterialValue.materialValueCp(captured),
               recapture = previous.exists(prev =>
                 prev.capturedRole.nonEmpty &&
                   prev.move.dest == step.move.dest &&
@@ -297,29 +304,13 @@ object CandidateLineAssembler:
   private def promotionGainCp(step: BoundedReplayStep): Int =
     Option.when(step.uci.length == 5) {
       val promotedValue = step.uci.last.toLower match
-        case 'q' => pieceValueCp(Queen)
-        case 'r' => pieceValueCp(Rook)
-        case 'b' => pieceValueCp(Bishop)
-        case 'n' => pieceValueCp(Knight)
-        case _   => pieceValueCp(Queen)
-      promotedValue - pieceValueCp(Pawn)
+        case 'q' => MaterialValue.materialValueCp(Queen)
+        case 'r' => MaterialValue.materialValueCp(Rook)
+        case 'b' => MaterialValue.materialValueCp(Bishop)
+        case 'n' => MaterialValue.materialValueCp(Knight)
+        case _   => MaterialValue.materialValueCp(Queen)
+      promotedValue - MaterialValue.materialValueCp(Pawn)
     }.getOrElse(0)
-
-  private def pieceValueCp(role: Role): Int =
-    role match
-      case Pawn   => 100
-      case Knight => 300
-      case Bishop => 300
-      case Rook   => 500
-      case Queen  => 900
-      case _      => 0
-
-  private def scopeFor(role: LineNodeRole): EvidenceScope =
-    role match
-      case LineNodeRole.Played        => EvidenceScope.PlayedLine
-      case LineNodeRole.BestReference => EvidenceScope.BestLine
-      case LineNodeRole.Threat        => EvidenceScope.ThreatLine
-      case LineNodeRole.Alternative   => EvidenceScope.CandidateLine
 
 object TransitionEdgeAssembler:
 
@@ -330,7 +321,7 @@ object TransitionEdgeAssembler:
       to: PositionNode,
       allocator: JudgmentProvenanceAllocator
   ): TransitionEdgeAssembly =
-    val scope = scopeFor(role)
+    val scope = role.scope
     val transitionEvidence =
       allocator.evidenceRef(
         suffix = s"transition:${allocator.key(role)}:${MoveReviewInputNormalizer.normalizeUci(moveUci)}",
@@ -356,13 +347,6 @@ object TransitionEdgeAssembler:
 
   private def changedFacts(before: List[Fact], after: List[Fact]): List[Fact] =
     after.filterNot(before.contains)
-
-  private def scopeFor(role: TransitionEdgeRole): EvidenceScope =
-    role match
-      case TransitionEdgeRole.Played    => EvidenceScope.PlayedTransition
-      case TransitionEdgeRole.Reference => EvidenceScope.ReferenceTransition
-      case TransitionEdgeRole.Alternative => EvidenceScope.AlternativeTransition
-      case TransitionEdgeRole.Threat      => EvidenceScope.ThreatLine
 
 object NodeLineTransitionAssembler:
 

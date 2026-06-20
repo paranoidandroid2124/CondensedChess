@@ -1,5 +1,7 @@
 package lila.chessjudgment.analysis.position
 
+import chess.{ Color, Role, Square }
+import lila.chessjudgment.analysis.material.MaterialValue
 import lila.chessjudgment.model.Fact
 import lila.chessjudgment.model.judgment.*
 
@@ -28,11 +30,172 @@ object PositionFactNormalizer:
         facts = facts,
         features = features
       )(
-        anchors = features.toList.flatMap(boardAnchors)
+        anchors = factAnchors(facts, features.map(_.sideToMove)) ++ features.toList.flatMap(featureAnchors)
       )
     )
 
-  private def boardAnchors(features: PositionFeatures): List[BoardAnchor] =
+  private def factAnchors(facts: List[Fact], perspective: Option[Color]): List[BoardAnchor] =
+    val side = perspective.getOrElse(Color.White)
+    facts.flatMap {
+      case fact @ Fact.HangingPiece(owner, _, pieceRole, _, _, _) =>
+        val focus = fact.squareFocus
+        val value = MaterialValue.materialValueCp(pieceRole)
+        Some(
+          BoardAnchor(
+            kind = BoardAnchorKind.LooseMaterial,
+            side = !owner,
+            signal = BoardAnchorSignal.HangingPiece,
+            magnitude = value,
+            confidence = 0.84,
+            detail = Some(
+              BoardAnchorDetail(
+                subjectColor = Some(owner),
+                subjectSquare = focus.subjectSquares.headOption.map(evidenceSquare),
+                subjectRole = Some(evidenceRole(pieceRole)),
+                attackerColor = Some(!owner),
+                attackerSquares = evidenceSquares(focus.attackerSquares),
+                defenderSquares = evidenceSquares(focus.defenderSquares),
+                materialLossCp = Some(value)
+              )
+            ),
+            claimGrade = true
+          )
+        )
+      case fact @ Fact.TargetPiece(owner, _, pieceRole, _, _, _) =>
+        val focus = fact.squareFocus
+        val pressure = (focus.attackerSquares.size - focus.defenderSquares.size).max(1)
+        Some(
+          BoardAnchor(
+            kind = BoardAnchorKind.LooseMaterial,
+            side = !owner,
+            signal = BoardAnchorSignal.AttackedTarget,
+            magnitude = pressure,
+            confidence = if focus.defenderSquares.isEmpty then 0.78 else 0.64,
+            detail = Some(
+              BoardAnchorDetail(
+                subjectColor = Some(owner),
+                subjectSquare = focus.subjectSquares.headOption.map(evidenceSquare),
+                subjectRole = Some(evidenceRole(pieceRole)),
+                attackerColor = Some(!owner),
+                attackerSquares = evidenceSquares(focus.attackerSquares),
+                defenderSquares = evidenceSquares(focus.defenderSquares),
+                materialLossCp = Some(MaterialValue.materialValueCp(pieceRole))
+              )
+            ),
+            claimGrade = focus.defenderSquares.isEmpty
+          )
+        )
+      case fact @ Fact.Pin(attackerColor, attacker, attackerRole, _, pinnedRole, _, behindRole, isAbsolute, _) =>
+        val focus = fact.squareFocus
+        val valueGap = (MaterialValue.materialValueCp(behindRole) - MaterialValue.materialValueCp(pinnedRole)).max(1)
+        Some(
+          BoardAnchor(
+            kind = BoardAnchorKind.PinPressure,
+            side = attackerColor,
+            signal = if isAbsolute then BoardAnchorSignal.AbsolutePin else BoardAnchorSignal.RelativePin,
+            magnitude = valueGap,
+            confidence = if isAbsolute then 0.88 else 0.74,
+            detail = Some(
+              BoardAnchorDetail(
+                subjectColor = Some(!attackerColor),
+                subjectSquare = focus.subjectSquares.headOption.map(evidenceSquare),
+                subjectRole = Some(evidenceRole(pinnedRole)),
+                targetSquare = focus.targetSquares.headOption.map(evidenceSquare),
+                targetRole = Some(evidenceRole(behindRole)),
+                attackerColor = Some(attackerColor),
+                attackerSquare = Some(evidenceSquare(attacker)),
+                attackerRole = Some(evidenceRole(attackerRole)),
+                relatedSquares = evidenceSquares(focus.relatedSquares),
+                isAbsolute = Some(isAbsolute)
+              )
+            ),
+            claimGrade = isAbsolute || MaterialValue.materialValueCp(behindRole) > MaterialValue.materialValueCp(pinnedRole)
+          )
+        )
+      case fact @ Fact.Skewer(attackerColor, attacker, attackerRole, _, frontRole, _, backRole, _) =>
+        val focus = fact.squareFocus
+        Some(
+          BoardAnchor(
+            kind = BoardAnchorKind.SkewerPressure,
+            side = attackerColor,
+            signal = BoardAnchorSignal.SkewerLine,
+            magnitude = (MaterialValue.materialValueCp(backRole) + MaterialValue.materialValueCp(frontRole)).max(1),
+            confidence = 0.76,
+            detail = Some(
+              BoardAnchorDetail(
+                subjectColor = Some(!attackerColor),
+                subjectSquare = focus.subjectSquares.headOption.map(evidenceSquare),
+                subjectRole = Some(evidenceRole(frontRole)),
+                targetSquare = focus.targetSquares.headOption.map(evidenceSquare),
+                targetRole = Some(evidenceRole(backRole)),
+                attackerColor = Some(attackerColor),
+                attackerSquare = Some(evidenceSquare(attacker)),
+                attackerRole = Some(evidenceRole(attackerRole)),
+                relatedSquares = evidenceSquares(focus.relatedSquares)
+              )
+            ),
+            claimGrade = true
+          )
+        )
+      case fact @ Fact.Fork(attackerColor, attacker, attackerRole, targets, _) =>
+        val focus = fact.squareFocus
+        Some(
+          BoardAnchor(
+            kind = BoardAnchorKind.ForkPressure,
+            side = attackerColor,
+            signal = BoardAnchorSignal.ForkTargets,
+            magnitude = targets.map { case (_, role) => MaterialValue.materialValueCp(role) }.sum.max(targets.size),
+            confidence = if targets.size >= 2 then 0.82 else 0.60,
+            detail = Some(
+              BoardAnchorDetail(
+                subjectColor = Some(!attackerColor),
+                attackerColor = Some(attackerColor),
+                attackerSquare = Some(evidenceSquare(attacker)),
+                attackerRole = Some(evidenceRole(attackerRole)),
+                targetSquare = focus.targetSquares.headOption.map(evidenceSquare),
+                targetRole = targets.headOption.map { case (_, role) => evidenceRole(role) },
+                relatedSquares = evidenceSquares(focus.relatedSquares)
+              )
+            ),
+            claimGrade = targets.size >= 2
+          )
+        )
+      case fact @ Fact.WeakSquare(_, _, _, _) =>
+        val focus = fact.squareFocus
+        Some(
+          BoardAnchor(
+            kind = BoardAnchorKind.WeakSquare,
+            side = side,
+            signal = BoardAnchorSignal.WeakSquareHole,
+            magnitude = 1,
+            confidence = 0.68,
+            detail = Some(BoardAnchorDetail(subjectSquare = focus.subjectSquares.headOption.map(evidenceSquare))),
+            claimGrade = false
+          )
+        )
+      case fact @ Fact.Outpost(_, pieceRole, _) =>
+        val focus = fact.squareFocus
+        Some(
+          BoardAnchor(
+            kind = BoardAnchorKind.Outpost,
+            side = side,
+            signal = BoardAnchorSignal.OutpostSquare,
+            magnitude = MaterialValue.materialValueCp(pieceRole).max(1),
+            confidence = 0.72,
+            detail = Some(
+              BoardAnchorDetail(
+                subjectSquare = focus.subjectSquares.headOption.map(evidenceSquare),
+                subjectRole = Some(evidenceRole(pieceRole))
+              )
+            ),
+            claimGrade = true
+          )
+        )
+      case _ =>
+        None
+    }
+
+  private def featureAnchors(features: PositionFeatures): List[BoardAnchor] =
     val side = features.sideToMove
     val opponent = !side
     val centerEdge = features.centralSpace.whiteCenterControl - features.centralSpace.blackCenterControl
@@ -100,3 +263,12 @@ object PositionFactNormalizer:
 
   private def kingPressure(features: PositionFeatures, side: chess.Color): Int =
     if side.white then features.kingSafety.whiteAttackersCount else features.kingSafety.blackAttackersCount
+
+  private def evidenceSquare(square: Square): EvidenceSquare =
+    EvidenceSquare(square.key)
+
+  private def evidenceSquares(squares: List[Square]): List[EvidenceSquare] =
+    squares.distinct.map(evidenceSquare)
+
+  private def evidenceRole(role: Role): EvidencePieceRole =
+    EvidencePieceRole(role.name)

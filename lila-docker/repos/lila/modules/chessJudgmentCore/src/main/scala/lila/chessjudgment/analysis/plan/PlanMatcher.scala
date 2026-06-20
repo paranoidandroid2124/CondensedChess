@@ -1,8 +1,7 @@
 package lila.chessjudgment.analysis.plan
 
 import chess.*
-import chess.Color.White
-import lila.chessjudgment.analysis.evaluation.JudgmentThresholds
+import lila.chessjudgment.analysis.evaluation.{ JudgmentThresholds, PerspectiveMath }
 import lila.chessjudgment.analysis.singlePosition.{ GamePhaseType, PawnPlayAnalysis, SinglePositionAssessment, ThreatAnalysis, TensionPolicy }
 import lila.chessjudgment.model.*
 import lila.chessjudgment.model.Motif.*
@@ -25,7 +24,10 @@ case class PlanInteractionContext(
     structureProfile: Option[StructureProfile] = None,
     planAlignment: Option[PlanAlignment] = None
 ):
-  def evalFor(color: Color): Int = if color == White then evalCp else -evalCp
+  def winPercentFor(color: Color): Double =
+    PerspectiveMath.winPercentForMover(color, evalCp)
+  def winPercentAdvantageFor(color: Color): Double =
+    (winPercentFor(color) - 50.0).max(0.0)
   def phase: String = phaseEnumOpt match
     case Some(GamePhaseType.Opening)    => "opening"
     case Some(GamePhaseType.Middlegame) => "middlegame"
@@ -198,7 +200,9 @@ object PlanMatcher:
       out = adjust(out, Theme.Restriction, 1.15, CompatibilityAdjustment.DefensivePressure)
       out = adjust(out, Theme.FlankInfrastructure, 0.74, CompatibilityAdjustment.DefensivePressure)
       out = adjust(out, Theme.PawnBreakPreparation, 0.82, CompatibilityAdjustment.DefensivePressure)
-    if ctx.positionAssessment.exists(_.simplifyBias.shouldSimplify) && ctx.evalFor(side) >= 80 then
+    if ctx.positionAssessment.exists(_.simplifyBias.shouldSimplify) &&
+        ctx.winPercentAdvantageFor(side) >= JudgmentThresholds.CONVERSION_EDGE_WP
+    then
       out = adjust(out, Theme.FavorableExchange, 1.15, CompatibilityAdjustment.ConversionWindow)
       out = adjust(out, Theme.AdvantageTransformation, 1.12, CompatibilityAdjustment.ConversionWindow)
     if ctx.features.exists(_.centralSpace.openCenter) && kingExposure(ctx.features, side) >= 2 then
@@ -345,12 +349,15 @@ object PlanMatcher:
           (t == CaptureType.Exchange || t == CaptureType.Recapture || t == CaptureType.Winning) => true
       case RemovingTheDefender(_, _, _, _, c, _, _) if c == side => true
     }
-    val evalEdge = ctx.evalFor(side)
+    val advantageEdge = ctx.winPercentAdvantageFor(side)
+    val opponentAdvantageEdge = ctx.winPercentAdvantageFor(!side)
     val simplifyWindow = ctx.positionAssessment.exists(_.simplifyBias.shouldSimplify)
     val score =
       0.20 +
         (if simplifyWindow then 0.20 else 0.0) +
-        (if evalEdge >= 80 then 0.10 else if evalEdge <= -80 then -0.08 else 0.0) +
+        (if advantageEdge >= JudgmentThresholds.CONVERSION_EDGE_WP then 0.10
+         else if opponentAdvantageEdge >= JudgmentThresholds.CONVERSION_EDGE_WP then -0.08
+         else 0.0) +
         math.min(0.15, ev.size * 0.05)
     themed(Theme.FavorableExchange, Plan.Exchange(side), score, ev, Some(Subplan.FavorableExchange))
 
@@ -387,10 +394,10 @@ object PlanMatcher:
       case RookBehindPassedPawn(_, c, _, _) if c == side => true
       case SeventhRankInvasion(c, _, _) if c == side => true
     }
-    val evalEdge = ctx.evalFor(side)
+    val advantageEdge = ctx.winPercentAdvantageFor(side)
     val score =
       0.22 +
-        (if evalEdge.abs >= 70 then 0.14 else 0.0) +
+        (if advantageEdge >= JudgmentThresholds.CRITICAL_CANDIDATE_GAP_WP then 0.14 else 0.0) +
         (if s.ourPassers > s.oppPassers then 0.10 else 0.0) +
         (if ctx.positionAssessment.exists(_.simplifyBias.shouldSimplify) then 0.10 else 0.0) +
         math.min(0.16, ev.size * 0.05)

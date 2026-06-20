@@ -22,6 +22,10 @@ object JudgmentThresholds:
   val IGNORABLE_THREAT_WP = 2.0
   val ONLY_DEFENSE_TOLERANCE_WP = 1.25
   val DRAW_RESOURCE_BALANCE_EDGE_WP = 7.5
+  val CRITICAL_CANDIDATE_GAP_WP = 5.0
+  val FORCING_CANDIDATE_GAP_WP = 10.0
+  val CONVERSION_EDGE_WP = 15.0
+  val DECISIVE_EDGE_WP = 25.0
 
   def engineBackedByDepth(depth: Int, mate: Option[Int]): Boolean =
     mate.nonEmpty || depth >= ENGINE_BACKED_DEPTH

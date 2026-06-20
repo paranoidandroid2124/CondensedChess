@@ -43,6 +43,7 @@ case class CriticalityResult(
   criticalityType: CriticalityType,
   // Evidence
   evalDeltaCp: Option[Int],     // Eval delta from best to next candidate when available
+  evalDeltaWinPercent: Option[Double],
   mateDistance: Option[Int],    // Mate distance if applicable
   forcingMovesInPv: Int         // Count of checks/captures in PV
 ):
@@ -95,6 +96,7 @@ case class SimplifyBiasResult(
   isSimplificationWindow: Boolean,
   // Evidence
   evalAdvantage: Int,           // Current eval advantage
+  evalAdvantageWinPercent: Double,
   isEndgameNear: Boolean,       // Phase is endgame or near
   exchangeAvailable: Boolean    // Queen/Rook exchange possible
 ):
@@ -167,16 +169,16 @@ case class PvLine(
  */
 enum ThreatKind:
   case Mate        // Checkmate threat
-  case Material    // Material loss threat (>= 300cp)
-  case Positional  // Positional disadvantage (< 300cp)
+  case Material    // Material or line-backed loss threat
+  case Positional  // Positional disadvantage
 
 /**
  * Urgency level for defense.
  */
 enum ThreatSeverity:
-  case Urgent     // Must defend immediately (mate or >= 800cp)
-  case Important  // Should defend (>= 300cp)  
-  case Low        // Can consider ignoring (< 300cp)
+  case Urgent
+  case Important
+  case Low
 
 enum ThreatDriver:
   case MateThreat

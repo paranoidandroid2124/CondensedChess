@@ -81,33 +81,14 @@ object ClaimDeduplicator:
       semanticAnchor: String
   )
 
-  private val aggregatableFamilies: Set[ClaimFamily] =
-    Set(
-      ClaimFamily.Strategic,
-      ClaimFamily.PawnStructure,
-      ClaimFamily.Plan,
-      ClaimFamily.Opening
-    )
-
-  private val causeBoundLayers: Set[EvidenceLayer] =
-    Set(
-      EvidenceLayer.Relation,
-      EvidenceLayer.MoveMotif,
-      EvidenceLayer.RelativeCause,
-      EvidenceLayer.RelativeAssessment,
-      EvidenceLayer.CandidateComparison,
-      EvidenceLayer.Counterfactual,
-      EvidenceLayer.MoveVerdictCertification
-    )
-
   private def aggregationEligible(
       claim: ClaimSeed,
       graph: TypedEvidenceGraph
   ): Boolean =
-    aggregatableFamilies.contains(claim.family) &&
+    claim.family.isLongTerm &&
       claim.engineComparison.isEmpty &&
       claim.evidence.nonEmpty &&
-      !claim.evidence.exists(ref => causeBoundLayers.contains(ref.layer)) &&
+      !claim.evidence.exists(ref => ClaimSupportCluster.causeBoundLayer(ref.layer)) &&
       ClaimSupportCluster.semanticAnchor(claim, graph).nonEmpty
 
   private def aggregationKey(
@@ -286,7 +267,7 @@ object ClaimArbitrator:
     List.concat(
       Option
         .when(claim.family == ClaimFamily.Tactical && tacticalConstrainsLongTerm(claim, graph))(
-          related.filter(isLongTermClaim).map { other =>
+          related.filter(_.family.isLongTerm).map { other =>
             val kind =
               if causeKinds.exists(kind =>
                   kind == RelativeCauseKind.TacticalRefutationOfPlayed ||
@@ -306,7 +287,7 @@ object ClaimArbitrator:
         .getOrElse(Nil),
       Option
         .when(claim.family == ClaimFamily.Tactical && tacticalSupportsLongTerm(claim, graph))(
-          related.filter(isLongTermClaim).map { other =>
+          related.filter(_.family.isLongTerm).map { other =>
             ClaimInteraction(
               kind = ClaimInteractionKind.TacticalSupportsStrategicPlan,
               relatedClaimId = other.id,
@@ -317,7 +298,7 @@ object ClaimArbitrator:
         )
         .getOrElse(Nil),
       Option
-        .when(isLongTermClaim(claim))(
+        .when(claim.family.isLongTerm)(
           related.filter(_.family == ClaimFamily.Tactical).flatMap { other =>
             if tacticalConstrainsLongTerm(other, graph) then
               Some(
@@ -343,7 +324,7 @@ object ClaimArbitrator:
         .getOrElse(Nil),
       Option
         .when(claim.family == ClaimFamily.Defensive && causeKinds.exists(defensiveNecessityCause))(
-          related.filter(isLongTermClaim).map { other =>
+          related.filter(_.family.isLongTerm).map { other =>
             ClaimInteraction(
               kind = ClaimInteractionKind.DefensiveNecessityOverridesPlan,
               relatedClaimId = other.id,
@@ -355,7 +336,7 @@ object ClaimArbitrator:
         .getOrElse(Nil),
       Option
         .when(claim.family == ClaimFamily.Conversion && causeKinds.contains(RelativeCauseKind.ConversionSecured))(
-          related.filter(other => isLongTermClaim(other) || other.family == ClaimFamily.Evaluation).map { other =>
+          related.filter(other => other.family.isLongTerm || other.family == ClaimFamily.Evaluation).map { other =>
             ClaimInteraction(
               kind = ClaimInteractionKind.ConversionSecuresAdvantage,
               relatedClaimId = other.id,
@@ -367,7 +348,7 @@ object ClaimArbitrator:
         .getOrElse(Nil),
       Option
         .when(claim.family == ClaimFamily.Material && causeKinds.contains(RelativeCauseKind.SacrificeCompensation))(
-          related.filter(isLongTermClaim).map { other =>
+          related.filter(_.family.isLongTerm).map { other =>
             ClaimInteraction(
               kind = ClaimInteractionKind.StrategicCompensationSupportsSacrifice,
               relatedClaimId = other.id,
@@ -466,11 +447,6 @@ object ClaimArbitrator:
         strength
       case ClaimInteraction(ClaimInteractionKind.BadVerdictPreservesLocalIdea, _, strength, _) =>
         strength
-
-  private def isLongTermClaim(claim: ClaimSeed): Boolean =
-    claim.family match
-      case ClaimFamily.Plan | ClaimFamily.Strategic | ClaimFamily.PawnStructure | ClaimFamily.Opening => true
-      case _                                                                                         => false
 
   private def claimsShareGraphContext(left: ClaimSeed, right: ClaimSeed, graph: TypedEvidenceGraph): Boolean =
     left.primaryPosition == right.primaryPosition &&
@@ -586,24 +562,15 @@ object ClaimArbitrator:
     }.distinct
 
   private def defensiveNecessityCause(kind: RelativeCauseKind): Boolean =
-    kind match
-      case RelativeCauseKind.OnlyMoveNecessity | RelativeCauseKind.OnlyDefenseNecessity | RelativeCauseKind.DefensiveResource =>
-        true
-      case _ =>
-        false
+    kind != RelativeCauseKind.DrawResource &&
+      ClaimEventCluster.kindForCause(kind).contains(ClaimEventClusterKind.DefensiveEvent)
 
   private def tacticalRelativeCause(kind: RelativeCauseKind): Boolean =
-    kind match
-      case RelativeCauseKind.MissedTacticalResource | RelativeCauseKind.TacticalRefutationOfPlayed |
-          RelativeCauseKind.CandidateTacticalLiability |
-          RelativeCauseKind.WrongRecapturer | RelativeCauseKind.RecaptureRecoveryWindow |
-          RelativeCauseKind.WrongMoveOrder | RelativeCauseKind.TempoLoss | RelativeCauseKind.KingForcing =>
-        true
-      case _ =>
-        false
+    ClaimEventCluster.kindForCause(kind).contains(ClaimEventClusterKind.TacticalEvent)
 
   private def materialSwingCause(kind: RelativeCauseKind): Boolean =
-    kind == RelativeCauseKind.MaterialSwing
+    kind == RelativeCauseKind.MaterialSwing &&
+      ClaimEventCluster.kindForCause(kind).contains(ClaimEventClusterKind.MaterialEvent)
 
   private def recordSalience(record: EvidenceRecord): Int =
     record.payload match
@@ -671,12 +638,10 @@ object ClaimArbitrator:
       case SinglePositionEvidence(_) =>
         1
       case payload @ BoardFactEvidence(_, _) =>
-        payload.anchors.size.min(3)
-      case payload @ LineFactEvidence(_, firstMove, replyMove, continuationMoves, forcedTheme, _) =>
-        firstMove.size +
-          replyMove.size +
-          continuationMoves.take(2).size +
-          payload.consequences.count(_.claimGrade).min(4) +
+        payload.claimGradeAnchors.size.min(3)
+      case payload: LineFactEvidence =>
+        payload.mainlineMoves.take(4).size +
+          payload.consequenceProfile.claimGradeKinds.size.min(4) +
           payload.events.size.min(2)
       case EvalFactEvidence(_, _, mate, depth) =>
         mate.map(_ => 5).getOrElse(if depth >= 16 then 2 else 1)
@@ -718,7 +683,7 @@ object ClaimArbitrator:
       case MoveVerdictCertificationEvidence(certification) =>
         ClaimSalienceDriver.EngineSwing ::
           Option.when(certification.causes.exists(cause => defensiveNecessityCause(cause.kind)))(ClaimSalienceDriver.CandidateConstraint).toList
-      case payload: LineFactEvidence if payload.consequences.exists(_.claimGrade) =>
+      case payload: LineFactEvidence if payload.hasClaimGradeConsequence =>
         List(ClaimSalienceDriver.ForcingLine)
       case MoveMotifEvidence(moveUci, motifs) if rootCastlingMotif(moveUci, motifs) =>
         List(ClaimSalienceDriver.StrategicFeature, ClaimSalienceDriver.BoardAnchor)
@@ -734,7 +699,7 @@ object ClaimArbitrator:
                 TacticalMotifClassifier.isForcing(motif)
             ))(ClaimSalienceDriver.ForcingLine)
             .toList
-      case payload @ BoardFactEvidence(_, _) if payload.anchors.nonEmpty =>
+      case payload @ BoardFactEvidence(_, _) if payload.hasClaimGradeAnchor =>
         List(ClaimSalienceDriver.BoardAnchor)
       case _ =>
         Nil

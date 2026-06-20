@@ -7,17 +7,70 @@ enum PositionNodeRole:
   case AfterAlternative
   case AfterThreat
 
+  def scope: EvidenceScope =
+    this match
+      case Before           => EvidenceScope.BeforePosition
+      case AfterPlayed      => EvidenceScope.AfterPlayedPosition
+      case AfterReference   => EvidenceScope.AfterReferencePosition
+      case AfterAlternative => EvidenceScope.AlternativeTransition
+      case AfterThreat      => EvidenceScope.ThreatLine
+
 enum LineNodeRole:
   case Played
   case BestReference
   case Alternative
   case Threat
 
+  def scope: EvidenceScope =
+    this match
+      case Played        => EvidenceScope.PlayedLine
+      case BestReference => EvidenceScope.BestLine
+      case Alternative   => EvidenceScope.CandidateLine
+      case Threat        => EvidenceScope.ThreatLine
+
+  def subject: IdeaSubject =
+    this match
+      case Played        => IdeaSubject.PlayedMove
+      case BestReference => IdeaSubject.ReferenceMove
+      case Alternative | Threat =>
+        IdeaSubject.CandidateLine
+
 enum TransitionEdgeRole:
   case Played
   case Reference
   case Alternative
   case Threat
+
+  def lineRole: LineNodeRole =
+    this match
+      case Played      => LineNodeRole.Played
+      case Reference   => LineNodeRole.BestReference
+      case Alternative => LineNodeRole.Alternative
+      case Threat      => LineNodeRole.Threat
+
+  def scope: EvidenceScope =
+    this match
+      case Played      => EvidenceScope.PlayedTransition
+      case Reference   => EvidenceScope.ReferenceTransition
+      case Alternative => EvidenceScope.AlternativeTransition
+      case Threat      => EvidenceScope.ThreatLine
+
+  def subject: IdeaSubject =
+    this match
+      case Played      => IdeaSubject.PlayedMove
+      case Reference   => IdeaSubject.ReferenceMove
+      case Alternative | Threat =>
+        IdeaSubject.CandidateLine
+
+object TransitionEdgeRole:
+
+  def fromScope(scope: EvidenceScope): Option[TransitionEdgeRole] =
+    scope match
+      case EvidenceScope.PlayedTransition      => Some(TransitionEdgeRole.Played)
+      case EvidenceScope.ReferenceTransition   => Some(TransitionEdgeRole.Reference)
+      case EvidenceScope.AlternativeTransition => Some(TransitionEdgeRole.Alternative)
+      case EvidenceScope.ThreatLine            => Some(TransitionEdgeRole.Threat)
+      case _                                   => None
 
 enum EvidenceLayer:
   case Board

@@ -153,12 +153,12 @@ object ChessIdeaAssembler:
           ChessIdeaBuilder.fromEvidence(
             id = allocator.evidenceId(s"idea:tactical:${driver.id}:${allocator.key(line.role)}:${line.ref.rank}:${line.ref.rootMove}"),
             family = ChessIdeaFamily.Tactical,
-            subject = subjectForLine(Some(line.ref)),
+            subject = line.ref.role.subject,
             primaryPosition = position,
             primaryLine = Some(line.ref),
             moveUci = Some(line.ref.rootMove),
             evidence = evidence.distinctBy(_.id),
-            scope = scopeForLine(line.ref),
+            scope = line.ref.role.scope,
             confidence = tacticalIdeaConfidence(driver, relative, evalRecords)
           )
         }
@@ -301,26 +301,12 @@ object ChessIdeaAssembler:
     }
 
   private def familyForRelativeCause(kind: RelativeCauseKind): ChessIdeaFamily =
-    kind match
-      case RelativeCauseKind.MissedTacticalResource | RelativeCauseKind.TacticalRefutationOfPlayed |
-          RelativeCauseKind.CandidateTacticalLiability |
-          RelativeCauseKind.WrongRecapturer | RelativeCauseKind.RecaptureRecoveryWindow |
-          RelativeCauseKind.WrongMoveOrder | RelativeCauseKind.TempoLoss | RelativeCauseKind.KingForcing =>
-        ChessIdeaFamily.Tactical
-      case RelativeCauseKind.OnlyMoveNecessity | RelativeCauseKind.OnlyDefenseNecessity |
-          RelativeCauseKind.DefensiveResource | RelativeCauseKind.DrawResource =>
-        ChessIdeaFamily.Defensive
-      case RelativeCauseKind.ConversionMiss | RelativeCauseKind.ConversionSecured =>
-        ChessIdeaFamily.Conversion
-      case RelativeCauseKind.MaterialSwing | RelativeCauseKind.SacrificeCompensation =>
-        ChessIdeaFamily.Material
-      case RelativeCauseKind.StructuralImprovement | RelativeCauseKind.TargetPressureGain |
-          RelativeCauseKind.CenterControlGain | RelativeCauseKind.DevelopmentActivation |
-          RelativeCauseKind.PieceActivityGain | RelativeCauseKind.CastlingRightsConcession |
-          RelativeCauseKind.StrategicConcession | RelativeCauseKind.StrategicIdeaRefuted |
-          RelativeCauseKind.MissedStrategicImprovement | RelativeCauseKind.PlanImprovement |
-          RelativeCauseKind.PlanContradiction =>
-        ChessIdeaFamily.Strategic
+    ClaimEventCluster.kindForCause(kind) match
+      case Some(ClaimEventClusterKind.TacticalEvent)   => ChessIdeaFamily.Tactical
+      case Some(ClaimEventClusterKind.DefensiveEvent)  => ChessIdeaFamily.Defensive
+      case Some(ClaimEventClusterKind.ConversionEvent) => ChessIdeaFamily.Conversion
+      case Some(ClaimEventClusterKind.MaterialEvent)   => ChessIdeaFamily.Material
+      case None                                        => ChessIdeaFamily.Strategic
 
   private def familiesForRelativeCause(
       context: JudgmentAssemblyContext,
@@ -379,16 +365,7 @@ object ChessIdeaAssembler:
       }
 
   private def strategicRelativeCause(kind: RelativeCauseKind): Boolean =
-    kind match
-      case RelativeCauseKind.StructuralImprovement | RelativeCauseKind.TargetPressureGain |
-          RelativeCauseKind.CenterControlGain | RelativeCauseKind.DevelopmentActivation |
-          RelativeCauseKind.PieceActivityGain | RelativeCauseKind.CastlingRightsConcession |
-          RelativeCauseKind.StrategicConcession | RelativeCauseKind.StrategicIdeaRefuted |
-          RelativeCauseKind.MissedStrategicImprovement | RelativeCauseKind.PlanImprovement |
-          RelativeCauseKind.PlanContradiction =>
-        true
-      case _ =>
-        false
+    ClaimEventCluster.kindForCause(kind).isEmpty
 
   private def recordsForRefs(
       context: JudgmentAssemblyContext,
@@ -449,22 +426,10 @@ object ChessIdeaAssembler:
         .flatMap(parent => context.evidenceGraph.byId.get(parent.id))
         .exists {
           case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-            lineHasConversionConsequence(payload)
+            payload.consequenceProfile.hasConversionConsequence
           case _ =>
             false
         }
-
-  private def lineHasConversionConsequence(line: LineFactEvidence): Boolean =
-    line.consequences.exists(consequence =>
-      consequence.claimGrade &&
-        (
-            consequence.kind == LineConsequenceKind.RecaptureSequence ||
-            consequence.kind == LineConsequenceKind.RecoveryWindow ||
-            consequence.kind == LineConsequenceKind.MaterialGain ||
-            consequence.kind == LineConsequenceKind.MaterialLoss ||
-            consequence.kind == LineConsequenceKind.Sacrifice
-        )
-    )
 
   private def conversionContextEvidence(
       context: JudgmentAssemblyContext,
@@ -478,13 +443,12 @@ object ChessIdeaAssembler:
 
   private def subjectForRelativeCause(cause: RelativeCauseFact, line: LineNodeRef): IdeaSubject =
     cause.kind match
-      case RelativeCauseKind.OnlyMoveNecessity | RelativeCauseKind.OnlyDefenseNecessity |
-          RelativeCauseKind.DefensiveResource | RelativeCauseKind.DrawResource =>
+      case kind if ClaimEventCluster.kindForCause(kind).contains(ClaimEventClusterKind.DefensiveEvent) =>
         IdeaSubject.Threat
       case RelativeCauseKind.PlanImprovement | RelativeCauseKind.PlanContradiction =>
         IdeaSubject.Plan
       case _ =>
-        subjectForLine(Some(line))
+        line.role.subject
 
   private def strategicIdeas(
       context: JudgmentAssemblyContext,
@@ -524,7 +488,7 @@ object ChessIdeaAssembler:
           Some(ChessIdeaBuilder.fromEvidence(
             id = allocator.evidenceId(s"idea:strategic-castling:${allocator.key(ref.id)}"),
             family = ChessIdeaFamily.Strategic,
-            subject = transition.map(subjectForTransition).getOrElse(subjectForLine(ref.line)),
+            subject = transition.map(_.role.subject).getOrElse(subjectForLine(ref.line)),
             primaryPosition = ref.position,
             primaryLine = ref.line,
             moveUci = Some(moveUci),
@@ -547,7 +511,7 @@ object ChessIdeaAssembler:
             ChessIdeaBuilder.fromEvidence(
               id = allocator.evidenceId(s"idea:strategic-delta:${allocator.key(ref.id)}"),
               family = ChessIdeaFamily.Strategic,
-              subject = subjectForTransition(transition),
+              subject = transition.role.subject,
               primaryPosition = ref.position,
               primaryLine = ref.line,
               moveUci = Some(transition.moveUci),
@@ -693,17 +657,16 @@ object ChessIdeaAssembler:
         }
     val hasEngineOrForcingProof =
       evalFacts.exists(_.mate.nonEmpty) ||
-        lineFacts.exists(_.consequences.exists(_.claimGrade)) ||
+        lineFacts.exists(_.hasClaimGradeConsequence) ||
         relativeAssessments.exists(relativeSupportsTacticalIdea)
     hasTacticalAnchor && hasLineConsequence && hasEngineOrForcingProof
 
   private def lineHasConcreteConsequence(line: LineFactEvidence): Boolean =
-    line.consequences.exists(_.claimGrade)
+    line.consequenceProfile.hasConcreteClaimProof
 
   private def lineConsequenceDrivers(line: LineFactEvidence): List[TacticalIdeaDriver] =
     val typedDrivers =
-      line.consequences.flatMap { consequence =>
-        consequence.kind match
+      line.consequenceProfile.tacticalDriverKinds.flatMap {
           case LineConsequenceKind.MaterialGain | LineConsequenceKind.MaterialLoss =>
             List(TacticalIdeaDriver.MaterialGain)
           case LineConsequenceKind.RecaptureSequence | LineConsequenceKind.RecoveryWindow =>
@@ -893,13 +856,6 @@ object ChessIdeaAssembler:
     else if driver == TacticalIdeaDriver.RelationMechanism then EvidenceConfidence.LegalReplayVerified
     else EvidenceConfidence.Mixed
 
-  private def scopeForLine(line: LineNodeRef): EvidenceScope =
-    line.role match
-      case LineNodeRole.Played        => EvidenceScope.PlayedLine
-      case LineNodeRole.BestReference => EvidenceScope.BestLine
-      case LineNodeRole.Alternative   => EvidenceScope.CandidateLine
-      case LineNodeRole.Threat        => EvidenceScope.ThreatLine
-
   private def lineLayerRefs(
       context: JudgmentAssemblyContext,
       line: LineNodeRef
@@ -958,28 +914,8 @@ object ChessIdeaAssembler:
   private def castlingMove(moveUci: String): Boolean =
     moveUci == "e1g1" || moveUci == "e1c1" || moveUci == "e8g8" || moveUci == "e8c8"
 
-  private def subjectForTransition(transition: MoveTransitionEdge): IdeaSubject =
-    transition.role match
-      case TransitionEdgeRole.Played      => IdeaSubject.PlayedMove
-      case TransitionEdgeRole.Reference   => IdeaSubject.ReferenceMove
-      case TransitionEdgeRole.Alternative | TransitionEdgeRole.Threat =>
-        IdeaSubject.CandidateLine
-
   private def subjectForLine(line: Option[LineNodeRef]): IdeaSubject =
-    line.map(_.role) match
-      case Some(LineNodeRole.Played)        => IdeaSubject.PlayedMove
-      case Some(LineNodeRole.BestReference) => IdeaSubject.ReferenceMove
-      case Some(LineNodeRole.Alternative) | Some(LineNodeRole.Threat) =>
-        IdeaSubject.CandidateLine
-      case None => IdeaSubject.Position
+    line.map(_.role.subject).getOrElse(IdeaSubject.Position)
 
   private def transitionForScope(context: JudgmentAssemblyContext, scope: EvidenceScope): Option[MoveTransitionEdge] =
-    transitionRoleFor(scope).flatMap(context.transition)
-
-  private def transitionRoleFor(scope: EvidenceScope): Option[TransitionEdgeRole] =
-    scope match
-      case EvidenceScope.PlayedTransition    => Some(TransitionEdgeRole.Played)
-      case EvidenceScope.ReferenceTransition => Some(TransitionEdgeRole.Reference)
-      case EvidenceScope.AlternativeTransition => Some(TransitionEdgeRole.Alternative)
-      case EvidenceScope.ThreatLine          => Some(TransitionEdgeRole.Threat)
-      case _                                 => None
+    TransitionEdgeRole.fromScope(scope).flatMap(context.transition)
