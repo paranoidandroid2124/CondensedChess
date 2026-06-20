@@ -500,14 +500,7 @@ object JudgmentPacketValidator:
       line: LineNodeRef,
       layer: EvidenceLayer
   ): Boolean =
-    parentClosure(graph, record).exists {
-      case EvidenceRecord(ref, payload: LineFactEvidence, _) =>
-        layer == EvidenceLayer.Line && ref.line.contains(line) && payload.line == line
-      case EvidenceRecord(ref, EvalFactEvidence(payloadLine, _, _, _), _) =>
-        layer == EvidenceLayer.Eval && ref.line.contains(line) && payloadLine == line
-      case _ =>
-        false
-    }
+    parentClosure(graph, record).exists(parent => parent.carriesLinePayload(line, layer))
 
   private def relativeCauseProofBacked(
       graph: TypedEvidenceGraph,

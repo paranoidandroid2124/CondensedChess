@@ -980,7 +980,7 @@ object CandidateComparisonDiagnostic:
   ): List[EvidenceRecord] =
     packet.evidenceGraph.records.filter(record =>
       endpointLayer(record.ref.layer) &&
-        (record.ref.line.contains(line) || payloadReferencesLine(record.payload, line))
+        record.referencesLine(line)
     )
 
   private def recordsForTransition(
@@ -1055,27 +1055,6 @@ object CandidateComparisonDiagnostic:
         false
       case _ =>
         true
-
-  private def payloadReferencesLine(payload: EvidencePayload, line: LineNodeRef): Boolean =
-    payload match
-      case lineFact: LineFactEvidence =>
-        lineFact.line == line
-      case EvalFactEvidence(payloadLine, _, _, _) =>
-        payloadLine == line
-      case CandidateComparisonEvidence(fact) =>
-        fact.referenceLine == line || fact.candidateLine == line
-      case CounterfactualFactEvidence(referenceLine, candidateLine, _) =>
-        referenceLine == line || candidateLine == line
-      case RelativeAssessmentEvidence(assessment) =>
-        assessment.reference.ref == line || assessment.candidate.ref == line
-      case RelativeCauseFactEvidence(cause) =>
-        cause.referenceLine == line || cause.candidateLine == line
-      case MoveVerdictCertificationEvidence(certification) =>
-        certification.primaryComparison.referenceLine == line ||
-          certification.primaryComparison.candidateLine == line ||
-          certification.causes.exists(cause => cause.referenceLine == line || cause.candidateLine == line)
-      case _ =>
-        false
 
   private def classifyFailure(
       fact: CandidateComparisonFact,

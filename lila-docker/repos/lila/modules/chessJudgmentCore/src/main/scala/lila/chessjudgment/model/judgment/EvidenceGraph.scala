@@ -1042,7 +1042,33 @@ final case class EvidenceRecord(
     ref: EvidenceRef,
     payload: EvidencePayload,
     parents: List[EvidenceRef] = Nil
-)
+):
+  def payloadLineRefs: List[LineNodeRef] =
+    payload match
+      case lineFact: LineFactEvidence =>
+        List(lineFact.line)
+      case EvalFactEvidence(payloadLine, _, _, _) =>
+        List(payloadLine)
+      case CandidateComparisonEvidence(fact) =>
+        List(fact.referenceLine, fact.candidateLine)
+      case CounterfactualFactEvidence(referenceLine, candidateLine, _) =>
+        List(referenceLine, candidateLine)
+      case RelativeAssessmentEvidence(assessment) =>
+        List(assessment.reference.ref, assessment.candidate.ref)
+      case RelativeCauseFactEvidence(cause) =>
+        (cause.referenceLine :: cause.candidateLine :: cause.evidenceLines).distinct
+      case MoveVerdictCertificationEvidence(certification) =>
+        (
+          certification.primaryComparison.referenceLine ::
+            certification.primaryComparison.candidateLine ::
+            certification.causes.flatMap(cause => cause.referenceLine :: cause.candidateLine :: cause.evidenceLines)
+        ).distinct
+      case _ =>
+        Nil
+  def referencesLine(line: LineNodeRef): Boolean =
+    ref.line.contains(line) || payloadLineRefs.contains(line)
+  def carriesLinePayload(line: LineNodeRef, layer: EvidenceLayer): Boolean =
+    ref.layer == layer && ref.line.contains(line) && payloadLineRefs.contains(line)
 
 final case class TypedEvidenceGraph(
     records: List[EvidenceRecord]

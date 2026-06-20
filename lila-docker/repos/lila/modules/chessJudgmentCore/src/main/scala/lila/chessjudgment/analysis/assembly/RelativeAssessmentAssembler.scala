@@ -743,7 +743,7 @@ object RelativeAssessmentAssembler:
 
   private def lineTacticSupport(records: List[EvidenceRecord], line: LineNodeRef): List[EvidenceRecord] =
     records.filter(record =>
-      payloadReferencesLine(record.payload, line) &&
+      record.referencesLine(line) &&
         (record.ref.layer == EvidenceLayer.Line ||
           record.ref.layer == EvidenceLayer.Eval ||
           record.ref.layer == EvidenceLayer.MoveMotif ||
@@ -996,14 +996,10 @@ object RelativeAssessmentAssembler:
       .distinctBy(_.ref.id)
 
   private def lineSupportRecords(records: List[EvidenceRecord], line: LineNodeRef): List[EvidenceRecord] =
-    records.filter {
-      case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.line == line
-      case EvidenceRecord(_, EvalFactEvidence(payloadLine, _, _, _), _) =>
-        payloadLine == line
-      case _ =>
-        false
-    }
+    records.filter(record =>
+      record.referencesLine(line) &&
+        (record.ref.layer == EvidenceLayer.Line || record.ref.layer == EvidenceLayer.Eval)
+    )
 
   private def moverCastlingMove(mover: Color, move: String): Boolean =
     if mover.white then move == "e1g1" || move == "e1c1"
@@ -1286,8 +1282,8 @@ object RelativeAssessmentAssembler:
 
   private def lineEventMoves(records: List[EvidenceRecord], line: LineNodeRef, kind: LineEventKind): List[String] =
     records.collectFirst {
-      case EvidenceRecord(_, payload: LineFactEvidence, _)
-          if payload.line == line =>
+      case record @ EvidenceRecord(_, payload: LineFactEvidence, _)
+          if record.referencesLine(line) =>
         payload.lineEventMoves(kind)
     }.getOrElse(Nil)
 
@@ -1297,8 +1293,8 @@ object RelativeAssessmentAssembler:
       plyOffset: Int
   ): Boolean =
     records.exists {
-      case EvidenceRecord(_, payload: LineFactEvidence, _)
-          if payload.line == line =>
+      case record @ EvidenceRecord(_, payload: LineFactEvidence, _)
+          if record.referencesLine(line) =>
         payload.hasTempoEventAt(plyOffset)
       case _ =>
         false
@@ -1531,7 +1527,7 @@ object RelativeAssessmentAssembler:
   ): List[EvidenceRecord] =
     context.evidenceGraph.records.filter(record =>
       endpointLayer(record.ref.layer) &&
-        (record.ref.line.contains(line) || payloadReferencesLine(record.payload, line))
+        record.referencesLine(line)
     )
 
   private def recordsForRootContext(
@@ -1583,27 +1579,6 @@ object RelativeAssessmentAssembler:
       case _: StructuralDeltaEvidence | _: PlanTransitionEvidence =>
         record.ref.line.exists(_.rootMove == edge.moveUci) ||
           record.parents.exists(_.id == edge.evidence.id)
-      case _ =>
-        false
-
-  private def payloadReferencesLine(payload: EvidencePayload, line: LineNodeRef): Boolean =
-    payload match
-      case lineFact: LineFactEvidence =>
-        lineFact.line == line
-      case EvalFactEvidence(payloadLine, _, _, _) =>
-        payloadLine == line
-      case CandidateComparisonEvidence(fact) =>
-        fact.referenceLine == line || fact.candidateLine == line
-      case CounterfactualFactEvidence(referenceLine, candidateLine, _) =>
-        referenceLine == line || candidateLine == line
-      case RelativeAssessmentEvidence(assessment) =>
-        assessment.reference.ref == line || assessment.candidate.ref == line
-      case RelativeCauseFactEvidence(cause) =>
-        cause.referenceLine == line || cause.candidateLine == line
-      case MoveVerdictCertificationEvidence(certification) =>
-        certification.primaryComparison.referenceLine == line ||
-          certification.primaryComparison.candidateLine == line ||
-          certification.causes.exists(cause => cause.referenceLine == line || cause.candidateLine == line)
       case _ =>
         false
 

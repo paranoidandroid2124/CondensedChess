@@ -207,27 +207,7 @@ object ClaimTruthPolicy:
         Nil
 
   private def recordLineMatches(record: EvidenceRecord, line: LineNodeRef): Boolean =
-    record.ref.line.contains(line) ||
-      (record.payload match
-        case lineFact: LineFactEvidence =>
-          lineFact.line == line
-        case EvalFactEvidence(payloadLine, _, _, _) =>
-          payloadLine == line
-        case CandidateComparisonEvidence(fact) =>
-          fact.referenceLine == line || fact.candidateLine == line
-        case CounterfactualFactEvidence(referenceLine, candidateLine, _) =>
-          referenceLine == line || candidateLine == line
-        case RelativeCauseFactEvidence(cause) =>
-          cause.referenceLine == line || cause.candidateLine == line
-        case MoveVerdictCertificationEvidence(certification) =>
-          certification.primaryComparison.referenceLine == line ||
-            certification.primaryComparison.candidateLine == line ||
-            certification.causes.exists(cause => cause.referenceLine == line || cause.candidateLine == line)
-        case RelativeAssessmentEvidence(assessment) =>
-          assessment.reference.ref == line || assessment.candidate.ref == line
-        case _ =>
-          false
-      )
+    record.referencesLine(line)
 
   private def recordMentionsMove(record: EvidenceRecord, move: String, claimLine: Option[LineNodeRef]): Boolean =
     record.payload match
