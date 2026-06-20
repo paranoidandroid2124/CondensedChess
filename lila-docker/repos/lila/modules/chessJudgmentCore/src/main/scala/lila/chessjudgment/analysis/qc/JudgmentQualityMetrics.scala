@@ -2965,7 +2965,7 @@ object JudgmentLayerGapProfile:
 
   private def boardAnchorApplicable(packet: EvidenceBackedJudgmentPacket): Boolean =
     packet.evidenceGraph.records.exists {
-      case EvidenceRecord(_, payload: BoardFactEvidence, _) => payload.features.nonEmpty
+      case EvidenceRecord(_, payload: BoardFactEvidence, _) => payload.hasFeatureInput
       case _                                                => false
     }
 

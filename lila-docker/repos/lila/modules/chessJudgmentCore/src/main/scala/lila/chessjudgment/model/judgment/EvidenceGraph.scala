@@ -114,6 +114,12 @@ final case class BoardFactEvidence(
     proofSignalAnchors.nonEmpty
   def proofSignalAnchorKinds: List[BoardAnchorKind] =
     proofSignalAnchors.map(_.kind)
+  def boardAnchors: List[BoardAnchor] =
+    anchors
+  def factCount: Int =
+    facts.size
+  def hasFeatureInput: Boolean =
+    features.nonEmpty
   def hasAttackDefenseEntries: Boolean =
     attackDefense.nonEmpty
   def vulnerableAttackDefense: List[BoardAttackDefenseEntry] =
@@ -649,8 +655,22 @@ final case class LineFactEvidence(
     val consequences: List[LineConsequence] = Nil
 ) extends EvidencePayload:
   val layer: EvidenceLayer = EvidenceLayer.Line
+  def rootMove: Option[String] =
+    firstMove
+  def reply: Option[String] =
+    replyMove
+  def continuation: List[String] =
+    continuationMoves
   def mainlineMoves: List[String] =
     firstMove.toList ++ replyMove.toList ++ continuationMoves
+  def forcedThemeId: Option[String] =
+    forcedTheme.map(_.id)
+  def lineReplaySteps: List[LineReplayStep] =
+    replay
+  def lineEvents: List[LineMoveEvent] =
+    events
+  def lineConsequences: List[LineConsequence] =
+    consequences
   def lineReplayCount: Int =
     replay.size
   def hasLineReplay: Boolean =

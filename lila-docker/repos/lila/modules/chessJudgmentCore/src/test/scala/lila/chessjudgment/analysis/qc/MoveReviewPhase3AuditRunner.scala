@@ -1617,24 +1617,24 @@ object MoveReviewPhase3AuditRunner:
         Json.obj(
           "payload" -> "LineFact",
           "line" -> lineRefSummary(payload.line),
-          "firstMove" -> payload.firstMove,
-          "replyMove" -> payload.replyMove,
-          "continuationMoves" -> payload.continuationMoves,
-          "forcedTheme" -> payload.forcedTheme.map(_.id),
-          "material" -> payload.material.map(material =>
+          "firstMove" -> payload.rootMove,
+          "replyMove" -> payload.reply,
+          "continuationMoves" -> payload.continuation,
+          "forcedTheme" -> payload.forcedThemeId,
+          "material" -> payload.lineMaterialSummary.map(material =>
             Json.obj(
               "netCaptureCpForMover" -> material.netCaptureCpForMover,
               "hasProofSignalMaterialEvent" -> material.hasProofSignalMaterialEvent,
               "hasSacrificeMaterialEvent" -> material.hasSacrificeMaterialEvent
             )
           ),
-          "replay" -> payload.replay.map(step =>
+          "replay" -> payload.lineReplaySteps.map(step =>
             Json.obj(
               "ply" -> step.ply,
               "moveUci" -> step.moveUci
             )
           ),
-          "events" -> payload.events.map(event =>
+          "events" -> payload.lineEvents.map(event =>
             Json.obj(
               "kind" -> event.kind.toString,
               "moveUci" -> event.moveUci,
@@ -1645,7 +1645,7 @@ object MoveReviewPhase3AuditRunner:
               "square" -> event.square.map(_.key)
             )
           ),
-          "consequences" -> payload.consequences.map(consequence =>
+          "consequences" -> payload.lineConsequences.map(consequence =>
             Json.obj(
               "kind" -> consequence.kind.toString,
               "lineMoves" -> consequence.lineMoves,
@@ -1657,8 +1657,8 @@ object MoveReviewPhase3AuditRunner:
       case EvidenceRecord(_, payload: BoardFactEvidence, _) =>
         Json.obj(
           "payload" -> "BoardFact",
-          "factCount" -> payload.facts.size,
-          "anchors" -> payload.anchors.map(anchor =>
+          "factCount" -> payload.factCount,
+          "anchors" -> payload.boardAnchors.map(anchor =>
             Json.obj(
               "kind" -> anchor.kind.toString,
               "side" -> anchor.side.name,
