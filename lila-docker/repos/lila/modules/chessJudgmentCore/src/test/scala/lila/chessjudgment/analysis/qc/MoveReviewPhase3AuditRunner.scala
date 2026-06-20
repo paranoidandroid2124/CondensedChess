@@ -401,7 +401,7 @@ object MoveReviewPhase3AuditRunner:
         "inputDuplicateOrdinal" -> inputDuplicateOrdinal,
         "inputDuplicateCount" -> inputDuplicateCount,
         "inputDuplicate" -> (inputDuplicateCount > 1),
-        "inputDiagnostics" -> inputDiagnostics(sample.raw),
+        "rawInputAudit" -> rawInputAudit(sample.raw),
         "manualReview" -> Json.obj(
           "status" -> "required",
           "openingRead" -> JsNull,
@@ -1192,7 +1192,7 @@ object MoveReviewPhase3AuditRunner:
       reason == CandidateComparisonFailureReason.MaterialEvidenceBelowThreshold ||
       reason == CandidateComparisonFailureReason.LowSignalMaterialContext
 
-  private def inputDiagnostics(raw: RawMoveReviewInput): JsObject =
+  private def rawInputAudit(raw: RawMoveReviewInput): JsObject =
     val playedMove = MoveReviewInputNormalizer.normalizeUci(raw.playedMoveUci)
     val rootMoves = raw.variations.flatMap(_.moves.headOption).map(MoveReviewInputNormalizer.normalizeUci)
     val legalRootMoves =
@@ -1213,15 +1213,16 @@ object MoveReviewPhase3AuditRunner:
     val fullyLegalPlayedLineCount = fullyLegalRootMoves.count(_ == playedMove)
     val fenPly = plyFromFenForDiagnostics(raw.fen)
     val beforePly = raw.ply.orElse(fenPly)
-    val movePrefixPlyMismatch =
+    val rawMovePrefixPlyMismatch =
       beforePly.exists(ply => raw.movePrefixUci.nonEmpty && raw.movePrefixUci.size != ply)
     val openingMetadataProvided =
       raw.openingContext.exists(context =>
         context.eco.exists(_.trim.nonEmpty) || context.name.exists(_.trim.nonEmpty) || context.family.exists(_.trim.nonEmpty)
       )
     val openingFreshness =
-      openingMetadataFreshness(raw, beforePly, movePrefixPlyMismatch)
+      openingMetadataFreshness(raw, beforePly, rawMovePrefixPlyMismatch)
     Json.obj(
+      "diagnosticScope" -> "raw_input",
       "inputVariationCount" -> raw.variations.size,
       "variationRootMoves" -> rootMoves,
       "legalRootLineCount" -> legalRootMoves.size,
@@ -1236,18 +1237,18 @@ object MoveReviewPhase3AuditRunner:
       "fullyLegalPlayedLineCount" -> fullyLegalPlayedLineCount,
       "illegalPlayedRootLineCount" -> (playedRootLineCount - legalPlayedLineCount).max(0),
       "playedLineHasLegalRootOnly" -> (legalPlayedLineCount > 0 && fullyLegalPlayedLineCount == 0),
-      "trustedPlayedLineInput" -> (fullyLegalPlayedLineCount > 0),
-      "missingPlayedLineEval" -> (!rootMoves.contains(playedMove) || fullyLegalPlayedLineCount == 0),
+      "playedLineInputFullyLegal" -> (fullyLegalPlayedLineCount > 0),
+      "rawPlayedLineEvalUnavailable" -> (!rootMoves.contains(playedMove) || fullyLegalPlayedLineCount == 0),
       "currentEvalSource" -> raw.currentEvalCp.map(_ => "inputCurrentEvalCp").orElse(
         Option.when(rootMoves.nonEmpty)("normalizedReferenceScoreCp")
       ).getOrElse("missing"),
       "fenPly" -> fenPly,
       "inputPly" -> raw.ply,
       "movePrefixLength" -> raw.movePrefixUci.size,
-      "movePrefixPlyMismatch" -> movePrefixPlyMismatch,
+      "rawMovePrefixPlyMismatch" -> rawMovePrefixPlyMismatch,
       "openingMetadataProvided" -> openingMetadataProvided,
       "openingMetadataFreshness" -> openingFreshness.json,
-      "staleOpeningMetadataRisk" -> openingFreshness.staleRisk
+      "rawOpeningMetadataStaleRisk" -> openingFreshness.staleRisk
     )
 
   private final case class OpeningMetadataFreshnessDiagnostic(json: JsObject, staleRisk: Boolean)
@@ -1255,7 +1256,7 @@ object MoveReviewPhase3AuditRunner:
   private def openingMetadataFreshness(
       raw: RawMoveReviewInput,
       beforePly: Option[Int],
-      movePrefixPlyMismatch: Boolean
+      rawMovePrefixPlyMismatch: Boolean
   ): OpeningMetadataFreshnessDiagnostic =
     val metadata = normalizedOpeningMetadata(raw.openingContext)
     val movePrefix = raw.movePrefixUci.map(MoveReviewInputNormalizer.normalizeUci).filter(_.nonEmpty)
@@ -1279,7 +1280,7 @@ object MoveReviewPhase3AuditRunner:
     val freshnessStatus =
       if metadata.isEmpty then "absent"
       else if conflictedFields.nonEmpty then "stale_suspect"
-      else if movePrefixPlyMismatch && matchedFields.isEmpty then "unverified_prefix_mismatch"
+      else if rawMovePrefixPlyMismatch && matchedFields.isEmpty then "unverified_prefix_mismatch"
       else if matchedFields.nonEmpty && recognition.exists(_.matchedBy == OpeningRecognitionMatchKind.ExactPrefixAndPosition) then "fresh_exact"
       else if matchedFields.nonEmpty then "fresh_position_match"
       else "unverified"
