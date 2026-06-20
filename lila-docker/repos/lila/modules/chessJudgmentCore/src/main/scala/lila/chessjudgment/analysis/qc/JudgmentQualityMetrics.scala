@@ -268,7 +268,6 @@ enum CandidateComparisonFailureClass:
   case NoFailure
   case LowSignalEnginePreference
   case SecondaryContextGap
-  case IncompleteCauseCoverage
   case MissingEvidence
   case UnboundEvidence
   case FailedCauseTemplate
@@ -301,7 +300,6 @@ enum CandidateComparisonFailureReason:
   case LowSignalStrategicContext
   case LowDepthGeneratedCause
   case ContextAlternativeComparison
-  case MissingExpectedCause
   case NoSpecificEvidence
   case UnknownPattern
 
@@ -468,7 +466,7 @@ final case class CandidateComparisonDiagnostic(
     candidateWinPercentDeltaForMover: Double,
     causeKinds: List[RelativeCauseKind],
     causeSupport: List[CandidateCauseSupportDiagnostic],
-    failedCauseCandidates: List[RelativeCauseKind],
+    advisoryCauseHints: List[RelativeCauseKind],
     significanceReasons: List[CandidateComparisonSignificanceReason],
     lowSignalReasons: List[CandidateComparisonLowSignalReason],
     comparisonConfidence: EvidenceConfidence,
@@ -538,7 +536,7 @@ object CandidateComparisonDiagnostic:
         val causeKinds = matchingCauses.map(_.kind).distinct
         val causeSupport = causeSupportDiagnostics(matchingCauseRecords, packet.evidenceGraph)
         val trace = decisionTraceFor(fact, neighborhood.referenceRecords, neighborhood.candidateRecords)
-        val failedCauseCandidates = failedCauseCandidatesFor(packet, fact, causeKinds, trace)
+        val advisoryCauseHints = advisoryCauseHintsFor(packet, fact, causeKinds, trace)
         val secondaryContextGap =
           requiresExplanatoryCause(fact) && causeKinds.isEmpty && contextAlternativeComparison(fact)
         val referenceLine = lineDiagnostic(packet, fact.referenceLine)
@@ -564,7 +562,7 @@ object CandidateComparisonDiagnostic:
           candidateWinPercentDeltaForMover = fact.comparison.candidateWinPercentDeltaForMover,
           causeKinds = causeKinds,
           causeSupport = causeSupport,
-          failedCauseCandidates = failedCauseCandidates,
+          advisoryCauseHints = advisoryCauseHints,
           significanceReasons = significanceReasons(fact),
           lowSignalReasons = lowSignalReasons(fact),
           comparisonConfidence = ref.confidence,
@@ -574,8 +572,8 @@ object CandidateComparisonDiagnostic:
           hasSecondaryContextEngineGap = secondaryContextGap,
           evidenceLayers = evidenceLayers,
           decisionTrace = trace,
-          failureClass = classifyFailure(fact, causeKinds, evidenceLayers, trace, failedCauseCandidates),
-          failureReasons = failureReasonsFor(fact, causeKinds, evidenceLayers, trace, failedCauseCandidates, hasLowDepthCause)
+          failureClass = classifyFailure(fact, causeKinds, evidenceLayers, trace),
+          failureReasons = failureReasonsFor(fact, causeKinds, evidenceLayers, trace, hasLowDepthCause)
         )
     }
     val duplicateKeys =
@@ -1060,8 +1058,7 @@ object CandidateComparisonDiagnostic:
       fact: CandidateComparisonFact,
       causeKinds: List[RelativeCauseKind],
       evidenceLayers: ComparisonEvidenceLayerDiagnostics,
-      trace: CandidateCauseDecisionTrace,
-      failedCauseCandidates: List[RelativeCauseKind]
+      trace: CandidateCauseDecisionTrace
   ): CandidateComparisonFailureClass =
     val significantEnginePreference = CandidateComparisonDiagnostic.significantEnginePreference(fact)
     val requiresCause = CandidateComparisonDiagnostic.requiresExplanatoryCause(fact)
@@ -1073,8 +1070,6 @@ object CandidateComparisonDiagnostic:
       CandidateComparisonFailureClass.NoFailure
     else if !requiresCause then
       CandidateComparisonFailureClass.NoFailure
-    else if hasKnownCause && failedCauseCandidates.nonEmpty then
-      CandidateComparisonFailureClass.IncompleteCauseCoverage
     else if hasKnownCause then
       CandidateComparisonFailureClass.NoFailure
     else if contextAlternativeComparison(fact) then
@@ -1182,7 +1177,7 @@ object CandidateComparisonDiagnostic:
       candidateMotifs = motifNames(candidateRecords)
     )
 
-  private def failedCauseCandidatesFor(
+  private def advisoryCauseHintsFor(
       packet: EvidenceBackedJudgmentPacket,
       fact: CandidateComparisonFact,
       causeKinds: List[RelativeCauseKind],
@@ -1331,7 +1326,6 @@ object CandidateComparisonDiagnostic:
       causeKinds: List[RelativeCauseKind],
       evidenceLayers: ComparisonEvidenceLayerDiagnostics,
       trace: CandidateCauseDecisionTrace,
-      failedCauseCandidates: List[RelativeCauseKind],
       hasLowDepthCause: Boolean
   ): List[CandidateComparisonFailureReason] =
     val missingLine =
@@ -1347,13 +1341,11 @@ object CandidateComparisonDiagnostic:
     val generatedKnownCause = causeKinds.nonEmpty
     val generatedOnlyUnexplained =
       requiresCause && causeKinds.isEmpty
-    val incompleteKnownCause =
-      generatedKnownCause && failedCauseCandidates.nonEmpty
     val secondaryContextGap =
       generatedOnlyUnexplained && contextAlternativeComparison(fact)
     if !significantEnginePreference && causeKinds.isEmpty && !latentComparisonEvidence(trace) then
       return Nil
-    if generatedKnownCause && !generatedOnlyUnexplained && failedCauseCandidates.isEmpty then
+    if generatedKnownCause && !generatedOnlyUnexplained then
       return Option.when(hasLowDepthCause)(CandidateComparisonFailureReason.LowDepthGeneratedCause).toList
     if positiveContextAlternative(fact) && causeKinds.isEmpty then
       return Nil
@@ -1382,20 +1374,18 @@ object CandidateComparisonDiagnostic:
       Option.when(missingEval)(CandidateComparisonFailureReason.MissingEvalEvidence),
       Option.when(requiresCause && causeKinds.isEmpty)(CandidateComparisonFailureReason.NoCauseGenerated),
       Option.when(generatedOnlyUnexplained)(CandidateComparisonFailureReason.GeneratedOnlyUnexplained),
-      Option.when(incompleteKnownCause)(CandidateComparisonFailureReason.MissingExpectedCause),
       Option.when(
         (generatedOnlyUnexplained &&
           (trace.referenceCauseEligibleTactical || trace.candidateCauseEligibleTactical)
-        ) || failedCauseCandidates.exists(tacticalCause)
+        )
       )(
         CandidateComparisonFailureReason.TacticalEvidenceUnbound
       ),
-      Option.when((generatedOnlyUnexplained && trace.hasThreatResource) || failedCauseCandidates.exists(defensiveCause))(
+      Option.when(generatedOnlyUnexplained && trace.hasThreatResource)(
         CandidateComparisonFailureReason.DefensiveEvidenceUnbound
       ),
       Option.when(
-        (generatedOnlyUnexplained && (trace.referenceConversionWindow || trace.candidateConversionWindow)) ||
-          failedCauseCandidates.exists(conversionCause)
+        generatedOnlyUnexplained && (trace.referenceConversionWindow || trace.candidateConversionWindow)
       )(
         CandidateComparisonFailureReason.ConversionEvidenceUnbound
       ),
@@ -1411,11 +1401,11 @@ object CandidateComparisonDiagnostic:
             trace.candidateCenterControlGain ||
             trace.candidateDevelopmentActivation ||
             trace.candidatePieceActivityGain)
-        ) || failedCauseCandidates.exists(strategicCause)
+        )
       )(
         CandidateComparisonFailureReason.StrategicEvidenceUnbound
       ),
-      Option.when(requiresCause && failedCauseCandidates.isEmpty && !hasAvailableExplanatoryEvidence(evidenceLayers))(
+      Option.when(requiresCause && causeKinds.isEmpty && !hasAvailableExplanatoryEvidence(evidenceLayers))(
         CandidateComparisonFailureReason.NoSpecificEvidence
       )
     ).flatten.distinct
@@ -1426,12 +1416,6 @@ object CandidateComparisonDiagnostic:
 
   private def shortTermCause(kind: RelativeCauseKind): Boolean =
     kind != RelativeCauseKind.DrawResource && ClaimEventCluster.kindForCause(kind).nonEmpty
-
-  private def defensiveCause(kind: RelativeCauseKind): Boolean =
-    ClaimEventCluster.kindForCause(kind).contains(ClaimEventClusterKind.DefensiveEvent)
-
-  private def conversionCause(kind: RelativeCauseKind): Boolean =
-    ClaimEventCluster.kindForCause(kind).contains(ClaimEventClusterKind.ConversionEvent)
 
   private def strategicCause(kind: RelativeCauseKind): Boolean =
     kind match

@@ -773,7 +773,9 @@ object MoveReviewPhase3AuditRunner:
           )
         )
       ),
-      "failedCauseCandidates" -> diagnostic.failedCauseCandidates.map(_.toString),
+      "advisory" -> Json.obj(
+        "causeHints" -> diagnostic.advisoryCauseHints.map(_.toString)
+      ),
       "significanceReasons" -> diagnostic.significanceReasons.map(significanceReasonId),
       "lowSignalReasons" -> diagnostic.lowSignalReasons.map(lowSignalReasonId),
       "comparisonConfidence" -> diagnostic.comparisonConfidence.toString,
@@ -893,7 +895,6 @@ object MoveReviewPhase3AuditRunner:
       case CandidateComparisonFailureClass.NoFailure                 => "none"
       case CandidateComparisonFailureClass.LowSignalEnginePreference => "low_signal_engine_preference"
       case CandidateComparisonFailureClass.SecondaryContextGap       => "secondary_context_gap"
-      case CandidateComparisonFailureClass.IncompleteCauseCoverage   => "incomplete_cause_coverage"
       case CandidateComparisonFailureClass.MissingEvidence           => "missing_evidence"
       case CandidateComparisonFailureClass.UnboundEvidence           => "unbound_evidence"
       case CandidateComparisonFailureClass.FailedCauseTemplate       => "failed_cause_template"
@@ -931,7 +932,6 @@ object MoveReviewPhase3AuditRunner:
       case CandidateComparisonFailureReason.LowSignalStrategicContext => "low_signal_strategic_context"
       case CandidateComparisonFailureReason.LowDepthGeneratedCause    => "low_depth_generated_cause"
       case CandidateComparisonFailureReason.ContextAlternativeComparison => "context_alternative_comparison"
-      case CandidateComparisonFailureReason.MissingExpectedCause      => "missing_expected_cause"
       case CandidateComparisonFailureReason.NoSpecificEvidence        => "no_specific_evidence"
       case CandidateComparisonFailureReason.UnknownPattern            => "unknown_pattern"
 
@@ -1056,7 +1056,6 @@ object MoveReviewPhase3AuditRunner:
           comparisonCandidates(result, diagnostic =>
             diagnostic.hasUnexplainedEngineGap ||
               diagnostic.hasSecondaryContextEngineGap ||
-              diagnostic.failedCauseCandidates.nonEmpty ||
               diagnostic.decisionTrace.requiresExplanatoryCause
           )
         case JudgmentGraphSlot.MoveVerdictCertificationFact =>
@@ -1085,7 +1084,7 @@ object MoveReviewPhase3AuditRunner:
             ideaCandidates(result, Set(ChessIdeaFamily.Evaluation))
         case JudgmentGraphSlot.TacticalClaim =>
           ideaCandidates(result, Set(ChessIdeaFamily.Tactical)) ++
-            comparisonCandidates(result, _.failedCauseCandidates.exists(tacticalCause))
+            comparisonCandidates(result, _.failureReasons.exists(tacticalFailureReason))
         case JudgmentGraphSlot.StrategicClaim =>
           ideaCandidates(result, Set(ChessIdeaFamily.Strategic)) ++
             evidenceCandidates(result, Set(EvidenceLayer.Strategic, EvidenceLayer.StructuralDelta))
@@ -1178,14 +1177,20 @@ object MoveReviewPhase3AuditRunner:
           "referenceMove" -> diagnostic.referenceLine.rootMove,
           "candidateMove" -> diagnostic.candidateLine.rootMove,
           "failureClass" -> failureClassId(diagnostic.failureClass),
-          "failedCauseCandidates" -> diagnostic.failedCauseCandidates.map(_.toString)
+          "advisory" -> Json.obj(
+            "causeHints" -> diagnostic.advisoryCauseHints.map(_.toString)
+          )
         )
       )
 
-  private def tacticalCause(kind: RelativeCauseKind): Boolean =
-    ClaimEventCluster.kindForCause(kind).exists(eventKind =>
-      eventKind == ClaimEventClusterKind.TacticalEvent || eventKind == ClaimEventClusterKind.MaterialEvent
-    )
+  private def tacticalFailureReason(reason: CandidateComparisonFailureReason): Boolean =
+    reason == CandidateComparisonFailureReason.TacticalEvidenceUnbound ||
+      reason == CandidateComparisonFailureReason.LatentTacticalEvidence ||
+      reason == CandidateComparisonFailureReason.TacticalEvidenceBelowThreshold ||
+      reason == CandidateComparisonFailureReason.TacticalSignalNeedsWidthDepth ||
+      reason == CandidateComparisonFailureReason.LowSignalTacticalContext ||
+      reason == CandidateComparisonFailureReason.MaterialEvidenceBelowThreshold ||
+      reason == CandidateComparisonFailureReason.LowSignalMaterialContext
 
   private def inputDiagnostics(raw: RawMoveReviewInput): JsObject =
     val playedMove = MoveReviewInputNormalizer.normalizeUci(raw.playedMoveUci)
@@ -1498,7 +1503,6 @@ object MoveReviewPhase3AuditRunner:
       diagnostics.filter(diagnostic =>
         diagnostic.hasUnexplainedEngineGap ||
           diagnostic.hasSecondaryContextEngineGap ||
-          diagnostic.failedCauseCandidates.nonEmpty ||
           (diagnostic.causeKinds.isEmpty && diagnostic.failureReasons.nonEmpty)
       )
     else
