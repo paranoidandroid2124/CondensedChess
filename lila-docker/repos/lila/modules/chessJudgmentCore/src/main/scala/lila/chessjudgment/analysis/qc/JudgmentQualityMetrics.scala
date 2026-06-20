@@ -1758,16 +1758,10 @@ object CandidateComparisonDiagnostic:
   private def hasRootCapture(records: List[EvidenceRecord], rootMove: String): Boolean =
     records.exists {
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.lineEvents.exists(event =>
-          lineCaptureEvent(event.kind) &&
-            normalizeMove(event.moveUci) == rootMove
-        )
+        payload.hasRootCaptureEvent(rootMove)
       case _ =>
         false
     }
-
-  private def lineCaptureEvent(kind: LineEventKind): Boolean =
-    kind == LineEventKind.Capture || kind == LineEventKind.Recapture
 
   private def kingHomeStep(moveUci: String, color: Color): Boolean =
     val move = normalizeMove(moveUci)
@@ -2964,7 +2958,7 @@ object JudgmentLayerGapProfile:
 
   private def boardAnchorApplicable(packet: EvidenceBackedJudgmentPacket): Boolean =
     packet.evidenceGraph.records.exists {
-      case EvidenceRecord(_, payload: BoardFactEvidence, _) => payload.hasFeatureInput
+      case EvidenceRecord(_, payload: BoardFactEvidence, _) => payload.hasBoardProfile
       case _                                                => false
     }
 

@@ -1175,16 +1175,10 @@ object RelativeAssessmentAssembler:
   private def rootCaptureRecords(records: List[EvidenceRecord], rootMove: String): List[EvidenceRecord] =
     records.filter {
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.lineEvents.exists(event =>
-          lineCaptureEvent(event.kind) &&
-            normalizeMove(event.moveUci) == rootMove
-        )
+        payload.hasRootCaptureEvent(rootMove)
       case _ =>
         false
     }
-
-  private def lineCaptureEvent(kind: LineEventKind): Boolean =
-    kind == LineEventKind.Capture || kind == LineEventKind.Recapture
 
   private def kingStepResourceRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
     records.filter {

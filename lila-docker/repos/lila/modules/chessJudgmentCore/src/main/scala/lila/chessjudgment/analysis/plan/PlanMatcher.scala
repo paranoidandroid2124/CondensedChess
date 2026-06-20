@@ -4,10 +4,10 @@ import chess.*
 import lila.chessjudgment.analysis.evaluation.{ JudgmentThresholds, PerspectiveMath }
 import lila.chessjudgment.analysis.singlePosition.{ GamePhaseType, PawnPlayAnalysis, SinglePositionAssessment, ThreatAnalysis, TensionPolicy }
 import lila.chessjudgment.model.*
+import lila.chessjudgment.model.judgment.BoardPositionProfile
 import lila.chessjudgment.model.Motif.*
 import lila.chessjudgment.model.structure.{ PlanAlignment, StructureId, StructureProfile }
 import lila.chessjudgment.model.strategic.PlanTaxonomy.{ PlanKind, PlanSignal, PlanTheme, SubplanCatalog }
-import lila.chessjudgment.analysis.position.{ PositionAnalyzer, PositionFeatures }
 
 case class PlanInteractionContext(
     whitePovEvalCp: Int,
@@ -19,7 +19,7 @@ case class PlanInteractionContext(
     openingName: Option[String] = None,
     isWhiteToMove: Boolean,
     positionKey: Option[String] = None,
-    features: Option[PositionFeatures] = None,
+    boardProfile: Option[BoardPositionProfile] = None,
     initialPos: Option[Position] = None,
     structureProfile: Option[StructureProfile] = None,
     planAlignment: Option[PlanAlignment] = None
@@ -118,12 +118,12 @@ object PlanMatcher:
   def matchPlans(motifs: List[Motif], ctx: PlanInteractionContext, side: Color): PlanScoringResult =
     (for
       s <- snapshot(ctx, side)
-      features <- ctx.features
+      profile <- ctx.boardProfile
       phase <- ctx.phaseEnumOpt
     yield
       val openingRaw =
         Option.when(phase == GamePhaseType.Opening)(
-          openingDevelopment(motifs, ctx, side, features, s)
+          openingDevelopment(motifs, ctx, side, profile, s)
         ).toList
       val raw =
         openingRaw ++ List(
@@ -131,7 +131,7 @@ object PlanMatcher:
           redeployment(motifs, ctx, side, s),
           spaceClamp(motifs, side, s),
           weaknessFixation(motifs, ctx, side, s),
-          breakPrep(motifs, ctx, side, features),
+          breakPrep(motifs, ctx, side, profile),
           favorableExchange(motifs, ctx, side),
           flankInfrastructure(motifs, ctx, side, s),
           advantageTransformation(motifs, ctx, side, s),
@@ -200,7 +200,7 @@ object PlanMatcher:
     then
       out = adjust(out, Theme.FavorableExchange, 1.15, CompatibilityAdjustment.ConversionWindow)
       out = adjust(out, Theme.AdvantageTransformation, 1.12, CompatibilityAdjustment.ConversionWindow)
-    if ctx.features.exists(_.centralSpace.openCenter) && kingExposure(ctx.features, side) >= 2 then
+    if ctx.boardProfile.exists(_.centerOpen) && kingExposure(ctx.boardProfile, side) >= 2 then
       out = adjust(out, Theme.FlankInfrastructure, 0.72, CompatibilityAdjustment.OpenCenterFlankRisk)
     if ctx.phaseEnumOpt.contains(GamePhaseType.Opening) then
       out = adjust(out, Theme.FlankInfrastructure, 0.68, CompatibilityAdjustment.OpeningPhase)
@@ -211,7 +211,7 @@ object PlanMatcher:
       m: List[Motif],
       ctx: PlanInteractionContext,
       side: Color,
-      features: PositionFeatures,
+      profile: BoardPositionProfile,
       s: SideSnapshot
   ): PlanMatch =
     val ev = evidence(m, 0.18) {
@@ -224,11 +224,8 @@ object PlanMatcher:
       case SpaceAdvantage(c, pawnDelta, _, _) if c == side && pawnDelta > 0 => true
       case Maneuver(_, ManeuverPurpose.ImprovingScope, c, _, _) if c == side => true
     }
-    val centerControlDiff =
-      if side.white then features.centralSpace.whiteCenterControl - features.centralSpace.blackCenterControl
-      else features.centralSpace.blackCenterControl - features.centralSpace.whiteCenterControl
-    val ourCenterPawns =
-      if side.white then features.centralSpace.whiteCentralPawns else features.centralSpace.blackCentralPawns
+    val centerControlDiff = profile.centerControlEdgeFor(side)
+    val ourCenterPawns = profile.centralPawnsFor(side)
     val hasCastled = m.exists { case Castling(_, c, _, _) if c == side => true; case _ => false }
     val developmentNeed = s.devLag.max(0)
     val score =
@@ -317,7 +314,7 @@ object PlanMatcher:
         (if s.oppWeakness == 0 && ev.isEmpty then 0.05 else 0.0)
     themed(Theme.WeaknessFixation, Plan.WeakPawnAttack(side), score, ev, Some(weaknessFixationSubplan(m, ctx, side, s)))
 
-  private def breakPrep(m: List[Motif], ctx: PlanInteractionContext, side: Color, features: PositionFeatures): PlanMatch =
+  private def breakPrep(m: List[Motif], ctx: PlanInteractionContext, side: Color, profile: BoardPositionProfile): PlanMatch =
     val ev = evidence(m, 0.18) {
       case PawnBreak(_, _, c, _, _) if c == side => true
       case PawnAdvance(file, _, _, c, _, _) if c == side && centralFile(file) => true
@@ -333,7 +330,7 @@ object PlanMatcher:
         (if pa.exists(_.pawnBreakReady) then 0.24 else 0.0) +
         (if pa.exists(_.tensionPolicy == TensionPolicy.Maintain) then 0.06 else 0.0) +
         (if pa.exists(_.tensionPolicy == TensionPolicy.Release) then 0.10 else 0.0) +
-        math.min(0.12, features.centralSpace.pawnTensionCount * 0.03) +
+        math.min(0.12, profile.pawnTensionCount * 0.03) +
         math.min(0.16, ev.size * 0.05) -
         (if ctx.tacticalThreatToUs then 0.08 else 0.0)
     themed(Theme.PawnBreakPreparation, Plan.PawnBreakPreparation(side), score, ev, Some(subplanId))
@@ -460,7 +457,7 @@ object PlanMatcher:
     import PlanSignal.*
     Set(
       Option.when(motifs.nonEmpty)(KeyMotifs),
-      Option.when(ctx.features.nonEmpty && ctx.positionKey.flatMap(PositionAnalyzer.extractStrategicState).nonEmpty)(FutureSnapshot),
+      Option.when(ctx.boardProfile.exists(_.hasStrategicSnapshot))(FutureSnapshot),
       Option.when(ctx.positionAssessment.exists(_.candidateSet.bestLineSideRelativeEvalCp.nonEmpty))(ReplyPvs),
       Option.when(ctx.structureProfile.nonEmpty || ctx.pawnAnalysis.nonEmpty || ctx.planAlignment.nonEmpty)(BoardDelta)
     ).flatten
@@ -498,33 +495,23 @@ object PlanMatcher:
     motifs.collect { case m if pf.isDefinedAt(m) && pf(m) => EvidenceAtom(m, weight) }.take(4)
 
   private def snapshot(ctx: PlanInteractionContext, side: Color): Option[SideSnapshot] =
-    for
-      f <- ctx.features
-      st <- ctx.positionKey.flatMap(PositionAnalyzer.extractStrategicState)
-    yield
-      val p = f.pawns
-      val a = f.activity
-      val k = f.kingSafety
-      val c = f.centralSpace
-      val w = side.white
-      val oppWeakness =
-        if w then p.blackIsolatedPawns + p.blackBackwardPawns + p.blackDoubledPawns
-        else p.whiteIsolatedPawns + p.whiteBackwardPawns + p.whiteDoubledPawns
+    ctx.boardProfile.map { profile =>
       SideSnapshot(
-        lockedCenter = c.lockedCenter,
-        openCenter = c.openCenter,
-        space = if w then c.spaceDiff else -c.spaceDiff,
-        devLag = if w then a.whiteDevelopmentLag else a.blackDevelopmentLag,
-        lowMobility = if w then a.whiteLowMobilityPieces else a.blackLowMobilityPieces,
-        kingExposure = if w then k.whiteKingExposedFiles else k.blackKingExposedFiles,
-        oppWeakness = oppWeakness,
-        ourPassers = if w then p.whitePassedPawns else p.blackPassedPawns,
-        oppPassers = if w then p.blackPassedPawns else p.whitePassedPawns,
-        entrenched = if w then st.whiteEntrenchedPieces else st.blackEntrenchedPieces,
-        rookPawnReady = if w then st.whiteRookPawnMarchReady else st.blackRookPawnMarchReady,
-        hookChance = if w then st.whiteHookCreationChance else st.blackHookCreationChance,
-        clamp = if w then st.whiteColorComplexClamp else st.blackColorComplexClamp
+        lockedCenter = profile.centerLocked,
+        openCenter = profile.centerOpen,
+        space = profile.spaceFor(side),
+        devLag = profile.developmentLagFor(side),
+        lowMobility = profile.lowMobilityFor(side),
+        kingExposure = profile.kingExposureFor(side),
+        oppWeakness = profile.opponentPawnWeaknessFor(side),
+        ourPassers = profile.passedPawnsFor(side),
+        oppPassers = profile.opponentPassedPawnsFor(side),
+        entrenched = profile.entrenchedPiecesFor(side),
+        rookPawnReady = profile.rookPawnReadyFor(side),
+        hookChance = profile.hookChanceFor(side),
+        clamp = profile.colorComplexClampFor(side)
       )
+    }
 
   private def weaknessFixationSubplan(
       m: List[Motif],
@@ -545,10 +532,8 @@ object PlanMatcher:
   private def structureMatches(ctx: PlanInteractionContext, id: StructureId): Boolean =
     ctx.structureProfile.exists(_.primary == id)
 
-  private def kingExposure(features: Option[PositionFeatures], side: Color): Int =
-    features.map { f =>
-      if side.white then f.kingSafety.whiteKingExposedFiles else f.kingSafety.blackKingExposedFiles
-    }.getOrElse(0)
+  private def kingExposure(profile: Option[BoardPositionProfile], side: Color): Int =
+    profile.map(_.kingExposureFor(side)).getOrElse(0)
 
   private def centralFile(file: File): Boolean =
     file == File.C || file == File.D || file == File.E || file == File.F

@@ -105,15 +105,18 @@ final case class BoardFactEvidence(
     facts: List[Fact],
     features: Option[PositionFeatures]
 )(val anchors: List[BoardAnchor] = Nil,
-    val attackDefense: List[BoardAttackDefenseEntry] = Nil
+    val attackDefense: List[BoardAttackDefenseEntry] = Nil,
+    val profile: Option[BoardPositionProfile] = None
 ) extends EvidencePayload:
   val layer: EvidenceLayer = EvidenceLayer.Board
   def boardAnchors: List[BoardAnchor] =
     anchors
+  def boardProfile: Option[BoardPositionProfile] =
+    profile
   def factCount: Int =
     facts.size
-  def hasFeatureInput: Boolean =
-    features.nonEmpty
+  def hasBoardProfile: Boolean =
+    profile.nonEmpty
   def hasAttackDefenseEntries: Boolean =
     attackDefense.nonEmpty
   def vulnerableAttackDefense: List[BoardAttackDefenseEntry] =
@@ -149,6 +152,63 @@ final case class BoardAttackDefenseEntry(
     isLoose: Boolean,
     isUnderdefended: Boolean
 )
+
+final case class BoardPositionProfile(
+    centerLocked: Boolean,
+    centerOpen: Boolean,
+    pawnTensionCount: Int,
+    whiteCenterControl: Int,
+    blackCenterControl: Int,
+    whiteCentralPawns: Int,
+    blackCentralPawns: Int,
+    spaceDiff: Int,
+    whiteDevelopmentLag: Int,
+    blackDevelopmentLag: Int,
+    whiteLowMobilityPieces: Int,
+    blackLowMobilityPieces: Int,
+    whiteKingExposure: Int,
+    blackKingExposure: Int,
+    whitePawnWeaknesses: Int,
+    blackPawnWeaknesses: Int,
+    whitePassedPawns: Int,
+    blackPassedPawns: Int,
+    whiteEntrenchedPieces: Int,
+    blackEntrenchedPieces: Int,
+    whiteRookPawnMarchReady: Boolean,
+    blackRookPawnMarchReady: Boolean,
+    whiteHookCreationChance: Boolean,
+    blackHookCreationChance: Boolean,
+    whiteColorComplexClamp: Boolean,
+    blackColorComplexClamp: Boolean,
+    hasStrategicSnapshot: Boolean
+):
+  def centerControlEdgeFor(side: Color): Int =
+    if side.white then whiteCenterControl - blackCenterControl
+    else blackCenterControl - whiteCenterControl
+  def centralPawnsFor(side: Color): Int =
+    if side.white then whiteCentralPawns else blackCentralPawns
+  def spaceFor(side: Color): Int =
+    if side.white then spaceDiff else -spaceDiff
+  def developmentLagFor(side: Color): Int =
+    if side.white then whiteDevelopmentLag else blackDevelopmentLag
+  def lowMobilityFor(side: Color): Int =
+    if side.white then whiteLowMobilityPieces else blackLowMobilityPieces
+  def kingExposureFor(side: Color): Int =
+    if side.white then whiteKingExposure else blackKingExposure
+  def opponentPawnWeaknessFor(side: Color): Int =
+    if side.white then blackPawnWeaknesses else whitePawnWeaknesses
+  def passedPawnsFor(side: Color): Int =
+    if side.white then whitePassedPawns else blackPassedPawns
+  def opponentPassedPawnsFor(side: Color): Int =
+    if side.white then blackPassedPawns else whitePassedPawns
+  def entrenchedPiecesFor(side: Color): Int =
+    if side.white then whiteEntrenchedPieces else blackEntrenchedPieces
+  def rookPawnReadyFor(side: Color): Boolean =
+    if side.white then whiteRookPawnMarchReady else blackRookPawnMarchReady
+  def hookChanceFor(side: Color): Boolean =
+    if side.white then whiteHookCreationChance else blackHookCreationChance
+  def colorComplexClampFor(side: Color): Boolean =
+    if side.white then whiteColorComplexClamp else blackColorComplexClamp
 
 enum BoardAnchorKind:
   case CenterControl
@@ -694,6 +754,12 @@ final case class LineFactEvidence(
     lineEventsOf(kind).exists(_.plyOffset == plyOffset)
   def lineEventMoves(kind: LineEventKind): List[String] =
     lineEventsOf(kind).map(_.moveUci)
+  def hasRootCaptureEvent(rootMoveUci: String): Boolean =
+    val normalizedRoot = normalizeUci(rootMoveUci)
+    events.exists(event =>
+      (event.kind == LineEventKind.Capture || event.kind == LineEventKind.Recapture) &&
+        normalizeUci(event.moveUci) == normalizedRoot
+    )
   def lineEventCount: Int =
     events.size
   def hasLineEvents: Boolean =
@@ -740,6 +806,9 @@ final case class LineFactEvidence(
       hasMate = kinds.contains(LineConsequenceKind.Mate),
       hasDrawResource = kinds.contains(LineConsequenceKind.DrawResource)
     )
+
+  private def normalizeUci(raw: String): String =
+    Option(raw).getOrElse("").trim.toLowerCase
   def materialOutcomeProfile: LineMaterialOutcomeProfile =
     val consequenceGainSignals =
       consequences.collect {

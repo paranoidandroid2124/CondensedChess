@@ -912,7 +912,7 @@ object EvidenceFactAssembler:
   ): List[EvidenceRecord] =
     context.position(PositionNodeRole.Before).toList.flatMap { node =>
       val records = for
-        features <- node.features
+        boardProfile <- boardFactEvidence(context, node.ref).flatMap(_.boardProfile)
         assessment <- node.assessment
         side <- node.ref.sideToMove.orElse(input.sideToMove)
         initialPosition <- Fen.read(Standard, Fen.Full(node.ref.fen))
@@ -929,7 +929,7 @@ object EvidenceFactAssembler:
             threatsToUs = threatsToUs.map(_.threats),
             isWhiteToMove = side.white,
             positionKey = Some(node.ref.fen),
-            features = Some(features),
+            boardProfile = Some(boardProfile),
             initialPos = Some(initialPosition),
             structureProfile = pawnStructure.map(_.profile),
             planAlignment = pawnStructure.flatMap(_.alignment)
