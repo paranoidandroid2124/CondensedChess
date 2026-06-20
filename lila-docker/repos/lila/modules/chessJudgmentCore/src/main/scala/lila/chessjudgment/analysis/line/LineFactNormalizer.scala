@@ -38,7 +38,7 @@ object LineFactNormalizer:
         forcedTheme = forcedTheme,
         material = materialSummary
       )(
-        replay = replaySteps(facts),
+        replay = replaySteps(position.fen, facts),
         events = lineEvents(facts, forcedTheme, materialSummary),
         consequences = lineConsequences(facts, forcedTheme, materialSummary)
       ),
@@ -51,14 +51,15 @@ object LineFactNormalizer:
       lineMoves = theme.lineMoves
     )
 
-  private def replaySteps(facts: PrincipalVariationEvidence.LineFacts): List[LineReplayStep] =
-    facts.line.moves.map(move =>
-      LineReplayStep(
+  private def replaySteps(startFen: String, facts: PrincipalVariationEvidence.LineFacts): List[LineReplayStep] =
+    facts.line.moves.foldLeft((startFen, List.empty[LineReplayStep])) { case ((fenBefore, acc), move) =>
+      move.fenAfter -> (acc :+ LineReplayStep(
         ply = move.ply,
         moveUci = move.uci,
+        fenBefore = fenBefore,
         fenAfter = move.fenAfter
-      )
-    )
+      ))
+    }._2
 
   private def lineEvents(
       facts: PrincipalVariationEvidence.LineFacts,

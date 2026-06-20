@@ -468,6 +468,7 @@ final case class ForcedLineThemeEvidence(
 final case class LineReplayStep(
     ply: Int,
     moveUci: String,
+    fenBefore: String,
     fenAfter: String
 )
 

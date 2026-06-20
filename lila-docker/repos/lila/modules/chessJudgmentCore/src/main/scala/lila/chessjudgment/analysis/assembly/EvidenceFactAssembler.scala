@@ -91,17 +91,19 @@ object EvidenceFactAssembler:
         ).flatten.flatten
       val lineRecords =
         context.lines.flatMap { line =>
-          val startPosition = startPositionForLine(input, context, root, line)
-          moveMotifRecord(
-            id = allocator.evidenceId(s"move-motif:line:${allocator.key(line.role)}:${line.ref.rank}:${line.ref.rootMove}"),
-            startFen = startPosition.ref.fen,
-            position = startPosition.ref,
-            moveUci = line.ref.rootMove,
-            moves = line.line.moves,
-            line = Some(line),
-            scope = line.role.scope,
-            parents = lineParents(context, line)
-          )
+          lineFactEvidence(context, line.ref).flatMap { lineFacts =>
+            val startPosition = startPositionForLine(input, context, root, line)
+            moveMotifRecord(
+              id = allocator.evidenceId(s"move-motif:line:${allocator.key(line.role)}:${line.ref.rank}:${line.ref.rootMove}"),
+              startFen = startPosition.ref.fen,
+              position = startPosition.ref,
+              moveUci = line.ref.rootMove,
+              moves = lineFacts.mainlineMoves,
+              line = Some(line),
+              scope = line.role.scope,
+              parents = lineParents(context, line)
+            )
+          }
         }
       transitionRecords ++ lineRecords
     }
@@ -137,11 +139,14 @@ object EvidenceFactAssembler:
   ): List[EvidenceRecord] =
     val root = context.position(PositionNodeRole.Before).map(_.ref)
     root.toList.flatMap { rootRef =>
-      val continuationLines = context.lines.filterNot(_.role == LineNodeRole.Threat).map(_.line.moves)
+      val continuationLines =
+        context.lines
+          .filterNot(_.role == LineNodeRole.Threat)
+          .flatMap(line => lineFactEvidence(context, line.ref).map(_.mainlineMoves))
       val relationTargetHints = relationTargetHintsFromBoardFacts(context)
       val lineBackedRecords = context.lines.filterNot(_.role == LineNodeRole.Threat).flatMap { line =>
-        TacticalRelationEvidence
-          .boundedReplay(input.beforeFen, line.line.moves, maxPlies = 8)
+        lineFactEvidence(context, line.ref)
+          .flatMap(lineFacts => TacticalRelationEvidence.boundedReplayFromSteps(lineFacts.lineReplaySteps, maxPlies = 8))
           .toList
           .flatMap { replay =>
             val witnesses =
@@ -309,10 +314,11 @@ object EvidenceFactAssembler:
       context.transitions.flatMap { edge =>
         for
           line <- lineForTransition(context, edge).toList
+          lineFacts <- lineFactEvidence(context, line.ref).toList
           node <- context.positions.find(_.ref == edge.to).toList
           assessment <- node.assessment.toList
           sideUnderPressure <- node.ref.sideToMove.toList
-          suffixMoves = line.line.moves.drop(1)
+          suffixMoves = lineFacts.mainlineMoves.drop(1)
           if suffixMoves.nonEmpty
           continuationPv = PvLine(
             moves = suffixMoves,
@@ -456,6 +462,12 @@ object EvidenceFactAssembler:
   private def boardFactEvidence(context: JudgmentAssemblyContext, position: PositionNodeRef): Option[BoardFactEvidence] =
     context.evidenceGraph.records.collectFirst {
       case EvidenceRecord(ref, payload: BoardFactEvidence, _) if ref.position == position =>
+        payload
+    }
+
+  private def lineFactEvidence(context: JudgmentAssemblyContext, line: LineNodeRef): Option[LineFactEvidence] =
+    context.evidenceGraph.records.collectFirst {
+      case EvidenceRecord(ref, payload: LineFactEvidence, _) if ref.line.contains(line) =>
         payload
     }
 

@@ -1631,7 +1631,9 @@ object MoveReviewPhase3AuditRunner:
           "replay" -> payload.lineReplaySteps.map(step =>
             Json.obj(
               "ply" -> step.ply,
-              "moveUci" -> step.moveUci
+              "moveUci" -> step.moveUci,
+              "fenBefore" -> step.fenBefore,
+              "fenAfter" -> step.fenAfter
             )
           ),
           "events" -> payload.lineEvents.map(event =>

@@ -10,7 +10,7 @@ import lila.chessjudgment.analysis.material.MaterialValue
 import lila.chessjudgment.analysis.tactical.TacticalPatternDetectors
 import lila.chessjudgment.analysis.structure.WeaknessTargetProfile
 import lila.chessjudgment.model.ProbeResult
-import lila.chessjudgment.model.judgment.EvidenceSquare
+import lila.chessjudgment.model.judgment.{ EvidenceSquare, LineReplayStep }
 import lila.chessjudgment.model.strategic.VariationLine
 
 private[chessjudgment] object TacticalRelationEvidence:
@@ -48,6 +48,42 @@ private[chessjudgment] object TacticalRelationEvidence:
   ): Option[List[BoundedReplayStep]] =
     val normalizedMoves = normalizedBoundedMoves(moves, maxPlies)
     replayLegalPrefix(fen, normalizedMoves).filter(_.size == normalizedMoves.size)
+
+  def boundedReplayFromSteps(
+      steps: List[LineReplayStep],
+      maxPlies: Int
+  ): Option[List[BoundedReplayStep]] =
+    val bounded = steps.take(maxPlies)
+    Option.when(bounded.nonEmpty)(()).flatMap { _ =>
+      val accepted = scala.collection.mutable.ListBuffer.empty[BoundedReplayStep]
+      var ok = true
+      val it = bounded.iterator
+      while it.hasNext && ok do
+        val step = it.next()
+        Fen.read(Standard, Fen.Full(step.fenBefore)).flatMap { before =>
+          val normalized = PrincipalVariationEvidence.normalizeUci(step.moveUci)
+          legalMove(before, normalized).filter { move =>
+            boardStateFen(Fen.write(move.after).value) == boardStateFen(step.fenAfter)
+          }.map { move =>
+            val capturedRole =
+              move.capture
+                .flatMap(before.board.roleAt)
+                .orElse(before.board.roleAt(move.dest))
+            BoundedReplayStep(
+              uci = normalized,
+              before = before,
+              move = move,
+              after = move.after,
+              capturedRole = capturedRole
+            )
+          }
+        } match
+          case Some(replayed) =>
+            accepted += replayed
+          case None =>
+            ok = false
+      Option.when(ok)(accepted.toList)
+    }
 
   def boundedReplayPrefix(
       fen: String,
@@ -924,6 +960,9 @@ private[chessjudgment] object TacticalRelationEvidence:
 
   def legalMove(position: Position, uci: String): Option[Move] =
     Uci(uci).collect { case move: Uci.Move => move }.flatMap(position.move(_).toOption)
+
+  private def boardStateFen(fen: String): String =
+    Option(fen).getOrElse("").trim.split("\\s+").take(4).mkString(" ")
 
   def isUciMove(move: String): Boolean =
     move.matches("""[a-h][1-8][a-h][1-8][qrbn]?""")
