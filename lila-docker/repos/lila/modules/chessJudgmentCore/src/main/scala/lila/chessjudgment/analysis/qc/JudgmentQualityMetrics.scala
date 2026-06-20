@@ -1058,8 +1058,8 @@ object CandidateComparisonDiagnostic:
 
   private def payloadReferencesLine(payload: EvidencePayload, line: LineNodeRef): Boolean =
     payload match
-      case LineFactEvidence(payloadLine, _, _, _, _, _) =>
-        payloadLine == line
+      case lineFact: LineFactEvidence =>
+        lineFact.line == line
       case EvalFactEvidence(payloadLine, _, _, _) =>
         payloadLine == line
       case CandidateComparisonEvidence(fact) =>

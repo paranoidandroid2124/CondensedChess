@@ -634,10 +634,10 @@ object ClaimArbitrator:
         statusScore + assessment.observedThemes.size.min(4)
       case SinglePositionEvidence(_) =>
         1
-      case BoardFactEvidence(_, _) =>
+      case _: BoardFactEvidence =>
         0
-      case payload: LineFactEvidence =>
-        lineConsequenceProfileSalience(payload.consequenceProfile)
+      case _: LineFactEvidence =>
+        0
       case EvalFactEvidence(_, _, mate, depth) =>
         mate.map(_ => 5).getOrElse(if depth >= 16 then 2 else 1)
       case MoveMotifEvidence(moveUci, motifs) =>
@@ -798,16 +798,6 @@ object ClaimArbitrator:
           6
     val proofScore = cause.proof.map(relativeCauseProofSalience).getOrElse(0)
     causeScore + proofScore + math.round(cause.winPercentLossForMover.min(20.0) / 5.0).toInt
-
-  private def lineConsequenceProfileSalience(profile: LineConsequenceProfile): Int =
-    if !profile.hasConcreteProofSignal then 0
-    else
-      1 +
-        Option.when(profile.hasMate)(4).getOrElse(0) +
-        Option.when(profile.hasDrawResource)(3).getOrElse(0) +
-        Option.when(profile.hasMaterialResult)(2).getOrElse(0) +
-        Option.when(profile.hasRecaptureRecovery)(2).getOrElse(0) +
-        Option.when(profile.hasPromotionRace)(2).getOrElse(0)
 
   private def relativeCauseProofSalience(proof: RelativeCauseProof): Int =
     val board = Option.when(proof.boardAnchors.nonEmpty)(2).getOrElse(0)

@@ -410,7 +410,7 @@ object ClaimSupportCluster:
           payload.consequenceProfile.proofSignalKinds.map(kind =>
             EvidenceSemanticAnchor.of(LineConsequence, kind.toString)
           )
-      case payload @ BoardFactEvidence(_, _) =>
+      case payload: BoardFactEvidence =>
         payload.anchorsForSemanticGrouping.map(boardAnchorSemantic)
       case StructuralDeltaEvidence(delta) =>
         List(

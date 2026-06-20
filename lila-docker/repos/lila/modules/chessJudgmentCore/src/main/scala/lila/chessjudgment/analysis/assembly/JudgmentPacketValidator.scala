@@ -358,9 +358,9 @@ object JudgmentPacketValidator:
           .toList
       val bindingIssues =
         record match
-          case EvidenceRecord(ref, LineFactEvidence(line, _, _, _, _, _), _) =>
+          case EvidenceRecord(ref, payload: LineFactEvidence, _) =>
             Option
-              .when(!ref.line.contains(line))(
+              .when(!ref.line.contains(payload.line))(
                 JudgmentPacketValidationIssue(
                   JudgmentPacketValidationIssueKind.MismatchedLineEvidenceRef,
                   ref.id,
@@ -502,8 +502,8 @@ object JudgmentPacketValidator:
       layer: EvidenceLayer
   ): Boolean =
     parentClosure(graph, record).exists {
-      case EvidenceRecord(ref, LineFactEvidence(payloadLine, _, _, _, _, _), _) =>
-        layer == EvidenceLayer.Line && ref.line.contains(line) && payloadLine == line
+      case EvidenceRecord(ref, payload: LineFactEvidence, _) =>
+        layer == EvidenceLayer.Line && ref.line.contains(line) && payload.line == line
       case EvidenceRecord(ref, EvalFactEvidence(payloadLine, _, _, _), _) =>
         layer == EvidenceLayer.Eval && ref.line.contains(line) && payloadLine == line
       case _ =>

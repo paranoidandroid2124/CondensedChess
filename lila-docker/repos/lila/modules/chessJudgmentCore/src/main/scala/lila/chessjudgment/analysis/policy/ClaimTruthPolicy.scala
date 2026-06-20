@@ -209,8 +209,8 @@ object ClaimTruthPolicy:
   private def recordLineMatches(record: EvidenceRecord, line: LineNodeRef): Boolean =
     record.ref.line.contains(line) ||
       (record.payload match
-        case LineFactEvidence(payloadLine, _, _, _, _, _) =>
-          payloadLine == line
+        case lineFact: LineFactEvidence =>
+          lineFact.line == line
         case EvalFactEvidence(payloadLine, _, _, _) =>
           payloadLine == line
         case CandidateComparisonEvidence(fact) =>
