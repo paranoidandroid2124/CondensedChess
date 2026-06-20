@@ -533,6 +533,7 @@ enum LineEventKind:
   case Castling
   case Check
   case Mate
+  case Tempo
   case Stalemate
   case Promotion
   case ForcedTheme
@@ -752,6 +753,8 @@ final case class LineFactEvidence(
     lineEventsOf(kind).nonEmpty
   def hasLineEventAt(kind: LineEventKind, plyOffset: Int): Boolean =
     lineEventsOf(kind).exists(_.plyOffset == plyOffset)
+  def hasTempoEventAt(plyOffset: Int): Boolean =
+    hasLineEventAt(LineEventKind.Tempo, plyOffset)
   def lineEventMoves(kind: LineEventKind): List[String] =
     lineEventsOf(kind).map(_.moveUci)
   def hasRootCaptureEvent(rootMoveUci: String): Boolean =

@@ -1283,8 +1283,7 @@ object RelativeAssessmentAssembler:
       records: List[EvidenceRecord],
       line: LineNodeRef
   ): Boolean =
-    lineHasEventAt(records, line, LineEventKind.Check, plyOffset = 1) ||
-      lineHasEventAt(records, line, LineEventKind.Mate, plyOffset = 1)
+    lineHasTempoAt(records, line, plyOffset = 1)
 
   private def lineEventMoves(records: List[EvidenceRecord], line: LineNodeRef, kind: LineEventKind): List[String] =
     records.collectFirst {
@@ -1293,16 +1292,15 @@ object RelativeAssessmentAssembler:
         payload.lineEventMoves(kind)
     }.getOrElse(Nil)
 
-  private def lineHasEventAt(
+  private def lineHasTempoAt(
       records: List[EvidenceRecord],
       line: LineNodeRef,
-      kind: LineEventKind,
       plyOffset: Int
   ): Boolean =
     records.exists {
       case EvidenceRecord(_, payload: LineFactEvidence, _)
           if payload.line == line =>
-        payload.hasLineEventAt(kind, plyOffset)
+        payload.hasTempoEventAt(plyOffset)
       case _ =>
         false
     }

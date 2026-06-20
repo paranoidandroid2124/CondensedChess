@@ -71,27 +71,50 @@ object LineFactNormalizer:
         val normalized = PrincipalVariationEvidence.normalizeUci(move.uci)
         val stateEvents =
           positionAfter(move.fenAfter).toList.flatMap { position =>
-            List(
+            val kingSquare = position.board.kingPosOf(position.color).map(square => EvidenceSquare(square.key))
+            val checkLike =
               Option.when(position.checkMate)(
-                LineMoveEvent(
-                  kind = LineEventKind.Mate,
-                  moveUci = normalized,
-                  plyOffset = index,
-                  side = Some(!position.color),
-                  pieceRole = Some(EvidencePieceRole(King.name)),
-                  square = position.board.kingPosOf(position.color).map(square => EvidenceSquare(square.key))
+                List(
+                  LineMoveEvent(
+                    kind = LineEventKind.Mate,
+                    moveUci = normalized,
+                    plyOffset = index,
+                    side = Some(!position.color),
+                    pieceRole = Some(EvidencePieceRole(King.name)),
+                    square = kingSquare
+                  ),
+                  LineMoveEvent(
+                    kind = LineEventKind.Tempo,
+                    moveUci = normalized,
+                    plyOffset = index,
+                    side = Some(!position.color),
+                    pieceRole = Some(EvidencePieceRole(King.name)),
+                    square = kingSquare
+                  )
                 )
-              ),
-              Option.when(position.check.yes && !position.checkMate)(
-                LineMoveEvent(
-                  kind = LineEventKind.Check,
-                  moveUci = normalized,
-                  plyOffset = index,
-                  side = Some(!position.color),
-                  pieceRole = Some(EvidencePieceRole(King.name)),
-                  square = position.board.kingPosOf(position.color).map(square => EvidenceSquare(square.key))
+              ).orElse(
+                Option.when(position.check.yes)(
+                  List(
+                    LineMoveEvent(
+                      kind = LineEventKind.Check,
+                      moveUci = normalized,
+                      plyOffset = index,
+                      side = Some(!position.color),
+                      pieceRole = Some(EvidencePieceRole(King.name)),
+                      square = kingSquare
+                    ),
+                    LineMoveEvent(
+                      kind = LineEventKind.Tempo,
+                      moveUci = normalized,
+                      plyOffset = index,
+                      side = Some(!position.color),
+                      pieceRole = Some(EvidencePieceRole(King.name)),
+                      square = kingSquare
+                    )
+                  )
                 )
-              ),
+              ).getOrElse(Nil)
+            checkLike ++ List(
               Option.when(position.staleMate)(
                 LineMoveEvent(
                   kind = LineEventKind.Stalemate,
@@ -120,7 +143,13 @@ object LineFactNormalizer:
               moveUci = move,
               plyOffset = 0
             )
-          )
+          ) ++ Option.when(theme.id == ForcedLineTruth.ImmediateReplyCheckId)(
+            LineMoveEvent(
+              kind = LineEventKind.Tempo,
+              moveUci = move,
+              plyOffset = 0
+            )
+          ).toList
         )
       )
     val materialEvents =
