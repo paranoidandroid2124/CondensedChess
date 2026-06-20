@@ -1757,17 +1757,17 @@ object CandidateComparisonDiagnostic:
 
   private def hasRootCapture(records: List[EvidenceRecord], rootMove: String): Boolean =
     records.exists {
-      case EvidenceRecord(ref, MoveMotifEvidence(moveUci, motifs), _)
-          if normalizeMove(moveUci) == rootMove || rootMoveBound(ref, rootMove) =>
-        motifs.exists {
-          case Motif.Capture(_, _, _, _, _, _, move, _) if motifMoveBound(move, rootMove) =>
-            true
-          case _ =>
-            false
-        }
+      case EvidenceRecord(_, payload: LineFactEvidence, _) =>
+        payload.lineEvents.exists(event =>
+          lineCaptureEvent(event.kind) &&
+            normalizeMove(event.moveUci) == rootMove
+        )
       case _ =>
         false
     }
+
+  private def lineCaptureEvent(kind: LineEventKind): Boolean =
+    kind == LineEventKind.Capture || kind == LineEventKind.Recapture
 
   private def kingHomeStep(moveUci: String, color: Color): Boolean =
     val move = normalizeMove(moveUci)
