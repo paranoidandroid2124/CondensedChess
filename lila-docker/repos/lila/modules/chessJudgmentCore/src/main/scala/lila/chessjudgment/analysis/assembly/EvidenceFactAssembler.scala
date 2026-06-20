@@ -392,7 +392,7 @@ object EvidenceFactAssembler:
       val boardParents = evidenceRefs(context, EvidenceLayer.Board, Some(node.ref), None)
       val boardFacts = boardFactEvidence(context, node.ref)
       val targetAnchors =
-        boardFacts.toList.flatMap(_.boardAnchors.filter(anchor => anchor.kind == BoardAnchorKind.LooseMaterial))
+        boardFacts.toList.flatMap(_.anchorsOf(BoardAnchorKind.LooseMaterial))
       val targetFixation =
         Option
         .when(targetAnchors.nonEmpty) {
@@ -412,7 +412,7 @@ object EvidenceFactAssembler:
         }
         .toList
       val outpostAnchors =
-        boardFacts.toList.flatMap(_.boardAnchors.filter(anchor => anchor.kind == BoardAnchorKind.Outpost))
+        boardFacts.toList.flatMap(_.anchorsOf(BoardAnchorKind.Outpost))
       val outpost =
         Option.when(outpostAnchors.nonEmpty) {
           StrategicFactNormalizer.fromBoardAnchors(
@@ -481,32 +481,28 @@ object EvidenceFactAssembler:
         id = allocator.evidenceId(s"strategic:file-control:$nodeKey"),
         node = node,
         kind = StrategicFactKind.FileControl,
-        anchors = boardFacts.boardAnchors.filter(_.kind == BoardAnchorKind.FileControl),
+        anchors = boardFacts.anchorsOf(BoardAnchorKind.FileControl),
         parents = parents
       ),
       strategicAnchorRecord(
         id = allocator.evidenceId(s"strategic:space:$nodeKey"),
         node = node,
         kind = StrategicFactKind.Space,
-        anchors = boardFacts.boardAnchors.filter(_.kind == BoardAnchorKind.Space),
+        anchors = boardFacts.anchorsOf(BoardAnchorKind.Space),
         parents = parents
       ),
       strategicAnchorRecord(
         id = allocator.evidenceId(s"strategic:activity:$nodeKey"),
         node = node,
         kind = StrategicFactKind.Activity,
-        anchors = boardFacts.boardAnchors.filter(anchor =>
-          anchor.kind == BoardAnchorKind.Activity || anchor.kind == BoardAnchorKind.CounterplayRestraint
-        ),
+        anchors = boardFacts.anchorsOfAny(Set(BoardAnchorKind.Activity, BoardAnchorKind.CounterplayRestraint)),
         parents = parents
       ),
       strategicAnchorRecord(
         id = allocator.evidenceId(s"strategic:counterplay-restraint:$nodeKey"),
         node = node,
         kind = StrategicFactKind.CounterplayRestraint,
-        anchors = boardFacts.boardAnchors.filter(anchor =>
-          anchor.kind == BoardAnchorKind.CounterplayRestraint && anchor.magnitude >= 3
-        ),
+        anchors = boardFacts.anchorsOfAtLeast(BoardAnchorKind.CounterplayRestraint, minimumMagnitude = 3),
         parents = parents
       )
     ).flatten
@@ -780,7 +776,19 @@ object EvidenceFactAssembler:
         EvidenceConfidence.Heuristic
 
   private def boardOpeningFeatureAnchors(boardFacts: BoardFactEvidence): List[FeatureAnchor] =
-    boardFacts.boardAnchors.flatMap(boardOpeningFeatureAnchor).distinctBy(anchor => (anchor.theme, anchor.signal, anchor.sourceLayer))
+    boardFacts
+      .anchorsOfAny(
+        Set(
+          BoardAnchorKind.CenterControl,
+          BoardAnchorKind.Space,
+          BoardAnchorKind.Development,
+          BoardAnchorKind.Activity,
+          BoardAnchorKind.PawnStructure,
+          BoardAnchorKind.KingSafety
+        )
+      )
+      .flatMap(boardOpeningFeatureAnchor)
+      .distinctBy(anchor => (anchor.theme, anchor.signal, anchor.sourceLayer))
 
   private def boardOpeningFeatureAnchor(anchor: BoardAnchor): Option[FeatureAnchor] =
     anchor.kind match

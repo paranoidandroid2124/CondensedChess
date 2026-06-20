@@ -111,6 +111,18 @@ final case class BoardFactEvidence(
   val layer: EvidenceLayer = EvidenceLayer.Board
   def boardAnchors: List[BoardAnchor] =
     anchors
+  def boardAnchorCount: Int =
+    anchors.size
+  def hasBoardAnchors: Boolean =
+    anchors.nonEmpty
+  def anchorsOf(kind: BoardAnchorKind): List[BoardAnchor] =
+    anchors.filter(_.kind == kind)
+  def anchorsOfAny(kinds: Set[BoardAnchorKind]): List[BoardAnchor] =
+    anchors.filter(anchor => kinds.contains(anchor.kind))
+  def anchorsOfAtLeast(kind: BoardAnchorKind, minimumMagnitude: Int): List[BoardAnchor] =
+    anchors.filter(anchor => anchor.kind == kind && anchor.magnitude >= minimumMagnitude)
+  def anchorsForSemanticGrouping: List[BoardAnchor] =
+    anchors
   def boardProfile: Option[BoardPositionProfile] =
     profile
   def factCount: Int =
@@ -119,6 +131,8 @@ final case class BoardFactEvidence(
     profile.nonEmpty
   def hasAttackDefenseEntries: Boolean =
     attackDefense.nonEmpty
+  def attackDefenseCount: Int =
+    attackDefense.size
   def vulnerableAttackDefense: List[BoardAttackDefenseEntry] =
     attackDefense.filter(entry => entry.isLoose || entry.isUnderdefended)
   def targetHintSquares: List[EvidenceSquare] =
@@ -305,6 +319,8 @@ final case class StrategicFactEvidence(
   val layer: EvidenceLayer = EvidenceLayer.Strategic
   def hasTypedSupport: Boolean =
     facts.nonEmpty || relatedPlans.nonEmpty || boardAnchors.nonEmpty
+  def anchorsForSemanticGrouping: List[BoardAnchor] =
+    boardAnchors
 
 enum OpeningFamily:
   case A

@@ -361,7 +361,7 @@ object ClaimSupportCluster:
       case payload @ StrategicFactEvidence(kind, _, relatedPlans, _) =>
         EvidenceSemanticAnchor.of(StrategicKind, kind.toString) ::
           relatedPlans.map(plan => EvidenceSemanticAnchor.of(Plan, plan.toString)) ++
-          payload.boardAnchors.map(boardAnchorSemantic)
+          payload.anchorsForSemanticGrouping.map(boardAnchorSemantic)
       case PawnStructureFactEvidence(profile, alignment, pawnPlay) =>
         List(
           Option.when(profile.primary != StructureId.Unknown)(
@@ -411,7 +411,7 @@ object ClaimSupportCluster:
             EvidenceSemanticAnchor.of(LineConsequence, kind.toString)
           )
       case payload @ BoardFactEvidence(_, _) =>
-        payload.boardAnchors.map(boardAnchorSemantic)
+        payload.anchorsForSemanticGrouping.map(boardAnchorSemantic)
       case StructuralDeltaEvidence(delta) =>
         List(
           Option.when(delta.createdTargetPressure.nonEmpty)(EvidenceSemanticAnchor.of(StructuralDelta, "created-target-pressure")),
