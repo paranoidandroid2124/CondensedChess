@@ -453,6 +453,8 @@ final case class LineReplayStep(
 enum LineEventKind:
   case Capture
   case Recapture
+  case DefenderMove
+  case Threat
   case Castling
   case Check
   case Mate

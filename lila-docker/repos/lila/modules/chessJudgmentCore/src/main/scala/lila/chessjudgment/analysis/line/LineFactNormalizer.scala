@@ -107,28 +107,49 @@ object LineFactNormalizer:
       }
     val forcedEvents =
       forcedTheme.toList.flatMap(theme =>
-        theme.lineMoves.headOption.map(move =>
-          LineMoveEvent(
-            kind = LineEventKind.ForcedTheme,
-            moveUci = move,
-            plyOffset = 0
+        theme.lineMoves.headOption.toList.flatMap(move =>
+          List(
+            LineMoveEvent(
+              kind = LineEventKind.ForcedTheme,
+              moveUci = move,
+              plyOffset = 0
+            ),
+            LineMoveEvent(
+              kind = LineEventKind.Threat,
+              moveUci = move,
+              plyOffset = 0
+            )
           )
         )
       )
     val materialEvents =
       materialSummary.toList.flatMap { summary =>
         val captureEvents =
-          summary.captures.map(capture =>
-            LineMoveEvent(
-              kind = if capture.recapture then LineEventKind.Recapture else LineEventKind.Capture,
-              moveUci = capture.moveUci,
-              plyOffset = capture.plyOffset,
-              side = Some(capture.side),
-              pieceRole = Some(capture.attackerRole),
-              targetRole = Some(capture.capturedRole),
-              square = Some(capture.square)
-            )
-          )
+          summary.captures.flatMap { capture =>
+            val captureEvent =
+              LineMoveEvent(
+                kind = if capture.recapture then LineEventKind.Recapture else LineEventKind.Capture,
+                moveUci = capture.moveUci,
+                plyOffset = capture.plyOffset,
+                side = Some(capture.side),
+                pieceRole = Some(capture.attackerRole),
+                targetRole = Some(capture.capturedRole),
+                square = Some(capture.square)
+              )
+            captureEvent :: Option
+              .when(capture.recapture)(
+                LineMoveEvent(
+                  kind = LineEventKind.DefenderMove,
+                  moveUci = capture.moveUci,
+                  plyOffset = capture.plyOffset,
+                  side = Some(capture.side),
+                  pieceRole = Some(capture.attackerRole),
+                  targetRole = Some(capture.capturedRole),
+                  square = Some(capture.square)
+                )
+              )
+              .toList
+          }
         val promotionEvents =
           Option.when(summary.hasPromotion)(
             LineMoveEvent(
