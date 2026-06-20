@@ -421,7 +421,9 @@ object MoveReviewPhase3AuditRunner:
           "semanticCoverage" -> semanticSummary(built),
           "layerGaps" -> layerGapSummary(built),
           "issueKinds" -> Json.toJson(built.quality.audit.issues.map(_.kind.toString)),
+          "validationIssueKinds" -> Json.toJson(built.quality.validation.issues.map(_.kind.toString)),
           "issues" -> issueDetails(built),
+          "validationIssues" -> validationIssueDetails(built),
           "evidenceLoss" -> evidenceLossSummary(built),
           "evidenceLayerCounts" -> evidenceLayerCounts(built),
           "relationKinds" -> relationKinds(built),
@@ -982,7 +984,20 @@ object MoveReviewPhase3AuditRunner:
         Json.obj(
           "kind" -> issue.kind.toString,
           "subjectId" -> issue.subjectId,
+          "validationKind" -> issue.validationKind.map(_.toString),
+          "evidence" -> issue.evidence.map(evidenceRefSummary),
           "relatedComparisonIds" -> relatedComparisonIds(result, issue.subjectId)
+        )
+      )
+    )
+
+  private def validationIssueDetails(result: MoveReviewJudgmentResult): JsArray =
+    JsArray(
+      result.quality.validation.issues.map(issue =>
+        Json.obj(
+          "kind" -> issue.kind.toString,
+          "subjectId" -> issue.subjectId,
+          "evidence" -> issue.evidence.map(evidenceRefSummary)
         )
       )
     )

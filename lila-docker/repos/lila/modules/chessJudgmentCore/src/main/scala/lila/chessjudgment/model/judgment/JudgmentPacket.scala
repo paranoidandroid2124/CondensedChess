@@ -365,7 +365,7 @@ object ClaimSupportCluster:
           .map(move => s"line:castling:$move") ++
           payload.consequenceProfile.claimGradeKinds.map(kind => s"line-consequence:$kind")
       case payload @ BoardFactEvidence(_, _) =>
-        payload.anchors.map(boardAnchorSemantic)
+        payload.claimGradeAnchors.map(boardAnchorSemantic)
       case StructuralDeltaEvidence(delta) =>
         List(
           Option.when(delta.createdTargetPressure.nonEmpty)("delta:created-target-pressure"),

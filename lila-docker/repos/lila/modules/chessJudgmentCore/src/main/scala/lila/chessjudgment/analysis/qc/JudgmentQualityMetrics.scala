@@ -1,9 +1,9 @@
 package lila.chessjudgment.analysis.qc
 
 import chess.{ Color, File }
-import lila.chessjudgment.analysis.assembly.{ JudgmentPacketValidationResult, JudgmentPacketValidator }
+import lila.chessjudgment.analysis.assembly.{ JudgmentPacketValidationIssueKind, JudgmentPacketValidationResult, JudgmentPacketValidator }
 import lila.chessjudgment.analysis.evaluation.JudgmentThresholds
-import lila.chessjudgment.analysis.policy.{ ClaimTruthPolicy, ClaimTruthStatus }
+import lila.chessjudgment.analysis.policy.ClaimTruthPolicy
 import lila.chessjudgment.analysis.singlePosition.{ PawnPlayDriver, ThreatDriver, ThreatSeverity }
 import lila.chessjudgment.analysis.tactical.TacticalMotifClassifier
 import lila.chessjudgment.model.{ Motif, ProbeAdmissionStatus, ProbePurpose, TransitionType }
@@ -207,32 +207,10 @@ object ExpectedEvidenceLossPolicy:
       diagnostic: EvidenceLossDiagnostic,
       packet: EvidenceBackedJudgmentPacket
   ): Boolean =
-    packet.ideas.find(_.ref.id == diagnostic.subjectId).exists { idea =>
-      val family = claimFamilyForIdea(idea)
-      val candidate =
-        ClaimComposer.fromIdea(
-          id = s"qc:claim:${idea.ref.id}",
-          family = family,
-          idea = idea,
-          supportingFacts = Nil,
-          engineComparison = None,
-          confidence = idea.confidence
-        )
-      ClaimTruthPolicy.evaluate(candidate, packet.evidenceGraph).status != ClaimTruthStatus.Certified
-    }
-
-  private def claimFamilyForIdea(idea: ChessIdea): ClaimFamily =
-    if idea.subject == IdeaSubject.Plan then ClaimFamily.Plan
-    else
-      idea.ref.family match
-        case ChessIdeaFamily.Tactical      => ClaimFamily.Tactical
-        case ChessIdeaFamily.Strategic     => ClaimFamily.Strategic
-        case ChessIdeaFamily.PawnStructure => ClaimFamily.PawnStructure
-        case ChessIdeaFamily.Opening       => ClaimFamily.Opening
-        case ChessIdeaFamily.Defensive     => ClaimFamily.Defensive
-        case ChessIdeaFamily.Conversion    => ClaimFamily.Conversion
-        case ChessIdeaFamily.Material      => ClaimFamily.Material
-        case ChessIdeaFamily.Evaluation    => ClaimFamily.Evaluation
+    packet.claims.exists(claim =>
+      claim.idea.exists(_.id == diagnostic.subjectId) &&
+        claim.supportStatus.exists(_.status == ClaimSupportStatus.Deferred)
+    )
 
 final case class GraphLossMetrics(
     totalRegistered: Int,
@@ -2920,7 +2898,7 @@ object JudgmentLayerGapProfile:
           claimSlot(packet, JudgmentGraphSlot.StrategicClaim, ClaimFamily.Strategic, strategicClaimApplicable(packet)),
           claimSlot(packet, JudgmentGraphSlot.PawnStructureClaim, ClaimFamily.PawnStructure),
           claimSlot(packet, JudgmentGraphSlot.OpeningClaim, ClaimFamily.Opening, openingIdeaApplicable(packet)),
-          claimSlot(packet, JudgmentGraphSlot.PlanClaim, ClaimFamily.Plan),
+          claimSlot(packet, JudgmentGraphSlot.PlanClaim, ClaimFamily.Plan, planClaimApplicable(packet)),
           claimSlot(packet, JudgmentGraphSlot.DefensiveClaim, ClaimFamily.Defensive),
           claimSlot(packet, JudgmentGraphSlot.ConversionClaim, ClaimFamily.Conversion, conversionIdeaApplicable(packet)),
           claimSlot(packet, JudgmentGraphSlot.MaterialClaim, ClaimFamily.Material, materialIdeaApplicable(packet)),
@@ -3145,6 +3123,10 @@ object JudgmentLayerGapProfile:
   private def longTermSupportClusterApplicable(packet: EvidenceBackedJudgmentPacket): Boolean =
     packet.claims.exists(_.family.isLongTerm)
 
+  private def planClaimApplicable(packet: EvidenceBackedJudgmentPacket): Boolean =
+    packet.ideas.exists(_.subject == IdeaSubject.Plan) ||
+      ClaimTruthPolicy.planClaimApplicable(packet)
+
   private def claimEventClusterApplicable(packet: EvidenceBackedJudgmentPacket): Boolean =
     packet.claims.exists(_.family.isEvent) ||
       packet.evidenceGraph.records.exists {
@@ -3187,7 +3169,9 @@ enum ChessQualityIssueKind:
 
 final case class ChessQualityIssue(
     kind: ChessQualityIssueKind,
-    subjectId: String
+    subjectId: String,
+    validationKind: Option[JudgmentPacketValidationIssueKind] = None,
+    evidence: Option[EvidenceRef] = None
 )
 
 final case class ChessQualityAudit(
@@ -3219,7 +3203,9 @@ object ChessQualityAudit:
     validation.issues.map(issue =>
       ChessQualityIssue(
         kind = ChessQualityIssueKind.PacketValidationFailed,
-        subjectId = issue.subjectId
+        subjectId = issue.subjectId,
+        validationKind = Some(issue.kind),
+        evidence = issue.evidence
       )
     )
 

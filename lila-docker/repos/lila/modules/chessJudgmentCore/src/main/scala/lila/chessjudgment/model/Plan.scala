@@ -19,7 +19,6 @@ case class CompatibilityEvent(
 )
 
 enum CompatibilityAdjustment:
-  case TacticalOverride
   case DefensivePressure
   case ConversionWindow
   case OpenCenterFlankRisk

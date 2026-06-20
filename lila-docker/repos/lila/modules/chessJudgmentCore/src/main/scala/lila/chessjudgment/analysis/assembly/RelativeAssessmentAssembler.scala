@@ -2,6 +2,7 @@ package lila.chessjudgment.analysis.assembly
 
 import chess.{ Color, File }
 import lila.chessjudgment.analysis.evaluation.{ JudgmentThresholds, PerspectiveMath, VerdictThresholdPolicy }
+import lila.chessjudgment.analysis.policy.ClaimTruthPolicy
 import lila.chessjudgment.analysis.singlePosition.PawnPlayDriver
 import lila.chessjudgment.analysis.tactical.{ TacticalMotifClassifier, TacticalRelationEvidence }
 import lila.chessjudgment.analysis.transition.TransitionFactNormalizer
@@ -1138,10 +1139,8 @@ object RelativeAssessmentAssembler:
           (activePlans.primary.evidence.nonEmpty ||
             activePlans.primary.support.nonEmpty ||
             scoring.topPlans.exists(plan => plan.evidence.nonEmpty || plan.support.nonEmpty))
-      case EvidenceRecord(_, PawnStructureFactEvidence(profile, alignment, pawnPlay), _) =>
-        profile.confidence > 0.0 ||
-          alignment.exists(alignment => alignment.band == AlignmentBand.OnBook || alignment.band == AlignmentBand.Playable) ||
-          pawnPlay.exists(_.primaryDriver != PawnPlayDriver.Quiet)
+      case EvidenceRecord(_, payload: PawnStructureFactEvidence, _) =>
+        ClaimTruthPolicy.pawnStructureCanAnchorPlan(payload)
       case EvidenceRecord(_, FeatureAnchorEvidence(anchor), _) =>
         anchor.signal == FeatureAnchorSignal.CompensationObserved && anchor.strength > 0.0
       case _ =>

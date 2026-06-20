@@ -640,9 +640,12 @@ object ClaimArbitrator:
       case payload @ BoardFactEvidence(_, _) =>
         payload.claimGradeAnchors.size.min(3)
       case payload: LineFactEvidence =>
-        payload.mainlineMoves.take(4).size +
-          payload.consequenceProfile.claimGradeKinds.size.min(4) +
-          payload.events.size.min(2)
+        val profile = payload.consequenceProfile
+        if profile.hasConcreteClaimProof then
+          profile.claimGradeKinds.size.min(4) +
+            Option.when(profile.hasRecaptureRecovery)(1).getOrElse(0) +
+            Option.when(profile.hasPromotionRace)(1).getOrElse(0)
+        else 0
       case EvalFactEvidence(_, _, mate, depth) =>
         mate.map(_ => 5).getOrElse(if depth >= 16 then 2 else 1)
       case MoveMotifEvidence(moveUci, motifs) =>
@@ -683,7 +686,7 @@ object ClaimArbitrator:
       case MoveVerdictCertificationEvidence(certification) =>
         ClaimSalienceDriver.EngineSwing ::
           Option.when(certification.causes.exists(cause => defensiveNecessityCause(cause.kind)))(ClaimSalienceDriver.CandidateConstraint).toList
-      case payload: LineFactEvidence if payload.hasClaimGradeConsequence =>
+      case payload: LineFactEvidence if payload.consequenceProfile.hasConcreteClaimProof =>
         List(ClaimSalienceDriver.ForcingLine)
       case MoveMotifEvidence(moveUci, motifs) if rootCastlingMotif(moveUci, motifs) =>
         List(ClaimSalienceDriver.StrategicFeature, ClaimSalienceDriver.BoardAnchor)

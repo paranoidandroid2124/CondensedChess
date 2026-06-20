@@ -1,8 +1,10 @@
 package lila.chessjudgment.analysis.policy
 
 import lila.chessjudgment.analysis.evaluation.JudgmentThresholds
+import lila.chessjudgment.analysis.singlePosition.PawnPlayDriver
 import lila.chessjudgment.analysis.tactical.TacticalMotifClassifier
 import lila.chessjudgment.model.{ ActivePlans, PlanMatch, PlanSupport, PlanScoringResult }
+import lila.chessjudgment.model.structure.{ AlignmentBand, StructureId }
 import lila.chessjudgment.model.strategic.PlanTaxonomy.PlanTheme
 import lila.chessjudgment.model.judgment.*
 
@@ -107,16 +109,49 @@ object ClaimTruthPolicy:
       comparisonLinesForClaim(claim, graph).exists(line => recordLineMatches(record, line))
     claim.primaryLine.nonEmpty &&
       (record.ref.position == claim.primaryPosition || comparisonLineBound) &&
-      linkedSupportLayer(record.ref.layer)
+      linkedSupportLayer(claim.family, record.ref.layer)
 
-  private def linkedSupportLayer(layer: EvidenceLayer): Boolean =
-    layer match
-      case EvidenceLayer.StructuralDelta | EvidenceLayer.PawnStructure | EvidenceLayer.Relation |
-          EvidenceLayer.MoveMotif | EvidenceLayer.ThreatPressure | EvidenceLayer.PlanPressure |
-          EvidenceLayer.PlanTransition =>
-        true
-      case _ =>
-        false
+  private def linkedSupportLayer(family: ClaimFamily, layer: EvidenceLayer): Boolean =
+    family match
+      case ClaimFamily.Tactical =>
+        layer match
+          case EvidenceLayer.Relation | EvidenceLayer.MoveMotif | EvidenceLayer.Line | EvidenceLayer.Eval |
+              EvidenceLayer.RelativeCause | EvidenceLayer.RelativeAssessment | EvidenceLayer.CandidateComparison |
+              EvidenceLayer.Counterfactual | EvidenceLayer.MoveVerdictCertification =>
+            true
+          case _ =>
+            false
+      case ClaimFamily.Defensive =>
+        layer match
+          case EvidenceLayer.ThreatPressure | EvidenceLayer.RelativeCause | EvidenceLayer.Line |
+              EvidenceLayer.RelativeAssessment | EvidenceLayer.CandidateComparison | EvidenceLayer.Counterfactual |
+              EvidenceLayer.MoveVerdictCertification =>
+            true
+          case _ =>
+            false
+      case ClaimFamily.Plan =>
+        layer match
+          case EvidenceLayer.PlanPressure | EvidenceLayer.PlanTransition | EvidenceLayer.StructuralDelta |
+              EvidenceLayer.PawnStructure | EvidenceLayer.Strategic =>
+            true
+          case _ =>
+            false
+      case ClaimFamily.Strategic | ClaimFamily.PawnStructure | ClaimFamily.Opening =>
+        layer match
+          case EvidenceLayer.StructuralDelta | EvidenceLayer.PawnStructure | EvidenceLayer.Strategic |
+              EvidenceLayer.FeatureAnchor | EvidenceLayer.ApplicabilityAssessment | EvidenceLayer.OpeningContext |
+              EvidenceLayer.PlanPressure | EvidenceLayer.PlanTransition =>
+            true
+          case _ =>
+            false
+      case ClaimFamily.Conversion | ClaimFamily.Material | ClaimFamily.Evaluation =>
+        layer match
+          case EvidenceLayer.Line | EvidenceLayer.Eval | EvidenceLayer.RelativeCause |
+              EvidenceLayer.RelativeAssessment | EvidenceLayer.CandidateComparison | EvidenceLayer.Counterfactual |
+              EvidenceLayer.MoveVerdictCertification | EvidenceLayer.SinglePosition =>
+            true
+          case _ =>
+            false
 
   private def positionContextLayer(layer: EvidenceLayer): Boolean =
     layer match
@@ -271,7 +306,7 @@ object ClaimTruthPolicy:
       case ClaimFamily.Opening =>
         openingProof(records)
       case ClaimFamily.Plan =>
-        planProof(claim, records)
+        planProof(records)
       case ClaimFamily.Material =>
         materialProof(records)
       case _ => true
@@ -291,30 +326,59 @@ object ClaimTruthPolicy:
         assessment.supportedThemes.exists(claimGradeThemes.contains)
     )
 
-  private def planProof(claim: ClaimSeed, records: List[EvidenceRecord]): Boolean =
-    val hasPlanPressure =
-      records.exists {
+  private[chessjudgment] def planPressureCanSeedIdea(
+      scoring: PlanScoringResult,
+      activePlans: ActivePlans,
+      evidence: List[EvidenceRef],
+      graph: TypedEvidenceGraph
+  ): Boolean =
+    val records = evidence.flatMap(ref => graph.byId.get(ref.id))
+    planEvidenceCanSupportPlan(scoring, activePlans, records)
+
+  private[chessjudgment] def planClaimApplicable(packet: EvidenceBackedJudgmentPacket): Boolean =
+    packet.claims.exists(_.family == ClaimFamily.Plan) ||
+      packet.evidenceGraph.records.exists {
         case EvidenceRecord(_, PlanPressureEvidence(scoring, activePlans), _) =>
-          planPressureHasDirectEvidence(scoring, activePlans)
+          planEvidenceCanSupportPlan(scoring, activePlans, packet.evidenceGraph.records)
         case _ =>
           false
       }
-    val hasIndependentPlanAnchor =
-      records.exists {
-        case EvidenceRecord(_, StrategicFactEvidence(_, facts, relatedPlans, confidence), _) =>
-          confidence >= 0.35 && (facts.nonEmpty || relatedPlans.nonEmpty)
-        case EvidenceRecord(_, PawnStructureFactEvidence(profile, alignment, pawnPlay), _) =>
-          profile.confidence > 0.0 || alignment.nonEmpty || pawnPlay.nonEmpty
-        case EvidenceRecord(_, StructuralDeltaEvidence(delta), _) =>
-          delta.hasConsequence
-        case record @ EvidenceRecord(_, ThreatPressureEvidence(_, threats), _) =>
-          (!branchLocalThreatPressure(record) || claimIsBranchLocal(claim)) &&
-            threats.prophylaxisNeeded &&
-            threats.isClaimGradeDefensivePressure
-        case _ =>
-          false
-      }
-    hasPlanPressure && hasIndependentPlanAnchor
+
+  private def planProof(records: List[EvidenceRecord]): Boolean =
+    records.exists {
+      case EvidenceRecord(_, PlanPressureEvidence(scoring, activePlans), _) =>
+        planEvidenceCanSupportPlan(scoring, activePlans, records)
+      case _ =>
+        false
+    }
+
+  private def planEvidenceCanSupportPlan(
+      scoring: PlanScoringResult,
+      activePlans: ActivePlans,
+      records: List[EvidenceRecord]
+  ): Boolean =
+    planPressureHasDirectEvidence(scoring, activePlans) &&
+      records.exists(independentPlanAnchor)
+
+  private def independentPlanAnchor(record: EvidenceRecord): Boolean =
+    record match
+      case EvidenceRecord(_, StrategicFactEvidence(_, facts, relatedPlans, confidence), _) =>
+        confidence >= 0.35 && (facts.nonEmpty || relatedPlans.nonEmpty)
+      case EvidenceRecord(_, payload: PawnStructureFactEvidence, _) =>
+        pawnStructureCanAnchorPlan(payload)
+      case EvidenceRecord(_, StructuralDeltaEvidence(delta), _) =>
+        delta.hasConsequence
+      case _ =>
+        false
+
+  private[chessjudgment] def pawnStructureCanAnchorPlan(payload: PawnStructureFactEvidence): Boolean =
+    payload.profile.primary != StructureId.Unknown && payload.profile.confidence >= 0.65 ||
+      payload.alignment.exists(alignment =>
+        alignment.band == AlignmentBand.OnBook ||
+          alignment.band == AlignmentBand.Playable ||
+          alignment.band == AlignmentBand.OffPlan
+      ) ||
+      payload.pawnPlay.exists(_.primaryDriver != PawnPlayDriver.Quiet)
 
   private def tacticalProof(records: List[EvidenceRecord]): Boolean =
     val hasTacticalAnchor =
@@ -333,7 +397,7 @@ object ClaimTruthPolicy:
                 (hasConcreteTacticalSupport(records) || hasMaterialTacticalSupport(records))
             )
         case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-          payload.hasClaimGradeConsequence
+          lineHasTacticalProof(payload)
         case EvidenceRecord(_, EvalFactEvidence(_, _, mate, _), _) =>
           mate.nonEmpty
         case _ =>
@@ -342,7 +406,7 @@ object ClaimTruthPolicy:
     val hasConcreteLine =
       records.exists {
         case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-          payload.hasClaimGradeConsequence
+          lineHasTacticalProof(payload)
         case EvidenceRecord(_, RelationFactEvidence(_, _, _, lineMoves, _), _) =>
           lineMoves.nonEmpty
         case EvidenceRecord(_, EvalFactEvidence(_, _, mate, _), _) =>
@@ -431,7 +495,7 @@ object ClaimTruthPolicy:
       }
     hasMaterialCause && hasMaterialLine && hasComparison
 
-  private def planPressureHasDirectEvidence(scoring: PlanScoringResult, activePlans: ActivePlans): Boolean =
+  private[chessjudgment] def planPressureHasDirectEvidence(scoring: PlanScoringResult, activePlans: ActivePlans): Boolean =
     scoring.confidence >= 0.35 &&
       (activePlans.primary :: activePlans.secondary.toList ++ scoring.topPlans)
         .exists(plan => nonTacticalPlan(plan) && plan.evidence.nonEmpty)
@@ -473,7 +537,7 @@ object ClaimTruthPolicy:
             TacticalMotifClassifier.isCauseEligible(motif)
         )
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.hasClaimGradeConsequence
+        lineHasTacticalProof(payload)
       case EvidenceRecord(_, EvalFactEvidence(_, _, mate, _), _) =>
         mate.nonEmpty
       case _ =>
@@ -483,10 +547,13 @@ object ClaimTruthPolicy:
   private def hasMaterialTacticalSupport(records: List[EvidenceRecord]): Boolean =
     records.exists {
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.hasClaimGradeConsequence
+        lineHasTacticalProof(payload)
       case _ =>
         false
     }
+
+  private def lineHasTacticalProof(payload: LineFactEvidence): Boolean =
+    payload.consequenceProfile.tacticalDriverKinds.nonEmpty
 
   private def defensiveRelativeCause(kind: RelativeCauseKind): Boolean =
     ClaimEventCluster.kindForCause(kind).contains(ClaimEventClusterKind.DefensiveEvent)

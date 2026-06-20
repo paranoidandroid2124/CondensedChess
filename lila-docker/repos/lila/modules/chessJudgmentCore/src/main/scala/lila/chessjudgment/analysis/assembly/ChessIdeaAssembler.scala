@@ -1,14 +1,14 @@
 package lila.chessjudgment.analysis.assembly
 
 import lila.chessjudgment.analysis.evaluation.JudgmentThresholds
+import lila.chessjudgment.analysis.policy.ClaimTruthPolicy
 import lila.chessjudgment.analysis.singlePosition.PawnPlayDriver
 import lila.chessjudgment.analysis.structure.StructuralDelta
 import lila.chessjudgment.analysis.tactical.TacticalMotifClassifier
-import lila.chessjudgment.model.{ ActivePlans, Motif, PlanMatch, PlanScoringResult, PlanSupport }
+import lila.chessjudgment.model.Motif
 import lila.chessjudgment.model.structure.AlignmentBand
 import lila.chessjudgment.model.structure.StructureId
 import lila.chessjudgment.model.judgment.*
-import lila.chessjudgment.model.strategic.PlanTaxonomy.PlanTheme
 
 final case class ChessIdeaAssembly(
     input: NormalizedMoveReviewInput,
@@ -396,8 +396,8 @@ object ChessIdeaAssembler:
         confidence >= 0.35 && (facts.nonEmpty || relatedPlans.nonEmpty)
       case EvidenceRecord(_, PlanPressureEvidence(scoring, _), _) =>
         scoring.topPlans.exists(plan => plan.evidence.nonEmpty || plan.support.nonEmpty)
-      case EvidenceRecord(_, PawnStructureFactEvidence(profile, alignment, pawnPlay), _) =>
-        profile.confidence > 0.0 || alignment.nonEmpty || pawnPlay.nonEmpty
+      case EvidenceRecord(_, payload: PawnStructureFactEvidence, _) =>
+        ClaimTruthPolicy.pawnStructureCanAnchorPlan(payload)
       case _ =>
         false
     }
@@ -406,12 +406,12 @@ object ChessIdeaAssembler:
     records.exists {
       case EvidenceRecord(_, StrategicFactEvidence(_, facts, relatedPlans, confidence), _) =>
         confidence >= 0.35 && (facts.nonEmpty || relatedPlans.nonEmpty)
-      case EvidenceRecord(_, PawnStructureFactEvidence(profile, alignment, pawnPlay), _) =>
-        profile.confidence > 0.0 || alignment.nonEmpty || pawnPlay.nonEmpty
+      case EvidenceRecord(_, payload: PawnStructureFactEvidence, _) =>
+        ClaimTruthPolicy.pawnStructureCanAnchorPlan(payload)
       case EvidenceRecord(_, StructuralDeltaEvidence(delta), _) =>
         delta.hasConsequence
       case EvidenceRecord(_, PlanPressureEvidence(scoring, activePlans), _) =>
-        planPressureHasDirectEvidence(scoring, activePlans)
+        ClaimTruthPolicy.planPressureHasDirectEvidence(scoring, activePlans)
       case _ =>
         false
     }
@@ -531,10 +531,9 @@ object ChessIdeaAssembler:
               ref.line.toList.flatMap(lineLayerRefs(context, _)) ++
               recordsForPosition(context, EvidenceLayer.Strategic, ref.position) ++
               recordsForPosition(context, EvidenceLayer.PawnStructure, ref.position) ++
-              recordsForPosition(context, EvidenceLayer.ThreatPressure, ref.position) ++
               recordsForPosition(context, EvidenceLayer.PlanTransition, ref.position) ++
               recordsForPosition(context, EvidenceLayer.SinglePosition, ref.position)).distinctBy(_.id)
-          Option.when(planPressureCanSeedIdea(scoring, activePlans, evidence, context))(
+          Option.when(ClaimTruthPolicy.planPressureCanSeedIdea(scoring, activePlans, evidence, context.evidenceGraph))(
             ChessIdeaBuilder.fromEvidence(
             id = allocator.evidenceId(s"idea:plan-pressure:${allocator.key(ref.id)}"),
             family = ChessIdeaFamily.Strategic,
@@ -554,38 +553,6 @@ object ChessIdeaAssembler:
 
   private def canSeedStrategicIdea(payload: StrategicFactEvidence): Boolean =
     payload.facts.nonEmpty || payload.relatedPlans.nonEmpty
-
-  private def planPressureCanSeedIdea(
-      scoring: PlanScoringResult,
-      activePlans: ActivePlans,
-      evidence: List[EvidenceRef],
-      context: JudgmentAssemblyContext
-  ): Boolean =
-    val records = evidence.flatMap(ref => context.evidenceGraph.byId.get(ref.id))
-    planPressureHasDirectEvidence(scoring, activePlans) && records.exists(independentPlanAnchor)
-
-  private def planPressureHasDirectEvidence(scoring: PlanScoringResult, activePlans: ActivePlans): Boolean =
-    scoring.confidence >= 0.35 &&
-      (activePlans.primary :: activePlans.secondary.toList ++ scoring.topPlans)
-        .exists(plan => nonTacticalPlan(plan) && plan.evidence.nonEmpty)
-
-  private def nonTacticalPlan(plan: PlanMatch): Boolean =
-    plan.support.collectFirst { case PlanSupport.Theme(theme) => theme } match
-      case Some(PlanTheme.ImmediateTacticalGain) => false
-      case _                                     => true
-
-  private def independentPlanAnchor(record: EvidenceRecord): Boolean =
-    record.payload match
-      case StrategicFactEvidence(_, facts, relatedPlans, confidence) =>
-        confidence >= 0.35 && (facts.nonEmpty || relatedPlans.nonEmpty)
-      case PawnStructureFactEvidence(profile, alignment, pawnPlay) =>
-        profile.confidence > 0.0 || alignment.nonEmpty || pawnPlay.nonEmpty
-      case StructuralDeltaEvidence(delta) =>
-        delta.hasConsequence
-      case ThreatPressureEvidence(_, threats) =>
-        threats.prophylaxisNeeded && threats.isClaimGradeDefensivePressure
-      case _ =>
-        false
 
   private def openingIdeas(
       context: JudgmentAssemblyContext,

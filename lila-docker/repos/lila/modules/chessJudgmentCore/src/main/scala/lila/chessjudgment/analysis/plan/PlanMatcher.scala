@@ -191,11 +191,6 @@ object PlanMatcher:
       }
 
     var out = plans
-    val tactical = out.find(theme(_) == Theme.ImmediateTacticalGain).map(_.score).getOrElse(0.0)
-    if tactical >= 0.72 then
-      out.map(theme).filter(_ != Theme.ImmediateTacticalGain).distinct.foreach { planTheme =>
-        out = adjust(out, planTheme, 0.48, CompatibilityAdjustment.TacticalOverride)
-      }
     if ctx.underDefensivePressure then
       out = adjust(out, Theme.Restriction, 1.15, CompatibilityAdjustment.DefensivePressure)
       out = adjust(out, Theme.FlankInfrastructure, 0.74, CompatibilityAdjustment.DefensivePressure)
