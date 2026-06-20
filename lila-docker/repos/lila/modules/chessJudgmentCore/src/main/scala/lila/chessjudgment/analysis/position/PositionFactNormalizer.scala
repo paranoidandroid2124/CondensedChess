@@ -298,6 +298,144 @@ object PositionFactNormalizer:
             )
           )
         )
+      case fact @ Fact.KingActivity(_, mobility, proximityToCenter, _) =>
+        val focus = fact.squareFocus
+        Some(
+          BoardAnchor(
+            kind = BoardAnchorKind.EndgameTechnique,
+            side = side,
+            signal = BoardAnchorSignal.EndgameKingActivity,
+            magnitude = mobility.max(proximityToCenter).max(1),
+            confidence = 0.68,
+            detail = Some(
+              BoardAnchorDetail(
+                subjectSquare = focus.subjectSquares.headOption.map(evidenceSquare),
+                relatedSquares = evidenceSquares(focus.relatedSquares)
+              )
+            )
+          )
+        )
+      case fact @ Fact.Opposition(_, _, distance, isDirect, _, _) =>
+        val focus = fact.squareFocus
+        Some(
+          BoardAnchor(
+            kind = BoardAnchorKind.EndgameTechnique,
+            side = side,
+            signal = BoardAnchorSignal.EndgameOpposition,
+            magnitude = if isDirect then 3 else distance.max(1),
+            confidence = if isDirect then 0.76 else 0.70,
+            detail = Some(
+              BoardAnchorDetail(
+                subjectSquare = focus.subjectSquares.headOption.map(evidenceSquare),
+                targetSquare = focus.targetSquares.headOption.map(evidenceSquare),
+                relatedSquares = evidenceSquares(focus.relatedSquares)
+              )
+            )
+          )
+        )
+      case fact @ Fact.RuleOfSquare(_, _, _, _, _) =>
+        val focus = fact.squareFocus
+        Some(
+          BoardAnchor(
+            kind = BoardAnchorKind.EndgameTechnique,
+            side = side,
+            signal = BoardAnchorSignal.EndgameRuleOfSquare,
+            magnitude = 2,
+            confidence = 0.72,
+            detail = Some(
+              BoardAnchorDetail(
+                subjectSquare = focus.subjectSquares.headOption.map(evidenceSquare),
+                targetSquare = focus.targetSquares.headOption.map(evidenceSquare),
+                relatedSquares = evidenceSquares(focus.relatedSquares)
+              )
+            )
+          )
+        )
+      case fact @ Fact.TriangulationOpportunity(_, _) =>
+        val focus = fact.squareFocus
+        Some(
+          BoardAnchor(
+            kind = BoardAnchorKind.EndgameTechnique,
+            side = side,
+            signal = BoardAnchorSignal.EndgameTriangulation,
+            magnitude = 1,
+            confidence = 0.70,
+            detail = Some(
+              BoardAnchorDetail(
+                subjectSquare = focus.subjectSquares.headOption.map(evidenceSquare),
+                relatedSquares = evidenceSquares(focus.relatedSquares)
+              )
+            )
+          )
+        )
+      case Fact.RookEndgamePattern(_, _) =>
+        Some(
+          BoardAnchor(
+            kind = BoardAnchorKind.EndgameTechnique,
+            side = side,
+            signal = BoardAnchorSignal.EndgameRookPattern,
+            magnitude = 2,
+            confidence = 0.74
+          )
+        )
+      case Fact.EndgameOutcome(_, confidence, _) =>
+        Some(
+          BoardAnchor(
+            kind = BoardAnchorKind.EndgameTechnique,
+            side = side,
+            signal = BoardAnchorSignal.EndgameOutcomeHint,
+            magnitude = (confidence * 10).round.toInt.max(1),
+            confidence = math.max(0.0, math.min(confidence, 0.90))
+          )
+        )
+      case Fact.Zugzwang(color, _) =>
+        Some(
+          BoardAnchor(
+            kind = BoardAnchorKind.EndgameTechnique,
+            side = color,
+            signal = BoardAnchorSignal.EndgameZugzwang,
+            magnitude = 3,
+            confidence = 0.76,
+            detail = Some(BoardAnchorDetail(subjectColor = Some(color)))
+          )
+        )
+      case fact @ Fact.PawnPromotion(_, promotedTo, _) =>
+        val focus = fact.squareFocus
+        Some(
+          BoardAnchor(
+            kind = BoardAnchorKind.EndgameTechnique,
+            side = side,
+            signal = BoardAnchorSignal.EndgamePromotion,
+            magnitude = promotedTo.map(MaterialValue.materialValueCp).getOrElse(1).max(1),
+            confidence = 0.72,
+            detail = Some(
+              BoardAnchorDetail(
+                subjectSquare = focus.subjectSquares.headOption.map(evidenceSquare),
+                targetSquare = focus.targetSquares.headOption.map(evidenceSquare),
+                targetRole = promotedTo.map(evidenceRole),
+                relatedSquares = evidenceSquares(focus.relatedSquares)
+              )
+            )
+          )
+        )
+      case fact @ Fact.StalemateThreat(_, _) =>
+        val focus = fact.squareFocus
+        Some(
+          BoardAnchor(
+            kind = BoardAnchorKind.EndgameTechnique,
+            side = side,
+            signal = BoardAnchorSignal.EndgameStalemateResource,
+            magnitude = 2,
+            confidence = 0.72,
+            detail = Some(
+              BoardAnchorDetail(
+                subjectSquare = focus.subjectSquares.headOption.map(evidenceSquare),
+                targetSquare = focus.targetSquares.headOption.map(evidenceSquare),
+                relatedSquares = evidenceSquares(focus.relatedSquares)
+              )
+            )
+          )
+        )
       case _ =>
         None
     }

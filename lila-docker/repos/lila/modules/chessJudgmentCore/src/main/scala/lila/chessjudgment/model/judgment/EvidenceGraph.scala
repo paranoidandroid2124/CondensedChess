@@ -129,6 +129,33 @@ final case class BoardFactEvidence(
     proofSignalAnchors.map(_.kind).distinct
   def hasProofSignalAnchor(kind: BoardAnchorKind): Boolean =
     proofSignalAnchors.exists(_.kind == kind)
+  def looseMaterialAnchors: List[BoardAnchor] =
+    anchorsOf(BoardAnchorKind.LooseMaterial)
+  def outpostAnchors: List[BoardAnchor] =
+    anchorsOf(BoardAnchorKind.Outpost)
+  def fileControlAnchors: List[BoardAnchor] =
+    anchorsOf(BoardAnchorKind.FileControl)
+  def spaceAnchors: List[BoardAnchor] =
+    anchorsOf(BoardAnchorKind.Space)
+  def activityAnchors: List[BoardAnchor] =
+    anchorsOfAny(Set(BoardAnchorKind.Activity, BoardAnchorKind.CounterplayRestraint))
+  def counterplayRestraintAnchors: List[BoardAnchor] =
+    anchorsOfAtLeast(BoardAnchorKind.CounterplayRestraint, minimumMagnitude = 3)
+  def endgameTechniqueAnchors: List[BoardAnchor] =
+    anchorsOf(BoardAnchorKind.EndgameTechnique)
+  def openingContextAnchors: List[BoardAnchor] =
+    anchorsOfAny(
+      Set(
+        BoardAnchorKind.CenterControl,
+        BoardAnchorKind.Space,
+        BoardAnchorKind.Development,
+        BoardAnchorKind.Activity,
+        BoardAnchorKind.PawnStructure,
+        BoardAnchorKind.KingSafety
+      )
+    )
+  def anchorFocusSquares: List[EvidenceSquare] =
+    anchors.flatMap(_.focusSquares).distinct
   def boardProfile: Option[BoardPositionProfile] =
     profile
   def factCount: Int =
@@ -143,13 +170,7 @@ final case class BoardFactEvidence(
     attackDefense.filter(entry => entry.isLoose || entry.isUnderdefended)
   def targetHintSquares: List[EvidenceSquare] =
     val anchorSquares =
-      anchors.flatMap(anchor =>
-        anchor.detail.toList.flatMap(detail =>
-          detail.targetSquare.toList ++
-            detail.subjectSquare.toList ++
-            detail.relatedSquares
-        )
-      )
+      anchors.flatMap(_.targetHintSquares)
     val materialSquares =
       vulnerableAttackDefense.map(_.square)
     (anchorSquares ++ materialSquares).distinct
@@ -172,7 +193,8 @@ object BoardFactEvidence:
         anchor.detail.flatMap(_.axis).contains(BoardAnchorAxis.Diagonal)
       case BoardAnchorKind.CenterControl | BoardAnchorKind.Space | BoardAnchorKind.Development |
           BoardAnchorKind.FileControl | BoardAnchorKind.Activity | BoardAnchorKind.CounterplayRestraint |
-          BoardAnchorKind.KingSafety | BoardAnchorKind.PawnStructure | BoardAnchorKind.WeakSquare =>
+          BoardAnchorKind.KingSafety | BoardAnchorKind.PawnStructure | BoardAnchorKind.WeakSquare |
+          BoardAnchorKind.EndgameTechnique =>
         false
 
 final case class BoardAttackDefenseEntry(
@@ -264,6 +286,7 @@ enum BoardAnchorKind:
   case BatteryPressure
   case WeakSquare
   case Outpost
+  case EndgameTechnique
 
 enum BoardAnchorSignal:
   case CenterControlEdge
@@ -287,6 +310,15 @@ enum BoardAnchorSignal:
   case BatteryLine
   case WeakSquareHole
   case OutpostSquare
+  case EndgameKingActivity
+  case EndgameOpposition
+  case EndgameRuleOfSquare
+  case EndgameTriangulation
+  case EndgameRookPattern
+  case EndgameOutcomeHint
+  case EndgameZugzwang
+  case EndgamePromotion
+  case EndgameStalemateResource
 
 enum BoardAnchorAxis:
   case File
@@ -309,7 +341,22 @@ final case class BoardAnchorDetail(
     axis: Option[BoardAnchorAxis] = None,
     isAbsolute: Option[Boolean] = None,
     materialLossCp: Option[Int] = None
-)
+):
+  def focusSquares: List[EvidenceSquare] =
+    (
+      subjectSquare.toList ++
+        targetSquare.toList ++
+        attackerSquare.toList ++
+        attackerSquares ++
+        defenderSquares ++
+        relatedSquares
+    ).distinct
+  def targetHintSquares: List[EvidenceSquare] =
+    (
+      targetSquare.toList ++
+        subjectSquare.toList ++
+        relatedSquares
+    ).distinct
 
 final case class BoardAnchor(
     kind: BoardAnchorKind,
@@ -318,7 +365,11 @@ final case class BoardAnchor(
     magnitude: Int,
     confidence: Double,
     detail: Option[BoardAnchorDetail] = None
-)
+):
+  def focusSquares: List[EvidenceSquare] =
+    detail.toList.flatMap(_.focusSquares).distinct
+  def targetHintSquares: List[EvidenceSquare] =
+    detail.toList.flatMap(_.targetHintSquares).distinct
 
 final case class SinglePositionEvidence(
     assessment: SinglePositionAssessment
@@ -646,6 +697,12 @@ final case class LineMaterialOutcomeProfile(
     gainSignals: Set[LineMaterialOutcomeSignal],
     lossSignals: Set[LineMaterialOutcomeSignal]
 ):
+  def merge(other: LineMaterialOutcomeProfile): LineMaterialOutcomeProfile =
+    LineMaterialOutcomeProfile(
+      gainSignals = gainSignals ++ other.gainSignals,
+      lossSignals = lossSignals ++ other.lossSignals
+    )
+
   def gainMagnitude: LineMaterialOutcomeMagnitude =
     if gainSignals.exists(signal =>
         signal == LineMaterialOutcomeSignal.MoverCapture ||
@@ -930,6 +987,11 @@ final case class LineFactEvidence(
     profile.gainSignals.nonEmpty || profile.lossSignals.nonEmpty
 
 object LineFactEvidence:
+  def materialOutcomeProfile(records: List[EvidenceRecord]): LineMaterialOutcomeProfile =
+    records.collect { case EvidenceRecord(_, payload: LineFactEvidence, _) =>
+      payload.materialOutcomeProfile
+    }.foldLeft(LineMaterialOutcomeProfile.empty)(_.merge(_))
+
   def apply(
       line: LineNodeRef,
       firstMove: Option[String],

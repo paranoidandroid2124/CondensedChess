@@ -1470,20 +1470,10 @@ object RelativeAssessmentAssembler:
     typedMaterialConsequenceSwing(referenceRecords, candidateRecords)
 
   private def materialGainMagnitude(records: List[EvidenceRecord]): LineMaterialOutcomeMagnitude =
-    materialOutcomeProfile(records).gainMagnitude
+    LineFactEvidence.materialOutcomeProfile(records).gainMagnitude
 
   private def materialLossMagnitude(records: List[EvidenceRecord]): LineMaterialOutcomeMagnitude =
-    materialOutcomeProfile(records).lossMagnitude
-
-  private def materialOutcomeProfile(records: List[EvidenceRecord]): LineMaterialOutcomeProfile =
-    records.collect { case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-      payload.materialOutcomeProfile
-    }.foldLeft(LineMaterialOutcomeProfile.empty) { (merged, profile) =>
-      LineMaterialOutcomeProfile(
-        gainSignals = merged.gainSignals ++ profile.gainSignals,
-        lossSignals = merged.lossSignals ++ profile.lossSignals
-      )
-    }
+    LineFactEvidence.materialOutcomeProfile(records).lossMagnitude
 
   private def parentsForLine(
       context: JudgmentAssemblyContext,

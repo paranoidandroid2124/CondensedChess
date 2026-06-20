@@ -17,7 +17,7 @@ import lila.chessjudgment.analysis.structure.{
 }
 import lila.chessjudgment.analysis.tactical.{ RelationFactNormalizer, TacticalRelationEvidence }
 import lila.chessjudgment.analysis.transition.{ TransitionAnalyzer, TransitionFactNormalizer }
-import lila.chessjudgment.model.{ CompatibilityAdjustment, Fact, Motif, PlanCategory }
+import lila.chessjudgment.model.{ CompatibilityAdjustment, Motif, PlanCategory }
 import lila.chessjudgment.model.judgment.*
 
 final case class EvidenceFactAssembly(
@@ -392,7 +392,7 @@ object EvidenceFactAssembler:
       val boardParents = evidenceRefs(context, EvidenceLayer.Board, Some(node.ref), None)
       val boardFacts = boardFactEvidence(context, node.ref)
       val targetAnchors =
-        boardFacts.toList.flatMap(_.anchorsOf(BoardAnchorKind.LooseMaterial))
+        boardFacts.toList.flatMap(_.looseMaterialAnchors)
       val targetFixation =
         Option
         .when(targetAnchors.nonEmpty) {
@@ -412,7 +412,7 @@ object EvidenceFactAssembler:
         }
         .toList
       val outpostAnchors =
-        boardFacts.toList.flatMap(_.anchorsOf(BoardAnchorKind.Outpost))
+        boardFacts.toList.flatMap(_.outpostAnchors)
       val outpost =
         Option.when(outpostAnchors.nonEmpty) {
           StrategicFactNormalizer.fromBoardAnchors(
@@ -427,25 +427,16 @@ object EvidenceFactAssembler:
             parents = boardParents
           )
         }.toList
-      val endgameFacts = node.facts.collect {
-        case fact: Fact.KingActivity            => fact
-        case fact: Fact.Opposition              => fact
-        case fact: Fact.RuleOfSquare            => fact
-        case fact: Fact.TriangulationOpportunity => fact
-        case fact: Fact.RookEndgamePattern      => fact
-        case fact: Fact.EndgameOutcome          => fact
-        case fact: Fact.Zugzwang                => fact
-        case fact: Fact.PawnPromotion           => fact
-        case fact: Fact.StalemateThreat         => fact
-      }
+      val endgameAnchors =
+        boardFacts.toList.flatMap(_.endgameTechniqueAnchors)
       val endgame =
-        Option.when(endgameFacts.nonEmpty) {
-          StrategicFactNormalizer.fromFacts(
+        Option.when(endgameAnchors.nonEmpty) {
+          StrategicFactNormalizer.fromBoardAnchors(
             id = allocator.evidenceId(s"strategic:endgame:${allocator.positionKey(node.role, node.ref.fen, node.ref.ply)}"),
             kind = StrategicFactKind.Endgame,
-            facts = endgameFacts,
+            anchors = endgameAnchors,
             relatedPlans = Nil,
-            confidence = 0.82,
+            confidence = endgameAnchors.map(_.confidence).max,
             position = node.ref,
             line = None,
             scope = node.role.scope,
@@ -481,28 +472,28 @@ object EvidenceFactAssembler:
         id = allocator.evidenceId(s"strategic:file-control:$nodeKey"),
         node = node,
         kind = StrategicFactKind.FileControl,
-        anchors = boardFacts.anchorsOf(BoardAnchorKind.FileControl),
+        anchors = boardFacts.fileControlAnchors,
         parents = parents
       ),
       strategicAnchorRecord(
         id = allocator.evidenceId(s"strategic:space:$nodeKey"),
         node = node,
         kind = StrategicFactKind.Space,
-        anchors = boardFacts.anchorsOf(BoardAnchorKind.Space),
+        anchors = boardFacts.spaceAnchors,
         parents = parents
       ),
       strategicAnchorRecord(
         id = allocator.evidenceId(s"strategic:activity:$nodeKey"),
         node = node,
         kind = StrategicFactKind.Activity,
-        anchors = boardFacts.anchorsOfAny(Set(BoardAnchorKind.Activity, BoardAnchorKind.CounterplayRestraint)),
+        anchors = boardFacts.activityAnchors,
         parents = parents
       ),
       strategicAnchorRecord(
         id = allocator.evidenceId(s"strategic:counterplay-restraint:$nodeKey"),
         node = node,
         kind = StrategicFactKind.CounterplayRestraint,
-        anchors = boardFacts.anchorsOfAtLeast(BoardAnchorKind.CounterplayRestraint, minimumMagnitude = 3),
+        anchors = boardFacts.counterplayRestraintAnchors,
         parents = parents
       )
     ).flatten
@@ -777,16 +768,7 @@ object EvidenceFactAssembler:
 
   private def boardOpeningFeatureAnchors(boardFacts: BoardFactEvidence): List[FeatureAnchor] =
     boardFacts
-      .anchorsOfAny(
-        Set(
-          BoardAnchorKind.CenterControl,
-          BoardAnchorKind.Space,
-          BoardAnchorKind.Development,
-          BoardAnchorKind.Activity,
-          BoardAnchorKind.PawnStructure,
-          BoardAnchorKind.KingSafety
-        )
-      )
+      .openingContextAnchors
       .flatMap(boardOpeningFeatureAnchor)
       .distinctBy(anchor => (anchor.theme, anchor.signal, anchor.sourceLayer))
 
@@ -803,7 +785,7 @@ object EvidenceFactAssembler:
       case BoardAnchorKind.FileControl | BoardAnchorKind.CounterplayRestraint | BoardAnchorKind.LooseMaterial |
           BoardAnchorKind.PinPressure | BoardAnchorKind.SkewerPressure | BoardAnchorKind.ForkPressure |
           BoardAnchorKind.XRayPressure | BoardAnchorKind.BatteryPressure | BoardAnchorKind.WeakSquare |
-          BoardAnchorKind.Outpost =>
+          BoardAnchorKind.Outpost | BoardAnchorKind.EndgameTechnique =>
         None
 
   private def evidenceFeatureAnchors(record: EvidenceRecord): List[(FeatureAnchor, List[EvidenceRef])] =

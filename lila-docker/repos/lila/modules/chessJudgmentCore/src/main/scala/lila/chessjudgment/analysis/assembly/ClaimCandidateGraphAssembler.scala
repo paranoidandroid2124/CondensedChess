@@ -796,16 +796,7 @@ object ClaimArbitrator:
           3
         case RelativeCauseKind.WrongMoveOrder =>
           6
-    val proofScore = cause.proof.map(relativeCauseProofSalience).getOrElse(0)
-    causeScore + proofScore + math.round(cause.winPercentLossForMover.min(20.0) / 5.0).toInt
-
-  private def relativeCauseProofSalience(proof: RelativeCauseProof): Int =
-    val board = Option.when(proof.boardAnchors.nonEmpty)(2).getOrElse(0)
-    val line =
-      Option.when(proof.lineEvents.nonEmpty)(1).getOrElse(0) +
-        Option.when(proof.lineConsequences.nonEmpty)(2).getOrElse(0)
-    val relation = Option.when(proof.relationKinds.nonEmpty)(3).getOrElse(0)
-    board + line + relation
+    causeScore + math.round(cause.winPercentLossForMover.min(20.0) / 5.0).toInt
 
   private def relativeCauseDrivers(kind: RelativeCauseKind): List[ClaimSalienceDriver] =
     kind match
