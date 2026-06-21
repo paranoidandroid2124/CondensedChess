@@ -3,7 +3,6 @@ package lila.chessjudgment.analysis.assembly
 import lila.chessjudgment.analysis.evaluation.JudgmentThresholds
 import lila.chessjudgment.analysis.policy.ClaimTruthPolicy
 import lila.chessjudgment.analysis.singlePosition.PawnPlayDriver
-import lila.chessjudgment.analysis.structure.StructuralDelta
 import lila.chessjudgment.analysis.tactical.TacticalMotifClassifier
 import lila.chessjudgment.model.Motif
 import lila.chessjudgment.model.structure.AlignmentBand
@@ -187,16 +186,17 @@ object ChessIdeaAssembler:
       }
     val structureMoveIdeas =
       context.evidenceGraph.records.flatMap {
-        case EvidenceRecord(ref, StructuralDeltaEvidence(delta), _) if pawnStructureDelta(delta) =>
-          transitionForScope(context, ref.scope).map { transition =>
-            val evidence = (ref :: transition.evidence :: recordsForPosition(context, EvidenceLayer.PawnStructure, transition.to)).distinctBy(_.id)
+        case EvidenceRecord(ref, payload: StructuralDeltaEvidence, parents) if payload.hasMeaningfulPawnStructureDelta =>
+          val evidence =
+            (ref :: parents ++ recordsForPosition(context, EvidenceLayer.PawnStructure, payload.to)).distinctBy(_.id)
+          Some {
             ChessIdeaBuilder.fromEvidence(
               id = allocator.evidenceId(s"idea:pawn-structure-delta:${allocator.key(ref.id)}"),
               family = ChessIdeaFamily.PawnStructure,
-              subject = if transition.role == TransitionEdgeRole.Played then IdeaSubject.PlayedMove else IdeaSubject.ReferenceMove,
-              primaryPosition = ref.position,
-              primaryLine = ref.line,
-              moveUci = Some(transition.moveUci),
+              subject = payload.role.subject,
+              primaryPosition = payload.from,
+              primaryLine = payload.line,
+              moveUci = Some(payload.moveUci),
               evidence = evidence,
               scope = ref.scope,
               confidence = ref.confidence
@@ -408,8 +408,8 @@ object ChessIdeaAssembler:
         confidence >= 0.35 && payload.hasTypedSupport
       case EvidenceRecord(_, payload: PawnStructureFactEvidence, _) =>
         ClaimTruthPolicy.pawnStructureCanAnchorPlan(payload)
-      case EvidenceRecord(_, StructuralDeltaEvidence(delta), _) =>
-        delta.hasConsequence
+      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
+        payload.hasStrategicSupport
       case EvidenceRecord(_, PlanPressureEvidence(scoring, activePlans), _) =>
         ClaimTruthPolicy.planPressureHasDirectEvidence(scoring, activePlans)
       case _ =>
@@ -501,20 +501,20 @@ object ChessIdeaAssembler:
       }
     val structuralDeltaIdeas =
       context.evidenceGraph.records.flatMap {
-        case EvidenceRecord(ref, StructuralDeltaEvidence(delta), parents) if strategicMoveDelta(delta) =>
-          transitionForScope(context, ref.scope).map { transition =>
-            val evidence =
-              (ref :: transition.evidence :: parents ++
-                ref.line.toList.flatMap(lineLayerRefs(context, _)) ++
-                recordsForPosition(context, EvidenceLayer.Board, transition.to) ++
-                recordsForPosition(context, EvidenceLayer.SinglePosition, transition.to)).distinctBy(_.id)
+        case EvidenceRecord(ref, payload: StructuralDeltaEvidence, parents) if payload.hasStrategicMoveDelta =>
+          val evidence =
+            (ref :: parents ++
+              payload.line.toList.flatMap(lineLayerRefs(context, _)) ++
+              recordsForPosition(context, EvidenceLayer.Board, payload.to) ++
+              recordsForPosition(context, EvidenceLayer.SinglePosition, payload.to)).distinctBy(_.id)
+          Some {
             ChessIdeaBuilder.fromEvidence(
               id = allocator.evidenceId(s"idea:strategic-delta:${allocator.key(ref.id)}"),
               family = ChessIdeaFamily.Strategic,
-              subject = transition.role.subject,
-              primaryPosition = ref.position,
-              primaryLine = ref.line,
-              moveUci = Some(transition.moveUci),
+              subject = payload.role.subject,
+              primaryPosition = payload.from,
+              primaryLine = payload.line,
+              moveUci = Some(payload.moveUci),
               evidence = evidence,
               scope = ref.scope,
               confidence = ref.confidence
@@ -852,27 +852,6 @@ object ChessIdeaAssembler:
           alignment.band == AlignmentBand.Playable ||
           alignment.band == AlignmentBand.OffPlan
       )
-
-  private def pawnStructureDelta(delta: StructuralDelta): Boolean =
-    delta.openedFiles.nonEmpty ||
-      delta.semiOpenedFiles.nonEmpty ||
-      delta.newWeakPawns.nonEmpty ||
-      delta.createdTension.nonEmpty ||
-      delta.resolvedTension.nonEmpty ||
-      delta.pawnTensionDelta != 0
-
-  private def strategicMoveDelta(delta: StructuralDelta): Boolean =
-    delta.developmentMoves.nonEmpty ||
-      delta.developmentDelta > 0 ||
-      delta.centerControlDelta > 0 ||
-      delta.targetPressureGain > 0 ||
-      delta.targetPressureDelta > 0 ||
-      delta.fileAccessDelta > 0 ||
-      delta.kingShelterDelta != 0 ||
-      delta.lineUnlockDelta > 0 ||
-      delta.fileOccupation.nonEmpty ||
-      delta.createdTargetPressure.nonEmpty ||
-      delta.mobilityDelta >= 3
 
   private def rootCastlingMotif(moveUci: String, motifs: List[Motif]): Boolean =
     motifs.exists {

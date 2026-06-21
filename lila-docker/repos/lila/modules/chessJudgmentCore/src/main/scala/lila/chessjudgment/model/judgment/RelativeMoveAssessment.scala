@@ -52,8 +52,6 @@ enum RelativeCauseKind:
   case StructuralImprovement
   case TargetPressureGain
   case CenterControlGain
-  case DevelopmentActivation
-  case PieceActivityGain
   case CastlingRightsConcession
   case StrategicConcession
   case StrategicIdeaRefuted
@@ -115,13 +113,23 @@ case class RelativeCauseProof(
     lineEvents: List[LineEventKind] = Nil,
     lineConsequences: List[LineConsequenceKind] = Nil,
     relationKinds: List[RelationFactKind] = Nil,
-    supportLayers: List[EvidenceLayer] = Nil
+    supportLayers: List[EvidenceLayer] = Nil,
+    transitionConsequences: List[TransitionConsequenceProof] = Nil
 ):
   def hasTypedDepth: Boolean =
     boardAnchors.nonEmpty ||
       lineEvents.nonEmpty ||
       lineConsequences.nonEmpty ||
-      relationKinds.nonEmpty
+      relationKinds.nonEmpty ||
+      transitionConsequences.nonEmpty
+
+case class TransitionConsequenceProof(
+    source: EvidenceRef,
+    transition: StructuralTransitionBinding,
+    consequence: TransitionConsequence
+):
+  def anchorKey: String =
+    consequence.anchorKey
 
 case class MoveVerdictCertification(
     playedMove: String,

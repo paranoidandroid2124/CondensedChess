@@ -769,6 +769,7 @@ object MoveReviewPhase3AuditRunner:
             "proofLineEvents" -> support.proofLineEvents.map(_.toString),
             "proofLineConsequences" -> support.proofLineConsequences.map(_.toString),
             "proofRelationKinds" -> support.proofRelationKinds.map(_.toString),
+            "proofTransitionConsequences" -> support.proofTransitionConsequences.map(transitionConsequenceJson),
             "proofSupportLayers" -> support.proofSupportLayers.map(_.toString)
           )
         )
@@ -835,6 +836,8 @@ object MoveReviewPhase3AuditRunner:
       "sameDestinationCaptureChoice" -> trace.sameDestinationCaptureChoice,
       "referenceStructuralSignals" -> trace.referenceStructuralSignals,
       "candidateStructuralSignals" -> trace.candidateStructuralSignals,
+      "referenceStructuralConsequences" -> trace.referenceStructuralConsequences.map(_.toString),
+      "candidateStructuralConsequences" -> trace.candidateStructuralConsequences.map(_.toString),
       "candidatePawnStructureSignals" -> trace.candidatePawnStructureSignals,
       "referenceStrategicImprovementScore" -> trace.referenceStrategicImprovementScore,
       "candidateStrategicImprovementScore" -> trace.candidateStrategicImprovementScore,
@@ -1032,6 +1035,12 @@ object MoveReviewPhase3AuditRunner:
         case JudgmentGraphSlot.RelationFact =>
           evidenceCandidates(result, Set(EvidenceLayer.Relation, EvidenceLayer.MoveMotif, EvidenceLayer.Line))
         case JudgmentGraphSlot.StructuralDeltaFact =>
+          evidenceCandidates(result, Set(EvidenceLayer.StructuralDelta, EvidenceLayer.MoveTransition, EvidenceLayer.Board))
+        case JudgmentGraphSlot.StructuralSignalFact =>
+          evidenceCandidates(result, Set(EvidenceLayer.StructuralDelta, EvidenceLayer.MoveTransition, EvidenceLayer.Board))
+        case JudgmentGraphSlot.StructuralConsequenceFact =>
+          evidenceCandidates(result, Set(EvidenceLayer.StructuralDelta, EvidenceLayer.MoveTransition, EvidenceLayer.Board))
+        case JudgmentGraphSlot.StructuralMeaningfulConsequenceFact =>
           evidenceCandidates(result, Set(EvidenceLayer.StructuralDelta, EvidenceLayer.MoveTransition, EvidenceLayer.Board))
         case JudgmentGraphSlot.StrategicFact =>
           evidenceCandidates(result, Set(EvidenceLayer.Strategic, EvidenceLayer.Board, EvidenceLayer.StructuralDelta))
@@ -1533,7 +1542,8 @@ object MoveReviewPhase3AuditRunner:
                 "parentLayerSignature" -> support.parentLayerSignature,
                 "proofHasTypedDepth" -> support.proofHasTypedDepth,
                 "proofLineConsequences" -> support.proofLineConsequences.map(_.toString),
-                "proofRelationKinds" -> support.proofRelationKinds.map(_.toString)
+                "proofRelationKinds" -> support.proofRelationKinds.map(_.toString),
+                "proofTransitionConsequences" -> support.proofTransitionConsequences.map(transitionConsequenceJson)
               )
             )
         )
@@ -1586,6 +1596,21 @@ object MoveReviewPhase3AuditRunner:
       "role" -> ref.role.toString
     )
 
+  private def transitionConsequenceJson(proof: TransitionConsequenceProof): JsObject =
+    val consequence = proof.consequence
+    Json.obj(
+      "kind" -> consequence.kind.toString,
+      "polarity" -> consequence.polarity.toString,
+      "strength" -> consequence.strength,
+      "sourceEvidenceId" -> proof.source.id,
+      "moveUci" -> proof.transition.moveUci,
+      "role" -> proof.transition.role.toString,
+      "fromPositionId" -> proof.transition.from.id,
+      "toPositionId" -> proof.transition.to.id,
+      "line" -> proof.transition.line.map(lineRefSummary),
+      "perspective" -> proof.transition.perspective.toString
+    )
+
   private def evidencePayloadSummary(result: MoveReviewJudgmentResult, subjectId: String): Option[JsObject] =
     result.packet.evidenceGraph.byId.get(subjectId).map {
       case EvidenceRecord(_, CandidateComparisonEvidence(fact), _) =>
@@ -1614,6 +1639,7 @@ object MoveReviewPhase3AuditRunner:
               "lineEvents" -> proof.lineEvents.map(_.toString),
               "lineConsequences" -> proof.lineConsequences.map(_.toString),
               "relationKinds" -> proof.relationKinds.map(_.toString),
+              "transitionConsequences" -> proof.transitionConsequences.map(transitionConsequenceJson),
               "supportLayers" -> proof.supportLayers.map(_.toString)
             )
           )
@@ -1845,6 +1871,7 @@ object MoveReviewPhase3AuditRunner:
           "proofLineEvents" -> cluster.proofLineEvents.map(_.toString),
           "proofLineConsequences" -> cluster.proofLineConsequences.map(_.toString),
           "proofRelationKinds" -> cluster.proofRelationKinds.map(_.toString),
+          "proofTransitionConsequences" -> cluster.proofTransitionConsequences.map(transitionConsequenceJson),
           "proofSupportLayers" -> cluster.proofSupportLayers.map(_.toString).toList.sorted,
           "confidence" -> cluster.confidence.toString,
           "salienceDrivers" -> cluster.salienceDrivers.map(_.toString),

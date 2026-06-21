@@ -214,7 +214,15 @@ object ClaimTruthPolicy:
       case MoveMotifEvidence(moveUci, _) =>
         moveUci == move
       case MoveTransitionEvidence(moveUci, _, _) =>
-        moveUci == move
+        moveUci == move &&
+          claimLine.forall(line =>
+            TransitionEdgeRole.fromScope(record.ref.scope).exists(role =>
+              role.lineRole == line.role && line.rootMove == move
+            )
+          )
+      case payload: StructuralDeltaEvidence =>
+        payload.moveUci == move &&
+          claimLine.forall(line => payload.line.contains(line))
       case CandidateComparisonEvidence(fact) =>
         claimLine.exists(line => line == fact.referenceLine || line == fact.candidateLine)
       case CounterfactualFactEvidence(referenceLine, candidateLine, _) =>
@@ -283,6 +291,10 @@ object ClaimTruthPolicy:
         tacticalProof(records)
       case ClaimFamily.Defensive =>
         defensiveProof(claim, records)
+      case ClaimFamily.Strategic =>
+        strategicProof(records)
+      case ClaimFamily.PawnStructure =>
+        pawnStructureProof(records)
       case ClaimFamily.Opening =>
         openingProof(records)
       case ClaimFamily.Plan =>
@@ -290,6 +302,32 @@ object ClaimTruthPolicy:
       case ClaimFamily.Material =>
         materialProof(records)
       case _ => true
+
+  private def strategicProof(records: List[EvidenceRecord]): Boolean =
+    records.exists {
+      case EvidenceRecord(_, payload @ StrategicFactEvidence(_, _, _, confidence), _) =>
+        confidence >= 0.35 && payload.hasTypedSupport
+      case EvidenceRecord(_, payload: PawnStructureFactEvidence, _) =>
+        pawnStructureCanAnchorPlan(payload)
+      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
+        payload.hasStrategicSupport
+      case EvidenceRecord(_, PlanPressureEvidence(scoring, activePlans), _) =>
+        planEvidenceCanSupportPlan(scoring, activePlans, records)
+      case EvidenceRecord(_, PlanTransitionEvidence(transition), _) =>
+        transition.primaryPlanId.nonEmpty && transition.transitionType != lila.chessjudgment.model.TransitionType.Opening
+      case _ =>
+        false
+    }
+
+  private def pawnStructureProof(records: List[EvidenceRecord]): Boolean =
+    records.exists {
+      case EvidenceRecord(_, payload: PawnStructureFactEvidence, _) =>
+        pawnStructureCanAnchorPlan(payload)
+      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
+        payload.hasPawnStructureDelta
+      case _ =>
+        false
+    }
 
   private def openingProof(records: List[EvidenceRecord]): Boolean =
     val assessments = records.collect { case EvidenceRecord(_, ApplicabilityAssessmentEvidence(assessment), _) =>
@@ -346,8 +384,8 @@ object ClaimTruthPolicy:
         confidence >= 0.35 && payload.hasTypedSupport
       case EvidenceRecord(_, payload: PawnStructureFactEvidence, _) =>
         pawnStructureCanAnchorPlan(payload)
-      case EvidenceRecord(_, StructuralDeltaEvidence(delta), _) =>
-        delta.hasConsequence
+      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
+        payload.hasPositivePlanAnchor
       case _ =>
         false
 

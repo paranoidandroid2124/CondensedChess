@@ -25,12 +25,15 @@ enum JudgmentPacketValidationIssueKind:
   case NonConcreteClaimEventClusterMember
   case LongTermClaimEventClusterEvidence
   case MismatchedClaimEventClusterKind
+  case UnbackedClaimEventClusterProof
   case MissingRelativeEvidence
   case MismatchedEvidenceLayer
   case MismatchedLineEvidenceRef
   case MismatchedEvalEvidenceRef
   case MismatchedEvalWhitePov
   case MismatchedThreatPressureSideToMove
+  case MismatchedStructuralDeltaTransitionBinding
+  case MissingStructuralDeltaTransitionParent
   case MismatchedRelativeCauseEventLine
   case UnbackedRelativeCauseProof
   case MissingComparisonReferenceParent
@@ -84,6 +87,7 @@ object JudgmentPacketValidator:
         nonConcreteClaimEventClusterMembers(packet, claimsById),
         longTermClaimEventClusterEvidence(packet),
         mismatchedClaimEventClusterKinds(packet),
+        unbackedClaimEventClusterProof(packet),
         missingRelativeEvidence(packet, graphIds),
         graphBindingInvariants(packet),
         claimSubjectBindingInvariants(packet),
@@ -228,7 +232,7 @@ object JudgmentPacketValidator:
   ): List[JudgmentPacketValidationIssue] =
     missing(
       packet.claimEventClusters.flatMap(cluster =>
-        cluster.evidence ++ cluster.interactions.flatMap(_.evidence)
+        cluster.evidence ++ cluster.interactions.flatMap(_.evidence) ++ cluster.proofTransitionConsequences.map(_.source)
       ),
       graphIds,
       JudgmentPacketValidationIssueKind.MissingClaimEventClusterEvidence
@@ -334,6 +338,22 @@ object JudgmentPacketValidator:
       }
     }
 
+  private def unbackedClaimEventClusterProof(
+      packet: EvidenceBackedJudgmentPacket
+  ): List[JudgmentPacketValidationIssue] =
+    packet.claimEventClusters.flatMap { cluster =>
+      cluster.proofTransitionConsequences.filterNot(transitionConsequenceBacked(packet.evidenceGraph, _)).map { proof =>
+        JudgmentPacketValidationIssue(
+          kind = JudgmentPacketValidationIssueKind.UnbackedClaimEventClusterProof,
+          subjectId = cluster.id,
+          evidence = Some(proof.source)
+        )
+      }
+    }
+
+  private def transitionConsequenceBacked(graph: TypedEvidenceGraph, proof: TransitionConsequenceProof): Boolean =
+    graph.byId.get(proof.source.id).exists(parentHasTransitionConsequence(_, proof))
+
   private def invalidProbeRequests(packet: EvidenceBackedJudgmentPacket): List[JudgmentPacketValidationIssue] =
     packet.probeRequests.filterNot(validProbeRequest).map { request =>
       JudgmentPacketValidationIssue(
@@ -394,6 +414,27 @@ object JudgmentPacketValidator:
                 )
               )
               .toList
+          case record @ EvidenceRecord(ref, payload: StructuralDeltaEvidence, _) =>
+            List(
+              Option.when(
+                ref.position != payload.from ||
+                  ref.scope != payload.role.scope ||
+                  ref.line != payload.line
+              )(
+                JudgmentPacketValidationIssue(
+                  JudgmentPacketValidationIssueKind.MismatchedStructuralDeltaTransitionBinding,
+                  ref.id,
+                  Some(ref)
+                )
+              ),
+              Option.when(!hasMatchingTransitionParent(packet.evidenceGraph, record, payload))(
+                JudgmentPacketValidationIssue(
+                  JudgmentPacketValidationIssueKind.MissingStructuralDeltaTransitionParent,
+                  ref.id,
+                  Some(ref)
+                )
+              )
+            ).flatten
           case record @ EvidenceRecord(ref, RelativeCauseFactEvidence(cause), _) =>
             List(
               Option.when(!ref.line.contains(cause.eventLine))(
@@ -470,6 +511,21 @@ object JudgmentPacketValidator:
       layerIssue ++ bindingIssues
     }
 
+  private def hasMatchingTransitionParent(
+      graph: TypedEvidenceGraph,
+      record: EvidenceRecord,
+      payload: StructuralDeltaEvidence
+  ): Boolean =
+    record.parents.flatMap(parent => graph.byId.get(parent.id)).exists {
+      case EvidenceRecord(parentRef, MoveTransitionEvidence(moveUci, from, to), _) =>
+        parentRef.scope == payload.role.scope &&
+          moveUci == payload.moveUci &&
+          from == payload.from &&
+          to == payload.to
+      case _ =>
+        false
+    }
+
   private def claimSubjectBindingInvariants(packet: EvidenceBackedJudgmentPacket): List[JudgmentPacketValidationIssue] =
     packet.claims.flatMap { claim =>
       val binding = JudgmentSubjectBinding.claimBinding(packet, claim)
@@ -512,6 +568,7 @@ object JudgmentPacketValidator:
       proof.lineEvents.forall(kind => parents.exists(parentHasLineEvent(_, kind))) &&
       proof.lineConsequences.forall(kind => parents.exists(parentHasLineConsequence(_, kind))) &&
       proof.relationKinds.forall(kind => parents.exists(parentHasRelationKind(_, kind))) &&
+      proof.transitionConsequences.forall(proof => parents.exists(parentHasTransitionConsequence(_, proof))) &&
       proof.supportLayers.forall(layer => parents.exists(_.ref.layer == layer))
 
   private def parentHasBoardAnchor(record: EvidenceRecord, kind: BoardAnchorKind): Boolean =
@@ -532,6 +589,15 @@ object JudgmentPacketValidator:
     record match
       case EvidenceRecord(_, payload: LineFactEvidence, _) =>
         payload.hasProofSignalConsequence(kind)
+      case _ =>
+        false
+
+  private def parentHasTransitionConsequence(record: EvidenceRecord, proof: TransitionConsequenceProof): Boolean =
+    record match
+      case EvidenceRecord(ref, payload: StructuralDeltaEvidence, _) =>
+        ref.id == proof.source.id &&
+          payload.transition == proof.transition &&
+          payload.consequences.contains(proof.consequence)
       case _ =>
         false
 

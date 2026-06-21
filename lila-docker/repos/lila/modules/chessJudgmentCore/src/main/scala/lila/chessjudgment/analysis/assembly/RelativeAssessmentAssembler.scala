@@ -316,7 +316,7 @@ object RelativeAssessmentAssembler:
           val kind = candidate.kind
           val support = candidate.support
           val proofRecords = (comparisonProof ++ support ++ neighborhood.sharedRecords).distinctBy(_.ref.id)
-          val proof = relativeCauseProof(proofRecords)
+          val proof = relativeCauseProof(kind, proofRecords)
           val cause =
             RelativeCauseFact(
               kind = kind,
@@ -341,7 +341,7 @@ object RelativeAssessmentAssembler:
         }
       case _ => Nil
 
-  private def relativeCauseProof(records: List[EvidenceRecord]): RelativeCauseProof =
+  private def relativeCauseProof(kind: RelativeCauseKind, records: List[EvidenceRecord]): RelativeCauseProof =
     RelativeCauseProof(
       boardAnchors = records.flatMap {
         case EvidenceRecord(_, payload: BoardFactEvidence, _) => payload.proofSignalAnchorKinds
@@ -358,8 +358,42 @@ object RelativeAssessmentAssembler:
       relationKinds = records.collect { case EvidenceRecord(_, RelationFactEvidence(kind, _, _, _, _), _) =>
         kind
       }.distinct,
-      supportLayers = records.map(_.ref.layer).distinct
+      supportLayers = records.map(_.ref.layer).distinct,
+      transitionConsequences = records.flatMap {
+        case EvidenceRecord(ref, payload: StructuralDeltaEvidence, _) =>
+          structuralConsequencesForCause(kind, payload).map(consequence =>
+            TransitionConsequenceProof(
+              source = ref,
+              transition = payload.transition,
+              consequence = consequence
+            )
+          )
+        case _ =>
+          Nil
+      }.distinct
     )
+
+  private def structuralConsequencesForCause(
+      kind: RelativeCauseKind,
+      payload: StructuralDeltaEvidence
+  ): List[TransitionConsequence] =
+    import TransitionConsequenceKind.*
+    kind match
+      case RelativeCauseKind.TargetPressureGain =>
+        payload.consequencesOf(TargetPressureGain)
+      case RelativeCauseKind.CenterControlGain =>
+        payload.consequencesOf(CenterControlGain)
+      case RelativeCauseKind.StructuralImprovement | RelativeCauseKind.MissedStrategicImprovement |
+          RelativeCauseKind.StrategicIdeaRefuted | RelativeCauseKind.PlanImprovement | RelativeCauseKind.PlanContradiction =>
+        payload.positiveConsequences.filter(consequence =>
+          StructuralDeltaEvidence.isStructuralAnchorConsequence(consequence.kind)
+        )
+      case RelativeCauseKind.StrategicConcession =>
+        payload.negativeConsequences.filter(consequence =>
+          StructuralDeltaEvidence.isStrategicSupportConsequence(consequence.kind)
+        )
+      case _ =>
+        Nil
 
   private def mergeCauseCandidates(candidates: List[RelativeCauseCandidate]): List[RelativeCauseCandidate] =
     candidates
@@ -421,8 +455,6 @@ object RelativeAssessmentAssembler:
     val candidatePawnStructureImprovement = pawnStructureImprovementRecords(candidateRecords)
     val candidateTargetPressureGain = targetPressureGainRecords(candidateRecords)
     val candidateCenterControlGain = centerControlGainRecords(candidateRecords)
-    val candidateDevelopmentActivation = developmentActivationRecords(candidateRecords)
-    val candidatePieceActivityGain = pieceActivityGainRecords(candidateRecords)
     val candidatePlanCause = planCauseRecords(candidateRecords)
     val candidateStrategicConcession = strategicConcessionRecords(candidateRecords)
     val candidateKingHomeStepConcession = kingHomeStepConcessionRecords(candidateRecords)
@@ -515,12 +547,6 @@ object RelativeAssessmentAssembler:
         ),
         causeCandidate(RelativeCauseKind.TargetPressureGain, candidateTargetPressureGain, primaryPlayedPositive && candidateTargetPressureGain.nonEmpty),
         causeCandidate(RelativeCauseKind.CenterControlGain, candidateCenterControlGain, primaryPlayedPositive && candidateCenterControlGain.nonEmpty),
-        causeCandidate(
-          RelativeCauseKind.DevelopmentActivation,
-          candidateDevelopmentActivation,
-          primaryPlayedPositive && candidateDevelopmentActivation.nonEmpty
-        ),
-        causeCandidate(RelativeCauseKind.PieceActivityGain, candidatePieceActivityGain, primaryPlayedPositive && candidatePieceActivityGain.nonEmpty),
         causeCandidate(RelativeCauseKind.PlanImprovement, candidatePlanCause, candidatePlanCause.nonEmpty && candidateBetter),
         causeCandidate(RelativeCauseKind.PlanContradiction, candidatePlanCause, candidatePlanCause.nonEmpty && badLoss),
         causeCandidate(
@@ -775,58 +801,40 @@ object RelativeAssessmentAssembler:
 
   private def structuralTargetReleaseRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
     records.filter {
-      case EvidenceRecord(_, StructuralDeltaEvidence(delta), _) =>
-        delta.releasedTargetPressure.nonEmpty && delta.targetPressureRelease > delta.targetPressureGain
+      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
+        payload.hasTargetPressureRelease
       case _ =>
         false
     }
 
   private def structuralImprovementRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
     records.filter {
-      case EvidenceRecord(_, StructuralDeltaEvidence(delta), _) =>
-        hasStructuralAnchor(delta)
+      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
+        payload.hasStructuralAnchor
       case _ =>
         false
     }
 
   private def targetPressureGainRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
     records.filter {
-      case EvidenceRecord(_, StructuralDeltaEvidence(delta), _) =>
-        delta.createdTargetPressure.nonEmpty && delta.targetPressureGain > delta.targetPressureRelease ||
-          delta.targetPressureDelta > 0
+      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
+        payload.hasTargetPressureGain
       case _ =>
         false
     }
 
   private def centerControlGainRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
     records.filter {
-      case EvidenceRecord(_, StructuralDeltaEvidence(delta), _) =>
-        delta.centerControlDelta > 0
-      case _ =>
-        false
-    }
-
-  private def developmentActivationRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
-    records.filter {
-      case EvidenceRecord(_, StructuralDeltaEvidence(delta), _) =>
-        delta.developmentDelta > 0
-      case _ =>
-        false
-    }
-
-  private def pieceActivityGainRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
-    records.filter {
-      case EvidenceRecord(_, StructuralDeltaEvidence(delta), _) =>
-        delta.lineUnlockDelta > 0 || delta.mobilityDelta > 0
+      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
+        payload.hasCenterControlGain
       case _ =>
         false
     }
 
   private def pawnStructureImprovementRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
     records.filter {
-      case EvidenceRecord(_, PawnStructureFactEvidence(_, alignment, pawnPlay), _) =>
-        alignment.exists(alignment => alignment.band == AlignmentBand.OnBook || alignment.band == AlignmentBand.Playable) ||
-          pawnPlay.exists(_.primaryDriver != PawnPlayDriver.Quiet)
+      case EvidenceRecord(_, payload: PawnStructureFactEvidence, _) =>
+        ClaimTruthPolicy.pawnStructureCanAnchorPlan(payload)
       case _ =>
         false
     }
@@ -846,11 +854,8 @@ object RelativeAssessmentAssembler:
 
   private def strategicConcessionRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
     records.filter {
-      case EvidenceRecord(_, StructuralDeltaEvidence(delta), _) =>
-        delta.releasedTargetPressure.nonEmpty && delta.targetPressureRelease > delta.targetPressureGain ||
-          delta.targetPressureDelta < 0 ||
-          delta.fileAccessDelta < 0 ||
-          delta.kingShelterDelta < 0
+      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
+        payload.hasStrategicConcession
       case _ =>
         false
     }
@@ -858,10 +863,6 @@ object RelativeAssessmentAssembler:
   private def strategicImprovementSupport(records: List[EvidenceRecord]): List[EvidenceRecord] =
     (
       structuralImprovementRecords(records) ++
-        targetPressureGainRecords(records) ++
-        centerControlGainRecords(records) ++
-        developmentActivationRecords(records) ++
-        pieceActivityGainRecords(records) ++
         pawnStructureImprovementRecords(records) ++
         planCauseRecords(records)
     ).distinctBy(_.ref.id)
@@ -880,12 +881,9 @@ object RelativeAssessmentAssembler:
         .getOrElse(Nil)
     val axisBased =
       List(
-        unmatchedAxisSupport(targetPressureGainRecords(referenceRecords), targetPressureGainRecords(candidateRecords)),
-        unmatchedAxisSupport(centerControlGainRecords(referenceRecords), centerControlGainRecords(candidateRecords)),
-        unmatchedAxisSupport(developmentActivationRecords(referenceRecords), developmentActivationRecords(candidateRecords)),
+        StructuralDeltaEvidence.unmatchedStructuralImprovementAxisRecords(referenceRecords, candidateRecords),
         samePieceDevelopmentChoiceSupport(fact, referenceRecords, candidateRecords, sharedRecords),
         castlingPathDevelopmentSupport(fact, referenceRecords, candidateRecords),
-        unmatchedAxisSupport(pieceActivityGainRecords(referenceRecords), pieceActivityGainRecords(candidateRecords)),
         unmatchedAxisSupport(pawnStructureImprovementRecords(referenceRecords), pawnStructureImprovementRecords(candidateRecords)),
         unmatchedAxisSupport(planCauseRecords(referenceRecords), planCauseRecords(candidateRecords))
       ).flatten
@@ -993,9 +991,9 @@ object RelativeAssessmentAssembler:
 
   private def developmentChoiceRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
     records.filter {
-      case EvidenceRecord(_, StructuralDeltaEvidence(delta), _) =>
-        delta.developmentDelta > 0 &&
-          delta.developmentMoves.exists(move => move.fromBackRank && !move.toBackRank)
+      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
+        payload.hasDevelopmentActivation &&
+          payload.developmentChoices.nonEmpty
       case _ =>
         false
     }
@@ -1011,8 +1009,8 @@ object RelativeAssessmentAssembler:
 
   private def developmentChoices(record: EvidenceRecord) =
     record.payload match
-      case StructuralDeltaEvidence(delta) =>
-        delta.developmentMoves.filter(move => move.fromBackRank && !move.toBackRank)
+      case payload: StructuralDeltaEvidence =>
+        payload.developmentChoices
       case _ =>
         Nil
 
@@ -1260,16 +1258,6 @@ object RelativeAssessmentAssembler:
       case _                                                     => false
     }
 
-  private def hasStructuralAnchor(delta: lila.chessjudgment.analysis.structure.StructuralDelta): Boolean =
-    delta.fileAccessDelta > 0 ||
-      delta.fileOccupation.nonEmpty ||
-      delta.openedFiles.nonEmpty ||
-      delta.semiOpenedFiles.nonEmpty ||
-      delta.newWeakPawns.nonEmpty ||
-      delta.newWeakSquares.nonEmpty ||
-      delta.createdTension.nonEmpty ||
-      delta.pawnTensionDelta > 0
-
   private def referenceStrategicImprovementOutperformsCandidate(
       referenceRecords: List[EvidenceRecord],
       candidateRecords: List[EvidenceRecord]
@@ -1308,8 +1296,8 @@ object RelativeAssessmentAssembler:
 
   private def strategicImprovementScore(records: List[EvidenceRecord]): Int =
     records.map {
-      case EvidenceRecord(_, StructuralDeltaEvidence(delta), _) =>
-        structuralImprovementScore(delta)
+      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
+        payload.structuralImprovementScore
       case EvidenceRecord(_, PlanTransitionEvidence(transition), _) =>
         if transition.primaryPlanId.nonEmpty && transition.transitionType != TransitionType.Opening then 2 else 0
       case EvidenceRecord(_, PlanPressureEvidence(scoring, activePlans), _) =>
@@ -1323,22 +1311,6 @@ object RelativeAssessmentAssembler:
       case _ =>
         0
     }.sum
-
-  private def structuralImprovementScore(delta: lila.chessjudgment.analysis.structure.StructuralDelta): Int =
-    delta.createdTargetPressure.size * 3 +
-      (delta.targetPressureGain - delta.targetPressureRelease).max(0) * 2 +
-      delta.targetPressureDelta.max(0) * 2 +
-      delta.centerControlDelta.max(0) +
-      delta.developmentDelta.max(0) +
-      delta.mobilityDelta.max(0) +
-      delta.lineUnlockDelta.max(0) +
-      delta.fileAccessDelta.max(0) +
-      delta.openedFiles.size +
-      delta.semiOpenedFiles.size +
-      delta.fileOccupation.size * 2 +
-      delta.newWeakPawns.size +
-      delta.newWeakSquares.size +
-      delta.createdTension.size
 
   private def sameDestinationDifferentOrigin(left: String, right: String): Boolean =
     left.length >= 4 &&
@@ -1515,18 +1487,25 @@ object RelativeAssessmentAssembler:
 
   private def recordMatchesTransition(record: EvidenceRecord, edge: MoveTransitionEdge): Boolean =
     record.payload match
-      case MoveTransitionEvidence(moveUci, _, _) =>
-        moveUci == edge.moveUci
-      case _: StructuralDeltaEvidence | _: PlanTransitionEvidence =>
-        record.ref.line.exists(_.rootMove == edge.moveUci) ||
+      case MoveTransitionEvidence(moveUci, from, to) =>
+        record.ref.scope == edge.role.scope &&
+          moveUci == edge.moveUci &&
+          from == edge.from &&
+          to == edge.to
+      case payload: StructuralDeltaEvidence =>
+        payload.role == edge.role &&
+          payload.moveUci == edge.moveUci &&
+          payload.from == edge.from &&
+          payload.to == edge.to
+      case _: PlanTransitionEvidence =>
+        record.ref.line.exists(line => line.rootMove == edge.moveUci && line.role == edge.role.lineRole) ||
           record.parents.exists(_.id == edge.evidence.id)
       case _ =>
         false
 
   private def endpointLayer(layer: EvidenceLayer): Boolean =
     layer match
-      case EvidenceLayer.Line | EvidenceLayer.Eval | EvidenceLayer.MoveMotif | EvidenceLayer.Relation |
-          EvidenceLayer.StructuralDelta =>
+      case EvidenceLayer.Line | EvidenceLayer.Eval | EvidenceLayer.MoveMotif | EvidenceLayer.Relation =>
         true
       case _ =>
         false
@@ -1551,7 +1530,7 @@ object RelativeAssessmentAssembler:
   private def afterPositionLayer(layer: EvidenceLayer): Boolean =
     layer match
       case EvidenceLayer.Board | EvidenceLayer.SinglePosition | EvidenceLayer.PawnStructure |
-          EvidenceLayer.Strategic | EvidenceLayer.ThreatPressure | EvidenceLayer.StructuralDelta | EvidenceLayer.PlanTransition =>
+          EvidenceLayer.Strategic | EvidenceLayer.ThreatPressure =>
         true
       case _ =>
         false

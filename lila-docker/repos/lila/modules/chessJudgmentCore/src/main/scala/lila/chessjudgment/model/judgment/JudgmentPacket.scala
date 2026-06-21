@@ -376,24 +376,11 @@ object ClaimSupportCluster:
         payload.semanticGroupingAnchors
       case payload: BoardFactEvidence =>
         payload.semanticGroupingAnchors
-      case StructuralDeltaEvidence(delta) =>
-        List(
-          Option.when(delta.createdTargetPressure.nonEmpty)(EvidenceSemanticAnchor.of(StructuralDelta, "created-target-pressure")),
-          Option.when(delta.releasedTargetPressure.nonEmpty)(EvidenceSemanticAnchor.of(StructuralDelta, "released-target-pressure")),
-          Option.when(delta.openedFiles.nonEmpty || delta.semiOpenedFiles.nonEmpty || delta.fileOccupation.nonEmpty)(
-            EvidenceSemanticAnchor.of(StructuralDelta, "file")
-          ),
-          Option.when(delta.newWeakPawns.nonEmpty || delta.newWeakSquares.nonEmpty)(
-            EvidenceSemanticAnchor.of(StructuralDelta, "weakness")
-          ),
-          Option.when(delta.createdTension.nonEmpty || delta.pawnTensionDelta != 0)(
-            EvidenceSemanticAnchor.of(StructuralDelta, "tension")
-          ),
-          Option.when(delta.centerControlDelta != 0)(EvidenceSemanticAnchor.of(StructuralDelta, "center")),
-          Option.when(delta.developmentDelta != 0)(EvidenceSemanticAnchor.of(StructuralDelta, "development")),
-          Option.when(delta.developmentMoves.nonEmpty)(EvidenceSemanticAnchor.of(StructuralDelta, "development-choice")),
-          Option.when(delta.mobilityDelta != 0)(EvidenceSemanticAnchor.of(StructuralDelta, "mobility"))
-        ).flatten
+      case payload: StructuralDeltaEvidence =>
+        (
+          payload.signalAnchors.map(anchor => EvidenceSemanticAnchor.of(StructuralDelta, s"signal:$anchor")) ++
+            payload.consequenceAnchors.map(anchor => EvidenceSemanticAnchor.of(StructuralDelta, s"consequence:$anchor"))
+        ).distinct
       case _ =>
         Nil
 
@@ -534,6 +521,7 @@ case class ClaimEventCluster(
     proofLineEvents: List[LineEventKind],
     proofLineConsequences: List[LineConsequenceKind],
     proofRelationKinds: List[RelationFactKind],
+    proofTransitionConsequences: List[TransitionConsequenceProof],
     proofSupportLayers: Set[EvidenceLayer],
     confidence: EvidenceConfidence,
     salienceDrivers: List[ClaimSalienceDriver],
@@ -607,7 +595,6 @@ object ClaimEventCluster:
       EvidenceLayer.MoveMotif,
       EvidenceLayer.MoveTransition,
       EvidenceLayer.Relation,
-      EvidenceLayer.StructuralDelta,
       EvidenceLayer.RelativeAssessment,
       EvidenceLayer.CandidateComparison,
       EvidenceLayer.Counterfactual,
@@ -799,6 +786,7 @@ object ClaimEventCluster:
         proofLineEvents = proof.lineEvents,
         proofLineConsequences = proof.lineConsequences,
         proofRelationKinds = proof.relationKinds,
+        proofTransitionConsequences = proof.transitionConsequences,
         proofSupportLayers = proof.supportLayers.toSet,
         confidence = members.map(_.confidence).maxBy(confidenceScore),
         salienceDrivers = members.flatMap(_.salience.toList.flatMap(_.drivers)).distinct,
@@ -812,7 +800,8 @@ object ClaimEventCluster:
       lineEvents = proofs.flatMap(_.lineEvents).distinct,
       lineConsequences = proofs.flatMap(_.lineConsequences).distinct,
       relationKinds = proofs.flatMap(_.relationKinds).distinct,
-      supportLayers = proofs.flatMap(_.supportLayers).distinct
+      supportLayers = proofs.flatMap(_.supportLayers).distinct,
+      transitionConsequences = proofs.flatMap(_.transitionConsequences).distinct
     )
 
   private def eventClusterId(key: EventClusterKey, members: List[ClaimSeed]): String =

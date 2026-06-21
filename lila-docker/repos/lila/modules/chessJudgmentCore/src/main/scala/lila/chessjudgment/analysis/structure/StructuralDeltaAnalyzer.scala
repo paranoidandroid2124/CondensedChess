@@ -1,10 +1,21 @@
 package lila.chessjudgment.analysis.structure
 
 import _root_.chess.{ Bishop, Board, Color, King, Knight, Pawn, Queen, Role, Rook, Square }
+import _root_.chess.format.{ Fen, Uci }
 
+import lila.chessjudgment.analysis.move.MoveAnalyzer
 import lila.chessjudgment.analysis.position.{ PositionAnalyzer, PositionFeatures }
+import lila.chessjudgment.model.Motif
+import lila.chessjudgment.model.judgment.{
+  StructuralDevelopmentChoice,
+  StructuralSignal,
+  StructuralSignalKind,
+  StructuralSignalPolarity,
+  TransitionConsequence,
+  TransitionConsequenceKind
+}
 
-private[chessjudgment] final case class StructuralDelta(
+private[chessjudgment] final case class TransitionStructuralDelta(
     openedFiles: List[String] = Nil,
     semiOpenedFiles: List[String] = Nil,
     newWeakPawns: List[String] = Nil,
@@ -23,30 +34,20 @@ private[chessjudgment] final case class StructuralDelta(
     developmentMoves: List[DevelopmentMoveDelta] = Nil,
     fileOccupation: List[String] = Nil,
     releasedTargetPressure: List[String] = Nil,
-    createdTargetPressure: List[String] = Nil
+    createdTargetPressure: List[String] = Nil,
+    passedPawnCreated: List[String] = Nil,
+    passedPawnAdvanced: List[String] = Nil,
+    passedPawnLost: List[String] = Nil,
+    promotionPressureDelta: Int = 0,
+    outpostCreated: List[String] = Nil,
+    outpostRemoved: List[String] = Nil,
+    rookLiftCreated: List[String] = Nil,
+    batteryCreated: List[String] = Nil,
+    kingRingPressureDelta: Int = 0
 ):
   def pawnTensionDelta: Int = pawnTensionAfter - pawnTensionBefore
   def targetPressureRelease: Int = releasedTargetPressure.size
   def targetPressureGain: Int = createdTargetPressure.size
-  def hasConsequence: Boolean =
-    openedFiles.nonEmpty ||
-      semiOpenedFiles.nonEmpty ||
-      newWeakPawns.nonEmpty ||
-      newWeakSquares.nonEmpty ||
-      createdTension.nonEmpty ||
-      resolvedTension.nonEmpty ||
-      pawnTensionDelta > 0 ||
-      targetPressureDelta > 0 ||
-      fileAccessDelta > 0 ||
-      kingShelterDelta != 0 ||
-      mobilityDelta != 0 ||
-      developmentDelta > 0 ||
-      developmentMoves.nonEmpty ||
-      centerControlDelta > 0 ||
-      lineUnlockDelta > 0 ||
-      fileOccupation.nonEmpty ||
-      releasedTargetPressure.nonEmpty ||
-      createdTargetPressure.nonEmpty
 
 private[chessjudgment] final case class DevelopmentMoveDelta(
     role: String,
@@ -60,6 +61,264 @@ private[chessjudgment] final case class DevelopmentMoveDelta(
     defendedAfter: Boolean,
     enemyAttackersAfter: Int
 )
+
+private[chessjudgment] object StructuralDeltaContracts:
+  import StructuralSignalKind.*
+  import StructuralSignalPolarity.*
+  import TransitionConsequenceKind.*
+
+  def signals(delta: TransitionStructuralDelta): List[StructuralSignal] =
+    val developedPieces = developedPieceMoves(delta)
+    List(
+      signal(FileOpened, Gain, delta.openedFiles.size, delta.openedFiles),
+      signal(SemiOpenFileCreated, Gain, delta.semiOpenedFiles.size, delta.semiOpenedFiles),
+      signedSignal(FileAccessChanged, delta.fileAccessDelta, Nil),
+      signal(FileOccupied, Gain, delta.fileOccupation.size, delta.fileOccupation),
+      signal(WeakPawnCreated, Gain, delta.newWeakPawns.size, delta.newWeakPawns),
+      signal(WeakSquareCreated, Gain, delta.newWeakSquares.size, delta.newWeakSquares),
+      signal(PawnTensionCreated, Gain, delta.createdTension.size, delta.createdTension),
+      signal(PawnTensionResolved, Gain, delta.resolvedTension.size, delta.resolvedTension),
+      signedSignal(PawnTensionChanged, delta.pawnTensionDelta, Nil),
+      signal(TargetPressureCreated, Gain, delta.createdTargetPressure.size, delta.createdTargetPressure),
+      signal(TargetPressureReleased, Loss, delta.releasedTargetPressure.size, delta.releasedTargetPressure),
+      signedSignal(TargetPressureChanged, delta.targetPressureDelta, Nil),
+      signedSignal(CenterControlChanged, delta.centerControlDelta, Nil),
+      signedSignal(DevelopmentChanged, delta.developmentDelta, Nil),
+      signal(
+        DevelopmentChoice,
+        Gain,
+        developedPieces.size,
+        developedPieces.map(developmentMoveLabel)
+      ),
+      signedSignal(MobilityChanged, delta.mobilityDelta, Nil),
+      signedSignal(KingSafetyChanged, delta.kingShelterDelta, Nil),
+      signal(LineUnlocked, Gain, delta.lineUnlockDelta, Nil),
+      signal(PassedPawnCreated, Gain, delta.passedPawnCreated.size, delta.passedPawnCreated),
+      signal(PassedPawnAdvanced, Gain, delta.passedPawnAdvanced.size, delta.passedPawnAdvanced),
+      signedSignal(PromotionPressureChanged, delta.promotionPressureDelta, Nil),
+      signal(OutpostCreated, Gain, delta.outpostCreated.size, delta.outpostCreated),
+      signal(OutpostRemoved, Loss, delta.outpostRemoved.size, delta.outpostRemoved),
+      signal(RookLiftCreated, Gain, delta.rookLiftCreated.size, delta.rookLiftCreated),
+      signal(BatteryCreated, Gain, delta.batteryCreated.size, delta.batteryCreated),
+      signedSignal(KingRingPressureChanged, delta.kingRingPressureDelta, Nil)
+    ).flatten
+
+  def consequences(delta: TransitionStructuralDelta): List[TransitionConsequence] =
+    val developedPieces = developedPieceMoves(delta)
+    val developmentMobilityGain = developedPieces.map(_.mobilityDelta.max(0)).sum
+    val developmentMobilityLoss = developedPieces.map(move => (-move.mobilityDelta).max(0)).sum
+    val developmentCenterGain = developedPieces.map(_.centerControlDelta.max(0)).sum
+    val developmentCenterLoss = developedPieces.map(move => (-move.centerControlDelta).max(0)).sum
+    val safeDevelopmentMoves =
+      developedPieces.filter(move => move.defendedAfter && move.enemyAttackersAfter == 0)
+    val retreatedDevelopmentMoves =
+      developedPieces.filter(move => !move.fromBackRank && move.toBackRank)
+    val unsafeDevelopmentMoves =
+      developedPieces.filter(move => !move.defendedAfter && move.enemyAttackersAfter > 0)
+    val baseConsequences =
+      List(
+        Option.when(delta.openedFiles.nonEmpty)(
+          TransitionConsequence(OpenFileGain, Gain, delta.openedFiles.size, delta.openedFiles.map(file => s"open-file:$file"))
+        ),
+        Option.when(delta.semiOpenedFiles.nonEmpty)(
+          TransitionConsequence(
+            SemiOpenFileGain,
+            Gain,
+            delta.semiOpenedFiles.size,
+            delta.semiOpenedFiles.map(file => s"semi-open-file:$file")
+          )
+        ),
+        Option.when(delta.newWeakPawns.nonEmpty)(
+          TransitionConsequence(WeakPawnTargetCreated, Gain, delta.newWeakPawns.size, delta.newWeakPawns.map(square => s"weak-pawn:$square"))
+        ),
+        Option.when(delta.newWeakSquares.nonEmpty)(
+          TransitionConsequence(
+            WeakSquareTargetCreated,
+            Gain,
+            delta.newWeakSquares.size,
+            delta.newWeakSquares.map(square => s"weak-square:$square")
+          )
+        ),
+        Option.when(delta.createdTension.nonEmpty || delta.pawnTensionDelta > 0)(
+          TransitionConsequence(
+            PawnTensionGain,
+            Gain,
+            delta.createdTension.size + delta.pawnTensionDelta.max(0),
+            delta.createdTension.map(edge => s"created-tension:$edge")
+          )
+        ),
+        Option.when(delta.resolvedTension.nonEmpty || delta.pawnTensionDelta < 0)(
+          TransitionConsequence(
+            PawnTensionResolution,
+            Neutral,
+            delta.resolvedTension.size + (-delta.pawnTensionDelta).max(0),
+            delta.resolvedTension.map(edge => s"resolved-tension:$edge")
+          )
+        ),
+        Option.when(delta.targetPressureGain > delta.targetPressureRelease || delta.targetPressureDelta > 0)(
+          TransitionConsequence(
+            TargetPressureGain,
+            Gain,
+            (delta.targetPressureGain - delta.targetPressureRelease).max(0) + delta.targetPressureDelta.max(0),
+            delta.createdTargetPressure
+          )
+        ),
+        Option.when(delta.targetPressureRelease > delta.targetPressureGain || delta.targetPressureDelta < 0)(
+          TransitionConsequence(
+            TargetPressureRelease,
+            Loss,
+            (delta.targetPressureRelease - delta.targetPressureGain).max(0) + (-delta.targetPressureDelta).max(0),
+            delta.releasedTargetPressure
+          )
+        ),
+        Option.when(delta.centerControlDelta > 0)(TransitionConsequence(CenterControlGain, Gain, delta.centerControlDelta)),
+        Option.when(delta.centerControlDelta < 0)(TransitionConsequence(CenterControlLoss, Loss, -delta.centerControlDelta)),
+        Option.when(delta.developmentDelta > 0)(
+          TransitionConsequence(DevelopmentLagReduced, Gain, delta.developmentDelta, Nil)
+        ),
+        Option.when(developedPieces.nonEmpty)(
+          TransitionConsequence(DevelopmentPieceActivated, Gain, developedPieces.size, developedPieces.map(developmentMoveLabel))
+        ),
+        Option.when(developmentMobilityGain > 0)(
+          TransitionConsequence(DevelopmentMobilityGain, Gain, developmentMobilityGain, developmentMoveSubjectsWithMobilityGain(developedPieces))
+        ),
+        Option.when(developmentCenterGain > 0)(
+          TransitionConsequence(
+            DevelopmentCenterControlGain,
+            Gain,
+            developmentCenterGain,
+            developmentMoveSubjectsWithCenterGain(developedPieces)
+          )
+        ),
+        Option.when(safeDevelopmentMoves.nonEmpty)(
+          TransitionConsequence(
+            DevelopmentSafePlacement,
+            Gain,
+            safeDevelopmentMoves.size,
+            safeDevelopmentMoves.map(developmentMoveLabel)
+          )
+        ),
+        Option.when(delta.developmentDelta < 0)(
+          TransitionConsequence(DevelopmentLagIncreased, Loss, -delta.developmentDelta, Nil)
+        ),
+        Option.when(retreatedDevelopmentMoves.nonEmpty)(
+          TransitionConsequence(
+            DevelopmentPieceRetreated,
+            Loss,
+            retreatedDevelopmentMoves.size,
+            retreatedDevelopmentMoves.map(developmentMoveLabel)
+          )
+        ),
+        Option.when(developmentMobilityLoss > 0)(
+          TransitionConsequence(DevelopmentMobilityLoss, Loss, developmentMobilityLoss, developmentMoveSubjectsWithMobilityLoss(developedPieces))
+        ),
+        Option.when(developmentCenterLoss > 0)(
+          TransitionConsequence(
+            DevelopmentCenterControlLoss,
+            Loss,
+            developmentCenterLoss,
+            developmentMoveSubjectsWithCenterLoss(developedPieces)
+          )
+        ),
+        Option.when(unsafeDevelopmentMoves.nonEmpty)(
+          TransitionConsequence(
+            DevelopmentUnsafePlacement,
+            Loss,
+            unsafeDevelopmentMoves.size,
+            unsafeDevelopmentMoves.map(developmentMoveLabel)
+          )
+        ),
+        Option.when(delta.mobilityDelta > 0)(
+          TransitionConsequence(MobilityGain, Gain, delta.mobilityDelta)
+        ),
+        Option.when(delta.lineUnlockDelta > 0)(
+          TransitionConsequence(LineUnlockGain, Gain, delta.lineUnlockDelta)
+        ),
+        Option.when(delta.mobilityDelta < 0)(TransitionConsequence(MobilityLoss, Loss, -delta.mobilityDelta)),
+        Option.when(delta.fileOccupation.nonEmpty)(
+          TransitionConsequence(
+            FileOccupationGain,
+            Gain,
+            delta.fileOccupation.size,
+            delta.fileOccupation
+          )
+        ),
+        Option.when(delta.fileAccessDelta > 0)(TransitionConsequence(FileAccessGain, Gain, delta.fileAccessDelta)),
+        Option.when(delta.fileAccessDelta < 0)(TransitionConsequence(FileAccessLoss, Loss, -delta.fileAccessDelta)),
+        Option.when(delta.kingShelterDelta > 0)(TransitionConsequence(KingSafetyPressure, Gain, delta.kingShelterDelta)),
+        Option.when(delta.kingShelterDelta < 0)(TransitionConsequence(KingSafetyConcession, Loss, -delta.kingShelterDelta)),
+        Option.when(delta.passedPawnCreated.nonEmpty || delta.passedPawnAdvanced.nonEmpty)(
+          TransitionConsequence(
+            PassedPawnProgress,
+            Gain,
+            delta.passedPawnCreated.size + delta.passedPawnAdvanced.size,
+            (delta.passedPawnCreated ++ delta.passedPawnAdvanced).distinct
+          )
+        ),
+        Option.when(delta.passedPawnLost.nonEmpty)(
+          TransitionConsequence(PassedPawnConcession, Loss, delta.passedPawnLost.size, delta.passedPawnLost)
+        ),
+        Option.when(delta.promotionPressureDelta > 0)(
+          TransitionConsequence(PromotionPressureGain, Gain, delta.promotionPressureDelta)
+        ),
+        Option.when(delta.promotionPressureDelta < 0)(
+          TransitionConsequence(PromotionPressureConcession, Loss, -delta.promotionPressureDelta)
+        ),
+        Option.when(delta.outpostCreated.nonEmpty)(
+          TransitionConsequence(OutpostGain, Gain, delta.outpostCreated.size, delta.outpostCreated)
+        ),
+        Option.when(delta.outpostRemoved.nonEmpty)(
+          TransitionConsequence(OutpostConcession, Loss, delta.outpostRemoved.size, delta.outpostRemoved)
+        ),
+        Option.when(delta.rookLiftCreated.nonEmpty)(
+          TransitionConsequence(RookLiftActivation, Gain, delta.rookLiftCreated.size, delta.rookLiftCreated)
+        ),
+        Option.when(delta.batteryCreated.nonEmpty)(
+          TransitionConsequence(BatteryPressureGain, Gain, delta.batteryCreated.size, delta.batteryCreated)
+        ),
+        Option.when(delta.kingRingPressureDelta > 0)(
+          TransitionConsequence(KingRingPressureGain, Gain, delta.kingRingPressureDelta)
+        ),
+        Option.when(delta.kingRingPressureDelta < 0)(
+          TransitionConsequence(KingRingPressureConcession, Loss, -delta.kingRingPressureDelta)
+        )
+      ).flatten.distinctBy(consequence => (consequence.kind, consequence.polarity, consequence.strength, consequence.subjects.sorted.mkString(",")))
+    baseConsequences
+
+  def developmentChoices(delta: TransitionStructuralDelta): List[StructuralDevelopmentChoice] =
+    developedPieceMoves(delta)
+      .map(move => StructuralDevelopmentChoice(move.role, move.from, move.to))
+
+  private def developedPieceMoves(delta: TransitionStructuralDelta): List[DevelopmentMoveDelta] =
+    delta.developmentMoves.filter(move => move.fromBackRank && !move.toBackRank)
+
+  private def developmentMoveLabel(move: DevelopmentMoveDelta): String =
+    s"${move.role}:${move.from}-${move.to}"
+
+  private def developmentMoveSubjectsWithMobilityGain(moves: List[DevelopmentMoveDelta]): List[String] =
+    moves.filter(_.mobilityDelta > 0).map(move => s"${developmentMoveLabel(move)}:mobility+${move.mobilityDelta}")
+
+  private def developmentMoveSubjectsWithMobilityLoss(moves: List[DevelopmentMoveDelta]): List[String] =
+    moves.filter(_.mobilityDelta < 0).map(move => s"${developmentMoveLabel(move)}:mobility${move.mobilityDelta}")
+
+  private def developmentMoveSubjectsWithCenterGain(moves: List[DevelopmentMoveDelta]): List[String] =
+    moves.filter(_.centerControlDelta > 0).map(move => s"${developmentMoveLabel(move)}:center+${move.centerControlDelta}")
+
+  private def developmentMoveSubjectsWithCenterLoss(moves: List[DevelopmentMoveDelta]): List[String] =
+    moves.filter(_.centerControlDelta < 0).map(move => s"${developmentMoveLabel(move)}:center${move.centerControlDelta}")
+
+  private def signal(
+      kind: StructuralSignalKind,
+      polarity: StructuralSignalPolarity,
+      magnitude: Int,
+      subjects: List[String]
+  ): Option[StructuralSignal] =
+    Option.when(magnitude > 0)(StructuralSignal(kind, polarity, magnitude, subjects.distinct))
+
+  private def signedSignal(kind: StructuralSignalKind, value: Int, subjects: List[String]): Option[StructuralSignal] =
+    if value > 0 then Some(StructuralSignal(kind, Gain, value, subjects.distinct))
+    else if value < 0 then Some(StructuralSignal(kind, Loss, -value, subjects.distinct))
+    else None
 
 private[chessjudgment] object StructuralDeltaAnalyzer:
 
@@ -84,7 +343,7 @@ private[chessjudgment] object StructuralDeltaAnalyzer:
       targets: List[String],
       createdTensionFrom: Option[String] = None,
       moveUci: Option[String] = None
-  ): Option[StructuralDelta] =
+  ): Option[TransitionStructuralDelta] =
     val normalizedFiles = files.distinct
     val normalizedTargets =
       if targets.nonEmpty then targets.distinct
@@ -105,11 +364,14 @@ private[chessjudgment] object StructuralDeltaAnalyzer:
     val pieceTargetPressure = moveUci
       .map(uci => pieceTargetPressureDelta(beforeBoard, afterBoard, side, uci))
       .getOrElse(PieceTargetPressureDelta(Nil, Nil))
+    val passedPawnDelta = passedPawnDeltaFor(beforeBoard, afterBoard, side, moveUci)
+    val moveMotifs = moveUci.toList.flatMap(uci => transitionMoveMotifs(beforeFen, uci))
+    val outpostDelta = outpostDeltaFor(moveMotifs, side)
     val mobilityDeltaValue = mobilityDelta(before.features, after.features, side)
     val developmentDeltaValue = developmentDelta(before.features, after.features, side)
     val centerControlDeltaValue = centerControlDelta(before.features, after.features, side)
     Some(
-      StructuralDelta(
+      TransitionStructuralDelta(
         openedFiles = after.openFiles.diff(before.openFiles).toList.sorted,
         semiOpenedFiles = after.semiOpenFilesForSide.diff(before.semiOpenFilesForSide).toList.sorted,
         newWeakPawns = (after.weakPawnsForEnemy.diff(before.weakPawnsForEnemy) ++ newTargets).toList.sorted.distinct,
@@ -120,7 +382,7 @@ private[chessjudgment] object StructuralDeltaAnalyzer:
         pawnTensionAfter = afterAttacks.size,
         targetPressureDelta = targetPressureDelta,
         fileAccessDelta = after.fileAccess - before.fileAccess,
-        kingShelterDelta = kingShelterDelta(before.features, after.features, side, normalizedFiles),
+        kingShelterDelta = kingShelterDelta(before.features, after.features, side, moveUci.map(moveFiles).getOrElse(Nil)),
         mobilityDelta = mobilityDeltaValue,
         developmentDelta = developmentDeltaValue,
         centerControlDelta = centerControlDeltaValue,
@@ -128,7 +390,16 @@ private[chessjudgment] object StructuralDeltaAnalyzer:
         developmentMoves = moveUci.flatMap(uci => developmentMoveDelta(beforeBoard, afterBoard, side, uci)).toList,
         fileOccupation = moveUci.map(uci => fileOccupationGain(beforeBoard, afterBoard, after, side, uci)).getOrElse(Nil),
         releasedTargetPressure = pieceTargetPressure.released,
-        createdTargetPressure = pieceTargetPressure.created
+        createdTargetPressure = pieceTargetPressure.created,
+        passedPawnCreated = passedPawnDelta.created,
+        passedPawnAdvanced = passedPawnDelta.advanced,
+        passedPawnLost = passedPawnDelta.lost,
+        promotionPressureDelta = passedPawnDelta.promotionPressureDelta,
+        outpostCreated = outpostDelta.created,
+        outpostRemoved = outpostDelta.removed,
+        rookLiftCreated = rookLiftLabels(moveMotifs, side),
+        batteryCreated = batteryLines(afterFen, side).diff(batteryLines(beforeFen, side)).toList.sorted,
+        kingRingPressureDelta = kingRingPressureDelta(before.features, after.features, side)
       )
     )
 
@@ -164,6 +435,123 @@ private[chessjudgment] object StructuralDeltaAnalyzer:
         )
       case _ =>
         None
+
+  private final case class PassedPawnTransitionDelta(
+      created: List[String],
+      advanced: List[String],
+      lost: List[String],
+      promotionPressureDelta: Int
+  )
+
+  private def passedPawnDeltaFor(
+      beforeBoard: Board,
+      afterBoard: Board,
+      side: Color,
+      moveUci: Option[String]
+  ): PassedPawnTransitionDelta =
+    val beforePassers = passedPawnSquares(beforeBoard, side)
+    val afterPassers = passedPawnSquares(afterBoard, side)
+    val beforeOpponentPassers = passedPawnSquares(beforeBoard, !side)
+    val afterOpponentPassers = passedPawnSquares(afterBoard, !side)
+    val beforeKeys = beforePassers.map(_.key).toSet
+    val afterKeys = afterPassers.map(_.key).toSet
+    val advanced = moveUci.flatMap(uci => passedPawnAdvance(beforeBoard, afterBoard, side, uci, beforeKeys, afterKeys))
+    val advancedFrom = advanced.map(_.from).toSet
+    val advancedTo = advanced.map(_.to).toSet
+    val rawPromotionPressureDelta =
+      promotionPressureBalance(afterPassers, afterOpponentPassers, side) -
+        promotionPressureBalance(beforePassers, beforeOpponentPassers, side)
+    val promotionPressureDelta =
+      if advanced.exists(_.promoted) && rawPromotionPressureDelta < 0 then 0 else rawPromotionPressureDelta
+    PassedPawnTransitionDelta(
+      created = afterKeys.diff(beforeKeys).diff(advancedTo).toList.sorted.map(square => s"passed-pawn-created:$square"),
+      advanced = advanced.toList.map(_.label),
+      lost = beforeKeys.diff(afterKeys).diff(advancedFrom).toList.sorted.map(square => s"passed-pawn-lost:$square"),
+      promotionPressureDelta = promotionPressureDelta
+    )
+
+  private def passedPawnSquares(board: Board, side: Color): List[Square] =
+    val ownPawns = if side.white then board.pawns & board.white else board.pawns & board.black
+    val enemyPawns = if side.white then board.pawns & board.black else board.pawns & board.white
+    PositionAnalyzer.passedPawns(side, ownPawns, enemyPawns)
+
+  private final case class PassedPawnAdvance(
+      from: String,
+      to: String,
+      label: String,
+      promoted: Boolean
+  )
+
+  private def passedPawnAdvance(
+      beforeBoard: Board,
+      afterBoard: Board,
+      side: Color,
+      moveUci: String,
+      beforePassers: Set[String],
+      afterPassers: Set[String]
+  ): Option[PassedPawnAdvance] =
+    val origin = squareAt(moveUci.take(2))
+    val dest = squareAt(moveUci.drop(2).take(2))
+    val movedPiece = origin.flatMap(beforeBoard.pieceAt)
+    (origin, dest, movedPiece) match
+      case (Some(from), Some(to), Some(piece))
+          if piece.color == side && piece.role == Pawn &&
+            beforePassers.contains(from.key) &&
+            afterBoard.pieceAt(to).exists(afterPiece => afterPiece.color == side && afterPiece.role != Pawn) =>
+        Some(PassedPawnAdvance(from.key, to.key, s"passed-pawn-promoted:${from.key}-${to.key}", promoted = true))
+      case (Some(from), Some(to), Some(piece))
+          if piece.color == side && piece.role == Pawn &&
+            afterBoard.pieceAt(to).exists(afterPiece => afterPiece.color == side && afterPiece.role == Pawn) &&
+            afterPassers.contains(to.key) &&
+            relativeRank(to, side) > relativeRank(from, side) =>
+        val prefix = if beforePassers.contains(from.key) then "passed-pawn-advanced" else "passed-pawn-breakthrough"
+        Some(PassedPawnAdvance(from.key, to.key, s"$prefix:${from.key}-${to.key}:rank-${relativeRank(to, side)}", promoted = false))
+      case _ =>
+        None
+
+  private def promotionPressureScore(passers: List[Square], side: Color): Int =
+    passers.map(square => (relativeRank(square, side) - 5).max(0)).sum
+
+  private def promotionPressureBalance(ownPassers: List[Square], opponentPassers: List[Square], side: Color): Int =
+    promotionPressureScore(ownPassers, side) - promotionPressureScore(opponentPassers, !side)
+
+  private final case class OutpostTransitionDelta(
+      created: List[String],
+      removed: List[String]
+  )
+
+  private def outpostDeltaFor(motifs: List[Motif], side: Color): OutpostTransitionDelta =
+    OutpostTransitionDelta(
+      created = motifs.collect {
+        case Motif.Outpost(role, square, color, _, _) if color == side =>
+          s"outpost:${role.name}:${square.key}"
+      }.distinct.sorted,
+      removed = Nil
+    )
+
+  private def transitionMoveMotifs(beforeFen: String, moveUci: String): List[Motif] =
+    Fen.read(_root_.chess.variant.Standard, Fen.Full(beforeFen)).toList.flatMap { position =>
+      Uci(moveUci).collect { case move: Uci.Move => move }
+        .flatMap(position.move(_).toOption)
+        .map(move => MoveAnalyzer.detectMoveMotifs(move, position, 0))
+        .getOrElse(Nil)
+    }
+
+  private def rookLiftLabels(motifs: List[Motif], side: Color): List[String] =
+    motifs.collect {
+      case Motif.RookLift(_, _, _, color, _, Some(moveUci)) if color == side =>
+        val dest = squareAt(moveUci.drop(2).take(2))
+        s"rook-lift:${moveUci.take(2)}-${moveUci.drop(2).take(2)}:rank-${dest.map(relativeRank(_, side)).getOrElse(0)}"
+    }.distinct.sorted
+
+  private def batteryLines(fen: String, side: Color): Set[String] =
+    Fen.read(_root_.chess.variant.Standard, Fen.Full(fen)).toList.flatMap { position =>
+      MoveAnalyzer.detectStateMotifs(position, 0).collect {
+        case Motif.Battery(_, _, axis, color, _, _, Some(front), Some(back)) if color == side =>
+          val ordered = List(front.key, back.key).sorted
+          s"battery:${axis.toString.toLowerCase}:${ordered.mkString("-")}"
+      }
+    }.toSet
 
   private final case class PieceTargetPressureDelta(
       released: List[String],
@@ -287,11 +675,19 @@ private[chessjudgment] object StructuralDeltaAnalyzer:
   private def backRank(square: Square, side: Color): Boolean =
     if side.white then square.rank.value == 0 else square.rank.value == 7
 
+  private def moveFiles(moveUci: String): List[Char] =
+    List(moveUci.take(2), moveUci.drop(2).take(2))
+      .flatMap(square => square.headOption.filter(file => file >= 'a' && file <= 'h'))
+      .distinct
+
   private def centerDistance(square: Square): Int =
     List(Square.D4, Square.E4, Square.D5, Square.E5)
       .map(center => (square.file.value - center.file.value).abs + (square.rank.value - center.rank.value).abs)
       .minOption
       .getOrElse(0)
+
+  private def relativeRank(square: Square, side: Color): Int =
+    if side.white then square.rank.value + 1 else 8 - square.rank.value
 
   private def enemyOccupiedSquares(board: Board, side: Color): List[Square] =
     Square.all.toList.filter(square => board.pieceAt(square).exists(_.color != side))
@@ -378,6 +774,20 @@ private[chessjudgment] object StructuralDeltaAnalyzer:
         if side.white then beforeFeatures.kingSafety.blackKingShield - afterFeatures.kingSafety.blackKingShield
         else beforeFeatures.kingSafety.whiteKingShield - afterFeatures.kingSafety.whiteKingShield
       }.getOrElse(0)
+
+  private def kingRingPressureDelta(
+      before: Option[PositionFeatures],
+      after: Option[PositionFeatures],
+      side: Color
+  ): Int =
+    before.zip(after).map { case (beforeFeatures, afterFeatures) =>
+      if side.white then
+        (afterFeatures.kingSafety.blackKingRingAttacked - beforeFeatures.kingSafety.blackKingRingAttacked) +
+          (afterFeatures.kingSafety.blackAttackersCount - beforeFeatures.kingSafety.blackAttackersCount)
+      else
+        (afterFeatures.kingSafety.whiteKingRingAttacked - beforeFeatures.kingSafety.whiteKingRingAttacked) +
+          (afterFeatures.kingSafety.whiteAttackersCount - beforeFeatures.kingSafety.whiteAttackersCount)
+    }.getOrElse(0)
 
   private def mobilityDelta(
       before: Option[PositionFeatures],

@@ -371,17 +371,19 @@ object EvidenceFactAssembler:
           createdTensionFrom = createdTensionFrom,
           moveUci = Some(edge.moveUci)
         )
-        if delta.hasConsequence
-      yield
-        TransitionFactNormalizer.fromStructuralDelta(
+        record = TransitionFactNormalizer.fromStructuralDelta(
           id = allocator.evidenceId(s"structural-delta:${allocator.key(edge.role)}:${edge.moveUci}"),
           delta = delta,
-          position = edge.from,
+          transition = edge,
           line = lineForTransition(context, edge).map(_.ref),
-          scope = edge.role.scope,
+          perspective = side,
           parents = transitionParents(context, edge, lineForTransition(context, edge)) ++
             evidenceRefs(context, EvidenceLayer.Board, Some(edge.to), None)
         )
+        if record.payload match
+          case payload: StructuralDeltaEvidence => payload.hasTypedOutput
+          case _                                => false
+      yield record
     }
 
   private def strategicFeatureRecords(
@@ -814,14 +816,10 @@ object EvidenceFactAssembler:
             activePlans.primary.score.max(0.6)
           ) -> (record.ref :: record.parents)
         )
-      case StructuralDeltaEvidence(delta) if delta.hasConsequence =>
+      case payload: StructuralDeltaEvidence if payload.hasTypedOutput =>
         val center =
           Option.when(
-            delta.createdTension.nonEmpty ||
-              delta.resolvedTension.nonEmpty ||
-              delta.pawnTensionDelta > 0 ||
-              delta.lineUnlockDelta > 0 ||
-              delta.centerControlDelta > 0
+            payload.hasConsequenceCategory(TransitionConsequenceCategory.OpeningCenterControl)
           )(
             FeatureAnchor(
               OpeningTheme.CenterControl,
@@ -831,7 +829,7 @@ object EvidenceFactAssembler:
             )
           )
         val pressure =
-          Option.when(delta.createdTargetPressure.nonEmpty || delta.targetPressureGain > delta.targetPressureRelease || delta.targetPressureDelta > 0)(
+          Option.when(payload.hasTargetPressureGain)(
             FeatureAnchor(
               OpeningTheme.PlanPressure,
               FeatureAnchorSignal.StructuralDeltaObserved,
@@ -840,14 +838,7 @@ object EvidenceFactAssembler:
             )
           )
         val structure =
-          Option.when(
-              delta.openedFiles.nonEmpty ||
-              delta.semiOpenedFiles.nonEmpty ||
-              delta.fileAccessDelta > 0 ||
-              delta.fileOccupation.nonEmpty ||
-              delta.newWeakPawns.nonEmpty ||
-              delta.newWeakSquares.nonEmpty
-          )(
+          Option.when(payload.hasConsequenceCategory(TransitionConsequenceCategory.PawnStructure))(
             FeatureAnchor(
               OpeningTheme.PawnStructure,
               FeatureAnchorSignal.StructuralDeltaObserved,
@@ -856,7 +847,7 @@ object EvidenceFactAssembler:
             )
           )
         val development =
-          Option.when(delta.mobilityDelta > 0 || delta.developmentDelta > 0 || delta.lineUnlockDelta > 0)(
+          Option.when(payload.hasConsequenceCategory(TransitionConsequenceCategory.OpeningDevelopment))(
             FeatureAnchor(
               OpeningTheme.Development,
               FeatureAnchorSignal.StructuralDeltaObserved,
@@ -865,7 +856,7 @@ object EvidenceFactAssembler:
             )
           )
         val kingSafety =
-          Option.when(delta.kingShelterDelta > 0)(
+          Option.when(payload.hasKingSafetyPressure)(
             FeatureAnchor(
               OpeningTheme.KingSafety,
               FeatureAnchorSignal.StructuralDeltaObserved,
@@ -1026,11 +1017,9 @@ object EvidenceFactAssembler:
   private def moveStructureInputs(moveUci: String): (List[Char], List[String], Option[String]) =
     val normalized = MoveReviewInputNormalizer.normalizeUci(moveUci)
     val origin = normalized.take(2)
-    val target = normalized.drop(2).take(2)
-    val files = List(origin.headOption, target.headOption).flatten.filter(file => file >= 'a' && file <= 'h').distinct
-    val targets = Option.when(target.matches("[a-h][1-8]"))(target).toList
+    val files = ('a' to 'h').toList
     val createdTensionFrom = Option.when(origin.matches("[a-h][1-8]"))(origin)
-    (files, targets, createdTensionFrom)
+    (files, Nil, createdTensionFrom)
 
   private def pawnStructureRecordFor(
       context: JudgmentAssemblyContext,

@@ -1,6 +1,7 @@
 package lila.chessjudgment.analysis.transition
 
-import lila.chessjudgment.analysis.structure.StructuralDelta
+import chess.Color
+import lila.chessjudgment.analysis.structure.{ StructuralDeltaContracts, TransitionStructuralDelta }
 import lila.chessjudgment.model.PlanSequenceSummary
 import lila.chessjudgment.model.judgment.*
 
@@ -18,10 +19,10 @@ object TransitionFactNormalizer:
 
   def fromStructuralDelta(
       id: String,
-      delta: StructuralDelta,
-      position: PositionNodeRef,
+      delta: TransitionStructuralDelta,
+      transition: MoveTransitionEdge,
       line: Option[LineNodeRef],
-      scope: EvidenceScope,
+      perspective: Color,
       parents: List[EvidenceRef] = Nil
   ): EvidenceRecord =
     val ref =
@@ -29,14 +30,26 @@ object TransitionFactNormalizer:
         id = id,
         producer = EvidenceProducer.StructuralDeltaProducer,
         layer = EvidenceLayer.StructuralDelta,
-        position = position,
+        position = transition.from,
         line = line,
-        scope = scope,
+        scope = transition.role.scope,
         confidence = EvidenceConfidence.BoardDerived
       )
     EvidenceRecord(
       ref = ref,
-      payload = StructuralDeltaEvidence(delta),
+      payload = StructuralDeltaEvidence(
+        transition = StructuralTransitionBinding(
+          moveUci = transition.moveUci,
+          role = transition.role,
+          from = transition.from,
+          to = transition.to,
+          line = line,
+          perspective = perspective
+        ),
+        signals = StructuralDeltaContracts.signals(delta),
+        consequences = StructuralDeltaContracts.consequences(delta),
+        developmentChoices = StructuralDeltaContracts.developmentChoices(delta)
+      ),
       parents = parents
     )
 

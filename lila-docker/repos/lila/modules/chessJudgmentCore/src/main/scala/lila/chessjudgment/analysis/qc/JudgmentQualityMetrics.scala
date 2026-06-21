@@ -420,6 +420,8 @@ final case class CandidateCauseDecisionTrace(
     sameDestinationCaptureChoice: Boolean,
     referenceStructuralSignals: List[String],
     candidateStructuralSignals: List[String],
+    referenceStructuralConsequences: List[TransitionConsequenceKind],
+    candidateStructuralConsequences: List[TransitionConsequenceKind],
     candidatePawnStructureSignals: List[String],
     referenceStrategicImprovementScore: Int,
     candidateStrategicImprovementScore: Int,
@@ -493,6 +495,7 @@ final case class CandidateCauseSupportDiagnostic(
     proofLineEvents: List[LineEventKind],
     proofLineConsequences: List[LineConsequenceKind],
     proofRelationKinds: List[RelationFactKind],
+    proofTransitionConsequences: List[TransitionConsequenceProof],
     proofSupportLayers: List[EvidenceLayer]
 )
 
@@ -606,6 +609,7 @@ object CandidateComparisonDiagnostic:
         proofLineEvents = proof.lineEvents,
         proofLineConsequences = proof.lineConsequences,
         proofRelationKinds = proof.relationKinds,
+        proofTransitionConsequences = proof.transitionConsequences,
         proofSupportLayers = proof.supportLayers
       )
     }
@@ -641,7 +645,8 @@ object CandidateComparisonDiagnostic:
     proof.boardAnchors.map(kind => s"ProofBoardAnchor:$kind") ++
       proof.lineEvents.map(kind => s"ProofLineEvent:$kind") ++
       proof.lineConsequences.map(kind => s"ProofLineConsequence:$kind") ++
-      proof.relationKinds.map(kind => s"ProofRelation:$kind")
+      proof.relationKinds.map(kind => s"ProofRelation:$kind") ++
+      proof.transitionConsequences.map(proof => s"ProofTransitionConsequence:${proof.anchorKey}")
 
   private def onlyMoveNecessitySupportKinds(parentRecords: List[EvidenceRecord]): List[String] =
     val comparisonKinds = parentRecords.collect { case EvidenceRecord(_, CandidateComparisonEvidence(fact), _) =>
@@ -721,16 +726,8 @@ object CandidateComparisonDiagnostic:
     }.flatten
 
   private def strategicSupportKinds(parentRecords: List[EvidenceRecord]): List[String] =
-    val structuralKinds = parentRecords.collect { case EvidenceRecord(_, StructuralDeltaEvidence(delta), _) =>
-      List(
-        Option.when(delta.developmentMoves.nonEmpty)("DevelopmentChoice"),
-        Option.when(delta.targetPressureDelta > 0 || delta.createdTargetPressure.nonEmpty)("TargetPressure"),
-        Option.when(delta.centerControlDelta > 0)("CenterControl"),
-        Option.when(delta.mobilityDelta > 0)("Mobility"),
-        Option.when(delta.lineUnlockDelta > 0)("LineUnlock"),
-        Option.when(delta.fileAccessDelta > 0 || delta.fileOccupation.nonEmpty)("FileAccess"),
-        Option.when(delta.createdTension.nonEmpty || delta.pawnTensionDelta > 0)("PawnTension")
-      ).flatten
+    val structuralKinds = parentRecords.collect { case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
+      payload.meaningfulConsequences.map(consequence => s"StructuralMeaningfulConsequence:${consequence.anchorKey}")
     }.flatten
     val pawnStructureKinds = parentRecords.collect { case EvidenceRecord(_, PawnStructureFactEvidence(_, alignment, pawnPlay), _) =>
       List(
@@ -752,7 +749,7 @@ object CandidateComparisonDiagnostic:
 
   private def hasDevelopmentChoice(parentRecords: List[EvidenceRecord]): Boolean =
     parentRecords.exists {
-      case EvidenceRecord(_, StructuralDeltaEvidence(delta), _) => delta.developmentMoves.nonEmpty
+      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) => payload.developmentChoices.nonEmpty
       case _                                                    => false
     }
 
@@ -1015,18 +1012,25 @@ object CandidateComparisonDiagnostic:
 
   private def recordMatchesTransition(record: EvidenceRecord, edge: MoveTransitionEdge): Boolean =
     record.payload match
-      case MoveTransitionEvidence(moveUci, _, _) =>
-        moveUci == edge.moveUci
-      case _: StructuralDeltaEvidence | _: PlanTransitionEvidence =>
-        record.ref.line.exists(_.rootMove == edge.moveUci) ||
+      case MoveTransitionEvidence(moveUci, from, to) =>
+        record.ref.scope == edge.role.scope &&
+          moveUci == edge.moveUci &&
+          from == edge.from &&
+          to == edge.to
+      case payload: StructuralDeltaEvidence =>
+        payload.role == edge.role &&
+          payload.moveUci == edge.moveUci &&
+          payload.from == edge.from &&
+          payload.to == edge.to
+      case _: PlanTransitionEvidence =>
+        record.ref.line.exists(line => line.rootMove == edge.moveUci && line.role == edge.role.lineRole) ||
           record.parents.exists(_.id == edge.evidence.id)
       case _ =>
         false
 
   private def endpointLayer(layer: EvidenceLayer): Boolean =
     layer match
-      case EvidenceLayer.Line | EvidenceLayer.Eval | EvidenceLayer.MoveMotif | EvidenceLayer.Relation |
-          EvidenceLayer.StructuralDelta =>
+      case EvidenceLayer.Line | EvidenceLayer.Eval | EvidenceLayer.MoveMotif | EvidenceLayer.Relation =>
         true
       case _ =>
         false
@@ -1041,7 +1045,7 @@ object CandidateComparisonDiagnostic:
   private def afterPositionLayer(layer: EvidenceLayer): Boolean =
     layer match
       case EvidenceLayer.Board | EvidenceLayer.SinglePosition | EvidenceLayer.PawnStructure |
-          EvidenceLayer.Strategic | EvidenceLayer.ThreatPressure | EvidenceLayer.StructuralDelta | EvidenceLayer.PlanTransition =>
+          EvidenceLayer.Strategic | EvidenceLayer.ThreatPressure =>
         true
       case _ =>
         false
@@ -1100,6 +1104,10 @@ object CandidateComparisonDiagnostic:
     val involvedRecords = (referenceRecords ++ candidateRecords).distinctBy(_.ref.id)
     val referenceStrategicScore = strategicImprovementScore(referenceRecords)
     val candidateStrategicScore = strategicImprovementScore(candidateRecords)
+    val referenceStructuralConsequenceKinds = structuralImprovementConsequenceKinds(referenceRecords)
+    val candidateStructuralConsequenceKinds = structuralImprovementConsequenceKinds(candidateRecords)
+    val referenceStructuralAxisLead =
+      referenceStructuralConsequenceKinds.exists(axis => !candidateStructuralConsequenceKinds.contains(axis))
     val materialSwing = hasMaterialSwingEvidence(referenceRecords, candidateRecords)
     val candidateRelations = relationKinds(candidateRecords)
     CandidateCauseDecisionTrace(
@@ -1144,14 +1152,17 @@ object CandidateComparisonDiagnostic:
       candidateDevelopmentActivation = hasDevelopmentActivationEvidence(candidateRecords),
       candidatePieceActivityGain = hasPieceActivityGainEvidence(candidateRecords),
       sameDestinationCaptureChoice = sameDestinationCaptureChoice(fact, referenceRecords, candidateRecords),
-      referenceStructuralSignals = structuralImprovementSignals(referenceRecords),
-      candidateStructuralSignals = structuralImprovementSignals(candidateRecords),
+      referenceStructuralSignals = structuralSignalAnchors(referenceRecords),
+      candidateStructuralSignals = structuralSignalAnchors(candidateRecords),
+      referenceStructuralConsequences = referenceStructuralConsequenceKinds,
+      candidateStructuralConsequences = candidateStructuralConsequenceKinds,
       candidatePawnStructureSignals = pawnStructureImprovementSignals(candidateRecords),
       referenceStrategicImprovementScore = referenceStrategicScore,
       candidateStrategicImprovementScore = candidateStrategicScore,
       referenceStrategicImprovementOverCandidate =
         (referenceStrategicScore >= 3 && referenceStrategicScore >= candidateStrategicScore + 2) ||
-          (referenceStrategicScore >= 2 && candidateStrategicScore <= 1),
+          (referenceStrategicScore >= 2 && candidateStrategicScore <= 1) ||
+          referenceStructuralAxisLead,
       candidatePlanEvidence = hasPlanCauseEvidence(candidateRecords),
       candidateStrategicEvidence = hasStrategicCauseEvidence(candidateRecords),
       candidateStrategicConcessionEvidence = hasStrategicConcessionEvidence(candidateRecords),
@@ -1252,8 +1263,6 @@ object CandidateComparisonDiagnostic:
       )(RelativeCauseKind.StructuralImprovement),
       Option.when(primaryPlayedPositive && trace.candidateTargetPressureGain)(RelativeCauseKind.TargetPressureGain),
       Option.when(primaryPlayedPositive && trace.candidateCenterControlGain)(RelativeCauseKind.CenterControlGain),
-      Option.when(primaryPlayedPositive && trace.candidateDevelopmentActivation)(RelativeCauseKind.DevelopmentActivation),
-      Option.when(primaryPlayedPositive && trace.candidatePieceActivityGain)(RelativeCauseKind.PieceActivityGain),
       Option.when(trace.candidatePlanEvidence && trace.candidateBetter)(RelativeCauseKind.PlanImprovement),
       Option.when(trace.candidatePlanEvidence && trace.badLoss)(RelativeCauseKind.PlanContradiction),
       Option.when(
@@ -1400,7 +1409,8 @@ object CandidateComparisonDiagnostic:
             trace.candidateTargetPressureGain ||
             trace.candidateCenterControlGain ||
             trace.candidateDevelopmentActivation ||
-            trace.candidatePieceActivityGain)
+            trace.candidatePieceActivityGain ||
+            trace.candidateStrategicConcessionEvidence)
         )
       )(
         CandidateComparisonFailureReason.StrategicEvidenceUnbound
@@ -1422,8 +1432,7 @@ object CandidateComparisonDiagnostic:
       case RelativeCauseKind.StructuralImprovement | RelativeCauseKind.CastlingRightsConcession |
           RelativeCauseKind.StrategicConcession | RelativeCauseKind.StrategicIdeaRefuted |
           RelativeCauseKind.MissedStrategicImprovement | RelativeCauseKind.TargetPressureGain |
-          RelativeCauseKind.CenterControlGain | RelativeCauseKind.DevelopmentActivation |
-          RelativeCauseKind.PieceActivityGain | RelativeCauseKind.PlanImprovement | RelativeCauseKind.PlanContradiction =>
+          RelativeCauseKind.CenterControlGain | RelativeCauseKind.PlanImprovement | RelativeCauseKind.PlanContradiction =>
         true
       case _ =>
         false
@@ -1555,7 +1564,8 @@ object CandidateComparisonDiagnostic:
       trace.candidateTargetPressureGain ||
       trace.candidateCenterControlGain ||
       trace.candidateDevelopmentActivation ||
-      trace.candidatePieceActivityGain
+      trace.candidatePieceActivityGain ||
+      trace.candidateStrategicConcessionEvidence
 
   private def lowDepthCauseShouldBeAudited(
       fact: CandidateComparisonFact,
@@ -1778,59 +1788,48 @@ object CandidateComparisonDiagnostic:
 
   private def hasStructuralTargetRelease(records: List[EvidenceRecord]): Boolean =
     records.exists {
-      case EvidenceRecord(_, StructuralDeltaEvidence(delta), _) =>
-        delta.releasedTargetPressure.nonEmpty && delta.targetPressureRelease > delta.targetPressureGain
+      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
+        payload.hasTargetPressureRelease
       case _ =>
         false
     }
 
   private def hasStructuralImprovementEvidence(records: List[EvidenceRecord]): Boolean =
     records.exists {
-      case EvidenceRecord(_, StructuralDeltaEvidence(delta), _) =>
-        hasStructuralAnchor(delta)
+      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
+        payload.hasStructuralAnchor
       case _ =>
         false
     }
 
-  private def hasStructuralAnchor(delta: lila.chessjudgment.analysis.structure.StructuralDelta): Boolean =
-    delta.fileAccessDelta > 0 ||
-      delta.fileOccupation.nonEmpty ||
-      delta.openedFiles.nonEmpty ||
-      delta.semiOpenedFiles.nonEmpty ||
-      delta.newWeakPawns.nonEmpty ||
-      delta.newWeakSquares.nonEmpty ||
-      delta.createdTension.nonEmpty ||
-      delta.pawnTensionDelta > 0
-
   private def hasTargetPressureGainEvidence(records: List[EvidenceRecord]): Boolean =
     records.exists {
-      case EvidenceRecord(_, StructuralDeltaEvidence(delta), _) =>
-        delta.createdTargetPressure.nonEmpty && delta.targetPressureGain > delta.targetPressureRelease ||
-          delta.targetPressureDelta > 0
+      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
+        payload.hasTargetPressureGain
       case _ =>
         false
     }
 
   private def hasCenterControlGainEvidence(records: List[EvidenceRecord]): Boolean =
     records.exists {
-      case EvidenceRecord(_, StructuralDeltaEvidence(delta), _) =>
-        delta.centerControlDelta > 0
+      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
+        payload.hasCenterControlGain
       case _ =>
         false
     }
 
   private def hasDevelopmentActivationEvidence(records: List[EvidenceRecord]): Boolean =
     records.exists {
-      case EvidenceRecord(_, StructuralDeltaEvidence(delta), _) =>
-        delta.developmentDelta > 0
+      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
+        payload.hasDevelopmentActivation
       case _ =>
         false
     }
 
   private def hasPieceActivityGainEvidence(records: List[EvidenceRecord]): Boolean =
     records.exists {
-      case EvidenceRecord(_, StructuralDeltaEvidence(delta), _) =>
-        delta.lineUnlockDelta > 0 || delta.mobilityDelta > 0
+      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
+        payload.hasPieceActivityGain
       case _ =>
         false
     }
@@ -1840,8 +1839,8 @@ object CandidateComparisonDiagnostic:
 
   private def strategicImprovementScore(records: List[EvidenceRecord]): Int =
     records.map {
-      case EvidenceRecord(_, StructuralDeltaEvidence(delta), _) =>
-        structuralImprovementScore(delta)
+      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
+        payload.structuralImprovementScore
       case EvidenceRecord(_, PlanTransitionEvidence(transition), _) =>
         if transition.primaryPlanId.nonEmpty && transition.transitionType != TransitionType.Opening then 2 else 0
       case EvidenceRecord(_, PlanPressureEvidence(scoring, activePlans), _) =>
@@ -1849,70 +1848,48 @@ object CandidateComparisonDiagnostic:
           (activePlans.primary.evidence.nonEmpty || scoring.compatibilityEvents.nonEmpty || activePlans.compatibilityEvents.nonEmpty)
         then 2
         else 0
-      case EvidenceRecord(_, PawnStructureFactEvidence(_, alignment, pawnPlay), _) =>
-        alignment.count(alignment => alignment.band == AlignmentBand.OnBook || alignment.band == AlignmentBand.Playable) * 2 +
-          pawnPlay.count(_.primaryDriver != PawnPlayDriver.Quiet)
+      case EvidenceRecord(_, payload: PawnStructureFactEvidence, _) =>
+        if ClaimTruthPolicy.pawnStructureCanAnchorPlan(payload) then 2 else 0
       case _ =>
         0
     }.sum
 
-  private def structuralImprovementScore(delta: lila.chessjudgment.analysis.structure.StructuralDelta): Int =
-    delta.createdTargetPressure.size * 3 +
-      (delta.targetPressureGain - delta.targetPressureRelease).max(0) * 2 +
-      delta.targetPressureDelta.max(0) * 2 +
-      delta.centerControlDelta.max(0) +
-      delta.developmentDelta.max(0) +
-      delta.mobilityDelta.max(0) +
-      delta.lineUnlockDelta.max(0) +
-      delta.fileAccessDelta.max(0) +
-      delta.openedFiles.size +
-      delta.semiOpenedFiles.size +
-      delta.fileOccupation.size * 2 +
-      delta.newWeakPawns.size +
-      delta.newWeakSquares.size +
-      delta.createdTension.size
+  private def structuralImprovementConsequenceKinds(records: List[EvidenceRecord]): List[TransitionConsequenceKind] =
+    StructuralDeltaEvidence.structuralImprovementConsequenceKinds(records)
 
-  private def structuralImprovementSignals(records: List[EvidenceRecord]): List[String] =
-    records.collect { case EvidenceRecord(_, StructuralDeltaEvidence(delta), _) =>
-      List(
-        Option.when(delta.createdTargetPressure.nonEmpty)("created_target_pressure"),
-        Option.when(delta.targetPressureGain > delta.targetPressureRelease)("target_pressure_gain"),
-        Option.when(delta.targetPressureDelta > 0)("target_pressure_delta"),
-        Option.when(delta.fileAccessDelta > 0)("file_access_gain"),
-        Option.when(delta.kingShelterDelta > 0)("king_shelter_pressure"),
-        Option.when(delta.mobilityDelta > 0)("mobility_gain"),
-        Option.when(delta.developmentDelta > 0)("development_gain"),
-        Option.when(delta.developmentMoves.nonEmpty)("development_choice"),
-        Option.when(delta.centerControlDelta > 0)("center_control_gain"),
-        Option.when(delta.lineUnlockDelta > 0)("line_unlock"),
-        Option.when(delta.fileOccupation.nonEmpty)("file_occupation"),
-        Option.when(delta.openedFiles.nonEmpty)("opened_file"),
-        Option.when(delta.semiOpenedFiles.nonEmpty)("semi_opened_file"),
-        Option.when(delta.newWeakPawns.nonEmpty)("new_weak_pawn"),
-        Option.when(delta.newWeakSquares.nonEmpty)("new_weak_square"),
-        Option.when(delta.createdTension.nonEmpty)("created_tension"),
-        Option.when(delta.pawnTensionDelta > 0)("pawn_tension_gain")
-      ).flatten
+  private def structuralSignalAnchors(records: List[EvidenceRecord]): List[String] =
+    records.collect { case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
+      payload.signalAnchors
     }.flatten.distinct.sorted
 
   private def pawnStructureImprovementSignals(records: List[EvidenceRecord]): List[String] =
-    records.collect { case EvidenceRecord(_, PawnStructureFactEvidence(_, alignment, pawnPlay), _) =>
+    records.collect { case EvidenceRecord(_, payload @ PawnStructureFactEvidence(profile, alignment, pawnPlay), _) =>
       List(
-        Option.when(alignment.exists(alignment => alignment.band == AlignmentBand.OnBook || alignment.band == AlignmentBand.Playable))(
+        Option.when(profile.primary != lila.chessjudgment.model.structure.StructureId.Unknown && profile.confidence >= 0.65)(
+          "profile_confident"
+        ),
+        Option.when(
+          alignment.exists(alignment =>
+            alignment.band == AlignmentBand.OnBook ||
+              alignment.band == AlignmentBand.Playable ||
+              alignment.band == AlignmentBand.OffPlan
+          )
+        )(
           "plan_alignment"
         ),
-        Option.when(pawnPlay.exists(_.primaryDriver != PawnPlayDriver.Quiet))("pawn_play_driver")
-      ).flatten
+        Option.when(pawnPlay.exists(_.primaryDriver != PawnPlayDriver.Quiet))("pawn_play_driver"),
+        Option.when(!ClaimTruthPolicy.pawnStructureCanAnchorPlan(payload))("not_claim_anchor")
+      ).flatten.filterNot(_ == "not_claim_anchor")
     }.flatten.distinct.sorted
 
   private def releasedTargetPressure(records: List[EvidenceRecord]): List[String] =
-    records.collect { case EvidenceRecord(_, StructuralDeltaEvidence(delta), _) =>
-      delta.releasedTargetPressure
+    records.collect { case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
+      payload.releasedTargetPressureSubjects
     }.flatten.distinct.sorted
 
   private def createdTargetPressure(records: List[EvidenceRecord]): List[String] =
-    records.collect { case EvidenceRecord(_, StructuralDeltaEvidence(delta), _) =>
-      delta.createdTargetPressure
+    records.collect { case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
+      payload.createdTargetPressureSubjects
     }.flatten.distinct.sorted
 
   private def hasPlanCauseEvidence(records: List[EvidenceRecord]): Boolean =
@@ -1938,22 +1915,16 @@ object CandidateComparisonDiagnostic:
 
   private def hasStrategicConcessionEvidence(records: List[EvidenceRecord]): Boolean =
     records.exists {
-      case EvidenceRecord(_, StructuralDeltaEvidence(delta), _) =>
-        delta.releasedTargetPressure.nonEmpty && delta.targetPressureRelease > delta.targetPressureGain ||
-          delta.targetPressureDelta < 0 ||
-          delta.fileAccessDelta < 0 ||
-          delta.kingShelterDelta < 0
+      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
+        payload.hasStrategicConcession
       case _ =>
         false
     }
 
   private def hasStrongStrategicConcessionEvidence(records: List[EvidenceRecord]): Boolean =
     records.exists {
-      case EvidenceRecord(_, StructuralDeltaEvidence(delta), _) =>
-        delta.releasedTargetPressure.nonEmpty && delta.targetPressureRelease > delta.targetPressureGain ||
-          delta.targetPressureDelta < 0 ||
-          delta.fileAccessDelta < 0 ||
-          delta.kingShelterDelta < 0
+      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
+        payload.strategicConcessions.exists(_.strength >= 2)
       case _ =>
         false
     }
@@ -2435,7 +2406,7 @@ enum JudgmentGraphLayer:
   case InputGraph
   case PositionEvidence
   case LineEvaluationEvidence
-  case TacticalTransitionEvidence
+  case TransitionEvidence
   case StrategicPlanOpeningEvidence
   case RelativeChoiceAssessment
   case IdeaSynthesis
@@ -2471,6 +2442,9 @@ enum JudgmentGraphSlot:
   case MoveTransitionFact
   case RelationFact
   case StructuralDeltaFact
+  case StructuralSignalFact
+  case StructuralConsequenceFact
+  case StructuralMeaningfulConsequenceFact
   case StrategicFact
   case OpeningContextFact
   case FeatureAnchorFact
@@ -2690,7 +2664,7 @@ object JudgmentLayerGapProfile:
           )
         ),
         layer(
-          JudgmentGraphLayer.TacticalTransitionEvidence,
+          JudgmentGraphLayer.TransitionEvidence,
           globalEvidenceLayerSlot(
             packet,
             JudgmentGraphSlot.MoveMotifFact,
@@ -2715,6 +2689,24 @@ object JudgmentLayerGapProfile:
             JudgmentGraphSlot.StructuralDeltaFact,
             JudgmentGraphOwner.TransitionFactNormalizer,
             EvidenceLayer.StructuralDelta
+          ),
+          slot(
+            JudgmentGraphSlot.StructuralSignalFact,
+            JudgmentGraphOwner.TransitionFactNormalizer,
+            hasStructuralSignals(packet),
+            hasEvidenceLayer(packet, EvidenceLayer.StructuralDelta)
+          ),
+          slot(
+            JudgmentGraphSlot.StructuralConsequenceFact,
+            JudgmentGraphOwner.TransitionFactNormalizer,
+            hasStructuralConsequences(packet),
+            hasEvidenceLayer(packet, EvidenceLayer.StructuralDelta)
+          ),
+          slot(
+            JudgmentGraphSlot.StructuralMeaningfulConsequenceFact,
+            JudgmentGraphOwner.TransitionFactNormalizer,
+            hasStructuralMeaningfulConsequences(packet),
+            hasStructuralConsequences(packet)
           )
         ),
         layer(
@@ -2893,6 +2885,24 @@ object JudgmentLayerGapProfile:
     packet.evidenceGraph.records.exists {
       case EvidenceRecord(_, payload: LineFactEvidence, _) => payload.hasLineConsequences
       case _                                               => false
+    }
+
+  private def hasStructuralSignals(packet: EvidenceBackedJudgmentPacket): Boolean =
+    packet.evidenceGraph.records.exists {
+      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) => payload.hasSignals
+      case _                                                      => false
+    }
+
+  private def hasStructuralConsequences(packet: EvidenceBackedJudgmentPacket): Boolean =
+    packet.evidenceGraph.records.exists {
+      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) => payload.hasConsequences
+      case _                                                      => false
+    }
+
+  private def hasStructuralMeaningfulConsequences(packet: EvidenceBackedJudgmentPacket): Boolean =
+    packet.evidenceGraph.records.exists {
+      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) => payload.hasMeaningfulConsequences
+      case _                                                      => false
     }
 
   private def hasRelativeCauseProof(packet: EvidenceBackedJudgmentPacket): Boolean =

@@ -616,8 +616,8 @@ object ClaimArbitrator:
         relativeCauseSalience(cause)
       case MoveVerdictCertificationEvidence(certification) =>
         engineComparisonSalience(Some(certification.primaryComparison.comparison)) + certification.causes.size.min(4)
-      case StructuralDeltaEvidence(delta) =>
-        if delta.hasConsequence then 5 else 1
+      case payload: StructuralDeltaEvidence =>
+        if payload.hasMeaningfulConsequences then 5 else 0
       case OpeningContextEvidence(_, _, _, _) =>
         0
       case FeatureAnchorEvidence(anchor) =>
@@ -662,8 +662,8 @@ object ClaimArbitrator:
         List(ClaimSalienceDriver.EndgamePattern)
       case payload: StrategicFactEvidence if payload.hasTypedSupport =>
         List(ClaimSalienceDriver.StrategicFeature)
-      case StructuralDeltaEvidence(delta) =>
-        Option.when(delta.hasConsequence)(ClaimSalienceDriver.StructuralChange).toList
+      case payload: StructuralDeltaEvidence =>
+        Option.when(payload.hasMeaningfulConsequences)(ClaimSalienceDriver.StructuralChange).toList
       case FeatureAnchorEvidence(_) =>
         List(ClaimSalienceDriver.BoardAnchor)
       case ApplicabilityAssessmentEvidence(assessment) if assessment.canCertifyOpeningClaim =>
@@ -786,8 +786,7 @@ object ClaimArbitrator:
             RelativeCauseKind.PlanContradiction | RelativeCauseKind.CastlingRightsConcession |
             RelativeCauseKind.StrategicConcession | RelativeCauseKind.StrategicIdeaRefuted |
             RelativeCauseKind.MissedStrategicImprovement | RelativeCauseKind.StructuralImprovement |
-            RelativeCauseKind.TargetPressureGain | RelativeCauseKind.CenterControlGain | RelativeCauseKind.DevelopmentActivation |
-            RelativeCauseKind.PieceActivityGain =>
+            RelativeCauseKind.TargetPressureGain | RelativeCauseKind.CenterControlGain =>
           5
         case RelativeCauseKind.DefensiveResource | RelativeCauseKind.DrawResource |
             RelativeCauseKind.PlanImprovement | RelativeCauseKind.SacrificeCompensation =>
@@ -817,8 +816,7 @@ object ClaimArbitrator:
         List(ClaimSalienceDriver.StructuralChange, ClaimSalienceDriver.EngineSwing)
       case RelativeCauseKind.StructuralImprovement =>
         List(ClaimSalienceDriver.StrategicFeature, ClaimSalienceDriver.StructuralChange, ClaimSalienceDriver.EngineSwing)
-      case RelativeCauseKind.TargetPressureGain | RelativeCauseKind.CenterControlGain |
-          RelativeCauseKind.DevelopmentActivation | RelativeCauseKind.PieceActivityGain =>
+      case RelativeCauseKind.TargetPressureGain | RelativeCauseKind.CenterControlGain =>
         List(ClaimSalienceDriver.StrategicFeature, ClaimSalienceDriver.EngineSwing)
       case RelativeCauseKind.CastlingRightsConcession | RelativeCauseKind.StrategicConcession |
           RelativeCauseKind.StrategicIdeaRefuted | RelativeCauseKind.MissedStrategicImprovement | RelativeCauseKind.PlanImprovement |

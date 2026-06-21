@@ -4,7 +4,6 @@ import chess.Color
 import lila.chessjudgment.analysis.evaluation.PerspectiveMath
 import lila.chessjudgment.analysis.position.PositionFeatures
 import lila.chessjudgment.analysis.singlePosition.{ PawnPlayAnalysis, SinglePositionAssessment, ThreatAnalysis }
-import lila.chessjudgment.analysis.structure.StructuralDelta
 import lila.chessjudgment.model.{ ActivePlans, Fact, Motif, PlanScoringResult, PlanSequenceSummary }
 import lila.chessjudgment.model.structure.{ PlanAlignment, StructureProfile }
 
@@ -1133,6 +1132,130 @@ final case class MoveTransitionEvidence(
 ) extends EvidencePayload:
   val layer: EvidenceLayer = EvidenceLayer.MoveTransition
 
+enum StructuralSignalPolarity:
+  case Gain
+  case Loss
+  case Neutral
+
+enum StructuralSignalKind:
+  case FileOpened
+  case SemiOpenFileCreated
+  case FileAccessChanged
+  case FileOccupied
+  case WeakPawnCreated
+  case WeakSquareCreated
+  case PawnTensionCreated
+  case PawnTensionResolved
+  case PawnTensionChanged
+  case TargetPressureCreated
+  case TargetPressureReleased
+  case TargetPressureChanged
+  case CenterControlChanged
+  case DevelopmentChanged
+  case DevelopmentChoice
+  case MobilityChanged
+  case KingSafetyChanged
+  case LineUnlocked
+  case PassedPawnCreated
+  case PassedPawnAdvanced
+  case PromotionPressureChanged
+  case OutpostCreated
+  case OutpostRemoved
+  case RookLiftCreated
+  case BatteryCreated
+  case KingRingPressureChanged
+
+final case class StructuralSignal(
+    kind: StructuralSignalKind,
+    polarity: StructuralSignalPolarity,
+    magnitude: Int,
+    subjects: List[String] = Nil
+):
+  def anchorKey: String =
+    s"$kind:$polarity"
+
+enum TransitionConsequenceKind:
+  case OpenFileGain
+  case SemiOpenFileGain
+  case FileOccupationGain
+  case WeakPawnTargetCreated
+  case WeakSquareTargetCreated
+  case PawnTensionGain
+  case PawnTensionResolution
+  case TargetPressureGain
+  case TargetPressureRelease
+  case CenterControlGain
+  case CenterControlLoss
+  case DevelopmentLagReduced
+  case DevelopmentLagIncreased
+  case DevelopmentPieceActivated
+  case DevelopmentPieceRetreated
+  case DevelopmentMobilityGain
+  case DevelopmentMobilityLoss
+  case DevelopmentCenterControlGain
+  case DevelopmentCenterControlLoss
+  case DevelopmentSafePlacement
+  case DevelopmentUnsafePlacement
+  case MobilityGain
+  case MobilityLoss
+  case LineUnlockGain
+  case FileAccessGain
+  case FileAccessLoss
+  case KingSafetyPressure
+  case KingSafetyConcession
+  case PassedPawnProgress
+  case PassedPawnConcession
+  case PromotionPressureGain
+  case PromotionPressureConcession
+  case OutpostGain
+  case OutpostConcession
+  case RookLiftActivation
+  case BatteryPressureGain
+  case KingRingPressureGain
+  case KingRingPressureConcession
+
+enum TransitionConsequenceCategory:
+  case PawnStructure
+  case PawnStructureDelta
+  case Development
+  case PieceActivity
+  case TargetPressure
+  case CenterControl
+  case StructuralAnchor
+  case StrategicMove
+  case StrategicSupport
+  case PlanAnchor
+  case OpeningCenterControl
+  case OpeningDevelopment
+
+final case class TransitionConsequence(
+    kind: TransitionConsequenceKind,
+    polarity: StructuralSignalPolarity,
+    strength: Int,
+    subjects: List[String] = Nil
+):
+  def positive: Boolean =
+    polarity == StructuralSignalPolarity.Gain
+  def negative: Boolean =
+    polarity == StructuralSignalPolarity.Loss
+  def anchorKey: String =
+    s"$kind:$polarity"
+
+final case class StructuralDevelopmentChoice(
+    role: String,
+    from: String,
+    to: String
+)
+
+final case class StructuralTransitionBinding(
+    moveUci: String,
+    role: TransitionEdgeRole,
+    from: PositionNodeRef,
+    to: PositionNodeRef,
+    line: Option[LineNodeRef],
+    perspective: Color
+)
+
 final case class RelationFactEvidence(
     kind: RelationFactKind,
     focusSquares: List[EvidenceSquare],
@@ -1143,9 +1266,194 @@ final case class RelationFactEvidence(
   val layer: EvidenceLayer = EvidenceLayer.Relation
 
 final case class StructuralDeltaEvidence(
-    delta: StructuralDelta
+    transition: StructuralTransitionBinding,
+    signals: List[StructuralSignal],
+    consequences: List[TransitionConsequence],
+    developmentChoices: List[StructuralDevelopmentChoice] = Nil
 ) extends EvidencePayload:
   val layer: EvidenceLayer = EvidenceLayer.StructuralDelta
+  import StructuralSignalKind.*
+  import TransitionConsequenceKind.*
+
+  def moveUci: String = transition.moveUci
+  def role: TransitionEdgeRole = transition.role
+  def from: PositionNodeRef = transition.from
+  def to: PositionNodeRef = transition.to
+  def line: Option[LineNodeRef] = transition.line
+  def perspective: Color = transition.perspective
+  def hasSignals: Boolean = signals.nonEmpty
+  def hasConsequences: Boolean = consequences.nonEmpty
+  def hasTypedOutput: Boolean = hasSignals || hasConsequences
+  def consequenceKinds: List[TransitionConsequenceKind] = consequences.map(_.kind).distinct
+  def signalAnchors: List[String] = signals.map(_.anchorKey).distinct
+  def consequenceAnchors: List[String] = consequences.map(_.anchorKey).distinct
+  def signalsOf(kind: StructuralSignalKind): List[StructuralSignal] = signals.filter(_.kind == kind)
+  def consequencesOf(kind: TransitionConsequenceKind): List[TransitionConsequence] = consequences.filter(_.kind == kind)
+  def hasSignal(kind: StructuralSignalKind): Boolean = signals.exists(_.kind == kind)
+  def hasConsequence(kind: TransitionConsequenceKind): Boolean = consequences.exists(_.kind == kind)
+  def hasAnyConsequence(kinds: Set[TransitionConsequenceKind]): Boolean =
+    consequences.exists(consequence => kinds.contains(consequence.kind))
+  def hasConsequenceCategory(category: TransitionConsequenceCategory): Boolean =
+    consequences.exists(consequence => StructuralDeltaEvidence.hasConsequenceCategory(consequence.kind, category))
+  def positiveConsequences: List[TransitionConsequence] =
+    consequences.filter(_.positive)
+  def negativeConsequences: List[TransitionConsequence] =
+    consequences.filter(_.negative)
+  def meaningfulConsequences: List[TransitionConsequence] =
+    consequences.filter(consequence =>
+      consequence.strength > 0 &&
+        consequence.polarity != StructuralSignalPolarity.Neutral
+    )
+  def hasMeaningfulConsequences: Boolean =
+    meaningfulConsequences.nonEmpty
+  def hasPawnStructureImprovement: Boolean =
+    hasConsequenceCategory(TransitionConsequenceCategory.PawnStructure)
+  def hasMeaningfulPawnStructureDelta: Boolean =
+    hasPawnStructureImprovement
+  def hasTargetPressureGain: Boolean =
+    hasConsequence(TargetPressureGain)
+  def hasTargetPressureRelease: Boolean =
+    hasConsequence(TargetPressureRelease)
+  def hasCenterControlGain: Boolean =
+    hasConsequence(CenterControlGain)
+  def hasDevelopmentActivation: Boolean =
+    hasConsequenceCategory(TransitionConsequenceCategory.Development)
+  def hasPieceActivityGain: Boolean =
+    hasConsequenceCategory(TransitionConsequenceCategory.PieceActivity)
+  def hasKingSafetyPressure: Boolean =
+    hasConsequence(KingSafetyPressure)
+  def hasPassedPawnProgress: Boolean =
+    hasConsequence(PassedPawnProgress)
+  def hasOutpostGain: Boolean =
+    hasConsequence(OutpostGain)
+  def hasRookLiftActivation: Boolean =
+    hasConsequence(RookLiftActivation)
+  def hasBatteryPressureGain: Boolean =
+    hasConsequence(BatteryPressureGain)
+  def hasKingRingPressureGain: Boolean =
+    hasConsequence(KingRingPressureGain)
+  def hasStrategicConcession: Boolean =
+    strategicConcessions.nonEmpty
+  def strategicConcessions: List[TransitionConsequence] =
+    negativeConsequences.filter(consequence =>
+      StructuralDeltaEvidence.hasConsequenceCategory(consequence.kind, TransitionConsequenceCategory.StrategicSupport)
+    )
+  def hasPawnStructureDelta: Boolean =
+    hasConsequenceCategory(TransitionConsequenceCategory.PawnStructureDelta)
+  def hasStructuralAnchor: Boolean =
+    hasConsequenceCategory(TransitionConsequenceCategory.StructuralAnchor)
+  def hasStrategicMoveDelta: Boolean =
+    hasConsequenceCategory(TransitionConsequenceCategory.StrategicMove)
+  def hasStrategicSupport: Boolean =
+    hasConsequenceCategory(TransitionConsequenceCategory.StrategicSupport)
+  def hasPositivePlanAnchor: Boolean =
+    positiveConsequences.exists(consequence =>
+      StructuralDeltaEvidence.hasConsequenceCategory(consequence.kind, TransitionConsequenceCategory.PlanAnchor)
+    )
+  def structuralImprovementScore: Int =
+    positiveConsequences
+      .filterNot(consequence => consequence.kind == KingSafetyPressure)
+      .map(_.strength)
+      .sum
+  def structuralImprovementConsequenceKinds: List[TransitionConsequenceKind] =
+    positiveConsequences
+      .map(_.kind)
+      .filter(StructuralDeltaEvidence.isStructuralAnchorConsequence)
+      .distinct
+  def createdTargetPressureSubjects: List[String] =
+    subjectsOfSignal(TargetPressureCreated)
+  def releasedTargetPressureSubjects: List[String] =
+    subjectsOfSignal(TargetPressureReleased)
+
+  private def subjectsOfSignal(kind: StructuralSignalKind): List[String] =
+    signalsOf(kind).flatMap(_.subjects).distinct
+
+object StructuralDeltaEvidence:
+  import TransitionConsequenceKind.*
+  import TransitionConsequenceCategory.*
+
+  val pawnStructureImprovementConsequences: Set[TransitionConsequenceKind] =
+    consequenceKindsFor(PawnStructure)
+
+  val pawnStructureDeltaConsequences: Set[TransitionConsequenceKind] =
+    consequenceKindsFor(PawnStructureDelta)
+
+  val developmentActivationConsequences: Set[TransitionConsequenceKind] =
+    consequenceKindsFor(Development)
+
+  val pieceActivityGainConsequences: Set[TransitionConsequenceKind] =
+    consequenceKindsFor(PieceActivity)
+
+  def structuralImprovementConsequenceKinds(records: Iterable[EvidenceRecord]): List[TransitionConsequenceKind] =
+    records.collect { case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
+      payload.structuralImprovementConsequenceKinds
+    }.flatten.toList.distinct.sortBy(_.toString)
+
+  def unmatchedStructuralImprovementAxisRecords(
+      referenceRecords: List[EvidenceRecord],
+      candidateRecords: List[EvidenceRecord]
+  ): List[EvidenceRecord] =
+    val candidateAxes = structuralImprovementConsequenceKinds(candidateRecords).toSet
+    referenceRecords.filter {
+      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
+        payload.structuralImprovementConsequenceKinds.exists(axis => !candidateAxes.contains(axis))
+      case _ =>
+        false
+    }
+
+  def hasConsequenceCategory(kind: TransitionConsequenceKind, category: TransitionConsequenceCategory): Boolean =
+    consequenceCategories.getOrElse(kind, Set.empty).contains(category)
+
+  def isStructuralAnchorConsequence(kind: TransitionConsequenceKind): Boolean =
+    hasConsequenceCategory(kind, StructuralAnchor)
+
+  def isStrategicSupportConsequence(kind: TransitionConsequenceKind): Boolean =
+    hasConsequenceCategory(kind, StrategicSupport)
+
+  private def consequenceKindsFor(category: TransitionConsequenceCategory): Set[TransitionConsequenceKind] =
+    consequenceCategories.collect { case (kind, categories) if categories.contains(category) => kind }.toSet
+
+  private lazy val consequenceCategories: Map[TransitionConsequenceKind, Set[TransitionConsequenceCategory]] =
+    Map(
+      OpenFileGain -> Set(PawnStructure, PawnStructureDelta, StructuralAnchor, StrategicMove, StrategicSupport),
+      SemiOpenFileGain -> Set(PawnStructure, PawnStructureDelta, StructuralAnchor, StrategicMove, StrategicSupport),
+      FileOccupationGain -> Set(PawnStructure, PawnStructureDelta, PieceActivity, StructuralAnchor, StrategicMove, StrategicSupport),
+      WeakPawnTargetCreated -> Set(PawnStructure, PawnStructureDelta, StructuralAnchor, StrategicMove, StrategicSupport),
+      WeakSquareTargetCreated -> Set(PawnStructure, PawnStructureDelta, StructuralAnchor, StrategicMove, StrategicSupport),
+      PawnTensionGain -> Set(PawnStructure, PawnStructureDelta, StructuralAnchor, StrategicMove, StrategicSupport),
+      PawnTensionResolution -> Set(PawnStructureDelta),
+      TargetPressureGain -> Set(TargetPressure, StructuralAnchor, StrategicMove, StrategicSupport, PlanAnchor),
+      TargetPressureRelease -> Set(TargetPressure, StrategicSupport),
+      CenterControlGain -> Set(CenterControl, OpeningCenterControl, StructuralAnchor, StrategicMove, StrategicSupport, PlanAnchor),
+      CenterControlLoss -> Set(CenterControl, StrategicSupport),
+      DevelopmentLagReduced -> Set(Development, StructuralAnchor, StrategicMove, StrategicSupport, PlanAnchor, OpeningDevelopment),
+      DevelopmentPieceActivated -> Set(Development, StructuralAnchor, StrategicMove, StrategicSupport, PlanAnchor, OpeningDevelopment),
+      DevelopmentMobilityGain -> Set(Development, StructuralAnchor, StrategicMove, StrategicSupport, PlanAnchor, OpeningDevelopment),
+      DevelopmentCenterControlGain -> Set(Development, CenterControl, OpeningCenterControl, StructuralAnchor, StrategicMove, StrategicSupport, PlanAnchor),
+      DevelopmentSafePlacement -> Set(Development, StructuralAnchor, StrategicMove, StrategicSupport, PlanAnchor, OpeningDevelopment),
+      DevelopmentLagIncreased -> Set(Development, StrategicSupport),
+      DevelopmentPieceRetreated -> Set(Development, StrategicSupport),
+      DevelopmentMobilityLoss -> Set(Development, StrategicSupport),
+      DevelopmentCenterControlLoss -> Set(Development, CenterControl, StrategicSupport),
+      DevelopmentUnsafePlacement -> Set(Development, StrategicSupport),
+      MobilityGain -> Set(PieceActivity, StructuralAnchor, StrategicMove, StrategicSupport, PlanAnchor, OpeningDevelopment),
+      MobilityLoss -> Set(PieceActivity, StrategicSupport),
+      LineUnlockGain -> Set(PieceActivity, StructuralAnchor, StrategicMove, StrategicSupport, PlanAnchor),
+      FileAccessGain -> Set(StructuralAnchor, StrategicMove, StrategicSupport, PlanAnchor),
+      FileAccessLoss -> Set(StrategicSupport),
+      KingSafetyPressure -> Set(StrategicMove, StrategicSupport, PlanAnchor),
+      KingSafetyConcession -> Set(StrategicSupport),
+      PassedPawnProgress -> Set(StructuralAnchor, StrategicMove, StrategicSupport),
+      PassedPawnConcession -> Set(StrategicSupport),
+      PromotionPressureGain -> Set(StructuralAnchor, StrategicMove, StrategicSupport),
+      PromotionPressureConcession -> Set(StrategicSupport),
+      OutpostGain -> Set(StructuralAnchor, StrategicMove, StrategicSupport),
+      OutpostConcession -> Set(StrategicSupport),
+      RookLiftActivation -> Set(StructuralAnchor, StrategicMove, StrategicSupport),
+      BatteryPressureGain -> Set(StructuralAnchor, StrategicMove, StrategicSupport),
+      KingRingPressureGain -> Set(StructuralAnchor, StrategicMove, StrategicSupport),
+      KingRingPressureConcession -> Set(StrategicSupport)
+    )
 
 final case class PlanTransitionEvidence(
     transition: PlanSequenceSummary
