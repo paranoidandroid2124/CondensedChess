@@ -250,7 +250,7 @@ object BranchReplyProbeBinding:
   val Depth = 16
   val DepthFloor = 12
   val Objective = "branch_reply_multipv"
-  val RequiredSignals: List[String] = List("replyPvs", "depth", "purpose", "variationHash")
+  val RequiredSignals: List[String] = List("replyLines", "depth", "purpose", "variationHash")
 
   def variationHash(root: PositionNodeRef, line: CandidateLineNode): String =
     variationHash(

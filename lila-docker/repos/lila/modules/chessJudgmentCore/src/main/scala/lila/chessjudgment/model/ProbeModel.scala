@@ -12,10 +12,6 @@ enum ProbePurpose(val key: String):
   case RecaptureBranches extends ProbePurpose("recapture_branches")
   case KeepTensionBranches extends ProbePurpose("keep_tension_branches")
   case FreeTempoBranches extends ProbePurpose("free_tempo_branches")
-  case ThemePlanValidation extends ProbePurpose("theme_plan_validation")
-  case RouteDenialValidation extends ProbePurpose("route_denial_validation")
-  case ColorComplexSqueezeValidation extends ProbePurpose("color_complex_squeeze_validation")
-  case LongTermRestraintValidation extends ProbePurpose("long_term_restraint_validation")
 
 object ProbePurpose:
   private val byKey = ProbePurpose.values.map(p => p.key -> p).toMap
@@ -51,7 +47,7 @@ case class ProbeRequest(
   // Objective-driven probing contract
   objective: Option[String] = None,        // e.g. "branch_reply_multipv", "compare_branches"
   seedId: Option[String] = None,           // Latent seed identifier when relevant
-  requiredSignals: List[String] = Nil,     // e.g. "replyPvs", "keyMotifs", "boardDelta", "futureSnapshot"
+  requiredSignals: List[String] = Nil,
   horizon: Option[String] = None,          // "short" | "medium" | "long"
   candidateMove: Option[String] = None,    // explicit root move when the request is move-bound
   depthFloor: Option[Int] = None,          // minimum acceptable realized depth for certification
@@ -70,34 +66,22 @@ case class ProbeResult(
   id: String,
   fen: Option[String] = None, // Base FEN the probe was run from (critical when probing non-root branches)
   evalCp: Int,               // White POV centipawns (same convention as PlanInteractionContext.whitePovEvalCp)
-  bestReplyPv: List[String], // UCI moves of the refutation/support line after the probed move
-  // Optional: MultiPV reply lines (first element should correspond to bestReplyPv)
-  replyPvs: Option[List[List[String]]] = None,
-  // Optional: scored MultiPV reply lines from the probed FEN. These are admissible as graph evidence.
   replyLines: Option[List[VariationLine]] = None,
   deltaVsBaseline: Int,      // Probe white POV eval - baselineEvalCp. Negative = worse than baseline.
-  keyMotifs: List[String],   // Legacy client motif codes; not authority for judgment
   // Optional metadata that keeps branch probes self-describing.
   purpose: Option[ProbePurpose] = None,
   probedMove: Option[String] = None, // The probed candidate move (UCI)
   mate: Option[Int] = None,          // Mate distance if applicable
   depth: Option[Int] = None,         // Depth reached by the client engine
-  // Board delta for counterfactual comparison.
-  boardDelta: Option[BoardDeltaSnapshot] = None,
-  // Structured future state for accurate delta comparison.
-  futureSnapshot: Option[FutureSnapshot] = None,
   // Optional contract diagnostics.
   objective: Option[String] = None,
   seedId: Option[String] = None,
   requiredSignals: List[String] = Nil,
-  generatedRequiredSignals: List[String] = Nil,
-  motifInferenceMode: Option[String] = None,
   candidateMove: Option[String] = None,
   depthFloor: Option[Int] = None,
   variationHash: Option[String] = None,
   engineConfigFingerprint: Option[String] = None,
-  generatedAtEpochMs: Option[Long] = None,
-  motifTags: List[String] = Nil // Motif authority tags used by probe validation.
+  generatedAtEpochMs: Option[Long] = None
 )
 
 object ProbeResult:
@@ -128,52 +112,6 @@ case class ProbeAdmissionDiagnostic(
 
 object ProbeAdmissionDiagnostic:
   given Writes[ProbeAdmissionDiagnostic] = Json.writes[ProbeAdmissionDiagnostic]
-
-/**
- * Board positional delta after applying a candidate move.
- * Board delta after applying a candidate move.
- */
-case class BoardDeltaSnapshot(
-  materialDelta: Int,           // Material change in centipawns (White POV)
-  kingSafetyDelta: Int,         // King attackers/escapes change (+ = safer, - = more exposed)
-  centerControlDelta: Int,      // Center control change
-  openFilesDelta: Int,          // Change in open file control
-  mobilityDelta: Int            // Mobility change
-)
-
-object BoardDeltaSnapshot:
-  given Reads[BoardDeltaSnapshot] = Json.reads[BoardDeltaSnapshot]
-  given Writes[BoardDeltaSnapshot] = Json.writes[BoardDeltaSnapshot]
-
-/**
- * Structured future state snapshot for accurate PVDelta comparison.
- * Populated by WASM client after applying the probed move.
- */
-case class FutureSnapshot(
-  resolvedThreatKinds: List[String],   // ThreatKinds present before but gone after (e.g., "Mate", "Material")
-  newThreatKinds: List[String],        // ThreatKinds that newly appear after the move
-  targetsDelta: TargetsDelta,          // Targets added/removed
-  planBlockersRemoved: List[String],   // Plan blockers that were neutralized
-  planPrereqsMet: List[String]         // Plan prerequisites that are now satisfied
-)
-
-object FutureSnapshot:
-  given Reads[FutureSnapshot] = Json.reads[FutureSnapshot]
-  given Writes[FutureSnapshot] = Json.writes[FutureSnapshot]
-
-/**
- * Delta in tactical and strategic targets.
- */
-case class TargetsDelta(
-  tacticalAdded: List[String],    // New tactical targets (squares) created
-  tacticalRemoved: List[String],  // Tactical targets that are no longer relevant
-  strategicAdded: List[String],   // New strategic targets (outposts, files, etc.)
-  strategicRemoved: List[String]  // Strategic targets that are neutralized
-)
-
-object TargetsDelta:
-  given Reads[TargetsDelta] = Json.reads[TargetsDelta]
-  given Writes[TargetsDelta] = Json.writes[TargetsDelta]
 
 /**
  * Purpose-aware probe contract validator.
@@ -207,25 +145,6 @@ object ProbeContractValidator:
     ProbePurpose.KeepTensionBranches,
     ProbePurpose.FreeTempoBranches
   )
-
-  private val themePurposeSignals: Map[ProbePurpose, Set[String]] = Map(
-    ProbePurpose.ThemePlanValidation ->
-      Set("replyPvs", "keyMotifs", "boardDelta", "futureSnapshot"),
-    ProbePurpose.RouteDenialValidation ->
-      Set("replyPvs", "keyMotifs", "boardDelta", "futureSnapshot"),
-    ProbePurpose.ColorComplexSqueezeValidation ->
-      Set("replyPvs", "keyMotifs", "futureSnapshot"),
-    ProbePurpose.LongTermRestraintValidation ->
-      Set("replyPvs", "keyMotifs", "futureSnapshot")
-  )
-
-  private val purposeSignals: Map[ProbePurpose, Set[String]] =
-    themePurposeSignals ++ Map(
-    ProbePurpose.FreeTempoBranches -> Set("replyPvs", "futureSnapshot")
-  )
-
-  private def activePurposeSignals: Map[ProbePurpose, Set[String]] =
-    purposeSignals
 
   def validate(result: ProbeResult): ValidationResult =
     val required = result.purpose.fold(Set.empty[String])(purposeRequiredSignals)
@@ -371,21 +290,12 @@ object ProbeContractValidator:
       )
 
   private def purposeRequiredSignals(purpose: ProbePurpose): Set[String] =
-    activePurposeSignals.getOrElse(
-      purpose,
-      if branchPurposes.contains(purpose) then Set("replyPvs") else Set.empty[String]
-    )
+    if branchPurposes.contains(purpose) then Set("replyLines") else Set.empty[String]
 
   private def hasSignal(signal: String, result: ProbeResult): Boolean =
     signal match
-      case "replyPvs" =>
+      case "replyLines" =>
         result.replyLines.exists(_.count(line => line.moves.nonEmpty && line.depth > 0) >= DefaultBranchReplyMultiPv)
-      case "keyMotifs" =>
-        result.motifTags.nonEmpty && !clientGeneratedProbeSignal(signal, result)
-      case "boardDelta" =>
-        result.boardDelta.isDefined && !clientGeneratedProbeSignal(signal, result)
-      case "futureSnapshot" =>
-        result.futureSnapshot.isDefined && !clientGeneratedProbeSignal(signal, result)
       case "purpose" =>
         result.purpose.nonEmpty
       case "depth" =>
@@ -396,14 +306,3 @@ object ProbeContractValidator:
         result.engineConfigFingerprint.exists(_.trim.nonEmpty)
       case _ =>
         false
-
-  private def clientGeneratedProbeSignal(signal: String, result: ProbeResult): Boolean =
-    val normalizedSignal = signal.trim
-    val generatedByRequiredSignals =
-      result.generatedRequiredSignals.exists(_.trim == normalizedSignal)
-    val generatedByPurposeOnlyInference =
-      result.motifInferenceMode.exists { raw =>
-        val mode = raw.trim.toLowerCase
-        mode == "purpose_only" || mode == "purpose_plus_compat"
-      } && Set("keyMotifs", "boardDelta", "futureSnapshot").contains(normalizedSignal)
-    generatedByRequiredSignals || generatedByPurposeOnlyInference

@@ -1526,9 +1526,30 @@ object MoveJudgmentView:
       supportClusters: List[ClaimSupportCluster]
   ): List[MoveJudgmentCauseFrame] =
     causeEvidenceEntries(graph)
-      .filter(entry => ClaimEventCluster.kindForCause(entry.cause.kind).nonEmpty)
+      .filter(entry => unframedCauseEligible(entry.cause))
       .filterNot(entry => clusters.exists(clusterMatchesCause(_, entry.cause)))
       .map(entry => unframedCauseFrame(entry, ideas, claimLifecycle, supportClusters))
+
+  private def unframedCauseEligible(cause: RelativeCauseFact): Boolean =
+    ClaimEventCluster.kindForCause(cause.kind).nonEmpty ||
+      primaryLongTermRelativeCause(cause)
+
+  private def primaryLongTermRelativeCause(cause: RelativeCauseFact): Boolean =
+    ClaimEventCluster.kindForCause(cause.kind).isEmpty &&
+      cause.comparisonKind == CandidateComparisonKind.PlayedVsBest &&
+      cause.role == RelativeCauseRole.PrimaryPlayedCause &&
+      (cause.sourceSide == RelativeCauseSourceSide.Reference || cause.sourceSide == RelativeCauseSourceSide.Candidate) &&
+      cause.importance == RelativeCauseImportance.Primary &&
+      lossVerdict(cause.verdict) &&
+      cause.hasTypedDepth &&
+      cause.supportEvidence.exists(ref => !ClaimSupportCluster.longTermSupportExcludedLayer(ref.layer))
+
+  private def lossVerdict(verdict: MoveChoiceVerdict): Boolean =
+    verdict match
+      case MoveChoiceVerdict.Inaccuracy | MoveChoiceVerdict.Mistake | MoveChoiceVerdict.Blunder =>
+        true
+      case _ =>
+        false
 
   private def unframedCauseFrame(
       entry: CauseEvidenceEntry,

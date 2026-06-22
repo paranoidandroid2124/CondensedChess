@@ -756,7 +756,7 @@ private[chessjudgment] object RelativeCauseSignalProfile:
         .getOrElse(Nil)
     val axisBased =
       List(
-        StructuralDeltaEvidence.unmatchedStructuralImprovementAxisRecords(referenceRecords, candidateRecords),
+        StructuralDeltaEvidence.referenceLeadStrategicImprovementAxisRecords(referenceRecords, candidateRecords),
         samePieceDevelopmentChoiceSupport(fact, referenceRecords, candidateRecords, sharedRecords),
         unmatchedAxisSupport(pawnStructureImprovementRecords(referenceRecords), pawnStructureImprovementRecords(candidateRecords)),
         unmatchedAxisSupport(planCauseRecords(referenceRecords), planCauseRecords(candidateRecords))

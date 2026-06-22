@@ -79,10 +79,10 @@ object PlanTaxonomy:
       byId.get(normalize(raw))
 
   enum PlanSignal:
-    case KeyMotifs
-    case FutureSnapshot
-    case ReplyPvs
-    case BoardDelta
+    case MoveMotifSignal
+    case StrategicSnapshotSignal
+    case CandidateLineSignal
+    case StructuralSignal
 
   enum PlanHorizon:
     case Short
@@ -100,127 +100,127 @@ object PlanTaxonomy:
 
     val specs: Map[PlanKind, SubplanSpec] = Map(
       PlanKind.OpeningDevelopment -> SubplanSpec(
-        requiredSignals = List(KeyMotifs, FutureSnapshot),
+        requiredSignals = List(MoveMotifSignal, StrategicSnapshotSignal),
         horizon = Short
       ),
       PlanKind.ProphylaxisRestraint -> SubplanSpec(
-        requiredSignals = List(ReplyPvs, KeyMotifs),
+        requiredSignals = List(CandidateLineSignal, MoveMotifSignal),
         horizon = Long
       ),
       PlanKind.BreakPrevention -> SubplanSpec(
-        requiredSignals = List(ReplyPvs, BoardDelta),
+        requiredSignals = List(CandidateLineSignal, StructuralSignal),
         horizon = Medium
       ),
       PlanKind.KeySquareDenial -> SubplanSpec(
-        requiredSignals = List(KeyMotifs),
+        requiredSignals = List(MoveMotifSignal),
         horizon = Medium
       ),
       PlanKind.OutpostEntrenchment -> SubplanSpec(
-        requiredSignals = List(ReplyPvs, KeyMotifs),
+        requiredSignals = List(CandidateLineSignal, MoveMotifSignal),
         horizon = Long
       ),
       PlanKind.WorstPieceImprovement -> SubplanSpec(
-        requiredSignals = List(ReplyPvs),
+        requiredSignals = List(CandidateLineSignal),
         horizon = Medium
       ),
       PlanKind.RookFileTransfer -> SubplanSpec(
-        requiredSignals = List(ReplyPvs, FutureSnapshot),
+        requiredSignals = List(CandidateLineSignal, StrategicSnapshotSignal),
         horizon = Medium
       ),
       PlanKind.BishopReanchor -> SubplanSpec(
-        requiredSignals = List(ReplyPvs, FutureSnapshot),
+        requiredSignals = List(CandidateLineSignal, StrategicSnapshotSignal),
         horizon = Medium
       ),
       PlanKind.OpenFilePressure -> SubplanSpec(
-        requiredSignals = List(ReplyPvs, FutureSnapshot),
+        requiredSignals = List(CandidateLineSignal, StrategicSnapshotSignal),
         horizon = Medium
       ),
       PlanKind.FlankClamp -> SubplanSpec(
-        requiredSignals = List(ReplyPvs, FutureSnapshot),
+        requiredSignals = List(CandidateLineSignal, StrategicSnapshotSignal),
         horizon = Long
       ),
       PlanKind.CentralSpaceBind -> SubplanSpec(
-        requiredSignals = List(ReplyPvs),
+        requiredSignals = List(CandidateLineSignal),
         horizon = Medium
       ),
       PlanKind.MobilitySuppression -> SubplanSpec(
-        requiredSignals = List(KeyMotifs),
+        requiredSignals = List(MoveMotifSignal),
         horizon = Medium
       ),
       PlanKind.StaticWeaknessFixation -> SubplanSpec(
-        requiredSignals = List(ReplyPvs, FutureSnapshot),
+        requiredSignals = List(CandidateLineSignal, StrategicSnapshotSignal),
         horizon = Long
       ),
       PlanKind.MinorityAttackFixation -> SubplanSpec(
-        requiredSignals = List(ReplyPvs, KeyMotifs),
+        requiredSignals = List(CandidateLineSignal, MoveMotifSignal),
         horizon = Long
       ),
       PlanKind.BackwardPawnTargeting -> SubplanSpec(
-        requiredSignals = List(ReplyPvs),
+        requiredSignals = List(CandidateLineSignal),
         horizon = Long
       ),
       PlanKind.IQPInducement -> SubplanSpec(
-        requiredSignals = List(ReplyPvs, BoardDelta),
+        requiredSignals = List(CandidateLineSignal, StructuralSignal),
         horizon = Medium
       ),
       PlanKind.CentralBreakTiming -> SubplanSpec(
-        requiredSignals = List(ReplyPvs, BoardDelta),
+        requiredSignals = List(CandidateLineSignal, StructuralSignal),
         horizon = Medium
       ),
       PlanKind.WingBreakTiming -> SubplanSpec(
-        requiredSignals = List(ReplyPvs, BoardDelta),
+        requiredSignals = List(CandidateLineSignal, StructuralSignal),
         horizon = Medium
       ),
       PlanKind.TensionMaintenance -> SubplanSpec(
-        requiredSignals = List(ReplyPvs),
+        requiredSignals = List(CandidateLineSignal),
         horizon = Medium
       ),
       PlanKind.SimplificationWindow -> SubplanSpec(
-        requiredSignals = List(ReplyPvs, BoardDelta),
+        requiredSignals = List(CandidateLineSignal, StructuralSignal),
         horizon = Medium
       ),
       PlanKind.DefenderTrade -> SubplanSpec(
-        requiredSignals = List(KeyMotifs),
+        requiredSignals = List(MoveMotifSignal),
         horizon = Short
       ),
       PlanKind.QueenTradeShield -> SubplanSpec(
-        requiredSignals = List(ReplyPvs, FutureSnapshot),
+        requiredSignals = List(CandidateLineSignal, StrategicSnapshotSignal),
         horizon = Short
       ),
       PlanKind.BadPieceLiquidation -> SubplanSpec(
-        requiredSignals = List(ReplyPvs, KeyMotifs),
+        requiredSignals = List(CandidateLineSignal, MoveMotifSignal),
         horizon = Short
       ),
       PlanKind.RookPawnMarch -> SubplanSpec(
-        requiredSignals = List(ReplyPvs, KeyMotifs),
+        requiredSignals = List(CandidateLineSignal, MoveMotifSignal),
         horizon = Medium
       ),
       PlanKind.HookCreation -> SubplanSpec(
-        requiredSignals = List(ReplyPvs, FutureSnapshot),
+        requiredSignals = List(CandidateLineSignal, StrategicSnapshotSignal),
         horizon = Medium
       ),
       PlanKind.RookLiftScaffold -> SubplanSpec(
-        requiredSignals = List(ReplyPvs, FutureSnapshot),
+        requiredSignals = List(CandidateLineSignal, StrategicSnapshotSignal),
         horizon = Medium
       ),
       PlanKind.SimplificationConversion -> SubplanSpec(
-        requiredSignals = List(ReplyPvs, FutureSnapshot),
+        requiredSignals = List(CandidateLineSignal, StrategicSnapshotSignal),
         horizon = Medium
       ),
       PlanKind.PasserConversion -> SubplanSpec(
-        requiredSignals = List(ReplyPvs, KeyMotifs),
+        requiredSignals = List(CandidateLineSignal, MoveMotifSignal),
         horizon = Long
       ),
       PlanKind.PassedPawnManufacture -> SubplanSpec(
-        requiredSignals = List(ReplyPvs, FutureSnapshot, BoardDelta),
+        requiredSignals = List(CandidateLineSignal, StrategicSnapshotSignal, StructuralSignal),
         horizon = Long
       ),
       PlanKind.InvasionTransition -> SubplanSpec(
-        requiredSignals = List(ReplyPvs, FutureSnapshot),
+        requiredSignals = List(CandidateLineSignal, StrategicSnapshotSignal),
         horizon = Medium
       ),
       PlanKind.OppositeBishopsConversion -> SubplanSpec(
-        requiredSignals = List(ReplyPvs, FutureSnapshot, KeyMotifs),
+        requiredSignals = List(CandidateLineSignal, StrategicSnapshotSignal, MoveMotifSignal),
         horizon = Long
       )
     )

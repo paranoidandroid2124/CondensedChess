@@ -426,7 +426,8 @@ object ChessIdeaAssembler:
       case kind if strategicRelativeCause(kind) =>
         List(
           Option.when(hasStrategicRelativeCauseSupport(supportRecords))(ChessIdeaFamily.Strategic),
-          Option.when(hasPawnStructureRelativeCauseSupport(supportRecords))(ChessIdeaFamily.PawnStructure)
+          Option.when(hasPawnStructureRelativeCauseSupport(supportRecords))(ChessIdeaFamily.PawnStructure),
+          Option.when(hasOpeningRelativeCauseSupport(supportRecords))(ChessIdeaFamily.Opening)
         ).flatten.distinct
       case _ =>
         val base = familyForRelativeCause(cause.kind)
@@ -528,6 +529,9 @@ object ChessIdeaAssembler:
       case _ =>
         false
     }
+
+  private def hasOpeningRelativeCauseSupport(records: List[EvidenceRecord]): Boolean =
+    ClaimTruthPolicy.openingCanSeedIdea(records)
 
   private def hasConversionContext(
       context: JudgmentAssemblyContext,

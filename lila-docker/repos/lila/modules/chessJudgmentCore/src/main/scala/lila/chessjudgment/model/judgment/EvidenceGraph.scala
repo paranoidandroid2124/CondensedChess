@@ -2052,16 +2052,28 @@ object StructuralDeltaEvidence:
       payload.structuralImprovementConsequenceKinds
     }.flatten.toList.distinct.sortBy(_.toString)
 
-  def unmatchedStructuralImprovementAxisRecords(
+  private[chessjudgment] def referenceLeadStrategicImprovementAxisRecords(
       referenceRecords: List[EvidenceRecord],
       candidateRecords: List[EvidenceRecord]
   ): List[EvidenceRecord] =
-    val candidateAxes = structuralImprovementConsequenceKinds(candidateRecords).toSet
+    val referenceStrengths = strategicImprovementAxisStrengths(referenceRecords)
+    val candidateStrengths = strategicImprovementAxisStrengths(candidateRecords)
+    val referenceLeadAxes = referenceStrengths.keySet.filter(axis =>
+      referenceStrengths.getOrElse(axis, 0) > candidateStrengths.getOrElse(axis, 0)
+    )
     referenceRecords.filter {
       case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
-        payload.structuralImprovementConsequenceKinds.exists(axis => !candidateAxes.contains(axis))
+        strategicImprovementAxisStrengths(payload).keySet.exists(referenceLeadAxes.contains)
       case _ =>
         false
+    }
+
+  private[chessjudgment] def strategicImprovementAxisStrengths(records: Iterable[EvidenceRecord]): Map[String, Int] =
+    records.foldLeft(Map.empty[String, Int]) {
+      case (acc, EvidenceRecord(_, payload: StructuralDeltaEvidence, _)) =>
+        mergeAxisStrengths(acc, strategicImprovementAxisStrengths(payload))
+      case (acc, _) =>
+        acc
     }
 
   def hasConsequenceCategory(kind: TransitionConsequenceKind, category: TransitionConsequenceCategory): Boolean =
@@ -2075,6 +2087,47 @@ object StructuralDeltaEvidence:
 
   private def consequenceKindsFor(category: TransitionConsequenceCategory): Set[TransitionConsequenceKind] =
     consequenceCategories.collect { case (kind, categories) if categories.contains(category) => kind }.toSet
+
+  private[chessjudgment] def strategicImprovementAxisStrengths(payload: StructuralDeltaEvidence): Map[String, Int] =
+    payload.positiveConsequences.foldLeft(Map.empty[String, Int]) { (acc, consequence) =>
+      strategicImprovementAxisFor(consequence.kind)
+        .filter(_ => consequence.strength > 0)
+        .fold(acc)(axis => acc.updated(axis, acc.getOrElse(axis, 0) + consequence.strength))
+    }
+
+  private def mergeAxisStrengths(left: Map[String, Int], right: Map[String, Int]): Map[String, Int] =
+    right.foldLeft(left) { case (acc, (axis, strength)) =>
+      acc.updated(axis, acc.getOrElse(axis, 0) + strength)
+    }
+
+  private def strategicImprovementAxisFor(kind: TransitionConsequenceKind): Option[String] =
+    strategicImprovementAxisByConsequence.get(kind)
+
+  private val CenterAxis = "center"
+  private val PressureAxis = "pressure"
+  private val WeaknessTargetAxis = "weaknessTarget"
+  private val OutpostAxis = "outpost"
+  private val ActivityAxis = "activity"
+
+  private lazy val strategicImprovementAxisByConsequence: Map[TransitionConsequenceKind, String] =
+    Map(
+      CenterControlGain -> CenterAxis,
+      DevelopmentCenterControlGain -> CenterAxis,
+      TargetPressureGain -> PressureAxis,
+      KingRingPressureGain -> PressureAxis,
+      BatteryPressureGain -> PressureAxis,
+      WeakPawnTargetCreated -> WeaknessTargetAxis,
+      WeakSquareTargetCreated -> WeaknessTargetAxis,
+      OutpostGain -> OutpostAxis,
+      DevelopmentLagReduced -> ActivityAxis,
+      DevelopmentPieceActivated -> ActivityAxis,
+      DevelopmentMobilityGain -> ActivityAxis,
+      DevelopmentSafePlacement -> ActivityAxis,
+      MobilityGain -> ActivityAxis,
+      LineUnlockGain -> ActivityAxis,
+      FileAccessGain -> ActivityAxis,
+      RookLiftActivation -> ActivityAxis
+    )
 
   private lazy val consequenceCategories: Map[TransitionConsequenceKind, Set[TransitionConsequenceCategory]] =
     Map(

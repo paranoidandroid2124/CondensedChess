@@ -437,6 +437,9 @@ object ClaimTruthPolicy:
         assessment.supportedThemes.exists(proofSignalThemes.contains)
     )
 
+  private[chessjudgment] def openingCanSeedIdea(records: List[EvidenceRecord]): Boolean =
+    openingProof(records)
+
   private[chessjudgment] def planPressureCanSeedIdea(
       scoring: PlanScoringResult,
       activePlans: ActivePlans,

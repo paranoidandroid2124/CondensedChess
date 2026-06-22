@@ -722,7 +722,10 @@ object MoveReviewPhase3AuditRunner:
       "contextTacticalOutrankingDiagnostics" -> contextTacticalOutrankingDiagnosticsJson(
         semantic.contextTacticalOutrankingDiagnostics
       ),
-      "relativeCauseFailureSummary" -> (relativeCauseFailureSummary(semantic.comparisonDiagnostics)
+      "relativeCauseFailureSummary" -> (relativeCauseFailureSummary(
+        semantic.comparisonDiagnostics,
+        moveJudgmentPrimaryCauseCount(result)
+      )
         ++ Json.obj(
           "hasRelativeCauseFamilyMismatch" -> semantic.hasRelativeCauseFamilyMismatch,
           "relativeCauseFamilyMismatchKindCounts" -> claimLifecycleCountsJson(semantic.relativeCauseFamilyMismatchKindCounts),
@@ -937,7 +940,34 @@ object MoveReviewPhase3AuditRunner:
   private def comparisonDiagnosticsSummary(diagnostics: List[CandidateComparisonDiagnostic]): JsArray =
     JsArray(diagnostics.map(comparisonDiagnosticJson))
 
-  private def relativeCauseFailureSummary(diagnostics: List[CandidateComparisonDiagnostic]): JsObject =
+  private def relativeCauseFailureSummary(
+      diagnostics: List[CandidateComparisonDiagnostic],
+      primaryCauseCount: Int
+  ): JsObject =
+    val referenceLeadSemanticAxisDiagnostics = diagnostics.filter(referenceLeadSemanticAxis)
+    val referenceLeadTwoSemanticAxisDiagnostics = diagnostics.filter(referenceLeadTwoSemanticAxis)
+    val referenceOnlySemanticAxisDiagnostics = diagnostics.filter(referenceOnlySemanticAxis)
+    val referenceOnlyTwoSemanticAxisDiagnostics = diagnostics.filter(referenceOnlyTwoSemanticAxis)
+    val referenceLeadTwoSemanticAxisNoEventCauseDiagnostics =
+      referenceLeadTwoSemanticAxisDiagnostics.filter(noEventCauseComparison)
+    val referenceLeadTwoSemanticAxisNoEventCauseNoPrimaryDiagnostics =
+      referenceLeadTwoSemanticAxisNoEventCauseDiagnostics.filterNot(hasMoveJudgmentPrimaryCause)
+    val referenceLeadNonTacticalDiagnostics =
+      referenceLeadSemanticAxisDiagnostics.filter(nonTacticalComparison)
+    val referenceLeadTwoSemanticAxisNonTacticalDiagnostics =
+      referenceLeadTwoSemanticAxisDiagnostics.filter(nonTacticalComparison)
+    val referenceLeadTwoSemanticAxisNonTacticalNoPrimaryDiagnostics =
+      referenceLeadTwoSemanticAxisNonTacticalDiagnostics.filterNot(hasMoveJudgmentPrimaryCause)
+    val referenceOnlyTwoSemanticAxisNonTacticalDiagnostics =
+      referenceOnlyTwoSemanticAxisDiagnostics.filter(nonTacticalComparison)
+    val referenceOnlyTwoSemanticAxisNonTacticalNoPrimaryDiagnostics =
+      referenceOnlyTwoSemanticAxisNonTacticalDiagnostics.filterNot(hasMoveJudgmentPrimaryCause)
+    val generatedCauseNoPrimaryDiagnostics =
+      diagnostics.filter(generatedCauseWithoutPrimary)
+    val primaryPlayedCauseNoPrimaryDiagnostics =
+      diagnostics.filter(primaryPlayedCauseWithoutPrimary)
+    val longTermCauseNoPrimaryDiagnostics =
+      diagnostics.filter(longTermCauseWithoutPrimary)
     Json.obj(
       "missingCauseComparisonIds" -> diagnostics.filter(_.relativeCauseDiagnostics.missingCause).map(_.id),
       "shallowProofComparisonIds" -> diagnostics.filter(_.relativeCauseDiagnostics.shallowProofCauseIds.nonEmpty).map(_.id),
@@ -970,9 +1000,97 @@ object MoveReviewPhase3AuditRunner:
         diagnostics,
         ClaimLifecycleStage.ArbitrationSuppressed
       ),
+      "referenceLeadSemanticAxisComparisonIds" -> referenceLeadSemanticAxisDiagnostics.map(_.id),
+      "referenceLeadTwoSemanticAxisComparisonIds" -> referenceLeadTwoSemanticAxisDiagnostics.map(_.id),
+      "moveJudgmentPrimaryCauseCount" -> primaryCauseCount,
+      "moveJudgmentPrimaryCauseComparisonIds" -> diagnostics.filter(hasMoveJudgmentPrimaryCause).map(_.id),
+      "moveJudgmentPrimaryCauseKindCounts" -> stringCountsJson(
+        diagnostics.flatMap(_.moveJudgmentView.primaryCauseKinds.map(_.toString))
+      ),
+      "generatedCauseNoPrimaryComparisonIds" -> generatedCauseNoPrimaryDiagnostics.map(_.id),
+      "generatedCauseNoPrimaryCauseKindCounts" -> stringCountsJson(
+        generatedCauseNoPrimaryDiagnostics.flatMap(_.causeKinds.map(_.toString))
+      ),
+      "primaryPlayedCauseNoPrimaryComparisonIds" -> primaryPlayedCauseNoPrimaryDiagnostics.map(_.id),
+      "longTermCauseNoPrimaryComparisonIds" -> longTermCauseNoPrimaryDiagnostics.map(_.id),
+      "longTermCauseNoPrimaryCauseKindCounts" -> stringCountsJson(
+        longTermCauseNoPrimaryDiagnostics.flatMap(_.causeKinds.map(_.toString))
+      ),
+      "referenceLeadTwoSemanticAxisNoEventCauseComparisonIds" -> referenceLeadTwoSemanticAxisNoEventCauseDiagnostics.map(_.id),
+      "referenceLeadTwoSemanticAxisNoEventCauseNoPrimaryComparisonIds" ->
+        referenceLeadTwoSemanticAxisNoEventCauseNoPrimaryDiagnostics.map(_.id),
+      "referenceLeadSemanticAxisNonTacticalComparisonIds" -> referenceLeadNonTacticalDiagnostics.map(_.id),
+      "referenceLeadTwoSemanticAxisNonTacticalComparisonIds" -> referenceLeadTwoSemanticAxisNonTacticalDiagnostics.map(_.id),
+      "referenceLeadTwoSemanticAxisNonTacticalNoPrimaryComparisonIds" ->
+        referenceLeadTwoSemanticAxisNonTacticalNoPrimaryDiagnostics.map(_.id),
+      "referenceOnlySemanticAxisComparisonIds" -> referenceOnlySemanticAxisDiagnostics.map(_.id),
+      "referenceOnlyTwoSemanticAxisComparisonIds" -> referenceOnlyTwoSemanticAxisDiagnostics.map(_.id),
+      "referenceOnlyTwoSemanticAxisNonTacticalComparisonIds" ->
+        referenceOnlyTwoSemanticAxisNonTacticalDiagnostics.map(_.id),
+      "referenceOnlyTwoSemanticAxisNonTacticalNoPrimaryComparisonIds" ->
+        referenceOnlyTwoSemanticAxisNonTacticalNoPrimaryDiagnostics.map(_.id),
+      "referenceLeadTwoSemanticAxisNonTacticalFailureClassCounts" -> stringCountsJson(
+        referenceLeadTwoSemanticAxisNonTacticalDiagnostics.map(diagnostic => failureClassId(diagnostic.failureClass))
+      ),
+      "referenceLeadTwoSemanticAxisNonTacticalFailureReasonCounts" -> stringCountsJson(
+        referenceLeadTwoSemanticAxisNonTacticalDiagnostics.flatMap(_.failureReasons.map(failureReasonId))
+      ),
+      "referenceLeadSemanticAxisLabelCounts" -> stringCountsJson(
+        diagnostics.flatMap(_.decisionTrace.semanticAxisDiagnostics.referenceLeadAxes)
+      ),
+      "referenceOnlySemanticAxisLabelCounts" -> stringCountsJson(
+        diagnostics.flatMap(_.decisionTrace.semanticAxisDiagnostics.referenceOnlyAxes)
+      ),
       "failureClassCounts" -> stringCountsJson(diagnostics.map(diagnostic => failureClassId(diagnostic.failureClass))),
       "failureReasonCounts" -> stringCountsJson(diagnostics.flatMap(_.failureReasons.map(failureReasonId)))
     )
+
+  private def referenceLeadSemanticAxis(diagnostic: CandidateComparisonDiagnostic): Boolean =
+    diagnostic.decisionTrace.semanticAxisDiagnostics.referenceLeadAxes.nonEmpty
+
+  private def referenceLeadTwoSemanticAxis(diagnostic: CandidateComparisonDiagnostic): Boolean =
+    diagnostic.decisionTrace.semanticAxisDiagnostics.referenceLeadAxisCount >= 2
+
+  private def referenceOnlySemanticAxis(diagnostic: CandidateComparisonDiagnostic): Boolean =
+    diagnostic.decisionTrace.semanticAxisDiagnostics.referenceOnlyAxes.nonEmpty
+
+  private def referenceOnlyTwoSemanticAxis(diagnostic: CandidateComparisonDiagnostic): Boolean =
+    diagnostic.decisionTrace.semanticAxisDiagnostics.referenceOnlyAxes.size >= 2
+
+  private def nonTacticalComparison(diagnostic: CandidateComparisonDiagnostic): Boolean =
+    noEventCauseComparison(diagnostic)
+
+  private def noEventCauseComparison(diagnostic: CandidateComparisonDiagnostic): Boolean =
+    !diagnostic.decisionTrace.tacticalLoss &&
+      !diagnostic.decisionTrace.materialSwingEvidence &&
+      diagnostic.causeKinds.forall(kind =>
+        !ClaimEventCluster.kindForCause(kind).exists(kind =>
+          kind == ClaimEventClusterKind.TacticalEvent ||
+            kind == ClaimEventClusterKind.DefensiveEvent ||
+            kind == ClaimEventClusterKind.ConversionEvent ||
+            kind == ClaimEventClusterKind.MaterialEvent
+        )
+      )
+
+  private def moveJudgmentPrimaryCauseCount(result: MoveReviewJudgmentResult): Int =
+    result.packet.moveJudgmentView.fold(0)(_.primaryCauses.size)
+
+  private def hasMoveJudgmentPrimaryCause(diagnostic: CandidateComparisonDiagnostic): Boolean =
+    diagnostic.moveJudgmentView.hasPrimaryCause
+
+  private def generatedCauseWithoutPrimary(diagnostic: CandidateComparisonDiagnostic): Boolean =
+    diagnostic.relativeCauseDiagnostics.producedCauseIds.nonEmpty && !hasMoveJudgmentPrimaryCause(diagnostic)
+
+  private def primaryPlayedCauseWithoutPrimary(diagnostic: CandidateComparisonDiagnostic): Boolean =
+    !hasMoveJudgmentPrimaryCause(diagnostic) &&
+      diagnostic.relativeCauseDiagnostics.causeFlow.exists(flow =>
+        flow.causeRole == RelativeCauseRole.PrimaryPlayedCause &&
+          flow.causeComparisonKind == CandidateComparisonKind.PlayedVsBest
+      )
+
+  private def longTermCauseWithoutPrimary(diagnostic: CandidateComparisonDiagnostic): Boolean =
+    !hasMoveJudgmentPrimaryCause(diagnostic) &&
+      diagnostic.causeKinds.exists(kind => ClaimEventCluster.kindForCause(kind).isEmpty)
 
   private def relativeCauseClaimDroppedComparisonIds(
       diagnostics: List[CandidateComparisonDiagnostic],
@@ -1080,6 +1198,7 @@ object MoveReviewPhase3AuditRunner:
       "causeImportances" -> diagnostic.causeImportances.map(_.toString),
       "causeEventLines" -> diagnostic.causeEventLines.map(lineRefSummary),
       "relativeCauseDiagnostics" -> relativeCauseDiagnosticsJson(diagnostic.relativeCauseDiagnostics),
+      "moveJudgmentView" -> moveJudgmentViewDiagnosticJson(diagnostic.moveJudgmentView),
       "causeSupport" -> JsArray(
         diagnostic.causeSupport.map(support =>
           Json.obj(
@@ -1137,6 +1256,20 @@ object MoveReviewPhase3AuditRunner:
       "tacticalLossTrace" -> tacticalLossTraceJson(diagnostic.tacticalLossTrace),
       "failureClass" -> failureClassId(diagnostic.failureClass),
       "failureReasons" -> diagnostic.failureReasons.map(failureReasonId)
+    )
+
+  private def moveJudgmentViewDiagnosticJson(diagnostic: ComparisonMoveJudgmentViewDiagnostics): JsObject =
+    Json.obj(
+      "hasPrimaryCause" -> diagnostic.hasPrimaryCause,
+      "primaryCauseKinds" -> diagnostic.primaryCauseKinds.map(_.toString),
+      "secondaryCauseKinds" -> diagnostic.secondaryCauseKinds.map(_.toString),
+      "contextCauseKinds" -> diagnostic.contextCauseKinds.map(_.toString),
+      "primaryCauseEvidenceIds" -> diagnostic.primaryCauseEvidenceIds,
+      "primaryIdeaFamilies" -> diagnostic.primaryIdeaFamilies.map(_.toString).toList.sorted,
+      "primaryClaimCandidateFamilies" -> diagnostic.primaryClaimCandidateFamilies.map(_.toString).toList.sorted,
+      "primaryFinalClaimFamilies" -> diagnostic.primaryFinalClaimFamilies.map(_.toString).toList.sorted,
+      "primaryFramedCauseKinds" -> diagnostic.primaryFramedCauseKinds.map(_.toString),
+      "primaryUnframedCauseKinds" -> diagnostic.primaryUnframedCauseKinds.map(_.toString)
     )
 
   private def relativeCauseDiagnosticsJson(diagnostic: ComparisonRelativeCauseDiagnostics): JsObject =
@@ -1278,6 +1411,7 @@ object MoveReviewPhase3AuditRunner:
       "referenceStrategicImprovementScore" -> trace.referenceStrategicImprovementScore,
       "candidateStrategicImprovementScore" -> trace.candidateStrategicImprovementScore,
       "referenceStrategicImprovementOverCandidate" -> trace.referenceStrategicImprovementOverCandidate,
+      "semanticAxisDiagnostics" -> semanticAxisDiagnosticsJson(trace.semanticAxisDiagnostics),
       "candidatePlanEvidence" -> trace.candidatePlanEvidence,
       "candidateStrategicEvidence" -> trace.candidateStrategicEvidence,
       "candidateStrategicConcessionEvidence" -> trace.candidateStrategicConcessionEvidence,
@@ -1300,6 +1434,40 @@ object MoveReviewPhase3AuditRunner:
       "relationKinds" -> trace.relationKinds.map(_.toString),
       "referenceMotifs" -> trace.referenceMotifs,
       "candidateMotifs" -> trace.candidateMotifs
+    )
+
+  private def semanticAxisDiagnosticsJson(diagnostic: SemanticAxisDiagnostics): JsObject =
+    Json.obj(
+      "referenceAxisStrengths" -> intMapJson(diagnostic.referenceAxisStrengths),
+      "candidateAxisStrengths" -> intMapJson(diagnostic.candidateAxisStrengths),
+      "referenceAxisSourceIds" -> stringListMapJson(diagnostic.referenceAxisSourceIds),
+      "candidateAxisSourceIds" -> stringListMapJson(diagnostic.candidateAxisSourceIds),
+      "referenceAxisSourceLayers" -> stringListMapJson(
+        diagnostic.referenceAxisSourceLayers.view.mapValues(_.map(_.toString)).toMap
+      ),
+      "candidateAxisSourceLayers" -> stringListMapJson(
+        diagnostic.candidateAxisSourceLayers.view.mapValues(_.map(_.toString)).toMap
+      ),
+      "referenceAxes" -> diagnostic.referenceAxes,
+      "candidateAxes" -> diagnostic.candidateAxes,
+      "sharedAxes" -> diagnostic.sharedAxes,
+      "referenceOnlyAxes" -> diagnostic.referenceOnlyAxes,
+      "candidateOnlyAxes" -> diagnostic.candidateOnlyAxes,
+      "referenceLeadAxes" -> diagnostic.referenceLeadAxes,
+      "candidateLeadAxes" -> diagnostic.candidateLeadAxes,
+      "referenceLeadAxisCount" -> diagnostic.referenceLeadAxisCount,
+      "candidateLeadAxisCount" -> diagnostic.candidateLeadAxisCount,
+      "semanticDeltaAxisCount" -> diagnostic.semanticDeltaAxisCount
+    )
+
+  private def intMapJson(values: Map[String, Int]): JsObject =
+    JsObject(values.toList.sortBy(_._1).map { case (key, value) => key -> JsNumber(value) })
+
+  private def stringListMapJson(values: Map[String, List[String]]): JsObject =
+    JsObject(
+      values.toList
+        .sortBy(_._1)
+        .map { case (key, value) => key -> JsArray(value.sorted.map(JsString.apply)) }
     )
 
   private def lineDiagnosticJson(line: CandidateLineDiagnostic): JsObject =
@@ -2609,9 +2777,9 @@ object MoveReviewPhase3AuditRunner:
       Json.obj(
         "verdict" -> view.verdict.map(moveJudgmentVerdictJson),
         "verdictCarriers" -> view.verdictCarriers.map(moveJudgmentClaimFrameJson),
-        "primaryCauses" -> view.primaryCauses.map(moveJudgmentCauseFrameJson),
-        "secondaryCauses" -> view.secondaryCauses.map(moveJudgmentCauseFrameJson),
-        "contextCauses" -> view.contextCauses.map(moveJudgmentCauseFrameJson),
+        "primaryCauses" -> view.primaryCauses.map(moveJudgmentCauseFrameJson(result.packet, _)),
+        "secondaryCauses" -> view.secondaryCauses.map(moveJudgmentCauseFrameJson(result.packet, _)),
+        "contextCauses" -> view.contextCauses.map(moveJudgmentCauseFrameJson(result.packet, _)),
         "supportContextClusterIds" -> view.supportContextClusterIds,
         "overriddenLocalIdeas" -> view.overriddenLocalIdeas.map(moveJudgmentLocalIdeaFrameJson),
         "preservedLocalIdeas" -> view.preservedLocalIdeas.map(moveJudgmentLocalIdeaFrameJson)
@@ -2640,7 +2808,10 @@ object MoveReviewPhase3AuditRunner:
       "evidenceIds" -> frame.evidenceIds
     )
 
-  private def moveJudgmentCauseFrameJson(frame: MoveJudgmentCauseFrame): JsObject =
+  private def moveJudgmentCauseFrameJson(packet: EvidenceBackedJudgmentPacket, frame: MoveJudgmentCauseFrame): JsObject =
+    val ideasById = packet.ideas.map(idea => idea.ref.id -> idea).toMap
+    val claimsById = packet.claims.map(claim => claim.id -> claim).toMap
+    val lifecycleByCandidateId = packet.claimLifecycle.map(diagnostic => diagnostic.candidateId -> diagnostic).toMap
     Json.obj(
       "role" -> frame.role.toString,
       "clusterId" -> frame.clusterId,
@@ -2659,9 +2830,15 @@ object MoveReviewPhase3AuditRunner:
       "evaluationClaimIds" -> frame.evaluationClaimIds,
       "witnessClaimIds" -> frame.witnessClaimIds,
       "ideaIds" -> frame.ideaIds,
+      "ideaFamilies" -> frame.ideaIds.flatMap(id => ideasById.get(id).map(_.ref.family.toString)).distinct.sorted,
       "supportIdeaIds" -> frame.supportIdeaIds,
+      "supportIdeaFamilies" -> frame.supportIdeaIds.flatMap(id => ideasById.get(id).map(_.ref.family.toString)).distinct.sorted,
       "claimCandidateIds" -> frame.claimCandidateIds,
+      "claimCandidateFamilies" -> frame.claimCandidateIds.flatMap(id =>
+        lifecycleByCandidateId.get(id).map(_.family.toString)
+      ).distinct.sorted,
       "finalClaimIds" -> frame.finalClaimIds,
+      "finalClaimFamilies" -> frame.finalClaimIds.flatMap(id => claimsById.get(id).map(_.family.toString)).distinct.sorted,
       "relatedSupportClusterIds" -> frame.relatedSupportClusterIds,
       "evidenceIds" -> frame.evidenceIds,
       "proofDirectSourceIds" -> frame.proofDirectSourceIds,

@@ -903,40 +903,26 @@ private[chessjudgment] object TacticalRelationEvidence:
   def probeStableBranchKey(result: ProbeResult, plies: Int = 2): Option[String] =
     result.variationHash.flatMap(clean).map(_.toLowerCase)
       .orElse(result.seedId.flatMap(clean).map(_.toLowerCase))
-      .orElse(probeReplyPrefixKeyFromMoves(result.bestReplyPv, plies))
-      .orElse(
-        result.replyPvs.toList
-          .flatten
-          .flatMap(probeReplyPrefixKeyFromMoves(_, plies))
-          .headOption
-      )
+      .orElse(probeReplyMoveLines(result).flatMap(probeReplyPrefixKeyFromMoves(_, plies)).headOption)
 
   def probeFullReplyLineKey(result: ProbeResult): Option[String] =
-    probeFullReplyLineKeyFromMoves(result.bestReplyPv)
-      .orElse {
-        result.replyPvs.toList
-          .flatten
-          .flatMap(probeFullReplyLineKeyFromMoves)
-          .headOption
-      }
+    probeReplyMoveLines(result).flatMap(probeFullReplyLineKeyFromMoves).headOption
 
   def probeFullReplyLineMatches(result: ProbeResult, expectedBranchKey: String): Boolean =
     probeFullReplyLineKey(result).contains(expectedBranchKey) ||
-      result.replyPvs.toList.flatten.exists(line =>
+      probeReplyMoveLines(result).exists(line =>
         probeFullReplyLineKeyFromMoves(line).contains(expectedBranchKey)
       )
 
   def probeFirstReplyOrMoveKey(result: ProbeResult): Option[String] =
     result.variationHash.flatMap(clean)
       .orElse(result.seedId.flatMap(clean))
-      .orElse(probeFirstReplyKeyFromMoves(result.bestReplyPv))
-      .orElse(
-        result.replyPvs
-          .flatMap(_.headOption)
-          .flatMap(probeFirstReplyKeyFromMoves)
-      )
+      .orElse(probeReplyMoveLines(result).flatMap(probeFirstReplyKeyFromMoves).headOption)
       .orElse(result.probedMove.flatMap(clean))
       .orElse(result.candidateMove.flatMap(clean))
+
+  private def probeReplyMoveLines(result: ProbeResult): List[List[String]] =
+    result.replyLines.toList.flatten.map(_.moves).filter(_.nonEmpty)
 
   def probeReplyPrefixKeyFromMoves(moves: List[String], plies: Int = 2): Option[String] =
     val normalized = normalizedBoundedMoves(moves, plies)

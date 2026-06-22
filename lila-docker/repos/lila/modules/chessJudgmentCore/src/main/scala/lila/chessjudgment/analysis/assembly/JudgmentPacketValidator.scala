@@ -1239,7 +1239,7 @@ object JudgmentPacketValidator:
 
   private def validBranchReplyProbeRequest(request: ProbeRequest): Boolean =
     val signals = request.requiredSignals.map(_.trim).filter(_.nonEmpty).toSet
-    Set("replyPvs", "depth", "purpose", "variationHash").subsetOf(signals) &&
+    Set("replyLines", "depth", "purpose", "variationHash").subsetOf(signals) &&
       request.candidateMove.exists(validUciMove) &&
       request.multiPv.exists(_ >= 2) &&
       request.depthFloor.exists(floor => floor > 0 && floor <= request.depth) &&

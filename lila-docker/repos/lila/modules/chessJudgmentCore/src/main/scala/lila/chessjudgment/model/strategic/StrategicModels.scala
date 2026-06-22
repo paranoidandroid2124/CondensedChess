@@ -1,7 +1,6 @@
 package lila.chessjudgment.model.strategic
 
 import chess.{ Color, Role, Square }
-import lila.chessjudgment.model.FingerprintFormat
 
 case class PreventedPlan(
     planId: String, // e.g. "StopCheck", "PreventFork", "DenyBreak"
@@ -28,16 +27,6 @@ case class PieceActivity(
     coordinationLinks: List[Square], // Squares defended/attacked in tandem with friendly pieces
     directionalTargets: List[Square] = Nil, // Empty strategic squares worth working toward, but not yet route-quality
     concreteTargets: List[Square] = Nil // Enemy-occupied tactical or exchange squares, not redeployment routes
-)
-
-enum WeakComplexKind:
-  case Holes, DoubledPawns, BackwardPawn, HangingPawns
-
-case class WeakComplex(
-    color: Color, // White/Black squares
-    squares: List[Square], // The weak squares e.g. f3, g2, h3
-    isOutpost: Boolean, // Can an enemy piece settle here safely?
-    kind: WeakComplexKind
 )
 
 case class Compensation(
@@ -74,18 +63,6 @@ case class EndgameFeature(
     primaryPattern: Option[String] = None
 )
 
-// Output of PracticalityScorer
-case class PracticalAssessment(
-    engineScore: Int, // Standard CP
-    practicalScore: Double, // Adjusted CP
-    biasFactors: List[BiasFactor]
-)
-
-case class BiasFactor(
-    factorId: String,
-    weight: Double
-)
-
 // (VariationLine moved to Variation.scala)
 
 // StructureTag and PlanTag have been removed as they were obsolete dead code.
@@ -117,74 +94,31 @@ enum PositionalTag:
   case RemovingTheDefender(target: Role, color: Color)
   case Initiative(color: Color)
 
-enum PlanLifecyclePhase:
-  case Preparation
-  case Execution
-  case Fruition
-  case Failure
-  case Aborted
-
-enum PlanAbortReason:
-  case ForcedPivot
-
 case class PlanContinuity(
   planId: Option[String],
   consecutivePlies: Int,
-  startingPly: Int,
-  phase: PlanLifecyclePhase = PlanLifecyclePhase.Preparation,
-  commitmentScore: Double = 0.0,
-  abortedReason: Option[PlanAbortReason] = None
+  startingPly: Int
 ):
   lazy val build_fingerprint: String =
-    s"${planId.getOrElse("")}:$consecutivePlies:$startingPly:${phase.toString}:${FingerprintFormat.fixed2(commitmentScore)}:${abortedReason.getOrElse("")}"
+    s"${planId.getOrElse("")}:$consecutivePlies:$startingPly"
 object PlanContinuity:
   import play.api.libs.json.*
-  private given Reads[PlanLifecyclePhase] = Reads {
-    case JsString(value) =>
-      scala.util.Try(PlanLifecyclePhase.valueOf(value)).toOption match
-        case Some(v) => JsSuccess(v)
-        case None    => JsError(s"invalid plan lifecycle phase: $value")
-    case _ => JsError("phase must be a string")
-  }
-  private given Writes[PlanLifecyclePhase] = Writes(v => JsString(v.toString))
-  private given Reads[PlanAbortReason] = Reads {
-    case JsString(value) =>
-      scala.util.Try(PlanAbortReason.valueOf(value)).toOption match
-        case Some(v) => JsSuccess(v)
-        case None    => JsError(s"invalid plan abort reason: $value")
-    case _ => JsError("abort reason must be a string id")
-  }
-  private given Writes[PlanAbortReason] = Writes(v => JsString(v.toString))
-
   given Reads[PlanContinuity] = Reads { js =>
     for
       planId <- (js \ "planId").validateOpt[String]
       consecutivePlies <- (js \ "consecutivePlies").validate[Int]
       startingPly <- (js \ "startingPly").validate[Int]
-      phase <- (js \ "phase").validateOpt[PlanLifecyclePhase]
-      commitmentScore <- (js \ "commitmentScore").validateOpt[Double]
-      abortedReason <- (js \ "abortedReason").validateOpt[PlanAbortReason]
     yield PlanContinuity(
       planId = planId,
       consecutivePlies = consecutivePlies,
-      startingPly = startingPly,
-      phase = phase.getOrElse(PlanLifecyclePhase.Preparation),
-      commitmentScore = commitmentScore.getOrElse {
-        if consecutivePlies >= 3 then 0.75
-        else if consecutivePlies == 2 then 0.55
-        else 0.35
-      },
-      abortedReason = abortedReason
+      startingPly = startingPly
     )
   }
   given Writes[PlanContinuity] = Writes { c =>
     Json.obj(
       "planId" -> c.planId,
       "consecutivePlies" -> c.consecutivePlies,
-      "startingPly" -> c.startingPly,
-      "phase" -> c.phase,
-      "commitmentScore" -> c.commitmentScore,
-      "abortedReason" -> c.abortedReason
+      "startingPly" -> c.startingPly
     )
   }
 
@@ -212,12 +146,3 @@ object StrategicSalience:
         // Opening can still carry stable strategic content when theme coherence is clear.
         if (consecutivePlies >= 2 && themeMaxShare >= 0.55) || themeMaxShare >= 0.72 then StrategicSalience.High
         else StrategicSalience.Low
-
-case class AnalyzedCandidate(
-    move: String,
-    score: Int, // Normalized CP
-    motifs: List[lila.chessjudgment.model.Motif],
-    prophylaxisResults: List[PreventedPlan],
-    facts: List[lila.chessjudgment.model.Fact] = Nil, // Verified Facts
-    line: VariationLine
-)

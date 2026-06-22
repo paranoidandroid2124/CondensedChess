@@ -29,7 +29,6 @@ case class VariationLine(
     mate: Option[Int] = None,
     depth: Int = 0,
     resultingFen: Option[String] = None,
-    lineFeatures: List[VariationFeature] = Nil,
     parsedMoves: List[PvMove] = Nil // Parsed moves with metadata
 ):
   /** Get our move (index 0) */
@@ -41,29 +40,3 @@ case class VariationLine(
 object VariationLine:
   given Reads[VariationLine] = Json.reads[VariationLine]
   given Writes[VariationLine] = Json.writes[VariationLine]
-
-/**
- * Container for engine analysis evidence.
- * Preserves raw PV data.
- */
-case class EngineEvidence(
-    depth: Int,
-    variations: List[VariationLine]
-):
-  /** Best variation (rank 1) */
-  def best: Option[VariationLine] = variations.headOption
-
-object EngineEvidence:
-  given Reads[EngineEvidence] = Json.reads[EngineEvidence]
-  given Writes[EngineEvidence] = Json.writes[EngineEvidence]
-
-enum VariationFeature:
-  case Sharp, Solid, Prophylaxis, Simplification
-
-object VariationFeature:
-  given Reads[VariationFeature] = Reads:
-    case JsString(s) => 
-      try JsSuccess(VariationFeature.valueOf(s))
-      catch case _: Exception => JsError(s"Invalid VariationFeature: $s")
-    case _ => JsError("String expected")
-  given Writes[VariationFeature] = Writes(t => JsString(t.toString))

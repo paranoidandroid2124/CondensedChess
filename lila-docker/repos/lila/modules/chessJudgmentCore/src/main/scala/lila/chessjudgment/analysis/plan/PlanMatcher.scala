@@ -406,10 +406,10 @@ object PlanMatcher:
   private def availablePlanSignals(ctx: PlanInteractionContext, motifs: List[Motif]): Set[PlanSignal] =
     import PlanSignal.*
     Set(
-      Option.when(motifs.exists(planMotif))(KeyMotifs),
-      Option.when(ctx.boardProfile.exists(_.hasStrategicSnapshot))(FutureSnapshot),
-      Option.when(ctx.positionAssessment.exists(_.candidateSet.bestLineSideRelativeEvalCp.nonEmpty))(ReplyPvs),
-      Option.when(ctx.structureProfile.nonEmpty || ctx.pawnAnalysis.nonEmpty || ctx.planAlignment.nonEmpty)(BoardDelta)
+      Option.when(motifs.exists(planMotif))(MoveMotifSignal),
+      Option.when(ctx.boardProfile.exists(_.hasStrategicSnapshot))(StrategicSnapshotSignal),
+      Option.when(ctx.positionAssessment.exists(_.candidateSet.bestLineSideRelativeEvalCp.nonEmpty))(CandidateLineSignal),
+      Option.when(ctx.structureProfile.nonEmpty || ctx.pawnAnalysis.nonEmpty || ctx.planAlignment.nonEmpty)(StructuralSignal)
     ).flatten
 
   private def applySignalGate(pm: PlanMatch, availableSignals: Set[PlanSignal]): PlanMatch =
