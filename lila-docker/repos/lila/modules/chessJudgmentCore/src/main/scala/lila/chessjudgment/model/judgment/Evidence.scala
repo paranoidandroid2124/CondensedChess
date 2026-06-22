@@ -32,6 +32,7 @@ enum EvidenceProducer:
   case ApplicabilityAssessmentProducer
   case ThreatPressureProducer
   case MoveMotifProducer
+  case TacticalMechanismProducer
   case MoveTransitionProducer
   case StructuralDeltaProducer
   case PlanPressureProducer

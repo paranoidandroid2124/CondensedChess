@@ -1,6 +1,7 @@
 package lila.chessjudgment.analysis.tactical
 
 import lila.chessjudgment.model.Motif
+import lila.chessjudgment.model.judgment.MoveMotifEvidence
 import lila.chessjudgment.model.judgment.RelationFactKind
 
 object TacticalMotifClassifier:
@@ -44,6 +45,21 @@ object TacticalMotifClassifier:
 
   def isRootMoveMotif(rootMove: String, motif: Motif): Boolean =
     motif.move.contains(rootMove) || (motif.move.isEmpty && motif.plyIndex == 0)
+
+  def isRootMoveMotif(payload: MoveMotifEvidence): Boolean =
+    payload.isRootEvent
+
+  def rootMotif(payload: MoveMotifEvidence): Option[Motif] =
+    Option.when(isRootMoveMotif(payload))(payload.motif)
+
+  def isRootForcing(payload: MoveMotifEvidence): Boolean =
+    isRootMoveMotif(payload) && isForcing(payload.motif)
+
+  def isRootCauseEligible(payload: MoveMotifEvidence): Boolean =
+    isRootMoveMotif(payload) && isCauseEligible(payload.motif)
+
+  def isRootTactical(payload: MoveMotifEvidence): Boolean =
+    isRootMoveMotif(payload) && isTactical(payload.motif)
 
   def isRiskRelation(kind: RelationFactKind): Boolean =
     kind match

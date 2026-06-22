@@ -2,9 +2,15 @@ package lila.chessjudgment.analysis.plan
 
 import chess.*
 import lila.chessjudgment.analysis.evaluation.{ JudgmentThresholds, PerspectiveMath }
-import lila.chessjudgment.analysis.singlePosition.{ GamePhaseType, PawnPlayAnalysis, SinglePositionAssessment, ThreatAnalysis, TensionPolicy }
+import lila.chessjudgment.analysis.singlePosition.{
+  GamePhaseType,
+  PawnPlayAnalysis,
+  SinglePositionAssessment,
+  ThreatKind,
+  TensionPolicy
+}
 import lila.chessjudgment.model.*
-import lila.chessjudgment.model.judgment.BoardPositionProfile
+import lila.chessjudgment.model.judgment.{ BoardPositionProfile, ThreatEpisode }
 import lila.chessjudgment.model.Motif.*
 import lila.chessjudgment.model.structure.{ PlanAlignment, StructureId, StructureProfile }
 import lila.chessjudgment.model.strategic.PlanTaxonomy.{ PlanKind, PlanSignal, PlanTheme, SubplanCatalog }
@@ -14,8 +20,8 @@ case class PlanInteractionContext(
     positionAssessment: Option[SinglePositionAssessment] = None,
     pawnAnalysis: Option[PawnPlayAnalysis] = None,
     opponentPawnAnalysis: Option[PawnPlayAnalysis] = None,
-    threatsToUs: Option[ThreatAnalysis] = None,
-    threatsToThem: Option[ThreatAnalysis] = None,
+    threatEpisodesToUs: List[ThreatEpisode] = Nil,
+    threatEpisodesToThem: List[ThreatEpisode] = Nil,
     openingName: Option[String] = None,
     isWhiteToMove: Boolean,
     positionKey: Option[String] = None,
@@ -35,32 +41,23 @@ case class PlanInteractionContext(
     case None                           => "unclassified"
   def phaseEnumOpt: Option[GamePhaseType] =
     positionAssessment.map(_.gamePhase.phaseType)
-  private def materialThreat(threat: lila.chessjudgment.analysis.singlePosition.Threat): Boolean =
-    threat.kind == lila.chessjudgment.analysis.singlePosition.ThreatKind.Mate ||
-      threat.lossIfIgnoredWinPercent.exists(_ >= JudgmentThresholds.MATERIAL_THREAT_WP)
-  private def significantThreat(threat: lila.chessjudgment.analysis.singlePosition.Threat): Boolean =
-    threat.kind == lila.chessjudgment.analysis.singlePosition.ThreatKind.Mate ||
-      threat.lossIfIgnoredWinPercent.exists(_ >= JudgmentThresholds.SIGNIFICANT_THREAT_WP)
+  private def materialThreat(episode: ThreatEpisode): Boolean =
+    episode.kind == ThreatKind.Mate ||
+      episode.lossIfIgnoredWinPercent.exists(_ >= JudgmentThresholds.MATERIAL_THREAT_WP)
+  private def significantThreat(episode: ThreatEpisode): Boolean =
+    episode.kind == ThreatKind.Mate ||
+      episode.lossIfIgnoredWinPercent.exists(_ >= JudgmentThresholds.SIGNIFICANT_THREAT_WP)
   def tacticalThreatToUs: Boolean =
-    threatsToUs.exists(_.threats.exists(t => t.turnsToImpact <= 2 && materialThreat(t)))
+    threatEpisodesToUs.exists(t => t.turnsToImpact <= 2 && materialThreat(t))
   def strategicThreatToUs: Boolean =
-    threatsToUs.exists(_.threats.exists(t =>
-      t.turnsToImpact <= 5 && significantThreat(t) && !tacticalThreatToUs
-    ))
+    !tacticalThreatToUs &&
+      threatEpisodesToUs.exists(t => t.turnsToImpact <= 5 && significantThreat(t))
   def tacticalThreatToThem: Boolean =
-    threatsToThem.exists(_.threats.exists(t => t.turnsToImpact <= 2 && materialThreat(t)))
+    threatEpisodesToThem.exists(t => t.turnsToImpact <= 2 && materialThreat(t))
   def strategicThreatToThem: Boolean =
-    threatsToThem.exists(_.threats.exists(t =>
-      t.turnsToImpact <= 5 && significantThreat(t) && !tacticalThreatToThem
-    ))
-  def maxThreatWinPercentLossToUs: Double =
-    threatsToUs.flatMap(_.maxWinPercentLossIfIgnored).getOrElse(0.0)
-  def maxThreatWinPercentLossToThem: Double =
-    threatsToThem.flatMap(_.maxWinPercentLossIfIgnored).getOrElse(0.0)
-  def underDefensivePressure: Boolean = tacticalThreatToUs || strategicThreatToUs
-  def holdingAttackingThreats: Boolean = tacticalThreatToThem || strategicThreatToThem
-  def simplificationReliefPossible: Boolean = underDefensivePressure
-  def attackingOpportunityAtRisk: Boolean = holdingAttackingThreats
+    !tacticalThreatToThem &&
+      threatEpisodesToThem.exists(t => t.turnsToImpact <= 5 && significantThreat(t))
+  def underDefensivePressure: Boolean = strategicThreatToUs
 
 object PlanMatcher:
   object Theme:
@@ -73,7 +70,6 @@ object PlanMatcher:
     val FavorableExchange = PlanTheme.FavorableExchange
     val FlankInfrastructure = PlanTheme.FlankInfrastructure
     val AdvantageTransformation = PlanTheme.AdvantageTransformation
-    val ImmediateTacticalGain = PlanTheme.ImmediateTacticalGain
 
   object Subplan:
     val OpeningDevelopment = PlanKind.OpeningDevelopment
@@ -95,9 +91,6 @@ object PlanMatcher:
     val HookCreation = PlanKind.HookCreation
     val RookLiftScaffold = PlanKind.RookLiftScaffold
     val AdvantageTransformation = PlanKind.SimplificationConversion
-    val ImmediateTacticalGain = PlanKind.ForcingTacticalShot
-    val DefenderOverload = PlanKind.DefenderOverload
-    val ClearanceBreak = PlanKind.ClearanceBreak
 
   private case class SideSnapshot(
       lockedCenter: Boolean,
@@ -123,7 +116,7 @@ object PlanMatcher:
     yield
       val openingRaw =
         Option.when(phase == GamePhaseType.Opening)(
-          openingDevelopment(motifs, ctx, side, profile, s)
+          openingDevelopment(motifs, side, profile, s)
         ).toList
       val raw =
         openingRaw ++ List(
@@ -134,8 +127,7 @@ object PlanMatcher:
           breakPrep(motifs, ctx, side, profile),
           favorableExchange(motifs, ctx, side),
           flankInfrastructure(motifs, ctx, side, s),
-          advantageTransformation(motifs, ctx, side, s),
-          immediateTacticalGain(motifs, ctx, side)
+          advantageTransformation(motifs, ctx, side, s)
       )
       val (compatible, events) = applyCompatWithEvents(raw, ctx, side)
       val themePolicyScores = computePlanThemePolicyScores(compatible)
@@ -209,7 +201,6 @@ object PlanMatcher:
 
   private def openingDevelopment(
       m: List[Motif],
-      ctx: PlanInteractionContext,
       side: Color,
       profile: BoardPositionProfile,
       s: SideSnapshot
@@ -235,9 +226,7 @@ object PlanMatcher:
         math.min(0.06, ourCenterPawns.max(0) * 0.03) +
         (if hasCastled then 0.05 else 0.0) +
         math.min(0.18, ev.size * 0.05) -
-        (if developmentNeed == 0 && !hasCastled && ev.isEmpty then 0.08 else 0.0) -
-        (if ctx.tacticalThreatToUs then 0.12 else 0.0) -
-        (if ctx.tacticalThreatToThem then 0.08 else 0.0)
+        (if developmentNeed == 0 && !hasCastled && ev.isEmpty then 0.08 else 0.0)
     themed(Theme.Opening, Plan.OpeningDevelopment(side), score, ev, Some(Subplan.OpeningDevelopment))
 
   private def restriction(m: List[Motif], ctx: PlanInteractionContext, side: Color, s: SideSnapshot): PlanMatch =
@@ -248,12 +237,11 @@ object PlanMatcher:
     }
     val score =
       0.28 +
-        (if ctx.tacticalThreatToUs then 0.22 else 0.0) +
         (if ctx.strategicThreatToUs then 0.12 else 0.0) +
         (if s.clamp then 0.14 else 0.0) +
         (if s.lockedCenter then 0.06 else 0.0) +
         math.min(0.16, ev.size * 0.05) -
-        (if ctx.tacticalThreatToThem && !ctx.tacticalThreatToUs then 0.08 else 0.0)
+        (if ctx.strategicThreatToThem && !ctx.strategicThreatToUs then 0.08 else 0.0)
     themed(Theme.Restriction, Plan.Prophylaxis(side), score, ev, Some(Subplan.Restriction))
 
   private def redeployment(m: List[Motif], ctx: PlanInteractionContext, side: Color, s: SideSnapshot): PlanMatch =
@@ -281,7 +269,7 @@ object PlanMatcher:
         math.min(0.14, s.lowMobility * 0.04) +
         math.min(0.14, s.entrenched * 0.06) +
         math.min(0.14, ev.size * 0.04) -
-        (if ctx.tacticalThreatToUs then 0.07 else 0.0)
+        (if ctx.strategicThreatToUs then 0.07 else 0.0)
     themed(Theme.Redeployment, Plan.PieceActivation(side), score, ev, Some(subplanId))
 
   private def spaceClamp(m: List[Motif], side: Color, s: SideSnapshot): PlanMatch =
@@ -332,7 +320,7 @@ object PlanMatcher:
         (if pa.exists(_.tensionPolicy == TensionPolicy.Release) then 0.10 else 0.0) +
         math.min(0.12, profile.pawnTensionCount * 0.03) +
         math.min(0.16, ev.size * 0.05) -
-        (if ctx.tacticalThreatToUs then 0.08 else 0.0)
+        (if ctx.strategicThreatToUs then 0.08 else 0.0)
     themed(Theme.PawnBreakPreparation, Plan.PawnBreakPreparation(side), score, ev, Some(subplanId))
 
   private def favorableExchange(m: List[Motif], ctx: PlanInteractionContext, side: Color): PlanMatch =
@@ -377,7 +365,7 @@ object PlanMatcher:
         (if s.hookChance then 0.08 else 0.0) +
         math.min(0.25, ev.size * 0.10) -
         (if s.openCenter && s.kingExposure >= 2 then 0.12 else 0.0) -
-        (if ctx.tacticalThreatToUs then 0.08 else 0.0)
+        (if ctx.strategicThreatToUs then 0.08 else 0.0)
     themed(Theme.FlankInfrastructure, Plan.PawnStorm(side), score, ev, Some(subplanId))
 
   private def advantageTransformation(m: List[Motif], ctx: PlanInteractionContext, side: Color, s: SideSnapshot): PlanMatch =
@@ -394,44 +382,6 @@ object PlanMatcher:
         (if ctx.positionAssessment.exists(_.simplifyBias.shouldSimplify) then 0.10 else 0.0) +
         math.min(0.16, ev.size * 0.05)
     themed(Theme.AdvantageTransformation, Plan.Simplification(side), score, ev, Some(Subplan.AdvantageTransformation))
-
-  private def immediateTacticalGain(m: List[Motif], ctx: PlanInteractionContext, side: Color): PlanMatch =
-    val ev = evidence(m, 0.20) {
-      case Motif.Check(_, _, _, c, _, _) if c == side => true
-      case Fork(_, _, _, _, c, _, _) if c == side => true
-      case Pin(_, _, _, c, _, _, _, _, _) if c == side => true
-      case Skewer(_, _, _, c, _, _, _, _, _) if c == side => true
-      case DiscoveredAttack(_, _, _, c, _, _, _, _, _) if c == side => true
-      case Capture(_, _, _, t, c, _, _, _) if c == side &&
-          (t == CaptureType.Winning || t == CaptureType.Sacrifice || t == CaptureType.ExchangeSacrifice) => true
-    }
-    val overloadSignal =
-      m.exists {
-        case Overloading(_, _, _, c, _, _) if c == side => true
-        case RemovingTheDefender(_, _, _, _, c, _, _) if c == side => true
-        case Deflection(_, _, c, _, _) if c == side => true
-        case _ => false
-      }
-    val clearanceSignal =
-      !overloadSignal &&
-        m.exists {
-          case Clearance(_, _, _, _, c, _, _) if c == side => true
-          case Interference(_, _, _, _, c, _, _) if c == side => true
-          case _ => false
-        }
-    val subplanId =
-      if overloadSignal then Subplan.DefenderOverload
-      else if clearanceSignal then Subplan.ClearanceBreak
-      else Subplan.ImmediateTacticalGain
-    val tacticalCount = m.count(mm => mm.category == MotifCategory.Tactical && mm.color == side)
-    val score =
-      0.18 +
-        math.min(0.28, tacticalCount * 0.06) +
-        (if ctx.tacticalThreatToThem then 0.22 else 0.0) +
-        (if ctx.maxThreatWinPercentLossToThem >= JudgmentThresholds.URGENT_THREAT_WP then 0.10 else 0.0) +
-        math.min(0.18, ev.size * 0.06) -
-        (if ctx.tacticalThreatToUs && !ctx.tacticalThreatToThem then 0.12 else 0.0)
-    themed(Theme.ImmediateTacticalGain, Plan.Counterplay(side), score, ev, Some(subplanId))
 
   private def themed(
       theme: PlanTheme,
@@ -456,7 +406,7 @@ object PlanMatcher:
   private def availablePlanSignals(ctx: PlanInteractionContext, motifs: List[Motif]): Set[PlanSignal] =
     import PlanSignal.*
     Set(
-      Option.when(motifs.nonEmpty)(KeyMotifs),
+      Option.when(motifs.exists(planMotif))(KeyMotifs),
       Option.when(ctx.boardProfile.exists(_.hasStrategicSnapshot))(FutureSnapshot),
       Option.when(ctx.positionAssessment.exists(_.candidateSet.bestLineSideRelativeEvalCp.nonEmpty))(ReplyPvs),
       Option.when(ctx.structureProfile.nonEmpty || ctx.pawnAnalysis.nonEmpty || ctx.planAlignment.nonEmpty)(BoardDelta)
@@ -492,7 +442,10 @@ object PlanMatcher:
       motifs: List[Motif],
       weight: Double
   )(pf: PartialFunction[Motif, Boolean]): List[EvidenceAtom] =
-    motifs.collect { case m if pf.isDefinedAt(m) && pf(m) => EvidenceAtom(m, weight) }.take(4)
+    motifs.collect { case m if planMotif(m) && pf.isDefinedAt(m) && pf(m) => EvidenceAtom(m, weight) }.take(4)
+
+  private def planMotif(motif: Motif): Boolean =
+    motif.category != MotifCategory.Tactical
 
   private def snapshot(ctx: PlanInteractionContext, side: Color): Option[SideSnapshot] =
     ctx.boardProfile.map { profile =>

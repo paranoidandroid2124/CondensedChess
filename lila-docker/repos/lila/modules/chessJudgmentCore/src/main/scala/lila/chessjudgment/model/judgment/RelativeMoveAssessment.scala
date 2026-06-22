@@ -1,6 +1,7 @@
 package lila.chessjudgment.model.judgment
 
 import chess.Color
+import lila.chessjudgment.analysis.singlePosition.{ ThreatDriver, ThreatKind, ThreatSeverity }
 import lila.chessjudgment.model.CollapseAnalysis
 
 case class CandidateSetComparison(
@@ -16,6 +17,137 @@ enum CandidateComparisonKind:
   case BestVsSecond
   case PlayedVsAlternative
   case ReferenceVsAlternative
+
+enum RelativeCauseRole:
+  case PrimaryPlayedCause
+  case PlayedAlternativeContext
+  case CandidateSetConstraint
+  case AlternativeDiagnostic
+
+  def defaultEventLine(referenceLine: LineNodeRef, candidateLine: LineNodeRef): LineNodeRef =
+    this match
+      case RelativeCauseRole.PrimaryPlayedCause | RelativeCauseRole.PlayedAlternativeContext =>
+        candidateLine
+      case RelativeCauseRole.CandidateSetConstraint =>
+        referenceLine
+      case RelativeCauseRole.AlternativeDiagnostic =>
+        candidateLine
+
+object RelativeCauseRole:
+  def fromComparisonKind(kind: CandidateComparisonKind): RelativeCauseRole =
+    kind match
+      case CandidateComparisonKind.PlayedVsBest =>
+        RelativeCauseRole.PrimaryPlayedCause
+      case CandidateComparisonKind.PlayedVsAlternative =>
+        RelativeCauseRole.PlayedAlternativeContext
+      case CandidateComparisonKind.BestVsSecond =>
+        RelativeCauseRole.CandidateSetConstraint
+      case CandidateComparisonKind.ReferenceVsAlternative =>
+        RelativeCauseRole.AlternativeDiagnostic
+
+enum RelativeCauseSourceSide:
+  case Reference
+  case Candidate
+  case Shared
+  case Mixed
+
+object RelativeCauseSourceSide:
+  def eventLine(
+      sourceSide: RelativeCauseSourceSide,
+      role: RelativeCauseRole,
+      referenceLine: LineNodeRef,
+      candidateLine: LineNodeRef
+  ): LineNodeRef =
+    sourceSide match
+      case RelativeCauseSourceSide.Reference =>
+        referenceLine
+      case RelativeCauseSourceSide.Candidate =>
+        candidateLine
+      case RelativeCauseSourceSide.Shared | RelativeCauseSourceSide.Mixed =>
+        role.defaultEventLine(referenceLine, candidateLine)
+
+  def fromSupportEvidence(
+      kind: RelativeCauseKind,
+      referenceLine: LineNodeRef,
+      candidateLine: LineNodeRef,
+      supportEvidence: List[EvidenceRef]
+  ): Option[RelativeCauseSourceSide] =
+    if supportEvidence.isEmpty then
+      Some(
+        if kind == RelativeCauseKind.OnlyMoveNecessity then RelativeCauseSourceSide.Reference
+        else RelativeCauseSourceSide.Shared
+      )
+    else
+      combine(
+        supportEvidence.flatMap(ref => evidenceRefSourceSide(ref, referenceLine, candidateLine))
+      )
+
+  private def evidenceRefSourceSide(
+      ref: EvidenceRef,
+      referenceLine: LineNodeRef,
+      candidateLine: LineNodeRef
+  ): Option[RelativeCauseSourceSide] =
+    ref.line match
+      case Some(line) if line == referenceLine =>
+        Some(RelativeCauseSourceSide.Reference)
+      case Some(line) if line == candidateLine =>
+        Some(RelativeCauseSourceSide.Candidate)
+      case _ =>
+        ref.scope match
+          case EvidenceScope.BestLine | EvidenceScope.ReferenceTransition | EvidenceScope.AfterReferencePosition =>
+            lineRoleSourceSide(LineNodeRole.BestReference, referenceLine, candidateLine)
+          case EvidenceScope.PlayedLine | EvidenceScope.PlayedTransition | EvidenceScope.AfterPlayedPosition =>
+            lineRoleSourceSide(LineNodeRole.Played, referenceLine, candidateLine)
+          case EvidenceScope.CandidateLine | EvidenceScope.AlternativeTransition =>
+            lineRoleSourceSide(LineNodeRole.Alternative, referenceLine, candidateLine)
+          case EvidenceScope.BeforePosition | EvidenceScope.CurrentPosition =>
+            Some(RelativeCauseSourceSide.Shared)
+          case EvidenceScope.ThreatLine | EvidenceScope.Counterfactual =>
+            None
+
+  private def lineRoleSourceSide(
+      role: LineNodeRole,
+      referenceLine: LineNodeRef,
+      candidateLine: LineNodeRef
+  ): Option[RelativeCauseSourceSide] =
+    if referenceLine.role == role then Some(RelativeCauseSourceSide.Reference)
+    else if candidateLine.role == role then Some(RelativeCauseSourceSide.Candidate)
+    else None
+
+  private def combine(sides: List[RelativeCauseSourceSide]): Option[RelativeCauseSourceSide] =
+    if sides.isEmpty then None
+    else
+      val concreteSides = sides.filter(side =>
+        side == RelativeCauseSourceSide.Reference || side == RelativeCauseSourceSide.Candidate
+      ).distinct
+      val hasShared = sides.contains(RelativeCauseSourceSide.Shared)
+      if concreteSides.size > 1 || sides.contains(RelativeCauseSourceSide.Mixed) || (concreteSides.nonEmpty && hasShared) then
+        Some(RelativeCauseSourceSide.Mixed)
+      else concreteSides.headOption.orElse(Option.when(hasShared)(RelativeCauseSourceSide.Shared))
+
+enum RelativeCauseImportance:
+  case Primary
+  case Supporting
+  case Context
+
+object RelativeCauseImportance:
+  def from(
+      role: RelativeCauseRole,
+      sourceSide: RelativeCauseSourceSide,
+      kind: RelativeCauseKind
+  ): RelativeCauseImportance =
+    role match
+      case RelativeCauseRole.PrimaryPlayedCause
+          if sourceSide == RelativeCauseSourceSide.Shared && kind != RelativeCauseKind.OnlyMoveNecessity =>
+        RelativeCauseImportance.Supporting
+      case RelativeCauseRole.PrimaryPlayedCause =>
+        RelativeCauseImportance.Primary
+      case RelativeCauseRole.CandidateSetConstraint if kind == RelativeCauseKind.OnlyMoveNecessity =>
+        RelativeCauseImportance.Primary
+      case RelativeCauseRole.CandidateSetConstraint =>
+        RelativeCauseImportance.Supporting
+      case RelativeCauseRole.PlayedAlternativeContext | RelativeCauseRole.AlternativeDiagnostic =>
+        RelativeCauseImportance.Context
 
 case class EvalComparison(
     mover: Color,
@@ -52,9 +184,7 @@ enum RelativeCauseKind:
   case StructuralImprovement
   case TargetPressureGain
   case CenterControlGain
-  case CastlingRightsConcession
   case StrategicConcession
-  case StrategicIdeaRefuted
   case MissedStrategicImprovement
   case PlanImprovement
   case PlanContradiction
@@ -71,20 +201,15 @@ case class RelativeCauseFact(
     verdict: MoveChoiceVerdict,
     winPercentLossForMover: Double,
     candidateWinPercentDeltaForMover: Double,
-    evidenceLines: List[LineNodeRef]
+    supportEvidence: List[EvidenceRef],
+    evidenceLines: List[LineNodeRef],
+    role: RelativeCauseRole,
+    eventLine: LineNodeRef,
+    sourceSide: RelativeCauseSourceSide,
+    importance: RelativeCauseImportance
 )(val proof: Option[RelativeCauseProof] = None):
-  def eventLine: LineNodeRef =
-    if kind == RelativeCauseKind.CandidateTacticalLiability then candidateLine
-    else
-      comparisonKind match
-        case CandidateComparisonKind.PlayedVsBest | CandidateComparisonKind.PlayedVsAlternative =>
-          candidateLine
-        case CandidateComparisonKind.BestVsSecond =>
-          referenceLine
-        case CandidateComparisonKind.ReferenceVsAlternative =>
-          candidateLine
-
   def eventRootMove: String = eventLine.rootMove
+  def hasTypedDepth: Boolean = proof.exists(_.hasTypedDepth)
 
 object RelativeCauseFact:
   def apply(
@@ -95,7 +220,12 @@ object RelativeCauseFact:
       verdict: MoveChoiceVerdict,
       winPercentLossForMover: Double,
       candidateWinPercentDeltaForMover: Double,
-      evidenceLines: List[LineNodeRef]
+      supportEvidence: List[EvidenceRef],
+      evidenceLines: List[LineNodeRef],
+      role: RelativeCauseRole,
+      eventLine: LineNodeRef,
+      sourceSide: RelativeCauseSourceSide,
+      importance: RelativeCauseImportance
   ): RelativeCauseFact =
     new RelativeCauseFact(
       kind = kind,
@@ -105,23 +235,218 @@ object RelativeCauseFact:
       verdict = verdict,
       winPercentLossForMover = winPercentLossForMover,
       candidateWinPercentDeltaForMover = candidateWinPercentDeltaForMover,
-      evidenceLines = evidenceLines
+      supportEvidence = supportEvidence,
+      evidenceLines = evidenceLines,
+      role = role,
+      eventLine = eventLine,
+      sourceSide = sourceSide,
+      importance = importance
     )()
 
-case class RelativeCauseProof(
-    boardAnchors: List[BoardAnchorKind] = Nil,
-    lineEvents: List[LineEventKind] = Nil,
-    lineConsequences: List[LineConsequenceKind] = Nil,
-    relationKinds: List[RelationFactKind] = Nil,
-    supportLayers: List[EvidenceLayer] = Nil,
-    transitionConsequences: List[TransitionConsequenceProof] = Nil
+enum RelativeCauseProofRole:
+  case DirectProof
+  case ContrastProof
+  case ContextSupport
+
+enum RelativeCauseProofStrength:
+  case Primary
+  case Supporting
+  case WeakHint
+
+case class BoardAnchorProof(
+    source: EvidenceRef,
+    kind: BoardAnchorKind
+)
+
+case class LineEventProof(
+    source: EvidenceRef,
+    kind: LineEventKind
+)
+
+case class LineConsequenceProof(
+    source: EvidenceRef,
+    kind: LineConsequenceKind
+)
+
+case class ThreatEpisodeCauseProof(
+    source: EvidenceRef,
+    driver: ThreatDriver,
+    kind: ThreatKind,
+    severity: ThreatSeverity
+)
+
+case class RelativeCauseProofSection(
+    role: RelativeCauseProofRole,
+    strength: RelativeCauseProofStrength,
+    boardAnchors: List[BoardAnchorProof] = Nil,
+    lineEvents: List[LineEventProof] = Nil,
+    lineConsequences: List[LineConsequenceProof] = Nil,
+    relationProofs: List[RelationCauseProof] = Nil,
+    tacticalMechanisms: List[TacticalMechanismProof] = Nil,
+    threatEpisodes: List[ThreatEpisodeCauseProof] = Nil,
+    transitionConsequences: List[TransitionConsequenceProof] = Nil,
+    contextLayers: List[EvidenceLayer] = Nil
 ):
-  def hasTypedDepth: Boolean =
+  def sourceRefs: List[EvidenceRef] =
+    (
+      boardAnchors.map(_.source) ++
+        lineEvents.map(_.source) ++
+        lineConsequences.map(_.source) ++
+        relationProofs.map(_.source) ++
+        tacticalMechanisms.map(_.source) ++
+        threatEpisodes.map(_.source) ++
+        transitionConsequences.map(_.source)
+    ).distinctBy(_.id)
+
+  def hasConcreteProof: Boolean =
     boardAnchors.nonEmpty ||
-      lineEvents.nonEmpty ||
       lineConsequences.nonEmpty ||
-      relationKinds.nonEmpty ||
+      relationProofs.exists(_.hasConcreteProof) ||
+      tacticalMechanisms.exists(_.hasConcreteProof) ||
+      threatEpisodes.nonEmpty ||
       transitionConsequences.nonEmpty
+
+  def hasAnyEvidence: Boolean =
+    hasConcreteProof || lineEvents.nonEmpty || contextLayers.nonEmpty
+
+  def hasTacticalProof: Boolean =
+    tacticalMechanisms.exists(_.hasConcreteProof) ||
+      relationProofs.exists(proof => proof.hasConcreteProof && proof.hasLineProof) ||
+      lineConsequences.exists(proof => LineConsequenceKind.tacticalDriver(proof.kind)) ||
+      threatEpisodes.nonEmpty
+
+  def kindLabels: List[String] =
+    boardAnchors.map(proof => s"BoardAnchor:${proof.kind}") ++
+      lineEvents.map(proof => s"LineEvent:${proof.kind}") ++
+      lineConsequences.map(proof => s"LineConsequence:${proof.kind}") ++
+      relationProofs.map(proof => s"Relation:${proof.kind}:${proof.detailName}") ++
+      tacticalMechanisms.map(proof => s"TacticalMechanism:${proof.kind}") ++
+      threatEpisodes.map(proof => s"ThreatEpisode:${proof.driver}:${proof.kind}:${proof.severity}") ++
+      transitionConsequences.map(proof => s"TransitionConsequence:${proof.anchorKey}") ++
+      contextLayers.map(layer => s"ContextLayer:$layer")
+
+object RelativeCauseProofSection:
+  def merge(
+      role: RelativeCauseProofRole,
+      strength: RelativeCauseProofStrength,
+      sections: List[RelativeCauseProofSection]
+  ): RelativeCauseProofSection =
+    RelativeCauseProofSection(
+      role = role,
+      strength = strength,
+      boardAnchors = sections.flatMap(_.boardAnchors).distinct,
+      lineEvents = sections.flatMap(_.lineEvents).distinct,
+      lineConsequences = sections.flatMap(_.lineConsequences).distinct,
+      relationProofs = sections.flatMap(_.relationProofs).distinct,
+      tacticalMechanisms = sections.flatMap(_.tacticalMechanisms).distinct,
+      threatEpisodes = sections.flatMap(_.threatEpisodes).distinct,
+      transitionConsequences = sections.flatMap(_.transitionConsequences).distinct,
+      contextLayers = sections.flatMap(_.contextLayers).distinct
+    )
+
+case class RelativeCauseProof(
+    directProof: RelativeCauseProofSection = RelativeCauseProofSection(
+      role = RelativeCauseProofRole.DirectProof,
+      strength = RelativeCauseProofStrength.Primary
+    ),
+    contrastProof: RelativeCauseProofSection = RelativeCauseProofSection(
+      role = RelativeCauseProofRole.ContrastProof,
+      strength = RelativeCauseProofStrength.Supporting
+    ),
+    contextSupport: RelativeCauseProofSection = RelativeCauseProofSection(
+      role = RelativeCauseProofRole.ContextSupport,
+      strength = RelativeCauseProofStrength.WeakHint
+    )
+):
+  def sections: List[RelativeCauseProofSection] =
+    List(directProof, contrastProof, contextSupport)
+
+  def proofSections: List[RelativeCauseProofSection] =
+    sections.filter(_.hasAnyEvidence)
+
+  def boardAnchorProofs: List[BoardAnchorProof] =
+    proofSections.flatMap(_.boardAnchors).distinct
+  def lineEventProofs: List[LineEventProof] =
+    proofSections.flatMap(_.lineEvents).distinct
+  def lineConsequenceProofs: List[LineConsequenceProof] =
+    proofSections.flatMap(_.lineConsequences).distinct
+  def boardAnchors: List[BoardAnchorKind] =
+    boardAnchorProofs.map(_.kind).distinct
+  def lineEvents: List[LineEventKind] =
+    lineEventProofs.map(_.kind).distinct
+  def lineConsequences: List[LineConsequenceKind] =
+    lineConsequenceProofs.map(_.kind).distinct
+  def relationProofs: List[RelationCauseProof] =
+    proofSections.flatMap(_.relationProofs).distinct
+  def tacticalMechanisms: List[TacticalMechanismProof] =
+    proofSections.flatMap(_.tacticalMechanisms).distinct
+  def threatEpisodes: List[ThreatEpisodeCauseProof] =
+    proofSections.flatMap(_.threatEpisodes).distinct
+  def transitionConsequences: List[TransitionConsequenceProof] =
+    proofSections.flatMap(_.transitionConsequences).distinct
+  def contextLayers: List[EvidenceLayer] =
+    contextSupport.contextLayers.distinct
+  def relationKinds: List[RelationFactKind] =
+    relationProofs.map(_.kind).distinct
+  def relationDetails: List[String] =
+    relationProofs.map(_.detailName).distinct
+  def hasAnyEvidence: Boolean =
+    sections.exists(_.hasAnyEvidence)
+  def hasTypedDepth: Boolean =
+    directProof.hasConcreteProof || contrastProof.hasConcreteProof
+  def hasDirectProof: Boolean =
+    directProof.hasConcreteProof
+  def hasContrastProof: Boolean =
+    contrastProof.hasConcreteProof
+  def hasContextSupport: Boolean =
+    contextSupport.hasAnyEvidence
+  def depthProof: RelativeCauseProof =
+    RelativeCauseProof(
+      directProof = directProof,
+      contrastProof = contrastProof
+    )
+
+object RelativeCauseProof:
+  def merge(proofs: List[RelativeCauseProof]): RelativeCauseProof =
+    RelativeCauseProof(
+      directProof = RelativeCauseProofSection.merge(
+        RelativeCauseProofRole.DirectProof,
+        RelativeCauseProofStrength.Primary,
+        proofs.map(_.directProof)
+      ),
+      contrastProof = RelativeCauseProofSection.merge(
+        RelativeCauseProofRole.ContrastProof,
+        RelativeCauseProofStrength.Supporting,
+        proofs.map(_.contrastProof)
+      ),
+      contextSupport = RelativeCauseProofSection.merge(
+        RelativeCauseProofRole.ContextSupport,
+        RelativeCauseProofStrength.WeakHint,
+        proofs.map(_.contextSupport)
+      )
+    )
+
+case class TacticalMechanismProof(
+    source: EvidenceRef,
+    kind: TacticalMechanismKind,
+    signals: List[TacticalMechanismSignal]
+):
+  def hasConcreteProof: Boolean =
+    signals.nonEmpty
+  def signalLabels: List[String] =
+    signals.map(signal => s"${signal.kind}:${signal.label}").distinct
+
+case class RelationCauseProof(
+    source: EvidenceRef,
+    kind: RelationFactKind,
+    proof: RelationWitnessProof
+):
+  def detailName: String =
+    proof.detailName
+  def hasLineProof: Boolean =
+    proof.hasLineProof
+  def hasConcreteProof: Boolean =
+    proof.hasTypedDetail && proof.proofAtoms.nonEmpty
 
 case class TransitionConsequenceProof(
     source: EvidenceRef,

@@ -2,10 +2,8 @@ package lila.chessjudgment.analysis.policy
 
 import lila.chessjudgment.analysis.evaluation.JudgmentThresholds
 import lila.chessjudgment.analysis.singlePosition.PawnPlayDriver
-import lila.chessjudgment.analysis.tactical.TacticalMotifClassifier
-import lila.chessjudgment.model.{ ActivePlans, PlanMatch, PlanSupport, PlanScoringResult }
+import lila.chessjudgment.model.{ ActivePlans, PlanScoringResult, PlanSequenceSummary, TransitionType }
 import lila.chessjudgment.model.structure.{ AlignmentBand, StructureId }
-import lila.chessjudgment.model.strategic.PlanTaxonomy.PlanTheme
 import lila.chessjudgment.model.judgment.*
 
 enum ClaimTruthStatus:
@@ -60,10 +58,12 @@ object ClaimTruthPolicy:
   ): Boolean =
     val claimEvidenceIds = claim.evidence.map(_.id).toSet
     val samePosition = record.ref.position == claim.primaryPosition
-    val sameLine = claim.primaryLine.exists(line => recordLineMatches(record, line))
-    val sameSubjectMove = claim.subjectMove.exists(move => recordMentionsMove(record, move, claim.primaryLine))
+    val layerCompatible = claimLayerCompatible(claim.family, record)
+    val sameLine = layerCompatible && claim.primaryLine.exists(line => recordLineMatches(record, line))
+    val sameSubjectMove = layerCompatible && claim.subjectMove.exists(move => recordMentionsMove(record, move, claim.primaryLine))
     val comparisonLineSupport =
-      comparisonProofLayer(record.ref.layer) &&
+      !claim.family.isLongTerm &&
+        comparisonProofLayer(record.ref.layer) &&
         comparisonLinesForClaim(claim, graph).exists(line => recordLineMatches(record, line))
     val transitionDestinationLocal =
       claimEvidenceIds.contains(record.ref.id) &&
@@ -92,8 +92,9 @@ object ClaimTruthPolicy:
       graph: TypedEvidenceGraph,
       samePositionLocal: Boolean
   ): Boolean =
-    claim.primaryLine.exists(line => recordLineMatches(record, line)) ||
-      claim.subjectMove.exists(move => recordMentionsMove(record, move, claim.primaryLine)) ||
+    val supportLayer = linkedSupportLayer(claim.family, record.ref.layer)
+    (supportLayer && claim.primaryLine.exists(line => recordLineMatches(record, line))) ||
+      (supportLayer && claim.subjectMove.exists(move => recordMentionsMove(record, move, claim.primaryLine))) ||
       samePositionLocal ||
       linkedPositionContext(claim, record) ||
       linkedClaimSupport(claim, record, graph)
@@ -102,7 +103,7 @@ object ClaimTruthPolicy:
     claim.primaryLine.isEmpty &&
       claim.subjectMove.isEmpty &&
       record.ref.position == claim.primaryPosition &&
-      positionContextLayer(record.ref.layer)
+      positionContextLayer(claim.family, record.ref.layer)
 
   private def linkedClaimSupport(claim: ClaimSeed, record: EvidenceRecord, graph: TypedEvidenceGraph): Boolean =
     val comparisonLineBound =
@@ -115,15 +116,15 @@ object ClaimTruthPolicy:
     family match
       case ClaimFamily.Tactical =>
         layer match
-          case EvidenceLayer.Relation | EvidenceLayer.MoveMotif | EvidenceLayer.Line | EvidenceLayer.Eval |
-              EvidenceLayer.RelativeCause | EvidenceLayer.RelativeAssessment | EvidenceLayer.CandidateComparison |
-              EvidenceLayer.Counterfactual | EvidenceLayer.MoveVerdictCertification =>
+          case EvidenceLayer.TacticalMechanism | EvidenceLayer.Relation | EvidenceLayer.MoveMotif | EvidenceLayer.Line |
+              EvidenceLayer.Eval | EvidenceLayer.RelativeCause | EvidenceLayer.RelativeAssessment |
+              EvidenceLayer.CandidateComparison | EvidenceLayer.Counterfactual | EvidenceLayer.MoveVerdictCertification =>
             true
           case _ =>
             false
       case ClaimFamily.Defensive =>
         layer match
-          case EvidenceLayer.ThreatPressure | EvidenceLayer.RelativeCause | EvidenceLayer.Line |
+          case EvidenceLayer.TacticalMechanism | EvidenceLayer.ThreatPressure | EvidenceLayer.RelativeCause | EvidenceLayer.Line |
               EvidenceLayer.RelativeAssessment | EvidenceLayer.CandidateComparison | EvidenceLayer.Counterfactual |
               EvidenceLayer.MoveVerdictCertification =>
             true
@@ -144,7 +145,15 @@ object ClaimTruthPolicy:
             true
           case _ =>
             false
-      case ClaimFamily.Conversion | ClaimFamily.Material | ClaimFamily.Evaluation =>
+      case ClaimFamily.Conversion =>
+        layer match
+          case EvidenceLayer.Line | EvidenceLayer.Eval | EvidenceLayer.RelativeCause | EvidenceLayer.Relation |
+              EvidenceLayer.StructuralDelta | EvidenceLayer.RelativeAssessment | EvidenceLayer.CandidateComparison |
+              EvidenceLayer.Counterfactual | EvidenceLayer.MoveVerdictCertification | EvidenceLayer.SinglePosition =>
+            true
+          case _ =>
+            false
+      case ClaimFamily.Material | ClaimFamily.Evaluation =>
         layer match
           case EvidenceLayer.Line | EvidenceLayer.Eval | EvidenceLayer.RelativeCause |
               EvidenceLayer.RelativeAssessment | EvidenceLayer.CandidateComparison | EvidenceLayer.Counterfactual |
@@ -153,12 +162,18 @@ object ClaimTruthPolicy:
           case _ =>
             false
 
-  private def positionContextLayer(layer: EvidenceLayer): Boolean =
-    layer match
-      case EvidenceLayer.Board | EvidenceLayer.SinglePosition | EvidenceLayer.Line | EvidenceLayer.Eval =>
-        true
-      case _ =>
-        false
+  private def claimLayerCompatible(family: ClaimFamily, record: EvidenceRecord): Boolean =
+    linkedSupportLayer(family, record.ref.layer) ||
+      positionLocalLayer(record.ref.layer)
+
+  private def positionContextLayer(family: ClaimFamily, layer: EvidenceLayer): Boolean =
+    if family.isLongTerm then positionLocalLayer(layer)
+    else
+      layer match
+        case EvidenceLayer.Board | EvidenceLayer.SinglePosition | EvidenceLayer.Line | EvidenceLayer.Eval =>
+          true
+        case _ =>
+          false
 
   private def comparisonProofLayer(layer: EvidenceLayer): Boolean =
     layer match
@@ -194,25 +209,27 @@ object ClaimTruthPolicy:
       case CounterfactualFactEvidence(referenceLine, candidateLine, _) =>
         List(referenceLine, candidateLine)
       case RelativeCauseFactEvidence(cause) =>
-        (cause.referenceLine :: cause.candidateLine :: cause.evidenceLines).distinct
+        List(cause.eventLine)
       case MoveVerdictCertificationEvidence(certification) =>
-        (
-          certification.primaryComparison.referenceLine ::
-            certification.primaryComparison.candidateLine ::
-            certification.causes.flatMap(cause => cause.referenceLine :: cause.candidateLine :: cause.evidenceLines)
-        ).distinct
+        certification.causes.map(_.eventLine).distinct
       case RelativeAssessmentEvidence(assessment) =>
         List(assessment.reference.ref, assessment.candidate.ref)
       case _ =>
         Nil
 
   private def recordLineMatches(record: EvidenceRecord, line: LineNodeRef): Boolean =
-    record.referencesLine(line)
+    record.payload match
+      case RelativeCauseFactEvidence(cause) =>
+        cause.eventLine == line
+      case MoveVerdictCertificationEvidence(certification) =>
+        certification.causes.exists(_.eventLine == line)
+      case _ =>
+        record.referencesLine(line)
 
   private def recordMentionsMove(record: EvidenceRecord, move: String, claimLine: Option[LineNodeRef]): Boolean =
     record.payload match
-      case MoveMotifEvidence(moveUci, _) =>
-        moveUci == move
+      case payload: MoveMotifEvidence =>
+        payload.moveUci == move
       case MoveTransitionEvidence(moveUci, _, _) =>
         moveUci == move &&
           claimLine.forall(line =>
@@ -223,14 +240,19 @@ object ClaimTruthPolicy:
       case payload: StructuralDeltaEvidence =>
         payload.moveUci == move &&
           claimLine.forall(line => payload.line.contains(line))
+      case payload: TacticalMechanismEvidence =>
+        payload.moveUci.contains(move) ||
+          claimLine.exists(line => payload.line.contains(line))
       case CandidateComparisonEvidence(fact) =>
         claimLine.exists(line => line == fact.referenceLine || line == fact.candidateLine)
       case CounterfactualFactEvidence(referenceLine, candidateLine, _) =>
         claimLine.exists(line => line == referenceLine || line == candidateLine)
       case RelativeCauseFactEvidence(cause) =>
-        claimLine.exists(line => line == cause.referenceLine || line == cause.candidateLine)
+        claimLine.exists(_ == cause.eventLine) || cause.eventLine.rootMove == move
       case MoveVerdictCertificationEvidence(certification) =>
-        certification.playedMove == move
+        certification.causes.exists(cause =>
+          claimLine.exists(_ == cause.eventLine) || cause.eventLine.rootMove == move
+        )
       case _ =>
         false
 
@@ -247,42 +269,98 @@ object ClaimTruthPolicy:
     family match
       case ClaimFamily.Tactical =>
         List(
-          Set(EvidenceLayer.Relation, EvidenceLayer.MoveMotif, EvidenceLayer.ThreatPressure, EvidenceLayer.RelativeCause, EvidenceLayer.Line),
-          Set(EvidenceLayer.Line),
-          Set(EvidenceLayer.Eval, EvidenceLayer.RelativeAssessment, EvidenceLayer.Counterfactual, EvidenceLayer.CandidateComparison)
+          Set(
+            EvidenceLayer.TacticalMechanism,
+            EvidenceLayer.RelativeCause,
+            EvidenceLayer.Relation,
+            EvidenceLayer.Line,
+            EvidenceLayer.MoveVerdictCertification
+          ),
+          Set(EvidenceLayer.Line, EvidenceLayer.Relation, EvidenceLayer.TacticalMechanism, EvidenceLayer.Eval),
+          Set(
+            EvidenceLayer.Eval,
+            EvidenceLayer.RelativeAssessment,
+            EvidenceLayer.Counterfactual,
+            EvidenceLayer.CandidateComparison,
+            EvidenceLayer.TacticalMechanism,
+            EvidenceLayer.RelativeCause,
+            EvidenceLayer.MoveVerdictCertification
+          )
         )
       case ClaimFamily.Strategic =>
         List(
-          Set(EvidenceLayer.Strategic, EvidenceLayer.PlanPressure, EvidenceLayer.PawnStructure, EvidenceLayer.StructuralDelta),
-          Set(EvidenceLayer.Board, EvidenceLayer.Line, EvidenceLayer.Eval, EvidenceLayer.SinglePosition)
+          Set(
+            EvidenceLayer.Board,
+            EvidenceLayer.SinglePosition,
+            EvidenceLayer.Strategic,
+            EvidenceLayer.PlanPressure,
+            EvidenceLayer.PawnStructure,
+            EvidenceLayer.StructuralDelta
+          )
         )
       case ClaimFamily.PawnStructure =>
-        List(
-          Set(EvidenceLayer.PawnStructure, EvidenceLayer.StructuralDelta),
-          Set(EvidenceLayer.Board, EvidenceLayer.MoveTransition, EvidenceLayer.Line)
-        )
+        List(Set(EvidenceLayer.PawnStructure, EvidenceLayer.StructuralDelta))
       case ClaimFamily.Opening =>
         List(
           Set(EvidenceLayer.FeatureAnchor),
-          Set(EvidenceLayer.ApplicabilityAssessment),
-          Set(EvidenceLayer.Line, EvidenceLayer.Eval, EvidenceLayer.SinglePosition)
+          Set(EvidenceLayer.ApplicabilityAssessment)
         )
       case ClaimFamily.Plan =>
-        List(Set(EvidenceLayer.PlanPressure, EvidenceLayer.PlanTransition), Set(EvidenceLayer.Line, EvidenceLayer.Eval))
+        List(Set(EvidenceLayer.PlanPressure, EvidenceLayer.PlanTransition))
       case ClaimFamily.Defensive =>
-        List(Set(EvidenceLayer.ThreatPressure, EvidenceLayer.RelativeCause), Set(EvidenceLayer.Line, EvidenceLayer.RelativeAssessment))
+        List(
+          Set(
+            EvidenceLayer.ThreatPressure,
+            EvidenceLayer.TacticalMechanism,
+            EvidenceLayer.RelativeCause,
+            EvidenceLayer.MoveVerdictCertification
+          ),
+          Set(
+            EvidenceLayer.Line,
+            EvidenceLayer.RelativeAssessment,
+            EvidenceLayer.CandidateComparison,
+            EvidenceLayer.Counterfactual,
+            EvidenceLayer.RelativeCause,
+            EvidenceLayer.MoveVerdictCertification,
+            EvidenceLayer.TacticalMechanism
+          )
+        )
       case ClaimFamily.Conversion =>
-        List(Set(EvidenceLayer.SinglePosition, EvidenceLayer.RelativeAssessment, EvidenceLayer.RelativeCause), Set(EvidenceLayer.Eval, EvidenceLayer.Line))
+        List(
+          Set(EvidenceLayer.RelativeCause, EvidenceLayer.MoveVerdictCertification),
+          Set(EvidenceLayer.Line, EvidenceLayer.SinglePosition, EvidenceLayer.StructuralDelta, EvidenceLayer.Relation),
+          Set(
+            EvidenceLayer.Eval,
+            EvidenceLayer.Line,
+            EvidenceLayer.RelativeAssessment,
+            EvidenceLayer.CandidateComparison,
+            EvidenceLayer.Counterfactual,
+            EvidenceLayer.RelativeCause,
+            EvidenceLayer.MoveVerdictCertification
+          )
+        )
       case ClaimFamily.Material =>
         List(
           Set(EvidenceLayer.RelativeCause, EvidenceLayer.MoveVerdictCertification),
           Set(EvidenceLayer.Line),
-          Set(EvidenceLayer.Eval, EvidenceLayer.RelativeAssessment, EvidenceLayer.CandidateComparison, EvidenceLayer.Counterfactual)
+          Set(
+            EvidenceLayer.Eval,
+            EvidenceLayer.RelativeAssessment,
+            EvidenceLayer.CandidateComparison,
+            EvidenceLayer.Counterfactual,
+            EvidenceLayer.RelativeCause,
+            EvidenceLayer.MoveVerdictCertification
+          )
         )
       case ClaimFamily.Evaluation =>
         List(
-          Set(EvidenceLayer.RelativeAssessment, EvidenceLayer.MoveVerdictCertification),
-          Set(EvidenceLayer.Counterfactual, EvidenceLayer.Eval, EvidenceLayer.CandidateComparison)
+          Set(
+            EvidenceLayer.RelativeAssessment,
+            EvidenceLayer.MoveVerdictCertification,
+            EvidenceLayer.Counterfactual,
+            EvidenceLayer.Eval,
+            EvidenceLayer.CandidateComparison
+          )
         )
 
   private def familySpecificProof(claim: ClaimSeed, records: List[EvidenceRecord]): Boolean =
@@ -299,12 +377,19 @@ object ClaimTruthPolicy:
         openingProof(records)
       case ClaimFamily.Plan =>
         planProof(records)
+      case ClaimFamily.Conversion =>
+        conversionProof(records)
       case ClaimFamily.Material =>
         materialProof(records)
-      case _ => true
+      case ClaimFamily.Evaluation =>
+        evaluationProof(records)
 
   private def strategicProof(records: List[EvidenceRecord]): Boolean =
     records.exists {
+      case EvidenceRecord(_, payload: BoardFactEvidence, _) =>
+        payload.endgameTechniqueAnchors.nonEmpty
+      case EvidenceRecord(_, SinglePositionEvidence(assessment), _) =>
+        assessment.gamePhase.isEndgame && assessment.simplifyBias.shouldSimplify
       case EvidenceRecord(_, payload @ StrategicFactEvidence(_, _, _, confidence), _) =>
         confidence >= 0.35 && payload.hasTypedSupport
       case EvidenceRecord(_, payload: PawnStructureFactEvidence, _) =>
@@ -358,6 +443,8 @@ object ClaimTruthPolicy:
       packet.evidenceGraph.records.exists {
         case EvidenceRecord(_, PlanPressureEvidence(scoring, activePlans), _) =>
           planEvidenceCanSupportPlan(scoring, activePlans, packet.evidenceGraph.records)
+        case EvidenceRecord(_, PlanTransitionEvidence(transition), _) =>
+          planTransitionCanSupportPlan(transition)
         case _ =>
           false
       }
@@ -366,6 +453,8 @@ object ClaimTruthPolicy:
     records.exists {
       case EvidenceRecord(_, PlanPressureEvidence(scoring, activePlans), _) =>
         planEvidenceCanSupportPlan(scoring, activePlans, records)
+      case EvidenceRecord(_, PlanTransitionEvidence(transition), _) =>
+        planTransitionCanSupportPlan(transition)
       case _ =>
         false
     }
@@ -386,8 +475,13 @@ object ClaimTruthPolicy:
         pawnStructureCanAnchorPlan(payload)
       case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
         payload.hasPositivePlanAnchor
+      case EvidenceRecord(_, PlanTransitionEvidence(transition), _) =>
+        planTransitionCanSupportPlan(transition)
       case _ =>
         false
+
+  private def planTransitionCanSupportPlan(transition: PlanSequenceSummary): Boolean =
+    transition.primaryPlanId.nonEmpty && transition.transitionType != TransitionType.Opening
 
   private[chessjudgment] def pawnStructureCanAnchorPlan(payload: PawnStructureFactEvidence): Boolean =
     payload.profile.primary != StructureId.Unknown && payload.profile.confidence >= 0.65 ||
@@ -401,23 +495,20 @@ object ClaimTruthPolicy:
   private def tacticalProof(records: List[EvidenceRecord]): Boolean =
     val hasTacticalAnchor =
       records.exists {
-        case EvidenceRecord(_, _: RelationFactEvidence, _) =>
-          true
-        case EvidenceRecord(_, MoveMotifEvidence(moveUci, motifs), _) =>
-          motifs.exists(motif =>
-            TacticalMotifClassifier.isRootMoveMotif(moveUci, motif) &&
-              TacticalMotifClassifier.isCauseEligible(motif)
-          )
-        case EvidenceRecord(_, RelativeCauseFactEvidence(cause), _) =>
-          tacticalRelativeCause(cause.kind) ||
-            (
-              materialResultCause(cause.kind) &&
-                (hasConcreteTacticalSupport(records) || hasMaterialTacticalSupport(records))
-            )
+        case EvidenceRecord(_, payload: TacticalMechanismEvidence, _) =>
+          payload.canAnchorTacticalIdea
+        case EvidenceRecord(_, payload: RelationFactEvidence, _) =>
+          payload.hasConcreteRelationProof
         case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-          lineHasTacticalProof(payload)
-        case EvidenceRecord(_, EvalFactEvidence(_, _, mate, _), _) =>
-          mate.nonEmpty
+          payload.hasTacticalLineConsequence
+        case EvidenceRecord(_, RelativeCauseFactEvidence(cause), _) =>
+          (tacticalRelativeCause(cause.kind) || materialResultCause(cause.kind)) &&
+            relativeCauseHasTacticalProof(cause)
+        case EvidenceRecord(_, MoveVerdictCertificationEvidence(certification), _) =>
+          certification.causes.exists(cause =>
+            (tacticalRelativeCause(cause.kind) || materialResultCause(cause.kind)) &&
+              relativeCauseHasTacticalProof(cause)
+          )
         case _ =>
           false
       }
@@ -425,8 +516,10 @@ object ClaimTruthPolicy:
       records.exists {
         case EvidenceRecord(_, payload: LineFactEvidence, _) =>
           lineHasTacticalProof(payload)
-        case EvidenceRecord(_, RelationFactEvidence(_, _, _, lineMoves, _), _) =>
-          lineMoves.nonEmpty
+        case EvidenceRecord(_, payload: RelationFactEvidence, _) =>
+          payload.hasLineProof
+        case EvidenceRecord(_, payload: TacticalMechanismEvidence, _) =>
+          payload.hasLineProof
         case EvidenceRecord(_, EvalFactEvidence(_, _, mate, _), _) =>
           mate.nonEmpty
         case _ =>
@@ -445,9 +538,17 @@ object ClaimTruthPolicy:
         case record @ EvidenceRecord(_, CandidateComparisonEvidence(fact), _) =>
           recordEngineBacked(record) &&
           engineComparisonProvesTactic(fact.comparison)
+        case EvidenceRecord(_, payload: TacticalMechanismEvidence, _) =>
+          payload.hasEngineOrForcingProof
         case record @ EvidenceRecord(_, RelativeCauseFactEvidence(cause), _) =>
           recordEngineBacked(record) &&
             (
+              cause.winPercentLossForMover >= JudgmentThresholds.SIGNIFICANT_THREAT_WP ||
+                cause.candidateWinPercentDeltaForMover >= JudgmentThresholds.PLAYABLE_LOSS_WP
+            )
+        case record @ EvidenceRecord(_, MoveVerdictCertificationEvidence(certification), _) =>
+          recordEngineBacked(record) &&
+            certification.causes.exists(cause =>
               cause.winPercentLossForMover >= JudgmentThresholds.SIGNIFICANT_THREAT_WP ||
                 cause.candidateWinPercentDeltaForMover >= JudgmentThresholds.PLAYABLE_LOSS_WP
             )
@@ -458,16 +559,25 @@ object ClaimTruthPolicy:
 
   private def defensiveProof(claim: ClaimSeed, records: List[EvidenceRecord]): Boolean =
     records.exists {
-      case record @ EvidenceRecord(_, ThreatPressureEvidence(_, threats), _) =>
-        threats.isProofSignalDefensivePressure &&
+      case record @ EvidenceRecord(_, payload: ThreatEpisodeEvidence, _) =>
+        payload.isProofSignalDefensivePressure &&
           (!branchLocalThreatPressure(record) || claimIsBranchLocal(claim))
+      case EvidenceRecord(_, payload: TacticalMechanismEvidence, _) =>
+        payload.canAnchorDefensiveIdea
       case EvidenceRecord(_, RelativeCauseFactEvidence(cause), _) =>
-        defensiveRelativeCause(cause.kind)
+        defensiveRelativeCauseHasProof(cause)
       case EvidenceRecord(_, MoveVerdictCertificationEvidence(certification), _) =>
-        certification.causes.exists(cause => defensiveRelativeCause(cause.kind))
+        certification.causes.exists(defensiveRelativeCauseHasProof)
       case _ =>
         false
     }
+
+  private[chessjudgment] def defensiveRelativeCauseCanSeedIdea(cause: RelativeCauseFact): Boolean =
+    defensiveRelativeCauseHasProof(cause)
+
+  private def defensiveRelativeCauseHasProof(cause: RelativeCauseFact): Boolean =
+    defensiveRelativeCause(cause.kind) &&
+      cause.proof.exists(_.hasTypedDepth)
 
   private def claimIsBranchLocal(claim: ClaimSeed): Boolean =
     claim.scope == EvidenceScope.ThreatLine ||
@@ -481,16 +591,16 @@ object ClaimTruthPolicy:
     val hasMaterialCause =
       records.exists {
         case EvidenceRecord(_, RelativeCauseFactEvidence(cause), _) =>
-          materialResultCause(cause.kind)
+          materialRelativeCauseHasProof(cause)
         case EvidenceRecord(_, MoveVerdictCertificationEvidence(certification), _) =>
-          certification.causes.exists(cause => materialResultCause(cause.kind))
+          certification.causes.exists(materialRelativeCauseHasProof)
         case _ =>
           false
       }
     val hasMaterialLine =
       records.exists {
         case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-          payload.hasMaterialConsequence
+          materialLineProof(payload)
         case _ =>
           false
       }
@@ -513,15 +623,74 @@ object ClaimTruthPolicy:
       }
     hasMaterialCause && hasMaterialLine && hasComparison
 
+  private def conversionProof(records: List[EvidenceRecord]): Boolean =
+    val hasConversionCause =
+      records.exists {
+        case EvidenceRecord(_, RelativeCauseFactEvidence(cause), _) =>
+          conversionRelativeCauseHasProof(cause)
+        case EvidenceRecord(_, MoveVerdictCertificationEvidence(certification), _) =>
+          certification.causes.exists(conversionRelativeCauseHasProof)
+        case _ =>
+          false
+      }
+    val hasConversionContext = conversionContextCanSeedIdea(records)
+    val hasComparison =
+      records.exists {
+        case record @ EvidenceRecord(_, RelativeAssessmentEvidence(_), _) =>
+          recordEngineBacked(record)
+        case record @ EvidenceRecord(_, CounterfactualFactEvidence(_, _, _), _) =>
+          recordEngineBacked(record)
+        case record @ EvidenceRecord(_, CandidateComparisonEvidence(_), _) =>
+          recordEngineBacked(record)
+        case record @ EvidenceRecord(_, MoveVerdictCertificationEvidence(_), _) =>
+          recordEngineBacked(record)
+        case record @ EvidenceRecord(_, RelativeCauseFactEvidence(_), _) =>
+          recordEngineBacked(record)
+        case _ =>
+          false
+      }
+    hasConversionCause && hasConversionContext && hasComparison
+
+  private def evaluationProof(records: List[EvidenceRecord]): Boolean =
+    records.exists {
+      case record @ EvidenceRecord(_, EvalFactEvidence(_, _, _, _), _) =>
+        recordEngineBacked(record)
+      case record @ EvidenceRecord(_, RelativeAssessmentEvidence(_), _) =>
+        recordEngineBacked(record)
+      case record @ EvidenceRecord(_, CounterfactualFactEvidence(_, _, _), _) =>
+        recordEngineBacked(record)
+      case record @ EvidenceRecord(_, CandidateComparisonEvidence(_), _) =>
+        recordEngineBacked(record)
+      case record @ EvidenceRecord(_, MoveVerdictCertificationEvidence(_), _) =>
+        recordEngineBacked(record)
+      case _ =>
+        false
+    }
+
+  private[chessjudgment] def conversionContextCanSeedIdea(records: List[EvidenceRecord]): Boolean =
+    records.exists(conversionContextRecord)
+
+  private def conversionContextRecord(record: EvidenceRecord): Boolean =
+    record match
+      case EvidenceRecord(_, payload: LineFactEvidence, _) =>
+        payload.hasConversionConsequence
+      case EvidenceRecord(_, SinglePositionEvidence(assessment), _) =>
+        assessment.simplifyBias.shouldSimplify || assessment.gamePhase.isEndgame
+      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
+        structuralConversionContext(payload)
+      case EvidenceRecord(_, payload: RelationFactEvidence, _) =>
+        payload.kind == RelationFactKind.BadPieceLiquidation && payload.hasConcreteRelationProof
+      case _ =>
+        false
+
+  private def structuralConversionContext(payload: StructuralDeltaEvidence): Boolean =
+    import TransitionConsequenceKind.*
+    payload.hasAnyConsequence(Set(PassedPawnProgress, PromotionPressureGain))
+
   private[chessjudgment] def planPressureHasDirectEvidence(scoring: PlanScoringResult, activePlans: ActivePlans): Boolean =
     scoring.confidence >= 0.35 &&
       (activePlans.primary :: activePlans.secondary.toList ++ scoring.topPlans)
-        .exists(plan => nonTacticalPlan(plan) && plan.evidence.nonEmpty)
-
-  private def nonTacticalPlan(plan: PlanMatch): Boolean =
-    plan.support.collectFirst { case PlanSupport.Theme(theme) => theme } match
-      case Some(PlanTheme.ImmediateTacticalGain) => false
-      case _                                     => true
+        .exists(_.evidence.nonEmpty)
 
   private def recordEngineBacked(record: EvidenceRecord): Boolean =
     record.ref.confidence == EvidenceConfidence.EngineBacked ||
@@ -545,30 +714,28 @@ object ClaimTruthPolicy:
   private def materialResultCause(kind: RelativeCauseKind): Boolean =
     ClaimEventCluster.kindForCause(kind).contains(ClaimEventClusterKind.MaterialEvent)
 
-  private def hasConcreteTacticalSupport(records: List[EvidenceRecord]): Boolean =
-    records.exists {
-      case EvidenceRecord(_, _: RelationFactEvidence, _) =>
-        true
-      case EvidenceRecord(_, MoveMotifEvidence(moveUci, motifs), _) =>
-        motifs.exists(motif =>
-          TacticalMotifClassifier.isRootMoveMotif(moveUci, motif) &&
-            TacticalMotifClassifier.isCauseEligible(motif)
-        )
-      case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        lineHasTacticalProof(payload)
-      case EvidenceRecord(_, EvalFactEvidence(_, _, mate, _), _) =>
-        mate.nonEmpty
-      case _ =>
-        false
-    }
+  private def materialRelativeCauseHasProof(cause: RelativeCauseFact): Boolean =
+    materialResultCause(cause.kind) &&
+      cause.proof.exists(_.hasTypedDepth)
 
-  private def hasMaterialTacticalSupport(records: List[EvidenceRecord]): Boolean =
-    records.exists {
-      case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        lineHasTacticalProof(payload)
-      case _ =>
-        false
-    }
+  private def materialLineProof(payload: LineFactEvidence): Boolean =
+    payload.hasMaterialConsequence ||
+      payload.hasRecaptureRecoveryConsequence ||
+      payload.hasMaterialRecaptureChain ||
+      payload.hasMaterialRecoveryWindow ||
+      payload.hasProofSignalMaterialEvent
+
+  private def conversionRelativeCauseHasProof(cause: RelativeCauseFact): Boolean =
+    (
+      cause.kind == RelativeCauseKind.ConversionMiss ||
+        cause.kind == RelativeCauseKind.ConversionSecured ||
+        cause.kind == RelativeCauseKind.RecaptureRecoveryWindow ||
+        cause.kind == RelativeCauseKind.MaterialSwing
+    ) &&
+      cause.proof.exists(_.hasTypedDepth)
+
+  private def relativeCauseHasTacticalProof(cause: RelativeCauseFact): Boolean =
+    cause.proof.exists(proof => proof.directProof.hasTacticalProof || proof.contrastProof.hasTacticalProof)
 
   private def lineHasTacticalProof(payload: LineFactEvidence): Boolean =
     payload.hasTacticalLineConsequence

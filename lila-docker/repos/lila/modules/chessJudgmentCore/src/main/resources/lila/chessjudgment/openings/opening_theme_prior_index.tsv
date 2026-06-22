@@ -4,5 +4,7 @@ open_games/kings_gambit	C	CenterControl|Development|GambitInitiative	open_center
 sicilian	B	CenterControl|PawnStructure|PlanPressure	asymmetrical_center|open_c_file	c5xd4|d6_d5	develop_knights|king_safety	false	queenside_counterplay|central_break
 queens_gambit	D	CenterControl|PawnStructure|PlanPressure	queens_pawn_center|minority_attack	c4xd5|e2_e4	minor_piece_development|rook_c_file	false	central_space|queenside_pressure
 eco_c	C	CenterControl|Development	open_games	d2_d4|f2_f4	minor_piece_development|king_safety	false	central_play
+eco_a	A	CenterControl|Development|PawnStructure|PlanPressure	flank_opening|english_reti|dutch_structures	c2_c4|d2_d4|e2_e4|f2_f4	flexible_development|fianchetto|king_safety	false	flank_pressure|central_transposition|queenside_space
 eco_b	B	CenterControl|PawnStructure	semi_open_games	d7_d5|e7_e5	minor_piece_development	false	counterplay
 eco_d	D	CenterControl|PawnStructure	closed_center	c4xd5|e2_e4	minor_piece_development	false	space_and_breaks
+eco_e	E	CenterControl|Development|PawnStructure|PlanPressure	indian_defense|hypermodern_center|catalan_structure	c7_c5|e7_e5|d7_d5	fianchetto|knight_development|king_safety	false	central_break|kingside_attack|queenside_pressure

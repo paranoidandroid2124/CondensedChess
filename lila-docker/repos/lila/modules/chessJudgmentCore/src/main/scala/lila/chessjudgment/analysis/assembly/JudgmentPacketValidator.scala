@@ -26,6 +26,7 @@ enum JudgmentPacketValidationIssueKind:
   case LongTermClaimEventClusterEvidence
   case MismatchedClaimEventClusterKind
   case UnbackedClaimEventClusterProof
+  case UnownedClaimEventCauseProof
   case MissingRelativeEvidence
   case MismatchedEvidenceLayer
   case MismatchedLineEvidenceRef
@@ -34,7 +35,16 @@ enum JudgmentPacketValidationIssueKind:
   case MismatchedThreatPressureSideToMove
   case MismatchedStructuralDeltaTransitionBinding
   case MissingStructuralDeltaTransitionParent
+  case MissingTacticalMechanismParent
+  case UnbackedTacticalMechanismSignal
   case MismatchedRelativeCauseEventLine
+  case MismatchedRelativeCauseRole
+  case MismatchedRelativeCauseImportance
+  case MismatchedRelativeCauseEvidenceLines
+  case MismatchedRelativeCauseSourceSide
+  case MismatchedRelativeCauseSupportRef
+  case MissingRelativeCauseSupportParent
+  case MissingRelativeCauseComparisonParent
   case UnbackedRelativeCauseProof
   case MissingComparisonReferenceParent
   case MissingComparisonCandidateParent
@@ -88,6 +98,7 @@ object JudgmentPacketValidator:
         longTermClaimEventClusterEvidence(packet),
         mismatchedClaimEventClusterKinds(packet),
         unbackedClaimEventClusterProof(packet),
+        unownedClaimEventCauseProof(packet, claimsById),
         missingRelativeEvidence(packet, graphIds),
         graphBindingInvariants(packet),
         claimSubjectBindingInvariants(packet),
@@ -232,7 +243,12 @@ object JudgmentPacketValidator:
   ): List[JudgmentPacketValidationIssue] =
     missing(
       packet.claimEventClusters.flatMap(cluster =>
-        cluster.evidence ++ cluster.interactions.flatMap(_.evidence) ++ cluster.proofTransitionConsequences.map(_.source)
+        cluster.evidence ++
+          cluster.interactions.flatMap(_.evidence) ++
+          cluster.proofTransitionConsequences.map(_.source) ++
+          cluster.causeProofs.flatMap(proof =>
+            proof.proofDirectSourceIds ++ proof.proofContrastSourceIds ++ proof.proofContextSupportSourceIds
+          ).distinct.flatMap(id => packet.evidenceGraph.byId.get(id).map(_.ref))
       ),
       graphIds,
       JudgmentPacketValidationIssueKind.MissingClaimEventClusterEvidence
@@ -351,6 +367,140 @@ object JudgmentPacketValidator:
       }
     }
 
+  private def unownedClaimEventCauseProof(
+      packet: EvidenceBackedJudgmentPacket,
+      claimsById: Map[String, ClaimSeed]
+  ): List[JudgmentPacketValidationIssue] =
+    packet.claimEventClusters.flatMap { cluster =>
+      val unownedProofs = cluster.causeProofs.filterNot(causeProofOwnedByClaim(packet.evidenceGraph, claimsById, cluster, _)).map { proof =>
+        JudgmentPacketValidationIssue(
+          kind = JudgmentPacketValidationIssueKind.UnownedClaimEventCauseProof,
+          subjectId = s"${cluster.id}:${proof.claimId}:${proof.causeKind}",
+          evidence = firstCauseProofEvidence(packet.evidenceGraph, proof)
+        )
+      }
+      val unownedCauseClaims = cluster.causeClaimIds.filterNot(claimId =>
+        claimsById.get(claimId).exists(claimOwnsClusterCause(packet.evidenceGraph, _, cluster))
+      ).map { claimId =>
+        JudgmentPacketValidationIssue(
+          kind = JudgmentPacketValidationIssueKind.UnownedClaimEventCauseProof,
+          subjectId = s"${cluster.id}:$claimId:${cluster.causeKind}"
+        )
+      }
+      unownedProofs ++ unownedCauseClaims
+    }
+
+  private def causeProofOwnedByClaim(
+      graph: TypedEvidenceGraph,
+      claimsById: Map[String, ClaimSeed],
+      cluster: ClaimEventCluster,
+      proof: ClaimEventCauseProof
+  ): Boolean =
+    clusterCauseProofMatchesCluster(cluster, proof) &&
+      clusterCauseProofRoleMatchesClaim(cluster, proof) &&
+      claimsById.get(proof.claimId).exists(claimOwnsCauseProof(graph, _, proof))
+
+  private def clusterCauseProofMatchesCluster(
+      cluster: ClaimEventCluster,
+      proof: ClaimEventCauseProof
+  ): Boolean =
+    proof.causeKind == cluster.causeKind &&
+      proof.comparisonKind == cluster.comparisonKind &&
+      proof.causeRole == cluster.causeRole &&
+      proof.causeSourceSide == cluster.causeSourceSide &&
+      proof.causeImportance == cluster.causeImportance &&
+      proof.referenceLine == cluster.referenceLine &&
+      proof.candidateLine == cluster.candidateLine &&
+      proof.eventLine == cluster.eventLine
+
+  private def clusterCauseProofRoleMatchesClaim(
+      cluster: ClaimEventCluster,
+      proof: ClaimEventCauseProof
+  ): Boolean =
+    proof.memberRole match
+      case ClaimEventMemberRole.CauseOwner =>
+        cluster.causeClaimIds.contains(proof.claimId)
+      case ClaimEventMemberRole.VerdictCarrier =>
+        cluster.evaluationClaimIds.contains(proof.claimId)
+      case ClaimEventMemberRole.Witness =>
+        cluster.witnessClaimIds.contains(proof.claimId)
+
+  private def claimOwnsCauseProof(
+      graph: TypedEvidenceGraph,
+      claim: ClaimSeed,
+      proof: ClaimEventCauseProof
+  ): Boolean =
+    claim.evidence.flatMap(ref => graph.byId.get(ref.id)).exists {
+      case EvidenceRecord(_, RelativeCauseFactEvidence(cause), _) =>
+        relativeCauseOwnsCauseProof(cause, proof)
+      case EvidenceRecord(_, MoveVerdictCertificationEvidence(certification), _) =>
+        certification.causes.exists(relativeCauseOwnsCauseProof(_, proof))
+      case _ =>
+        false
+    }
+
+  private def claimOwnsClusterCause(
+      graph: TypedEvidenceGraph,
+      claim: ClaimSeed,
+      cluster: ClaimEventCluster
+  ): Boolean =
+    claim.evidence.flatMap(ref => graph.byId.get(ref.id)).exists {
+      case EvidenceRecord(_, RelativeCauseFactEvidence(cause), _) =>
+        relativeCauseMatchesCluster(cause, cluster)
+      case EvidenceRecord(_, MoveVerdictCertificationEvidence(certification), _) =>
+        certification.causes.exists(relativeCauseMatchesCluster(_, cluster))
+      case _ =>
+        false
+    }
+
+  private def relativeCauseMatchesCluster(
+      cause: RelativeCauseFact,
+      cluster: ClaimEventCluster
+  ): Boolean =
+    cause.kind == cluster.causeKind &&
+      cause.comparisonKind == cluster.comparisonKind &&
+      cause.role == cluster.causeRole &&
+      cause.sourceSide == cluster.causeSourceSide &&
+      cause.importance == cluster.causeImportance &&
+      cause.referenceLine == cluster.referenceLine &&
+      cause.candidateLine == cluster.candidateLine &&
+      cause.eventLine == cluster.eventLine
+
+  private def relativeCauseOwnsCauseProof(
+      cause: RelativeCauseFact,
+      proof: ClaimEventCauseProof
+  ): Boolean =
+    cause.kind == proof.causeKind &&
+      cause.comparisonKind == proof.comparisonKind &&
+      cause.role == proof.causeRole &&
+      cause.sourceSide == proof.causeSourceSide &&
+      cause.importance == proof.causeImportance &&
+      cause.referenceLine == proof.referenceLine &&
+      cause.candidateLine == proof.candidateLine &&
+      cause.eventLine == proof.eventLine &&
+      cause.proof.exists(relativeCauseProofMatchesCauseProof(_, proof))
+
+  private def relativeCauseProofMatchesCauseProof(
+      relativeProof: RelativeCauseProof,
+      causeProof: ClaimEventCauseProof
+  ): Boolean =
+    relativeProof.directProof.sourceRefs.map(_.id).toSet == causeProof.proofDirectSourceIds.toSet &&
+      relativeProof.contrastProof.sourceRefs.map(_.id).toSet == causeProof.proofContrastSourceIds.toSet &&
+      relativeProof.contextSupport.sourceRefs.map(_.id).toSet == causeProof.proofContextSupportSourceIds.toSet &&
+      relativeProof.directProof.kindLabels.toSet == causeProof.proofDirectKinds.toSet &&
+      relativeProof.contrastProof.kindLabels.toSet == causeProof.proofContrastKinds.toSet &&
+      relativeProof.contextSupport.kindLabels.toSet == causeProof.proofContextSupportKinds.toSet
+
+  private def firstCauseProofEvidence(
+      graph: TypedEvidenceGraph,
+      proof: ClaimEventCauseProof
+  ): Option[EvidenceRef] =
+    (
+      proof.proofDirectSourceIds ++
+        proof.proofContrastSourceIds ++
+        proof.proofContextSupportSourceIds
+    ).flatMap(id => graph.byId.get(id).map(_.ref)).headOption
+
   private def transitionConsequenceBacked(graph: TypedEvidenceGraph, proof: TransitionConsequenceProof): Boolean =
     graph.byId.get(proof.source.id).exists(parentHasTransitionConsequence(_, proof))
 
@@ -414,6 +564,16 @@ object JudgmentPacketValidator:
                 )
               )
               .toList
+          case EvidenceRecord(ref, payload: ThreatEpisodeEvidence, _) =>
+            Option
+              .when(ref.position.sideToMove.exists(_ != payload.sideUnderPressure))(
+                JudgmentPacketValidationIssue(
+                  JudgmentPacketValidationIssueKind.MismatchedThreatPressureSideToMove,
+                  ref.id,
+                  Some(ref)
+                )
+              )
+              .toList
           case record @ EvidenceRecord(ref, payload: StructuralDeltaEvidence, _) =>
             List(
               Option.when(
@@ -435,23 +595,26 @@ object JudgmentPacketValidator:
                 )
               )
             ).flatten
-          case record @ EvidenceRecord(ref, RelativeCauseFactEvidence(cause), _) =>
+          case record @ EvidenceRecord(ref, payload: TacticalMechanismEvidence, _) =>
+            val parents = record.parents.flatMap(parent => packet.evidenceGraph.byId.get(parent.id))
             List(
-              Option.when(!ref.line.contains(cause.eventLine))(
+              Option.when(parents.isEmpty)(
                 JudgmentPacketValidationIssue(
-                  JudgmentPacketValidationIssueKind.MismatchedRelativeCauseEventLine,
+                  JudgmentPacketValidationIssueKind.MissingTacticalMechanismParent,
                   ref.id,
                   Some(ref)
                 )
               ),
-              Option.when(cause.proof.exists(proof => proof.hasTypedDepth && !relativeCauseProofBacked(packet.evidenceGraph, record, proof)))(
+              Option.when(!payload.signals.forall(signal => tacticalMechanismSignalBacked(parents, signal)))(
                 JudgmentPacketValidationIssue(
-                  JudgmentPacketValidationIssueKind.UnbackedRelativeCauseProof,
+                  JudgmentPacketValidationIssueKind.UnbackedTacticalMechanismSignal,
                   ref.id,
                   Some(ref)
                 )
               )
             ).flatten
+          case record @ EvidenceRecord(_, RelativeCauseFactEvidence(cause), _) =>
+            relativeCauseValidationIssues(packet.evidenceGraph, record, cause)
           case record @ EvidenceRecord(ref, CandidateComparisonEvidence(fact), _) =>
             List(
               Option.when(!hasParentLineAndEval(packet.evidenceGraph, record, fact.referenceLine))(
@@ -505,11 +668,140 @@ object JudgmentPacketValidator:
                   Some(ref)
                 )
               )
-            ).flatten
+            ).flatten ++ certification.causes.flatMap(cause =>
+              relativeCauseValidationIssues(packet.evidenceGraph, record, cause)
+            )
           case _ =>
             Nil
       layerIssue ++ bindingIssues
     }
+
+  private def relativeCauseValidationIssues(
+      graph: TypedEvidenceGraph,
+      record: EvidenceRecord,
+      cause: RelativeCauseFact
+  ): List[JudgmentPacketValidationIssue] =
+    val ref = record.ref
+    val expectedRole = RelativeCauseRole.fromComparisonKind(cause.comparisonKind)
+    val expectedEventLine =
+      RelativeCauseSourceSide.eventLine(cause.sourceSide, cause.role, cause.referenceLine, cause.candidateLine)
+    val expectedImportance = RelativeCauseImportance.from(cause.role, cause.sourceSide, cause.kind)
+    val hasSupportParents =
+      relativeCauseSupportEvidenceParents(graph, record, cause)
+    val hasCanonicalSupportRefs =
+      hasSupportParents && relativeCauseSupportRefsCanonical(graph, record, cause)
+    val canonicalSupport =
+      canonicalRelativeCauseSupportRefs(graph, record, cause)
+    val expectedSourceSide =
+      RelativeCauseSourceSide.fromSupportEvidence(
+        cause.kind,
+        cause.referenceLine,
+        cause.candidateLine,
+        canonicalSupport
+      )
+    List(
+      Option.when(cause.role != expectedRole)(
+        JudgmentPacketValidationIssue(
+          JudgmentPacketValidationIssueKind.MismatchedRelativeCauseRole,
+          ref.id,
+          Some(ref)
+        )
+      ),
+      Option.when(cause.eventLine != expectedEventLine || !relativeCauseRecordLineConsistent(record, cause))(
+        JudgmentPacketValidationIssue(
+          JudgmentPacketValidationIssueKind.MismatchedRelativeCauseEventLine,
+          ref.id,
+          Some(ref)
+        )
+      ),
+      Option.when(cause.importance != expectedImportance)(
+        JudgmentPacketValidationIssue(
+          JudgmentPacketValidationIssueKind.MismatchedRelativeCauseImportance,
+          ref.id,
+          Some(ref)
+        )
+      ),
+      Option.when(expectedSourceSide.forall(_ != cause.sourceSide))(
+        JudgmentPacketValidationIssue(
+          JudgmentPacketValidationIssueKind.MismatchedRelativeCauseSourceSide,
+          ref.id,
+          Some(ref)
+        )
+      ),
+      Option.when(!relativeCauseEvidenceLinesConsistent(cause))(
+        JudgmentPacketValidationIssue(
+          JudgmentPacketValidationIssueKind.MismatchedRelativeCauseEvidenceLines,
+          ref.id,
+          Some(ref)
+        )
+      ),
+      Option.when(!hasSupportParents)(
+        JudgmentPacketValidationIssue(
+          JudgmentPacketValidationIssueKind.MissingRelativeCauseSupportParent,
+          ref.id,
+          Some(ref)
+        )
+      ),
+      Option.when(hasSupportParents && !hasCanonicalSupportRefs)(
+        JudgmentPacketValidationIssue(
+          JudgmentPacketValidationIssueKind.MismatchedRelativeCauseSupportRef,
+          ref.id,
+          Some(ref)
+        )
+      ),
+      Option.when(!hasMatchingRelativeCauseComparisonParent(graph, record, cause))(
+        JudgmentPacketValidationIssue(
+          JudgmentPacketValidationIssueKind.MissingRelativeCauseComparisonParent,
+          ref.id,
+          Some(ref)
+        )
+      ),
+      Option.when(cause.proof.exists(proof => proof.hasAnyEvidence && !relativeCauseProofBacked(graph, record, cause, proof)))(
+        JudgmentPacketValidationIssue(
+          JudgmentPacketValidationIssueKind.UnbackedRelativeCauseProof,
+          ref.id,
+          Some(ref)
+        )
+      )
+    ).flatten
+
+  private def relativeCauseRecordLineConsistent(record: EvidenceRecord, cause: RelativeCauseFact): Boolean =
+    record.ref.line match
+      case None =>
+        true
+      case Some(line) if record.ref.layer == EvidenceLayer.MoveVerdictCertification =>
+        line == cause.eventLine || line == cause.referenceLine || line == cause.candidateLine
+      case Some(line) =>
+        line == cause.eventLine
+
+  private def tacticalMechanismSignalBacked(
+      parents: List[EvidenceRecord],
+      signal: TacticalMechanismSignal
+  ): Boolean =
+    parents.exists(record =>
+      record.ref.layer == signal.sourceLayer &&
+        (record.payload match
+          case payload: MoveMotifEvidence =>
+            signal.kind == TacticalMechanismSignalKind.Motif &&
+              payload.proof.kind == signal.label
+          case payload: RelationFactEvidence =>
+            signal.kind == TacticalMechanismSignalKind.Relation &&
+              payload.hasConcreteRelationProof &&
+              payload.kind.toString == signal.label
+          case payload: LineFactEvidence =>
+            signal.kind == TacticalMechanismSignalKind.LineConsequence &&
+              payload.proofSignalConsequenceKinds.exists(_.toString == signal.label)
+          case EvalFactEvidence(_, _, mate, _) =>
+            signal.kind == TacticalMechanismSignalKind.MateBranch &&
+              mate.exists(_.toString == signal.label)
+          case payload: ThreatEpisodeEvidence =>
+            signal.kind == TacticalMechanismSignalKind.ThreatEpisode &&
+              payload.isProofSignalDefensivePressure &&
+              payload.episode.episodeId == signal.label
+          case _ =>
+            false
+        )
+    )
 
   private def hasMatchingTransitionParent(
       graph: TypedEvidenceGraph,
@@ -558,37 +850,170 @@ object JudgmentPacketValidator:
   ): Boolean =
     parentClosure(graph, record).exists(parent => parent.carriesLinePayload(line, layer))
 
+  private def relativeCauseEvidenceLinesConsistent(cause: RelativeCauseFact): Boolean =
+    val lines = cause.evidenceLines.toSet
+    val allowedLines = Set(cause.referenceLine, cause.candidateLine)
+    lines.subsetOf(allowedLines) &&
+      (cause.sourceSide match
+        case RelativeCauseSourceSide.Reference =>
+          lines.contains(cause.referenceLine) && !lines.contains(cause.candidateLine)
+        case RelativeCauseSourceSide.Candidate =>
+          lines.contains(cause.candidateLine) && !lines.contains(cause.referenceLine)
+        case RelativeCauseSourceSide.Mixed | RelativeCauseSourceSide.Shared =>
+          lines.contains(cause.referenceLine) && lines.contains(cause.candidateLine)
+      )
+
+  private def relativeCauseSupportEvidenceParents(
+      graph: TypedEvidenceGraph,
+      record: EvidenceRecord,
+      cause: RelativeCauseFact
+  ): Boolean =
+    val parentIds = (record.parents ++ parentClosure(graph, record).map(_.ref)).map(_.id).toSet
+    cause.supportEvidence.forall(ref => parentIds.contains(ref.id))
+
+  private def relativeCauseSupportRefsCanonical(
+      graph: TypedEvidenceGraph,
+      record: EvidenceRecord,
+      cause: RelativeCauseFact
+  ): Boolean =
+    val parentRefs = (record.parents ++ parentClosure(graph, record).map(_.ref))
+      .map(ref => ref.id -> ref)
+      .toMap
+    cause.supportEvidence.forall(ref =>
+      parentRefs.get(ref.id).exists(canonical => sameEvidenceBinding(ref, canonical))
+    )
+
+  private def canonicalRelativeCauseSupportRefs(
+      graph: TypedEvidenceGraph,
+      record: EvidenceRecord,
+      cause: RelativeCauseFact
+  ): List[EvidenceRef] =
+    val parentRefs = (record.parents ++ parentClosure(graph, record).map(_.ref))
+      .map(ref => ref.id -> ref)
+      .toMap
+    cause.supportEvidence.flatMap(ref => parentRefs.get(ref.id)).distinctBy(_.id)
+
+  private def sameEvidenceBinding(left: EvidenceRef, right: EvidenceRef): Boolean =
+    left.producer == right.producer &&
+      left.layer == right.layer &&
+      left.position == right.position &&
+      left.line == right.line &&
+      left.scope == right.scope
+
+  private def hasMatchingRelativeCauseComparisonParent(
+      graph: TypedEvidenceGraph,
+      record: EvidenceRecord,
+      cause: RelativeCauseFact
+  ): Boolean =
+    record.parents.flatMap(parent => graph.byId.get(parent.id)).exists {
+      case EvidenceRecord(_, CandidateComparisonEvidence(fact), _) =>
+        fact.kind == cause.comparisonKind &&
+          fact.referenceLine == cause.referenceLine &&
+          fact.candidateLine == cause.candidateLine
+      case _ =>
+        false
+    }
+
   private def relativeCauseProofBacked(
       graph: TypedEvidenceGraph,
       record: EvidenceRecord,
+      cause: RelativeCauseFact,
       proof: RelativeCauseProof
   ): Boolean =
     val parents = parentClosure(graph, record)
-    proof.boardAnchors.forall(kind => parents.exists(parentHasBoardAnchor(_, kind))) &&
-      proof.lineEvents.forall(kind => parents.exists(parentHasLineEvent(_, kind))) &&
-      proof.lineConsequences.forall(kind => parents.exists(parentHasLineConsequence(_, kind))) &&
-      proof.relationKinds.forall(kind => parents.exists(parentHasRelationKind(_, kind))) &&
+    val parentIds = parents.map(_.ref.id).toSet
+    relativeCauseProofShapeBacked(graph, cause, proof, parentIds) &&
+      proof.boardAnchorProofs.forall(proof => parents.exists(parentHasBoardAnchor(_, proof))) &&
+      proof.lineEventProofs.forall(proof => parents.exists(parentHasLineEvent(_, proof))) &&
+      proof.lineConsequenceProofs.forall(proof => parents.exists(parentHasLineConsequence(_, proof))) &&
+      proof.relationProofs.forall(relationProof => parents.exists(parentHasRelationProof(_, relationProof))) &&
+      proof.tacticalMechanisms.forall(mechanismProof => parents.exists(parentHasTacticalMechanism(_, mechanismProof))) &&
+      proof.threatEpisodes.forall(threatProof => parents.exists(parentHasThreatEpisode(_, threatProof))) &&
       proof.transitionConsequences.forall(proof => parents.exists(parentHasTransitionConsequence(_, proof))) &&
-      proof.supportLayers.forall(layer => parents.exists(_.ref.layer == layer))
+      proof.contextLayers.forall(layer => parents.exists(_.ref.layer == layer))
 
-  private def parentHasBoardAnchor(record: EvidenceRecord, kind: BoardAnchorKind): Boolean =
+  private def relativeCauseProofShapeBacked(
+      graph: TypedEvidenceGraph,
+      cause: RelativeCauseFact,
+      proof: RelativeCauseProof,
+      parentIds: Set[String]
+  ): Boolean =
+    val directRole =
+      proof.directProof.role == RelativeCauseProofRole.DirectProof &&
+        proof.directProof.strength == RelativeCauseProofStrength.Primary
+    val contrastRole =
+      proof.contrastProof.role == RelativeCauseProofRole.ContrastProof &&
+        proof.contrastProof.strength == RelativeCauseProofStrength.Supporting
+    val contextRole =
+      proof.contextSupport.role == RelativeCauseProofRole.ContextSupport &&
+        proof.contextSupport.strength == RelativeCauseProofStrength.WeakHint
+    val directIds = proof.directProof.sourceRefs.map(_.id).toSet
+    val contrastIds = proof.contrastProof.sourceRefs.map(_.id).toSet
+    val contextIds = proof.contextSupport.sourceRefs.map(_.id).toSet
+    val supportIds = supportClosureIds(graph, cause.supportEvidence)
+    val allSourceIds = directIds ++ contrastIds ++ contextIds
+    directRole &&
+      contrastRole &&
+      contextRole &&
+      allSourceIds.subsetOf(parentIds) &&
+      (directIds.subsetOf(supportIds) || directIds.isEmpty) &&
+      contrastIds.forall(id => graph.byId.get(id).exists(record => contrastProofSource(record, cause))) &&
+      contextIds.forall(id => graph.byId.get(id).exists(record => contextSupportSource(record, cause))) &&
+      (directIds intersect contrastIds).isEmpty &&
+      (contrastIds intersect supportIds).isEmpty &&
+      (contextIds intersect supportIds).isEmpty &&
+      (contextIds intersect directIds).isEmpty &&
+      (contextIds intersect contrastIds).isEmpty
+
+  private def contrastProofSource(record: EvidenceRecord, cause: RelativeCauseFact): Boolean =
+    (
+      (record.ref.layer == EvidenceLayer.Line || record.ref.layer == EvidenceLayer.Eval) &&
+        record.ref.line.exists(line => line == cause.referenceLine || line == cause.candidateLine)
+    ) ||
+      (record.payload match
+        case CandidateComparisonEvidence(fact) =>
+          fact.kind == cause.comparisonKind &&
+            fact.referenceLine == cause.referenceLine &&
+            fact.candidateLine == cause.candidateLine
+        case _ =>
+          false
+      )
+
+  private def contextSupportSource(record: EvidenceRecord, cause: RelativeCauseFact): Boolean =
+    val referencesComparedLine =
+      record.referencesLine(cause.referenceLine) || record.referencesLine(cause.candidateLine)
+    !referencesComparedLine &&
+      (
+        record.ref.scope == EvidenceScope.BeforePosition ||
+          record.ref.scope == EvidenceScope.CurrentPosition ||
+          record.ref.line.nonEmpty
+      )
+
+  private def supportClosureIds(graph: TypedEvidenceGraph, supportEvidence: List[EvidenceRef]): Set[String] =
+    supportEvidence
+      .flatMap(ref => graph.byId.get(ref.id))
+      .flatMap(record => record :: parentClosure(graph, record))
+      .map(_.ref.id)
+      .toSet
+
+  private def parentHasBoardAnchor(record: EvidenceRecord, proof: BoardAnchorProof): Boolean =
     record match
-      case EvidenceRecord(_, payload: BoardFactEvidence, _) =>
-        payload.hasProofSignalAnchor(kind)
+      case EvidenceRecord(ref, payload: BoardFactEvidence, _) =>
+        ref.id == proof.source.id && payload.hasProofSignalAnchor(proof.kind)
       case _ =>
         false
 
-  private def parentHasLineEvent(record: EvidenceRecord, kind: LineEventKind): Boolean =
+  private def parentHasLineEvent(record: EvidenceRecord, proof: LineEventProof): Boolean =
     record match
-      case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.hasLineEvent(kind)
+      case EvidenceRecord(ref, payload: LineFactEvidence, _) =>
+        ref.id == proof.source.id && payload.hasLineEvent(proof.kind)
       case _ =>
         false
 
-  private def parentHasLineConsequence(record: EvidenceRecord, kind: LineConsequenceKind): Boolean =
+  private def parentHasLineConsequence(record: EvidenceRecord, proof: LineConsequenceProof): Boolean =
     record match
-      case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.hasProofSignalConsequence(kind)
+      case EvidenceRecord(ref, payload: LineFactEvidence, _) =>
+        ref.id == proof.source.id && payload.hasProofSignalConsequence(proof.kind)
       case _ =>
         false
 
@@ -601,10 +1026,33 @@ object JudgmentPacketValidator:
       case _ =>
         false
 
-  private def parentHasRelationKind(record: EvidenceRecord, kind: RelationFactKind): Boolean =
+  private def parentHasTacticalMechanism(record: EvidenceRecord, proof: TacticalMechanismProof): Boolean =
     record match
-      case EvidenceRecord(_, RelationFactEvidence(payloadKind, _, _, _, _), _) =>
-        payloadKind == kind
+      case EvidenceRecord(ref, payload: TacticalMechanismEvidence, _) =>
+        ref.id == proof.source.id &&
+          payload.kind == proof.kind &&
+          proof.signals.forall(payload.signals.contains)
+      case _ =>
+        false
+
+  private def parentHasThreatEpisode(record: EvidenceRecord, proof: ThreatEpisodeCauseProof): Boolean =
+    record match
+      case EvidenceRecord(ref, payload: ThreatEpisodeEvidence, _) =>
+        ref.id == proof.source.id &&
+          payload.episode.driver == proof.driver &&
+          payload.episode.kind == proof.kind &&
+          payload.episode.severity == proof.severity &&
+          payload.isProofSignalDefensivePressure
+      case _ =>
+        false
+
+  private def parentHasRelationProof(record: EvidenceRecord, proof: RelationCauseProof): Boolean =
+    record match
+      case EvidenceRecord(ref, payload: RelationFactEvidence, _) =>
+        ref.id == proof.source.id &&
+          payload.kind == proof.kind &&
+          payload.witnessProof == proof.proof &&
+          payload.hasConcreteRelationProof
       case _ =>
         false
 

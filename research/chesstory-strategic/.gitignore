@@ -15,6 +15,9 @@ eval/*
 reports/*
 !reports/.gitkeep
 
+measurements/*
+!measurements/.gitkeep
+
 # Common local training caches.
 __pycache__/
 *.pyc

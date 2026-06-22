@@ -58,6 +58,63 @@ enum PlayedSubjectBinding:
   case SubjectMoveAndPlayedLine
   case Unbound
 
+enum ClaimLifecycleStage:
+  case CandidateCreated
+  case TruthCertified
+  case TruthRejected
+  case TruthDeferred
+  case DedupeDropped
+  case ArbitrationSuppressed
+  case FinalPacketIncluded
+
+enum ClaimLifecycleTruthStatus:
+  case Certified
+  case Deferred
+  case Rejected
+
+final case class ClaimLifecycleRelativeCause(
+    id: String,
+    kind: RelativeCauseKind,
+    role: RelativeCauseRole,
+    comparisonKind: CandidateComparisonKind,
+    sourceSide: RelativeCauseSourceSide,
+    importance: RelativeCauseImportance,
+    referenceLine: LineNodeRef,
+    candidateLine: LineNodeRef,
+    eventLine: LineNodeRef,
+    proofDirectSourceIds: List[String],
+    proofContrastSourceIds: List[String],
+    proofContextSupportSourceIds: List[String],
+    proofDirectKinds: List[String],
+    proofContrastKinds: List[String],
+    proofContextSupportKinds: List[String]
+)
+
+final case class ClaimLifecycleDiagnostic(
+    candidateId: String,
+    claimId: String,
+    finalClaimId: Option[String],
+    sourceCandidateIds: List[String],
+    family: ClaimFamily,
+    subject: IdeaSubject,
+    subjectBinding: SubjectBindingClass,
+    primaryLine: Option[LineNodeRef],
+    subjectMove: Option[String],
+    ideaIds: List[String],
+    finalIdeaIds: List[String],
+    evidenceIds: List[String],
+    finalEvidenceIds: List[String],
+    relativeCauses: List[ClaimLifecycleRelativeCause],
+    truthStatus: Option[ClaimLifecycleTruthStatus],
+    presentLayers: Set[EvidenceLayer],
+    missingLayerGroups: List[Set[EvidenceLayer]],
+    missingEvidenceIds: List[String],
+    stages: List[ClaimLifecycleStage],
+    dedupeWinnerId: Option[String],
+    arbitrationRank: Option[Int],
+    finalPacketIncluded: Boolean
+)
+
 object JudgmentSubjectBinding:
 
   def claimBinding(packet: EvidenceBackedJudgmentPacket, claim: ClaimSeed): SubjectBindingClass =
@@ -95,8 +152,7 @@ object JudgmentSubjectBinding:
       case RelativeCauseFactEvidence(cause) =>
         relativeCauseBinding(cause, playedMoves)
       case MoveVerdictCertificationEvidence(certification) =>
-        if playedMoves.contains(normalizeMove(certification.playedMove)) then SubjectBindingClass.PrimaryPlayedCause
-        else strongest(certification.causes.map(relativeCauseBinding(_, playedMoves)))
+        strongest(certification.causes.map(relativeCauseBinding(_, playedMoves)))
       case _ =>
         SubjectBindingClass.Other
 
@@ -122,15 +178,19 @@ object JudgmentSubjectBinding:
       cause: RelativeCauseFact,
       playedMoves: Set[String]
   ): SubjectBindingClass =
-    val eventIsPlayed = playedMoves.contains(normalizeMove(cause.eventRootMove))
-    if !eventIsPlayed then SubjectBindingClass.Other
-    else
-      cause.comparisonKind match
-        case CandidateComparisonKind.PlayedVsBest =>
-          SubjectBindingClass.PrimaryPlayedCause
-        case CandidateComparisonKind.PlayedVsAlternative | CandidateComparisonKind.BestVsSecond |
-            CandidateComparisonKind.ReferenceVsAlternative =>
-          SubjectBindingClass.ContextPlayed
+    val candidateIsPlayed = playedMoves.contains(normalizeMove(cause.candidateLine.rootMove))
+    val referenceIsPlayed = playedMoves.contains(normalizeMove(cause.referenceLine.rootMove))
+    cause.role match
+      case RelativeCauseRole.PrimaryPlayedCause
+          if candidateIsPlayed && cause.importance == RelativeCauseImportance.Primary =>
+        SubjectBindingClass.PrimaryPlayedCause
+      case RelativeCauseRole.PlayedAlternativeContext if candidateIsPlayed =>
+        SubjectBindingClass.ContextPlayed
+      case RelativeCauseRole.CandidateSetConstraint | RelativeCauseRole.AlternativeDiagnostic
+          if referenceIsPlayed || candidateIsPlayed =>
+        SubjectBindingClass.ContextPlayed
+      case _ =>
+        SubjectBindingClass.Other
 
   def packetPlayedMoves(packet: EvidenceBackedJudgmentPacket): Set[String] =
     (
@@ -177,8 +237,31 @@ object JudgmentSubjectBinding:
         record.ref.line.exists(line =>
           line.role == LineNodeRole.Played && playedMoves.contains(normalizeMove(line.rootMove))
         )
-      localLineBinding && directEvidencePayload(record.payload)
+      val playedTransitionBinding =
+        record.ref.scope == EvidenceScope.PlayedTransition &&
+          claim.subjectMove.exists(move => playedMoves.contains(normalizeMove(move)) && recordMentionsMove(record, move))
+      (localLineBinding || playedTransitionBinding) && directEvidencePayload(record.payload)
     }
+
+  private def recordMentionsMove(record: EvidenceRecord, move: String): Boolean =
+    record.payload match
+      case payload: MoveMotifEvidence =>
+        sameMove(payload.moveUci, move)
+      case MoveTransitionEvidence(moveUci, _, _) =>
+        sameMove(moveUci, move)
+      case payload: StructuralDeltaEvidence =>
+        sameMove(payload.moveUci, move)
+      case payload: TacticalMechanismEvidence =>
+        payload.moveUci.exists(sameMove(_, move)) ||
+          payload.line.exists(line => sameMove(line.rootMove, move)) ||
+          record.ref.scope == EvidenceScope.PlayedTransition
+      case payload: RelationFactEvidence =>
+        payload.mentionsLineMove(move) || record.ref.scope == EvidenceScope.PlayedTransition
+      case _ =>
+        record.ref.line.exists(line => sameMove(line.rootMove, move))
+
+  private def sameMove(left: String, right: String): Boolean =
+    normalizeMove(left) == normalizeMove(right)
 
   private def directEvidencePayload(payload: EvidencePayload): Boolean =
     payload match
@@ -209,11 +292,102 @@ object JudgmentSubjectBinding:
   def normalizeMove(raw: String): String =
     Option(raw).getOrElse("").trim.toLowerCase
 
+enum PlayerFacingClaimTier:
+  case Primary
+  case Secondary
+  case Context
+  case Diagnostic
+
+object PlayerFacingClaimPolicy:
+
+  def tier(packet: EvidenceBackedJudgmentPacket, claim: ClaimSeed): PlayerFacingClaimTier =
+    tier(claim, packet.evidenceGraph, JudgmentSubjectBinding.packetPlayedMoves(packet))
+
+  def tier(
+      claim: ClaimSeed,
+      graph: TypedEvidenceGraph,
+      playedMoves: Set[String]
+  ): PlayerFacingClaimTier =
+    if playedMoves.isEmpty then PlayerFacingClaimTier.Diagnostic
+    else
+      val evidenceRecords =
+        claim.evidence
+          .flatMap(ref => graph.byId.get(ref.id))
+      if evidenceRecords.exists(record => primaryEvidenceRecord(claim, record, playedMoves)) then
+        PlayerFacingClaimTier.Primary
+      else if JudgmentSubjectBinding.hasDirectPlayedEvidence(claim, graph, playedMoves) then
+        PlayerFacingClaimTier.Secondary
+      else if evidenceRecords.exists(record => contextEvidenceRecord(record, playedMoves)) then
+        PlayerFacingClaimTier.Context
+      else
+        PlayerFacingClaimTier.Diagnostic
+
+  private def primaryEvidenceRecord(
+      claim: ClaimSeed,
+      record: EvidenceRecord,
+      playedMoves: Set[String]
+  ): Boolean =
+    record.payload match
+      case CandidateComparisonEvidence(fact) =>
+        JudgmentSubjectBinding.comparisonBinding(fact, playedMoves) == SubjectBindingClass.PrimaryPlayedCause
+      case RelativeCauseFactEvidence(cause) =>
+        JudgmentSubjectBinding.relativeCauseBinding(cause, playedMoves) == SubjectBindingClass.PrimaryPlayedCause
+      case RelativeAssessmentEvidence(assessment) =>
+        claim.family == ClaimFamily.Evaluation &&
+          playedMoves.contains(JudgmentSubjectBinding.normalizeMove(assessment.played.moveUci))
+      case MoveVerdictCertificationEvidence(certification) =>
+        if claim.family == ClaimFamily.Evaluation then
+          playedMoves.contains(JudgmentSubjectBinding.normalizeMove(certification.playedMove))
+        else
+          certification.causes.exists(cause =>
+            JudgmentSubjectBinding.relativeCauseBinding(cause, playedMoves) == SubjectBindingClass.PrimaryPlayedCause
+          )
+      case _ =>
+        false
+
+  private def contextEvidenceRecord(
+      record: EvidenceRecord,
+      playedMoves: Set[String]
+  ): Boolean =
+    record.payload match
+      case CandidateComparisonEvidence(fact) =>
+        JudgmentSubjectBinding.comparisonBinding(fact, playedMoves) == SubjectBindingClass.ContextPlayed
+      case RelativeCauseFactEvidence(cause) =>
+        JudgmentSubjectBinding.relativeCauseBinding(cause, playedMoves) == SubjectBindingClass.ContextPlayed
+      case MoveVerdictCertificationEvidence(certification) =>
+        certification.causes.exists(cause =>
+          JudgmentSubjectBinding.relativeCauseBinding(cause, playedMoves) == SubjectBindingClass.ContextPlayed
+        )
+      case _ =>
+        false
+
+  def rankPriority(tier: PlayerFacingClaimTier): Int =
+    tier match
+      case PlayerFacingClaimTier.Primary    => 3
+      case PlayerFacingClaimTier.Secondary  => 2
+      case PlayerFacingClaimTier.Context    => 1
+      case PlayerFacingClaimTier.Diagnostic => 0
+
 case class ClaimInteraction(
     kind: ClaimInteractionKind,
     relatedClaimId: String,
     strength: Int,
-    interactionEvidence: List[EvidenceRef]
+    interactionEvidence: List[EvidenceRef],
+    basis: List[ClaimInteractionBasis] = Nil
+)
+
+case class ClaimInteractionBasis(
+    causeKind: RelativeCauseKind,
+    comparisonKind: CandidateComparisonKind,
+    causeRole: RelativeCauseRole,
+    causeSourceSide: RelativeCauseSourceSide,
+    causeImportance: RelativeCauseImportance,
+    referenceLine: LineNodeRef,
+    candidateLine: LineNodeRef,
+    eventLine: LineNodeRef,
+    proofDirectSourceIds: List[String],
+    proofContrastSourceIds: List[String],
+    proofContextSupportSourceIds: List[String]
 )
 
 case class ClaimSalience(
@@ -241,7 +415,8 @@ case class ClaimSupportClusterInteraction(
     sourceClaimId: String,
     targetClaimId: String,
     strength: Int,
-    evidence: List[EvidenceRef]
+    evidence: List[EvidenceRef],
+    basis: List[ClaimInteractionBasis]
 )
 
 case class ClaimSupportCluster(
@@ -292,6 +467,7 @@ object ClaimSupportCluster:
     Set(
       EvidenceLayer.Relation,
       EvidenceLayer.MoveMotif,
+      EvidenceLayer.TacticalMechanism,
       EvidenceLayer.RelativeCause,
       EvidenceLayer.RelativeAssessment,
       EvidenceLayer.CandidateComparison,
@@ -299,14 +475,24 @@ object ClaimSupportCluster:
       EvidenceLayer.MoveVerdictCertification
     )
 
+  private val longTermExcludedLayers: Set[EvidenceLayer] =
+    causeBoundLayers ++ Set(
+      EvidenceLayer.Line,
+      EvidenceLayer.Eval,
+      EvidenceLayer.ThreatPressure
+    )
+
   private[chessjudgment] def causeBoundLayer(layer: EvidenceLayer): Boolean =
     causeBoundLayers.contains(layer)
+
+  private[chessjudgment] def longTermSupportExcludedLayer(layer: EvidenceLayer): Boolean =
+    longTermExcludedLayers.contains(layer)
 
   private def longTermSupportEligible(claim: ClaimSeed, graph: TypedEvidenceGraph): Boolean =
     claim.family.isLongTerm &&
       claim.engineComparison.isEmpty &&
       claim.evidence.nonEmpty &&
-      !claim.evidence.exists(ref => causeBoundLayer(ref.layer)) &&
+      !claim.evidence.exists(ref => longTermSupportExcludedLayer(ref.layer)) &&
       semanticAnchors(claim, graph).nonEmpty
 
   private def clusterKey(claim: ClaimSeed, graph: TypedEvidenceGraph): ClusterKey =
@@ -329,10 +515,12 @@ object ClaimSupportCluster:
   private def semanticAnchorsForRecord(record: EvidenceRecord): List[EvidenceSemanticAnchor] =
     import EvidenceSemanticAnchorKind.*
     record.payload match
-      case payload @ StrategicFactEvidence(kind, _, relatedPlans, _) =>
+      case payload @ StrategicFactEvidence(kind, _, relatedPlans, confidence) if confidence >= 0.35 && payload.hasTypedSupport =>
         EvidenceSemanticAnchor.of(StrategicKind, kind.toString) ::
           relatedPlans.map(plan => EvidenceSemanticAnchor.of(Plan, plan.toString)) ++
           payload.semanticGroupingAnchors
+      case _: StrategicFactEvidence =>
+        Nil
       case PawnStructureFactEvidence(profile, alignment, pawnPlay) =>
         List(
           Option.when(profile.primary != StructureId.Unknown)(
@@ -437,7 +625,8 @@ object ClaimSupportCluster:
             sourceClaimId = source.id,
             targetClaimId = interaction.relatedClaimId,
             strength = interaction.strength,
-            evidence = interaction.interactionEvidence
+            evidence = interaction.interactionEvidence,
+            basis = interaction.basis
           )
         )
       }
@@ -457,8 +646,7 @@ object ClaimSupportCluster:
 
   private def supportingInteraction(kind: ClaimInteractionKind): Boolean =
     kind match
-      case ClaimInteractionKind.TacticalSupportsStrategicPlan | ClaimInteractionKind.StrategicCompensationSupportsSacrifice |
-          ClaimInteractionKind.ConversionSecuresAdvantage =>
+      case ClaimInteractionKind.StrategicCompensationSupportsSacrifice | ClaimInteractionKind.ConversionSecuresAdvantage =>
         true
       case _ =>
         false
@@ -491,7 +679,33 @@ case class ClaimEventClusterInteraction(
     sourceClaimId: String,
     targetClaimId: String,
     strength: Int,
-    evidence: List[EvidenceRef]
+    evidence: List[EvidenceRef],
+    basis: List[ClaimInteractionBasis]
+)
+
+enum ClaimEventMemberRole:
+  case CauseOwner
+  case VerdictCarrier
+  case Witness
+
+case class ClaimEventCauseProof(
+    claimId: String,
+    family: ClaimFamily,
+    memberRole: ClaimEventMemberRole,
+    causeKind: RelativeCauseKind,
+    comparisonKind: CandidateComparisonKind,
+    causeRole: RelativeCauseRole,
+    causeSourceSide: RelativeCauseSourceSide,
+    causeImportance: RelativeCauseImportance,
+    referenceLine: LineNodeRef,
+    candidateLine: LineNodeRef,
+    eventLine: LineNodeRef,
+    proofDirectSourceIds: List[String],
+    proofContrastSourceIds: List[String],
+    proofContextSupportSourceIds: List[String],
+    proofDirectKinds: List[String],
+    proofContrastKinds: List[String],
+    proofContextSupportKinds: List[String]
 )
 
 case class ClaimEventCluster(
@@ -499,6 +713,9 @@ case class ClaimEventCluster(
     kind: ClaimEventClusterKind,
     causeKind: RelativeCauseKind,
     comparisonKind: CandidateComparisonKind,
+    causeRole: RelativeCauseRole,
+    causeSourceSide: RelativeCauseSourceSide,
+    causeImportance: RelativeCauseImportance,
     referenceLine: LineNodeRef,
     candidateLine: LineNodeRef,
     eventLine: LineNodeRef,
@@ -521,8 +738,17 @@ case class ClaimEventCluster(
     proofLineEvents: List[LineEventKind],
     proofLineConsequences: List[LineConsequenceKind],
     proofRelationKinds: List[RelationFactKind],
+    proofRelationDetails: List[String],
+    proofTacticalMechanisms: List[TacticalMechanismProof],
     proofTransitionConsequences: List[TransitionConsequenceProof],
-    proofSupportLayers: Set[EvidenceLayer],
+    proofDirectSourceIds: List[String],
+    proofContrastSourceIds: List[String],
+    proofContextSupportSourceIds: List[String],
+    proofDirectKinds: List[String],
+    proofContrastKinds: List[String],
+    proofContextSupportKinds: List[String],
+    causeProofs: List[ClaimEventCauseProof],
+    causeContextLayers: Set[EvidenceLayer],
     confidence: EvidenceConfidence,
     salienceDrivers: List[ClaimSalienceDriver],
     interactions: List[ClaimEventClusterInteraction]
@@ -554,6 +780,9 @@ object ClaimEventCluster:
         (
           cluster.primaryPosition.ply,
           cluster.comparisonKind.toString,
+          cluster.causeRole.toString,
+          cluster.causeSourceSide.toString,
+          cluster.causeImportance.toString,
           cluster.causeKind.toString,
           cluster.eventRootMove,
           cluster.id
@@ -565,6 +794,9 @@ object ClaimEventCluster:
       scope: EvidenceScope,
       causeKind: RelativeCauseKind,
       comparisonKind: CandidateComparisonKind,
+      causeRole: RelativeCauseRole,
+      causeSourceSide: RelativeCauseSourceSide,
+      causeImportance: RelativeCauseImportance,
       referenceLine: LineNodeRef,
       candidateLine: LineNodeRef,
       eventLine: LineNodeRef,
@@ -574,15 +806,10 @@ object ClaimEventCluster:
   ):
     def eventRootMove: String = eventLine.rootMove
 
-  private enum EventMemberRole:
-    case CauseOwner
-    case VerdictCarrier
-    case Witness
-
   private final case class EventMemberBinding(
       key: EventClusterKey,
       claim: ClaimSeed,
-      role: EventMemberRole,
+      role: ClaimEventMemberRole,
       proof: Option[RelativeCauseProof] = None
   )
 
@@ -593,6 +820,7 @@ object ClaimEventCluster:
       EvidenceLayer.Eval,
       EvidenceLayer.ThreatPressure,
       EvidenceLayer.MoveMotif,
+      EvidenceLayer.TacticalMechanism,
       EvidenceLayer.MoveTransition,
       EvidenceLayer.Relation,
       EvidenceLayer.RelativeAssessment,
@@ -611,6 +839,7 @@ object ClaimEventCluster:
       EvidenceLayer.Eval,
       EvidenceLayer.ThreatPressure,
       EvidenceLayer.MoveMotif,
+      EvidenceLayer.TacticalMechanism,
       EvidenceLayer.MoveTransition,
       EvidenceLayer.Relation,
       EvidenceLayer.RelativeAssessment,
@@ -633,7 +862,7 @@ object ClaimEventCluster:
       val childRecords =
         graph.records.filter(record => record.parents.exists(parent => evidenceIds.contains(parent.id)))
       val linked = (parentRecords ++ childRecords).flatMap(eventKeysForRecord).distinct
-      lineAwareWitnessKeys(claim, linked).map(EventMemberBinding(_, claim, EventMemberRole.Witness))
+      lineAwareWitnessKeys(claim, linked).map(EventMemberBinding(_, claim, ClaimEventMemberRole.Witness))
     else Nil
 
   private def recordsFor(refs: List[EvidenceRef], graph: TypedEvidenceGraph): List[EvidenceRecord] =
@@ -644,19 +873,18 @@ object ClaimEventCluster:
       case RelativeCauseFactEvidence(cause) =>
         eventKey(record.ref, cause).toList.map { key =>
           val role =
-            if claim.family == ClaimFamily.Evaluation then EventMemberRole.Witness
-            else EventMemberRole.CauseOwner
+            if claim.family == ClaimFamily.Evaluation then ClaimEventMemberRole.Witness
+            else ClaimEventMemberRole.CauseOwner
           EventMemberBinding(key, claim, role, cause.proof)
         }
       case MoveVerdictCertificationEvidence(certification) =>
-        certification.causes.flatMap(cause => eventKey(record.ref, cause)).map { key =>
-          val role =
-            if claim.family == ClaimFamily.Evaluation then EventMemberRole.VerdictCarrier
-            else EventMemberRole.Witness
-          val proof = certification.causes.find(cause =>
-            eventKey(record.ref, cause).contains(key)
-          ).flatMap(_.proof)
-          EventMemberBinding(key, claim, role, proof)
+        certification.causes.flatMap { cause =>
+          eventKey(record.ref, cause).map { key =>
+            val role =
+              if claim.family == ClaimFamily.Evaluation then ClaimEventMemberRole.VerdictCarrier
+              else ClaimEventMemberRole.CauseOwner
+            EventMemberBinding(key, claim, role, cause.proof)
+          }
         }
       case _ =>
         Nil
@@ -677,6 +905,9 @@ object ClaimEventCluster:
         scope = ref.scope,
         causeKind = cause.kind,
         comparisonKind = cause.comparisonKind,
+        causeRole = cause.role,
+        causeSourceSide = cause.sourceSide,
+        causeImportance = cause.importance,
         referenceLine = cause.referenceLine,
         candidateLine = cause.candidateLine,
         eventLine = cause.eventLine,
@@ -689,7 +920,11 @@ object ClaimEventCluster:
   private def indirectWitnessEligible(claim: ClaimSeed): Boolean =
     claim.family match
       case ClaimFamily.Tactical | ClaimFamily.Conversion =>
-        claim.evidence.exists(ref => ref.layer == EvidenceLayer.Relation || ref.layer == EvidenceLayer.MoveMotif)
+        claim.evidence.exists(ref =>
+          ref.layer == EvidenceLayer.TacticalMechanism ||
+            ref.layer == EvidenceLayer.Relation ||
+            ref.layer == EvidenceLayer.MoveMotif
+        )
       case ClaimFamily.Material =>
         claim.evidence.exists(ref => ref.layer == EvidenceLayer.Line)
       case _ =>
@@ -731,7 +966,7 @@ object ClaimEventCluster:
     val memberIds = members.map(_.id).toSet
     val causeClaimIds =
       bindings
-        .filter(_.role == EventMemberRole.CauseOwner)
+        .filter(_.role == ClaimEventMemberRole.CauseOwner)
         .map(_.claim)
         .filterNot(_.family == ClaimFamily.Evaluation)
         .distinctBy(_.id)
@@ -739,7 +974,7 @@ object ClaimEventCluster:
         .map(_.id)
     val evaluationClaimIds =
       bindings
-        .filter(_.role == EventMemberRole.VerdictCarrier)
+        .filter(_.role == ClaimEventMemberRole.VerdictCarrier)
         .map(_.claim)
         .filter(_.family == ClaimFamily.Evaluation)
         .distinctBy(_.id)
@@ -747,7 +982,7 @@ object ClaimEventCluster:
         .map(_.id)
     val witnessClaimIds =
       bindings
-        .filter(_.role == EventMemberRole.Witness)
+        .filter(_.role == ClaimEventMemberRole.Witness)
         .map(_.claim)
         .filterNot(claim => causeClaimIds.contains(claim.id) || evaluationClaimIds.contains(claim.id))
         .distinctBy(_.id)
@@ -755,7 +990,24 @@ object ClaimEventCluster:
         .map(_.id)
     val evidence =
       members.flatMap(_.evidence).filter(ref => eventEvidenceLayers.contains(ref.layer)).distinctBy(_.id)
-    val proof = mergedProof(bindings.flatMap(_.proof))
+    val proof =
+      mergedProof(bindings.filter(_.role == ClaimEventMemberRole.CauseOwner).flatMap(_.proof))
+    val claimProof = proof.depthProof
+    val causeProofs = bindings.flatMap(causeProofForBinding).distinctBy(proof =>
+      (
+        proof.claimId,
+        proof.memberRole.toString,
+        proof.causeKind.toString,
+        proof.comparisonKind.toString,
+        proof.causeRole.toString,
+        proof.causeSourceSide.toString,
+        proof.causeImportance.toString,
+        proof.eventLine.id,
+        proof.proofDirectSourceIds.mkString(","),
+        proof.proofContrastSourceIds.mkString(","),
+        proof.proofContextSupportSourceIds.mkString(",")
+      )
+    )
     val interactions = clusterInteractions(memberIds, allClaims)
     val relatedSupportClusterIds = supportClustersRelatedTo(memberIds, interactions, supportClusters)
     Option.when(causeClaimIds.nonEmpty && evidence.nonEmpty) {
@@ -764,6 +1016,9 @@ object ClaimEventCluster:
         kind = clusterKind(key.causeKind),
         causeKind = key.causeKind,
         comparisonKind = key.comparisonKind,
+        causeRole = key.causeRole,
+        causeSourceSide = key.causeSourceSide,
+        causeImportance = key.causeImportance,
         referenceLine = key.referenceLine,
         candidateLine = key.candidateLine,
         eventLine = key.eventLine,
@@ -782,12 +1037,21 @@ object ClaimEventCluster:
         ideas = members.flatMap(_.ideaRefs).distinctBy(_.id),
         evidence = evidence,
         presentLayers = evidence.map(_.layer).toSet,
-        proofBoardAnchors = proof.boardAnchors,
-        proofLineEvents = proof.lineEvents,
-        proofLineConsequences = proof.lineConsequences,
-        proofRelationKinds = proof.relationKinds,
-        proofTransitionConsequences = proof.transitionConsequences,
-        proofSupportLayers = proof.supportLayers.toSet,
+        proofBoardAnchors = claimProof.boardAnchors,
+        proofLineEvents = claimProof.lineEvents,
+        proofLineConsequences = claimProof.lineConsequences,
+        proofRelationKinds = claimProof.relationKinds,
+        proofRelationDetails = claimProof.relationDetails,
+        proofTacticalMechanisms = claimProof.tacticalMechanisms,
+        proofTransitionConsequences = claimProof.transitionConsequences,
+        proofDirectSourceIds = proof.directProof.sourceRefs.map(_.id).distinct.sorted,
+        proofContrastSourceIds = proof.contrastProof.sourceRefs.map(_.id).distinct.sorted,
+        proofContextSupportSourceIds = proof.contextSupport.sourceRefs.map(_.id).distinct.sorted,
+        proofDirectKinds = proof.directProof.kindLabels.distinct.sorted,
+        proofContrastKinds = proof.contrastProof.kindLabels.distinct.sorted,
+        proofContextSupportKinds = proof.contextSupport.kindLabels.distinct.sorted,
+        causeProofs = causeProofs,
+        causeContextLayers = proof.contextLayers.toSet,
         confidence = members.map(_.confidence).maxBy(confidenceScore),
         salienceDrivers = members.flatMap(_.salience.toList.flatMap(_.drivers)).distinct,
         interactions = interactions
@@ -795,19 +1059,38 @@ object ClaimEventCluster:
     }
 
   private def mergedProof(proofs: List[RelativeCauseProof]): RelativeCauseProof =
-    RelativeCauseProof(
-      boardAnchors = proofs.flatMap(_.boardAnchors).distinct,
-      lineEvents = proofs.flatMap(_.lineEvents).distinct,
-      lineConsequences = proofs.flatMap(_.lineConsequences).distinct,
-      relationKinds = proofs.flatMap(_.relationKinds).distinct,
-      supportLayers = proofs.flatMap(_.supportLayers).distinct,
-      transitionConsequences = proofs.flatMap(_.transitionConsequences).distinct
-    )
+    RelativeCauseProof.merge(proofs)
+
+  private def causeProofForBinding(binding: EventMemberBinding): Option[ClaimEventCauseProof] =
+    binding.proof.map { proof =>
+      ClaimEventCauseProof(
+        claimId = binding.claim.id,
+        family = binding.claim.family,
+        memberRole = binding.role,
+        causeKind = binding.key.causeKind,
+        comparisonKind = binding.key.comparisonKind,
+        causeRole = binding.key.causeRole,
+        causeSourceSide = binding.key.causeSourceSide,
+        causeImportance = binding.key.causeImportance,
+        referenceLine = binding.key.referenceLine,
+        candidateLine = binding.key.candidateLine,
+        eventLine = binding.key.eventLine,
+        proofDirectSourceIds = proof.directProof.sourceRefs.map(_.id).distinct.sorted,
+        proofContrastSourceIds = proof.contrastProof.sourceRefs.map(_.id).distinct.sorted,
+        proofContextSupportSourceIds = proof.contextSupport.sourceRefs.map(_.id).distinct.sorted,
+        proofDirectKinds = proof.directProof.kindLabels.distinct.sorted,
+        proofContrastKinds = proof.contrastProof.kindLabels.distinct.sorted,
+        proofContextSupportKinds = proof.contextSupport.kindLabels.distinct.sorted
+      )
+    }
 
   private def eventClusterId(key: EventClusterKey, members: List[ClaimSeed]): String =
     List(
       "claim-event",
       key.comparisonKind.toString,
+      key.causeRole.toString,
+      key.causeSourceSide.toString,
+      key.causeImportance.toString,
       key.causeKind.toString,
       key.eventRootMove,
       members.map(_.id).minOption.getOrElse("empty")
@@ -853,7 +1136,8 @@ object ClaimEventCluster:
             strength = interaction.strength,
             evidence =
               if crossesLongTerm(source, interaction.relatedClaimId, memberIds, claimsById) then Nil
-              else interaction.interactionEvidence.filter(ref => eventInteractionEvidenceLayers.contains(ref.layer))
+              else interaction.interactionEvidence.filter(ref => eventInteractionEvidenceLayers.contains(ref.layer)),
+            basis = interaction.basis
           )
         )
       }
@@ -945,6 +1229,7 @@ object IdeaVerdictSplit:
                 (relative.evidence ::
                   (relative.counterfactualEvidence ++
                     relative.candidateComparisonEvidence ++
+                    relative.relativeCauseEvidence ++
                     relative.verdictCertificationEvidence.toList))).distinctBy(_.id)
           )
         }
@@ -977,6 +1262,7 @@ object IdeaVerdictSplit:
       (relative.evidence ::
         (relative.counterfactualEvidence ++
           relative.candidateComparisonEvidence ++
+          relative.relativeCauseEvidence ++
           relative.verdictCertificationEvidence.toList)).map(_.id).toSet
     idea.ref.family == ChessIdeaFamily.Evaluation ||
       idea.primaryLine.contains(relative.candidate.ref) ||
@@ -995,6 +1281,7 @@ case class EvidenceBackedJudgmentPacket(
     evidenceGraph: TypedEvidenceGraph,
     ideas: List[ChessIdea],
     claims: List[ClaimSeed],
+    claimLifecycle: List[ClaimLifecycleDiagnostic] = Nil,
     ideaVerdict: Option[IdeaVerdictSplit],
     claimSupportClusters: List[ClaimSupportCluster] = Nil,
     claimEventClusters: List[ClaimEventCluster] = Nil,

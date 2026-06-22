@@ -16,8 +16,6 @@ enum ProbePurpose(val key: String):
   case RouteDenialValidation extends ProbePurpose("route_denial_validation")
   case ColorComplexSqueezeValidation extends ProbePurpose("color_complex_squeeze_validation")
   case LongTermRestraintValidation extends ProbePurpose("long_term_restraint_validation")
-  case LatentPlanRefutation extends ProbePurpose("latent_plan_refutation")
-  case LatentPlanImmediate extends ProbePurpose("latent_plan_immediate")
 
 object ProbePurpose:
   private val byKey = ProbePurpose.values.map(p => p.key -> p).toMap
@@ -51,7 +49,7 @@ case class ProbeRequest(
   baselineMate: Option[Int] = None,
   baselineDepth: Option[Int] = None,
   // Objective-driven probing contract
-  objective: Option[String] = None,        // e.g. "validate_latent_plan", "refute_plan", "compare_branches"
+  objective: Option[String] = None,        // e.g. "branch_reply_multipv", "compare_branches"
   seedId: Option[String] = None,           // Latent seed identifier when relevant
   requiredSignals: List[String] = Nil,     // e.g. "replyPvs", "keyMotifs", "boardDelta", "futureSnapshot"
   horizon: Option[String] = None,          // "short" | "medium" | "long"
@@ -223,8 +221,6 @@ object ProbeContractValidator:
 
   private val purposeSignals: Map[ProbePurpose, Set[String]] =
     themePurposeSignals ++ Map(
-    ProbePurpose.LatentPlanRefutation -> Set("replyPvs", "keyMotifs", "boardDelta", "futureSnapshot"),
-    ProbePurpose.LatentPlanImmediate -> Set("replyPvs", "boardDelta"),
     ProbePurpose.FreeTempoBranches -> Set("replyPvs", "futureSnapshot")
   )
 

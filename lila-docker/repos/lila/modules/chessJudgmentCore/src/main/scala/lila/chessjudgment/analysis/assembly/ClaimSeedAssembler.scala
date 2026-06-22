@@ -27,11 +27,12 @@ object ClaimSeedAssembler:
         )
       }
     val claimGraph = ClaimCandidateGraphAssembler.fromClaims(claimCandidates, context.evidenceGraph)
-    val claims = ClaimArbitrator.rank(claimGraph, context.relativeAssessments)
+    val arbitration = ClaimArbitrator.rankWithLifecycle(claimGraph, context.relativeAssessments)
+    val claims = arbitration.claims
     val claimRecords = claims.map(claim => ClaimComposer.evidenceRecord(s"${claim.id}:evidence", claim))
     val withEvidence = context.withEvidence(claimRecords)
     val withClaims = claims.foldLeft(withEvidence)((ctx, claim) => ctx.withClaim(claim))
-    ClaimSeedAssembly(assembly.input, withClaims)
+    ClaimSeedAssembly(assembly.input, withClaims.withClaimLifecycle(arbitration.lifecycle))
 
   private def claimFamily(idea: ChessIdea): ClaimFamily =
     if idea.subject == IdeaSubject.Plan then ClaimFamily.Plan

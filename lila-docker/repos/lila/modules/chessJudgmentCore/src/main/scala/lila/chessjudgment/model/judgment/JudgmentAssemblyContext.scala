@@ -10,6 +10,7 @@ final case class JudgmentAssemblyContext(
     evidenceGraph: TypedEvidenceGraph,
     ideas: List[ChessIdea],
     claims: List[ClaimSeed],
+    claimLifecycle: List[ClaimLifecycleDiagnostic] = Nil,
     probeDiagnostics: List[ProbeAdmissionDiagnostic] = Nil
 ):
   def position(role: PositionNodeRole): Option[PositionNode] =
@@ -54,6 +55,9 @@ final case class JudgmentAssemblyContext(
   def withClaim(claim: ClaimSeed): JudgmentAssemblyContext =
     copy(claims = replaceBy(claims, claim)(_.id))
 
+  def withClaimLifecycle(lifecycle: List[ClaimLifecycleDiagnostic]): JudgmentAssemblyContext =
+    copy(claimLifecycle = lifecycle)
+
   private def replaceBy[A, K](items: List[A], item: A)(key: A => K): List[A] =
     items.filterNot(existing => key(existing) == key(item)) :+ item
 
@@ -67,5 +71,6 @@ object JudgmentAssemblyContext:
       evidenceGraph = evidenceGraph,
       ideas = Nil,
       claims = Nil,
+      claimLifecycle = Nil,
       probeDiagnostics = Nil
     )

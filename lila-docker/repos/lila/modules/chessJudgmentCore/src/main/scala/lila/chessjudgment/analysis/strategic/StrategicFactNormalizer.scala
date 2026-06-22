@@ -114,8 +114,32 @@ object StrategicFactNormalizer:
         line = line,
         scope = scope,
         confidence = if threats.insufficientData then EvidenceConfidence.Mixed else EvidenceConfidence.EngineBacked
-      )
+    )
     EvidenceRecord(ref = ref, payload = ThreatPressureEvidence(sideUnderPressure, threats), parents = parents)
+
+  def fromThreatEpisode(
+      id: String,
+      episode: ThreatEpisode,
+      summary: ThreatAnalysis,
+      position: PositionNodeRef,
+      line: Option[LineNodeRef],
+      scope: EvidenceScope,
+      parents: List[EvidenceRef] = Nil
+  ): EvidenceRecord =
+    val ref =
+      EvidenceRef(
+        id = id,
+        producer = EvidenceProducer.ThreatPressureProducer,
+        layer = EvidenceLayer.ThreatPressure,
+        position = position,
+        line = line,
+        scope = scope,
+        confidence =
+          if episode.hasLineValueProof then EvidenceConfidence.EngineBacked
+          else if episode.hasMotifProof then EvidenceConfidence.Mixed
+          else EvidenceConfidence.Heuristic
+      )
+    EvidenceRecord(ref = ref, payload = ThreatEpisodeEvidence(episode, summary), parents = parents)
 
   def fromPlanPressure(
       id: String,

@@ -7,7 +7,7 @@ import lila.chessjudgment.analysis.evaluation.{ EvaluationPerspectivePolicy, Per
 import lila.chessjudgment.analysis.move.{ MoveAnalyzer, MoveMotifNormalizer }
 import lila.chessjudgment.analysis.opening.OpeningContextFactNormalizer
 import lila.chessjudgment.analysis.plan.{ PlanInteractionContext, PlanMatcher }
-import lila.chessjudgment.analysis.singlePosition.{ PawnPlayAssessor, PawnPlayDriver, PvLine, ThreatPressureAssessor }
+import lila.chessjudgment.analysis.singlePosition.{ PawnPlayAssessor, PawnPlayDriver, PvLine, ThreatAnalysis, ThreatPressureAssessor }
 import lila.chessjudgment.analysis.strategic.StrategicFactNormalizer
 import lila.chessjudgment.analysis.structure.{
   PawnStructureAssessor,
@@ -15,7 +15,7 @@ import lila.chessjudgment.analysis.structure.{
   StructuralDeltaAnalyzer,
   StructuralPlaybook
 }
-import lila.chessjudgment.analysis.tactical.{ RelationFactNormalizer, TacticalRelationEvidence }
+import lila.chessjudgment.analysis.tactical.{ RelationFactNormalizer, TacticalMotifClassifier, TacticalRelationEvidence }
 import lila.chessjudgment.analysis.transition.{ TransitionAnalyzer, TransitionFactNormalizer }
 import lila.chessjudgment.model.{ CompatibilityAdjustment, Motif, PlanCategory }
 import lila.chessjudgment.model.judgment.*
@@ -28,6 +28,12 @@ final case class EvidenceFactAssembly(
 object EvidenceFactAssembler:
 
   private val OpeningRelevanceMaxPly = 20
+
+  private final case class TacticalMechanismCandidate(
+      kind: TacticalMechanismKind,
+      records: List[EvidenceRecord],
+      signals: List[TacticalMechanismSignal]
+  )
 
   def assemble(raw: RawMoveReviewInput): Option[EvidenceFactAssembly] =
     NodeLineTransitionAssembler.assemble(raw).map(enrich)
@@ -45,8 +51,10 @@ object EvidenceFactAssembler:
         structuralDeltaRecords(context, allocator)
       )
     val baseContext = context.withEvidence(baseRecords)
-    val strategicRecords = strategicFeatureRecords(baseContext, allocator)
-    val strategicContext = baseContext.withEvidence(strategicRecords)
+    val mechanismRecords = tacticalMechanismRecords(baseContext, allocator)
+    val mechanismContext = baseContext.withEvidence(mechanismRecords)
+    val strategicRecords = strategicFeatureRecords(mechanismContext, allocator)
+    val strategicContext = mechanismContext.withEvidence(strategicRecords)
     val planRecords = planPressureRecords(assembly.input, strategicContext, allocator)
     val planContext = strategicContext.withEvidence(planRecords)
     val openingRecords = featureApplicabilityRecords(assembly.input, planContext, allocator)
@@ -61,7 +69,7 @@ object EvidenceFactAssembler:
     before.flatMap { root =>
       val transitionRecords =
         List(
-          context.playedTransition.map { edge =>
+          context.playedTransition.toList.flatMap { edge =>
             val line = lineForTransition(context, edge)
             moveMotifRecord(
               id = allocator.evidenceId(s"move-motif:played:${edge.moveUci}"),
@@ -74,7 +82,7 @@ object EvidenceFactAssembler:
               parents = transitionParents(context, edge, line)
             )
           },
-          context.referenceTransition.map { edge =>
+          context.referenceTransition.toList.flatMap { edge =>
             val line = lineForTransition(context, edge)
             moveMotifRecord(
               id = allocator.evidenceId(s"move-motif:reference:${edge.moveUci}"),
@@ -87,10 +95,10 @@ object EvidenceFactAssembler:
               parents = transitionParents(context, edge, line)
             )
           }
-        ).flatten.flatten
+        ).flatten
       val lineRecords =
         context.lines.flatMap { line =>
-          lineFactEvidence(context, line.ref).flatMap { lineFacts =>
+          lineFactEvidence(context, line.ref).toList.flatMap { lineFacts =>
             val startPosition = startPositionForLine(input, context, root, line)
             moveMotifRecord(
               id = allocator.evidenceId(s"move-motif:line:${allocator.key(line.role)}:${line.ref.rank}:${line.ref.rootMove}"),
@@ -116,20 +124,20 @@ object EvidenceFactAssembler:
       line: Option[CandidateLineNode],
       scope: EvidenceScope,
       parents: List[EvidenceRef]
-  ): Option[EvidenceRecord] =
+  ): List[EvidenceRecord] =
     MoveAnalyzer.tokenizePv(startFen, moves).flatMap { motifs =>
       Option.when(motifs.nonEmpty) {
         MoveMotifNormalizer.fromMotifs(
           id = id,
           moveUci = moveUci,
-          motifs = motifs.distinct,
+          motifs = motifs,
           position = position,
           line = line.map(_.ref),
           scope = scope,
           parents = parents
         )
       }
-    }
+    }.getOrElse(Nil)
 
   private def relationRecords(
       input: NormalizedMoveReviewInput,
@@ -254,7 +262,7 @@ object EvidenceFactAssembler:
   ): List[EvidenceRecord] =
     val beforeRecords = context.position(PositionNodeRole.Before).toList.flatMap { node =>
       node.assessment.toList.flatMap { assessment =>
-        node.ref.sideToMove.toList.map { sideUnderPressure =>
+        node.ref.sideToMove.toList.flatMap { sideUnderPressure =>
           val threats =
             ThreatPressureAssessor.analyze(
               fen = input.beforeFen,
@@ -263,8 +271,9 @@ object EvidenceFactAssembler:
               positionAssessment = assessment,
               sideToMove = sideUnderPressure
             )
-          StrategicFactNormalizer.fromThreatPressure(
-            id = allocator.evidenceId(s"threat-pressure:${allocator.key(sideUnderPressure.name)}:before"),
+          threatPressureBundle(
+            baseId = s"threat-pressure:${allocator.key(sideUnderPressure.name)}:before",
+            allocator = allocator,
             sideUnderPressure = sideUnderPressure,
             threats = threats,
             position = node.ref,
@@ -280,7 +289,7 @@ object EvidenceFactAssembler:
     val branchRecords =
       input.threatBranches.flatMap { branch =>
         val lineNodes = branch.lines.flatMap(lineNodeForNormalized(context, _))
-        for
+        (for
           node <- context.positions.find(position =>
             position.role == PositionNodeRole.AfterThreat && position.ref.fen == branch.branchFen
           ).toList
@@ -295,10 +304,10 @@ object EvidenceFactAssembler:
               positionAssessment = assessment,
               sideToMove = sideUnderPressure
             )
-          StrategicFactNormalizer.fromThreatPressure(
-            id = allocator.evidenceId(
-              s"threat-pressure:${allocator.key(sideUnderPressure.name)}:branch:${allocator.key(branch.sourceProbeId)}:${allocator.key(branch.probedMoveUci)}"
-            ),
+          threatPressureBundle(
+            baseId =
+              s"threat-pressure:${allocator.key(sideUnderPressure.name)}:branch:${allocator.key(branch.sourceProbeId)}:${allocator.key(branch.probedMoveUci)}",
+            allocator = allocator,
             sideUnderPressure = sideUnderPressure,
             threats = threats,
             position = node.ref,
@@ -307,11 +316,11 @@ object EvidenceFactAssembler:
             parents = evidenceRefs(context, EvidenceLayer.Board, Some(node.ref), None) ++
               evidenceRefs(context, EvidenceLayer.SinglePosition, Some(node.ref), None) ++
               lineNodes.flatMap(lineParents(context, _))
-          )
+          )).flatten
       }
     val afterLineRecords =
       context.transitions.flatMap { edge =>
-        for
+        (for
           line <- lineForTransition(context, edge).toList
           lineFacts <- lineFactEvidence(context, line.ref).toList
           node <- context.positions.find(_.ref == edge.to).toList
@@ -334,8 +343,9 @@ object EvidenceFactAssembler:
           )
           if threats.hasThreat || threats.defenseRequired || threats.prophylaxisNeeded
         yield
-          StrategicFactNormalizer.fromThreatPressure(
-            id = allocator.evidenceId(s"threat-pressure:${allocator.key(sideUnderPressure.name)}:${allocator.key(edge.role)}:${edge.moveUci}"),
+          threatPressureBundle(
+            baseId = s"threat-pressure:${allocator.key(sideUnderPressure.name)}:${allocator.key(edge.role)}:${edge.moveUci}",
+            allocator = allocator,
             sideUnderPressure = sideUnderPressure,
             threats = threats,
             position = node.ref,
@@ -345,9 +355,226 @@ object EvidenceFactAssembler:
               evidenceRefs(context, EvidenceLayer.Board, Some(node.ref), None) ++
               evidenceRefs(context, EvidenceLayer.SinglePosition, Some(node.ref), None) ++
               lineParents(context, line)
-          )
+          )).flatten
       }
     beforeRecords ++ branchRecords ++ afterLineRecords
+
+  private def threatPressureBundle(
+      baseId: String,
+      allocator: JudgmentProvenanceAllocator,
+      sideUnderPressure: Color,
+      threats: ThreatAnalysis,
+      position: PositionNodeRef,
+      line: Option[LineNodeRef],
+      scope: EvidenceScope,
+      parents: List[EvidenceRef]
+  ): List[EvidenceRecord] =
+    val summary =
+      StrategicFactNormalizer.fromThreatPressure(
+        id = allocator.evidenceId(baseId),
+        sideUnderPressure = sideUnderPressure,
+        threats = threats,
+        position = position,
+        line = line,
+        scope = scope,
+        parents = parents
+      )
+    val episodes =
+      ThreatEpisode.fromAnalysis(sideUnderPressure, threats).map { episode =>
+        StrategicFactNormalizer.fromThreatEpisode(
+          id = allocator.evidenceId(
+            s"$baseId:episode:${episode.sourceThreatIndex}:${allocator.key(episode.kind.toString)}:${allocator.key(episode.evidenceSource.toString)}"
+          ),
+          episode = episode,
+          summary = threats,
+          position = position,
+          line = line,
+          scope = scope,
+          parents = (summary.ref :: parents).distinctBy(_.id)
+        )
+    }
+    summary :: episodes
+
+  private def tacticalMechanismRecords(
+      context: JudgmentAssemblyContext,
+      allocator: JudgmentProvenanceAllocator
+  ): List[EvidenceRecord] =
+    val lineMechanisms =
+      context.lines.flatMap(line => tacticalMechanismRecordsForLine(context, allocator, line))
+    val unlinedTransitionMechanisms =
+      context.transitions
+        .filter(edge => lineForTransition(context, edge).isEmpty)
+        .flatMap(edge => tacticalMechanismRecordsForTransition(context, allocator, edge))
+    val unlinedThreatMechanisms =
+      context.evidenceGraph.records.collect {
+        case record @ EvidenceRecord(ref, _: ThreatEpisodeEvidence, _) if ref.line.isEmpty =>
+          tacticalMechanismRecord(
+            id = allocator.evidenceId(s"tactical-mechanism:threat:${allocator.key(ref.id)}"),
+            kind = TacticalMechanismKind.DefensiveResource,
+            position = ref.position,
+            line = None,
+            moveUci = None,
+            scope = ref.scope,
+            records = List(record),
+            signals = List(TacticalMechanismSignal(TacticalMechanismSignalKind.ThreatEpisode, ref.id, EvidenceLayer.ThreatPressure))
+          )
+      }.flatten
+    (lineMechanisms ++ unlinedTransitionMechanisms ++ unlinedThreatMechanisms).distinctBy(_.ref.id)
+
+  private def tacticalMechanismRecordsForLine(
+      context: JudgmentAssemblyContext,
+      allocator: JudgmentProvenanceAllocator,
+      line: CandidateLineNode
+  ): List[EvidenceRecord] =
+    val records = context.evidenceGraph.recordsFor(line.ref)
+    val position =
+      records.headOption.map(_.ref.position).orElse(context.root)
+    position.toList.flatMap { nodeRef =>
+      tacticalMechanismCandidates(records).flatMap { candidate =>
+        tacticalMechanismRecord(
+          id = allocator.evidenceId(
+            s"tactical-mechanism:line:${allocator.key(line.role)}:${line.ref.rank}:${line.ref.rootMove}:${allocator.key(candidate.kind)}"
+          ),
+          kind = candidate.kind,
+          position = nodeRef,
+          line = Some(line.ref),
+          moveUci = Some(line.ref.rootMove),
+          scope = line.role.scope,
+          records = candidate.records,
+          signals = candidate.signals
+        )
+      }
+    }
+
+  private def tacticalMechanismRecordsForTransition(
+      context: JudgmentAssemblyContext,
+      allocator: JudgmentProvenanceAllocator,
+      edge: MoveTransitionEdge
+  ): List[EvidenceRecord] =
+    val records =
+      context.evidenceGraph.records.filter(record =>
+        record.ref.scope == edge.role.scope &&
+          record.ref.position == edge.from &&
+          transitionRecordMentionsMove(record, edge.moveUci)
+      )
+    tacticalMechanismCandidates(records).flatMap { candidate =>
+      tacticalMechanismRecord(
+        id = allocator.evidenceId(s"tactical-mechanism:transition:${allocator.key(edge.role)}:${edge.moveUci}:${allocator.key(candidate.kind)}"),
+        kind = candidate.kind,
+        position = edge.from,
+        line = None,
+        moveUci = Some(edge.moveUci),
+        scope = edge.role.scope,
+        records = candidate.records ++ context.evidenceGraph.byId.get(edge.evidence.id).toList,
+        signals = candidate.signals
+      )
+    }
+
+  private def tacticalMechanismCandidates(records: List[EvidenceRecord]): List[TacticalMechanismCandidate] =
+    val entries =
+      records.flatMap(record =>
+        record.payload match
+          case payload: MoveMotifEvidence =>
+            TacticalMotifClassifier.rootMotif(payload).toList.flatMap { motif =>
+              TacticalMechanismKind.fromMotif(motif).map(kind =>
+                TacticalMechanismCandidate(
+                  kind,
+                  List(record),
+                  List(TacticalMechanismSignal(TacticalMechanismSignalKind.Motif, payload.proof.kind, EvidenceLayer.MoveMotif))
+                )
+              )
+            }
+          case payload: RelationFactEvidence if payload.hasConcreteRelationProof && payload.hasLineProof =>
+            List(
+              TacticalMechanismCandidate(
+                TacticalMechanismKind.fromRelation(payload.kind),
+                List(record),
+                List(TacticalMechanismSignal(TacticalMechanismSignalKind.Relation, payload.kind.toString, EvidenceLayer.Relation))
+              )
+            )
+          case payload: LineFactEvidence =>
+            payload.tacticalLineConsequenceKinds.flatMap(kind =>
+              TacticalMechanismKind.fromLineConsequence(kind).map(mechanismKind =>
+                TacticalMechanismCandidate(
+                  mechanismKind,
+                  List(record),
+                  List(TacticalMechanismSignal(TacticalMechanismSignalKind.LineConsequence, kind.toString, EvidenceLayer.Line))
+                )
+              )
+            )
+          case EvalFactEvidence(_, _, mate, _) if mate.nonEmpty =>
+            List(
+              TacticalMechanismCandidate(
+                TacticalMechanismKind.KingForcing,
+                List(record),
+                List(TacticalMechanismSignal(TacticalMechanismSignalKind.MateBranch, mate.map(_.toString).getOrElse("mate"), EvidenceLayer.Eval))
+              )
+            )
+          case payload: ThreatEpisodeEvidence if payload.isProofSignalDefensivePressure =>
+            List(
+              TacticalMechanismCandidate(
+                TacticalMechanismKind.DefensiveResource,
+                List(record),
+                List(TacticalMechanismSignal(TacticalMechanismSignalKind.ThreatEpisode, payload.episode.episodeId, EvidenceLayer.ThreatPressure))
+              )
+            )
+          case _ =>
+            Nil
+      )
+    entries
+      .groupBy(_.kind)
+      .toList
+      .map { case (kind, grouped) =>
+        TacticalMechanismCandidate(
+          kind = kind,
+          records = grouped.flatMap(_.records).distinctBy(_.ref.id),
+          signals = grouped.flatMap(_.signals).distinct
+        )
+      }
+      .filter(candidate => TacticalMechanismEvidence(candidate.kind, None, None, candidate.signals).hasConcreteProof)
+
+  private def tacticalMechanismRecord(
+      id: String,
+      kind: TacticalMechanismKind,
+      position: PositionNodeRef,
+      line: Option[LineNodeRef],
+      moveUci: Option[String],
+      scope: EvidenceScope,
+      records: List[EvidenceRecord],
+      signals: List[TacticalMechanismSignal]
+  ): Option[EvidenceRecord] =
+    val payload = TacticalMechanismEvidence(kind, moveUci, line, signals)
+    Option.when(payload.hasConcreteProof) {
+      val confidence =
+        if signals.exists(_.kind == TacticalMechanismSignalKind.MateBranch) then EvidenceConfidence.EngineBacked
+        else if signals.exists(signal => signal.kind == TacticalMechanismSignalKind.Relation || signal.kind == TacticalMechanismSignalKind.LineConsequence)
+        then EvidenceConfidence.LegalReplayVerified
+        else EvidenceConfidence.Mixed
+      EvidenceRecord(
+        ref = EvidenceRef(
+          id = id,
+          producer = EvidenceProducer.TacticalMechanismProducer,
+          layer = EvidenceLayer.TacticalMechanism,
+          position = position,
+          line = line,
+          scope = scope,
+          confidence = confidence
+        ),
+        payload = payload,
+        parents = records.map(_.ref).distinctBy(_.id)
+      )
+    }
+
+  private def transitionRecordMentionsMove(record: EvidenceRecord, moveUci: String): Boolean =
+    record.payload match
+      case payload: MoveMotifEvidence =>
+        payload.moveUci == moveUci
+      case MoveTransitionEvidence(move, _, _) =>
+        move == moveUci
+      case payload: RelationFactEvidence =>
+        payload.mentionsLineMove(moveUci) || record.ref.scope == EvidenceScope.PlayedTransition
+      case _ =>
+        false
 
   private def structuralDeltaRecords(
       context: JudgmentAssemblyContext,
@@ -901,13 +1128,13 @@ object EvidenceFactAssembler:
         val motifs = motifsForLineRole(context, LineNodeRole.BestReference)
         val pawnStructureRecord = pawnStructureRecordFor(context, node.ref)
         val pawnStructure = pawnStructureRecord.map(_._2)
-        val threatsToUs = threatPressureEvidence(context, node.ref, side)
         val planContext =
           PlanInteractionContext(
             whitePovEvalCp = input.currentWhitePovEvalCp,
             positionAssessment = Some(assessment),
             pawnAnalysis = pawnStructure.flatMap(_.pawnPlay),
-            threatsToUs = threatsToUs.map(_.threats),
+            threatEpisodesToUs = threatEpisodes(context, node.ref, side),
+            threatEpisodesToThem = threatEpisodes(context, node.ref, !side),
             isWhiteToMove = side.white,
             positionKey = Some(node.ref.fen),
             boardProfile = Some(boardProfile),
@@ -941,9 +1168,7 @@ object EvidenceFactAssembler:
               scope = EvidenceScope.BeforePosition,
               parents = evidenceRefs(context, EvidenceLayer.Board, Some(node.ref), None) ++
                 evidenceRefs(context, EvidenceLayer.SinglePosition, Some(node.ref), None) ++
-                evidenceRefs(context, EvidenceLayer.PawnStructure, Some(node.ref), None) ++
-                evidenceRefs(context, EvidenceLayer.ThreatPressure, Some(node.ref), None) ++
-                context.line(LineNodeRole.BestReference).toList.flatMap(lineParents(context, _))
+                evidenceRefs(context, EvidenceLayer.PawnStructure, Some(node.ref), None)
             )
           val alignedPawnStructure =
             for
@@ -976,15 +1201,15 @@ object EvidenceFactAssembler:
 
   private def motifsForLineRole(context: JudgmentAssemblyContext, role: LineNodeRole): List[Motif] =
     context.line(role).map(_.ref).flatMap { lineRef =>
-      context.evidenceGraph.records.collectFirst {
-        case EvidenceRecord(ref, MoveMotifEvidence(_, motifs), _) if ref.line.contains(lineRef) => motifs
-      }
+      Some(context.evidenceGraph.records.collect {
+        case EvidenceRecord(ref, payload: MoveMotifEvidence, _) if ref.line.contains(lineRef) => payload.motif
+      })
     }.getOrElse(Nil)
 
   private def motifsForLineNode(context: JudgmentAssemblyContext, line: CandidateLineNode): List[Motif] =
-    context.evidenceGraph.records.collectFirst {
-      case EvidenceRecord(ref, MoveMotifEvidence(_, motifs), _) if ref.line.contains(line.ref) => motifs
-    }.getOrElse(Nil)
+    context.evidenceGraph.records.collect {
+      case EvidenceRecord(ref, payload: MoveMotifEvidence, _) if ref.line.contains(line.ref) => payload.motif
+    }
 
   private def startPositionForLine(
       input: NormalizedMoveReviewInput,
@@ -1030,15 +1255,15 @@ object EvidenceFactAssembler:
         record -> payload
     }
 
-  private def threatPressureEvidence(
+  private def threatEpisodes(
       context: JudgmentAssemblyContext,
       position: PositionNodeRef,
       sideUnderPressure: Color
-  ): Option[ThreatPressureEvidence] =
-    context.evidenceGraph.records.collectFirst {
-      case EvidenceRecord(ref, payload: ThreatPressureEvidence, _)
+  ): List[ThreatEpisode] =
+    context.evidenceGraph.records.collect {
+      case EvidenceRecord(ref, payload: ThreatEpisodeEvidence, _)
           if ref.position == position && payload.sideUnderPressure == sideUnderPressure =>
-        payload
+        payload.episode
     }
 
   private def transitionParents(

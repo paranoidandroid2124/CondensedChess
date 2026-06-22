@@ -12,7 +12,6 @@ object PlanTaxonomy:
     case FavorableExchange extends PlanTheme("favorable_exchange")
     case FlankInfrastructure extends PlanTheme("flank_infrastructure")
     case AdvantageTransformation extends PlanTheme("advantage_transformation")
-    case ImmediateTacticalGain extends PlanTheme("immediate_tactical_gain")
     case Unknown extends PlanTheme("unknown")
 
   object PlanTheme:
@@ -25,8 +24,7 @@ object PlanTaxonomy:
       PawnBreakPreparation,
       FavorableExchange,
       FlankInfrastructure,
-      AdvantageTransformation,
-      ImmediateTacticalGain
+      AdvantageTransformation
     )
     private val byId: Map[String, PlanTheme] =
       PlanTheme.values.toList.map(t => t.id -> t).toMap
@@ -72,11 +70,6 @@ object PlanTaxonomy:
     case PassedPawnManufacture extends PlanKind("passed_pawn_manufacture", PlanTheme.AdvantageTransformation)
     case InvasionTransition extends PlanKind("invasion_transition", PlanTheme.AdvantageTransformation)
     case OppositeBishopsConversion extends PlanKind("opposite_bishops_conversion", PlanTheme.AdvantageTransformation)
-
-    case ForcingTacticalShot extends PlanKind("forcing_tactical_shot", PlanTheme.ImmediateTacticalGain)
-    case DefenderOverload extends PlanKind("defender_overload", PlanTheme.ImmediateTacticalGain)
-    case ClearanceBreak extends PlanKind("clearance_break", PlanTheme.ImmediateTacticalGain)
-    case BatteryPressure extends PlanKind("battery_pressure", PlanTheme.ImmediateTacticalGain)
 
   object PlanKind:
     private val byId: Map[String, PlanKind] =
@@ -229,22 +222,6 @@ object PlanTaxonomy:
       PlanKind.OppositeBishopsConversion -> SubplanSpec(
         requiredSignals = List(ReplyPvs, FutureSnapshot, KeyMotifs),
         horizon = Long
-      ),
-      PlanKind.ForcingTacticalShot -> SubplanSpec(
-        requiredSignals = List(ReplyPvs, BoardDelta, KeyMotifs),
-        horizon = Short
-      ),
-      PlanKind.DefenderOverload -> SubplanSpec(
-        requiredSignals = List(ReplyPvs, KeyMotifs),
-        horizon = Short
-      ),
-      PlanKind.ClearanceBreak -> SubplanSpec(
-        requiredSignals = List(ReplyPvs, KeyMotifs),
-        horizon = Short
-      ),
-      PlanKind.BatteryPressure -> SubplanSpec(
-        requiredSignals = List(ReplyPvs, KeyMotifs, FutureSnapshot),
-        horizon = Short
       )
     )
 

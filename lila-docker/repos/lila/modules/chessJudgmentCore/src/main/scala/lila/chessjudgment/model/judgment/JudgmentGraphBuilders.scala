@@ -221,6 +221,7 @@ object JudgmentPacketBuilder:
         evidenceGraph = ctx.evidenceGraph,
         ideas = ctx.ideas,
         claims = ctx.claims,
+        claimLifecycle = ctx.claimLifecycle,
         ideaVerdict = IdeaVerdictSplit.from(ctx.ideas, ctx.claims, ctx.relativeAssessments),
         claimSupportClusters = claimSupportClusters,
         claimEventClusters = ClaimEventCluster.fromClaims(ctx.claims, ctx.evidenceGraph, claimSupportClusters),

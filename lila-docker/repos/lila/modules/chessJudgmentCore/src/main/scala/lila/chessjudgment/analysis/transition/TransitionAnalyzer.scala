@@ -85,10 +85,9 @@ object TransitionAnalyzer:
     currPlan: Plan,
     ctx: PlanInteractionContext
   ): Boolean =
-    ctx.tacticalThreatToUs ||
-      (ctx.underDefensivePressure &&
-        currPlan.category == PlanCategory.Defensive &&
-        prevPlan.forall(_.category != PlanCategory.Defensive))
+    ctx.underDefensivePressure &&
+      currPlan.category == PlanCategory.Defensive &&
+      prevPlan.forall(_.category != PlanCategory.Defensive)
 
   private def isConversionShift(
     prevPlan: Option[Plan],
@@ -121,7 +120,7 @@ object TransitionAnalyzer:
     ctx: PlanInteractionContext
   ): Boolean =
     val currentAttack = currPlan.category == PlanCategory.Attack || isCounterplayPlan(currPlan)
-    val attackingWindow = ctx.tacticalThreatToThem || (ctx.holdingAttackingThreats && currentAttack)
+    val attackingWindow = ctx.strategicThreatToThem && currentAttack
     attackingWindow && !isConversionShift(prevPlan, currPlan, ctx)
 
   private def isCounterplayPlan(plan: Plan): Boolean =
