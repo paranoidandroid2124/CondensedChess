@@ -20,7 +20,8 @@ import lila.chessjudgment.model.judgment.{
   OpeningFamily,
   OpeningIdentity,
   OpeningRecognition,
-  OpeningThemePrior
+  OpeningRecognitionMatchKind,
+  OpeningThemePriorSelection
 }
 
 final case class RawOpeningContext(
@@ -69,7 +70,7 @@ final case class NormalizedMoveReviewInput(
     opening: Option[OpeningIdentity],
     movePrefixUci: List[String] = Nil,
     openingRecognition: Option[OpeningRecognition] = None,
-    openingThemePrior: Option[OpeningThemePrior] = None,
+    openingThemePriorSelection: Option[OpeningThemePriorSelection] = None,
     openingSignals: List[OpeningContextSignal] = Nil,
     threatBranches: List[NormalizedThreatBranch] = Nil,
     probeDiagnostics: List[ProbeAdmissionDiagnostic] = Nil
@@ -104,13 +105,21 @@ object MoveReviewInputNormalizer:
       val side = sideToMove(beforeFen)
       val inputOpening = normalizeOpening(raw.openingContext)
       val recognition = recognitionIndex.recognize(movePrefix, beforeFen, beforePly)
-      val opening = inputOpening.orElse(recognition.flatMap(_.bestIdentity))
-      val themePrior = themePriorIndex.priorFor(recognition.flatMap(_.lineage), opening.flatMap(_.family))
+      val recognizedOpening = recognition.flatMap(_.bestIdentity)
+      val trustedInputOpening =
+        inputOpening.filter(input => recognizedOpening.forall(recognized => openingIdentityCompatible(input, recognized)))
+      val opening = recognizedOpening.orElse(trustedInputOpening)
+      val themePriorSelection =
+        themePriorIndex.priorSelectionFor(
+          certifyingRecognitionLineage(recognition),
+          opening.flatMap(_.family),
+          opening.flatMap(_.name)
+        )
       val openingSignals =
         List(
-          Option.when(inputOpening.nonEmpty)(OpeningContextSignal.InputIdentity),
+          Option.when(trustedInputOpening.nonEmpty)(OpeningContextSignal.InputIdentity),
           Option.when(recognition.nonEmpty)(OpeningContextSignal.RecognizedIdentity),
-          Option.when(themePrior.nonEmpty)(OpeningContextSignal.ThemePrior)
+          Option.when(themePriorSelection.nonEmpty)(OpeningContextSignal.ThemePrior)
         ).flatten
       val ranked = preferredRankedLines(beforeFen, raw.variations.zipWithIndex.filter(_._1.moves.nonEmpty), side)
       val reference = ranked.headOption.map { case (line, index) =>
@@ -149,7 +158,7 @@ object MoveReviewInputNormalizer:
           opening = opening,
           movePrefixUci = movePrefix,
           openingRecognition = recognition,
-          openingThemePrior = themePrior,
+          openingThemePriorSelection = themePriorSelection,
           openingSignals = openingSignals,
           threatBranches = threatBranchNormalization.branches,
           probeDiagnostics = threatBranchNormalization.diagnostics
@@ -168,7 +177,7 @@ object MoveReviewInputNormalizer:
       lines: List[(VariationLine, Int)],
       sideToMove: Option[Color]
   ): List[(VariationLine, Int)] =
-    val representatives = lines
+    val selectedLines = lines
       .groupBy { case (line, _) => line.moves.headOption.map(normalizeUci).getOrElse("") }
       .values
       .map { entries =>
@@ -184,11 +193,11 @@ object MoveReviewInputNormalizer:
       .toList
     val ordered = sideToMove match
       case Some(side) =>
-        representatives.sortBy { case (line, originalRank) =>
+        selectedLines.sortBy { case (line, originalRank) =>
           (-scoreForMover(side, line), originalRank)
         }
       case None =>
-        representatives.sortBy(_._2)
+        selectedLines.sortBy(_._2)
       ordered.map(_._1).zipWithIndex
 
   private final case class ThreatBranchSeed(
@@ -459,7 +468,7 @@ object MoveReviewInputNormalizer:
       val family =
         cleanText(context.family).flatMap(OpeningFamily.fromRaw)
           .orElse(eco.flatMap(OpeningFamily.fromEco))
-          .orElse(name.flatMap(OpeningFamily.fromOpeningName))
+          .orElse(name.flatMap(OpeningThemePriorIndex.familyHintForName))
       Option.when(eco.nonEmpty || name.nonEmpty || family.nonEmpty)(
         OpeningIdentity(
           eco = eco,
@@ -469,8 +478,45 @@ object MoveReviewInputNormalizer:
       )
     }
 
+  private def certifyingRecognitionLineage(recognition: Option[OpeningRecognition]): Option[String] =
+    recognition.filter(certifyingRecognition).flatMap(_.lineage)
+
+  private def certifyingRecognition(recognition: OpeningRecognition): Boolean =
+    recognition.matchedBy == OpeningRecognitionMatchKind.ExactPrefixAndPosition &&
+      recognition.confidence >= CertifyingRecognitionMinConfidence &&
+      recognition.candidates.size == 1
+
   private def cleanText(raw: Option[String]): Option[String] =
     raw.map(_.trim).filter(_.nonEmpty)
+
+  private def openingIdentityCompatible(input: OpeningIdentity, recognized: OpeningIdentity): Boolean =
+    val ecoCompatible =
+      compatibleOptional(input.eco.map(_.toUpperCase), recognized.eco.map(_.toUpperCase))
+    val familyCompatible =
+      compatibleOptional(input.family, recognized.family)
+    val nameCompatible = openingNamesCompatible(input.name, recognized.name)
+    ecoCompatible && familyCompatible && nameCompatible
+
+  private def compatibleOptional[A](left: Option[A], right: Option[A]): Boolean =
+    left.isEmpty || right.isEmpty || left == right
+
+  private def openingNamesCompatible(left: Option[String], right: Option[String]): Boolean =
+    val leftKey = left.map(openingNameKey)
+    val rightKey = right.map(openingNameKey)
+    (leftKey, rightKey) match
+      case (Some(a), Some(b)) =>
+        a == b || a.startsWith(s"$b ") || b.startsWith(s"$a ")
+      case _ =>
+        true
+
+  private def openingNameKey(raw: String): String =
+    raw.toLowerCase(java.util.Locale.ROOT)
+      .replace('\u00e9', 'e')
+      .replace('\u00e8', 'e')
+      .replace('\u00fc', 'u')
+      .replaceAll("[^a-z0-9]+", " ")
+      .replaceAll("\\s+", " ")
+      .trim
 
   private def sideToMove(fen: String): Option[Color] =
     fen.split("\\s+").lift(1).flatMap:
@@ -483,3 +529,5 @@ object MoveReviewInputNormalizer:
     val fullMove = parts.lift(5).flatMap(_.toIntOption).getOrElse(1).max(1)
     val blackToMove = parts.lift(1).contains("b")
     (fullMove - 1) * 2 + Option.when(blackToMove)(1).getOrElse(0)
+
+  private val CertifyingRecognitionMinConfidence: Double = 0.7

@@ -184,6 +184,9 @@ enum RelativeCauseKind:
   case StructuralImprovement
   case TargetPressureGain
   case CenterControlGain
+  case KingSafetyConcession
+  case PawnWeaknessTarget
+  case ActivityLoss
   case StrategicConcession
   case MissedStrategicImprovement
   case PlanImprovement
@@ -210,8 +213,129 @@ case class RelativeCauseFact(
 )(val proof: Option[RelativeCauseProof] = None):
   def eventRootMove: String = eventLine.rootMove
   def hasTypedDepth: Boolean = proof.exists(_.hasTypedDepth)
+  def identityKey: RelativeCauseIdentityKey = RelativeCauseIdentityKey.from(this)
+
+case class RelativeCauseIdentityKey(
+    kind: RelativeCauseKind,
+    comparisonKind: CandidateComparisonKind,
+    referenceLine: LineNodeRef,
+    candidateLine: LineNodeRef,
+    eventLine: LineNodeRef,
+    role: RelativeCauseRole,
+    sourceSide: RelativeCauseSourceSide,
+    importance: RelativeCauseImportance,
+    verdict: MoveChoiceVerdict,
+    winPercentLossForMover: Double,
+    candidateWinPercentDeltaForMover: Double,
+    supportEvidenceIds: List[String],
+    evidenceLineIds: List[String],
+    proofDirectSourceIds: List[String],
+    proofContrastSourceIds: List[String],
+    proofContextSupportSourceIds: List[String],
+    proofDirectKinds: List[String],
+    proofContrastKinds: List[String],
+    proofContextSupportKinds: List[String]
+)
+
+case class RelativeCauseBinding(
+    role: RelativeCauseRole,
+    sourceSide: RelativeCauseSourceSide,
+    eventLine: LineNodeRef,
+    evidenceLines: List[LineNodeRef],
+    importance: RelativeCauseImportance
+)
+
+object RelativeCauseIdentityKey:
+  def from(cause: RelativeCauseFact): RelativeCauseIdentityKey =
+    RelativeCauseIdentityKey(
+      kind = cause.kind,
+      comparisonKind = cause.comparisonKind,
+      referenceLine = cause.referenceLine,
+      candidateLine = cause.candidateLine,
+      eventLine = cause.eventLine,
+      role = cause.role,
+      sourceSide = cause.sourceSide,
+      importance = cause.importance,
+      verdict = cause.verdict,
+      winPercentLossForMover = cause.winPercentLossForMover,
+      candidateWinPercentDeltaForMover = cause.candidateWinPercentDeltaForMover,
+      supportEvidenceIds = cause.supportEvidence.map(_.id).distinct.sorted,
+      evidenceLineIds = cause.evidenceLines.map(_.id).distinct.sorted,
+      proofDirectSourceIds = cause.proof.toList.flatMap(_.directProof.sourceRefs.map(_.id)).distinct.sorted,
+      proofContrastSourceIds = cause.proof.toList.flatMap(_.contrastProof.sourceRefs.map(_.id)).distinct.sorted,
+      proofContextSupportSourceIds = cause.proof.toList.flatMap(_.contextSupport.sourceRefs.map(_.id)).distinct.sorted,
+      proofDirectKinds = cause.proof.toList.flatMap(_.directProof.kindLabels).distinct.sorted,
+      proofContrastKinds = cause.proof.toList.flatMap(_.contrastProof.kindLabels).distinct.sorted,
+      proofContextSupportKinds = cause.proof.toList.flatMap(_.contextSupport.kindLabels).distinct.sorted
+    )
 
 object RelativeCauseFact:
+  def binding(
+      kind: RelativeCauseKind,
+      comparisonKind: CandidateComparisonKind,
+      referenceLine: LineNodeRef,
+      candidateLine: LineNodeRef,
+      supportEvidence: List[EvidenceRef],
+      explicitSourceSide: Option[RelativeCauseSourceSide]
+  ): RelativeCauseBinding =
+    val role = RelativeCauseRole.fromComparisonKind(comparisonKind)
+    val sourceSide =
+      explicitSourceSide
+        .orElse(semanticSourceSide(kind, referenceLine, candidateLine, supportEvidence))
+        .orElse(RelativeCauseSourceSide.fromSupportEvidence(kind, referenceLine, candidateLine, supportEvidence))
+        .getOrElse(defaultSourceSide(kind))
+    val eventLine = RelativeCauseSourceSide.eventLine(sourceSide, role, referenceLine, candidateLine)
+    RelativeCauseBinding(
+      role = role,
+      sourceSide = sourceSide,
+      eventLine = eventLine,
+      evidenceLines = evidenceLinesFor(referenceLine, candidateLine, supportEvidence, sourceSide),
+      importance = RelativeCauseImportance.from(role, sourceSide, kind)
+    )
+
+  def defaultSourceSide(kind: RelativeCauseKind): RelativeCauseSourceSide =
+    kind match
+      case RelativeCauseKind.OnlyMoveNecessity =>
+        RelativeCauseSourceSide.Reference
+      case _ =>
+        RelativeCauseSourceSide.Shared
+
+  private def semanticSourceSide(
+      kind: RelativeCauseKind,
+      referenceLine: LineNodeRef,
+      candidateLine: LineNodeRef,
+      supportEvidence: List[EvidenceRef]
+  ): Option[RelativeCauseSourceSide] =
+    kind match
+      case RelativeCauseKind.WrongRecapturer
+          if EvidenceRef.sameDestinationDifferentOrigin(referenceLine.rootMove, candidateLine.rootMove) &&
+            supportReferencesLine(supportEvidence, referenceLine) &&
+            supportReferencesLine(supportEvidence, candidateLine) =>
+        Some(RelativeCauseSourceSide.Candidate)
+      case _ =>
+        None
+
+  private def supportReferencesLine(supportEvidence: List[EvidenceRef], line: LineNodeRef): Boolean =
+    supportEvidence.exists(_.line.contains(line))
+
+  private def evidenceLinesFor(
+      referenceLine: LineNodeRef,
+      candidateLine: LineNodeRef,
+      supportEvidence: List[EvidenceRef],
+      sourceSide: RelativeCauseSourceSide
+  ): List[LineNodeRef] =
+    val supportLines =
+      supportEvidence.flatMap(_.line).filter(line => line == referenceLine || line == candidateLine)
+    val sideLines =
+      sourceSide match
+        case RelativeCauseSourceSide.Reference =>
+          List(referenceLine)
+        case RelativeCauseSourceSide.Candidate =>
+          List(candidateLine)
+        case RelativeCauseSourceSide.Mixed | RelativeCauseSourceSide.Shared =>
+          List(referenceLine, candidateLine)
+    (supportLines ++ sideLines).distinct
+
   def apply(
       kind: RelativeCauseKind,
       comparisonKind: CandidateComparisonKind,

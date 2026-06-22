@@ -2,7 +2,6 @@ package lila.chessjudgment.analysis.opening
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.{ Files, Path }
-import java.util.Locale
 
 import scala.collection.mutable
 import scala.io.Source
@@ -193,36 +192,7 @@ object OpeningIndexBuilder:
           ReplayScan(moves.size, openings)
 
   private def lineageFor(name: String): String =
-    val family = name.split(":", 2).headOption.getOrElse(name)
-    lineageAlias(family).getOrElse:
-      family
-        .toLowerCase(Locale.ROOT)
-        .replaceAll("[^a-z0-9]+", "_")
-        .stripPrefix("_")
-        .stripSuffix("_")
-
-  private def lineageAlias(family: String): Option[String] =
-    val normalized = family.toLowerCase(Locale.ROOT)
-    List(
-      "italian game" -> "open_games/italian",
-      "king's gambit" -> "open_games/kings_gambit",
-      "king's pawn game" -> "open_games/kings_pawn",
-      "king's knight opening" -> "open_games/kings_knight",
-      "ruy lopez" -> "open_games/ruy_lopez",
-      "scotch game" -> "open_games/scotch",
-      "sicilian defense" -> "sicilian",
-      "french defense" -> "french",
-      "caro-kann defense" -> "caro_kann",
-      "queen's gambit" -> "queens_gambit",
-      "slav defense" -> "slav",
-      "indian game" -> "indian_game",
-      "king's indian defense" -> "kings_indian",
-      "nimzo-indian defense" -> "nimzo_indian",
-      "gruenfeld defense" -> "gruenfeld",
-      "english opening" -> "english",
-      "réti opening" -> "reti",
-      "reti opening" -> "reti"
-    ).collectFirst { case (prefix, lineage) if normalized.startsWith(prefix) => lineage }
+    OpeningThemePriorIndex.lineageForOpeningName(name)
 
   private def confidenceFor(frequency: Int, sampleCount: Int, matchedPly: Int): Double =
     val share = if sampleCount <= 0 then 0.0 else frequency.toDouble / sampleCount.toDouble

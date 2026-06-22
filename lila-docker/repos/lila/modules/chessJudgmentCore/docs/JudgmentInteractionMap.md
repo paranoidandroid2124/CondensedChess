@@ -355,7 +355,7 @@ idea composer는 문장을 만들지 않는다. 최소 출력은 family, subject
 | 가상/기존 모듈 | 입력 | 출력 | 사용처 |
 |---|---|---|---|
 | `JudgmentPacketValidator` | assembly context, packet | validation result | root, required refs, evidence parent 누락, no-prose/no-sourceKind 계약을 검사한다. |
-| `EvidenceBackedJudgmentPacket` | nodes, lines, edges, evidence, ideas, claims, support clusters, event clusters, verdict split | LLM boundary payload | 문장 텍스트 없이 판단 구조를 전달한다. Support/event cluster는 claim promotion metric을 대체하지 않는 packet view다. |
+| `EvidenceBackedJudgmentPacket` | nodes, lines, edges, evidence, ideas, claims, support clusters, event clusters, verdict split, move judgment view | LLM boundary payload | 문장 텍스트 없이 판단 구조를 전달한다. `MoveJudgmentView`는 기존 claim/cluster id를 참조하는 derived view이며 verdict carrier, primary/secondary/context cause, local idea 보존 관계를 분리한다. `claims` 순위는 진단/후보 컬렉션이지 최종 발화 중심축이 아니다. Support/event cluster는 claim promotion metric을 대체하지 않는 packet view다. |
 | `EvidenceLossDiagnostics` | assembly context | `EvidenceLossReport` | graph 등록, idea 승격, claim 승격, packet 포함 손실을 추적한다. |
 | `ExpectedEvidenceLossPolicy` | diagnostics, layer, claim family | expected/unexpected loss | 모든 unpromoted evidence를 실패로 보지 않도록 정상 손실과 비정상 손실을 분리한다. Non-claim-grade `ThreatPressure`는 claim 누락이 아니라 support-only 손실로 본다. |
 | `EvidenceLossQcRunner` | corpus packets | layer loss report | 어느 evidence layer에서 판단이 사라졌는지 측정한다. |

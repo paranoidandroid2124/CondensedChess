@@ -418,6 +418,13 @@ object ClaimTruthPolicy:
     val assessments = records.collect { case EvidenceRecord(_, ApplicabilityAssessmentEvidence(assessment), _) =>
       assessment
     }
+    val certifyingPriorPresent =
+      records.exists {
+        case EvidenceRecord(_, OpeningContextEvidence(_, _, _, Some(selection)), _) =>
+          selection.canCertifyOpeningClaim
+        case _ =>
+          false
+      }
     val proofSignalThemes =
       records.collect {
         case EvidenceRecord(_, FeatureAnchorEvidence(anchor), _)
@@ -426,6 +433,7 @@ object ClaimTruthPolicy:
       }.toSet
     assessments.exists(assessment =>
       assessment.canCertifyOpeningClaim &&
+        certifyingPriorPresent &&
         assessment.supportedThemes.exists(proofSignalThemes.contains)
     )
 

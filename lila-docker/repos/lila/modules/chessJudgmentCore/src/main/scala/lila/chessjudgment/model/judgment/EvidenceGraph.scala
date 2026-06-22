@@ -1,7 +1,7 @@
 package lila.chessjudgment.model.judgment
 
 import chess.*
-import lila.chessjudgment.analysis.evaluation.PerspectiveMath
+import lila.chessjudgment.analysis.evaluation.{ JudgmentThresholds, PerspectiveMath }
 import lila.chessjudgment.analysis.position.PositionFeatures
 import lila.chessjudgment.analysis.singlePosition.{
   PawnPlayAnalysis,
@@ -367,6 +367,9 @@ final case class BoardFactEvidence(
         BoardAnchorKind.Space,
         BoardAnchorKind.Development,
         BoardAnchorKind.Activity,
+        BoardAnchorKind.FileControl,
+        BoardAnchorKind.BatteryPressure,
+        BoardAnchorKind.WeakSquare,
         BoardAnchorKind.PawnStructure,
         BoardAnchorKind.KingSafety
       )
@@ -649,57 +652,6 @@ object OpeningFamily:
       .flatMap(_.headOption)
       .flatMap(ch => fromRaw(ch.toString))
 
-  def fromOpeningName(raw: String): Option[OpeningFamily] =
-    val name = Option(raw).map(_.trim.toLowerCase).getOrElse("")
-    Option.when(name.nonEmpty)(name).flatMap { value =>
-      if value.contains("sicilian") ||
-        value.contains("caro-kann") ||
-        value.contains("scandinavian") ||
-        value.contains("alekhine") ||
-        value.contains("pirc") ||
-        value.contains("modern defense") ||
-        value.contains("nimzowitsch") ||
-        value.contains("owen") ||
-        value.contains("english defense")
-      then Some(OpeningFamily.B)
-      else if value.contains("french") ||
-        value.contains("king's pawn") ||
-        value.contains("italian") ||
-        value.contains("ruy lopez") ||
-        value.contains("spanish") ||
-        value.contains("four knights") ||
-        value.contains("vienna") ||
-        value.contains("scotch") ||
-        value.contains("petrov") ||
-        value.contains("philidor") ||
-        value.contains("king's gambit")
-      then Some(OpeningFamily.C)
-      else if value.contains("queen's gambit") ||
-        value.contains("slav") ||
-        value.contains("semi-slav") ||
-        value.contains("tarrasch") ||
-        value.contains("queen's pawn")
-      then Some(OpeningFamily.D)
-      else if value.contains("indian") ||
-        value.contains("nimzo-indian") ||
-        value.contains("gruenfeld") ||
-        value.contains("grünfeld") ||
-        value.contains("catalan") ||
-        value.contains("bogo-indian") ||
-        value.contains("queen's indian")
-      then Some(OpeningFamily.E)
-      else if value.contains("english opening") ||
-        value.contains("reti") ||
-        value.contains("réti") ||
-        value.contains("dutch") ||
-        value.contains("benoni") ||
-        value.contains("benko") ||
-        value.contains("bird") ||
-        value.contains("polish")
-      then Some(OpeningFamily.A)
-      else None
-    }
-
   def fromRaw(raw: String): Option[OpeningFamily] =
     Option(raw).map(_.trim.toUpperCase).collect:
       case "A" => OpeningFamily.A
@@ -722,13 +674,33 @@ enum OpeningTheme:
   case KingSafety
   case PlanPressure
 
+enum OpeningThemePriorMatchSource:
+  case ExactLineage
+  case LineageAlias
+  case NameHint
+  case FamilyFallback
+
+  def openingSpecific: Boolean =
+    this != OpeningThemePriorMatchSource.FamilyFallback
+
+  def canCertifyOpeningClaim: Boolean =
+    this match
+      case OpeningThemePriorMatchSource.ExactLineage | OpeningThemePriorMatchSource.LineageAlias =>
+        true
+      case OpeningThemePriorMatchSource.NameHint | OpeningThemePriorMatchSource.FamilyFallback =>
+        false
+
 enum FeatureAnchorSignal:
   case CenterControlObserved
   case DevelopmentTempoObserved
+  case DevelopmentLagObserved
   case PawnStructureObserved
+  case PawnBreakObserved
+  case CentralTensionObserved
   case CompensationObserved
   case KingSafetyObserved
   case PlanPressureObserved
+  case LinePressureObserved
   case StructuralDeltaObserved
 
 final case class FeatureAnchor(
@@ -765,7 +737,8 @@ final case class ApplicabilityAssessment(
     observedThemes: List[OpeningTheme],
     supportedThemes: List[OpeningTheme],
     unverifiedPriorThemes: List[OpeningTheme],
-    observedOnlyThemes: List[OpeningTheme]
+    observedOnlyThemes: List[OpeningTheme],
+    priorMatchSources: List[OpeningThemePriorMatchSource] = Nil
 ):
   def hasInternalAnchorAlignment: Boolean =
     applicability == FeatureApplicability.OpeningRelevant &&
@@ -773,8 +746,11 @@ final case class ApplicabilityAssessment(
       supportedThemes.nonEmpty &&
       (status == ApplicabilityStatus.Supported || status == ApplicabilityStatus.PartiallySupported)
 
+  def hasCertifyingPriorEvidence: Boolean =
+    priorMatchSources.exists(_.canCertifyOpeningClaim)
+
   def canCertifyOpeningClaim: Boolean =
-    hasInternalAnchorAlignment
+    hasInternalAnchorAlignment && hasCertifyingPriorEvidence
 
 final case class OpeningIdentity(
     eco: Option[String],
@@ -824,11 +800,23 @@ final case class OpeningThemePrior(
     strategicPlanPriors: List[String]
 )
 
+final case class OpeningThemePriorSelection(
+    prior: OpeningThemePrior,
+    matchSource: OpeningThemePriorMatchSource,
+    requestedLineage: Option[String],
+    canonicalLineage: Option[String]
+):
+  def openingSpecific: Boolean =
+    matchSource.openingSpecific
+
+  def canCertifyOpeningClaim: Boolean =
+    matchSource.canCertifyOpeningClaim
+
 final case class OpeningContextEvidence(
     identity: Option[OpeningIdentity],
     signals: List[OpeningContextSignal],
     recognition: Option[OpeningRecognition] = None,
-    themePrior: Option[OpeningThemePrior] = None
+    themePriorSelection: Option[OpeningThemePriorSelection] = None
 ) extends EvidencePayload:
   val layer: EvidenceLayer = EvidenceLayer.OpeningContext
 
@@ -935,7 +923,12 @@ final case class ThreatEpisodeEvidence(
     episode.lossIfIgnoredWinPercent
   def isProofSignalDefensivePressure: Boolean =
     !insufficientData &&
-      (defenseRequired || prophylaxisNeeded || episode.severity != ThreatSeverity.Low)
+      (
+        defenseRequired ||
+          prophylaxisNeeded ||
+          episode.severity != ThreatSeverity.Low ||
+          maxWinPercentLossIfIgnored.exists(_ >= JudgmentThresholds.SIGNIFICANT_THREAT_WP)
+      )
 
 final case class ForcedLineThemeEvidence(
     id: String,
@@ -1331,6 +1324,16 @@ final case class LineFactEvidence(
   def hasMaterialOutcomeSignals: Boolean =
     val profile = materialOutcomeProfile
     profile.gainSignals.nonEmpty || profile.lossSignals.nonEmpty
+  def materialOutcomeConsequenceKinds: List[LineConsequenceKind] =
+    val profile = materialOutcomeProfile
+    List(
+      Option.when(hasMaterialRecaptureChain)(LineConsequenceKind.RecaptureSequence),
+      Option.when(hasMaterialRecoveryWindow)(LineConsequenceKind.RecoveryWindow),
+      Option.when(profile.gainMagnitude != LineMaterialOutcomeMagnitude.None)(LineConsequenceKind.MaterialGain),
+      Option.when(profile.lossMagnitude != LineMaterialOutcomeMagnitude.None)(LineConsequenceKind.MaterialLoss)
+    ).flatten.distinct
+  def hasMaterialOutcomeConsequence(kind: LineConsequenceKind): Boolean =
+    materialOutcomeConsequenceKinds.contains(kind)
 
 object LineFactEvidence:
   def fromRecords(records: List[EvidenceRecord]): List[LineFactEvidence] =

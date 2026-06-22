@@ -187,7 +187,7 @@ flowchart LR
 - `ChessIdeaBuilder`: 여러 evidence layer를 전술, 전략, 폰구조, 오프닝, 수비, 전환 idea로 승격한다.
 - `ClaimComposer`: idea와 eval comparison을 문장 없이 `ClaimSeed`로 조합한다.
 - `JudgmentAssemblyContext`: node, line, transition, relative assessment, evidence, idea, claim을 한 그래프 조립 단위로 유지한다.
-- `JudgmentPacketBuilder`: 조립된 그래프를 `EvidenceBackedJudgmentPacket`으로 묶는다.
+- `JudgmentPacketBuilder`: 조립된 그래프를 `EvidenceBackedJudgmentPacket`으로 묶고, 기존 claim/cluster id를 참조하는 `MoveJudgmentView`로 최종 판단 역할을 분리한다.
 - `EvidenceLossDiagnostics`: fact 등록, idea 승격, claim 승격 중 판단이 어디에서 사라졌는지 layer별로 기록한다.
 
 ## 2단계 진입 후 채울 판단

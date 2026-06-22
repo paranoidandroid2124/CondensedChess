@@ -22,6 +22,7 @@ enum JudgmentPacketValidationIssueKind:
   case MissingClaimEventClusterIdea
   case EmptyClaimEventClusterMember
   case EmptyClaimEventClusterCause
+  case DuplicateClaimEventClusterId
   case NonConcreteClaimEventClusterMember
   case LongTermClaimEventClusterEvidence
   case MismatchedClaimEventClusterKind
@@ -53,6 +54,10 @@ enum JudgmentPacketValidationIssueKind:
   case MissingVerdictCertificationReferenceParent
   case MissingVerdictCertificationPrimaryParent
   case MismatchedClaimSubjectBinding
+  case MissingMoveJudgmentViewClaim
+  case MissingMoveJudgmentViewIdea
+  case MissingMoveJudgmentViewEvidence
+  case MissingMoveJudgmentViewCluster
   case InvalidProbeRequest
 
 final case class JudgmentPacketValidationIssue(
@@ -74,8 +79,11 @@ object JudgmentPacketValidator:
   def validate(packet: EvidenceBackedJudgmentPacket): JudgmentPacketValidationResult =
     val graphIds = packet.evidenceGraph.records.map(_.ref.id).toSet
     val ideaIds = packet.ideas.map(_.ref).toSet
+    val ideaIdStrings = ideaIds.map(_.id)
     val claimIds = packet.claims.map(_.id).toSet
     val claimsById = packet.claims.map(claim => claim.id -> claim).toMap
+    val supportClusterIds = packet.claimSupportClusters.map(_.id).toSet
+    val eventClusterIds = packet.claimEventClusters.map(_.id).toSet
     val issues =
       List.concat(
         rootIssues(packet),
@@ -94,6 +102,7 @@ object JudgmentPacketValidator:
         missingClaimEventClusterIdeas(packet, ideaIds),
         emptyClaimEventClusterMembers(packet),
         emptyClaimEventClusterCauses(packet),
+        duplicateClaimEventClusterIds(packet),
         nonConcreteClaimEventClusterMembers(packet, claimsById),
         longTermClaimEventClusterEvidence(packet),
         mismatchedClaimEventClusterKinds(packet),
@@ -102,6 +111,10 @@ object JudgmentPacketValidator:
         missingRelativeEvidence(packet, graphIds),
         graphBindingInvariants(packet),
         claimSubjectBindingInvariants(packet),
+        missingMoveJudgmentViewClaims(packet, claimIds),
+        missingMoveJudgmentViewIdeas(packet, ideaIdStrings),
+        missingMoveJudgmentViewEvidence(packet, graphIds),
+        missingMoveJudgmentViewClusters(packet, supportClusterIds, eventClusterIds),
         invalidProbeRequests(packet)
       )
     JudgmentPacketValidationResult(issues.distinct)
@@ -163,6 +176,102 @@ object JudgmentPacketValidator:
             assessment.verdictCertificationEvidence.toList)
       )
     missing(refs, graphIds, JudgmentPacketValidationIssueKind.MissingRelativeEvidence)
+
+  private def missingMoveJudgmentViewClaims(
+      packet: EvidenceBackedJudgmentPacket,
+      claimIds: Set[String]
+  ): List[JudgmentPacketValidationIssue] =
+    packet.moveJudgmentView.toList.flatMap { view =>
+      val frameClaims =
+        view.verdictCarriers.map(_.claimId) ++
+          moveJudgmentCauseFrames(view).flatMap(frame =>
+            frame.causeClaimIds ++ frame.evaluationClaimIds ++ frame.witnessClaimIds ++ frame.finalClaimIds
+          ) ++
+          view.overriddenLocalIdeas.flatMap(_.claimIds) ++
+          view.preservedLocalIdeas.flatMap(_.claimIds)
+      frameClaims.distinct.filterNot(claimIds.contains).map { claimId =>
+        JudgmentPacketValidationIssue(
+          kind = JudgmentPacketValidationIssueKind.MissingMoveJudgmentViewClaim,
+          subjectId = claimId
+        )
+      }
+    }
+
+  private def missingMoveJudgmentViewIdeas(
+      packet: EvidenceBackedJudgmentPacket,
+      ideaIds: Set[String]
+  ): List[JudgmentPacketValidationIssue] =
+    packet.moveJudgmentView.toList.flatMap { view =>
+      val frameIdeas =
+        view.verdictCarriers.flatMap(_.ideaIds) ++
+          moveJudgmentCauseFrames(view).flatMap(frame => frame.ideaIds ++ frame.supportIdeaIds) ++
+          view.overriddenLocalIdeas.map(_.ideaId) ++
+          view.preservedLocalIdeas.map(_.ideaId)
+      frameIdeas.distinct.filterNot(ideaIds.contains).map { ideaId =>
+        JudgmentPacketValidationIssue(
+          kind = JudgmentPacketValidationIssueKind.MissingMoveJudgmentViewIdea,
+          subjectId = ideaId
+        )
+      }
+    }
+
+  private def missingMoveJudgmentViewEvidence(
+      packet: EvidenceBackedJudgmentPacket,
+      graphIds: Set[String]
+  ): List[JudgmentPacketValidationIssue] =
+    packet.moveJudgmentView.toList.flatMap { view =>
+      val verdictEvidence =
+        view.verdict.toList.flatMap(frame =>
+          frame.relativeAssessmentEvidenceId :: frame.verdictCertificationEvidenceId.toList
+        )
+      val frameEvidence =
+        view.verdictCarriers.flatMap(_.evidenceIds) ++
+          moveJudgmentCauseFrames(view).flatMap(frame =>
+            frame.causeEvidenceIds ++
+              frame.evidenceIds ++
+              frame.proofDirectSourceIds ++
+              frame.proofContrastSourceIds ++
+              frame.proofContextSupportSourceIds ++
+              frame.supportEvidenceSourceIds
+          ) ++
+          view.overriddenLocalIdeas.flatMap(_.evidenceIds) ++
+          view.preservedLocalIdeas.flatMap(_.evidenceIds)
+      (verdictEvidence ++ frameEvidence).distinct.filterNot(graphIds.contains).map { evidenceId =>
+        JudgmentPacketValidationIssue(
+          kind = JudgmentPacketValidationIssueKind.MissingMoveJudgmentViewEvidence,
+          subjectId = evidenceId
+        )
+      }
+    }
+
+  private def missingMoveJudgmentViewClusters(
+      packet: EvidenceBackedJudgmentPacket,
+      supportClusterIds: Set[String],
+      eventClusterIds: Set[String]
+  ): List[JudgmentPacketValidationIssue] =
+    packet.moveJudgmentView.toList.flatMap { view =>
+      val missingEventClusters =
+        moveJudgmentCauseFrames(view).flatMap(_.clusterId).distinct.filterNot(eventClusterIds.contains).map { clusterId =>
+          JudgmentPacketValidationIssue(
+            kind = JudgmentPacketValidationIssueKind.MissingMoveJudgmentViewCluster,
+            subjectId = clusterId
+          )
+        }
+      val missingSupportClusters =
+        (view.supportContextClusterIds ++ moveJudgmentCauseFrames(view).flatMap(_.relatedSupportClusterIds))
+          .distinct
+          .filterNot(supportClusterIds.contains)
+          .map { clusterId =>
+            JudgmentPacketValidationIssue(
+              kind = JudgmentPacketValidationIssueKind.MissingMoveJudgmentViewCluster,
+              subjectId = clusterId
+            )
+          }
+      missingEventClusters ++ missingSupportClusters
+    }
+
+  private def moveJudgmentCauseFrames(view: MoveJudgmentView): List[MoveJudgmentCauseFrame] =
+    view.primaryCauses ++ view.secondaryCauses ++ view.contextCauses
 
   private def missingClaimIdeas(
       packet: EvidenceBackedJudgmentPacket,
@@ -305,6 +414,19 @@ object JudgmentPacketValidator:
         subjectId = cluster.id
       )
     }
+
+  private def duplicateClaimEventClusterIds(
+      packet: EvidenceBackedJudgmentPacket
+  ): List[JudgmentPacketValidationIssue] =
+    packet.claimEventClusters
+      .groupBy(_.id)
+      .collect { case (id, clusters) if clusters.size > 1 =>
+        JudgmentPacketValidationIssue(
+          kind = JudgmentPacketValidationIssueKind.DuplicateClaimEventClusterId,
+          subjectId = id
+        )
+      }
+      .toList
 
   private def nonConcreteClaimEventClusterMembers(
       packet: EvidenceBackedJudgmentPacket,
@@ -478,7 +600,16 @@ object JudgmentPacketValidator:
       cause.referenceLine == proof.referenceLine &&
       cause.candidateLine == proof.candidateLine &&
       cause.eventLine == proof.eventLine &&
-      cause.proof.exists(relativeCauseProofMatchesCauseProof(_, proof))
+      relativeCauseSupportMatchesCauseProof(cause, proof) &&
+      cause.proof
+        .map(relativeCauseProofMatchesCauseProof(_, proof))
+        .getOrElse(relativeCauseProofMatchesCauseProof(RelativeCauseProof(), proof))
+
+  private def relativeCauseSupportMatchesCauseProof(
+      cause: RelativeCauseFact,
+      proof: ClaimEventCauseProof
+  ): Boolean =
+    cause.supportEvidence.map(_.id).toSet == proof.supportEvidenceSourceIds.toSet
 
   private def relativeCauseProofMatchesCauseProof(
       relativeProof: RelativeCauseProof,
@@ -498,7 +629,8 @@ object JudgmentPacketValidator:
     (
       proof.proofDirectSourceIds ++
         proof.proofContrastSourceIds ++
-        proof.proofContextSupportSourceIds
+        proof.proofContextSupportSourceIds ++
+        proof.supportEvidenceSourceIds
     ).flatMap(id => graph.byId.get(id).map(_.ref)).headOption
 
   private def transitionConsequenceBacked(graph: TypedEvidenceGraph, proof: TransitionConsequenceProof): Boolean =
@@ -682,53 +814,51 @@ object JudgmentPacketValidator:
       cause: RelativeCauseFact
   ): List[JudgmentPacketValidationIssue] =
     val ref = record.ref
-    val expectedRole = RelativeCauseRole.fromComparisonKind(cause.comparisonKind)
-    val expectedEventLine =
-      RelativeCauseSourceSide.eventLine(cause.sourceSide, cause.role, cause.referenceLine, cause.candidateLine)
-    val expectedImportance = RelativeCauseImportance.from(cause.role, cause.sourceSide, cause.kind)
     val hasSupportParents =
       relativeCauseSupportEvidenceParents(graph, record, cause)
     val hasCanonicalSupportRefs =
       hasSupportParents && relativeCauseSupportRefsCanonical(graph, record, cause)
     val canonicalSupport =
       canonicalRelativeCauseSupportRefs(graph, record, cause)
-    val expectedSourceSide =
-      RelativeCauseSourceSide.fromSupportEvidence(
-        cause.kind,
-        cause.referenceLine,
-        cause.candidateLine,
-        canonicalSupport
+    val expectedBinding =
+      RelativeCauseFact.binding(
+        kind = cause.kind,
+        comparisonKind = cause.comparisonKind,
+        referenceLine = cause.referenceLine,
+        candidateLine = cause.candidateLine,
+        supportEvidence = canonicalSupport,
+        explicitSourceSide = Some(cause.sourceSide)
       )
     List(
-      Option.when(cause.role != expectedRole)(
+      Option.when(cause.role != expectedBinding.role)(
         JudgmentPacketValidationIssue(
           JudgmentPacketValidationIssueKind.MismatchedRelativeCauseRole,
           ref.id,
           Some(ref)
         )
       ),
-      Option.when(cause.eventLine != expectedEventLine || !relativeCauseRecordLineConsistent(record, cause))(
+      Option.when(cause.eventLine != expectedBinding.eventLine || !relativeCauseRecordLineConsistent(record, cause))(
         JudgmentPacketValidationIssue(
           JudgmentPacketValidationIssueKind.MismatchedRelativeCauseEventLine,
           ref.id,
           Some(ref)
         )
       ),
-      Option.when(cause.importance != expectedImportance)(
+      Option.when(cause.importance != expectedBinding.importance)(
         JudgmentPacketValidationIssue(
           JudgmentPacketValidationIssueKind.MismatchedRelativeCauseImportance,
           ref.id,
           Some(ref)
         )
       ),
-      Option.when(expectedSourceSide.forall(_ != cause.sourceSide))(
+      Option.when(cause.sourceSide != expectedBinding.sourceSide)(
         JudgmentPacketValidationIssue(
           JudgmentPacketValidationIssueKind.MismatchedRelativeCauseSourceSide,
           ref.id,
           Some(ref)
         )
       ),
-      Option.when(!relativeCauseEvidenceLinesConsistent(cause))(
+      Option.when(!relativeCauseEvidenceLinesConsistent(cause, expectedBinding))(
         JudgmentPacketValidationIssue(
           JudgmentPacketValidationIssueKind.MismatchedRelativeCauseEvidenceLines,
           ref.id,
@@ -819,12 +949,13 @@ object JudgmentPacketValidator:
     }
 
   private def claimSubjectBindingInvariants(packet: EvidenceBackedJudgmentPacket): List[JudgmentPacketValidationIssue] =
+    val playedMoves = JudgmentSubjectBinding.packetPlayedMoves(packet)
     packet.claims.flatMap { claim =>
       val binding = JudgmentSubjectBinding.claimBinding(packet, claim)
       Option
         .when(
           claim.subject == IdeaSubject.PlayedMove &&
-            (binding == SubjectBindingClass.Other || binding == SubjectBindingClass.ContextPlayed)
+            (binding == SubjectBindingClass.Other || !JudgmentSubjectBinding.directPlayedClaim(claim, playedMoves))
         )(
           JudgmentPacketValidationIssue(
             JudgmentPacketValidationIssueKind.MismatchedClaimSubjectBinding,
@@ -850,18 +981,13 @@ object JudgmentPacketValidator:
   ): Boolean =
     parentClosure(graph, record).exists(parent => parent.carriesLinePayload(line, layer))
 
-  private def relativeCauseEvidenceLinesConsistent(cause: RelativeCauseFact): Boolean =
+  private def relativeCauseEvidenceLinesConsistent(
+      cause: RelativeCauseFact,
+      expectedBinding: RelativeCauseBinding
+  ): Boolean =
     val lines = cause.evidenceLines.toSet
     val allowedLines = Set(cause.referenceLine, cause.candidateLine)
-    lines.subsetOf(allowedLines) &&
-      (cause.sourceSide match
-        case RelativeCauseSourceSide.Reference =>
-          lines.contains(cause.referenceLine) && !lines.contains(cause.candidateLine)
-        case RelativeCauseSourceSide.Candidate =>
-          lines.contains(cause.candidateLine) && !lines.contains(cause.referenceLine)
-        case RelativeCauseSourceSide.Mixed | RelativeCauseSourceSide.Shared =>
-          lines.contains(cause.referenceLine) && lines.contains(cause.candidateLine)
-      )
+    lines.subsetOf(allowedLines) && lines == expectedBinding.evidenceLines.toSet
 
   private def relativeCauseSupportEvidenceParents(
       graph: TypedEvidenceGraph,
@@ -1013,7 +1139,8 @@ object JudgmentPacketValidator:
   private def parentHasLineConsequence(record: EvidenceRecord, proof: LineConsequenceProof): Boolean =
     record match
       case EvidenceRecord(ref, payload: LineFactEvidence, _) =>
-        ref.id == proof.source.id && payload.hasProofSignalConsequence(proof.kind)
+        ref.id == proof.source.id &&
+          (payload.hasProofSignalConsequence(proof.kind) || payload.hasMaterialOutcomeConsequence(proof.kind))
       case _ =>
         false
 

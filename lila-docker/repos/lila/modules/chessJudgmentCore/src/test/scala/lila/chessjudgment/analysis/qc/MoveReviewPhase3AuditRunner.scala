@@ -14,7 +14,7 @@ import lila.chessjudgment.analysis.assembly.{
   RawMoveReviewInput
 }
 import lila.chessjudgment.analysis.line.PrincipalVariationEvidence
-import lila.chessjudgment.analysis.opening.OpeningRecognitionIndex
+import lila.chessjudgment.analysis.opening.{ OpeningRecognitionIndex, OpeningThemePriorIndex }
 import lila.chessjudgment.model.{ ProbePurpose, ProbeResult }
 import lila.chessjudgment.model.judgment.*
 import lila.chessjudgment.model.strategic.VariationLine
@@ -433,11 +433,12 @@ object MoveReviewPhase3AuditRunner:
           "probeDiagnostics" -> probeDiagnosticsSummary(built),
           "claimSupportClusters" -> claimSupportClusters(built),
           "claimEventClusters" -> claimEventClusters(built),
-          "topClaims" -> topClaims(built),
-          "topPrimaryClaims" -> topClaimsByTier(built, PlayerFacingClaimTier.Primary),
-          "topSecondaryClaims" -> topClaimsByTier(built, PlayerFacingClaimTier.Secondary),
-          "topContextClaims" -> topClaimsByTier(built, PlayerFacingClaimTier.Context),
-          "topDiagnosticClaims" -> topClaimsByTier(built, PlayerFacingClaimTier.Diagnostic)
+          "moveJudgmentView" -> moveJudgmentView(built),
+          "rankedClaimDiagnostics" -> rankedClaimDiagnostics(built),
+          "rankedPrimaryClaimDiagnostics" -> rankedClaimDiagnosticsByTier(built, PlayerFacingClaimTier.Primary),
+          "rankedSecondaryClaimDiagnostics" -> rankedClaimDiagnosticsByTier(built, PlayerFacingClaimTier.Secondary),
+          "rankedContextClaimDiagnostics" -> rankedClaimDiagnosticsByTier(built, PlayerFacingClaimTier.Context),
+          "rankedDiagnosticClaimDiagnostics" -> rankedClaimDiagnosticsByTier(built, PlayerFacingClaimTier.Diagnostic)
         )
       case None =>
         base ++ Json.obj(
@@ -698,20 +699,11 @@ object MoveReviewPhase3AuditRunner:
       "contextTacticalOutrankingDiagnostics" -> contextTacticalOutrankingDiagnosticsJson(
         semantic.contextTacticalOutrankingDiagnostics
       ),
-      "topClaimId" -> semantic.topClaimId,
-      "topClaimFamily" -> semantic.topClaimFamily.map(_.toString),
-      "topClaimTier" -> semantic.topClaimTier.map(_.toString),
-      "topClaimSalienceScore" -> semantic.topClaimSalienceScore,
-      "topClaimSubjectBinding" -> semantic.topClaimSubjectBinding.map(_.toString),
-      "topClaimRelativeCauseRole" -> semantic.topClaimRelativeCauseRole.map(_.toString),
-      "topClaimRelativeCauseSourceSide" -> semantic.topClaimRelativeCauseSourceSide.map(_.toString),
-      "topClaimRelativeCauseImportance" -> semantic.topClaimRelativeCauseImportance.map(_.toString),
-      "topClaimRelativeCauseEventLine" -> semantic.topClaimRelativeCauseEventLine.map(lineRefSummary),
-      "topClaimComparisonKind" -> semantic.topClaimComparisonKind.map(_.toString),
       "contextTacticalOutranksPrimaryPlayed" -> semantic.contextTacticalOutranksPrimaryPlayed,
       "genericComparisonOnlyCauseCount" -> genericComparisonOnlyCauseCount(semantic.comparisonDiagnostics),
       "genericComparisonOnlyCauseDetails" -> genericComparisonOnlyDetails(semantic.comparisonDiagnostics),
       "openingApplicabilityDiagnostics" -> openingApplicabilityDiagnosticsSummary(semantic.openingApplicabilityDiagnostics),
+      "openingSupportDiagnostics" -> openingSupportDiagnosticsSummary(semantic.openingSupportDiagnostics),
       "comparisonDiagnostics" -> comparisonDiagnosticsSummary(semantic.comparisonDiagnostics),
       "hasVerdict" -> semantic.hasVerdict,
       "hasCandidateSetComparison" -> semantic.hasCandidateSetComparison,
@@ -730,15 +722,6 @@ object MoveReviewPhase3AuditRunner:
       "contextTacticalOutrankingDiagnostics" -> contextTacticalOutrankingDiagnosticsJson(
         semantic.contextTacticalOutrankingDiagnostics
       ),
-      "topClaimId" -> semantic.topClaimId,
-      "topClaimFamily" -> semantic.topClaimFamily.map(_.toString),
-      "topClaimTier" -> semantic.topClaimTier.map(_.toString),
-      "topClaimSubjectBinding" -> semantic.topClaimSubjectBinding.map(_.toString),
-      "topClaimRelativeCauseRole" -> semantic.topClaimRelativeCauseRole.map(_.toString),
-      "topClaimRelativeCauseSourceSide" -> semantic.topClaimRelativeCauseSourceSide.map(_.toString),
-      "topClaimRelativeCauseImportance" -> semantic.topClaimRelativeCauseImportance.map(_.toString),
-      "topClaimRelativeCauseEventLine" -> semantic.topClaimRelativeCauseEventLine.map(lineRefSummary),
-      "topClaimComparisonKind" -> semantic.topClaimComparisonKind.map(_.toString),
       "relativeCauseFailureSummary" -> (relativeCauseFailureSummary(semantic.comparisonDiagnostics)
         ++ Json.obj(
           "hasRelativeCauseFamilyMismatch" -> semantic.hasRelativeCauseFamilyMismatch,
@@ -824,6 +807,7 @@ object MoveReviewPhase3AuditRunner:
           "relativeCauseProofDirectSourceIds" -> diagnostic.relativeCauses.flatMap(_.proofDirectSourceIds).distinct.sorted,
           "relativeCauseProofContrastSourceIds" -> diagnostic.relativeCauses.flatMap(_.proofContrastSourceIds).distinct.sorted,
           "relativeCauseProofContextSupportSourceIds" -> diagnostic.relativeCauses.flatMap(_.proofContextSupportSourceIds).distinct.sorted,
+          "relativeCauseSupportEvidenceSourceIds" -> diagnostic.relativeCauses.flatMap(_.supportEvidenceSourceIds).distinct.sorted,
           "relativeCauseProofDirectKinds" -> diagnostic.relativeCauses.flatMap(_.proofDirectKinds).distinct.sorted,
           "relativeCauseProofContrastKinds" -> diagnostic.relativeCauses.flatMap(_.proofContrastKinds).distinct.sorted,
           "relativeCauseProofContextSupportKinds" -> diagnostic.relativeCauses.flatMap(_.proofContextSupportKinds).distinct.sorted,
@@ -1020,10 +1004,55 @@ object MoveReviewPhase3AuditRunner:
           "supportedThemes" -> diagnostic.supportedThemes.map(_.toString),
           "unverifiedPriorThemes" -> diagnostic.unverifiedPriorThemes.map(_.toString),
           "observedOnlyThemes" -> diagnostic.observedOnlyThemes.map(_.toString),
+          "priorMatchSources" -> diagnostic.priorMatchSources.map(_.toString),
+          "certifyingPriorPresent" -> diagnostic.certifyingPriorPresent,
           "anchorSourceLayers" -> diagnostic.anchorSourceLayers.map(_.toString),
           "anchorSignals" -> diagnostic.anchorSignals.map(_.toString),
           "supportedAnchorSourceLayers" -> diagnostic.supportedAnchorSourceLayers.map(_.toString),
           "supportedAnchorSignals" -> diagnostic.supportedAnchorSignals.map(_.toString),
+          "internalAnchorAligned" -> diagnostic.internalAnchorAligned
+        )
+      )
+    )
+
+  private def openingSupportDiagnosticsSummary(
+      diagnostics: List[OpeningSupportDiagnostic]
+  ): JsArray =
+    JsArray(
+      diagnostics.map(diagnostic =>
+        Json.obj(
+          "contextIds" -> diagnostic.contextIds,
+          "assessmentIds" -> diagnostic.assessmentIds,
+          "anchorIds" -> diagnostic.anchorIds,
+          "supportedAnchorIds" -> diagnostic.supportedAnchorIds,
+          "ideaIds" -> diagnostic.ideaIds,
+          "claimIds" -> diagnostic.claimIds,
+          "candidateClaimIds" -> diagnostic.candidateClaimIds,
+          "supportClusterIds" -> diagnostic.supportClusterIds,
+          "identityPresent" -> diagnostic.identityPresent,
+          "recognitionPresent" -> diagnostic.recognitionPresent,
+          "themePriorPresent" -> diagnostic.themePriorPresent,
+          "priorLineages" -> diagnostic.priorLineages,
+          "requestedPriorLineages" -> diagnostic.requestedPriorLineages,
+          "canonicalPriorLineages" -> diagnostic.canonicalPriorLineages,
+          "priorMatchSources" -> diagnostic.priorMatchSources.map(_.toString),
+          "openingSpecificPrior" -> diagnostic.openingSpecificPrior,
+          "certifyingPriorPresent" -> diagnostic.certifyingPriorPresent,
+          "certifyingPriorMatchSources" -> diagnostic.certifyingPriorMatchSources.map(_.toString),
+          "priorFamilies" -> diagnostic.priorFamilies.map(_.toString),
+          "typicalPawnStructures" -> diagnostic.typicalPawnStructures,
+          "centerBreaks" -> diagnostic.centerBreaks,
+          "developmentPriorities" -> diagnostic.developmentPriorities,
+          "gambitCompensation" -> diagnostic.gambitCompensation,
+          "strategicPlanPriors" -> diagnostic.strategicPlanPriors,
+          "observedThemes" -> diagnostic.observedThemes.map(_.toString),
+          "supportedThemes" -> diagnostic.supportedThemes.map(_.toString),
+          "unverifiedPriorThemes" -> diagnostic.unverifiedPriorThemes.map(_.toString),
+          "observedOnlyThemes" -> diagnostic.observedOnlyThemes.map(_.toString),
+          "anchorSourceLayers" -> diagnostic.anchorSourceLayers.map(_.toString),
+          "supportedAnchorSourceLayers" -> diagnostic.supportedAnchorSourceLayers.map(_.toString),
+          "applicabilities" -> diagnostic.applicabilities.map(_.toString),
+          "assessmentStatuses" -> diagnostic.assessmentStatuses.map(_.toString),
           "internalAnchorAligned" -> diagnostic.internalAnchorAligned
         )
       )
@@ -1134,6 +1163,7 @@ object MoveReviewPhase3AuditRunner:
       "ideaWithoutClaimCauseIds" -> diagnostic.ideaWithoutClaimCauseIds,
       "ideaWithoutFinalClaimCauseIds" -> diagnostic.ideaWithoutFinalClaimCauseIds,
       "claimWithoutEventClusterCauseIds" -> diagnostic.claimWithoutEventClusterCauseIds,
+      "eventClusterSupportMissingCauseIds" -> diagnostic.eventClusterSupportMissingCauseIds,
       "causeFlow" -> JsArray(diagnostic.causeFlow.map(relativeCauseFlowJson))
     )
 
@@ -1165,6 +1195,7 @@ object MoveReviewPhase3AuditRunner:
       "claimCandidateDroppedStages" -> flow.claimCandidateDroppedStages.map(_.toString).toList.sorted,
       "claimIds" -> flow.claimIds,
       "eventClusterIds" -> flow.eventClusterIds,
+      "eventClusterMissingSupportEvidenceIds" -> flow.eventClusterMissingSupportEvidenceIds,
       "causeWithoutIdea" -> flow.causeWithoutIdea,
       "ideaWithoutClaimCandidate" -> flow.ideaWithoutClaimCandidate,
       "ideaWithoutFinalClaim" -> flow.ideaWithoutFinalClaim,
@@ -1737,7 +1768,7 @@ object MoveReviewPhase3AuditRunner:
       val family =
         cleanText(context.family).flatMap(OpeningFamily.fromRaw)
           .orElse(eco.flatMap(OpeningFamily.fromEco))
-          .orElse(name.flatMap(OpeningFamily.fromOpeningName))
+          .orElse(name.flatMap(OpeningThemePriorIndex.familyHintForName))
       Option.when(eco.nonEmpty || name.nonEmpty || family.nonEmpty)(
         OpeningIdentity(eco = eco, name = name, family = family)
       )
@@ -1747,10 +1778,19 @@ object MoveReviewPhase3AuditRunner:
     raw.map(_.trim).filter(_.nonEmpty)
 
   private def sameOpeningName(left: String, right: String): Boolean =
-    normalizeOpeningName(left) == normalizeOpeningName(right)
+    val leftKey = normalizeOpeningName(left)
+    val rightKey = normalizeOpeningName(right)
+    leftKey == rightKey || leftKey.startsWith(s"$rightKey ") || rightKey.startsWith(s"$leftKey ")
 
   private def normalizeOpeningName(raw: String): String =
-    Option(raw).getOrElse("").trim.toLowerCase.replaceAll("\\s+", " ")
+    Option(raw).getOrElse("")
+      .toLowerCase(java.util.Locale.ROOT)
+      .replace('\u00e9', 'e')
+      .replace('\u00e8', 'e')
+      .replace('\u00fc', 'u')
+      .replaceAll("[^a-z0-9]+", " ")
+      .replaceAll("\\s+", " ")
+      .trim
 
   private def legalFirstMove(fen: String, move: String): Boolean =
     PrincipalVariationEvidence.legalFenAfter(fen.trim, MoveReviewInputNormalizer.normalizeUci(move)).nonEmpty
@@ -2541,6 +2581,7 @@ object MoveReviewPhase3AuditRunner:
               "proofDirectSourceIds" -> proof.proofDirectSourceIds,
               "proofContrastSourceIds" -> proof.proofContrastSourceIds,
               "proofContextSupportSourceIds" -> proof.proofContextSupportSourceIds,
+              "supportEvidenceSourceIds" -> proof.supportEvidenceSourceIds,
               "proofDirectKinds" -> proof.proofDirectKinds,
               "proofContrastKinds" -> proof.proofContrastKinds,
               "proofContextSupportKinds" -> proof.proofContextSupportKinds
@@ -2563,14 +2604,88 @@ object MoveReviewPhase3AuditRunner:
       )
     )
 
-  private def topClaims(result: MoveReviewJudgmentResult): JsArray =
+  private def moveJudgmentView(result: MoveReviewJudgmentResult): JsValue =
+    result.packet.moveJudgmentView.fold[JsValue](JsNull)(view =>
+      Json.obj(
+        "verdict" -> view.verdict.map(moveJudgmentVerdictJson),
+        "verdictCarriers" -> view.verdictCarriers.map(moveJudgmentClaimFrameJson),
+        "primaryCauses" -> view.primaryCauses.map(moveJudgmentCauseFrameJson),
+        "secondaryCauses" -> view.secondaryCauses.map(moveJudgmentCauseFrameJson),
+        "contextCauses" -> view.contextCauses.map(moveJudgmentCauseFrameJson),
+        "supportContextClusterIds" -> view.supportContextClusterIds,
+        "overriddenLocalIdeas" -> view.overriddenLocalIdeas.map(moveJudgmentLocalIdeaFrameJson),
+        "preservedLocalIdeas" -> view.preservedLocalIdeas.map(moveJudgmentLocalIdeaFrameJson)
+      )
+    )
+
+  private def moveJudgmentVerdictJson(frame: MoveJudgmentVerdictFrame): JsObject =
+    Json.obj(
+      "verdict" -> frame.verdict.toString,
+      "winPercentLossForMover" -> frame.winPercentLossForMover,
+      "candidateWinPercentDeltaForMover" -> frame.candidateWinPercentDeltaForMover,
+      "relativeAssessmentEvidenceId" -> frame.relativeAssessmentEvidenceId,
+      "verdictCertificationEvidenceId" -> frame.verdictCertificationEvidenceId,
+      "comparisonKind" -> frame.comparisonKind.toString,
+      "referenceLine" -> lineRefSummary(frame.referenceLine),
+      "candidateLine" -> lineRefSummary(frame.candidateLine)
+    )
+
+  private def moveJudgmentClaimFrameJson(frame: MoveJudgmentClaimFrame): JsObject =
+    Json.obj(
+      "claimId" -> frame.claimId,
+      "family" -> frame.family.toString,
+      "tier" -> frame.tier.toString,
+      "subjectBinding" -> frame.subjectBinding.toString,
+      "ideaIds" -> frame.ideaIds,
+      "evidenceIds" -> frame.evidenceIds
+    )
+
+  private def moveJudgmentCauseFrameJson(frame: MoveJudgmentCauseFrame): JsObject =
+    Json.obj(
+      "role" -> frame.role.toString,
+      "clusterId" -> frame.clusterId,
+      "framed" -> frame.framed,
+      "causeEvidenceIds" -> frame.causeEvidenceIds,
+      "causeKind" -> frame.causeKind.toString,
+      "comparisonKind" -> frame.comparisonKind.toString,
+      "causeRole" -> frame.causeRole.toString,
+      "causeSourceSide" -> frame.causeSourceSide.toString,
+      "causeImportance" -> frame.causeImportance.toString,
+      "referenceLine" -> lineRefSummary(frame.referenceLine),
+      "candidateLine" -> lineRefSummary(frame.candidateLine),
+      "eventLine" -> lineRefSummary(frame.eventLine),
+      "eventRootMove" -> frame.eventRootMove,
+      "causeClaimIds" -> frame.causeClaimIds,
+      "evaluationClaimIds" -> frame.evaluationClaimIds,
+      "witnessClaimIds" -> frame.witnessClaimIds,
+      "ideaIds" -> frame.ideaIds,
+      "supportIdeaIds" -> frame.supportIdeaIds,
+      "claimCandidateIds" -> frame.claimCandidateIds,
+      "finalClaimIds" -> frame.finalClaimIds,
+      "relatedSupportClusterIds" -> frame.relatedSupportClusterIds,
+      "evidenceIds" -> frame.evidenceIds,
+      "proofDirectSourceIds" -> frame.proofDirectSourceIds,
+      "proofContrastSourceIds" -> frame.proofContrastSourceIds,
+      "proofContextSupportSourceIds" -> frame.proofContextSupportSourceIds,
+      "supportEvidenceSourceIds" -> frame.supportEvidenceSourceIds
+    )
+
+  private def moveJudgmentLocalIdeaFrameJson(frame: MoveJudgmentLocalIdeaFrame): JsObject =
+    Json.obj(
+      "ideaId" -> frame.ideaId,
+      "relation" -> frame.relation.toString,
+      "claimIds" -> frame.claimIds,
+      "evidenceIds" -> frame.evidenceIds
+    )
+
+  private def rankedClaimDiagnostics(result: MoveReviewJudgmentResult): JsArray =
     JsArray(
       result.packet.claims
         .take(5)
         .map(claim => claimJson(result.packet, claim))
     )
 
-  private def topClaimsByTier(
+  private def rankedClaimDiagnosticsByTier(
       result: MoveReviewJudgmentResult,
       tier: PlayerFacingClaimTier
   ): JsArray =

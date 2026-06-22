@@ -25,6 +25,13 @@ object ChessIdeaAssembler:
     case DrawResource extends TacticalIdeaDriver("draw-resource")
     case PawnPromotion extends TacticalIdeaDriver("pawn-promotion")
 
+  private final case class OpeningMoveBinding(
+      subject: IdeaSubject,
+      primaryLine: Option[LineNodeRef],
+      moveUci: Option[String],
+      evidence: List[EvidenceRef]
+  )
+
   def assemble(raw: RawMoveReviewInput): Option[ChessIdeaAssembly] =
     RelativeAssessmentAssembler.assemble(raw).map(enrich)
 
@@ -282,13 +289,13 @@ object ChessIdeaAssembler:
       allocator: JudgmentProvenanceAllocator
   ): List[ChessIdea] =
     val standaloneCauses =
-      context.evidenceGraph.records.collect { case EvidenceRecord(_, RelativeCauseFactEvidence(cause), _) => cause }
+      context.evidenceGraph.records.collect { case EvidenceRecord(_, RelativeCauseFactEvidence(cause), _) => cause.identityKey }.toSet
     context.evidenceGraph.records.flatMap {
       case EvidenceRecord(ref, RelativeCauseFactEvidence(cause), parents) =>
         relativeCauseIdeasFromRecord(context, allocator, ref, cause, parents)
       case EvidenceRecord(ref, MoveVerdictCertificationEvidence(certification), parents) =>
         certification.causes
-          .filterNot(cause => standaloneCauses.exists(sameRelativeCauseIdentity(_, cause)))
+          .filterNot(cause => standaloneCauses.contains(cause.identityKey))
           .flatMap(cause => relativeCauseIdeasFromRecord(context, allocator, ref, cause, parents))
       case _ =>
         Nil
@@ -307,9 +314,7 @@ object ChessIdeaAssembler:
     familiesForRelativeCause(context, ref, cause, supportRefs, depthProofRefs).map { family =>
       val familyEvidence = relativeCauseIdeaEvidence(context, ref, supportRefs, depthProofRefs, family)
       ChessIdeaBuilder.fromEvidence(
-        id = allocator.evidenceId(
-          s"idea:${allocator.key(family)}:relative-cause:${allocator.key(cause.kind)}:${allocator.key(subjectLine.rootMove)}:${allocator.key(ref.id)}"
-        ),
+        id = relativeCauseIdeaId(allocator, family, cause, subjectLine, ref),
         family = family,
         subject = subjectForRelativeCause(cause, subjectLine),
         primaryPosition = ref.position,
@@ -321,14 +326,18 @@ object ChessIdeaAssembler:
       )
     }
 
-  private def sameRelativeCauseIdentity(left: RelativeCauseFact, right: RelativeCauseFact): Boolean =
-    left.kind == right.kind &&
-      left.comparisonKind == right.comparisonKind &&
-      left.referenceLine == right.referenceLine &&
-      left.candidateLine == right.candidateLine &&
-      left.eventLine == right.eventLine &&
-      left.role == right.role &&
-      left.sourceSide == right.sourceSide
+  private def relativeCauseIdeaId(
+      allocator: JudgmentProvenanceAllocator,
+      family: ChessIdeaFamily,
+      cause: RelativeCauseFact,
+      subjectLine: LineNodeRef,
+      ref: EvidenceRef
+  ): String =
+    val key = cause.identityKey
+    val identityHash = Integer.toHexString(key.toString.hashCode)
+    allocator.evidenceId(
+      s"idea:${allocator.key(family)}:relative-cause:${allocator.key(key.kind)}:${allocator.key(key.comparisonKind)}:${allocator.key(key.role)}:${allocator.key(key.sourceSide)}:${allocator.key(key.importance)}:${allocator.key(subjectLine.rootMove)}:$identityHash:${allocator.key(ref.id)}"
+    )
 
   private def relativeCauseIdeaSupportRefs(
       context: JudgmentAssemblyContext,
@@ -432,7 +441,7 @@ object ChessIdeaAssembler:
           Option.when(
             materialConversionCause(cause.kind) &&
               cause.hasTypedDepth &&
-              hasConversionContext(context, ref.position, supportRefs)
+            hasConversionContext(context, ref.position, supportRefs)
           )(ChessIdeaFamily.Conversion)
         (baseFamily.toList ++ conversionFamily.toList).distinct
 
@@ -639,24 +648,100 @@ object ChessIdeaAssembler:
     context.evidenceGraph.records.collect {
       case EvidenceRecord(ref, ApplicabilityAssessmentEvidence(assessment), parents)
           if assessment.canCertifyOpeningClaim =>
-        val primaryLine = context.line(LineNodeRole.BestReference).map(_.ref)
+        val moveBinding = openingMoveBinding(context, assessment, parents)
+        val primaryLine = moveBinding.flatMap(_.primaryLine)
         val evidence =
           longTermIdeaEvidence(
             ref :: parents ++
+              moveBinding.toList.flatMap(_.evidence) ++
               primaryLine.toList.flatMap(lineLayerRefs(context, _))
           )
         ChessIdeaBuilder.fromEvidence(
           id = allocator.evidenceId(s"idea:opening:${allocator.key(ref.id)}"),
           family = ChessIdeaFamily.Opening,
-          subject = IdeaSubject.Position,
+          subject = moveBinding.map(_.subject).getOrElse(IdeaSubject.Position),
           primaryPosition = ref.position,
           primaryLine = primaryLine,
-          moveUci = None,
+          moveUci = moveBinding.flatMap(_.moveUci),
           evidence = evidence,
           scope = ref.scope,
           confidence = ref.confidence
         )
     }
+
+  private def openingMoveBinding(
+      context: JudgmentAssemblyContext,
+      assessment: ApplicabilityAssessment,
+      parents: List[EvidenceRef]
+  ): Option[OpeningMoveBinding] =
+    val supportedThemes = assessment.supportedThemes.toSet
+    val supportedAnchors =
+      parents
+        .flatMap(parent => context.evidenceGraph.byId.get(parent.id))
+        .collect {
+          case record @ EvidenceRecord(_, FeatureAnchorEvidence(anchor), _)
+              if supportedThemes.contains(anchor.theme) && anchor.canCorroborateOpeningPrior =>
+            record
+        }
+    val sourceRecords =
+      supportedAnchors
+        .flatMap(anchorRecord => anchorRecord.parents.flatMap(parent => context.evidenceGraph.byId.get(parent.id)))
+        .distinctBy(_.ref.id)
+    List(
+      openingLineBinding(sourceRecords, LineNodeRole.Played, IdeaSubject.PlayedMove),
+      openingLineBinding(sourceRecords, LineNodeRole.BestReference, IdeaSubject.ReferenceMove),
+      openingLineBinding(sourceRecords, LineNodeRole.Alternative, IdeaSubject.CandidateLine)
+    ).flatten.sortBy(openingMoveBindingScore).lastOption
+
+  private def openingLineBinding(
+      sourceRecords: List[EvidenceRecord],
+      role: LineNodeRole,
+      subject: IdeaSubject
+  ): Option[OpeningMoveBinding] =
+    val roleSources = sourceRecords.filter(openingSourceMatchesRole(_, role))
+    val primaryLine =
+      roleSources.flatMap(record => openingSourceLine(record, role)).headOption
+    val moveUci =
+      roleSources.collectFirst { case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
+        payload.moveUci
+      }.orElse(
+        roleSources.collectFirst { case EvidenceRecord(_, MoveTransitionEvidence(move, _, _), _) =>
+          move
+        }
+      ).orElse(primaryLine.map(_.rootMove))
+    Option.when(primaryLine.nonEmpty || moveUci.nonEmpty)(
+      OpeningMoveBinding(
+        subject = subject,
+        primaryLine = primaryLine,
+        moveUci = moveUci,
+        evidence = roleSources.map(_.ref)
+      )
+    )
+
+  private def openingMoveBindingScore(binding: OpeningMoveBinding): (Int, Int, Int, Int) =
+    (
+      binding.evidence.size,
+      Option.when(binding.evidence.exists(_.layer == EvidenceLayer.StructuralDelta))(1).getOrElse(0),
+      Option.when(binding.moveUci.nonEmpty)(1).getOrElse(0),
+      binding.subject match
+        case IdeaSubject.PlayedMove     => 2
+        case IdeaSubject.ReferenceMove  => 1
+        case IdeaSubject.CandidateLine  => 0
+        case IdeaSubject.Position | IdeaSubject.Threat | IdeaSubject.Plan => 0
+    )
+
+  private def openingSourceMatchesRole(record: EvidenceRecord, role: LineNodeRole): Boolean =
+    openingSourceLine(record, role).nonEmpty ||
+      (role == LineNodeRole.Played && record.ref.scope == EvidenceScope.PlayedTransition)
+
+  private def openingSourceLine(record: EvidenceRecord, role: LineNodeRole): Option[LineNodeRef] =
+    record.payload match
+      case payload: StructuralDeltaEvidence =>
+        payload.line.filter(_.role == role)
+      case MoveTransitionEvidence(_, _, _) =>
+        record.ref.line.filter(_.role == role)
+      case _ =>
+        record.ref.line.filter(_.role == role)
 
   private def relativeSupportsTacticalIdea(assessment: RelativeMoveAssessment): Boolean =
     assessment.comparison.winPercentLossForMover >= JudgmentThresholds.SIGNIFICANT_THREAT_WP ||

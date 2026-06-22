@@ -768,7 +768,7 @@ object EvidenceFactAssembler:
         signals.nonEmpty ||
           input.opening.nonEmpty ||
           input.openingRecognition.nonEmpty ||
-          input.openingThemePrior.nonEmpty ||
+          input.openingThemePriorSelection.nonEmpty ||
           canAssessOpening
       ) {
         OpeningContextFactNormalizer.fromContext(
@@ -776,7 +776,7 @@ object EvidenceFactAssembler:
           identity = input.opening,
           signals = signals,
           recognition = input.openingRecognition,
-          themePrior = input.openingThemePrior,
+          themePriorSelection = input.openingThemePriorSelection,
           position = rootNode.ref,
           line = None,
           scope = EvidenceScope.BeforePosition,
@@ -786,9 +786,11 @@ object EvidenceFactAssembler:
       }
       val anchorRecords = featureAnchorRecords(context, rootNode, allocator)
       val anchors = anchorRecords.collect { case EvidenceRecord(_, FeatureAnchorEvidence(anchor), _) => anchor }
+      val openingContextEvidence =
+        contextRecord.collect { case EvidenceRecord(_, payload: OpeningContextEvidence, _) => payload }
       val applicabilityRecord =
         for
-          assessment <- assessApplicability(input, rootNode, anchors)
+          assessment <- assessApplicability(openingContextEvidence, input.beforePly, rootNode, anchors)
         yield
           applicabilityAssessmentRecord(
             id = allocator.evidenceId("applicability:before"),
@@ -916,20 +918,22 @@ object EvidenceFactAssembler:
     )
 
   private def assessApplicability(
-      input: NormalizedMoveReviewInput,
+      contextEvidence: Option[OpeningContextEvidence],
+      beforePly: Int,
       node: PositionNode,
       anchors: List[FeatureAnchor]
   ): Option[ApplicabilityAssessment] =
     val observedThemes = anchors.map(_.theme).distinct
     Option.when(observedThemes.nonEmpty) {
-      val priorThemes = input.openingThemePrior.toList.flatMap(_.themes).distinct
+      val priorSelections = contextEvidence.flatMap(_.themePriorSelection).toList
+      val priorThemes = priorSelections.flatMap(_.prior.themes).distinct
       val supported = priorThemes.filter(theme =>
         anchors.exists(anchor => anchor.theme == theme && proofSignalOpeningAnchor(anchor))
       )
       val unverified = priorThemes.filterNot(supported.contains)
       val observedOnly = observedThemes.filterNot(priorThemes.contains)
-      val ambiguousRecognition = input.openingRecognition.exists(_.candidates.drop(1).nonEmpty)
-      val applicability = featureApplicability(input, node, anchors, supported)
+      val ambiguousRecognition = contextEvidence.flatMap(_.recognition).exists(_.candidates.drop(1).nonEmpty)
+      val applicability = featureApplicability(contextEvidence, beforePly, node, anchors, supported)
       val status =
         if applicability == FeatureApplicability.Contraindicated then ApplicabilityStatus.Contradicted
         else if priorThemes.isEmpty then ApplicabilityStatus.InternalOnly
@@ -943,7 +947,8 @@ object EvidenceFactAssembler:
         observedThemes = observedThemes,
         supportedThemes = supported,
         unverifiedPriorThemes = unverified,
-        observedOnlyThemes = observedOnly
+        observedOnlyThemes = observedOnly,
+        priorMatchSources = priorSelections.map(_.matchSource).distinct
       )
     }
 
@@ -951,7 +956,8 @@ object EvidenceFactAssembler:
     anchor.canCorroborateOpeningPrior
 
   private def featureApplicability(
-      input: NormalizedMoveReviewInput,
+      contextEvidence: Option[OpeningContextEvidence],
+      beforePly: Int,
       node: PositionNode,
       anchors: List[FeatureAnchor],
       supportedThemes: List[OpeningTheme]
@@ -959,10 +965,20 @@ object EvidenceFactAssembler:
     val phase = node.assessment.map(_.gamePhase)
     val featurePhase = node.features.map(_.materialPhase.phase)
     val openingPhase = phase.exists(_.isOpening) || featurePhase.contains("opening")
-    val openingWindow = input.beforePly <= OpeningRelevanceMaxPly
+    val openingWindow = beforePly <= OpeningRelevanceMaxPly
     val middlegamePhase = phase.exists(_.isMiddlegame) || featurePhase.contains("middlegame")
     val endgamePhase = phase.exists(_.isEndgame) || featurePhase.contains("endgame")
-    val openingContext = input.opening.nonEmpty || input.openingRecognition.nonEmpty || input.openingThemePrior.nonEmpty
+    val hasOpeningContext =
+      contextEvidence.exists(context =>
+        context.identity.nonEmpty ||
+          context.recognition.nonEmpty ||
+          context.themePriorSelection.nonEmpty ||
+          context.signals.exists(signal =>
+            signal == OpeningContextSignal.InputIdentity ||
+              signal == OpeningContextSignal.RecognizedIdentity ||
+              signal == OpeningContextSignal.ThemePrior
+          )
+      )
     val denseMaterial =
       phase.exists(result => result.queensOnBoard || result.minorPiecesCount >= 4) ||
         node.features.exists(features => features.materialPhase.whiteMaterial + features.materialPhase.blackMaterial >= 48)
@@ -981,7 +997,7 @@ object EvidenceFactAssembler:
       FeatureApplicability.OpeningRelevant
     else if openingWindow && themePriorSupportedByInternalAnchor then FeatureApplicability.OpeningRelevant
     else if endgamePhase then FeatureApplicability.EndgameRelevant
-    else if openingContext || middlegamePhase || anchors.exists(anchor => anchor.sourceLayer == EvidenceLayer.PlanPressure || anchor.sourceLayer == EvidenceLayer.Strategic) then
+    else if hasOpeningContext || middlegamePhase || anchors.exists(anchor => anchor.sourceLayer == EvidenceLayer.PlanPressure || anchor.sourceLayer == EvidenceLayer.Strategic) then
       FeatureApplicability.MiddlegameRelevant
     else FeatureApplicability.ObservedOnly
 
@@ -1011,10 +1027,11 @@ object EvidenceFactAssembler:
         Some(FeatureAnchor(OpeningTheme.PawnStructure, FeatureAnchorSignal.PawnStructureObserved, EvidenceLayer.Board, anchor.confidence.max(0.55)))
       case BoardAnchorKind.KingSafety =>
         Some(FeatureAnchor(OpeningTheme.KingSafety, FeatureAnchorSignal.KingSafetyObserved, EvidenceLayer.Board, anchor.confidence.max(0.5)))
-      case BoardAnchorKind.FileControl | BoardAnchorKind.CounterplayRestraint | BoardAnchorKind.LooseMaterial |
+      case BoardAnchorKind.FileControl | BoardAnchorKind.BatteryPressure | BoardAnchorKind.WeakSquare =>
+        Some(FeatureAnchor(OpeningTheme.PlanPressure, FeatureAnchorSignal.LinePressureObserved, EvidenceLayer.Board, anchor.confidence.max(0.5)))
+      case BoardAnchorKind.CounterplayRestraint | BoardAnchorKind.LooseMaterial |
           BoardAnchorKind.PinPressure | BoardAnchorKind.SkewerPressure | BoardAnchorKind.ForkPressure |
-          BoardAnchorKind.XRayPressure | BoardAnchorKind.BatteryPressure | BoardAnchorKind.WeakSquare |
-          BoardAnchorKind.Outpost | BoardAnchorKind.EndgameTechnique =>
+          BoardAnchorKind.XRayPressure | BoardAnchorKind.Outpost | BoardAnchorKind.EndgameTechnique =>
         None
 
   private def evidenceFeatureAnchors(record: EvidenceRecord): List[(FeatureAnchor, List[EvidenceRef])] =
@@ -1023,10 +1040,21 @@ object EvidenceFactAssembler:
           if profile.primary != lila.chessjudgment.model.structure.StructureId.Unknown ||
             pawnPlay.exists(_.primaryDriver != PawnPlayDriver.Quiet) ||
             alignment.nonEmpty =>
+        val signal =
+          pawnPlay match
+            case Some(play) if play.pawnBreakReady || play.primaryDriver == PawnPlayDriver.BreakReady =>
+              FeatureAnchorSignal.PawnBreakObserved
+            case Some(play)
+                if play.advanceOrCapture ||
+                  play.primaryDriver == PawnPlayDriver.TensionCritical ||
+                  play.primaryDriver == PawnPlayDriver.TensionActive =>
+              FeatureAnchorSignal.CentralTensionObserved
+            case _ =>
+              FeatureAnchorSignal.PawnStructureObserved
         List(
           FeatureAnchor(
             OpeningTheme.PawnStructure,
-            FeatureAnchorSignal.PawnStructureObserved,
+            signal,
             EvidenceLayer.PawnStructure,
             profile.confidence.max(0.6)
           ) -> (record.ref :: record.parents)
@@ -1044,6 +1072,17 @@ object EvidenceFactAssembler:
           ) -> (record.ref :: record.parents)
         )
       case payload: StructuralDeltaEvidence if payload.hasTypedOutput =>
+        val hasOpeningLinePressure =
+          payload.hasAnyConsequence(
+            Set(
+              TransitionConsequenceKind.LineUnlockGain,
+              TransitionConsequenceKind.FileAccessGain,
+              TransitionConsequenceKind.RookLiftActivation,
+              TransitionConsequenceKind.BatteryPressureGain,
+              TransitionConsequenceKind.KingRingPressureGain,
+              TransitionConsequenceKind.OutpostGain
+            )
+          )
         val center =
           Option.when(
             payload.hasConsequenceCategory(TransitionConsequenceCategory.OpeningCenterControl)
@@ -1056,19 +1095,40 @@ object EvidenceFactAssembler:
             )
           )
         val pressure =
-          Option.when(payload.hasTargetPressureGain)(
+          Option.when(payload.hasTargetPressureGain || hasOpeningLinePressure)(
             FeatureAnchor(
               OpeningTheme.PlanPressure,
-              FeatureAnchorSignal.StructuralDeltaObserved,
+              if hasOpeningLinePressure then FeatureAnchorSignal.LinePressureObserved
+              else FeatureAnchorSignal.StructuralDeltaObserved,
               EvidenceLayer.StructuralDelta,
-              0.66
+              if payload.hasTargetPressureGain then 0.66 else 0.62
             )
-          )
+        )
         val structure =
-          Option.when(payload.hasConsequenceCategory(TransitionConsequenceCategory.PawnStructure))(
+          val hasPawnStructureAnchor =
+            payload.hasConsequenceCategory(TransitionConsequenceCategory.PawnStructure) ||
+              payload.hasConsequence(TransitionConsequenceKind.PawnTensionResolution)
+          val signal =
+            if payload.hasAnyConsequence(
+                Set(
+                  TransitionConsequenceKind.PawnTensionGain,
+                  TransitionConsequenceKind.PawnTensionResolution
+                )
+              )
+            then FeatureAnchorSignal.CentralTensionObserved
+            else if payload.hasAnyConsequence(
+                Set(
+                  TransitionConsequenceKind.OpenFileGain,
+                  TransitionConsequenceKind.SemiOpenFileGain,
+                  TransitionConsequenceKind.FileOccupationGain
+                )
+              )
+            then FeatureAnchorSignal.LinePressureObserved
+            else FeatureAnchorSignal.PawnStructureObserved
+          Option.when(hasPawnStructureAnchor)(
             FeatureAnchor(
               OpeningTheme.PawnStructure,
-              FeatureAnchorSignal.StructuralDeltaObserved,
+              signal,
               EvidenceLayer.StructuralDelta,
               0.65
             )
@@ -1077,13 +1137,15 @@ object EvidenceFactAssembler:
           Option.when(payload.hasConsequenceCategory(TransitionConsequenceCategory.OpeningDevelopment))(
             FeatureAnchor(
               OpeningTheme.Development,
-              FeatureAnchorSignal.StructuralDeltaObserved,
+              if payload.hasConsequence(TransitionConsequenceKind.DevelopmentLagReduced) then
+                FeatureAnchorSignal.DevelopmentLagObserved
+              else FeatureAnchorSignal.DevelopmentTempoObserved,
               EvidenceLayer.StructuralDelta,
               0.62
             )
           )
         val kingSafety =
-          Option.when(payload.hasKingSafetyPressure)(
+          Option.when(payload.hasKingSafetyPressure || payload.hasConsequence(TransitionConsequenceKind.KingRingPressureGain))(
             FeatureAnchor(
               OpeningTheme.KingSafety,
               FeatureAnchorSignal.StructuralDeltaObserved,
@@ -1092,7 +1154,8 @@ object EvidenceFactAssembler:
             )
           )
         List(center, pressure, structure, development, kingSafety).flatten.map(_ -> (record.ref :: record.parents))
-      case payload @ StrategicFactEvidence(kind, _, _, confidence) if payload.hasTypedSupport =>
+      case payload @ StrategicFactEvidence(kind, facts, relatedPlans, confidence)
+          if payload.hasTypedSupport && (facts.nonEmpty || relatedPlans.nonEmpty) =>
         val theme =
           kind match
             case StrategicFactKind.Space        => Some(OpeningTheme.CenterControl)

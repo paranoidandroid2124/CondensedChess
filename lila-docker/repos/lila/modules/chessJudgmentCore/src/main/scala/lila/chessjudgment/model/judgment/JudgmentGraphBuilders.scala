@@ -211,6 +211,19 @@ object JudgmentPacketBuilder:
     ctx.root.map { rootRef =>
       val diagnostics = EvidenceLossDiagnostics.fromAssembly(ctx)
       val claimSupportClusters = ClaimSupportCluster.fromClaims(ctx.claims, ctx.evidenceGraph)
+      val ideaVerdict = IdeaVerdictSplit.from(ctx.ideas, ctx.claims, ctx.relativeAssessments)
+      val claimEventClusters = ClaimEventCluster.fromClaims(ctx.claims, ctx.evidenceGraph, claimSupportClusters)
+      val moveJudgmentView =
+        MoveJudgmentView.from(
+          relativeAssessments = ctx.relativeAssessments,
+          evidenceGraph = ctx.evidenceGraph,
+          ideas = ctx.ideas,
+          claims = ctx.claims,
+          claimLifecycle = ctx.claimLifecycle,
+          ideaVerdict = ideaVerdict,
+          claimSupportClusters = claimSupportClusters,
+          claimEventClusters = claimEventClusters
+        )
       val probeRequests = BranchReplyProbePlanner.fromAssembly(ctx)
       EvidenceBackedJudgmentPacket(
         root = rootRef,
@@ -222,9 +235,10 @@ object JudgmentPacketBuilder:
         ideas = ctx.ideas,
         claims = ctx.claims,
         claimLifecycle = ctx.claimLifecycle,
-        ideaVerdict = IdeaVerdictSplit.from(ctx.ideas, ctx.claims, ctx.relativeAssessments),
+        ideaVerdict = ideaVerdict,
         claimSupportClusters = claimSupportClusters,
-        claimEventClusters = ClaimEventCluster.fromClaims(ctx.claims, ctx.evidenceGraph, claimSupportClusters),
+        claimEventClusters = claimEventClusters,
+        moveJudgmentView = moveJudgmentView,
         diagnostics = diagnostics,
         probeRequests = probeRequests,
         probeDiagnostics = ctx.probeDiagnostics

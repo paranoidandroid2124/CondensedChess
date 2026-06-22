@@ -203,10 +203,10 @@ object ClaimDeduplicator:
 
   private def mergeSeeds(claims: Iterable[ClaimSeed], graph: TypedEvidenceGraph): ClaimSeed =
     val seeds = claims.toList
-    val representative = seeds.maxBy(seed => seedScore(seed, graph))
-    if seeds.size == 1 then representative
+    val mergeBase = seeds.maxBy(seed => seedScore(seed, graph))
+    if seeds.size == 1 then mergeBase
     else
-      representative.copy(
+      mergeBase.copy(
         evidence = seeds.flatMap(_.evidence).distinctBy(_.id),
         confidence = seeds.map(_.confidence).maxBy(confidenceScore),
         relatedIdeas = seeds.flatMap(_.ideaRefs).distinctBy(_.id),
@@ -298,6 +298,9 @@ object ClaimArbitrator:
       .sortBy { case (decision, salience, exposureTier) =>
         (
           -PlayerFacingClaimPolicy.rankPriority(exposureTier),
+          -JudgmentSubjectBinding.bindingScore(
+            JudgmentSubjectBinding.claimBinding(decision.claim, graph.evidenceGraph, playedMoves)
+          ),
           -priority(decision, salience, graph.evidenceGraph)
         )
       }
@@ -418,6 +421,7 @@ object ClaimArbitrator:
       proofDirectSourceIds = cause.proof.toList.flatMap(_.directProof.sourceRefs.map(_.id)).distinct.sorted,
       proofContrastSourceIds = cause.proof.toList.flatMap(_.contrastProof.sourceRefs.map(_.id)).distinct.sorted,
       proofContextSupportSourceIds = cause.proof.toList.flatMap(_.contextSupport.sourceRefs.map(_.id)).distinct.sorted,
+      supportEvidenceSourceIds = cause.supportEvidence.map(_.id).distinct.sorted,
       proofDirectKinds = cause.proof.toList.flatMap(_.directProof.kindLabels).distinct.sorted,
       proofContrastKinds = cause.proof.toList.flatMap(_.contrastProof.kindLabels).distinct.sorted,
       proofContextSupportKinds = cause.proof.toList.flatMap(_.contextSupport.kindLabels).distinct.sorted
@@ -797,7 +801,8 @@ object ClaimArbitrator:
           basis.eventLine,
           basis.proofDirectSourceIds,
           basis.proofContrastSourceIds,
-          basis.proofContextSupportSourceIds
+          basis.proofContextSupportSourceIds,
+          basis.supportEvidenceSourceIds
         )
       )
 
@@ -824,7 +829,8 @@ object ClaimArbitrator:
       eventLine = cause.eventLine,
       proofDirectSourceIds = cause.proof.toList.flatMap(_.directProof.sourceRefs.map(_.id)).distinct.sorted,
       proofContrastSourceIds = cause.proof.toList.flatMap(_.contrastProof.sourceRefs.map(_.id)).distinct.sorted,
-      proofContextSupportSourceIds = cause.proof.toList.flatMap(_.contextSupport.sourceRefs.map(_.id)).distinct.sorted
+      proofContextSupportSourceIds = cause.proof.toList.flatMap(_.contextSupport.sourceRefs.map(_.id)).distinct.sorted,
+      supportEvidenceSourceIds = cause.supportEvidence.map(_.id).distinct.sorted
     )
 
   private def eventLongTermPair(left: ClaimSeed, right: ClaimSeed): Boolean =
@@ -871,20 +877,39 @@ object ClaimArbitrator:
     val leftSignatures = relativeCauseSignatures(left, graph)
     leftSignatures.nonEmpty && relativeCauseSignatures(right, graph).exists(leftSignatures.contains)
 
-  private def relativeCauseSignatures(claim: ClaimSeed, graph: TypedEvidenceGraph): Set[(RelativeCauseKind, CandidateComparisonKind, RelativeCauseRole, RelativeCauseSourceSide, LineNodeRef, LineNodeRef, LineNodeRef)] =
+  private type RelativeCauseInteractionSignature =
+    (
+        RelativeCauseKind,
+        CandidateComparisonKind,
+        RelativeCauseRole,
+        RelativeCauseSourceSide,
+        RelativeCauseImportance,
+        LineNodeRef,
+        LineNodeRef,
+        LineNodeRef,
+        List[String],
+        List[String],
+        List[String]
+    )
+
+  private def relativeCauseSignatures(claim: ClaimSeed, graph: TypedEvidenceGraph): Set[RelativeCauseInteractionSignature] =
     relativeCauses(claim, graph)
       .map(relativeCauseSignature)
       .toSet
 
-  private def relativeCauseSignature(cause: RelativeCauseFact): (RelativeCauseKind, CandidateComparisonKind, RelativeCauseRole, RelativeCauseSourceSide, LineNodeRef, LineNodeRef, LineNodeRef) =
+  private def relativeCauseSignature(cause: RelativeCauseFact): RelativeCauseInteractionSignature =
     (
       cause.kind,
       cause.comparisonKind,
       cause.role,
       cause.sourceSide,
+      cause.importance,
       cause.referenceLine,
       cause.candidateLine,
-      cause.eventLine
+      cause.eventLine,
+      cause.proof.toList.flatMap(_.directProof.sourceRefs.map(_.id)).distinct.sorted,
+      cause.proof.toList.flatMap(_.contrastProof.sourceRefs.map(_.id)).distinct.sorted,
+      cause.proof.toList.flatMap(_.contextSupport.sourceRefs.map(_.id)).distinct.sorted
     )
 
   private def comparisonEvidence(claim: ClaimSeed, graph: TypedEvidenceGraph): List[EvidenceRef] =
@@ -1148,7 +1173,9 @@ object ClaimArbitrator:
         case RelativeCauseKind.PlanContradiction |
             RelativeCauseKind.StrategicConcession |
             RelativeCauseKind.MissedStrategicImprovement | RelativeCauseKind.StructuralImprovement |
-            RelativeCauseKind.TargetPressureGain | RelativeCauseKind.CenterControlGain =>
+            RelativeCauseKind.TargetPressureGain | RelativeCauseKind.CenterControlGain |
+            RelativeCauseKind.KingSafetyConcession | RelativeCauseKind.PawnWeaknessTarget |
+            RelativeCauseKind.ActivityLoss =>
           5
         case RelativeCauseKind.DefensiveResource | RelativeCauseKind.DrawResource |
             RelativeCauseKind.PlanImprovement | RelativeCauseKind.SacrificeCompensation =>
@@ -1212,6 +1239,9 @@ object ClaimArbitrator:
         List(ClaimSalienceDriver.StrategicFeature, ClaimSalienceDriver.StructuralChange, ClaimSalienceDriver.EngineSwing)
       case RelativeCauseKind.TargetPressureGain | RelativeCauseKind.CenterControlGain =>
         List(ClaimSalienceDriver.StrategicFeature, ClaimSalienceDriver.EngineSwing)
+      case RelativeCauseKind.KingSafetyConcession | RelativeCauseKind.PawnWeaknessTarget |
+          RelativeCauseKind.ActivityLoss =>
+        List(ClaimSalienceDriver.StrategicFeature, ClaimSalienceDriver.StructuralChange, ClaimSalienceDriver.EngineSwing)
       case RelativeCauseKind.StrategicConcession |
           RelativeCauseKind.MissedStrategicImprovement | RelativeCauseKind.PlanImprovement |
           RelativeCauseKind.PlanContradiction =>

@@ -9,7 +9,7 @@ object OpeningContextFactNormalizer:
       identity: Option[OpeningIdentity],
       signals: List[OpeningContextSignal],
       recognition: Option[OpeningRecognition] = None,
-      themePrior: Option[OpeningThemePrior] = None,
+      themePriorSelection: Option[OpeningThemePriorSelection] = None,
       position: PositionNodeRef,
       line: Option[LineNodeRef] = None,
       scope: EvidenceScope,
@@ -32,7 +32,7 @@ object OpeningContextFactNormalizer:
         identity = identity,
         signals = signals.distinct,
         recognition = recognition,
-        themePrior = themePrior
+        themePriorSelection = themePriorSelection
       ),
       parents = parents
     )
