@@ -5,6 +5,7 @@ import lila.chessjudgment.analysis.evaluation.{ JudgmentThresholds, PerspectiveM
 import lila.chessjudgment.analysis.position.PositionFeatures
 import lila.chessjudgment.analysis.singlePosition.{
   PawnPlayAnalysis,
+  PawnPlayDriver,
   SinglePositionAssessment,
   Threat,
   ThreatAnalysis,
@@ -13,8 +14,8 @@ import lila.chessjudgment.analysis.singlePosition.{
   ThreatKind,
   ThreatSeverity
 }
-import lila.chessjudgment.model.{ ActivePlans, Fact, Motif, MotifCategory, PlanScoringResult, PlanSequenceSummary }
-import lila.chessjudgment.model.structure.{ PlanAlignment, StructureProfile }
+import lila.chessjudgment.model.{ ActivePlans, Fact, Motif, MotifCategory, PlanScoringResult, PlanSequenceSummary, TransitionType }
+import lila.chessjudgment.model.structure.{ AlignmentBand, PlanAlignment, StructureId, StructureProfile }
 
 final case class EvidenceSquare(key: String)
 final case class EvidenceFile(key: String)
@@ -22,6 +23,7 @@ final case class EvidencePieceRole(name: String)
 
 enum EvidenceSemanticAnchorKind:
   case StrategicKind
+  case StrategicMechanism
   case Plan
   case BoardAnchor
   case PawnStructure
@@ -637,6 +639,279 @@ final case class StrategicFactEvidence(
     facts.nonEmpty || relatedPlans.nonEmpty || boardAnchors.nonEmpty
   def semanticGroupingAnchors: List[EvidenceSemanticAnchor] =
     boardAnchors.map(_.semanticGroupingAnchor)
+
+enum StrategicMechanismKind:
+  case StructuralImprovement
+  case TargetPressure
+  case CenterControl
+  case KingSafety
+  case PawnWeakness
+  case Activity
+  case PawnStructure
+  case PlanPressure
+  case Compensation
+  case Endgame
+  case StrategicConcession
+  case OpeningAlignment
+
+enum StrategicMechanismSignalKind:
+  case StrategicFact
+  case PawnStructure
+  case StructuralDelta
+  case PlanPressure
+  case PlanTransition
+  case OpeningAnchor
+  case OpeningApplicability
+  case EndgamePosition
+
+final case class StrategicMechanismSignal(
+    kind: StrategicMechanismSignalKind,
+    label: String,
+    source: EvidenceRef,
+    strength: Int
+):
+  def sourceLayer: EvidenceLayer = source.layer
+
+final case class StrategicMechanismEvidence(
+    kind: StrategicMechanismKind,
+    signals: List[StrategicMechanismSignal],
+    semanticAnchors: List[EvidenceSemanticAnchor]
+) extends EvidencePayload:
+  val layer: EvidenceLayer = EvidenceLayer.StrategicMechanism
+  def signalKinds: Set[StrategicMechanismSignalKind] =
+    signals.map(_.kind).toSet
+  def hasSignals: Boolean =
+    signals.nonEmpty
+  def directStrength: Int =
+    signals.map(_.strength).sum
+  def hasCompositeSupport: Boolean =
+    signals.size >= 2 || signalKinds.exists(kind =>
+      kind == StrategicMechanismSignalKind.StructuralDelta ||
+        kind == StrategicMechanismSignalKind.PawnStructure ||
+        kind == StrategicMechanismSignalKind.PlanTransition ||
+        kind == StrategicMechanismSignalKind.OpeningAnchor ||
+        kind == StrategicMechanismSignalKind.EndgamePosition
+    )
+  def canAnchorStrategicIdea: Boolean =
+    hasCompositeSupport && kind != StrategicMechanismKind.OpeningAlignment
+  def canAnchorPawnStructureIdea: Boolean =
+    kind == StrategicMechanismKind.PawnStructure && hasSignals
+  def canAnchorOpeningIdea: Boolean =
+    kind == StrategicMechanismKind.OpeningAlignment &&
+      signalKinds.contains(StrategicMechanismSignalKind.OpeningApplicability)
+  def canAnchorPlanIdea: Boolean =
+    kind == StrategicMechanismKind.PlanPressure &&
+      (
+        hasCompositeSupport ||
+          signalKinds.contains(StrategicMechanismSignalKind.PlanTransition)
+      )
+  def canSupportCompensation: Boolean =
+    kind == StrategicMechanismKind.Compensation && hasSignals
+  def canSupportStrategicCause: Boolean =
+    canAnchorStrategicIdea || canAnchorPawnStructureIdea || canSupportCompensation
+  def hasOpeningAnchorSignal: Boolean =
+    signalKinds.contains(StrategicMechanismSignalKind.OpeningAnchor)
+  def semanticGroupingAnchors: List[EvidenceSemanticAnchor] =
+    semanticAnchors.distinctBy(_.stableKey)
+
+object StrategicMechanismEvidence:
+  def rawStrategicSourceLayer(layer: EvidenceLayer): Boolean =
+    layer match
+      case EvidenceLayer.Strategic | EvidenceLayer.PawnStructure | EvidenceLayer.StructuralDelta |
+          EvidenceLayer.PlanPressure | EvidenceLayer.PlanTransition | EvidenceLayer.FeatureAnchor |
+          EvidenceLayer.ApplicabilityAssessment | EvidenceLayer.OpeningContext =>
+        true
+      case _ =>
+        false
+
+  def openingClaimSupported(records: List[EvidenceRecord]): Boolean =
+    val mechanisms = records.collect { case EvidenceRecord(_, payload: StrategicMechanismEvidence, _) => payload }
+    mechanisms.exists(_.canAnchorOpeningIdea)
+
+  def sourceMechanisms(record: EvidenceRecord): List[(StrategicMechanismKind, StrategicMechanismSignal)] =
+    record.payload match
+      case payload @ StrategicFactEvidence(kind, _, _, confidence) if confidence >= 0.35 && payload.hasTypedSupport =>
+        val mechanism =
+          kind match
+            case StrategicFactKind.TargetFixation | StrategicFactKind.CounterplayRestraint =>
+              StrategicMechanismKind.TargetPressure
+            case StrategicFactKind.Space =>
+              StrategicMechanismKind.CenterControl
+            case StrategicFactKind.Structure =>
+              StrategicMechanismKind.PawnStructure
+            case StrategicFactKind.Activity | StrategicFactKind.Outpost | StrategicFactKind.FileControl =>
+              StrategicMechanismKind.Activity
+            case StrategicFactKind.Compensation =>
+              StrategicMechanismKind.Compensation
+            case StrategicFactKind.Endgame =>
+              StrategicMechanismKind.Endgame
+            case StrategicFactKind.PlanPressure =>
+              StrategicMechanismKind.PlanPressure
+            case StrategicFactKind.Practicality =>
+              StrategicMechanismKind.StructuralImprovement
+        List(mechanism -> signal(StrategicMechanismSignalKind.StrategicFact, kind.toString, record.ref, math.round(confidence * 5).toInt.max(1)))
+      case payload: PawnStructureFactEvidence if pawnStructureCanAnchorPlan(payload) =>
+        val label = payload.profile.primary.toString
+        List(StrategicMechanismKind.PawnStructure -> signal(StrategicMechanismSignalKind.PawnStructure, label, record.ref, 2))
+      case payload: StructuralDeltaEvidence if payload.hasTypedOutput =>
+        List(
+          Option.when(payload.hasStructuralAnchor)(
+            StrategicMechanismKind.StructuralImprovement -> signal(StrategicMechanismSignalKind.StructuralDelta, "structural-improvement", record.ref, payload.structuralImprovementScore.max(1))
+          ),
+          Option.when(payload.hasTargetPressureGain)(
+            StrategicMechanismKind.TargetPressure -> signal(StrategicMechanismSignalKind.StructuralDelta, "target-pressure-gain", record.ref, 3)
+          ),
+          Option.when(payload.hasTargetPressureRelease)(
+            StrategicMechanismKind.TargetPressure -> signal(StrategicMechanismSignalKind.StructuralDelta, "target-pressure-release", record.ref, 2)
+          ),
+          Option.when(payload.hasCenterControlGain)(
+            StrategicMechanismKind.CenterControl -> signal(StrategicMechanismSignalKind.StructuralDelta, "center-control-gain", record.ref, 2)
+          ),
+          Option.when(payload.hasAnyConsequence(Set(TransitionConsequenceKind.KingSafetyConcession, TransitionConsequenceKind.KingRingPressureConcession)))(
+            StrategicMechanismKind.KingSafety -> signal(StrategicMechanismSignalKind.StructuralDelta, "king-safety-concession", record.ref, 3)
+          ),
+          Option.when(payload.hasConsequence(TransitionConsequenceKind.WeakPawnTargetCreated))(
+            StrategicMechanismKind.PawnWeakness -> signal(StrategicMechanismSignalKind.StructuralDelta, "weak-pawn-target", record.ref, 2)
+          ),
+          Option.when(payload.hasPieceActivityGain)(
+            StrategicMechanismKind.Activity -> signal(StrategicMechanismSignalKind.StructuralDelta, "activity-gain", record.ref, 2)
+          ),
+          Option.when(
+            payload.hasAnyConsequence(
+              Set(
+                TransitionConsequenceKind.DevelopmentLagIncreased,
+                TransitionConsequenceKind.DevelopmentPieceRetreated,
+                TransitionConsequenceKind.DevelopmentMobilityLoss,
+                TransitionConsequenceKind.DevelopmentCenterControlLoss,
+                TransitionConsequenceKind.DevelopmentUnsafePlacement,
+                TransitionConsequenceKind.MobilityLoss,
+                TransitionConsequenceKind.FileAccessLoss
+              )
+            )
+          )(
+            StrategicMechanismKind.Activity -> signal(StrategicMechanismSignalKind.StructuralDelta, "activity-loss", record.ref, 2)
+          ),
+          Option.when(payload.hasPawnStructureDelta)(
+            StrategicMechanismKind.PawnStructure -> signal(StrategicMechanismSignalKind.StructuralDelta, "pawn-structure-delta", record.ref, 2)
+          ),
+          Option.when(payload.hasPassedPawnProgress)(
+            StrategicMechanismKind.PawnStructure -> signal(StrategicMechanismSignalKind.StructuralDelta, "passed-pawn-progress", record.ref, 3)
+          ),
+          Option.when(payload.hasConsequence(TransitionConsequenceKind.PromotionPressureGain))(
+            StrategicMechanismKind.PawnStructure -> signal(StrategicMechanismSignalKind.StructuralDelta, "promotion-pressure-gain", record.ref, 3)
+          ),
+          Option.when(payload.hasConsequence(TransitionConsequenceKind.PassedPawnConcession))(
+            StrategicMechanismKind.StrategicConcession -> signal(StrategicMechanismSignalKind.StructuralDelta, "passed-pawn-concession", record.ref, 3)
+          ),
+          Option.when(payload.hasConsequence(TransitionConsequenceKind.PromotionPressureConcession))(
+            StrategicMechanismKind.StrategicConcession -> signal(StrategicMechanismSignalKind.StructuralDelta, "promotion-pressure-concession", record.ref, 3)
+          ),
+          Option.when(payload.hasStrategicConcession)(
+            StrategicMechanismKind.StrategicConcession -> signal(StrategicMechanismSignalKind.StructuralDelta, "strategic-concession", record.ref, 3)
+          )
+        ).flatten
+      case PlanPressureEvidence(scoring, activePlans) if planPressureHasDirectEvidence(scoring, activePlans) =>
+        val plans = activePlans.primary :: activePlans.secondary.toList
+        List(
+          StrategicMechanismKind.PlanPressure ->
+            signal(StrategicMechanismSignalKind.PlanPressure, plans.map(_.plan.id.toString).mkString(","), record.ref, 2)
+        )
+      case PlanTransitionEvidence(transition) if planTransitionCanSupportPlan(transition) =>
+        List(
+          StrategicMechanismKind.PlanPressure ->
+            signal(StrategicMechanismSignalKind.PlanTransition, transition.primaryPlanId.getOrElse("plan"), record.ref, 2)
+        )
+      case FeatureAnchorEvidence(anchor) if anchor.hasPositiveStrength && anchor.canCorroborateOpeningPrior =>
+        val mechanism =
+          anchor.theme match
+            case OpeningTheme.CenterControl    => StrategicMechanismKind.CenterControl
+            case OpeningTheme.Development      => StrategicMechanismKind.Activity
+            case OpeningTheme.PawnStructure    => StrategicMechanismKind.PawnStructure
+            case OpeningTheme.GambitInitiative => StrategicMechanismKind.Compensation
+            case OpeningTheme.KingSafety       => StrategicMechanismKind.KingSafety
+            case OpeningTheme.PlanPressure     => StrategicMechanismKind.TargetPressure
+        List(mechanism -> signal(StrategicMechanismSignalKind.OpeningAnchor, s"${anchor.theme}:${anchor.signal}", record.ref, math.round(anchor.strength * 4).toInt.max(1)))
+      case ApplicabilityAssessmentEvidence(assessment) if assessment.canCertifyOpeningClaim =>
+        List(
+          StrategicMechanismKind.OpeningAlignment -> signal(
+            StrategicMechanismSignalKind.OpeningApplicability,
+            assessment.supportedThemes.map(_.toString).sorted.mkString(","),
+            record.ref,
+            2
+          )
+        )
+      case SinglePositionEvidence(assessment) if assessment.gamePhase.isEndgame && assessment.simplifyBias.shouldSimplify =>
+        List(StrategicMechanismKind.Endgame -> signal(StrategicMechanismSignalKind.EndgamePosition, "simplify-endgame", record.ref, 2))
+      case payload: BoardFactEvidence if payload.endgameTechniqueAnchors.nonEmpty =>
+        List(StrategicMechanismKind.Endgame -> signal(StrategicMechanismSignalKind.EndgamePosition, "endgame-technique", record.ref, 2))
+      case _ =>
+        Nil
+
+  def sourceSemanticAnchors(record: EvidenceRecord): List[EvidenceSemanticAnchor] =
+    record.payload match
+      case payload @ StrategicFactEvidence(kind, _, relatedPlans, confidence) if confidence >= 0.35 && payload.hasTypedSupport =>
+        EvidenceSemanticAnchor.of(EvidenceSemanticAnchorKind.StrategicKind, kind.toString) ::
+          relatedPlans.map(plan => EvidenceSemanticAnchor.of(EvidenceSemanticAnchorKind.Plan, plan.toString)) ++
+          payload.semanticGroupingAnchors
+      case PawnStructureFactEvidence(profile, alignment, pawnPlay) =>
+        List(
+          Option.when(profile.primary != StructureId.Unknown)(
+            EvidenceSemanticAnchor.of(EvidenceSemanticAnchorKind.PawnStructure, profile.primary.toString)
+          ),
+          alignment.map(alignment =>
+            EvidenceSemanticAnchor.of(
+              EvidenceSemanticAnchorKind.StructurePlan,
+              alignment.band.toString,
+              alignment.matchedPlanIds.sorted.mkString(",")
+            )
+          ),
+          pawnPlay.map(play => EvidenceSemanticAnchor.of(EvidenceSemanticAnchorKind.PawnPlay, play.primaryDriver.toString))
+        ).flatten
+      case FeatureAnchorEvidence(anchor) =>
+        List(EvidenceSemanticAnchor.of(EvidenceSemanticAnchorKind.OpeningAnchor, anchor.theme.toString, anchor.signal.toString))
+      case ApplicabilityAssessmentEvidence(assessment) =>
+        assessment.supportedThemes.map(theme => EvidenceSemanticAnchor.of(EvidenceSemanticAnchorKind.OpeningSupported, theme.toString)) ++
+          assessment.observedThemes.map(theme => EvidenceSemanticAnchor.of(EvidenceSemanticAnchorKind.OpeningObserved, theme.toString))
+      case PlanPressureEvidence(_, activePlans) =>
+        (activePlans.primary :: activePlans.secondary.toList).map(plan =>
+          EvidenceSemanticAnchor.of(EvidenceSemanticAnchorKind.PlanPressure, plan.plan.id.toString)
+        )
+      case PlanTransitionEvidence(transition) =>
+        transition.primaryPlanId.map(plan => EvidenceSemanticAnchor.of(EvidenceSemanticAnchorKind.PlanTransition, plan)).toList
+      case payload: StructuralDeltaEvidence =>
+        (
+          payload.signalAnchors.map(anchor => EvidenceSemanticAnchor.of(EvidenceSemanticAnchorKind.StructuralDelta, s"signal:$anchor")) ++
+            payload.consequenceAnchors.map(anchor => EvidenceSemanticAnchor.of(EvidenceSemanticAnchorKind.StructuralDelta, s"consequence:$anchor"))
+        ).distinct
+      case payload: BoardFactEvidence =>
+        payload.semanticGroupingAnchors
+      case _ =>
+        Nil
+
+  def planPressureHasDirectEvidence(scoring: PlanScoringResult, activePlans: ActivePlans): Boolean =
+    scoring.confidence >= 0.35 &&
+      (activePlans.primary :: activePlans.secondary.toList ++ scoring.topPlans)
+        .exists(_.evidence.nonEmpty)
+
+  def planTransitionCanSupportPlan(transition: PlanSequenceSummary): Boolean =
+    transition.primaryPlanId.nonEmpty && transition.transitionType != TransitionType.Opening
+
+  def pawnStructureCanAnchorPlan(payload: PawnStructureFactEvidence): Boolean =
+    payload.profile.primary != StructureId.Unknown && payload.profile.confidence >= 0.65 ||
+      payload.alignment.exists(alignment =>
+        alignment.band == AlignmentBand.OnBook ||
+          alignment.band == AlignmentBand.Playable ||
+          alignment.band == AlignmentBand.OffPlan
+      ) ||
+      payload.pawnPlay.exists(_.primaryDriver != PawnPlayDriver.Quiet)
+
+  private def signal(
+      kind: StrategicMechanismSignalKind,
+      label: String,
+      source: EvidenceRef,
+      strength: Int
+  ): StrategicMechanismSignal =
+    StrategicMechanismSignal(kind, label, source, strength.max(1))
 
 enum OpeningFamily:
   case A
@@ -2240,6 +2515,8 @@ final case class EvidenceRecord(
         List(cause.eventLine)
       case payload: TacticalMechanismEvidence =>
         payload.line.toList
+      case _: StrategicMechanismEvidence =>
+        ref.line.toList
       case MoveVerdictCertificationEvidence(certification) =>
         certification.causes.map(_.eventLine).distinct
       case _ =>

@@ -35,6 +35,7 @@ enum EvidenceProducer:
   case TacticalRelationProducer
   case PawnStructureProducer
   case StrategicFeatureProducer
+  case StrategicMechanismProducer
   case OpeningContextProducer
   case FeatureAnchorProducer
   case ApplicabilityAssessmentProducer

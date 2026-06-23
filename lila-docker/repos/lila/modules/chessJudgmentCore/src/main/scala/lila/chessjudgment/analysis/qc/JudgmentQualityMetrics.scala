@@ -12,7 +12,7 @@ import lila.chessjudgment.analysis.evaluation.JudgmentThresholds
 import lila.chessjudgment.analysis.policy.ClaimTruthPolicy
 import lila.chessjudgment.analysis.singlePosition.{ PawnPlayDriver, ThreatDriver, ThreatSeverity }
 import lila.chessjudgment.analysis.tactical.TacticalMotifClassifier
-import lila.chessjudgment.model.{ Motif, ProbeAdmissionStatus, ProbePurpose, TransitionType }
+import lila.chessjudgment.model.{ Motif, ProbeAdmissionStatus, ProbePurpose }
 import lila.chessjudgment.model.structure.AlignmentBand
 import lila.chessjudgment.model.judgment.*
 
@@ -36,16 +36,11 @@ object ExpectedEvidenceLossPolicy:
     Set(
       EvidenceLayer.Board,
       EvidenceLayer.SinglePosition,
-      EvidenceLayer.PawnStructure,
       EvidenceLayer.Line,
       EvidenceLayer.Eval,
       EvidenceLayer.MoveMotif,
       EvidenceLayer.MoveTransition,
-      EvidenceLayer.StructuralDelta,
       EvidenceLayer.Relation,
-      EvidenceLayer.OpeningContext,
-      EvidenceLayer.FeatureAnchor,
-      EvidenceLayer.ApplicabilityAssessment,
       EvidenceLayer.ChessIdea,
       EvidenceLayer.Claim
     )
@@ -79,10 +74,10 @@ object ExpectedEvidenceLossPolicy:
           if packet.exists(packet => isNonProofSignalThreatSupport(diagnostic, packet)) =>
         EvidenceLossExpectation.Expected
       case EvidenceLossReason.EvidenceAvailableWithoutIdea
-          if isReferencePawnStructureSupport(diagnostic) =>
+          if packet.exists(packet => isStrategicSourceConsumedByMechanism(diagnostic, packet)) =>
         EvidenceLossExpectation.Expected
       case EvidenceLossReason.EvidenceAvailableWithoutIdea
-          if packet.exists(packet => isGenericStrategicSupport(diagnostic, packet)) =>
+          if packet.exists(packet => isSupportOnlyStrategicMechanism(diagnostic, packet)) =>
         EvidenceLossExpectation.Expected
       case EvidenceLossReason.EvidenceAvailableWithoutIdea
           if packet.exists(packet => isExpectedCandidateComparisonSupport(diagnostic, packet)) =>
@@ -98,16 +93,6 @@ object ExpectedEvidenceLossPolicy:
         packet.flatMap(packet => ideaWithoutCertifiedClaimExpectation(diagnostic, packet)).get
       case _ =>
         EvidenceLossExpectation.Unexpected
-
-  private def isReferencePawnStructureSupport(diagnostic: EvidenceLossDiagnostic): Boolean =
-    diagnostic.layer.contains(EvidenceLayer.PawnStructure) &&
-      diagnostic.evidence.exists(ref =>
-        ref.scope == EvidenceScope.AfterReferencePosition ||
-          ref.scope == EvidenceScope.ReferenceTransition ||
-          ref.scope == EvidenceScope.AlternativeTransition ||
-          ref.scope == EvidenceScope.BestLine ||
-          ref.scope == EvidenceScope.CandidateLine
-      )
 
   private def isNonProofSignalThreatSupport(
       diagnostic: EvidenceLossDiagnostic,
@@ -125,28 +110,61 @@ object ExpectedEvidenceLossPolicy:
             false
         }
 
-  private def isGenericStrategicSupport(
+  private def isStrategicSourceConsumedByMechanism(
       diagnostic: EvidenceLossDiagnostic,
       packet: EvidenceBackedJudgmentPacket
   ): Boolean =
-    diagnostic.layer.contains(EvidenceLayer.Strategic) &&
+    diagnostic.evidence.exists(ref =>
+      strategicMechanismSourceLayer(ref.layer) &&
+        packet.evidenceGraph.records.exists {
+          case EvidenceRecord(_, _: StrategicMechanismEvidence, parents) =>
+            parents.exists(_.id == ref.id) ||
+              parents.exists(parent => evidenceHasAncestor(packet.evidenceGraph, parent, ref.id))
+          case _ =>
+            false
+        }
+    )
+
+  private def evidenceHasAncestor(
+      graph: TypedEvidenceGraph,
+      ref: EvidenceRef,
+      ancestorId: String
+  ): Boolean =
+    def loop(next: List[EvidenceRef], seen: Set[String]): Boolean =
+      next.exists { current =>
+        current.id == ancestorId ||
+          (!seen.contains(current.id) &&
+            graph.byId.get(current.id).exists(record => loop(record.parents, seen + current.id)))
+      }
+    loop(List(ref), Set.empty)
+
+  private def strategicMechanismSourceLayer(layer: EvidenceLayer): Boolean =
+    layer match
+      case layer if StrategicMechanismEvidence.rawStrategicSourceLayer(layer) =>
+        true
+      case _ =>
+        false
+
+  private def isSupportOnlyStrategicMechanism(
+      diagnostic: EvidenceLossDiagnostic,
+      packet: EvidenceBackedJudgmentPacket
+  ): Boolean =
+    diagnostic.layer.contains(EvidenceLayer.StrategicMechanism) &&
       diagnostic.evidence
         .flatMap(ref => packet.evidenceGraph.byId.get(ref.id))
         .exists {
-          case EvidenceRecord(_, payload @ StrategicFactEvidence(kind, _, _, _), _) =>
-            !payload.hasTypedSupport &&
-              genericStrategicSupportKind(kind)
+          case EvidenceRecord(_, payload: StrategicMechanismEvidence, _) =>
+            !strategicMechanismCanSeedJudgment(payload)
           case _ =>
             false
         }
 
-  private def genericStrategicSupportKind(kind: StrategicFactKind): Boolean =
-    kind match
-      case StrategicFactKind.FileControl | StrategicFactKind.Space | StrategicFactKind.Activity |
-          StrategicFactKind.CounterplayRestraint =>
-        true
-      case _ =>
-        false
+  private def strategicMechanismCanSeedJudgment(payload: StrategicMechanismEvidence): Boolean =
+    payload.canAnchorStrategicIdea ||
+      payload.canAnchorPawnStructureIdea ||
+      payload.canAnchorOpeningIdea ||
+      payload.canAnchorPlanIdea ||
+      payload.canSupportCompensation
 
   private def isExpectedCandidateComparisonSupport(
       diagnostic: EvidenceLossDiagnostic,
@@ -342,6 +360,8 @@ enum CandidateComparisonFailureReason:
   case LowDepthGeneratedCause
   case GenericGeneratedCause
   case UnboundEvidenceWithGeneratedCause
+  case ContextCauseProjectionMissing
+  case PlayableLossPrimaryOverclaim
   case ContextAlternativeComparison
   case NoSpecificEvidence
   case UnknownPattern
@@ -702,7 +722,10 @@ final case class ComparisonMoveJudgmentViewDiagnostics(
     primaryClaimCandidateFamilies: Set[ClaimFamily],
     primaryFinalClaimFamilies: Set[ClaimFamily],
     primaryFramedCauseKinds: List[RelativeCauseKind],
-    primaryUnframedCauseKinds: List[RelativeCauseKind]
+    primaryUnframedCauseKinds: List[RelativeCauseKind],
+    contextCauseEvidenceIds: List[String],
+    projectedContextCauseNoViewIds: List[String],
+    playableLossPrimaryCauseEvidenceIds: List[String]
 ):
   val hasPrimaryCause: Boolean = primaryCauseKinds.nonEmpty
 
@@ -776,6 +799,9 @@ final case class CandidateCauseSupportDiagnostic(
     proofRelationSourceIds: List[String],
     proofTacticalMechanismKinds: List[TacticalMechanismKind],
     proofTacticalMechanismSourceIds: List[String],
+    proofStrategicMechanismKinds: List[StrategicMechanismKind],
+    proofStrategicMechanismSourceIds: List[String],
+    proofStrategicMechanismSignalSourceIds: List[String],
     proofTransitionConsequences: List[TransitionConsequenceProof],
     causeContextLayers: List[EvidenceLayer]
 )
@@ -1220,44 +1246,31 @@ object CandidateComparisonDiagnostic:
     kind == RelativeCauseKind.RecaptureRecoveryWindow || kind == RelativeCauseKind.MaterialSwing
 
   private def longTermSupportRecord(record: EvidenceRecord): Boolean =
-    strategicSupportRecord(record) ||
-      pawnStructureSupportRecord(record) ||
-      (record.payload match
-        case OpeningContextEvidence(_, signals, _, _) =>
-          signals.nonEmpty
-        case SinglePositionEvidence(assessment) =>
-          assessment.simplifyBias.shouldSimplify || assessment.gamePhase.isEndgame
-        case _ =>
-          false
-      )
+    record.payload match
+      case payload: StrategicMechanismEvidence =>
+        payload.canSupportStrategicCause || payload.canAnchorPlanIdea || payload.canAnchorOpeningIdea
+      case _ =>
+        false
 
   private def strategicRelativeCause(kind: RelativeCauseKind): Boolean =
     ClaimEventCluster.kindForCause(kind).isEmpty
 
   private def pawnStructureSupportRecord(record: EvidenceRecord): Boolean =
     record.payload match
-      case payload: PawnStructureFactEvidence =>
-        ClaimTruthPolicy.pawnStructureCanAnchorPlan(payload)
-      case payload: StructuralDeltaEvidence =>
-        payload.hasPawnStructureDelta
+      case payload: StrategicMechanismEvidence =>
+        payload.canAnchorPawnStructureIdea
       case _ =>
         false
 
   private def strategicSupportRecord(record: EvidenceRecord): Boolean =
     record.payload match
-      case payload @ StrategicFactEvidence(_, _, _, confidence) =>
-        confidence >= 0.35 && payload.hasTypedSupport
-      case PlanPressureEvidence(scoring, activePlans) =>
-        ClaimTruthPolicy.planPressureHasDirectEvidence(scoring, activePlans)
-      case payload: PawnStructureFactEvidence =>
-        ClaimTruthPolicy.pawnStructureCanAnchorPlan(payload)
-      case payload: StructuralDeltaEvidence =>
-        payload.hasStrategicSupport
+      case payload: StrategicMechanismEvidence =>
+        payload.canSupportStrategicCause || payload.canAnchorPlanIdea
       case _ =>
         false
 
   private def openingSupportRecordsCanSeedIdea(records: List[EvidenceRecord]): Boolean =
-    ClaimTruthPolicy.openingCanSeedIdea(records)
+    StrategicMechanismEvidence.openingClaimSupported(records)
 
   private def conversionSupportRecord(record: EvidenceRecord): Boolean =
     record.payload match
@@ -1377,6 +1390,7 @@ object CandidateComparisonDiagnostic:
             causeKinds,
             evidenceLayers,
             trace,
+            moveJudgmentViewDiagnostics,
             hasLowDepthCause,
             hasGenericCause,
             hasUnboundEvidence
@@ -1386,6 +1400,7 @@ object CandidateComparisonDiagnostic:
             causeKinds,
             evidenceLayers,
             trace,
+            moveJudgmentViewDiagnostics,
             hasLowDepthCause,
             hasGenericCause,
             hasUnboundEvidence
@@ -1407,6 +1422,7 @@ object CandidateComparisonDiagnostic:
     val primaryFrames = comparisonCauseFrames(packet, fact, _.primaryCauses)
     val secondaryFrames = comparisonCauseFrames(packet, fact, _.secondaryCauses)
     val contextFrames = comparisonCauseFrames(packet, fact, _.contextCauses)
+    val contextCauseEvidenceIds = contextFrames.flatMap(_.causeEvidenceIds).distinct.sorted
     ComparisonMoveJudgmentViewDiagnostics(
       primaryCauseKinds = primaryFrames.map(_.causeKind).distinct,
       secondaryCauseKinds = secondaryFrames.map(_.causeKind).distinct,
@@ -1416,8 +1432,30 @@ object CandidateComparisonDiagnostic:
       primaryClaimCandidateFamilies = frameClaimCandidateFamilies(packet, primaryFrames),
       primaryFinalClaimFamilies = frameFinalClaimFamilies(packet, primaryFrames),
       primaryFramedCauseKinds = primaryFrames.filter(_.framed).map(_.causeKind).distinct,
-      primaryUnframedCauseKinds = primaryFrames.filterNot(_.framed).map(_.causeKind).distinct
+      primaryUnframedCauseKinds = primaryFrames.filterNot(_.framed).map(_.causeKind).distinct,
+      contextCauseEvidenceIds = contextCauseEvidenceIds,
+      projectedContextCauseNoViewIds = projectedContextCauseNoViewIds(packet, fact, contextCauseEvidenceIds.toSet),
+      playableLossPrimaryCauseEvidenceIds =
+        if fact.comparison.verdict == MoveChoiceVerdict.PlayableLoss then primaryFrames.flatMap(_.causeEvidenceIds).distinct.sorted
+        else Nil
     )
+
+  private def projectedContextCauseNoViewIds(
+      packet: EvidenceBackedJudgmentPacket,
+      fact: CandidateComparisonFact,
+      contextCauseEvidenceIds: Set[String]
+  ): List[String] =
+    relativeCauseDiagnosticRecords(packet)
+      .collect { case record if contextCauseProjectionExpected(record.cause, fact) => record.id }
+      .filterNot(contextCauseEvidenceIds.contains)
+      .distinct
+      .sorted
+
+  private def contextCauseProjectionExpected(cause: RelativeCauseFact, fact: CandidateComparisonFact): Boolean =
+    cause.comparisonKind == fact.kind &&
+      cause.referenceLine == fact.referenceLine &&
+      cause.candidateLine == fact.candidateLine &&
+      MoveJudgmentView.playedAlternativeLongTermContext(cause)
 
   private def comparisonCauseFrames(
       packet: EvidenceBackedJudgmentPacket,
@@ -1514,6 +1552,10 @@ object CandidateComparisonDiagnostic:
         proofRelationSourceIds = depthProof.relationProofs.map(_.source.id).distinct.sorted,
         proofTacticalMechanismKinds = depthProof.tacticalMechanisms.map(_.kind).distinct,
         proofTacticalMechanismSourceIds = depthProof.tacticalMechanisms.map(_.source.id).distinct.sorted,
+        proofStrategicMechanismKinds = depthProof.strategicMechanisms.map(_.kind).distinct,
+        proofStrategicMechanismSourceIds = depthProof.strategicMechanisms.map(_.source.id).distinct.sorted,
+        proofStrategicMechanismSignalSourceIds =
+          depthProof.strategicMechanisms.flatMap(_.signals.map(_.source.id)).distinct.sorted,
         proofTransitionConsequences = depthProof.transitionConsequences,
         causeContextLayers = proof.contextLayers
       )
@@ -1750,6 +1792,9 @@ object CandidateComparisonDiagnostic:
         sourceIdsMatch(proof.directProof.sourceRefs, causeProof.proofDirectSourceIds) &&
           sourceIdsMatch(proof.contrastProof.sourceRefs, causeProof.proofContrastSourceIds) &&
           sourceIdsMatch(proof.contextSupport.sourceRefs, causeProof.proofContextSupportSourceIds) &&
+          proof.strategicMechanisms.map(_.kind).toSet == causeProof.proofStrategicMechanismKinds.toSet &&
+          proof.strategicMechanisms.map(_.source.id).toSet == causeProof.proofStrategicMechanismSourceIds.toSet &&
+          proof.strategicMechanisms.flatMap(_.signals.map(_.source.id)).toSet == causeProof.proofStrategicMechanismSignalSourceIds.toSet &&
           proof.directProof.kindLabels.toSet == causeProof.proofDirectKinds.toSet &&
           proof.contrastProof.kindLabels.toSet == causeProof.proofContrastKinds.toSet &&
           proof.contextSupport.kindLabels.toSet == causeProof.proofContextSupportKinds.toSet
@@ -1757,6 +1802,9 @@ object CandidateComparisonDiagnostic:
         causeProof.proofDirectSourceIds.isEmpty &&
           causeProof.proofContrastSourceIds.isEmpty &&
           causeProof.proofContextSupportSourceIds.isEmpty &&
+          causeProof.proofStrategicMechanismKinds.isEmpty &&
+          causeProof.proofStrategicMechanismSourceIds.isEmpty &&
+          causeProof.proofStrategicMechanismSignalSourceIds.isEmpty &&
           causeProof.proofDirectKinds.isEmpty &&
           causeProof.proofContrastKinds.isEmpty &&
           causeProof.proofContextSupportKinds.isEmpty
@@ -1872,6 +1920,9 @@ object CandidateComparisonDiagnostic:
     }.flatten.distinct.sorted
 
   private def strategicSupportKinds(parentRecords: List[EvidenceRecord]): List[String] =
+    val mechanismKinds = parentRecords.collect { case EvidenceRecord(_, payload: StrategicMechanismEvidence, _) =>
+      s"StrategicMechanism:${payload.kind}" :: payload.signals.map(signal => s"StrategicMechanismSignal:${signal.kind}:${signal.label}")
+    }.flatten
     val structuralKinds = parentRecords.collect { case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
       payload.meaningfulConsequences.map(consequence => s"StructuralMeaningfulConsequence:${consequence.anchorKey}")
     }.flatten
@@ -1891,7 +1942,7 @@ object CandidateComparisonDiagnostic:
     }.flatten
     val lineKinds =
       List(Option.when(hasDevelopmentChoice(parentRecords) && hasCastlingLine(parentRecords))("CastlingPath")).flatten
-    (structuralKinds ++ boardKinds ++ pawnStructureKinds ++ lineKinds).distinct
+    (mechanismKinds ++ structuralKinds ++ boardKinds ++ pawnStructureKinds ++ lineKinds).distinct
 
   private def hasDevelopmentChoice(parentRecords: List[EvidenceRecord]): Boolean =
     parentRecords.exists {
@@ -2197,41 +2248,42 @@ object CandidateComparisonDiagnostic:
           payload.moveUci == edge.moveUci &&
           payload.from == edge.from &&
           payload.to == edge.to
-      case _: PlanTransitionEvidence =>
-        record.ref.line.exists(line => line.rootMove == edge.moveUci && line.role == edge.role.lineRole) ||
-          record.parents.exists(_.id == edge.evidence.id)
+      case _: StrategicMechanismEvidence =>
+        record.ref.scope == edge.role.scope &&
+          (
+            record.ref.line.exists(line => line.rootMove == edge.moveUci && line.role == edge.role.lineRole) ||
+              record.parents.exists(_.id == edge.evidence.id)
+          )
       case _ =>
         false
 
   private def endpointLayer(layer: EvidenceLayer): Boolean =
     layer match
       case EvidenceLayer.Line | EvidenceLayer.Eval | EvidenceLayer.MoveMotif | EvidenceLayer.Relation |
-          EvidenceLayer.TacticalMechanism =>
+          EvidenceLayer.TacticalMechanism | EvidenceLayer.StrategicMechanism =>
         true
       case _ =>
         false
 
   private def rootContextLayer(layer: EvidenceLayer): Boolean =
     layer match
-      case EvidenceLayer.Board | EvidenceLayer.SinglePosition | EvidenceLayer.PawnStructure |
-          EvidenceLayer.ThreatPressure | EvidenceLayer.Strategic | EvidenceLayer.OpeningContext |
-          EvidenceLayer.FeatureAnchor | EvidenceLayer.ApplicabilityAssessment | EvidenceLayer.PlanPressure |
-          EvidenceLayer.PlanTransition =>
+      case EvidenceLayer.Board | EvidenceLayer.SinglePosition | EvidenceLayer.ThreatPressure |
+          EvidenceLayer.StrategicMechanism =>
         true
       case _ =>
         false
 
   private def transitionLayer(layer: EvidenceLayer): Boolean =
     layer match
-      case EvidenceLayer.MoveTransition | EvidenceLayer.StructuralDelta | EvidenceLayer.PlanTransition =>
+      case EvidenceLayer.MoveTransition | EvidenceLayer.StructuralDelta | EvidenceLayer.StrategicMechanism =>
         true
       case _ =>
         false
 
   private def afterPositionLayer(layer: EvidenceLayer): Boolean =
     layer match
-      case EvidenceLayer.Board | EvidenceLayer.SinglePosition | EvidenceLayer.PawnStructure |
-          EvidenceLayer.Strategic | EvidenceLayer.ThreatPressure =>
+      case EvidenceLayer.Board | EvidenceLayer.SinglePosition | EvidenceLayer.ThreatPressure |
+          EvidenceLayer.StrategicMechanism =>
         true
       case _ =>
         false
@@ -2249,6 +2301,7 @@ object CandidateComparisonDiagnostic:
       causeKinds: List[RelativeCauseKind],
       evidenceLayers: ComparisonEvidenceLayerDiagnostics,
       trace: CandidateCauseDecisionTrace,
+      viewDiagnostics: ComparisonMoveJudgmentViewDiagnostics,
       hasLowDepthCause: Boolean,
       hasGenericCause: Boolean,
       hasUnboundEvidence: Boolean
@@ -2257,7 +2310,9 @@ object CandidateComparisonDiagnostic:
     val requiresCause = CandidateComparisonDiagnostic.requiresExplanatoryCause(fact)
     val hasKnownCause =
       causeKinds.nonEmpty
-    if !significantEnginePreference && causeKinds.isEmpty && latentComparisonEvidence(trace) then
+    if viewDiagnostics.projectedContextCauseNoViewIds.nonEmpty || viewDiagnostics.playableLossPrimaryCauseEvidenceIds.nonEmpty then
+      CandidateComparisonFailureClass.UnboundEvidence
+    else if !significantEnginePreference && causeKinds.isEmpty && latentComparisonEvidence(trace) then
       CandidateComparisonFailureClass.LowSignalEnginePreference
     else if !significantEnginePreference && causeKinds.isEmpty then
       CandidateComparisonFailureClass.NoFailure
@@ -2585,6 +2640,7 @@ object CandidateComparisonDiagnostic:
       causeKinds: List[RelativeCauseKind],
       evidenceLayers: ComparisonEvidenceLayerDiagnostics,
       trace: CandidateCauseDecisionTrace,
+      viewDiagnostics: ComparisonMoveJudgmentViewDiagnostics,
       hasLowDepthCause: Boolean,
       hasGenericCause: Boolean,
       hasUnboundEvidence: Boolean
@@ -2604,6 +2660,17 @@ object CandidateComparisonDiagnostic:
       requiresCause && causeKinds.isEmpty
     val secondaryContextGap =
       generatedOnlyUnexplained && contextAlternativeComparison(fact)
+    val viewProjectionReasons =
+      List(
+        Option.when(viewDiagnostics.projectedContextCauseNoViewIds.nonEmpty)(
+          CandidateComparisonFailureReason.ContextCauseProjectionMissing
+        ),
+        Option.when(viewDiagnostics.playableLossPrimaryCauseEvidenceIds.nonEmpty)(
+          CandidateComparisonFailureReason.PlayableLossPrimaryOverclaim
+        )
+      ).flatten
+    if viewProjectionReasons.nonEmpty then
+      return viewProjectionReasons
     if !significantEnginePreference && causeKinds.isEmpty && !latentComparisonEvidence(trace) then
       return Nil
     if generatedKnownCause && !generatedOnlyUnexplained then
@@ -3010,68 +3077,48 @@ object CandidateComparisonDiagnostic:
     }
 
   private def hasStructuralTargetRelease(records: List[EvidenceRecord]): Boolean =
-    records.exists {
-      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
-        payload.hasTargetPressureRelease
-      case _ =>
-        false
-    }
+    strategicMechanismExists(records)(payload =>
+      payload.kind == StrategicMechanismKind.TargetPressure &&
+        payload.signals.exists(_.label == "target-pressure-release")
+    )
 
   private def hasStructuralImprovementEvidence(records: List[EvidenceRecord]): Boolean =
-    records.exists {
-      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
-        payload.hasStructuralAnchor
-      case _ =>
-        false
-    }
+    strategicMechanismExists(records)(payload =>
+      payload.kind == StrategicMechanismKind.StructuralImprovement && payload.canSupportStrategicCause
+    )
 
   private def hasTargetPressureGainEvidence(records: List[EvidenceRecord]): Boolean =
-    records.exists {
-      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
-        payload.hasTargetPressureGain
-      case _ =>
-        false
-    }
+    strategicMechanismExists(records)(payload =>
+      payload.kind == StrategicMechanismKind.TargetPressure &&
+        payload.canSupportStrategicCause &&
+        payload.signals.exists(_.label == "target-pressure-gain")
+    )
 
   private def hasCenterControlGainEvidence(records: List[EvidenceRecord]): Boolean =
-    records.exists {
-      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
-        payload.hasCenterControlGain
-      case _ =>
-        false
-    }
+    strategicMechanismExists(records)(payload =>
+      payload.kind == StrategicMechanismKind.CenterControl && payload.canSupportStrategicCause
+    )
 
   private def hasDevelopmentActivationEvidence(records: List[EvidenceRecord]): Boolean =
-    records.exists {
-      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
-        payload.hasDevelopmentActivation
-      case _ =>
-        false
-    }
+    strategicMechanismExists(records)(payload =>
+      payload.kind == StrategicMechanismKind.Activity &&
+        payload.canSupportStrategicCause &&
+        payload.signals.exists(_.label == "activity-gain")
+    )
 
   private def hasPieceActivityGainEvidence(records: List[EvidenceRecord]): Boolean =
-    records.exists {
-      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
-        payload.hasPieceActivityGain
-      case _ =>
-        false
-    }
+    strategicMechanismExists(records)(payload =>
+      payload.kind == StrategicMechanismKind.Activity &&
+        payload.canSupportStrategicCause &&
+        payload.signals.exists(_.label == "activity-gain")
+    )
 
   private def hasPawnStructureImprovementEvidence(records: List[EvidenceRecord]): Boolean =
     pawnStructureImprovementSignals(records).nonEmpty
 
   private def strategicImprovementScore(records: List[EvidenceRecord]): Int =
-    records.map {
-      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
-        payload.structuralImprovementScore
-      case EvidenceRecord(_, PlanTransitionEvidence(transition), _) =>
-        if transition.primaryPlanId.nonEmpty && transition.transitionType != TransitionType.Opening then 2 else 0
-      case EvidenceRecord(_, PlanPressureEvidence(scoring, activePlans), _) =>
-        if ClaimTruthPolicy.planPressureHasDirectEvidence(scoring, activePlans) then 2 else 0
-      case EvidenceRecord(_, payload: PawnStructureFactEvidence, _) =>
-        if ClaimTruthPolicy.pawnStructureCanAnchorPlan(payload) then 2 else 0
-      case _ =>
-        0
+    records.collect { case EvidenceRecord(_, payload: StrategicMechanismEvidence, _) =>
+      payload.directStrength
     }.sum
 
   private def semanticAxisDiagnosticsFor(
@@ -3104,7 +3151,7 @@ object CandidateComparisonDiagnostic:
     )
 
   private def semanticAxisProfile(records: List[EvidenceRecord]): SemanticAxisProfile =
-    val entries = records.flatMap(semanticAxisEntries)
+    val entries = records.flatMap(strategicMechanismAxisEntries)
     val strengths =
       entries.groupMapReduce(_._1)(_._2)(_ + _)
     val sourceIds =
@@ -3121,21 +3168,10 @@ object CandidateComparisonDiagnostic:
         .toMap
     SemanticAxisProfile(strengths = strengths, sourceIds = sourceIds, sourceLayers = sourceLayers)
 
-  private def semanticAxisEntries(record: EvidenceRecord): List[(String, Int, EvidenceRecord)] =
+  private def strategicMechanismAxisEntries(record: EvidenceRecord): List[(String, Int, EvidenceRecord)] =
     record match
-      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
-        StructuralDeltaEvidence.strategicImprovementAxisStrengths(payload).toList.map { case (axis, strength) =>
-          (axis, strength, record)
-        }
-      case EvidenceRecord(_, payload: MoveMotifEvidence, _)
-          if TacticalMotifClassifier.isRootMoveMotif(payload) && payload.proof.kind.toString == "Outpost" =>
-        List(("outpost", 1, record))
-      case EvidenceRecord(_, PlanTransitionEvidence(transition), _)
-          if transition.primaryPlanId.nonEmpty && transition.transitionType != TransitionType.Opening =>
-        List(("planLayer", 1, record))
-      case EvidenceRecord(_, PlanPressureEvidence(scoring, activePlans), _)
-          if ClaimTruthPolicy.planPressureHasDirectEvidence(scoring, activePlans) =>
-        List(("planLayer", 1, record))
+      case EvidenceRecord(_, payload: StrategicMechanismEvidence, _) =>
+        payload.signals.map(signal => (s"${payload.kind}:${signal.label}", signal.strength, record))
       case _ =>
         Nil
 
@@ -3148,23 +3184,8 @@ object CandidateComparisonDiagnostic:
     }.flatten.distinct.sorted
 
   private def pawnStructureImprovementSignals(records: List[EvidenceRecord]): List[String] =
-    records.collect { case EvidenceRecord(_, payload @ PawnStructureFactEvidence(profile, alignment, pawnPlay), _) =>
-      List(
-        Option.when(profile.primary != lila.chessjudgment.model.structure.StructureId.Unknown && profile.confidence >= 0.65)(
-          "profile_confident"
-        ),
-        Option.when(
-          alignment.exists(alignment =>
-            alignment.band == AlignmentBand.OnBook ||
-              alignment.band == AlignmentBand.Playable ||
-              alignment.band == AlignmentBand.OffPlan
-          )
-        )(
-          "plan_alignment"
-        ),
-        Option.when(pawnPlay.exists(_.primaryDriver != PawnPlayDriver.Quiet))("pawn_play_driver"),
-        Option.when(!ClaimTruthPolicy.pawnStructureCanAnchorPlan(payload))("not_claim_anchor")
-      ).flatten.filterNot(_ == "not_claim_anchor")
+    records.collect { case EvidenceRecord(_, payload: StrategicMechanismEvidence, _) if payload.canAnchorPawnStructureIdea =>
+      payload.signals.map(signal => s"${signal.kind}:${signal.label}")
     }.flatten.distinct.sorted
 
   private def releasedTargetPressure(records: List[EvidenceRecord]): List[String] =
@@ -3178,40 +3199,25 @@ object CandidateComparisonDiagnostic:
     }.flatten.distinct.sorted
 
   private def hasPlanCauseEvidence(records: List[EvidenceRecord]): Boolean =
-    records.exists {
-      case EvidenceRecord(_, PlanTransitionEvidence(transition), _) =>
-        transition.primaryPlanId.nonEmpty &&
-          transition.transitionType != TransitionType.Opening &&
-          transition.momentum >= 0.55
-      case EvidenceRecord(_, PlanPressureEvidence(scoring, activePlans), _) =>
-        ClaimTruthPolicy.planPressureHasDirectEvidence(scoring, activePlans)
-      case _ =>
-        false
-    }
+    strategicMechanismExists(records)(_.canAnchorPlanIdea)
 
   private def hasStrategicCauseEvidence(records: List[EvidenceRecord]): Boolean =
     records.exists {
-      case EvidenceRecord(_, payload: StrategicFactEvidence, _) =>
-        payload.hasTypedSupport
+      case EvidenceRecord(_, payload: StrategicMechanismEvidence, _) =>
+        payload.canSupportStrategicCause
       case _ =>
         false
     }
 
   private def hasStrategicConcessionEvidence(records: List[EvidenceRecord]): Boolean =
-    records.exists {
-      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
-        payload.hasStrategicConcession
-      case _ =>
-        false
-    }
+    strategicMechanismExists(records)(payload =>
+      payload.kind == StrategicMechanismKind.StrategicConcession && payload.canSupportStrategicCause
+    )
 
   private def hasStrongStrategicConcessionEvidence(records: List[EvidenceRecord]): Boolean =
-    records.exists {
-      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
-        payload.strategicConcessions.exists(_.strength >= 2)
-      case _ =>
-        false
-    }
+    strategicMechanismExists(records)(payload =>
+      payload.kind == StrategicMechanismKind.StrategicConcession && payload.directStrength >= 3
+    )
 
   private def hasMaterialSwingEvidence(
       referenceRecords: List[EvidenceRecord],
@@ -3221,9 +3227,13 @@ object CandidateComparisonDiagnostic:
 
   private def hasPassedPawnResource(records: List[EvidenceRecord]): Boolean =
     records.exists {
-      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
-        payload.hasPassedPawnProgress ||
-          payload.hasConsequence(TransitionConsequenceKind.PromotionPressureGain)
+      case EvidenceRecord(_, payload: StrategicMechanismEvidence, _) =>
+        payload.kind == StrategicMechanismKind.PawnStructure &&
+          payload.canAnchorPawnStructureIdea &&
+          payload.signals.exists(signal =>
+            signal.label == "passed-pawn-progress" ||
+              signal.label == "promotion-pressure-gain"
+          )
       case EvidenceRecord(_, payload: MoveMotifEvidence, _) =>
         payload.motif match
           case _: Motif.PassedPawnPush | _: Motif.PassedPawn | _: Motif.PawnPromotion => true
@@ -3237,13 +3247,16 @@ object CandidateComparisonDiagnostic:
     }
 
   private def hasEndgameResource(records: List[EvidenceRecord]): Boolean =
+    strategicMechanismExists(records)(payload =>
+      payload.kind == StrategicMechanismKind.Endgame && payload.canSupportStrategicCause
+    )
+
+  private def strategicMechanismExists(
+      records: List[EvidenceRecord]
+  )(mechanismPredicate: StrategicMechanismEvidence => Boolean): Boolean =
     records.exists {
-      case EvidenceRecord(_, payload: BoardFactEvidence, _) =>
-        payload.endgameTechniqueAnchors.nonEmpty
-      case EvidenceRecord(_, payload @ StrategicFactEvidence(StrategicFactKind.Endgame, _, _, confidence), _) =>
-        confidence >= 0.35 && payload.hasTypedSupport
-      case EvidenceRecord(_, SinglePositionEvidence(assessment), _) =>
-        assessment.gamePhase.isEndgame && assessment.simplifyBias.shouldSimplify
+      case EvidenceRecord(_, payload: StrategicMechanismEvidence, _) =>
+        mechanismPredicate(payload)
       case _ =>
         false
     }
@@ -3316,18 +3329,11 @@ object CandidateComparisonDiagnostic:
   private val explanatoryLayers: Set[EvidenceLayer] =
     Set(
       EvidenceLayer.SinglePosition,
-      EvidenceLayer.PawnStructure,
-      EvidenceLayer.Strategic,
-      EvidenceLayer.OpeningContext,
-      EvidenceLayer.FeatureAnchor,
-      EvidenceLayer.ApplicabilityAssessment,
+      EvidenceLayer.StrategicMechanism,
       EvidenceLayer.ThreatPressure,
       EvidenceLayer.MoveMotif,
       EvidenceLayer.TacticalMechanism,
-      EvidenceLayer.Relation,
-      EvidenceLayer.StructuralDelta,
-      EvidenceLayer.PlanPressure,
-      EvidenceLayer.PlanTransition
+      EvidenceLayer.Relation
     )
 
   private def availableLayers(evidenceLayers: ComparisonEvidenceLayerDiagnostics): Set[EvidenceLayer] =
@@ -3638,8 +3644,6 @@ object SemanticCoverageMetrics:
       case ProbePurpose.ReplyMultipv | ProbePurpose.DefenseReplyMultipv | ProbePurpose.ConvertReplyMultipv |
           ProbePurpose.RecaptureBranches | ProbePurpose.KeepTensionBranches | ProbePurpose.FreeTempoBranches =>
         true
-      case _ =>
-        false
 
   private def countIdeas(packet: EvidenceBackedJudgmentPacket, family: ChessIdeaFamily): Int =
     packet.ideas.count(_.ref.family == family)
@@ -4166,6 +4170,7 @@ enum JudgmentGraphSlot:
   case StructuralConsequenceFact
   case StructuralMeaningfulConsequenceFact
   case StrategicFact
+  case StrategicMechanismFact
   case OpeningContextFact
   case FeatureAnchorFact
   case ApplicabilityAssessmentFact
@@ -4210,6 +4215,7 @@ enum JudgmentGraphOwner:
   case MoveTransitionNormalizer
   case RelationFactNormalizer
   case StrategicFactNormalizer
+  case StrategicMechanismAssembler
   case OpeningContextFactNormalizer
   case FeatureApplicabilityAssembler
   case TransitionFactNormalizer
@@ -4448,6 +4454,12 @@ object JudgmentLayerGapProfile:
           globalEvidenceLayerSlot(packet, JudgmentGraphSlot.StrategicFact, JudgmentGraphOwner.StrategicFactNormalizer, EvidenceLayer.Strategic),
           globalEvidenceLayerSlot(
             packet,
+            JudgmentGraphSlot.StrategicMechanismFact,
+            JudgmentGraphOwner.StrategicMechanismAssembler,
+            EvidenceLayer.StrategicMechanism
+          ),
+          globalEvidenceLayerSlot(
+            packet,
             JudgmentGraphSlot.OpeningContextFact,
             JudgmentGraphOwner.OpeningContextFactNormalizer,
             EvidenceLayer.OpeningContext,
@@ -4477,7 +4489,8 @@ object JudgmentLayerGapProfile:
             packet,
             JudgmentGraphSlot.PlanTransitionFact,
             JudgmentGraphOwner.TransitionFactNormalizer,
-            EvidenceLayer.PlanTransition
+            EvidenceLayer.PlanTransition,
+            applicable = hasEvidenceLayer(packet, EvidenceLayer.PlanTransition)
           )
         ),
         layer(

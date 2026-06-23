@@ -468,6 +468,14 @@ object RelativeAssessmentAssembler:
             signals = payload.signals
           )
       }.distinct,
+      strategicMechanisms = proofRecords.collect {
+        case EvidenceRecord(ref, payload: StrategicMechanismEvidence, _) if payload.canSupportStrategicCause =>
+          StrategicMechanismProof(
+            source = ref,
+            kind = payload.kind,
+            signals = payload.signals
+          )
+      }.distinct,
       threatEpisodes = proofRecords.collect {
         case EvidenceRecord(ref, payload: ThreatEpisodeEvidence, _) if payload.isProofSignalDefensivePressure =>
           ThreatEpisodeCauseProof(
@@ -544,7 +552,7 @@ object RelativeAssessmentAssembler:
   private def proofSourceLayer(layer: EvidenceLayer): Boolean =
     layer match
       case EvidenceLayer.Board | EvidenceLayer.Line | EvidenceLayer.Relation | EvidenceLayer.ThreatPressure |
-          EvidenceLayer.StructuralDelta =>
+          EvidenceLayer.StrategicMechanism =>
         true
       case _ =>
         false
@@ -730,41 +738,42 @@ object RelativeAssessmentAssembler:
           payload.moveUci == edge.moveUci &&
           payload.from == edge.from &&
           payload.to == edge.to
-      case _: PlanTransitionEvidence =>
-        record.ref.line.exists(line => line.rootMove == edge.moveUci && line.role == edge.role.lineRole) ||
-          record.parents.exists(_.id == edge.evidence.id)
+      case _: StrategicMechanismEvidence =>
+        record.ref.scope == edge.role.scope &&
+          (
+            record.ref.line.exists(line => line.rootMove == edge.moveUci && line.role == edge.role.lineRole) ||
+              record.parents.exists(_.id == edge.evidence.id)
+          )
       case _ =>
         false
 
   private def endpointLayer(layer: EvidenceLayer): Boolean =
     layer match
       case EvidenceLayer.Line | EvidenceLayer.Eval | EvidenceLayer.MoveMotif | EvidenceLayer.Relation |
-          EvidenceLayer.TacticalMechanism =>
+          EvidenceLayer.TacticalMechanism | EvidenceLayer.StrategicMechanism =>
         true
       case _ =>
         false
 
   private def rootContextLayer(layer: EvidenceLayer): Boolean =
     layer match
-      case EvidenceLayer.Board | EvidenceLayer.SinglePosition | EvidenceLayer.PawnStructure |
-          EvidenceLayer.ThreatPressure | EvidenceLayer.Strategic | EvidenceLayer.OpeningContext |
-          EvidenceLayer.FeatureAnchor | EvidenceLayer.ApplicabilityAssessment | EvidenceLayer.PlanPressure |
-          EvidenceLayer.PlanTransition =>
+      case EvidenceLayer.Board | EvidenceLayer.SinglePosition | EvidenceLayer.ThreatPressure |
+          EvidenceLayer.StrategicMechanism =>
         true
       case _ =>
         false
 
   private def transitionLayer(layer: EvidenceLayer): Boolean =
     layer match
-      case EvidenceLayer.MoveTransition | EvidenceLayer.StructuralDelta | EvidenceLayer.PlanTransition =>
+      case EvidenceLayer.MoveTransition | EvidenceLayer.StructuralDelta | EvidenceLayer.StrategicMechanism =>
         true
       case _ =>
         false
 
   private def afterPositionLayer(layer: EvidenceLayer): Boolean =
     layer match
-      case EvidenceLayer.Board | EvidenceLayer.SinglePosition | EvidenceLayer.PawnStructure |
-          EvidenceLayer.Strategic | EvidenceLayer.ThreatPressure =>
+      case EvidenceLayer.Board | EvidenceLayer.SinglePosition | EvidenceLayer.ThreatPressure |
+          EvidenceLayer.StrategicMechanism =>
         true
       case _ =>
         false

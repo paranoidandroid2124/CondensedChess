@@ -1,9 +1,7 @@
 package lila.chessjudgment.analysis.policy
 
 import lila.chessjudgment.analysis.evaluation.JudgmentThresholds
-import lila.chessjudgment.analysis.singlePosition.PawnPlayDriver
-import lila.chessjudgment.model.{ ActivePlans, PlanScoringResult, PlanSequenceSummary, TransitionType }
-import lila.chessjudgment.model.structure.{ AlignmentBand, StructureId }
+import lila.chessjudgment.model.{ ActivePlans, PlanScoringResult }
 import lila.chessjudgment.model.judgment.*
 
 enum ClaimTruthStatus:
@@ -132,16 +130,13 @@ object ClaimTruthPolicy:
             false
       case ClaimFamily.Plan =>
         layer match
-          case EvidenceLayer.PlanPressure | EvidenceLayer.PlanTransition | EvidenceLayer.StructuralDelta |
-              EvidenceLayer.PawnStructure | EvidenceLayer.Strategic =>
+          case EvidenceLayer.StrategicMechanism =>
             true
           case _ =>
             false
       case ClaimFamily.Strategic | ClaimFamily.PawnStructure | ClaimFamily.Opening =>
         layer match
-          case EvidenceLayer.StructuralDelta | EvidenceLayer.PawnStructure | EvidenceLayer.Strategic |
-              EvidenceLayer.FeatureAnchor | EvidenceLayer.ApplicabilityAssessment | EvidenceLayer.OpeningContext |
-              EvidenceLayer.PlanPressure | EvidenceLayer.PlanTransition =>
+          case EvidenceLayer.StrategicMechanism =>
             true
           case _ =>
             false
@@ -258,9 +253,7 @@ object ClaimTruthPolicy:
 
   private def positionLocalLayer(layer: EvidenceLayer): Boolean =
     layer match
-      case EvidenceLayer.Board | EvidenceLayer.SinglePosition | EvidenceLayer.PawnStructure |
-          EvidenceLayer.Strategic | EvidenceLayer.OpeningContext | EvidenceLayer.FeatureAnchor |
-          EvidenceLayer.ApplicabilityAssessment | EvidenceLayer.PlanPressure | EvidenceLayer.PlanTransition =>
+      case EvidenceLayer.Board | EvidenceLayer.SinglePosition | EvidenceLayer.StrategicMechanism =>
         true
       case _ =>
         false
@@ -288,25 +281,13 @@ object ClaimTruthPolicy:
           )
         )
       case ClaimFamily.Strategic =>
-        List(
-          Set(
-            EvidenceLayer.Board,
-            EvidenceLayer.SinglePosition,
-            EvidenceLayer.Strategic,
-            EvidenceLayer.PlanPressure,
-            EvidenceLayer.PawnStructure,
-            EvidenceLayer.StructuralDelta
-          )
-        )
+        List(Set(EvidenceLayer.StrategicMechanism))
       case ClaimFamily.PawnStructure =>
-        List(Set(EvidenceLayer.PawnStructure, EvidenceLayer.StructuralDelta))
+        List(Set(EvidenceLayer.StrategicMechanism))
       case ClaimFamily.Opening =>
-        List(
-          Set(EvidenceLayer.FeatureAnchor),
-          Set(EvidenceLayer.ApplicabilityAssessment)
-        )
+        List(Set(EvidenceLayer.StrategicMechanism))
       case ClaimFamily.Plan =>
-        List(Set(EvidenceLayer.PlanPressure, EvidenceLayer.PlanTransition))
+        List(Set(EvidenceLayer.StrategicMechanism))
       case ClaimFamily.Defensive =>
         List(
           Set(
@@ -386,122 +367,42 @@ object ClaimTruthPolicy:
 
   private def strategicProof(records: List[EvidenceRecord]): Boolean =
     records.exists {
-      case EvidenceRecord(_, payload: BoardFactEvidence, _) =>
-        payload.endgameTechniqueAnchors.nonEmpty
-      case EvidenceRecord(_, SinglePositionEvidence(assessment), _) =>
-        assessment.gamePhase.isEndgame && assessment.simplifyBias.shouldSimplify
-      case EvidenceRecord(_, payload @ StrategicFactEvidence(_, _, _, confidence), _) =>
-        confidence >= 0.35 && payload.hasTypedSupport
-      case EvidenceRecord(_, payload: PawnStructureFactEvidence, _) =>
-        pawnStructureCanAnchorPlan(payload)
-      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
-        payload.hasStrategicSupport
-      case EvidenceRecord(_, PlanPressureEvidence(scoring, activePlans), _) =>
-        planEvidenceCanSupportPlan(scoring, activePlans, records)
-      case EvidenceRecord(_, PlanTransitionEvidence(transition), _) =>
-        transition.primaryPlanId.nonEmpty && transition.transitionType != lila.chessjudgment.model.TransitionType.Opening
+      case EvidenceRecord(_, payload: StrategicMechanismEvidence, _) =>
+        payload.canAnchorStrategicIdea
       case _ =>
         false
     }
 
   private def pawnStructureProof(records: List[EvidenceRecord]): Boolean =
     records.exists {
-      case EvidenceRecord(_, payload: PawnStructureFactEvidence, _) =>
-        pawnStructureCanAnchorPlan(payload)
-      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
-        payload.hasPawnStructureDelta
+      case EvidenceRecord(_, payload: StrategicMechanismEvidence, _) =>
+        payload.canAnchorPawnStructureIdea
       case _ =>
         false
     }
 
   private def openingProof(records: List[EvidenceRecord]): Boolean =
-    val assessments = records.collect { case EvidenceRecord(_, ApplicabilityAssessmentEvidence(assessment), _) =>
-      assessment
-    }
-    val certifyingPriorPresent =
-      records.exists {
-        case EvidenceRecord(_, OpeningContextEvidence(_, _, _, Some(selection)), _) =>
-          selection.canCertifyOpeningClaim
-        case _ =>
-          false
-      }
-    val proofSignalThemes =
-      records.collect {
-        case EvidenceRecord(_, FeatureAnchorEvidence(anchor), _)
-            if anchor.hasPositiveStrength && anchor.canCorroborateOpeningPrior =>
-          anchor.theme
-      }.toSet
-    assessments.exists(assessment =>
-      assessment.canCertifyOpeningClaim &&
-        certifyingPriorPresent &&
-        assessment.supportedThemes.exists(proofSignalThemes.contains)
-    )
-
-  private[chessjudgment] def openingCanSeedIdea(records: List[EvidenceRecord]): Boolean =
-    openingProof(records)
-
-  private[chessjudgment] def planPressureCanSeedIdea(
-      scoring: PlanScoringResult,
-      activePlans: ActivePlans,
-      evidence: List[EvidenceRef],
-      graph: TypedEvidenceGraph
-  ): Boolean =
-    val records = evidence.flatMap(ref => graph.byId.get(ref.id))
-    planEvidenceCanSupportPlan(scoring, activePlans, records)
+    StrategicMechanismEvidence.openingClaimSupported(records)
 
   private[chessjudgment] def planClaimApplicable(packet: EvidenceBackedJudgmentPacket): Boolean =
     packet.claims.exists(_.family == ClaimFamily.Plan) ||
       packet.evidenceGraph.records.exists {
-        case EvidenceRecord(_, PlanPressureEvidence(scoring, activePlans), _) =>
-          planEvidenceCanSupportPlan(scoring, activePlans, packet.evidenceGraph.records)
-        case EvidenceRecord(_, PlanTransitionEvidence(transition), _) =>
-          planTransitionCanSupportPlan(transition)
+        case EvidenceRecord(_, payload: StrategicMechanismEvidence, _) =>
+          payload.canAnchorPlanIdea
         case _ =>
           false
       }
 
   private def planProof(records: List[EvidenceRecord]): Boolean =
     records.exists {
-      case EvidenceRecord(_, PlanPressureEvidence(scoring, activePlans), _) =>
-        planEvidenceCanSupportPlan(scoring, activePlans, records)
-      case EvidenceRecord(_, PlanTransitionEvidence(transition), _) =>
-        planTransitionCanSupportPlan(transition)
+      case EvidenceRecord(_, payload: StrategicMechanismEvidence, _) =>
+        payload.canAnchorPlanIdea
       case _ =>
         false
     }
 
-  private def planEvidenceCanSupportPlan(
-      scoring: PlanScoringResult,
-      activePlans: ActivePlans,
-      records: List[EvidenceRecord]
-  ): Boolean =
-    planPressureHasDirectEvidence(scoring, activePlans) &&
-      records.exists(independentPlanAnchor)
-
-  private def independentPlanAnchor(record: EvidenceRecord): Boolean =
-    record match
-      case EvidenceRecord(_, payload @ StrategicFactEvidence(_, _, _, confidence), _) =>
-        confidence >= 0.35 && payload.hasTypedSupport
-      case EvidenceRecord(_, payload: PawnStructureFactEvidence, _) =>
-        pawnStructureCanAnchorPlan(payload)
-      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
-        payload.hasPositivePlanAnchor
-      case EvidenceRecord(_, PlanTransitionEvidence(transition), _) =>
-        planTransitionCanSupportPlan(transition)
-      case _ =>
-        false
-
-  private def planTransitionCanSupportPlan(transition: PlanSequenceSummary): Boolean =
-    transition.primaryPlanId.nonEmpty && transition.transitionType != TransitionType.Opening
-
   private[chessjudgment] def pawnStructureCanAnchorPlan(payload: PawnStructureFactEvidence): Boolean =
-    payload.profile.primary != StructureId.Unknown && payload.profile.confidence >= 0.65 ||
-      payload.alignment.exists(alignment =>
-        alignment.band == AlignmentBand.OnBook ||
-          alignment.band == AlignmentBand.Playable ||
-          alignment.band == AlignmentBand.OffPlan
-      ) ||
-      payload.pawnPlay.exists(_.primaryDriver != PawnPlayDriver.Quiet)
+    StrategicMechanismEvidence.pawnStructureCanAnchorPlan(payload)
 
   private def tacticalProof(records: List[EvidenceRecord]): Boolean =
     val hasTacticalAnchor =
@@ -699,9 +600,7 @@ object ClaimTruthPolicy:
     payload.hasAnyConsequence(Set(PassedPawnProgress, PromotionPressureGain))
 
   private[chessjudgment] def planPressureHasDirectEvidence(scoring: PlanScoringResult, activePlans: ActivePlans): Boolean =
-    scoring.confidence >= 0.35 &&
-      (activePlans.primary :: activePlans.secondary.toList ++ scoring.topPlans)
-        .exists(_.evidence.nonEmpty)
+    StrategicMechanismEvidence.planPressureHasDirectEvidence(scoring, activePlans)
 
   private def recordEngineBacked(record: EvidenceRecord): Boolean =
     record.ref.confidence == EvidenceConfidence.EngineBacked ||

@@ -17,7 +17,7 @@ import lila.chessjudgment.analysis.structure.{
 }
 import lila.chessjudgment.analysis.tactical.{ RelationFactNormalizer, TacticalMotifClassifier, TacticalRelationEvidence }
 import lila.chessjudgment.analysis.transition.{ TransitionAnalyzer, TransitionFactNormalizer }
-import lila.chessjudgment.model.{ CompatibilityAdjustment, Motif, PlanCategory }
+import lila.chessjudgment.model.{ CompatibilityAdjustment, Motif, PlanCategory, TransitionType }
 import lila.chessjudgment.model.judgment.*
 
 final case class EvidenceFactAssembly(
@@ -58,7 +58,9 @@ object EvidenceFactAssembler:
     val planRecords = planPressureRecords(assembly.input, strategicContext, allocator)
     val planContext = strategicContext.withEvidence(planRecords)
     val openingRecords = featureApplicabilityRecords(assembly.input, planContext, allocator)
-    EvidenceFactAssembly(assembly.input, planContext.withEvidence(openingRecords))
+    val openingContext = planContext.withEvidence(openingRecords)
+    val strategicMechanismOutput = strategicMechanismRecords(openingContext, allocator)
+    EvidenceFactAssembly(assembly.input, openingContext.withEvidence(strategicMechanismOutput))
 
   private def moveMotifRecords(
       input: NormalizedMoveReviewInput,
@@ -228,7 +230,7 @@ object EvidenceFactAssembler:
       allocator: JudgmentProvenanceAllocator
   ): List[EvidenceRecord] =
     context.positions.flatMap { node =>
-      for
+      (for
         features <- node.features
         position <- Fen.read(Standard, Fen.Full(node.ref.fen))
       yield
@@ -243,7 +245,7 @@ object EvidenceFactAssembler:
               sideToMove = side
             )
           }
-        StrategicFactNormalizer.fromPawnStructure(
+        val record = StrategicFactNormalizer.fromPawnStructure(
           id = allocator.evidenceId(s"pawn-structure:${allocator.key(node.role)}"),
           profile = profile,
           alignment = None,
@@ -253,6 +255,12 @@ object EvidenceFactAssembler:
           parents = evidenceRefs(context, EvidenceLayer.Board, Some(node.ref), None) ++
             evidenceRefs(context, EvidenceLayer.SinglePosition, Some(node.ref), None)
         )
+        record.payload match
+          case payload: PawnStructureFactEvidence if StrategicMechanismEvidence.pawnStructureCanAnchorPlan(payload) =>
+            Some(record)
+          case _ =>
+            None
+      ).toList.flatten
     }
 
   private def threatPressureRecords(
@@ -785,12 +793,14 @@ object EvidenceFactAssembler:
         )
       }
       val anchorRecords = featureAnchorRecords(context, rootNode, allocator)
+        .filter(record => StrategicMechanismEvidence.sourceMechanisms(record).nonEmpty)
       val anchors = anchorRecords.collect { case EvidenceRecord(_, FeatureAnchorEvidence(anchor), _) => anchor }
       val openingContextEvidence =
         contextRecord.collect { case EvidenceRecord(_, payload: OpeningContextEvidence, _) => payload }
       val applicabilityRecord =
         for
           assessment <- assessApplicability(openingContextEvidence, input.beforePly, rootNode, anchors)
+          if assessment.canCertifyOpeningClaim
         yield
           applicabilityAssessmentRecord(
             id = allocator.evidenceId("applicability:before"),
@@ -801,8 +811,65 @@ object EvidenceFactAssembler:
             confidence = applicabilityConfidence(assessment),
             parents = (contextRecord.map(_.ref).toList ++ anchorRecords.map(_.ref)).distinctBy(_.id)
           )
-      contextRecord.toList ++ anchorRecords ++ applicabilityRecord.toList
+      contextRecord.filter(_ => applicabilityRecord.nonEmpty).toList ++ anchorRecords ++ applicabilityRecord.toList
     }
+
+  private def strategicMechanismRecords(
+      context: JudgmentAssemblyContext,
+      allocator: JudgmentProvenanceAllocator
+  ): List[EvidenceRecord] =
+    val candidates =
+      context.evidenceGraph.records.flatMap { record =>
+        StrategicMechanismEvidence.sourceMechanisms(record).map { case (kind, signal) =>
+          StrategicMechanismCandidate(kind, record.ref.position, record.ref.line, record.ref.scope, signal, record)
+        }
+      }
+    candidates
+      .groupBy(candidate => (candidate.kind, candidate.position, candidate.line, candidate.scope))
+      .toList
+      .flatMap { case ((kind, position, line, scope), grouped) =>
+        val sourceRecords = grouped.map(_.source).distinctBy(_.ref.id)
+        val signals = grouped.map(_.signal).distinct
+        val semanticAnchors =
+          (
+            EvidenceSemanticAnchor.of(EvidenceSemanticAnchorKind.StrategicMechanism, kind.toString) ::
+              sourceRecords.flatMap(StrategicMechanismEvidence.sourceSemanticAnchors)
+          ).distinctBy(_.stableKey)
+        Option.when(signals.nonEmpty) {
+          val payload = StrategicMechanismEvidence(kind, signals, semanticAnchors)
+          val positionKey =
+            position.id.map(allocator.key).getOrElse(s"${position.ply}:${Integer.toHexString(position.fen.hashCode)}")
+          EvidenceRecord(
+            ref = EvidenceRef(
+              id = allocator.evidenceId(
+                s"strategic-mechanism:${allocator.key(kind)}:$positionKey:${line.map(line => allocator.key(line.rootMove)).getOrElse("position")}:${allocator.key(scope)}"
+              ),
+              producer = EvidenceProducer.StrategicMechanismProducer,
+              layer = EvidenceLayer.StrategicMechanism,
+              position = position,
+              line = line,
+              scope = scope,
+              confidence = strategicMechanismConfidence(sourceRecords)
+            ),
+            payload = payload,
+            parents = sourceRecords.map(_.ref).distinctBy(_.id)
+          )
+        }
+      }
+
+  private final case class StrategicMechanismCandidate(
+      kind: StrategicMechanismKind,
+      position: PositionNodeRef,
+      line: Option[LineNodeRef],
+      scope: EvidenceScope,
+      signal: StrategicMechanismSignal,
+      source: EvidenceRecord
+  )
+
+  private def strategicMechanismConfidence(records: List[EvidenceRecord]): EvidenceConfidence =
+    if records.exists(_.ref.confidence == EvidenceConfidence.EngineBacked) then EvidenceConfidence.Mixed
+    else if records.forall(_.ref.confidence == EvidenceConfidence.BoardDerived) then EvidenceConfidence.BoardDerived
+    else EvidenceConfidence.Mixed
 
   private def openingContextParents(
       context: JudgmentAssemblyContext,
@@ -1248,16 +1315,19 @@ object EvidenceFactAssembler:
                 scope = original.ref.scope,
                 parents = (original.parents :+ planPressure.ref).distinctBy(_.id)
               )
+          val transition = TransitionAnalyzer.analyze(activePlans, None, alignedPlanContext)
           val planTransition =
-            TransitionFactNormalizer.fromPlanTransition(
-              id = allocator.evidenceId("plan-transition:before"),
-              transition = TransitionAnalyzer.analyze(activePlans, None, alignedPlanContext),
-              position = node.ref,
-              line = context.line(LineNodeRole.BestReference).map(_.ref),
-              scope = EvidenceScope.BeforePosition,
-              parents = planPressure.ref :: planPressure.parents
-            )
-          List(planPressure) ++ alignedPawnStructure.toList ++ List(planTransition)
+            Option.when(transition.transitionType != TransitionType.Opening) {
+              TransitionFactNormalizer.fromPlanTransition(
+                id = allocator.evidenceId("plan-transition:before"),
+                transition = transition,
+                position = node.ref,
+                line = context.line(LineNodeRole.BestReference).map(_.ref),
+                scope = EvidenceScope.BeforePosition,
+                parents = planPressure.ref :: planPressure.parents
+              )
+            }
+          List(planPressure) ++ alignedPawnStructure.toList ++ planTransition.toList
         }
       records.getOrElse(Nil)
     }

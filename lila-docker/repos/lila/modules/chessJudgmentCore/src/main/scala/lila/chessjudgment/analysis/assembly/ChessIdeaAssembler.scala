@@ -2,9 +2,6 @@ package lila.chessjudgment.analysis.assembly
 
 import lila.chessjudgment.analysis.evaluation.JudgmentThresholds
 import lila.chessjudgment.analysis.policy.ClaimTruthPolicy
-import lila.chessjudgment.analysis.singlePosition.PawnPlayDriver
-import lila.chessjudgment.model.structure.AlignmentBand
-import lila.chessjudgment.model.structure.StructureId
 import lila.chessjudgment.model.judgment.*
 
 final case class ChessIdeaAssembly(
@@ -162,45 +159,30 @@ object ChessIdeaAssembler:
       context: JudgmentAssemblyContext,
       allocator: JudgmentProvenanceAllocator
   ): List[ChessIdea] =
-    val structurePositionIdeas =
-      context.evidenceGraph.records.collect {
-        case EvidenceRecord(ref, payload: PawnStructureFactEvidence, _)
-            if pawnStructureCarriesTheme(payload) =>
+    context.evidenceGraph.records.flatMap {
+      case EvidenceRecord(ref, payload: StrategicMechanismEvidence, parents) if payload.canAnchorPawnStructureIdea =>
+        val evidence =
+          longTermIdeaEvidence(
+            ref :: parents ++
+              ref.line.toList.flatMap(lineLayerRefs(context, _)) ++
+              recordsForPosition(context, EvidenceLayer.Board, ref.position)
+          )
+        Option.when(evidence.nonEmpty) {
           ChessIdeaBuilder.fromEvidence(
-            id = allocator.evidenceId(s"idea:pawn-structure:${allocator.key(ref.id)}"),
+            id = allocator.evidenceId(s"idea:pawn-structure-mechanism:${allocator.key(ref.id)}"),
             family = ChessIdeaFamily.PawnStructure,
-            subject = IdeaSubject.Position,
+            subject = ref.line.map(_.role.subject).getOrElse(IdeaSubject.Position),
             primaryPosition = ref.position,
-            primaryLine = None,
-            moveUci = None,
-            evidence = (ref :: recordsForPosition(context, EvidenceLayer.Board, ref.position)).distinctBy(_.id),
+            primaryLine = ref.line,
+            moveUci = ref.line.map(_.rootMove),
+            evidence = evidence,
             scope = ref.scope,
             confidence = ref.confidence
           )
+        }
+      case _ =>
+        None
       }
-    val structureMoveIdeas =
-      context.evidenceGraph.records.flatMap {
-        case EvidenceRecord(ref, payload: StructuralDeltaEvidence, parents) if payload.hasMeaningfulPawnStructureDelta =>
-          val evidence =
-            longTermIdeaEvidence(
-              ref :: parents ++ recordsForPosition(context, EvidenceLayer.PawnStructure, payload.to)
-            )
-          Some {
-            ChessIdeaBuilder.fromEvidence(
-              id = allocator.evidenceId(s"idea:pawn-structure-delta:${allocator.key(ref.id)}"),
-              family = ChessIdeaFamily.PawnStructure,
-              subject = payload.role.subject,
-              primaryPosition = payload.from,
-              primaryLine = payload.line,
-              moveUci = Some(payload.moveUci),
-              evidence = evidence,
-              scope = ref.scope,
-              confidence = ref.confidence
-            )
-          }
-        case _ => None
-      }
-    structurePositionIdeas ++ structureMoveIdeas
 
   private def defensiveIdeas(
       context: JudgmentAssemblyContext,
@@ -488,50 +470,30 @@ object ChessIdeaAssembler:
 
   private def hasStrategicCompensationSupport(records: List[EvidenceRecord]): Boolean =
     records.exists {
-      case EvidenceRecord(_, payload @ StrategicFactEvidence(StrategicFactKind.Compensation, _, _, confidence), _) =>
-        confidence >= 0.35 && payload.hasTypedSupport
-      case EvidenceRecord(_, PlanPressureEvidence(scoring, activePlans), _) =>
-        ClaimTruthPolicy.planPressureHasDirectEvidence(scoring, activePlans)
-      case EvidenceRecord(_, PlanTransitionEvidence(transition), _) =>
-        transition.primaryPlanId.nonEmpty && transition.transitionType != lila.chessjudgment.model.TransitionType.Opening
-      case EvidenceRecord(_, payload: PawnStructureFactEvidence, _) =>
-        ClaimTruthPolicy.pawnStructureCanAnchorPlan(payload)
+      case EvidenceRecord(_, payload: StrategicMechanismEvidence, _) =>
+        payload.canSupportCompensation
       case _ =>
         false
     }
 
   private def hasStrategicRelativeCauseSupport(records: List[EvidenceRecord]): Boolean =
     records.exists {
-      case EvidenceRecord(_, payload: BoardFactEvidence, _) =>
-        payload.endgameTechniqueAnchors.nonEmpty
-      case EvidenceRecord(_, payload @ StrategicFactEvidence(_, _, _, confidence), _) =>
-        confidence >= 0.35 && payload.hasTypedSupport
-      case EvidenceRecord(_, payload: PawnStructureFactEvidence, _) =>
-        ClaimTruthPolicy.pawnStructureCanAnchorPlan(payload)
-      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
-        payload.hasStrategicSupport
-      case EvidenceRecord(_, SinglePositionEvidence(assessment), _) =>
-        assessment.gamePhase.isEndgame && assessment.simplifyBias.shouldSimplify
-      case EvidenceRecord(_, PlanPressureEvidence(scoring, activePlans), _) =>
-        ClaimTruthPolicy.planPressureHasDirectEvidence(scoring, activePlans)
-      case EvidenceRecord(_, PlanTransitionEvidence(transition), _) =>
-        transition.primaryPlanId.nonEmpty && transition.transitionType != lila.chessjudgment.model.TransitionType.Opening
+      case EvidenceRecord(_, payload: StrategicMechanismEvidence, _) =>
+        payload.canSupportStrategicCause
       case _ =>
         false
     }
 
   private def hasPawnStructureRelativeCauseSupport(records: List[EvidenceRecord]): Boolean =
     records.exists {
-      case EvidenceRecord(_, payload: PawnStructureFactEvidence, _) =>
-        ClaimTruthPolicy.pawnStructureCanAnchorPlan(payload)
-      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
-        payload.hasPawnStructureDelta
+      case EvidenceRecord(_, payload: StrategicMechanismEvidence, _) =>
+        payload.canAnchorPawnStructureIdea
       case _ =>
         false
     }
 
   private def hasOpeningRelativeCauseSupport(records: List[EvidenceRecord]): Boolean =
-    ClaimTruthPolicy.openingCanSeedIdea(records)
+    StrategicMechanismEvidence.openingClaimSupported(records)
 
   private def hasConversionContext(
       context: JudgmentAssemblyContext,
@@ -570,14 +532,24 @@ object ChessIdeaAssembler:
       context: JudgmentAssemblyContext,
       allocator: JudgmentProvenanceAllocator
   ): List[ChessIdea] =
-    val strategicFactIdeas =
-      context.evidenceGraph.records.collect {
-        case EvidenceRecord(ref, payload: StrategicFactEvidence, _) if canSeedStrategicIdea(payload) =>
-          val evidence = (ref :: recordsForPosition(context, EvidenceLayer.Board, ref.position)).distinctBy(_.id)
+    context.evidenceGraph.records.flatMap {
+      case EvidenceRecord(ref, payload: StrategicMechanismEvidence, parents)
+          if payload.canAnchorStrategicIdea || payload.canAnchorPlanIdea =>
+        val subject =
+          if payload.kind == StrategicMechanismKind.PlanPressure && payload.canAnchorPlanIdea then IdeaSubject.Plan
+          else ref.line.map(_.role.subject).getOrElse(IdeaSubject.Position)
+        val evidence =
+          longTermIdeaEvidence(
+            ref :: parents ++
+              ref.line.toList.flatMap(lineLayerRefs(context, _)) ++
+              recordsForPosition(context, EvidenceLayer.Board, ref.position) ++
+              recordsForPosition(context, EvidenceLayer.SinglePosition, ref.position)
+          )
+        Option.when(evidence.nonEmpty) {
           ChessIdeaBuilder.fromEvidence(
-            id = allocator.evidenceId(s"idea:strategic-fact:${allocator.key(ref.id)}"),
+            id = allocator.evidenceId(s"idea:strategic-mechanism:${allocator.key(ref.id)}"),
             family = ChessIdeaFamily.Strategic,
-            subject = IdeaSubject.Position,
+            subject = subject,
             primaryPosition = ref.position,
             primaryLine = ref.line,
             moveUci = ref.line.map(_.rootMove),
@@ -585,93 +557,61 @@ object ChessIdeaAssembler:
             scope = ref.scope,
             confidence = ref.confidence
           )
-      }
-    val structuralDeltaIdeas =
-      context.evidenceGraph.records.flatMap {
-        case EvidenceRecord(ref, payload: StructuralDeltaEvidence, parents) if payload.hasStrategicMoveDelta =>
-          val evidence =
-            longTermIdeaEvidence(
-              ref :: parents ++
-                payload.line.toList.flatMap(lineLayerRefs(context, _)) ++
-                recordsForPosition(context, EvidenceLayer.Board, payload.to) ++
-                recordsForPosition(context, EvidenceLayer.SinglePosition, payload.to)
-            )
-          Some {
-            ChessIdeaBuilder.fromEvidence(
-              id = allocator.evidenceId(s"idea:strategic-delta:${allocator.key(ref.id)}"),
-              family = ChessIdeaFamily.Strategic,
-              subject = payload.role.subject,
-              primaryPosition = payload.from,
-              primaryLine = payload.line,
-              moveUci = Some(payload.moveUci),
-              evidence = evidence,
-              scope = ref.scope,
-              confidence = ref.confidence
-            )
-          }
-        case _ =>
-          None
-      }
-    val planPressureIdeas =
-      context.evidenceGraph.records.flatMap {
-        case EvidenceRecord(ref, PlanPressureEvidence(scoring, activePlans), parents) =>
-          val evidence =
-            longTermIdeaEvidence(
-              ref :: parents ++
-                ref.line.toList.flatMap(lineLayerRefs(context, _)) ++
-                recordsForPosition(context, EvidenceLayer.Strategic, ref.position) ++
-                recordsForPosition(context, EvidenceLayer.PawnStructure, ref.position) ++
-                recordsForPosition(context, EvidenceLayer.PlanTransition, ref.position) ++
-                recordsForPosition(context, EvidenceLayer.SinglePosition, ref.position)
-            )
-          Option.when(ClaimTruthPolicy.planPressureCanSeedIdea(scoring, activePlans, evidence, context.evidenceGraph))(
-            ChessIdeaBuilder.fromEvidence(
-            id = allocator.evidenceId(s"idea:plan-pressure:${allocator.key(ref.id)}"),
-            family = ChessIdeaFamily.Strategic,
-            subject = IdeaSubject.Plan,
-            primaryPosition = ref.position,
-            primaryLine = ref.line,
-            moveUci = ref.line.map(_.rootMove),
-            evidence = evidence,
-            scope = ref.scope,
-            confidence = ref.confidence
-            )
-          )
-        case _ =>
-          None
+        }
+      case _ =>
+        None
     }
-    strategicFactIdeas ++ structuralDeltaIdeas ++ planPressureIdeas
-
-  private def canSeedStrategicIdea(payload: StrategicFactEvidence): Boolean =
-    payload.confidence >= 0.35 && payload.hasTypedSupport
 
   private def openingIdeas(
       context: JudgmentAssemblyContext,
       allocator: JudgmentProvenanceAllocator
   ): List[ChessIdea] =
-    context.evidenceGraph.records.collect {
-      case EvidenceRecord(ref, ApplicabilityAssessmentEvidence(assessment), parents)
-          if assessment.canCertifyOpeningClaim =>
-        val moveBinding = openingMoveBinding(context, assessment, parents)
+    context.evidenceGraph.records.flatMap {
+      case record @ EvidenceRecord(ref, payload: StrategicMechanismEvidence, parents)
+          if payload.canAnchorOpeningIdea =>
+        val supportRecords = openingMechanismSupport(context, record)
+        val assessment = supportRecords.collectFirst {
+          case EvidenceRecord(_, ApplicabilityAssessmentEvidence(assessment), _) => assessment
+        }
+        val moveBinding = assessment.flatMap(openingMoveBinding(context, _, supportRecords.map(_.ref)))
         val primaryLine = moveBinding.flatMap(_.primaryLine)
         val evidence =
           longTermIdeaEvidence(
             ref :: parents ++
+              supportRecords.map(_.ref) ++
               moveBinding.toList.flatMap(_.evidence) ++
               primaryLine.toList.flatMap(lineLayerRefs(context, _))
           )
-        ChessIdeaBuilder.fromEvidence(
-          id = allocator.evidenceId(s"idea:opening:${allocator.key(ref.id)}"),
-          family = ChessIdeaFamily.Opening,
-          subject = moveBinding.map(_.subject).getOrElse(IdeaSubject.Position),
-          primaryPosition = ref.position,
-          primaryLine = primaryLine,
-          moveUci = moveBinding.flatMap(_.moveUci),
-          evidence = evidence,
-          scope = ref.scope,
-          confidence = ref.confidence
-        )
+        Option.when(StrategicMechanismEvidence.openingClaimSupported(supportRecords) && evidence.nonEmpty) {
+          ChessIdeaBuilder.fromEvidence(
+            id = allocator.evidenceId(s"idea:opening-mechanism:${allocator.key(ref.id)}"),
+            family = ChessIdeaFamily.Opening,
+            subject = moveBinding.map(_.subject).getOrElse(IdeaSubject.Position),
+            primaryPosition = ref.position,
+            primaryLine = primaryLine,
+            moveUci = moveBinding.flatMap(_.moveUci),
+            evidence = evidence,
+            scope = ref.scope,
+            confidence = ref.confidence
+          )
+        }
+      case _ =>
+        None
     }
+
+  private def openingMechanismSupport(context: JudgmentAssemblyContext, record: EvidenceRecord): List[EvidenceRecord] =
+    val parentRecords = record.parents.flatMap(parent => context.evidenceGraph.byId.get(parent.id))
+    val siblingOpeningAnchors =
+      context.evidenceGraph.records.filter {
+        case EvidenceRecord(ref, payload: StrategicMechanismEvidence, _) =>
+          ref.position == record.ref.position &&
+            payload.hasOpeningAnchorSignal
+        case _ =>
+          false
+      }
+    val siblingParents =
+      siblingOpeningAnchors.flatMap(_.parents.flatMap(parent => context.evidenceGraph.byId.get(parent.id)))
+    (record :: parentRecords ++ siblingOpeningAnchors ++ siblingParents).distinctBy(_.ref.id)
 
   private def openingMoveBinding(
       context: JudgmentAssemblyContext,
@@ -829,6 +769,7 @@ object ChessIdeaAssembler:
   private def longTermIdeaEvidence(refs: List[EvidenceRef]): List[EvidenceRef] =
     refs
       .filterNot(ref => ClaimSupportCluster.longTermSupportExcludedLayer(ref.layer))
+      .filterNot(ref => StrategicMechanismEvidence.rawStrategicSourceLayer(ref.layer))
       .distinctBy(_.id)
 
   private def transitionRecordMentionsMove(record: EvidenceRecord, moveUci: String): Boolean =
@@ -889,12 +830,3 @@ object ChessIdeaAssembler:
     context.evidenceGraph.recordsFor(position).collect {
       case record if record.ref.layer == layer => record.ref
     }
-
-  private def pawnStructureCarriesTheme(payload: PawnStructureFactEvidence): Boolean =
-    payload.profile.primary != StructureId.Unknown && payload.profile.confidence >= 0.65 ||
-      payload.pawnPlay.exists(_.primaryDriver != PawnPlayDriver.Quiet) ||
-      payload.alignment.exists(alignment =>
-        alignment.band == AlignmentBand.OnBook ||
-          alignment.band == AlignmentBand.Playable ||
-          alignment.band == AlignmentBand.OffPlan
-      )

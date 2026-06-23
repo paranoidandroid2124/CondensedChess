@@ -1,11 +1,8 @@
 package lila.chessjudgment.analysis.assembly
 
 import lila.chessjudgment.analysis.evaluation.JudgmentThresholds
-import lila.chessjudgment.analysis.policy.ClaimTruthPolicy
-import lila.chessjudgment.analysis.singlePosition.PawnPlayDriver
 import lila.chessjudgment.analysis.tactical.TacticalMotifClassifier
-import lila.chessjudgment.model.{ Motif, TransitionType }
-import lila.chessjudgment.model.structure.AlignmentBand
+import lila.chessjudgment.model.Motif
 import lila.chessjudgment.model.judgment.*
 
 private[chessjudgment] final case class RelativeCauseDraft(
@@ -32,8 +29,6 @@ private[chessjudgment] final case class RelativeCauseSignalProfile(
     fact.comparison.winPercentLossForMover >= JudgmentThresholds.MATERIAL_THREAT_WP
   val candidateBetter: Boolean =
     fact.comparison.candidateWinPercentDeltaForMover >= JudgmentThresholds.PLAYABLE_LOSS_WP
-  val primaryPlayedSignificantLoss: Boolean =
-    fact.kind == CandidateComparisonKind.PlayedVsBest && tacticalLoss
   val primaryPlayedPositive: Boolean =
     fact.kind == CandidateComparisonKind.PlayedVsBest && candidateBetter
   val playedCandidateSideComparison: Boolean =
@@ -134,7 +129,7 @@ private[chessjudgment] final case class RelativeCauseSignalProfile(
       referenceConversionWindow.nonEmpty ||
       candidateConversionWindow.nonEmpty
   val missedStrategicSupport: List[EvidenceRecord] =
-    RelativeCauseSignalProfile.missedStrategicImprovementSupport(fact, referenceRecords, candidateRecords, sharedRecords)
+    RelativeCauseSignalProfile.missedStrategicImprovementSupport(referenceRecords, candidateRecords)
 
 private[chessjudgment] object RelativeCauseDraftPlanner:
   def drafts(profile: RelativeCauseSignalProfile): List[RelativeCauseDraft] =
@@ -250,7 +245,7 @@ private[chessjudgment] object RelativeCauseDraftPlanner:
       causeDraft(
         RelativeCauseKind.KingSafetyConcession,
         candidateKingSafetyConcession,
-        (badLoss || primaryPlayedSignificantLoss) && candidateKingSafetyConcession.nonEmpty,
+        badLoss && candidateKingSafetyConcession.nonEmpty,
         Some(RelativeCauseSourceSide.Candidate)
       ),
       causeDraft(
@@ -262,7 +257,7 @@ private[chessjudgment] object RelativeCauseDraftPlanner:
       causeDraft(
         RelativeCauseKind.ActivityLoss,
         candidateActivityLoss,
-        (badLoss || primaryPlayedSignificantLoss) && candidateActivityLoss.nonEmpty,
+        badLoss && candidateActivityLoss.nonEmpty,
         Some(RelativeCauseSourceSide.Candidate)
       ),
       causeDraft(RelativeCauseKind.PlanImprovement, candidatePlanCause, candidatePlanCause.nonEmpty && candidateBetter),
@@ -270,7 +265,7 @@ private[chessjudgment] object RelativeCauseDraftPlanner:
       causeDraft(
         RelativeCauseKind.StrategicConcession,
         candidateStrategicConcession ++ candidatePassedPawnConcession,
-        (badLoss || primaryPlayedSignificantLoss) &&
+        badLoss &&
           !shortTermEvidenceCompetesWithStrategic &&
           (candidateStrategicConcession.nonEmpty || candidatePassedPawnConcession.nonEmpty)
       ),
@@ -282,7 +277,7 @@ private[chessjudgment] object RelativeCauseDraftPlanner:
       causeDraft(
         RelativeCauseKind.MaterialSwing,
         materialLossSupport,
-        (majorLoss || primaryPlayedSignificantLoss) &&
+        majorLoss &&
           materialLossSupport.nonEmpty
       ),
       causeDraft(
@@ -302,11 +297,17 @@ private[chessjudgment] object RelativeCauseDraftPlanner:
     Option.when(condition)(RelativeCauseDraft(kind, support.distinctBy(_.ref.id), sourceSide))
 
   private def mechanismDrafts(profile: RelativeCauseSignalProfile): List[RelativeCauseDraft] =
+    val actionableLoss =
+      profile.fact.comparison.verdict match
+        case MoveChoiceVerdict.Inaccuracy | MoveChoiceVerdict.Mistake | MoveChoiceVerdict.Blunder => true
+        case _                                                                                   => false
     val referenceCauses =
-      Option.when(profile.tacticalLoss)(mechanismCauseKinds(profile.referenceTacticalMechanism, badLoss = false)).getOrElse(Nil)
+      Option
+        .when(actionableLoss && profile.tacticalLoss)(mechanismCauseKinds(profile.referenceTacticalMechanism, badLoss = false))
+        .getOrElse(Nil)
     val candidateBadCauses =
       Option
-        .when(profile.tacticalLoss)(
+        .when(actionableLoss && profile.tacticalLoss)(
           mechanismCauseKinds(
             profile.candidateTacticalMechanism,
             badLoss = true,
@@ -526,8 +527,6 @@ private[chessjudgment] object RelativeCauseSignalProfile:
           payload.materialOutcomeProfile.lossSignals.contains(LineMaterialOutcomeSignal.PromotionLoss)
       case EvidenceRecord(_, payload: TacticalMechanismEvidence, _) =>
         payload.kind == TacticalMechanismKind.PawnPromotion && payload.canAnchorTacticalIdea
-      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
-        payload.hasConsequence(TransitionConsequenceKind.PromotionPressureGain)
       case _ =>
         false
     }.distinctBy(_.ref.id)
@@ -608,9 +607,13 @@ private[chessjudgment] object RelativeCauseSignalProfile:
 
   private[chessjudgment] def passedPawnResourceRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
     records.filter {
-      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
-        payload.hasPassedPawnProgress ||
-          payload.hasConsequence(TransitionConsequenceKind.PromotionPressureGain)
+      case EvidenceRecord(_, payload: StrategicMechanismEvidence, _) =>
+        payload.kind == StrategicMechanismKind.PawnStructure &&
+          payload.canAnchorPawnStructureIdea &&
+          payload.signals.exists(signal =>
+            signal.label == "passed-pawn-progress" ||
+              signal.label == "promotion-pressure-gain"
+          )
       case EvidenceRecord(ref, payload: MoveMotifEvidence, _) if payload.recordLineBound(ref) =>
         payload.motif match
           case _: Motif.PassedPawnPush | _: Motif.PassedPawn | _: Motif.PawnPromotion => true
@@ -621,119 +624,80 @@ private[chessjudgment] object RelativeCauseSignalProfile:
 
   private[chessjudgment] def passedPawnConcessionRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
     records.filter {
-      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
-        payload.hasConsequence(TransitionConsequenceKind.PassedPawnConcession) ||
-          payload.hasConsequence(TransitionConsequenceKind.PromotionPressureConcession)
+      case EvidenceRecord(_, payload: StrategicMechanismEvidence, _) =>
+        payload.kind == StrategicMechanismKind.StrategicConcession &&
+          payload.canSupportStrategicCause &&
+          payload.signals.exists(signal =>
+            signal.label == "passed-pawn-concession" ||
+              signal.label == "promotion-pressure-concession"
+          )
       case _ =>
         false
     }.distinctBy(_.ref.id)
 
   private[chessjudgment] def endgameResourceRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
-    records.filter {
-      case EvidenceRecord(_, payload: BoardFactEvidence, _) =>
-        payload.endgameTechniqueAnchors.nonEmpty
-      case EvidenceRecord(_, payload @ StrategicFactEvidence(StrategicFactKind.Endgame, _, _, confidence), _) =>
-        confidence >= 0.35 && payload.hasTypedSupport
-      case EvidenceRecord(_, SinglePositionEvidence(assessment), _) =>
-        assessment.gamePhase.isEndgame && assessment.simplifyBias.shouldSimplify
-      case _ =>
-        false
-    }
+    strategicMechanismRecords(records)(payload =>
+      payload.kind == StrategicMechanismKind.Endgame && payload.canSupportStrategicCause
+    )
 
   private[chessjudgment] def structuralTargetReleaseRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
-    records.filter {
-      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
-        payload.hasTargetPressureRelease
-      case _ =>
-        false
-    }
+    strategicMechanismRecords(records)(payload =>
+      payload.kind == StrategicMechanismKind.TargetPressure &&
+        payload.signals.exists(_.label == "target-pressure-release")
+    )
+
+  private def strategicMechanismRecords(
+      records: List[EvidenceRecord]
+  )(mechanismPredicate: StrategicMechanismEvidence => Boolean): List[EvidenceRecord] =
+    records.collect {
+      case record @ EvidenceRecord(_, payload: StrategicMechanismEvidence, _) if mechanismPredicate(payload) =>
+        record
+    }.distinctBy(_.ref.id)
 
   private[chessjudgment] def structuralImprovementRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
-    records.filter {
-      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
-        payload.hasStructuralAnchor
-      case _ =>
-        false
-    }
+    strategicMechanismRecords(records)(payload =>
+      payload.kind == StrategicMechanismKind.StructuralImprovement && payload.canSupportStrategicCause
+    )
 
   private[chessjudgment] def targetPressureGainRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
-    records.filter {
-      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
-        payload.hasTargetPressureGain
-      case _ =>
-        false
-    }
+    strategicMechanismRecords(records)(payload =>
+      payload.kind == StrategicMechanismKind.TargetPressure &&
+        payload.canSupportStrategicCause &&
+        payload.signals.exists(_.label == "target-pressure-gain")
+    )
 
   private[chessjudgment] def centerControlGainRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
-    records.filter {
-      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
-        payload.hasCenterControlGain
-      case _ =>
-        false
-    }
+    strategicMechanismRecords(records)(payload =>
+      payload.kind == StrategicMechanismKind.CenterControl && payload.canSupportStrategicCause
+    )
 
   private[chessjudgment] def kingSafetyConcessionRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
-    records.filter {
-      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
-        payload.hasAnyConsequence(Set(
-          TransitionConsequenceKind.KingSafetyConcession,
-          TransitionConsequenceKind.KingRingPressureConcession
-        ))
-      case _ =>
-        false
-    }.distinctBy(_.ref.id)
+    strategicMechanismRecords(records)(payload =>
+      payload.kind == StrategicMechanismKind.KingSafety && payload.canSupportStrategicCause
+    )
 
   private[chessjudgment] def pawnWeaknessTargetRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
-    records.filter {
-      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
-        payload.hasConsequence(TransitionConsequenceKind.WeakPawnTargetCreated)
-      case _ =>
-        false
-    }.distinctBy(_.ref.id)
+    strategicMechanismRecords(records)(payload =>
+      payload.kind == StrategicMechanismKind.PawnWeakness && payload.canSupportStrategicCause
+    )
 
   private[chessjudgment] def activityLossRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
-    records.filter {
-      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
-        payload.hasAnyConsequence(Set(
-          TransitionConsequenceKind.DevelopmentLagIncreased,
-          TransitionConsequenceKind.DevelopmentPieceRetreated,
-          TransitionConsequenceKind.DevelopmentMobilityLoss,
-          TransitionConsequenceKind.DevelopmentCenterControlLoss,
-          TransitionConsequenceKind.DevelopmentUnsafePlacement,
-          TransitionConsequenceKind.MobilityLoss,
-          TransitionConsequenceKind.FileAccessLoss
-        ))
-      case _ =>
-        false
-    }.distinctBy(_.ref.id)
+    strategicMechanismRecords(records)(payload =>
+      payload.kind == StrategicMechanismKind.Activity &&
+        payload.canSupportStrategicCause &&
+        payload.signals.exists(_.label == "activity-loss")
+    )
 
   private[chessjudgment] def pawnStructureImprovementRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
-    records.filter {
-      case EvidenceRecord(_, payload: PawnStructureFactEvidence, _) =>
-        ClaimTruthPolicy.pawnStructureCanAnchorPlan(payload)
-      case _ =>
-        false
-    }
+    strategicMechanismRecords(records)(_.canAnchorPawnStructureIdea)
 
   private[chessjudgment] def planCauseRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
-    records.filter {
-      case EvidenceRecord(_, PlanTransitionEvidence(transition), _) =>
-        transition.primaryPlanId.nonEmpty &&
-          transition.transitionType != TransitionType.Opening &&
-          transition.momentum >= 0.55
-      case EvidenceRecord(_, PlanPressureEvidence(scoring, activePlans), _) =>
-        ClaimTruthPolicy.planPressureHasDirectEvidence(scoring, activePlans)
-      case _ =>
-        false
-    }
+    strategicMechanismRecords(records)(_.canAnchorPlanIdea)
 
   private[chessjudgment] def strategicConcessionRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
-    records.filter {
-      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
-        payload.hasStrategicConcession
-      case _ =>
-        false
-    }
+    strategicMechanismRecords(records)(payload =>
+      payload.kind == StrategicMechanismKind.StrategicConcession && payload.canSupportStrategicCause
+    )
 
   private def strategicImprovementSupport(records: List[EvidenceRecord]): List[EvidenceRecord] =
     (
@@ -743,10 +707,8 @@ private[chessjudgment] object RelativeCauseSignalProfile:
     ).distinctBy(_.ref.id)
 
   private[chessjudgment] def missedStrategicImprovementSupport(
-      fact: CandidateComparisonFact,
       referenceRecords: List[EvidenceRecord],
-      candidateRecords: List[EvidenceRecord],
-      sharedRecords: List[EvidenceRecord]
+      candidateRecords: List[EvidenceRecord]
   ): List[EvidenceRecord] =
     val scoreBased =
       Option
@@ -756,8 +718,7 @@ private[chessjudgment] object RelativeCauseSignalProfile:
         .getOrElse(Nil)
     val axisBased =
       List(
-        StructuralDeltaEvidence.referenceLeadStrategicImprovementAxisRecords(referenceRecords, candidateRecords),
-        samePieceDevelopmentChoiceSupport(fact, referenceRecords, candidateRecords, sharedRecords),
+        unmatchedAxisSupport(strategicImprovementSupport(referenceRecords), strategicImprovementSupport(candidateRecords)),
         unmatchedAxisSupport(pawnStructureImprovementRecords(referenceRecords), pawnStructureImprovementRecords(candidateRecords)),
         unmatchedAxisSupport(planCauseRecords(referenceRecords), planCauseRecords(candidateRecords))
       ).flatten
@@ -768,29 +729,6 @@ private[chessjudgment] object RelativeCauseSignalProfile:
       candidateSupport: List[EvidenceRecord]
   ): List[EvidenceRecord] =
     Option.when(referenceSupport.nonEmpty && candidateSupport.isEmpty)(referenceSupport).getOrElse(Nil)
-
-  private def samePieceDevelopmentChoiceSupport(
-      fact: CandidateComparisonFact,
-      referenceRecords: List[EvidenceRecord],
-      candidateRecords: List[EvidenceRecord],
-      sharedRecords: List[EvidenceRecord]
-  ): List[EvidenceRecord] =
-    val referenceSupport = developmentChoiceRecords(referenceRecords)
-    val candidateSupport = developmentChoiceRecords(candidateRecords)
-    val functionProof = referenceOnlyDefenseFunctionRecords(fact, sharedRecords)
-    val samePieceChoice =
-      referenceSupport.exists(referenceRecord =>
-        candidateSupport.exists(candidateRecord => sameDevelopmentPieceChoice(referenceRecord, candidateRecord))
-      )
-    Option
-      .when(
-        fact.kind == CandidateComparisonKind.PlayedVsBest &&
-          fact.comparison.winPercentLossForMover >= JudgmentThresholds.BLUNDER_WP &&
-          samePieceChoice &&
-          functionProof.nonEmpty
-      )(referenceSupport ++ candidateSupport ++ functionProof)
-      .getOrElse(Nil)
-      .distinctBy(_.ref.id)
 
   private[chessjudgment] def referenceOnlyDefenseFunctionRecords(
       fact: CandidateComparisonFact,
@@ -805,31 +743,6 @@ private[chessjudgment] object RelativeCauseSignalProfile:
       case _ =>
         false
     }
-
-  private def developmentChoiceRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
-    records.filter {
-      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
-        payload.hasDevelopmentActivation &&
-          payload.developmentChoices.nonEmpty
-      case _ =>
-        false
-    }
-
-  private def sameDevelopmentPieceChoice(left: EvidenceRecord, right: EvidenceRecord): Boolean =
-    developmentChoices(left).exists(leftMove =>
-      developmentChoices(right).exists(rightMove =>
-        leftMove.role == rightMove.role &&
-          leftMove.from == rightMove.from &&
-          leftMove.to != rightMove.to
-      )
-    )
-
-  private def developmentChoices(record: EvidenceRecord) =
-    record.payload match
-      case payload: StructuralDeltaEvidence =>
-        payload.developmentChoices
-      case _ =>
-        Nil
 
   private[chessjudgment] def candidateConcreteTacticalBridgeRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
     records.filter {
@@ -883,24 +796,12 @@ private[chessjudgment] object RelativeCauseSignalProfile:
     ).distinctBy(_.ref.id)
 
   private def strategicCompensationRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
-    records.filter {
-      case EvidenceRecord(_, payload @ StrategicFactEvidence(StrategicFactKind.Compensation, _, _, confidence), _) =>
-        confidence >= 0.35 && payload.hasTypedSupport
-      case _ =>
-        false
-    }
+    strategicMechanismRecords(records)(_.canSupportCompensation)
 
   private def compensationAnchorRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
-    records.filter {
-      case EvidenceRecord(_, PlanPressureEvidence(scoring, activePlans), _) =>
-        ClaimTruthPolicy.planPressureHasDirectEvidence(scoring, activePlans)
-      case EvidenceRecord(_, payload: PawnStructureFactEvidence, _) =>
-        ClaimTruthPolicy.pawnStructureCanAnchorPlan(payload)
-      case EvidenceRecord(_, FeatureAnchorEvidence(anchor), _) =>
-        anchor.signal == FeatureAnchorSignal.CompensationObserved && anchor.hasPositiveStrength
-      case _ =>
-        false
-    }
+    strategicMechanismRecords(records)(payload =>
+      payload.canSupportCompensation || payload.canAnchorPlanIdea || payload.canAnchorPawnStructureIdea
+    )
 
   private def proofSignalMaterialSummaryRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
     records.filter {
@@ -920,18 +821,8 @@ private[chessjudgment] object RelativeCauseSignalProfile:
       (referenceScore >= 2 && candidateScore <= 1)
 
   private[chessjudgment] def strategicImprovementScore(records: List[EvidenceRecord]): Int =
-    records.map {
-      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
-        payload.structuralImprovementScore
-      case EvidenceRecord(_, PlanTransitionEvidence(transition), _) =>
-        if transition.primaryPlanId.nonEmpty && transition.transitionType != TransitionType.Opening then 2 else 0
-      case EvidenceRecord(_, PlanPressureEvidence(scoring, activePlans), _) =>
-        if ClaimTruthPolicy.planPressureHasDirectEvidence(scoring, activePlans) then 2 else 0
-      case EvidenceRecord(_, PawnStructureFactEvidence(_, alignment, pawnPlay), _) =>
-        alignment.count(alignment => alignment.band == AlignmentBand.OnBook || alignment.band == AlignmentBand.Playable) * 2 +
-          pawnPlay.count(_.primaryDriver != PawnPlayDriver.Quiet)
-      case _ =>
-        0
+    records.collect { case EvidenceRecord(_, payload: StrategicMechanismEvidence, _) =>
+      payload.directStrength
     }.sum
 
   private def typedMaterialConsequenceSwing(

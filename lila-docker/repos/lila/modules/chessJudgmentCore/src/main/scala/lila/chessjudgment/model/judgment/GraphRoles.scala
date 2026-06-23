@@ -77,6 +77,7 @@ enum EvidenceLayer:
   case SinglePosition
   case PawnStructure
   case Strategic
+  case StrategicMechanism
   case OpeningContext
   case FeatureAnchor
   case ApplicabilityAssessment

@@ -399,6 +399,14 @@ case class ThreatEpisodeCauseProof(
     severity: ThreatSeverity
 )
 
+case class StrategicMechanismProof(
+    source: EvidenceRef,
+    kind: StrategicMechanismKind,
+    signals: List[StrategicMechanismSignal]
+):
+  def hasConcreteProof: Boolean =
+    signals.nonEmpty
+
 case class RelativeCauseProofSection(
     role: RelativeCauseProofRole,
     strength: RelativeCauseProofStrength,
@@ -407,6 +415,7 @@ case class RelativeCauseProofSection(
     lineConsequences: List[LineConsequenceProof] = Nil,
     relationProofs: List[RelationCauseProof] = Nil,
     tacticalMechanisms: List[TacticalMechanismProof] = Nil,
+    strategicMechanisms: List[StrategicMechanismProof] = Nil,
     threatEpisodes: List[ThreatEpisodeCauseProof] = Nil,
     transitionConsequences: List[TransitionConsequenceProof] = Nil,
     contextLayers: List[EvidenceLayer] = Nil
@@ -418,6 +427,7 @@ case class RelativeCauseProofSection(
         lineConsequences.map(_.source) ++
         relationProofs.map(_.source) ++
         tacticalMechanisms.map(_.source) ++
+        strategicMechanisms.map(_.source) ++
         threatEpisodes.map(_.source) ++
         transitionConsequences.map(_.source)
     ).distinctBy(_.id)
@@ -427,6 +437,7 @@ case class RelativeCauseProofSection(
       lineConsequences.nonEmpty ||
       relationProofs.exists(_.hasConcreteProof) ||
       tacticalMechanisms.exists(_.hasConcreteProof) ||
+      strategicMechanisms.exists(_.hasConcreteProof) ||
       threatEpisodes.nonEmpty ||
       transitionConsequences.nonEmpty
 
@@ -445,6 +456,7 @@ case class RelativeCauseProofSection(
       lineConsequences.map(proof => s"LineConsequence:${proof.kind}") ++
       relationProofs.map(proof => s"Relation:${proof.kind}:${proof.detailName}") ++
       tacticalMechanisms.map(proof => s"TacticalMechanism:${proof.kind}") ++
+      strategicMechanisms.map(proof => s"StrategicMechanism:${proof.kind}") ++
       threatEpisodes.map(proof => s"ThreatEpisode:${proof.driver}:${proof.kind}:${proof.severity}") ++
       transitionConsequences.map(proof => s"TransitionConsequence:${proof.anchorKey}") ++
       contextLayers.map(layer => s"ContextLayer:$layer")
@@ -463,6 +475,7 @@ object RelativeCauseProofSection:
       lineConsequences = sections.flatMap(_.lineConsequences).distinct,
       relationProofs = sections.flatMap(_.relationProofs).distinct,
       tacticalMechanisms = sections.flatMap(_.tacticalMechanisms).distinct,
+      strategicMechanisms = sections.flatMap(_.strategicMechanisms).distinct,
       threatEpisodes = sections.flatMap(_.threatEpisodes).distinct,
       transitionConsequences = sections.flatMap(_.transitionConsequences).distinct,
       contextLayers = sections.flatMap(_.contextLayers).distinct
@@ -504,6 +517,8 @@ case class RelativeCauseProof(
     proofSections.flatMap(_.relationProofs).distinct
   def tacticalMechanisms: List[TacticalMechanismProof] =
     proofSections.flatMap(_.tacticalMechanisms).distinct
+  def strategicMechanisms: List[StrategicMechanismProof] =
+    proofSections.flatMap(_.strategicMechanisms).distinct
   def threatEpisodes: List[ThreatEpisodeCauseProof] =
     proofSections.flatMap(_.threatEpisodes).distinct
   def transitionConsequences: List[TransitionConsequenceProof] =

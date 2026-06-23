@@ -232,6 +232,8 @@ object JudgmentPacketValidator:
               frame.proofDirectSourceIds ++
               frame.proofContrastSourceIds ++
               frame.proofContextSupportSourceIds ++
+              frame.proofStrategicMechanismSourceIds ++
+              frame.proofStrategicMechanismSignalSourceIds ++
               frame.supportEvidenceSourceIds
           ) ++
           view.overriddenLocalIdeas.flatMap(_.evidenceIds) ++
@@ -356,7 +358,11 @@ object JudgmentPacketValidator:
           cluster.interactions.flatMap(_.evidence) ++
           cluster.proofTransitionConsequences.map(_.source) ++
           cluster.causeProofs.flatMap(proof =>
-            proof.proofDirectSourceIds ++ proof.proofContrastSourceIds ++ proof.proofContextSupportSourceIds
+            proof.proofDirectSourceIds ++
+              proof.proofContrastSourceIds ++
+              proof.proofContextSupportSourceIds ++
+              proof.proofStrategicMechanismSourceIds ++
+              proof.proofStrategicMechanismSignalSourceIds
           ).distinct.flatMap(id => packet.evidenceGraph.byId.get(id).map(_.ref))
       ),
       graphIds,
@@ -448,6 +454,7 @@ object JudgmentPacketValidator:
       Set(
         EvidenceLayer.PawnStructure,
         EvidenceLayer.Strategic,
+        EvidenceLayer.StrategicMechanism,
         EvidenceLayer.OpeningContext,
         EvidenceLayer.FeatureAnchor,
         EvidenceLayer.ApplicabilityAssessment,
@@ -618,6 +625,9 @@ object JudgmentPacketValidator:
     relativeProof.directProof.sourceRefs.map(_.id).toSet == causeProof.proofDirectSourceIds.toSet &&
       relativeProof.contrastProof.sourceRefs.map(_.id).toSet == causeProof.proofContrastSourceIds.toSet &&
       relativeProof.contextSupport.sourceRefs.map(_.id).toSet == causeProof.proofContextSupportSourceIds.toSet &&
+      relativeProof.strategicMechanisms.map(_.kind).toSet == causeProof.proofStrategicMechanismKinds.toSet &&
+      relativeProof.strategicMechanisms.map(_.source.id).toSet == causeProof.proofStrategicMechanismSourceIds.toSet &&
+      relativeProof.strategicMechanisms.flatMap(_.signals.map(_.source.id)).toSet == causeProof.proofStrategicMechanismSignalSourceIds.toSet &&
       relativeProof.directProof.kindLabels.toSet == causeProof.proofDirectKinds.toSet &&
       relativeProof.contrastProof.kindLabels.toSet == causeProof.proofContrastKinds.toSet &&
       relativeProof.contextSupport.kindLabels.toSet == causeProof.proofContextSupportKinds.toSet
@@ -630,6 +640,8 @@ object JudgmentPacketValidator:
       proof.proofDirectSourceIds ++
         proof.proofContrastSourceIds ++
         proof.proofContextSupportSourceIds ++
+        proof.proofStrategicMechanismSourceIds ++
+        proof.proofStrategicMechanismSignalSourceIds ++
         proof.supportEvidenceSourceIds
     ).flatMap(id => graph.byId.get(id).map(_.ref)).headOption
 
@@ -1054,6 +1066,7 @@ object JudgmentPacketValidator:
       proof.lineConsequenceProofs.forall(proof => parents.exists(parentHasLineConsequence(_, proof))) &&
       proof.relationProofs.forall(relationProof => parents.exists(parentHasRelationProof(_, relationProof))) &&
       proof.tacticalMechanisms.forall(mechanismProof => parents.exists(parentHasTacticalMechanism(_, mechanismProof))) &&
+      proof.strategicMechanisms.forall(mechanismProof => parents.exists(parentHasStrategicMechanism(_, mechanismProof))) &&
       proof.threatEpisodes.forall(threatProof => parents.exists(parentHasThreatEpisode(_, threatProof))) &&
       proof.transitionConsequences.forall(proof => parents.exists(parentHasTransitionConsequence(_, proof))) &&
       proof.contextLayers.forall(layer => parents.exists(_.ref.layer == layer))
@@ -1162,6 +1175,18 @@ object JudgmentPacketValidator:
       case _ =>
         false
 
+  private def parentHasStrategicMechanism(record: EvidenceRecord, proof: StrategicMechanismProof): Boolean =
+    record match
+      case EvidenceRecord(ref, payload: StrategicMechanismEvidence, _) =>
+        ref.id == proof.source.id &&
+          payload.kind == proof.kind &&
+          proof.signals.forall(signal =>
+            payload.signals.contains(signal) &&
+              record.parents.exists(parent => parent.id == signal.source.id)
+          )
+      case _ =>
+        false
+
   private def parentHasThreatEpisode(record: EvidenceRecord, proof: ThreatEpisodeCauseProof): Boolean =
     record match
       case EvidenceRecord(ref, payload: ThreatEpisodeEvidence, _) =>
@@ -1250,8 +1275,6 @@ object JudgmentPacketValidator:
       case ProbePurpose.ReplyMultipv | ProbePurpose.DefenseReplyMultipv | ProbePurpose.ConvertReplyMultipv |
           ProbePurpose.RecaptureBranches | ProbePurpose.KeepTensionBranches | ProbePurpose.FreeTempoBranches =>
         true
-      case _ =>
-        false
 
   private def validUciMove(raw: String): Boolean =
     Option(raw).map(_.trim.toLowerCase).exists(_.matches("""[a-h][1-8][a-h][1-8][nbrq]?"""))

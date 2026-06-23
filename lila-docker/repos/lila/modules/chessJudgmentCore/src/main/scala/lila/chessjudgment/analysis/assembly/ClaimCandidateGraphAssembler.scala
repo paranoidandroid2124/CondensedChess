@@ -1,9 +1,7 @@
 package lila.chessjudgment.analysis.assembly
 
-import lila.chessjudgment.analysis.singlePosition.PawnPlayDriver
 import lila.chessjudgment.analysis.evaluation.JudgmentThresholds
 import lila.chessjudgment.analysis.policy.{ ClaimTruthDecision, ClaimTruthPolicy, ClaimTruthStatus }
-import lila.chessjudgment.model.structure.{ AlignmentBand, StructureId }
 import lila.chessjudgment.model.judgment.*
 
 final case class ClaimCandidateGraph(
@@ -169,6 +167,7 @@ object ClaimDeduplicator:
       claim.engineComparison.isEmpty &&
       claim.evidence.nonEmpty &&
       !claim.evidence.exists(ref => ClaimSupportCluster.longTermSupportExcludedLayer(ref.layer)) &&
+      !claim.evidence.exists(ref => StrategicMechanismEvidence.rawStrategicSourceLayer(ref.layer)) &&
       ClaimSupportCluster.semanticAnchors(claim, graph).nonEmpty
 
   private def aggregationKey(
@@ -238,7 +237,8 @@ object ClaimDeduplicator:
       case ClaimFamily.Tactical =>
         tacticalPriorityEvidenceRecord(record)
       case family if family.isLongTerm =>
-        !ClaimSupportCluster.longTermSupportExcludedLayer(record.ref.layer)
+        !ClaimSupportCluster.longTermSupportExcludedLayer(record.ref.layer) &&
+          !StrategicMechanismEvidence.rawStrategicSourceLayer(record.ref.layer)
       case _ =>
         true
 
@@ -408,6 +408,7 @@ object ClaimArbitrator:
     }.distinctBy(_.id)
 
   private def claimLifecycleRelativeCause(id: String, cause: RelativeCauseFact): ClaimLifecycleRelativeCause =
+    val strategicMechanisms = cause.proof.toList.flatMap(_.strategicMechanisms)
     ClaimLifecycleRelativeCause(
       id = id,
       kind = cause.kind,
@@ -421,6 +422,9 @@ object ClaimArbitrator:
       proofDirectSourceIds = cause.proof.toList.flatMap(_.directProof.sourceRefs.map(_.id)).distinct.sorted,
       proofContrastSourceIds = cause.proof.toList.flatMap(_.contrastProof.sourceRefs.map(_.id)).distinct.sorted,
       proofContextSupportSourceIds = cause.proof.toList.flatMap(_.contextSupport.sourceRefs.map(_.id)).distinct.sorted,
+      proofStrategicMechanismKinds = strategicMechanisms.map(_.kind).distinct.sortBy(_.toString),
+      proofStrategicMechanismSourceIds = strategicMechanisms.map(_.source.id).distinct.sorted,
+      proofStrategicMechanismSignalSourceIds = strategicMechanisms.flatMap(_.signals.map(_.source.id)).distinct.sorted,
       supportEvidenceSourceIds = cause.supportEvidence.map(_.id).distinct.sorted,
       proofDirectKinds = cause.proof.toList.flatMap(_.directProof.kindLabels).distinct.sorted,
       proofContrastKinds = cause.proof.toList.flatMap(_.contrastProof.kindLabels).distinct.sorted,
@@ -727,7 +731,13 @@ object ClaimArbitrator:
         records
 
   private def longTermSalienceRecord(record: EvidenceRecord): Boolean =
-    !ClaimSupportCluster.longTermSupportExcludedLayer(record.ref.layer)
+    !ClaimSupportCluster.longTermSupportExcludedLayer(record.ref.layer) &&
+      (record.ref.layer match
+        case layer if StrategicMechanismEvidence.rawStrategicSourceLayer(layer) =>
+          false
+        case _ =>
+          true
+      )
 
   private def tacticalSalienceRecord(record: EvidenceRecord): Boolean =
     record.payload match
@@ -818,6 +828,7 @@ object ClaimArbitrator:
     proofIds.intersect(evidenceIds).nonEmpty || supportIds.intersect(evidenceIds).nonEmpty
 
   private def interactionBasisFromCause(cause: RelativeCauseFact): ClaimInteractionBasis =
+    val strategicMechanisms = cause.proof.toList.flatMap(_.strategicMechanisms)
     ClaimInteractionBasis(
       causeKind = cause.kind,
       comparisonKind = cause.comparisonKind,
@@ -830,6 +841,9 @@ object ClaimArbitrator:
       proofDirectSourceIds = cause.proof.toList.flatMap(_.directProof.sourceRefs.map(_.id)).distinct.sorted,
       proofContrastSourceIds = cause.proof.toList.flatMap(_.contrastProof.sourceRefs.map(_.id)).distinct.sorted,
       proofContextSupportSourceIds = cause.proof.toList.flatMap(_.contextSupport.sourceRefs.map(_.id)).distinct.sorted,
+      proofStrategicMechanismKinds = strategicMechanisms.map(_.kind).distinct.sortBy(_.toString),
+      proofStrategicMechanismSourceIds = strategicMechanisms.map(_.source.id).distinct.sorted,
+      proofStrategicMechanismSignalSourceIds = strategicMechanisms.flatMap(_.signals.map(_.source.id)).distinct.sorted,
       supportEvidenceSourceIds = cause.supportEvidence.map(_.id).distinct.sorted
     )
 
@@ -979,7 +993,8 @@ object ClaimArbitrator:
 
   private def primaryInteractionCause(cause: RelativeCauseFact): Boolean =
     cause.role == RelativeCauseRole.PrimaryPlayedCause &&
-      cause.importance == RelativeCauseImportance.Primary
+      cause.importance == RelativeCauseImportance.Primary &&
+      badVerdict(cause.verdict)
 
   private def conversionInteractionCause(cause: RelativeCauseFact): Boolean =
     cause.kind == RelativeCauseKind.ConversionSecured &&
@@ -1002,29 +1017,10 @@ object ClaimArbitrator:
         0
       case _: ThreatPressureEvidence =>
         0
-      case PlanPressureEvidence(scoring, activePlans) =>
-        val primary = math.round(activePlans.primary.score * 10).toInt
-        primary +
-          math.round(scoring.confidence * 4).toInt +
-          activePlans.secondary.map(_ => 1).getOrElse(0)
-      case PawnStructureFactEvidence(profile, alignment, pawnPlay) =>
-        val structure = if profile.primary != StructureId.Unknown then math.round(profile.confidence * 6).toInt else 0
-        val planAlignment = alignment.map { a =>
-          a.band match
-            case AlignmentBand.OnBook   => 5
-            case AlignmentBand.Playable => 4
-            case AlignmentBand.OffPlan  => 5
-            case AlignmentBand.Unknown  => 0
-        }.getOrElse(0)
-        val pawnDriver = pawnPlay.map { play =>
-          play.primaryDriver match
-            case PawnPlayDriver.PassedPawn | PawnPlayDriver.BreakReady | PawnPlayDriver.TensionCritical => 5
-            case PawnPlayDriver.TensionActive | PawnPlayDriver.Defensive                                => 3
-            case PawnPlayDriver.Quiet                                                                   => 0
-        }.getOrElse(0)
-        structure + planAlignment + pawnDriver
-      case payload @ StrategicFactEvidence(kind, _, _, confidence) =>
-        if strategicFactHasClaimAnchor(payload) then math.round(confidence * 5).toInt + strategicKindSalience(kind) else 0
+      case PlanPressureEvidence(_, _) | PawnStructureFactEvidence(_, _, _) | StrategicFactEvidence(_, _, _, _) =>
+        0
+      case payload: StrategicMechanismEvidence =>
+        if payload.canSupportStrategicCause then payload.directStrength + strategicMechanismSalience(payload.kind) else 0
       case RelativeAssessmentEvidence(assessment) =>
         engineComparisonSalience(Some(assessment.comparison))
       case CounterfactualFactEvidence(_, _, comparison) =>
@@ -1036,22 +1032,12 @@ object ClaimArbitrator:
       case MoveVerdictCertificationEvidence(certification) =>
         engineComparisonSalience(Some(certification.primaryComparison.comparison)) +
           certificationScoringCauses(certification).map(relativeCauseSalience).maxOption.getOrElse(0)
-      case payload: StructuralDeltaEvidence =>
-        if payload.hasMeaningfulConsequences then 5 else 0
+      case _: StructuralDeltaEvidence =>
+        0
       case OpeningContextEvidence(_, _, _, _) =>
         0
-      case FeatureAnchorEvidence(anchor) =>
-        math.round(anchor.strength * 6).toInt + 2
-      case ApplicabilityAssessmentEvidence(assessment) =>
-        val statusScore =
-          assessment.status match
-            case ApplicabilityStatus.Supported          => 6
-            case ApplicabilityStatus.PartiallySupported => 4
-            case ApplicabilityStatus.InternalOnly       => 3
-            case ApplicabilityStatus.Unverified         => 1
-            case ApplicabilityStatus.Ambiguous          => 1
-            case ApplicabilityStatus.Contradicted       => 0
-        statusScore + assessment.observedThemes.size.min(4)
+      case FeatureAnchorEvidence(_) | ApplicabilityAssessmentEvidence(_) =>
+        0
       case SinglePositionEvidence(_) =>
         1
       case _: BoardFactEvidence =>
@@ -1062,8 +1048,10 @@ object ClaimArbitrator:
         0
       case _: MoveMotifEvidence =>
         0
-      case MoveTransitionEvidence(_, _, _) | PlanTransitionEvidence(_) | ChessIdeaEvidence(_) | ClaimEvidence(_) =>
+      case MoveTransitionEvidence(_, _, _) | ChessIdeaEvidence(_) | ClaimEvidence(_) =>
         1
+      case PlanTransitionEvidence(_) =>
+        0
 
   private def recordDrivers(record: EvidenceRecord): List[ClaimSalienceDriver] =
     record.payload match
@@ -1080,22 +1068,12 @@ object ClaimArbitrator:
         Option.when(!payload.insufficientData && payload.defenseRequired)(ClaimSalienceDriver.DefensiveUrgency).toList
       case _: ThreatPressureEvidence =>
         Nil
-      case PlanPressureEvidence(_, _) =>
-        List(ClaimSalienceDriver.PlanPressure)
-      case PawnStructureFactEvidence(_, alignment, pawnPlay) =>
-        Option.when(alignment.nonEmpty || pawnPlay.exists(_.primaryDriver != PawnPlayDriver.Quiet))(
-          ClaimSalienceDriver.PawnStructureAlignment
-        ).toList
-      case payload @ StrategicFactEvidence(StrategicFactKind.Endgame, _, _, _) if payload.hasTypedSupport =>
-        List(ClaimSalienceDriver.EndgamePattern)
-      case payload: StrategicFactEvidence if payload.hasTypedSupport =>
-        List(ClaimSalienceDriver.StrategicFeature)
-      case payload: StructuralDeltaEvidence =>
-        Option.when(payload.hasMeaningfulConsequences)(ClaimSalienceDriver.StructuralChange).toList
-      case FeatureAnchorEvidence(_) =>
-        List(ClaimSalienceDriver.BoardAnchor)
-      case ApplicabilityAssessmentEvidence(assessment) if assessment.canCertifyOpeningClaim =>
-        List(ClaimSalienceDriver.OpeningContext)
+      case PlanPressureEvidence(_, _) | PawnStructureFactEvidence(_, _, _) | StrategicFactEvidence(_, _, _, _) =>
+        Nil
+      case payload: StrategicMechanismEvidence =>
+        strategicMechanismDrivers(payload)
+      case _: StructuralDeltaEvidence | FeatureAnchorEvidence(_) | ApplicabilityAssessmentEvidence(_) =>
+        Nil
       case RelativeAssessmentEvidence(_) | CounterfactualFactEvidence(_, _, _) =>
         List(ClaimSalienceDriver.EngineSwing)
       case CandidateComparisonEvidence(fact) =>
@@ -1120,19 +1098,30 @@ object ClaimArbitrator:
       case TacticalMechanismKind.Conversion | TacticalMechanismKind.DrawResource | TacticalMechanismKind.DefensiveResource =>
         3
 
-  private def strategicKindSalience(kind: StrategicFactKind): Int =
+  private def strategicMechanismSalience(kind: StrategicMechanismKind): Int =
     kind match
-      case StrategicFactKind.Endgame | StrategicFactKind.CounterplayRestraint | StrategicFactKind.TargetFixation =>
+      case StrategicMechanismKind.TargetPressure | StrategicMechanismKind.KingSafety |
+          StrategicMechanismKind.StrategicConcession | StrategicMechanismKind.Compensation =>
         4
-      case StrategicFactKind.PlanPressure | StrategicFactKind.Structure | StrategicFactKind.Compensation =>
+      case StrategicMechanismKind.StructuralImprovement | StrategicMechanismKind.CenterControl |
+          StrategicMechanismKind.PawnWeakness | StrategicMechanismKind.Activity | StrategicMechanismKind.Endgame =>
         3
-      case StrategicFactKind.Outpost | StrategicFactKind.FileControl | StrategicFactKind.Space | StrategicFactKind.Activity =>
+      case StrategicMechanismKind.PawnStructure | StrategicMechanismKind.PlanPressure |
+          StrategicMechanismKind.OpeningAlignment =>
         2
-      case StrategicFactKind.Practicality =>
-        1
 
-  private def strategicFactHasClaimAnchor(payload: StrategicFactEvidence): Boolean =
-    payload.hasTypedSupport
+  private def strategicMechanismDrivers(payload: StrategicMechanismEvidence): List[ClaimSalienceDriver] =
+    payload.kind match
+      case StrategicMechanismKind.PlanPressure =>
+        Option.when(payload.canAnchorPlanIdea)(ClaimSalienceDriver.PlanPressure).toList
+      case StrategicMechanismKind.PawnStructure =>
+        Option.when(payload.canAnchorPawnStructureIdea)(ClaimSalienceDriver.PawnStructureAlignment).toList
+      case StrategicMechanismKind.OpeningAlignment =>
+        Option.when(payload.canAnchorOpeningIdea)(ClaimSalienceDriver.OpeningContext).toList
+      case StrategicMechanismKind.Endgame =>
+        List(ClaimSalienceDriver.EndgamePattern)
+      case _ =>
+        Option.when(payload.canSupportStrategicCause)(ClaimSalienceDriver.StrategicFeature).toList
 
   private def engineComparisonSalience(comparison: Option[EvalComparison]): Int =
     comparison.map { cmp =>
