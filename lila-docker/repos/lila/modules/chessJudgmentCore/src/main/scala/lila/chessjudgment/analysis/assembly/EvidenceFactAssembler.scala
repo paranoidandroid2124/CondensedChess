@@ -424,7 +424,7 @@ object EvidenceFactAssembler:
             moveUci = None,
             scope = ref.scope,
             records = List(record),
-            signals = List(TacticalMechanismSignal(TacticalMechanismSignalKind.ThreatEpisode, ref.id, EvidenceLayer.ThreatPressure))
+            signals = List(TacticalMechanismSignal(TacticalMechanismSignalKind.ThreatEpisode, ref.id, EvidenceLayer.ThreatPressure, Some(ref)))
           )
       }.flatten
     (lineMechanisms ++ unlinedTransitionMechanisms ++ unlinedThreatMechanisms).distinctBy(_.ref.id)
@@ -488,7 +488,7 @@ object EvidenceFactAssembler:
                 TacticalMechanismCandidate(
                   kind,
                   List(record),
-                  List(TacticalMechanismSignal(TacticalMechanismSignalKind.Motif, payload.proof.kind, EvidenceLayer.MoveMotif))
+                  List(TacticalMechanismSignal(TacticalMechanismSignalKind.Motif, payload.proof.kind, EvidenceLayer.MoveMotif, Some(record.ref)))
                 )
               )
             }
@@ -497,7 +497,7 @@ object EvidenceFactAssembler:
               TacticalMechanismCandidate(
                 TacticalMechanismKind.fromRelation(payload.kind),
                 List(record),
-                List(TacticalMechanismSignal(TacticalMechanismSignalKind.Relation, payload.kind.toString, EvidenceLayer.Relation))
+                List(TacticalMechanismSignal(TacticalMechanismSignalKind.Relation, payload.kind.toString, EvidenceLayer.Relation, Some(record.ref)))
               )
             )
           case payload: LineFactEvidence =>
@@ -506,7 +506,7 @@ object EvidenceFactAssembler:
                 TacticalMechanismCandidate(
                   mechanismKind,
                   List(record),
-                  List(TacticalMechanismSignal(TacticalMechanismSignalKind.LineConsequence, kind.toString, EvidenceLayer.Line))
+                  List(TacticalMechanismSignal(TacticalMechanismSignalKind.LineConsequence, kind.toString, EvidenceLayer.Line, Some(record.ref)))
                 )
               )
             )
@@ -515,7 +515,7 @@ object EvidenceFactAssembler:
               TacticalMechanismCandidate(
                 TacticalMechanismKind.KingForcing,
                 List(record),
-                List(TacticalMechanismSignal(TacticalMechanismSignalKind.MateBranch, mate.map(_.toString).getOrElse("mate"), EvidenceLayer.Eval))
+                List(TacticalMechanismSignal(TacticalMechanismSignalKind.MateBranch, mate.map(_.toString).getOrElse("mate"), EvidenceLayer.Eval, Some(record.ref)))
               )
             )
           case payload: ThreatEpisodeEvidence if payload.isProofSignalDefensivePressure =>
@@ -523,7 +523,7 @@ object EvidenceFactAssembler:
               TacticalMechanismCandidate(
                 TacticalMechanismKind.DefensiveResource,
                 List(record),
-                List(TacticalMechanismSignal(TacticalMechanismSignalKind.ThreatEpisode, payload.episode.episodeId, EvidenceLayer.ThreatPressure))
+                List(TacticalMechanismSignal(TacticalMechanismSignalKind.ThreatEpisode, payload.episode.episodeId, EvidenceLayer.ThreatPressure, Some(record.ref)))
               )
             )
           case _ =>

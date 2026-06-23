@@ -160,7 +160,8 @@ object ChessIdeaAssembler:
       allocator: JudgmentProvenanceAllocator
   ): List[ChessIdea] =
     context.evidenceGraph.records.flatMap {
-      case EvidenceRecord(ref, payload: StrategicMechanismEvidence, parents) if payload.canAnchorPawnStructureIdea =>
+      case EvidenceRecord(ref, payload: StrategicMechanismEvidence, parents)
+          if payload.canAnchorPawnStructureIdea && lineBoundLongTermMechanism(ref) =>
         val evidence =
           longTermIdeaEvidence(
             ref :: parents ++
@@ -293,7 +294,7 @@ object ChessIdeaAssembler:
     val subjectLine = cause.eventLine
     val supportRefs = relativeCauseIdeaSupportRefs(context, cause, parents)
     val depthProofRefs = relativeCauseIdeaDepthProofRefs(cause)
-    familiesForRelativeCause(context, ref, cause, supportRefs, depthProofRefs).map { family =>
+    familiesForRelativeCause(context, ref, cause, supportRefs).map { family =>
       val familyEvidence = relativeCauseIdeaEvidence(context, ref, supportRefs, depthProofRefs, family)
       ChessIdeaBuilder.fromEvidence(
         id = relativeCauseIdeaId(allocator, family, cause, subjectLine, ref),
@@ -378,21 +379,19 @@ object ChessIdeaAssembler:
       context: JudgmentAssemblyContext,
       ref: EvidenceRef,
       cause: RelativeCauseFact,
-      supportRefs: List[EvidenceRef],
-      depthProofRefs: List[EvidenceRef]
+      supportRefs: List[EvidenceRef]
   ): List[ChessIdeaFamily] =
     val supportRecords = recordsForRefs(context, supportRefs)
-    val depthProofRecords = recordsForRefs(context, depthProofRefs)
     cause.kind match
       case RelativeCauseKind.MaterialSwing =>
         val promoted =
           List(
-            Option.when(cause.hasTypedDepth)(ChessIdeaFamily.Material),
+            Option.when(cause.hasOwnedTypedDepth)(ChessIdeaFamily.Material),
             Option.when(
-              materialSwingHasTacticalProof(cause, depthProofRecords)
+              materialSwingHasTacticalProof(cause)
             )(ChessIdeaFamily.Tactical),
             Option.when(
-              cause.hasTypedDepth &&
+              cause.hasOwnedTypedDepth &&
                 hasConversionContext(context, ref.position, supportRefs)
             )(ChessIdeaFamily.Conversion)
           ).flatten
@@ -400,30 +399,35 @@ object ChessIdeaAssembler:
       case RelativeCauseKind.SacrificeCompensation =>
         val promoted =
           List(
-            Option.when(cause.hasTypedDepth)(ChessIdeaFamily.Material),
-            Option.when(hasConcreteTacticalSupport(depthProofRecords))(ChessIdeaFamily.Tactical),
-            Option.when(hasStrategicCompensationSupport(supportRecords))(ChessIdeaFamily.Strategic)
+            Option.when(cause.hasOwnedTypedDepth)(ChessIdeaFamily.Material),
+            Option.when(relativeCauseHasTacticalProof(cause))(ChessIdeaFamily.Tactical)
           ).flatten
         promoted.distinct
       case kind if strategicRelativeCause(kind) =>
         List(
-          Option.when(hasStrategicRelativeCauseSupport(supportRecords))(ChessIdeaFamily.Strategic),
-          Option.when(hasPawnStructureRelativeCauseSupport(supportRecords))(ChessIdeaFamily.PawnStructure),
-          Option.when(hasOpeningRelativeCauseSupport(supportRecords))(ChessIdeaFamily.Opening)
+          Option.when(cause.hasOwnedStrategicContrastDepth && hasStrategicRelativeCauseSupport(supportRecords))(
+            ChessIdeaFamily.Strategic
+          ),
+          Option.when(cause.hasOwnedStrategicContrastDepth && hasPawnStructureRelativeCauseSupport(supportRecords))(
+            ChessIdeaFamily.PawnStructure
+          ),
+          Option.when(cause.hasOwnedStrategicContrastDepth && hasOpeningRelativeCauseSupport(supportRecords))(
+            ChessIdeaFamily.Opening
+          )
         ).flatten.distinct
       case _ =>
         val base = familyForRelativeCause(cause.kind)
         val baseFamily =
           Option.when(
-            (base != ChessIdeaFamily.Tactical || relativeCauseHasTacticalProof(cause, depthProofRecords)) &&
-              (base != ChessIdeaFamily.Material || cause.hasTypedDepth) &&
-              (base != ChessIdeaFamily.Conversion || cause.hasTypedDepth) &&
+            (base != ChessIdeaFamily.Tactical || relativeCauseHasTacticalProof(cause)) &&
+              (base != ChessIdeaFamily.Material || cause.hasOwnedTypedDepth) &&
+              (base != ChessIdeaFamily.Conversion || cause.hasOwnedTypedDepth) &&
               (base != ChessIdeaFamily.Defensive || ClaimTruthPolicy.defensiveRelativeCauseCanSeedIdea(cause))
           )(base)
         val conversionFamily =
           Option.when(
             materialConversionCause(cause.kind) &&
-              cause.hasTypedDepth &&
+              cause.hasOwnedTypedDepth &&
             hasConversionContext(context, ref.position, supportRefs)
           )(ChessIdeaFamily.Conversion)
         (baseFamily.toList ++ conversionFamily.toList).distinct
@@ -431,24 +435,17 @@ object ChessIdeaAssembler:
   private def materialConversionCause(kind: RelativeCauseKind): Boolean =
     kind == RelativeCauseKind.RecaptureRecoveryWindow || kind == RelativeCauseKind.MaterialSwing
 
-  private def materialSwingHasTacticalProof(
-      cause: RelativeCauseFact,
-      records: List[EvidenceRecord]
-  ): Boolean =
+  private def materialSwingHasTacticalProof(cause: RelativeCauseFact): Boolean =
     val engineBackedMaterialSwing =
       cause.winPercentLossForMover >= JudgmentThresholds.INACCURACY_WP ||
         cause.candidateWinPercentDeltaForMover >= JudgmentThresholds.PLAYABLE_LOSS_WP
-    engineBackedMaterialSwing && relativeCauseHasTacticalProof(cause, records)
+    engineBackedMaterialSwing && relativeCauseHasTacticalProof(cause)
 
-  private def relativeCauseHasTacticalProof(
-      cause: RelativeCauseFact,
-      records: List[EvidenceRecord]
-  ): Boolean =
-    cause.proof.exists(proof => proof.directProof.hasTacticalProof || proof.contrastProof.hasTacticalProof) ||
-      hasConcreteTacticalSupport(records)
+  private def relativeCauseHasTacticalProof(cause: RelativeCauseFact): Boolean =
+    cause.hasOwnedTacticalProof
 
   private def strategicRelativeCause(kind: RelativeCauseKind): Boolean =
-    ClaimEventCluster.kindForCause(kind).isEmpty
+    RelativeCauseKind.strategicContrastBacked(kind)
 
   private def recordsForRefs(
       context: JudgmentAssemblyContext,
@@ -456,28 +453,10 @@ object ChessIdeaAssembler:
   ): List[EvidenceRecord] =
     refs.flatMap(ref => context.evidenceGraph.byId.get(ref.id))
 
-  private def hasConcreteTacticalSupport(records: List[EvidenceRecord]): Boolean =
-    records.exists {
-      case EvidenceRecord(_, payload: TacticalMechanismEvidence, _) =>
-        payload.canAnchorTacticalIdea
-      case EvidenceRecord(_, payload: RelationFactEvidence, _) =>
-        payload.hasConcreteRelationProof && payload.hasLineProof
-      case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-        payload.hasTacticalLineConsequence
-      case _ =>
-        false
-    }
-
-  private def hasStrategicCompensationSupport(records: List[EvidenceRecord]): Boolean =
-    records.exists {
-      case EvidenceRecord(_, payload: StrategicMechanismEvidence, _) =>
-        payload.canSupportCompensation
-      case _ =>
-        false
-    }
-
   private def hasStrategicRelativeCauseSupport(records: List[EvidenceRecord]): Boolean =
     records.exists {
+      case EvidenceRecord(_, payload: StrategicMechanismContrastEvidence, _) =>
+        payload.hasActionableContrast
       case EvidenceRecord(_, payload: StrategicMechanismEvidence, _) =>
         payload.canSupportStrategicCause
       case _ =>
@@ -486,6 +465,8 @@ object ChessIdeaAssembler:
 
   private def hasPawnStructureRelativeCauseSupport(records: List[EvidenceRecord]): Boolean =
     records.exists {
+      case EvidenceRecord(_, payload: StrategicMechanismContrastEvidence, _) =>
+        payload.actionableComparisons.exists(_.axis.kind == StrategicAxisKind.PawnBreak)
       case EvidenceRecord(_, payload: StrategicMechanismEvidence, _) =>
         payload.canAnchorPawnStructureIdea
       case _ =>
@@ -534,7 +515,7 @@ object ChessIdeaAssembler:
   ): List[ChessIdea] =
     context.evidenceGraph.records.flatMap {
       case EvidenceRecord(ref, payload: StrategicMechanismEvidence, parents)
-          if payload.canAnchorStrategicIdea || payload.canAnchorPlanIdea =>
+          if lineBoundLongTermMechanism(ref) && (payload.canAnchorStrategicIdea || payload.canAnchorPlanIdea) =>
         val subject =
           if payload.kind == StrategicMechanismKind.PlanPressure && payload.canAnchorPlanIdea then IdeaSubject.Plan
           else ref.line.map(_.role.subject).getOrElse(IdeaSubject.Position)
@@ -561,6 +542,9 @@ object ChessIdeaAssembler:
       case _ =>
         None
     }
+
+  private def lineBoundLongTermMechanism(ref: EvidenceRef): Boolean =
+    ref.line.exists(_.role == LineNodeRole.Played)
 
   private def openingIdeas(
       context: JudgmentAssemblyContext,

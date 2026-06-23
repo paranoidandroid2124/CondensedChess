@@ -130,6 +130,35 @@ enum RelativeCauseImportance:
   case Supporting
   case Context
 
+enum CauseAttributionKind:
+  case ReferenceCreatesResource
+  case CandidateAllowsLiability
+  case CandidateCreatesValue
+  case SharedContext
+  case ContextOnly
+  case Unattributed
+
+case class CauseAttribution(
+    kind: CauseAttributionKind,
+    ownedEvidence: List[EvidenceRef] = Nil,
+    contrastEvidence: List[EvidenceRef] = Nil,
+    contextEvidence: List[EvidenceRef] = Nil,
+    rootMoveMatched: Boolean = false,
+    directProofEligible: Boolean = false,
+    reason: Option[String] = None
+):
+  def contextOnly: Boolean =
+    kind == CauseAttributionKind.ContextOnly
+  def unattributed: Boolean =
+    kind == CauseAttributionKind.Unattributed
+  def rootMismatch: Boolean =
+    reason.contains("root-mismatch") ||
+      (!rootMoveMatched && (ownedEvidence.nonEmpty || contrastEvidence.nonEmpty))
+
+object CauseAttribution:
+  val unattributed: CauseAttribution =
+    CauseAttribution(CauseAttributionKind.Unattributed, reason = Some("no-cause-attribution"))
+
 object RelativeCauseImportance:
   def from(
       role: RelativeCauseRole,
@@ -209,11 +238,37 @@ case class RelativeCauseFact(
     role: RelativeCauseRole,
     eventLine: LineNodeRef,
     sourceSide: RelativeCauseSourceSide,
-    importance: RelativeCauseImportance
+    importance: RelativeCauseImportance,
+  attribution: CauseAttribution = CauseAttribution.unattributed
 )(val proof: Option[RelativeCauseProof] = None):
   def eventRootMove: String = eventLine.rootMove
-  def hasTypedDepth: Boolean = proof.exists(_.hasTypedDepth)
+  def hasRawTypedDepth: Boolean = proof.exists(_.hasRawTypedDepth)
+  def hasOwnedTypedDepth: Boolean =
+    attribution.directProofEligible && hasRawTypedDepth
+  def strategicCauseKind: Boolean =
+    RelativeCauseKind.strategicContrastBacked(kind)
+  def hasStrategicContrastDepth: Boolean =
+    strategicCauseKind && proof.exists(_.hasStrategicContrastDepth)
+  def hasOwnedStrategicContrastDepth: Boolean =
+    attribution.directProofEligible && hasStrategicContrastDepth
+  def hasOwnedTacticalProof: Boolean =
+    attribution.directProofEligible &&
+      proof.exists(proof => proof.directProof.hasTacticalProof || proof.contrastProof.hasTacticalProof)
+  def strategicProofIdentity: RelativeCauseStrategicProofIdentity =
+    RelativeCauseStrategicProofIdentity.fromCause(this)
   def identityKey: RelativeCauseIdentityKey = RelativeCauseIdentityKey.from(this)
+
+object RelativeCauseKind:
+  def strategicContrastBacked(kind: RelativeCauseKind): Boolean =
+    kind match
+      case RelativeCauseKind.StructuralImprovement | RelativeCauseKind.TargetPressureGain |
+          RelativeCauseKind.CenterControlGain | RelativeCauseKind.KingSafetyConcession |
+          RelativeCauseKind.PawnWeaknessTarget | RelativeCauseKind.ActivityLoss |
+          RelativeCauseKind.StrategicConcession | RelativeCauseKind.MissedStrategicImprovement |
+          RelativeCauseKind.PlanImprovement | RelativeCauseKind.PlanContradiction =>
+        true
+      case _ =>
+        false
 
 case class RelativeCauseIdentityKey(
     kind: RelativeCauseKind,
@@ -232,9 +287,19 @@ case class RelativeCauseIdentityKey(
     proofDirectSourceIds: List[String],
     proofContrastSourceIds: List[String],
     proofContextSupportSourceIds: List[String],
+    proofStrategicAxisKeys: List[String],
+    proofStrategicMechanismKinds: List[StrategicMechanismKind],
+    proofStrategicMechanismSourceIds: List[String],
+    proofStrategicMechanismSignalSourceIds: List[String],
     proofDirectKinds: List[String],
     proofContrastKinds: List[String],
-    proofContextSupportKinds: List[String]
+    proofContextSupportKinds: List[String],
+    attributionKind: CauseAttributionKind,
+    attributionOwnedEvidenceIds: List[String],
+    attributionContrastEvidenceIds: List[String],
+    attributionContextEvidenceIds: List[String],
+    attributionRootMoveMatched: Boolean,
+    attributionDirectProofEligible: Boolean
 )
 
 case class RelativeCauseBinding(
@@ -264,9 +329,19 @@ object RelativeCauseIdentityKey:
       proofDirectSourceIds = cause.proof.toList.flatMap(_.directProof.sourceRefs.map(_.id)).distinct.sorted,
       proofContrastSourceIds = cause.proof.toList.flatMap(_.contrastProof.sourceRefs.map(_.id)).distinct.sorted,
       proofContextSupportSourceIds = cause.proof.toList.flatMap(_.contextSupport.sourceRefs.map(_.id)).distinct.sorted,
+      proofStrategicAxisKeys = cause.strategicProofIdentity.axisKeys,
+      proofStrategicMechanismKinds = cause.strategicProofIdentity.mechanismKinds,
+      proofStrategicMechanismSourceIds = cause.strategicProofIdentity.mechanismSourceIds,
+      proofStrategicMechanismSignalSourceIds = cause.strategicProofIdentity.signalSourceIds,
       proofDirectKinds = cause.proof.toList.flatMap(_.directProof.kindLabels).distinct.sorted,
       proofContrastKinds = cause.proof.toList.flatMap(_.contrastProof.kindLabels).distinct.sorted,
-      proofContextSupportKinds = cause.proof.toList.flatMap(_.contextSupport.kindLabels).distinct.sorted
+      proofContextSupportKinds = cause.proof.toList.flatMap(_.contextSupport.kindLabels).distinct.sorted,
+      attributionKind = cause.attribution.kind,
+      attributionOwnedEvidenceIds = cause.attribution.ownedEvidence.map(_.id).distinct.sorted,
+      attributionContrastEvidenceIds = cause.attribution.contrastEvidence.map(_.id).distinct.sorted,
+      attributionContextEvidenceIds = cause.attribution.contextEvidence.map(_.id).distinct.sorted,
+      attributionRootMoveMatched = cause.attribution.rootMoveMatched,
+      attributionDirectProofEligible = cause.attribution.directProofEligible
     )
 
 object RelativeCauseFact:
@@ -349,7 +424,8 @@ object RelativeCauseFact:
       role: RelativeCauseRole,
       eventLine: LineNodeRef,
       sourceSide: RelativeCauseSourceSide,
-      importance: RelativeCauseImportance
+      importance: RelativeCauseImportance,
+      attribution: CauseAttribution
   ): RelativeCauseFact =
     new RelativeCauseFact(
       kind = kind,
@@ -364,7 +440,8 @@ object RelativeCauseFact:
       role = role,
       eventLine = eventLine,
       sourceSide = sourceSide,
-      importance = importance
+      importance = importance,
+      attribution = attribution
     )()
 
 enum RelativeCauseProofRole:
@@ -384,13 +461,34 @@ case class BoardAnchorProof(
 
 case class LineEventProof(
     source: EvidenceRef,
-    kind: LineEventKind
-)
+    kind: LineEventKind,
+    moveUci: Option[String] = None,
+    plyOffset: Option[Int] = None,
+    side: Option[Color] = None,
+    square: Option[EvidenceSquare] = None
+):
+  def rootMoveMatched(rootMove: String): Boolean =
+    moveUci.exists(move => LineEventProof.normalizeUci(move) == LineEventProof.normalizeUci(rootMove)) ||
+      plyOffset.contains(0)
+
+object LineEventProof:
+  private def normalizeUci(raw: String): String =
+    Option(raw).getOrElse("").trim.toLowerCase
 
 case class LineConsequenceProof(
     source: EvidenceRef,
-    kind: LineConsequenceKind
-)
+    kind: LineConsequenceKind,
+    eventMove: Option[String] = None,
+    lineMoves: List[String] = Nil
+):
+  def rootMoveMatched(rootMove: String): Boolean =
+    val normalizedRoot = LineConsequenceProof.normalizeUci(rootMove)
+    eventMove.exists(move => LineConsequenceProof.normalizeUci(move) == normalizedRoot) ||
+      lineMoves.exists(move => LineConsequenceProof.normalizeUci(move) == normalizedRoot)
+
+object LineConsequenceProof:
+  private def normalizeUci(raw: String): String =
+    Option(raw).getOrElse("").trim.toLowerCase
 
 case class ThreatEpisodeCauseProof(
     source: EvidenceRef,
@@ -407,6 +505,112 @@ case class StrategicMechanismProof(
   def hasConcreteProof: Boolean =
     signals.nonEmpty
 
+case class StrategicMechanismContrastProof(
+    source: EvidenceRef,
+    comparisonKind: CandidateComparisonKind,
+    referenceLine: LineNodeRef,
+    candidateLine: LineNodeRef,
+    axisComparisons: List[StrategicAxisComparison],
+    sustainability: StrategicSustainabilityAssessment
+):
+  def hasConcreteProof: Boolean =
+    axisComparisons.exists(_.hasContrast)
+
+case class StrategicAxisProofLineage(
+    axisKey: String,
+    axisKind: StrategicAxisKind,
+    axisPolarity: StrategicAxisPolarity,
+    axisLabel: String,
+    mechanismEvidenceId: String,
+    signalSourceEvidenceId: String,
+    signalSourceLayer: EvidenceLayer
+)
+
+object StrategicAxisProofLineage:
+  def fromMechanisms(mechanisms: List[StrategicMechanismProof]): List[StrategicAxisProofLineage] =
+    mechanisms
+      .flatMap(mechanism =>
+        mechanism.signals.flatMap(signal =>
+          signal.axis.map(axis =>
+            StrategicAxisProofLineage(
+              axisKey = axis.stableKey,
+              axisKind = axis.kind,
+              axisPolarity = axis.polarity,
+              axisLabel = axis.label,
+              mechanismEvidenceId = mechanism.source.id,
+              signalSourceEvidenceId = signal.source.id,
+              signalSourceLayer = signal.source.layer
+            )
+          )
+        )
+      )
+      .distinctBy(entry => (entry.axisKey, entry.mechanismEvidenceId, entry.signalSourceEvidenceId))
+      .sortBy(entry => (entry.axisKey, entry.mechanismEvidenceId, entry.signalSourceEvidenceId))
+
+  def fromContrasts(contrasts: List[StrategicMechanismContrastProof]): List[StrategicAxisProofLineage] =
+    contrasts
+      .flatMap(contrast =>
+        contrast.axisComparisons.flatMap(axisComparison =>
+          axisComparison.sources.map(source =>
+            StrategicAxisProofLineage(
+              axisKey = axisComparison.axisKey,
+              axisKind = axisComparison.axis.kind,
+              axisPolarity = axisComparison.axis.polarity,
+              axisLabel = axisComparison.axis.label,
+              mechanismEvidenceId = contrast.source.id,
+              signalSourceEvidenceId = source.id,
+              signalSourceLayer = source.layer
+            )
+          )
+        )
+      )
+      .distinctBy(entry => (entry.axisKey, entry.mechanismEvidenceId, entry.signalSourceEvidenceId))
+      .sortBy(entry => (entry.axisKey, entry.mechanismEvidenceId, entry.signalSourceEvidenceId))
+
+  def fromStrategicProofs(
+      mechanisms: List[StrategicMechanismProof],
+      contrasts: List[StrategicMechanismContrastProof]
+  ): List[StrategicAxisProofLineage] =
+    (fromMechanisms(mechanisms) ++ fromContrasts(contrasts))
+      .distinctBy(entry => (entry.axisKey, entry.mechanismEvidenceId, entry.signalSourceEvidenceId))
+      .sortBy(entry => (entry.axisKey, entry.mechanismEvidenceId, entry.signalSourceEvidenceId))
+
+case class RelativeCauseStrategicProofIdentity(
+    axisKeys: List[String],
+    mechanismKinds: List[StrategicMechanismKind],
+    mechanismSourceIds: List[String],
+    signalSourceIds: List[String]
+):
+  def isEmpty: Boolean =
+    axisKeys.isEmpty && mechanismKinds.isEmpty && mechanismSourceIds.isEmpty && signalSourceIds.isEmpty
+
+object RelativeCauseStrategicProofIdentity:
+  val empty: RelativeCauseStrategicProofIdentity =
+    RelativeCauseStrategicProofIdentity(Nil, Nil, Nil, Nil)
+
+  def fromCause(cause: RelativeCauseFact): RelativeCauseStrategicProofIdentity =
+    cause.proof.map(fromProof).getOrElse(empty)
+
+  def fromProof(proof: RelativeCauseProof): RelativeCauseStrategicProofIdentity =
+    fromStrategicProofs(proof.strategicMechanisms, proof.strategicMechanismContrasts)
+
+  def fromMechanisms(mechanisms: List[StrategicMechanismProof]): RelativeCauseStrategicProofIdentity =
+    fromStrategicProofs(mechanisms, Nil)
+
+  def fromStrategicProofs(
+      mechanisms: List[StrategicMechanismProof],
+      contrasts: List[StrategicMechanismContrastProof]
+  ): RelativeCauseStrategicProofIdentity =
+    RelativeCauseStrategicProofIdentity(
+      axisKeys = StrategicAxisProofLineage.fromStrategicProofs(mechanisms, contrasts).map(_.axisKey).distinct.sorted,
+      mechanismKinds = mechanisms.map(_.kind).distinct.sortBy(_.toString),
+      mechanismSourceIds = (mechanisms.map(_.source.id) ++ contrasts.map(_.source.id)).distinct.sorted,
+      signalSourceIds = (
+        mechanisms.flatMap(_.signals.map(_.source.id)) ++
+          contrasts.flatMap(_.axisComparisons.flatMap(_.sources.map(_.id)))
+      ).distinct.sorted
+    )
+
 case class RelativeCauseProofSection(
     role: RelativeCauseProofRole,
     strength: RelativeCauseProofStrength,
@@ -416,6 +620,7 @@ case class RelativeCauseProofSection(
     relationProofs: List[RelationCauseProof] = Nil,
     tacticalMechanisms: List[TacticalMechanismProof] = Nil,
     strategicMechanisms: List[StrategicMechanismProof] = Nil,
+    strategicMechanismContrasts: List[StrategicMechanismContrastProof] = Nil,
     threatEpisodes: List[ThreatEpisodeCauseProof] = Nil,
     transitionConsequences: List[TransitionConsequenceProof] = Nil,
     contextLayers: List[EvidenceLayer] = Nil
@@ -428,6 +633,7 @@ case class RelativeCauseProofSection(
         relationProofs.map(_.source) ++
         tacticalMechanisms.map(_.source) ++
         strategicMechanisms.map(_.source) ++
+        strategicMechanismContrasts.map(_.source) ++
         threatEpisodes.map(_.source) ++
         transitionConsequences.map(_.source)
     ).distinctBy(_.id)
@@ -438,6 +644,7 @@ case class RelativeCauseProofSection(
       relationProofs.exists(_.hasConcreteProof) ||
       tacticalMechanisms.exists(_.hasConcreteProof) ||
       strategicMechanisms.exists(_.hasConcreteProof) ||
+      strategicMechanismContrasts.exists(_.hasConcreteProof) ||
       threatEpisodes.nonEmpty ||
       transitionConsequences.nonEmpty
 
@@ -456,7 +663,14 @@ case class RelativeCauseProofSection(
       lineConsequences.map(proof => s"LineConsequence:${proof.kind}") ++
       relationProofs.map(proof => s"Relation:${proof.kind}:${proof.detailName}") ++
       tacticalMechanisms.map(proof => s"TacticalMechanism:${proof.kind}") ++
-      strategicMechanisms.map(proof => s"StrategicMechanism:${proof.kind}") ++
+      strategicMechanisms.flatMap(proof =>
+        s"StrategicMechanism:${proof.kind}" ::
+          proof.signals.flatMap(_.axisKey.map(axis => s"StrategicAxis:$axis"))
+      ) ++
+      strategicMechanismContrasts.flatMap(proof =>
+        s"StrategicMechanismContrast:${proof.comparisonKind}" ::
+          proof.axisComparisons.map(axis => s"StrategicAxisContrast:${axis.axisKey}:${axis.outcome}")
+      ) ++
       threatEpisodes.map(proof => s"ThreatEpisode:${proof.driver}:${proof.kind}:${proof.severity}") ++
       transitionConsequences.map(proof => s"TransitionConsequence:${proof.anchorKey}") ++
       contextLayers.map(layer => s"ContextLayer:$layer")
@@ -476,6 +690,7 @@ object RelativeCauseProofSection:
       relationProofs = sections.flatMap(_.relationProofs).distinct,
       tacticalMechanisms = sections.flatMap(_.tacticalMechanisms).distinct,
       strategicMechanisms = sections.flatMap(_.strategicMechanisms).distinct,
+      strategicMechanismContrasts = sections.flatMap(_.strategicMechanismContrasts).distinct,
       threatEpisodes = sections.flatMap(_.threatEpisodes).distinct,
       transitionConsequences = sections.flatMap(_.transitionConsequences).distinct,
       contextLayers = sections.flatMap(_.contextLayers).distinct
@@ -519,6 +734,12 @@ case class RelativeCauseProof(
     proofSections.flatMap(_.tacticalMechanisms).distinct
   def strategicMechanisms: List[StrategicMechanismProof] =
     proofSections.flatMap(_.strategicMechanisms).distinct
+  def strategicMechanismContrasts: List[StrategicMechanismContrastProof] =
+    proofSections.flatMap(_.strategicMechanismContrasts).distinct
+  def strategicProofIdentity: RelativeCauseStrategicProofIdentity =
+    RelativeCauseStrategicProofIdentity.fromProof(this)
+  def strategicAxisLineage: List[StrategicAxisProofLineage] =
+    StrategicAxisProofLineage.fromStrategicProofs(strategicMechanisms, strategicMechanismContrasts)
   def threatEpisodes: List[ThreatEpisodeCauseProof] =
     proofSections.flatMap(_.threatEpisodes).distinct
   def transitionConsequences: List[TransitionConsequenceProof] =
@@ -531,13 +752,16 @@ case class RelativeCauseProof(
     relationProofs.map(_.detailName).distinct
   def hasAnyEvidence: Boolean =
     sections.exists(_.hasAnyEvidence)
-  def hasTypedDepth: Boolean =
+  def hasRawTypedDepth: Boolean =
     directProof.hasConcreteProof || contrastProof.hasConcreteProof
-  def hasDirectProof: Boolean =
+  def hasRawDirectProof: Boolean =
     directProof.hasConcreteProof
-  def hasContrastProof: Boolean =
+  def hasRawContrastProof: Boolean =
     contrastProof.hasConcreteProof
-  def hasContextSupport: Boolean =
+  def hasStrategicContrastDepth: Boolean =
+    directProof.strategicMechanismContrasts.exists(_.hasConcreteProof) ||
+      contrastProof.strategicMechanismContrasts.exists(_.hasConcreteProof)
+  def hasRawContextSupport: Boolean =
     contextSupport.hasAnyEvidence
   def depthProof: RelativeCauseProof =
     RelativeCauseProof(

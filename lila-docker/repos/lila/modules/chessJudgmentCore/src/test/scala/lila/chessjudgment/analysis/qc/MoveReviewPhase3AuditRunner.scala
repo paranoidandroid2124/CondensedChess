@@ -249,8 +249,7 @@ object MoveReviewPhase3AuditRunner:
       opening: Option[String],
       sliceKind: Option[String],
       targetPly: Option[Int],
-      playedSan: Option[String],
-      sourcePath: Option[String]
+      playedSan: Option[String]
   )
 
   private given Reads[RawMoveReviewInput] = Reads { json =>
@@ -300,12 +299,12 @@ object MoveReviewPhase3AuditRunner:
       case None       => println(output)
 
   private def parseSample(json: JsValue, index: Int): AuditInputSample =
-    parseDirectRaw(json, index).orElse(parseLegacyMoveReviewOutput(json, index)) match
+    parseDirectRaw(json, index) match
       case Some(sample) => sample
       case None =>
         val sampleId = (json \ "sampleId").asOpt[String].getOrElse((index + 1).toString)
         throw IllegalArgumentException(
-          s"invalid phase3 sample $sampleId: expected RawMoveReviewInput or legacy move_review_outputs row with rawResponsePath"
+          s"invalid phase3 sample $sampleId: expected RawMoveReviewInput"
         )
 
   private def parseDirectRaw(json: JsValue, index: Int): Option[AuditInputSample] =
@@ -322,62 +321,10 @@ object MoveReviewPhase3AuditRunner:
             opening = (json \ "opening").asOpt[String].orElse(enrichedRaw.openingContext.flatMap(_.name)),
             sliceKind = (json \ "sliceKind").asOpt[String],
             targetPly = (json \ "targetPly").asOpt[Int].orElse(enrichedRaw.ply),
-            playedSan = (json \ "playedSan").asOpt[String],
-            sourcePath = None
+            playedSan = (json \ "playedSan").asOpt[String]
           )
         )
       case JsError(_) => None
-
-  private def parseLegacyMoveReviewOutput(json: JsValue, index: Int): Option[AuditInputSample] =
-    for
-      fen <- (json \ "fen").asOpt[String]
-      playedUci <- (json \ "playedUci").asOpt[String]
-      rawResponsePath <- (json \ "rawResponsePath").asOpt[String]
-      rawResponse = Json.parse(Files.readString(Path.of(rawResponsePath), StandardCharsets.UTF_8))
-      variations <- legacyVariationLines(rawResponse)
-      if variations.nonEmpty
-    yield
-      AuditInputSample(
-        sampleId = (json \ "sampleId").asOpt[String].getOrElse((index + 1).toString),
-        raw = RawMoveReviewInput(
-          fen = fen,
-          playedMoveUci = playedUci,
-          variations = variations,
-          currentEvalCp = (json \ "currentEvalCp").asOpt[Int].orElse((rawResponse \ "currentEvalCp").asOpt[Int]),
-          ply = (json \ "targetPly").asOpt[Int],
-          openingContext = RawOpeningContextJson.from(json),
-          movePrefixUci = (json \ "movePrefixUci").asOpt[List[String]].getOrElse(Nil)
-        ),
-        opening = (json \ "opening").asOpt[String],
-        sliceKind = (json \ "sliceKind").asOpt[String],
-        targetPly = (json \ "targetPly").asOpt[Int],
-        playedSan = (json \ "playedSan").asOpt[String],
-        sourcePath = Some(rawResponsePath)
-      )
-
-  private def legacyVariationLines(rawResponse: JsValue): Option[List[VariationLine]] =
-    val topLevel = (rawResponse \ "variations").asOpt[List[VariationLine]].getOrElse(Nil)
-    val refs =
-      (rawResponse \ "refs" \ "variations")
-        .asOpt[List[JsValue]]
-        .getOrElse(Nil)
-        .flatMap(refVariationLine)
-    Option.when((topLevel ++ refs).nonEmpty)(topLevel ++ refs)
-
-  private def refVariationLine(json: JsValue): Option[VariationLine] =
-    val moves =
-      (json \ "moves")
-        .asOpt[List[JsValue]]
-        .getOrElse(Nil)
-        .flatMap(move => (move \ "uci").asOpt[String])
-    Option.when(moves.nonEmpty)(
-      VariationLine(
-        moves = moves,
-        scoreCp = (json \ "scoreCp").asOpt[Int].getOrElse(0),
-        mate = (json \ "mate").asOpt[Int],
-        depth = (json \ "depth").asOpt[Int].getOrElse(0)
-      )
-    )
 
   private def auditSample(
       sample: AuditInputSample,
@@ -396,7 +343,6 @@ object MoveReviewPhase3AuditRunner:
         "fen" -> sample.raw.fen,
         "playedSan" -> sample.playedSan,
         "playedUci" -> sample.raw.playedMoveUci,
-        "sourcePath" -> sample.sourcePath,
         "inputFingerprint" -> inputFingerprint,
         "inputDuplicateOrdinal" -> inputDuplicateOrdinal,
         "inputDuplicateCount" -> inputDuplicateCount,
@@ -652,6 +598,8 @@ object MoveReviewPhase3AuditRunner:
       "lineEventFacts" -> semantic.lineEventFacts,
       "lineConsequenceFacts" -> semantic.lineConsequenceFacts,
       "relativeCauseProofs" -> semantic.relativeCauseProofs,
+      "strategicAxisIntegrity" -> strategicAxisIntegritySummary(result.packet),
+      "objectBindingIntegrity" -> objectBindingIntegritySummary(result.packet),
       "playedBoundIdeaFamilies" -> playedBinding.playedBoundIdeaFamilies,
       "playedBoundClaimFamilies" -> playedBinding.playedBoundClaimFamilies,
       "playedBoundFamilies" -> playedBinding.playedBoundFamilies,
@@ -661,6 +609,8 @@ object MoveReviewPhase3AuditRunner:
       "moveVerdictCertifications" -> semantic.moveVerdictCertifications,
       "playedRelatedComparisonFacts" -> semantic.playedRelatedComparisonFacts,
       "playedRelativeCauseFacts" -> semantic.playedRelativeCauseFacts,
+      "plan_transition_without_snapshot_pair" -> semantic.planTransitionWithoutSnapshotPairIds.size,
+      "planTransitionWithoutSnapshotPairIds" -> semantic.planTransitionWithoutSnapshotPairIds,
       "branchReplyProbeRequests" -> semantic.branchReplyProbeRequests,
       "branchReplyProbeMoves" -> semantic.branchReplyProbeMoves,
       "branchReplyThreatLines" -> semantic.branchReplyThreatLines,
@@ -709,6 +659,238 @@ object MoveReviewPhase3AuditRunner:
       "hasOnlyMoveSignal" -> semantic.hasOnlyMoveSignal,
       "hasForcedLineTheme" -> semantic.hasForcedLineTheme
     )
+
+  private def objectBindingIntegritySummary(packet: EvidenceBackedJudgmentPacket): JsObject =
+    val graph = packet.evidenceGraph
+    val claimWithoutConcreteObjectIds =
+      packet.claims
+        .filter(claim => PlayerFacingClaimPolicy.requiresConcreteObject(claim.family))
+        .filterNot(claim => EvidenceObjectBinding.playerFacingReady(EvidenceObjectBinding.fromClaim(claim, graph)))
+        .map(_.id)
+        .distinct
+        .sorted
+    val objectlessPlayerFacingClaimIds =
+      packet.claims
+        .filter(claim =>
+          val tier = PlayerFacingClaimPolicy.tier(packet, claim)
+          tier == PlayerFacingClaimTier.Primary || tier == PlayerFacingClaimTier.Secondary
+        )
+        .filter(claim => PlayerFacingClaimPolicy.requiresConcreteObject(claim.family))
+        .filterNot(claim => EvidenceObjectBinding.playerFacingReady(EvidenceObjectBinding.fromClaim(claim, graph)))
+        .map(_.id)
+        .distinct
+        .sorted
+    val strategicAxisWithoutSubjectIds =
+      graph.records.collect {
+        case record @ EvidenceRecord(_, payload: StrategicMechanismEvidence, _)
+            if payload.signals.exists(signal =>
+              signal.axis.nonEmpty &&
+                !EvidenceObjectBinding.hasConcreteObject(EvidenceObjectBinding.fromEvidenceRefs(graph, List(signal.source)))
+            ) =>
+          record.ref.id
+        case record @ EvidenceRecord(_, payload: StrategicMechanismContrastEvidence, _)
+            if payload.axisComparisons.exists(axis =>
+              axis.sources.nonEmpty &&
+                !EvidenceObjectBinding.hasConcreteObject(EvidenceObjectBinding.fromEvidenceRefs(graph, axis.sources))
+            ) =>
+          record.ref.id
+      }.distinct.sorted
+    val tacticalMechanismWithoutTargetIds =
+      graph.records.collect {
+        case record @ EvidenceRecord(_, payload: TacticalMechanismEvidence, _)
+            if payload.signals.nonEmpty &&
+              EvidenceObjectBinding.fromEvidenceRefs(graph, List(record.ref)).forall(_.target.isEmpty) =>
+          record.ref.id
+      }.distinct.sorted
+    val relativeCauseWithoutObjectSignatureIds =
+      graph.records.collect {
+        case EvidenceRecord(ref, RelativeCauseFactEvidence(cause), _)
+            if EvidenceObjectBinding.objectSignatures(EvidenceObjectBinding.fromRelativeCause(cause, graph)).isEmpty =>
+          ref.id
+      }.distinct.sorted
+    Json.obj(
+      "claim_without_concrete_object" -> claimWithoutConcreteObjectIds,
+      "strategic_axis_without_subject" -> strategicAxisWithoutSubjectIds,
+      "tactical_mechanism_without_target" -> tacticalMechanismWithoutTargetIds,
+      "relative_cause_without_object_signature" -> relativeCauseWithoutObjectSignatureIds,
+      "objectless_player_facing_claim" -> objectlessPlayerFacingClaimIds
+    )
+
+  private def strategicAxisIntegritySummary(packet: EvidenceBackedJudgmentPacket): JsObject =
+    val records = packet.evidenceGraph.records
+    val sourceRecords =
+      records.filter(record => StrategicMechanismEvidence.sourceMechanisms(record).nonEmpty)
+    val mechanismRecords =
+      records.collect { case record @ EvidenceRecord(_, payload: StrategicMechanismEvidence, _) =>
+        record -> payload
+      }
+    val mechanismSignalSourceIds =
+      mechanismRecords.flatMap { case (_, payload) => payload.signals.map(_.source.id) }.toSet
+    val mechanismParentIds =
+      mechanismRecords.flatMap { case (record, _) => record.parents.map(_.id) }.toSet
+    val sourceIds = sourceRecords.map(_.ref.id).toSet
+    val orphanSourceIds =
+      (sourceIds -- mechanismSignalSourceIds -- mechanismParentIds).toList.sorted
+    val mechanismParentMismatchIds =
+      mechanismRecords.collect {
+        case (record, payload) if !payload.signals.forall(signal => record.parents.exists(_.id == signal.source.id)) =>
+          record.ref.id
+      }.sorted
+    val axisSignals =
+      mechanismRecords.flatMap { case (_, payload) => payload.signals.flatMap(signal => signal.axis.map(_ -> signal)) }
+    val rawBypassClaimEvidenceIds =
+      packet.claims
+        .filter(_.family.isLongTerm)
+        .flatMap(_.evidence)
+        .filter(ref => StrategicMechanismEvidence.rawStrategicSourceLayer(ref.layer))
+        .map(_.id)
+        .distinct
+        .sorted
+    val strategicCauseAxisIds =
+      records.collect {
+        case EvidenceRecord(ref, RelativeCauseFactEvidence(cause), _)
+            if cause.proof.exists(_.strategicMechanisms.exists(_.signals.exists(_.axis.nonEmpty))) =>
+          ref.id
+      }.sorted
+    val lifecycleAxisLineage =
+      packet.claimLifecycle.flatMap(_.strategicAxisLineage)
+    val lifecycleClaimIdsWithAxis =
+      packet.claimLifecycle.filter(_.strategicAxisLineage.nonEmpty).map(_.candidateId).distinct.sorted
+    val finalLifecycleClaimIdsWithAxis =
+      packet.claimLifecycle.filter(diagnostic => diagnostic.finalPacketIncluded && diagnostic.strategicAxisLineage.nonEmpty).map(_.candidateId).distinct.sorted
+    val mechanismOnlyStrategicClaimIds =
+      packet.claimLifecycle
+        .filter(diagnostic =>
+          diagnostic.family.isLongTerm &&
+            diagnostic.finalPacketIncluded &&
+            diagnostic.strategicAxisLineage.nonEmpty &&
+            diagnostic.relativeCauses.isEmpty
+        )
+        .map(_.candidateId)
+        .distinct
+        .sorted
+    val unboundMechanismOnlyStrategicClaimIds =
+      packet.claimLifecycle
+        .filter(diagnostic =>
+          diagnostic.family.isLongTerm &&
+            diagnostic.finalPacketIncluded &&
+            diagnostic.strategicAxisLineage.nonEmpty &&
+            diagnostic.relativeCauses.isEmpty &&
+            diagnostic.subjectBinding != SubjectBindingClass.DirectPlayed
+        )
+        .map(_.candidateId)
+        .distinct
+        .sorted
+    val transitionLocalStrategicClaimIds =
+      packet.claimLifecycle
+        .filter(diagnostic =>
+          diagnostic.family.isLongTerm &&
+            diagnostic.finalPacketIncluded &&
+            diagnostic.strategicAxisLineage.nonEmpty &&
+            diagnostic.relativeCauses.isEmpty &&
+            diagnostic.subjectBinding == SubjectBindingClass.DirectPlayed
+        )
+        .map(_.candidateId)
+        .distinct
+        .sorted
+    val viewClaimAxisKeys =
+      packet.moveJudgmentView.toList.flatMap(_.verdictCarriers.flatMap(_.strategicAxisKeys)).distinct.sorted
+    val viewCauseAxisKeys =
+      packet.moveJudgmentView.toList.flatMap(view =>
+        (view.primaryCauses ++ view.secondaryCauses ++ view.contextCauses).flatMap(_.proofStrategicAxisKeys)
+      ).distinct.sorted
+    val reachability = finalStrategicClaimReachability(packet)
+    Json.obj(
+      "sourceRecordsWithMechanismPotential" -> sourceRecords.size,
+      "strategicMechanismRecords" -> mechanismRecords.size,
+      "mechanismAxisSignals" -> axisSignals.size,
+      "axisKindCounts" -> stringCountsJson(axisSignals.map { case (axis, _) => axis.kind.toString }),
+      "axisSourceLayerCounts" -> stringCountsJson(axisSignals.map { case (_, signal) => signal.source.layer.toString }),
+      "orphanSourceCount" -> orphanSourceIds.size,
+      "orphanSourceIds" -> orphanSourceIds,
+      "mechanismParentMismatchCount" -> mechanismParentMismatchIds.size,
+      "mechanismParentMismatchIds" -> mechanismParentMismatchIds,
+      "rawBypassClaimEvidenceCount" -> rawBypassClaimEvidenceIds.size,
+      "rawBypassClaimEvidenceIds" -> rawBypassClaimEvidenceIds,
+      "relativeCauseWithStrategicAxisProofCount" -> strategicCauseAxisIds.size,
+      "relativeCauseWithStrategicAxisProofIds" -> strategicCauseAxisIds,
+      "claimStrategicAxisLineageCount" -> lifecycleAxisLineage.size,
+      "claimStrategicAxisLineageWithRelativeCauseCount" -> lifecycleAxisLineage.count(_.relativeCauseIds.nonEmpty),
+      "claimWithStrategicAxisLineageCount" -> lifecycleClaimIdsWithAxis.size,
+      "claimWithStrategicAxisLineageIds" -> lifecycleClaimIdsWithAxis,
+      "finalClaimWithStrategicAxisLineageCount" -> finalLifecycleClaimIdsWithAxis.size,
+      "finalClaimWithStrategicAxisLineageIds" -> finalLifecycleClaimIdsWithAxis,
+      "mechanismOnlyStrategicClaimCount" -> mechanismOnlyStrategicClaimIds.size,
+      "mechanismOnlyStrategicClaimIds" -> mechanismOnlyStrategicClaimIds,
+      "unboundMechanismOnlyStrategicClaimCount" -> unboundMechanismOnlyStrategicClaimIds.size,
+      "unboundMechanismOnlyStrategicClaimIds" -> unboundMechanismOnlyStrategicClaimIds,
+      "transitionLocalStrategicClaimCount" -> transitionLocalStrategicClaimIds.size,
+      "transitionLocalStrategicClaimIds" -> transitionLocalStrategicClaimIds,
+      "moveJudgmentClaimStrategicAxisCount" -> viewClaimAxisKeys.size,
+      "moveJudgmentClaimStrategicAxisKeys" -> viewClaimAxisKeys,
+      "moveJudgmentCauseStrategicAxisCount" -> viewCauseAxisKeys.size,
+      "moveJudgmentCauseStrategicAxisKeys" -> viewCauseAxisKeys,
+      "finalStrategicClaimReachabilityCounts" -> stringCountsJson(reachability.map(_("classification").as[String])),
+      "finalStrategicClaimReachability" -> JsArray(reachability)
+    )
+
+  private def finalStrategicClaimReachability(packet: EvidenceBackedJudgmentPacket): List[JsObject] =
+    val viewClaimIds =
+      packet.moveJudgmentView.toList.flatMap(view =>
+        view.verdictCarriers.map(_.claimId)
+      ).toSet
+    val viewCauseClaimIds =
+      packet.moveJudgmentView.toList.flatMap(view =>
+        (view.primaryCauses ++ view.secondaryCauses ++ view.contextCauses).flatMap(frame =>
+          frame.causeClaimIds ++ frame.evaluationClaimIds ++ frame.witnessClaimIds ++ frame.finalClaimIds
+        )
+      ).toSet
+    val supportClusterClaimIds =
+      packet.claimSupportClusters.flatMap(cluster =>
+        cluster.anchorClaimIds ++ cluster.supportingClaimIds ++ cluster.constrainingClaimIds
+      ).toSet
+    val eventClusterClaimIds =
+      packet.claimEventClusters.flatMap(cluster =>
+        cluster.memberClaimIds ++ cluster.causeClaimIds ++ cluster.evaluationClaimIds ++ cluster.witnessClaimIds
+      ).toSet
+
+    packet.claimLifecycle
+      .filter(diagnostic => diagnostic.finalPacketIncluded && diagnostic.strategicAxisLineage.nonEmpty)
+      .map { diagnostic =>
+        val claimIds =
+          (List(diagnostic.candidateId, diagnostic.claimId) ++ diagnostic.finalClaimId.toList).distinct
+        val causeBound =
+          diagnostic.strategicAxisLineage.exists(_.relativeCauseIds.nonEmpty) ||
+            diagnostic.relativeCauses.exists(_.proofStrategicAxisKeys.nonEmpty)
+        val viewClaimBound = claimIds.exists(viewClaimIds.contains)
+        val viewCauseBound = claimIds.exists(viewCauseClaimIds.contains)
+        val supportClusterBound = claimIds.exists(supportClusterClaimIds.contains)
+        val eventClusterBound = claimIds.exists(eventClusterClaimIds.contains)
+        val classification =
+          if causeBound then "cause_bound"
+          else if viewClaimBound || viewCauseBound then "view_bound"
+          else if supportClusterBound then "support_cluster_bound"
+          else if eventClusterBound then "event_cluster_bound"
+          else if diagnostic.relativeCauses.isEmpty && diagnostic.subjectBinding == SubjectBindingClass.DirectPlayed then "transition_local_mechanism_only"
+          else if diagnostic.relativeCauses.isEmpty then "mechanism_only_unbound"
+          else "unclassified"
+        Json.obj(
+          "candidateId" -> diagnostic.candidateId,
+          "claimId" -> diagnostic.claimId,
+          "finalClaimId" -> diagnostic.finalClaimId,
+          "family" -> diagnostic.family.toString,
+          "subjectBinding" -> diagnostic.subjectBinding.toString,
+          "classification" -> classification,
+          "causeBound" -> causeBound,
+          "viewClaimBound" -> viewClaimBound,
+          "viewCauseBound" -> viewCauseBound,
+          "supportClusterBound" -> supportClusterBound,
+          "eventClusterBound" -> eventClusterBound,
+          "axisKeys" -> diagnostic.strategicAxisLineage.map(_.axisKey).distinct.sorted,
+          "relativeCauseIds" -> diagnostic.strategicAxisLineage.flatMap(_.relativeCauseIds).distinct.sorted
+        )
+      }
+      .sortBy(obj => (obj("classification").as[String], obj("candidateId").as[String]))
 
   private def qcFailureSummary(result: MoveReviewJudgmentResult): JsObject =
     val semantic = result.quality.semanticCoverage
@@ -803,16 +985,29 @@ object MoveReviewPhase3AuditRunner:
           "relativeCauseComparisonKinds" -> diagnostic.relativeCauses.map(_.comparisonKind.toString).distinct,
           "relativeCauseSourceSides" -> diagnostic.relativeCauses.map(_.sourceSide.toString).distinct,
           "relativeCauseImportances" -> diagnostic.relativeCauses.map(_.importance.toString).distinct,
+          "relativeCauseAttributionKinds" -> diagnostic.relativeCauses.map(_.attributionKind.toString).distinct,
+          "relativeCauseAttributionOwnedEvidenceIds" -> diagnostic.relativeCauses.flatMap(_.attributionOwnedEvidenceIds).distinct.sorted,
+          "relativeCauseAttributionContrastEvidenceIds" -> diagnostic.relativeCauses.flatMap(_.attributionContrastEvidenceIds).distinct.sorted,
+          "relativeCauseAttributionContextEvidenceIds" -> diagnostic.relativeCauses.flatMap(_.attributionContextEvidenceIds).distinct.sorted,
+          "relativeCauseAttributionRootMoveMatched" -> diagnostic.relativeCauses.map(_.attributionRootMoveMatched).distinct,
+          "relativeCauseAttributionDirectProofEligible" -> diagnostic.relativeCauses.map(_.attributionDirectProofEligible).distinct,
+          "relativeCauseAttributionReasons" -> diagnostic.relativeCauses.flatMap(_.attributionReason).distinct.sorted,
           "relativeCauseReferenceLines" -> diagnostic.relativeCauses.map(_.referenceLine).distinct.map(lineRefSummary),
           "relativeCauseCandidateLines" -> diagnostic.relativeCauses.map(_.candidateLine).distinct.map(lineRefSummary),
           "relativeCauseEventLines" -> diagnostic.relativeCauses.map(_.eventLine).distinct.map(lineRefSummary),
           "relativeCauseProofDirectSourceIds" -> diagnostic.relativeCauses.flatMap(_.proofDirectSourceIds).distinct.sorted,
           "relativeCauseProofContrastSourceIds" -> diagnostic.relativeCauses.flatMap(_.proofContrastSourceIds).distinct.sorted,
           "relativeCauseProofContextSupportSourceIds" -> diagnostic.relativeCauses.flatMap(_.proofContextSupportSourceIds).distinct.sorted,
+          "relativeCauseProofStrategicAxisKeys" -> diagnostic.relativeCauses.flatMap(_.proofStrategicAxisKeys).distinct.sorted,
           "relativeCauseSupportEvidenceSourceIds" -> diagnostic.relativeCauses.flatMap(_.supportEvidenceSourceIds).distinct.sorted,
           "relativeCauseProofDirectKinds" -> diagnostic.relativeCauses.flatMap(_.proofDirectKinds).distinct.sorted,
           "relativeCauseProofContrastKinds" -> diagnostic.relativeCauses.flatMap(_.proofContrastKinds).distinct.sorted,
           "relativeCauseProofContextSupportKinds" -> diagnostic.relativeCauses.flatMap(_.proofContextSupportKinds).distinct.sorted,
+          "strategicAxisLineage" -> strategicAxisLineageJson(diagnostic.strategicAxisLineage),
+          "strategicAxisKeys" -> diagnostic.strategicAxisLineage.map(_.axisKey).distinct.sorted,
+          "strategicAxisMechanismEvidenceIds" -> diagnostic.strategicAxisLineage.map(_.mechanismEvidenceId).distinct.sorted,
+          "strategicAxisSourceEvidenceIds" -> diagnostic.strategicAxisLineage.map(_.signalSourceEvidenceId).distinct.sorted,
+          "strategicAxisRelativeCauseIds" -> diagnostic.strategicAxisLineage.flatMap(_.relativeCauseIds).distinct.sorted,
           "truthStatus" -> diagnostic.truthStatus.map(_.toString),
           "presentLayers" -> diagnostic.presentLayers.map(_.toString).toList.sorted,
           "missingLayerGroups" -> JsArray(
@@ -823,6 +1018,37 @@ object MoveReviewPhase3AuditRunner:
           "dedupeWinnerId" -> diagnostic.dedupeWinnerId,
           "arbitrationRank" -> diagnostic.arbitrationRank,
           "finalPacketIncluded" -> diagnostic.finalPacketIncluded
+        )
+      )
+    )
+
+  private def strategicAxisLineageJson(lineage: List[ClaimStrategicAxisLineage]): JsArray =
+    JsArray(
+      lineage.map(entry =>
+        Json.obj(
+          "axisKey" -> entry.axisKey,
+          "axisKind" -> entry.axisKind.toString,
+          "axisPolarity" -> entry.axisPolarity.toString,
+          "axisLabel" -> entry.axisLabel,
+          "mechanismEvidenceId" -> entry.mechanismEvidenceId,
+          "signalSourceEvidenceId" -> entry.signalSourceEvidenceId,
+          "signalSourceLayer" -> entry.signalSourceLayer.toString,
+          "relativeCauseIds" -> entry.relativeCauseIds
+        )
+      )
+    )
+
+  private def strategicAxisProofLineageJson(lineage: List[StrategicAxisProofLineage]): JsArray =
+    JsArray(
+      lineage.map(entry =>
+        Json.obj(
+          "axisKey" -> entry.axisKey,
+          "axisKind" -> entry.axisKind.toString,
+          "axisPolarity" -> entry.axisPolarity.toString,
+          "axisLabel" -> entry.axisLabel,
+          "mechanismEvidenceId" -> entry.mechanismEvidenceId,
+          "signalSourceEvidenceId" -> entry.signalSourceEvidenceId,
+          "signalSourceLayer" -> entry.signalSourceLayer.toString
         )
       )
     )
@@ -971,6 +1197,43 @@ object MoveReviewPhase3AuditRunner:
       "missingCauseComparisonIds" -> diagnostics.filter(_.relativeCauseDiagnostics.missingCause).map(_.id),
       "shallowProofComparisonIds" -> diagnostics.filter(_.relativeCauseDiagnostics.shallowProofCauseIds.nonEmpty).map(_.id),
       "genericCauseComparisonIds" -> diagnostics.filter(_.relativeCauseDiagnostics.genericCauseIds.nonEmpty).map(_.id),
+      "strategic_cause_without_contrast" -> diagnostics.filter(
+        _.relativeCauseDiagnostics.strategicCauseWithoutContrastIds.nonEmpty
+      ).map(_.id),
+      "strategic_claim_without_comparative_cause" -> diagnostics.filter(
+        _.relativeCauseDiagnostics.strategicClaimWithoutComparativeCauseIds.nonEmpty
+      ).map(_.id),
+      "generic_structural_improvement_without_strategic_contrast" -> diagnostics.filter(
+        _.relativeCauseDiagnostics.genericStructuralImprovementWithoutStrategicContrastIds.nonEmpty
+      ).map(_.id),
+      "context_support_used_as_direct_proof" -> diagnostics.filter(
+        _.relativeCauseDiagnostics.contextSupportUsedAsDirectProofIds.nonEmpty
+      ).map(_.id),
+      "context_only_relative_cause" -> diagnostics.filter(
+        _.relativeCauseDiagnostics.contextOnlyCauseIds.nonEmpty
+      ).map(_.id),
+      "unattributed_relative_cause" -> diagnostics.filter(
+        _.relativeCauseDiagnostics.unattributedCauseIds.nonEmpty
+      ).map(_.id),
+      "root_mismatched_relative_cause" -> diagnostics.filter(
+        _.relativeCauseDiagnostics.rootMismatchedCauseIds.nonEmpty
+      ).map(_.id),
+      "support_promoted_to_direct_proof" -> diagnostics.filter(
+        _.relativeCauseDiagnostics.supportPromotedToDirectProofCauseIds.nonEmpty
+      ).map(_.id),
+      "relative_cause_without_object_signature" -> diagnostics.filter(
+        _.relativeCauseDiagnostics.relativeCauseWithoutObjectSignatureIds.nonEmpty
+      ).map(_.id),
+      "object_lost_between_evidence_and_cause" -> diagnostics.filter(
+        _.relativeCauseDiagnostics.objectLostBetweenEvidenceAndCauseIds.nonEmpty
+      ).map(_.id),
+      "object_lost_between_cause_and_claim" -> diagnostics.filter(
+        _.relativeCauseDiagnostics.objectLostBetweenCauseAndClaimIds.nonEmpty
+      ).map(_.id),
+      "objectless_player_facing_claim" -> diagnostics.filter(diagnostic =>
+        diagnostic.moveJudgmentView.objectlessPrimaryCauseEvidenceIds.nonEmpty ||
+          diagnostic.moveJudgmentView.objectlessSecondaryCauseEvidenceIds.nonEmpty
+      ).map(_.id),
       "unboundEvidenceComparisonIds" -> diagnostics.filter(_.relativeCauseDiagnostics.unboundEvidenceIds.nonEmpty).map(_.id),
       "causeWithoutIdeaComparisonIds" -> diagnostics.filter(_.relativeCauseDiagnostics.causeWithoutIdeaIds.nonEmpty).map(_.id),
       "ideaWithoutClaimComparisonIds" -> diagnostics.filter(_.relativeCauseDiagnostics.ideaWithoutClaimCauseIds.nonEmpty).map(_.id),
@@ -1220,10 +1483,12 @@ object MoveReviewPhase3AuditRunner:
             "parentLayerSignature" -> support.parentLayerSignature,
             "semanticSupportKinds" -> support.semanticSupportKinds,
             "semanticSupportSignature" -> support.semanticSupportSignature,
-            "proofHasTypedDepth" -> support.proofHasTypedDepth,
-            "proofHasDirectProof" -> support.proofHasDirectProof,
-            "proofHasContrastProof" -> support.proofHasContrastProof,
-            "proofHasContextSupport" -> support.proofHasContextSupport,
+            "hasOwnedTypedDepth" -> support.hasOwnedTypedDepth,
+            "hasOwnedTacticalProof" -> support.hasOwnedTacticalProof,
+            "hasOwnedStrategicContrastDepth" -> support.hasOwnedStrategicContrastDepth,
+            "rawProofHasDirectProof" -> support.rawProofHasDirectProof,
+            "rawProofHasContrastProof" -> support.rawProofHasContrastProof,
+            "rawProofHasContextSupport" -> support.rawProofHasContextSupport,
             "directProofSourceIds" -> support.directProofSourceIds,
             "contrastProofSourceIds" -> support.contrastProofSourceIds,
             "contextSupportSourceIds" -> support.contextSupportSourceIds,
@@ -1238,6 +1503,7 @@ object MoveReviewPhase3AuditRunner:
             "proofRelationSourceIds" -> support.proofRelationSourceIds,
             "proofTacticalMechanismKinds" -> support.proofTacticalMechanismKinds.map(_.toString),
             "proofTacticalMechanismSourceIds" -> support.proofTacticalMechanismSourceIds,
+            "proofStrategicAxisKeys" -> support.proofStrategicAxisKeys,
             "proofStrategicMechanismKinds" -> support.proofStrategicMechanismKinds.map(_.toString),
             "proofStrategicMechanismSourceIds" -> support.proofStrategicMechanismSourceIds,
             "proofStrategicMechanismSignalSourceIds" -> support.proofStrategicMechanismSignalSourceIds,
@@ -1280,7 +1546,10 @@ object MoveReviewPhase3AuditRunner:
       "primaryUnframedCauseKinds" -> diagnostic.primaryUnframedCauseKinds.map(_.toString),
       "contextCauseEvidenceIds" -> diagnostic.contextCauseEvidenceIds,
       "projectedContextCauseNoViewIds" -> diagnostic.projectedContextCauseNoViewIds,
-      "playableLossPrimaryCauseEvidenceIds" -> diagnostic.playableLossPrimaryCauseEvidenceIds
+      "playableLossPrimaryCauseEvidenceIds" -> diagnostic.playableLossPrimaryCauseEvidenceIds,
+      "objectlessPrimaryCauseEvidenceIds" -> diagnostic.objectlessPrimaryCauseEvidenceIds,
+      "objectlessSecondaryCauseEvidenceIds" -> diagnostic.objectlessSecondaryCauseEvidenceIds,
+      "objectlessContextCauseEvidenceIds" -> diagnostic.objectlessContextCauseEvidenceIds
     )
 
   private def relativeCauseDiagnosticsJson(diagnostic: ComparisonRelativeCauseDiagnostics): JsObject =
@@ -1295,7 +1564,7 @@ object MoveReviewPhase3AuditRunner:
       "missingCause" -> diagnostic.missingCause,
       "shallowProofCauseIds" -> diagnostic.shallowProofCauseIds,
       "genericCauseIds" -> diagnostic.genericCauseIds,
-      "typedDepthCauseIds" -> diagnostic.typedDepthCauseIds,
+      "ownedTypedDepthCauseIds" -> diagnostic.ownedTypedDepthCauseIds,
       "nonGenericCauseIds" -> diagnostic.nonGenericCauseIds,
       "unboundEvidenceIds" -> diagnostic.unboundEvidenceIds,
       "wrongRoleCauseIds" -> diagnostic.wrongRoleCauseIds,
@@ -1308,6 +1577,18 @@ object MoveReviewPhase3AuditRunner:
       "ideaWithoutFinalClaimCauseIds" -> diagnostic.ideaWithoutFinalClaimCauseIds,
       "claimWithoutEventClusterCauseIds" -> diagnostic.claimWithoutEventClusterCauseIds,
       "eventClusterSupportMissingCauseIds" -> diagnostic.eventClusterSupportMissingCauseIds,
+      "strategicCauseWithoutContrastIds" -> diagnostic.strategicCauseWithoutContrastIds,
+      "strategicClaimWithoutComparativeCauseIds" -> diagnostic.strategicClaimWithoutComparativeCauseIds,
+      "genericStructuralImprovementWithoutStrategicContrastIds" ->
+        diagnostic.genericStructuralImprovementWithoutStrategicContrastIds,
+      "contextSupportUsedAsDirectProofIds" -> diagnostic.contextSupportUsedAsDirectProofIds,
+      "contextOnlyCauseIds" -> diagnostic.contextOnlyCauseIds,
+      "unattributedCauseIds" -> diagnostic.unattributedCauseIds,
+      "rootMismatchedCauseIds" -> diagnostic.rootMismatchedCauseIds,
+      "supportPromotedToDirectProofCauseIds" -> diagnostic.supportPromotedToDirectProofCauseIds,
+      "relativeCauseWithoutObjectSignatureIds" -> diagnostic.relativeCauseWithoutObjectSignatureIds,
+      "objectLostBetweenEvidenceAndCauseIds" -> diagnostic.objectLostBetweenEvidenceAndCauseIds,
+      "objectLostBetweenCauseAndClaimIds" -> diagnostic.objectLostBetweenCauseAndClaimIds,
       "causeFlow" -> JsArray(diagnostic.causeFlow.map(relativeCauseFlowJson))
     )
 
@@ -1343,7 +1624,17 @@ object MoveReviewPhase3AuditRunner:
       "causeWithoutIdea" -> flow.causeWithoutIdea,
       "ideaWithoutClaimCandidate" -> flow.ideaWithoutClaimCandidate,
       "ideaWithoutFinalClaim" -> flow.ideaWithoutFinalClaim,
-      "claimWithoutEventCluster" -> flow.claimWithoutEventCluster
+      "claimWithoutEventCluster" -> flow.claimWithoutEventCluster,
+      "strategicCauseWithoutContrast" -> flow.strategicCauseWithoutContrast,
+      "contextSupportUsedAsDirectProof" -> flow.contextSupportUsedAsDirectProof,
+      "contextOnlyAttribution" -> flow.contextOnlyAttribution,
+      "unattributedCause" -> flow.unattributedCause,
+      "rootMismatchedAttribution" -> flow.rootMismatchedAttribution,
+      "supportPromotedToDirectProof" -> flow.supportPromotedToDirectProof,
+      "objectBindingSignatures" -> flow.objectBindingSignatures,
+      "relativeCauseWithoutObjectSignature" -> flow.relativeCauseWithoutObjectSignature,
+      "objectLostBetweenEvidenceAndCause" -> flow.objectLostBetweenEvidenceAndCause,
+      "objectLostBetweenCauseAndClaim" -> flow.objectLostBetweenCauseAndClaim
     )
 
   private def tacticalLossTraceJson(trace: TacticalLossTrace): JsObject =
@@ -1419,14 +1710,13 @@ object MoveReviewPhase3AuditRunner:
       "referenceStructuralConsequences" -> trace.referenceStructuralConsequences.map(_.toString),
       "candidateStructuralConsequences" -> trace.candidateStructuralConsequences.map(_.toString),
       "candidatePawnStructureSignals" -> trace.candidatePawnStructureSignals,
-      "referenceStrategicImprovementScore" -> trace.referenceStrategicImprovementScore,
-      "candidateStrategicImprovementScore" -> trace.candidateStrategicImprovementScore,
-      "referenceStrategicImprovementOverCandidate" -> trace.referenceStrategicImprovementOverCandidate,
+      "referenceSemanticAxisCount" -> trace.referenceSemanticAxisCount,
+      "candidateSemanticAxisCount" -> trace.candidateSemanticAxisCount,
+      "referenceSemanticAxisLead" -> trace.referenceSemanticAxisLead,
       "semanticAxisDiagnostics" -> semanticAxisDiagnosticsJson(trace.semanticAxisDiagnostics),
       "candidatePlanEvidence" -> trace.candidatePlanEvidence,
       "candidateStrategicEvidence" -> trace.candidateStrategicEvidence,
       "candidateStrategicConcessionEvidence" -> trace.candidateStrategicConcessionEvidence,
-      "candidateStrongStrategicConcessionEvidence" -> trace.candidateStrongStrategicConcessionEvidence,
       "materialSwingEvidence" -> trace.materialSwingEvidence,
       "referenceMaterialNetCp" -> trace.referenceMaterialNetCp,
       "candidateMaterialNetCp" -> trace.candidateMaterialNetCp,
@@ -2127,7 +2417,7 @@ object MoveReviewPhase3AuditRunner:
           case EvidenceLossExpectation.Unexpected if relatedComparisons(result, diagnostic.subjectId).exists(thresholdMiss) =>
             "threshold_miss"
           case EvidenceLossExpectation.Unexpected if diagnostic.layer.exists(StrategicMechanismEvidence.rawStrategicSourceLayer) =>
-            "unbound_legacy_evidence"
+            "unbound_raw_strategic_source"
           case EvidenceLossExpectation.Unexpected if diagnostic.layer.exists(concretePolicyLayer) =>
             "policy_gated"
           case EvidenceLossExpectation.Unexpected =>
@@ -2160,7 +2450,7 @@ object MoveReviewPhase3AuditRunner:
       .map {
         case record if StrategicMechanismEvidence.rawStrategicSourceLayer(record.ref.layer) =>
           if strategicMechanismConsumers(result.packet, record.ref).nonEmpty then "consumed_source"
-          else "unbound_legacy_evidence"
+          else "unbound_raw_strategic_source"
         case EvidenceRecord(_, payload: StrategicMechanismEvidence, _) =>
           if strategicMechanismCanSeedJudgment(payload) then "claim_grade_mechanism_unpromoted"
           else "source_only_mechanism"
@@ -2263,10 +2553,12 @@ object MoveReviewPhase3AuditRunner:
                 "causeKind" -> support.kind.toString,
                 "parentEvidenceIds" -> support.parentEvidenceIds,
                 "parentLayerSignature" -> support.parentLayerSignature,
-                "proofHasTypedDepth" -> support.proofHasTypedDepth,
-                "proofHasDirectProof" -> support.proofHasDirectProof,
-                "proofHasContrastProof" -> support.proofHasContrastProof,
-                "proofHasContextSupport" -> support.proofHasContextSupport,
+                "hasOwnedTypedDepth" -> support.hasOwnedTypedDepth,
+                "hasOwnedTacticalProof" -> support.hasOwnedTacticalProof,
+                "hasOwnedStrategicContrastDepth" -> support.hasOwnedStrategicContrastDepth,
+                "rawProofHasDirectProof" -> support.rawProofHasDirectProof,
+                "rawProofHasContrastProof" -> support.rawProofHasContrastProof,
+                "rawProofHasContextSupport" -> support.rawProofHasContextSupport,
                 "directProofSourceIds" -> support.directProofSourceIds,
                 "contrastProofSourceIds" -> support.contrastProofSourceIds,
                 "contextSupportSourceIds" -> support.contextSupportSourceIds,
@@ -2279,6 +2571,7 @@ object MoveReviewPhase3AuditRunner:
                 "proofRelationSourceIds" -> support.proofRelationSourceIds,
                 "proofTacticalMechanismKinds" -> support.proofTacticalMechanismKinds.map(_.toString),
                 "proofTacticalMechanismSourceIds" -> support.proofTacticalMechanismSourceIds,
+                "proofStrategicAxisKeys" -> support.proofStrategicAxisKeys,
                 "proofStrategicMechanismKinds" -> support.proofStrategicMechanismKinds.map(_.toString),
                 "proofStrategicMechanismSourceIds" -> support.proofStrategicMechanismSourceIds,
                 "proofStrategicMechanismSignalSourceIds" -> support.proofStrategicMechanismSignalSourceIds,
@@ -2340,12 +2633,16 @@ object MoveReviewPhase3AuditRunner:
       "causeRole" -> basis.causeRole.toString,
       "causeSourceSide" -> basis.causeSourceSide.toString,
       "causeImportance" -> basis.causeImportance.toString,
+      "attributionKind" -> basis.attributionKind.toString,
+      "attributionRootMoveMatched" -> basis.attributionRootMoveMatched,
+      "attributionDirectProofEligible" -> basis.attributionDirectProofEligible,
       "referenceLine" -> lineRefSummary(basis.referenceLine),
       "candidateLine" -> lineRefSummary(basis.candidateLine),
       "eventLine" -> lineRefSummary(basis.eventLine),
       "proofDirectSourceIds" -> basis.proofDirectSourceIds,
       "proofContrastSourceIds" -> basis.proofContrastSourceIds,
       "proofContextSupportSourceIds" -> basis.proofContextSupportSourceIds,
+      "proofStrategicAxisKeys" -> basis.proofStrategicAxisKeys,
       "proofStrategicMechanismKinds" -> basis.proofStrategicMechanismKinds.map(_.toString),
       "proofStrategicMechanismSourceIds" -> basis.proofStrategicMechanismSourceIds,
       "proofStrategicMechanismSignalSourceIds" -> basis.proofStrategicMechanismSignalSourceIds,
@@ -2392,8 +2689,43 @@ object MoveReviewPhase3AuditRunner:
           "sourceEvidenceId" -> signal.source.id,
           "sourcePositionId" -> signal.source.position.id,
           "sourceLine" -> signal.source.line.map(lineRefSummary),
-          "strength" -> signal.strength
+          "strength" -> signal.strength,
+          "axis" -> signal.axis.map(strategicAxisDetailJson)
         )
+      )
+    )
+
+  private def strategicAxisDetailJson(axis: StrategicAxisDetail): JsObject =
+    Json.obj(
+      "kind" -> axis.kind.toString,
+      "polarity" -> axis.polarity.toString,
+      "label" -> axis.label,
+      "stableKey" -> axis.stableKey
+    )
+
+  private def strategicMechanismContrastProofJson(proof: StrategicMechanismContrastProof): JsObject =
+    Json.obj(
+      "sourceEvidenceId" -> proof.source.id,
+      "comparisonKind" -> proof.comparisonKind.toString,
+      "referenceLine" -> lineRefSummary(proof.referenceLine),
+      "candidateLine" -> lineRefSummary(proof.candidateLine),
+      "axisComparisons" -> proof.axisComparisons.map(axis =>
+        Json.obj(
+          "axis" -> strategicAxisDetailJson(axis.axis),
+          "outcome" -> axis.outcome.toString,
+          "referenceLead" -> axis.referenceLead,
+          "candidateLead" -> axis.candidateLead,
+          "candidateNegative" -> axis.candidateNegative,
+          "hasContrast" -> axis.hasContrast
+        )
+      ),
+      "sustainability" -> Json.obj(
+        "horizon" -> proof.sustainability.horizon.toString,
+        "lineMaintained" -> proof.sustainability.lineMaintained,
+        "pvMaintained" -> proof.sustainability.pvMaintained,
+        "referencePlyCount" -> proof.sustainability.referencePlyCount,
+        "candidatePlyCount" -> proof.sustainability.candidatePlyCount,
+        "hasSustainedPv" -> proof.sustainability.hasSustainedPv
       )
     )
 
@@ -2406,13 +2738,19 @@ object MoveReviewPhase3AuditRunner:
   private def lineEventProofJson(proof: LineEventProof): JsObject =
     Json.obj(
       "sourceEvidenceId" -> proof.source.id,
-      "kind" -> proof.kind.toString
+      "kind" -> proof.kind.toString,
+      "moveUci" -> proof.moveUci,
+      "plyOffset" -> proof.plyOffset,
+      "side" -> proof.side.map(_.name),
+      "square" -> proof.square.map(_.key)
     )
 
   private def lineConsequenceProofJson(proof: LineConsequenceProof): JsObject =
     Json.obj(
       "sourceEvidenceId" -> proof.source.id,
-      "kind" -> proof.kind.toString
+      "kind" -> proof.kind.toString,
+      "eventMove" -> proof.eventMove,
+      "lineMoves" -> proof.lineMoves
     )
 
   private def relativeCauseProofSectionJson(section: RelativeCauseProofSection): JsObject =
@@ -2426,6 +2764,7 @@ object MoveReviewPhase3AuditRunner:
       "relationProofs" -> section.relationProofs.map(relationCauseProofJson),
       "tacticalMechanisms" -> section.tacticalMechanisms.map(tacticalMechanismProofJson),
       "strategicMechanisms" -> section.strategicMechanisms.map(strategicMechanismProofJson),
+      "strategicMechanismContrasts" -> section.strategicMechanismContrasts.map(strategicMechanismContrastProofJson),
       "transitionConsequences" -> section.transitionConsequences.map(transitionConsequenceJson),
       "contextLayers" -> section.contextLayers.map(_.toString)
     )
@@ -2485,10 +2824,13 @@ object MoveReviewPhase3AuditRunner:
           "supportEvidenceIds" -> cause.supportEvidence.map(_.id).distinct.sorted,
           "verdict" -> cause.verdict.toString,
           "winPercentLossForMover" -> cause.winPercentLossForMover,
+          "hasOwnedTypedDepth" -> cause.hasOwnedTypedDepth,
+          "hasOwnedTacticalProof" -> cause.hasOwnedTacticalProof,
+          "hasOwnedStrategicContrastDepth" -> cause.hasOwnedStrategicContrastDepth,
           "proof" -> cause.proof.map(proof =>
             val depthProof = proof.depthProof
             Json.obj(
-              "hasTypedDepth" -> proof.hasTypedDepth,
+              "rawHasTypedDepth" -> proof.hasRawTypedDepth,
               "boardAnchors" -> depthProof.boardAnchors.map(_.toString),
               "lineEvents" -> depthProof.lineEvents.map(_.toString),
               "lineConsequences" -> depthProof.lineConsequences.map(_.toString),
@@ -2791,6 +3133,9 @@ object MoveReviewPhase3AuditRunner:
           "causeRole" -> cluster.causeRole.toString,
           "causeSourceSide" -> cluster.causeSourceSide.toString,
           "causeImportance" -> cluster.causeImportance.toString,
+          "attributionKind" -> cluster.attributionKind.toString,
+          "attributionRootMoveMatched" -> cluster.attributionRootMoveMatched,
+          "attributionDirectProofEligible" -> cluster.attributionDirectProofEligible,
           "referenceLine" -> lineRefSummary(cluster.referenceLine),
           "candidateLine" -> lineRefSummary(cluster.candidateLine),
           "eventLine" -> lineRefSummary(cluster.eventLine),
@@ -2837,12 +3182,16 @@ object MoveReviewPhase3AuditRunner:
               "causeRole" -> proof.causeRole.toString,
               "causeSourceSide" -> proof.causeSourceSide.toString,
               "causeImportance" -> proof.causeImportance.toString,
+              "attributionKind" -> proof.attributionKind.toString,
+              "attributionRootMoveMatched" -> proof.attributionRootMoveMatched,
+              "attributionDirectProofEligible" -> proof.attributionDirectProofEligible,
               "referenceLine" -> lineRefSummary(proof.referenceLine),
               "candidateLine" -> lineRefSummary(proof.candidateLine),
               "eventLine" -> lineRefSummary(proof.eventLine),
               "proofDirectSourceIds" -> proof.proofDirectSourceIds,
               "proofContrastSourceIds" -> proof.proofContrastSourceIds,
               "proofContextSupportSourceIds" -> proof.proofContextSupportSourceIds,
+              "proofStrategicAxisKeys" -> proof.proofStrategicAxisKeys,
               "proofStrategicMechanismKinds" -> proof.proofStrategicMechanismKinds.map(_.toString),
               "proofStrategicMechanismSourceIds" -> proof.proofStrategicMechanismSourceIds,
               "proofStrategicMechanismSignalSourceIds" -> proof.proofStrategicMechanismSignalSourceIds,
@@ -2902,7 +3251,14 @@ object MoveReviewPhase3AuditRunner:
       "tier" -> frame.tier.toString,
       "subjectBinding" -> frame.subjectBinding.toString,
       "ideaIds" -> frame.ideaIds,
-      "evidenceIds" -> frame.evidenceIds
+      "evidenceIds" -> frame.evidenceIds,
+      "strategicAxisLineage" -> strategicAxisLineageJson(frame.strategicAxisLineage),
+      "strategicAxisKeys" -> frame.strategicAxisKeys,
+      "strategicAxisMechanismEvidenceIds" -> frame.strategicAxisMechanismEvidenceIds,
+      "strategicAxisSourceEvidenceIds" -> frame.strategicAxisSourceEvidenceIds,
+      "strategicAxisRelativeCauseIds" -> frame.strategicAxisRelativeCauseIds,
+      "objectBindingSignatures" -> frame.objectBindingSignatures,
+      "concreteObjectReady" -> frame.concreteObjectReady
     )
 
   private def moveJudgmentCauseFrameJson(packet: EvidenceBackedJudgmentPacket, frame: MoveJudgmentCauseFrame): JsObject =
@@ -2919,6 +3275,9 @@ object MoveReviewPhase3AuditRunner:
       "causeRole" -> frame.causeRole.toString,
       "causeSourceSide" -> frame.causeSourceSide.toString,
       "causeImportance" -> frame.causeImportance.toString,
+      "attributionKind" -> frame.attributionKind.toString,
+      "attributionRootMoveMatched" -> frame.attributionRootMoveMatched,
+      "attributionDirectProofEligible" -> frame.attributionDirectProofEligible,
       "referenceLine" -> lineRefSummary(frame.referenceLine),
       "candidateLine" -> lineRefSummary(frame.candidateLine),
       "eventLine" -> lineRefSummary(frame.eventLine),
@@ -2941,10 +3300,14 @@ object MoveReviewPhase3AuditRunner:
       "proofDirectSourceIds" -> frame.proofDirectSourceIds,
       "proofContrastSourceIds" -> frame.proofContrastSourceIds,
       "proofContextSupportSourceIds" -> frame.proofContextSupportSourceIds,
+      "proofStrategicAxisLineage" -> strategicAxisProofLineageJson(frame.proofStrategicAxisLineage),
+      "proofStrategicAxisKeys" -> frame.proofStrategicAxisKeys,
       "proofStrategicMechanismKinds" -> frame.proofStrategicMechanismKinds.map(_.toString),
       "proofStrategicMechanismSourceIds" -> frame.proofStrategicMechanismSourceIds,
       "proofStrategicMechanismSignalSourceIds" -> frame.proofStrategicMechanismSignalSourceIds,
-      "supportEvidenceSourceIds" -> frame.supportEvidenceSourceIds
+      "supportEvidenceSourceIds" -> frame.supportEvidenceSourceIds,
+      "objectBindingSignatures" -> frame.objectBindingSignatures,
+      "concreteObjectReady" -> frame.concreteObjectReady
     )
 
   private def moveJudgmentLocalIdeaFrameJson(frame: MoveJudgmentLocalIdeaFrame): JsObject =
@@ -2967,6 +3330,7 @@ object MoveReviewPhase3AuditRunner:
     )
 
   private def claimJson(packet: EvidenceBackedJudgmentPacket, claim: ClaimSeed): JsObject =
+    val strategicAxisLineage = ClaimStrategicAxisLineage.fromClaim(claim, packet.evidenceGraph)
     Json.obj(
       "id" -> claim.id,
       "family" -> claim.family.toString,
@@ -2995,6 +3359,11 @@ object MoveReviewPhase3AuditRunner:
           "basis" -> interaction.basis.map(interactionBasisJson)
         )
       )),
+      "strategicAxisLineage" -> strategicAxisLineageJson(strategicAxisLineage),
+      "strategicAxisKeys" -> strategicAxisLineage.map(_.axisKey).distinct.sorted,
+      "strategicAxisMechanismEvidenceIds" -> strategicAxisLineage.map(_.mechanismEvidenceId).distinct.sorted,
+      "strategicAxisSourceEvidenceIds" -> strategicAxisLineage.map(_.signalSourceEvidenceId).distinct.sorted,
+      "strategicAxisRelativeCauseIds" -> strategicAxisLineage.flatMap(_.relativeCauseIds).distinct.sorted,
       "engineVerdict" -> claim.engineComparison.map(_.verdict.toString),
       "engineWinPercentLossForMover" -> claim.engineComparison.map(_.winPercentLossForMover),
       "relatedComparisonIds" -> claimRelatedComparisonIds(packet, claim),
@@ -3038,13 +3407,15 @@ object MoveReviewPhase3AuditRunner:
   private def claimRelativeCauseProofJson(packet: EvidenceBackedJudgmentPacket, claim: ClaimSeed): JsObject =
     val causes = claimRelativeCauses(packet, claim)
     Json.obj(
-      "hasTypedDepth" -> causes.exists(_.proof.exists(_.hasTypedDepth)),
-      "hasDirectProof" -> causes.exists(_.proof.exists(_.hasDirectProof)),
-      "hasContrastProof" -> causes.exists(_.proof.exists(_.hasContrastProof)),
-      "hasContextSupport" -> causes.exists(_.proof.exists(_.hasContextSupport)),
+      "hasOwnedTypedDepth" -> causes.exists(_.hasOwnedTypedDepth),
+      "hasOwnedTacticalProof" -> causes.exists(_.hasOwnedTacticalProof),
+      "hasOwnedStrategicContrastDepth" -> causes.exists(_.hasOwnedStrategicContrastDepth),
       "directProofSourceIds" -> causes.flatMap(_.proof.toList.flatMap(_.directProof.sourceRefs.map(_.id))).distinct.sorted,
       "contrastProofSourceIds" -> causes.flatMap(_.proof.toList.flatMap(_.contrastProof.sourceRefs.map(_.id))).distinct.sorted,
-      "contextSupportSourceIds" -> causes.flatMap(_.proof.toList.flatMap(_.contextSupport.sourceRefs.map(_.id))).distinct.sorted
+      "contextSupportSourceIds" -> causes.flatMap(_.proof.toList.flatMap(_.contextSupport.sourceRefs.map(_.id))).distinct.sorted,
+      "ownedEvidenceIds" -> causes.flatMap(_.attribution.ownedEvidence.map(_.id)).distinct.sorted,
+      "attributionContrastEvidenceIds" -> causes.flatMap(_.attribution.contrastEvidence.map(_.id)).distinct.sorted,
+      "attributionContextEvidenceIds" -> causes.flatMap(_.attribution.contextEvidence.map(_.id)).distinct.sorted
     )
 
   private def relativeCauseDetailJson(cause: RelativeCauseFact): JsObject =
@@ -3060,14 +3431,29 @@ object MoveReviewPhase3AuditRunner:
       "verdict" -> cause.verdict.toString,
       "winPercentLossForMover" -> cause.winPercentLossForMover,
       "candidateWinPercentDeltaForMover" -> cause.candidateWinPercentDeltaForMover,
+      "hasOwnedTypedDepth" -> cause.hasOwnedTypedDepth,
+      "hasOwnedTacticalProof" -> cause.hasOwnedTacticalProof,
+      "hasOwnedStrategicContrastDepth" -> cause.hasOwnedStrategicContrastDepth,
+      "attribution" -> Json.obj(
+        "kind" -> cause.attribution.kind.toString,
+        "ownedEvidenceIds" -> cause.attribution.ownedEvidence.map(_.id).distinct.sorted,
+        "contrastEvidenceIds" -> cause.attribution.contrastEvidence.map(_.id).distinct.sorted,
+        "contextEvidenceIds" -> cause.attribution.contextEvidence.map(_.id).distinct.sorted,
+        "rootMoveMatched" -> cause.attribution.rootMoveMatched,
+        "directProofEligible" -> cause.attribution.directProofEligible,
+        "contextOnly" -> cause.attribution.contextOnly,
+        "unattributed" -> cause.attribution.unattributed,
+        "rootMismatch" -> cause.attribution.rootMismatch,
+        "reason" -> cause.attribution.reason
+      ),
       "evidenceLines" -> cause.evidenceLines.map(lineRefSummary),
       "supportEvidenceIds" -> cause.supportEvidence.map(_.id).distinct.sorted,
       "proof" -> cause.proof.map(proof =>
         Json.obj(
-          "hasTypedDepth" -> proof.hasTypedDepth,
-          "hasDirectProof" -> proof.hasDirectProof,
-          "hasContrastProof" -> proof.hasContrastProof,
-          "hasContextSupport" -> proof.hasContextSupport,
+          "rawHasTypedDepth" -> proof.hasRawTypedDepth,
+          "rawHasDirectProof" -> proof.hasRawDirectProof,
+          "rawHasContrastProof" -> proof.hasRawContrastProof,
+          "rawHasContextSupport" -> proof.hasRawContextSupport,
           "directProof" -> relativeCauseProofSectionJson(proof.directProof),
           "contrastProof" -> relativeCauseProofSectionJson(proof.contrastProof),
           "contextSupport" -> relativeCauseProofSectionJson(proof.contextSupport)

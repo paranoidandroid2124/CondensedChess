@@ -45,7 +45,7 @@ object ForcedLineTruth:
     TrapDef("legals_mate", List("f3e5", "g4d1", "c4f7", "e8e7", "c3d5"), ExpectedResult.Mate),
     TrapDef("scholars_mate", List("d1h5", "b8c6", "f1c4", "g8f6", "h5f7"), ExpectedResult.Mate),
     TrapDef("fools_mate", List("f3e4", "g2g4", "d8h4"), ExpectedResult.Mate),
-    TrapDef("philidor_legacy", List("f3g5", "f7g8", "g5f7", "g8g7", "f7h6", "g8h8", "d1g8", "f8g8", "h6f7"), ExpectedResult.Mate),
+    TrapDef("philidor_mate", List("f3g5", "f7g8", "g5f7", "g8g7", "f7h6", "g8h8", "d1g8", "f8g8", "h6f7"), ExpectedResult.Mate),
     TrapDef("fishing_pole", List("f6g4", "h3h4", "h5g4", "h4g5", "d8h4"), ExpectedResult.Mate),
 
     // --- Queen's Pawn / Gambits ---

@@ -47,6 +47,10 @@ enum JudgmentPacketValidationIssueKind:
   case MissingRelativeCauseSupportParent
   case MissingRelativeCauseComparisonParent
   case UnbackedRelativeCauseProof
+  case ContextOnlyRelativeCause
+  case UnattributedRelativeCause
+  case RootMismatchedRelativeCause
+  case SupportPromotedToDirectRelativeCause
   case MissingComparisonReferenceParent
   case MissingComparisonCandidateParent
   case MissingCounterfactualReferenceParent
@@ -538,6 +542,9 @@ object JudgmentPacketValidator:
       proof.causeRole == cluster.causeRole &&
       proof.causeSourceSide == cluster.causeSourceSide &&
       proof.causeImportance == cluster.causeImportance &&
+      proof.attributionKind == cluster.attributionKind &&
+      proof.attributionRootMoveMatched == cluster.attributionRootMoveMatched &&
+      proof.attributionDirectProofEligible == cluster.attributionDirectProofEligible &&
       proof.referenceLine == cluster.referenceLine &&
       proof.candidateLine == cluster.candidateLine &&
       proof.eventLine == cluster.eventLine
@@ -591,6 +598,9 @@ object JudgmentPacketValidator:
       cause.role == cluster.causeRole &&
       cause.sourceSide == cluster.causeSourceSide &&
       cause.importance == cluster.causeImportance &&
+      cause.attribution.kind == cluster.attributionKind &&
+      cause.attribution.rootMoveMatched == cluster.attributionRootMoveMatched &&
+      cause.attribution.directProofEligible == cluster.attributionDirectProofEligible &&
       cause.referenceLine == cluster.referenceLine &&
       cause.candidateLine == cluster.candidateLine &&
       cause.eventLine == cluster.eventLine
@@ -604,6 +614,9 @@ object JudgmentPacketValidator:
       cause.role == proof.causeRole &&
       cause.sourceSide == proof.causeSourceSide &&
       cause.importance == proof.causeImportance &&
+      cause.attribution.kind == proof.attributionKind &&
+      cause.attribution.rootMoveMatched == proof.attributionRootMoveMatched &&
+      cause.attribution.directProofEligible == proof.attributionDirectProofEligible &&
       cause.referenceLine == proof.referenceLine &&
       cause.candidateLine == proof.candidateLine &&
       cause.eventLine == proof.eventLine &&
@@ -622,12 +635,14 @@ object JudgmentPacketValidator:
       relativeProof: RelativeCauseProof,
       causeProof: ClaimEventCauseProof
   ): Boolean =
+    val strategicProof = relativeProof.strategicProofIdentity
     relativeProof.directProof.sourceRefs.map(_.id).toSet == causeProof.proofDirectSourceIds.toSet &&
       relativeProof.contrastProof.sourceRefs.map(_.id).toSet == causeProof.proofContrastSourceIds.toSet &&
       relativeProof.contextSupport.sourceRefs.map(_.id).toSet == causeProof.proofContextSupportSourceIds.toSet &&
-      relativeProof.strategicMechanisms.map(_.kind).toSet == causeProof.proofStrategicMechanismKinds.toSet &&
-      relativeProof.strategicMechanisms.map(_.source.id).toSet == causeProof.proofStrategicMechanismSourceIds.toSet &&
-      relativeProof.strategicMechanisms.flatMap(_.signals.map(_.source.id)).toSet == causeProof.proofStrategicMechanismSignalSourceIds.toSet &&
+      strategicProof.axisKeys == causeProof.proofStrategicAxisKeys &&
+      strategicProof.mechanismKinds == causeProof.proofStrategicMechanismKinds &&
+      strategicProof.mechanismSourceIds == causeProof.proofStrategicMechanismSourceIds &&
+      strategicProof.signalSourceIds == causeProof.proofStrategicMechanismSignalSourceIds &&
       relativeProof.directProof.kindLabels.toSet == causeProof.proofDirectKinds.toSet &&
       relativeProof.contrastProof.kindLabels.toSet == causeProof.proofContrastKinds.toSet &&
       relativeProof.contextSupport.kindLabels.toSet == causeProof.proofContextSupportKinds.toSet
@@ -904,8 +919,40 @@ object JudgmentPacketValidator:
           ref.id,
           Some(ref)
         )
+      ),
+      Option.when(cause.attribution.contextOnly)(
+        JudgmentPacketValidationIssue(
+          JudgmentPacketValidationIssueKind.ContextOnlyRelativeCause,
+          ref.id,
+          Some(ref)
+        )
+      ),
+      Option.when(cause.attribution.unattributed)(
+        JudgmentPacketValidationIssue(
+          JudgmentPacketValidationIssueKind.UnattributedRelativeCause,
+          ref.id,
+          Some(ref)
+        )
+      ),
+      Option.when(cause.attribution.rootMismatch)(
+        JudgmentPacketValidationIssue(
+          JudgmentPacketValidationIssueKind.RootMismatchedRelativeCause,
+          ref.id,
+          Some(ref)
+        )
+      ),
+      Option.when(relativeCauseSupportPromotedToDirect(cause))(
+        JudgmentPacketValidationIssue(
+          JudgmentPacketValidationIssueKind.SupportPromotedToDirectRelativeCause,
+          ref.id,
+          Some(ref)
+        )
       )
     ).flatten
+
+  private def relativeCauseSupportPromotedToDirect(cause: RelativeCauseFact): Boolean =
+    val directIds = cause.proof.toList.flatMap(_.directProof.sourceRefs.map(_.id)).toSet
+    directIds.nonEmpty && !cause.attribution.directProofEligible
 
   private def relativeCauseRecordLineConsistent(record: EvidenceRecord, cause: RelativeCauseFact): Boolean =
     record.ref.line match
@@ -1067,6 +1114,7 @@ object JudgmentPacketValidator:
       proof.relationProofs.forall(relationProof => parents.exists(parentHasRelationProof(_, relationProof))) &&
       proof.tacticalMechanisms.forall(mechanismProof => parents.exists(parentHasTacticalMechanism(_, mechanismProof))) &&
       proof.strategicMechanisms.forall(mechanismProof => parents.exists(parentHasStrategicMechanism(_, mechanismProof))) &&
+      proof.strategicMechanismContrasts.forall(contrastProof => parents.exists(parentHasStrategicMechanismContrast(_, contrastProof))) &&
       proof.threatEpisodes.forall(threatProof => parents.exists(parentHasThreatEpisode(_, threatProof))) &&
       proof.transitionConsequences.forall(proof => parents.exists(parentHasTransitionConsequence(_, proof))) &&
       proof.contextLayers.forall(layer => parents.exists(_.ref.layer == layer))
@@ -1090,17 +1138,18 @@ object JudgmentPacketValidator:
     val contrastIds = proof.contrastProof.sourceRefs.map(_.id).toSet
     val contextIds = proof.contextSupport.sourceRefs.map(_.id).toSet
     val supportIds = supportClosureIds(graph, cause.supportEvidence)
+    val ownedIds = cause.attribution.ownedEvidence.map(_.id).toSet
     val allSourceIds = directIds ++ contrastIds ++ contextIds
     directRole &&
       contrastRole &&
       contextRole &&
       allSourceIds.subsetOf(parentIds) &&
+      directIds == ownedIds &&
+      (directIds.isEmpty || cause.attribution.directProofEligible) &&
       (directIds.subsetOf(supportIds) || directIds.isEmpty) &&
       contrastIds.forall(id => graph.byId.get(id).exists(record => contrastProofSource(record, cause))) &&
       contextIds.forall(id => graph.byId.get(id).exists(record => contextSupportSource(record, cause))) &&
       (directIds intersect contrastIds).isEmpty &&
-      (contrastIds intersect supportIds).isEmpty &&
-      (contextIds intersect supportIds).isEmpty &&
       (contextIds intersect directIds).isEmpty &&
       (contextIds intersect contrastIds).isEmpty
 
@@ -1119,14 +1168,16 @@ object JudgmentPacketValidator:
       )
 
   private def contextSupportSource(record: EvidenceRecord, cause: RelativeCauseFact): Boolean =
+    val attributedContext = cause.attribution.contextEvidence.exists(_.id == record.ref.id)
     val referencesComparedLine =
       record.referencesLine(cause.referenceLine) || record.referencesLine(cause.candidateLine)
-    !referencesComparedLine &&
+    attributedContext ||
+      (!referencesComparedLine &&
       (
         record.ref.scope == EvidenceScope.BeforePosition ||
           record.ref.scope == EvidenceScope.CurrentPosition ||
           record.ref.line.nonEmpty
-      )
+      ))
 
   private def supportClosureIds(graph: TypedEvidenceGraph, supportEvidence: List[EvidenceRef]): Set[String] =
     supportEvidence
@@ -1145,15 +1196,29 @@ object JudgmentPacketValidator:
   private def parentHasLineEvent(record: EvidenceRecord, proof: LineEventProof): Boolean =
     record match
       case EvidenceRecord(ref, payload: LineFactEvidence, _) =>
-        ref.id == proof.source.id && payload.hasLineEvent(proof.kind)
+        ref.id == proof.source.id &&
+          payload.lineEvents.exists(event =>
+            event.kind == proof.kind &&
+              proof.moveUci.forall(move => normalizeMove(move) == normalizeMove(event.moveUci)) &&
+              proof.plyOffset.forall(_ == event.plyOffset) &&
+              proof.side.forall(side => event.side.contains(side)) &&
+              proof.square.forall(square => event.square.contains(square))
+          )
       case _ =>
         false
+
+  private def normalizeMove(raw: String): String =
+    Option(raw).getOrElse("").trim.toLowerCase
 
   private def parentHasLineConsequence(record: EvidenceRecord, proof: LineConsequenceProof): Boolean =
     record match
       case EvidenceRecord(ref, payload: LineFactEvidence, _) =>
         ref.id == proof.source.id &&
-          (payload.hasProofSignalConsequence(proof.kind) || payload.hasMaterialOutcomeConsequence(proof.kind))
+          payload.proofSignalConsequences.exists(consequence =>
+            consequence.kind == proof.kind &&
+              proof.eventMove.forall(move => consequence.eventMove.exists(existing => normalizeMove(existing) == normalizeMove(move))) &&
+              proof.lineMoves.forall(move => consequence.lineMoves.exists(existing => normalizeMove(existing) == normalizeMove(move)))
+          )
       case _ =>
         false
 
@@ -1184,6 +1249,19 @@ object JudgmentPacketValidator:
             payload.signals.contains(signal) &&
               record.parents.exists(parent => parent.id == signal.source.id)
           )
+      case _ =>
+        false
+
+  private def parentHasStrategicMechanismContrast(record: EvidenceRecord, proof: StrategicMechanismContrastProof): Boolean =
+    record match
+      case EvidenceRecord(ref, payload: StrategicMechanismContrastEvidence, _) =>
+        ref.id == proof.source.id &&
+          payload.comparisonKind == proof.comparisonKind &&
+          payload.referenceLine == proof.referenceLine &&
+          payload.candidateLine == proof.candidateLine &&
+          payload.axisComparisons == proof.axisComparisons &&
+          payload.sustainability == proof.sustainability &&
+          payload.hasActionableContrast
       case _ =>
         false
 

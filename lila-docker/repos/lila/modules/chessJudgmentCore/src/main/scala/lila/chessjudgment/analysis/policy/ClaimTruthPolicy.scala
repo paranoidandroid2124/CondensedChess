@@ -130,13 +130,15 @@ object ClaimTruthPolicy:
             false
       case ClaimFamily.Plan =>
         layer match
-          case EvidenceLayer.StrategicMechanism =>
+          case EvidenceLayer.StrategicMechanism | EvidenceLayer.RelativeCause | EvidenceLayer.MoveVerdictCertification |
+              EvidenceLayer.CandidateComparison | EvidenceLayer.RelativeAssessment =>
             true
           case _ =>
             false
       case ClaimFamily.Strategic | ClaimFamily.PawnStructure | ClaimFamily.Opening =>
         layer match
-          case EvidenceLayer.StrategicMechanism =>
+          case EvidenceLayer.StrategicMechanism | EvidenceLayer.RelativeCause | EvidenceLayer.MoveVerdictCertification |
+              EvidenceLayer.CandidateComparison | EvidenceLayer.RelativeAssessment =>
             true
           case _ =>
             false
@@ -367,6 +369,12 @@ object ClaimTruthPolicy:
 
   private def strategicProof(records: List[EvidenceRecord]): Boolean =
     records.exists {
+      case EvidenceRecord(_, RelativeCauseFactEvidence(cause), _) =>
+        strategicRelativeCauseHasProof(cause)
+      case EvidenceRecord(_, MoveVerdictCertificationEvidence(certification), _) =>
+        certification.causes.exists(strategicRelativeCauseHasProof)
+      case EvidenceRecord(_, payload: StrategicMechanismContrastEvidence, _) =>
+        payload.hasActionableContrast
       case EvidenceRecord(_, payload: StrategicMechanismEvidence, _) =>
         payload.canAnchorStrategicIdea
       case _ =>
@@ -375,6 +383,12 @@ object ClaimTruthPolicy:
 
   private def pawnStructureProof(records: List[EvidenceRecord]): Boolean =
     records.exists {
+      case EvidenceRecord(_, RelativeCauseFactEvidence(cause), _) =>
+        strategicRelativeCauseHasProof(cause)
+      case EvidenceRecord(_, MoveVerdictCertificationEvidence(certification), _) =>
+        certification.causes.exists(strategicRelativeCauseHasProof)
+      case EvidenceRecord(_, payload: StrategicMechanismContrastEvidence, _) =>
+        payload.actionableComparisons.exists(_.axis.kind == StrategicAxisKind.PawnBreak)
       case EvidenceRecord(_, payload: StrategicMechanismEvidence, _) =>
         payload.canAnchorPawnStructureIdea
       case _ =>
@@ -395,6 +409,16 @@ object ClaimTruthPolicy:
 
   private def planProof(records: List[EvidenceRecord]): Boolean =
     records.exists {
+      case EvidenceRecord(_, RelativeCauseFactEvidence(cause), _) =>
+        strategicRelativeCauseHasProof(cause) &&
+          (cause.kind == RelativeCauseKind.PlanImprovement || cause.kind == RelativeCauseKind.PlanContradiction)
+      case EvidenceRecord(_, MoveVerdictCertificationEvidence(certification), _) =>
+        certification.causes.exists(cause =>
+          strategicRelativeCauseHasProof(cause) &&
+            (cause.kind == RelativeCauseKind.PlanImprovement || cause.kind == RelativeCauseKind.PlanContradiction)
+        )
+      case EvidenceRecord(_, payload: StrategicMechanismContrastEvidence, _) =>
+        payload.planComparison.exists(_.hasPlanDelta)
       case EvidenceRecord(_, payload: StrategicMechanismEvidence, _) =>
         payload.canAnchorPlanIdea
       case _ =>
@@ -411,8 +435,6 @@ object ClaimTruthPolicy:
           payload.canAnchorTacticalIdea
         case EvidenceRecord(_, payload: RelationFactEvidence, _) =>
           payload.hasConcreteRelationProof
-        case EvidenceRecord(_, payload: LineFactEvidence, _) =>
-          payload.hasTacticalLineConsequence
         case EvidenceRecord(_, RelativeCauseFactEvidence(cause), _) =>
           (tacticalRelativeCause(cause.kind) || materialResultCause(cause.kind)) &&
             relativeCauseHasTacticalProof(cause)
@@ -489,7 +511,7 @@ object ClaimTruthPolicy:
 
   private def defensiveRelativeCauseHasProof(cause: RelativeCauseFact): Boolean =
     defensiveRelativeCause(cause.kind) &&
-      cause.proof.exists(_.hasTypedDepth)
+      cause.hasOwnedTypedDepth
 
   private def claimIsBranchLocal(claim: ClaimSeed): Boolean =
     claim.scope == EvidenceScope.ThreatLine ||
@@ -626,7 +648,7 @@ object ClaimTruthPolicy:
 
   private def materialRelativeCauseHasProof(cause: RelativeCauseFact): Boolean =
     materialResultCause(cause.kind) &&
-      cause.proof.exists(_.hasTypedDepth)
+      cause.hasOwnedTypedDepth
 
   private def materialLineProof(payload: LineFactEvidence): Boolean =
     payload.hasMaterialConsequence ||
@@ -642,13 +664,20 @@ object ClaimTruthPolicy:
         cause.kind == RelativeCauseKind.RecaptureRecoveryWindow ||
         cause.kind == RelativeCauseKind.MaterialSwing
     ) &&
-      cause.proof.exists(_.hasTypedDepth)
+      cause.hasOwnedTypedDepth
+
+  private def strategicRelativeCauseHasProof(cause: RelativeCauseFact): Boolean =
+    cause.hasOwnedStrategicContrastDepth
 
   private def relativeCauseHasTacticalProof(cause: RelativeCauseFact): Boolean =
-    cause.proof.exists(proof => proof.directProof.hasTacticalProof || proof.contrastProof.hasTacticalProof)
+    cause.hasOwnedTacticalProof
 
   private def lineHasTacticalProof(payload: LineFactEvidence): Boolean =
-    payload.hasTacticalLineConsequence
+    payload.rootMove.exists(rootMove =>
+      payload.rootOwnedProofSignalConsequences(rootMove).exists(consequence =>
+        LineConsequenceKind.tacticalDriver(consequence.kind)
+      )
+    )
 
   private def defensiveRelativeCause(kind: RelativeCauseKind): Boolean =
     ClaimEventCluster.kindForCause(kind).contains(ClaimEventClusterKind.DefensiveEvent)

@@ -24,6 +24,7 @@ final case class EvidencePieceRole(name: String)
 enum EvidenceSemanticAnchorKind:
   case StrategicKind
   case StrategicMechanism
+  case StrategicAxis
   case Plan
   case BoardAnchor
   case PawnStructure
@@ -49,6 +50,557 @@ final case class EvidenceSemanticAnchor(
 object EvidenceSemanticAnchor:
   def of(kind: EvidenceSemanticAnchorKind, values: String*): EvidenceSemanticAnchor =
     EvidenceSemanticAnchor(kind, values.toList)
+
+enum EvidenceObjectKind:
+  case Move
+  case Piece
+  case Side
+  case Square
+  case File
+  case Pawn
+  case PlanSubject
+  case Relation
+  case Motif
+  case Line
+  case Mechanism
+  case Consequence
+  case Horizon
+
+final case class ConcreteChessObject(
+    kind: EvidenceObjectKind,
+    key: String
+):
+  def signaturePart: String =
+    s"$kind:${key.trim.toLowerCase}"
+
+final case class EvidenceObjectBinding(
+    source: EvidenceRef,
+    actor: List[ConcreteChessObject] = Nil,
+    target: List[ConcreteChessObject] = Nil,
+    mechanism: List[ConcreteChessObject] = Nil,
+    consequence: List[ConcreteChessObject] = Nil,
+    witness: List[ConcreteChessObject] = Nil,
+    line: Option[LineNodeRef] = None,
+    horizon: Option[String] = None,
+    proofRole: Option[RelativeCauseProofRole] = None
+):
+  def concreteObjects: List[ConcreteChessObject] =
+    (actor ++ target ++ mechanism ++ consequence).distinctBy(_.signaturePart)
+  def hasConcreteObject: Boolean =
+    target.nonEmpty ||
+      (actor.nonEmpty && (mechanism.nonEmpty || consequence.nonEmpty))
+  def playerFacingReady: Boolean =
+    target.nonEmpty &&
+      mechanism.nonEmpty &&
+      (consequence.nonEmpty || witness.nonEmpty) &&
+      proofRole.forall(_ != RelativeCauseProofRole.ContextSupport)
+  def signature: String =
+    val parts = List(
+      "actor" -> actor,
+      "target" -> target,
+      "mechanism" -> mechanism,
+      "consequence" -> consequence,
+      "witness" -> witness
+    ).flatMap { case (role, objects) =>
+      objects.distinctBy(_.signaturePart).sortBy(_.signaturePart).map(obj => s"$role=${obj.signaturePart}")
+    }
+    val linePart = line.map(line => s"line=${line.id}").toList
+    val horizonPart = horizon.map(horizon => s"horizon=${horizon.trim.toLowerCase}").toList
+    val proofPart = proofRole.map(role => s"proof=$role").toList
+    (parts ++ linePart ++ horizonPart ++ proofPart).mkString("|")
+
+object EvidenceObjectBinding:
+
+  def fromClaim(claim: ClaimSeed, graph: TypedEvidenceGraph): List[EvidenceObjectBinding] =
+    fromEvidenceRefs(graph, claim.evidence)
+
+  def fromEvidenceRefs(graph: TypedEvidenceGraph, refs: List[EvidenceRef]): List[EvidenceObjectBinding] =
+    refs
+      .flatMap(ref => graph.byId.get(ref.id))
+      .flatMap(record => fromRecord(record, graph, Set.empty))
+      .distinctBy(_.signature)
+
+  def fromRelativeCause(cause: RelativeCauseFact, graph: TypedEvidenceGraph): List[EvidenceObjectBinding] =
+    val proofBindings =
+      cause.proof.toList.flatMap { proof =>
+        bindingsFromProofSection(proof.directProof, graph) ++
+          bindingsFromProofSection(proof.contrastProof, graph) ++
+          bindingsFromProofSection(proof.contextSupport, graph)
+      }
+    val supportBindings =
+      fromEvidenceRefs(graph, cause.supportEvidence).map(_.copy(proofRole = Some(RelativeCauseProofRole.ContextSupport)))
+    (proofBindings ++ supportBindings).distinctBy(_.signature)
+
+  def objectSignatures(bindings: List[EvidenceObjectBinding]): List[String] =
+    bindings.filter(_.hasConcreteObject).map(_.signature).distinct.sorted
+
+  def playerFacingReady(bindings: List[EvidenceObjectBinding]): Boolean =
+    bindings.exists(_.playerFacingReady)
+
+  def hasConcreteObject(bindings: List[EvidenceObjectBinding]): Boolean =
+    bindings.exists(_.hasConcreteObject)
+
+  def lowLevelObjectAvailable(cause: RelativeCauseFact, graph: TypedEvidenceGraph): Boolean =
+    val refs =
+      cause.supportEvidence ++
+        cause.proof.toList.flatMap(proof =>
+          proof.directProof.sourceRefs ++ proof.contrastProof.sourceRefs ++ proof.contextSupport.sourceRefs
+        )
+    hasConcreteObject(fromEvidenceRefs(graph, refs))
+
+  private def bindingsFromProofSection(
+      section: RelativeCauseProofSection,
+      graph: TypedEvidenceGraph
+  ): List[EvidenceObjectBinding] =
+    fromEvidenceRefs(graph, section.sourceRefs).map(_.copy(proofRole = Some(section.role)))
+
+  private def fromRecord(
+      record: EvidenceRecord,
+      graph: TypedEvidenceGraph,
+      visited: Set[String]
+  ): List[EvidenceObjectBinding] =
+    if visited.contains(record.ref.id) then Nil
+    else
+      val nextVisited = visited + record.ref.id
+      record.payload match
+        case payload: BoardFactEvidence =>
+          payload.boardAnchors.flatMap(anchor => fromBoardAnchor(record.ref, anchor)) ++
+            fromFacts(record.ref, payload.lowLevelFacts)
+        case payload: StrategicFactEvidence =>
+          payload.boardAnchors.flatMap(anchor => fromBoardAnchor(record.ref, anchor)) ++
+            fromFacts(record.ref, payload.facts) ++
+            payload.relatedPlans.map(plan =>
+              EvidenceObjectBinding(
+                source = record.ref,
+                actor = Nil,
+                target = objectOf(EvidenceObjectKind.PlanSubject, plan.toString),
+                mechanism = objectOf(EvidenceObjectKind.Mechanism, payload.kind.toString),
+                consequence = objectOf(EvidenceObjectKind.Consequence, payload.kind.toString),
+                witness = objectOf(EvidenceObjectKind.PlanSubject, plan.toString),
+                line = record.ref.line
+              )
+            )
+        case payload: LineFactEvidence =>
+          fromLineFact(record.ref, payload)
+        case payload: MoveMotifEvidence =>
+          List(fromMoveMotif(record.ref, payload))
+        case payload: RelationFactEvidence =>
+          List(fromRelation(record.ref, payload))
+        case payload: ThreatEpisodeEvidence =>
+          List(fromThreatEpisode(record.ref, payload))
+        case payload: PawnStructureFactEvidence =>
+          fromPawnStructure(record.ref, payload)
+        case PlanPressureEvidence(_, activePlans) =>
+          fromActivePlans(record.ref, activePlans)
+        case PlanTransitionEvidence(transition) =>
+          transition.primaryPlanId.toList.map(planId =>
+            EvidenceObjectBinding(
+              source = record.ref,
+              actor = Nil,
+              target = objectOf(EvidenceObjectKind.PlanSubject, planId),
+              mechanism = objectOf(EvidenceObjectKind.Mechanism, "plan-transition"),
+              consequence = objectOf(EvidenceObjectKind.Consequence, transition.transitionType.toString),
+              witness = objectOf(EvidenceObjectKind.PlanSubject, planId),
+              line = record.ref.line
+            )
+          )
+        case payload: StructuralDeltaEvidence =>
+          fromStructuralDelta(record.ref, payload)
+        case payload: TacticalMechanismEvidence =>
+          val sourceBindings =
+            payload.signals.flatMap(signal =>
+              signal.source.toList.flatMap(source =>
+                graph.byId.get(source.id).toList.flatMap(sourceRecord =>
+                  fromRecord(sourceRecord, graph, nextVisited).map(binding =>
+                    binding.copy(
+                      mechanism = (
+                        binding.mechanism ++ objectOf(EvidenceObjectKind.Mechanism, payload.kind.toString)
+                      ).distinctBy(_.signaturePart),
+                      consequence = (
+                        binding.consequence ++ objectOf(EvidenceObjectKind.Consequence, payload.kind.toString)
+                      ).distinctBy(_.signaturePart),
+                      line = binding.line.orElse(payload.line),
+                      horizon = binding.horizon.orElse(payload.line.map(_.role.toString))
+                    )
+                  )
+                )
+              )
+            )
+          if sourceBindings.nonEmpty then sourceBindings.distinctBy(_.signature)
+          else List(fromTacticalMechanism(record.ref, payload))
+        case payload: StrategicMechanismEvidence =>
+          payload.signals.flatMap(signal =>
+            graph.byId
+              .get(signal.source.id)
+              .toList
+              .flatMap(source =>
+                fromRecord(source, graph, nextVisited).map(binding =>
+                  binding.copy(
+                    mechanism = (binding.mechanism ++ objectOf(EvidenceObjectKind.Mechanism, payload.kind.toString)).distinctBy(
+                      _.signaturePart
+                    ),
+                    consequence = (
+                      binding.consequence ++ signal.axis.toList.flatMap(axis =>
+                        objectOf(EvidenceObjectKind.Consequence, axis.stableKey)
+                      )
+                    ).distinctBy(_.signaturePart),
+                    horizon = binding.horizon.orElse(signal.axis.map(_.kind.toString))
+                  )
+                )
+              )
+          )
+        case payload: StrategicMechanismContrastEvidence =>
+          payload.axisComparisons.flatMap(axisComparison =>
+            axisComparison.sources.flatMap(source =>
+              graph.byId
+                .get(source.id)
+                .toList
+                .flatMap(sourceRecord =>
+                  fromRecord(sourceRecord, graph, nextVisited).map(binding =>
+                    binding.copy(
+                      mechanism = (
+                        binding.mechanism ++ objectOf(EvidenceObjectKind.Mechanism, axisComparison.axis.kind.toString)
+                      ).distinctBy(_.signaturePart),
+                      consequence = (
+                        binding.consequence ++ objectOf(EvidenceObjectKind.Consequence, axisComparison.outcome.toString)
+                      ).distinctBy(_.signaturePart),
+                      witness = (
+                        binding.witness ++ lineObject(payload.referenceLine) ++ lineObject(payload.candidateLine)
+                      ).distinctBy(_.signaturePart),
+                      horizon = Some(payload.sustainability.horizon.toString)
+                    )
+                  )
+                )
+            )
+          )
+        case RelativeCauseFactEvidence(cause) =>
+          fromRelativeCause(cause, graph)
+        case MoveVerdictCertificationEvidence(certification) =>
+          certification.causes.flatMap(cause => fromRelativeCause(cause, graph))
+        case _ =>
+          Nil
+
+  private def fromBoardAnchor(ref: EvidenceRef, anchor: BoardAnchor): List[EvidenceObjectBinding] =
+    val detail = anchor.detail
+    val actor =
+      objectOf(EvidenceObjectKind.Side, colorKey(anchor.side)) ++
+        detail.toList.flatMap(detail =>
+          squareObject(detail.attackerSquare) ++
+            roleObject(detail.attackerRole) ++
+            detail.attackerSquares.flatMap(square => objectOf(EvidenceObjectKind.Square, square.key)) ++
+            squareObject(detail.subjectSquare) ++
+            roleObject(detail.subjectRole) ++
+            detail.subjectColor.toList.flatMap(color => objectOf(EvidenceObjectKind.Side, colorKey(color)))
+        )
+    val target =
+      detail.toList.flatMap(detail =>
+        squareObject(detail.targetSquare) ++
+          roleObject(detail.targetRole) ++
+          fileObject(detail.file) ++
+          detail.relatedSquares.flatMap(square => objectOf(EvidenceObjectKind.Square, square.key))
+      ) ++
+        Option.when(detail.isEmpty)(anchor.focusSquares).toList.flatten.flatMap(square =>
+          objectOf(EvidenceObjectKind.Square, square.key)
+        )
+    val mechanism =
+      objectOf(EvidenceObjectKind.Mechanism, anchor.kind.toString) ++
+        objectOf(EvidenceObjectKind.Mechanism, anchor.signal.toString) ++
+        detail.toList.flatMap(_.axis.toList.flatMap(axis => objectOf(EvidenceObjectKind.Mechanism, axis.toString)))
+    val consequence =
+      objectOf(EvidenceObjectKind.Consequence, anchor.kind.toString)
+    List(
+      EvidenceObjectBinding(
+        source = ref,
+        actor = actor.distinctBy(_.signaturePart),
+        target = target.distinctBy(_.signaturePart),
+        mechanism = mechanism.distinctBy(_.signaturePart),
+        consequence = consequence,
+        witness = anchor.focusSquares.flatMap(square => objectOf(EvidenceObjectKind.Square, square.key)),
+        line = ref.line
+      )
+    )
+
+  private def fromFacts(ref: EvidenceRef, facts: List[Fact]): List[EvidenceObjectBinding] =
+    facts.map { fact =>
+      val focus = fact.squareFocus
+      val factName = fact.getClass.getSimpleName.stripSuffix("$")
+      EvidenceObjectBinding(
+        source = ref,
+        actor = focus.attackerSquares.flatMap(square => objectOf(EvidenceObjectKind.Square, square.key)) ++
+          focus.subjectSquares.flatMap(square => objectOf(EvidenceObjectKind.Square, square.key)) ++
+          factActorObjects(fact),
+        target = focus.targetSquares.flatMap(square => objectOf(EvidenceObjectKind.Square, square.key)) ++
+          focus.vulnerableMaterialSquares.flatMap(square => objectOf(EvidenceObjectKind.Square, square.key)) ++
+          factTargetObjects(fact),
+        mechanism = objectOf(EvidenceObjectKind.Mechanism, factName),
+        consequence = objectOf(EvidenceObjectKind.Consequence, factName),
+        witness = focus.relatedSquares.flatMap(square => objectOf(EvidenceObjectKind.Square, square.key)) ++
+          fact.participants.flatMap(square => objectOf(EvidenceObjectKind.Square, square.key)),
+        line = ref.line
+      )
+    }.filter(_.hasConcreteObject)
+
+  private def factActorObjects(fact: Fact): List[ConcreteChessObject] =
+    fact match
+      case Fact.FileControl(_, color, _, _) =>
+        objectOf(EvidenceObjectKind.Side, colorKey(color))
+      case Fact.SpaceAdvantage(color, _, _) =>
+        objectOf(EvidenceObjectKind.Side, colorKey(color))
+      case _ =>
+        Nil
+
+  private def factTargetObjects(fact: Fact): List[ConcreteChessObject] =
+    fact match
+      case Fact.FileControl(file, _, _, _) =>
+        objectOf(EvidenceObjectKind.File, file.toString.toLowerCase)
+      case _ =>
+        Nil
+
+  private def fromLineFact(ref: EvidenceRef, payload: LineFactEvidence): List[EvidenceObjectBinding] =
+    val eventBindings =
+      payload.lineEvents.map { event =>
+        val move = normalize(event.moveUci)
+        EvidenceObjectBinding(
+          source = ref,
+          actor = moveObjects(move) ++
+            event.side.toList.flatMap(color => objectOf(EvidenceObjectKind.Side, colorKey(color))) ++
+            roleObject(event.pieceRole),
+          target = {
+            val squareTarget = squareObject(event.square)
+            (if squareTarget.nonEmpty then squareTarget else moveTargetSquare(move)) ++ roleObject(event.targetRole)
+          },
+          mechanism = objectOf(EvidenceObjectKind.Mechanism, event.kind.toString),
+          consequence = objectOf(EvidenceObjectKind.Consequence, event.kind.toString),
+          witness = objectOf(EvidenceObjectKind.Move, move) ++ lineObject(payload.line),
+          line = Some(payload.line),
+          horizon = Some(s"ply:${event.plyOffset}")
+        )
+      }
+    val consequenceBindings =
+      payload.proofSignalConsequences.map { consequence =>
+        val eventMove = consequence.eventMove.orElse(consequence.lineMoves.headOption).map(normalize)
+        EvidenceObjectBinding(
+          source = ref,
+          actor = eventMove.toList.flatMap(moveObjects),
+          target = eventMove.toList.flatMap(moveTargetSquare),
+          mechanism = objectOf(EvidenceObjectKind.Mechanism, consequence.kind.toString),
+          consequence = objectOf(EvidenceObjectKind.Consequence, consequence.kind.toString),
+          witness = consequence.lineMoves.flatMap(move => objectOf(EvidenceObjectKind.Move, move)) ++ lineObject(payload.line),
+          line = Some(payload.line)
+        )
+      }
+    (eventBindings ++ consequenceBindings).distinctBy(_.signature)
+
+  private def fromMoveMotif(ref: EvidenceRef, payload: MoveMotifEvidence): EvidenceObjectBinding =
+    val proof = payload.proof
+    EvidenceObjectBinding(
+      source = ref,
+      actor = moveObjects(payload.eventMove.getOrElse(payload.rootMove)) ++
+        proof.subjectSquares.flatMap(square => objectOf(EvidenceObjectKind.Square, square.key)) ++
+        proof.roles.map(role => ConcreteChessObject(EvidenceObjectKind.Piece, normalize(role.name))),
+      target = proof.targetSquares.flatMap(square => objectOf(EvidenceObjectKind.Square, square.key)) ++
+        proof.relatedSquares.flatMap(square => objectOf(EvidenceObjectKind.Square, square.key)) ++
+        proof.relatedFiles.flatMap(file => objectOf(EvidenceObjectKind.File, file.key)),
+      mechanism = objectOf(EvidenceObjectKind.Motif, proof.kind) ++ objectOf(EvidenceObjectKind.Mechanism, proof.category.toString),
+      consequence = objectOf(EvidenceObjectKind.Consequence, proof.category.toString),
+      witness = payload.line.toList.flatMap(lineObject) ++ objectOf(EvidenceObjectKind.Move, payload.rootMove),
+      line = payload.line,
+      horizon = Some(s"ply:${payload.plyOffset}")
+    )
+
+  private def fromRelation(ref: EvidenceRef, payload: RelationFactEvidence): EvidenceObjectBinding =
+    val actorParticipants =
+      payload.participants.filter(participant =>
+        participant.participantRole == RelationParticipantRole.Attacker ||
+          participant.participantRole == RelationParticipantRole.Mover ||
+          participant.participantRole == RelationParticipantRole.Beneficiary
+      )
+    val targetParticipants =
+      payload.participants.filter(participant =>
+        participant.participantRole == RelationParticipantRole.Target ||
+          participant.participantRole == RelationParticipantRole.Defender ||
+          participant.participantRole == RelationParticipantRole.King ||
+          participant.participantRole == RelationParticipantRole.Blocker
+      )
+    EvidenceObjectBinding(
+      source = ref,
+      actor = actorParticipants.flatMap(participantObjects),
+      target = payload.targetSquare.toList.flatMap(square => objectOf(EvidenceObjectKind.Square, square.key)) ++
+        targetParticipants.flatMap(participantObjects),
+      mechanism = objectOf(EvidenceObjectKind.Relation, payload.kind.toString) ++
+        objectOf(EvidenceObjectKind.Mechanism, payload.detail.detailName),
+      consequence = objectOf(EvidenceObjectKind.Consequence, payload.kind.toString),
+      witness = payload.lineMoves.flatMap(move => objectOf(EvidenceObjectKind.Move, move)) ++
+        payload.focusSquares.flatMap(square => objectOf(EvidenceObjectKind.Square, square.key)),
+      line = ref.line
+    )
+
+  private def fromThreatEpisode(ref: EvidenceRef, payload: ThreatEpisodeEvidence): EvidenceObjectBinding =
+    val episode = payload.episode
+    EvidenceObjectBinding(
+      source = ref,
+      actor = episode.attackSquares.flatMap(square => objectOf(EvidenceObjectKind.Square, square.key)),
+      target = objectOf(EvidenceObjectKind.Side, colorKey(episode.sideUnderPressure)) ++
+        episode.targetPieces.flatMap(role => objectOf(EvidenceObjectKind.Piece, role.name)),
+      mechanism = objectOf(EvidenceObjectKind.Mechanism, episode.kind.toString) ++
+        objectOf(EvidenceObjectKind.Mechanism, episode.driver.toString),
+      consequence = objectOf(EvidenceObjectKind.Consequence, episode.severity.toString),
+      witness = episode.bestDefense.toList.flatMap(move => objectOf(EvidenceObjectKind.Move, move)) ++
+        episode.motifs.flatMap(motif =>
+          objectOf(EvidenceObjectKind.Motif, motif.getClass.getSimpleName.stripSuffix("$"))
+        ),
+      line = ref.line,
+      horizon = Some(s"turns:${episode.turnsToImpact}")
+    )
+
+  private def fromPawnStructure(ref: EvidenceRef, payload: PawnStructureFactEvidence): List[EvidenceObjectBinding] =
+    val pawnPlayBindings =
+      payload.pawnPlay.toList.flatMap { pawnPlay =>
+        val target =
+          pawnPlay.breakFile.toList.flatMap(file => objectOf(EvidenceObjectKind.File, file)) ++
+            pawnPlay.tensionSquares.flatMap(subjectObject) ++
+            pawnPlay.blockadeSquare.toList.flatMap(square => objectOf(EvidenceObjectKind.Square, square.key))
+        Option.when(target.nonEmpty)(
+          EvidenceObjectBinding(
+            source = ref,
+            actor = pawnPlay.blockadeRole.toList.flatMap(role => objectOf(EvidenceObjectKind.Piece, role.toString)),
+            target = target.distinctBy(_.signaturePart),
+            mechanism = objectOf(EvidenceObjectKind.Mechanism, pawnPlay.primaryDriver.toString),
+            consequence = objectOf(EvidenceObjectKind.Consequence, payload.profile.primary.toString),
+            witness = target.distinctBy(_.signaturePart),
+            line = ref.line
+          )
+        )
+      }
+    val alignmentBindings =
+      payload.alignment.toList.flatMap(_.matchedPlanIds).map(planId =>
+        EvidenceObjectBinding(
+          source = ref,
+          actor = Nil,
+          target = objectOf(EvidenceObjectKind.PlanSubject, planId),
+          mechanism = objectOf(EvidenceObjectKind.Mechanism, payload.profile.primary.toString),
+          consequence = objectOf(EvidenceObjectKind.Consequence, payload.profile.primary.toString),
+          witness = objectOf(EvidenceObjectKind.PlanSubject, planId),
+          line = ref.line
+        )
+      )
+    (pawnPlayBindings ++ alignmentBindings).distinctBy(_.signature)
+
+  private def fromActivePlans(ref: EvidenceRef, activePlans: ActivePlans): List[EvidenceObjectBinding] =
+    (activePlans.primary :: activePlans.secondary.toList).map { plan =>
+      EvidenceObjectBinding(
+        source = ref,
+        actor = Nil,
+        target = objectOf(EvidenceObjectKind.PlanSubject, plan.plan.id.toString),
+        mechanism = objectOf(EvidenceObjectKind.Mechanism, "plan-pressure"),
+        consequence = objectOf(EvidenceObjectKind.Consequence, plan.plan.id.toString),
+        witness = plan.evidence.flatMap(evidence => objectOf(EvidenceObjectKind.PlanSubject, evidence.toString)),
+        line = ref.line
+      )
+    }.distinctBy(_.signature)
+
+  private def fromStructuralDelta(ref: EvidenceRef, payload: StructuralDeltaEvidence): List[EvidenceObjectBinding] =
+    val actor =
+      moveObjects(payload.moveUci) ++ objectOf(EvidenceObjectKind.Side, colorKey(payload.perspective))
+    val signalBindings =
+      payload.signals.map { signal =>
+        EvidenceObjectBinding(
+          source = ref,
+          actor = actor,
+          target = signal.subjects.flatMap(subjectObject),
+          mechanism = objectOf(EvidenceObjectKind.Mechanism, signal.kind.toString),
+          consequence = objectOf(EvidenceObjectKind.Consequence, signal.polarity.toString),
+          witness = objectOf(EvidenceObjectKind.Move, payload.moveUci) ++ payload.line.toList.flatMap(lineObject),
+          line = payload.line
+        )
+      }
+    val consequenceBindings =
+      payload.consequences.map { consequence =>
+        EvidenceObjectBinding(
+          source = ref,
+          actor = actor,
+          target = consequence.subjects.flatMap(subjectObject),
+          mechanism = objectOf(EvidenceObjectKind.Mechanism, consequence.kind.toString),
+          consequence = objectOf(EvidenceObjectKind.Consequence, consequence.anchorKey),
+          witness = objectOf(EvidenceObjectKind.Move, payload.moveUci) ++ payload.line.toList.flatMap(lineObject),
+          line = payload.line
+        )
+      }
+    val developmentBindings =
+      payload.developmentChoices.map { choice =>
+        EvidenceObjectBinding(
+          source = ref,
+          actor = objectOf(EvidenceObjectKind.Piece, choice.role) ++
+            objectOf(EvidenceObjectKind.Square, choice.from) ++
+            objectOf(EvidenceObjectKind.Move, payload.moveUci),
+          target = objectOf(EvidenceObjectKind.Square, choice.to),
+          mechanism = objectOf(EvidenceObjectKind.Mechanism, StructuralSignalKind.DevelopmentChoice.toString),
+          consequence = objectOf(EvidenceObjectKind.Consequence, TransitionConsequenceKind.DevelopmentPieceActivated.toString),
+          witness = payload.line.toList.flatMap(lineObject),
+          line = payload.line
+        )
+      }
+    (signalBindings ++ consequenceBindings ++ developmentBindings).distinctBy(_.signature)
+
+  private def fromTacticalMechanism(ref: EvidenceRef, payload: TacticalMechanismEvidence): EvidenceObjectBinding =
+    EvidenceObjectBinding(
+      source = ref,
+      actor = payload.moveUci.toList.flatMap(moveObjects),
+      target = Nil,
+      mechanism = objectOf(EvidenceObjectKind.Mechanism, payload.kind.toString) ++
+        payload.signals.flatMap(signal => objectOf(EvidenceObjectKind.Mechanism, signal.label)),
+      consequence = objectOf(EvidenceObjectKind.Consequence, payload.kind.toString),
+      witness = payload.line.toList.flatMap(lineObject),
+      line = payload.line
+    )
+
+  private def participantObjects(participant: RelationParticipant): List[ConcreteChessObject] =
+    objectOf(EvidenceObjectKind.Square, participant.square.key) ++
+      participant.role.toList.flatMap(role => objectOf(EvidenceObjectKind.Piece, role.name)) ++
+      objectOf(EvidenceObjectKind.Mechanism, participant.participantRole.toString)
+
+  private def moveObjects(move: String): List[ConcreteChessObject] =
+    val normalized = normalize(move)
+    objectOf(EvidenceObjectKind.Move, normalized) ++ moveSourceSquare(normalized)
+
+  private def moveSourceSquare(move: String): List[ConcreteChessObject] =
+    if move.length >= 2 then objectOf(EvidenceObjectKind.Square, move.take(2)) else Nil
+
+  private def moveTargetSquare(move: String): List[ConcreteChessObject] =
+    if move.length >= 4 then objectOf(EvidenceObjectKind.Square, move.slice(2, 4)) else Nil
+
+  private def squareObject(square: Option[EvidenceSquare]): List[ConcreteChessObject] =
+    square.toList.flatMap(square => objectOf(EvidenceObjectKind.Square, square.key))
+
+  private def fileObject(file: Option[EvidenceFile]): List[ConcreteChessObject] =
+    file.toList.flatMap(file => objectOf(EvidenceObjectKind.File, file.key))
+
+  private def roleObject(role: Option[EvidencePieceRole]): List[ConcreteChessObject] =
+    role.toList.flatMap(role => objectOf(EvidenceObjectKind.Piece, role.name))
+
+  private def lineObject(line: LineNodeRef): List[ConcreteChessObject] =
+    objectOf(EvidenceObjectKind.Line, line.id) ++ objectOf(EvidenceObjectKind.Move, line.rootMove)
+
+  private def subjectObject(raw: String): List[ConcreteChessObject] =
+    val cleaned = normalize(raw)
+      .stripPrefix("square:")
+      .stripPrefix("file:")
+      .stripPrefix("target:")
+      .stripPrefix("subject:")
+    if cleaned.matches("[a-h][1-8]") then objectOf(EvidenceObjectKind.Square, cleaned)
+    else if cleaned.matches("[a-h]") then objectOf(EvidenceObjectKind.File, cleaned)
+    else if cleaned.contains("pawn") then objectOf(EvidenceObjectKind.Pawn, cleaned)
+    else objectOf(EvidenceObjectKind.PlanSubject, cleaned)
+
+  private def objectOf(kind: EvidenceObjectKind, raw: String): List[ConcreteChessObject] =
+    val key = normalize(raw)
+    Option.when(key.nonEmpty)(ConcreteChessObject(kind, key)).toList
+
+  private def normalize(raw: String): String =
+    Option(raw).getOrElse("").trim.toLowerCase
+
+  private def colorKey(color: Color): String =
+    if color.white then "white" else "black"
 
 enum RelationParticipantRole:
   case Attacker
@@ -396,6 +948,8 @@ final case class BoardFactEvidence(
     val materialSquares =
       vulnerableAttackDefense.map(_.square)
     (anchorSquares ++ materialSquares).distinct
+  def lowLevelFacts: List[Fact] =
+    facts
 
 object BoardFactEvidence:
   def apply(facts: List[Fact], features: Option[PositionFeatures]): BoardFactEvidence =
@@ -664,13 +1218,57 @@ enum StrategicMechanismSignalKind:
   case OpeningApplicability
   case EndgamePosition
 
+enum StrategicAxisKind:
+  case Target
+  case SpaceCenter
+  case PawnBreak
+  case Counterplay
+  case Activity
+  case PlanCoherence
+
+enum StrategicAxisPolarity:
+  case Gain
+  case Loss
+  case Preserve
+  case Release
+  case Concede
+  case Restrain
+  case Support
+
+enum StrategicSustainabilityHorizon:
+  case Immediate
+  case ShortPv
+  case MediumPv
+  case LongPv
+  case Unknown
+
+enum StrategicAxisComparisonOutcome:
+  case ReferenceOnly
+  case CandidateOnly
+  case ReferenceStronger
+  case CandidateStronger
+  case SharedSustained
+  case CandidateConcession
+  case ReferencePreservesPlan
+
+final case class StrategicAxisDetail(
+    kind: StrategicAxisKind,
+    polarity: StrategicAxisPolarity,
+    label: String
+):
+  def stableKey: String =
+    s"$kind:$polarity:$label"
+
 final case class StrategicMechanismSignal(
     kind: StrategicMechanismSignalKind,
     label: String,
     source: EvidenceRef,
-    strength: Int
+    strength: Int,
+    axis: Option[StrategicAxisDetail] = None
 ):
   def sourceLayer: EvidenceLayer = source.layer
+  def axisKey: Option[String] =
+    axis.map(_.stableKey)
 
 final case class StrategicMechanismEvidence(
     kind: StrategicMechanismKind,
@@ -693,7 +1291,14 @@ final case class StrategicMechanismEvidence(
         kind == StrategicMechanismSignalKind.EndgamePosition
     )
   def canAnchorStrategicIdea: Boolean =
-    hasCompositeSupport && kind != StrategicMechanismKind.OpeningAlignment
+    hasCompositeSupport &&
+      kind != StrategicMechanismKind.OpeningAlignment &&
+      (kind match
+        case StrategicMechanismKind.StructuralImprovement | StrategicMechanismKind.StrategicConcession =>
+          hasStrategicAxis
+        case _ =>
+          true
+      )
   def canAnchorPawnStructureIdea: Boolean =
     kind == StrategicMechanismKind.PawnStructure && hasSignals
   def canAnchorOpeningIdea: Boolean =
@@ -711,8 +1316,130 @@ final case class StrategicMechanismEvidence(
     canAnchorStrategicIdea || canAnchorPawnStructureIdea || canSupportCompensation
   def hasOpeningAnchorSignal: Boolean =
     signalKinds.contains(StrategicMechanismSignalKind.OpeningAnchor)
+  def axisDetails: List[StrategicAxisDetail] =
+    signals.flatMap(_.axis).distinctBy(_.stableKey)
+  def hasStrategicAxis: Boolean =
+    axisDetails.nonEmpty
+  def hasAxis(kind: StrategicAxisKind, polarities: Set[StrategicAxisPolarity] = Set.empty): Boolean =
+    axisDetails.exists(axis => axis.kind == kind && (polarities.isEmpty || polarities.contains(axis.polarity)))
+  def hasTargetPressureGainAxis: Boolean =
+    kind == StrategicMechanismKind.TargetPressure && canSupportStrategicCause &&
+      hasAxis(StrategicAxisKind.Target, Set(StrategicAxisPolarity.Gain))
+  def hasTargetPressureReleaseAxis: Boolean =
+    kind == StrategicMechanismKind.TargetPressure &&
+      hasAxis(StrategicAxisKind.Target, Set(StrategicAxisPolarity.Release))
+  def hasCenterControlGainAxis: Boolean =
+    kind == StrategicMechanismKind.CenterControl && canSupportStrategicCause &&
+      hasAxis(StrategicAxisKind.SpaceCenter, Set(StrategicAxisPolarity.Gain))
+  def hasKingSafetyConcessionAxis: Boolean =
+    kind == StrategicMechanismKind.KingSafety && canSupportStrategicCause &&
+      hasAxis(StrategicAxisKind.Counterplay, Set(StrategicAxisPolarity.Concede))
+  def hasPawnWeaknessTargetAxis: Boolean =
+    kind == StrategicMechanismKind.PawnWeakness && canSupportStrategicCause &&
+      hasAxis(StrategicAxisKind.Target, Set(StrategicAxisPolarity.Gain))
+  def hasActivityGainAxis: Boolean =
+    kind == StrategicMechanismKind.Activity && canSupportStrategicCause &&
+      hasAxis(StrategicAxisKind.Activity, Set(StrategicAxisPolarity.Gain))
+  def hasActivityLossAxis: Boolean =
+    kind == StrategicMechanismKind.Activity && canSupportStrategicCause &&
+      hasAxis(StrategicAxisKind.Activity, Set(StrategicAxisPolarity.Loss))
+  def hasPlanCoherenceAxis: Boolean =
+    kind == StrategicMechanismKind.PlanPressure && canAnchorPlanIdea &&
+      hasAxis(StrategicAxisKind.PlanCoherence)
+  def hasStrategicConcessionAxis: Boolean =
+    kind == StrategicMechanismKind.StrategicConcession && hasStrategicAxis
+  def hasPassedPawnResourceSignal: Boolean =
+    kind == StrategicMechanismKind.PawnStructure &&
+      canAnchorPawnStructureIdea &&
+      hasAnySignalLabel(Set("passed-pawn-progress", "promotion-pressure-gain"))
+  def hasPassedPawnConcessionSignal: Boolean =
+    kind == StrategicMechanismKind.StrategicConcession &&
+      hasAnySignalLabel(Set("passed-pawn-concession", "promotion-pressure-concession"))
+  private def hasAnySignalLabel(labels: Set[String]): Boolean =
+    signals.exists(signal => labels.contains(signal.label))
   def semanticGroupingAnchors: List[EvidenceSemanticAnchor] =
-    semanticAnchors.distinctBy(_.stableKey)
+    (semanticAnchors ++ signals.flatMap(_.axis).map(axis => EvidenceSemanticAnchor.of(EvidenceSemanticAnchorKind.StrategicAxis, axis.stableKey)))
+      .distinctBy(_.stableKey)
+
+final case class StrategicAxisComparison(
+    axis: StrategicAxisDetail,
+    outcome: StrategicAxisComparisonOutcome,
+    referenceStrength: Int,
+    candidateStrength: Int,
+    referenceSources: List[EvidenceRef],
+    candidateSources: List[EvidenceRef]
+):
+  def axisKey: String =
+    axis.stableKey
+  def sources: List[EvidenceRef] =
+    (referenceSources ++ candidateSources).distinctBy(_.id)
+  def hasContrast: Boolean =
+    referenceStrength != candidateStrength ||
+      outcome == StrategicAxisComparisonOutcome.ReferenceOnly ||
+      outcome == StrategicAxisComparisonOutcome.CandidateOnly ||
+      outcome == StrategicAxisComparisonOutcome.CandidateConcession ||
+      outcome == StrategicAxisComparisonOutcome.ReferencePreservesPlan
+  def candidateNegative: Boolean =
+    axis.polarity == StrategicAxisPolarity.Loss ||
+      axis.polarity == StrategicAxisPolarity.Concede ||
+      outcome == StrategicAxisComparisonOutcome.CandidateConcession
+  def referenceLead: Boolean =
+    outcome == StrategicAxisComparisonOutcome.ReferenceOnly ||
+      outcome == StrategicAxisComparisonOutcome.ReferenceStronger ||
+      outcome == StrategicAxisComparisonOutcome.ReferencePreservesPlan
+  def candidateLead: Boolean =
+    outcome == StrategicAxisComparisonOutcome.CandidateOnly ||
+      outcome == StrategicAxisComparisonOutcome.CandidateStronger ||
+      outcome == StrategicAxisComparisonOutcome.CandidateConcession
+
+final case class StrategicPlanComparison(
+    referencePlanIds: List[String],
+    candidatePlanIds: List[String],
+    outcome: StrategicAxisComparisonOutcome
+):
+  def hasPlanDelta: Boolean =
+    referencePlanIds.sorted != candidatePlanIds.sorted ||
+      outcome == StrategicAxisComparisonOutcome.ReferencePreservesPlan
+
+final case class StrategicSustainabilityAssessment(
+    horizon: StrategicSustainabilityHorizon,
+    lineMaintained: Boolean,
+    pvMaintained: Boolean,
+    referencePlyCount: Int,
+    candidatePlyCount: Int
+):
+  def hasSustainedPv: Boolean =
+    pvMaintained &&
+      (horizon == StrategicSustainabilityHorizon.ShortPv ||
+        horizon == StrategicSustainabilityHorizon.MediumPv ||
+        horizon == StrategicSustainabilityHorizon.LongPv)
+
+final case class StrategicContrastSupport(
+    directSources: List[EvidenceRef],
+    contrastSources: List[EvidenceRef],
+    contextSources: List[EvidenceRef]
+):
+  def all: List[EvidenceRef] =
+    (directSources ++ contrastSources ++ contextSources).distinctBy(_.id)
+
+final case class StrategicMechanismContrastEvidence(
+    comparisonKind: CandidateComparisonKind,
+    referenceLine: LineNodeRef,
+    candidateLine: LineNodeRef,
+    axisComparisons: List[StrategicAxisComparison],
+    planComparison: Option[StrategicPlanComparison],
+    sustainability: StrategicSustainabilityAssessment,
+    support: StrategicContrastSupport
+) extends EvidencePayload:
+  val layer: EvidenceLayer = EvidenceLayer.StrategicMechanism
+  def actionableComparisons: List[StrategicAxisComparison] =
+    axisComparisons.filter(_.hasContrast)
+  def hasActionableContrast: Boolean =
+    actionableComparisons.nonEmpty || planComparison.exists(_.hasPlanDelta)
+  def sourceRefs: List[EvidenceRef] =
+    support.all
+  def axisKeys: List[String] =
+    axisComparisons.map(_.axisKey).distinct.sorted
 
 object StrategicMechanismEvidence:
   def rawStrategicSourceLayer(layer: EvidenceLayer): Boolean =
@@ -749,32 +1476,85 @@ object StrategicMechanismEvidence:
               StrategicMechanismKind.PlanPressure
             case StrategicFactKind.Practicality =>
               StrategicMechanismKind.StructuralImprovement
-        List(mechanism -> signal(StrategicMechanismSignalKind.StrategicFact, kind.toString, record.ref, math.round(confidence * 5).toInt.max(1)))
+        List(
+          mechanism -> signal(
+            StrategicMechanismSignalKind.StrategicFact,
+            kind.toString,
+            record.ref,
+            math.round(confidence * 5).toInt.max(1),
+            concreteAxis(record, strategicFactAxis(kind))
+          )
+        )
       case payload: PawnStructureFactEvidence if pawnStructureCanAnchorPlan(payload) =>
         val label = payload.profile.primary.toString
-        List(StrategicMechanismKind.PawnStructure -> signal(StrategicMechanismSignalKind.PawnStructure, label, record.ref, 2))
+        val axis =
+          payload.pawnPlay.flatMap(pawnPlayAxis).orElse(
+            payload.alignment.map(_ => StrategicAxisDetail(StrategicAxisKind.PlanCoherence, StrategicAxisPolarity.Support, label))
+          )
+        List(StrategicMechanismKind.PawnStructure -> signal(StrategicMechanismSignalKind.PawnStructure, label, record.ref, 2, concreteAxis(record, axis)))
       case payload: StructuralDeltaEvidence if payload.hasTypedOutput =>
         List(
           Option.when(payload.hasStructuralAnchor)(
-            StrategicMechanismKind.StructuralImprovement -> signal(StrategicMechanismSignalKind.StructuralDelta, "structural-improvement", record.ref, payload.structuralImprovementScore.max(1))
+            StrategicMechanismKind.StructuralImprovement -> signal(
+              StrategicMechanismSignalKind.StructuralDelta,
+              "structural-improvement",
+              record.ref,
+              payload.structuralImprovementScore.max(1)
+            )
           ),
           Option.when(payload.hasTargetPressureGain)(
-            StrategicMechanismKind.TargetPressure -> signal(StrategicMechanismSignalKind.StructuralDelta, "target-pressure-gain", record.ref, 3)
+            StrategicMechanismKind.TargetPressure -> signal(
+              StrategicMechanismSignalKind.StructuralDelta,
+              "target-pressure-gain",
+              record.ref,
+              3,
+              concreteAxis(record, structuralDeltaAxis(StrategicAxisKind.Target, StrategicAxisPolarity.Gain, "target-pressure-gain"))
+            )
           ),
           Option.when(payload.hasTargetPressureRelease)(
-            StrategicMechanismKind.TargetPressure -> signal(StrategicMechanismSignalKind.StructuralDelta, "target-pressure-release", record.ref, 2)
+            StrategicMechanismKind.TargetPressure -> signal(
+              StrategicMechanismSignalKind.StructuralDelta,
+              "target-pressure-release",
+              record.ref,
+              2,
+              concreteAxis(record, structuralDeltaAxis(StrategicAxisKind.Target, StrategicAxisPolarity.Release, "target-pressure-release"))
+            )
           ),
           Option.when(payload.hasCenterControlGain)(
-            StrategicMechanismKind.CenterControl -> signal(StrategicMechanismSignalKind.StructuralDelta, "center-control-gain", record.ref, 2)
+            StrategicMechanismKind.CenterControl -> signal(
+              StrategicMechanismSignalKind.StructuralDelta,
+              "center-control-gain",
+              record.ref,
+              2,
+              concreteAxis(record, structuralDeltaAxis(StrategicAxisKind.SpaceCenter, StrategicAxisPolarity.Gain, "center-control-gain"))
+            )
           ),
           Option.when(payload.hasAnyConsequence(Set(TransitionConsequenceKind.KingSafetyConcession, TransitionConsequenceKind.KingRingPressureConcession)))(
-            StrategicMechanismKind.KingSafety -> signal(StrategicMechanismSignalKind.StructuralDelta, "king-safety-concession", record.ref, 3)
+            StrategicMechanismKind.KingSafety -> signal(
+              StrategicMechanismSignalKind.StructuralDelta,
+              "king-safety-concession",
+              record.ref,
+              3,
+              concreteAxis(record, structuralDeltaAxis(StrategicAxisKind.Counterplay, StrategicAxisPolarity.Concede, "king-safety-concession"))
+            )
           ),
           Option.when(payload.hasConsequence(TransitionConsequenceKind.WeakPawnTargetCreated))(
-            StrategicMechanismKind.PawnWeakness -> signal(StrategicMechanismSignalKind.StructuralDelta, "weak-pawn-target", record.ref, 2)
+            StrategicMechanismKind.PawnWeakness -> signal(
+              StrategicMechanismSignalKind.StructuralDelta,
+              "weak-pawn-target",
+              record.ref,
+              2,
+              concreteAxis(record, structuralDeltaAxis(StrategicAxisKind.Target, StrategicAxisPolarity.Gain, "weak-pawn-target"))
+            )
           ),
           Option.when(payload.hasPieceActivityGain)(
-            StrategicMechanismKind.Activity -> signal(StrategicMechanismSignalKind.StructuralDelta, "activity-gain", record.ref, 2)
+            StrategicMechanismKind.Activity -> signal(
+              StrategicMechanismSignalKind.StructuralDelta,
+              "activity-gain",
+              record.ref,
+              2,
+              concreteAxis(record, structuralDeltaAxis(StrategicAxisKind.Activity, StrategicAxisPolarity.Gain, "activity-gain"))
+            )
           ),
           Option.when(
             payload.hasAnyConsequence(
@@ -789,10 +1569,22 @@ object StrategicMechanismEvidence:
               )
             )
           )(
-            StrategicMechanismKind.Activity -> signal(StrategicMechanismSignalKind.StructuralDelta, "activity-loss", record.ref, 2)
+            StrategicMechanismKind.Activity -> signal(
+              StrategicMechanismSignalKind.StructuralDelta,
+              "activity-loss",
+              record.ref,
+              2,
+              concreteAxis(record, structuralDeltaAxis(StrategicAxisKind.Activity, StrategicAxisPolarity.Loss, "activity-loss"))
+            )
           ),
           Option.when(payload.hasPawnStructureDelta)(
-            StrategicMechanismKind.PawnStructure -> signal(StrategicMechanismSignalKind.StructuralDelta, "pawn-structure-delta", record.ref, 2)
+            StrategicMechanismKind.PawnStructure -> signal(
+              StrategicMechanismSignalKind.StructuralDelta,
+              "pawn-structure-delta",
+              record.ref,
+              2,
+              concreteAxis(record, structuralDeltaAxis(StrategicAxisKind.PawnBreak, StrategicAxisPolarity.Support, "pawn-structure-delta"))
+            )
           ),
           Option.when(payload.hasPassedPawnProgress)(
             StrategicMechanismKind.PawnStructure -> signal(StrategicMechanismSignalKind.StructuralDelta, "passed-pawn-progress", record.ref, 3)
@@ -807,19 +1599,36 @@ object StrategicMechanismEvidence:
             StrategicMechanismKind.StrategicConcession -> signal(StrategicMechanismSignalKind.StructuralDelta, "promotion-pressure-concession", record.ref, 3)
           ),
           Option.when(payload.hasStrategicConcession)(
-            StrategicMechanismKind.StrategicConcession -> signal(StrategicMechanismSignalKind.StructuralDelta, "strategic-concession", record.ref, 3)
+            StrategicMechanismKind.StrategicConcession -> signal(
+              StrategicMechanismSignalKind.StructuralDelta,
+              "strategic-concession",
+              record.ref,
+              3
+            )
           )
         ).flatten
       case PlanPressureEvidence(scoring, activePlans) if planPressureHasDirectEvidence(scoring, activePlans) =>
         val plans = activePlans.primary :: activePlans.secondary.toList
         List(
           StrategicMechanismKind.PlanPressure ->
-            signal(StrategicMechanismSignalKind.PlanPressure, plans.map(_.plan.id.toString).mkString(","), record.ref, 2)
+            signal(
+              StrategicMechanismSignalKind.PlanPressure,
+              plans.map(_.plan.id.toString).mkString(","),
+              record.ref,
+              2,
+              concreteAxis(record, Some(StrategicAxisDetail(StrategicAxisKind.PlanCoherence, StrategicAxisPolarity.Support, plans.map(_.plan.id.toString).mkString(","))))
+            )
         )
       case PlanTransitionEvidence(transition) if planTransitionCanSupportPlan(transition) =>
-        List(
+        transition.primaryPlanId.toList.map(planId =>
           StrategicMechanismKind.PlanPressure ->
-            signal(StrategicMechanismSignalKind.PlanTransition, transition.primaryPlanId.getOrElse("plan"), record.ref, 2)
+            signal(
+              StrategicMechanismSignalKind.PlanTransition,
+              planId,
+              record.ref,
+              2,
+              concreteAxis(record, Some(StrategicAxisDetail(StrategicAxisKind.PlanCoherence, StrategicAxisPolarity.Preserve, planId)))
+            )
         )
       case FeatureAnchorEvidence(anchor) if anchor.hasPositiveStrength && anchor.canCorroborateOpeningPrior =>
         val mechanism =
@@ -830,7 +1639,15 @@ object StrategicMechanismEvidence:
             case OpeningTheme.GambitInitiative => StrategicMechanismKind.Compensation
             case OpeningTheme.KingSafety       => StrategicMechanismKind.KingSafety
             case OpeningTheme.PlanPressure     => StrategicMechanismKind.TargetPressure
-        List(mechanism -> signal(StrategicMechanismSignalKind.OpeningAnchor, s"${anchor.theme}:${anchor.signal}", record.ref, math.round(anchor.strength * 4).toInt.max(1)))
+        List(
+          mechanism -> signal(
+            StrategicMechanismSignalKind.OpeningAnchor,
+            s"${anchor.theme}:${anchor.signal}",
+            record.ref,
+            math.round(anchor.strength * 4).toInt.max(1),
+            concreteAxis(record, openingAnchorAxis(anchor.theme, anchor.signal.toString))
+          )
+        )
       case ApplicabilityAssessmentEvidence(assessment) if assessment.canCertifyOpeningClaim =>
         List(
           StrategicMechanismKind.OpeningAlignment -> signal(
@@ -909,9 +1726,96 @@ object StrategicMechanismEvidence:
       kind: StrategicMechanismSignalKind,
       label: String,
       source: EvidenceRef,
-      strength: Int
+      strength: Int,
+      axis: Option[StrategicAxisDetail] = None
   ): StrategicMechanismSignal =
-    StrategicMechanismSignal(kind, label, source, strength.max(1))
+    StrategicMechanismSignal(kind, label, source, strength.max(1), axis)
+
+  private def concreteAxis(record: EvidenceRecord, axis: Option[StrategicAxisDetail]): Option[StrategicAxisDetail] =
+    axis.filter(_ => sourceHasAxisSubject(record))
+
+  private def sourceHasAxisSubject(record: EvidenceRecord): Boolean =
+    record.payload match
+      case payload: StrategicFactEvidence =>
+        payload.relatedPlans.nonEmpty ||
+          payload.boardAnchors.exists(anchor => anchor.targetHintSquares.nonEmpty || anchor.focusSquares.nonEmpty) ||
+          payload.facts.exists(factHasAxisSubject)
+      case payload: PawnStructureFactEvidence =>
+        payload.alignment.exists(_.matchedPlanIds.nonEmpty) ||
+          payload.pawnPlay.exists(pawnPlay =>
+            pawnPlay.breakFile.exists(_.trim.nonEmpty) ||
+              pawnPlay.tensionSquares.exists(_.trim.nonEmpty) ||
+              pawnPlay.blockadeSquare.nonEmpty
+          )
+      case payload: StructuralDeltaEvidence =>
+        payload.signals.exists(_.subjects.exists(_.trim.nonEmpty)) ||
+          payload.consequences.exists(_.subjects.exists(_.trim.nonEmpty)) ||
+          payload.developmentChoices.nonEmpty
+      case PlanPressureEvidence(_, activePlans) =>
+        (activePlans.primary :: activePlans.secondary.toList).nonEmpty
+      case PlanTransitionEvidence(transition) =>
+        transition.primaryPlanId.nonEmpty
+      case payload: BoardFactEvidence =>
+        payload.targetHintSquares.nonEmpty ||
+          payload.anchorFocusSquares.nonEmpty ||
+          payload.lowLevelFacts.exists(factHasAxisSubject)
+      case FeatureAnchorEvidence(_) | ApplicabilityAssessmentEvidence(_) | SinglePositionEvidence(_) =>
+        false
+      case _ =>
+        false
+
+  private def factHasAxisSubject(fact: Fact): Boolean =
+    val focus = fact.squareFocus
+    focus.targetSquares.nonEmpty ||
+      focus.relatedSquares.nonEmpty ||
+      focus.subjectSquares.nonEmpty ||
+      fact.isInstanceOf[Fact.FileControl]
+
+  private def strategicFactAxis(kind: StrategicFactKind): Option[StrategicAxisDetail] =
+    kind match
+      case StrategicFactKind.TargetFixation =>
+        Some(StrategicAxisDetail(StrategicAxisKind.Target, StrategicAxisPolarity.Support, kind.toString))
+      case StrategicFactKind.CounterplayRestraint =>
+        Some(StrategicAxisDetail(StrategicAxisKind.Counterplay, StrategicAxisPolarity.Restrain, kind.toString))
+      case StrategicFactKind.Space =>
+        Some(StrategicAxisDetail(StrategicAxisKind.SpaceCenter, StrategicAxisPolarity.Support, kind.toString))
+      case StrategicFactKind.Structure =>
+        None
+      case StrategicFactKind.Activity | StrategicFactKind.Outpost | StrategicFactKind.FileControl =>
+        Some(StrategicAxisDetail(StrategicAxisKind.Activity, StrategicAxisPolarity.Support, kind.toString))
+      case StrategicFactKind.PlanPressure =>
+        Some(StrategicAxisDetail(StrategicAxisKind.PlanCoherence, StrategicAxisPolarity.Support, kind.toString))
+      case StrategicFactKind.Practicality | StrategicFactKind.Compensation | StrategicFactKind.Endgame =>
+        None
+
+  private def pawnPlayAxis(pawnPlay: PawnPlayAnalysis): Option[StrategicAxisDetail] =
+    pawnPlay.primaryDriver match
+      case PawnPlayDriver.BreakReady | PawnPlayDriver.TensionActive | PawnPlayDriver.TensionCritical =>
+        Some(StrategicAxisDetail(StrategicAxisKind.PawnBreak, StrategicAxisPolarity.Support, pawnPlay.primaryDriver.toString))
+      case PawnPlayDriver.Defensive =>
+        Some(StrategicAxisDetail(StrategicAxisKind.Counterplay, StrategicAxisPolarity.Restrain, pawnPlay.primaryDriver.toString))
+      case PawnPlayDriver.PassedPawn | PawnPlayDriver.Quiet =>
+        None
+
+  private def structuralDeltaAxis(
+      kind: StrategicAxisKind,
+      polarity: StrategicAxisPolarity,
+      label: String
+  ): Option[StrategicAxisDetail] =
+    Some(StrategicAxisDetail(kind, polarity, label))
+
+  private def openingAnchorAxis(theme: OpeningTheme, label: String): Option[StrategicAxisDetail] =
+    theme match
+      case OpeningTheme.CenterControl =>
+        Some(StrategicAxisDetail(StrategicAxisKind.SpaceCenter, StrategicAxisPolarity.Support, label))
+      case OpeningTheme.Development =>
+        Some(StrategicAxisDetail(StrategicAxisKind.Activity, StrategicAxisPolarity.Support, label))
+      case OpeningTheme.PawnStructure =>
+        Some(StrategicAxisDetail(StrategicAxisKind.PawnBreak, StrategicAxisPolarity.Support, label))
+      case OpeningTheme.KingSafety | OpeningTheme.PlanPressure =>
+        Some(StrategicAxisDetail(StrategicAxisKind.Counterplay, StrategicAxisPolarity.Support, label))
+      case OpeningTheme.GambitInitiative =>
+        None
 
 enum OpeningFamily:
   case A
@@ -1282,7 +2186,15 @@ final case class LineConsequence(
     lineMoves: List[String],
     proofSignal: Boolean,
     eventMove: Option[String] = None
-)
+):
+  def rootMoveMatched(rootMove: String): Boolean =
+    val normalizedRoot = LineConsequence.normalizeUci(rootMove)
+    eventMove.exists(move => LineConsequence.normalizeUci(move) == normalizedRoot) ||
+      lineMoves.exists(move => LineConsequence.normalizeUci(move) == normalizedRoot)
+
+object LineConsequence:
+  private def normalizeUci(raw: String): String =
+    Option(raw).getOrElse("").trim.toLowerCase
 
 final case class LineConsequenceProfile(
     proofSignalKinds: List[LineConsequenceKind],
@@ -1454,6 +2366,11 @@ final case class LineFactEvidence(
     events.filter(_.kind == kind)
   def hasLineEvent(kind: LineEventKind): Boolean =
     lineEventsOf(kind).nonEmpty
+  def rootOwnedLineEvents(rootMoveUci: String): List[LineMoveEvent] =
+    val normalizedRoot = normalizeUci(rootMoveUci)
+    events.filter(event =>
+      normalizeUci(event.moveUci) == normalizedRoot || event.plyOffset == 0
+    )
   def hasLineEventAt(kind: LineEventKind, plyOffset: Int): Boolean =
     lineEventsOf(kind).exists(_.plyOffset == plyOffset)
   def hasTempoEventAt(plyOffset: Int): Boolean =
@@ -1494,6 +2411,10 @@ final case class LineFactEvidence(
     material.exists(_.hasSacrificeMaterialEvent)
   def proofSignalConsequences: List[LineConsequence] =
     consequences.filter(_.proofSignal)
+  def proofSignalConsequencesOf(kind: LineConsequenceKind): List[LineConsequence] =
+    proofSignalConsequences.filter(_.kind == kind)
+  def rootOwnedProofSignalConsequences(rootMoveUci: String): List[LineConsequence] =
+    proofSignalConsequences.filter(_.rootMoveMatched(rootMoveUci))
   def hasProofSignalConsequence: Boolean =
     proofSignalConsequences.nonEmpty
   def proofSignalConsequenceKinds: List[LineConsequenceKind] =
@@ -2166,7 +3087,8 @@ enum TacticalMechanismSignalKind:
 final case class TacticalMechanismSignal(
     kind: TacticalMechanismSignalKind,
     label: String,
-    sourceLayer: EvidenceLayer
+    sourceLayer: EvidenceLayer,
+    source: Option[EvidenceRef] = None
 )
 
 final case class TacticalMechanismEvidence(
@@ -2327,30 +3249,6 @@ object StructuralDeltaEvidence:
       payload.structuralImprovementConsequenceKinds
     }.flatten.toList.distinct.sortBy(_.toString)
 
-  private[chessjudgment] def referenceLeadStrategicImprovementAxisRecords(
-      referenceRecords: List[EvidenceRecord],
-      candidateRecords: List[EvidenceRecord]
-  ): List[EvidenceRecord] =
-    val referenceStrengths = strategicImprovementAxisStrengths(referenceRecords)
-    val candidateStrengths = strategicImprovementAxisStrengths(candidateRecords)
-    val referenceLeadAxes = referenceStrengths.keySet.filter(axis =>
-      referenceStrengths.getOrElse(axis, 0) > candidateStrengths.getOrElse(axis, 0)
-    )
-    referenceRecords.filter {
-      case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
-        strategicImprovementAxisStrengths(payload).keySet.exists(referenceLeadAxes.contains)
-      case _ =>
-        false
-    }
-
-  private[chessjudgment] def strategicImprovementAxisStrengths(records: Iterable[EvidenceRecord]): Map[String, Int] =
-    records.foldLeft(Map.empty[String, Int]) {
-      case (acc, EvidenceRecord(_, payload: StructuralDeltaEvidence, _)) =>
-        mergeAxisStrengths(acc, strategicImprovementAxisStrengths(payload))
-      case (acc, _) =>
-        acc
-    }
-
   def hasConsequenceCategory(kind: TransitionConsequenceKind, category: TransitionConsequenceCategory): Boolean =
     consequenceCategories.getOrElse(kind, Set.empty).contains(category)
 
@@ -2362,47 +3260,6 @@ object StructuralDeltaEvidence:
 
   private def consequenceKindsFor(category: TransitionConsequenceCategory): Set[TransitionConsequenceKind] =
     consequenceCategories.collect { case (kind, categories) if categories.contains(category) => kind }.toSet
-
-  private[chessjudgment] def strategicImprovementAxisStrengths(payload: StructuralDeltaEvidence): Map[String, Int] =
-    payload.positiveConsequences.foldLeft(Map.empty[String, Int]) { (acc, consequence) =>
-      strategicImprovementAxisFor(consequence.kind)
-        .filter(_ => consequence.strength > 0)
-        .fold(acc)(axis => acc.updated(axis, acc.getOrElse(axis, 0) + consequence.strength))
-    }
-
-  private def mergeAxisStrengths(left: Map[String, Int], right: Map[String, Int]): Map[String, Int] =
-    right.foldLeft(left) { case (acc, (axis, strength)) =>
-      acc.updated(axis, acc.getOrElse(axis, 0) + strength)
-    }
-
-  private def strategicImprovementAxisFor(kind: TransitionConsequenceKind): Option[String] =
-    strategicImprovementAxisByConsequence.get(kind)
-
-  private val CenterAxis = "center"
-  private val PressureAxis = "pressure"
-  private val WeaknessTargetAxis = "weaknessTarget"
-  private val OutpostAxis = "outpost"
-  private val ActivityAxis = "activity"
-
-  private lazy val strategicImprovementAxisByConsequence: Map[TransitionConsequenceKind, String] =
-    Map(
-      CenterControlGain -> CenterAxis,
-      DevelopmentCenterControlGain -> CenterAxis,
-      TargetPressureGain -> PressureAxis,
-      KingRingPressureGain -> PressureAxis,
-      BatteryPressureGain -> PressureAxis,
-      WeakPawnTargetCreated -> WeaknessTargetAxis,
-      WeakSquareTargetCreated -> WeaknessTargetAxis,
-      OutpostGain -> OutpostAxis,
-      DevelopmentLagReduced -> ActivityAxis,
-      DevelopmentPieceActivated -> ActivityAxis,
-      DevelopmentMobilityGain -> ActivityAxis,
-      DevelopmentSafePlacement -> ActivityAxis,
-      MobilityGain -> ActivityAxis,
-      LineUnlockGain -> ActivityAxis,
-      FileAccessGain -> ActivityAxis,
-      RookLiftActivation -> ActivityAxis
-    )
 
   private lazy val consequenceCategories: Map[TransitionConsequenceKind, Set[TransitionConsequenceCategory]] =
     Map(
@@ -2517,6 +3374,8 @@ final case class EvidenceRecord(
         payload.line.toList
       case _: StrategicMechanismEvidence =>
         ref.line.toList
+      case payload: StrategicMechanismContrastEvidence =>
+        List(payload.referenceLine, payload.candidateLine)
       case MoveVerdictCertificationEvidence(certification) =>
         certification.causes.map(_.eventLine).distinct
       case _ =>

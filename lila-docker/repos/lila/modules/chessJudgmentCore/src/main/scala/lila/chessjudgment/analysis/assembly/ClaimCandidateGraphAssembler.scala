@@ -27,32 +27,29 @@ object ClaimCandidateGraphAssembler:
 
 private object RelativeCauseClaimDepth:
 
-  def hasTypedDepth(cause: RelativeCauseFact): Boolean =
-    cause.hasTypedDepth
+  def hasOwnedDepth(cause: RelativeCauseFact): Boolean =
+    cause.hasOwnedTypedDepth
 
   def hasTacticalDepth(cause: RelativeCauseFact): Boolean =
     isTactical(cause.kind) &&
-      cause.proof.exists(hasTacticalDriver)
+      cause.hasOwnedTacticalProof
 
   def hasMaterialDepth(cause: RelativeCauseFact): Boolean =
-    ClaimEventCluster.kindForCause(cause.kind).contains(ClaimEventClusterKind.MaterialEvent) &&
-      hasTypedDepth(cause)
+      ClaimEventCluster.kindForCause(cause.kind).contains(ClaimEventClusterKind.MaterialEvent) &&
+      hasOwnedDepth(cause)
 
   def hasConversionDepth(cause: RelativeCauseFact): Boolean =
     (
       ClaimEventCluster.kindForCause(cause.kind).contains(ClaimEventClusterKind.ConversionEvent) ||
         cause.kind == RelativeCauseKind.RecaptureRecoveryWindow ||
-        cause.kind == RelativeCauseKind.MaterialSwing
+      cause.kind == RelativeCauseKind.MaterialSwing
     ) &&
-      hasTypedDepth(cause)
+      hasOwnedDepth(cause)
 
   def hasMaterialSwingTacticalDepth(cause: RelativeCauseFact): Boolean =
     cause.kind == RelativeCauseKind.MaterialSwing &&
       ClaimEventCluster.kindForCause(cause.kind).contains(ClaimEventClusterKind.MaterialEvent) &&
-      cause.proof.exists(hasTacticalDriver)
-
-  def hasTacticalDriver(proof: RelativeCauseProof): Boolean =
-    proof.directProof.hasTacticalProof || proof.contrastProof.hasTacticalProof
+      cause.hasOwnedTacticalProof
 
   def hasLineDriver(proof: RelativeCauseProof): Boolean =
     proof.directProof.lineConsequences.exists(proof => LineConsequenceKind.tacticalDriver(proof.kind)) ||
@@ -61,6 +58,9 @@ private object RelativeCauseClaimDepth:
   def hasTransitionDriver(proof: RelativeCauseProof): Boolean =
     proof.directProof.transitionConsequences.nonEmpty ||
       proof.contrastProof.transitionConsequences.nonEmpty
+
+  def hasStrategicContrastDepth(cause: RelativeCauseFact): Boolean =
+    cause.hasOwnedStrategicContrastDepth
 
   private def isTactical(kind: RelativeCauseKind): Boolean =
     ClaimEventCluster.kindForCause(kind).contains(ClaimEventClusterKind.TacticalEvent)
@@ -338,6 +338,7 @@ object ClaimArbitrator:
       val dedupeWinnerId = dedupeDroppedByClaimId.get(claim.id)
       val finalClaimId = Option.when(finalIncluded)(claim.id).orElse(dedupeWinnerId.filter(finalIds.contains))
       val finalClaim = finalClaimId.flatMap(finalById.get)
+      val lifecycleRelativeCauses = claimLifecycleRelativeCauses(claim, graph.evidenceGraph)
       val arbitrationSuppressed =
         decision.status == ClaimTruthStatus.Certified && dedupeWinnerId.isEmpty && !finalIncluded
       ClaimLifecycleDiagnostic(
@@ -355,7 +356,8 @@ object ClaimArbitrator:
         finalIdeaIds = finalClaim.map(_.ideaRefs.map(_.id).distinct.sorted).getOrElse(Nil),
         evidenceIds = claim.evidence.map(_.id).distinct.sorted,
         finalEvidenceIds = finalClaim.map(_.evidence.map(_.id).distinct.sorted).getOrElse(Nil),
-        relativeCauses = claimLifecycleRelativeCauses(claim, graph.evidenceGraph),
+        relativeCauses = lifecycleRelativeCauses,
+        strategicAxisLineage = ClaimStrategicAxisLineage.fromClaim(claim, graph.evidenceGraph),
         truthStatus = Some(claimLifecycleTruthStatus(decision.status)),
         presentLayers = decision.presentLayers,
         missingLayerGroups = decision.missingLayerGroups,
@@ -398,17 +400,21 @@ object ClaimArbitrator:
   ): List[ClaimLifecycleRelativeCause] =
     claimRecords(claim, graph).flatMap {
       case EvidenceRecord(ref, RelativeCauseFactEvidence(cause), _) =>
-        List(claimLifecycleRelativeCause(ref.id, cause))
+        List(claimLifecycleRelativeCause(ref.id, cause, graph))
       case EvidenceRecord(ref, MoveVerdictCertificationEvidence(certification), _) =>
         certification.causes.zipWithIndex.map { case (cause, index) =>
-          claimLifecycleRelativeCause(s"${ref.id}:cause:$index:${cause.kind}", cause)
+          claimLifecycleRelativeCause(s"${ref.id}:cause:$index:${cause.kind}", cause, graph)
         }
       case _ =>
         Nil
     }.distinctBy(_.id)
 
-  private def claimLifecycleRelativeCause(id: String, cause: RelativeCauseFact): ClaimLifecycleRelativeCause =
-    val strategicMechanisms = cause.proof.toList.flatMap(_.strategicMechanisms)
+  private def claimLifecycleRelativeCause(
+      id: String,
+      cause: RelativeCauseFact,
+      graph: TypedEvidenceGraph
+  ): ClaimLifecycleRelativeCause =
+    val strategicProof = cause.strategicProofIdentity
     ClaimLifecycleRelativeCause(
       id = id,
       kind = cause.kind,
@@ -422,13 +428,23 @@ object ClaimArbitrator:
       proofDirectSourceIds = cause.proof.toList.flatMap(_.directProof.sourceRefs.map(_.id)).distinct.sorted,
       proofContrastSourceIds = cause.proof.toList.flatMap(_.contrastProof.sourceRefs.map(_.id)).distinct.sorted,
       proofContextSupportSourceIds = cause.proof.toList.flatMap(_.contextSupport.sourceRefs.map(_.id)).distinct.sorted,
-      proofStrategicMechanismKinds = strategicMechanisms.map(_.kind).distinct.sortBy(_.toString),
-      proofStrategicMechanismSourceIds = strategicMechanisms.map(_.source.id).distinct.sorted,
-      proofStrategicMechanismSignalSourceIds = strategicMechanisms.flatMap(_.signals.map(_.source.id)).distinct.sorted,
+      proofStrategicAxisKeys = strategicProof.axisKeys,
+      proofStrategicMechanismKinds = strategicProof.mechanismKinds,
+      proofStrategicMechanismSourceIds = strategicProof.mechanismSourceIds,
+      proofStrategicMechanismSignalSourceIds = strategicProof.signalSourceIds,
       supportEvidenceSourceIds = cause.supportEvidence.map(_.id).distinct.sorted,
       proofDirectKinds = cause.proof.toList.flatMap(_.directProof.kindLabels).distinct.sorted,
       proofContrastKinds = cause.proof.toList.flatMap(_.contrastProof.kindLabels).distinct.sorted,
-      proofContextSupportKinds = cause.proof.toList.flatMap(_.contextSupport.kindLabels).distinct.sorted
+      proofContextSupportKinds = cause.proof.toList.flatMap(_.contextSupport.kindLabels).distinct.sorted,
+      attributionKind = cause.attribution.kind,
+      attributionOwnedEvidenceIds = cause.attribution.ownedEvidence.map(_.id).distinct.sorted,
+      attributionContrastEvidenceIds = cause.attribution.contrastEvidence.map(_.id).distinct.sorted,
+      attributionContextEvidenceIds = cause.attribution.contextEvidence.map(_.id).distinct.sorted,
+      attributionRootMoveMatched = cause.attribution.rootMoveMatched,
+      attributionDirectProofEligible = cause.attribution.directProofEligible,
+      attributionReason = cause.attribution.reason,
+      objectBindingSignatures =
+        EvidenceObjectBinding.objectSignatures(EvidenceObjectBinding.fromRelativeCause(cause, graph))
     )
 
   private def priority(
@@ -637,7 +653,7 @@ object ClaimArbitrator:
         .getOrElse(Nil)
     )
       .filter(_.interactionEvidence.nonEmpty)
-      .distinctBy(interaction => (interaction.kind, interaction.relatedClaimId))
+      .distinctBy(interaction => (interaction.kind, interaction.relatedClaimId, interaction.basis.map(ClaimInteractionBasis.stableKey).sorted))
 
   private def tacticalLongTermInteractionFor(
       claim: ClaimSeed,
@@ -806,12 +822,19 @@ object ClaimArbitrator:
           basis.causeRole,
           basis.causeSourceSide,
           basis.causeImportance,
+          basis.attributionKind,
+          basis.attributionRootMoveMatched,
+          basis.attributionDirectProofEligible,
           basis.referenceLine,
           basis.candidateLine,
           basis.eventLine,
           basis.proofDirectSourceIds,
           basis.proofContrastSourceIds,
           basis.proofContextSupportSourceIds,
+          basis.proofStrategicAxisKeys,
+          basis.proofStrategicMechanismKinds,
+          basis.proofStrategicMechanismSourceIds,
+          basis.proofStrategicMechanismSignalSourceIds,
           basis.supportEvidenceSourceIds
         )
       )
@@ -828,22 +851,26 @@ object ClaimArbitrator:
     proofIds.intersect(evidenceIds).nonEmpty || supportIds.intersect(evidenceIds).nonEmpty
 
   private def interactionBasisFromCause(cause: RelativeCauseFact): ClaimInteractionBasis =
-    val strategicMechanisms = cause.proof.toList.flatMap(_.strategicMechanisms)
+    val strategicProof = cause.strategicProofIdentity
     ClaimInteractionBasis(
       causeKind = cause.kind,
       comparisonKind = cause.comparisonKind,
       causeRole = cause.role,
       causeSourceSide = cause.sourceSide,
       causeImportance = cause.importance,
+      attributionKind = cause.attribution.kind,
+      attributionRootMoveMatched = cause.attribution.rootMoveMatched,
+      attributionDirectProofEligible = cause.attribution.directProofEligible,
       referenceLine = cause.referenceLine,
       candidateLine = cause.candidateLine,
       eventLine = cause.eventLine,
       proofDirectSourceIds = cause.proof.toList.flatMap(_.directProof.sourceRefs.map(_.id)).distinct.sorted,
       proofContrastSourceIds = cause.proof.toList.flatMap(_.contrastProof.sourceRefs.map(_.id)).distinct.sorted,
       proofContextSupportSourceIds = cause.proof.toList.flatMap(_.contextSupport.sourceRefs.map(_.id)).distinct.sorted,
-      proofStrategicMechanismKinds = strategicMechanisms.map(_.kind).distinct.sortBy(_.toString),
-      proofStrategicMechanismSourceIds = strategicMechanisms.map(_.source.id).distinct.sorted,
-      proofStrategicMechanismSignalSourceIds = strategicMechanisms.flatMap(_.signals.map(_.source.id)).distinct.sorted,
+      proofStrategicAxisKeys = strategicProof.axisKeys,
+      proofStrategicMechanismKinds = strategicProof.mechanismKinds,
+      proofStrategicMechanismSourceIds = strategicProof.mechanismSourceIds,
+      proofStrategicMechanismSignalSourceIds = strategicProof.signalSourceIds,
       supportEvidenceSourceIds = cause.supportEvidence.map(_.id).distinct.sorted
     )
 
@@ -898,9 +925,17 @@ object ClaimArbitrator:
         RelativeCauseRole,
         RelativeCauseSourceSide,
         RelativeCauseImportance,
+        CauseAttributionKind,
+        Boolean,
+        Boolean,
         LineNodeRef,
         LineNodeRef,
         LineNodeRef,
+        List[String],
+        List[String],
+        List[String],
+        List[String],
+        List[StrategicMechanismKind],
         List[String],
         List[String],
         List[String]
@@ -912,18 +947,27 @@ object ClaimArbitrator:
       .toSet
 
   private def relativeCauseSignature(cause: RelativeCauseFact): RelativeCauseInteractionSignature =
+    val strategicProof = cause.strategicProofIdentity
     (
       cause.kind,
       cause.comparisonKind,
       cause.role,
       cause.sourceSide,
       cause.importance,
+      cause.attribution.kind,
+      cause.attribution.rootMoveMatched,
+      cause.attribution.directProofEligible,
       cause.referenceLine,
       cause.candidateLine,
       cause.eventLine,
       cause.proof.toList.flatMap(_.directProof.sourceRefs.map(_.id)).distinct.sorted,
       cause.proof.toList.flatMap(_.contrastProof.sourceRefs.map(_.id)).distinct.sorted,
-      cause.proof.toList.flatMap(_.contextSupport.sourceRefs.map(_.id)).distinct.sorted
+      cause.proof.toList.flatMap(_.contextSupport.sourceRefs.map(_.id)).distinct.sorted,
+      strategicProof.axisKeys,
+      strategicProof.mechanismKinds,
+      strategicProof.mechanismSourceIds,
+      strategicProof.signalSourceIds,
+      cause.supportEvidence.map(_.id).distinct.sorted
     )
 
   private def comparisonEvidence(claim: ClaimSeed, graph: TypedEvidenceGraph): List[EvidenceRef] =
@@ -998,7 +1042,7 @@ object ClaimArbitrator:
 
   private def conversionInteractionCause(cause: RelativeCauseFact): Boolean =
     cause.kind == RelativeCauseKind.ConversionSecured &&
-      cause.proof.exists(_.hasTypedDepth)
+      RelativeCauseClaimDepth.hasConversionDepth(cause)
 
   private def defensiveNecessityCause(kind: RelativeCauseKind): Boolean =
     kind != RelativeCauseKind.DrawResource &&
@@ -1019,8 +1063,10 @@ object ClaimArbitrator:
         0
       case PlanPressureEvidence(_, _) | PawnStructureFactEvidence(_, _, _) | StrategicFactEvidence(_, _, _, _) =>
         0
-      case payload: StrategicMechanismEvidence =>
-        if payload.canSupportStrategicCause then payload.directStrength + strategicMechanismSalience(payload.kind) else 0
+      case _: StrategicMechanismEvidence =>
+        0
+      case _: StrategicMechanismContrastEvidence =>
+        0
       case RelativeAssessmentEvidence(assessment) =>
         engineComparisonSalience(Some(assessment.comparison))
       case CounterfactualFactEvidence(_, _, comparison) =>
@@ -1070,8 +1116,10 @@ object ClaimArbitrator:
         Nil
       case PlanPressureEvidence(_, _) | PawnStructureFactEvidence(_, _, _) | StrategicFactEvidence(_, _, _, _) =>
         Nil
-      case payload: StrategicMechanismEvidence =>
-        strategicMechanismDrivers(payload)
+      case _: StrategicMechanismEvidence =>
+        Nil
+      case _: StrategicMechanismContrastEvidence =>
+        Nil
       case _: StructuralDeltaEvidence | FeatureAnchorEvidence(_) | ApplicabilityAssessmentEvidence(_) =>
         Nil
       case RelativeAssessmentEvidence(_) | CounterfactualFactEvidence(_, _, _) =>
@@ -1098,31 +1146,6 @@ object ClaimArbitrator:
       case TacticalMechanismKind.Conversion | TacticalMechanismKind.DrawResource | TacticalMechanismKind.DefensiveResource =>
         3
 
-  private def strategicMechanismSalience(kind: StrategicMechanismKind): Int =
-    kind match
-      case StrategicMechanismKind.TargetPressure | StrategicMechanismKind.KingSafety |
-          StrategicMechanismKind.StrategicConcession | StrategicMechanismKind.Compensation =>
-        4
-      case StrategicMechanismKind.StructuralImprovement | StrategicMechanismKind.CenterControl |
-          StrategicMechanismKind.PawnWeakness | StrategicMechanismKind.Activity | StrategicMechanismKind.Endgame =>
-        3
-      case StrategicMechanismKind.PawnStructure | StrategicMechanismKind.PlanPressure |
-          StrategicMechanismKind.OpeningAlignment =>
-        2
-
-  private def strategicMechanismDrivers(payload: StrategicMechanismEvidence): List[ClaimSalienceDriver] =
-    payload.kind match
-      case StrategicMechanismKind.PlanPressure =>
-        Option.when(payload.canAnchorPlanIdea)(ClaimSalienceDriver.PlanPressure).toList
-      case StrategicMechanismKind.PawnStructure =>
-        Option.when(payload.canAnchorPawnStructureIdea)(ClaimSalienceDriver.PawnStructureAlignment).toList
-      case StrategicMechanismKind.OpeningAlignment =>
-        Option.when(payload.canAnchorOpeningIdea)(ClaimSalienceDriver.OpeningContext).toList
-      case StrategicMechanismKind.Endgame =>
-        List(ClaimSalienceDriver.EndgamePattern)
-      case _ =>
-        Option.when(payload.canSupportStrategicCause)(ClaimSalienceDriver.StrategicFeature).toList
-
   private def engineComparisonSalience(comparison: Option[EvalComparison]): Int =
     comparison.map { cmp =>
       val verdictScore =
@@ -1146,104 +1169,121 @@ object ClaimArbitrator:
       case CandidateComparisonKind.ReferenceVsAlternative => 1
 
   private def relativeCauseSalience(cause: RelativeCauseFact): Int =
-    val causeScore =
-      cause.kind match
-        case RelativeCauseKind.TacticalRefutationOfPlayed | RelativeCauseKind.MissedTacticalResource |
-            RelativeCauseKind.CandidateTacticalLiability |
-            RelativeCauseKind.WrongRecapturer | RelativeCauseKind.RecaptureRecoveryWindow |
-            RelativeCauseKind.TempoLoss | RelativeCauseKind.KingForcing =>
-          if RelativeCauseClaimDepth.hasTacticalDepth(cause) then 8
-          else if RelativeCauseClaimDepth.hasTypedDepth(cause) then 4
-          else 0
-        case RelativeCauseKind.OnlyMoveNecessity | RelativeCauseKind.OnlyDefenseNecessity =>
-          7
-        case RelativeCauseKind.ConversionMiss | RelativeCauseKind.ConversionSecured =>
-          if RelativeCauseClaimDepth.hasConversionDepth(cause) then 5 else 0
-        case RelativeCauseKind.PlanContradiction |
-            RelativeCauseKind.StrategicConcession |
-            RelativeCauseKind.MissedStrategicImprovement | RelativeCauseKind.StructuralImprovement |
-            RelativeCauseKind.TargetPressureGain | RelativeCauseKind.CenterControlGain |
-            RelativeCauseKind.KingSafetyConcession | RelativeCauseKind.PawnWeaknessTarget |
-            RelativeCauseKind.ActivityLoss =>
-          5
-        case RelativeCauseKind.DefensiveResource | RelativeCauseKind.DrawResource |
-            RelativeCauseKind.PlanImprovement | RelativeCauseKind.SacrificeCompensation =>
-          4
-        case RelativeCauseKind.MaterialSwing =>
-          if RelativeCauseClaimDepth.hasMaterialDepth(cause) then 3 else 0
-        case RelativeCauseKind.WrongMoveOrder =>
-          if RelativeCauseClaimDepth.hasTacticalDepth(cause) then 6 else 0
-    val roleScore =
-      cause.importance match
-        case RelativeCauseImportance.Primary    => 4
-        case RelativeCauseImportance.Supporting => 2
-        case RelativeCauseImportance.Context    => 0
-    val sourceScore =
-      cause.sourceSide match
-        case RelativeCauseSourceSide.Candidate | RelativeCauseSourceSide.Reference => 2
-        case RelativeCauseSourceSide.Mixed                                        => 1
-        case RelativeCauseSourceSide.Shared                                       => 0
-    val comparisonScore =
-      candidateComparisonKindSalience(cause.comparisonKind)
-    val proofScore =
-      cause.proof
-        .map(proof =>
-          List(
-            Option.when(proof.hasDirectProof)(3),
-            Option.when(proof.hasContrastProof)(2)
-          ).flatten.sum
-        )
-        .getOrElse(0)
-    causeScore +
-      roleScore +
-      sourceScore +
-      comparisonScore +
-      proofScore +
-      math.round(cause.winPercentLossForMover.min(20.0) / 5.0).toInt
+    if cause.strategicCauseKind && !RelativeCauseClaimDepth.hasStrategicContrastDepth(cause) then 0
+    else
+      val causeScore =
+        cause.kind match
+          case RelativeCauseKind.TacticalRefutationOfPlayed | RelativeCauseKind.MissedTacticalResource |
+              RelativeCauseKind.CandidateTacticalLiability |
+              RelativeCauseKind.WrongRecapturer | RelativeCauseKind.RecaptureRecoveryWindow |
+              RelativeCauseKind.TempoLoss | RelativeCauseKind.KingForcing =>
+            if RelativeCauseClaimDepth.hasTacticalDepth(cause) then 8
+            else if RelativeCauseClaimDepth.hasOwnedDepth(cause) then 4
+            else 0
+          case RelativeCauseKind.OnlyMoveNecessity | RelativeCauseKind.OnlyDefenseNecessity =>
+            7
+          case RelativeCauseKind.ConversionMiss | RelativeCauseKind.ConversionSecured =>
+            if RelativeCauseClaimDepth.hasConversionDepth(cause) then 5 else 0
+          case RelativeCauseKind.PlanContradiction |
+              RelativeCauseKind.StrategicConcession |
+              RelativeCauseKind.MissedStrategicImprovement | RelativeCauseKind.StructuralImprovement |
+              RelativeCauseKind.TargetPressureGain | RelativeCauseKind.CenterControlGain |
+              RelativeCauseKind.KingSafetyConcession | RelativeCauseKind.PawnWeaknessTarget |
+              RelativeCauseKind.ActivityLoss =>
+            if RelativeCauseClaimDepth.hasStrategicContrastDepth(cause) then 5 else 0
+          case RelativeCauseKind.DefensiveResource | RelativeCauseKind.DrawResource |
+              RelativeCauseKind.SacrificeCompensation =>
+            4
+          case RelativeCauseKind.PlanImprovement =>
+            if RelativeCauseClaimDepth.hasStrategicContrastDepth(cause) then 4 else 0
+          case RelativeCauseKind.MaterialSwing =>
+            if RelativeCauseClaimDepth.hasMaterialDepth(cause) then 3 else 0
+          case RelativeCauseKind.WrongMoveOrder =>
+            if RelativeCauseClaimDepth.hasTacticalDepth(cause) then 6 else 0
+      val roleScore =
+        cause.importance match
+          case RelativeCauseImportance.Primary    => 4
+          case RelativeCauseImportance.Supporting => 2
+          case RelativeCauseImportance.Context    => 0
+      val sourceScore =
+        cause.sourceSide match
+          case RelativeCauseSourceSide.Candidate | RelativeCauseSourceSide.Reference => 2
+          case RelativeCauseSourceSide.Mixed                                        => 1
+          case RelativeCauseSourceSide.Shared                                       => 0
+      val comparisonScore =
+        candidateComparisonKindSalience(cause.comparisonKind)
+      val proofScore =
+        if RelativeCauseClaimDepth.hasOwnedDepth(cause) then
+          cause.proof
+            .map(proof =>
+              List(
+                Option.when(proof.hasRawDirectProof)(3),
+                Option.when(proof.hasRawContrastProof)(2)
+              ).flatten.sum
+            )
+            .getOrElse(0)
+        else 0
+      causeScore +
+        roleScore +
+        sourceScore +
+        comparisonScore +
+        proofScore +
+        math.round(cause.winPercentLossForMover.min(20.0) / 5.0).toInt
 
   private def certificationScoringCauses(certification: MoveVerdictCertification): List[RelativeCauseFact] =
-    certification.causes.filter(RelativeCauseClaimDepth.hasTypedDepth)
+    certification.causes.filter(cause =>
+      RelativeCauseClaimDepth.hasOwnedDepth(cause) &&
+        (!cause.strategicCauseKind || RelativeCauseClaimDepth.hasStrategicContrastDepth(cause))
+    )
 
   private def relativeCauseDrivers(cause: RelativeCauseFact): List[ClaimSalienceDriver] =
-    val kindDrivers =
-      cause.kind match
-      case RelativeCauseKind.MissedTacticalResource | RelativeCauseKind.TacticalRefutationOfPlayed |
-          RelativeCauseKind.CandidateTacticalLiability |
-          RelativeCauseKind.WrongRecapturer | RelativeCauseKind.RecaptureRecoveryWindow |
-          RelativeCauseKind.WrongMoveOrder | RelativeCauseKind.TempoLoss | RelativeCauseKind.KingForcing =>
-        if RelativeCauseClaimDepth.hasTacticalDepth(cause) then
-          List(ClaimSalienceDriver.TacticalRelation, ClaimSalienceDriver.EngineSwing)
-        else List(ClaimSalienceDriver.EngineSwing)
-      case RelativeCauseKind.MaterialSwing =>
-        List(ClaimSalienceDriver.StructuralChange, ClaimSalienceDriver.EngineSwing)
-      case RelativeCauseKind.SacrificeCompensation =>
-        List(ClaimSalienceDriver.StrategicFeature, ClaimSalienceDriver.EngineSwing)
-      case RelativeCauseKind.OnlyMoveNecessity =>
-        List(ClaimSalienceDriver.CandidateConstraint, ClaimSalienceDriver.EngineSwing)
-      case RelativeCauseKind.OnlyDefenseNecessity | RelativeCauseKind.DefensiveResource | RelativeCauseKind.DrawResource =>
-        List(ClaimSalienceDriver.DefensiveUrgency, ClaimSalienceDriver.EngineSwing)
-      case RelativeCauseKind.ConversionMiss | RelativeCauseKind.ConversionSecured =>
-        List(ClaimSalienceDriver.StructuralChange, ClaimSalienceDriver.EngineSwing)
-      case RelativeCauseKind.StructuralImprovement =>
-        List(ClaimSalienceDriver.StrategicFeature, ClaimSalienceDriver.StructuralChange, ClaimSalienceDriver.EngineSwing)
-      case RelativeCauseKind.TargetPressureGain | RelativeCauseKind.CenterControlGain =>
-        List(ClaimSalienceDriver.StrategicFeature, ClaimSalienceDriver.EngineSwing)
-      case RelativeCauseKind.KingSafetyConcession | RelativeCauseKind.PawnWeaknessTarget |
-          RelativeCauseKind.ActivityLoss =>
-        List(ClaimSalienceDriver.StrategicFeature, ClaimSalienceDriver.StructuralChange, ClaimSalienceDriver.EngineSwing)
-      case RelativeCauseKind.StrategicConcession |
-          RelativeCauseKind.MissedStrategicImprovement | RelativeCauseKind.PlanImprovement |
-          RelativeCauseKind.PlanContradiction =>
-        List(ClaimSalienceDriver.StrategicFeature, ClaimSalienceDriver.EngineSwing)
-    val contextDrivers =
-      List(
-        Option.when(cause.comparisonKind == CandidateComparisonKind.BestVsSecond)(ClaimSalienceDriver.CandidateConstraint),
-        Option.when(cause.role == RelativeCauseRole.CandidateSetConstraint)(ClaimSalienceDriver.CandidateConstraint),
-        Option.when(cause.proof.exists(RelativeCauseClaimDepth.hasTacticalDriver))(ClaimSalienceDriver.TacticalRelation),
-        Option.when(cause.proof.exists(RelativeCauseClaimDepth.hasLineDriver))(ClaimSalienceDriver.ForcingLine),
-        Option.when(cause.proof.exists(RelativeCauseClaimDepth.hasTransitionDriver))(ClaimSalienceDriver.StructuralChange)
-      ).flatten
-    (kindDrivers ++ contextDrivers).distinct
+    if cause.strategicCauseKind && !RelativeCauseClaimDepth.hasStrategicContrastDepth(cause) then Nil
+    else
+      val kindDrivers =
+        cause.kind match
+          case RelativeCauseKind.MissedTacticalResource | RelativeCauseKind.TacticalRefutationOfPlayed |
+              RelativeCauseKind.CandidateTacticalLiability |
+              RelativeCauseKind.WrongRecapturer | RelativeCauseKind.RecaptureRecoveryWindow |
+              RelativeCauseKind.WrongMoveOrder | RelativeCauseKind.TempoLoss | RelativeCauseKind.KingForcing =>
+            if RelativeCauseClaimDepth.hasTacticalDepth(cause) then
+              List(ClaimSalienceDriver.TacticalRelation, ClaimSalienceDriver.EngineSwing)
+            else List(ClaimSalienceDriver.EngineSwing)
+          case RelativeCauseKind.MaterialSwing =>
+            List(ClaimSalienceDriver.StructuralChange, ClaimSalienceDriver.EngineSwing)
+          case RelativeCauseKind.SacrificeCompensation =>
+            List(ClaimSalienceDriver.EngineSwing)
+          case RelativeCauseKind.OnlyMoveNecessity =>
+            List(ClaimSalienceDriver.CandidateConstraint, ClaimSalienceDriver.EngineSwing)
+          case RelativeCauseKind.OnlyDefenseNecessity | RelativeCauseKind.DefensiveResource | RelativeCauseKind.DrawResource =>
+            List(ClaimSalienceDriver.DefensiveUrgency, ClaimSalienceDriver.EngineSwing)
+          case RelativeCauseKind.ConversionMiss | RelativeCauseKind.ConversionSecured =>
+            List(ClaimSalienceDriver.StructuralChange, ClaimSalienceDriver.EngineSwing)
+          case RelativeCauseKind.StructuralImprovement =>
+            List(ClaimSalienceDriver.StrategicFeature, ClaimSalienceDriver.StructuralChange, ClaimSalienceDriver.EngineSwing)
+          case RelativeCauseKind.TargetPressureGain | RelativeCauseKind.CenterControlGain =>
+            List(ClaimSalienceDriver.StrategicFeature, ClaimSalienceDriver.EngineSwing)
+          case RelativeCauseKind.KingSafetyConcession | RelativeCauseKind.PawnWeaknessTarget |
+              RelativeCauseKind.ActivityLoss =>
+            List(ClaimSalienceDriver.StrategicFeature, ClaimSalienceDriver.StructuralChange, ClaimSalienceDriver.EngineSwing)
+          case RelativeCauseKind.StrategicConcession |
+              RelativeCauseKind.MissedStrategicImprovement | RelativeCauseKind.PlanImprovement |
+              RelativeCauseKind.PlanContradiction =>
+            List(ClaimSalienceDriver.StrategicFeature, ClaimSalienceDriver.EngineSwing)
+      val contextDrivers =
+        List(
+          Option.when(cause.comparisonKind == CandidateComparisonKind.BestVsSecond)(ClaimSalienceDriver.CandidateConstraint),
+          Option.when(cause.role == RelativeCauseRole.CandidateSetConstraint)(ClaimSalienceDriver.CandidateConstraint),
+          Option.when(RelativeCauseClaimDepth.hasTacticalDepth(cause))(ClaimSalienceDriver.TacticalRelation),
+          Option.when(
+            RelativeCauseClaimDepth.hasOwnedDepth(cause) &&
+              cause.proof.exists(RelativeCauseClaimDepth.hasLineDriver)
+          )(ClaimSalienceDriver.ForcingLine),
+          Option.when(
+            RelativeCauseClaimDepth.hasOwnedDepth(cause) &&
+              cause.proof.exists(RelativeCauseClaimDepth.hasTransitionDriver)
+          )(ClaimSalienceDriver.StructuralChange)
+        ).flatten
+      (kindDrivers ++ contextDrivers).distinct
 
   private def verdictFit(
       claim: ClaimSeed,

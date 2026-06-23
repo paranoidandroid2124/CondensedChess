@@ -12,7 +12,7 @@ import lila.chessjudgment.analysis.evaluation.JudgmentThresholds
 import lila.chessjudgment.analysis.policy.ClaimTruthPolicy
 import lila.chessjudgment.analysis.singlePosition.{ PawnPlayDriver, ThreatDriver, ThreatSeverity }
 import lila.chessjudgment.analysis.tactical.TacticalMotifClassifier
-import lila.chessjudgment.model.{ Motif, ProbeAdmissionStatus, ProbePurpose }
+import lila.chessjudgment.model.{ Motif, ProbeAdmissionStatus, ProbePurpose, TransitionType }
 import lila.chessjudgment.model.structure.AlignmentBand
 import lila.chessjudgment.model.judgment.*
 
@@ -522,6 +522,12 @@ private final case class CandidateComparisonEvidenceNeighborhood(
     sharedRecords: List[EvidenceRecord]
 )
 
+private final case class SemanticAxisEntry(
+    key: String,
+    strength: Int,
+    source: EvidenceRef
+)
+
 private final case class SemanticAxisProfile(
     strengths: Map[String, Int],
     sourceIds: Map[String, List[String]],
@@ -571,14 +577,13 @@ final case class CandidateCauseDecisionTrace(
     referenceStructuralConsequences: List[TransitionConsequenceKind],
     candidateStructuralConsequences: List[TransitionConsequenceKind],
     candidatePawnStructureSignals: List[String],
-    referenceStrategicImprovementScore: Int,
-    candidateStrategicImprovementScore: Int,
-    referenceStrategicImprovementOverCandidate: Boolean,
+    referenceSemanticAxisCount: Int,
+    candidateSemanticAxisCount: Int,
+    referenceSemanticAxisLead: Boolean,
     semanticAxisDiagnostics: SemanticAxisDiagnostics,
     candidatePlanEvidence: Boolean,
     candidateStrategicEvidence: Boolean,
     candidateStrategicConcessionEvidence: Boolean,
-    candidateStrongStrategicConcessionEvidence: Boolean,
     referencePassedPawnResource: Boolean,
     candidatePassedPawnResource: Boolean,
     referenceEndgameResource: Boolean,
@@ -636,7 +641,17 @@ final case class RelativeCauseFlowDiagnostic(
     causeWithoutIdea: Boolean,
     ideaWithoutClaimCandidate: Boolean,
     ideaWithoutFinalClaim: Boolean,
-    claimWithoutEventCluster: Boolean
+    claimWithoutEventCluster: Boolean,
+    strategicCauseWithoutContrast: Boolean,
+    contextSupportUsedAsDirectProof: Boolean,
+    contextOnlyAttribution: Boolean,
+    unattributedCause: Boolean,
+    rootMismatchedAttribution: Boolean,
+    supportPromotedToDirectProof: Boolean,
+    objectBindingSignatures: List[String],
+    relativeCauseWithoutObjectSignature: Boolean,
+    objectLostBetweenEvidenceAndCause: Boolean,
+    objectLostBetweenCauseAndClaim: Boolean
 )
 
 enum ClaimFamilyMismatchKind:
@@ -697,7 +712,7 @@ final case class ComparisonRelativeCauseDiagnostics(
     missingCause: Boolean,
     shallowProofCauseIds: List[String],
     genericCauseIds: List[String],
-    typedDepthCauseIds: List[String],
+    ownedTypedDepthCauseIds: List[String],
     nonGenericCauseIds: List[String],
     unboundEvidenceIds: List[String],
     wrongRoleCauseIds: List[String],
@@ -710,6 +725,17 @@ final case class ComparisonRelativeCauseDiagnostics(
     ideaWithoutClaimCauseIds: List[String],
     claimWithoutEventClusterCauseIds: List[String],
     eventClusterSupportMissingCauseIds: List[String],
+    strategicCauseWithoutContrastIds: List[String],
+    strategicClaimWithoutComparativeCauseIds: List[String],
+    genericStructuralImprovementWithoutStrategicContrastIds: List[String],
+    contextSupportUsedAsDirectProofIds: List[String],
+    contextOnlyCauseIds: List[String],
+    unattributedCauseIds: List[String],
+    rootMismatchedCauseIds: List[String],
+    supportPromotedToDirectProofCauseIds: List[String],
+    relativeCauseWithoutObjectSignatureIds: List[String],
+    objectLostBetweenEvidenceAndCauseIds: List[String],
+    objectLostBetweenCauseAndClaimIds: List[String],
     causeFlow: List[RelativeCauseFlowDiagnostic]
 )
 
@@ -725,7 +751,10 @@ final case class ComparisonMoveJudgmentViewDiagnostics(
     primaryUnframedCauseKinds: List[RelativeCauseKind],
     contextCauseEvidenceIds: List[String],
     projectedContextCauseNoViewIds: List[String],
-    playableLossPrimaryCauseEvidenceIds: List[String]
+    playableLossPrimaryCauseEvidenceIds: List[String],
+    objectlessPrimaryCauseEvidenceIds: List[String],
+    objectlessSecondaryCauseEvidenceIds: List[String],
+    objectlessContextCauseEvidenceIds: List[String]
 ):
   val hasPrimaryCause: Boolean = primaryCauseKinds.nonEmpty
 
@@ -781,10 +810,12 @@ final case class CandidateCauseSupportDiagnostic(
     parentLayerSignature: String,
     semanticSupportKinds: List[String],
     semanticSupportSignature: String,
-    proofHasTypedDepth: Boolean,
-    proofHasDirectProof: Boolean,
-    proofHasContrastProof: Boolean,
-    proofHasContextSupport: Boolean,
+    hasOwnedTypedDepth: Boolean,
+    hasOwnedTacticalProof: Boolean,
+    hasOwnedStrategicContrastDepth: Boolean,
+    rawProofHasDirectProof: Boolean,
+    rawProofHasContrastProof: Boolean,
+    rawProofHasContextSupport: Boolean,
     directProofSourceIds: List[String],
     contrastProofSourceIds: List[String],
     contextSupportSourceIds: List[String],
@@ -799,6 +830,7 @@ final case class CandidateCauseSupportDiagnostic(
     proofRelationSourceIds: List[String],
     proofTacticalMechanismKinds: List[TacticalMechanismKind],
     proofTacticalMechanismSourceIds: List[String],
+    proofStrategicAxisKeys: List[String],
     proofStrategicMechanismKinds: List[StrategicMechanismKind],
     proofStrategicMechanismSourceIds: List[String],
     proofStrategicMechanismSignalSourceIds: List[String],
@@ -902,8 +934,15 @@ object CandidateComparisonDiagnostic:
           diagnostic.sourceSide == record.cause.sourceSide &&
           diagnostic.importance == record.cause.importance &&
           diagnostic.referenceLine == record.cause.referenceLine &&
-        diagnostic.candidateLine == record.cause.candidateLine &&
+          diagnostic.candidateLine == record.cause.candidateLine &&
           diagnostic.eventLine == record.cause.eventLine &&
+          diagnostic.attributionKind == record.cause.attribution.kind &&
+          diagnostic.attributionOwnedEvidenceIds.toSet == record.cause.attribution.ownedEvidence.map(_.id).toSet &&
+          diagnostic.attributionContrastEvidenceIds.toSet == record.cause.attribution.contrastEvidence.map(_.id).toSet &&
+          diagnostic.attributionContextEvidenceIds.toSet == record.cause.attribution.contextEvidence.map(_.id).toSet &&
+          diagnostic.attributionRootMoveMatched == record.cause.attribution.rootMoveMatched &&
+          diagnostic.attributionDirectProofEligible == record.cause.attribution.directProofEligible &&
+          diagnostic.attributionReason == record.cause.attribution.reason &&
           diagnostic.supportEvidenceSourceIds.toSet == record.cause.supportEvidence.map(_.id).toSet &&
           lifecycleProofMatchesCause(diagnostic, record.cause)
       )
@@ -912,11 +951,16 @@ object CandidateComparisonDiagnostic:
       diagnostic: ClaimLifecycleRelativeCause,
       cause: RelativeCauseFact
   ): Boolean =
+    val strategicProof = cause.strategicProofIdentity
     cause.proof match
       case Some(proof) =>
         diagnostic.proofDirectSourceIds.toSet == proof.directProof.sourceRefs.map(_.id).toSet &&
           diagnostic.proofContrastSourceIds.toSet == proof.contrastProof.sourceRefs.map(_.id).toSet &&
           diagnostic.proofContextSupportSourceIds.toSet == proof.contextSupport.sourceRefs.map(_.id).toSet &&
+          diagnostic.proofStrategicAxisKeys == strategicProof.axisKeys &&
+          diagnostic.proofStrategicMechanismKinds == strategicProof.mechanismKinds &&
+          diagnostic.proofStrategicMechanismSourceIds == strategicProof.mechanismSourceIds &&
+          diagnostic.proofStrategicMechanismSignalSourceIds == strategicProof.signalSourceIds &&
           diagnostic.proofDirectKinds.toSet == proof.directProof.kindLabels.toSet &&
           diagnostic.proofContrastKinds.toSet == proof.contrastProof.kindLabels.toSet &&
           diagnostic.proofContextSupportKinds.toSet == proof.contextSupport.kindLabels.toSet
@@ -924,6 +968,10 @@ object CandidateComparisonDiagnostic:
         diagnostic.proofDirectSourceIds.isEmpty &&
           diagnostic.proofContrastSourceIds.isEmpty &&
           diagnostic.proofContextSupportSourceIds.isEmpty &&
+          diagnostic.proofStrategicAxisKeys.isEmpty &&
+          diagnostic.proofStrategicMechanismKinds.isEmpty &&
+          diagnostic.proofStrategicMechanismSourceIds.isEmpty &&
+          diagnostic.proofStrategicMechanismSignalSourceIds.isEmpty &&
           diagnostic.proofDirectKinds.isEmpty &&
           diagnostic.proofContrastKinds.isEmpty &&
           diagnostic.proofContextSupportKinds.isEmpty
@@ -980,7 +1028,7 @@ object CandidateComparisonDiagnostic:
     val contrastProofLayers = proofLayers(packet.evidenceGraph, contrastProofRefs)
     val contextSupportLayers = proofLayers(packet.evidenceGraph, contextSupportRefs) ++
       entry.cause.proof.map(_.contextSupport.contextLayers.toSet).getOrElse(Set.empty)
-    val expectedIdeaFamilies = expectedIdeaFamiliesFor(entry.cause, supportRecords, depthRecords)
+    val expectedIdeaFamilies = expectedIdeaFamiliesFor(entry.cause, supportRecords)
     val expectedClaimFamilies = expectedClaimFamiliesFor(entry.cause, expectedIdeaFamilies)
     val mismatchKinds =
       claimFamilyMismatchKinds(
@@ -990,7 +1038,7 @@ object CandidateComparisonDiagnostic:
         candidateFamilies = candidateFamilies,
         finalFamilies = finalFamilies,
         hasLongTermDepthProof = depthRecords.exists(longTermSupportRecord),
-        hasConcreteTacticalDepthProof = relativeCauseHasTacticalProof(entry.cause, depthRecords)
+        hasConcreteTacticalDepthProof = relativeCauseHasTacticalProof(entry.cause)
       )
     RelativeCauseFamilyMismatchDiagnostic(
       causeId = entry.id,
@@ -1026,8 +1074,7 @@ object CandidateComparisonDiagnostic:
 
   private def expectedIdeaFamiliesFor(
       cause: RelativeCauseFact,
-      supportRecords: List[EvidenceRecord],
-      depthRecords: List[EvidenceRecord]
+      supportRecords: List[EvidenceRecord]
   ): Set[ChessIdeaFamily] =
     val base =
       ClaimEventCluster.kindForCause(cause.kind) match
@@ -1037,7 +1084,7 @@ object CandidateComparisonDiagnostic:
         case Some(ClaimEventClusterKind.MaterialEvent)   => Set(ChessIdeaFamily.Material)
         case None                                        => Set(ChessIdeaFamily.Strategic)
     val tactical =
-      Option.when(relativeCauseHasTacticalProof(cause, depthRecords))(ChessIdeaFamily.Tactical)
+        Option.when(relativeCauseHasTacticalProof(cause))(ChessIdeaFamily.Tactical)
     val pawn =
       Option.when(strategicRelativeCause(cause.kind) && supportRecords.exists(pawnStructureSupportRecord))(ChessIdeaFamily.PawnStructure)
     val opening =
@@ -1046,29 +1093,29 @@ object CandidateComparisonDiagnostic:
       Option.when(supportRecords.exists(conversionSupportRecord))(ChessIdeaFamily.Conversion)
     cause.kind match
       case RelativeCauseKind.MaterialSwing =>
-        Option.when(cause.hasTypedDepth)(ChessIdeaFamily.Material).toSet ++
-          Option.when(materialSwingHasTacticalProof(cause, depthRecords))(ChessIdeaFamily.Tactical).toSet ++
-          Option.when(cause.hasTypedDepth && conversion.nonEmpty)(ChessIdeaFamily.Conversion).toSet
+        Option.when(cause.hasOwnedTypedDepth)(ChessIdeaFamily.Material).toSet ++
+          Option.when(materialSwingHasTacticalProof(cause))(ChessIdeaFamily.Tactical).toSet ++
+          Option.when(cause.hasOwnedTypedDepth && conversion.nonEmpty)(ChessIdeaFamily.Conversion).toSet
       case RelativeCauseKind.SacrificeCompensation =>
-        Option.when(cause.hasTypedDepth)(ChessIdeaFamily.Material).toSet ++
+        Option.when(cause.hasOwnedTypedDepth)(ChessIdeaFamily.Material).toSet ++
           tactical.toSet ++
           Option.when(supportRecords.exists(strategicSupportRecord))(ChessIdeaFamily.Strategic).toSet
       case kind if strategicRelativeCause(kind) =>
         Option.when(supportRecords.exists(strategicSupportRecord))(ChessIdeaFamily.Strategic).toSet ++ pawn.toSet ++ opening.toSet
       case RelativeCauseKind.RecaptureRecoveryWindow =>
-        tactical.toSet ++ Option.when(cause.hasTypedDepth)(conversion).flatten.toSet
+        tactical.toSet ++ Option.when(cause.hasOwnedTypedDepth)(conversion).flatten.toSet
       case _ =>
         val baseFamily =
           base.filter(family =>
             (family != ChessIdeaFamily.Tactical || tactical.nonEmpty) &&
-              (family != ChessIdeaFamily.Material || cause.hasTypedDepth) &&
-              (family != ChessIdeaFamily.Conversion || cause.hasTypedDepth) &&
+              (family != ChessIdeaFamily.Material || cause.hasOwnedTypedDepth) &&
+              (family != ChessIdeaFamily.Conversion || cause.hasOwnedTypedDepth) &&
               (family != ChessIdeaFamily.Defensive || ClaimTruthPolicy.defensiveRelativeCauseCanSeedIdea(cause))
           )
         baseFamily ++
           Option.when(
             materialConversionCause(cause.kind) &&
-              cause.hasTypedDepth &&
+              cause.hasOwnedTypedDepth &&
               conversion.nonEmpty
           )(ChessIdeaFamily.Conversion).toSet
 
@@ -1215,32 +1262,14 @@ object CandidateComparisonDiagnostic:
   ): Set[EvidenceLayer] =
     refs.flatMap(ref => graph.byId.get(ref.id).map(_.ref.layer)).toSet
 
-  private def relativeCauseHasTacticalProof(
-      cause: RelativeCauseFact,
-      supportRecords: List[EvidenceRecord]
-  ): Boolean =
-    cause.proof.exists(proof => proof.directProof.hasTacticalProof || proof.contrastProof.hasTacticalProof) ||
-      supportRecords.exists(tacticalProofRecord)
+  private def relativeCauseHasTacticalProof(cause: RelativeCauseFact): Boolean =
+    cause.hasOwnedTacticalProof
 
-  private def tacticalProofRecord(record: EvidenceRecord): Boolean =
-    record.payload match
-      case payload: TacticalMechanismEvidence =>
-        payload.canAnchorTacticalIdea
-      case payload: RelationFactEvidence =>
-        payload.hasConcreteRelationProof
-      case payload: LineFactEvidence =>
-        payload.hasTacticalLineConsequence
-      case _ =>
-        false
-
-  private def materialSwingHasTacticalProof(
-      cause: RelativeCauseFact,
-      records: List[EvidenceRecord]
-  ): Boolean =
+  private def materialSwingHasTacticalProof(cause: RelativeCauseFact): Boolean =
     val engineBackedMaterialSwing =
       cause.winPercentLossForMover >= JudgmentThresholds.INACCURACY_WP ||
         cause.candidateWinPercentDeltaForMover >= JudgmentThresholds.PLAYABLE_LOSS_WP
-    engineBackedMaterialSwing && relativeCauseHasTacticalProof(cause, records)
+    engineBackedMaterialSwing && relativeCauseHasTacticalProof(cause)
 
   private def materialConversionCause(kind: RelativeCauseKind): Boolean =
     kind == RelativeCauseKind.RecaptureRecoveryWindow || kind == RelativeCauseKind.MaterialSwing
@@ -1346,7 +1375,7 @@ object CandidateComparisonDiagnostic:
         val candidateLine = lineDiagnostic(packet, fact.candidateLine)
         val hasLowDepthCause =
           lowDepthCauseShouldBeAudited(fact, causeKinds) &&
-            causeSupport.exists(!_.proofHasTypedDepth)
+            causeSupport.exists(!_.hasOwnedTypedDepth)
         val hasGenericCause =
           relativeCauseDiagnostics.genericCauseIds.nonEmpty
         val hasUnboundEvidence =
@@ -1437,7 +1466,11 @@ object CandidateComparisonDiagnostic:
       projectedContextCauseNoViewIds = projectedContextCauseNoViewIds(packet, fact, contextCauseEvidenceIds.toSet),
       playableLossPrimaryCauseEvidenceIds =
         if fact.comparison.verdict == MoveChoiceVerdict.PlayableLoss then primaryFrames.flatMap(_.causeEvidenceIds).distinct.sorted
-        else Nil
+        else Nil,
+      objectlessPrimaryCauseEvidenceIds = primaryFrames.filterNot(_.concreteObjectReady).flatMap(_.causeEvidenceIds).distinct.sorted,
+      objectlessSecondaryCauseEvidenceIds =
+        secondaryFrames.filterNot(_.concreteObjectReady).flatMap(_.causeEvidenceIds).distinct.sorted,
+      objectlessContextCauseEvidenceIds = contextFrames.filterNot(_.concreteObjectReady).flatMap(_.causeEvidenceIds).distinct.sorted
     )
 
   private def projectedContextCauseNoViewIds(
@@ -1519,6 +1552,7 @@ object CandidateComparisonDiagnostic:
       val parentLayers = parentRecords.map(_.ref.layer).distinctBy(_.ordinal).sortBy(_.ordinal)
       val proof = cause.proof.getOrElse(RelativeCauseProof())
       val depthProof = proof.depthProof
+      val strategicProof = depthProof.strategicProofIdentity
       val semanticKinds = semanticSupportKinds(cause.kind, parentRecords, proof)
       CandidateCauseSupportDiagnostic(
         id = entry.id,
@@ -1534,10 +1568,12 @@ object CandidateComparisonDiagnostic:
         parentLayerSignature = parentLayers.map(_.toString).mkString("+"),
         semanticSupportKinds = semanticKinds,
         semanticSupportSignature = semanticKinds.mkString("+"),
-        proofHasTypedDepth = proof.hasTypedDepth,
-        proofHasDirectProof = proof.hasDirectProof,
-        proofHasContrastProof = proof.hasContrastProof,
-        proofHasContextSupport = proof.hasContextSupport,
+        hasOwnedTypedDepth = cause.hasOwnedTypedDepth,
+        hasOwnedTacticalProof = cause.hasOwnedTacticalProof,
+        hasOwnedStrategicContrastDepth = cause.hasOwnedStrategicContrastDepth,
+        rawProofHasDirectProof = proof.hasRawDirectProof,
+        rawProofHasContrastProof = proof.hasRawContrastProof,
+        rawProofHasContextSupport = proof.hasRawContextSupport,
         directProofSourceIds = proof.directProof.sourceRefs.map(_.id).distinct.sorted,
         contrastProofSourceIds = proof.contrastProof.sourceRefs.map(_.id).distinct.sorted,
         contextSupportSourceIds = proof.contextSupport.sourceRefs.map(_.id).distinct.sorted,
@@ -1552,10 +1588,10 @@ object CandidateComparisonDiagnostic:
         proofRelationSourceIds = depthProof.relationProofs.map(_.source.id).distinct.sorted,
         proofTacticalMechanismKinds = depthProof.tacticalMechanisms.map(_.kind).distinct,
         proofTacticalMechanismSourceIds = depthProof.tacticalMechanisms.map(_.source.id).distinct.sorted,
-        proofStrategicMechanismKinds = depthProof.strategicMechanisms.map(_.kind).distinct,
-        proofStrategicMechanismSourceIds = depthProof.strategicMechanisms.map(_.source.id).distinct.sorted,
-        proofStrategicMechanismSignalSourceIds =
-          depthProof.strategicMechanisms.flatMap(_.signals.map(_.source.id)).distinct.sorted,
+        proofStrategicAxisKeys = strategicProof.axisKeys,
+        proofStrategicMechanismKinds = strategicProof.mechanismKinds,
+        proofStrategicMechanismSourceIds = strategicProof.mechanismSourceIds,
+        proofStrategicMechanismSignalSourceIds = strategicProof.signalSourceIds,
         proofTransitionConsequences = depthProof.transitionConsequences,
         causeContextLayers = proof.contextLayers
       )
@@ -1577,15 +1613,15 @@ object CandidateComparisonDiagnostic:
     val producedCauseEventLines = causeRecords.map(_.cause.eventLine).distinct
     val expectedCauseHints = (producedCauseKinds ++ missingExpectedCauseHints).distinct
     val shallowProofCauseIds =
-      causeSupport.filterNot(_.proofHasTypedDepth).map(_.id).distinct.sorted
+      causeSupport.filterNot(_.hasOwnedTypedDepth).map(_.id).distinct.sorted
     val genericCauseIds =
       causeSupport
         .filter(_.semanticSupportKinds.contains("GenericComparisonOnly"))
         .map(_.id)
         .distinct
         .sorted
-    val typedDepthCauseIds =
-      causeSupport.filter(_.proofHasTypedDepth).map(_.id).distinct.sorted
+    val ownedTypedDepthCauseIds =
+      causeSupport.filter(_.hasOwnedTypedDepth).map(_.id).distinct.sorted
     val nonGenericCauseIds =
       producedCauseIds.filterNot(genericCauseIds.contains)
     val boundEvidenceIds =
@@ -1610,6 +1646,17 @@ object CandidateComparisonDiagnostic:
     val wrongImportanceCauseIds =
       relativeCauseIssueCauseIds(causeRecords, validationIssueIds, JudgmentPacketValidationIssueKind.MismatchedRelativeCauseImportance)
     val causeFlow = relativeCauseFlowDiagnostics(packet, causeRecords)
+    val strategicClaimWithoutComparativeCauseIds =
+      strategicClaimsWithoutComparativeCauseIds(packet, fact)
+    val genericStructuralImprovementWithoutStrategicContrastIds =
+      causeSupport
+        .filter(support =>
+          support.kind == RelativeCauseKind.StructuralImprovement &&
+            !support.hasOwnedStrategicContrastDepth
+        )
+        .map(_.id)
+        .distinct
+        .sorted
     ComparisonRelativeCauseDiagnostics(
       expectedCauseHints = expectedCauseHints,
       missingExpectedCauseHints = missingExpectedCauseHints,
@@ -1621,7 +1668,7 @@ object CandidateComparisonDiagnostic:
       missingCause = requiresExplanatoryCause(fact) && causeRecords.isEmpty,
       shallowProofCauseIds = shallowProofCauseIds,
       genericCauseIds = genericCauseIds,
-      typedDepthCauseIds = typedDepthCauseIds,
+      ownedTypedDepthCauseIds = ownedTypedDepthCauseIds,
       nonGenericCauseIds = nonGenericCauseIds,
       unboundEvidenceIds = unboundEvidenceIds,
       wrongRoleCauseIds = wrongRoleCauseIds,
@@ -1636,6 +1683,26 @@ object CandidateComparisonDiagnostic:
       claimWithoutEventClusterCauseIds = causeFlow.filter(_.claimWithoutEventCluster).map(_.causeId).distinct.sorted,
       eventClusterSupportMissingCauseIds =
         causeFlow.filter(_.eventClusterMissingSupportEvidenceIds.nonEmpty).map(_.causeId).distinct.sorted,
+      strategicCauseWithoutContrastIds =
+        causeFlow.filter(_.strategicCauseWithoutContrast).map(_.causeId).distinct.sorted,
+      strategicClaimWithoutComparativeCauseIds = strategicClaimWithoutComparativeCauseIds,
+      genericStructuralImprovementWithoutStrategicContrastIds = genericStructuralImprovementWithoutStrategicContrastIds,
+      contextSupportUsedAsDirectProofIds =
+        causeFlow.filter(_.contextSupportUsedAsDirectProof).map(_.causeId).distinct.sorted,
+      contextOnlyCauseIds =
+        causeFlow.filter(_.contextOnlyAttribution).map(_.causeId).distinct.sorted,
+      unattributedCauseIds =
+        causeFlow.filter(_.unattributedCause).map(_.causeId).distinct.sorted,
+      rootMismatchedCauseIds =
+        causeFlow.filter(_.rootMismatchedAttribution).map(_.causeId).distinct.sorted,
+      supportPromotedToDirectProofCauseIds =
+        causeFlow.filter(_.supportPromotedToDirectProof).map(_.causeId).distinct.sorted,
+      relativeCauseWithoutObjectSignatureIds =
+        causeFlow.filter(_.relativeCauseWithoutObjectSignature).map(_.causeId).distinct.sorted,
+      objectLostBetweenEvidenceAndCauseIds =
+        causeFlow.filter(_.objectLostBetweenEvidenceAndCause).map(_.causeId).distinct.sorted,
+      objectLostBetweenCauseAndClaimIds =
+        causeFlow.filter(_.objectLostBetweenCauseAndClaim).map(_.causeId).distinct.sorted,
       causeFlow = causeFlow
     )
 
@@ -1693,6 +1760,26 @@ object CandidateComparisonDiagnostic:
         )
       val familyMismatch = familyMismatchDiagnosticFor(packet, entry)
       val proof = cause.proof.getOrElse(RelativeCauseProof())
+      val strategicCauseWithoutContrast =
+        cause.strategicCauseKind && !cause.hasOwnedStrategicContrastDepth
+      val contextSupportUsedAsDirectProof =
+        proofContextSupportUsedAsDirectProof(proof)
+      val supportPromotedToDirectProof =
+        relativeCauseSupportPromotedToDirectProof(cause, proof)
+      val causeObjectBindings =
+        EvidenceObjectBinding.fromRelativeCause(cause, packet.evidenceGraph)
+      val causeObjectSignatures =
+        EvidenceObjectBinding.objectSignatures(causeObjectBindings)
+      val lowLevelObjectAvailable =
+        EvidenceObjectBinding.lowLevelObjectAvailable(cause, packet.evidenceGraph)
+      val claimObjectSignatures =
+        claims.flatMap(claim => EvidenceObjectBinding.objectSignatures(EvidenceObjectBinding.fromClaim(claim, packet.evidenceGraph)))
+      val relativeCauseWithoutObjectSignature =
+        causeObjectSignatures.isEmpty
+      val objectLostBetweenEvidenceAndCause =
+        lowLevelObjectAvailable && relativeCauseWithoutObjectSignature
+      val objectLostBetweenCauseAndClaim =
+        causeObjectSignatures.nonEmpty && claimIds.nonEmpty && claimObjectSignatures.isEmpty
       RelativeCauseFlowDiagnostic(
         causeId = entry.id,
         causeKind = cause.kind,
@@ -1724,9 +1811,85 @@ object CandidateComparisonDiagnostic:
         causeWithoutIdea = ideaIds.isEmpty,
         ideaWithoutClaimCandidate = ideaIds.nonEmpty && lifecycleCandidates.isEmpty,
         ideaWithoutFinalClaim = ideaIds.nonEmpty && lifecycleCandidates.nonEmpty && claimIds.isEmpty,
-        claimWithoutEventCluster = eventClusterExpected && claimIds.nonEmpty && eventClusterIds.isEmpty
+        claimWithoutEventCluster = eventClusterExpected && claimIds.nonEmpty && eventClusterIds.isEmpty,
+        strategicCauseWithoutContrast = strategicCauseWithoutContrast,
+        contextSupportUsedAsDirectProof = contextSupportUsedAsDirectProof,
+        contextOnlyAttribution = cause.attribution.contextOnly,
+        unattributedCause = cause.attribution.unattributed,
+        rootMismatchedAttribution = cause.attribution.rootMismatch,
+        supportPromotedToDirectProof = supportPromotedToDirectProof,
+        objectBindingSignatures = causeObjectSignatures,
+        relativeCauseWithoutObjectSignature = relativeCauseWithoutObjectSignature,
+        objectLostBetweenEvidenceAndCause = objectLostBetweenEvidenceAndCause,
+        objectLostBetweenCauseAndClaim = objectLostBetweenCauseAndClaim
       )
     }
+
+  private def proofContextSupportUsedAsDirectProof(proof: RelativeCauseProof): Boolean =
+    val contextIds = proof.contextSupport.sourceRefs.map(_.id).toSet
+    contextIds.nonEmpty &&
+      (proof.directProof.sourceRefs.exists(ref => contextIds.contains(ref.id)) ||
+        proof.contrastProof.sourceRefs.exists(ref => contextIds.contains(ref.id)))
+
+  private def relativeCauseSupportPromotedToDirectProof(
+      cause: RelativeCauseFact,
+      proof: RelativeCauseProof
+  ): Boolean =
+    val directIds = proof.directProof.sourceRefs.map(_.id).toSet
+    directIds.nonEmpty && !cause.attribution.directProofEligible
+
+  private def strategicClaimsWithoutComparativeCauseIds(
+      packet: EvidenceBackedJudgmentPacket,
+      fact: CandidateComparisonFact
+  ): List[String] =
+    packet.claims
+      .filter(claim => claim.family == ClaimFamily.Strategic || claim.family == ClaimFamily.PawnStructure || claim.family == ClaimFamily.Plan)
+      .filter(claim => claimReferencesComparison(packet, claim, fact))
+      .filterNot(claim => claimHasStrategicContrastCause(packet, claim))
+      .map(_.id)
+      .distinct
+      .sorted
+
+  private def claimReferencesComparison(
+      packet: EvidenceBackedJudgmentPacket,
+      claim: ClaimSeed,
+      fact: CandidateComparisonFact
+  ): Boolean =
+    claim.evidence
+      .flatMap(ref => packet.evidenceGraph.byId.get(ref.id))
+      .exists {
+        case EvidenceRecord(_, CandidateComparisonEvidence(candidateFact), _) =>
+          candidateFact.kind == fact.kind &&
+            candidateFact.referenceLine == fact.referenceLine &&
+            candidateFact.candidateLine == fact.candidateLine
+        case EvidenceRecord(_, RelativeCauseFactEvidence(cause), _) =>
+          causeMatchesComparison(cause, fact)
+        case EvidenceRecord(_, MoveVerdictCertificationEvidence(certification), _) =>
+          certification.causes.exists(cause => causeMatchesComparison(cause, fact))
+        case EvidenceRecord(_, payload: StrategicMechanismContrastEvidence, _) =>
+          payload.comparisonKind == fact.kind &&
+            payload.referenceLine == fact.referenceLine &&
+            payload.candidateLine == fact.candidateLine
+        case _ =>
+          false
+      }
+
+  private def claimHasStrategicContrastCause(
+      packet: EvidenceBackedJudgmentPacket,
+      claim: ClaimSeed
+  ): Boolean =
+    claim.evidence
+      .flatMap(ref => packet.evidenceGraph.byId.get(ref.id))
+      .exists {
+        case EvidenceRecord(_, RelativeCauseFactEvidence(cause), _) =>
+          cause.hasOwnedStrategicContrastDepth
+        case EvidenceRecord(_, MoveVerdictCertificationEvidence(certification), _) =>
+          certification.causes.exists(_.hasOwnedStrategicContrastDepth)
+        case EvidenceRecord(_, payload: StrategicMechanismContrastEvidence, _) =>
+          payload.hasActionableContrast
+        case _ =>
+          false
+      }
 
   private def eventClusterMatchesRelativeCause(
       cluster: ClaimEventCluster,
@@ -1737,6 +1900,9 @@ object CandidateComparisonDiagnostic:
       cluster.causeRole == cause.role &&
       cluster.causeSourceSide == cause.sourceSide &&
       cluster.causeImportance == cause.importance &&
+      cluster.attributionKind == cause.attribution.kind &&
+      cluster.attributionRootMoveMatched == cause.attribution.rootMoveMatched &&
+      cluster.attributionDirectProofEligible == cause.attribution.directProofEligible &&
       cluster.referenceLine == cause.referenceLine &&
       cluster.candidateLine == cause.candidateLine &&
       cluster.eventLine == cause.eventLine &&
@@ -1778,6 +1944,9 @@ object CandidateComparisonDiagnostic:
       causeProof.causeRole == cause.role &&
       causeProof.causeSourceSide == cause.sourceSide &&
       causeProof.causeImportance == cause.importance &&
+      causeProof.attributionKind == cause.attribution.kind &&
+      causeProof.attributionRootMoveMatched == cause.attribution.rootMoveMatched &&
+      causeProof.attributionDirectProofEligible == cause.attribution.directProofEligible &&
       causeProof.referenceLine == cause.referenceLine &&
       causeProof.candidateLine == cause.candidateLine &&
       causeProof.eventLine == cause.eventLine &&
@@ -1789,12 +1958,14 @@ object CandidateComparisonDiagnostic:
   ): Boolean =
     cause.proof match
       case Some(proof) =>
+        val strategicProof = proof.strategicProofIdentity
         sourceIdsMatch(proof.directProof.sourceRefs, causeProof.proofDirectSourceIds) &&
           sourceIdsMatch(proof.contrastProof.sourceRefs, causeProof.proofContrastSourceIds) &&
           sourceIdsMatch(proof.contextSupport.sourceRefs, causeProof.proofContextSupportSourceIds) &&
-          proof.strategicMechanisms.map(_.kind).toSet == causeProof.proofStrategicMechanismKinds.toSet &&
-          proof.strategicMechanisms.map(_.source.id).toSet == causeProof.proofStrategicMechanismSourceIds.toSet &&
-          proof.strategicMechanisms.flatMap(_.signals.map(_.source.id)).toSet == causeProof.proofStrategicMechanismSignalSourceIds.toSet &&
+          strategicProof.axisKeys == causeProof.proofStrategicAxisKeys &&
+          strategicProof.mechanismKinds == causeProof.proofStrategicMechanismKinds &&
+          strategicProof.mechanismSourceIds == causeProof.proofStrategicMechanismSourceIds &&
+          strategicProof.signalSourceIds == causeProof.proofStrategicMechanismSignalSourceIds &&
           proof.directProof.kindLabels.toSet == causeProof.proofDirectKinds.toSet &&
           proof.contrastProof.kindLabels.toSet == causeProof.proofContrastKinds.toSet &&
           proof.contextSupport.kindLabels.toSet == causeProof.proofContextSupportKinds.toSet
@@ -1802,6 +1973,7 @@ object CandidateComparisonDiagnostic:
         causeProof.proofDirectSourceIds.isEmpty &&
           causeProof.proofContrastSourceIds.isEmpty &&
           causeProof.proofContextSupportSourceIds.isEmpty &&
+          causeProof.proofStrategicAxisKeys.isEmpty &&
           causeProof.proofStrategicMechanismKinds.isEmpty &&
           causeProof.proofStrategicMechanismSourceIds.isEmpty &&
           causeProof.proofStrategicMechanismSignalSourceIds.isEmpty &&
@@ -1923,6 +2095,10 @@ object CandidateComparisonDiagnostic:
     val mechanismKinds = parentRecords.collect { case EvidenceRecord(_, payload: StrategicMechanismEvidence, _) =>
       s"StrategicMechanism:${payload.kind}" :: payload.signals.map(signal => s"StrategicMechanismSignal:${signal.kind}:${signal.label}")
     }.flatten
+    val contrastKinds = parentRecords.collect { case EvidenceRecord(_, payload: StrategicMechanismContrastEvidence, _) =>
+      s"StrategicMechanismContrast:${payload.comparisonKind}" ::
+        payload.actionableComparisons.map(axis => s"StrategicAxisContrast:${axis.axisKey}:${axis.outcome}")
+    }.flatten
     val structuralKinds = parentRecords.collect { case EvidenceRecord(_, payload: StructuralDeltaEvidence, _) =>
       payload.meaningfulConsequences.map(consequence => s"StructuralMeaningfulConsequence:${consequence.anchorKey}")
     }.flatten
@@ -1942,7 +2118,7 @@ object CandidateComparisonDiagnostic:
     }.flatten
     val lineKinds =
       List(Option.when(hasDevelopmentChoice(parentRecords) && hasCastlingLine(parentRecords))("CastlingPath")).flatten
-    (mechanismKinds ++ structuralKinds ++ boardKinds ++ pawnStructureKinds ++ lineKinds).distinct
+    (contrastKinds ++ mechanismKinds ++ structuralKinds ++ boardKinds ++ pawnStructureKinds ++ lineKinds).distinct
 
   private def hasDevelopmentChoice(parentRecords: List[EvidenceRecord]): Boolean =
     parentRecords.exists {
@@ -2355,14 +2531,16 @@ object CandidateComparisonDiagnostic:
     val involvedRecords = (referenceRecords ++ candidateRecords).distinctBy(_.ref.id)
     val referenceLooseMaterial = hasLooseMaterialExploit(referenceRecords, sharedRecords)
     val candidateLooseMaterial = hasLooseMaterialExploit(candidateRecords, sharedRecords)
-    val referenceStrategicScore = strategicImprovementScore(referenceRecords)
-    val candidateStrategicScore = strategicImprovementScore(candidateRecords)
     val referenceStructuralConsequenceKinds = structuralImprovementConsequenceKinds(referenceRecords)
     val candidateStructuralConsequenceKinds = structuralImprovementConsequenceKinds(candidateRecords)
     val semanticAxisDiagnostics =
       semanticAxisDiagnosticsFor(referenceRecords, candidateRecords)
     val referenceSemanticAxisLead =
       semanticAxisDiagnostics.referenceLeadAxisCount > 0
+    val referenceSemanticAxisCount =
+      semanticAxisDiagnostics.referenceAxes.size
+    val candidateSemanticAxisCount =
+      semanticAxisDiagnostics.candidateAxes.size
     val materialSwing = hasMaterialSwingEvidence(referenceRecords, candidateRecords)
     val candidateRelations = relationKinds(candidateRecords)
     val referenceMechanisms = tacticalMechanismKinds(referenceRecords)
@@ -2412,17 +2590,13 @@ object CandidateComparisonDiagnostic:
       referenceStructuralConsequences = referenceStructuralConsequenceKinds,
       candidateStructuralConsequences = candidateStructuralConsequenceKinds,
       candidatePawnStructureSignals = pawnStructureImprovementSignals(candidateRecords),
-      referenceStrategicImprovementScore = referenceStrategicScore,
-      candidateStrategicImprovementScore = candidateStrategicScore,
-      referenceStrategicImprovementOverCandidate =
-        (referenceStrategicScore >= 3 && referenceStrategicScore >= candidateStrategicScore + 2) ||
-          (referenceStrategicScore >= 2 && candidateStrategicScore <= 1) ||
-          referenceSemanticAxisLead,
+      referenceSemanticAxisCount = referenceSemanticAxisCount,
+      candidateSemanticAxisCount = candidateSemanticAxisCount,
+      referenceSemanticAxisLead = referenceSemanticAxisLead,
       semanticAxisDiagnostics = semanticAxisDiagnostics,
       candidatePlanEvidence = hasPlanCauseEvidence(candidateRecords),
       candidateStrategicEvidence = hasStrategicCauseEvidence(candidateRecords),
       candidateStrategicConcessionEvidence = hasStrategicConcessionEvidence(candidateRecords),
-      candidateStrongStrategicConcessionEvidence = hasStrongStrategicConcessionEvidence(candidateRecords),
       referencePassedPawnResource = hasPassedPawnResource(referenceRecords),
       candidatePassedPawnResource = hasPassedPawnResource(candidateRecords),
       referenceEndgameResource = hasEndgameResource(referenceRecords),
@@ -2580,7 +2754,7 @@ object CandidateComparisonDiagnostic:
 
   private def tacticalRelativeCauseStage(causeRecords: List[RelativeCauseDiagnosticRecord]): TacticalLossStageDiagnostic =
     val tacticalCauseRecords =
-      causeRecords.filter(entry => tacticalCause(entry.cause.kind) && entry.cause.proof.exists(_.hasTypedDepth))
+      causeRecords.filter(entry => tacticalCause(entry.cause.kind) && entry.cause.hasOwnedTypedDepth)
     TacticalLossStageDiagnostic(
       stage = TacticalLossStage.RelativeCause,
       present = tacticalCauseRecords.nonEmpty,
@@ -2755,15 +2929,7 @@ object CandidateComparisonDiagnostic:
     ClaimEventCluster.kindForCause(kind).contains(ClaimEventClusterKind.TacticalEvent)
 
   private def strategicCause(kind: RelativeCauseKind): Boolean =
-    kind match
-      case RelativeCauseKind.StructuralImprovement | RelativeCauseKind.StrategicConcession |
-          RelativeCauseKind.MissedStrategicImprovement | RelativeCauseKind.TargetPressureGain |
-          RelativeCauseKind.CenterControlGain | RelativeCauseKind.KingSafetyConcession |
-          RelativeCauseKind.PawnWeaknessTarget | RelativeCauseKind.ActivityLoss |
-          RelativeCauseKind.PlanImprovement | RelativeCauseKind.PlanContradiction =>
-        true
-      case _ =>
-        false
+    RelativeCauseKind.strategicContrastBacked(kind)
 
   private def significantEnginePreference(fact: CandidateComparisonFact): Boolean =
     significanceReasons(fact).nonEmpty
@@ -3077,10 +3243,7 @@ object CandidateComparisonDiagnostic:
     }
 
   private def hasStructuralTargetRelease(records: List[EvidenceRecord]): Boolean =
-    strategicMechanismExists(records)(payload =>
-      payload.kind == StrategicMechanismKind.TargetPressure &&
-        payload.signals.exists(_.label == "target-pressure-release")
-    )
+    strategicMechanismExists(records)(_.hasTargetPressureReleaseAxis)
 
   private def hasStructuralImprovementEvidence(records: List[EvidenceRecord]): Boolean =
     strategicMechanismExists(records)(payload =>
@@ -3088,38 +3251,22 @@ object CandidateComparisonDiagnostic:
     )
 
   private def hasTargetPressureGainEvidence(records: List[EvidenceRecord]): Boolean =
-    strategicMechanismExists(records)(payload =>
-      payload.kind == StrategicMechanismKind.TargetPressure &&
-        payload.canSupportStrategicCause &&
-        payload.signals.exists(_.label == "target-pressure-gain")
-    )
+    strategicMechanismExists(records)(_.hasTargetPressureGainAxis)
 
   private def hasCenterControlGainEvidence(records: List[EvidenceRecord]): Boolean =
-    strategicMechanismExists(records)(payload =>
-      payload.kind == StrategicMechanismKind.CenterControl && payload.canSupportStrategicCause
-    )
+    strategicMechanismExists(records)(_.hasCenterControlGainAxis)
 
   private def hasDevelopmentActivationEvidence(records: List[EvidenceRecord]): Boolean =
-    strategicMechanismExists(records)(payload =>
-      payload.kind == StrategicMechanismKind.Activity &&
-        payload.canSupportStrategicCause &&
-        payload.signals.exists(_.label == "activity-gain")
-    )
+    hasActivityGainEvidence(records)
 
   private def hasPieceActivityGainEvidence(records: List[EvidenceRecord]): Boolean =
-    strategicMechanismExists(records)(payload =>
-      payload.kind == StrategicMechanismKind.Activity &&
-        payload.canSupportStrategicCause &&
-        payload.signals.exists(_.label == "activity-gain")
-    )
+    hasActivityGainEvidence(records)
+
+  private def hasActivityGainEvidence(records: List[EvidenceRecord]): Boolean =
+    strategicMechanismExists(records)(_.hasActivityGainAxis)
 
   private def hasPawnStructureImprovementEvidence(records: List[EvidenceRecord]): Boolean =
     pawnStructureImprovementSignals(records).nonEmpty
-
-  private def strategicImprovementScore(records: List[EvidenceRecord]): Int =
-    records.collect { case EvidenceRecord(_, payload: StrategicMechanismEvidence, _) =>
-      payload.directStrength
-    }.sum
 
   private def semanticAxisDiagnosticsFor(
       referenceRecords: List[EvidenceRecord],
@@ -3153,25 +3300,33 @@ object CandidateComparisonDiagnostic:
   private def semanticAxisProfile(records: List[EvidenceRecord]): SemanticAxisProfile =
     val entries = records.flatMap(strategicMechanismAxisEntries)
     val strengths =
-      entries.groupMapReduce(_._1)(_._2)(_ + _)
+      entries.groupMapReduce(_.key)(_.strength)(_ + _)
     val sourceIds =
       entries
-        .groupMap(_._1)(_._3.ref.id)
+        .groupMap(_.key)(_.source.id)
         .view
         .mapValues(_.distinct.sorted)
         .toMap
     val sourceLayers =
       entries
-        .groupMap(_._1)(_._3.ref.layer)
+        .groupMap(_.key)(_.source.layer)
         .view
         .mapValues(_.distinctBy(_.ordinal).sortBy(_.ordinal))
         .toMap
     SemanticAxisProfile(strengths = strengths, sourceIds = sourceIds, sourceLayers = sourceLayers)
 
-  private def strategicMechanismAxisEntries(record: EvidenceRecord): List[(String, Int, EvidenceRecord)] =
+  private def strategicMechanismAxisEntries(record: EvidenceRecord): List[SemanticAxisEntry] =
     record match
       case EvidenceRecord(_, payload: StrategicMechanismEvidence, _) =>
-        payload.signals.map(signal => (s"${payload.kind}:${signal.label}", signal.strength, record))
+        payload.signals.flatMap(signal =>
+          signal.axisKey.map(axisKey =>
+            SemanticAxisEntry(
+              key = axisKey,
+              strength = signal.strength,
+              source = signal.source
+            )
+          )
+        )
       case _ =>
         Nil
 
@@ -3210,14 +3365,7 @@ object CandidateComparisonDiagnostic:
     }
 
   private def hasStrategicConcessionEvidence(records: List[EvidenceRecord]): Boolean =
-    strategicMechanismExists(records)(payload =>
-      payload.kind == StrategicMechanismKind.StrategicConcession && payload.canSupportStrategicCause
-    )
-
-  private def hasStrongStrategicConcessionEvidence(records: List[EvidenceRecord]): Boolean =
-    strategicMechanismExists(records)(payload =>
-      payload.kind == StrategicMechanismKind.StrategicConcession && payload.directStrength >= 3
-    )
+    strategicMechanismExists(records)(_.hasStrategicConcessionAxis)
 
   private def hasMaterialSwingEvidence(
       referenceRecords: List[EvidenceRecord],
@@ -3228,12 +3376,7 @@ object CandidateComparisonDiagnostic:
   private def hasPassedPawnResource(records: List[EvidenceRecord]): Boolean =
     records.exists {
       case EvidenceRecord(_, payload: StrategicMechanismEvidence, _) =>
-        payload.kind == StrategicMechanismKind.PawnStructure &&
-          payload.canAnchorPawnStructureIdea &&
-          payload.signals.exists(signal =>
-            signal.label == "passed-pawn-progress" ||
-              signal.label == "promotion-pressure-gain"
-          )
+        payload.hasPassedPawnResourceSignal
       case EvidenceRecord(_, payload: MoveMotifEvidence, _) =>
         payload.motif match
           case _: Motif.PassedPawnPush | _: Motif.PassedPawn | _: Motif.PawnPromotion => true
@@ -3403,6 +3546,7 @@ final case class SemanticCoverageMetrics(
     moveVerdictCertifications: Int,
     playedRelatedComparisonFacts: Int,
     playedRelativeCauseFacts: Int,
+    planTransitionWithoutSnapshotPairIds: List[String],
     branchReplyProbeRequests: Int,
     branchReplyProbeMoves: List[String],
     branchReplyThreatLines: Int,
@@ -3498,6 +3642,11 @@ object SemanticCoverageMetrics:
       if primaryPlayedCovered then Nil else secondaryContextIds
     val branchReplyProbeRequests =
       packet.probeRequests.filter(request => request.purpose.exists(branchReplyProbePurpose))
+    val planTransitionWithoutSnapshotPairIds =
+      packet.evidenceGraph.records.collect {
+        case EvidenceRecord(ref, PlanTransitionEvidence(transition), _) if transition.transitionType == TransitionType.Opening =>
+          ref.id
+      }.distinct.sorted
     val branchReplyThreatLines =
       packet.candidateLines.count(_.role == LineNodeRole.Threat)
     val branchReplyThreatPressureRecords =
@@ -3596,6 +3745,7 @@ object SemanticCoverageMetrics:
       moveVerdictCertifications = packet.evidenceGraph.records.count(_.ref.layer == EvidenceLayer.MoveVerdictCertification),
       playedRelatedComparisonFacts = playedComparisonRecords.size,
       playedRelativeCauseFacts = playedCauseRecords.size,
+      planTransitionWithoutSnapshotPairIds = planTransitionWithoutSnapshotPairIds,
       branchReplyProbeRequests = branchReplyProbeRequests.size,
       branchReplyProbeMoves = branchReplyProbeRequests.flatMap(_.candidateMove).distinct.sorted,
       branchReplyThreatLines = branchReplyThreatLines,
@@ -3721,9 +3871,9 @@ object SemanticCoverageMetrics:
   private def relativeCauseProofCount(packet: EvidenceBackedJudgmentPacket): Int =
     packet.evidenceGraph.records.map {
       case EvidenceRecord(_, RelativeCauseFactEvidence(cause), _) =>
-        if cause.proof.exists(_.hasTypedDepth) then 1 else 0
+        if cause.hasOwnedTypedDepth then 1 else 0
       case EvidenceRecord(_, MoveVerdictCertificationEvidence(certification), _) =>
-        certification.causes.count(_.proof.exists(_.hasTypedDepth))
+        certification.causes.count(_.hasOwnedTypedDepth)
       case _ =>
         0
     }.sum
@@ -4666,9 +4816,9 @@ object JudgmentLayerGapProfile:
 
   private def hasRelativeCauseProof(packet: EvidenceBackedJudgmentPacket): Boolean =
     packet.evidenceGraph.records.exists {
-      case EvidenceRecord(_, RelativeCauseFactEvidence(cause), _) => cause.proof.exists(_.hasTypedDepth)
+      case EvidenceRecord(_, RelativeCauseFactEvidence(cause), _) => cause.hasOwnedTypedDepth
       case EvidenceRecord(_, MoveVerdictCertificationEvidence(certification), _) =>
-        certification.causes.exists(_.proof.exists(_.hasTypedDepth))
+        certification.causes.exists(_.hasOwnedTypedDepth)
       case _                                                      => false
     }
 
@@ -4791,7 +4941,7 @@ object JudgmentLayerGapProfile:
 
   private def materialResultCause(cause: RelativeCauseFact): Boolean =
     ClaimEventCluster.kindForCause(cause.kind).contains(ClaimEventClusterKind.MaterialEvent) &&
-      cause.hasTypedDepth
+      cause.hasOwnedTypedDepth
 
   private def longTermSupportClusterApplicable(packet: EvidenceBackedJudgmentPacket): Boolean =
     packet.claims.exists(_.family.isLongTerm)
@@ -4831,11 +4981,11 @@ object JudgmentLayerGapProfile:
 
   private def tacticalCauseApplicable(cause: RelativeCauseFact): Boolean =
     ClaimEventCluster.kindForCause(cause.kind).contains(ClaimEventClusterKind.TacticalEvent) &&
-      cause.proof.exists(proof => proof.directProof.hasTacticalProof || proof.contrastProof.hasTacticalProof)
+      cause.hasOwnedTacticalProof
 
   private def conversionCauseApplicable(cause: RelativeCauseFact): Boolean =
     ClaimEventCluster.kindForCause(cause.kind).contains(ClaimEventClusterKind.ConversionEvent) &&
-      cause.hasTypedDepth
+      cause.hasOwnedTypedDepth
 
 enum ChessQualityIssueKind:
   case PacketValidationFailed
