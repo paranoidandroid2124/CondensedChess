@@ -60,7 +60,7 @@ private object RelativeCauseClaimDepth:
       proof.contrastProof.transitionConsequences.nonEmpty
 
   def hasStrategicContrastDepth(cause: RelativeCauseFact): Boolean =
-    cause.hasOwnedStrategicContrastDepth
+    cause.hasOwnedAdmissibleLongTermProof
 
   private def isTactical(kind: RelativeCauseKind): Boolean =
     ClaimEventCluster.kindForCause(kind).contains(ClaimEventClusterKind.TacticalEvent)
@@ -1187,9 +1187,10 @@ object ClaimArbitrator:
           case RelativeCauseKind.PlanContradiction |
               RelativeCauseKind.StrategicConcession |
               RelativeCauseKind.MissedStrategicImprovement | RelativeCauseKind.StructuralImprovement |
-              RelativeCauseKind.TargetPressureGain | RelativeCauseKind.CenterControlGain |
+              RelativeCauseKind.TargetPressureGain | RelativeCauseKind.TargetPressureRelease |
+              RelativeCauseKind.CenterControlGain |
               RelativeCauseKind.KingSafetyConcession | RelativeCauseKind.PawnWeaknessTarget |
-              RelativeCauseKind.ActivityLoss =>
+              RelativeCauseKind.PawnBreakOpportunity | RelativeCauseKind.ActivityLoss =>
             if RelativeCauseClaimDepth.hasStrategicContrastDepth(cause) then 5 else 0
           case RelativeCauseKind.DefensiveResource | RelativeCauseKind.DrawResource |
               RelativeCauseKind.SacrificeCompensation =>
@@ -1262,8 +1263,9 @@ object ClaimArbitrator:
             List(ClaimSalienceDriver.StrategicFeature, ClaimSalienceDriver.StructuralChange, ClaimSalienceDriver.EngineSwing)
           case RelativeCauseKind.TargetPressureGain | RelativeCauseKind.CenterControlGain =>
             List(ClaimSalienceDriver.StrategicFeature, ClaimSalienceDriver.EngineSwing)
-          case RelativeCauseKind.KingSafetyConcession | RelativeCauseKind.PawnWeaknessTarget |
-              RelativeCauseKind.ActivityLoss =>
+          case RelativeCauseKind.TargetPressureRelease | RelativeCauseKind.KingSafetyConcession |
+              RelativeCauseKind.PawnWeaknessTarget |
+              RelativeCauseKind.PawnBreakOpportunity | RelativeCauseKind.ActivityLoss =>
             List(ClaimSalienceDriver.StrategicFeature, ClaimSalienceDriver.StructuralChange, ClaimSalienceDriver.EngineSwing)
           case RelativeCauseKind.StrategicConcession |
               RelativeCauseKind.MissedStrategicImprovement | RelativeCauseKind.PlanImprovement |

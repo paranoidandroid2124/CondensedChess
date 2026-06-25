@@ -115,20 +115,34 @@ object EvidenceObjectBinding:
     fromEvidenceRefs(graph, claim.evidence)
 
   def fromEvidenceRefs(graph: TypedEvidenceGraph, refs: List[EvidenceRef]): List[EvidenceObjectBinding] =
+    fromEvidenceRefs(graph, refs, Set.empty)
+
+  private def fromEvidenceRefs(
+      graph: TypedEvidenceGraph,
+      refs: List[EvidenceRef],
+      visited: Set[String]
+  ): List[EvidenceObjectBinding] =
     refs
       .flatMap(ref => graph.byId.get(ref.id))
-      .flatMap(record => fromRecord(record, graph, Set.empty))
+      .flatMap(record => fromRecord(record, graph, visited))
       .distinctBy(_.signature)
 
   def fromRelativeCause(cause: RelativeCauseFact, graph: TypedEvidenceGraph): List[EvidenceObjectBinding] =
+    fromRelativeCause(cause, graph, Set.empty)
+
+  private def fromRelativeCause(
+      cause: RelativeCauseFact,
+      graph: TypedEvidenceGraph,
+      visited: Set[String]
+  ): List[EvidenceObjectBinding] =
     val proofBindings =
       cause.proof.toList.flatMap { proof =>
-        bindingsFromProofSection(proof.directProof, graph) ++
-          bindingsFromProofSection(proof.contrastProof, graph) ++
-          bindingsFromProofSection(proof.contextSupport, graph)
+        bindingsFromProofSection(proof.directProof, graph, visited) ++
+          bindingsFromProofSection(proof.contrastProof, graph, visited) ++
+          bindingsFromProofSection(proof.contextSupport, graph, visited)
       }
     val supportBindings =
-      fromEvidenceRefs(graph, cause.supportEvidence).map(_.copy(proofRole = Some(RelativeCauseProofRole.ContextSupport)))
+      fromEvidenceRefs(graph, cause.supportEvidence, visited).map(_.copy(proofRole = Some(RelativeCauseProofRole.ContextSupport)))
     (proofBindings ++ supportBindings).distinctBy(_.signature)
 
   def objectSignatures(bindings: List[EvidenceObjectBinding]): List[String] =
@@ -150,9 +164,10 @@ object EvidenceObjectBinding:
 
   private def bindingsFromProofSection(
       section: RelativeCauseProofSection,
-      graph: TypedEvidenceGraph
+      graph: TypedEvidenceGraph,
+      visited: Set[String]
   ): List[EvidenceObjectBinding] =
-    fromEvidenceRefs(graph, section.sourceRefs).map(_.copy(proofRole = Some(section.role)))
+    fromEvidenceRefs(graph, section.sourceRefs, visited).map(_.copy(proofRole = Some(section.role)))
 
   private def fromRecord(
       record: EvidenceRecord,
@@ -274,9 +289,9 @@ object EvidenceObjectBinding:
             )
           )
         case RelativeCauseFactEvidence(cause) =>
-          fromRelativeCause(cause, graph)
+          fromRelativeCause(cause, graph, nextVisited)
         case MoveVerdictCertificationEvidence(certification) =>
-          certification.causes.flatMap(cause => fromRelativeCause(cause, graph))
+          certification.causes.flatMap(cause => fromRelativeCause(cause, graph, nextVisited))
         case _ =>
           Nil
 
@@ -1380,9 +1395,13 @@ final case class StrategicAxisComparison(
       outcome == StrategicAxisComparisonOutcome.CandidateConcession ||
       outcome == StrategicAxisComparisonOutcome.ReferencePreservesPlan
   def candidateNegative: Boolean =
-    axis.polarity == StrategicAxisPolarity.Loss ||
-      axis.polarity == StrategicAxisPolarity.Concede ||
-      outcome == StrategicAxisComparisonOutcome.CandidateConcession
+    (candidateStrength > 0 || outcome == StrategicAxisComparisonOutcome.CandidateConcession) &&
+      (
+        axis.polarity == StrategicAxisPolarity.Loss ||
+          axis.polarity == StrategicAxisPolarity.Release ||
+          axis.polarity == StrategicAxisPolarity.Concede ||
+          outcome == StrategicAxisComparisonOutcome.CandidateConcession
+      )
   def referenceLead: Boolean =
     outcome == StrategicAxisComparisonOutcome.ReferenceOnly ||
       outcome == StrategicAxisComparisonOutcome.ReferenceStronger ||

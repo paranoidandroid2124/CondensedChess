@@ -629,6 +629,8 @@ final case class RelativeCauseFlowDiagnostic(
     directProofKinds: List[String],
     contrastProofKinds: List[String],
     contextSupportKinds: List[String],
+    hasOwnedTypedDepth: Boolean,
+    hasOwnedAdmissibleLongTermProof: Boolean,
     eventClusterExpected: Boolean,
     ideaIds: List[String],
     claimCandidateIds: List[String],
@@ -749,6 +751,11 @@ final case class ComparisonMoveJudgmentViewDiagnostics(
     primaryFinalClaimFamilies: Set[ClaimFamily],
     primaryFramedCauseKinds: List[RelativeCauseKind],
     primaryUnframedCauseKinds: List[RelativeCauseKind],
+    primaryRootCauseKinds: List[RelativeCauseKind],
+    primaryTacticalWitnessCauseKinds: List[RelativeCauseKind],
+    primaryRootCauseEvidenceIds: List[String],
+    primaryTacticalWitnessCauseEvidenceIds: List[String],
+    secondaryCauseEvidenceIds: List[String],
     contextCauseEvidenceIds: List[String],
     projectedContextCauseNoViewIds: List[String],
     playableLossPrimaryCauseEvidenceIds: List[String],
@@ -813,6 +820,7 @@ final case class CandidateCauseSupportDiagnostic(
     hasOwnedTypedDepth: Boolean,
     hasOwnedTacticalProof: Boolean,
     hasOwnedStrategicContrastDepth: Boolean,
+    hasOwnedAdmissibleLongTermProof: Boolean,
     rawProofHasDirectProof: Boolean,
     rawProofHasContrastProof: Boolean,
     rawProofHasContextSupport: Boolean,
@@ -1462,6 +1470,15 @@ object CandidateComparisonDiagnostic:
       primaryFinalClaimFamilies = frameFinalClaimFamilies(packet, primaryFrames),
       primaryFramedCauseKinds = primaryFrames.filter(_.framed).map(_.causeKind).distinct,
       primaryUnframedCauseKinds = primaryFrames.filterNot(_.framed).map(_.causeKind).distinct,
+      primaryRootCauseKinds =
+        primaryFrames.filter(_.narrativeRole == MoveJudgmentCauseNarrativeRole.RootCause).map(_.causeKind).distinct,
+      primaryTacticalWitnessCauseKinds =
+        primaryFrames.filter(_.narrativeRole == MoveJudgmentCauseNarrativeRole.TacticalWitness).map(_.causeKind).distinct,
+      primaryRootCauseEvidenceIds =
+        primaryFrames.filter(_.narrativeRole == MoveJudgmentCauseNarrativeRole.RootCause).flatMap(_.causeEvidenceIds).distinct.sorted,
+      primaryTacticalWitnessCauseEvidenceIds =
+        primaryFrames.filter(_.narrativeRole == MoveJudgmentCauseNarrativeRole.TacticalWitness).flatMap(_.causeEvidenceIds).distinct.sorted,
+      secondaryCauseEvidenceIds = secondaryFrames.flatMap(_.causeEvidenceIds).distinct.sorted,
       contextCauseEvidenceIds = contextCauseEvidenceIds,
       projectedContextCauseNoViewIds = projectedContextCauseNoViewIds(packet, fact, contextCauseEvidenceIds.toSet),
       playableLossPrimaryCauseEvidenceIds =
@@ -1571,6 +1588,7 @@ object CandidateComparisonDiagnostic:
         hasOwnedTypedDepth = cause.hasOwnedTypedDepth,
         hasOwnedTacticalProof = cause.hasOwnedTacticalProof,
         hasOwnedStrategicContrastDepth = cause.hasOwnedStrategicContrastDepth,
+        hasOwnedAdmissibleLongTermProof = cause.hasOwnedAdmissibleLongTermProof,
         rawProofHasDirectProof = proof.hasRawDirectProof,
         rawProofHasContrastProof = proof.hasRawContrastProof,
         rawProofHasContextSupport = proof.hasRawContextSupport,
@@ -1652,7 +1670,7 @@ object CandidateComparisonDiagnostic:
       causeSupport
         .filter(support =>
           support.kind == RelativeCauseKind.StructuralImprovement &&
-            !support.hasOwnedStrategicContrastDepth
+            !support.hasOwnedAdmissibleLongTermProof
         )
         .map(_.id)
         .distinct
@@ -1761,7 +1779,7 @@ object CandidateComparisonDiagnostic:
       val familyMismatch = familyMismatchDiagnosticFor(packet, entry)
       val proof = cause.proof.getOrElse(RelativeCauseProof())
       val strategicCauseWithoutContrast =
-        cause.strategicCauseKind && !cause.hasOwnedStrategicContrastDepth
+        cause.strategicCauseKind && !cause.hasOwnedAdmissibleLongTermProof
       val contextSupportUsedAsDirectProof =
         proofContextSupportUsedAsDirectProof(proof)
       val supportPromotedToDirectProof =
@@ -1799,6 +1817,8 @@ object CandidateComparisonDiagnostic:
         directProofKinds = proof.directProof.kindLabels.distinct.sorted,
         contrastProofKinds = proof.contrastProof.kindLabels.distinct.sorted,
         contextSupportKinds = proof.contextSupport.kindLabels.distinct.sorted,
+        hasOwnedTypedDepth = cause.hasOwnedTypedDepth,
+        hasOwnedAdmissibleLongTermProof = cause.hasOwnedAdmissibleLongTermProof,
         eventClusterExpected = eventClusterExpected,
         ideaIds = ideaIds,
         claimCandidateIds = lifecycleCandidates.map(_.candidateId).distinct.sorted,
@@ -1882,9 +1902,9 @@ object CandidateComparisonDiagnostic:
       .flatMap(ref => packet.evidenceGraph.byId.get(ref.id))
       .exists {
         case EvidenceRecord(_, RelativeCauseFactEvidence(cause), _) =>
-          cause.hasOwnedStrategicContrastDepth
+          cause.hasOwnedAdmissibleLongTermProof
         case EvidenceRecord(_, MoveVerdictCertificationEvidence(certification), _) =>
-          certification.causes.exists(_.hasOwnedStrategicContrastDepth)
+          certification.causes.exists(_.hasOwnedAdmissibleLongTermProof)
         case EvidenceRecord(_, payload: StrategicMechanismContrastEvidence, _) =>
           payload.hasActionableContrast
         case _ =>

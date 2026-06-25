@@ -1,0 +1,130 @@
+package lila.chessjudgment.analysis.assembly
+
+import chess.Color
+import lila.chessjudgment.model.judgment.*
+
+class ChessIdeaAssemblerTest extends munit.FunSuite:
+
+  test("structural transition proof can seed a strategic relative-cause idea"):
+    val root = PositionNodeRef("8/8/8/8/8/8/3P4/8 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val afterPlayed = PositionNodeRef("8/8/8/8/3P4/8/8/8 b - - 0 1", 2, Some(Color.Black), Some("after-played"))
+    val playedLine = LineNodeRef("played-line", "d2d4", 2, LineNodeRole.Played)
+    val referenceLine = LineNodeRef("reference-line", "g1f3", 1, LineNodeRole.BestReference)
+
+    val structuralRef = evidenceRef(
+      id = "structural-delta:played:d2d4",
+      producer = EvidenceProducer.StructuralDeltaProducer,
+      layer = EvidenceLayer.StructuralDelta,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.PlayedTransition
+    )
+    val transition = StructuralTransitionBinding(
+      moveUci = "d2d4",
+      role = TransitionEdgeRole.Played,
+      from = root,
+      to = afterPlayed,
+      line = Some(playedLine),
+      perspective = Color.White
+    )
+    val consequence = TransitionConsequence(
+      kind = TransitionConsequenceKind.CenterControlGain,
+      polarity = StructuralSignalPolarity.Gain,
+      strength = 2
+    )
+    val cause = RelativeCauseFact(
+      kind = RelativeCauseKind.StructuralImprovement,
+      comparisonKind = CandidateComparisonKind.PlayedVsBest,
+      referenceLine = referenceLine,
+      candidateLine = playedLine,
+      verdict = MoveChoiceVerdict.Inaccuracy,
+      winPercentLossForMover = 4.0,
+      candidateWinPercentDeltaForMover = -4.0,
+      supportEvidence = List(structuralRef),
+      evidenceLines = List(playedLine),
+      role = RelativeCauseRole.PrimaryPlayedCause,
+      eventLine = playedLine,
+      sourceSide = RelativeCauseSourceSide.Candidate,
+      importance = RelativeCauseImportance.Primary,
+      attribution = CauseAttribution(
+        kind = CauseAttributionKind.CandidateCreatesValue,
+        ownedEvidence = List(structuralRef),
+        rootMoveMatched = true,
+        directProofEligible = true
+      )
+    )(
+      proof = Some(
+        RelativeCauseProof(
+          directProof = RelativeCauseProofSection(
+            role = RelativeCauseProofRole.DirectProof,
+            strength = RelativeCauseProofStrength.Primary,
+            transitionConsequences = List(TransitionConsequenceProof(structuralRef, transition, consequence))
+          )
+        )
+      )
+    )
+    val causeRef = evidenceRef(
+      id = "relative-cause:played-best:structural-improvement",
+      producer = EvidenceProducer.RelativeMoveProducer,
+      layer = EvidenceLayer.RelativeCause,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.Counterfactual
+    )
+    val graph = TypedEvidenceGraph(
+      List(
+        EvidenceRecord(
+          structuralRef,
+          StructuralDeltaEvidence(
+            transition = transition,
+            signals = Nil,
+            consequences = List(consequence)
+          )
+        ),
+        EvidenceRecord(causeRef, RelativeCauseFactEvidence(cause), parents = List(structuralRef))
+      )
+    )
+
+    val assembly = ChessIdeaAssembler.enrich(
+      RelativeAssessmentAssembly(
+        input = normalizedInput(root, afterPlayed),
+        context = JudgmentAssemblyContext.empty(graph)
+      )
+    )
+
+    val relativeCauseIdeas = assembly.context.ideas.filter(_.evidence.exists(_.id == causeRef.id))
+    assertEquals(relativeCauseIdeas.map(_.ref.family), List(ChessIdeaFamily.Strategic))
+
+  private def normalizedInput(
+      root: PositionNodeRef,
+      afterPlayed: PositionNodeRef
+  ): NormalizedMoveReviewInput =
+    NormalizedMoveReviewInput(
+      beforeFen = root.fen,
+      playedMoveUci = "d2d4",
+      beforePly = root.ply,
+      sideToMove = Some(Color.White),
+      afterPlayedFen = afterPlayed.fen,
+      afterReferenceFen = None,
+      lines = Nil,
+      currentWhitePovEvalCp = 0,
+      opening = None
+    )
+
+  private def evidenceRef(
+      id: String,
+      producer: EvidenceProducer,
+      layer: EvidenceLayer,
+      position: PositionNodeRef,
+      line: Option[LineNodeRef],
+      scope: EvidenceScope
+  ): EvidenceRef =
+    EvidenceRef(
+      id = id,
+      producer = producer,
+      layer = layer,
+      position = position,
+      line = line,
+      scope = scope,
+      confidence = EvidenceConfidence.EngineBacked
+    )

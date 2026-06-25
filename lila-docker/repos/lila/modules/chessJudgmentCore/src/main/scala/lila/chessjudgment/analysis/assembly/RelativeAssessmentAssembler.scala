@@ -389,6 +389,7 @@ object RelativeAssessmentAssembler:
   ): StrategicAxisComparisonOutcome =
     val candidateNegative =
       axis.polarity == StrategicAxisPolarity.Loss ||
+        axis.polarity == StrategicAxisPolarity.Release ||
         axis.polarity == StrategicAxisPolarity.Concede
     if referenceStrength > 0 && candidateStrength == 0 then
       if axis.kind == StrategicAxisKind.PlanCoherence && axis.polarity == StrategicAxisPolarity.Preserve then
@@ -1039,7 +1040,11 @@ object RelativeAssessmentAssembler:
       case RelativeCauseKind.PlanImprovement | RelativeCauseKind.PlanContradiction =>
         axis.kind == StrategicAxisKind.PlanCoherence
       case RelativeCauseKind.TargetPressureGain | RelativeCauseKind.PawnWeaknessTarget =>
-        axis.kind == StrategicAxisKind.Target
+        axis.kind == StrategicAxisKind.Target && axis.polarity != StrategicAxisPolarity.Release
+      case RelativeCauseKind.TargetPressureRelease =>
+        axis.kind == StrategicAxisKind.Target && axis.polarity == StrategicAxisPolarity.Release
+      case RelativeCauseKind.PawnBreakOpportunity =>
+        axis.kind == StrategicAxisKind.PawnBreak
       case RelativeCauseKind.CenterControlGain =>
         axis.kind == StrategicAxisKind.SpaceCenter
       case RelativeCauseKind.ActivityLoss =>
@@ -1098,6 +1103,8 @@ object RelativeAssessmentAssembler:
     kind match
       case RelativeCauseKind.TargetPressureGain =>
         payload.consequencesOf(TargetPressureGain)
+      case RelativeCauseKind.TargetPressureRelease =>
+        payload.consequencesOf(TargetPressureRelease)
       case RelativeCauseKind.CenterControlGain =>
         payload.consequencesOf(CenterControlGain)
       case RelativeCauseKind.KingSafetyConcession =>
@@ -1105,6 +1112,9 @@ object RelativeAssessmentAssembler:
           payload.consequencesOf(KingRingPressureConcession)
       case RelativeCauseKind.PawnWeaknessTarget =>
         payload.consequencesOf(WeakPawnTargetCreated)
+      case RelativeCauseKind.PawnBreakOpportunity =>
+        payload.consequencesOf(PawnTensionGain) ++
+          payload.consequencesOf(PawnTensionResolution)
       case RelativeCauseKind.ActivityLoss =>
         payload.consequencesOf(DevelopmentLagIncreased) ++
           payload.consequencesOf(DevelopmentPieceRetreated) ++

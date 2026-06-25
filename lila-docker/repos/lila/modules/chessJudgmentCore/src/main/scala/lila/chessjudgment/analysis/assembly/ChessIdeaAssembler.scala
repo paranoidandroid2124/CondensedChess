@@ -405,13 +405,13 @@ object ChessIdeaAssembler:
         promoted.distinct
       case kind if strategicRelativeCause(kind) =>
         List(
-          Option.when(cause.hasOwnedStrategicContrastDepth && hasStrategicRelativeCauseSupport(supportRecords))(
+          Option.when(cause.hasOwnedAdmissibleLongTermProof && hasStrategicRelativeCauseSupport(cause, supportRecords))(
             ChessIdeaFamily.Strategic
           ),
-          Option.when(cause.hasOwnedStrategicContrastDepth && hasPawnStructureRelativeCauseSupport(supportRecords))(
+          Option.when(cause.hasOwnedAdmissibleLongTermProof && hasPawnStructureRelativeCauseSupport(cause, supportRecords))(
             ChessIdeaFamily.PawnStructure
           ),
-          Option.when(cause.hasOwnedStrategicContrastDepth && hasOpeningRelativeCauseSupport(supportRecords))(
+          Option.when(cause.hasOwnedAdmissibleLongTermProof && hasOpeningRelativeCauseSupport(supportRecords))(
             ChessIdeaFamily.Opening
           )
         ).flatten.distinct
@@ -453,7 +453,8 @@ object ChessIdeaAssembler:
   ): List[EvidenceRecord] =
     refs.flatMap(ref => context.evidenceGraph.byId.get(ref.id))
 
-  private def hasStrategicRelativeCauseSupport(records: List[EvidenceRecord]): Boolean =
+  private def hasStrategicRelativeCauseSupport(cause: RelativeCauseFact, records: List[EvidenceRecord]): Boolean =
+    cause.proof.exists(_.directProof.transitionConsequences.nonEmpty) ||
     records.exists {
       case EvidenceRecord(_, payload: StrategicMechanismContrastEvidence, _) =>
         payload.hasActionableContrast
@@ -463,7 +464,14 @@ object ChessIdeaAssembler:
         false
     }
 
-  private def hasPawnStructureRelativeCauseSupport(records: List[EvidenceRecord]): Boolean =
+  private def hasPawnStructureRelativeCauseSupport(cause: RelativeCauseFact, records: List[EvidenceRecord]): Boolean =
+    cause.kind == RelativeCauseKind.PawnWeaknessTarget ||
+      cause.kind == RelativeCauseKind.PawnBreakOpportunity ||
+      cause.proof.exists(proof =>
+        proof.directProof.transitionConsequences.exists(consequence =>
+          consequence.consequence.kind == TransitionConsequenceKind.WeakPawnTargetCreated
+        )
+      ) ||
     records.exists {
       case EvidenceRecord(_, payload: StrategicMechanismContrastEvidence, _) =>
         payload.actionableComparisons.exists(_.axis.kind == StrategicAxisKind.PawnBreak)

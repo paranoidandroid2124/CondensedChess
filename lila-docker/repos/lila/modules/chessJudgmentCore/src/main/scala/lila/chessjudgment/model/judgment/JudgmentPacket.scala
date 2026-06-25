@@ -1488,6 +1488,12 @@ enum MoveJudgmentCauseFrameRole:
   case SecondaryCause
   case ContextCause
 
+enum MoveJudgmentCauseNarrativeRole:
+  case RootCause
+  case TacticalWitness
+  case SupportingCause
+  case ContextCause
+
 case class MoveJudgmentVerdictFrame(
     verdict: MoveChoiceVerdict,
     winPercentLossForMover: Double,
@@ -1551,7 +1557,11 @@ case class MoveJudgmentCauseFrame(
     proofStrategicMechanismSignalSourceIds: List[String],
     supportEvidenceSourceIds: List[String],
     objectBindingSignatures: List[String],
-    concreteObjectReady: Boolean
+    concreteObjectReady: Boolean,
+    hasOwnedAdmissibleLongTermProof: Boolean = false,
+    narrativeRole: MoveJudgmentCauseNarrativeRole = MoveJudgmentCauseNarrativeRole.RootCause,
+    tacticalWitnessCauseEvidenceIds: List[String] = Nil,
+    tacticalWitnessCauseKinds: List[RelativeCauseKind] = Nil
 )
 
 case class MoveJudgmentLocalIdeaFrame(
@@ -1604,6 +1614,7 @@ object MoveJudgmentView:
             frame.eventLine.id
           )
         )
+    val narratedCauseFrames = withNarrativeRoles(causeFrames)
     val verdictCarrierIds =
       (claimEventClusters.flatMap(_.evaluationClaimIds) ++
         claims.filter(claim => claim.family == ClaimFamily.Evaluation && claimCarriesVerdict(claim, evidenceGraph, playedMoves)).map(_.id))
@@ -1612,16 +1623,16 @@ object MoveJudgmentView:
     val verdictCarriers =
       verdictCarrierIds.flatMap(claimsById.get).map(claimFrame(_, evidenceGraph, playedMoves))
     val supportContextClusterIds =
-      (causeFrames.flatMap(_.relatedSupportClusterIds) ++ supportClustersRelatedTo(claimSupportClusters, causeFrames))
+      (narratedCauseFrames.flatMap(_.relatedSupportClusterIds) ++ supportClustersRelatedTo(claimSupportClusters, narratedCauseFrames))
         .distinct
         .sorted
     val view =
       MoveJudgmentView(
         verdict = relativeAssessments.headOption.map(verdictFrame),
         verdictCarriers = verdictCarriers,
-        primaryCauses = causeFrames.filter(_.role == MoveJudgmentCauseFrameRole.PrimaryCause),
-        secondaryCauses = causeFrames.filter(_.role == MoveJudgmentCauseFrameRole.SecondaryCause),
-        contextCauses = causeFrames.filter(_.role == MoveJudgmentCauseFrameRole.ContextCause),
+        primaryCauses = narratedCauseFrames.filter(_.role == MoveJudgmentCauseFrameRole.PrimaryCause),
+        secondaryCauses = narratedCauseFrames.filter(_.role == MoveJudgmentCauseFrameRole.SecondaryCause),
+        contextCauses = narratedCauseFrames.filter(_.role == MoveJudgmentCauseFrameRole.ContextCause),
         supportContextClusterIds = supportContextClusterIds,
         overriddenLocalIdeas = overriddenLocalIdeas(ideaVerdict, claims),
         preservedLocalIdeas = preservedLocalIdeas(claims)
@@ -1754,7 +1765,8 @@ object MoveJudgmentView:
       proofStrategicMechanismSignalSourceIds = strategicProof.signalSourceIds,
       supportEvidenceSourceIds = judgmentVisibleEvidenceIds(graph, cluster.causeProofs.flatMap(_.supportEvidenceSourceIds)),
       objectBindingSignatures = cluster.objectBindingSignatures,
-      concreteObjectReady = cluster.objectBindingSignatures.nonEmpty
+      concreteObjectReady = cluster.objectBindingSignatures.nonEmpty,
+      narrativeRole = defaultNarrativeRole(frameRoleFor(cluster.causeRole, cluster.comparisonKind, cluster.causeImportance, cluster.verdict))
     )
 
   private def unframedCauseFrames(
@@ -1776,22 +1788,20 @@ object MoveJudgmentView:
 
   private def primaryLongTermRelativeCause(cause: RelativeCauseFact): Boolean =
     ClaimEventCluster.kindForCause(cause.kind).isEmpty &&
-      cause.hasOwnedStrategicContrastDepth &&
+      cause.hasOwnedAdmissibleLongTermProof &&
       cause.comparisonKind == CandidateComparisonKind.PlayedVsBest &&
       cause.role == RelativeCauseRole.PrimaryPlayedCause &&
       (cause.sourceSide == RelativeCauseSourceSide.Reference || cause.sourceSide == RelativeCauseSourceSide.Candidate) &&
       cause.importance == RelativeCauseImportance.Primary &&
-      lossVerdict(cause.verdict) &&
-      cause.supportEvidence.exists(ref => !ClaimSupportCluster.longTermSupportExcludedLayer(ref.layer))
+      lossVerdict(cause.verdict)
 
   private[chessjudgment] def playedAlternativeLongTermContext(cause: RelativeCauseFact): Boolean =
     ClaimEventCluster.kindForCause(cause.kind).isEmpty &&
-      cause.hasOwnedStrategicContrastDepth &&
+      cause.hasOwnedAdmissibleLongTermProof &&
       cause.comparisonKind == CandidateComparisonKind.PlayedVsAlternative &&
       cause.role == RelativeCauseRole.PlayedAlternativeContext &&
       cause.importance == RelativeCauseImportance.Context &&
-      cause.eventLine == cause.candidateLine &&
-      cause.supportEvidence.exists(ref => !ClaimSupportCluster.longTermSupportExcludedLayer(ref.layer))
+      cause.eventLine == cause.candidateLine
 
   private def lossVerdict(verdict: MoveChoiceVerdict): Boolean =
     verdict match
@@ -1850,8 +1860,8 @@ object MoveJudgmentView:
       claimCandidateIds = lifecycleMatches.map(_.candidateId).distinct.sorted,
       finalClaimIds = lifecycleMatches.flatMap(_.finalClaimId).distinct.sorted,
       relatedSupportClusterIds = relatedSupportClusterIds,
-      evidenceIds = judgmentVisibleEvidenceIds(entry.evidence),
-      proofDirectSourceIds = judgmentVisibleEvidenceIds(proof.directProof.sourceRefs),
+      evidenceIds = judgmentVisibleCauseEvidenceIds(entry.evidence, cause),
+      proofDirectSourceIds = judgmentVisibleCauseEvidenceIds(proof.directProof.sourceRefs, cause),
       proofContrastSourceIds = judgmentVisibleEvidenceIds(proof.contrastProof.sourceRefs),
       proofContextSupportSourceIds = judgmentVisibleEvidenceIds(proof.contextSupport.sourceRefs),
       proofStrategicAxisLineage = proof.strategicAxisLineage,
@@ -1859,9 +1869,11 @@ object MoveJudgmentView:
       proofStrategicMechanismKinds = strategicProof.mechanismKinds,
       proofStrategicMechanismSourceIds = strategicProof.mechanismSourceIds,
       proofStrategicMechanismSignalSourceIds = strategicProof.signalSourceIds,
-      supportEvidenceSourceIds = judgmentVisibleEvidenceIds(cause.supportEvidence),
+      supportEvidenceSourceIds = judgmentVisibleCauseEvidenceIds(cause.supportEvidence, cause),
       objectBindingSignatures = EvidenceObjectBinding.objectSignatures(objectBindings),
-      concreteObjectReady = EvidenceObjectBinding.playerFacingReady(objectBindings)
+      concreteObjectReady = EvidenceObjectBinding.playerFacingReady(objectBindings),
+      hasOwnedAdmissibleLongTermProof = cause.hasOwnedAdmissibleLongTermProof,
+      narrativeRole = defaultNarrativeRole(frameRoleFor(cause.role, cause.comparisonKind, cause.importance, cause.verdict))
     )
 
   private def supportIdeaIdsForUnframedCause(
@@ -1920,6 +1932,59 @@ object MoveJudgmentView:
     then MoveJudgmentCauseFrameRole.ContextCause
     else MoveJudgmentCauseFrameRole.SecondaryCause
 
+  private def defaultNarrativeRole(role: MoveJudgmentCauseFrameRole): MoveJudgmentCauseNarrativeRole =
+    role match
+      case MoveJudgmentCauseFrameRole.PrimaryCause   => MoveJudgmentCauseNarrativeRole.RootCause
+      case MoveJudgmentCauseFrameRole.SecondaryCause => MoveJudgmentCauseNarrativeRole.SupportingCause
+      case MoveJudgmentCauseFrameRole.ContextCause   => MoveJudgmentCauseNarrativeRole.ContextCause
+
+  private def withNarrativeRoles(frames: List[MoveJudgmentCauseFrame]): List[MoveJudgmentCauseFrame] =
+    val longTermRootsByComparison =
+      frames
+        .filter(longTermRootFrame)
+        .groupBy(comparisonFrameKey)
+    frames.map { frame =>
+      val matchingLongTermRoots = longTermRootsByComparison.getOrElse(comparisonFrameKey(frame), Nil)
+      if longTermRootFrame(frame) then
+        val witnesses =
+          frames
+            .filter(candidate => sameComparison(candidate, frame) && tacticalWitnessFrame(candidate))
+            .filterNot(_.causeEvidenceIds == frame.causeEvidenceIds)
+        frame.copy(
+          narrativeRole = MoveJudgmentCauseNarrativeRole.RootCause,
+          tacticalWitnessCauseEvidenceIds = witnesses.flatMap(_.causeEvidenceIds).distinct.sorted,
+          tacticalWitnessCauseKinds = witnesses.map(_.causeKind).distinct
+        )
+      else if tacticalWitnessFrame(frame) && matchingLongTermRoots.nonEmpty then
+        frame.copy(narrativeRole = MoveJudgmentCauseNarrativeRole.TacticalWitness)
+      else
+        frame.copy(narrativeRole = defaultNarrativeRole(frame.role))
+    }
+
+  private def longTermRootFrame(frame: MoveJudgmentCauseFrame): Boolean =
+    frame.role == MoveJudgmentCauseFrameRole.PrimaryCause &&
+      frame.hasOwnedAdmissibleLongTermProof &&
+      ClaimEventCluster.kindForCause(frame.causeKind).isEmpty &&
+      frame.comparisonKind == CandidateComparisonKind.PlayedVsBest &&
+      frame.causeRole == RelativeCauseRole.PrimaryPlayedCause &&
+      frame.causeImportance == RelativeCauseImportance.Primary &&
+      frame.attributionDirectProofEligible
+
+  private def tacticalWitnessFrame(frame: MoveJudgmentCauseFrame): Boolean =
+    frame.role == MoveJudgmentCauseFrameRole.PrimaryCause &&
+      ClaimEventCluster.kindForCause(frame.causeKind).exists(kind =>
+        kind == ClaimEventClusterKind.TacticalEvent ||
+          kind == ClaimEventClusterKind.DefensiveEvent ||
+          kind == ClaimEventClusterKind.ConversionEvent ||
+          kind == ClaimEventClusterKind.MaterialEvent
+      )
+
+  private def sameComparison(left: MoveJudgmentCauseFrame, right: MoveJudgmentCauseFrame): Boolean =
+    comparisonFrameKey(left) == comparisonFrameKey(right)
+
+  private def comparisonFrameKey(frame: MoveJudgmentCauseFrame): (CandidateComparisonKind, LineNodeRef, LineNodeRef) =
+    (frame.comparisonKind, frame.referenceLine, frame.candidateLine)
+
   private def causeEvidenceEntries(graph: TypedEvidenceGraph): List[CauseEvidenceEntry] =
     val standalone =
       graph.records.collect { case EvidenceRecord(ref, RelativeCauseFactEvidence(cause), parents) =>
@@ -1945,7 +2010,16 @@ object MoveJudgmentView:
       cause.proof.toList.flatMap(proof =>
         proof.directProof.sourceRefs ++ proof.contrastProof.sourceRefs ++ proof.contextSupport.sourceRefs
       )
-    judgmentVisibleEvidenceRefs(ref :: (parents ++ cause.supportEvidence ++ proofRefs))
+    (ref :: (parents ++ cause.supportEvidence ++ proofRefs)).distinctBy(_.id)
+
+  private def judgmentVisibleCauseEvidenceIds(refs: List[EvidenceRef], cause: RelativeCauseFact): List[String] =
+    val directProofSourceIds =
+      cause.proof.toList.flatMap(_.directProof.sourceRefs.map(_.id)).toSet
+    refs
+      .filter(ref => directProofSourceIds.contains(ref.id) || !StrategicMechanismEvidence.rawStrategicSourceLayer(ref.layer))
+      .map(_.id)
+      .distinct
+      .sorted
 
   private def causeEvidenceIdsFor(
       cluster: ClaimEventCluster,

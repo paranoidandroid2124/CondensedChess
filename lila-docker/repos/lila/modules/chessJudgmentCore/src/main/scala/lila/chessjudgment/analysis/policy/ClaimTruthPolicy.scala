@@ -667,7 +667,7 @@ object ClaimTruthPolicy:
       cause.hasOwnedTypedDepth
 
   private def strategicRelativeCauseHasProof(cause: RelativeCauseFact): Boolean =
-    cause.hasOwnedStrategicContrastDepth
+    cause.hasOwnedAdmissibleLongTermProof
 
   private def relativeCauseHasTacticalProof(cause: RelativeCauseFact): Boolean =
     cause.hasOwnedTacticalProof

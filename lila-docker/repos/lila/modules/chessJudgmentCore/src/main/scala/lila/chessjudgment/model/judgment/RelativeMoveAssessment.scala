@@ -153,7 +153,7 @@ case class CauseAttribution(
     kind == CauseAttributionKind.Unattributed
   def rootMismatch: Boolean =
     reason.contains("root-mismatch") ||
-      (!rootMoveMatched && (ownedEvidence.nonEmpty || contrastEvidence.nonEmpty))
+      (!rootMoveMatched && ownedEvidence.nonEmpty)
 
 object CauseAttribution:
   val unattributed: CauseAttribution =
@@ -212,9 +212,11 @@ enum RelativeCauseKind:
   case SacrificeCompensation
   case StructuralImprovement
   case TargetPressureGain
+  case TargetPressureRelease
   case CenterControlGain
   case KingSafetyConcession
   case PawnWeaknessTarget
+  case PawnBreakOpportunity
   case ActivityLoss
   case StrategicConcession
   case MissedStrategicImprovement
@@ -251,6 +253,13 @@ case class RelativeCauseFact(
     strategicCauseKind && proof.exists(_.hasStrategicContrastDepth)
   def hasOwnedStrategicContrastDepth: Boolean =
     attribution.directProofEligible && hasStrategicContrastDepth
+  def hasOwnedAdmissibleLongTermProof: Boolean =
+    attribution.directProofEligible &&
+      strategicCauseKind &&
+      proof.exists(proof =>
+        proof.directProof.strategicMechanismContrasts.exists(_.hasConcreteProof) ||
+          proof.directProof.transitionConsequences.nonEmpty
+      )
   def hasOwnedTacticalProof: Boolean =
     attribution.directProofEligible &&
       proof.exists(proof => proof.directProof.hasTacticalProof || proof.contrastProof.hasTacticalProof)
@@ -262,8 +271,10 @@ object RelativeCauseKind:
   def strategicContrastBacked(kind: RelativeCauseKind): Boolean =
     kind match
       case RelativeCauseKind.StructuralImprovement | RelativeCauseKind.TargetPressureGain |
+          RelativeCauseKind.TargetPressureRelease |
           RelativeCauseKind.CenterControlGain | RelativeCauseKind.KingSafetyConcession |
-          RelativeCauseKind.PawnWeaknessTarget | RelativeCauseKind.ActivityLoss |
+          RelativeCauseKind.PawnWeaknessTarget | RelativeCauseKind.PawnBreakOpportunity |
+          RelativeCauseKind.ActivityLoss |
           RelativeCauseKind.StrategicConcession | RelativeCauseKind.MissedStrategicImprovement |
           RelativeCauseKind.PlanImprovement | RelativeCauseKind.PlanContradiction =>
         true
