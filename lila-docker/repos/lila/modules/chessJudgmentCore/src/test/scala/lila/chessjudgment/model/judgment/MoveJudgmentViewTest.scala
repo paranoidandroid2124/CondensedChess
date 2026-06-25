@@ -565,6 +565,624 @@ class MoveJudgmentViewTest extends munit.FunSuite:
     assert(tacticalFrame.witnessBindingSignals.contains(MoveJudgmentCauseWitnessBindingSignal.SameEventLine))
     assert(tacticalFrame.witnessBindingSignals.contains(MoveJudgmentCauseWitnessBindingSignal.SharedDirectConsequence))
 
+  test("demotes plan contradiction when a concrete structural root exists in the same played-vs-best loss"):
+    val root = PositionNodeRef("8/8/8/8/8/8/3P4/8 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val afterPlayed = PositionNodeRef("8/8/8/8/3P4/8/8/8 b - - 0 1", 2, Some(Color.Black), Some("after-played"))
+    val playedLine = LineNodeRef("played-line", "d2d4", 2, LineNodeRole.Played)
+    val referenceLine = LineNodeRef("reference-line", "g1f3", 1, LineNodeRole.BestReference)
+    val structuralRef = evidenceRef(
+      id = "structural-delta:played:d2d4:activity-loss",
+      producer = EvidenceProducer.StructuralDeltaProducer,
+      layer = EvidenceLayer.StructuralDelta,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.PlayedTransition
+    )
+    val transition = StructuralTransitionBinding(
+      moveUci = "d2d4",
+      role = TransitionEdgeRole.Played,
+      from = root,
+      to = afterPlayed,
+      line = Some(playedLine),
+      perspective = Color.White
+    )
+    val activityConsequence = TransitionConsequence(
+      kind = TransitionConsequenceKind.MobilityLoss,
+      polarity = StructuralSignalPolarity.Loss,
+      strength = 3,
+      subjects = List("d4")
+    )
+    val planConsequence = TransitionConsequence(
+      kind = TransitionConsequenceKind.DevelopmentUnsafePlacement,
+      polarity = StructuralSignalPolarity.Loss,
+      strength = 1
+    )
+    val proof = RelativeCauseProof(
+      directProof = RelativeCauseProofSection(
+        role = RelativeCauseProofRole.DirectProof,
+        strength = RelativeCauseProofStrength.Primary,
+        transitionConsequences = List(TransitionConsequenceProof(structuralRef, transition, activityConsequence))
+      )
+    )
+    val concreteActivityCause = RelativeCauseFact(
+      kind = RelativeCauseKind.ActivityLoss,
+      comparisonKind = CandidateComparisonKind.PlayedVsBest,
+      referenceLine = referenceLine,
+      candidateLine = playedLine,
+      verdict = MoveChoiceVerdict.Mistake,
+      winPercentLossForMover = 9.0,
+      candidateWinPercentDeltaForMover = -9.0,
+      supportEvidence = List(structuralRef),
+      evidenceLines = List(playedLine),
+      role = RelativeCauseRole.PrimaryPlayedCause,
+      eventLine = playedLine,
+      sourceSide = RelativeCauseSourceSide.Candidate,
+      importance = RelativeCauseImportance.Primary,
+      attribution = CauseAttribution(
+        kind = CauseAttributionKind.CandidateAllowsLiability,
+        ownedEvidence = List(structuralRef),
+        rootMoveMatched = true,
+        directProofEligible = true
+      )
+    )(Some(proof))
+    val planCause = concreteActivityCause.copy(
+      kind = RelativeCauseKind.PlanContradiction,
+      attribution = CauseAttribution(
+        kind = CauseAttributionKind.CandidateAllowsLiability,
+        ownedEvidence = List(structuralRef),
+        rootMoveMatched = true,
+        directProofEligible = true
+      )
+    )(
+      Some(
+        RelativeCauseProof(
+          directProof = RelativeCauseProofSection(
+            role = RelativeCauseProofRole.DirectProof,
+            strength = RelativeCauseProofStrength.Primary,
+            transitionConsequences = List(TransitionConsequenceProof(structuralRef, transition, planConsequence))
+          )
+        )
+      )
+    )
+    val graph = TypedEvidenceGraph(
+      List(
+        EvidenceRecord(
+          structuralRef,
+          StructuralDeltaEvidence(transition = transition, signals = Nil, consequences = List(activityConsequence, planConsequence))
+        ),
+        EvidenceRecord(
+          evidenceRef(
+            id = "relative-cause:played-best:activity-loss-root",
+            producer = EvidenceProducer.RelativeMoveProducer,
+            layer = EvidenceLayer.RelativeCause,
+            position = root,
+            line = Some(playedLine),
+            scope = EvidenceScope.Counterfactual
+          ),
+          RelativeCauseFactEvidence(concreteActivityCause),
+          parents = List(structuralRef)
+        ),
+        EvidenceRecord(
+          evidenceRef(
+            id = "relative-cause:played-best:plan-fallback",
+            producer = EvidenceProducer.RelativeMoveProducer,
+            layer = EvidenceLayer.RelativeCause,
+            position = root,
+            line = Some(playedLine),
+            scope = EvidenceScope.Counterfactual
+          ),
+          RelativeCauseFactEvidence(planCause),
+          parents = List(structuralRef)
+        )
+      )
+    )
+
+    val view = MoveJudgmentView
+      .from(
+        relativeAssessments = Nil,
+        evidenceGraph = graph,
+        ideas = Nil,
+        claims = Nil,
+        claimLifecycle = Nil,
+        ideaVerdict = None,
+        claimSupportClusters = Nil,
+        claimEventClusters = Nil
+      )
+      .get
+
+    val activityFrame = view.primaryCauses.find(_.causeKind == RelativeCauseKind.ActivityLoss).get
+    val planFrame = view.primaryCauses.find(_.causeKind == RelativeCauseKind.PlanContradiction).get
+    assertEquals(activityFrame.narrativeRole, MoveJudgmentCauseNarrativeRole.RootCause)
+    assertEquals(planFrame.narrativeRole, MoveJudgmentCauseNarrativeRole.SupportingCause)
+
+  test("keeps tactical root above broad structural root that lacks typed object readiness"):
+    val root = PositionNodeRef("8/8/8/8/8/8/3P4/8 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val afterPlayed = PositionNodeRef("8/8/8/8/3P4/8/8/8 b - - 0 1", 2, Some(Color.Black), Some("after-played"))
+    val playedLine = LineNodeRef("played-line", "d2d4", 2, LineNodeRole.Played)
+    val referenceLine = LineNodeRef("reference-line", "g1f3", 1, LineNodeRole.BestReference)
+    val structuralRef = evidenceRef(
+      id = "structural-delta:played:d2d4:broad-activity",
+      producer = EvidenceProducer.StructuralDeltaProducer,
+      layer = EvidenceLayer.StructuralDelta,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.PlayedTransition
+    )
+    val transition = StructuralTransitionBinding(
+      moveUci = "d2d4",
+      role = TransitionEdgeRole.Played,
+      from = root,
+      to = afterPlayed,
+      line = Some(playedLine),
+      perspective = Color.White
+    )
+    val broadConsequence = TransitionConsequence(
+      kind = TransitionConsequenceKind.MobilityLoss,
+      polarity = StructuralSignalPolarity.Loss,
+      strength = 2
+    )
+    val broadProof = RelativeCauseProof(
+      directProof = RelativeCauseProofSection(
+        role = RelativeCauseProofRole.DirectProof,
+        strength = RelativeCauseProofStrength.Primary,
+        transitionConsequences = List(TransitionConsequenceProof(structuralRef, transition, broadConsequence))
+      )
+    )
+    val broadStructuralCause = RelativeCauseFact(
+      kind = RelativeCauseKind.ActivityLoss,
+      comparisonKind = CandidateComparisonKind.PlayedVsBest,
+      referenceLine = referenceLine,
+      candidateLine = playedLine,
+      verdict = MoveChoiceVerdict.Blunder,
+      winPercentLossForMover = 14.0,
+      candidateWinPercentDeltaForMover = -14.0,
+      supportEvidence = List(structuralRef),
+      evidenceLines = List(playedLine),
+      role = RelativeCauseRole.PrimaryPlayedCause,
+      eventLine = playedLine,
+      sourceSide = RelativeCauseSourceSide.Candidate,
+      importance = RelativeCauseImportance.Primary,
+      attribution = CauseAttribution(
+        kind = CauseAttributionKind.CandidateAllowsLiability,
+        ownedEvidence = List(structuralRef),
+        rootMoveMatched = true,
+        directProofEligible = true
+      )
+    )(Some(broadProof))
+    val tacticalCause = broadStructuralCause.copy(
+      kind = RelativeCauseKind.TacticalRefutationOfPlayed,
+      supportEvidence = Nil,
+      attribution = CauseAttribution(
+        kind = CauseAttributionKind.CandidateAllowsLiability,
+        rootMoveMatched = true,
+        directProofEligible = true
+      )
+    )(None)
+    val graph = TypedEvidenceGraph(
+      List(
+        EvidenceRecord(
+          structuralRef,
+          StructuralDeltaEvidence(transition = transition, signals = Nil, consequences = List(broadConsequence))
+        ),
+        EvidenceRecord(
+          evidenceRef(
+            id = "relative-cause:played-best:broad-activity-root",
+            producer = EvidenceProducer.RelativeMoveProducer,
+            layer = EvidenceLayer.RelativeCause,
+            position = root,
+            line = Some(playedLine),
+            scope = EvidenceScope.Counterfactual
+          ),
+          RelativeCauseFactEvidence(broadStructuralCause),
+          parents = List(structuralRef)
+        ),
+        EvidenceRecord(
+          evidenceRef(
+            id = "relative-cause:played-best:concrete-tactical-root",
+            producer = EvidenceProducer.RelativeMoveProducer,
+            layer = EvidenceLayer.RelativeCause,
+            position = root,
+            line = Some(playedLine),
+            scope = EvidenceScope.Counterfactual
+          ),
+          RelativeCauseFactEvidence(tacticalCause)
+        )
+      )
+    )
+
+    val view = MoveJudgmentView
+      .from(
+        relativeAssessments = Nil,
+        evidenceGraph = graph,
+        ideas = Nil,
+        claims = Nil,
+        claimLifecycle = Nil,
+        ideaVerdict = None,
+        claimSupportClusters = Nil,
+        claimEventClusters = Nil
+      )
+      .get
+
+    val activityFrame = view.primaryCauses.find(_.causeKind == RelativeCauseKind.ActivityLoss).get
+    val tacticalFrame = view.primaryCauses.find(_.causeKind == RelativeCauseKind.TacticalRefutationOfPlayed).get
+    assertEquals(activityFrame.concreteObjectReady, false)
+    assertEquals(activityFrame.narrativeRole, MoveJudgmentCauseNarrativeRole.SupportingCause)
+    assertEquals(tacticalFrame.narrativeRole, MoveJudgmentCauseNarrativeRole.RootCause)
+
+  test("keeps unbound recapture label below tactical event root when plan fallback is suppressed"):
+    val root = PositionNodeRef("8/8/8/8/8/8/3P4/8 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val afterPlayed = PositionNodeRef("8/8/8/8/3P4/8/8/8 b - - 0 1", 2, Some(Color.Black), Some("after-played"))
+    val playedLine = LineNodeRef("played-line", "d2d4", 2, LineNodeRole.Played)
+    val referenceLine = LineNodeRef("reference-line", "g1f3", 1, LineNodeRole.BestReference)
+    val structuralRef = evidenceRef(
+      id = "structural-delta:played:d2d4:plan-fallback-with-events",
+      producer = EvidenceProducer.StructuralDeltaProducer,
+      layer = EvidenceLayer.StructuralDelta,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.PlayedTransition
+    )
+    val transition = StructuralTransitionBinding(
+      moveUci = "d2d4",
+      role = TransitionEdgeRole.Played,
+      from = root,
+      to = afterPlayed,
+      line = Some(playedLine),
+      perspective = Color.White
+    )
+    val planConsequence = TransitionConsequence(
+      kind = TransitionConsequenceKind.DevelopmentUnsafePlacement,
+      polarity = StructuralSignalPolarity.Loss,
+      strength = 1
+    )
+    val baseCause = RelativeCauseFact(
+      kind = RelativeCauseKind.TacticalRefutationOfPlayed,
+      comparisonKind = CandidateComparisonKind.PlayedVsBest,
+      referenceLine = referenceLine,
+      candidateLine = playedLine,
+      verdict = MoveChoiceVerdict.Blunder,
+      winPercentLossForMover = 12.0,
+      candidateWinPercentDeltaForMover = -12.0,
+      supportEvidence = Nil,
+      evidenceLines = List(playedLine),
+      role = RelativeCauseRole.PrimaryPlayedCause,
+      eventLine = playedLine,
+      sourceSide = RelativeCauseSourceSide.Candidate,
+      importance = RelativeCauseImportance.Primary,
+      attribution = CauseAttribution(
+        kind = CauseAttributionKind.CandidateAllowsLiability,
+        rootMoveMatched = true,
+        directProofEligible = true
+      )
+    )(None)
+    val planCause = baseCause.copy(
+      kind = RelativeCauseKind.PlanContradiction,
+      supportEvidence = List(structuralRef),
+      attribution = CauseAttribution(
+        kind = CauseAttributionKind.CandidateAllowsLiability,
+        ownedEvidence = List(structuralRef),
+        rootMoveMatched = true,
+        directProofEligible = true
+      )
+    )(
+      Some(
+        RelativeCauseProof(
+          directProof = RelativeCauseProofSection(
+            role = RelativeCauseProofRole.DirectProof,
+            strength = RelativeCauseProofStrength.Primary,
+            transitionConsequences = List(TransitionConsequenceProof(structuralRef, transition, planConsequence))
+          )
+        )
+      )
+    )
+    val tacticalCause = baseCause
+    val wrongRecapturerCause = baseCause.copy(kind = RelativeCauseKind.WrongRecapturer)(None)
+    val onlyDefenseCause = baseCause.copy(
+      kind = RelativeCauseKind.OnlyDefenseNecessity,
+      sourceSide = RelativeCauseSourceSide.Reference,
+      eventLine = referenceLine,
+      attribution = CauseAttribution(
+        kind = CauseAttributionKind.ReferenceCreatesResource,
+        rootMoveMatched = true,
+        directProofEligible = true
+      )
+    )(None)
+    val graph = TypedEvidenceGraph(
+      List(
+        EvidenceRecord(
+          structuralRef,
+          StructuralDeltaEvidence(transition = transition, signals = Nil, consequences = List(planConsequence))
+        ),
+        EvidenceRecord(
+          evidenceRef(
+            id = "relative-cause:played-best:event:tactical-refutation",
+            producer = EvidenceProducer.RelativeMoveProducer,
+            layer = EvidenceLayer.RelativeCause,
+            position = root,
+            line = Some(playedLine),
+            scope = EvidenceScope.Counterfactual
+          ),
+          RelativeCauseFactEvidence(tacticalCause)
+        ),
+        EvidenceRecord(
+          evidenceRef(
+            id = "relative-cause:played-best:event:wrong-recapturer",
+            producer = EvidenceProducer.RelativeMoveProducer,
+            layer = EvidenceLayer.RelativeCause,
+            position = root,
+            line = Some(playedLine),
+            scope = EvidenceScope.Counterfactual
+          ),
+          RelativeCauseFactEvidence(wrongRecapturerCause)
+        ),
+        EvidenceRecord(
+          evidenceRef(
+            id = "relative-cause:played-best:event:only-defense",
+            producer = EvidenceProducer.RelativeMoveProducer,
+            layer = EvidenceLayer.RelativeCause,
+            position = root,
+            line = Some(referenceLine),
+            scope = EvidenceScope.Counterfactual
+          ),
+          RelativeCauseFactEvidence(onlyDefenseCause)
+        ),
+        EvidenceRecord(
+          evidenceRef(
+            id = "relative-cause:played-best:plan-fallback-with-events",
+            producer = EvidenceProducer.RelativeMoveProducer,
+            layer = EvidenceLayer.RelativeCause,
+            position = root,
+            line = Some(playedLine),
+            scope = EvidenceScope.Counterfactual
+          ),
+          RelativeCauseFactEvidence(planCause)
+        )
+      )
+    )
+
+    val view = MoveJudgmentView
+      .from(
+        relativeAssessments = Nil,
+        evidenceGraph = graph,
+        ideas = Nil,
+        claims = Nil,
+        claimLifecycle = Nil,
+        ideaVerdict = None,
+        claimSupportClusters = Nil,
+        claimEventClusters = Nil
+      )
+      .get
+
+    val rolesByKind = view.primaryCauses.map(frame => frame.causeKind -> frame.narrativeRole).toMap
+    assertEquals(rolesByKind(RelativeCauseKind.TacticalRefutationOfPlayed), MoveJudgmentCauseNarrativeRole.RootCause)
+    assertEquals(rolesByKind(RelativeCauseKind.WrongRecapturer), MoveJudgmentCauseNarrativeRole.SupportingCause)
+    assertEquals(rolesByKind(RelativeCauseKind.OnlyDefenseNecessity), MoveJudgmentCauseNarrativeRole.SupportingCause)
+    assertEquals(rolesByKind(RelativeCauseKind.PlanContradiction), MoveJudgmentCauseNarrativeRole.SupportingCause)
+
+  test("does not promote unbound wrong recapturer over plan fallback"):
+    val root = PositionNodeRef("8/8/8/8/8/8/3P4/8 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val afterPlayed = PositionNodeRef("8/8/8/8/3P4/8/8/8 b - - 0 1", 2, Some(Color.Black), Some("after-played"))
+    val playedLine = LineNodeRef("played-line", "d2d4", 2, LineNodeRole.Played)
+    val referenceLine = LineNodeRef("reference-line", "g1f3", 1, LineNodeRole.BestReference)
+    val structuralRef = evidenceRef(
+      id = "structural-delta:played:d2d4:plan-vs-unbound-recapture",
+      producer = EvidenceProducer.StructuralDeltaProducer,
+      layer = EvidenceLayer.StructuralDelta,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.PlayedTransition
+    )
+    val transition = StructuralTransitionBinding(
+      moveUci = "d2d4",
+      role = TransitionEdgeRole.Played,
+      from = root,
+      to = afterPlayed,
+      line = Some(playedLine),
+      perspective = Color.White
+    )
+    val planConsequence = TransitionConsequence(
+      kind = TransitionConsequenceKind.DevelopmentUnsafePlacement,
+      polarity = StructuralSignalPolarity.Loss,
+      strength = 1
+    )
+    val planCause = RelativeCauseFact(
+      kind = RelativeCauseKind.PlanContradiction,
+      comparisonKind = CandidateComparisonKind.PlayedVsBest,
+      referenceLine = referenceLine,
+      candidateLine = playedLine,
+      verdict = MoveChoiceVerdict.Mistake,
+      winPercentLossForMover = 8.0,
+      candidateWinPercentDeltaForMover = -8.0,
+      supportEvidence = List(structuralRef),
+      evidenceLines = List(playedLine),
+      role = RelativeCauseRole.PrimaryPlayedCause,
+      eventLine = playedLine,
+      sourceSide = RelativeCauseSourceSide.Candidate,
+      importance = RelativeCauseImportance.Primary,
+      attribution = CauseAttribution(
+        kind = CauseAttributionKind.CandidateAllowsLiability,
+        ownedEvidence = List(structuralRef),
+        rootMoveMatched = true,
+        directProofEligible = true
+      )
+    )(
+      Some(
+        RelativeCauseProof(
+          directProof = RelativeCauseProofSection(
+            role = RelativeCauseProofRole.DirectProof,
+            strength = RelativeCauseProofStrength.Primary,
+            transitionConsequences = List(TransitionConsequenceProof(structuralRef, transition, planConsequence))
+          )
+        )
+      )
+    )
+    val wrongRecapturerCause = planCause.copy(
+      kind = RelativeCauseKind.WrongRecapturer,
+      supportEvidence = Nil,
+      attribution = CauseAttribution(
+        kind = CauseAttributionKind.CandidateAllowsLiability,
+        rootMoveMatched = true,
+        directProofEligible = true
+      )
+    )(None)
+    val graph = TypedEvidenceGraph(
+      List(
+        EvidenceRecord(
+          structuralRef,
+          StructuralDeltaEvidence(transition = transition, signals = Nil, consequences = List(planConsequence))
+        ),
+        EvidenceRecord(
+          evidenceRef(
+            id = "relative-cause:played-best:plan-fallback-vs-unbound-recapture",
+            producer = EvidenceProducer.RelativeMoveProducer,
+            layer = EvidenceLayer.RelativeCause,
+            position = root,
+            line = Some(playedLine),
+            scope = EvidenceScope.Counterfactual
+          ),
+          RelativeCauseFactEvidence(planCause),
+          parents = List(structuralRef)
+        ),
+        EvidenceRecord(
+          evidenceRef(
+            id = "relative-cause:played-best:unbound-wrong-recapturer",
+            producer = EvidenceProducer.RelativeMoveProducer,
+            layer = EvidenceLayer.RelativeCause,
+            position = root,
+            line = Some(playedLine),
+            scope = EvidenceScope.Counterfactual
+          ),
+          RelativeCauseFactEvidence(wrongRecapturerCause)
+        )
+      )
+    )
+
+    val view = MoveJudgmentView
+      .from(
+        relativeAssessments = Nil,
+        evidenceGraph = graph,
+        ideas = Nil,
+        claims = Nil,
+        claimLifecycle = Nil,
+        ideaVerdict = None,
+        claimSupportClusters = Nil,
+        claimEventClusters = Nil
+      )
+      .get
+
+    val rolesByKind = view.primaryCauses.map(frame => frame.causeKind -> frame.narrativeRole).toMap
+    assertEquals(rolesByKind(RelativeCauseKind.PlanContradiction), MoveJudgmentCauseNarrativeRole.RootCause)
+    assertEquals(rolesByKind(RelativeCauseKind.WrongRecapturer), MoveJudgmentCauseNarrativeRole.SupportingCause)
+
+  test("selects one fallback root when no concrete structural or event root exists"):
+    val root = PositionNodeRef("8/8/8/8/8/8/3P4/8 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val afterPlayed = PositionNodeRef("8/8/8/8/3P4/8/8/8 b - - 0 1", 2, Some(Color.Black), Some("after-played"))
+    val playedLine = LineNodeRef("played-line", "d2d4", 2, LineNodeRole.Played)
+    val referenceLine = LineNodeRef("reference-line", "g1f3", 1, LineNodeRole.BestReference)
+    val structuralRef = evidenceRef(
+      id = "structural-delta:played:d2d4:dual-fallback",
+      producer = EvidenceProducer.StructuralDeltaProducer,
+      layer = EvidenceLayer.StructuralDelta,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.PlayedTransition
+    )
+    val transition = StructuralTransitionBinding(
+      moveUci = "d2d4",
+      role = TransitionEdgeRole.Played,
+      from = root,
+      to = afterPlayed,
+      line = Some(playedLine),
+      perspective = Color.White
+    )
+    val consequence = TransitionConsequence(
+      kind = TransitionConsequenceKind.DevelopmentUnsafePlacement,
+      polarity = StructuralSignalPolarity.Loss,
+      strength = 1
+    )
+    val baseFallbackCause = RelativeCauseFact(
+      kind = RelativeCauseKind.PlanContradiction,
+      comparisonKind = CandidateComparisonKind.PlayedVsBest,
+      referenceLine = referenceLine,
+      candidateLine = playedLine,
+      verdict = MoveChoiceVerdict.Mistake,
+      winPercentLossForMover = 8.0,
+      candidateWinPercentDeltaForMover = -8.0,
+      supportEvidence = List(structuralRef),
+      evidenceLines = List(playedLine),
+      role = RelativeCauseRole.PrimaryPlayedCause,
+      eventLine = playedLine,
+      sourceSide = RelativeCauseSourceSide.Candidate,
+      importance = RelativeCauseImportance.Primary,
+      attribution = CauseAttribution(
+        kind = CauseAttributionKind.CandidateAllowsLiability,
+        ownedEvidence = List(structuralRef),
+        rootMoveMatched = true,
+        directProofEligible = true
+      )
+    )(
+      Some(
+        RelativeCauseProof(
+          directProof = RelativeCauseProofSection(
+            role = RelativeCauseProofRole.DirectProof,
+            strength = RelativeCauseProofStrength.Primary,
+            transitionConsequences = List(TransitionConsequenceProof(structuralRef, transition, consequence))
+          )
+        )
+      )
+    )
+    val planImprovementCause = baseFallbackCause.copy(kind = RelativeCauseKind.PlanImprovement)(baseFallbackCause.proof)
+    val graph = TypedEvidenceGraph(
+      List(
+        EvidenceRecord(
+          structuralRef,
+          StructuralDeltaEvidence(transition = transition, signals = Nil, consequences = List(consequence))
+        ),
+        EvidenceRecord(
+          evidenceRef(
+            id = "relative-cause:played-best:plan-contradiction-only-fallback",
+            producer = EvidenceProducer.RelativeMoveProducer,
+            layer = EvidenceLayer.RelativeCause,
+            position = root,
+            line = Some(playedLine),
+            scope = EvidenceScope.Counterfactual
+          ),
+          RelativeCauseFactEvidence(baseFallbackCause),
+          parents = List(structuralRef)
+        ),
+        EvidenceRecord(
+          evidenceRef(
+            id = "relative-cause:played-best:plan-improvement-only-fallback",
+            producer = EvidenceProducer.RelativeMoveProducer,
+            layer = EvidenceLayer.RelativeCause,
+            position = root,
+            line = Some(playedLine),
+            scope = EvidenceScope.Counterfactual
+          ),
+          RelativeCauseFactEvidence(planImprovementCause),
+          parents = List(structuralRef)
+        )
+      )
+    )
+
+    val view = MoveJudgmentView
+      .from(
+        relativeAssessments = Nil,
+        evidenceGraph = graph,
+        ideas = Nil,
+        claims = Nil,
+        claimLifecycle = Nil,
+        ideaVerdict = None,
+        claimSupportClusters = Nil,
+        claimEventClusters = Nil
+      )
+      .get
+
+    val roots = view.primaryCauses.filter(_.narrativeRole == MoveJudgmentCauseNarrativeRole.RootCause)
+    val rolesByKind = view.primaryCauses.map(frame => frame.causeKind -> frame.narrativeRole).toMap
+    assertEquals(roots.map(_.causeKind), List(RelativeCauseKind.PlanContradiction))
+    assertEquals(rolesByKind(RelativeCauseKind.PlanImprovement), MoveJudgmentCauseNarrativeRole.SupportingCause)
+
   test("keeps pure tactical played blunder as root when no proved structural root exists"):
     val root = PositionNodeRef("8/8/8/8/8/8/3P4/8 w - - 0 1", 1, Some(Color.White), Some("root"))
     val playedLine = LineNodeRef("played-line", "d2d4", 2, LineNodeRole.Played)
