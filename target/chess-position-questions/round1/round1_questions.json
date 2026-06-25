@@ -1,0 +1,206 @@
+[
+  {
+    "id": "Q01",
+    "phase": "Opening -> early middlegame",
+    "opening": "Ruy Lopez Closed / Chigorin structure",
+    "fen": "r1b2rk1/2q1bppp/p2p1n2/npp1p3/3PP3/2P2N1P/PPB2PP1/RNBQR1K1 w - - 1 12",
+    "sideToMove": "White",
+    "evalWhitePov": "+0.67",
+    "pv": [
+      {
+        "score": "+0.67",
+        "pv": "d5 Nc4 b3 Nb6 Be3 Bd7"
+      }
+    ],
+    "question": "이 장면에서 백의 다음 수를 설명할 때, 중심 긴장(d4/c5/e5), 말 재배치(Nbd2-f1-g3), 혹은 흑의 ...cxd4 이후 전술 가능성 중 무엇을 먼저 듣고 싶은가?",
+    "why": "전형적인 Ruy Lopez에서 계획 유지와 중심 전환이 동시에 걸리는 자리.",
+    "svg": "C:/Codes/CondensedChess-master-restored/target/chess-position-questions/round1/Q01.svg"
+  },
+  {
+    "id": "Q02",
+    "phase": "Opening -> attack race",
+    "opening": "Sicilian Najdorf / English Attack",
+    "fen": "r2qkb1r/3n1pp1/p2pbn2/1p2p2p/4P3/1NN1BP2/PPPQ2PP/2KR1B1R w kq - 0 11",
+    "sideToMove": "White",
+    "evalWhitePov": "+0.58",
+    "pv": [
+      {
+        "score": "+0.58",
+        "pv": "Nd5 Rc8 Qa5 Qxa5 Nxa5 Bxd5"
+      }
+    ],
+    "question": "여기서는 ...b5/...h5를 공간 확보, 백의 g4 억제, 퀸사이드 카운터플레이, 킹 약화의 대가 중 어떤 축으로 설명해야 실제 해설처럼 느껴지는가?",
+    "why": "같은 수가 공격, 예방, 약점 생성이라는 여러 의미를 동시에 가짐.",
+    "svg": "C:/Codes/CondensedChess-master-restored/target/chess-position-questions/round1/Q02.svg"
+  },
+  {
+    "id": "Q03",
+    "phase": "Opening -> strategic middlegame",
+    "opening": "QGD Exchange / Carlsbad structure",
+    "fen": "r1bqrnk1/pp2bppp/2p2n2/3p2B1/3P4/2NBP3/PPQ1NPPP/R4RK1 w - - 4 11",
+    "sideToMove": "White",
+    "evalWhitePov": "+0.36",
+    "pv": [
+      {
+        "score": "+0.36",
+        "pv": "f3 g6 Kh1 Ne6 Bh6 b5"
+      }
+    ],
+    "question": "백의 해설에서 minority attack, e4 break, kingside piece pressure 중 무엇이 이 포지션의 중심 이야기로 먼저 올라와야 하나?",
+    "why": "엔진 수보다 장기 구조 플랜의 해상도가 더 중요한 대표 포지션.",
+    "svg": "C:/Codes/CondensedChess-master-restored/target/chess-position-questions/round1/Q03.svg"
+  },
+  {
+    "id": "Q04",
+    "phase": "Opening -> IQP middlegame",
+    "opening": "Nimzo-Indian / Isolated Queen Pawn",
+    "fen": "rnbq1rk1/pp3ppp/4pn2/8/1bBP4/2N2N2/PP3PPP/R1BQ1RK1 b - - 0 9",
+    "sideToMove": "Black",
+    "evalWhitePov": "+0.25",
+    "pv": [
+      {
+        "score": "+0.25",
+        "pv": "Nc6 Bg5 h6 Bh4 Be7 a3"
+      }
+    ],
+    "question": "백의 IQP를 해설할 때 활동성 보상, d4 약점, e5/c5 전진 break, 말교환 회피 중 어떤 단위가 원인 노드로 가장 정확한가?",
+    "why": "같은 구조가 장점과 약점을 동시에 갖는 자리.",
+    "svg": "C:/Codes/CondensedChess-master-restored/target/chess-position-questions/round1/Q04.svg"
+  },
+  {
+    "id": "Q05",
+    "phase": "Opening -> compensation question",
+    "opening": "Open Catalan",
+    "fen": "rn1q1rk1/1b2bppp/p3pn2/1p6/8/5NP1/PPQBPPBP/RN3RK1 b - - 2 9",
+    "sideToMove": "Black",
+    "evalWhitePov": "+0.20",
+    "pv": [
+      {
+        "score": "+0.20",
+        "pv": "Be4 Qc1 Nc6 Be3 Rc8 Rd1"
+      }
+    ],
+    "question": "카탈란에서 백의 보상을 장대각선 압박, 흑 퀸사이드 약점, 발전 우위, c-file/center 회수 가능성 중 어디에 묶어 설명해야 납득되는가?",
+    "why": "폰/템포보다 압박의 지속성이 핵심인 포지션.",
+    "svg": "C:/Codes/CondensedChess-master-restored/target/chess-position-questions/round1/Q05.svg"
+  },
+  {
+    "id": "Q06",
+    "phase": "Middlegame race",
+    "opening": "King's Indian Defense / Mar del Plata type",
+    "fen": "r1bq1rk1/ppp1n1bp/3p2p1/3Ppp1n/1PP1P3/2N2N2/P3BPPP/R1BQR1K1 w - - 0 12",
+    "sideToMove": "White",
+    "evalWhitePov": "+0.78",
+    "pv": [
+      {
+        "score": "+0.78",
+        "pv": "c5 fxe4 Nxe4 Nf4 Bxf4 Rxf4"
+      }
+    ],
+    "question": "여기서 해설은 백의 공간 우위, 흑의 킹사이드 pawn storm, 서로 다른 전장, 타이밍 싸움 중 무엇을 root story로 삼아야 하나?",
+    "why": "한쪽만 좋아 보이는 단일 원인보다 양쪽 계획의 충돌이 핵심.",
+    "svg": "C:/Codes/CondensedChess-master-restored/target/chess-position-questions/round1/Q06.svg"
+  },
+  {
+    "id": "Q07",
+    "phase": "Slow maneuvering opening",
+    "opening": "Italian Game / Giuoco Pianissimo",
+    "fen": "r2qr1k1/bpp2pp1/p1npbn1p/4p3/2B1P3/1BP3NP/PP1N1PP1/R1BQRNK1 w - - 3 11",
+    "sideToMove": "White",
+    "evalWhitePov": "+0.20",
+    "pv": [
+      {
+        "score": "+0.20",
+        "pv": "Be3 Bxe3 Nxe3 Rb8 Ba4 b5"
+      }
+    ],
+    "question": "조용한 이탈리안에서 Nf1-g3, d4 break, a4, Be3 교환 같은 후보를 계획 목록으로 보여줄지, 아니면 포지션 성격 하나로 압축할지 어느 쪽이 더 좋은가?",
+    "why": "엔진 1수보다 인간이 보는 후보계획의 질서가 중요한 자리.",
+    "svg": "C:/Codes/CondensedChess-master-restored/target/chess-position-questions/round1/Q07.svg"
+  },
+  {
+    "id": "Q08",
+    "phase": "Opening -> flexible center",
+    "opening": "English Opening / Four Knights reversed structures",
+    "fen": "r2q1rk1/ppp1bppp/1nn5/4p3/8/2NPBNP1/PP2PPBP/R2Q1RK1 b - - 4 9",
+    "sideToMove": "Black",
+    "evalWhitePov": "+0.15",
+    "pv": [
+      {
+        "score": "+0.15",
+        "pv": "Be6 a3 Nd5 Bd2 f6 Nxd5"
+      }
+    ],
+    "question": "영국식 구조에서 d4/e4/b4 같은 중앙-측면 전환을 어떤 방식으로 설명해야 하나: break 후보, 말 위치가 허락하는 break, 상대 중심 견제 중 무엇이 중요하다고 보나?",
+    "why": "명확한 전술보다 유연성 자체가 평가 요소가 되는 자리.",
+    "svg": "C:/Codes/CondensedChess-master-restored/target/chess-position-questions/round1/Q08.svg"
+  },
+  {
+    "id": "Q09",
+    "phase": "Opening -> dynamic center",
+    "opening": "Semi-Slav / Meran-type structure",
+    "fen": "rn1qk2r/1b3ppp/p3pn2/1pp5/8/3BPN2/PP2QPPP/RNB2RK1 w kq - 3 10",
+    "sideToMove": "White",
+    "evalWhitePov": "+0.33",
+    "pv": [
+      {
+        "score": "+0.33",
+        "pv": "dxc5 Bxf3 Qxf3 Nbd7 Rd1 Bxc5"
+      }
+    ],
+    "question": "여기서 백/흑 해설은 중앙 e4 break, 흑의 ...c5/...b5 공간, bishop diagonal, 왕 안전 중 어떤 충돌을 중심으로 해야 하나?",
+    "why": "구조적 공간과 중앙 반격이 곧바로 전술 가능성으로 이어지는 자리.",
+    "svg": "C:/Codes/CondensedChess-master-restored/target/chess-position-questions/round1/Q09.svg"
+  },
+  {
+    "id": "Q10",
+    "phase": "Opening -> French IQP / piece activity",
+    "opening": "French Tarrasch / open center",
+    "fen": "r1b1kb1r/pp3ppp/2nqpn2/8/2BN4/8/PPP2PPP/R1BQ1RK1 b kq - 0 10",
+    "sideToMove": "Black",
+    "evalWhitePov": "+0.24",
+    "pv": [
+      {
+        "score": "+0.24",
+        "pv": "Be7 c3 O-O Qf3 e5 Nf5"
+      }
+    ],
+    "question": "프렌치 타라쉬에서 백의 활동성을 흑 퀸 템포, 중앙 말 활동, IQP/isolani 가능성, 킹사이드 발전 우위 중 무엇으로 구조화해야 하나?",
+    "why": "작은 템포와 구조가 섞여 원인 귀속이 흔들리기 쉬운 자리.",
+    "svg": "C:/Codes/CondensedChess-master-restored/target/chess-position-questions/round1/Q10.svg"
+  },
+  {
+    "id": "Q11",
+    "phase": "Endgame technique",
+    "opening": "Lucena-style rook ending conversion",
+    "fen": "8/2KP4/4k3/8/3R4/8/8/2r5 w - - 0 1",
+    "sideToMove": "White",
+    "evalWhitePov": "+4.63",
+    "pv": [
+      {
+        "score": "+4.63",
+        "pv": "Kb8 Rb1+ Kc7 Rc1+ Kb6 Rb1+"
+      }
+    ],
+    "question": "이 룩엔딩 전환은 정답 수순, 체크 차단/bridge-building 개념, 왕의 은신처 확보, 왜 성급한 퀸 승격만 보면 부족한가 중 어떤 순서로 설명해야 하나?",
+    "why": "엔드게임은 평가보다 기술 개념의 전달 순서가 중요.",
+    "svg": "C:/Codes/CondensedChess-master-restored/target/chess-position-questions/round1/Q11.svg"
+  },
+  {
+    "id": "Q12",
+    "phase": "Endgame defense",
+    "opening": "Philidor-style rook ending defense",
+    "fen": "8/6k1/8/r3P3/4K3/8/8/7R b - - 0 1",
+    "sideToMove": "Black",
+    "evalWhitePov": "+0.14",
+    "pv": [
+      {
+        "score": "+0.14",
+        "pv": "Ra3 Kf5 Ra7 Rb1 Kf7 Rd1"
+      }
+    ],
+    "question": "이 방어형 룩엔딩은 3랭크/측면 차단, 체크 거리 유지, 폰 전진 유도 후 뒤에서 체크, 왜 수동 수비가 충분한가 중 무엇을 먼저 설명해야 하나?",
+    "why": "나쁜 수가 아니라 방어 구조의 목적을 이해해야 하는 엔드게임.",
+    "svg": "C:/Codes/CondensedChess-master-restored/target/chess-position-questions/round1/Q12.svg"
+  }
+]
