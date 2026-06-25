@@ -243,7 +243,9 @@ object MoveReviewPhase3PlayedBindingSummary:
     )
 
 object MoveReviewPhase3AuditRunner:
-  private final case class AuditInputSample(
+  import RawOpeningContextJson.given
+
+  private[qc] final case class AuditInputSample(
       sampleId: String,
       raw: RawMoveReviewInput,
       opening: Option[String],
@@ -251,6 +253,8 @@ object MoveReviewPhase3AuditRunner:
       targetPly: Option[Int],
       playedSan: Option[String]
   )
+
+  private given Writes[RawMoveReviewInput] = Json.writes[RawMoveReviewInput]
 
   private given Reads[RawMoveReviewInput] = Reads { json =>
     for
@@ -279,11 +283,12 @@ object MoveReviewPhase3AuditRunner:
       MoveReviewQualityInputFiles.parseJsonDocuments(inputPath).zipWithIndex.map { case (json, index) =>
         parseSample(json, index)
       }
+    outputPath.foreach(path => writeReplayInputArchive(path, samples))
     val fingerprints = samples.map(sample => inputFingerprint(sample.raw))
     val duplicateCounts = fingerprints.groupBy(identity).view.mapValues(_.size).toMap
     var seen = Map.empty[String, Int]
-    val rows =
-      samples.zip(fingerprints).map { case (sample, fingerprint) =>
+    val rows = samples.zip(fingerprints).map { case (sample, fingerprint) =>
+      () =>
         val ordinal = seen.getOrElse(fingerprint, 0) + 1
         seen = seen.updated(fingerprint, ordinal)
         auditSample(
@@ -292,11 +297,47 @@ object MoveReviewPhase3AuditRunner:
           inputDuplicateOrdinal = ordinal,
           inputDuplicateCount = duplicateCounts.getOrElse(fingerprint, 1)
         )
-      }
-    val output = rows.map(row => Json.stringify(row)).mkString(System.lineSeparator())
+    }
     outputPath match
-      case Some(path) => Files.writeString(path, output, StandardCharsets.UTF_8)
-      case None       => println(output)
+      case Some(path) => writeJsonLines(path, rows.iterator.map(_.apply()))
+      case None       => rows.foreach(row => println(Json.stringify(row())))
+
+  private[qc] def writeReplayInputArchive(outputPath: Path, samples: List[AuditInputSample]): Path =
+    val path = replayInputArchivePath(outputPath)
+    val rows = samples.iterator.map(sample =>
+      Json.obj(
+        "schemaVersion" -> "move_review_phase3_replay_input.v1",
+        "sampleId" -> sample.sampleId,
+        "input" -> Json.toJson(sample.raw),
+        "opening" -> sample.opening,
+        "sliceKind" -> sample.sliceKind,
+        "targetPly" -> sample.targetPly,
+        "playedSan" -> sample.playedSan
+      )
+    )
+    writeJsonLines(path, rows)
+    path
+
+  private def replayInputArchivePath(outputPath: Path): Path =
+    val fileName = outputPath.getFileName.toString
+    val replayFileName =
+      if fileName.contains("phase3_audit_output") then
+        fileName.replaceFirst("phase3_audit_output", "phase3_audit_input_replay")
+      else
+        val extensionStart = fileName.lastIndexOf('.')
+        if extensionStart > 0 then
+          s"${fileName.take(extensionStart)}.input_replay${fileName.drop(extensionStart)}"
+        else s"$fileName.input_replay.jsonl"
+    Option(outputPath.getParent).map(_.resolve(replayFileName)).getOrElse(Path.of(replayFileName))
+
+  private def writeJsonLines(path: Path, rows: Iterator[JsValue]): Unit =
+    val writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8)
+    try
+      var first = true
+      rows.foreach: row =>
+        if first then first = false else writer.newLine()
+        writer.write(Json.stringify(row))
+    finally writer.close()
 
   private def parseSample(json: JsValue, index: Int): AuditInputSample =
     parseDirectRaw(json, index) match
@@ -1674,8 +1715,12 @@ object MoveReviewPhase3AuditRunner:
       "primaryUnframedCauseKinds" -> diagnostic.primaryUnframedCauseKinds.map(_.toString),
       "primaryRootCauseKinds" -> diagnostic.primaryRootCauseKinds.map(_.toString),
       "primaryTacticalWitnessCauseKinds" -> diagnostic.primaryTacticalWitnessCauseKinds.map(_.toString),
+      "primaryPunishmentWitnessCauseKinds" -> diagnostic.primaryPunishmentWitnessCauseKinds.map(_.toString),
+      "primaryContextualTacticalWitnessCauseKinds" -> diagnostic.primaryContextualTacticalWitnessCauseKinds.map(_.toString),
       "primaryRootCauseEvidenceIds" -> diagnostic.primaryRootCauseEvidenceIds,
       "primaryTacticalWitnessCauseEvidenceIds" -> diagnostic.primaryTacticalWitnessCauseEvidenceIds,
+      "primaryPunishmentWitnessCauseEvidenceIds" -> diagnostic.primaryPunishmentWitnessCauseEvidenceIds,
+      "primaryContextualTacticalWitnessCauseEvidenceIds" -> diagnostic.primaryContextualTacticalWitnessCauseEvidenceIds,
       "secondaryCauseEvidenceIds" -> diagnostic.secondaryCauseEvidenceIds,
       "contextCauseEvidenceIds" -> diagnostic.contextCauseEvidenceIds,
       "projectedContextCauseNoViewIds" -> diagnostic.projectedContextCauseNoViewIds,
@@ -3447,6 +3492,13 @@ object MoveReviewPhase3AuditRunner:
       "hasOwnedAdmissibleLongTermProof" -> frame.hasOwnedAdmissibleLongTermProof,
       "tacticalWitnessCauseEvidenceIds" -> frame.tacticalWitnessCauseEvidenceIds,
       "tacticalWitnessCauseKinds" -> frame.tacticalWitnessCauseKinds.map(_.toString),
+      "punishmentWitnessCauseEvidenceIds" -> frame.punishmentWitnessCauseEvidenceIds,
+      "punishmentWitnessCauseKinds" -> frame.punishmentWitnessCauseKinds.map(_.toString),
+      "contextualTacticalWitnessCauseEvidenceIds" -> frame.contextualTacticalWitnessCauseEvidenceIds,
+      "contextualTacticalWitnessCauseKinds" -> frame.contextualTacticalWitnessCauseKinds.map(_.toString),
+      "witnessBindingLevel" -> frame.witnessBindingLevel.toString,
+      "witnessBindingSignals" -> frame.witnessBindingSignals.map(_.toString),
+      "witnessBindingRootCauseEvidenceIds" -> frame.witnessBindingRootCauseEvidenceIds,
       "objectBindingSignatures" -> frame.objectBindingSignatures,
       "concreteObjectReady" -> frame.concreteObjectReady
     )

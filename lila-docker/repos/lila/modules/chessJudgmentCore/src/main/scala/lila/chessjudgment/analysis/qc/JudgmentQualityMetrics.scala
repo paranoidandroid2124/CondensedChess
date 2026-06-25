@@ -753,8 +753,12 @@ final case class ComparisonMoveJudgmentViewDiagnostics(
     primaryUnframedCauseKinds: List[RelativeCauseKind],
     primaryRootCauseKinds: List[RelativeCauseKind],
     primaryTacticalWitnessCauseKinds: List[RelativeCauseKind],
+    primaryPunishmentWitnessCauseKinds: List[RelativeCauseKind],
+    primaryContextualTacticalWitnessCauseKinds: List[RelativeCauseKind],
     primaryRootCauseEvidenceIds: List[String],
     primaryTacticalWitnessCauseEvidenceIds: List[String],
+    primaryPunishmentWitnessCauseEvidenceIds: List[String],
+    primaryContextualTacticalWitnessCauseEvidenceIds: List[String],
     secondaryCauseEvidenceIds: List[String],
     contextCauseEvidenceIds: List[String],
     projectedContextCauseNoViewIds: List[String],
@@ -1460,6 +1464,12 @@ object CandidateComparisonDiagnostic:
     val secondaryFrames = comparisonCauseFrames(packet, fact, _.secondaryCauses)
     val contextFrames = comparisonCauseFrames(packet, fact, _.contextCauses)
     val contextCauseEvidenceIds = contextFrames.flatMap(_.causeEvidenceIds).distinct.sorted
+    val primaryTacticalWitnessFrames =
+      primaryFrames.filter(_.narrativeRole == MoveJudgmentCauseNarrativeRole.TacticalWitness)
+    val primaryPunishmentWitnessFrames =
+      primaryTacticalWitnessFrames.filter(_.witnessBindingLevel == MoveJudgmentCauseWitnessBindingLevel.Punishment)
+    val primaryContextualTacticalWitnessFrames =
+      primaryTacticalWitnessFrames.filterNot(_.witnessBindingLevel == MoveJudgmentCauseWitnessBindingLevel.Punishment)
     ComparisonMoveJudgmentViewDiagnostics(
       primaryCauseKinds = primaryFrames.map(_.causeKind).distinct,
       secondaryCauseKinds = secondaryFrames.map(_.causeKind).distinct,
@@ -1472,12 +1482,15 @@ object CandidateComparisonDiagnostic:
       primaryUnframedCauseKinds = primaryFrames.filterNot(_.framed).map(_.causeKind).distinct,
       primaryRootCauseKinds =
         primaryFrames.filter(_.narrativeRole == MoveJudgmentCauseNarrativeRole.RootCause).map(_.causeKind).distinct,
-      primaryTacticalWitnessCauseKinds =
-        primaryFrames.filter(_.narrativeRole == MoveJudgmentCauseNarrativeRole.TacticalWitness).map(_.causeKind).distinct,
+      primaryTacticalWitnessCauseKinds = primaryPunishmentWitnessFrames.map(_.causeKind).distinct,
+      primaryPunishmentWitnessCauseKinds = primaryPunishmentWitnessFrames.map(_.causeKind).distinct,
+      primaryContextualTacticalWitnessCauseKinds = primaryContextualTacticalWitnessFrames.map(_.causeKind).distinct,
       primaryRootCauseEvidenceIds =
         primaryFrames.filter(_.narrativeRole == MoveJudgmentCauseNarrativeRole.RootCause).flatMap(_.causeEvidenceIds).distinct.sorted,
-      primaryTacticalWitnessCauseEvidenceIds =
-        primaryFrames.filter(_.narrativeRole == MoveJudgmentCauseNarrativeRole.TacticalWitness).flatMap(_.causeEvidenceIds).distinct.sorted,
+      primaryTacticalWitnessCauseEvidenceIds = primaryPunishmentWitnessFrames.flatMap(_.causeEvidenceIds).distinct.sorted,
+      primaryPunishmentWitnessCauseEvidenceIds = primaryPunishmentWitnessFrames.flatMap(_.causeEvidenceIds).distinct.sorted,
+      primaryContextualTacticalWitnessCauseEvidenceIds =
+        primaryContextualTacticalWitnessFrames.flatMap(_.causeEvidenceIds).distinct.sorted,
       secondaryCauseEvidenceIds = secondaryFrames.flatMap(_.causeEvidenceIds).distinct.sorted,
       contextCauseEvidenceIds = contextCauseEvidenceIds,
       projectedContextCauseNoViewIds = projectedContextCauseNoViewIds(packet, fact, contextCauseEvidenceIds.toSet),

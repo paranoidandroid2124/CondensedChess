@@ -1494,6 +1494,29 @@ enum MoveJudgmentCauseNarrativeRole:
   case SupportingCause
   case ContextCause
 
+enum MoveJudgmentCauseWitnessBindingLevel:
+  case NotWitness
+  case SameComparisonOnly
+  case LineContext
+  case ObjectContext
+  case Punishment
+
+enum MoveJudgmentCauseWitnessBindingSignal:
+  case SameComparison
+  case SharedExactObjectSignature
+  case SharedActor
+  case SharedTarget
+  case SharedMechanism
+  case SharedConsequence
+  case SharedWitness
+  case SharedDirectObjectSignature
+  case SharedDirectActor
+  case SharedDirectTarget
+  case SharedDirectMechanism
+  case SharedDirectConsequence
+  case SameEventLine
+  case DirectProofSourceOverlap
+
 case class MoveJudgmentVerdictFrame(
     verdict: MoveChoiceVerdict,
     winPercentLossForMover: Double,
@@ -1561,7 +1584,14 @@ case class MoveJudgmentCauseFrame(
     hasOwnedAdmissibleLongTermProof: Boolean = false,
     narrativeRole: MoveJudgmentCauseNarrativeRole = MoveJudgmentCauseNarrativeRole.RootCause,
     tacticalWitnessCauseEvidenceIds: List[String] = Nil,
-    tacticalWitnessCauseKinds: List[RelativeCauseKind] = Nil
+    tacticalWitnessCauseKinds: List[RelativeCauseKind] = Nil,
+    punishmentWitnessCauseEvidenceIds: List[String] = Nil,
+    punishmentWitnessCauseKinds: List[RelativeCauseKind] = Nil,
+    contextualTacticalWitnessCauseEvidenceIds: List[String] = Nil,
+    contextualTacticalWitnessCauseKinds: List[RelativeCauseKind] = Nil,
+    witnessBindingLevel: MoveJudgmentCauseWitnessBindingLevel = MoveJudgmentCauseWitnessBindingLevel.NotWitness,
+    witnessBindingSignals: List[MoveJudgmentCauseWitnessBindingSignal] = Nil,
+    witnessBindingRootCauseEvidenceIds: List[String] = Nil
 )
 
 case class MoveJudgmentLocalIdeaFrame(
@@ -1950,16 +1980,164 @@ object MoveJudgmentView:
           frames
             .filter(candidate => sameComparison(candidate, frame) && tacticalWitnessFrame(candidate))
             .filterNot(_.causeEvidenceIds == frame.causeEvidenceIds)
+        val witnessBindings = witnesses.map(witness => witness -> witnessBinding(frame, witness))
+        val punishmentWitnesses =
+          witnessBindings.collect { case (witness, binding) if binding.level == MoveJudgmentCauseWitnessBindingLevel.Punishment =>
+            witness
+          }
+        val contextualWitnesses =
+          witnessBindings.collect { case (witness, binding) if binding.level != MoveJudgmentCauseWitnessBindingLevel.Punishment =>
+            witness
+          }
         frame.copy(
           narrativeRole = MoveJudgmentCauseNarrativeRole.RootCause,
-          tacticalWitnessCauseEvidenceIds = witnesses.flatMap(_.causeEvidenceIds).distinct.sorted,
-          tacticalWitnessCauseKinds = witnesses.map(_.causeKind).distinct
+          tacticalWitnessCauseEvidenceIds = punishmentWitnesses.flatMap(_.causeEvidenceIds).distinct.sorted,
+          tacticalWitnessCauseKinds = punishmentWitnesses.map(_.causeKind).distinct,
+          punishmentWitnessCauseEvidenceIds = punishmentWitnesses.flatMap(_.causeEvidenceIds).distinct.sorted,
+          punishmentWitnessCauseKinds = punishmentWitnesses.map(_.causeKind).distinct,
+          contextualTacticalWitnessCauseEvidenceIds = contextualWitnesses.flatMap(_.causeEvidenceIds).distinct.sorted,
+          contextualTacticalWitnessCauseKinds = contextualWitnesses.map(_.causeKind).distinct
         )
       else if tacticalWitnessFrame(frame) && matchingLongTermRoots.nonEmpty then
-        frame.copy(narrativeRole = MoveJudgmentCauseNarrativeRole.TacticalWitness)
+        val binding = strongestWitnessBinding(frame, matchingLongTermRoots)
+        frame.copy(
+          narrativeRole = MoveJudgmentCauseNarrativeRole.TacticalWitness,
+          witnessBindingLevel = binding.level,
+          witnessBindingSignals = binding.signals,
+          witnessBindingRootCauseEvidenceIds = binding.rootCauseEvidenceIds
+        )
       else
         frame.copy(narrativeRole = defaultNarrativeRole(frame.role))
     }
+
+  private final case class TacticalWitnessBinding(
+      level: MoveJudgmentCauseWitnessBindingLevel,
+      signals: List[MoveJudgmentCauseWitnessBindingSignal],
+      rootCauseEvidenceIds: List[String]
+  )
+
+  private def strongestWitnessBinding(
+      witness: MoveJudgmentCauseFrame,
+      roots: List[MoveJudgmentCauseFrame]
+  ): TacticalWitnessBinding =
+    roots
+      .filter(root => sameComparison(root, witness))
+      .map(root => witnessBinding(root, witness))
+      .sortBy(binding => witnessBindingRank(binding.level))
+      .lastOption
+      .getOrElse(
+        TacticalWitnessBinding(
+          MoveJudgmentCauseWitnessBindingLevel.SameComparisonOnly,
+          List(MoveJudgmentCauseWitnessBindingSignal.SameComparison),
+          Nil
+        )
+      )
+
+  private def witnessBinding(
+      root: MoveJudgmentCauseFrame,
+      witness: MoveJudgmentCauseFrame
+  ): TacticalWitnessBinding =
+    val rootSignatures = root.objectBindingSignatures.toSet
+    val witnessSignatures = witness.objectBindingSignatures.toSet
+    val rootDirectSignatures = objectSignatures(root, Some(RelativeCauseProofRole.DirectProof))
+    val witnessDirectSignatures = objectSignatures(witness, Some(RelativeCauseProofRole.DirectProof))
+    val sharedExact = rootSignatures.intersect(witnessSignatures).nonEmpty
+    val sharedActor = sharedObjectToken(root, witness, "actor")
+    val sharedTarget = sharedObjectToken(root, witness, "target")
+    val sharedMechanism = sharedObjectToken(root, witness, "mechanism")
+    val sharedConsequence = sharedObjectToken(root, witness, "consequence")
+    val sharedWitness = sharedObjectToken(root, witness, "witness")
+    val sharedDirectExact = rootDirectSignatures.intersect(witnessDirectSignatures).nonEmpty
+    val sharedDirectActor = sharedObjectToken(root, witness, "actor", Some(RelativeCauseProofRole.DirectProof))
+    val sharedDirectTarget = sharedObjectToken(root, witness, "target", Some(RelativeCauseProofRole.DirectProof))
+    val sharedDirectMechanism = sharedObjectToken(root, witness, "mechanism", Some(RelativeCauseProofRole.DirectProof))
+    val sharedDirectConsequence = sharedObjectToken(root, witness, "consequence", Some(RelativeCauseProofRole.DirectProof))
+    val sameEvent = root.eventLine == witness.eventLine
+    val directProofOverlap = root.proofDirectSourceIds.toSet.intersect(witness.proofDirectSourceIds.toSet).nonEmpty
+    val signals =
+      List(
+        Some(MoveJudgmentCauseWitnessBindingSignal.SameComparison),
+        Option.when(sharedExact)(MoveJudgmentCauseWitnessBindingSignal.SharedExactObjectSignature),
+        Option.when(sharedActor)(MoveJudgmentCauseWitnessBindingSignal.SharedActor),
+        Option.when(sharedTarget)(MoveJudgmentCauseWitnessBindingSignal.SharedTarget),
+        Option.when(sharedMechanism)(MoveJudgmentCauseWitnessBindingSignal.SharedMechanism),
+        Option.when(sharedConsequence)(MoveJudgmentCauseWitnessBindingSignal.SharedConsequence),
+        Option.when(sharedWitness)(MoveJudgmentCauseWitnessBindingSignal.SharedWitness),
+        Option.when(sharedDirectExact)(MoveJudgmentCauseWitnessBindingSignal.SharedDirectObjectSignature),
+        Option.when(sharedDirectActor)(MoveJudgmentCauseWitnessBindingSignal.SharedDirectActor),
+        Option.when(sharedDirectTarget)(MoveJudgmentCauseWitnessBindingSignal.SharedDirectTarget),
+        Option.when(sharedDirectMechanism)(MoveJudgmentCauseWitnessBindingSignal.SharedDirectMechanism),
+        Option.when(sharedDirectConsequence)(MoveJudgmentCauseWitnessBindingSignal.SharedDirectConsequence),
+        Option.when(sameEvent)(MoveJudgmentCauseWitnessBindingSignal.SameEventLine),
+        Option.when(directProofOverlap)(MoveJudgmentCauseWitnessBindingSignal.DirectProofSourceOverlap)
+      ).flatten.distinct.sortBy(_.toString)
+    TacticalWitnessBinding(
+      level = witnessBindingLevel(
+        objectBound = sharedExact || sharedActor || sharedTarget,
+        directObjectBound = sharedDirectExact || sharedDirectActor || sharedDirectTarget,
+        mechanismBound = sharedMechanism,
+        consequenceBound = sharedConsequence,
+        directMechanismBound = sharedDirectMechanism,
+        directConsequenceBound = sharedDirectConsequence,
+        lineOrEvalBound = sharedWitness || sameEvent || directProofOverlap,
+        eventOrEvalBound = sameEvent || directProofOverlap
+      ),
+      signals = signals,
+      rootCauseEvidenceIds = root.causeEvidenceIds.distinct.sorted
+    )
+
+  private def witnessBindingLevel(
+      objectBound: Boolean,
+      directObjectBound: Boolean,
+      mechanismBound: Boolean,
+      consequenceBound: Boolean,
+      directMechanismBound: Boolean,
+      directConsequenceBound: Boolean,
+      lineOrEvalBound: Boolean,
+      eventOrEvalBound: Boolean
+  ): MoveJudgmentCauseWitnessBindingLevel =
+    if directObjectBound && directMechanismBound && directConsequenceBound && eventOrEvalBound then
+      MoveJudgmentCauseWitnessBindingLevel.Punishment
+    else if objectBound && (mechanismBound || consequenceBound) then
+      MoveJudgmentCauseWitnessBindingLevel.ObjectContext
+    else if lineOrEvalBound then MoveJudgmentCauseWitnessBindingLevel.LineContext
+    else MoveJudgmentCauseWitnessBindingLevel.SameComparisonOnly
+
+  private def sharedObjectToken(
+      left: MoveJudgmentCauseFrame,
+      right: MoveJudgmentCauseFrame,
+      role: String,
+      proofRole: Option[RelativeCauseProofRole] = None
+  ): Boolean =
+    objectTokens(left, role, proofRole).intersect(objectTokens(right, role, proofRole)).nonEmpty
+
+  private def objectTokens(
+      frame: MoveJudgmentCauseFrame,
+      role: String,
+      proofRole: Option[RelativeCauseProofRole]
+  ): Set[String] =
+    val prefix = s"$role="
+    objectSignatures(frame, proofRole).flatMap { signature =>
+      signature
+        .split("\\|")
+        .toList
+        .collect { case part if part.startsWith(prefix) => part.stripPrefix(prefix) }
+    }.toSet
+
+  private def objectSignatures(
+      frame: MoveJudgmentCauseFrame,
+      proofRole: Option[RelativeCauseProofRole]
+  ): Set[String] =
+    val proofPart = proofRole.map(role => s"proof=$role")
+    frame.objectBindingSignatures.filter(signature => proofPart.forall(signature.contains)).toSet
+
+  private def witnessBindingRank(level: MoveJudgmentCauseWitnessBindingLevel): Int =
+    level match
+      case MoveJudgmentCauseWitnessBindingLevel.NotWitness          => 0
+      case MoveJudgmentCauseWitnessBindingLevel.SameComparisonOnly => 1
+      case MoveJudgmentCauseWitnessBindingLevel.LineContext        => 2
+      case MoveJudgmentCauseWitnessBindingLevel.ObjectContext      => 3
+      case MoveJudgmentCauseWitnessBindingLevel.Punishment         => 4
 
   private def longTermRootFrame(frame: MoveJudgmentCauseFrame): Boolean =
     frame.role == MoveJudgmentCauseFrameRole.PrimaryCause &&
