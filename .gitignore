@@ -6,6 +6,7 @@
 /_edge_cookies.db
 /ops-*-cookie*.txt
 /test-results/
+/target/
 
 /lila-docker/conf/*.pem
 /lila-docker/logs/
